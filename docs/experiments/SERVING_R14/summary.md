@@ -17,11 +17,11 @@
 | FX-24 | Implemented; fixed and joint repaired search-only replays pass | bb42f31bd; StageFlowModel.cpp, stage_flow_test.cpp |
 | FX-25 | Implemented; unit checks and all four diagnostic artifact identities pass | 7c2cd2436; build/identity.py, compile.cpp, ServingRuntime.cuh, identity_join.py |
 | TR-4 | Partial: diagnostics reviewed; sampled stage and task profiles implemented, all five stage/task trace medians below 2%; sampled extrema remain estimates | 377c674d2, 5ec398310, 686dc3afc; ServingTrace.cuh, ServingTaskProfile.h, ledger_r14.py |
-| RW-3 / AT-1 | Integrated RW-3 and Ec32 legality; default pipeline off. Small-chunk L1 distribution added in development | df96abb7f, 821c64cf6, 9fa448f3a; full-model checks pending |
+| RW-3 / AT-1 | Integrated RW-3 and Ec32 legality; default pipeline off. Small-chunk L1 distribution integrated; model validation pending | df96abb7f, 821c64cf6, 9fa448f3a; full-model checks pending |
 | AT-3a | Implemented; five-architecture compile and position-coded tests pass; default unchanged | 0c3d9ac45, 68410eb88, dd7af352c; ServingAttentionPVSwap.h |
-| AT-2 / SK-1 | Nonpaged merge/combine LA and seed_fill implemented; host and single-process ticket tests pass; model checks pending | c0849f8a2, 68c592729, ac731bc10, 84def10d5; ModelHarness.cuh, MonotonicLastArriver.cuh, SkeletonSearch.cpp |
-| EP-1 / RA-1 | Development: parallel argmax and noinline variants compile on five architectures and pass numeric tests; L1 tail spreading awaits integrated check | 5434f44bb, a8588fb82, 9f0c36c2d; ServingEpilogue.h, PagedAttentionTaskBody.h |
-| GV-1 | Partial: standalone direct-streaming body and numeric matrix; validation queued, plan integration remains | 54756a6e3, 771aea037; ServingGemv.h, ServingGemvTaskBody.h |
+| AT-2 / SK-1 | Nonpaged merge/combine LA and seed_fill implemented; host and single-process ticket tests pass; three 64-step model token/KV smokes pass; 50-process validation pending | c0849f8a2, 68c592729, ac731bc10, 84def10d5; ModelHarness.cuh, MonotonicLastArriver.cuh, SkeletonSearch.cpp |
+| EP-1 / RA-1 | Integrated: parallel argmax and noinline variants compile on five architectures and pass numeric tests; L1 tail spreading awaits integrated check | 5434f44bb, a8588fb82, 9f0c36c2d; ServingEpilogue.h, PagedAttentionTaskBody.h |
+| GV-1 | Partial: standalone five-architecture/numeric pass; plan, resource and required-family integration committed, production-dispatch checks queued | 54756a6e3, 771aea037, 5ae2ffc8d; ServingGemv.h, ServingGemvTaskBody.h |
 | SL-6 | Partial: configurable shortlist and identity-bound multi-past halving implemented; variant families/budget wiring remain | e95dbf3ee, 96205607b, a28bbb629; SkeletonSearch.cpp, cli.py, integrated_selection.py |
 | Conditional Phase C / Phase D | Not started | Decisions remain subject to registered evidence |
 
@@ -65,10 +65,10 @@ Phase-A binaries/source snapshots are preserved. Validated RW-3 and partial AT-1
 
 - Independent 16 KiB private double-buffer storage exceeds sm_89 shared memory; both policies at 16 KiB are tested via the paged transport, Independent uses 8 KiB. This does not enable an invalid runtime configuration.
 - Legacy R13 reference artifacts lack the new identity fields; preserve their binary/source SHA and unknown provenance explicitly. New artifacts enforce identity_schema=1.
-- Next: accept LA model smoke and GEMV numerical results; merge the checked development checkpoint, complete GV/SL-6 integration and freeze before Phase B. No Phase-C optimization is enabled.
+- Next: validate GEMV production dispatch and real-model integration, finish SL-6 Ec/implementation variants and budget wiring, then freeze before Phase B. No Phase-C optimization is enabled.
 - R15 scope remains unimplemented: multi-page stages, phase-subgraph handoff, shared simulator/codegen execution description, partial evaluation, architecture-specific collectives and prefill.
 
-Independent CPU development proceeds in `/root/r14_work/development` (`r14-development`, checkpoint `001403629`). Main runtime sources remain frozen during the queued LA model builds. See development.md for implementation limits.
+Development checkpoint `001403629` has been merged. Main sources are frozen for `queue_gemv_integration.json` compilation checks. See development.md for implementation limits.
 
 ## Phase-0 review and TR-4 limitations
 
@@ -94,6 +94,21 @@ Verified: results/phase_a_acceptance.json; raw/phase_a_completed.tar.xz with raw
 All four rebuild drifts exceed the ±0.5% prediction; token stability passes the specified stop condition. The cause is not yet isolated, so these are corrected baselines, not a claimed performance win. N1' is 2.84817 ms versus 2.85861 ms for the paged rebuild; their difference exceeds both ranges.
 Stage/task trace median overhead spans −0.09% to +1.15%; instrumented tokens match base. Stage extrema use rotating 1/8 CTA samples and remain estimates.
 AT-3a initial compile failed in its test due to ambiguous `E` (CuTe namespace); dd7af352c fixes the test name without changing expected values. Fixed compile/numeric steps pass; evidence is raw/implementation_numeric_checks.tar.xz and its manifest. EP/RA checks also pass: argmax has 45 shapes repeated three times; unchanged paged GEMM has 33 cases. These are intermediate implementation checks, not final model acceptance.
-Nonpaged LA initially failed the host lowering gate and then lacked the nonpaged arrival include. ac731bc10 and 84def10d5 correct these implementation errors. Historical failed steps remain recorded; `_v2` checks are explicit retries. The v2 host/architecture and single-process tests pass; LA_model_build_v2 and its dependent smoke are queued/running. No 50-process reliability conclusion is made.
+Nonpaged LA initially failed the host lowering gate and then lacked the nonpaged arrival include. ac731bc10 and 84def10d5 correct these implementation errors. Historical failed steps remain recorded; `_v2` checks are explicit retries. The v2 host/architecture and single-process tests pass; All three LA_model_build_v2 builds and their three-arm 64-step smoke checks pass (tokens and every KV cache match). No 50-process reliability conclusion is made.
 SL-6 integration detail: average linearly interpolated measurements at integer pasts 64..1087, holding the past1000 endpoint thereafter; retain half per pilot, then three fresh finalist rounds. Spill and execution identity are retained. Ec/implementation variant construction and the GEMV family still need integration.
 L1 small-chunk order changes only execution ordinals; logical g-major dependency indices remain unchanged. EP tail spreading uses a coprime CTA permutation, default off with parallel argmax; L2 retains the solved placement. These latest mapping changes await complete harness/model validation.
+
+## Latest implementation review
+
+Verified raw evidence: `raw/la_gemv_completed.tar.xz`, its SHA256 manifest, and `results/implementation_acceptance.json`.
+
+| LA case | Runtime / queued / elided stages | Split GEMMs | Smoke |
+|---|---:|---:|---|
+| Llama B1 | 99 / 83 / 16 | 0 | L2 separate, L1 separate, L1 loop: token/KV identical |
+| Qwen3 B1 | 171 / 143 / 28 | 0 | Same three arms pass |
+| Llama B16 | 131 / 83 / 48 | 32 | Same three arms pass |
+
+Standalone GEMV position-coded tests cover M/N/K tails, row/tiled layout and legal epilogues; sm_80/89/90/100/120 compile, only sm_89 executes. This is not yet end-to-end GEMV acceptance.
+GEMV TN8/16 cannot own DN's complete 32-column square-sum block or a SwiGLU pair: these combinations are explicitly rejected; TN32 retains all epilogues. This is a partial implementation deviation, not a changed correctness criterion.
+GEMV candidates account for the independent attention shared-memory union, retain implementation-specific resource/cache keys, and carry implementation into manifest and identity. Existing MMA keys remain unchanged.
+No performance defaults are changed, and no synchronization reliability claim is made before the prescribed 50-process checks.

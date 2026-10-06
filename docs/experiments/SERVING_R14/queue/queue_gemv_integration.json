@@ -1,0 +1,64 @@
+[
+  {
+    "name": "GV_integration_compile",
+    "gpu": false,
+    "priority": 14,
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python"
+    },
+    "timeout_s": 8400,
+    "after": [
+      "GV_numerical"
+    ],
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/check_gemv_integration.py"
+    ]
+  },
+  {
+    "name": "GV_model_build",
+    "gpu": false,
+    "priority": 15,
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "CUDACXX": "/usr/local/cuda/bin/nvcc"
+    },
+    "after": [
+      "GV_integration_compile"
+    ],
+    "timeout_s": 7200,
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/check_gemv_models.py",
+      "build"
+    ]
+  },
+  {
+    "name": "GV_model_smoke",
+    "gpu": true,
+    "priority": 16,
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "CUDACXX": "/usr/local/cuda/bin/nvcc"
+    },
+    "after": [
+      "GV_model_build"
+    ],
+    "timeout_s": 900,
+    "needs_free_mib": 12288,
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/check_gemv_models.py",
+      "smoke"
+    ]
+  }
+]
