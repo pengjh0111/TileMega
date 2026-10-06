@@ -17,9 +17,12 @@
 | FX-24 | Implemented; fixed and joint repaired search-only replays pass | bb42f31bd; StageFlowModel.cpp, stage_flow_test.cpp |
 | FX-25 | Implemented; unit checks and all four diagnostic artifact identities pass | 7c2cd2436; build/identity.py, compile.cpp, ServingRuntime.cuh, identity_join.py |
 | TR-4 | Partial: diagnostics reviewed; sampled stage and task profiles implemented, all five stage/task trace medians below 2%; sampled extrema remain estimates | 377c674d2, 5ec398310, 686dc3afc; ServingTrace.cuh, ServingTaskProfile.h, ledger_r14.py |
-| RW-3 / AT-1 | Isolated development branch: RW-3 code and AT-1 legality subset implemented; not accepted or merged | See development.md; RW-3 standalone 108 and paged 33 numerical cases pass |
-| AT-3a | Implemented in isolated development, validation queued; default unchanged | 0c3d9ac45, 68410eb88; ServingAttentionPVSwap.h |
-| AT-2, SK-1, GV-1, RA-1, EP-1, SL-6 | Not started | Required implementation remains |
+| RW-3 / AT-1 | Integrated RW-3 and Ec32 legality; default pipeline off. Small-chunk L1 distribution added in development | df96abb7f, 821c64cf6, 9fa448f3a; full-model checks pending |
+| AT-3a | Implemented; five-architecture compile and position-coded tests pass; default unchanged | 0c3d9ac45, 68410eb88, dd7af352c; ServingAttentionPVSwap.h |
+| AT-2 / SK-1 | Nonpaged merge/combine LA and seed_fill implemented; host and single-process ticket tests pass; model checks pending | c0849f8a2, 68c592729, ac731bc10, 84def10d5; ModelHarness.cuh, MonotonicLastArriver.cuh, SkeletonSearch.cpp |
+| EP-1 / RA-1 | Development: parallel argmax and noinline variants compile on five architectures and pass numeric tests; L1 tail spreading awaits integrated check | 5434f44bb, a8588fb82, 9f0c36c2d; ServingEpilogue.h, PagedAttentionTaskBody.h |
+| GV-1 | Partial: standalone direct-streaming body and numeric matrix; validation queued, plan integration remains | 54756a6e3, 771aea037; ServingGemv.h, ServingGemvTaskBody.h |
+| SL-6 | Partial: configurable shortlist and identity-bound multi-past halving implemented; variant families/budget wiring remain | e95dbf3ee, 96205607b, a28bbb629; SkeletonSearch.cpp, cli.py, integrated_selection.py |
 | Conditional Phase C / Phase D | Not started | Decisions remain subject to registered evidence |
 
 ## Evidence / T1–T12
@@ -62,10 +65,10 @@ Phase-A binaries/source snapshots are preserved. Validated RW-3 and partial AT-1
 
 - Independent 16 KiB private double-buffer storage exceeds sm_89 shared memory; both policies at 16 KiB are tested via the paged transport, Independent uses 8 KiB. This does not enable an invalid runtime configuration.
 - Legacy R13 reference artifacts lack the new identity fields; preserve their binary/source SHA and unknown provenance explicitly. New artifacts enforce identity_schema=1.
-- Next: run Phase A, verify baseline C-1/C-2 and trace overhead, then apply the registered baseline rule. Continue mandatory implementations separately.
+- Next: accept LA model smoke and GEMV numerical results; merge the checked development checkpoint, complete GV/SL-6 integration and freeze before Phase B. No Phase-C optimization is enabled.
 - R15 scope remains unimplemented: multi-page stages, phase-subgraph handoff, shared simulator/codegen execution description, partial evaluation, architecture-specific collectives and prefill.
 
-Independent CPU development proceeds in `/root/r14_work/development` (`r14-development`, latest implementation checkpoint `95eb2b159`), without changing the Phase-0 source/tools. See `development.md` for the exact boundary and evidence.
+Independent CPU development proceeds in `/root/r14_work/development` (`r14-development`, checkpoint `001403629`). Main runtime sources remain frozen during the queued LA model builds. See development.md for implementation limits.
 
 ## Phase-0 review and TR-4 limitations
 
@@ -90,4 +93,7 @@ Verified: results/phase_a_acceptance.json; raw/phase_a_completed.tar.xz with raw
 
 All four rebuild drifts exceed the ±0.5% prediction; token stability passes the specified stop condition. The cause is not yet isolated, so these are corrected baselines, not a claimed performance win. N1' is 2.84817 ms versus 2.85861 ms for the paged rebuild; their difference exceeds both ranges.
 Stage/task trace median overhead spans −0.09% to +1.15%; instrumented tokens match base. Stage extrema use rotating 1/8 CTA samples and remain estimates.
-AT-3a initial compile failed in its test due to ambiguous `E` (CuTe namespace); dd7af352c fixes the test name without changing expected values. Fixed compilation/numerical checks are queued separately; no AT-3a timing is authorized before they pass.
+AT-3a initial compile failed in its test due to ambiguous `E` (CuTe namespace); dd7af352c fixes the test name without changing expected values. Fixed compile/numeric steps pass; evidence is raw/implementation_numeric_checks.tar.xz and its manifest. EP/RA checks also pass: argmax has 45 shapes repeated three times; unchanged paged GEMM has 33 cases. These are intermediate implementation checks, not final model acceptance.
+Nonpaged LA initially failed the host lowering gate and then lacked the nonpaged arrival include. ac731bc10 and 84def10d5 correct these implementation errors. Historical failed steps remain recorded; `_v2` checks are explicit retries. The v2 host/architecture and single-process tests pass; LA_model_build_v2 and its dependent smoke are queued/running. No 50-process reliability conclusion is made.
+SL-6 integration detail: average linearly interpolated measurements at integer pasts 64..1087, holding the past1000 endpoint thereafter; retain half per pilot, then three fresh finalist rounds. Spill and execution identity are retained. Ec/implementation variant construction and the GEMV family still need integration.
+L1 small-chunk order changes only execution ordinals; logical g-major dependency indices remain unchanged. EP tail spreading uses a coprime CTA permutation, default off with parallel argmax; L2 retains the solved placement. These latest mapping changes await complete harness/model validation.
