@@ -16,6 +16,7 @@ import sys
 import time
 import statistics
 
+from .serving.integrated_selection import successive_halving
 from .cache import atomic_json, export_key, file_sha, key, locked, plan_key, record_outputs, valid_record
 from .fingerprint import ROOT, calibration_stamps, source_fingerprint
 from .serving.execution import compiler_features, execution_combinations, select_execution, write_execution, pin_prefill
@@ -440,32 +441,33 @@ class Run:
                             candidates.append(dict(pg=pg, mode=mode, loop=loop, library=str(library), samples_ms=[]))
                     selection_inputs=dict(libraries={pg:file_sha(library) for pg,library in built.items()},
                                           executor=features['decode_executor'], loop=features['decode_loop'],
-                                          prefill_mode=features['prefill_executor'],exclude_l1_loop=settings['exclude_l1_loop'])
+                                          prefill_mode=features['prefill_executor'],exclude_l1_loop=settings['exclude_l1_loop'],
+                                          objective='uniform_64_1087_linear_v1',pasts=[64,575,1000])
                     choice_path=self.out / f'decode-choice-B{batch}.json'
                     cached=json.loads(choice_path.read_text()) if choice_path.exists() else {}
                     if cached.get('inputs')==selection_inputs:
-                        candidates=cached['candidates']
+                        candidates=cached['candidates'];winner=cached['selected']
                     else:
-                        for round in range(3):
-                            ordered=candidates[round:]+candidates[:round]
-                            for candidate in ordered:
-                                if candidate.get('error'):continue
-                                out=self.out / f"decode-choice-B{batch}-{candidate['pg']}-{candidate['mode']}-{candidate['loop']}-r{round}"
-                                command=[sys.executable,'-m','tilemega.serving.measure_candidate','--so',candidate['library'],
-                                         '--model',str(self.model),'--batch',str(batch),'--past-mid','575',
-                                         '--mode',candidate['mode'],'--loop',str(candidate['loop']),
-                                         '--loop-steps','64','--warmup','8','--out',str(out),
-                                         '--guard-wait-s',str(settings['candidate_guard_wait_s'])]
-                                try:
-                                    self.command(command,f"choose-B{batch}-{candidate['pg']}-{candidate['mode']}-{candidate['loop']}-r{round}",gpu=True)
-                                    measured=json.loads((out/'measurements.json').read_text())['modes'][candidate['mode']]
-                                    if bool(measured.get('decode_loop_used'))!=bool(candidate['loop']):
-                                        raise RuntimeError('candidate did not use requested loop')
-                                    candidate['samples_ms'].append(measured['mean_ms'])
-                                except RuntimeError as error:
-                                    candidate['error']=str(error)
-                        atomic_json(choice_path,dict(inputs=selection_inputs,candidates=candidates))
-                    winner=select_execution(candidates)
+                        def measure_execution(candidate, round_label):
+                            out=self.out / f"decode-choice-B{batch}-{candidate['pg']}-{candidate['mode']}-{candidate['loop']}-{round_label}"
+                            command=[sys.executable,'-m','tilemega.serving.measure_candidate','--so',candidate['library'],
+                                     '--model',str(self.model),'--batch',str(batch),'--past-list','64,575,1000',
+                                     '--mode',candidate['mode'],'--loop',str(candidate['loop']),
+                                     '--loop-steps','64','--warmup','8','--out',str(out),
+                                     '--guard-wait-s',str(settings['candidate_guard_wait_s'])]
+                            self.command(command,f"choose-B{batch}-{candidate['pg']}-{candidate['mode']}-{candidate['loop']}-{round_label}",gpu=True)
+                            measured=json.loads((out/'measurements.json').read_text())['modes'][candidate['mode']]['by_past']
+                            identities=[]
+                            for values in measured.values():
+                                if bool(values.get('decode_loop_used'))!=bool(candidate['loop']):
+                                    raise RuntimeError('candidate did not use requested loop')
+                                identities.append(values.get('execution_identity'))
+                            if not identities or not identities[0] or any(x!=identities[0] for x in identities):
+                                raise ValueError('execution identity differs across past samples')
+                            return dict(by_past=measured,execution_identity=identities[0],
+                                        spill=identities[0]['spill'],measurement_path=str(out/'measurements.json'))
+                        winner,candidates=successive_halving(candidates,measure_execution)
+                        atomic_json(choice_path,dict(inputs=selection_inputs,candidates=candidates,selected=winner))
                     selected=winner['pg']
                     serving=write_execution(built[selected],winner['mode'],winner['loop'],features['prefill_executor'],
                                             selection=winner,stage_one=dict(mode=settings['mode'],loop=settings['candidate_loop']))

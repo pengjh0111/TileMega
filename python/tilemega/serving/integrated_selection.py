@@ -29,7 +29,10 @@ def successive_halving(candidates,measure):
     if not rows:raise ValueError('empty candidate set')
     active=list(range(len(rows)));round_index=0
     def observe(i,label):
-        r=measure(rows[i],label)
+        try:r=measure(rows[i],label)
+        except RuntimeError as error:
+            rows[i]['error']=str(error);rows[i]['eliminated_round']=label
+            return math.inf
         if not r.get('execution_identity'):raise ValueError('unidentified measurement')
         if r['execution_identity'].get('trace'):raise ValueError('trace timing cannot enter selection')
         old=rows[i]['measurements']
@@ -39,12 +42,18 @@ def successive_halving(candidates,measure):
         return value
     while len(active)>3:
         scores={i:observe(i,f'pilot{round_index}') for i in active[round_index%len(active):]+active[:round_index%len(active)]}
-        ranked=sorted(active,key=lambda i:(scores[i],i));keep=max(3,(len(ranked)+1)//2)
+        ranked=sorted((i for i in active if not rows[i].get('error')),key=lambda i:(scores[i],i))
+        if not ranked:raise RuntimeError('all serving execution candidates rejected')
+        keep=max(3,(len(ranked)+1)//2)
         for i in ranked[keep:]:rows[i]['eliminated_round']=f'pilot{round_index}'
         active=ranked[:keep];round_index+=1
     for r in range(3):
+        active=[i for i in active if not rows[i].get('error')]
+        if not active:raise RuntimeError('all serving execution candidates rejected')
         shift=r%len(active)
         for i in active[shift:]+active[:shift]:observe(i,f'final{r}')
+    active=[i for i in active if not rows[i].get('error')]
+    if not active:raise RuntimeError('all serving execution candidates rejected')
     for i in active:
         rows[i]['samples_ms']=[r['score_ms'] for r in rows[i]['measurements'] if r['round'].startswith('final')]
         rows[i]['median_ms']=statistics.median(rows[i]['samples_ms'])
