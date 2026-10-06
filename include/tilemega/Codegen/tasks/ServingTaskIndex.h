@@ -42,4 +42,17 @@ constexpr ServingAttentionTaskIndex DecodeServingAttentionTaskGMajor(
   return result;
 }
 
+// L1 execution ordinal only: logical event/CG numbering remains g-major.
+// Small chunks otherwise put inactive capacity tasks between active prefixes,
+// concentrating useful work on a subset of grid-stride workers.
+#if defined(__CUDACC__)
+__host__ __device__
+#endif
+constexpr int ServingAttentionL1Task(int ordinal,int batch,int groups,
+                                     int cache_blocks,int chunk,int seq=1) {
+  return seq==1 && chunk<=64
+      ? (ordinal%(batch*groups))*cache_blocks+ordinal/(batch*groups)
+      : ordinal;
+}
+
 }  // namespace tilemega::codegen

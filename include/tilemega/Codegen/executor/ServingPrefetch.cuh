@@ -56,8 +56,13 @@ __device__ inline void NextStage(Params const& p,unsigned stage) {
 #endif
   if(stage>=p.stage_count)return;
   unsigned budget=TILEMEGA_L2_PREFETCH_BYTES;
-  for(int task=PlacedBlock();task<ActiveBlocks(p,p.stages[stage]) && budget;task+=gridDim.x)
+  for(int ordinal=PlacedBlock();ordinal<ActiveBlocks(p,p.stages[stage]) && budget;ordinal+=gridDim.x) {
+    auto const& desc=p.stages[stage];
+    int task=desc.kind==TaskKind::kFusedAttention
+        ? ServingAttentionL1Task(ordinal,p.dims.batch,desc.extent,
+            CeilDiv(p.dims.capacity,desc.attention_kv_block),desc.attention_kv_block,p.dims.seq):ordinal;
     Task(p,stage,task,budget);
+  }
 }
 // Same monotonically counted grid event; only its wait is delayed.
 __device__ inline void Arrive(EventCounter* events,unsigned stage,unsigned long long iteration,

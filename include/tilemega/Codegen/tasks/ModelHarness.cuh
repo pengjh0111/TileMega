@@ -525,8 +525,10 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
       break;
     case TaskKind::kFusedAttention:
 #if TILEMEGA_SERVING_RUNTIME
-      for (int task = int(blockIdx.x); task < ServingAttentionTaskCount(p, stage);
-           task += int(gridDim.x)) {
+      for (int ordinal = int(blockIdx.x); ordinal < ServingAttentionTaskCount(p, stage);
+           ordinal += int(gridDim.x)) {
+        int task=ServingAttentionL1Task(ordinal,p.dims.batch,stage.extent,
+            CeilDiv(p.dims.capacity,stage.attention_kv_block),stage.attention_kv_block,p.dims.seq);
 #if TILEMEGA_TRACE_TASK
         executor::ProfileScope profile{executor::BeginProfile(p,index,task)};
 #endif

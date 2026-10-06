@@ -70,8 +70,9 @@ struct PageStream {
         }
 #endif
       }else if(s.kind==TaskKind::kFusedAttention) {
-        auto point=DecodeServingAttentionTaskGMajor(task,p.dims.batch,
-            CeilDiv(p.dims.capacity,s.attention_kv_block));
+        int blocks=CeilDiv(p.dims.capacity,s.attention_kv_block);
+        int logical=l2?task:ServingAttentionL1Task(task,p.dims.batch,s.extent,blocks,s.attention_kv_block);
+        auto point=DecodeServingAttentionTaskGMajor(logical,p.dims.batch,blocks);
         int begin=point.cache_block*s.attention_kv_block;
         int end=min(begin+s.attention_kv_block,p.dims.past);
         if(end>begin) {
@@ -608,8 +609,12 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
       int count=ActiveBlocks(p,p.stages[stage]);
       if constexpr(!Loader)executor::StageBegin(p,stage,iteration,
           count>int(blockIdx.x)?(count-blockIdx.x+gridDim.x-1)/gridDim.x:0);
-      for(int task=blockIdx.x;task<count;task+=gridDim.x)
+      for(int ordinal=blockIdx.x;ordinal<count;ordinal+=gridDim.x)
         {
+          auto const& desc=p.stages[stage];
+          int task=desc.kind==TaskKind::kFusedAttention
+              ? ServingAttentionL1Task(ordinal,p.dims.batch,desc.extent,
+                  CeilDiv(p.dims.capacity,desc.attention_kv_block),desc.attention_kv_block):ordinal;
           watch.waiter_task=task;
                   Task<Loader,L2>(p,stage,task,ring,sequence,work,events,iteration,
               step_ns,step,Loader?&lookahead:nullptr);
