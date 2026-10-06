@@ -128,6 +128,7 @@ def generate(so, root, source_snapshot):
     nvcc=options[0]
     version=subprocess.check_output([nvcc,'--version'],text=True).strip()
     arch=next((x.split('=',1)[1] for x in options if x.startswith('-arch=')),None)
+    if arch is None and '-arch' in options:arch=options[options.index('-arch')+1]
     resources_path=Path(str(so)+'.ptxas.log')
     resources=parse_resources(resources_path.read_text())
     paged=manifest.get('pg')=='pages';decode=manifest.get('phase')=='decode'

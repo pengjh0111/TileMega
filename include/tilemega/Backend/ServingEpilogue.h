@@ -153,7 +153,7 @@ struct ServingEpilogue {
     cute::cp_async_wait<0>();
     ComputeSync();
 #if TILEMEGA_EP_DIRECT
-    if constexpr(Op==ServingEpilogueOp::kStore || Op==ServingEpilogueOp::kResidual || Op==ServingEpilogueOp::kSwiGLU) {
+    if constexpr(Op==ServingEpilogueOp::kStore || (Op==ServingEpilogueOp::kResidual && TileN%32==0) || Op==ServingEpilogueOp::kSwiGLU) {
       RunDirect(accum,mma,shared,tile_m,tile_n,M,N,output_stride,output,residual,norm_ss,ss_out,norm_k,norm_eps);
       return;
     }

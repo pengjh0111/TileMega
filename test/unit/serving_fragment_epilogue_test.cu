@@ -7,11 +7,12 @@
 #include <vector>
 using namespace tilemega;
 using Element=cutlass::bfloat16_t;
+using Arch=std::conditional_t<std::is_void_v<arch::CurrentArch>,arch::Sm80,arch::CurrentArch>;
 template<class T>T* Allocate(int n){T* p=nullptr;if(cudaMallocManaged(&p,n*sizeof(T))!=cudaSuccess)std::exit(2);return p;}
 template<int TN,backend::ServingEpilogueOp Op>
 __global__ void Probe(Element* a,Element* b,Element const* residual,float const* norm,
     float* ssa,float* ssb,int m,int n,bool dn) {
-  using Config=backend::ServingGemmConfig<arch::CurrentArch,16,TN,128,4>;
+  using Config=backend::ServingGemmConfig<Arch,16,TN,128,4>;
   using Ep=backend::ServingEpilogue<Op,16,TN>;
   __shared__ __align__(16) char memory[4*16*TN+512];
   auto mma=typename Config::TiledMma{};
