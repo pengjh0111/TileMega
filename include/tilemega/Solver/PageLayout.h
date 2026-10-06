@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Target/TargetSpec.h>
+#include <tilemega/Backend/ServingEpilogueScratch.h>
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -23,11 +24,11 @@ struct PageLayout {
   // static page ring. Each GEMM shape is (M,N,K); attention widths are D.
   static std::pair<int,int> ServingWorkspace(
       std::vector<std::array<int,3>> const& gemms,
-      std::vector<std::array<int,2>> const& attention_shapes) {
+      std::vector<std::array<int,2>> const& attention_shapes,bool parallel_argmax=false) {
     int activation=0,scratch=0;
     for(auto const& g:gemms) {
       activation=std::max(activation,4*2*g[0]*g[2]);
-      scratch=std::max(scratch,4*g[0]*g[1]+4*g[0]);
+      scratch=std::max(scratch,backend::ServingEpilogueScratchBytes(g[0],g[1],parallel_argmax));
     }
     for(auto const& shape:attention_shapes) {
       int d=shape[0],q=shape[1];
