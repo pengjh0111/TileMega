@@ -57,7 +57,8 @@ struct ServingEpilogue {
   // XOR 8-column groups by row: preserve aligned vectors while distributing
   // the MMA accumulator's row groups across shared-memory banks.
   __host__ __device__ static constexpr int SharedIndex(int row, int col) {
-    return row * TileN + (col ^ ((row & 3) * 8));
+    if constexpr(TileN<32)return row*TileN+col;
+    else return row * TileN + (col ^ ((row & 3) * 8));
   }
 
   template <bool Swizzled>
@@ -302,8 +303,11 @@ struct ServingEpilogue {
         }
       }
       if constexpr(Op==ServingEpilogueOp::kResidual) {
-        static_assert(kOutputColumns%32==0);
-        if(ss_out) {
+        if constexpr(kOutputColumns%32!=0) {
+          // DN's producer owns a complete 32-column sum-of-squares block.
+          // Small GEMV tiles may use residual only when no DN writer is attached.
+          if(ss_out)asm volatile("trap;");
+        }else if(ss_out) {
           // All lanes participate, including predicated rows/vectors. This
           // matches the fixed xor-1/xor-2 order without rereading output.
           #pragma unroll
