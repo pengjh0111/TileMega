@@ -35,7 +35,7 @@ def pinned_geometry(manifest,class_file,directory):
         raise ValueError('pinned attention variant has incomplete GEMM class coverage')
     fields=('tile_m','tile_n','tile_k','stages','split_k')
     shapes=[]
-    for members in groups.values():
+    for _,members in sorted(groups.items()):
         values=[dict({k:int(gemms[g][k]) for k in fields},impl=gemms[g].get('impl','mma16')) for g in members]
         if any(v!=values[0] for v in values):raise ValueError('winner geometry differs within semantic class')
         shapes.append(values[0])

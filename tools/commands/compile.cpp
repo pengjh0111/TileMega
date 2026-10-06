@@ -353,7 +353,8 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--parallel-argmax") parallel_argmax=std::stoi(value);
       else if (flag.rfind("--gemm-impl-",0)==0) {
         std::array<std::string,5> names{{"qkv","o","gate_up","down","lm_head"}};
-        auto it=std::find(names.begin(),names.end(),flag.substr(12));
+        auto name=flag.substr(12);std::replace(name.begin(),name.end(),'-','_');
+        auto it=std::find(names.begin(),names.end(),name);
         if(it==names.end() || (value!="mma16" && value!="gemv"))
           throw std::runtime_error("invalid per-class GEMM implementation");
         serving_impl[std::distance(names.begin(),it)]=value=="gemv"?1:0;
