@@ -22,6 +22,7 @@
 
 #include <exception>
 #include <algorithm>
+#include <numeric>
 #include <cstdlib>
 #include <cstdio>
 #include <climits>
@@ -931,7 +932,7 @@ int RunCompile(int argc, char** argv) {
         // rotates the order, so a warm/cool device does not systematically
         // favor a particular rank.  Keep all 32-step raw CUDA-event samples.
         std::map<std::pair<std::size_t,std::string>,std::vector<double>> samples;
-        std::vector<bool> rejected(candidate_sos.size(),false);
+        std::vector<bool> rejected(candidate_sos.size(),false),smoked(candidate_sos.size(),false);
         std::ofstream rounds(std::string(argv[2])+".top3_measure_rounds.tsv");
         rounds<<"round\trank\tmode\tloop\tmean_ms\tartifact\n";
         auto observe=[&](std::size_t i,int round) {
@@ -944,7 +945,7 @@ int RunCompile(int argc, char** argv) {
               " --out "+quote(artifact)+" --mode "+candidate_mode+
               " --loop "+std::to_string(use_pages && candidate_mode=="L2"?candidate_loop:0)+
               " --guard-wait-s "+std::to_string(candidate_guard_wait_s);
-          if(samples[{i,candidate_mode}].empty())measure+=" --smoke-steps 16";
+          if(!smoked[i])measure+=" --smoke-steps 16";
           // A deadlocked device kernel otherwise holds the GPU indefinitely.
           // Normal candidate timing takes seconds; a timeout is a failed
           // candidate measurement, never a performance observation.
@@ -970,7 +971,8 @@ int RunCompile(int argc, char** argv) {
                     <<(use_pages && candidate_mode=="L2"?candidate_loop:0)<<'\t'<<*mean<<'\t'
                     <<artifact<<"/measurements.json\n";
             }
-          rounds.flush();return 0;
+          if(samples[{i,candidate_mode}].empty())throw std::runtime_error("candidate measurement omitted requested mode");
+          smoked[i]=true;rounds.flush();return 0;
         };
         std::vector<std::size_t> active(candidate_sos.size());
         std::iota(active.begin(),active.end(),0);
