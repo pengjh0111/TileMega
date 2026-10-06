@@ -4,6 +4,10 @@ import statistics
 
 PASTS=(64,575,1000)
 
+class SelectionBudgetExhausted(Exception):
+    """Stop admitting pilot work; confirm previously measured finalists."""
+
+
 def integrated_ms(by_past):
     """Uniform discrete request trajectory; linear interior, held endpoints."""
     samples=[float(by_past[str(p)]['mean_ms']) for p in PASTS]
@@ -41,10 +45,20 @@ def successive_halving(candidates,measure):
         value=integrated_ms(r['by_past']);rows[i]['measurements'].append(dict(round=label,score_ms=value,**r))
         return value
     while len(active)>3:
-        scores={i:observe(i,f'pilot{round_index}') for i in active[round_index%len(active):]+active[:round_index%len(active)]}
-        ranked=sorted((i for i in active if not rows[i].get('error')),key=lambda i:(scores[i],i))
+        scores={};exhausted=False
+        order=active[round_index%len(active):]+active[:round_index%len(active)]
+        for pos,i in enumerate(order):
+            try:scores[i]=observe(i,f'pilot{round_index}')
+            except SelectionBudgetExhausted:
+                exhausted=True
+                for pending in order[pos:]:
+                    old=rows[pending]['measurements']
+                    if old:scores[pending]=old[-1]['score_ms']
+                    else:rows[pending]['eliminated_round']='budget_unmeasured'
+                break
+        ranked=sorted((i for i in active if i in scores and not rows[i].get('error')),key=lambda i:(scores[i],i))
         if not ranked:raise RuntimeError('all serving execution candidates rejected')
-        keep=max(3,(len(ranked)+1)//2)
+        keep=3 if exhausted else max(3,(len(ranked)+1)//2)
         for i in ranked[keep:]:rows[i]['eliminated_round']=f'pilot{round_index}'
         active=ranked[:keep];round_index+=1
     for r in range(3):

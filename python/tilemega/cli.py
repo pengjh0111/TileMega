@@ -16,7 +16,8 @@ import sys
 import time
 import statistics
 
-from .serving.integrated_selection import successive_halving
+from .serving.integrated_selection import successive_halving, SelectionBudgetExhausted
+from .serving.attention_selection import variants as attention_variants, matches as matches_attention, label as attention_label, pinned_geometry, compile_options as attention_compile_options
 from .cache import atomic_json, export_key, file_sha, key, locked, plan_key, record_outputs, valid_record
 from .fingerprint import ROOT, calibration_stamps, source_fingerprint
 from .serving.execution import compiler_features, execution_combinations, select_execution, write_execution, pin_prefill
@@ -352,6 +353,36 @@ class Run:
                 record_outputs(marker, [directory / 'exported_program.pt2', directory / 'bridge.json', directory / 'manifest.json'])
         return digest, directory
 
+    def attention_variant(self, base, variant, deadline):
+        """Cache a same-geometry structural variant before measuring execution."""
+        from .build.identity import verify
+        base=Path(base);manifest=json.loads(Path(str(base)+'.plan.json').read_text())
+        if matches_attention(manifest,variant):return base
+        identity=verify(base)
+        digest=key(dict(base=identity['artifact_id'],variant=variant,
+                        compiler=self.version['source_sha256'],kind='r14_attention_variant_v1'))
+        directory=self.cache/'plans'/digest;directory.mkdir(parents=True,exist_ok=True)
+        record=directory/'record.json';library=directory/'plan.so'
+        with locked(directory/'.lock'):
+            hit=valid_record(record)
+            self.event('attention_variant',hit,'pinned measured GEMM geometry',key=digest,variant=variant)
+            if not hit:
+                if time.monotonic()>=deadline:raise SelectionBudgetExhausted('selection budget exhausted before variant build')
+                pinned_geometry(manifest,Path(str(base)+'.classes.tsv'),directory)
+                original=json.loads((base.parent/'options.json').read_text())
+                options=attention_compile_options(original,variant,directory)
+                atomic_json(directory/'options.json',options)
+                self.command([self.binary,'compile','--options',directory/'options.json'],
+                             'attention-build-'+digest[:16],gpu=True)
+                actual=json.loads(Path(str(library)+'.plan.json').read_text())
+                if not matches_attention(actual,variant):raise RuntimeError('attention variant did not materialize requested switches')
+                verify(library)
+                record_outputs(record,[library,Path(str(library)+'.plan.json'),
+                    Path(str(library)+'.identity.json'),Path(str(library)+'.source.json'),
+                    Path(str(library)+'.source.json.patch'),Path(str(library)+'.classes.tsv')],
+                    variant=variant,base_artifact_id=identity['artifact_id'])
+        return library
+
     def build(self):
         settings = self.config['solver']; features = self.config['features']; workload = self.config['workload']
         target = self.calibrate()
@@ -363,6 +394,7 @@ class Run:
             export, directory = self.export(phase)
             previous_by_pg = {}
             for batch in sorted(workload['batch']):
+                batch_started=time.monotonic()
                 interval = (0, 0) if phase == 'prefill' else (workload['prompt_len'], workload['prompt_len'] + workload['max_new_tokens'] - 2)
                 if features['pg'] in ('off', 'l2'):
                     pg_choices = (features['pg'],)
@@ -434,28 +466,45 @@ class Run:
                     built[pg] = library
                 if phase == 'decode':
                     candidates=[]
+                    deadline=batch_started+settings['time_budget_s']
                     for pg, library in built.items():
-                        for mode, loop in execution_combinations(pg, features['decode_executor'], features['decode_loop']):
-                            if pg!='pages' and mode=='L1' and loop and settings['exclude_l1_loop']:
-                                continue
-                            candidates.append(dict(pg=pg, mode=mode, loop=loop, library=str(library), samples_ms=[]))
+                        manifest=json.loads(Path(str(library)+'.plan.json').read_text())
+                        variants=attention_variants(manifest)
+                        # Measure the already-built winner first; a budget exhaustion
+                        # must not silently turn an unmeasured new body into a winner.
+                        variants.sort(key=lambda v:not matches_attention(manifest,v))
+                        for variant in variants:
+                            for mode, loop in execution_combinations(pg, features['decode_executor'], features['decode_loop']):
+                                if pg!='pages' and mode=='L1' and loop and settings['exclude_l1_loop']:
+                                    continue
+                                candidates.append(dict(pg=pg, mode=mode, loop=loop,base_library=str(library),
+                                    base_variant=matches_attention(manifest,variant),
+                                    variant=variant,variant_label=attention_label(variant),samples_ms=[]))
+                    candidates.sort(key=lambda c:not c['base_variant'])
                     selection_inputs=dict(libraries={pg:file_sha(library) for pg,library in built.items()},
                                           executor=features['decode_executor'], loop=features['decode_loop'],
                                           prefill_mode=features['prefill_executor'],exclude_l1_loop=settings['exclude_l1_loop'],
-                                          objective='uniform_64_1087_linear_v1',pasts=[64,575,1000])
+                                          objective='uniform_64_1087_linear_v2',pasts=[64,575,1000],
+                                          candidates=candidates)
                     choice_path=self.out / f'decode-choice-B{batch}.json'
                     cached=json.loads(choice_path.read_text()) if choice_path.exists() else {}
-                    if cached.get('inputs')==selection_inputs:
+                    if cached.get('inputs')==selection_inputs and cached.get('selected') and valid_record(Path(cached['selected']['library']).parent/'record.json'):
                         candidates=cached['candidates'];winner=cached['selected']
                     else:
                         def measure_execution(candidate, round_label):
-                            out=self.out / f"decode-choice-B{batch}-{candidate['pg']}-{candidate['mode']}-{candidate['loop']}-{round_label}"
+                            # Always finish three confirmation rounds for measured
+                            # survivors. The budget stops admission of further pilots.
+                            if round_label.startswith('pilot') and time.monotonic()>=deadline:
+                                raise SelectionBudgetExhausted('selection budget exhausted before pilot')
+                            candidate['library']=str(self.attention_variant(candidate['base_library'],candidate['variant'],deadline))
+                            stem=f"B{batch}-{candidate['pg']}-{candidate['variant_label']}-{candidate['mode']}-{candidate['loop']}-{round_label}"
+                            out=self.out / ('decode-choice-'+stem)
                             command=[sys.executable,'-m','tilemega.serving.measure_candidate','--so',candidate['library'],
                                      '--model',str(self.model),'--batch',str(batch),'--past-list','64,575,1000',
                                      '--mode',candidate['mode'],'--loop',str(candidate['loop']),
                                      '--loop-steps','64','--warmup','8','--out',str(out),
                                      '--guard-wait-s',str(settings['candidate_guard_wait_s'])]
-                            self.command(command,f"choose-B{batch}-{candidate['pg']}-{candidate['mode']}-{candidate['loop']}-{round_label}",gpu=True)
+                            self.command(command,"choose-"+stem,gpu=True)
                             measured=json.loads((out/'measurements.json').read_text())['modes'][candidate['mode']]['by_past']
                             identities=[]
                             for values in measured.values():
@@ -466,11 +515,17 @@ class Run:
                                 raise ValueError('execution identity differs across past samples')
                             return dict(by_past=measured,execution_identity=identities[0],
                                         spill=identities[0]['spill'],measurement_path=str(out/'measurements.json'))
-                        winner,candidates=successive_halving(candidates,measure_execution)
+                        try:
+                            winner,candidates=successive_halving(candidates,measure_execution)
+                        except RuntimeError:
+                            atomic_json(choice_path,dict(inputs=selection_inputs,status='failed_or_budget_exhausted',
+                                elapsed_s=time.monotonic()-batch_started))
+                            raise
                         atomic_json(choice_path,dict(inputs=selection_inputs,candidates=candidates,selected=winner))
                     selected=winner['pg']
+                    built[selected]=Path(winner['library'])
                     serving=write_execution(built[selected],winner['mode'],winner['loop'],features['prefill_executor'],
-                                            selection=winner,stage_one=dict(mode=settings['mode'],loop=settings['candidate_loop']))
+                                            selection=winner,candidates=candidates,stage_one=dict(mode=settings['mode'],loop=settings['candidate_loop']))
                     result.setdefault(str(batch), {})['decode_pg_choice']=dict(candidates=candidates,selected=winner)
                     result[str(batch)]['serving']=serving
                 else:
