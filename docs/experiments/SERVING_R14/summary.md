@@ -1,4 +1,4 @@
-# R14 sm_89 — Phase B accepted; conditional Phase C prepared
+# R14 sm_89 — Phase B accepted; conditional Phase C queued
 
 - Specified baseline: `76beaea5e2d66e3311b36d020f470c4f016406d0`.
 - Initial local HEAD: `9aebaf6553247ec83c79bc8f101e61ad4ce564fd`; fast-forwarded before implementation.
@@ -150,4 +150,5 @@ Phase-C decision was committed before implementation/timing (09237464c); predict
 Correctness arguments: the final writer releases each complete context; consumer acquire plus compute barrier precedes A reads; the next ordinary stage barrier orders the remaining graph. The bank is separate from L2 and monotonically indexed by L1 iteration. Validation, including 50 fresh processes, is still pending.
 Queue definitions contain six immutable artifacts and 22 steps: full evidence archive; compiler/host and five-architecture checks; position-coded single-buffer and bitwise fragment numerics; builds and smoke; three paired rounds per cell; full C-1/C-2; two 50-process cases. A rejected conditional arm is recorded and excluded, not substituted.
 Integration details (d4e7729a3): decode first-level searches share one third of the budget; already built execution baselines remain measurable when new structural admission ends. Finalist confirmation can exceed wall budget and is reported. features_by_batch applies only the three conditional flags to their triggered decode cells, leaving prefill unchanged. CPU selection/config/identity tests pass (raw/C_definition_checks).
-After publishing queue/queue_phase_c.json, sources freeze until builds finish. Resume from scheduler/progress.tsv once, then apply choose_r14.py retention thresholds before Phase D. Phase D and final T8–T10 acceptance have not run.
+queue/queue_phase_c.json was published to the existing scheduler (8d0808064); runtime/compiler sources freeze until builds finish. Resume from scheduler/progress.tsv once, then apply choose_r14.py retention thresholds before Phase D. Phase D and final T8–T10 acceptance have not run.
+Read-only monitoring: `watch -n 10 'python3 /root/TileMega/docs/experiments/SERVING_R14/status.py --prefix C'` shows each step as done/pending/running/failed; omit the prefix value (`--prefix ''`) to include all R14 queues. GPU occupancy/retry policy remains unchanged.
