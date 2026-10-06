@@ -7,6 +7,14 @@
 #ifndef TILEMEGA_ATTENTION_PVSWAP
 #define TILEMEGA_ATTENTION_PVSWAP 0
 #endif
+#ifndef TILEMEGA_ATTENTION_NOINLINE
+#define TILEMEGA_ATTENTION_NOINLINE 0
+#endif
+#if TILEMEGA_ATTENTION_NOINLINE
+#define TILEMEGA_ATTENTION_RUN_ATTRIBUTE __noinline__
+#else
+#define TILEMEGA_ATTENTION_RUN_ATTRIBUTE
+#endif
 namespace tilemega::codegen {
 template<class Arch,int D,int Q,bool QkNorm,int PageBytes,int Pages,bool ForceSm80=false,int PartialRows=Q,
     AttentionPagePolicy PagePolicy=AttentionPagePolicy::Packed>
@@ -119,7 +127,7 @@ struct PagedAttentionTaskBody {
     }
   }
   template<class PageSource>
-  __device__ static void Run(ServingAttentionOperands const& p,int b,int g,int c,
+  __device__ TILEMEGA_ATTENTION_RUN_ATTRIBUTE static void Run(ServingAttentionOperands const& p,int b,int g,int c,
       PageSource const& ring,std::uint64_t& sequence,SharedStorage& s) {
     using namespace cute;
     int begin=Begin(p,c),end=End(p,c);if(begin>=end)return;

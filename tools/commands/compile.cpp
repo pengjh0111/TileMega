@@ -292,6 +292,7 @@ int RunCompile(int argc, char** argv) {
     int mma_reg_pipe=0;
     std::string attention_impl="mma16";
     int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0,evict_first=0,evict_last=1;
+    int attention_noinline=0;
     int parallel_argmax=0;
     int nonpaged_la=0;
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
@@ -345,6 +346,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--lookahead-bytes") lookahead_bytes=std::stoi(value);
       else if (flag=="--kphase-mask") kphase_mask=std::stoi(value);
       else if (flag=="--deferred-norm") deferred_norm=std::stoi(value);
+      else if (flag=="--attention-noinline") attention_noinline=std::stoi(value);
       else if (flag=="--parallel-argmax") parallel_argmax=std::stoi(value);
       else if (flag=="--nonpaged-la") nonpaged_la=std::stoi(value);
       else if (flag=="--paged-la") paged_la=std::stoi(value);
@@ -481,6 +483,7 @@ int RunCompile(int argc, char** argv) {
       runtime_flags+=" -DTILEMEGA_PAGE_LOOP_SPLIT="+std::to_string(page_loop_split);
       runtime_flags+=" -DTILEMEGA_L2_SLIM="+std::to_string(l2_slim);
       runtime_flags+=" -DTILEMEGA_WATCHDOG="+std::to_string(watchdog);
+      runtime_flags+=" -DTILEMEGA_ATTENTION_NOINLINE="+std::to_string(attention_noinline);
       runtime_flags+=" -DTILEMEGA_EP_PARALLEL_ARGMAX="+std::to_string(parallel_argmax);
       runtime_flags+=" -DTILEMEGA_NONPAGED_LA="+std::to_string(nonpaged_la);
       runtime_flags+=" -DTILEMEGA_ATTENTION_PVSWAP="+std::to_string(attention_impl=="pvswap");
@@ -497,7 +500,7 @@ int RunCompile(int argc, char** argv) {
     if((candidate_mode!="L1" && candidate_mode!="L2") ||
        (candidate_loop!=0 && candidate_loop!=1))
       throw std::invalid_argument("candidate mode/loop is invalid");
-    if((parallel_argmax!=0 && parallel_argmax!=1) || (nonpaged_la!=0 && nonpaged_la!=1) || (deferred_norm!=0 && deferred_norm!=1) || (paged_la!=0 && paged_la!=1) ||
+    if((attention_noinline!=0 && attention_noinline!=1) || (parallel_argmax!=0 && parallel_argmax!=1) || (nonpaged_la!=0 && nonpaged_la!=1) || (deferred_norm!=0 && deferred_norm!=1) || (paged_la!=0 && paged_la!=1) ||
        (paged_la_splitk!=0 && paged_la_splitk!=1) || candidate_guard_wait_s<0)
       throw std::runtime_error("invalid serving ablation option");
     std::string source,selected_serving_mode,selected_serving_binary;
@@ -882,6 +885,7 @@ int RunCompile(int argc, char** argv) {
               " --page-loop-split "+std::to_string(page_loop_split)+
               " --evict-first "+std::to_string(evict_first)+
               " --evict-last "+std::to_string(evict_last)+
+              " --attention-noinline "+std::to_string(attention_noinline)+
               " --parallel-argmax "+std::to_string(parallel_argmax)+
               " --nonpaged-la "+std::to_string(nonpaged_la)+
               " --paged-la "+std::to_string(paged_la)+
@@ -1362,6 +1366,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"evict_first\": "<<evict_first
               <<",\n  \"evict_last\": "<<evict_last
               <<",\n  \"deferred_norm\": "<<(manifest_deferred_norm?"true":"false")
+              <<",\n  \"attention_noinline\": "<<(attention_noinline?"true":"false")
               <<",\n  \"parallel_argmax\": "<<(parallel_argmax?"true":"false")
               <<",\n  \"nonpaged_la\": "<<(use_l2 && nonpaged_la && serving_phase=="decode"?"true":"false")
               <<",\n  \"paged_la\": "<<(use_pages && paged_la?"true":"false")
