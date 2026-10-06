@@ -19,6 +19,10 @@
 #include <cstdint>
 #include <tilemega/Codegen/tasks/ServingTaskProfile.h>
 
+#ifndef TILEMEGA_NONPAGED_LA
+#define TILEMEGA_NONPAGED_LA 0
+#endif
+
 namespace tilemega::codegen {
 
 /// §5.3.1's phase-split task ABI. Off by default: with it off the generated
@@ -751,6 +755,9 @@ struct Params {
   PageTraceRecord* serving_page_trace = nullptr;
   // One ticket row per producer stage, indexed by its output tile. Allocated
   // once per serving plan and reset by the final arriving producer CTA.
+#if TILEMEGA_NONPAGED_LA
+  unsigned long long* serving_nonpaged_tickets = nullptr;
+#endif
   unsigned* serving_handoff_tickets = nullptr;
   std::uint32_t serving_handoff_ticket_stride = 0;
   LagDependency const* lag_dependencies = nullptr;

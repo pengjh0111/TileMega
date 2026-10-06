@@ -19,7 +19,8 @@ void LowerServingHandoffStages(mlir::ModuleOp module);
 struct ServingHandoffSelection {int recompute=0,last_arriver=0;};
 // Build an access-proved decision plan from a solved serving CG. Unsupported
 // edges remain ordinary events. The result is lowered conservatively into the
-// already solved runtime stage slots.
+// already solved runtime stage slots. Class bits: 1 recompute, 2 paged
+// merge/argmax, 4 split-K combine, 8 nonpaged attention merge.
 ServingHandoffSelection SelectServingHandoffs(mlir::ModuleOp module,
     unsigned selected_classes=7);
 void RegisterHandoffPass();

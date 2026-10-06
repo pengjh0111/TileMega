@@ -365,8 +365,8 @@ void LowerServingHandoffStages(mlir::ModuleOp module) {
 ServingHandoffSelection SelectServingHandoffs(mlir::ModuleOp module,
     unsigned selected_classes) {
   auto model=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
-  if(!model || !module->hasAttr("tmexec.pages"))
-    throw std::invalid_argument("serving handoff selection requires a solved paged plan");
+  if(!model || (!module->hasAttr("tmexec.pages") && (selected_classes&~12u)))
+    throw std::invalid_argument("serving handoff selection requires a model and supported reduction classes");
   if(module->hasAttr("tmexec.runtime_handoff_lowering"))
     throw std::invalid_argument("serving handoffs were already selected");
   auto stages=model.getAs<mlir::ArrayAttr>("stages");
@@ -426,7 +426,7 @@ ServingHandoffSelection SelectServingHandoffs(mlir::ModuleOp module,
           shared=true;
       if(!shared)choice="recompute";
     }
-    else if((selected_classes&2) && kind(pair.first)=="kFusedAttention" &&
+    else if((selected_classes&(2|8)) && kind(pair.first)=="kFusedAttention" &&
             kind(pair.second)=="kAttentionMerge")
       choice="last_arriver";
     else if((selected_classes&4) && pair.first==pair.second &&

@@ -292,6 +292,7 @@ int RunCompile(int argc, char** argv) {
     int mma_reg_pipe=0;
     std::string attention_impl="mma16";
     int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0,evict_first=0,evict_last=1;
+    int nonpaged_la=0;
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
     std::string candidate_mode="L1",nonpaged_weight_layout="row";
     bool page_bytes_pinned=false;
@@ -343,6 +344,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--lookahead-bytes") lookahead_bytes=std::stoi(value);
       else if (flag=="--kphase-mask") kphase_mask=std::stoi(value);
       else if (flag=="--deferred-norm") deferred_norm=std::stoi(value);
+      else if (flag=="--nonpaged-la") nonpaged_la=std::stoi(value);
       else if (flag=="--paged-la") paged_la=std::stoi(value);
       else if (flag=="--paged-la-splitk") paged_la_splitk=std::stoi(value);
       else if (flag=="--candidate-guard-wait-s") candidate_guard_wait_s=std::stoi(value);
@@ -477,6 +479,7 @@ int RunCompile(int argc, char** argv) {
       runtime_flags+=" -DTILEMEGA_PAGE_LOOP_SPLIT="+std::to_string(page_loop_split);
       runtime_flags+=" -DTILEMEGA_L2_SLIM="+std::to_string(l2_slim);
       runtime_flags+=" -DTILEMEGA_WATCHDOG="+std::to_string(watchdog);
+      runtime_flags+=" -DTILEMEGA_NONPAGED_LA="+std::to_string(nonpaged_la);
       runtime_flags+=" -DTILEMEGA_ATTENTION_PVSWAP="+std::to_string(attention_impl=="pvswap");
       runtime_flags+=" -DTILEMEGA_MMA_REG_PIPE="+std::to_string(mma_reg_pipe);
       runtime_flags+=" -DTILEMEGA_KPHASE_CLASS_MASK="+std::to_string(kphase_mask)+
@@ -491,7 +494,7 @@ int RunCompile(int argc, char** argv) {
     if((candidate_mode!="L1" && candidate_mode!="L2") ||
        (candidate_loop!=0 && candidate_loop!=1))
       throw std::invalid_argument("candidate mode/loop is invalid");
-    if((deferred_norm!=0 && deferred_norm!=1) || (paged_la!=0 && paged_la!=1) ||
+    if((nonpaged_la!=0 && nonpaged_la!=1) || (deferred_norm!=0 && deferred_norm!=1) || (paged_la!=0 && paged_la!=1) ||
        (paged_la_splitk!=0 && paged_la_splitk!=1) || candidate_guard_wait_s<0)
       throw std::runtime_error("invalid serving ablation option");
     std::string source,selected_serving_mode,selected_serving_binary;
@@ -876,6 +879,7 @@ int RunCompile(int argc, char** argv) {
               " --page-loop-split "+std::to_string(page_loop_split)+
               " --evict-first "+std::to_string(evict_first)+
               " --evict-last "+std::to_string(evict_last)+
+              " --nonpaged-la "+std::to_string(nonpaged_la)+
               " --paged-la "+std::to_string(paged_la)+
               " --paged-la-splitk "+std::to_string(paged_la_splitk)+
               " --l2-prefetch-depth "+std::to_string(prefetch_depth)+" --l2-prefetch-stride "+std::to_string(prefetch_stride)+
@@ -1106,6 +1110,11 @@ int RunCompile(int argc, char** argv) {
     if(use_l2) {
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
       tilemega::codegen::ConfigureServingPrefetch(*module,target,prefetch_depth,prefetch_stride);
+      if(nonpaged_la && serving_phase=="decode") {
+        auto reductions=tilemega::dialect::SelectServingHandoffs(*module,8);
+        std::cerr<<"NONPAGED_LAST_ARRIVER selected="<<reductions.last_arriver<<'\n';
+        handoff_mode="last_arriver";
+      }
       source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});
     }
     if(use_pages) {
@@ -1348,6 +1357,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"evict_first\": "<<evict_first
               <<",\n  \"evict_last\": "<<evict_last
               <<",\n  \"deferred_norm\": "<<(manifest_deferred_norm?"true":"false")
+              <<",\n  \"nonpaged_la\": "<<(use_l2 && nonpaged_la && serving_phase=="decode"?"true":"false")
               <<",\n  \"paged_la\": "<<(use_pages && paged_la?"true":"false")
               <<",\n  \"paged_la_splitk\": "<<(use_pages && paged_la && paged_la_splitk?"true":"false")
               <<",\n  \"handoff\": "<<std::quoted(handoff_mode)

@@ -198,6 +198,9 @@ inline void Destroy(Plan* plan) {
   if (plan->watchdog) cudaFreeHost(plan->watchdog);
   auto& model = plan->model;
   if(model.params.serving_handoff_tickets)cudaFree(model.params.serving_handoff_tickets);
+#if TILEMEGA_NONPAGED_LA
+  if(model.params.serving_nonpaged_tickets)cudaFree(model.params.serving_nonpaged_tickets);
+#endif
   if(model.params.serving_no_producer)cudaFree(const_cast<std::uint8_t*>(model.params.serving_no_producer));
 #if TILEMEGA_TRACE_V2
   if (model.device_reducer_trace) cudaFree(model.device_reducer_trace);
@@ -340,15 +343,15 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
     for(std::size_t i=0;i<plan->model.stages.size();++i) {
       auto const& stage=plan->model.stages[i];
       if(stage.handoff_reduce_stage==kNoOperand)continue;
-      if(!TILEMEGA_PAGED || TILEMEGA_SERVING_SEQ!=1 ||
+      if((!TILEMEGA_PAGED && !TILEMEGA_NONPAGED_LA) || TILEMEGA_SERVING_SEQ!=1 ||
          stage.handoff_reduce_stage<=i ||
          stage.handoff_reduce_stage>=plan->model.stages.size())
-        throw std::invalid_argument("last-arriver requires a later decode reducer in a paged plan");
+        throw std::invalid_argument("last-arriver requires a later decode reducer and enabled execution support");
       auto const& reduce=plan->model.stages[stage.handoff_reduce_stage];
       if(!reduce.handoff_elided ||
          !((stage.kind==TaskKind::kGemm && reduce.kind==TaskKind::kGemmCombine &&
             stage.gemm==reduce.gemm) ||
-           (stage.kind==TaskKind::kGemm && reduce.kind==TaskKind::kArgmaxReduce) ||
+           (TILEMEGA_PAGED && stage.kind==TaskKind::kGemm && reduce.kind==TaskKind::kArgmaxReduce) ||
            (stage.kind==TaskKind::kFusedAttention && reduce.kind==TaskKind::kAttentionMerge)))
         throw std::invalid_argument("last-arriver stage pair is not a complete GEMM or attention reduction");
       ++reduce_users[stage.handoff_reduce_stage];
@@ -367,10 +370,19 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
       auto count=std::size_t(plan->model.stages.size())*stride;
       if(count>std::numeric_limits<std::size_t>::max()/sizeof(unsigned))
         throw std::overflow_error("handoff ticket allocation overflow");
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+      if(count>std::numeric_limits<std::size_t>::max()/(2*sizeof(unsigned long long)))
+        throw std::overflow_error("monotonic handoff ticket allocation overflow");
+      TILEMEGA_CUDA_CHECK(cudaMalloc(&plan->model.params.serving_nonpaged_tickets,
+          2*count*sizeof(unsigned long long)));
+      TILEMEGA_CUDA_CHECK(cudaMemset(plan->model.params.serving_nonpaged_tickets,0,
+          2*count*sizeof(unsigned long long)));
+#else
       TILEMEGA_CUDA_CHECK(cudaMalloc(&plan->model.params.serving_handoff_tickets,
           count*sizeof(unsigned)));
       TILEMEGA_CUDA_CHECK(cudaMemset(plan->model.params.serving_handoff_tickets,0,
           count*sizeof(unsigned)));
+#endif
       plan->model.params.serving_handoff_ticket_stride=stride;
     }
     serving::CreateTensorMaps(*plan,kModel,target);

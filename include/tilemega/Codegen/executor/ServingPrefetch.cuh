@@ -51,6 +51,9 @@ __device__ inline void Upcoming(Params const& p,unsigned slot,unsigned end) {
     Task(p,p.schedule[next].stage,p.schedule[next].logical_task,budget);
 }
 __device__ inline void NextStage(Params const& p,unsigned stage) {
+#if TILEMEGA_NONPAGED_LA
+  while(stage<p.stage_count && p.stages[stage].handoff_elided)++stage;
+#endif
   if(stage>=p.stage_count)return;
   unsigned budget=TILEMEGA_L2_PREFETCH_BYTES;
   for(int task=PlacedBlock();task<ActiveBlocks(p,p.stages[stage]) && budget;task+=gridDim.x)

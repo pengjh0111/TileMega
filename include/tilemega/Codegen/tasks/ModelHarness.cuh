@@ -59,6 +59,7 @@
 #include <tilemega/Codegen/tasks/ServingRMSNormTaskBody.h>
 #if TILEMEGA_PAGED
 #include <tilemega/Codegen/tasks/LastArriverTaskBody.h>
+#include <tilemega/Codegen/executor/MonotonicLastArriver.cuh>
 #endif
 #include <tilemega/Target/ArchDispatch.h>
 #include <tilemega/Target/TargetSpec.h>
@@ -404,11 +405,44 @@ __device__ inline void RunServingMergeTask(Params const& p,
 }
 #endif
 
+#if TILEMEGA_NONPAGED_LA && TILEMEGA_SERVING_RUNTIME && !TILEMEGA_PAGED
+struct NonpagedReductionContext {
+  EventCounter* events=nullptr;
+  unsigned long long iteration=0;
+  bool l2=false;
+};
+__device__ inline void NotifyTask(Params const&,EventCounter*,std::uint32_t,
+    std::uint32_t,unsigned long long);
+__device__ inline void FinishNonpagedAttention(Params const& p,unsigned index,
+    int task,NonpagedReductionContext const& context) {
+  auto const& stage=p.stages[index];
+  if(stage.handoff_reduce_stage==kNoOperand)return;
+  int chunks=CeilDiv(p.dims.capacity,stage.attention_kv_block);
+  int output=task/chunks;
+  auto offset=((std::size_t(context.l2)*p.stage_count+index)*
+      p.serving_handoff_ticket_stride)+output;
+  __shared__ unsigned last;
+  bool reduced=executor::MonotonicLastArriver::Run(
+      p.serving_nonpaged_tickets+offset,chunks,context.iteration,&last,[&]{
+        RunServingMergeTask(p,p.stages[stage.handoff_reduce_stage],output);
+      });
+  if(reduced && context.l2)
+    NotifyTask(p,context.events,stage.handoff_reduce_stage,output,context.iteration);
+}
+#define TILEMEGA_REDUCTION_ARG , NonpagedReductionContext const& reduction={}
+#define TILEMEGA_REDUCTION_L1 , NonpagedReductionContext{events,iteration,false}
+#define TILEMEGA_REDUCTION_L2 , NonpagedReductionContext{events,iteration,true}
+#else
+#define TILEMEGA_REDUCTION_ARG
+#define TILEMEGA_REDUCTION_L1
+#define TILEMEGA_REDUCTION_L2
+#endif
+
 /// The dispatch is over the TaskBody families, which are a property of the
 /// library, not of any model.  A model that needs no attention simply never
 /// emits those stage kinds.
 __device__ inline void RunStage(Params const& p, std::uint32_t index,
-                                TaskSmem& smem) {
+                                TaskSmem& smem TILEMEGA_REDUCTION_ARG) {
   StageDesc const& stage = p.stages[index];
   switch (stage.kind) {
     case TaskKind::kGemm:
@@ -477,6 +511,9 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
           ,profile.row
 #endif
           );
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+        FinishNonpagedAttention(p,index,task,reduction);
+#endif
       }
 #else
       asm volatile("trap;");
@@ -533,7 +570,7 @@ __host__ __device__ inline PrefetchOperand PrefetchFor(StageDesc const& stage) {
 
 __device__ inline void RunTask(Params const& p, std::uint32_t index,
                                std::uint32_t logical_task, TaskSmem& smem TILEMEGA_PHASE_ARG
-                               TILEMEGA_PREFETCH_ARG) {
+                               TILEMEGA_PREFETCH_ARG TILEMEGA_REDUCTION_ARG) {
   StageDesc const& stage = p.stages[index];
   int const task = static_cast<int>(logical_task);
 #if TILEMEGA_TRACE_TASK
@@ -579,6 +616,9 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
           ,profile.row
 #endif
           );
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+      FinishNonpagedAttention(p,index,task,reduction);
+#endif
 #else
       asm volatile("trap;");
 #endif
@@ -1420,12 +1460,15 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
   extern __shared__ unsigned char bytes[];
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   for (std::uint32_t stage = 0; stage < params->stage_count; ++stage) {
+#if TILEMEGA_NONPAGED_LA
+    if(params->stages[stage].handoff_elided)continue;
+#endif
 #if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_TASK
     int tasks=ActiveBlocks(*params,params->stages[stage]);
     executor::StageBegin(*params,stage,iteration,
         tasks>int(blockIdx.x)?(tasks-blockIdx.x+gridDim.x-1)/gridDim.x:0);
 #endif
-    RunStage(*params, stage, smem);
+    RunStage(*params, stage, smem TILEMEGA_REDUCTION_L1);
 #if TILEMEGA_L2_PREFETCH
     static_assert(TILEMEGA_GENERATED_CLUSTER_DIM==1,"split grid barrier requires the flat grid protocol");
     prefetch::Arrive(events,stage,iteration,params);
@@ -1457,12 +1500,15 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
     auto iteration=base_iteration+step;
     executor::StepBegin(p,iteration);
     for(unsigned stage=0;stage<p.stage_count;++stage) {
+#if TILEMEGA_NONPAGED_LA
+      if(p.stages[stage].handoff_elided)continue;
+#endif
 #if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_TASK
       int tasks=ActiveBlocks(p,p.stages[stage]);
       executor::StageBegin(p,stage,iteration,
           tasks>int(blockIdx.x)?(tasks-blockIdx.x+gridDim.x-1)/gridDim.x:0);
 #endif
-      RunStage(p,stage,smem);
+      RunStage(p,stage,smem TILEMEGA_REDUCTION_L1);
 #if TILEMEGA_L2_PREFETCH
       prefetch::Arrive(events,stage,iteration,&p);
       if(stage+1<p.stage_count)prefetch::NextStage(p,stage+1);
@@ -1733,7 +1779,7 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
 #endif
     executor::TaskBegin(*params,iteration);
     RunTask(*params, task.stage, task.logical_task, smem TILEMEGA_PHASE_PASS
-            TILEMEGA_PREFETCH_PASS);
+            TILEMEGA_PREFETCH_PASS TILEMEGA_REDUCTION_L2);
 #if ((!TILEMEGA_BARRIER_V2 && !(TILEMEGA_L2_SLIM && TILEMEGA_SYNC_V3)) || TILEMEGA_TRACE_V2)
     // V3 slim and v2 drop this: NotifyTask converges writers before
     // release publication. If no publication is needed, the next task

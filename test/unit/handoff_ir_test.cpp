@@ -30,7 +30,8 @@ int TestHandoffIr(int argc,char** argv) try {
     options.gemms.assign(model.gemms.size(),{16,128,64,2,split?4:1});
     options.gemms.back().split_k=1;
     auto module=frontend::TorchExportImporter{}.ImportPlan(argv[2],model,context,nullptr,options);
-    codegen::ConfigureServingPages(*module,TargetSpec::FromJson(argv[4]),16384);
+    bool nonpaged=std::string(argv[3])=="nonpaged_attention";
+    if(!nonpaged)codegen::ConfigureServingPages(*module,TargetSpec::FromJson(argv[4]),16384);
     bool escape=std::string(argv[3])=="escape";
     if(escape) {
       mlir::Operation* combine=nullptr;
@@ -51,11 +52,19 @@ int TestHandoffIr(int argc,char** argv) try {
       extra->setAttr("dst",mlir::FlatSymbolRefAttr::get(&context,"unsafe_partial_reader"));
       module->getBody()->push_back(extra);
     }
-    unsigned mask=std::string(argv[3])=="off"?0:4;
+    unsigned mask=nonpaged?8:(std::string(argv[3])=="off"?0:4);
     try {
       auto selected=dialect::SelectServingHandoffs(*module,mask);
       assert(!escape);
-      assert(selected.last_arriver==(split && mask?model.gemms.size()-1:0));
+      if(nonpaged) {
+        int merges=0;
+        auto desc=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+        for(auto stage:desc.getAs<mlir::ArrayAttr>("stages")) {
+          auto d=mlir::cast<mlir::DictionaryAttr>(stage);
+          if(d.getAs<mlir::StringAttr>("kind").getValue()=="kAttentionMerge")++merges;
+        }
+        assert(merges>0 && selected.last_arriver==merges);
+      }else assert(selected.last_arriver==(split && mask?model.gemms.size()-1:0));
       std::cout<<"SPLIT_HANDOFF case="<<argv[3]<<" selected="<<selected.last_arriver<<" PASS\n";
     } catch(std::invalid_argument const& e) {
       if(!escape || std::string(e.what()).find("partial workspace")==std::string::npos)throw;
