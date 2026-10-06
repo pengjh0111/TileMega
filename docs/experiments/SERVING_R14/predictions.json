@@ -170,6 +170,60 @@
         ]
       },
       "committed_before_step": "B1"
+    },
+    {
+      "id": "C-RW1",
+      "metric": "tpot_median_rel",
+      "baseline": "same-compiler C baseline",
+      "cells": [
+        "llama_B16"
+      ],
+      "predicted": [
+        -0.05,
+        -0.02
+      ],
+      "kill": {
+        "minimum_improvement": 0.02,
+        "correctness_required": true
+      },
+      "committed_before_step": "C_matrix_llama_B16",
+      "prediction_status": "inferred; interval registered before Phase C timing"
+    },
+    {
+      "id": "C-EP2",
+      "metric": "tpot_median_rel",
+      "baseline": "same-compiler C baseline",
+      "cells": [
+        "qwen3_B16"
+      ],
+      "predicted": [
+        -0.025,
+        -0.01
+      ],
+      "kill": {
+        "minimum_improvement": 0.01,
+        "correctness_required": true
+      },
+      "committed_before_step": "C_matrix_qwen3_B16",
+      "prediction_status": "inferred; interval registered before Phase C timing"
+    },
+    {
+      "id": "C-AT4",
+      "metric": "tpot_median_rel",
+      "baseline": "same-compiler C baseline",
+      "cells": [
+        "qwen3_B1"
+      ],
+      "predicted": [
+        -0.04,
+        -0.015
+      ],
+      "kill": {
+        "minimum_improvement": 0.015,
+        "correctness_required": true
+      },
+      "committed_before_step": "C_matrix_qwen3_B1",
+      "prediction_status": "inferred; interval registered before Phase C timing"
     }
   ]
 }
