@@ -12,6 +12,9 @@
 #include <climits>
 #include <cmath>
 #include <cstdint>
+#ifndef TILEMEGA_EP_DIRECT
+#define TILEMEGA_EP_DIRECT 0
+#endif
 
 namespace tilemega::backend {
 
@@ -67,6 +70,72 @@ struct ServingEpilogue {
   }
 
   template <class Accumulator, class TiledMma>
+  __device__ static void RunDirect(Accumulator const& accum,TiledMma const& mma,
+      char* shared,int tile_m,int tile_n,int M,int N,int stride,
+      cutlass::bfloat16_t* output,cutlass::bfloat16_t const* residual,
+      float const* norm_ss,float* ss_out,int norm_k,float norm_eps) {
+    auto coords=mma.get_thread_slice(ComputeThread()).partition_C(
+        cute::make_identity_tensor(cute::Shape<cute::Int<TileM>,cute::Int<TileN>>{}));
+    float* inv=reinterpret_cast<float*>(shared)+TileM*TileN;
+    if(norm_ss) {
+      for(int row=ComputeThread()/8;row<TileM;row+=16) {
+        int part=ComputeThread()%8,gr=tile_m*TileM+row;float sum=0;
+        if(gr<M)for(int j=part;j<norm_k/32;j+=8)sum+=norm_ss[gr*(norm_k/32)+j];
+        sum+=__shfl_xor_sync(0xffffffff,sum,1);
+        sum+=__shfl_xor_sync(0xffffffff,sum,2);
+        sum+=__shfl_xor_sync(0xffffffff,sum,4);
+        if(part==0)inv[row]=gr<M?rsqrtf(sum/float(norm_k)+norm_eps):0;
+      }
+      ComputeSync();
+    }
+    // SwiGLU's partner can belong to another warp. Exchange only rounded up
+    // values; Store and Residual keep the accumulator in registers.
+    if constexpr(Op==ServingEpilogueOp::kSwiGLU) {
+      for(int i=0;i<cute::size(accum);++i) {
+        int row=cute::get<0>(coords(i)),col=cute::get<1>(coords(i));
+        if(col%(2*U)>=U) {
+          float value=accum(i)*(norm_ss?inv[row]:1.0f);
+          reinterpret_cast<cutlass::bfloat16_t*>(shared)[row*(TileN/2)+(col/(2*U))*U+col%U]=cutlass::bfloat16_t(value);
+        }
+      }
+      ComputeSync();
+    }
+    for(int i=0;i<cute::size(accum);++i) {
+      int row=cute::get<0>(coords(i)),col=cute::get<1>(coords(i));
+      int gr=tile_m*TileM+row,gc=tile_n*TileN+col;
+      if(gr>=M || gc>=N)continue;
+      float value=accum(i)*(norm_ss?inv[row]:1.0f);cutlass::bfloat16_t result;
+      if constexpr(Op==ServingEpilogueOp::kSwiGLU) {
+        if(col%(2*U)>=U)continue;
+        int oc=(col/(2*U))*U+col%U;
+        result=ServingEpilogueValue<Op>::Apply(value,float(reinterpret_cast<cutlass::bfloat16_t*>(shared)[row*(TileN/2)+oc]));
+        output[gr*stride+tile_n*(TileN/2)+oc]=result;
+      }else {
+        auto res=residual?residual[gr*stride+gc]:cutlass::bfloat16_t{};
+        result=ServingEpilogueValue<Op>::Apply(value,res);output[gr*stride+gc]=result;
+        if constexpr(Op==ServingEpilogueOp::kResidual)
+          if(ss_out)reinterpret_cast<cutlass::bfloat16_t*>(shared)[row*TileN+col]=result;
+      }
+    }
+    if constexpr(Op==ServingEpilogueOp::kResidual)if(ss_out) {
+      static_assert(TileN%32==0);
+      // DN requires its original eight-element sum and xor-1/xor-2 order.
+      // Only the rounded residual tile is rearranged for that reduction.
+      ComputeSync();
+      constexpr int vectors=TileM*TileN/8,passes=(vectors+127)/128;
+      for(int pass=0;pass<passes;++pass) {
+        int v=ComputeThread()+128*pass,row=v/(TileN/8),col=(v%(TileN/8))*8;
+        int gr=tile_m*TileM+row,gc=tile_n*TileN+col;float sum=0;
+        if(v<vectors && gr<M)for(int e=0;e<8;++e)if(gc+e<N) {
+          float x=float(reinterpret_cast<cutlass::bfloat16_t*>(shared)[row*TileN+col+e]);sum+=x*x;
+        }
+        sum+=__shfl_xor_sync(0xffffffff,sum,1);sum+=__shfl_xor_sync(0xffffffff,sum,2);
+        if(ComputeThread()%4==0 && v<vectors && gr<M && gc<N)ss_out[gr*(N/32)+gc/32]=sum;
+      }
+    }
+  }
+
+  template <class Accumulator, class TiledMma>
   __device__ static void Run(Accumulator const& accum, TiledMma const& mma,
                              char* shared, int tile_m, int tile_n,
                              int M, int N, int output_stride,
@@ -83,6 +152,12 @@ struct ServingEpilogue {
     // tile fits in the same union as the (possibly larger) staged operands.
     cute::cp_async_wait<0>();
     ComputeSync();
+#if TILEMEGA_EP_DIRECT
+    if constexpr(Op==ServingEpilogueOp::kStore || Op==ServingEpilogueOp::kResidual || Op==ServingEpilogueOp::kSwiGLU) {
+      RunDirect(accum,mma,shared,tile_m,tile_n,M,N,output_stride,output,residual,norm_ss,ss_out,norm_k,norm_eps);
+      return;
+    }
+#endif
     float* tile = reinterpret_cast<float*>(shared);
     auto coordinates = cute::make_identity_tensor(
         cute::Shape<cute::Int<TileM>, cute::Int<TileN>>{});

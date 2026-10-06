@@ -295,7 +295,7 @@ int RunCompile(int argc, char** argv) {
     std::string attention_impl="mma16";
     int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0,evict_first=0,evict_last=1;
     int attention_noinline=0,attention_buffers=2;
-    int parallel_argmax=0;
+    int parallel_argmax=0,ep_direct=0;
     int nonpaged_la=0;
     std::array<int,5> serving_impl{{-1,-1,-1,-1,-1}};
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
@@ -353,6 +353,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--attention-noinline") attention_noinline=std::stoi(value);
       else if (flag=="--attention-buffers") attention_buffers=std::stoi(value);
       else if (flag=="--parallel-argmax") parallel_argmax=std::stoi(value);
+      else if (flag=="--ep-direct") ep_direct=std::stoi(value);
       else if (flag.rfind("--gemm-impl-",0)==0) {
         std::array<std::string,5> names{{"qkv","o","gate_up","down","lm_head"}};
         auto name=flag.substr(12);std::replace(name.begin(),name.end(),'-','_');
@@ -500,6 +501,7 @@ int RunCompile(int argc, char** argv) {
       runtime_flags+=" -DTILEMEGA_ATTENTION_NOINLINE="+std::to_string(attention_noinline);
       if(attention_buffers!=2)runtime_flags+=" -DTILEMEGA_ATTENTION_BUFFERS="+std::to_string(attention_buffers);
       runtime_flags+=" -DTILEMEGA_EP_PARALLEL_ARGMAX="+std::to_string(parallel_argmax);
+      if(ep_direct)runtime_flags+=" -DTILEMEGA_EP_DIRECT=1";
       runtime_flags+=" -DTILEMEGA_NONPAGED_LA="+std::to_string(nonpaged_la);
       runtime_flags+=" -DTILEMEGA_ATTENTION_PVSWAP="+std::to_string(attention_impl=="pvswap");
       runtime_flags+=" -DTILEMEGA_MMA_REG_PIPE="+std::to_string(mma_reg_pipe);
@@ -515,6 +517,7 @@ int RunCompile(int argc, char** argv) {
     if((candidate_mode!="L1" && candidate_mode!="L2") ||
        (candidate_loop!=0 && candidate_loop!=1))
       throw std::invalid_argument("candidate mode/loop is invalid");
+    if(ep_direct!=0 && ep_direct!=1)throw std::runtime_error("--ep-direct must be 0 or 1");
     if(attention_buffers!=1 && attention_buffers!=2)throw std::runtime_error("--attention-buffers must be 1 or 2");
     if((attention_noinline!=0 && attention_noinline!=1) || (parallel_argmax!=0 && parallel_argmax!=1) || (nonpaged_la!=0 && nonpaged_la!=1) || (deferred_norm!=0 && deferred_norm!=1) || (paged_la!=0 && paged_la!=1) ||
        (paged_la_splitk!=0 && paged_la_splitk!=1) || candidate_guard_wait_s<0)
@@ -908,6 +911,7 @@ int RunCompile(int argc, char** argv) {
               " --attention-noinline "+std::to_string(attention_noinline)+
               " --attention-buffers "+std::to_string(attention_buffers)+
               " --parallel-argmax "+std::to_string(parallel_argmax)+
+              " --ep-direct "+std::to_string(ep_direct)+
               " --nonpaged-la "+std::to_string(nonpaged_la)+
               " --paged-la "+std::to_string(paged_la)+
               " --paged-la-splitk "+std::to_string(paged_la_splitk)+
@@ -1407,6 +1411,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"deferred_norm\": "<<(manifest_deferred_norm?"true":"false")
               <<",\n  \"attention_buffers\": "<<attention_buffers
               <<",\n  \"attention_noinline\": "<<(attention_noinline?"true":"false")
+              <<",\n  \"ep_direct\": "<<(ep_direct?"true":"false")
               <<",\n  \"parallel_argmax\": "<<(parallel_argmax?"true":"false")
               <<",\n  \"nonpaged_la\": "<<(use_l2 && nonpaged_la && serving_phase=="decode"?"true":"false")
               <<",\n  \"paged_la\": "<<(use_pages && paged_la?"true":"false")
