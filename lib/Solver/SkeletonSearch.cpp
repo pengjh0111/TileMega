@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Solver/ServingAttentionLegality.h>
 #include <tilemega/Solver/SkeletonSearch.h>
 #include <tilemega/Solver/ModelDramFloor.h>
 #include <tilemega/Frontend/ExportBridge.h>
@@ -284,6 +285,11 @@ struct SearchContext {
           attention_shapes.push_back({int(stage.width),int(stage.group)});
       auto [activation,scratch]=PageLayout::ServingWorkspace(shapes,attention_shapes);
       pages=PageLayout::Build(target,current_page_bytes,activation,scratch);
+      for(auto const& stage:imported.plan.stages)
+        if(stage.kind==frontend::PlanTaskKind::kFusedAttention &&
+           !ServingAttentionFrontierFits(current_page_bytes,pages->pages,
+                                         int(stage.width),stage.attention_kv_block))
+          throw std::invalid_argument("attention page frontier exceeds the ring or has invalid row alignment");
       for(auto const& g:granularity.gemms)
         if(g.tile_n*g.tile_k*2>current_page_bytes*pages->pages)
           throw std::invalid_argument("paged B stage exceeds the page ring");
@@ -693,7 +699,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
         search.current_handoff_mask=fixed.handoff_mask;
         std::vector<int> attention_domain;
         bool decode=search.imported.plan.serving_seq==1;
-        if(decode)attention_domain={64,128,256,512,search.imported.plan.serving_capacity};
+        if(decode)attention_domain={32,64,128,256,512,search.imported.plan.serving_capacity};
         else {
           auto attention=std::find_if(search.imported.plan.stages.begin(),
               search.imported.plan.stages.end(),[](auto const& stage){

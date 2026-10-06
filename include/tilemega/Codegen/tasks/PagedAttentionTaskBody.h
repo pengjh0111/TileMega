@@ -3,6 +3,10 @@
 #include <tilemega/Codegen/tasks/FusedAttentionTaskBody.h>
 #include <tilemega/Codegen/tasks/AttentionPageLayout.h>
 #include <tilemega/Codegen/executor/PageRing.cuh>
+#include <tilemega/Backend/ServingAttentionPVSwap.h>
+#ifndef TILEMEGA_ATTENTION_PVSWAP
+#define TILEMEGA_ATTENTION_PVSWAP 0
+#endif
 namespace tilemega::codegen {
 template<class Arch,int D,int Q,bool QkNorm,int PageBytes,int Pages,bool ForceSm80=false,int PartialRows=Q,
     AttentionPagePolicy PagePolicy=AttentionPagePolicy::Packed>
@@ -16,7 +20,10 @@ struct PagedAttentionTaskBody {
   using ValueLayout=decltype(cute::composition(KeyLayout{},
       cute::Layout<cute::Shape<cute::Int<D>,cute::_16>,cute::Stride<cute::_16,cute::_1>>{}));
   using QK=backend::ServingAttentionWarp<Arch,16,D,false,KeyLayout>;
-  using PV=backend::ServingAttentionWarp<Arch,D,16,true,ValueLayout>;
+  static constexpr bool kPVSwap=TILEMEGA_ATTENTION_PVSWAP!=0;
+  static_assert(!kPVSwap || Q<=8);
+  using PV=std::conditional_t<kPVSwap,backend::ServingAttentionPVSwap<Arch,D,ValueLayout>,
+      backend::ServingAttentionWarp<Arch,D,16,true,ValueLayout>>;
   using Ring=executor::PageRing<PageBytes,Pages,Arch,ForceSm80>;
   using Copy=typename Ring::Copy;
   static constexpr int kPageRows=PageBytes/(4*D);
@@ -127,7 +134,12 @@ struct PagedAttentionTaskBody {
     if(profile)profile->query_ns=TaskProfileNow(profile)-query_begin;
 #endif
     auto score_coords=typename QK::Mma{}.get_slice(lane).partition_C(make_identity_tensor(Shape<_16,_16>{}));
-    auto out_coords=typename PV::Mma{}.get_slice(lane).partition_C(make_identity_tensor(Shape<_16,Int<D>>{}));
+    auto out_coords=[&](){
+      if constexpr(kPVSwap)return typename PV::Mma{}.get_slice(lane).partition_C(make_identity_tensor(Shape<Int<D>,_8>{}));
+      else return typename PV::Mma{}.get_slice(lane).partition_C(make_identity_tensor(Shape<_16,Int<D>>{}));
+    }();
+    auto query_of=[&](int i){if constexpr(kPVSwap)return int(get<1>(out_coords(i)));else return int(get<0>(out_coords(i)));};
+    auto dim_of=[&](int i){if constexpr(kPVSwap)return int(get<0>(out_coords(i)));else return int(get<1>(out_coords(i)));};
     auto output=PV::Accumulator();float maximum[2]={-INFINITY,-INFINITY},sum[2]={0,0};
     // Transport policy determines ownership and the complete release quorum.
     for(int wave=0;wave<layout.waves;++wave) {
@@ -179,8 +191,16 @@ struct PagedAttentionTaskBody {
           added[r]+=__shfl_xor_sync(0xffffffffu,added[r],2);
           sum[r]=sum[r]*alpha[r]+added[r];
         }
+        float output_scale[2];
+        if constexpr(kPVSwap) {
+          output_scale[0]=__shfl_sync(0xffffffffu,alpha[0],(lane%4)*8);
+          output_scale[1]=__shfl_sync(0xffffffffu,alpha[0],(lane%4)*8+4);
+        }
         #pragma unroll
-        for(int i=0;i<size(output);++i)output(i)*=alpha[int(get<0>(out_coords(i)))/8];
+        for(int i=0;i<size(output);++i) {
+          if constexpr(kPVSwap)output(i)*=output_scale[query_of(i)&1];
+          else output(i)*=alpha[query_of(i)/8];
+        }
         PV::PV(score,score_coords,page+kPageRows*D+(page_row+tile)*D,output);
       }
 #if TILEMEGA_TRACE_TASK
@@ -191,8 +211,10 @@ struct PagedAttentionTaskBody {
     sequence+=layout.pages_per_task;
     #pragma unroll
     for(int i=0;i<size(output);++i) {
-      int row=get<0>(out_coords(i)),d=get<1>(out_coords(i));
-      if(row<PartialRows)s.partial[(warp*PartialRows+row)*D+d]=sum[row/8]>0?output(i)/sum[row/8]:0;
+      int row=query_of(i),d=dim_of(i);float normalizer;
+      if constexpr(kPVSwap)normalizer=__shfl_sync(0xffffffffu,sum[0],row*4);
+      else normalizer=sum[row/8];
+      if(row<PartialRows)s.partial[(warp*PartialRows+row)*D+d]=normalizer>0?output(i)/normalizer:0;
     }
     if((lane&3)==0)for(int r=0;r<2;++r)
       if(lane/4+8*r<PartialRows)s.lse[warp][lane/4+8*r]=sum[r]>0?maximum[r]+log2f(sum[r]):-INFINITY;

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Solver/ServingAttentionLegality.h>
 #include <tilemega/Codegen/ServingPages.h>
 #include <tilemega/Codegen/RuntimePlan.h>
 #include <tilemega/Solver/PageLayout.h>
@@ -107,6 +108,14 @@ void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int pa
   }
   auto [activation,scratch]=solver::PageLayout::ServingWorkspace(gemm_shapes,attention_shapes);
   auto layout=solver::PageLayout::Build(target,page_bytes,activation,scratch);
+  for(auto a:mlir::cast<mlir::ArrayAttr>(model.get("stages"))) {
+    auto stage=mlir::cast<mlir::DictionaryAttr>(a);
+    if(mlir::cast<mlir::StringAttr>(stage.get("kind")).getValue()=="kFusedAttention" &&
+       !solver::ServingAttentionFrontierFits(page_bytes,layout.pages,
+          int(mlir::cast<mlir::IntegerAttr>(stage.get("width")).getInt()),
+          int(mlir::cast<mlir::IntegerAttr>(stage.get("attention_kv_block")).getInt())))
+      throw std::invalid_argument("attention page frontier exceeds the ring or has invalid row alignment");
+  }
   for(auto const& g:runtime.gemms)
     if(g.tile_n*g.tile_k*2>page_bytes*layout.pages)
       throw std::invalid_argument("a B stage exceeds the available page pool");

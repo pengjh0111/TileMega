@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Backend/ServingMmaPipeline.h>
 #include <tilemega/Codegen/executor/Async.cuh>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <cute/tensor.hpp>
@@ -66,12 +67,16 @@ struct ServingTiledMainloop {
       auto bs=cb.get_slice(ComputeThread()).partition_S(sb);
       auto ad=ca.get_slice(ComputeThread()).retile_D(ra);
       auto bd=cb.get_slice(ComputeThread()).retile_D(rb);
+#if TILEMEGA_MMA_REG_PIPE
+      ServingMmaRegisterPipeline<Arch,Config>(mma,accum,ra,rb,as,bs,ad,bd);
+#else
       #pragma unroll
       for(int k=0;k<size<2>(ra);++k) {
         copy(typename Config::SmemCopyAtom{},as(_,_,k),ad(_,_,k));
         copy(typename Config::SmemCopyAtomB{},bs(_,_,k),bd(_,_,k));
         gemm(mma,ra(_,_,k),rb(_,_,k),accum);
       }
+#endif
     }
     // All copies must finish before the shared union becomes epilogue scratch.
     cp_async_wait<0>();ComputeSync();
