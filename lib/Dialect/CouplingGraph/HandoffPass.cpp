@@ -291,8 +291,8 @@ void LowerServingHandoffStages(mlir::ModuleOp module) {
   if(!module->hasAttr("tilemega.handoff_pending_lowering"))return;
   auto model=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   auto pages=module->getAttrOfType<mlir::DictionaryAttr>("tmexec.pages");
-  if(!model || !pages)
-    throw std::invalid_argument("serving handoff lowering requires a paged model and solved page layout");
+  if(!model)
+    throw std::invalid_argument("serving handoff lowering requires a model stage table");
   auto source_stages=model.getAs<mlir::ArrayAttr>("stages");
   if(!source_stages)throw std::invalid_argument("serving handoff lacks runtime stages");
   std::vector<mlir::NamedAttrList> stages;
@@ -324,6 +324,7 @@ void LowerServingHandoffStages(mlir::ModuleOp module) {
       if(!claimed.insert(c).second)
         throw std::invalid_argument("runtime reducer is claimed by multiple handoffs");
       if(handoff.getKind()=="recompute") {
+        if(!pages)throw std::invalid_argument("nonpaged recompute handoff is unsupported");
         if(stage_kind(p)!="kRMSNorm" || stage_kind(c)!="kGemm")
           throw std::invalid_argument("serving recompute currently requires RMSNorm to GEMM");
         bool other_consumer=false;
@@ -335,7 +336,7 @@ void LowerServingHandoffStages(mlir::ModuleOp module) {
         if(stage_kind(p)=="kFusedAttention" && stage_kind(c)=="kAttentionMerge") {
           stages[p].set("handoff_reduce_stage",b.getI64IntegerAttr(c));
           stages[c].set("handoff_elided",b.getBoolAttr(true));
-        } else if(stage_kind(p)=="kGemm" && stage_kind(c)=="kArgmaxReduce") {
+        } else if(pages && stage_kind(p)=="kGemm" && stage_kind(c)=="kArgmaxReduce") {
           stages[p].set("handoff_reduce_stage",b.getI64IntegerAttr(c));
           stages[c].set("handoff_elided",b.getBoolAttr(true));
         } else if(p==c && stage_kind(p)=="kGemm") {
