@@ -59,6 +59,8 @@
 #include <tilemega/Codegen/tasks/ServingRMSNormTaskBody.h>
 #if TILEMEGA_PAGED
 #include <tilemega/Codegen/tasks/LastArriverTaskBody.h>
+#endif
+#if TILEMEGA_NONPAGED_LA
 #include <tilemega/Codegen/executor/MonotonicLastArriver.cuh>
 #endif
 #include <tilemega/Target/ArchDispatch.h>
