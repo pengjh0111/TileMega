@@ -31,11 +31,15 @@ def successive_halving(candidates,measure):
     def observe(i,label):
         r=measure(rows[i],label)
         if not r.get('execution_identity'):raise ValueError('unidentified measurement')
+        if r['execution_identity'].get('trace'):raise ValueError('trace timing cannot enter selection')
+        old=rows[i]['measurements']
+        if old and old[0]['execution_identity']!=r['execution_identity']:
+            raise ValueError('candidate execution identity changed across rounds')
         value=integrated_ms(r['by_past']);rows[i]['measurements'].append(dict(round=label,score_ms=value,**r))
         return value
     while len(active)>3:
         scores={i:observe(i,f'pilot{round_index}') for i in active[round_index%len(active):]+active[:round_index%len(active)]}
-        ranked=sorted(active,key=lambda i:(scores[i],i));keep=(len(ranked)+1)//2
+        ranked=sorted(active,key=lambda i:(scores[i],i));keep=max(3,(len(ranked)+1)//2)
         for i in ranked[keep:]:rows[i]['eliminated_round']=f'pilot{round_index}'
         active=ranked[:keep];round_index+=1
     for r in range(3):
