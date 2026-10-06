@@ -516,7 +516,7 @@ bool BetterCandidate(SkeletonCandidate const& candidate,
   return std::tie(candidate.shared_bytes,candidate.task_count,candidate.key)<
       std::tie(current.shared_bytes,current.task_count,current.key);
 }
-std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& rounds,std::ostream& out,std::string& seed_key,std::vector<std::string>& split1_seed_keys,std::vector<std::string>& fill_seed_keys,std::vector<std::string>& gemv_seed_keys) {
+std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& rounds,std::ostream& out,std::string& seed_key,std::vector<std::string>& split1_seed_keys,std::vector<std::string>& fill_seed_keys,std::vector<std::string>& gemv_seed_keys,std::vector<std::string>& resident2_seed_keys) {
   auto const& options=search.options;
   if(options.passes<1 || options.passes>3)throw std::invalid_argument("coordinate descent supports P=1..3");
   auto const scan_start=std::chrono::steady_clock::now();
@@ -658,6 +658,32 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       auto index=evaluate(gemv,1,std::max(1,search.EstimateResources(gemv).resident_limit));
       gemv_seed_keys.push_back(evaluated[index].key);starts.push_back(index);
       out<<"SERVING_GEMV_SEED key="<<evaluated[index].key<<" error="<<evaluated[index].error<<'\n';
+    }
+    // C-RW1 supplies the one-buffer attention union. Keep a legal two-CTA
+    // family in the measured set instead of relying on occupancy descent
+    // to reach it from a seven-stage, single-resident GEMM configuration.
+    if(options.attention_buffers==1) {
+      auto compact=split1;bool legal=true;
+      for(std::size_t c=0;c<compact.size();++c) {
+        auto op=search.imported.plan.gemms[search.classes[c].gemms.front()].epilogue;
+        bool wide=op==frontend::PlanGemm::Epilogue::kSwiGLU ||
+                  op==frontend::PlanGemm::Epilogue::kArgmaxPartial;
+        auto found=std::find_if(domains[c].begin(),domains[c].end(),[&](auto const& g) {
+          return g.impl==0 && g.tile_m==16 && g.tile_n==(wide?128:32) &&
+                 g.tile_k==(wide?64:128) && g.stages==(wide?2:4) && g.split_k==1;
+        });
+        if(found==domains[c].end()){legal=false;break;}
+        compact[c]=*found;
+      }
+      if(legal) {
+        auto index=evaluate(compact,1,2);
+        auto const& candidate=evaluated[index];
+        if(candidate.error.empty() && candidate.residency==2) {
+          resident2_seed_keys.push_back(candidate.key);starts.push_back(index);
+        }
+        out<<"SERVING_RESIDENT2_SEED key="<<candidate.key<<" residency="
+           <<candidate.residency<<" error="<<candidate.error<<'\n';
+      }else out<<"SERVING_RESIDENT2_SEED unavailable=geometry_domain\n";
     }
   }
   if(search.imported.plan.serving && options.pg_pages) {
@@ -889,7 +915,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
   // Explicit cases initialize their own geometry/implementation. A synthetic
   // all-MMA seed can violate the shared-memory union of a legal GEMV family.
   if(options.evaluation_cases.empty())
-    result.evaluated=CoordinateDescent(search,result.rounds,evidence,result.seed_key,result.split1_seed_keys,result.fill_seed_keys,result.gemv_seed_keys);
+    result.evaluated=CoordinateDescent(search,result.rounds,evidence,result.seed_key,result.split1_seed_keys,result.fill_seed_keys,result.gemv_seed_keys,result.resident2_seed_keys);
   else for(std::size_t i=0;i<options.evaluation_cases.size();++i) {
     auto const& test=options.evaluation_cases[i];
     try {result.evaluated.push_back(search.Evaluate(test.config,test.kappa,test.residency));}
@@ -994,6 +1020,8 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
         if(candidate.key==key && candidate.error.empty() &&
            (!gemv || BetterCandidate(candidate,*gemv,true)))gemv=&candidate;
     if(gemv)required.push_back({gemv->key,"seed_gemv"});
+    for(auto const& key:result.resident2_seed_keys)
+      required.push_back({key,"seed_resident2"});
     std::set<std::string> protected_keys;
     for(auto const& [key,origin]:required)protected_keys.insert(key);
     if(protected_keys.size()>std::size_t(options.measure_top))
