@@ -1,0 +1,87 @@
+[
+  {
+    "name": "LA_compile_fixed_v2",
+    "gpu": false,
+    "priority": 8,
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega"
+    },
+    "after": [
+      "A_analyze"
+    ],
+    "timeout_s": 7200,
+    "needs_free_mib": 4096,
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/check_nonpaged_la.py",
+      "compile"
+    ]
+  },
+  {
+    "name": "LA_numerical_fixed_v2",
+    "gpu": true,
+    "priority": 9,
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega"
+    },
+    "after": [
+      "LA_compile_fixed_v2"
+    ],
+    "timeout_s": 300,
+    "needs_free_mib": 4096,
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/check_nonpaged_la.py",
+      "numerical"
+    ]
+  },
+  {
+    "name": "LA_model_build_v2",
+    "gpu": false,
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega"
+    },
+    "priority": 10,
+    "after": [
+      "LA_compile_fixed_v2"
+    ],
+    "timeout_s": 10800,
+    "needs_free_mib": 12288,
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/check_la_models.py",
+      "build"
+    ]
+  },
+  {
+    "name": "LA_model_smoke_v2",
+    "gpu": true,
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega"
+    },
+    "priority": 11,
+    "after": [
+      "LA_model_build_v2",
+      "LA_numerical_fixed_v2"
+    ],
+    "timeout_s": 1500,
+    "needs_free_mib": 12288,
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/check_la_models.py",
+      "smoke"
+    ]
+  }
+]
