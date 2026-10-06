@@ -1,0 +1,394 @@
+{
+  "steps": 36,
+  "cells": {
+    "llama_B1": {
+      "metrics": {
+        "vllm": {
+          "tpot_ms": 3.005288783934255,
+          "range_ms": 0.020228707771438852,
+          "ttft_ms": 26.062248973175883,
+          "e2e_seconds": 3.100472674937919,
+          "tm_vllm": 1.0,
+          "ratio_range": 0.0
+        },
+        "R13D": {
+          "tpot_ms": 2.8227362893285086,
+          "range_ms": 0.005105142559008041,
+          "ttft_ms": 4.157680785283446,
+          "e2e_seconds": 2.8918125950731337,
+          "tm_vllm": 1.0725172155025593,
+          "ratio_range": 0.0076518019171689655
+        },
+        "R13D_prime": {
+          "tpot_ms": 2.858612863010092,
+          "range_ms": 0.0043145207030913756,
+          "ttft_ms": 4.146902123466134,
+          "e2e_seconds": 2.9285078609827906,
+          "tm_vllm": 1.06003070588945,
+          "ratio_range": 0.009429183161464794
+        },
+        "N1": {
+          "tpot_ms": 2.8576312453749124,
+          "range_ms": 0.42572678594812685,
+          "ttft_ms": 4.2183599434792995,
+          "e2e_seconds": 2.927514869021252,
+          "tm_vllm": 1.0590800776955547,
+          "ratio_range": 0.14624982786265806
+        },
+        "N1_prime": {
+          "tpot_ms": 2.84816863043516,
+          "range_ms": 0.0015363988911738964,
+          "ttft_ms": 4.1746399365365505,
+          "e2e_seconds": 2.9178502180147916,
+          "tm_vllm": 1.0631175547272904,
+          "ratio_range": 0.00919971710084444
+        }
+      },
+      "rebuild_relative": 0.01270985667956892,
+      "prediction_met": false,
+      "c2": {
+        "r13_tokens_identical": true,
+        "timed_repeats_identical": true,
+        "mismatches": 0
+      },
+      "c1": {
+        "vllm_hf": {
+          "pass": true,
+          "gap_le_0_5_ratio": 1.0,
+          "max_gap": 0.0,
+          "required_ratio": 0.99,
+          "allowed_maximum": 3.0
+        },
+        "R13D_prime_hf": {
+          "pass": true,
+          "gap_le_0_5_ratio": 1.0,
+          "max_gap": 0.0,
+          "required_ratio": 0.99,
+          "allowed_maximum": 3.0
+        },
+        "B0h_prime_hf": {
+          "pass": true,
+          "gap_le_0_5_ratio": 1.0,
+          "max_gap": 0.0,
+          "required_ratio": 0.99,
+          "allowed_maximum": 3.0
+        },
+        "N1_prime_hf": {
+          "pass": true,
+          "gap_le_0_5_ratio": 1.0,
+          "max_gap": 0.0,
+          "required_ratio": 0.99,
+          "allowed_maximum": 3.0
+        }
+      },
+      "canary_rounds": []
+    },
+    "qwen3_B1": {
+      "metrics": {
+        "vllm": {
+          "tpot_ms": 4.3767823403899655,
+          "range_ms": 0.027500890479409575,
+          "ttft_ms": 36.5563549567014,
+          "e2e_seconds": 4.514004689175636,
+          "tm_vllm": 1.0,
+          "ratio_range": 0.0
+        },
+        "R13D": {
+          "tpot_ms": 4.161670145588697,
+          "range_ms": 0.006025549632479935,
+          "ttft_ms": 6.190745159983635,
+          "e2e_seconds": 4.263566612964496,
+          "tm_vllm": 1.0597097205824073,
+          "ratio_range": 0.005426211331766462
+        },
+        "R13D_prime": {
+          "tpot_ms": 4.2354874868211745,
+          "range_ms": 0.0023851628603733382,
+          "ttft_ms": 6.190011044964194,
+          "e2e_seconds": 4.339055855991319,
+          "tm_vllm": 1.040319562363492,
+          "ratio_range": 0.0064822390755354675
+        }
+      },
+      "rebuild_relative": 0.01773743200448563,
+      "prediction_met": false,
+      "c2": {
+        "r13_tokens_identical": true,
+        "timed_repeats_identical": true,
+        "mismatches": 0
+      },
+      "c1": {
+        "vllm_hf": {
+          "pass": true,
+          "gap_le_0_5_ratio": 1.0,
+          "max_gap": 0.125,
+          "required_ratio": 0.99,
+          "allowed_maximum": 3.0
+        },
+        "R13D_prime_hf": {
+          "pass": true,
+          "gap_le_0_5_ratio": 1.0,
+          "max_gap": 0.125,
+          "required_ratio": 0.99,
+          "allowed_maximum": 3.0
+        }
+      },
+      "canary_rounds": []
+    },
+    "llama_B16": {
+      "metrics": {
+        "vllm": {
+          "tpot_ms": 3.6351733733121514,
+          "range_ms": 0.08971434412478581,
+          "ttft_ms": 58.669723104685545,
+          "e2e_seconds": 3.770567286061123,
+          "tm_vllm": 1.0,
+          "ratio_range": 0.0
+        },
+        "R13D": {
+          "tpot_ms": 3.1808200829415667,
+          "range_ms": 0.004757510476316798,
+          "ttft_ms": 21.640792954713106,
+          "e2e_seconds": 3.2756731319241226,
+          "tm_vllm": 1.1510816660288388,
+          "ratio_range": 0.02796937009335876
+        },
+        "R13D_prime": {
+          "tpot_ms": 3.2001804309612174,
+          "range_ms": 0.0032296589505607758,
+          "ttft_ms": 21.6744439676404,
+          "e2e_seconds": 3.295496570877731,
+          "tm_vllm": 1.1443962230327374,
+          "ratio_range": 0.026556132166525304
+        }
+      },
+      "rebuild_relative": 0.006086590097779565,
+      "prediction_met": false,
+      "c2": {
+        "r13_tokens_identical": true,
+        "timed_repeats_identical": true,
+        "mismatches": 0
+      },
+      "c1": {
+        "vllm_hf": {
+          "pass": true,
+          "gap_le_0_5_ratio": 1.0,
+          "max_gap": 0.125,
+          "required_ratio": 0.99,
+          "allowed_maximum": 3.0
+        },
+        "R13D_prime_hf": {
+          "pass": true,
+          "gap_le_0_5_ratio": 1.0,
+          "max_gap": 0.25,
+          "required_ratio": 0.99,
+          "allowed_maximum": 3.0
+        }
+      },
+      "canary_rounds": [
+        1
+      ]
+    },
+    "qwen3_B16": {
+      "metrics": {
+        "vllm": {
+          "tpot_ms": 5.963913326625979,
+          "range_ms": 0.018497206359912796,
+          "ttft_ms": 67.11346306838095,
+          "e2e_seconds": 6.166357185924426,
+          "tm_vllm": 1.0,
+          "ratio_range": 0.0
+        },
+        "R13D": {
+          "tpot_ms": 5.41711719738518,
+          "range_ms": 0.008473759526178223,
+          "ttft_ms": 32.73199708200991,
+          "e2e_seconds": 5.574713714886457,
+          "tm_vllm": 1.1056456432404993,
+          "ratio_range": 0.0005049779278440969
+        },
+        "R13D_prime": {
+          "tpot_ms": 5.499638934535059,
+          "range_ms": 0.005756602244759261,
+          "ttft_ms": 32.63300098478794,
+          "e2e_seconds": 5.658640077104792,
+          "tm_vllm": 1.0897242273587764,
+          "ratio_range": 0.0027992004028556394
+        }
+      },
+      "rebuild_relative": 0.015233515196922731,
+      "prediction_met": false,
+      "c2": {
+        "r13_tokens_identical": true,
+        "timed_repeats_identical": true,
+        "mismatches": 0
+      },
+      "c1": {
+        "vllm_hf": {
+          "pass": true,
+          "gap_le_0_5_ratio": 1.0,
+          "max_gap": 0.125,
+          "required_ratio": 0.99,
+          "allowed_maximum": 3.0
+        },
+        "R13D_prime_hf": {
+          "pass": true,
+          "gap_le_0_5_ratio": 1.0,
+          "max_gap": 0.125,
+          "required_ratio": 0.99,
+          "allowed_maximum": 3.0
+        }
+      },
+      "canary_rounds": []
+    }
+  },
+  "baselines": {
+    "llama_B1": "N1'",
+    "llama_B16": "R13D'",
+    "qwen3_B1": "R13D'",
+    "qwen3_B16": "R13D'"
+  },
+  "trace": [
+    {
+      "cell": "llama_B1",
+      "label": "R13D_prime_stage",
+      "execution_id": "89b99f56bbe30fe78c2e810d3ee0845a8ab5c0ab267631702a86ebd627969507",
+      "paired_overhead": [
+        0.0031566897992481024,
+        0.0036752753262336846,
+        0.004400872457010818
+      ],
+      "median_overhead": 0.0036752753262336846,
+      "range": 0.0012441826577627157,
+      "below_two_percent": true,
+      "purpose": "diagnostic only; sampled stage extrema are estimates"
+    },
+    {
+      "cell": "llama_B1",
+      "label": "R13D_prime_task",
+      "execution_id": "c6b167a8861e61d4ea3c9f98b3526302a0fb0504e4ede99122ac134778173706",
+      "paired_overhead": [
+        0.008161263023097165,
+        0.008681658174495732,
+        0.00913461023275075
+      ],
+      "median_overhead": 0.008681658174495732,
+      "range": 0.0009733472096535856,
+      "below_two_percent": true,
+      "purpose": "diagnostic only; sampled stage extrema are estimates"
+    },
+    {
+      "cell": "llama_B1",
+      "label": "N1_prime_stage",
+      "execution_id": "c3e1ce84e663a4536e3a0e55005a85187dd034c73b73cb50f0bf8b0c1314c483",
+      "paired_overhead": [
+        0.010326140070806566,
+        0.008742751020901052,
+        0.005621719215253007
+      ],
+      "median_overhead": 0.008742751020901052,
+      "range": 0.004704420855553559,
+      "below_two_percent": true,
+      "purpose": "diagnostic only; sampled stage extrema are estimates"
+    },
+    {
+      "cell": "llama_B1",
+      "label": "N1_prime_task",
+      "execution_id": "7c7bae2fb246cd48dc0f0788f7419af1bb1b1d417b00f2309d108063e9890bf5",
+      "paired_overhead": [
+        0.00880565628128549,
+        0.009996550211259558,
+        0.005192809658895348
+      ],
+      "median_overhead": 0.00880565628128549,
+      "range": 0.004803740552364211,
+      "below_two_percent": true,
+      "purpose": "diagnostic only; sampled stage extrema are estimates"
+    },
+    {
+      "cell": "qwen3_B1",
+      "label": "R13D_prime_stage",
+      "execution_id": "ba5228ddccb21243ec498563f713845c7d82bccf4dbc4a978d525ec95253c7f7",
+      "paired_overhead": [
+        -0.0009131074421626639,
+        -0.002201587604934274,
+        -0.0004158261957081244
+      ],
+      "median_overhead": -0.0009131074421626639,
+      "range": 0.0017857614092261498,
+      "below_two_percent": true,
+      "purpose": "diagnostic only; sampled stage extrema are estimates"
+    },
+    {
+      "cell": "qwen3_B1",
+      "label": "R13D_prime_task",
+      "execution_id": "1448b311ac218b3a71f9e56d885ba0287a8fd4a5b212618836814595da3cd3ae",
+      "paired_overhead": [
+        0.004082226422342572,
+        0.002632177693017601,
+        0.00427020986905946
+      ],
+      "median_overhead": 0.004082226422342572,
+      "range": 0.0016380321760418592,
+      "below_two_percent": true,
+      "purpose": "diagnostic only; sampled stage extrema are estimates"
+    },
+    {
+      "cell": "llama_B16",
+      "label": "R13D_prime_stage",
+      "execution_id": "641dc6ff2ffa7299c502252ab31a5853ac140273fbcfe25569614bd4b8af1d5b",
+      "paired_overhead": [
+        0.005241947836416294,
+        0.0038556829420717253,
+        0.005502770997262374
+      ],
+      "median_overhead": 0.005241947836416294,
+      "range": 0.0016470880551906486,
+      "below_two_percent": true,
+      "purpose": "diagnostic only; sampled stage extrema are estimates"
+    },
+    {
+      "cell": "llama_B16",
+      "label": "R13D_prime_task",
+      "execution_id": "108bae814d2c384575e2a1211a07158a9828392d105b52baeb5507ba7dec30af",
+      "paired_overhead": [
+        0.011653455605671104,
+        0.01015081687526842,
+        0.0114609674631585
+      ],
+      "median_overhead": 0.0114609674631585,
+      "range": 0.0015026387304026834,
+      "below_two_percent": true,
+      "purpose": "diagnostic only; sampled stage extrema are estimates"
+    },
+    {
+      "cell": "qwen3_B16",
+      "label": "R13D_prime_stage",
+      "execution_id": "c8fa9b032fb0fcce9bb5ed73f2484a99a2baf876ca9e63dde4247f8851739abc",
+      "paired_overhead": [
+        -0.0008260395822078381,
+        0.0009319573439399154,
+        0.0008849768045222639
+      ],
+      "median_overhead": 0.0008849768045222639,
+      "range": 0.0017579969261477535,
+      "below_two_percent": true,
+      "purpose": "diagnostic only; sampled stage extrema are estimates"
+    },
+    {
+      "cell": "qwen3_B16",
+      "label": "R13D_prime_task",
+      "execution_id": "0aeeec4b7a46dfd2e3fd7cf8facf9b5e3cf364d1ee7f44b837e4c1edb3c59352",
+      "paired_overhead": [
+        0.0056503795768607645,
+        0.005961594495587752,
+        0.007050459873056081
+      ],
+      "median_overhead": 0.005961594495587752,
+      "range": 0.0014000802961953163,
+      "below_two_percent": true,
+      "purpose": "diagnostic only; sampled stage extrema are estimates"
+    }
+  ],
+  "qualification": "Model correctness passes. Rebuild slowdown exceeds the prediction; no synchronization reliability claim. Guard rejection/retry records preserved."
+}

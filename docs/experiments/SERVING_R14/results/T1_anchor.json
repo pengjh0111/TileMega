@@ -1,0 +1,314 @@
+[
+  {
+    "cell": "llama_B1",
+    "label": "vllm",
+    "tpot_samples": [
+      0.0030004429432471534,
+      0.0030052887839342552,
+      0.0030206716510185923
+    ],
+    "tpot_median": 0.0030052887839342552,
+    "tpot_range": 2.0228707771438852e-05,
+    "execution_identity": null,
+    "binary": null,
+    "raw": [
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B1_r0/llama_B1/round0.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B1_r1/llama_B1/round1.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B1_r2/llama_B1/round2.json"
+    ]
+  },
+  {
+    "cell": "llama_B1",
+    "label": "R13D",
+    "tpot_samples": [
+      0.002822736289328509,
+      0.002821778620931002,
+      0.00282688376349001
+    ],
+    "tpot_median": 0.002822736289328509,
+    "tpot_range": 5.105142559008041e-06,
+    "execution_identity": null,
+    "binary": {
+      "sha256": "c53cbe23525607bf00c52ffd7ab695d3090dc2b79c047cb97af7dbec5f4883ed"
+    },
+    "raw": [
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B1_r0/llama_B1/round0.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B1_r1/llama_B1/round1.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B1_r2/llama_B1/round2.json"
+    ]
+  },
+  {
+    "cell": "llama_B1",
+    "label": "R13D_prime",
+    "tpot_samples": [
+      0.0028594020692192797,
+      0.0028550875485161883,
+      0.002858612863010092
+    ],
+    "tpot_median": 0.002858612863010092,
+    "tpot_range": 4.3145207030913756e-06,
+    "execution_identity": {
+      "artifact_id": "968e3a8852cd86598abadd6c3fe78892049d21bb9763635d028c714671a74214",
+      "executor": "L1",
+      "loop": false,
+      "pdl": false,
+      "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "spill": false,
+      "trace": false,
+      "execution_id": "1ce4e277ec8148c26a8ed8d0db5a5b33e32778cff2d0d2cc67ab9fbd1edfaac8",
+      "shared_memory_bytes": 99328
+    },
+    "binary": null,
+    "raw": [
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B1_r0/llama_B1/round0.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B1_r1/llama_B1/round1.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B1_r2/llama_B1/round2.json"
+    ]
+  },
+  {
+    "cell": "llama_B1",
+    "label": "N1",
+    "tpot_samples": [
+      0.003280843393913564,
+      0.0028576312453749125,
+      0.002855116607965437
+    ],
+    "tpot_median": 0.0028576312453749125,
+    "tpot_range": 0.00042572678594812686,
+    "execution_identity": null,
+    "binary": {
+      "sha256": "5f6b39f2a680c449147e4307c8b5462635a64ac4c111ae4d41f6849addf63ade"
+    },
+    "raw": [
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B1_r0/llama_B1/round0.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B1_r1/llama_B1/round1.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B1_r2/llama_B1/round2.json"
+    ]
+  },
+  {
+    "cell": "llama_B1",
+    "label": "N1_prime",
+    "tpot_samples": [
+      0.0028482767389604743,
+      0.0028467403400693004,
+      0.0028481686304351597
+    ],
+    "tpot_median": 0.0028481686304351597,
+    "tpot_range": 1.5363988911738964e-06,
+    "execution_identity": {
+      "artifact_id": "19f82b3dec8ed03f8e7434466e91577537061dbef9e941eb2ba8a69d0cc162b6",
+      "executor": "L1",
+      "loop": false,
+      "pdl": false,
+      "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "spill": true,
+      "trace": false,
+      "execution_id": "ebf1c62f999a8bd3bd2401dedb689d88180fca3250f955694f887ea207744fe7",
+      "shared_memory_bytes": 86016
+    },
+    "binary": null,
+    "raw": [
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B1_r0/llama_B1/round0.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B1_r1/llama_B1/round1.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B1_r2/llama_B1/round2.json"
+    ]
+  },
+  {
+    "cell": "qwen3_B1",
+    "label": "vllm",
+    "tpot_samples": [
+      0.004376782340389965,
+      0.004374743797720746,
+      0.004402244688200155
+    ],
+    "tpot_median": 0.004376782340389965,
+    "tpot_range": 2.7500890479409575e-05,
+    "execution_identity": null,
+    "binary": null,
+    "raw": [
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_qwen3_B1_r0/qwen3_B1/round0.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_qwen3_B1_r1/qwen3_B1/round1.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_qwen3_B1_r2/qwen3_B1/round2.json"
+    ]
+  },
+  {
+    "cell": "qwen3_B1",
+    "label": "R13D",
+    "tpot_samples": [
+      0.004161670145588697,
+      0.004156890211905464,
+      0.004162915761537944
+    ],
+    "tpot_median": 0.004161670145588697,
+    "tpot_range": 6.025549632479935e-06,
+    "execution_identity": null,
+    "binary": {
+      "sha256": "693e04b15e3217b3ff9f0db19c8545ce30ebb4f78278530f49883bdeccb117bc"
+    },
+    "raw": [
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_qwen3_B1_r0/qwen3_B1/round0.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_qwen3_B1_r1/qwen3_B1/round1.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_qwen3_B1_r2/qwen3_B1/round2.json"
+    ]
+  },
+  {
+    "cell": "qwen3_B1",
+    "label": "R13D_prime",
+    "tpot_samples": [
+      0.004235487486821174,
+      0.004237034551085556,
+      0.004234649388225183
+    ],
+    "tpot_median": 0.004235487486821174,
+    "tpot_range": 2.3851628603733382e-06,
+    "execution_identity": {
+      "artifact_id": "e0cd093de726a32729a8b7163112639c16deeeca7e941782fdb4c25082be55ea",
+      "executor": "L1",
+      "loop": false,
+      "pdl": false,
+      "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "spill": true,
+      "trace": false,
+      "execution_id": "ec8a6807ba52a1bdf04994d872b39af8c130cf2ea74712e817b6520bf9561d96",
+      "shared_memory_bytes": 99328
+    },
+    "binary": null,
+    "raw": [
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_qwen3_B1_r0/qwen3_B1/round0.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_qwen3_B1_r1/qwen3_B1/round1.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_qwen3_B1_r2/qwen3_B1/round2.json"
+    ]
+  },
+  {
+    "cell": "llama_B16",
+    "label": "vllm",
+    "tpot_samples": [
+      0.003622050796528934,
+      0.0037117651406537197,
+      0.0036351733733121514
+    ],
+    "tpot_median": 0.0036351733733121514,
+    "tpot_range": 8.971434412478581e-05,
+    "execution_identity": null,
+    "binary": null,
+    "raw": [
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B16_r0/llama_B16/round0.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B16_r1/llama_B16/round1.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B16_r2/llama_B16/round2.json"
+    ]
+  },
+  {
+    "cell": "llama_B16",
+    "label": "R13D",
+    "tpot_samples": [
+      0.003184213340355271,
+      0.003179455829878954,
+      0.003180820082941567
+    ],
+    "tpot_median": 0.003180820082941567,
+    "tpot_range": 4.757510476316798e-06,
+    "execution_identity": null,
+    "binary": {
+      "sha256": "a3fba06cace638c042eed9b6038fec482a779bef2c80941f9b17ce715a6c31d7"
+    },
+    "raw": [
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B16_r0/llama_B16/round0.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B16_r1/llama_B16/round1.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B16_r2/llama_B16/round2.json"
+    ]
+  },
+  {
+    "cell": "llama_B16",
+    "label": "R13D_prime",
+    "tpot_samples": [
+      0.0031989344155811,
+      0.0032001804309612176,
+      0.0032021640745316608
+    ],
+    "tpot_median": 0.0032001804309612176,
+    "tpot_range": 3.2296589505607758e-06,
+    "execution_identity": {
+      "artifact_id": "34cff6a31b0718d45292c9ecb68719a267edf5d11a98e8a41942991bcc6a6e86",
+      "executor": "L1",
+      "loop": false,
+      "pdl": false,
+      "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "spill": true,
+      "trace": false,
+      "execution_id": "cb2d9b1bd72c4d33d78ff8d9ddcab6d37d60caeeec10ca767d40a420641986ba",
+      "shared_memory_bytes": 86016
+    },
+    "binary": null,
+    "raw": [
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B16_r0/llama_B16/round0.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B16_r1/llama_B16/round1.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_llama_B16_r2/llama_B16/round2.json"
+    ]
+  },
+  {
+    "cell": "qwen3_B16",
+    "label": "vllm",
+    "tpot_samples": [
+      0.005975564604921891,
+      0.005963913326625979,
+      0.0059570673985619785
+    ],
+    "tpot_median": 0.005963913326625979,
+    "tpot_range": 1.8497206359912796e-05,
+    "execution_identity": null,
+    "binary": null,
+    "raw": [
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_qwen3_B16_r0/qwen3_B16/round0.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_qwen3_B16_r1/qwen3_B16/round1.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_qwen3_B16_r2/qwen3_B16/round2.json"
+    ]
+  },
+  {
+    "cell": "qwen3_B16",
+    "label": "R13D",
+    "tpot_samples": [
+      0.00541711719738518,
+      0.005423676776076109,
+      0.005415203016549931
+    ],
+    "tpot_median": 0.00541711719738518,
+    "tpot_range": 8.473759526178223e-06,
+    "execution_identity": null,
+    "binary": {
+      "sha256": "fd34c9142d458c882aec0b53deeac9499f150103c7c11f294d59a5b4cef10fff"
+    },
+    "raw": [
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_qwen3_B16_r0/qwen3_B16/round0.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_qwen3_B16_r1/qwen3_B16/round1.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_qwen3_B16_r2/qwen3_B16/round2.json"
+    ]
+  },
+  {
+    "cell": "qwen3_B16",
+    "label": "R13D_prime",
+    "tpot_samples": [
+      0.005499638934535059,
+      0.005498453829745204,
+      0.005504210431989964
+    ],
+    "tpot_median": 0.005499638934535059,
+    "tpot_range": 5.756602244759261e-06,
+    "execution_identity": {
+      "artifact_id": "cf0fde21387716a0d09827bf81262c62b26c7b782ac771100d596cdbcbd1ff1e",
+      "executor": "L1",
+      "loop": false,
+      "pdl": false,
+      "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+      "spill": true,
+      "trace": false,
+      "execution_id": "4174860eae01470944e729e63e174abadac605a8f7de2dfca63d7ea25e31f314",
+      "shared_memory_bytes": 99328
+    },
+    "binary": null,
+    "raw": [
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_qwen3_B16_r0/qwen3_B16/round0.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_qwen3_B16_r1/qwen3_B16/round1.json",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/A1_qwen3_B16_r2/qwen3_B16/round2.json"
+    ]
+  }
+]

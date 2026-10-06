@@ -9175,3 +9175,7 @@ Evidence: SERVING_R14/raw/FX24/{reproductions_partial.tar.xz,minimal_before.log,
 minimal_after.log,host_tests.log}; lib/Solver/StageFlowModel.cpp.
 
 R14 completion evidence for F-358/F-359: SERVING_R14/results/{phase0_acceptance,T12_audit}.json and raw/phase0_completed.tar.xz (verified).
+
+### F-360 — R14 Phase-A correctness and corrected baseline (verified)
+
+All 36 Phase-A steps completed. Four R13D rebuilds preserve 1024-token sequences across three rounds and pass C-1; repaired Llama B1 nonpaged N1' and B0h' also pass C-1. N1' is 2.84817 ms versus rebuilt paged 2.85861 ms, discernible under the registered range rule, so it becomes the Llama B1 baseline. Rebuilt R13D drifts +0.61% to +1.77% against old binaries, exceeding prediction; cause remains unisolated. Stage/task trace median overhead is −0.09% to +1.15%, with token equality, but sampled extrema are estimates. Evidence: `experiments/SERVING_R14/results/phase_a_acceptance.json`, `raw/phase_a_completed.tar.xz`, and its SHA manifest. No synchronization reliability conclusion is made.

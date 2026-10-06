@@ -1,0 +1,142 @@
+[
+  {
+    "cell": "llama_B1",
+    "label": "R13D_prime_stage",
+    "execution_id": "89b99f56bbe30fe78c2e810d3ee0845a8ab5c0ab267631702a86ebd627969507",
+    "paired_overhead": [
+      0.0031566897992481024,
+      0.0036752753262336846,
+      0.004400872457010818
+    ],
+    "median_overhead": 0.0036752753262336846,
+    "range": 0.0012441826577627157,
+    "below_two_percent": true,
+    "purpose": "diagnostic only; sampled stage extrema are estimates"
+  },
+  {
+    "cell": "llama_B1",
+    "label": "R13D_prime_task",
+    "execution_id": "c6b167a8861e61d4ea3c9f98b3526302a0fb0504e4ede99122ac134778173706",
+    "paired_overhead": [
+      0.008161263023097165,
+      0.008681658174495732,
+      0.00913461023275075
+    ],
+    "median_overhead": 0.008681658174495732,
+    "range": 0.0009733472096535856,
+    "below_two_percent": true,
+    "purpose": "diagnostic only; sampled stage extrema are estimates"
+  },
+  {
+    "cell": "llama_B1",
+    "label": "N1_prime_stage",
+    "execution_id": "c3e1ce84e663a4536e3a0e55005a85187dd034c73b73cb50f0bf8b0c1314c483",
+    "paired_overhead": [
+      0.010326140070806566,
+      0.008742751020901052,
+      0.005621719215253007
+    ],
+    "median_overhead": 0.008742751020901052,
+    "range": 0.004704420855553559,
+    "below_two_percent": true,
+    "purpose": "diagnostic only; sampled stage extrema are estimates"
+  },
+  {
+    "cell": "llama_B1",
+    "label": "N1_prime_task",
+    "execution_id": "7c7bae2fb246cd48dc0f0788f7419af1bb1b1d417b00f2309d108063e9890bf5",
+    "paired_overhead": [
+      0.00880565628128549,
+      0.009996550211259558,
+      0.005192809658895348
+    ],
+    "median_overhead": 0.00880565628128549,
+    "range": 0.004803740552364211,
+    "below_two_percent": true,
+    "purpose": "diagnostic only; sampled stage extrema are estimates"
+  },
+  {
+    "cell": "qwen3_B1",
+    "label": "R13D_prime_stage",
+    "execution_id": "ba5228ddccb21243ec498563f713845c7d82bccf4dbc4a978d525ec95253c7f7",
+    "paired_overhead": [
+      -0.0009131074421626639,
+      -0.002201587604934274,
+      -0.0004158261957081244
+    ],
+    "median_overhead": -0.0009131074421626639,
+    "range": 0.0017857614092261498,
+    "below_two_percent": true,
+    "purpose": "diagnostic only; sampled stage extrema are estimates"
+  },
+  {
+    "cell": "qwen3_B1",
+    "label": "R13D_prime_task",
+    "execution_id": "1448b311ac218b3a71f9e56d885ba0287a8fd4a5b212618836814595da3cd3ae",
+    "paired_overhead": [
+      0.004082226422342572,
+      0.002632177693017601,
+      0.00427020986905946
+    ],
+    "median_overhead": 0.004082226422342572,
+    "range": 0.0016380321760418592,
+    "below_two_percent": true,
+    "purpose": "diagnostic only; sampled stage extrema are estimates"
+  },
+  {
+    "cell": "llama_B16",
+    "label": "R13D_prime_stage",
+    "execution_id": "641dc6ff2ffa7299c502252ab31a5853ac140273fbcfe25569614bd4b8af1d5b",
+    "paired_overhead": [
+      0.005241947836416294,
+      0.0038556829420717253,
+      0.005502770997262374
+    ],
+    "median_overhead": 0.005241947836416294,
+    "range": 0.0016470880551906486,
+    "below_two_percent": true,
+    "purpose": "diagnostic only; sampled stage extrema are estimates"
+  },
+  {
+    "cell": "llama_B16",
+    "label": "R13D_prime_task",
+    "execution_id": "108bae814d2c384575e2a1211a07158a9828392d105b52baeb5507ba7dec30af",
+    "paired_overhead": [
+      0.011653455605671104,
+      0.01015081687526842,
+      0.0114609674631585
+    ],
+    "median_overhead": 0.0114609674631585,
+    "range": 0.0015026387304026834,
+    "below_two_percent": true,
+    "purpose": "diagnostic only; sampled stage extrema are estimates"
+  },
+  {
+    "cell": "qwen3_B16",
+    "label": "R13D_prime_stage",
+    "execution_id": "c8fa9b032fb0fcce9bb5ed73f2484a99a2baf876ca9e63dde4247f8851739abc",
+    "paired_overhead": [
+      -0.0008260395822078381,
+      0.0009319573439399154,
+      0.0008849768045222639
+    ],
+    "median_overhead": 0.0008849768045222639,
+    "range": 0.0017579969261477535,
+    "below_two_percent": true,
+    "purpose": "diagnostic only; sampled stage extrema are estimates"
+  },
+  {
+    "cell": "qwen3_B16",
+    "label": "R13D_prime_task",
+    "execution_id": "0aeeec4b7a46dfd2e3fd7cf8facf9b5e3cf364d1ee7f44b837e4c1edb3c59352",
+    "paired_overhead": [
+      0.0056503795768607645,
+      0.005961594495587752,
+      0.007050459873056081
+    ],
+    "median_overhead": 0.005961594495587752,
+    "range": 0.0014000802961953163,
+    "below_two_percent": true,
+    "purpose": "diagnostic only; sampled stage extrema are estimates"
+  }
+]
