@@ -149,6 +149,7 @@ def generate(so, root, source_snapshot):
                 'mma_reg_pipe':int(defines.get('TILEMEGA_MMA_REG_PIPE','0'))} for g in manifest['gemms']],
                 'attention':{'impl':manifest.get('attention_impl','mma16'),
                 'noinline':bool(manifest.get('attention_noinline',False)),
+                'buffers':int(defines.get('TILEMEGA_ATTENTION_BUFFERS','2')),
                 'task_body':('PagedAttentionTaskBody' if paged else 'IndependentAttentionTaskBody') if decode else 'FusedAttentionTaskBody',
                 'page_policy':('Packed' if paged else 'WarpPrivate') if decode else None,
                 'load':manifest.get('paged_attention_load','loader')}}}

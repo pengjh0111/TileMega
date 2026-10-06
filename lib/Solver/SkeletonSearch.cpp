@@ -252,10 +252,10 @@ struct SearchContext {
       int gemm_shared=0;
       for(auto const& g:config)gemm_shared=std::max(gemm_shared,
           (g.impl?ServingGemvSmemBytes(g.tile_m,g.tile_n):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)));
-      if(!options.pg_pages && std::any_of(config.begin(),config.end(),[](auto const& g){return g.impl!=0;}))
+      if(!options.pg_pages && (options.attention_buffers==1 || std::any_of(config.begin(),config.end(),[](auto const& g){return g.impl!=0;})))
         for(auto const& stage:imported.plan.stages)
           if(stage.kind==frontend::PlanTaskKind::kFusedAttention) {
-            int bytes=65536+32*int(stage.width)+16*int(stage.group)*int(stage.width)+16*int(stage.group);
+            int bytes=32768*options.attention_buffers+32*int(stage.width)+16*int(stage.group)*int(stage.width)+16*int(stage.group);
             gemm_shared=std::max(gemm_shared,((bytes+1023)/1024)*1024);
           }
       estimate.shared_bytes=gemm_shared;
@@ -310,7 +310,7 @@ struct SearchContext {
             return stage.kind==frontend::PlanTaskKind::kFusedAttention;
           });
       if(attention==imported.plan.stages.end() ||
-         (!std::any_of(config.begin(),config.end(),[](auto const& g){return g.impl!=0;}) &&
+         (options.attention_buffers==2 && !std::any_of(config.begin(),config.end(),[](auto const& g){return g.impl!=0;}) &&
          PruneServingAttentionSmemR1(attention->width,
              attention->attention_query_rows,config,target)))
         throw std::invalid_argument("R-1 attention exceeds GEMM shared-memory union");

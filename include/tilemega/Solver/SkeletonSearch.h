@@ -27,6 +27,7 @@ struct SkeletonSearchOptions {
   // Verification arm: keep only the R-1 legality filter.
   bool serving_pruning=true;
   bool pg_pages=false;
+  int attention_buffers=2;
   // An edge class is a coordinate: bit 0 selects access-proved normalization
   // recompute, bit 1 selects access-proved attention last-arriver reduction.
   bool handoff_auto=false;
