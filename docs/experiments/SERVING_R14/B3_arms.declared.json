@@ -136,6 +136,21 @@
       "decode_loop": 0,
       "prefill_mode": "L1",
       "env": {},
+      "label": "AT_la_ref",
+      "decode": "/root/TileMega/docs/experiments/SERVING_R14/raw/B0b/qwen3_B1/AT_la_ref/plan.so"
+    },
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "qwen3",
+      "model_path": "/root/models/qwen3_1_7b",
+      "batch": 1,
+      "prefill": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so",
+      "mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "env": {},
       "label": "SK_fill",
       "decode": "/root/TileMega/docs/experiments/SERVING_R14/raw/B0b/qwen3_B1/SK_fill/plan.so"
     },

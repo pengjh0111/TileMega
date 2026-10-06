@@ -31,7 +31,9 @@ def main():
         nonpaged=not paged or cell.endswith('_B1')
         if nonpaged:
             nd=base if not paged else next(j for j in la if j['cell']==cell)
-            if paged:add('AT_la_ref',{'nonpaged_la':0},source=nd)
+            if paged:
+                _,nbase=add('AT_la_ref',{'nonpaged_la':0},source=nd)
+                matrices['B3'][cell].append(nbase) # Same nonpaged geometry for the GEMV comparison.
             add('AT_la',{'nonpaged_la':1},source=nd,matrix='B2')
             add('AT_la_pv',{'nonpaged_la':1,'attention_impl':'pvswap'},source=nd,matrix='B2')
         fill=[]

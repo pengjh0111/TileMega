@@ -1516,7 +1516,7 @@ R13 closed with declared limitations: two optional canary reruns and three depen
 | Phase A | 36/36 done, archived and accepted; four C-1/C-2 pass; Llama B1 baseline becomes corrected N1 |
 | Independent development | RW-3, AT-3a, EP/RA standalone numerical checks pass; latest L1 mapping/full harness checks remain |
 | AT-2 / SK-1 | Merge/combine LA and fill seed implemented; host and single-process tests pass, model/50-process pending |
-| GV-1 / SL-6 | GEMV family/dispatch integrated, validation queued; SL-6 Ec/implementation variants and budget outstanding |
+| GV-1 / SL-6 | GEMV model smoke passes; Ec/implementation variants integrated; hard global budget remains a deviation |
 | Conditional Phase C / Phase D | Not started; preserve preregistered gates and fresh-process requirements |
 
 Resume at SERVING_R14/scheduler/progress.tsv and state.json. Do not treat the Phase-0 queue as complete R14 implementation or acceptance.
