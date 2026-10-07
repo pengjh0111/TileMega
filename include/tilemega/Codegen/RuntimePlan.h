@@ -42,6 +42,7 @@ struct RuntimePlan {
   bool resident_only = true;
   std::map<std::string,std::pair<long,long>> parameter_ranges;
   std::map<std::string,std::uint32_t> task_stages;
+  analysis::ParamBinding task_binding;
 };
 
 RuntimePlan ReadRuntimePlan(mlir::ModuleOp module);

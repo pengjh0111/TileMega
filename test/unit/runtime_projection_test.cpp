@@ -203,6 +203,39 @@ int TestRuntimeProjection(int argc, char** argv) {
     std::cout << "PROJECTION_ERROR rejected=" << rejected << " before=" << before
               << " after=" << context.ReferenceCount() << '\n';
   }
+  {
+    tilemega::solver::ModelDescription model;
+    model.dm=model.serving=true;model.dims.seq=model.dims.total=1;
+    model.gemms={{64,64,0,1},{64,64,1,2}};
+    model.gemm_access.resize(2);
+    model.gemm_access[0].rows_per_batch=128;
+    model.gemm_access[1].rows_per_batch=96;
+    model.stages.resize(2);
+    for(int i=0;i<2;++i) {model.stages[i].kind=tilemega::solver::StageKind::kGemm;model.stages[i].gemm=i;}
+    tilemega::codegen::RuntimePlan plan;plan.gemms={{0,1,32,64,64,2},{0,1,32,64,64,2}};
+    auto relation=tilemega::analysis::CouplingRelation::FromIslText(
+        "{ [c] -> [p] : c=0 and p=1; [c] -> [p] : c=2 and (p=0 or p=3) }");
+    auto table=tilemega::analysis::BuildDependencyTableLinear(relation,4,3);
+    plan.dependencies={{0,1,{true,1,1,0,1},std::nullopt,0,table}};
+    for(int grid:{1,4}) for(int kappa:{0,1,2,8}) {
+      auto projected=tilemega::solver::ProjectRuntimeQueues(model,plan,{grid,128,kappa});
+      assert(projected.dependencies.Points().size()==3);
+      std::set<std::vector<long>> expected;
+      for(auto [c,p]:std::vector<std::pair<int,int>>{{0,1},{2,0},{2,3}}) {
+        if(kappa==1 && c%grid==p%grid)continue;
+        expected.insert({c%grid,0,kappa==0?0:1,kappa==0?0:p/kappa});
+      }
+      assert(projected.runtime_wait_entries.Eval({})==expected.size());
+      for(auto const& [consumer,event]:projected.requested_events.Points())assert(consumer[1]!=1);
+    }
+    auto forced=tilemega::solver::ProjectRuntimeQueues(model,plan,{4,128,1,true});
+    assert(forced.dependencies.Points().size()==12 && forced.runtime_wait_entries.Eval({})==3);
+    plan.dependencies[0].table->intervals[0].first=0;
+    bool rejected=false;
+    try { (void)tilemega::solver::ProjectRuntimeQueues(model,plan,{4,128,1}); }
+    catch(std::invalid_argument const&) {rejected=true;}
+    assert(rejected);
+  }
   assert(context.ReferenceCount() == 0);
 
   return 0;

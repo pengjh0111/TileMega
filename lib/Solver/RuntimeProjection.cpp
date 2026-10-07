@@ -173,6 +173,9 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
   if (model.serving)
     restrict_dimension(model.batch_metric_parameter,batch,
                        model.batch_metric_parameter,model.dims.batch);
+  for (auto const& name : parameters)
+    if (plan.task_binding.Contains(name))
+      valid += " and " + name + " = " + std::to_string(plan.task_binding.At(name));
   auto relation = [&](std::vector<std::string> const& pieces) {
     return analysis::CouplingRelation::FromIslText(prefix+"{ "+Join(pieces)+" }");
   };
@@ -241,7 +244,14 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
           throw std::invalid_argument("stage GEMM index outside projection plan");
         auto const& g = plan.gemms[stage.gemm];
         int ntiles = (model.gemms[stage.gemm].n+g.tile_n-1)/g.tile_n;
-        tiles[i] = Mul(Ceil(stage.batch_rows ? batch : tokens,g.tile_m),ntiles);
+        auto rows=stage.batch_rows ? batch : tokens;
+        if (model.dm && !model.gemm_access.empty()) {
+          if (model.gemm_access.size()!=model.gemms.size())
+            throw std::invalid_argument("incomplete DM GEMM access table");
+          if (auto per_batch=model.gemm_access[stage.gemm].rows_per_batch)
+            rows=Mul(batch,per_batch);
+        }
+        tiles[i] = Mul(Ceil(rows,g.tile_m),ntiles);
         stage_chunks[i] = stage.kind==StageKind::kAdd ? 1 : chunks[stage.gemm];
         count = Mul(tiles[i],stage_chunks[i]);
         break;
@@ -294,11 +304,21 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
       append(static_cast<int>(i),true,combine);
     }
   }
-  struct Edge { int producer,consumer; analysis::WaitWindow window; std::string offset; };
+  struct Edge {
+    int producer,consumer;
+    analysis::WaitWindow window;
+    std::string offset;
+    std::optional<analysis::DependencyTable> table;
+  };
   std::vector<Edge> edges;
   for (auto const& edge : plan.dependencies) {
     if (edge.producer >= entry.size() || edge.consumer >= entry.size())
       throw std::invalid_argument("dependency outside runtime projection stages");
+    if (edge.table && ((model.stages[edge.consumer].kind==StageKind::kAttention &&
+        stage_chunks[edge.consumer]>1) ||
+        (done[edge.producer]!=entry[edge.producer] &&
+         !(plan.ownership_flags & codegen::kCombinerTileOwnership))))
+      throw std::invalid_argument("table dependency requires bound tile ownership");
     auto window = edge.window;
     if (model.stages[edge.producer].kind == StageKind::kGemm &&
         done[edge.producer] != entry[edge.producer] &&
@@ -308,7 +328,7 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
         stage_chunks[edge.consumer]>1 && window.narrowed)
       window.div *= stage_chunks[edge.consumer];
     edges.push_back({done[edge.producer],entry[edge.consumer],window,
-                     std::to_string(window.offset)});
+                     std::to_string(window.offset),edge.table});
   }
   for (std::size_t i=0; i<entry.size(); ++i) if (done[i] != entry[i]) {
     if (model.stages[i].kind==StageKind::kAttention) {
@@ -324,11 +344,54 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
     } else edges.push_back({entry[i],done[i],{},"0"});
   }
   for (auto const& edge : edges)
-    result.runtime_windows.push_back({edge.producer, edge.consumer,
-                                      edge.window, edge.offset});
+    if (edge.table)
+      result.runtime_tables.push_back({edge.producer,edge.consumer,*edge.table});
+    else result.runtime_windows.push_back({edge.producer, edge.consumer,
+                                           edge.window, edge.offset});
   std::vector<std::string> wait_pieces, dependency_pieces, requested_pieces;
   std::map<std::pair<int,int>,std::vector<std::string>> event_pieces;
+  std::vector<analysis::CouplingRelation> table_dependencies,table_waits,table_requested;
+  std::map<std::pair<int,int>,std::vector<analysis::CouplingRelation>> table_events;
   for (auto const& edge : edges) {
+    if (edge.table && !options.force_all_dependencies) {
+      auto const& table=*edge.table;
+      auto proved=analysis::BuildDependencyTableLinear(table.linear_relation,table.producers,table.consumers);
+      if (table.stride!=proved.stride || table.intervals.size()!=proved.intervals.size() ||
+          !analysis::Contains(table.linear_relation,table.encoded_relation) ||
+          !analysis::Contains(table.encoded_relation,table.linear_relation))
+        throw std::invalid_argument("unproved runtime dependency table");
+      for (std::size_t i=0;i<table.intervals.size();++i)
+        if (table.intervals[i].first!=proved.intervals[i].first ||
+            table.intervals[i].count!=proved.intervals[i].count)
+          throw std::invalid_argument("runtime dependency intervals differ from their relation");
+      for (auto [stage,count] : {std::pair{edge.producer,table.producers},
+                                 std::pair{edge.consumer,table.consumers}})
+        if (cardinality(relation({"[] -> [t] : "+valid+" and 0<=t<("+counts[stage]+")"}),
+                        "table_domain",stage).Eval(plan.task_binding)!=count)
+          throw std::invalid_argument("runtime table task count differs from projected ownership");
+      auto consumer=relation({"[cs="+std::to_string(edge.consumer)+",c] -> [c] : "+
+          valid+" and 0<=c<("+counts[edge.consumer]+")"});
+      auto producer=relation({"[p] -> [ps="+std::to_string(edge.producer)+",p] : "+
+          valid+" and 0<=p<("+counts[edge.producer]+")"});
+      table_dependencies.push_back(consumer.ApplyRange(table.encoded_relation).ApplyRange(producer));
+      int kappa=ProducerKappa(options,edge.producer);
+      auto identity=analysis::CouplingRelation::FromIslText("{ [c] -> [c] : 0<=c<"+
+          std::to_string(table.consumers)+" }");
+      auto pairs=consumer.ApplyRange(table.encoded_relation.RangeProduct(identity));
+      auto events=[&](int kind) {
+        return pairs.ApplyRange(relation({"[p,c] -> [w,pstage="+
+            std::to_string(edge.producer)+",kind="+std::to_string(kind)+",g] : w=c%"+
+            std::to_string(options.grid)+" and g="+(kind==0?"0":
+            "floord(p,"+std::to_string(kappa)+")")}));
+      };
+      auto fine=events(kappa==0?0:1);
+      table_events[{edge.producer,kappa==0?0:1}].push_back(fine);
+      table_requested.push_back(kappa==1?events(2):fine);
+      if (kappa==1) fine=fine.IntersectRange("{ [w,pstage,kind,g] : g%"+
+          std::to_string(options.grid)+" != w }");
+      table_waits.push_back(fine);
+      continue;
+    }
     std::string exact="[cs="+std::to_string(edge.consumer)+",c] -> [ps="+
         std::to_string(edge.producer)+",p] : "+valid+" and 0<=c<("+
         counts[edge.consumer]+") and 0<=p<("+counts[edge.producer]+")";
@@ -368,18 +431,27 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
       ? std::vector<std::string>{"[cs,c] -> [ps,p] : false"} : dependency_pieces);
   result.requested_events=relation(requested_pieces.empty()
       ? std::vector<std::string>{"[cs,c] -> [w,pstage,kind,g] : false"} : requested_pieces);
-  if (wait_pieces.empty()) {
+  for (auto const& table : table_dependencies) result.dependencies=result.dependencies.Union(table);
+  for (auto const& table : table_requested) result.requested_events=result.requested_events.Union(table);
+  if (wait_pieces.empty() && table_waits.empty()) {
     result.runtime_wait_entries = analysis::QuasiPolynomial::Constant(0);
   } else {
     // Project away the consumer coordinate before counting: union cardinality
     // removes per-task duplicates AND repeated polls lifted along each queue.
-    result.waits = relation(wait_pieces);
+    result.waits = relation(wait_pieces.empty()
+        ? std::vector<std::string>{"[cs,c] -> [w,pstage,kind,g] : false"} : wait_pieces);
+    for (auto const& table : table_waits) result.waits=result.waits.Union(table);
     if (!options.count_wait_entries) return result;
     std::vector<analysis::QuasiPolynomial> wait_counts;
     // Producer and event kind are disjoint keys. Count each image separately
     // so barvinok need not partition a union across unrelated stage planes.
+    for (auto const& [key,maps] : table_events) event_pieces.try_emplace(key);
     for (auto const& [key,pieces] : event_pieces) {
-      auto map = relation(pieces).ApplyRange(analysis::CouplingRelation::FromIslText(
+      auto all=relation(pieces.empty()
+          ? std::vector<std::string>{"[cs,c] -> [w,pstage,kind,g] : false"} : pieces);
+      if (auto at=table_events.find(key);at!=table_events.end())
+        for (auto const& table : at->second) all=all.Union(table);
+      auto map = all.ApplyRange(analysis::CouplingRelation::FromIslText(
           "{ [w,pstage,kind,g] -> [w,g] }"));
       auto count_workers = [&](analysis::CouplingRelation const& events, char const* label) {
         if (!options.partition_worker_counts) return cardinality(events,label,key.first);

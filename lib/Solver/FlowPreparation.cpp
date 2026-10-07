@@ -5,6 +5,7 @@
 #include <tilemega/Solver/VariantSchedule.h>
 #include <tilemega/Codegen/tasks/TaskResources.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/BoundDependencyForm.h>
 #include <isl/map.h>
 #include <isl/set.h>
 #include <isl/point.h>
@@ -51,12 +52,26 @@ std::vector<BoundRuntimeWindow> BindRuntimeWindows(
   for(auto const& item:projection.runtime_windows)
     if(item.producer==producer && item.consumer==consumer)
       result.push_back({item.window,BoundWindowOffset(item.offset_expression,theta)});
+  for(auto const& item:projection.runtime_tables)
+    if(item.producer==producer && item.consumer==consumer)
+      result.push_back({{},0,item.table});
   return result;
 }
 int RuntimeReleaseEndpoint(int cg_last,int consumer_task,int producer_count,
     std::vector<BoundRuntimeWindow> const& windows,bool force_all) {
   int last=cg_last;
   for(auto const& item:windows) {
+    if(item.table) {
+      auto const& table=*item.table;
+      if(consumer_task<0 || consumer_task>=table.consumers || producer_count!=table.producers)
+        throw std::invalid_argument("runtime table release has different task ownership");
+      if(force_all) { last=std::max(last,producer_count-1); continue; }
+      for(unsigned i=0;i<table.stride;++i) {
+        auto interval=table.intervals.at(std::size_t(consumer_task)*table.stride+i);
+        if(interval.count)last=std::max<long>(last,std::uint64_t(interval.first)+interval.count-1);
+      }
+      continue;
+    }
     auto const& w=item.window;
     auto bounds=codegen::RuntimeDependencyBounds(consumer_task,producer_count,
         force_all || !w.narrowed,w.div,w.scale,item.offset,w.count);
@@ -122,6 +137,7 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     auto window=edge.window;
     if(edge.producer>=entry.size() || edge.consumer>=entry.size())
       throw std::invalid_argument("flow runtime dependency outside stage range");
+    if(edge.table)continue;
     if(done[edge.producer]!=entry[edge.producer] &&
        result.model.stages[edge.producer].kind==StageKind::kGemm &&
        !result.model.combiner_tile_ownership)
@@ -163,6 +179,21 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     exact_edges.emplace(std::make_pair(edge.src.name,edge.dst.name),relation);
     grouped[{p.stage,c.stage}].push_back(std::move(relation));}
   for(auto const& [pair,relations]:grouped)result.data_edges.push_back({pair.first,pair.second,(relations.size()==1?relations.front():analysis::CouplingRelation::UnionAll(relations))});
+  for(auto& edge:result.runtime.dependencies)if(edge.table) {
+    int producer=done[edge.producer],consumer=entry[edge.consumer];
+    auto exact=std::find_if(result.data_edges.begin(),result.data_edges.end(),[&](auto const& item) {
+      return item.producer==producer && item.consumer==consumer;
+    });
+    if(exact==result.data_edges.end())throw std::invalid_argument("table edge has no access-derived flow relation");
+    // Geometry search changes task ownership. Rebind from L-sem instead of
+    // carrying the seed plan's concrete table into another tile geometry.
+    auto bound=analysis::BindExactTaskDependencyLinear(exact->relation.Reverse().BindParams(theta),
+        result.counts[producer],result.counts[consumer]);
+    edge.table=bound.table;edge.window=bound.window;
+    if(bound.table)result.projection.runtime_tables.push_back({producer,consumer,*bound.table});
+    else result.projection.runtime_windows.push_back({producer,consumer,bound.window,
+        std::to_string(bound.window.offset)});
+  }
   if(phase_analysis && result.model.serving && result.model.dims.seq==1 && kappa==1) {
     // Re-lift only the reduction granularity. This analysis graph is never
     // materialized; exact equality with the executable graph's edge is the

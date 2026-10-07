@@ -40,6 +40,7 @@ struct PreparedFlow {
 struct BoundRuntimeWindow {
   analysis::WaitWindow window;
   long offset = 0;
+  std::optional<analysis::DependencyTable> table;
 };
 std::vector<BoundRuntimeWindow> BindRuntimeWindows(
     RuntimeProjection const& projection, int producer, int consumer,

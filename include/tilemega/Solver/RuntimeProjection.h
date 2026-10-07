@@ -69,6 +69,11 @@ struct RuntimeProjection {
   analysis::QuasiPolynomial runtime_task_refs;
   analysis::QuasiPolynomial runtime_wait_entries;
   analysis::QuasiPolynomial max_worker_task_refs;
+  struct TaskTable {
+    int producer = -1, consumer = -1;
+    analysis::DependencyTable table;
+  };
+  std::vector<TaskTable> runtime_tables;
 };
 struct FusedRuntimeProjection {
   RuntimeProjection projection;

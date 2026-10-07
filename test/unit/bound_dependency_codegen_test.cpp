@@ -5,9 +5,14 @@
 #include <tilemega/Dialect/CouplingGraph/BoundDependency.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Solver/ModelDescription.h>
+#include <tilemega/Solver/RuntimeProjection.h>
+#include <tilemega/Solver/FlowPreparation.h>
+#include <tilemega/Codegen/RuntimeTaskGraph.h>
 #include <mlir/IR/Verifier.h>
 #include <cassert>
 #include <fstream>
+#include <set>
 
 namespace tilemega::tests::bound_dependency_codegen_test {
 namespace {
@@ -70,10 +75,48 @@ int TestBoundDependencyCodegen(int argc, char** argv) {
     auto runtime=codegen::ReadRuntimePlan(*module);
     assert(runtime.dependencies.size()==1 && runtime.dependencies[0].table);
     auto table=*runtime.dependencies[0].table;
+    assert(runtime.task_binding.At("B")==batch);
     assert(table.producers==24*batch && table.consumers==7*batch && table.stride==2);
     for (unsigned row=0;row<table.consumers;++row) {
       assert(table.intervals[row*2].first==row*3 && table.intervals[row*2].count==1);
       assert(table.intervals[row*2+1].first==row*3+2 && table.intervals[row*2+1].count==1);
+    }
+    solver::ModelDims dims;dims.seq=dims.total=1;dims.batch=batch;
+    auto model=solver::ModelDescription::FromCouplingGraph(*module,dims,"bound-table");
+    for (int grid : {1,3,8}) for (int kappa : {0,1,4,16}) {
+      auto projected=solver::ProjectRuntimeQueues(model,runtime,{grid,128,kappa});
+      assert(projected.runtime_windows.empty() && projected.runtime_tables.size()==1);
+      assert(projected.runtime_task_refs.Eval(runtime.task_binding)==31*batch);
+      std::set<std::vector<long>> expected_waits;
+      auto dependencies=projected.dependencies.BindParams(runtime.task_binding).Points();
+      assert(dependencies.size()==14*batch);
+      for (auto const& [consumer,producer] : dependencies) {
+        assert(consumer[0]==1 && producer[0]==0 &&
+            (producer[1]==3*consumer[1] || producer[1]==3*consumer[1]+2));
+      }
+      for (long c=0;c<7*batch;++c) for (long p : {3*c,3*c+2}) {
+        if (kappa==1 && p%grid==c%grid) continue;
+        expected_waits.insert({c%grid,0,kappa==0?0:1,kappa==0?0:p/kappa});
+      }
+      assert(projected.runtime_wait_entries.Eval(runtime.task_binding)==expected_waits.size());
+      std::set<std::vector<long>> actual_waits;
+      for (auto const& [consumer,event] : projected.waits.BindParams(runtime.task_binding).Points())
+        actual_waits.insert(event);
+      assert(actual_waits==expected_waits);
+      auto balanced=solver::BalanceProjectedQueues(projected,runtime.task_binding,grid);
+      assert(balanced.task_ids.size()==31*batch);
+    }
+    for (int tile : {16,32,64}) {
+      solver::SymbolicProblem base;base.model=model;base.runtime=runtime;base.threads=128;
+      base.geometry={{tile,64,64,3,1},{tile,64,64,3,1}};
+      analysis::CouplingCache cache;
+      auto flow=solver::PrepareFlowStructure(base,base.geometry,8,4,cache);
+      auto waits=solver::BindRuntimeWindows(flow.projection,0,1,model.MetricBindings());
+      auto exact=flow.data_edges.at(0).relation.BindParams(model.MetricBindings()).Reverse().Points();
+      std::vector<int> last(flow.counts[1],-1);
+      for(auto const& [c,p] : exact) last[c[0]]=std::max(last[c[0]],int(p[0]));
+      for(int c=0;c<flow.counts[1];++c)
+        assert(solver::RuntimeReleaseEndpoint(-1,c,flow.counts[0],waits,false)==last[c]);
     }
     auto cu=codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});
     assert(cu.find("StageDependency::Map::kTable")!=std::string::npos);

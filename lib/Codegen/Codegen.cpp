@@ -1228,6 +1228,16 @@ RuntimePlan ReadRuntimePlan(mlir::ModuleOp module) {
   result.cluster_dim = analysis.cluster_dim;
   result.task_stages = std::move(analysis.task_stages);
   ReadParameterRanges(module,result);
+  for (auto edge : module.getOps<dialect::CouplingOp>())
+    if (auto geometry=edge->getAttrOfType<mlir::DictionaryAttr>("dependency_geometry"))
+      for (auto item : geometry.getAs<mlir::DictionaryAttr>("binding")) {
+        auto name=item.getName().str();
+        if (!result.parameter_ranges.count(name)) continue;
+        auto value=mlir::cast<mlir::IntegerAttr>(item.getValue()).getInt();
+        if (result.task_binding.Contains(name) && result.task_binding.At(name)!=value)
+          throw std::invalid_argument("runtime dependencies bind different workload shapes");
+        result.task_binding.Bind(name,value);
+      }
   return result;
 }
 
