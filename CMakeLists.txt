@@ -204,6 +204,7 @@ add_library(tilemega_core STATIC
   lib/Analysis/StorageHazards.cpp
   lib/Analysis/DependencyTable.cpp
   lib/Analysis/BoundDependencyForm.cpp
+  lib/Analysis/VirtualTaskBinding.cpp
   lib/Analysis/ExactTaskWork.cpp
   lib/Analysis/DramFloor.cpp
   lib/Solver/TaskPriceParts.cpp
@@ -313,6 +314,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/storage_hazards_test.cpp
     test/unit/bound_dependency_form_test.cpp
     test/unit/capacity_form_test.cpp
+    test/unit/virtual_task_binding_test.cpp
     test/unit/graph_pattern_test.cpp
     test/unit/model_plan_order_test.cpp
     test/unit/layout_bridge_test.cpp
@@ -441,6 +443,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME storage_hazards COMMAND tilemega-unit storage_hazards)
   add_test(NAME bound_dependency_form COMMAND tilemega-unit bound_dependency_form)
   add_test(NAME capacity_form COMMAND tilemega-unit capacity_form)
+  add_test(NAME virtual_task_binding COMMAND tilemega-unit virtual_task_binding)
 
   add_test(NAME task_element_work COMMAND tilemega-unit task_element_work
     ${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/gqa2.json

@@ -52,9 +52,10 @@ IndexResult IndexResult::Broadcast(ClosedForm span) {
   return result;
 }
 
-IndexResult IndexResult::DataDependent() {
+IndexResult IndexResult::DataDependent(std::string binding_source) {
   IndexResult result;
   result.kind = Kind::kDataDependent;
+  result.binding_source = std::move(binding_source);
   return result;
 }
 
@@ -84,6 +85,7 @@ std::string IndexResult::Serialize() const {
       break;
     case Kind::kDataDependent:
       out << "data_dependent";
+      if (!binding_source.empty()) out << "(" << binding_source << ")";
       break;
   }
   return out.str();
@@ -212,6 +214,9 @@ std::string SemanticOp::Serialize() const {
     out << " " << dim.name << ":" << ToString(dim.type) << "["
         << dim.origin.ToString() << ", " << dim.extent.ToString() << ")";
     if (dim.runtime) out << "!";
+    if (dim.capacity)
+      out << " capacity=" << dim.capacity->ToString() << " binding=" << dim.binding_source
+          << " requirement=" << dim.binding_requirement;
   }
   out << "\n  result " << SerializeTensor(result) << " "
       << result_map.Serialize() << " " << result_effect.Serialize() << "\n";

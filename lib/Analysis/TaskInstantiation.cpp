@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Analysis/TaskElementRelation.h>
+#include <tilemega/Analysis/VirtualTaskBinding.h>
 
 #include <map>
 #include <algorithm>
@@ -35,7 +36,9 @@ OperandAxisMap LowerResult(SemanticOp const& op, IndexResult const& result,
     case IndexResult::Kind::kBroadcast:
       return OperandAxisMap::Broadcast(result.span);
     case IndexResult::Kind::kDataDependent:
-      return OperandAxisMap::DataDependent();
+      {
+        auto map = OperandAxisMap::DataDependent(); map.binding_source = result.binding_source; return map;
+      }
     case IndexResult::Kind::kAffine:
       break;
   }
@@ -53,7 +56,7 @@ OperandAxisMap LowerResult(SemanticOp const& op, IndexResult const& result,
       if (!dim) throw std::invalid_argument("window names an unknown iteration dim");
       OperandAxisMap::Term window;
       window.scale = term.coefficient; window.group = term.group;
-      window.window_dim = dim->name; window.window_extent = dim->extent;
+      window.window_dim = dim->name; window.window_extent = dim->BoundExtent();
       window.window_origin = dim->origin;
       window.shift = term.shift;
       terms.push_back(std::move(window));
@@ -82,7 +85,7 @@ Operand LowerOperand(SemanticOp const& op, SemanticOperand const& operand,
 std::vector<ClosedForm> LowerTiles(SemanticOp const& op,
                                    Granularity const& g) {
   std::vector<ClosedForm> tiles;
-  auto const& space = op.exact_task_access ? op.task_space : op.result;
+  auto space = op.exact_task_access ? BindCapacityTaskSpace(op) : op.result;
   for (std::size_t axis = 0; axis < space.axes.size(); ++axis) {
     ClosedForm tile = space.axes[axis].extent;
     for (auto const& dim : op.domain) {
@@ -160,7 +163,7 @@ OperatorGraph Instantiate(SemanticGraph const& graph, Granularity const& g) {
       OperatorNode node;
       node.name = op.name;
       node.kind = op.kind;
-      node.output = op.exact_task_access ? op.task_space : op.result;
+      node.output = op.exact_task_access ? BindCapacityTaskSpace(op) : op.result;
       node.tile = LowerTiles(op, g);
       for (auto const& operand : op.operands) {
         node.operands.push_back(LowerOperand(op, operand, {}));
@@ -193,7 +196,7 @@ OperatorGraph Instantiate(SemanticGraph const& graph, Granularity const& g) {
             [&](auto const& axis) { return axis.name == name; });
       };
       while (has_axis(chunk_axis.name)) chunk_axis.name += "_";
-      chunk_axis.extent = reduced->extent.CeilDiv(chunk); chunk_axis.runtime = reduced->runtime;
+      chunk_axis.extent = reduced->BoundExtent().CeilDiv(chunk); chunk_axis.runtime = reduced->runtime && !reduced->capacity;
       auto partial = op.result; partial.name = op.reduction.partial_tensor;
       partial.axes.push_back(chunk_axis);
       auto contribution_sem = op; contribution_sem.result = partial;
@@ -202,7 +205,7 @@ OperatorGraph Instantiate(SemanticGraph const& graph, Granularity const& g) {
           ClosedForm::Constant(1), chunk, ClosedForm::Constant(-1) * reduced->origin));
       OperatorNode contribution;
       contribution.name = op.name; contribution.kind = op.kind;
-      contribution.output = op.task_space; contribution.output.axes.push_back(chunk_axis);
+      contribution.output = BindCapacityTaskSpace(op); contribution.output.axes.push_back(chunk_axis);
       contribution.tile = LowerTiles(op, g); contribution.tile.push_back(ClosedForm::Constant(1));
       std::map<std::string, int> extra{{reduced->name, int(op.task_space.axes.size())}};
       for (auto const& operand : op.operands) {
@@ -223,12 +226,12 @@ OperatorGraph Instantiate(SemanticGraph const& graph, Granularity const& g) {
       combine_sem.operands.clear(); combine_sem.element_reads.clear();
       combine_sem.domain.erase(std::remove_if(combine_sem.domain.begin(), combine_sem.domain.end(),
           [](auto const& dim) { return dim.type == IteratorType::kReduction; }), combine_sem.domain.end());
-      combine_sem.domain.push_back({chunk_axis.name, chunk_axis.extent, ClosedForm::Constant(0), IteratorType::kReduction, reduced->runtime});
+      combine_sem.domain.push_back({chunk_axis.name, chunk_axis.extent, ClosedForm::Constant(0), IteratorType::kReduction, chunk_axis.runtime});
       auto map = op.result_map; map.results.push_back(IndexResult::Dim(chunk_axis.name));
       combine_sem.operands.push_back({op.name, partial, map, {}});
       OperatorNode combine;
       combine.name = combine_sem.name; combine.kind = combine_sem.kind;
-      combine.output = op.task_space; combine.tile = LowerTiles(op, g);
+      combine.output = BindCapacityTaskSpace(op); combine.tile = LowerTiles(op, g);
       combine.operands.push_back(LowerOperand(combine_sem, combine_sem.operands.front(), {}));
       TaskElementAccess final_access; final_access.semantic = std::move(combine_sem);
       final_access.partition.ownership = op.task_map;

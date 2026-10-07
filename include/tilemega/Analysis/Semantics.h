@@ -17,6 +17,7 @@
 #pragma once
 
 #include <string>
+#include <optional>
 #include <vector>
 
 #include <tilemega/Analysis/ClosedForm.h>
@@ -49,6 +50,10 @@ struct IterationDim {
   ClosedForm origin = ClosedForm::Constant(0);
   IteratorType type = IteratorType::kParallel;
   bool runtime = false;
+  std::optional<ClosedForm> capacity;
+  std::string binding_source;
+  std::string binding_requirement;
+  ClosedForm BoundExtent() const { return capacity ? *capacity : extent; }
 };
 
 /// One result of an indexing map: the element index along one tensor axis as a
@@ -72,6 +77,7 @@ struct IndexResult {
   std::vector<Term> terms;
   ClosedForm offset = ClosedForm::Constant(0);
   ClosedForm span = ClosedForm::Constant(1);  ///< non-affine kinds only
+  std::string binding_source;
 
   static IndexResult Dim(std::string name,
                          ClosedForm coefficient = ClosedForm::Constant(1),
@@ -81,7 +87,7 @@ struct IndexResult {
                             ClosedForm offset = ClosedForm::Constant(0));
   static IndexResult FullRange(ClosedForm offset = ClosedForm::Constant(0));
   static IndexResult Broadcast(ClosedForm span = ClosedForm::Constant(1));
-  static IndexResult DataDependent();
+  static IndexResult DataDependent(std::string binding_source = {});
 
   std::string Serialize() const;
 };

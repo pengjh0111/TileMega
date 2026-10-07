@@ -68,6 +68,7 @@ struct OperandAxisMap {
   /// Number of elements read, for kFullRange / kBroadcast / kDataDependent.
   /// Ignored for kIndexed, whose span follows the finest term.
   ClosedForm span = ClosedForm::Constant(1);
+  std::string binding_source;
 
   static OperandAxisMap Indexed(int output_axis,
                                 ClosedForm scale = ClosedForm::Constant(1),

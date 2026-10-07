@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/SemanticCodec.h>
+#include <tilemega/Analysis/VirtualTaskBinding.h>
 #include <tilemega/Support/Json.h>
 #include <set>
 #include <stdexcept>
@@ -24,18 +25,25 @@ template<class T,class F> Value EncodeArray(std::vector<T> const& values,F encod
   return array;
 }
 Value EncodeIndex(IndexResult const& index) {
-  return Object{{"kind",int(index.kind)}, {"offset",index.offset.ToString()},
+  Object encoded{{"kind",int(index.kind)}, {"offset",index.offset.ToString()},
     {"span",index.span.ToString()}, {"terms",EncodeArray(index.terms,[](auto const& term) {
       Object encoded{{"dim",term.dim},{"coefficient",term.coefficient.ToString()},
                      {"group",term.group.ToString()}};
       if (!term.shift.IsLiteral(0)) encoded.emplace_back("shift", term.shift.ToString());
       return Value(std::move(encoded));
     })}};
+  if (!index.binding_source.empty()) encoded.emplace_back("binding_source", index.binding_source);
+  return encoded;
 }
 IndexResult DecodeIndex(Value const& value) {
   IndexResult result;
   result.kind=Enum(value,"kind",IndexResult::Kind::kDataDependent);
   result.offset=Form(value,"offset"); result.span=Form(value,"span");
+  if (auto const* source = value.Find("binding_source")) {
+    result.binding_source = source->AsString("binding_source");
+    if (result.kind != IndexResult::Kind::kDataDependent)
+      throw std::invalid_argument("binding source requires a data-dependent index");
+  }
   for (auto const& term:value.At("terms").AsArray("terms")) {
     IndexResult::Term decoded{String(term,"dim"),Form(term,"coefficient"),Form(term,"group")};
     if (auto const* shift = term.Find("shift")) decoded.shift = ClosedForm::Parse(shift->AsString("shift"));
@@ -74,11 +82,18 @@ MemoryEffect DecodeEffect(Value const& value) {
   return {Enum(value,"kind",EffectKind::kReadWrite),String(value,"alias"),String(value,"state")};
 }
 Value Encode(SemanticOp const& op) {
+  (void)VirtualBindings(op);
   Object encoded{{"version",1},{"name",op.name},{"kind",int(op.kind)},{"dtype",int(op.dtype)},
     {"arithmetic",op.arithmetic},{"generic",op.generic},
     {"domain",EncodeArray(op.domain,[](auto const& dim) {
-      return Value(Object{{"name",dim.name},{"extent",dim.extent.ToString()},
-        {"origin",dim.origin.ToString()},{"type",int(dim.type)},{"runtime",dim.runtime}});
+      Object encoded{{"name",dim.name},{"extent",dim.extent.ToString()},
+        {"origin",dim.origin.ToString()},{"type",int(dim.type)},{"runtime",dim.runtime}};
+      if (dim.capacity) {
+        encoded.emplace_back("capacity", dim.capacity->ToString());
+        encoded.emplace_back("binding_source", dim.binding_source);
+        encoded.emplace_back("binding_requirement", dim.binding_requirement);
+      }
+      return Value(std::move(encoded));
     })},{"result",EncodeTensor(op.result)},{"result_map",EncodeMap(op.result_map)},
     {"result_effect",EncodeEffect(op.result_effect)},
     {"operands",EncodeArray(op.operands,[](auto const& operand) {
@@ -122,6 +137,9 @@ SemanticOp DecodeSemanticOp(std::string const& payload) {
   for (auto const& dim:value.At("domain").AsArray("domain")) {
     IterationDim axis{String(dim,"name"),Form(dim,"extent"),Form(dim,"origin"),
                      Enum(dim,"type",IteratorType::kReduction),Boolean(dim,"runtime")};
+    if (auto const* capacity = dim.Find("capacity")) axis.capacity = ClosedForm::Parse(capacity->AsString("capacity"));
+    if (auto const* source = dim.Find("binding_source")) axis.binding_source = source->AsString("binding_source");
+    if (auto const* requirement = dim.Find("binding_requirement")) axis.binding_requirement = requirement->AsString("binding_requirement");
     if (axis.name.empty() || !names.insert(axis.name).second)
       throw std::invalid_argument("duplicate or empty semantic iteration axis");
     op.domain.push_back(std::move(axis));
@@ -179,6 +197,7 @@ SemanticOp DecodeSemanticOp(std::string const& payload) {
   }
   if (op.reduction.splittable && !names.count(op.reduction.dim))
     throw std::invalid_argument("semantic reduction names an unknown axis");
+  (void)VirtualBindings(op);
   return op;
 }
 }  // namespace tilemega::analysis

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/CouplingDerivation.h>
+#include <tilemega/Analysis/VirtualTaskBinding.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/TaskElementRelation.h>
 #include <tilemega/Analysis/TaskWork.h>
@@ -670,9 +671,16 @@ std::vector<CouplingEdge> CouplingDerivation::Derive(
           edge.attributes.relation_kind = RelationKind::kDataDependent;
           edge.attributes.exactness = Exactness::kRelaxed;
         }
-        edge.attributes.runtime_requirement = data_dependent ? RuntimeRequirement::kTensorValues
-            : edge.attributes.extent_kind == ExtentKind::kRuntimeDynamic
-                ? RuntimeRequirement::kPrefixSum : RuntimeRequirement::kNone;
+        auto producer_binding = VirtualBindingRequirement(*producer);
+        auto consumer_binding = VirtualBindingRequirement(consumer);
+        edge.attributes.runtime_requirement = data_dependent ||
+            producer_binding == RuntimeRequirement::kTensorValues ||
+            consumer_binding == RuntimeRequirement::kTensorValues
+                ? RuntimeRequirement::kTensorValues
+                : edge.attributes.extent_kind == ExtentKind::kRuntimeDynamic ||
+                  producer_binding == RuntimeRequirement::kPrefixSum ||
+                  consumer_binding == RuntimeRequirement::kPrefixSum
+                    ? RuntimeRequirement::kPrefixSum : RuntimeRequirement::kNone;
         edge.attributes.countability = data_dependent ? Countability::kUncountable : ClassifyCount(edge.metrics.wait);
         edge.tier = DeriveTier(edge.attributes);
         edges.push_back(std::move(edge));

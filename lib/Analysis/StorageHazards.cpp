@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/StorageHazards.h>
+#include <tilemega/Analysis/VirtualTaskBinding.h>
 #include <tilemega/Analysis/TaskElementRelation.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <stdexcept>
@@ -53,9 +54,15 @@ CouplingEdge Edge(StorageTaskAccess const& source, CouplingRelation const& sourc
   edge.exact = !dependent && source.attributes.exactness == Exactness::kExact &&
       target.attributes.exactness == Exactness::kExact;
   edge.attributes.exactness = edge.exact ? Exactness::kExact : Exactness::kRelaxed;
-  edge.attributes.runtime_requirement = dependent ? RuntimeRequirement::kTensorValues
-      : edge.attributes.extent_kind == ExtentKind::kRuntimeDynamic
-          ? RuntimeRequirement::kPrefixSum : RuntimeRequirement::kNone;
+  auto source_binding = VirtualBindingRequirement(*source.task);
+  auto target_binding = VirtualBindingRequirement(*target.task);
+  edge.attributes.runtime_requirement = dependent ||
+      source_binding == RuntimeRequirement::kTensorValues ||
+      target_binding == RuntimeRequirement::kTensorValues ? RuntimeRequirement::kTensorValues
+      : edge.attributes.extent_kind == ExtentKind::kRuntimeDynamic ||
+        source_binding == RuntimeRequirement::kPrefixSum ||
+        target_binding == RuntimeRequirement::kPrefixSum ? RuntimeRequirement::kPrefixSum
+                                                       : RuntimeRequirement::kNone;
   edge.attributes.countability = dependent ? Countability::kUncountable : Countability::kPiecewiseQuasiPolynomial;
   if (!dependent) {
     try { (void)edge.metrics.wait.Eval(known); edge.attributes.countability = Countability::kConstant; }

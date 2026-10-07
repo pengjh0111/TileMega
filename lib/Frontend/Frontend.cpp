@@ -9,6 +9,8 @@
 #include <tilemega/Analysis/DependencyForm.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Analysis/SemanticCodec.h>
+#include <tilemega/Analysis/VirtualTaskBinding.h>
+#include <tilemega/Analysis/TaskElementRelation.h>
 #include <tilemega/Dialect/CouplingGraph/CGAttrs.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
@@ -278,6 +280,7 @@ llvm::StringRef taskKindOf(OpRole role) {
 analysis::QuasiPolynomial metricOf(analysis::ClosedForm const& value,
                                    analysis::ParamBinding const& granularity) {
   analysis::ClosedForm reduced = value.Substitute(granularity);
+  if (reduced.HasPiecewise()) return analysis::QuasiPolynomial::FromClosedForm(reduced);
   std::vector<std::string> free = reduced.FreeSymbols();
   std::sort(free.begin(), free.end());
   free.erase(std::unique(free.begin(), free.end()), free.end());
@@ -935,6 +938,17 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
         arithmetic = semantic->reduction.reduction_operator == "add" ? "sum" : "";
       if (!arithmetic.empty())
         state.addAttribute("arithmetic", builder.getStringAttr(arithmetic));
+    }
+    if (node.element_access) {
+      llvm::SmallVector<mlir::Attribute> bindings;
+      for (auto const& binding : analysis::VirtualBindings(node.element_access->semantic))
+        bindings.push_back(dict(builder, {
+            builder.getNamedAttr("dimension", builder.getStringAttr(binding.dimension)),
+            builder.getNamedAttr("capacity", builder.getStringAttr(binding.capacity.ToString())),
+            builder.getNamedAttr("binding_source", builder.getStringAttr(binding.source)),
+            builder.getNamedAttr("extent_kind", builder.getStringAttr("runtime_dynamic")),
+            builder.getNamedAttr("runtime_requirement", builder.getStringAttr(binding.requirement))}));
+      if (!bindings.empty()) state.addAttribute("virtual_bindings", builder.getArrayAttr(bindings));
     }
     // A split introduces two distinct task spaces. Keep their exact access
     // witness separate from the g-independent source semantic used by pricing.

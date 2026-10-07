@@ -53,17 +53,17 @@ TaskWork DeriveExactTaskWork(OperatorNode const& task, ParamBinding const& known
   TensorSpace reduction_space; reduction_space.name = sem.name + ".reduction_domain";
   IndexingMap reduction_map;
   for (auto const& dim : sem.domain) {
-    if (output_dims.count(dim.name)) parallel = parallel * dim.extent;
+    if (output_dims.count(dim.name)) parallel = parallel * dim.BoundExtent();
     else {
-      reduction = reduction * dim.extent;
+      reduction = reduction * dim.BoundExtent();
       auto extent = !access.partition.reduction_chunk.IsLiteral(0) && dim.name == sem.reduction.dim
-          ? access.partition.reduction_chunk : dim.extent;
+          ? access.partition.reduction_chunk : dim.BoundExtent();
       if (auto tile = options.reduction_tiles.find(dim.name); tile != options.reduction_tiles.end()) {
         if (tile->second.Eval(known, known) <= 0) throw std::invalid_argument("nonpositive exact reduction tile");
         extent = extent.CeilDiv(tile->second) * tile->second;
       }
       issued = issued * extent;
-      reduction_space.axes.push_back({dim.name, dim.extent, dim.origin, dim.runtime});
+      reduction_space.axes.push_back({dim.name, dim.BoundExtent(), dim.origin, dim.runtime && !dim.capacity});
       reduction_map.results.push_back(IndexResult::Dim(dim.name));
     }
   }
@@ -86,7 +86,7 @@ TaskWork DeriveExactTaskWork(OperatorNode const& task, ParamBinding const& known
   if (!access.partition.reduction_chunk.IsLiteral(0)) {
     auto const* reduced = sem.Dim(sem.reduction.dim);
     ClosedForm per_chunk;
-    if (!reduced || !output_width.TryExactDivide(reduced->extent.CeilDiv(access.partition.reduction_chunk), &per_chunk))
+    if (!reduced || !output_width.TryExactDivide(reduced->BoundExtent().CeilDiv(access.partition.reduction_chunk), &per_chunk))
       throw std::invalid_argument("partial tensor volume does not factor by its chunks");
     output_width = per_chunk;
   }

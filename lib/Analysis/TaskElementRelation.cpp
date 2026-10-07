@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/TaskElementRelation.h>
+#include <tilemega/Analysis/VirtualTaskBinding.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <map>
 #include <set>
@@ -20,6 +21,11 @@ CouplingRelation ProjectTaskElements(SemanticOp const& semantic,
     TensorSpace const& tensor, IndexingMap const& indexing,
     std::vector<IndexResult> const& nonnegative, ParamBinding const& known) {
   IslReferenceAudit audit(__func__);
+  for (auto const& binding : VirtualBindings(semantic)) {
+    auto capacity = binding.capacity.Substitute(known);
+    if (capacity.IsConstant() && capacity.Eval({}, {}) <= 0)
+      throw std::invalid_argument("virtual capacity must be positive after binding");
+  }
   bool split = !partition.reduction_chunk.IsLiteral(0);
   if (indexing.results.size() != tensor.axes.size() ||
       task.output.axes.size() != partition.ownership.results.size() + unsigned(split))
@@ -40,7 +46,7 @@ CouplingRelation ProjectTaskElements(SemanticOp const& semantic,
     variables.push_back(variable);
     auto origin = expression(dim.origin);
     bounds.push_back("(" + origin + ") <= " + variable + " < (" + origin +
-                     ") + (" + expression(dim.extent) + ")");
+                     ") + (" + expression(dim.BoundExtent()) + ")");
   }
   auto index = [&](IndexResult const& value) {
     if (value.kind != IndexResult::Kind::kAffine)
