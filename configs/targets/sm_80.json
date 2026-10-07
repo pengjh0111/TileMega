@@ -136,6 +136,7 @@
       "smem_occupancy_gbps": []
     },
     "sync": {
+      "wait_protocol": "legacy",
       "atomic_uncontended_ns": 0.0,
       "atomic_contention_ctas": [],
       "atomic_contention_ns": [],

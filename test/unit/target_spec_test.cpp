@@ -5,6 +5,7 @@
 #include <cassert>
 #include <string>
 #include <filesystem>
+#include <fstream>
 #include <stdexcept>
 #include <unistd.h>
 
@@ -13,6 +14,27 @@ namespace tilemega::tests::target_spec_test {
 int TestTargetSpec(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   using tilemega::TargetSpec;
+  for (auto architecture : {80, 89, 90, 100, 120}) {
+    auto file = std::string(TILEMEGA_SOURCE_DIR) + "/configs/targets/sm_" +
+                std::to_string(architecture) + ".json";
+    auto explicit_policy = TargetSpec::FromJson(file);
+    auto legacy_file = std::filesystem::temp_directory_path() /
+        ("tilemega-legacy-policy-" + std::to_string(getpid()) + ".json");
+    {
+      std::ifstream source(file);
+      std::ofstream old(legacy_file);
+      std::string line;
+      bool found = false;
+      while (std::getline(source, line)) {
+        if (line.find("\"wait_protocol\"") != std::string::npos) found = true;
+        else old << line << '\n';
+      }
+      assert(found && source.eof() && old.good());
+    }
+    auto omitted_policy = TargetSpec::FromJson(legacy_file.string());
+    std::filesystem::remove(legacy_file);
+    assert(explicit_policy.ToJson() == omitted_policy.ToJson());
+  }
   auto sm80 = TargetSpec::FromJson(
       std::string(TILEMEGA_SOURCE_DIR) + "/configs/targets/sm_80.json");
   auto sm120 = TargetSpec::FromJson(
