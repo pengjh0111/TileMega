@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 #include <llvm/ADT/Hashing.h>
 
@@ -29,13 +30,17 @@ class ClosedForm {
   static ClosedForm Constant(long value);
   static ClosedForm Symbol(std::string const& name);
   /// Parse the stable textual form emitted by ToString.  The accepted grammar
-  /// is integer/symbol, +, *, parentheses, ceildiv(a,b), and a//b.
+  /// is integer/symbol, +, *, parentheses, ceildiv(a,b), a//b, and min(a,b).
   static ClosedForm Parse(std::string const& expression);
 
   ClosedForm operator+(ClosedForm const& rhs) const;
   ClosedForm operator*(ClosedForm const& rhs) const;
   ClosedForm CeilDiv(ClosedForm const& divisor) const;
   ClosedForm FloorDiv(ClosedForm const& divisor) const;
+  ClosedForm Min(ClosedForm const& rhs) const;
+  bool HasPiecewise() const;
+  // Disjoint (value, condition) pieces for exact ISL polynomial construction.
+  std::vector<std::pair<std::string, std::string>> ToIslPieces() const;
 
   long Eval(ParamBinding const& theta, ParamBinding const& g) const;
   std::string ToString() const;

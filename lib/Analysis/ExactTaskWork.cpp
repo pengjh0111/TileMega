@@ -8,13 +8,7 @@
 namespace tilemega::analysis {
 namespace {
 QuasiPolynomial Polynomial(ClosedForm const& value, ParamBinding const& known) {
-  auto expression = value.Substitute(known);
-  std::string parameters;
-  for (auto const& symbol : expression.FreeSymbols()) {
-    if (!parameters.empty()) parameters += ','; parameters += symbol;
-  }
-  return QuasiPolynomial::FromIslText((parameters.empty() ? "" : "[" + parameters + "] -> ") +
-                                    "{ " + expression.ToIslText() + " }");
+  return QuasiPolynomial::FromClosedForm(value, known);
 }
 }
 TaskWork DeriveExactTaskWork(OperatorNode const& task, ParamBinding const& known,

@@ -264,6 +264,22 @@ QuasiPolynomial QuasiPolynomial::FromIslText(std::string const& text) {
 QuasiPolynomial QuasiPolynomial::Card(CouplingRelation const& relation) {
   return relation.Card();
 }
+QuasiPolynomial QuasiPolynomial::FromClosedForm(ClosedForm const& expression, ParamBinding const& known) {
+  auto bound = expression.Substitute(known);
+  std::string parameters;
+  for (auto const& symbol : bound.FreeSymbols()) {
+    if (!parameters.empty()) parameters += ',';
+    parameters += symbol;
+  }
+  std::string text = parameters.empty() ? "{ " : "[" + parameters + "] -> { ";
+  bool first = true;
+  for (auto const& [value, condition] : bound.ToIslPieces()) {
+    if (!first) text += "; "; first = false;
+    text += value;
+    if (!condition.empty()) text += " : " + condition;
+  }
+  return FromIslText(text + " }");
+}
 
 QuasiPolynomial QuasiPolynomial::Add(QuasiPolynomial const& other) const {
   return Sum({*this,other});

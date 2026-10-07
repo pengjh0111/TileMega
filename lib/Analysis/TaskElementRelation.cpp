@@ -161,10 +161,7 @@ ExactTaskCoupling DeriveExactTaskCoupling(CouplingRelation const& writes,
   result.metrics.wait = result.relation.BoundTaskCard();
   result.metrics.fanout = result.relation.Reverse().BoundTaskCard();
   result.metrics.volume = result.shared_elements.BoundTaskCard();
-  auto count = consumer.Count().Substitute(known);
-  auto symbols = count.FreeSymbols();
-  auto prefix = symbols.empty() ? "" : "[" + Join(symbols, ",") + "] -> ";
-  result.metrics.count = QuasiPolynomial::FromIslText(prefix + "{ " + count.ToIslText() + " }");
+  result.metrics.count = QuasiPolynomial::FromClosedForm(consumer.Count(), known);
   result.consumer_read_elements = reads.ApplyRange(writes.ImageIdentity()).BoundTaskCard();
   return result;
 }

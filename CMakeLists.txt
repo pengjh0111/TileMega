@@ -312,6 +312,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/exact_task_metadata_test.cpp
     test/unit/storage_hazards_test.cpp
     test/unit/bound_dependency_form_test.cpp
+    test/unit/capacity_form_test.cpp
     test/unit/graph_pattern_test.cpp
     test/unit/model_plan_order_test.cpp
     test/unit/layout_bridge_test.cpp
@@ -439,6 +440,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME exact_task_metadata COMMAND tilemega-unit exact_task_metadata)
   add_test(NAME storage_hazards COMMAND tilemega-unit storage_hazards)
   add_test(NAME bound_dependency_form COMMAND tilemega-unit bound_dependency_form)
+  add_test(NAME capacity_form COMMAND tilemega-unit capacity_form)
 
   add_test(NAME task_element_work COMMAND tilemega-unit task_element_work
     ${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/gqa2.json

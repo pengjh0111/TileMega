@@ -55,6 +55,8 @@ class QuasiPolynomial {
   /// isl parse/print round trip so equal quantities compare textually equal
   /// (needed for MLIR attribute uniquing).
   static QuasiPolynomial FromIslText(std::string const& text);
+  static QuasiPolynomial FromClosedForm(ClosedForm const& expression,
+                                       ParamBinding const& known = {});
   /// card(C): image cardinality per domain point (Definition 4's wait(x) /
   /// fanout(y), depending on which side `relation` is oriented).
   static QuasiPolynomial Card(CouplingRelation const& relation);
