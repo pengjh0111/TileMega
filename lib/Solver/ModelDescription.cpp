@@ -102,6 +102,16 @@ StageKind ParseKind(std::string const& text) {
   if (text == "TaskKind::kFusedAttention") return StageKind::kFusedAttention;
   if (text == "TaskKind::kAttentionMerge") return StageKind::kAttentionMerge;
   if (text == "TaskKind::kArgmaxReduce") return StageKind::kArgmaxReduce;
+  if (text == "TaskKind::kDepthwiseConv") return StageKind::kDepthwiseConv;
+  if (text == "TaskKind::kPool") return StageKind::kPool;
+  if (text == "TaskKind::kGlobalPoolReduce") return StageKind::kGlobalPoolReduce;
+  if (text == "TaskKind::kLayerNorm") return StageKind::kLayerNorm;
+  if (text == "TaskKind::kEncoderAttention") return StageKind::kEncoderAttention;
+  if (text == "TaskKind::kEmbeddingSum") return StageKind::kEmbeddingSum;
+  if (text == "TaskKind::kDwPwFused") return StageKind::kDwPwFused;
+  if (text == "TaskKind::kMoETopK") return StageKind::kMoETopK;
+  if (text == "TaskKind::kMoECombine") return StageKind::kMoECombine;
+  if (text == "TaskKind::kLayoutConvert") return StageKind::kLayoutConvert;
   throw std::runtime_error("unmodelled stage kind: " + text);
 }
 

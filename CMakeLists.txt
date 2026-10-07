@@ -139,6 +139,7 @@ add_library(tilemega_core STATIC
   lib/Frontend/Frontend.cpp
   lib/Frontend/GraphPattern.cpp
   lib/Frontend/ModelPlan.cpp
+  lib/Frontend/DmDescriptorCodec.cpp
   lib/Frontend/SemanticLifting.cpp
   lib/Frontend/ServingSemanticLifting.cpp
   lib/Analysis/SemanticCodec.cpp
@@ -338,6 +339,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/serving_token_sets_test.cpp
     test/unit/serving_import_test.cpp
     test/unit/frontend_import_test.cpp
+    test/unit/dm_descriptor_test.cpp
     test/unit/skeleton_placement_test.cpp
     test/unit/isolated_evaluation_test.cpp
     test/unit/skeleton_search_isolation_test.cpp
@@ -492,6 +494,13 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME impl_contract COMMAND tilemega-unit impl_contract)
 
   add_executable(task_body_contract_test test/unit/task_body_contract_test.cu)
+  add_executable(dm_descriptor_device_test test/unit/dm_descriptor_device_test.cu)
+  target_link_libraries(dm_descriptor_device_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(dm_descriptor_device_test PRIVATE TILEMEGA_DM_SUPPORT=1)
+  target_compile_options(dm_descriptor_device_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(dm_descriptor_device_test)
+  add_test(NAME dm_descriptor_device COMMAND dm_descriptor_device_test)
   target_link_libraries(task_body_contract_test PRIVATE TileMega::tilemega)
   add_test(NAME task_body_contract COMMAND task_body_contract_test)
 
@@ -645,6 +654,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME fused_harness_compile COMMAND fused_harness_compile_test)
 
   add_test(NAME frontend_import COMMAND tilemega-unit frontend_import)
+  add_test(NAME dm_descriptor COMMAND tilemega-unit dm_descriptor)
 
   add_test(NAME skeleton_placement COMMAND tilemega-unit skeleton_placement)
 

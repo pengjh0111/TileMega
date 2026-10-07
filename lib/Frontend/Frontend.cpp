@@ -3,6 +3,7 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Frontend/ModelPlan.h>
+#include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Frontend/SemanticLifting.h>
 #include <tilemega/Analysis/CouplingDerivation.h>
 #include <tilemega/Analysis/DependencyForm.h>
@@ -300,6 +301,16 @@ llvm::StringRef taskKindName(PlanTaskKind kind) {
     case PlanTaskKind::kFusedAttention: return "kFusedAttention";
     case PlanTaskKind::kAttentionMerge: return "kAttentionMerge";
     case PlanTaskKind::kArgmaxReduce: return "kArgmaxReduce";
+    case PlanTaskKind::kDepthwiseConv: return "kDepthwiseConv";
+    case PlanTaskKind::kPool: return "kPool";
+    case PlanTaskKind::kGlobalPoolReduce: return "kGlobalPoolReduce";
+    case PlanTaskKind::kLayerNorm: return "kLayerNorm";
+    case PlanTaskKind::kEncoderAttention: return "kEncoderAttention";
+    case PlanTaskKind::kEmbeddingSum: return "kEmbeddingSum";
+    case PlanTaskKind::kDwPwFused: return "kDwPwFused";
+    case PlanTaskKind::kMoETopK: return "kMoETopK";
+    case PlanTaskKind::kMoECombine: return "kMoECombine";
+    case PlanTaskKind::kLayoutConvert: return "kLayoutConvert";
   }
   llvm_unreachable("unknown plan task kind");
 }
@@ -307,6 +318,7 @@ llvm::StringRef taskKindName(PlanTaskKind kind) {
 mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
                                    ModelPlan const& plan,
                                    std::vector<std::uint8_t> const& written) {
+  ValidateDmModelPlan(plan);
   llvm::SmallVector<mlir::Attribute> buffers, gemms, stages, outputs;
   for (auto const& buffer : plan.buffers) {
     std::size_t index = buffers.size();
@@ -336,6 +348,8 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
       fields.push_back(builder.getNamedAttr(
           "pack_json", builder.getStringAttr(buffer.pack_json)));
     }
+    if(plan.dm)
+      fields.push_back(builder.getNamedAttr("dm_layout",EncodeDm(builder,buffer.layout)));
     buffers.push_back(builder.getDictionaryAttr(fields));
   }
   for (auto const& gemm : plan.gemms) {
@@ -364,6 +378,10 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
       if (gemm.partial_tile_n)
         fields.push_back(builder.getNamedAttr(
             "partial_tile_n", builder.getI64IntegerAttr(gemm.partial_tile_n)));
+    }
+    if(plan.dm) {
+      fields.push_back(builder.getNamedAttr("dm_access",EncodeDm(builder,gemm.access)));
+      fields.push_back(builder.getNamedAttr("dm_chain",EncodeDm(builder,gemm.chain)));
     }
     gemms.push_back(builder.getDictionaryAttr(fields));
   }
@@ -394,13 +412,17 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
           "attention_query_rows", builder.getI64IntegerAttr(
               stage.attention_query_rows)));
     }
+    if(plan.dm) {
+      fields.push_back(builder.getNamedAttr("dm_conv",builder.getI64IntegerAttr(stage.conv)));
+      fields.push_back(builder.getNamedAttr("dm_rows_per_batch",builder.getI64IntegerAttr(stage.rows_per_batch)));
+    }
     stages.push_back(builder.getDictionaryAttr(fields));
   }
   for (auto const& output : plan.outputs)
     outputs.push_back(dict(builder, {
         builder.getNamedAttr("buffer", builder.getI64IntegerAttr(output.buffer)),
         builder.getNamedAttr("file", builder.getStringAttr(output.file))}));
-  return dict(builder, {
+  llvm::SmallVector<mlir::NamedAttribute> fields = {
       builder.getNamedAttr("dtype", builder.getStringAttr(plan.dtype)),
       builder.getNamedAttr("norm_epsilon",
                            builder.getF64FloatAttr(plan.norm_epsilon)),
@@ -411,10 +433,22 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
       builder.getNamedAttr("buffers", builder.getArrayAttr(buffers)),
       builder.getNamedAttr("gemms", builder.getArrayAttr(gemms)),
       builder.getNamedAttr("stages", builder.getArrayAttr(stages)),
-      builder.getNamedAttr("outputs", builder.getArrayAttr(outputs))});
+      builder.getNamedAttr("outputs", builder.getArrayAttr(outputs))};
+  if(plan.dm) {
+    llvm::SmallVector<mlir::Attribute> convs;
+    for(auto const& conv:plan.convolutions)convs.push_back(EncodeDm(builder,conv));
+    fields.push_back(builder.getNamedAttr("dm",builder.getBoolAttr(true)));
+    fields.push_back(builder.getNamedAttr("dm_convolutions",builder.getArrayAttr(convs)));
+  }
+  return builder.getDictionaryAttr(fields);
 }
 
 }  // namespace
+
+mlir::DictionaryAttr EncodeModelPlan(mlir::Builder& builder, ModelPlan const& plan,
+                                   std::vector<std::uint8_t> const& written) {
+  return modelPlanAttr(builder,plan,written);
+}
 
 SymbolicShape SymbolicShapeBridge::Parse(
     std::unordered_map<std::string, std::string> const& ranges,

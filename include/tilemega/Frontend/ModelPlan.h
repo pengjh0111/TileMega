@@ -8,6 +8,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <tilemega/Codegen/DmDescriptors.h>
 
 namespace tilemega::frontend {
 
@@ -82,6 +83,7 @@ struct PlanBuffer {
   std::string role = "internal";
   std::string external_name;
   std::string pack_json;
+  codegen::DmBufferLayout layout{};
 };
 
 struct PlanGemm {
@@ -93,6 +95,8 @@ struct PlanGemm {
   std::uint32_t interleave_u = 16;
   std::uint32_t partial_tile_n = 0;
   std::uint32_t norm_ss = 0xffffffffu, ss_out = 0xffffffffu;
+  codegen::DmGemmAccess access{};
+  codegen::DmEpilogueChain chain{};
 };
 
 enum class PlanTaskKind {
@@ -108,6 +112,16 @@ enum class PlanTaskKind {
   kFusedAttention,
   kAttentionMerge,
   kArgmaxReduce,
+  kDepthwiseConv,
+  kPool,
+  kGlobalPoolReduce,
+  kLayerNorm,
+  kEncoderAttention,
+  kEmbeddingSum,
+  kDwPwFused,
+  kMoETopK,
+  kMoECombine,
+  kLayoutConvert,
 };
 
 struct PlanStage {
@@ -124,6 +138,8 @@ struct PlanStage {
   int row_offset = 0;
   int attention_kv_block = 256;
   int attention_query_rows = 64;
+  std::uint32_t conv = codegen::kDmNoIndex;
+  std::uint32_t rows_per_batch = 0;
 };
 
 struct PlanOutput {
@@ -159,6 +175,10 @@ struct ModelPlan {
   bool serving = false;
   int serving_seq = 0;
   int serving_capacity = 0;
+  // Only DM plans emit the extended device ABI; legacy descriptors and CUDA
+  // initializers retain their exact layout and text when this is false.
+  bool dm = false;
+  std::vector<codegen::ConvDesc> convolutions;
 };
 
 struct ServingOptions {

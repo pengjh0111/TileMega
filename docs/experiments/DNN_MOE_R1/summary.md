@@ -29,7 +29,8 @@ that DNN or MoE execution is implemented.
 | DN-1 NAFNet source | verified: unchanged architecture/dependencies match upstream file SHA256; license preserved |
 | DN-1 weights/data | preparation only: NAFNet/ResNet18/MobileNetV2 strictly load; SIDD CRC passes; BERT/MobileNetV1 safetensors identities recorded |
 | CI-1 | implemented transcription/constant/binding API; verification in `bridge.md`; forward build integration follows CI-3/DN-11 |
-| CI-2 through CI-7 | not implemented |
+| CI-2 | descriptor schema/CG/codegen implemented; 4/4 tests pass; execution wiring pending (`descriptors.md`) |
+| CI-3 through CI-7 | not implemented |
 | DN-2 through DN-11 | not implemented |
 | MO-1 through MO-9 | not implemented |
 

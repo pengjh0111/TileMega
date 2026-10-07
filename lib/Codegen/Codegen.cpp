@@ -7,6 +7,8 @@
 #include <mlir/IR/Builders.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Frontend/SymbolicShapeBridge.h>
+#include <tilemega/Frontend/DmDescriptorCodec.h>
+#include <tilemega/Frontend/ModelPlan.h>
 #include <tilemega/Codegen/HostLauncherEmitter.h>
 #include <tilemega/Codegen/ScheduleTableEmitter.h>
 #include <tilemega/Codegen/SyncEmitter.h>
@@ -459,6 +461,32 @@ std::string emitModelPlan(mlir::ModuleOp module,
   auto gemms = arrayField(plan, "gemms");
   auto stages = arrayField(plan, "stages");
   auto outputs = arrayField(plan, "outputs");
+  bool const dm = optionalBoolField(plan,"dm");
+  if(dm) {
+    frontend::ModelPlan validation; validation.dm=true;
+    for(auto value:buffers) {
+      frontend::PlanBuffer buffer;
+      buffer.layout=frontend::DecodeDmLayout(dictionaryEntry(value,"buffers").get("dm_layout"));
+      validation.buffers.push_back(buffer);
+    }
+    for(auto value:arrayField(plan,"dm_convolutions"))
+      validation.convolutions.push_back(frontend::DecodeDmConv(value));
+    for(auto value:gemms) {
+      auto item=dictionaryEntry(value,"gemms"); frontend::PlanGemm gemm;
+      gemm.access=frontend::DecodeDmAccess(item.get("dm_access"));
+      gemm.chain=frontend::DecodeDmChain(item.get("dm_chain"));
+      validation.gemms.push_back(gemm);
+    }
+    for(auto value:stages) {
+      auto item=dictionaryEntry(value,"stages"); frontend::PlanStage stage;
+      auto conv=integerField(item,"dm_conv"),rows=integerField(item,"dm_rows_per_batch");
+      if(conv<0 || conv>std::numeric_limits<std::uint32_t>::max() ||
+         rows<0 || rows>std::numeric_limits<std::uint32_t>::max())
+        throw std::invalid_argument("DM stage descriptor is outside 32-bit range");
+      stage.conv=conv; stage.rows_per_batch=rows; validation.stages.push_back(stage);
+    }
+    frontend::ValidateDmModelPlan(validation);
+  }
   std::string dtype = stringField(plan, "dtype");
   if (dtype != "f32" && dtype != "bf16")
     throw std::invalid_argument("unsupported tilemega.model_plan dtype: " + dtype);
@@ -516,9 +544,29 @@ std::string emitModelPlan(mlir::ModuleOp module,
           << ", "
           << (pack_json.empty() ? "nullptr" : quoteCString(pack_json));
     }
+    if(dm) {
+      if(!item.get("per_batch")) out<<", 0u, 0u, 0u, nullptr, nullptr";
+      out<<", "<<frontend::EmitDm(frontend::DecodeDmLayout(item.get("dm_layout")));
+    }
     out << "},\n";
   }
   out << "};\n";
+  if(dm) {
+    auto convs=arrayField(plan,"dm_convolutions");
+    if(!convs.empty()) {
+      out<<"constexpr ConvDesc kConvolutions[] = {\n";
+      for(auto conv:convs)out<<"  "<<frontend::EmitDm(frontend::DecodeDmConv(conv))<<",\n";
+      out<<"};\n";
+    }
+    for(std::size_t i=0;i<gemms.size();++i) {
+      auto chain=frontend::DecodeDmChain(dictionaryEntry(gemms[i],"gemms").get("dm_chain"));
+      out<<"using DmChain"<<i<<" = DmEpilogueKinds<";
+      for(unsigned j=0;j<chain.count;++j) {
+        if(j)out<<", "; out<<"static_cast<DmEpilogueKind>("<<unsigned(chain.operations[j].kind)<<"u)";
+      }
+      out<<">;\n";
+    }
+  }
   if(module->getAttr("tmexec.prefetch")) {
     out<<"constexpr std::uint8_t kServingFrontier[] = {";
     for(auto value:buffers)out<<(optionalBoolField(dictionaryEntry(value,"buffers"),"no_producer")?1:0)<<',';
@@ -563,6 +611,11 @@ std::string emitModelPlan(mlir::ModuleOp module,
           << ", " << (ss_out<0?std::string("kNoOperand"):
                           std::to_string(ss_out)+"u");
     }
+    if(dm) {
+      if(!serving)out<<", 0u, kNoOperand, kNoOperand, kNoOperand";
+      out<<", "<<frontend::EmitDm(frontend::DecodeDmAccess(item.get("dm_access")))
+         <<", "<<frontend::EmitDm(frontend::DecodeDmChain(item.get("dm_chain")));
+    }
     out << "},\n";
   }
   out << "};\n\nconstexpr StageDesc kStages[] = {\n";
@@ -601,6 +654,15 @@ std::string emitModelPlan(mlir::ModuleOp module,
         out << ", " << (optionalBoolField(item,"handoff_elided") ? "true" : "false");
       } else if(item.get("prefetch_history_mask"))
         out<<", "<<integerField(item,"prefetch_history_mask");
+    }
+    if(dm) {
+      if(!item.get("batch_rows"))out<<", false, 1, 0, 256, 64, 0, kNoOperand, false";
+      else if(!serving) {
+        if(!item.get("prefetch_history_mask"))out<<", 0";
+        out<<", kNoOperand, false";
+      }
+      out<<", "<<integerField(item,"dm_conv")<<"u, "
+         <<integerField(item,"dm_rows_per_batch")<<'u';
     }
     out << "},\n";
   }
@@ -804,8 +866,13 @@ std::string emitModelPlan(mlir::ModuleOp module,
       << "u, kStages, " << stages.size() << "u, kOutputs, "
       << outputs.size() << "u, kRuntimeVariants, " << variants.size()
       << "u, kSeqVariant.data(), " << seq_count << "u"
-      << (epsilon > 0.0 ? ", " + formatFloat(epsilon) + "f" : std::string())
-      << "};\n\n}  // namespace\n\n";
+      << (epsilon > 0.0 ? ", " + formatFloat(epsilon) + "f" : std::string());
+  if(dm) {
+    if(epsilon<=0.0)out<<", TILEMEGA_NORM_EPSILON";
+    auto convs=arrayField(plan,"dm_convolutions");
+    out<<", "<<(convs.empty()?"nullptr":"kConvolutions")<<", "<<convs.size()<<'u';
+  }
+  out<<"};\n\n}  // namespace\n\n";
   if (serving)
     out << "#include <tilemega/Codegen/tasks/ServingRuntime.cuh>\n";
   else
@@ -1399,6 +1466,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
               ? "#define TILEMEGA_SERVING_RUNTIME 1\n" : std::string())
       << (stringField(emittedPlan, "dtype") == "bf16"
               ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
+      << (optionalBoolField(emittedPlan,"dm") ? "#define TILEMEGA_DM_SUPPORT 1\n" : std::string())
       << emitNormEpsilon(emittedPlan)
       << emitRoPEPrecision(emittedPlan) << emitTokenIdBits(emittedPlan) << emitTaskKindRuntime(emittedPlan)
       << emitServingAttentionConfig(emittedPlan, module)
@@ -1510,6 +1578,7 @@ std::string CouplingGraphToCUDA::LowerVariants(
               ? "#define TILEMEGA_SERVING_RUNTIME 1\n" : std::string())
       << (stringField(first_plan, "dtype") == "bf16"
               ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
+      << (optionalBoolField(first_plan,"dm") ? "#define TILEMEGA_DM_SUPPORT 1\n" : std::string())
       << emitNormEpsilon(first_plan)
       << emitRoPEPrecision(first_plan) << emitTokenIdBits(first_plan) << emitTaskKindRuntime(first_plan)
       << emitServingAttentionConfig(first_plan, first)

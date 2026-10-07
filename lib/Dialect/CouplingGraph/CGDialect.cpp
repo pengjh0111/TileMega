@@ -116,6 +116,9 @@ LogicalResult TileSpaceOp::verify() {
   static constexpr StringLiteral known[] = {
       "gemm", "rmsnorm", "rope", "kvappend", "elementwise", "attention",
       "embedding", "fused_attention", "attention_merge", "argmax_reduce",
+      "depthwise_conv", "pool", "global_pool_reduce", "layernorm",
+      "encoder_attention", "embedding_sum", "dwpw_fused", "moe_topk",
+      "moe_combine", "layout_convert",
       "view", "transpose", "broadcast", "reduction", "slice", "concat",
       // `generic` is the degraded classification: one conservative task space
       // for an operator no rule covers.

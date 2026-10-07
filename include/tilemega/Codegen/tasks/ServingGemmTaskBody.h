@@ -6,6 +6,9 @@
 
 #include <tilemega/Backend/ServingEpilogue.h>
 #include <tilemega/Backend/ServingGemm.h>
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Codegen/DmDescriptors.h>
+#endif
 
 #ifndef TILEMEGA_NONPAGED_TILED
 #define TILEMEGA_NONPAGED_TILED 0
@@ -47,6 +50,14 @@ struct ServingGemmOperands {
   backend::ServingEpilogueOp epilogue = backend::ServingEpilogueOp::kStore;
   void const* tensor_map = nullptr;
   int tensor_k_begin = 0;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  DmGemmAccess access{};
+  DmEpilogueChain chain{};
+  ConvDesc const* convolutions = nullptr;
+  void const* binding = nullptr;
+  void const* rows = nullptr;
+  float const* a_scale = nullptr;
+#endif
 };
 
 template <class Arch, int TileM, int TileN, int TileK, int Stages>

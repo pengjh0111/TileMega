@@ -4,6 +4,7 @@
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Frontend/SymbolicShapeBridge.h>
+#include <tilemega/Frontend/DmDescriptorCodec.h>
 
 #include <mlir/IR/MLIRContext.h>
 
@@ -139,6 +140,50 @@ int TestFrontendImport(int argc, char** argv) {
   assert(cuda.find("TILEMEGA_GENERATED_RESIDENT_GRID") != std::string::npos);
   assert(cuda.find("ModelHarness.cuh") != std::string::npos);
   assert(cuda.find("GeneratedLlamaRuntime.cuh") == std::string::npos);
+  assert(cuda.find("TILEMEGA_DM_SUPPORT")==std::string::npos);
+  {
+    using namespace tilemega::frontend;
+    using namespace tilemega::codegen;
+    auto bridge=ReadExportBridge(std::string(TILEMEGA_SOURCE_DIR)+
+                                "/docs/experiments/E2E_GEN/raw/export_bridge.json");
+    auto plan=BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs);
+    mlir::Builder builder(&context);
+    auto original=module->getOperation()->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+    assert(!original.get("dm") && !original.get("dm_convolutions"));
+    plan.dm=true;
+    plan.convolutions.push_back({2,224,224,3,64,7,7,2,2,3,3,1,1,112,112,0,1});
+    auto& gemm=plan.gemms.front(); gemm.access.rows_per_batch=128;
+    gemm.access.a_row_stride=128; gemm.access.a_scale=2;
+    gemm.access.write={DmWriteKind::kPixelShuffle,2,1,kDmNoIndex};
+    gemm.chain.count=3;
+    gemm.chain.operations[0].kind=DmEpilogueKind::kBias;
+    gemm.chain.operations[0].parameter[0]=2;
+    gemm.chain.operations[1].kind=DmEpilogueKind::kResidual;
+    gemm.chain.operations[1].parameter[0]=3;
+    gemm.chain.operations[2].kind=DmEpilogueKind::kActivation;
+    gemm.chain.operations[2].activation=DmActivation::kRelu;
+    gemm.chain.side_count=1;
+    gemm.chain.side[0]={DmSideOutputKind::kRowStats,4,kDmNoIndex,0};
+    plan.stages.front().rows_per_batch=128;
+    auto dm_attr=EncodeModelPlan(builder,plan,{});
+    assert(dm_attr.getAs<mlir::BoolAttr>("dm").getValue());
+    auto g=mlir::cast<mlir::DictionaryAttr>(dm_attr.getAs<mlir::ArrayAttr>("gemms")[0]);
+    assert(DecodeDmAccess(g.get("dm_access")).a_row_stride==128);
+    assert(DecodeDmChain(g.get("dm_chain")).operations[1].parameter[0]==3);
+    mlir::OwningOpRef<mlir::ModuleOp> dm_module(module->clone());
+    dm_module->getOperation()->setAttr("tilemega.model_plan",dm_attr);
+    auto emitted=CouplingGraphToCUDA{}.Lower(*dm_module);
+    assert(emitted.find("#define TILEMEGA_DM_SUPPORT 1\n")!=std::string::npos);
+    assert(emitted.find("constexpr ConvDesc kConvolutions[]")!=std::string::npos);
+    assert(emitted.find("using DmChain0 = DmEpilogueKinds<")!=std::string::npos);
+    assert(emitted.find("kConvolutions, 1u}")!=std::string::npos);
+    plan.gemms.front().access.a_scale=plan.buffers.size();
+    bool rejected=false;
+    try {(void)EncodeModelPlan(builder,plan,{});} catch(std::invalid_argument const&) {rejected=true;}
+    assert(rejected);
+    dm_module->getOperation()->setAttr("tilemega.model_plan",original);
+    assert(CouplingGraphToCUDA{}.Lower(*dm_module)==cuda);
+  }
   {
     tilemega::frontend::ImportOptions separate;
     separate.separate_residual_tasks=true;

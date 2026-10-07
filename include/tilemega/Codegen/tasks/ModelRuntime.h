@@ -14,6 +14,9 @@
 #include <tilemega/Codegen/RuntimeOwnership.h>
 #include <tilemega/Codegen/AttentionPlan.h>
 #include <tilemega/Codegen/RuntimeTaskGraph.h>
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Codegen/DmDescriptors.h>
+#endif
 #include <cutlass/bfloat16.h>
 
 #include <cstdint>
@@ -163,6 +166,10 @@ struct GemmDesc {
   std::uint32_t serving_argmax_index = 0xffffffffu;
   std::uint32_t serving_norm_ss = 0xffffffffu;
   std::uint32_t serving_ss_out = 0xffffffffu;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  DmGemmAccess access{};
+  DmEpilogueChain chain{};
+#endif
 };
 
 /// One GEMM implementation selected by a runtime model variant.  The tile
@@ -213,6 +220,9 @@ struct BufferDesc {
   std::uint32_t role = 0;   ///< 0 internal, 1 external
   char const* external_name = nullptr;
   char const* pack_json = nullptr;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  DmBufferLayout layout{};
+#endif
 
   std::size_t Elements(ModelDims const& dims) const {
     return constant + static_cast<std::size_t>(per_seq) * dims.seq +
@@ -257,6 +267,10 @@ struct StageDesc {
   // the host/device descriptor layout keep their existing fields unchanged.
   std::uint32_t handoff_reduce_stage = kNoOperand;
   bool handoff_elided = false;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  std::uint32_t conv = kDmNoIndex;
+  std::uint32_t rows_per_batch = 0;
+#endif
 };
 inline constexpr std::uint32_t kHandoffAutoCombine = kNoOperand - 1u;
 
@@ -790,6 +804,10 @@ struct ModelSpec {
   /// Defaulted so that the fixed pre-generated sources used for the SASS
   /// identity check keep compiling unchanged.
   float norm_epsilon = TILEMEGA_NORM_EPSILON;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  ConvDesc const* convolutions = nullptr;
+  std::uint32_t convolution_count = 0;
+#endif
 };
 
 }  // namespace tilemega::codegen

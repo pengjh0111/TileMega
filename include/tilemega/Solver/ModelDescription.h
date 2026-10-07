@@ -94,6 +94,16 @@ enum class StageKind {
   kFusedAttention = 13,
   kAttentionMerge = 14,
   kArgmaxReduce = 15,
+  kDepthwiseConv = 16,
+  kPool = 17,
+  kGlobalPoolReduce = 18,
+  kLayerNorm = 19,
+  kEncoderAttention = 20,
+  kEmbeddingSum = 21,
+  kDwPwFused = 22,
+  kMoETopK = 23,
+  kMoECombine = 24,
+  kLayoutConvert = 25,
 };
 
 struct ModelStage {

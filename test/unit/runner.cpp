@@ -52,6 +52,7 @@ namespace tilemega::tests::serving_model_plan_test { int TestServingModelPlan(in
 namespace tilemega::tests::serving_token_sets_test { int TestServingTokenSets(int, char**); }
 namespace tilemega::tests::serving_import_test { int TestServingImport(int, char**); }
 namespace tilemega::tests::frontend_import_test { int TestFrontendImport(int, char**); }
+namespace tilemega::tests::dm_descriptor_test { int TestDmDescriptor(int, char**); }
 namespace tilemega::tests::skeleton_placement_test { int TestSkeletonPlacement(int, char**); }
 namespace tilemega::tests::isolated_evaluation_test { int TestIsolatedEvaluation(int, char**); }
 namespace tilemega::tests::skeleton_search_isolation_test { int TestSkeletonSearchIsolation(int, char**); }
@@ -115,6 +116,7 @@ int main(int argc, char** argv) {
     {"serving_task_index", tilemega::tests::serving_task_index_test::TestServingTaskIndex},
     {"serving_token_sets", tilemega::tests::serving_token_sets_test::TestServingTokenSets},
     {"frontend_import", tilemega::tests::frontend_import_test::TestFrontendImport},
+    {"dm_descriptor", tilemega::tests::dm_descriptor_test::TestDmDescriptor},
     {"skeleton_placement", tilemega::tests::skeleton_placement_test::TestSkeletonPlacement},
     {"isolated_evaluation", tilemega::tests::isolated_evaluation_test::TestIsolatedEvaluation},
     {"skeleton_search_isolation", tilemega::tests::skeleton_search_isolation_test::TestSkeletonSearchIsolation},

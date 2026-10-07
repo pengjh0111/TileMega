@@ -473,6 +473,14 @@ struct GemmInvocation {
   float* serving_ss_out = nullptr;
   PhaseGateDesc serving_phase_gate{};
   std::uint8_t serving_phase_class = 0; // qkv, o, gate/up, down, lm_head
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  DmGemmAccess access{};
+  DmEpilogueChain chain{};
+  ConvDesc const* convolutions = nullptr;
+  void const* binding = nullptr;
+  void const* rows = nullptr;
+  float const* a_scale = nullptr;
+#endif
 };
 
 /// The exact dot product behind one output element. A BF16 product is exact in
