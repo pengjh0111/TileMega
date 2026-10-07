@@ -19,6 +19,7 @@ namespace tilemega::tests::task_element_work_test { int TestTaskElementWork(int,
 namespace tilemega::tests::window_task_access_test { int TestWindowTaskAccess(int, char**); }
 namespace tilemega::tests::exact_task_metadata_test { int TestExactTaskMetadata(int, char**); }
 namespace tilemega::tests::storage_hazards_test { int TestStorageHazards(int, char**); }
+namespace tilemega::tests::bound_dependency_form_test { int TestBoundDependencyForm(int, char**); }
 namespace tilemega::tests::graph_pattern_test { int TestGraphPattern(int, char**); }
 namespace tilemega::tests::model_plan_order_test { int TestModelPlanOrder(int, char**); }
 namespace tilemega::tests::layout_bridge_test { int TestLayoutBridge(int, char**); }
@@ -90,6 +91,7 @@ int main(int argc, char** argv) {
     {"window_task_access", tilemega::tests::window_task_access_test::TestWindowTaskAccess},
     {"exact_task_metadata", tilemega::tests::exact_task_metadata_test::TestExactTaskMetadata},
     {"storage_hazards", tilemega::tests::storage_hazards_test::TestStorageHazards},
+    {"bound_dependency_form", tilemega::tests::bound_dependency_form_test::TestBoundDependencyForm},
     {"isl_relation", tilemega::tests::isl_relation_test::TestIslRelation},
     {"layout_bridge", tilemega::tests::layout_bridge_test::TestLayoutBridge},
     {"cg_attr_roundtrip", tilemega::tests::cg_attr_test::TestCgAttr},
