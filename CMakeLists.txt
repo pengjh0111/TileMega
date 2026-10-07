@@ -319,6 +319,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/runtime_dependency_table_test.cpp
     test/unit/bound_dependency_codegen_test.cpp
     test/unit/dm_page_layout_test.cpp
+    test/unit/moe_binding_test.cpp
     test/unit/graph_pattern_test.cpp
     test/unit/model_plan_order_test.cpp
     test/unit/layout_bridge_test.cpp
@@ -451,6 +452,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME runtime_dependency_table COMMAND tilemega-unit runtime_dependency_table)
   add_test(NAME bound_dependency_codegen COMMAND tilemega-unit bound_dependency_codegen)
   add_test(NAME dm_page_layout COMMAND tilemega-unit dm_page_layout)
+  add_test(NAME moe_binding COMMAND tilemega-unit moe_binding)
 
   add_test(NAME task_element_work COMMAND tilemega-unit task_element_work
     ${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/gqa2.json
