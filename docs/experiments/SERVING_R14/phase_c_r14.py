@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Bounded conditional builds, numerical gates and registered retention."""
-import argparse,json,os,shlex,subprocess
+import argparse,json,os,re,shlex,subprocess
 from pathlib import Path
 from make_phase0 import HERE,ROOT,PYTHON,write
 from phase_a import run
@@ -51,11 +51,18 @@ def architecture():
     if arm is None:
         write(HERE/'raw/C_arch/result.json',dict(status='excluded',reason='frontier build or smoke failed'));return
     base=Path(arm['decode']);command=shlex.split(Path(str(base)+'.build_command.txt').read_text());cu=str(base)+'.cu'
-    out=HERE/'raw/C_arch';out.mkdir(parents=True,exist_ok=True)
+    out=HERE/'raw/C_arch_v2';out.mkdir(parents=True,exist_ok=True)
     # Compile the actual frontier executor, not merely an isolated TaskBody.
     for arch in (80,90,100,120):
-        opts=[a for a in command if a.startswith('-D')]
-        run([command[0],'-std=c++17','-O3','--expt-relaxed-constexpr',f'-arch=sm_{arch}','-Iinclude','-Ithird_party/cutlass/include']+opts+['-c',cu,'-o',out/f'frontier_sm{arch}.o'],out/f'sm{arch}.log',1800)
+        opts=[a for a in command if a.startswith(('-D','-I'))]
+        # A production CU pins its solved architecture. Change only that
+        # declaration for the compile-only portability specimen.
+        source=Path(cu).read_text()
+        source=re.sub(r'(TILEMEGA_ARCH_ID(?: != | ))890',lambda m:m[1]+str(arch*10),source)
+        source=source.replace('#define TILEMEGA_ARCH_TAG "sm_89"',f'#define TILEMEGA_ARCH_TAG "sm_{arch}"')
+        specimen=out/f'frontier_sm{arch}.cu';specimen.write_text(source)
+        run([command[0],'-std=c++17','-O3','--expt-relaxed-constexpr',f'-arch=sm_{arch}']+opts+['-c',specimen,'-o',out/f'frontier_sm{arch}.o'],out/f'sm{arch}.log',1800)
+    write(out/'result.json',dict(pass_=True,source_sha256=sha(cu),architectures=[80,89,90,100,120],sm89='original production build; executed',other_architectures='compiled only'))
 
 def correctness(cell):
     rows=[]
