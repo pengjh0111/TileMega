@@ -7,12 +7,15 @@ using executor::kComputeThreads;
 // The emitted geometry is portable; instructions follow the compilation target.
 using PageArch=std::conditional_t<std::is_void_v<arch::CurrentArch>,GemmVariantArch,arch::CurrentArch>;
 using Ring=executor::PageRing<TILEMEGA_PAGE_BYTES,TILEMEGA_PAGE_COUNT,PageArch,TILEMEGA_ARCH_PATH_SM80!=0>;
+#if TILEMEGA_SERVING_DECODER_ATTENTION && TILEMEGA_SERVING_SEQ==1
 using Attention=PagedAttentionTaskBody<PageArch,TILEMEGA_SERVING_HEAD_DIM,
     TILEMEGA_SERVING_QPERKV,TILEMEGA_SERVING_QK_NORM!=0,TILEMEGA_PAGE_BYTES,TILEMEGA_PAGE_COUNT,TILEMEGA_ARCH_PATH_SM80!=0>;
-static_assert(TILEMEGA_SERVING_SEQ==1,"page executor currently covers decode");
+static_assert(TILEMEGA_PAGE_POOL_OFFSET-TILEMEGA_PAGE_WORKSPACE_OFFSET>=sizeof(Attention::SharedStorage));
+#elif TILEMEGA_SERVING_DECODER_ATTENTION
+static_assert(TILEMEGA_PAGE_POOL_OFFSET-TILEMEGA_PAGE_WORKSPACE_OFFSET>=sizeof(T_ServingAttention::SharedStorage));
+#endif
 static_assert(TILEMEGA_PAGE_WORKSPACE_OFFSET>=sizeof(Ring::Slot)*TILEMEGA_PAGE_COUNT);
 static_assert(TILEMEGA_PAGE_POOL_OFFSET%1024==0);
-static_assert(TILEMEGA_PAGE_POOL_OFFSET-TILEMEGA_PAGE_WORKSPACE_OFFSET>=sizeof(Attention::SharedStorage));
 #ifndef TILEMEGA_LOOKAHEAD_BYTES
 #define TILEMEGA_LOOKAHEAD_BYTES 0
 #endif
@@ -69,7 +72,9 @@ struct PageStream {
           total=CeilDiv(cute::get<2>(inv.problem),inv.serving_tile_k)*stage_bytes;
         }
 #endif
-      }else if(s.kind==TaskKind::kFusedAttention) {
+      }
+#if TILEMEGA_SERVING_DECODER_ATTENTION && TILEMEGA_SERVING_SEQ==1
+      else if(s.kind==TaskKind::kFusedAttention) {
         auto point=DecodeServingAttentionTaskGMajor(task,p.dims.batch,
             CeilDiv(p.dims.capacity,s.attention_kv_block));
         int begin=point.cache_block*s.attention_kv_block;
@@ -82,13 +87,16 @@ struct PageStream {
           total=(end-begin)*int(s.width)*2;
         }
       }
+#endif
       if(source && offset<total) {
         int bytes=min(TILEMEGA_PAGE_BYTES,total-offset);
         *out={source+offset,unsigned(bytes)};
         offset+=bytes;return true;
       }
       offset=0;
+#if TILEMEGA_SERVING_DECODER_ATTENTION && TILEMEGA_SERVING_SEQ==1
       if(s.kind==TaskKind::kFusedAttention && part==0) {part=1;continue;}
+#endif
       part=0;
       if(l2)++slot;else task+=gridDim.x;
     }
@@ -309,6 +317,7 @@ __device__ bool Combine(Params const& p,StageDesc const& stage,int task,char* wo
   else asm volatile("trap;");
   return false;
 }
+#if TILEMEGA_SERVING_DECODER_ATTENTION
 __device__ inline ServingAttentionOperands AttentionOperands(Params const& p,StageDesc const& s) {
   using E=cutlass::bfloat16_t;
   auto ptr=[&](int i){return s.operand[i]==kNoOperand?nullptr:p.buffers[s.operand[i]];};
@@ -323,6 +332,7 @@ __device__ inline ServingAttentionOperands AttentionOperands(Params const& p,Sta
   }
   return operands;
 }
+#endif
 template<int Variant=0>
 __device__ bool ArgmaxLast(Params const& p,GemmInvocation const& inv,
                           StageDesc const& reducer,int tile_m,char* work,
@@ -419,6 +429,22 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
     }
     return;
   }
+#if TILEMEGA_SERVING_DECODER_ATTENTION && TILEMEGA_SERVING_SEQ>1
+  if(s.kind==TaskKind::kFusedAttention) {
+    if constexpr(!Loader) {
+      int query_blocks=CeilDiv(int(s.group)*p.dims.seq,s.attention_query_rows);
+      int cache_blocks=CeilDiv(p.dims.capacity,s.attention_kv_block);
+      auto point=DecodeServingAttentionTask(task,query_blocks,int(s.extent),cache_blocks);
+      auto operands=AttentionOperands(p,s);
+      // Prefill K/V are read through the compute-side activation pipeline;
+      // the loader's persistent page sequence contains weight pages only.
+      T_ServingAttention::Run(operands,*reinterpret_cast<T_ServingAttention::SharedStorage*>(work),
+          point.batch,point.group,point.query_block,point.cache_block);
+    }
+    return;
+  }
+#endif
+#if TILEMEGA_SERVING_DECODER_ATTENTION && TILEMEGA_SERVING_SEQ==1
   if(s.kind==TaskKind::kFusedAttention) {
     auto point=DecodeServingAttentionTaskGMajor(task,p.dims.batch,
         CeilDiv(p.dims.capacity,s.attention_kv_block));
@@ -476,6 +502,7 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
     }
     return;
   }
+#endif
   if constexpr(!Loader) {
     auto ptr=[&](int i){return p.buffers[s.operand[i]];};
     switch(s.kind) {
@@ -490,7 +517,9 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
       case TaskKind::kArgmaxReduce:ServingArgmaxReduceTaskBody::RunRow(reinterpret_cast<float const*>(ptr(0)),
           reinterpret_cast<int const*>(ptr(1)),reinterpret_cast<int*>(ptr(2)),task,s.width,p.dims.capacity,
           p.dims.past+p.dims.seq,reinterpret_cast<ServingArgmaxReduceTaskBody::SharedStorage*>(work));break;
+#if TILEMEGA_SERVING_DECODER_ATTENTION
       case TaskKind::kAttentionMerge:RunServingMergeTask(p,s,task);break;
+#endif
       default:asm volatile("trap;");
     }
   }

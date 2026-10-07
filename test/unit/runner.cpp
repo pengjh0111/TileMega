@@ -24,6 +24,7 @@ namespace tilemega::tests::capacity_form_test { int TestCapacityForm(int, char**
 namespace tilemega::tests::virtual_task_binding_test { int TestVirtualTaskBinding(int, char**); }
 namespace tilemega::tests::runtime_dependency_table_test { int TestRuntimeDependencyTable(int, char**); }
 namespace tilemega::tests::bound_dependency_codegen_test { int TestBoundDependencyCodegen(int, char**); }
+namespace tilemega::tests::dm_page_layout_test { int TestDmPageLayout(int, char**); }
 namespace tilemega::tests::graph_pattern_test { int TestGraphPattern(int, char**); }
 namespace tilemega::tests::model_plan_order_test { int TestModelPlanOrder(int, char**); }
 namespace tilemega::tests::layout_bridge_test { int TestLayoutBridge(int, char**); }
@@ -100,6 +101,7 @@ int main(int argc, char** argv) {
     {"virtual_task_binding", tilemega::tests::virtual_task_binding_test::TestVirtualTaskBinding},
     {"runtime_dependency_table", tilemega::tests::runtime_dependency_table_test::TestRuntimeDependencyTable},
     {"bound_dependency_codegen", tilemega::tests::bound_dependency_codegen_test::TestBoundDependencyCodegen},
+    {"dm_page_layout", tilemega::tests::dm_page_layout_test::TestDmPageLayout},
     {"isl_relation", tilemega::tests::isl_relation_test::TestIslRelation},
     {"layout_bridge", tilemega::tests::layout_bridge_test::TestLayoutBridge},
     {"cg_attr_roundtrip", tilemega::tests::cg_attr_test::TestCgAttr},

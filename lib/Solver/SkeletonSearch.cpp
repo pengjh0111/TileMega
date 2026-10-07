@@ -282,7 +282,8 @@ struct SearchContext {
       for(auto const& stage:imported.plan.stages)
         if(stage.kind==frontend::PlanTaskKind::kFusedAttention)
           attention_shapes.push_back({int(stage.width),int(stage.group)});
-      auto [activation,scratch]=PageLayout::ServingWorkspace(shapes,attention_shapes);
+      auto [activation,scratch]=PageLayout::ServingWorkspace(shapes,attention_shapes,
+          imported.plan.serving_seq>1,imported.plan.dm);
       pages=PageLayout::Build(target,current_page_bytes,activation,scratch);
       for(auto const& g:granularity.gemms)
         if(g.tile_n*g.tile_k*2>current_page_bytes*pages->pages)

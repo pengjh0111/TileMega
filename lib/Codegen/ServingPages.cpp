@@ -8,6 +8,7 @@
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/Builders.h>
 #include <algorithm>
+#include <limits>
 #include <set>
 #include <stdexcept>
 namespace tilemega::codegen {
@@ -86,13 +87,13 @@ void ConfigureServingPrefetch(mlir::ModuleOp module,TargetSpec const& target,int
 void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int page_bytes) {
   auto serving=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
   auto model=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
-  if(!serving || !model || mlir::cast<mlir::IntegerAttr>(serving.get("seq")).getInt()!=1)
-    throw std::invalid_argument("page execution requires a decode serving graph");
+  if(!serving || !model)
+    throw std::invalid_argument("page execution requires a serving graph");
   auto runtime=ReadRuntimePlan(module);
   std::vector<std::array<int,3>> gemm_shapes;
   for(auto const& g:runtime.gemms) {
     if(g.tile_n*g.tile_k*2>page_bytes)
-      throw std::invalid_argument("decode page plan requires one-page GEMM stages");
+      throw std::invalid_argument("page plan requires one-page GEMM stages");
     if(!solver::PageLayout::StageFits(page_bytes,g.tile_n,g.tile_k))
       throw std::invalid_argument("a GEMM B stage must divide a page or occupy whole pages");
     gemm_shapes.push_back({g.tile_m,g.tile_n,g.tile_k});
@@ -105,7 +106,20 @@ void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int pa
           int(mlir::cast<mlir::IntegerAttr>(stage.get("width")).getInt()),
           int(mlir::cast<mlir::IntegerAttr>(stage.get("group")).getInt())});
   }
-  auto [activation,scratch]=solver::PageLayout::ServingWorkspace(gemm_shapes,attention_shapes);
+  bool dm=model.getAs<mlir::BoolAttr>("dm") && model.getAs<mlir::BoolAttr>("dm").getValue();
+  int task_workspace=0;
+  for(auto a:mlir::cast<mlir::ArrayAttr>(model.get("stages"))) {
+    auto stage=mlir::cast<mlir::DictionaryAttr>(a);
+    if(auto bytes=stage.getAs<mlir::IntegerAttr>("dm_workspace_bytes")) {
+      if(bytes.getInt()<0 || bytes.getInt()>std::numeric_limits<int>::max())
+        throw std::invalid_argument("task workspace exceeds the page layout range");
+      task_workspace=std::max(task_workspace,int(bytes.getInt()));
+    }
+  }
+  bool prefill=mlir::cast<mlir::IntegerAttr>(serving.get("seq")).getInt()>1;
+  int kv_tile=64;
+  if(auto tile=module->getAttrOfType<mlir::IntegerAttr>("tmexec.attention_kv_tile"))kv_tile=tile.getInt();
+  auto [activation,scratch]=solver::PageLayout::ServingWorkspace(gemm_shapes,attention_shapes,prefill,dm,task_workspace,kv_tile);
   auto layout=solver::PageLayout::Build(target,page_bytes,activation,scratch);
   for(auto const& g:runtime.gemms)
     if(g.tile_n*g.tile_k*2>page_bytes*layout.pages)

@@ -438,8 +438,8 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("--pg must be off, l2, pages or auto");
     if(handoff_mode!="off" && handoff_mode!="auto")
       throw std::runtime_error("--handoff must be off or auto");
-    bool use_pages=serving && serving_phase=="decode" && (pg_mode=="pages" || pg_mode=="auto");
-    if(pg_mode=="pages" && !use_pages)throw std::runtime_error("paged execution requires serving decode");
+    bool use_pages=serving && (pg_mode=="pages" || (serving_phase=="decode" && pg_mode=="auto"));
+    if(pg_mode=="pages" && !use_pages)throw std::runtime_error("paged execution requires a serving phase");
     if(handoff_mode=="auto" && use_pages)
       throw std::runtime_error("paged decode reductions use fixed last-arriver; --handoff auto is unsupported");
     if(handoff_mode=="auto" && !use_pages)
@@ -448,7 +448,7 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("--sync must be calibrated or legacy");
     if(nonpaged_weight_layout!="row" && nonpaged_weight_layout!="tiled")
       throw std::invalid_argument("--nonpaged-weight-layout must be row or tiled");
-    bool const use_nonpaged_tiled=serving && serving_phase=="decode" &&
+    bool const use_nonpaged_tiled=serving &&
         !use_pages && nonpaged_weight_layout=="tiled";
     if(serving) {
       runtime_flags+=" -DTILEMEGA_NONPAGED_TILED="+std::to_string(use_nonpaged_tiled);
@@ -1097,7 +1097,8 @@ int RunCompile(int argc, char** argv) {
     if(use_l2) {
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
       tilemega::codegen::ConfigureServingPrefetch(*module,target,prefetch_depth,prefetch_stride);
-      source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});
+      auto seq=mlir::cast<mlir::IntegerAttr>((*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving").get("seq")).getInt();
+      source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,unsigned(seq),unsigned(seq)}});
     }
     if(use_pages) {
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
@@ -1114,13 +1115,15 @@ int RunCompile(int argc, char** argv) {
       std::cerr<<"R12_LAST_ARRIVER selected="<<r12_reductions.last_arriver<<'\n';
       handoff_mode="last_arriver";
       }else handoff_mode="off";
-      source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});
+      auto seq=mlir::cast<mlir::IntegerAttr>((*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving").get("seq")).getInt();
+      source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,unsigned(seq),unsigned(seq)}});
     }
     if(use_nonpaged_tiled) {
       mlir::OpBuilder packing(module->getContext());
       (*module)->setAttr("tmexec.nonpaged_weight_layout_tiled",packing.getBoolAttr(true));
       tilemega::codegen::ResolveServingWeightPacking(*module);
-      source=use_l2 ? tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}})
+      auto seq=mlir::cast<mlir::IntegerAttr>((*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving").get("seq")).getInt();
+      source=use_l2 ? tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,unsigned(seq),unsigned(seq)}})
                     : tilemega::codegen::CouplingGraphToCUDA{}.Lower(*module);
     }
     if (!dump_cg.empty()) {
