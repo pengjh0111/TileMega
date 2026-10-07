@@ -1,0 +1,555 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "inputs": {
+    "test/unit/norm_prologue_gemm_test.cu": "d64ff83a9c7738f1cc87300ca7af899a02143ef3d8b33bd3d97ccecad35d461a",
+    "include/tilemega/Codegen/tasks/PagedGemmTaskBody.h": "bf05c80dd707c4456636aa26aa0e5f6e23e1af10a334804392ffbb5432b3cd10",
+    "include/tilemega/Codegen/tasks/ServingRMSNormTaskBody.h": "b015ab1f48495902f2aa488258e6056c59ade5d7c114e4932a187efd0c438057"
+  },
+  "builds": [
+    {
+      "arch": 80,
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "--expt-relaxed-constexpr",
+        "-arch=sm_80",
+        "-DTILEMEGA_ARCH_ID=800",
+        "-Xptxas=-v",
+        "-I/root/dm1_work/development/include",
+        "-I/root/dm1_work/development/third_party/cutlass/include",
+        "/root/dm1_work/development/test/unit/norm_prologue_gemm_test.cu",
+        "-o",
+        "/root/dm1_work/development/runs/dm1-norm-prologue50/checks/norm-sm_80"
+      ],
+      "binary_sha256": "b1681215fb0ab08242d8f289a7d482269c2723558dc75f7ebad56d6bd71ea3c5",
+      "kernels": {
+        "_Z4GemmILb1EEvN8tilemega7codegen19ServingGemmOperandsEPKN7cutlass10bfloat16_tES6_": {
+          "registers": 114,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 114 registers, used 2 barriers, 528 bytes cmem[0], 24 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_Z4GemmILb0EEvN8tilemega7codegen19ServingGemmOperandsEPKN7cutlass10bfloat16_tES6_": {
+          "registers": 98,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 98 registers, used 2 barriers, 528 bytes cmem[0], 24 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_Z4NormPKN7cutlass10bfloat16_tES2_PS0_ii": {
+          "registers": 32,
+          "stack_bytes": 48,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 1024,
+          "resource_lines": [
+            "48 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 32 registers, used 2 barriers, 48 bytes cumulative stack size, 1024 bytes smem, 384 bytes cmem[0]"
+          ],
+          "spill": false
+        }
+      },
+      "spill": false
+    },
+    {
+      "arch": 89,
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "--expt-relaxed-constexpr",
+        "-arch=sm_89",
+        "-DTILEMEGA_ARCH_ID=890",
+        "-Xptxas=-v",
+        "-I/root/dm1_work/development/include",
+        "-I/root/dm1_work/development/third_party/cutlass/include",
+        "/root/dm1_work/development/test/unit/norm_prologue_gemm_test.cu",
+        "-o",
+        "/root/dm1_work/development/runs/dm1-norm-prologue50/checks/norm-sm_89"
+      ],
+      "binary_sha256": "6d5a189f50e8069038bbe1d65593e5e2c670e0e1888f553ee83f3f675b2cab2f",
+      "kernels": {
+        "_Z4GemmILb1EEvN8tilemega7codegen19ServingGemmOperandsEPKN7cutlass10bfloat16_tES6_": {
+          "registers": 114,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 114 registers, used 2 barriers, 528 bytes cmem[0], 24 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_Z4GemmILb0EEvN8tilemega7codegen19ServingGemmOperandsEPKN7cutlass10bfloat16_tES6_": {
+          "registers": 82,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 82 registers, used 2 barriers, 528 bytes cmem[0], 24 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_Z4NormPKN7cutlass10bfloat16_tES2_PS0_ii": {
+          "registers": 36,
+          "stack_bytes": 48,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 1024,
+          "resource_lines": [
+            "48 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 36 registers, used 2 barriers, 48 bytes cumulative stack size, 1024 bytes smem, 384 bytes cmem[0]"
+          ],
+          "spill": false
+        }
+      },
+      "spill": false
+    },
+    {
+      "arch": 90,
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "--expt-relaxed-constexpr",
+        "-arch=sm_90",
+        "-DTILEMEGA_ARCH_ID=900",
+        "-Xptxas=-v",
+        "-I/root/dm1_work/development/include",
+        "-I/root/dm1_work/development/third_party/cutlass/include",
+        "/root/dm1_work/development/test/unit/norm_prologue_gemm_test.cu",
+        "-o",
+        "/root/dm1_work/development/runs/dm1-norm-prologue50/checks/norm-sm_90"
+      ],
+      "binary_sha256": "9cb01a38e66cdcb22165cdab2798b6f901bbdbc0a8371b133086489db5eb3f97",
+      "kernels": {
+        "_Z4GemmILb1EEvN8tilemega7codegen19ServingGemmOperandsEPKN7cutlass10bfloat16_tES6_": {
+          "registers": 108,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 108 registers, used 2 barriers"
+          ],
+          "spill": false
+        },
+        "_Z4GemmILb0EEvN8tilemega7codegen19ServingGemmOperandsEPKN7cutlass10bfloat16_tES6_": {
+          "registers": 96,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers"
+          ],
+          "spill": false
+        },
+        "_Z4NormPKN7cutlass10bfloat16_tES2_PS0_ii": {
+          "registers": 32,
+          "stack_bytes": 48,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 1024,
+          "resource_lines": [
+            "48 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 32 registers, used 2 barriers, 48 bytes cumulative stack size, 1024 bytes smem"
+          ],
+          "spill": false
+        }
+      },
+      "spill": false
+    },
+    {
+      "arch": 100,
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "--expt-relaxed-constexpr",
+        "-arch=sm_100",
+        "-DTILEMEGA_ARCH_ID=1000",
+        "-Xptxas=-v",
+        "-I/root/dm1_work/development/include",
+        "-I/root/dm1_work/development/third_party/cutlass/include",
+        "/root/dm1_work/development/test/unit/norm_prologue_gemm_test.cu",
+        "-o",
+        "/root/dm1_work/development/runs/dm1-norm-prologue50/checks/norm-sm_100"
+      ],
+      "binary_sha256": "5ffcf13bae179a1c34dffb2ef4b9a28312c6423c27f850acd664aae30dff9d38",
+      "kernels": {
+        "_Z4GemmILb1EEvN8tilemega7codegen19ServingGemmOperandsEPKN7cutlass10bfloat16_tES6_": {
+          "registers": 62,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 62 registers, used 2 barriers"
+          ],
+          "spill": false
+        },
+        "_Z4GemmILb0EEvN8tilemega7codegen19ServingGemmOperandsEPKN7cutlass10bfloat16_tES6_": {
+          "registers": 64,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers"
+          ],
+          "spill": false
+        },
+        "_Z4NormPKN7cutlass10bfloat16_tES2_PS0_ii": {
+          "registers": 32,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 1024,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 32 registers, used 2 barriers, 1024 bytes smem"
+          ],
+          "spill": false
+        }
+      },
+      "spill": false
+    },
+    {
+      "arch": 120,
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "--expt-relaxed-constexpr",
+        "-arch=sm_120",
+        "-DTILEMEGA_ARCH_ID=1200",
+        "-Xptxas=-v",
+        "-I/root/dm1_work/development/include",
+        "-I/root/dm1_work/development/third_party/cutlass/include",
+        "/root/dm1_work/development/test/unit/norm_prologue_gemm_test.cu",
+        "-o",
+        "/root/dm1_work/development/runs/dm1-norm-prologue50/checks/norm-sm_120"
+      ],
+      "binary_sha256": "75f1a02c13ca4508c68f18c0e8f2399264b4e1ff862ed48dfdafeb252e9b665c",
+      "kernels": {
+        "_Z4GemmILb1EEvN8tilemega7codegen19ServingGemmOperandsEPKN7cutlass10bfloat16_tES6_": {
+          "registers": 59,
+          "stack_bytes": 8,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "8 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 59 registers, used 2 barriers, 8 bytes cumulative stack size"
+          ],
+          "spill": false
+        },
+        "_Z4GemmILb0EEvN8tilemega7codegen19ServingGemmOperandsEPKN7cutlass10bfloat16_tES6_": {
+          "registers": 56,
+          "stack_bytes": 8,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "8 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 8 bytes cumulative stack size"
+          ],
+          "spill": false
+        },
+        "_Z4NormPKN7cutlass10bfloat16_tES2_PS0_ii": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 1024,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 1024 bytes smem"
+          ],
+          "spill": false
+        }
+      },
+      "spill": false
+    }
+  ],
+  "fresh_processes": [
+    {
+      "process": 0,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 1,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 2,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 3,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 4,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 5,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 6,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 7,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 8,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 9,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 10,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 11,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 12,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 13,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 14,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 15,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 16,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 17,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 18,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 19,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 20,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 21,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 22,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 23,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 24,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 25,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 26,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 27,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 28,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 29,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 30,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 31,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 32,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 33,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 34,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 35,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 36,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 37,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 38,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 39,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 40,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 41,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 42,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 43,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 44,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 45,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 46,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 47,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 48,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    },
+    {
+      "process": 49,
+      "exit_code": 0,
+      "log_sha256": "f621dd95bd1467c0d57ab091196d85e50c0b933bc127435979455bfff002c833"
+    }
+  ],
+  "execution_architecture": 89,
+  "criterion": "24 geometries: fused prologue versus standalone RMSNorm plus page GEMM; memcmp unchanged",
+  "pass_rate": {
+    "passes": 50,
+    "attempts": 50,
+    "required": 50
+  }
+}

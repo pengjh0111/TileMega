@@ -20,8 +20,10 @@ tables. The solver CG reader retains the same descriptors. verified: updated
 four-test suite passes, and a generated DM CUDA source compiles with the
 complete runtime on sm_89. This is compile evidence, not execution of a model.
 
-CI-2 remains open: epilogue execution and its finite template dispatch still
-need implementation. No DNN/MoE body executes yet.
+CI-2 remains open: finite epilogue specifications and tile execution are
+implemented, but their generated dispatch into GEMM/combiner invocations is
+pending. No complete DNN/MoE plan executes yet. Numerical subcomponent
+evidence and exact rounding contracts are recorded in `numerics.md`.
 Arithmetic declarations describe the semantic work, and their implementation
 flags remain false until the corresponding numerical body gate passes.
 

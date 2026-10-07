@@ -1,6 +1,6 @@
 # DM-1 working report
 
-Status: **incomplete, Phase 1 starting**. This file is an evidence ledger, not a claim
+Status: **incomplete, Phase 1 in progress**. This file is an evidence ledger, not a claim
 that DNN or MoE execution is implemented.
 
 ## Provenance
@@ -29,7 +29,7 @@ that DNN or MoE execution is implemented.
 | DN-1 NAFNet source | verified: unchanged architecture/dependencies match upstream file SHA256; license preserved |
 | DN-1 weights/data | preparation only: NAFNet/ResNet18/MobileNetV2 strictly load; SIDD CRC passes; BERT/MobileNetV1 safetensors identities recorded |
 | CI-1 | implemented transcription/constant/binding API; verification in `bridge.md`; forward build integration follows CI-3/DN-11 |
-| CI-2 | descriptor schema/CG/codegen implemented; 4/4 tests pass; execution wiring pending (`descriptors.md`) |
+| CI-2 | descriptors and finite epilogue tile execution verified; generated invocation dispatch pending (`descriptors.md`, `numerics.md`) |
 | CI-3 through CI-7 | not implemented |
 | DN-2 through DN-11 | not implemented |
 | MO-1 through MO-9 | not implemented |
@@ -84,7 +84,18 @@ mask fragment, whose sole input dependency is `sym_size(token_type_ids,0)`.
 Isolated CPU FX Interpreter evaluations at B=1/8/32/64 are all true, including
 the specification's 2²⁰-element boundary (`results/bert_mask_provenance.json`).
 
-T3–T12: pending implementation and the required gates. G-DNN and G-MOE:
+T1 checkpoint CI2: verified CUDA bytes, ptxas resources, SASS and 64-step
+tokens equal for all eight plans (`results/T1_CI2.json`). Full G-REG remains
+false pending the complete native suite. Three initial smokes failed from
+OOM while loading weights; their fresh-process retries pass without changing
+the plans or token criteria.
+
+T4/T12 subcomponent evidence: 1024 scalar cases and sixteen epilogue tile
+cases pass against PyTorch, with five-target compilation and no spills.
+Tile-local checks pass in 50/50 fresh processes; these do not count as §8.A
+inter-stage synchronization evidence (`results/CI2_epilogue_tiles.json`).
+
+Remaining T3–T12 entries: pending implementation and required gates. G-DNN and G-MOE:
 not run. §8.A: no synchronization path has a 50/50 claim. No new TaskBody
 has entered a performance matrix. No performance or calibration result is
 reported.
