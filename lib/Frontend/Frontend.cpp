@@ -22,6 +22,7 @@
 #include <mlir/IR/Verifier.h>
 
 #include <algorithm>
+#include <limits>
 #include <regex>
 #include <set>
 #include <sstream>
@@ -88,6 +89,91 @@ std::vector<std::string> readStrings(llvm::json::Array const* array) {
 }
 
 llvm::StringSet<> const& known();
+
+FxArgument ReadFxArgument(llvm::json::Value const& value, unsigned depth=0) {
+  if(depth>64)throw std::invalid_argument("FX argument nesting exceeds 64");
+  auto* object=value.getAsObject();
+  if(!object || !object->getString("t") || !object->get("v"))
+    throw std::invalid_argument("FX argument requires typed t/v fields");
+  auto tag=*object->getString("t");auto const& data=*object->get("v");
+  FxArgument result;using Kind=FxArgument::Kind;
+  if(tag=="none") {
+    if(!data.getAsNull())throw std::invalid_argument("FX none is not null");
+  }else if(tag=="int") {
+    auto integer=data.getAsInteger();
+    if(!integer)throw std::invalid_argument("FX int is not an integer");
+    result.kind=Kind::kInt;result.integer=*integer;
+  }else if(tag=="bool") {
+    auto boolean=data.getAsBoolean();
+    if(!boolean)throw std::invalid_argument("FX bool is not a boolean");
+    result.kind=Kind::kBool;result.boolean=*boolean;
+  }else if(tag=="float") {
+    result.kind=Kind::kFloat;
+    if(auto number=data.getAsNumber())result.real=*number;
+    else if(auto special=data.getAsString()) {
+      if(*special=="+inf")result.real=std::numeric_limits<double>::infinity();
+      else if(*special=="-inf")result.real=-std::numeric_limits<double>::infinity();
+      else if(*special=="nan")result.real=std::numeric_limits<double>::quiet_NaN();
+      else throw std::invalid_argument("unknown nonfinite FX float");
+    }else throw std::invalid_argument("FX float is not numeric");
+  }else if(tag=="list") {
+    auto* array=data.getAsArray();
+    if(!array)throw std::invalid_argument("FX list is not an array");
+    result.kind=Kind::kList;
+    for(auto const& item:*array)result.items.push_back(ReadFxArgument(item,depth+1));
+  }else {
+    if(tag=="node")result.kind=Kind::kNode;
+    else if(tag=="str")result.kind=Kind::kString;
+    else if(tag=="dtype")result.kind=Kind::kDtype;
+    else if(tag=="device")result.kind=Kind::kDevice;
+    else if(tag=="layout")result.kind=Kind::kLayout;
+    else if(tag=="memory_format")result.kind=Kind::kMemoryFormat;
+    else if(tag=="symbol")result.kind=Kind::kSymbol;
+    else throw std::invalid_argument("unknown FX argument tag: "+tag.str());
+    auto text=data.getAsString();
+    if(!text)throw std::invalid_argument("FX textual argument is not a string");
+    result.text=text->str();
+  }
+  return result;
+}
+
+FxConstant ReadFxConstant(llvm::json::Object const& object) {
+  FxConstant result;result.present=true;
+  auto dtype=object.getString("dtype");auto* shape=object.getArray("shape");
+  if(!dtype || !shape)throw std::invalid_argument("FX constant requires dtype and shape");
+  result.dtype=dtype->str();
+  for(auto const& dimension:*shape) {
+    auto integer=dimension.getAsInteger();
+    if(!integer || *integer<0)throw std::invalid_argument("invalid constant dimension");
+    result.shape.push_back(*integer);
+  }
+  std::uint64_t elements=1;
+  if(std::find(result.shape.begin(),result.shape.end(),0)==result.shape.end())
+    for(auto dimension:result.shape) {
+      if(elements>(1u<<20)/std::uint64_t(dimension))
+        throw std::invalid_argument("FX constant exceeds element limit");
+      elements*=std::uint64_t(dimension);
+    }
+  if(auto* scalar=object.get("scalar")) {
+    result.has_scalar=true;result.scalar=ReadFxArgument(*scalar);
+  }
+  if(auto all_true=object.getBoolean("all_true")) {
+    result.has_all_true=true;result.all_true=*all_true;
+  }
+  if(auto* summary=object.getObject("all_equal")) {
+    auto equal=summary->getBoolean("equal");auto* value=summary->get("value");
+    if(!equal || !value)throw std::invalid_argument("invalid constant equality summary");
+    result.has_all_equal=true;result.all_equal=*equal;
+    if(auto boolean=value->getAsBoolean()) {
+      result.equal_value.kind=FxArgument::Kind::kBool;result.equal_value.boolean=*boolean;
+    }else if(auto integer=value->getAsInteger()) {
+      result.equal_value.kind=FxArgument::Kind::kInt;result.equal_value.integer=*integer;
+    }else throw std::invalid_argument("constant equality value is not bool/int");
+  }
+  if(auto data=object.getString("data_base64"))result.data_base64=data->str();
+  if(auto order=object.getString("byte_order"))result.byte_order=order->str();
+  return result;
+}
 
 /// The composite spelling and its Core ATen decomposition classify the same
 /// way, so normalization does not move an operator between kinds.
@@ -417,6 +503,33 @@ ExportBridge ReadExportBridge(std::string const& path) {
       node.has_scalars = true;
       for (auto const& scalar : *scalars)
         if (auto number = scalar.getAsNumber()) node.scalars.push_back(*number);
+    }
+    if(auto* arguments=object->get("args")) {
+      auto parsed_args=ReadFxArgument(*arguments);
+      if(parsed_args.kind!=FxArgument::Kind::kList)
+        throw std::invalid_argument("node args must be a typed list");
+      node.has_arguments=true;node.args=std::move(parsed_args.items);
+    }
+    if(auto* value=object->get("kwargs")) {
+      auto* kwargs=value->getAsObject();
+      if(!kwargs)throw std::invalid_argument("node kwargs must be an object");
+      for(auto const& item:*kwargs)node.kwargs.emplace(item.first.str(),ReadFxArgument(item.second));
+    }
+    if(auto* value=object->get("constant")) {
+      auto* constant=value->getAsObject();
+      if(!constant)throw std::invalid_argument("node constant must be an object");
+      node.constant=ReadFxConstant(*constant);
+    }
+    if(auto* shape_constant=object->getObject("shape_constant")) {
+      node.shape_constant_symbols=readStrings(shape_constant->getArray("symbols"));
+      if(auto* fragment=shape_constant->get("fragment"))
+        node.shape_constant_fragment_json=llvm::formatv("{0}",*fragment).str();
+      if(auto* bindings=shape_constant->getObject("bindings"))
+        for(auto const& item:*bindings) {
+          auto integer=item.second.getAsInteger();
+          if(!integer)throw std::invalid_argument("shape binding is not an integer");
+          node.shape_constant_bindings.emplace(item.first.str(),*integer);
+        }
     }
     node.shape = readStrings(object->getArray("shape"));
     if (auto dtype = object->getString("dtype")) node.dtype = dtype->str();

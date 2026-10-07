@@ -8,6 +8,12 @@
 #include <mlir/IR/MLIRContext.h>
 
 #include <cassert>
+#include <cmath>
+#include <fstream>
+#include <llvm/Support/JSON.h>
+#include <llvm/Support/MemoryBuffer.h>
+#include <llvm/Support/FileSystem.h>
+#include <llvm/Support/raw_ostream.h>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -15,6 +21,34 @@
 namespace tilemega::tests::frontend_import_test {
 
 int TestFrontendImport(int argc, char** argv) {
+  {
+    using namespace tilemega::frontend;
+    auto bridge=ReadExportBridge(std::string(TILEMEGA_SOURCE_DIR)+
+                                 "/test/fixtures/export_structured_args.json");
+    auto const& node=bridge.tasks.at(0);using Kind=FxArgument::Kind;
+    assert(node.has_scalars && node.scalars==std::vector<double>{1e-6});
+    assert(node.has_arguments && node.args.size()==13);
+    assert(node.args[0].kind==Kind::kNode && node.args[0].text=="x");
+    assert(node.args[2].kind==Kind::kNone);
+    assert(node.args[3].kind==Kind::kList && node.args[3].items[0].integer==2);
+    assert(node.args[5].kind==Kind::kBool && !node.args[5].boolean);
+    assert(node.args[6].kind==Kind::kString && node.args[6].text=="tanh");
+    assert(std::isinf(node.args[7].real) && node.args[7].real<0);
+    assert(node.args[8].kind==Kind::kDtype && node.args[8].text=="torch.bfloat16");
+    assert(node.args[9].kind==Kind::kDevice && node.args[9].text=="cpu");
+    assert(node.args[10].kind==Kind::kLayout);
+    assert(node.args[11].kind==Kind::kMemoryFormat);
+    assert(node.args[12].items[0].items[0].integer==3);
+    assert(node.kwargs.at("scale").real==0.5 && !node.kwargs.at("enabled").boolean);
+    auto const& constant=bridge.tasks.at(1).constant;
+    assert(constant.present && constant.has_all_true && constant.all_true);
+    assert(constant.has_all_equal && constant.all_equal && constant.equal_value.boolean);
+    assert((constant.shape==std::vector<std::int64_t>{1}));
+    assert(constant.data_base64=="AQ==" && constant.byte_order=="little");
+    auto const& shape=bridge.tasks.at(2);
+    assert(shape.shape_constant_symbols==std::vector<std::string>{"s0"});
+    assert(shape.shape_constant_bindings.at("s0")==8 && !shape.shape_constant_fragment_json.empty());
+  }
   tilemega::analysis::IslContext isl_context;
   mlir::MLIRContext context;
   tilemega::frontend::ImportSummary summary;
@@ -29,6 +63,49 @@ int TestFrontendImport(int argc, char** argv) {
   assert(summary.task_spaces == 34 && summary.couplings == 42);
   assert(summary.stages == 30 && summary.guards == 4);
   assert(module->getOperation()->getAttr("tilemega.model_plan"));
+  {
+    auto source=llvm::MemoryBuffer::getFile(std::string(TILEMEGA_SOURCE_DIR)+
+                   "/docs/experiments/E2E_GEN/raw/export_bridge.json");
+    assert(source);auto json=llvm::json::parse(source.get()->getBuffer());assert(json);
+    for(auto& value:*json->getAsObject()->getArray("nodes")) {
+      auto* node=value.getAsObject();
+      (*node)["args"]=llvm::json::Object{{"t","list"},{"v",llvm::json::Array{}}};
+      (*node)["kwargs"]=llvm::json::Object{};
+    }
+    int fd;llvm::SmallString<128> filename;
+    assert(!llvm::sys::fs::createTemporaryFile("dm1-enriched-bridge","json",fd,filename));
+    {llvm::raw_fd_ostream out(fd,true);out<<llvm::formatv("{0:2}",*json);}
+    auto enriched=tilemega::frontend::TorchExportImporter{}.Import(filename.str().str(),context);
+    std::string original_text,enriched_text;
+    {llvm::raw_string_ostream out(original_text);module->print(out);}
+    {llvm::raw_string_ostream out(enriched_text);enriched->print(out);}
+    assert(original_text==enriched_text);
+    auto old_bridge=tilemega::frontend::ReadExportBridge(std::string(TILEMEGA_SOURCE_DIR)+
+                   "/docs/experiments/E2E_GEN/raw/export_bridge.json");
+    assert(!old_bridge.nodes.front().has_arguments && !old_bridge.nodes.front().constant.present);
+    auto* first=json->getAsObject()->getArray("nodes")->front().getAsObject();
+    auto rejects=[&] {
+      {std::ofstream out(filename.str().str());out<<llvm::formatv("{0:2}",*json).str();}
+      bool rejected=false;
+      try {(void)tilemega::frontend::ReadExportBridge(filename.str().str());}
+      catch(std::invalid_argument const&) {rejected=true;}
+      assert(rejected);
+    };
+    (*first)["args"]=llvm::json::Object{{"t","list"},{"v",llvm::json::Array{
+        llvm::json::Object{{"t","bool"},{"v",0}}}}};
+    rejects();
+    (*first)["args"]=llvm::json::Object{{"t","list"},{"v",llvm::json::Array{}}};
+    (*first)["kwargs"]=llvm::json::Array{};rejects();
+    (*first)["kwargs"]=llvm::json::Object{};
+    (*first)["constant"]=llvm::json::Object{{"dtype","torch.bool"},
+        {"shape",llvm::json::Array{1025,1025}}};rejects();
+    (*first)["constant"]=llvm::json::Object{{"dtype","torch.bool"},
+        {"shape",llvm::json::Array{1048577,0}}};
+    {std::ofstream out(filename.str().str());out<<llvm::formatv("{0:2}",*json).str();}
+    auto empty=tilemega::frontend::ReadExportBridge(filename.str().str());
+    assert(empty.nodes.front().constant.present);
+    assert(!llvm::sys::fs::remove(filename));
+  }
   auto aliases = module->getOperation()->getAttrOfType<mlir::DictionaryAttr>(
       "tilemega.symbol_aliases");
   assert(aliases.getAs<mlir::StringAttr>("s61").getValue() == "s14");

@@ -24,11 +24,12 @@ that DNN or MoE execution is implemented.
 |---|---|
 | Phase 0 framework | verified: copied R13 scripts, 12 framework/selection/identity/recipe tests pass |
 | Preregistration | verified: §3 retained verbatim in predictions; solver winners sealed before control-arm audit |
-| Reference bank | verified: eight baseline plans and 64-step smokes sealed in `results/reference_bank.json`; candidate comparison in progress |
+| Reference bank | verified: eight baseline plans and 64-step smokes sealed; candidate CUDA/resources/SASS/tokens match all eight plans |
 | DN-1 inventories | verified: five upstream models and masked BERT exported, before/Core fixtures committed |
 | DN-1 NAFNet source | verified: unchanged architecture/dependencies match upstream file SHA256; license preserved |
 | DN-1 weights/data | preparation only: NAFNet/ResNet18/MobileNetV2 strictly load; SIDD CRC passes; BERT/MobileNetV1 safetensors identities recorded |
-| CI-1 through CI-7 | not implemented |
+| CI-1 | implemented transcription/constant/binding API; verification in `bridge.md`; forward build integration follows CI-3/DN-11 |
+| CI-2 through CI-7 | not implemented |
 | DN-2 through DN-11 | not implemented |
 | MO-1 through MO-9 | not implemented |
 
@@ -44,6 +45,10 @@ verified: Phase 0 reference bank is sealed with SHA256
 All eight reference artifact identities require the actual baseline HEAD and
 an empty worktree diff. This completes reference preparation; it does not
 resolve the native ctest failure.
+verified: `results/T1_phase0_seal.json` records equality of CUDA bytes,
+every ptxas resource context, SASS and 64-step tokens for all eight plans.
+Its complete G-REG result remains false because ctest was not run after
+the native test build failed.
 verified: donor manifests name paged reduction handoffs `last_arriver`,
 whereas baseline CLI requires policy `off` and unconditionally lowers those
 reductions to last-arriver. Invalid direct-name and `auto` attempts failed

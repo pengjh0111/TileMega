@@ -4,11 +4,35 @@
 
 #include <array>
 #include <cstdint>
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 namespace tilemega::frontend {
+
+struct FxArgument {
+  enum class Kind { kNode, kInt, kFloat, kBool, kString, kNone, kList,
+                    kDtype, kDevice, kLayout, kMemoryFormat, kSymbol };
+  Kind kind = Kind::kNone;
+  std::int64_t integer = 0;
+  double real = 0.0;
+  bool boolean = false;
+  std::string text;
+  std::vector<FxArgument> items;
+};
+
+struct FxConstant {
+  bool present = false;
+  std::string dtype;
+  std::vector<std::int64_t> shape;
+  bool has_scalar = false;
+  FxArgument scalar;
+  bool has_all_true = false, all_true = false;
+  bool has_all_equal = false, all_equal = false;
+  FxArgument equal_value;
+  std::string data_base64, byte_order;
+};
 
 /// Stable FX facts serialized by export_bridge.py. No TileMega classification
 /// or scheduling decision is made on the Python side.
@@ -28,6 +52,13 @@ struct FxNodeRecord {
   /// before `scalar_args` existed says nothing about the epsilon, which is a
   /// different fact from a node that genuinely has no literal operand.
   bool has_scalars = false;
+  bool has_arguments = false;
+  std::vector<FxArgument> args;
+  std::map<std::string, FxArgument> kwargs;
+  FxConstant constant;
+  std::vector<std::string> shape_constant_symbols;
+  std::map<std::string, std::int64_t> shape_constant_bindings;
+  std::string shape_constant_fragment_json;
 };
 
 struct SignatureInput {
