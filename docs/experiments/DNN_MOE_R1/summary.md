@@ -32,7 +32,7 @@ that DNN or MoE execution is implemented.
 | CI-2 | verified descriptors, finite epilogue and GEMM/combiner dispatch (`descriptors.md`, `numerics.md`); new operand policies follow DN/MO bodies |
 | CI-3 | verified core ABI/dimensions, five targets, 50/50 fresh processes per seq (1/128/4096); CLI/model integration pending (`forward.md`) |
 | CI-4 | verified static access/metrics/table/WAR-WAW, exact bound encoding and virtual capacity/provenance; counted-write and memory-planner integration pending (`analysis.md`) |
-| CI-5 | verified primitives (50/50), synthetic table/counted stages (150/150) and automatic CG/codegen transport; paged forward/prefill verification in progress; binding pages, LA and real bodies pending (`synchronization.md`) |
+| CI-5 | verified primitives (50/50), synthetic table/counted stages (150/150) and automatic CG/codegen transport; paged forward/prefill cores (150/150); binding pages, LA and real bodies pending (`synchronization.md`) |
 | CI-6 | not implemented |
 | CI-7 | verified table projection and geometry rebinding foundations; body classes, structural search and second-level selection pending |
 | DN-2 through DN-11 | not implemented |
@@ -131,6 +131,13 @@ plus 2/2 empty-row/corruption checks (`results/CI7_table_flow_host.json`,
 `results/CI7_table_projection_empty.json`). B=1/2/8, workers=1/3/8 and
 kappa=0/1/4/16 match enumerated dependency/event sets; TM=16/32/64 refits
 the seed table from L-sem. These checks do not complete CI-7 or G-REG.
+
+T4/T12: verified page-core forward/prefill dense and prefill attention checks
+pass 150/150 fresh processes, five architectures and TM=16/32/64/128
+(`results/CI5_paged_phases.json`, `results/CI5_paged_attention.json`). Native
+L1/L2 outputs match bitwise and independent numerical oracles pass. Spills
+remain in some larger-tile and retained loop kernels; every resource line is
+recorded. These are synthetic core plans, not DNN/MoE model gates.
 
 Remaining T3–T12 entries: pending implementation and required gates. G-DNN and G-MOE:
 not run. §8.A: primitive and synthetic table/counted/weighted-LA paths have fresh-process evidence; real-body and remaining path gates are pending. No new TaskBody

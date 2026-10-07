@@ -65,3 +65,22 @@ symbolic expression may differ in their zero-valued coordinate support;
 the existing structural polynomial comparison does not canonicalize all
 floor identities between them. Parameter-only image counts use a scalar
 polynomial space so physical-reread subtraction remains well typed.
+
+verified: the production PageStream/ring and native C ABI execute synthetic
+forward dense plans (50/50), prefill dense plans (50/50), and prefill
+QKV/attention/o_proj plans (50/50), sixteen poisoned epochs per process.
+L1/L2 outputs are bitwise equal and pass independent FP32/BF16-store oracles.
+Forward/prefill activation reads stay compute-side; prefill attention emits no
+loader pages and writes context directly without a merge stage. TM=16/32/64/128
+and five architectures compile (`results/CI5_paged_phases.json`,
+`results/CI5_paged_attention.json`). Resource records retain every spill.
+This covers the core forward/prefill page path in §8.A.10; binding-aware
+pages/new-body workspace requirements and model gates remain pending.
+
+verified: initial handwritten smoke fixtures failed before the final checks:
+a missing finite-epilogue dispatcher trapped, and an invalid prefill merge read
+unwritten partials. Signed-input generation also required an explicit cast of
+the unsigned epoch before subtraction. The fixtures now follow the generated
+prefill direct-context contract and use signed test inputs. Criteria and
+independent oracle equations were not changed. Original failed logs remain in
+`runs/dm1-ci5-paged-phases-smoke` and `runs/dm1-ci5-paged-attention-smoke`.

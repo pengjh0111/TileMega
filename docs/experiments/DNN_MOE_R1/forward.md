@@ -32,5 +32,11 @@ zero spill stores/loads. Complete transitive input hashes remain unchanged
 (`results/CI3_forward_architecture.json`). This is a synthetic forward/ABI
 check, not a DNN/MoE model or §8.A synchronization gate.
 
-Pending: forward CLI model import; DNN and MoE states/weights; page execution
-for forward/prefill under CI-5; complete G-REG at the Phase 1 checkpoint.
+verified: CI-5 opens page execution to forward/prefill. Synthetic dense forward
+and prefill plans each pass 50/50 fresh processes; prefill QKV/attention/o_proj
+passes another 50/50. Independent numerical references and bitwise L1/L2
+comparisons pass, with five-architecture compile/resource records. See
+`page_invariants.md` and `results/CI5_paged_{phases,attention}.json`.
+
+Pending: forward CLI model import; DNN and MoE states/weights; binding-aware
+page execution and new bodies; complete G-REG at the Phase 1 checkpoint.
