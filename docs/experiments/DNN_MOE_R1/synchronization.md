@@ -24,3 +24,23 @@ Pending: integration with full L1/L2 and paged execution; real TaskBody 50-proce
 checks; WAR/WAW poisoning, dispatch, binding-aware pages, empty virtual-task
 notification, and the remaining paths of DM-1 section 8.A. No full section 8.A
 path or model gate is claimed complete by these primitive tests.
+
+verified: the full stage materializer and its wait/notification functions pass
+150/150 new sm_89 processes, 50 each for kappa=1/4/16
+(`results/CI5_stage_dependencies.json`). Every process alternates L1/L2 for
+16 epochs with poisoned partials. Table rows remain sparse/empty, grouped fine
+events preserve their producer counts, and runtime permutations accumulate
+exact counted totals. The two modes produce bitwise equal synthetic outputs.
+Five architectures compile; all recorded kernels have zero spill stores/loads.
+The separately sealed host adapter checks pass 7/7
+(`results/CI5_table_materialization_host.json`).
+
+inferred: counted stages use separate L1/L2 counter banks, prebound in host
+parameter tables. Switching execution mode cannot satisfy a wait with the
+other mode's earlier arrivals. The placement DAG conservatively includes all
+potential counted producers; device waits use the target's static contribution
+count. This affects scheduling legality rather than introducing a stage wait.
+
+Pending: automatic CG/codegen table transport, real TaskBodies and their gates,
+and paged counted execution. The stage experiment uses synthetic task bodies
+through the production materializer/wait functions, not DNN/MoE model bodies.
