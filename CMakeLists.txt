@@ -501,6 +501,20 @@ if(TILEMEGA_BUILD_TESTS)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
   tilemega_configure_cuda_target(dm_descriptor_device_test)
   add_test(NAME dm_descriptor_device COMMAND dm_descriptor_device_test)
+  add_executable(dm_epilogue_value_test test/unit/dm_epilogue_value_test.cu)
+  target_link_libraries(dm_epilogue_value_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_epilogue_value_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(dm_epilogue_value_test)
+  add_test(NAME dm_epilogue_value COMMAND dm_epilogue_value_test
+    "${CMAKE_SOURCE_DIR}/test/fixtures/dnn/epilogue_values.bin")
+  add_executable(dm_epilogue_tile_test test/unit/dm_epilogue_tile_test.cu)
+  target_link_libraries(dm_epilogue_tile_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_epilogue_tile_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(dm_epilogue_tile_test)
+  add_test(NAME dm_epilogue_tile COMMAND dm_epilogue_tile_test
+    "${CMAKE_SOURCE_DIR}/test/fixtures/dnn/epilogue_tiles.bin")
   target_link_libraries(task_body_contract_test PRIVATE TileMega::tilemega)
   add_test(NAME task_body_contract COMMAND task_body_contract_test)
 
