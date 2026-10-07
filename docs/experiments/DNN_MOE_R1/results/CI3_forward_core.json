@@ -1,0 +1,121 @@
+{
+  "evidence": "verified",
+  "scope": "forward phase core only; dense generated GEMM, no DNN/MoE model gate",
+  "passed": true,
+  "generated": [
+    {
+      "seq": 1,
+      "axis": "batch",
+      "result": {
+        "evidence": "verified",
+        "passed": true,
+        "scope": "CG-generated dense forward GEMM, numerical and L1/L2 equality; no model gate",
+        "token_seq": 0,
+        "cases": [
+          {
+            "batch": 1,
+            "mode": 1,
+            "passed": true,
+            "max_absolute_error": 0.11586761474609375
+          },
+          {
+            "batch": 1,
+            "mode": 2,
+            "passed": true,
+            "max_absolute_error": 0.11586761474609375
+          },
+          {
+            "batch": 8,
+            "mode": 1,
+            "passed": true,
+            "max_absolute_error": 0.12070083618164062
+          },
+          {
+            "batch": 8,
+            "mode": 2,
+            "passed": true,
+            "max_absolute_error": 0.12070083618164062
+          }
+        ]
+      },
+      "identity": "CI3_generated_batch.identity.json"
+    },
+    {
+      "seq": 16,
+      "axis": "token",
+      "result": {
+        "evidence": "verified",
+        "passed": true,
+        "scope": "CG-generated dense forward GEMM, numerical and L1/L2 equality; no model gate",
+        "token_seq": 16,
+        "cases": [
+          {
+            "batch": 1,
+            "mode": 1,
+            "passed": true,
+            "max_absolute_error": 0.11586761474609375
+          },
+          {
+            "batch": 1,
+            "mode": 2,
+            "passed": true,
+            "max_absolute_error": 0.11586761474609375
+          }
+        ]
+      },
+      "identity": "CI3_generated_16.identity.json"
+    },
+    {
+      "seq": 128,
+      "axis": "token",
+      "result": {
+        "evidence": "verified",
+        "passed": true,
+        "scope": "CG-generated dense forward GEMM, numerical and L1/L2 equality; no model gate",
+        "token_seq": 128,
+        "cases": [
+          {
+            "batch": 1,
+            "mode": 1,
+            "passed": true,
+            "max_absolute_error": 0.12406158447265625
+          },
+          {
+            "batch": 1,
+            "mode": 2,
+            "passed": true,
+            "max_absolute_error": 0.12406158447265625
+          }
+        ]
+      },
+      "identity": "CI3_generated_128.identity.json"
+    },
+    {
+      "seq": 4096,
+      "axis": "token",
+      "result": {
+        "evidence": "verified",
+        "passed": true,
+        "scope": "CG-generated dense forward GEMM, numerical and L1/L2 equality; no model gate",
+        "token_seq": 4096,
+        "cases": [
+          {
+            "batch": 1,
+            "mode": 1,
+            "passed": true,
+            "max_absolute_error": 0.1249237060546875
+          },
+          {
+            "batch": 1,
+            "mode": 2,
+            "passed": true,
+            "max_absolute_error": 0.1249237060546875
+          }
+        ]
+      },
+      "identity": "CI3_generated_4096.identity.json"
+    }
+  ],
+  "architecture_process_check": "superseded due to transitive host edits; repeat pending",
+  "cli_dnn_moe_integration": "pending DN-2/MO-9/CI-5"
+}
