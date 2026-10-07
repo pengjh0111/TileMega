@@ -16,7 +16,7 @@
       "page_loop_split": 1,
       "evict_first": 1,
       "evict_last": 0,
-      "handoff": "last_arriver",
+      "handoff": "auto",
       "arch_paths": "auto",
       "pdl": "auto",
       "event_solo": 0,

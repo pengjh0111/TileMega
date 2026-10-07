@@ -17,6 +17,16 @@ def write(path, value):
     path.write_text(json.dumps(value, indent=2) + '\n')
 
 
+def handoff_option(value):
+    # The manifest records the selected implementation; the CLI names its
+    # access-proof selection policy. They are different vocabularies.
+    if value == 'last_arriver':
+        return 'auto'
+    if value in ('off', 'auto'):
+        return value
+    raise ValueError('unsupported donor handoff: ' + str(value))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--reference-root', type=Path, required=True)
@@ -59,6 +69,7 @@ def main():
                                  paged_la_splitk=int(manifest['paged_la_splitk']),
                                  v3_poll_ns=0, kphase_mask=31,
                                  weight_layout='tiled' if manifest['pg'] == 'pages' else 'row')
+                overrides['handoff'] = handoff_option(manifest['handoff'])
                 overrides = {k: int(v) if isinstance(v, bool) else v for k, v in overrides.items()}
                 if manifest.get('pages'):
                     overrides.update(page_bytes=manifest['pages']['page_bytes'],
