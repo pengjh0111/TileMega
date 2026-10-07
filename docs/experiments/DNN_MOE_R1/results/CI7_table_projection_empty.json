@@ -1,0 +1,68 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "host empty table rows, coarsening, explicit I2 control and corrupted interval rejection; preceding flow checks remain in CI7_table_flow_host.json",
+  "tests": 2,
+  "source_head": "aeb6eba70ae5090503eaa2d3d654acfb83e0ffdc",
+  "inputs": {
+    "test/unit/runtime_projection_test.cpp": "a922ac584fdad9d7c7a205c91fd39dcbdb78e4fffd859b57750aed766e3b332e",
+    "test/unit/bound_dependency_codegen_test.cpp": "ff35b0ee4ebf49bb67a94ec5cd0b1727ab7753209f7a4ad0005d56b550b283ec",
+    "lib/Solver/RuntimeProjection.cpp": "af0cf858473b145a71b1327b1e5d67ce91c62c535d2e7d4223b6fb24bdac9d61",
+    "lib/Solver/FlowPreparation.cpp": "a426269cca29a1e76be4895970d4b6e0aff0f5ccf80060cf0098f313f37318d6"
+  },
+  "unit_sha256": "d5971e075a4ea156b0309df5d64e48584414caf4f623a7be1b98d9454db81ecd",
+  "queue": [
+    {
+      "name": "build_table_empty",
+      "command": [
+        "flock",
+        "/root/r14_work/gpu.lock",
+        "cmake",
+        "--build",
+        "build-dm",
+        "--target",
+        "tilemega-unit",
+        "-j",
+        "4"
+      ],
+      "cwd": "/root/dm1_work/development",
+      "gpu": false,
+      "timeout_s": 3600
+    },
+    {
+      "name": "ctest_table_empty",
+      "command": [
+        "flock",
+        "/root/r14_work/gpu.lock",
+        "ctest",
+        "--test-dir",
+        "build-dm",
+        "-R",
+        "^(runtime_projection|bound_dependency_codegen)$",
+        "--output-on-failure",
+        "-j",
+        "1"
+      ],
+      "cwd": "/root/dm1_work/development",
+      "gpu": false,
+      "timeout_s": 600,
+      "after": [
+        "build_table_empty"
+      ]
+    }
+  ],
+  "logs": {
+    "build_table_empty.log": {
+      "sha256": "690ad3fc4fb550731dfe0116b3f2f3d013017c50aec630de962d91b47298dc70",
+      "text": "\nATTEMPT 1 1791412378.79057\n[1/2] Building CXX object CMakeFiles/tilemega-unit.dir/test/unit/runtime_projection_test.cpp.o\n[2/2] Linking CXX executable tilemega-unit\n"
+    },
+    "scheduler.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    "ctest_table_empty.log": {
+      "sha256": "330a691dd10015e98a5406fbc649af8170e146c7ed24256decb081783ea860a3",
+      "text": "\nATTEMPT 1 1791412388.3001058\nInternal ctest changing into directory: /root/dm1_work/development/build-dm\nTest project /root/dm1_work/development/build-dm\n    Start 18: runtime_projection\n1/2 Test #18: runtime_projection ...............   Passed    1.77 sec\n    Start 28: bound_dependency_codegen\n2/2 Test #28: bound_dependency_codegen .........   Passed   12.17 sec\n\n100% tests passed, 0 tests failed out of 2\n\nTotal Test time (real) =  13.94 sec\n"
+    }
+  }
+}

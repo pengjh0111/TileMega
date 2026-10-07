@@ -74,3 +74,11 @@ are sealed in `synchronization.md`; automatic CG transport is under validation.
 Pending: real-body table/counted writes and waits; memory-planner integration;
 poison checks and all required 50-process synchronization gates. No CI-4 item
 is considered fully complete until its required integration is verified.
+verified: sparse runtime table projection and flow geometry rebinding pass
+9/9 host checks plus 2/2 empty-row/corruption checks
+(`results/CI7_table_flow_host.json`, `results/CI7_table_projection_empty.json`).
+The projection binds the plan's workload shape, keeps each table's exact
+producer set, and counts grouped events after owner elision. Flow search
+rebinds a table from L-sem when tile geometry changes, including conversion
+to an exact window. Empty table rows request no event. These are CI-7
+foundations; the remaining body classes and structural search are pending.
