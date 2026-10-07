@@ -26,7 +26,7 @@ DEFAULTS = {
     'workload': dict(batch=[1, 16], prompt_len=64, max_new_tokens=1024,
                      prompts='docs/experiments/SERVING_R10/prompts/passages.jsonl'),
     'device': dict(index=0, cache_dir='~/.cache/tilemega'),
-    'solver': dict(passes=2, top_m=8, measure_top=6, jobs=3, mode='L2', candidate_loop=0, pruning=True, time_budget_s=600, candidate_guard_wait_s=300, prefill_pins={}, exclude_l1_loop=False),
+    'solver': dict(passes=2, top_m=8, measure_top=6, jobs=3, mode='L2', candidate_loop=0, pruning=True, time_budget_s=600, candidate_guard_wait_s=300, prefill_pins={}, exclude_l1_loop=False, resident2_batches=[]),
     'features': dict(pg='auto', handoff='off', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='tiled', kphase_mask=31, lookahead_bytes=-1, v3_poll_ns=0, watchdog=0, mma_reg_pipe=0, nonpaged_la=0, attention_frontier=0, parallel_argmax=0, ep_direct=0, attention_noinline=0, attention_buffers=2, attention_impl="mma16", l2_slim=0, page_loop_split=0, nonpaged_weight_layout='row', evict_first=0, evict_last=1, decode_executor="L2", decode_loop=1, prefill_executor="L1"),
     'test': dict(warmup=1, repeats=3, hf_check=True, mode_check=True, guard=True, vllm=False,
                  vllm_python='/root/venv_vllm/bin/python', policy_file=None),
@@ -125,6 +125,16 @@ def batch_features(config, batch, phase):
     return values
 
 
+def plan_build_choices(pg_choices, settings, batch, phase):
+    """Keep the ordinary family alongside a conditionally required resident-2 family."""
+    rows=[]
+    for pg in pg_choices:
+        rows.append((pg,pg,{}))
+        if phase=='decode' and pg=='l2' and batch in settings['resident2_batches']:
+            rows.append(('l2_resident2','l2',{'attention_buffers':1}))
+    return rows
+
+
 def read_config(path: Path) -> dict:
     if path.suffix == '.json':
         config = json.loads(path.read_text())
@@ -156,6 +166,11 @@ def read_config(path: Path) -> dict:
         raise ValueError('solver.candidate_loop must be 0 or 1')
     if not isinstance(config['solver']['exclude_l1_loop'],bool):
         raise ValueError('solver.exclude_l1_loop must be boolean')
+    resident2=config['solver']['resident2_batches']
+    if not isinstance(resident2,list) or any(type(b) is not int or b not in config['workload']['batch'] for b in resident2):
+        raise ValueError('solver.resident2_batches must name configured batches')
+    if resident2 and config['features']['pg'] not in ('l2','measure'):
+        raise ValueError('resident-2 family requires a nonpaged decode build')
     if config['solver']['mode'] == 'auto':
         config['solver']['mode'] = 'L2'
     if config['solver']['mode'] not in ('L1', 'L2'):
@@ -423,9 +438,11 @@ class Run:
                 else:
                     pg_choices = ('pages',)
                 built = {}
-                for pg in pg_choices:
+                build_choices=plan_build_choices(pg_choices,settings,batch,phase)
+                for family,pg,family_features in build_choices:
                     choice_features = dict(features, pg=pg, handoff='off',
                                            weight_layout=features['weight_layout'] if pg == 'pages' else 'row')
+                    choice_features.update(family_features)
                     target_inputs = dict(target.get('calibration_sections', {}), target_sha256=file_sha(self.target))
                     seed_manifest = str(built['l2'])+'.plan.json' if pg=='pages' and 'l2' in built else None
                     prefill_pin=settings['prefill_pins'].get(str(batch)) if phase=='prefill' else None
@@ -449,7 +466,7 @@ class Run:
                             '--search-jobs', str(settings['jobs']), '--measure-top', str(settings['measure_top']),
                             '--candidate-guard-wait-s', str(settings['candidate_guard_wait_s']),
                             '--candidate-mode', settings['mode'], '--candidate-loop', str(settings['candidate_loop']),
-                            '--search-budget-ms', str(first_stage_budget_ms(settings['time_budget_s'],len(pg_choices),phase=='decode')),
+                            '--search-budget-ms', str(first_stage_budget_ms(settings['time_budget_s'],len(build_choices),phase=='decode')),
                             '--serving-pruning', str(int(settings['pruning'])), '--incremental-prepare', '1',
                             '--variant-cache', str(self.cache / 'variants' / self.device_key),
                             '--artifact-cache', str(self.cache / 'artifacts'), '--dump-cg', str(plan / 'selected.mlir'),
@@ -466,27 +483,28 @@ class Run:
                                 options += pin_prefill(prefill_pin['manifest'],prefill_pin['classes'],plan)
                             if seed_manifest:
                                 options += ["--paged-seed-from", seed_manifest]
-                            previous=previous_by_pg.get(pg)
+                            previous=previous_by_pg.get(family)
                             if previous:
                                 options += ['--serving-warm-start', str(previous)]
                             atomic_json(plan / 'options.json', options)
                             start = time.monotonic()
-                            self.command([self.binary, 'compile', '--options', plan / 'options.json'], f'build-{phase}-{pg}-B{batch}')
+                            self.command([self.binary, 'compile', '--options', plan / 'options.json'], f'build-{phase}-{family}-B{batch}')
                             seconds = time.monotonic() - start
-                            self.command([self.binary, 'audit', 'sass', library, '--out', plan / 'sass.json'], f'sass-{phase}-{pg}-B{batch}')
+                            self.command([self.binary, 'audit', 'sass', library, '--out', plan / 'sass.json'], f'sass-{phase}-{family}-B{batch}')
                             self.command([self.binary, 'inspect', 'request-floor', plan / 'selected.mlir', self.target,
-                                batch, *interval, plan / 'floor.json', plan / 'floor.tsv'], f'floor-{phase}-{pg}-B{batch}')
+                                batch, *interval, plan / 'floor.json', plan / 'floor.tsv'], f'floor-{phase}-{family}-B{batch}')
                             record_outputs(marker, [library, manifest, Path(str(library)+'.identity.json'),
                                 Path(str(library)+'.source.json'), Path(str(library)+'.source.json.patch'),
                                 plan / 'selected.mlir', plan / 'floor.json', plan / 'floor.tsv'],
                                 solve_seconds=seconds, budget_s=settings['time_budget_s'], budget_pass=seconds <= settings['time_budget_s'])
-                    previous_by_pg[pg] = manifest
-                    built[pg] = library
+                    previous_by_pg[family] = manifest
+                    built[family] = library
                 if phase == 'decode':
                     candidates=[]
                     deadline=batch_started+settings['time_budget_s']
-                    for pg, library in built.items():
+                    for family, library in built.items():
                         manifest=json.loads(Path(str(library)+'.plan.json').read_text())
+                        pg=manifest['pg']
                         variants=attention_variants(manifest)
                         # Measure the already-built winner first; a budget exhaustion
                         # must not silently turn an unmeasured new body into a winner.
@@ -495,7 +513,7 @@ class Run:
                             for mode, loop in execution_combinations(pg, features['decode_executor'], features['decode_loop']):
                                 if pg!='pages' and mode=='L1' and loop and settings['exclude_l1_loop']:
                                     continue
-                                candidates.append(dict(pg=pg, mode=mode, loop=loop,base_library=str(library),
+                                candidates.append(dict(pg=pg, family=family, mode=mode, loop=loop,base_library=str(library),
                                     base_variant=matches_attention(manifest,variant),
                                     variant=variant,variant_label=attention_label(variant),samples_ms=[]))
                     candidates.sort(key=lambda c:not c['base_variant'])
@@ -514,7 +532,7 @@ class Run:
                             # survivors. The budget stops admission of further pilots.
                             admit_pilot(candidate,round_label,time.monotonic(),deadline)
                             candidate['library']=str(self.attention_variant(candidate['base_library'],candidate['variant'],deadline))
-                            stem=f"B{batch}-{candidate['pg']}-{candidate['variant_label']}-{candidate['mode']}-{candidate['loop']}-{round_label}"
+                            stem=f"B{batch}-{candidate['family']}-{candidate['variant_label']}-{candidate['mode']}-{candidate['loop']}-{round_label}"
                             out=self.out / ('decode-choice-'+stem)
                             command=[sys.executable,'-m','tilemega.serving.measure_candidate','--so',candidate['library'],
                                      '--model',str(self.model),'--batch',str(batch),'--past-list','64,575,1000',
