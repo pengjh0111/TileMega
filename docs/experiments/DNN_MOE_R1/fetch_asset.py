@@ -16,12 +16,22 @@ def digest(path):
     return value.hexdigest()
 
 
+def git_blob(path):
+    value = hashlib.sha1()
+    value.update(f'blob {path.stat().st_size}\0'.encode())
+    with path.open('rb') as stream:
+        for block in iter(lambda: stream.read(8 << 20), b''):
+            value.update(block)
+    return value.hexdigest()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--url', required=True)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--bytes', type=int)
     parser.add_argument('--sha256')
+    parser.add_argument('--git-blob', help='Git blob identity for a non-LFS file')
     parser.add_argument('--attempts', type=int, default=100)
     parser.add_argument('--attempt-seconds', type=int, default=180)
     args = parser.parse_args()
@@ -37,9 +47,22 @@ def main():
             raise ValueError('completed asset has the wrong size')
         if args.sha256 and not old['sha256'].startswith(args.sha256):
             raise ValueError('completed asset has the wrong digest')
+        if args.git_blob and git_blob(args.out) != args.git_blob:
+            raise ValueError('completed asset has the wrong Git blob identity')
         print(json.dumps(dict(event='asset_verified', **old)), flush=True)
         return
     log = Path(str(args.out) + '.download.log')
+    if args.bytes is not None and (args.sha256 or args.git_blob) and args.out.exists() and \
+            args.out.stat().st_size == args.bytes:
+        sha = digest(args.out)
+        if (args.sha256 and not sha.startswith(args.sha256)) or \
+                (args.git_blob and git_blob(args.out) != args.git_blob):
+            raise ValueError('existing asset has the wrong digest; retained for inspection')
+        value = dict(url=args.url, path=str(args.out.resolve()), bytes=args.bytes,
+                     sha256=sha, evidence='verified', attempts=0)
+        report.write_text(json.dumps(value, indent=2) + '\n')
+        print(json.dumps(dict(event='asset_verified', **value)), flush=True)
+        return
     for attempt in range(1, args.attempts + 1):
         # A fresh curl computes the current resume offset after every failure.
         # A retry of the original command may reuse its original offset.
@@ -58,6 +81,8 @@ def main():
             sha = digest(args.out)
             if args.sha256 and not sha.startswith(args.sha256):
                 raise ValueError('downloaded asset has the wrong digest')
+            if args.git_blob and git_blob(args.out) != args.git_blob:
+                raise ValueError('downloaded asset has the wrong Git blob identity')
             value = dict(url=args.url, path=str(args.out.resolve()), bytes=size,
                          sha256=sha, evidence='verified', attempts=attempt)
             report.write_text(json.dumps(value, indent=2) + '\n')
