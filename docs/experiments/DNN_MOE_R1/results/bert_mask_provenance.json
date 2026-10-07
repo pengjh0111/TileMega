@@ -1,0 +1,909 @@
+{
+  "evidence": "verified",
+  "scope": "FX dependency transcription and isolated CPU Interpreter evaluation",
+  "masks": [
+    {
+      "sdpa": "scaled_dot_product_attention",
+      "mask": "expand",
+      "shape": [
+        "s18",
+        "1",
+        "128",
+        "128"
+      ],
+      "shape_boundaries": {
+        "sym_size_int_3": {
+          "input": "token_type_ids",
+          "axis": 0,
+          "shape": [
+            "s18",
+            "128"
+          ]
+        }
+      },
+      "value_dependent_placeholders": {},
+      "fragment": [
+        {
+          "name": "sym_size_int_3",
+          "target": "aten.sym_size.int",
+          "args": "(token_type_ids, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "arange_2",
+          "target": "aten.arange.default",
+          "args": "(128,)",
+          "kwargs": "{'device': device(type='cpu'), 'pin_memory': False}"
+        },
+        {
+          "name": "add_2",
+          "target": "aten.add.Tensor",
+          "args": "(arange_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_6",
+          "target": "aten.unsqueeze.default",
+          "args": "(add_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_7",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_6, 1)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_8",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_7, 3)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "ge",
+          "target": "aten.ge.Scalar",
+          "args": "(unsqueeze_8, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "expand",
+          "target": "aten.expand.default",
+          "args": "(ge, [sym_size_int_3, -1, 128, 128])",
+          "kwargs": "{}"
+        }
+      ]
+    },
+    {
+      "sdpa": "scaled_dot_product_attention_1",
+      "mask": "expand",
+      "shape": [
+        "s18",
+        "1",
+        "128",
+        "128"
+      ],
+      "shape_boundaries": {
+        "sym_size_int_3": {
+          "input": "token_type_ids",
+          "axis": 0,
+          "shape": [
+            "s18",
+            "128"
+          ]
+        }
+      },
+      "value_dependent_placeholders": {},
+      "fragment": [
+        {
+          "name": "sym_size_int_3",
+          "target": "aten.sym_size.int",
+          "args": "(token_type_ids, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "arange_2",
+          "target": "aten.arange.default",
+          "args": "(128,)",
+          "kwargs": "{'device': device(type='cpu'), 'pin_memory': False}"
+        },
+        {
+          "name": "add_2",
+          "target": "aten.add.Tensor",
+          "args": "(arange_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_6",
+          "target": "aten.unsqueeze.default",
+          "args": "(add_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_7",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_6, 1)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_8",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_7, 3)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "ge",
+          "target": "aten.ge.Scalar",
+          "args": "(unsqueeze_8, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "expand",
+          "target": "aten.expand.default",
+          "args": "(ge, [sym_size_int_3, -1, 128, 128])",
+          "kwargs": "{}"
+        }
+      ]
+    },
+    {
+      "sdpa": "scaled_dot_product_attention_2",
+      "mask": "expand",
+      "shape": [
+        "s18",
+        "1",
+        "128",
+        "128"
+      ],
+      "shape_boundaries": {
+        "sym_size_int_3": {
+          "input": "token_type_ids",
+          "axis": 0,
+          "shape": [
+            "s18",
+            "128"
+          ]
+        }
+      },
+      "value_dependent_placeholders": {},
+      "fragment": [
+        {
+          "name": "sym_size_int_3",
+          "target": "aten.sym_size.int",
+          "args": "(token_type_ids, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "arange_2",
+          "target": "aten.arange.default",
+          "args": "(128,)",
+          "kwargs": "{'device': device(type='cpu'), 'pin_memory': False}"
+        },
+        {
+          "name": "add_2",
+          "target": "aten.add.Tensor",
+          "args": "(arange_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_6",
+          "target": "aten.unsqueeze.default",
+          "args": "(add_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_7",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_6, 1)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_8",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_7, 3)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "ge",
+          "target": "aten.ge.Scalar",
+          "args": "(unsqueeze_8, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "expand",
+          "target": "aten.expand.default",
+          "args": "(ge, [sym_size_int_3, -1, 128, 128])",
+          "kwargs": "{}"
+        }
+      ]
+    },
+    {
+      "sdpa": "scaled_dot_product_attention_3",
+      "mask": "expand",
+      "shape": [
+        "s18",
+        "1",
+        "128",
+        "128"
+      ],
+      "shape_boundaries": {
+        "sym_size_int_3": {
+          "input": "token_type_ids",
+          "axis": 0,
+          "shape": [
+            "s18",
+            "128"
+          ]
+        }
+      },
+      "value_dependent_placeholders": {},
+      "fragment": [
+        {
+          "name": "sym_size_int_3",
+          "target": "aten.sym_size.int",
+          "args": "(token_type_ids, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "arange_2",
+          "target": "aten.arange.default",
+          "args": "(128,)",
+          "kwargs": "{'device': device(type='cpu'), 'pin_memory': False}"
+        },
+        {
+          "name": "add_2",
+          "target": "aten.add.Tensor",
+          "args": "(arange_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_6",
+          "target": "aten.unsqueeze.default",
+          "args": "(add_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_7",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_6, 1)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_8",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_7, 3)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "ge",
+          "target": "aten.ge.Scalar",
+          "args": "(unsqueeze_8, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "expand",
+          "target": "aten.expand.default",
+          "args": "(ge, [sym_size_int_3, -1, 128, 128])",
+          "kwargs": "{}"
+        }
+      ]
+    },
+    {
+      "sdpa": "scaled_dot_product_attention_4",
+      "mask": "expand",
+      "shape": [
+        "s18",
+        "1",
+        "128",
+        "128"
+      ],
+      "shape_boundaries": {
+        "sym_size_int_3": {
+          "input": "token_type_ids",
+          "axis": 0,
+          "shape": [
+            "s18",
+            "128"
+          ]
+        }
+      },
+      "value_dependent_placeholders": {},
+      "fragment": [
+        {
+          "name": "sym_size_int_3",
+          "target": "aten.sym_size.int",
+          "args": "(token_type_ids, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "arange_2",
+          "target": "aten.arange.default",
+          "args": "(128,)",
+          "kwargs": "{'device': device(type='cpu'), 'pin_memory': False}"
+        },
+        {
+          "name": "add_2",
+          "target": "aten.add.Tensor",
+          "args": "(arange_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_6",
+          "target": "aten.unsqueeze.default",
+          "args": "(add_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_7",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_6, 1)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_8",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_7, 3)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "ge",
+          "target": "aten.ge.Scalar",
+          "args": "(unsqueeze_8, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "expand",
+          "target": "aten.expand.default",
+          "args": "(ge, [sym_size_int_3, -1, 128, 128])",
+          "kwargs": "{}"
+        }
+      ]
+    },
+    {
+      "sdpa": "scaled_dot_product_attention_5",
+      "mask": "expand",
+      "shape": [
+        "s18",
+        "1",
+        "128",
+        "128"
+      ],
+      "shape_boundaries": {
+        "sym_size_int_3": {
+          "input": "token_type_ids",
+          "axis": 0,
+          "shape": [
+            "s18",
+            "128"
+          ]
+        }
+      },
+      "value_dependent_placeholders": {},
+      "fragment": [
+        {
+          "name": "sym_size_int_3",
+          "target": "aten.sym_size.int",
+          "args": "(token_type_ids, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "arange_2",
+          "target": "aten.arange.default",
+          "args": "(128,)",
+          "kwargs": "{'device': device(type='cpu'), 'pin_memory': False}"
+        },
+        {
+          "name": "add_2",
+          "target": "aten.add.Tensor",
+          "args": "(arange_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_6",
+          "target": "aten.unsqueeze.default",
+          "args": "(add_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_7",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_6, 1)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_8",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_7, 3)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "ge",
+          "target": "aten.ge.Scalar",
+          "args": "(unsqueeze_8, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "expand",
+          "target": "aten.expand.default",
+          "args": "(ge, [sym_size_int_3, -1, 128, 128])",
+          "kwargs": "{}"
+        }
+      ]
+    },
+    {
+      "sdpa": "scaled_dot_product_attention_6",
+      "mask": "expand",
+      "shape": [
+        "s18",
+        "1",
+        "128",
+        "128"
+      ],
+      "shape_boundaries": {
+        "sym_size_int_3": {
+          "input": "token_type_ids",
+          "axis": 0,
+          "shape": [
+            "s18",
+            "128"
+          ]
+        }
+      },
+      "value_dependent_placeholders": {},
+      "fragment": [
+        {
+          "name": "sym_size_int_3",
+          "target": "aten.sym_size.int",
+          "args": "(token_type_ids, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "arange_2",
+          "target": "aten.arange.default",
+          "args": "(128,)",
+          "kwargs": "{'device': device(type='cpu'), 'pin_memory': False}"
+        },
+        {
+          "name": "add_2",
+          "target": "aten.add.Tensor",
+          "args": "(arange_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_6",
+          "target": "aten.unsqueeze.default",
+          "args": "(add_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_7",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_6, 1)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_8",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_7, 3)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "ge",
+          "target": "aten.ge.Scalar",
+          "args": "(unsqueeze_8, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "expand",
+          "target": "aten.expand.default",
+          "args": "(ge, [sym_size_int_3, -1, 128, 128])",
+          "kwargs": "{}"
+        }
+      ]
+    },
+    {
+      "sdpa": "scaled_dot_product_attention_7",
+      "mask": "expand",
+      "shape": [
+        "s18",
+        "1",
+        "128",
+        "128"
+      ],
+      "shape_boundaries": {
+        "sym_size_int_3": {
+          "input": "token_type_ids",
+          "axis": 0,
+          "shape": [
+            "s18",
+            "128"
+          ]
+        }
+      },
+      "value_dependent_placeholders": {},
+      "fragment": [
+        {
+          "name": "sym_size_int_3",
+          "target": "aten.sym_size.int",
+          "args": "(token_type_ids, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "arange_2",
+          "target": "aten.arange.default",
+          "args": "(128,)",
+          "kwargs": "{'device': device(type='cpu'), 'pin_memory': False}"
+        },
+        {
+          "name": "add_2",
+          "target": "aten.add.Tensor",
+          "args": "(arange_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_6",
+          "target": "aten.unsqueeze.default",
+          "args": "(add_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_7",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_6, 1)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_8",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_7, 3)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "ge",
+          "target": "aten.ge.Scalar",
+          "args": "(unsqueeze_8, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "expand",
+          "target": "aten.expand.default",
+          "args": "(ge, [sym_size_int_3, -1, 128, 128])",
+          "kwargs": "{}"
+        }
+      ]
+    },
+    {
+      "sdpa": "scaled_dot_product_attention_8",
+      "mask": "expand",
+      "shape": [
+        "s18",
+        "1",
+        "128",
+        "128"
+      ],
+      "shape_boundaries": {
+        "sym_size_int_3": {
+          "input": "token_type_ids",
+          "axis": 0,
+          "shape": [
+            "s18",
+            "128"
+          ]
+        }
+      },
+      "value_dependent_placeholders": {},
+      "fragment": [
+        {
+          "name": "sym_size_int_3",
+          "target": "aten.sym_size.int",
+          "args": "(token_type_ids, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "arange_2",
+          "target": "aten.arange.default",
+          "args": "(128,)",
+          "kwargs": "{'device': device(type='cpu'), 'pin_memory': False}"
+        },
+        {
+          "name": "add_2",
+          "target": "aten.add.Tensor",
+          "args": "(arange_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_6",
+          "target": "aten.unsqueeze.default",
+          "args": "(add_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_7",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_6, 1)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_8",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_7, 3)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "ge",
+          "target": "aten.ge.Scalar",
+          "args": "(unsqueeze_8, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "expand",
+          "target": "aten.expand.default",
+          "args": "(ge, [sym_size_int_3, -1, 128, 128])",
+          "kwargs": "{}"
+        }
+      ]
+    },
+    {
+      "sdpa": "scaled_dot_product_attention_9",
+      "mask": "expand",
+      "shape": [
+        "s18",
+        "1",
+        "128",
+        "128"
+      ],
+      "shape_boundaries": {
+        "sym_size_int_3": {
+          "input": "token_type_ids",
+          "axis": 0,
+          "shape": [
+            "s18",
+            "128"
+          ]
+        }
+      },
+      "value_dependent_placeholders": {},
+      "fragment": [
+        {
+          "name": "sym_size_int_3",
+          "target": "aten.sym_size.int",
+          "args": "(token_type_ids, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "arange_2",
+          "target": "aten.arange.default",
+          "args": "(128,)",
+          "kwargs": "{'device': device(type='cpu'), 'pin_memory': False}"
+        },
+        {
+          "name": "add_2",
+          "target": "aten.add.Tensor",
+          "args": "(arange_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_6",
+          "target": "aten.unsqueeze.default",
+          "args": "(add_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_7",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_6, 1)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_8",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_7, 3)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "ge",
+          "target": "aten.ge.Scalar",
+          "args": "(unsqueeze_8, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "expand",
+          "target": "aten.expand.default",
+          "args": "(ge, [sym_size_int_3, -1, 128, 128])",
+          "kwargs": "{}"
+        }
+      ]
+    },
+    {
+      "sdpa": "scaled_dot_product_attention_10",
+      "mask": "expand",
+      "shape": [
+        "s18",
+        "1",
+        "128",
+        "128"
+      ],
+      "shape_boundaries": {
+        "sym_size_int_3": {
+          "input": "token_type_ids",
+          "axis": 0,
+          "shape": [
+            "s18",
+            "128"
+          ]
+        }
+      },
+      "value_dependent_placeholders": {},
+      "fragment": [
+        {
+          "name": "sym_size_int_3",
+          "target": "aten.sym_size.int",
+          "args": "(token_type_ids, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "arange_2",
+          "target": "aten.arange.default",
+          "args": "(128,)",
+          "kwargs": "{'device': device(type='cpu'), 'pin_memory': False}"
+        },
+        {
+          "name": "add_2",
+          "target": "aten.add.Tensor",
+          "args": "(arange_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_6",
+          "target": "aten.unsqueeze.default",
+          "args": "(add_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_7",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_6, 1)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_8",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_7, 3)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "ge",
+          "target": "aten.ge.Scalar",
+          "args": "(unsqueeze_8, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "expand",
+          "target": "aten.expand.default",
+          "args": "(ge, [sym_size_int_3, -1, 128, 128])",
+          "kwargs": "{}"
+        }
+      ]
+    },
+    {
+      "sdpa": "scaled_dot_product_attention_11",
+      "mask": "expand",
+      "shape": [
+        "s18",
+        "1",
+        "128",
+        "128"
+      ],
+      "shape_boundaries": {
+        "sym_size_int_3": {
+          "input": "token_type_ids",
+          "axis": 0,
+          "shape": [
+            "s18",
+            "128"
+          ]
+        }
+      },
+      "value_dependent_placeholders": {},
+      "fragment": [
+        {
+          "name": "sym_size_int_3",
+          "target": "aten.sym_size.int",
+          "args": "(token_type_ids, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "arange_2",
+          "target": "aten.arange.default",
+          "args": "(128,)",
+          "kwargs": "{'device': device(type='cpu'), 'pin_memory': False}"
+        },
+        {
+          "name": "add_2",
+          "target": "aten.add.Tensor",
+          "args": "(arange_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_6",
+          "target": "aten.unsqueeze.default",
+          "args": "(add_2, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_7",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_6, 1)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "unsqueeze_8",
+          "target": "aten.unsqueeze.default",
+          "args": "(unsqueeze_7, 3)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "ge",
+          "target": "aten.ge.Scalar",
+          "args": "(unsqueeze_8, 0)",
+          "kwargs": "{}"
+        },
+        {
+          "name": "expand",
+          "target": "aten.expand.default",
+          "args": "(ge, [sym_size_int_3, -1, 128, 128])",
+          "kwargs": "{}"
+        }
+      ]
+    }
+  ],
+  "cpu_bound_checks": [
+    {
+      "batch": 1,
+      "shape": [
+        1,
+        1,
+        128,
+        128
+      ],
+      "elements": 16384,
+      "dtype": "torch.bool",
+      "all_true": true
+    },
+    {
+      "batch": 8,
+      "shape": [
+        8,
+        1,
+        128,
+        128
+      ],
+      "elements": 131072,
+      "dtype": "torch.bool",
+      "all_true": true
+    },
+    {
+      "batch": 32,
+      "shape": [
+        32,
+        1,
+        128,
+        128
+      ],
+      "elements": 524288,
+      "dtype": "torch.bool",
+      "all_true": true
+    },
+    {
+      "batch": 64,
+      "shape": [
+        64,
+        1,
+        128,
+        128
+      ],
+      "elements": 1048576,
+      "dtype": "torch.bool",
+      "all_true": true
+    }
+  ],
+  "all_sdpa_nodes_share_mask": true
+}

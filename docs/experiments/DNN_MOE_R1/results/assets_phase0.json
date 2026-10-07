@@ -14,6 +14,28 @@
       "bytes": 310626186,
       "sha256": "82b25f54ca4682453bef40c895e7fa9a0b9ead11c8f388d5b4ac6a77fcd0892f",
       "zip_crc": "passed"
+    },
+    {
+      "url": "https://download.pytorch.org/models/resnet18-f37072fd.pth",
+      "path": "/root/.cache/tilemega-dm/torch/hub/checkpoints/resnet18-f37072fd.pth",
+      "bytes": 46830571,
+      "sha256": "f37072fd47e89c5e827621c5baffa7500819f7896bbacec160b1a16c560e07ec",
+      "evidence": "verified",
+      "attempts": 4,
+      "strict_load": true,
+      "tensors": 102,
+      "elements": 11699112
+    },
+    {
+      "url": "https://download.pytorch.org/models/mobilenet_v2-7ebf99e0.pth",
+      "path": "/root/.cache/tilemega-dm/torch/hub/checkpoints/mobilenet_v2-7ebf99e0.pth",
+      "bytes": 14258573,
+      "sha256": "7ebf99e03e254b273379b23edca7ec0da9f48273b23a332b93c1c99d49e86e8f",
+      "evidence": "verified",
+      "attempts": 1,
+      "strict_load": true,
+      "tensors": 314,
+      "elements": 3539036
     }
   ],
   "nafnet_strict_load": {

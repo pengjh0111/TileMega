@@ -27,7 +27,7 @@ that DNN or MoE execution is implemented.
 | Reference bank | in progress: fixed R13D geometry, separate reference/candidate builds and source identities |
 | DN-1 inventories | verified: five upstream models and masked BERT exported, before/Core fixtures committed |
 | DN-1 NAFNet source | verified: unchanged architecture/dependencies match upstream file SHA256; license preserved |
-| DN-1 weights/data | preparation only: NAFNet strictly loads; SIDD CRC passes; BERT/MobileNetV1 safetensors identities recorded |
+| DN-1 weights/data | preparation only: NAFNet/ResNet18/MobileNetV2 strictly load; SIDD CRC passes; BERT/MobileNetV1 safetensors identities recorded |
 | CI-1 through CI-7 | not implemented |
 | DN-2 through DN-11 | not implemented |
 | MO-1 through MO-9 | not implemented |
@@ -68,6 +68,10 @@ adds unused tuple-field getitems (BN, LayerNorm and maxpool); original counts
 are retained and reloaded counts are separately recorded in
 `results/export_roundtrip.json`. DNN archive loading registers HF's original
 ModelOutput pytree definitions before loading BERT.
+verified: all twelve unmasked BERT SDPA calls share the same shape-only
+mask fragment, whose sole input dependency is `sym_size(token_type_ids,0)`.
+Isolated CPU FX Interpreter evaluations at B=1/8/32/64 are all true, including
+the specification's 2²⁰-element boundary (`results/bert_mask_provenance.json`).
 
 T3–T12: pending implementation and the required gates. G-DNN and G-MOE:
 not run. §8.A: no synchronization path has a 50/50 claim. No new TaskBody
