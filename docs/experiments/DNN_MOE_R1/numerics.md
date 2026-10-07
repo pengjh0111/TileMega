@@ -47,3 +47,13 @@ same compact logical channel map. verified: this tile path passes 50/50 fresh
 processes, with no spills in any of the five compile targets. sm_89 tile
 variants use 40–64 registers and 4224 B shared memory. Per-kernel resource
 rows and binary/input hashes are in `results/CI2_epilogue_tiles.json`.
+
+verified: four independent PyTorch linear references exercise BF16 GEMM
+accumulation through the generated-chain dispatch, dense row stride/offset,
+bias/ReLU, SwiGLU, pixel-shuffle residual and scale/ReLU6. Each runs unsplit
+and with two/three FP32 split-K chunks. M/N tails, poisoned halo and padding,
+and per-tile row statistics retain their original assertions. Dense and page
+paths with the same geometry must be bitwise equal. Five targets compile;
+sm_89 passes 50/50 fresh processes with no spills. Kernel rows are in
+`results/CI2_gemm_chains.json` (sm_89: 64/80/116 registers). This is local
+GEMM/combiner and page-ring evidence, not a full paged plan or §8.A gate.

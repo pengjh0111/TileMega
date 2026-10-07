@@ -95,6 +95,16 @@ cases pass against PyTorch, with five-target compilation and no spills.
 Tile-local checks pass in 50/50 fresh processes; these do not count as §8.A
 inter-stage synchronization evidence (`results/CI2_epilogue_tiles.json`).
 
+T4/T12: verified finite-chain GEMM/combiner dispatch for four independent
+linear references, dense/page paths, split-K=1/2/3, M/N tails and mapped
+writes. Five targets compile with no spills; sm_89 passes 50/50 fresh
+processes (`results/CI2_gemm_chains.json`). This does not count as §8.A.
+verified: refreshed extended descriptor device interpretation and unchanged
+legacy ABI (`results/CI2_descriptor_abi.json`). Native interface failures
+were missing ignored register fixtures; both now pass with original inputs.
+The independent-attention numerical failure also reproduces on the unchanged
+baseline (`results/native_test_repairs.json`); full G-REG remains false.
+
 Remaining T3–T12 entries: pending implementation and required gates. G-DNN and G-MOE:
 not run. §8.A: no synchronization path has a 50/50 claim. No new TaskBody
 has entered a performance matrix. No performance or calibration result is
@@ -102,6 +112,9 @@ reported.
 
 ## Scope decisions and deviations
 
+- verified: one compiler rebuild also compiled two CUDA calibration objects
+  without `flock`, contrary to §0.3. No kernel or timing ran. A locked rebuild
+  passed; details are retained in `results/protocol_deviations.json`.
 - Phase 0 inventories use seeded architecture initialization; weights and
   datasets are DN-1's Phase 2 work. Manifests explicitly set
   `accuracy_eligible=false`. This cannot substitute for pretrained numerical
