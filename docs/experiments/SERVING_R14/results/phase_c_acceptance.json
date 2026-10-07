@@ -1,0 +1,207 @@
+{
+  "steps_done": 21,
+  "architecture_retry_required": true,
+  "guards": [
+    {
+      "step": "C_numeric",
+      "attempts": 1,
+      "result": {
+        "code": 0,
+        "reason": "child exit 0"
+      }
+    },
+    {
+      "step": "C_smoke_llama_B16",
+      "attempts": 1,
+      "result": {
+        "code": 0,
+        "reason": "child exit 0"
+      }
+    },
+    {
+      "step": "C_matrix_llama_B16_r0",
+      "attempts": 1,
+      "result": {
+        "code": 0,
+        "reason": "child exit 0"
+      }
+    },
+    {
+      "step": "C_matrix_llama_B16_r1",
+      "attempts": 1,
+      "result": {
+        "code": 0,
+        "reason": "child exit 0"
+      }
+    },
+    {
+      "step": "C_matrix_llama_B16_r2",
+      "attempts": 1,
+      "result": {
+        "code": 0,
+        "reason": "child exit 0"
+      }
+    },
+    {
+      "step": "C_correct_llama_B16",
+      "attempts": 1,
+      "result": {
+        "code": 0,
+        "reason": "child exit 0"
+      }
+    },
+    {
+      "step": "C_smoke_qwen3_B16",
+      "attempts": 1,
+      "result": {
+        "code": 0,
+        "reason": "child exit 0"
+      }
+    },
+    {
+      "step": "C_matrix_qwen3_B16_r0",
+      "attempts": 1,
+      "result": {
+        "code": 0,
+        "reason": "child exit 0"
+      }
+    },
+    {
+      "step": "C_matrix_qwen3_B16_r1",
+      "attempts": 1,
+      "result": {
+        "code": 0,
+        "reason": "child exit 0"
+      }
+    },
+    {
+      "step": "C_matrix_qwen3_B16_r2",
+      "attempts": 1,
+      "result": {
+        "code": 0,
+        "reason": "child exit 0"
+      }
+    },
+    {
+      "step": "C_correct_qwen3_B16",
+      "attempts": 1,
+      "result": {
+        "code": 0,
+        "reason": "child exit 0"
+      }
+    },
+    {
+      "step": "C_smoke_qwen3_B1",
+      "attempts": 1,
+      "result": {
+        "code": 0,
+        "reason": "child exit 0"
+      }
+    },
+    {
+      "step": "C_matrix_qwen3_B1_r0",
+      "attempts": 1,
+      "result": {
+        "code": 0,
+        "reason": "child exit 0"
+      }
+    },
+    {
+      "step": "C_matrix_qwen3_B1_r1",
+      "attempts": 1,
+      "result": {
+        "code": 0,
+        "reason": "child exit 0"
+      }
+    },
+    {
+      "step": "C_matrix_qwen3_B1_r2",
+      "attempts": 1,
+      "result": {
+        "code": 0,
+        "reason": "child exit 0"
+      }
+    },
+    {
+      "step": "C_correct_qwen3_B1",
+      "attempts": 1,
+      "result": {
+        "code": 0,
+        "reason": "child exit 0"
+      }
+    },
+    {
+      "step": "C_protocol_llama_B16",
+      "attempts": 1,
+      "result": {
+        "code": 0,
+        "reason": "child exit 0"
+      }
+    },
+    {
+      "step": "C_protocol_qwen3_B1",
+      "attempts": 1,
+      "result": {
+        "code": 0,
+        "reason": "child exit 0"
+      }
+    }
+  ],
+  "canary_rounds": [],
+  "retention": {
+    "C-RW1": {
+      "retain": false,
+      "cells": [],
+      "cell": "llama_B16",
+      "relative": 0.02443636008756611,
+      "baseline": [
+        3.2011814534259946,
+        3.1990600810845984,
+        3.198530705680275
+      ],
+      "candidate": [
+        3.276284392158394,
+        3.27723346516774,
+        3.277639875949551
+      ],
+      "fresh_passed": 50,
+      "correct": true
+    },
+    "C-EP2": {
+      "retain": false,
+      "cells": [],
+      "cell": "qwen3_B16",
+      "relative": 0.03796090906088834,
+      "baseline": [
+        5.709572889335009,
+        5.696541297213991,
+        5.708746843764655
+      ],
+      "candidate": [
+        5.923840609212513,
+        5.9254560635524385,
+        5.935167855076047
+      ],
+      "fresh_passed": 0,
+      "correct": true
+    },
+    "C-AT4": {
+      "retain": false,
+      "cells": [],
+      "cell": "qwen3_B1",
+      "relative": 0.04466937206775001,
+      "baseline": [
+        4.391661928675319,
+        4.390164009656826,
+        4.396210467162472
+      ],
+      "candidate": [
+        4.583666325507655,
+        4.590434911920309,
+        4.587834709363089
+      ],
+      "fresh_passed": 50,
+      "correct": true
+    }
+  }
+}

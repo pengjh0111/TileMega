@@ -34,7 +34,8 @@
 | T2 | Diagnostics complete; full/timer/store median overhead +0.53%/+0.13%/+1.57%, but non-base outliers prevent stable attribution |
 | T3 | results/T3_phase_b_resources.tsv binds all 100 artifacts to identity and resources |
 | T4–T7 | Phase-B matrices and task profiles collected; T4_phase_b.tsv and T5_phase_b_tasks.tsv; derived attention/coverage views remain to assemble |
-| T8–T10 | Conditional and final selection pending |
+| T8 | results/T8_phase_c.tsv: three conditional trials are correct but slower; none retained |
+| T9–T10 | Phase D integral selection and final comparison pending |
 | T11 | Old attention: 26 failures; initial repair: 768 cases, zero failures. Final Full predicate numerical rerun and multi-architecture checks pass; 64-step three-arm smoke token/KV mismatches zero |
 | T12 | Old fixed and joint sm120 failures reproduced. Both repaired searches pass; fixed/joint conservation checks 6/468 |
 
@@ -71,7 +72,7 @@ Phase-A binaries/source snapshots are preserved. Validated RW-3 and partial AT-1
 
 - Independent 16 KiB private double-buffer storage exceeds sm_89 shared memory; both policies at 16 KiB are tested via the paged transport, Independent uses 8 KiB. This does not enable an invalid runtime configuration.
 - Legacy R13 reference artifacts lack the new identity fields; preserve their binary/source SHA and unknown provenance explicitly. New artifacts enforce identity_schema=1.
-- Next: accept Phase B, form the preregistered Phase-C decision, then proceed to joint selection and final validation. No Phase-C optimization is enabled.
+- Next: accept Phase D joint selection, evaluate PlanFamily, then complete final comparison and validation. No losing Phase-C optimization is enabled by default.
 - R15 scope remains unimplemented: multi-page stages, phase-subgraph handoff, shared simulator/codegen execution description, partial evaluation, architecture-specific collectives and prefill.
 
 Development checkpoint `001403629` has been merged. Main sources are frozen for Phase B (`queue/queue_phase_b.json`). See development.md for implementation limits.
@@ -147,8 +148,26 @@ Phase-C decision was committed before implementation/timing (09237464c); predict
 - C-RW1: one-buffer independent attention plus four/two-stage GEMMs and TN128 head; fixed case requests residency 2. The measured family is retained by seed_resident2 (c5701f112).
 - C-EP2: Store/Residual directly write rounded fragments; only SwiGLU partner values and DN's exact ordered square sums use shared rearrangement. Small GEMV residuals keep the old fallback.
 - C-AT4: paged B1 L1 publishes one context event per KV group in a dedicated L1 bank; o_proj waits for that output frontier instead of all attention CTAs. Other barriers and L2 semantics remain intact. New wait site is 13.
-Correctness arguments: the final writer releases each complete context; consumer acquire plus compute barrier precedes A reads; the next ordinary stage barrier orders the remaining graph. The bank is separate from L2 and monotonically indexed by L1 iteration. Validation, including 50 fresh processes, is still pending.
+Correctness arguments: the final writer releases each complete context; consumer acquire plus compute barrier precedes A reads; the next ordinary stage barrier orders the remaining graph. The bank is separate from L2 and monotonically indexed by L1 iteration. The tested frontier and single-slot paths each now pass 50 fresh processes; the slower variants remain disabled by default.
 Queue definitions contain six immutable artifacts and 22 steps: full evidence archive; compiler/host and five-architecture checks; position-coded single-buffer and bitwise fragment numerics; builds and smoke; three paired rounds per cell; full C-1/C-2; two 50-process cases. A rejected conditional arm is recorded and excluded, not substituted.
 Integration details (d4e7729a3): decode first-level searches share one third of the budget; already built execution baselines remain measurable when new structural admission ends. Finalist confirmation can exceed wall budget and is reported. features_by_batch applies only the three conditional flags to their triggered decode cells, leaving prefill unchanged. CPU selection/config/identity tests pass (raw/C_definition_checks).
-queue/queue_phase_c.json was published to the existing scheduler (8d0808064); runtime/compiler sources freeze until builds finish. Resume from scheduler/progress.tsv once, then apply choose_r14.py retention thresholds before Phase D. Phase D and final T8–T10 acceptance have not run.
-Read-only monitoring: `watch -n 10 'python3 /root/TileMega/docs/experiments/SERVING_R14/status.py --prefix C'` shows each step as done/pending/running/failed; omit the prefix value (`--prefix ''`) to include all R14 queues. GPU occupancy/retry policy remains unchanged.
+queue/queue_phase_c.json was published to the existing scheduler (8d0808064); Phase C performance/correctness collection is accepted below. Phase D and final T9–T10 acceptance have not run.
+Read-only monitoring: `watch -n 10 'python3 /root/TileMega/docs/experiments/SERVING_R14/status.py --prefix D'` shows each step as done/pending/running/failed; use `--prefix ''` to include all R14 queues. GPU occupancy/retry policy remains unchanged.
+
+## Phase-C acceptance and Phase-D preparation
+
+Verified: results/phase_c_acceptance.json, phase_c_retention.json and T8_phase_c.tsv. Of the original 22 steps, 21 pass; C_arch fails before compilation because its command omits CUTLASS tools/util/include. Production sm_89 builds and arithmetic tests pass. 761d75d34 preserves all original include/macro options and creates architecture-pinned compile-only specimens; C_arch_v2 will repeat only this compile check.
+
+| Conditional item | Cell | Baseline TPOT ms | Candidate TPOT ms | Relative | Correctness / fresh processes | Retain |
+|---|---|---:|---:|---:|---|---|
+| C-RW1 | Llama B16 | 3.19906 | 3.27723 | +2.44% | C-1/C-2 pass; 50/50 | No |
+| C-EP2 | Qwen3 B16 | 5.70875 | 5.92546 | +3.80% | C-1/C-2 and baseline token equality pass | No |
+| C-AT4 | Qwen3 B1 | 4.39166 | 4.58783 | +4.47% | C-1/C-2 and baseline token equality pass; 50/50 | No |
+
+All 18 final GPU guards accept; no within-matrix canary exceeds 2%. These checks cannot exclude the previously recorded drift between phases. All six artifacts match their execution identities. C-RW1 actually uses residency 2 and 49152 B shared memory. C-EP2's ordered BF16 square sums pass 72 shapes repeated three times. Evidence, including original failed C_arch, is raw/phase_c_completed.tar.xz with phase_c_evidence_manifest.tsv.
+The full Phase-B evidence is committed as phase_b_completed.tar.xz.part00/part01 to keep each file below 100 MiB; phase_b_archive_parts.tsv records each checksum and the complete archive checksum. Restore with `cat raw/phase_b_completed.tar.xz.part* > raw/phase_b_completed.tar.xz`; phase_b_evidence_manifest.tsv binds every member.
+
+Phase D definitions contain 11 steps: C_arch_v2; frozen compiler/CPU checks; selective calibration plus five fresh bandwidth processes; four rebuilt controls and smoke; each model's SL-6 build, selected-plan smoke and PlanFamily audit. configs/e2e/*_r14.json retain ordinary double-buffer plans and disable frontier/direct epilogue. Llama B16 additionally searches the required single-buffer resident-2 family alongside ordinary plans; the Phase-C fixed-trial loss is retained as evidence and does not enable a default.
+D1 is guarded for the entire compile/measure command, rather than only its internal GPU sections: hidden interference yields 75 and cache-assisted retry; children inherit LOCK_HELD. This stronger exclusion also holds the GPU lock during CPU compilation. Default APIs and device code are unchanged by this preparation.
+PlanFamily is screened from compatible same-GEMM, same-execution candidates using the three-past envelope; this is an optimistic trigger estimate, not a claimed two-segment gain. D2/D3 are deferred until D1 resolves this specified code dependency. If triggered, implement compatible two-segment switching and include measured switch cost before final comparison.
+CPU selection/config/family tests pass (raw/D_*tests.log, D_static_validation.log). On resume read progress.tsv once, inspect D1_planfamily_*.json, then generate guarded D2/D3. Do not change compiler/runtime sources while D0/D1 builds are queued. R14 remains incomplete until final comparison, C-1/C-2 and any uncovered synchronization path checks finish.

@@ -1516,7 +1516,7 @@ R13 closed with declared limitations: two optional canary reruns and three depen
 | Phase A | 36/36 done, archived and accepted; four C-1/C-2 pass; Llama B1 baseline becomes corrected N1 |
 | Phase B | 72/72 done; 100 artifacts verify; 50 model variants C-1/C-2 pass; three required protocols each 50/50 |
 | GV-1 / SL-6 | GEMV variants correct but slower; Ec/implementation variants integrated; final CLI selection pending |
-| Conditional Phase C | RW1 Llama B16, EP2 Qwen3 B16, AT4 Qwen3 B1 implemented default off; registered 22-step validation queue |
-| Phase D | Pending conditional retention; complete multi-past choice, paired final comparison and correctness |
+| Conditional Phase C | 21/22 steps pass; all three candidates regress and are rejected; RW1/AT4 each 50/50; compile-script include omission repaired and queued |
+| Phase D | D0/D1 plus repair: 11 steps; ordinary plans and required resident-2 family; PlanFamily audit gates final comparison and correctness |
 
 Resume at SERVING_R14/scheduler/progress.tsv and state.json. Do not treat the Phase-0 queue as complete R14 implementation or acceptance.
