@@ -49,6 +49,10 @@ verified: exact window/table selection passes six additional host checks
 (`results/CI4_bound_encoding.json`). A clipped halo window is recovered by
 solving integer constraints for its unclipped endpoints, then proving both
 containment directions. Sparse predecessor sets retain exact interval tables.
+verified: closed-form `min` and its disjoint polynomial pieces pass eight host
+checks (`results/CI4_capacity_form.json`). Expert-group capacities retain
+`ceil(T*K/BM) + min(E,T*K)` before binding, tested across four BM values and
+T=1..4096. Nested minima and negative floor values keep their original criteria.
 
 Pending: executable table and counted waits; virtual capacity/binding provenance; memory-planner integration;
 poison checks and all required 50-process synchronization gates. No CI-4 item
