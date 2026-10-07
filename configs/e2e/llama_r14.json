@@ -1,0 +1,145 @@
+{
+  "model": {
+    "path": "/root/models/llama3_2_1b",
+    "name": "llama"
+  },
+  "workload": {
+    "batch": [
+      1,
+      16
+    ],
+    "prompt_len": 64,
+    "max_new_tokens": 1024,
+    "prompts": "docs/experiments/SERVING_R10/prompts/llama_ids.json"
+  },
+  "device": {
+    "index": 0,
+    "cache_dir": "~/.cache/tilemega"
+  },
+  "solver": {
+    "passes": 2,
+    "top_m": 8,
+    "measure_top": 6,
+    "jobs": 3,
+    "mode": "L1",
+    "candidate_loop": 0,
+    "pruning": true,
+    "time_budget_s": 1800,
+    "candidate_guard_wait_s": 1800,
+    "prefill_pins": {
+      "1": {
+        "manifest": "/root/TileMega/docs/experiments/SERVING_R13/raw/A0/llama_B1/PF-R10-noWD/plan.so.plan.json",
+        "classes": "/root/TileMega/docs/experiments/SERVING_R13/raw/A0/llama_B1/PF-R10-noWD/plan.so.classes.tsv"
+      },
+      "16": {
+        "manifest": "/root/TileMega/docs/experiments/SERVING_R13/raw/A0/llama_B16/PF-R10-noWD/plan.so.plan.json",
+        "classes": "/root/TileMega/docs/experiments/SERVING_R13/raw/A0/llama_B16/PF-R10-noWD/plan.so.classes.tsv"
+      }
+    },
+    "exclude_l1_loop": false,
+    "resident2_batches": [
+      16
+    ]
+  },
+  "features": {
+    "pg": "measure",
+    "handoff": "off",
+    "sync": "calibrated",
+    "arch_paths": "auto",
+    "pdl": "auto",
+    "weight_layout": "tiled",
+    "kphase_mask": 31,
+    "lookahead_bytes": 65536,
+    "v3_poll_ns": 0,
+    "watchdog": 0,
+    "mma_reg_pipe": 0,
+    "nonpaged_la": 1,
+    "attention_frontier": 0,
+    "parallel_argmax": 0,
+    "ep_direct": 0,
+    "attention_noinline": 0,
+    "attention_buffers": 2,
+    "attention_impl": "mma16",
+    "l2_slim": 0,
+    "page_loop_split": 1,
+    "nonpaged_weight_layout": "row",
+    "evict_first": 1,
+    "evict_last": 0,
+    "decode_executor": "measure",
+    "decode_loop": "measure",
+    "prefill_executor": "L1"
+  },
+  "test": {
+    "warmup": 1,
+    "repeats": 3,
+    "hf_check": true,
+    "mode_check": true,
+    "guard": true,
+    "vllm": true,
+    "vllm_python": "/root/venv_vllm/bin/python",
+    "policy_file": "docs/experiments/SERVING_R11/ev2/measurement_policy.json"
+  },
+  "output": {
+    "dir": "/root/TileMega/runs/r14-llama"
+  },
+  "r14_decisions": {
+    "conditional_retention": {
+      "C-RW1": {
+        "retain": false,
+        "cells": [],
+        "cell": "llama_B16",
+        "relative": 0.02443636008756611,
+        "baseline": [
+          3.2011814534259946,
+          3.1990600810845984,
+          3.198530705680275
+        ],
+        "candidate": [
+          3.276284392158394,
+          3.27723346516774,
+          3.277639875949551
+        ],
+        "fresh_passed": 50,
+        "correct": true
+      },
+      "C-EP2": {
+        "retain": false,
+        "cells": [],
+        "cell": "qwen3_B16",
+        "relative": 0.03796090906088834,
+        "baseline": [
+          5.709572889335009,
+          5.696541297213991,
+          5.708746843764655
+        ],
+        "candidate": [
+          5.923840609212513,
+          5.9254560635524385,
+          5.935167855076047
+        ],
+        "fresh_passed": 0,
+        "correct": true
+      },
+      "C-AT4": {
+        "retain": false,
+        "cells": [],
+        "cell": "qwen3_B1",
+        "relative": 0.04466937206775001,
+        "baseline": [
+          4.391661928675319,
+          4.390164009656826,
+          4.396210467162472
+        ],
+        "candidate": [
+          4.583666325507655,
+          4.590434911920309,
+          4.587834709363089
+        ],
+        "fresh_passed": 50,
+        "correct": true
+      }
+    },
+    "nonpaged_la": "first-stage fill candidates use LA; second-stage compares LA=0/1",
+    "resident2": "C-RW1 fixed trial lost; SL-6 still includes its required structural family for Llama B16 alongside ordinary double-buffer plans; no default enabled before final acceptance"
+  }
+}

@@ -1,0 +1,103 @@
+[
+  {
+    "cell": "llama_B1",
+    "batch": 1,
+    "label": "baseline",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R14/raw/A0/llama_B1/N1_prime/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R14/raw/A0/llama_B1/N1_prime/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_2628d03be9bff1e571fe78e55c5ea02e73ff11780a5e7275f48391ba2211dbf3.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 0,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 0,
+      "evict_last": 0,
+      "deferred_norm": 1,
+      "paged_la": 0,
+      "paged_la_splitk": 0,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0,
+      "lookahead_bytes": 0
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/D_baseline_build/llama_B1"
+  },
+  {
+    "cell": "llama_B16",
+    "batch": 16,
+    "label": "baseline",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R14/raw/A0/llama_B16/R13D_prime/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R14/raw/A0/llama_B16/R13D_prime/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_c2c03ad6e9534130762cc88d423aac336077a0bd040db6d337a1e31e3c1ec8b9.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 0,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 0,
+      "evict_last": 1,
+      "deferred_norm": 1,
+      "paged_la": 0,
+      "paged_la_splitk": 0,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/D_baseline_build/llama_B16"
+  },
+  {
+    "cell": "qwen3_B1",
+    "batch": 1,
+    "label": "baseline",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R14/raw/A0/qwen3_B1/R13D_prime/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R14/raw/A0/qwen3_B1/R13D_prime/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_2628d03be9bff1e571fe78e55c5ea02e73ff11780a5e7275f48391ba2211dbf3.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 1,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 1,
+      "evict_last": 0,
+      "deferred_norm": 1,
+      "paged_la": 1,
+      "paged_la_splitk": 1,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/D_baseline_build/qwen3_B1"
+  },
+  {
+    "cell": "qwen3_B16",
+    "batch": 16,
+    "label": "baseline",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R14/raw/A0/qwen3_B16/R13D_prime/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R14/raw/A0/qwen3_B16/R13D_prime/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_2628d03be9bff1e571fe78e55c5ea02e73ff11780a5e7275f48391ba2211dbf3.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 1,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 1,
+      "evict_last": 0,
+      "deferred_norm": 1,
+      "paged_la": 1,
+      "paged_la_splitk": 1,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/D_baseline_build/qwen3_B16"
+  }
+]
