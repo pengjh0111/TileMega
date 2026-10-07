@@ -22,12 +22,12 @@ that DNN or MoE execution is implemented.
 
 | Item | State and evidence |
 |---|---|
-| Phase 0 framework | verified: copied R13 scripts, 10 framework/selection/identity tests pass |
+| Phase 0 framework | verified: copied R13 scripts, 12 framework/selection/identity/recipe tests pass |
 | Preregistration | verified: §3 retained verbatim in predictions; solver winners sealed before control-arm audit |
 | Reference bank | in progress: fixed R13D geometry, separate reference/candidate builds and source identities |
 | DN-1 inventories | verified: five upstream models and masked BERT exported, before/Core fixtures committed |
 | DN-1 NAFNet source | verified: unchanged architecture/dependencies match upstream file SHA256; license preserved |
-| DN-1 weights/data | preparation only: official NAFNet checkpoint strictly loads; SIDD archive CRC passes |
+| DN-1 weights/data | preparation only: NAFNet strictly loads; SIDD CRC passes; BERT/MobileNetV1 safetensors identities recorded |
 | CI-1 through CI-7 | not implemented |
 | DN-2 through DN-11 | not implemented |
 | MO-1 through MO-9 | not implemented |
@@ -39,6 +39,11 @@ T1: `results/T1_phase0.json` records a verified failure in both toolchains:
 `PagedGemmTaskBody::Run` overload. This is reproduced in the unchanged
 reference. Full native test build and ctest therefore cannot pass. A separate
 production-plan sealing queue does not count as passing G-REG.
+verified: donor manifests name paged reduction handoffs `last_arriver`,
+whereas baseline CLI requires policy `off` and unconditionally lowers those
+reductions to last-arriver. Invalid direct-name and `auto` attempts failed
+before compilation; their logs are retained. Corrected retry jobs preserve
+the donor's fixed handoff implementation, not a disabled mechanism.
 
 T2: `results/phase0_exports.json`, `results/T2_inventory_comparison.json`,
 and `test/fixtures/dnn/*_ops.json` record **export coverage only**.
@@ -89,6 +94,9 @@ reported.
   now accepts the same absent-process condition during either syscall; its
   pidfd exit assertion and zombie-state assertion are unchanged. Guard and
   scheduler policy implementations are unchanged.
+  verified: this host process-cleanup test passes in 50 fresh processes
+  (`results/framework_cleanup.json`); it provides no GPU synchronization
+  evidence for §8.A.
 
 ## Q1–Q7 and next work
 
