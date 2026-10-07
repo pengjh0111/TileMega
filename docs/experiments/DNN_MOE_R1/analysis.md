@@ -1,0 +1,51 @@
+# Exact task access (CI-4, work in progress)
+
+Status: static analysis implemented and verified; execution integration pending. This is not a
+synchronization, model-correctness, or performance result.
+
+stated: DM-1 requires flattened pixel ownership, exact window/floordiv read
+relations, bounded virtual spaces, table/counted dependencies, and storage
+anti-dependencies. Existing decoder representations and default output must
+remain unchanged.
+
+inferred: an opt-in `SemanticOp.task_space/task_map` separates ownership from
+stored tensor coordinates. Projecting the bounded iteration domain constructs
+task-to-element maps; composing consumer reads with inverse producer writes
+gives RAW dependencies. Halo elements outside the producer image create no
+wait. Pixel shuffle changes the stored indices while retaining the producer's
+linear ownership. Nonzero reduction origins use an optional shift inside
+floordiv. Default zero shifts add no legacy JSON/text fields.
+
+inferred: shared-element volume is a function of `(consumer, producer)`, not
+one constant tile width. Physical rereads are the sum of per-consumer read
+sets minus their union. TaskWork and DRAM queries consume the physical sets.
+Per-axis boxes are explicitly `over`; they contain the exact read relation and
+never replace it when deriving waits. `read_box_exactness` records this in CG.
+
+inferred: fully bound small task domains can be counted one fiber at a time
+with ISL. Equal integer counts are grouped into exact polynomial pieces.
+This avoids parsing large Barvinok expressions for floor/mod projections.
+Symbolic or larger domains retain Barvinok, and legacy callers retain `Card`.
+The finite-fiber limit is a compiler algorithm threshold, not a device limit.
+
+inferred: the table encoder linearizes the same task coordinates as ownership,
+enumerates producer IDs for each consumer, joins contiguous IDs into intervals,
+and proves both containment directions. Rows are padded to the maximum interval
+count of that edge, including empty rows.
+
+inferred: storage reuse derives WAR from each old reader's physical read set
+and the new writer's overwrite set. Old writes whose elements have no reader
+also contribute WAW. These relations preserve task granularity and require no
+whole-stage fallback. The memory planner must first place all accesses in the
+same physical storage coordinate space and separately enforce halo/layout
+compatibility. These hazards transfer ordering, not tensor data.
+
+verified: `results/CI4_exact_analysis.json` seals 11/11 host checks and an
+unchanged source snapshot, including window enumeration, table equivalence,
+TaskWork, shifted split origins, I2 row gathers, and WAR/WAW. `check-policy`
+passes. Earlier parser/domain mismatches and the superseded expensive counting
+run are retained under `runs/dm1-ci4-*`; no expected values were changed.
+
+Pending: executable table and counted waits; virtual capacity/binding provenance; memory-planner integration;
+poison checks and all required 50-process synchronization gates. No CI-4 item
+is considered fully complete until its required integration is verified.

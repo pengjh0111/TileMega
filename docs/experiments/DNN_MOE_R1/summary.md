@@ -31,18 +31,19 @@ that DNN or MoE execution is implemented.
 | CI-1 | implemented transcription/constant/binding API; verification in `bridge.md`; forward build integration follows CI-3/DN-11 |
 | CI-2 | verified descriptors, finite epilogue and GEMM/combiner dispatch (`descriptors.md`, `numerics.md`); new operand policies follow DN/MO bodies |
 | CI-3 | verified core forward ABI and dimension binding; CLI/model integration and architecture process repeat pending (`forward.md`) |
-| CI-4 | exact ownership, window projection, metrics and interval tables under test |
+| CI-4 | verified static access/metrics/table/WAR-WAW analysis, 11/11 host checks; virtual binding and runtime integration pending (`analysis.md`) |
 | CI-5 through CI-7 | not implemented |
 | DN-2 through DN-11 | not implemented |
 | MO-1 through MO-9 | not implemented |
 
 ## Tables and gates
 
-T1: `results/T1_phase0.json` records a verified failure in both toolchains:
+T1: `results/T1_phase0.json` records the initial verified failure in both toolchains:
 `norm_prologue_gemm_test.cu` lacks the RMSNorm header and calls a removed
 `PagedGemmTaskBody::Run` overload. This is reproduced in the unchanged
-reference. Full native test build and ctest therefore cannot pass. A separate
-production-plan sealing queue does not count as passing G-REG.
+reference. It prevented native-suite completion at that checkpoint. Later
+repairs are recorded below; a production-plan sealing queue alone does not
+count as passing G-REG.
 verified: Phase 0 reference bank is sealed with SHA256
 `0d7c170870af4c677daf14afdc9d7e6606f1192d014124fe9ab9f4853ce0641a`.
 All eight reference artifact identities require the actual baseline HEAD and
@@ -106,6 +107,12 @@ legacy ABI (`results/CI2_descriptor_abi.json`). Native interface failures
 were missing ignored register fixtures; both now pass with original inputs.
 The independent-attention numerical failure also reproduces on the unchanged
 baseline (`results/native_test_repairs.json`); full G-REG remains false.
+
+T3: verified 11/11 host analysis checks: window/stride/dilation/halo,
+flattened row/image tiles, pixel shuffle, exact interval tables, split-K,
+symbolic dimensions/origins, I2 row gather and WAR/WAW. Relations match
+independent enumeration; box envelopes are explicitly `over`
+(`results/CI4_exact_analysis.json`). Runtime waits and poison checks remain pending.
 
 Remaining T3–T12 entries: pending implementation and required gates. G-DNN and G-MOE:
 not run. §8.A: no synchronization path has a 50/50 claim. No new TaskBody

@@ -1,0 +1,93 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "CI-4 static analysis and encoding; no execution or synchronization claim",
+  "source_head": "e838157b8f84f7d640a834780f2129be2a11e402",
+  "source_diff_sha256": "3da4fbc6344e413f05f23d94605fae7294dce8064a8e04db5bfc4d378889578c",
+  "source_files": {
+    "docs/experiments/DNN_MOE_R1/analysis.md": "9502f396440289533125c3d020092ad76b69a6e79c5d3585ceb4f5e346d15ab2",
+    "include/tilemega/Analysis/DependencyTable.h": "767a28307b7fd506382c39e86f7f4169ad99829def36c934183887eaa7a3728d",
+    "include/tilemega/Analysis/ExactTaskWork.h": "79e091b4889a87e95bedce8e8f17c02295d5cf1333b45879b2173f27f73ee35e",
+    "include/tilemega/Analysis/StorageHazards.h": "3a2db7667035c96e5930e0189106d9c37dd534fd6e6ac68d03fc00f6f570fa3d",
+    "include/tilemega/Analysis/TaskElementRelation.h": "e657bb3a274516b51580d915ba01e07d92603f50ecd92f476c74acad21cdf168",
+    "lib/Analysis/DependencyTable.cpp": "5d0bb9da3f30c0d7ac84a3c0948f3832a1d9dd6ff3bc282655abf79571699e17",
+    "lib/Analysis/ExactTaskWork.cpp": "1d663401fa43d232044b5a07f6fb7169f4d0fa73a181c13383bef2cac85d1628",
+    "lib/Analysis/StorageHazards.cpp": "67705605a938ec928c006ab4e23b2cfa92015e314fe65b7ca1815ae5556073e7",
+    "lib/Analysis/TaskElementRelation.cpp": "f558dbf61eb24c1851380c0a253b63342a0dd609e0c29636540561bec2edc3c6",
+    "test/unit/exact_task_metadata_test.cpp": "318c0a2f33a45d06a1a7bb98b7ad2a6903e654d6e9cd0df4bf66e8073f15a782",
+    "test/unit/storage_hazards_test.cpp": "5e596f557ddeeb5bc2906c49175e727605b701f82668237858a5bbfff894f57e",
+    "test/unit/window_task_access_test.cpp": "18bd3aa7a67bb7b42c07199e8c80cd55e4828604f130e3fd584f2f8006e81d7c",
+    "CMakeLists.txt": "b54c6d40d04c28417d7c04c0848c1b66f3438fc32ed084fa05d5bb6f0de775bc",
+    "include/tilemega/Analysis/CouplingDerivation.h": "e16383d46a34cc6b38cfa740c9bc9c351edeb55bee13e7008ce2b46b1fd2468e",
+    "include/tilemega/Analysis/CouplingRelation.h": "1168f5c4645954323980443053c1fd3928a11e78092601b8f28d6a0eab855aa3",
+    "include/tilemega/Analysis/Semantics.h": "e49c16243abe97dc7aa942b6c7da72b2cd806de66ee0e1b402c959cda444aa9f",
+    "include/tilemega/Analysis/TensorSpace.h": "8dd03f7a4b2f35d7538acd552c7aa229675a2d82f862cc3308a621f42e0d1beb",
+    "include/tilemega/Solver/ModelDescription.h": "e4e161b3b6e8dd0c497ae7db8e925bfb65fd4668a3c821b52b89308daaf1471f",
+    "lib/Analysis/CouplingDerivation.cpp": "fdf5fcfc22bf91682cbb6a5b8c3421ea1a28b98f0cdc74928cb6a03d25f21066",
+    "lib/Analysis/CouplingRelation.cpp": "c2129b515f4cf42676253e5ce76b7381bc97e26d593d41ed621eaec45c14e70d",
+    "lib/Analysis/DramFloor.cpp": "6c457e3067a19bd5aaa20a9dd5f401e3d9baf91e84d32a5c77bf704eef751064",
+    "lib/Analysis/SemanticCodec.cpp": "feeec0de8e60394fd07bd30b30d21c5fe3355d8c194050fbb0628f6755ee77fc",
+    "lib/Analysis/Semantics.cpp": "11ab8ffb8d83e3e4eb0f0c50dcda8b1ce7bee5adc08fe1e228e3add78f93d784",
+    "lib/Analysis/TaskInstantiation.cpp": "ac244124ab50fcd393e92c87959d4a516dfab99c746c90ee91489dadc3954bd2",
+    "lib/Analysis/TaskWork.cpp": "956d9e97a0ac17d2434462e7501092e412d23d75ed6cae3e627fa483c470e6fd",
+    "lib/Codegen/Codegen.cpp": "df4b7933071d322156ef1d1c52132a53179db81a2edb8cd5cf35ab40a770cdc0",
+    "lib/Dialect/CouplingGraph/CGDialect.cpp": "2795593dae39e2aa840bd55be91bd9cb2379b12007f3da107a04c409d514afe8",
+    "lib/Frontend/Frontend.cpp": "64f067f18ad986b153f7ad4ef1fa94cc923250cb39b28369cd6b89819245c22a",
+    "lib/Solver/CostModel.cpp": "107acb6b072c3cb1a70aef1b1d312ac24d9d4bc1ea0f899a1d75aca93ec33ec8",
+    "lib/Solver/ModelDescription.cpp": "3c679cd8728f5b057f1ede22650c74f2a9fece123632f1aa0655982025a65846",
+    "lib/Solver/SymbolicTaskCost.cpp": "38609806ed23d4420d2d302509452e275095ef1a593fc4332d6bcbf5fe8ea5f1",
+    "lib/Solver/TaskModel.cpp": "4c5494b6adfbfe71fe0c33408209733cfdc819aa398b2e6234973cd67a682e07",
+    "test/unit/runner.cpp": "39402f8c6a58f7f90624248ef9fa0364704f38fa7eb2a5690e3bcc9eaa01d797"
+  },
+  "inputs_unchanged_during_checks": true,
+  "compiler_version": "c++ (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0\nCopyright (C) 2021 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+  "compiler_sha256": "d7122fd9a7a8fe12d12c00c54d3a6fbebcb3e9285cf675709674e751d900fc63",
+  "artifacts": {
+    "tilemega-unit": "cdf9c4ae36fc9af7855c9a7ad3183aa94c4e11a94619d261310dea18df0117d9",
+    "tilemega": "40b2951b79000d21695505f300e3757a9d82371c691d20bef7d607e028666ba1"
+  },
+  "checks": {
+    "ctest_passes": 11,
+    "ctest_attempts": 11,
+    "check_policy": true
+  },
+  "cases": [
+    "3x3 stride1",
+    "3x3 stride2",
+    "dilation2",
+    "7x7 stride2 padding3",
+    "2x2 stride2",
+    "channelwise pool/depthwise windows",
+    "flattened nondivisible row/image tiles",
+    "split-K chunks2/whole axis",
+    "pixel shuffle2",
+    "data-dependent row exact affine columns",
+    "symbolic B and origin5",
+    "split origin5 with existing j dimension",
+    "invalid volume rejected by CG",
+    "finite ISL count versus Barvinok",
+    "WAR/WAW independent enumeration",
+    "overlapping writes rejected"
+  ],
+  "logs": {
+    "build_exact.log": {
+      "sha256": "03b8cbe6fe6685a2bb2dc794e47b96a3df3d763bc70634c0040e6f626f1dcf9f",
+      "path": "runs/dm1-ci4-finite-retry4/events/build_exact.log"
+    },
+    "ctest_metadata.log": {
+      "sha256": "17af61512a4034c3c582d62fc61d9fc222dbc0834b0d8d562b5269e41db91600",
+      "path": "runs/dm1-ci4-finite-retry4/events/ctest_metadata.log"
+    },
+    "ctest_windows.log": {
+      "sha256": "692f8175811d99367f53e9262f26871add2e0af615e8ba73e734fde3323b63b9",
+      "path": "runs/dm1-ci4-finite-retry4/events/ctest_windows.log"
+    }
+  },
+  "remaining": [
+    "virtual capacity and binding provenance",
+    "runtime kTable/kCounted encoding",
+    "memory planning integration",
+    "poison and 50-process synchronization gates"
+  ],
+  "performance_measurements": 0
+}
