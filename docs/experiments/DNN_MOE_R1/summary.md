@@ -30,7 +30,7 @@ that DNN or MoE execution is implemented.
 | DN-1 weights/data | preparation only: NAFNet/ResNet18/MobileNetV2 strictly load; SIDD CRC passes; BERT/MobileNetV1 safetensors identities recorded |
 | CI-1 | implemented transcription/constant/binding API; verification in `bridge.md`; forward build integration follows CI-3/DN-11 |
 | CI-2 | verified descriptors, finite epilogue and GEMM/combiner dispatch (`descriptors.md`, `numerics.md`); new operand policies follow DN/MO bodies |
-| CI-3 | verified core forward ABI and dimension binding; CLI/model integration and architecture process repeat pending (`forward.md`) |
+| CI-3 | verified core ABI/dimensions, five targets, 50/50 fresh processes per seq (1/128/4096); CLI/model integration pending (`forward.md`) |
 | CI-4 | verified static access/metrics/table/WAR-WAW analysis, 11/11 host checks; virtual binding and runtime integration pending (`analysis.md`) |
 | CI-5 through CI-7 | not implemented |
 | DN-2 through DN-11 | not implemented |

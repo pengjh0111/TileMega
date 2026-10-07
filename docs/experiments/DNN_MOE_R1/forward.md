@@ -25,6 +25,12 @@ compilation; generated libraries had already completed. Its incomplete
 results are not a passing gate. The repeat checker now snapshots transitive
 NVCC dependencies and compiles host support objects once.
 
-Pending: five architectures and 50 fresh processes per seq after source
-sealing; forward CLI model import; DNN and MoE states/weights; page execution
+verified: the sealed repeat compiles seq=1/128/4096 for all five targets
+sm_80/89/90/100/120. On sm_89, each seq passes 50/50 fresh processes (150/150
+total), including B=1/8 and L1/L2 bitwise equality. All fifteen builds have
+zero spill stores/loads. Complete transitive input hashes remain unchanged
+(`results/CI3_forward_architecture.json`). This is a synthetic forward/ABI
+check, not a DNN/MoE model or §8.A synchronization gate.
+
+Pending: forward CLI model import; DNN and MoE states/weights; page execution
 for forward/prefill under CI-5; complete G-REG at the Phase 1 checkpoint.

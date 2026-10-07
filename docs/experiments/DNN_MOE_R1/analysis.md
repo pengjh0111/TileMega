@@ -45,6 +45,10 @@ unchanged source snapshot, including window enumeration, table equivalence,
 TaskWork, shifted split origins, I2 row gathers, and WAR/WAW. `check-policy`
 passes. Earlier parser/domain mismatches and the superseded expensive counting
 run are retained under `runs/dm1-ci4-*`; no expected values were changed.
+verified: exact window/table selection passes six additional host checks
+(`results/CI4_bound_encoding.json`). A clipped halo window is recovered by
+solving integer constraints for its unclipped endpoints, then proving both
+containment directions. Sparse predecessor sets retain exact interval tables.
 
 Pending: executable table and counted waits; virtual capacity/binding provenance; memory-planner integration;
 poison checks and all required 50-process synchronization gates. No CI-4 item
