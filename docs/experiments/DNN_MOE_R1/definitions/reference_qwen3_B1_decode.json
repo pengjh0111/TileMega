@@ -1,0 +1,39 @@
+[
+  {
+    "model": "qwen3",
+    "batch": 1,
+    "phase": "decode",
+    "export": "/root/.cache/tilemega-dm/exports/regression/qwen3/decode/bridge.json",
+    "target": "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/inputs/regression/qwen3_B1/decode/target.json",
+    "manifest": "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/inputs/regression/qwen3_B1/decode/manifest.json",
+    "classes": "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/inputs/regression/qwen3_B1/decode/classes.tsv",
+    "overrides": {
+      "pg": "pages",
+      "sync": "calibrated",
+      "watchdog": 0,
+      "l2_slim": 0,
+      "nonpaged_weight_layout": "row",
+      "page_loop_split": 1,
+      "evict_first": 1,
+      "evict_last": 0,
+      "handoff": "last_arriver",
+      "arch_paths": "auto",
+      "pdl": "auto",
+      "event_solo": 0,
+      "event_red_publish": 0,
+      "barrier_v2": 0,
+      "deferred_norm": 1,
+      "paged_la": 1,
+      "paged_la_splitk": 1,
+      "v3_poll_ns": 0,
+      "kphase_mask": 31,
+      "weight_layout": "tiled",
+      "page_bytes": 16384,
+      "lookahead_bytes": 65536
+    },
+    "donor": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so",
+    "donor_sha256": "693e04b15e3217b3ff9f0db19c8545ce30ebb4f78278530f49883bdeccb117bc",
+    "root": "/root/dm1_work/reference",
+    "out": "/root/dm1_work/development/runs/dm1-regression/reference/qwen3_B1/decode"
+  }
+]
