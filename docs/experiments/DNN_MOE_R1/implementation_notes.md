@@ -49,6 +49,18 @@ Only its exported ATen operations are lowered.
 - Expert row gather, deferred norm and counted arrivals all use the binding's
   original token/rank. Empty virtual tasks publish completion without reading
   a weight page and must agree with the loader's empty predicate.
+- A combine N block must receive exactly one completed channel fragment per
+  token/rank for the static count `tokens_in_block*K` to be valid. Its ownership
+  must align with down-projection N ownership, or the declared count must
+  explicitly account for multiple channel fragments. Internal expert split-K
+  reduction precedes the expert BF16 rounding and routing-weight product.
+- Reuse compatibility includes physical dimensions, halo addresses and which
+  channel-padding elements remain zero. Equal arena size or equal padded
+  channel pitch alone does not prove that the next writer preserves the old
+  border and padding contract. Reject cyclic reuse dependencies.
+- The BF16 MMA atom's minimum K extent is 16. The TM16/TN16 layout with two
+  warp groups along K therefore has a minimum spatial K extent of 32; smaller
+  candidates need a separate proved realization or a legality exclusion.
 - Queue completion, artifact sealing, individual numerical checks and a
   complete G-REG/G-DNN/G-MOE result are distinct evidence records.
 
