@@ -194,6 +194,25 @@ struct PhaseGate {
 #ifndef TILEMEGA_KPHASE_CLASS_MASK
 #define TILEMEGA_KPHASE_CLASS_MASK 31
 #endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+template <class Body>
+struct DmPageRunner {
+  ServingGemmOperands const& operands;
+  int tile_m, tile_n;
+  Ring const& ring;
+  std::uint64_t& sequence;
+  char* workspace;
+  PhaseGate gate;
+  template <class Spec>
+  __device__ void Run() const {
+    using Gate = backend::DmGateShape<typename Spec::Chain>;
+    if constexpr (!Gate::template kFits<Body::kTileColumns>) {
+      asm volatile("trap;");
+    } else Body::template RunDm<Spec>(
+        operands, tile_m, tile_n, ring, sequence, workspace, gate);
+  }
+};
+#endif
 template<bool Loader,bool L2,int Variant=0>
 __device__ void Gemm(Params const& params,GemmInvocation const& inv,int local,Ring const& ring,
                      std::uint64_t& sequence,char* work,EventCounter* events,
@@ -204,6 +223,9 @@ __device__ void Gemm(Params const& params,GemmInvocation const& inv,int local,Ri
         TILEMEGA_PAGE_BYTES,TILEMEGA_PAGE_COUNT,TILEMEGA_ARCH_PATH_SM80!=0>;
     static_assert(TILEMEGA_PAGE_POOL_OFFSET-TILEMEGA_PAGE_WORKSPACE_OFFSET>=Body::kActivationBytes);
     static_assert(TILEMEGA_PAGE_POOL_OFFSET-TILEMEGA_PAGE_WORKSPACE_OFFSET>=Body::kScratchBytes);
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    static_assert(TILEMEGA_PAGE_POOL_OFFSET-TILEMEGA_PAGE_WORKSPACE_OFFSET>=Body::kDmWorkspaceBytes);
+#endif
     auto operands=Operands(inv);
     if(params.serving_tensor_maps) {
       operands.tensor_map=static_cast<executor::TensorMap const*>(params.serving_tensor_maps)+inv.serving_weight_buffer;
@@ -221,6 +243,13 @@ __device__ void Gemm(Params const& params,GemmInvocation const& inv,int local,Ri
           local,ring.SharedLastFlag(),L2 && TILEMEGA_KPHASE &&
           (TILEMEGA_KPHASE_CLASS_MASK & (1u<<inv.serving_phase_class)) &&
           inv.serving_phase_gate.enabled,ring.watch};
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if (inv.chunks == 1) {
+        DispatchDmEpilogue(inv.dm_gemm, DmPageRunner<Body>{operands,
+            local / inv.tiles_n, local % inv.tiles_n, ring, sequence, work, gate});
+        return;
+      }
+#endif
       Body::Run(operands,local/inv.tiles_n,local%inv.tiles_n,ring,
           sequence,work,gate);
     }
@@ -235,6 +264,18 @@ __device__ bool Combine(Params const& p,StageDesc const& stage,int task,char* wo
   if(inv.variant==Variant) {
     using V=GemmVariant<Variant>;
     bool last=false;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    auto operands = DmEpilogueOperands(Operands(inv));
+    operands.output = p.buffers[stage.operand[1]];
+    auto reduce = [&] {
+      DispatchDmEpilogue(inv.dm_gemm, DmCombineRunner<PageArch, V::kTileM, V::kTileN>{
+          reinterpret_cast<float const*>(p.buffers[stage.operand[0]]), inv.chunks,
+          task / inv.tiles_n, task % inv.tiles_n, work, operands});
+    };
+    if constexpr (Last)
+      return executor::LastArriver::Run(ticket, inv.chunks, shared_last, reduce);
+    else { reduce(); return false; }
+#endif
     auto run=[&](auto op){
       auto reduction=[&](auto body){
         body(

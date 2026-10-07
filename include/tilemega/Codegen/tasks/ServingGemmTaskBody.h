@@ -8,6 +8,8 @@
 #include <tilemega/Backend/ServingGemm.h>
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
 #include <tilemega/Codegen/DmDescriptors.h>
+#include <tilemega/Codegen/tasks/DmEpilogueDispatch.cuh>
+#include <tilemega/Backend/ServingDmEpilogue.h>
 #endif
 
 #ifndef TILEMEGA_NONPAGED_TILED
@@ -61,12 +63,33 @@ struct ServingGemmOperands {
 #endif
 };
 
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+__device__ inline backend::DmEpilogueArguments DmEpilogueOperands(
+    ServingGemmOperands const& p) {
+  backend::DmEpilogueArguments result;
+  result.buffers = p.dm_buffers;
+  result.chain = p.chain;
+  result.write = p.access.write;
+  result.output = p.output;
+  result.m = p.m;
+  result.n = p.n;
+  result.output_stride = p.output_stride;
+  result.norm_width = p.norm_k;
+  result.norm_eps = p.norm_eps;
+  result.image_rows = p.access.rows_per_batch;
+  return result;
+}
+#endif
+
 template <class Arch, int TileM, int TileN, int TileK, int Stages>
 struct ServingGemmTaskBody {
   using Config = backend::ServingGemmConfig<Arch, TileM, TileN, TileK, Stages>;
   using Mainloop = typename Config::Mainloop;
   static constexpr int kThreads = Config::kThreads;
   static constexpr int kSharedBytes = Config::kSharedBytes;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  static constexpr int kTileColumns = TileN;
+#endif
 
   template<class Emit>
   __device__ static void PrefetchRanges(ServingGemmOperands const& p,int tile_n,Emit emit) {
@@ -152,6 +175,59 @@ struct ServingGemmTaskBody {
                backend::ServingEpilogueOp::kPartial>{}); break;
     }
   }
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  template <class Spec>
+  __device__ static void RunDm(ServingGemmOperands const& p, int tile_m,
+                             int tile_n, char* shared) {
+    using namespace cute;
+    if (!p.a || !p.b || p.k_begin < 0 || p.k_count <= 0 ||
+        p.k_begin + p.k_count > p.k_total) {
+      asm volatile("trap;");
+      return;
+    }
+    int a_pitch = p.a_row_stride ? p.a_row_stride : p.k_total;
+    int b_pitch = p.b_row_stride ? p.b_row_stride : p.k_total;
+    int copy_k_count = (p.k_count + 7) & ~7;
+    if (a_pitch < p.k_total || b_pitch < p.k_total ||
+        a_pitch % 8 != 0 || b_pitch % 8 != 0 || p.k_begin % 8 != 0 ||
+        p.k_begin + copy_k_count > a_pitch ||
+        p.k_begin + copy_k_count > b_pitch) {
+      asm volatile("trap;");
+      return;
+    }
+    constexpr auto tile_shape = typename Mainloop::TileShape{};
+    typename Mainloop::TiledMma mma;
+    auto accum = partition_fragment_C(mma, take<0, 2>(tile_shape));
+    clear(accum);
+#if TILEMEGA_NONPAGED_TILED
+    backend::ServingTiledMainloop<Arch,Config,TileM,TileN,TileK,Stages>::Run(
+        p,tile_m,tile_n,shared,accum);
+#else
+    auto dA = make_stride(int64_t(a_pitch), _1{},
+                          int64_t(p.m) * a_pitch);
+    auto dB = make_stride(int64_t(b_pitch), _1{},
+                          int64_t(p.n) * b_pitch);
+    auto a = make_tensor(make_gmem_ptr(p.a + p.k_begin),
+                         make_shape(p.m, copy_k_count, 1), dA);
+    auto b = make_tensor(make_gmem_ptr(p.b + p.k_begin),
+                         make_shape(p.n, copy_k_count, 1), dB);
+    auto coordinate = make_coord(tile_m, tile_n, _, 0);
+    auto gA = local_tile(a(_, _, 0), tile_shape,
+                         take<0, 3>(coordinate), Step<_1, X, _1>{});
+    auto gB = local_tile(b(_, _, 0), tile_shape,
+                         take<0, 3>(coordinate), Step<X, _1, _1>{});
+    auto residue = make_tuple(p.m - size<0>(gA) * tile_m,
+                              p.n - size<0>(gB) * tile_n,
+                              copy_k_count - size<1>(gA) * size<2>(gA));
+    auto k_iter = make_coord_iterator(shape<2>(gA));
+    Mainloop{}(accum, gA, gB, accum, k_iter, size<2>(gA), residue,
+               ComputeThread(), shared);
+#endif
+    backend::ServingDmEpilogue<Arch, Spec, TileM, TileN>::Run(
+        accum, mma, shared, DmEpilogueOperands(p), tile_m, tile_n);
+  }
+#endif
+
 };
 
 }  // namespace tilemega::codegen

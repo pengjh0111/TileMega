@@ -558,32 +558,6 @@ std::string emitModelPlan(mlir::ModuleOp module,
       for(auto conv:convs)out<<"  "<<frontend::EmitDm(frontend::DecodeDmConv(conv))<<",\n";
       out<<"};\n";
     }
-    for(std::size_t i=0;i<gemms.size();++i) {
-      auto item=dictionaryEntry(gemms[i],"gemms");
-      auto chain=frontend::DecodeDmChain(item.get("dm_chain"));
-      auto access=frontend::DecodeDmAccess(item.get("dm_access"));
-      out<<"using DmChain"<<i<<" = DmEpilogueProgram<";
-      for(unsigned j=0;j<chain.count;++j) {
-        auto const& op=chain.operations[j];
-        if(j)out<<", ";
-        out<<"DmEpilogueStep<static_cast<DmEpilogueKind>("<<unsigned(op.kind)
-           <<"u), static_cast<DmActivation>("<<unsigned(op.activation)
-           <<"u), static_cast<DmGatePair>("<<unsigned(op.gate)<<"u), "<<op.unit
-           <<"u, static_cast<DmRounding>("<<unsigned(op.input_rounding)
-           <<"u), static_cast<DmRounding>("<<unsigned(op.output_rounding)
-           <<"u), static_cast<DmWriteKind>("<<unsigned(op.residual_map.kind)
-           <<"u), "<<op.residual_map.factor<<"u>";
-      }
-      out<<">;\n";
-      out<<"using DmSpec"<<i<<" = DmEpilogueSpec<DmChain"<<i
-         <<", static_cast<DmWriteKind>("<<unsigned(access.write.kind)<<"u), "
-         <<access.write.factor<<"u, static_cast<DmRounding>("
-         <<unsigned(chain.store_rounding)<<"u)";
-      for(unsigned j=0;j<chain.side_count;++j)
-        out<<", DmSideOutputSpec<static_cast<DmSideOutputKind>("
-           <<unsigned(chain.side[j].kind)<<"u), "<<chain.side[j].count<<"u>";
-      out<<">;\n";
-    }
   }
   if(module->getAttr("tmexec.prefetch")) {
     out<<"constexpr std::uint8_t kServingFrontier[] = {";
@@ -903,8 +877,49 @@ std::string emitModelPlan(mlir::ModuleOp module,
 }  // namespace
 
 std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
-  (void)module;
-  return "#include <tilemega/Codegen/tasks/ModelHarness.cuh>\n";
+  std::ostringstream out;
+  auto plan = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+  if (plan && optionalBoolField(plan, "dm")) {
+    auto gemms = arrayField(plan, "gemms");
+    out << "#include <tilemega/Codegen/DmDescriptors.h>\n"
+        << "#define TILEMEGA_DM_EPILOGUE_DISPATCH 1\n"
+        << "namespace tilemega::codegen {\n";
+    for(std::size_t i=0;i<gemms.size();++i) {
+      auto item=dictionaryEntry(gemms[i],"gemms");
+      auto chain=frontend::DecodeDmChain(item.get("dm_chain"));
+      auto access=frontend::DecodeDmAccess(item.get("dm_access"));
+      out<<"using DmChain"<<i<<" = DmEpilogueProgram<";
+      for(unsigned j=0;j<chain.count;++j) {
+        auto const& op=chain.operations[j];
+        if(j)out<<", ";
+        out<<"DmEpilogueStep<static_cast<DmEpilogueKind>("<<unsigned(op.kind)
+           <<"u), static_cast<DmActivation>("<<unsigned(op.activation)
+           <<"u), static_cast<DmGatePair>("<<unsigned(op.gate)<<"u), "<<op.unit
+           <<"u, static_cast<DmRounding>("<<unsigned(op.input_rounding)
+           <<"u), static_cast<DmRounding>("<<unsigned(op.output_rounding)
+           <<"u), static_cast<DmWriteKind>("<<unsigned(op.residual_map.kind)
+           <<"u), "<<op.residual_map.factor<<"u>";
+      }
+      out<<">;\n";
+      out<<"using DmSpec"<<i<<" = DmEpilogueSpec<DmChain"<<i
+         <<", static_cast<DmWriteKind>("<<unsigned(access.write.kind)<<"u), "
+         <<access.write.factor<<"u, static_cast<DmRounding>("
+         <<unsigned(chain.store_rounding)<<"u)";
+      for(unsigned j=0;j<chain.side_count;++j)
+        out<<", DmSideOutputSpec<static_cast<DmSideOutputKind>("
+           <<unsigned(chain.side[j].kind)<<"u), "<<chain.side[j].count<<"u>";
+      out<<">;\n";
+    }
+    out << "template<class Runner>\n"
+        << "__device__ inline void DispatchDmEpilogue(std::uint32_t gemm, Runner const& runner) {\n"
+        << "  switch (gemm) {\n";
+    for (std::size_t i = 0; i < gemms.size(); ++i)
+      out << "    case " << i << "u: runner.template Run<DmSpec" << i << ">(); break;\n";
+    out << "    default: asm volatile(\"trap;\"); break;\n"
+        << "  }\n}\n} // namespace tilemega::codegen\n";
+  }
+  out << "#include <tilemega/Codegen/tasks/ModelHarness.cuh>\n";
+  return out.str();
 }
 
 std::string SyncEmitter::EmitWait(std::string const& event) const {

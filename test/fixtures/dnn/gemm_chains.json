@@ -1,0 +1,41 @@
+{
+  "evidence": "verified",
+  "torch": "2.14.1+cpu",
+  "seed": 20261007,
+  "cases": [
+    {
+      "mode": 0,
+      "m": 33,
+      "n": 61,
+      "k": 192,
+      "row_stride": 2,
+      "row_offset": 3
+    },
+    {
+      "mode": 1,
+      "m": 17,
+      "n": 128,
+      "k": 192,
+      "row_stride": 1,
+      "row_offset": 2
+    },
+    {
+      "mode": 2,
+      "m": 12,
+      "n": 12,
+      "k": 192,
+      "row_stride": 3,
+      "row_offset": 1
+    },
+    {
+      "mode": 3,
+      "m": 30,
+      "n": 3,
+      "k": 192,
+      "row_stride": 2,
+      "row_offset": 1
+    }
+  ],
+  "sha256": "3c4bc83cc7de5a60dcb5f13b4430e987030a4ef44c481843570f39b8d5910c6c",
+  "reference": "FP32 PyTorch linear on BF16 inputs and weights; declared chain rounding"
+}

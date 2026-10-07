@@ -184,6 +184,8 @@ int TestFrontendImport(int argc, char** argv) {
     assert(emitted.find("constexpr ConvDesc kConvolutions[]")!=std::string::npos);
     assert(emitted.find("using DmChain0 = DmEpilogueProgram<DmEpilogueStep<")!=std::string::npos);
     assert(emitted.find("using DmSpec0 = DmEpilogueSpec<DmChain0,")!=std::string::npos);
+    assert(emitted.find("using DmSpec0") < emitted.find("ModelHarness.cuh"));
+    assert(emitted.find("runner.template Run<DmSpec0>()") != std::string::npos);
     assert(emitted.find("kConvolutions, 1u}")!=std::string::npos);
     if(argc==3 && std::string(argv[1])=="--emit-dm") {
       std::ofstream output(argv[2]); output<<emitted; assert(output.good());

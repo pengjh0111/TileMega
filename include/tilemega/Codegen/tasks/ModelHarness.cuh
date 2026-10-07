@@ -2218,6 +2218,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       invocation.variant = variant;
       invocation.k_total = desc.k;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      invocation.dm_gemm = i;
       invocation.access=desc.access; invocation.chain=desc.chain;
       invocation.binding=desc.access.binding==kDmNoIndex ? nullptr : model.buffers.at(desc.access.binding);
       invocation.rows=desc.access.rows==kDmNoIndex ? nullptr : model.buffers.at(desc.access.rows);
@@ -2247,6 +2248,12 @@ inline DeviceModel Create(ModelSpec const& spec,
       invocation.serving_output_stride = desc.serving_epilogue == 2
           ? desc.n / 2 : desc.serving_epilogue == 3 ?
               CeilDiv(desc.n, tiling.tile_n) : desc.n;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      invocation.serving_output_stride = desc.n;
+      for (unsigned operation = 0; operation < desc.chain.count; ++operation)
+        if (desc.chain.operations[operation].kind == DmEpilogueKind::kGatePair)
+          invocation.serving_output_stride /= 2;
+#endif
       invocation.serving_partial_stride = desc.n;
       if (chunks > 1)
         invocation.serving_partial = reinterpret_cast<float*>(

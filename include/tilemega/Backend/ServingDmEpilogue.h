@@ -28,6 +28,9 @@ struct DmGateShape<codegen::DmEpilogueProgram<Steps...>> {
       unsigned(Steps::kKind == codegen::DmEpilogueKind::kGatePair));
   static constexpr unsigned kUnit = (0u + ... +
       (Steps::kKind == codegen::DmEpilogueKind::kGatePair ? Steps::kUnit : 0u));
+  template <unsigned Columns>
+  static constexpr bool kFits = kCount <= 1 && (!kCount ||
+      (kUnit && Columns % (2 * (kUnit ? kUnit : 1)) == 0));
 };
 
 template <class Spec> struct DmSideWalk;
@@ -50,7 +53,7 @@ struct ServingDmEpilogue {
   using Program = typename Spec::Chain;
   using Gate = DmGateShape<Program>;
   static_assert(Gate::kCount <= 1, "one channel-pair contraction per tile");
-  static_assert(!Gate::kCount || (Gate::kUnit && TileN % (2 * Gate::kUnit) == 0),
+  static_assert(Gate::template kFits<TileN>,
                 "a channel tile must own complete gate/up pairs");
   static_assert(TileN >= 16 && (TileN & (TileN - 1)) == 0);
   static constexpr unsigned kColumns = Gate::kCount ? TileN / 2 : TileN;

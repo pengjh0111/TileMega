@@ -515,6 +515,13 @@ if(TILEMEGA_BUILD_TESTS)
   tilemega_configure_cuda_target(dm_epilogue_tile_test)
   add_test(NAME dm_epilogue_tile COMMAND dm_epilogue_tile_test
     "${CMAKE_SOURCE_DIR}/test/fixtures/dnn/epilogue_tiles.bin")
+  add_executable(dm_gemm_chain_test test/unit/dm_gemm_chain_test.cu)
+  target_link_libraries(dm_gemm_chain_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_gemm_chain_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(dm_gemm_chain_test)
+  add_test(NAME dm_gemm_chain COMMAND dm_gemm_chain_test
+    "${CMAKE_SOURCE_DIR}/test/fixtures/dnn/gemm_chains.bin")
   target_link_libraries(task_body_contract_test PRIVATE TileMega::tilemega)
   add_test(NAME task_body_contract COMMAND task_body_contract_test)
 

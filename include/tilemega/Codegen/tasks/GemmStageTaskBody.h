@@ -190,7 +190,13 @@ struct GemmVariantStorage {
 template <class Mainloop, int M, int N, int K, int S>
 struct GemmVariantStorage<true, Mainloop, M, N, K, S> {
   struct alignas(16) type {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    static constexpr auto mainloop_bytes = solver::ServingBF16SmemBytes(M, N, K, S);
+    static constexpr auto epilogue_bytes = (M * N + 2 * M) * sizeof(float);
+    unsigned char bytes[mainloop_bytes > epilogue_bytes ? mainloop_bytes : epilogue_bytes];
+#else
     unsigned char bytes[solver::ServingBF16SmemBytes(M, N, K, S)];
+#endif
   };
 };
 
@@ -474,6 +480,7 @@ struct GemmInvocation {
   PhaseGateDesc serving_phase_gate{};
   std::uint8_t serving_phase_class = 0; // qkv, o, gate/up, down, lm_head
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  std::uint32_t dm_gemm = 0;
   DmGemmAccess access{};
   DmEpilogueChain chain{};
   ConvDesc const* convolutions = nullptr;
@@ -535,6 +542,21 @@ __device__ inline float RefinedGemmElement(GemmInvocation const& invocation,
 
 template <class Arch, class SmemUnion, int Threads>
 struct GemmStageTaskBody {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  template <class Body>
+  struct DmRunner {
+    ServingGemmOperands const& operands;
+    int tile_m, tile_n;
+    char* shared;
+    template <class Spec>
+    __device__ void Run() const {
+      using Gate = backend::DmGateShape<typename Spec::Chain>;
+      if constexpr (!Gate::template kFits<Body::kTileColumns>) {
+        asm volatile("trap;");
+      } else Body::template RunDm<Spec>(operands, tile_m, tile_n, shared);
+    }
+  };
+#endif
   using SharedStorage = GemmVariantSmem;
   static constexpr int kSmemBytes = sizeof(SharedStorage);
   static constexpr int kNumThreads = Threads;
@@ -598,6 +620,11 @@ struct GemmStageTaskBody {
     operands.binding=invocation.binding; operands.rows=invocation.rows;
     operands.a_scale=invocation.a_scale; operands.dm_buffers=invocation.dm_buffers;
     operands.a_row_stride=static_cast<int>(cute::get<0>(invocation.mainloop.dA));
+    if (invocation.chunks == 1) {
+      DispatchDmEpilogue(invocation.dm_gemm, DmRunner<Body>{
+          operands, local / invocation.tiles_n, local % invocation.tiles_n, shared});
+      return;
+    }
 #endif
     Body::Run(operands, local / invocation.tiles_n,
               local % invocation.tiles_n, shared);

@@ -7,6 +7,9 @@
 #include <tilemega/Codegen/tasks/ServingGemmCombineTaskBody.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
 #include <tilemega/Codegen/tasks/TaskResources.h>
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Codegen/tasks/ServingDmGemmCombineTaskBody.h>
+#endif
 
 namespace tilemega::codegen {
 
@@ -53,6 +56,25 @@ struct GemmCombineTaskBody {
                                            SmemUnion& smem, int task) {
     auto const& invocation =
         static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    using V = GemmVariant<Variant>;
+    backend::DmEpilogueArguments operands;
+    operands.buffers = invocation.dm_buffers;
+    operands.chain = invocation.chain;
+    operands.write = invocation.access.write;
+    operands.output = p.buffers[stage.operand[1]];
+    operands.m = cute::get<0>(invocation.problem);
+    operands.n = stage.width;
+    operands.output_stride = invocation.serving_output_stride;
+    operands.norm_width = invocation.k_total;
+    operands.norm_eps = TILEMEGA_NORM_EPSILON;
+    operands.image_rows = invocation.access.rows_per_batch;
+    DispatchDmEpilogue(invocation.dm_gemm, DmCombineRunner<Arch, V::kTileM, V::kTileN>{
+        reinterpret_cast<float const*>(p.buffers[stage.operand[0]]), invocation.chunks,
+        task / invocation.tiles_n, task % invocation.tiles_n,
+        reinterpret_cast<char*>(&smem.gemm), operands});
+    return;
+#endif
     switch (invocation.serving_op) {
       case backend::ServingEpilogueOp::kStore:
         RunServingOp<Variant, backend::ServingEpilogueOp::kStore>(p, stage, smem, task); break;

@@ -23,6 +23,9 @@ struct PagedGemmTaskBody {
   using Ring=executor::PageRing<PageBytes,Pages,Arch,ForceSm80>;
   using Async=typename Ring::Copy;
   static constexpr int kBBytes=TileN*TileK*sizeof(Element);
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  static constexpr int kTileColumns = TileN;
+#endif
   static constexpr int kGroupPages=kBBytes>PageBytes?kBBytes/PageBytes:1;
   static_assert(kGroupPages==1,"paged decode uses one-page weight stages");
   static constexpr int kGroupStages=PageBytes>kBBytes?PageBytes/kBBytes:1;
@@ -262,6 +265,76 @@ struct PagedGemmTaskBody {
       case backend::ServingEpilogueOp::kPartial: finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kPartial>{});break;
     }
   }
+
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  static constexpr int kDmWorkspaceBytes = kActivationBytes >
+      (TileM * TileN + 2 * TileM) * int(sizeof(float)) ? kActivationBytes :
+      (TileM * TileN + 2 * TileM) * int(sizeof(float));
+  template<class Spec, class Gate=NoPhaseGate>
+  __device__ static void RunDm(ServingGemmOperands const& p,int tile_m,int tile_n,
+      Ring const& ring,std::uint64_t& sequence,char* workspace,
+      Gate gate={}) {
+    using namespace cute;
+    Mma mma;auto thread=mma.get_slice(ComputeThread());
+    auto accum=partition_fragment_C(mma,Shape<Int<TileM>,Int<TileN>>{});clear(accum);
+    auto* activation=reinterpret_cast<Element*>(workspace);
+    int iterations=(p.k_count+TileK-1)/TileK;
+    if(iterations<=0)return;
+    ZeroInactiveRows(p,tile_m,activation);
+    bool gated=gate.enabled && !gate.Ready();
+    if(!gated)for(int initial=0;initial<kActivationSlots-1;++initial)
+      if(initial<iterations)LoadActivation(p,tile_m,initial,
+          activation+initial*TileM*TileK);
+      else cute::cp_async_fence();
+    auto copy_a=make_tiled_copy_A(typename Config::SmemCopyAtom{},mma);
+    auto copy_b=make_tiled_copy_B(typename Config::SmemCopyAtomB{},mma);
+    for(int first=0;first<iterations;first+=kGroupStages) {
+      for(int page=0;page<kGroupPages;++page)ring.AwaitFull(sequence+page);
+      for(int stage=0;stage<kGroupStages && first+stage<iterations;++stage) {
+        int it=first+stage;
+        bool direct=false;
+        if(gated) {
+          gate.Wait(p.k_begin/TileK+it);
+          if(gate.Ready()) {
+            gated=false;
+            for(int prime=it;prime<it+kActivationSlots-1;++prime)
+              if(prime<iterations)LoadActivation(p,tile_m,prime,
+                  activation+(prime%kActivationSlots)*TileM*TileK);
+              else cute::cp_async_fence();
+          }else {
+            LoadActivation(p,tile_m,it,
+                activation+(it%kActivationSlots)*TileM*TileK);
+            cute::cp_async_wait<0>();ComputeSync();direct=true;
+          }
+        }
+        if(!direct){cute::cp_async_wait<kActivationSlots-2>();ComputeSync();}
+        auto sA=make_tensor(make_smem_ptr(activation+(it%kActivationSlots)*TileM*TileK),LayoutA{});
+        auto sB=make_tensor(make_smem_ptr(reinterpret_cast<Element*>(ring.Page(sequence)+stage*kBBytes)),LayoutB{});
+        auto rA=thread.partition_fragment_A(sA);auto rB=thread.partition_fragment_B(sB);
+        auto src_a=copy_a.get_slice(ComputeThread()).partition_S(sA);
+        auto src_b=copy_b.get_slice(ComputeThread()).partition_S(sB);
+        auto dst_a=copy_a.get_slice(ComputeThread()).retile_D(rA);
+        auto dst_b=copy_b.get_slice(ComputeThread()).retile_D(rB);
+        int ahead=it+kActivationSlots-1;
+        if(!direct) {
+          if(ahead<iterations)LoadActivation(p,tile_m,ahead,
+              activation+(ahead%kActivationSlots)*TileM*TileK);
+          else cute::cp_async_fence();
+        }
+        #pragma unroll
+        for(int k=0;k<size<2>(rA);++k) {
+          copy(typename Config::SmemCopyAtom{},src_a(_,_,k),dst_a(_,_,k));
+          copy(typename Config::SmemCopyAtomB{},src_b(_,_,k),dst_b(_,_,k));
+          gemm(mma,rA(_,_,k),rB(_,_,k),accum);
+        }
+      }
+      for(int page=0;page<kGroupPages;++page)ring.Release(sequence+page);
+      sequence+=kGroupPages;
+    }
+    backend::ServingDmEpilogue<Arch, Spec, TileM, TileN>::Run(
+        accum, mma, workspace, DmEpilogueOperands(p), tile_m, tile_n);
+  }
+#endif
 
   static constexpr int kNormalizedWorkspaceBytes =
       (kActivationBytes > kScratchBytes ? kActivationBytes : kScratchBytes) +
