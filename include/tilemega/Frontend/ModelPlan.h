@@ -178,6 +178,9 @@ struct ModelPlan {
   // Only DM plans emit the extended device ABI; legacy descriptors and CUDA
   // initializers retain their exact layout and text when this is false.
   bool dm = false;
+  bool forward = false;
+  // MoE regions bind axis zero as tokens; DNN inputs bind it as batch.
+  bool forward_token_axis = false;
   std::vector<codegen::ConvDesc> convolutions;
 };
 

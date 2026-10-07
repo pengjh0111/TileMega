@@ -398,7 +398,7 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
         builder.getNamedAttr("representative", builder.getStringAttr(stage.representative)),
         builder.getNamedAttr("representative_index",
                              builder.getI64IntegerAttr(stage.representative_index))};
-    if (plan.serving) {
+    if (plan.serving || plan.forward) {
       fields.push_back(builder.getNamedAttr(
           "batch_rows", builder.getBoolAttr(stage.batch_rows)));
       fields.push_back(builder.getNamedAttr(
@@ -434,6 +434,11 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
       builder.getNamedAttr("gemms", builder.getArrayAttr(gemms)),
       builder.getNamedAttr("stages", builder.getArrayAttr(stages)),
       builder.getNamedAttr("outputs", builder.getArrayAttr(outputs))};
+  if (plan.forward) {
+    fields.push_back(builder.getNamedAttr("forward", builder.getBoolAttr(true)));
+    if (plan.forward_token_axis)
+      fields.push_back(builder.getNamedAttr("forward_token_axis", builder.getBoolAttr(true)));
+  }
   if(plan.dm) {
     llvm::SmallVector<mlir::Attribute> convs;
     for(auto const& conv:plan.convolutions)convs.push_back(EncodeDm(builder,conv));
@@ -606,6 +611,35 @@ ExportBridge ReadExportBridge(std::string const& path) {
   return bridge;
 }
 
+static LiftOptions ForwardDimensionRoles(ExportBridge const& bridge,
+                                         ModelPlan const& plan,
+                                         SymbolicShape const& symbolic) {
+  if (!plan.dm || plan.serving || plan.serving_seq <= 0 || plan.serving_capacity)
+    throw std::invalid_argument("invalid forward plan phase or dimensions");
+  LiftOptions roles;
+  roles.forward = true;
+  roles.serving = !plan.forward_token_axis;
+  roles.static_seq = plan.serving_seq;
+  roles.seq_symbol = std::to_string(plan.serving_seq);
+  roles.past_symbol.clear();
+  std::string row_axis;
+  for (auto const& input : bridge.inputs) {
+    if (input.kind != "USER_INPUT") continue;
+    auto found = std::find_if(bridge.nodes.begin(), bridge.nodes.end(),
+        [&](FxNodeRecord const& node) { return node.name == input.name; });
+    if (found == bridge.nodes.end() || found->shape.empty())
+      throw std::invalid_argument("forward input has no row axis");
+    if (!row_axis.empty() && row_axis != found->shape[0])
+      throw std::invalid_argument("forward input row axes disagree");
+    row_axis = found->shape[0];
+  }
+  if (!symbolic.ranges.count(row_axis))
+    throw std::invalid_argument("forward input row axis must be symbolic");
+  if (plan.forward_token_axis) roles.seq_symbol = row_axis;
+  else roles.batch_symbol = row_axis;
+  return roles;
+}
+
 static LiftOptions ServingDimensionRoles(ExportBridge const& bridge,
                                          ModelPlan const& plan,
                                          SymbolicShape const& symbolic) {
@@ -762,7 +796,9 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   builder.setInsertionPointToStart(module.getBody());
 
   LiftOptions liftOptions;
-  if (plan.serving) {
+  if (plan.forward) {
+    liftOptions = ForwardDimensionRoles(bridge, plan, symbolic);
+  } else if (plan.serving) {
     liftOptions = ServingDimensionRoles(bridge, plan, symbolic);
   } else {
     if (!symbolic.dimensions.empty())
@@ -778,7 +814,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   llvm::SmallVector<mlir::NamedAttribute> dimension_roles = {
       builder.getNamedAttr("seq", builder.getStringAttr(liftOptions.seq_symbol)),
       builder.getNamedAttr("past", builder.getStringAttr(liftOptions.past_symbol))};
-  if (plan.serving)
+  if (plan.serving || (plan.forward && !plan.forward_token_axis))
     dimension_roles.push_back(builder.getNamedAttr(
         "batch", builder.getStringAttr(liftOptions.batch_symbol)));
   module->setAttr("tilemega.dimension_roles",
@@ -791,11 +827,13 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   if (!plan.stages.empty())
     module->setAttr("tilemega.model_plan",
                     modelPlanAttr(builder, plan, lifted.written));
-  if (plan.serving)
-    module->setAttr("tilemega.serving", dict(builder, {
+  if (plan.serving || plan.forward) {
+    llvm::SmallVector<mlir::NamedAttribute> runtime = {
         builder.getNamedAttr("seq", builder.getI64IntegerAttr(plan.serving_seq)),
-        builder.getNamedAttr("capacity", builder.getI64IntegerAttr(
-            plan.serving_capacity))}));
+        builder.getNamedAttr("capacity", builder.getI64IntegerAttr(plan.serving_capacity))};
+    if (plan.forward) runtime.push_back(builder.getNamedAttr("phase", builder.getI64IntegerAttr(2)));
+    module->setAttr("tilemega.serving", builder.getDictionaryAttr(runtime));
+  }
   if (options.rope_tile_per_block)
     for (auto& op : lifted.ops)
       if (op.role == OpRole::kRoPE)
@@ -1282,7 +1320,9 @@ ImportedSemantics TorchExportImporter::ImportSemantics(std::string const& path,
     shapes.push_back(it->shape);
   }
   result.symbolic=SymbolicShapeBridge{}.Parse(result.bridge.range_texts,result.bridge.guards,shapes);
-  if (plan.serving) {
+  if (plan.forward) {
+    result.lift_options = ForwardDimensionRoles(result.bridge, plan, result.symbolic);
+  } else if (plan.serving) {
     result.lift_options = ServingDimensionRoles(
         result.bridge, plan, result.symbolic);
   } else {

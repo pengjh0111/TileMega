@@ -143,7 +143,7 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
       ? ClosedForm::Symbol(options.batch_symbol) *
             ClosedForm::Constant(options.static_seq)
       : ClosedForm::Symbol(options.seq_symbol);
-  ClosedForm const past = options.serving && options.past_symbol.empty()
+  ClosedForm const past = options.forward || (options.serving && options.past_symbol.empty())
       ? ClosedForm::Constant(0)
       : ClosedForm::Symbol(options.past_symbol);
   ClosedForm const total = S + past;
@@ -225,6 +225,9 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
       }
       case PlanTaskKind::kGemm: {
         PlanGemm const& gemm = plan.gemms[stage.gemm];
+        ClosedForm const rows = options.forward && !plan.forward_token_axis && gemm.access.rows_per_batch
+            ? ClosedForm::Symbol(options.batch_symbol) * Fixed(gemm.access.rows_per_batch)
+            : S;
         bool residual = gemm.beta != 0.0f;
         ClosedForm n = Fixed(gemm.n), k = Fixed(gemm.k);
         std::string name = StageName(layer, i, "proj");
@@ -233,10 +236,10 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
         std::string product = residual ? name : name_of(gemm.d);
         SemanticOp op = Op(
             name, OperatorKind::kMatmul,
-            {Par("m", S), Par("n", n), Red("k", k)},
-            Space(product, {Ax("m", S), Ax("n", n)}),
+            {Par("m", rows), Par("n", n), Red("k", k)},
+            Space(product, {Ax("m", rows), Ax("n", n)}),
             {Read(producer_of(gemm.a),
-                  space_of(gemm.a, {Ax("m", S), Ax("k", k)}),
+                  space_of(gemm.a, {Ax("m", rows), Ax("k", k)}),
                   {IndexResult::Dim("m"), IndexResult::Dim("k")})});
         op.reduction.splittable = true;
 #if TILEMEGA_COMPLETE_GEMM_READS
@@ -268,12 +271,12 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
         model.sem.ops.push_back(std::move(op));
         std::string add = StageName(layer, i, "add");
         SemanticOp resid = Op(
-            add, OperatorKind::kPointwise, {Par("m", S), Par("n", n)},
-            Space(name_of(gemm.d), {Ax("m", S), Ax("n", n)}),
+            add, OperatorKind::kPointwise, {Par("m", rows), Par("n", n)},
+            Space(name_of(gemm.d), {Ax("m", rows), Ax("n", n)}),
             {Read(name, product_space,
                   {IndexResult::Dim("m"), IndexResult::Dim("n")}),
              Read(producer_of(gemm.c),
-                  space_of(gemm.c, {Ax("m", S), Ax("n", n)}),
+                  space_of(gemm.c, {Ax("m", rows), Ax("n", n)}),
                   {IndexResult::Dim("m"), IndexResult::Dim("n")})});
         record(std::move(resid), OpRole::kResidualAdd,
                OwnershipKind::kTilePerBlock, i, layer, gemm.d);

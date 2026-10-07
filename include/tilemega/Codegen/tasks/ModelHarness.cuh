@@ -164,6 +164,12 @@ inline constexpr int kHarnessThreads = kGemmThreads;
 #ifndef TILEMEGA_SERVING_RUNTIME
 #define TILEMEGA_SERVING_RUNTIME 0
 #endif
+// Forward plans use their own attention family and carry no decoder KV state.
+#if TILEMEGA_SERVING_RUNTIME && defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE == 2
+#define TILEMEGA_SERVING_DECODER_ATTENTION 0
+#else
+#define TILEMEGA_SERVING_DECODER_ATTENTION TILEMEGA_SERVING_RUNTIME
+#endif
 #if TILEMEGA_SERVING_RUNTIME
 #ifndef TILEMEGA_SERVING_PAST_LO
 #define TILEMEGA_SERVING_PAST_LO TILEMEGA_SOLVED_PAST
@@ -189,6 +195,7 @@ inline constexpr int kHarnessThreads = kGemmThreads;
 #ifndef TILEMEGA_SERVING_KV_TILE
 #define TILEMEGA_SERVING_KV_TILE 64
 #endif
+#if TILEMEGA_SERVING_DECODER_ATTENTION
 using T_ServingAttention = std::conditional_t<TILEMEGA_SERVING_SEQ==1,
     IndependentAttentionTaskBody<GemmVariantArch,TILEMEGA_SERVING_HEAD_DIM,TILEMEGA_SERVING_QPERKV,TILEMEGA_SERVING_QK_NORM!=0>,
     FusedAttentionTaskBody<
@@ -198,6 +205,7 @@ using T_ServingAttention = std::conditional_t<TILEMEGA_SERVING_SEQ==1,
 using T_ServingMerge = AttentionMergeTaskBody<
     TILEMEGA_SERVING_HEAD_DIM, TILEMEGA_SERVING_QPERKV,
     TILEMEGA_SERVING_SEQ>;
+#endif
 #endif
 #ifndef TILEMEGA_FUSION_GEMM_RUNTIME
 #define TILEMEGA_FUSION_GEMM_RUNTIME TILEMEGA_FUSION_RUNTIME
@@ -217,6 +225,8 @@ union TaskSmem {
   GemmVariantSmem gemm;
 #if TILEMEGA_SERVING_RUNTIME
   ServingArgmaxReduceTaskBody::SharedStorage argmax;
+#endif
+#if TILEMEGA_SERVING_DECODER_ATTENTION
   T_ServingAttention::SharedStorage serving_attention;
 #endif
 #if TILEMEGA_FUSION_GEMM_RUNTIME
@@ -232,7 +242,10 @@ inline constexpr std::size_t kNonGemmTaskSmem =
 inline constexpr std::size_t kExpectedTaskSmem =
     std::max({sizeof(GemmVariantSmem),kNonGemmTaskSmem
 #if TILEMEGA_SERVING_RUNTIME
-        ,sizeof(TaskSmem::argmax),sizeof(TaskSmem::serving_attention)
+        ,sizeof(TaskSmem::argmax)
+#endif
+#if TILEMEGA_SERVING_DECODER_ATTENTION
+        ,sizeof(TaskSmem::serving_attention)
 #endif
 #if TILEMEGA_FUSION_GEMM_RUNTIME
         ,sizeof(TaskSmem::fused_gemm)
@@ -343,6 +356,7 @@ __device__ inline void RunServingScalarTask(Params const& p,
   }
 }
 
+#if TILEMEGA_SERVING_DECODER_ATTENTION
 __device__ inline int ServingAttentionTaskCount(Params const& p,
                                                  StageDesc const& stage) {
   int query_blocks = CeilDiv(int(stage.group) * p.dims.seq,
@@ -396,6 +410,7 @@ __device__ inline void RunServingMergeTask(Params const& p,
       stage.attention_kv_block, p.dims.past);
 }
 #endif
+#endif
 
 /// The dispatch is over the TaskBody families, which are a property of the
 /// library, not of any model.  A model that needs no attention simply never
@@ -442,7 +457,7 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
 #endif
       break;
     case TaskKind::kFusedAttention:
-#if TILEMEGA_SERVING_RUNTIME
+#if TILEMEGA_SERVING_DECODER_ATTENTION
       for (int task = int(blockIdx.x); task < ServingAttentionTaskCount(p, stage);
            task += int(gridDim.x))
         RunServingAttentionTask(p, stage, smem, task);
@@ -451,7 +466,7 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
 #endif
       break;
     case TaskKind::kAttentionMerge:
-#if TILEMEGA_SERVING_RUNTIME
+#if TILEMEGA_SERVING_DECODER_ATTENTION
       for (int task = int(blockIdx.x); task < p.dims.batch * int(stage.extent);
            task += int(gridDim.x)) RunServingMergeTask(p, stage, task);
 #else
@@ -533,14 +548,14 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
 #endif
       break;
     case TaskKind::kFusedAttention:
-#if TILEMEGA_SERVING_RUNTIME
+#if TILEMEGA_SERVING_DECODER_ATTENTION
       RunServingAttentionTask(p, stage, smem, task);
 #else
       asm volatile("trap;");
 #endif
       break;
     case TaskKind::kAttentionMerge:
-#if TILEMEGA_SERVING_RUNTIME
+#if TILEMEGA_SERVING_DECODER_ATTENTION
       RunServingMergeTask(p, stage, task);
 #else
       asm volatile("trap;");
@@ -704,7 +719,7 @@ __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
 #endif
     case TaskKind::kArgmaxReduce: return p.dims.batch;
     case TaskKind::kFusedAttention:
-#if TILEMEGA_SERVING_RUNTIME
+#if TILEMEGA_SERVING_DECODER_ATTENTION
       return ServingAttentionTaskCount(p, stage);
 #else
       return 0;

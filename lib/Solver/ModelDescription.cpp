@@ -206,7 +206,8 @@ ModelDescription ModelDescription::ReadCouplingGraph(
   model.past_metric_parameter = roles.getAs<mlir::StringAttr>("past").getValue().str();
   if (auto batch = roles.getAs<mlir::StringAttr>("batch"))
     model.batch_metric_parameter = batch.getValue().str();
-  if (module->hasAttr("tilemega.serving")) {
+  auto token_axis = plan.getAs<mlir::BoolAttr>("forward_token_axis");
+  if (module->hasAttr("tilemega.serving") && !(token_axis && token_axis.getValue())) {
     // S is a plan constant; it is not an ISL parameter or a substitute for B.
     model.seq_metric_parameter.clear();
     model.dims.seq_parameter.clear();

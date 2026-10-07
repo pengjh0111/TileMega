@@ -64,6 +64,30 @@ template<class T, std::size_t N> void ArrayLiteral(std::ostream& out, T const (&
 }  // namespace
 
 void ValidateDmModelPlan(ModelPlan const& plan) {
+  if (plan.forward_token_axis && !plan.forward)
+    throw std::invalid_argument("forward token axis requires a forward plan");
+  if (plan.forward && (!plan.dm || plan.serving || plan.serving_seq <= 0 ||
+                       plan.serving_capacity != 0))
+    throw std::invalid_argument("forward plans require DM, a positive seq and no KV capacity");
+  if (plan.forward) {
+    for (auto const& b : plan.buffers)
+      if (b.per_past || b.per_total)
+        throw std::invalid_argument("forward buffer cannot depend on KV state");
+    for (auto const& stage : plan.stages) {
+      switch (stage.kind) {
+        case PlanTaskKind::kRoPE: case PlanTaskKind::kKVAppend:
+        case PlanTaskKind::kAttention: case PlanTaskKind::kFusedAttention:
+        case PlanTaskKind::kAttentionMerge: case PlanTaskKind::kArgmaxReduce:
+        case PlanTaskKind::kEmbedding: case PlanTaskKind::kQKNorm:
+          throw std::invalid_argument("decoder task is invalid in a forward plan");
+        default: break;
+      }
+    }
+    if (plan.forward_token_axis)
+      for (auto const& gemm : plan.gemms)
+        if (gemm.access.rows_per_batch)
+          throw std::invalid_argument("token-axis forward GEMM cannot use batch rows");
+  }
   if(!plan.dm) {
     bool extended=!plan.convolutions.empty();
     for(auto const& buffer:plan.buffers)extended|=buffer.layout.rank!=0;

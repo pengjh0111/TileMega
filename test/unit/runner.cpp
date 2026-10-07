@@ -51,6 +51,7 @@ namespace tilemega::tests::serving_task_index_test { int TestServingTaskIndex(in
 namespace tilemega::tests::serving_model_plan_test { int TestServingModelPlan(int, char**); }
 namespace tilemega::tests::serving_token_sets_test { int TestServingTokenSets(int, char**); }
 namespace tilemega::tests::serving_import_test { int TestServingImport(int, char**); }
+namespace tilemega::tests::forward_frontend_test { int TestForwardFrontend(int, char**); }
 namespace tilemega::tests::frontend_import_test { int TestFrontendImport(int, char**); }
 namespace tilemega::tests::dm_descriptor_test { int TestDmDescriptor(int, char**); }
 namespace tilemega::tests::skeleton_placement_test { int TestSkeletonPlacement(int, char**); }
@@ -115,6 +116,7 @@ int main(int argc, char** argv) {
     {"serving_lag", tilemega::tests::serving_lag_test::TestServingLag},
     {"serving_task_index", tilemega::tests::serving_task_index_test::TestServingTaskIndex},
     {"serving_token_sets", tilemega::tests::serving_token_sets_test::TestServingTokenSets},
+    {"forward_frontend", tilemega::tests::forward_frontend_test::TestForwardFrontend},
     {"frontend_import", tilemega::tests::frontend_import_test::TestFrontendImport},
     {"dm_descriptor", tilemega::tests::dm_descriptor_test::TestDmDescriptor},
     {"skeleton_placement", tilemega::tests::skeleton_placement_test::TestSkeletonPlacement},

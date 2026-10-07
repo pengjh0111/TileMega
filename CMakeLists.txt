@@ -338,6 +338,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/serving_model_plan_test.cpp
     test/unit/serving_token_sets_test.cpp
     test/unit/serving_import_test.cpp
+    test/unit/forward_frontend_test.cpp
     test/unit/frontend_import_test.cpp
     test/unit/dm_descriptor_test.cpp
     test/unit/skeleton_placement_test.cpp
@@ -522,6 +523,12 @@ if(TILEMEGA_BUILD_TESTS)
   tilemega_configure_cuda_target(dm_gemm_chain_test)
   add_test(NAME dm_gemm_chain COMMAND dm_gemm_chain_test
     "${CMAKE_SOURCE_DIR}/test/fixtures/dnn/gemm_chains.bin")
+  add_executable(forward_runtime_test test/unit/forward_runtime_test.cu)
+  target_link_libraries(forward_runtime_test PRIVATE TileMega::tilemega)
+  target_compile_options(forward_runtime_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(forward_runtime_test)
+  add_test(NAME forward_runtime COMMAND forward_runtime_test)
   target_link_libraries(task_body_contract_test PRIVATE TileMega::tilemega)
   add_test(NAME task_body_contract COMMAND task_body_contract_test)
 
@@ -674,6 +681,7 @@ if(TILEMEGA_BUILD_TESTS)
   tilemega_configure_cuda_target(fused_harness_compile_test)
   add_test(NAME fused_harness_compile COMMAND fused_harness_compile_test)
 
+  add_test(NAME forward_frontend COMMAND tilemega-unit forward_frontend)
   add_test(NAME frontend_import COMMAND tilemega-unit frontend_import)
   add_test(NAME dm_descriptor COMMAND tilemega-unit dm_descriptor)
 

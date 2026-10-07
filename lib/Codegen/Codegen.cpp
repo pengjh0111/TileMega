@@ -258,6 +258,15 @@ std::string emitServingAttentionConfig(mlir::DictionaryAttr plan,
                                        mlir::ModuleOp module) {
   auto serving = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
   if (!serving) return {};
+  if (optionalBoolField(plan, "forward")) {
+    if (!optionalBoolField(plan, "dm") || integerField(serving, "capacity") != 0 ||
+        integerField(serving, "seq") <= 0 || integerField(serving, "phase") != 2)
+      throw std::invalid_argument("invalid forward runtime metadata");
+    return std::string(optionalBoolField(plan, "forward_token_axis")
+        ? "#define TILEMEGA_FORWARD_TOKEN_AXIS 1\n" : "") +
+        "#define TILEMEGA_SERVING_PHASE 2\n#define TILEMEGA_SERVING_SEQ " +
+        std::to_string(integerField(serving, "seq")) + "\n";
+  }
   auto stages = arrayField(plan, "stages");
   for (auto value : stages) {
     auto item = dictionaryEntry(value, "stages");

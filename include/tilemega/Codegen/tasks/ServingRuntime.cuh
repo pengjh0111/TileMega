@@ -28,6 +28,15 @@
 #ifndef TILEMEGA_SERVING_PAST_HI
 #define TILEMEGA_SERVING_PAST_HI TILEMEGA_SERVING_PAST_LO
 #endif
+#if defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE == 2
+static_assert(TILEMEGA_SERVING_PAST_LO == 0 && TILEMEGA_SERVING_PAST_HI == 0,
+              "forward plans have no past state");
+static_assert(kModel.dims.capacity == 0, "forward plans have no KV capacity");
+#if defined(TILEMEGA_FORWARD_TOKEN_AXIS) && TILEMEGA_FORWARD_TOKEN_AXIS
+static_assert(TILEMEGA_SERVING_BATCH_LO == 1 && TILEMEGA_SERVING_BATCH_HI == 1,
+              "token-axis forward plans bind batch to one");
+#endif
+#endif
 
 namespace tilemega::codegen::serving {
 
@@ -65,6 +74,10 @@ inline int Count(ModelSpec const& spec, RuntimeVariantDesc const& variant,
       auto const& gemm = spec.gemms[stage.gemm];
       auto const& geometry = variant.gemms[stage.gemm];
       int rows = stage.batch_rows ? dims.batch : dims.tokens();
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if (gemm.access.rows_per_batch)
+        rows = dims.batch * int(gemm.access.rows_per_batch);
+#endif
       int tiles = CeilDiv(rows, geometry.tile_m) *
                   CeilDiv(gemm.n, geometry.tile_n);
       return stage.kind == TaskKind::kGemm ? tiles * geometry.split_k : tiles;
@@ -233,7 +246,11 @@ extern "C" int tm_plan_query(tm_plan_info* output) {
   int grid=kModel.runtime_variants[0].plan.eft_grid
       ? int(kModel.runtime_variants[0].plan.eft_grid):target.res.num_sms;
   *output = {TM_SERVING_ABI_VERSION,
+#if defined(TILEMEGA_SERVING_PHASE)
+             TILEMEGA_SERVING_PHASE,
+#else
              TILEMEGA_SERVING_SEQ == 1 ? TM_SERVING_DECODE : TM_SERVING_PREFILL,
+#endif
              TILEMEGA_SERVING_BATCH_LO, TILEMEGA_SERVING_BATCH_HI,
              TILEMEGA_SERVING_SEQ, TILEMEGA_SERVING_PAST_LO,
              TILEMEGA_SERVING_PAST_HI, kModel.dims.capacity,
@@ -387,9 +404,15 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
         reinterpret_cast<void const*>(tilemega_l1_loop_kernel),kServingThreads,smem);
     if(grid<=target.res.num_sms*loop_resident)plan->loop_modes=1;
 #endif
+#if defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE == 2
+    plan->loop_modes = 0;
+#endif
     std::fprintf(stderr,"E2E_LOOP_MODES available=%u\n",plan->loop_modes);
     plan->pdl = TILEMEGA_SERVING_SEQ==1 && TILEMEGA_PDL &&
         !TILEMEGA_ARCH_PATH_SM80 && target.caps.pdl;
+#if defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE == 2
+    plan->pdl = false;
+#endif
     std::fprintf(stderr,"E2E_PDL enabled=%d caps=%d\n",int(plan->pdl),int(target.caps.pdl));
     return plan.release();
   } catch (std::exception const& error) {
@@ -404,6 +427,9 @@ extern "C" int tm_plan_set_steps(void* opaque,
   using namespace tilemega::codegen;
   auto* plan = static_cast<serving::Plan*>(opaque);
   if (!plan || !past || !count || plan->ring) return -1;
+#if defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE == 2
+  if (count != 1 || past[0] != 0) return -2;
+#endif
   std::vector<Params> host(count, plan->model.params);
 #if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
   auto capacity_env=std::getenv("TILEMEGA_TRACE_LAUNCHES");

@@ -99,6 +99,7 @@ struct LiftOptions {
   std::string batch_symbol;
   int static_seq = 0;
   bool serving = false;
+  bool forward = false;
 };
 
 /// Lift the recognized decoder stages. One sem op per stage, except a GEMM
