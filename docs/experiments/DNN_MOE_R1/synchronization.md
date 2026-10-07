@@ -84,3 +84,14 @@ the unsigned epoch before subtraction. The fixtures now follow the generated
 prefill direct-context contract and use signed test inputs. Criteria and
 independent oracle equations were not changed. Original failed logs remain in
 `runs/dm1-ci5-paged-phases-smoke` and `runs/dm1-ci5-paged-attention-smoke`.
+
+verified: binding/page primitives pass 50/50 fresh processes, 32 poisoned
+epochs per process, and five architectures compile with zero spills
+(`results/CI5_binding_page_primitives.json`). The nonblocking ready probe
+precedes dispatch publication; active records select independently checked
+expert pages, stale empty records emit no page, all virtual tasks notify, and
+the two-slot ring wraps repeatedly. Host capacity/address checks pass 3/3
+(`results/CI5_binding_host.json`). The installed vLLM version was appended to
+the native-test identities after completion, without changing binaries; both
+old and enriched artifact IDs are retained. This synthetic single-CTA probe
+does not complete production binding-aware PageStream or expert/model gates.
