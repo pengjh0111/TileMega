@@ -1252,7 +1252,7 @@ std::string emitSolvedLaunch(mlir::ModuleOp module) {
     }
   }
   // R8 BE-1: the Plan's architecture, as an identifier the device pass can
-  // compare against `__CUDA_ARCH__` and the harness against the device. A
+  // compare against the compiler's device arch and the harness's device. A
   // module solved before this attribute existed emits nothing and keeps the
   // header's own default.
   if (auto arch=module->getAttrOfType<mlir::StringAttr>("tmexec.solved_arch")) {
