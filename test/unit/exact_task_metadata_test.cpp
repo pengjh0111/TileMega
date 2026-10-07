@@ -135,6 +135,13 @@ void FiniteFibers() {
   auto envelope = DescribeTaskElementBox(exact);
   assert(std::string(envelope.exactness) == "over");
   assert(Contains(envelope.relation, exact) && !Contains(exact, envelope.relation));
+  auto symbolic = CouplingRelation::FromIslText("[B] -> { [t] -> [i] : 0 <= t < B and t <= i < t+3 }");
+  auto rereads = symbolic.BoundTaskCard().SumDomain().Add(symbolic.Image().BoundTaskCard().Scale(-1));
+  for (long batch : {1,2,8}) {
+    ParamBinding known; known.Bind("B",batch);
+    assert(rereads.Eval(known) == 2*batch-2);
+    assert(symbolic.Image().BoundTaskCard().Eval(known) == batch+2);
+  }
 }
 }
 int TestExactTaskMetadata(int, char**) {

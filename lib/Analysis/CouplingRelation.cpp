@@ -352,7 +352,12 @@ QuasiPolynomial CouplingRelation::BoundTaskCard(unsigned max_domain_points) cons
     IslReferenceAudit audit(__func__);
     if (empty()) return QuasiPolynomial::Constant(0);
     auto map = isl_util::ReadMap(Ctx(), text_);
-    if (isl_map_dim(map.get(), isl_dim_param)) return Card();
+    if (isl_map_dim(map.get(), isl_dim_param)) {
+      // A parameter-only image count must share the scalar space of a
+      // sum over task fibers; map_card would retain an empty input tuple.
+      if (isl_map_dim(map.get(), isl_dim_in) == 0) return ImageCard();
+      return Card();
+    }
     isl_util::Set domain(isl_map_domain(isl_map_copy(map.get())));
     if (isl_set_is_empty(domain.get()) == isl_bool_true)
       return isl_map_dim(map.get(), isl_dim_in) == 0 ? QuasiPolynomial::Constant(0) : Card();
