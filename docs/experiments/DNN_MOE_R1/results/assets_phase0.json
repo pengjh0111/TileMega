@@ -35,5 +35,24 @@
         "(256,256,3)"
       ]
     }
-  }
+  },
+  "cached_weights": [
+    {
+      "path": "/root/models/bert_base_uncased/model.safetensors",
+      "bytes": 440449768,
+      "tensors": 206,
+      "pooler": [
+        "bert.pooler.dense.bias",
+        "bert.pooler.dense.weight"
+      ],
+      "sha256": "68d45e234eb4a928074dfd868cead0219ab85354cc53d20e772753c6bb9169d3"
+    },
+    {
+      "path": "/root/models/mobilenetv1_100/model.safetensors",
+      "bytes": 17030248,
+      "tensors": 164,
+      "pooler": [],
+      "sha256": "15c2f1411deb8e0533acbb41fe9523062f80d444d0393e7ad2b429f41378efc3"
+    }
+  ]
 }
