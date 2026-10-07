@@ -49,5 +49,15 @@
     "metadata_equal": true,
     "ordered_keys_sha256": "c3d50d9858085c92a1db5d48bd0ea4c8892e2959c7f0e4a51ad8020a867a79bc",
     "blocks": 1280
+  },
+  "imagenetv2": {
+    "evidence": "verified",
+    "scope": "official archive and first 1000 path-sorted images; no correctness gate",
+    "source_revision": "d626240be2538720e83103a0e1178d24aca8b12c",
+    "archive_sha256": "f0c37fdf925916b19ea1323cd9a2208cdb6959ba2c32eef2a7fc393835c9ca7c",
+    "archive_format": "uncompressed POSIX tar despite upstream .tar.gz suffix",
+    "images": 10000,
+    "selected_images": 1000,
+    "selected_paths_sha256": "627a1e4c47c71080a9df565f0f509427d02a5d80ec095d66e4502de54033e04d"
   }
 }
