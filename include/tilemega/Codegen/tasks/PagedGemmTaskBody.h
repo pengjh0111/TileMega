@@ -3,6 +3,7 @@
 #include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>
 #include <tilemega/Codegen/executor/PageRing.cuh>
 #include <tilemega/Solver/PageLayout.h>
+#include <tilemega/Codegen/tasks/ServingRMSNormTaskBody.h>
 
 namespace tilemega::codegen {
 #ifndef TILEMEGA_WEIGHT_LAYOUT_TILED
@@ -259,6 +260,98 @@ struct PagedGemmTaskBody {
       case backend::ServingEpilogueOp::kSwiGLU: finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kSwiGLU>{});break;
       case backend::ServingEpilogueOp::kArgmaxPartial: finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kArgmaxPartial>{});break;
       case backend::ServingEpilogueOp::kPartial: finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kPartial>{});break;
+    }
+  }
+
+  static constexpr int kNormalizedWorkspaceBytes =
+      (kActivationBytes > kScratchBytes ? kActivationBytes : kScratchBytes) +
+      (TileM + 4) * sizeof(float);
+
+  // This explicit prologue preserves standalone RMSNorm's two BF16 rounding
+  // points. Deferred normalization remains the unchanged Run path above.
+  __device__ static void RunNormalized(ServingGemmOperands const& p, int tile_m,
+      int tile_n, Ring const& ring, std::uint64_t& sequence, char* workspace,
+      Element const* input, Element const* weight, float epsilon) {
+    using namespace cute;
+    if (!input || !weight || p.k_total <= 0 || p.k_begin < 0 || p.k_count <= 0 ||
+        p.k_begin + p.k_count > p.k_total) { asm volatile("trap;"); return; }
+    auto source = p;
+    source.a = input;
+    source.a_row_stride = p.k_total;
+    constexpr int base = kActivationBytes > kScratchBytes ? kActivationBytes : kScratchBytes;
+    auto* inverse = reinterpret_cast<float*>(workspace + base);
+    auto* scratch = inverse + TileM;
+    for (int row = 0; row < TileM; ++row) {
+      int global_row = tile_m * TileM + row;
+      if (global_row >= p.m) break;
+      float scale = ServingRMSNormTaskBody::RowInvRms(
+          input + std::int64_t(global_row) * p.k_total, p.k_total, epsilon, scratch);
+      if (ComputeThread() == 0) inverse[row] = scale;
+    }
+    ComputeSync();
+    Mma mma;
+    auto thread = mma.get_slice(ComputeThread());
+    auto accum = partition_fragment_C(mma, Shape<Int<TileM>, Int<TileN>>{});
+    clear(accum);
+    auto* activation = reinterpret_cast<Element*>(workspace);
+    int iterations = (p.k_count + TileK - 1) / TileK;
+    ZeroInactiveRows(source, tile_m, activation);
+    for (int initial = 0; initial < kActivationSlots - 1; ++initial)
+      if (initial < iterations)
+        LoadActivation(source, tile_m, initial, activation + initial * TileM * TileK);
+      else cp_async_fence();
+    auto copy_a = make_tiled_copy_A(typename Config::SmemCopyAtom{}, mma);
+    auto copy_b = make_tiled_copy_B(typename Config::SmemCopyAtomB{}, mma);
+    for (int first = 0; first < iterations; first += kGroupStages) {
+      for (int page = 0; page < kGroupPages; ++page) ring.AwaitFull(sequence + page);
+      for (int stage = 0; stage < kGroupStages && first + stage < iterations; ++stage) {
+        int it = first + stage;
+        cp_async_wait<kActivationSlots - 2>();
+        ComputeSync();
+        auto* current = activation + (it % kActivationSlots) * TileM * TileK;
+        for (int element = ComputeThread(); element < TileM * TileK; element += kComputeThreads) {
+          int row = element / TileK, column = element % TileK;
+          int global_column = p.k_begin + it * TileK + column;
+          if (tile_m * TileM + row < p.m && global_column < p.k_begin + p.k_count)
+            current[LayoutA{}(row, column)] = ServingRMSNormTaskBody::Transform(
+                float(current[LayoutA{}(row, column)]), inverse[row], float(weight[global_column]));
+        }
+        ComputeSync();
+        auto sA = make_tensor(make_smem_ptr(current), LayoutA{});
+        auto sB = make_tensor(make_smem_ptr(reinterpret_cast<Element*>(
+            ring.Page(sequence) + stage * kBBytes)), LayoutB{});
+        auto rA = thread.partition_fragment_A(sA);
+        auto rB = thread.partition_fragment_B(sB);
+        auto src_a = copy_a.get_slice(ComputeThread()).partition_S(sA);
+        auto src_b = copy_b.get_slice(ComputeThread()).partition_S(sB);
+        auto dst_a = copy_a.get_slice(ComputeThread()).retile_D(rA);
+        auto dst_b = copy_b.get_slice(ComputeThread()).retile_D(rB);
+        int ahead = it + kActivationSlots - 1;
+        if (ahead < iterations)
+          LoadActivation(source, tile_m, ahead, activation + (ahead % kActivationSlots) * TileM * TileK);
+        else cp_async_fence();
+        #pragma unroll
+        for (int k = 0; k < size<2>(rA); ++k) {
+          copy(typename Config::SmemCopyAtom{}, src_a(_, _, k), dst_a(_, _, k));
+          copy(typename Config::SmemCopyAtomB{}, src_b(_, _, k), dst_b(_, _, k));
+          gemm(mma, rA(_, _, k), rB(_, _, k), accum);
+        }
+      }
+      for (int page = 0; page < kGroupPages; ++page) ring.Release(sequence + page);
+      sequence += kGroupPages;
+    }
+    auto finish = [&](auto op) {
+      backend::ServingEpilogue<decltype(op)::value, TileM, TileN>::Run(
+          accum, mma, workspace, tile_m, tile_n, p.m, p.n, p.output_stride,
+          p.partial_stride, p.output, p.residual, p.partial, p.argmax_value,
+          p.argmax_index, p.norm_ss, p.ss_out, p.norm_k, p.norm_eps);
+    };
+    switch (p.epilogue) {
+      case backend::ServingEpilogueOp::kStore: finish(std::integral_constant<backend::ServingEpilogueOp, backend::ServingEpilogueOp::kStore>{}); break;
+      case backend::ServingEpilogueOp::kResidual: finish(std::integral_constant<backend::ServingEpilogueOp, backend::ServingEpilogueOp::kResidual>{}); break;
+      case backend::ServingEpilogueOp::kSwiGLU: finish(std::integral_constant<backend::ServingEpilogueOp, backend::ServingEpilogueOp::kSwiGLU>{}); break;
+      case backend::ServingEpilogueOp::kArgmaxPartial: finish(std::integral_constant<backend::ServingEpilogueOp, backend::ServingEpilogueOp::kArgmaxPartial>{}); break;
+      case backend::ServingEpilogueOp::kPartial: finish(std::integral_constant<backend::ServingEpilogueOp, backend::ServingEpilogueOp::kPartial>{}); break;
     }
   }
 };

@@ -5,7 +5,11 @@
 #include <cstring>
 using namespace tilemega::codegen;
 using E=cutlass::bfloat16_t;
-using Body=PagedGemmTaskBody<tilemega::arch::Sm80,16,64,64,8192,3>;
+#ifndef TILEMEGA_ARCH_ID
+#define TILEMEGA_ARCH_ID 800
+#endif
+using TestArch=typename tilemega::arch::ArchFromId<TILEMEGA_ARCH_ID>::type;
+using Body=PagedGemmTaskBody<TestArch,16,64,64,8192,3>;
 __global__ void Norm(E const* input,E const* weight,E* output,int rows,int width) {
   __shared__ float scratch[4];
   ServingRMSNormTaskBody::RunRow(input,weight,output,blockIdx.x,1,0,width,1e-6f,scratch);
@@ -13,12 +17,13 @@ __global__ void Norm(E const* input,E const* weight,E* output,int rows,int width
 template<bool Fused>
 __global__ void Gemm(ServingGemmOperands p,E const* input,E const* weight) {
   extern __shared__ __align__(1024) char storage[];
-  constexpr int work=1024,pool=work+Body::kScratchBytes;
+  constexpr int work=1024,pool=((work+Body::kNormalizedWorkspaceBytes+1023)/1024)*1024;
   typename Body::Ring ring{reinterpret_cast<typename Body::Ring::Slot*>(storage),storage+pool};
   ring.Initialize();std::uint64_t sequence=0;
   for(int m=0;m<(p.m+15)/16;++m)for(int n=0;n<(p.n+63)/64;++n) {
     if(!executor::IsCompute())Body::Load(p,n,ring,sequence);
-    else Body::Run(p,m,n,ring,sequence,storage+work,Fused?input:nullptr,Fused?weight:nullptr,1e-6f);
+    else if constexpr(Fused)Body::RunNormalized(p,m,n,ring,sequence,storage+work,input,weight,1e-6f);
+    else Body::Run(p,m,n,ring,sequence,storage+work);
   }
 }
 void Check(cudaError_t e){if(e!=cudaSuccess){std::fprintf(stderr,"%s\n",cudaGetErrorString(e));std::exit(2);}}
@@ -33,7 +38,7 @@ int main(){
     for(int i=0;i<columns*width;++i)b[i]=E(float(i*17%67-33)/64);
     Norm<<<rows,128>>>(input,weight,normalized,rows,width);
     ServingGemmOperands p;p.a=normalized;p.b=b;p.output=ref;p.m=rows;p.n=columns;p.k_total=p.k_count=width;p.output_stride=columns;
-    constexpr int bytes=1024+Body::kScratchBytes+3*8192;
+    constexpr int bytes=((1024+Body::kNormalizedWorkspaceBytes+1023)/1024)*1024+3*8192;
     Gemm<false><<<1,160,bytes>>>(p,input,weight);p.output=out;
     Gemm<true><<<1,160,bytes>>>(p,input,weight);Check(cudaDeviceSynchronize());
     if(std::memcmp(out,ref,rows*columns*2)){std::fprintf(stderr,"norm prologue mismatch M=%d K=%d N=%d\n",rows,width,columns);return 3;}
