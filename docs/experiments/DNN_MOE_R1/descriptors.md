@@ -1,8 +1,10 @@
 # CI-2 descriptor contract
 
 verified: `dm_descriptor`, `dm_descriptor_device`, `frontend_import` and
-`cg_attr_roundtrip` pass (4/4); `check-policy` passes. Five-target compilation
-and baseline ABI comparison are queued; results are not yet claimed.
+`cg_attr_roundtrip` pass (4/4); `check-policy` passes. Descriptor probes compile
+for sm_80/89/90/100/120, and the sm_89 executable passes its 20 field checks.
+All seven legacy runtime structure sizes equal the unchanged reference
+(`results/CI2_descriptor_abi.json`). This is not complete G-REG evidence.
 
 Implemented: shared host/device POD definitions, optional plan fields,
 validated CG serialization, CUDA aggregate emission, finite epilogue kind

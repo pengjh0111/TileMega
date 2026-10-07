@@ -1,0 +1,107 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "legacy_layout": {
+    "ModelDims": 20,
+    "GemmDesc": 44,
+    "BufferDesc": 72,
+    "StageDesc": 116,
+    "ModelSpec": 120,
+    "GemmInvocation": 280,
+    "ServingGemmOperands": 160
+  },
+  "architectures": [
+    80,
+    89,
+    90,
+    100,
+    120
+  ],
+  "execution_architecture": 89,
+  "device_output": "DM descriptor host/device interpretation: 20 checks passed",
+  "builds": [
+    {
+      "name": "reference-legacy",
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "--expt-relaxed-constexpr",
+        "-Xptxas=-v",
+        "-I/root/dm1_work/reference/include",
+        "-I/root/dm1_work/reference/third_party/cutlass/include",
+        "-I/root/dm1_work/reference/third_party/cutlass/tools/util/include",
+        "-gencode",
+        "arch=compute_89,code=sm_89",
+        "/root/dm1_work/development/test/unit/dm_descriptor_device_test.cu",
+        "-o",
+        "/root/dm1_work/development/runs/dm1-ci2-descriptors/abi/reference-legacy"
+      ],
+      "architectures": [
+        89
+      ],
+      "source_sha256": "1fb819ffbafa1c44e38dc0dc70d36a171eb66ecb0e061873e5f7ed7ef921c1ca",
+      "binary_sha256": "df02a0a81bcf005a51ddc7453cfaf526044192b372d9282f0bbe63d37f5eb06f"
+    },
+    {
+      "name": "candidate-legacy",
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "--expt-relaxed-constexpr",
+        "-Xptxas=-v",
+        "-I/root/dm1_work/development/include",
+        "-I/root/dm1_work/development/third_party/cutlass/include",
+        "-I/root/dm1_work/development/third_party/cutlass/tools/util/include",
+        "-gencode",
+        "arch=compute_89,code=sm_89",
+        "/root/dm1_work/development/test/unit/dm_descriptor_device_test.cu",
+        "-o",
+        "/root/dm1_work/development/runs/dm1-ci2-descriptors/abi/candidate-legacy"
+      ],
+      "architectures": [
+        89
+      ],
+      "source_sha256": "1fb819ffbafa1c44e38dc0dc70d36a171eb66ecb0e061873e5f7ed7ef921c1ca",
+      "binary_sha256": "eaace01e25aedd50a3efb8c78ec74e302ed41667bc7fd9ecf30e98733c69ac92"
+    },
+    {
+      "name": "candidate-dm",
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "--expt-relaxed-constexpr",
+        "-Xptxas=-v",
+        "-I/root/dm1_work/development/include",
+        "-I/root/dm1_work/development/third_party/cutlass/include",
+        "-I/root/dm1_work/development/third_party/cutlass/tools/util/include",
+        "-DTILEMEGA_DM_SUPPORT=1",
+        "-gencode",
+        "arch=compute_80,code=sm_80",
+        "-gencode",
+        "arch=compute_89,code=sm_89",
+        "-gencode",
+        "arch=compute_90,code=sm_90",
+        "-gencode",
+        "arch=compute_100,code=sm_100",
+        "-gencode",
+        "arch=compute_120,code=sm_120",
+        "/root/dm1_work/development/test/unit/dm_descriptor_device_test.cu",
+        "-o",
+        "/root/dm1_work/development/runs/dm1-ci2-descriptors/abi/candidate-dm"
+      ],
+      "architectures": [
+        80,
+        89,
+        90,
+        100,
+        120
+      ],
+      "source_sha256": "1fb819ffbafa1c44e38dc0dc70d36a171eb66ecb0e061873e5f7ed7ef921c1ca",
+      "binary_sha256": "5afae151817965e3724f3a9245780394ab59c473270f4442a5266e72d9a62a36"
+    }
+  ],
+  "scope": "descriptor ABI and field interpretation; no TaskBody or synchronization claim"
+}
