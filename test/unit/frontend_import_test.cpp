@@ -5,6 +5,7 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Frontend/SymbolicShapeBridge.h>
 #include <tilemega/Frontend/DmDescriptorCodec.h>
+#include <tilemega/Solver/ModelDescription.h>
 
 #include <mlir/IR/MLIRContext.h>
 
@@ -173,10 +174,19 @@ int TestFrontendImport(int argc, char** argv) {
     mlir::OwningOpRef<mlir::ModuleOp> dm_module(module->clone());
     dm_module->getOperation()->setAttr("tilemega.model_plan",dm_attr);
     auto emitted=CouplingGraphToCUDA{}.Lower(*dm_module);
+    auto description=tilemega::solver::ModelDescription::FromCouplingGraph(
+        *dm_module,{1,0,1},"descriptor-codegen-fixture");
+    assert(description.dm && description.convolutions.size()==1);
+    assert(description.gemm_access[0].a_row_stride==128);
+    assert(description.epilogue_chains[0].count==3);
+    assert(description.stages.front().rows_per_batch==128);
     assert(emitted.find("#define TILEMEGA_DM_SUPPORT 1\n")!=std::string::npos);
     assert(emitted.find("constexpr ConvDesc kConvolutions[]")!=std::string::npos);
     assert(emitted.find("using DmChain0 = DmEpilogueKinds<")!=std::string::npos);
     assert(emitted.find("kConvolutions, 1u}")!=std::string::npos);
+    if(argc==3 && std::string(argv[1])=="--emit-dm") {
+      std::ofstream output(argv[2]); output<<emitted; assert(output.good());
+    }
     plan.gemms.front().access.a_scale=plan.buffers.size();
     bool rejected=false;
     try {(void)EncodeModelPlan(builder,plan,{});} catch(std::invalid_argument const&) {rejected=true;}

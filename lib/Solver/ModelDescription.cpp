@@ -4,6 +4,7 @@
 #include <tilemega/Solver/TaskModel.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/SemanticCodec.h>
+#include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <mlir/IR/Verifier.h>
 
@@ -187,6 +188,9 @@ ModelDescription ModelDescription::ReadCouplingGraph(
     return value;
   };
   ModelDescription model;
+  if(auto dm=plan.getAs<mlir::BoolAttr>("dm"))model.dm=dm.getValue();
+  if(model.dm)
+    for(auto conv:array("dm_convolutions"))model.convolutions.push_back(frontend::DecodeDmConv(conv));
   model.fusion_phase_context = phase_context;
   model.serving = module->hasAttr("tilemega.serving");
   if (auto info = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving"))
@@ -216,6 +220,12 @@ ModelDescription ModelDescription::ReadCouplingGraph(
     throw std::invalid_argument("unsupported CG model dtype");
   model.dtype = dtype.getValue() == "bf16" ? ScalarType::kBF16 : ScalarType::kF32;
   auto buffers=array("buffers");
+  if(model.dm)
+    for(auto buffer:buffers) {
+      auto entry=llvm::dyn_cast<mlir::DictionaryAttr>(buffer);
+      if(!entry)throw std::invalid_argument("malformed DM buffer entry");
+      model.buffer_layouts.push_back(frontend::DecodeDmLayout(entry.get("dm_layout")));
+    }
   for (auto output:array("outputs")) {
     auto entry=llvm::dyn_cast<mlir::DictionaryAttr>(output);
     if (!entry) throw std::invalid_argument("malformed CG output entry");
@@ -232,6 +242,10 @@ ModelDescription ModelDescription::ReadCouplingGraph(
     if (!dict) throw std::invalid_argument("malformed CG GEMM plan");
     model.gemms.push_back({integer(dict, "n"), integer(dict, "k"),
                            integer(dict, "a"), integer(dict, "d")});
+    if(model.dm) {
+      model.gemm_access.push_back(frontend::DecodeDmAccess(dict.get("dm_access")));
+      model.epilogue_chains.push_back(frontend::DecodeDmChain(dict.get("dm_chain")));
+    }
   }
   for (auto item : array("stages")) {
     auto dict = llvm::dyn_cast<mlir::DictionaryAttr>(item);
@@ -251,6 +265,15 @@ ModelDescription ModelDescription::ReadCouplingGraph(
       stage.attention_kv_block = block.getInt();
     if (auto rows = dict.getAs<mlir::IntegerAttr>("attention_query_rows"))
       stage.attention_query_rows = rows.getInt();
+    if(model.dm) {
+      auto conv=dict.getAs<mlir::IntegerAttr>("dm_conv");
+      auto rows=dict.getAs<mlir::IntegerAttr>("dm_rows_per_batch");
+      if(!conv || !rows || conv.getInt()<0 || rows.getInt()<0 ||
+         conv.getInt()>std::numeric_limits<std::uint32_t>::max() ||
+         rows.getInt()>std::numeric_limits<std::uint32_t>::max())
+        throw std::invalid_argument("invalid DM stage geometry");
+      stage.dm_conv=conv.getInt(); stage.rows_per_batch=rows.getInt();
+    }
     for (auto operand : operands.asArrayRef())
       if (operand != std::numeric_limits<std::uint32_t>::max())
         stage.operands.push_back(static_cast<int>(operand));

@@ -40,6 +40,10 @@ __global__ void Inspect(Payload const* p,std::uint64_t* out) {
   out[17]=unsigned(OwnershipOf(p->stage.kind));
   out[18]=unsigned(p->buffer.layout.fill);
   out[19]=p->gemm.access.write.factor;
+  out[20]=p->invocation.dm_buffers.count;
+  out[21]=p->operands.dm_buffers.dtypes[0];
+  out[22]=p->operands.dm_buffers.layouts[0].logical[3];
+  out[23]=static_cast<std::uint64_t>(*static_cast<float const*>(p->operands.dm_buffers.data[0])*10);
 }
 #endif
 
@@ -66,21 +70,31 @@ int main(int argc,char** argv) {
   p.stage.kind=TaskKind::kEncoderAttention; p.stage.conv=9; p.stage.rows_per_batch=128;
   p.model.convolution_count=48; p.invocation.access.rows_per_batch=4096;
   p.operands.chain.operations[0].parameter[0]=91;
+  float* value; void** addresses; std::uint32_t* dtypes; DmBufferLayout* layouts;
+  Check(cudaMalloc(&value,sizeof(float))); Check(cudaMalloc(&addresses,sizeof(void*)));
+  Check(cudaMalloc(&dtypes,sizeof(std::uint32_t))); Check(cudaMalloc(&layouts,sizeof(DmBufferLayout)));
+  float host_value=12.5f; void* host_address=value; std::uint32_t host_dtype=1;
+  Check(cudaMemcpy(value,&host_value,sizeof(host_value),cudaMemcpyHostToDevice));
+  Check(cudaMemcpy(addresses,&host_address,sizeof(host_address),cudaMemcpyHostToDevice));
+  Check(cudaMemcpy(dtypes,&host_dtype,sizeof(host_dtype),cudaMemcpyHostToDevice));
+  Check(cudaMemcpy(layouts,&p.buffer.layout,sizeof(p.buffer.layout),cudaMemcpyHostToDevice));
+  p.invocation.dm_buffers=p.operands.dm_buffers={addresses,layouts,dtypes,1};
   std::uint64_t expected[]={sizeof(Payload),sizeof(GemmDesc),sizeof(BufferDesc),
       offsetof(GemmDesc,access),offsetof(BufferDesc,layout),112,222784,391,
-      (std::uint64_t(1)<<33)*127,35,3,73,9,128,48,4096,91,0,1,2};
-  Payload* device; std::uint64_t* output; std::uint64_t actual[20]{};
+      (std::uint64_t(1)<<33)*127,35,3,73,9,128,48,4096,91,0,1,2,1,1,3,125};
+  Payload* device; std::uint64_t* output; std::uint64_t actual[24]{};
   Check(cudaMalloc(&device,sizeof(p))); Check(cudaMalloc(&output,sizeof(actual)));
   Check(cudaMemcpy(device,&p,sizeof(p),cudaMemcpyHostToDevice));
   Inspect<<<1,32>>>(device,output); Check(cudaGetLastError());
   Check(cudaMemcpy(actual,output,sizeof(actual),cudaMemcpyDeviceToHost));
   Check(cudaFree(device)); Check(cudaFree(output));
-  for(unsigned i=0;i<20;++i)if(actual[i]!=expected[i]) {
+  Check(cudaFree(value)); Check(cudaFree(addresses)); Check(cudaFree(dtypes)); Check(cudaFree(layouts));
+  for(unsigned i=0;i<24;++i)if(actual[i]!=expected[i]) {
     std::fprintf(stderr,"descriptor[%u]: %llu != %llu\n",i,
         static_cast<unsigned long long>(actual[i]),static_cast<unsigned long long>(expected[i]));
     return 3;
   }
-  std::puts("DM descriptor host/device interpretation: 20 checks passed"); return 0;
+  std::puts("DM descriptor host/device interpretation: 24 checks passed"); return 0;
 #else
   std::fputs("use --layout for a legacy ABI probe\n",stderr);return 2;
 #endif

@@ -19,6 +19,7 @@
 #include <set>
 #include <tilemega/Codegen/RuntimePlan.h>
 #include <optional>
+#include <tilemega/Codegen/DmDescriptors.h>
 
 #include <string>
 #include <vector>
@@ -117,6 +118,7 @@ struct ModelStage {
   bool batch_rows = false;
   int attention_kv_block = 0;
   int attention_query_rows = 0;
+  std::uint32_t dm_conv = codegen::kDmNoIndex, rows_per_batch = 0;
 
   /// How many contiguous elements of a read buffer one task of this stage
   /// covers.  This is the `Tr` of §P4.3's wait inflation, and it is read off
@@ -158,6 +160,11 @@ struct ModelDescription {
   bool combiner_tile_ownership = false;
   bool serving = false;
   int serving_capacity = 0;
+  bool dm = false;
+  std::vector<codegen::ConvDesc> convolutions;
+  std::vector<codegen::DmGemmAccess> gemm_access;
+  std::vector<codegen::DmEpilogueChain> epilogue_chains;
+  std::vector<codegen::DmBufferLayout> buffer_layouts;
 
   /// Parse the `kGemms` and `kStages` tables out of a generated .cu.  Throws
   /// std::runtime_error when either table is missing or malformed -- a silent

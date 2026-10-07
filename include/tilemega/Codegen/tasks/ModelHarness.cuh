@@ -1872,6 +1872,12 @@ struct DeviceModel {
   std::vector<std::vector<ModelElement>> host_sources;
   ModelElement** device_buffers = nullptr;
   GemmInvocation* device_gemms = nullptr;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  ConvDesc* device_dm_convolutions = nullptr;
+  DmBufferLayout* device_dm_layouts = nullptr;
+  std::uint32_t* device_dm_dtypes = nullptr;
+  void** device_dm_buffers = nullptr;
+#endif
   StageDesc* device_stages = nullptr;
   StageDependency* device_dependencies = nullptr;
   std::uint32_t* device_dependency_offsets = nullptr;
@@ -2096,6 +2102,14 @@ inline DeviceModel Create(ModelSpec const& spec,
           spec.stages[s].gemm == i && spec.stages[s].batch_rows)
         m = dims.batch;
 #endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(desc.access.rows_per_batch) {
+      auto rows=std::uint64_t(dims.batch)*desc.access.rows_per_batch;
+      if(dims.batch<=0 || rows>std::uint64_t(std::numeric_limits<int>::max()))
+        throw std::invalid_argument("DM GEMM row count exceeds runtime range");
+      m=static_cast<int>(rows);
+    }
+#endif
     GemmRuntimeDesc const& runtime = runtime_variant.gemms[i];
     int variant = runtime.compiled_variant;
     if (variant < 0 || variant >= kGemmVariantCount) {
@@ -2143,6 +2157,18 @@ inline DeviceModel Create(ModelSpec const& spec,
       // stride is still the full k, so only the base pointer moves.
       auto stride_a = cutlass::make_cute_packed_stride(
           typename GemmMainloop::StrideA{}, cute::make_shape(m, desc.k, 1));
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if(desc.access.a==DmAAccess::kDense) {
+        auto pitch=std::uint64_t(desc.k)*std::max(1u,desc.access.a_row_stride);
+        if(pitch>std::uint64_t(std::numeric_limits<int>::max()))
+          throw std::invalid_argument("DM GEMM dense row pitch exceeds runtime range");
+        auto last_row=std::uint64_t(desc.access.a_row_offset)+
+            std::uint64_t(m-1)*std::max(1u,desc.access.a_row_stride);
+        if(desc.k<=0 || m<=0 || last_row>=spec.buffers[desc.a].Elements(dims)/desc.k)
+          throw std::invalid_argument("DM GEMM dense row map exceeds A storage");
+        cute::get<0>(stride_a)=static_cast<std::int64_t>(pitch);
+      }
+#endif
       auto stride_b = cutlass::make_cute_packed_stride(
           typename GemmMainloop::StrideB{}, cute::make_shape(desc.n, desc.k, 1));
       auto stride_c = cutlass::make_cute_packed_stride(
@@ -2152,6 +2178,10 @@ inline DeviceModel Create(ModelSpec const& spec,
       GemmMainloopOperands main_args{
           model.buffers[desc.a] + k_begin, stride_a,
           model.buffers[desc.b] + k_begin, stride_b};
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if(desc.access.a==DmAAccess::kDense)
+        main_args.ptr_A+=std::uint64_t(desc.access.a_row_offset)*desc.k;
+#endif
       // Only the first chunk applies beta*C; the combiner adds no residual, so
       // the split result differs from the unsplit one only by association.
 #if TILEMEGA_FP32_PARTIALS && TILEMEGA_MODEL_BF16
@@ -2187,6 +2217,13 @@ inline DeviceModel Create(ModelSpec const& spec,
       invocation.chunks = chunks;
       invocation.variant = variant;
       invocation.k_total = desc.k;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      invocation.access=desc.access; invocation.chain=desc.chain;
+      invocation.binding=desc.access.binding==kDmNoIndex ? nullptr : model.buffers.at(desc.access.binding);
+      invocation.rows=desc.access.rows==kDmNoIndex ? nullptr : model.buffers.at(desc.access.rows);
+      invocation.a_scale=desc.access.a_scale==kDmNoIndex ? nullptr :
+          reinterpret_cast<float const*>(model.buffers.at(desc.access.a_scale));
+#endif
 #if TILEMEGA_SERVING_RUNTIME
       if (desc.serving_epilogue > 3)
         throw std::invalid_argument("unknown serving GEMM epilogue");
@@ -3112,6 +3149,26 @@ inline DeviceModel Create(ModelSpec const& spec,
   };
   model.device_buffers = static_cast<ModelElement**>(
       upload(model.buffers.data(), model.buffers.size() * sizeof(ModelElement*)));
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if(spec.convolution_count)
+    model.device_dm_convolutions=static_cast<ConvDesc*>(upload(spec.convolutions,
+        spec.convolution_count*sizeof(ConvDesc)));
+  std::vector<void*> dm_buffers;
+  std::vector<DmBufferLayout> dm_layouts;
+  std::vector<std::uint32_t> dm_dtypes;
+  for(unsigned i=0;i<spec.buffer_count;++i) {
+    dm_buffers.push_back(model.buffers[i]); dm_layouts.push_back(spec.buffers[i].layout);
+    dm_dtypes.push_back(spec.buffers[i].dtype);
+  }
+  model.device_dm_buffers=static_cast<void**>(upload(dm_buffers.data(),dm_buffers.size()*sizeof(void*)));
+  model.device_dm_layouts=static_cast<DmBufferLayout*>(upload(dm_layouts.data(),dm_layouts.size()*sizeof(DmBufferLayout)));
+  model.device_dm_dtypes=static_cast<std::uint32_t*>(upload(dm_dtypes.data(),dm_dtypes.size()*sizeof(std::uint32_t)));
+  for(auto& invocation:gemms) {
+    invocation.convolutions=model.device_dm_convolutions;
+    invocation.dm_buffers={model.device_dm_buffers,model.device_dm_layouts,
+                           model.device_dm_dtypes,spec.buffer_count};
+  }
+#endif
 #if TILEMEGA_PREFETCH_RUNTIME
   std::vector<std::uint8_t> frontier(spec.buffer_count);
   for (std::uint32_t i = 0; i < spec.buffer_count; ++i)

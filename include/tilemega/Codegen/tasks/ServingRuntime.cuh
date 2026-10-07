@@ -186,6 +186,12 @@ inline void Destroy(Plan* plan) {
   if (plan->lag_dependencies) cudaFree(plan->lag_dependencies);
   if (plan->watchdog) cudaFreeHost(plan->watchdog);
   auto& model = plan->model;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if(model.device_dm_convolutions)cudaFree(model.device_dm_convolutions);
+  if(model.device_dm_layouts)cudaFree(model.device_dm_layouts);
+  if(model.device_dm_dtypes)cudaFree(model.device_dm_dtypes);
+  if(model.device_dm_buffers)cudaFree(model.device_dm_buffers);
+#endif
   if(model.params.serving_handoff_tickets)cudaFree(model.params.serving_handoff_tickets);
   if(model.params.serving_no_producer)cudaFree(const_cast<std::uint8_t*>(model.params.serving_no_producer));
 #if TILEMEGA_TRACE_V2
@@ -581,6 +587,21 @@ extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
         name=plan->model.spec->buffers[inv.serving_weight_buffer].name;
     }
     char const* kind_name="unknown";switch(stage.kind) {case TaskKind::kGemm:kind_name="kGemm";break;case TaskKind::kRMSNorm:kind_name="kRMSNorm";break;case TaskKind::kRoPE:kind_name="kRoPE";break;case TaskKind::kKVAppend:kind_name="kKVAppend";break;case TaskKind::kElementwise:kind_name="kElementwise";break;case TaskKind::kAttention:kind_name="kAttention";break;case TaskKind::kGemmCombine:kind_name="kGemmCombine";break;case TaskKind::kGemmAdd:kind_name="kGemmAdd";break;case TaskKind::kGemmRMSNorm:kind_name="kGemmRMSNorm";break;case TaskKind::kRoPEKVAppend:kind_name="kRoPEKVAppend";break;case TaskKind::kAdd:kind_name="kAdd";break;case TaskKind::kEmbedding:kind_name="kEmbedding";break;case TaskKind::kQKNorm:kind_name="kQKNorm";break;case TaskKind::kFusedAttention:kind_name="kFusedAttention";break;case TaskKind::kAttentionMerge:kind_name="kAttentionMerge";break;case TaskKind::kArgmaxReduce:kind_name="kArgmaxReduce";break;}
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    switch(stage.kind) {
+      case TaskKind::kDepthwiseConv:kind_name="kDepthwiseConv";break;
+      case TaskKind::kPool:kind_name="kPool";break;
+      case TaskKind::kGlobalPoolReduce:kind_name="kGlobalPoolReduce";break;
+      case TaskKind::kLayerNorm:kind_name="kLayerNorm";break;
+      case TaskKind::kEncoderAttention:kind_name="kEncoderAttention";break;
+      case TaskKind::kEmbeddingSum:kind_name="kEmbeddingSum";break;
+      case TaskKind::kDwPwFused:kind_name="kDwPwFused";break;
+      case TaskKind::kMoETopK:kind_name="kMoETopK";break;
+      case TaskKind::kMoECombine:kind_name="kMoECombine";break;
+      case TaskKind::kLayoutConvert:kind_name="kLayoutConvert";break;
+      default:break;
+    }
+#endif
     std::fprintf(out,"%u\t%u\t%s\t%s\t%llu\t%u\t%u\t%u\t%u\t%u\t%u\n",i,
         unsigned(stage.kind),kind_name,name,bytes,stage.extent,stage.group,stage.width,
         unsigned(stage.attention_kv_block),unsigned(stage.handoff_elided),

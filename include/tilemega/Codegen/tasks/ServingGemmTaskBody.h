@@ -57,6 +57,7 @@ struct ServingGemmOperands {
   void const* binding = nullptr;
   void const* rows = nullptr;
   float const* a_scale = nullptr;
+  DmBufferView dm_buffers{};
 #endif
 };
 

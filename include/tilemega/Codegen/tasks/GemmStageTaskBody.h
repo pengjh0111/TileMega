@@ -480,6 +480,7 @@ struct GemmInvocation {
   void const* binding = nullptr;
   void const* rows = nullptr;
   float const* a_scale = nullptr;
+  DmBufferView dm_buffers{};
 #endif
 };
 
@@ -590,6 +591,14 @@ struct GemmStageTaskBody {
     operands.ss_out=invocation.serving_ss_out;
     operands.norm_k=invocation.k_total;
     operands.norm_eps=TILEMEGA_NORM_EPSILON;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    operands.access=invocation.access;
+    operands.chain=invocation.chain;
+    operands.convolutions=invocation.convolutions;
+    operands.binding=invocation.binding; operands.rows=invocation.rows;
+    operands.a_scale=invocation.a_scale; operands.dm_buffers=invocation.dm_buffers;
+    operands.a_row_stride=static_cast<int>(cute::get<0>(invocation.mainloop.dA));
+#endif
     Body::Run(operands, local / invocation.tiles_n,
               local % invocation.tiles_n, shared);
     return;

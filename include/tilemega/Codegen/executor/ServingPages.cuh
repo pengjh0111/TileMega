@@ -142,6 +142,12 @@ __device__ inline ServingGemmOperands Operands(GemmInvocation const& inv) {
   p.norm_ss=inv.serving_norm_ss;p.ss_out=inv.serving_ss_out;
   p.norm_k=inv.k_total;p.norm_eps=TILEMEGA_NORM_EPSILON;
   p.epilogue=inv.chunks>1?backend::ServingEpilogueOp::kPartial:inv.serving_op;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  p.access=inv.access; p.chain=inv.chain; p.convolutions=inv.convolutions;
+  p.binding=inv.binding; p.rows=inv.rows; p.a_scale=inv.a_scale;
+  p.dm_buffers=inv.dm_buffers;
+  p.a_row_stride=static_cast<int>(cute::get<0>(inv.mainloop.dA));
+#endif
   return p;
 }
 struct PhaseGate {

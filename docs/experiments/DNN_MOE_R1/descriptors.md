@@ -13,8 +13,15 @@ Runtime operand structures carry the descriptors only under
 `TILEMEGA_DM_SUPPORT=1`, emitted exclusively for DM plans. Old plan attributes
 and generated CUDA omit these fields and the macro.
 
-CI-2 remains open: invocation construction, epilogue execution and its finite
-template dispatch still need implementation. No DNN/MoE body executes yet.
+Invocation metadata now carries geometry, binding/row/scale sources and a
+device buffer view; runtime construction binds dense row counts and row
+mapping, checks A storage bounds, and owns/releases the uploaded descriptor
+tables. The solver CG reader retains the same descriptors. verified: updated
+four-test suite passes, and a generated DM CUDA source compiles with the
+complete runtime on sm_89. This is compile evidence, not execution of a model.
+
+CI-2 remains open: epilogue execution and its finite template dispatch still
+need implementation. No DNN/MoE body executes yet.
 Arithmetic declarations describe the semantic work, and their implementation
 flags remain false until the corresponding numerical body gate passes.
 

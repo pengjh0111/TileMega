@@ -93,6 +93,13 @@ struct DmEpilogueChain {
   DmRounding store_rounding = DmRounding::kBF16;
 };
 
+struct DmBufferView {
+  void* const* data = nullptr;
+  DmBufferLayout const* layouts = nullptr;
+  std::uint32_t const* dtypes = nullptr;
+  std::uint32_t count = 0;
+};
+
 // Kind packs give codegen a finite compile-time dispatch surface. Numerical
 // bodies specialize these packs rather than branch on kind per element.
 template <DmEpilogueKind... Kinds>
