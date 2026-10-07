@@ -1,6 +1,6 @@
 # DM-1 working report
 
-Status: **incomplete, Phase 0**. This file is an evidence ledger, not a claim
+Status: **incomplete, Phase 1 starting**. This file is an evidence ledger, not a claim
 that DNN or MoE execution is implemented.
 
 ## Provenance
@@ -24,7 +24,7 @@ that DNN or MoE execution is implemented.
 |---|---|
 | Phase 0 framework | verified: copied R13 scripts, 12 framework/selection/identity/recipe tests pass |
 | Preregistration | verified: §3 retained verbatim in predictions; solver winners sealed before control-arm audit |
-| Reference bank | in progress: fixed R13D geometry, separate reference/candidate builds and source identities |
+| Reference bank | verified: eight baseline plans and 64-step smokes sealed in `results/reference_bank.json`; candidate comparison in progress |
 | DN-1 inventories | verified: five upstream models and masked BERT exported, before/Core fixtures committed |
 | DN-1 NAFNet source | verified: unchanged architecture/dependencies match upstream file SHA256; license preserved |
 | DN-1 weights/data | preparation only: NAFNet/ResNet18/MobileNetV2 strictly load; SIDD CRC passes; BERT/MobileNetV1 safetensors identities recorded |
@@ -39,6 +39,11 @@ T1: `results/T1_phase0.json` records a verified failure in both toolchains:
 `PagedGemmTaskBody::Run` overload. This is reproduced in the unchanged
 reference. Full native test build and ctest therefore cannot pass. A separate
 production-plan sealing queue does not count as passing G-REG.
+verified: Phase 0 reference bank is sealed with SHA256
+`0d7c170870af4c677daf14afdc9d7e6606f1192d014124fe9ab9f4853ce0641a`.
+All eight reference artifact identities require the actual baseline HEAD and
+an empty worktree diff. This completes reference preparation; it does not
+resolve the native ctest failure.
 verified: donor manifests name paged reduction handoffs `last_arriver`,
 whereas baseline CLI requires policy `off` and unconditionally lowers those
 reductions to last-arriver. Invalid direct-name and `auto` attempts failed
@@ -107,7 +112,8 @@ reported.
 Q1: verified only for upstream exportability; TileMega execution is pending.
 Q2–Q7: unverified. Predictions are inferred and remain preregistered.
 
-Finish and commit the reference bank before Phase 1. Implement CI-1 through
+The reference bank, model inventories and preregistration are committed before
+Phase 1. Implement CI-1 through
 CI-7 in order with unit tests; resolve the native test build failure while
 preserving its original numerical assertion. No Phase 4 timing is authorized
 by an incomplete correctness gate.
