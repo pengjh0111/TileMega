@@ -84,6 +84,11 @@ reported.
   still pass the byte/SASS/token comparison.
 - verified: the stale baseline test failure is retained as a failure, not
   disabled or reinterpreted as success. Its disposition remains outstanding.
+- verified: the copied CPU guard test can lose `/proc/<pid>/stat` between
+  existence/open/read as an already terminated worker disappears. The test
+  now accepts the same absent-process condition during either syscall; its
+  pidfd exit assertion and zombie-state assertion are unchanged. Guard and
+  scheduler policy implementations are unchanged.
 
 ## Q1–Q7 and next work
 

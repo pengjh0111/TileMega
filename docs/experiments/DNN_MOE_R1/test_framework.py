@@ -32,7 +32,9 @@ class GuardTests(unittest.TestCase):
             self.assertTrue(select.select([pidfd],[],[],2)[0],"worker did not exit")
             # A killed orphan may briefly remain as a zombie; it owns no GPU.
             stat=__import__('pathlib').Path('/proc',str(child),'stat')
-            if stat.exists():self.assertEqual(stat.read_text().rsplit(')',1)[1].split()[0],'Z')
+            try:state=stat.read_text().rsplit(')',1)[1].split()[0]
+            except (FileNotFoundError,ProcessLookupError):state=None
+            if state is not None:self.assertEqual(state,'Z')
             self.assertIsNotNone(p.poll())
         finally:
             try:os.kill(child,signal.SIGKILL)
