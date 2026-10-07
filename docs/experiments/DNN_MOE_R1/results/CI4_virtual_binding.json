@@ -1,0 +1,31 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "source": {
+    "source_head": "5120d19c983dc6eea58f2d765816c71e7c4a906a",
+    "files": {
+      "CMakeLists.txt": "05c1686476e1c09d42a9fc08505e4303c204b9e356778c474a135bcc75ef2ae9",
+      "include/tilemega/Analysis/Semantics.h": "eb8c8976701c608bc2af69934c0d9dadc74ec3969488cde2a438f7de4d736978",
+      "include/tilemega/Analysis/TensorSpace.h": "882a07bd24a468b66ed5c15b4e75c1094be89f9379bc259a22b146a129af0359",
+      "lib/Analysis/CouplingDerivation.cpp": "7aec59e074a49403e34580b82442fca4fe97c0f96ee326438308a03988f3d1e3",
+      "lib/Analysis/ExactTaskWork.cpp": "fc1e4b650a8786dc66eefa876960b71b871a7b40c2939dfaa0f9a41b7c7a8ee4",
+      "lib/Analysis/SemanticCodec.cpp": "6f5b5ea104008dc68e0c602bc16afd400c3fb326811129c2d590f76c74b3747f",
+      "lib/Analysis/Semantics.cpp": "5c18b1566807d85a2c237d80c88cb2e363117e9d982771ababff65e4396dce18",
+      "lib/Analysis/StorageHazards.cpp": "e98f2141c178cdbbfa181c893f4ca24e711cc2822158a6a51a97ceb1b403f6d1",
+      "lib/Analysis/TaskElementRelation.cpp": "39e709048ae6e7e8713ce27f6645a20bb560724fb7584becf594b079a5616a32",
+      "lib/Analysis/TaskInstantiation.cpp": "8490ef897faf27dc5c55fc82a46860df9d9f45980f52cd638dcdd83dd81a8a99",
+      "lib/Frontend/Frontend.cpp": "05c2b7363645f301f2e7b2a68e5621f22e76776ebf13133813de7370be9ff808",
+      "test/unit/runner.cpp": "c3e54bf72cefd6384d77487df8e1e850a60807f34a0ffaa44d2e8df6268ff62c",
+      "include/tilemega/Analysis/VirtualTaskBinding.h": "72a24de86f0865282e4f0636d8ab15d3db0126db1547fd58bdcc1c6a758fa5a0",
+      "lib/Analysis/VirtualTaskBinding.cpp": "d28d870974b82ef09c9bf81f8a246d717b8b39349f99b4b128caaae7107ebdcf",
+      "test/unit/virtual_task_binding_test.cpp": "f6aa1ecc22799bac6a307051cbdd3eae6c52b95292a56fd186e2d44ac2e656e1"
+    }
+  },
+  "checks": 9,
+  "scope": "bounded virtual ownership, binding provenance, affine capacity coupling, I2 gathers and storage hazard attributes; no device binding or synchronization claim",
+  "binary_sha256": "1ed9e7353c74df4c2458d82599b8ccec6766be702494d07e8b2ed9d3594c7ba2",
+  "logs": {
+    "build_virtual.log": "e3e41161516f6166547417cb455aa9483126b2084ceacbb8666d014a547086c8",
+    "ctest_virtual.log": "be73852ab3e0710c0c677b20ae4e535e59c5c48a98f26759fdc552c41647b380"
+  }
+}

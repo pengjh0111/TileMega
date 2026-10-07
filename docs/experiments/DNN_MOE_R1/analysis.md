@@ -54,6 +54,20 @@ checks (`results/CI4_capacity_form.json`). Expert-group capacities retain
 `ceil(T*K/BM) + min(E,T*K)` before binding, tested across four BM values and
 T=1..4096. Nested minima and negative floor values keep their original criteria.
 
-Pending: executable table and counted waits; virtual capacity/binding provenance; memory-planner integration;
+verified: virtual ownership and provenance pass nine host checks
+(`results/CI4_virtual_binding.json`). Both binding strategies cover every
+capacity slot, retain their symbolic capacity, and preserve affine gate-up/down
+couplings. Gather reads retain their source buffer and widen only the indexed
+axis under I2. Binding requirements also propagate through storage hazards.
+
+inferred: `virtual_bindings` records the logical live extent as
+`runtime_dynamic`, its capacity, source, and `prefix_sum`/`tensor_values`
+requirement. Coupling extent attributes describe the scheduled capacity space
+(`symbolic_static`), whose affine internal edges are Tier 0. This separates a
+runtime binding's live rows from its static task/event capacity without changing
+the legacy five-attribute Tier rules. Runtime binding writers and consumers are
+still pending; these host checks do not establish their synchronization.
+
+Pending: executable table and counted waits; memory-planner integration;
 poison checks and all required 50-process synchronization gates. No CI-4 item
 is considered fully complete until its required integration is verified.
