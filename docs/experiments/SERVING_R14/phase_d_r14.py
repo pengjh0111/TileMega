@@ -86,7 +86,7 @@ def family_candidate(rows):
         plan=json.loads(Path(candidate['library']+'.plan.json').read_text())
         identity=verify(candidate['library'])
         if identity['trace']:raise ValueError('trace candidate in family audit')
-        signature=json.dumps(dict(pg=plan['pg'],capacity=plan.get('capacity'),gemms=plan['gemms'],kappa=plan['kappa'],residency=plan['residency'],executor=candidate['mode'],loop=candidate['loop'],nonpaged_la=plan.get('nonpaged_la',False),deferred_norm=plan.get('deferred_norm'),weight_layout=plan.get('weight_layout'),nonpaged_weight_layout=plan.get('nonpaged_weight_layout'),page_bytes=plan.get('pages',{}).get('page_bytes'),gemm_implementations=identity['implementations'].get('gemms')),sort_keys=True)
+        signature=json.dumps(dict(pg=plan['pg'],capacity=plan.get('capacity'),gemms=plan['gemms'],kappa=plan['kappa'],residency=plan['residency'],executor=candidate['mode'],loop=candidate['loop'],nonpaged_la=plan.get('nonpaged_la',False),deferred_norm=plan.get('deferred_norm'),weight_layout=plan.get('weight_layout'),nonpaged_weight_layout=plan.get('nonpaged_weight_layout'),page_bytes=(plan.get('pages') or {}).get('page_bytes'),gemm_implementations=identity['implementations'].get('gemms')),sort_keys=True)
         values={str(p):statistics.median(o['by_past'][str(p)]['mean_ms'] for o in observations) for p in PASTS}
         groups.setdefault(signature,[]).append(dict(library=candidate['library'],ec=plan['attention_kv_block'],impl=plan.get('attention_impl','mma16'),values=values))
     best=None
