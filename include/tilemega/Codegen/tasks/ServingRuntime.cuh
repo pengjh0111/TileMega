@@ -204,6 +204,9 @@ inline void Destroy(Plan* plan) {
   if(model.device_dm_layouts)cudaFree(model.device_dm_layouts);
   if(model.device_dm_dtypes)cudaFree(model.device_dm_dtypes);
   if(model.device_dm_buffers)cudaFree(model.device_dm_buffers);
+  if(model.device_dependency_intervals)cudaFree(model.device_dependency_intervals);
+  if(model.params.counted_dependencies)cudaFree(model.params.counted_dependencies);
+  if(model.device_counted_l2_params)cudaFree(model.device_counted_l2_params);
 #endif
   if(model.params.serving_handoff_tickets)cudaFree(model.params.serving_handoff_tickets);
   if(model.params.serving_no_producer)cudaFree(const_cast<std::uint8_t*>(model.params.serving_no_producer));
@@ -465,9 +468,20 @@ extern "C" int tm_plan_set_steps(void* opaque,
     host[i].dims.past = past[i];
     host[i].dims.total = past[i] + host[i].dims.seq;
   }
-  if (cudaMalloc(&plan->ring, count * sizeof(Params)) != cudaSuccess)
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if (plan->model.params.counted_dependencies) {
+    // Bind the execution bank once on the host; per-thread Params copies
+    // would turn a dependency extension into large local-memory traffic.
+    host.reserve(2ull * count);
+    for (unsigned i = 0; i < count; ++i) {
+      Params l2 = host[i]; l2.counted_dependencies += plan->model.params.counted_dependency_count;
+      host.push_back(l2);
+    }
+  }
+#endif
+  if (cudaMalloc(&plan->ring, host.size() * sizeof(Params)) != cudaSuccess)
     return -3;
-  if (cudaMemcpy(plan->ring, host.data(), count * sizeof(Params),
+  if (cudaMemcpy(plan->ring, host.data(), host.size() * sizeof(Params),
                  cudaMemcpyHostToDevice) != cudaSuccess) return -4;
   if (cudaMalloc(&plan->step_ns, (std::size_t(count)+1)*sizeof(std::uint64_t))
       != cudaSuccess) return -5;
@@ -486,6 +500,9 @@ extern "C" int tm_plan_launch(void* opaque, std::uint32_t step,
   std::uint32_t mode_index = mode == TM_SERVING_L1 ? 0 : 1;
   if (iteration != plan->next_iteration[mode_index]) return -2;
   auto* params = plan->ring + step;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if (plan->model.params.counted_dependencies && mode_index) params += plan->steps;
+#endif
   auto cuda_stream = static_cast<cudaStream_t>(stream);
   cudaError_t status;
   if (mode == TM_SERVING_L1)
@@ -517,16 +534,20 @@ extern "C" int tm_plan_launch_steps(void* opaque, std::uint32_t first_step,
   if(base_iteration!=plan->next_iteration[index])return -2;
   auto cuda_stream=static_cast<cudaStream_t>(stream);
   cudaError_t status;
+  auto* loop_params = plan->ring + first_step;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if (plan->model.params.counted_dependencies && index) loop_params += plan->steps;
+#endif
 #if TILEMEGA_PAGED
   status=executor::LaunchServing(tilemega_loop_kernel,plan->grid,
         kServingThreads,plan->model.l2_smem_bytes,cuda_stream,plan->pdl,
-        static_cast<Params const*>(plan->ring+first_step),steps,
+        static_cast<Params const*>(loop_params),steps,
         plan->model.events,base_iteration,
         reinterpret_cast<unsigned long long*>(plan->step_ns+first_step));
 #elif TILEMEGA_SERVING_SEQ==1
   status=executor::LaunchServing(tilemega_l1_loop_kernel,plan->grid,
         kServingThreads,kServingSharedBytes,cuda_stream,plan->pdl,
-        static_cast<Params const*>(plan->ring+first_step),steps,
+        static_cast<Params const*>(loop_params),steps,
         plan->model.events,base_iteration,
         reinterpret_cast<unsigned long long*>(plan->step_ns+first_step));
 #else

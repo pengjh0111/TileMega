@@ -21,6 +21,9 @@
 #define TILEMEGA_KPHASE_CLASS_MASK 31
 #endif
 #include <tilemega/Codegen/tasks/EventSync.cuh>
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Codegen/executor/CountedDependency.cuh>
+#endif
 #include <tilemega/Codegen/executor/ServingLaunch.cuh>
 #ifndef TILEMEGA_PDL_TRIGGER
 #define TILEMEGA_PDL_TRIGGER 0
@@ -826,6 +829,16 @@ __device__ inline unsigned long long StageArrivalTarget(
 /// exactly once per stage and read by everyone -- read-mostly sharing, which
 /// is the regime the hardware is good at. §8.2's monotonicity is what lets
 /// both be compared with `>=` and never reset between iterations.
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+__device__ inline void WaitDmCountedDependency(Params const& p,
+    StageDependency const& dep, unsigned task, unsigned long long iteration) {
+  std::uint64_t target;
+  auto index = std::uint64_t(dep.counted_offset) + task;
+  if (!p.counted_dependencies || index >= p.counted_dependency_count ||
+      !CountedDependencyTarget(dep.count, iteration, &target)) asm volatile("trap;");
+  executor::CountedDependency::Wait(p.counted_dependencies + index, target);
+}
+#endif
 __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
                                         std::uint32_t consumer, bool active,
                                         unsigned long long iteration) {
@@ -882,6 +895,33 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
     for (std::uint32_t edge = first; edge < last; ++edge) {
       StageDependency const& dep = p.dependencies[edge];
       std::uint32_t const producer = dep.producer;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if (dep.map == StageDependency::Map::kCounted) {
+        int owned = ActiveBlocks(p, p.stages[consumer]);
+        for (int task = PlacedBlock(); task < owned; task += gridDim.x)
+          WaitDmCountedDependency(p, dep, task, iteration);
+        continue;
+      }
+      if (dep.map == StageDependency::Map::kTable) {
+        int produced = ActiveBlocks(p, p.stages[producer]);
+        int owned = ActiveBlocks(p, p.stages[consumer]);
+        int grid = gridDim.x;
+        for (int task = PlacedBlock(); task < owned; task += grid) {
+          bool valid = VisitStageDependencyIntervals(dep, p.dependency_intervals, task, produced,
+              [&](RuntimeWindowBounds bounds) {
+#if TILEMEGA_EVENT_KAPPA > 0
+            int k = StageKappa(p, producer);
+            for (int group = bounds.first / k; group <= (bounds.past - 1) / k; ++group)
+              poll(producer, group);
+#else
+            poll(producer, kWholeStageEventGroup);
+#endif
+          });
+          if (!valid) asm volatile("trap;");
+        }
+        continue;
+      }
+#endif
 #if TILEMEGA_EVENT_KAPPA > 0
       // The producer tasks this CTA actually reads.  `kAll` is the whole
       // launch axis; a window is `[(c / div) * scale + offset, ... + count)`
@@ -968,6 +1008,13 @@ __device__ inline void WaitTaskDependencies(Params const& p,
   (void)iteration;
   return;
 #endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  for (unsigned i = 0; i < task.dependency_count; ++i) {
+    auto const& dep = p.dependencies[task.dependency_begin + i];
+    if (dep.map == StageDependency::Map::kCounted)
+      WaitDmCountedDependency(p, dep, task.logical_task, iteration);
+  }
+#endif
 #if TILEMEGA_SYNC_V3
   for(std::uint32_t i=threadIdx.x;i<task.wait_count;i+=blockDim.x) {
     TaskWait const& wait=p.task_waits[task.wait_begin+i];
@@ -1026,6 +1073,18 @@ __device__ inline bool ProbeTaskDependencies(Params const& p,
   return true;
 #endif
   int mine = 1;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  for (unsigned i = threadIdx.x; i < task.dependency_count; i += blockDim.x) {
+    auto const& dep = p.dependencies[task.dependency_begin + i];
+    if (dep.map != StageDependency::Map::kCounted) continue;
+    std::uint64_t target;
+    auto index = std::uint64_t(dep.counted_offset) + task.logical_task;
+    if (!p.counted_dependencies || index >= p.counted_dependency_count ||
+        !CountedDependencyTarget(dep.count, iteration, &target)) asm volatile("trap;");
+    cuda::atomic_ref<unsigned long long, cuda::thread_scope_device> counter(p.counted_dependencies[index]);
+    if (counter.load(cuda::memory_order_acquire) < target) mine = 0;
+  }
+#endif
   for (std::uint32_t i = threadIdx.x; i < task.wait_count; i += blockDim.x) {
     TaskWait const& wait = p.task_waits[task.wait_begin + i];
 #if TILEMEGA_SYNC_V3
@@ -1892,6 +1951,8 @@ struct DeviceModel {
   DmBufferLayout* device_dm_layouts = nullptr;
   std::uint32_t* device_dm_dtypes = nullptr;
   void** device_dm_buffers = nullptr;
+  RuntimeDependencyInterval* device_dependency_intervals = nullptr;
+  Params* device_counted_l2_params = nullptr;
 #endif
   StageDesc* device_stages = nullptr;
   StageDependency* device_dependencies = nullptr;
@@ -2411,6 +2472,14 @@ inline DeviceModel Create(ModelSpec const& spec,
       std::uint32_t const producer = edge.producer;
       edge.producer = done[producer];
       edge.consumer = entry[i];
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if (attention_chunks[i] > 1 && (edge.map == StageDependency::Map::kTable ||
+                                     edge.map == StageDependency::Map::kCounted))
+        throw std::invalid_argument("bind table/counted ownership after attention chunk expansion");
+      if (edge.map == StageDependency::Map::kTable && done[producer] != entry[producer] &&
+          !(model.params.ownership_flags & kCombinerTileOwnership))
+        throw std::invalid_argument("table dependency requires tile-owned split-K combiner");
+#endif
       if (attention_chunks[i] > 1 && edge.map != StageDependency::Map::kAll &&
           edge.map != StageDependency::Map::kPhase) {
         if (edge.div > std::numeric_limits<std::uint32_t>::max()/attention_chunks[i]) {
@@ -2700,12 +2769,40 @@ inline DeviceModel Create(ModelSpec const& spec,
   for (std::uint32_t stage=0;stage<model.stages.size();++stage)
     plan_counts.push_back(active_tasks(stage));
   std::vector<RuntimeDependencyWindow> plan_windows;
-  for (auto const& edge:dependencies)
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  std::vector<RuntimeTaskTableDependency> plan_tables;
+#endif
+  for (auto const& edge:dependencies) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if (edge.map == StageDependency::Map::kTable) {
+      if (std::uint64_t(edge.table_offset) + std::uint64_t(edge.table_rows) * edge.table_stride >
+          runtime_variant.dependency_interval_count)
+        throw std::invalid_argument("dependency table storage escapes its variant");
+      auto base = runtime_variant.dependency_intervals
+          ? runtime_variant.dependency_intervals + edge.table_offset : nullptr;
+      plan_tables.push_back({int(edge.producer), int(edge.consumer),
+                             {base, edge.table_rows, edge.table_stride}});
+      continue;
+    }
+    if (edge.map == StageDependency::Map::kCounted) {
+      auto end = std::uint64_t(edge.counted_offset) + plan_counts[edge.consumer];
+      if (!edge.count || end > std::numeric_limits<std::uint32_t>::max())
+        throw std::invalid_argument("invalid counted dependency target space");
+      model.params.counted_dependency_count = std::max(model.params.counted_dependency_count, unsigned(end));
+      plan_windows.push_back({int(edge.producer), int(edge.consumer), true, 1, 0, 0, 1});
+      continue;
+    }
+#endif
     plan_windows.push_back({static_cast<int>(edge.producer),static_cast<int>(edge.consumer),
         edge.map==StageDependency::Map::kAll ||
           edge.map==StageDependency::Map::kPhase,
         edge.div,edge.scale,edge.offset,edge.count});
+  }
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  auto const runtime_graph=MaterializeRuntimeTaskGraphTables(plan_counts,plan_windows,plan_tables,grid);
+#else
   auto const runtime_graph=MaterializeRuntimeTaskGraph(plan_counts,plan_windows,grid);
+#endif
 #if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE
   model.trace_runtime_dependencies = dependencies;
 #endif
@@ -2838,6 +2935,9 @@ inline DeviceModel Create(ModelSpec const& spec,
   for(std::uint32_t edge=offsets[consumer];edge<offsets[consumer+1];++edge) {
     if(model.stages[consumer].handoff_elided)continue;
     StageDependency const& dep=dependencies[edge];
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if (dep.map == StageDependency::Map::kCounted) continue;
+#endif
 #if TILEMEGA_EVENT_KAPPA > 0
     if(dep.map==StageDependency::Map::kPhase) {
       model.event_flags[dep.producer]|=kNeedsFineEvents|kNeedsAggregateEvent;
@@ -3005,6 +3105,9 @@ inline DeviceModel Create(ModelSpec const& spec,
           // shipped build; SEQSCAN requires this build to fail.
           if (TILEMEGA_NEGATIVE_TASK_WAIT_CLAMP) break;
           StageDependency const& dep = dependencies[e];
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+          if (dep.map == StageDependency::Map::kCounted) continue;
+#endif
           int const produced = active_tasks(dep.producer);
 #if TILEMEGA_EVENT_KAPPA > 0
           auto observe_owner = [&](int owner) {
@@ -3071,6 +3174,15 @@ inline DeviceModel Create(ModelSpec const& spec,
               for (auto const& incoming:exact_predecessors[exact_stage_offsets[stage]+logical])
                 if (incoming.first==int(dep.producer)) require_task(incoming.second);
             } else
+#endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+              if (dep.map == StageDependency::Map::kTable) {
+                if (!VisitStageDependencyIntervals(dep, runtime_variant.dependency_intervals,
+                    logical, produced, [&](RuntimeWindowBounds interval) {
+                  for (int producer_task = interval.first; producer_task < interval.past; ++producer_task)
+                    require_task(producer_task);
+                })) throw std::invalid_argument("invalid table row during L2 materialization");
+              } else
 #endif
               for (int producer_task=begin;producer_task<end;++producer_task)
                 require_task(producer_task);
@@ -3172,6 +3284,15 @@ inline DeviceModel Create(ModelSpec const& spec,
   model.device_buffers = static_cast<ModelElement**>(
       upload(model.buffers.data(), model.buffers.size() * sizeof(ModelElement*)));
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if (runtime_variant.dependency_interval_count)
+    model.device_dependency_intervals = static_cast<RuntimeDependencyInterval*>(upload(
+        runtime_variant.dependency_intervals,
+        runtime_variant.dependency_interval_count * sizeof(RuntimeDependencyInterval)));
+  model.params.dependency_intervals = model.device_dependency_intervals;
+  if (model.params.counted_dependency_count) {
+    std::vector<unsigned long long> zero(2ull * model.params.counted_dependency_count);
+    model.params.counted_dependencies = static_cast<unsigned long long*>(upload(zero.data(), zero.size() * sizeof(zero[0])));
+  }
   if(spec.convolution_count)
     model.device_dm_convolutions=static_cast<ConvDesc*>(upload(spec.convolutions,
         spec.convolution_count*sizeof(ConvDesc)));
@@ -3302,6 +3423,14 @@ inline DeviceModel Create(ModelSpec const& spec,
   TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_params, sizeof(Params)));
   TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_params, &model.params,
                                  sizeof(Params), cudaMemcpyHostToDevice));
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if (model.params.counted_dependencies) {
+    Params l2 = model.params;
+    l2.counted_dependencies += model.params.counted_dependency_count;
+    TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_counted_l2_params, sizeof(Params)));
+    TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_counted_l2_params, &l2, sizeof(Params), cudaMemcpyHostToDevice));
+  }
+#endif
 #if TILEMEGA_SERVING_RUNTIME
   {
     std::vector<bool> queued(model.stages.size(),false);
@@ -3350,6 +3479,12 @@ inline void PrepareEvents(DeviceModel& model, int grid) {
     // device_params was uploaded by Create, before event_count existed.
     TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_params, &model.params,
                                    sizeof(Params), cudaMemcpyHostToDevice));
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if (model.device_counted_l2_params) {
+      Params l2 = model.params; l2.counted_dependencies += model.params.counted_dependency_count;
+      TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_counted_l2_params, &l2, sizeof(Params), cudaMemcpyHostToDevice));
+    }
+#endif
   }
   ZeroTraceV2(model);
 #endif
@@ -3395,6 +3530,11 @@ inline void ResetBuffersOnly(DeviceModel& model) {
 
 inline void Reset(DeviceModel& model) {
   ResetBuffersOnly(model);
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if (model.params.counted_dependencies)
+    TILEMEGA_CUDA_CHECK(cudaMemset(model.params.counted_dependencies, 0,
+        2ull * model.params.counted_dependency_count * sizeof(unsigned long long)));
+#endif
   if (model.events)
     TILEMEGA_CUDA_CHECK(cudaMemset(model.events, 0,
                                    sizeof(EventCounter) * model.event_count));
@@ -3829,7 +3969,12 @@ inline float LaunchL1(DeviceModel& model, int grid,
 inline float LaunchL2(DeviceModel& model, int grid,
                       unsigned long long iteration = 0, bool timed = true) {
   return benchmark::Time([&] {
-  LaunchPersistent(tilemega_l2_kernel, grid, model.l2_smem_bytes, model.device_params,
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  auto* parameters = model.device_counted_l2_params ? model.device_counted_l2_params : model.device_params;
+#else
+  auto* parameters = model.device_params;
+#endif
+  LaunchPersistent(tilemega_l2_kernel, grid, model.l2_smem_bytes, parameters,
                    model.events, iteration);
   }, timed);
 }

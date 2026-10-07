@@ -498,6 +498,13 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
 __device__ inline void WaitDependencies(Params const& p,EventCounter* events,TaskRef const& task,
                                        unsigned long long iteration) {
   if(task.wait_count && ComputeThread()==0)executor::PageTraceTransition(p.serving_page_trace ? p.serving_page_trace+blockIdx.x : nullptr,1u,true);
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  for (unsigned i = 0; i < task.dependency_count; ++i) {
+    auto const& dep = p.dependencies[task.dependency_begin + i];
+    if (dep.map == StageDependency::Map::kCounted)
+      WaitDmCountedDependency(p, dep, task.logical_task, iteration);
+  }
+#endif
   for(unsigned i=ComputeThread();i<task.wait_count;i+=kComputeThreads) {
     auto const& w=p.task_waits[task.wait_begin+i];
 #if TILEMEGA_SYNC_V3
@@ -574,6 +581,7 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
                         PageStream* persistent_ahead=nullptr,
                         unsigned long long* persistent_prefetched=nullptr,
                         unsigned long long* persistent_loaded=nullptr) {
+
   if constexpr(!Loader)executor::StepBegin(p,iteration);
   Watch watch{p.serving_watchdog,p.serving_watchdog_ns};
   watch.iteration=iteration;

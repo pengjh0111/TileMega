@@ -1,0 +1,51 @@
+// SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Codegen/RuntimeTaskGraph.h>
+#include <tilemega/Analysis/DependencyTable.h>
+#include <tilemega/Analysis/TaskInstantiation.h>
+#include <tilemega/Analysis/ISLContext.h>
+#include <cassert>
+#include <limits>
+#include <stdexcept>
+
+namespace tilemega::tests::runtime_dependency_table_test {
+int TestRuntimeDependencyTable(int, char**) {
+  using namespace tilemega;
+  analysis::IslContext context;
+  auto f = [](long x) { return analysis::ClosedForm::Constant(x); };
+  analysis::OperatorNode p, c;
+  p.output = {"p", {{"row", f(12)}}}; p.tile = {f(1)};
+  c.output = {"c", {{"row", f(7)}}}; c.tile = {f(1)};
+  auto relation = analysis::CouplingRelation::FromIslText(
+      "{ [c] -> [p] : 0 <= c < 6 and 0 <= p < 12 and (p+2*c) % 3 != 1 }");
+  auto table = analysis::BuildDependencyTable(relation, p, c, {});
+  std::vector<codegen::RuntimeDependencyInterval> intervals;
+  for (auto const& i : table.intervals) intervals.push_back({i.first, i.count});
+  codegen::RuntimeDependencyTableView view{intervals.data(), table.consumers, table.stride};
+  for (int workers : {1, 4, 16}) {
+    auto graph = codegen::MaterializeRuntimeTaskGraphTables({12, 7}, {}, {{0, 1, view}}, workers);
+    for (int source = 0; source < 12; ++source) {
+      std::vector<int> expected;
+      for (int sink = 0; sink < 6; ++sink) if ((source + 2*sink) % 3 != 1) expected.push_back(12+sink);
+      assert(graph.successors[source] == expected);
+    }
+    auto empty = codegen::MaterializeRuntimeTaskGraphTables({12, 7}, {}, {{0, 1, {nullptr, 7, 0}}}, workers);
+    for (auto const& row : empty.successors) assert(row.empty());
+    auto duplicate = codegen::MaterializeRuntimeTaskGraphTables({12, 7}, {}, {{0, 1, view}, {0, 1, view}}, workers);
+    assert(duplicate.successors == graph.successors);
+  }
+  auto reject = [](codegen::RuntimeTaskTableDependency edge) {
+    bool failed = false;
+    try { (void)codegen::MaterializeRuntimeTaskGraphTables({12, 7}, {}, {edge}, 4); }
+    catch (std::invalid_argument const&) { failed = true; }
+    assert(failed);
+  };
+  reject({1, 0, view}); reject({0, 2, view}); reject({0, 1, {nullptr, 7, 1}});
+  reject({0, 1, {intervals.data(), 8, table.stride}});
+  intervals[0] = {11, 2}; reject({0, 1, view});
+  std::uint64_t target;
+  assert(codegen::CountedDependencyTarget(8, 17, &target) && target == 144);
+  assert(!codegen::CountedDependencyTarget(0, 0, &target));
+  assert(!codegen::CountedDependencyTarget(8, std::numeric_limits<std::uint64_t>::max()/8, &target));
+  return 0;
+}
+}

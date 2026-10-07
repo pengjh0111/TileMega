@@ -16,6 +16,7 @@
 #include <tilemega/Codegen/RuntimeTaskGraph.h>
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
 #include <tilemega/Codegen/DmDescriptors.h>
+#include <tilemega/Codegen/RuntimeDependencies.h>
 #endif
 #include <cutlass/bfloat16.h>
 
@@ -301,14 +302,38 @@ struct StageDependency {
     kIdentity = 0,
     kAll = 1,
     kWindow = 2,
-    kPhase = 3
+    kPhase = 3,
+    kTable = 4,
+    kCounted = 5
   } map;
   std::uint32_t div;
   std::int32_t scale;
   std::int32_t offset;
   std::uint32_t count;
   std::uint32_t phase_tiles = 0;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  std::uint32_t table_offset = 0, table_rows = 0, table_stride = 0;
+  std::uint32_t counted_offset = 0;
+#endif
 };
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+template<class Visit>
+TILEMEGA_TASK_HD bool VisitStageDependencyIntervals(StageDependency const& dep,
+    RuntimeDependencyInterval const* intervals, unsigned consumer,
+    unsigned producers, Visit const& visit) {
+  if (dep.map == StageDependency::Map::kCounted) return false;
+  if (dep.map == StageDependency::Map::kTable) {
+    auto base = intervals ? intervals + dep.table_offset : nullptr;
+    return VisitDependencyTable({base, dep.table_rows, dep.table_stride},
+                                consumer, producers, visit);
+  }
+  auto bounds = RuntimeDependencyBounds(consumer, producers,
+      dep.map == StageDependency::Map::kAll || dep.map == StageDependency::Map::kPhase,
+      dep.div, dep.scale, dep.offset, dep.count);
+  if (bounds.first < bounds.past) visit(bounds);
+  return true;
+}
+#endif
 struct PhaseGateDesc {
   std::uint32_t producer = kNoOperand;
   std::uint32_t div = 1;
@@ -532,6 +557,10 @@ struct RuntimeVariantDesc {
   RuntimeExactDependencyDesc const* exact_dependencies = nullptr;
   /// Last, and defaulted, so a legacy variant's initializer is unchanged.
   RuntimePlanDesc plan = {};
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  RuntimeDependencyInterval const* dependency_intervals = nullptr;
+  std::uint32_t dependency_interval_count = 0;
+#endif
 };
 
 #ifndef TILEMEGA_EVENT_SPLIT_LINES
@@ -770,6 +799,11 @@ struct Params {
   std::uint32_t lag_dependency_count = 0;
   WatchdogRecord* serving_watchdog = nullptr;
   unsigned long long serving_watchdog_ns = 0;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  RuntimeDependencyInterval const* dependency_intervals = nullptr;
+  unsigned long long* counted_dependencies = nullptr;
+  std::uint32_t counted_dependency_count = 0;
+#endif
 #if TILEMEGA_TRACE_STAGE
   StageTraceRecord* serving_stage_trace=nullptr;
 #endif

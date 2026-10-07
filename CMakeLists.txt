@@ -315,6 +315,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/bound_dependency_form_test.cpp
     test/unit/capacity_form_test.cpp
     test/unit/virtual_task_binding_test.cpp
+    test/unit/runtime_dependency_table_test.cpp
     test/unit/graph_pattern_test.cpp
     test/unit/model_plan_order_test.cpp
     test/unit/layout_bridge_test.cpp
@@ -444,6 +445,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME bound_dependency_form COMMAND tilemega-unit bound_dependency_form)
   add_test(NAME capacity_form COMMAND tilemega-unit capacity_form)
   add_test(NAME virtual_task_binding COMMAND tilemega-unit virtual_task_binding)
+  add_test(NAME runtime_dependency_table COMMAND tilemega-unit runtime_dependency_table)
 
   add_test(NAME task_element_work COMMAND tilemega-unit task_element_work
     ${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/gqa2.json

@@ -23,7 +23,9 @@ template <class Visit>
 TILEMEGA_DEPENDENCY_HD bool VisitDependencyTable(
     RuntimeDependencyTableView table, std::uint32_t consumer,
     std::uint32_t producers, Visit const& visit) {
-  if (consumer >= table.rows || !table.stride || !table.intervals) return false;
+  if (consumer >= table.rows) return false;
+  if (!table.stride) return true;
+  if (!table.intervals) return false;
   auto const* row = table.intervals + std::uint64_t(consumer) * table.stride;
   for (std::uint32_t interval = 0; interval < table.stride; ++interval) {
     auto bounds = row[interval];
