@@ -10,12 +10,30 @@ import subprocess
 import sys
 
 
+def await_completion(path):
+    libc = ctypes.CDLL(None, use_errno=True)
+    fd = libc.inotify_init1(os.O_CLOEXEC)
+    if fd < 0 or libc.inotify_add_watch(fd, os.fsencode(path.parent),
+                                      0x00000008 | 0x00000080) < 0:
+        raise OSError(ctypes.get_errno(), 'completion watch failed')
+    try:
+        while not path.exists():
+            select.select([fd], [], [])
+            os.read(fd, 65536)
+    finally:
+        os.close(fd)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--queue-dir', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--policy', type=Path, required=True)
+    parser.add_argument('--after-queue', type=Path,
+                        help='wait for this completion event before starting')
     args = parser.parse_args()
+    if args.after_queue:
+        await_completion(args.after_queue)
     steps = {s['name'] for path in args.queue_dir.glob('queue_*.json')
              for s in json.loads(path.read_text())}
     if not steps:
