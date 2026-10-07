@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Analysis/DependencyForm.h>
+#include <tilemega/Analysis/DependencyTable.h>
 #include <tilemega/Codegen/RuntimeOwnership.h>
 #include <tilemega/Codegen/AttentionPlan.h>
 #include <cstdint>
@@ -18,6 +19,7 @@ struct DependencyRecord {
   analysis::WaitWindow window;
   std::optional<analysis::WaitWindow> phase_window;
   int phase_tiles = 0;
+  std::optional<analysis::DependencyTable> table;
 };
 
 struct GemmRuntimeRecord {

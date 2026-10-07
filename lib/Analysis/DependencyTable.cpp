@@ -36,6 +36,10 @@ CouplingRelation Linearization(OperatorNode const& node, std::vector<std::string
       id + " = " + expression + bounds + " }");
 }
 }
+CouplingRelation LinearizeTaskCoordinates(OperatorNode const& node,
+    std::vector<std::string> const& coordinates, ParamBinding const& known, char const* id) {
+  return Linearization(node, coordinates, known, id);
+}
 CouplingRelation LinearizeTaskCoupling(CouplingRelation const& relation,
     OperatorNode const& producer, OperatorNode const& consumer, ParamBinding const& known) {
   IslReferenceAudit audit(__func__);
@@ -48,9 +52,18 @@ CouplingRelation LinearizeTaskCoupling(CouplingRelation const& relation,
 DependencyTable BuildDependencyTable(CouplingRelation const& relation,
     OperatorNode const& producer, OperatorNode const& consumer, ParamBinding const& known) {
   IslReferenceAudit audit(__func__);
+  return BuildDependencyTableLinear(LinearizeTaskCoupling(relation, producer, consumer, known),
+                                   Count(producer, known), Count(consumer, known));
+}
+DependencyTable BuildDependencyTableLinear(CouplingRelation const& relation,
+    std::uint32_t producers, std::uint32_t consumers) {
+  IslReferenceAudit audit(__func__);
+  if (!producers || !consumers || relation.DomainDimNames().size() != 1 ||
+      relation.RangeDimNames().size() != 1)
+    throw std::invalid_argument("invalid linear dependency table domain");
   DependencyTable result;
-  result.consumers = Count(consumer, known); result.producers = Count(producer, known);
-  result.linear_relation = LinearizeTaskCoupling(relation, producer, consumer, known);
+  result.consumers = consumers; result.producers = producers;
+  result.linear_relation = relation;
   std::vector<std::set<std::uint32_t>> rows(result.consumers);
   for (auto const& [to, from] : result.linear_relation.Points()) {
     if (to.size() != 1 || from.size() != 1 || to[0] < 0 || from[0] < 0 ||

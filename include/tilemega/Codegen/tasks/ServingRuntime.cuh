@@ -22,6 +22,11 @@
 #ifndef TILEMEGA_SERVING_BATCH_HI
 #define TILEMEGA_SERVING_BATCH_HI TILEMEGA_SERVING_BATCH_LO
 #endif
+#if defined(TILEMEGA_DM_BOUND_BATCH)
+static_assert(TILEMEGA_SERVING_BATCH_LO == TILEMEGA_DM_BOUND_BATCH &&
+              TILEMEGA_SERVING_BATCH_HI == TILEMEGA_DM_BOUND_BATCH,
+              "exact task dependencies bind one batch per plan");
+#endif
 #ifndef TILEMEGA_SERVING_PAST_LO
 #define TILEMEGA_SERVING_PAST_LO 0
 #endif

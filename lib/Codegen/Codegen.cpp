@@ -14,6 +14,8 @@
 #include <tilemega/Codegen/SyncEmitter.h>
 #include <tilemega/Codegen/TaskBodyEmitter.h>
 #include <tilemega/Analysis/DependencyForm.h>
+#include <tilemega/Analysis/BoundDependencyForm.h>
+#include <tilemega/Dialect/CouplingGraph/BoundDependency.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <tilemega/Dialect/CouplingGraph/PlacementPlan.h>
 #include <tilemega/Solver/VariantSchedule.h>
@@ -508,6 +510,19 @@ std::string emitModelPlan(mlir::ModuleOp module,
       !module->hasAttr("tmexec.solved_stage_kappa");
 
   std::ostringstream out;
+  auto couplings = module.getOps<dialect::CouplingOp>();
+  if (dm && serving && std::any_of(couplings.begin(), couplings.end(),
+        [](auto edge) { return edge->hasAttr("dependency_geometry"); })) {
+    auto roles = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.dimension_roles");
+    auto role = roles ? roles.getAs<mlir::StringAttr>("batch") : mlir::StringAttr{};
+    auto theta = readBinding(module, "tilemega.theta");
+    long batch = role && !role.getValue().empty() ? theta.At(role.getValue().str()) : 1;
+    if (batch <= 0 || batch > std::numeric_limits<int>::max())
+      throw std::invalid_argument("bound task batch is outside runtime range");
+    out << "#define TILEMEGA_DM_BOUND_BATCH " << batch << "\n"
+        << "#ifndef TILEMEGA_SERVING_BATCH_LO\n#define TILEMEGA_SERVING_BATCH_LO " << batch << "\n#endif\n"
+        << "#ifndef TILEMEGA_SERVING_BATCH_HI\n#define TILEMEGA_SERVING_BATCH_HI " << batch << "\n#endif\n";
+  }
   out << "namespace {\nusing namespace tilemega::codegen;\n\n"
       << "constexpr ModelDims kDims = {0, 0, 0, 1, "
       << (serving ? integerField(serving, "capacity") : 0)
@@ -715,18 +730,46 @@ std::string emitModelPlan(mlir::ModuleOp module,
       out << "  {" << impl.compiled_variant << "u, " << impl.split_k << "u, "
           << impl.tile_m << "u, " << impl.tile_n << "u, " << impl.tile_k
           << "u, " << impl.stages << "u},\n";
-    out << "};\n\nconstexpr StageDependency kDependencies" << v << "[] = {\n";
+    out << "};\n\n";
+    std::vector<std::uint32_t> table_offsets(variant.dependencies.size());
+    std::uint64_t interval_count = 0;
+    bool has_tables = false;
+    for (std::size_t e = 0; e < variant.dependencies.size(); ++e) {
+      table_offsets[e] = interval_count;
+      if (auto const& table = variant.dependencies[e].table) {
+        if (!dm || variant.dependencies[e].phase_window)
+          throw std::invalid_argument("table waits require a DM plan without a K-phase gate");
+        has_tables = true; interval_count += table->intervals.size();
+        if (interval_count > std::numeric_limits<std::uint32_t>::max())
+          throw std::invalid_argument("variant dependency interval storage overflows");
+      }
+    }
+    if (has_tables) {
+      out << "constexpr RuntimeDependencyInterval kDependencyIntervals" << v << "[] = {\n";
+      for (auto const& edge : variant.dependencies) if (edge.table)
+        for (auto const& interval : edge.table->intervals)
+          out << "  {" << interval.first << "u, " << interval.count << "u},\n";
+      if (!interval_count) out << "  {0u, 0u},\n";
+      out << "};\n\n";
+    }
+    out << "constexpr StageDependency kDependencies" << v << "[] = {\n";
+    std::size_t dependency_index = 0;
     for (auto const& edge : variant.dependencies) {
       bool const use_phase=edge.phase_window.has_value() && phase_legal;
       if(edge.phase_window && !phase_legal)
         std::cerr<<"E2E_KPHASE_DISABLED kappa is not uniformly one\n";
       analysis::WaitWindow const& w = use_phase?*edge.phase_window:edge.window;
-      char const* kind = use_phase?"kPhase":!w.narrowed ? "kAll"
+      char const* kind = edge.table ? "kTable" : use_phase?"kPhase":!w.narrowed ? "kAll"
                          : w.IsIdentity() ? "kIdentity" : "kWindow";
       out << "  {" << edge.producer << "u, " << edge.consumer
           << "u, StageDependency::Map::" << kind << ", " << w.div << "u, "
           << w.scale << ", " << w.offset << ", " << w.count << "u, "
-          << edge.phase_tiles << "u},\n";
+          << edge.phase_tiles << "u";
+      if (edge.table)
+        out << ", " << table_offsets[dependency_index] << "u, " << edge.table->consumers << "u, "
+            << edge.table->stride << "u, 0u";
+      out << "},\n";
+      ++dependency_index;
     }
     if (variant.dependencies.empty())
       out << "  {0u, 0u, StageDependency::Map::kAll, 1u, 0, 0, 1u},\n";
@@ -829,6 +872,18 @@ std::string emitModelPlan(mlir::ModuleOp module,
         << variants[v].seq_begin << "u, " << variants[v].seq_end
         << "u, " << variants[v].ownership_flags << "u";
     bool const carries_plan = variants[v].plan.carried;
+    bool const has_tables = std::any_of(variants[v].dependencies.begin(), variants[v].dependencies.end(),
+        [](auto const& edge) { return edge.table.has_value(); });
+    if (has_tables) {
+      std::uint64_t intervals = 0;
+      for (auto const& edge : variants[v].dependencies) if (edge.table) intervals += edge.table->intervals.size();
+      if (variants[v].attention.empty()) out << ", nullptr";
+      else out << ", kRuntimeAttention" << v;
+      out << ", true, " << (variants[v].balanced_placement ? "true" : "false") << ", "
+          << (variants[v].exact_tasks.empty() ? "nullptr" : "&kExactDependencies" + std::to_string(v)) << ", "
+          << (carries_plan ? planInitializer(v) : "{}") << ", kDependencyIntervals" << v << ", " << intervals << "u},\n";
+      continue;
+    }
     if (!variants[v].exact_tasks.empty()) {
       if (variants[v].attention.empty()) out << ", nullptr";
       else out << ", kRuntimeAttention" << v;
@@ -1053,6 +1108,8 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
   if (max_stage < 0) throw std::invalid_argument("CG has no task spaces");
 
   std::map<std::pair<std::uint32_t, std::uint32_t>, analysis::WaitWindow> pairs;
+  std::map<std::pair<std::uint32_t, std::uint32_t>, dialect::BoundTaskGeometry> geometries;
+  std::set<std::pair<std::uint32_t, std::uint32_t>> table_pairs, legacy_pairs;
   std::size_t couplings = 0, cluster_edges = 0;
   for (auto coupling : module.getOps<dialect::CouplingOp>()) {
     ++couplings;
@@ -1060,8 +1117,13 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
     if (sync == "cluster") ++cluster_edges;
     else if (sync != "global")
       throw std::invalid_argument("generator accepts global or cluster synchronization");
-    (void)coupling.getWait().getValue().Eval(known);
-    (void)coupling.getFanout().getValue().Eval(known);
+    if (coupling->hasAttr("shared_elements")) {
+      (void)coupling.getWait().getValue().SumDomain().Eval(known);
+      (void)coupling.getFanout().getValue().SumDomain().Eval(known);
+    } else {
+      (void)coupling.getWait().getValue().Eval(known);
+      (void)coupling.getFanout().getValue().Eval(known);
+    }
     if (coupling->hasAttr("shared_elements"))
       (void)coupling.getVolume().getValue().SumDomain().Eval(known);
     else (void)coupling.getVolume().getValue().Eval(known);
@@ -1078,6 +1140,28 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
     auto pair = std::make_pair(source->second, target->second);
     auto [at, fresh] = pairs.emplace(pair, window);
     if (!fresh && at->second != window) at->second = analysis::WaitWindow{};
+    auto geometry = dialect::ReadBoundTaskGeometry(coupling, known);
+    if (geometry) {
+      auto [stored, inserted] = geometries.emplace(pair, *geometry);
+      if (!inserted) {
+        if (stored->second.producers != geometry->producers || stored->second.consumers != geometry->consumers)
+          throw std::invalid_argument("stage-pair dependencies have different task ownership");
+        stored->second.relation = stored->second.relation.Union(geometry->relation);
+      }
+    } else legacy_pairs.insert(pair);
+    if (dialect::ReadBoundDependencyTable(coupling, known)) table_pairs.insert(pair);
+  }
+  for (auto const& [pair, geometry] : geometries) {
+    if (legacy_pairs.count(pair)) throw std::invalid_argument("bound stage pair lacks geometry for an input");
+    auto bound = analysis::BindExactTaskDependencyLinear(geometry.relation, geometry.producers, geometry.consumers);
+    if (bound.table) {
+      table_pairs.insert(pair);
+      // Narrow edges cannot serve as a whole-stage transitivity proof.
+      pairs[pair] = {true, 1, 1, 0, 1};
+    } else {
+      pairs[pair] = bound.window;
+      table_pairs.erase(pair);
+    }
   }
 
   VariantAnalysis result;
@@ -1099,9 +1183,14 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
   if (result.cluster_dim == 1 && cluster_edges != 0)
     throw std::invalid_argument(
         "cluster synchronization requires a placement cluster larger than 1");
-  for (auto const& edge : TransitiveReduction(pairs, max_stage + 1))
-    result.dependencies.push_back(
-        {edge.first, edge.second, pairs.at(edge)});
+  for (auto const& edge : TransitiveReduction(pairs, max_stage + 1)) {
+    DependencyRecord record{edge.first, edge.second, pairs.at(edge)};
+    if (table_pairs.count(edge)) {
+      auto const& geometry = geometries.at(edge);
+      record.table = analysis::BuildDependencyTableLinear(geometry.relation, geometry.producers, geometry.consumers);
+    }
+    result.dependencies.push_back(std::move(record));
+  }
   return result;
 }
 
@@ -1441,8 +1530,13 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
           "generator accepts global or cluster synchronization");
     // Force semantic conversion through L3a; codegen never reads the printed
     // quasi-polynomial payload as an ad-hoc integer.
-    (void)coupling.getWait().getValue().Eval(known);
-    (void)coupling.getFanout().getValue().Eval(known);
+    if (coupling->hasAttr("shared_elements")) {
+      (void)coupling.getWait().getValue().SumDomain().Eval(known);
+      (void)coupling.getFanout().getValue().SumDomain().Eval(known);
+    } else {
+      (void)coupling.getWait().getValue().Eval(known);
+      (void)coupling.getFanout().getValue().Eval(known);
+    }
     if (coupling->hasAttr("shared_elements"))
       (void)coupling.getVolume().getValue().SumDomain().Eval(known);
     else (void)coupling.getVolume().getValue().Eval(known);
@@ -1534,6 +1628,10 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
   runtime.gemms = readRuntimeGemms(module,
                                    arrayField(modelPlan, "gemms").size());
   runtime.dependencies = std::move(dependencies);
+  auto dependency_ops = module.getOps<dialect::CouplingOp>();
+  if (std::any_of(dependency_ops.begin(), dependency_ops.end(),
+        [](auto edge) { return edge->hasAttr("dependency_geometry"); }))
+    runtime.dependencies = AnalyzeVariantModule(module).dependencies;
   runtime.ownership_flags = readOwnershipFlags(module);
   runtime.explicit_resident_constraint = readResidentConstraint(module);
   runtime.balanced_placement = readBalancedPlacement(module);

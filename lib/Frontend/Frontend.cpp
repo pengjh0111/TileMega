@@ -7,6 +7,8 @@
 #include <tilemega/Frontend/SemanticLifting.h>
 #include <tilemega/Analysis/CouplingDerivation.h>
 #include <tilemega/Analysis/DependencyForm.h>
+#include <tilemega/Analysis/BoundDependencyForm.h>
+#include <tilemega/Dialect/CouplingGraph/BoundDependency.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Analysis/SemanticCodec.h>
 #include <tilemega/Analysis/VirtualTaskBinding.h>
@@ -873,6 +875,28 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   // The one place a workload minimum is still needed: an event tensor is a
   // real allocation, so its shape is resolved at the smallest instantiation
   // and any axis that is not constant there is emitted dynamic.
+  analysis::ParamBinding taskBinding = known;
+  for (auto const& [name, value] : options.task_binding.values) taskBinding.Bind(name, value);
+  bool const exactTasks = std::any_of(lifted.sem.ops.begin(), lifted.sem.ops.end(),
+      [](auto const& op) { return op.exact_task_access; });
+  if (exactTasks && plan.forward) {
+    if (plan.forward_token_axis && symbolic.ranges.count(liftOptions.seq_symbol))
+      taskBinding.Bind(liftOptions.seq_symbol, plan.serving_seq);
+    if (options.phase_batch > 0 && !liftOptions.batch_symbol.empty())
+      taskBinding.Bind(liftOptions.batch_symbol, options.phase_batch);
+  }
+  if (exactTasks) {
+    auto values = llvm::SmallVector<mlir::NamedAttribute>(theta);
+    for (auto const& [name, value] : taskBinding.values) {
+      if (auto range = symbolic.ranges.find(name); range != symbolic.ranges.end()) {
+        if (value < range->second.minimum || value > range->second.maximum)
+          throw std::invalid_argument("DM task shape binding is outside the export domain");
+        for (auto& attr : values) if (attr.getName().strref() == name)
+          attr = builder.getNamedAttr(name, builder.getI64IntegerAttr(value));
+      }
+    }
+    module->setAttr("tilemega.theta", builder.getDictionaryAttr(values));
+  }
   analysis::ParamBinding floorBinding = known;
   for (auto const& symbol : symbolic.dimensions)
     floorBinding.Bind(symbol, symbolic.ranges.at(symbol).minimum);
@@ -1135,6 +1159,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   // both TaskBodies declare `kTilePerBlock`: `kElementChunk` makes the
   // CTA->task map a function of gridDim, so the same id names different tasks
   // on the two sides and no per-CTA narrowing is sound.
+  std::vector<std::optional<analysis::BoundDependencyForm>> boundDependencies(derived.size());
   std::vector<std::string> waitMaps(derived.size(), "all");
   std::size_t symbolicWindows = 0, fallbackWindows = 0;
   {
@@ -1157,6 +1182,13 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
       analysis::OperatorNode const* source = graph.Find(derived[i].src.name);
       analysis::OperatorNode const* sink = graph.Find(derived[i].dst.name);
       if (!source || !sink) continue;
+      if (source->element_access || sink->element_access) {
+        auto bound = analysis::BindExactTaskDependency(derived[i], *source, *sink, taskBinding);
+        if (bound.encoding == analysis::BoundDependencyForm::Encoding::kWindow)
+          waitMaps[i] = bound.window.ToString();
+        boundDependencies[i] = std::move(bound);
+        continue;
+      }
       auto taskShape = [](analysis::OperatorNode const& node) {
         std::string key;
         for (std::size_t axis = 0; axis < node.output.axes.size(); ++axis)
@@ -1266,6 +1298,17 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
             builder.getStringAttr(taskKindOf(consumer.role)))})));
     state.addAttribute("relation", dialect::CouplingMapAttr::get(&context, item.C));
     state.addAttribute("wait_map", builder.getStringAttr(waitMaps[edge]));
+    if (boundDependencies[edge]) {
+      auto p = graph.Find(item.src.name), c = graph.Find(item.dst.name);
+      auto pc = analysis::LinearizeTaskCoordinates(*p, item.C.RangeDimNames(), taskBinding, "_tm_p");
+      auto cc = analysis::LinearizeTaskCoordinates(*c, item.C.DomainDimNames(), taskBinding, "_tm_c");
+      state.addAttribute("dependency_geometry", dialect::EncodeBoundTaskGeometry(builder,
+          {boundDependencies[edge]->encoded_relation, std::uint32_t(p->Count().Eval(taskBinding, {})),
+           std::uint32_t(c->Count().Eval(taskBinding, {}))}, pc, cc, taskBinding));
+      if (boundDependencies[edge]->table)
+        state.addAttribute("dependency_table", dialect::EncodeBoundDependencyTable(builder,
+            *boundDependencies[edge]->table, pc, cc, taskBinding));
+    }
     if(auto found=phaseWindows.find(edge);found!=phaseWindows.end()) {
       state.addAttribute("phase_map",builder.getStringAttr(found->second.first.ToString()));
       state.addAttribute("phase_tiles",builder.getI64IntegerAttr(found->second.second));

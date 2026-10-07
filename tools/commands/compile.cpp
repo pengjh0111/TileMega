@@ -512,6 +512,7 @@ int RunCompile(int argc, char** argv) {
       auto plan=tilemega::frontend::BuildModelPlan(
           bridge.nodes,bridge.inputs,bridge.outputs,options);
       tilemega::frontend::ImportOptions import;
+      if (plan.forward) import.phase_batch = serving_batch;
       import.gemms.assign(plan.gemms.size(),{16,128,128,2,1});
       module=tilemega::frontend::TorchExportImporter{}.ImportPlan(
           input.string(),plan,context,&summary,import);

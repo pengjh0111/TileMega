@@ -11,6 +11,8 @@ struct BoundDependencyForm {
   CouplingRelation encoded_relation;
 };
 
+BoundDependencyForm BindExactTaskDependencyLinear(CouplingRelation const& relation,
+    std::uint32_t producers, std::uint32_t consumers);
 BoundDependencyForm BindExactTaskDependency(CouplingEdge const& edge,
     OperatorNode const& producer, OperatorNode const& consumer,
     ParamBinding const& known);

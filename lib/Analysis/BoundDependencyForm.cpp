@@ -89,4 +89,16 @@ BoundDependencyForm BindExactTaskDependency(CouplingEdge const& edge,
   result.encoded_relation = result.table->encoded_relation;
   return result;
 }
+BoundDependencyForm BindExactTaskDependencyLinear(CouplingRelation const& relation,
+    std::uint32_t producers, std::uint32_t consumers) {
+  if (!producers || !consumers || relation.DomainDimNames().size() != 1 ||
+      relation.RangeDimNames().size() != 1)
+    throw std::invalid_argument("invalid bound linear dependency dimensions");
+  OperatorNode producer, consumer;
+  producer.output = {"producer", {{relation.RangeDimNames()[0], ClosedForm::Constant(producers)}}};
+  consumer.output = {"consumer", {{relation.DomainDimNames()[0], ClosedForm::Constant(consumers)}}};
+  producer.tile = consumer.tile = {ClosedForm::Constant(1)};
+  CouplingEdge edge; edge.C = relation;
+  return BindExactTaskDependency(edge, producer, consumer, {});
+}
 }  // namespace tilemega::analysis

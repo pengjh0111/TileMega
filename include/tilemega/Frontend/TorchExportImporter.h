@@ -35,6 +35,7 @@ struct ImportOptions {
   bool separate_residual_tasks = false;
   bool phase_analysis = false;  // R12: only materialized paged decode plans.
   int phase_batch = 0;         // Fixed batch of the materialized serving plan.
+  analysis::ParamBinding task_binding;  // Bound DM task/event capacity; absent for legacy plans.
 };
 struct ImportedSemantics {
   ExportBridge bridge;

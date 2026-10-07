@@ -6,6 +6,7 @@
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/OpArithmetic.h>
 #include <tilemega/Analysis/SemanticCodec.h>
+#include <tilemega/Dialect/CouplingGraph/BoundDependency.h>
 #include <tilemega/Analysis/TaskElementRelation.h>
 #include <tilemega/Dialect/CouplingGraph/HandoffPass.h>
 #include <tilemega/Dialect/CouplingGraph/CGContract.h>
@@ -285,6 +286,8 @@ LogicalResult CouplingOp::verify() {
 
   try {
     analysis::ParamBinding known = combinedBinding(module);
+    (void)ReadBoundTaskGeometry(*this, known);
+    (void)ReadBoundDependencyTable(*this, known);
     // wait(x) = |C(x)|, computed directly from the relation -- not read back
     // from a second, separately authored copy the way the pre-migration
     // DictionaryAttr's "fiber" field was. SemanticallyEqual compares the two
@@ -295,9 +298,9 @@ LogicalResult CouplingOp::verify() {
     if (auto shared = (*this)->getAttrOfType<CouplingMapAttr>("shared_elements")) {
       auto reads = (*this)->getAttrOfType<CouplingMapAttr>("coupled_reads");
       auto elements = (*this)->getAttrOfType<MetricAttr>("interface_elements");
-      if (!reads || !elements || !shared.getMap().BindParams(known).BoundTaskCard().SemanticallyEqual(getVolume().getValue(), known))
+      if (!reads || !elements || !shared.getMap().BoundTaskCard().SemanticallyEqual(getVolume().getValue(), known))
         return emitOpError("exact shared elements disagree with volume");
-      auto physical = reads.getMap().BindParams(known);
+      auto physical = reads.getMap();
       auto repeat = physical.BoundTaskCard().SumDomain().Add(physical.Image().BoundTaskCard().Scale(-1));
       if (!repeat.SemanticallyEqual(elements.getValue(), known))
         return emitOpError("exact interface elements disagree with physical rereads");
@@ -311,16 +314,18 @@ LogicalResult CouplingOp::verify() {
     }
     bool exact_elements = (*this)->hasAttr("shared_elements");
     analysis::QuasiPolynomial expectedWait = exact_elements
-        ? getRelation().getMap().BindParams(known).BoundTaskCard() : getRelation().getMap().Card();
+        ? getRelation().getMap().BoundTaskCard() : getRelation().getMap().Card();
     if (!expectedWait.SemanticallyEqual(getWait().getValue(), known))
       return emitOpError() << "wait " << getWait().getValue().ToString()
                            << " does not match the relation's fiber "
                               "cardinality " << expectedWait.ToString();
 #if TILEMEGA_VERIFY_COUPLING_INCIDENCE
-    auto expectedFanout=exact_elements ? getRelation().getMap().BindParams(known).Reverse().BoundTaskCard()
+    auto expectedFanout=exact_elements ? getRelation().getMap().Reverse().BoundTaskCard()
                                     : getRelation().getMap().FanoutCard();
     if (!expectedFanout.SemanticallyEqual(getFanout().getValue(),known))
-      return emitOpError("fanout does not match the inverse relation's fiber cardinality");
+      return emitOpError() << "fanout " << getFanout().getValue().ToString()
+                          << " does not match the inverse relation's fiber cardinality "
+                          << expectedFanout.ToString();
     if (!expectedWait.SumDomain().SemanticallyEqual(expectedFanout.SumDomain(),known))
       return emitOpError("coupling violates sum(wait) == sum(fanout)");
 #endif

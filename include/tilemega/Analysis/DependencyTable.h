@@ -15,6 +15,11 @@ struct DependencyTable {
   CouplingRelation encoded_relation;
 };
 
+CouplingRelation LinearizeTaskCoordinates(OperatorNode const& node,
+    std::vector<std::string> const& coordinates, ParamBinding const& known,
+    char const* id);
+DependencyTable BuildDependencyTableLinear(CouplingRelation const& relation,
+    std::uint32_t producers, std::uint32_t consumers);
 CouplingRelation LinearizeTaskCoupling(CouplingRelation const& relation,
     OperatorNode const& producer, OperatorNode const& consumer,
     ParamBinding const& known);
