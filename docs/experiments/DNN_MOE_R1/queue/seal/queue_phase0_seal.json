@@ -36,7 +36,7 @@
     "after": [
       "DM0_seal_native_reference"
     ],
-    "priority": 20,
+    "priority": 5,
     "timeout_s": 28800,
     "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_reference_llama_B1_prefill"
   },
@@ -56,7 +56,7 @@
     "after": [
       "DM0_seal_native_reference"
     ],
-    "priority": 20,
+    "priority": 5,
     "timeout_s": 28800,
     "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_reference_llama_B1_decode"
   },
@@ -76,7 +76,7 @@
     "after": [
       "DM0_seal_native_reference"
     ],
-    "priority": 20,
+    "priority": 5,
     "timeout_s": 28800,
     "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_reference_llama_B16_prefill"
   },
@@ -96,7 +96,7 @@
     "after": [
       "DM0_seal_native_reference"
     ],
-    "priority": 20,
+    "priority": 5,
     "timeout_s": 28800,
     "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_reference_llama_B16_decode"
   },
@@ -116,7 +116,7 @@
     "after": [
       "DM0_seal_native_reference"
     ],
-    "priority": 20,
+    "priority": 5,
     "timeout_s": 28800,
     "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_reference_qwen3_B1_prefill"
   },
@@ -136,7 +136,7 @@
     "after": [
       "DM0_seal_native_reference"
     ],
-    "priority": 20,
+    "priority": 5,
     "timeout_s": 28800,
     "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_reference_qwen3_B1_decode"
   },
@@ -156,7 +156,7 @@
     "after": [
       "DM0_seal_native_reference"
     ],
-    "priority": 20,
+    "priority": 5,
     "timeout_s": 28800,
     "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_reference_qwen3_B16_prefill"
   },
@@ -176,7 +176,7 @@
     "after": [
       "DM0_seal_native_reference"
     ],
-    "priority": 20,
+    "priority": 5,
     "timeout_s": 28800,
     "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_reference_qwen3_B16_decode"
   },
@@ -209,7 +209,7 @@
       "DM0_seal_reference_llama_B1_prefill",
       "DM0_seal_reference_llama_B1_decode"
     ],
-    "priority": 20,
+    "priority": 6,
     "timeout_s": 28800,
     "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_tokens_reference_llama_B1"
   },
@@ -242,7 +242,7 @@
       "DM0_seal_reference_llama_B16_prefill",
       "DM0_seal_reference_llama_B16_decode"
     ],
-    "priority": 20,
+    "priority": 6,
     "timeout_s": 28800,
     "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_tokens_reference_llama_B16"
   },
@@ -275,7 +275,7 @@
       "DM0_seal_reference_qwen3_B1_prefill",
       "DM0_seal_reference_qwen3_B1_decode"
     ],
-    "priority": 20,
+    "priority": 6,
     "timeout_s": 28800,
     "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_tokens_reference_qwen3_B1"
   },
@@ -308,7 +308,7 @@
       "DM0_seal_reference_qwen3_B16_prefill",
       "DM0_seal_reference_qwen3_B16_decode"
     ],
-    "priority": 20,
+    "priority": 6,
     "timeout_s": 28800,
     "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_tokens_reference_qwen3_B16"
   },
@@ -666,6 +666,37 @@
       "DM0_seal_tokens_candidate_qwen3_B16"
     ],
     "priority": 50,
+    "timeout_s": 600,
+    "cwd": "/root/dm1_work/development"
+  },
+  {
+    "name": "DM0_seal_reference_bank",
+    "command": [
+      "/usr/bin/python3",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/seal_regression.py",
+      "--reference",
+      "/root/dm1_work/development/runs/dm1-regression/reference",
+      "--head",
+      "76beaea5e2d66e3311b36d020f470c4f016406d0",
+      "--out",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/results/reference_bank.json"
+    ],
+    "gpu": false,
+    "after": [
+      "DM0_seal_reference_llama_B1_prefill",
+      "DM0_seal_reference_llama_B1_decode",
+      "DM0_seal_reference_llama_B16_prefill",
+      "DM0_seal_reference_llama_B16_decode",
+      "DM0_seal_reference_qwen3_B1_prefill",
+      "DM0_seal_reference_qwen3_B1_decode",
+      "DM0_seal_reference_qwen3_B16_prefill",
+      "DM0_seal_reference_qwen3_B16_decode",
+      "DM0_seal_tokens_reference_llama_B1",
+      "DM0_seal_tokens_reference_llama_B16",
+      "DM0_seal_tokens_reference_qwen3_B1",
+      "DM0_seal_tokens_reference_qwen3_B16"
+    ],
+    "priority": 7,
     "timeout_s": 600,
     "cwd": "/root/dm1_work/development"
   }

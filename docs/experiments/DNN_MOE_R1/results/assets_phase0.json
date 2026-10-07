@@ -21,5 +21,19 @@
     "elements": 29159715,
     "passed": true
   },
-  "sidd_extracted": "/root/datasets/sidd/validation"
+  "sidd_extracted": "/root/datasets/sidd/validation",
+  "sidd_metadata": {
+    "gt_crops.lmdb": {
+      "blocks": 1280,
+      "shapes": [
+        "(256,256,3)"
+      ]
+    },
+    "input_crops.lmdb": {
+      "blocks": 1280,
+      "shapes": [
+        "(256,256,3)"
+      ]
+    }
+  }
 }

@@ -16,23 +16,23 @@ def main():
     args = parser.parse_args()
     prompts = torch.tensor(json.loads(args.prompts.read_text())[:args.batch],
                            dtype=torch.int32, device='cuda')
-    outputs = {}
+    # G-REG compares the reference and candidate at fixed execution settings.
+    # Cross-executor C-2 is a separate MoE gate in section 8.C.
+    decode_mode, prefill_mode = 'L2', 'L1'
     with ServingEngine(args.model, args.prefill, args.decode, args.batch,
-                       max_new_tokens=64, mode='L1', decode_loop=False,
-                       step_events=False, prefill_mode='L1') as engine:
+                       max_new_tokens=64, mode=decode_mode, decode_loop=False,
+                       step_events=False, prefill_mode=prefill_mode) as engine:
         stream = torch.cuda.current_stream()
-        for name, mode in [('L1', 1), ('L2', 2)]:
-            engine.state.tokens[:, :64].copy_(prompts)
-            engine.prefill.launch(0, mode, stream.cuda_stream)
-            for step in range(63):
-                engine.decode.launch(step, mode, stream.cuda_stream)
-            stream.synchronize()
-            outputs[name] = engine.state.tokens[:, 64:128].cpu().tolist()
+        engine.state.tokens[:, :64].copy_(prompts)
+        engine.prefill.launch(0, 1, stream.cuda_stream)
+        for step in range(63):
+            engine.decode.launch(step, 2, stream.cuda_stream)
+        stream.synchronize()
+        tokens = engine.state.tokens[:, 64:128].cpu().tolist()
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(dict(batch=args.batch, steps=64, tokens=outputs,
-                                        executor_equal=outputs['L1'] == outputs['L2'])) + '\n')
-    if outputs['L1'] != outputs['L2']:
-        raise SystemExit('G-REG L1/L2 token mismatch')
+    args.out.write_text(json.dumps(dict(batch=args.batch, steps=64, tokens=tokens,
+                                        execution=dict(prefill=prefill_mode,
+                                                       decode=decode_mode, loop=False))) + '\n')
     print('64-step tokens saved ' + str(args.out), flush=True)
 
 
