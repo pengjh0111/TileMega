@@ -1,0 +1,116 @@
+{
+  "evidence": "verified",
+  "exports": [
+    {
+      "model": "bert",
+      "path": "/root/dm1_work/development/runs/dm1-exports/bert/manifest.json",
+      "sha256": "f397a1dc8b95e1a173ab90db7307d4bc38897db2289fd7d30794a5fa3e69c4cd",
+      "before": 296,
+      "core_aten": 970,
+      "accuracy_eligible": false,
+      "versions": {
+        "torch": "2.14.1+cpu",
+        "torchvision": "0.29.1+cpu",
+        "timm": "1.0.30",
+        "transformers": "5.19.0"
+      },
+      "artifacts": {
+        "exported_program.pt2": "c0492577d14e234168b798db509b711cf97288dc82d646cc700b6c8f6e056583",
+        "core_aten.pt2": "5f26c454a819df4585813c081e8e118aceafeff5c3fe0e6c6e4198dc88ff98a0"
+      }
+    },
+    {
+      "model": "bert_masked",
+      "path": "/root/dm1_work/development/runs/dm1-exports/bert_masked/manifest.json",
+      "sha256": "b66c8778426fc7919d240bec2b57cdc588a2d924ca890fa2c8ee74112a1765c9",
+      "before": 306,
+      "core_aten": 987,
+      "accuracy_eligible": false,
+      "versions": {
+        "torch": "2.14.1+cpu",
+        "torchvision": "0.29.1+cpu",
+        "timm": "1.0.30",
+        "transformers": "5.19.0"
+      },
+      "artifacts": {
+        "exported_program.pt2": "015032000a4cde8e6bfbdcd2f70e576e3b585eea97f68ead5e3421214c2148a3",
+        "core_aten.pt2": "2bdf2e0bf4b2b6f52f568c309fcb8146bad1602a9407b1d02f7f842d32cede99"
+      }
+    },
+    {
+      "model": "mbv1",
+      "path": "/root/dm1_work/development/runs/dm1-exports/mbv1/manifest.json",
+      "sha256": "4daf35acd4e247381c860e5686b0655dfb22d31d17bd5503b910a60792e7a537",
+      "before": 84,
+      "core_aten": 113,
+      "accuracy_eligible": false,
+      "versions": {
+        "torch": "2.14.1+cpu",
+        "torchvision": "0.29.1+cpu",
+        "timm": "1.0.30",
+        "transformers": "5.19.0"
+      },
+      "artifacts": {
+        "exported_program.pt2": "461738418093bf7836e8b976d395c00f06bbeeb54b880bbd6c16daa0eef935eb",
+        "core_aten.pt2": "751ed270a1d5e0460884a4375053060c6bdb01f6cd02bb4630e5d4546bcd7b6d"
+      }
+    },
+    {
+      "model": "mbv2",
+      "path": "/root/dm1_work/development/runs/dm1-exports/mbv2/manifest.json",
+      "sha256": "d8fb097ddd6eab9b352528d9863760dc45df7de225ed2a75c16ea646bf139736",
+      "before": 153,
+      "core_aten": 206,
+      "accuracy_eligible": false,
+      "versions": {
+        "torch": "2.14.1+cpu",
+        "torchvision": "0.29.1+cpu",
+        "timm": "1.0.30",
+        "transformers": "5.19.0"
+      },
+      "artifacts": {
+        "exported_program.pt2": "fdf1022b504f4cf75fcf93b0ad3951195f1a7329717473c269c7f2f9797af900",
+        "core_aten.pt2": "7937db0c0a1d9b050999afe209a697fe3153104b16cd17b3549e669be67cc5b7"
+      }
+    },
+    {
+      "model": "nafnet",
+      "path": "/root/dm1_work/development/runs/dm1-exports/nafnet/manifest.json",
+      "sha256": "37b056478bc406f254ac5f232bd9c64358d40acace88afbd81a2747a1faa4b86",
+      "before": 1605,
+      "core_aten": 1622,
+      "accuracy_eligible": false,
+      "versions": {
+        "torch": "2.14.1+cpu",
+        "torchvision": "0.29.1+cpu",
+        "timm": "1.0.30",
+        "transformers": "5.19.0"
+      },
+      "artifacts": {
+        "exported_program.pt2": "0cb5dd554768ec09329e35f5dc7d71f4539710f13b184247a8e4c7455580dbb6",
+        "core_aten.pt2": "e8354b050f68e4cc94727d56366225b9b300cdeb028fd4074171ebc1d8cefbf3"
+      }
+    },
+    {
+      "model": "resnet18",
+      "path": "/root/dm1_work/development/runs/dm1-exports/resnet18/manifest.json",
+      "sha256": "476cfd107e8bcb82349fadd760f9f78fce6393f50bb27c307081ddfa6b357b1c",
+      "before": 69,
+      "core_aten": 92,
+      "accuracy_eligible": false,
+      "versions": {
+        "torch": "2.14.1+cpu",
+        "torchvision": "0.29.1+cpu",
+        "timm": "1.0.30",
+        "transformers": "5.19.0"
+      },
+      "artifacts": {
+        "exported_program.pt2": "bb78688cce088786d28fdc45874e947d6848fa09eddc7f986d090ef131fbc312",
+        "core_aten.pt2": "f12300b3ec19ed7a259a5766b416458333c4910c6b368c6c14887e5e9c0d0950"
+      }
+    }
+  ],
+  "scope": "operator inventories only; original upstream forward code",
+  "device": "CPU",
+  "seed": 20261007
+}
