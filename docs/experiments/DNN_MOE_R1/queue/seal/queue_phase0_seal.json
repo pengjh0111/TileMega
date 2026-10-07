@@ -1,0 +1,672 @@
+[
+  {
+    "name": "DM0_seal_native_reference",
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "cmake",
+      "--build",
+      "/root/dm1_work/reference/build-dm",
+      "--target",
+      "tilemega",
+      "-j",
+      "4"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {},
+    "gpu": false,
+    "after": [],
+    "priority": 1,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_native_reference"
+  },
+  {
+    "name": "DM0_seal_reference_llama_B1_prefill",
+    "command": [
+      "/usr/bin/python3",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/builds_dm.py",
+      "--jobs",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/definitions/reference_llama_B1_prefill.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/reference/llama_B1/prefill/builds.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {},
+    "gpu": false,
+    "after": [
+      "DM0_seal_native_reference"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_reference_llama_B1_prefill"
+  },
+  {
+    "name": "DM0_seal_reference_llama_B1_decode",
+    "command": [
+      "/usr/bin/python3",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/builds_dm.py",
+      "--jobs",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/definitions/reference_llama_B1_decode.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/reference/llama_B1/decode/builds.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {},
+    "gpu": false,
+    "after": [
+      "DM0_seal_native_reference"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_reference_llama_B1_decode"
+  },
+  {
+    "name": "DM0_seal_reference_llama_B16_prefill",
+    "command": [
+      "/usr/bin/python3",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/builds_dm.py",
+      "--jobs",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/definitions/reference_llama_B16_prefill.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/reference/llama_B16/prefill/builds.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {},
+    "gpu": false,
+    "after": [
+      "DM0_seal_native_reference"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_reference_llama_B16_prefill"
+  },
+  {
+    "name": "DM0_seal_reference_llama_B16_decode",
+    "command": [
+      "/usr/bin/python3",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/builds_dm.py",
+      "--jobs",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/definitions/reference_llama_B16_decode.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/reference/llama_B16/decode/builds.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {},
+    "gpu": false,
+    "after": [
+      "DM0_seal_native_reference"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_reference_llama_B16_decode"
+  },
+  {
+    "name": "DM0_seal_reference_qwen3_B1_prefill",
+    "command": [
+      "/usr/bin/python3",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/builds_dm.py",
+      "--jobs",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/definitions/reference_qwen3_B1_prefill.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/reference/qwen3_B1/prefill/builds.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {},
+    "gpu": false,
+    "after": [
+      "DM0_seal_native_reference"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_reference_qwen3_B1_prefill"
+  },
+  {
+    "name": "DM0_seal_reference_qwen3_B1_decode",
+    "command": [
+      "/usr/bin/python3",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/builds_dm.py",
+      "--jobs",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/definitions/reference_qwen3_B1_decode.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/reference/qwen3_B1/decode/builds.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {},
+    "gpu": false,
+    "after": [
+      "DM0_seal_native_reference"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_reference_qwen3_B1_decode"
+  },
+  {
+    "name": "DM0_seal_reference_qwen3_B16_prefill",
+    "command": [
+      "/usr/bin/python3",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/builds_dm.py",
+      "--jobs",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/definitions/reference_qwen3_B16_prefill.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/reference/qwen3_B16/prefill/builds.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {},
+    "gpu": false,
+    "after": [
+      "DM0_seal_native_reference"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_reference_qwen3_B16_prefill"
+  },
+  {
+    "name": "DM0_seal_reference_qwen3_B16_decode",
+    "command": [
+      "/usr/bin/python3",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/builds_dm.py",
+      "--jobs",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/definitions/reference_qwen3_B16_decode.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/reference/qwen3_B16/decode/builds.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {},
+    "gpu": false,
+    "after": [
+      "DM0_seal_native_reference"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_reference_qwen3_B16_decode"
+  },
+  {
+    "name": "DM0_seal_tokens_reference_llama_B1",
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/regression_tokens.py",
+      "--model",
+      "/root/models/llama3_2_1b",
+      "--batch",
+      "1",
+      "--prefill",
+      "/root/dm1_work/development/runs/dm1-regression/reference/llama_B1/prefill/plan.so",
+      "--decode",
+      "/root/dm1_work/development/runs/dm1-regression/reference/llama_B1/decode/plan.so",
+      "--prompts",
+      "/root/dm1_work/development/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/reference/llama_B1/tokens.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {
+      "PYTHONPATH": "/root/dm1_work/reference/python"
+    },
+    "gpu": false,
+    "after": [
+      "DM0_seal_reference_llama_B1_prefill",
+      "DM0_seal_reference_llama_B1_decode"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_tokens_reference_llama_B1"
+  },
+  {
+    "name": "DM0_seal_tokens_reference_llama_B16",
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/regression_tokens.py",
+      "--model",
+      "/root/models/llama3_2_1b",
+      "--batch",
+      "16",
+      "--prefill",
+      "/root/dm1_work/development/runs/dm1-regression/reference/llama_B16/prefill/plan.so",
+      "--decode",
+      "/root/dm1_work/development/runs/dm1-regression/reference/llama_B16/decode/plan.so",
+      "--prompts",
+      "/root/dm1_work/development/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/reference/llama_B16/tokens.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {
+      "PYTHONPATH": "/root/dm1_work/reference/python"
+    },
+    "gpu": false,
+    "after": [
+      "DM0_seal_reference_llama_B16_prefill",
+      "DM0_seal_reference_llama_B16_decode"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_tokens_reference_llama_B16"
+  },
+  {
+    "name": "DM0_seal_tokens_reference_qwen3_B1",
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/regression_tokens.py",
+      "--model",
+      "/root/models/qwen3_1_7b",
+      "--batch",
+      "1",
+      "--prefill",
+      "/root/dm1_work/development/runs/dm1-regression/reference/qwen3_B1/prefill/plan.so",
+      "--decode",
+      "/root/dm1_work/development/runs/dm1-regression/reference/qwen3_B1/decode/plan.so",
+      "--prompts",
+      "/root/dm1_work/development/docs/experiments/SERVING_R10/prompts/qwen3_ids.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/reference/qwen3_B1/tokens.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {
+      "PYTHONPATH": "/root/dm1_work/reference/python"
+    },
+    "gpu": false,
+    "after": [
+      "DM0_seal_reference_qwen3_B1_prefill",
+      "DM0_seal_reference_qwen3_B1_decode"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_tokens_reference_qwen3_B1"
+  },
+  {
+    "name": "DM0_seal_tokens_reference_qwen3_B16",
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/regression_tokens.py",
+      "--model",
+      "/root/models/qwen3_1_7b",
+      "--batch",
+      "16",
+      "--prefill",
+      "/root/dm1_work/development/runs/dm1-regression/reference/qwen3_B16/prefill/plan.so",
+      "--decode",
+      "/root/dm1_work/development/runs/dm1-regression/reference/qwen3_B16/decode/plan.so",
+      "--prompts",
+      "/root/dm1_work/development/docs/experiments/SERVING_R10/prompts/qwen3_ids.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/reference/qwen3_B16/tokens.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {
+      "PYTHONPATH": "/root/dm1_work/reference/python"
+    },
+    "gpu": false,
+    "after": [
+      "DM0_seal_reference_qwen3_B16_prefill",
+      "DM0_seal_reference_qwen3_B16_decode"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/reference/DM0_tokens_reference_qwen3_B16"
+  },
+  {
+    "name": "DM0_seal_native_candidate",
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "cmake",
+      "--build",
+      "/root/dm1_work/development/build-dm",
+      "--target",
+      "tilemega",
+      "-j",
+      "4"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {},
+    "gpu": false,
+    "after": [],
+    "priority": 1,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/candidate/DM0_native_candidate"
+  },
+  {
+    "name": "DM0_seal_candidate_llama_B1_prefill",
+    "command": [
+      "/usr/bin/python3",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/builds_dm.py",
+      "--jobs",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/definitions/candidate_llama_B1_prefill.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/llama_B1/prefill/builds.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {},
+    "gpu": false,
+    "after": [
+      "DM0_seal_native_candidate"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/candidate/DM0_candidate_llama_B1_prefill"
+  },
+  {
+    "name": "DM0_seal_candidate_llama_B1_decode",
+    "command": [
+      "/usr/bin/python3",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/builds_dm.py",
+      "--jobs",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/definitions/candidate_llama_B1_decode.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/llama_B1/decode/builds.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {},
+    "gpu": false,
+    "after": [
+      "DM0_seal_native_candidate"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/candidate/DM0_candidate_llama_B1_decode"
+  },
+  {
+    "name": "DM0_seal_candidate_llama_B16_prefill",
+    "command": [
+      "/usr/bin/python3",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/builds_dm.py",
+      "--jobs",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/definitions/candidate_llama_B16_prefill.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/llama_B16/prefill/builds.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {},
+    "gpu": false,
+    "after": [
+      "DM0_seal_native_candidate"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/candidate/DM0_candidate_llama_B16_prefill"
+  },
+  {
+    "name": "DM0_seal_candidate_llama_B16_decode",
+    "command": [
+      "/usr/bin/python3",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/builds_dm.py",
+      "--jobs",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/definitions/candidate_llama_B16_decode.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/llama_B16/decode/builds.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {},
+    "gpu": false,
+    "after": [
+      "DM0_seal_native_candidate"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/candidate/DM0_candidate_llama_B16_decode"
+  },
+  {
+    "name": "DM0_seal_candidate_qwen3_B1_prefill",
+    "command": [
+      "/usr/bin/python3",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/builds_dm.py",
+      "--jobs",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/definitions/candidate_qwen3_B1_prefill.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/qwen3_B1/prefill/builds.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {},
+    "gpu": false,
+    "after": [
+      "DM0_seal_native_candidate"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/candidate/DM0_candidate_qwen3_B1_prefill"
+  },
+  {
+    "name": "DM0_seal_candidate_qwen3_B1_decode",
+    "command": [
+      "/usr/bin/python3",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/builds_dm.py",
+      "--jobs",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/definitions/candidate_qwen3_B1_decode.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/qwen3_B1/decode/builds.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {},
+    "gpu": false,
+    "after": [
+      "DM0_seal_native_candidate"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/candidate/DM0_candidate_qwen3_B1_decode"
+  },
+  {
+    "name": "DM0_seal_candidate_qwen3_B16_prefill",
+    "command": [
+      "/usr/bin/python3",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/builds_dm.py",
+      "--jobs",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/definitions/candidate_qwen3_B16_prefill.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/qwen3_B16/prefill/builds.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {},
+    "gpu": false,
+    "after": [
+      "DM0_seal_native_candidate"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/candidate/DM0_candidate_qwen3_B16_prefill"
+  },
+  {
+    "name": "DM0_seal_candidate_qwen3_B16_decode",
+    "command": [
+      "/usr/bin/python3",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/builds_dm.py",
+      "--jobs",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/definitions/candidate_qwen3_B16_decode.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/qwen3_B16/decode/builds.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {},
+    "gpu": false,
+    "after": [
+      "DM0_seal_native_candidate"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/candidate/DM0_candidate_qwen3_B16_decode"
+  },
+  {
+    "name": "DM0_seal_tokens_candidate_llama_B1",
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/regression_tokens.py",
+      "--model",
+      "/root/models/llama3_2_1b",
+      "--batch",
+      "1",
+      "--prefill",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/llama_B1/prefill/plan.so",
+      "--decode",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/llama_B1/decode/plan.so",
+      "--prompts",
+      "/root/dm1_work/development/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/llama_B1/tokens.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {
+      "PYTHONPATH": "/root/dm1_work/development/python"
+    },
+    "gpu": false,
+    "after": [
+      "DM0_seal_candidate_llama_B1_prefill",
+      "DM0_seal_candidate_llama_B1_decode"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/candidate/DM0_tokens_candidate_llama_B1"
+  },
+  {
+    "name": "DM0_seal_tokens_candidate_llama_B16",
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/regression_tokens.py",
+      "--model",
+      "/root/models/llama3_2_1b",
+      "--batch",
+      "16",
+      "--prefill",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/llama_B16/prefill/plan.so",
+      "--decode",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/llama_B16/decode/plan.so",
+      "--prompts",
+      "/root/dm1_work/development/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/llama_B16/tokens.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {
+      "PYTHONPATH": "/root/dm1_work/development/python"
+    },
+    "gpu": false,
+    "after": [
+      "DM0_seal_candidate_llama_B16_prefill",
+      "DM0_seal_candidate_llama_B16_decode"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/candidate/DM0_tokens_candidate_llama_B16"
+  },
+  {
+    "name": "DM0_seal_tokens_candidate_qwen3_B1",
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/regression_tokens.py",
+      "--model",
+      "/root/models/qwen3_1_7b",
+      "--batch",
+      "1",
+      "--prefill",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/qwen3_B1/prefill/plan.so",
+      "--decode",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/qwen3_B1/decode/plan.so",
+      "--prompts",
+      "/root/dm1_work/development/docs/experiments/SERVING_R10/prompts/qwen3_ids.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/qwen3_B1/tokens.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {
+      "PYTHONPATH": "/root/dm1_work/development/python"
+    },
+    "gpu": false,
+    "after": [
+      "DM0_seal_candidate_qwen3_B1_prefill",
+      "DM0_seal_candidate_qwen3_B1_decode"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/candidate/DM0_tokens_candidate_qwen3_B1"
+  },
+  {
+    "name": "DM0_seal_tokens_candidate_qwen3_B16",
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/regression_tokens.py",
+      "--model",
+      "/root/models/qwen3_1_7b",
+      "--batch",
+      "16",
+      "--prefill",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/qwen3_B16/prefill/plan.so",
+      "--decode",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/qwen3_B16/decode/plan.so",
+      "--prompts",
+      "/root/dm1_work/development/docs/experiments/SERVING_R10/prompts/qwen3_ids.json",
+      "--out",
+      "/root/dm1_work/development/runs/dm1-regression/candidate/qwen3_B16/tokens.json"
+    ],
+    "cwd": "/root/dm1_work/development",
+    "env": {
+      "PYTHONPATH": "/root/dm1_work/development/python"
+    },
+    "gpu": false,
+    "after": [
+      "DM0_seal_candidate_qwen3_B16_prefill",
+      "DM0_seal_candidate_qwen3_B16_decode"
+    ],
+    "priority": 20,
+    "timeout_s": 28800,
+    "out": "/root/dm1_work/development/runs/dm1-regression/candidate/DM0_tokens_candidate_qwen3_B16"
+  },
+  {
+    "name": "DM0_seal_artifact_comparison",
+    "command": [
+      "/usr/bin/python3",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/regression_compare.py",
+      "--root",
+      "/root/dm1_work/development/runs/dm1-regression",
+      "--out",
+      "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/results/T1_phase0_seal.json",
+      "--partial"
+    ],
+    "gpu": false,
+    "after": [
+      "DM0_seal_native_reference",
+      "DM0_seal_reference_llama_B1_prefill",
+      "DM0_seal_reference_llama_B1_decode",
+      "DM0_seal_reference_llama_B16_prefill",
+      "DM0_seal_reference_llama_B16_decode",
+      "DM0_seal_reference_qwen3_B1_prefill",
+      "DM0_seal_reference_qwen3_B1_decode",
+      "DM0_seal_reference_qwen3_B16_prefill",
+      "DM0_seal_reference_qwen3_B16_decode",
+      "DM0_seal_tokens_reference_llama_B1",
+      "DM0_seal_tokens_reference_llama_B16",
+      "DM0_seal_tokens_reference_qwen3_B1",
+      "DM0_seal_tokens_reference_qwen3_B16",
+      "DM0_seal_native_candidate",
+      "DM0_seal_candidate_llama_B1_prefill",
+      "DM0_seal_candidate_llama_B1_decode",
+      "DM0_seal_candidate_llama_B16_prefill",
+      "DM0_seal_candidate_llama_B16_decode",
+      "DM0_seal_candidate_qwen3_B1_prefill",
+      "DM0_seal_candidate_qwen3_B1_decode",
+      "DM0_seal_candidate_qwen3_B16_prefill",
+      "DM0_seal_candidate_qwen3_B16_decode",
+      "DM0_seal_tokens_candidate_llama_B1",
+      "DM0_seal_tokens_candidate_llama_B16",
+      "DM0_seal_tokens_candidate_qwen3_B1",
+      "DM0_seal_tokens_candidate_qwen3_B16"
+    ],
+    "priority": 50,
+    "timeout_s": 600,
+    "cwd": "/root/dm1_work/development"
+  }
+]

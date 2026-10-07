@@ -219,6 +219,11 @@
       "unsqueeze": 3,
       "view": 276,
       "where": 24
+    },
+    "explanation": {
+      "evidence": "verified",
+      "source": "core_aten.pt2 nn_module_stack",
+      "detail": "Twelve attention.output.dense linears decompose to bmm plus bias rather than addmm; remaining 24 bmm are attention score/value."
     }
   }
 ]

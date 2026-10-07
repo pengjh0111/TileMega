@@ -1,0 +1,25 @@
+{
+  "evidence": "verified",
+  "assets": [
+    {
+      "path": "/root/models/nafnet/NAFNet-SIDD-width32.pth",
+      "source": "https://drive.google.com/file/d/1lsByk21Xw-6aW7epCwOQxvm6HYCQZPHZ/view",
+      "bytes": 116861841,
+      "sha256": "89c70e808d1783b6c07911306e106aaf0d4f7f3da8c61078b99ff7f8929a26f4",
+      "zip_crc": "passed"
+    },
+    {
+      "path": "/root/dm1_work/SIDD-validation.download",
+      "source": "https://drive.google.com/file/d/1gZx_K2vmiHalRNOb1aj93KuUQ2guOlLp/view",
+      "bytes": 310626186,
+      "sha256": "82b25f54ca4682453bef40c895e7fa9a0b9ead11c8f388d5b4ac6a77fcd0892f",
+      "zip_crc": "passed"
+    }
+  ],
+  "nafnet_strict_load": {
+    "tensors": 664,
+    "elements": 29159715,
+    "passed": true
+  },
+  "sidd_extracted": "/root/datasets/sidd/validation"
+}

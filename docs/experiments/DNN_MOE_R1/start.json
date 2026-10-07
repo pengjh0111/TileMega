@@ -33,5 +33,9 @@
     "M2": "not reached"
   },
   "status": "Phase 0 in progress; Phase 1 is gated on all Phase 0 artifacts",
-  "companion_plan_sha256": "ce288acf9c9557cf98956eb201ffc10a7c7a5bef9b12787c12e41f36275d01ce"
+  "companion_plan_sha256": "ce288acf9c9557cf98956eb201ffc10a7c7a5bef9b12787c12e41f36275d01ce",
+  "python_export_environment": "/root/dm1_work/venv (CPU, upstream pinned versions)",
+  "llm_regression_environment": "/root/venvs/tilemega-torch213-cu126 (existing 2.13.0+cu126)",
+  "regression_queue": "queue/queue_phase0_regression.json",
+  "regression_completion_mode": "inotify completion events; no status polling"
 }

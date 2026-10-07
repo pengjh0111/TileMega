@@ -21,6 +21,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--partial', action='store_true',
+                        help='collect available evidence; missing ctest never passes G-REG')
     args = parser.parse_args()
     rows = []
     for model in ('llama', 'qwen3'):
@@ -44,14 +46,21 @@ def main():
                                  token_equal=tokens_old == tokens_new))
     ctest = {}
     for side in ('reference', 'candidate'):
-        ctest[side] = json.loads((args.root / side / 'ctest.json').read_text())
-    passed = all(all(r[k] for k in ('cu_equal', 'resources_equal', 'sass_equal', 'token_equal'))
-                 for r in rows) and all(r['exit_code'] == 0 for r in ctest.values())
+        path = args.root / side / 'ctest.json'
+        if args.partial and not path.exists():
+            ctest[side] = dict(exit_code=None, status='not run; native test build failed')
+        else:
+            ctest[side] = json.loads(path.read_text())
+    artifacts_passed = all(all(r[k] for k in
+                              ('cu_equal', 'resources_equal', 'sass_equal', 'token_equal'))
+                           for r in rows)
+    passed = artifacts_passed and all(r['exit_code'] == 0 for r in ctest.values())
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(dict(gate='G-REG', passed=passed, rows=rows,
+    args.out.write_text(json.dumps(dict(gate='G-REG', passed=passed,
+                                        available_checks_passed=artifacts_passed, rows=rows,
                                         ctest=ctest, evidence='verified'), indent=2) + '\n')
     print('G-REG ' + ('PASS' if passed else 'FAIL'), flush=True)
-    if not passed:
+    if not passed and not (args.partial and artifacts_passed):
         raise SystemExit(1)
 
 

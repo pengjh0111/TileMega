@@ -270,7 +270,8 @@
         "mbv1_B32",
         "mbv2_B1",
         "mbv2_B8",
-        "mbv2_B32"
+        "mbv2_B32",
+        "nafnet_B1"
       ],
       "arm": "TM-L2x",
       "baseline_arm": "TM-L2r",
