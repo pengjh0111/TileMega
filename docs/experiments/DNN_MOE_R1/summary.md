@@ -57,6 +57,13 @@ and bias in these exports, accounting for the addmm/bmm difference. The
 stated counts remain unchanged in the comparison. Forward plans must handle
 both spellings and these observed targets.
 
+verified: all twelve saved archives reload with identical non-getitem
+operator inventories and BF16 floating weights. Core ATen deserialization
+adds unused tuple-field getitems (BN, LayerNorm and maxpool); original counts
+are retained and reloaded counts are separately recorded in
+`results/export_roundtrip.json`. DNN archive loading registers HF's original
+ModelOutput pytree definitions before loading BERT.
+
 T3–T12: pending implementation and the required gates. G-DNN and G-MOE:
 not run. §8.A: no synchronization path has a 50/50 claim. No new TaskBody
 has entered a performance matrix. No performance or calibration result is

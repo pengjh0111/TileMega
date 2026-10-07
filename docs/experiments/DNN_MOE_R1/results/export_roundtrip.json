@@ -1,0 +1,348 @@
+{
+  "evidence": "verified",
+  "results": [
+    {
+      "model": "bert",
+      "archive": "exported_program.pt2",
+      "non_getitem_inventory_equal": true,
+      "roundtrip_differences": {},
+      "dead_getitems": 0,
+      "reloaded_inventory": {
+        "aten.add.Tensor": 28,
+        "aten.arange.default": 4,
+        "aten.dropout.default": 25,
+        "aten.embedding.default": 3,
+        "aten.expand.default": 1,
+        "aten.ge.Scalar": 1,
+        "aten.gelu.default": 12,
+        "aten.layer_norm.default": 25,
+        "aten.linear.default": 73,
+        "aten.reshape.default": 12,
+        "aten.scaled_dot_product_attention.default": 12,
+        "aten.select.int": 1,
+        "aten.slice.Tensor": 1,
+        "aten.sym_size.int": 1,
+        "aten.tanh.default": 1,
+        "aten.transpose.int": 48,
+        "aten.unsqueeze.default": 12,
+        "aten.view.default": 36
+      },
+      "floating_weights_bf16": true,
+      "sha256": "c0492577d14e234168b798db509b711cf97288dc82d646cc700b6c8f6e056583"
+    },
+    {
+      "model": "bert",
+      "archive": "core_aten.pt2",
+      "non_getitem_inventory_equal": true,
+      "roundtrip_differences": {
+        "<built-in function getitem>": {
+          "exported": 25,
+          "reloaded": 75
+        }
+      },
+      "dead_getitems": 50,
+      "reloaded_inventory": {
+        "<built-in function getitem>": 75,
+        "<built-in function mul>": 2,
+        "aten._softmax.default": 12,
+        "aten._to_copy.default": 48,
+        "aten.add.Tensor": 51,
+        "aten.addmm.default": 61,
+        "aten.any.dim": 12,
+        "aten.arange.start_step": 1,
+        "aten.bmm.default": 36,
+        "aten.clone.default": 48,
+        "aten.embedding.default": 3,
+        "aten.eq.Scalar": 12,
+        "aten.expand.default": 73,
+        "aten.full_like.default": 12,
+        "aten.ge.Scalar": 1,
+        "aten.gelu.default": 12,
+        "aten.logical_not.default": 24,
+        "aten.mul.Scalar": 24,
+        "aten.native_layer_norm.default": 25,
+        "aten.permute.default": 157,
+        "aten.scalar_tensor.default": 24,
+        "aten.select.int": 1,
+        "aten.slice.Tensor": 1,
+        "aten.sym_size.int": 1,
+        "aten.tanh.default": 1,
+        "aten.unsqueeze.default": 3,
+        "aten.view.default": 276,
+        "aten.where.self": 24
+      },
+      "floating_weights_bf16": true,
+      "sha256": "5f26c454a819df4585813c081e8e118aceafeff5c3fe0e6c6e4198dc88ff98a0"
+    },
+    {
+      "model": "bert_masked",
+      "archive": "exported_program.pt2",
+      "non_getitem_inventory_equal": true,
+      "roundtrip_differences": {},
+      "dead_getitems": 0,
+      "reloaded_inventory": {
+        "aten.__and__.Tensor": 2,
+        "aten._assert_tensor_metadata.default": 3,
+        "aten.add.Tensor": 28,
+        "aten.arange.default": 4,
+        "aten.dropout.default": 25,
+        "aten.embedding.default": 3,
+        "aten.expand.default": 1,
+        "aten.ge.Scalar": 1,
+        "aten.gelu.default": 12,
+        "aten.index.Tensor": 1,
+        "aten.layer_norm.default": 25,
+        "aten.linear.default": 73,
+        "aten.new_ones.default": 1,
+        "aten.reshape.default": 12,
+        "aten.scaled_dot_product_attention.default": 12,
+        "aten.select.int": 1,
+        "aten.slice.Tensor": 1,
+        "aten.sym_size.int": 1,
+        "aten.tanh.default": 1,
+        "aten.to.device": 1,
+        "aten.to.dtype_layout": 2,
+        "aten.transpose.int": 48,
+        "aten.unsqueeze.default": 12,
+        "aten.view.default": 36
+      },
+      "floating_weights_bf16": true,
+      "sha256": "015032000a4cde8e6bfbdcd2f70e576e3b585eea97f68ead5e3421214c2148a3"
+    },
+    {
+      "model": "bert_masked",
+      "archive": "core_aten.pt2",
+      "non_getitem_inventory_equal": true,
+      "roundtrip_differences": {
+        "<built-in function getitem>": {
+          "exported": 25,
+          "reloaded": 75
+        }
+      },
+      "dead_getitems": 50,
+      "reloaded_inventory": {
+        "<built-in function getitem>": 75,
+        "<built-in function mul>": 2,
+        "aten._assert_tensor_metadata.default": 3,
+        "aten._softmax.default": 12,
+        "aten._to_copy.default": 49,
+        "aten.add.Tensor": 52,
+        "aten.addmm.default": 61,
+        "aten.any.dim": 12,
+        "aten.arange.start_step": 3,
+        "aten.bitwise_and.Tensor": 2,
+        "aten.bmm.default": 36,
+        "aten.clone.default": 48,
+        "aten.embedding.default": 3,
+        "aten.eq.Scalar": 12,
+        "aten.expand.default": 73,
+        "aten.full.default": 1,
+        "aten.full_like.default": 12,
+        "aten.ge.Scalar": 1,
+        "aten.gelu.default": 12,
+        "aten.index.Tensor": 1,
+        "aten.logical_not.default": 24,
+        "aten.mul.Scalar": 24,
+        "aten.native_layer_norm.default": 25,
+        "aten.permute.default": 157,
+        "aten.scalar_tensor.default": 24,
+        "aten.select.int": 1,
+        "aten.slice.Tensor": 1,
+        "aten.sym_size.int": 1,
+        "aten.tanh.default": 1,
+        "aten.unsqueeze.default": 9,
+        "aten.view.default": 276,
+        "aten.where.self": 24
+      },
+      "floating_weights_bf16": true,
+      "sha256": "2bdf2e0bf4b2b6f52f568c309fcb8146bad1602a9407b1d02f7f842d32cede99"
+    },
+    {
+      "model": "mbv1",
+      "archive": "exported_program.pt2",
+      "non_getitem_inventory_equal": true,
+      "roundtrip_differences": {},
+      "dead_getitems": 0,
+      "reloaded_inventory": {
+        "aten.adaptive_avg_pool2d.default": 1,
+        "aten.batch_norm.default": 27,
+        "aten.conv2d.default": 27,
+        "aten.flatten.using_ints": 1,
+        "aten.hardtanh_.default": 27,
+        "aten.linear.default": 1
+      },
+      "floating_weights_bf16": true,
+      "sha256": "461738418093bf7836e8b976d395c00f06bbeeb54b880bbd6c16daa0eef935eb"
+    },
+    {
+      "model": "mbv1",
+      "archive": "core_aten.pt2",
+      "non_getitem_inventory_equal": true,
+      "roundtrip_differences": {
+        "<built-in function getitem>": {
+          "exported": 27,
+          "reloaded": 81
+        }
+      },
+      "dead_getitems": 54,
+      "reloaded_inventory": {
+        "<built-in function getitem>": 81,
+        "aten._native_batch_norm_legit_no_training.default": 27,
+        "aten.addmm.default": 1,
+        "aten.convolution.default": 27,
+        "aten.hardtanh.default": 27,
+        "aten.mean.dim": 1,
+        "aten.permute.default": 1,
+        "aten.sym_size.int": 1,
+        "aten.view.default": 1
+      },
+      "floating_weights_bf16": true,
+      "sha256": "751ed270a1d5e0460884a4375053060c6bdb01f6cd02bb4630e5d4546bcd7b6d"
+    },
+    {
+      "model": "mbv2",
+      "archive": "exported_program.pt2",
+      "non_getitem_inventory_equal": true,
+      "roundtrip_differences": {},
+      "dead_getitems": 0,
+      "reloaded_inventory": {
+        "aten.adaptive_avg_pool2d.default": 1,
+        "aten.add.Tensor": 10,
+        "aten.batch_norm.default": 52,
+        "aten.conv2d.default": 52,
+        "aten.dropout.default": 1,
+        "aten.flatten.using_ints": 1,
+        "aten.hardtanh_.default": 35,
+        "aten.linear.default": 1
+      },
+      "floating_weights_bf16": true,
+      "sha256": "fdf1022b504f4cf75fcf93b0ad3951195f1a7329717473c269c7f2f9797af900"
+    },
+    {
+      "model": "mbv2",
+      "archive": "core_aten.pt2",
+      "non_getitem_inventory_equal": true,
+      "roundtrip_differences": {
+        "<built-in function getitem>": {
+          "exported": 52,
+          "reloaded": 156
+        }
+      },
+      "dead_getitems": 104,
+      "reloaded_inventory": {
+        "<built-in function getitem>": 156,
+        "aten._native_batch_norm_legit_no_training.default": 52,
+        "aten.add.Tensor": 10,
+        "aten.addmm.default": 1,
+        "aten.convolution.default": 52,
+        "aten.hardtanh.default": 35,
+        "aten.mean.dim": 1,
+        "aten.permute.default": 1,
+        "aten.sym_size.int": 1,
+        "aten.view.default": 1
+      },
+      "floating_weights_bf16": true,
+      "sha256": "7937db0c0a1d9b050999afe209a697fe3153104b16cd17b3549e669be67cc5b7"
+    },
+    {
+      "model": "nafnet",
+      "archive": "exported_program.pt2",
+      "non_getitem_inventory_equal": true,
+      "roundtrip_differences": {},
+      "dead_getitems": 0,
+      "reloaded_inventory": {
+        "<built-in function getitem>": 144,
+        "aten.adaptive_avg_pool2d.default": 36,
+        "aten.add.Tensor": 221,
+        "aten.alias.default": 1,
+        "aten.chunk.default": 72,
+        "aten.conv2d.default": 226,
+        "aten.div.Tensor": 72,
+        "aten.mean.dim": 144,
+        "aten.mul.Tensor": 252,
+        "aten.pad.default": 1,
+        "aten.pixel_shuffle.default": 4,
+        "aten.pow.Tensor_Scalar": 72,
+        "aten.sqrt.default": 72,
+        "aten.sub.Tensor": 144,
+        "aten.view.default": 144
+      },
+      "floating_weights_bf16": true,
+      "sha256": "0cb5dd554768ec09329e35f5dc7d71f4539710f13b184247a8e4c7455580dbb6"
+    },
+    {
+      "model": "nafnet",
+      "archive": "core_aten.pt2",
+      "non_getitem_inventory_equal": true,
+      "roundtrip_differences": {},
+      "dead_getitems": 0,
+      "reloaded_inventory": {
+        "<built-in function getitem>": 144,
+        "aten.add.Tensor": 221,
+        "aten.alias.default": 1,
+        "aten.clone.default": 8,
+        "aten.constant_pad_nd.default": 1,
+        "aten.convolution.default": 226,
+        "aten.div.Tensor": 72,
+        "aten.mean.dim": 180,
+        "aten.mul.Tensor": 252,
+        "aten.permute.default": 4,
+        "aten.pow.Tensor_Scalar": 72,
+        "aten.split_with_sizes.default": 72,
+        "aten.sqrt.default": 72,
+        "aten.sub.Tensor": 144,
+        "aten.sym_size.int": 1,
+        "aten.view.default": 152
+      },
+      "floating_weights_bf16": true,
+      "sha256": "e8354b050f68e4cc94727d56366225b9b300cdeb028fd4074171ebc1d8cefbf3"
+    },
+    {
+      "model": "resnet18",
+      "archive": "exported_program.pt2",
+      "non_getitem_inventory_equal": true,
+      "roundtrip_differences": {},
+      "dead_getitems": 0,
+      "reloaded_inventory": {
+        "aten.adaptive_avg_pool2d.default": 1,
+        "aten.add_.Tensor": 8,
+        "aten.batch_norm.default": 20,
+        "aten.conv2d.default": 20,
+        "aten.flatten.using_ints": 1,
+        "aten.linear.default": 1,
+        "aten.max_pool2d.default": 1,
+        "aten.relu_.default": 17
+      },
+      "floating_weights_bf16": true,
+      "sha256": "bb78688cce088786d28fdc45874e947d6848fa09eddc7f986d090ef131fbc312"
+    },
+    {
+      "model": "resnet18",
+      "archive": "core_aten.pt2",
+      "non_getitem_inventory_equal": true,
+      "roundtrip_differences": {
+        "<built-in function getitem>": {
+          "exported": 21,
+          "reloaded": 62
+        }
+      },
+      "dead_getitems": 41,
+      "reloaded_inventory": {
+        "<built-in function getitem>": 62,
+        "aten._native_batch_norm_legit_no_training.default": 20,
+        "aten.add.Tensor": 8,
+        "aten.addmm.default": 1,
+        "aten.convolution.default": 20,
+        "aten.max_pool2d_with_indices.default": 1,
+        "aten.mean.dim": 1,
+        "aten.permute.default": 1,
+        "aten.relu.default": 17,
+        "aten.sym_size.int": 1,
+        "aten.view.default": 1
+      },
+      "floating_weights_bf16": true,
+      "sha256": "f12300b3ec19ed7a259a5766b416458333c4910c6b368c6c14887e5e9c0d0950"
+    }
+  ],
+  "interpretation": "Original counts retained; deserializer introduces unused tuple-field getitem nodes."
+}
