@@ -2,6 +2,7 @@
 """FX-25 fields for DM-1 builds until the upstream identity API is merged."""
 import hashlib
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -70,17 +71,23 @@ def generate(so, source, executor='L1', loop=False):
         if arg.startswith('-D'):
             name, _, value = arg[2:].partition('=')
             definitions[name] = value or '1'
-    trace = any(name.startswith('TILEMEGA_TRACE') and value != '0'
+    trace = any((name.startswith('TILEMEGA_TRACE') or name == 'TILEMEGA_PAGE_TRACE')
+                and value != '0'
                 for name, value in definitions.items())
     arch = next((v.split('=', 1)[1] for v in command if v.startswith('-arch=')), None)
     if arch is None:
         raise ValueError('compiler command lacks an explicit architecture')
     kernels = resources(Path(str(so) + '.ptxas.log').read_text())
+    vllm_python = os.environ.get('TILEMEGA_VLLM_PYTHON', '/root/venv_vllm/bin/python')
+    vllm_version = subprocess.check_output(
+        [vllm_python, '-c', 'from importlib.metadata import version; print(version("vllm"))'],
+        text=True).strip()
     # All callable launch entries are retained; measurements identify their
     # executed entry from this map rather than borrowing another mode's row.
     identity = dict(schema='tilemega.dm1.identity.v1', source=source,
                     cu_sha256=sha(cu), so_sha256=sha(so), manifest_sha256=sha(manifest),
                     nvcc_version=subprocess.check_output([command[0], '--version'], text=True),
+                    baselines=dict(vllm_version=vllm_version, vllm_python=vllm_python),
                     compiler_command=command, macros=definitions, arch=arch, trace=trace,
                     execution=dict(pg=plan['pg'], executor=executor, loop=loop,
                                    pdl=plan.get('pdl'), phase=plan['phase']),
