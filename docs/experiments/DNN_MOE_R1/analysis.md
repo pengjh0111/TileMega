@@ -68,6 +68,9 @@ runtime binding's live rows from its static task/event capacity without changing
 the legacy five-attribute Tier rules. Runtime binding writers and consumers are
 still pending; these host checks do not establish their synchronization.
 
-Pending: executable table and counted waits; memory-planner integration;
+verified: table and counted runtime primitives and synthetic stage materialization
+are sealed in `synchronization.md`; automatic CG transport is under validation.
+
+Pending: real-body table/counted writes and waits; memory-planner integration;
 poison checks and all required 50-process synchronization gates. No CI-4 item
 is considered fully complete until its required integration is verified.

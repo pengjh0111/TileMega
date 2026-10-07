@@ -1,0 +1,40 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "source": {
+    "source_head": "72e0f3dea3fd7d725c3104926ff543fd707abcde",
+    "files": {
+      "CMakeLists.txt": "3bf993e487004bbcaa541790a1f7ba5bfcfbd43690b7e8e8fbc5b98a22211bd5",
+      "include/tilemega/Analysis/BoundDependencyForm.h": "395c3851ff7cc2838053aa4d4dcd183b6e169e5fd740071cd142a2fe3525b423",
+      "include/tilemega/Analysis/DependencyTable.h": "fe36cc92bff456074240660b337d03fbd73ca76b31a128034c9d9f640e5535a8",
+      "include/tilemega/Codegen/RuntimePlan.h": "17d3d84830b0bbef227b9be4c6bf05fb3c7b68eecf37764fe879ea408d7c5c29",
+      "include/tilemega/Frontend/TorchExportImporter.h": "9a296d42d3b50ceec4fbb16d52fb4847eb5ff30ef970e0330b7aa6c55938a230",
+      "lib/Analysis/BoundDependencyForm.cpp": "63d657e44a59db43b70eb2608a8c6930c9b3e87df74a3e0677e7c421e30fd454",
+      "lib/Analysis/DependencyTable.cpp": "7e399232ccb8ca8eca9f0596962127d341b2fd1bd22771e6ec22fc3720445596",
+      "lib/Codegen/Codegen.cpp": "a99fe104f5ef9b54ff6c17f8e52e4ce269d5e2e0f2dc33494e64ebdce0d789c9",
+      "lib/Dialect/CouplingGraph/CGDialect.cpp": "02fc5b733d220db9adef7720884effad0c74ebb26fedf3e674fb6ebb6317ad3a",
+      "lib/Frontend/Frontend.cpp": "2248dae6389dc669d72a625975fcbde2176482465272edfd9633c24dc777701f",
+      "test/unit/runner.cpp": "24746771e3ce62ad5118bc6b7f4789eb5e0a9825b7fdcce0f9299e0db20d01b1",
+      "tools/commands/compile.cpp": "8ac7b2e3fb707bae2716ed7198f3c549f4a89b1f67c0f9e02df3d1a3fa13f37e",
+      "include/tilemega/Dialect/CouplingGraph/BoundDependency.h": "d7be9bd614a92d3b2f23c67ab6bd1fe4f48bc6f634f03441baf0ba65f2e7d6e2",
+      "lib/Dialect/CouplingGraph/BoundDependency.cpp": "c8b2d621bdde353d0288ca4ff4b5f17aae095747938642dc6e7e653546155a94",
+      "test/unit/bound_dependency_codegen_test.cpp": "8ce17d70324a6e58dab970232d42692d6198a385fd6353a05c7d870e45c7cc0b",
+      "lib/Analysis/CouplingRelation.cpp": "e8ada7096d9e8af5179b31b8482e78aa15fbd8efa3dcf52f2ccabc3b81bf199e",
+      "test/unit/exact_task_metadata_test.cpp": "45aeb07e77b5e0e9e776e00e212455391ae461bbf850c4fd89a8e53cbacb50be",
+      "include/tilemega/Codegen/tasks/ServingRuntime.cuh": "3ad8d75daad8ec68ee5cff658c2b4306e3218d4bab4168b72f68a90ca0e538db"
+    }
+  },
+  "checks": 9,
+  "scope": "bound geometry/table CG verification, codegen union/refit and fixed-batch host checks; no device synchronization gate",
+  "binary_sha256": "b452c9c0bece97e1ed99a280982838cd69d9e1f8929110ff9069b8bfdfbed9be",
+  "logs": {
+    "build_bound_codegen.log": "d41985c39e4c5be51a4a4493727b1ed7befeea5d52b7603103b83df8a19f8cd9",
+    "ctest_bound_codegen.log": "7275735250a375d1258511f93f981874e0991d8382be97daf3a1db386b18900d"
+  },
+  "attempts": [
+    "missing fixture seq=1",
+    "symbolic image retained zero-dimensional tuple",
+    "symbolic/fixed fiber representations differed",
+    "temporary local variable name collision; original expectations retained"
+  ]
+}

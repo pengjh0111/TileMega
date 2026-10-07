@@ -41,6 +41,27 @@ other mode's earlier arrivals. The placement DAG conservatively includes all
 potential counted producers; device waits use the target's static contribution
 count. This affects scheduling legality rather than introducing a stage wait.
 
-Pending: automatic CG/codegen table transport, real TaskBodies and their gates,
-and paged counted execution. The stage experiment uses synthetic task bodies
+Pending: real TaskBodies and their gates, and paged counted execution.
+The stage experiment uses synthetic task bodies
 through the production materializer/wait functions, not DNN/MoE model bodies.
+
+verified: automatic bound CG/codegen transport passes 9/9 host checks
+(`results/CI5_bound_codegen_host.json`). CG validates injective task
+linearizations, exact bound relation equivalence, counts, canonical intervals
+and table stride. Multiple input edges between the same stages are unioned
+before choosing an exact window/table, including a sparse table whose extra
+input fills its hole. B=1/2/8 and deliberate attribute corruption are covered.
+
+verified: the generated table descriptors compile on sm_80/89/90/100/120;
+all recorded kernels have no spill stores/loads. A conflicting batch range
+is rejected by the generated ABI contract
+(`results/CI5_bound_codegen_architectures.json`). This semantic fixture is
+compile-only: its access relation is synthetic and is not numerically executed
+as a dense GEMM. Real DNN table-body gates remain pending.
+
+inferred: symbolic metric verification must rederive in the same symbolic
+space before binding. A finite nonzero-fiber enumeration and Barvinok's
+symbolic expression may differ in their zero-valued coordinate support;
+the existing structural polynomial comparison does not canonicalize all
+floor identities between them. Parameter-only image counts use a scalar
+polynomial space so physical-reread subtraction remains well typed.

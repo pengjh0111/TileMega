@@ -31,8 +31,9 @@ that DNN or MoE execution is implemented.
 | CI-1 | implemented transcription/constant/binding API; verification in `bridge.md`; forward build integration follows CI-3/DN-11 |
 | CI-2 | verified descriptors, finite epilogue and GEMM/combiner dispatch (`descriptors.md`, `numerics.md`); new operand policies follow DN/MO bodies |
 | CI-3 | verified core ABI/dimensions, five targets, 50/50 fresh processes per seq (1/128/4096); CLI/model integration pending (`forward.md`) |
-| CI-4 | verified static access/metrics/table/WAR-WAW analysis, 11/11 host checks; virtual binding and runtime integration pending (`analysis.md`) |
-| CI-5 through CI-7 | not implemented |
+| CI-4 | verified static access/metrics/table/WAR-WAW, exact bound encoding and virtual capacity/provenance; counted-write and memory-planner integration pending (`analysis.md`) |
+| CI-5 | verified dependency primitives (50/50) and full synthetic table/counted stage materialization (150/150); automatic transport, pages, LA and real bodies pending (`synchronization.md`) |
+| CI-6 through CI-7 | not implemented |
 | DN-2 through DN-11 | not implemented |
 | MO-1 through MO-9 | not implemented |
 
@@ -112,10 +113,20 @@ T3: verified 11/11 host analysis checks: window/stride/dilation/halo,
 flattened row/image tiles, pixel shuffle, exact interval tables, split-K,
 symbolic dimensions/origins, I2 row gather and WAR/WAW. Relations match
 independent enumeration; box envelopes are explicitly `over`
-(`results/CI4_exact_analysis.json`). Runtime waits and poison checks remain pending.
+(`results/CI4_exact_analysis.json`). Primitive and synthetic stage waits are verified below; real-body waits and reuse poison checks remain pending.
+
+T3: verified bound window/table proofs, closed-form group capacities, and virtual
+ownership/provenance (`results/CI4_bound_encoding.json`,
+`results/CI4_capacity_form.json`, `results/CI4_virtual_binding.json`).
+T4/T12 subcomponent evidence: sparse table, counted publication and weighted
+last-arriver primitives pass 50/50 fresh processes; full synthetic stage
+materialization passes 150/150 (50 each at kappa=1/4/16), with bitwise L1/L2
+outputs and separate counter banks. Five architectures compile without spills
+(`results/CI5_dependency_primitives.json`, `results/CI5_stage_dependencies.json`).
+These synthetic bodies do not establish DNN/MoE TaskBody or model gates.
 
 Remaining T3–T12 entries: pending implementation and required gates. G-DNN and G-MOE:
-not run. §8.A: no synchronization path has a 50/50 claim. No new TaskBody
+not run. §8.A: primitive and synthetic table/counted/weighted-LA paths have fresh-process evidence; real-body and remaining path gates are pending. No new TaskBody
 has entered a performance matrix. No performance or calibration result is
 reported.
 

@@ -281,6 +281,8 @@ trigger(e)     = C_κ(x) 的坐标映射        谁通知谁
 
 ## 2.4 Tier：耦合的可解析程度
 
+（⚠️ DM-1：虚拟 tile 的活跃长度及绑定来源记录为 `runtime_dynamic` 与 `prefix_sum`/`tensor_values`；静态容量空间内的仿射耦合保持 Tier 0。窗口项、floordiv/mod 与物理读写关系保留精确集合，逐轴盒包络标为 over；WAR/WAW 与 RAW 使用相同推导/编码。host 证据已封存，真实绑定与缓冲复用执行门待完成。）
+
 | Tier | 定义 | 实例 | `C` 的形态 | 代价 |
 |---|---|---|---|---|
 | **0** | 纯仿射 | norm / proj / elementwise / RoPE / GEMM(含 split-K) / GQA head 映射 | 完全闭式 | 0 |
@@ -871,6 +873,8 @@ BF16 形状再拟合出负的每 CTA setup。钳位已删除，改由 `combine_f
 
 ## 4.6 Serving harness（L5）
 
+（⚠️ DM-1：新增 forward phase=2、step=0、无 KV/RoPE 状态的 ABI 与行数/写回/epilogue 描述；任务种类追加 depthwise、pool、global-pool-reduce、LayerNorm、encoder-attention、embedding-sum、dw→pw、MoE top-k/combine、layout-convert。forward 核心与描述符已验证，新模型 bodies/CLI/页式路径尚未验收，旧 prefill/decode 默认生成契约保留。）
+
 | 组件 | 接入方式 |
 |---|---|
 | Paged KV cache | block table 走 Tier 1（布局抵消），在逻辑空间做依赖分析 |
@@ -1108,6 +1112,8 @@ L0.5/L1 保留 `RunStage` 用作正确性阶梯；只有 L2 走上述队列。�
 上面的骨架代码只表达 §5.7 语义中 W = 1 的特例。它与实现的差距见 `docs/STATUS.md` §1.5.2 的 G1–G3。
 
 ## 5.5 同步的三条 lowering 路径
+
+（⚠️ DM-1：`kTable` 按消费者保存精确生产者区间，`kCounted` 按绑定目标累积静态贡献数；LastArriver 追加带权到达，L1/L2 计数银行独立。原语 50/50、完整合成 stage 在 κ=1/4/16 各 50/50，五架构编译无 spill。真实 DNN/MoE bodies、绑定感知 PageStream 与其余 §8.A 门仍待完成。）
 
 由边的 `sync_kind`（Label 的输出）决定：
 
