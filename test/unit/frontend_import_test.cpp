@@ -182,7 +182,8 @@ int TestFrontendImport(int argc, char** argv) {
     assert(description.stages.front().rows_per_batch==128);
     assert(emitted.find("#define TILEMEGA_DM_SUPPORT 1\n")!=std::string::npos);
     assert(emitted.find("constexpr ConvDesc kConvolutions[]")!=std::string::npos);
-    assert(emitted.find("using DmChain0 = DmEpilogueKinds<")!=std::string::npos);
+    assert(emitted.find("using DmChain0 = DmEpilogueProgram<DmEpilogueStep<")!=std::string::npos);
+    assert(emitted.find("using DmSpec0 = DmEpilogueSpec<DmChain0,")!=std::string::npos);
     assert(emitted.find("kConvolutions, 1u}")!=std::string::npos);
     if(argc==3 && std::string(argv[1])=="--emit-dm") {
       std::ofstream output(argv[2]); output<<emitted; assert(output.good());

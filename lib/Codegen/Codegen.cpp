@@ -559,11 +559,29 @@ std::string emitModelPlan(mlir::ModuleOp module,
       out<<"};\n";
     }
     for(std::size_t i=0;i<gemms.size();++i) {
-      auto chain=frontend::DecodeDmChain(dictionaryEntry(gemms[i],"gemms").get("dm_chain"));
-      out<<"using DmChain"<<i<<" = DmEpilogueKinds<";
+      auto item=dictionaryEntry(gemms[i],"gemms");
+      auto chain=frontend::DecodeDmChain(item.get("dm_chain"));
+      auto access=frontend::DecodeDmAccess(item.get("dm_access"));
+      out<<"using DmChain"<<i<<" = DmEpilogueProgram<";
       for(unsigned j=0;j<chain.count;++j) {
-        if(j)out<<", "; out<<"static_cast<DmEpilogueKind>("<<unsigned(chain.operations[j].kind)<<"u)";
+        auto const& op=chain.operations[j];
+        if(j)out<<", ";
+        out<<"DmEpilogueStep<static_cast<DmEpilogueKind>("<<unsigned(op.kind)
+           <<"u), static_cast<DmActivation>("<<unsigned(op.activation)
+           <<"u), static_cast<DmGatePair>("<<unsigned(op.gate)<<"u), "<<op.unit
+           <<"u, static_cast<DmRounding>("<<unsigned(op.input_rounding)
+           <<"u), static_cast<DmRounding>("<<unsigned(op.output_rounding)
+           <<"u), static_cast<DmWriteKind>("<<unsigned(op.residual_map.kind)
+           <<"u), "<<op.residual_map.factor<<"u>";
       }
+      out<<">;\n";
+      out<<"using DmSpec"<<i<<" = DmEpilogueSpec<DmChain"<<i
+         <<", static_cast<DmWriteKind>("<<unsigned(access.write.kind)<<"u), "
+         <<access.write.factor<<"u, static_cast<DmRounding>("
+         <<unsigned(chain.store_rounding)<<"u)";
+      for(unsigned j=0;j<chain.side_count;++j)
+        out<<", DmSideOutputSpec<static_cast<DmSideOutputKind>("
+           <<unsigned(chain.side[j].kind)<<"u), "<<chain.side[j].count<<"u>";
       out<<">;\n";
     }
   }

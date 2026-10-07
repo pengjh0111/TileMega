@@ -335,7 +335,7 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
         builder.getNamedAttr("file", builder.getStringAttr(buffer.file)),
         builder.getNamedAttr("no_producer", builder.getBoolAttr(
             index >= written.size() || !written[index]))};
-    if (buffer.per_batch || buffer.role != "internal" ||
+    if (plan.dm || buffer.per_batch || buffer.role != "internal" ||
         !buffer.external_name.empty() || !buffer.pack_json.empty()) {
       fields.push_back(builder.getNamedAttr(
           "per_batch", builder.getI64IntegerAttr(buffer.per_batch)));

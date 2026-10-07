@@ -108,6 +108,42 @@ struct DmEpilogueKinds {
   static constexpr std::uint32_t kCount = sizeof...(Kinds);
 };
 
+template <DmEpilogueKind Kind, DmActivation Activation, DmGatePair Gate,
+          std::uint32_t Unit, DmRounding Input, DmRounding Output,
+          DmWriteKind ResidualMap, std::uint32_t ResidualFactor>
+struct DmEpilogueStep {
+  static constexpr auto kKind = Kind;
+  static constexpr auto kActivation = Activation;
+  static constexpr auto kGate = Gate;
+  static constexpr auto kUnit = Unit;
+  static constexpr auto kInputRounding = Input;
+  static constexpr auto kOutputRounding = Output;
+  static constexpr auto kResidualMap = ResidualMap;
+  static constexpr auto kResidualFactor = ResidualFactor;
+};
+template <class... Steps>
+struct DmEpilogueProgram {
+  static_assert(sizeof...(Steps)<=8, "epilogue chain exceeds eight operations");
+  static constexpr std::uint32_t kCount=sizeof...(Steps);
+};
+
+template <DmSideOutputKind Kind, std::uint32_t Count = 0>
+struct DmSideOutputSpec {
+  static constexpr auto kKind = Kind;
+  static constexpr auto kCount = Count;
+};
+template <class Program, DmWriteKind Write = DmWriteKind::kDense,
+          std::uint32_t Factor = 1, DmRounding Store = DmRounding::kBF16,
+          class... SideOutputs>
+struct DmEpilogueSpec {
+  using Chain = Program;
+  static constexpr auto kWrite = Write;
+  static constexpr auto kFactor = Factor;
+  static constexpr auto kStore = Store;
+  static constexpr std::uint32_t kSideCount = sizeof...(SideOutputs);
+  static_assert(kSideCount <= 5);
+};
+
 static_assert(std::is_trivially_copyable_v<ConvDesc>);
 static_assert(std::is_standard_layout_v<DmBufferLayout>);
 static_assert(std::is_trivially_copyable_v<DmGemmAccess>);
