@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/CouplingDerivation.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/TaskElementRelation.h>
+#include <tilemega/Analysis/TaskWork.h>
 
 #include <cctype>
 #include <algorithm>
@@ -605,6 +607,77 @@ std::vector<CouplingEdge> CouplingDerivation::Derive(
       if (operand.producer.empty()) continue;
       OperatorNode const* producer = graph.Find(operand.producer);
       if (!producer) continue;
+
+      if (consumer.element_access || producer->element_access) {
+        auto write = [&]() {
+          if (!producer->element_access)
+            return ElementAccess(*producer, BuildWriteMap(*producer), known,
+                                 AccessDomain::kPhysicalTensor);
+          auto const& access = *producer->element_access;
+          auto const& sem = access.semantic;
+          CouplingRelation result;
+          if (sem.result.name == operand.tensor.name)
+            result = ProjectTaskElements(sem, *producer, access.partition,
+                                         sem.result, sem.result_map, {}, known);
+          for (auto const& side : sem.additional_writes)
+            if (side.tensor.name == operand.tensor.name)
+              result = result.Union(ProjectTaskElements(sem, *producer, access.partition,
+                                                       side.tensor, side.map, side.nonnegative, known));
+          if (result.empty()) throw std::invalid_argument("producer has no write for " + operand.tensor.name);
+          return result;
+        }();
+        CouplingRelation read;
+        bool data_dependent = std::any_of(operand.axes.begin(), operand.axes.end(),
+            [](auto const& axis) { return axis.kind == OperandAxisMap::Kind::kDataDependent; });
+        if (!consumer.element_access)
+          read = ElementAccess(consumer, BuildReadMap(consumer, k), known,
+                               AccessDomain::kPhysicalTensor);
+        else {
+          auto const& access = *consumer.element_access;
+          auto const& sem = access.semantic;
+          if (k >= sem.operands.size()) throw std::invalid_argument("exact task operand index mismatch");
+          auto const& input = sem.operands[k];
+          if (sem.element_reads.empty())
+            read = ProjectTaskRead(sem, consumer, access.partition,
+                                   input.tensor, input.map, {}, known);
+          else {
+            for (auto const& physical : sem.element_reads)
+              if (physical.tensor.name == input.tensor.name)
+                read = read.Union(ProjectTaskRead(sem, consumer, access.partition,
+                    physical.tensor, physical.map, physical.nonnegative, known));
+            if (read.empty()) continue;
+          }
+        }
+        auto exact = DeriveExactTaskCoupling(write, read, consumer, known);
+        CouplingEdge edge;
+        edge.src = {producer->name}; edge.dst = {consumer.name};
+        edge.C = exact.relation; edge.metrics = exact.metrics;
+        edge.shared_elements = exact.shared_elements;
+        edge.coupled_reads = read.ApplyRange(write.ImageIdentity());
+        edge.consumer_elements = read;
+        edge.read_box = DescribeTaskElementBox(read).relation;
+        edge.interface_elements = edge.coupled_reads->BoundTaskCard().SumDomain().Add(
+            edge.coupled_reads->Image().BoundTaskCard().Scale(-1));
+        // Exact table waits retain every consumer coordinate; quotienting
+        // syntactic bounds cannot prove that two halo fibers are equivalent.
+        edge.event_shape = ComputeEventShape(consumer, consumer.Coordinates());
+        edge.attributes.extent_kind = producer->HasRuntimeTaskSpace() || consumer.HasRuntimeTaskSpace()
+            ? ExtentKind::kRuntimeDynamic
+            : AnySymbolicExtent(*producer) || AnySymbolicExtent(consumer)
+                ? ExtentKind::kSymbolicStatic : ExtentKind::kStaticLiteral;
+        if (data_dependent) {
+          edge.exact = false; edge.relaxation = "I2: runtime tensor index spans its physical axis";
+          edge.attributes.relation_kind = RelationKind::kDataDependent;
+          edge.attributes.exactness = Exactness::kRelaxed;
+        }
+        edge.attributes.runtime_requirement = data_dependent ? RuntimeRequirement::kTensorValues
+            : edge.attributes.extent_kind == ExtentKind::kRuntimeDynamic
+                ? RuntimeRequirement::kPrefixSum : RuntimeRequirement::kNone;
+        edge.attributes.countability = data_dependent ? Countability::kUncountable : ClassifyCount(edge.metrics.wait);
+        edge.tier = DeriveTier(edge.attributes);
+        edges.push_back(std::move(edge));
+        continue;
+      }
 
       AccessRelation W = BuildWriteMap(*producer);
       AccessRelation R = BuildReadMap(consumer, k);

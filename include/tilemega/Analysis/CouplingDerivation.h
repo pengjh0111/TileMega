@@ -3,6 +3,7 @@
 #pragma once
 
 #include <string>
+#include <optional>
 #include <vector>
 
 #include <tilemega/Analysis/AccessRelation.h>
@@ -116,6 +117,11 @@ struct CouplingEdge {
   /// Why the projection had to be widened, for the P3 report.  Empty when the
   /// derivation was exact.
   std::string relaxation;
+  std::optional<CouplingRelation> shared_elements;
+  std::optional<CouplingRelation> coupled_reads;
+  std::optional<CouplingRelation> consumer_elements;
+  std::optional<CouplingRelation> read_box;
+  std::optional<QuasiPolynomial> interface_elements;
 
   std::string EventShapeString() const;
 };

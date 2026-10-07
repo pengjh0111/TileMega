@@ -26,16 +26,21 @@ template<class T,class F> Value EncodeArray(std::vector<T> const& values,F encod
 Value EncodeIndex(IndexResult const& index) {
   return Object{{"kind",int(index.kind)}, {"offset",index.offset.ToString()},
     {"span",index.span.ToString()}, {"terms",EncodeArray(index.terms,[](auto const& term) {
-      return Value(Object{{"dim",term.dim},{"coefficient",term.coefficient.ToString()},
-                          {"group",term.group.ToString()}});
+      Object encoded{{"dim",term.dim},{"coefficient",term.coefficient.ToString()},
+                     {"group",term.group.ToString()}};
+      if (!term.shift.IsLiteral(0)) encoded.emplace_back("shift", term.shift.ToString());
+      return Value(std::move(encoded));
     })}};
 }
 IndexResult DecodeIndex(Value const& value) {
   IndexResult result;
   result.kind=Enum(value,"kind",IndexResult::Kind::kDataDependent);
   result.offset=Form(value,"offset"); result.span=Form(value,"span");
-  for (auto const& term:value.At("terms").AsArray("terms"))
-    result.terms.push_back({String(term,"dim"),Form(term,"coefficient"),Form(term,"group")});
+  for (auto const& term:value.At("terms").AsArray("terms")) {
+    IndexResult::Term decoded{String(term,"dim"),Form(term,"coefficient"),Form(term,"group")};
+    if (auto const* shift = term.Find("shift")) decoded.shift = ClosedForm::Parse(shift->AsString("shift"));
+    result.terms.push_back(std::move(decoded));
+  }
   return result;
 }
 Value EncodeMap(IndexingMap const& map) { return EncodeArray(map.results,EncodeIndex); }
@@ -94,6 +99,11 @@ Value Encode(SemanticOp const& op) {
               {"nonnegative",EncodeArray(write.nonnegative,EncodeIndex)},
               {"effect",EncodeEffect(write.effect)}});
         }));
+  if (op.exact_task_access) {
+    encoded.emplace_back("exact_task_access", true);
+    encoded.emplace_back("task_space", EncodeTensor(op.task_space));
+    encoded.emplace_back("task_map", EncodeMap(op.task_map));
+  }
   return encoded;
 }
 }  // namespace
@@ -140,12 +150,20 @@ SemanticOp DecodeSemanticOp(std::string const& payload) {
                 String(reduction,"combiner"),Boolean(reduction,"splittable"),{}};
   for (auto const& name:reduction.At("ownership").AsArray("ownership"))
     op.reduction.ownership.push_back(name.AsString("ownership axis"));
+  if (auto const* exact = value.Find("exact_task_access")) {
+    op.exact_task_access = exact->AsBool("exact_task_access");
+    if (op.exact_task_access) {
+      op.task_space = DecodeTensor(value.At("task_space"));
+      op.task_map = DecodeMap(value.At("task_map"));
+    }
+  }
   auto check=[&](IndexingMap const& map,TensorSpace const& tensor) {
     if (map.results.size()!=tensor.axes.size()) throw std::invalid_argument("semantic indexing rank mismatch");
     for (auto const& index:map.results) for (auto const& term:index.terms)
       if (!names.count(term.dim)) throw std::invalid_argument("semantic indexing names an unknown axis");
   };
   check(op.result_map,op.result);
+  if (op.exact_task_access) check(op.task_map, op.task_space);
   for (auto const& operand:op.operands) check(operand.map,operand.tensor);
   for (auto const& read:op.element_reads) {
     check(read.map,read.tensor);

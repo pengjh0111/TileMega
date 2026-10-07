@@ -319,6 +319,8 @@ ModelDescription ModelDescription::ReadCouplingGraph(
         edge.getWait().getValue(), edge.getFanout().getValue(),
         edge.getVolume().getValue(), edge.getCount().getValue(), edge.getRelation().getMap(),
         task_name.at(edge.getSrc().str()),task_name.at(edge.getDst().str())});
+    if (auto elements = edge->getAttrOfType<dialect::MetricAttr>("interface_elements"))
+      model.coupling_metrics.edges.back().interface_elements = elements.getValue();
     if (producer != consumer) model.stage_successors.at(producer).push_back(consumer);
   }
   for (auto& successors : model.stage_successors) {
@@ -362,6 +364,7 @@ ModelDescription ModelDescription::SubstituteParams(analysis::ParamBinding const
     edge.wait = edge.wait.SubstituteParams(known);
     edge.fanout = edge.fanout.SubstituteParams(known);
     edge.volume = edge.volume.SubstituteParams(known);
+    if (edge.interface_elements) edge.interface_elements = edge.interface_elements->SubstituteParams(known);
     edge.count = edge.count.SubstituteParams(known);
     edge.relation = edge.relation.BindParams(known);
   }

@@ -1265,6 +1265,14 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     state.addAttribute("fanout", dialect::MetricAttr::get(&context, item.metrics.fanout));
     state.addAttribute("volume", dialect::MetricAttr::get(&context, item.metrics.volume));
     state.addAttribute("count", dialect::MetricAttr::get(&context, item.metrics.count));
+    if (item.shared_elements) {
+      state.addAttribute("shared_elements", dialect::CouplingMapAttr::get(&context, *item.shared_elements));
+      state.addAttribute("coupled_reads", dialect::CouplingMapAttr::get(&context, *item.coupled_reads));
+      state.addAttribute("interface_elements", dialect::MetricAttr::get(&context, *item.interface_elements));
+      state.addAttribute("consumer_elements", dialect::CouplingMapAttr::get(&context, *item.consumer_elements));
+      state.addAttribute("read_box", dialect::CouplingMapAttr::get(&context, *item.read_box));
+      state.addAttribute("read_box_exactness", builder.getStringAttr("over"));
+    }
     state.addAttribute("tier", dialect::TierAttr::get(
         &context, std::stol(analysis::ToString(item.tier))));
     state.addAttribute("coupling_attrs", dialect::CouplingAttributesAttr::get(

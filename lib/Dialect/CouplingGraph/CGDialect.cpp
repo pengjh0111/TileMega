@@ -6,6 +6,7 @@
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/OpArithmetic.h>
 #include <tilemega/Analysis/SemanticCodec.h>
+#include <tilemega/Analysis/TaskElementRelation.h>
 #include <tilemega/Dialect/CouplingGraph/HandoffPass.h>
 #include <tilemega/Dialect/CouplingGraph/CGContract.h>
 #include <tilemega/Dialect/CouplingGraph/PlacementPlan.h>
@@ -291,13 +292,33 @@ LogicalResult CouplingOp::verify() {
     // scalars: a genuinely position-dependent wait must match at every task
     // coordinate, not merely at whichever point a scalar comparison would
     // have implicitly picked.
-    analysis::QuasiPolynomial expectedWait = getRelation().getMap().Card();
+    if (auto shared = (*this)->getAttrOfType<CouplingMapAttr>("shared_elements")) {
+      auto reads = (*this)->getAttrOfType<CouplingMapAttr>("coupled_reads");
+      auto elements = (*this)->getAttrOfType<MetricAttr>("interface_elements");
+      if (!reads || !elements || !shared.getMap().BindParams(known).BoundTaskCard().SemanticallyEqual(getVolume().getValue(), known))
+        return emitOpError("exact shared elements disagree with volume");
+      auto physical = reads.getMap().BindParams(known);
+      auto repeat = physical.BoundTaskCard().SumDomain().Add(physical.Image().BoundTaskCard().Scale(-1));
+      if (!repeat.SemanticallyEqual(elements.getValue(), known))
+        return emitOpError("exact interface elements disagree with physical rereads");
+      if (auto box = (*this)->getAttrOfType<CouplingMapAttr>("read_box")) {
+        auto physical = (*this)->getAttrOfType<CouplingMapAttr>("consumer_elements");
+        auto exactness = (*this)->getAttrOfType<StringAttr>("read_box_exactness");
+        if (!physical || !exactness || exactness.getValue() != "over" ||
+            !analysis::Contains(box.getMap(), physical.getMap()))
+          return emitOpError("read box must declare over and contain every physical read");
+      }
+    }
+    bool exact_elements = (*this)->hasAttr("shared_elements");
+    analysis::QuasiPolynomial expectedWait = exact_elements
+        ? getRelation().getMap().BindParams(known).BoundTaskCard() : getRelation().getMap().Card();
     if (!expectedWait.SemanticallyEqual(getWait().getValue(), known))
       return emitOpError() << "wait " << getWait().getValue().ToString()
                            << " does not match the relation's fiber "
                               "cardinality " << expectedWait.ToString();
 #if TILEMEGA_VERIFY_COUPLING_INCIDENCE
-    auto expectedFanout=getRelation().getMap().FanoutCard();
+    auto expectedFanout=exact_elements ? getRelation().getMap().BindParams(known).Reverse().BoundTaskCard()
+                                    : getRelation().getMap().FanoutCard();
     if (!expectedFanout.SemanticallyEqual(getFanout().getValue(),known))
       return emitOpError("fanout does not match the inverse relation's fiber cardinality");
     if (!expectedWait.SumDomain().SemanticallyEqual(expectedFanout.SumDomain(),known))

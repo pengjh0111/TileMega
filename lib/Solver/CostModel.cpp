@@ -805,6 +805,15 @@ double CostModel::InterfaceEdgeNs(ModelCouplingMetrics const& edge,
   throw std::runtime_error("CG interface pricing is disabled");
 #endif
   auto known=model.MetricBindings();
+  if (edge.interface_elements) {
+    long repeated = edge.interface_elements->SubstituteParams(known).Eval({});
+    if (repeated < 0) throw std::invalid_argument("negative exact interface rereads");
+    if (calib_->l2_gbps <= 0 || calib_->dram_gbps <= 0)
+      throw std::runtime_error("interface bandwidth: not_calibrated");
+    double miss = 1.0 - CacheHitProbability(model.LiveFootprintBytes());
+    return double(repeated) * ElementBytes(dtype_) *
+        ((1.0 - miss) / calib_->l2_gbps + miss / calib_->dram_gbps);
+  }
   long waits=edge.wait.SumDomain().SubstituteParams(known).Eval({});
   // Only consumers in domain(C) owe a first read. Subtracting |T_c| would
   // produce negative work for consumers outside a partial writer's domain.

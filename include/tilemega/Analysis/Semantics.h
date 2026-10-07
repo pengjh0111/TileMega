@@ -55,7 +55,7 @@ struct IterationDim {
 /// function of the iteration coordinates.
 struct IndexResult {
   enum class Kind {
-    kAffine,        ///< sum(coefficient * floordiv(dim, group)) + offset
+    kAffine,        ///< sum(coefficient * floordiv(dim + shift, group)) + offset
     kFullRange,     ///< the whole axis, independent of the iteration point
     kBroadcast,     ///< one element reused across the domain
     kDataDependent  ///< index read from a tensor
@@ -65,6 +65,7 @@ struct IndexResult {
     std::string dim;
     ClosedForm coefficient = ClosedForm::Constant(1);
     ClosedForm group = ClosedForm::Constant(1);
+    ClosedForm shift = ClosedForm::Constant(0);
   };
 
   Kind kind = Kind::kAffine;
@@ -74,7 +75,8 @@ struct IndexResult {
 
   static IndexResult Dim(std::string name,
                          ClosedForm coefficient = ClosedForm::Constant(1),
-                         ClosedForm group = ClosedForm::Constant(1));
+                         ClosedForm group = ClosedForm::Constant(1),
+                         ClosedForm shift = ClosedForm::Constant(0));
   static IndexResult Affine(std::vector<Term> terms,
                             ClosedForm offset = ClosedForm::Constant(0));
   static IndexResult FullRange(ClosedForm offset = ClosedForm::Constant(0));
@@ -168,6 +170,12 @@ struct SemanticOp {
   /// Set when the op fell through every declarative pattern and was given the
   /// conservative generic semantics (identity result map, full-range reads).
   bool generic = false;
+  // The ownership domain is independent of storage coordinates (e.g. m vs
+  // NCHW). These fields are absent in the legacy path and serialize only when
+  // selected, so decoder exports retain their original representation.
+  bool exact_task_access = false;
+  TensorSpace task_space;
+  IndexingMap task_map;
 
   IterationDim const* Dim(std::string const& name) const;
   std::string Serialize() const;

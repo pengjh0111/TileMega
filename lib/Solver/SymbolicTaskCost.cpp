@@ -161,7 +161,8 @@ Polynomial CostModel::SymbolicInterfaceEdgeNs(ModelCouplingMetrics const& edge,
   auto known=FixedExceptSeq(model,parameter);
   auto repeated=edge.wait.SumDomain().SubstituteParams(known).Add(
       edge.relation.Reverse().ImageCard().SubstituteParams(known).Scale(-1));
-  auto bytes=repeated.Multiply(edge.volume.SubstituteParams(known)).Scale(dtype_==ScalarType::kBF16 ? 2 : 4);
+  auto bytes=(edge.interface_elements ? edge.interface_elements->SubstituteParams(known)
+      : repeated.Multiply(edge.volume.SubstituteParams(known))).Scale(dtype_==ScalarType::kBF16 ? 2 : 4);
   std::vector<Polynomial::PolynomialInterval> misses{{begin,end,{"1","0","0"}}};
   if (options_.cache_model) {
     if (!cache_service_curve_) throw std::invalid_argument("symbolic interface cache: not_calibrated");

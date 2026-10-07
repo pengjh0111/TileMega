@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/TaskWork.h>
+#include <tilemega/Analysis/ExactTaskWork.h>
+#include <tilemega/Analysis/TaskElementRelation.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <set>
 #include <map>
@@ -29,6 +31,9 @@ QuasiPolynomial Polynomial(ClosedForm const& value, ParamBinding const& known) {
 CouplingRelation ExactElementRead(SemanticOp const& semantic, OperatorNode const& task,
                                  ElementRead const& read, ParamBinding const& known) {
   IslReferenceAudit audit(__func__);
+  if (task.element_access)
+    return ProjectTaskRead(task.element_access->semantic, task, task.element_access->partition,
+                           read.tensor, read.map, read.nonnegative, known);
   bool split=task.output.axes.size()==semantic.result_map.results.size()+1 && semantic.reduction.splittable;
   if ((!split && task.output.axes.size()!=semantic.result_map.results.size()) ||
       read.tensor.axes.size()!=read.map.results.size())
@@ -60,7 +65,9 @@ CouplingRelation ExactElementRead(SemanticOp const& semantic, OperatorNode const
       auto divisor=term.group.Eval(known,known);
       if (divisor<=0) throw std::invalid_argument("nonpositive element indexing divisor");
       long scale=term.coefficient.Eval(known,known);
-      value+=" + "+std::to_string(scale)+"*floord("+dim->second+", "+std::to_string(divisor)+")";
+      value+=" + "+std::to_string(scale)+"*floord("+dim->second+
+          (term.shift.IsLiteral(0) ? "" : " + ("+expression(term.shift)+")")+
+          ", "+std::to_string(divisor)+")";
     }
     return value;
   };
@@ -157,6 +164,7 @@ TaskWork DeriveTaskWork(SemanticOp const& semantic, OperatorNode const& task,
 #if defined(TILEMEGA_TASK_WORK) && !TILEMEGA_TASK_WORK
   throw std::runtime_error("access-derived TaskWork is disabled");
 #endif
+  if (task.element_access) return DeriveExactTaskWork(task, known, options);
   std::set<std::string> output_axes;
   for (auto const& result:semantic.result_map.results) {
     if (result.kind!=IndexResult::Kind::kAffine)

@@ -1062,7 +1062,9 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
       throw std::invalid_argument("generator accepts global or cluster synchronization");
     (void)coupling.getWait().getValue().Eval(known);
     (void)coupling.getFanout().getValue().Eval(known);
-    (void)coupling.getVolume().getValue().Eval(known);
+    if (coupling->hasAttr("shared_elements"))
+      (void)coupling.getVolume().getValue().SumDomain().Eval(known);
+    else (void)coupling.getVolume().getValue().Eval(known);
     (void)coupling.getCount().getValue().Eval(known);
     (void)coupling.getRelation().getMap();
     auto source = task_stages.find(coupling.getSrc().str());
@@ -1441,7 +1443,9 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
     // quasi-polynomial payload as an ad-hoc integer.
     (void)coupling.getWait().getValue().Eval(known);
     (void)coupling.getFanout().getValue().Eval(known);
-    (void)coupling.getVolume().getValue().Eval(known);
+    if (coupling->hasAttr("shared_elements"))
+      (void)coupling.getVolume().getValue().SumDomain().Eval(known);
+    else (void)coupling.getVolume().getValue().Eval(known);
     (void)coupling.getCount().getValue().Eval(known);
     (void)coupling.getRelation().getMap();
     auto source = taskStages.find(coupling.getSrc().str());

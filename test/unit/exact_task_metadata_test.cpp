@@ -1,0 +1,143 @@
+// SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Analysis/TaskElementRelation.h>
+#include <tilemega/Analysis/TaskInstantiation.h>
+#include <tilemega/Analysis/DependencyTable.h>
+#include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/TaskWork.h>
+#include <tilemega/Analysis/SemanticCodec.h>
+#include <tilemega/Dialect/CouplingGraph/CGDialect.h>
+#include <mlir/IR/MLIRContext.h>
+#include <mlir/IR/BuiltinOps.h>
+#include <mlir/Parser/Parser.h>
+#include <cassert>
+
+namespace tilemega::tests::exact_task_metadata_test {
+namespace {
+using namespace analysis;
+ClosedForm F(long value) { return ClosedForm::Constant(value); }
+SemanticOp Identity(char const* name, char const* tensor, ClosedForm rows) {
+  SemanticOp op; op.name = name; op.exact_task_access = true;
+  op.domain = {{"row", rows}, {"col", F(8)}};
+  op.result = {tensor, {{"row", rows}, {"col", F(8)}}};
+  op.result_map.results = {IndexResult::Dim("row"), IndexResult::Dim("col")};
+  op.task_space = op.result; op.task_map = op.result_map; return op;
+}
+void DynamicAxis() {
+  auto producer = Identity("producer", "hidden", F(4));
+  auto consumer = Identity("consumer", "output", F(4));
+  consumer.operands.push_back({producer.name, producer.result,
+      {{IndexResult::DataDependent(), IndexResult::Dim("col")}}, {}});
+  Granularity g;
+  g.Tile(producer.name, "row", F(2)).Tile(producer.name, "col", F(4));
+  g.Tile(consumer.name, "row", F(2)).Tile(consumer.name, "col", F(4));
+  auto graph = Instantiate({{producer, consumer}}, g);
+  auto edges = CouplingDerivation{}.Derive(graph, {});
+  assert(edges.size() == 1);
+  auto const& edge = edges[0];
+  assert(!edge.exact && edge.tier == Tier::kDataDependent);
+  assert(edge.attributes.relation_kind == RelationKind::kDataDependent);
+  assert(edge.attributes.runtime_requirement == RuntimeRequirement::kTensorValues);
+  // The unknown row ranges over all rows; its affine column block remains
+  // exact. Four producer tasks exist, but each consumer needs only two.
+  assert(edge.metrics.wait.Eval({}) == 2);
+  auto points = edge.C.Points(); assert(points.size() == 8);
+  for (auto const& [to, from] : points) assert(to[1] == from[1]);
+  auto table = BuildDependencyTable(edge.C, graph.nodes[0], graph.nodes[1], {});
+  assert(table.stride == 2);
+  consumer.operands[0].map.results[0] = IndexResult::Dim("row");
+  auto exact = CouplingDerivation{}.Derive(Instantiate({{producer, consumer}}, g), {});
+  assert(Contains(edge.C, exact[0].C));
+  assert(!Contains(exact[0].C, edge.C));
+}
+void SymbolicAndOrigin() {
+  auto sem = Identity("identity", "output", ClosedForm::Symbol("B") * F(3));
+  sem.domain[0].origin = F(5); sem.result.axes[0].origin = F(5);
+  sem.task_space = sem.result;
+  auto graph = Instantiate({{sem}}, Granularity{}.Tile(sem.name, "row", F(2)).Tile(sem.name, "col", F(4)));
+  auto const& task = graph.nodes[0];
+  auto write = ProjectTaskElements(sem, task, task.element_access->partition,
+                                   sem.result, sem.result_map, {}, {});
+  for (long batch : {1, 2, 5}) {
+    ParamBinding known; known.Bind("B", batch);
+    auto points = write.BindParams(known).Points(); assert(points.size() == batch * 3 * 8);
+    for (auto const& [owner, element] : points) {
+      assert(owner[0] == (element[0] - 5) / 2 && owner[1] == element[1] / 4);
+    }
+    auto work = DeriveTaskWork(sem, task, known);
+    assert(work.write_elements.SumDomain().Eval({}) == batch * 3 * 8);
+  }
+}
+void AttributeProof() {
+  mlir::MLIRContext context;
+  context.getOrLoadDialect<dialect::CGDialect>(); context.getOrLoadDialect<dialect::ExecDialect>();
+  auto text = [](bool correct) {
+    return std::string("module { ") +
+      "tmcg.tile_space @a {granularity = {}, kind = #tmcg.task_kind<\"gemm\">, stage = 0 : i64, operator_name = \"a\", write_map = #tmcg.access_map<{}>} "
+      "tmcg.tile_space @b {granularity = {}, kind = #tmcg.task_kind<\"gemm\">, stage = 1 : i64, operator_name = \"b\", write_map = #tmcg.access_map<{}>} "
+      "tmcg.event_tensor @e : tensor<1xi32> {extent = #tmcg.metric<\"{ 1 }\">} "
+      "tmcg.coupling @c from @a to @b {count = #tmcg.metric<\"{ 1 }\">, event = @e, "
+      "fanout = #tmcg.metric<\"{ [0] -> 1 }\">, read_map = #tmcg.access_map<{}>, "
+      "relation = #tmcg.coupling_map<\"{ [0] -> [0] }\">, sync_kind = #tmcg.sync<\"global\">, tier = #tmcg.tier<0>, "
+      "shared_elements = #tmcg.coupling_map<\"{ [0,0] -> [i] : 0 <= i < 3 }\">, "
+      "coupled_reads = #tmcg.coupling_map<\"{ [0] -> [i] : 0 <= i < 3 }\">, "
+      "interface_elements = #tmcg.metric<\"{ 0 }\">, volume = #tmcg.metric<\"{ [0,0] -> " +
+      (correct ? "3" : "4") + " }\">, wait = #tmcg.metric<\"{ [0] -> 1 }\">} }";
+  };
+  assert(mlir::parseSourceString<mlir::ModuleOp>(text(true), &context));
+  assert(!mlir::parseSourceString<mlir::ModuleOp>(text(false), &context));
+}
+void SplitOrigin() {
+  auto sem = Identity("split", "result", F(7));
+  sem.domain[1].name = "j"; sem.result.axes[1].name = "j";
+  sem.result_map.results[1] = IndexResult::Dim("j");
+  sem.task_space = sem.result; sem.task_map = sem.result_map;
+  sem.domain.push_back({"k", F(5), F(5), IteratorType::kReduction});
+  TensorSpace input{"input", {{"row", F(7)}, {"k", F(5), F(5)}}};
+  sem.operands.push_back({"", input, {{IndexResult::Dim("row"), IndexResult::Dim("k")}}, {}});
+  sem.reduction = {"k", "add", "partials", "combine", true};
+  Granularity g; g.Tile(sem.name, "row", F(2)).Tile(sem.name, "j", F(4)).Split(sem.name, F(2));
+  auto graph = Instantiate({{sem}}, g); assert(graph.nodes.size() == 2);
+  auto const& task = graph.nodes[0];
+  auto const& access = *task.element_access;
+  assert(task.output.axes.back().name == "j_");
+  assert(DecodeSemanticOp(EncodeSemanticOp(access.semantic)).Serialize() == access.semantic.Serialize());
+  auto writes = ProjectTaskElements(access.semantic, task, access.partition,
+      access.semantic.result, access.semantic.result_map, {}, {});
+  assert(writes.Reverse().IsSingleValued());
+  for (auto const& [owner, element] : writes.Points()) assert(owner.back() == element.back());
+  auto reads = ProjectTaskRead(access.semantic, task, access.partition, input, sem.operands[0].map, {});
+  for (auto const& [owner, element] : reads.Points())
+    assert(owner.back() == (element.back() - 5) / 2);
+  auto work = DeriveTaskWork(sem, task, {});
+  assert(work.write_elements.SumDomain().Eval({}) == 7 * 8 * 3);
+  assert(work.read_elements.SumDomain().Eval({}) == 7 * 5 * 2);
+  assert(work.reduce_extent.Eval({}) == 5 && work.parallel_extent.Eval({}) == 7 * 8);
+  auto final_work = DeriveTaskWork(sem, graph.nodes[1], {});
+  assert(final_work.write_elements.SumDomain().Eval({}) == 7 * 8);
+  assert(final_work.read_elements.SumDomain().Eval({}) == 7 * 8 * 3);
+  auto edge = CouplingDerivation{}.Derive(graph, {});
+  assert(edge.size() == 1 && edge[0].metrics.wait.Eval({}) == 3);
+  bool rejected = false;
+  try { (void)Instantiate({{sem}}, Granularity{}.Split(sem.name, F(0))); }
+  catch (std::invalid_argument const&) { rejected = true; }
+  assert(rejected);
+}
+void FiniteFibers() {
+  for (auto const* text : {"{ [m] -> [i] : 0 <= m < 7 and m <= i < m+3 }",
+       "{ [m,n] -> [i] : 0 <= m < 7 and 0 <= n < 3 and 0 <= i < m+n+1 }",
+       "[B] -> { [m] -> [i] : 0 <= m < B and 0 <= i <= m }",
+       "{ [m] -> [i] : false }", "{ [] -> [i] : 0 <= i < 1000000 }"}) {
+    auto relation = CouplingRelation::FromIslText(text);
+    assert(relation.BoundTaskCard().SemanticallyEqual(relation.Card(), {}));
+    assert(relation.BoundTaskCard(1).SemanticallyEqual(relation.Card(), {}));
+  }
+  auto exact = CouplingRelation::FromIslText("{ [t] -> [i,j] : 0 <= t < 3 and 0 <= i,j < 4 and j=i }");
+  auto envelope = DescribeTaskElementBox(exact);
+  assert(std::string(envelope.exactness) == "over");
+  assert(Contains(envelope.relation, exact) && !Contains(exact, envelope.relation));
+}
+}
+int TestExactTaskMetadata(int, char**) {
+  IslContext isl; DynamicAxis(); SymbolicAndOrigin(); AttributeProof(); SplitOrigin(); FiniteFibers(); return 0;
+}
+}

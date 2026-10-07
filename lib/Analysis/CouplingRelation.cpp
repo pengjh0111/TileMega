@@ -8,7 +8,11 @@
 #include "IslUtil.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <limits>
+#include <map>
 #include <sstream>
+#include <isl/ilp.h>
 
 #ifndef TILEMEGA_ISL_COMPONENT_ENUMERATION
 #define TILEMEGA_ISL_COMPONENT_ENUMERATION 1
@@ -112,6 +116,18 @@ CouplingRelation CouplingRelation::RangeProduct(CouplingRelation const& other) c
   isl_util::Map result(isl_map_flat_range_product(lhs.release(),rhs.release()));
   if (!result) throw std::invalid_argument("range product requires common domains");
   return CouplingRelation(isl_util::ToString(result.get()));
+}
+
+CouplingRelation CouplingRelation::ProjectRange(unsigned first, unsigned count) const {
+  IslReferenceAudit audit(__func__);
+  if (empty()) return {};
+  auto map = isl_util::ReadMap(Ctx(), text_);
+  auto rank = isl_map_dim(map.get(), isl_dim_out);
+  if (first > unsigned(rank) || count > unsigned(rank) - first)
+    throw std::invalid_argument("range projection outside relation rank");
+  isl_util::Map projected(isl_map_project_out(map.release(), isl_dim_out, first, count));
+  if (!projected) throw std::runtime_error("range projection failed");
+  return CouplingRelation(isl_util::ToString(projected.get()));
 }
 
 CouplingRelation CouplingRelation::IntersectRange(
@@ -328,6 +344,69 @@ QuasiPolynomial CouplingRelation::ImageCard() const {
   isl_util::PwQPolynomial count(isl_set_card(image.release()));
   if (!count) throw std::runtime_error("isl: event image is not countable");
   return QuasiPolynomial::FromIslText(isl_util::ToString(count.get()));
+}
+
+QuasiPolynomial CouplingRelation::BoundTaskCard(unsigned max_domain_points) const {
+  auto limit = std::to_string(max_domain_points);
+  return MemoExact({"bound_task_cardinality", text_, limit}, [&] {
+    IslReferenceAudit audit(__func__);
+    if (empty()) return QuasiPolynomial::Constant(0);
+    auto map = isl_util::ReadMap(Ctx(), text_);
+    if (isl_map_dim(map.get(), isl_dim_param)) return Card();
+    isl_util::Set domain(isl_map_domain(isl_map_copy(map.get())));
+    if (isl_set_is_empty(domain.get()) == isl_bool_true)
+      return isl_map_dim(map.get(), isl_dim_in) == 0 ? QuasiPolynomial::Constant(0) : Card();
+    std::uint64_t box = 1;
+    for (int axis = 0; axis < isl_set_dim(domain.get(), isl_dim_set); ++axis) {
+      isl_util::Val lo(isl_set_dim_min_val(isl_set_copy(domain.get()), axis));
+      isl_util::Val hi(isl_set_dim_max_val(isl_set_copy(domain.get()), axis));
+      if (!lo || !hi || isl_val_is_int(lo.get()) != isl_bool_true ||
+          isl_val_is_int(hi.get()) != isl_bool_true) return Card();
+      isl_util::Val width(isl_val_add_ui(isl_val_sub(hi.release(), lo.release()), 1));
+      if (isl_val_is_pos(width.get()) != isl_bool_true ||
+          isl_val_cmp_si(width.get(), max_domain_points) > 0) return Card();
+      auto span = isl_val_get_num_si(width.get());
+      if (box > max_domain_points / std::uint64_t(span)) return Card();
+      box *= span;
+    }
+    struct Fibers {
+      isl_map* map;
+      std::map<long, isl_util::Set> groups;
+      std::string error;
+    } fibers{map.get(), {}, {}};
+    auto collect = [](isl_point* raw, void* data) -> isl_stat {
+      auto& fibers = *static_cast<Fibers*>(data);
+      isl_util::Set point(isl_set_from_point(raw));
+      isl_util::Map restricted(isl_map_intersect_domain(isl_map_copy(fibers.map), isl_set_copy(point.get())));
+      isl_util::Set image(isl_map_range(restricted.release()));
+      isl_util::Val count(isl_set_count_val(image.get()));
+      if (!count || isl_val_is_int(count.get()) != isl_bool_true ||
+          isl_val_is_nonneg(count.get()) != isl_bool_true ||
+          isl_val_cmp_si(count.get(), std::numeric_limits<long>::max()) > 0) {
+        fibers.error = "exact finite task fiber is not countable"; return isl_stat_error;
+      }
+      auto value = isl_val_get_num_si(count.get());
+      auto& group = fibers.groups[value];
+      group = group ? isl_util::Set(isl_set_union(group.release(), point.release())) : std::move(point);
+      return group ? isl_stat_ok : isl_stat_error;
+    };
+    if (isl_set_foreach_point(domain.get(), collect, &fibers) != isl_stat_ok)
+      throw std::runtime_error(fibers.error.empty() ? "finite task fiber enumeration failed" : fibers.error);
+    // An image count is parameter-only, like isl_set_card. Keeping an empty
+    // tuple here would prevent adding it to a sum over task coordinates.
+    if (isl_map_dim(map.get(), isl_dim_in) == 0)
+      return QuasiPolynomial::Constant(fibers.groups.begin()->first);
+    isl_util::PwQPolynomial count;
+    for (auto& [value, points] : fibers.groups) {
+      points = isl_util::Set(isl_set_coalesce(points.release()));
+      auto* polynomial = isl_qpolynomial_val_on_domain(isl_set_get_space(points.get()), isl_val_int_from_si(Ctx(), value));
+      isl_util::PwQPolynomial piece(isl_pw_qpolynomial_alloc(points.release(), polynomial));
+      count = count ? isl_util::PwQPolynomial(isl_pw_qpolynomial_add(count.release(), piece.release())) : std::move(piece);
+    }
+    if (!count) throw std::runtime_error("finite task fiber count failed");
+    count = isl_util::PwQPolynomial(isl_pw_qpolynomial_coalesce(count.release()));
+    return QuasiPolynomial::FromIslText(isl_util::ToString(count.get()));
+  });
 }
 
 CouplingRelation CouplingRelation::Image() const {

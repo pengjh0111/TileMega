@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Analysis/TaskElementRelation.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Solver/RuntimeProjection.h>
 #include <tilemega/Analysis/ISLContext.h>
@@ -361,7 +362,7 @@ std::vector<ModelCouplingMetrics> InstantiateModelCouplings(
   for (auto const& edge:derived)
     edges.push_back({stages.at(edge.src.name),stages.at(edge.dst.name),
       edge.metrics.wait,edge.metrics.fanout,edge.metrics.volume,edge.metrics.count,edge.C,
-      edge.src.name,edge.dst.name});
+      edge.src.name,edge.dst.name,edge.interface_elements});
   return edges;
 }
 
@@ -375,6 +376,26 @@ analysis::TaskAccesses DeriveModelTaskAccesses(ModelTaskSemantics const& semanti
   if (input.scalar_access) {
     accesses.reads=input.scalar_access->reads;
     accesses.writes.emplace(task.output.name,input.scalar_access->writes);
+    return accesses;
+  }
+  if (task.element_access) {
+    auto const& exact = *task.element_access;
+    auto const& sem = exact.semantic;
+    accesses.writes.emplace(sem.result.name, analysis::ProjectTaskElements(sem, task,
+        exact.partition, sem.result, sem.result_map, {}, {}));
+    for (auto const& side : sem.additional_writes)
+      accesses.writes[side.tensor.name] = accesses.writes[side.tensor.name].Union(
+          analysis::ProjectTaskElements(sem, task, exact.partition, side.tensor, side.map, side.nonnegative, {}));
+    auto append = [&](analysis::TensorSpace const& tensor, analysis::IndexingMap const& map,
+                      std::vector<analysis::IndexResult> const& predicates) {
+      accesses.reads[tensor.name] = accesses.reads[tensor.name].Union(
+          analysis::ProjectTaskRead(sem, task, exact.partition, tensor, map, predicates, {}));
+    };
+    if (sem.element_reads.empty()) {
+      for (auto const& operand : sem.operands) append(operand.tensor, operand.map, {});
+    } else {
+      for (auto const& read : sem.element_reads) append(read.tensor, read.map, read.nonnegative);
+    }
     return accesses;
   }
   accesses.writes.emplace(task.output.name,analysis::ElementAccess(task,

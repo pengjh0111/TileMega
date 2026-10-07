@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/DramFloor.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
+#include <tilemega/Analysis/TaskElementRelation.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include "IslUtil.h"
 #include <algorithm>
@@ -46,7 +47,9 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
   for(auto const& op:semantics.ops) {
     auto const* task=graph.Find(op.name);if(!task)throw std::invalid_argument("missing semantic task "+op.name);
     auto& dst=tensor(op.result.name,op.dtype);
-    auto writes=ElementAccess(*task,BuildWriteMap(*task),fixed,AccessDomain::kPhysicalTensor).Image();
+    auto writes = task->element_access
+        ? ProjectTaskElements(op, *task, task->element_access->partition, op.result, op.result_map, {}, fixed).Image()
+        : ElementAccess(*task,BuildWriteMap(*task),fixed,AccessDomain::kPhysicalTensor).Image();
     dst.writes=dst.writes.Union(writes);dst.state|=!op.result_effect.state_object.empty();
     for (auto const& write:op.additional_writes) {
       ElementRead indexed{write.tensor,write.map,write.nonnegative};
@@ -72,7 +75,9 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
         append(read.tensor.name,ExactElementRead(op,*task,read,fixed));
     } else {
       for(std::size_t i=0;i<task->operands.size();++i)if(!indirect.count(task->operands[i].tensor.name))
-        append(task->operands[i].tensor.name,ElementAccess(*task,BuildReadMap(*task,i),fixed,AccessDomain::kPhysicalTensor));
+        append(task->operands[i].tensor.name, task->element_access
+            ? ProjectTaskRead(op, *task, task->element_access->partition, op.operands[i].tensor, op.operands[i].map, {}, fixed)
+            : ElementAccess(*task,BuildReadMap(*task,i),fixed,AccessDomain::kPhysicalTensor));
     }
     if(op.kind==OperatorKind::kMatmul) {
       // The interleaved gate/up epilogue computes two independent dots for

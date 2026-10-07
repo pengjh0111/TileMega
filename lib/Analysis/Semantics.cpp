@@ -24,10 +24,10 @@ std::string ToString(EffectKind kind) {
 }
 
 IndexResult IndexResult::Dim(std::string name, ClosedForm coefficient,
-                             ClosedForm group) {
+                             ClosedForm group, ClosedForm shift) {
   IndexResult result;
   result.terms.push_back({std::move(name), std::move(coefficient),
-                          std::move(group)});
+                          std::move(group), std::move(shift)});
   return result;
 }
 
@@ -66,9 +66,11 @@ std::string IndexResult::Serialize() const {
       for (std::size_t i = 0; i < terms.size(); ++i) {
         if (i) out << " + ";
         out << terms[i].coefficient.ToString() << "*";
-        if (terms[i].group.IsLiteral(1)) out << terms[i].dim;
-        else out << "floordiv(" << terms[i].dim << ", "
-                 << terms[i].group.ToString() << ")";
+        auto coordinate = terms[i].dim;
+        if (!terms[i].shift.IsLiteral(0))
+          coordinate = "(" + coordinate + " + " + terms[i].shift.ToString() + ")";
+        if (terms[i].group.IsLiteral(1)) out << coordinate;
+        else out << "floordiv(" << coordinate << ", " << terms[i].group.ToString() << ")";
       }
       if (!terms.empty() && !offset.IsLiteral(0))
         out << " + " << offset.ToString();
@@ -192,6 +194,8 @@ std::string SemanticOp::Serialize() const {
       << " dtype=" << ToString(dtype)
       << (generic ? " generic" : "");
   if (!arithmetic.empty()) out << " arithmetic=" << arithmetic;
+  if (exact_task_access)
+    out << "\n  task_space " << SerializeTensor(task_space) << " " << task_map.Serialize();
   for (auto const& read:element_reads) {
     out << "\n  element_read " << SerializeTensor(read.tensor) << ' ' << read.map.Serialize();
     for (auto const& predicate:read.nonnegative)

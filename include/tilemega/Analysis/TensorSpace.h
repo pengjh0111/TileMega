@@ -3,11 +3,13 @@
 #pragma once
 
 #include <string>
+#include <memory>
 #include <vector>
 
 #include <tilemega/Analysis/ClosedForm.h>
 
 namespace tilemega::analysis {
+struct TaskElementAccess;
 
 /// One tensor axis.  `runtime` marks an extent that is only known when theta is
 /// instantiated (sequence length, indptr-derived chunk counts).  It is what
@@ -53,6 +55,10 @@ struct OperandAxisMap {
     int output_axis = -1;
     ClosedForm scale = ClosedForm::Constant(1);
     ClosedForm group = ClosedForm::Constant(1);
+    std::string window_dim;
+    ClosedForm window_extent = ClosedForm::Constant(1);
+    ClosedForm window_origin = ClosedForm::Constant(0);
+    ClosedForm shift = ClosedForm::Constant(0);
   };
 
   Kind kind = Kind::kIndexed;
@@ -105,6 +111,7 @@ struct OperatorNode {
   /// RMSNorm task space one-dimensional in §2.7.
   std::vector<ClosedForm> tile;
   std::vector<Operand> operands;
+  std::shared_ptr<TaskElementAccess const> element_access;
 
   bool IsTiled(std::size_t axis) const;
   /// Task coordinate names, in order; one per tiled output axis.
