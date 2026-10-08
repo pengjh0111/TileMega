@@ -6,12 +6,11 @@ M/N/K geometries at stages >= 2, including 46 additions to serving's original
 domain. `ServingBF16ShapeLegal` retains the original LLM domain; the new
 contract is explicitly named `DmServingBF16ShapeLegal`.
 
-The new `ServingDmGemm` mainloop is currently under numerical validation;
-it is not yet connected to plan candidates or production task dispatch.
-`runs/dm1-ci7-small-gemm-families` checks every added geometry on sm_89 and
-compiles the narrow-N warp layouts on all five targets. The four 16x16 K
-geometries each require 50 fresh processes. Transitive source hashes must
-remain unchanged throughout the check.
+verified: `results/CI7_small_gemm.json` seals 54 configurations, 126 builds
+and 250/250 fresh processes. Every added geometry passes on sm_89; narrow-N
+warp layouts compile on all five targets. The four 16x16 K geometries each
+pass 50/50 fresh processes. All transitive source hashes stayed unchanged.
+Production task dispatch, operands and skeleton search integration are pending.
 
 inferred implementation invariants:
 

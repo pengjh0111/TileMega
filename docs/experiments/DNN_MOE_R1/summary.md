@@ -35,7 +35,7 @@ that DNN or MoE execution is implemented.
 | CI-4 | verified static access/metrics/table/WAR-WAW, exact bound encoding and virtual capacity/provenance; counted-write and memory-planner integration pending (`analysis.md`) |
 | CI-5 | verified primitives (50/50), synthetic table/counted stages (150/150), paged forward/prefill cores (150/150), binding PageStream synthetic dispatch (100/100), nonpaged split-K LA (100/100); attention LA and new bodies pending (`synchronization.md`) |
 | CI-6 | verified CPU fitting and streaming-routing foundations (5/5 each); native samplers, actual fits and real routing profiles pending (`calibration.md`) |
-| CI-7 | verified table projection, geometry rebinding, GEMM access/conv classes and routing-cost validation; tile families, profile consumers, structural search and second-level selection pending |
+| CI-7 | verified table projection, geometry rebinding, GEMM access/conv classes, routing-cost validation and small-tile mainloops; TaskBody/operand integration, profile consumers, structural search and second-level selection pending |
 | DN-2 through DN-11 | not implemented |
 | MO-1 through MO-9 | not implemented |
 
@@ -237,3 +237,8 @@ T12 foundation: verified DM GEMM candidate legality passes 7/7 host checks
 (`results/CI7_gemm_candidates_host.json`). Target resource budgets, per-filter
 channel padding, gate/expert divisibility and shared N/K weight layouts are
 checked. Production search/operand/body integration remains pending.
+
+T4/T12: verified 54 small-GEMM configurations, 126 builds and 250/250 fresh
+processes (`results/CI7_small_gemm.json`). Every added geometry passes an
+independent FP32 oracle; narrow-N layouts compile on all five architectures.
+TaskBody/page/operand/model integration is pending.
