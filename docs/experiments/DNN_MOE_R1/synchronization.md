@@ -128,3 +128,24 @@ the per-kernel resource records. Expectations were not changed.
 Pending: rowgather, real router/dispatch/experts, elided dispatch producer
 resolution in L1, model gates, and default-path G-REG. This fixture supplies
 synthetic dispatch records and dense A rows arranged in virtual order.
+
+verified: native nonpaged split-K LA passes 100/100 fresh processes, fifty
+each for SYNC_V3=0/1 (`results/CI5_nonpaged_handoff_native.json`). Sixteen builds
+cover sm_80/89/90/100/120 and kappa=0/1/4/16; every kernel has zero spill
+stores/loads. Every process runs sixteen poisoned epochs in L1 and L2,
+compares independent-stage/LA outputs bitwise, then checks a four-step L1
+loop. Elided-stage barriers remain zero and elided stages are absent from L2
+queues. Eleven incompatible ownership fixtures are rejected. This establishes
+the split-K core of §8.A.11; attention and new-body LA gates remain pending.
+
+inferred: each execution mode owns a separate monotonic 64-bit ticket bank.
+Only the final arrival reads partials and publishes the reducer's L2 events.
+L1 skips the reducer and its barrier; the owner's barrier follows all reducer
+work. Lookahead skips elided stages. Default nonpaged-LA-off declarations and
+launch arguments stay behind the original paths; G-REG still requires checking.
+
+verified: the first production smoke failed during compilation because
+ticket preparation preceded GEMM construction and the prefetch fixture lacked
+its stride macro. Corrected retries retain the original reference and
+assertions; the failed logs remain under
+`runs/dm1-ci5-nonpaged-handoff-smoke-production`.

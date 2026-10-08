@@ -33,7 +33,7 @@ that DNN or MoE execution is implemented.
 | CI-2 | verified descriptors, finite epilogue and GEMM/combiner dispatch (`descriptors.md`, `numerics.md`); new operand policies follow DN/MO bodies |
 | CI-3 | verified core ABI/dimensions, five targets, 50/50 fresh processes per seq (1/128/4096); CLI/model integration pending (`forward.md`) |
 | CI-4 | verified static access/metrics/table/WAR-WAW, exact bound encoding and virtual capacity/provenance; counted-write and memory-planner integration pending (`analysis.md`) |
-| CI-5 | verified primitives (50/50), synthetic table/counted stages (150/150), paged forward/prefill cores (150/150) and binding PageStream synthetic dispatch (100/100); nonpaged LA and real bodies pending (`synchronization.md`) |
+| CI-5 | verified primitives (50/50), synthetic table/counted stages (150/150), paged forward/prefill cores (150/150), binding PageStream synthetic dispatch (100/100), nonpaged split-K LA (100/100); attention LA and new bodies pending (`synchronization.md`) |
 | CI-6 | verified CPU fitting and streaming-routing foundations (5/5 each); native samplers, actual fits and real routing profiles pending (`calibration.md`) |
 | CI-7 | verified table projection, geometry rebinding, GEMM access/conv classes and routing-cost validation; tile families, profile consumers, structural search and second-level selection pending |
 | DN-2 through DN-11 | not implemented |
@@ -155,6 +155,12 @@ checks remain pending.
 
 T2/T3: verified nonpaged handoff selection and codegen transport pass 11/11
 host checks (`results/CI5_nonpaged_handoff_host.json`); device gates pending.
+
+T4/T12: verified nonpaged native split-K LA passes 100/100 fresh processes,
+five architectures and kappa=0/1/4/16 (`results/CI5_nonpaged_handoff_native.json`).
+L1/L2 and independent-stage/LA outputs match bitwise; poisoned intermediates,
+monotonic mode-separated tickets, elided barriers and a four-step L1 loop pass.
+Sixteen builds have zero spills. Attention LA and new-body/model gates are pending.
 
 T12 foundation: verified 5/5 CPU NNLS and observation metadata checks
 (`results/CI6_fit_host.json`). No measured fit or body timing is reported.
