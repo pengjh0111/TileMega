@@ -160,8 +160,9 @@ T12 foundation: verified 5/5 CPU NNLS and observation metadata checks
 (`results/CI6_fit_host.json`). No measured fit or body timing is reported.
 
 T12 foundation: verified 5/5 CPU streaming-weight, routing histogram, source
-token and queue checks (`results/CI6_routing_host.json`). Real routing and CUDA
-collector validation remain pending; no measured profile is reported.
+token and queue checks (`results/CI6_routing_host.json`). CUDA grouped_mm
+collection matches the unchanged tiny HF model bitwise for two layers and all
+13 T coordinates (`results/CI6_routing_cuda.json`). Real routing is pending.
 
 T4/T12: verified binding-aware production PageStream passes 100/100 fresh
 processes and five architectures (`results/CI5_binding_pagestream.json`).

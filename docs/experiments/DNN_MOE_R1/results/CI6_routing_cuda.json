@@ -1,0 +1,450 @@
+{
+  "capability": [
+    8,
+    9
+  ],
+  "device": "NVIDIA GeForce RTX 4090",
+  "evidence": "verified",
+  "inputs": {
+    "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/check_routing_collector.py": "dddd5713aa5f65de61625cce96de9e784c21e8a81ff3402fa0f8e5be132263ac",
+    "/root/dm1_work/development/runs/dm1-ci6-routing-collector/states/sampling.json": "3a76fabc6ded58e2d8c1d95b7c3f56f6efb9042ccc3934082a5c2cac264bb97c",
+    "/root/dm1_work/development/runs/dm1-ci6-routing-collector/states/tokens.json": "a61c4eb0b9d37b66bf7733625c22e87c3819f9ecc21ace57e3c85c0fcf361cae"
+  },
+  "passed": true,
+  "profile_id": "5805fe17610cdcab5bcebaf607ddf4d994cbe095e6434f963f55e2b19afecfbc",
+  "profile_sha256": "f0ea3c63b2eac2e1b9a9f0a7bee4094d3a6bb0972006b24de21d887674eeb89a",
+  "scope": "two-layer seeded HF model; actual CUDA grouped_mm; streamed hidden/router/output values bitwise equal to full HF; all 13 token coordinates; no real Qwen3 weight/model gate",
+  "implementation_commit": "f06cd85522c73e91ca517b757603a9b0b796e599",
+  "completion": {
+    "event": "queue_complete",
+    "steps": 6,
+    "passed": true
+  },
+  "layer_identities": [
+    {
+      "checkpoint": {
+        "config_sha256": "0a2ce81aada9ef93d8cab8cb685eb85236e5bc9451d6c42717e2945b851949ea",
+        "directory": "/root/dm1_work/development/runs/dm1-ci6-routing-collector/source",
+        "index_sha256": "57af1c003de93da813d6554cd9921f4376aaea60747ea3649e87cc2f699ff163",
+        "tensors": {
+          "model.layers.0.input_layernorm.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "e72710531b01d91ee76a2457cdc9c6c89a197db47da8ebd4ae672e13ddd668cd",
+            "shape": [
+              64
+            ]
+          },
+          "model.layers.0.mlp.experts.0.down_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "4e8df537f0cc9a4d47f6fd0b7e70ce35ccba9e67ce210d45ebe5b5155d3cdd2f",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.0.mlp.experts.0.gate_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "db5d574d0fbf597c5230e4565d7bc8ca7d15f9bd52496ada8a8ac6b1c272442c",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.0.mlp.experts.0.up_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "6aa24d25cd0f09a84ecc12efa84e8e334f66a8ce791619e827d13364670e883d",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.0.mlp.experts.1.down_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "079e99c05032e366682e48752d1e21ae7aca6ca8828f6cc31b49fc5d49e896af",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.0.mlp.experts.1.gate_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "b9b92014385bae58a1a919544501eb4f52788f120c54a5e23aa995d2ce0e3cb5",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.0.mlp.experts.1.up_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "13b3bc1737193e7d4bedc764fdd9811f66a7934b47e0123fe48ea65e06893869",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.0.mlp.experts.2.down_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "c4fb86c641f9f8a786aad09edb56749c05a1c45864a8efec4b13b039bbca31da",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.0.mlp.experts.2.gate_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "8a6f05568eca8cce60fde0c85dd6c48493aa95383c760357b8449e77cf70f0d4",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.0.mlp.experts.2.up_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "b8fd560bb404ccd4b8810a7ca4182c0349ea28523a985d34010777fd31e6d0f7",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.0.mlp.experts.3.down_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "07174049d5f040b0ae2b7f267923c674ea042498358d5da706434cc9cd95958d",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.0.mlp.experts.3.gate_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "0bdc48d9b2a1dcd2a761bb997cc840011a076209ef80f167f779c3a3013cabb3",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.0.mlp.experts.3.up_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "e7551696d34d4529468df138681eae28a6f2979dd264970b960c8e00fbb249f0",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.0.mlp.gate.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "1bb0c186d1dc3d27366e183e6aa115da8a20434151d97b55eaa9ca36546a48a7",
+            "shape": [
+              4,
+              64
+            ]
+          },
+          "model.layers.0.post_attention_layernorm.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "e72710531b01d91ee76a2457cdc9c6c89a197db47da8ebd4ae672e13ddd668cd",
+            "shape": [
+              64
+            ]
+          },
+          "model.layers.0.self_attn.k_norm.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "a214ae5c03e0c56b5540a2f2e924a30f3a059d4d38c2b8c62b9182a78e8afb24",
+            "shape": [
+              16
+            ]
+          },
+          "model.layers.0.self_attn.k_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "e1c746c6ac66f76a774e8e808d3a4e1824660626d8fc1425d1c62790f22b4d4b",
+            "shape": [
+              32,
+              64
+            ]
+          },
+          "model.layers.0.self_attn.o_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "bf6b0d7f9a320811967973ffa0baf6eb828b140b4d4bda5b2bc541e55e997f55",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.0.self_attn.q_norm.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "a214ae5c03e0c56b5540a2f2e924a30f3a059d4d38c2b8c62b9182a78e8afb24",
+            "shape": [
+              16
+            ]
+          },
+          "model.layers.0.self_attn.q_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "92228a583e6cc26ecabde49e348868edf2f1b3260d8a6b11663e655327799752",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.0.self_attn.v_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "68d76cfd9b1553b7e91ffa33aeb07ebc960b98dd55512059fbf956f21438d1a9",
+            "shape": [
+              32,
+              64
+            ]
+          }
+        }
+      },
+      "device": "cuda:0",
+      "implementation": {
+        "attention": "sdpa",
+        "experts": "grouped_mm",
+        "hf_experts_source_sha256": "a4cdb41cd6c4e40a3e602644b5781a5dc53ac4ef227249db2ed40c7347990556",
+        "hf_model_source_sha256": "58387f2cc22a706e7e4c7dabe6cf05cb1e9c9fe48c57e2f2a0fc5cbdb2132f4f",
+        "script_sha256": "f0af92d534422db52a36a296adcdc026043ad79c90832b08fb56dc5a8c4334e2",
+        "torch": "2.14.1+cu130",
+        "transformers": "5.19.0"
+      },
+      "inputs": {
+        "/root/dm1_work/development/runs/dm1-ci6-routing-collector/states/hidden_00.safetensors": "311c49a8000fb04e5d5446afacc7532ee951c7e4fd1eac527ef4c3df3f9a83b5",
+        "/root/dm1_work/development/runs/dm1-ci6-routing-collector/states/sampling.json": "3a76fabc6ded58e2d8c1d95b7c3f56f6efb9042ccc3934082a5c2cac264bb97c"
+      },
+      "layer": 0,
+      "output_sha256": "8535d424e14239f792cca9013f634f02d604af2369fed6e469305eb65fc30c3f",
+      "peak_device_bytes": {
+        "allocated": 16052736,
+        "reserved": 29360128
+      },
+      "region_sha256": "e72baf866a94844bfb0f4acb1b7ce57d866f80793e29888dd1951c3c1dd2f7db",
+      "routing_sha256": "a8304a73bc9248d390e9976987bb7ef1fe27dfda1546e7c64ec431de0c35e64e",
+      "schema": "tilemega.dm1.routing.identity.v1"
+    },
+    {
+      "checkpoint": {
+        "config_sha256": "0a2ce81aada9ef93d8cab8cb685eb85236e5bc9451d6c42717e2945b851949ea",
+        "directory": "/root/dm1_work/development/runs/dm1-ci6-routing-collector/source",
+        "index_sha256": "57af1c003de93da813d6554cd9921f4376aaea60747ea3649e87cc2f699ff163",
+        "tensors": {
+          "model.layers.1.input_layernorm.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "e72710531b01d91ee76a2457cdc9c6c89a197db47da8ebd4ae672e13ddd668cd",
+            "shape": [
+              64
+            ]
+          },
+          "model.layers.1.mlp.experts.0.down_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "b361820266b237c1b0c1c6c538868808e236317611d313c13734334b1e1d78f3",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.1.mlp.experts.0.gate_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "7ad265e89bc71e57e399f90b2ee22aa2c094e95d2bf5cb6f4a98781eafd0841a",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.1.mlp.experts.0.up_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "3329cd3d6d0d1060a3b08b410306517c4b18380f204299a62e220639e9859524",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.1.mlp.experts.1.down_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "756e71cdb160d20f3619b56e58d33215fba51c7842b49e0c98d5ddb28eb773b7",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.1.mlp.experts.1.gate_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "e0341a3cbd29906a7ef42fe99acbe2309eea0f6984e7135ca94a82804b9dcd15",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.1.mlp.experts.1.up_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "a0322cee70fdc6cf9426a633de75a62f75d3e2097ba2614dc7fdc87cfb6729f4",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.1.mlp.experts.2.down_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "3f19be46af4887c4a7949c4b1cffd3c615986fa64ef7011a82b4a2a245767284",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.1.mlp.experts.2.gate_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "8567b0e19d1e9c93ba2652859defc943c5bad8e0611c746489feb7eb15c4a8c1",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.1.mlp.experts.2.up_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "d3db4f2b594af5f28dae439d94354846bbc16f9ce19b0ba3e2782fffc8253ddc",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.1.mlp.experts.3.down_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "8bf647c4ec149b2c2116667af9d33d916c1cbd14b8bea45b68681db687f4c26e",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.1.mlp.experts.3.gate_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "8712424ae3e90345e21dc343213a3c5fd42b3b5dcf8e6b964924c093cdd39667",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.1.mlp.experts.3.up_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "3c0a59da0f4edb4547883ec64e68d285c5ab2d26d979de3cc1960707c0a904fa",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.1.mlp.gate.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "db1815dfe1ce4083bd03d16a5eab93b93a080392930ab4af00e290bfa1c480d4",
+            "shape": [
+              4,
+              64
+            ]
+          },
+          "model.layers.1.post_attention_layernorm.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "e72710531b01d91ee76a2457cdc9c6c89a197db47da8ebd4ae672e13ddd668cd",
+            "shape": [
+              64
+            ]
+          },
+          "model.layers.1.self_attn.k_norm.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "a214ae5c03e0c56b5540a2f2e924a30f3a059d4d38c2b8c62b9182a78e8afb24",
+            "shape": [
+              16
+            ]
+          },
+          "model.layers.1.self_attn.k_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "5bda90cb4877abdfbda87b660e04f457453224d9379fe549c0b5871382e83fd0",
+            "shape": [
+              32,
+              64
+            ]
+          },
+          "model.layers.1.self_attn.o_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "52c2ddb3c7972ffc1905e72238cdc312e11ca01a93f077466fa14752470265e4",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.1.self_attn.q_norm.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "a214ae5c03e0c56b5540a2f2e924a30f3a059d4d38c2b8c62b9182a78e8afb24",
+            "shape": [
+              16
+            ]
+          },
+          "model.layers.1.self_attn.q_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "b688a492f3af56d90fcbf3617400682395afeaef7acb6c321c7dab5762228689",
+            "shape": [
+              64,
+              64
+            ]
+          },
+          "model.layers.1.self_attn.v_proj.weight": {
+            "dtype": "torch.bfloat16",
+            "sha256": "19ea53222fdb6bea790960fcb4def1e42f3f20c777ba173ee8860f78ec77345f",
+            "shape": [
+              32,
+              64
+            ]
+          }
+        }
+      },
+      "device": "cuda:0",
+      "implementation": {
+        "attention": "sdpa",
+        "experts": "grouped_mm",
+        "hf_experts_source_sha256": "a4cdb41cd6c4e40a3e602644b5781a5dc53ac4ef227249db2ed40c7347990556",
+        "hf_model_source_sha256": "58387f2cc22a706e7e4c7dabe6cf05cb1e9c9fe48c57e2f2a0fc5cbdb2132f4f",
+        "script_sha256": "f0af92d534422db52a36a296adcdc026043ad79c90832b08fb56dc5a8c4334e2",
+        "torch": "2.14.1+cu130",
+        "transformers": "5.19.0"
+      },
+      "inputs": {
+        "/root/dm1_work/development/runs/dm1-ci6-routing-collector/states/hidden_01.safetensors": "8535d424e14239f792cca9013f634f02d604af2369fed6e469305eb65fc30c3f",
+        "/root/dm1_work/development/runs/dm1-ci6-routing-collector/states/sampling.json": "3a76fabc6ded58e2d8c1d95b7c3f56f6efb9042ccc3934082a5c2cac264bb97c"
+      },
+      "layer": 1,
+      "output_sha256": "fbfe5d6138ca5dcc31f742b93ed4cf74c62493e4181450fde734b5a6bd427c5b",
+      "peak_device_bytes": {
+        "allocated": 16052736,
+        "reserved": 29360128
+      },
+      "region_sha256": "cfd6246cb3b24a9ecf4b7b64ce03738abc3ebcd86f259dde2859b930b35a12f2",
+      "routing_sha256": "bf6b8450d8865953b6a60e40d47d96c1bd2f0ce2a52a13aa7333f907a71b6df6",
+      "schema": "tilemega.dm1.routing.identity.v1"
+    }
+  ],
+  "embedding_identity": {
+    "checkpoint": {
+      "config_sha256": "0a2ce81aada9ef93d8cab8cb685eb85236e5bc9451d6c42717e2945b851949ea",
+      "directory": "/root/dm1_work/development/runs/dm1-ci6-routing-collector/source",
+      "index_sha256": "57af1c003de93da813d6554cd9921f4376aaea60747ea3649e87cc2f699ff163",
+      "tensors": {
+        "model.embed_tokens.weight": {
+          "dtype": "torch.bfloat16",
+          "sha256": "d45dc104e762a563bfbcd778b47e6520f770e416771ded2ce4bfc22c4a613fbf",
+          "shape": [
+            128,
+            64
+          ]
+        }
+      }
+    },
+    "device": "cuda:0",
+    "implementation": {
+      "attention": "sdpa",
+      "experts": "grouped_mm",
+      "hf_experts_source_sha256": "a4cdb41cd6c4e40a3e602644b5781a5dc53ac4ef227249db2ed40c7347990556",
+      "hf_model_source_sha256": "58387f2cc22a706e7e4c7dabe6cf05cb1e9c9fe48c57e2f2a0fc5cbdb2132f4f",
+      "script_sha256": "f0af92d534422db52a36a296adcdc026043ad79c90832b08fb56dc5a8c4334e2",
+      "torch": "2.14.1+cu130",
+      "transformers": "5.19.0"
+    },
+    "inputs": {
+      "/root/dm1_work/development/runs/dm1-ci6-routing-collector/states/sampling.json": "3a76fabc6ded58e2d8c1d95b7c3f56f6efb9042ccc3934082a5c2cac264bb97c",
+      "/root/dm1_work/development/runs/dm1-ci6-routing-collector/states/tokens.json": "a61c4eb0b9d37b66bf7733625c22e87c3819f9ecc21ace57e3c85c0fcf361cae"
+    },
+    "output_sha256": "311c49a8000fb04e5d5446afacc7532ee951c7e4fd1eac527ef4c3df3f9a83b5",
+    "schema": "tilemega.dm1.routing.identity.v1"
+  }
+}

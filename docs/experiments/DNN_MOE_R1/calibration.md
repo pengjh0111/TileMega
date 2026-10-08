@@ -55,6 +55,11 @@ env PYTHONPATH=python /root/dm1_work/venv-gpu/bin/python \
   --policy docs/experiments/DNN_MOE_R1/guard_policy.json
 ```
 
-Pending: CUDA collector validation, real routing observations and the
-TaskWork/DRAM-floor/solver consumers of the profile. No routing estimate or
-timing value is currently reported.
+verified: the unchanged two-layer seeded HF model and the streamed CUDA
+`grouped_mm` collector produce bitwise equal region inputs, router logits,
+weights, indices and layer outputs. All thirteen T coordinates are present
+(`results/CI6_routing_cuda.json`). This validates collection on sm_89, not the
+real Qwen3 checkpoint, TileMega execution or a synchronization path.
+
+Pending: real routing observations and the TaskWork/DRAM-floor/solver consumers
+of the profile. No real-model routing estimate or timing value is reported.
