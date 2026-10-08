@@ -35,7 +35,7 @@ that DNN or MoE execution is implemented.
 | CI-4 | verified static access/metrics/table/WAR-WAW, exact bound encoding and virtual capacity/provenance; counted-write and memory-planner integration pending (`analysis.md`) |
 | CI-5 | verified primitives (50/50), synthetic table/counted stages (150/150), paged forward/prefill cores (150/150) and binding PageStream synthetic dispatch (100/100); nonpaged LA and real bodies pending (`synchronization.md`) |
 | CI-6 | verified CPU fitting and streaming-routing foundations (5/5 each); native samplers, actual fits and real routing profiles pending (`calibration.md`) |
-| CI-7 | verified table projection and geometry rebinding foundations; body classes, structural search and second-level selection pending |
+| CI-7 | verified table projection, geometry rebinding, GEMM access/conv classes and routing-cost validation; tile families, profile consumers, structural search and second-level selection pending |
 | DN-2 through DN-11 | not implemented |
 | MO-1 through MO-9 | not implemented |
 
@@ -167,6 +167,11 @@ collection matches the unchanged tiny HF model bitwise for two layers and all
 T4/T12: verified binding-aware production PageStream passes 100/100 fresh
 processes and five architectures (`results/CI5_binding_pagestream.json`).
 Resources retain StreamProbe spills; real router/rowgather/model gates pending.
+
+T2/T3/T12 foundations: verified access/layout/conv/epilogue-aware GEMM classes
+and routing-profile capacity/traffic checks pass 5/5 host ctests; check-policy
+passes (`results/CI7_classes_routing_host.json`). Legacy class keys remain
+unchanged for default descriptors. Real-profile consumers and search are pending.
 
 Remaining T3–T12 entries: pending implementation and required gates. G-DNN and G-MOE:
 not run. §8.A: primitive and synthetic table/counted/weighted-LA paths have fresh-process evidence; real-body and remaining path gates are pending. No new TaskBody

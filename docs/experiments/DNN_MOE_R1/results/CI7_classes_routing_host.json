@@ -1,0 +1,43 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "host GEMM class signature and routing-profile capacities/traffic validation; device tile families, profile consumers, full search and G-REG pending",
+  "checks": [
+    "serving_pruning",
+    "dm_descriptor",
+    "operator_classes",
+    "dm_operator_classes",
+    "moe_routing_profile"
+  ],
+  "pass_rate": "5/5",
+  "implementation_commits": [
+    "60a9f6014",
+    "61559a490"
+  ],
+  "inputs": {
+    "CMakeLists.txt": "7b9482e5b6d66d08cfb78f17f162d3f096f1b4b931a4402fef3c5d91654a9427",
+    "test/unit/runner.cpp": "f526937278ac61a60ee82f314696cb24ba309ec969c2b953c834cf7857149718",
+    "include/tilemega/Solver/DmOperatorClasses.h": "4d9f9047674340119ca34209cd6f54c9f8926c035beca8f5c59013fd59803efc",
+    "include/tilemega/Solver/OperatorClasses.h": "a92f2469a7b2c1ffe15cd9d1b3365fa6171fc6251f167f1b5c350a2108e91945",
+    "include/tilemega/Solver/MoeRoutingProfile.h": "2b96e066721728e8492a25bfb077094c420fae945b8866972248b8a5c30ced0e",
+    "test/unit/operator_classes_test.cpp": "09fe66eb8ef7b2bae68297749733618a86ea0340615c35d7a9808e19f2cf4856",
+    "test/unit/moe_routing_profile_test.cpp": "66896df17c823939319fbd908c17ae7792c0c1a2c021a00acd79077e923c4da4"
+  },
+  "unit_sha256": "77610386a0c73ef78891a5cbc8e44fbb175c1d56830b2af40c280fc87fd4007f",
+  "compiler_sha256": "9319e7f18f328369acafcf9b96219118e440c644321d47b4ae516616d7f71cbd",
+  "logs": {
+    "/root/dm1_work/development/runs/dm1-ci7-access-routing-host-v2/events/ctest_access_routing.log": "a5b5460332622745550fe056d5e7ce3b6da306b0313041f0c3cbf414a585b4d6",
+    "/root/dm1_work/development/runs/dm1-ci7-access-routing-host-v2/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/root/dm1_work/development/runs/dm1-ci7-access-routing-host-v2/events/build_access_routing.log": "407faf766db63b2d7e0dea17e2e67997c9f4f3c4937cd79f4e4f9e7acc08af09"
+  },
+  "completion": {
+    "event": "queue_complete",
+    "steps": 2,
+    "passed": true
+  },
+  "prior_failure": {
+    "run": "runs/dm1-ci7-access-routing-host",
+    "cause": "fixture insert(begin(), {}) selected an empty initializer-list overload; indexed convolution record absent",
+    "resolution": "insert an explicit ConvDesc value; assertions and expected class relationships unchanged"
+  }
+}

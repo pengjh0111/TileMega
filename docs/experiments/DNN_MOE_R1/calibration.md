@@ -61,5 +61,14 @@ weights, indices and layer outputs. All thirteen T coordinates are present
 (`results/CI6_routing_cuda.json`). This validates collection on sm_89, not the
 real Qwen3 checkpoint, TileMega execution or a synchronization path.
 
+verified: `MoeRoutingProfile` validates exact model/layer/T coordinates,
+integer histogram conservation, idle experts, distinct-expert means and
+profile identity format. Host tests cover slot/group capacities, expected
+grouped blocks, unique-expert weight bytes, slot reads and gathered-A bytes
+(`results/CI7_classes_routing_host.json`). Unique weight bytes form the DRAM
+lower bound for both policies; repeated slot reads remain a separate cache/work
+quantity. The parser does not authenticate the advertised profile ID; the CLI
+consumer must verify the canonical profile hash and source file hash.
+
 Pending: real routing observations and the TaskWork/DRAM-floor/solver consumers
 of the profile. No real-model routing estimate or timing value is reported.
