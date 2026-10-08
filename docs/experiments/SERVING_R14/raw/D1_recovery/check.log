@@ -1,0 +1,28 @@
+[0/1] Re-running CMake...
+-- Using MLIR  from /root/toolchains/mlir-23a60f15/lib/cmake/mlir
+-- ISL stack: isl=/root/TileMega/build-isl/.libs/libisl.a polylib=/root/TileMega/build-polylib/.libs/libpolylibgmp.a barvinok=/root/TileMega/build-barvinok/.libs/libbarvinok.a
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /root/TileMega/build-phase12
+[1/9] cd /root/TileMega/build-phase12 && /usr/bin/python3.10 /root/TileMega/python/tilemega/fingerprint.py --root /root/TileMega --header /root/TileMega/build-phase12/include/tilemega/Support/BuildFingerprint.h
+[2/9] Building CXX object CMakeFiles/tilemega-unit.dir/test/unit/runner.cpp.o
+[3/9] Building CXX object CMakeFiles/tilemega.dir/tools/tilemega.cpp.o
+[4/9] Building CXX object CMakeFiles/tilemega_commands.dir/tools/commands/calibration-suite.cpp.o
+[5/9] Building CXX object CMakeFiles/tilemega-unit.dir/test/unit/skeleton_search_isolation_test.cpp.o
+[6/9] Building CXX object CMakeFiles/tilemega_core.dir/lib/Solver/SkeletonSearch.cpp.o
+[7/9] Linking CXX static library libtilemega.a
+[8/9] Linking CXX executable tools/tilemega
+[9/9] Linking CXX executable tilemega-unit
+Internal ctest changing into directory: /root/TileMega/build-phase12
+Test project /root/TileMega/build-phase12
+    Start  9: stage_flow
+1/3 Test  #9: stage_flow .......................   Passed    0.01 sec
+    Start 97: skeleton_search_isolation
+2/3 Test #97: skeleton_search_isolation ........   Passed    8.74 sec
+    Start 98: serving_search_rejection
+3/3 Test #98: serving_search_rejection .........   Passed   67.63 sec
+
+100% tests passed, 0 tests failed out of 3
+
+Total Test time (real) =  76.39 sec
+PASS source fingerprint c6ea7918bd34fd5459b60fcb347ec612baa361ffa62354a151331337fee01a6e

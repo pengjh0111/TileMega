@@ -1,0 +1,74 @@
+Start testing: Oct 08 04:03 UTC
+----------------------------------------------------------
+9/108 Testing: stage_flow
+9/108 Test: stage_flow
+Command: "/root/TileMega/build-phase12/tilemega-unit" "stage_flow"
+Directory: /root/TileMega/build-phase12
+"stage_flow" start time: Oct 08 04:03 UTC
+Output:
+----------------------------------------------------------
+STAGE_FLOW waterfill=PASS byte_conservation=PASS overlap=PASS coarsen=PASS kappa_sync=PASS counterfactuals=PASS floor_assertion=PASS
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"stage_flow" end time: Oct 08 04:03 UTC
+"stage_flow" time elapsed: 00:00:00
+----------------------------------------------------------
+
+97/108 Testing: skeleton_search_isolation
+97/108 Test: skeleton_search_isolation
+Command: "/root/TileMega/build-phase12/tilemega-unit" "skeleton_search_isolation"
+Directory: /root/TileMega/build-phase12
+"skeleton_search_isolation" start time: Oct 08 04:03 UTC
+Output:
+----------------------------------------------------------
+FLOW_SEARCH repeat=0 evaluations=43 imports=1 outer_materialize=0 outer_simulate=0 PASS
+FLOW_SEARCH repeat=1 evaluations=43 imports=1 outer_materialize=0 outer_simulate=0 PASS
+FLOW_SEARCH deterministic=1 compile_jobs_3_equivalent=1 invalid_jobs_rejected=1 PASS
+<end of output>
+Test time =   8.74 sec
+----------------------------------------------------------
+Test Passed.
+"skeleton_search_isolation" end time: Oct 08 04:03 UTC
+"skeleton_search_isolation" time elapsed: 00:00:08
+----------------------------------------------------------
+
+98/108 Testing: serving_search_rejection
+98/108 Test: serving_search_rejection
+Command: "/root/TileMega/build-phase12/tilemega-unit" "serving_search_rejection"
+Directory: /root/TileMega/build-phase12
+"serving_search_rejection" start time: Oct 08 04:03 UTC
+Output:
+----------------------------------------------------------
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+IMPORT_DEGRADED aten.embedding.default, aten.index_select.default, aten.square.default
+INDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=1 batch=s1
+INDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=1 batch=s1
+INDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=1 batch=s1
+INDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=1 batch=s1
+INDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=1 batch=s1
+INDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=1 batch=s1
+SERVING_REJECTION incremental=0 invalid_rejected=1 later_scores_unchanged=1 PASS
+INDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=1 batch=s1
+INDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=1 batch=s1
+INDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=1 batch=s1
+INDIRECT_UPPER_BOUND tensor=model.embed_tokens.weight seq=1 batch=s1
+SERVING_REJECTION incremental=1 invalid_rejected=1 later_scores_unchanged=1 PASS
+<end of output>
+Test time =  67.63 sec
+----------------------------------------------------------
+Test Passed.
+"serving_search_rejection" end time: Oct 08 04:04 UTC
+"serving_search_rejection" time elapsed: 00:01:07
+----------------------------------------------------------
+
+End testing: Oct 08 04:04 UTC

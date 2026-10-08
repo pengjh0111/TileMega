@@ -1,0 +1,11 @@
+warning: Error disabling address space randomization: Function not implemented
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+[Detaching after vfork from child process 1137993]
+
+Program received signal SIGSEGV, Segmentation fault.
+0x000055d6aabc2868 in tilemega::solver::(anonymous namespace)::SearchContext::Evaluate(std::vector<tilemega::solver::GemmConfig, std::allocator<tilemega::solver::GemmConfig> > const&, int, int, int) ()
+#0  0x000055d6aabc2868 in tilemega::solver::(anonymous namespace)::SearchContext::Evaluate(std::vector<tilemega::solver::GemmConfig, std::allocator<tilemega::solver::GemmConfig> > const&, int, int, int) ()
+#1  0x000055d6aabca8b4 in tilemega::solver::SolveSkeletonImported(tilemega::frontend::ImportedSemantics const&, mlir::MLIRContext&, tilemega::solver::SkeletonSearchOptions const&, tilemega::frontend::ImportSummary*, std::ostream&) ()
+#2  0x000055d6aa91a81f in tilemega::commands::compile::RunCompile(int, char**) ()
+#3  0x000055d6aa8ba48d in main ()
