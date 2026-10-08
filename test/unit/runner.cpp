@@ -71,6 +71,7 @@ namespace tilemega::tests::plan_skeleton_test { int TestPlanSkeleton(int, char**
 namespace tilemega::tests::variant_resource_test { int TestVariantResource(int, char**); }
 namespace tilemega::tests::symbolic_oracle_test { int TestSymbolicOracle(int, char**); }
 namespace tilemega::tests::operator_classes_test { int TestOperatorClasses(int, char**); }
+namespace tilemega::tests::operator_classes_test { int TestDmOperatorClasses(int, char**); }
 namespace tilemega::tests::coupling_cache_test { int TestCouplingCache(int, char**); }
 namespace tilemega::tests::semantic_lifting_test { int TestSemanticLifting(int, char**); }
 namespace tilemega::tests::embedding_plan_test { int TestEmbeddingPlan(int, char**); }
@@ -146,6 +147,7 @@ int main(int argc, char** argv) {
     {"variant_resource", tilemega::tests::variant_resource_test::TestVariantResource},
     {"symbolic_oracle", tilemega::tests::symbolic_oracle_test::TestSymbolicOracle},
     {"operator_classes", tilemega::tests::operator_classes_test::TestOperatorClasses},
+    {"dm_operator_classes", tilemega::tests::operator_classes_test::TestDmOperatorClasses},
     {"coupling_cache", tilemega::tests::coupling_cache_test::TestCouplingCache},
     {"semantic_lifting", tilemega::tests::semantic_lifting_test::TestSemanticLifting},
     {"embedding_plan", tilemega::tests::embedding_plan_test::TestEmbeddingPlan},

@@ -4,6 +4,7 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Solver/CandidateGenerator.h>
 #include <tilemega/Solver/CostModel.h>
+#include <tilemega/Solver/DmOperatorClasses.h>
 #include <tilemega/Solver/ServingPruning.h>
 #include <set>
 
@@ -20,7 +21,7 @@ inline std::vector<OperatorClass> BuildOperatorClasses(frontend::ImportedSemanti
     if(op.kind!=analysis::OperatorKind::kMatmul)continue;
     int gemm=imported.plan.stages.at(info.stage).gemm;
     if(gemm<0)throw std::invalid_argument("matmul lacks GEMM invocation");
-    auto signature=analysis::SemanticSignature(op);
+    auto signature=GemmSemanticSignature(op,imported.plan.gemms.at(gemm),imported.plan);
     auto [it,added]=by_signature.emplace(signature,classes.size());
     if(added)classes.push_back({signature,{},{}});
     classes[it->second].gemms.push_back(std::size_t(gemm));

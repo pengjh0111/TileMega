@@ -730,6 +730,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME symbolic_oracle COMMAND tilemega-unit symbolic_oracle)
 
   add_test(NAME operator_classes COMMAND tilemega-unit operator_classes)
+  add_test(NAME dm_operator_classes COMMAND tilemega-unit dm_operator_classes)
 
   add_test(NAME coupling_cache COMMAND tilemega-unit coupling_cache)
 
