@@ -61,6 +61,12 @@ weights, indices and layer outputs. All thirteen T coordinates are present
 (`results/CI6_routing_cuda.json`). This validates collection on sm_89, not the
 real Qwen3 checkpoint, TileMega execution or a synchronization path.
 
+verified: real-model input preparation retains all sixteen R10 prompt prefixes
+and produces sixteen 4096-token contexts using the pinned Qwen3 tokenizer and
+WikiText-103 validation data (`results/CI6_real_routing_inputs.json`). The
+48-layer/E=128/K=8 configuration, tokenizer, dataset, token-file and sampling
+hashes are recorded. Real HF layer forward awaits complete shard validation.
+
 verified: `MoeRoutingProfile` validates exact model/layer/T coordinates,
 integer histogram conservation, idle experts, distinct-expert means and
 profile identity format. Host tests cover slot/group capacities, expected
