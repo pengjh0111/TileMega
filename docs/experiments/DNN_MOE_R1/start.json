@@ -28,11 +28,11 @@
   "target_sha256": "eaa076db0f28a4f7c871f85d26b62a5214be0c20e3fad5c930ca1f9b6f49f784",
   "companion_plan": "/root/Prompt/DNN_MoE_plan.md",
   "merges": {
-    "M0": "not reached",
+    "M0": "checked: origin unchanged at baseline; no merge",
     "M1": "not reached",
     "M2": "not reached"
   },
-  "status": "Phase 0 in progress; Phase 1 is gated on all Phase 0 artifacts",
+  "status": "Phase 1 in progress; Phase 0 reference/inventories/preregistration committed",
   "companion_plan_sha256": "ce288acf9c9557cf98956eb201ffc10a7c7a5bef9b12787c12e41f36275d01ce",
   "python_export_environment": "/root/dm1_work/venv (CPU, upstream pinned versions)",
   "llm_regression_environment": "/root/venvs/tilemega-torch213-cu126 (existing 2.13.0+cu126)",

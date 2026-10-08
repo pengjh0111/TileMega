@@ -13,7 +13,8 @@ that DNN or MoE execution is implemented.
   `76beaea5e2d66e3311b36d020f470c4f016406d0`.
 - verified: branch `dnn-moe`, isolated worktree
   `/root/dm1_work/development`; detached reference `/root/dm1_work/reference`.
-- Final HEAD and commit count: pending completion. M0/M1/M2: not reached.
+- Final HEAD and commit count: pending completion. M0: checked, origin unchanged,
+  no merge (`results/M0_probe.json`); M1/M2: not reached.
 - verified: both production compilers build in their own `build-dm`.
 - verified: GPU lock `/root/r14_work/gpu.lock`; R13 guard policy copied
   unchanged, SHA256 in `start.json`. No performance measurements taken.
