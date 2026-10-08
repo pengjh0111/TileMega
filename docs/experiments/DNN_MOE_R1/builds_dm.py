@@ -10,6 +10,7 @@ import sys
 
 from identity_dm import generate, source_snapshot
 from pin_case import classes, pin
+from second_level_dm import ForwardRace, family_shortlist
 
 HERE = Path(__file__).resolve().parent
 
