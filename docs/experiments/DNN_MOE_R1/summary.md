@@ -232,3 +232,8 @@ Phase 1. Implement CI-1 through
 CI-7 in order with unit tests; resolve the native test build failure while
 preserving its original numerical assertion. No Phase 4 timing is authorized
 by an incomplete correctness gate.
+
+T12 foundation: verified DM GEMM candidate legality passes 7/7 host checks
+(`results/CI7_gemm_candidates_host.json`). Target resource budgets, per-filter
+channel padding, gate/expert divisibility and shared N/K weight layouts are
+checked. Production search/operand/body integration remains pending.
