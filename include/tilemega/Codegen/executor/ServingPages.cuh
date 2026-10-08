@@ -21,6 +21,23 @@ static_assert(TILEMEGA_PAGE_POOL_OFFSET%1024==0);
 #endif
 
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+__host__ __device__ inline unsigned BindingBarrierOwner(StageDesc const* stages,
+    unsigned count,unsigned producer) {
+  if(producer>=count)return kDmNoIndex;
+  // An elided reducer completes inside its owner's task, before that owner's
+  // L1 barrier. The reducer's own barrier is absent from the stage loop.
+  while(stages[producer].handoff_elided) {
+    unsigned owner=kDmNoIndex;
+    for(unsigned source=0;source<producer;++source)
+      if(stages[source].handoff_reduce_stage==producer) {
+        if(owner!=kDmNoIndex)return kDmNoIndex;
+        owner=source;
+      }
+    if(owner==kDmNoIndex)return kDmNoIndex;
+    producer=owner;
+  }
+  return producer;
+}
 template<class Visit>
 __device__ inline void VisitBindingEvents(Params const& p,unsigned stage,int task,
     bool l2,EventCounter* events,unsigned long long iteration,Visit const& visit) {
@@ -29,6 +46,8 @@ __device__ inline void VisitBindingEvents(Params const& p,unsigned stage,int tas
     asm volatile("trap;");return;
   }
   if(!l2) {
+    producer=BindingBarrierOwner(p.stages,p.stage_count,producer);
+    if(producer==kDmNoIndex){asm volatile("trap;");return;}
 #if TILEMEGA_SYNC_V3
     visit(&events[producer].arrivals,static_cast<unsigned long long>(gridDim.x)*(iteration+1));
 #else
@@ -113,12 +132,19 @@ struct PageStream {
   bool l2;
   unsigned slot=0,stage=0;
   int task=0,part=0,offset=0;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   EventCounter* events=nullptr;
   unsigned long long base_iteration=0;
-  __device__ PageStream(Params const* first,unsigned count,bool placed,
-      EventCounter* readiness=nullptr,unsigned long long iteration=0)
+#endif
+  __device__ PageStream(Params const* first,unsigned count,bool placed
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      ,EventCounter* readiness=nullptr,unsigned long long iteration=0
+#endif
+      )
       :params(first),steps(count),l2(placed) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     events=readiness;base_iteration=iteration;
+#endif
     if(l2)slot=params[0].schedule_offsets[blockIdx.x];
     else task=blockIdx.x;
   }
@@ -237,7 +263,11 @@ struct Lookahead {
   }
 };
 
-__device__ inline ServingGemmOperands Operands(GemmInvocation const& inv,int tile_m=-1) {
+__device__ inline ServingGemmOperands Operands(GemmInvocation const& inv
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    ,int tile_m=-1
+#endif
+    ) {
   auto [m,n,k,batch]=inv.problem;(void)batch;
   ServingGemmOperands p;
   p.a=inv.mainloop.ptr_A-inv.serving_k_begin;
@@ -346,7 +376,11 @@ __device__ void Gemm(Params const& params,GemmInvocation const& inv,int local,Ri
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     static_assert(TILEMEGA_PAGE_POOL_OFFSET-TILEMEGA_PAGE_WORKSPACE_OFFSET>=Body::kDmWorkspaceBytes);
 #endif
-    auto operands=Operands(inv,local/inv.tiles_n);
+    auto operands=Operands(inv
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+        ,local/inv.tiles_n
+#endif
+        );
     if(params.serving_tensor_maps) {
       operands.tensor_map=static_cast<executor::TensorMap const*>(params.serving_tensor_maps)+inv.serving_weight_buffer;
       operands.tensor_k_begin=inv.serving_k_begin;
@@ -762,7 +796,11 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
   unsigned long long local_prefetched=0,local_loaded=0;
   unsigned long long& prefetched=persistent_prefetched?*persistent_prefetched:local_prefetched;
   unsigned long long& loaded=persistent_loaded?*persistent_loaded:local_loaded;
-  PageStream local_ahead(&p,1,L2,events,iteration);
+  PageStream local_ahead(&p,1,L2
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      ,events,iteration
+#endif
+      );
   PageStream& ahead=persistent_ahead?*persistent_ahead:local_ahead;
   Lookahead lookahead{&ahead,&prefetched,&loaded};
   bool previous_grid_ready=false;
@@ -892,7 +930,11 @@ void tilemega_loop_kernel(Params const* params,unsigned steps,EventCounter* even
   ring.Initialize();
   std::uint64_t sequence=0;
   bool const compute=executor::IsCompute();
-  paged::PageStream ahead(params,steps,true,events,base_iteration);
+  paged::PageStream ahead(params,steps,true
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      ,events,base_iteration
+#endif
+      );
   unsigned long long prefetched=0,loaded=0;
 #if TILEMEGA_PAGE_LOOP_SPLIT
   // The role is uniform for the lifetime of each warp. Keeping the compute

@@ -38,6 +38,33 @@ constexpr int kShared=TILEMEGA_PAGE_POOL_OFFSET+2*8192;
 __host__ __device__ bool Empty(unsigned v,unsigned epoch) {return (v+epoch)%3==0;}
 __host__ __device__ unsigned Rows(unsigned v,unsigned epoch) {return 1+(v+epoch)%16;}
 float Weight(int expert,int n,int k) {return ((expert*3+n*7+k*11)%19-9)*0.015625f;}
+__global__ __launch_bounds__(160,1) void ElidedBindingProbe(Params const* pp,
+    EventCounter* events,unsigned epoch,unsigned* payload,unsigned* errors) {
+  auto const& p=*pp;
+  __shared__ unsigned attempted;
+  if(threadIdx.x==0)attempted=0;
+  __syncthreads();
+  Watch watch{p.serving_watchdog,10'000'000'000ull};
+  if(!executor::IsCompute()) {
+    if(paged::BindingReady(p,2,blockIdx.x,false,events,epoch) &&
+       executor::LoaderLane()==0)atomicAdd(errors,1);
+    if(executor::LoaderLane()==0)atomicExch(&attempted,1);
+    __syncwarp();
+    paged::WaitBinding<true>(p,2,blockIdx.x,false,events,epoch,&watch);
+    for(unsigned row=executor::LoaderLane();row<kVirtual;row+=32)
+      if(payload[row]!=epoch*137+row+1)atomicAdd(errors,1);
+  }else {
+    if(executor::ComputeThread()==0) {
+      while(atomicAdd(&attempted,0)==0) {}
+      payload[blockIdx.x]=epoch*137+blockIdx.x+1;
+    }
+    executor::ComputeSync();
+    paged::StageBarrier(events,0,epoch,&watch,&p);
+    paged::WaitBinding<false>(p,2,blockIdx.x,false,events,epoch,&watch);
+    for(unsigned row=executor::ComputeThread();row<kVirtual;row+=128)
+      if(payload[row]!=epoch*137+row+1)atomicAdd(errors,1);
+  }
+}
 __global__ __launch_bounds__(160,1) void StreamProbe(Params const* pp,
     EventCounter* events,unsigned epoch,bool l2,unsigned long long* sequences,
     unsigned* errors,unsigned* tickets) {
@@ -152,6 +179,7 @@ int main() {
   auto* buffers=Managed<ModelElement*>(2);buffers[0]=reinterpret_cast<E*>(partials);buffers[1]=output;
   auto* tickets=Managed<unsigned>(4*2*kVirtual);auto* sequences=Managed<unsigned long long>(2*kVirtual);
   auto* errors=Managed<unsigned>(1);auto* watchdog=Managed<WatchdogRecord>(1);auto* params=Managed<Params>(1);
+  auto* payload=Managed<unsigned>(kVirtual);
   using Layout=PagedGemmTaskBody<paged::PageArch,16,64,64,8192,2>::LayoutB;
   for(int n=0;n<128;++n)for(int k=0;k<128;++k) {
     auto index=((n/64)*2+k/64)*64*64+Layout{}(n%64,k%64);
@@ -159,6 +187,35 @@ int main() {
     for(int e=0;e<kExperts;++e)experts[e*128*128+index]=E(Weight(e,n,k));
   }
   auto* events=Managed<EventCounter>(4+4*(1+2*kVirtual*2));
+  for(unsigned stage=0;stage<4;++stage)stages[stage]={};
+  stages[0].handoff_reduce_stage=1;stages[1].handoff_elided=true;
+  stages[2].binding_producer=1;
+  assert(paged::BindingBarrierOwner(stages,4,1)==0);
+  assert(paged::BindingBarrierOwner(stages,4,3)==3);
+  assert(paged::BindingBarrierOwner(stages,4,4)==kDmNoIndex);
+  stages[0].handoff_reduce_stage=kNoOperand;
+  assert(paged::BindingBarrierOwner(stages,4,1)==kDmNoIndex);
+  stages[0].handoff_reduce_stage=1;
+  stages[2].handoff_reduce_stage=3;stages[3].handoff_elided=true;
+  stages[1].handoff_reduce_stage=3;
+  assert(paged::BindingBarrierOwner(stages,4,3)==kDmNoIndex);
+  stages[2].handoff_reduce_stage=kNoOperand;
+  assert(paged::BindingBarrierOwner(stages,4,3)==0);
+  stages[1].handoff_reduce_stage=kNoOperand;stages[3].handoff_elided=false;
+  *params={};params->stages=stages;params->stage_count=4;
+  params->serving_watchdog=watchdog;
+  TILEMEGA_CUDA_CHECK(cudaMemset(events,0,4*sizeof(EventCounter)));
+  for(unsigned epoch=0;epoch<32;++epoch) {
+    TILEMEGA_CUDA_CHECK(cudaMemset(payload,0xff,kVirtual*sizeof(unsigned)));
+    *errors=0;*watchdog={};
+    ElidedBindingProbe<<<kVirtual,160>>>(params,events,epoch,payload,errors);
+    TILEMEGA_CUDA_CHECK(cudaGetLastError());
+    TILEMEGA_CUDA_CHECK(cudaDeviceSynchronize());
+    assert(!*errors && !watchdog->fired);
+    assert(events[0].arrivals==std::uint64_t(kVirtual)*(epoch+1));
+    assert(!events[1].arrivals && !events[1].epoch);
+    for(unsigned row=0;row<kVirtual;++row)assert(payload[row]==epoch*137+row+1);
+  }
   for(int split:{1,2})for(bool la:{false,true})for(bool table:{false,true}) {
     if(split==1 && la)continue;
     inv[0]=Invocation(input,dense,hidden,128);inv[1]=Invocation(input,dense,hidden,64);
@@ -284,5 +341,5 @@ int main() {
       }
     }
   }
-  std::puts("binding PageStream: parked lookahead, production page GEMMs, sparse binding waits, empty tasks, split-K and LA passed");
+  std::puts("binding PageStream: elided binding barrier owner, parked lookahead, production page GEMMs, sparse binding waits, empty tasks, split-K and LA passed");
 }
