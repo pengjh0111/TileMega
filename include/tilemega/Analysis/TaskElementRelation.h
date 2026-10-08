@@ -36,6 +36,13 @@ CouplingRelation ProjectTaskRead(SemanticOp const& semantic, OperatorNode const&
     IndexingMap const& indexing, std::vector<IndexResult> const& nonnegative,
     ParamBinding const& known = {});
 
+// Data-dependent stores retain every affine axis and widen only the bound
+// indexed axes. This is an I2 relation, not an issued-write byte count.
+CouplingRelation ProjectTaskWrite(SemanticOp const& semantic, OperatorNode const& task,
+    TaskElementPartition const& partition, TensorSpace const& tensor,
+    IndexingMap const& indexing, std::vector<IndexResult> const& nonnegative,
+    ParamBinding const& known = {});
+
 struct ExactTaskCoupling {
   CouplingRelation relation;
   // (consumer, producer) -> shared tensor elements, before cardinality.

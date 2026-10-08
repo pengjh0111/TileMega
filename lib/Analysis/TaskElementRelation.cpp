@@ -157,6 +157,21 @@ CouplingRelation ProjectTaskRead(SemanticOp const& semantic, OperatorNode const&
   return ProjectTaskElements(expanded, task, partition, tensor, map, nonnegative, known);
 }
 
+CouplingRelation ProjectTaskWrite(SemanticOp const& semantic, OperatorNode const& task,
+    TaskElementPartition const& partition, TensorSpace const& tensor,
+    IndexingMap const& indexing, std::vector<IndexResult> const& nonnegative,
+    ParamBinding const& known) {
+  bool dependent=false;
+  for(auto const& axis:indexing.results) {
+    if(axis.kind==IndexResult::Kind::kAffine)continue;
+    if(axis.kind!=IndexResult::Kind::kDataDependent || axis.binding_source.empty())
+      throw std::invalid_argument("non-affine store lacks a runtime binding source");
+    dependent=true;
+  }
+  return dependent?ProjectTaskRead(semantic,task,partition,tensor,indexing,nonnegative,known):
+      ProjectTaskElements(semantic,task,partition,tensor,indexing,nonnegative,known);
+}
+
 ExactTaskCoupling DeriveExactTaskCoupling(CouplingRelation const& writes,
     CouplingRelation const& reads, OperatorNode const& consumer,
     ParamBinding const& known) {

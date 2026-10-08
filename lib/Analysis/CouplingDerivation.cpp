@@ -610,6 +610,7 @@ std::vector<CouplingEdge> CouplingDerivation::Derive(
       if (!producer) continue;
 
       if (consumer.element_access || producer->element_access) {
+        bool write_data_dependent=false;
         auto write = [&]() {
           if (!producer->element_access)
             return ElementAccess(*producer, BuildWriteMap(*producer), known,
@@ -617,18 +618,22 @@ std::vector<CouplingEdge> CouplingDerivation::Derive(
           auto const& access = *producer->element_access;
           auto const& sem = access.semantic;
           CouplingRelation result;
+          auto project=[&](TensorSpace const& tensor,IndexingMap const& map,
+                           std::vector<IndexResult> const& predicates) {
+            write_data_dependent|=std::any_of(map.results.begin(),map.results.end(),
+                [](auto const& axis){return axis.kind==IndexResult::Kind::kDataDependent;});
+            return ProjectTaskWrite(sem,*producer,access.partition,tensor,map,predicates,known);
+          };
           if (sem.result.name == operand.tensor.name)
-            result = ProjectTaskElements(sem, *producer, access.partition,
-                                         sem.result, sem.result_map, {}, known);
+            result = project(sem.result,sem.result_map,{});
           for (auto const& side : sem.additional_writes)
             if (side.tensor.name == operand.tensor.name)
-              result = result.Union(ProjectTaskElements(sem, *producer, access.partition,
-                                                       side.tensor, side.map, side.nonnegative, known));
+              result = result.Union(project(side.tensor,side.map,side.nonnegative));
           if (result.empty()) throw std::invalid_argument("producer has no write for " + operand.tensor.name);
           return result;
         }();
         CouplingRelation read;
-        bool data_dependent = std::any_of(operand.axes.begin(), operand.axes.end(),
+        bool data_dependent = write_data_dependent || std::any_of(operand.axes.begin(), operand.axes.end(),
             [](auto const& axis) { return axis.kind == OperandAxisMap::Kind::kDataDependent; });
         if (!consumer.element_access)
           read = ElementAccess(consumer, BuildReadMap(consumer, k), known,
