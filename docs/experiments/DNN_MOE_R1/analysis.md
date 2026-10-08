@@ -108,3 +108,9 @@ exactly the consumer's remaining column range. All 96 geometries pass;
 misaligned N partitions, unrelated sources and missing tensor accesses are
 rejected (`results/CI4_counted_partition_host.json`). Dispatch must still
 establish a permutation of the logical units; static I2 cannot prove it.
+
+verified: the per-consumer threshold view passes host offset, tail, uniform
+compatibility and 64-bit epoch overflow checks
+(`results/CI5_counted_threshold_host.json`). Threshold storage is immutable;
+counter storage remains separate for each executor bank. Device synchronization
+and native stage/table integration are pending.
