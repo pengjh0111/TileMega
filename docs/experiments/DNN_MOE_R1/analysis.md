@@ -82,3 +82,22 @@ producer set, and counts grouped events after owner elision. Flow search
 rebinds a table from L-sem when tile geometry changes, including conversion
 to an exact window. Empty table rows request no event. These are CI-7
 foundations; the remaining body classes and structural search are pending.
+
+## Counted data-dependent writes
+
+verified: `ProjectTaskWrite` retains affine dimensions and uses I2 only for
+binding-dependent store axes. RAW derivation marks these edges Tier 3,
+`tensor_values`, relaxed and predecessor-uncountable. The conservative write
+image is not an issued-byte estimate.
+
+verified: logical contribution thresholds derived from consumer reads pass
+96 host geometries including token tails. All 24 permutations of a four-row
+binding are contained in I2; weighted arrivals equal the derived thresholds
+while the number of distinct predecessor tasks varies. Duplicate/unsorted
+unit axes and missing binding sources are rejected
+(`results/CI4_counted_write_host.json`).
+
+A contribution unit needs exactly one writer. Separate column partitions
+require a partition axis in the unit or compatible producer/consumer tiles.
+Native test registration, counted CG transport, variable device thresholds
+and real-body fresh-process synchronization checks remain pending.

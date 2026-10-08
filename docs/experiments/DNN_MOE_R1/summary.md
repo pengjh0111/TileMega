@@ -32,7 +32,7 @@ that DNN or MoE execution is implemented.
 | CI-1 | implemented transcription/constant/binding API; verification in `bridge.md`; forward build integration follows CI-3/DN-11 |
 | CI-2 | verified descriptors, finite epilogue and GEMM/combiner dispatch (`descriptors.md`, `numerics.md`); new operand policies follow DN/MO bodies |
 | CI-3 | verified core ABI/dimensions, five targets, 50/50 fresh processes per seq (1/128/4096); CLI/model integration pending (`forward.md`) |
-| CI-4 | verified static access/metrics/table/WAR-WAW, exact bound encoding and virtual capacity/provenance; counted-write and memory-planner integration pending (`analysis.md`) |
+| CI-4 | verified static access/metrics/table/WAR-WAW, exact bound encoding, virtual capacity/provenance and counted-write host contracts; counted CG/device and memory-planner integration pending (`analysis.md`) |
 | CI-5 | verified primitives (50/50), synthetic table/counted stages (150/150), paged forward/prefill cores (150/150), binding PageStream synthetic dispatch (100/100), nonpaged split-K LA (100/100); attention LA and new bodies pending (`synchronization.md`) |
 | CI-6 | verified CPU fitting and streaming-routing foundations (5/5 each); native samplers, actual fits and real routing profiles pending (`calibration.md`) |
 | CI-7 | verified table projection, geometry rebinding, GEMM access/conv classes, routing-cost validation and small-tile mainloops; TaskBody/operand integration, profile consumers, structural search and second-level selection pending |
