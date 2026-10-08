@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/FlowPreparation.h>
+#include <tilemega/Solver/DmGemmTraits.h>
 #include <tilemega/Codegen/RuntimeWindow.h>
 #include <tilemega/Solver/CacheServiceCurve.h>
 #include <tilemega/Solver/VariantSchedule.h>
@@ -289,7 +290,8 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   int serving_gemm_shared=0;
   if(model.serving)for(auto const& g:problem.geometry)
     serving_gemm_shared=std::max(serving_gemm_shared,
-        ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages));
+        model.dm?DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):
+                 ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages));
   // Serving refuses to silently invent a bandwidth curve once the measured
   // profile is selected. Older target files retain the R9b control physics.
   flow.inflight_dram=model.serving && !cal.inflight_curve_bytes.empty();
@@ -482,7 +484,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   result.colocated_producer.assign(flow.spaces.size(),-1);
   auto const edge_start=std::chrono::steady_clock::now();
   auto data_edges=problem.data_edges;
-  if(data_edges.empty()) {
+  if(data_edges.empty() && !problem.projection.dependencies.empty()) {
     auto* raw=isl_map_read_from_str(analysis::SharedIslContext().raw(),problem.projection.dependencies.ToString().c_str());
     auto* pairs=isl_map_project_out(isl_map_copy(raw),isl_dim_in,1,1);pairs=isl_map_project_out(pairs,isl_dim_out,1,1);
     for(auto const& [cpoint,ppoint]:ReadMap(pairs).BindParams(theta).Points()) {

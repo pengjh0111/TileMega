@@ -151,7 +151,7 @@ struct SearchContext {
       :imported(std::move(input)),classes(BuildOperatorClasses(imported)),resources(opts.variant_probe,opts.common.timing),context(ctx),options(opts),
        dtype(imported.lifted.sem.ops.front().dtype==analysis::ScalarType::kBF16?ScalarType::kBF16:ScalarType::kF32) {
     current_page_bytes=options.page_bytes;
-    if(imported.plan.serving)for(auto const& stage:imported.plan.stages)
+    if(ServingRuntimePlan())for(auto const& stage:imported.plan.stages)
       if(stage.kind==frontend::PlanTaskKind::kFusedAttention) {
         attention_kv_block=stage.attention_kv_block;
         attention_query_rows=stage.attention_query_rows;
@@ -163,16 +163,18 @@ struct SearchContext {
         break;
       }
   }
+  bool ServingRuntimePlan() const {return imported.plan.serving || imported.plan.forward;}
   int ArgmaxTileN(std::vector<GemmConfig> const& config) const {
     for(std::size_t c=0;c<classes.size();++c)
       for(auto id:classes[c].gemms)
         if(imported.plan.gemms.at(id).epilogue==
            frontend::PlanGemm::Epilogue::kArgmaxPartial)
           return config.at(c).tile_n;
+    if(imported.plan.forward)return 0;
     throw std::runtime_error("serving plan has no argmax partial GEMM");
   }
   void SetServingStructure(int kv_block,int query_rows,int partial_tile_n) {
-    if(!imported.plan.serving ||
+    if(!ServingRuntimePlan() ||
        (kv_block==attention_kv_block && query_rows==attention_query_rows &&
         partial_tile_n==argmax_tile_n))return;
     auto old_key=std::make_tuple(attention_kv_block,attention_query_rows,argmax_tile_n);
@@ -215,10 +217,21 @@ struct SearchContext {
     requested.kv_block=kv_block;
     requested.query_rows=query_rows;
     requested.argmax_tile_n=partial_tile_n;
-    auto plan=frontend::BuildModelPlan(imported.bridge.nodes,imported.bridge.inputs,
-        imported.bridge.outputs,requested);
-    imported.lifted=frontend::LiftSemantics(plan,imported.lift_options);
-    imported.plan=std::move(plan);
+    if(previous.plan.dm) {
+      if(!options.dm_structure_rebuild)
+        throw std::invalid_argument("DM structure coordinate needs its frontend rebuild callback");
+      auto rebuilt=options.dm_structure_rebuild(previous.plan,imported.bridge,
+          imported.lift_options,kv_block,query_rows,partial_tile_n);
+      if(!rebuilt.first.dm || rebuilt.first.forward!=previous.plan.forward ||
+         rebuilt.first.serving_seq!=previous.plan.serving_seq)
+        throw std::invalid_argument("DM structure rebuild changed the model phase");
+      imported.plan=std::move(rebuilt.first);imported.lifted=std::move(rebuilt.second);
+    }else {
+      auto plan=frontend::BuildModelPlan(imported.bridge.nodes,imported.bridge.inputs,
+          imported.bridge.outputs,requested);
+      imported.lifted=frontend::LiftSemantics(plan,imported.lift_options);
+      imported.plan=std::move(plan);
+    }
     auto next_classes=BuildOperatorClasses(imported);
     if(next_classes.size()!=previous.classes.size())
       throw std::runtime_error("attention coordinate changed GEMM class count");
@@ -237,7 +250,7 @@ struct SearchContext {
   }
   std::string Key(std::vector<GemmConfig> const& config,int kappa,int residency) const {
     auto key=ConfigKey(config,kappa,residency);
-    if(imported.plan.serving)key+=";Ec="+std::to_string(attention_kv_block)+
+    if(ServingRuntimePlan())key+=";Ec="+std::to_string(attention_kv_block)+
         ";Rq="+std::to_string(attention_query_rows);
     if(options.pg_pages)key+=";page_bytes="+std::to_string(current_page_bytes)+
         ";lookahead_bytes="+std::to_string(current_lookahead_bytes);
@@ -247,9 +260,10 @@ struct SearchContext {
   ResourceEstimate EstimateResources(std::vector<GemmConfig> const& config) {
     auto const& target=options.common.placement.target;
     auto estimate=resources.Estimate(classes,config,target,dtype);
-    if(imported.plan.serving) {
-      int gemm_shared=0;
-      for(auto const& g:config)gemm_shared=std::max(gemm_shared,
+    if(ServingRuntimePlan()) {
+      int gemm_shared=imported.plan.dm?estimate.shared_bytes:0;
+      for(auto const& g:config)gemm_shared=std::max(gemm_shared,imported.plan.dm?
+          DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):
           ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages));
       estimate.shared_bytes=gemm_shared;
       estimate.resident_limit=options.pg_pages?1:VariantResourceCache::ResidentLimit(estimate,target);
@@ -257,7 +271,7 @@ struct SearchContext {
     return estimate;
   }
   SkeletonSolvedPoint Prepare(std::vector<GemmConfig> const& config,int kappa,int residency,int actual=0,bool materialize=false,int past_override=-1) {
-    if(imported.plan.serving)
+    if(ServingRuntimePlan())
       SetServingStructure(attention_kv_block,attention_query_rows,
                           ArgmaxTileN(config));
     auto* timing=options.common.timing;auto const& target=options.common.placement.target;
@@ -293,12 +307,18 @@ struct SearchContext {
     }
     // Paged decode uses PageLayout rather than the legacy TaskSmem union.
     // The union check would reject a legal Qwen3 page layout at the seed.
-    if(imported.plan.serving && !options.pg_pages) {
+    if(ServingRuntimePlan() && !options.pg_pages) {
       auto attention=std::find_if(imported.plan.stages.begin(),
           imported.plan.stages.end(),[](auto const& stage){
             return stage.kind==frontend::PlanTaskKind::kFusedAttention;
           });
-      if(attention==imported.plan.stages.end() ||
+      if(imported.plan.dm) {
+        if(attention!=imported.plan.stages.end() &&
+           codegen::ServingAttentionSharedBytes(attention->width,
+               codegen::ServingAttentionKvTile(attention->width,estimate.shared_bytes))>
+               estimate.shared_bytes)
+          throw std::invalid_argument("R-1 attention exceeds DM task shared-memory union");
+      }else if(attention==imported.plan.stages.end() ||
          PruneServingAttentionSmemR1(attention->width,
              attention->attention_query_rows,config,target))
         throw std::invalid_argument("R-1 attention exceeds GEMM shared-memory union");
@@ -496,7 +516,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
   if(options.passes<1 || options.passes>3)throw std::invalid_argument("coordinate descent supports P=1..3");
   auto const scan_start=std::chrono::steady_clock::now();
   auto budget_expired=[&] {
-    return search.imported.plan.serving && options.search_budget_ms>0 &&
+    return search.ServingRuntimePlan() && options.search_budget_ms>0 &&
         std::chrono::steady_clock::now()-scan_start>=
             std::chrono::milliseconds(options.search_budget_ms);
   };
@@ -515,7 +535,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
   std::vector<std::vector<GemmConfig>> domains;
   for(auto const& cls:search.classes) {
     std::vector<GemmConfig> domain;
-    if(search.imported.plan.serving) {
+    if(search.ServingRuntimePlan()) {
       auto pruned=ServingClassCandidates(cls,search.imported,
           options.common.placement.target,options.common.placement.dims.batch,
           options.common.placement.dims.seq,options.serving_pruning,
@@ -535,20 +555,20 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
     }
     if(!options.common.geometry_domain.empty())domain.erase(std::remove_if(domain.begin(),domain.end(),[&](auto const& g){return std::none_of(options.common.geometry_domain.begin(),options.common.geometry_domain.end(),[&](auto const& a){return std::tie(g.tile_m,g.tile_n,g.tile_k,g.stages)==std::tie(a.tile_m,a.tile_n,a.tile_k,a.stages);});}),domain.end());
     out<<"DOMAIN\t"<<domains.size()<<'\t'<<domain.size()<<'\n';
-    if(search.imported.plan.serving)for(auto const& g:domain)
+    if(search.ServingRuntimePlan())for(auto const& g:domain)
       out<<"DOMAIN_MEMBER\t"<<domains.size()<<'\t'<<g.tile_m<<'x'
          <<g.tile_n<<'x'<<g.tile_k<<'s'<<g.stages<<'k'<<g.split_k<<'\n';
     domains.push_back(std::move(domain));
   }
   std::vector<GemmConfig> seed(search.classes.size(),options.seed);
-  if(search.imported.plan.serving)
+  if(search.ServingRuntimePlan())
     for(std::size_t c=0;c<seed.size();++c)
       seed[c]=ServingSeed(search.classes[c],search.imported,
           options.common.placement.target,
           options.common.placement.dims.batch,
           options.common.placement.dims.seq,domains[c],options.pg_pages,
           search.current_page_bytes);
-  if(search.imported.plan.serving) {
+  if(search.ServingRuntimePlan()) {
     // First choose each variant geometry, then query the compiled variant set
     // for its actual occupancy. A paged decode always has one CTA per SM.
     int const workers=options.common.placement.target.res.num_sms*
@@ -560,8 +580,11 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
           search.imported.plan.stages.end(),[&](auto const& s){
             return s.kind==frontend::PlanTaskKind::kGemm && s.gemm==id;});
       if(stage==search.imported.plan.stages.end())continue;
-      int rows=stage->batch_rows?options.common.placement.dims.batch:
-          options.common.placement.dims.batch*options.common.placement.dims.seq;
+      int rows=search.imported.plan.dm?
+          DmGemmActiveRows(search.imported.plan.gemms[id],search.imported.plan,id,
+              options.common.placement.dims.batch,options.common.placement.dims.seq):
+          (stage->batch_rows?options.common.placement.dims.batch:
+           options.common.placement.dims.batch*options.common.placement.dims.seq);
       int tiles=((rows+seed[c].tile_m-1)/seed[c].tile_m)*
           ((int(search.imported.plan.gemms[id].n)+seed[c].tile_n-1)/seed[c].tile_n);
       auto chosen=domains[c].end();
@@ -576,25 +599,25 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
     }
   }
   int seed_residency=options.seed_residency;
-  if(search.imported.plan.serving)seed_residency=std::max(1,
+  if(search.ServingRuntimePlan())seed_residency=std::max(1,
       search.EstimateResources(seed).resident_limit);
-  auto legacy=evaluate(seed,search.imported.plan.serving?1:options.kappa,
+  auto legacy=evaluate(seed,search.ServingRuntimePlan()?1:options.kappa,
       seed_residency);std::size_t uniform=legacy;
   seed_key=evaluated[legacy].key;
-  if(search.imported.plan.serving && !options.serving_pruning)
+  if(search.ServingRuntimePlan() && !options.serving_pruning)
     for(int k:{1,2,4})for(int r=1;r<=seed_residency;++r) {
       auto i=evaluate(seed,k,r);
       if(BetterCandidate(evaluated[i],evaluated[legacy],true))legacy=i;
     }
   // A uniform configuration must be legal for every operator class.
-  if(!search.imported.plan.serving)for(auto const& g:domains.front()) {
+  if(!search.ServingRuntimePlan())for(auto const& g:domains.front()) {
     bool legal=true;for(auto const& domain:domains)legal &= std::any_of(domain.begin(),domain.end(),[&](auto const& other){return ClassGeometryKey(g)==ClassGeometryKey(other);});
     if(!legal)continue;std::vector<GemmConfig> config(search.classes.size(),g);
     auto limit=search.EstimateResources(config).resident_limit;
     for(int k:{1,2,4})for(int r=1;r<=limit;++r){auto i=evaluate(config,k,r);if(evaluated[i].score<evaluated[uniform].score)uniform=i;}
   }
   std::vector<std::size_t> starts{legacy};
-  if(search.imported.plan.serving && options.pg_pages) {
+  if(search.ServingRuntimePlan() && options.pg_pages) {
     int saved_page=search.current_page_bytes;
     for(int bytes:options.page_choices.empty()?std::vector<int>{saved_page}:options.page_choices) {
       search.current_page_bytes=bytes;
@@ -626,7 +649,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
     search.current_page_bytes=saved_page;
   }
   if(uniform!=legacy)starts.push_back(uniform);
-  if(search.imported.plan.serving && !options.serving_warm_gemms.empty()) {
+  if(search.ServingRuntimePlan() && !options.serving_warm_gemms.empty()) {
     if(options.serving_warm_gemms.size()!=search.imported.plan.gemms.size())
       throw std::invalid_argument("warm start GEMM count differs from imported serving plan");
     std::vector<GemmConfig> warm;
@@ -662,14 +685,14 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       for(std::size_t c=0;c<search.classes.size();++c){auto fixed=evaluated[incumbent];int improvements=0;
         if(options.pg_pages){search.current_page_bytes=fixed.page_bytes;search.current_lookahead_bytes=fixed.lookahead_bytes;}
         search.current_handoff_mask=fixed.handoff_mask;
-        if(search.imported.plan.serving)
+        if(search.ServingRuntimePlan())
           search.SetServingStructure(fixed.attention_kv_block,
               fixed.attention_query_rows,search.ArgmaxTileN(fixed.config));
         for(auto const& g:domains[c]){if(budget_expired())goto search_complete;
           auto config=fixed.config;config[c]=g;
           int residency=fixed.residency;
           int kappa=fixed.kappa;
-          if(search.imported.plan.serving) {
+          if(search.ServingRuntimePlan()) {
             auto limit=search.EstimateResources(config).resident_limit;
             if(limit<1)continue;
             if(!options.serving_pruning) {
@@ -685,10 +708,14 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
             kappa=1;
           }
           auto i=evaluate(config,kappa,residency);
-          if(BetterCandidate(evaluated[i],evaluated[incumbent],search.imported.plan.serving)){incumbent=i;moved=true;++improvements;}}
+          if(BetterCandidate(evaluated[i],evaluated[incumbent],search.ServingRuntimePlan())){incumbent=i;moved=true;++improvements;}}
         out<<"COORDINATE\t"<<start<<'\t'<<pass<<'\t'<<c<<'\t'<<domains[c].size()<<'\t'<<improvements<<'\t'<<evaluated[incumbent].score<<'\n';out.flush();
       }
-      if(search.imported.plan.serving) {
+      if(search.ServingRuntimePlan() &&
+         (!search.imported.plan.dm || std::any_of(search.imported.plan.stages.begin(),
+             search.imported.plan.stages.end(),[](auto const& stage) {
+               return stage.kind==frontend::PlanTaskKind::kFusedAttention;
+             }))) {
         auto fixed=evaluated[incumbent];
         if(options.pg_pages){search.current_page_bytes=fixed.page_bytes;search.current_lookahead_bytes=fixed.lookahead_bytes;}
         search.current_handoff_mask=fixed.handoff_mask;
@@ -722,19 +749,19 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
             evaluated[incumbent].attention_query_rows,
             search.ArgmaxTileN(evaluated[incumbent].config));
       }
-      if(!search.imported.plan.serving || options.serving_pruning) {
+      if(!search.ServingRuntimePlan() || options.serving_pruning) {
         auto fixed=evaluated[incumbent];
         if(options.pg_pages){search.current_page_bytes=fixed.page_bytes;search.current_lookahead_bytes=fixed.lookahead_bytes;}
         search.current_handoff_mask=fixed.handoff_mask;
         auto serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
         for(int k:serving_order.kappa_scan){if(budget_expired())goto search_complete;
-          auto i=evaluate(fixed.config,k,fixed.residency);if(BetterCandidate(evaluated[i],evaluated[incumbent],search.imported.plan.serving)){incumbent=i;moved=true;}}
+          auto i=evaluate(fixed.config,k,fixed.residency);if(BetterCandidate(evaluated[i],evaluated[incumbent],search.ServingRuntimePlan())){incumbent=i;moved=true;}}
         fixed=evaluated[incumbent];
         if(options.pg_pages){search.current_page_bytes=fixed.page_bytes;search.current_lookahead_bytes=fixed.lookahead_bytes;}
         search.current_handoff_mask=fixed.handoff_mask;
         serving_order=MakeServingSearchOrderR4(fixed.estimated_limit);
         for(int r:serving_order.residency_scan){if(budget_expired())goto search_complete;
-          auto i=evaluate(fixed.config,fixed.kappa,r);if(BetterCandidate(evaluated[i],evaluated[incumbent],search.imported.plan.serving)){incumbent=i;moved=true;}}
+          auto i=evaluate(fixed.config,fixed.kappa,r);if(BetterCandidate(evaluated[i],evaluated[incumbent],search.ServingRuntimePlan())){incumbent=i;moved=true;}}
       }
       if(options.pg_pages) {
         auto fixed=evaluated[incumbent];
@@ -763,7 +790,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
            <<evaluated[incumbent].lookahead_bytes<<'\t'
            <<evaluated[incumbent].score<<'\n';out.flush();
       }
-      if(options.handoff_auto && search.imported.plan.serving) {
+      if(options.handoff_auto && search.ServingRuntimePlan()) {
         auto fixed=evaluated[incumbent];
         if(options.pg_pages){search.current_page_bytes=fixed.page_bytes;search.current_lookahead_bytes=fixed.lookahead_bytes;}
         for(unsigned mask=0;mask<4;++mask) {if(budget_expired())goto search_complete;
@@ -784,7 +811,7 @@ search_complete:
   if(budget_expired())out<<"SEARCH_BUDGET\t"<<options.search_budget_ms
       <<"\t"<<evaluated.size()<<"\tpartial_coordinate_scan\n";
   std::stable_sort(evaluated.begin(),evaluated.end(),[](auto const& a,auto const& b){return a.score<b.score;});
-  if(search.imported.plan.serving)for(std::size_t begin=0;begin<evaluated.size();) {
+  if(search.ServingRuntimePlan())for(std::size_t begin=0;begin<evaluated.size();) {
     std::size_t end=begin+1;
     auto const score=evaluated[begin].score;
     if(std::isfinite(score))while(end<evaluated.size() && std::isfinite(evaluated[end].score) &&
@@ -845,7 +872,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
   // attention shape.  In that case all remaining candidates are memo hits and
   // SetServingStructure has cleared base/floor without another Prepare call.
   // Restore the best shape before reporting its floor or materializing plans.
-  if(search.imported.plan.serving && !result.evaluated.empty() &&
+  if(search.ServingRuntimePlan() && !result.evaluated.empty() &&
      result.evaluated.front().error.empty()) {
     auto const& best=result.evaluated.front();
     if(options.pg_pages){search.current_page_bytes=best.page_bytes;search.current_lookahead_bytes=best.lookahead_bytes;}
@@ -900,7 +927,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     auto b=search.Materialize(candidate,false);auto b_stats=b.candidate.placement;
     auto eb=FinalizeSkeletonPoint(std::move(b),opts,options.artifact_prefix+".m"+std::to_string(rank)+"B");
     bool pure=options.pure_template ||
-        (search.imported.plan.serving
+        (search.ServingRuntimePlan()
           ? eb.evaluation.makespan_ns>0.98*ea.evaluation.makespan_ns
           : ea.evaluation.makespan_ns<=eb.evaluation.makespan_ns);
     table<<rank<<'\t'<<candidate.key<<'\t'<<ea.evaluation.makespan_ns<<'\t'<<eb.evaluation.makespan_ns<<'\t'<<pure<<'\t'<<(b_stats.placed?double(b_stats.moved_from_home)/b_stats.placed:0)<<'\n';table.flush();
@@ -909,7 +936,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
   }
   std::stable_sort(materialized.begin(),materialized.end(),[](auto const& a,auto const& b){return a.entry.evaluation.makespan_ns<b.entry.evaluation.makespan_ns;});
   if(materialized.size()>3)materialized.resize(3);
-  if(search.imported.plan.serving && options.top_m>=3 && materialized.size()==3 &&
+  if(search.ServingRuntimePlan() && options.top_m>=3 && materialized.size()==3 &&
      !result.seed_key.empty()) {
     std::vector<std::pair<std::string,std::string>> required{{result.seed_key,"seed"}};
     // Each page size is evaluated. The best legal split-1 seed represents
@@ -989,7 +1016,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
       auto ea=FinalizeSkeletonPoint(std::move(a),opts,options.artifact_prefix+".verified"+std::to_string(rank)+"A");
       auto eb=FinalizeSkeletonPoint(std::move(b),opts,options.artifact_prefix+".verified"+std::to_string(rank)+"B");
       item.pure=options.pure_template ||
-          (search.imported.plan.serving
+          (search.ServingRuntimePlan()
             ? eb.evaluation.makespan_ns>0.98*ea.evaluation.makespan_ns
             : ea.evaluation.makespan_ns<=eb.evaluation.makespan_ns);
       c.placement=item.pure?astats:bstats;item.entry=item.pure?std::move(ea):std::move(eb);

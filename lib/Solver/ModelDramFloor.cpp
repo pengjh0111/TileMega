@@ -20,15 +20,17 @@ analysis::DramFloor DeriveModelDramFloor(mlir::ModuleOp module,ModelDescription 
   options.outputs=model.exported_tensors;
   analysis::SemanticGraph semantics;std::set<std::string> names;
   bool const serving = static_cast<bool>(module->getAttr("tilemega.serving"));
+  auto token_axis=plan.getAs<mlir::BoolAttr>("forward_token_axis");
+  bool const forward_tokens=model.dm && token_axis && token_axis.getValue();
   std::string batch_symbol;
   long serving_seq = 0;
   if (serving) {
     auto roles = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.dimension_roles");
     auto info = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
-    if (!roles || !info || !roles.getAs<mlir::StringAttr>("batch") ||
+    if (!roles || !info || (!forward_tokens && !roles.getAs<mlir::StringAttr>("batch")) ||
         !info.getAs<mlir::IntegerAttr>("seq"))
       throw std::runtime_error("serving floor requires batch and fixed seq");
-    batch_symbol = roles.getAs<mlir::StringAttr>("batch").getValue().str();
+    if(!forward_tokens)batch_symbol = roles.getAs<mlir::StringAttr>("batch").getValue().str();
     serving_seq = info.getAs<mlir::IntegerAttr>("seq").getInt();
   }
   for(auto const& task:model.task_semantics)if(names.insert(task.op.name).second)semantics.ops.push_back(task.op);
@@ -48,8 +50,9 @@ analysis::DramFloor DeriveModelDramFloor(mlir::ModuleOp module,ModelDescription 
       // upper bound without loading a fixture; tied lm_head reads the entire
       // table and makes the union exact for the anchored serving models.
       long width = operand.tensor.axes[1].extent.Eval(theta,{});
-      std::string relation = "[" + batch_symbol + "] -> { [] -> [row,col] : "
-          "0 <= row < " + std::to_string(serving_seq) + "*" + batch_symbol +
+      std::string relation = (forward_tokens?std::string{}:"[" + batch_symbol + "] -> ")+
+          "{ [] -> [row,col] : 0 <= row < " + std::to_string(serving_seq) +
+          (forward_tokens?std::string{}:"*" + batch_symbol)+
           " and 0 <= col < " + std::to_string(width) + " }";
       options.indirect_read_images[operand.tensor.name] =
           analysis::CouplingRelation::FromIslText(relation);

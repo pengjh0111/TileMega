@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Solver/DmGemmTraits.h>
 #include <tilemega/Analysis/TaskElementRelation.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Solver/RuntimeProjection.h>
@@ -239,8 +240,11 @@ BackendTraits ModelTaskTraits(ModelDescription const& model, int index,
                               GemmConfig const& config) {
   auto collective = model.dtype == ScalarType::kBF16
       ? (model.serving
-             ? ServingBF16Traits(config.tile_m, config.tile_n, config.tile_k,
-                                 config.stages)
+             ? (model.dm
+                    ? DmServingBF16Traits(config.tile_m, config.tile_n, config.tile_k,
+                                         config.stages)
+                    : ServingBF16Traits(config.tile_m, config.tile_n, config.tile_k,
+                                        config.stages))
              : TensorBF16Traits(config.tile_m, config.tile_n, config.tile_k,
                                 config.stages))
       : SimtF32Traits(config.tile_m, config.tile_n, config.tile_k, config.stages);

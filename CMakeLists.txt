@@ -369,6 +369,8 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/moe_group_profile_test.cpp
     test/unit/dm_gemm_traits_test.cpp
     test/unit/dm_gemm_candidates_test.cpp
+    test/unit/dm_gemm_class_domain_test.cpp
+    test/unit/dm_forward_search_test.cpp
     test/unit/coupling_cache_test.cpp
     test/unit/semantic_lifting_test.cpp
     test/unit/embedding_plan_test.cpp
@@ -739,6 +741,8 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME moe_group_profile COMMAND tilemega-unit moe_group_profile)
   add_test(NAME dm_gemm_traits COMMAND tilemega-unit dm_gemm_traits)
   add_test(NAME dm_gemm_candidates COMMAND tilemega-unit dm_gemm_candidates)
+  add_test(NAME dm_gemm_class_domain COMMAND tilemega-unit dm_gemm_class_domain)
+  add_test(NAME dm_forward_search COMMAND tilemega-unit dm_forward_search)
 
   add_test(NAME coupling_cache COMMAND tilemega-unit coupling_cache)
 

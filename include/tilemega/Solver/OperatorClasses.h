@@ -5,6 +5,7 @@
 #include <tilemega/Solver/CandidateGenerator.h>
 #include <tilemega/Solver/CostModel.h>
 #include <tilemega/Solver/DmOperatorClasses.h>
+#include <tilemega/Solver/DmGemmClassDomain.h>
 #include <tilemega/Solver/ServingPruning.h>
 #include <set>
 
@@ -73,6 +74,11 @@ inline ServingClassDomain ServingClassCandidates(
     OperatorClass const& cls,frontend::ImportedSemantics const& imported,
     TargetSpec const& target,int batch,int seq,
     bool enable_r2=true,bool enable_r3=false) {
+  if(imported.plan.dm) {
+    if(enable_r3)throw std::invalid_argument("DM R-3 requires an unpruned equivalence experiment");
+    auto dm=DmClassCandidates(cls.gemms,imported.plan,target,batch,seq);
+    return {std::move(dm.candidates),dm.raw,dm.removed_r1,dm.removed_r2,dm.removed_r3};
+  }
   if(!imported.plan.serving || batch<1 || seq<1 || cls.gemms.empty())
     throw std::invalid_argument("serving domain requires a serving model and bound batch");
   auto id=cls.gemms.front();auto const& gemm=imported.plan.gemms.at(id);

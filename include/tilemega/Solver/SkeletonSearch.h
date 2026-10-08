@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+
+#include <functional>
+#include <utility>
 #include <tilemega/Solver/CompilerSearch.h>
 #include <tilemega/Solver/SkeletonPlacement.h>
 #include <tilemega/Solver/VariantResourceCache.h>
@@ -30,6 +33,12 @@ struct SkeletonSearchOptions {
   // An edge class is a coordinate: bit 0 selects access-proved normalization
   // recompute, bit 1 selects access-proved attention last-arriver reduction.
   bool handoff_auto=false;
+  using DmStructureRebuild=std::function<std::pair<frontend::ModelPlan,frontend::LiftedModel>(
+      frontend::ModelPlan const&,frontend::ExportBridge const&,frontend::LiftOptions const&,
+      int,int,int)>;
+  // DM frontends retain their own graph recognition and L-sem when a
+  // decoder attention or argmax coordinate changes.
+  DmStructureRebuild dm_structure_rebuild;
   int page_bytes=8192;
   std::vector<int> page_choices;
   std::vector<int> lookahead_choices{0,65536,131072};
