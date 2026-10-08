@@ -19,6 +19,7 @@ struct MoeRoutingPoint {
   double expected_distinct_experts=0;
   std::vector<std::map<std::uint32_t,std::uint64_t>> tokens_per_expert;
   std::map<std::uint32_t,std::map<std::uint32_t,std::uint64_t>> group_blocks;
+  std::map<std::uint32_t,std::vector<std::uint64_t>> virtual_rows;
 
   std::uint64_t SlotCapacity() const {return std::uint64_t(tokens)*top_k;}
   std::uint64_t GroupCapacity(std::uint32_t block_rows) const {
@@ -43,6 +44,12 @@ struct MoeRoutingPoint {
     std::uint64_t active=0;
     for(auto const& [blocks,count]:found->second)if(blocks>virtual_id)active+=count;
     return double(active)/windows;
+  }
+  double ExpectedVirtualRows(std::uint32_t block_rows,std::uint64_t virtual_id) const {
+    auto found=virtual_rows.find(block_rows);
+    if(found==virtual_rows.end() || virtual_id>=found->second.size() || !windows)
+      throw std::out_of_range("unprofiled MoE virtual row coordinate");
+    return double(found->second[virtual_id])/windows;
   }
   // Unique-weight traffic is a DRAM lower bound for either binding policy.
   // Slot reads may reuse those weights in cache, so are a separate work quantity.
@@ -170,6 +177,27 @@ struct MoeRoutingProfile {
                     static_cast<long double>(count);
             if(joint!=marginal || !point.group_blocks.emplace(block_rows,std::move(counts)).second)
               throw std::invalid_argument("MoE joint block distribution differs from expert marginals");
+          }
+        }
+        if(auto totals=coordinate.Find("virtual_rows_totals")) {
+          for(auto const& [label,values]:totals->AsObject("virtual row totals")) {
+            auto b=key(label);auto groups=point.group_blocks.find(b);
+            if(groups==point.group_blocks.end())
+              throw std::invalid_argument("virtual row totals lack prefix activity");
+            auto const& array=values.AsArray("virtual rows");
+            if(array.size()!=point.GroupCapacity(b))
+              throw std::invalid_argument("virtual row totals differ from capacity");
+            std::vector<std::uint64_t> rows;long double sum=0;
+            for(std::size_t v=0;v<array.size();++v) {
+              auto count=integer(array[v]);std::uint64_t active=0;
+              for(auto const& [blocks,windows]:groups->second)if(blocks>v)active+=windows;
+              if(count<active || count>b*static_cast<long double>(active))
+                throw std::invalid_argument("virtual rows differ from prefix activity");
+              sum+=count;rows.push_back(count);
+            }
+            if(sum!=point.SlotCapacity()*static_cast<long double>(point.windows) ||
+               !point.virtual_rows.emplace(b,std::move(rows)).second)
+              throw std::invalid_argument("virtual rows violate assignment conservation");
           }
         }
         if(!result.layers[index].emplace(point.tokens,std::move(point)).second)

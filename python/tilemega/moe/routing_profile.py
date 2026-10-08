@@ -63,6 +63,7 @@ def routing_statistics(selections, experts, top_k, tokens=TOKENS, block_rows=BLO
         distinct = Counter()
         per_expert = [Counter() for _ in range(experts)]
         group_blocks = {b: Counter() for b in block_rows}
+        virtual_rows = {b: [0]*((t*top_k+b-1)//b + min(experts,t*top_k)) for b in block_rows}
         windows = 0
         for x in selected:
             for block in x.reshape(-1, t * top_k):
@@ -72,8 +73,18 @@ def routing_statistics(selections, experts, top_k, tokens=TOKENS, block_rows=BLO
                     per_expert[e][n] += 1
                 # Marginals determine mean work, but static placement also
                 # needs the joint distribution of the active virtual prefix.
+                active_counts = [n for n in counts if n]
                 for b, histogram in group_blocks.items():
-                    histogram[sum((n + b - 1) // b for n in counts)] += 1
+                    histogram[sum((n + b - 1) // b for n in active_counts)] += 1
+                    cursor = 0
+                    for n in active_counts:
+                        full, tail = divmod(n, b)
+                        for _ in range(full):
+                            virtual_rows[b][cursor] += b
+                            cursor += 1
+                        if tail:
+                            virtual_rows[b][cursor] += tail
+                            cursor += 1
                 windows += 1
         histogram = lambda c: {str(k): v for k, v in sorted(c.items())}
         result[str(t)] = dict(tokens=t, windows=windows,
@@ -81,6 +92,7 @@ def routing_statistics(selections, experts, top_k, tokens=TOKENS, block_rows=BLO
             expected_distinct_experts=sum(k * n for k, n in distinct.items()) / windows,
             tokens_per_expert_histograms=[histogram(c) for c in per_expert],
             group_blocks_histograms={str(b): histogram(c) for b, c in group_blocks.items()},
+            virtual_rows_totals={str(b): sums for b, sums in virtual_rows.items()},
             assignments_per_window=t * top_k)
     return result
 

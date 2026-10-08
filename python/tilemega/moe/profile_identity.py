@@ -131,8 +131,11 @@ def verify_profile(value, *, layers, experts, top_k, tokens=tuple(1 << i for i i
             if assignments != windows*t*top_k or active != distinct_total:
                 raise ValueError('routing histograms violate assignment conservation')
             groups = point.get('group_blocks_histograms', {})
+            virtual_rows = point.get('virtual_rows_totals', {})
             if set(groups) != {str(b) for b in block_rows}:
                 raise ValueError('routing binding block coordinates differ')
+            if set(virtual_rows) != {str(b) for b in block_rows}:
+                raise ValueError('routing virtual row coordinates differ')
             for b in block_rows:
                 slots = t*top_k
                 capacity = (slots+b-1)//b + min(experts, slots)
@@ -141,6 +144,16 @@ def verify_profile(value, *, layers, experts, top_k, tokens=tuple(1 << i for i i
                                      for n, count in h.items())
                 if sum(n*count for n, count in blocks.items()) != expected_total:
                     raise ValueError('routing joint block mean differs from expert marginals')
+                totals = virtual_rows[str(b)]
+                if not isinstance(totals, list) or len(totals) != capacity:
+                    raise ValueError('routing virtual row capacity differs')
+                for v, total in enumerate(totals):
+                    total = _integer(total)
+                    active = sum(count for n, count in blocks.items() if n > v)
+                    if not active <= total <= b*active:
+                        raise ValueError('routing virtual rows differ from prefix activity')
+                if sum(totals) != slots*windows:
+                    raise ValueError('routing virtual rows violate assignment conservation')
     return identity
 
 
