@@ -17,6 +17,7 @@ from pathlib import Path
 import sys
 
 TOKENS = tuple(1 << i for i in range(13))
+BLOCK_ROWS = (16, 32, 64, 128)
 
 
 def sha(path):
@@ -35,7 +36,7 @@ def write_json(path, value):
     temporary.replace(path)
 
 
-def routing_statistics(selections, experts, top_k, tokens=TOKENS):
+def routing_statistics(selections, experts, top_k, tokens=TOKENS, block_rows=BLOCK_ROWS):
     """Count disjoint windows within each original sequence, including idle experts."""
     import torch
     if experts < 1 or not 1 <= top_k <= experts:
@@ -43,6 +44,9 @@ def routing_statistics(selections, experts, top_k, tokens=TOKENS):
     selected = [torch.as_tensor(x, device='cpu') for x in selections]
     if not selected or not tokens or len(set(tokens)) != len(tokens):
         raise ValueError('empty routing observations or duplicate token coordinates')
+    if not block_rows or len(set(block_rows)) != len(block_rows) or any(
+            type(b) is not int or b < 1 for b in block_rows):
+        raise ValueError('invalid or duplicate binding block sizes')
     for x in selected:
         if x.dtype not in (torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8):
             raise ValueError('routing observations must contain integer expert indices')
@@ -58,6 +62,7 @@ def routing_statistics(selections, experts, top_k, tokens=TOKENS):
             raise ValueError('token windows must divide every source sequence')
         distinct = Counter()
         per_expert = [Counter() for _ in range(experts)]
+        group_blocks = {b: Counter() for b in block_rows}
         windows = 0
         for x in selected:
             for block in x.reshape(-1, t * top_k):
@@ -65,12 +70,17 @@ def routing_statistics(selections, experts, top_k, tokens=TOKENS):
                 distinct[sum(n > 0 for n in counts)] += 1
                 for e, n in enumerate(counts):
                     per_expert[e][n] += 1
+                # Marginals determine mean work, but static placement also
+                # needs the joint distribution of the active virtual prefix.
+                for b, histogram in group_blocks.items():
+                    histogram[sum((n + b - 1) // b for n in counts)] += 1
                 windows += 1
         histogram = lambda c: {str(k): v for k, v in sorted(c.items())}
         result[str(t)] = dict(tokens=t, windows=windows,
             distinct_experts_histogram=histogram(distinct),
             expected_distinct_experts=sum(k * n for k, n in distinct.items()) / windows,
             tokens_per_expert_histograms=[histogram(c) for c in per_expert],
+            group_blocks_histograms={str(b): histogram(c) for b, c in group_blocks.items()},
             assignments_per_window=t * top_k)
     return result
 

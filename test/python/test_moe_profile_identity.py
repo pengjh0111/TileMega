@@ -28,6 +28,9 @@ def fixture():
                   distinct_experts_histogram={'1': 1, '2': 1}, expected_distinct_experts=1.5,
                   tokens_per_expert_histograms=[{'0': 1, '1': 1}, {'1': 1, '2': 1}]),
     }
+    for point in coordinates.values():
+        point['group_blocks_histograms'] = {
+            str(b): copy.deepcopy(point['distinct_experts_histogram']) for b in (16, 32, 64, 128)}
     sampling = dict(layers=2, experts=2, top_k=1, config_sha256='c'*64,
                     tokens_sha256='d'*64)
     sampling_sha = hashlib.sha256((json.dumps(sampling, indent=2, sort_keys=True)+'\n').encode()).hexdigest()
@@ -117,6 +120,16 @@ class MoeProfileIdentityTest(unittest.TestCase):
             self.check(seal(value))
         value['layers'][0]['coordinates']['2']['expected_distinct_experts'] = float('nan')
         with self.assertRaises(ValueError):
+            self.check(seal(value))
+
+    def test_joint_block_distribution_and_domain(self):
+        value = fixture()
+        value['layers'][0]['coordinates']['2']['group_blocks_histograms']['16'] = {'2': 2}
+        with self.assertRaisesRegex(ValueError, 'joint block mean'):
+            self.check(seal(value))
+        value = fixture()
+        del value['layers'][0]['coordinates']['2']['group_blocks_histograms']['128']
+        with self.assertRaisesRegex(ValueError, 'block coordinates'):
             self.check(seal(value))
 
     def test_duplicate_json_and_ambiguous_input(self):

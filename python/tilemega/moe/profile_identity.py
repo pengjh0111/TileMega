@@ -33,7 +33,8 @@ def _input(identity, name):
     return _sha(matches[0])
 
 
-def verify_profile(value, *, layers, experts, top_k, tokens=tuple(1 << i for i in range(13))):
+def verify_profile(value, *, layers, experts, top_k, tokens=tuple(1 << i for i in range(13)),
+                   block_rows=(16, 32, 64, 128)):
     """Return the content identity; histogram validation is independent of CUDA.
 
     The digest detects altered profile contents. It is not an authenticity proof
@@ -51,6 +52,10 @@ def verify_profile(value, *, layers, experts, top_k, tokens=tuple(1 << i for i i
         raise ValueError('invalid routing model/token coordinates')
     for token in tokens:
         _integer(token, 1)
+    if not block_rows or len(set(block_rows)) != len(block_rows):
+        raise ValueError('invalid routing binding block sizes')
+    for b in block_rows:
+        _integer(b, 1)
     sampling = value['sampling']
     if any(_integer(sampling[key], 1) != expected for key, expected in
            (('layers', layers), ('experts', experts), ('top_k', top_k))):
@@ -117,13 +122,25 @@ def verify_profile(value, *, layers, experts, top_k, tokens=tuple(1 << i for i i
                 raise ValueError('routing distinct-expert mean differs from histogram')
             if len(point['tokens_per_expert_histograms']) != experts:
                 raise ValueError('routing profile omits experts')
-            assignments, active = 0, 0
+            assignments, active, expert_histograms = 0, 0, []
             for h in point['tokens_per_expert_histograms']:
                 counts = histogram(h, 0, t)
+                expert_histograms.append(counts)
                 assignments += sum(n*count for n, count in counts.items())
                 active += sum(count for n, count in counts.items() if n)
             if assignments != windows*t*top_k or active != distinct_total:
                 raise ValueError('routing histograms violate assignment conservation')
+            groups = point.get('group_blocks_histograms', {})
+            if set(groups) != {str(b) for b in block_rows}:
+                raise ValueError('routing binding block coordinates differ')
+            for b in block_rows:
+                slots = t*top_k
+                capacity = (slots+b-1)//b + min(experts, slots)
+                blocks = histogram(groups[str(b)], (slots+b-1)//b, min(slots, capacity))
+                expected_total = sum(((n+b-1)//b)*count for h in expert_histograms
+                                     for n, count in h.items())
+                if sum(n*count for n, count in blocks.items()) != expected_total:
+                    raise ValueError('routing joint block mean differs from expert marginals')
     return identity
 
 

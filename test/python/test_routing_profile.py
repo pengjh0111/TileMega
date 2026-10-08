@@ -29,6 +29,32 @@ class RoutingProfileTest(unittest.TestCase):
         zeros = routing_statistics([[[0, 1]] * 4], 4, 2, (4,))['4']
         self.assertEqual(zeros['tokens_per_expert_histograms'][2], {'0': 1})
 
+    def test_joint_group_blocks_match_independent_alignment(self):
+        # Expert rows are explicitly padded to BM in this independent oracle.
+        rows = [[0, 1], [0, 2], [2, 3], [2, 0], [1, 3], [0, 3], [1, 2], [3, 1]]
+        for t in (1, 2, 4, 8):
+            point = routing_statistics([rows], 4, 2, (t,), (1, 2, 4, 16))[str(t)]
+            for b in (1, 2, 4, 16):
+                blocks = []
+                for start in range(0, len(rows), t):
+                    aligned = []
+                    for expert in range(4):
+                        selected = [token for token in range(start, start+t) if expert in rows[token]]
+                        while len(selected) % b:
+                            selected.append(-1)
+                        aligned.extend(selected)
+                    blocks.append(len(aligned)//b)
+                expected = {str(n): blocks.count(n) for n in set(blocks)}
+                self.assertEqual(point['group_blocks_histograms'][str(b)], expected)
+                marginal_total = sum(((int(n)+b-1)//b)*count
+                    for h in point['tokens_per_expert_histograms'] for n, count in h.items())
+                self.assertEqual(sum(blocks), marginal_total)
+                capacity = (t*2+b-1)//b + min(4, t*2)
+                self.assertLessEqual(max(blocks), capacity)
+        for invalid in ((), (0,), (True,), (16, 16)):
+            with self.assertRaises(ValueError):
+                routing_statistics([rows], 4, 2, (8,), invalid)
+
     def test_routing_rejects_invalid_observations(self):
         for values, experts, k, tokens in (
             ([], 4, 2, (1,)), ([[[0, 0]]], 4, 2, (1,)),
