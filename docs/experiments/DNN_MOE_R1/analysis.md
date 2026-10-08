@@ -101,3 +101,10 @@ A contribution unit needs exactly one writer. Separate column partitions
 require a partition axis in the unit or compatible producer/consumer tiles.
 Native test registration, counted CG transport, variable device thresholds
 and real-body fresh-process synchronization checks remain pending.
+
+verified: the aligned-scatter helper reconstructs reads/stores from L-sem,
+checks the binding-indexed unit axes and proves that every producer covers
+exactly the consumer's remaining column range. All 96 geometries pass;
+misaligned N partitions, unrelated sources and missing tensor accesses are
+rejected (`results/CI4_counted_partition_host.json`). Dispatch must still
+establish a permutation of the logical units; static I2 cannot prove it.
