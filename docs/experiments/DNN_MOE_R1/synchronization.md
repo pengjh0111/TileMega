@@ -125,8 +125,8 @@ matches the independent numerical oracle and L1/L2 outputs match bitwise.
 Sixteen builds cover five architectures; StreamProbe spills are retained in
 the per-kernel resource records. Expectations were not changed.
 
-Pending: rowgather, real router/dispatch/experts, elided dispatch producer
-resolution in L1, model gates, and default-path G-REG. This fixture supplies
+Pending: rowgather, real router/dispatch/experts, model gates, and default-path
+G-REG. This fixture supplies
 synthetic dispatch records and dense A rows arranged in virtual order.
 
 verified: native nonpaged split-K LA passes 100/100 fresh processes, fifty
@@ -149,3 +149,19 @@ ticket preparation preceded GEMM construction and the prefetch fixture lacked
 its stride macro. Corrected retries retain the original reference and
 assertions; the failed logs remain under
 `runs/dm1-ci5-nonpaged-handoff-smoke-production`.
+
+verified: the L1 binding wait resolves an elided producer to its unique earlier
+LA owner; the owner's barrier replaces the absent reducer barrier. The
+fresh-process repeat passes 100/100, fifty each for SYNC_V3=0/1, and all five
+targets compile (`results/CI5_elided_binding_owner.json`). Each process checks
+32 poisoned owner-barrier epochs with the elided stage's events untouched,
+then repeats the production window/table/page/empty/split-K checks. Missing,
+duplicate and chained owner relations are checked. The added owner probe has
+zero spills; thirteen builds retain StreamProbe spills. Real dispatch and
+expert/model gates remain pending.
+
+inferred: L2 continues waiting on the reducer's fine events, which the LA
+callback publishes. L1 instead follows strictly earlier owners until it
+reaches a non-elided stage. Its barrier follows completion of all reducer
+work. Default non-DM PageStream field layouts, constructor arguments and
+operand signatures now stay behind the original paths; G-REG is pending.

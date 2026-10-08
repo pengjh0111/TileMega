@@ -154,7 +154,7 @@ processes and five architectures with zero spills
 checks remain pending.
 
 T2/T3: verified nonpaged handoff selection and codegen transport pass 11/11
-host checks (`results/CI5_nonpaged_handoff_host.json`); device gates pending.
+host checks (`results/CI5_nonpaged_handoff_host.json`); native core evidence follows.
 
 T4/T12: verified nonpaged native split-K LA passes 100/100 fresh processes,
 five architectures and kappa=0/1/4/16 (`results/CI5_nonpaged_handoff_native.json`).
@@ -173,6 +173,12 @@ collection matches the unchanged tiny HF model bitwise for two layers and all
 T4/T12: verified binding-aware production PageStream passes 100/100 fresh
 processes and five architectures (`results/CI5_binding_pagestream.json`).
 Resources retain StreamProbe spills; real router/rowgather/model gates pending.
+
+T4/T12: verified elided L1 binding producers resolve the owner's barrier in
+100/100 fresh processes (`results/CI5_elided_binding_owner.json`). Five targets,
+32 owner-barrier epochs and repeated production page cases pass; the skipped
+producer's events remain zero. Thirteen builds retain StreamProbe spills.
+Default non-DM PageStream fields/signatures are guarded; full G-REG is pending.
 
 T2/T3/T12 foundations: verified access/layout/conv/epilogue-aware GEMM classes
 and routing-profile capacity/traffic checks pass 5/5 host ctests; check-policy

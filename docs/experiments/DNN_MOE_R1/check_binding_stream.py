@@ -42,7 +42,7 @@ def main():
         fresh_processes=[],head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=args.root,text=True).strip(),
         diff_sha256=hashlib.sha256(subprocess.check_output(['git','diff','--binary','HEAD'],cwd=args.root)).hexdigest(),
         compiler_version=subprocess.check_output([nvcc,'--version'],text=True),compiler_sha256=sha(nvcc),
-        scope='synthetic dispatch through production BindingReady/PageStream/Task/page GEMMs; window/table, empty notifications, split-K stage/LA, poisoned inputs and bitwise L1/L2; rowgather, real router and model gates pending')
+        scope='synthetic dispatch through production BindingReady/PageStream/Task/page GEMMs; elided L1 binding producer resolves its LA owner barrier (32 epochs), window/table, empty notifications, split-K stage/LA, poisoned inputs and bitwise L1/L2; rowgather, real router and model gates pending')
     cases=(0,) if args.smoke else (0,1)
     result['baselines']=dict(vllm_version=subprocess.check_output(
         ['/root/venv_vllm/bin/python','-c','from importlib.metadata import version; print(version("vllm"))'],text=True).strip())
