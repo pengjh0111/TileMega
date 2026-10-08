@@ -73,6 +73,7 @@ namespace tilemega::tests::symbolic_oracle_test { int TestSymbolicOracle(int, ch
 namespace tilemega::tests::operator_classes_test { int TestOperatorClasses(int, char**); }
 namespace tilemega::tests::operator_classes_test { int TestDmOperatorClasses(int, char**); }
 namespace tilemega::tests::moe_routing_profile_test { int TestMoeRoutingProfile(int, char**); }
+namespace tilemega::tests::moe_group_profile_test { int TestMoeGroupProfile(int, char**); }
 namespace tilemega::tests::dm_gemm_traits_test { int TestDmGemmTraits(int, char**); }
 namespace tilemega::tests::dm_gemm_candidates_test { int TestDmGemmCandidates(int, char**); }
 namespace tilemega::tests::coupling_cache_test { int TestCouplingCache(int, char**); }
@@ -152,6 +153,7 @@ int main(int argc, char** argv) {
     {"operator_classes", tilemega::tests::operator_classes_test::TestOperatorClasses},
     {"dm_operator_classes", tilemega::tests::operator_classes_test::TestDmOperatorClasses},
     {"moe_routing_profile", tilemega::tests::moe_routing_profile_test::TestMoeRoutingProfile},
+    {"moe_group_profile", tilemega::tests::moe_group_profile_test::TestMoeGroupProfile},
     {"dm_gemm_traits", tilemega::tests::dm_gemm_traits_test::TestDmGemmTraits},
     {"dm_gemm_candidates", tilemega::tests::dm_gemm_candidates_test::TestDmGemmCandidates},
     {"coupling_cache", tilemega::tests::coupling_cache_test::TestCouplingCache},

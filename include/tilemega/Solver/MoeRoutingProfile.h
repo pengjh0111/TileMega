@@ -18,6 +18,7 @@ struct MoeRoutingPoint {
   std::uint64_t windows=0;
   double expected_distinct_experts=0;
   std::vector<std::map<std::uint32_t,std::uint64_t>> tokens_per_expert;
+  std::map<std::uint32_t,std::map<std::uint32_t,std::uint64_t>> group_blocks;
 
   std::uint64_t SlotCapacity() const {return std::uint64_t(tokens)*top_k;}
   std::uint64_t GroupCapacity(std::uint32_t block_rows) const {
@@ -33,6 +34,15 @@ struct MoeRoutingPoint {
         blocks+=(std::uint64_t(rows)/block_rows+(rows%block_rows!=0))*
                 static_cast<long double>(count);
     return double(blocks/windows);
+  }
+  double ActiveVirtualProbability(std::uint32_t block_rows,std::uint64_t virtual_id) const {
+    if(virtual_id>=GroupCapacity(block_rows))throw std::out_of_range("virtual MoE id exceeds capacity");
+    auto found=group_blocks.find(block_rows);
+    if(found==group_blocks.end() || !windows)
+      throw std::out_of_range("unprofiled MoE binding block size");
+    std::uint64_t active=0;
+    for(auto const& [blocks,count]:found->second)if(blocks>virtual_id)active+=count;
+    return double(active)/windows;
   }
   // Unique-weight traffic is a DRAM lower bound for either binding policy.
   // Slot reads may reuse those weights in cache, so are a separate work quantity.
@@ -143,6 +153,25 @@ struct MoeRoutingProfile {
         }
         if(assignments!=point.SlotCapacity()*static_cast<long double>(point.windows) || active_experts!=distinct_sum)
           throw std::invalid_argument("MoE expert histograms violate assignment conservation");
+        if(auto groups=coordinate.Find("group_blocks_histograms")) {
+          for(auto const& [label,bins]:groups->AsObject("group block histograms")) {
+            auto block_rows=key(label);
+            if(!block_rows)throw std::invalid_argument("zero MoE binding block size");
+            auto maximum=std::min<std::uint64_t>(point.SlotCapacity(),point.GroupCapacity(block_rows));
+            if(maximum>std::numeric_limits<std::uint32_t>::max())
+              throw std::overflow_error("MoE group profile exceeds runtime task capacity");
+            auto minimum=point.SlotCapacity()/block_rows+(point.SlotCapacity()%block_rows!=0);
+            auto counts=histogram(bins,std::uint32_t(maximum),std::uint32_t(minimum));
+            long double joint=0,marginal=0;
+            for(auto const& [blocks,count]:counts)joint+=blocks*static_cast<long double>(count);
+            for(auto const& h:point.tokens_per_expert)
+              for(auto const& [rows,count]:h)
+                marginal+=(std::uint64_t(rows)/block_rows+(rows%block_rows!=0))*
+                    static_cast<long double>(count);
+            if(joint!=marginal || !point.group_blocks.emplace(block_rows,std::move(counts)).second)
+              throw std::invalid_argument("MoE joint block distribution differs from expert marginals");
+          }
+        }
         if(!result.layers[index].emplace(point.tokens,std::move(point)).second)
           throw std::invalid_argument("duplicate MoE token coordinate");
       }
