@@ -366,6 +366,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/symbolic_oracle_test.cpp
     test/unit/operator_classes_test.cpp
     test/unit/moe_routing_profile_test.cpp
+    test/unit/dm_gemm_traits_test.cpp
     test/unit/coupling_cache_test.cpp
     test/unit/semantic_lifting_test.cpp
     test/unit/embedding_plan_test.cpp
@@ -733,6 +734,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME operator_classes COMMAND tilemega-unit operator_classes)
   add_test(NAME dm_operator_classes COMMAND tilemega-unit dm_operator_classes)
   add_test(NAME moe_routing_profile COMMAND tilemega-unit moe_routing_profile)
+  add_test(NAME dm_gemm_traits COMMAND tilemega-unit dm_gemm_traits)
 
   add_test(NAME coupling_cache COMMAND tilemega-unit coupling_cache)
 
