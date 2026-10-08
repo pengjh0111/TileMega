@@ -3,6 +3,9 @@
 
 #include <tilemega/Solver/BackendCostQuery.h>
 #include <tilemega/Target/ArchDispatch.h>
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Backend/ServingDmGemm.h>
+#endif
 
 #include <cute/tensor.hpp>
 #include <cutlass/gemm/collective/collective_mma.hpp>
@@ -85,6 +88,35 @@ struct ServingGemmSm80 {
                 "serving mainloop/epilogue union must match the closed form exactly");
 };
 
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+// Invocation fields retain the existing collective ABI; execution of the new
+// shapes belongs to ServingDmGemm and its explicit four-warp K reduction.
+template<class Arch,int M,int N,int K,int S>
+struct ServingDmGemmConfig : ServingDmGemm<Arch,M,N,K,S> {
+  using Body=ServingDmGemm<Arch,M,N,K,S>;
+  using Abi=ServingGemmSm80<Arch,16,64,64,2>;
+  static constexpr bool kShapeLegal=solver::DmServingBF16ShapeLegal(M,N,K,S);
+  struct Mainloop {
+    using TileShape=cute::Shape<cute::Int<M>,cute::Int<N>,cute::Int<K>>;
+    using TiledMma=typename Body::TiledMma;
+    using ElementA=typename Abi::Mainloop::ElementA;
+    using ElementB=typename Abi::Mainloop::ElementB;
+    using StrideA=typename Abi::Mainloop::StrideA;
+    using StrideB=typename Abi::Mainloop::StrideB;
+    using Params=typename Abi::Mainloop::Params;
+    using Arguments=typename Abi::Mainloop::Arguments;
+    struct alignas(16) SharedStorage {unsigned char bytes[Body::kMainloopBytes];};
+    template<class Shape>
+    static Params to_underlying_arguments(Shape const& problem,Arguments const& args,void* workspace) {
+      return Abi::Mainloop::to_underlying_arguments(problem,args,workspace);
+    }
+  };
+  using Epilogue=typename Abi::Epilogue;
+};
+template<class Arch,int M,int N,int K,int S>
+struct ServingGemmConfig : std::conditional_t<N==16 || K<64,
+    ServingDmGemmConfig<Arch,M,N,K,S>,ServingGemmSm80<Arch,M,N,K,S>> {};
+#else
 template<class Arch,int M,int N,int K,int S>
 struct ServingGemmConfig : ServingGemmSm80<Arch,M,N,K,S> {};
 // Extension points: future TMA + WGMMA (SM90) and tcgen05 (SM100) task ABIs.
@@ -93,5 +125,7 @@ template<int M,int N,int K,int S>
 struct ServingGemmConfig<arch::Sm90,M,N,K,S> : ServingGemmSm80<arch::Sm90,M,N,K,S> {};
 template<int M,int N,int K,int S>
 struct ServingGemmConfig<arch::Sm100,M,N,K,S> : ServingGemmSm80<arch::Sm100,M,N,K,S> {};
+
+#endif
 
 }  // namespace tilemega::backend

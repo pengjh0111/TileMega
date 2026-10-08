@@ -107,6 +107,26 @@ struct ServingGemmTaskBody {
   }
   __device__ static void Run(ServingGemmOperands const& p, int tile_m,
                              int tile_n, char* shared) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if constexpr(TileN==16 || TileK<64) {
+      auto* tile=Config::Dense(p,tile_m,tile_n,shared,TILEMEGA_NONPAGED_TILED!=0);
+      auto finish=[&](auto op) {
+        backend::ServingEpilogue<decltype(op)::value,TileM,TileN>::template RunFromTile<false>(
+            tile,tile_m,tile_n,p.m,p.n,p.output_stride,p.partial_stride,
+            p.output,p.residual,p.partial,p.argmax_value,p.argmax_index,
+            p.norm_ss,p.ss_out,p.norm_k,p.norm_eps);
+      };
+      switch(p.epilogue) {
+        case backend::ServingEpilogueOp::kStore:finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kStore>{});break;
+        case backend::ServingEpilogueOp::kResidual:finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kResidual>{});break;
+        case backend::ServingEpilogueOp::kSwiGLU:
+          if constexpr(TileN%32==0)finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kSwiGLU>{});
+          else asm volatile("trap;");break;
+        case backend::ServingEpilogueOp::kArgmaxPartial:finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kArgmaxPartial>{});break;
+        case backend::ServingEpilogueOp::kPartial:finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kPartial>{});break;
+      }
+    }else {
+#endif
     using namespace cute;
     if (!p.a || !p.b || p.k_begin < 0 || p.k_count <= 0 ||
         p.k_begin + p.k_count > p.k_total) {
@@ -174,11 +194,19 @@ struct ServingGemmTaskBody {
         finish(std::integral_constant<backend::ServingEpilogueOp,
                backend::ServingEpilogueOp::kPartial>{}); break;
     }
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    }
+#endif
   }
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   template <class Spec>
   __device__ static void RunDm(ServingGemmOperands const& p, int tile_m,
                              int tile_n, char* shared) {
+    if constexpr(TileN==16 || TileK<64) {
+      auto* tile=Config::Dense(p,tile_m,tile_n,shared,TILEMEGA_NONPAGED_TILED!=0);
+      backend::ServingDmEpilogue<Arch,Spec,TileM,TileN,false>::RunFromTile(
+          tile,DmEpilogueOperands(p),tile_m,tile_n);
+    }else {
     using namespace cute;
     if (!p.a || !p.b || p.k_begin < 0 || p.k_count <= 0 ||
         p.k_begin + p.k_count > p.k_total) {
@@ -225,6 +253,7 @@ struct ServingGemmTaskBody {
 #endif
     backend::ServingDmEpilogue<Arch, Spec, TileM, TileN>::Run(
         accum, mma, shared, DmEpilogueOperands(p), tile_m, tile_n);
+    }
   }
 #endif
 

@@ -74,7 +74,7 @@ struct GemmCombineTaskBody {
         task / invocation.tiles_n, task % invocation.tiles_n,
         reinterpret_cast<char*>(&smem.gemm), operands});
     return;
-#endif
+#else
     switch (invocation.serving_op) {
       case backend::ServingEpilogueOp::kStore:
         RunServingOp<Variant, backend::ServingEpilogueOp::kStore>(p, stage, smem, task); break;
@@ -86,6 +86,7 @@ struct GemmCombineTaskBody {
         RunServingOp<Variant, backend::ServingEpilogueOp::kArgmaxPartial>(p, stage, smem, task); break;
       default: asm volatile("trap;"); break;
     }
+#endif
   }
 
   template <int Variant = 0>

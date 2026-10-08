@@ -191,7 +191,7 @@ template <class Mainloop, int M, int N, int K, int S>
 struct GemmVariantStorage<true, Mainloop, M, N, K, S> {
   struct alignas(16) type {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-    static constexpr auto mainloop_bytes = solver::ServingBF16SmemBytes(M, N, K, S);
+    static constexpr auto mainloop_bytes = solver::DmServingBF16SmemBytes(M, N, K, S);
     static constexpr auto epilogue_bytes = (M * N + 2 * M) * sizeof(float);
     unsigned char bytes[mainloop_bytes > epilogue_bytes ? mainloop_bytes : epilogue_bytes];
 #else
