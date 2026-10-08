@@ -173,6 +173,11 @@ and routing-profile capacity/traffic checks pass 5/5 host ctests; check-policy
 passes (`results/CI7_classes_routing_host.json`). Legacy class keys remain
 unchanged for default descriptors. Real-profile consumers and search are pending.
 
+T12 foundation: verified small-tile resource/legality checks and neighboring
+host regressions pass 6/6 (`results/CI7_gemm_traits_host.json`); check-policy
+passes. The DM domain has 76 legal geometries, 46 additions; legacy serving
+legality is unchanged. CUDA families and candidate integration are pending.
+
 Remaining T3–T12 entries: pending implementation and required gates. G-DNN and G-MOE:
 not run. §8.A: primitive and synthetic table/counted/weighted-LA paths have fresh-process evidence; real-body and remaining path gates are pending. No new TaskBody
 has entered a performance matrix. No performance or calibration result is
