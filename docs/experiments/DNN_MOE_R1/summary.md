@@ -242,3 +242,8 @@ T4/T12: verified 54 small-GEMM configurations, 126 builds and 250/250 fresh
 processes (`results/CI7_small_gemm.json`). Every added geometry passes an
 independent FP32 oracle; narrow-N layouts compile on all five architectures.
 TaskBody/page/operand/model integration is pending.
+
+T12 foundation: verified forward selection protocol passes 6/6 CPU tests
+(`results/CI7_second_level_host.json`). Family coverage, half elimination,
+three alternating final rounds, budget exhaustion and identity/gate rejection
+are checked with synthetic records. Actual guarded orchestration is pending.
