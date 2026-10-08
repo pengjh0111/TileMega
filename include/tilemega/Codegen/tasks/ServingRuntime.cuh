@@ -214,6 +214,10 @@ inline void Destroy(Plan* plan) {
   if(model.device_counted_l2_params)cudaFree(model.device_counted_l2_params);
 #endif
   if(model.params.serving_handoff_tickets)cudaFree(model.params.serving_handoff_tickets);
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  if(model.params.serving_epoch_handoff_tickets)cudaFree(model.params.serving_epoch_handoff_tickets);
+  if(model.device_epoch_l2_params)cudaFree(model.device_epoch_l2_params);
+#endif
   if(model.params.serving_no_producer)cudaFree(const_cast<std::uint8_t*>(model.params.serving_no_producer));
 #if TILEMEGA_TRACE_V2
   if (model.device_reducer_trace) cudaFree(model.device_reducer_trace);
@@ -360,10 +364,16 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
     for(std::size_t i=0;i<plan->model.stages.size();++i) {
       auto const& stage=plan->model.stages[i];
       if(stage.handoff_reduce_stage==kNoOperand)continue;
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+      if(stage.handoff_reduce_stage<=i ||
+         stage.handoff_reduce_stage>=plan->model.stages.size())
+        throw std::invalid_argument("nonpaged last-arriver requires a later reducer");
+#else
       if(!TILEMEGA_PAGED || TILEMEGA_SERVING_SEQ!=1 ||
          stage.handoff_reduce_stage<=i ||
          stage.handoff_reduce_stage>=plan->model.stages.size())
         throw std::invalid_argument("last-arriver requires a later decode reducer in a paged plan");
+#endif
       auto const& reduce=plan->model.stages[stage.handoff_reduce_stage];
       if(!reduce.handoff_elided ||
          !((stage.kind==TaskKind::kGemm && reduce.kind==TaskKind::kGemmCombine &&
@@ -377,7 +387,11 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
     for(std::size_t i=0;i<reduce_users.size();++i)
       if(reduce_users[i]>1)
         throw std::invalid_argument("a reducer cannot have multiple last-arriver owners");
-    if(has_handoff) {
+    if(has_handoff
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+       && TILEMEGA_PAGED
+#endif
+       ) {
       std::uint32_t stride=1;
       for(std::uint32_t i=0;i<kModel.stage_count;++i) {
         auto const& stage=kModel.stages[i];
@@ -473,7 +487,16 @@ extern "C" int tm_plan_set_steps(void* opaque,
     host[i].dims.past = past[i];
     host[i].dims.total = past[i] + host[i].dims.seq;
   }
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  bool mode_banks=plan->model.params.serving_epoch_handoff_tickets;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  mode_banks|=plan->model.params.counted_dependencies!=nullptr;
+#endif
+  if(mode_banks) {
+    host.reserve(2ull*count);
+    for(unsigned i=0;i<count;++i)host.push_back(harness::EpochL2Params(host[i]));
+  }
+#elif defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   if (plan->model.params.counted_dependencies) {
     // Bind the execution bank once on the host; per-thread Params copies
     // would turn a dependency extension into large local-memory traffic.
@@ -505,7 +528,13 @@ extern "C" int tm_plan_launch(void* opaque, std::uint32_t step,
   std::uint32_t mode_index = mode == TM_SERVING_L1 ? 0 : 1;
   if (iteration != plan->next_iteration[mode_index]) return -2;
   auto* params = plan->ring + step;
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  bool mode_banks=plan->model.params.serving_epoch_handoff_tickets;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  mode_banks|=plan->model.params.counted_dependencies!=nullptr;
+#endif
+  if(mode_banks && mode_index)params+=plan->steps;
+#elif defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   if (plan->model.params.counted_dependencies && mode_index) params += plan->steps;
 #endif
   auto cuda_stream = static_cast<cudaStream_t>(stream);
@@ -540,7 +569,14 @@ extern "C" int tm_plan_launch_steps(void* opaque, std::uint32_t first_step,
   auto cuda_stream=static_cast<cudaStream_t>(stream);
   cudaError_t status;
   auto* loop_params = plan->ring + first_step;
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  bool mode_banks=plan->model.params.serving_epoch_handoff_tickets;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  mode_banks|=plan->model.params.counted_dependencies!=nullptr;
+#endif
+  if(mode_banks && index)loop_params+=plan->steps;
+  auto* loop_step_ns=plan->step_ns?reinterpret_cast<unsigned long long*>(plan->step_ns+first_step):nullptr;
+#elif defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   if (plan->model.params.counted_dependencies && index) loop_params += plan->steps;
 #endif
 #if TILEMEGA_PAGED
@@ -554,7 +590,11 @@ extern "C" int tm_plan_launch_steps(void* opaque, std::uint32_t first_step,
         kServingThreads,kServingSharedBytes,cuda_stream,plan->pdl,
         static_cast<Params const*>(loop_params),steps,
         plan->model.events,base_iteration,
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+        loop_step_ns);
+#else
         reinterpret_cast<unsigned long long*>(plan->step_ns+first_step));
+#endif
 #else
   return -3;
 #endif

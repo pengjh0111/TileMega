@@ -35,6 +35,9 @@ namespace tilemega::codegen {
 #ifndef TILEMEGA_EVENT_KAPPA_PER_STAGE
 #define TILEMEGA_EVENT_KAPPA_PER_STAGE 0
 #endif
+#ifndef TILEMEGA_NONPAGED_LA
+#define TILEMEGA_NONPAGED_LA 0
+#endif
 /// One page holds one task's read-only operand. Two of them follow the task
 /// union in shared memory, so the budget is twice this. B1-b measured 3072
 /// free bytes at every R7 cell before occupancy drops.
@@ -796,6 +799,10 @@ struct Params {
   // once per serving plan and reset by the final arriving producer CTA.
   unsigned* serving_handoff_tickets = nullptr;
   std::uint32_t serving_handoff_ticket_stride = 0;
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  unsigned long long* serving_epoch_handoff_tickets = nullptr;
+  std::uint32_t serving_epoch_handoff_stride = 0;
+#endif
   LagDependency const* lag_dependencies = nullptr;
   std::uint32_t lag_dependency_count = 0;
   WatchdogRecord* serving_watchdog = nullptr;

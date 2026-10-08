@@ -48,6 +48,9 @@
 #include <tilemega/Codegen/tasks/FusedRoPEKVTaskBody.h>
 #include <tilemega/Codegen/tasks/KVAppendTaskBody.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+#include <tilemega/Codegen/executor/EpochLastArriver.cuh>
+#endif
 #include <tilemega/Codegen/tasks/ServingLag.h>
 #include <tilemega/Codegen/executor/ServingTrace.cuh>
 #include <tilemega/Codegen/tasks/Placement.cuh>
@@ -1363,6 +1366,9 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
 #if TILEMEGA_L2_PREFETCH
 #include <tilemega/Codegen/executor/ServingPrefetch.cuh>
 #endif
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+#include <tilemega/Codegen/executor/ServingNonpagedHandoff.cuh>
+#endif
 
 __device__ inline void GridBarrier(EventCounter* events, std::uint32_t stage,
                                    unsigned long long iteration,Params const* params=nullptr) {
@@ -1452,12 +1458,19 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
   extern __shared__ unsigned char bytes[];
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   for (std::uint32_t stage = 0; stage < params->stage_count; ++stage) {
+#if TILEMEGA_NONPAGED_LA
+    if(params->stages[stage].handoff_elided)continue;
+#endif
 #if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
     int tasks=ActiveBlocks(*params,params->stages[stage]);
     executor::StageBegin(*params,stage,iteration,
         tasks>int(blockIdx.x)?(tasks-blockIdx.x+gridDim.x-1)/gridDim.x:0);
 #endif
+#if TILEMEGA_NONPAGED_LA
+    nonpaged::RunStage(*params,stage,smem,events,iteration);
+#else
     RunStage(*params, stage, smem);
+#endif
 #if TILEMEGA_L2_PREFETCH
     static_assert(TILEMEGA_GENERATED_CLUSTER_DIM==1,"split grid barrier requires the flat grid protocol");
     prefetch::Arrive(events,stage,iteration,params);
@@ -1489,12 +1502,19 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
     auto iteration=base_iteration+step;
     executor::StepBegin(p,iteration);
     for(unsigned stage=0;stage<p.stage_count;++stage) {
+#if TILEMEGA_NONPAGED_LA
+      if(p.stages[stage].handoff_elided)continue;
+#endif
 #if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
       int tasks=ActiveBlocks(p,p.stages[stage]);
       executor::StageBegin(p,stage,iteration,
           tasks>int(blockIdx.x)?(tasks-blockIdx.x+gridDim.x-1)/gridDim.x:0);
 #endif
+#if TILEMEGA_NONPAGED_LA
+      nonpaged::RunStage(p,stage,smem,events,iteration);
+#else
       RunStage(p,stage,smem);
+#endif
 #if TILEMEGA_L2_PREFETCH
       prefetch::Arrive(events,stage,iteration,&p);
       if(stage+1<p.stage_count)prefetch::NextStage(p,stage+1);
@@ -1764,8 +1784,13 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
         PrefetchBytes(*params, task, current) ? page_of(slot) : nullptr;
 #endif
     executor::TaskBegin(*params,iteration);
+#if TILEMEGA_NONPAGED_LA
+    nonpaged::RunTask<true>(*params,task.stage,task.logical_task,smem,events,iteration
+            TILEMEGA_PHASE_PASS TILEMEGA_PREFETCH_PASS);
+#else
     RunTask(*params, task.stage, task.logical_task, smem TILEMEGA_PHASE_PASS
             TILEMEGA_PREFETCH_PASS);
+#endif
 #if ((!TILEMEGA_BARRIER_V2 && !(TILEMEGA_L2_SLIM && TILEMEGA_SYNC_V3)) || TILEMEGA_TRACE_V2)
     // V3 slim and v2 drop this: NotifyTask converges writers before
     // release publication. If no publication is needed, the next task
@@ -1948,6 +1973,9 @@ struct DeviceModel {
   std::vector<std::vector<ModelElement>> host_sources;
   ModelElement** device_buffers = nullptr;
   GemmInvocation* device_gemms = nullptr;
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  Params* device_epoch_l2_params = nullptr;
+#endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   ConvDesc* device_dm_convolutions = nullptr;
   DmBufferLayout* device_dm_layouts = nullptr;
@@ -2021,6 +2049,9 @@ struct DeviceModel {
   EventCounter* events = nullptr;
   std::size_t event_count = 0;
 };
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+#include <tilemega/Codegen/executor/ServingNonpagedHandoffHost.cuh>
+#endif
 
 #if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE
 /// Trace v2 allocates and dumps only when asked at run time, so one build
@@ -3472,6 +3503,9 @@ inline DeviceModel Create(ModelSpec const& spec,
   model.params.task_trace = model.device_task_trace;
   model.params.trace_sequence = model.device_trace_sequence;
   model.params.ownership_flags = runtime_variant.ownership_flags;
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  PrepareEpochHandoffs(model,gemms);
+#endif
   TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_params, sizeof(Params)));
   TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_params, &model.params,
                                  sizeof(Params), cudaMemcpyHostToDevice));
@@ -3509,6 +3543,11 @@ inline void PrepareEvents(DeviceModel& model, int grid) {
                       model.event_offsets.back();
   TILEMEGA_CUDA_CHECK(
       cudaMalloc(&model.events, sizeof(EventCounter) * model.event_count));
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_params,&model.params,
+                                 sizeof(Params),cudaMemcpyHostToDevice));
+  UploadEpochL2Params(model);
+#endif
 #if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE
   if (model.trace_v2_enabled && model.device_task_trace_v2 == nullptr) {
     TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_task_trace_v2,
@@ -3539,6 +3578,9 @@ inline void PrepareEvents(DeviceModel& model, int grid) {
 #endif
   }
   ZeroTraceV2(model);
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  UploadEpochL2Params(model);
+#endif
 #endif
 }
 
@@ -3582,6 +3624,12 @@ inline void ResetBuffersOnly(DeviceModel& model) {
 
 inline void Reset(DeviceModel& model) {
   ResetBuffersOnly(model);
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  if(model.params.serving_epoch_handoff_tickets)
+    TILEMEGA_CUDA_CHECK(cudaMemset(model.params.serving_epoch_handoff_tickets,0,
+        2ull*model.params.stage_count*model.params.serving_epoch_handoff_stride*
+            sizeof(unsigned long long)));
+#endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   if (model.params.counted_dependencies)
     TILEMEGA_CUDA_CHECK(cudaMemset(model.params.counted_dependencies, 0,
@@ -4021,10 +4069,20 @@ inline float LaunchL1(DeviceModel& model, int grid,
 inline float LaunchL2(DeviceModel& model, int grid,
                       unsigned long long iteration = 0, bool timed = true) {
   return benchmark::Time([&] {
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  auto* parameters=model.device_epoch_l2_params;
+  if(!parameters) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    parameters=model.device_counted_l2_params;
+#endif
+    if(!parameters)parameters=model.device_params;
+  }
+#else
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   auto* parameters = model.device_counted_l2_params ? model.device_counted_l2_params : model.device_params;
 #else
   auto* parameters = model.device_params;
+#endif
 #endif
   LaunchPersistent(tilemega_l2_kernel, grid, model.l2_smem_bytes, parameters,
                    model.events, iteration);
