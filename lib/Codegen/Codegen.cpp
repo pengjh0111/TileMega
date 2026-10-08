@@ -1429,6 +1429,8 @@ std::string LowerFusedRuntime(mlir::ModuleOp module) {
 // Unsolved legacy modules emit no extra text or preprocessor definitions.
 std::string emitSolvedLaunch(mlir::ModuleOp module) {
   std::ostringstream out;
+  if(auto enabled=module->getAttrOfType<mlir::BoolAttr>("tmexec.nonpaged_la"))
+    if(enabled.getValue())out<<"#define TILEMEGA_NONPAGED_LA 1\n";
   if(auto prefetch=module->getAttrOfType<mlir::DictionaryAttr>("tmexec.prefetch")) {
     out<<"#define TILEMEGA_L2_PREFETCH 1\n";
     for(auto const& [field,macro]:std::vector<std::pair<char const*,char const*>>{

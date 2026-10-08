@@ -291,6 +291,7 @@ int RunCompile(int argc, char** argv) {
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0,evict_first=0,evict_last=1;
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
+    int nonpaged_la=0;
     std::string candidate_mode="L1",nonpaged_weight_layout="row";
     bool page_bytes_pinned=false;
     bool event_solo=false,event_red=false,barrier_v2=false;
@@ -343,6 +344,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--deferred-norm") deferred_norm=std::stoi(value);
       else if (flag=="--paged-la") paged_la=std::stoi(value);
       else if (flag=="--paged-la-splitk") paged_la_splitk=std::stoi(value);
+      else if (flag=="--nonpaged-la") nonpaged_la=std::stoi(value);
       else if (flag=="--candidate-guard-wait-s") candidate_guard_wait_s=std::stoi(value);
       else if (flag=="--candidate-mode") candidate_mode=value;
       else if (flag=="--candidate-loop") candidate_loop=std::stoi(value);
@@ -450,6 +452,10 @@ int RunCompile(int argc, char** argv) {
       throw std::invalid_argument("--nonpaged-weight-layout must be row or tiled");
     bool const use_nonpaged_tiled=serving &&
         !use_pages && nonpaged_weight_layout=="tiled";
+    if(nonpaged_la!=0 && nonpaged_la!=1)
+      throw std::invalid_argument("--nonpaged-la must be 0 or 1");
+    if(nonpaged_la && !serving)
+      throw std::invalid_argument("--nonpaged-la requires a serving plan");
     if(serving) {
       runtime_flags+=" -DTILEMEGA_NONPAGED_TILED="+std::to_string(use_nonpaged_tiled);
       if(runtime_target.empty())runtime_target=solve_target;
@@ -869,6 +875,7 @@ int RunCompile(int argc, char** argv) {
               " --evict-last "+std::to_string(evict_last)+
               " --paged-la "+std::to_string(paged_la)+
               " --paged-la-splitk "+std::to_string(paged_la_splitk)+
+              (nonpaged_la?" --nonpaged-la 1":"")+
               " --l2-prefetch-depth "+std::to_string(prefetch_depth)+" --l2-prefetch-stride "+std::to_string(prefetch_stride)+
               " --event-solo "+std::to_string(event_solo)+" --event-red-publish "+std::to_string(event_red)+
               " --barrier-v2 "+std::to_string(barrier_v2)+
@@ -1094,6 +1101,14 @@ int RunCompile(int argc, char** argv) {
       source = tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(inputs);
     }
     bool use_l2=serving && (pg_mode=="l2" || (pg_mode=="auto" && !use_pages));
+    if(serving && !use_pages && nonpaged_la) {
+      mlir::OpBuilder handoffs(module->getContext());
+      (*module)->setAttr("tmexec.nonpaged_la",handoffs.getBoolAttr(true));
+      auto reductions=tilemega::dialect::SelectServingHandoffs(*module,2|4);
+      std::cerr<<"NONPAGED_LAST_ARRIVER selected="<<reductions.last_arriver<<'\n';
+      handoff_mode="last_arriver";
+      source=tilemega::codegen::CouplingGraphToCUDA{}.Lower(*module);
+    }
     if(use_l2) {
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
       tilemega::codegen::ConfigureServingPrefetch(*module,target,prefetch_depth,prefetch_stride);
@@ -1317,6 +1332,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"deferred_norm\": "<<(manifest_deferred_norm?"true":"false")
               <<",\n  \"paged_la\": "<<(use_pages && paged_la?"true":"false")
               <<",\n  \"paged_la_splitk\": "<<(use_pages && paged_la && paged_la_splitk?"true":"false")
+              <<",\n  \"nonpaged_la\": "<<(!use_pages && nonpaged_la?"true":"false")
               <<",\n  \"handoff\": "<<std::quoted(handoff_mode)
               <<",\n  \"pages\": "<<pages_json
               <<",\n  \"prefetch\": "<<prefetch_json

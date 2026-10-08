@@ -481,6 +481,11 @@ if(TILEMEGA_BUILD_TESTS)
       ${split_case} ${CMAKE_CURRENT_SOURCE_DIR}/docs/experiments/SERVING_R12C/target_r12b.json)
   endforeach()
   add_test(NAME handoff_access COMMAND tilemega-unit handoff_access)
+  foreach(split_case IN ITEMS four one off escape)
+    add_test(NAME handoff_nonpaged_split_${split_case} COMMAND tilemega-unit handoff_ir
+      nonpaged_splitk_import ${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/serving_split.json
+      ${split_case} ${CMAKE_CURRENT_SOURCE_DIR}/docs/experiments/SERVING_R12C/target_r12b.json)
+  endforeach()
 
   add_test(NAME lane_intersections COMMAND tilemega-unit lane_intersections)
 

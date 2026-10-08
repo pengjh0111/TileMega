@@ -291,7 +291,8 @@ void LowerServingHandoffStages(mlir::ModuleOp module) {
   if(!module->hasAttr("tilemega.handoff_pending_lowering"))return;
   auto model=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   auto pages=module->getAttrOfType<mlir::DictionaryAttr>("tmexec.pages");
-  if(!model || !pages)
+  auto nonpaged_la=module->getAttrOfType<mlir::BoolAttr>("tmexec.nonpaged_la");
+  if(!model || (!pages && (!nonpaged_la || !nonpaged_la.getValue())))
     throw std::invalid_argument("serving handoff lowering requires a paged model and solved page layout");
   auto source_stages=model.getAs<mlir::ArrayAttr>("stages");
   if(!source_stages)throw std::invalid_argument("serving handoff lacks runtime stages");
@@ -324,6 +325,7 @@ void LowerServingHandoffStages(mlir::ModuleOp module) {
       if(!claimed.insert(c).second)
         throw std::invalid_argument("runtime reducer is claimed by multiple handoffs");
       if(handoff.getKind()=="recompute") {
+        if(!pages)throw std::invalid_argument("nonpaged handoff does not implement norm recompute");
         if(stage_kind(p)!="kRMSNorm" || stage_kind(c)!="kGemm")
           throw std::invalid_argument("serving recompute currently requires RMSNorm to GEMM");
         bool other_consumer=false;
@@ -336,6 +338,7 @@ void LowerServingHandoffStages(mlir::ModuleOp module) {
           stages[p].set("handoff_reduce_stage",b.getI64IntegerAttr(c));
           stages[c].set("handoff_elided",b.getBoolAttr(true));
         } else if(stage_kind(p)=="kGemm" && stage_kind(c)=="kArgmaxReduce") {
+          if(!pages)throw std::invalid_argument("nonpaged handoff does not implement argmax reduction");
           stages[p].set("handoff_reduce_stage",b.getI64IntegerAttr(c));
           stages[c].set("handoff_elided",b.getBoolAttr(true));
         } else if(p==c && stage_kind(p)=="kGemm") {
@@ -365,7 +368,9 @@ void LowerServingHandoffStages(mlir::ModuleOp module) {
 ServingHandoffSelection SelectServingHandoffs(mlir::ModuleOp module,
     unsigned selected_classes) {
   auto model=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
-  if(!model || !module->hasAttr("tmexec.pages"))
+  bool paged=module->hasAttr("tmexec.pages");
+  auto nonpaged_la=module->getAttrOfType<mlir::BoolAttr>("tmexec.nonpaged_la");
+  if(!model || (!paged && (!nonpaged_la || !nonpaged_la.getValue())))
     throw std::invalid_argument("serving handoff selection requires a solved paged plan");
   if(module->hasAttr("tmexec.runtime_handoff_lowering"))
     throw std::invalid_argument("serving handoffs were already selected");
@@ -418,7 +423,7 @@ ServingHandoffSelection SelectServingHandoffs(mlir::ModuleOp module,
     auto pair=std::make_pair(int(p.getStage()),int(c.getStage()));
     if(pairs.count(pair) || claimed_consumers.count(pair.second))continue;
     std::string choice;
-    if((selected_classes&1) && kind(pair.first)=="kRMSNorm" &&
+    if(paged && (selected_classes&1) && kind(pair.first)=="kRMSNorm" &&
        kind(pair.second)=="kGemm") {
       bool shared=false;
       for(auto other:graph.getBody().front().getOps<CouplingOp>())
@@ -432,7 +437,7 @@ ServingHandoffSelection SelectServingHandoffs(mlir::ModuleOp module,
     else if((selected_classes&4) && pair.first==pair.second &&
             kind(pair.first)=="kGemm")
       choice="last_arriver";
-    else if((selected_classes&2) && kind(pair.first)=="kGemm" &&
+    else if(paged && (selected_classes&2) && kind(pair.first)=="kGemm" &&
             kind(pair.second)=="kArgmaxReduce" && !gemm_has_split(pair.first))
       choice="last_arriver";
     else continue;
