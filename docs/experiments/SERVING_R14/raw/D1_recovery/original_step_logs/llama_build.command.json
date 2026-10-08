@@ -1,0 +1,10 @@
+[
+  "/root/venvs/tilemega-torch213-cu126/bin/python",
+  "-m",
+  "tilemega",
+  "build",
+  "--config",
+  "/root/TileMega/configs/e2e/llama_r14.json",
+  "--run-dir",
+  "/root/TileMega/runs/r14-llama"
+]

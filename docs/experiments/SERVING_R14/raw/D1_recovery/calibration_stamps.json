@@ -1,0 +1,52 @@
+{
+  "target_sha256": "68bb3ee93eb07a6fabaa39264cd6e07e65b17537a54d5df491a0bb101348ba1b",
+  "sections": {
+    "base": {
+      "expected": "d8f645b5445176240b34f9bd88132463ee433a1754c9ee0fc6c223b11f846cd6",
+      "actual": "d8f645b5445176240b34f9bd88132463ee433a1754c9ee0fc6c223b11f846cd6",
+      "matches": true
+    },
+    "bf16": {
+      "expected": "a663e9ddd2106fa027e14de88a8d459813b272c5932e7e9320564ead46174dca",
+      "actual": "a663e9ddd2106fa027e14de88a8d459813b272c5932e7e9320564ead46174dca",
+      "matches": true
+    },
+    "wait": {
+      "expected": "8f2489b7ecf96565b14346038e520e084d60c25e632de14e495454a6bdfc03b5",
+      "actual": "8f2489b7ecf96565b14346038e520e084d60c25e632de14e495454a6bdfc03b5",
+      "matches": true
+    },
+    "events": {
+      "expected": "8f2489b7ecf96565b14346038e520e084d60c25e632de14e495454a6bdfc03b5",
+      "actual": "8f2489b7ecf96565b14346038e520e084d60c25e632de14e495454a6bdfc03b5",
+      "matches": true
+    },
+    "hop": {
+      "expected": "8f2489b7ecf96565b14346038e520e084d60c25e632de14e495454a6bdfc03b5",
+      "actual": "8f2489b7ecf96565b14346038e520e084d60c25e632de14e495454a6bdfc03b5",
+      "matches": true
+    },
+    "inflight": {
+      "expected": "313e661a8da90dbca3ddbf9e2b118913dd7b872723ab744e9abca976d6574f96",
+      "actual": "313e661a8da90dbca3ddbf9e2b118913dd7b872723ab744e9abca976d6574f96",
+      "matches": true
+    },
+    "l2_prefetch": {
+      "expected": "c688687a3768a6052a06c355f0ff9c13ba0fcdc12edcc12d5d5df02263b635d8",
+      "actual": "c688687a3768a6052a06c355f0ff9c13ba0fcdc12edcc12d5d5df02263b635d8",
+      "matches": true
+    },
+    "task_bodies": {
+      "expected": "f0abe7104c6fd6edee6e23046abb2cab3edcc1f0c9792d519c84b648509539ca",
+      "actual": "f0abe7104c6fd6edee6e23046abb2cab3edcc1f0c9792d519c84b648509539ca",
+      "matches": true
+    },
+    "task_bodies_paged": {
+      "expected": "8e0a6063a237d91b67185b61aa6268548827178f835226fd9ac2bbd500b137ae",
+      "actual": "8e0a6063a237d91b67185b61aa6268548827178f835226fd9ac2bbd500b137ae",
+      "matches": true
+    }
+  },
+  "all_match": true,
+  "reason": "Repair modifies CPU solver only; all calibration section inputs remain unchanged."
+}

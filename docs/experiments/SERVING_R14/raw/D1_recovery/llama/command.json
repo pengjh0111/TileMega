@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "/root/TileMega/build-phase12/tools/tilemega",
+    "compile",
+    "--options",
+    "/root/.cache/tilemega/plans/14128a8e1260e9722582b54555aadb24f70fe3877dfd9b9b311cb4dc745c4fde/options.json"
+  ],
+  "environment": {},
+  "returncode": -11,
+  "seconds": 360.0024103780743
+}

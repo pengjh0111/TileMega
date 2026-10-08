@@ -1,0 +1,300 @@
+{"time": 1791372369.9925237, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 32.07, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "preflight", "sample": 0}
+{"time": 1791372375.0723803, "used_mib": 1148.0, "free_mib": 47390.0, "total_mib": 49140.0, "power_w": 73.32, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1148.0, "phase": "preflight", "sample": 1}
+{"time": 1791397371.2528594, "used_mib": 402.0, "free_mib": 48136.0, "total_mib": 49140.0, "power_w": 71.55, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 402.0, "phase": "preflight", "sample": 0}
+{"time": 1791397718.928794, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 84.18, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "preflight", "sample": 0}
+{"time": 1791398259.9972115, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 51.4, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "preflight", "sample": 0}
+{"time": 1791398265.0754986, "used_mib": 428.0, "free_mib": 48110.0, "total_mib": 49140.0, "power_w": 71.73, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 428.0, "phase": "preflight", "sample": 1}
+{"time": 1791398885.9457405, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 71.91, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "preflight", "sample": 0}
+{"time": 1791401171.184357, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 45.86, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "preflight", "sample": 0}
+{"time": 1791401176.267937, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 72.95, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "preflight", "sample": 1}
+{"time": 1791403005.735556, "used_mib": 2895.0, "free_mib": 45643.0, "total_mib": 49140.0, "power_w": 278.12, "utilization_pct": 99.0, "owners": {}, "hidden_mib": 2895.0, "phase": "preflight", "sample": 0}
+{"time": 1791403847.682424, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.93, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "preflight", "sample": 0}
+{"time": 1791403852.7620945, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.9, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "preflight", "sample": 1}
+{"time": 1791403857.8400395, "used_mib": 402.0, "free_mib": 48136.0, "total_mib": 49140.0, "power_w": 72.31, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 402.0, "phase": "preflight", "sample": 2}
+{"time": 1791404158.3906066, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.87, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "preflight", "sample": 0}
+{"time": 1791404163.47324, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.86, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "preflight", "sample": 1}
+{"time": 1791404168.5577664, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.81, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "preflight", "sample": 2}
+{"time": 1791404173.6465375, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.78, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "preflight", "sample": 3}
+{"time": 1791404178.7267866, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.78, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "preflight", "sample": 4}
+{"time": 1791404183.8027802, "used_mib": 402.0, "free_mib": 48136.0, "total_mib": 49140.0, "power_w": 34.53, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 402.0, "phase": "preflight", "sample": 5}
+{"time": 1791404188.8800042, "used_mib": 3995.0, "free_mib": 44543.0, "total_mib": 49140.0, "power_w": 83.79, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 3995.0, "phase": "running"}
+{"time": 1791404193.9781837, "used_mib": 3995.0, "free_mib": 44543.0, "total_mib": 49140.0, "power_w": 82.82, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 3995.0, "phase": "running"}
+{"time": 1791404199.0478866, "used_mib": 4175.0, "free_mib": 44363.0, "total_mib": 49140.0, "power_w": 154.6, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4175.0, "phase": "running"}
+{"time": 1791413055.2760787, "used_mib": 30440.0, "free_mib": 18098.0, "total_mib": 49140.0, "power_w": 74.01, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 30440.0, "phase": "preflight", "sample": 0}
+{"time": 1791415882.069878, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.34, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "preflight", "sample": 0}
+{"time": 1791416302.994426, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 26.17, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "preflight", "sample": 0}
+{"time": 1791416308.1208925, "used_mib": 400.0, "free_mib": 48138.0, "total_mib": 49140.0, "power_w": 70.48, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 400.0, "phase": "preflight", "sample": 1}
+{"time": 1791416668.8417401, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 36.39, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "preflight", "sample": 0}
+{"time": 1791416673.9179914, "used_mib": 430.0, "free_mib": 48108.0, "total_mib": 49140.0, "power_w": 70.26, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 430.0, "phase": "preflight", "sample": 1}
+{"time": 1791416974.5038846, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 22.03, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "preflight", "sample": 0}
+{"time": 1791416979.5851912, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 22.01, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "preflight", "sample": 1}
+{"time": 1791416984.6634145, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 22.01, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "preflight", "sample": 2}
+{"time": 1791416989.7388577, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 22.03, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "preflight", "sample": 3}
+{"time": 1791416994.8179626, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.94, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "preflight", "sample": 4}
+{"time": 1791416999.893132, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 69.02, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "preflight", "sample": 5}
+{"time": 1791417300.449367, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 22.36, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "preflight", "sample": 0}
+{"time": 1791417305.5290787, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 22.28, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "preflight", "sample": 1}
+{"time": 1791417310.604993, "used_mib": 400.0, "free_mib": 48138.0, "total_mib": 49140.0, "power_w": 69.51, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 400.0, "phase": "preflight", "sample": 2}
+{"time": 1791417611.193142, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.87, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "preflight", "sample": 0}
+{"time": 1791417616.2726839, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.84, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "preflight", "sample": 1}
+{"time": 1791417621.3539867, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.86, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "preflight", "sample": 2}
+{"time": 1791417626.432666, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.77, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "preflight", "sample": 3}
+{"time": 1791417631.5119627, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.8, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "preflight", "sample": 4}
+{"time": 1791417636.5868623, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.82, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "preflight", "sample": 5}
+{"time": 1791417641.66753, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.83, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417646.7431707, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.83, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417651.816818, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.81, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417656.897899, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.85, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417661.9729397, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.83, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417667.0460525, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.84, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417672.12198, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.8, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417677.1975315, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.78, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417682.2727304, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.83, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417687.3465002, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.82, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417692.4208546, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.81, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417697.4946876, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.75, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417702.5742018, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.8, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417707.6526062, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.82, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417712.7263825, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.92, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417717.8008785, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.83, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417722.8780327, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.8, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417727.9835172, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.78, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417733.0839195, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.75, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417738.1884217, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.81, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417743.2907953, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.83, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417748.3950768, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 22.57, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417753.470481, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 23.2, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417758.547679, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 22.65, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417763.6249871, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 22.32, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417768.704779, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.81, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417773.7807972, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.84, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417778.856537, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 23.11, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417783.9324522, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 22.91, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417789.0065494, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 22.01, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417794.08538, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.74, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417799.158742, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.77, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417804.2333486, "used_mib": 406.0, "free_mib": 48132.0, "total_mib": 49140.0, "power_w": 53.09, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 406.0, "phase": "running"}
+{"time": 1791417809.3085604, "used_mib": 482.0, "free_mib": 48056.0, "total_mib": 49140.0, "power_w": 69.14, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 482.0, "phase": "running"}
+{"time": 1791417814.3843524, "used_mib": 482.0, "free_mib": 48056.0, "total_mib": 49140.0, "power_w": 68.15, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 482.0, "phase": "running"}
+{"time": 1791417819.4592419, "used_mib": 482.0, "free_mib": 48056.0, "total_mib": 49140.0, "power_w": 69.07, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 482.0, "phase": "running"}
+{"time": 1791417824.5316699, "used_mib": 482.0, "free_mib": 48056.0, "total_mib": 49140.0, "power_w": 75.04, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 482.0, "phase": "running"}
+{"time": 1791417829.604922, "used_mib": 482.0, "free_mib": 48056.0, "total_mib": 49140.0, "power_w": 75.1, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 482.0, "phase": "running"}
+{"time": 1791417834.6769993, "used_mib": 482.0, "free_mib": 48056.0, "total_mib": 49140.0, "power_w": 83.11, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 482.0, "phase": "running"}
+{"time": 1791417839.7534652, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 53.92, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417844.829347, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.79, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417849.9045665, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.8, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417854.9812827, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.85, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417860.0599134, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.79, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417865.1351805, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.86, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417870.210722, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.87, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417875.2863338, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 22.36, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417880.3626287, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.79, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417885.4334607, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 69.85, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791417890.5041234, "used_mib": 520.0, "free_mib": 48018.0, "total_mib": 49140.0, "power_w": 83.84, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 520.0, "phase": "running"}
+{"time": 1791417895.5764287, "used_mib": 520.0, "free_mib": 48018.0, "total_mib": 49140.0, "power_w": 83.81, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 520.0, "phase": "running"}
+{"time": 1791417900.6487904, "used_mib": 520.0, "free_mib": 48018.0, "total_mib": 49140.0, "power_w": 85.14, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 520.0, "phase": "running"}
+{"time": 1791417905.7210155, "used_mib": 520.0, "free_mib": 48018.0, "total_mib": 49140.0, "power_w": 79.99, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 520.0, "phase": "running"}
+{"time": 1791417910.7937062, "used_mib": 520.0, "free_mib": 48018.0, "total_mib": 49140.0, "power_w": 80.25, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 520.0, "phase": "running"}
+{"time": 1791417915.8683012, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 84.6, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417920.9434319, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 24.76, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417926.0201545, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 24.47, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417931.0919237, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 28.58, "utilization_pct": 14.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417936.1687698, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 21.8, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791417941.2698896, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.83, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791417946.3454866, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.83, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791417951.422437, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.79, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791417956.5021424, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.79, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791417961.604083, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.87, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791417966.701754, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 23.32, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791417971.8031337, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.77, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791417976.9069436, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.77, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791417982.0084267, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.73, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791417987.0846539, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.73, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791417992.1612027, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.77, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791417997.2371426, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.77, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418002.315504, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.68, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418007.3924353, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.72, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418012.4684265, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.69, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418017.5450413, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 21.72, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418022.6214898, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 22.09, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418027.7014365, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 23.61, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418032.7783444, "used_mib": 406.0, "free_mib": 48132.0, "total_mib": 49140.0, "power_w": 69.57, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 406.0, "phase": "running"}
+{"time": 1791418037.8532956, "used_mib": 482.0, "free_mib": 48056.0, "total_mib": 49140.0, "power_w": 75.62, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 482.0, "phase": "running"}
+{"time": 1791418042.9286969, "used_mib": 482.0, "free_mib": 48056.0, "total_mib": 49140.0, "power_w": 76.27, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 482.0, "phase": "running"}
+{"time": 1791418048.0034225, "used_mib": 482.0, "free_mib": 48056.0, "total_mib": 49140.0, "power_w": 75.59, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 482.0, "phase": "running"}
+{"time": 1791418053.07621, "used_mib": 482.0, "free_mib": 48056.0, "total_mib": 49140.0, "power_w": 75.65, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 482.0, "phase": "running"}
+{"time": 1791418058.1488729, "used_mib": 482.0, "free_mib": 48056.0, "total_mib": 49140.0, "power_w": 80.4, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 482.0, "phase": "running"}
+{"time": 1791418063.2241094, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 57.3, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418068.301465, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 24.3, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418073.3780463, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 24.3, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418078.4547367, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 23.67, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418083.5250082, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 69.29, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418088.6052573, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 41.74, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418093.679756, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 71.22, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418098.7546747, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.6, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418103.8280528, "used_mib": 396.0, "free_mib": 48142.0, "total_mib": 49140.0, "power_w": 44.37, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 396.0, "phase": "running"}
+{"time": 1791418108.9009142, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 71.87, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418113.972733, "used_mib": 406.0, "free_mib": 48132.0, "total_mib": 49140.0, "power_w": 71.28, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 406.0, "phase": "running"}
+{"time": 1791418119.0454788, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.8, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418124.1217542, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 62.31, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418129.203716, "used_mib": 406.0, "free_mib": 48132.0, "total_mib": 49140.0, "power_w": 70.67, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 406.0, "phase": "running"}
+{"time": 1791418134.2770512, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 71.43, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418139.3580835, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 56.01, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418144.4324222, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 72.35, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418149.5058067, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 71.73, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418154.5869236, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 44.67, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418159.6613178, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 72.56, "utilization_pct": 1.0, "owners": {"1129600": 390}, "hidden_mib": 8.0, "phase": "running"}
+{"time": 1791418164.7360017, "used_mib": 4369.0, "free_mib": 44169.0, "total_mib": 49140.0, "power_w": 83.61, "utilization_pct": 0.0, "owners": {"1129693": 3966}, "hidden_mib": 403.0, "phase": "running"}
+{"time": 1791418169.809876, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 72.07, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418174.8838332, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 71.24, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418179.9538882, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.96, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418185.0325062, "used_mib": 396.0, "free_mib": 48142.0, "total_mib": 49140.0, "power_w": 42.73, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 396.0, "phase": "running"}
+{"time": 1791418190.106355, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 72.18, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418195.1796787, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.9, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418200.2586195, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 32.77, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418205.3244612, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 72.41, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418210.3991795, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.72, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418215.4792204, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 47.57, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418220.5543625, "used_mib": 430.0, "free_mib": 48108.0, "total_mib": 49140.0, "power_w": 71.0, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 430.0, "phase": "running"}
+{"time": 1791418225.6611545, "used_mib": 21.0, "free_mib": 48517.0, "total_mib": 49140.0, "power_w": 31.61, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 21.0, "phase": "running"}
+{"time": 1791418230.736219, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 70.38, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418235.809057, "used_mib": 428.0, "free_mib": 48110.0, "total_mib": 49140.0, "power_w": 70.91, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 428.0, "phase": "running"}
+{"time": 1791418240.8904796, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 30.77, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418245.9661665, "used_mib": 432.0, "free_mib": 48106.0, "total_mib": 49140.0, "power_w": 71.24, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 432.0, "phase": "running"}
+{"time": 1791418251.0377388, "used_mib": 396.0, "free_mib": 48142.0, "total_mib": 49140.0, "power_w": 30.55, "utilization_pct": 3.0, "owners": {}, "hidden_mib": 396.0, "phase": "running"}
+{"time": 1791418256.1074245, "used_mib": 404.0, "free_mib": 48134.0, "total_mib": 49140.0, "power_w": 71.82, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 404.0, "phase": "running"}
+{"time": 1791418261.1815314, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 72.44, "utilization_pct": 1.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418266.2567503, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 65.55, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418271.3297012, "used_mib": 404.0, "free_mib": 48134.0, "total_mib": 49140.0, "power_w": 70.14, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 404.0, "phase": "running"}
+{"time": 1791418276.4041646, "used_mib": 490.0, "free_mib": 48048.0, "total_mib": 49140.0, "power_w": 70.79, "utilization_pct": 70.0, "owners": {}, "hidden_mib": 490.0, "phase": "running"}
+{"time": 1791418281.4773746, "used_mib": 396.0, "free_mib": 48142.0, "total_mib": 49140.0, "power_w": 32.53, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 396.0, "phase": "running"}
+{"time": 1791418286.57902, "used_mib": 400.0, "free_mib": 48138.0, "total_mib": 49140.0, "power_w": 70.72, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 400.0, "phase": "running"}
+{"time": 1791418291.6789186, "used_mib": 464.0, "free_mib": 48074.0, "total_mib": 49140.0, "power_w": 70.99, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 464.0, "phase": "running"}
+{"time": 1791418296.7815042, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 39.3, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418301.8552165, "used_mib": 400.0, "free_mib": 48138.0, "total_mib": 49140.0, "power_w": 71.72, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 400.0, "phase": "running"}
+{"time": 1791418306.9300363, "used_mib": 462.0, "free_mib": 48076.0, "total_mib": 49140.0, "power_w": 71.51, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 462.0, "phase": "running"}
+{"time": 1791418312.0036898, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 59.46, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418317.0767677, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 71.09, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418322.1493845, "used_mib": 436.0, "free_mib": 48102.0, "total_mib": 49140.0, "power_w": 70.02, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 436.0, "phase": "running"}
+{"time": 1791418327.2260113, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 81.85, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418332.3000274, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.93, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418337.376694, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 71.27, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418342.4554975, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.66, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418347.5292544, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 71.1, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418352.6046188, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 69.83, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418357.6781511, "used_mib": 438.0, "free_mib": 48100.0, "total_mib": 49140.0, "power_w": 70.41, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 438.0, "phase": "running"}
+{"time": 1791418362.7757156, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.75, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418367.8495288, "used_mib": 438.0, "free_mib": 48100.0, "total_mib": 49140.0, "power_w": 71.68, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 438.0, "phase": "running"}
+{"time": 1791418372.9378846, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 58.33, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418378.0720718, "used_mib": 436.0, "free_mib": 48102.0, "total_mib": 49140.0, "power_w": 71.11, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 436.0, "phase": "running"}
+{"time": 1791418383.150797, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 33.1, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418388.225086, "used_mib": 432.0, "free_mib": 48106.0, "total_mib": 49140.0, "power_w": 69.62, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 432.0, "phase": "running"}
+{"time": 1791418393.3033638, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 69.22, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418398.377996, "used_mib": 404.0, "free_mib": 48134.0, "total_mib": 49140.0, "power_w": 70.34, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 404.0, "phase": "running"}
+{"time": 1791418403.4533844, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 71.66, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418408.5285063, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.2, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418413.6027856, "used_mib": 556.0, "free_mib": 47982.0, "total_mib": 49140.0, "power_w": 96.88, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 556.0, "phase": "running"}
+{"time": 1791418418.6771703, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 49.06, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418423.8255951, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 51.4, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418428.900235, "used_mib": 556.0, "free_mib": 47982.0, "total_mib": 49140.0, "power_w": 101.21, "utilization_pct": 100.0, "owners": {}, "hidden_mib": 556.0, "phase": "running"}
+{"time": 1791418433.9773896, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 55.65, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418439.0525463, "used_mib": 494.0, "free_mib": 48044.0, "total_mib": 49140.0, "power_w": 101.47, "utilization_pct": 100.0, "owners": {}, "hidden_mib": 494.0, "phase": "running"}
+{"time": 1791418444.1259956, "used_mib": 396.0, "free_mib": 48142.0, "total_mib": 49140.0, "power_w": 64.62, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 396.0, "phase": "running"}
+{"time": 1791418449.2014623, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 87.79, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418454.2772498, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 69.47, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418459.3620827, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 32.55, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418464.4372058, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 86.26, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418469.5138104, "used_mib": 440.0, "free_mib": 48098.0, "total_mib": 49140.0, "power_w": 77.72, "utilization_pct": 100.0, "owners": {}, "hidden_mib": 440.0, "phase": "running"}
+{"time": 1791418474.6184645, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.83, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418479.717642, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 85.99, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418484.8185453, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 69.87, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418489.9203694, "used_mib": 402.0, "free_mib": 48136.0, "total_mib": 49140.0, "power_w": 70.02, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 402.0, "phase": "running"}
+{"time": 1791418494.995817, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 70.72, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418500.0714965, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 68.84, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418505.1458988, "used_mib": 430.0, "free_mib": 48108.0, "total_mib": 49140.0, "power_w": 69.81, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 430.0, "phase": "running"}
+{"time": 1791418510.2250028, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 62.21, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418515.3017352, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 69.26, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418520.3765624, "used_mib": 436.0, "free_mib": 48102.0, "total_mib": 49140.0, "power_w": 69.26, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 436.0, "phase": "running"}
+{"time": 1791418525.4527805, "used_mib": 396.0, "free_mib": 48142.0, "total_mib": 49140.0, "power_w": 35.23, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 396.0, "phase": "running"}
+{"time": 1791418530.5296404, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.94, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418535.6055396, "used_mib": 438.0, "free_mib": 48100.0, "total_mib": 49140.0, "power_w": 80.37, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 438.0, "phase": "running"}
+{"time": 1791418540.6830258, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 49.08, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418545.7564113, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.43, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418550.8310037, "used_mib": 444.0, "free_mib": 48094.0, "total_mib": 49140.0, "power_w": 76.05, "utilization_pct": 15.0, "owners": {}, "hidden_mib": 444.0, "phase": "running"}
+{"time": 1791418555.905559, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 44.58, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418560.980942, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.44, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418566.0550742, "used_mib": 444.0, "free_mib": 48094.0, "total_mib": 49140.0, "power_w": 73.84, "utilization_pct": 100.0, "owners": {}, "hidden_mib": 444.0, "phase": "running"}
+{"time": 1791418571.132334, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 49.73, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418576.2059739, "used_mib": 400.0, "free_mib": 48138.0, "total_mib": 49140.0, "power_w": 70.21, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 400.0, "phase": "running"}
+{"time": 1791418581.282931, "used_mib": 454.0, "free_mib": 48084.0, "total_mib": 49140.0, "power_w": 78.81, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 454.0, "phase": "running"}
+{"time": 1791418586.360516, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.64, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418591.4351087, "used_mib": 400.0, "free_mib": 48138.0, "total_mib": 49140.0, "power_w": 70.56, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 400.0, "phase": "running"}
+{"time": 1791418596.5100462, "used_mib": 454.0, "free_mib": 48084.0, "total_mib": 49140.0, "power_w": 83.42, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 454.0, "phase": "running"}
+{"time": 1791418601.584577, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.7, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418606.6597846, "used_mib": 414.0, "free_mib": 48124.0, "total_mib": 49140.0, "power_w": 70.93, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 414.0, "phase": "running"}
+{"time": 1791418611.734828, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 68.89, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418616.8134193, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 70.14, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418621.8892045, "used_mib": 400.0, "free_mib": 48138.0, "total_mib": 49140.0, "power_w": 69.73, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 400.0, "phase": "running"}
+{"time": 1791418626.964651, "used_mib": 4.0, "free_mib": 48534.0, "total_mib": 49140.0, "power_w": 69.6, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 4.0, "phase": "running"}
+{"time": 1791418632.0400617, "used_mib": 14447.0, "free_mib": 34091.0, "total_mib": 49140.0, "power_w": 88.75, "utilization_pct": 49.0, "owners": {"1130890": 14010}, "hidden_mib": 437.0, "phase": "running"}
+{"time": 1791418637.1177604, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 130.18, "utilization_pct": 100.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418642.1922858, "used_mib": 5924.0, "free_mib": 42614.0, "total_mib": 49140.0, "power_w": 114.94, "utilization_pct": 9.0, "owners": {"1130985": 5914}, "hidden_mib": 10.0, "phase": "running"}
+{"time": 1791418647.2689984, "used_mib": 7018.0, "free_mib": 41520.0, "total_mib": 49140.0, "power_w": 70.69, "utilization_pct": 0.0, "owners": {"1131081": 7008}, "hidden_mib": 10.0, "phase": "running"}
+{"time": 1791418652.3438969, "used_mib": 430.0, "free_mib": 48108.0, "total_mib": 49140.0, "power_w": 70.82, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 430.0, "phase": "running"}
+{"time": 1791418657.4196837, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.98, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418662.5027158, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 45.99, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418667.5802526, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 71.7, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418672.6571615, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.44, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418677.737333, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 51.51, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418682.8140264, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 71.6, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418687.8894851, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 71.66, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418692.9689472, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 65.61, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418698.0445666, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 70.9, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418703.1501753, "used_mib": 400.0, "free_mib": 48138.0, "total_mib": 49140.0, "power_w": 70.18, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 400.0, "phase": "running"}
+{"time": 1791418708.2672274, "used_mib": 21.0, "free_mib": 48517.0, "total_mib": 49140.0, "power_w": 26.91, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 21.0, "phase": "running"}
+{"time": 1791418713.3451407, "used_mib": 446.0, "free_mib": 48092.0, "total_mib": 49140.0, "power_w": 71.21, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 446.0, "phase": "running"}
+{"time": 1791418718.4247613, "used_mib": 396.0, "free_mib": 48142.0, "total_mib": 49140.0, "power_w": 35.1, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 396.0, "phase": "running"}
+{"time": 1791418723.5292537, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 71.24, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418728.6336794, "used_mib": 412.0, "free_mib": 48126.0, "total_mib": 49140.0, "power_w": 71.06, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 412.0, "phase": "running"}
+{"time": 1791418733.7207758, "used_mib": 400.0, "free_mib": 48138.0, "total_mib": 49140.0, "power_w": 70.31, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 400.0, "phase": "running"}
+{"time": 1791418738.8148398, "used_mib": 400.0, "free_mib": 48138.0, "total_mib": 49140.0, "power_w": 57.5, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 400.0, "phase": "running"}
+{"time": 1791418743.8963842, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 85.36, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418748.9730806, "used_mib": 412.0, "free_mib": 48126.0, "total_mib": 49140.0, "power_w": 70.13, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 412.0, "phase": "running"}
+{"time": 1791418754.0831823, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 68.7, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418759.1648705, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 56.35, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418764.2408285, "used_mib": 402.0, "free_mib": 48136.0, "total_mib": 49140.0, "power_w": 70.17, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 402.0, "phase": "running"}
+{"time": 1791418769.3472288, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 68.85, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418774.451304, "used_mib": 420.0, "free_mib": 48118.0, "total_mib": 49140.0, "power_w": 70.3, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 420.0, "phase": "running"}
+{"time": 1791418779.5414119, "used_mib": 22.0, "free_mib": 48516.0, "total_mib": 49140.0, "power_w": 29.45, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 22.0, "phase": "running"}
+{"time": 1791418784.617177, "used_mib": 424.0, "free_mib": 48114.0, "total_mib": 49140.0, "power_w": 70.83, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 424.0, "phase": "running"}
+{"time": 1791418789.704826, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 44.17, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418794.781412, "used_mib": 404.0, "free_mib": 48134.0, "total_mib": 49140.0, "power_w": 69.84, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 404.0, "phase": "running"}
+{"time": 1791418799.8583786, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 52.96, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418804.936256, "used_mib": 402.0, "free_mib": 48136.0, "total_mib": 49140.0, "power_w": 69.43, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 402.0, "phase": "running"}
+{"time": 1791418810.0138156, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 69.95, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418815.0848246, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 70.84, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418820.1589365, "used_mib": 400.0, "free_mib": 48138.0, "total_mib": 49140.0, "power_w": 69.68, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 400.0, "phase": "running"}
+{"time": 1791418825.281279, "used_mib": 444.0, "free_mib": 48094.0, "total_mib": 49140.0, "power_w": 69.95, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 444.0, "phase": "running"}
+{"time": 1791418830.3898199, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 69.57, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418835.479537, "used_mib": 444.0, "free_mib": 48094.0, "total_mib": 49140.0, "power_w": 70.51, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 444.0, "phase": "running"}
+{"time": 1791418840.5792928, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 45.79, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418845.6786633, "used_mib": 448.0, "free_mib": 48090.0, "total_mib": 49140.0, "power_w": 69.26, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 448.0, "phase": "running"}
+{"time": 1791418850.7843297, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 56.46, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418855.8862174, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 69.17, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418860.9900944, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 49.13, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418866.0887544, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 69.34, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418871.1864448, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 85.26, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418876.2863886, "used_mib": 400.0, "free_mib": 48138.0, "total_mib": 49140.0, "power_w": 69.87, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 400.0, "phase": "running"}
+{"time": 1791418881.3880699, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 33.0, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418886.4812744, "used_mib": 416.0, "free_mib": 48122.0, "total_mib": 49140.0, "power_w": 69.96, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 416.0, "phase": "running"}
+{"time": 1791418891.587809, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 42.88, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418896.6861687, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 69.16, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418901.7793627, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 85.62, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418906.8526402, "used_mib": 400.0, "free_mib": 48138.0, "total_mib": 49140.0, "power_w": 69.84, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 400.0, "phase": "running"}
+{"time": 1791418911.9772036, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 42.87, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418917.052936, "used_mib": 444.0, "free_mib": 48094.0, "total_mib": 49140.0, "power_w": 71.33, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 444.0, "phase": "running"}
+{"time": 1791418922.1323943, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 68.71, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418927.207412, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 70.57, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418932.2835093, "used_mib": 1.0, "free_mib": 48536.0, "total_mib": 49140.0, "power_w": 86.73, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 1.0, "phase": "running"}
+{"time": 1791418937.360163, "used_mib": 398.0, "free_mib": 48140.0, "total_mib": 49140.0, "power_w": 71.0, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 398.0, "phase": "running"}
+{"time": 1791418941.1199877, "used_mib": 450.0, "free_mib": 48088.0, "total_mib": 49140.0, "power_w": 81.79, "utilization_pct": 0.0, "owners": {}, "hidden_mib": 450.0, "phase": "after", "exit_code": 1}

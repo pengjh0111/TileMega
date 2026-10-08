@@ -1,0 +1,8 @@
+{
+  "registers": 56,
+  "shared_bytes": 24576,
+  "threads": 128,
+  "source_sha256": "9e21b7267542618545a60da69d75ac05e9961217ea162edb4e044e7e74154a5a",
+  "artifact": "/root/.cache/tilemega/variants/NVIDIA-GeForce-RTX-4090-sm89-128-drv13/9e21b7267542618545a60da69d75ac05e9961217ea162edb4e044e7e74154a5a",
+  "compiled": false
+}

@@ -1,0 +1,207 @@
+{
+  "target": "/root/.cache/tilemega/targets/NVIDIA-GeForce-RTX-4090-sm89-128-drv13.json",
+  "arch": "sm_89",
+  "max_m": 16,
+  "stages_filter": null,
+  "jobs": 8,
+  "shape_count": 39,
+  "seconds": 0.5679617158602923,
+  "failed": 0,
+  "records": [
+    {
+      "shape": "16x128x128x2",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x128x128x2.json"
+    },
+    {
+      "shape": "16x128x64x2",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x128x64x2.json"
+    },
+    {
+      "shape": "16x128x64x3",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x128x64x3.json"
+    },
+    {
+      "shape": "16x128x64x4",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x128x64x4.json"
+    },
+    {
+      "shape": "16x128x64x5",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x128x64x5.json"
+    },
+    {
+      "shape": "16x256x64x2",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x256x64x2.json"
+    },
+    {
+      "shape": "16x32x128x2",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x128x2.json"
+    },
+    {
+      "shape": "16x32x128x3",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x128x3.json"
+    },
+    {
+      "shape": "16x32x128x4",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x128x4.json"
+    },
+    {
+      "shape": "16x32x128x5",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x128x5.json"
+    },
+    {
+      "shape": "16x32x128x6",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x128x6.json"
+    },
+    {
+      "shape": "16x32x128x7",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x128x7.json"
+    },
+    {
+      "shape": "16x32x128x8",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x128x8.json"
+    },
+    {
+      "shape": "16x32x64x10",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x64x10.json"
+    },
+    {
+      "shape": "16x32x64x11",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x64x11.json"
+    },
+    {
+      "shape": "16x32x64x12",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x64x12.json"
+    },
+    {
+      "shape": "16x32x64x13",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x64x13.json"
+    },
+    {
+      "shape": "16x32x64x14",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x64x14.json"
+    },
+    {
+      "shape": "16x32x64x15",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x64x15.json"
+    },
+    {
+      "shape": "16x32x64x16",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x64x16.json"
+    },
+    {
+      "shape": "16x32x64x2",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x64x2.json"
+    },
+    {
+      "shape": "16x32x64x3",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x64x3.json"
+    },
+    {
+      "shape": "16x32x64x4",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x64x4.json"
+    },
+    {
+      "shape": "16x32x64x5",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x64x5.json"
+    },
+    {
+      "shape": "16x32x64x6",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x64x6.json"
+    },
+    {
+      "shape": "16x32x64x7",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x64x7.json"
+    },
+    {
+      "shape": "16x32x64x8",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x64x8.json"
+    },
+    {
+      "shape": "16x32x64x9",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x32x64x9.json"
+    },
+    {
+      "shape": "16x64x128x2",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x64x128x2.json"
+    },
+    {
+      "shape": "16x64x128x3",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x64x128x3.json"
+    },
+    {
+      "shape": "16x64x128x4",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x64x128x4.json"
+    },
+    {
+      "shape": "16x64x64x2",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x64x64x2.json"
+    },
+    {
+      "shape": "16x64x64x3",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x64x64x3.json"
+    },
+    {
+      "shape": "16x64x64x4",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x64x64x4.json"
+    },
+    {
+      "shape": "16x64x64x5",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x64x64x5.json"
+    },
+    {
+      "shape": "16x64x64x6",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x64x64x6.json"
+    },
+    {
+      "shape": "16x64x64x7",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x64x64x7.json"
+    },
+    {
+      "shape": "16x64x64x8",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x64x64x8.json"
+    },
+    {
+      "shape": "16x64x64x9",
+      "returncode": 0,
+      "resource": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_recovery/repro.so.resources/1791431440176616381/prewarm/16x64x64x9.json"
+    }
+  ]
+}

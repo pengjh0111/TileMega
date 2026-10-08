@@ -1,0 +1,43 @@
+{
+  "original_queue": {
+    "done": 5,
+    "failed": 2,
+    "skipped": 4
+  },
+  "root_cause": "CPU solver moved active serving plan/classes into cache before validating a new argmax geometry. A rejected TN8 head poisoned the following evaluation.",
+  "location": "lib/Solver/SkeletonSearch.cpp:175",
+  "repair": "Prepare and validate replacement structure before moving current state.",
+  "tests": {
+    "passed": 3,
+    "names": [
+      "stage_flow",
+      "skeleton_search_isolation",
+      "serving_search_rejection"
+    ],
+    "incremental_prepare": [
+      false,
+      true
+    ],
+    "later_legal_scores_unchanged": true
+  },
+  "fixtures": {
+    "serving_rejection_target.json": {
+      "path": "test/fixtures/serving_rejection_target.json",
+      "sha256": "68bb3ee93eb07a6fabaa39264cd6e07e65b17537a54d5df491a0bb101348ba1b",
+      "size": 88170
+    },
+    "serving_rejection_export.json": {
+      "path": "test/fixtures/serving_rejection_export.json",
+      "sha256": "ea36e9f0424d03b5d2b492d5b9b21c616aa39fbfe4ceb3f6fd0c4662daecdf36",
+      "size": 623703
+    }
+  },
+  "scope": "No device code, synchronization protocol, pricing or default selection change.",
+  "deviation": "Necessary post-freeze CPU correctness repair; baselines and D1 rebuilt under the repaired compiler. D0 reused only after all nine calibration stamps matched.",
+  "original_gdb_scope": "Invalid argmax candidate followed by another candidate; valid-invalid-valid regression verified after repair.",
+  "background_check": "ctest and fingerprint success verified from complete logs; launcher completion marker was absent, queued Dpre_v2 rechecks with scheduler exit status.",
+  "fix_commit": "f5ce261bb",
+  "recovery_driver_commit": "4a1f515c6",
+  "repair_head": "4a1f515c608badf6ab3829a5b3ed4568a975e105",
+  "gdb_provenance_limit": "Initial GDB case file was replaced by corrected valid-invalid-valid input; original input version is not retained. Both full-search inputs and their failing logs are preserved."
+}
