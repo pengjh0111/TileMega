@@ -53,3 +53,11 @@ rechecks the contract when reading serialized CG.
 inferred: preserving legacy structure sizes is necessary for SASS equality;
 it is insufficient alone. Full generated CUDA/resource/SASS/token comparison
 against the sealed LLM bank remains required at the Phase 1 gate.
+
+verified: binding geometry appends block/row capacities, expert count and
+block rows. Default access encoding retains fourteen words; extended encoding
+uses eighteen and accepts the original form. Dispatch stage provenance is
+optional and emitted only when present. Capacity overflow, missing dimensions,
+self/OOB producers and dense-only binding consumers are rejected. Six host
+checks and check-policy pass (`results/CI5_binding_metadata_host.json`).
+Device binding/page execution and model gates remain separate evidence.

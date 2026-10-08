@@ -144,6 +144,9 @@ five architectures with zero spills (`results/CI5_binding_page_primitives.json`)
 registered host capacity/address checks pass 3/3 (`results/CI5_binding_host.json`).
 Production PageStream integration and expert TaskBody/model gates remain pending.
 
+T2/T3: verified binding capacity/provenance transport and legacy codec form
+pass 6/6 host checks (`results/CI5_binding_metadata_host.json`).
+
 Remaining T3–T12 entries: pending implementation and required gates. G-DNN and G-MOE:
 not run. §8.A: primitive and synthetic table/counted/weighted-LA paths have fresh-process evidence; real-body and remaining path gates are pending. No new TaskBody
 has entered a performance matrix. No performance or calibration result is
