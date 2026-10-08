@@ -1,0 +1,15 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "pass_rate": "8/8",
+  "scope": "CPU profile content/file SHA256, model/token domain, unchanged HF identity chain and hand-enumerated histogram conservation; real routing and solver consumption pending",
+  "implementation_commit": "57714b5634d69fe218f0a3a98c577649c9524a95",
+  "inputs": {
+    "python/tilemega/moe/profile_identity.py": "83c86379cdb618d182152d9967d57fac64ca4b4107cb65bf544006f5b16e3a8a",
+    "python/tests/test_moe_profile_identity.py": "03c252b5bcb28f6ca7bdce7352cac045e4bd3c6f1ff6d1218215865f45010ca7"
+  },
+  "logs": {
+    "/root/dm1_work/development/runs/dm1-ci6-profile-identity-host/events/profile_identity.log": "49bc6571529bbdfc03b1f902a7a967dcd9e2933955335cd6d0cb5dc0abb4441d",
+    "/root/dm1_work/development/runs/dm1-ci6-profile-identity-host/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

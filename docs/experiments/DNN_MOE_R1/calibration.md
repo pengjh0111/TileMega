@@ -75,6 +75,12 @@ grouped blocks, unique-expert weight bytes, slot reads and gathered-A bytes
 lower bound for both policies; repeated slot reads remain a separate cache/work
 quantity. The parser does not authenticate the advertised profile ID; the CLI
 consumer must verify the canonical profile hash and source file hash.
+verified: `profile_identity.py` supplies that consumer gate, passing 8/8 CPU
+checks (`results/CI6_profile_identity_host.json`). It rejects altered content,
+duplicate fields, model/token-domain mismatches, broken hidden-state identity
+chains and non-conserving histograms. Its content identity detects changes;
+checkpoint provenance remains the collector's embedded per-tensor evidence.
+CLI/solver integration and real-profile validation remain pending.
 
 Pending: real routing observations and the TaskWork/DRAM-floor/solver consumers
 of the profile. No real-model routing estimate or timing value is reported.

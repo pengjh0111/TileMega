@@ -251,3 +251,8 @@ are checked with synthetic records. Actual guarded orchestration is pending.
 T12 foundation: verified guarded-selection adapter passes 8/8 CPU checks
 (`results/CI7_second_level_adapter_host.json`). Identity/gate mismatches and
 build-budget expiry reject before queue launch. Real candidate timing is pending.
+
+T12 foundation: verified routing-profile consumption gate passes 8/8 CPU checks
+(`results/CI6_profile_identity_host.json`): content/file identities, HF layer
+chain, model/token domain and histogram conservation. Solver integration and
+real-profile observations remain pending.
