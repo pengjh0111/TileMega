@@ -10,7 +10,7 @@ import sys
 
 from identity_dm import generate, source_snapshot
 from pin_case import classes, pin
-from second_level_dm import ForwardRace, family_shortlist
+from second_level_dm import ForwardRace, family_shortlist, run_forward_race
 
 HERE = Path(__file__).resolve().parent
 
@@ -54,9 +54,20 @@ def one(job):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--jobs', type=Path, required=True)
+    parser.add_argument('--jobs', type=Path)
+    parser.add_argument('--select-forward', type=Path,
+                        help='built candidate identities and numerical receipts for guarded elimination')
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
+    if (args.jobs is None) == (args.select_forward is None):
+        parser.error('select exactly one of --jobs or --select-forward')
+    if args.select_forward is not None:
+        result = run_forward_race(json.loads(args.select_forward.read_text()))
+        if args.out.exists():
+            raise FileExistsError('refuse to overwrite a completed selection')
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(result, indent=2)+'\n')
+        return
     rows = []
     for job in json.loads(args.jobs.read_text()):
         rows.append(one(job))

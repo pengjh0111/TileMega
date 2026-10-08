@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 """Forward selection protocol; measurements are supplied by guarded queue jobs."""
 import math
+import json
+from pathlib import Path
 import statistics
+import subprocess
+import sys
 import time
+
+from identity_dm import sha, verify
+from gpu_guard import stop
 
 
 class BudgetExhausted(RuntimeError):
@@ -129,3 +136,96 @@ class ForwardRace:
                     candidates=[self.candidates[key] for key in self.initial_ids],
                     measurements=list(self.records), eliminations=list(self.eliminations),
                     finalists=list(self.active), budget_elapsed_s=self.now()-self.start)
+
+
+def run_forward_race(job):
+    """Consume built plans and run each adaptive request through the scheduler.
+
+    The build caller supplies the original monotonic start, so waiting and
+    building consume the same budget as measurements. This entry point never
+    accepts external timing records or invokes a timer outside gpu_guard.
+    """
+    if job.get('phase') != 'forward':
+        raise ValueError('this selector requires a forward objective')
+    here = Path(__file__).resolve().parent
+    root, out = Path(job['root']), Path(job['out'])
+    out.mkdir(parents=True, exist_ok=False)
+    candidates = []
+    for candidate in job['candidates']:
+        row = dict(candidate)
+        so = Path(row['so'])
+        identity = verify(so)
+        key = identity['artifact_id']
+        gate_path = Path(row['correctness_result'])
+        gate = json.loads(gate_path.read_text())
+        if gate.get('passed') is not True or gate.get('identity_id') != key:
+            raise ValueError('forward candidate lacks its exact-binary numerical gate')
+        if row['identity_id'] != key or identity['execution']['phase'] != 'forward':
+            raise ValueError('forward candidate identity/phase changed')
+        row.update(correctness_passed=True, correctness_identity=key,
+                   correctness_sha256=sha(gate_path), spill=identity['spill'])
+        candidates.append(row)
+    race = ForwardRace(candidates, job['top_m'], job['time_budget_s'],
+                       started_at=job['started_at'])
+    while request := race.next_request():
+        key, phase, number = request['identity_id'], request['phase'], request['round']
+        candidate = request['candidate']
+        so = Path(candidate['so'])
+        if verify(so)['artifact_id'] != key:
+            raise ValueError('candidate binary changed between selection rounds')
+        step = out/f'{phase}-r{number}-{key}'
+        queue, events, guarded = step/'queue', step/'events', step/'guarded'
+        queue.mkdir(parents=True, exist_ok=False)
+        sample = step/'measurement.json'
+        replacements = {'{so}': str(so), '{out}': str(sample), '{identity}': key,
+                        '{phase}': phase, '{round}': str(number)}
+        command = []
+        for argument in candidate['measure_command']:
+            for pattern, value in replacements.items():
+                argument = argument.replace(pattern, value)
+            command.append(argument)
+        if not command or not any('{out}' in a for a in candidate['measure_command']):
+            raise ValueError('candidate measure command needs a fresh output path')
+        remaining = math.floor(race.deadline-time.monotonic())
+        if remaining <= 0:
+            race._budget()
+            raise BudgetExhausted('less than one second remains in the selection budget')
+        task = dict(name='candidate_measurement', command=command, cwd=str(root),
+                    gpu=True, out=str(guarded), timeout_s=remaining,
+                    needs_free_mib=candidate.get('needs_free_mib', 12288))
+        (queue/'queue_measure.json').write_text(json.dumps([task], indent=2)+'\n')
+        with (step/'observer.log').open('w') as log:
+            observer = subprocess.Popen([sys.executable, str(here/'run_queue.py'),
+                '--queue-dir', str(queue), '--out', str(events),
+                '--policy', str(here/'guard_policy.json')],
+                stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            try:
+                code = observer.wait(timeout=max(0, race.deadline-time.monotonic()))
+            except subprocess.TimeoutExpired:
+                # The owned process tree includes scheduler, guard and timer;
+                # PID/start checks protect other sessions during cleanup.
+                stop(observer)
+                race.status, race.winner = 'budget_exhausted', None
+                (out/'race.json').write_text(json.dumps(dict(status=race.status,
+                    records=race.records, eliminations=race.eliminations), indent=2)+'\n')
+                raise BudgetExhausted('selection budget expired while awaiting its guarded job')
+            if code:
+                raise RuntimeError('guarded candidate queue failed; see '+str(step/'observer.log'))
+        completion = json.loads((events/'completion.json').read_text())
+        guard_path = guarded/'guard_result.json'
+        guard = json.loads(guard_path.read_text())
+        if completion.get('passed') is not True or guard != dict(code=0, reason='child exit 0'):
+            raise ValueError('candidate measurement lacks a successful guard receipt')
+        measured = json.loads(sample.read_text())
+        if measured.get('identity_id') != key or verify(so)['artifact_id'] != key:
+            raise ValueError('measured candidate identity changed')
+        record = dict(phase=phase, round=number, identity_id=key,
+                      median_ns=measured['median_ns'], process_id=measured['process_id'],
+                      guarded=True, correctness_passed=True, sample_sha256=sha(sample),
+                      guard_sha256=sha(guard_path), queue_sha256=sha(queue/'queue_measure.json'))
+        race.record(record)
+        (out/'race.json').write_text(json.dumps(dict(status=race.status, records=race.records,
+            eliminations=race.eliminations, active=race.active), indent=2)+'\n')
+    result = race.result()
+    (out/'plans.json').write_text(json.dumps(result, indent=2)+'\n')
+    return result

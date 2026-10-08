@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 """Host protocol tests; synthetic records are not GPU measurements."""
 import unittest
+import hashlib
+import json
+from pathlib import Path
+import tempfile
+import time
 
-from second_level_dm import BudgetExhausted, ForwardRace, family_shortlist
+from second_level_dm import BudgetExhausted, ForwardRace, family_shortlist, run_forward_race
+from identity_dm import sha
 
 
 def candidate(i, family='dense', score=None):
@@ -15,6 +21,24 @@ def candidate(i, family='dense', score=None):
 def observation(request, value, process):
     return dict(phase=request['phase'], round=request['round'], identity_id=request['identity_id'],
                 median_ns=value, process_id=process, guarded=True, correctness_passed=True)
+
+
+def artifact_job(folder):
+    so = folder/'plan.so'
+    so.write_bytes(b'CPU identity fixture: never executable')
+    Path(str(so)+'.cu').write_text('CPU source fixture\n')
+    Path(str(so)+'.plan.json').write_text('{}\n')
+    identity = dict(so_sha256=sha(so), cu_sha256=sha(str(so)+'.cu'),
+                    manifest_sha256=sha(str(so)+'.plan.json'),
+                    execution=dict(phase='forward'), spill=False)
+    key = hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    identity['artifact_id'] = key
+    Path(str(so)+'.identity.json').write_text(json.dumps(identity))
+    gate = folder/'gate.json';gate.write_text(json.dumps(dict(passed=True, identity_id=key)))
+    row = dict(candidate(0), identity_id=key, so=str(so), correctness_result=str(gate),
+               measure_command=['must-never-be-executed', '{so}', '{out}'])
+    return dict(root=str(folder), out=str(folder/'selection'), phase='forward',
+                candidates=[row], top_m=1, time_budget_s=10, started_at=time.monotonic()-11)
 
 
 class SecondLevelTests(unittest.TestCase):
@@ -85,6 +109,23 @@ class SecondLevelTests(unittest.TestCase):
         race.record(observation(request, 1, 'host-fixture:0'))
         with self.assertRaises(ValueError):
             race.record(observation(race.next_request(), 1, 'host-fixture:0'))
+
+    def test_adapter_checks_identity_gate_before_any_queue(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory);job = artifact_job(folder)
+            (folder/'gate.json').write_text(json.dumps(dict(passed=True, identity_id='f'*64)))
+            with self.assertRaises(ValueError):
+                run_forward_race(job)
+            self.assertEqual(list((folder/'selection').rglob('queue_*.json')), [])
+            self.assertFalse((folder/'selection/plans.json').exists())
+
+    def test_adapter_does_not_launch_after_build_budget_expiry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory);job = artifact_job(folder)
+            with self.assertRaises(BudgetExhausted):
+                run_forward_race(job)
+            self.assertEqual(list((folder/'selection').rglob('queue_*.json')), [])
+            self.assertFalse((folder/'selection/plans.json').exists())
 
 
 if __name__ == '__main__':
