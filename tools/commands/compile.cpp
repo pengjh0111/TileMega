@@ -1113,6 +1113,11 @@ int RunCompile(int argc, char** argv) {
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
       tilemega::codegen::ConfigureServingPrefetch(*module,target,prefetch_depth,prefetch_stride);
       auto seq=mlir::cast<mlir::IntegerAttr>((*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving").get("seq")).getInt();
+      auto model=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+      auto dm=model.getAs<mlir::BoolAttr>("dm");
+      // Existing nonpaged prefill dispatches through index 1; its token
+      // geometry is carried separately by TILEMEGA_SERVING_SEQ.
+      if(!(dm && dm.getValue()) && !nonpaged_la && !use_nonpaged_tiled)seq=1;
       source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,unsigned(seq),unsigned(seq)}});
     }
     if(use_pages) {
