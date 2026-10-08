@@ -140,6 +140,7 @@ struct PlanStage {
   int attention_query_rows = 64;
   std::uint32_t conv = codegen::kDmNoIndex;
   std::uint32_t rows_per_batch = 0;
+  std::uint32_t binding_producer = codegen::kDmNoIndex;
 };
 
 struct PlanOutput {

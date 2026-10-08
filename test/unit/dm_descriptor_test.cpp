@@ -49,6 +49,15 @@ int TestDmDescriptor(int, char**) {
         access.write={w,w==DmWriteKind::kPixelShuffle ? 2u : 1u,1,9};
         auto value=EncodeDm(builder,access);
         assert(value==EncodeDm(builder,DecodeDmAccess(value)));
+        assert(value.size()==14);
+        access.binding_blocks=113;access.binding_rows=512;
+        access.experts=128;access.block_rows=16;
+        value=EncodeDm(builder,access);
+        assert(value.size()==18 && value==EncodeDm(builder,DecodeDmAccess(value)));
+        auto invalid=access;invalid.binding_rows=0;
+        rejects([&]{EncodeDm(builder,invalid);});
+        invalid=access;invalid.binding_blocks=std::numeric_limits<std::uint32_t>::max();
+        rejects([&]{EncodeDm(builder,invalid);});
       }
   DmGemmAccess missing; missing.a=DmAAccess::kIm2Col;
   rejects([&]{EncodeDm(builder,missing);});
@@ -56,6 +65,21 @@ int TestDmDescriptor(int, char**) {
   rejects([&]{EncodeDm(builder,missing);});
   missing.b=DmBAccess::kDense; missing.expert_stride=std::numeric_limits<std::uint64_t>::max();
   rejects([&]{EncodeDm(builder,missing);});
+  ModelPlan binding_plan;binding_plan.dm=true;binding_plan.buffers.resize(6);
+  binding_plan.gemms.resize(1);binding_plan.stages.resize(2);
+  binding_plan.stages[0].kind=PlanTaskKind::kMoETopK;
+  auto& binding_access=binding_plan.gemms[0].access;
+  binding_access.b=DmBAccess::kExpertIndirect;binding_access.binding=3;binding_access.rows=4;
+  binding_access.expert_stride=128*128;binding_access.binding_blocks=16;
+  binding_access.binding_rows=256;binding_access.experts=8;binding_access.block_rows=16;
+  binding_plan.stages[1].binding_producer=0;
+  ValidateDmModelPlan(binding_plan);
+  for(unsigned source:{1u,2u}) {
+    binding_plan.stages[1].binding_producer=source;
+    rejects([&]{ValidateDmModelPlan(binding_plan);});
+  }
+  binding_plan.stages[1].binding_producer=0;binding_access.b=DmBAccess::kDense;
+  rejects([&]{ValidateDmModelPlan(binding_plan);});
 
   DmEpilogueChain chain; chain.count=8; chain.side_count=5;
   for(unsigned i=0;i<8;++i) {

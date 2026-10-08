@@ -679,6 +679,8 @@ std::string emitModelPlan(mlir::ModuleOp module,
       }
       out<<", "<<integerField(item,"dm_conv")<<"u, "
          <<integerField(item,"dm_rows_per_batch")<<'u';
+      if(item.get("dm_binding_producer"))
+        out<<", "<<integerField(item,"dm_binding_producer")<<'u';
     }
     out << "},\n";
   }

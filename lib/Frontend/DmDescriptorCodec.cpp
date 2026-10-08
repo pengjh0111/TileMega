@@ -97,13 +97,14 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
           a.rows_per_batch || a.a_row_stride || a.a_row_offset ||
           a.conv!=kDmNoIndex || a.rows!=kDmNoIndex || a.binding!=kDmNoIndex ||
           a.a_scale!=kDmNoIndex || a.expert_stride ||
+          a.binding_blocks || a.binding_rows || a.experts || a.block_rows ||
           a.write.kind!=DmWriteKind::kDense || a.write.factor!=1 ||
           a.write.layout!=kDmNoIndex || a.write.rows!=kDmNoIndex ||
           gemm.chain.count || gemm.chain.side_count;
     }
     for(auto const& stage:plan.stages)
       extended|=stage.kind>=PlanTaskKind::kDepthwiseConv ||
-          stage.conv!=kDmNoIndex || stage.rows_per_batch;
+          stage.conv!=kDmNoIndex || stage.rows_per_batch || stage.binding_producer!=kDmNoIndex;
     if(extended)throw std::invalid_argument("extended descriptors require the DM device ABI");
     return;
   }
@@ -144,9 +145,19 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
       buffer(gemm.chain.side[i].buffer,true); buffer(gemm.chain.side[i].auxiliary);
     }
   }
-  for(auto const& stage:plan.stages)
+  for(unsigned i=0;i<plan.stages.size();++i) {
+    auto const& stage=plan.stages[i];
     if(stage.conv!=kDmNoIndex && stage.conv>=plan.convolutions.size())
       throw std::invalid_argument("DM stage convolution outside geometry table");
+    if(stage.binding_producer!=kDmNoIndex) {
+      if(stage.binding_producer>=plan.stages.size() || stage.binding_producer==i)
+        throw std::invalid_argument("DM binding producer outside stage table or self-dependent");
+      if(stage.kind!=PlanTaskKind::kGemm || stage.gemm>=plan.gemms.size() ||
+         (plan.gemms[stage.gemm].access.a!=DmAAccess::kRowGather &&
+          plan.gemms[stage.gemm].access.b!=DmBAccess::kExpertIndirect))
+        throw std::invalid_argument("DM binding dependency requires a gathered or expert GEMM");
+    }
+  }
 }
 
 mlir::DenseI64ArrayAttr EncodeDm(mlir::Builder& b, codegen::ConvDesc const& x) {
@@ -215,14 +226,24 @@ mlir::DenseI64ArrayAttr EncodeDm(mlir::Builder& b, codegen::DmGemmAccess const& 
   Put(w,x.a); Put(w,x.b); Put(w,x.rows_per_batch); Put(w,x.a_row_stride);
   Put(w,x.a_row_offset); Put(w,x.conv); Put(w,x.rows); Put(w,x.binding);
   Put(w,x.a_scale); Put(w,x.expert_stride); PutWrite(w,x.write);
+  if(x.binding_blocks || x.binding_rows || x.experts || x.block_rows) {
+    Put(w,x.binding_blocks); Put(w,x.binding_rows); Put(w,x.experts); Put(w,x.block_rows);
+  }
   auto attr=b.getDenseI64ArrayAttr(w); (void)DecodeDmAccess(attr); return attr;
 }
 codegen::DmGemmAccess DecodeDmAccess(mlir::Attribute attr) {
-  Reader r(attr,14); codegen::DmGemmAccess x;
+  auto array=llvm::dyn_cast_or_null<mlir::DenseI64ArrayAttr>(attr);
+  Reader r(attr,array && array.size()==18 ? 18 : 14); codegen::DmGemmAccess x;
   x.a=r.Enum<DmAAccess>(2); x.b=r.Enum<DmBAccess>(1);
   x.rows_per_batch=r.U32(); x.a_row_stride=r.U32(); x.a_row_offset=r.U32();
   x.conv=r.U32(); x.rows=r.U32(); x.binding=r.U32(); x.a_scale=r.U32();
   x.expert_stride=r.U64(); x.write=r.Write();
+  if(r.words.size()==18) {
+    x.binding_blocks=r.U32(); x.binding_rows=r.U32(); x.experts=r.U32(); x.block_rows=r.U32();
+    if(!x.binding_blocks || !x.binding_rows || !x.experts || !x.block_rows ||
+       x.binding_blocks>std::uint32_t(std::numeric_limits<int>::max())/x.block_rows)
+      throw std::invalid_argument("invalid DM binding capacity");
+  }
   if((x.a==DmAAccess::kIm2Col && x.conv==kDmNoIndex) ||
      (x.a==DmAAccess::kRowGather && (x.rows==kDmNoIndex || x.binding==kDmNoIndex)) ||
      (x.b==DmBAccess::kExpertIndirect && (x.binding==kDmNoIndex || !x.expert_stride)) ||
@@ -304,7 +325,10 @@ std::string EmitDm(codegen::DmGemmAccess const& x) {
   out<<"{static_cast<DmAAccess>("<<unsigned(x.a)<<"u), static_cast<DmBAccess>("
      <<unsigned(x.b)<<"u), "<<x.rows_per_batch<<"u, "<<x.a_row_stride<<"u, "
      <<x.a_row_offset<<"u, "<<x.conv<<"u, "<<x.rows<<"u, "<<x.binding<<"u, "
-     <<x.a_scale<<"u, "<<x.expert_stride<<"ull, "<<WriteLiteral(x.write)<<'}';
+     <<x.a_scale<<"u, "<<x.expert_stride<<"ull, "<<WriteLiteral(x.write);
+  if(x.binding_blocks || x.binding_rows || x.experts || x.block_rows)
+    out<<", "<<x.binding_blocks<<"u, "<<x.binding_rows<<"u, "<<x.experts<<"u, "<<x.block_rows<<'u';
+  out<<'}';
   return out.str();
 }
 std::string EmitDm(codegen::DmEpilogueChain const& x) {

@@ -420,6 +420,8 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
     if(plan.dm) {
       fields.push_back(builder.getNamedAttr("dm_conv",builder.getI64IntegerAttr(stage.conv)));
       fields.push_back(builder.getNamedAttr("dm_rows_per_batch",builder.getI64IntegerAttr(stage.rows_per_batch)));
+      if(stage.binding_producer!=codegen::kDmNoIndex)
+        fields.push_back(builder.getNamedAttr("dm_binding_producer",builder.getI64IntegerAttr(stage.binding_producer)));
     }
     stages.push_back(builder.getDictionaryAttr(fields));
   }

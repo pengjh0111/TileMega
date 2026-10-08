@@ -53,6 +53,8 @@ struct DmGemmAccess {
   std::uint32_t a_scale = kDmNoIndex;
   std::uint64_t expert_stride = 0;
   DmWriteMap write{};
+  std::uint32_t binding_blocks = 0, binding_rows = 0;
+  std::uint32_t experts = 0, block_rows = 0;
 };
 
 enum class DmEpilogueKind : std::uint32_t {

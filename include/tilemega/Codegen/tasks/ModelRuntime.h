@@ -271,6 +271,7 @@ struct StageDesc {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   std::uint32_t conv = kDmNoIndex;
   std::uint32_t rows_per_batch = 0;
+  std::uint32_t binding_producer = kDmNoIndex;
 #endif
 };
 inline constexpr std::uint32_t kHandoffAutoCombine = kNoOperand - 1u;
