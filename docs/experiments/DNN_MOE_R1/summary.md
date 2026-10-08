@@ -260,3 +260,11 @@ real-profile observations remain pending.
 T12 foundation: verified joint routing histograms, marginal conservation and
 static prefix probabilities (`results/CI6_joint_group_host.json`): 6/6 sampling,
 9/9 identity and 6/6 native host checks. Real routing and pricing remain pending.
+
+T12 foundation: verified forward/class search checks pass 7/7
+(`results/CI7_forward_search_host.json`), covering bound batch/token axes and
+paged/nonpaged search with synthetic resource callbacks. R-1 retains all new
+body families; model/compiled-resource/pricing gates remain pending.
+T1: the CI7 pre-fix checkpoint retained resources/SASS/tokens but changed four
+prefill dispatch tables (`results/T1_CI7_dispatch_failure.json`). The default
+dispatch index is restored; a fresh regression checkpoint will verify it.
