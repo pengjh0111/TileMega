@@ -1,0 +1,82 @@
+{
+  "as_of": "2026-10-08T15:28:59.674860+00:00",
+  "recovery_done": 6,
+  "recovery_pending": 3,
+  "qwen_attempts": 34,
+  "qwen_last_exit": 75,
+  "qwen_last_reason": "preflight occupied",
+  "llama": [
+    {
+      "batch": "1",
+      "candidates": 108,
+      "piloted": 6,
+      "finalists": 3,
+      "budget_unmeasured": 102,
+      "selected": {
+        "pg": "pages",
+        "mode": "L2",
+        "loop": 1,
+        "samples_ms": [
+          2.887087011709809,
+          2.8886122209951277,
+          2.88427996262908
+        ]
+      },
+      "identity_and_smoke_pass": true,
+      "timing_accepted": true,
+      "reconfirm_queued": false
+    },
+    {
+      "batch": "16",
+      "candidates": 180,
+      "piloted": 9,
+      "finalists": 3,
+      "budget_unmeasured": 171,
+      "selected": {
+        "pg": "pages",
+        "mode": "L2",
+        "loop": 1,
+        "samples_ms": [
+          3.5168036185204974,
+          7.479870002716779,
+          3.5067813713103533
+        ]
+      },
+      "identity_and_smoke_pass": true,
+      "timing_accepted": false,
+      "reconfirm_queued": true
+    }
+  ],
+  "artifacts": [
+    {
+      "batch": "1",
+      "phase": "prefill",
+      "library": "/root/.cache/tilemega/plans/ef7fdb72fa466c33aafa04c25370c6ab0da155254c0201b358f22883e2c39824/plan.so",
+      "artifact_id": "7e93b4238e139f1065632e7936924174f5690ff50b69d5c787a03db0879e82d1",
+      "sha256": "2a2c3ed9b8b0a228ffc97a3dd9a01718fb02c63719a92044441281106e53663f"
+    },
+    {
+      "batch": "1",
+      "phase": "decode",
+      "library": "/root/.cache/tilemega/plans/1c6632cd377f843bb17fa4c6d05a4fabb7457a01af7db715008051b40923051d/plan.so",
+      "artifact_id": "c6e365ebbea45052507622b5d337a9c9f27b2627132e24ab4689af1794a1f5ea",
+      "sha256": "ede0877b3f8b03bc298190fd45f8746d17700d3929dee216618debc34bdcb92f"
+    },
+    {
+      "batch": "16",
+      "phase": "prefill",
+      "library": "/root/.cache/tilemega/plans/d752bf0aac01c227d59eecb729f0929b4ceba819a305903e8d8c11ab27cf512d/plan.so",
+      "artifact_id": "9be0fc498f79d748a74b9fd03892226af0f8b399fd6548bbb443ad82b7467f22",
+      "sha256": "a82a9e92a0969ba5e5305f33f1a20f131010af03ae32f88d7993d6162d867269"
+    },
+    {
+      "batch": "16",
+      "phase": "decode",
+      "library": "/root/.cache/tilemega/plans/46b4d98bcc3c7004d7bfc7f9f64b0afde40a980a388c4549d0ce471eff348dac/plan.so",
+      "artifact_id": "7672e5a4c4639558cb9c0f08397ed2c0ce5287d1c1bb81310866454264b23bb2",
+      "sha256": "85cfc9b3a5f34f122098596b3b36bf9cff83191d4529ad67e1cf8cf2357c59aa"
+    }
+  ],
+  "family_scope": "No trigger within admitted base-variant execution candidates; new Ec/implementation pilots were budget-eliminated, so family benefit is not ruled out.",
+  "acceptance": "Builds/identities/smoke accepted. Llama B16 performance selection withheld pending one bounded recollection. Final E2E and C-1/C-2 pending."
+}

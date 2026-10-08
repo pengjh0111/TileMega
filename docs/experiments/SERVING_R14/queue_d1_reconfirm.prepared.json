@@ -1,0 +1,31 @@
+[
+  {
+    "name": "D1_reconfirm_llama_B16_v2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/reconfirm_d1.py",
+      "--input",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_review/plans_llama.json",
+      "--model",
+      "/root/models/llama3_2_1b",
+      "--batch",
+      "16",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_reconfirm_llama_B16_v2"
+    ],
+    "gpu": true,
+    "after": [
+      "D1_smoke_llama_v2",
+      "D1_family_llama_v2"
+    ],
+    "priority": 87,
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "CUDACXX": "/usr/local/cuda/bin/nvcc"
+    }
+  }
+]
