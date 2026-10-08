@@ -247,3 +247,7 @@ T12 foundation: verified forward selection protocol passes 6/6 CPU tests
 (`results/CI7_second_level_host.json`). Family coverage, half elimination,
 three alternating final rounds, budget exhaustion and identity/gate rejection
 are checked with synthetic records. Actual guarded orchestration is pending.
+
+T12 foundation: verified guarded-selection adapter passes 8/8 CPU checks
+(`results/CI7_second_level_adapter_host.json`). Identity/gate mismatches and
+build-budget expiry reject before queue launch. Real candidate timing is pending.
