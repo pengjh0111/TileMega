@@ -108,3 +108,10 @@ the final acquire observes earlier arrivals before reduction. Static totals
 define unique epoch boundaries, and tickets are never reset. The runtime must
 protect partial storage across epochs and give L1/L2 separate banks. Full
 nonpaged event publication, elided-stage skipping, and §8.A.11 remain pending.
+
+verified: nonpaged access-proved selection/lowering passes 11/11 host checks
+(`results/CI5_nonpaged_handoff_host.json`). The opt-in path emits
+`TILEMEGA_NONPAGED_LA=1`; absent/false settings emit no added CUDA text.
+It selects attention merge and split-K combine, excludes norm recompute and
+argmax, and rejects escaped split-K partials. Device integration and §8.A.11
+are pending. This is host evidence, not a synchronization claim.

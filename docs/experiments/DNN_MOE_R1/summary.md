@@ -153,6 +153,9 @@ processes and five architectures with zero spills
 (`results/CI5_epoch_last_arriver.json`). Full nonpaged runtime and §8.A.11
 checks remain pending.
 
+T2/T3: verified nonpaged handoff selection and codegen transport pass 11/11
+host checks (`results/CI5_nonpaged_handoff_host.json`); device gates pending.
+
 Remaining T3–T12 entries: pending implementation and required gates. G-DNN and G-MOE:
 not run. §8.A: primitive and synthetic table/counted/weighted-LA paths have fresh-process evidence; real-body and remaining path gates are pending. No new TaskBody
 has entered a performance matrix. No performance or calibration result is
