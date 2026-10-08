@@ -259,7 +259,9 @@ real-profile observations remain pending.
 
 T12 foundation: verified joint routing histograms, marginal conservation and
 static prefix probabilities (`results/CI6_joint_group_host.json`): 6/6 sampling,
-9/9 identity and 6/6 native host checks. Real routing and pricing remain pending.
+9/9 identity and 6/6 native host checks. Virtual row means additionally pass
+6/6 routing, 10/10 identity and both native routing ctests
+(`results/CI6_virtual_rows_host.json`). Real routing and pricing remain pending.
 
 T12 foundation: verified forward/class search checks pass 7/7
 (`results/CI7_forward_search_host.json`), covering bound batch/token axes and

@@ -1,0 +1,35 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_commit": "dbd9057b0a89008f3ec13375e8be194765d9e946",
+  "python_routing_checks": 6,
+  "python_identity_checks": 10,
+  "native_ctests": [
+    "moe_routing_profile",
+    "moe_group_profile"
+  ],
+  "check_policy_passed": true,
+  "scope": "Stable expert-ordered virtual row means and assignment conservation; no real routing observations or body pricing claim.",
+  "inputs": {
+    "include/tilemega/Solver/MoeRoutingProfile.h": "e1c947d33775113e09c0d694376b63351be705d8de7df3934457fe97eb5a2890",
+    "python/tilemega/moe/profile_identity.py": "2c04d4b80c4bc49f555d98b7c1d2eda06b716081e834b82b902988ac857d4746",
+    "python/tilemega/moe/routing_profile.py": "a0d022d26345dab4d45839c5bb1186747114abffc5062c0bcdef68980a528301",
+    "test/python/test_moe_profile_identity.py": "5d6d25817d3d7a8a8eed4ec7de998d5c77ce3d0cc67cf6691eca1c094edaeaba",
+    "test/python/test_routing_profile.py": "074251b07c38f35490a57aabae57be3213ad5da7285b6e93f3016a18b2938de8",
+    "test/unit/moe_group_profile_test.cpp": "0dde43139df5e69144c0db9db236b0918cde8bcf5fc71f9f6af89ee338b6994f"
+  },
+  "queue_sha256": "18b0244f4a88305e7834f034aaca653f5768bfab467310cb8a98ac27c62e7bb8",
+  "completion_sha256": "33f38dc0fe2b94c561e11365a83893b790a7b2d05375d53ab403259b1f11435b",
+  "logs": {
+    "runs/dm1-ci6-virtual-row-host/events/01_python_routing.log": "1700eda1d558cfc52ace9948464d6323f5fa7561cae04f100eef544e9aab144a",
+    "runs/dm1-ci6-virtual-row-host/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/dm1-ci6-virtual-row-host/events/02_python_identity.log": "d43c104b33923ab5efae60961de778190fbbd36bad074415fe057584589df583",
+    "runs/dm1-ci6-virtual-row-host/events/03_native_build.log": "8b7cdb8bd738593761449b1fb445b65c8c7a6f67ff128b4a23cca61b9171af90",
+    "runs/dm1-ci6-virtual-row-host/events/04_native_check.log": "ea57746b2bc4b8061face7667acb8b6627c755dcae2cdbe21249808669da96e2"
+  },
+  "remaining": [
+    "Real checkpoint routing collection",
+    "Subtile row distributions",
+    "TaskWork, DRAM-floor and solver profile consumption"
+  ]
+}

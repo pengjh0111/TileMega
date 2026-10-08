@@ -91,3 +91,10 @@ checks (`results/CI6_joint_group_host.json`). The distribution yields each
 static virtual prefix task's probability of activity; its mean must equal
 the sum of per-expert padded block counts. Real-profile and solver consumption
 remain pending.
+
+verified: stable virtual block row totals pass 6/6 routing and 10/10 identity
+checks, both native routing ctests and check-policy
+(`results/CI6_virtual_rows_host.json`). Every BM profile conserves T*K
+assignments; each virtual ID retains its own row mean and prefix activity.
+This establishes host statistics only. Actual routes, row-subtile distributions
+and TaskWork/DRAM-floor/solver pricing are still pending.
