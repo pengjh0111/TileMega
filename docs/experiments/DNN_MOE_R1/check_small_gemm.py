@@ -45,6 +45,8 @@ def main():
         diff_sha256=hashlib.sha256(subprocess.check_output(['git', 'diff', '--binary', 'HEAD'], cwd=args.root)).hexdigest(),
         compiler_version=subprocess.check_output([nvcc, '--version'], text=True), compiler_sha256=sha(nvcc),
         scope='new TN16/TK16/TK32 dense/tiled-B mainloops only; independent FP32 oracle, tails, split offsets, canaries and bitwise row/tiled reads; paged ring, convolution and expert operand policies and solver integration pending')
+    result['baselines']=dict(vllm_version=subprocess.check_output(
+        ['/root/venv_vllm/bin/python','-c','from importlib.metadata import version; print(version("vllm"))'],text=True).strip())
     try:
         for m, n, k, stages in configurations:
             for arch in ((80, 89, 90, 100, 120) if (m, n, k, stages) in architecture_cases else (89,)):
@@ -66,7 +68,7 @@ def main():
                     cu_sha256=sha(source), binary_sha256=sha(binary),
                     nvcc_version=result['compiler_version'], compiler_sha256=result['compiler_sha256'],
                     compiler_command=command[2:], macros=definitions, macros_sha256=sha(macro_path),
-                    arch=f'sm_{arch}', execution=dict(pg=['l2', 'tiled'], phase='body_unit'),
+                    arch=f'sm_{arch}', baselines=result['baselines'], execution=dict(pg=['l2', 'tiled'], phase='body_unit'),
                     implementations=dict(gemm='ServingDmGemm', tile_m=m, tile_n=n, tile_k=k,
                                          stages=stages, k_warp_splits=2 if m == n == 16 else 1),
                     kernels=kernel_resources, spill=any(row['spill'] for row in kernel_resources.values()))
