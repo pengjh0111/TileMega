@@ -95,3 +95,16 @@ the two-slot ring wraps repeatedly. Host capacity/address checks pass 3/3
 the native-test identities after completion, without changing binaries; both
 old and enriched artifact IDs are retained. This synthetic single-CTA probe
 does not complete production binding-aware PageStream or expert/model gates.
+
+verified: monotonic weighted/unweighted last-arriver primitives pass 50/50
+fresh sm_89 processes, 32 epochs for each primitive and each of two separate
+banks. Five architectures compile with zero spills
+(`results/CI5_epoch_last_arriver.json`). All four compute warps write poisoned
+partials before publication; exactly one callback reads them per target/epoch.
+Zero contributions neither increment the ticket nor execute the callback.
+
+inferred: the release RMW follows every writer fence and compute convergence;
+the final acquire observes earlier arrivals before reduction. Static totals
+define unique epoch boundaries, and tickets are never reset. The runtime must
+protect partial storage across epochs and give L1/L2 separate banks. Full
+nonpaged event publication, elided-stage skipping, and §8.A.11 remain pending.
