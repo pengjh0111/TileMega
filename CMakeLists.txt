@@ -655,6 +655,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME isolated_evaluation COMMAND tilemega-unit isolated_evaluation)
 
   add_test(NAME skeleton_search_isolation COMMAND tilemega-unit skeleton_search_isolation)
+  add_test(NAME serving_search_rejection COMMAND tilemega-unit serving_search_rejection)
 
   add_test(NAME plan_skeleton COMMAND tilemega-unit plan_skeleton)
 

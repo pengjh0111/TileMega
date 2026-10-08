@@ -56,7 +56,7 @@ namespace tilemega::tests::serving_import_test { int TestServingImport(int, char
 namespace tilemega::tests::frontend_import_test { int TestFrontendImport(int, char**); }
 namespace tilemega::tests::skeleton_placement_test { int TestSkeletonPlacement(int, char**); }
 namespace tilemega::tests::isolated_evaluation_test { int TestIsolatedEvaluation(int, char**); }
-namespace tilemega::tests::skeleton_search_isolation_test { int TestSkeletonSearchIsolation(int, char**); }
+namespace tilemega::tests::skeleton_search_isolation_test { int TestSkeletonSearchIsolation(int, char**); int TestServingSearchRejection(int, char**); }
 namespace tilemega::tests::plan_skeleton_test { int TestPlanSkeleton(int, char**); }
 namespace tilemega::tests::variant_resource_test { int TestVariantResource(int, char**); }
 namespace tilemega::tests::symbolic_oracle_test { int TestSymbolicOracle(int, char**); }
@@ -122,6 +122,7 @@ int main(int argc, char** argv) {
     {"skeleton_placement", tilemega::tests::skeleton_placement_test::TestSkeletonPlacement},
     {"isolated_evaluation", tilemega::tests::isolated_evaluation_test::TestIsolatedEvaluation},
     {"skeleton_search_isolation", tilemega::tests::skeleton_search_isolation_test::TestSkeletonSearchIsolation},
+    {"serving_search_rejection", tilemega::tests::skeleton_search_isolation_test::TestServingSearchRejection},
     {"plan_skeleton", tilemega::tests::plan_skeleton_test::TestPlanSkeleton},
     {"variant_resource", tilemega::tests::variant_resource_test::TestVariantResource},
     {"symbolic_oracle", tilemega::tests::symbolic_oracle_test::TestSymbolicOracle},

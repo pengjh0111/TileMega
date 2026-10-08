@@ -178,6 +178,34 @@ struct SearchContext {
         partial_tile_n==argmax_tile_n))return;
     auto old_key=std::make_tuple(attention_kv_block,attention_query_rows,argmax_tile_n);
     auto next_key=std::make_tuple(kv_block,query_rows,partial_tile_n);
+    auto hit=serving_structures.find(next_key);
+    std::optional<frontend::ImportedSemantics> rebuilt;
+    std::vector<OperatorClass> next_classes;
+    if(!options.incremental_prepare || hit==serving_structures.end()) {
+      // A rejected shape must not move the active plan/classes into the cache:
+      // later candidates still read them after the evaluation catches an error.
+      frontend::ServingOptions requested;
+      requested.phase=imported.plan.serving_seq==1
+          ?frontend::ServingOptions::Phase::kDecode
+          :frontend::ServingOptions::Phase::kPrefill;
+      requested.deferred_norm=std::any_of(imported.plan.gemms.begin(),imported.plan.gemms.end(),
+          [](auto const& gemm){return gemm.norm_ss!=std::numeric_limits<std::uint32_t>::max();});
+      requested.seq=imported.plan.serving_seq;
+      requested.capacity=imported.plan.serving_capacity;
+      requested.kv_block=kv_block;requested.query_rows=query_rows;
+      requested.argmax_tile_n=partial_tile_n;
+      auto& next=rebuilt.emplace();
+      next.plan=frontend::BuildModelPlan(imported.bridge.nodes,imported.bridge.inputs,
+          imported.bridge.outputs,requested);
+      next.lifted=frontend::LiftSemantics(next.plan,imported.lift_options);
+      next_classes=BuildOperatorClasses(next);
+      if(next_classes.size()!=classes.size())
+        throw std::runtime_error("attention coordinate changed GEMM class count");
+      // Ec=capacity changes semantic signatures, but GEMM membership is stable.
+      for(std::size_t i=0;i<classes.size();++i)
+        if(next_classes[i].gemms!=classes[i].gemms)
+          throw std::runtime_error("attention coordinate changed GEMM class order");
+    }
     serving_structures[old_key]={std::move(imported.plan),std::move(imported.lifted),
         std::move(classes),std::move(floor),std::move(floor_values),std::move(base),
         std::move(last_structure),std::move(last_geometry),std::move(recent_flows),floor_attribute};
@@ -189,7 +217,6 @@ struct SearchContext {
       flow_cache.graph.reset();flow_cache.graph_geometry.clear();
       flow_cache.signatures.clear();flow_cache.floor_tensor_keys.clear();
     } else flow_cache={};
-    auto hit=serving_structures.find(next_key);
     if(options.incremental_prepare && hit!=serving_structures.end()) {
       auto state=std::move(hit->second);serving_structures.erase(hit);
       imported.plan=std::move(state.plan);imported.lifted=std::move(state.lifted);
@@ -202,33 +229,9 @@ struct SearchContext {
       if(options.common.timing)options.common.timing->Add("serving_structure_cache_hit");
       return;
     }
-    auto const& previous=serving_structures.at(old_key);
     if(options.common.timing)options.common.timing->Add("serving_structure_cache_miss");
-    frontend::ServingOptions requested;
-    requested.phase=previous.plan.serving_seq==1
-        ?frontend::ServingOptions::Phase::kDecode
-        :frontend::ServingOptions::Phase::kPrefill;
-    // Rebuilding an attention/argmax coordinate must preserve DN-off controls.
-    requested.deferred_norm=std::any_of(previous.plan.gemms.begin(),previous.plan.gemms.end(),
-        [](auto const& gemm){return gemm.norm_ss!=std::numeric_limits<std::uint32_t>::max();});
-    requested.seq=previous.plan.serving_seq;
-    requested.capacity=previous.plan.serving_capacity;
-    requested.kv_block=kv_block;
-    requested.query_rows=query_rows;
-    requested.argmax_tile_n=partial_tile_n;
-    auto plan=frontend::BuildModelPlan(imported.bridge.nodes,imported.bridge.inputs,
-        imported.bridge.outputs,requested);
-    imported.lifted=frontend::LiftSemantics(plan,imported.lift_options);
-    imported.plan=std::move(plan);
-    auto next_classes=BuildOperatorClasses(imported);
-    if(next_classes.size()!=previous.classes.size())
-      throw std::runtime_error("attention coordinate changed GEMM class count");
-    // Removing the decode merge at Ec=capacity changes the consumers of the
-    // O projection and therefore its semantic signature. Class identity is
-    // its GEMM membership, not a signature frozen at another attention shape.
-    for(std::size_t i=0;i<previous.classes.size();++i)
-      if(next_classes[i].gemms!=previous.classes[i].gemms)
-        throw std::runtime_error("attention coordinate changed GEMM class order");
+    imported.plan=std::move(rebuilt->plan);
+    imported.lifted=std::move(rebuilt->lifted);
     classes=std::move(next_classes);
     attention_kv_block=kv_block;attention_query_rows=query_rows;
     argmax_tile_n=partial_tile_n;
