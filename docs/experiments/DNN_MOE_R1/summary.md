@@ -33,7 +33,7 @@ that DNN or MoE execution is implemented.
 | CI-2 | verified descriptors, finite epilogue and GEMM/combiner dispatch (`descriptors.md`, `numerics.md`); new operand policies follow DN/MO bodies |
 | CI-3 | verified core ABI/dimensions, five targets, 50/50 fresh processes per seq (1/128/4096); CLI/model integration pending (`forward.md`) |
 | CI-4 | verified static access/metrics/table/WAR-WAW, exact bound encoding and virtual capacity/provenance; counted-write and memory-planner integration pending (`analysis.md`) |
-| CI-5 | verified primitives (50/50), synthetic table/counted stages (150/150) and automatic CG/codegen transport; paged forward/prefill cores (150/150); binding/page primitives (50/50); full binding PageStream, LA and real bodies pending (`synchronization.md`) |
+| CI-5 | verified primitives (50/50), synthetic table/counted stages (150/150), paged forward/prefill cores (150/150) and binding PageStream synthetic dispatch (100/100); nonpaged LA and real bodies pending (`synchronization.md`) |
 | CI-6 | verified CPU fitting and streaming-routing foundations (5/5 each); native samplers, actual fits and real routing profiles pending (`calibration.md`) |
 | CI-7 | verified table projection and geometry rebinding foundations; body classes, structural search and second-level selection pending |
 | DN-2 through DN-11 | not implemented |
@@ -162,6 +162,10 @@ T12 foundation: verified 5/5 CPU NNLS and observation metadata checks
 T12 foundation: verified 5/5 CPU streaming-weight, routing histogram, source
 token and queue checks (`results/CI6_routing_host.json`). Real routing and CUDA
 collector validation remain pending; no measured profile is reported.
+
+T4/T12: verified binding-aware production PageStream passes 100/100 fresh
+processes and five architectures (`results/CI5_binding_pagestream.json`).
+Resources retain StreamProbe spills; real router/rowgather/model gates pending.
 
 Remaining T3–T12 entries: pending implementation and required gates. G-DNN and G-MOE:
 not run. §8.A: primitive and synthetic table/counted/weighted-LA paths have fresh-process evidence; real-body and remaining path gates are pending. No new TaskBody

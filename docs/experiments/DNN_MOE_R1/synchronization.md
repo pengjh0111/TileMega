@@ -115,3 +115,16 @@ verified: nonpaged access-proved selection/lowering passes 11/11 host checks
 It selects attention merge and split-K combine, excludes norm recompute and
 argmax, and rejects escaped split-K partials. Device integration and §8.A.11
 are pending. This is host evidence, not a synchronization claim.
+
+verified: production binding-aware PageStream/Task/GEMM paths pass 100/100
+fresh sm_89 processes (50 each for SYNC_V3=0/1), sixteen poisoned epochs per
+process (`results/CI5_binding_pagestream.json`). Window/table binding events,
+kappa=0/1/4/16, parked lookahead before dispatch, empty virtual notifications,
+expert source pages and split-K stage/LA are covered. Native page execution
+matches the independent numerical oracle and L1/L2 outputs match bitwise.
+Sixteen builds cover five architectures; StreamProbe spills are retained in
+the per-kernel resource records. Expectations were not changed.
+
+Pending: rowgather, real router/dispatch/experts, elided dispatch producer
+resolution in L1, model gates, and default-path G-REG. This fixture supplies
+synthetic dispatch records and dense A rows arranged in virtual order.
