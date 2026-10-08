@@ -256,3 +256,7 @@ T12 foundation: verified routing-profile consumption gate passes 8/8 CPU checks
 (`results/CI6_profile_identity_host.json`): content/file identities, HF layer
 chain, model/token domain and histogram conservation. Solver integration and
 real-profile observations remain pending.
+
+T12 foundation: verified joint routing histograms, marginal conservation and
+static prefix probabilities (`results/CI6_joint_group_host.json`): 6/6 sampling,
+9/9 identity and 6/6 native host checks. Real routing and pricing remain pending.

@@ -84,3 +84,10 @@ CLI/solver integration and real-profile validation remain pending.
 
 Pending: real routing observations and the TaskWork/DRAM-floor/solver consumers
 of the profile. No real-model routing estimate or timing value is reported.
+
+verified: joint grouped-block histograms pass independent Python alignment
+enumeration (6/6), identity checks (9/9), and six native host tests with policy
+checks (`results/CI6_joint_group_host.json`). The distribution yields each
+static virtual prefix task's probability of activity; its mean must equal
+the sum of per-expert padded block counts. Real-profile and solver consumption
+remain pending.
