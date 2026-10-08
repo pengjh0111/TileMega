@@ -5,6 +5,22 @@ from phase_d_r14 import family_candidate
 from tilemega.cli import plan_build_choices,read_config,compiler_features
 
 class FamilyGate(unittest.TestCase):
+    def test_recovery_has_new_names_and_preserves_completed_calibration(self):
+        from make_d_recovery import definitions
+        from make_phase0 import HERE
+        rows=definitions();old=json.loads((HERE/'queue/queue_phase_d1.json').read_text())
+        self.assertEqual(len(rows),9)
+        self.assertFalse({r['name'] for r in rows}&{r['name'] for r in old})
+        by_name={r['name']:r for r in rows}
+        for model in ('llama','qwen3'):
+            self.assertIn('D0',by_name[f'D1_{model}_v2']['after'])
+            self.assertIn('D_baseline_smoke_v2',by_name[f'D1_{model}_v2']['after'])
+            self.assertEqual(by_name[f'D1_smoke_{model}_v2']['after'],[f'D1_{model}_v2'])
+            self.assertEqual(by_name[f'D1_family_{model}_v2']['after'],[f'D1_smoke_{model}_v2'])
+        for step in rows:
+            self.assertNotIn('/raw/D_baseline_build/results.json',step['command'])
+            if any(str(x).endswith('/phase_d_r14.py') for x in step['command']):
+                self.assertEqual(step['command'][-2:],['--tag','_v2'])
     def test_resident2_family_keeps_ordinary_plan_and_prefill(self):
         settings=dict(resident2_batches=[16])
         self.assertEqual(plan_build_choices(('l2','pages'),settings,16,'decode'),[

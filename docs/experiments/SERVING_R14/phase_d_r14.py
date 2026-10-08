@@ -8,10 +8,13 @@ from tilemega.cli import Run,read_config
 from tilemega.build.identity import verify,sha
 from tilemega.serving.integrated_selection import integrated_ms,PASTS
 
+TAG=''
+def evidence_path(name):return HERE/'raw'/(name+TAG)
 def config(model):return ROOT/f'configs/e2e/{model}_r14.json'
 def prepare():
-    out=HERE/'raw/Dpre'
-    run(['cmake','--build','build-phase12','--target','tilemega','tilemega-loadbench','-j','6'],out/'build.log',6000)
+    out=evidence_path('Dpre')
+    run(['cmake','--build','build-phase12','--target','tilemega','tilemega-loadbench','tilemega-unit','-j','6'],out/'build.log',6000)
+    run(['ctest','--test-dir','build-phase12','-R','^(serving_search_rejection|skeleton_search_isolation|stage_flow)$','--output-on-failure'],out/'solver_regression.log',600)
     run([PYTHON,'python/tilemega/fingerprint.py','--check','build-phase12/tools/tilemega'],out/'fingerprint.log')
     for script in ('test/python/integrated_selection.py','test/python/test_attention_selection.py','test/python/serving_identity.py','docs/experiments/SERVING_R14/test_selection.py','docs/experiments/SERVING_R14/test_phase_d.py'):
         run([PYTHON,script],out/(Path(script).stem+'.log'))
@@ -19,8 +22,8 @@ def prepare():
     write(out/'loadbench.json',dict(path=str(binary),sha256=sha(binary),source_head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),source_sha256=sha(ROOT/'tools/experimental/loadbench/main.cu'),timing=False))
 
 def calibrate():
-    out=HERE/'raw/D0';runner=Run(read_config(config('llama')),os.environ['TILEMEGA_BIN']);runner.calibrate()
-    record=json.loads((HERE/'raw/Dpre/loadbench.json').read_text())
+    out=evidence_path('D0');runner=Run(read_config(config('llama')),os.environ['TILEMEGA_BIN']);runner.calibrate()
+    record=json.loads((evidence_path('Dpre')/'loadbench.json').read_text())
     if sha(record['path'])!=record['sha256']:raise ValueError('loading probe changed')
     run([PYTHON,ROOT/'docs/experiments/SERVING_R13/dram_ceiling.py','--binary',record['path'],'--out',out/'ceiling','--target',runner.target,'--target-out',runner.target],out/'ceiling.log',6600)
     # D1 must see the exact calibrated copy, not an editable external target.
@@ -28,7 +31,7 @@ def calibrate():
     write(out/'result.json',dict(target=str(runner.target),target_sha256=sha(runner.target),archived_target=str(copy),loadbench=record))
 
 def build(model):
-    out=HERE/f'raw/D1_{model}';cfg=read_config(config(model))
+    out=evidence_path(f'D1_{model}');cfg=read_config(config(model))
     run([PYTHON,'-m','tilemega','build','--config',config(model),'--run-dir',ROOT/f'runs/r14-{model}'],out/'build.log',25000)
     plans=json.loads((ROOT/f'runs/r14-{model}/plans.json').read_text())
     # Preserve original cache/selection data inside the committed evidence
@@ -61,21 +64,21 @@ def build(model):
 def smoke(model):
     rows=[];plans=json.loads((ROOT/f'runs/r14-{model}/plans.json').read_text());cfg=read_config(config(model))
     for b,plan in plans.items():
-        out=HERE/f'raw/D1_smoke_{model}/B{b}'
+        out=evidence_path(f'D1_smoke_{model}')/f'B{b}'
         run([PYTHON,'-m','tilemega.serving.smoke','--so',plan['decode'],'--model',cfg['model']['path'],'--batch',b,'--steps','64','--out',out],out/'run.log',600)
         report=json.loads((out/'smoke.json').read_text())
         if not report['pass']:raise ValueError('selected-plan smoke failed')
         rows.append(dict(batch=b,pass_=True,artifact_id=verify(plan['decode'])['artifact_id']))
-    write(HERE/f'raw/D1_smoke_{model}/results.json',rows)
+    write(evidence_path(f'D1_smoke_{model}')/'results.json',rows)
 
 def baseline_smoke():
     rows=[]
-    for cell,arm in json.loads((HERE/'phase_d_baseline_arms.json').read_text()).items():
-        out=HERE/'raw/D_baseline_smoke'/cell
+    for cell,arm in json.loads((HERE/f'phase_d_baseline_arms{TAG}.json').read_text()).items():
+        out=evidence_path('D_baseline_smoke')/cell
         run([PYTHON,'-m','tilemega.serving.smoke','--so',arm['decode'],'--model',arm['model_path'],'--batch',arm['batch'],'--steps','64','--out',out],out/'run.log',600)
         if not json.loads((out/'smoke.json').read_text())['pass']:raise ValueError('rebuilt control smoke failed '+cell)
         rows.append(dict(cell=cell,pass_=True,artifact_id=verify(arm['decode'])['artifact_id']))
-    write(HERE/'raw/D_baseline_smoke/results.json',rows)
+    write(evidence_path('D_baseline_smoke')/'results.json',rows)
 
 def family_candidate(rows):
     """Compare compatible Ec/attention variants with identical GEMM execution."""
@@ -105,11 +108,14 @@ def family(model):
     plans=json.loads((ROOT/f'runs/r14-{model}/plans.json').read_text())
     for b,plan in plans.items():cells[f'{model}_B{b}']=family_candidate(plan['decode_pg_choice']['candidates'])
     triggered=[cell for cell,row in cells.items() if row['different_past_winner'] and row['compatible_kv_packing'] and row['family_integral_gain']>=.02]
-    write(HERE/f'results/D1_planfamily_{model}.json',dict(cells=cells,triggered=triggered,status='requires_bounded_implementation' if triggered else 'not_triggered'))
+    write(HERE/f'results/D1_planfamily_{model}{TAG}.json',dict(cells=cells,triggered=triggered,status='requires_bounded_implementation' if triggered else 'not_triggered'))
     print('D1 completed; PlanFamily gate '+('triggered: '+','.join(triggered) if triggered else 'not triggered'))
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('action',choices=('prepare','calibrate','build','smoke','baseline_smoke','family'));p.add_argument('--model',choices=('llama','qwen3'));a=p.parse_args()
+    global TAG
+    p=argparse.ArgumentParser();p.add_argument('action',choices=('prepare','calibrate','build','smoke','baseline_smoke','family'));p.add_argument('--model',choices=('llama','qwen3'));p.add_argument('--tag',default='');a=p.parse_args()
+    if any(c not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-' for c in a.tag):p.error('invalid evidence tag')
+    TAG=a.tag
     if a.action in ('build','smoke','family'):globals()[a.action](a.model)
     else:globals()[a.action]()
 if __name__=='__main__':main()
