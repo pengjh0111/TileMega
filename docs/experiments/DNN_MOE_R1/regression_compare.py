@@ -48,7 +48,7 @@ def main():
     for side in ('reference', 'candidate'):
         path = args.root / side / 'ctest.json'
         if args.partial and not path.exists():
-            ctest[side] = dict(exit_code=None, status='not run; native test build failed')
+            ctest[side] = dict(exit_code=None, status='ctest receipt absent for this checkpoint')
         else:
             ctest[side] = json.loads(path.read_text())
     artifacts_passed = all(all(r[k] for k in
