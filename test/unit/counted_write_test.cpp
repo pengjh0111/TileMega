@@ -47,6 +47,8 @@ int TestCountedWrite(int,char**) {
     auto reads=ProjectTaskRead(combine,consumer,consumer.element_access->partition,
         scatter.result,partial,{});
     auto contract=BindCountedTaskDependency(consumer,reads,{0,1},"rows");
+    auto aligned=BindAlignedCountedScatterDependency(producer,consumer,"partial",{0,1},"rows");
+    assert(aligned.expected==contract.expected && aligned.target_units==contract.target_units);
     int ntiles=(channels+channels_per_task-1)/channels_per_task;
     for(unsigned target=0;target<contract.expected.size();++target) {
       int begin=(target/ntiles)*consumer_rows;
@@ -58,6 +60,13 @@ int TestCountedWrite(int,char**) {
     rejected([&]{BindCountedTaskDependency(consumer,reads,{2,0},"rows");});
     rejected([&]{BindCountedTaskDependency(consumer,reads,{3},"rows");});
     rejected([&]{BindCountedTaskDependency(consumer,reads,{0,1},"");});
+    rejected([&]{BindAlignedCountedScatterDependency(producer,consumer,"partial",{0,1},"other");});
+    rejected([&]{BindAlignedCountedScatterDependency(producer,consumer,"missing",{0,1},"rows");});
+    rejected([&]{BindAlignedCountedScatterDependency(producer,consumer,"partial",{0},"rows");});
+    auto misaligned_geometry=geometry;
+    misaligned_geometry.Tile("down","c",F(channels_per_task==4?8:4));
+    auto misaligned=Instantiate({{scatter,combine}},misaligned_geometry);
+    rejected([&]{BindAlignedCountedScatterDependency(misaligned.nodes[0],misaligned.nodes[1],"partial",{0,1},"rows");});
     if(tokens!=2 || block!=2 || consumer_rows!=1 || channels_per_task!=4)continue;
     std::vector<int> rows(slots);std::iota(rows.begin(),rows.end(),0);
     bool one_producer=false,two_producers=false;

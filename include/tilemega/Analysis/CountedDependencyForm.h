@@ -17,4 +17,12 @@ struct CountedDependencyForm {
 CountedDependencyForm BindCountedTaskDependency(OperatorNode const& consumer,
     CouplingRelation const& reads, std::vector<unsigned> const& unit_axes,
     std::string binding_source, ParamBinding const& known = {});
+
+// Requires a permutation of logical units from the named runtime binding.
+// Static axes must match the consumer partition; dispatch establishes the
+// permutation, while this proof excludes duplicate column contributions.
+CountedDependencyForm BindAlignedCountedScatterDependency(
+    OperatorNode const& producer, OperatorNode const& consumer,
+    std::string const& tensor, std::vector<unsigned> const& unit_axes,
+    std::string const& binding_source, ParamBinding const& known = {});
 } // namespace tilemega::analysis
