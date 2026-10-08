@@ -23,6 +23,8 @@
 #include <tilemega/Codegen/tasks/EventSync.cuh>
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
 #include <tilemega/Codegen/executor/CountedDependency.cuh>
+#include <tilemega/Codegen/executor/BindingGate.cuh>
+#include <tilemega/Codegen/MoeBinding.h>
 #endif
 #include <tilemega/Codegen/executor/ServingLaunch.cuh>
 #ifndef TILEMEGA_PDL_TRIGGER
@@ -2202,6 +2204,21 @@ inline DeviceModel Create(ModelSpec const& spec,
                    runtime_variant_index, i);
       std::exit(2);
     }
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(desc.access.b==DmBAccess::kExpertIndirect) {
+      auto const& a=desc.access;
+      auto rows=std::uint64_t(a.binding_blocks)*CeilDiv(a.block_rows,tiling.tile_m)*tiling.tile_m;
+      if(!a.binding_blocks || !a.binding_rows || !a.experts || !a.block_rows ||
+         !a.expert_stride || rows!=std::uint64_t(m) ||
+         a.binding>=spec.buffer_count || a.rows>=spec.buffer_count ||
+         a.binding_blocks>spec.buffers[a.binding].Elements(dims)/
+             (16/(spec.buffers[a.binding].dtype==0?sizeof(ModelElement):4)) ||
+         a.binding_rows>spec.buffers[a.rows].Elements(dims)/
+             (16/(spec.buffers[a.rows].dtype==0?sizeof(ModelElement):4)) ||
+         a.expert_stride>spec.buffers[desc.b].Elements(dims)/a.experts)
+        throw std::invalid_argument("expert binding geometry escapes its allocation");
+    }
+#endif
     int split = runtime.split_k;
     int k_tiles = CeilDiv(desc.k, tiling.tile_k);
     int chunks = split < k_tiles ? split : k_tiles;
@@ -2420,6 +2437,15 @@ inline DeviceModel Create(ModelSpec const& spec,
   // The generated plan names original stages. Split-K combines are created
   // above, so resolve handoff references only after entry[] is complete.
   for (std::uint32_t i = 0; i < spec.stage_count; ++i) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(spec.stages[i].binding_producer!=kDmNoIndex) {
+      auto source=spec.stages[i].binding_producer;
+      if(source>=spec.stage_count)
+        throw std::invalid_argument("binding producer outside generated stages");
+      for(unsigned expanded=entry[i];expanded<=done[i];++expanded)
+        model.stages[expanded].binding_producer=done[source];
+    }
+#endif
     auto target = spec.stages[i].handoff_reduce_stage;
     if (target == kNoOperand) continue;
     if (target == kHandoffAutoCombine) {
@@ -2951,6 +2977,32 @@ inline DeviceModel Create(ModelSpec const& spec,
     model.event_flags[dep.producer] |= kNeedsAggregateEvent;
 #endif
   }
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  for(unsigned consumer=0;consumer<model.stages.size();++consumer) {
+    auto const& stage=model.stages[consumer];
+    if(stage.kind!=TaskKind::kGemm || gemms[stage.gemm].access.b!=DmBAccess::kExpertIndirect)continue;
+    auto source=stage.binding_producer;
+    StageDependency const* binding=nullptr;
+    for(unsigned edge=offsets[consumer];edge<offsets[consumer+1];++edge)
+      if(dependencies[edge].producer==source) {
+        if(binding)throw std::invalid_argument("binding source requires one unioned dependency");
+        binding=&dependencies[edge];
+      }
+    if(source>=model.stages.size() || !binding ||
+       binding->map==StageDependency::Map::kCounted || binding->map==StageDependency::Map::kPhase)
+      throw std::invalid_argument("expert task has no static binding dependency");
+    for(unsigned task=0;task<unsigned(active_tasks(consumer));++task) {
+      bool nonempty=false;
+      if(!VisitStageDependencyIntervals(*binding,runtime_variant.dependency_intervals,task,
+          active_tasks(source),[&](RuntimeWindowBounds){nonempty=true;}) || !nonempty)
+        throw std::invalid_argument("expert binding dependency has an empty or invalid row");
+    }
+    // Loader is a separate warp. Compute FIFO cannot discharge its binding
+    // acquire, even if all dispatch producers belong to the same worker.
+    model.event_flags[source]|=(stage_kappa(source)==0 || binding->map==StageDependency::Map::kAll)
+        ? kNeedsAggregateEvent : kNeedsFineEvents;
+  }
+#endif
   for(auto const& dep:dependencies)if(dep.map==StageDependency::Map::kPhase) {
     auto const flags=model.event_flags[dep.producer];
     if(stage_kappa(dep.producer)!=1 ||

@@ -10,6 +10,7 @@ struct DmCombineRunner {
   int chunks, tile_m, tile_n;
   char* shared;
   backend::DmEpilogueArguments operands;
+  int partial_rows = 0;
 
   template <class Spec>
   __device__ void Run() const {
@@ -26,7 +27,7 @@ struct DmCombineRunner {
         float sum = 0;
         if (row < operands.m && column < operands.n)
           for (int chunk = 0; chunk < chunks; ++chunk)
-            sum += partials[(std::size_t(chunk) * operands.m + row) * operands.n + column];
+            sum += partials[(std::size_t(chunk) * (partial_rows ? partial_rows : operands.m) + row) * operands.n + column];
         tile[Epilogue::Index(i / TileN, i % TileN)] = sum;
       }
       executor::ComputeSync();

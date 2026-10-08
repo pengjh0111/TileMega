@@ -20,6 +20,90 @@ static_assert(TILEMEGA_PAGE_POOL_OFFSET%1024==0);
 #define TILEMEGA_LOOKAHEAD_BYTES 0
 #endif
 
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+template<class Visit>
+__device__ inline void VisitBindingEvents(Params const& p,unsigned stage,int task,
+    bool l2,EventCounter* events,unsigned long long iteration,Visit const& visit) {
+  auto producer=p.stages[stage].binding_producer;
+  if(producer==kDmNoIndex || producer>=p.stage_count || !events) {
+    asm volatile("trap;");return;
+  }
+  if(!l2) {
+#if TILEMEGA_SYNC_V3
+    visit(&events[producer].arrivals,static_cast<unsigned long long>(gridDim.x)*(iteration+1));
+#else
+    visit(&events[producer].epoch,iteration+1);
+#endif
+    return;
+  }
+  StageDependency const* binding=nullptr;
+  for(unsigned i=p.dependency_offsets[stage];i<p.dependency_offsets[stage+1];++i)
+    if(p.dependencies[i].producer==producer) {
+      if(binding){asm volatile("trap;");return;}
+      binding=p.dependencies+i;
+    }
+  if(!binding || binding->map==StageDependency::Map::kCounted ||
+     binding->map==StageDependency::Map::kPhase) {asm volatile("trap;");return;}
+  int produced=ActiveBlocks(p,p.stages[producer]);
+  auto event=[&](unsigned group) {
+    auto* row=events+EventIndex(p,producer,group);
+#if TILEMEGA_SYNC_V3 || TILEMEGA_EVENT_RED_PUBLISH
+    visit(&row->arrivals,EventTriggers(p,producer,group)*(iteration+1));
+#else
+    visit(&row->epoch,iteration+1);
+#endif
+  };
+  if(binding->map==StageDependency::Map::kAll || StageKappa(p,producer)==0) {
+    event(kWholeStageEventGroup);
+    return;
+  }
+  bool nonempty=false;
+  if(!VisitStageDependencyIntervals(*binding,p.dependency_intervals,task,produced,
+      [&](RuntimeWindowBounds interval) {
+        int k=StageKappa(p,producer);
+        for(int group=interval.first/k;group<CeilDiv(interval.past,k);++group) {
+          nonempty=true;
+          event(group);
+        }
+      }) || !nonempty) asm volatile("trap;");
+}
+__device__ inline bool BindingReady(Params const& p,unsigned stage,int task,
+    bool l2,EventCounter* events,unsigned long long iteration) {
+  bool ready=true;
+  VisitBindingEvents(p,stage,task,l2,events,iteration,[&](unsigned long long* event,auto target) {
+    ready=executor::BindingGate{event,target}.LoaderReady() && ready;
+  });
+  return ready;
+}
+template<bool Loader>
+__device__ inline void WaitBinding(Params const& p,unsigned stage,int task,
+    bool l2,EventCounter* events,unsigned long long iteration,Watch const* watch) {
+  VisitBindingEvents(p,stage,task,l2,events,iteration,[&](unsigned long long* event,auto target) {
+    if constexpr(Loader)executor::BindingGate{event,target,watch}.WaitLoader();
+    else {
+      if(ComputeThread()==0)WaitAtLeast(event,target,watch?*watch:Watch{});
+      ComputeSync();
+    }
+  });
+}
+__device__ inline MoeBindingStatus Binding(GemmInvocation const& inv,int tile_m,
+                                           MoeBindingRecord* block) {
+  auto const& a=inv.access;
+  int tiles_per_block=CeilDiv(a.block_rows,inv.tile_m);
+  if(!tiles_per_block) {asm volatile("trap;");return MoeBindingStatus::kInvalid;}
+  auto id=tile_m/tiles_per_block;
+  MoeBindingView view{static_cast<MoeBindingRecord const*>(inv.binding),
+      static_cast<MoeBindingRow const*>(inv.rows),a.binding_blocks,a.binding_rows,
+      a.experts,a.block_rows};
+  auto status=view.Lookup(id,block);
+  if(status==MoeBindingStatus::kInvalid)asm volatile("trap;");
+  if(status==MoeBindingStatus::kActive &&
+     unsigned(tile_m%tiles_per_block)*inv.tile_m>=block->row_count)
+    return MoeBindingStatus::kEmpty;
+  return status;
+}
+#endif
+
 // The second cursor visits the same task order as the loader. It only yields
 // operand ranges with no producer in the current step: packed weights and
 // historical KV rows. Activation and newly appended KV never enter this list.
@@ -29,8 +113,12 @@ struct PageStream {
   bool l2;
   unsigned slot=0,stage=0;
   int task=0,part=0,offset=0;
-  __device__ PageStream(Params const* first,unsigned count,bool placed)
+  EventCounter* events=nullptr;
+  unsigned long long base_iteration=0;
+  __device__ PageStream(Params const* first,unsigned count,bool placed,
+      EventCounter* readiness=nullptr,unsigned long long iteration=0)
       :params(first),steps(count),l2(placed) {
+    events=readiness;base_iteration=iteration;
     if(l2)slot=params[0].schedule_offsets[blockIdx.x];
     else task=blockIdx.x;
   }
@@ -63,11 +151,26 @@ struct PageStream {
         auto const& first=table[s.gemm];
         auto point=DecodeSplitTask(task,first.tiles_m*first.tiles_n,first.chunks);
         auto const& inv=table[s.gemm+point.chunk];
-        if(inv.serving_weight_base && inv.serving_k_total_full>0) {
+        auto* weight=inv.serving_weight_base;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+        if(inv.access.b==DmBAccess::kExpertIndirect) {
+          // A failed lookahead probe must leave this task and byte cursor
+          // untouched: compute may need the current page to reach dispatch.
+          if(!BindingReady(p,stage,task,l2,events,base_iteration+step))return false;
+          MoeBindingRecord binding;
+          auto status=Binding(inv,point.tile/inv.tiles_n,&binding);
+          if(status==MoeBindingStatus::kActive) {
+            std::uint64_t expert;
+            if(!MoeExpertOffset(binding,inv.access.expert_stride,&expert))asm volatile("trap;");
+            weight+=expert;
+          }else weight=nullptr;
+        }
+#endif
+        if(weight && inv.serving_k_total_full>0) {
           int tn=point.tile%inv.tiles_n;
           int stage_bytes=inv.tile_n*inv.serving_tile_k*2;
           int kt=CeilDiv(inv.serving_k_total_full,inv.serving_tile_k);
-          source=reinterpret_cast<char const*>(inv.serving_weight_base)+
+          source=reinterpret_cast<char const*>(weight)+
               (std::size_t(tn)*kt+inv.serving_k_begin/inv.serving_tile_k)*stage_bytes;
           total=CeilDiv(cute::get<2>(inv.problem),inv.serving_tile_k)*stage_bytes;
         }
@@ -134,7 +237,7 @@ struct Lookahead {
   }
 };
 
-__device__ inline ServingGemmOperands Operands(GemmInvocation const& inv) {
+__device__ inline ServingGemmOperands Operands(GemmInvocation const& inv,int tile_m=-1) {
   auto [m,n,k,batch]=inv.problem;(void)batch;
   ServingGemmOperands p;
   p.a=inv.mainloop.ptr_A-inv.serving_k_begin;
@@ -155,6 +258,15 @@ __device__ inline ServingGemmOperands Operands(GemmInvocation const& inv) {
   p.binding=inv.binding; p.rows=inv.rows; p.a_scale=inv.a_scale;
   p.dm_buffers=inv.dm_buffers;
   p.a_row_stride=static_cast<int>(cute::get<0>(inv.mainloop.dA));
+  if(tile_m>=0 && inv.access.b==DmBAccess::kExpertIndirect) {
+    MoeBindingRecord block;
+    if(Binding(inv,tile_m,&block)!=MoeBindingStatus::kActive) {asm volatile("trap;");return p;}
+    std::uint64_t expert;
+    if(!MoeExpertOffset(block,inv.access.expert_stride,&expert))asm volatile("trap;");
+    p.b+=expert;p.weight_base+=expert;
+    int tiles_per_block=CeilDiv(inv.access.block_rows,inv.tile_m);
+    p.m=(tile_m/tiles_per_block)*tiles_per_block*inv.tile_m+block.row_count;
+  }
 #endif
   return p;
 }
@@ -234,11 +346,16 @@ __device__ void Gemm(Params const& params,GemmInvocation const& inv,int local,Ri
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     static_assert(TILEMEGA_PAGE_POOL_OFFSET-TILEMEGA_PAGE_WORKSPACE_OFFSET>=Body::kDmWorkspaceBytes);
 #endif
-    auto operands=Operands(inv);
+    auto operands=Operands(inv,local/inv.tiles_n);
     if(params.serving_tensor_maps) {
       operands.tensor_map=static_cast<executor::TensorMap const*>(params.serving_tensor_maps)+inv.serving_weight_buffer;
       operands.tensor_k_begin=inv.serving_k_begin;
     }
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    // The static tensor map describes the whole expert allocation. A selected
+    // expert's packed base is copied by the architecture's ordinary page path.
+    if(inv.access.b==DmBAccess::kExpertIndirect)operands.tensor_map=nullptr;
+#endif
     if constexpr(Loader) {
 #if TILEMEGA_LOOKAHEAD_BYTES > 0
       Body::Load(operands,local%inv.tiles_n,ring,sequence,*lookahead);
@@ -273,12 +390,12 @@ __device__ bool Combine(Params const& p,StageDesc const& stage,int task,char* wo
     using V=GemmVariant<Variant>;
     bool last=false;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-    auto operands = DmEpilogueOperands(Operands(inv));
+    auto operands = DmEpilogueOperands(Operands(inv,task/inv.tiles_n));
     operands.output = p.buffers[stage.operand[1]];
     auto reduce = [&] {
       DispatchDmEpilogue(inv.dm_gemm, DmCombineRunner<PageArch, V::kTileM, V::kTileN>{
           reinterpret_cast<float const*>(p.buffers[stage.operand[0]]), inv.chunks,
-          task / inv.tiles_n, task % inv.tiles_n, work, operands});
+          task / inv.tiles_n, task % inv.tiles_n, work, operands, cute::get<0>(inv.problem)});
     };
     if constexpr (Last)
       return executor::LastArriver::Run(ticket, inv.chunks, shared_last, reduce);
@@ -391,6 +508,15 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
   if(s.kind==TaskKind::kGemm) {
     auto const* table=static_cast<GemmInvocation const*>(p.gemms);
     auto point=DecodeSplitTask(task,table[s.gemm].tiles_m*table[s.gemm].tiles_n,table[s.gemm].chunks);
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    bool empty=false;
+    if(table[s.gemm].access.b==DmBAccess::kExpertIndirect) {
+      WaitBinding<Loader>(p,stage_index,task,L2,events,iteration,ring.watch);
+      MoeBindingRecord block;
+      empty=Binding(table[s.gemm],point.tile/table[s.gemm].tiles_n,&block)!=MoeBindingStatus::kActive;
+    }
+    if(!empty)
+#endif
     Gemm<Loader,L2>(p,table[s.gemm+point.chunk],point.tile,ring,sequence,work,
         events,iteration,lookahead);
     if constexpr(!Loader)if(s.handoff_reduce_stage!=kNoOperand) {
@@ -419,8 +545,14 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
           }
         }
       }else {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+        bool last=empty ? executor::LastArriver::Run(ticket,table[s.gemm].chunks,
+            ring.SharedLastFlag(),[] {}) : Combine<true>(p,reducer,point.tile,work,ticket,
+            ring.SharedLastFlag());
+#else
         bool last=Combine<true>(p,reducer,point.tile,work,ticket,
             ring.SharedLastFlag());
+#endif
         if constexpr(L2)if(last) {
           Publish(p,events,s.handoff_reduce_stage,point.tile,iteration);
           TraceReducer(p,s.handoff_reduce_stage,point.tile,stage_index,task);
@@ -506,7 +638,17 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
   if constexpr(!Loader) {
     auto ptr=[&](int i){return p.buffers[s.operand[i]];};
     switch(s.kind) {
-      case TaskKind::kGemmCombine:Combine(p,s,task,work);break;
+      case TaskKind::kGemmCombine:
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+        {
+          auto const& inv=static_cast<GemmInvocation const*>(p.gemms)[s.gemm];
+          if(inv.access.b==DmBAccess::kExpertIndirect) {
+            MoeBindingRecord block;
+            if(Binding(inv,task/inv.tiles_n,&block)!=MoeBindingStatus::kActive)break;
+          }
+        }
+#endif
+        Combine(p,s,task,work);break;
       case TaskKind::kEmbedding:ServingEmbeddingTaskBody::RunRow(reinterpret_cast<int const*>(ptr(0)),
           reinterpret_cast<E const*>(ptr(1)),reinterpret_cast<E*>(ptr(2)),task,p.dims.seq,p.dims.past,
           p.dims.capacity,s.width,s.extent,
@@ -620,7 +762,7 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
   unsigned long long local_prefetched=0,local_loaded=0;
   unsigned long long& prefetched=persistent_prefetched?*persistent_prefetched:local_prefetched;
   unsigned long long& loaded=persistent_loaded?*persistent_loaded:local_loaded;
-  PageStream local_ahead(&p,1,L2);
+  PageStream local_ahead(&p,1,L2,events,iteration);
   PageStream& ahead=persistent_ahead?*persistent_ahead:local_ahead;
   Lookahead lookahead{&ahead,&prefetched,&loaded};
   bool previous_grid_ready=false;
@@ -750,7 +892,7 @@ void tilemega_loop_kernel(Params const* params,unsigned steps,EventCounter* even
   ring.Initialize();
   std::uint64_t sequence=0;
   bool const compute=executor::IsCompute();
-  paged::PageStream ahead(params,steps,true);
+  paged::PageStream ahead(params,steps,true,events,base_iteration);
   unsigned long long prefetched=0,loaded=0;
 #if TILEMEGA_PAGE_LOOP_SPLIT
   // The role is uniform for the lifetime of each warp. Keeping the compute
