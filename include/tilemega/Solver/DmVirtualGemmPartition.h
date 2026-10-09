@@ -25,12 +25,13 @@ inline void PartitionDmVirtualGemm(analysis::SemanticOp const& op,
     throw std::invalid_argument("virtual GEMM ownership axes are not independent");
   auto const& v=*op.Dim(virtual_dim);auto const& row=*op.Dim(row_dim);
   auto const& column=*op.Dim(column_dim);
+  auto capacity=v.BoundExtent().Substitute(known);
   if(!v.runtime || !v.capacity || v.binding_source.empty() ||
      (v.binding_requirement!="prefix_sum" && v.binding_requirement!="tensor_values") ||
      v.type!=IteratorType::kParallel || row.type!=IteratorType::kParallel ||
      column.type!=IteratorType::kParallel || row.runtime || column.runtime ||
      row.BoundExtent().Eval(known,{})!=access.block_rows ||
-     v.BoundExtent().Eval(known,{})<=0)
+     (capacity.IsConstant() && capacity.Eval({},{})<=0))
     throw std::invalid_argument("virtual GEMM binding capacity or row block is inconsistent");
   int factor=op.arithmetic=="swiglu_gemm"?2:1;
   if(config.tile_n%factor)

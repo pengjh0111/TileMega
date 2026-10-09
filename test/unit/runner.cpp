@@ -92,10 +92,20 @@ namespace tilemega::tests::counted_dependency_cg_test { int TestCountedDependenc
 namespace tilemega::tests::runtime_dependency_codec_test { int TestRuntimeDependencyCodec(int, char**); }
 namespace tilemega::tests::dm_page_resources_test { int TestDmPageResources(int, char**); }
 namespace tilemega::tests::dm_dram_images_test { int TestDmDramImages(int,char**); }
+namespace tilemega::tests::binding_request_traffic_test { int TestBindingRequestTraffic(int,char**); }
+namespace tilemega::tests::binding_request_pricing_test { int TestBindingRequestPricing(int,char**); }
+namespace tilemega::tests::dm_virtual_gemm_partition_test { int TestDmVirtualGemmPartition(int,char**); }
+namespace tilemega::tests::dm_semantic_signature_test { int TestDmSemanticSignature(int,char**); }
+namespace tilemega::tests::dm_virtual_frontend_test { int TestDmVirtualFrontend(int,char**); }
 int main(int argc, char** argv) {
   struct Entry { char const* name; int (*run)(int, char**); };
   Entry const entries[] = {
     {"dm_dram_images", tilemega::tests::dm_dram_images_test::TestDmDramImages},
+    {"binding_request_traffic", tilemega::tests::binding_request_traffic_test::TestBindingRequestTraffic},
+    {"binding_request_pricing", tilemega::tests::binding_request_pricing_test::TestBindingRequestPricing},
+    {"dm_virtual_gemm_partition", tilemega::tests::dm_virtual_gemm_partition_test::TestDmVirtualGemmPartition},
+    {"dm_semantic_signature", tilemega::tests::dm_semantic_signature_test::TestDmSemanticSignature},
+    {"dm_virtual_frontend", tilemega::tests::dm_virtual_frontend_test::TestDmVirtualFrontend},
     {"dm_page_resources", tilemega::tests::dm_page_resources_test::TestDmPageResources},
     {"counted_dependency_cg", tilemega::tests::counted_dependency_cg_test::TestCountedDependencyCg},
     {"counted_dependency_flow", tilemega::tests::counted_dependency_cg_test::TestCountedDependencyFlow},

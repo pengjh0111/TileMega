@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Frontend/SemanticLifting.h>
+#include <tilemega/Solver/DmVirtualGemmPartition.h>
 
 #include <algorithm>
 #include <cctype>
 #include <limits>
+#include <set>
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
@@ -585,8 +587,29 @@ analysis::Granularity LaunchGranularity(
         "runtime variant must provide one granularity per ModelPlan GEMM");
   analysis::Granularity g;
   ClosedForm const one = ClosedForm::Constant(1);
+  std::set<std::string> virtual_gemms;
+  if(plan.dm)for(auto const& op:model.ops) {
+    auto const& stage=plan.stages.at(op.stage);
+    if(stage.kind!=PlanTaskKind::kGemm || stage.gemm>=plan.gemms.size())continue;
+    auto const& access=plan.gemms.at(stage.gemm).access;
+    if(access.b!=codegen::DmBAccess::kExpertIndirect)continue;
+    auto const* semantic=model.sem.Find(op.name);
+    if(!semantic)throw std::invalid_argument("virtual GEMM lacks L-sem");
+    auto const& impl=gemms.empty()?GemmGranularity{}:gemms.at(stage.gemm);
+    solver::PartitionDmVirtualGemm(*semantic,access,
+        {impl.tile_m,impl.tile_n,impl.tile_k,impl.stages,impl.split_k},g);
+    if(impl.split_k>1) {
+      if(!semantic->reduction.splittable)
+        throw std::invalid_argument("virtual GEMM has no split reduction");
+      int k=static_cast<int>(plan.gemms.at(stage.gemm).k);
+      int chunks=std::min(impl.split_k,(k+impl.tile_k-1)/impl.tile_k);
+      g.Split(op.name,ClosedForm::Constant((k+chunks-1)/chunks));
+    }
+    virtual_gemms.insert(op.name);
+  }
   if (plan.serving) {
     for (auto const& op : model.ops) {
+      if(virtual_gemms.count(op.name))continue;
       auto const& stage = plan.stages.at(op.stage);
       switch (op.role) {
         case OpRole::kNorm:
@@ -652,6 +675,7 @@ analysis::Granularity LaunchGranularity(
     return gemms.empty() ? GemmGranularity{} : gemms[stage.gemm];
   };
   for (auto const& op : model.ops) {
+    if(virtual_gemms.count(op.name))continue;
     switch (op.role) {
       case OpRole::kNorm:
       case OpRole::kEmbedding:

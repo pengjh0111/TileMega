@@ -194,6 +194,7 @@ add_library(tilemega_core STATIC
   lib/Solver/CacheServiceCurve.cpp
   lib/Solver/ModelDescription.cpp
   lib/Solver/TaskModel.cpp
+  lib/Solver/BindingRequestTraffic.cpp
   lib/Solver/FusedTaskInput.cpp
   lib/Solver/RuntimeProjection.cpp
   lib/Solver/HandoffRuntimeProjection.cpp
@@ -377,6 +378,11 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/task_arithmetic_domain_test.cpp
     test/unit/dm_store_geometry_test.cpp
     test/unit/dm_dram_images_test.cpp
+    test/unit/binding_request_traffic_test.cpp
+    test/unit/binding_request_pricing_test.cpp
+    test/unit/dm_virtual_gemm_partition_test.cpp
+    test/unit/dm_semantic_signature_test.cpp
+    test/unit/dm_virtual_frontend_test.cpp
     test/unit/dm_page_resources_test.cpp
     test/unit/counted_dependency_cg_test.cpp
     test/unit/runtime_dependency_codec_test.cpp
@@ -764,6 +770,11 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME task_arithmetic_domain COMMAND tilemega-unit task_arithmetic_domain)
   add_test(NAME dm_store_geometry COMMAND tilemega-unit dm_store_geometry)
   add_test(NAME dm_dram_images COMMAND tilemega-unit dm_dram_images)
+  add_test(NAME binding_request_traffic COMMAND tilemega-unit binding_request_traffic)
+  add_test(NAME binding_request_pricing COMMAND tilemega-unit binding_request_pricing)
+  add_test(NAME dm_virtual_gemm_partition COMMAND tilemega-unit dm_virtual_gemm_partition)
+  add_test(NAME dm_semantic_signature COMMAND tilemega-unit dm_semantic_signature)
+  add_test(NAME dm_virtual_frontend COMMAND tilemega-unit dm_virtual_frontend)
   add_test(NAME dm_page_resources COMMAND tilemega-unit dm_page_resources)
   add_test(NAME counted_dependency_cg COMMAND tilemega-unit counted_dependency_cg)
   add_test(NAME counted_dependency_flow COMMAND tilemega-unit counted_dependency_flow)

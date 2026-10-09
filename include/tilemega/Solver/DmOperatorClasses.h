@@ -2,6 +2,7 @@
 #pragma once
 
 #include <tilemega/Analysis/CouplingCache.h>
+#include <tilemega/Solver/DmSemanticSignature.h>
 #include <tilemega/Frontend/ModelPlan.h>
 #include <map>
 #include <sstream>
@@ -12,7 +13,8 @@ namespace tilemega::solver {
 inline std::string GemmSemanticSignature(analysis::SemanticOp const& op,
     frontend::PlanGemm const& gemm, frontend::ModelPlan const& plan) {
   using namespace codegen;
-  auto base=analysis::SemanticSignature(op);
+  auto base=plan.dm && op.exact_task_access ? DmSemanticSignature(op)
+      : analysis::SemanticSignature(op);
   auto const& a=gemm.access;
   bool extended=a.a!=DmAAccess::kDense || a.b!=DmBAccess::kDense ||
       a.rows_per_batch || a.a_row_stride>1 || a.a_row_offset ||

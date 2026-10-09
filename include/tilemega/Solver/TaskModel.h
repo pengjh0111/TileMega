@@ -54,6 +54,8 @@ struct DerivedTaskInput {
   /// The operand the kind's body prefetches (`ScalarPrefetchOperand`) when it
   /// is on the read-only frontier, else -1.  Runtime-ownership tasks only.
   int prefetch_operand=-1;
+  // Typed main and side stores can have different physical byte widths.
+  std::optional<analysis::QuasiPolynomial> physical_write_bytes;
 };
 void BindTaskDramProvenance(DerivedTaskInput& input,
     ModelTaskSemantics const& semantic,analysis::DramFloor const& floor,

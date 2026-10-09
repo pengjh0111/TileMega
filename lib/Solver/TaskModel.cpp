@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/TaskModel.h>
 #include <tilemega/Solver/DmGemmTraits.h>
+#include <tilemega/Solver/BindingRequestTraffic.h>
+#include <tilemega/Solver/DmVirtualGemmPartition.h>
 #include <tilemega/Analysis/TaskElementRelation.h>
 #include <tilemega/Analysis/TaskOwnershipGeometry.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
@@ -16,6 +18,23 @@ namespace tilemega::solver {
 void BindTaskDramProvenance(DerivedTaskInput& input,
     ModelTaskSemantics const& semantic,analysis::DramFloor const& floor,
     analysis::ParamBinding const& theta,bool serving) {
+  if(input.task.element_access) {
+    auto const& op=input.task.element_access->semantic;
+    bool requests=analysis::HasBindingRequests(op.result_map);
+    for(auto const& read:op.operands)requests|=analysis::HasBindingRequests(read.map);
+    for(auto const& read:op.element_reads)requests|=analysis::HasBindingRequests(read.map);
+    for(auto const& write:op.additional_writes)requests|=analysis::HasBindingRequests(write.map);
+    if(requests) {
+      auto traffic=DeriveBindingRequestTraffic(input.task,floor,theta);
+      input.physical_read_bytes=std::move(traffic.read_bytes);
+      input.physical_write_bytes=std::move(traffic.write_bytes);
+      input.no_producer_read_bytes=std::move(traffic.no_producer_read_bytes);
+      input.external_write_bytes=std::move(traffic.external_write_bytes);
+      input.produced_live_bytes=traffic.produced_live_bytes;
+      input.stream_bytes=floor.no_producer_bytes.Eval(theta);
+      return;
+    }
+  }
   auto accesses=DeriveModelTaskAccesses(semantic,input);
   std::vector<analysis::QuasiPolynomial> external_reads,external_writes,typed_reads;
   bool mixed_width=false;
@@ -68,6 +87,8 @@ TaskMemoryTraffic DeriveTaskMemoryTraffic(DerivedTaskInput const& input,
     traffic.global_read_bytes = count(*input.physical_read_bytes);
   traffic.global_write_bytes = write_element_bytes * count(physical
       ? input.work.write_elements : input.work.nominal_write_elements);
+  if(physical && input.physical_write_bytes)
+    traffic.global_write_bytes=count(*input.physical_write_bytes);
   if(physical && input.no_producer_read_bytes) {
     traffic.no_producer_read_bytes=count(*input.no_producer_read_bytes);
     traffic.external_write_bytes=count(*input.external_write_bytes);
@@ -89,6 +110,10 @@ std::vector<TaskMemoryTraffic> DeriveTaskMemoryTrafficBatch(DerivedTaskInput con
     read_element_bytes=1;
   }
   auto writes=(physical ? input.work.write_elements : input.work.nominal_write_elements).EvalPoints(theta,coordinates);
+  if(physical && input.physical_write_bytes) {
+    writes=input.physical_write_bytes->EvalPoints(theta,coordinates);
+    write_element_bytes=1;
+  }
   std::vector<long> np(coordinates.size(),0),ew(coordinates.size(),0);
   if(physical && input.no_producer_read_bytes) {
     np=input.no_producer_read_bytes->EvalPoints(theta,coordinates);
@@ -339,28 +364,35 @@ analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
     auto const& config=configs.at(stage.gemm);
     if (config.tile_m<=0 || config.tile_n<=0 || config.tile_k<=0 || config.split_k<=0)
       throw std::invalid_argument("invalid candidate task granularity");
-    auto const& output=owned?op.task_space:op.result;
-    auto const& output_map=owned?op.task_map:op.result_map;
-    bool grouped = !owned && model.serving && op.result.axes.size()==3 &&
-                   op.result.axes[1].name=="g" &&
-                   op.result.axes[2].name=="u";
-    if ((!grouped && output.axes.size()!=2) ||
-        output_map.results.size()!=output.axes.size())
-      throw std::invalid_argument("collective output rank is not implemented: "+op.name);
-    if (grouped && op.result.axes[2].extent.Eval({}, {}) % config.tile_n)
-      throw std::invalid_argument("packed group width must divide the serving N tile: "+op.name);
-    for (int axis=0;axis<int(output.axes.size());++axis) {
-      auto const& index=output_map.results[axis];
-      if (index.kind!=analysis::IndexResult::Kind::kAffine || index.terms.size()!=1 ||
-          !index.terms[0].coefficient.IsLiteral(1) || !index.terms[0].group.IsLiteral(1))
-        throw std::invalid_argument("collective output requires unit iteration indexing");
-      int tile = axis==0 ? config.tile_m :
-                 ((grouped && axis==1) ||
-                  (!owned && model.serving && output.axes[axis].name=="tile")
-                     ? 1 : (!owned && model.serving && output.axes[axis].name=="i"
-                                ? config.tile_n/2 : config.tile_n));
-      granularity.Tile(op.name,index.terms[0].dim,
-                       analysis::ClosedForm::Constant(tile));
+    bool virtual_binding=owned && !model.gemm_access.empty() && model.gemm_access.at(stage.gemm).b==
+        codegen::DmBAccess::kExpertIndirect;
+    if(virtual_binding) {
+      PartitionDmVirtualGemm(op,model.gemm_access.at(stage.gemm),config,
+          granularity,model.MetricBindings());
+    } else {
+      auto const& output=owned?op.task_space:op.result;
+      auto const& output_map=owned?op.task_map:op.result_map;
+      bool grouped = !owned && model.serving && op.result.axes.size()==3 &&
+                     op.result.axes[1].name=="g" &&
+                     op.result.axes[2].name=="u";
+      if ((!grouped && output.axes.size()!=2) ||
+          output_map.results.size()!=output.axes.size())
+        throw std::invalid_argument("collective output rank is not implemented: "+op.name);
+      if (grouped && op.result.axes[2].extent.Eval({}, {}) % config.tile_n)
+        throw std::invalid_argument("packed group width must divide the serving N tile: "+op.name);
+      for (int axis=0;axis<int(output.axes.size());++axis) {
+        auto const& index=output_map.results[axis];
+        if (index.kind!=analysis::IndexResult::Kind::kAffine || index.terms.size()!=1 ||
+            !index.terms[0].coefficient.IsLiteral(1) || !index.terms[0].group.IsLiteral(1))
+          throw std::invalid_argument("collective output requires unit iteration indexing");
+        int tile = axis==0 ? config.tile_m :
+                   ((grouped && axis==1) ||
+                    (!owned && model.serving && output.axes[axis].name=="tile")
+                       ? 1 : (!owned && model.serving && output.axes[axis].name=="i"
+                                  ? config.tile_n/2 : config.tile_n));
+        granularity.Tile(op.name,index.terms[0].dim,
+                         analysis::ClosedForm::Constant(tile));
+      }
     }
     if (!op.reduction.splittable) continue;
     auto const* reduction=op.Dim(op.reduction.dim);

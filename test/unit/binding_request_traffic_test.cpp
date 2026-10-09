@@ -6,7 +6,8 @@
 #include <iostream>
 #include <stdexcept>
 
-int main() {
+namespace tilemega::tests::binding_request_traffic_test {
+int TestBindingRequestTraffic(int,char**) {
   using namespace tilemega::analysis;
   using tilemega::solver::DeriveBindingRequestTraffic;
   IslContext isl;
@@ -66,4 +67,7 @@ int main() {
   }
   assert(checks==(1+5+17)*2*2*2*2);
   std::cout<<"Binding request traffic: 368 tile byte/provenance cases PASS\n";
+  return 0;
 }
+
+} // namespace tilemega::tests::binding_request_traffic_test
