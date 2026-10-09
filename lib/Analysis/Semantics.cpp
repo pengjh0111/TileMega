@@ -129,7 +129,9 @@ std::string ReductionSemantics::Serialize() const {
     if (i) out << ",";
     out << ownership[i];
   }
-  out << "])";
+  out << "]";
+  if(partial_values!=1)out<<", partial_values="<<partial_values;
+  out<<")";
   return out.str();
 }
 

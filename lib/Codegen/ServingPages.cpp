@@ -22,28 +22,36 @@ void ConfigureServingPrefetch(mlir::ModuleOp module,TargetSpec const& target,int
   }
   if(depth<1 || depth>2 || (stride!=32 && stride!=64 && stride!=128))
     throw std::invalid_argument("prefetch depth must be 1/2 and stride 32/64/128");
-  auto model=solver::ModelDescription::FromCouplingGraph(module,{0,0,0},"prefetch-frontier");
-  analysis::SemanticGraph sem;std::set<std::string> seen;
-  for(auto const& s:model.task_semantics)if(seen.insert(s.op.name).second)sem.ops.push_back(s.op);
-  auto graph=analysis::Instantiate(sem,{});
-  std::map<std::string,analysis::CouplingRelation> written,reads;
-  for(auto const& op:sem.ops) {
-    auto const& task=*graph.Find(op.name);
-    written[op.result.name]=written[op.result.name].Union(analysis::ElementAccess(task,
-        analysis::BuildWriteMap(task),{},analysis::AccessDomain::kPhysicalTensor).Image());
-    for(auto const& w:op.additional_writes)
-      written[w.tensor.name]=written[w.tensor.name].Union(analysis::ExactElementRead(op,task,
-          {w.tensor,w.map,w.nonnegative},{}).Image());
-    for(auto const& read:op.element_reads)
-      reads[read.tensor.name]=reads[read.tensor.name].Union(analysis::ExactElementRead(op,task,read,{}).Image());
-  }
   auto plan=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   auto roles=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.dimension_roles");
-  auto buffers=plan.getAs<mlir::ArrayAttr>("buffers");
   auto info=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
+  auto past=roles.getAs<mlir::StringAttr>("past");
+  bool historical=false;
+  if(past && info.getAs<mlir::IntegerAttr>("seq").getInt()==1)
+    for(auto attr:plan.getAs<mlir::ArrayAttr>("stages"))
+      historical|=mlir::cast<mlir::DictionaryAttr>(attr).getAs<mlir::StringAttr>("kind").getValue()=="kFusedAttention";
+  std::map<std::string,analysis::CouplingRelation> written,reads;
+  // Only historical KV requests consume this frontier. Spatial DNN maps
+  // retain their exact coupling proof without constructing an unused union.
+  if(historical) {
+    auto model=solver::ModelDescription::FromCouplingGraph(module,{0,0,0},"prefetch-frontier");
+    analysis::SemanticGraph sem;std::set<std::string> seen;
+    for(auto const& s:model.task_semantics)if(seen.insert(s.op.name).second)sem.ops.push_back(s.op);
+    auto graph=analysis::Instantiate(sem,{});
+    for(auto const& op:sem.ops) {
+      auto const& task=*graph.Find(op.name);
+      written[op.result.name]=written[op.result.name].Union(analysis::ElementAccess(task,
+          analysis::BuildWriteMap(task),{},analysis::AccessDomain::kPhysicalTensor).Image());
+      for(auto const& w:op.additional_writes)
+        written[w.tensor.name]=written[w.tensor.name].Union(analysis::ExactElementRead(op,task,
+            {w.tensor,w.map,w.nonnegative},{}).Image());
+      for(auto const& read:op.element_reads)
+        reads[read.tensor.name]=reads[read.tensor.name].Union(analysis::ExactElementRead(op,task,read,{}).Image());
+    }
+  }
+  auto buffers=plan.getAs<mlir::ArrayAttr>("buffers");
   auto batch=roles.getAs<mlir::StringAttr>("batch");
   std::string B=batch?batch.getValue().str():std::string();
-  auto past=roles.getAs<mlir::StringAttr>("past");
   mlir::OpBuilder b(module.getContext());std::vector<mlir::Attribute> stages,proofs;
   for(auto attr:plan.getAs<mlir::ArrayAttr>("stages")) {
     auto stage=mlir::cast<mlir::DictionaryAttr>(attr);mlir::NamedAttrList updated(stage);unsigned mask=0;

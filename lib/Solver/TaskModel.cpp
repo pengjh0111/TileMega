@@ -474,6 +474,10 @@ analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
                     (!owned && model.serving && output.axes[axis].name=="tile")
                        ? 1 : (!owned && model.serving && output.axes[axis].name=="i"
                                   ? config.tile_n/2 : config.tile_n));
+        if(model.dm && owned && axis==1 && op.arithmetic=="simple_gate_gemm") {
+          if(config.tile_n%2)throw std::invalid_argument("DM GEMM N tile splits a channel pair");
+          tile=config.tile_n/2;
+        }
         granularity.Tile(op.name,index.terms[0].dim,
                          analysis::ClosedForm::Constant(tile));
       }
@@ -484,7 +488,16 @@ analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
     auto extent=reduction->extent.Eval({},{});
     long k_tiles=(extent+config.tile_k-1)/config.tile_k;
     long chunks=std::min<long>(config.split_k,k_tiles);
-    if (chunks>1)
+    if(model.dm && owned) {
+      analysis::TaskReductionIndex index;
+      index.index=analysis::IndexResult::Dim(op.reduction.dim,analysis::ClosedForm::Constant(1),
+          analysis::ClosedForm::Constant(config.tile_k));
+      index.capacity=analysis::ClosedForm::Constant(k_tiles);
+      index.issued_width=analysis::ClosedForm::Constant(config.tile_k);
+      index.chunks=chunks>1?chunks:0;
+      granularity.IndexReduction(op.name,std::move(index));
+      if(chunks>1)granularity.Split(op.name,analysis::ClosedForm::Constant(1));
+    }else if (chunks>1)
       granularity.Split(op.name,reduction->extent.CeilDiv(analysis::ClosedForm::Constant(chunks)));
   }
   auto graph=analysis::Instantiate(semantics,granularity);

@@ -161,6 +161,9 @@ struct ReductionSemantics {
   /// Which iteration dims own one partial contribution. Empty means every
   /// parallel dim, which is the ordinary case.
   std::vector<std::string> ownership;
+  // A fused channel gate keeps independent FP32 dots until the combiner.
+  // One preserves legacy partial tensors and serialization exactly.
+  unsigned partial_values = 1;
   std::string Serialize() const;
 };
 

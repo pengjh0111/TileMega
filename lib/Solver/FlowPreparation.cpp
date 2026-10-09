@@ -495,6 +495,8 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
           auto const& partition=input.task.element_access->partition;
           iterations=(chunks>1?partition.reduction_chunk:
               partition.reduction_index->capacity).Eval(theta,{});
+          if(partition.reduction_index->chunks)
+            iterations=input.work.nominal_task_reduce_extent.BindCoordinates(piece.representative).Eval(theta)/g.tile_k;
         }
         p.inflight_bytes=std::max(16.,std::min(p.dram_bytes,
             (g.stages-1)*p.no_producer_dram_bytes/iterations));

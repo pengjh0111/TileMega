@@ -14,6 +14,10 @@ std::vector<ArithmeticDeclaration> const& ArithmeticDeclarations() {
   static const std::vector<ArithmeticDeclaration> table = {
     {"gemm", {0,2,0,0,1,false}, {0,0,0,0,1,false}, true,true,true,
      "implemented", "one length-K dot per output: K FMA = 2K; BF16 MMA, FP32 SIMT"},
+    {"simple_gate_gemm", {1,4,0,0,1,false}, {0,0,0,0,1,false}, true,true,true,
+     "dm_simple_gate", "two length-K dots and one rounded channel-pair multiplication per compact output"},
+    {"simple_gate_combine", {-1,1,0,0,1,false}, {0,0,0,0,1,false}, false,false,true,
+     "dm_simple_gate_combine", "R=2*chunks: two (chunks-1) dot sums followed by one rounded pair multiplication"},
     {"swiglu_gemm", {0,4,0,0,1,false}, {1,0,0,0,1,false}, true,true,true,
      "serving_epilogue", "two length-K dots per output followed by one SiLU and multiplication"},
     {"argmax_gemm", {0,2,0,0,1,false}, {0,0,0,0,1,false}, true,true,true,

@@ -44,7 +44,11 @@ inline void PartitionDmConvGemm(analysis::SemanticOp const& op,
   partition.capacity=fixed(geometry.iterations);partition.issued_width=fixed(tk);
   granularity.IndexReduction(op.name,std::move(partition));
   granularity.Tile(op.name,UnitTaskOwnershipDimension(op,0),fixed(config.tile_m));
-  granularity.Tile(op.name,UnitTaskOwnershipDimension(op,1),fixed(config.tile_n));
+  auto columns=op.task_space.axes[1].extent.Eval(known,known);
+  if(columns<=0 || conv.k%columns || (conv.k/columns!=1 && conv.k/columns!=2) ||
+     config.tile_n%(conv.k/columns))
+    throw std::invalid_argument("convolution output contraction differs from its N tile");
+  granularity.Tile(op.name,UnitTaskOwnershipDimension(op,1),fixed(config.tile_n/(conv.k/columns)));
   if(config.split_k>1)granularity.Split(op.name,fixed(geometry.iterations/config.split_k));
 }
 } // namespace tilemega::solver

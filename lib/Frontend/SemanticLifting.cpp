@@ -742,14 +742,26 @@ analysis::Granularity LaunchGranularity(
         if (impl.tile_m <= 0 || impl.tile_n <= 0 || impl.tile_k <= 0 ||
             impl.stages <= 0 || impl.split_k <= 0)
           throw std::invalid_argument("GEMM granularity fields must be positive");
+        auto factor=plan.dm && model.sem.Find(op.name)->arithmetic=="simple_gate_gemm"?2:1;
+        if(impl.tile_n%factor)throw std::invalid_argument("DM GEMM N tile splits a channel pair");
         g.Tile(op.name, "m", ClosedForm::Constant(impl.tile_m))
-            .Tile(op.name, "n", ClosedForm::Constant(impl.tile_n));
-        if (impl.split_k > 1) {
+            .Tile(op.name, "n", ClosedForm::Constant(impl.tile_n/factor));
+        if (impl.split_k > 1 || plan.dm) {
           int const k = static_cast<int>(plan.gemms[plan.stages[op.stage].gemm].k);
           int const chunks = std::min(impl.split_k,
                                       (k + impl.tile_k - 1) / impl.tile_k);
-          int const chunk_extent = (k + chunks - 1) / chunks;
-          g.Split(op.name, ClosedForm::Constant(chunk_extent));
+          if(plan.dm) {
+            analysis::TaskReductionIndex index;
+            index.index=analysis::IndexResult::Dim(model.sem.Find(op.name)->reduction.dim,
+                one,ClosedForm::Constant(impl.tile_k));
+            index.capacity=ClosedForm::Constant((k+impl.tile_k-1)/impl.tile_k);
+            index.issued_width=ClosedForm::Constant(impl.tile_k);index.chunks=chunks>1?chunks:0;
+            g.IndexReduction(op.name,std::move(index));
+            if(chunks>1)g.Split(op.name,one);
+          }else {
+            int const chunk_extent = (k + chunks - 1) / chunks;
+            g.Split(op.name, ClosedForm::Constant(chunk_extent));
+          }
         }
         break;
       }

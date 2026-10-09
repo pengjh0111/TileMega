@@ -108,13 +108,26 @@ struct Builder {
   void Chain(SemanticOp& op,PlanGemm const& g,ClosedForm rows) const {
     if(g.chain.count>8 || g.chain.side_count>5)
       throw std::invalid_argument("invalid DNN epilogue descriptor length");
+    unsigned unit=0;
+    for(unsigned i=0;i<g.chain.count;++i)if(g.chain.operations[i].kind==codegen::DmEpilogueKind::kGatePair) {
+      if(unit || g.chain.operations[i].gate!=codegen::DmGatePair::kSimpleGate ||
+         !g.chain.operations[i].unit || g.n%(2*g.chain.operations[i].unit))
+        throw std::invalid_argument("DNN GEMM requires one complete SimpleGate channel pair");
+      unit=g.chain.operations[i].unit;
+    }
+    bool contracted=false;
     for(unsigned i=0;i<g.chain.count;++i) {
       auto const& step=g.chain.operations[i];
       using K=codegen::DmEpilogueKind;
       if(step.kind==K::kBias || step.kind==K::kScale) {
         auto id=step.parameter[0];
+        auto column=unit && !contracted?Add({I("n"),I("n",unit,unit)}):I("n");
         op.epilogue_operands.push_back(Read(id,
-            T(Buffer(id).name,{{"channel",C(g.n)}}),{I("n")}));
+            T(Buffer(id).name,{{"channel",C(unit && contracted?g.n/2:g.n)}}),{column}));
+        if(unit && !contracted) {
+          column.offset=column.offset+C(unit);
+          op.epilogue_operands.push_back(Read(id,T(Buffer(id).name,{{"channel",C(g.n)}}),{column}));
+        }
       }else if(step.kind==K::kResidual) {
         auto id=step.parameter[0];auto mapped=Mapped(id,step.residual_map,rows,g.n);
         op.epilogue_operands.push_back(Read(id,std::move(mapped.first),std::move(mapped.second)));
@@ -123,7 +136,8 @@ struct Builder {
           op.epilogue_operands.push_back(Read(scale,
               T(Buffer(scale).name,{{"channel",C(g.n)}}),{I("n")}));
         }
-      }else if(step.kind!=K::kActivation) {
+      }else if(step.kind==K::kGatePair)contracted=true;
+      else if(step.kind!=K::kActivation) {
         throw std::invalid_argument("DNN GEMM pairing/norm requires explicit reduction semantics");
       }
     }
@@ -383,22 +397,32 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
       b.Own(op,b.batch,channels);b.Record(index,std::move(op),OpRole::kGlobalPoolReduce,output);
     }else if(stage.kind==PlanTaskKind::kGemm) {
       auto const& g=plan.gemms.at(stage.gemm);
-      if(g.beta!=0 || g.epilogue!=PlanGemm::Epilogue::kStore || g.access.a_scale!=missing ||
+      if(g.beta!=0 || g.epilogue!=PlanGemm::Epilogue::kStore ||
          g.access.b!=codegen::DmBAccess::kDense)
         throw std::invalid_argument("DNN GEMM requires explicit semantics for its epilogue/access recipe");
       rows=b.batch*C(g.access.rows_per_batch?g.access.rows_per_batch:options.static_seq);
       op.kind=OperatorKind::kMatmul;op.arithmetic="gemm";
-      auto output=b.Mapped(g.d,g.access.write,rows,g.n);
+      unsigned unit=0;
+      for(unsigned i=0;i<g.chain.count;++i)if(g.chain.operations[i].kind==codegen::DmEpilogueKind::kGatePair) {
+        auto const& gate=g.chain.operations[i];
+        if(unit || gate.gate!=codegen::DmGatePair::kSimpleGate || !gate.unit || g.n%(2*gate.unit))
+          throw std::invalid_argument("DNN GEMM SimpleGate requires complete interleaved pairs");
+        unit=gate.unit;
+      }
+      auto columns=unit?g.n/2:g.n;
+      auto weight_column=unit?Add({I("n"),I("n",unit,unit)}):I("n");
+      auto output=b.Mapped(g.d,g.access.write,rows,columns);
       op.result=std::move(output.first);op.result_map.results=std::move(output.second);
       op.reduction.splittable=true;op.reduction.reduction_operator="add";
       op.reduction.partial_tensor=op.name+".partial";op.reduction.combiner=op.name+".combine";
       op.reduction.ownership={"m","n"};
+      if(unit)op.reduction.partial_values=2;
       if(g.access.a==codegen::DmAAccess::kIm2Col) {
         auto const& conv=plan.convolutions.at(g.access.conv);
         auto const& l=b.Buffer(conv.input_layout).layout;
         if(conv.input_layout!=g.a || g.access.rows_per_batch!=conv.p*conv.q)
           throw std::invalid_argument("convolution row or input map differs from its descriptor");
-        op.domain={D("m",rows),D("n",C(g.n)),D("c",C(conv.c),true),
+        op.domain={D("m",rows),D("n",C(columns)),D("c",C(conv.c),true),
             D("r",C(conv.r),true),D("s",C(conv.s),true)};
         op.operands={b.Read(g.a,b.Space(g.a,b.batch*C(conv.h*conv.w),conv.c),
             {I("m",1,conv.p*conv.q),
@@ -407,7 +431,7 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
              Add({I("m",conv.stride_w),I("m",-long(conv.stride_w)*conv.q,conv.q),
                   I("s",conv.dilation_w)},long(l.halo_left)-conv.pad_w),I("c")}),
             b.Read(g.b,T(b.Buffer(g.b).name,{{"output",C(g.n)},{"r",C(conv.r)},
-                {"s",C(conv.s)},{"channel",C(l.physical[3])}}),{I("n"),I("r"),I("s"),I("c")})};
+                {"s",C(conv.s)},{"channel",C(l.physical[3])}}),{weight_column,I("r"),I("s"),I("c")})};
         op.reduction.dim="c";
       }else if(g.access.a==codegen::DmAAccess::kDense) {
         auto const& layout=b.Buffer(g.a).layout;
@@ -422,7 +446,7 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
             pitch*=layout.logical[axis];
           }
         }
-        op.domain={D("m",rows),D("n",C(g.n)),D("k",C(g.k),true)};
+        op.domain={D("m",rows),D("n",C(columns)),D("k",C(g.k),true)};
         auto map=b.Rows(g.a,"k");
         if(g.access.a_row_offset || g.access.a_row_stride>1) {
           if(layout.rank && layout.rank!=2)
@@ -431,11 +455,29 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
         }
         auto source_rows=rows*C(std::max(1u,g.access.a_row_stride))+C(g.access.a_row_offset);
         op.operands={b.Read(g.a,b.Space(g.a,source_rows,g.k),map),
-            b.Read(g.b,T(b.Buffer(g.b).name,{{"output",C(g.n)},{"channel",C(g.k)}}),{I("n"),I("k")})};
+            b.Read(g.b,T(b.Buffer(g.b).name,{{"output",C(g.n)},{"channel",C(g.k)}}),{weight_column,I("k")})};
         op.reduction.dim="k";
       }else throw std::invalid_argument("DNN GEMM has an unsupported A map");
+      if(unit) {
+        auto partner=op.operands.at(1);partner.map.results[0].offset=partner.map.results[0].offset+C(unit);
+        op.operands.push_back(std::move(partner));op.arithmetic="simple_gate_gemm";
+      }
+      if(g.access.a_scale!=missing) {
+        auto id=g.access.a_scale;
+        auto const& scale=b.Buffer(id);auto const& layout=scale.layout;
+        auto channels=g.access.a==codegen::DmAAccess::kIm2Col?
+            plan.convolutions.at(g.access.conv).c:g.k;
+        if(!g.access.rows_per_batch || (scale.dtype!="bf16" && scale.dtype!="f32") ||
+           layout.rank!=2 || layout.kind!=codegen::DmLayout::kRowMajor ||
+           layout.logical[1]!=channels || layout.strides[1]!=1 ||
+           layout.strides[0]<channels)
+          throw std::invalid_argument("DNN A scale requires a per-image channel matrix");
+        op.operands.push_back(b.Read(id,T(scale.name,{{"image",b.batch},{"channel",C(channels)}}),
+            {I("m",1,g.access.rows_per_batch),I(g.access.a==codegen::DmAAccess::kIm2Col?"c":"k")}));
+      }
       b.Chain(op,g,rows);
-      b.Own(op,rows,g.n);b.GemmSideStores(op,g,rows);
+      b.Own(op,rows,columns);auto side_geometry=g;side_geometry.n=columns;
+      b.GemmSideStores(op,side_geometry,rows);
       b.Record(index,std::move(op),OpRole::kProjection,g.d);
     }else throw std::invalid_argument("DNN L-sem has no rule for plan stage "+std::to_string(index));
   }

@@ -95,12 +95,20 @@ CouplingRelation ProjectTaskElements(SemanticOp const& semantic,
     auto base = "(" + expression(dim->origin) + ") + " +
         std::to_string(partition.reduction_chunk.Eval(known, known)) + " * " + coordinate;
     auto reduced=iteration.at(dim->name);
+    auto span=expression(partition.reduction_chunk);
     if(partition.reduction_index) {
       base=std::to_string(partition.reduction_chunk.Eval(known,known))+" * "+coordinate;
       reduced=index(partition.reduction_index->index);
+      auto const& geometry=*partition.reduction_index;
+      if(geometry.chunks) {
+        auto capacity=std::to_string(geometry.capacity.Eval({},{}));
+        auto count=std::to_string(geometry.chunks);
+        base="floord("+capacity+"*("+coordinate+"),"+count+")";
+        span="floord("+capacity+"*("+coordinate+"+1),"+count+") - ("+base+")";
+      }
     }
     bounds.push_back("(" + base + ") <= (" + reduced + ") < (" +
-                     base + ") + (" + expression(partition.reduction_chunk) + ")");
+                     base + ") + (" + span + ")");
   }
   if(partition.reduction_index) {
     auto const& reduction=*partition.reduction_index;
@@ -135,6 +143,7 @@ void ValidateTaskReductionIndex(OperatorNode const& task) {
   append(semantic.Serialize());append(access.partition.ownership.Serialize());
   append(access.partition.reduction_chunk.ToString());append(reduction.index.Serialize());
   append(reduction.capacity.ToString());append(reduction.issued_width.ToString());
+  if(reduction.chunks)append("chunks="+std::to_string(reduction.chunks));
   append(std::to_string(task.output.axes.size()));
   for(unsigned i=0;i<task.output.axes.size();++i) {
     auto const& axis=task.output.axes[i];

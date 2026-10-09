@@ -19,6 +19,9 @@ void ValidateReductionIndex(TaskReductionIndex const& index) {
      (index.issued_width.IsConstant() && index.issued_width.Eval({},{})<=0) ||
      (index.index.outer_divisor.IsConstant() && index.index.outer_divisor.Eval({},{})<=0))
     throw std::invalid_argument("invalid indexed reduction geometry");
+  if(index.chunks && (!index.capacity.IsConstant() || index.capacity.Eval({},{})<index.chunks ||
+      !index.index.outer_divisor.IsLiteral(1)))
+    throw std::invalid_argument("balanced reduction chunks require bound iteration capacity");
 }
 
 int ResultAxisOf(SemanticOp const& op, std::string const& dim) {
@@ -163,9 +166,12 @@ std::string Granularity::Serialize() const {
       out << op << "." << dim << " = " << tile.ToString() << "\n";
   for (auto const& [op, chunk] : reduction_chunk)
     out << op << ".split = " << chunk.ToString() << "\n";
-  for(auto const& [op,index]:reduction_index)
+  for(auto const& [op,index]:reduction_index) {
     out<<op<<".reduction_index = "<<index.index.Serialize()<<" capacity="
-       <<index.capacity.ToString()<<" width="<<index.issued_width.ToString()<<"\n";
+       <<index.capacity.ToString()<<" width="<<index.issued_width.ToString();
+    if(index.chunks)out<<" chunks="<<index.chunks;
+    out<<"\n";
+  }
   return out.str();
 }
 
@@ -272,17 +278,37 @@ OperatorGraph Instantiate(SemanticGraph const& semantics, Granularity const& g) 
             [&](auto const& axis) { return axis.name == name; });
       };
       while (has_axis(chunk_axis.name)) chunk_axis.name += "_";
-      chunk_axis.extent = (indexed?index->second.capacity:reduced->BoundExtent()).CeilDiv(chunk);
+      chunk_axis.extent = indexed && index->second.chunks?ClosedForm::Constant(index->second.chunks):
+          (indexed?index->second.capacity:reduced->BoundExtent()).CeilDiv(chunk);
       chunk_axis.runtime = !indexed && reduced->runtime && !reduced->capacity;
+      if(op.reduction.partial_values!=1 && (op.reduction.partial_values!=2 ||
+         op.arithmetic!="simple_gate_gemm"))
+        throw std::invalid_argument("paired split partials require SimpleGate semantics");
+      std::string value_axis="partial_value";
+      while(has_axis(value_axis) || value_axis==chunk_axis.name)value_axis+="_";
       auto partial = op.result; partial.name = op.reduction.partial_tensor;
+      if(op.reduction.partial_values!=1)
+        partial.axes.push_back({value_axis,ClosedForm::Constant(op.reduction.partial_values)});
       partial.axes.push_back(chunk_axis);
       auto contribution_sem = op; contribution_sem.result = partial;
+      if(op.reduction.partial_values!=1) {
+        contribution_sem.domain.push_back({value_axis,ClosedForm::Constant(op.reduction.partial_values),
+            ClosedForm::Constant(0),IteratorType::kParallel,false});
+        contribution_sem.result_map.results.push_back(IndexResult::Dim(value_axis));
+        contribution_sem.arithmetic="gemm";
+        contribution_sem.reduction.partial_values=1;
+      }
       contribution_sem.additional_writes.clear();
       contribution_sem.epilogue_operands.clear();
       if(indexed) {
         auto partial_index=index->second.index;
         // floor(floor(x/a)/b) == floor(x/(a*b)) for positive a,b.
-        partial_index.outer_divisor=partial_index.outer_divisor*chunk;
+        if(index->second.chunks) {
+          auto count=ClosedForm::Constant(index->second.chunks);
+          partial_index.offset=partial_index.offset*count+count+ClosedForm::Constant(-1);
+          for(auto& term:partial_index.terms)term.coefficient=term.coefficient*count;
+          partial_index.outer_divisor=index->second.capacity;
+        }else partial_index.outer_divisor=partial_index.outer_divisor*chunk;
         contribution_sem.result_map.results.push_back(std::move(partial_index));
       } else contribution_sem.result_map.results.push_back(IndexResult::Dim(reduced->name,
           ClosedForm::Constant(1), chunk, ClosedForm::Constant(-1) * reduced->origin));
@@ -308,12 +334,19 @@ OperatorGraph Instantiate(SemanticGraph const& semantics, Granularity const& g) 
       result.nodes.push_back(std::move(contribution));
       SemanticOp combine_sem = op;
       combine_sem.name = op.reduction.combiner; combine_sem.kind = OperatorKind::kReduction;
-      combine_sem.arithmetic = "sum"; combine_sem.reduction = {};
+      combine_sem.arithmetic = op.reduction.partial_values==2?"simple_gate_combine":"sum";
+      combine_sem.reduction = {};
       combine_sem.operands.clear(); combine_sem.element_reads.clear();
       combine_sem.domain.erase(std::remove_if(combine_sem.domain.begin(), combine_sem.domain.end(),
           [](auto const& dim) { return dim.type == IteratorType::kReduction; }), combine_sem.domain.end());
       combine_sem.domain.push_back({chunk_axis.name, chunk_axis.extent, ClosedForm::Constant(0), IteratorType::kReduction, chunk_axis.runtime});
-      auto map = op.result_map; map.results.push_back(IndexResult::Dim(chunk_axis.name));
+      auto map = op.result_map;
+      if(op.reduction.partial_values!=1) {
+        combine_sem.domain.push_back({value_axis,ClosedForm::Constant(op.reduction.partial_values),
+            ClosedForm::Constant(0),IteratorType::kReduction,false});
+        map.results.push_back(IndexResult::Dim(value_axis));
+      }
+      map.results.push_back(IndexResult::Dim(chunk_axis.name));
       combine_sem.operands.push_back({op.name, partial, map, {}});
       combine_sem.operands.insert(combine_sem.operands.end(),
           op.epilogue_operands.begin(),op.epilogue_operands.end());

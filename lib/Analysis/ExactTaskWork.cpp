@@ -92,6 +92,20 @@ TaskWork DeriveExactTaskWork(OperatorNode const& task, ParamBinding const& known
   }
   auto tasks = writes.Reverse().ImageIdentity();
   work.nominal_task_reduce_extent = Polynomial(issued, known).SumAlong(tasks);
+  if(access.partition.reduction_index && access.partition.reduction_index->chunks &&
+      !access.partition.reduction_chunk.IsLiteral(0)) {
+    auto const& geometry=*access.partition.reduction_index;
+    auto coordinates=task.Coordinates();std::string tuple;
+    for(auto const& name:coordinates) {if(!tuple.empty())tuple+=",";tuple+=name;}
+    auto chunk=task.IsTiled(task.output.axes.size()-1)?task.output.axes.back().name:"0";
+    auto capacity=std::to_string(geometry.capacity.Eval(known,known));
+    auto count=std::to_string(geometry.chunks);
+    auto relation=CouplingRelation::FromIslText("{ ["+tuple+"] -> [_tm_issued_k] : "+
+        "floord("+capacity+"*("+chunk+"),"+count+") <= _tm_issued_k < "+
+        "floord("+capacity+"*("+chunk+"+1),"+count+") }");
+    work.nominal_task_reduce_extent=tasks.ApplyRange(relation).BoundTaskCard().Scale(
+        geometry.issued_width.Eval(known,known));
+  }
   if(!sem.domain_nonnegative.empty() && options.reduction_tiles.empty() &&
      access.partition.reduction_chunk.IsLiteral(0))
     work.nominal_task_reduce_extent=local_reduction;
@@ -104,6 +118,8 @@ TaskWork DeriveExactTaskWork(OperatorNode const& task, ParamBinding const& known
   auto chunk_count=[&]() {
     auto const* reduced=sem.Dim(sem.reduction.dim);
     if(!reduced)throw std::invalid_argument("partials lack their reduction dimension");
+    if(access.partition.reduction_index && access.partition.reduction_index->chunks)
+      return ClosedForm::Constant(access.partition.reduction_index->chunks);
     return (access.partition.reduction_index?access.partition.reduction_index->capacity:
         reduced->BoundExtent()).CeilDiv(access.partition.reduction_chunk);
   };

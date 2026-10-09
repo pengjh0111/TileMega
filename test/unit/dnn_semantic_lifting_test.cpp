@@ -75,7 +75,109 @@ CouplingRelation Relation(Points const& points,unsigned left,unsigned right) {
 }
 void Equal(CouplingRelation const& actual,Points const& points) {
   auto oracle=Relation(points,actual.DomainDimNames().size(),actual.RangeDimNames().size());
+  if(!Contains(actual,oracle) || !Contains(oracle,actual)) {
+    std::cerr<<"unexpected task access: "<<actual.ToString()<<"\nexpected pairs="<<points.size()<<'\n';
+    unsigned shown=0;
+    for(auto const& [task,element]:points) {
+      for(auto x:task)std::cerr<<x<<',';std::cerr<<" -> ";
+      for(auto x:element)std::cerr<<x<<',';std::cerr<<'\n';if(++shown==12)break;
+    }
+  }
   assert(Contains(actual,oracle) && Contains(oracle,actual));assert(Listed(actual)==points);
+}
+void DenseSplitPartitions() {
+  LiftOptions options;options.forward=true;options.batch_symbol="B";options.static_seq=1;
+  ParamBinding known;known.Bind("B",2);unsigned cases=0;
+  for(unsigned k:{1,16,27,72,129})for(unsigned split:{1,2,3,4,5,7}) {
+    ModelPlan p;p.dm=p.forward=true;p.dtype="bf16";p.serving_seq=1;p.buffers.resize(4);
+    for(unsigned id=0;id<4;++id)p.buffers[id].name="dense"+std::to_string(id);
+    auto& scale=p.buffers[2];scale.dtype="f32";scale.layout.rank=2;
+    scale.layout.logical[0]=scale.layout.physical[0]=2;
+    scale.layout.logical[1]=scale.layout.physical[1]=k;
+    scale.layout.strides[0]=k;scale.layout.strides[1]=1;
+    PlanGemm g;g.a=0;g.b=1;g.c=g.d=3;g.n=19;g.k=k;
+    g.access.rows_per_batch=19;g.access.a_scale=2;p.gemms={g};
+    PlanStage stage;stage.kind=PlanTaskKind::kGemm;stage.gemm=0;p.stages={stage};
+    auto lifted=LiftSemantics(p,options);
+    auto partition=LaunchGranularity(lifted,p,{{16,16,16,3,int(split)}});
+    auto graph=Instantiate(lifted.sem,partition);auto const& task=graph.nodes.front();
+    auto const& access=*task.element_access;auto const& read=access.semantic.operands.at(2);
+    auto relation=ProjectTaskRead(access.semantic,task,access.partition,read.tensor,read.map,{},known);
+    unsigned tiles=(k+15)/16,chunks=std::min(split,tiles);Points expected;
+    for(unsigned row=0;row<38;++row)for(unsigned n=0;n<19;++n)for(unsigned c=0;c<k;++c) {
+      std::vector<long> coordinate{long(row/16),long(n/16)};
+      if(chunks>1)coordinate.push_back(((c/16+1)*chunks-1)/tiles);
+      expected.insert({Coords(task,coordinate),{long(row/19),long(c)}});
+    }
+    Equal(relation,expected);
+    auto work=DeriveTaskWork(access.semantic,task,known);
+    assert(work.nominal_task_reduce_extent.SumDomain().Eval(known)==3*2*tiles*16);
+    if(chunks>1) {
+      auto const& geometry=*access.partition.reduction_index;
+      assert(EncodeTaskReductionIndex(DecodeTaskReductionIndex(EncodeTaskReductionIndex(geometry)))==EncodeTaskReductionIndex(geometry));
+      for(unsigned chunk=0;chunk<chunks;++chunk) {
+        ParamBinding coordinate;coordinate.Bind("m",0).Bind("n",0).Bind(task.output.axes.back().name,chunk);
+        auto issued=((chunk+1)*tiles/chunks-chunk*tiles/chunks)*16;
+        assert(work.nominal_task_reduce_extent.BindCoordinates(coordinate).Eval(known)==issued);
+      }
+    }
+    ++cases;
+  }
+  std::cout<<"DNN_DENSE_SPLIT cases="<<cases<<" issued_tile_partition_scale_reads PASS\n";
+}
+void SimpleGateReads() {
+  ModelPlan p;p.dm=p.forward=true;p.dtype="bf16";p.serving_seq=1;p.buffers.resize(4);
+  for(unsigned i=0;i<4;++i)p.buffers[i].name="sg"+std::to_string(i);
+  p.buffers[2].dtype="f32";
+  PlanGemm g;g.a=0;g.b=1;g.c=g.d=3;g.n=64;g.k=27;g.access.rows_per_batch=6;
+  g.chain.count=2;g.chain.operations[0].parameter[0]=2;
+  auto& gate=g.chain.operations[1];gate.kind=codegen::DmEpilogueKind::kGatePair;
+  gate.gate=codegen::DmGatePair::kSimpleGate;gate.unit=16;
+  gate.input_rounding=codegen::DmRounding::kBF16;p.gemms={g};
+  PlanStage stage;stage.kind=PlanTaskKind::kGemm;stage.gemm=0;p.stages={stage};
+  LiftOptions options;options.forward=true;options.batch_symbol="B";options.static_seq=1;
+  ParamBinding known;known.Bind("B",2);
+  auto lifted=LiftSemantics(p,options);auto const& semantic=lifted.sem.ops.front();
+  assert(semantic.arithmetic=="simple_gate_gemm" && semantic.operands.size()==3 &&
+         semantic.epilogue_operands.size()==2 && semantic.reduction.partial_values==2);
+  assert(EncodeSemanticOp(DecodeSemanticOp(EncodeSemanticOp(semantic)))==EncodeSemanticOp(semantic));
+  auto partition=LaunchGranularity(lifted,p,{{16,32,16,3,1}});
+  auto graph=Instantiate(lifted.sem,partition);auto const& task=graph.nodes.front();
+  assert(task.Count().Eval(known,{})==2);
+  auto const& access=*task.element_access;
+  for(unsigned partner=0;partner<2;++partner) {
+    auto const& read=semantic.operands.at(partner?2:1);
+    auto actual=ProjectTaskRead(access.semantic,task,access.partition,read.tensor,read.map,{},known);
+    Points expected;
+    for(unsigned row=0;row<12;++row)for(unsigned n=0;n<32;++n)for(unsigned k=0;k<27;++k)
+      expected.insert({Coords(task,{long(row/16),long(n/16)}),{long(n+(n/16)*16+partner*16),long(k)}});
+    Equal(actual,expected);
+  }
+  partition=LaunchGranularity(lifted,p,{{16,32,16,3,2}});
+  auto split=Instantiate(lifted.sem,partition);auto const& partial=split.nodes.front();
+  auto const& partial_access=*partial.element_access;auto const& ps=partial_access.semantic;
+  assert(ps.arithmetic=="gemm" && ps.result.axes.size()==4);
+  auto writes=ProjectTaskWrite(ps,partial,partial_access.partition,ps.result,ps.result_map,{},known);
+  Points expected;
+  for(unsigned row=0;row<12;++row)for(unsigned n=0;n<32;++n)
+    for(unsigned value=0;value<2;++value)for(unsigned chunk=0;chunk<2;++chunk)
+      expected.insert({Coords(partial,{long(row/16),long(n/16),long(chunk)}),
+          {long(row),long(n),long(value),long(chunk)}});
+  Equal(writes,expected);
+  assert(writes.BoundTaskCard().SumDomain().Eval(known)==12*32*2*2);
+  auto const& combine=split.nodes.back();auto const& combine_access=*combine.element_access;
+  auto const& cs=combine_access.semantic;auto const& read=cs.operands.front();
+  assert(cs.arithmetic=="simple_gate_combine");
+  auto reads=ProjectTaskRead(cs,combine,combine_access.partition,read.tensor,read.map,{},known);
+  expected.clear();
+  for(unsigned row=0;row<12;++row)for(unsigned n=0;n<32;++n)
+    for(unsigned value=0;value<2;++value)for(unsigned chunk=0;chunk<2;++chunk)
+      expected.insert({Coords(combine,{long(row/16),long(n/16)}),
+          {long(row),long(n),long(value),long(chunk)}});
+  Equal(reads,expected);
+  for(auto const* op:{&ps,&cs})
+    assert(EncodeSemanticOp(DecodeSemanticOp(EncodeSemanticOp(*op)))==EncodeSemanticOp(*op));
+  std::cout<<"DNN_SIMPLE_GATE exact_both_interleaved_weight_reads PASS\n";
 }
 void PoolAndGlobal() {
   LiftOptions options;options.forward=true;options.batch_symbol="B";options.static_seq=1;
@@ -486,11 +588,15 @@ int TestDnnSemanticLifting(int argc,char** argv) {
   if(argc==3 && std::string(argv[1])=="--emit-depthwise-gated") {DepthwiseIntegration(argv[2],true);return 0;}
   if(argc==3 && std::string(argv[1])=="--emit-depthwise-pool") {DepthwiseIntegration(argv[2],false,true);return 0;}
   if(argc==2 && std::string(argv[1])=="--pool-global-only") {PoolAndGlobal();return 0;}
+  if(argc==2 && std::string(argv[1])=="--dense-split-only") {DenseSplitPartitions();return 0;}
+  if(argc==2 && std::string(argv[1])=="--simple-gate-only") {SimpleGateReads();return 0;}
   if(argc==3 && std::string(argv[1])=="--emit-pool") {Integration(argc,argv);return 0;}
   if(argc==2 && std::string(argv[1])=="--integration-only") {
     Integration(argc,argv);return 0;
   }
   LiftOptions options;options.forward=true;options.batch_symbol="B";options.static_seq=1;
+  DenseSplitPartitions();
+  SimpleGateReads();
   for(unsigned batch:{1,2,3})for(int split:{1,5}) {
     ParamBinding known;known.Bind("B",batch);
     auto p=Fixture(batch);auto model=LiftSemantics(p,options);
@@ -511,6 +617,41 @@ int TestDnnSemanticLifting(int argc,char** argv) {
         expected.insert({Coords(reader,task),{long(row/24),long((row%24)/6*2+r),long(row%6*2+s),long(c)}});
       }
     Equal(reads,expected);
+    auto scaled=p;scaled.buffers.resize(9);
+    auto& scale=scaled.buffers.back();scale.name="per_image_scale";scale.dtype="f32";
+    scale.layout.rank=2;scale.layout.logical[0]=scale.layout.physical[0]=batch;
+    scale.layout.logical[1]=scale.layout.physical[1]=3;
+    scale.layout.strides[0]=3;scale.layout.strides[1]=1;
+    scaled.gemms[0].access.a_scale=8;
+    auto scaled_model=LiftSemantics(scaled,options);
+    auto scaled_graph=Instantiate(scaled_model.sem,LaunchGranularity(scaled_model,scaled,{{16,16,16,3,split}}));
+    auto const& scaled_task=*scaled_graph.Find("dnn.s1");
+    auto const& scaled_access=*scaled_task.element_access;
+    auto const& scaled_read=scaled_access.semantic.operands.at(2);
+    auto scale_reads=ProjectTaskRead(scaled_access.semantic,scaled_task,scaled_access.partition,
+        scaled_read.tensor,scaled_read.map,{},known);
+    Points expected_scale;
+    for(auto const& [task,element]:expected)expected_scale.insert({task,{element[0],element[3]}});
+    Equal(scale_reads,expected_scale);
+    scaled.gemms[0].access.a=codegen::DmAAccess::kDense;scaled.buffers[1].layout={};
+    scaled.stages={scaled.stages[1]};scale.layout.logical[1]=scale.layout.physical[1]=27;
+    scale.layout.strides[0]=27;
+    auto dense_model=LiftSemantics(scaled,options);
+    auto dense_graph=Instantiate(dense_model.sem,LaunchGranularity(dense_model,scaled,{{16,16,16,3,split}}));
+    auto const& dense_task=dense_graph.nodes.front();auto const& dense_access=*dense_task.element_access;
+    auto const& dense_read=dense_access.semantic.operands.at(2);
+    auto dense_scale=ProjectTaskRead(dense_access.semantic,dense_task,dense_access.partition,
+        dense_read.tensor,dense_read.map,{},known);
+    Points expected_dense;
+    for(unsigned row=0;row<batch*24;++row)for(unsigned n=0;n<19;++n)for(unsigned k=0;k<27;++k) {
+      std::vector<long> task{long(row/16),long(n/16)};
+      if(split>1)task.push_back(k/16);
+      expected_dense.insert({Coords(dense_task,task),{long(row/24),long(k)}});
+    }
+    Equal(dense_scale,expected_dense);
+    auto rejected=[&] {try {LiftSemantics(scaled,options);}catch(std::invalid_argument const&){return true;}return false;};
+    scale.layout.logical[1]=26;assert(rejected());scale.layout.logical[1]=27;
+    scale.dtype="i64";assert(rejected());scale.dtype="f32";
     auto const& wa=*writer.element_access;
     auto writes=ProjectTaskWrite(wa.semantic,writer,wa.partition,wa.semantic.result,wa.semantic.result_map,{},known);
     Points expected_edges;

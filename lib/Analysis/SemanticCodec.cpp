@@ -5,6 +5,8 @@
 #include <tilemega/Support/Json.h>
 #include <set>
 #include <stdexcept>
+#include <limits>
+#include <cmath>
 
 namespace tilemega::analysis {
 namespace {
@@ -107,6 +109,9 @@ MemoryEffect DecodeEffect(Value const& value) {
 Value Encode(SemanticOp const& op) {
   (void)VirtualBindings(op);
   ValidateTileStorage(op);
+  if(op.reduction.partial_values!=1 && (op.reduction.partial_values!=2 ||
+      !op.exact_task_access || !op.reduction.splittable || op.arithmetic!="simple_gate_gemm"))
+    throw std::invalid_argument("paired partials require an exact SimpleGate GEMM reduction");
   Object encoded{{"version",1},{"name",op.name},{"kind",int(op.kind)},{"dtype",int(op.dtype)},
     {"arithmetic",op.arithmetic},{"generic",op.generic},
     {"domain",EncodeArray(op.domain,[](auto const& dim) {
@@ -130,6 +135,8 @@ Value Encode(SemanticOp const& op) {
         {"partial",op.reduction.partial_tensor},{"combiner",op.reduction.combiner},
         {"splittable",op.reduction.splittable},
         {"ownership",EncodeArray(op.reduction.ownership,[](auto const& name){return Value(name);})}}}};
+  if(op.reduction.partial_values!=1)
+    encoded.emplace_back("partial_values",int(op.reduction.partial_values));
   if (!op.additional_writes.empty())
     encoded.emplace_back("additional_writes",
         EncodeArray(op.additional_writes,[](auto const& write) {
@@ -168,18 +175,29 @@ Value Encode(SemanticOp const& op) {
 std::string EncodeSemanticOp(SemanticOp const& op) { return Encode(op).Dump(0); }
 
 std::string EncodeTaskReductionIndex(TaskReductionIndex const& index) {
-  return Value(Object{{"version",1},{"index",EncodeIndex(index.index)},
-      {"capacity",index.capacity.ToString()},{"issued_width",index.issued_width.ToString()}}).Dump(0);
+  Object value{{"version",1},{"index",EncodeIndex(index.index)},
+      {"capacity",index.capacity.ToString()},{"issued_width",index.issued_width.ToString()}};
+  if(index.chunks)value.emplace_back("chunks",int(index.chunks));
+  return Value(std::move(value)).Dump(0);
 }
 TaskReductionIndex DecodeTaskReductionIndex(std::string const& payload) {
   auto value=json::Parse(payload);
   if(value.At("version").AsNumber("version")!=1)
     throw std::invalid_argument("unsupported task reduction index version");
   TaskReductionIndex index{DecodeIndex(value.At("index")),Form(value,"capacity"),Form(value,"issued_width")};
+  if(auto chunks=value.Find("chunks")) {
+    auto count=chunks->AsNumber("chunks");
+    if(count<1 || count>std::numeric_limits<int>::max() || count!=std::floor(count))
+      throw std::invalid_argument("invalid balanced reduction chunk count");
+    index.chunks=static_cast<unsigned>(count);
+  }
   if(index.index.kind!=IndexResult::Kind::kAffine ||
      (index.capacity.IsConstant() && index.capacity.Eval({},{})<=0) ||
      (index.issued_width.IsConstant() && index.issued_width.Eval({},{})<=0))
     throw std::invalid_argument("invalid task reduction index payload");
+  if(index.chunks && (!index.capacity.IsConstant() || index.capacity.Eval({},{})<index.chunks ||
+     !index.index.outer_divisor.IsLiteral(1)))
+    throw std::invalid_argument("invalid balanced reduction geometry");
   return index;
 }
 
@@ -230,6 +248,11 @@ SemanticOp DecodeSemanticOp(std::string const& payload) {
                 String(reduction,"combiner"),Boolean(reduction,"splittable"),{}};
   for (auto const& name:reduction.At("ownership").AsArray("ownership"))
     op.reduction.ownership.push_back(name.AsString("ownership axis"));
+  if(auto const* count=value.Find("partial_values")) {
+    auto number=count->AsNumber("partial_values");
+    if(number!=1 && number!=2)throw std::invalid_argument("semantic partial_values must be one or two");
+    op.reduction.partial_values=unsigned(number);
+  }
   if (auto const* exact = value.Find("exact_task_access")) {
     op.exact_task_access = exact->AsBool("exact_task_access");
     if (op.exact_task_access) {
@@ -292,6 +315,9 @@ SemanticOp DecodeSemanticOp(std::string const& payload) {
   }
   if (op.reduction.splittable && !names.count(op.reduction.dim))
     throw std::invalid_argument("semantic reduction names an unknown axis");
+  if(op.reduction.partial_values!=1 && (!op.exact_task_access || !op.reduction.splittable ||
+      op.arithmetic!="simple_gate_gemm"))
+    throw std::invalid_argument("paired partials require an exact SimpleGate GEMM reduction");
   (void)VirtualBindings(op);
   return op;
 }
