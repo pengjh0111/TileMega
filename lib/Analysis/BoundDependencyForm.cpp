@@ -94,6 +94,23 @@ BoundDependencyForm BindExactTaskDependencyLinear(CouplingRelation const& relati
   if (!producers || !consumers || relation.DomainDimNames().size() != 1 ||
       relation.RangeDimNames().size() != 1)
     throw std::invalid_argument("invalid bound linear dependency dimensions");
+  // A linear runtime ID stays one-dimensional when its extent is one.
+  // OperatorNode elides whole axes, so that synthetic task representation
+  // cannot be used to re-linearize singleton producer/consumer spaces.
+  if(producers==1 || consumers==1) {
+    BoundDependencyForm result;
+    auto table=BuildDependencyTableLinear(relation,producers,consumers);
+    if(auto window=FitClampedWindow(relation,producers,consumers)) {
+      auto encoded=EncodeWindow(*window,producers,consumers);
+      if(Contains(encoded,relation) && Contains(relation,encoded)) {
+        result.encoding=BoundDependencyForm::Encoding::kWindow;
+        result.window=*window;result.encoded_relation=std::move(encoded);
+        return result;
+      }
+    }
+    result.encoded_relation=table.encoded_relation;result.table=std::move(table);
+    return result;
+  }
   OperatorNode producer, consumer;
   producer.output = {"producer", {{relation.RangeDimNames()[0], ClosedForm::Constant(producers)}}};
   consumer.output = {"consumer", {{relation.DomainDimNames()[0], ClosedForm::Constant(consumers)}}};
