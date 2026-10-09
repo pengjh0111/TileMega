@@ -4,6 +4,9 @@
 #include <tilemega/Codegen/executor/PageRing.cuh>
 #include <tilemega/Solver/PageLayout.h>
 #include <tilemega/Codegen/tasks/ServingRMSNormTaskBody.h>
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Backend/ServingCircularLayout.h>
+#endif
 
 namespace tilemega::codegen {
 #ifndef TILEMEGA_WEIGHT_LAYOUT_TILED
@@ -35,7 +38,9 @@ struct PagedGemmTaskBody {
   static constexpr int kTileColumns = TileN;
 #endif
   static constexpr int kGroupPages=kBBytes>PageBytes?kBBytes/PageBytes:1;
+#if !defined(TILEMEGA_DM_SUPPORT) || !TILEMEGA_DM_SUPPORT
   static_assert(kGroupPages==1,"paged decode uses one-page weight stages");
+#endif
   static constexpr int kGroupStages=PageBytes>kBBytes?PageBytes/kBBytes:1;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
 #ifndef TILEMEGA_DM_PAGE_A_STAGES
@@ -215,6 +220,25 @@ struct PagedGemmTaskBody {
     __device__ void Wait(int) const {}
   };
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  __device__ static auto SharedWeightTile(Ring const& ring,std::uint64_t sequence,int stage) {
+    using namespace cute;
+    if constexpr(kGroupPages>1) {
+      auto layout=composition(backend::ServingCircularOffset<Pages*PageBytes/sizeof(Element)>{},
+          backend::ServingCircularIndex{Ring::SlotIndex(sequence)*(PageBytes/int(sizeof(Element)))},LayoutB{});
+      return make_tensor(make_smem_ptr(reinterpret_cast<Element*>(ring.data)),layout);
+    }else {
+      return make_tensor(make_smem_ptr(reinterpret_cast<Element*>(ring.Page(sequence)+stage*kBBytes)),LayoutB{});
+    }
+  }
+  template<class Thread,class Tensor>
+  __device__ static auto WeightFragment(Thread const& thread,Ring const& ring,Tensor const& tile) {
+    if constexpr(kGroupPages>1) {
+      // Circular addresses affect loads; register ownership remains the
+      // original static MMA layout, independent of the ring generation.
+      auto unwrapped=cute::make_tensor(cute::make_smem_ptr(reinterpret_cast<Element*>(ring.data)),LayoutB{});
+      return thread.partition_fragment_B(unwrapped);
+    }else return thread.partition_fragment_B(tile);
+  }
   template<class Accumulator>
   __device__ static float* Materialize(Accumulator const& accum,Mma const& mma,char* workspace) {
     using namespace cute;
@@ -279,8 +303,17 @@ struct PagedGemmTaskBody {
         }
         if(!direct){cute::cp_async_wait<kActivationSlots-2>();ComputeSync();}
         auto sA=make_tensor(make_smem_ptr(activation+(it%kActivationSlots)*TileM*TileK),LayoutA{});
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+        auto sB=SharedWeightTile(ring,sequence,stage);
+#else
         auto sB=make_tensor(make_smem_ptr(reinterpret_cast<Element*>(ring.Page(sequence)+stage*kBBytes)),LayoutB{});
-        auto rA=thread.partition_fragment_A(sA);auto rB=thread.partition_fragment_B(sB);
+#endif
+        auto rA=thread.partition_fragment_A(sA);
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+        auto rB=WeightFragment(thread,ring,sB);
+#else
+        auto rB=thread.partition_fragment_B(sB);
+#endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
         auto src_a=copy_a.get_slice(lane).partition_S(sA);
 #else
@@ -429,8 +462,13 @@ struct PagedGemmTaskBody {
         }
         if(!direct){cute::cp_async_wait<kActivationSlots-2>();ComputeSync();}
         auto sA=make_tensor(make_smem_ptr(activation+(it%kActivationSlots)*TileM*TileK),LayoutA{});
-        auto sB=make_tensor(make_smem_ptr(reinterpret_cast<Element*>(ring.Page(sequence)+stage*kBBytes)),LayoutB{});
-        auto rA=thread.partition_fragment_A(sA);auto rB=thread.partition_fragment_B(sB);
+        auto sB=SharedWeightTile(ring,sequence,stage);
+        auto rA=thread.partition_fragment_A(sA);
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+        auto rB=WeightFragment(thread,ring,sB);
+#else
+        auto rB=thread.partition_fragment_B(sB);
+#endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
         auto src_a=copy_a.get_slice(lane).partition_S(sA);
 #else
@@ -560,10 +598,18 @@ struct PagedGemmTaskBody {
         }
         ComputeSync();
         auto sA = make_tensor(make_smem_ptr(current), LayoutA{});
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+        auto sB=SharedWeightTile(ring,sequence,stage);
+#else
         auto sB = make_tensor(make_smem_ptr(reinterpret_cast<Element*>(
             ring.Page(sequence) + stage * kBBytes)), LayoutB{});
+#endif
         auto rA = thread.partition_fragment_A(sA);
+        #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+        auto rB=WeightFragment(thread,ring,sB);
+#else
         auto rB = thread.partition_fragment_B(sB);
+#endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
         auto src_a = copy_a.get_slice(lane).partition_S(sA);
 #else
