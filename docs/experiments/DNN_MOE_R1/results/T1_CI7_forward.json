@@ -122,7 +122,7 @@
   },
   "ctest_summary": {
     "candidate": "124/125 passed; independent_attention fails at D64/Q4/norm0/past63/extent64/head0/dim1, got 0.000717163 vs -0.00453073",
-    "reference": "73/97 passed; identical independent_attention mismatch; also missing ignored export fixtures, missing seven unbuilt executables, and six pre-existing target schema missing-field errors. These remain failures, not passing regression evidence."
+    "reference": "73/97 passed; identical independent_attention mismatch; also missing ignored export fixtures, missing six unbuilt executables, and six pre-existing target schema missing-field errors. These remain failures, not passing regression evidence."
   },
   "recovery": [
     {

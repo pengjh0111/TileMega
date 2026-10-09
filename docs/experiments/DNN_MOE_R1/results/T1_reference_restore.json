@@ -1,0 +1,26 @@
+{
+  "evidence": "verified",
+  "gate": "G-REG",
+  "passed": false,
+  "reference_head": "76beaea5e2d66e3311b36d020f470c4f016406d0",
+  "reference_tracked_tree_clean": true,
+  "ctest_passes": 92,
+  "ctest_total": 97,
+  "ctest_exit": 8,
+  "failed": [
+    "coupling_interface_gqa2",
+    "coupling_interface_mha4",
+    "target_audit",
+    "norm_prologue_gemm (not run)",
+    "independent_attention"
+  ],
+  "scope": "Restore ignored SEQSCAN fixtures from the sealed candidate fixture hashes; build the five remaining compatible reference targets. Baseline norm-prologue test still uses an obsolete Body::Run signature and fails compilation; no tracked reference source or config was changed. Record-only queue completion preserves failing ctest and does not pass G-REG.",
+  "fixture_receipt_sha256": "59db5badf9daa792968a03c9c11d76b56f34d14404a99b042f733c3189b3adbc",
+  "logs": {
+    "runs/dm1-reference-suite-restore-v2/reference/ctest.log": "e05b99ba0e53587330d1a007aa66216251b867cfbdd9a1c013f305fc0f31bf0e",
+    "runs/dm1-reference-suite-restore-v2/events/01_build_reference.log": "f0b72e5495e3dacaad784ad5c87310a1212501b8c751e621e39daced2677804a",
+    "runs/dm1-reference-suite-restore/events/01_build_reference.log": "267f908f06309955fb9c0e43d7fa2852b7bd5ec2971ea064f1422eea497a5c98"
+  },
+  "queue_sha256": "6b49c6fa42fb36e419e98e1c6dc2c4db1ee03ced525d4823479af0f828783682",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a"
+}
