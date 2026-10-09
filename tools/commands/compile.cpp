@@ -8,6 +8,7 @@
 #include <tilemega/Dialect/CouplingGraph/HandoffPass.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Frontend/ExportBridge.h>
+#include <tilemega/Frontend/DnnModelPlan.h>
 #include <tilemega/Solver/CompilerSearch.h>
 #include <tilemega/Solver/SkeletonSearch.h>
 #include <tilemega/Solver/IntervalSegments.h>
@@ -286,6 +287,7 @@ int RunCompile(int argc, char** argv) {
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,paged_seed_from,artifact_cache;
+    std::string frontend_mode="decoder";
     std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
     std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
@@ -327,6 +329,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--search-budget-ms") search_budget_ms=std::stoi(value);
       else if (flag=="--solve") solve_target=value;
       else if (flag=="--serving") serving_phase=value;
+      else if (flag=="--frontend") frontend_mode=value;
       else if (flag=="--emit") emit_mode=value;
       else if (flag=="--measure-cmd") measure_command=value;
       else if (flag=="--serving-warm-start") serving_warm_start=value;
@@ -418,8 +421,12 @@ int RunCompile(int argc, char** argv) {
     int forward_seq=0;
     if(serving && serving_phase!="decode" && serving_phase!="prefill" && !forward)
       throw std::runtime_error("--serving expects decode, prefill or forward");
-    if(forward && input.extension()!=".mlir")
-      throw std::runtime_error("forward export needs its DNN or MoE ModelPlan frontend");
+    if(frontend_mode!="decoder" && frontend_mode!="dnn")
+      throw std::runtime_error("--frontend expects decoder or dnn");
+    if(frontend_mode=="dnn" && !forward)
+      throw std::runtime_error("DNN frontend requires --emit serving --serving forward");
+    if(forward && input.extension()!=".mlir" && frontend_mode!="dnn")
+      throw std::runtime_error("decoder forward export requires its MoE region frontend");
     if(forward)serving_capacity=serving_past_lo=serving_past_hi=0;
     if(!emit_mode.empty() && emit_mode!="serving")
       throw std::runtime_error("--emit expects serving");
@@ -498,6 +505,13 @@ int RunCompile(int argc, char** argv) {
        (paged_la_splitk!=0 && paged_la_splitk!=1) || candidate_guard_wait_s<0)
       throw std::runtime_error("invalid serving ablation option");
     std::string source,selected_serving_mode,selected_serving_binary;
+    std::optional<tilemega::frontend::ModelPlan> dnn_plan;
+    if(frontend_mode=="dnn" && input.extension()!=".mlir") {
+      auto bridge=tilemega::frontend::ReadExportBridge(input.string());
+      tilemega::frontend::DnnPlanOptions options;options.batch=serving_batch;
+      dnn_plan=tilemega::frontend::BuildDnnModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
+      forward_seq=dnn_plan->serving_seq;
+    }
     double selected_serving_ms=std::numeric_limits<double>::infinity();
     if(serving && solve_target.empty()) {
       if(has_variants)throw std::runtime_error("serving needs one exported model or solved CG");
@@ -540,11 +554,14 @@ int RunCompile(int argc, char** argv) {
       options.kv_block=serving_kv_block;
       options.query_rows=serving_query_rows;
       options.argmax_tile_n=serving_argmax_tile_n;
-      auto plan=tilemega::frontend::BuildModelPlan(
+      auto plan=dnn_plan?*dnn_plan:tilemega::frontend::BuildModelPlan(
           bridge.nodes,bridge.inputs,bridge.outputs,options);
+      if(forward)options.seq=forward_seq;
       tilemega::frontend::ImportOptions import;
       if (plan.forward) import.phase_batch = serving_batch;
-      import.gemms.assign(plan.gemms.size(),{16,128,128,2,1});
+      import.gemms.assign(plan.gemms.size(),forward?
+          tilemega::frontend::GemmGranularity{128,64,16,3,1}:
+          tilemega::frontend::GemmGranularity{16,128,128,2,1});
       module=tilemega::frontend::TorchExportImporter{}.ImportPlan(
           input.string(),plan,context,&summary,import);
       source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(
@@ -562,7 +579,7 @@ int RunCompile(int argc, char** argv) {
       solve_options.placement.target=tilemega::TargetSpec::FromJson(solve_target);
       if(serving) {
         auto& d=solve_options.placement.dims;
-        d.batch=serving_batch;d.seq=serving_phase=="decode"?1:64;
+        d.batch=serving_batch;d.seq=forward?forward_seq:(serving_phase=="decode"?1:64);
         d.past=serving_phase=="decode"?(serving_past_lo+serving_past_hi)/2:0;
         d.total=d.seq+d.past;
       }
@@ -738,7 +755,7 @@ int RunCompile(int argc, char** argv) {
           options.seq=dims.seq;options.capacity=serving_capacity;
           options.kv_block=serving_kv_block;options.query_rows=serving_query_rows;
           options.argmax_tile_n=serving_argmax_tile_n;
-          auto plan=tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,
+          auto plan=dnn_plan?*dnn_plan:tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,
               bridge.outputs,options);
           serving_imported.emplace(tilemega::frontend::TorchExportImporter{}.
               ImportSemantics(input.string(),plan,context));
