@@ -10,6 +10,7 @@ import torch
 from safetensors import safe_open
 
 from .plan import Buffer, PlanLibrary
+from tilemega.dnn.weights import DNN_RECIPES, pack as pack_dnn, recipe_sources as dnn_sources
 
 
 class Checkpoint:
@@ -57,6 +58,10 @@ def _conv_krsc(weight: torch.Tensor, padded_channels: int) -> torch.Tensor:
 
 def _packed_cpu(recipe: Mapping[str, object], checkpoint: Checkpoint) -> torch.Tensor:
     kind = recipe["kind"]
+    if kind in ('tile_pages', 'fold_rmsnorm'):
+        return _packed_gpu(recipe, checkpoint.tensor)
+    if kind in DNN_RECIPES:
+        return pack_dnn(recipe, checkpoint.tensor, lambda value: _packed_gpu(value, checkpoint.tensor))
     if kind == "alias":
         return checkpoint.tensor(str(recipe["source"]))
     if kind == 'conv_krsc':
@@ -109,6 +114,8 @@ def weight_recipes(*plans: PlanLibrary) -> dict[str, Buffer]:
 
 def _recipe_sources(recipe: Mapping[str, object]) -> tuple[str, ...]:
     kind = recipe['kind']
+    if kind in DNN_RECIPES:
+        return dnn_sources(recipe, _recipe_sources)
     if kind == 'tile_pages' or kind == 'fold_rmsnorm':
         nested = _recipe_sources(recipe['source'])
         return nested + ((str(recipe['norm']),) if kind == 'fold_rmsnorm' else ())
@@ -119,6 +126,8 @@ def _recipe_sources(recipe: Mapping[str, object]) -> tuple[str, ...]:
 
 def _packed_gpu(recipe: Mapping[str, object], source) -> torch.Tensor:
     kind = recipe['kind']
+    if kind in DNN_RECIPES:
+        return pack_dnn(recipe, source, lambda value: _packed_gpu(value, source))
     if kind == 'alias':
         return source(str(recipe['source']))
     if kind == 'conv_krsc':
@@ -204,24 +213,31 @@ def load_weights(model_dir: str | Path, *plans: PlanLibrary,
                  device: str | torch.device = "cuda") -> dict[str, torch.Tensor]:
     checkpoint = Checkpoint(model_dir)
     result: dict[str, torch.Tensor] = {}
-    sources: dict[str, torch.Tensor] = {}
+    sources: dict[tuple[str, bool], torch.Tensor] = {}
     packed: dict[tuple[tuple[str, ...], str], torch.Tensor] = {}
-    def source(name: str) -> torch.Tensor:
-        if name not in sources:
-            sources[name] = checkpoint.tensor(name).to(device=device,
-                                                      dtype=torch.bfloat16).contiguous()
-        return sources[name]
+    def source(name: str, preserve: bool = False) -> torch.Tensor:
+        key = (name, preserve)
+        if key not in sources:
+            original = checkpoint.tensor(name)
+            sources[key] = original.to(device=device,
+                dtype=original.dtype if preserve else torch.bfloat16).contiguous()
+        return sources[key]
+    def dnn(recipe):
+        return recipe['kind'] in DNN_RECIPES or (isinstance(recipe.get('source'), dict) and dnn(recipe['source']))
     for name, buffer in weight_recipes(*plans).items():
         recipe = json.loads(buffer.pack_json)
         identity = tuple(checkpoint.tensor_sha(item) for item in _recipe_sources(recipe))
         key = (identity, json.dumps(recipe, sort_keys=True))
         if key not in packed:
-            packed[key] = _packed_gpu(recipe, source).contiguous()
+            packed[key] = _packed_gpu(recipe, lambda name: source(name, dnn(recipe))).contiguous()
         tensor = packed[key]
         if tensor.numel() != buffer.elements_constant:
             raise ValueError(f"{name} has {tensor.numel()} elements; plan expects "
                              f"{buffer.elements_constant}")
-        if tensor.dtype != torch.bfloat16:
-            tensor = tensor.to(torch.bfloat16)
+        dtype = {0: torch.bfloat16, 1: torch.float32, 2: torch.int32, 3: torch.int64}.get(buffer.dtype)
+        if dtype is None:
+            raise ValueError(f'unsupported weight buffer dtype {buffer.dtype}')
+        if tensor.dtype != dtype:
+            tensor = tensor.to(dtype)
         result[name] = tensor
     return result
