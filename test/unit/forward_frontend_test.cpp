@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
+#include <tilemega/Codegen/ServingPages.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Solver/ModelDescription.h>
 #include <llvm/Support/FileSystem.h>
@@ -77,6 +78,10 @@ int TestForwardFrontend(int argc, char** argv) {
     auto prepared = TorchExportImporter{}.ImportSemantics(filename.str().str(), plan, context);
     auto bound = analysis::ParamBinding{}.Bind("s0", 8);
     assert(prepared.lifted.sem.ops[0].result.axes[0].extent.Eval(bound, {}) == (token_axis ? 8 : 136));
+    auto target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+"/configs/targets/sm_89.json");
+    ConfigureServingPrefetch(*module,target,1,128);
+    auto prefetch=module->getOperation()->getAttrOfType<mlir::DictionaryAttr>("tmexec.prefetch");
+    assert(prefetch && prefetch.getAs<mlir::ArrayAttr>("history_proofs").empty());
     auto source = CouplingGraphToCUDA{}.LowerVariants({{*module, unsigned(plan.serving_seq), unsigned(plan.serving_seq)}});
     assert(source.find("#define TILEMEGA_SERVING_PHASE 2\n") != std::string::npos);
     assert(source.find("#define TILEMEGA_SERVING_SEQ " + std::to_string(plan.serving_seq) + "\n") != std::string::npos);

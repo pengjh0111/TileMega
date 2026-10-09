@@ -41,7 +41,8 @@ void ConfigureServingPrefetch(mlir::ModuleOp module,TargetSpec const& target,int
   auto roles=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.dimension_roles");
   auto buffers=plan.getAs<mlir::ArrayAttr>("buffers");
   auto info=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
-  std::string B=roles.getAs<mlir::StringAttr>("batch").getValue().str();
+  auto batch=roles.getAs<mlir::StringAttr>("batch");
+  std::string B=batch?batch.getValue().str():std::string();
   auto past=roles.getAs<mlir::StringAttr>("past");
   mlir::OpBuilder b(module.getContext());std::vector<mlir::Attribute> stages,proofs;
   for(auto attr:plan.getAs<mlir::ArrayAttr>("stages")) {
@@ -53,6 +54,8 @@ void ConfigureServingPrefetch(mlir::ModuleOp module,TargetSpec const& target,int
       long heads=stage.getAs<mlir::IntegerAttr>("extent").getInt();
       long width=stage.getAs<mlir::IntegerAttr>("width").getInt();
       std::string P=past.getValue().str();
+      if(B.empty() || P.empty())
+        throw std::invalid_argument("historical prefetch requires batch and past roles");
       auto history=analysis::CouplingRelation::FromIslText("["+B+","+P+"] -> { [] -> [b,g,pos,d] : 0<=b<"+B+
           " and 0<=g<"+std::to_string(heads)+" and 0<=pos<"+P+
           " and pos<"+std::to_string(info.getAs<mlir::IntegerAttr>("capacity").getInt())+
