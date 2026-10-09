@@ -1,0 +1,49 @@
+{
+  "llama_B1": [
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "llama",
+      "model_path": "/root/models/llama3_2_1b",
+      "batch": 1,
+      "prefill": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so",
+      "mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "env": {},
+      "label": "baseline",
+      "decode": "/root/TileMega/docs/experiments/SERVING_R14/raw/R_complete_build/llama_B1/baseline/plan.so"
+    },
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "llama",
+      "model_path": "/root/models/llama3_2_1b",
+      "batch": 1,
+      "prefill": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so",
+      "mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "env": {},
+      "label": "stage",
+      "decode": "/root/TileMega/docs/experiments/SERVING_R14/raw/R_complete_build/llama_B1/stage/plan.so"
+    },
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "llama",
+      "model_path": "/root/models/llama3_2_1b",
+      "batch": 1,
+      "prefill": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so",
+      "mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "env": {},
+      "label": "task",
+      "decode": "/root/TileMega/docs/experiments/SERVING_R14/raw/R_complete_build/llama_B1/task/plan.so"
+    }
+  ]
+}

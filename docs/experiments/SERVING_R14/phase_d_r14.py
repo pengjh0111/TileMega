@@ -32,7 +32,8 @@ def calibrate():
 
 def build(model):
     out=evidence_path(f'D1_{model}');cfg=read_config(config(model))
-    run([PYTHON,'-m','tilemega','build','--config',config(model),'--run-dir',ROOT/f'runs/r14-{model}'],out/'build.log',25000)
+    limit=2*len(cfg['workload']['batch'])*cfg['solver']['time_budget_s']+1800
+    run([PYTHON,'-m','tilemega','build','--config',config(model),'--run-dir',ROOT/f'runs/r14-{model}'],out/'build.log',limit)
     plans=json.loads((ROOT/f'runs/r14-{model}/plans.json').read_text())
     # Preserve original cache/selection data inside the committed evidence
     # tree, including rejected and budget-eliminated candidates.

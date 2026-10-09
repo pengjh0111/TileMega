@@ -1,0 +1,96 @@
+{
+  "archive": "docs/experiments/SERVING_R14/raw/completion_repair_initial.tar.xz",
+  "sha256": "0bd6a83ae6c9be1fd150a837b075306d6540087c57fdc514a424bed5a7ef4a5b",
+  "members": [
+    {
+      "path": "raw/completion_repair/profile_recheck.failed",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "raw/completion_repair/profile_recheck.log",
+      "sha256": "d4d7f1802bccd64cfba7cb3858a6a970150011e803e9827ad8d83778eeb36ac4",
+      "size": 194
+    },
+    {
+      "path": "raw/completion_repair/profile_recheck_v2.failed",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "raw/completion_repair/profile_recheck_v2.log",
+      "sha256": "31f1b3b59c468e7659362eff6fd441dfb8abb8aac4410e7be99a494d3047d996",
+      "size": 432
+    },
+    {
+      "path": "raw/completion_repair/repair_build.failed",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "raw/completion_repair/repair_build.log",
+      "sha256": "6e03fbb2b3f19f245cb5b765510b1f506b0ee53a8117397a82523d54665a25ed",
+      "size": 4942
+    },
+    {
+      "path": "raw/completion_repair/repair_build_v2.failed",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "raw/completion_repair/repair_build_v2.log",
+      "sha256": "27a09bb3948d26df0652a7df64921135202f8b2b24c34dfd0d68383817e6cce9",
+      "size": 51
+    },
+    {
+      "path": "raw/completion_repair/repair_build_v3.done",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "raw/completion_repair/repair_build_v3.log",
+      "sha256": "56fc94f03cf7aa39a0888251819d3b4c68b7e66f1b2d8d8304b7121dd17feea0",
+      "size": 4244
+    },
+    {
+      "path": "raw/completion_repair/repair_checks.failed",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "raw/completion_repair/repair_checks.log",
+      "sha256": "72f7a511da6e1a5495e529153c6d0a3fb6088e9e4257ef3f2a6a0b42cfde79dd",
+      "size": 2825
+    },
+    {
+      "path": "raw/completion_repair/repair_checks_v2.done",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "raw/completion_repair/repair_checks_v2.log",
+      "sha256": "921565fae87f3e4606b15819863fe14f9bf35b38cc245e3feac4660231b09934",
+      "size": 807
+    },
+    {
+      "path": "raw/completion_repair/scheduler_pause.json",
+      "sha256": "0fdb248636f2209aa2c86793fa4950f3634bc17ac167412efbe85f710743fea7",
+      "size": 498
+    },
+    {
+      "path": "raw/completion_repair/sl6_unit.log",
+      "sha256": "b4d8296772908779afdc21d171fa2ae0912a70e2a6914559d691d9d3ef2e92b0",
+      "size": 316
+    },
+    {
+      "path": "raw/completion_repair/tr4_build.failed",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "raw/completion_repair/tr4_build.log",
+      "sha256": "47b6e44db0a065c4df365781484d2fc06d114e651b64b0842055ef8775186b03",
+      "size": 3844
+    }
+  ]
+}

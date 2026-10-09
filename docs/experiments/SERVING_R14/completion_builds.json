@@ -1,0 +1,4165 @@
+[
+  {
+    "cell": "llama_B1",
+    "batch": 1,
+    "label": "baseline",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R14/raw/A0/llama_B1/N1_prime/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R14/raw/A0/llama_B1/N1_prime/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_2628d03be9bff1e571fe78e55c5ea02e73ff11780a5e7275f48391ba2211dbf3.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 0,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 0,
+      "evict_last": 0,
+      "deferred_norm": 1,
+      "paged_la": 0,
+      "paged_la_splitk": 0,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0,
+      "lookahead_bytes": 0
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/R_complete_build/llama_B1/baseline"
+  },
+  {
+    "cell": "llama_B16",
+    "batch": 16,
+    "label": "baseline",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R14/raw/A0/llama_B16/R13D_prime/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R14/raw/A0/llama_B16/R13D_prime/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_c2c03ad6e9534130762cc88d423aac336077a0bd040db6d337a1e31e3c1ec8b9.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 0,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 0,
+      "evict_last": 1,
+      "deferred_norm": 1,
+      "paged_la": 0,
+      "paged_la_splitk": 0,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/R_complete_build/llama_B16/baseline"
+  },
+  {
+    "cell": "qwen3_B1",
+    "batch": 1,
+    "label": "baseline",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R14/raw/A0/qwen3_B1/R13D_prime/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R14/raw/A0/qwen3_B1/R13D_prime/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_2628d03be9bff1e571fe78e55c5ea02e73ff11780a5e7275f48391ba2211dbf3.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 1,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 1,
+      "evict_last": 0,
+      "deferred_norm": 1,
+      "paged_la": 1,
+      "paged_la_splitk": 1,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/R_complete_build/qwen3_B1/baseline"
+  },
+  {
+    "cell": "qwen3_B16",
+    "batch": 16,
+    "label": "baseline",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R14/raw/A0/qwen3_B16/R13D_prime/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R14/raw/A0/qwen3_B16/R13D_prime/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_2628d03be9bff1e571fe78e55c5ea02e73ff11780a5e7275f48391ba2211dbf3.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 1,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 1,
+      "evict_last": 0,
+      "deferred_norm": 1,
+      "paged_la": 1,
+      "paged_la_splitk": 1,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/R_complete_build/qwen3_B16/baseline"
+  },
+  {
+    "cell": "llama_B1",
+    "batch": 1,
+    "label": "llama_tn8_row",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B1/N-R12b-noWD/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B1/N-R12b-noWD/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_2628d03be9bff1e571fe78e55c5ea02e73ff11780a5e7275f48391ba2211dbf3.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 0,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 1,
+      "evict_last": 0,
+      "deferred_norm": 1,
+      "paged_la": 0,
+      "paged_la_splitk": 0,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0,
+      "nonpaged_la": 0,
+      "pg": "l2",
+      "weight_layout": "row",
+      "serve_kv_block": 128
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/R_complete_build/llama_B1/llama_tn8_row",
+    "gemm_overrides": [
+      {
+        "index": 0,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 1,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 2,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 3,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 4,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 5,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 6,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 7,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 8,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 9,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 10,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 11,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 12,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 13,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 14,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 15,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 16,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 17,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 18,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 19,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 20,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 21,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 22,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 23,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 24,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 25,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 26,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 27,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 28,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 29,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 30,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 31,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 32,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 33,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 34,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 35,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 36,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 37,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 38,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 39,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 40,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 41,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 42,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 43,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 44,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 45,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 46,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 47,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 48,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 49,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 50,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 51,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 52,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 53,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 54,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 55,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 56,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 57,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 58,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 59,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 60,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 61,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 62,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 63,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 64,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      }
+    ]
+  },
+  {
+    "cell": "llama_B1",
+    "batch": 1,
+    "label": "llama_tn16_tiled",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B1/N-R12b-noWD/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/llama_B1/N-R12b-noWD/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_2628d03be9bff1e571fe78e55c5ea02e73ff11780a5e7275f48391ba2211dbf3.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 0,
+      "nonpaged_weight_layout": "tiled",
+      "evict_first": 1,
+      "evict_last": 0,
+      "deferred_norm": 1,
+      "paged_la": 0,
+      "paged_la_splitk": 0,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0,
+      "nonpaged_la": 0,
+      "pg": "l2",
+      "weight_layout": "row",
+      "serve_kv_block": 128
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/R_complete_build/llama_B1/llama_tn16_tiled",
+    "gemm_overrides": [
+      {
+        "index": 0,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 1,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 2,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 3,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 4,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 5,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 6,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 7,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 8,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 9,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 10,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 11,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 12,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 13,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 14,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 15,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 16,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 17,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 18,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 19,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 20,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 21,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 22,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 23,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 24,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 25,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 26,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 27,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 28,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 29,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 30,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 31,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 32,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 33,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 34,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 35,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 36,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 37,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 38,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 39,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 40,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 41,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 42,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 43,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 44,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 45,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 46,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 47,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 48,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 49,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 50,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 51,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 52,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 53,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 54,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 55,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 56,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 57,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 58,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 59,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 60,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 61,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 62,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 63,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 64,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      }
+    ]
+  },
+  {
+    "cell": "qwen3_B1",
+    "batch": 1,
+    "label": "qwen3_tn8_row",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B1/N-R12b-noWD/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B1/N-R12b-noWD/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_2628d03be9bff1e571fe78e55c5ea02e73ff11780a5e7275f48391ba2211dbf3.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 0,
+      "nonpaged_weight_layout": "row",
+      "evict_first": 1,
+      "evict_last": 0,
+      "deferred_norm": 1,
+      "paged_la": 0,
+      "paged_la_splitk": 0,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0,
+      "nonpaged_la": 0,
+      "pg": "l2",
+      "weight_layout": "row",
+      "serve_kv_block": 128
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/R_complete_build/qwen3_B1/qwen3_tn8_row",
+    "gemm_overrides": [
+      {
+        "index": 0,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 1,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 2,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 3,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 4,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 5,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 6,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 7,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 8,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 9,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 10,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 11,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 12,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 13,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 14,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 15,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 16,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 17,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 18,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 19,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 20,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 21,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 22,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 23,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 24,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 25,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 26,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 27,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 28,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 29,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 30,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 31,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 32,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 33,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 34,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 35,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 36,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 37,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 38,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 39,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 40,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 41,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 42,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 43,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 44,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 45,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 46,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 47,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 48,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 49,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 50,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 51,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 52,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 53,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 54,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 55,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 56,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 57,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 58,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 59,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 60,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 61,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 62,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 63,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 64,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 65,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 66,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 67,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 68,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 69,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 70,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 71,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 72,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 73,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 74,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 75,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 76,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 77,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 78,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 79,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 80,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 81,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 82,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 83,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 84,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 85,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 86,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 87,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 88,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 89,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 90,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 91,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 92,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 93,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 94,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 95,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 96,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 97,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 98,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 99,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 100,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 101,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 102,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 103,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 104,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 105,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 106,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 107,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 108,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 109,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 110,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 111,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 112,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 8,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      }
+    ]
+  },
+  {
+    "cell": "qwen3_B1",
+    "batch": 1,
+    "label": "qwen3_tn16_tiled",
+    "manifest": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B1/N-R12b-noWD/plan.so.plan.json",
+    "classes": "/root/TileMega/docs/experiments/SERVING_R13/raw/B0b/qwen3_B1/N-R12b-noWD/plan.so.classes.tsv",
+    "export": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "target": "/root/TileMega/docs/experiments/SERVING_R14/inputs/target_2628d03be9bff1e571fe78e55c5ea02e73ff11780a5e7275f48391ba2211dbf3.json",
+    "overrides": {
+      "watchdog": 0,
+      "pdl": "auto",
+      "sync": "calibrated",
+      "l2_slim": 0,
+      "page_loop_split": 0,
+      "nonpaged_weight_layout": "tiled",
+      "evict_first": 1,
+      "evict_last": 0,
+      "deferred_norm": 1,
+      "paged_la": 0,
+      "paged_la_splitk": 0,
+      "kphase_mask": 31,
+      "v3_poll_ns": 0,
+      "nonpaged_la": 0,
+      "pg": "l2",
+      "weight_layout": "row",
+      "serve_kv_block": 128
+    },
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/R_complete_build/qwen3_B1/qwen3_tn16_tiled",
+    "gemm_overrides": [
+      {
+        "index": 0,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 1,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 2,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 3,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 4,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 5,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 6,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 7,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 8,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 9,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 10,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 11,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 12,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 13,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 14,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 15,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 16,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 17,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 18,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 19,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 20,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 21,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 22,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 23,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 24,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 25,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 26,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 27,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 28,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 29,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 30,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 31,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 32,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 33,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 34,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 35,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 36,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 37,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 38,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 39,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 40,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 41,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 42,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 43,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 44,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 45,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 46,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 47,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 48,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 49,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 50,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 51,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 52,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 53,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 54,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 55,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 56,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 57,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 58,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 59,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 60,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 61,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 62,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 63,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 64,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 65,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 66,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 67,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 68,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 69,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 70,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 71,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 72,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 73,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 74,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 75,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 76,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 77,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 78,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 79,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 80,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 81,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 82,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 83,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 84,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 85,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 86,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 87,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 88,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 89,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 90,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 91,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 92,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 93,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 94,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 95,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 96,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 97,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 98,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 99,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 100,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 101,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 102,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 103,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 104,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 105,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 106,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 107,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 108,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 109,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 110,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 111,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      },
+      {
+        "index": 112,
+        "values": {
+          "tile_m": 16,
+          "tile_n": 16,
+          "tile_k": 128,
+          "stages": 2,
+          "split_k": 1,
+          "impl": "gemv"
+        }
+      }
+    ]
+  },
+  {
+    "label": "stage",
+    "cell": "llama_B1",
+    "base_so": "/root/TileMega/docs/experiments/SERVING_R14/raw/R_complete_build/llama_B1/baseline/plan.so",
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/R_complete_build/llama_B1/stage",
+    "defines": {
+      "TILEMEGA_TRACE_STAGE": 1,
+      "TILEMEGA_TRACE_TASK": 0,
+      "TILEMEGA_TRACE_STEP": 0
+    }
+  },
+  {
+    "label": "task",
+    "cell": "llama_B1",
+    "base_so": "/root/TileMega/docs/experiments/SERVING_R14/raw/R_complete_build/llama_B1/baseline/plan.so",
+    "out": "/root/TileMega/docs/experiments/SERVING_R14/raw/R_complete_build/llama_B1/task",
+    "defines": {
+      "TILEMEGA_TRACE_STAGE": 0,
+      "TILEMEGA_TRACE_TASK": 1,
+      "TILEMEGA_TRACE_STEP": 0
+    }
+  }
+]

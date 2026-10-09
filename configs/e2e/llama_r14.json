@@ -24,7 +24,7 @@
     "mode": "L1",
     "candidate_loop": 0,
     "pruning": true,
-    "time_budget_s": 1800,
+    "time_budget_s": 10800,
     "candidate_guard_wait_s": 1800,
     "prefill_pins": {
       "1": {
@@ -140,6 +140,7 @@
       }
     },
     "nonpaged_la": "first-stage fill candidates use LA; second-stage compares LA=0/1",
-    "resident2": "C-RW1 fixed trial lost; SL-6 still includes its required structural family for Llama B16 alongside ordinary double-buffer plans; no default enabled before final acceptance"
+    "resident2": "C-RW1 fixed trial lost; SL-6 still includes its required structural family for Llama B16 alongside ordinary double-buffer plans; no default enabled before final acceptance",
+    "completion_budget": "TR-4/GV-1/SL-6 repair: 10800 s hard limit per phase/batch, replacing 1800 s; full pilot-dimension attempts and three fresh final rounds required; no over-budget winner."
   }
 }
