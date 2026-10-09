@@ -38,6 +38,13 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
         input.external_write_bytes?&*input.external_write_bytes:nullptr})
       key<<":"<<(quantity?quantity->ToString():"absent");
     key<<":"<<input.serving_body_kind;
+    auto const& arithmetic=input.arithmetic;
+    key<<":arithmetic:"<<arithmetic.flops_per_output_element.numerator.ToString()
+       <<'/'<<arithmetic.flops_per_output_element.denominator
+       <<':'<<arithmetic.transcendental_per_output_element.numerator.ToString()
+       <<'/'<<arithmetic.transcendental_per_output_element.denominator
+       <<':'<<arithmetic.flops_use_mma<<':'<<arithmetic.smem_staged;
+
   }
   if(cache){auto found=cache->entries.find(key.str());if(found!=cache->entries.end()){++cache->hits;return found->second;}++cache->misses;}
   struct Axis {std::string name;std::vector<std::pair<long,long>> parts;};std::vector<Axis> axes;

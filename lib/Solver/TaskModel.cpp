@@ -24,7 +24,9 @@ void BindTaskDramProvenance(DerivedTaskInput& input,
     for(auto const& read:op.operands)requests|=analysis::HasBindingRequests(read.map);
     for(auto const& read:op.element_reads)requests|=analysis::HasBindingRequests(read.map);
     for(auto const& write:op.additional_writes)requests|=analysis::HasBindingRequests(write.map);
-    if(requests) {
+    // Exact affine tasks also have typed main/side stores. Retain the
+    // legacy scalar-runtime projection unless binding requests require this path.
+    if(requests || !input.scalar_access) {
       auto traffic=DeriveBindingRequestTraffic(input.task,floor,theta);
       input.physical_read_bytes=std::move(traffic.read_bytes);
       input.physical_write_bytes=std::move(traffic.write_bytes);

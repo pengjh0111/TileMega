@@ -70,6 +70,28 @@ int TestDmPiecePricing(int,char**) {
       }
       (void)solver::PriceBoundaryPieces(cost,side,op,traits,{1},model,1,&cache);
       assert(cache.misses==2);
+      for(unsigned change=0;change<4;++change) {
+        auto altered=input;
+        if(change==0)altered.arithmetic.flops_per_output_element.numerator=
+            altered.arithmetic.flops_per_output_element.numerator.Scale(2);
+        if(change==1)altered.arithmetic.flops_per_output_element.denominator=2;
+        if(change==2)altered.arithmetic.transcendental_per_output_element.numerator=
+            altered.arithmetic.transcendental_per_output_element.numerator.Add(
+                QuasiPolynomial::FromIslText("{ [q] -> 16 : 0<=q<3 }"));
+        if(change==3)altered.arithmetic.transcendental_per_output_element.denominator=2;
+        auto misses=cache.misses;
+        auto cached=solver::PriceBoundaryPieces(cost,altered,op,traits,{1},model,1,&cache);
+        auto independent=solver::PriceBoundaryPieces(cost,altered,op,traits,{1},model,1);
+        assert(cache.misses==misses+1);
+        close(cached.total_isolated_ns,independent.total_isolated_ns);
+        assert(cached.pieces.size()==independent.pieces.size());
+        for(unsigned i=0;i<cached.pieces.size();++i)
+          close(cached.pieces[i].parts.compute_ns,independent.pieces[i].parts.compute_ns);
+        auto hits=cache.hits;
+        (void)solver::PriceBoundaryPieces(cost,altered,op,traits,{1},model,1,&cache);
+        assert(cache.hits==hits+1);
+      }
+
     }
   }
   std::cout<<"DM pricing: nonuniform arithmetic, instance/stage/piece caches and typed side-output independence PASS\n";

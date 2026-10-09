@@ -381,6 +381,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/dm_dram_images_test.cpp
     test/unit/binding_request_traffic_test.cpp
     test/unit/binding_request_pricing_test.cpp
+    test/unit/typed_affine_pricing_test.cpp
     test/unit/dm_virtual_gemm_partition_test.cpp
     test/unit/dm_semantic_signature_test.cpp
     test/unit/dm_virtual_frontend_test.cpp
@@ -787,6 +788,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME dm_dram_images COMMAND tilemega-unit dm_dram_images)
   add_test(NAME binding_request_traffic COMMAND tilemega-unit binding_request_traffic)
   add_test(NAME binding_request_pricing COMMAND tilemega-unit binding_request_pricing)
+  add_test(NAME typed_affine_pricing COMMAND tilemega-unit typed_affine_pricing)
   add_test(NAME dm_virtual_gemm_partition COMMAND tilemega-unit dm_virtual_gemm_partition)
   add_test(NAME dm_semantic_signature COMMAND tilemega-unit dm_semantic_signature)
   add_test(NAME dm_virtual_frontend COMMAND tilemega-unit dm_virtual_frontend)
