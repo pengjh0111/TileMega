@@ -172,6 +172,42 @@ CouplingRelation ProjectTaskWrite(SemanticOp const& semantic, OperatorNode const
       ProjectTaskElements(semantic,task,partition,tensor,indexing,nonnegative,known);
 }
 
+bool HasBindingRequests(IndexingMap const& indexing) {
+  for(auto const& index:indexing.results)if(!index.request_dims.empty())return true;
+  return false;
+}
+CouplingRelation ProjectTaskRequests(SemanticOp const& semantic, OperatorNode const& task,
+    TaskElementPartition const& partition, TensorSpace const& tensor,
+    IndexingMap const& indexing, std::vector<IndexResult> const& nonnegative,
+    ParamBinding const& known) {
+  IslReferenceAudit audit(__func__);
+  if(indexing.results.size()!=tensor.axes.size())
+    throw std::invalid_argument("logical request indexing rank mismatch");
+  TensorSpace requests;requests.name=tensor.name+".requests";
+  IndexingMap map;
+  std::set<std::pair<std::string,std::string>> keys;
+  for(unsigned axis=0;axis<indexing.results.size();++axis) {
+    auto const& index=indexing.results[axis];
+    if(index.kind!=IndexResult::Kind::kDataDependent) {
+      if(!index.request_dims.empty())throw std::invalid_argument("affine index has binding requests");
+      requests.axes.push_back(tensor.axes[axis]);map.results.push_back(index);continue;
+    }
+    if(index.binding_source.empty() || index.request_dims.empty())
+      throw std::invalid_argument("data-dependent access lacks logical binding requests");
+    std::set<std::string> dimensions;
+    for(auto const& name:index.request_dims) {
+      auto dim=semantic.Dim(name);
+      if(!dim || !dimensions.insert(name).second)
+        throw std::invalid_argument("invalid logical binding request dimension");
+      if(keys.emplace(index.binding_source,name).second) {
+        requests.axes.push_back({"request"+std::to_string(requests.axes.size()),dim->BoundExtent(),dim->origin,false});
+        map.results.push_back(IndexResult::Dim(name));
+      }
+    }
+  }
+  return ProjectTaskRead(semantic,task,partition,requests,map,nonnegative,known);
+}
+
 ExactTaskCoupling DeriveExactTaskCoupling(CouplingRelation const& writes,
     CouplingRelation const& reads, OperatorNode const& consumer,
     ParamBinding const& known) {

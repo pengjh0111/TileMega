@@ -17,7 +17,10 @@ TaskWork DeriveExactTaskWork(OperatorNode const& task, ParamBinding const& known
   if (!task.element_access) throw std::invalid_argument("missing exact task access");
   auto const& access = *task.element_access;
   auto const& sem = access.semantic;
-  auto writes = ProjectTaskElements(sem, task, access.partition, sem.result, sem.result_map, {}, known);
+  bool indirect_write=HasBindingRequests(sem.result_map);
+  auto writes = indirect_write?
+      ProjectTaskRequests(sem,task,access.partition,sem.result,sem.result_map,{},known):
+      ProjectTaskElements(sem, task, access.partition, sem.result, sem.result_map, {}, known);
   TaskWork work;
   work.write_elements = writes.BoundTaskCard();
   work.task_count = writes.Reverse().Image().BoundTaskCard();
@@ -26,8 +29,10 @@ TaskWork DeriveExactTaskWork(OperatorNode const& task, ParamBinding const& known
   for (auto const& input : sem.operands) if (!input.producer.empty()) produced.insert(input.tensor.name);
   auto append = [&](TensorSpace const& tensor, IndexingMap const& map,
                     std::vector<IndexResult> const& predicates) {
-    reads[tensor.name] = reads[tensor.name].Union(ProjectTaskRead(sem, task, access.partition,
-                                                               tensor, map, predicates, known));
+    auto relation=HasBindingRequests(map)?
+        ProjectTaskRequests(sem,task,access.partition,tensor,map,predicates,known):
+        ProjectTaskRead(sem,task,access.partition,tensor,map,predicates,known);
+    reads[tensor.name] = reads[tensor.name].Union(relation);
   };
   if (sem.element_reads.empty()) {
     for (auto const& input : sem.operands) append(input.tensor, input.map, {});
@@ -45,7 +50,7 @@ TaskWork DeriveExactTaskWork(OperatorNode const& task, ParamBinding const& known
   // issued MMA work, not the physical global-memory read set.
   work.nominal_read_elements = work.read_elements;
   std::set<std::string> output_dims;
-  for (auto const& index : sem.result_map.results)
+  for (auto const& index : (indirect_write?sem.task_map:sem.result_map).results)
     for (auto const& term : index.terms) if (!term.coefficient.IsLiteral(0)) output_dims.insert(term.dim);
   if (!access.partition.reduction_chunk.IsLiteral(0)) output_dims.erase(sem.reduction.dim);
   ClosedForm parallel = ClosedForm::Constant(1), reduction = ClosedForm::Constant(1);
@@ -82,7 +87,12 @@ TaskWork DeriveExactTaskWork(OperatorNode const& task, ParamBinding const& known
     owned = owned * task.output.axes[axis].extent;
     tiled = tiled * task.tile[axis];
   }
-  auto output_width = sem.result.Volume();
+  auto output_width = indirect_write?parallel:sem.result.Volume();
+  if(indirect_write && !access.partition.reduction_chunk.IsLiteral(0)) {
+    auto const* reduced=sem.Dim(sem.reduction.dim);
+    if(!reduced)throw std::invalid_argument("indirect partials lack their reduction dimension");
+    output_width=output_width*reduced->BoundExtent().CeilDiv(access.partition.reduction_chunk);
+  }
   if (!access.partition.reduction_chunk.IsLiteral(0)) {
     auto const* reduced = sem.Dim(sem.reduction.dim);
     ClosedForm per_chunk;

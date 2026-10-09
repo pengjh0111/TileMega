@@ -33,6 +33,8 @@ Value EncodeIndex(IndexResult const& index) {
       return Value(std::move(encoded));
     })}};
   if (!index.binding_source.empty()) encoded.emplace_back("binding_source", index.binding_source);
+  if(!index.request_dims.empty())encoded.emplace_back("request_dims",
+      EncodeArray(index.request_dims,[](auto const& dim){return Value(dim);}));
   return encoded;
 }
 IndexResult DecodeIndex(Value const& value) {
@@ -43,6 +45,18 @@ IndexResult DecodeIndex(Value const& value) {
     result.binding_source = source->AsString("binding_source");
     if (result.kind != IndexResult::Kind::kDataDependent)
       throw std::invalid_argument("binding source requires a data-dependent index");
+  }
+  if(auto const* requests=value.Find("request_dims")) {
+    if(result.kind!=IndexResult::Kind::kDataDependent || result.binding_source.empty())
+      throw std::invalid_argument("logical requests require a bound data-dependent index");
+    std::set<std::string> seen;
+    for(auto const& dim:requests->AsArray("request_dims")) {
+      auto name=dim.AsString("request dimension");
+      if(name.empty() || !seen.insert(name).second)
+        throw std::invalid_argument("logical request dimensions must be distinct");
+      result.request_dims.push_back(std::move(name));
+    }
+    if(result.request_dims.empty())throw std::invalid_argument("logical request dimensions are empty");
   }
   for (auto const& term:value.At("terms").AsArray("terms")) {
     IndexResult::Term decoded{String(term,"dim"),Form(term,"coefficient"),Form(term,"group")};
@@ -179,6 +193,8 @@ SemanticOp DecodeSemanticOp(std::string const& payload) {
     if (map.results.size()!=tensor.axes.size()) throw std::invalid_argument("semantic indexing rank mismatch");
     for (auto const& index:map.results) for (auto const& term:index.terms)
       if (!names.count(term.dim)) throw std::invalid_argument("semantic indexing names an unknown axis");
+    for(auto const& index:map.results)for(auto const& dim:index.request_dims)
+      if(!names.count(dim))throw std::invalid_argument("logical request names an unknown iteration axis");
   };
   check(op.result_map,op.result);
   if (op.exact_task_access) check(op.task_map, op.task_space);

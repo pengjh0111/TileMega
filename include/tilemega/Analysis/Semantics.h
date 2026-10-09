@@ -78,6 +78,9 @@ struct IndexResult {
   ClosedForm offset = ClosedForm::Constant(0);
   ClosedForm span = ClosedForm::Constant(1);  ///< non-affine kinds only
   std::string binding_source;
+  // Logical binding requests identify issued gathers/scatters independently
+  // of the physical I2 address envelope. Empty keeps the legacy projection.
+  std::vector<std::string> request_dims;
 
   static IndexResult Dim(std::string name,
                          ClosedForm coefficient = ClosedForm::Constant(1),
@@ -87,7 +90,8 @@ struct IndexResult {
                             ClosedForm offset = ClosedForm::Constant(0));
   static IndexResult FullRange(ClosedForm offset = ClosedForm::Constant(0));
   static IndexResult Broadcast(ClosedForm span = ClosedForm::Constant(1));
-  static IndexResult DataDependent(std::string binding_source = {});
+  static IndexResult DataDependent(std::string binding_source = {},
+                                  std::vector<std::string> request_dims = {});
 
   std::string Serialize() const;
 };

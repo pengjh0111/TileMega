@@ -43,6 +43,14 @@ CouplingRelation ProjectTaskWrite(SemanticOp const& semantic, OperatorNode const
     IndexingMap const& indexing, std::vector<IndexResult> const& nonnegative,
     ParamBinding const& known = {});
 
+// Abstract binding keys count issued accesses, including repeated physical
+// rows from different requests. This relation never substitutes for I2 R/W.
+bool HasBindingRequests(IndexingMap const& indexing);
+CouplingRelation ProjectTaskRequests(SemanticOp const& semantic, OperatorNode const& task,
+    TaskElementPartition const& partition, TensorSpace const& tensor,
+    IndexingMap const& indexing, std::vector<IndexResult> const& nonnegative,
+    ParamBinding const& known = {});
+
 struct ExactTaskCoupling {
   CouplingRelation relation;
   // (consumer, producer) -> shared tensor elements, before cardinality.

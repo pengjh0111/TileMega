@@ -52,10 +52,12 @@ IndexResult IndexResult::Broadcast(ClosedForm span) {
   return result;
 }
 
-IndexResult IndexResult::DataDependent(std::string binding_source) {
+IndexResult IndexResult::DataDependent(std::string binding_source,
+                                     std::vector<std::string> request_dims) {
   IndexResult result;
   result.kind = Kind::kDataDependent;
   result.binding_source = std::move(binding_source);
+  result.request_dims = std::move(request_dims);
   return result;
 }
 
@@ -86,6 +88,11 @@ std::string IndexResult::Serialize() const {
     case Kind::kDataDependent:
       out << "data_dependent";
       if (!binding_source.empty()) out << "(" << binding_source << ")";
+      if(!request_dims.empty()) {
+        out << " requests[";
+        for(unsigned i=0;i<request_dims.size();++i)out<<(i?",":"")<<request_dims[i];
+        out << "]";
+      }
       break;
   }
   return out.str();
