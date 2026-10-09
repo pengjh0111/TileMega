@@ -8,7 +8,7 @@
 namespace tilemega::tests::conv_iteration_test {
 int TestConvIteration(int,char**) {
   using namespace tilemega;
-  unsigned geometries=0,splits=0,rejections=0;std::uint64_t checked=0;
+  unsigned geometries=0,splits=0,rejections=0;std::uint64_t checked=0,cursors=0,cursor_slots=0;
   for(unsigned c:{3,4,8,16,24,27,32,64,96,144,1024})
     for(unsigned pad:{4,8})for(unsigned r:{1,2,3,7})for(unsigned s:{1,2,3,7})
       for(unsigned tk:{16,32,64,128}) {
@@ -22,6 +22,25 @@ int TestConvIteration(int,char**) {
       assert(rejected);++rejections;continue;
     }
     auto geometry=backend::ConvIterationGeometry::Build(conv,layout,tk);
+    conv.dilation_h=2;conv.dilation_w=3;
+    layout.strides[2]=(cp+7)/8*8;
+    layout.strides[1]=(3*s+5)*layout.strides[2];
+    for(auto begin:std::set<std::uint64_t>{0,geometry.iterations/2,geometry.iterations-1})
+      for(unsigned lane=0;lane<tk;lane+=cp==4?4:8) {
+        backend::ConvIterationCursor cursor(geometry,conv,layout,begin,lane);
+        for(auto it=begin;it<geometry.iterations;++it) {
+          auto expected=geometry.At(it,lane),actual=cursor.Point();
+          assert(actual.valid==expected.valid);
+          if(actual.valid) {
+            assert(actual.r==expected.r && actual.s==expected.s && actual.c==expected.c);
+            assert(cursor.a_offset==std::int64_t(expected.r)*2*layout.strides[1]+
+                std::int64_t(expected.s)*3*layout.strides[2]+expected.c);
+            assert(cursor.b_offset==(std::uint64_t(expected.r)*s+expected.s)*cp+expected.c);
+          }
+          ++cursor_slots;cursor.Advance();
+        }
+        ++cursors;
+      }
     std::set<std::tuple<unsigned,unsigned,unsigned>> found;
     unsigned logical=0;
     for(std::uint64_t it=0;it<geometry.iterations;++it)for(unsigned lane=0;lane<tk;++lane) {
@@ -65,7 +84,8 @@ int TestConvIteration(int,char**) {
     assert(rejected);++rejections;
   }
   std::cout<<"CONV_ITERATION geometries="<<geometries<<" splits="<<splits
-      <<" rejected="<<rejections<<" issued_slots="<<checked<<" PASS\n";
+      <<" rejected="<<rejections<<" issued_slots="<<checked
+      <<" cursors="<<cursors<<" cursor_slots="<<cursor_slots<<" PASS\n";
   return 0;
 }
 
