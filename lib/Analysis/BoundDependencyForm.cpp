@@ -44,24 +44,43 @@ std::optional<WaitWindow> FitClampedWindow(CouplingRelation const& linear,
   for (long divisor = 1; divisor * divisor <= period; ++divisor)
     if (period % divisor == 0) { divisors.insert(divisor); divisors.insert(period / divisor); }
   for (auto divisor : divisors) {
-    std::string constraints = "count >= " + std::to_string(width) +
-        " and abs_scale >= scale and abs_scale >= -scale and abs_offset >= offset and abs_offset >= -offset";
-    for (long c = 0; c < consumers; ++c) {
+    auto constraint = [&](long c) {
       auto begin = std::to_string(c / divisor) + " * scale + offset";
       auto end = begin + " + count";
       if (auto at = first.find(c); at != first.end()) {
-        constraints += " and (" + begin + (at->second == 0 ? " <= 0" : " = " + std::to_string(at->second)) + ")";
+        auto text = " and (" + begin + (at->second == 0 ? " <= 0" : " = " + std::to_string(at->second)) + ")";
         auto past = last.at(c);
-        constraints += " and (" + end + (past == producers ? " >= " : " = ") + std::to_string(past) + ")";
-      } else constraints += " and ((" + end + ") <= 0 or (" + begin + ") >= " + std::to_string(producers) + ")";
+        return text + " and (" + end + (past == producers ? " >= " : " = ") + std::to_string(past) + ")";
+      }
+      return " and ((" + end + ") <= 0 or (" + begin + ") >= " + std::to_string(producers) + ")";
+    };
+    // A few endpoint constraints determine ordinary affine windows. Refine
+    // from violating consumers instead of parsing thousands of redundant
+    // inequalities. Acceptance still proves equality with the full relation.
+    std::set<long> selected{0,consumers-1};
+    for(long c=1;c<consumers;c*=2)selected.insert(c);
+    for(unsigned iteration=0;iteration<32;++iteration) {
+      std::string constraints = "count >= " + std::to_string(width) +
+          " and abs_scale >= scale and abs_scale >= -scale and abs_offset >= offset and abs_offset >= -offset";
+      for(auto c:selected)constraints+=constraint(c);
+      auto feasible = CouplingRelation::FromIslText("{ [] -> [count,abs_scale,abs_offset,scale,offset] : " + constraints + " }");
+      auto point = feasible.LexMin().Points();
+      if(point.empty())break;
+      auto const& p=point.front().second;
+      WaitWindow window{true,divisor,p[3],p[4],p[0]};
+      bool refined=false;
+      for(long c=0;c<consumers;++c) {
+        auto begin=std::max(0L,(c/divisor)*window.scale+window.offset);
+        auto end=std::min(producers,(c/divisor)*window.scale+window.offset+window.count);
+        auto at=first.find(c);
+        bool equal=at==first.end()?begin>=end:begin==at->second && end==last.at(c);
+        if(!equal) {refined=selected.insert(c).second;break;}
+      }
+      if(refined)continue;
+      auto encoded=EncodeWindow(window,producers,consumers);
+      if(Contains(encoded,linear) && Contains(linear,encoded))return window;
+      break;
     }
-    auto feasible = CouplingRelation::FromIslText("{ [] -> [count,abs_scale,abs_offset,scale,offset] : " + constraints + " }");
-    auto point = feasible.LexMin().Points();
-    if (point.empty()) continue;
-    auto const& p = point.front().second;
-    WaitWindow window{true, divisor, p[3], p[4], p[0]};
-    auto encoded = EncodeWindow(window, producers, consumers);
-    if (Contains(encoded, linear) && Contains(linear, encoded)) return window;
   }
   return std::nullopt;
 }

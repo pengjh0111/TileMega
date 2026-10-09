@@ -32,6 +32,10 @@ int TestBoundDependencyForm(int, char**) {
   Check("{ [c] -> [p] : 0 <= c < 10 and 0 <= p < 7 and floord(c,3)-1 <= p < floord(c,3)+3 }", F(7), F(10), false);
   Check("{ [c] -> [p] : 0 <= c < 10 and 0 <= p < 10 and c-20 <= p < c+5 }", F(10), F(10), false);
   Check("{ [c] -> [p] : 0 <= c < 9 and 0 <= p < 12 and (p=c or p=c+3) }", F(12), F(9), true);
+  Check("{ [c] -> [p] : 0 <= c < 4099 and 0 <= p < 1400 and floord(c,3)-2 <= p < floord(c,3)+4 }",
+        F(1400),F(4099),false);
+  Check("{ [c] -> [p] : 0 <= c < 2003 and 0 <= p < 1500 and 1300-floord(c,2) <= p < 1305-floord(c,2) }",
+        F(1500),F(2003),false);
   Check("{ [c] -> [p] : false }", F(9), F(9), true);
   ParamBinding known; known.Bind("B", 3);
   Check("[B] -> { [c] -> [p] : 0 <= c < 3*B and p=c }", F(3)*ClosedForm::Symbol("B"), F(3)*ClosedForm::Symbol("B"), false, known);
