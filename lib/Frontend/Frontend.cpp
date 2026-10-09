@@ -1041,9 +1041,13 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   // a placeholder.
   std::vector<analysis::CouplingEdge> derived = [&] {
     solver::SolverPhase phase(timing,"derive");
-    if(!cache)return analysis::CouplingDerivation{}.Derive(graph,known);
+    // A forward variant binds its workload before materializing table waits.
+    // Keep L-sem symbolic, but count the exact relation at that same binding:
+    // symbolic cardinality of convolution's floordiv unions is unnecessary.
+    auto const& analysisKnown=plan.dm && plan.forward && exactTasks?taskBinding:known;
+    if(!cache)return analysis::CouplingDerivation{}.Derive(graph,analysisKnown);
     auto hits=cache->hits,misses=cache->misses;
-    auto result=cache->Derive(lifted.sem,graph,g,known);
+    auto result=cache->Derive(lifted.sem,graph,g,analysisKnown);
     if(timing) { timing->Add("cache_hit",0,cache->hits-hits);timing->Add("cache_miss",0,cache->misses-misses); }
     return result;
   }();

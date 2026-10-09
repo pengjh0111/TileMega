@@ -5,7 +5,16 @@
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/SemanticCodec.h>
 #include <tilemega/Analysis/TaskElementRelation.h>
+#include <tilemega/Analysis/TaskWork.h>
+#include <tilemega/Codegen/CouplingGraphToCUDA.h>
+#include <tilemega/Frontend/TorchExportImporter.h>
+#include <tilemega/Solver/ModelDescription.h>
+#include <llvm/Support/FileSystem.h>
+#include <llvm/Support/JSON.h>
+#include <llvm/Support/raw_ostream.h>
+#include <mlir/IR/MLIRContext.h>
 #include <cassert>
+#include <cstdlib>
 #include <iostream>
 #include <set>
 
@@ -64,9 +73,89 @@ void Equal(CouplingRelation const& actual,Points const& points) {
   auto oracle=Relation(points,actual.DomainDimNames().size(),actual.RangeDimNames().size());
   assert(Contains(actual,oracle) && Contains(oracle,actual));assert(Listed(actual)==points);
 }
+void Integration(int argc,char** argv) {
+  auto plan=Fixture(2);
+  unsigned counts[]={231,936,1368,576,19,19,456,48};
+  for(unsigned i=0;i<8;++i) {
+    auto& buffer=plan.buffers[i];
+    if(i==2 || i==4 || i==5) {
+      buffer.constant=counts[i];buffer.role="external";
+      buffer.external_name=buffer.name;
+      buffer.pack_json="{\"kind\":\"alias\",\"source\":\""+buffer.name+"\"}";
+    }else buffer.per_batch=counts[i];
+  }
+  plan.buffers[0].role=plan.buffers[6].role="external";
+  plan.buffers[0].external_name="input";plan.buffers[6].external_name="output";
+  plan.buffers[7].dtype="f32";
+  plan.outputs.push_back({6,""});
+  auto node=[](int index,char const* name,char const* op,char const* target,
+      std::initializer_list<llvm::json::Value> inputs,
+      std::initializer_list<llvm::json::Value> shape) {
+    return llvm::json::Object{{"index",index},{"name",name},{"op",op},{"target",target},
+        {"inputs",llvm::json::Array(inputs)},{"shape",llvm::json::Array(shape)},
+        {"dtype","torch.bfloat16"}};
+  };
+  llvm::json::Value json=llvm::json::Object{
+      {"schema","tilemega.exported_program.v1"},{"guards",llvm::json::Array{}},
+      {"range_constraints",llvm::json::Object{{"s0","VR[1, 64]"}}},
+      {"nodes",llvm::json::Array{
+        node(0,"input","placeholder","input",{}, {"s0","3","7","11"}),
+        node(1,"weight","placeholder","weight",{}, {"19","3","3","3"}),
+        node(2,"gamma","placeholder","gamma",{}, {"19"}),
+        node(3,"beta","placeholder","beta",{}, {"19"}),
+        node(4,"layout","call_function","aten.permute.default",{"input"},{"s0","7","11","3"}),
+        node(5,"conv","call_function","aten.convolution.default",{"layout","weight"},{"s0","4","6","19"}),
+        node(6,"norm","call_function","aten.layer_norm.default",{"conv","gamma","beta"},{"s0","24","19"})}},
+      {"signature",llvm::json::Object{
+        {"inputs",llvm::json::Array{
+          llvm::json::Object{{"name","input"},{"kind","USER_INPUT"},{"target",""}},
+          llvm::json::Object{{"name","weight"},{"kind","PARAMETER"},{"target","buffer2"}},
+          llvm::json::Object{{"name","gamma"},{"kind","PARAMETER"},{"target","buffer4"}},
+          llvm::json::Object{{"name","beta"},{"kind","PARAMETER"},{"target","buffer5"}}}},
+        {"outputs",llvm::json::Array{llvm::json::Object{{"name","norm"},{"kind","USER_OUTPUT"}}}}}}};
+  for(unsigned i=0;i<3;++i) {
+    plan.stages[i].representative_index=4+i;
+    plan.stages[i].representative=i==0?"layout":i==1?"conv":"norm";
+  }
+  plan.node_buffer={{"input",0},{"weight",2},{"gamma",4},{"beta",5},
+      {"layout",1},{"conv",3},{"norm",6}};
+  int fd;llvm::SmallString<128> filename;
+  assert(!llvm::sys::fs::createTemporaryFile("dm-dnn-cg","json",fd,filename));
+  {llvm::raw_fd_ostream out(fd,true);out<<llvm::formatv("{0:2}",json);}
+  mlir::MLIRContext context;
+  ImportOptions options;options.gemms={{16,16,16,3,1}};options.phase_batch=2;
+  auto trace=[](char const* phase) {
+    if(std::getenv("TILEMEGA_DNN_IMPORT_TRACE"))std::cerr<<"DNN_IMPORT "<<phase<<std::endl;
+  };
+  trace("import");
+  auto module=TorchExportImporter{}.ImportPlan(filename.str().str(),plan,context,nullptr,options);
+  trace("model_description");
+  auto description=solver::ModelDescription::FromCouplingGraph(*module,{1,0,1},"dnn-primitives");
+  assert(description.dm && description.serving && description.stages.size()==3);
+  assert(description.task_semantics.size()==3 && description.batch_metric_parameter=="s0");
+  for(auto const& semantic:description.task_semantics) {
+    trace(semantic.op.name.c_str());
+    auto graph=Instantiate(SemanticGraph{{semantic.op}},Granularity{});
+    auto const& task=graph.nodes.front();
+    ParamBinding known;known.Bind("s0",2);
+    auto work=DeriveTaskWork(semantic.op,task,known);
+    assert(work.task_count.SumDomain().Eval(known)>0);
+  }
+  trace("codegen");
+  auto source=codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});
+  assert(source.find("Run<TaskKind::kLayerNorm, 19, 4>")!=std::string::npos);
+  assert(source.find("Run<TaskKind::kLayoutConvert, 3, 17>")!=std::string::npos);
+  if(argc==3 && std::string(argv[1])=="--emit") {
+    std::error_code error;llvm::raw_fd_ostream output(argv[2],error);assert(!error);output<<source;
+  }
+  assert(!llvm::sys::fs::remove(filename));
 }
-int TestDnnSemanticLifting(int,char**) {
+}
+int TestDnnSemanticLifting(int argc,char** argv) {
   IslContext isl;unsigned cases=0;
+  if(argc==2 && std::string(argv[1])=="--integration-only") {
+    Integration(argc,argv);return 0;
+  }
   LiftOptions options;options.forward=true;options.batch_symbol="B";options.static_seq=1;
   for(unsigned batch:{1,2,3})for(int split:{1,5}) {
     ParamBinding known;known.Bind("B",batch);
@@ -128,7 +217,8 @@ int TestDnnSemanticLifting(int,char**) {
   auto requests=ProjectTaskRequests(access.semantic,graph.nodes.front(),access.partition,
       table.tensor,table.map,{},known);
   assert(requests.Card().SumDomain().Eval({})==256*768);
-  std::cout<<"DNN_LIFT cases="<<cases<<" exact_halo_split_ownership_and_binding_requests PASS\n";
+  Integration(argc,argv);
+  std::cout<<"DNN_LIFT cases="<<cases<<" exact_halo_split_ownership_binding_requests_CG_codegen PASS\n";
   return 0;
 }
 } // namespace tilemega::tests::dnn_semantic_lifting_test
