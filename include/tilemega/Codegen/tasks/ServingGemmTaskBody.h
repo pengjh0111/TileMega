@@ -7,6 +7,9 @@
 
 #include <tilemega/Backend/ServingEpilogue.h>
 #include <tilemega/Backend/ServingGemm.h>
+#if TILEMEGA_TRACE_TASK
+#include <tilemega/Backend/ServingProfiledMainloop.h>
+#endif
 
 #ifndef TILEMEGA_NONPAGED_TILED
 #define TILEMEGA_NONPAGED_TILED 0
@@ -117,8 +120,17 @@ struct ServingGemmTaskBody {
                               p.n - size<0>(gB) * tile_n,
                               copy_k_count - size<1>(gA) * size<2>(gA));
     auto k_iter = make_coord_iterator(shape<2>(gA));
-    Mainloop{}(accum, gA, gB, accum, k_iter, size<2>(gA), residue,
-               ComputeThread(), shared);
+#if TILEMEGA_TRACE_TASK
+    cutlass::gemm::collective::ProfiledServingMainloop<Mainloop>{}(accum, gA,
+#else
+    Mainloop{}(accum, gA,
+#endif
+               gB, accum, k_iter, size<2>(gA), residue,
+               ComputeThread(), shared
+#if TILEMEGA_TRACE_TASK
+               , FirstTileReadyProfile{p.profile}
+#endif
+               );
 #endif
 #if TILEMEGA_TRACE_TASK
     auto epilogue_begin=TaskProfileNow(p.profile);

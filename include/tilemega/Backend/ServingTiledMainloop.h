@@ -58,6 +58,9 @@ struct ServingTiledMainloop {
     auto cb=make_tiled_copy_B(typename Config::SmemCopyAtomB{},mma);
     for(int it=0;it<iterations;++it) {
       cp_async_wait<Slots-2>();ComputeSync();
+#if TILEMEGA_TRACE_TASK
+      if(it==0)codegen::FirstTileReadyProfile{p.profile}();
+#endif
       int const ahead=it+Slots-1;
       if(ahead<iterations)issue(ahead);else cp_async_fence();
       auto sa=make_tensor(make_smem_ptr(a+(it%Slots)*TM*TK),LA{});

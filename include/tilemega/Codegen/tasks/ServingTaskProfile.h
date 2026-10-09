@@ -16,5 +16,13 @@ __device__ inline unsigned long long TaskProfileNow(ServingTaskProfile* p) {
 #endif
   return 0;
 }
+struct FirstTileReadyProfile {
+  ServingTaskProfile* profile;
+  __device__ void operator()() const {
+#if TILEMEGA_TRACE_TASK
+    if(profile && (threadIdx.x & 127)==0)profile->first_ready=TaskProfileNow(profile);
+#endif
+  }
+};
 #endif
 }

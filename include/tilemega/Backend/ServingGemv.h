@@ -3,6 +3,7 @@
 #include <tilemega/Backend/ServingVectorIO.h>
 #include <tilemega/Backend/ServingEpilogue.h>
 #include <tilemega/Target/ArchDispatch.h>
+#include <tilemega/Codegen/tasks/ServingTaskProfile.h>
 namespace tilemega::backend {
 // Direct register streaming avoids a shared-memory copy for M<=4. Each warp
 // reduces one column at a time; no MMA accumulator rows are allocated.
@@ -52,6 +53,10 @@ struct ServingGemv {
           #pragma unroll
           for(int e=0;e<8;++e)if(e<valid)acc[row]=fmaf(float(a[e]),float(b[e]),acc[row]);
         }
+#if TILEMEGA_TRACE_TASK
+        // A streaming implementation has no page; observe its first A/B vector.
+        if(local==0 && k==0)codegen::FirstTileReadyProfile{p.profile}();
+#endif
       }
       #pragma unroll
       for(int row=0;row<4;++row) {

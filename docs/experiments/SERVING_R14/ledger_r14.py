@@ -46,6 +46,12 @@ def tasks(path):
             for key in ('query_ns','first_page_wait_ns','later_page_wait_ns','wave_compute_ns','la_ns','epilogue_ns'):
                 if key in row:value[key]=int(row[key])
             if value['run_ns']<0:raise ValueError('negative task span')
+            first=int(row.get('first_ready',0))
+            value['operand_ready_observed']=bool(first)
+            if first:
+                if not int(row['run_begin'])<=first<=int(row['run_end']):
+                    raise ValueError('operand readiness is outside task span')
+                value['first_operand_ready_ns']=first-int(row['run_begin'])
             value['effective_gbps']=value['bytes']/value['run_ns'] if value['run_ns'] else None
             report.setdefault(kind,[]).append(value)
     return {kind:dict(samples=rows,fit=linear_fit(rows)) for kind,rows in report.items()}
