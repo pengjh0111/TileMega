@@ -11,12 +11,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--events', default='events')
     args = parser.parse_args()
     root = args.root.resolve()
     sha = lambda path: hashlib.sha256(Path(path).read_bytes()).hexdigest()
-    completion = json.loads((root/'events/completion.json').read_text())
+    events=root/args.events
+    completion = json.loads((events/'completion.json').read_text())
     assert completion['passed']
-    state = json.loads((root/'events/state.json').read_text())
+    state = json.loads((events/'state.json').read_text())
     prepared = json.loads((root/'preparation.json').read_text())
     for path, value in prepared['inputs'].items():
         assert sha(path)==value, path
@@ -32,15 +34,15 @@ def main():
     tools = {}
     for tool, marker in [('memcheck', 'ERROR SUMMARY: 0 errors'),
                          ('racecheck', 'RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)')]:
-        path = root/'events'/(tool+'.log')
+        path = events/(tool+'.log')
         assert marker in path.read_text()
         tools[tool] = dict(passed=True, log=str(path), sha256=sha(path))
     result = dict(evidence='verified', passed=True, scope=prepared['scope'],
         preparation=prepared, completion=completion, fresh_processes=dict(passed=50, attempts=50),
-        checks={name: sha(root/'events'/(name+'.log')) for name in checks}, artifacts=artifacts,
+        checks={name: sha(events/(name+'.log')) for name in checks}, artifacts=artifacts,
         sanitizers=tools, artifact_spill_count=sum(any(r['spill'] for r in a['resources'].values()) for a in artifacts),
         artifact_stack_count=sum(any(r['stack_bytes'] for r in a['resources'].values()) for a in artifacts),
-        sample_check=(root/'events/check_00.log').read_text(),
+        sample_check=(events/'check_00.log').read_text(),
         utc=datetime.datetime.now(datetime.timezone.utc).isoformat())
     args.out.write_text(json.dumps(result, indent=2)+'\n')
     print(json.dumps(dict(passed=True, fresh_processes=50,
