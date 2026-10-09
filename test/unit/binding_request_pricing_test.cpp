@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/TaskModel.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/TaskElementRelation.h>
 #include <cassert>
 #include <iostream>
 
@@ -9,7 +10,7 @@ int TestBindingRequestPricing(int,char**) {
   using namespace analysis;
   IslContext isl;
   auto f=[](long n){return ClosedForm::Constant(n);};
-  unsigned cases=0;
+  unsigned cases=0,live_cases=0;
   for(long blocks:{1,5})for(unsigned bm:{4,24})for(int weight_bytes:{2,4}) {
     SemanticOp op;op.name="expert";op.kind=OperatorKind::kMatmul;
     op.dtype=analysis::ScalarType::kBF16;op.arithmetic="gemm";op.exact_task_access=true;
@@ -70,9 +71,41 @@ int TestBindingRequestPricing(int,char**) {
       assert(single.external_write_bytes==traffic[i].external_write_bytes);
       ++cases;
     }
+    for(unsigned live:{0,1,3,4,8,16,17,23,24}) {
+      if(live>bm)continue;
+      auto traits=solver::ModelTaskTraits(model,0,geometry);
+      auto restricted=solver::RestrictVirtualTaskRows(input,live,traits);
+      assert(restricted.task.element_access!=input.task.element_access);
+      assert(input.task.element_access->semantic.Dim("row")->BoundExtent().IsLiteral(bm));
+      assert(restricted.work.task_count.SemanticallyEqual(input.work.task_count,{}));
+      assert(restricted.work.nominal_write_elements.SemanticallyEqual(input.work.nominal_write_elements,{}));
+      assert(restricted.work.nominal_task_reduce_extent.SemanticallyEqual(input.work.nominal_task_reduce_extent,{}));
+      solver::BindTaskDramProvenance(restricted,model.task_semantics.front(),floor,{},true);
+      auto actual=solver::DeriveTaskMemoryTrafficBatch(restricted,{},points,2,2);
+      for(unsigned i=0;i<points.size();++i) {
+        long row_begin=points[i].At("row")*16;
+        long rows=std::max<long>(0,std::min<long>(16,long(live)-row_begin));
+        auto columns=tails[i].second;
+        assert(actual[i].global_read_bytes==rows*5*2+(rows?columns*5*weight_bytes:0));
+        assert(actual[i].global_write_bytes==rows*columns*6);
+        assert(actual[i].no_producer_read_bytes==(rows?columns*5*weight_bytes:0));
+        assert(actual[i].produced_read_bytes==rows*5*2);
+        assert(actual[i].external_write_bytes==rows*columns*2);
+        auto const& conditioned=restricted.task.element_access->semantic;
+        auto reads=ProjectTaskRequests(conditioned,restricted.task,
+            restricted.task.element_access->partition,a,conditioned.operands[0].map,{},{});
+        auto all=ProjectTaskRequests(op,input.task,input.task.element_access->partition,a,op.operands[0].map,{},{});
+        assert(reads.IsSubset(all));
+        ++live_cases;
+      }
+    }
+    bool rejected=false;
+    try{(void)solver::RestrictVirtualTaskRows(input,bm+1,solver::ModelTaskTraits(model,0,geometry));}
+    catch(std::invalid_argument const&){rejected=true;}assert(rejected);
   }
   assert(cases==72);
-  std::cout<<"Binding request pricing: 72 full/tail mixed-width traffic cases PASS\n";
+  std::cout<<"Binding request pricing: 72 capacity and "<<live_cases
+      <<" live-row mixed-width traffic, empty subtile and request containment cases PASS\n";
   return 0;
 }
 } // namespace tilemega::tests::binding_request_pricing_test

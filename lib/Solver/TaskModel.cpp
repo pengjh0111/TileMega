@@ -16,6 +16,46 @@
 #include <stdexcept>
 
 namespace tilemega::solver {
+DerivedTaskInput RestrictVirtualTaskRows(DerivedTaskInput const& input,
+    std::uint32_t live_rows,BackendTraits const& traits,
+    analysis::ParamBinding const& theta) {
+  using namespace analysis;
+  if(!input.task.element_access || traits.tile_k<=0 || traits.stages<2)
+    throw std::invalid_argument("live binding rows require an exact collective task");
+  auto access=*input.task.element_access;
+  auto const& original=access.semantic;
+  if(original.kind!=OperatorKind::kMatmul || original.task_space.axes.size()!=3 ||
+     access.partition.ownership.results.size()!=3)
+    throw std::invalid_argument("live binding rows require virtual, row and column ownership");
+  auto const& virtual_name=UnitTaskOwnershipDimension(original,0);
+  auto const& row_name=UnitTaskOwnershipDimension(original,1);
+  auto const* virtual_dim=original.Dim(virtual_name);
+  auto const* row_dim=original.Dim(row_name);
+  if(!virtual_dim || !virtual_dim->runtime || !virtual_dim->capacity ||
+     virtual_dim->binding_source.empty() || !row_dim || row_dim->runtime ||
+     row_dim->type!=IteratorType::kParallel || !row_dim->origin.IsLiteral(0) ||
+     live_rows>row_dim->BoundExtent().Eval(theta,{}))
+    throw std::invalid_argument("live binding rows differ from the capacity semantics");
+  for(auto& dim:access.semantic.domain)if(dim.name==row_name) {
+    dim.extent=ClosedForm::Constant(live_rows);dim.capacity.reset();
+  }
+  TaskWorkOptions options;
+  if(original.reduction.splittable)
+    options.reduction_tiles.emplace(original.reduction.dim,ClosedForm::Constant(traits.tile_k));
+  auto result=input;
+  result.task.element_access=std::make_shared<TaskElementAccess const>(std::move(access));
+  result.work=DeriveTaskWork(result.task.element_access->semantic,result.task,theta,options);
+  // A nonempty tail executes the same padded MMA tile. Empty subtiles are
+  // handled by the binding-aware price path, but still occupy static task IDs.
+  result.work.task_count=input.work.task_count;
+  result.work.nominal_read_elements=input.work.nominal_read_elements;
+  result.work.nominal_write_elements=input.work.nominal_write_elements;
+  result.work.nominal_task_reduce_extent=input.work.nominal_task_reduce_extent;
+  result.physical_read_bytes.reset();result.physical_write_bytes.reset();
+  result.no_producer_read_bytes.reset();result.external_write_bytes.reset();
+  result.produced_live_bytes=0;
+  return result;
+}
 void BindTaskDramProvenance(DerivedTaskInput& input,
     ModelTaskSemantics const& semantic,analysis::DramFloor const& floor,
     analysis::ParamBinding const& theta,bool serving) {
