@@ -1,0 +1,17 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Independent expert interleave/fold/page inversion, bounded source lifetimes, deployment deduplication and 12 existing DNN/page checks; CPU only",
+  "tests": 16,
+  "log": "/root/dm1_work/development/runs/dm1-moe-weights-v1/check.log",
+  "log_sha256": "690ab700b7c632372b934721744c81775cf0a4088540ee2410ae43c1fa63f9b5",
+  "source_head": "a0549741742d721f42703983b74d154bf077734b",
+  "sources": {
+    "python/tilemega/moe/weights.py": "20fb3291167c35ade9f089676cf88d212749115c510b37720e1ecc4df8db9d0c",
+    "python/tilemega/serving/weights.py": "571b9d35ce19b417b5576bb2854af6edb879962407819652cdbb38520676d4b8",
+    "test/python/test_moe_weights.py": "2b6565d5d99c3447d1f1e1fcdfbf18b5c3f6d4a41f1d4cf5ab4b782a1446b4c2",
+    "test/python/test_dnn_weight_recipes.py": "76d67d7f2cf81379c6e0be726adedbbfac03a4886d65fa7c2fd4507b5b6a39e9",
+    "test/python/test_dm_weight_pages.py": "f6c6d747a92a65f5273d5574eac51579b2155d3a339309754b9c196788d30927"
+  },
+  "failures_retained": []
+}

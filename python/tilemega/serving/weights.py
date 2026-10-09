@@ -11,6 +11,7 @@ from safetensors import safe_open
 
 from .plan import Buffer, PlanLibrary
 from tilemega.dnn.weights import DNN_RECIPES, pack as pack_dnn, recipe_sources as dnn_sources
+from tilemega.moe.weights import is_expert_recipe, pack_experts, recipe_sources as expert_sources
 
 
 class Checkpoint:
@@ -58,6 +59,8 @@ def _conv_krsc(weight: torch.Tensor, padded_channels: int) -> torch.Tensor:
 
 def _packed_cpu(recipe: Mapping[str, object], checkpoint: Checkpoint) -> torch.Tensor:
     kind = recipe["kind"]
+    if is_expert_recipe(recipe):
+        return _packed_gpu(recipe, checkpoint.tensor)
     if kind in ('tile_pages', 'fold_rmsnorm'):
         return _packed_gpu(recipe, checkpoint.tensor)
     if kind in DNN_RECIPES:
@@ -114,6 +117,8 @@ def weight_recipes(*plans: PlanLibrary) -> dict[str, Buffer]:
 
 def _recipe_sources(recipe: Mapping[str, object]) -> tuple[str, ...]:
     kind = recipe['kind']
+    if is_expert_recipe(recipe):
+        return expert_sources(recipe)
     if kind in DNN_RECIPES:
         return dnn_sources(recipe, _recipe_sources)
     if kind == 'tile_pages' or kind == 'fold_rmsnorm':
@@ -126,6 +131,10 @@ def _recipe_sources(recipe: Mapping[str, object]) -> tuple[str, ...]:
 
 def _packed_gpu(recipe: Mapping[str, object], source) -> torch.Tensor:
     kind = recipe['kind']
+    if is_expert_recipe(recipe):
+        return pack_experts(recipe,source,lambda matrix,tn,tk:_packed_gpu(
+            dict(kind='tile_pages',tile_n=tn,tile_k=tk,source=dict(kind='alias',source='matrix')),
+            lambda name:matrix))
     if kind in DNN_RECIPES:
         return pack_dnn(recipe, source, lambda value: _packed_gpu(value, source))
     if kind == 'alias':
@@ -215,12 +224,15 @@ def load_weights(model_dir: str | Path, *plans: PlanLibrary,
     result: dict[str, torch.Tensor] = {}
     sources: dict[tuple[str, bool], torch.Tensor] = {}
     packed: dict[tuple[tuple[str, ...], str], torch.Tensor] = {}
-    def source(name: str, preserve: bool = False) -> torch.Tensor:
+    def source(name: str, preserve: bool = False, cache: bool = True) -> torch.Tensor:
         key = (name, preserve)
-        if key not in sources:
+        if key not in sources or not cache:
             original = checkpoint.tensor(name)
-            sources[key] = original.to(device=device,
+            tensor = original.to(device=device,
                 dtype=original.dtype if preserve else torch.bfloat16).contiguous()
+            if not cache:
+                return tensor
+            sources[key] = tensor
         return sources[key]
     def dnn(recipe):
         return recipe['kind'] in DNN_RECIPES or (isinstance(recipe.get('source'), dict) and dnn(recipe['source']))
@@ -229,7 +241,11 @@ def load_weights(model_dir: str | Path, *plans: PlanLibrary,
         identity = tuple(checkpoint.tensor_sha(item) for item in _recipe_sources(recipe))
         key = (identity, json.dumps(recipe, sort_keys=True))
         if key not in packed:
-            packed[key] = _packed_gpu(recipe, lambda name: source(name, dnn(recipe))).contiguous()
+            packed[key] = _packed_gpu(recipe, lambda name: source(name, dnn(recipe),
+                cache=not is_expert_recipe(recipe))).contiguous()
+        # Aliases intentionally retain their source through the result tensor.
+        # Other recipes release source storage before packing the next weight.
+        sources.clear()
         tensor = packed[key]
         if tensor.numel() != buffer.elements_constant:
             raise ValueError(f"{name} has {tensor.numel()} elements; plan expects "
