@@ -260,3 +260,12 @@ SASS/token comparisons, candidate ctest 144/147 and reference 94/97. The two new
 candidate multipage executables were omitted by a restricted native build command;
 the next checkpoint builds all candidate default targets. The common independent-
 attention numerical failure remains. Record-only queue completion is not G-REG.
+## Conditional binding rows
+
+verified: `results/CI7_virtual_live_rows_host.json` records 6/6 native host
+checks, including 72 capacity and 528 live-row traffic cases. Restricting the
+semantic row domain rederives physical read/write and typed provenance fibers;
+capacity task IDs and padded MMA work remain fixed. Empty subtiles have zero
+physical requests. Side stores and request-set containment are checked against
+independent integer enumeration. This does not establish measured routes,
+profile-aware flow selection, CUDA synchronization or model correctness.
