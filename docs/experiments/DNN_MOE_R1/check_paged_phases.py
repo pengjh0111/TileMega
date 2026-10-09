@@ -19,10 +19,13 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--smoke', action='store_true')
     parser.add_argument('--attention', action='store_true')
+    parser.add_argument('--multipage', action='store_true')
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     nvcc = '/usr/local/cuda/bin/nvcc'
-    sources = [('test/unit/dm_paged_attention_test.cu' if args.attention else
+    if args.attention and args.multipage:parser.error('choose one fixture kind')
+    sources = [('test/unit/dm_paged_multipage_phase_test.cu' if args.multipage else
+        'test/unit/dm_paged_attention_test.cu' if args.attention else
         'test/unit/dm_paged_phase_test.cu'), 'lib/Target/TargetSpec.cpp',
         'lib/Support/Json.cpp', 'lib/Codegen/RuntimeTaskGraph.cpp',
         'lib/Solver/PlanMaterialize.cpp', 'lib/Dialect/CouplingGraph/PlacementPlan.cpp',
@@ -43,7 +46,8 @@ def main():
         fresh_processes=[],head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=args.root,text=True).strip(),
         diff_sha256=hashlib.sha256(subprocess.check_output(['git','diff','--binary','HEAD'],cwd=args.root)).hexdigest(),
         compiler_version=subprocess.check_output([nvcc,'--version'],text=True),compiler_sha256=sha(nvcc),
-        scope=('paged QKV -> prefill attention -> o_proj with two query blocks, causal FP32 oracle, exact consumer table and bitwise L1/L2' if args.attention else
+        scope=('native PageStream forward/prefill plans with four-page B stages wrapping a five-slot ring; lookahead, produced activations, poisoned epochs, independent FP32/BF16-store oracles and bitwise L1/L2' if args.multipage else
+            'paged QKV -> prefill attention -> o_proj with two query blocks, causal FP32 oracle, exact consumer table and bitwise L1/L2' if args.attention else
             'two dense GEMMs through native paged forward/prefill C ABI; produced activation, weight pages, poisoned intermediates and bitwise L1/L2') + '; binding-aware pages and model gates pending')
     cases=(0,) if args.attention else (2,0)
     result['baselines']=dict(vllm_version=subprocess.check_output(
@@ -58,8 +62,8 @@ def main():
             objects.append(str(obj))
             result['support_builds'].append(dict(command=command,object_sha256=sha(obj),log_sha256=sha(log)))
         for phase in cases:
-            for tile in ((64,) if args.attention else (128,) if args.smoke else (128,16,32,64)):
-                for arch in ((89,) if args.smoke or (not args.attention and tile!=128) else (80,89,90,100,120)):
+            for tile in ((16,) if args.multipage else (64,) if args.attention else (128,) if args.smoke else (128,16,32,64)):
+                for arch in ((89,) if args.smoke or (not args.attention and not args.multipage and tile!=128) else (80,89,90,100,120)):
                     binary=args.out/f'phase{phase}-m{tile}-sm_{arch}';log=binary.with_suffix('.log')
                     configuration=([] if args.attention else
                         [f'-DDM_TEST_PHASE={phase}',f'-DDM_TEST_TILE_M={tile}'])
@@ -86,14 +90,14 @@ def main():
                             phase=0 if args.attention else phase),
                         implementations=dict(gemm='PagedGemmTaskBody',
                             attention='FusedAttentionTaskBody' if args.attention else None,
-                            fixture=sources[0],tile_m=tile,tile_n=64,tile_k=64),
-                        placement=dict(pages=2,page_bytes=8192,lookahead_bytes=32768),
+                            fixture=sources[0],tile_m=tile,tile_n=128 if args.multipage else 64,tile_k=128 if args.multipage else 64),
+                        placement=dict(pages=5 if args.multipage else 2,page_bytes=8192,lookahead_bytes=32768),
                         kernels=kernels,spill=any(row['spill'] for row in kernels.values()))
                     identity['artifact_id']=hashlib.sha256(json.dumps(identity,sort_keys=True,separators=(',',':')).encode()).hexdigest()
                     result['builds'][-1]['artifact_id']=identity['artifact_id']
                     Path(str(binary)+'.identity.json').write_text(json.dumps(identity,indent=2)+'\n')
             for process in range(1 if args.smoke else 50):
-                tile=64 if args.attention else 128 if args.smoke else (16,32,64,128)[process%4]
+                tile=16 if args.multipage else 64 if args.attention else 128 if args.smoke else (16,32,64,128)[process%4]
                 binary=args.out/f'phase{phase}-m{tile}-sm_89';log=args.out/f'process-phase{phase}-{process:02d}.log'
                 with log.open('w') as stream:
                     status=subprocess.run(['flock',LOCK,str(binary)],stdout=stream,stderr=subprocess.STDOUT,timeout=300).returncode
