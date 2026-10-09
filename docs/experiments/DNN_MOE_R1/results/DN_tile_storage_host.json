@@ -1,0 +1,34 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Twelve geometry combinations: independent enumeration, two-way containment, split-final side stores, codec and eight neighboring regression checks",
+  "preparation": {
+    "head": "496e02a76d5b4b701ec235997096c61d78b51fb3",
+    "diff_sha256": "f8c19e5929cc59bd2841cd462a884dffb37eccc3bd764c3f3ede171df1b1981a",
+    "inputs": {
+      "/root/dm1_work/development/runs/dm1-task-storage-v1/tilemega-unit": "f119037ad08014fde037d842534cd6b315e93dfe0a321fbacda4a9d977e92a0f",
+      "/root/dm1_work/development/runs/dm1-task-storage-v1/test/unit/task_storage_test.cpp": "b655d052aaab75d370f310107e052a62c4d20d92ba4c0df49e601e4b1f67a82f",
+      "/root/dm1_work/development/runs/dm1-task-storage-v1/queue/queue_host.json": "5761ab14ce604d646ddb957a769b7bfe2fc409aa5f6dedb3a085604e8bda82d9",
+      "/root/dm1_work/development/runs/dm1-task-storage-v1/lib/Analysis/TaskStorage.cpp": "55c55d55eed918bd33110ef0a6cd571678c28bf1021e0eb119bc522eed3b1885",
+      "/root/dm1_work/development/runs/dm1-task-storage-v1/include/tilemega/Analysis/Semantics.h": "1c69478ad7da435ef21b1d05cb8e71b4dbccce84a65f7356cd3f8bce91b9f96a"
+    }
+  },
+  "completion": {
+    "event": "queue_complete",
+    "steps": 9,
+    "passed": true
+  },
+  "logs": {
+    "dnn_semantic_lifting.log": "8e684bbc3177b74c4c60b6440126ebd1b6a3d20d5bd41a707085e589f92aec33",
+    "dm_exact_fusion.log": "77b4650485a657f03f699cb8078f130d65e6d80801d09c7ab94ba7c25a3d317b",
+    "task_storage.log": "daad52a4856a6596ce5e3c95aac65a6cf8f65e9c694a5686390c77af46fbbe0f",
+    "typed_affine_pricing.log": "e1ccd41a067657cb1805fa2af7669d10d2d254ffc91382907f589ad39f51d371",
+    "dnn_epilogue_semantics.log": "78c9aae3839c1689e6d6f0bd61b0fabba7831496f8990f006414ec73fffe7308",
+    "task_element_work.log": "ad5cf2efc39ec6e7fa40fc8a175a9e80ab4925418e4fc08cab14c023eba1033e",
+    "semantics.log": "43022bd89c87fd2a6264014504cb3cd567ffe64f77070e4ab09a274df2099d12",
+    "scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "dram_floor.log": "e9921136a74a5ac7d1376fcf3c663dbcfdae1cf6933f43a2d2d60c25245a4b92",
+    "semantic_lifting.log": "d1d33376700d73585046d90e7fc383f336f560a9ce2529cea1199bde8de2c590"
+  },
+  "failures_retained": []
+}

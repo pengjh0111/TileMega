@@ -21,6 +21,13 @@ if __name__ == '__main__':
         shutil.copy2(Path(__file__).with_name(name), root/'framework'/name)
     shutil.copy2(Path(__file__).with_name('check_generated_dnn.py'), root/'check.py')
     shutil.copy2(args.source, root/'generated.cu')
+    for name in ['dnn_semantic_lifting_test.cpp', 'dnn_epilogue_semantics_test.cpp']:
+        (root/'test/unit').mkdir(parents=True, exist_ok=True)
+        shutil.copy2(repo/'test/unit'/name, root/'test/unit'/name)
+    for name in ['lib/Analysis/TaskStorage.cpp', 'lib/Frontend/DnnStorage.cpp',
+                 'lib/Frontend/DnnSemanticLifting.cpp']:
+        (root/name).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(repo/name, root/name)
     for name in ['tilemega/__init__.py', 'tilemega/serving/__init__.py', 'tilemega/serving/plan.py']:
         (root/'python'/name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(repo/'python'/name, root/'python'/name)
@@ -38,7 +45,7 @@ if __name__ == '__main__':
         for path in root.rglob('*') if path.is_file()}
     preparation = dict(source_head=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo,
         text=True).strip(), diff_sha256=hashlib.sha256(subprocess.check_output(
-            ['git', 'diff'], cwd=repo)).hexdigest(), support=support, inputs=inputs,
+            ['git', 'diff', 'HEAD'], cwd=repo)).hexdigest(), support=support, inputs=inputs,
         codegen_test_sha256=hashlib.sha256((repo/'test/unit/dnn_semantic_lifting_test.cpp').read_bytes()).hexdigest())
     (root/'preparation.json').write_text(json.dumps(preparation, indent=2)+'\n')
     steps = []

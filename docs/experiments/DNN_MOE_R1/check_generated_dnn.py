@@ -16,6 +16,10 @@ def execute(root):
     torch.manual_seed(20261009)
     torch.backends.cuda.matmul.allow_tf32 = False
     library = PlanLibrary(root / 'generated-sm_89.so')
+    if 'row_stats' in {b.name for b in library.buffers}:
+        return execute_sides(torch, library)
+    if 'weight0' in {b.name for b in library.buffers}:
+        return execute_epilogue(torch, library)
     if 'RunDepthwise<' in (root/'generated.cu').read_text():
         return execute_depthwise(torch, library, (root/'generated.cu').read_text())
     if 'Run<TaskKind::kGlobalPoolReduce,' in (root/'generated.cu').read_text():
@@ -57,6 +61,114 @@ def execute(root):
                 cases.append(dict(epoch=epoch, mode=mode, max_error=error.max().item()))
     print(json.dumps(dict(event='generated_dnn_correctness', passed=True,
         scope='CG-generated layout/conv/pool/LN ABI; no full model gate', pool=pool, cases=cases)), flush=True)
+
+
+def execute_sides(torch, library):
+    from tilemega.serving.plan import FORWARD
+    assert library.info.phase == FORWARD
+    x = torch.randn(2, 15, 72, device='cuda', dtype=torch.bfloat16)*0.125
+    weight = torch.randn(20, 72, device='cuda', dtype=torch.bfloat16)*0.125
+    bias = torch.randn(20, device='cuda', dtype=torch.float32)*0.125
+    output = torch.empty(2, 5, 7, 24, device='cuda', dtype=torch.bfloat16)
+    stats = torch.empty(30, 2, 2, device='cuda', dtype=torch.float32)
+    partials = torch.empty(2, 2, 20, device='cuda', dtype=torch.float32)
+    pooled = torch.empty(2, 20, device='cuda', dtype=torch.float32)
+    reference = torch.clamp(x.float() @ weight.float().T + bias, 0, 6).reshape(2, 3, 5, 20)
+    buffers = dict(input=x, weight=weight, bias=bias, output=output,
+        row_stats=stats, channel_partials=partials, pooled=pooled)
+    assert {b.name for b in library.buffers if b.role == 1} == set(buffers)
+    cases = []
+    with library.create(2, {name:value.data_ptr() for name,value in buffers.items()}, 0) as plan:
+        plan.set_steps([0]); first = None
+        for epoch in range(3):
+            for mode in (1, 2):
+                for value in buffers.values():
+                    if value is output or value is stats or value is partials or value is pooled:
+                        value.fill_(-12345)
+                plan.launch(0, mode, torch.cuda.current_stream().cuda_stream)
+                torch.cuda.synchronize()
+                actual = output[:, 1:4, 1:6, :20].reshape(30, 20).float()
+                error = (actual.reshape_as(reference)-reference).abs()
+                assert torch.all(error <= 1.6e-2 + 1.6e-2*reference.abs()), error.max().item()
+                expected_stats = torch.stack([torch.stack([actual[:, first:first+16].sum(1),
+                    actual[:, first:first+16].square().sum(1)], dim=1) for first in (0,16)], dim=1)
+                assert torch.allclose(stats, expected_stats, rtol=1e-6, atol=1e-6)
+                for image in range(2):
+                    for part in range(2):
+                        begin, end = max(image*15,part*16), min((image+1)*15,(part+1)*16)
+                        if begin < end:
+                            assert torch.allclose(partials[image,part], actual[begin:end].sum(0), rtol=1e-6, atol=1e-6)
+                        else:
+                            assert torch.all(partials[image,part] == -12345)
+                assert torch.allclose(pooled, actual.reshape(2,15,20).mean(1), rtol=1e-6, atol=1e-6)
+                mask = torch.ones_like(output, dtype=torch.bool);mask[:,1:4,1:6,:20] = False
+                assert torch.all(output[mask] == torch.tensor(-12345, device='cuda', dtype=torch.bfloat16))
+                values = [output, stats, partials, pooled]
+                if first is None:
+                    first = [value.clone() for value in values]
+                else:
+                    assert all(torch.equal(a,b) for a,b in zip(first, values))
+                cases.append(dict(epoch=epoch, mode=mode, max_error=error.max().item()))
+    print(json.dumps(dict(event='generated_dnn_correctness', passed=True,
+        scope='CG-generated split-K row statistics and image-segmented global pooling; no full model gate',
+        cases=cases)), flush=True)
+
+
+def execute_epilogue(torch, library):
+    from tilemega.serving.plan import FORWARD
+    assert library.info.phase == FORWARD and library.info.capacity == 0
+    # The ABI exposes actual extents, so the oracle does not inspect the CUDA
+    # indexing expression it is meant to validate.
+    output_info = next(b for b in library.buffers if b.name == 'output')
+    size = output_info.elements_constant + 2*output_info.elements_per_batch
+    kind = 'nchw' if size == 600 else 'shuffle' if size == 1536 else 'dense'
+    h, w, c, cp = (6, 10, 5, 8) if kind == 'shuffle' else (3, 5, 20, 24)
+    shape = (2, 20, 3, 5) if kind == 'nchw' else (2, h+2, w+2, cp)
+    x = torch.randn(2, 15, 72, device='cuda', dtype=torch.bfloat16)*0.125
+    w0 = torch.randn(20, 72, device='cuda', dtype=torch.bfloat16)*0.125
+    w1 = torch.randn_like(w0)
+    b0 = torch.randn(20, device='cuda', dtype=torch.float32)*0.125
+    b1 = torch.randn_like(b0)*0.125
+    output = torch.empty(shape, device='cuda', dtype=torch.bfloat16)
+    residual = torch.empty_like(output)
+    ref0 = torch.clamp(x.float() @ w0.float().T + b0, 0, 6).to(torch.bfloat16)
+    ref1 = torch.clamp(x.float() @ w1.float().T + b1 + ref0.float(), 0, 6)
+    def logical(value):
+        if kind == 'nchw':
+            return value.permute(0, 2, 3, 1)
+        return value[:, 1:h+1, 1:w+1, :c]
+    def mapped(value):
+        if kind != 'shuffle':
+            return value.reshape(2, 3, 5, 20)
+        return value.reshape(2, 3, 5, 5, 2, 2).permute(0, 1, 4, 2, 5, 3).reshape(2, 6, 10, 5)
+    references = [mapped(ref0.float()), mapped(ref1)]
+    buffers = dict(input=x, weight0=w0, weight1=w1, bias0=b0, bias1=b1,
+        output=output, residual=residual)
+    assert {b.name for b in library.buffers if b.role == 1} == set(buffers)
+    cases = []
+    with library.create(2, {name:value.data_ptr() for name,value in buffers.items()}, 0) as plan:
+        plan.set_steps([0]); first = None
+        for epoch in range(3):
+            for mode in (1, 2):
+                output.fill_(-12345);residual.fill_(-12345)
+                plan.launch(0, mode, torch.cuda.current_stream().cuda_stream)
+                torch.cuda.synchronize(); errors = []
+                for actual, reference in zip([residual,output], references):
+                    error = (logical(actual).float()-reference).abs()
+                    assert torch.all(error <= 1.6e-2 + 1.6e-2*reference.abs()), error.max().item()
+                    errors.append(error.max().item())
+                    if kind != 'nchw':
+                        mask = torch.ones_like(actual, dtype=torch.bool)
+                        mask[:, 1:h+1, 1:w+1, :c] = False
+                        assert torch.all(actual[mask] == torch.tensor(-12345, device='cuda', dtype=torch.bfloat16))
+                if first is None:
+                    first = [output.clone(), residual.clone()]
+                else:
+                    assert torch.equal(first[0], output) and torch.equal(first[1], residual)
+                cases.append(dict(epoch=epoch, mode=mode, max_errors=errors))
+    print(json.dumps(dict(event='generated_dnn_correctness', passed=True,
+        scope='CG-generated finite epilogues and split-K final-read dependencies; no full model gate',
+        write_map=kind, cases=cases)), flush=True)
 
 
 def execute_encoder(torch, library):
@@ -214,7 +326,8 @@ def build(root, arch):
     macros = root / f'generated-sm_{arch}.macros'
     capture(command, macros)
     unchanged()
-    implementations = (['DepthwiseConvTaskBody'] if 'RunDepthwise<' in source.read_text()
+    implementations = (['ServingGemmTaskBody::RunDm', 'DmSplitKCombine'] if '"weight0"' in source.read_text()
+        else ['DepthwiseConvTaskBody'] if 'RunDepthwise<' in source.read_text()
         else ['GlobalPoolReduceTaskBody'] if 'Run<TaskKind::kGlobalPoolReduce,' in source.read_text()
         else ['EncoderAttentionTaskBody'] if 'Run<TaskKind::kEncoderAttention,' in source.read_text()
         else ['LayoutConvertTaskBody', 'ServingGemmTaskBody::RunDm', 'LayerNormTaskBody'])

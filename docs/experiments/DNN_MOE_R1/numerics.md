@@ -116,3 +116,11 @@ The generated depthwise→global-pool region checks segmented partial sums and
 means against FP64 reduction, with 50/50 fresh processes, five architectures
 and zero-error sanitizers. Receipts are `results/DN_generated_depthwise*_cuda.json`;
 all artifacts have zero spills and 5/5 stack frames.
+
+verified: finite GEMM chains use the same mapped residual reads and output
+addresses in direct and split-K builds. Side statistics and channel sums are
+written only by the final split combiner and describe the stored BF16 values.
+Geometry-dependent partition axes are materialized after selecting TM/TN;
+global-pool consumers read exactly the tiles overlapping each image. Dense,
+NCHW and PixelShuffle generated fixtures each pass 50/50 L1/L2 processes
+(`results/DN_generated_epilogue_*_cuda.json`).

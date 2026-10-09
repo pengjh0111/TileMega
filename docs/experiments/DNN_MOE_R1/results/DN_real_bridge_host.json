@@ -1,0 +1,108 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "real upstream before/Core bridge serialization with batch=2 shape constants; not import or model execution",
+  "completion": {
+    "event": "queue_complete",
+    "steps": 12,
+    "passed": true
+  },
+  "bridges": [
+    {
+      "file": "runs/dm1-real-bridges-v1/bert.before.json",
+      "sha256": "3df15d0a77973fac804ed5c56cb4477839121d430108ca2d373747dda3ab29db",
+      "nodes": 500,
+      "ranges": {
+        "s18": "VR[1, 64]"
+      }
+    },
+    {
+      "file": "runs/dm1-real-bridges-v1/bert.core.json",
+      "sha256": "fbdf8c384707834577821b1f81b6a6f4e75e20e29253160ab7b4394a0477dab1",
+      "nodes": 1224,
+      "ranges": {
+        "s18": "VR[1, 64]"
+      }
+    },
+    {
+      "file": "runs/dm1-real-bridges-v1/bert_masked.before.json",
+      "sha256": "a4e35e51e6447b9f73b921c7455bd8d15e166fe785ce3ffa38c68844bd5dc553",
+      "nodes": 511,
+      "ranges": {
+        "s18": "VR[1, 64]"
+      }
+    },
+    {
+      "file": "runs/dm1-real-bridges-v1/bert_masked.core.json",
+      "sha256": "bba782bbb1ea89acc6feaa502a13b2429402062b9bc3cf651480c9809b82fdef",
+      "nodes": 1242,
+      "ranges": {
+        "s18": "VR[1, 64]"
+      }
+    },
+    {
+      "file": "runs/dm1-real-bridges-v1/mbv1.before.json",
+      "sha256": "685b5bfaf1dd16c490824c1098db6cf606afae6c4ceff369825c0575c905e9d6",
+      "nodes": 250,
+      "ranges": {
+        "s77": "VR[1, 64]"
+      }
+    },
+    {
+      "file": "runs/dm1-real-bridges-v1/mbv1.core.json",
+      "sha256": "6968782aaeb46045ce3c5c9b89bab9fc887e996dbe23999f0f5e061cb1ca7e62",
+      "nodes": 333,
+      "ranges": {
+        "s77": "VR[1, 64]"
+      }
+    },
+    {
+      "file": "runs/dm1-real-bridges-v1/mbv2.before.json",
+      "sha256": "3f404379b99b31ca01937f7a58acf350cf430cc4eaaffc1078724acc1f02debb",
+      "nodes": 469,
+      "ranges": {
+        "s77": "VR[1, 64]"
+      }
+    },
+    {
+      "file": "runs/dm1-real-bridges-v1/mbv2.core.json",
+      "sha256": "259f8426b0dea3ddc1aa9cf5486137b9bf0bc1871fffa4a6f2c9ad5311d49c3d",
+      "nodes": 626,
+      "ranges": {
+        "s77": "VR[1, 64]"
+      }
+    },
+    {
+      "file": "runs/dm1-real-bridges-v1/nafnet.before.json",
+      "sha256": "b745d44f0fdd3877e099e57ba32689b1800685773c5e344ccfb67b79b0e31faf",
+      "nodes": 2271,
+      "ranges": {
+        "s54": "VR[1, 64]"
+      }
+    },
+    {
+      "file": "runs/dm1-real-bridges-v1/nafnet.core.json",
+      "sha256": "317d64966c7eda053cf476f21d06c437de0c242000a46c213fa67512d1b0f291",
+      "nodes": 2288,
+      "ranges": {
+        "s54": "VR[1, 64]"
+      }
+    },
+    {
+      "file": "runs/dm1-real-bridges-v1/resnet18.before.json",
+      "sha256": "dbf7bc2cea7da38692a7eba4fbfae4d9d0ad8c1442d4573849bfd0d38dc547c3",
+      "nodes": 193,
+      "ranges": {
+        "s77": "VR[1, 64]"
+      }
+    },
+    {
+      "file": "runs/dm1-real-bridges-v1/resnet18.core.json",
+      "sha256": "5a403a033ef8961bf486e8c60d4c06831c3615d88d85f2fa4757bf4df6546d3a",
+      "nodes": 257,
+      "ranges": {
+        "s77": "VR[1, 64]"
+      }
+    }
+  ]
+}

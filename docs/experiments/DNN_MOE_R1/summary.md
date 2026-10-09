@@ -31,7 +31,7 @@ Export coverage and primitive checks do not imply model correctness.
 | CI-3 | verified: forward ABI, native CG CLI plans and five-target builds; exported DNN/MoE model entry pending (`forward.md`) |
 | CI-4 | verified: exact window/table/WAR-WAW foundations, virtual capacity/counting, native thresholds; memory-planner and body integration pending (`analysis.md`) |
 | CI-5 | verified: synthetic waits/binding/LA and native forward/prefill PageStream; real model dispatch remains incomplete (`synchronization.md`) |
-| CI-6 | verified: fitting/profile schema and streaming collection foundations; real routing collection waits for checkpoint download; body fits pending |
+| CI-6 | verified: fitting/profile schema and streaming collection foundations; checkpoint downloaded and real routing collection in progress; body fits pending |
 | CI-7 | verified: class/candidate, exact projection, issued convolution K, conditional/live-row and histogram pricing foundations; profile consumers/structural search pending |
 | DN-1 | verified: six real-weight upstream exports, before/Core fixtures, source FQN/dtype preservation and weight recipes. These are not model gates |
 | DN-2/3 | verified: automatic primitive DNN L-sem and exact ownership/halo oracles; exported-model planning and remaining operators pending |
@@ -39,7 +39,7 @@ Export coverage and primitive checks do not imply model correctness.
 | DN-5/6 | verified: staged depthwise/SimpleGate and window/global pooling bodies; generated pool pipeline. dw→pw body verified; fused planning, SCA and complete model integration pending |
 | DN-7 | verified: explicit LayerNorm and ordered BF16 embedding sum primitives; native/generated LN stages. Deferred LN/model integration pending |
 | DN-8/9/10/11 | verified: encoder attention body and layout conversion; generated encoder integration in progress. Full chain/model numerics, memory reuse and model CLI pending |
-| MO-1 through MO-9 | full MoE model/region implementation and end-to-end gates pending; shared binding/profile foundations exist |
+| MO-1 through MO-9 | verified: checkpoint transformations and expert streaming recipes; real L12/E16 checkpoints generated. Model/region integration and end-to-end gates pending |
 
 ## Tables and gates
 
@@ -179,6 +179,22 @@ five architectures and zero-error sanitizers (`results/DN_generated_depthwise_cu
 5/5 stack frames. Pre-launch Python import failures are retained.
 
 ### Synchronization coverage
+
+verified: mapped GEMM epilogues preserve dense, NCHW and PixelShuffle outputs
+across split-K finalization. Each generated library passes 50/50 fresh L1/L2
+processes, five architectures and zero-error sanitizers, with zero spills and
+5/5 stack frames (`results/DN_generated_epilogue_{dense,nchw,shuffle}_cuda.json`).
+Tile side-storage geometry and exact segmented reads pass 9/9 host checks;
+the 24-case epilogue proof and side-store CG emissions also pass
+(`results/DN_tile_storage_host.json`, `DN_epilogue_semantics_host.json`,
+`DN_gemm_sides_host.json`). The generated side-store queue remains unsealed.
+
+verified: original-weight MoE checkpoint tools pass four host tests, including
+unchanged HF loading; expert streaming/deduplication and prior weight regressions
+pass 16 tests (`results/MO_checkpoint_tools_host.json`, `MO_expert_weights_host.json`).
+The complete 18,867-tensor checkpoint has 61,064,245,248 BF16 bytes. L12/E128
+and L48/E16 transformations pass index checks (`results/MO_real_checkpoints_host.json`).
+These are asset/packing checks; neither generated-model end-to-end gate has passed.
 
 verified: shared primitives and synthetic table/counted/threshold stages have
 50-process receipts; native nonpaged split-K LA and attention LA each pass
