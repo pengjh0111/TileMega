@@ -174,3 +174,12 @@ widens only the data-dependent physical axes for dependency derivation. These
 raw capacity counts require routing occupancy before expert pricing; DRAM
 provenance and real expert-body integration remain pending. Request metadata
 serializes only when present, preserving legacy default representations.
+
+verified: typed binding traffic passes 368 full/tail tile byte and provenance
+checks (`results/CI7_binding_request_traffic_host.json`). BF16/FP32 weight
+widths, produced/external gathers, scatter stores and live input footprints
+use independent expectations. Mixed indirect producer/output provenance
+rejects until its actual binding image is supplied. The earlier ISL sum
+failure came from seeding a coordinate polynomial with scalar zero; the
+implementation now sums actual fibers. Numerical expectations are unchanged.
+Routing occupancy and solver/model integration remain pending.

@@ -1,0 +1,38 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_commit": "14f04d52706010d1f13697e8b719e3107f71f47a",
+  "tile_byte_provenance_cases": 368,
+  "assertions_enabled": true,
+  "expectations_changed": false,
+  "scope": "Potential per-task gather/scatter requests and typed stores across static capacity. Physical I2 envelopes establish wholly produced/external provenance; mixed indirect provenance rejects until an actual binding image is available. Live produced input footprints count once. Routing occupancy, model DRAM floors, solver wiring and real body execution remain pending.",
+  "source_before_build": {
+    "head": "b2bd119e09d90e790fa7bba85804ec24a8906598",
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "inputs": {
+      "include/tilemega/Solver/BindingRequestTraffic.h": "167c2ae46ecad52dfb158d0173ea7ec6774aade35a89c32d20ae6ed4ca1f41a8",
+      "lib/Solver/BindingRequestTraffic.cpp": "1bc61ba8f836edf58b2c76cf406ea9705afab0a775791eb8687db22d65e73203",
+      "test/unit/binding_request_traffic_test.cpp": "c3b041bca0d9a955c997064ad3bd363f9ae2450ce2efc6466f4af12c1d3e790f"
+    },
+    "linked_library_sha256": "9c521e9c14eb3fe84e82e1e64c84ecd0cf46b056fb9641a400eb6ea306839f93",
+    "assertions_enabled": true,
+    "expectations_changed": false,
+    "prior_failure": {
+      "path": "/root/dm1_work/development/runs/dm1-ci7-binding-request-traffic-v2/events/02_check.log",
+      "sha256": "ebe27b874376eaa9be7319b52d687b3731a99acb1065afb3ae1801d4462d2cf2",
+      "reason": "Scalar zero seeded a task-coordinate polynomial sum; the implementation now sums only actual fibers."
+    }
+  },
+  "binary_sha256": "b621c0edf0cdd9e58da4db9afc31d3498287680c4cab0fbd748a68f58fc53b2f",
+  "queue_sha256": "73e0e3333c31764fb702756a9581e82e04f851da7ecbe2de2426e148c9bd0960",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "logs": {
+    "runs/dm1-ci7-binding-request-traffic-v3/events/01_compile.log": "4c6e3c03ff38579a8669cb613f1d6d49dc16d5066093d390befd7db291b79bb9",
+    "runs/dm1-ci7-binding-request-traffic-v3/events/02_check.log": "d63b6b078652483389b37c80107ca2282b0976f539ac483cffb5a5f785833ccb",
+    "runs/dm1-ci7-binding-request-traffic-v3/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "failed_audits": [
+    "runs/dm1-ci7-binding-request-traffic",
+    "runs/dm1-ci7-binding-request-traffic-v2"
+  ]
+}
