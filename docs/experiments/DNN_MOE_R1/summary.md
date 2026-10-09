@@ -290,8 +290,11 @@ architectures without spills (`results/CI5_multipage_gemm_cuda.json`). All 76
 workspace byte constants compile on five architectures; that compile-only
 proof has no kernel resource claim (`results/CI7_page_workspace_caps_identity.json`).
 
-T12 foundation: verified binding byte/provenance checks pass 368 cases,
-virtual partitioning passes 384 geometries, and DM signatures preserve 48
-layer identities (`results/CI7_binding_request_traffic_host.json`,
-`CI7_virtual_partition_host.json`, `CI7_semantic_signature_host.json`). Complete
-macro capture passes 3 tests; solver/build identity wiring remains pending.
+T12 foundation: verified binding byte/provenance (368), virtual geometry (384),
+and signature checks (48 identities) are sealed. Compiler/pricing integration
+passes 72 traffic cases, 8 images, 256 geometries, 768 symbolic bindings and 18
+legacy bit-exact checks (`results/CI7_binding_pricing_integration_host.json`).
+Complete macros pass 3 capture and 2 identity tests; total-memory serialization
+passes 30 host checks/30 rejections plus a 50,894,602,240-byte device probe
+(`complete_macro_identity_host.json`, `CI7_target_memory_host.json`). Native
+integration is queued in an isolated worktree; model gates remain pending.
