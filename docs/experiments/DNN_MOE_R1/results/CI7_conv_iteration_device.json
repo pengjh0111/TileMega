@@ -1,0 +1,100 @@
+{
+  "evidence": "verified",
+  "scope": "Integer convolution iteration mapping only; no TaskBody/model/synchronization/performance claim",
+  "architectures": {
+    "sm_80": {
+      "artifact_id": "0a06645a69c3e529085042714ed0bbc4c9fa3037e7f655403b611117103e9d01",
+      "resources": {
+        "_Z7InspectIN7cutlass4arch4Sm80EEvPK7RequestP6Resultj": {
+          "registers": 32,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 32 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        }
+      }
+    },
+    "sm_89": {
+      "artifact_id": "dcaf43a4a52d25d54ca405d664ba4c85401d5c30ba1d9220bd5571c67aa8dd66",
+      "resources": {
+        "_Z7InspectIN7cutlass4arch4Sm89EEvPK7RequestP6Resultj": {
+          "registers": 32,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 32 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        }
+      }
+    },
+    "sm_90": {
+      "artifact_id": "fdec9f2f5e9d659629af40caa632d5c83be35bf3e7b25d6721dbe7ab5ae454d5",
+      "resources": {
+        "_Z7InspectIN7cutlass4arch4Sm90EEvPK7RequestP6Resultj": {
+          "registers": 32,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 32 registers, used 0 barriers"
+          ],
+          "spill": false
+        }
+      }
+    },
+    "sm_100": {
+      "artifact_id": "ec0ec89545be1179de6745aa28c2d245fd5e24713a651baf56c15828ec43c7c2",
+      "resources": {
+        "_Z7InspectIN7cutlass4arch5Sm100EEvPK7RequestP6Resultj": {
+          "registers": 30,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 30 registers, used 0 barriers"
+          ],
+          "spill": false
+        }
+      }
+    },
+    "sm_120": {
+      "artifact_id": "b0cb47e85b735bef95b1581af4b284748d58fb2b3b087252fdc36c3a7357ef72",
+      "resources": {
+        "_Z7InspectIN7cutlass4arch5Sm120EEvPK7RequestP6Resultj": {
+          "registers": 30,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 30 registers, used 0 barriers"
+          ],
+          "spill": false
+        }
+      }
+    }
+  },
+  "execution_arch": "sm_89",
+  "geometries": 189,
+  "slots": 324076,
+  "check_log_sha256": "276b09991dfb9f42816695fba069958e5abde32190ca6845be4f50b05806c1fd",
+  "source_note": "This frozen probe predates stricter host channel-padding validation; the device At/Iteration implementation is unchanged.",
+  "original_receipt": {
+    "path": "runs/dm1-conv-iteration-device/receipt.json",
+    "sha256": "56d460ffa5f1ed99488604be20cc5357a9752d6ecac8e87c5ed95cf193a2a4ee"
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "evidence": "verified",
+  "scope": "Host counted endpoint fusion and threshold/I2 proofs; no body, GPU synchronization, model or timing claim",
+  "source": {
+    "head": "5d1eb74ce4ea61764febfd544a219c0a64b027d4",
+    "inputs": {
+      "/root/dm1_work/development/runs/dm1-counted-fusion-final-v2/driver.cpp": "18a3192e1e6a17e098fcdbc1c7072097f51988e18928d7d80ed3197c947114e8",
+      "/root/dm1_work/development/runs/dm1-counted-fusion-final-v2/dm_counted_fusion_test.cpp": "c8aae882c19170f473b2bbdf9854b804db359b140fc17af382df3ea21859a3e0",
+      "/root/dm1_work/development/runs/dm1-counted-fusion-final-v2/overlay/lib/Dialect/CouplingGraph/CountedDependency.cpp": "9c4ff14efea6d270258b041a342b1bc3eb0395fbcc5fcd89823f031fd130e4e9",
+      "/root/dm1_work/development/runs/dm1-counted-fusion-final-v2/overlay/lib/Dialect/CouplingGraph/FusionPass.cpp": "dc1a6ab0687b7bee9f381b3c77abb4583e822654b822f529614ffd0b04dc7f28",
+      "/root/dm1_work/development/runs/dm1-counted-fusion-final-v2/overlay/lib/Solver/FusedTaskInput.cpp": "8299ef229e6384ecd5c3a1b57d8c31a18955d7ff1ba76c65958fcb3ae6f35439",
+      "/root/dm1_work/development/runs/dm1-counted-fusion-final-v2/overlay/lib/Analysis/FusionAccess.cpp": "d591e0e6bbd6b778aa0c459a132ea7731f638359e6a76b6091e49eba7cb86b48",
+      "/root/dm1_work/development/runs/dm1-counted-fusion-final-v2/overlay/lib/Solver/TaskModel.cpp": "7e8fe05637cf430ebfa23c3ccf5f14e26593e23da88d85dbe82a8a38f1a26937",
+      "/root/dm1_work/development/test/unit/fusion_access_test.cpp": "c6dcbd8786a7e2e7e4923aadd508bca39514fc369d0a8480a9570c7701fda35e",
+      "/root/dm1_work/development/test/unit/fusion_written_price_test.cpp": "65177dfc1ccaef2839da91a5137a9dcb9a7b3ef7fb978b85d3390c7198ab85ae",
+      "/root/dm1_work/development/test/unit/fusion_rewrite_test.cpp": "c74455fca20ab71587a303fa1f35ba0603f24b9e747a9a3f7241771d6e1c7bba",
+      "/root/dm1_work/development/test/unit/fusion_batch_rewrite_test.cpp": "891bb7182675ee1877831ed6a6e84453f62d1bfbed50cba0548c8514856ad1ee",
+      "/root/dm1_work/development/test/unit/dm_exact_fusion_test.cpp": "a182870e8be5c40671a91183da7f07c00ba7aeb070035436c7a5901e0d4818f4",
+      "/root/dm1_work/development/test/unit/dm_fused_dependencies_test.cpp": "221f638b65f096fce53ac597f059680b431132ae10d0351b9d7fec6c2d5373a2",
+      "/root/dm1_work/development/test/unit/counted_dependency_cg_test.cpp": "b30af0832c8a6df934f70d6fa45991073a30f2b516814574eb3b0b76b58ed198"
+    },
+    "headers": {
+      "/root/dm1_work/development/runs/dm1-counted-fusion-final-v2/overlay/include/tilemega/Dialect/CouplingGraph/CountedDependency.h": "2d2994b0bf350eba0f676382618bed3d1cab5b178110d06c956047061334ca30",
+      "/root/dm1_work/development/runs/dm1-counted-fusion-final-v2/overlay/include/tilemega/Analysis/FusionAccess.h": "12636963502ce612a39efab36a61dcb09b14f2005b01864b515a83cd1f963b80"
+    },
+    "library_sha256": "0dd505bbb6e3ce86da163e77b880d98612b7c4c5d51705e83a02979e51b34a90",
+    "assertions_enabled": true,
+    "scope": "Host counted endpoint fusion and threshold/I2 proofs; no body, GPU synchronization, model or timing claim",
+    "expectations_changed": false,
+    "legacy_tests": [
+      "fusion_access_test",
+      "fusion_written_price_test",
+      "fusion_rewrite_test",
+      "fusion_batch_rewrite_test",
+      "dm_exact_fusion_test",
+      "dm_fused_dependencies_test",
+      "counted_dependency_cg_test"
+    ],
+    "known_context": "Relations remain symbolic; aggregate incidence checked at bound plan theta. Lattice-equivalent symbolic floor expressions are retained unchanged.",
+    "failed_audits": [
+      {
+        "path": "/root/dm1_work/development/runs/dm1-counted-fusion/events/02_check.log",
+        "sha256": "7142d45820d162513c9d15ba5f0f0ad920c88a5ceb6026d7ea6c6fa5ffc0aad7"
+      },
+      {
+        "path": "/root/dm1_work/development/runs/dm1-counted-fusion-v2/events/02_check.log",
+        "sha256": "69b6ebbcc963fe43efc35475588ccb9542a88dde8e16523f32685fa02624fb0d"
+      },
+      {
+        "path": "/root/dm1_work/development/runs/dm1-counted-fusion-v3/events/02_check.log",
+        "sha256": "57c5c097908fb26ebb02959e5adec8fe1398c1a1babe786485f49e63506ca5bc"
+      },
+      {
+        "path": "/root/dm1_work/development/runs/dm1-counted-fusion-v4/events/02_check.log",
+        "sha256": "4541241bbf739a1e119a7bad91ccf2acef82a8acb7891d27751fad3e3829f014"
+      },
+      {
+        "path": "/root/dm1_work/development/runs/dm1-counted-fusion-v5/events/02_check.log",
+        "sha256": "c3469689afedc144d09d74f70940911af2274c64ad6b5cf115e2887d4adb22c7"
+      },
+      {
+        "path": "/root/dm1_work/development/runs/dm1-counted-fusion-v6/events/02_check.log",
+        "sha256": "73e57f70a51da0648a6689a75ad77cf5647f37f40eef03c173c8f48584030715"
+      },
+      {
+        "path": "/root/dm1_work/development/runs/dm1-counted-fusion-v7/events/02_check.log",
+        "sha256": "1db0bf9ca8d84bb2fc2c23c33ea9f2181ad1037924e45b39f3b0dbba2ea4fefb"
+      },
+      {
+        "path": "/root/dm1_work/development/runs/dm1-counted-fusion-final/events/01_compile.log",
+        "sha256": "39f1c32d1daedbfd981532e1e5729d67c7a271d1813006b8b744dec343940cff",
+        "reason": "Use ArrayAttr.getValue() for the diagnostic corruption test SmallVector constructor; no expectations change."
+      }
+    ],
+    "fixture_corrections": [
+      "Declare logical request dimension m for scatter stores.",
+      "Use the dense virtual-row producer chain of the MoE down path, with equal source/down row tiles; gather fusion remains outside this fixture."
+    ]
+  },
+  "completion": {
+    "event": "queue_complete",
+    "steps": 2,
+    "passed": true
+  },
+  "binary_sha256": "4ba526086148533ae6dcec0399892593f5bdc12e24d2f8af2a1590c1e5d07c36",
+  "check_log_sha256": "0e5564fd7e4c912efc338fec6277534cbf0c67da1d4c1a1c9595a588fc464eb6",
+  "summary": [
+    "CASE T=65 block=128 rows=64 mode=2",
+    "CASE T=65 block=128 rows=64 mode=3",
+    "COUNTED_FUSION shapes=81 rejected=567 exact_unit_pairs=20898 PASS",
+    "FUSION_ACCESS symbolic_composition=1 external_retention=1 errors=10",
+    "FUSION_WRITTEN_PRICE model=gqa2 producer=l0.s05.rope consumer=l0.s06.append double_fields=6 bits_equal=1",
+    "FUSION_WRITTEN_PRICE model=gqa2 producer=l0.s09.proj consumer=l0.s09.add double_fields=6 bits_equal=1",
+    "FUSION_WRITTEN_PRICE model=mha4 producer=l0.s05.rope consumer=l0.s06.append double_fields=6 bits_equal=1",
+    "FUSION_WRITTEN_PRICE model=mha4 producer=l0.s09.proj consumer=l0.s09.add double_fields=6 bits_equal=1",
+    "FUSION_WRITTEN cases=4 errors=10 remaining=0",
+    "FUSION_REWRITE edge_identities=1890 errors=18 remaining=0",
+    "FUSION_BATCH tasks=6 identities=122 errors=4 remaining=0",
+    "DM exact fusion: 5 NCHW/pixel-shuffle written candidates, aliased ownership, phase arithmetic and 11 invalid geometries including an independently enumerated cross-tile shuffle PASS",
+    "DM fused dependencies: 10 external edges, 1 exact tables, phase-coordinate element enumeration and full event storage PASS",
+    "Counted CG projection: 96 bound shapes x 12 grid/kappa choices, distinct counted events, I2 queue ordering and CUDA threshold arrays PASS",
+    "Counted flow: 216 candidate geometry transitions, fresh contribution thresholds, aligned partitions, I2 and projected event counts PASS"
+  ],
+  "expectations_changed": false,
+  "original_receipt": {
+    "path": "runs/dm1-counted-fusion-final-v2/receipt.json",
+    "sha256": "3a565ca2b5a883e875b67bea63e8f777cccfcd65b62116fb2b41f818d9636397"
+  }
+}

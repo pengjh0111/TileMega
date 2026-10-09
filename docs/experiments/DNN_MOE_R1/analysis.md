@@ -156,7 +156,7 @@ thresholds and exact table intervals. Existing CG fusion lowering tests pass.
 inferred: the counted I2 envelope is necessary for placement but does not
 expand ordinary fine-event waits. Fusion composes these two relations separately;
 counted targets retain weighted counters even when their task owner is local.
-Real counted CG endpoint rewriting and new fused physical bodies remain pending.
+Counted CG endpoint rewriting is verified below; new fused physical bodies remain pending.
 
 
 verified: logical binding request cardinalities pass twelve native checks and
@@ -233,3 +233,30 @@ model gate is inferred (`results/CI5_native_multipage_phases_cuda.json`).
 verified: `results/CI7_exact_fusion_host.json` seals five legal NCHW/pixel-shuffle fusion candidates, ownership aliases, phase arithmetic and eleven rejected geometries. The additional B=3 shuffle fixture was initially predicted to meet the existing single-producer fusion contract; independent element enumeration proves that output rows 112..127 span producer row blocks 0 and 1. The failed run is retained and that geometry is separately checked as a rejection. Four unchanged legacy written-price cases retain six bit-identical fields each; legacy rewriting retains 1890 edge identities. External static metadata is verified below; counted-scatter fusion and actual fused bodies remain separate work.
 
 verified: `results/CI7_fused_dependencies_host.json` seals ten external edges around five fused pairs. A row permutation forces one exact dependency table. Independent element enumeration agrees with rebased shared/read relations, and regenerated geometry/table metadata passes both inclusions. Event storage uses the complete producer linear-ID range, including unused IDs. Unchanged legacy checks retain 1890 rewrite identities, 122 batch identities and four bit-identical written-price cases. Counted-scatter fusion is not claimed by this test.
+
+
+verified: `results/CI7_conv_counted_host.json` seals the committed integration:
+seven fresh focused native ctests, build and check-policy pass after the prior
+25/25 host suite and linked cost overlay. Convolution splits use issued MMA K
+iterations, while L-sem retains logical (r,s,c). C=24, R=S=2, TK=16 issues eight
+iterations, rather than the six obtained by flattening logical K; split 8 is
+legal. Exact relations, task work, CG transport, runtime projection and concrete/
+symbolic chunk pricing use the same partition. Both relation inclusions and
+ownership uniqueness are checked; no numerical/model or timing gate follows.
+
+verified: `results/CI7_counted_endpoint_fusion_host.json` checks 81 fused
+producer/consumer geometries, 567 rejections and 20,898 independently enumerated
+contribution pairs. Counted targets retain exact static thresholds and the I2
+placement envelope after either or both endpoints fuse. Duplicate arrivals,
+non-bijective phase maps and foreign event-name collisions reject. This is host
+proof only, with no fused TaskBody or §8.A synchronization claim.
+
+verified: the integer device mapping probe compiles for sm_80/89/90/100/120;
+sm_89 checks 189 geometries and 324,076 slots, with all ptxas spill counts zero
+(`results/CI7_conv_iteration_device.json`). It validates indexing only.
+
+verified: `results/T1_CI7_integrated.json` retains eight identical CUDA/resource/
+SASS/token comparisons, candidate ctest 144/147 and reference 94/97. The two new
+candidate multipage executables were omitted by a restricted native build command;
+the next checkpoint builds all candidate default targets. The common independent-
+attention numerical failure remains. Record-only queue completion is not G-REG.

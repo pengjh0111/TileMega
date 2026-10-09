@@ -41,26 +41,13 @@ that DNN or MoE execution is implemented.
 
 ## Tables and gates
 
-T1: `results/T1_phase0.json` records the initial verified failure in both toolchains:
-`norm_prologue_gemm_test.cu` lacks the RMSNorm header and calls a removed
-`PagedGemmTaskBody::Run` overload. This is reproduced in the unchanged
-reference. It prevented native-suite completion at that checkpoint. Later
-repairs are recorded below; a production-plan sealing queue alone does not
-count as passing G-REG.
-verified: Phase 0 reference bank is sealed with SHA256
+T1: verified Phase 0 reference bank seal is
 `0d7c170870af4c677daf14afdc9d7e6606f1192d014124fe9ab9f4853ce0641a`.
-All eight reference artifact identities require the actual baseline HEAD and
-an empty worktree diff. This completes reference preparation; it does not
-resolve the native ctest failure.
-verified: `results/T1_phase0_seal.json` records equality of CUDA bytes,
-every ptxas resource context, SASS and 64-step tokens for all eight plans.
-Its complete G-REG result remains false because ctest was not run after
-the native test build failed.
-verified: donor manifests name paged reduction handoffs `last_arriver`,
-whereas baseline CLI requires policy `off` and unconditionally lowers those
-reductions to last-arriver. Invalid direct-name and `auto` attempts failed
-before compilation; their logs are retained. Corrected retry jobs preserve
-the donor's fixed handoff implementation, not a disabled mechanism.
+The baseline native suite retains obsolete norm-test/schema and independent-
+attention failures. All eight initial artifact/smoke comparisons match;
+G-REG remains false. Full history is retained in `analysis.md` and T1 receipts.
+Donor paged `last_arriver` maps to baseline policy `off`, whose generated
+implementation still uses last-arriver; failed direct-name retries are retained.
 
 T2: `results/phase0_exports.json`, `results/T2_inventory_comparison.json`,
 and `test/fixtures/dnn/*_ops.json` record **export coverage only**.
@@ -298,3 +285,16 @@ Complete macros pass 3 capture and 2 identity tests; total-memory serialization
 passes 30 host checks/30 rejections plus a 50,894,602,240-byte device probe
 (`complete_macro_identity_host.json`, `CI7_target_memory_host.json`). Native
 CG CLI checks pass eight plans (`CI3_forward_cli_cuda.json`); model gates remain pending.
+
+T3/T12: verified committed indexed-convolution/CG/pricing integration passes
+7/7 fresh ctests after 25/25 prior focused checks; check-policy passes
+(`results/CI7_conv_counted_host.json`). Counted endpoint fusion checks 81
+geometries, 567 rejections and 20,898 exact pairs
+(`CI7_counted_endpoint_fusion_host.json`). Integer device mapping checks 189
+geometries/324,076 slots with five-target builds and zero spills
+(`CI7_conv_iteration_device.json`). No real-body or model gate follows.
+T1: integrated checkpoint retains all eight CUDA/resource/SASS/token matches;
+candidate 144/147 and reference 94/97 keep G-REG false
+(`results/T1_CI7_integrated.json`). Two omitted candidate test binaries must
+be built at the next checkpoint. Preliminary convolution tiled-B numeric and
+racecheck failures are retained in `runs/dm1-conv-operands*`; repair is pending.
