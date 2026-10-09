@@ -277,3 +277,9 @@ stage/LA executors each pass 50/50 fresh processes per synchronization mode
 Their 16/16/64 builds cover five architectures and report zero spills
 (`results/CI5_nonpaged_attention_cuda.json`, `CI7_small_native_cuda.json`,
 `CI7_small_task_cuda.json`). No new operand policy or model gate follows.
+
+verified: the CI7 forward checkpoint preserves CUDA bytes, every ptxas
+resource record, SASS and 64-step tokens for all eight LLM plans
+(`results/T1_CI7_forward.json`). Candidate ctest passes 124/125 with the
+existing independent-attention mismatch. Reference ctest also has missing
+fixtures/executables and target-schema failures. G-REG remains false.
