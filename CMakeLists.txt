@@ -214,6 +214,7 @@ add_library(tilemega_core STATIC
   lib/Analysis/DramFloor.cpp
   lib/Solver/TaskPriceParts.cpp
   lib/Solver/PiecePricing.cpp
+  lib/Solver/MoeTaskPricing.cpp
   lib/Solver/DramFluid.cpp
   lib/Solver/ModelDramFloor.cpp
   lib/Solver/FlowPreparation.cpp
@@ -370,6 +371,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/symbolic_oracle_test.cpp
     test/unit/operator_classes_test.cpp
     test/unit/moe_routing_profile_test.cpp
+    test/unit/moe_task_pricing_test.cpp
     test/unit/moe_group_profile_test.cpp
     test/unit/dm_gemm_traits_test.cpp
     test/unit/dm_gemm_candidates_test.cpp
@@ -788,6 +790,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME operator_classes COMMAND tilemega-unit operator_classes)
   add_test(NAME dm_operator_classes COMMAND tilemega-unit dm_operator_classes)
   add_test(NAME moe_routing_profile COMMAND tilemega-unit moe_routing_profile)
+  add_test(NAME moe_task_pricing COMMAND tilemega-unit moe_task_pricing)
   add_test(NAME moe_group_profile COMMAND tilemega-unit moe_group_profile)
   add_test(NAME dm_gemm_traits COMMAND tilemega-unit dm_gemm_traits)
   add_test(NAME dm_gemm_candidates COMMAND tilemega-unit dm_gemm_candidates)
