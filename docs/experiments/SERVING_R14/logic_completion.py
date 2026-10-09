@@ -97,10 +97,30 @@ def trace(job,arm):
             raise ValueError('missing nonpaged GEMM operand readiness')
         write(out/'summary.json',values)
 
+def accept():
+    original=json.loads((OUT/'result.json').read_text())
+    repaired=json.loads((OUT/'host_v2.json').read_text())
+    rows=[repaired if row['name']=='host' else row for row in original['checks']]
+    expected={'prepare','host_v2','arch','numeric','build'}
+    for job in json.loads(JOBS.read_text()):
+        if job.get('base_so'):expected.add('trace_'+job['label'])
+        else:
+            expected.add('smoke_'+job['cell']+'_'+job['label'])
+            if '_tn' in job['label']:expected.add('real_'+job['label'])
+    missing=sorted(expected-{row['name'] for row in rows})
+    passed=not missing and all(row['status']=='done' for row in rows)
+    write(OUT/'reviewed_acceptance.json',dict(pass_=passed,checks=rows,missing=missing,
+        original_result=str(OUT/'result.json'),superseded_host_failure='decode fixture was incorrectly used for prefill',
+        scope='implementation and logic correctness; performance remains unaccepted',timing_eligible=False))
+    (OUT/('acceptance.done' if passed else 'acceptance.failed')).touch()
+    return passed
+
 def main():
     p=argparse.ArgumentParser();p.add_argument('--host-only',action='store_true');args=p.parse_args();OUT.mkdir(parents=True,exist_ok=True)
     if args.host_only:
-        row=step('host_v2',lambda:host('host_v2'));raise SystemExit(0 if row['status']=='done' else 1)
+        row=step('host_v2',lambda:host('host_v2'))
+        passed=row['status']=='done' and accept()
+        raise SystemExit(0 if passed else 1)
     rows=[];rows.append(step('prepare',prepare))
     if rows[0]['status']!='done':raise SystemExit(1)
     for name,action in (('host',host),('arch',arch),('numeric',numeric),('build',build)):
