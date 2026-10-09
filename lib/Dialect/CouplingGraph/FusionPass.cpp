@@ -3,6 +3,7 @@
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Codegen/RuntimePlan.h>
+#include <tilemega/Codegen/RuntimeDependencyCodec.h>
 #include <tilemega/Solver/TaskModel.h>
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/SymbolTable.h>
@@ -141,13 +142,16 @@ void FuseTaskPairs(mlir::ModuleOp module,
   mlir::OpBuilder builder(module.getContext());
   std::vector<mlir::Attribute> source_dependencies;
   for (auto const& edge:plan.dependencies) {
-    mlir::NamedAttrList record;
-    record.set("producer",builder.getI64IntegerAttr(edge.producer));
-    record.set("consumer",builder.getI64IntegerAttr(edge.consumer));
-    record.set("window",builder.getStringAttr(edge.window.ToString()));
-    source_dependencies.push_back(record.getDictionary(module.getContext()));
+    source_dependencies.push_back(codegen::EncodeRuntimeDependency(builder,edge));
   }
   (*clone)->setAttr("tilemega.fusion_source_dependencies",builder.getArrayAttr(source_dependencies));
+  if(std::any_of(plan.dependencies.begin(),plan.dependencies.end(),
+      [](auto const& edge){return edge.table.has_value() || edge.counted.has_value();})) {
+    mlir::NamedAttrList binding;
+    for(auto const& [name,value]:plan.task_binding.values)
+      binding.set(name,builder.getI64IntegerAttr(value));
+    (*clone)->setAttr("tilemega.fusion_source_task_binding",binding.getDictionary(module.getContext()));
+  }
   (*clone)->setAttr("tilemega.fusion_source_cluster",builder.getI64IntegerAttr(plan.cluster_dim));
   for (std::size_t i=0;i<pairs.size();++i)
     Rewrite(*clone,pairs[i].first,pairs[i].second,candidates[i]);

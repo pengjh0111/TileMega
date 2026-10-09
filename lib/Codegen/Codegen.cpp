@@ -6,6 +6,7 @@
 #include <tilemega/Codegen/tasks/TaskResources.h>
 #include <mlir/IR/Builders.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Codegen/RuntimeDependencyCodec.h>
 #include <tilemega/Frontend/SymbolicShapeBridge.h>
 #include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Frontend/ModelPlan.h>
@@ -1333,13 +1334,23 @@ RuntimePlan ReadFusionSourcePlan(mlir::ModuleOp module) {
   result.attention=readRuntimeAttention(module);
   result.ownership_flags=readOwnershipFlags(module);
   ReadParameterRanges(module,result);
+  if(auto binding=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.fusion_source_task_binding"))
+    for(auto item:binding) {
+      auto value=mlir::dyn_cast<mlir::IntegerAttr>(item.getValue());
+      auto name=item.getName().str();
+      if(!value || (result.task_binding.Contains(name) && result.task_binding.At(name)!=value.getInt()))
+        throw std::invalid_argument("fusion source shape binding differs from model");
+      if(auto range=result.parameter_ranges.find(name);range!=result.parameter_ranges.end())
+        if(value.getInt()<range->second.first || value.getInt()>range->second.second)
+          throw std::invalid_argument("fusion source shape escapes model range");
+      result.task_binding.Bind(name,value.getInt());
+    }
   for (auto item:dependencies) {
     auto entry=dictionaryEntry(item,"fusion source dependency");
-    auto p=integerField(entry,"producer"),c=integerField(entry,"consumer");
-    if (p<0 || c<=p || c>=int64_t(arrayField(model,"stages").size()))
+    auto edge=DecodeRuntimeDependency(entry);
+    if (edge.consumer>=arrayField(model,"stages").size())
       throw std::invalid_argument("fusion source dependency stage is invalid");
-    result.dependencies.push_back({static_cast<std::uint32_t>(p),
-        static_cast<std::uint32_t>(c),analysis::ParseWaitWindow(stringField(entry,"window"))});
+    result.dependencies.push_back(std::move(edge));
   }
   for (auto task:module.getOps<dialect::TileSpaceOp>())
     result.task_stages.emplace(task.getSymName().str(),task.getStage());
