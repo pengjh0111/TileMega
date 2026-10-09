@@ -286,7 +286,7 @@ struct SearchContext {
         throw std::invalid_argument("L2 lookahead exceeds per-SM budget");
       std::vector<std::array<int,3>> shapes;
       for(auto const& g:granularity.gemms) {
-        if(g.tile_n*g.tile_k*2>current_page_bytes)
+        if(!imported.plan.dm && g.tile_n*g.tile_k*2>current_page_bytes)
           throw std::invalid_argument("paged B stage exceeds one page");
         if(!PageLayout::StageFits(current_page_bytes,g.tile_n,g.tile_k))
           throw std::invalid_argument("paged B stage cannot occupy complete page slots");
@@ -481,7 +481,8 @@ GemmConfig ServingSeed(OperatorClass const& cls,
   int preferred_n=paged && page_bytes==8192 ? 64 : 128;
   (void)target;(void)rows;(void)columns;
   auto fits_page=[&](GemmConfig const& g) {
-    return !paged || (page_bytes>0 && g.tile_n*g.tile_k*2<=page_bytes);
+    return !paged || (page_bytes>0 && (imported.plan.dm?
+        PageLayout::StageFits(page_bytes,g.tile_n,g.tile_k):g.tile_n*g.tile_k*2<=page_bytes));
   };
   for(int tile_k:{128,64}) {
     int chosen_split=0;

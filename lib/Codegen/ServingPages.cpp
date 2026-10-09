@@ -89,10 +89,11 @@ void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int pa
   auto model=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   if(!serving || !model)
     throw std::invalid_argument("page execution requires a serving graph");
+  bool dm=model.getAs<mlir::BoolAttr>("dm") && model.getAs<mlir::BoolAttr>("dm").getValue();
   auto runtime=ReadRuntimePlan(module);
   std::vector<std::array<int,3>> gemm_shapes;
   for(auto const& g:runtime.gemms) {
-    if(g.tile_n*g.tile_k*2>page_bytes)
+    if(!dm && g.tile_n*g.tile_k*2>page_bytes)
       throw std::invalid_argument("page plan requires one-page GEMM stages");
     if(!solver::PageLayout::StageFits(page_bytes,g.tile_n,g.tile_k))
       throw std::invalid_argument("a GEMM B stage must divide a page or occupy whole pages");
@@ -106,7 +107,6 @@ void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int pa
           int(mlir::cast<mlir::IntegerAttr>(stage.get("width")).getInt()),
           int(mlir::cast<mlir::IntegerAttr>(stage.get("group")).getInt())});
   }
-  bool dm=model.getAs<mlir::BoolAttr>("dm") && model.getAs<mlir::BoolAttr>("dm").getValue();
   int task_workspace=0;
   for(auto a:mlir::cast<mlir::ArrayAttr>(model.get("stages"))) {
     auto stage=mlir::cast<mlir::DictionaryAttr>(a);
