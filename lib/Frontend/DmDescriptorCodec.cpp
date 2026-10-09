@@ -150,7 +150,8 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
   for(unsigned i=0;i<plan.stages.size();++i) {
     auto const& stage=plan.stages[i];
     if(stage.kind==PlanTaskKind::kLayerNorm || stage.kind==PlanTaskKind::kEmbeddingSum ||
-       stage.kind==PlanTaskKind::kLayoutConvert) {
+       stage.kind==PlanTaskKind::kLayoutConvert || stage.kind==PlanTaskKind::kPool ||
+       stage.kind==PlanTaskKind::kGlobalPoolReduce) {
       if(!stage.width || stage.width>4096 || !stage.group || stage.group>1024)
         throw std::invalid_argument("invalid DM scalar task geometry");
       auto typed=[&](unsigned operand,char const* dtype,bool optional=false) {
@@ -174,6 +175,25 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
            positions.logical[1]!=stage.width ||
            (plan.forward && positions.logical[0]<unsigned(plan.serving_seq)))
           throw std::invalid_argument("invalid embedding table extents");
+      }else if(stage.kind==PlanTaskKind::kPool) {
+        typed(0,"bf16");typed(1,"bf16");
+        if(stage.width<32 || stage.width>256 || stage.width%32 || !stage.extent ||
+           stage.conv>=plan.convolutions.size())
+          throw std::invalid_argument("invalid pool channel tile or geometry");
+        auto const& conv=plan.convolutions[stage.conv];
+        if(conv.input_layout!=stage.operands[0] || conv.output_layout!=stage.operands[1] ||
+           stage.extent!=conv.c || conv.k!=conv.c ||
+           std::uint64_t(conv.p)*conv.q!=stage.rows_per_batch)
+          throw std::invalid_argument("pool ownership differs from its window geometry");
+        for(auto id:{stage.operands[0],stage.operands[1]})
+          if(plan.buffers[id].layout.kind!=DmLayout::kNHWC)
+            throw std::invalid_argument("pool requires NHWC buffers");
+      }else if(stage.kind==PlanTaskKind::kGlobalPoolReduce) {
+        typed(0,"f32");typed(1,"f32");
+        auto const& partial=plan.buffers[stage.operands[0]].layout;
+        if(stage.width<32 || stage.width>256 || stage.width%32 || !stage.extent ||
+           !stage.rows_per_batch || partial.rank!=3 || partial.logical[2]!=stage.extent)
+          throw std::invalid_argument("invalid global pool partial or channel tile");
       }else {
         typed(0,"bf16");typed(1,"bf16");
         auto const& layout=plan.buffers[stage.operands[1]].layout;

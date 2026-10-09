@@ -77,6 +77,8 @@ inline int Count(ModelSpec const& spec, RuntimeVariantDesc const& variant,
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     case TaskKind::kLayerNorm:
     case TaskKind::kEmbeddingSum:
+    case TaskKind::kPool:
+    case TaskKind::kGlobalPoolReduce:
     case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,dims);
 #endif
     case TaskKind::kGemm:

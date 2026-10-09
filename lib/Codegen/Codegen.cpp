@@ -1040,10 +1040,13 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
     for(auto value:stages) {
       auto stage=dictionaryEntry(value,"stages");
       auto kind=stringField(stage,"kind");
-      if(kind!="kLayerNorm" && kind!="kEmbeddingSum" && kind!="kLayoutConvert")continue;
+      if(kind!="kLayerNorm" && kind!="kEmbeddingSum" && kind!="kLayoutConvert" &&
+         kind!="kPool" && kind!="kGlobalPoolReduce")continue;
       auto width=integerField(stage,"width"),rows=integerField(stage,"group");
       if(width<=0 || width>4096 || rows<=0 || rows>1024 ||
-         (kind=="kLayerNorm" && rows%4))
+         (kind=="kLayerNorm" && rows%4) ||
+         ((kind=="kPool" || kind=="kGlobalPoolReduce") &&
+          (width<32 || width>256 || width%32)))
         throw std::invalid_argument("invalid DM scalar task geometry");
       scalar_shapes.emplace(kind,width,rows);
     }

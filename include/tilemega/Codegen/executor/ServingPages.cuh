@@ -680,6 +680,8 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
       case TaskKind::kLayerNorm:
       case TaskKind::kEmbeddingSum:
+      case TaskKind::kPool:
+      case TaskKind::kGlobalPoolReduce:
       case TaskKind::kLayoutConvert:
         DispatchDmStage(unsigned(s.kind),s.width,s.group,DmStageRunner<PageArch>{p,s,unsigned(task),work});break;
 #endif

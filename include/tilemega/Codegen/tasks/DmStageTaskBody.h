@@ -4,6 +4,8 @@
 #include <tilemega/Codegen/tasks/LayerNormTaskBody.h>
 #include <tilemega/Codegen/tasks/EmbeddingSumTaskBody.h>
 #include <tilemega/Codegen/tasks/LayoutConvertTaskBody.h>
+#include <tilemega/Codegen/tasks/PoolTaskBody.h>
+#include <tilemega/Codegen/tasks/GlobalPoolReduceTaskBody.h>
 
 namespace tilemega::codegen {
 #ifndef TILEMEGA_DM_STAGE_DISPATCH
@@ -17,8 +19,13 @@ __host__ __device__ inline int DmStageRows(StageDesc const& stage,ModelDims cons
   return stage.rows_per_batch ? int(stage.rows_per_batch)*dims.batch : dims.tokens();
 }
 __host__ __device__ inline int DmStageTaskCount(StageDesc const& stage,ModelDims const& dims) {
+  if(stage.kind==TaskKind::kGlobalPoolReduce)
+    return stage.width?dims.batch*((stage.extent+stage.width-1)/stage.width):0;
   int rows=DmStageRows(stage,dims);
-  return stage.group ? (rows+int(stage.group)-1)/int(stage.group) : 0;
+  int count=stage.group ? (rows+int(stage.group)-1)/int(stage.group) : 0;
+  if(stage.kind==TaskKind::kPool)
+    count*=stage.width?(stage.extent+stage.width-1)/stage.width:0;
+  return count;
 }
 
 // LN: x, gamma, beta, y, optional statistics. Embedding sum: ids, type ids,
@@ -61,9 +68,21 @@ struct DmStageRunner {
     }else if constexpr(Kind==TaskKind::kLayoutConvert) {
       LayoutConvertTaskBody<Arch,RowsPerTask>::Run({static_cast<E const*>(pointer(0)),
           static_cast<E*>(pointer(1)),params.dm_buffers.layouts[stage.operand[1]]},task);
+    }else if constexpr(Kind==TaskKind::kPool) {
+      auto window=params.dm_convolutions[stage.conv];window.n=params.dims.batch;
+      PoolTaskBody<Arch,RowsPerTask,Width>::Run({static_cast<E const*>(pointer(0)),
+          static_cast<E*>(pointer(1)),window,params.dm_buffers.layouts[stage.operand[0]],
+          params.dm_buffers.layouts[stage.operand[1]]},task);
+    }else if constexpr(Kind==TaskKind::kGlobalPoolReduce) {
+      auto const& output=params.dm_buffers.layouts[stage.operand[1]];
+      GlobalPoolReduceTaskBody<Arch,Width>::Run({static_cast<float const*>(pointer(0)),
+          static_cast<float*>(pointer(1)),params.dm_buffers.layouts[stage.operand[0]],
+          unsigned(params.dims.batch),stage.extent,stage.rows_per_batch,RowsPerTask,
+          unsigned(output.rank?output.strides[0]:stage.extent)},task);
     }else {
       static_assert(Kind==TaskKind::kLayerNorm || Kind==TaskKind::kEmbeddingSum ||
-                    Kind==TaskKind::kLayoutConvert,"unsupported DM scalar stage");
+                    Kind==TaskKind::kLayoutConvert || Kind==TaskKind::kPool ||
+                    Kind==TaskKind::kGlobalPoolReduce,"unsupported DM scalar stage");
     }
   }
 };

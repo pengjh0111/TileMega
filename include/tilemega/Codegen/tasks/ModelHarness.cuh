@@ -184,10 +184,18 @@ inline constexpr int kHarnessThreads = kGemmThreads;
 #endif
 #if TILEMEGA_SERVING_RUNTIME
 #ifndef TILEMEGA_SERVING_PAST_LO
+#if defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE == 2
+#define TILEMEGA_SERVING_PAST_LO 0
+#else
 #define TILEMEGA_SERVING_PAST_LO TILEMEGA_SOLVED_PAST
 #endif
+#endif
 #ifndef TILEMEGA_SERVING_PAST_HI
+#if defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE == 2
+#define TILEMEGA_SERVING_PAST_HI 0
+#else
 #define TILEMEGA_SERVING_PAST_HI TILEMEGA_SOLVED_PAST
+#endif
 #endif
 #ifndef TILEMEGA_SERVING_SEQ
 #define TILEMEGA_SERVING_SEQ 1
@@ -435,6 +443,8 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     case TaskKind::kLayerNorm:
     case TaskKind::kEmbeddingSum:
+    case TaskKind::kPool:
+    case TaskKind::kGlobalPoolReduce:
     case TaskKind::kLayoutConvert:
       for(int task=int(blockIdx.x);task<DmStageTaskCount(stage,p.dims);task+=int(gridDim.x))
         DispatchDmStage(unsigned(stage.kind),stage.width,stage.group,DmStageRunner<HarnessArch>{p,stage,unsigned(task),reinterpret_cast<char*>(&smem)});
@@ -543,6 +553,8 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     case TaskKind::kLayerNorm:
     case TaskKind::kEmbeddingSum:
+    case TaskKind::kPool:
+    case TaskKind::kGlobalPoolReduce:
     case TaskKind::kLayoutConvert:
       DispatchDmStage(unsigned(stage.kind),stage.width,stage.group,DmStageRunner<HarnessArch>{p,stage,logical_task,reinterpret_cast<char*>(&smem)});
       break;
@@ -731,6 +743,8 @@ __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     case TaskKind::kLayerNorm:
     case TaskKind::kEmbeddingSum:
+    case TaskKind::kPool:
+    case TaskKind::kGlobalPoolReduce:
     case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,p.dims);
 #endif
     case TaskKind::kGemm: return T_Gemm::Ownership(p, stage).count;
@@ -2192,7 +2206,8 @@ inline DeviceModel Create(ModelSpec const& spec,
   for(unsigned i=0;i<spec.stage_count;++i) {
     auto const& stage=spec.stages[i];
     if(stage.kind!=TaskKind::kLayerNorm && stage.kind!=TaskKind::kEmbeddingSum &&
-       stage.kind!=TaskKind::kLayoutConvert)continue;
+       stage.kind!=TaskKind::kLayoutConvert && stage.kind!=TaskKind::kPool &&
+       stage.kind!=TaskKind::kGlobalPoolReduce)continue;
     if(!stage.group || stage.group>1024 || !stage.width || stage.width>4096)
       throw std::invalid_argument("invalid DM scalar task geometry");
     auto rows=stage.rows_per_batch?std::uint64_t(stage.rows_per_batch)*dims.batch:
@@ -2251,6 +2266,46 @@ inline DeviceModel Create(ModelSpec const& spec,
       operand(3,0,std::uint64_t(types.logical[0])*stage.width);
       operand(4,0,std::uint64_t(positions.logical[0])*stage.width);
       operand(5,0,rows*stage.width);operand(6,1,2*rows,true);
+    }else if(stage.kind==TaskKind::kPool) {
+      operand(0,0,0);operand(1,0,0);
+      if(stage.width<32 || stage.width>256 || stage.width%32 || !stage.extent ||
+         stage.conv>=spec.convolution_count)
+        throw std::invalid_argument("invalid pool window or channel tile");
+      auto const& conv=spec.convolutions[stage.conv];
+      if(conv.input_layout!=stage.operand[0] || conv.output_layout!=stage.operand[1] ||
+         conv.c!=stage.extent || conv.k!=conv.c || !conv.r || !conv.s ||
+         !conv.stride_h || !conv.stride_w || !conv.dilation_h || !conv.dilation_w ||
+         std::uint64_t(conv.p)*conv.q!=stage.rows_per_batch)
+        throw std::invalid_argument("pool ownership differs from its descriptor");
+      for(unsigned slot:{0u,1u}) {
+        auto const& buffer=spec.buffers[stage.operand[slot]];auto const& l=buffer.layout;
+        auto h=slot?conv.p:conv.h,w=slot?conv.q:conv.w;
+        if(l.kind!=DmLayout::kNHWC || l.rank!=4 || l.logical[0]!=unsigned(dims.batch) ||
+           l.logical[1]!=h || l.logical[2]!=w || l.logical[3]!=conv.c ||
+           l.physical[1]<std::uint64_t(h)+l.halo_top+l.halo_bottom ||
+           l.physical[2]<std::uint64_t(w)+l.halo_left+l.halo_right ||
+           l.physical[3]<conv.c || l.strides[3]!=1 || l.strides[2]<l.physical[3] ||
+           l.strides[1]<std::uint64_t(l.physical[2])*l.strides[2] ||
+           l.strides[0]<std::uint64_t(l.physical[1])*l.strides[1] ||
+           buffer.Elements(dims)<std::uint64_t(dims.batch)*l.strides[0])
+          throw std::invalid_argument("invalid pool physical image layout");
+      }
+    }else if(stage.kind==TaskKind::kGlobalPoolReduce) {
+      operand(0,1,0);operand(1,1,std::uint64_t(dims.batch)*stage.extent);
+      auto const& buffer=spec.buffers[stage.operand[0]];auto const& l=buffer.layout;
+      auto tiles=(rows+stage.group-1)/stage.group;
+      if(stage.width<32 || stage.width>256 || stage.width%32 || !stage.extent ||
+         !stage.rows_per_batch || l.rank!=3 || l.logical[0]!=unsigned(dims.batch) ||
+         l.logical[1]!=tiles || l.logical[2]!=stage.extent || l.strides[2]!=1 ||
+         l.strides[1]<stage.extent || l.strides[0]<tiles*l.strides[1] ||
+         buffer.Elements(dims)<std::uint64_t(dims.batch)*l.strides[0])
+        throw std::invalid_argument("invalid global pool partial layout");
+      auto const& output=spec.buffers[stage.operand[1]];auto const& out=output.layout;
+      if(out.rank && (out.kind!=DmLayout::kRowMajor || out.rank!=2 ||
+         out.logical[0]!=unsigned(dims.batch) || out.logical[1]!=stage.extent ||
+         out.strides[1]!=1 || out.strides[0]<stage.extent ||
+         output.Elements(dims)<std::uint64_t(dims.batch)*out.strides[0]))
+        throw std::invalid_argument("invalid global pool output layout");
     }else {
       operand(0,0,rows*stage.width);operand(1,0,rows*stage.width);
       auto const& layout=spec.buffers[stage.operand[1]].layout;
@@ -2792,6 +2847,8 @@ inline DeviceModel Create(ModelSpec const& spec,
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
       case TaskKind::kLayerNorm:
       case TaskKind::kEmbeddingSum:
+      case TaskKind::kPool:
+      case TaskKind::kGlobalPoolReduce:
       case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,dims);
 #endif
       case TaskKind::kGemm:
