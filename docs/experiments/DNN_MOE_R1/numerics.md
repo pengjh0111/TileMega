@@ -1,5 +1,17 @@
 # Numerical contracts
 
+verified: `results/MO_topk_dispatch_combine_cuda.json` seals 77 routing and
+19 combine cases, three epochs, 50/50 fresh processes, five architectures,
+zero spills/stack and zero-error memcheck/racecheck. Router partial logits
+are already BF16-rounded. Top-k orders by decreasing logit, then increasing
+expert index; selected FP32 softmax rounds its normalized weights once to
+BF16. Stable expert grouping preserves token/rank order, including invalid
+binding tails. Combine rounds each BF16 weight times BF16 expert output to
+BF16, accumulates rank order in FP32, rounds once, then adds the residual
+with a BF16 store. Row statistics consume that final stored value. Synthetic
+histogram/dispatch and weighted-arrival callbacks are included; generated
+MoE model integration and real-weight gates remain pending.
+
 verified: 1024 scalar cases and sixteen tile cases pass the original
 `|err| <= 1.6e-2 + 1.6e-2*|ref|` criterion against PyTorch-generated fixtures.
 The scalar and tile variants compile for sm_80/89/90/100/120. Only sm_89 runs.

@@ -167,9 +167,16 @@ verified: staged depthwise covers 58 geometries/SimpleGate chains and encoder
 attention covers 24 noncausal/masked geometries, each with three epochs, 50/50
 fresh processes, five architectures, zero spills/stack and zero-error sanitizers
 (`results/DN_depthwise_cuda.json`, `results/DN_encoder_attention_cuda.json`).
-Eight of the ten new body kinds have local numerical evidence;
-MoE top-k/dispatch and MoE combine remain. Pool/global L-sem and primitive
+All ten new body kinds have local numerical evidence; model integration
+remains incomplete. Pool/global L-sem and primitive
 solver traits pass 8/8 host checks (`results/DN_pool_primitive_pricing_host.json`).
+
+verified: MoE top-k/dispatch and combine pass 77 routing and 19 combine cases,
+three epochs and 50/50 fresh processes, including deterministic grouping,
+histogram/dispatch LA and weighted combine LA. Five architectures compile;
+zero spills/stack and zero-error sanitizers are recorded in
+`results/MO_topk_dispatch_combine_cuda.json`. Three original pre-kernel CUDA
+allocation failures are retained beside the successful 50-process replay.
 
 verified: CG-generated encoder attention and global pooling each pass 50/50
 fresh L1/L2 processes, five architecture builds and zero-error sanitizers
