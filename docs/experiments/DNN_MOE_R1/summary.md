@@ -270,3 +270,10 @@ body families; model/compiled-resource/pricing gates remain pending.
 T1: the CI7 pre-fix checkpoint retained resources/SASS/tokens but changed four
 prefill dispatch tables (`results/T1_CI7_dispatch_failure.json`). The default
 dispatch index is restored; a fresh regression checkpoint will verify it.
+
+T4/T12 foundation: verified nonpaged attention and native TN16/TK16
+stage/LA executors each pass 50/50 fresh processes per synchronization mode
+(100 each); 46 additional dense/page TaskBody geometries pass 122/122 in total.
+Their 16/16/64 builds cover five architectures and report zero spills
+(`results/CI5_nonpaged_attention_cuda.json`, `CI7_small_native_cuda.json`,
+`CI7_small_task_cuda.json`). No new operand policy or model gate follows.
