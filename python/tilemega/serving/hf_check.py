@@ -37,6 +37,8 @@ def main():
     parser.add_argument("--vllm-metrics", type=Path,
                         help="checked vLLM output for the same model and batch")
     parser.add_argument("--skip-free-greedy", action="store_true")
+    parser.add_argument('--experts-implementation', choices=('grouped_mm',),
+                        help='MoE reference expert implementation (default: grouped_mm)')
     args = parser.parse_args()
     import torch
     from transformers import AutoModelForCausalLM
@@ -48,9 +50,16 @@ def main():
         raise ValueError("expected [B][N] generated tokens, 1 <= N <= 1024")
     if len(generated) > len(ids) or any(len(row) != 64 for row in ids[:len(generated)]):
         raise ValueError("frozen prompt shape must be [16][64]")
+    config = json.loads((args.model / 'config.json').read_text())
+    expert_options = {}
+    if config.get('model_type') == 'qwen3_moe':
+        expert_options['experts_implementation'] = args.experts_implementation or 'grouped_mm'
+    elif args.experts_implementation is not None:
+        raise ValueError('experts implementation is only defined for a MoE checkpoint')
     model = AutoModelForCausalLM.from_pretrained(
         args.model, torch_dtype=torch.bfloat16,
         attn_implementation="sdpa", trust_remote_code=False,
+        **expert_options,
     ).cuda().eval()
     all_gaps, all_nll = [], []
     buckets, first_divergence = [[] for _ in range((count + 255) // 256)], []
