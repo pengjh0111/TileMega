@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Target/TargetSpec.h>
+#include <tilemega/Solver/DmGemmTraits.h>
 #include <tilemega/Codegen/tasks/TaskResources.h>
 #include <algorithm>
 #include <array>
@@ -29,8 +30,10 @@ struct PageLayout {
     if(task_workspace<0)throw std::invalid_argument("negative task workspace");
     int activation=0,scratch=task_workspace;
     for(auto const& g:gemms) {
-      activation=std::max(activation,4*2*g[0]*g[2]);
-      scratch=std::max(scratch,4*g[0]*g[1]+(dm?8:4)*g[0]);
+      activation=std::max(activation,dm?
+          DmServingPageActivationBytes(g[0],g[1],g[2]):4*2*g[0]*g[2]);
+      scratch=std::max(scratch,dm?
+          DmServingPageScratchBytes(g[0],g[1]):4*g[0]*g[1]+4*g[0]);
     }
     for(auto const& shape:attention_shapes) {
       int d=shape[0],q=shape[1];

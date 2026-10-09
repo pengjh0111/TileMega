@@ -380,6 +380,11 @@ struct PagedGemmTaskBody {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   static constexpr int kDmWorkspaceBytes = kActivationBytes >
       kScratchBytes ? kActivationBytes : kScratchBytes;
+  static_assert(kActivationBytes==solver::DmServingPageActivationBytes(
+      TileM,TileN,TileK,TILEMEGA_DM_PAGE_A_STAGES));
+  static_assert(kScratchBytes==solver::DmServingPageScratchBytes(TileM,TileN));
+  static_assert(kDmWorkspaceBytes==solver::DmServingPageWorkspaceBytes(
+      TileM,TileN,TileK,TILEMEGA_DM_PAGE_A_STAGES));
   template<class Spec, class Gate=NoPhaseGate>
   __device__ static void RunDm(ServingGemmOperands const& p,int tile_m,int tile_n,
       Ring const& ring,std::uint64_t& sequence,char* workspace,
