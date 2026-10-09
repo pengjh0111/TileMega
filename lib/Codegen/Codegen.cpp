@@ -557,7 +557,7 @@ std::string emitModelPlan(mlir::ModuleOp module,
       std::string buffer_dtype = stringField(item, "dtype");
       std::string buffer_role = stringField(item, "role");
       int dtype_code = buffer_dtype == "bf16" ? 0 : buffer_dtype == "f32" ? 1
-                     : buffer_dtype == "i32" ? 2 : -1;
+                     : buffer_dtype == "i32" ? 2 : dm && buffer_dtype == "i64" ? 3 : -1;
       int role_code = buffer_role == "internal" ? 0
                     : buffer_role == "external" ? 1 : -1;
       if (dtype_code < 0 || role_code < 0)
@@ -681,8 +681,11 @@ std::string emitModelPlan(mlir::ModuleOp module,
       }
       out<<", "<<integerField(item,"dm_conv")<<"u, "
          <<integerField(item,"dm_rows_per_batch")<<'u';
-      if(item.get("dm_binding_producer"))
-        out<<", "<<integerField(item,"dm_binding_producer")<<'u';
+      if(item.get("dm_binding_producer") || item.get("dm_norm_epsilon"))
+        out<<", "<<(item.get("dm_binding_producer") ?
+            integerField(item,"dm_binding_producer") : codegen::kDmNoIndex)<<'u';
+      if(auto epsilon=item.getAs<mlir::FloatAttr>("dm_norm_epsilon"))
+        out<<", "<<formatFloat(epsilon.getValueAsDouble())<<'f';
     }
     out << "},\n";
   }
@@ -1031,6 +1034,30 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
         out<<", DmSideOutputSpec<static_cast<DmSideOutputKind>("
            <<unsigned(chain.side[j].kind)<<"u), "<<chain.side[j].count<<"u>";
       out<<">;\n";
+    }
+    auto stages = arrayField(plan, "stages");
+    std::set<std::tuple<std::string,std::int64_t,std::int64_t>> scalar_shapes;
+    for(auto value:stages) {
+      auto stage=dictionaryEntry(value,"stages");
+      auto kind=stringField(stage,"kind");
+      if(kind!="kLayerNorm" && kind!="kEmbeddingSum" && kind!="kLayoutConvert")continue;
+      auto width=integerField(stage,"width"),rows=integerField(stage,"group");
+      if(width<=0 || width>4096 || rows<=0 || rows>1024 ||
+         (kind=="kLayerNorm" && rows%4))
+        throw std::invalid_argument("invalid DM scalar task geometry");
+      scalar_shapes.emplace(kind,width,rows);
+    }
+    if(!scalar_shapes.empty()) {
+      out<<"} // namespace tilemega::codegen\n"
+         <<"#include <tilemega/Codegen/tasks/TaskBase.h>\n"
+         <<"#define TILEMEGA_DM_STAGE_DISPATCH 1\n"
+         <<"namespace tilemega::codegen {\n"
+         <<"template<class Runner>\n"
+         <<"__device__ inline void DispatchDmStage(std::uint32_t kind, std::uint32_t width, std::uint32_t rows, Runner const& runner) {\n";
+      for(auto const& [kind,width,rows]:scalar_shapes)
+        out<<"  if(kind==unsigned(TaskKind::"<<kind<<") && width=="<<width<<"u && rows=="<<rows
+           <<"u) {runner.template Run<TaskKind::"<<kind<<", "<<width<<", "<<rows<<">(); return;}\n";
+      out<<"  asm volatile(\"trap;\");\n}\n";
     }
     out << "template<class Runner>\n"
         << "__device__ inline void DispatchDmEpilogue(std::uint32_t gemm, Runner const& runner) {\n"

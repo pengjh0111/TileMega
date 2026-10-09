@@ -4,6 +4,8 @@
 #include <tilemega/Codegen/tasks/TaskBase.h>
 #include <tilemega/Analysis/OpArithmetic.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Codegen/TaskBodyEmitter.h>
+#include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/MLIRContext.h>
 #include <cassert>
 #include <limits>
@@ -101,6 +103,47 @@ int TestDmDescriptor(int, char**) {
   for(unsigned value=16;value<=25;++value)
     assert(OwnershipOf(static_cast<TaskKind>(value))==TaskOwnershipKind::kTilePerBlock);
   assert(unsigned(TaskKind::kArgmaxReduce)==15 && unsigned(TaskKind::kGemm)==0);
+
+  ModelPlan scalar;scalar.dm=scalar.forward=true;scalar.serving_seq=128;
+  scalar.dtype="bf16";scalar.buffers.resize(10);scalar.stages.resize(2);
+  for(unsigned i:{0u,1u})scalar.buffers[i].dtype="i64";
+  scalar.buffers[9].dtype="f32";
+  for(unsigned i:{2u,3u,4u}) {
+    auto& l=scalar.buffers[i].layout;l.rank=2;l.logical[1]=l.physical[1]=768;
+    l.logical[0]=l.physical[0]=i==2?30522:i==3?2:512;
+    l.strides[0]=768;l.strides[1]=1;
+  }
+  auto& embedding=scalar.stages[0];embedding.kind=PlanTaskKind::kEmbeddingSum;
+  embedding.width=768;embedding.group=1;embedding.extent=30522;
+  for(unsigned i=0;i<6;++i)embedding.operands[i]=i;
+  embedding.operands[6]=kDmNoIndex;
+  auto& norm=scalar.stages[1];norm.kind=PlanTaskKind::kLayerNorm;
+  norm.width=768;norm.group=4;norm.norm_epsilon=1e-12f;
+  norm.operands={5,6,7,8,9};ValidateDmModelPlan(scalar);
+  norm.norm_epsilon=0;rejects([&]{ValidateDmModelPlan(scalar);});norm.norm_epsilon=1e-12f;
+  norm.group=1;rejects([&]{ValidateDmModelPlan(scalar);});norm.group=4;
+  scalar.buffers[0].dtype="i32";rejects([&]{ValidateDmModelPlan(scalar);});scalar.buffers[0].dtype="i64";
+  scalar.buffers[4].layout.logical[0]=127;rejects([&]{ValidateDmModelPlan(scalar);});
+  scalar.buffers[4].layout.logical[0]=512;
+  auto module=mlir::ModuleOp::create(builder.getUnknownLoc());
+  auto stage_attr=[&](char const* kind,unsigned width,unsigned group) {
+    return builder.getDictionaryAttr({builder.getNamedAttr("kind",builder.getStringAttr(kind)),
+        builder.getNamedAttr("width",builder.getI64IntegerAttr(width)),
+        builder.getNamedAttr("group",builder.getI64IntegerAttr(group))});
+  };
+  auto attrs=builder.getArrayAttr({stage_attr("kEmbeddingSum",768,1),
+      stage_attr("kLayerNorm",768,4),stage_attr("kLayerNorm",768,4),
+      stage_attr("kLayoutConvert",3,128)});
+  module->setAttr("tilemega.model_plan",builder.getDictionaryAttr({
+      builder.getNamedAttr("dm",builder.getBoolAttr(true)),
+      builder.getNamedAttr("gemms",builder.getArrayAttr({})),
+      builder.getNamedAttr("stages",attrs)}));
+  auto emitted=TaskBodyEmitter{}.Emit(module);
+  auto call=std::string("runner.template Run<TaskKind::kLayerNorm, 768, 4>()");
+  auto at=emitted.find(call);assert(at!=std::string::npos && emitted.find(call,at+1)==std::string::npos);
+  assert(emitted.find("Run<TaskKind::kEmbeddingSum, 768, 1>()")!=std::string::npos);
+  assert(emitted.find("Run<TaskKind::kLayoutConvert, 3, 128>()")!=std::string::npos);
+  module.erase();
 
   tilemega::analysis::IslContext isl;
   tilemega::analysis::ArithmeticInputs inputs;

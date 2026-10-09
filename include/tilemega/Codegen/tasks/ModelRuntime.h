@@ -221,7 +221,7 @@ struct BufferDesc {
   // Serving fields are unconditional and appended: host and device must see
   // the same descriptor layout regardless of optional feature macros.
   std::uint32_t per_batch = 0;
-  std::uint32_t dtype = 0;  ///< 0 BF16, 1 FP32, 2 int32
+  std::uint32_t dtype = 0;  ///< 0 BF16, 1 FP32, 2 int32, 3 int64 (DM)
   std::uint32_t role = 0;   ///< 0 internal, 1 external
   char const* external_name = nullptr;
   char const* pack_json = nullptr;
@@ -276,6 +276,7 @@ struct StageDesc {
   std::uint32_t conv = kDmNoIndex;
   std::uint32_t rows_per_batch = 0;
   std::uint32_t binding_producer = kDmNoIndex;
+  float norm_epsilon = 0.0f;
 #endif
 };
 inline constexpr std::uint32_t kHandoffAutoCombine = kNoOperand - 1u;
@@ -815,6 +816,8 @@ struct Params {
   unsigned long long* counted_dependencies = nullptr;
   std::uint32_t counted_dependency_count = 0;
   RuntimeCountedThresholdView counted_thresholds{};
+  DmBufferView dm_buffers{};
+  ConvDesc const* dm_convolutions = nullptr;
 #endif
 #if TILEMEGA_TRACE_STAGE
   StageTraceRecord* serving_stage_trace=nullptr;

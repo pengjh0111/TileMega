@@ -2,6 +2,7 @@
 #include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Frontend/ModelPlan.h>
 #include <limits>
+#include <cmath>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -104,7 +105,8 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
     }
     for(auto const& stage:plan.stages)
       extended|=stage.kind>=PlanTaskKind::kDepthwiseConv ||
-          stage.conv!=kDmNoIndex || stage.rows_per_batch || stage.binding_producer!=kDmNoIndex;
+          stage.conv!=kDmNoIndex || stage.rows_per_batch || stage.binding_producer!=kDmNoIndex ||
+          stage.norm_epsilon!=0.0f;
     if(extended)throw std::invalid_argument("extended descriptors require the DM device ABI");
     return;
   }
@@ -147,6 +149,38 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
   }
   for(unsigned i=0;i<plan.stages.size();++i) {
     auto const& stage=plan.stages[i];
+    if(stage.kind==PlanTaskKind::kLayerNorm || stage.kind==PlanTaskKind::kEmbeddingSum ||
+       stage.kind==PlanTaskKind::kLayoutConvert) {
+      if(!stage.width || stage.width>4096 || !stage.group || stage.group>1024)
+        throw std::invalid_argument("invalid DM scalar task geometry");
+      auto typed=[&](unsigned operand,char const* dtype,bool optional=false) {
+        auto id=stage.operands[operand];buffer(id,!optional);
+        if(id!=kDmNoIndex && plan.buffers[id].dtype!=dtype)
+          throw std::invalid_argument("DM scalar operand has incompatible dtype");
+      };
+      if(stage.kind==PlanTaskKind::kLayerNorm) {
+        if(stage.group%4 || !(stage.norm_epsilon>0) || !std::isfinite(stage.norm_epsilon))
+          throw std::invalid_argument("invalid LayerNorm geometry or epsilon");
+        for(unsigned o=0;o<4;++o)typed(o,"bf16");
+        typed(4,"f32",true);
+      }else if(stage.kind==PlanTaskKind::kEmbeddingSum) {
+        for(unsigned o=0;o<2;++o)typed(o,"i64");
+        for(unsigned o=2;o<6;++o)typed(o,"bf16");
+        typed(6,"f32",true);
+        auto const& types=plan.buffers[stage.operands[3]].layout;
+        auto const& positions=plan.buffers[stage.operands[4]].layout;
+        if(!stage.extent || types.rank!=2 || positions.rank!=2 ||
+           !types.logical[0] || types.logical[1]!=stage.width ||
+           positions.logical[1]!=stage.width ||
+           (plan.forward && positions.logical[0]<unsigned(plan.serving_seq)))
+          throw std::invalid_argument("invalid embedding table extents");
+      }else {
+        typed(0,"bf16");typed(1,"bf16");
+        auto const& layout=plan.buffers[stage.operands[1]].layout;
+        if(layout.kind!=DmLayout::kNHWC || layout.rank!=4 || layout.logical[3]!=stage.width)
+          throw std::invalid_argument("layout conversion requires NHWC output geometry");
+      }
+    }
     if(stage.conv!=kDmNoIndex && stage.conv>=plan.convolutions.size())
       throw std::invalid_argument("DM stage convolution outside geometry table");
     if(stage.binding_producer!=kDmNoIndex) {

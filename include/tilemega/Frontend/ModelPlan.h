@@ -141,6 +141,7 @@ struct PlanStage {
   std::uint32_t conv = codegen::kDmNoIndex;
   std::uint32_t rows_per_batch = 0;
   std::uint32_t binding_producer = codegen::kDmNoIndex;
+  float norm_epsilon = 0.0f;
 };
 
 struct PlanOutput {
