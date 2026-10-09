@@ -40,6 +40,12 @@ int TestTaskArithmeticDomain(int,char**) {
   }
   ArithmeticInputs scalar;scalar.reduction=QuasiPolynomial::Constant(3);
   assert(InstantiateArithmetic("sum",scalar).flops_per_output_element.Eval({})==2);
+  auto five=QuasiPolynomial::Constant(5);
+  assert(five.SumAlong(CouplingRelation::FromIslText("{ [] -> [] }")).Eval({})==5);
+  auto broadcast=five.SumAlong(CouplingRelation::FromIslText("[B] -> { [m] -> [] : B>=1 and 0<=m<B }"));
+  assert(broadcast.SemanticallyEqual(QuasiPolynomial::FromIslText(
+      "[B] -> { [m] -> 5 : B>=1 and 0<=m<B }"),{}));
+  assert(broadcast.SumDomain().Eval(ParamBinding{}.Bind("B",7))==35);
   for(char const* invalid:{"{ [m] -> [n] : 0<=m<3 and n=2-m }",
       "{ [m] -> [n] : 0<=m<3 and 0<=n<3 }","{ [m] -> [n,k] : n=m and k=0 }"}) {
     bool rejected=false;

@@ -503,13 +503,28 @@ QuasiPolynomial QuasiPolynomial::SumAlong(CouplingRelation const& relation) cons
   value=isl_util::PwQPolynomial(isl_union_pw_qpolynomial_extract_pw_qpolynomial(united.get(),space.release()));
   if (!value) throw std::invalid_argument("QP fiber aligned extraction failed");
   int inputs=isl_pw_qpolynomial_dim(value.get(),isl_dim_in),outputs=isl_map_dim(map.get(),isl_dim_out);
+  if(inputs==0 && outputs==0) {
+    // A zero-dimensional range has at most its one empty tuple. Its fiber
+    // sum is the scalar on the relation's domain; barvinok's general map
+    // summation rejects this valid scalar case.
+    isl_util::Set domain(isl_map_domain(map.release()));
+    auto dimensions=isl_set_dim(domain.get(),isl_dim_set);
+    if(dimensions)
+      value=isl_util::PwQPolynomial(isl_pw_qpolynomial_add_dims(value.release(),isl_dim_in,dimensions));
+    value=isl_util::PwQPolynomial(isl_pw_qpolynomial_reset_domain_space(
+        value.release(),isl_set_get_space(domain.get())));
+    value=isl_util::PwQPolynomial(isl_pw_qpolynomial_intersect_domain(value.release(),domain.release()));
+    if(!value)throw std::invalid_argument("QP scalar fiber restriction failed");
+    return FromIslText(isl_util::ToString(value.get()));
+  }
   if (inputs==0 && outputs>0) {
     value=isl_util::PwQPolynomial(isl_pw_qpolynomial_add_dims(value.release(),isl_dim_in,outputs));
     auto range=isl_util::Space(isl_space_range(isl_map_get_space(map.get())));
     value=isl_util::PwQPolynomial(isl_pw_qpolynomial_reset_domain_space(value.release(),range.release()));
   } else if (inputs!=outputs) throw std::invalid_argument("QP fiber sum coordinate rank mismatch");
   auto sum=isl_util::PwQPolynomial(isl_map_apply_pw_qpolynomial(map.release(),value.release()));
-  if (!sum) throw std::invalid_argument("cannot sum QP along relation");
+  if (!sum) throw std::invalid_argument("cannot sum QP along relation: polynomial="+
+      text_+" relation="+relation.ToString());
   return FromIslText(isl_util::ToString(sum.get()));
 }
 
