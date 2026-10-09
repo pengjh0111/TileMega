@@ -124,3 +124,11 @@ verified: mapped physical outputs retain their separate logical ownership
 geometry. All 32 NCHW/pixel-shuffle cases pass split-K cardinality, FP32
 partial-byte and flow-count checks with assertions enabled
 (`results/CI7_mapped_store_host.json`). Mapped device writes remain pending.
+
+verified: 19/19 focused native ctests and check-policy pass after counted CG,
+CUDA emission and runtime-projection integration. Counts retain logical
+contribution semantics; static ordering tables retain I2, including affine
+column partitions. The CG test covers 96 shapes x 12 grid/kappa choices and
+rejects malformed metadata. Host page-resource checks cover 76 geometries
+and exact/insufficient target budgets (`results/CI4_CI7_native_host.json`).
+Geometry rebinding, fusion transport and native GPU threshold gates remain pending.
