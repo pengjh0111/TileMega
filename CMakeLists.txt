@@ -204,7 +204,9 @@ add_library(tilemega_core STATIC
   lib/Analysis/StorageHazards.cpp
   lib/Analysis/DependencyTable.cpp
   lib/Analysis/BoundDependencyForm.cpp
+  lib/Analysis/CountedDependencyForm.cpp
   lib/Dialect/CouplingGraph/BoundDependency.cpp
+  lib/Dialect/CouplingGraph/CountedDependency.cpp
   lib/Analysis/VirtualTaskBinding.cpp
   lib/Analysis/ExactTaskWork.cpp
   lib/Analysis/DramFloor.cpp
@@ -373,6 +375,10 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/dm_forward_search_test.cpp
     test/unit/task_arithmetic_domain_test.cpp
     test/unit/dm_store_geometry_test.cpp
+    test/unit/dm_page_resources_test.cpp
+    test/unit/counted_dependency_cg_test.cpp
+    test/unit/counted_threshold_test.cpp
+    test/unit/counted_write_test.cpp
     test/unit/coupling_cache_test.cpp
     test/unit/semantic_lifting_test.cpp
     test/unit/embedding_plan_test.cpp
@@ -747,6 +753,10 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME dm_forward_search COMMAND tilemega-unit dm_forward_search)
   add_test(NAME task_arithmetic_domain COMMAND tilemega-unit task_arithmetic_domain)
   add_test(NAME dm_store_geometry COMMAND tilemega-unit dm_store_geometry)
+  add_test(NAME dm_page_resources COMMAND tilemega-unit dm_page_resources)
+  add_test(NAME counted_dependency_cg COMMAND tilemega-unit counted_dependency_cg)
+  add_test(NAME counted_threshold COMMAND tilemega-unit counted_threshold)
+  add_test(NAME counted_write COMMAND tilemega-unit counted_write)
 
   add_test(NAME coupling_cache COMMAND tilemega-unit coupling_cache)
 
