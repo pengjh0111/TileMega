@@ -3,6 +3,7 @@
 #include <tilemega/Codegen/DmDescriptors.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Target/ArchDispatch.h>
+#include <cutlass/bfloat16.h>
 
 namespace tilemega::codegen {
 struct GlobalPoolReduceOperands {
@@ -16,6 +17,7 @@ struct GlobalPoolReduceOperands {
   // Strip producers number their partials independently within each image.
   // Zero retains the global GEMM M-tile indexing convention.
   unsigned partial_rows_per_image=0;
+  cutlass::bfloat16_t* rounded_output=nullptr;
 };
 
 template<class Arch,int ChannelsPerTask=128>
@@ -43,7 +45,9 @@ struct GlobalPoolReduceTaskBody {
       // A fixed producer-tile order is shared by standalone and LA execution.
       for(unsigned part=first;part<end;++part)
         sum+=p.partials[image*l.strides[0]+part*l.strides[1]+channel*l.strides[2]];
-      p.output[image*(p.output_stride?p.output_stride:p.channels)+channel]=sum/p.image_rows;
+      auto offset=image*(p.output_stride?p.output_stride:p.channels)+channel;
+      float mean=sum/p.image_rows;p.output[offset]=mean;
+      if(p.rounded_output)p.rounded_output[offset]=cutlass::bfloat16_t(mean);
     }
   }
 };

@@ -110,7 +110,8 @@ struct DmStageRunner {
       GlobalPoolReduceTaskBody<Arch,Width>::Run({static_cast<float const*>(pointer(0)),
           static_cast<float*>(pointer(1)),params.dm_buffers.layouts[stage.operand[0]],
           unsigned(params.dims.batch),stage.extent,stage.rows_per_batch,RowsPerTask,
-          unsigned(output.rank?output.strides[0]:stage.extent),stage.partial_rows_per_image},task);
+          unsigned(output.rank?output.strides[0]:stage.extent),stage.partial_rows_per_image,
+          static_cast<E*>(pointer(2))},task);
     }else {
       static_assert(Kind==TaskKind::kLayerNorm || Kind==TaskKind::kEmbeddingSum ||
                     Kind==TaskKind::kLayoutConvert || Kind==TaskKind::kPool ||

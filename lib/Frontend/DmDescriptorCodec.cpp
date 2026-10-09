@@ -231,6 +231,7 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
           throw std::invalid_argument("invalid encoder attention geometry");
       }else if(stage.kind==PlanTaskKind::kGlobalPoolReduce) {
         typed(0,"f32");typed(1,"f32");
+        typed(2,"bf16",true);
         auto const& partial=plan.buffers[stage.operands[0]].layout;
         if(stage.width<32 || stage.width>256 || stage.width%32 || !stage.extent ||
            !stage.rows_per_batch || partial.rank!=3 || partial.logical[2]!=stage.extent)

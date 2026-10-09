@@ -2378,6 +2378,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       }
     }else if(stage.kind==TaskKind::kGlobalPoolReduce) {
       operand(0,1,0);operand(1,1,std::uint64_t(dims.batch)*stage.extent);
+      operand(2,0,std::uint64_t(dims.batch)*stage.extent,true);
       auto const& buffer=spec.buffers[stage.operand[0]];auto const& l=buffer.layout;
       auto tiles=stage.partial_rows_per_image?stage.partial_rows_per_image:(rows+stage.group-1)/stage.group;
       if(stage.width<32 || stage.width>256 || stage.width%32 || !stage.extent ||
@@ -2394,6 +2395,15 @@ inline DeviceModel Create(ModelSpec const& spec,
          out.strides[1]!=1 || out.strides[0]<stage.extent ||
          output.Elements(dims)<std::uint64_t(dims.batch)*out.strides[0]))
         throw std::invalid_argument("invalid global pool output layout");
+      if(stage.operand[2]!=kDmNoIndex) {
+        auto const& rounded=spec.buffers[stage.operand[2]];auto const& mirror=rounded.layout;
+        auto pitch=out.rank?out.strides[0]:stage.extent;
+        if((mirror.rank && (mirror.kind!=DmLayout::kRowMajor || mirror.rank!=2 ||
+            mirror.logical[0]!=unsigned(dims.batch) || mirror.logical[1]!=stage.extent ||
+            mirror.strides[1]!=1 || mirror.strides[0]!=pitch)) ||
+           rounded.Elements(dims)<std::uint64_t(dims.batch)*pitch)
+          throw std::invalid_argument("invalid global pool rounded mirror layout");
+      }
     }else {
       operand(0,0,rows*stage.width);operand(1,0,rows*stage.width);
       auto const& layout=spec.buffers[stage.operand[1]].layout;

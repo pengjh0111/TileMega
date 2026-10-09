@@ -374,6 +374,12 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
         op.operands={b.Read(input,b.written.at(input),{I("m"),I("n")})};
         op.tile_storage_reads.push_back({b.Buffer(input).name,"r","m",C(area)});
       }
+      if(stage.operands[2]!=missing) {
+        auto id=stage.operands[2];auto space=b.Space(id,b.batch,channels);
+        ElementWrite write;write.tensor=space;write.effect.kind=EffectKind::kWrite;
+        write.map.results=b.Rows(id,"n");op.additional_writes.push_back(std::move(write));
+        b.writer[id]=op.name;b.written[id]=space;b.result.written[id]=1;
+      }
       b.Own(op,b.batch,channels);b.Record(index,std::move(op),OpRole::kGlobalPoolReduce,output);
     }else if(stage.kind==PlanTaskKind::kGemm) {
       auto const& g=plan.gemms.at(stage.gemm);
