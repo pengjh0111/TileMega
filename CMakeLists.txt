@@ -190,6 +190,7 @@ add_library(tilemega_core STATIC
   lib/Solver/BalancedPlacement.cpp
   lib/Solver/LaneIntersections.cpp
   lib/Codegen/RuntimeTaskGraph.cpp
+  lib/Codegen/RuntimeDependencyCodec.cpp
   lib/Solver/CacheServiceCurve.cpp
   lib/Solver/ModelDescription.cpp
   lib/Solver/TaskModel.cpp
@@ -377,6 +378,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/dm_store_geometry_test.cpp
     test/unit/dm_page_resources_test.cpp
     test/unit/counted_dependency_cg_test.cpp
+    test/unit/runtime_dependency_codec_test.cpp
     test/unit/counted_threshold_test.cpp
     test/unit/counted_write_test.cpp
     test/unit/coupling_cache_test.cpp
@@ -755,6 +757,8 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME dm_store_geometry COMMAND tilemega-unit dm_store_geometry)
   add_test(NAME dm_page_resources COMMAND tilemega-unit dm_page_resources)
   add_test(NAME counted_dependency_cg COMMAND tilemega-unit counted_dependency_cg)
+  add_test(NAME counted_dependency_flow COMMAND tilemega-unit counted_dependency_flow)
+  add_test(NAME runtime_dependency_codec COMMAND tilemega-unit runtime_dependency_codec)
   add_test(NAME counted_threshold COMMAND tilemega-unit counted_threshold)
   add_test(NAME counted_write COMMAND tilemega-unit counted_write)
 
