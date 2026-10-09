@@ -5,6 +5,7 @@
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <mlir/IR/BuiltinOps.h>
 #include <stdexcept>
+#include <limits>
 
 #ifndef TILEMEGA_FUSED_RUNTIME_PROJECTION
 #define TILEMEGA_FUSED_RUNTIME_PROJECTION 1
@@ -183,11 +184,68 @@ FusedRuntimeProjection FuseProjectedQueues(RuntimeProjection const& original,
   }
   auto requested=parse("{ [s,t] -> [w,pstage,kind,g] : false }");
   auto waits=requested;
+  std::set<std::pair<int,int>> counted_pairs;
+  std::uint64_t counter_offset=0;
+  for(auto const& edge:original.runtime_counted) {
+    if(options.force_all_dependencies)continue;
+    if(edge.producer==producer && edge.consumer==consumer)continue;
+    auto new_stage=[&](int old){return old<=producer?old:old-1;};
+    int np=new_stage(edge.producer),nc=new_stage(edge.consumer);
+    auto ownership=[&](int old,int next) {
+      return out.phase_tasks.IntersectDomain("{ [s,t] : s="+std::to_string(next)+" }")
+          .IntersectRange("{ [s,t] : s="+std::to_string(old)+" }")
+          .Reverse().ProjectRange(0,1).Reverse().ProjectRange(0,1);
+    };
+    auto cm=ownership(edge.consumer,nc),pm=ownership(edge.producer,np);
+    // Replicating a counted writer would publish a logical unit twice.
+    // Splitting a target requires a new dispatch contract, not copied counts.
+    if(!cm.IsSingleValued() || !cm.Reverse().IsSingleValued() ||
+        !pm.IsSingleValued() || !pm.Reverse().IsSingleValued())
+      throw std::invalid_argument("counted fusion requires bijective phase ownership");
+    auto contract=edge.contract;
+    contract.contributions.target_units=cm.ApplyRange(contract.contributions.target_units);
+    auto targets=contract.contributions.target_units.Reverse().Image().ImageIdentity();
+    long count=targets.ImageCard().Eval({});
+    if(count<=0 || std::uint64_t(count)>std::numeric_limits<std::uint32_t>::max())
+      throw std::invalid_argument("counted fused target count overflows");
+    auto domain=parse("{ [c] -> [c] : 0<=c<"+std::to_string(count)+" }");
+    if(!equal(domain,targets))throw std::invalid_argument("counted fused targets are not dense");
+    auto names=contract.contributions.target_units.DomainDimNames();
+    std::vector<analysis::ParamBinding> coordinates(count);
+    for(long i=0;i<count;++i)coordinates[i].Bind(names.at(0),i);
+    auto values=contract.contributions.target_units.BoundTaskCard().EvalPoints({},coordinates);
+    contract.contributions.expected.clear();
+    for(auto value:values) {
+      if(value<=0 || std::uint64_t(value)>std::numeric_limits<std::uint32_t>::max())
+        throw std::invalid_argument("counted fused threshold overflows");
+      contract.contributions.expected.push_back(value);
+    }
+    auto old_sources=parse("{ [p] -> [p] : 0<=p<"+std::to_string(contract.producers)+" }");
+    if(!equal(pm.Image().ImageIdentity(),old_sources))
+      throw std::invalid_argument("counted fusion omits a logical writer");
+    contract.producers=pm.Reverse().ImageCard().Eval({});
+    contract.conservative_relation=cm.ApplyRange(contract.conservative_relation).ApplyRange(pm.Reverse());
+    (void)analysis::BuildDependencyTableLinear(contract.conservative_relation,contract.producers,count);
+    result.runtime_counted.push_back({np,nc,std::move(contract)});
+    counted_pairs.emplace(edge.producer,edge.consumer);
+    auto owned=parse("{ [s="+std::to_string(nc)+",t] -> [w,pstage="+
+        std::to_string(np)+",kind=3,g] : 0<=t<"+std::to_string(count)+
+        " and w=t%"+std::to_string(options.grid)+" and g="+std::to_string(counter_offset)+"+t }");
+    requested=requested.Union(owned);waits=waits.Union(owned);
+    counter_offset+=count;
+    if(counter_offset>std::numeric_limits<std::uint32_t>::max())
+      throw std::invalid_argument("counted fused counter storage overflows");
+  }
   // Aggregate versus fine is an edge policy, not inferred from the size of
   // a newly composed dependency window. Preserve it through phase mapping.
   for (int old_p=0;old_p<int(original.stages.size());++old_p)
     for (int old_c=old_p+1;old_c<int(original.stages.size());++old_c) {
       if (old_p==producer && old_c==consumer) continue;
+      if(counted_pairs.count({old_p,old_c})) {
+        auto ordinary=original.requested_events.IntersectDomain("{ [s,t] : s="+std::to_string(old_c)+" }")
+            .IntersectRange("{ [w,pstage,kind,g] : pstage="+std::to_string(old_p)+" and kind!=3 }");
+        if(ordinary.IsSubset(parse("{ [s,t] -> [w,pstage,kind,g] : false }")))continue;
+      }
       auto edge=external.IntersectDomain("{ [s,t] : s="+std::to_string(old_c)+" }")
           .IntersectRange("{ [s,t] : s="+std::to_string(old_p)+" }");
       if (edge.IsSubset(parse("{ [s,t] -> [a,b] : false }"))) continue;
