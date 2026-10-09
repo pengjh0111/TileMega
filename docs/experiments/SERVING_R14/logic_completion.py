@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Bounded correctness-only completion; no calibration or timing acceptance."""
-import argparse,json,os,subprocess,time
+import argparse,json,os,shutil,subprocess,time
 from pathlib import Path
 from make_phase0 import HERE,ROOT,PYTHON,write
 from phase_a import run
@@ -98,11 +98,16 @@ def trace(job,arm):
         write(out/'summary.json',values)
 
 def compare():
+    cuda_bin=Path(os.environ.get('CUDA_HOME','/usr/local/cuda'))/'bin'
+    tool=shutil.which('cuobjdump') or shutil.which('cuobjdump',path=str(cuda_bin))
+    if tool is None:raise FileNotFoundError('cuobjdump not found in PATH or CUDA_HOME/bin')
+    tool_path=str(Path(tool).resolve().parent)+os.pathsep+os.environ.get('PATH','')
+    write(OUT/'compare/tool.json',dict(path=tool,sha256=sha(tool)))
     references=json.loads((HERE/'phase_d_baseline_arms_v2.json').read_text())
     arms=json.loads(ARMS.read_text());rows=[]
     for cell,arm in arms.items():
         out=OUT/'compare'/cell
-        run([PYTHON,ROOT/'docs/experiments/SERVING_R13/compare_kernels.py',
+        run(['env','PATH='+tool_path,PYTHON,ROOT/'docs/experiments/SERVING_R13/compare_kernels.py',
              '--reference',references[cell]['decode'],'--candidate',arm['decode'],
              '--out',out],out/'run.log',600,allowed=(0,1))
         rows.append(dict(cell=cell,**json.loads((out/'comparison.json').read_text())))
@@ -127,10 +132,21 @@ def accept():
         original_result=str(OUT/'result.json'),superseded_host_failure='decode fixture was incorrectly used for prefill',
         scope='implementation and logic correctness; performance remains unaccepted',timing_eligible=False))
     (OUT/('acceptance.done' if passed else 'acceptance.failed')).touch()
+    (OUT/('acceptance.failed' if passed else 'acceptance.done')).unlink(missing_ok=True)
     return passed
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--host-only',action='store_true');args=p.parse_args();OUT.mkdir(parents=True,exist_ok=True)
+    p=argparse.ArgumentParser();p.add_argument('--host-only',action='store_true')
+    p.add_argument('--compare-only',action='store_true');args=p.parse_args();OUT.mkdir(parents=True,exist_ok=True)
+    if args.compare_only:
+        retained=OUT/'compare_missing_tool_attempt'
+        if not retained.exists():
+            retained.mkdir()
+            for name in ('compare.json','reviewed_acceptance.json'):
+                if (OUT/name).exists():shutil.copyfile(OUT/name,retained/name)
+            if (OUT/'compare').exists():shutil.copytree(OUT/'compare',retained/'logs')
+        step('compare',compare)
+        raise SystemExit(0 if accept() else 1)
     if args.host_only:
         row=step('host_v2',lambda:host('host_v2'))
         step('compare',compare)
