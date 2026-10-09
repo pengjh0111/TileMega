@@ -56,6 +56,13 @@ int TestDmDescriptor(int, char**) {
         access.experts=128;access.block_rows=16;
         value=EncodeDm(builder,access);
         assert(value.size()==18 && value==EncodeDm(builder,DecodeDmAccess(value)));
+        if(b==DmBAccess::kExpertIndirect) {
+          auto routed=access;routed.routing_topk=8;
+          value=EncodeDm(builder,routed);
+          assert(value.size()==19 && value==EncodeDm(builder,DecodeDmAccess(value)));
+          auto bad=routed;bad.routing_topk=129;
+          rejects([&]{EncodeDm(builder,bad);});
+        }
         auto invalid=access;invalid.binding_rows=0;
         rejects([&]{EncodeDm(builder,invalid);});
         invalid=access;invalid.binding_blocks=std::numeric_limits<std::uint32_t>::max();
@@ -67,11 +74,22 @@ int TestDmDescriptor(int, char**) {
   rejects([&]{EncodeDm(builder,missing);});
   missing.b=DmBAccess::kDense; missing.expert_stride=std::numeric_limits<std::uint64_t>::max();
   rejects([&]{EncodeDm(builder,missing);});
-  ModelPlan binding_plan;binding_plan.dm=true;binding_plan.buffers.resize(6);
+  DmMoeStage moe;moe.step=DmMoeStep::kScatter;moe.experts=128;moe.top_k=8;
+  moe.block_rows=32;moe.binding_capacity=384;moe.row_capacity=8192;moe.router_gemm=0;moe.grouped=true;
+  assert(EncodeDm(builder,moe)==EncodeDm(builder,DecodeDmMoeStage(EncodeDm(builder,moe))));
+  auto bad_moe=moe;bad_moe.top_k=129;rejects([&]{EncodeDm(builder,bad_moe);});
+  bad_moe=moe;bad_moe.grouped=false;rejects([&]{EncodeDm(builder,bad_moe);});
+  ModelPlan binding_plan;binding_plan.dm=true;binding_plan.forward=true;
+  binding_plan.forward_token_axis=true;binding_plan.serving_seq=1;binding_plan.buffers.resize(9);
   binding_plan.gemms.resize(1);binding_plan.stages.resize(2);
   binding_plan.stages[0].kind=PlanTaskKind::kMoETopK;
+  auto& source_stage=binding_plan.stages[0];source_stage.extent=8;source_stage.width=8;source_stage.group=1;
+  source_stage.moe={DmMoeStep::kScatter,8,8,1,8,8,0,128,false};
+  for(unsigned j=0;j<9;++j)source_stage.operands[j]=j;
+  for(unsigned j:{1u,2u,4u,5u,6u,7u,8u})binding_plan.buffers[j].dtype="i32";
+  binding_plan.buffers[0].dtype="f32";
   auto& binding_access=binding_plan.gemms[0].access;
-  binding_access.b=DmBAccess::kExpertIndirect;binding_access.binding=3;binding_access.rows=4;
+  binding_access.b=DmBAccess::kExpertIndirect;binding_access.binding=4;binding_access.rows=5;
   binding_access.expert_stride=128*128;binding_access.binding_blocks=16;
   binding_access.binding_rows=256;binding_access.experts=8;binding_access.block_rows=16;
   binding_plan.stages[1].binding_producer=0;

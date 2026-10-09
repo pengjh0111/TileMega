@@ -145,6 +145,7 @@ struct PlanStage {
   float norm_epsilon = 0.0f;
   codegen::DmEpilogueChain chain{};
   std::uint32_t partial_rows_per_image = 0;
+  codegen::DmMoeStage moe{};
 };
 
 struct PlanOutput {

@@ -437,6 +437,8 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
         fields.push_back(builder.getNamedAttr("dm_norm_epsilon",builder.getF32FloatAttr(stage.norm_epsilon)));
       if(stage.partial_rows_per_image)
         fields.push_back(builder.getNamedAttr("dm_partial_rows_per_image",builder.getI64IntegerAttr(stage.partial_rows_per_image)));
+      if(stage.moe.step!=codegen::DmMoeStep::kNone)
+        fields.push_back(builder.getNamedAttr("dm_moe",EncodeDm(builder,stage.moe)));
       if(stage.kind==PlanTaskKind::kDepthwiseConv) {
         fields.push_back(builder.getNamedAttr("dm_chain",EncodeDm(builder,stage.chain)));
         auto const& c=plan.convolutions.at(stage.conv);

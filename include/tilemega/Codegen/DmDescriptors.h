@@ -55,6 +55,19 @@ struct DmGemmAccess {
   DmWriteMap write{};
   std::uint32_t binding_blocks = 0, binding_rows = 0;
   std::uint32_t experts = 0, block_rows = 0;
+  // Row-scattered expert outputs address token*topk+rank in the partial rows.
+  std::uint32_t routing_topk = 0;
+};
+
+enum class DmMoeStep : std::uint32_t {
+  kNone, kSelect, kSelectAndDispatch, kHistogram, kPrefix, kScatter, kCombine
+};
+struct DmMoeStage {
+  DmMoeStep step = DmMoeStep::kNone;
+  std::uint32_t experts = 0, top_k = 0, block_rows = 0;
+  std::uint32_t binding_capacity = 0, row_capacity = 0;
+  std::uint32_t router_gemm = kDmNoIndex, chunk_tokens = 128;
+  bool grouped = false;
 };
 
 enum class DmEpilogueKind : std::uint32_t {

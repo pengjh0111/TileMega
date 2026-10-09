@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Frontend/ModelPlan.h>
+#include <tilemega/Codegen/MoeBinding.h>
 #include <limits>
 #include <cmath>
 #include <sstream>
@@ -98,7 +99,7 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
           a.rows_per_batch || a.a_row_stride || a.a_row_offset ||
           a.conv!=kDmNoIndex || a.rows!=kDmNoIndex || a.binding!=kDmNoIndex ||
           a.a_scale!=kDmNoIndex || a.expert_stride ||
-          a.binding_blocks || a.binding_rows || a.experts || a.block_rows ||
+          a.binding_blocks || a.binding_rows || a.experts || a.block_rows || a.routing_topk ||
           a.write.kind!=DmWriteKind::kDense || a.write.factor!=1 ||
           a.write.layout!=kDmNoIndex || a.write.rows!=kDmNoIndex ||
           gemm.chain.count || gemm.chain.side_count;
@@ -107,6 +108,7 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
       extended|=stage.kind>=PlanTaskKind::kDepthwiseConv ||
           stage.conv!=kDmNoIndex || stage.rows_per_batch || stage.binding_producer!=kDmNoIndex ||
           stage.norm_epsilon!=0.0f || stage.chain.count || stage.chain.side_count || stage.partial_rows_per_image;
+    for(auto const& stage:plan.stages)extended|=stage.moe.step!=DmMoeStep::kNone;
     if(extended)throw std::invalid_argument("extended descriptors require the DM device ABI");
     return;
   }
@@ -153,6 +155,38 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
 
   for(unsigned i=0;i<plan.stages.size();++i) {
     auto const& stage=plan.stages[i];
+    auto const& moe=stage.moe;
+    if(stage.kind==PlanTaskKind::kMoETopK || stage.kind==PlanTaskKind::kMoECombine) {
+      unsigned capacity=0;
+      if(!plan.forward_token_axis || !MoeVirtualCapacity(plan.serving_seq,moe.top_k,
+          moe.experts,moe.block_rows,moe.grouped,&capacity) ||
+          moe.experts>128 || moe.top_k>32 || capacity!=moe.binding_capacity ||
+          moe.row_capacity!=std::uint64_t(plan.serving_seq)*moe.top_k ||
+          moe.router_gemm>=plan.gemms.size() || !moe.chunk_tokens ||
+          moe.step==DmMoeStep::kNone || unsigned(moe.step)>unsigned(DmMoeStep::kCombine))
+        throw std::invalid_argument("invalid MoE stage capacity or router contract");
+      bool combine=stage.kind==PlanTaskKind::kMoECombine;
+      if(combine!=(moe.step==DmMoeStep::kCombine) || !stage.group ||
+          (!combine && (stage.width!=moe.top_k || stage.extent!=moe.experts)) ||
+          (moe.step==DmMoeStep::kSelectAndDispatch &&
+           (moe.row_capacity>4096 || stage.group<unsigned(plan.serving_seq))) ||
+          ((moe.step==DmMoeStep::kHistogram || moe.step==DmMoeStep::kPrefix) && !moe.grouped) ||
+          (combine && (stage.width<32 || stage.width>256 || stage.width%32 ||
+                       stage.group>128 || !stage.extent)))
+        throw std::invalid_argument("invalid MoE stage specialization");
+      auto typed=[&](unsigned operand,char const* dtype,bool optional=false) {
+        auto id=stage.operands[operand];buffer(id,!optional);
+        if(id!=kDmNoIndex && plan.buffers[id].dtype!=dtype)
+          throw std::invalid_argument("MoE stage operand has incompatible dtype");
+      };
+      if(combine) {
+        for(unsigned j=0;j<4;++j)typed(j,"bf16");typed(4,"f32",true);
+      }else {
+        typed(0,"f32");typed(1,"i32");typed(2,"i32");typed(3,"bf16");
+        for(unsigned j=4;j<9;++j)typed(j,"i32");
+      }
+    }else if(moe.step!=DmMoeStep::kNone)
+      throw std::invalid_argument("MoE configuration is attached to another task kind");
     validate_chain(stage.chain);
     if(stage.partial_rows_per_image && (stage.kind!=PlanTaskKind::kGlobalPoolReduce || !stage.group ||
        stage.partial_rows_per_image!=(std::uint64_t(stage.rows_per_batch)+stage.group-1)/stage.group))
@@ -322,29 +356,56 @@ mlir::DenseI64ArrayAttr EncodeDm(mlir::Builder& b, codegen::DmGemmAccess const& 
   Put(w,x.a); Put(w,x.b); Put(w,x.rows_per_batch); Put(w,x.a_row_stride);
   Put(w,x.a_row_offset); Put(w,x.conv); Put(w,x.rows); Put(w,x.binding);
   Put(w,x.a_scale); Put(w,x.expert_stride); PutWrite(w,x.write);
-  if(x.binding_blocks || x.binding_rows || x.experts || x.block_rows) {
+  if(x.binding_blocks || x.binding_rows || x.experts || x.block_rows || x.routing_topk) {
     Put(w,x.binding_blocks); Put(w,x.binding_rows); Put(w,x.experts); Put(w,x.block_rows);
+    if(x.routing_topk)Put(w,x.routing_topk);
   }
   auto attr=b.getDenseI64ArrayAttr(w); (void)DecodeDmAccess(attr); return attr;
 }
 codegen::DmGemmAccess DecodeDmAccess(mlir::Attribute attr) {
   auto array=llvm::dyn_cast_or_null<mlir::DenseI64ArrayAttr>(attr);
-  Reader r(attr,array && array.size()==18 ? 18 : 14); codegen::DmGemmAccess x;
+  Reader r(attr,array && (array.size()==18 || array.size()==19) ? array.size() : 14); codegen::DmGemmAccess x;
   x.a=r.Enum<DmAAccess>(2); x.b=r.Enum<DmBAccess>(1);
   x.rows_per_batch=r.U32(); x.a_row_stride=r.U32(); x.a_row_offset=r.U32();
   x.conv=r.U32(); x.rows=r.U32(); x.binding=r.U32(); x.a_scale=r.U32();
   x.expert_stride=r.U64(); x.write=r.Write();
-  if(r.words.size()==18) {
+  if(r.words.size()>=18) {
     x.binding_blocks=r.U32(); x.binding_rows=r.U32(); x.experts=r.U32(); x.block_rows=r.U32();
     if(!x.binding_blocks || !x.binding_rows || !x.experts || !x.block_rows ||
        x.binding_blocks>std::uint32_t(std::numeric_limits<int>::max())/x.block_rows)
       throw std::invalid_argument("invalid DM binding capacity");
+    if(r.words.size()==19) {
+      x.routing_topk=r.U32();
+      if(!x.routing_topk || x.routing_topk>x.experts || x.b!=DmBAccess::kExpertIndirect)
+        throw std::invalid_argument("invalid expert row-scatter top-k");
+    }
   }
   if((x.a==DmAAccess::kIm2Col && x.conv==kDmNoIndex) ||
      (x.a==DmAAccess::kRowGather && (x.rows==kDmNoIndex || x.binding==kDmNoIndex)) ||
      (x.b==DmBAccess::kExpertIndirect && (x.binding==kDmNoIndex || !x.expert_stride)) ||
      (x.write.kind==DmWriteKind::kRowScatter && x.write.rows==kDmNoIndex))
     throw std::invalid_argument("DM GEMM access lacks its geometry or binding source");
+  return x;
+}
+
+mlir::DenseI64ArrayAttr EncodeDm(mlir::Builder& b,codegen::DmMoeStage const& x) {
+  Words w;Put(w,x.step);
+  for(auto v:{x.experts,x.top_k,x.block_rows,x.binding_capacity,x.row_capacity,
+      x.router_gemm,x.chunk_tokens})Put(w,v);
+  Put(w,x.grouped);auto attr=b.getDenseI64ArrayAttr(w);
+  (void)DecodeDmMoeStage(attr);return attr;
+}
+codegen::DmMoeStage DecodeDmMoeStage(mlir::Attribute attr) {
+  Reader r(attr,9);DmMoeStage x;x.step=r.Enum<DmMoeStep>(6);
+  x.experts=r.U32();x.top_k=r.U32();x.block_rows=r.U32();
+  x.binding_capacity=r.U32();x.row_capacity=r.U32();x.router_gemm=r.U32();x.chunk_tokens=r.U32();
+  auto grouped=r.U32();if(grouped>1)throw std::invalid_argument("invalid MoE binding policy");
+  x.grouped=grouped;
+  if(x.step!=DmMoeStep::kNone && (!x.experts || x.experts>128 || !x.top_k ||
+      x.top_k>32 || x.top_k>x.experts || !x.block_rows || !x.binding_capacity ||
+      !x.row_capacity || x.router_gemm==kDmNoIndex || !x.chunk_tokens ||
+      (!x.grouped && x.block_rows!=1)))
+    throw std::invalid_argument("invalid MoE stage descriptor");
   return x;
 }
 
@@ -422,10 +483,17 @@ std::string EmitDm(codegen::DmGemmAccess const& x) {
      <<unsigned(x.b)<<"u), "<<x.rows_per_batch<<"u, "<<x.a_row_stride<<"u, "
      <<x.a_row_offset<<"u, "<<x.conv<<"u, "<<x.rows<<"u, "<<x.binding<<"u, "
      <<x.a_scale<<"u, "<<x.expert_stride<<"ull, "<<WriteLiteral(x.write);
-  if(x.binding_blocks || x.binding_rows || x.experts || x.block_rows)
+  if(x.binding_blocks || x.binding_rows || x.experts || x.block_rows || x.routing_topk)
     out<<", "<<x.binding_blocks<<"u, "<<x.binding_rows<<"u, "<<x.experts<<"u, "<<x.block_rows<<'u';
+  if(x.routing_topk)out<<", "<<x.routing_topk<<'u';
   out<<'}';
   return out.str();
+}
+std::string EmitDm(codegen::DmMoeStage const& x) {
+  std::ostringstream out;out<<"{static_cast<DmMoeStep>("<<unsigned(x.step)<<"u), ";
+  for(auto v:{x.experts,x.top_k,x.block_rows,x.binding_capacity,x.row_capacity,
+      x.router_gemm,x.chunk_tokens})out<<v<<"u, ";
+  out<<(x.grouped?"true":"false")<<'}';return out.str();
 }
 std::string EmitDm(codegen::DmEpilogueChain const& x) {
   std::ostringstream out; out<<'{'<<x.count<<"u, {";
