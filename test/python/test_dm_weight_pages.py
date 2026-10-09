@@ -8,7 +8,7 @@ import unittest
 import numpy as np
 import torch
 
-from tilemega.serving.weights import _packed_gpu
+from tilemega.serving.weights import _packed_cpu, _packed_gpu, _recipe_sources
 
 
 class WeightPagesTest(unittest.TestCase):
@@ -95,6 +95,55 @@ class WeightPagesTest(unittest.TestCase):
             packed = _packed_gpu(dict(kind='tile_pages', tile_n=32, tile_k=tk,
                                       source=nested), values.__getitem__)
             torch.testing.assert_close(packed, self.expected(interleaved, 32, tk), rtol=0, atol=0)
+
+    def test_convolution_pages_keep_each_filter_channel_tail(self):
+        for channels, cp in [(3, 4), (3, 8), (16, 16), (24, 24), (27, 32), (64, 64)]:
+            for r, s in [(1, 1), (2, 2), (3, 3), (7, 7)]:
+                original = (torch.arange(3 * channels * r * s).reshape(
+                    3, channels, r, s) % 257).to(torch.bfloat16)
+                recipe = dict(kind='conv_krsc', source='conv.weight', padded_channels=cp)
+                class Source:
+                    def tensor(self, name):
+                        self.name = name
+                        return original
+                checkpoint = Source()
+                krsc = _packed_cpu(recipe, checkpoint)
+                self.assertEqual(checkpoint.name, 'conv.weight')
+                self.assertEqual(_recipe_sources(recipe), ('conv.weight',))
+                self.assertTrue(torch.equal(krsc, _packed_gpu(recipe, checkpoint.tensor)))
+                for tk in (16, 32, 64, 128):
+                    with self.subTest(channels=channels, cp=cp, r=r, s=s, tk=tk):
+                        tn = 16
+                        page_recipe = dict(kind='tile_pages', source=recipe,
+                                           tile_n=tn, tile_k=tk)
+                        if cp < tk and tk % cp:
+                            with self.assertRaises(ValueError):
+                                _packed_gpu(page_recipe, checkpoint.tensor)
+                            continue
+                        iterations = (r * s * ((cp + tk - 1) // tk) if cp >= tk
+                                      else (r * s * cp + tk - 1) // tk)
+                        expected = torch.zeros(iterations * tn * tk, dtype=torch.bfloat16)
+                        offsets = self.layouts[tn, tk].reshape(tn, tk)
+                        for n in range(3):
+                            for h in range(r):
+                                for w in range(s):
+                                    for c in range(channels):
+                                        position = h * s + w
+                                        issued = (position * ((cp + tk - 1) // tk) + c // tk
+                                                  if cp >= tk else (position * cp + c) // tk)
+                                        lane = c % tk if cp >= tk else (position * cp + c) % tk
+                                        expected[issued * tn * tk + int(offsets[n, lane])] = original[n, c, h, w]
+                        packed = _packed_gpu(page_recipe, checkpoint.tensor)
+                        self.assertEqual(_recipe_sources(dict(kind='tile_pages', source=recipe)),
+                                         ('conv.weight',))
+                        torch.testing.assert_close(packed, expected, rtol=0, atol=0)
+
+    def test_convolution_padding_rejects_layout_mismatch(self):
+        for shape, cp in [((3, 3, 3), 4), ((3, 3, 3, 3), 16),
+                          ((3, 5, 3, 3), 4), ((3, 24, 3, 3), 32), ((3, 24, 0, 3), 24)]:
+            with self.subTest(shape=shape, cp=cp), self.assertRaises(ValueError):
+                _packed_gpu(dict(kind='conv_krsc', source='w', padded_channels=cp),
+                            lambda name: torch.zeros(shape, dtype=torch.bfloat16))
 
     def test_invalid_geometry_rejects(self):
         for tn, tk in [(0, 16), (7, 16), (16, 0), (16, 8), (16, 24), (16, 48), (16, 96)]:

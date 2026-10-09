@@ -43,10 +43,25 @@ class Checkpoint:
         return self.hashes[name]
 
 
+def _conv_krsc(weight: torch.Tensor, padded_channels: int) -> torch.Tensor:
+    if weight.ndim != 4 or any(extent <= 0 for extent in weight.shape):
+        raise ValueError('conv_krsc requires a nonempty OIHW tensor')
+    outputs, channels, rows, columns = weight.shape
+    if ((channels <= 4 and padded_channels not in (4, 8)) or
+            (channels > 4 and padded_channels != (channels + 7) // 8 * 8)):
+        raise ValueError('conv_krsc channel padding differs from the input layout')
+    packed = weight.new_zeros((outputs, rows, columns, padded_channels))
+    packed[..., :channels] = weight.permute(0, 2, 3, 1)
+    return packed
+
+
 def _packed_cpu(recipe: Mapping[str, object], checkpoint: Checkpoint) -> torch.Tensor:
     kind = recipe["kind"]
     if kind == "alias":
         return checkpoint.tensor(str(recipe["source"]))
+    if kind == 'conv_krsc':
+        return _conv_krsc(checkpoint.tensor(str(recipe['source'])),
+                          int(recipe['padded_channels']))
     sources = [checkpoint.tensor(str(name)) for name in recipe["sources"]]
     if not all(item.ndim == 2 for item in sources):
         raise ValueError("packed GEMM sources must be matrices")
@@ -97,7 +112,7 @@ def _recipe_sources(recipe: Mapping[str, object]) -> tuple[str, ...]:
     if kind == 'tile_pages' or kind == 'fold_rmsnorm':
         nested = _recipe_sources(recipe['source'])
         return nested + ((str(recipe['norm']),) if kind == 'fold_rmsnorm' else ())
-    if kind == 'alias':
+    if kind in ('alias', 'conv_krsc'):
         return (str(recipe['source']),)
     return tuple(str(name) for name in recipe['sources'])
 
@@ -106,6 +121,8 @@ def _packed_gpu(recipe: Mapping[str, object], source) -> torch.Tensor:
     kind = recipe['kind']
     if kind == 'alias':
         return source(str(recipe['source']))
+    if kind == 'conv_krsc':
+        return _conv_krsc(source(str(recipe['source'])), int(recipe['padded_channels']))
     if kind == 'fold_rmsnorm':
         weight = _packed_gpu(recipe['source'], source)
         norm = source(str(recipe['norm']))
@@ -122,9 +139,21 @@ def _packed_gpu(recipe: Mapping[str, object], source) -> torch.Tensor:
     if kind == 'tile_pages':
         weight = _packed_gpu(recipe['source'], source)
         tn, tk = int(recipe['tile_n']), int(recipe['tile_k'])
-        if (weight.ndim != 2 or tn <= 0 or tk <= 0 or tn % 8 or
+        if (weight.ndim not in (2, 4) or tn <= 0 or tk <= 0 or tn % 8 or
                 (tk not in (16, 32) and tk % 64)):
             raise ValueError('invalid tile_pages source or geometry')
+        if weight.ndim == 4:
+            n, r, s, cp = weight.shape
+            if (not all((n, r, s, cp)) or tk not in (16, 32, 64, 128) or
+                    cp % 4 or (cp < tk and tk % cp)):
+                raise ValueError('invalid convolution page geometry')
+            # Each filter position has its own channel tail. Flattening KRSC
+            # first would merge that tail into the next position's K tile.
+            if cp >= tk:
+                issued = weight.new_zeros((n, r, s, (cp + tk - 1) // tk * tk))
+                issued[..., :cp] = weight
+                weight = issued
+            weight = weight.reshape(n, -1)
         n, k = weight.shape
         nt, kt = (n + tn - 1) // tn, (k + tk - 1) // tk
         padded = torch.zeros((nt * tn, kt * tk), device=weight.device,
