@@ -119,3 +119,8 @@ verified: exact task arithmetic now pulls constants, reduction work and model
 extents onto an identity task domain. Symbolic tail reductions, width ratios,
 legacy scalar output and nonidentity rejection pass host checks with assertions
 enabled (`results/CI4_task_arithmetic_host.json`). Device/model gates remain pending.
+
+verified: mapped physical outputs retain their separate logical ownership
+geometry. All 32 NCHW/pixel-shuffle cases pass split-K cardinality, FP32
+partial-byte and flow-count checks with assertions enabled
+(`results/CI7_mapped_store_host.json`). Mapped device writes remain pending.
