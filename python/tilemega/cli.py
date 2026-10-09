@@ -16,8 +16,9 @@ import sys
 import time
 import statistics
 
-from .serving.integrated_selection import successive_halving, SelectionBudgetExhausted, admit_pilot, first_stage_budget_ms
+from .serving.integrated_selection import successive_halving, SelectionBudgetExhausted, admit_pilot, first_stage_budget_ms, coverage_order
 from .serving.attention_selection import variants as attention_variants, matches as matches_attention, label as attention_label, pinned_geometry, compile_options as attention_compile_options
+from .build.budget import run_until
 from .cache import atomic_json, export_key, file_sha, key, locked, plan_key, record_outputs, valid_record
 from .fingerprint import ROOT, calibration_stamps, source_fingerprint
 from .serving.execution import compiler_features, execution_combinations, select_execution, write_execution, pin_prefill
@@ -224,7 +225,7 @@ class Run:
         self.device = None
         atomic_json(self.out / 'config.json', config)
 
-    def command(self, argv, label, *, gpu=False, env_extra=None):
+    def command(self, argv, label, *, gpu=False, env_extra=None, deadline=None):
         argv = list(map(str, argv))
         environment = dict(self.env, **(env_extra or {}))
         folder = self.out / 'commands' / label
@@ -238,7 +239,7 @@ class Run:
         start = time.monotonic()
         def execute():
             with (folder / 'stdout.txt').open('w') as stdout, (folder / 'stderr.txt').open('w') as stderr:
-                return subprocess.run(argv, env=environment, cwd=ROOT, stdout=stdout, stderr=stderr).returncode
+                return run_until(argv, deadline=deadline, env=environment, cwd=ROOT, stdout=stdout, stderr=stderr)
         if gpu and os.environ.get("TILEMEGA_GPU_LOCK_HELD") != "1":
             with locked(self.gpu_lock):
                 self.preflight_gpu(folder / 'guard_preflight.json')
@@ -249,6 +250,8 @@ class Run:
         atomic_json(folder / 'command.json', dict(argv=argv, environment=env_extra or {},
                     returncode=status, seconds=time.monotonic() - start))
         if status:
+            if status==124 and deadline is not None:
+                raise SelectionBudgetExhausted(f"{label} exhausted its build/measurement budget; see {folder}")
             if status == 75:
                 raise SystemExit(75)
             raise RuntimeError(f'{label} failed ({status}); see {folder / "stderr.txt"}')
@@ -405,7 +408,7 @@ class Run:
                 options=attention_compile_options(original,variant,directory)
                 atomic_json(directory/'options.json',options)
                 self.command([self.binary,'compile','--options',directory/'options.json'],
-                             'attention-build-'+digest[:16],gpu=True)
+                             'attention-build-'+digest[:16],gpu=True,deadline=deadline)
                 actual=json.loads(Path(str(library)+'.plan.json').read_text())
                 if not matches_attention(actual,variant):raise RuntimeError('attention variant did not materialize requested switches')
                 verify(library)
@@ -428,6 +431,9 @@ class Run:
             for batch in sorted(workload['batch']):
                 features=batch_features(self.config,batch,phase)
                 batch_started=time.monotonic()
+                deadline=batch_started+settings['time_budget_s']
+                reserve=min(300,settings['time_budget_s']/4)
+                pilot_deadline=deadline-reserve
                 interval = (0, 0) if phase == 'prefill' else (workload['prompt_len'], workload['prompt_len'] + workload['max_new_tokens'] - 2)
                 if features['pg'] in ('off', 'l2'):
                     pg_choices = (features['pg'],)
@@ -488,11 +494,11 @@ class Run:
                                 options += ['--serving-warm-start', str(previous)]
                             atomic_json(plan / 'options.json', options)
                             start = time.monotonic()
-                            self.command([self.binary, 'compile', '--options', plan / 'options.json'], f'build-{phase}-{family}-B{batch}')
+                            self.command([self.binary, 'compile', '--options', plan / 'options.json'], f'build-{phase}-{family}-B{batch}',deadline=pilot_deadline if phase=='decode' else deadline)
                             seconds = time.monotonic() - start
-                            self.command([self.binary, 'audit', 'sass', library, '--out', plan / 'sass.json'], f'sass-{phase}-{family}-B{batch}')
+                            self.command([self.binary, 'audit', 'sass', library, '--out', plan / 'sass.json'], f'sass-{phase}-{family}-B{batch}',deadline=pilot_deadline if phase=='decode' else deadline)
                             self.command([self.binary, 'inspect', 'request-floor', plan / 'selected.mlir', self.target,
-                                batch, *interval, plan / 'floor.json', plan / 'floor.tsv'], f'floor-{phase}-{family}-B{batch}')
+                                batch, *interval, plan / 'floor.json', plan / 'floor.tsv'], f'floor-{phase}-{family}-B{batch}',deadline=pilot_deadline if phase=='decode' else deadline)
                             record_outputs(marker, [library, manifest, Path(str(library)+'.identity.json'),
                                 Path(str(library)+'.source.json'), Path(str(library)+'.source.json.patch'),
                                 plan / 'selected.mlir', plan / 'floor.json', plan / 'floor.tsv'],
@@ -516,11 +522,11 @@ class Run:
                                 candidates.append(dict(pg=pg, family=family, mode=mode, loop=loop,base_library=str(library),
                                     base_variant=matches_attention(manifest,variant),
                                     variant=variant,variant_label=attention_label(variant),samples_ms=[]))
-                    candidates.sort(key=lambda c:not c['base_variant'])
+                    candidates=coverage_order(candidates)
                     selection_inputs=dict(libraries={pg:file_sha(library) for pg,library in built.items()},
                                           executor=features['decode_executor'], loop=features['decode_loop'],
                                           prefill_mode=features['prefill_executor'],exclude_l1_loop=settings['exclude_l1_loop'],
-                                          objective='uniform_64_1087_linear_v2',pasts=[64,575,1000],
+                                          objective='uniform_64_1087_coverage_budget_v3',pasts=[64,575,1000],
                                           candidates=candidates)
                     choice_path=self.out / f'decode-choice-B{batch}.json'
                     cached=json.loads(choice_path.read_text()) if choice_path.exists() else {}
@@ -530,8 +536,8 @@ class Run:
                         def measure_execution(candidate, round_label):
                             # Always finish three confirmation rounds for measured
                             # survivors. The budget stops admission of further pilots.
-                            admit_pilot(candidate,round_label,time.monotonic(),deadline)
-                            candidate['library']=str(self.attention_variant(candidate['base_library'],candidate['variant'],deadline))
+                            admit_pilot(candidate,round_label,time.monotonic(),deadline,reserve)
+                            candidate['library']=str(self.attention_variant(candidate['base_library'],candidate['variant'],pilot_deadline))
                             stem=f"B{batch}-{candidate['family']}-{candidate['variant_label']}-{candidate['mode']}-{candidate['loop']}-{round_label}"
                             out=self.out / ('decode-choice-'+stem)
                             command=[sys.executable,'-m','tilemega.serving.measure_candidate','--so',candidate['library'],
@@ -539,7 +545,7 @@ class Run:
                                      '--mode',candidate['mode'],'--loop',str(candidate['loop']),
                                      '--loop-steps','64','--warmup','8','--out',str(out),
                                      '--guard-wait-s',str(settings['candidate_guard_wait_s'])]
-                            self.command(command,"choose-"+stem,gpu=True)
+                            self.command(command,"choose-"+stem,gpu=True,deadline=pilot_deadline if round_label.startswith("pilot") else deadline)
                             measured=json.loads((out/'measurements.json').read_text())['modes'][candidate['mode']]['by_past']
                             identities=[]
                             for values in measured.values():
@@ -551,9 +557,9 @@ class Run:
                             return dict(by_past=measured,execution_identity=identities[0],
                                         spill=identities[0]['spill'],measurement_path=str(out/'measurements.json'))
                         try:
-                            winner,candidates=successive_halving(candidates,measure_execution)
-                        except RuntimeError:
-                            atomic_json(choice_path,dict(inputs=selection_inputs,status='failed_or_budget_exhausted',
+                            winner,candidates=successive_halving(candidates,measure_execution,require_coverage=True)
+                        except (RuntimeError,SelectionBudgetExhausted) as error:
+                            atomic_json(choice_path,dict(inputs=selection_inputs,candidates=getattr(error,"rows",None),error=str(error),status='failed_or_budget_exhausted',
                                 elapsed_s=time.monotonic()-batch_started))
                             raise
                         atomic_json(choice_path,dict(inputs=selection_inputs,candidates=candidates,selected=winner))

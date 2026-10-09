@@ -5,20 +5,37 @@ import statistics
 PASTS=(64,575,1000)
 
 class SelectionBudgetExhausted(Exception):
-    """Stop admitting pilot work; confirm previously measured finalists."""
+    """No incomplete coverage or confirmation may be published as a winner."""
+    def __init__(self,message="selection budget exhausted",rows=None):
+        super().__init__(message);self.rows=rows
 
-def admit_pilot(candidate, label, now, deadline):
-    """Already built winners still need a measured execution baseline.
 
-    Only new structural variants consume admission budget. Once those stop,
-    halving confirms the execution alternatives of the existing plans.
-    """
-    if label.startswith('pilot') and now>=deadline and not candidate.get('base_variant'):
-        raise SelectionBudgetExhausted('selection budget exhausted before new pilot')
+def admit_pilot(candidate,label,now,deadline,reserve=0):
+    limit=deadline-reserve if label.startswith('pilot') else deadline
+    if now>=limit:
+        raise SelectionBudgetExhausted('selection budget exhausted before '+label)
 
-def first_stage_budget_ms(seconds, pg_count, decode):
-    """Reserve two thirds of decode time for compilation and integral pilots."""
-    return max(1,int(1000*seconds/(3*pg_count))) if decode else max(1,int(1000*seconds)-200000)
+
+def first_stage_budget_ms(seconds,pg_count,decode):
+    """Search occupies at most one sixth; builds and measurements share the rest."""
+    return max(1,int(1000*seconds/(6*pg_count))) if decode else max(1,int(1000*seconds)-200000)
+
+
+def coverage_tags(candidate):
+    family=candidate.get('family',candidate.get('pg','plan'))
+    variant=candidate.get('variant',{})
+    return {(family,name,str(value)) for name,value in variant.items()} | {
+        (family,'execution',str((candidate.get('mode'),candidate.get('loop'))))}
+
+
+def coverage_order(candidates):
+    """Cover each Ec/body/LA/execution dimension before repeating alternatives."""
+    pending=list(range(len(candidates)));covered=set();order=[]
+    while pending:
+        i=max(pending,key=lambda i:(len(coverage_tags(candidates[i])-covered),
+                                    bool(candidates[i].get('base_variant')),-i))
+        pending.remove(i);order.append(candidates[i]);covered.update(coverage_tags(candidates[i]))
+    return order
 
 
 def integrated_ms(by_past):
@@ -36,7 +53,7 @@ def integrated_ms(by_past):
         total+=value
     return total/1024
 
-def successive_halving(candidates,measure):
+def successive_halving(candidates,measure,*,require_coverage=False):
     """Keep all evidence; finalists get three fresh alternating paired rounds.
 
     ``measure(candidate, label)`` must run through the caller's GPU guard and
@@ -45,6 +62,12 @@ def successive_halving(candidates,measure):
     rows=[dict(c,measurements=[],eliminated_round=None) for c in candidates]
     if not rows:raise ValueError('empty candidate set')
     active=list(range(len(rows)));round_index=0
+    required=set().union(*(coverage_tags(c) for c in rows)) if require_coverage else set()
+    def check_coverage():
+        covered=set().union(*(coverage_tags(c) for c in rows if c['measurements'] or c.get('error')))
+        missing=required-covered
+        if missing:
+            raise SelectionBudgetExhausted('required pilot dimensions unmeasured: '+str(sorted(missing)),rows)
     def observe(i,label):
         try:r=measure(rows[i],label)
         except RuntimeError as error:
@@ -57,7 +80,7 @@ def successive_halving(candidates,measure):
             raise ValueError('candidate execution identity changed across rounds')
         value=integrated_ms(r['by_past']);rows[i]['measurements'].append(dict(round=label,score_ms=value,**r))
         return value
-    while len(active)>3:
+    while len(active)>3 or (require_coverage and round_index==0):
         scores={};exhausted=False
         order=active[round_index%len(active):]+active[:round_index%len(active)]
         for pos,i in enumerate(order):
@@ -70,15 +93,20 @@ def successive_halving(candidates,measure):
                     else:rows[pending]['eliminated_round']='budget_unmeasured'
                 break
         ranked=sorted((i for i in active if i in scores and not rows[i].get('error')),key=lambda i:(scores[i],i))
+        if round_index==0:check_coverage()
         if not ranked:raise RuntimeError('all serving execution candidates rejected')
         keep=3 if exhausted else max(3,(len(ranked)+1)//2)
         for i in ranked[keep:]:rows[i]['eliminated_round']=f'pilot{round_index}'
         active=ranked[:keep];round_index+=1
+    check_coverage()
     for r in range(3):
         active=[i for i in active if not rows[i].get('error')]
         if not active:raise RuntimeError('all serving execution candidates rejected')
         shift=r%len(active)
-        for i in active[shift:]+active[:shift]:observe(i,f'final{r}')
+        for i in active[shift:]+active[:shift]:
+            try:observe(i,f'final{r}')
+            except SelectionBudgetExhausted as error:
+                raise SelectionBudgetExhausted(str(error),rows) from error
     active=[i for i in active if not rows[i].get('error')]
     if not active:raise RuntimeError('all serving execution candidates rejected')
     for i in active:
