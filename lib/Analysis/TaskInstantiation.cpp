@@ -12,11 +12,19 @@
 namespace tilemega::analysis {
 namespace {
 
+void ValidateReductionIndex(TaskReductionIndex const& index) {
+  if(index.index.kind!=IndexResult::Kind::kAffine ||
+     (index.capacity.IsConstant() && index.capacity.Eval({},{})<=0) ||
+     (index.issued_width.IsConstant() && index.issued_width.Eval({},{})<=0) ||
+     (index.index.outer_divisor.IsConstant() && index.index.outer_divisor.Eval({},{})<=0))
+    throw std::invalid_argument("invalid indexed reduction geometry");
+}
+
 int ResultAxisOf(SemanticOp const& op, std::string const& dim) {
   auto const& mapping = op.exact_task_access ? op.task_map : op.result_map;
   for (std::size_t i = 0; i < mapping.results.size(); ++i) {
     auto const& result = mapping.results[i];
-    if (result.kind != IndexResult::Kind::kAffine) continue;
+    if (result.kind != IndexResult::Kind::kAffine || !result.outer_divisor.IsLiteral(1)) continue;
     if (result.terms.size() == 1 && result.terms.front().dim == dim &&
         result.terms.front().coefficient.IsLiteral(1) &&
         result.terms.front().group.IsLiteral(1))
@@ -30,6 +38,13 @@ int ResultAxisOf(SemanticOp const& op, std::string const& dim) {
 /// single task, which is exactly a full-range access along that axis.
 OperandAxisMap LowerResult(SemanticOp const& op, IndexResult const& result,
                            std::map<std::string, int> const& extra_axis) {
+  // Exact element projection retains nested floors. The older rectangular
+  // operand summary can only enclose that address set conservatively.
+  if(!result.outer_divisor.IsLiteral(1)) {
+    if(!op.exact_task_access)
+      throw std::invalid_argument("outer floor requires exact task access");
+    return OperandAxisMap::FullRange();
+  }
   switch (result.kind) {
     case IndexResult::Kind::kFullRange:
       return OperandAxisMap::FullRange(result.offset);
@@ -111,6 +126,12 @@ Granularity& Granularity::Split(std::string op, ClosedForm chunk) {
   return *this;
 }
 
+Granularity& Granularity::IndexReduction(std::string op,TaskReductionIndex index) {
+  ValidateReductionIndex(index);
+  reduction_index[std::move(op)]=std::move(index);
+  return *this;
+}
+
 bool Granularity::TileOf(std::string const& op, std::string const& dim,
                          ClosedForm* value) const {
   auto found = tiles.find(op);
@@ -135,6 +156,9 @@ std::string Granularity::Serialize() const {
       out << op << "." << dim << " = " << tile.ToString() << "\n";
   for (auto const& [op, chunk] : reduction_chunk)
     out << op << ".split = " << chunk.ToString() << "\n";
+  for(auto const& [op,index]:reduction_index)
+    out<<op<<".reduction_index = "<<index.index.Serialize()<<" capacity="
+       <<index.capacity.ToString()<<" width="<<index.issued_width.ToString()<<"\n";
   return out.str();
 }
 
@@ -159,6 +183,18 @@ OperatorGraph Instantiate(SemanticGraph const& graph, Granularity const& g) {
   for (auto const& op : graph.ops) {
     ClosedForm chunk;
     bool split = op.reduction.splittable && g.ChunkOf(op.name, &chunk);
+    auto index=g.reduction_index.find(op.name);
+    bool indexed=index!=g.reduction_index.end();
+    if(indexed) {
+      ValidateReductionIndex(index->second);
+      if(!op.exact_task_access || !op.reduction.splittable)
+        throw std::invalid_argument("indexed reduction needs exact splittable semantics");
+      for(auto const& term:index->second.index.terms) {
+        auto dim=op.Dim(term.dim);
+        if(!dim || dim->type!=IteratorType::kReduction)
+          throw std::invalid_argument("reduction index names a non-reduction dimension");
+      }
+    }
     if (!split) {
       OperatorNode node;
       node.name = op.name;
@@ -172,7 +208,9 @@ OperatorGraph Instantiate(SemanticGraph const& graph, Granularity const& g) {
       if (op.exact_task_access) {
         TaskElementAccess access; access.semantic = op;
         access.partition.ownership = op.task_map;
+        if(indexed)access.partition.reduction_index=index->second;
         node.element_access = std::make_shared<TaskElementAccess>(std::move(access));
+        if(indexed)ValidateTaskReductionIndex(node);
       }
       result.nodes.push_back(std::move(node));
       continue;
@@ -196,29 +234,38 @@ OperatorGraph Instantiate(SemanticGraph const& graph, Granularity const& g) {
             [&](auto const& axis) { return axis.name == name; });
       };
       while (has_axis(chunk_axis.name)) chunk_axis.name += "_";
-      chunk_axis.extent = reduced->BoundExtent().CeilDiv(chunk); chunk_axis.runtime = reduced->runtime && !reduced->capacity;
+      chunk_axis.extent = (indexed?index->second.capacity:reduced->BoundExtent()).CeilDiv(chunk);
+      chunk_axis.runtime = !indexed && reduced->runtime && !reduced->capacity;
       auto partial = op.result; partial.name = op.reduction.partial_tensor;
       partial.axes.push_back(chunk_axis);
       auto contribution_sem = op; contribution_sem.result = partial;
       contribution_sem.additional_writes.clear();
-      contribution_sem.result_map.results.push_back(IndexResult::Dim(reduced->name,
+      if(indexed) {
+        auto partial_index=index->second.index;
+        // floor(floor(x/a)/b) == floor(x/(a*b)) for positive a,b.
+        partial_index.outer_divisor=partial_index.outer_divisor*chunk;
+        contribution_sem.result_map.results.push_back(std::move(partial_index));
+      } else contribution_sem.result_map.results.push_back(IndexResult::Dim(reduced->name,
           ClosedForm::Constant(1), chunk, ClosedForm::Constant(-1) * reduced->origin));
       OperatorNode contribution;
       contribution.name = op.name; contribution.kind = op.kind;
       contribution.output = BindCapacityTaskSpace(op); contribution.output.axes.push_back(chunk_axis);
       contribution.tile = LowerTiles(op, g); contribution.tile.push_back(ClosedForm::Constant(1));
-      std::map<std::string, int> extra{{reduced->name, int(op.task_space.axes.size())}};
+      std::map<std::string, int> extra;
+      if(!indexed)extra.emplace(reduced->name,int(op.task_space.axes.size()));
       for (auto const& operand : op.operands) {
         auto lowered = LowerOperand(op, operand, extra);
         for (auto& axis : lowered.axes)
           for (auto& term : axis.terms)
-            if (term.output_axis == extra.at(reduced->name)) term.scale = term.scale * chunk;
+            if (!indexed && term.output_axis == extra.at(reduced->name)) term.scale = term.scale * chunk;
         lowered.producer = resolve(operand.producer);
         contribution.operands.push_back(std::move(lowered));
       }
       TaskElementAccess access; access.semantic = std::move(contribution_sem);
       access.partition.ownership = op.task_map; access.partition.reduction_chunk = chunk;
+      if(indexed)access.partition.reduction_index=index->second;
       contribution.element_access = std::make_shared<TaskElementAccess>(std::move(access));
+      if(indexed)ValidateTaskReductionIndex(contribution);
       result.nodes.push_back(std::move(contribution));
       SemanticOp combine_sem = op;
       combine_sem.name = op.reduction.combiner; combine_sem.kind = OperatorKind::kReduction;

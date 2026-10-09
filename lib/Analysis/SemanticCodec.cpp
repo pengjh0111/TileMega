@@ -35,12 +35,20 @@ Value EncodeIndex(IndexResult const& index) {
   if (!index.binding_source.empty()) encoded.emplace_back("binding_source", index.binding_source);
   if(!index.request_dims.empty())encoded.emplace_back("request_dims",
       EncodeArray(index.request_dims,[](auto const& dim){return Value(dim);}));
+  if(!index.outer_divisor.IsLiteral(1))
+    encoded.emplace_back("outer_divisor",index.outer_divisor.ToString());
   return encoded;
 }
 IndexResult DecodeIndex(Value const& value) {
   IndexResult result;
   result.kind=Enum(value,"kind",IndexResult::Kind::kDataDependent);
   result.offset=Form(value,"offset"); result.span=Form(value,"span");
+  if(auto const* divisor=value.Find("outer_divisor")) {
+    result.outer_divisor=ClosedForm::Parse(divisor->AsString("outer_divisor"));
+    if(result.kind!=IndexResult::Kind::kAffine ||
+       (result.outer_divisor.IsConstant() && result.outer_divisor.Eval({},{})<=0))
+      throw std::invalid_argument("outer floor requires an affine index and positive divisor");
+  }
   if (auto const* source = value.Find("binding_source")) {
     result.binding_source = source->AsString("binding_source");
     if (result.kind != IndexResult::Kind::kDataDependent)
@@ -138,6 +146,22 @@ Value Encode(SemanticOp const& op) {
 }  // namespace
 
 std::string EncodeSemanticOp(SemanticOp const& op) { return Encode(op).Dump(0); }
+
+std::string EncodeTaskReductionIndex(TaskReductionIndex const& index) {
+  return Value(Object{{"version",1},{"index",EncodeIndex(index.index)},
+      {"capacity",index.capacity.ToString()},{"issued_width",index.issued_width.ToString()}}).Dump(0);
+}
+TaskReductionIndex DecodeTaskReductionIndex(std::string const& payload) {
+  auto value=json::Parse(payload);
+  if(value.At("version").AsNumber("version")!=1)
+    throw std::invalid_argument("unsupported task reduction index version");
+  TaskReductionIndex index{DecodeIndex(value.At("index")),Form(value,"capacity"),Form(value,"issued_width")};
+  if(index.index.kind!=IndexResult::Kind::kAffine ||
+     (index.capacity.IsConstant() && index.capacity.Eval({},{})<=0) ||
+     (index.issued_width.IsConstant() && index.issued_width.Eval({},{})<=0))
+    throw std::invalid_argument("invalid task reduction index payload");
+  return index;
+}
 
 SemanticOp DecodeSemanticOp(std::string const& payload) {
   auto value=json::Parse(payload);

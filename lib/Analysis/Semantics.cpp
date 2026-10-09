@@ -95,6 +95,8 @@ std::string IndexResult::Serialize() const {
       }
       break;
   }
+  if (kind == Kind::kAffine && !outer_divisor.IsLiteral(1))
+    return "floordiv(" + out.str() + ", " + outer_divisor.ToString() + ")";
   return out.str();
 }
 

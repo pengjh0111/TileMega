@@ -52,7 +52,12 @@ TaskWork DeriveExactTaskWork(OperatorNode const& task, ParamBinding const& known
   std::set<std::string> output_dims;
   for (auto const& index : (indirect_write?sem.task_map:sem.result_map).results)
     for (auto const& term : index.terms) if (!term.coefficient.IsLiteral(0)) output_dims.insert(term.dim);
-  if (!access.partition.reduction_chunk.IsLiteral(0)) output_dims.erase(sem.reduction.dim);
+  if (!access.partition.reduction_chunk.IsLiteral(0)) {
+    output_dims.erase(sem.reduction.dim);
+    if(access.partition.reduction_index)
+      for(auto const& term:access.partition.reduction_index->index.terms)
+        output_dims.erase(term.dim);
+  }
   ClosedForm parallel = ClosedForm::Constant(1), reduction = ClosedForm::Constant(1);
   ClosedForm issued = ClosedForm::Constant(1);
   TensorSpace reduction_space; reduction_space.name = sem.name + ".reduction_domain";
@@ -80,6 +85,11 @@ TaskWork DeriveExactTaskWork(OperatorNode const& task, ParamBinding const& known
   for (auto const& [dim, tile] : options.reduction_tiles)
     if (!sem.Dim(dim) || output_dims.count(dim))
       throw std::invalid_argument("invalid exact task reduction tile");
+  if(access.partition.reduction_index) {
+    auto const& index=*access.partition.reduction_index;
+    issued=(access.partition.reduction_chunk.IsLiteral(0)?index.capacity:
+        access.partition.reduction_chunk)*index.issued_width;
+  }
   auto tasks = writes.Reverse().ImageIdentity();
   work.nominal_task_reduce_extent = Polynomial(issued, known).SumAlong(tasks);
   ClosedForm owned = ClosedForm::Constant(1), tiled = ClosedForm::Constant(1);
@@ -88,15 +98,18 @@ TaskWork DeriveExactTaskWork(OperatorNode const& task, ParamBinding const& known
     tiled = tiled * task.tile[axis];
   }
   auto output_width = indirect_write?parallel:sem.result.Volume();
-  if(indirect_write && !access.partition.reduction_chunk.IsLiteral(0)) {
+  auto chunk_count=[&]() {
     auto const* reduced=sem.Dim(sem.reduction.dim);
-    if(!reduced)throw std::invalid_argument("indirect partials lack their reduction dimension");
-    output_width=output_width*reduced->BoundExtent().CeilDiv(access.partition.reduction_chunk);
+    if(!reduced)throw std::invalid_argument("partials lack their reduction dimension");
+    return (access.partition.reduction_index?access.partition.reduction_index->capacity:
+        reduced->BoundExtent()).CeilDiv(access.partition.reduction_chunk);
+  };
+  if(indirect_write && !access.partition.reduction_chunk.IsLiteral(0)) {
+    output_width=output_width*chunk_count();
   }
   if (!access.partition.reduction_chunk.IsLiteral(0)) {
-    auto const* reduced = sem.Dim(sem.reduction.dim);
     ClosedForm per_chunk;
-    if (!reduced || !output_width.TryExactDivide(reduced->BoundExtent().CeilDiv(access.partition.reduction_chunk), &per_chunk))
+    if (!output_width.TryExactDivide(chunk_count(), &per_chunk))
       throw std::invalid_argument("partial tensor volume does not factor by its chunks");
     output_width = per_chunk;
   }

@@ -14,6 +14,7 @@
 
 #include <tilemega/Analysis/Semantics.h>
 #include <tilemega/Analysis/TensorSpace.h>
+#include <tilemega/Analysis/TaskReductionIndex.h>
 
 namespace tilemega::analysis {
 
@@ -23,9 +24,11 @@ namespace tilemega::analysis {
 struct Granularity {
   std::map<std::string, std::map<std::string, ClosedForm>> tiles;
   std::map<std::string, ClosedForm> reduction_chunk;
+  std::map<std::string, TaskReductionIndex> reduction_index;
 
   Granularity& Tile(std::string op, std::string dim, ClosedForm value);
   Granularity& Split(std::string op, ClosedForm chunk);
+  Granularity& IndexReduction(std::string op,TaskReductionIndex index);
   bool TileOf(std::string const& op, std::string const& dim,
               ClosedForm* value) const;
   bool ChunkOf(std::string const& op, ClosedForm* value) const;

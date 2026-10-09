@@ -3,6 +3,8 @@
 #include <tilemega/Analysis/CouplingRelation.h>
 #include <tilemega/Analysis/Semantics.h>
 #include <tilemega/Analysis/DerivedMetrics.h>
+#include <tilemega/Analysis/TaskReductionIndex.h>
+#include <optional>
 
 namespace tilemega::analysis {
 
@@ -11,6 +13,7 @@ namespace tilemega::analysis {
 struct TaskElementPartition {
   IndexingMap ownership;
   ClosedForm reduction_chunk = ClosedForm::Constant(0);
+  std::optional<TaskReductionIndex> reduction_index;
 };
 
 CouplingRelation TaskElementBoxEnvelope(CouplingRelation const& exact);
@@ -24,6 +27,10 @@ struct TaskElementAccess {
   SemanticOp semantic;
   TaskElementPartition partition;
 };
+
+// Every original iteration belongs to exactly one owner/chunk. Reject an
+// index capacity that clips semantic work before deriving any dependencies.
+void ValidateTaskReductionIndex(OperatorNode const& task);
 
 CouplingRelation ProjectTaskElements(SemanticOp const& semantic,
     OperatorNode const& task, TaskElementPartition const& partition,

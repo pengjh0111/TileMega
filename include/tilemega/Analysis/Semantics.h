@@ -81,6 +81,9 @@ struct IndexResult {
   // Logical binding requests identify issued gathers/scatters independently
   // of the physical I2 address envelope. Empty keeps the legacy projection.
   std::vector<std::string> request_dims;
+  // Optional outer floor of the entire affine sum. This represents an MMA
+  // iteration/chunk index without flattening the semantic reduction axes.
+  ClosedForm outer_divisor = ClosedForm::Constant(1);
 
   static IndexResult Dim(std::string name,
                          ClosedForm coefficient = ClosedForm::Constant(1),

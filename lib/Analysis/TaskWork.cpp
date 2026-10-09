@@ -69,7 +69,9 @@ CouplingRelation ExactElementRead(SemanticOp const& semantic, OperatorNode const
           (term.shift.IsLiteral(0) ? "" : " + ("+expression(term.shift)+")")+
           ", "+std::to_string(divisor)+")";
     }
-    return value;
+    auto outer=result.outer_divisor.Eval(known,known);
+    if(outer<=0)throw std::invalid_argument("nonpositive outer element indexing divisor");
+    return outer==1?value:"floord(("+value+"), "+std::to_string(outer)+")";
   };
   auto writes=BuildWriteMap(task);
   for (std::size_t i=0;i<task.output.axes.size();++i) {

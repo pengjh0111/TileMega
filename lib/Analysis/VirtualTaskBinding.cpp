@@ -33,7 +33,7 @@ TensorSpace BindCapacityTaskSpace(SemanticOp const& op) {
       if (map.kind != IndexResult::Kind::kAffine || map.terms.size() != 1 ||
           map.terms[0].dim != binding.dimension) continue;
       auto const& term = map.terms[0];
-      if (!term.coefficient.IsLiteral(1) || !term.group.IsLiteral(1) ||
+      if (!term.coefficient.IsLiteral(1) || !term.group.IsLiteral(1) || !map.outer_divisor.IsLiteral(1) ||
           !term.shift.IsLiteral(0) || !map.offset.IsLiteral(0) || axis >= space.axes.size())
         throw std::invalid_argument("virtual ownership must expose its capacity coordinate directly");
       space.axes[axis].extent = binding.capacity;

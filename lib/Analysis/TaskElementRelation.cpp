@@ -6,6 +6,7 @@
 #include <set>
 #include <sstream>
 #include <stdexcept>
+#include <unordered_set>
 
 namespace tilemega::analysis {
 namespace {
@@ -62,7 +63,9 @@ CouplingRelation ProjectTaskElements(SemanticOp const& semantic,
           " * floord(" + variable->second + " + (" + expression(term.shift) + "), " +
           std::to_string(group) + ")";
     }
-    return out;
+    auto divisor=value.outer_divisor.Eval(known,known);
+    if(divisor<=0)throw std::invalid_argument("task element outer divisor must be positive");
+    return divisor==1?out:"floord(("+out+"), "+std::to_string(divisor)+")";
   };
   for (unsigned axis = 0; axis < task.output.axes.size(); ++axis) {
     auto const& shape = task.output.axes[axis];
@@ -91,8 +94,18 @@ CouplingRelation ProjectTaskElements(SemanticOp const& semantic,
         ? task.output.axes.back().name : "0";
     auto base = "(" + expression(dim->origin) + ") + " +
         std::to_string(partition.reduction_chunk.Eval(known, known)) + " * " + coordinate;
-    bounds.push_back("(" + base + ") <= " + iteration.at(dim->name) + " < (" +
+    auto reduced=iteration.at(dim->name);
+    if(partition.reduction_index) {
+      base=std::to_string(partition.reduction_chunk.Eval(known,known))+" * "+coordinate;
+      reduced=index(partition.reduction_index->index);
+    }
+    bounds.push_back("(" + base + ") <= (" + reduced + ") < (" +
                      base + ") + (" + expression(partition.reduction_chunk) + ")");
+  }
+  if(partition.reduction_index) {
+    auto const& reduction=*partition.reduction_index;
+    auto point=index(reduction.index);
+    bounds.push_back("0 <= ("+point+") < ("+expression(reduction.capacity)+")");
   }
   for (unsigned axis = 0; axis < tensor.axes.size(); ++axis) {
     auto element = "_tm_e" + std::to_string(axis);
@@ -109,6 +122,49 @@ CouplingRelation ProjectTaskElements(SemanticOp const& semantic,
   if (!parameters.empty()) prefix = "[" + Join({parameters.begin(), parameters.end()}, ",") + "] -> ";
   return CouplingRelation::FromIslText(prefix + "{ [" + Join(task.Coordinates(), ",") +
       "] -> [" + Join(elements, ",") + "] : " + condition + " }");
+}
+void ValidateTaskReductionIndex(OperatorNode const& task) {
+  if(!task.element_access || !task.element_access->partition.reduction_index)return;
+  auto const& access=*task.element_access;
+  auto const& semantic=access.semantic;
+  auto const& reduction=*access.partition.reduction_index;
+  std::string key;
+  auto append=[&](std::string const& text) {key+=std::to_string(text.size())+':'+text;};
+  append(semantic.Serialize());append(access.partition.ownership.Serialize());
+  append(access.partition.reduction_chunk.ToString());append(reduction.index.Serialize());
+  append(reduction.capacity.ToString());append(reduction.issued_width.ToString());
+  append(std::to_string(task.output.axes.size()));
+  for(unsigned i=0;i<task.output.axes.size();++i) {
+    auto const& axis=task.output.axes[i];
+    append(axis.name);append(axis.extent.ToString());append(axis.origin.ToString());
+    append(task.tile.at(i).ToString());append(axis.runtime?"1":"0");
+  }
+  // Coordinate descent revisits unchanged stages. Cache only successful
+  // symbolic coverage proofs, keyed by the complete semantic/partition input.
+  static thread_local std::unordered_set<std::string> verified;
+  if(verified.count(key))return;
+  auto original=task;
+  bool split=!access.partition.reduction_chunk.IsLiteral(0);
+  bool chunk_coordinate=split && task.IsTiled(task.output.axes.size()-1);
+  if(split) {original.output.axes.pop_back();original.tile.pop_back();}
+  auto partition=access.partition;
+  partition.reduction_chunk=ClosedForm::Constant(0);partition.reduction_index.reset();
+  TensorSpace iterations;iterations.name=semantic.name+".iterations";
+  IndexingMap points;
+  for(auto const& dim:semantic.domain) {
+    iterations.axes.push_back({dim.name,dim.BoundExtent(),dim.origin,false});
+    points.results.push_back(IndexResult::Dim(dim.name));
+  }
+  auto expected=ProjectTaskElements(semantic,original,partition,iterations,points,{},{});
+  auto assigned=ProjectTaskElements(semantic,task,access.partition,iterations,points,{},{});
+  if(!assigned.Reverse().IsSingleValued())
+    throw std::invalid_argument("reduction index assigns an iteration to several tasks");
+  if(chunk_coordinate)
+    assigned=assigned.Reverse().ProjectRange(task.Coordinates().size()-1,1).Reverse();
+  if(!Contains(assigned,expected) || !Contains(expected,assigned))
+    throw std::invalid_argument("reduction index does not cover every semantic iteration");
+  if(verified.size()>=4096)verified.clear();
+  verified.insert(std::move(key));
 }
 CouplingRelation TaskElementBoxEnvelope(CouplingRelation const& exact) {
   IslReferenceAudit audit(__func__);
