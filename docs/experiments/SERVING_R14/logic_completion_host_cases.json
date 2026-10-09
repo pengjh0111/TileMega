@@ -1,0 +1,26 @@
+[
+  {
+    "model": "llama",
+    "phase": "prefill",
+    "path": "/root/.cache/tilemega/exports/dafedd06c99f91fd12631558cee420aa472c20f4ef162b2941cdf83a507ca0d9/bridge.json",
+    "sha256": "569dd1a6f0102086f08e85692932bda28138ec2bf727d15d01e6af1fa798fba3"
+  },
+  {
+    "model": "llama",
+    "phase": "decode",
+    "path": "/root/.cache/tilemega/exports/96302123367d5682e7a2be0fba8c5093eb9570dd973aa71273f812cf7f361e80/bridge.json",
+    "sha256": "610152457a4db6833713ca1ba752bcc58cc477fd3b5aec61dcc3bc44b5e98390"
+  },
+  {
+    "model": "qwen3",
+    "phase": "prefill",
+    "path": "/root/.cache/tilemega/exports/33b854c3803c19798dfac94f555bd5e1cada75e2a47bb35b1ce0675ef279cd3b/bridge.json",
+    "sha256": "f58a9fb530a639fa3771d7ce4d7189e6475dc2398bd985654edb56e46439ee6d"
+  },
+  {
+    "model": "qwen3",
+    "phase": "decode",
+    "path": "/root/.cache/tilemega/exports/90ac31f75f4abe26861154c1f7ebf27e130b13f26bce230eae98092bf7c24f2f/bridge.json",
+    "sha256": "786c03b7e0a1881d205050f73240ae9ab877c398b2c73f2e55c0b64c720e3b8f"
+  }
+]
