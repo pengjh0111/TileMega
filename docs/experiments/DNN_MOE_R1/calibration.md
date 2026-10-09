@@ -98,3 +98,10 @@ checks, both native routing ctests and check-policy
 assignments; each virtual ID retains its own row mean and prefix activity.
 This establishes host statistics only. Actual routes, row-subtile distributions
 and TaskWork/DRAM-floor/solver pricing are still pending.
+
+verified: virtual row histograms pass standalone native checks, 6/6 routing
+and 11/11 identity checks (`results/CI6_virtual_subtile_rows_host.json`).
+Subtile activity is P(row_count > row_begin); expected useful rows are the
+histogram expectation of min(row_count-row_begin, TM), clipped at zero.
+These conserve every recorded assignment without assuming a uniform BM block.
+Native ctest rebuild, real route collection and pricing consumption remain pending.
