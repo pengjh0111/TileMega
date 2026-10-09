@@ -332,9 +332,9 @@ LogicalResult CouplingOp::verify() {
     auto expectedFanout=exact_elements ? getRelation().getMap().Reverse().BoundTaskCard()
                                     : getRelation().getMap().FanoutCard();
     if (!expectedFanout.SemanticallyEqual(getFanout().getValue(),known))
-      return emitOpError() << "fanout " << getFanout().getValue().ToString()
-                          << " does not match the inverse relation's fiber cardinality "
-                          << expectedFanout.ToString();
+      return emitOpError("fanout does not match the inverse relation's fiber cardinality")
+                          << ": provided " << getFanout().getValue().ToString()
+                          << ", expected " << expectedFanout.ToString();
     if (!expectedWait.SumDomain().SemanticallyEqual(expectedFanout.SumDomain(),known))
       return emitOpError("coupling violates sum(wait) == sum(fanout)");
 #endif
