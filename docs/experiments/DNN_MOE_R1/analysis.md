@@ -229,3 +229,5 @@ sm_89 executed kernels have zero spills; the sm_100 loop kernel spills
 compiled kernels have zero spills. The original lock-wait timeout and its
 50/50 forward, 8/8 prefill partial cohort remain a failed audit. No timing or
 model gate is inferred (`results/CI5_native_multipage_phases_cuda.json`).
+
+verified: `results/CI7_exact_fusion_host.json` seals five legal NCHW/pixel-shuffle fusion candidates, ownership aliases, phase arithmetic and eleven rejected geometries. The additional B=3 shuffle fixture was initially predicted to meet the existing single-producer fusion contract; independent element enumeration proves that output rows 112..127 span producer row blocks 0 and 1. The failed run is retained and that geometry is separately checked as a rejection. Four unchanged legacy written-price cases retain six bit-identical fields each; legacy rewriting retains 1890 edge identities. External-edge metadata and actual fused bodies remain separate work.

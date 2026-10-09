@@ -1,0 +1,75 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Host exact mapped phase ownership and arithmetic with unchanged legacy fusion tests; no CUDA body, external-edge rewrite or model/performance gate claim",
+  "source": {
+    "head": "51e6acff9da7528e3aaa4fdfe065227a20944ec9",
+    "stage_head": "e50921c893356f482c1c58cc3f90b1f378a3e866",
+    "inputs": {
+      "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v8/driver.cpp": "2be279989c58d3e208a7f937f3836e2405ba58a399b31c1c13e82266963c3f1e",
+      "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v8/dm_exact_fusion_test.cpp": "a182870e8be5c40671a91183da7f07c00ba7aeb070035436c7a5901e0d4818f4",
+      "/root/dm1_work/integration-stage/test/unit/fusion_written_price_test.cpp": "65177dfc1ccaef2839da91a5137a9dcb9a7b3ef7fb978b85d3390c7198ab85ae",
+      "/root/dm1_work/integration-stage/test/unit/fusion_rewrite_test.cpp": "c74455fca20ab71587a303fa1f35ba0603f24b9e747a9a3f7241771d6e1c7bba",
+      "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v8/overlay/lib/Solver/TaskModel.cpp": "fc5e22f06dc46a61e87f46d544fdbf3f6227ce01a151584d40833ef4d7fbee10",
+      "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v8/overlay/lib/Solver/FusedTaskInput.cpp": "0b3f790a6d59729b380cd3358c7d32ded521df38eb83f7960e19aa1ddfc08d00",
+      "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v8/overlay/lib/Dialect/CouplingGraph/CGDialect.cpp": "2cc7253a7025b3025b28135d4e5b7c45627c85680f2cac20c6b391b33f37b4f1",
+      "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v8/overlay/lib/Analysis/BoundDependencyForm.cpp": "4b0a5bd495f5b7cbc6b110728078f13263e608a7bf47fa4a5229f6433cb98993",
+      "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v8/overlay/test/unit/bound_dependency_form_test.cpp": "709332a2ae7e7475f9f67e48771b17f7d4d438e43dab6f31bbc772d9197bbde1"
+    },
+    "linked_library_sha256": "c6fac1601948344085e61274d0ba6958530a9f4c9a65bd9b0c2ce32cff39430f",
+    "assertions_enabled": true,
+    "expectations_changed": false,
+    "scope": "Isolated exact mapped fusion: five legal candidates at B=1/2/3, per-task arithmetic/physical-output oracles, eleven geometry rejections, unchanged legacy fusion tests.",
+    "failed_audits": [
+      {
+        "path": "/root/dm1_work/development/runs/dm1-exact-fusion-overlay/events/01_compile.log",
+        "sha256": "5e74e390839138d498c061866ea540b3cb0f94ed846f1599832f73f8b019358f",
+        "reason": "Include TaskElementRelation.h for the exact task access definition and projection helpers."
+      },
+      {
+        "path": "runs/dm1-exact-fusion-overlay-v2/events/01_compile.log",
+        "sha256": "6cb206be9183f6a0f871f0bbb4a6e2144d4c9706a8775743fe61ad3f4e16832f",
+        "reason": "Include mlir/IR/Builders.h in the new test fixture."
+      },
+      {
+        "path": "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v3/events/01_compile.log",
+        "sha256": "6a6613c06314231d872587ad9ec1b4a296e19e40969e60d0e8f0d02afb0573c1",
+        "reason": "Match the native MLIR dialect build with -fno-rtti."
+      },
+      {
+        "path": "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v4/events/02_check.log",
+        "sha256": "073d53dd5a57f507658a451a43ff8205aeae968714cb545155e3a73b24f27031",
+        "reason": "A one-task linear runtime ID was elided by the synthetic OperatorNode. Preserve singleton linear geometry and prove its encoded relation directly."
+      },
+      {
+        "path": "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v5/events/02_check.log",
+        "sha256": "552ea74a6ae46d29290a9d0e957cc29fa5fadda87111d6f933e24d97ad72eb86",
+        "reason": "Instantiate exact phase arithmetic directly on its task domain, without first summing coordinate-dependent terms in a scalar domain."
+      },
+      {
+        "path": "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v7/events/03_fusion.log",
+        "sha256": "ffd094e0770fb7e39eb5b17fb3bc9a2117149af68cb1db249bf8e550b361d7bf",
+        "reason": "The newly added B=3 pixel-shuffle fixture with TM=16 spans producer row blocks 0 and 1. Independent enumeration of output rows 112..127 proves this; keep that geometry as a rejection case under the pre-existing single-producer fusion contract. The original failed assertion/run is retained. No numerical criterion changes."
+      }
+    ],
+    "library_source": "integration-stage native build 4f21589d5; build completion event received",
+    "test_fixture_correction": "v7 incorrectly predicted that all six geometries meet the existing single-producer constraint. v8 proves five valid candidates and independently proves the sixth must be rejected; no implementation change from v7."
+  },
+  "valid_candidates": 5,
+  "rejections": 11,
+  "independent_oracles": "Per-task main output counts and GEMM FLOPs; element enumeration proves B=3 TM16 pixel-shuffle crosses producer TM32 blocks 0 and 1",
+  "legacy_written_price": {
+    "cases": 4,
+    "double_fields_bit_equal": 6,
+    "rejections": 10
+  },
+  "legacy_rewrite": {
+    "edge_identities": 1890,
+    "rejections": 18
+  },
+  "binary_sha256": "67b2fe2e913da86380fd1842859452f9aad50e4c0f868272166d8edd2026845c",
+  "queue_sha256": "bc868cf950c20d98bab64dad2748a5f06c654977fc664ecaf25f300b71ed7883",
+  "completion_sha256": "910b042167a7b260aa1da4ef4b980a5f5e454ae2cc64a3a7aaf069c9e48a52f9",
+  "log_sha256": "dc189217607aecb3ddcebeca4e6e0ffe20346762d89e400a7f4cb930b0e3f885",
+  "numerical_criteria_changed": false
+}

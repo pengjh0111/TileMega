@@ -467,11 +467,11 @@ analysis::TaskAccesses DeriveModelTaskAccesses(ModelTaskSemantics const& semanti
   if (task.element_access) {
     auto const& exact = *task.element_access;
     auto const& sem = exact.semantic;
-    accesses.writes.emplace(sem.result.name, analysis::ProjectTaskElements(sem, task,
+    accesses.writes.emplace(sem.result.name, analysis::ProjectTaskWrite(sem, task,
         exact.partition, sem.result, sem.result_map, {}, {}));
     for (auto const& side : sem.additional_writes)
       accesses.writes[side.tensor.name] = accesses.writes[side.tensor.name].Union(
-          analysis::ProjectTaskElements(sem, task, exact.partition, side.tensor, side.map, side.nonnegative, {}));
+          analysis::ProjectTaskWrite(sem, task, exact.partition, side.tensor, side.map, side.nonnegative, {}));
     auto append = [&](analysis::TensorSpace const& tensor, analysis::IndexingMap const& map,
                       std::vector<analysis::IndexResult> const& predicates) {
       accesses.reads[tensor.name] = accesses.reads[tensor.name].Union(
@@ -553,7 +553,14 @@ ModelFusionCandidate ComposeModelCandidate(ModelDescription const& model,
   // Arithmetic phases keep distinct output domains. The coupled producer
   // work is re-indexed by the consumer relation, not averaged over fanout.
   auto producer_outputs=accesses.intermediate_tiles.at(*internal.begin()).Card();
-  auto arithmetic=analysis::ComposeArithmetic({{p.arithmetic,std::move(producer_outputs)},
+  auto producer_arithmetic=p.arithmetic;
+  if (p.task.element_access) {
+    producer_arithmetic.flops_per_output_element.numerator=
+        producer_arithmetic.flops_per_output_element.numerator.SumAlong(accesses.consumer_to_producer);
+    producer_arithmetic.transcendental_per_output_element.numerator=
+        producer_arithmetic.transcendental_per_output_element.numerator.SumAlong(accesses.consumer_to_producer);
+  }
+  auto arithmetic=analysis::ComposeArithmetic({{std::move(producer_arithmetic),std::move(producer_outputs)},
                                               {c.arithmetic,c.work.write_elements}});
   return {std::move(p),std::move(c),std::move(accesses),std::move(arithmetic),std::move(pa),std::move(ca)};
 }

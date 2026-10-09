@@ -9,6 +9,7 @@
 #include <tilemega/Dialect/CouplingGraph/BoundDependency.h>
 #include <tilemega/Dialect/CouplingGraph/CountedDependency.h>
 #include <tilemega/Analysis/TaskElementRelation.h>
+#include <tilemega/Analysis/TaskOwnershipGeometry.h>
 #include <tilemega/Dialect/CouplingGraph/HandoffPass.h>
 #include <tilemega/Dialect/CouplingGraph/CGContract.h>
 #include <tilemega/Dialect/CouplingGraph/PlacementPlan.h>
@@ -169,7 +170,7 @@ LogicalResult FusedTileSpaceOp::verify() {
       auto ownership=tiles.getAs<StringAttr>("ownership");
       if (!ownership || (ownership!="element_chunk" && ownership!="tile_per_block"))
         return emitOpError("fusion phase lacks ownership model");
-      for (auto const& axis:op.result.axes) {
+      for (auto const& axis:analysis::TaskOwnershipSpace(op).axes) {
         auto tile=tiles.getAs<StringAttr>(axis.name);
         if (!tile) return emitOpError("fusion phase lacks output tile");
         (void)analysis::ClosedForm::Parse(tile.getValue().str());
