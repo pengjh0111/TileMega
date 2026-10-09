@@ -1,0 +1,45 @@
+{
+  "queue": "docs/experiments/SERVING_R14/queue/queue_completion_repair.json",
+  "steps": 21,
+  "queue_sha256": "58276672eaa39b670a8a0610a387bad3990a740b1065c0ebe0935c79a2a2e9eb",
+  "old_queue": "docs/experiments/SERVING_R14/retired_queues/queue_phase_d_final.json",
+  "old_tasks": 41,
+  "old_attempts": {
+    "D2_llama_B16_r0": {
+      "status": "pending",
+      "attempts": 12,
+      "enqueued": 1791510310.4963653,
+      "retry_at": 1791542511.8474352,
+      "wait_s": 31875.7229886055,
+      "pid": 1432335,
+      "run_s": 25.62177347484976,
+      "exit_code": 75
+    },
+    "D2_llama_B16_r1": {
+      "status": "pending",
+      "attempts": 6,
+      "enqueued": 1791510310.4963682,
+      "retry_at": 1791542768.0051775,
+      "wait_s": 32142.025646448135,
+      "pid": 1433636,
+      "run_s": 15.478235630318522,
+      "exit_code": 75
+    },
+    "D2_llama_B16_r2": {
+      "status": "pending",
+      "attempts": 1,
+      "enqueued": 1791510310.4963703,
+      "retry_at": 1791522189.528083,
+      "wait_s": 11410.85793709755,
+      "pid": 1348312,
+      "run_s": 168.17015603603795,
+      "exit_code": 75
+    }
+  },
+  "old_unaccepted_partial_measurements": [
+    "docs/experiments/SERVING_R14/raw/D2_llama_B16_r0/llama_B16/vllm/round0/B16/measurements.json",
+    "docs/experiments/SERVING_R14/raw/D2_llama_B16_r0/llama_B16/R13D/round0/measurements.json"
+  ],
+  "status": "ready_for_single_scheduler_start",
+  "deadline_hours": 96
+}
