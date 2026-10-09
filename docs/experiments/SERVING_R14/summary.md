@@ -1,4 +1,4 @@
-# R14 sm_89 — D1 recovery accepted; final comparison prepared
+# R14 sm_89 — D1 recovery accepted; final comparison queued
 
 - Specified baseline: `76beaea5e2d66e3311b36d020f470c4f016406d0`.
 - Initial local HEAD: `9aebaf6553247ec83c79bc8f101e61ad4ce564fd`; fast-forwarded before implementation.
@@ -24,7 +24,7 @@
 | GV-1 | Partial TN8/16 epilogue domain; production numerical/C-1/C-2 pass; measured variants slower | 54756a6e3, 771aea037, 5ae2ffc8d; ServingGemv.h, ServingGemvTaskBody.h |
 | SL-6 | Partial acceptance: both CLI builds complete; candidate admission limited by budget; final E2E remains pending | e95dbf3ee, 96205607b, a28bbb629; SkeletonSearch.cpp, cli.py, integrated_selection.py |
 | C-RW1 / C-EP2 / C-AT4 | Implemented and correct, all rejected by retention; defaults off | 1b00e23ef, bb48614c7, 45f482860; IndependentAttentionTaskBody.h, ServingEpilogue.h, ServingPages.cuh |
-| Phase D | D0/D1 and recovery smoke/family review complete; D2/D3 prepared | 9d1270bb0; phase_d_final.py, make_phase_d_final.py |
+| Phase D | D0/D1 and recovery smoke/family review complete; D2/D3 queued | 9d1270bb0; phase_d_final.py, make_phase_d_final.py |
 
 ## Evidence / T1–T12
 
@@ -206,4 +206,4 @@ All selected attention variants are Ec256/mma16. These are three-past candidate 
 All rebuilt controls and selected prefill/decode artifacts share one source_digest/compiler_sha256 state, despite documentation-only HEAD differences. Final rows verify actual executor, loop use, prefill identity and trace exclusion; Qwen3 B16's selected spilling kernel remains explicitly marked.
 Final definitions: 41 steps, including 12 paired 1024-token rounds with vLLM, four C-1 jobs, four C-2 jobs and four explicit paged 50-process cases, plus CPU checks. Each TM arm uses the same new prefill, L1; R13D is its historical decode binary with that common prefill. R14F reads reviewed sidecars via auto. Final paged protocols cover paths absent from B6's nonpaged cases; no reliability claim is made before they finish.
 Five CPU definition tests pass; raw/D_final_definition/{cpu_tests.log,static_validation.json,recovery_state.json} bind the prepared work. Guard requirements are unchanged; device memory comes from the recorded property query. Any marked final canary may be replayed once; it cannot silently enter final defaults.
-Publish queue_phase_d_final.pending.json as queue/queue_phase_d_final.json to the existing scheduler. Resume with one read of progress.tsv, then D2/D3 result/guard records; do not rerun build/calibration. Monitor: `watch -n 10 'python3 /root/TileMega/docs/experiments/SERVING_R14/status.py --prefix D'`. Historical failed/skipped D1 names are retained separately from successful `_v2` recovery and new D2/D3 work.
+0fed1fd6c publishes queue/queue_phase_d_final.json to the existing scheduler; all files were committed before its first attempt. Resume with one read of progress.tsv, then D2/D3 result/guard records; do not rerun build/calibration or republish the queue. Monitor: `watch -n 10 'python3 /root/TileMega/docs/experiments/SERVING_R14/status.py --prefix D'`. Historical failed/skipped D1 names are retained separately from successful `_v2` recovery and new D2/D3 work.
