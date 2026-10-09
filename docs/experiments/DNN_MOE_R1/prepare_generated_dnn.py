@@ -12,7 +12,16 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--model-export', type=Path)
+    parser.add_argument('--bridge', type=Path)
+    parser.add_argument('--batch', type=int, default=2)
+    parser.add_argument('--diagnostic',action='store_true',
+        help='separate sm89 intermediate-copy diagnostic; not a correctness gate')
     args = parser.parse_args()
+    if bool(args.model_export)!=bool(args.bridge) or not 1<=args.batch<=64:
+        parser.error('model checks require both export and bridge, with batch in [1,64]')
+    if args.diagnostic and not args.model_export:
+        parser.error('intermediate diagnostics require an upstream model export')
     repo = Path(__file__).resolve().parents[3]
     root = args.out.resolve()
     root.mkdir(parents=True, exist_ok=False)
@@ -21,6 +30,25 @@ if __name__ == '__main__':
         shutil.copy2(Path(__file__).with_name(name), root/'framework'/name)
     shutil.copy2(Path(__file__).with_name('check_generated_dnn.py'), root/'check.py')
     shutil.copy2(args.source, root/'generated.cu')
+    if args.diagnostic:
+        with (root/'generated.cu').open('a') as stream:
+            stream.write('''
+// Test-only accessor, appended to a separate diagnostic artifact.
+extern "C" void* tm_dm_debug_buffer(void* handle, unsigned index,
+                                    unsigned long long* metadata) {
+  auto* plan=static_cast<tilemega::codegen::serving::Plan*>(handle);
+  if(!plan || index>=plan->model.spec->buffer_count || !metadata) return nullptr;
+  auto const& layout=plan->model.spec->buffers[index].layout;
+  metadata[0]=static_cast<unsigned>(layout.kind); metadata[1]=layout.rank;
+  for(unsigned i=0;i<4;++i) {
+    metadata[2+i]=layout.logical[i]; metadata[6+i]=layout.physical[i];
+    metadata[10+i]=layout.strides[i];
+  }
+  metadata[14]=layout.halo_top; metadata[15]=layout.halo_bottom;
+  metadata[16]=layout.halo_left; metadata[17]=layout.halo_right;
+  return plan->model.buffers[index];
+}
+''')
     for name in ['dnn_semantic_lifting_test.cpp', 'dnn_epilogue_semantics_test.cpp']:
         (root/'test/unit').mkdir(parents=True, exist_ok=True)
         shutil.copy2(repo/'test/unit'/name, root/'test/unit'/name)
@@ -31,6 +59,10 @@ if __name__ == '__main__':
     for name in ['tilemega/__init__.py', 'tilemega/serving/__init__.py', 'tilemega/serving/plan.py']:
         (root/'python'/name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(repo/'python'/name, root/'python'/name)
+    if args.model_export:
+        shutil.copytree(repo/'python/tilemega',root/'python/tilemega',dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
+        shutil.copy2(args.bridge,root/'bridge.json')
     shutil.copytree(repo/'include', root/'include')
     for name in ['include', 'tools/util/include']:
         shutil.copytree(repo/'third_party/cutlass'/name, root/'third_party/cutlass'/name)
@@ -53,13 +85,20 @@ if __name__ == '__main__':
         steps.append(dict(name=name, command=['flock', '/root/r14_work/gpu.lock',
             'timeout', str(seconds), *command], cwd=str(repo), gpu=False,
             after=after, priority=priority, timeout_s=seconds+600))
-    for arch in [89, 80, 90, 100, 120]:
+    for arch in ([89] if args.diagnostic else [89, 80, 90, 100, 120]):
         step(f'build_sm_{arch}', ['python3', str(root/'check.py'), '--root', str(root),
             '--arch', str(arch)], [], 0 if arch==89 else 200, 1800)
     command = ['/root/dm1_work/venv-gpu/bin/python', str(root/'check.py'), '--root', str(root)]
-    for process in range(50):
+    if args.model_export:
+        command=['env','PYTHONPATH='+str(root/'python'),'/root/dm1_work/venv-gpu/bin/python',
+            '-m','tilemega.dnn.check_generated','--library',str(root/'generated-sm_89.so'),
+            '--export',str(args.model_export.resolve()),'--bridge',str(root/'bridge.json'),
+            '--batch',str(args.batch),'--out',str(root/'correctness.json')]
+    if args.diagnostic:
+        command += ['--diagnostics',str(root/'intermediates.json')]
+    for process in range(1 if args.diagnostic else 50):
         step(f'check_{process:02}', command, ['build_sm_89' if process==0 else 'check_00'], 10, 300)
-    for tool in ['memcheck', 'racecheck']:
+    for tool in ([] if args.diagnostic else ['memcheck', 'racecheck']):
         step(tool, ['/usr/local/cuda/bin/compute-sanitizer', '--tool', tool,
             '--target-processes', 'all', '--error-exitcode', '86', *command], ['build_sm_89'], 2, 1800)
     (root/'queue').mkdir()

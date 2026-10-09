@@ -334,7 +334,7 @@ def build(root, arch):
     if 'Run<TaskKind::kPool,' in source.read_text():
         implementations.append('PoolTaskBody')
     identity = dict(schema='tilemega.dm1.native-test.identity.v1', evidence='verified',
-        source=preparation, scope='CG-generated DNN primitives', cu_sha256=sha(source),
+        source=preparation, scope='CG-generated DNN', cu_sha256=sha(source),
         binary_sha256=sha(binary), command=command, target_arch=f'sm_{arch}',
         compiler=dict(path=command[0], sha256=sha(command[0]),
             version=subprocess.check_output([command[0], '--version'], text=True)),

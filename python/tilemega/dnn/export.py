@@ -19,7 +19,8 @@ def versions():
             ('torch', 'torchvision', 'timm', 'transformers')}
 
 
-def model(name, structure_only=False, nafnet_weights=DEFAULT_NAFNET, checkpoint=None):
+def model(name, structure_only=False, nafnet_weights=DEFAULT_NAFNET, checkpoint=None,
+          dtype=torch.bfloat16):
     if name in ('resnet18', 'mbv2'):
         import torchvision.models as tv
         if name == 'resnet18':
@@ -61,7 +62,7 @@ def model(name, structure_only=False, nafnet_weights=DEFAULT_NAFNET, checkpoint=
             module.load_state_dict(weights.get('params', weights), strict=True)
     else:
         raise ValueError(name)
-    return module.eval().to(dtype=torch.bfloat16, device='cpu'), source
+    return module.eval().to(dtype=dtype, device='cpu'), source
 
 
 def write_checkpoint(module, directory):
