@@ -840,7 +840,8 @@ __device__ inline void WaitDmCountedDependency(Params const& p,
   std::uint64_t target;
   auto index = std::uint64_t(dep.counted_offset) + task;
   if (!p.counted_dependencies || index >= p.counted_dependency_count ||
-      !CountedDependencyTarget(dep.count, iteration, &target)) asm volatile("trap;");
+      !CountedThresholdTarget(p.counted_thresholds,dep.counted_threshold_offset,
+          dep.table_rows,task,dep.count,iteration,&target)) asm volatile("trap;");
   executor::CountedDependency::Wait(p.counted_dependencies + index, target);
 }
 #endif
@@ -1085,7 +1086,8 @@ __device__ inline bool ProbeTaskDependencies(Params const& p,
     std::uint64_t target;
     auto index = std::uint64_t(dep.counted_offset) + task.logical_task;
     if (!p.counted_dependencies || index >= p.counted_dependency_count ||
-        !CountedDependencyTarget(dep.count, iteration, &target)) asm volatile("trap;");
+        !CountedThresholdTarget(p.counted_thresholds,dep.counted_threshold_offset,
+            dep.table_rows,task.logical_task,dep.count,iteration,&target)) asm volatile("trap;");
     cuda::atomic_ref<unsigned long long, cuda::thread_scope_device> counter(p.counted_dependencies[index]);
     if (counter.load(cuda::memory_order_acquire) < target) mine = 0;
   }
@@ -1982,6 +1984,7 @@ struct DeviceModel {
   std::uint32_t* device_dm_dtypes = nullptr;
   void** device_dm_buffers = nullptr;
   RuntimeDependencyInterval* device_dependency_intervals = nullptr;
+  std::uint32_t* device_counted_thresholds = nullptr;
   Params* device_counted_l2_params = nullptr;
 #endif
   StageDesc* device_stages = nullptr;
@@ -2843,10 +2846,28 @@ inline DeviceModel Create(ModelSpec const& spec,
     }
     if (edge.map == StageDependency::Map::kCounted) {
       auto end = std::uint64_t(edge.counted_offset) + plan_counts[edge.consumer];
-      if (!edge.count || end > std::numeric_limits<std::uint32_t>::max())
+      if(end>std::numeric_limits<std::uint32_t>::max())
         throw std::invalid_argument("invalid counted dependency target space");
+      if(edge.counted_threshold_offset!=kDmNoIndex && edge.table_rows!=unsigned(plan_counts[edge.consumer]))
+        throw std::invalid_argument("counted threshold ownership differs from consumer tasks");
+      for(unsigned task=0;task<unsigned(plan_counts[edge.consumer]);++task) {
+        std::uint32_t count;
+        if(!ReadCountedThreshold(runtime_variant.counted_thresholds,edge.counted_threshold_offset,
+            edge.table_rows,task,edge.count,&count))
+          throw std::invalid_argument("invalid counted threshold table");
+      }
       model.params.counted_dependency_count = std::max(model.params.counted_dependency_count, unsigned(end));
-      plan_windows.push_back({int(edge.producer), int(edge.consumer), true, 1, 0, 0, 1});
+      if(edge.table_stride) {
+        if(std::uint64_t(edge.table_offset)+std::uint64_t(edge.table_rows)*edge.table_stride >
+            runtime_variant.dependency_interval_count || !runtime_variant.dependency_intervals)
+          throw std::invalid_argument("counted I2 ordering table escapes its variant");
+        plan_tables.push_back({int(edge.producer),int(edge.consumer),
+            {runtime_variant.dependency_intervals+edge.table_offset,edge.table_rows,edge.table_stride}});
+      } else {
+        // Legacy uniform synthetic contracts omit access geometry. Their
+        // ordering remains I2; device waits still use contribution counters.
+        plan_windows.push_back({int(edge.producer),int(edge.consumer),true,1,0,0,1});
+      }
       continue;
     }
 #endif
@@ -3372,6 +3393,14 @@ inline DeviceModel Create(ModelSpec const& spec,
         runtime_variant.dependency_intervals,
         runtime_variant.dependency_interval_count * sizeof(RuntimeDependencyInterval)));
   model.params.dependency_intervals = model.device_dependency_intervals;
+  if(runtime_variant.counted_thresholds.size) {
+    if(!runtime_variant.counted_thresholds.values)
+      throw std::invalid_argument("counted threshold variant has no values");
+    model.device_counted_thresholds=static_cast<std::uint32_t*>(upload(
+        runtime_variant.counted_thresholds.values,
+        std::size_t(runtime_variant.counted_thresholds.size)*sizeof(std::uint32_t)));
+  }
+  model.params.counted_thresholds={model.device_counted_thresholds,runtime_variant.counted_thresholds.size};
   if (model.params.counted_dependency_count) {
     std::vector<unsigned long long> zero(2ull * model.params.counted_dependency_count);
     model.params.counted_dependencies = static_cast<unsigned long long*>(upload(zero.data(), zero.size() * sizeof(zero[0])));

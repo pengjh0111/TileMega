@@ -17,6 +17,7 @@
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
 #include <tilemega/Codegen/DmDescriptors.h>
 #include <tilemega/Codegen/RuntimeDependencies.h>
+#include <tilemega/Codegen/RuntimeCountedThresholds.h>
 #endif
 #include <cutlass/bfloat16.h>
 
@@ -318,6 +319,7 @@ struct StageDependency {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   std::uint32_t table_offset = 0, table_rows = 0, table_stride = 0;
   std::uint32_t counted_offset = 0;
+  std::uint32_t counted_threshold_offset = kDmNoIndex;
 #endif
 };
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
@@ -564,6 +566,7 @@ struct RuntimeVariantDesc {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   RuntimeDependencyInterval const* dependency_intervals = nullptr;
   std::uint32_t dependency_interval_count = 0;
+  RuntimeCountedThresholdView counted_thresholds{};
 #endif
 };
 
@@ -811,6 +814,7 @@ struct Params {
   RuntimeDependencyInterval const* dependency_intervals = nullptr;
   unsigned long long* counted_dependencies = nullptr;
   std::uint32_t counted_dependency_count = 0;
+  RuntimeCountedThresholdView counted_thresholds{};
 #endif
 #if TILEMEGA_TRACE_STAGE
   StageTraceRecord* serving_stage_trace=nullptr;
