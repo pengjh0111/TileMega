@@ -1,56 +1,74 @@
 # DM-1 working report
 
-Status: **incomplete, Phase 1 in progress**. This file is an evidence ledger, not a claim
-that DNN or MoE execution is implemented.
+Status: **incomplete**. Shared infrastructure and DNN primitive integration are in progress.
+Export coverage and primitive checks do not imply model correctness.
 
-## Provenance
+## Scope and provenance
 
+- stated: the user removed final performance testing on 2026-10-09. Implement the full
+  extensions and verify execution/correctness; no latency matrices or speed claims.
+  `scope_update.json` records the override. Shared GPU lock and numerical gates remain.
 - verified: prompt `/root/Prompt/TileMega_DM1_prompt.md`, SHA256
   `6ecaa5be8d5157937a959baeabac6b5497397c2abd56b25cf5a70e4b6f56e828`.
 - verified: companion `/root/Prompt/DNN_MoE_plan.md`, SHA256
   `ce288acf9c9557cf98956eb201ffc10a7c7a5bef9b12787c12e41f36275d01ce`.
 - verified: startup `origin/tilemega` and reference HEAD
   `76beaea5e2d66e3311b36d020f470c4f016406d0`.
-- verified: branch `dnn-moe`, isolated worktree
-  `/root/dm1_work/development`; detached reference `/root/dm1_work/reference`.
-- Final HEAD and commit count: pending completion. M0: checked, origin unchanged,
-  no merge (`results/M0_probe.json`); M1/M2: not reached.
-- verified: both production compilers build in their own `build-dm`.
-- verified: GPU lock `/root/r14_work/gpu.lock`; R13 guard policy copied
-  unchanged, SHA256 in `start.json`. No performance measurements taken.
+- verified: isolated branch/worktree `dnn-moe`, `/root/dm1_work/development`;
+  reference `/root/dm1_work/reference`; scratch `/root/dm1_work/integration-stage`.
+- Final HEAD and commit count: pending completion. M0: origin unchanged, no merge;
+  M1/M2 have not been reached. Unpublished R14 changes have not been merged.
+- verified: GPU lock `/root/r14_work/gpu.lock`; build `build-dm`;
+  cache `/root/.cache/tilemega-dm`. No performance measurements have been taken.
 
 ## Implementation ledger
 
 | Item | State and evidence |
 |---|---|
-| Phase 0 framework | verified: copied R13 scripts, 12 framework/selection/identity/recipe tests pass |
-| Preregistration | verified: §3 retained verbatim in predictions; solver winners sealed before control-arm audit |
-| Reference bank | verified: eight baseline plans and 64-step smokes sealed; candidate CUDA/resources/SASS/tokens match all eight plans |
-| DN-1 inventories | verified: five upstream models and masked BERT exported, before/Core fixtures committed |
-| DN-1 NAFNet source | verified: unchanged architecture/dependencies match upstream file SHA256; license preserved |
-| DN-1 weights/data | preparation only: NAFNet/ResNet18/MobileNetV2 strictly load; SIDD CRC passes; BERT/MobileNetV1 safetensors identities recorded |
-| CI-1 | implemented transcription/constant/binding API; verification in `bridge.md`; forward build integration follows CI-3/DN-11 |
-| CI-2 | verified descriptors, finite epilogue and GEMM/combiner dispatch (`descriptors.md`, `numerics.md`); new operand policies follow DN/MO bodies |
-| CI-3 | verified core ABI/dimensions, five targets, 50/50 fresh processes per seq (1/128/4096); eight native CG CLI plans pass; exported-model integration pending (`forward.md`) |
-| CI-4 | verified static access/metrics/table/WAR-WAW, exact bound encoding, virtual capacity/provenance, counted-write CG contracts and native threshold upload/waits (150/150); memory-planner and real-body integration pending (`analysis.md`, `synchronization.md`) |
-| CI-5 | verified primitives (50/50), synthetic table/counted stages (150/150), paged forward/prefill cores (150/150), binding PageStream synthetic dispatch (100/100), nonpaged split-K LA (100/100); attention LA verified (100/100), multi-page TaskBody verified (100/100); real DNN/MoE bodies pending (`synchronization.md`) |
-| CI-6 | verified CPU fitting and streaming-routing foundations (5/5 each); native samplers, actual fits and real routing profiles pending (`calibration.md`) |
-| CI-7 | verified table projection, geometry rebinding, GEMM access/conv classes, routing-cost validation and small-tile mainloops; TaskBody/operand integration, profile consumers, structural search and second-level selection pending |
-| DN-2 through DN-11 | not implemented |
-| MO-1 through MO-9 | not implemented |
+| Phase 0 | verified: R13 framework, preregistration, reference bank, five model exports and fixtures committed |
+| CI-1 | verified: typed arguments, CPU constants/shape bindings, legacy bridge compatibility (`bridge.md`) |
+| CI-2 | verified: DM descriptors, finite epilogue chains, dense/page/split-K dispatch, narrow tile families (`descriptors.md`, `numerics.md`) |
+| CI-3 | verified: forward ABI, native CG CLI plans and five-target builds; exported DNN/MoE model entry pending (`forward.md`) |
+| CI-4 | verified: exact window/table/WAR-WAW foundations, virtual capacity/counting, native thresholds; memory-planner and body integration pending (`analysis.md`) |
+| CI-5 | verified: synthetic waits/binding/LA and native forward/prefill PageStream; real model dispatch remains incomplete (`synchronization.md`) |
+| CI-6 | verified: fitting/profile schema and streaming collection foundations; real routing collection waits for checkpoint download; body fits pending |
+| CI-7 | verified: class/candidate, exact projection, issued convolution K, conditional/live-row and histogram pricing foundations; profile consumers/structural search pending |
+| DN-1 | verified: before/Core fixtures; upstream NAFNet source; official weight/data integrity. These are not model gates |
+| DN-2/3 | verified: automatic primitive DNN L-sem and exact ownership/halo oracles; exported-model planning and remaining operators pending |
+| DN-4 | verified: im2col operands and dense/tiled/page TaskBodies, small channels, tails, stride/dilation, issued split-K. Native ABI integration under validation |
+| DN-5/6 | depthwise, fusion, pooling/SCA body and model integration pending |
+| DN-7 | verified: explicit LayerNorm and ordered BF16 embedding sum primitives; native stage integration under validation; deferred LN/model integration pending |
+| DN-8/9/10/11 | encoder attention, full chain/model numerics, memory reuse and model CLI integration pending; layout conversion primitive verified |
+| MO-1 through MO-9 | full MoE model/region implementation and end-to-end gates pending; shared binding/profile foundations exist |
 
 ## Tables and gates
 
-T1: verified Phase 0 reference bank seal is
-`0d7c170870af4c677daf14afdc9d7e6606f1192d014124fe9ab9f4853ce0641a`.
-The baseline native suite retains obsolete norm-test/schema and independent-
-attention failures. All eight initial artifact/smoke comparisons match;
-G-REG remains false. Full history is retained in `analysis.md` and T1 receipts.
-Donor paged `last_arriver` maps to baseline policy `off`, whose generated
-implementation still uses last-arriver; failed direct-name retries are retained.
+| Table | Current evidence |
+|---|---|
+| T1 | Eight LLM plans preserve CUDA bytes, ptxas resources, SASS and 64-step tokens; full G-REG remains false |
+| T2 | Five models plus masked BERT export inventories verified; execution coverage pending |
+| T3 | Exact access, virtual/counting and convolution issued-K proofs verified at unit/CG level |
+| T4 | Finite epilogue, GEMM, convolution and normalization/embedding/layout primitive numerics verified; complete model geometries/chains pending |
+| T5 | G-DNN has not passed for any complete model |
+| T6 | Omitted under the user's no-performance-testing override |
+| T7 | Timing attribution omitted; full mechanism/model correctness remains pending |
+| T8 | G-MOE and real-weight end-to-end paths (a)(b)(c) have not passed |
+| T9/T10 | Performance measurements omitted under the user override |
+| T11 | Measured compile-scaling matrix omitted under the user override |
+| T12 | Per-artifact resources retained in identity receipts; calibration/model resource coverage remains incomplete |
 
-T2: `results/phase0_exports.json`, `results/T2_inventory_comparison.json`,
-and `test/fixtures/dnn/*_ops.json` record **export coverage only**.
+### T1: regression
+
+verified: latest `results/T1_CI7_conv_counted.json` matches all eight generated
+CUDA/resource/SASS/token comparisons. Candidate native suite was 149/151;
+reference was 94/97. Candidate CG diagnostic failure was repaired and rebuilt
+(`results/CI7_cg_diagnostic_prefix_host.json`, `CI2_conv_runtime_host.json`).
+The independent-attention mismatch also exists on the unchanged reference.
+Reference target schema/missing norm binary failures remain recorded.
+**G-REG is false** until the full required suite passes; queue completion is not gate success.
+Prior checkpoint history is retained in T1 receipts and `analysis.md`.
+
+### T2: upstream inventories and assets
 
 | Model | Before calls | Core ATen calls | Appendix C differences |
 |---|---:|---:|---|
@@ -61,240 +79,96 @@ and `test/fixtures/dnn/*_ops.json` record **export coverage only**.
 | BERT | 296 | 970 | addmm 61/73; bmm 36/24; view 276/264 |
 | BERT masked | 306 | 987 | extra correctness variant |
 
-verified: BERT's twelve `attention.output.dense` linears decompose to bmm
-and bias in these exports, accounting for the addmm/bmm difference. The
-stated counts remain unchanged in the comparison. Forward plans must handle
-both spellings and these observed targets.
+verified: twelve BERT output-dense linears decompose to bmm+bias, accounting
+for the observed difference; the stated expectations are retained.
+All twelve archives reload with matching non-getitem inventories and BF16 weights;
+extra tuple-field getitems are separately recorded (`results/export_roundtrip.json`).
+BERT's shape-only mask evaluates all true at B=1/8/32/64, including the
+2^20-element boundary (`results/bert_mask_provenance.json`).
+verified: official SIDD 1280 RGB blocks pass LMDB/CRC/key checks; ImageNetV2
+and WikiText-103 identities are recorded (`results/data_integrity.json`).
+NAFNet, ResNet18 and MobileNetV2 pretrained states load strictly. BERT and
+MobileNetV1 weight identities are recorded; complete model correctness is pending.
 
-verified: all twelve saved archives reload with identical non-getitem
-operator inventories and BF16 floating weights. Core ATen deserialization
-adds unused tuple-field getitems (BN, LayerNorm and maxpool); original counts
-are retained and reloaded counts are separately recorded in
-`results/export_roundtrip.json`. DNN archive loading registers HF's original
-ModelOutput pytree definitions before loading BERT.
-verified: all twelve unmasked BERT SDPA calls share the same shape-only
-mask fragment, whose sole input dependency is `sym_size(token_type_ids,0)`.
-Isolated CPU FX Interpreter evaluations at B=1/8/32/64 are all true, including
-the specification's 2²⁰-element boundary (`results/bert_mask_provenance.json`).
+### T3/T4/T12: new primitive evidence
 
-T1 checkpoint CI2: verified CUDA bytes, ptxas resources, SASS and 64-step
-tokens equal for all eight plans (`results/T1_CI2.json`). Full G-REG remains
-false pending the complete native suite. Three initial smokes failed from
-OOM while loading weights; their fresh-process retries pass without changing
-the plans or token criteria.
+verified: `results/CI2_conv_operand_matrix_cuda.json` records 13 tile configurations,
+650/650 fresh numerical processes and 65 final architecture artifacts. A unique
+sm_100 recovery build replaces an interrupted overwritten artifact; its old failed
+queue and mismatched identity are retained and are not credited.
+All 65 final operand artifacts have zero spills; two have nonzero stack frames.
 
-T4/T12 subcomponent evidence: 1024 scalar cases and sixteen epilogue tile
-cases pass against PyTorch, with five-target compilation and no spills.
-Tile-local checks pass in 50/50 fresh processes; these do not count as §8.A
-inter-stage synchronization evidence (`results/CI2_epilogue_tiles.json`).
+verified: `results/CI7_dense_pipeline_cuda.json` records dense/tiled canonical
+100/100 processes, 12 neighboring configurations, five architectures and four
+zero-error sanitizers. The prior version passed numerically but produced 144
+racecheck errors per layout. A compute-warp join before scratch reuse repairs
+that race; the failed evidence is retained.
 
-T4/T12: verified finite-chain GEMM/combiner dispatch for four independent
-linear references, dense/page paths, split-K=1/2/3, M/N tails and mapped
-writes. Five targets compile with no spills; sm_89 passes 50/50 fresh
-processes (`results/CI2_gemm_chains.json`). This does not count as §8.A.
-verified: refreshed extended descriptor device interpretation and unchanged
-legacy ABI (`results/CI2_descriptor_abi.json`). Native interface failures
-were missing ignored register fixtures; both now pass with original inputs.
-The independent-attention numerical failure also reproduces on the unchanged
-baseline (`results/native_test_repairs.json`); full G-REG remains false.
+verified: `results/CI2_conv_task_cuda.json` records 50 architecture/configuration
+artifacts, canonical row-major/tiled 50/50 each, eight neighbor checks, four
+zero-error sanitizers, and independent FP32 references for dense/page/split-K
+entries. **12/50 artifacts spill and 50/50 have stack frames**; every resource
+line is retained. This is standalone TaskBody coverage, not the complete DNN gate.
 
-T3: verified 11/11 host analysis checks: window/stride/dilation/halo,
-flattened row/image tiles, pixel shuffle, exact interval tables, split-K,
-symbolic dimensions/origins, I2 row gather and WAR/WAW. Relations match
-independent enumeration; box envelopes are explicitly `over`
-(`results/CI4_exact_analysis.json`). Primitive and synthetic stage waits are verified below; real-body waits and reuse poison checks remain pending.
+verified: `results/DN_primitive_norm_embedding_layout_cuda.json` records 216
+primitive cases per process and 50/50 fresh processes, five architectures,
+zero spills/stack and zero-error memcheck/racecheck. It covers centered-variance
+LayerNorm, ordered BF16 embedding additions/statistics, NCHW conversion,
+channel padding, immutable 0/-inf halo and end canaries.
 
-T3: verified bound window/table proofs, closed-form group capacities, and virtual
-ownership/provenance (`results/CI4_bound_encoding.json`,
-`results/CI4_capacity_form.json`, `results/CI4_virtual_binding.json`).
-T4/T12 subcomponent evidence: sparse table, counted publication and weighted
-last-arriver primitives pass 50/50 fresh processes; full synthetic stage
-materialization passes 150/150 (50 each at kappa=1/4/16), with bitwise L1/L2
-outputs and separate counter banks. Five architectures compile without spills
-(`results/CI5_dependency_primitives.json`, `results/CI5_stage_dependencies.json`).
-These synthetic bodies do not establish DNN/MoE TaskBody or model gates.
+verified: `results/CI2_conv_runtime_host.json` records 6/6 native host/CG checks
+of issued K, descriptor legality and ownership. Original illegal C24/TK fixtures
+and a stale CG diagnostic binary are retained; expectations were not loosened.
+verified: `results/DN_primitive_stage_host.json` records 6/6 native host checks,
+including int64 operand validation, LayerNorm epsilon and finite stage dispatch.
+verified: `results/DN_primitive_semantic_host.json` records 8/8 host checks,
+automatic layout/conv/LN lifting, two-way enumeration/containment, issued split-K
+and embedding binding request counts. Native ABI integration is being checked
+in immutable `runs/dm1-dnn-runtime-*`.
+The first runtime queue did not execute numerics because of a misplaced descriptor
+field; its failure is retained. A later paged build exposed an unreachable legacy
+SwiGLU instantiation at TN16; the DM branch is separated and rechecked.
+verified: split-five fixtures omitted tile-owned combiner flags and left output
+columns unwritten. The corrected fixture passes all six native memchecks and
+numerical paths; malformed DM split ownership is rejected. Prior paged racechecks
+fail on page generation and cross-task scratch/page reuse. Repairs are under
+validation in v5; the full native synchronization gate remains pending.
 
-T3: verified exact table projection and geometry rebinding: 9/9 host checks,
-plus 2/2 empty-row/corruption checks (`results/CI7_table_flow_host.json`,
-`results/CI7_table_projection_empty.json`). B=1/2/8, workers=1/3/8 and
-kappa=0/1/4/16 match enumerated dependency/event sets; TM=16/32/64 refits
-the seed table from L-sem. These checks do not complete CI-7 or G-REG.
+verified: `results/CI7_moe_histogram_pricing_host.json` records 5/5 native checks,
+650 histogram cases (472 empty contributions) and an equal-mean contrast that
+rejects mean-only costing. Real profile attachment, cache identities and the
+MoE DRAM floor remain pending. Synthetic coefficients are not body calibration.
 
-T4/T12: verified page-core forward/prefill dense and prefill attention checks
-pass 150/150 fresh processes, five architectures and TM=16/32/64/128
-(`results/CI5_paged_phases.json`, `results/CI5_paged_attention.json`). Native
-L1/L2 outputs match bitwise and independent numerical oracles pass. Spills
-remain in some larger-tile and retained loop kernels; every resource line is
-recorded. These are synthetic core plans, not DNN/MoE model gates.
+### Synchronization coverage
 
-T4/T12: verified binding/page primitives pass 50/50 fresh processes and
-five architectures with zero spills (`results/CI5_binding_page_primitives.json`);
-registered host capacity/address checks pass 3/3 (`results/CI5_binding_host.json`).
-Production PageStream integration and expert TaskBody/model gates remain pending.
+verified: shared primitives and synthetic table/counted/threshold stages have
+50-process receipts; native nonpaged split-K LA and attention LA each pass
+100/100, binding PageStream synthetic dispatch 100/100, native paged
+forward/prefill 50/50 each (`synchronization.md` and CI5 receipts).
+These do not discharge the corresponding real DNN/MoE body/model paths in §8.A.
+**The full §8.A checklist is incomplete.**
 
-T2/T3: verified binding capacity/provenance transport and legacy codec form
-pass 6/6 host checks (`results/CI5_binding_metadata_host.json`).
+## Q1–Q7 and deviations
 
-T4/T12: verified monotonic weighted/unweighted LA primitives pass 50/50 fresh
-processes and five architectures with zero spills
-(`results/CI5_epoch_last_arriver.json`). Full nonpaged runtime and §8.A.11
-checks remain pending.
+- Q1 — verified: upstream export and the tested primitives work; five complete
+  exported-model pipelines and G-DNN remain unverified.
+- Q2/Q3 — stated: latency comparisons and performance attribution are omitted
+  under the user override. Implementation/correctness requirements remain.
+- Q4/Q5 — stated: MoE performance comparisons are omitted; template/binding,
+  placement and model correctness implementation remains required and incomplete.
+- Q6 — verified: checkpoint index/schema foundations exist; real-weight (a)(b)(c)
+  and the complete-model readiness script have not passed.
+- Q7 — stated: compile-scaling measurement is omitted under the user override.
+- verified: earlier failed builds/numerics/sanitizers are preserved. No numerical
+  thresholds were changed to accommodate implementation errors.
+- verified: nvcc 12.8.93 miscompiles an unbraced `else for` in a capturing
+  `if constexpr` lambda. The reduced counterexample and braced repair are sealed
+  in `results/CI2_nvcc_constexpr_scope.json`; legacy LLM code is preserved.
 
-T2/T3: verified nonpaged handoff selection and codegen transport pass 11/11
-host checks (`results/CI5_nonpaged_handoff_host.json`); native core evidence follows.
+## Remaining work
 
-T4/T12: verified nonpaged native split-K LA passes 100/100 fresh processes,
-five architectures and kappa=0/1/4/16 (`results/CI5_nonpaged_handoff_native.json`).
-L1/L2 and independent-stage/LA outputs match bitwise; poisoned intermediates,
-monotonic mode-separated tickets, elided barriers and a four-step L1 loop pass.
-Sixteen builds have zero spills. Attention LA and new-body/model gates are pending.
-
-T12 foundation: verified 5/5 CPU NNLS and observation metadata checks
-(`results/CI6_fit_host.json`). No measured fit or body timing is reported.
-
-T12 foundation: verified 5/5 CPU streaming-weight, routing histogram, source
-token and queue checks (`results/CI6_routing_host.json`). CUDA grouped_mm
-collection matches the unchanged tiny HF model bitwise for two layers and all
-13 T coordinates (`results/CI6_routing_cuda.json`). Real routing is pending.
-
-T4/T12: verified binding-aware production PageStream passes 100/100 fresh
-processes and five architectures (`results/CI5_binding_pagestream.json`).
-Resources retain StreamProbe spills; real router/rowgather/model gates pending.
-
-T4/T12: verified elided L1 binding producers resolve the owner's barrier in
-100/100 fresh processes (`results/CI5_elided_binding_owner.json`). Five targets,
-32 owner-barrier epochs and repeated production page cases pass; the skipped
-producer's events remain zero. Thirteen builds retain StreamProbe spills.
-Default non-DM PageStream fields/signatures are guarded; full G-REG is pending.
-
-T2/T3/T12 foundations: verified access/layout/conv/epilogue-aware GEMM classes
-and routing-profile capacity/traffic checks pass 5/5 host ctests; check-policy
-passes (`results/CI7_classes_routing_host.json`). Legacy class keys remain
-unchanged for default descriptors. Real-profile consumers and search are pending.
-
-T12 foundation: verified small-tile resource/legality checks and neighboring
-host regressions pass 6/6 (`results/CI7_gemm_traits_host.json`); check-policy
-passes. The DM domain has 76 legal geometries, 46 additions; legacy serving
-legality is unchanged. CUDA families and candidate integration are pending.
-
-Remaining T3–T12 entries: pending implementation and required gates. G-DNN and G-MOE:
-not run. §8.A: primitive and synthetic table/counted/weighted-LA paths have fresh-process evidence; real-body and remaining path gates are pending. No new TaskBody
-has entered a performance matrix. No performance or calibration result is
-reported.
-
-## Scope decisions and deviations
-
-- verified: one compiler rebuild also compiled two CUDA calibration objects
-  without `flock`, contrary to §0.3. No kernel or timing ran. A locked rebuild
-  passed; details are retained in `results/protocol_deviations.json`.
-- Phase 0 inventories use seeded architecture initialization; weights and
-  datasets are DN-1's Phase 2 work. Manifests explicitly set
-  `accuracy_eligible=false`. This cannot substitute for pretrained numerical
-  or model gates.
-- Exports use an isolated CPU environment with torch 2.14.1, torchvision
-  0.29.1, timm 1.0.30 and transformers 5.19.0. Package locks are committed.
-  Existing LLM regression exports use their original torch 2.13 environment.
-- verified: baseline `check-policy` rejects an architecture-macro token in
-  a comment. Only that comment is reworded on `dnn-moe`; the reference is
-  unchanged. Candidate `check-policy` passes. Default code generation must
-  still pass the byte/SASS/token comparison.
-- verified: the stale baseline test failure is retained as a failure, not
-  disabled or reinterpreted as success. Its disposition remains outstanding.
-- verified: the copied CPU guard test can lose `/proc/<pid>/stat` between
-  existence/open/read as an already terminated worker disappears. The test
-  now accepts the same absent-process condition during either syscall; its
-  pidfd exit assertion and zombie-state assertion are unchanged. Guard and
-  scheduler policy implementations are unchanged.
-  verified: this host process-cleanup test passes in 50 fresh processes
-  (`results/framework_cleanup.json`); it provides no GPU synchronization
-  evidence for §8.A.
-
-## Q1–Q7 and next work
-
-Q1: verified only for upstream exportability; TileMega execution is pending.
-Q2–Q7: unverified. Predictions are inferred and remain preregistered.
-
-The reference bank, model inventories and preregistration are committed before
-Phase 1. Implement CI-1 through
-CI-7 in order with unit tests; resolve the native test build failure while
-preserving its original numerical assertion. No Phase 4 timing is authorized
-by an incomplete correctness gate.
-
-T12 foundation: verified DM GEMM candidate legality passes 7/7 host checks
-(`results/CI7_gemm_candidates_host.json`). Target resource budgets, per-filter
-channel padding, gate/expert divisibility and shared N/K weight layouts are
-checked. Production search/operand/body integration remains pending.
-
-T4/T12: verified 54 small-GEMM configurations, 126 builds and 250/250 fresh
-processes (`results/CI7_small_gemm.json`). Every added geometry passes an
-independent FP32 oracle; narrow-N layouts compile on all five architectures.
-TaskBody/page/operand/model integration is pending.
-
-T12 foundation: verified forward selection protocol passes 6/6 CPU tests
-(`results/CI7_second_level_host.json`). Family coverage, half elimination,
-three alternating final rounds, budget exhaustion and identity/gate rejection
-are checked with synthetic records. Actual guarded orchestration is pending.
-
-T12 foundation: verified guarded-selection adapter passes 8/8 CPU checks
-(`results/CI7_second_level_adapter_host.json`). Identity/gate mismatches and
-build-budget expiry reject before queue launch. Real candidate timing is pending.
-
-T12 foundation: verified routing-profile consumption gate passes 8/8 CPU checks
-(`results/CI6_profile_identity_host.json`): content/file identities, HF layer
-chain, model/token domain and histogram conservation. Solver integration and
-real-profile observations remain pending.
-
-T12 foundation: verified joint routing histograms, marginal conservation and
-static prefix probabilities (`results/CI6_joint_group_host.json`): 6/6 sampling,
-9/9 identity and 6/6 native host checks. Virtual row means additionally pass
-6/6 routing, 10/10 identity and both native routing ctests
-(`results/CI6_virtual_rows_host.json`). Real routing and pricing remain pending.
-
-T12 foundation: verified forward/class search checks pass 7/7
-(`results/CI7_forward_search_host.json`), covering bound batch/token axes and
-paged/nonpaged search with synthetic resource callbacks. R-1 retains all new
-body families; model/compiled-resource/pricing gates remain pending.
-T1: the CI7 pre-fix checkpoint retained resources/SASS/tokens but changed four
-prefill dispatch tables (`results/T1_CI7_dispatch_failure.json`). The default
-dispatch index is restored; a fresh regression checkpoint will verify it.
-
-T4/T12 foundation: verified nonpaged attention and native TN16/TK16
-stage/LA executors each pass 50/50 fresh processes per synchronization mode
-(100 each); 46 additional dense/page TaskBody geometries pass 122/122 in total.
-Their 16/16/64 builds cover five architectures and report zero spills
-(`results/CI5_nonpaged_attention_cuda.json`, `CI7_small_native_cuda.json`,
-`CI7_small_task_cuda.json`). No new operand policy or model gate follows.
-
-verified: the CI7 typed-fusion checkpoint preserves CUDA bytes, every ptxas
-resource record, SASS and 64-step tokens for all eight LLM plans
-(`results/T1_CI7_typed_fusion.json`). Candidate ctest passes 133/134;
-reference passes 94/97. Both retain the same independent-attention mismatch;
-reference also fails target schema/missing norm executable. G-REG remains false.
-
-T4/T12 foundation: verified multi-page GEMM passes 100/100 fresh processes;
-native PageStream forward/prefill each pass 50/50 (`results/CI5_native_multipage_phases_cuda.json`).
-Both cover five architectures; native sm_100 loop-kernel spills are retained.
-All 76 workspace constants compile on five architectures; that compile-only
-proof has no kernel resource claim (`results/CI7_page_workspace_caps_identity.json`).
-
-T12 foundation: verified binding byte/provenance (368), virtual geometry (384),
-and signature checks (48 identities) are sealed. Compiler/pricing integration
-passes 72 traffic cases, 8 images, 256 geometries, 768 symbolic bindings and 18
-legacy bit-exact checks (`results/CI7_binding_pricing_integration_host.json`).
-Complete macros pass 3 capture and 2 identity tests; total-memory serialization
-passes 30 host checks/30 rejections plus a 50,894,602,240-byte device probe
-(`complete_macro_identity_host.json`, `CI7_target_memory_host.json`). Native
-CG CLI checks pass eight plans (`CI3_forward_cli_cuda.json`); model gates remain pending.
-
-T3/T12: verified committed indexed-convolution/CG/pricing integration passes
-7/7 fresh ctests after 25/25 prior focused checks; check-policy passes
-(`results/CI7_conv_counted_host.json`). Counted endpoint fusion checks 81
-geometries, 567 rejections and 20,898 exact pairs
-(`CI7_counted_endpoint_fusion_host.json`). Integer device mapping checks 189
-geometries/324,076 slots with five-target builds and zero spills
-(`CI7_conv_iteration_device.json`). No real-body or model gate follows.
-T1: integrated checkpoint retains all eight CUDA/resource/SASS/token matches;
-candidate 144/147 and reference 94/97 keep G-REG false
-(`results/T1_CI7_integrated.json`). Two omitted candidate test binaries must
-be built at the next checkpoint. Preliminary convolution tiled-B numeric and
-racecheck failures are retained in `runs/dm1-conv-operands*`; repair is pending.
+Complete native DNN stage integration, DNN planning/L-sem and all remaining bodies,
+then model correctness gates. Complete CI7 profile/search integration and check G-REG.
+Proceed through MO-1..MO-3, M1, MO-4..MO-9 and correctness gates in the prescribed
+merge order. M2/freeze, final documentation and branch push remain pending.
+No performance matrices will be executed.

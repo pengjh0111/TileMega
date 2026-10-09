@@ -57,3 +57,18 @@ paths with the same geometry must be bitwise equal. Five targets compile;
 sm_89 passes 50/50 fresh processes with no spills. Kernel rows are in
 `results/CI2_gemm_chains.json` (sm_89: 64/80/116 registers). This is local
 GEMM/combiner and page-ring evidence, not a full paged plan or §8.A gate.
+
+
+verified: explicit LayerNorm uses centered FP32 variance and applies BF16 gamma
+and beta before one BF16 output store. Embedding sum preserves the two ordered
+BF16 stores in `(word + token_type) + position`. Optional output statistics
+consume those rounded outputs. Layout conversion copies external NCHW input
+into the padded NHWC interior and never writes spatial halo. Standalone tests
+are sealed in `results/DN_primitive_norm_embedding_layout_cuda.json`.
+
+verified: native forward fixtures compare convolution against an independent
+FP32 dot product, round its stored result to BF16, then compare LayerNorm
+against centered CPU FP64 statistics. They check the intermediate values, final
+outputs, statistics and L1/L2 bit equality with the original tolerance. Missing
+tile-owned combiner flags caused the original split-five failure; expectations
+are unchanged. Native paged sanitizer completion remains a separate gate.

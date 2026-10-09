@@ -1,0 +1,18 @@
+{
+  "evidence": "verified",
+  "scope": "Automatic DNN primitive L-sem; enumeration and two-way relation containment, stride/halo/nondivisible-row tiles, issued split-K and embedding binding requests; no exported-model gate",
+  "passed": true,
+  "checks": 8,
+  "log": "/root/dm1_work/development/runs/dm1-dnn-semantics-host-v1/ctest.log",
+  "log_sha256": "752ddad702df62098bf108969fb31d7b9f26dabc271e57035fe63d6ffa13cb0f",
+  "source_head": "82712eb33ac2125dca97a6df8387fccc13141a49",
+  "diff_sha256": "eb4bf62a0429a11df70f74bad2a98f7305a306550a96711a3b2d3aad7b4da3d6",
+  "tested_sources": {
+    "lib/Frontend/DnnSemanticLifting.cpp": "fa8ba45be88121df8064fe92721c029798cd35ab08dc11c612ce7411f083b37b",
+    "lib/Frontend/SemanticLifting.cpp": "223f4efc0f8e91bdd1ad72ec6b7fb00a6ff052018e1c41ef8dcef20bb2dbb99f",
+    "include/tilemega/Frontend/SemanticLifting.h": "1b5aa27ef80aa317ba46a838a748c4d337aedd06e7044839d05d1f95f98ed071",
+    "lib/Frontend/Frontend.cpp": "3d65e00d085947b45a3509b6fc5c46c4977b97f1bab7c001bf1d290e5704428e",
+    "test/unit/dnn_semantic_lifting_test.cpp": "50034ca69bc00a465fa3a61152f19434a055916960d6558e260a43e692bfb66c"
+  },
+  "utc": "2026-10-09T13:07:20.555742+00:00"
+}

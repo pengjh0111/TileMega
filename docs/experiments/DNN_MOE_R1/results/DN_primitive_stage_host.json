@@ -1,0 +1,23 @@
+{
+  "evidence": "verified",
+  "scope": "Scalar stage descriptor validation, finite compiled stage shapes, forward compatibility and convolution ownership; host tests only",
+  "passed": true,
+  "completion": {
+    "event": "queue_complete",
+    "steps": 2,
+    "passed": true
+  },
+  "checks": 6,
+  "log": "/root/dm1_work/development/runs/dm1-dnn-primitive-host-v1/events/ctest.log",
+  "log_sha256": "b5d59f2a8802daff3bd47f9facae827282f369f3e2bae0a5d28239c38298f83e",
+  "source_head": "82712eb33ac2125dca97a6df8387fccc13141a49",
+  "diff_sha256": "0e4838c864ac563fd272fe51c94d60fe1253c64d3da23d51b9209453cd7cce6e",
+  "tested_sources": {
+    "include/tilemega/Frontend/ModelPlan.h": "d5f54729fc3cb2684c42d873e494cfd2163e589dab4bbb695b84e59033003009",
+    "lib/Frontend/DmDescriptorCodec.cpp": "f5267eefce3fc4eac70590e4df2b49a43cb61755a4666d9e5fd04a44d9300a31",
+    "lib/Frontend/Frontend.cpp": "0b882049c21a58d143fc64bb9add6704badfac3c5d208315e13df9f8b8f81d4a",
+    "lib/Codegen/Codegen.cpp": "7ed90031226975630b4db430828fbad7b9f15e405ba146f3c0c3349ed7de47a0",
+    "test/unit/dm_descriptor_test.cpp": "33ebcdadb221a295413e58ef163dd52c25aa77efdc8ff0df2293d78933d96e8e"
+  },
+  "utc": "2026-10-09T11:55:01.106684+00:00"
+}
