@@ -7,6 +7,7 @@
 #include <tilemega/Analysis/OpArithmetic.h>
 #include <tilemega/Analysis/SemanticCodec.h>
 #include <tilemega/Dialect/CouplingGraph/BoundDependency.h>
+#include <tilemega/Dialect/CouplingGraph/CountedDependency.h>
 #include <tilemega/Analysis/TaskElementRelation.h>
 #include <tilemega/Dialect/CouplingGraph/HandoffPass.h>
 #include <tilemega/Dialect/CouplingGraph/CGContract.h>
@@ -288,6 +289,7 @@ LogicalResult CouplingOp::verify() {
     analysis::ParamBinding known = combinedBinding(module);
     (void)ReadBoundTaskGeometry(*this, known);
     (void)ReadBoundDependencyTable(*this, known);
+    (void)ReadBoundCountedScatter(*this, known);
     // wait(x) = |C(x)|, computed directly from the relation -- not read back
     // from a second, separately authored copy the way the pre-migration
     // DictionaryAttr's "fiber" field was. SemanticallyEqual compares the two
