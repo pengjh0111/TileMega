@@ -141,10 +141,12 @@ struct SearchContext {
     std::map<int,FlowSnapshot> recent_flows;
     mlir::Attribute floor_attribute;
   };
-  std::map<std::tuple<int,int,int>,StructureState> serving_structures;
+  std::map<std::tuple<int,int,int,int,bool>,StructureState> serving_structures;
   mlir::Attribute floor_attribute;
   ScalarType dtype;
   int attention_kv_block=0,attention_query_rows=0,argmax_tile_n=0;
+  int interleave_u=16;
+  bool dn_vector_sums=false;
   int current_page_bytes=0;
   int current_lookahead_bytes=0;
   unsigned current_handoff_mask=0;
@@ -152,6 +154,9 @@ struct SearchContext {
       :imported(std::move(input)),classes(BuildOperatorClasses(imported)),resources(opts.variant_probe,opts.common.timing),context(ctx),options(opts),
        dtype(imported.lifted.sem.ops.front().dtype==analysis::ScalarType::kBF16?ScalarType::kBF16:ScalarType::kF32) {
     current_page_bytes=options.page_bytes;
+    dn_vector_sums=imported.plan.dn_vector_sums;
+    for(auto const& gemm:imported.plan.gemms)
+      interleave_u=std::min(interleave_u,int(gemm.interleave_u));
     if(imported.plan.serving)for(auto const& stage:imported.plan.stages)
       if(stage.kind==frontend::PlanTaskKind::kFusedAttention) {
         attention_kv_block=stage.attention_kv_block;
@@ -172,12 +177,24 @@ struct SearchContext {
           return config.at(c).tile_n;
     throw std::runtime_error("serving plan has no argmax partial GEMM");
   }
-  void SetServingStructure(int kv_block,int query_rows,int partial_tile_n) {
+  void SetServingStructure(int kv_block,int query_rows,std::vector<GemmConfig> const& config) {
+    if(!imported.plan.serving)return;
+    int partial_tile_n=ArgmaxTileN(config),next_u=16;
+    bool next_vector_sums=false;
+    for(std::size_t c=0;c<classes.size();++c)for(auto id:classes[c].gemms) {
+      auto const& gemm=imported.plan.gemms.at(id);
+      if(config[c].impl && config[c].tile_n<32) {
+        if(gemm.epilogue==frontend::PlanGemm::Epilogue::kSwiGLU)
+          next_u=std::min(next_u,config[c].tile_n/2);
+        if(gemm.ss_out!=0xffffffffu)next_vector_sums=true;
+      }
+    }
     if(!imported.plan.serving ||
        (kv_block==attention_kv_block && query_rows==attention_query_rows &&
-        partial_tile_n==argmax_tile_n))return;
-    auto old_key=std::make_tuple(attention_kv_block,attention_query_rows,argmax_tile_n);
-    auto next_key=std::make_tuple(kv_block,query_rows,partial_tile_n);
+        partial_tile_n==argmax_tile_n && next_u==interleave_u &&
+        next_vector_sums==dn_vector_sums))return;
+    auto old_key=std::make_tuple(attention_kv_block,attention_query_rows,argmax_tile_n,interleave_u,dn_vector_sums);
+    auto next_key=std::make_tuple(kv_block,query_rows,partial_tile_n,next_u,next_vector_sums);
     auto hit=serving_structures.find(next_key);
     std::optional<frontend::ImportedSemantics> rebuilt;
     std::vector<OperatorClass> next_classes;
@@ -194,6 +211,7 @@ struct SearchContext {
       requested.capacity=imported.plan.serving_capacity;
       requested.kv_block=kv_block;requested.query_rows=query_rows;
       requested.argmax_tile_n=partial_tile_n;
+      requested.interleave_u=next_u;requested.dn_vector_sums=next_vector_sums;
       auto& next=rebuilt.emplace();
       next.plan=frontend::BuildModelPlan(imported.bridge.nodes,imported.bridge.inputs,
           imported.bridge.outputs,requested);
@@ -225,7 +243,7 @@ struct SearchContext {
       base=std::move(state.base);
       last_structure=std::move(state.last_structure);last_geometry=std::move(state.last_geometry);
       recent_flows=std::move(state.recent_flows);floor_attribute=state.floor_attribute;
-      attention_kv_block=kv_block;attention_query_rows=query_rows;argmax_tile_n=partial_tile_n;
+      attention_kv_block=kv_block;attention_query_rows=query_rows;argmax_tile_n=partial_tile_n;interleave_u=next_u;dn_vector_sums=next_vector_sums;
       if(options.common.timing)options.common.timing->Add("serving_structure_cache_hit");
       return;
     }
@@ -234,7 +252,7 @@ struct SearchContext {
     imported.lifted=std::move(rebuilt->lifted);
     classes=std::move(next_classes);
     attention_kv_block=kv_block;attention_query_rows=query_rows;
-    argmax_tile_n=partial_tile_n;
+    argmax_tile_n=partial_tile_n;interleave_u=next_u;dn_vector_sums=next_vector_sums;
     base.reset();last_structure.reset();last_geometry.clear();floor.reset();
     floor_values.clear();
     floor_attribute={};recent_flows.clear();
@@ -269,7 +287,7 @@ struct SearchContext {
   SkeletonSolvedPoint Prepare(std::vector<GemmConfig> const& config,int kappa,int residency,int actual=0,bool materialize=false,int past_override=-1) {
     if(imported.plan.serving)
       SetServingStructure(attention_kv_block,attention_query_rows,
-                          ArgmaxTileN(config));
+                          config);
     auto* timing=options.common.timing;auto const& target=options.common.placement.target;
     if(timing)timing->candidate=Key(config,kappa,residency);
     auto estimate=EstimateResources(config);
@@ -425,9 +443,8 @@ struct SearchContext {
       auto const& g=priced[c];
       if(g.impl && (options.pg_pages || options.common.placement.dims.seq!=1 ||
           options.common.placement.dims.batch>4 ||
-          !ServingGemvShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages) ||
-          (g.tile_n<32 && (gemm.ss_out!=0xffffffffu || gemm.epilogue==Op::kSwiGLU))))
-        throw std::invalid_argument("GEMV requires nonpaged M<=4, legal GEMV geometry and complete DN/gate blocks");
+          !ServingGemvShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages)))
+        throw std::invalid_argument("GEMV requires nonpaged M<=4, legal GEMV geometry");
     }
     if(options.pg_pages)for(auto& g:priced)g.stages=2;
     auto point=Prepare(priced,kappa,residency,actual);
@@ -451,7 +468,7 @@ struct SearchContext {
     current_handoff_mask=candidate.handoff_mask;
     SetServingStructure(candidate.attention_kv_block,
                         candidate.attention_query_rows,
-                        ArgmaxTileN(candidate.config));
+                        candidate.config);
     auto point=Prepare(candidate.config,candidate.kappa,candidate.residency,actual,true);point.candidate.score=candidate.score;
     if(options.pg_pages)(*point.module)->setAttr("tmexec.lookahead_bytes",
         mlir::IntegerAttr::get(mlir::IntegerType::get(&context,64),
@@ -742,7 +759,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       warm.push_back(canonical);
     }
     search.SetServingStructure(options.serving_warm_kv_block,
-        options.serving_warm_query_rows,search.ArgmaxTileN(warm));
+        options.serving_warm_query_rows,warm);
     auto index=evaluate(warm,options.serving_warm_kappa,
                         options.serving_warm_residency);
     if(!std::isfinite(evaluated[index].score))
@@ -760,7 +777,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
         search.current_handoff_mask=fixed.handoff_mask;
         if(search.imported.plan.serving)
           search.SetServingStructure(fixed.attention_kv_block,
-              fixed.attention_query_rows,search.ArgmaxTileN(fixed.config));
+              fixed.attention_query_rows,fixed.config);
         for(auto const& g:domains[c]){if(budget_expired())goto search_complete;
           auto config=fixed.config;config[c]=g;
           int residency=fixed.residency;
@@ -807,7 +824,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
         for(int value:attention_domain) {if(budget_expired())goto search_complete;
           int ec=decode?value:fixed.attention_kv_block;
           int rq=decode?fixed.attention_query_rows:value;
-          search.SetServingStructure(ec,rq,search.ArgmaxTileN(fixed.config));
+          search.SetServingStructure(ec,rq,fixed.config);
           auto i=evaluate(fixed.config,fixed.kappa,fixed.residency);
           if(BetterCandidate(evaluated[i],evaluated[incumbent],true)){incumbent=i;moved=true;}
         }
@@ -816,7 +833,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
            <<evaluated[incumbent].score<<'\n';out.flush();
         search.SetServingStructure(evaluated[incumbent].attention_kv_block,
             evaluated[incumbent].attention_query_rows,
-            search.ArgmaxTileN(evaluated[incumbent].config));
+            evaluated[incumbent].config);
       }
       if(!search.imported.plan.serving || options.serving_pruning) {
         auto fixed=evaluated[incumbent];
@@ -942,7 +959,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     if(options.pg_pages){search.current_page_bytes=best.page_bytes;search.current_lookahead_bytes=best.lookahead_bytes;}
     search.current_handoff_mask=best.handoff_mask;
     search.SetServingStructure(best.attention_kv_block,
-        best.attention_query_rows,search.ArgmaxTileN(best.config));
+        best.attention_query_rows,best.config);
     if(!search.base || !search.floor)
       search.Prepare(best.config,best.kappa,best.residency);
   }
@@ -1084,7 +1101,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
       // Correct occupancy can expose a better residency as well as invalidate one.
       if(options.pg_pages){search.current_page_bytes=c.page_bytes;search.current_lookahead_bytes=c.lookahead_bytes;}
       search.current_handoff_mask=c.handoff_mask;
-      search.SetServingStructure(c.attention_kv_block,c.attention_query_rows,search.ArgmaxTileN(c.config));
+      search.SetServingStructure(c.attention_kv_block,c.attention_query_rows,c.config);
       auto best=search.Evaluate(c.config,c.kappa,1,actual);
       for(int r=2;r<=actual;++r) {
         auto trial=search.Evaluate(c.config,c.kappa,r,actual);

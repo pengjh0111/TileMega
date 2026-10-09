@@ -5,6 +5,7 @@
 
 #include <cute/tensor.hpp>
 #include <tilemega/Backend/ServingVectorIO.h>
+#include <tilemega/Backend/ServingDeferredNorm.h>
 #include <tilemega/Backend/ServingEpilogueScratch.h>
 #include <cutlass/bfloat16.h>
 #include <cuda_runtime.h>
@@ -52,7 +53,7 @@ struct ServingEpilogueValue<ServingEpilogueOp::kSwiGLU> {
   }
 };
 
-template <ServingEpilogueOp Op, int TileM, int TileN, int U = 16>
+template <ServingEpilogueOp Op, int TileM, int TileN, int U = TILEMEGA_SWIGLU_U>
 struct ServingEpilogue {
   static_assert(TileN % (2 * U) == 0 || Op != ServingEpilogueOp::kSwiGLU,
                 "SwiGLU interleave must end on a gate/up pair");
@@ -80,7 +81,7 @@ struct ServingEpilogue {
     if(norm_ss) {
       for(int row=ComputeThread()/8;row<TileM;row+=16) {
         int part=ComputeThread()%8,gr=tile_m*TileM+row;float sum=0;
-        if(gr<M)for(int j=part;j<norm_k/32;j+=8)sum+=norm_ss[gr*(norm_k/32)+j];
+        if(gr<M)for(int j=part;j<norm_k/32;j+=8)sum+=DeferredNormBlock(norm_ss,gr,norm_k,j);
         sum+=__shfl_xor_sync(0xffffffff,sum,1);
         sum+=__shfl_xor_sync(0xffffffff,sum,2);
         sum+=__shfl_xor_sync(0xffffffff,sum,4);
@@ -129,8 +130,12 @@ struct ServingEpilogue {
         if(v<vectors && gr<M)for(int e=0;e<8;++e)if(gc+e<N) {
           float x=float(reinterpret_cast<cutlass::bfloat16_t*>(shared)[row*TileN+col+e]);sum+=x*x;
         }
+#if TILEMEGA_DN_VECTOR_SUMS
+        if(v<vectors && gr<M && gc<N)ss_out[gr*((N+7)/8)+gc/8]=sum;
+#else
         sum+=__shfl_xor_sync(0xffffffff,sum,1);sum+=__shfl_xor_sync(0xffffffff,sum,2);
         if(ComputeThread()%4==0 && v<vectors && gr<M && gc<N)ss_out[gr*(N/32)+gc/32]=sum;
+#endif
       }
     }
   }
@@ -196,7 +201,7 @@ struct ServingEpilogue {
           int global_row=tile_m*TileM+row;
           float sum=0.0f;
           if(global_row<M)for(int j=part;j<norm_k/32;j+=8)
-            sum+=norm_ss[global_row*(norm_k/32)+j];
+            sum+=DeferredNormBlock(norm_ss,global_row,norm_k,j);
           sum+=__shfl_xor_sync(0xffffffff,sum,1);
           sum+=__shfl_xor_sync(0xffffffff,sum,2);
           sum+=__shfl_xor_sync(0xffffffff,sum,4);
@@ -309,6 +314,16 @@ struct ServingEpilogue {
           for (int i = 0; i < 4 && global_col + i < N; ++i) dst[i] = lane[i];
         }
       }
+    } else if constexpr(Op==ServingEpilogueOp::kSwiGLU && TileN==8) {
+      for(int i=ComputeThread();i<TileM*(TileN/2);i+=kComputeThreads) {
+        int row=i/(TileN/2),col=i%(TileN/2),gr=tile_m*TileM+row;
+        int gc=tile_n*(TileN/2)+col;
+        if(gr<M && gc<N/2) {
+          int input=2*U*(col/U)+col%U;
+          output[gr*output_stride+gc]=ServingEpilogueValue<Op>::Apply(
+              tile[Index<Swizzled>(row,input)],tile[Index<Swizzled>(row,input+U)]);
+        }
+      }
     } else {
       constexpr int kOutputColumns =
           Op == ServingEpilogueOp::kSwiGLU ? TileN / 2 : TileN;
@@ -336,11 +351,20 @@ struct ServingEpilogue {
         int input_col = out_col;
         if constexpr (Op == ServingEpilogueOp::kSwiGLU)
           input_col = 2 * U * (out_col / U) + out_col % U;
+        if constexpr(Op==ServingEpilogueOp::kSwiGLU && U<8) {
+          #pragma unroll
+          for(int e=0;e<8;++e) {
+            int input=2*U*((out_col+e)/U)+(out_col+e)%U;
+            acc[e]=tile[Index<Swizzled>(row,input)];
+            up_acc[e]=tile[Index<Swizzled>(row,input+U)];
+          }
+        }else {
         *reinterpret_cast<float4*>(acc) = *reinterpret_cast<float4 const*>(tile + Index<Swizzled>(row, input_col));
         *reinterpret_cast<float4*>(acc + 4) = *reinterpret_cast<float4 const*>(tile + Index<Swizzled>(row, input_col + 4));
         if constexpr (Op == ServingEpilogueOp::kSwiGLU) {
           *reinterpret_cast<float4*>(up_acc) = *reinterpret_cast<float4 const*>(tile + Index<Swizzled>(row, input_col + U));
           *reinterpret_cast<float4*>(up_acc + 4) = *reinterpret_cast<float4 const*>(tile + Index<Swizzled>(row, input_col + U + 4));
+        }
         }
         #pragma unroll
         for (int element = 0; element < 8; ++element) {
@@ -378,6 +402,18 @@ struct ServingEpilogue {
         }
       }
       if constexpr(Op==ServingEpilogueOp::kResidual) {
+#if TILEMEGA_DN_VECTOR_SUMS
+        if(ss_out) {
+          #pragma unroll
+          for(int pass=0;pass<kPasses;++pass) {
+            int vector=ComputeThread()+kComputeThreads*pass;
+            int row=vector/(kOutputColumns/8),col=(vector%(kOutputColumns/8))*8;
+            int gr=tile_m*TileM+row,gc=tile_n*kOutputColumns+col;
+            if(vector<kVectors && gr<M && gc<N)
+              ss_out[gr*((N+7)/8)+gc/8]=square[pass];
+          }
+        }
+#else
         if constexpr(kOutputColumns%32!=0) {
           // DN's producer owns a complete 32-column sum-of-squares block.
           // Small GEMV tiles may use residual only when no DN writer is attached.
@@ -397,6 +433,7 @@ struct ServingEpilogue {
               ss_out[gr*(N/32)+gc/32]=sum;
           }
         }
+#endif
       }
     }
   }

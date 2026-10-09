@@ -830,7 +830,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
                          ServingOptions const& serving) {
   if (serving.seq != 1 && serving.seq != 64)
     throw std::invalid_argument("serving plan requires a fixed decode or prefill seq");
-  if (serving.capacity <= serving.seq || serving.interleave_u != 16)
+  if (serving.capacity <= serving.seq || (serving.interleave_u != 4 && serving.interleave_u != 8 && serving.interleave_u != 16))
     throw std::invalid_argument("serving capacity or gate/up interleave is invalid");
   PatternMatcher matcher(nodes, inputs);
   auto layers = matcher.FindAll(DecoderLayerPattern());
@@ -842,6 +842,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   PlanBuilder builder(nodes);
   builder.plan.serving = true;
   builder.plan.serving_seq = serving.seq;
+  builder.plan.dn_vector_sums = serving.dn_vector_sums;
   builder.plan.serving_capacity = serving.capacity;
   std::unordered_map<std::string, SignatureInput const*> signatures;
   for (auto const& input : inputs) signatures.emplace(input.name, &input);
@@ -925,7 +926,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   std::uint32_t x = scratch("serving.hidden", serving.seq * hidden);
   bool const dn=serving.phase==ServingOptions::Phase::kDecode && serving.deferred_norm;
   std::uint32_t ss_cur=kNoOperand;
-  if(dn)ss_cur=scratch("embed.ss",hidden/32,"f32");
+  if(dn)ss_cur=scratch("embed.ss",hidden/(serving.dn_vector_sums?8:32),"f32");
   builder.Stage(PlanTaskKind::kEmbedding, embedding->name, 0, vocab, hidden, 1,
                 {tokens, table, x, ss_cur});
   for (std::size_t number = 0; number < layers.size(); ++number) {
@@ -1040,7 +1041,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     }
     auto o_gemm = builder.Gemm(context, alias(o.inputs.at(1)), x, x,
                                hidden, qwidth, 1.0f);
-    if(dn){ss_cur=scratch(prefix+"o.ss",hidden/32,"f32");
+    if(dn){ss_cur=scratch(prefix+"o.ss",hidden/(serving.dn_vector_sums?8:32),"f32");
            builder.plan.gemms[o_gemm].ss_out=ss_cur;}
     builder.plan.gemms[o_gemm].epilogue = PlanGemm::Epilogue::kResidual;
     builder.Stage(PlanTaskKind::kGemm, match.at("resid1")->name,
@@ -1071,7 +1072,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
                   gu_gemm, 0, 0, 1);
     auto down_gemm = builder.Gemm(act, alias(down.inputs.at(1)), x, x,
                                   hidden, intermediate, 1.0f);
-    if(dn){ss_cur=scratch(prefix+"down.ss",hidden/32,"f32");
+    if(dn){ss_cur=scratch(prefix+"down.ss",hidden/(serving.dn_vector_sums?8:32),"f32");
            builder.plan.gemms[down_gemm].ss_out=ss_cur;}
     builder.plan.gemms[down_gemm].epilogue = PlanGemm::Epilogue::kResidual;
     builder.Stage(PlanTaskKind::kGemm, match.at("resid2")->name,
@@ -1096,7 +1097,7 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     }
     break;
   }
-  if (serving.argmax_tile_n < 32 || serving.argmax_tile_n % 32)
+  if (serving.argmax_tile_n < 8 || serving.argmax_tile_n % 8)
     throw std::invalid_argument("argmax partial tile must be a legal serving N tile");
   int const partial_tiles = (vocab + serving.argmax_tile_n - 1) /
                             serving.argmax_tile_n;

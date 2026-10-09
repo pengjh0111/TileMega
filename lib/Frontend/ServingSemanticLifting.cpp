@@ -183,7 +183,7 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
         role = OpRole::kServingArgmaxPartial;
         arithmetic = "argmax_gemm";
         // A plan's partial reduction tile is fixed before its maps are built.
-        if (!gemm.partial_tile_n || gemm.partial_tile_n % 32)
+        if (!gemm.partial_tile_n || gemm.partial_tile_n % 8)
           throw std::invalid_argument("argmax partial requires a bound N tile");
         const auto tile_n = C(gemm.partial_tile_n);
         const auto Nt = N.CeilDiv(tile_n);

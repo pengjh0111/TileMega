@@ -107,10 +107,6 @@ inline ServingClassDomain ServingClassCandidates(
       }
   }
   if(seq==1 && rows<=4)for(int n:{8,16,32})for(int k:{64,128}) {
-    // DN owns complete 32-column square-sum blocks; gate pairs likewise
-    // cannot straddle task boundaries. Other epilogues may use small tiles.
-    if(n<32 && (gemm.ss_out!=0xffffffffu ||
-        gemm.epilogue==frontend::PlanGemm::Epilogue::kSwiGLU))continue;
     GemmConfig g{16,n,k,2,1,1};++domain.raw;
     if((group_width && group_width%n) || PruneServingR1(g,pruning)) {
       ++domain.removed_r1;continue;

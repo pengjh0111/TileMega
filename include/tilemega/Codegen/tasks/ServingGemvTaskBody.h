@@ -21,13 +21,13 @@ struct ServingGemvTaskBody {
     }
   }
   __device__ static void Run(ServingGemmOperands const& p,int tile_m,int tile_n,char* shared) {
-    if constexpr(TileN<32)if(p.epilogue==backend::ServingEpilogueOp::kSwiGLU || p.ss_out) {
-      asm volatile("trap;");return;
-    }
     auto* tile=reinterpret_cast<float*>(shared);
     Impl::Accumulate(p,tile_m,tile_n,tile);
+#if TILEMEGA_TRACE_TASK
+    auto epilogue_begin=TaskProfileNow(p.profile);
+#endif
     auto finish=[&](auto op) {
-      backend::ServingEpilogue<decltype(op)::value,16,TileN>::template RunFromTile<true>(
+      backend::ServingEpilogue<decltype(op)::value,16,TileN,(TILEMEGA_SWIGLU_U<TileN/2?TILEMEGA_SWIGLU_U:TileN/2)>::template RunFromTile<true>(
           tile,tile_m,tile_n,p.m,p.n,p.output_stride,p.partial_stride,p.output,p.residual,
           p.partial,p.argmax_value,p.argmax_index,p.norm_ss,p.ss_out,p.norm_k,p.norm_eps);
     };
@@ -38,10 +38,12 @@ struct ServingGemvTaskBody {
       case Op::kPartial:finish(std::integral_constant<Op,Op::kPartial>{});break;
       case Op::kArgmaxPartial:finish(std::integral_constant<Op,Op::kArgmaxPartial>{});break;
       case Op::kSwiGLU:
-        if constexpr(TileN>=32)finish(std::integral_constant<Op,Op::kSwiGLU>{});
-        else asm volatile("trap;");
+        finish(std::integral_constant<Op,Op::kSwiGLU>{});
         break;
     }
+#if TILEMEGA_TRACE_TASK
+    if(p.profile && ComputeThread()==0)p.profile->epilogue_ns=TaskProfileNow(p.profile)-epilogue_begin;
+#endif
   }
 };
 }

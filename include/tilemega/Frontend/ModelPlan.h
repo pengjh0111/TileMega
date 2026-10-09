@@ -128,6 +128,7 @@ struct ModelPlan {
   bool serving = false;
   int serving_seq = 0;
   int serving_capacity = 0;
+  bool dn_vector_sums = false;
 };
 
 struct ServingOptions {
@@ -139,6 +140,7 @@ struct ServingOptions {
   int query_rows = 64;
   int argmax_tile_n = 32;
   bool deferred_norm = true;
+  bool dn_vector_sums = false;
 };
 
 ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,

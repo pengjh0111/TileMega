@@ -59,11 +59,11 @@ struct ServingGemmCombineTaskBody {
                                      std::int64_t(row) * partial_row_stride +
                                      col + lane];
       }
-      *reinterpret_cast<float4*>(shared + backend::ServingEpilogue<Op, TileM, TileN>::SharedIndex(base / TileN, base % TileN)) =
+      *reinterpret_cast<float4*>(shared + backend::ServingEpilogue<Op, TileM, TileN,(TILEMEGA_SWIGLU_U<TileN/2?TILEMEGA_SWIGLU_U:TileN/2)>::SharedIndex(base / TileN, base % TileN)) =
           make_float4(value[0], value[1], value[2], value[3]);
     }
     ComputeSync();
-    backend::ServingEpilogue<Op, TileM, TileN>::template RunFromTile<true>(
+    backend::ServingEpilogue<Op, TileM, TileN,(TILEMEGA_SWIGLU_U<TileN/2?TILEMEGA_SWIGLU_U:TileN/2)>::template RunFromTile<true>(
         shared, tile_m, tile_n, M, N, output_stride, partial_row_stride,
         output, residual,
         nullptr, argmax_value, argmax_index,norm_ss,ss_out,norm_k,norm_eps);

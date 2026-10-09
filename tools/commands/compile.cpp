@@ -1353,6 +1353,13 @@ int RunCompile(int argc, char** argv) {
           if(auto stage=llvm::dyn_cast<mlir::DictionaryAttr>(entry))
             if(auto kind=stage.getAs<mlir::StringAttr>("kind");kind && kind.getValue()=="kRMSNorm")
               manifest_deferred_norm=false;
+      bool dn_vector_sums=false;int swiglu_interleave_u=16;
+      if(auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan")) {
+        if(auto value=plan.getAs<mlir::BoolAttr>("dn_vector_sums"))dn_vector_sums=value.getValue();
+        if(auto gemms=plan.getAs<mlir::ArrayAttr>("gemms"))for(auto entry:gemms)
+          if(auto value=llvm::cast<mlir::DictionaryAttr>(entry).getAs<mlir::IntegerAttr>("interleave_u"))
+            swiglu_interleave_u=std::min(swiglu_interleave_u,int(value.getInt()));
+      }
       int attention_kv_block=0,attention_query_rows=0;
       if(auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan"))
         if(auto stages=llvm::dyn_cast_or_null<mlir::ArrayAttr>(plan.get("stages")))
@@ -1413,6 +1420,8 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"evict_first\": "<<evict_first
               <<",\n  \"evict_last\": "<<evict_last
               <<",\n  \"deferred_norm\": "<<(manifest_deferred_norm?"true":"false")
+              <<",\n  \"dn_vector_sums\": "<<(dn_vector_sums?"true":"false")
+              <<",\n  \"swiglu_interleave_u\": "<<swiglu_interleave_u
               <<",\n  \"attention_buffers\": "<<attention_buffers
               <<",\n  \"attention_noinline\": "<<(attention_noinline?"true":"false")
               <<",\n  \"ep_direct\": "<<(ep_direct?"true":"false")

@@ -33,7 +33,7 @@ inline bool PruneServingR1(GemmConfig const& g,
   if ((g.impl?ServingGemvSmemBytes(g.tile_m,g.tile_n):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)) >
       context.target->res.max_dynamic_smem_per_cta) return true;
   if (context.gate_interleave_u > 0 &&
-      g.tile_n % (2 * context.gate_interleave_u)) return true;
+      g.tile_n % (2 * (g.impl ? std::min(context.gate_interleave_u,g.tile_n/2) : context.gate_interleave_u))) return true;
   int const k_tiles = (context.k + g.tile_k - 1) / g.tile_k;
   if (k_tiles % g.split_k != 0) return true;
   // Each split must have at least one full K tile, including the shortest.

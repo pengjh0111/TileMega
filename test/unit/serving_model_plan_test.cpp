@@ -81,7 +81,7 @@ int TestServingModelPlan(int argc, char** argv) {
     if (gemm.epilogue == tilemega::frontend::PlanGemm::Epilogue::kArgmaxPartial)
       matched_argmax_tile = gemm.partial_tile_n == 64;
   assert(matched_argmax_tile);
-  for (int tile_n : {32, 128}) {
+  for (int tile_n : {8, 16, 32, 128}) {
     auto alternate = options;
     alternate.argmax_tile_n = tile_n;
     auto changed = tilemega::frontend::BuildModelPlan(
@@ -93,6 +93,16 @@ int TestServingModelPlan(int argc, char** argv) {
     assert(head->partial_tile_n == tile_n);
     assert(changed.stages.back().width ==
            (head->n + tile_n - 1) / tile_n);
+  }
+  if(options.seq==1)for(int u:{4,8}) {
+    auto narrow=options;narrow.interleave_u=u;narrow.dn_vector_sums=true;narrow.argmax_tile_n=8;
+    auto expanded=tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,narrow);
+    assert(expanded.dn_vector_sums);
+    for(std::size_t i=0;i<plan.buffers.size();++i)
+      if(plan.buffers[i].name.find(".ss")!=std::string::npos)
+        assert(expanded.buffers[i].per_batch==4*plan.buffers[i].per_batch);
+    for(auto const& g:expanded.gemms)
+      if(g.epilogue==tilemega::frontend::PlanGemm::Epilogue::kSwiGLU)assert(g.interleave_u==unsigned(u));
   }
   assert(attention > 0 && qkv == 4 * attention + 1);
   assert(packed_qkv && packed_gate_up && selected_final_row && tied_vocabulary);

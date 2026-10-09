@@ -291,6 +291,20 @@ std::string emitServingAttentionConfig(mlir::DictionaryAttr plan,
 
 /// The identifier width the importer read off the exported index tensor. A
 /// model that starts at hidden states emits nothing and keeps the default.
+std::string emitServingNarrowLayout(mlir::DictionaryAttr plan) {
+  std::string out;
+  if(auto attr=plan.getAs<mlir::BoolAttr>("dn_vector_sums");attr && attr.getValue())
+    out+="#define TILEMEGA_DN_VECTOR_SUMS 1\n";
+  int u=16;
+  if(auto gemms=plan.getAs<mlir::ArrayAttr>("gemms"))for(auto entry:gemms) {
+    auto gemm=llvm::cast<mlir::DictionaryAttr>(entry);
+    if(auto value=gemm.getAs<mlir::IntegerAttr>("interleave_u"))
+      u=std::min(u,int(value.getInt()));
+  }
+  if(u!=16)out+="#define TILEMEGA_SWIGLU_U "+std::to_string(u)+"\n";
+  return out;
+}
+
 std::string emitTokenIdBits(mlir::DictionaryAttr plan) {
   auto value = llvm::dyn_cast_or_null<mlir::IntegerAttr>(plan.get("token_id_bits"));
   if (!value || value.getInt() <= 0) return {};
@@ -1200,7 +1214,7 @@ std::string LowerFusedRuntime(mlir::ModuleOp module) {
       << "// Generated from verified fused L-task phase and dependency projections.\n";
   if (stringField(original,"dtype")=="bf16") out << "#define TILEMEGA_MODEL_BF16 1\n";
   out << emitNormEpsilon(original) << emitRoPEPrecision(original)
-      << emitTokenIdBits(original) << emitTaskKindRuntime(original);
+      << emitServingNarrowLayout(original) << emitTokenIdBits(original) << emitTaskKindRuntime(original);
   auto feature=[&](char const* name,int value) {
     out << "#ifndef " << name << "\n#define " << name << ' ' << value << "\n#endif\n";
   };
@@ -1402,7 +1416,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
       << (stringField(emittedPlan, "dtype") == "bf16"
               ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
       << emitNormEpsilon(emittedPlan)
-      << emitRoPEPrecision(emittedPlan) << emitTokenIdBits(emittedPlan) << emitTaskKindRuntime(emittedPlan)
+      << emitRoPEPrecision(emittedPlan) << emitServingNarrowLayout(emittedPlan) << emitTokenIdBits(emittedPlan) << emitTaskKindRuntime(emittedPlan)
       << emitServingAttentionConfig(emittedPlan, module)
       << (clusterDim > 1 ? "#define TILEMEGA_GENERATED_CLUSTER_DIM " +
                                std::to_string(clusterDim) + "\n"
@@ -1513,7 +1527,7 @@ std::string CouplingGraphToCUDA::LowerVariants(
       << (stringField(first_plan, "dtype") == "bf16"
               ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
       << emitNormEpsilon(first_plan)
-      << emitRoPEPrecision(first_plan) << emitTokenIdBits(first_plan) << emitTaskKindRuntime(first_plan)
+      << emitRoPEPrecision(first_plan) << emitServingNarrowLayout(first_plan) << emitTokenIdBits(first_plan) << emitTaskKindRuntime(first_plan)
       << emitServingAttentionConfig(first_plan, first)
       << emitSolvedLaunch(first)
       << EmitGemmInstantiations(shapes)

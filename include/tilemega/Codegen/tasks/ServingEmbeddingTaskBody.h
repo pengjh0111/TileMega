@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Backend/ServingDeferredNorm.h>
 
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 
@@ -59,7 +60,13 @@ struct ServingEmbeddingTaskBody {
         float value=float(source[block*32+j]);
         sum+=value*value;
       }
+#if TILEMEGA_DN_VECTOR_SUMS
+      // Preserve embedding's sequential 32-element sum in the expanded format.
+      auto* dst=ss_out+token_row*(width/8)+4*block;
+      dst[0]=sum;dst[1]=dst[2]=dst[3]=0;
+#else
       ss_out[token_row*(width/32)+block]=sum;
+#endif
     }
   }
 };

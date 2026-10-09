@@ -314,7 +314,7 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
     outputs.push_back(dict(builder, {
         builder.getNamedAttr("buffer", builder.getI64IntegerAttr(output.buffer)),
         builder.getNamedAttr("file", builder.getStringAttr(output.file))}));
-  return dict(builder, {
+  auto result = dict(builder, {
       builder.getNamedAttr("dtype", builder.getStringAttr(plan.dtype)),
       builder.getNamedAttr("norm_epsilon",
                            builder.getF64FloatAttr(plan.norm_epsilon)),
@@ -326,6 +326,12 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
       builder.getNamedAttr("gemms", builder.getArrayAttr(gemms)),
       builder.getNamedAttr("stages", builder.getArrayAttr(stages)),
       builder.getNamedAttr("outputs", builder.getArrayAttr(outputs))});
+  if(plan.dn_vector_sums) {
+    mlir::NamedAttrList fields(result);
+    fields.set("dn_vector_sums",builder.getBoolAttr(true));
+    result=fields.getDictionary(builder.getContext());
+  }
+  return result;
 }
 
 }  // namespace
