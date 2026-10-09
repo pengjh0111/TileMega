@@ -71,6 +71,14 @@ struct PagedGemmTaskBody {
   __device__ static void LoadRow(ServingGemmOperands const& p,int tile_n,
                               Ring const& ring,std::uint64_t& sequence,
                               BeforePage const& before_page=BeforePage{}) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(p.access.a==DmAAccess::kIm2Col) {
+      if(p.conv_iteration.channels==4)
+        LoadConvRow<4>(p,tile_n,ring,sequence,before_page);
+      else LoadConvRow<8>(p,tile_n,ring,sequence,before_page);
+      return;
+    }
+#endif
     int pitch=p.b_row_stride?p.b_row_stride:p.k_total;
     int iterations=(p.k_count+TileK-1)/TileK;
     for(int first=0;first<iterations;first+=kGroupStages) {
@@ -144,6 +152,43 @@ struct PagedGemmTaskBody {
       sequence+=kGroupPages;
     }
   }
+
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  template<int Pack,class BeforePage>
+  __device__ static void LoadConvRow(ServingGemmOperands const& p,int tile_n,
+      Ring const& ring,std::uint64_t& sequence,BeforePage const& before_page) {
+    auto geometry=p.conv_iteration;
+    if(!geometry.iterations || p.k_begin%TileK || p.k_count%TileK) {
+      asm volatile("trap;");return;
+    }
+    auto const& conv=p.convolutions[p.access.conv];
+    auto const& layout=p.dm_buffers.layouts[conv.input_layout];
+    auto pitch=std::uint64_t(geometry.rows)*geometry.columns*geometry.channels;
+    int iterations=p.k_count/TileK;
+    for(int first=0;first<iterations;first+=kGroupStages) {
+      for(int page=0;page<kGroupPages;++page) {
+        before_page(0);ring.AcquireEmpty(sequence+page);
+      }
+      backend::ConvIterationCursor cursor(geometry,conv,layout,p.k_begin/TileK+first,
+          (executor::LoaderLane()*Pack)%TileK);
+      for(int stage=0;stage<kGroupStages;++stage) {
+        for(int v=executor::LoaderLane()*Pack;v<TileN*TileK;
+            v+=executor::kLoaderThreads*Pack) {
+          int column=tile_n*TileN+v/TileK;
+          int byte=stage*kBBytes+LayoutB{}(v/TileK,v%TileK)*sizeof(Element);
+          bool valid=first+stage<iterations && column<p.n && cursor.Point().valid;
+          auto* source=valid?p.b+std::uint64_t(column)*pitch+cursor.b_offset:p.b;
+          auto* destination=ring.Page(sequence+byte/PageBytes)+byte%PageBytes;
+          if constexpr(Pack==4)Async::Copy8Bytes(destination,source,valid?8:0);
+          else Async::Copy16Bytes(destination,source,valid?16:0);
+        }
+        cursor.Advance();
+      }
+      for(int page=0;page<kGroupPages;++page)ring.PublishCopies(sequence+page);
+      sequence+=kGroupPages;
+    }
+  }
+#endif
 
   template<class BeforePage=executor::NoPageHook>
   __device__ static void LoadTile(ServingGemmOperands const& p,int tile_n,
@@ -265,6 +310,20 @@ struct PagedGemmTaskBody {
   __device__ static void Run(ServingGemmOperands const& p,int tile_m,int tile_n,
       Ring const& ring,std::uint64_t& sequence,char* workspace,
       Gate gate={}) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(p.access.a==DmAAccess::kIm2Col) {
+      if(p.epilogue!=backend::ServingEpilogueOp::kPartial || !p.partial) {
+        asm volatile("trap;");return;
+      }
+      auto partial=p;partial.output=reinterpret_cast<Element*>(p.partial);
+      partial.output_stride=p.partial_stride;
+      partial.chain={};partial.chain.store_rounding=DmRounding::kFP32;
+      partial.access.write={};
+      using Spec=DmEpilogueSpec<DmEpilogueProgram<>,DmWriteKind::kDense,1,DmRounding::kFP32>;
+      RunDm<Spec>(partial,tile_m,tile_n,ring,sequence,workspace,gate);
+      return;
+    }
+#endif
     using namespace cute;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     Mma mma;int lane=ComputeThread()%(kComputeThreads/kKSplits);
@@ -420,10 +479,44 @@ struct PagedGemmTaskBody {
   static_assert(kScratchBytes==solver::DmServingPageScratchBytes(TileM,TileN));
   static_assert(kDmWorkspaceBytes==solver::DmServingPageWorkspaceBytes(
       TileM,TileN,TileK,TILEMEGA_DM_PAGE_A_STAGES));
+  struct DenseActivation {
+    ServingGemmOperands const& operands;
+    __device__ void Copy(int iteration,Element* shared,int tile_m) {
+      LoadActivation(operands,tile_m,iteration,shared);
+    }
+  };
   template<class Spec, class Gate=NoPhaseGate>
   __device__ static void RunDm(ServingGemmOperands const& p,int tile_m,int tile_n,
       Ring const& ring,std::uint64_t& sequence,char* workspace,
       Gate gate={}) {
+    if(p.access.a==DmAAccess::kIm2Col) {
+      if(!p.convolutions || p.access.conv==kDmNoIndex ||
+         p.k_begin%TileK || p.k_count%TileK || !p.conv_iteration.iterations) {
+        asm volatile("trap;");return;
+      }
+      auto const& conv=p.convolutions[p.access.conv];
+      if(!conv.p || !conv.q || !p.dm_buffers.layouts ||
+         conv.input_layout>=p.dm_buffers.count) {asm volatile("trap;");return;}
+      auto const& layout=p.dm_buffers.layouts[conv.input_layout];
+      using Conv=backend::ServingConv<Arch,TileM,TileN,TileK,2>;
+      if(p.conv_iteration.channels==4) {
+        typename Conv::template Activation<4,ServingGemmOperands> activation(
+            p,conv,layout,p.conv_iteration,tile_m,p.k_begin/TileK);
+        RunDmActivation<Spec>(p,tile_m,tile_n,ring,sequence,workspace,activation,gate);
+      }else {
+        typename Conv::template Activation<8,ServingGemmOperands> activation(
+            p,conv,layout,p.conv_iteration,tile_m,p.k_begin/TileK);
+        RunDmActivation<Spec>(p,tile_m,tile_n,ring,sequence,workspace,activation,gate);
+      }
+    }else {
+      DenseActivation activation{p};
+      RunDmActivation<Spec>(p,tile_m,tile_n,ring,sequence,workspace,activation,gate);
+    }
+  }
+  template<class Spec,class Activation,class Gate>
+  __device__ static void RunDmActivation(ServingGemmOperands const& p,int tile_m,int tile_n,
+      Ring const& ring,std::uint64_t& sequence,char* workspace,
+      Activation& activation_reader,Gate gate) {
     using namespace cute;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     Mma mma;int lane=ComputeThread()%(kComputeThreads/kKSplits);
@@ -438,8 +531,8 @@ struct PagedGemmTaskBody {
     ZeroInactiveRows(p,tile_m,activation);
     bool gated=gate.enabled && !gate.Ready();
     if(!gated)for(int initial=0;initial<kActivationSlots-1;++initial)
-      if(initial<iterations)LoadActivation(p,tile_m,initial,
-          activation+initial*TileM*TileK);
+      if(initial<iterations)activation_reader.Copy(initial,
+          activation+initial*TileM*TileK,tile_m);
       else cute::cp_async_fence();
     auto copy_a=make_tiled_copy_A(typename Config::SmemCopyAtom{},mma);
     auto copy_b=make_tiled_copy_B(typename Config::SmemCopyAtomB{},mma);
@@ -453,16 +546,23 @@ struct PagedGemmTaskBody {
           if(gate.Ready()) {
             gated=false;
             for(int prime=it;prime<it+kActivationSlots-1;++prime)
-              if(prime<iterations)LoadActivation(p,tile_m,prime,
-                  activation+(prime%kActivationSlots)*TileM*TileK);
+              if(prime<iterations)activation_reader.Copy(prime,
+                  activation+(prime%kActivationSlots)*TileM*TileK,tile_m);
               else cute::cp_async_fence();
           }else {
-            LoadActivation(p,tile_m,it,
-                activation+(it%kActivationSlots)*TileM*TileK);
+            activation_reader.Copy(it,
+                activation+(it%kActivationSlots)*TileM*TileK,tile_m);
             cute::cp_async_wait<0>();ComputeSync();direct=true;
           }
         }
-        if(!direct){cute::cp_async_wait<kActivationSlots-2>();ComputeSync();}
+        if(!direct) {
+          if(it+kActivationSlots-1>=iterations) {
+            asm volatile("cp.async.wait_all;" ::: "memory");
+          }else {
+            asm volatile("cp.async.wait_group %0;" :: "n"(kActivationSlots-2):"memory");
+          }
+          ComputeSync();
+        }
         auto sA=make_tensor(make_smem_ptr(activation+(it%kActivationSlots)*TileM*TileK),LayoutA{});
         auto sB=SharedWeightTile(ring,sequence,stage);
         auto rA=thread.partition_fragment_A(sA);
@@ -493,8 +593,8 @@ struct PagedGemmTaskBody {
 #endif
         int ahead=it+kActivationSlots-1;
         if(!direct) {
-          if(ahead<iterations)LoadActivation(p,tile_m,ahead,
-              activation+(ahead%kActivationSlots)*TileM*TileK);
+          if(ahead<iterations)activation_reader.Copy(ahead,
+              activation+(ahead%kActivationSlots)*TileM*TileK,tile_m);
           else cute::cp_async_fence();
         }
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT

@@ -484,6 +484,7 @@ struct GemmInvocation {
   DmGemmAccess access{};
   DmEpilogueChain chain{};
   ConvDesc const* convolutions = nullptr;
+  backend::ConvIterationGeometry conv_iteration{};
   void const* binding = nullptr;
   void const* rows = nullptr;
   float const* a_scale = nullptr;
@@ -617,6 +618,14 @@ struct GemmStageTaskBody {
     operands.access=invocation.access;
     operands.chain=invocation.chain;
     operands.convolutions=invocation.convolutions;
+    operands.conv_iteration=invocation.conv_iteration;
+    if(invocation.access.a==DmAAccess::kIm2Col) {
+      operands.a=invocation.mainloop.ptr_A;operands.b=invocation.mainloop.ptr_B;
+      operands.weight_base=invocation.serving_weight_base;
+      operands.k_total=invocation.k_total;
+      operands.k_total_full=invocation.serving_k_total_full;
+      operands.k_begin=invocation.serving_k_begin;
+    }
     operands.binding=invocation.binding; operands.rows=invocation.rows;
     operands.a_scale=invocation.a_scale; operands.dm_buffers=invocation.dm_buffers;
     operands.a_row_stride=static_cast<int>(cute::get<0>(invocation.mainloop.dA));

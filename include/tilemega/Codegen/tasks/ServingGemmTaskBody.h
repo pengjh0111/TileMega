@@ -10,6 +10,7 @@
 #include <tilemega/Codegen/DmDescriptors.h>
 #include <tilemega/Codegen/tasks/DmEpilogueDispatch.cuh>
 #include <tilemega/Backend/ServingDmEpilogue.h>
+#include <tilemega/Backend/ServingConv.h>
 #endif
 
 #ifndef TILEMEGA_NONPAGED_TILED
@@ -56,6 +57,7 @@ struct ServingGemmOperands {
   DmGemmAccess access{};
   DmEpilogueChain chain{};
   ConvDesc const* convolutions = nullptr;
+  backend::ConvIterationGeometry conv_iteration{};
   void const* binding = nullptr;
   void const* rows = nullptr;
   float const* a_scale = nullptr;
@@ -86,7 +88,11 @@ struct ServingGemmTaskBody {
   using Config = backend::ServingGemmConfig<Arch, TileM, TileN, TileK, Stages>;
   using Mainloop = typename Config::Mainloop;
   static constexpr int kThreads = Config::kThreads;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  static constexpr int kSharedBytes=solver::DmServingBF16SmemBytes(TileM,TileN,TileK,Stages);
+#else
   static constexpr int kSharedBytes = Config::kSharedBytes;
+#endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   static constexpr int kTileColumns = TileN;
 #endif
@@ -108,6 +114,19 @@ struct ServingGemmTaskBody {
   __device__ static void Run(ServingGemmOperands const& p, int tile_m,
                              int tile_n, char* shared) {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(p.access.a==DmAAccess::kIm2Col) {
+      if(p.epilogue!=backend::ServingEpilogueOp::kPartial || !p.partial) {
+        asm volatile("trap;");return;
+      }
+      auto partial=p;
+      partial.output=reinterpret_cast<cutlass::bfloat16_t*>(p.partial);
+      partial.output_stride=p.partial_stride;
+      partial.chain={};partial.chain.store_rounding=DmRounding::kFP32;
+      partial.access.write={};
+      using Spec=DmEpilogueSpec<DmEpilogueProgram<>,DmWriteKind::kDense,1,DmRounding::kFP32>;
+      RunDm<Spec>(partial,tile_m,tile_n,shared);
+      return;
+    }
     if constexpr(TileN==16 || TileK<64) {
       auto* tile=Config::Dense(p,tile_m,tile_n,shared,TILEMEGA_NONPAGED_TILED!=0);
       auto finish=[&](auto op) {
@@ -202,6 +221,22 @@ struct ServingGemmTaskBody {
   template <class Spec>
   __device__ static void RunDm(ServingGemmOperands const& p, int tile_m,
                              int tile_n, char* shared) {
+    if(p.access.a==DmAAccess::kIm2Col) {
+      if(!p.convolutions || p.access.conv==kDmNoIndex ||
+         p.k_begin%TileK || p.k_count%TileK || !p.conv_iteration.iterations) {
+        asm volatile("trap;");return;
+      }
+      auto const& conv=p.convolutions[p.access.conv];
+      if(!p.dm_buffers.layouts || conv.input_layout>=p.dm_buffers.count) {
+        asm volatile("trap;");return;
+      }
+      auto* tile=backend::ServingConv<Arch,TileM,TileN,TileK,Stages>::template
+          Run<TILEMEGA_NONPAGED_TILED!=0>(p,conv,p.dm_buffers.layouts[conv.input_layout],
+              p.conv_iteration,tile_m,tile_n,p.k_begin/TileK,p.k_count/TileK,shared);
+      backend::ServingDmEpilogue<Arch,Spec,TileM,TileN,false>::RunFromTile(
+          tile,DmEpilogueOperands(p),tile_m,tile_n);
+      return;
+    }
     if constexpr(TileN==16 || TileK<64) {
       auto* tile=Config::Dense(p,tile_m,tile_n,shared,TILEMEGA_NONPAGED_TILED!=0);
       backend::ServingDmEpilogue<Arch,Spec,TileM,TileN,false>::RunFromTile(

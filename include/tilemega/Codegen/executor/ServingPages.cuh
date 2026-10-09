@@ -285,6 +285,10 @@ __device__ inline ServingGemmOperands Operands(GemmInvocation const& inv
   p.epilogue=inv.chunks>1?backend::ServingEpilogueOp::kPartial:inv.serving_op;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   p.access=inv.access; p.chain=inv.chain; p.convolutions=inv.convolutions;
+  p.conv_iteration=inv.conv_iteration;
+  if(inv.access.a==DmAAccess::kIm2Col) {
+    p.a=inv.mainloop.ptr_A;p.b=inv.mainloop.ptr_B;
+  }
   p.binding=inv.binding; p.rows=inv.rows; p.a_scale=inv.a_scale;
   p.dm_buffers=inv.dm_buffers;
   p.a_row_stride=static_cast<int>(cute::get<0>(inv.mainloop.dA));

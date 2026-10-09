@@ -25,6 +25,7 @@
 #include <tilemega/Codegen/executor/CountedDependency.cuh>
 #include <tilemega/Codegen/executor/BindingGate.cuh>
 #include <tilemega/Codegen/MoeBinding.h>
+#include <tilemega/Codegen/DmConvRuntime.h>
 #endif
 #include <tilemega/Codegen/executor/ServingLaunch.cuh>
 #ifndef TILEMEGA_PDL_TRIGGER
@@ -2255,6 +2256,21 @@ inline DeviceModel Create(ModelSpec const& spec,
 #endif
     int split = runtime.split_k;
     int k_tiles = CeilDiv(desc.k, tiling.tile_k);
+    int storage_k=desc.k;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    backend::ConvIterationGeometry conv_iteration{};
+    bool const im2col=desc.access.a==DmAAccess::kIm2Col;
+    if(im2col) {
+      if(desc.access.conv>=spec.convolution_count || !spec.convolutions)
+        throw std::invalid_argument("convolution invocation lacks its descriptor");
+      auto const& conv=spec.convolutions[desc.access.conv];
+      if(conv.input_layout>=spec.buffer_count)
+        throw std::invalid_argument("convolution invocation lacks its input layout");
+      auto geometry=DmConvRuntime::Build(conv,spec.buffers[conv.input_layout].layout,
+          m,desc.n,desc.k,tiling.tile_k,split);
+      conv_iteration=geometry.geometry;k_tiles=geometry.tiles;storage_k=geometry.storage_k;
+    }
+#endif
     int chunks = split < k_tiles ? split : k_tiles;
     if (chunks < 1) chunks = 1;
     gemm_chunks[i] = chunks;
@@ -2278,7 +2294,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       // legal invocation.
       int k_begin = chunk * k_tiles / chunks * tiling.tile_k;
       int k_end = (chunk + 1) * k_tiles / chunks * tiling.tile_k;
-      if (k_end > desc.k) k_end = desc.k;
+      if (k_end > storage_k) k_end = storage_k;
       GemmProblem problem{m, desc.n, k_end - k_begin, 1};
       // The chunk's A/B are the same matrices seen from a K offset: the row
       // stride is still the full k, so only the base pointer moves.
@@ -2306,6 +2322,9 @@ inline DeviceModel Create(ModelSpec const& spec,
           model.buffers[desc.a] + k_begin, stride_a,
           model.buffers[desc.b] + k_begin, stride_b};
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if(im2col) {
+        main_args.ptr_A=model.buffers[desc.a];main_args.ptr_B=model.buffers[desc.b];
+      }
       if(desc.access.a==DmAAccess::kDense)
         main_args.ptr_A+=std::uint64_t(desc.access.a_row_offset)*desc.k;
 #endif
@@ -2343,10 +2362,11 @@ inline DeviceModel Create(ModelSpec const& spec,
       invocation.tile_n = tiling.tile_n;
       invocation.chunks = chunks;
       invocation.variant = variant;
-      invocation.k_total = desc.k;
+      invocation.k_total = storage_k;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
       invocation.dm_gemm = i;
       invocation.access=desc.access; invocation.chain=desc.chain;
+      invocation.conv_iteration=conv_iteration;
       invocation.binding=desc.access.binding==kDmNoIndex ? nullptr : model.buffers.at(desc.access.binding);
       invocation.rows=desc.access.rows==kDmNoIndex ? nullptr : model.buffers.at(desc.access.rows);
       invocation.a_scale=desc.access.a_scale==kDmNoIndex ? nullptr :
@@ -2358,7 +2378,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       invocation.serving_weight_buffer=desc.b;
       invocation.serving_k_begin=k_begin;
       invocation.serving_weight_base=model.buffers[desc.b];
-      invocation.serving_k_total_full=desc.k;
+      invocation.serving_k_total_full=storage_k;
       invocation.serving_tile_k=tiling.tile_k;
       invocation.serving_norm_ss=desc.serving_norm_ss==kNoOperand?nullptr:
           reinterpret_cast<float const*>(model.buffers.at(desc.serving_norm_ss));

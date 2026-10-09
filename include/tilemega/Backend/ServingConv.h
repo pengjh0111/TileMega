@@ -12,6 +12,53 @@ struct ServingConv {
   using Async=typename Gemm::Async;
   static constexpr int kSharedBytes=Gemm::kSharedBytes;
 
+  // The paged B loop primes and replenishes A in monotonically increasing
+  // iteration order. A phase gate can restart priming at the current tile.
+  template<int Pack,class Operands>
+  struct Activation {
+    static_assert(Pack==4 || Pack==8);
+    static constexpr int kVectors=(TM*TK+128*Pack-1)/(128*Pack);
+    Operands const& operands;
+    codegen::ConvDesc const& conv;
+    codegen::DmBufferLayout const& layout;
+    ConvIterationGeometry geometry;
+    std::uint64_t begin;
+    ConvIterationCursor cursor;
+    int next=0;
+    std::int64_t row_base[kVectors];
+
+    __device__ Activation(Operands const& p,codegen::ConvDesc const& c,
+        codegen::DmBufferLayout const& l,ConvIterationGeometry g,int tile_m,
+        std::uint64_t first):operands(p),conv(c),layout(l),geometry(g),begin(first),
+        cursor(g,c,l,first,(codegen::executor::ComputeThread()*Pack)%TK) {
+      for(int i=0;i<kVectors;++i) {
+        int v=codegen::executor::ComputeThread()*Pack+i*128*Pack;
+        int row=tile_m*TM+v/TK;
+        if(v>=TM*TK || row>=p.m) {row_base[i]=0;continue;}
+        auto image=row/(c.p*c.q),pixel=row%(c.p*c.q);
+        auto y=std::int64_t(pixel/c.q)*c.stride_h-c.pad_h+l.halo_top;
+        auto x=std::int64_t(pixel%c.q)*c.stride_w-c.pad_w+l.halo_left;
+        row_base[i]=std::int64_t(image)*l.strides[0]+y*l.strides[1]+x*l.strides[2];
+      }
+    }
+    __device__ void Copy(int iteration,Element* shared,int tile_m) {
+      if(iteration!=next)
+        cursor=ConvIterationCursor(geometry,conv,layout,begin+iteration,
+            (codegen::executor::ComputeThread()*Pack)%TK);
+      for(int i=0;i<kVectors;++i) {
+        int v=codegen::executor::ComputeThread()*Pack+i*128*Pack;
+        if(v>=TM*TK)continue;
+        bool valid=tile_m*TM+v/TK<operands.m && cursor.Point().valid;
+        auto* source=valid?operands.a+row_base[i]+cursor.a_offset:operands.a;
+        auto* target=shared+typename Gemm::LayoutA{}(v/TK,v%TK);
+        if constexpr(Pack==4)Async::Copy8Bytes(target,source,valid?8:0);
+        else Async::Copy16Bytes(target,source,valid?16:0);
+      }
+      cursor.Advance();next=iteration+1;
+      asm volatile("cp.async.commit_group;" ::: "memory");
+    }
+  };
+
   template<bool TiledB,class Operands>
   __device__ static float* Run(Operands const& p,codegen::ConvDesc const& conv,
       codegen::DmBufferLayout const& layout,ConvIterationGeometry geometry,
