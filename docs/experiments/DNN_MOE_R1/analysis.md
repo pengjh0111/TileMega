@@ -212,3 +212,11 @@ contract; the unchanged legacy regime-A test passes 18 bit-exact checks with
 its CMake-specified target (`results/CI7_binding_pricing_integration_host.json`).
 The failed private-header, shared_ptr and wrong-target attempts are retained.
 The committed validation worktree still needs native checks before integration.
+
+verified: the completed CI7 typed-fusion regression preserves all eight CUDA,
+ptxas-resource, SASS and 64-step token comparisons. Full candidate ctest passes
+133/134; full unchanged-reference ctest passes 94/97 after ignored fixtures
+were restored. The common independent-attention mismatch is unchanged.
+Reference also retains six missing wait_protocol schema fields and the missing
+norm_prologue_gemm executable. These failures keep G-REG false; record-only
+queue completion never overrides them (`results/T1_CI7_typed_fusion.json`).

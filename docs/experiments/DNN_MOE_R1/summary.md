@@ -278,11 +278,11 @@ Their 16/16/64 builds cover five architectures and report zero spills
 (`results/CI5_nonpaged_attention_cuda.json`, `CI7_small_native_cuda.json`,
 `CI7_small_task_cuda.json`). No new operand policy or model gate follows.
 
-verified: the CI7 forward checkpoint preserves CUDA bytes, every ptxas
+verified: the CI7 typed-fusion checkpoint preserves CUDA bytes, every ptxas
 resource record, SASS and 64-step tokens for all eight LLM plans
-(`results/T1_CI7_forward.json`). Candidate ctest passes 124/125 with the
-existing independent-attention mismatch. Reference ctest also has missing
-fixtures/executables and target-schema failures. G-REG remains false.
+(`results/T1_CI7_typed_fusion.json`). Candidate ctest passes 133/134;
+reference passes 94/97. Both retain the same independent-attention mismatch;
+reference also fails target schema/missing norm executable. G-REG remains false.
 
 T4/T12 foundation: verified multi-page GEMM passes 100/100 fresh processes
 for three 2/4-page geometries wrapping 3/5-slot rings; ten builds cover five
