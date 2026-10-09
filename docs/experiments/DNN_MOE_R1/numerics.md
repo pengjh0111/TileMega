@@ -87,3 +87,12 @@ Summing the stored weight makes the mean correction cancel constant input
 rows. Weight folding still changes the rounding relative to explicit LN;
 model-level G-DNN remains required. Nested page packing preserves these
 recipes, and the loader binds the dtype declared by each buffer.
+
+verified: encoder attention uses noncausal MHA with D=64, FP32 QK/online
+softmax and FP32 running output. Probabilities round to BF16 at the PV MMA
+input; output rounds once to BF16. The independent FP64 QK/softmax/PV oracle
+covers S=128/384/512, query tiles 64/128 and key-padding cases (including only
+one valid key). All-true masking is bitwise equal to the unmasked body.
+`results/DN_encoder_attention_cuda.json` seals 24 cases, three epochs, 50/50
+fresh processes, five architectures, no spills/stack and zero-error sanitizers.
+This verifies the body, not generated-stage/model integration.
