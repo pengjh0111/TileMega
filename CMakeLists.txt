@@ -559,6 +559,12 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME impl_contract COMMAND tilemega-unit impl_contract)
 
   add_executable(task_body_contract_test test/unit/task_body_contract_test.cu)
+  add_executable(dm_conv_operands_test test/unit/dm_conv_operands_test.cu)
+  target_link_libraries(dm_conv_operands_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_conv_operands_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
+  tilemega_configure_cuda_target(dm_conv_operands_test)
+  add_test(NAME dm_conv_operands COMMAND dm_conv_operands_test)
   add_executable(dm_descriptor_device_test test/unit/dm_descriptor_device_test.cu)
   target_link_libraries(dm_descriptor_device_test PRIVATE TileMega::tilemega)
   target_compile_definitions(dm_descriptor_device_test PRIVATE TILEMEGA_DM_SUPPORT=1)
