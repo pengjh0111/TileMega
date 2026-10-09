@@ -638,12 +638,18 @@ analysis::Granularity LaunchGranularity(
     }
     solver::PartitionDmVirtualGemm(*semantic,access,
         {impl.tile_m,impl.tile_n,impl.tile_k,impl.stages,impl.split_k},g);
-    if(impl.split_k>1) {
-      if(!semantic->reduction.splittable)
+    if(semantic->reduction.splittable || impl.split_k>1) {
+      if(impl.split_k>1 && !semantic->reduction.splittable)
         throw std::invalid_argument("virtual GEMM has no split reduction");
       int k=static_cast<int>(plan.gemms.at(stage.gemm).k);
       int chunks=std::min(impl.split_k,(k+impl.tile_k-1)/impl.tile_k);
-      g.Split(op.name,ClosedForm::Constant((k+chunks-1)/chunks));
+      analysis::TaskReductionIndex index;
+      index.index=analysis::IndexResult::Dim(semantic->reduction.dim,
+          one,ClosedForm::Constant(impl.tile_k));
+      index.capacity=ClosedForm::Constant((k+impl.tile_k-1)/impl.tile_k);
+      index.issued_width=ClosedForm::Constant(impl.tile_k);index.chunks=chunks>1?chunks:0;
+      g.IndexReduction(op.name,std::move(index));
+      if(chunks>1)g.Split(op.name,one);
     }
     virtual_gemms.insert(op.name);
   }

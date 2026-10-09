@@ -18,6 +18,8 @@ std::vector<ArithmeticDeclaration> const& ArithmeticDeclarations() {
      "dm_simple_gate", "two length-K dots and one rounded channel-pair multiplication per compact output"},
     {"simple_gate_combine", {-1,1,0,0,1,false}, {0,0,0,0,1,false}, false,false,true,
      "dm_simple_gate_combine", "R=2*chunks: two (chunks-1) dot sums followed by one rounded pair multiplication"},
+    {"swiglu_combine", {2,1,0,0,1,false}, {1,0,0,0,1,false}, false,false,true,
+     "dm_swiglu_combine", "R=2*chunks: two (chunks-1) dot sums followed by four SiLU/product scalar operations and one exp"},
     {"swiglu_gemm", {0,4,0,0,1,false}, {1,0,0,0,1,false}, true,true,true,
      "serving_epilogue", "two length-K dots per output followed by one SiLU and multiplication"},
     {"argmax_gemm", {0,2,0,0,1,false}, {0,0,0,0,1,false}, true,true,true,

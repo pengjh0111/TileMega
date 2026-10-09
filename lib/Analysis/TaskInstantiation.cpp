@@ -282,8 +282,8 @@ OperatorGraph Instantiate(SemanticGraph const& semantics, Granularity const& g) 
           (indexed?index->second.capacity:reduced->BoundExtent()).CeilDiv(chunk);
       chunk_axis.runtime = !indexed && reduced->runtime && !reduced->capacity;
       if(op.reduction.partial_values!=1 && (op.reduction.partial_values!=2 ||
-         op.arithmetic!="simple_gate_gemm"))
-        throw std::invalid_argument("paired split partials require SimpleGate semantics");
+         (op.arithmetic!="simple_gate_gemm" && op.arithmetic!="swiglu_gemm")))
+        throw std::invalid_argument("paired split partials require channel gate semantics");
       std::string value_axis="partial_value";
       while(has_axis(value_axis) || value_axis==chunk_axis.name)value_axis+="_";
       auto partial = op.result; partial.name = op.reduction.partial_tensor;
@@ -334,7 +334,8 @@ OperatorGraph Instantiate(SemanticGraph const& semantics, Granularity const& g) 
       result.nodes.push_back(std::move(contribution));
       SemanticOp combine_sem = op;
       combine_sem.name = op.reduction.combiner; combine_sem.kind = OperatorKind::kReduction;
-      combine_sem.arithmetic = op.reduction.partial_values==2?"simple_gate_combine":"sum";
+      combine_sem.arithmetic = op.reduction.partial_values==2?
+          (op.arithmetic=="swiglu_gemm"?"swiglu_combine":"simple_gate_combine"):"sum";
       combine_sem.reduction = {};
       combine_sem.operands.clear(); combine_sem.element_reads.clear();
       combine_sem.domain.erase(std::remove_if(combine_sem.domain.begin(), combine_sem.domain.end(),
