@@ -109,3 +109,10 @@ depthwise tile. Optional depthwise global stores have one designated column
 owner. Dense/tiled/paged pointwise paths agree bitwise in the local fixture;
 48 cases, three epochs, 50/50 fresh processes and zero-error sanitizers are
 sealed in `results/DN_dwpw_fused_cuda.json`. Full-model fusion remains pending.
+
+verified: CG-generated depthwise and SimpleGate regions preserve all halo and
+channel-padding canaries. Their per-image channel sums use stored BF16 outputs.
+The generated depthwise→global-pool region checks segmented partial sums and
+means against FP64 reduction, with 50/50 fresh processes, five architectures
+and zero-error sanitizers. Receipts are `results/DN_generated_depthwise*_cuda.json`;
+all artifacts have zero spills and 5/5 stack frames.

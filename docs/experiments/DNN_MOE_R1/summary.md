@@ -171,7 +171,12 @@ tiled and paged weights in 50/50 fresh processes, five architecture builds and
 zero-error sanitizers (`results/DN_dwpw_fused_cuda.json`). All five artifacts
 have zero spills and stack frames. Generated depthwise/per-image pool host
 integration passes 15/15 checks and a separate ownership-padding oracle
-(`results/DN_depthwise_host.json`); its generated-library GPU gates are pending.
+(`results/DN_depthwise_host.json`). Generated depthwise, SimpleGate and
+depthwise→per-image pool libraries each pass 50/50 fresh L1/L2 processes,
+five architectures and zero-error sanitizers (`results/DN_generated_depthwise_cuda.json`,
+`results/DN_generated_depthwise_gated_cuda.json`,
+`results/DN_generated_depthwise_pool_cuda.json`). Each has zero spills and
+5/5 stack frames. Pre-launch Python import failures are retained.
 
 ### Synchronization coverage
 
