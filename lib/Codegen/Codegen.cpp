@@ -1462,11 +1462,17 @@ std::string LowerFusedRuntime(mlir::ModuleOp module) {
     if (!source.attention.empty()) runtime.attention.push_back(source.attention[s]);
   }
   for (auto const& input:inputs) renumber[input.semantics[0].stage]=renumber[input.semantics[1].stage];
-  for (auto const& edge:source.dependencies) {
-    int p=renumber.at(edge.producer),c=renumber.at(edge.consumer);
-    if (p==c) continue;
-    runtime.dependencies.push_back({std::uint32_t(p),std::uint32_t(c),edge.window});
-  }
+  bool bound_dependencies=std::any_of(source.dependencies.begin(),source.dependencies.end(),
+      [](auto const& edge){return edge.table.has_value() || edge.counted.has_value();});
+  if(bound_dependencies)
+    runtime.dependencies=solver::RebuildBoundRuntimeDependencies(projected.projection);
+  else for (auto const& edge:source.dependencies) {
+      int p=renumber.at(edge.producer),c=renumber.at(edge.consumer);
+      if (p==c) continue;
+      auto rewritten_edge=edge;
+      rewritten_edge.producer=p;rewritten_edge.consumer=c;
+      runtime.dependencies.push_back(std::move(rewritten_edge));
+    }
   std::sort(runtime.dependencies.begin(),runtime.dependencies.end(),[](auto const& a,auto const& b) {
     return std::tie(a.consumer,a.producer)<std::tie(b.consumer,b.producer);
   });

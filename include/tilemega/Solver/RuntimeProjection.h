@@ -64,6 +64,9 @@ struct RuntimeProjection {
   std::vector<ProjectedRuntimeWindow> runtime_windows;
   analysis::CouplingRelation tasks;
   analysis::CouplingRelation dependencies;  ///< consumer [stage,task] -> producer
+  // Ordinary event waits must not inherit a counted edge's I2 envelope.
+  std::optional<analysis::CouplingRelation> ordinary_dependencies;
+  analysis::ParamBinding task_binding;
   analysis::CouplingRelation requested_events;  ///< before local-owner poll elision
   analysis::CouplingRelation waits;
   analysis::QuasiPolynomial runtime_task_refs;
@@ -94,6 +97,8 @@ WrittenFusionProjection ProjectWrittenFusionQueues(mlir::ModuleOp module,
 FusedRuntimeProjection FuseProjectedQueues(RuntimeProjection const& original,
     int producer,int consumer,analysis::CouplingRelation const& consumer_to_producer,
     RuntimeProjectionOptions options,bool optional_producer=false);
+std::vector<codegen::DependencyRecord> RebuildBoundRuntimeDependencies(
+    RuntimeProjection const& projection);
 struct ProjectedPlacement {
   std::vector<std::vector<long>> task_ids;
   TaskPlacement placement;

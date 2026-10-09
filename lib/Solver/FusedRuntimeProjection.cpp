@@ -4,6 +4,8 @@
 #include <tilemega/Solver/TaskModel.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <mlir/IR/BuiltinOps.h>
+#include <algorithm>
+#include <tuple>
 #include <stdexcept>
 #include <limits>
 
@@ -161,10 +163,13 @@ FusedRuntimeProjection FuseProjectedQueues(RuntimeProjection const& original,
   FusedRuntimeProjection out;
   auto& result=out.projection;
   result.options=options;
+  result.task_binding=original.task_binding;
   result.tasks=original.tasks.ApplyRange(renumber);
   auto new_c_to_p=renumber.Reverse().ApplyRange(old_c_to_p);
   out.phase_tasks=renumber.Reverse().Union(new_c_to_p);
   result.dependencies=out.phase_tasks.ApplyRange(external).ApplyRange(out.phase_tasks.Reverse());
+  auto ordinary=original.ordinary_dependencies.value_or(original.dependencies).Subtract(internal);
+  result.ordinary_dependencies=out.phase_tasks.ApplyRange(ordinary).ApplyRange(out.phase_tasks.Reverse());
   auto all_new=result.tasks.Image();
   if (!result.dependencies.Image().IsSubset(all_new) ||
       !result.dependencies.Reverse().Image().IsSubset(all_new))
@@ -184,6 +189,27 @@ FusedRuntimeProjection FuseProjectedQueues(RuntimeProjection const& original,
   }
   auto requested=parse("{ [s,t] -> [w,pstage,kind,g] : false }");
   auto waits=requested;
+  auto ownership=[&](int old,int next) {
+    return out.phase_tasks.IntersectDomain("{ [s,t] : s="+std::to_string(next)+" }")
+        .IntersectRange("{ [s,t] : s="+std::to_string(old)+" }")
+        .Reverse().ProjectRange(0,1).Reverse().ProjectRange(0,1);
+  };
+  auto task_count=[&](int stage) {
+    auto count=result.tasks.BindParams(result.task_binding)
+        .IntersectRange("{ [s,t] : s="+std::to_string(stage)+" }").ImageCard().Eval({});
+    if(count<=0 || std::uint64_t(count)>std::numeric_limits<std::uint32_t>::max())
+      throw std::invalid_argument("bound fused task count overflows");
+    return std::uint32_t(count);
+  };
+  for(auto const& edge:original.runtime_tables) {
+    if(edge.producer==producer && edge.consumer==consumer)continue;
+    auto new_stage=[&](int old){return old<=producer?old:old-1;};
+    int np=new_stage(edge.producer),nc=new_stage(edge.consumer);
+    auto exact=ownership(edge.consumer,nc).ApplyRange(edge.table.linear_relation)
+        .ApplyRange(ownership(edge.producer,np).Reverse()).BindParams(result.task_binding);
+    result.runtime_tables.push_back({np,nc,analysis::BuildDependencyTableLinear(
+        exact,task_count(np),task_count(nc))});
+  }
   std::set<std::pair<int,int>> counted_pairs;
   std::uint64_t counter_offset=0;
   for(auto const& edge:original.runtime_counted) {
@@ -191,11 +217,6 @@ FusedRuntimeProjection FuseProjectedQueues(RuntimeProjection const& original,
     if(edge.producer==producer && edge.consumer==consumer)continue;
     auto new_stage=[&](int old){return old<=producer?old:old-1;};
     int np=new_stage(edge.producer),nc=new_stage(edge.consumer);
-    auto ownership=[&](int old,int next) {
-      return out.phase_tasks.IntersectDomain("{ [s,t] : s="+std::to_string(next)+" }")
-          .IntersectRange("{ [s,t] : s="+std::to_string(old)+" }")
-          .Reverse().ProjectRange(0,1).Reverse().ProjectRange(0,1);
-    };
     auto cm=ownership(edge.consumer,nc),pm=ownership(edge.producer,np);
     // Replicating a counted writer would publish a logical unit twice.
     // Splitting a target requires a new dispatch contract, not copied counts.
@@ -246,7 +267,7 @@ FusedRuntimeProjection FuseProjectedQueues(RuntimeProjection const& original,
             .IntersectRange("{ [w,pstage,kind,g] : pstage="+std::to_string(old_p)+" and kind!=3 }");
         if(ordinary.IsSubset(parse("{ [s,t] -> [w,pstage,kind,g] : false }")))continue;
       }
-      auto edge=external.IntersectDomain("{ [s,t] : s="+std::to_string(old_c)+" }")
+      auto edge=ordinary.IntersectDomain("{ [s,t] : s="+std::to_string(old_c)+" }")
           .IntersectRange("{ [s,t] : s="+std::to_string(old_p)+" }");
       if (edge.IsSubset(parse("{ [s,t] -> [a,b] : false }"))) continue;
       auto projected=out.phase_tasks.ApplyRange(edge).ApplyRange(out.phase_tasks.Reverse());
@@ -271,5 +292,53 @@ FusedRuntimeProjection FuseProjectedQueues(RuntimeProjection const& original,
   result.waits=std::move(waits);
   result.runtime_wait_entries=result.waits.ImageCard();
   return out;
+}
+
+std::vector<codegen::DependencyRecord> RebuildBoundRuntimeDependencies(
+    RuntimeProjection const& projection) {
+  analysis::IslReferenceAudit audit(__func__);
+  using R=analysis::CouplingRelation;
+  auto parse=[](std::string const& text){return R::FromIslText(text);};
+  auto tasks=projection.tasks.BindParams(projection.task_binding);
+  auto ordinary=projection.ordinary_dependencies.value_or(projection.dependencies)
+      .BindParams(projection.task_binding);
+  auto count=[&](int stage) {
+    if(stage<0 || stage>=int(projection.stages.size()))
+      throw std::invalid_argument("bound dependency references unknown stage");
+    auto owned=tasks.IntersectRange("{ [s,t] : s="+std::to_string(stage)+" }")
+        .ApplyRange(parse("{ [s,t] -> [t] }"));
+    long n=owned.ImageCard().Eval({});
+    if(n<=0 || std::uint64_t(n)>std::numeric_limits<std::uint32_t>::max())
+      throw std::invalid_argument("bound dependency task count overflows");
+    auto dense=parse("{ [] -> [t] : 0<=t<"+std::to_string(n)+" }");
+    if(!dense.IsSubset(owned.Image()) || !owned.Image().IsSubset(dense))
+      throw std::invalid_argument("bound dependency task ids are not dense");
+    return std::uint32_t(n);
+  };
+  std::vector<codegen::DependencyRecord> result;
+  auto pairs=ordinary.ProjectRange(1,1).Reverse().ProjectRange(1,1);
+  for(auto const& [p,c]:pairs.Points()) {
+    if(p.at(0)>=c.at(0))throw std::invalid_argument("bound dependency is not forward");
+    auto exact=ordinary.IntersectDomain("{ [s,t] : s="+std::to_string(c[0])+" }")
+        .IntersectRange("{ [s,t] : s="+std::to_string(p[0])+" }")
+        .ApplyRange(parse("{ [s,t] -> [t] }"))
+        .Reverse().ApplyRange(parse("{ [s,t] -> [t] }")).Reverse();
+    codegen::DependencyRecord edge{std::uint32_t(p[0]),std::uint32_t(c[0]),{}};
+    edge.table=analysis::BuildDependencyTableLinear(exact,count(p[0]),count(c[0]));
+    result.push_back(std::move(edge));
+  }
+  for(auto const& source:projection.runtime_counted) {
+    if(source.producer>=source.consumer ||
+        count(source.producer)!=source.contract.producers ||
+        count(source.consumer)!=source.contract.contributions.expected.size())
+      throw std::invalid_argument("bound counted contract differs from task ownership");
+    codegen::DependencyRecord edge{std::uint32_t(source.producer),std::uint32_t(source.consumer),{}};
+    edge.counted=source.contract;
+    result.push_back(std::move(edge));
+  }
+  std::stable_sort(result.begin(),result.end(),[](auto const& a,auto const& b) {
+    return std::tie(a.consumer,a.producer)<std::tie(b.consumer,b.producer);
+  });
+  return result;
 }
 }  // namespace tilemega::solver

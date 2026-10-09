@@ -202,6 +202,7 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
   }
   RuntimeProjection result;
   result.options=options;
+  result.task_binding=plan.task_binding;
   std::vector<int> entry(model.stages.size()), done(model.stages.size());
   std::vector<std::string> counts, tiles(model.stages.size());
   std::vector<int> stage_chunks(model.stages.size(),1);
@@ -354,6 +355,7 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
   std::vector<std::string> wait_pieces, dependency_pieces, requested_pieces;
   std::map<std::pair<int,int>,std::vector<std::string>> event_pieces;
   std::vector<analysis::CouplingRelation> table_dependencies,table_waits,table_requested;
+  std::vector<analysis::CouplingRelation> ordinary_tables;
   std::map<std::pair<int,int>,std::vector<analysis::CouplingRelation>> table_events;
   std::uint64_t counted_offset=0;
   for (auto const& edge : edges) {
@@ -409,7 +411,9 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
           valid+" and 0<=c<("+counts[edge.consumer]+")"});
       auto producer=relation({"[p] -> [ps="+std::to_string(edge.producer)+",p] : "+
           valid+" and 0<=p<("+counts[edge.producer]+")"});
-      table_dependencies.push_back(consumer.ApplyRange(table.encoded_relation).ApplyRange(producer));
+      auto exact_table=consumer.ApplyRange(table.encoded_relation).ApplyRange(producer);
+      table_dependencies.push_back(exact_table);
+      ordinary_tables.push_back(std::move(exact_table));
       int kappa=ProducerKappa(options,edge.producer);
       auto identity=analysis::CouplingRelation::FromIslText("{ [c] -> [c] : 0<=c<"+
           std::to_string(table.consumers)+" }");
@@ -465,6 +469,9 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
   result.tasks = relation(task_pieces);
   result.dependencies = relation(dependency_pieces.empty()
       ? std::vector<std::string>{"[cs,c] -> [ps,p] : false"} : dependency_pieces);
+  result.ordinary_dependencies=result.dependencies;
+  for(auto const& table:ordinary_tables)
+    result.ordinary_dependencies=result.ordinary_dependencies->Union(table);
   result.requested_events=relation(requested_pieces.empty()
       ? std::vector<std::string>{"[cs,c] -> [w,pstage,kind,g] : false"} : requested_pieces);
   for (auto const& table : table_dependencies) result.dependencies=result.dependencies.Union(table);
