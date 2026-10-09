@@ -14,7 +14,11 @@ int TestMoeGroupProfile(int,char**) {
                                    {"1":1,"2":1},{"1":1,"2":1}],
     "group_blocks_histograms":{"1":{"8":2},"2":{"4":1,"5":1},"16":{"4":2}},
     "virtual_rows_totals":{"1":[2,2,2,2,2,2,2,2,0,0,0,0],
-                           "2":[4,4,4,3,1,0,0,0],"16":[6,4,3,3,0]}})");
+                           "2":[4,4,4,3,1,0,0,0],"16":[6,4,3,3,0]},
+    "virtual_rows_histograms":{
+      "1":[{"1":2},{"1":2},{"1":2},{"1":2},{"1":2},{"1":2},{"1":2},{"1":2},{},{},{},{}],
+      "2":[{"2":2},{"2":2},{"2":2},{"1":1,"2":1},{"1":1},{},{},{}],
+      "16":[{"2":1,"4":1},{"2":2},{"1":1,"2":1},{"1":1,"2":1},{}]}})");
   auto parse=[&](json::Value const& coordinate) {
     json::Value profile(json::Object{{"schema","tilemega.dm1.routing.profile.v1"},
       {"evidence","verified"},{"profile_id",std::string(64,'a')},
@@ -34,6 +38,12 @@ int TestMoeGroupProfile(int,char**) {
           (v<3?2:v==3?1.5:v==4?.5:0):
           (v==0?3:v==1?2:v<4?1.5:0);
       assert(p.ExpectedVirtualRows(block,v)==expected_rows);
+      assert(p.ExpectedVirtualSubtileRows(block,v,0,block)==expected_rows);
+      assert(p.ActiveVirtualSubtileProbability(block,v,0)==expected);
+      double split_rows=0;
+      for(unsigned begin=0;begin<block;begin+=2)
+        split_rows+=p.ExpectedVirtualSubtileRows(block,v,begin,2);
+      assert(split_rows==expected_rows);
       rows+=p.ExpectedVirtualRows(block,v);
       total+=p.ActiveVirtualProbability(block,v);
     }
@@ -47,6 +57,23 @@ int TestMoeGroupProfile(int,char**) {
   rejects([&]{p.ActiveVirtualProbability(2,p.GroupCapacity(2));});
   rejects([&]{p.ExpectedVirtualRows(4,0);});
   rejects([&]{p.ExpectedVirtualRows(2,p.GroupCapacity(2));});
+  assert(p.ActiveVirtualSubtileProbability(2,3,1)==.5);
+  assert(p.ExpectedVirtualSubtileRows(2,3,1,1)==.5);
+  assert(p.ActiveVirtualSubtileProbability(16,0,2)==.5);
+  assert(p.ExpectedVirtualSubtileRows(16,0,2,16)==1);
+  rejects([&]{p.ActiveVirtualSubtileProbability(2,0,2);});
+  rejects([&]{p.ExpectedVirtualSubtileRows(2,0,0,0);});
+  rejects([&]{p.ActiveVirtualSubtileProbability(4,0,0);});
+  rejects([&]{p.ExpectedVirtualSubtileRows(2,p.GroupCapacity(2),0,1);});
+  for(auto bins:std::vector<json::Value>{json::Object{{"0",2}},json::Object{{"01",2}},
+      json::Object{{"2",1}},json::Object{{"1",2}},json::Object{{"3",2}},
+      json::Object{{"2",true}},json::Object{{"2",0}}}) {
+    auto corrupted=point;
+    auto distributions=point.At("virtual_rows_histograms");
+    auto rows=distributions.At("2").AsArray("rows");rows[0]=bins;
+    distributions.Set("2",rows);corrupted.Set("virtual_rows_histograms",distributions);
+    rejects([&]{parse(corrupted);});
+  }
   for(auto rows:std::vector<json::Value>{
       json::Array{4,4,4,3,2,0,0,0},json::Array{4,4,4,3,0,0,0,0},
       json::Array{4,4,4,3,1,0,0},json::Array{4,4,4,3,1,1,0,0},
@@ -65,7 +92,7 @@ int TestMoeGroupProfile(int,char**) {
     auto corrupted=point;corrupted.Set("group_blocks_histograms",bins);
     rejects([&]{parse(corrupted);});
   }
-  std::cout<<"MoE joint groups: prefix probabilities, virtual row means, conservation and corruption rejection PASS\n";
+  std::cout<<"MoE joint groups: prefix/subtile probabilities, row distributions, conservation and corruption rejection PASS\n";
   return 0;
 }
 } // namespace tilemega::tests::moe_group_profile_test

@@ -38,6 +38,7 @@ class RoutingProfileTest(unittest.TestCase):
                 blocks = []
                 capacity = (t*2+b-1)//b + min(4, t*2)
                 totals = [0]*capacity
+                distributions = [{} for _ in range(capacity)]
                 for start in range(0, len(rows), t):
                     aligned = []
                     for expert in range(4):
@@ -47,10 +48,13 @@ class RoutingProfileTest(unittest.TestCase):
                         aligned.extend(selected)
                     blocks.append(len(aligned)//b)
                     for v in range(len(aligned)//b):
-                        totals[v] += sum(token >= 0 for token in aligned[v*b:(v+1)*b])
+                        valid = sum(token >= 0 for token in aligned[v*b:(v+1)*b])
+                        totals[v] += valid
+                        distributions[v][str(valid)] = distributions[v].get(str(valid), 0)+1
                 expected = {str(n): blocks.count(n) for n in set(blocks)}
                 self.assertEqual(point['group_blocks_histograms'][str(b)], expected)
                 self.assertEqual(point['virtual_rows_totals'][str(b)], totals)
+                self.assertEqual(point['virtual_rows_histograms'][str(b)], distributions)
                 self.assertEqual(sum(totals), t*2*len(blocks))
                 marginal_total = sum(((int(n)+b-1)//b)*count
                     for h in point['tokens_per_expert_histograms'] for n, count in h.items())

@@ -64,6 +64,7 @@ def routing_statistics(selections, experts, top_k, tokens=TOKENS, block_rows=BLO
         per_expert = [Counter() for _ in range(experts)]
         group_blocks = {b: Counter() for b in block_rows}
         virtual_rows = {b: [0]*((t*top_k+b-1)//b + min(experts,t*top_k)) for b in block_rows}
+        row_histograms = {b: [Counter() for _ in sums] for b, sums in virtual_rows.items()}
         windows = 0
         for x in selected:
             for block in x.reshape(-1, t * top_k):
@@ -81,9 +82,11 @@ def routing_statistics(selections, experts, top_k, tokens=TOKENS, block_rows=BLO
                         full, tail = divmod(n, b)
                         for _ in range(full):
                             virtual_rows[b][cursor] += b
+                            row_histograms[b][cursor][b] += 1
                             cursor += 1
                         if tail:
                             virtual_rows[b][cursor] += tail
+                            row_histograms[b][cursor][tail] += 1
                             cursor += 1
                 windows += 1
         histogram = lambda c: {str(k): v for k, v in sorted(c.items())}
@@ -93,6 +96,7 @@ def routing_statistics(selections, experts, top_k, tokens=TOKENS, block_rows=BLO
             tokens_per_expert_histograms=[histogram(c) for c in per_expert],
             group_blocks_histograms={str(b): histogram(c) for b, c in group_blocks.items()},
             virtual_rows_totals={str(b): sums for b, sums in virtual_rows.items()},
+            virtual_rows_histograms={str(b): [histogram(h) for h in hs] for b, hs in row_histograms.items()},
             assignments_per_window=t * top_k)
     return result
 

@@ -132,10 +132,13 @@ def verify_profile(value, *, layers, experts, top_k, tokens=tuple(1 << i for i i
                 raise ValueError('routing histograms violate assignment conservation')
             groups = point.get('group_blocks_histograms', {})
             virtual_rows = point.get('virtual_rows_totals', {})
+            row_histograms = point.get('virtual_rows_histograms', {})
             if set(groups) != {str(b) for b in block_rows}:
                 raise ValueError('routing binding block coordinates differ')
             if set(virtual_rows) != {str(b) for b in block_rows}:
                 raise ValueError('routing virtual row coordinates differ')
+            if set(row_histograms) != {str(b) for b in block_rows}:
+                raise ValueError('routing virtual row distribution coordinates differ')
             for b in block_rows:
                 slots = t*top_k
                 capacity = (slots+b-1)//b + min(experts, slots)
@@ -147,11 +150,24 @@ def verify_profile(value, *, layers, experts, top_k, tokens=tuple(1 << i for i i
                 totals = virtual_rows[str(b)]
                 if not isinstance(totals, list) or len(totals) != capacity:
                     raise ValueError('routing virtual row capacity differs')
+                distributions = row_histograms[str(b)]
+                if not isinstance(distributions, list) or len(distributions) != capacity:
+                    raise ValueError('routing virtual row distribution capacity differs')
                 for v, total in enumerate(totals):
                     total = _integer(total)
                     active = sum(count for n, count in blocks.items() if n > v)
                     if not active <= total <= b*active:
                         raise ValueError('routing virtual rows differ from prefix activity')
+                    bins = {}
+                    for label, count in distributions[v].items():
+                        if not isinstance(label, str) or not label.isascii() or not label.isdecimal() or str(int(label)) != label:
+                            raise ValueError('noncanonical virtual row distribution bin')
+                        rows, count = int(label), _integer(count, 1)
+                        if not 1 <= rows <= b:
+                            raise ValueError('virtual row distribution bin outside extent')
+                        bins[rows] = count
+                    if sum(bins.values()) != active or sum(rows*count for rows, count in bins.items()) != total:
+                        raise ValueError('virtual row distribution differs from activity or mean')
                 if sum(totals) != slots*windows:
                     raise ValueError('routing virtual rows violate assignment conservation')
     return identity

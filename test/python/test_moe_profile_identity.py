@@ -33,6 +33,8 @@ def fixture():
             str(b): copy.deepcopy(point['distinct_experts_histogram']) for b in (16, 32, 64, 128)}
         point['virtual_rows_totals'] = {
             str(b): [4, 0] if point['tokens']==1 else [3, 1, 0] for b in (16, 32, 64, 128)}
+        point['virtual_rows_histograms'] = {
+            str(b): [{'1': 4}, {}] if point['tokens']==1 else [{'1': 1, '2': 1}, {'1': 1}, {}] for b in (16, 32, 64, 128)}
     sampling = dict(layers=2, experts=2, top_k=1, config_sha256='c'*64,
                     tokens_sha256='d'*64)
     sampling_sha = hashlib.sha256((json.dumps(sampling, indent=2, sort_keys=True)+'\n').encode()).hexdigest()
@@ -61,6 +63,17 @@ class MoeProfileIdentityTest(unittest.TestCase):
             value['layers'][0]['coordinates']['1']['virtual_rows_totals']['16']=corrupted
             with self.subTest(corrupted=corrupted), self.assertRaises(ValueError):
                 self.check(seal(value))
+
+    def test_virtual_row_distribution(self):
+        for bins in ({'0': 4}, {'01': 4}, {'2': 4}, {'1': 3}, {'1': True}, {'17': 4}, {'1': 0}):
+            value=fixture()
+            value['layers'][0]['coordinates']['1']['virtual_rows_histograms']['16'][0]=bins
+            with self.subTest(bins=bins), self.assertRaises(ValueError):
+                self.check(seal(value))
+        value=fixture()
+        value['layers'][0]['coordinates']['1']['virtual_rows_histograms']['16'][1]={'1': 1}
+        with self.assertRaises(ValueError):
+            self.check(seal(value))
 
     def check(self, value):
         return verify_profile(value, layers=2, experts=2, top_k=1, tokens=(1, 2))

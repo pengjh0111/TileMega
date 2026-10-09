@@ -20,6 +20,7 @@ struct MoeRoutingPoint {
   std::vector<std::map<std::uint32_t,std::uint64_t>> tokens_per_expert;
   std::map<std::uint32_t,std::map<std::uint32_t,std::uint64_t>> group_blocks;
   std::map<std::uint32_t,std::vector<std::uint64_t>> virtual_rows;
+  std::map<std::uint32_t,std::vector<std::map<std::uint32_t,std::uint64_t>>> virtual_row_histograms;
 
   std::uint64_t SlotCapacity() const {return std::uint64_t(tokens)*top_k;}
   std::uint64_t GroupCapacity(std::uint32_t block_rows) const {
@@ -50,6 +51,33 @@ struct MoeRoutingPoint {
     if(found==virtual_rows.end() || virtual_id>=found->second.size() || !windows)
       throw std::out_of_range("unprofiled MoE virtual row coordinate");
     return double(found->second[virtual_id])/windows;
+  }
+  // BM and the GEMM row tile are independent. A mean alone cannot price the
+  // probability that a later row subtile is nonempty.
+  double ActiveVirtualSubtileProbability(std::uint32_t block_rows,std::uint64_t virtual_id,
+                                        std::uint32_t row_begin) const {
+    auto const& histogram=VirtualRowHistogram(block_rows,virtual_id);
+    if(row_begin>=block_rows)throw std::out_of_range("virtual MoE row subtile exceeds binding block");
+    std::uint64_t active=0;
+    for(auto const& [rows,count]:histogram)if(rows>row_begin)active+=count;
+    return double(active)/windows;
+  }
+  double ExpectedVirtualSubtileRows(std::uint32_t block_rows,std::uint64_t virtual_id,
+                                   std::uint32_t row_begin,std::uint32_t row_count) const {
+    auto const& histogram=VirtualRowHistogram(block_rows,virtual_id);
+    if(row_begin>=block_rows || !row_count)
+      throw std::out_of_range("invalid virtual MoE row subtile");
+    long double total=0;
+    for(auto const& [rows,count]:histogram)if(rows>row_begin)
+      total+=std::min(row_count,rows-row_begin)*static_cast<long double>(count);
+    return double(total/windows);
+  }
+  std::map<std::uint32_t,std::uint64_t> const& VirtualRowHistogram(
+      std::uint32_t block_rows,std::uint64_t virtual_id) const {
+    auto found=virtual_row_histograms.find(block_rows);
+    if(found==virtual_row_histograms.end() || virtual_id>=found->second.size() || !windows)
+      throw std::out_of_range("unprofiled virtual MoE row distribution");
+    return found->second[virtual_id];
   }
   // Unique-weight traffic is a DRAM lower bound for either binding policy.
   // Slot reads may reuse those weights in cache, so are a separate work quantity.
@@ -198,6 +226,33 @@ struct MoeRoutingProfile {
             if(sum!=point.SlotCapacity()*static_cast<long double>(point.windows) ||
                !point.virtual_rows.emplace(b,std::move(rows)).second)
               throw std::invalid_argument("virtual rows violate assignment conservation");
+          }
+        }
+        if(auto distributions=coordinate.Find("virtual_rows_histograms")) {
+          for(auto const& [label,values]:distributions->AsObject("virtual row distributions")) {
+            auto b=key(label);auto totals=point.virtual_rows.find(b);
+            if(totals==point.virtual_rows.end())
+              throw std::invalid_argument("virtual row distribution lacks its mean");
+            auto const& array=values.AsArray("virtual row distributions");
+            if(array.size()!=point.GroupCapacity(b))
+              throw std::invalid_argument("virtual row distribution differs from capacity");
+            std::vector<std::map<std::uint32_t,std::uint64_t>> histograms;
+            for(std::size_t v=0;v<array.size();++v) {
+              std::map<std::uint32_t,std::uint64_t> bins;std::uint64_t active=0;long double sum=0;
+              for(auto const& [row_label,frequency]:array[v].AsObject("virtual row histogram")) {
+                auto rows=key(row_label);auto count=integer(frequency);
+                if(!rows || rows>b || !count || count>point.windows-active || !bins.emplace(rows,count).second)
+                  throw std::invalid_argument("invalid virtual row histogram bin");
+                active+=count;sum+=rows*static_cast<long double>(count);
+              }
+              std::uint64_t expected_active=0;
+              for(auto const& [blocks,windows]:point.group_blocks.at(b))if(blocks>v)expected_active+=windows;
+              if(active!=expected_active || sum!=totals->second[v])
+                throw std::invalid_argument("virtual row distribution differs from activity or mean");
+              histograms.push_back(std::move(bins));
+            }
+            if(!point.virtual_row_histograms.emplace(b,std::move(histograms)).second)
+              throw std::invalid_argument("duplicate virtual row distribution block size");
           }
         }
         if(!result.layers[index].emplace(point.tokens,std::move(point)).second)
