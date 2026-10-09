@@ -100,7 +100,8 @@ def main():
                 tile=16 if args.multipage else 64 if args.attention else 128 if args.smoke else (16,32,64,128)[process%4]
                 binary=args.out/f'phase{phase}-m{tile}-sm_89';log=args.out/f'process-phase{phase}-{process:02d}.log'
                 with log.open('w') as stream:
-                    status=subprocess.run(['flock',LOCK,str(binary)],stdout=stream,stderr=subprocess.STDOUT,timeout=300).returncode
+                    status=subprocess.run(['flock',LOCK,'timeout','--signal=KILL','300',str(binary)],
+                        stdout=stream,stderr=subprocess.STDOUT).returncode
                 result['fresh_processes'].append(dict(phase=phase,tile_m=tile,process=process,exit_code=status,log_sha256=sha(log)))
                 if status:raise RuntimeError(f'paged phase {phase}, process {process} failed; see {log}')
         if hashes!={str(path):sha(path) for path in sorted(dependencies)}:
