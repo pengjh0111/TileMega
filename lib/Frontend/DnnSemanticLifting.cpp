@@ -425,8 +425,8 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
         op.domain={D("m",rows),D("n",C(g.n)),D("k",C(g.k),true)};
         auto map=b.Rows(g.a,"k");
         if(g.access.a_row_offset || g.access.a_row_stride>1) {
-          if(b.Buffer(g.a).layout.rank)
-            throw std::invalid_argument("strided dense row map requires flattened storage");
+          if(layout.rank && layout.rank!=2)
+            throw std::invalid_argument("strided dense row map requires a matrix layout");
           map[0]=Add({I("m",std::max(1u,g.access.a_row_stride))},g.access.a_row_offset);
         }
         auto source_rows=rows*C(std::max(1u,g.access.a_row_stride))+C(g.access.a_row_offset);

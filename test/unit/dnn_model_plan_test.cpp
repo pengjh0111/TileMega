@@ -51,8 +51,9 @@ int TestDnnModelPlan(int argc,char** argv) {
   auto bridge=argc>1?ReadExportBridge(argv[1]):Fixture();
   DnnPlanOptions options;options.batch=2;
   auto plan=BuildDnnModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
-  assert(plan.dm && plan.forward && !plan.serving && plan.serving_seq==1);
-  assert(!plan.stages.empty() && plan.stages.front().kind==PlanTaskKind::kLayoutConvert);
+  assert(plan.dm && plan.forward && !plan.serving);
+  assert(!plan.stages.empty() && (plan.stages.front().kind==PlanTaskKind::kLayoutConvert ||
+                                plan.stages.front().kind==PlanTaskKind::kEmbeddingSum));
   assert(plan.outputs.size()==bridge.outputs.size());
   for(auto const& stage:plan.stages)assert(stage.kind!=PlanTaskKind::kElementwise);
   if(argc==1) {
@@ -69,7 +70,41 @@ int TestDnnModelPlan(int argc,char** argv) {
     catch(std::invalid_argument const& e){rejected=std::string(e.what()).find("observable use")!=std::string::npos;}
     assert(rejected);
   }
-  LiftOptions lift;lift.forward=true;lift.static_seq=1;lift.batch_symbol=argc>1?"s77":"B";
+  if(plan.serving_seq!=1) {
+    assert(plan.gemms.back().access.rows_per_batch==1);
+    assert(plan.gemms.back().access.a_row_stride==unsigned(plan.serving_seq));
+    auto reject=[&](ExportBridge const& bad,std::string const& diagnostic) {
+      bool rejected=false;
+      try{BuildDnnModelPlan(bad.nodes,bad.inputs,bad.outputs,options);}
+      catch(std::invalid_argument const& e){rejected=std::string(e.what()).find(diagnostic)!=std::string::npos;}
+      assert(rejected);
+    };
+    auto invalid=bridge;
+    auto positions=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[](auto const& n){return n.immutable_buffer_value.present;});
+    assert(positions!=invalid.nodes.end());positions->immutable_buffer_value.byte_order="big";
+    reject(invalid,"immutable value proof");
+    invalid=bridge;
+    auto attention=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[](auto const& n){return n.target=="aten.scaled_dot_product_attention.default";});
+    if(attention!=invalid.nodes.end()) {
+      attention->args.resize(6);attention->args[5].kind=FxArgument::Kind::kBool;attention->args[5].boolean=true;
+      reject(invalid,"noncausal");
+      invalid=bridge;
+      attention=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[](auto const& n){return n.target=="aten.scaled_dot_product_attention.default";});
+      attention->kwargs["scale"]=F(.5);reject(invalid,"scale differs");
+    }else {
+      auto scaling=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[](auto const& n){
+        return n.target=="aten.mul.Scalar" && n.args.size()>1 && n.args[1].kind==FxArgument::Kind::kFloat;});
+      assert(scaling!=invalid.nodes.end());scaling->args[1]=F(.25);reject(invalid,"scaling differs");
+      invalid=bridge;
+      auto guard=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[](auto const& n){return n.target=="aten.full_like.default";});
+      assert(guard!=invalid.nodes.end());guard->args[1]=I(1);reject(invalid,"fully masked");
+    }
+  }
+  LiftOptions lift;lift.forward=true;lift.static_seq=plan.serving_seq;lift.batch_symbol="B";
+  for(auto const& input:bridge.inputs)if(input.kind=="USER_INPUT") {
+    auto node=std::find_if(bridge.nodes.begin(),bridge.nodes.end(),[&](auto const& n){return n.name==input.name;});
+    lift.batch_symbol=node->shape.at(0);break;
+  }
   auto lifted=LiftDnnSemantics(plan,lift);assert(lifted.degraded.empty() && lifted.sem.ops.size()==plan.stages.size());
   if(argc>2) {
     ImportOptions imported;imported.phase_batch=2;imported.combiner_tile_per_block=true;
@@ -77,7 +112,8 @@ int TestDnnModelPlan(int argc,char** argv) {
     auto module=TorchExportImporter{}.ImportPlan(argv[1],plan,context,nullptr,imported);
     assert(module);
     std::error_code ec;llvm::raw_fd_ostream output(argv[2],ec);assert(!ec);
-    output<<codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});
+    output<<codegen::CouplingGraphToCUDA{}.LowerVariants(
+        {{*module,unsigned(plan.serving_seq),unsigned(plan.serving_seq)}});
   }
   std::cout<<"{\"passed\":true,\"stages\":"<<plan.stages.size()<<",\"gemms\":"<<plan.gemms.size()
       <<",\"convolutions\":"<<plan.convolutions.size()<<",\"scope\":\"DNN graph planning and semantic lifting\"}\n";
