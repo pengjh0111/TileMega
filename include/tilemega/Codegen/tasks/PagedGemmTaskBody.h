@@ -433,6 +433,11 @@ struct PagedGemmTaskBody {
         }
 #endif
       }
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      // ldmatrix distributes shared-memory reads across warp lanes. Complete
+      // every compute warp's read before publishing the page as reusable.
+      ComputeSync();
+#endif
       for(int page=0;page<kGroupPages;++page)ring.Release(sequence+page);
       sequence+=kGroupPages;
     }
@@ -629,6 +634,7 @@ struct PagedGemmTaskBody {
         }
 #endif
       }
+      ComputeSync();
       for(int page=0;page<kGroupPages;++page)ring.Release(sequence+page);
       sequence+=kGroupPages;
     }

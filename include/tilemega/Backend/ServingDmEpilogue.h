@@ -398,6 +398,9 @@ struct ServingDmEpilogue {
     Store(tile, p, tile_m, tile_n);
     SideVisitor sides{tile, p, tile_m, tile_n};
     DmSideWalk<Spec>::Run(sides);
+    // A fast warp may start the next task's cp.async into this workspace.
+    // Join all readers of the output tile before returning its ownership.
+    codegen::executor::ComputeSync();
   }
 };
 
