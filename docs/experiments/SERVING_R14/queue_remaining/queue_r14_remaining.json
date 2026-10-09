@@ -1,0 +1,1807 @@
+[
+  {
+    "name": "R14_remaining_preflight",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "preflight"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 600,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_prepare",
+    "command": [
+      "flock",
+      "/root/r14_work/gpu.lock",
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/phase_d_r14.py",
+      "prepare",
+      "--tag",
+      "_remaining",
+      "--run-prefix",
+      "r14-remaining",
+      "--config-dir",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "TILEMEGA_GPU_LOCK_HELD": "1"
+    },
+    "after": [
+      "R14_remaining_preflight"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 7200,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_narrow_llama_tn8_row",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "narrow",
+      "--label",
+      "llama_tn8_row"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_preflight"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 1,
+    "timeout_s": 9000,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_narrow_llama_tn16_tiled",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "narrow",
+      "--label",
+      "llama_tn16_tiled"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_preflight"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 1,
+    "timeout_s": 9000,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_narrow_qwen3_tn8_row",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "narrow",
+      "--label",
+      "qwen3_tn8_row"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_preflight"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 1,
+    "timeout_s": 9000,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_narrow_qwen3_tn16_tiled",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "narrow",
+      "--label",
+      "qwen3_tn16_tiled"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_preflight"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 1,
+    "timeout_s": 9000,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_trace",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "trace"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_preflight"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 2,
+    "timeout_s": 3600,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_overhead_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining/trace_arms.json",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_preflight"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 3,
+    "timeout_s": 2400,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_overhead_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining/trace_arms.json",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_preflight"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 3,
+    "timeout_s": 2400,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_overhead_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining/trace_arms.json",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_preflight"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 3,
+    "timeout_s": 2400,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_overhead",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "overhead"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_overhead_r0",
+      "R14_remaining_overhead_r1",
+      "R14_remaining_overhead_r2"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 300,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_calibrate",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/phase_d_r14.py",
+      "calibrate",
+      "--tag",
+      "_remaining",
+      "--run-prefix",
+      "r14-remaining",
+      "--config-dir",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_prepare"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 5,
+    "timeout_s": 10800,
+    "needs_free_mib": 4096,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_build_llama",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/phase_d_r14.py",
+      "build",
+      "--tag",
+      "_remaining",
+      "--run-prefix",
+      "r14-remaining",
+      "--config-dir",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining",
+      "--model",
+      "llama"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_calibrate"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 10,
+    "timeout_s": 47000,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_smoke_llama",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/phase_d_r14.py",
+      "smoke",
+      "--tag",
+      "_remaining",
+      "--run-prefix",
+      "r14-remaining",
+      "--config-dir",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining",
+      "--model",
+      "llama"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_build_llama"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 12,
+    "timeout_s": 1800,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_family_llama",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/phase_d_r14.py",
+      "family",
+      "--tag",
+      "_remaining",
+      "--run-prefix",
+      "r14-remaining",
+      "--config-dir",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining",
+      "--model",
+      "llama"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_smoke_llama"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 600,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_register_llama",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "register",
+      "--model",
+      "llama"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_smoke_llama",
+      "R14_remaining_family_llama"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 600,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_build_qwen3",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/phase_d_r14.py",
+      "build",
+      "--tag",
+      "_remaining",
+      "--run-prefix",
+      "r14-remaining",
+      "--config-dir",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining",
+      "--model",
+      "qwen3"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_calibrate"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 11,
+    "timeout_s": 47000,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_smoke_qwen3",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/phase_d_r14.py",
+      "smoke",
+      "--tag",
+      "_remaining",
+      "--run-prefix",
+      "r14-remaining",
+      "--config-dir",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining",
+      "--model",
+      "qwen3"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_build_qwen3"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 12,
+    "timeout_s": 1800,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_family_qwen3",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/phase_d_r14.py",
+      "family",
+      "--tag",
+      "_remaining",
+      "--run-prefix",
+      "r14-remaining",
+      "--config-dir",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining",
+      "--model",
+      "qwen3"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_smoke_qwen3"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 600,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_register_qwen3",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "register",
+      "--model",
+      "qwen3"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_smoke_qwen3",
+      "R14_remaining_family_qwen3"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 600,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_d2_llama_B1_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining/arms_llama_B1.json",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_d2_llama_B1_r0"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_register_llama"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 20,
+    "timeout_s": 3600,
+    "needs_free_mib": 42793,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_validate_llama_B1_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "validate",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "0"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_d2_llama_B1_r0"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 300,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_d2_llama_B1_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining/arms_llama_B1.json",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_d2_llama_B1_r1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_register_llama"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 20,
+    "timeout_s": 3600,
+    "needs_free_mib": 42793,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_validate_llama_B1_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "validate",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_d2_llama_B1_r1"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 300,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_d2_llama_B1_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining/arms_llama_B1.json",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_d2_llama_B1_r2"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_register_llama"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 20,
+    "timeout_s": 3600,
+    "needs_free_mib": 42793,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_validate_llama_B1_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "validate",
+      "--cell",
+      "llama_B1",
+      "--round",
+      "2"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_d2_llama_B1_r2"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 300,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_canary_llama_B1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "canary",
+      "--cell",
+      "llama_B1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_validate_llama_B1_r0",
+      "R14_remaining_validate_llama_B1_r1",
+      "R14_remaining_validate_llama_B1_r2"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 300,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_replay_llama_B1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "replay",
+      "--cell",
+      "llama_B1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_canary_llama_B1"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 30,
+    "timeout_s": 10800,
+    "needs_free_mib": 42793,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_c1_llama_B1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "c1",
+      "--cell",
+      "llama_B1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_replay_llama_B1"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 35,
+    "timeout_s": 12000,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_c2_llama_B1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "c2",
+      "--cell",
+      "llama_B1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_register_llama"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 36,
+    "timeout_s": 9000,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_protocol_llama_B1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "protocol",
+      "--cell",
+      "llama_B1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_c2_llama_B1"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 40,
+    "timeout_s": 12000,
+    "needs_free_mib": 12288,
+    "retry_args": [
+      "--resume"
+    ]
+  },
+  {
+    "name": "R14_remaining_d2_llama_B16_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining/arms_llama_B16.json",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_d2_llama_B16_r0"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_register_llama"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 25,
+    "timeout_s": 3600,
+    "needs_free_mib": 42793,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_validate_llama_B16_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "validate",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "0"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_d2_llama_B16_r0"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 300,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_d2_llama_B16_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining/arms_llama_B16.json",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_d2_llama_B16_r1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_register_llama"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 25,
+    "timeout_s": 3600,
+    "needs_free_mib": 42793,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_validate_llama_B16_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "validate",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_d2_llama_B16_r1"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 300,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_d2_llama_B16_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining/arms_llama_B16.json",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_d2_llama_B16_r2"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_register_llama"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 25,
+    "timeout_s": 3600,
+    "needs_free_mib": 42793,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_validate_llama_B16_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "validate",
+      "--cell",
+      "llama_B16",
+      "--round",
+      "2"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_d2_llama_B16_r2"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 300,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_canary_llama_B16",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "canary",
+      "--cell",
+      "llama_B16"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_validate_llama_B16_r0",
+      "R14_remaining_validate_llama_B16_r1",
+      "R14_remaining_validate_llama_B16_r2"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 300,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_replay_llama_B16",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "replay",
+      "--cell",
+      "llama_B16"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_canary_llama_B16"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 30,
+    "timeout_s": 10800,
+    "needs_free_mib": 42793,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_c1_llama_B16",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "c1",
+      "--cell",
+      "llama_B16"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_replay_llama_B16"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 35,
+    "timeout_s": 12000,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_c2_llama_B16",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "c2",
+      "--cell",
+      "llama_B16"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_register_llama"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 36,
+    "timeout_s": 9000,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_protocol_llama_B16",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "protocol",
+      "--cell",
+      "llama_B16"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_c2_llama_B16"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 40,
+    "timeout_s": 12000,
+    "needs_free_mib": 12288,
+    "retry_args": [
+      "--resume"
+    ]
+  },
+  {
+    "name": "R14_remaining_d2_qwen3_B1_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining/arms_qwen3_B1.json",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_d2_qwen3_B1_r0"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_register_qwen3"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 20,
+    "timeout_s": 3600,
+    "needs_free_mib": 42793,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_validate_qwen3_B1_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "validate",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "0"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_d2_qwen3_B1_r0"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 300,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_d2_qwen3_B1_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining/arms_qwen3_B1.json",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_d2_qwen3_B1_r1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_register_qwen3"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 20,
+    "timeout_s": 3600,
+    "needs_free_mib": 42793,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_validate_qwen3_B1_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "validate",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_d2_qwen3_B1_r1"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 300,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_d2_qwen3_B1_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining/arms_qwen3_B1.json",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_d2_qwen3_B1_r2"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_register_qwen3"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 20,
+    "timeout_s": 3600,
+    "needs_free_mib": 42793,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_validate_qwen3_B1_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "validate",
+      "--cell",
+      "qwen3_B1",
+      "--round",
+      "2"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_d2_qwen3_B1_r2"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 300,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_canary_qwen3_B1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "canary",
+      "--cell",
+      "qwen3_B1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_validate_qwen3_B1_r0",
+      "R14_remaining_validate_qwen3_B1_r1",
+      "R14_remaining_validate_qwen3_B1_r2"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 300,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_replay_qwen3_B1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "replay",
+      "--cell",
+      "qwen3_B1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_canary_qwen3_B1"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 30,
+    "timeout_s": 10800,
+    "needs_free_mib": 42793,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_c1_qwen3_B1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "c1",
+      "--cell",
+      "qwen3_B1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_replay_qwen3_B1"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 35,
+    "timeout_s": 12000,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_c2_qwen3_B1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "c2",
+      "--cell",
+      "qwen3_B1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_register_qwen3"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 36,
+    "timeout_s": 9000,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_protocol_qwen3_B1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "protocol",
+      "--cell",
+      "qwen3_B1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_c2_qwen3_B1"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 40,
+    "timeout_s": 12000,
+    "needs_free_mib": 12288,
+    "retry_args": [
+      "--resume"
+    ]
+  },
+  {
+    "name": "R14_remaining_d2_qwen3_B16_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining/arms_qwen3_B16.json",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "0",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_d2_qwen3_B16_r0"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_register_qwen3"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 25,
+    "timeout_s": 3600,
+    "needs_free_mib": 42793,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_validate_qwen3_B16_r0",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "validate",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "0"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_d2_qwen3_B16_r0"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 300,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_d2_qwen3_B16_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining/arms_qwen3_B16.json",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "1",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_d2_qwen3_B16_r1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_register_qwen3"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 25,
+    "timeout_s": 3600,
+    "needs_free_mib": 42793,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_validate_qwen3_B16_r1",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "validate",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "1"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_d2_qwen3_B16_r1"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 300,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_d2_qwen3_B16_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/anchor.py",
+      "--arms",
+      "/root/TileMega/docs/experiments/SERVING_R14/inputs/remaining/arms_qwen3_B16.json",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "2",
+      "--out",
+      "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_d2_qwen3_B16_r2"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_register_qwen3"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 25,
+    "timeout_s": 3600,
+    "needs_free_mib": 42793,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_validate_qwen3_B16_r2",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "validate",
+      "--cell",
+      "qwen3_B16",
+      "--round",
+      "2"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_d2_qwen3_B16_r2"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 300,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_canary_qwen3_B16",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "canary",
+      "--cell",
+      "qwen3_B16"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_validate_qwen3_B16_r0",
+      "R14_remaining_validate_qwen3_B16_r1",
+      "R14_remaining_validate_qwen3_B16_r2"
+    ],
+    "after_any": [],
+    "gpu": false,
+    "priority": 0,
+    "timeout_s": 300,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_replay_qwen3_B16",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "replay",
+      "--cell",
+      "qwen3_B16"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_canary_qwen3_B16"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 30,
+    "timeout_s": 10800,
+    "needs_free_mib": 42793,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_c1_qwen3_B16",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "c1",
+      "--cell",
+      "qwen3_B16"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_replay_qwen3_B16"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 35,
+    "timeout_s": 12000,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_c2_qwen3_B16",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "c2",
+      "--cell",
+      "qwen3_B16"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_register_qwen3"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 36,
+    "timeout_s": 9000,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  },
+  {
+    "name": "R14_remaining_protocol_qwen3_B16",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "protocol",
+      "--cell",
+      "qwen3_B16"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [
+      "R14_remaining_c2_qwen3_B16"
+    ],
+    "after_any": [],
+    "gpu": true,
+    "priority": 40,
+    "timeout_s": 12000,
+    "needs_free_mib": 12288,
+    "retry_args": [
+      "--resume"
+    ]
+  },
+  {
+    "name": "R14_remaining_analyze",
+    "command": [
+      "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "/root/TileMega/docs/experiments/SERVING_R14/remaining_tests.py",
+      "analyze"
+    ],
+    "cwd": "/root/TileMega",
+    "env": {
+      "PYTHONPATH": "/root/TileMega/python",
+      "TILEMEGA_BIN": "/root/TileMega/build-phase12/tools/tilemega",
+      "PATH": "/usr/local/cuda/bin:/root/.codex/packages/app-server-daemon/releases/0.162.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0aNMjKJ:/root/.codex/tmp/arg0/codex-arg06znYFD:/root/.codex/packages/app-server-daemon/releases/0.161.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg01GYRSa:/root/.codex/packages/app-server-daemon/releases/0.160.1-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg0KMaqe2:/root/.codex/packages/app-server-daemon/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.codex/tmp/arg0/codex-arg08VN3Q0:/root/.codex/packages/standalone/releases/0.160.0-x86_64-unknown-linux-musl/codex-path:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    },
+    "after": [],
+    "after_any": [
+      "R14_remaining_preflight",
+      "R14_remaining_narrow_llama_tn8_row",
+      "R14_remaining_narrow_llama_tn16_tiled",
+      "R14_remaining_narrow_qwen3_tn8_row",
+      "R14_remaining_narrow_qwen3_tn16_tiled",
+      "R14_remaining_trace",
+      "R14_remaining_overhead",
+      "R14_remaining_register_llama",
+      "R14_remaining_register_qwen3",
+      "R14_remaining_c1_llama_B1",
+      "R14_remaining_c2_llama_B1",
+      "R14_remaining_protocol_llama_B1",
+      "R14_remaining_replay_llama_B1",
+      "R14_remaining_c1_llama_B16",
+      "R14_remaining_c2_llama_B16",
+      "R14_remaining_protocol_llama_B16",
+      "R14_remaining_replay_llama_B16",
+      "R14_remaining_c1_qwen3_B1",
+      "R14_remaining_c2_qwen3_B1",
+      "R14_remaining_protocol_qwen3_B1",
+      "R14_remaining_replay_qwen3_B1",
+      "R14_remaining_c1_qwen3_B16",
+      "R14_remaining_c2_qwen3_B16",
+      "R14_remaining_protocol_qwen3_B16",
+      "R14_remaining_replay_qwen3_B16"
+    ],
+    "gpu": false,
+    "priority": 100,
+    "timeout_s": 600,
+    "needs_free_mib": 12288,
+    "retry_args": []
+  }
+]

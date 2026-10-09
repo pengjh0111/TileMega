@@ -1,0 +1,28 @@
+{
+  "cells": [
+    "llama_B1",
+    "llama_B16",
+    "qwen3_B1",
+    "qwen3_B16"
+  ],
+  "labels": [
+    "vllm",
+    "R13D",
+    "baseline",
+    "R14F"
+  ],
+  "rounds": 3,
+  "new_tokens": 1024,
+  "prefill": "same fresh D1 prefill per cell; L1",
+  "winner": "fresh r14-remaining plans.json and serving sidecar",
+  "correctness": {
+    "c1": "unchanged HF teacher-forced thresholds",
+    "c2": "four-arm 1024-step check",
+    "fresh_processes": 50
+  },
+  "canary": {
+    "threshold": 0.02,
+    "replays_per_marked_round": 1
+  },
+  "guard": "unchanged guard_policy.json"
+}

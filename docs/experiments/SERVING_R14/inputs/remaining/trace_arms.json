@@ -1,0 +1,73 @@
+{
+  "llama_B1": [
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "llama",
+      "model_path": "/root/models/llama3_2_1b",
+      "batch": 1,
+      "prefill": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so",
+      "mode": "L1",
+      "decode_loop": false,
+      "prefill_mode": "L1",
+      "env": {},
+      "label": "baseline",
+      "decode": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/build/llama_B1/baseline/plan.so",
+      "binaries": {
+        "prefill": {
+          "sha256": "dc1b09feb651c877ed8120684866937765dddf4d85305894e80781ab3c86dec8"
+        },
+        "decode": {
+          "sha256": "6484b30978f5c7d7030d359e254fa13f2e574c5874ca48ac5314e42cdb0c1372"
+        }
+      }
+    },
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "llama",
+      "model_path": "/root/models/llama3_2_1b",
+      "batch": 1,
+      "prefill": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so",
+      "mode": "L1",
+      "decode_loop": false,
+      "prefill_mode": "L1",
+      "env": {},
+      "label": "stage",
+      "decode": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/build/llama_B1/stage/plan.so",
+      "binaries": {
+        "prefill": {
+          "sha256": "dc1b09feb651c877ed8120684866937765dddf4d85305894e80781ab3c86dec8"
+        },
+        "decode": {
+          "sha256": "eea8b5b2c28a69807f4bcaefdcd5bc3eb1985232f1e4c367da4c5fcb2554aa5d"
+        }
+      }
+    },
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "llama",
+      "model_path": "/root/models/llama3_2_1b",
+      "batch": 1,
+      "prefill": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so",
+      "mode": "L1",
+      "decode_loop": false,
+      "prefill_mode": "L1",
+      "env": {},
+      "label": "task",
+      "decode": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/build/llama_B1/task/plan.so",
+      "binaries": {
+        "prefill": {
+          "sha256": "dc1b09feb651c877ed8120684866937765dddf4d85305894e80781ab3c86dec8"
+        },
+        "decode": {
+          "sha256": "7ebf78b41511a5a0cad7e353aae28dbba7229b41693fea62859c8915fd5f4b6b"
+        }
+      }
+    }
+  ]
+}

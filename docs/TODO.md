@@ -1517,6 +1517,6 @@ R13 closed with declared limitations: two optional canary reruns and three depen
 | Phase B | 72/72 done; 100 artifacts verify; 50 model variants C-1/C-2 pass; three required protocols each 50/50 |
 | GV-1 / SL-6 | Code complete for narrow TN8/16 DN/SwiGLU and required coverage/deadlines; CPU orchestration and four narrow-model 64-step C-1/C-2 checks pass |
 | Conditional Phase C | 21/22 original steps pass; repaired architecture check passes all five architectures; three candidates regress and are rejected; RW1/AT4 each 50/50 |
-| Phase D | Old queues stopped; 21-step repair had one host-contract failure / 20 skipped; test repaired; fresh D1/PlanFamily/D2/D3 timing deferred by user |
+| Phase D | Old queues remain retired; guarded 65-step continuation prepared in SERVING_R14/queue_remaining; fresh D1/PlanFamily/D2/D3 and full validation pending |
 
-Current scope's bounded logic review is complete (20/20); no R14 job queued. Shared diagnostics are timing-ineligible. Resume from SERVING_R14/results/logic_validation.json and raw/logic_completion_completed.tar.xz; fresh performance/final validation deferred. No new synchronization reliability conclusion.
+Bounded logic review is complete (20/20); shared diagnostics are timing-ineligible. User requests remaining tests: use SERVING_R14/scheduler_remaining/state.json and queue_remaining/queue_r14_remaining.json, not old queue state. Completed Phase 0/A/B/C evidence is preserved; no new synchronization reliability conclusion before final protocols.

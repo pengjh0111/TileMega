@@ -1,0 +1,15 @@
+{
+  "pass_": true,
+  "cpu_tests": [
+    8,
+    3,
+    6,
+    5
+  ],
+  "total_cpu_tests": 22,
+  "steps": 65,
+  "gpu_steps": 41,
+  "cpu_steps": 24,
+  "source_fingerprint": "706483a6c5d6711a0c90204433a1ce599a7636d25439befda412dee620a5d33c",
+  "retired_queues_reused": false
+}
