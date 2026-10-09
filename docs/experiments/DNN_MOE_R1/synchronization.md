@@ -165,3 +165,10 @@ callback publishes. L1 instead follows strictly earlier owners until it
 reaches a non-elided stage. Its barrier follows completion of all reducer
 work. Default non-DM PageStream field layouts, constructor arguments and
 operand signatures now stay behind the original paths; G-REG is pending.
+
+verified: synthetic per-consumer tail thresholds and weighted last-arriver
+pass 50/50 fresh sm_89 processes, with shuffled contribution rows, poisoned
+partials, empty virtual notifications, two banks and 32 epochs. Five architecture
+builds (sm_80/89/90/100/120) have zero spills
+(`results/CI5_counted_threshold_cuda.json`). Native threshold-table/stage and
+real dispatch/combine gates remain pending.
