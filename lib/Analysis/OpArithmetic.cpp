@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/OpArithmetic.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/CouplingRelation.h>
 #include <algorithm>
 #include <stdexcept>
 
@@ -93,7 +94,8 @@ double ArithmeticRatio::Eval(ParamBinding const& theta) const {
   return static_cast<double>(numerator.Eval(theta))/static_cast<double>(denominator);
 }
 
-OpArithmetic InstantiateArithmetic(std::string const& name, ArithmeticInputs const& inputs) {
+static OpArithmetic InstantiateArithmeticImpl(std::string const& name,
+    ArithmeticInputs const& inputs, CouplingRelation const* task_domain) {
   IslReferenceAudit audit(__func__);
 #if !TILEMEGA_OP_ARITHMETIC
   throw std::runtime_error("operator arithmetic declarations disabled");
@@ -115,12 +117,27 @@ OpArithmetic InstantiateArithmetic(std::string const& name, ArithmeticInputs con
       terms.push_back(inputs.total->Scale(f.total));
     }
     if (f.width) terms.push_back(QuasiPolynomial::Constant(f.width*inputs.width));
+    if(task_domain)for(auto& term:terms)term=term.SumAlong(*task_domain);
     return ArithmeticRatio{QuasiPolynomial::Sum(terms),
                            f.denominator*(f.divide_by_width ? inputs.width : 1)};
   };
   return {instantiate(found->flops),instantiate(found->transcendental),
           found->bf16_mma && inputs.dtype==ScalarType::kBF16,
           found->smem_staged,found->reason,found->runtime_implemented};
+}
+
+OpArithmetic InstantiateArithmetic(std::string const& name, ArithmeticInputs const& inputs) {
+  return InstantiateArithmeticImpl(name,inputs,nullptr);
+}
+OpArithmetic InstantiateTaskArithmetic(std::string const& name,
+    ArithmeticInputs const& inputs,CouplingRelation const& task_domain) {
+  if(task_domain.empty() ||
+      task_domain.DomainDimNames().size()!=task_domain.RangeDimNames().size())
+    throw std::invalid_argument("task arithmetic requires an identity domain");
+  auto identity=task_domain.ImageIdentity();
+  if(!task_domain.IsSubset(identity) || !identity.IsSubset(task_domain))
+    throw std::invalid_argument("task arithmetic cannot redistribute task work");
+  return InstantiateArithmeticImpl(name,inputs,&task_domain);
 }
 
 void RequireArithmeticImplementation(OpArithmetic const& a) {
