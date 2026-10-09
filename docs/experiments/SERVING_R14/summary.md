@@ -1,4 +1,4 @@
-# R14 sm_89 — D1 recovery accepted; final comparison queued
+# R14 sm_89 — implementation completion; correctness-only review
 
 - Specified baseline: `76beaea5e2d66e3311b36d020f470c4f016406d0`.
 - Initial local HEAD: `9aebaf6553247ec83c79bc8f101e61ad4ce564fd`; fast-forwarded before implementation.
@@ -16,15 +16,15 @@
 | FX-23 | Implemented; final position-coded checks and five-architecture compilation pass | b3a6af1b3; AttentionPageLayout.h, IndependentAttentionTaskBody.h, PagedAttentionTaskBody.h |
 | FX-24 | Implemented; fixed and joint repaired search-only replays pass | bb42f31bd; StageFlowModel.cpp, stage_flow_test.cpp |
 | FX-25 | Implemented; unit checks and all four diagnostic artifact identities pass | 7c2cd2436; build/identity.py, compile.cpp, ServingRuntime.cuh, identity_join.py |
-| TR-4 | Partial: diagnostics reviewed; sampled stage and task profiles implemented, all five stage/task trace medians below 2%; sampled extrema remain estimates | 377c674d2, 5ec398310, 686dc3afc; ServingTrace.cuh, ServingTaskProfile.h, ledger_r14.py |
+| TR-4 | Code complete, including nonpaged first-ready observer; new model profiles being checked; fresh overhead acceptance deferred | 377c674d2, 5ec398310, 686dc3afc, 258d6e73c; ServingTrace.cuh, ServingProfiledMainloop.h, ledger_r14.py |
 | RW-3 / AT-1 | Implemented; model numerical/C-1/C-2 checks pass; default pipeline off | df96abb7f, 821c64cf6, 9fa448f3a; Phase-B evidence below |
 | AT-3a | Implemented; five-architecture compile and position-coded tests pass; default unchanged | 0c3d9ac45, 68410eb88, dd7af352c; ServingAttentionPVSwap.h |
 | AT-2 / SK-1 | Implemented; three required fresh-process cases each pass 50/50; measured LA/fill variants remain slower | c0849f8a2, 68c592729, ac731bc10, 84def10d5; ModelHarness.cuh, MonotonicLastArriver.cuh, SkeletonSearch.cpp |
 | EP-1 / RA-1 | Implemented; five-architecture compilation and model checks pass; measured variants lose | 5434f44bb, a8588fb82, 9f0c36c2d; ServingEpilogue.h, PagedAttentionTaskBody.h |
-| GV-1 | Partial TN8/16 epilogue domain; production numerical/C-1/C-2 pass; measured variants slower | 54756a6e3, 771aea037, 5ae2ffc8d; ServingGemv.h, ServingGemvTaskBody.h |
-| SL-6 | Partial acceptance: both CLI builds complete; candidate admission limited by budget; final E2E remains pending | e95dbf3ee, 96205607b, a28bbb629; SkeletonSearch.cpp, cli.py, integrated_selection.py |
+| GV-1 | Code complete for TN8/16/32, both layouts and DN/SwiGLU; new narrow real-model checks running | 54756a6e3, 771aea037, 5ae2ffc8d, 26d7f4c14; ServingGemv.h, ServingGemvTaskBody.h, ServingDeferredNorm.h |
+| SL-6 | Code complete; orchestration/coverage/deadline tests pass; fresh hardware selection and final E2E deferred | e95dbf3ee, 96205607b, a28bbb629, 06090c9ea; SkeletonSearch.cpp, cli.py, integrated_selection.py |
 | C-RW1 / C-EP2 / C-AT4 | Implemented and correct, all rejected by retention; defaults off | 1b00e23ef, bb48614c7, 45f482860; IndependentAttentionTaskBody.h, ServingEpilogue.h, ServingPages.cuh |
-| Phase D | D0/D1 and recovery smoke/family review complete; D2/D3 queued | 9d1270bb0; phase_d_final.py, make_phase_d_final.py |
+| Phase D | Historical recovery retained; old queues stopped; fresh performance/final acceptance deferred by current user scope | 9d1270bb0; phase_d_final.py, make_phase_d_final.py |
 
 ## Evidence / T1–T12
 
@@ -84,7 +84,7 @@ Verified evidence: `results/phase0_acceptance.json`, `results/T12_audit.json`, `
 All cited Phase-0 raw measurements, identities, resource logs and final checks are in `raw/phase0_completed.tar.xz`; membership/SHA256 is in `raw/phase0_evidence_manifest.tsv`. Guard sampling is in `raw/phase0_guards.tar.xz`.
 The guard rejected intermediate occupied/interfered attempts; each final diagnostic attempt returned 0. Nevertheless full-trace round 0 and stores-only round 1 were outliers. Do not infer that all remaining variance is caused by instrumentation or that the GPU was certainly uncontaminated.
 TR-4 now moves the tasks-end store after barrier arrival and permits rotating 1/8 CTA stage sampling. Sampled extrema/tails are estimates, explicitly labeled by ledger_r14.py.
-Task profiles are separate, sample 1/8 CTAs, and report the leader's intervals. The CLI currently restricts them to L1; nonpaged CUTLASS's first-page readiness is not directly instrumented (zero means unavailable, not zero wait). This is a remaining TR-4 limitation, not a completed metric.
+Task profiles are separate, sample 1/8 CTAs, and report the leader's intervals. The CLI restricts them to L1. Nonpaged CUTLASS's missing first-ready observation was repaired in 258d6e73c; historical zero readings remain unavailable, not zero wait. Sampled extrema remain estimates.
 An initial trace-only build failed because the nonpaged L1 dispatcher lacked a profile scope; 686dc3afc fixes that scope and retains the original per-task barrier. The corrected full serving trace build passes.
 Phase-B model correctness and the three required 50-process checks have now passed; the new Phase-C frontier and single-slot reuse still require their own checks.
 
@@ -223,4 +223,15 @@ Evidence: raw/completion_repair_initial.tar.xz and completion_repair_initial_man
 Implementation detail: narrow residual writers use distinct eight-column sum slots, consumers reconstruct the existing 32-column sum tree, and embedding preserves its sequential sum. Narrow SwiGLU uses plan-wide gate/up interleave 4/8; default plans keep 16 and the original sum representation. Direct-register GEMV marks readiness after its first vector load. These support the specified narrow family without adding an optimization beyond GV-1.
 Budget deviation: R14 configurations now allow 10800 s per phase/batch instead of 1800 s, to build and attempt the required Ec/body/LA/execution dimensions. Deadline includes subprocess sessions; three confirmation rounds reserve time inside it. Missing coverage or incomplete confirmation fails with evidence and publishes no winner. No model coefficients, correctness thresholds or GPU guard limits change.
 Scheduler was stopped safely with no running tasks (raw/completion_repair/scheduler_pause.json). The old final definition is preserved at retired_queues/queue_phase_d_final.json; three tasks had exit-75 retries, and one left unaccepted partial arm measurements. completion_queue_validation.json and raw/completion_retired_final.tar.xz preserve this distinction. New queue/queue_completion_repair.json has 21 steps: compiler/host/architecture checks, numerics, ten fixed/trace builds, default-path CU/resource/SASS comparisons, smoke, four narrow-model C-1/C-2 checks, new traces/paired overhead, calibration and both models' fresh D1/smoke/family audits. Performance waits for numerical correctness. No old recollection or sidecar is reused as the new D1 choice.
-Resume with one read of scheduler/progress.tsv and this queue's status; inspect results/D1_planfamily_*_v3.json before defining new D2/D3. Monitor: `watch -n 10 'python3 /root/TileMega/docs/experiments/SERVING_R14/status.py --queue queue_completion_repair.json'`. R14 final performance/correctness acceptance remains pending; this is implementation completion plus queued verification.
+The 21-step repair queue is superseded by the correctness-only driver below. Its original failed/skipped state is preserved; do not restart it as part of the current scope. Fresh D1/PlanFamily and D2/D3 remain unaccepted.
+
+## Current user scope and logic review (2026-10-09)
+
+The user prioritizes completing code and proving execution logic, permits shared-GPU correctness checks, and defers performance collection. The scheduler is stopped; no calibration or performance matrix is launched here.
+The repair queue had one failed host test and 20 skipped steps: the test required an RMSNorm stage despite DN being the default. 6276cf4c4 separates explicit-norm and DN assertions without weakening either contract. A subsequent driver fixture incorrectly used a decode export for prefill; the immutable host-case list fixes this independently of product code. Both original failures are retained.
+a51c76e7d adds explicit `--allow-shared-gpu` to correctness and diagnostic tools; default timing guards remain unchanged. Shared diagnostics have `timing_eligible=false`; trace exports `diagnostic_step_ms`, never an accepted performance mean.
+c4247c9f3 tests real build orchestration with explicit CPU test doubles: two pg families, all required dimensions, three-past halving/confirmation, sidecars, immutable manifests, and fail-closed incomplete coverage. This proves orchestration logic, not hardware timing or a final selected plan.
+The bounded driver is `logic_completion.py`; progress is `raw/logic_completion/progress.tsv`. It checks host contracts, five-architecture compilation, numerical suites, fixed builds, 64-step token/KV smoke, narrow-model C-1/C-2, and trace readiness. Final reviewed status is `raw/logic_completion/reviewed_acceptance.json`; original failures remain in `result.json` and logs. All data here is ineligible for performance acceptance.
+Current snapshot: sm_80/89/90/100/120 compile checks and eight GPU numerical tests pass; real-model builds/checks remain running. Evidence: raw/logic_completion_snapshot.tar.xz and its manifest; per-item code audit is results/implementation_completion.json. The post-build review also compares default-path generated source, resources and SASS.
+Monitor this driver, not the retired scheduler queue: `watch -n 10 'tail -n 24 /root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/progress.tsv'`.
+Mandatory R14 code and triggered Phase-C trials are implemented. C-AT3b, C-RW2 and C-GV2 were not triggered; C-PF needs fresh timing evidence before a decision. R14 performance gates and fresh full 1024-step final validation remain deferred.

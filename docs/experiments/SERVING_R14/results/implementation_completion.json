@@ -1,0 +1,143 @@
+{
+  "scope": "implementation and bounded logic correctness only; shared GPU explicitly permitted by user",
+  "baseline": "76beaea5e2d66e3311b36d020f470c4f016406d0",
+  "reviewed_head": "d51f016f1abe0e314afe64e493311ead9d593095",
+  "prompt_sha256": "c7e5771383873ae450c153d873bc633cf4481d9be5cea0f65e216e5b7073330e",
+  "items": [
+    {
+      "id": "FX-23",
+      "code_status": "implemented",
+      "commit": "b3a6af1b3",
+      "location": "include/tilemega/Codegen/tasks/AttentionPageLayout.h:14",
+      "validation": "Position-coded old/fixed counterexample and final layout numerics archived; fresh numerical suite passes."
+    },
+    {
+      "id": "FX-24",
+      "code_status": "implemented",
+      "commit": "bb42f31bd",
+      "location": "lib/Solver/StageFlowModel.cpp:46",
+      "validation": "Fixed/joint sm120 search-only reproductions and conservation units archived."
+    },
+    {
+      "id": "FX-25",
+      "code_status": "implemented",
+      "commit": "7c2cd2436",
+      "location": "python/tilemega/build/identity.py:116",
+      "validation": "Identity generation/execution binding/join rejection units; new fixed artifacts bind source, options, binary and resources."
+    },
+    {
+      "id": "TR-4",
+      "code_status": "implemented",
+      "commit": "258d6e73c",
+      "location": "include/tilemega/Backend/ServingProfiledMainloop.h:55",
+      "validation": "First-ready observer, sampled task/stage trace and ledger implemented; five-architecture compile and numerical probe pass; new model traces pending."
+    },
+    {
+      "id": "AT-1",
+      "code_status": "implemented",
+      "commit": "821c64cf6",
+      "location": "python/tilemega/serving/attention_selection.py:8",
+      "validation": "Ec32/64 legality, balanced L1 execution and second-stage measured Ec variants implemented; historical model checks archived."
+    },
+    {
+      "id": "AT-2",
+      "code_status": "implemented",
+      "commit": "c0849f8a2",
+      "location": "include/tilemega/Codegen/tasks/ModelHarness.cuh:459",
+      "validation": "Nonpaged merge LA and L1/L2 reducer publication implemented; historical required model protocols each 50/50 archived, no new reliability conclusion."
+    },
+    {
+      "id": "AT-3a",
+      "code_status": "implemented",
+      "commit": "0c3d9ac45",
+      "location": "include/tilemega/Backend/ServingAttentionPVSwap.h:8",
+      "validation": "PV transpose mapping and online softmax implemented; fresh position-coded numeric suite passes."
+    },
+    {
+      "id": "SK-1",
+      "code_status": "implemented",
+      "commit": "68c592729",
+      "location": "lib/Solver/SkeletonSearch.cpp:1036",
+      "validation": "Required fill family and nonpaged combine LA implemented; historical model/protocol evidence archived."
+    },
+    {
+      "id": "GV-1",
+      "code_status": "implemented",
+      "commit": "26d7f4c14",
+      "location": "include/tilemega/Backend/ServingGemv.h:11",
+      "validation": "TN8/16/32 register streaming, row/tiled, all epilogues, narrow DN sums and SwiGLU supported; five-architecture compile and numerical suite pass; fresh narrow model checks pending."
+    },
+    {
+      "id": "RW-3",
+      "code_status": "implemented",
+      "commit": "df96abb7f",
+      "location": "include/tilemega/Codegen/tasks/PagedGemmTaskBody.h:248",
+      "validation": "Paged/tiled register ping-pong implemented; fresh numeric suite passes, historical performance retention off."
+    },
+    {
+      "id": "RA-1",
+      "code_status": "implemented",
+      "commit": "a8588fb82",
+      "location": "python/tilemega/build/identity.py:154",
+      "validation": "Noinline/PV resource variants and actual-kernel spill reporting implemented; historical Qwen comparisons archived."
+    },
+    {
+      "id": "EP-1",
+      "code_status": "implemented",
+      "commit": "5434f44bb",
+      "location": "include/tilemega/Backend/ServingEpilogue.h:220",
+      "validation": "Parallel row argmax with dedicated scratch and balanced head tail implemented; fresh tie/negative/tail numeric suite passes."
+    },
+    {
+      "id": "SL-6",
+      "code_status": "implemented",
+      "commit": "06090c9ea",
+      "location": "python/tilemega/serving/integrated_selection.py:56",
+      "validation": "Required structure families, configurable shortlist, multi-past halving, three final confirmations, hard deadline, fail-closed coverage and identity persistence implemented; actual CLI orchestration with explicit test doubles passes, fresh hardware selection deferred."
+    },
+    {
+      "id": "C-AT3b",
+      "code_status": "not triggered; implementation not required by the conditional specification",
+      "decision_status": "not_triggered"
+    },
+    {
+      "id": "C-RW1",
+      "code_status": "implemented; historical retention rejected; defaults off",
+      "decision_status": "triggered"
+    },
+    {
+      "id": "C-RW2",
+      "code_status": "not triggered; implementation not required by the conditional specification",
+      "decision_status": "not_triggered"
+    },
+    {
+      "id": "C-PF",
+      "code_status": "deferred until sufficient fresh timing evidence triggers the registered rule",
+      "decision_status": "pending"
+    },
+    {
+      "id": "C-EP2",
+      "code_status": "implemented; historical retention rejected; defaults off",
+      "decision_status": "triggered"
+    },
+    {
+      "id": "C-AT4",
+      "code_status": "implemented; historical retention rejected; defaults off",
+      "decision_status": "triggered"
+    },
+    {
+      "id": "C-GV2",
+      "code_status": "not triggered; implementation not required by the conditional specification",
+      "decision_status": "not_triggered"
+    }
+  ],
+  "performance_accepted": false,
+  "new_synchronization_reliability_claim": false,
+  "reviewed_acceptance": "raw/logic_completion/reviewed_acceptance.json",
+  "fresh_validation_status": "running; do not infer success from code_status",
+  "deferred": [
+    "TR-4 fresh overhead retention",
+    "fresh D1 hardware selection and C-PF decision",
+    "final 1024-token E2E/C-1/C-2 acceptance"
+  ]
+}

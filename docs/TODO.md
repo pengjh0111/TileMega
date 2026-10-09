@@ -1512,11 +1512,11 @@ R13 closed with declared limitations: two optional canary reruns and three depen
 | FX-23 | Layout contract implemented; old counterexample, final numerics and architecture compilation verified |
 | FX-24 | Per-task conservation implemented; fixed and joint search-only replays pass |
 | FX-25 | Artifact/execution identity implemented; diagnostic builds and identity checks pass |
-| TR-4 | Nonpaged first-ready observation repaired (258d6e73c); numeric probe passes; new profiles/overhead and default-path comparison queued |
+| TR-4 | Code complete including first-ready observer; new model profiles checked by logic driver; fresh overhead measurement deferred |
 | Phase A | 36/36 done, archived and accepted; four C-1/C-2 pass; Llama B1 baseline becomes corrected N1 |
 | Phase B | 72/72 done; 100 artifacts verify; 50 model variants C-1/C-2 pass; three required protocols each 50/50 |
-| GV-1 / SL-6 | Narrow TN8/16 DN/SwiGLU repaired (26d7f4c14); strict deadline/dimension coverage added (06090c9ea); real models and fresh selection queued |
+| GV-1 / SL-6 | Code complete for narrow TN8/16 DN/SwiGLU and required coverage/deadlines; CPU orchestration passes; narrow model checks running |
 | Conditional Phase C | 21/22 original steps pass; repaired architecture check passes all five architectures; three candidates regress and are rejected; RW1/AT4 each 50/50 |
-| Phase D | Old 41-step final queue retired with exit-75 retries and unaccepted partial data; 21 repair/rebuild steps replace it; D2/D3 follow fresh D1 and PlanFamily review |
+| Phase D | Old queues stopped; 21-step repair had one host-contract failure / 20 skipped; test repaired; fresh D1/PlanFamily/D2/D3 timing deferred by user |
 
-Resume at SERVING_R14/scheduler/progress.tsv and state.json. Do not treat the Phase-0 queue as complete R14 implementation or acceptance.
+Current scope is implementation and execution correctness; shared-GPU diagnostics are timing-ineligible. Resume at SERVING_R14/raw/logic_completion/progress.tsv and reviewed_acceptance.json, not the retired scheduler queue. No new synchronization reliability conclusion.

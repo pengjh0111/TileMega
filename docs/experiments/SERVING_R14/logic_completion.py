@@ -97,11 +97,25 @@ def trace(job,arm):
             raise ValueError('missing nonpaged GEMM operand readiness')
         write(out/'summary.json',values)
 
+def compare():
+    references=json.loads((HERE/'phase_d_baseline_arms_v2.json').read_text())
+    arms=json.loads(ARMS.read_text());rows=[]
+    for cell,arm in arms.items():
+        out=OUT/'compare'/cell
+        run([PYTHON,ROOT/'docs/experiments/SERVING_R13/compare_kernels.py',
+             '--reference',references[cell]['decode'],'--candidate',arm['decode'],
+             '--out',out],out/'run.log',600,allowed=(0,1))
+        rows.append(dict(cell=cell,**json.loads((out/'comparison.json').read_text())))
+    write(OUT/'compare/results.json',rows)
+    if not all(r[key] for r in rows for key in ('source_equal','sass_equal','resources_equal')):
+        raise ValueError('default-path source/resources/SASS differ; inspect retained comparisons')
+
 def accept():
     original=json.loads((OUT/'result.json').read_text())
     repaired=json.loads((OUT/'host_v2.json').read_text())
     rows=[repaired if row['name']=='host' else row for row in original['checks']]
-    expected={'prepare','host_v2','arch','numeric','build'}
+    rows.append(json.loads((OUT/'compare.json').read_text()))
+    expected={'prepare','host_v2','arch','numeric','build','compare'}
     for job in json.loads(JOBS.read_text()):
         if job.get('base_so'):expected.add('trace_'+job['label'])
         else:
@@ -119,7 +133,8 @@ def main():
     p=argparse.ArgumentParser();p.add_argument('--host-only',action='store_true');args=p.parse_args();OUT.mkdir(parents=True,exist_ok=True)
     if args.host_only:
         row=step('host_v2',lambda:host('host_v2'))
-        passed=row['status']=='done' and accept()
+        step('compare',compare)
+        passed=accept()
         raise SystemExit(0 if passed else 1)
     rows=[];rows.append(step('prepare',prepare))
     if rows[0]['status']!='done':raise SystemExit(1)
