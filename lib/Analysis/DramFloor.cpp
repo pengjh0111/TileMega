@@ -44,18 +44,45 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
     if(bytes<=0 || (t.element_bytes && t.element_bytes!=bytes))throw std::invalid_argument("inconsistent tensor storage width: "+name);
     t.element_bytes=bytes;return t;
   };
+  std::map<std::string,CouplingRelation> read_envelopes,write_envelopes;
   for(auto const& op:semantics.ops) {
     auto const* task=graph.Find(op.name);if(!task)throw std::invalid_argument("missing semantic task "+op.name);
+    auto dependent=[](IndexingMap const& map) {
+      for(auto const& index:map.results)
+        if(index.kind==IndexResult::Kind::kDataDependent)return true;
+      return false;
+    };
+    auto witness=[&](TensorSpace const& space,CouplingRelation const& actual) {
+      auto image=actual.BindParams(fixed);
+      if(!image.DomainDimNames().empty() || image.RangeDimNames().size()!=space.axes.size())
+        throw std::invalid_argument("DramFloor runtime image violates its physical envelope: "+space.name);
+      return image;
+    };
+    auto store=[&](TensorSpace const& space,IndexingMap const& map,
+                   std::vector<IndexResult> const& predicates) {
+      if(dependent(map)) {
+        auto actual=options.indirect_write_images.find(space.name);
+        if(!task->element_access || actual==options.indirect_write_images.end())
+          throw std::invalid_argument("DramFloor needs the physical runtime write image for "+space.name);
+        auto envelope=ProjectTaskWrite(op,*task,task->element_access->partition,
+            space,map,predicates,fixed);
+        write_envelopes[space.name]=write_envelopes[space.name].Union(envelope.Image());
+        return witness(space,actual->second);
+      }
+      if(task->element_access)
+        return ProjectTaskElements(op,*task,task->element_access->partition,
+            space,map,predicates,fixed).Image();
+      ElementRead indexed{space,map,predicates};
+      return ExactElementRead(op,*task,indexed,fixed).Image();
+    };
     auto& dst=tensor(op.result.name,op.dtype);
-    auto writes = task->element_access
-        ? ProjectTaskElements(op, *task, task->element_access->partition, op.result, op.result_map, {}, fixed).Image()
+    auto writes = task->element_access || dependent(op.result_map)
+        ? store(op.result,op.result_map,{})
         : ElementAccess(*task,BuildWriteMap(*task),fixed,AccessDomain::kPhysicalTensor).Image();
     dst.writes=dst.writes.Union(writes);dst.state|=!op.result_effect.state_object.empty();
     for (auto const& write:op.additional_writes) {
-      ElementRead indexed{write.tensor,write.map,write.nonnegative};
       auto& extra=tensor(write.tensor.name,op.dtype);
-      extra.writes=extra.writes.Union(
-          ExactElementRead(op,*task,indexed,fixed).Image());
+      extra.writes=extra.writes.Union(store(write.tensor,write.map,write.nonnegative));
       extra.state|=!write.effect.state_object.empty();
     }
     for(auto const& operand:op.operands)consumers.insert(operand.tensor.name);
@@ -63,12 +90,30 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
       auto& src=tensor(name,op.dtype);src.reads=src.reads.Union(relation.Image());
     };
     std::set<std::string> indirect;
-    for(auto const& operand:op.operands)for(auto const& index:operand.map.results)
-      if(index.kind==IndexResult::Kind::kDataDependent)indirect.insert(operand.tensor.name);
+    std::map<std::string,CouplingRelation> indirect_envelopes;
+    auto indirect_read=[&](TensorSpace const& space,IndexingMap const& map,
+                           std::vector<IndexResult> const& predicates) {
+      if(!dependent(map))return;
+      indirect.insert(space.name);
+      if(task->element_access)
+        indirect_envelopes[space.name]=indirect_envelopes[space.name].Union(
+            ProjectTaskRead(op,*task,task->element_access->partition,space,map,predicates,fixed));
+    };
+    if(op.element_reads.empty())for(auto const& operand:op.operands)
+      indirect_read(operand.tensor,operand.map,{});
+    else for(auto const& read:op.element_reads)
+      indirect_read(read.tensor,read.map,read.nonnegative);
     for(auto const& name:indirect) {
       auto actual=options.indirect_read_images.find(name);
       if(actual==options.indirect_read_images.end())throw std::invalid_argument("DramFloor needs the physical runtime read image for "+name);
-      append(name,actual->second);
+      auto image=actual->second;
+      if(auto envelope=indirect_envelopes.find(name);envelope!=indirect_envelopes.end()) {
+        TensorSpace space;space.name=name;
+        space.axes.resize(envelope->second.RangeDimNames().size());
+        image=witness(space,image);
+        read_envelopes[name]=read_envelopes[name].Union(envelope->second.Image());
+      }
+      append(name,image);
     }
     if(!op.element_reads.empty()) {
       for(auto const& read:op.element_reads)if(!indirect.count(read.tensor.name))
@@ -89,6 +134,13 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
       result.matmul_flops=result.matmul_flops.Add(Polynomial(work,fixed));
     }
   }
+  auto validate_images=[&](auto const& supplied,auto const& envelopes) {
+    for(auto const& [name,envelope]:envelopes)
+      if(!supplied.at(name).BindParams(fixed).IsSubset(envelope))
+        throw std::invalid_argument("DramFloor runtime image violates its physical envelope: "+name);
+  };
+  validate_images(options.indirect_read_images,read_envelopes);
+  validate_images(options.indirect_write_images,write_envelopes);
   std::vector<QuasiPolynomial> reads,writes;
   for(auto& [name,t]:result.tensors) {
     t.no_producer=t.reads.Subtract(t.writes);

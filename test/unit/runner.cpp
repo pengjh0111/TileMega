@@ -91,9 +91,11 @@ namespace tilemega::tests::counted_dependency_cg_test { int TestCountedDependenc
 namespace tilemega::tests::counted_dependency_cg_test { int TestCountedDependencyFlow(int, char**); }
 namespace tilemega::tests::runtime_dependency_codec_test { int TestRuntimeDependencyCodec(int, char**); }
 namespace tilemega::tests::dm_page_resources_test { int TestDmPageResources(int, char**); }
+namespace tilemega::tests::dm_dram_images_test { int TestDmDramImages(int,char**); }
 int main(int argc, char** argv) {
   struct Entry { char const* name; int (*run)(int, char**); };
   Entry const entries[] = {
+    {"dm_dram_images", tilemega::tests::dm_dram_images_test::TestDmDramImages},
     {"dm_page_resources", tilemega::tests::dm_page_resources_test::TestDmPageResources},
     {"counted_dependency_cg", tilemega::tests::counted_dependency_cg_test::TestCountedDependencyCg},
     {"counted_dependency_flow", tilemega::tests::counted_dependency_cg_test::TestCountedDependencyFlow},

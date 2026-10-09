@@ -18,6 +18,8 @@ struct DramFloorOptions {
   // Runtime gathers cannot supply unique physical addresses from theta alone.
   // Callers may bind their actual read image; otherwise the audit rejects them.
   std::map<std::string,CouplingRelation> indirect_read_images;
+  // Scatter images carry actual element coordinates, not I2 envelopes.
+  std::map<std::string,CouplingRelation> indirect_write_images;
 };
 struct DramFloor {
   std::map<std::string,DramTensorFootprint> tensors;
