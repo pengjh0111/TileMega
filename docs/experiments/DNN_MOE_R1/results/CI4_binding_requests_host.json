@@ -1,0 +1,32 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_commits": [
+    "bd5c3ea8d1c81ac38a24c1d33734e0e6b11be2db",
+    "18f4019c8d7e22f6314f0ad98c77381b4c00eb30"
+  ],
+  "capacity_token_geometries": 9,
+  "assertions_enabled": true,
+  "expectations_changed": false,
+  "scope": "L-sem binding request coordinates preserve issued gather/scatter cardinality independently of the physical I2 address envelope. Nine capacity/token domains cover full/tail row and column tiles, rowgather and expert-block reuse, two correlated scatter axes, frontier reads, reduction extents and legacy serialization. These are potential accesses across static capacity; routing occupancy, DRAM provenance and real expert-body integration remain pending.",
+  "inputs": {
+    "include/tilemega/Analysis/Semantics.h": "7ca73c34ab78ff6f74df9fba6aa6b82551077478a510a6da0136005aa8b92520",
+    "include/tilemega/Analysis/TaskElementRelation.h": "acf6cbac38cf6c6def90f78107c498b72a0e3b31d9b254481e617a092c9ea704",
+    "lib/Analysis/ExactTaskWork.cpp": "3d107c1bab7ddd4c326ad87f9e7ba9478387696180ac7507a03b6e11cfa5e62a",
+    "lib/Analysis/SemanticCodec.cpp": "7cc1123df5e45d146b7a8ea7b449387e096a8c1b4d3530c8ef324fb648ff0fbc",
+    "lib/Analysis/Semantics.cpp": "f2ba9195475b513c0716883d05020a29476df0b2b7646add55cea1a59528c538",
+    "lib/Analysis/TaskElementRelation.cpp": "8b0fb17b32eef9820e37b0366cf434470a9cf66df8fe07684657e2273c57233e",
+    "test/unit/exact_task_metadata_test.cpp": "bd10aa5c6190d6449113f1bf99c9125b53c87ec34d90f09b1374dcdbdd428025"
+  },
+  "binary_sha256": "c55d16203b3072230433538788bf1bfa4f5f8a78b2a76750e2a96ab82356b078",
+  "queue_sha256": "b5427bcd41d55495a9683a5f88f3daf8a2fd7b0d2bd9d3b27b44812f1f1d39df",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "logs": {
+    "runs/dm1-ci4-binding-requests-v2/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/dm1-ci4-binding-requests-v2/events/02_ctest.log": "6907852f97822ea53fc5dcdf3bf10a7b2d0f06d97676a2fd200f98110c9d4bbf",
+    "runs/dm1-ci4-binding-requests-v2/events/01_build.log": "861c94b5618077f77854cab4d0f3f770bd233dc994823d20deb72bb5a439a92f"
+  },
+  "failed_audit": "runs/dm1-ci4-binding-requests",
+  "fixture_correction": "An extent-one virtual axis is absent from task coordinate tuples; point oracle now resolves coordinates by name. Byte counts and numerical expectations are unchanged.",
+  "native_checks": 12
+}

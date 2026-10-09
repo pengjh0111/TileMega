@@ -157,3 +157,20 @@ inferred: the counted I2 envelope is necessary for placement but does not
 expand ordinary fine-event waits. Fusion composes these two relations separately;
 counted targets retain weighted counters even when their task owner is local.
 Real counted CG endpoint rewriting and new fused physical bodies remain pending.
+
+
+verified: logical binding request cardinalities pass twelve native checks and
+nine capacity/token geometries (`results/CI4_binding_requests_host.json`).
+A row request is keyed by virtual block and local row; an expert weight request
+is keyed by virtual block, so channel and reduction coordinates retain their
+within-task reuse. Two scatter axes from the same binding share the same request
+keys. Full/tail rows and columns, frontier reads and reduction extents pass.
+The extent-one enumeration fixture was corrected to use named coordinates;
+its byte counts and numerical expectations were not changed.
+
+inferred: request coordinates describe issued accesses rather than a unique
+physical image. Different requests may name the same physical row. I2 still
+widens only the data-dependent physical axes for dependency derivation. These
+raw capacity counts require routing occupancy before expert pricing; DRAM
+provenance and real expert-body integration remain pending. Request metadata
+serializes only when present, preserving legacy default representations.
