@@ -58,7 +58,7 @@ int TestDnnModelPlan(int argc,char** argv) {
   for(auto const& stage:plan.stages)assert(stage.kind!=PlanTaskKind::kElementwise);
   if(argc==1) {
     assert(plan.stages.size()==6 && plan.gemms.size()==3 && plan.convolutions.size()==3);
-    assert(plan.gemms[0].chain.count==2 && plan.gemms[1].chain.count==2);
+    assert(plan.gemms[0].chain.count==3 && plan.gemms[1].chain.count==2);
     assert(plan.gemms[1].chain.side_count==1);
     assert(plan.buffers[plan.stages[4].operands[2]].dtype=="bf16");
     auto invalid=bridge;invalid.nodes.back().target="aten.unknown.default";

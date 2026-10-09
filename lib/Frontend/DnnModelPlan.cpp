@@ -785,10 +785,16 @@ struct Builder {
       auto prior=llvm::json::parse(old.pack_json);common["bias"]=prior->getAsObject()->getString("source")->str();
     }
     auto folded=llvm::json::Object{{"kind","conv_bn_fold"},{"source",original},{"padded_channels",cp},
-        {"gamma",Fqn(Ref(node,1))},{"mean",Fqn(Ref(node,3))},{"variance",Fqn(Ref(node,4))},{"epsilon",epsilon}};
+        {"gamma",Fqn(Ref(node,1))},{"mean",Fqn(Ref(node,3))},{"variance",Fqn(Ref(node,4))},
+        {"epsilon",epsilon},{"scale_in_epilogue",true}};
     weight.pack_json=Json(std::move(folded));common["kind"]="bn_bias";
     unsigned bias=Weight(node.name+".bn_bias",std::move(common),c.k,"f32");
-    chain.count=1;chain.operations[0]=DmEpilogueOp{};chain.operations[0].parameter[0]=bias;
+    unsigned scale=Weight(node.name+".bn_scale",llvm::json::Object{{"kind","bn_scale"},
+        {"gamma",Fqn(Ref(node,1))},{"mean",Fqn(Ref(node,3))},
+        {"variance",Fqn(Ref(node,4))},{"epsilon",epsilon}},c.k,"f32");
+    chain.count=2;chain.operations[0]=DmEpilogueOp{};
+    chain.operations[0].kind=DmEpilogueKind::kScale;chain.operations[0].parameter[0]=scale;
+    chain.operations[1]=DmEpilogueOp{};chain.operations[1].parameter[0]=bias;
     p.node_buffer[node.name]=input;
   }
   void Activation(FxNodeRecord const& node) {

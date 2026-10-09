@@ -57,6 +57,24 @@ class DnnRecipes(unittest.TestCase):
                     actual = F.conv2d(x, folded[..., :channels].permute(0, 3, 1, 2).float(), bn, stride, 1)
                     self.assertTrue(torch.all((actual-reference).abs() <= .016 + .016*reference.abs()))
 
+    def test_bn_scale_factorization(self):
+        values = dict(w=torch.randn(8, 24, 3, 3).bfloat16(),
+            gamma=torch.tensor([0, -1.3, .19, 4.17, -.51, .77, 2.3, -.2]).bfloat16(),
+            beta=torch.randn(8).bfloat16(), mean=torch.randn(8), variance=torch.rand(8)+.1,
+            b=torch.randn(8).bfloat16())
+        common = dict(gamma='gamma', beta='beta', mean='mean', variance='variance', epsilon=1e-5)
+        folded = self.packed(dict(kind='conv_bn_fold', source='w', padded_channels=24,
+            scale_in_epilogue=True, **common), values, ['w', 'gamma', 'mean', 'variance'])
+        scale = self.packed(dict(kind='bn_scale', **common), values, ['gamma', 'mean', 'variance'])
+        bias = self.packed(dict(kind='bn_bias', bias='b', **common), values,
+            ['gamma', 'beta', 'mean', 'variance', 'b'])
+        self.assertTrue(torch.equal(folded.permute(0,3,1,2), values['w']))
+        x=torch.randn(2,24,9,11).bfloat16().float()
+        reference=F.batch_norm(F.conv2d(x,values['w'].float(),values['b'].float(),padding=1),
+            values['mean'],values['variance'],values['gamma'].float(),values['beta'].float(),False,eps=1e-5)
+        actual=F.conv2d(x,folded.permute(0,3,1,2).float(),padding=1)*scale[None,:,None,None]+bias[None,:,None,None]
+        torch.testing.assert_close(actual,reference,atol=2e-5,rtol=2e-6)
+
     def test_deferred_layernorm(self):
         values = dict(w=(torch.randn(19, 24) * .15).bfloat16(),
             gamma=(torch.rand(24)+.5).bfloat16(), beta=(torch.randn(24)*.1).bfloat16(),

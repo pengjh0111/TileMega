@@ -6,7 +6,7 @@ from typing import Mapping
 import torch
 
 
-DNN_RECIPES = frozenset(('conv_bn_fold', 'bn_bias', 'fold_layernorm',
+DNN_RECIPES = frozenset(('conv_bn_fold', 'bn_bias', 'bn_scale', 'fold_layernorm',
                          'linear_bias', 'qkv_concat_bias', 'gate_pair_interleave'))
 
 
@@ -16,7 +16,7 @@ def recipe_sources(recipe: Mapping, nested) -> tuple[str, ...]:
         return tuple(str(name) for name in recipe['sources'])
     value = recipe.get('source')
     result = nested(value) if isinstance(value, dict) else ((str(value),) if value is not None else ())
-    if kind in ('conv_bn_fold', 'bn_bias'):
+    if kind in ('conv_bn_fold', 'bn_bias', 'bn_scale'):
         result += tuple(str(recipe[key]) for key in ('gamma', 'mean', 'variance'))
         if kind == 'bn_bias':
             result += (str(recipe['beta']),)
@@ -40,7 +40,7 @@ def pack(recipe: Mapping, source, nested):
     kind = recipe['kind']
     value = recipe.get('source')
     weight = nested(value) if isinstance(value, dict) else source(str(value)) if value is not None else None
-    if kind in ('conv_bn_fold', 'bn_bias'):
+    if kind in ('conv_bn_fold', 'bn_bias', 'bn_scale'):
         gamma = source(str(recipe['gamma']))
         if gamma.ndim != 1 or not gamma.numel():
             raise ValueError('batch norm gamma must be a nonempty vector')
@@ -51,13 +51,18 @@ def pack(recipe: Mapping, source, nested):
         if not math.isfinite(epsilon) or epsilon <= 0 or torch.any(variance < 0):
             raise ValueError('batch norm needs positive epsilon and nonnegative variance')
         scale = gamma.float() * torch.rsqrt(variance + epsilon)
+        if kind == 'bn_scale':
+            return scale
         if kind == 'bn_bias':
             beta = _vector(source, recipe['beta'], width, 'batch norm beta')
             bias = _vector(source, recipe['bias'], width, 'conv bias') if recipe.get('bias') is not None else 0
             return beta + (bias - mean) * scale
         if weight is None or weight.ndim != 4 or weight.shape[0] != width:
             raise ValueError('conv_bn_fold requires matching OIHW weight and batch norm')
-        folded = (weight.float() * scale[:, None, None, None]).to(torch.bfloat16)
+        # Factoring the channel scale into the FP32 epilogue avoids a second
+        # BF16 weight quantization at every BN. It remains one conv TaskBody.
+        folded = weight.to(torch.bfloat16) if recipe.get('scale_in_epilogue', False) else (
+            weight.float() * scale[:, None, None, None]).to(torch.bfloat16)
         from tilemega.serving.weights import _conv_krsc
         return _conv_krsc(folded, int(recipe['padded_channels']))
     if kind == 'fold_layernorm':
