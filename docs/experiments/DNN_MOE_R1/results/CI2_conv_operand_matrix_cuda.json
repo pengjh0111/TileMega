@@ -1,0 +1,2191 @@
+{
+  "schema": "tilemega.dm1.device-check.v1",
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Implicit convolution operand/MMA primitive; 13 configurations, 50 fresh processes each, dense/tiled B, split/halo/canaries. No complete TaskBody/model gate or performance claim.",
+  "source_manifest_sha256": "85b75a4e787e1a50853187a8b53fcaf925e308c8e17f34bf15f34b0d0e800dd2",
+  "frozen_inputs_verified": 1126,
+  "numerical": {
+    "m16-n16-k16-s3": {
+      "passed": 50,
+      "processes": 50,
+      "logs": {
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_00.log": "2e12cb28be12e7d893ac0486011fc182a49f1b8512709914bf9049e213d86adf",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_01.log": "e05635f7cfe21aa70564ae7004344366e20d21af7d637e05140cd19caa9dea7c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_02.log": "fd6aa46c886dade14d8fc664242b3671171007785534ef0acda9315f211a0482",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_03.log": "672d2e86bfb9b7775560a5fb4b8a62461f4e3bb4cb6b428ece8ba5cbf38cba9c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_04.log": "d43a6251f76f1a8c8c31275dd7ebc00cd038a54eb39518c3322eefff20ba2dee",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_05.log": "53e2a797e19acb0fdd6210267145d082302fe42655a5ed8cc19feec1dafa1fd6",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_06.log": "18649a72ed611561ea4315daeb9d4bb45c36cf6e198c0fb0cb3fba657cebd7d7",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_07.log": "60a99521becb989d658327d0829192a22513eac84646343de0e67ca7e95838d6",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_08.log": "f5dce1b88dbb1b79d0a2abd1c2cdd82fd2e364d8340d14fdc809632dbebe6ce0",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_09.log": "8196019045e5fe8da138a34b9ce47c832171149039144a16fd181ec0f2458d25",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_10.log": "7aeb02b064f38170674827dc25fdf55b0a32fff6e499a9bed57e64c0f868ff4b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_11.log": "dc2096a6f745369837cf94732115920eefbe1b3268fe572e6ddfc3d380edc21d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_12.log": "4336161a89979d86a3da28bf26b6315d368a6ac922f74c99f54929330dd23bea",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_13.log": "dd6f1af858aec53e266c4c55f5a90c990fd208f9221747a4291f96656dd1dea8",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_14.log": "4c9597ae35777c9c58492443c3837283de74d9fb71f2cf3b32df66fa689b3581",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_15.log": "c92eb7bead1e0a667b01a7ca9dd2d3ce5d7f4ed81edbf863b80a7c6dca190da0",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_16.log": "2a253577e4c1e3674470229ce7e1a365f190e9b8a159cd1e49b14e8ce4e80fc0",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_17.log": "6abea8745267873743565ef6f53c7dcbea435dd9cea3a97c96e90c8d4835d329",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_18.log": "cffbecaa8fac252968ca2e2438d21fd976d005aff4c5a2fb17e829c85a2f1beb",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_19.log": "3c9f83aa18b64ee0eff871ce90562518631d70532ac5fb659fc6893a6d5d74da",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_20.log": "a07c5e7a251857b396a926ceeb65fa6ba7acae1102b522fae2fc97c2444787a5",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_21.log": "832c87159277333a4b86aaf0c396dbb8cb88cb1c0833140c50d5c8b8ae5fc052",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_22.log": "51c52871fdb0c005a0644b0dc4f840bb2120e790e72434d5f6bb3b45fd893315",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_23.log": "579de7f563b66fb6f8192871941226b90808a9592b2f767e8c38c67ac4031ff1",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_24.log": "876b3271afe9f180c9238c35e468b39be38dbba037831559107d32b8a2d9fa09",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_25.log": "8d128c9095de9b0c4000d55e6513873069081dd6eac3026019e74fe7ebafa2dc",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_26.log": "9f824dd881db2ae98f09cf1a1c7bf2f13a06fe1129f31dffdb1320fef9081e85",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_27.log": "dcd237611de10c0e9358371ee3d1740ffc6c56ccffc77a0f2367417c1c9456bc",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_28.log": "07b6fe45afa5627ec68369d88cbb4367ef8a3474cec473e62825c69cc60ba4f5",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_29.log": "39d85469c2e7aae36be3540dd14a106e6b23ed0b864e0e23ad62c82502dfee37",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_30.log": "19f400c319b8bcca5ae5c548c6b538fd725ca4fdda3cc56a5e6d09c87ea64e21",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_31.log": "a960000d1b850c33be8e6c1684e5608bacef92736730c5dcf9612fc031ea3260",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_32.log": "8eb42fca4d394f71c19ca1973f086dcc65732de23e0d7b227fdbc19be8df4a09",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_33.log": "eeb349bcae88bdf1d9e55538b4ec26d1a4ed019644b03c9dd722916bbf00dec6",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_34.log": "ad7c4bc924e78ab1f282528d391946ce2956ea98d847e791d8b6601450d0b522",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_35.log": "6f4468cbc30337a38ad0eb0bc3a34facfd007b6bb6e5fde685b6f2dabb35fc25",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_36.log": "b20311a584aff2b81b4cb7e2e63784e7375a694a3dd6e471c475eb7cfbf1821c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_37.log": "376c4c1cb098fa88996c4b1714341c0d511fbe9d48298bd9eeba3329370be6a2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_38.log": "430825007302a836ccb06d95a5c7095480f539596b9b82caf29f7dae08eff028",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_39.log": "3ab8e7910b3443114c1ad85cfde291945acb85fb90a01dde0ca164e7434744c4",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_40.log": "93943a4a31ff8dd6be500425aab42313000a3dcf15b620ddbcea2d4010507427",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_41.log": "5286214ad0917895ef84fbd279c341501f25ff71a9f38a8fe2e4de9bb2048adf",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_42.log": "8200255beab69fda4735b6ba17b4aacc2511f4924019e7d0383d2bf8b3e87f1e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_43.log": "df0e3c880dc6c92af6bbb78b3300c609b152cfa46d8d53978826f021d3500504",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_44.log": "eb7619ce3829b905224090d7d16eb843e4c23049ef541bfa575134598d49f769",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_45.log": "24965edc40872d35dea077a164aa8a48b4a0d8067dc053ca7278880ea3e282d4",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_46.log": "b26e1cd772044b5b9733f06863f109e13b78ca0a0614c10da98100252abf32ca",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_47.log": "46f6cc054a202e3754b68eedc110002f56cbf4898523c6e47a6374a396cfa83d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_48.log": "edded95acca33a4a93cc1b6b2b0e0ac157b5ecc90b2a57d39223743dacad2688",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s3_49.log": "cc0804eb9e1e61fa759816caf184cb32aef54b7aa79608ae1fe529e8278a68d1"
+      }
+    },
+    "m16-n16-k32-s3": {
+      "passed": 50,
+      "processes": 50,
+      "logs": {
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_00.log": "85c59be22588b1aff3fbb3290bdb1e7fd7cc60c971c03984b736db7401c558fc",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_01.log": "8188b637b1368e7023e5c3ea21e955316c6eed5b8c758aec4deed2c68ca53f92",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_02.log": "8530d94158009651d9328d8acb08adde6b09f97968f22b16b6d92370d0ef635a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_03.log": "78f8d273df0ed53871cfe17815851e79d666d63f85a28a318d8479298e9d0dde",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_04.log": "36d59682e4f09ca1345e43858cbf24fca7fe8f0d23a8a810eeb89ee8cc067743",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_05.log": "faf45c34f60422b2b1a7c3ee041d042c07eb97f3fb7769d65d44406bc05bdb6c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_06.log": "b40038014dd2465c2eca13cd58066f26328840450a0c15b2f5a74abd8e7c2589",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_07.log": "73bc6481b3b7b05d01bbeb036398b8a4017a4316d3c46a5f9a315d7fc2026987",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_08.log": "9cf771d14f6e28cf1aea74a34079fcebb64b7bc4840e4cfb847f7391cc88327a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_09.log": "fb2742a5b0009f97c7f8374da503211a8f802c23a0690c2c3c7f3bc1994f1ec7",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_10.log": "f31cc991e1087a5070be300645586554852317e218ecf116ce162b58027de26e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_11.log": "3d8b36a2b32951a8d9de4fc82464de7ee02fe4ebe66d5a173427499a2d0000b2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_12.log": "c0aa79298d2b256c9d3999a41b84d75d374981fce6fbab412aea26ce6d87b88c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_13.log": "07216f37e9fee0f6cdea924fc49ecba057c812aeefd22f22f79cd1e0ea38e6d4",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_14.log": "cf084b1ec8310e41659dd01916872a3fef270b4c9b5d3e400a803ac8ed957fca",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_15.log": "6b63be1fde63339473a60cd5f2f4c90ea449b1043810da6bef9d658ef8466d03",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_16.log": "efd53779818b7585c8f44df625cde6d4d53024b2ddae7ab8b17e8430934a8e72",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_17.log": "eb150c6404ffe6ad3b19a63b01578762e019a852d0d9e0686cde9350f95bd0eb",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_18.log": "c562efb6586c0354f118b1e1fcb774d58c14a7920515fadecf9137f9dc9cc1fc",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_19.log": "e19225fb1ddce60f45ae14a3ac995f1b3ef11045905354051cc813cdd3be888f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_20.log": "99a63cf3bba570ef4b652b8d8dacd98edaf2755874f4279f6fdf8fd8f777e8be",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_21.log": "156cbf20ab8b4085c40cc200cca8068dc1a88e32114243f1b5f7f2ddfe15bcee",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_22.log": "e4fc8d431763ccf65787889d4db009d9d9d0a64449e735f003e9344a32cc0cee",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_23.log": "f711aa64411c66aa0226810d5de8d51921911458c5765a7fbc618f84c7a36ed7",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_24.log": "210f0afb52a896aadad0da61b8a03638506f0739fa33f78fb3da4ecb6e157e12",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_25.log": "c02abe9bca8f00afcb42429fd05c7af58b2f33ef7ef97eee7db4996cb1475fea",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_26.log": "7e18261db5abec031dce0f7b1bee01d7725a12b34f28b89f5a9706cff4874b32",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_27.log": "b23270d671380048b9fb2cbe822c6cbf1e7e9fdaefbcecb6db122ae012715a56",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_28.log": "4e5391486b028461a13453c7219af11bc22a2274a57aab67fe439598268dfa98",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_29.log": "83da46547be6a8d4ca77975f3bef4c2843b988b1a44f1b3a294e22c5dcd6c212",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_30.log": "5ab9d68445c63accdb74d81f42b351abe631494d1797d7bdaf3c79955b061872",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_31.log": "000198c71cd1dc04b6c853c351cfc848945ab41eb62032028646e99e58ae42ea",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_32.log": "fabf6e29dd432b98d513eba837ace353ed81d31bd3085a158eafb96ab016be8e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_33.log": "04924db33e7f28ce7b5a49f84145a609eee5b77073dbc3dac3a1e3feabce6ef9",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_34.log": "efcc947745644636082d3b7e9956f007ef7a658e5bf9e9392f10f8cabe9ef079",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_35.log": "9b274969ae39a3a684123b633e6d42d000e36114c976035665ee69ddbc552b7f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_36.log": "a994e2a0257ee0c557212f1c6a7e8fd5d1484a4caa29d19a70a853ed5474f8cf",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_37.log": "57c6149e9fb875828cc2f656e99c44d60e0e5c2983f89f41d5c6af2fcaa42fa1",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_38.log": "ae411fd56fb99f23971c5ff2f60f73315939796f9b52d3f8c87cae4a5fbbe827",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_39.log": "03effc8de40fedb7bd489e132744d8573f92e0df0c2f36057e822eb0c75a1775",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_40.log": "0e3d2d7b78da1e54f06fc295966c8eca8b57caaa8b1c87701f721a1c8ad6b4ff",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_41.log": "b408b5ddd696068b0331a8f7d27b5a8a5bf751dc698c08be4a2936ceb7c72c7f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_42.log": "5380be777af9ddf4debab9a91d78b61a003bfb990d51e1989e3d52a24276cb2a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_43.log": "7da212132d4494ca528b6e2f6cb34a5c59cf231e11d35e20a6b16944282a41f6",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_44.log": "3f00e3863f593df61c2e7463eda767f6bc6d766bacd90d8ae7f7a836b77a3de1",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_45.log": "a236baae022742634fbceb9bdd394965ef50f361aaff79bf3419a72e07822b1c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_46.log": "62e7dc556ff1ea24dd00bb76df34587ebbe11150d7e50e8530f716fc67f0e75d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_47.log": "9f53a7d8aeca3ce9453f4aae7aa1fb55fd75c2205e8616e9125ecfae15f6b037",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_48.log": "d540d4465f2431deac4e1875b6a519972b47853c04915f5261c90b4b55a194cb",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k32-s3_49.log": "7253a6a083433fb3de8e53245728da9a16f844e0fe1390d6290210d7d36daafa"
+      }
+    },
+    "m16-n16-k64-s3": {
+      "passed": 50,
+      "processes": 50,
+      "logs": {
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_00.log": "457752641c086172a863cac463df666dcd7cf4a4cb99de1f76726c56be5b8f39",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_01.log": "a53d88c8d5655a1032ac1942d146d738ea30be0eb60d6e80dd774db2758c1309",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_02.log": "d28b67f7fc0fe6670babe2cf78e62c642c74680d4e0e932df5ec15e90205267b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_03.log": "d97834e70ab613b581b4a12146c1a81403bd6712f4595da689a96883e9e73f7a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_04.log": "1c8efc21e6145308755860a87787ee2fa496482dc5b171f0cf3e4574c5413159",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_05.log": "9ba21f38de1625dd6a78f9d9852fb3c46a34b860cf06760a84ad0bca04f55a1f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_06.log": "9b73c0114dc7270806c2cfc71877de0372d3b28aa8cccd62532040ade7df66e6",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_07.log": "67ffc3660d9430e31455ccaa80ae062f9e335842cb0789be9a1e7f6a08357b4d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_08.log": "8c2d82f88659641e501bdc39c04148d52c635f3f6b96159616a2955a63e8a9c4",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_09.log": "75ee6125632250ab483a1321418f2a9b9f995e722c91d30969ddde57a78c9025",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_10.log": "f12062e392e9aca754c4b21fddef549f4f66ca51fde2ad4c3ce0f61c2884b0c6",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_11.log": "16a750a732d52044320b4c0619f811670a2c5ff9381453185e8c7af5ee662f9b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_12.log": "cc9de2a8997d75ba334d569edc5e1239043293d1c830defe36b6d41d14e2b0e2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_13.log": "3531541ee3505c8b7555c6156768dbba2112eac6ed756a386fe97a580299273d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_14.log": "4439074bb70b74cebba18be067b900943c5b6c174ccba6cdd9029b70bebfc60f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_15.log": "e5fbf57de75059002b4f7b3d332c06e4e36e06dd6c33aba8ad196cd31b4acd64",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_16.log": "6653ffd3c7f20b29203cf410a3b95c678777eeb49788f002c6795486d3748047",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_17.log": "f92aeaa5b795768e1e252f83a1bc9e4f429ef2f744eb80b5f675d74cc66b0a7c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_18.log": "a31fa088d48e798a3547f46e465b85497a163c919973b418e4c49e8dfa63eae7",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_19.log": "8b62c548fc2cd32bfa46d4742ac9113ecb02e4159ee6cf71a32bc41aec5f86f8",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_20.log": "1535ec774ad1614b6adb9430cab46374864d7e8a1b137186a81881a989c9a110",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_21.log": "75dc3b1de3e724c02691fc75f7723465cce51d390c680ad7abdc876e27f60b98",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_22.log": "19b942852d284f1d539fd46ef4fbe9e1dfb2208de2feb936667462a9610c0c01",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_23.log": "b5fc33587477e86e9ddf67f92c2bce8830c11bc7525e06430c6dd5ef98d4081c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_24.log": "8cd5c9aedc2da2183d491d6f37d52d30526a131d13b982f5c1b50d7849886f9c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_25.log": "5efce59d71aae4cc8066cd42a724afe27eed29a437dbd7a9b24059eb4df70159",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_26.log": "54ec3914f861587060c65be49fd83679a7fda4723eb512e13ec8a89ddc534778",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_27.log": "a7e4d282171b3cde30312859fd9caa94978606e094e676fb31f764eb2892d0f5",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_28.log": "b86cb3c8466b9b9938e47ce1069176b8ecada5c489fcffb134a0578d0cfd8f4c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_29.log": "d7370391944ce326b68545490cbd0f7ce68ed9ca9ef15dbd2e4cf137f1511de9",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_30.log": "0b34f2620fea9892e73b4edd6ecfadb60781fc6f4b7b56ec9937a1dfcfeefd7d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_31.log": "cd40bd97833dbe71d94d38537b52e619651d057579f092468264e305b1bac38f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_32.log": "4956dc8411b77f8f9ca4648a5b0e48a0a27ea281b200ab20024cf952bb515a1e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_33.log": "b45df57bcf4fdb6dc4b91f7f899d0c77601ed8b8a2f4894d95d42e5add8d3f11",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_34.log": "cb64b3365af9d13c16f6e579773d3dbadd36bc913b41ce988b889f5ba470a005",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_35.log": "28dd7d1433d34ca8fe03cad93c10046d2a80808a04707d1ae1022f4c2a2a61e1",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_36.log": "3d3a332153cca4d6a22098c5188f475cd1ee03cbcb9c0e60d22ebd23cc89a82d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_37.log": "cffa85316f9983da08f628497f2fc4443b79b2e1f5a79b7ddd8aa474a8a4669e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_38.log": "02d896871067766b054ce2b6cc57d6a90f7674b19aec7cc9468bd633f4472de9",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_39.log": "d30b940c21a7f7997fdd85f7091d93dbb9cbb8e1688979bb0a00106de6b749cc",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_40.log": "d648bc7e414eec65c15ca5064787df7a408255b6ef86dbcf79a079cc695e19fc",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_41.log": "962e5b2e83f5e5e5f089394dd395c473b3f696edec9e03d45dfb7bb33311a437",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_42.log": "9ed718c3ef38bde2b6389f992b0ff39e655e54bef9ef23f65056c7ff3df58bd9",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_43.log": "23527438308d1edbcc6cb4d74fdfe45a1323c66250001b60aecb5998a80d314e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_44.log": "bf26527b093cb25f3b6bb71fd0a6434943aec4a0d8f2db1e1d75f3e206678851",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_45.log": "2592c13419cb629138477cecaa1c6b6fd0688ee3a0c68d36482f92b2562119ad",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_46.log": "330e76a7546c868e94a61fb6249ec0805cb253feaefd9938551cbb33fee2d18c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_47.log": "4c50875caf8dc4e672f17f9e9455fcbcb448180a777a11d936a4d991151f22c6",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_48.log": "eff1814eaba89a5115e5f1f86f556bf754c2b1d461e65197f741a6bb1760696f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k64-s3_49.log": "9d8281d09eca2c33e03c7a2d2f25a914911377fa64389dde5fcecbbb767dedb3"
+      }
+    },
+    "m16-n32-k16-s3": {
+      "passed": 50,
+      "processes": 50,
+      "logs": {
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_00.log": "81ca455d59a76e4078a37a9c3827d38b022154f27467e01b796795d7af768980",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_01.log": "206f94c1f5b4b0fb47e7e39e1bb0397dfa1c9766f52ed8045e05b70c1a7a18ad",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_02.log": "12a05fc3022721d7f8d7eb44aab29c7f7a44e9a86909cdbe24e11689e2ca2c34",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_03.log": "aab18e111ca5ec6686789ba55d57133425e1701cb1f67d45fad9e820fbb9bf95",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_04.log": "86f44fe9e2992393da2c6f7a7acc8622ce8329453eba392f28c3180bb4960699",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_05.log": "1447ca53f074d3be65827ca3ca87d10502af553ba2f577cc0919cc1e7a0ad396",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_06.log": "72f96937be7e7f30f9bda2ad15f7af9001dce5e452eac03400486ece81bfd492",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_07.log": "56e65c1d865bdca3e053c9ad2729b37d1fb2c6c1058633b1b65baabbecc95b27",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_08.log": "b4ae61654e800dc16bd95b3e0ac2e047c36fb007556478b862438912e8de0477",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_09.log": "b2b4709850359530f8a87fb8395b72fe0e93e85a84eb04eb9857d38ac295c901",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_10.log": "6156c974a94de59494c22e26a76a451724ba17e1f0d4af367be60ee29b725bb5",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_11.log": "b76fa7894807524ea225dfdf99fe4308723af4bebd85e47c7d5e69619e14c6c5",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_12.log": "0a9794ba180db8f4209df11193be985f9d1ac4cd20d78bbc52ba421e557ae408",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_13.log": "00389e99d6104d7cf43a5736ec30ca0ac13c4bb7613c3fefa6e8d29d86e3108c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_14.log": "1a27abcda8e03319f417d22156688ac5aab6f6f027faf69b0e06a61123757dfe",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_15.log": "4a588e8f0ea38a60d5fbe66cc8e99e77af836b45a8f1177c1819fac5e7f21969",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_16.log": "a4d94ff2fbc534c4c6b972660e1e0ab963be532c7b65552b72bc20c4e5b80e49",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_17.log": "713f2e73b2a2eb11d5e814bf3bf6b79ecd8e5629b1099bb391cc0c0a364bda76",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_18.log": "c5c028bd2c0b99fd360a227fb663c34839dce69ef043bcfbf9782be9af9d039e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_19.log": "17958f99ee02045600cd0d2b579f70d98c2e347fd418c5d2901dcbc801271824",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_20.log": "0cf1fc154e8e8678c0144f3b779529b94502624bbc62ca0d0e30c1804db8ab3b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_21.log": "741aeef1c1300cc907f2f397e3641a5ebf1cd4d78cd26f94c40d55e7c601df0b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_22.log": "0fddb0da5e22099394d7a0deba92b06cdb88d9b491a942ffbfa118c7314efae2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_23.log": "26fe3d3f3280f7cd4da7478f03a0643d4aecb2cd54af556b9d861fdc1d1427a3",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_24.log": "c4ede0b44ae12125845320b38cf02dca573faf921eb50fa14642a8378744e9d6",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_25.log": "92843f9ec29b21fa790a4fd79289a864fdfee03e4751d53f244178e0cb0bba3e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_26.log": "0017e0d80163f7d779c7ec46302c62552db2b077dd3c3a0da58338a1eb8b9cb0",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_27.log": "99c4cf13590b1c4e520164224f3a405f01383bb98733c768135cb4786583accd",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_28.log": "98d83996df207acb7c03043c1003818bc207d4abaf2f92bc7ac6773bfde675d3",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_29.log": "1038fd6dfc7a8c3e5e7e760ed12804c7588754e34e5f8bbb7b7312aa1be532b6",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_30.log": "10c5388084b985ea17c47c44ec95d5be9fdb4e8e636df333aaadc32aac4c00cf",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_31.log": "e134036c4bf0563b8ebffc7c407576bbf73546f1a45e80df451d248cc382ddcd",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_32.log": "85d524d909cf2277f8791d2f5141c2f0a9c2fab43e08476f2e1d125baa39667c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_33.log": "7eda63bf8dc205690acb49ffee5f2a0aef7e9625042e4dfea3b15dd152187a3b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_34.log": "cda642bc56dee1fc57ed0ade140d79ea6e08b2c4466c2bd31b7ae293e6bccc2a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_35.log": "cb903717fde35fc63e36376bc5609feba62b53008c49aaa91887162d751ab267",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_36.log": "c6ac4bf4512dddc1478612830acc625d72169e999d898fc1a8a08b2860bda2a4",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_37.log": "d9be00c0767c006e32f37cc4837ede7009e7a4e5a10201cdf8cf98277e3eecc6",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_38.log": "ca9fcad57fd789756abe27b39ee2539b2a2f918ffca1a6c5772b697d71c005be",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_39.log": "9d777bfae52385cf01ce979db3d7551dc7b8dc9068aaf722e0899167843bdb66",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_40.log": "401773ec2702ae55d9d43a94d8fd26be6eed24224ce159e18d4b24e6447b9625",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_41.log": "f6352e9b82658e129e0cd27164f7296cb8b0f86382d996c0f6e1b3bc2b0a685d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_42.log": "3f8ab33062afe2ae8efc165b71287a4fc320dee32ed0b408fd206bbf048fbfdf",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_43.log": "ef3819dc553498082a472a8cf9dab8d2f6bb4627619f9d38f30624138d709eba",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_44.log": "6e685c17c288466d4ca28b43e0ad643faeb0f87875282502833a80ad956ecaf3",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_45.log": "754d728990953fc4e8ff71bbe5f76f3b5499aaafcf25b0ae8b143133388d5480",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_46.log": "312405eb32177f28a2403c90289f8027e268194f779b8493b55a0ac527c5c9f3",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_47.log": "e453e3d6b2ad6bb04a7e888a4189891c3ff4ba13c28416422d6e3e344b8ae552",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_48.log": "765aea4cde38fbf395bf94da45443b3133a4ce6b8363b2fc1a1d099ce520862f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n32-k16-s3_49.log": "5ad0ea42c9c595758f13362a0ec9c93eb68e851f04539cb29742eea0e7036d7b"
+      }
+    },
+    "m32-n16-k32-s3": {
+      "passed": 50,
+      "processes": 50,
+      "logs": {
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_00.log": "014b24a3c825ffe24ab9f47078434c1143a1575880a4f63447b2f94cf106ad32",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_01.log": "5b6ae173df7838715fbbf3b343952df573a7d95dccbfc14fadbc952a40fca9a7",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_02.log": "0b7c2ce2db66d7c72c4db1a48096577712256535d2ae03b3a70da50dca5f19cd",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_03.log": "0d9fd75f9843d7d5eb9e2f958fea8e09a55ebca30cfcb6956747c621646578df",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_04.log": "78fbf59af937270afa9831c5c0b414475365e3740f9fa8760767c75050df58b7",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_05.log": "caba498360010c0a0bb05263978338363336903d68c2f01967a2664c313c7798",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_06.log": "6eff35b333de43e024841823b05b961efcaace36de811276b593fa5e033f5cce",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_07.log": "e94688c16c9dd1597779fc5e454c39fe0c62fc8e058e7610ba25452e35315a57",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_08.log": "b88210b8c51905e35b3782ad798eb7037b2c9ffe5d0c855f60e8fff9d6d429f8",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_09.log": "724a0af465fbae300bb7f349ee98f143c0ad93e327d8f28f7008eaa59b89a37a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_10.log": "8f00260a891c2caef37ed2dd399cab296192b6389d1d9cabe2d04428445875cc",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_11.log": "fefff297c2a44efbaa6a079e595c5a11242b7c8146318e2dfc8adb3d96351983",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_12.log": "77fef6095418921fdf73e637e639ee88e55322c272aac8b73e86b42c841aee13",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_13.log": "62b67ef8e50439622cc37c47bf53a270d5aeffb0004ed071f64e2fa3a21a2686",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_14.log": "2d07aef105847e095bea19cbda2762baf8a55fb03aa65c2c43cfb8b95b74eabb",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_15.log": "64ae0bf513219f3683a7722587704207dac03e7472f816863cf1b4bb1a8a7517",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_16.log": "70ff69e38cfb799a3da0f2ceda9c0e72877e87d0e8b644b6145be78ea8ac8985",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_17.log": "ba2ea929d781f9354f010902906f1e9d5f0d097417a83f3850943eee653d39a3",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_18.log": "4297c5f5a448bc66ec82d82530246ce51c86178883fd714f6902a8b5045bb798",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_19.log": "c8b951d6f51cc41c23d8280c9c98128bf6b051ad260034ca7e4058806943c66e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_20.log": "20817ac5185ea6c58800381c597595e32be1bd5a9029daf04bc5167282d876bf",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_21.log": "c25198720e50762cd6add825095d526f291b2af4cbee60c27a373ce6c677a4ee",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_22.log": "05db1201ff8aefa9a5354d7abdfd4cde804ee451c96117f2fe5e4d99eedf369a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_23.log": "3ddc607bb83b0409cb46e39a3a58688121865ba908a95ce4221bc5ae6c9b311b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_24.log": "1759d0232acfac55472ae659c35abd82496af826a3d9a57d10adc9108d9e3dac",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_25.log": "0ea9dc8d3eaadd04312eef38790ff5a86b01148e4c1ddb1822ac2da2254d727b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_26.log": "d8acb1c262503d53ea9c4e5739b1f8d75d6b3af0fe6550a46bd8add8940e219d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_27.log": "38ac6033dc886fd3fec265fd573c9d5c445aa91b4f52576f074b6d385ca2f088",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_28.log": "f30df43934fd46df7ded37a45b5398324330118967007db75e6c04830c8df55b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_29.log": "f4d14ae6fe9e0f3f7593f51bf2caae4ba3b0d3d8de5d429b4f9ddc6d42e69392",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_30.log": "0fd61f137f17479d2383177ab717dccd48648087d97fba19583564a8ff46ad4f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_31.log": "d2829f13013414b832f83cd5651c92a775fc2cc6a9d50333bba655fda765483d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_32.log": "fbf07aee3e477323541ddc7af063f2e6242a328c5b1b39e6c6f0c9665e0f5b19",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_33.log": "5636b321a586030cefff384112454e982d96425a2a1f4b62aac510b7acbe83cf",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_34.log": "a8f416afefae58dded218179b0448cd968e50725636e045e35d4ba8457e7e943",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_35.log": "4f0491b27f702e88c3d2e9b9bb0fe92f21318bc89487ff39591f43d71e7426a4",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_36.log": "0bb07c9edc1594a823a7266df58147e83d301289b07ce001701082ab57517e78",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_37.log": "97047730e1c0d1c09355d002fc178426b1e6ae92cf4d01227d2a1e850892c82b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_38.log": "79610f32e30bbed009db5d76ca80c00df72cee8a3859dd98a1e244373607062b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_39.log": "ec88920e3736b8263f45612ad1d8d9e23a51867cf7880fc65bace845dcb3d4f0",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_40.log": "6152963a18e26f21526cf37e25dbc65b6e9d2a36b2e8d8631288dfc59caa0ee1",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_41.log": "4a17e0e752435116c8d24fbaa31606976c85a4b84f1453fa76426ecf389dde80",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_42.log": "2ac4b7424ff59b87597ca734c68d4ba569868b51b8287f2581f8bd1f6aa30c38",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_43.log": "1d75e70a1e8252d5fc316a7f2a69175518318962cbef2cbe703f622ee8aeda65",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_44.log": "66cca44deecd26911557808aeb00cfce87ad6859fd840b6446d33bfef40dae06",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_45.log": "33392cb503d91021f632b7562e74a010282e487ebdb15ae7af80b26ef34e1d0b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_46.log": "fc84e069c685853a67cabba25b8aab5cfbea614d82d5872633e36f0ffabd78d3",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_47.log": "0b2ddf2c07b596d93418b793241a9201a01dcded3514bd6a1834d247e7600803",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_48.log": "2f849d92105aa5f55ddc8748f44ab91452dead3d515dc5741374c53d596e2f59",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n16-k32-s3_49.log": "80af0ee4aa04c3023e4d1c34f5d0a97935c8547e9c8fd63945b4f00f178038df"
+      }
+    },
+    "m64-n16-k64-s3": {
+      "passed": 50,
+      "processes": 50,
+      "logs": {
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_00.log": "4fbd9364e24f38bf258de16eaf5ad055092c091ee684b3ced406aa0ad5b694b8",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_01.log": "972360d36d2e3f1f0653965b431d25da06af3a05b2161f0a3c716c66cd191ece",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_02.log": "6e3537ab5e752215e179565393ba2f141d005a5c6a42e6809bca07f1b0db59d8",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_03.log": "fe3f9fbf248cfb4a50926f297e82683db753b1945bf366d0c10a1cc4b81eb592",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_04.log": "3cc3e06a0ec0aa76e73a4dc3c65a1fef3e0440079af1ef8dab3798441279eab1",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_05.log": "c259db18fcc18d101106611d5ee063431335c65fa527d8c798f69f928ed61273",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_06.log": "05a2d29d68663c2e55373efdf6131e78a8ba813879aec82a03142a1a990b93af",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_07.log": "568cde4829093b2bcaeb944f960ec2ad20974b634ace369fce91d2290e02cd08",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_08.log": "de11392bec00256158fd12b7a1b20afe6688b99a4928b3950d802dcdee900053",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_09.log": "9c055052a91c1e9a6aa12b475558bb1ac2548537273dc6d1068207022f67b3a9",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_10.log": "2033c691291b56a534ed086cd67aa7677125db957b8356ed22f4413ae7ca22d2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_11.log": "1fad823894144f94221f28cfc2afd7414ecd9e2ac2b0e0ca8129db417126904d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_12.log": "7e34b0c88228531662950212bd5c0c3c3e07d7d4fdb8b831ff16ac1e376ac137",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_13.log": "db2d7a084fcc105d84aa1fb46ba5c804ac83ba7ff50852c38b075c9936987563",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_14.log": "38cc7139733e3aa04421184befc7bd4edd0c6cb651d00705c7bd15eb41c7710f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_15.log": "fc640e32aedaf7bc8bb42221a3ffb5a9a95e1a86bb0eeec5b190c2060f074b0c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_16.log": "d68cded8772dcaebe927de150ec87c5b1f94623f7691347313415d03d18359f3",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_17.log": "53bc50efe249d8cdf94e6aa9ff5a3b0919253099d43ea96454e32f458fc2556e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_18.log": "7b0a8d9bbaf2ada839a18ba5204dbd3dd898fa282912f2f07a26885cd46d7131",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_19.log": "3160149457e8fc3c425e5d37e46f3844cf1e283e71a2c2343f7eeb27fd5fe42e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_20.log": "fe8f6cca32585d962ebf7db000527dc2681e3c3e2f51b64feb91f012100c7b8a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_21.log": "755b7429bf55c785318b46ed1c8d0a4872449d2eeb6c3f671967e43cc0591862",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_22.log": "4d3edd9f2e2b8eb60df3e3c13e14c3544c338317fd09973583b8c4d40c11ba28",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_23.log": "3cf95c3499223e7c29a99e9b8766ccb8787c9420cc086e6e6c2c6385ce1ecf4d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_24.log": "ab3692ea3e4e4c9c26daaca958b969a0f3c241726e5f5c8d39c08a38556c4bde",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_25.log": "8e64fd69da0b488357a4f18998fd9d5d89a49d3afa29ac2d75b84505522a1a91",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_26.log": "ab0622ee28db2c97c505acbaa4aca3f17cf7380b7928ceaa32421255beb8c4f5",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_27.log": "2c57540bd51dfef206b455dbb8507ed83168f410c52cbedd3519780939b90d5f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_28.log": "4f6388c9e41b0270f87e71c260ae4256be030e6f44a2295cb84c3d51b8f99c48",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_29.log": "f7b14db1677ae1a6ff89b37749c8b5e8d5768516d7af4a42606ee0e40f26b7ac",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_30.log": "9e3bb87d56d6bae6978ea0cc10ddcb49e99ad80b210ea81acb863e7408f44a79",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_31.log": "d6def4d414d1dd8664718ea00b0a3e9a934854ff9be4aef19f57bbe00a8458e0",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_32.log": "ddb9275bc69d76ea568ba8de7e2c183983e85e943293550e16a1f031638c56d4",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_33.log": "63d2c9ab27c825fefb38ee2eea0eb2db4562c6b9e2ca7ccdc51fb7582c9e898d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_34.log": "f33a74b98e7c91724a17fd6f811504e7fcf228b8196b443c3ca94fba9470063d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_35.log": "b021620f0c5af32925d3c7edcf13358bb18327983adcc4cde1325be91e53d653",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_36.log": "3fa0fa375283638f9e565cba8c98f9413aa58a5250678265af7d81dac041ab03",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_37.log": "65f7153ea1d325c99c5b32212b6879134040f02763c03391e6fb8e722fee915b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_38.log": "d40631158d9797529a2c81cee0b5b0ff882b7bd64a678d2ebdab6a0a78c02be8",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_39.log": "6cd9b0e2940be5d165c8a117651004a6c2deae0b68f93dc29d9d55d59aec4ccb",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_40.log": "2ef36592e2214838aa45eacc88a92038cba513f2da779d68335ad597ec12b041",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_41.log": "f83df981016f226cfe0f2be643aa3ce94f3e0acc7c4f6c9eb18d431bc1be8f78",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_42.log": "211a2d44d9a42089982da4e340be189bae129d43f075ff53586c59832c9fc730",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_43.log": "bd04e3c125d597958e755a5cf9b00e2a41e81b91d225ee65d1b17ab041930cb2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_44.log": "7e2899977b9ea9842ca960efba72e4a6df242cbfab98e2286151a5cd230f36ea",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_45.log": "f3b307dbc6ba60dcc788c0ea658daa2df86fd85a111db4591bf80370112242fc",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_46.log": "854f625c17d39dc5d5352b7f3d75abd73c8f70d8bbfd6ce75864cd7164fddb59",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_47.log": "12e6c0b7c0424e8c2f17b183e126a360c74622900a449759f9c110b408c533cc",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_48.log": "22512724d614e5610d053653c3703a588b8a7387bedfd71f35601772924da75b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n16-k64-s3_49.log": "8672262a33dd38ea74c3d351d4193a234e0b522ec28a0b77a76d95d97a61bc31"
+      }
+    },
+    "m128-n16-k128-s2": {
+      "passed": 50,
+      "processes": 50,
+      "logs": {
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_00.log": "62128cb2e7b2a2f4ba1101ecfc4b79aba1548adaae4bf3448d04ac208b240038",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_01.log": "b116d62983208e547b16d66e4cf966f7b3ca09adc533cabf7ea47d4c81afac84",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_02.log": "358640e1c5edd1c41ac8416ef78fc69203d7f643517809d732bd8147a4d7fb8a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_03.log": "6ed074908398613586171c0ea0e77904ff78e983550f96632fa8e90d86d749b6",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_04.log": "70845ad3343d504a5403720cccdcf52c3bc21126823a0a44741d2cc032bebdd0",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_05.log": "ab4d1aeaaa152c6f99a7b3897626379fd7f1a6ca948b8bf0a199116648bd537f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_06.log": "23b81f7449586d7eb1a266d2756e16113c2ea12a9d39db2f3366e3071c9eb97f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_07.log": "3c5a0f53e8196206c01c68e820b07c5330ba5c52174fcba4ca3bf7b1c3bb2c3e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_08.log": "e8cb0fb70de4ce50c61628eaf90b585a83822a45bb55168e6e6dbb2fb0474efa",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_09.log": "2657dce611388900cf3ceae5eb8c03ae1f808298e5301685d0564fad25468851",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_10.log": "696e8eb25eb8a00c4b76cd9c276ecb02449979572cadb5c978ee4db55ef929c2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_11.log": "252354eaf0a74f828c20a04cc025b66fed16d6f3522103c27288625d4d3c90c5",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_12.log": "c11c61d729d312d981e98a359fbb8b8e5e57535b50064884561e3576439d4b36",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_13.log": "4a1978721d1fca2c4823ca2e74f8ae01f6189ac8d5d6c39a759faeda4c86bb92",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_14.log": "57bb38344be113455dbd556c351d719f035bce9a7726d4ad18d1ecab87ac9001",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_15.log": "623fb01c42784133c0a4c295acf30752619e6e0c228c3a281bbc24b1d6688729",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_16.log": "ff57968204e99ed13b13f94ccabd1f403c5bf39bebb3d318f95c097adc52aff1",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_17.log": "0fefe67cf53998906623ee9880dc8197e0785d34a8fa35dff29774584f33392b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_18.log": "8a35cf2fe1d3d4097874d67319670ede274782faf55fd23add9d43d9817d896f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_19.log": "730d2283ec06a500691493104aa68f5be362a65741ffb1f4f275bbfaadc7322f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_20.log": "840278ea15ff675da25f79a7eac28723a12a1353fe037bdeaf500e304cd6549e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_21.log": "411ca58cc2930098441e58df1b9448296fa80a07c3ff1489030dda5a3998d718",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_22.log": "e64155efb420eacbabddd81cb7bd6c8f01cc48b99b179cc901f0a7d745cd28e8",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_23.log": "ec52cb530a61a7b55a925dc7464d51e05a940852ae5f601cb27615a357e4ae3c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_24.log": "95673cedb268d72682fd21c1eba7b38724091713e2db7d8b7e76e384fa480508",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_25.log": "334e2a741174c39922cc3da66e2d3ecbd8402cd1959d59176f4d5f2a79068b91",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_26.log": "78383a24c81d0795ff292894c1bec6a7a62aed69e00ccc82f17299fe3714cffe",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_27.log": "cb0d6394b8510976b2c91f3e1626f166bd4ead4ca7d5366040753a84ce0ac16e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_28.log": "ec5903b2705fd64eaeac96392a8b4221c9748c0e5bab3fb0804a51b43fe48fc2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_29.log": "a040497fdd7bb8676bf5531be21ea264207455714ce7637b8a21aab32cd97dbe",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_30.log": "5ddc9cbdf904b73d13a8fe4552cb666e92469f678633201bcf0c6ff2ecb6e969",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_31.log": "4592c0d2396073b0d8efd7b555ef9a22dfaa037341d34ea7b26f33b5c4dbd35a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_32.log": "4ce040cf097a9da33cb05497e52db75b6c1ea2375b3a0add72126ff95a509ce0",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_33.log": "140a3af4213eaf419ae212c0804bd6ffa09d5e8db581dc0ffd00d038d0fb7d5b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_34.log": "a22bdfee1778e036d65bad9cf22d124ec7162bdd9811811fe20435a6617e93bf",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_35.log": "53ea43409397f7e9fba3c5459030bd74bff91427769f2e1417e1efe8f38cd144",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_36.log": "f8b366861a832bc49e1f72aa79bd871c9d36c48dadbe70189728ccbaa0374272",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_37.log": "1c0fd23765c5ae4a117764cdffdbe57f90f575e047748152554dae34f0de3cf1",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_38.log": "56eb40b0471421618527dbd019b43ae1d537d4ca97fe0687a5b7290c075b2677",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_39.log": "7e6d2bb389c04270fab3f725d4fb326ead6091b6f4795ac5acb1dd595dfb1c42",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_40.log": "96280fbe8e71af45dd97c11ef4b1427be93155cbae3310503294e3e98bd44ca7",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_41.log": "4e7f426295ef6b3402fe2bec519e57cd147a22428af5fda471067bc77846b1c4",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_42.log": "cf0b15c08557381486c35e025196fb29b5e86b6659005f155e345c1df6f443f9",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_43.log": "b56683733ffd7e13e312f0c24780b17f2defbce6af8ff57ad522906e3aa6b4af",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_44.log": "39f12dca3b08d988ab0c54f6378c8dc9dc7bb17e0e81d8fbf46488f3aca822d9",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_45.log": "f29a538dc135a59676c3c9c925f4897a06894785c015b31b8f2e3a3e3e7615fd",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_46.log": "d161222641a3e5f3313751c68cc6a2195c37ec6ff490bf73818776136d74071e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_47.log": "59157ada3fe26c57f84194a4e7b7f26a0df5dc9554b82b6f363ecb591286e16e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_48.log": "f1f83e7055c42e4ede727f0e38835b73fd89b446c77c19507e090885994a64de",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n16-k128-s2_49.log": "7443d92831b406030c614dc2ee04d81f8b410f32f963fcb5b4990b9ae28ffb93"
+      }
+    },
+    "m32-n64-k32-s4": {
+      "passed": 50,
+      "processes": 50,
+      "logs": {
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_00.log": "59aad37bf6e9aab73fa03d93df9b15decb6b8d301bb76b83884050107e63c5f6",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_01.log": "b5e32f8b1a1c1d2f0d2905ed85b61f3550a7c592839dcef71655a52980e87e99",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_02.log": "c7205b3b6b42d4a73e5a52df214349f88a6222b196358e9a63286cfdd0e1bbbf",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_03.log": "ae64ccabeac98ee1fc34b313bcceddb186e6a7aa3cc52fd7738ebb19966e58b2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_04.log": "263f8087ae693f8f8deb1f6c47e22267ef2422ea8a4d7798e46ae0d7354c1f2b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_05.log": "b59affea3014f98558b4c1d719efc3e33915d6e622d7d3e6f78fabf5942d6314",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_06.log": "8f4a201f1e48e557e41e7477b4dbbd1794cc237f60b897594df7b70484c01809",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_07.log": "091854775451ad942ff4b6eef42dd89bc50eb1e30b3a025f056850e02f1cf23a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_08.log": "ed2c95c1e7652d4709c0adc52f39730b6c7c6a3e62db255e3c6dc17e8bbb5977",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_09.log": "a3b29198688885ad80df369596b7d94b6220244044d5b9021e30e12207f88c27",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_10.log": "8aae77bea5a940a2336c457b85f0327e48f82c9a8727ed72e136f03ce4cb8395",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_11.log": "b6000e280121fcb9dc1f222723b0ec6358f8df73d24f9d20c545c30b69d2b671",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_12.log": "a10cd0186f1a391da85e2b8bad72dc2cc4ffd4d398839e06891522042a80e5a9",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_13.log": "80bbfa25a74ccda4ca1eb1b82717370bc93bc8bb583269f5d3ba84c816be4e68",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_14.log": "5aad3b4bebec673d9b4faffc2362f320995b307d0918698d7a0b74dae96c39eb",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_15.log": "7a9bc9dde1669a5193b3ca4bdd2cbd36e9285ed1f91164b312a64bad1d503f4d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_16.log": "c0015c6732ba5a237339aa377aaa3602091930a00c3703b411f103ff59a74681",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_17.log": "7e9253a9055401ae7c31be11a96b171aee71207e6d18ae469d6522536ffbf545",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_18.log": "c95dfa7ea1b5da5744f0f572b1ac5e77c77b4ea1cb7ec3647dfe965fb964cbcf",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_19.log": "53bbea84fc3a8d3889ad034fff7a899354bda79d759677962550c0ff49857b3c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_20.log": "b775fc44793977b638906fec629a313c9f5397cf56e33030d779007df88d78a0",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_21.log": "4d1b5c4e4db82040ed0c675b74dcb72e9c6b69cda7751153213ae39cad3f10ca",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_22.log": "a2e4ae1725749e39cf397f9c1aa460d5e0b398f9b570297ed0ba38083da70085",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_23.log": "2d5ce6cf8408aa373fdc310578b7d89129abdd51e8a605b47aba141fa7339865",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_24.log": "09902e2ceeb04914f089d6de55a7c39fa3bb9e2a065406a365cc48dc32878f2e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_25.log": "63fcc75db037b1de0038f27b8e947209cb3c383c77689be86aa3c1d19c388001",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_26.log": "58c77ae5961df11a6f901b44ac61a7b0c50ba469ebaf626bcc0bde80ce01c262",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_27.log": "dc48e16f6fb018bda3eefe365ffe8be14a709e29e039e7d480e8c02e754dc97c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_28.log": "3cc4a6cd7d4534c3430c4aa79091d06430e6a5f9a255a64c7bd3df5ad596c187",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_29.log": "972a4f55770f82eedbef4e30e381dc5a3a3dd79ce9a99d6aad023fffdbcc34a5",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_30.log": "2a55b4651f0f2285f0ad722ee38571cf1b7efc35631cc2a9b3a7e80a60d2a9a3",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_31.log": "123b225a048a396052c462142f2d43704beb0f815acd431aef1d186c9a6bcc14",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_32.log": "89cae41cd912605e4d95b1e8516c623d8dd0e864efcf192fd59c31a4bc8d71f3",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_33.log": "4b5e283669a650560bad1a2c5a7add52d32a2be61287354a4f8d6de280b2ce93",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_34.log": "8d5289060f1398ec5dc0c60714a645b63f2b2ff2ba53d53388d524078ca86210",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_35.log": "b40273e3907be15f39c41a10f1f4e657b2b13940ce834476ae5436e27c7deef5",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_36.log": "f2a608afcbcd5d54d2d7373578b47b403f9054b10029cab1b85421bdbda5f8c0",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_37.log": "ebf33c63a84dda5a75a52efee3638950e089a3cbe52b311b413f7e2bd07c0502",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_38.log": "a18f51840dd72e9370e3c96b34539bf60e0aae23f3c3e6844b2469402434fb12",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_39.log": "92594340f477580eb5d5eea16640765a8767a5745e2cba2cbfa6e0956d344469",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_40.log": "46002361f49f47b14e23767f9b943cad717dbfa8f424f1f44d80a6aa276b3465",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_41.log": "42177276c84b4379d7368746354d51b3af1327743229cdce42d896933cb6b6bd",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_42.log": "febebf57b9b32d2ea850e2d6e5fff7f73caba27fc4b1f5d911216a5b5874000c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_43.log": "af6657f9ca759e320e4d2b5b2807f498bdc78277fc00e7520f5ff16da0a66028",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_44.log": "a1b115201f67dcaf0942ab4cf15136a686891803b1b6596561314d6562f45de2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_45.log": "7be2cacfa1748bb963d114b52cbeb8911414b42112fe161178ff4cd715b90f32",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_46.log": "ef1b2a6ad0d8e6ceb7fd1d793b24dbcb7ee723fc829cd608a517bddcc1f27fcf",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_47.log": "2f8ebcfde3364511128c5fab51d941b9b5e19b1f9425b36b88a19341189c6f4e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_48.log": "7e2a3a0864a8f6e39c086c84847d197e58f2fd47f0bf17cd69cb708b3547ed82",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n64-k32-s4_49.log": "4eba96f68152666628122db67cc669e10c577b0eaada170446c2619660c1f38c"
+      }
+    },
+    "m64-n64-k64-s3": {
+      "passed": 50,
+      "processes": 50,
+      "logs": {
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_00.log": "320f77b7b234918702f9a7ff3228fefdb1b841b41ccc2be0de80e7c17c61482f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_01.log": "f4966a8a317dc3b3b6282ca05c48b96447c3909b6e1b49bcf003698e3ae0f401",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_02.log": "3a2113506c1003280d6fffe8f319ab383f8785f58b8647d6800e269fafeed930",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_03.log": "3f1664088e93afee73d4845547db787769dbc61fbdfb61f1e0700e9910e030a3",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_04.log": "f4ff7ddad8ae1408ddb7b69f6efff3022f38a95914df7916ca521825e4c7a6e7",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_05.log": "3c354b5293cea2d409dbb406232b68c84638fc3d175b2b66a846b0896e7c076a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_06.log": "91d2efff9d882f92f900e48bb865969d010c43aa274e90ac3d38648fb20ec81d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_07.log": "3ba19be4091c724e0fc9674f14fc26484f69dca4e3ace7aeb2bc8c42ad399b88",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_08.log": "e6d698457faa38fe32275e521ef3d20f9f6d8842c9c3af51ff7ec92205b82a8f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_09.log": "603b2d7f554fe99b3b61caab8d6902bbfbca86d0c92eb5810a4fccf1a045d6fd",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_10.log": "5cabf8dc92b0bce88dddcf1a74a5f537fc2042d3fe8a3bb674cb3ee4ff1fd284",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_11.log": "fe94d40be9c3f957ea6bfcd8762632e1eabe848c50cca0b2a54e8c093dcf54af",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_12.log": "1d9fceeadcc9a32406b350d9c0463036f188a4ee3362e9903ce25bece855d8a5",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_13.log": "7f2798decb0b736413d86a7b5fe4e01cb5acfe76bf2d1efd93a00c405b0e8be5",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_14.log": "e3fb06705921d0d4c705cf5c796604f80f0794ef6aea71683640396e174bacf9",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_15.log": "4652b333e5391ddcdaa4b1af4a74f483ec0992ac6a95c6d52ed6b417825be53e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_16.log": "0691842ef062bba590571337cf32a5083597f4c40edbf41139275467fbaee655",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_17.log": "59faf8802f842828707108df7f3cf2c15058605a849be26ab9b6e005ae3ec673",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_18.log": "af28ff7c3cefee411510feeb60cce5344768cce6584e8679bb4fee0f8e15c28f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_19.log": "b4f87bfd10aa4a9c0b0b73c2e3a439b5ce1ebd6f21538166d8106646547e697d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_20.log": "3a7f9e2c48a42ecd9c06ccc30035ba5679a0f2571993cd69b6177756c0bbb284",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_21.log": "c53eb8d072f19da14534d42118e0a9de3b3aa509efdc9708d6c67aaf3e54b028",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_22.log": "e6b496b40d20963246ce9be21958a449f22f60256929213c711044718afff037",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_23.log": "c532391c21172e85a36b519a4d3b1cfd37a458ca09f7d8c3752634adfeba27ba",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_24.log": "3f3b0480a9b94b4fe26ff43f042e41e04cfc7a9faa461f61ddbe54d1dde65e03",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_25.log": "523f247aaacc332104707f135656a07f364c1658d8db94c4d6d4b6eda7eca23e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_26.log": "2f7c15a62394354ab7f6f972f5fc969d97bbaad254db03b0307cd5e672853053",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_27.log": "f87ea29303e48512204c4ab52678a0c262cc4f8dadaaede9cc427c7cea2675f2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_28.log": "03ecda546ca41efe57126a0a54ae162ae25f34beab1ef57f52e189de6d19a07a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_29.log": "d0bde1354689ed1d22c94d258c6dc7bb182db9eea1d79791d55e206282e92887",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_30.log": "8dd87831ad10e93a386c8b64e1c1f71954128c01f0698396736fd4ecbecd0661",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_31.log": "47d3377519b55af2b48f0acbdd55f4c7b4375f35e020bec48a6c8a4b920c96d6",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_32.log": "3ba3c2dbf4d1412068fd48dc884068d040042dc5bb5777773f669930c4efed5c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_33.log": "3c3f413d52c6048a9d22fc32cf2dfa4771e35b63c763a2c52459c3b227447afe",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_34.log": "5ca095f233ddee4ca8f6e87a0879f3237fe0696911902ee1f4653cc0cd88d829",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_35.log": "de4816d31102c05eddada3488b1ebc65f5123ea511c8a51a131af6c3cc56d177",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_36.log": "84280f72c57c424e1ec1382ed8f55fb67277367a5e0d07d852e89459d0673866",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_37.log": "c55d03b37db6fd6978fac4bf3c93532bc2e951c24076d91f3b7d9f80add5d4e7",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_38.log": "d1a60d8e944e0acaeb683b62cdda0eb19d09df79612906c5bb60e40b09a1f09c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_39.log": "bbfcf4f35034f053c0366da73919127f12cd69aaaa39cba347ace2dbddfce2c2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_40.log": "24a0a1569f35ce5768d559f331fca4f343de395f5b6d0d9d0e0ef41d0d6b3a73",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_41.log": "c5333633077176cabf14b39841c083ba66b1f3715c5fe1157ccf9fd52c3dbd4d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_42.log": "e7cc71fcaf76ed64ca84773683f21d9b3d4b3ebd63159f358eb4c475862467a6",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_43.log": "f9a51132bd0fc0b464f841f2af430ccda6fd27c0c9279ca7fb52e4060d979a5b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_44.log": "b60f5869ea45a557ba2bf19906b62a3089e8567a296757aab2331130eed942fe",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_45.log": "0ed116c671d7a691c4614f500c396906921fe22988029bc6ba91dc9f507e006f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_46.log": "ce55f90eb7ab4fbb8ca7124d4cd850de15eb96393c2bdfbb57c7c9566ed456d4",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_47.log": "97044a268d8d2ac6183eaf16962e384cd0b1bc2a53323d8264d27038af5fea3e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_48.log": "45c32ddacbf0ab3d2df830f82fbd8ac046bd10a997b8940f0775e3c31ad5f188",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m64-n64-k64-s3_49.log": "d8280abdea3c90a4695cd03edea4438c0e116740e6348357a29978812e790985"
+      }
+    },
+    "m16-n128-k16-s3": {
+      "passed": 50,
+      "processes": 50,
+      "logs": {
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_00.log": "35e3fdc34d37534655dbbba4382e9a2b00bd3c609a73209d0caf3e154258a152",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_01.log": "b0a3c366bbb447d9b836043443cbf932a6eeefe7dd6c01ebd5336fad594b3307",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_02.log": "c0009150a7e043b8c4ac92e231e54623ec2252b6aee19f1714d9b46c9e229971",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_03.log": "ddbab2f575405fbe45739679d3fa8c2fd0b19db5e959a605feb9c7dd67ab25bd",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_04.log": "fa6224ec750eccc0ec1875737a6a103d219995b86c5cd5725042c34729b67422",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_05.log": "dd039ba77aabdab1bc8dbcb598bfa36bad13d4c9eaeb4fb17cd9b1305f8c3aaa",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_06.log": "bbfdfe7631eb0757d601270e6bc48ee1e8be2d74a1f15427ae7c384a1bdaf3df",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_07.log": "cd96ba929f821c9b785f375dcfa40112f9be9ca04aa007a10f073fbd2d829b18",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_08.log": "83b85c5e4539b985a2118544cedf4513b6aade4fa24338b25ce936b266cf1b9a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_09.log": "6049e2b99a6506e1276176b019e683745d26163254f521702c809b7ad848fa7e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_10.log": "dbae2cf17d8ab37204d6ffac5b03acc244266fcb1e998bfc25437321ddd3ac46",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_11.log": "7e2d927cc2f6cca41d9b6b29517f6f244c3362af6993061a8dc2e3362bc43d87",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_12.log": "ccce62ed8d951e41520383a2c908c30813a249a582f66cd1741a677fe502a433",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_13.log": "33dd58815a26fc370e4e085f7003ba0e3dc2f42258af480dcbf9d8a2f2c4f8fe",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_14.log": "0f4fcf3b023f6022ea0d9ba0fbab1af58b94bd426ce613f053e0e0f2cbcf4e73",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_15.log": "fda5c7d6205db8de2d056c4985b1c3c1083a624a8acaad5e67b3f2e692d44ecd",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_16.log": "d539b922cd29e64f98e0b681b609bc61da4da635505c0a84261396ee447cedcb",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_17.log": "2bc1e0ea84676b6b3e6b84c596aefcdc9fdb401ee850b540e88f14c62ee0ac4c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_18.log": "b90bdba6f4d5c9097266fc191a245759c38eb8bc7fb5e3cf3ab6eca8812abf25",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_19.log": "867410fa7343a7ff00d42f756a3694553ec161c328bc8fe14204181e400d68e9",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_20.log": "6b54b7b0429a1f190dbd699fac5506f91500c5bce36a993157fe535ded411e0e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_21.log": "76fba6976201db17607d85d9cf22286d3059f152548448575b56974f9e785791",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_22.log": "4f8cb4a6ce4cee7364089cc996c4958031b73230b3eea63fa70c1776d53cb2b2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_23.log": "8c6fbc2d65cb7a67b34d682e1bd2d93e9141d0b1e14dcc3a08ab5523a0fd53b7",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_24.log": "7e7063714fe6562f3fee3a45a211fcfb0750feb6307135a37d74bde5469a74c9",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_25.log": "b7747ff1bb6d3b7bc1ff4d59630af36f6f4c9bc5e322df98ae0f388a65f2e365",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_26.log": "579a06776f611183c13197fce79d60c69d28c04f8c6e8157600f744e2973d677",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_27.log": "ae691977e565229af7ea9959fd2b82b8db974eaed78b38dad8b53177fef00bef",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_28.log": "2fdb32abdb4716c3bfb3d670b0cae5f0bfdaa808069ffb3542d9e3b7e400886c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_29.log": "4878db26992390c5ad9e9da0aa3d339add943723f742b43229f696837a6446a2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_30.log": "0fdbe862224c6eda89cd2a3e09e6fff5854f6110f09e98a38a22306ca5913850",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_31.log": "f8c26f944bd28d6dee5a4ca39defb2ee55672ad9f86a5a3a704878281559e9b1",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_32.log": "bfb5c81376634c513a2a3d5c7502c3de20d403cf2bdec12f861910b8d75ad3d2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_33.log": "5d8524354b5ffc8c93db8b7511ea51eb876badc21f71e8e26c8e85d32a5cf8ab",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_34.log": "31fdfaf28286544072254135713d00d46fe62455bcd75761eb02879c2f8bd89e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_35.log": "d072395d9e32a4de28cad21c05a87d6e5c6231508a22676198e02633c3b3d893",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_36.log": "401a153338523eccda77778270d4952e364fc4767a0fa2bda84474f6478b121d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_37.log": "963c867e964dce85ea3a67892c0a30383e5c6dd307e22a2252a5576e4f3ac6ed",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_38.log": "2a4abd3522728a998dd1dbfa6aaf1bf1a66f41511acdd5000784b8aebc2696a7",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_39.log": "2709de0a01ef0b6cbcd8e10a23a82a4ec00b713b9f8900e09af7d065cbe0e232",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_40.log": "4c3987eece2083ceae78958f7e593b8e14e5e19d0543ea5c4a19a300a36d6223",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_41.log": "4805faae6ca0309c354f4e9146a5d470f77c4c846c35b417074568fbd5e6698a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_42.log": "520a9bf6a13fb48b852108604e9cb125c115d2fe724284b61f65014039273fd4",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_43.log": "2528b96f76c45795558cf657cddc1a1d5252326c8e658a9ac3a8d62939434960",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_44.log": "b459b352bfab137dd92742052ac64c56e522c96f9f52bad80a211781b9075070",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_45.log": "270308db3299ab8f258c4b69666a812084be32421b30d2b882602d948a145673",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_46.log": "600bb583b2be6d6b4942558c839b3fc02a8e064e2d6cab4eb9e0784380ed774e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_47.log": "40efb5213e342e5c539a04ca004bec11b888b52747913d210c5bbd21e9af14bc",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_48.log": "10121cc9eb8eb25fb356b7abf1e8d46722428846bbbdb65c78786a317d9305b2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n128-k16-s3_49.log": "90dd2a56843f237aaf845ab82f395f9288de1d7f2cf38f03f43c96fdd914207a"
+      }
+    },
+    "m32-n256-k32-s2": {
+      "passed": 50,
+      "processes": 50,
+      "logs": {
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_00.log": "ede3ba389c7bef303c6bc857a139deccc5d5737f545c46135c89795210faa274",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_01.log": "cff68b981aa946b65f2b077781957ab488bb70fb35fab530f32ff47d23c3cb39",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_02.log": "333974ad2c521f81e460dbbc24c661337ee630626744cb2042ccbde493ba8973",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_03.log": "f7c639cb368c081106b847465dba2bdf3ba532e952ec613db292da90213f048b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_04.log": "dc2e5ea1d57642a428cdf6f928f6e7da1aa399e317c7fcb46d273b50ea6285bb",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_05.log": "f9d3f58f0a9fb9eb51cc8b752b81f8ea7007d58754fc2fa287c1e9be0fe6e269",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_06.log": "9557506ef3e7a596382825896bd34a12bc097c5d1ebc68992c25f7a30c5a61bb",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_07.log": "95df3f2b3879dcd659277d1cf0a51bd09886843530a0c27663086225cd3cddcf",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_08.log": "bc0dae04dfd125f4199a077ba4098464510644b3d47e95d0034f6b54540014a1",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_09.log": "9e20df8c837e131083f74be399f5171c702d5ad9fbfad484d23417c63f1e8748",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_10.log": "a68cb5fa4697c481c90c57b420429360f324351e5a7b0a552b56bd085371672f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_11.log": "9f6cc87995e0dabd113a7d200f3c8eaf9fe20d4d8c2aa4a0ff2f3800f539dd2e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_12.log": "bd2113a36dd69b4a9ece156fbe05395c3278fd158c6ead51ec2be3d7b2fde207",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_13.log": "76e1369c444477b4ffc1ab35d7280cd39e47bd583665ead0cbc2e8a59b5ce7b9",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_14.log": "05a319c37b9a2368ab6a9ea54b0cbf8fc741fea8a197596b313a7e4df5a2358a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_15.log": "1355e223ed1309810cb750935eefeed87a3c49d57712d18f5e861980b6e701a4",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_16.log": "ad98d7e50a167d5cfbba91faee20208a63c899d7dfa78e71d9526a2c75feae4c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_17.log": "f2b4621698e5d40524f37d884a1bf5002698929ec54f5e481f31c73fe8abd469",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_18.log": "c9d8473e3eaf8fc54458132929f8f87b906a5574f2a84e0287cea297552a02c1",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_19.log": "39f8ceab055da72c734ff164800fa998dea7cf8f7b8bf116a817ebd5bf121f73",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_20.log": "160ec4ee4d73ce53159c2f261373baa3e6746cd30f9fd7f00ab33a0eb305e6b5",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_21.log": "727104fb85c10200e5de3d88eb6e8434cdcb62c98274d9b893954c433cbbd0b4",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_22.log": "5a4515a18f0fcf3751013aac9f06db6cc65a7b1db9fe96494705557800468c59",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_23.log": "bf4a9e8f620a4752818b53787039173ba45902c1ab6ecd3e14053974d74a5d43",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_24.log": "b37b628a65297ba2d22889e8eb60e17df17363054f99f85984fc869a4c2ad75d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_25.log": "e38e99d726a46032a81ba92700f87b0f3626401275ba0d69aedfff344644f643",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_26.log": "5aaed5b8edaebb9d4dad5fb3e18a13fbdc3d883fcd2bd7e399d0013dad6bcac5",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_27.log": "4f5bcf408c81be0c59f8c233b3ab864fcc7c6a6624a36e20f8984f78b5695b46",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_28.log": "a533a0a15761731bae25414b8ebae0560b75d50a57fd610192f3dd3ed4520cd5",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_29.log": "c729e63af9194848f30d13a47af5132f75be419c0ff09a3a2d2cc9c7a3542714",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_30.log": "dbd40466aba3156c8bcff074b042190388e69a535f8136cb550139ca1a43949a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_31.log": "85ebab4e9b2473aeac17141184978b9ca8c80e7b8c2444bed55b528002f52674",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_32.log": "57d4650d0495ff8e4506b7d027f8c125a6e4b288edd887b4611021b3c28cc87f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_33.log": "2f8375f96ef79e1e1ac7a647acb08935c8b57d33154ef5f8137a03d45514f8f2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_34.log": "ef16735f80daa7e9fac5c2fe8dad51ba22006670ea768805f0f3cd09a49e4eaf",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_35.log": "81b610d331b2fac4dc51b7faa1e279717f56802dccd8bb72fbd0e3e204ec2317",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_36.log": "89a3d224f806d86a4392427b1161a87758ae7759372605f848fc8521b98e62fc",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_37.log": "beda2cc5ffca67cc20bf1aecd481e9e5059ff8d6f6222b263921c6e399de9b17",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_38.log": "b8082fb7bd118a6d3e74482da2f64031828c386e98338593bf625e4f5aea471b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_39.log": "d5be9ece9cbcefe0754544c8009c19d16ebacd0286281db156a6005de2ea5c08",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_40.log": "2655249a9a5d987153be1cee73b2e9316d66fdf266f492b1f14faaf98fc56b9a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_41.log": "5262d9aa8f63db34caad0e5d5d6e4086003823a9756c18a9cfd6bab2cdf9ddd2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_42.log": "3291d56e5758cabe84e6cd3827c36a13e535c83a6c40524dfa591796e270ef7e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_43.log": "855b2f97a060c5e5f49196e9deb6d1b2d8e1717fa36b3c58353fbc87a5885e94",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_44.log": "b7828aae5268c45e1d9ea225a6efc0a22e1ca5a4c174a74b665001947d03b103",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_45.log": "5855899ae9e04ec39be3cc3ee1b01705bcfd7b7db697a77ff43423d5a5ce5d8d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_46.log": "709251bcbb107f48f032f944b0ab9aca5d8e12fea327084ce1cbae50ddf31eb7",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_47.log": "bca61a9686ce4ecf402cfd5538cfbad00023c672f568b349a54d1190a2d36bf4",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_48.log": "c251a0b779498eff03ac46b8c17f5e4fc6953404b82fffc6a34a212b66225e63",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m32-n256-k32-s2_49.log": "938217cfb7a0ee52c51c33b06e94460699259d72dd926e28b63aee5f1f1f016c"
+      }
+    },
+    "m128-n32-k16-s4": {
+      "passed": 50,
+      "processes": 50,
+      "logs": {
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_00.log": "e219df544e7daedaee77c9f9ef0a7c198ad7b6f1e407df65b1c33707cb4c05c9",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_01.log": "0d69f471f143f3418fbf82a966466f99c15bed6722d3174413bacfb42b583460",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_02.log": "8902d8dcaa17597c54a117f34c82fbf463a1cb530e89ae7213510c87d5c3779e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_03.log": "3c28ff48bdee96cb9c6072f4d5de1aa7a6b8ccd6b387863bc3665e1f1e421696",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_04.log": "8af427572fc2e46dc8c8ec10a73a82a0902292cb733626601d01a99a0da5214e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_05.log": "968747344ef034592a1da74d23dd72544769aebad49b489b7b10949d13c13cfd",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_06.log": "472634a7cee1be83fafb446e251d3ccb783c08fe7c99f04c1ec56b222a759390",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_07.log": "7ca59458e18d963d0ea2520095f072949914eb9b199c44b164f165de195461c1",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_08.log": "c16c9e2eebb44cc5584a1f59d235244100ff0ea62ca7d0aecce577da8774d3a5",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_09.log": "91dd22ab01b50287f19c58e2971c8f23ca91abe899913717b8dd0b08f6a02271",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_10.log": "1365cf04038c7d892322af17ff0df6d3f4d4467e4200dd993498921a7dc3df84",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_11.log": "8636af88a98a158ef4dadb8c9c90bb68963132ed069474aae942d31e9a4e681e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_12.log": "f9510da91e63fe8128fbd0cfd3e372a65b6b1e84e6a20c9ea66ff0d20fa400ac",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_13.log": "aebcdb4112698bad659050a91c508d0d10a5aa55a1f1c6f483610df6490f2198",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_14.log": "ef65382f22b861fc0d5264c5e78e1b4b6cc415c4a07495b699737bde783b6211",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_15.log": "6ae338f77c978bf78fbf32d477d5650efbca70c2a85829bf71c7952e6ff7cf08",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_16.log": "3f791395fa2d85e83dea1f6a3dec28bcfe641ad6ba4fb1989f639134c7c8371b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_17.log": "31192312a9a0f6d4d5c42a615f454f91225a2e7e66cffb461dabbd48ecaf745e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_18.log": "e1cb4a969655e70b013ace907cea404e4cf8560cc6f321930be2a88a85296e21",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_19.log": "82c33040c47f21370a0e9a9dd2afb684e8c0d1b1ae1c948f03f9fb786b8d7023",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_20.log": "b87328bf3bac90f084b3ba74963aa51989280e90549605a01a7d7b12de745e4a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_21.log": "3edff115ce28ba083dfaf5d1e4e33a36a2da4a64adc78ecf417ec1c5dd432de0",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_22.log": "1c6d69ed8372681b207e39ae525917774ed99d6889d563b5515a7816c3d9470f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_23.log": "7c5fc546d51789b0312640d8bcbe742182158b6e942f8c88b2ba9616eec9b5c0",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_24.log": "9810397f5536e449c54d0db70ee4c57e87e05408554742a59ef2d94bbfa90c8d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_25.log": "7f07ca987590f02fbfe622efeebea7fb9c841765cc13880200a34f3b2e291b16",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_26.log": "b44ec8b57bfc4a15e5aec167ebdccbe47a34ef8e5dccf95f1752007b131a135d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_27.log": "e50186b25807a3445e2ecef560a62a1509ce43230b3c986da9b9d701e4d1ecf6",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_28.log": "10f8fd3db90d2d3b74a26274f4b8d9e1ee8d41dcf3a9c6077afa5b824900672c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_29.log": "01c55b87a48ddeb9411ea91dcab9d3931426776d5488106e33022361be65fd1d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_30.log": "89fb6dd073c2fac35abb08a077283edfdba8795083e3c22ac43f71f133ea6698",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_31.log": "aca8dab709eefdd15360381eb9ac0072dc4f9fb4cd6a0f1d9874bb247a6fb163",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_32.log": "dc5e98baa41bda19f9b2c7a50a6e6a89d18beed8e9c9dfac883329dc98705c3e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_33.log": "0fca1edc8b758a2ae279b910dd531bec3937b31762655ae617a37d05311b269f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_34.log": "47f297566de2b24fa15691f773392bf7abbae3f932ffda18407be6dbcd93ded5",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_35.log": "eb1a9a602d6e6a336ed71cb136612d08ce2677eec33f5cbbf36e7aaedd23c3ff",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_36.log": "87b01bba73d0f765430bb291c22ea849557b1fa3c8c8fd3f70b79018596a96ef",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_37.log": "7544d2f6c888bf03554d2463478be7bc73a446df38eb04f264c9b82c2c82dd8d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_38.log": "dc60b732e0a56abdca91c7923c06114255a8fad7192ffe025c83a2d8d8fa555c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_39.log": "c01befbea803a607735f8d0697616c5e764c865509d9ef29b22cfbbcc5aa7630",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_40.log": "df4f9ce950fb1d6285f66a69aa8d5bf1f8b4150ae95188b0a5937b87dbc65aa0",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_41.log": "e46bcc1850f655db0aa412e09a9119d603464190058e6fe64f946a777611d109",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_42.log": "bb33b6a382b61aace0d5e37142338d5b5a1c2c4360f713e118fbda7f9618bb8b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_43.log": "c3bbd15f2b0c643cad73658f0498f3b9b5ca7d1b4c25163f471d4160523475d9",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_44.log": "a84897d18ba1eb0d41876a61acd763e77e0d723b0786f8b60c6ea8c9a8a994d2",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_45.log": "5236ddfa72efdde522029336bef4992f451b12103867382eb146903152b89ff0",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_46.log": "cf5c6ccdc1a320edc9064e30d3231acbbf450223cce90d239675e23d32c6261c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_47.log": "26895067511b8fc41d5cb4e806c1dc6bad9429c036cb0e8a71428ed95f8311fd",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_48.log": "368c8222bc289628da64251a37652e9a3e1dce935183eebaa4fc31990ca3d95d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m128-n32-k16-s4_49.log": "5755de5a3b5fd31968493f215cf45847bd8b014628f913044d315858995ae251"
+      }
+    },
+    "m16-n16-k16-s8": {
+      "passed": 50,
+      "processes": 50,
+      "logs": {
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_00.log": "eb1ca77f98b78ed01f6866aa7b41da2564fe51cba7811550fe57f732ea008c99",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_01.log": "9bef21c819bb3a612a5da1ce06bb82bf041a4b4a2476e41c543ef05e1b9fb40a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_02.log": "51929aebb723a4c5cbee3267b975b286b5754de852ffe21a93981672372a035e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_03.log": "6bd7f3da3db736609176e25833f8be727c7f79e9088d811ea31ccce019d16d89",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_04.log": "8107afc53aca98868442e2e85547b174bc21f95b7e29dc5239f6f3582f970b86",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_05.log": "c43d66bac1ca91a19ba4299969588183c65c900593ec63c4b606f62011a1fa14",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_06.log": "af184f02cace5df5ff1a28cb1db4539e813aeab28a5d4ce7802bdb72157b8bd4",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_07.log": "38651fb6acdd56aa93fc55f37f676ebcca7754a2bda3e6e048bf329a32998dd9",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_08.log": "252167d00d364a0f32dd8793410ae4d6e52096f36e39134d5bb71637746b58a1",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_09.log": "37cfe1439a117dfa7f9615f3cbb33b54fd1251af91b06fb1166c456e36e00867",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_10.log": "3a2bd149289cd43f154a85d845d796aa572628dd0331cce43b0e2d5775f8eceb",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_11.log": "9ecdfe11ac8f36e3ef9b22b3604a934d94ad55d04155fa6406e9e4c7328d6542",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_12.log": "db051f055eb2b4417215d7448dd515967fa2b31b11f3091eda9bfd0cfec309f9",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_13.log": "1f0cf478018463dd87abad0c610730a84086d2b30a67d3cf132738dfb35ba64b",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_14.log": "4017f7141057764ab9a1d9d19b4f0ef6cc0b21df578c569d5a0f85ed9aadb9d7",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_15.log": "afd2b9d35bff56ac86855c5b375659ef6722c1fcdb3dcf3c9d41632f280ce769",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_16.log": "fa62c5f3c175e26e67c3729d24e9a6e242773d7329f8a054ea25074956c20e1f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_17.log": "725e5df2e49adcc88ccd0c78350bc07ac3812d1cd1c7c6b1b0b5b51cf6da569c",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_18.log": "193ac43bb326ca1351a6f2ea127e22adc72d68b0db06287d5075c2e09f5e558e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_19.log": "a92c57297540c00722068f4d2257de86fd8b59c1b03451b918621f861fee33ae",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_20.log": "56c29c69e1ed55fa7ae4725a2f072b9943e46477c1325cfc5010fd52218cff76",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_21.log": "4b03adabc1ad01dea8a465e7a4928bb6d3d1ace70b3b133ea0b6abd7fa8e70f3",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_22.log": "fc31c61e594d35049a342db27ec79f5bf7f0c5a5abf2e791ab90b05878403aa6",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_23.log": "668da02321e70d2d78cd2c682bca74e4943d44ceb83d40818748c87b24f5e7ba",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_24.log": "c9f5f0ebb1004eab50c68d485a97bc8699038762bdd8c1aa61f30c866acf3556",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_25.log": "de7d1dc88bc452223775859bf8edcdc9fa15962461cd4d44187afc4e50b3ba2f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_26.log": "25087f55f1c6a54a732d964f61909ce424179a36d09e0a044323ff17d9f04e66",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_27.log": "b87feb35788fdac583e1a7ffdad5e2e6d771899a20f891c3e5a59a18abd06fd5",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_28.log": "40b3bdf2133efc80d0e82a1e34a0f8bc5e3072c7aa6e7fbd087edb5d07fdb945",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_29.log": "0aee4a87f2e7082a736f3fbf148c4672e366c44f5b8921f8f53919a3f9ff4dc3",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_30.log": "b2a5409a9b6cd83b88a0a924be9a6f4cb5b19b9b9b11c9967bd1e342208f7b39",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_31.log": "38236a78152da74d0c2e60a9d1849a20cce596a511af5686e08d845c031c4b86",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_32.log": "3083f05da69d2dea22be0293e08aa4bcbc7e3a3f2b57f074b488b33815716f4a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_33.log": "90267743238fd9cc7bf804050e8869c3ffff091a97e1447575d5059f56e6499a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_34.log": "249b5d07d6923ac7394431bd8571fb810ea59d4b2e5cf4f271fab3d0ed6a6d11",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_35.log": "467111de8a60ee43ba6cc0548e610b49f7f58804f9ab5a14c1534ce75f3bc12f",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_36.log": "17a3a11c2e2d3c6a9eabb995be5793d4918df2e5066dce5a022e2722a255ed8a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_37.log": "62226bbaba3640e0e4f36c00b27cc1aa611d72dfdce5bd1f12edc329887d0416",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_38.log": "74e19fd8e658cd3e3a9eed1bab29c7652dd9a215e9cdd05bf6a7fa221f796307",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_39.log": "3e04eab261e1dcf05cd6f27379cf6ef011b816d2311b1cfe38be31210fa2734e",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_40.log": "0f13c23606adb2268873337f7e1cb3636817bf0df1b39cfb80abcd7bd78060b0",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_41.log": "19053fc63268b9b49b50c30d70214e64e909b4cc95a6b61e97809489e95c3843",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_42.log": "4d7dcd5ea7759a9894f84e5eca7146085341a12d72d8b4e44f7ed2c0661b283a",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_43.log": "efadf39ec727a38b46ee6ccbef8d0e16b49abae98f65b9018f7bc2329d697d43",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_44.log": "c87c88c4634be9e6cd5778484addd17136646b1fa49ac9c2a380969bfb1fa250",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_45.log": "11f50a68033e7bc9de24eef9248c72c02462c2d9890a186582f2efb76df1e58d",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_46.log": "1a15e473f4ac4bc1ea25f249528672621c192abe49a65fa14b220f8598d407e6",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_47.log": "101690555bb6c05115ca55c9187fc07cf33b35901e95f820858cda753fd66db6",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_48.log": "8f1b19309a4d306f3d2602444085d22c38dde117ac80471481811543803dbb94",
+        "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/check_m16-n16-k16-s8_49.log": "5afd39c3c0f67bb35b33487822c12c173d546427348a5c51af315645cc8fea8a"
+      }
+    }
+  },
+  "architectures": [
+    "sm_80",
+    "sm_89",
+    "sm_90",
+    "sm_100",
+    "sm_120"
+  ],
+  "artifacts": [
+    {
+      "artifact_id": "85f645918870c0201ed261be7a7454945d12ac3d8e32676303b0b5c487da2364",
+      "target_arch": "sm_120",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m128-n16-k128-s2-sm_120.identity.json",
+      "identity_sha256": "d63fc022255b73c7ac78ee81b207e7431ccec1091d9a03f6a589be2662a8861f",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 122,
+          "stack_bytes": 256,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "256 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 122 registers, used 2 barriers, 256 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 73728,
+          "total_shared_bytes": 73728
+        }
+      }
+    },
+    {
+      "artifact_id": "5fe1f8235c2f13d252656a7ad13a794486c491e5ba75c669a455a265a760293e",
+      "target_arch": "sm_80",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m128-n16-k128-s2-sm_80.identity.json",
+      "identity_sha256": "cf2cbcd95ffec72f22b3f076d69f723d18e1e3200b5aa36c73eb7e568b997d63",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 243,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 243 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 73728,
+          "total_shared_bytes": 73728
+        }
+      }
+    },
+    {
+      "artifact_id": "a587c54ecb16be8f926015aab4ac659cb2089d7e26bc34d2255b4d7bf4230c71",
+      "target_arch": "sm_89",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m128-n16-k128-s2-sm_89.identity.json",
+      "identity_sha256": "cb45400a62396beea042467ce8f6326dbd2c55b472a2e5b0ecaca5149d14e9aa",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 243,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 243 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 73728,
+          "total_shared_bytes": 73728
+        }
+      }
+    },
+    {
+      "artifact_id": "539fc7642649546616c8c764e6319f1b29718db799c4baa53e23a86ca791ec6f",
+      "target_arch": "sm_90",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m128-n16-k128-s2-sm_90.identity.json",
+      "identity_sha256": "b69e5f5cc1284cb4c89f4c9905eec1737870b2bf673683569c9c378a2d9fd5fb",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 243,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 243 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 73728,
+          "total_shared_bytes": 73728
+        }
+      }
+    },
+    {
+      "artifact_id": "f6431efc35e96a6ed5c9cc3bd37fe4bb0842ddc82669c9a9250cbebe319c2b57",
+      "target_arch": "sm_100",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m128-n32-k16-s4-sm_100.identity.json",
+      "identity_sha256": "30837ffe29d327ec30c37830b455b6f53945ea16b6d754c4d228f3129ad458f2",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 91,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 91 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 20480,
+          "total_shared_bytes": 20480
+        }
+      }
+    },
+    {
+      "artifact_id": "12ffd52a3af1319bb277cc1d95e9ad45c53bcca43fbb28f02e6d01a828061435",
+      "target_arch": "sm_120",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m128-n32-k16-s4-sm_120.identity.json",
+      "identity_sha256": "82911a649b0479e43bff08eb00d8e0098e64c492b11e037784d0058d1dbe482d",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 91,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 91 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 20480,
+          "total_shared_bytes": 20480
+        }
+      }
+    },
+    {
+      "artifact_id": "24752c1f03cc301d28e255b52166822e67480d29f9d0f8d0e6a911075f93b5b4",
+      "target_arch": "sm_80",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m128-n32-k16-s4-sm_80.identity.json",
+      "identity_sha256": "239ad1965e62b50b5473c2acc83ada89edcebcd77e549d3dae35b7fe74dd87b3",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 128,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 128 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 20480,
+          "total_shared_bytes": 20480
+        }
+      }
+    },
+    {
+      "artifact_id": "3b7160f28495c27e3fd2ed92f2804e0a5d66b19c059512ea7a1aa74181e732e3",
+      "target_arch": "sm_89",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m128-n32-k16-s4-sm_89.identity.json",
+      "identity_sha256": "c2ae309841f933b1d945cff926778b9e008f50503dbab6e35d9379c81b537bf1",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 128,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 128 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 20480,
+          "total_shared_bytes": 20480
+        }
+      }
+    },
+    {
+      "artifact_id": "15c1a8f056e66eb175aa6653c72a28886da6e5e6ff9957cdfbb1885ca16f5c28",
+      "target_arch": "sm_90",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m128-n32-k16-s4-sm_90.identity.json",
+      "identity_sha256": "462fdbbfac3c81658a27b5fd07d68302e466a4a399d28de05f79d6073dbdfa89",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 128,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 128 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 20480,
+          "total_shared_bytes": 20480
+        }
+      }
+    },
+    {
+      "artifact_id": "78f887ada38fbdfd9cee3d67f2082bf22634e138e3f6994f143416ad2b688a5f",
+      "target_arch": "sm_100",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n128-k16-s3-sm_100.identity.json",
+      "identity_sha256": "5fe351c611f055bc08293348261f43bb973e82d2b0de9a09cb9b58d178026342",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 78,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 78 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 13824,
+          "total_shared_bytes": 13824
+        }
+      }
+    },
+    {
+      "artifact_id": "1b9c1e040121d8f1774514a6289d00b0457c14d28145af4205d02a94e5dfc91a",
+      "target_arch": "sm_120",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n128-k16-s3-sm_120.identity.json",
+      "identity_sha256": "76734661725d8715f73132752adc3c74f88bf3d722c7c1d914e3f3c05ec17194",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 72,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 72 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 13824,
+          "total_shared_bytes": 13824
+        }
+      }
+    },
+    {
+      "artifact_id": "7083c8d9cf065477cdbd7daa5667f6e8927e2c1201d4239a3edbe3a948a25096",
+      "target_arch": "sm_80",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n128-k16-s3-sm_80.identity.json",
+      "identity_sha256": "dbab5aff3f8a5db63ac6e76d3cd6d658686f2048292b65fd6c86e8f3e62b033f",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 96,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 13824,
+          "total_shared_bytes": 13824
+        }
+      }
+    },
+    {
+      "artifact_id": "210bd3cc43f5797ccf8a22ed4e0e24b45585f5ac568faebf59762ed613f8d1b2",
+      "target_arch": "sm_89",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n128-k16-s3-sm_89.identity.json",
+      "identity_sha256": "4857bb8d51d945741dbdf0cc34322835e1294c6fd77b4ea78130bdc57bd2a21a",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 96,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 13824,
+          "total_shared_bytes": 13824
+        }
+      }
+    },
+    {
+      "artifact_id": "8dec48de6c7aaa0cb9c9f33fb3b452fdfbc078d307ffe24f46218378e6953438",
+      "target_arch": "sm_90",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n128-k16-s3-sm_90.identity.json",
+      "identity_sha256": "b43be8c275b3e11ffb972cda99ee4d270bd1211594534d7b6e4c1c266991a4c8",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 96,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 13824,
+          "total_shared_bytes": 13824
+        }
+      }
+    },
+    {
+      "artifact_id": "c843f5efd848245cb0e009aa32ed70e1b3defe24faac9f2938c1bd78f514f598",
+      "target_arch": "sm_100",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k16-s3-sm_100.identity.json",
+      "identity_sha256": "c4ff699814181bba14a77fe0854ab079a62d603265246d96bf5fc507e933ea23",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 64,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "artifact_id": "a603e61525c83ab2f6c1ddb007510a1251a16418759a44d821030b404c9cc511",
+      "target_arch": "sm_120",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k16-s3-sm_120.identity.json",
+      "identity_sha256": "a026af4dd2c31388e2a8e9d93c00f62b1f23940a1d9736c8bc77a1f4c362862a",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 63,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 63 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "artifact_id": "4d9b5be2b192042d96d14b83412b2dc0decdcafc7e9af55d5052a5e337bb94e9",
+      "target_arch": "sm_80",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k16-s3-sm_80.identity.json",
+      "identity_sha256": "ec90b3c9ea4617f2e58776f1d1daaab00a13f459268ec467d8e7a9a1a6684da1",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 80,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 80 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "artifact_id": "4ba9677bd33930caf150249bfe8ae66f844fe77b392def56f670b8d9f85f3148",
+      "target_arch": "sm_89",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k16-s3-sm_89.identity.json",
+      "identity_sha256": "a9c23db1d9c67ed756e554a711b1796a212720852ee3e268e2e6befbac86cf31",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 80,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 80 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "artifact_id": "36e4110a90f0c447e3fab062e63c858ccaaaed87167f5c25fd0ecf3c0d3adf4e",
+      "target_arch": "sm_90",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k16-s3-sm_90.identity.json",
+      "identity_sha256": "f33f568f31aab0452cf40e10331df860179d400092ce5b2230d5f236e4752149",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 96,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "artifact_id": "a8fbb31f369acafc68eb59aebc6b7ab7cb9abd0d76df31addac9e51c8a4cfa1b",
+      "target_arch": "sm_100",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k16-s8-sm_100.identity.json",
+      "identity_sha256": "3c9434ea04d179c94108466811ca0598f7c94c640432fd101e6551f33478e6fb",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 64,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 8192,
+          "total_shared_bytes": 8192
+        }
+      }
+    },
+    {
+      "artifact_id": "ce1e769337c755d51b65ccb41081bc7e3d881d667057cdd643abe52d11f8b8c6",
+      "target_arch": "sm_120",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k16-s8-sm_120.identity.json",
+      "identity_sha256": "6eaa62ca40aa89d89056945ddaf1227ee0bd8d55bff1ebc62f1998cdc3278fcb",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 63,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 63 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 8192,
+          "total_shared_bytes": 8192
+        }
+      }
+    },
+    {
+      "artifact_id": "5d4893c9b5636cc8dcc0950364038aa319174be712295f555a495c332005a2b9",
+      "target_arch": "sm_80",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k16-s8-sm_80.identity.json",
+      "identity_sha256": "af315a385e7b2efebe23552e545ab7748f5dccb5bb594b86735b4bf6b541d5c3",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 80,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 80 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 8192,
+          "total_shared_bytes": 8192
+        }
+      }
+    },
+    {
+      "artifact_id": "8d38c900697b0ef5f3a98fc86509dfc68cc3b215e5cce46d6f5cd8935a7d736a",
+      "target_arch": "sm_89",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k16-s8-sm_89.identity.json",
+      "identity_sha256": "f172cded12adac52916e91dcbe25603375e700d54adb3348dd321fc4ae378aa6",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 80,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 80 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 8192,
+          "total_shared_bytes": 8192
+        }
+      }
+    },
+    {
+      "artifact_id": "a45db6b1553106f1bbe79dc3e880c00a97071ed944147b902dca3e87dc01d036",
+      "target_arch": "sm_90",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k16-s8-sm_90.identity.json",
+      "identity_sha256": "f8c698f9d8818023012260796de8667c23c5fb1b060826351d7b30111b7e2492",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 96,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 8192,
+          "total_shared_bytes": 8192
+        }
+      }
+    },
+    {
+      "artifact_id": "a77d0e80fef1ff434e0353858116e7248ea5ca4903be7797925b4fdb5bf5860c",
+      "target_arch": "sm_100",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k32-s3-sm_100.identity.json",
+      "identity_sha256": "9483531c4ba0f43f244716f28e834ca9211a02c2d1fc246918bd89327d163a52",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 69,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 69 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 6144,
+          "total_shared_bytes": 6144
+        }
+      }
+    },
+    {
+      "artifact_id": "b842c47828a23cccb36823de8abdd05e571be9a75f0f01fcfd98ac5e591f10c4",
+      "target_arch": "sm_120",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k32-s3-sm_120.identity.json",
+      "identity_sha256": "2728422bc430a97a6020e749f1f34414d852f07025d731161aa4d8485928049b",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 64,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 6144,
+          "total_shared_bytes": 6144
+        }
+      }
+    },
+    {
+      "artifact_id": "e5680b7130ef80fe425891cb6d5bca3f28a59513d77004b8896a1bdd66dcdfc8",
+      "target_arch": "sm_80",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k32-s3-sm_80.identity.json",
+      "identity_sha256": "44eba4c0b43ebe1661618af9dc6cffec1d406d8d63e45495b4aa6e9ce6b331bc",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 93,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 93 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 6144,
+          "total_shared_bytes": 6144
+        }
+      }
+    },
+    {
+      "artifact_id": "91a5a70c5d196601903599dd2cc3885c10ad8b87c9be26f21737e9c9899b7063",
+      "target_arch": "sm_89",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k32-s3-sm_89.identity.json",
+      "identity_sha256": "86a51c84fd31c755b0e4b463a781c62b4df05c9f20c6a063be14de465697db53",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 93,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 93 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 6144,
+          "total_shared_bytes": 6144
+        }
+      }
+    },
+    {
+      "artifact_id": "e756b0eff2387d65cf585de48ea61b94d3a6a12e9437305bf3ef19b7987d12e0",
+      "target_arch": "sm_90",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k32-s3-sm_90.identity.json",
+      "identity_sha256": "b990d4b4720ebda57243409ebcbbda07f11bde9ff3e37fa108af92928ec6ce95",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 96,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 6144,
+          "total_shared_bytes": 6144
+        }
+      }
+    },
+    {
+      "artifact_id": "f1931d0a9ceec07389f6637a2c12d7ff4318432bd9a887292d8d0cc6c3f9a3b0",
+      "target_arch": "sm_100",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k64-s3-sm_100.identity.json",
+      "identity_sha256": "54143ba2a2e5f7cda581099a53eb81aba604e89729c8955d05a82dd8f0a56fed",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 64,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 12288,
+          "total_shared_bytes": 12288
+        }
+      }
+    },
+    {
+      "artifact_id": "75d620caafa1f30913b4cd9648e28d5d17e6de05a7cf7cdd568fdd668dcb9027",
+      "target_arch": "sm_120",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k64-s3-sm_120.identity.json",
+      "identity_sha256": "27e46019ac9c7125aca987d3f5c6e6350a7933812ad758f9c12441a404ae8dbb",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 62,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 62 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 12288,
+          "total_shared_bytes": 12288
+        }
+      }
+    },
+    {
+      "artifact_id": "6727dd0d19a606fdc09879ccf26e452490ff9560f2dd42b8237458ef1ffcc1de",
+      "target_arch": "sm_80",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k64-s3-sm_80.identity.json",
+      "identity_sha256": "14f1d14ee507793499317eaa8c55283f9533730c9b224f6760ad2b3abce0fba6",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 96,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 12288,
+          "total_shared_bytes": 12288
+        }
+      }
+    },
+    {
+      "artifact_id": "293b89d2b8d288977a8af1b5163765d7ac9ca5025fa23ed1673d74412ce0f98a",
+      "target_arch": "sm_89",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k64-s3-sm_89.identity.json",
+      "identity_sha256": "2555df3ec27305136f0032fdc7b6691fedf08a2e7166ac85bc08c428fb445f1e",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 96,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 12288,
+          "total_shared_bytes": 12288
+        }
+      }
+    },
+    {
+      "artifact_id": "c4ae91cdea0e7a2ccba3011214e182f615a90384966c68f0f152a14025233ba5",
+      "target_arch": "sm_90",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n16-k64-s3-sm_90.identity.json",
+      "identity_sha256": "01b22eb5dafafd559bc17223defdbb5bc2defba4f1bdf4468206ccc6df40c5fa",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 100,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 100 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 12288,
+          "total_shared_bytes": 12288
+        }
+      }
+    },
+    {
+      "artifact_id": "750d5fb8cb19cee2ec74b54584da6288114324531872bb570469fc2e1362aa07",
+      "target_arch": "sm_100",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n32-k16-s3-sm_100.identity.json",
+      "identity_sha256": "0c49a017a24b2230d1076be9a15ee992748d84fc497279542a732c1a906f4e2a",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 64,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 4608,
+          "total_shared_bytes": 4608
+        }
+      }
+    },
+    {
+      "artifact_id": "080b17303403d6fced40ffcf6289d3602f91e5f8bdd454860e3b8ed925b49bfc",
+      "target_arch": "sm_120",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n32-k16-s3-sm_120.identity.json",
+      "identity_sha256": "e4027255fe8964c722274f04e1febfe0a11c19b502d154cb108fddc4aefd23a3",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 64,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 4608,
+          "total_shared_bytes": 4608
+        }
+      }
+    },
+    {
+      "artifact_id": "54cd1a7c36571ec21cf137560523e687767b22c49ef8972f286f5526ca826d9d",
+      "target_arch": "sm_80",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n32-k16-s3-sm_80.identity.json",
+      "identity_sha256": "033ad2fa828f3d736156cef2139471f911cdc69c442f2f648d4ed42f3f5e875e",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 80,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 80 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 4608,
+          "total_shared_bytes": 4608
+        }
+      }
+    },
+    {
+      "artifact_id": "c79c8c240c1d2c850cb4e9e1a55d7fe51a175c0ec3c954f35ad1ffcf5c0a6cea",
+      "target_arch": "sm_89",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n32-k16-s3-sm_89.identity.json",
+      "identity_sha256": "79cd4bc076b44161e2f0b348906a4c478538aa2e2e27a875df1773148493dc50",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 80,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 80 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 4608,
+          "total_shared_bytes": 4608
+        }
+      }
+    },
+    {
+      "artifact_id": "a76378047a72513c34580f7ed1e7606015bf3a34326774c0376bf9a85b7f641e",
+      "target_arch": "sm_90",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m16-n32-k16-s3-sm_90.identity.json",
+      "identity_sha256": "1b970e3f6e5b50a5604c2509b5c53c7b5266917668ab8ad901bd430332f0de4d",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 93,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 93 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 4608,
+          "total_shared_bytes": 4608
+        }
+      }
+    },
+    {
+      "artifact_id": "ea72bbc391f5f7318d0cecc68cb7790a39a883e10a2c4ef4401263a84c5b0876",
+      "target_arch": "sm_100",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m32-n16-k32-s3-sm_100.identity.json",
+      "identity_sha256": "fde9b921e6560a602f23985c98e91dced520e75c17420686dbe5321ce20214b0",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 64,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 9216,
+          "total_shared_bytes": 9216
+        }
+      }
+    },
+    {
+      "artifact_id": "f4f6b679c45b768801523b7635337cd53d495b50bc986fbb70f361ebec3fac9b",
+      "target_arch": "sm_120",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m32-n16-k32-s3-sm_120.identity.json",
+      "identity_sha256": "cb7665bfdf57293e2b19dcda6203a4ea322eb77494f396c856c5f9ce98003acb",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 64,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 9216,
+          "total_shared_bytes": 9216
+        }
+      }
+    },
+    {
+      "artifact_id": "86ed9cc90ac1e2a84eb98b6fced1242bb5d6ddc2c27b58f56a0a2c3c67755f4d",
+      "target_arch": "sm_80",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m32-n16-k32-s3-sm_80.identity.json",
+      "identity_sha256": "e7d11a823239078c781f04d0f07361d227169f6231331f0cfd1a460e64b0b8ae",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 96,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 9216,
+          "total_shared_bytes": 9216
+        }
+      }
+    },
+    {
+      "artifact_id": "5c4e295c9e54ab0ee109377ba033633110667930b545095ef88d5028d7cecf3a",
+      "target_arch": "sm_89",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m32-n16-k32-s3-sm_89.identity.json",
+      "identity_sha256": "09dda9d5e0d5fc8f509e55d6461a1f81ad526d2f6a9c6e51e7ffe8cb64aa00a6",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 96,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 9216,
+          "total_shared_bytes": 9216
+        }
+      }
+    },
+    {
+      "artifact_id": "41afe57ebe94a9c379441cf963b6b0b81c3c57c5235a0b843fba71fd999ec779",
+      "target_arch": "sm_90",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m32-n16-k32-s3-sm_90.identity.json",
+      "identity_sha256": "b7b703cafcafabdbf6dd0c121a6dfd7fb10aadcf92f035798680307fc71d65a4",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 96,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 9216,
+          "total_shared_bytes": 9216
+        }
+      }
+    },
+    {
+      "artifact_id": "22aae5345ada7563032a2e1902245741ee3c0b38434db7a570dddd0657c7d171",
+      "target_arch": "sm_100",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m32-n256-k32-s2-sm_100.identity.json",
+      "identity_sha256": "7d4d542d1bcec4e5d4cd777cc2f3731baea4af48b1228c2d16c83f5d0f6febd2",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 128,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 128 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 36864,
+          "total_shared_bytes": 36864
+        }
+      }
+    },
+    {
+      "artifact_id": "5e16dc218432d3333237df904061bea31a58c1bc17bc270ab65cfdeefaca5f7a",
+      "target_arch": "sm_120",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m32-n256-k32-s2-sm_120.identity.json",
+      "identity_sha256": "fa3aad66664799246042cb2d52a795ff5938862c26e361a06454c1f4c7733bcc",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 128,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 128 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 36864,
+          "total_shared_bytes": 36864
+        }
+      }
+    },
+    {
+      "artifact_id": "2079da2269bf72b1f58c612aac42e5fc11759a2eb58831e0ccaa90b67b5ac95e",
+      "target_arch": "sm_80",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m32-n256-k32-s2-sm_80.identity.json",
+      "identity_sha256": "2f9111a74af5ec68ae5eecaf3b1d38ea52bb0f294382fea517c9c81c6527963e",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 168,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 168 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 36864,
+          "total_shared_bytes": 36864
+        }
+      }
+    },
+    {
+      "artifact_id": "fd2c050f2985e4419caa1667feced3d047cedf93ccc32fe2032ddb4f6997675f",
+      "target_arch": "sm_89",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m32-n256-k32-s2-sm_89.identity.json",
+      "identity_sha256": "47befe7e7ac7467ba727503f5c6f52d38d4df017dbc656152d79b6bfba85317f",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 168,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 168 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 36864,
+          "total_shared_bytes": 36864
+        }
+      }
+    },
+    {
+      "artifact_id": "83213dfd4519f681ea8b286ac049c5a0f8ea72c0a10309bd3797ef243465a1f5",
+      "target_arch": "sm_90",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m32-n256-k32-s2-sm_90.identity.json",
+      "identity_sha256": "35f28813284956f4f0b01d3c080b60f13032154c59b681183a658f6ef6bbe118",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 167,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 167 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 36864,
+          "total_shared_bytes": 36864
+        }
+      }
+    },
+    {
+      "artifact_id": "49dd70c07f849d2e6c6014a3931fda76dc1dd6f715ec8b3450c9705ddc17a90b",
+      "target_arch": "sm_100",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m32-n64-k32-s4-sm_100.identity.json",
+      "identity_sha256": "83a6378bb8c688441a1a08eac9cb57e02020a9dfecedc7a8127d0e3f848fe334",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 70,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 70 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 24576,
+          "total_shared_bytes": 24576
+        }
+      }
+    },
+    {
+      "artifact_id": "019010658d250c4a905e6754c6d56906faa9df2ad9a41ee22fdd170a7e2334b5",
+      "target_arch": "sm_120",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m32-n64-k32-s4-sm_120.identity.json",
+      "identity_sha256": "e8d71fad8893e21cea091acce1945dc18abffaf6f2d9675292990749fd5749e0",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 70,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 70 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 24576,
+          "total_shared_bytes": 24576
+        }
+      }
+    },
+    {
+      "artifact_id": "4714ab524042d1ed7b5bf9f2429e0aa241948cfe47dc6c99a7243294968bd5fe",
+      "target_arch": "sm_80",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m32-n64-k32-s4-sm_80.identity.json",
+      "identity_sha256": "852cdf400c574e636f053cb902eeb08165ad84f4017f1829783a12a7d1e99db2",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 98,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 98 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 24576,
+          "total_shared_bytes": 24576
+        }
+      }
+    },
+    {
+      "artifact_id": "1958f8ebfa78f0b9007dd377caa8d63531d532e57a5594a65b104c8f5a69815b",
+      "target_arch": "sm_89",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m32-n64-k32-s4-sm_89.identity.json",
+      "identity_sha256": "e29ba35911dfa7ee42ff80f1c5ebb3182b3bd60cffee2a7e6e4ae8f37cc57c03",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 98,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 98 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 24576,
+          "total_shared_bytes": 24576
+        }
+      }
+    },
+    {
+      "artifact_id": "e91defa8a6afd461273b354135263aac61e3494debd27b1a2fe352e488d378dc",
+      "target_arch": "sm_90",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m32-n64-k32-s4-sm_90.identity.json",
+      "identity_sha256": "6a6d3cde5425bb45c93d0dde21844243878741308b3ff6a4769c64c0aa7c96a5",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 96,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 24576,
+          "total_shared_bytes": 24576
+        }
+      }
+    },
+    {
+      "artifact_id": "efe5f31246bdda6edbce12833ac0506773e4c0b4650f2e9d997a963297c615d1",
+      "target_arch": "sm_100",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m64-n16-k64-s3-sm_100.identity.json",
+      "identity_sha256": "7a936dd400f3ad0d84dce29a2e3c765c6030a22c5c35260713644456df2b2d36",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 94,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 94 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 30720,
+          "total_shared_bytes": 30720
+        }
+      }
+    },
+    {
+      "artifact_id": "f35d6f3cb56c14fa421e8c9f70a5387fc4f5410e94384efd57910c4527624669",
+      "target_arch": "sm_120",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m64-n16-k64-s3-sm_120.identity.json",
+      "identity_sha256": "3ecf18f28e2ec3868e7f1d49c8334f6bebe99fcdea37a177f28c38580e01de1c",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 92,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 92 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 30720,
+          "total_shared_bytes": 30720
+        }
+      }
+    },
+    {
+      "artifact_id": "899f7ca6464a9f110afec9733d6908241186eb61a26cbf4e9815ecc23466cd14",
+      "target_arch": "sm_80",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m64-n16-k64-s3-sm_80.identity.json",
+      "identity_sha256": "a7aa4d5b6e563c5041796be514302f16a6d9dafe5172a18368885c9963392fa2",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 128,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 128 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 30720,
+          "total_shared_bytes": 30720
+        }
+      }
+    },
+    {
+      "artifact_id": "57a1e65d62d877418d6ea10069cc32ade8f29065a2839d5899cf291d21807bb7",
+      "target_arch": "sm_89",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m64-n16-k64-s3-sm_89.identity.json",
+      "identity_sha256": "6d9bb60c676f89bf13154f512f8f772c8861be1d30417fa256c9c5baaad92105",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 128,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 128 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 30720,
+          "total_shared_bytes": 30720
+        }
+      }
+    },
+    {
+      "artifact_id": "4e3ff7315e0dbfeac375f51fd382ee8f99fef8d2b39f752171bbb3097d275b17",
+      "target_arch": "sm_90",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m64-n16-k64-s3-sm_90.identity.json",
+      "identity_sha256": "053540ea3c5c909646a9c51e0baea26fb93341a8929fa33f10c384c326a2a250",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 133,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 133 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 30720,
+          "total_shared_bytes": 30720
+        }
+      }
+    },
+    {
+      "artifact_id": "c8eb304eafa75840cb23d69e6dfc1339acb5a9dbe6bdc4b3032186dadeb620ea",
+      "target_arch": "sm_100",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m64-n64-k64-s3-sm_100.identity.json",
+      "identity_sha256": "125eaa3fb55d8f9c04d8244b33746117796f022a1c9df64fe5305969dc142851",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 125,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 125 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 49152,
+          "total_shared_bytes": 49152
+        }
+      }
+    },
+    {
+      "artifact_id": "3e0f563a5e52e097b6e871f41e39341db46f63e4a5ef44c612630991dc952489",
+      "target_arch": "sm_120",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m64-n64-k64-s3-sm_120.identity.json",
+      "identity_sha256": "49d2cb488468cf4a598cf4d13574f92239e5e7f365474a2ff8db329f4ffd3935",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 121,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 121 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 49152,
+          "total_shared_bytes": 49152
+        }
+      }
+    },
+    {
+      "artifact_id": "ae786e12ffea6e0e6b3bf9a38f0334466b2717369afa1c9a54dd00fe99737163",
+      "target_arch": "sm_80",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m64-n64-k64-s3-sm_80.identity.json",
+      "identity_sha256": "f70a51c8641c8b286fed497beebda4ed57b52a8507f7bb89d2e9dc22ea66d6a2",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 161,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 161 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 49152,
+          "total_shared_bytes": 49152
+        }
+      }
+    },
+    {
+      "artifact_id": "72e661065a8c56e454bd166ba31725210b0fcc44cd2a2e9c00613c3f8c6addc0",
+      "target_arch": "sm_89",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m64-n64-k64-s3-sm_89.identity.json",
+      "identity_sha256": "e83e7aea8305d1a7a6d1d1d3033862972fee8175f53dc34ddbfc05893efc9152",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 161,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 161 registers, used 2 barriers, 593 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 49152,
+          "total_shared_bytes": 49152
+        }
+      }
+    },
+    {
+      "artifact_id": "a83d50fcb88862a624e7ca93d03d1da25c7f3805b0f1093ca1a75d248c6f27f4",
+      "target_arch": "sm_90",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/m64-n64-k64-s3-sm_90.identity.json",
+      "identity_sha256": "b241564254a0d614b850c78071cf86a36bdf264ec956410430596b8cd0a72991",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 160,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 160 registers, used 2 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 49152,
+          "total_shared_bytes": 49152
+        }
+      }
+    },
+    {
+      "artifact_id": "20a678a77bc00e0bfd1ff5fcc22e6e8988b818f301a5a7004f8149f9403e1b71",
+      "target_arch": "sm_100",
+      "identity": "/root/dm1_work/development/runs/dm1-conv-operands-sm100-recovery/m128-n16-k128-s2-sm_100.identity.json",
+      "identity_sha256": "a497c0dc11533f7a45e9c94af5cc0e21e297d9f931a855f8ea71625ab46a6ce5",
+      "resources": {
+        "_Z3Run8OperandsN8tilemega7codegen8ConvDescENS1_14DmBufferLayoutENS0_7backend21ConvIterationGeometryEiPfb": {
+          "registers": 146,
+          "stack_bytes": 256,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "256 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 146 registers, used 2 barriers, 256 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 73728,
+          "total_shared_bytes": 73728
+        }
+      }
+    }
+  ],
+  "scheduler_completion": {
+    "event": "queue_complete",
+    "steps": 715,
+    "passed": false
+  },
+  "recovery": {
+    "step": "build_m128-n16-k128-s2_sm_100",
+    "original_status": "failed",
+    "reason": "Interrupted scheduler replayed compilation; macro capture directory collision. Original overwritten ELF no longer matches its identity and is not credited. A new directory compiles the identical frozen inputs and supplies a new verified identity.",
+    "receipt": "/root/dm1_work/development/runs/dm1-conv-operands-sm100-recovery/events/completion.json",
+    "retained_log": "/root/dm1_work/development/runs/dm1-conv-operands-matrix-v2/events/build_m128-n16-k128-s2_sm_100.log",
+    "retained_log_sha256": "f843fb30e6fbaf7b4a11bb29cda101baa8c0b34061f3c4bd0894b17cac224788"
+  },
+  "utc": "2026-10-09T11:03:22.658293+00:00"
+}
