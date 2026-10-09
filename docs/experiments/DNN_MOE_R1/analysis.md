@@ -183,3 +183,24 @@ rejects until its actual binding image is supplied. The earlier ISL sum
 failure came from seeding a coordinate polynomial with scalar zero; the
 implementation now sums actual fibers. Numerical expectations are unchanged.
 Routing occupancy and solver/model integration remain pending.
+
+verified: independent expert binding blocks and MMA row tiles pass 384 host
+geometry cases with five malformed-description rejections per geometry
+(`results/CI7_virtual_partition_host.json`). Request tails, dense/SwiGLU
+column packing and virtual/row/N executor numbering retain independent
+expectations. The earlier oracle omitted a still-present extent-one task
+coordinate; binding all named coordinates fixes that fixture, without changing
+counts. Frontend/solver wiring and real expert bodies remain pending.
+
+verified: the DM semantic key passes 48 layer-name substitutions, seven
+semantic distinctions and input immutability
+(`results/CI7_semantic_signature_host.json`). Ownership, side stores, shared
+bindings, layout relationships and aliases are canonicalized together.
+Legacy class keys remain untouched; DM consumer wiring remains pending.
+
+verified: complete macro capture passes three host tests, including eight
+actual nvcc preprocessing phases across sm_89/sm_100 and two translation
+units (`results/complete_macro_capture_host.json`). Included defaults,
+architecture conditionals and unit-local macros are preserved; unsafe or
+incomplete dry-run command records reject. No binary was compiled or launched.
+Identity generator integration follows the active PageStream cohort.

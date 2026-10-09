@@ -1,0 +1,35 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_commit": "bd1bb028075eff721e62ab3fa255c25242f71732",
+  "assertions_enabled": true,
+  "expectations_changed": false,
+  "source_before_build": {
+    "head": "b2bd119e09d90e790fa7bba85804ec24a8906598",
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "inputs": {
+      "include/tilemega/Solver/DmVirtualGemmPartition.h": "735bae85ba10a612f345d336d8e8512bec689ea3118953e19739bea26e675863",
+      "test/unit/dm_virtual_gemm_partition_test.cpp": "c6aa890eac1db646827ee98c9d0faf874d3d3aa93ed4c009fe4955d0f128b26f"
+    },
+    "linked_library_sha256": "9c521e9c14eb3fe84e82e1e64c84ecd0cf46b056fb9641a400eb6ea306839f93",
+    "assertions_enabled": true,
+    "expectations_changed": false,
+    "prior_failure": {
+      "log": "/root/dm1_work/development/runs/dm1-ci7-virtual-partition/scheduler/02_check.log",
+      "sha256": "36c3d300bcf6c8c5bc76e23f173e85d9ba4dcf2162731c325ea5dbe903d2f554",
+      "reason": "Extent-one coordinate can remain when the selected tile exceeds the axis; the fixture now supplies all named coordinates."
+    }
+  },
+  "queue_sha256": "fc0318c5ad77f073d11012b5350e48d519eb620e402c14cd3de9a59def46be09",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "logs": {
+    "runs/dm1-ci7-virtual-partition-v2/events/01_compile.log": "9ffb311c0f5eb60b203d24a3626bc6f307290c03306c3662864c239ac86e3882",
+    "runs/dm1-ci7-virtual-partition-v2/events/02_check.log": "b90563416705b9d3456d1da1632dee48666a9cef90b320f375c35f710f582494",
+    "runs/dm1-ci7-virtual-partition-v2/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "geometry_cases": 384,
+  "rejections_per_geometry": 5,
+  "scope": "Independent binding block and MMA row tile, dense/SwiGLU packed N, tail request counts and virtual/row/N executor order. Host geometry only; compiler and real expert-body integration remain pending.",
+  "failed_audit": "runs/dm1-ci7-virtual-partition",
+  "binary_sha256": "8a8531abaf42b777eeb97190c8c2a779e975d2bfac0df54ede8203c47fd4bdc7"
+}

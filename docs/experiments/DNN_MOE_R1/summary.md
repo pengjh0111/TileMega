@@ -289,3 +289,9 @@ for three 2/4-page geometries wrapping 3/5-slot rings; ten builds cover five
 architectures without spills (`results/CI5_multipage_gemm_cuda.json`). All 76
 workspace byte constants compile on five architectures; that compile-only
 proof has no kernel resource claim (`results/CI7_page_workspace_caps_identity.json`).
+
+T12 foundation: verified binding byte/provenance checks pass 368 cases,
+virtual partitioning passes 384 geometries, and DM signatures preserve 48
+layer identities (`results/CI7_binding_request_traffic_host.json`,
+`CI7_virtual_partition_host.json`, `CI7_semantic_signature_host.json`). Complete
+macro capture passes 3 tests; solver/build identity wiring remains pending.

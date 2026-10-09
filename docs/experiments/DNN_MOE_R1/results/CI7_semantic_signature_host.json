@@ -1,0 +1,30 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_commit": "e55f712c4ea37e90a7680558d1fe271dfdeb3edd",
+  "assertions_enabled": true,
+  "expectations_changed": false,
+  "source_before_build": {
+    "head": "b2bd119e09d90e790fa7bba85804ec24a8906598",
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "inputs": {
+      "include/tilemega/Solver/DmSemanticSignature.h": "df4fd3a5b4850f40b94899afb11b7138d037bccd0d3bf393a2cd209854610e2d",
+      "test/unit/dm_semantic_signature_test.cpp": "95a3dc455d765b638bc1fd834e848eedc580f6ea5078146f54babb30b684e7a8"
+    },
+    "linked_library_sha256": "9c521e9c14eb3fe84e82e1e64c84ecd0cf46b056fb9641a400eb6ea306839f93",
+    "assertions_enabled": true,
+    "expectations_changed": false
+  },
+  "queue_sha256": "f70fcc7e09f7a31febde3b6d65fcdfebc215f9e3b39a8327a69998ec7d5926d2",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "logs": {
+    "runs/dm1-ci7-semantic-signature/events/01_compile.log": "718f713b7f1b71753f80cecc6c873eaa1e5c5f23910df92c6220ee440798ad7a",
+    "runs/dm1-ci7-semantic-signature/events/02_check.log": "cc151ac6726a7e9dc9af002b0988f408186d663de13eaeaa98d73a3b0e4bbde8",
+    "runs/dm1-ci7-semantic-signature/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "layer_identities": 48,
+  "semantic_distinctions": 7,
+  "input_immutability": true,
+  "scope": "Canonical semantic identity includes ownership space, side stores, shared bindings, layout and alias relationships. Legacy class keys are untouched; DM class consumer wiring remains pending.",
+  "binary_sha256": "d992a593ebede88739d5fb7bc24d3bc76dc7ad432b2431cb9ca197b436831201"
+}
