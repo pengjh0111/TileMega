@@ -52,7 +52,12 @@ int TestForwardFrontend(int argc, char** argv) {
       auto& buffer = plan.buffers[i];
       buffer.name = i == 0 ? "x" : i == 1 ? "weight" : "out";
       buffer.external_name = buffer.name; buffer.role = "external";
-      if (i == 1) buffer.constant = 64 * 128;
+      if (i == 1) {
+        buffer.constant = 64 * 128;
+        if(argc>=3 && (std::string(argv[1])=="--emit-cg" ||
+                       std::string(argv[1])=="--emit-token-cg"))
+          buffer.pack_json=R"({"kind":"alias","source":"weight"})";
+      }
       else if (token_axis) buffer.per_seq = i == 0 ? 128 : 64;
       else buffer.per_batch = 17 * (i == 0 ? 128 : 64);
     }
@@ -83,6 +88,11 @@ int TestForwardFrontend(int argc, char** argv) {
                      (std::string(argv[1]) == "--emit-token" && token_axis))) {
       std::error_code error;
       llvm::raw_fd_ostream output(argv[2], error); assert(!error); output << source;
+    }
+    if(argc>=3 && ((std::string(argv[1])=="--emit-cg" && !token_axis) ||
+        (std::string(argv[1])=="--emit-token-cg" && token_axis))) {
+      std::error_code error;llvm::raw_fd_ostream output(argv[2],error);assert(!error);
+      module->print(output);output<<"\n";
     }
     for (auto invalid : {PlanTaskKind::kFusedAttention, PlanTaskKind::kKVAppend,
                          PlanTaskKind::kAttentionMerge, PlanTaskKind::kEmbedding}) {

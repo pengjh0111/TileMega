@@ -414,8 +414,13 @@ int RunCompile(int argc, char** argv) {
     }
     bool has_variants=!variants_path.empty();
     bool serving=!serving_phase.empty();
-    if(serving && serving_phase!="decode" && serving_phase!="prefill")
-      throw std::runtime_error("--serving expects decode or prefill");
+    bool const forward=serving_phase=="forward";
+    int forward_seq=0;
+    if(serving && serving_phase!="decode" && serving_phase!="prefill" && !forward)
+      throw std::runtime_error("--serving expects decode, prefill or forward");
+    if(forward && input.extension()!=".mlir")
+      throw std::runtime_error("forward export needs its DNN or MoE ModelPlan frontend");
+    if(forward)serving_capacity=serving_past_lo=serving_past_hi=0;
     if(!emit_mode.empty() && emit_mode!="serving")
       throw std::runtime_error("--emit expects serving");
     if(serving != (emit_mode=="serving"))
@@ -500,9 +505,29 @@ int RunCompile(int argc, char** argv) {
         module=mlir::parseSourceFile<mlir::ModuleOp>(input.string(),&context);
         if(!module || !(*module)->hasAttr("tilemega.serving"))
           throw std::runtime_error("serving CG is missing its serving schema");
+        auto info=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
+        auto phase=info.getAs<mlir::IntegerAttr>("phase");
+        bool cg_forward=phase && phase.getInt()==2;
+        if(forward!=cg_forward)
+          throw std::runtime_error("serving request disagrees with CG forward phase");
+        if(forward) {
+          auto seq=info.getAs<mlir::IntegerAttr>("seq");
+          auto capacity=info.getAs<mlir::IntegerAttr>("capacity");
+          auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+          auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
+          auto region=plan?plan.getAs<mlir::BoolAttr>("forward"):mlir::BoolAttr{};
+          if(!seq || seq.getInt()<=0 || seq.getInt()>std::numeric_limits<int>::max() ||
+              !capacity || capacity.getInt()!=0 || !dm || !dm.getValue() ||
+              !region || !region.getValue())
+            throw std::runtime_error("invalid forward CG runtime schema");
+          forward_seq=int(seq.getInt());
+          auto token_axis=plan.getAs<mlir::BoolAttr>("forward_token_axis");
+          if(token_axis && token_axis.getValue() && serving_batch!=1)
+            throw std::runtime_error("forward token regions require batch one");
+        }
+        auto seq=forward?forward_seq:(serving_phase=="decode"?1:64);
         source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(
-            {{*module,static_cast<std::uint32_t>(serving_phase=="decode"?1:64),
-                       static_cast<std::uint32_t>(serving_phase=="decode"?1:64)}});
+            {{*module,static_cast<std::uint32_t>(seq),static_cast<std::uint32_t>(seq)}});
       }else {
       auto bridge=tilemega::frontend::ReadExportBridge(input.string());
       tilemega::frontend::ServingOptions options;
@@ -1160,7 +1185,7 @@ int RunCompile(int argc, char** argv) {
       }
     }
     if (serving) {
-      if (serving_phase == "prefill")
+      if (serving_phase == "prefill" || forward)
         serving_past_lo = serving_past_hi = 0;
       source = "#define TILEMEGA_PDL " +std::to_string(pdl=="auto")+"\n"+
           "#define TILEMEGA_ARCH_PATH_SM80 "+std::to_string(arch_paths=="sm80")+"\n"+
@@ -1324,7 +1349,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"batch_hi\": "<<serving_batch
               <<",\n  \"past_lo\": "<<serving_past_lo
               <<",\n  \"past_hi\": "<<serving_past_hi
-              <<",\n  \"seq\": "<<(serving_phase=="decode"?1:64)
+              <<",\n  \"seq\": "<<(forward?forward_seq:(serving_phase=="decode"?1:64))
               <<",\n  \"capacity\": "<<serving_capacity
               <<",\n  \"sync\": "<<std::quoted(sync_policy)
               <<",\n  \"pg\": "<<std::quoted(use_pages?"pages":pg_mode)
