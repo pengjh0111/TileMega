@@ -438,7 +438,7 @@ __device__ bool Combine(Params const& p,StageDesc const& stage,int task,char* wo
     if constexpr (Last)
       return executor::LastArriver::Run(ticket, inv.chunks, shared_last, reduce);
     else { reduce(); return false; }
-#endif
+#else
     auto run=[&](auto op){
       auto reduction=[&](auto body){
         body(
@@ -467,6 +467,7 @@ __device__ bool Combine(Params const& p,StageDesc const& stage,int task,char* wo
       default:asm volatile("trap;");
     }
     return last;
+#endif
   }else if constexpr(Variant + 1 < TILEMEGA_GEMM_VARIANT_COUNT)
     return Combine<Last,Variant+1>(p,stage,task,work,ticket,shared_last);
   else asm volatile("trap;");
@@ -676,6 +677,12 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
   if constexpr(!Loader) {
     auto ptr=[&](int i){return p.buffers[s.operand[i]];};
     switch(s.kind) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      case TaskKind::kLayerNorm:
+      case TaskKind::kEmbeddingSum:
+      case TaskKind::kLayoutConvert:
+        DispatchDmStage(unsigned(s.kind),s.width,s.group,DmStageRunner<PageArch>{p,s,unsigned(task),work});break;
+#endif
       case TaskKind::kGemmCombine:
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
         {

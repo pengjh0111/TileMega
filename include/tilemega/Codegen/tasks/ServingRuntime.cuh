@@ -74,6 +74,11 @@ struct Plan {
 inline int Count(ModelSpec const& spec, RuntimeVariantDesc const& variant,
                  StageDesc const& stage, ModelDims dims) {
   switch (stage.kind) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    case TaskKind::kLayerNorm:
+    case TaskKind::kEmbeddingSum:
+    case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,dims);
+#endif
     case TaskKind::kGemm:
     case TaskKind::kGemmCombine: {
       auto const& gemm = spec.gemms[stage.gemm];

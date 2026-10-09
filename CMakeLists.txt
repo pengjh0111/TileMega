@@ -573,6 +573,13 @@ if(TILEMEGA_BUILD_TESTS)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
   tilemega_configure_cuda_target(dm_conv_task_test)
   add_test(NAME dm_conv_task COMMAND dm_conv_task_test)
+
+  add_executable(dm_dnn_runtime_test test/unit/dm_dnn_runtime_test.cu)
+  target_link_libraries(dm_dnn_runtime_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_dnn_runtime_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:-UNDEBUG;--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(dm_dnn_runtime_test)
+  add_test(NAME dm_dnn_runtime COMMAND dm_dnn_runtime_test)
   add_executable(dm_norm_embedding_layout_test test/unit/dm_norm_embedding_layout_test.cu)
   target_link_libraries(dm_norm_embedding_layout_test PRIVATE TileMega::tilemega)
   target_compile_options(dm_norm_embedding_layout_test PRIVATE

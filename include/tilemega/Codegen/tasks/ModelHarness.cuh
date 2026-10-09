@@ -49,6 +49,9 @@
 #include <tilemega/Codegen/tasks/FusedRoPEKVTaskBody.h>
 #include <tilemega/Codegen/tasks/KVAppendTaskBody.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Codegen/tasks/DmStageTaskBody.h>
+#endif
 #if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
 #include <tilemega/Codegen/executor/EpochLastArriver.cuh>
 #endif
@@ -429,6 +432,14 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
   StageDesc const& stage = p.stages[index];
   switch (stage.kind) {
     case TaskKind::kGemm: T_Gemm{}(p, stage, smem); break;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    case TaskKind::kLayerNorm:
+    case TaskKind::kEmbeddingSum:
+    case TaskKind::kLayoutConvert:
+      for(int task=int(blockIdx.x);task<DmStageTaskCount(stage,p.dims);task+=int(gridDim.x))
+        DispatchDmStage(unsigned(stage.kind),stage.width,stage.group,DmStageRunner<HarnessArch>{p,stage,unsigned(task),reinterpret_cast<char*>(&smem)});
+      break;
+#endif
     case TaskKind::kRMSNorm:
 #if TILEMEGA_SERVING_RUNTIME
       for (int row = int(blockIdx.x); row < (stage.batch_rows ? p.dims.batch : p.dims.tokens());
@@ -529,6 +540,13 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
   StageDesc const& stage = p.stages[index];
   int const task = static_cast<int>(logical_task);
   switch (stage.kind) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    case TaskKind::kLayerNorm:
+    case TaskKind::kEmbeddingSum:
+    case TaskKind::kLayoutConvert:
+      DispatchDmStage(unsigned(stage.kind),stage.width,stage.group,DmStageRunner<HarnessArch>{p,stage,logical_task,reinterpret_cast<char*>(&smem)});
+      break;
+#endif
     case TaskKind::kGemm:
       T_Gemm::RunLogicalTask(p, stage, smem, task TILEMEGA_PHASE_PASS);
       break;
@@ -710,6 +728,11 @@ __device__ inline int ActiveBlocksClamped(Params const& p, std::uint32_t stage);
 /// the skip.
 __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
   switch (stage.kind) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    case TaskKind::kLayerNorm:
+    case TaskKind::kEmbeddingSum:
+    case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,p.dims);
+#endif
     case TaskKind::kGemm: return T_Gemm::Ownership(p, stage).count;
     case TaskKind::kRMSNorm:
 #if TILEMEGA_SERVING_RUNTIME
@@ -2165,12 +2188,97 @@ inline DeviceModel Create(ModelSpec const& spec,
   // sized; the union default would put them on top of the union itself.
   model.l2_smem_bytes = l2_smem_bytes;
 #endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  for(unsigned i=0;i<spec.stage_count;++i) {
+    auto const& stage=spec.stages[i];
+    if(stage.kind!=TaskKind::kLayerNorm && stage.kind!=TaskKind::kEmbeddingSum &&
+       stage.kind!=TaskKind::kLayoutConvert)continue;
+    if(!stage.group || stage.group>1024 || !stage.width || stage.width>4096)
+      throw std::invalid_argument("invalid DM scalar task geometry");
+    auto rows=stage.rows_per_batch?std::uint64_t(stage.rows_per_batch)*dims.batch:
+                                  std::uint64_t(dims.tokens());
+    if(!rows || rows>std::uint64_t(std::numeric_limits<int>::max())-stage.group)
+      throw std::invalid_argument("DM scalar task rows exceed runtime range");
+    auto operand=[&](unsigned slot,unsigned dtype,std::uint64_t elements,bool optional=false) {
+      auto id=stage.operand[slot];
+      if(optional && id==kNoOperand)return;
+      if(id>=spec.buffer_count || spec.buffers[id].dtype!=dtype ||
+         spec.buffers[id].Elements(dims)<elements)
+        throw std::invalid_argument("invalid DM scalar buffer type or extent");
+    };
+    if(stage.kind==TaskKind::kLayerNorm) {
+      if(stage.group%4 || !(stage.norm_epsilon>0) || !std::isfinite(stage.norm_epsilon))
+        throw std::invalid_argument("invalid LayerNorm epsilon or row tile");
+      operand(0,0,rows*stage.width);operand(1,0,stage.width);
+      operand(2,0,stage.width);operand(3,0,rows*stage.width);operand(4,1,2*rows,true);
+      for(unsigned slot:{0u,3u}) {
+        auto const& buffer=spec.buffers[stage.operand[slot]];
+        auto const& layout=buffer.layout;
+        if(!layout.rank)continue;
+        if(layout.rank>4 || layout.logical[layout.rank-1]!=stage.width ||
+           layout.strides[layout.rank-1]!=1 ||
+           (layout.kind==DmLayout::kNHWC && layout.rank!=4))
+          throw std::invalid_argument("invalid LayerNorm logical layout");
+        std::uint64_t logical_rows=1,last=0,elements=buffer.Elements(dims);
+        for(unsigned axis=0;axis<layout.rank;++axis) {
+          auto logical=layout.logical[axis];
+          if(!logical || layout.physical[axis]<logical || !layout.strides[axis])
+            throw std::invalid_argument("invalid LayerNorm physical layout");
+          if(axis+1<layout.rank) {
+            if(logical_rows>rows/logical)
+              throw std::invalid_argument("LayerNorm layout differs from row ownership");
+            logical_rows*=logical;
+          }
+          if(layout.physical[axis]-1>(elements-1-last)/layout.strides[axis])
+            throw std::invalid_argument("LayerNorm layout exceeds storage");
+          last+=std::uint64_t(layout.physical[axis]-1)*layout.strides[axis];
+        }
+        if(logical_rows!=rows || (layout.kind==DmLayout::kNHWC &&
+           (std::uint64_t(layout.logical[1])+layout.halo_top+layout.halo_bottom>layout.physical[1] ||
+            std::uint64_t(layout.logical[2])+layout.halo_left+layout.halo_right>layout.physical[2])))
+          throw std::invalid_argument("LayerNorm layout differs from row ownership");
+      }
+    }else if(stage.kind==TaskKind::kEmbeddingSum) {
+      operand(3,0,0);operand(4,0,0);
+      auto const& types=spec.buffers[stage.operand[3]].layout;
+      auto const& positions=spec.buffers[stage.operand[4]].layout;
+      if(!stage.extent || types.rank!=2 || positions.rank!=2 || !types.logical[0] ||
+         types.logical[1]!=stage.width || positions.logical[1]!=stage.width ||
+         positions.logical[0]<unsigned(dims.seq))
+        throw std::invalid_argument("invalid embedding table geometry");
+      operand(0,3,rows);operand(1,3,rows);
+      operand(2,0,std::uint64_t(stage.extent)*stage.width);
+      operand(3,0,std::uint64_t(types.logical[0])*stage.width);
+      operand(4,0,std::uint64_t(positions.logical[0])*stage.width);
+      operand(5,0,rows*stage.width);operand(6,1,2*rows,true);
+    }else {
+      operand(0,0,rows*stage.width);operand(1,0,rows*stage.width);
+      auto const& layout=spec.buffers[stage.operand[1]].layout;
+      if(layout.kind!=DmLayout::kNHWC || layout.rank!=4 ||
+         layout.logical[3]!=stage.width ||
+         std::uint64_t(layout.logical[0])*layout.logical[1]*layout.logical[2]!=rows ||
+         layout.physical[1]<layout.logical[1]+layout.halo_top+layout.halo_bottom ||
+         layout.physical[2]<layout.logical[2]+layout.halo_left+layout.halo_right ||
+         layout.physical[3]<layout.logical[3] || layout.strides[3]!=1 ||
+         layout.strides[2]<layout.physical[3] ||
+         layout.strides[1]<std::uint64_t(layout.physical[2])*layout.strides[2] ||
+         layout.strides[0]<std::uint64_t(layout.physical[1])*layout.strides[1] ||
+         spec.buffers[stage.operand[1]].Elements(dims)<
+             std::uint64_t(layout.logical[0])*layout.strides[0])
+        throw std::invalid_argument("invalid NHWC layout conversion extent");
+    }
+  }
+#endif
   model.host_sources.resize(spec.buffer_count);
   for (std::uint32_t i = 0; i < spec.buffer_count; ++i) {
     BufferDesc const& desc = spec.buffers[i];
     std::size_t elements = desc.Elements(dims);
     ModelElement* pointer = nullptr;
     std::size_t element_bytes = desc.dtype == 0 ? sizeof(ModelElement) : 4;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(desc.dtype>3)throw std::invalid_argument("invalid DM buffer dtype");
+    if(desc.dtype==3)element_bytes=sizeof(std::int64_t);
+#endif
     if (external_buffers && desc.role == 1) {
       if (!external_buffers[i])
         throw std::invalid_argument("serving external buffer is null");
@@ -2193,6 +2301,13 @@ inline DeviceModel Create(ModelSpec const& spec,
                                      cudaMemcpyHostToDevice));
     } else {
       TILEMEGA_CUDA_CHECK(cudaMemset(pointer, 0, elements * element_bytes));
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if(desc.layout.fill==DmFill::kNegativeInfinity) {
+        if(desc.dtype!=0)throw std::invalid_argument("halo fill requires BF16 storage");
+        std::vector<ModelElement> fill(elements,ModelElement(-std::numeric_limits<float>::infinity()));
+        TILEMEGA_CUDA_CHECK(cudaMemcpy(pointer,fill.data(),elements*sizeof(ModelElement),cudaMemcpyHostToDevice));
+      }
+#endif
     }
     model.buffers.push_back(pointer);
   }
@@ -2274,6 +2389,10 @@ inline DeviceModel Create(ModelSpec const& spec,
     int chunks = split < k_tiles ? split : k_tiles;
     if (chunks < 1) chunks = 1;
     gemm_chunks[i] = chunks;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(chunks>1 && !(runtime_variant.ownership_flags & kCombinerTileOwnership))
+      throw std::invalid_argument("DM split-K requires tile-owned combine tasks");
+#endif
     gemm_base[i] = static_cast<std::uint32_t>(gemms.size());
     if (chunks > 1) {
       partial_bytes += static_cast<std::size_t>(chunks) * m * desc.n * sizeof(ModelPartialElement);
@@ -2670,6 +2789,11 @@ inline DeviceModel Create(ModelSpec const& spec,
   auto active_tasks = [&](std::uint32_t index) {
     StageDesc const& stage = model.stages[index];
     switch (stage.kind) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      case TaskKind::kLayerNorm:
+      case TaskKind::kEmbeddingSum:
+      case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,dims);
+#endif
       case TaskKind::kGemm:
       case TaskKind::kGemmAdd: {
         GemmInvocation const& invocation = gemms[stage.gemm];
@@ -3438,6 +3562,9 @@ inline DeviceModel Create(ModelSpec const& spec,
   model.device_dm_buffers=static_cast<void**>(upload(dm_buffers.data(),dm_buffers.size()*sizeof(void*)));
   model.device_dm_layouts=static_cast<DmBufferLayout*>(upload(dm_layouts.data(),dm_layouts.size()*sizeof(DmBufferLayout)));
   model.device_dm_dtypes=static_cast<std::uint32_t*>(upload(dm_dtypes.data(),dm_dtypes.size()*sizeof(std::uint32_t)));
+  model.params.dm_convolutions=model.device_dm_convolutions;
+  model.params.dm_buffers={model.device_dm_buffers,model.device_dm_layouts,
+                          model.device_dm_dtypes,spec.buffer_count};
   for(auto& invocation:gemms) {
     invocation.convolutions=model.device_dm_convolutions;
     invocation.dm_buffers={model.device_dm_buffers,model.device_dm_layouts,
