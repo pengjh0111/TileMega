@@ -144,3 +144,16 @@ verified: counted fusion event transport passes 96 bound cases, including two
 contracts on one stage pair, reversed target numbering, grids 1/3/8 and
 kappa 0/1/4/16 (`results/CI7_counted_fusion_projection_host.json`).
 Counted CG endpoint rebinding and body lowering remain pending.
+
+
+verified: typed fused dependency transport passes seven native checks and 192
+counted geometry cases, including 96 cases with an independent sparse table
+on the same stage pair (`results/CI7_typed_fusion_host.json`). Both endpoints,
+reverse task permutations, one/two tensor contracts, grid 1/3/8 and kappa
+0/1/4/16 are covered. Bound descriptor reconstruction retains the rederived
+thresholds and exact table intervals. Existing CG fusion lowering tests pass.
+
+inferred: the counted I2 envelope is necessary for placement but does not
+expand ordinary fine-event waits. Fusion composes these two relations separately;
+counted targets retain weighted counters even when their task owner is local.
+Real counted CG endpoint rewriting and new fused physical bodies remain pending.
