@@ -1,0 +1,35 @@
+{
+  "schema": "tilemega.dm1.host-check.v1",
+  "evidence": "verified",
+  "passed": true,
+  "source": {
+    "head": "8af49901a0681b16b838e423f6758e79372f2c76",
+    "diff_sha256": "fa6fd906446a67f5d5ce4ad2912e1b276f49991ac4a1920aca140362e107a06b",
+    "inputs": {
+      "include/tilemega/Solver/MoeTaskPricing.h": "3161bc333ca5f562f1d67d10693d3e354fe95887ea72b59fc1e5109cf58126ea",
+      "lib/Solver/MoeTaskPricing.cpp": "8edc88cb8289b5b2e8dbfad6da033d1077aa10ed7f04336f842a95824cdbd913",
+      "test/unit/moe_task_pricing_test.cpp": "032ea0ae485d8782a0b3abab6d214c41e83fad393d14a9f9ae7887086397b18e",
+      "CMakeLists.txt": "1f9f2dcb614eb5b180c5e82909cb2637c69c37098320012e9471e69090bc6dda",
+      "test/unit/runner.cpp": "591eb8fad2eb14936adfe6610671bbc4f09dec315a3837e5476d467cd628a692",
+      "lib/Solver/TaskModel.cpp": "5e68f9ca8c0b422798200760ad683565d65f5d89ee3498095f1c63dc37848fd6",
+      "lib/Analysis/ExactTaskWork.cpp": "2ad138aabe5599ee39b696eb2018c8aee847ba5072195f5dbc21eb3036dd0c60"
+    },
+    "scope": "Native host occupancy pricing with synthetic coefficients, independent traffic enumeration and equal-mean contrasting histograms; no device/profile/model performance claim."
+  },
+  "source_manifest_sha256": "8d02b562a9dbcaee0b0a9a91d5674e18e07a449f0dabec030bf25fe46f36f737",
+  "tested_input_hashes_verified": 7,
+  "tests": 5,
+  "oracle_cases": 650,
+  "empty_window_contributions": 472,
+  "additional_equal_mean_histogram_oracle": true,
+  "source_head": "8af49901a0681b16b838e423f6758e79372f2c76",
+  "source_diff_sha256": "fa6fd906446a67f5d5ce4ad2912e1b276f49991ac4a1920aca140362e107a06b",
+  "logs": {
+    "/root/dm1_work/development/runs/dm1-moe-price-native/events/01_build.log": "8e61a3ade78cd25abc4577da7c56e67f4191a69b5f8a5fcd7667239c7b7ee9b7",
+    "/root/dm1_work/development/runs/dm1-moe-price-native/events/02_native_tests.log": "14f76f1595a3e59e80e36bfde2f3adc41a538acfd9ab59fdadc14fd88de882cb",
+    "/root/dm1_work/development/runs/dm1-moe-price-native/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "binary_sha256": "73d1e35973af8537629570a18ac37709cc34855875d4b11e5c06d806239f8c56",
+  "scope_limit": "Synthetic cost coefficients only; actual route/model performance unclaimed. Profile attachment to production flow remains pending.",
+  "utc": "2026-10-09T10:41:46.025486+00:00"
+}
