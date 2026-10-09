@@ -593,6 +593,17 @@ if(TILEMEGA_BUILD_TESTS)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
   tilemega_configure_cuda_target(dm_counted_stage_threshold_test)
   add_test(NAME dm_counted_stage_threshold COMMAND dm_counted_stage_threshold_test)
+  foreach(phase IN ITEMS 0 2)
+    add_executable(dm_paged_multipage_phase${phase}_test
+      test/unit/dm_paged_multipage_phase_test.cu)
+    target_link_libraries(dm_paged_multipage_phase${phase}_test PRIVATE TileMega::tilemega)
+    target_compile_definitions(dm_paged_multipage_phase${phase}_test PRIVATE DM_TEST_PHASE=${phase})
+    target_compile_options(dm_paged_multipage_phase${phase}_test PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
+    tilemega_configure_cuda_target(dm_paged_multipage_phase${phase}_test)
+    add_test(NAME dm_paged_multipage_phase${phase}
+      COMMAND dm_paged_multipage_phase${phase}_test)
+  endforeach()
   target_link_libraries(task_body_contract_test PRIVATE TileMega::tilemega)
   add_test(NAME task_body_contract COMMAND task_body_contract_test)
 
