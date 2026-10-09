@@ -1,0 +1,84 @@
+{
+  "steps": 41,
+  "unique_names": true,
+  "known_dependencies": true,
+  "selection_and_actual_kernel": [
+    {
+      "cell": "llama_B1",
+      "artifact_id": "c6e365ebbea45052507622b5d337a9c9f27b2627132e24ab4689af1794a1f5ea",
+      "auto": [
+        "L2",
+        true,
+        "L1"
+      ],
+      "execution": {
+        "artifact_id": "c6e365ebbea45052507622b5d337a9c9f27b2627132e24ab4689af1794a1f5ea",
+        "executor": "L2",
+        "loop": true,
+        "pdl": false,
+        "kernel": "_ZN8tilemega7codegen20tilemega_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy",
+        "spill": false,
+        "trace": false,
+        "execution_id": "fad2672cbf5bb166bf14cfa1dbb96e7faa2ac5dde440226969e3a840940843dc"
+      }
+    },
+    {
+      "cell": "llama_B16",
+      "artifact_id": "7672e5a4c4639558cb9c0f08397ed2c0ce5287d1c1bb81310866454264b23bb2",
+      "auto": [
+        "L2",
+        false,
+        "L1"
+      ],
+      "execution": {
+        "artifact_id": "7672e5a4c4639558cb9c0f08397ed2c0ce5287d1c1bb81310866454264b23bb2",
+        "executor": "L2",
+        "loop": false,
+        "pdl": false,
+        "kernel": "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "spill": false,
+        "trace": false,
+        "execution_id": "ec24f66621563992bf13400955cd6589321502af8b9ecc572dcac95104157ada"
+      }
+    },
+    {
+      "cell": "qwen3_B1",
+      "artifact_id": "fe9fb866fae7d94d4bd1a9f61775a0ecb559bfa6bc1653e71c88aa6809d06b07",
+      "auto": [
+        "L2",
+        true,
+        "L1"
+      ],
+      "execution": {
+        "artifact_id": "fe9fb866fae7d94d4bd1a9f61775a0ecb559bfa6bc1653e71c88aa6809d06b07",
+        "executor": "L2",
+        "loop": true,
+        "pdl": false,
+        "kernel": "_ZN8tilemega7codegen20tilemega_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy",
+        "spill": false,
+        "trace": false,
+        "execution_id": "a8ac205e83e45175e3d5cd7031634359fddec84b12034e854e5b819fcd5eed58"
+      }
+    },
+    {
+      "cell": "qwen3_B16",
+      "artifact_id": "d4323b1a97b07407ce8dfd1d9060f0834e413f540d2850a69edcb9972f751e40",
+      "auto": [
+        "L1",
+        false,
+        "L1"
+      ],
+      "execution": {
+        "artifact_id": "d4323b1a97b07407ce8dfd1d9060f0834e413f540d2850a69edcb9972f751e40",
+        "executor": "L1",
+        "loop": false,
+        "pdl": false,
+        "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "spill": true,
+        "trace": false,
+        "execution_id": "fb9f147eef0c17b6a0a761cd5e3d69b8a8dbe715e2bb5dacc10997f492786497"
+      }
+    }
+  ],
+  "performance_only_via_guard": true
+}

@@ -1,0 +1,111 @@
+{
+  "recovery_steps": "9/9 done",
+  "bounded_recollection": "accepted",
+  "cells": {
+    "llama_B1": {
+      "artifact_id": "c6e365ebbea45052507622b5d337a9c9f27b2627132e24ab4689af1794a1f5ea",
+      "pg": "pages",
+      "ec": 256,
+      "attention_impl": "mma16",
+      "mode": "L2",
+      "loop": 1,
+      "confirmation_ms": [
+        2.887087011709809,
+        2.8886122209951277,
+        2.88427996262908
+      ],
+      "counts": {
+        "total": 108,
+        "piloted": 6,
+        "confirmed": 3,
+        "budget_unmeasured": 102,
+        "eliminations": {
+          "budget_unmeasured": 102,
+          "None": 3,
+          "pilot0": 3
+        }
+      },
+      "source_digest": "4fb997d46d94db41c50b0438aa929fce285e4c828eef2046cb6cc236b09a871a",
+      "compiler_sha256": "0f391597c05daad81cb2b41e30ecfd665dd5b1b9d3741f2486950a30ac3e4743"
+    },
+    "llama_B16": {
+      "artifact_id": "7672e5a4c4639558cb9c0f08397ed2c0ce5287d1c1bb81310866454264b23bb2",
+      "pg": "pages",
+      "ec": 256,
+      "attention_impl": "mma16",
+      "mode": "L2",
+      "loop": 0,
+      "confirmation_ms": [
+        3.5094467278395314,
+        3.521282892586896,
+        3.5017295211582673
+      ],
+      "counts": {
+        "total": 180,
+        "piloted": 9,
+        "confirmed": 3,
+        "budget_unmeasured": 171,
+        "eliminations": {
+          "budget_unmeasured": 171,
+          "None": 3,
+          "pilot0": 6
+        }
+      },
+      "source_digest": "4fb997d46d94db41c50b0438aa929fce285e4c828eef2046cb6cc236b09a871a",
+      "compiler_sha256": "0f391597c05daad81cb2b41e30ecfd665dd5b1b9d3741f2486950a30ac3e4743"
+    },
+    "qwen3_B1": {
+      "artifact_id": "fe9fb866fae7d94d4bd1a9f61775a0ecb559bfa6bc1653e71c88aa6809d06b07",
+      "pg": "pages",
+      "ec": 256,
+      "attention_impl": "mma16",
+      "mode": "L2",
+      "loop": 1,
+      "confirmation_ms": [
+        4.390193089842795,
+        4.371947368606925,
+        4.384236613288521
+      ],
+      "counts": {
+        "total": 108,
+        "piloted": 6,
+        "confirmed": 3,
+        "budget_unmeasured": 102,
+        "eliminations": {
+          "budget_unmeasured": 102,
+          "None": 3,
+          "pilot0": 3
+        }
+      },
+      "source_digest": "4fb997d46d94db41c50b0438aa929fce285e4c828eef2046cb6cc236b09a871a",
+      "compiler_sha256": "0f391597c05daad81cb2b41e30ecfd665dd5b1b9d3741f2486950a30ac3e4743"
+    },
+    "qwen3_B16": {
+      "artifact_id": "d4323b1a97b07407ce8dfd1d9060f0834e413f540d2850a69edcb9972f751e40",
+      "pg": "pages",
+      "ec": 256,
+      "attention_impl": "mma16",
+      "mode": "L1",
+      "loop": 0,
+      "confirmation_ms": [
+        5.681081186921803,
+        5.670788611925674,
+        5.671945737645729
+      ],
+      "counts": {
+        "total": 108,
+        "piloted": 6,
+        "confirmed": 3,
+        "budget_unmeasured": 102,
+        "eliminations": {
+          "budget_unmeasured": 102,
+          "None": 3,
+          "pilot0": 3
+        }
+      },
+      "source_digest": "4fb997d46d94db41c50b0438aa929fce285e4c828eef2046cb6cc236b09a871a",
+      "compiler_sha256": "0f391597c05daad81cb2b41e30ecfd665dd5b1b9d3741f2486950a30ac3e4743"
+    }
+  },
+  "limitation": "Correct build/smoke and stable candidate confirmation do not close final E2E or correctness acceptance."
+}

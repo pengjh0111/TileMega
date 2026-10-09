@@ -1,0 +1,370 @@
+{
+  "llama_B1": [
+    {
+      "kind": "vllm",
+      "root": "/root/TileMega",
+      "python": "/root/venv_vllm/bin/python",
+      "model": "llama",
+      "model_path": "/root/models/llama3_2_1b",
+      "batch": 1,
+      "prefill": "/root/.cache/tilemega/plans/68fa20c691e0069b1cfc73193f1350246dcce7554dc107832f1dc0833bf61d5e/plan.so",
+      "mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "env": {},
+      "label": "vllm"
+    },
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "llama",
+      "model_path": "/root/models/llama3_2_1b",
+      "batch": 1,
+      "prefill": "/root/.cache/tilemega/plans/ef7fdb72fa466c33aafa04c25370c6ab0da155254c0201b358f22883e2c39824/plan.so",
+      "mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "env": {},
+      "binaries": {
+        "prefill": {
+          "sha256": "2a2c3ed9b8b0a228ffc97a3dd9a01718fb02c63719a92044441281106e53663f"
+        },
+        "decode": {
+          "sha256": "c53cbe23525607bf00c52ffd7ab695d3090dc2b79c047cb97af7dbec5f4883ed"
+        }
+      },
+      "label": "R13D",
+      "decode": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so",
+      "prefill_identity": "7e93b4238e139f1065632e7936924174f5690ff50b69d5c787a03db0879e82d1"
+    },
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "llama",
+      "model_path": "/root/models/llama3_2_1b",
+      "batch": 1,
+      "prefill": "/root/.cache/tilemega/plans/ef7fdb72fa466c33aafa04c25370c6ab0da155254c0201b358f22883e2c39824/plan.so",
+      "mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "env": {},
+      "label": "baseline",
+      "decode": "/root/TileMega/docs/experiments/SERVING_R14/raw/D_baseline_build_v2/llama_B1/plan.so",
+      "binaries": {
+        "prefill": {
+          "sha256": "2a2c3ed9b8b0a228ffc97a3dd9a01718fb02c63719a92044441281106e53663f"
+        },
+        "decode": {
+          "sha256": "c40bdde6e2ee3e21f64450d030a93c78dec210959ed7d9e3dc5b4ae2fad65c49"
+        }
+      },
+      "prefill_identity": "7e93b4238e139f1065632e7936924174f5690ff50b69d5c787a03db0879e82d1",
+      "identity": "e04ec711dfaa66e50ddb2aadfbf0281e460035359ace8e795c36cd4f44dd2ce5"
+    },
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "llama",
+      "model_path": "/root/models/llama3_2_1b",
+      "batch": 1,
+      "prefill": "/root/.cache/tilemega/plans/ef7fdb72fa466c33aafa04c25370c6ab0da155254c0201b358f22883e2c39824/plan.so",
+      "mode": "auto",
+      "decode_loop": "auto",
+      "prefill_mode": "auto",
+      "env": {},
+      "label": "R14F",
+      "decode": "/root/.cache/tilemega/plans/1c6632cd377f843bb17fa4c6d05a4fabb7457a01af7db715008051b40923051d/plan.so",
+      "expected_mode": "L2",
+      "expected_loop": true,
+      "binaries": {
+        "prefill": {
+          "sha256": "2a2c3ed9b8b0a228ffc97a3dd9a01718fb02c63719a92044441281106e53663f"
+        },
+        "decode": {
+          "sha256": "ede0877b3f8b03bc298190fd45f8746d17700d3929dee216618debc34bdcb92f"
+        }
+      },
+      "prefill_identity": "7e93b4238e139f1065632e7936924174f5690ff50b69d5c787a03db0879e82d1",
+      "identity": "c6e365ebbea45052507622b5d337a9c9f27b2627132e24ab4689af1794a1f5ea"
+    }
+  ],
+  "llama_B16": [
+    {
+      "kind": "vllm",
+      "root": "/root/TileMega",
+      "python": "/root/venv_vllm/bin/python",
+      "model": "llama",
+      "model_path": "/root/models/llama3_2_1b",
+      "batch": 16,
+      "prefill": "/root/TileMega/docs/experiments/SERVING_R13/raw/D1_llama/llama_B16/PF-R10-noWD/plan.so",
+      "mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "env": {},
+      "label": "vllm"
+    },
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "llama",
+      "model_path": "/root/models/llama3_2_1b",
+      "batch": 16,
+      "prefill": "/root/.cache/tilemega/plans/d752bf0aac01c227d59eecb729f0929b4ceba819a305903e8d8c11ab27cf512d/plan.so",
+      "mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "env": {},
+      "binaries": {
+        "prefill": {
+          "sha256": "a82a9e92a0969ba5e5305f33f1a20f131010af03ae32f88d7993d6162d867269"
+        },
+        "decode": {
+          "sha256": "a3fba06cace638c042eed9b6038fec482a779bef2c80941f9b17ce715a6c31d7"
+        }
+      },
+      "label": "R13D",
+      "decode": "/root/TileMega/docs/experiments/SERVING_R13/raw/D1_llama/llama_B16/N-control/plan.so",
+      "prefill_identity": "9be0fc498f79d748a74b9fd03892226af0f8b399fd6548bbb443ad82b7467f22"
+    },
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "llama",
+      "model_path": "/root/models/llama3_2_1b",
+      "batch": 16,
+      "prefill": "/root/.cache/tilemega/plans/d752bf0aac01c227d59eecb729f0929b4ceba819a305903e8d8c11ab27cf512d/plan.so",
+      "mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "env": {},
+      "label": "baseline",
+      "decode": "/root/TileMega/docs/experiments/SERVING_R14/raw/D_baseline_build_v2/llama_B16/plan.so",
+      "binaries": {
+        "prefill": {
+          "sha256": "a82a9e92a0969ba5e5305f33f1a20f131010af03ae32f88d7993d6162d867269"
+        },
+        "decode": {
+          "sha256": "617751a3dbf59bd15845d4f1529b1fe3b926bf411b97b52fd6d63a3bf6740893"
+        }
+      },
+      "prefill_identity": "9be0fc498f79d748a74b9fd03892226af0f8b399fd6548bbb443ad82b7467f22",
+      "identity": "af3fa240e6944c77aa75205070f91b4b95c20af6d019e89528c8f19d196c1820"
+    },
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "llama",
+      "model_path": "/root/models/llama3_2_1b",
+      "batch": 16,
+      "prefill": "/root/.cache/tilemega/plans/d752bf0aac01c227d59eecb729f0929b4ceba819a305903e8d8c11ab27cf512d/plan.so",
+      "mode": "auto",
+      "decode_loop": "auto",
+      "prefill_mode": "auto",
+      "env": {},
+      "label": "R14F",
+      "decode": "/root/.cache/tilemega/plans/46b4d98bcc3c7004d7bfc7f9f64b0afde40a980a388c4549d0ce471eff348dac/plan.so",
+      "expected_mode": "L2",
+      "expected_loop": false,
+      "binaries": {
+        "prefill": {
+          "sha256": "a82a9e92a0969ba5e5305f33f1a20f131010af03ae32f88d7993d6162d867269"
+        },
+        "decode": {
+          "sha256": "85cfc9b3a5f34f122098596b3b36bf9cff83191d4529ad67e1cf8cf2357c59aa"
+        }
+      },
+      "prefill_identity": "9be0fc498f79d748a74b9fd03892226af0f8b399fd6548bbb443ad82b7467f22",
+      "identity": "7672e5a4c4639558cb9c0f08397ed2c0ce5287d1c1bb81310866454264b23bb2"
+    }
+  ],
+  "qwen3_B1": [
+    {
+      "kind": "vllm",
+      "root": "/root/TileMega",
+      "python": "/root/venv_vllm/bin/python",
+      "model": "qwen3",
+      "model_path": "/root/models/qwen3_1_7b",
+      "batch": 1,
+      "prefill": "/root/.cache/tilemega/plans/4e1de42348ce7a61d7ef3adc9836757f96cbea18c9b8705b09e836539027ecac/plan.so",
+      "mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "env": {},
+      "label": "vllm"
+    },
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "qwen3",
+      "model_path": "/root/models/qwen3_1_7b",
+      "batch": 1,
+      "prefill": "/root/.cache/tilemega/plans/23cff29e1dfa068c58b1df3fac6ab968c1f0b603055c9fc886c94c68cd25a604/plan.so",
+      "mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "env": {},
+      "binaries": {
+        "prefill": {
+          "sha256": "294e95ca3f1020f2aa054ffb385ea8c0dfd36b55f8328230cc51e092222ae81c"
+        },
+        "decode": {
+          "sha256": "693e04b15e3217b3ff9f0db19c8545ce30ebb4f78278530f49883bdeccb117bc"
+        }
+      },
+      "label": "R13D",
+      "decode": "/root/.cache/tilemega/plans/a6ec3b5509a546cde1441c0a4b83dd5fed398f7a23e31f68a4ccb39dce6b67ef/plan.so",
+      "prefill_identity": "bf98a42d63d8e46cd54896f96ca0aaacb804490492d3831343dc191955b11a62"
+    },
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "qwen3",
+      "model_path": "/root/models/qwen3_1_7b",
+      "batch": 1,
+      "prefill": "/root/.cache/tilemega/plans/23cff29e1dfa068c58b1df3fac6ab968c1f0b603055c9fc886c94c68cd25a604/plan.so",
+      "mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "env": {},
+      "label": "baseline",
+      "decode": "/root/TileMega/docs/experiments/SERVING_R14/raw/D_baseline_build_v2/qwen3_B1/plan.so",
+      "binaries": {
+        "prefill": {
+          "sha256": "294e95ca3f1020f2aa054ffb385ea8c0dfd36b55f8328230cc51e092222ae81c"
+        },
+        "decode": {
+          "sha256": "84040b255a1c316766ea3146c532d15d2e5ee33e8f8a5af6a8ddd50609f1fe40"
+        }
+      },
+      "prefill_identity": "bf98a42d63d8e46cd54896f96ca0aaacb804490492d3831343dc191955b11a62",
+      "identity": "6e0851810d566a1a745f097dc75b386740696646a5345ee686adb13b4573468b"
+    },
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "qwen3",
+      "model_path": "/root/models/qwen3_1_7b",
+      "batch": 1,
+      "prefill": "/root/.cache/tilemega/plans/23cff29e1dfa068c58b1df3fac6ab968c1f0b603055c9fc886c94c68cd25a604/plan.so",
+      "mode": "auto",
+      "decode_loop": "auto",
+      "prefill_mode": "auto",
+      "env": {},
+      "label": "R14F",
+      "decode": "/root/.cache/tilemega/plans/663cfe83e7c1b0bce67d26fd28235174c51f3a14266ef539690ea707d59dce9f/plan.so",
+      "expected_mode": "L2",
+      "expected_loop": true,
+      "binaries": {
+        "prefill": {
+          "sha256": "294e95ca3f1020f2aa054ffb385ea8c0dfd36b55f8328230cc51e092222ae81c"
+        },
+        "decode": {
+          "sha256": "2c9d646e038b195f566933cbc39098e2571b0f2ad004ac1384a7863cb2efc249"
+        }
+      },
+      "prefill_identity": "bf98a42d63d8e46cd54896f96ca0aaacb804490492d3831343dc191955b11a62",
+      "identity": "fe9fb866fae7d94d4bd1a9f61775a0ecb559bfa6bc1653e71c88aa6809d06b07"
+    }
+  ],
+  "qwen3_B16": [
+    {
+      "kind": "vllm",
+      "root": "/root/TileMega",
+      "python": "/root/venv_vllm/bin/python",
+      "model": "qwen3",
+      "model_path": "/root/models/qwen3_1_7b",
+      "batch": 16,
+      "prefill": "/root/.cache/tilemega/plans/e4ba6e1a27f4eab22e3e6dfd1e5243d8fd23639f3e76a445dab248f409db5b88/plan.so",
+      "mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "env": {},
+      "label": "vllm"
+    },
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "qwen3",
+      "model_path": "/root/models/qwen3_1_7b",
+      "batch": 16,
+      "prefill": "/root/.cache/tilemega/plans/a36fb45dc59721b0d53e5c3869626ee37d8b6a6fa3993d99beaa62b407311089/plan.so",
+      "mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "env": {},
+      "binaries": {
+        "prefill": {
+          "sha256": "46954b34625a0faf43f13e7209df54338eaebabfe858bde5fbbaf5f4e4b98110"
+        },
+        "decode": {
+          "sha256": "fd34c9142d458c882aec0b53deeac9499f150103c7c11f294d59a5b4cef10fff"
+        }
+      },
+      "label": "R13D",
+      "decode": "/root/.cache/tilemega/plans/d61e4a92b30bcf160d1b810bda1db72c1b5268a5a359c5dec4a3ee98c7702beb/plan.so",
+      "prefill_identity": "ec64984afad61756350151c590c05812cc8c2f398572778958d564627a99cfd4"
+    },
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "qwen3",
+      "model_path": "/root/models/qwen3_1_7b",
+      "batch": 16,
+      "prefill": "/root/.cache/tilemega/plans/a36fb45dc59721b0d53e5c3869626ee37d8b6a6fa3993d99beaa62b407311089/plan.so",
+      "mode": "L1",
+      "decode_loop": 0,
+      "prefill_mode": "L1",
+      "env": {},
+      "label": "baseline",
+      "decode": "/root/TileMega/docs/experiments/SERVING_R14/raw/D_baseline_build_v2/qwen3_B16/plan.so",
+      "binaries": {
+        "prefill": {
+          "sha256": "46954b34625a0faf43f13e7209df54338eaebabfe858bde5fbbaf5f4e4b98110"
+        },
+        "decode": {
+          "sha256": "19b0820bf8c45a307812a31d649dcdf9221c3a35091bbcffba7ac1c2be9a29e5"
+        }
+      },
+      "prefill_identity": "ec64984afad61756350151c590c05812cc8c2f398572778958d564627a99cfd4",
+      "identity": "af3275142f8f311ec3b85dc8d095851b8b41a0c568807c140990abc7b086afb9"
+    },
+    {
+      "kind": "tm",
+      "root": "/root/TileMega",
+      "python": "/root/venvs/tilemega-torch213-cu126/bin/python",
+      "model": "qwen3",
+      "model_path": "/root/models/qwen3_1_7b",
+      "batch": 16,
+      "prefill": "/root/.cache/tilemega/plans/a36fb45dc59721b0d53e5c3869626ee37d8b6a6fa3993d99beaa62b407311089/plan.so",
+      "mode": "auto",
+      "decode_loop": "auto",
+      "prefill_mode": "auto",
+      "env": {},
+      "label": "R14F",
+      "decode": "/root/.cache/tilemega/plans/d0917847b04f5c6186c0b379a8a199ecdb26c0a6f1df4a519146b73be80787e8/plan.so",
+      "expected_mode": "L1",
+      "expected_loop": false,
+      "binaries": {
+        "prefill": {
+          "sha256": "46954b34625a0faf43f13e7209df54338eaebabfe858bde5fbbaf5f4e4b98110"
+        },
+        "decode": {
+          "sha256": "788b37116a70ebf1c3764cd76be20219299e2bb838a40ea152cfb450c50106ff"
+        }
+      },
+      "prefill_identity": "ec64984afad61756350151c590c05812cc8c2f398572778958d564627a99cfd4",
+      "identity": "d4323b1a97b07407ce8dfd1d9060f0834e413f540d2850a69edcb9972f751e40"
+    }
+  ]
+}

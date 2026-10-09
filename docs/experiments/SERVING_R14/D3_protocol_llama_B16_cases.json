@@ -1,0 +1,59 @@
+[
+  {
+    "model": "/root/models/llama3_2_1b",
+    "batch": 16,
+    "steps": 64,
+    "prompt_ids": "/root/TileMega/docs/experiments/SERVING_R10/prompts/llama_ids.json",
+    "prefill": "/root/.cache/tilemega/plans/d752bf0aac01c227d59eecb729f0929b4ceba819a305903e8d8c11ab27cf512d/plan.so",
+    "decode": "/root/.cache/tilemega/plans/46b4d98bcc3c7004d7bfc7f9f64b0afde40a980a388c4549d0ce471eff348dac/plan.so",
+    "reference_prefill": "/root/.cache/tilemega/plans/d752bf0aac01c227d59eecb729f0929b4ceba819a305903e8d8c11ab27cf512d/plan.so",
+    "reference_decode": "/root/.cache/tilemega/plans/46b4d98bcc3c7004d7bfc7f9f64b0afde40a980a388c4549d0ce471eff348dac/plan.so",
+    "binary_sha256": {
+      "prefill": "a82a9e92a0969ba5e5305f33f1a20f131010af03ae32f88d7993d6162d867269",
+      "decode": "85cfc9b3a5f34f122098596b3b36bf9cff83191d4529ad67e1cf8cf2357c59aa"
+    },
+    "arms": [
+      {
+        "label": "L1_separate",
+        "prefill": "/root/.cache/tilemega/plans/d752bf0aac01c227d59eecb729f0929b4ceba819a305903e8d8c11ab27cf512d/plan.so",
+        "decode": "/root/.cache/tilemega/plans/46b4d98bcc3c7004d7bfc7f9f64b0afde40a980a388c4549d0ce471eff348dac/plan.so",
+        "modes": [
+          "L1"
+        ],
+        "decode_loop": false
+      },
+      {
+        "label": "L2_separate",
+        "prefill": "/root/.cache/tilemega/plans/d752bf0aac01c227d59eecb729f0929b4ceba819a305903e8d8c11ab27cf512d/plan.so",
+        "decode": "/root/.cache/tilemega/plans/46b4d98bcc3c7004d7bfc7f9f64b0afde40a980a388c4549d0ce471eff348dac/plan.so",
+        "modes": [
+          "L2"
+        ],
+        "decode_loop": false
+      },
+      {
+        "label": "L2_loop",
+        "prefill": "/root/.cache/tilemega/plans/d752bf0aac01c227d59eecb729f0929b4ceba819a305903e8d8c11ab27cf512d/plan.so",
+        "decode": "/root/.cache/tilemega/plans/46b4d98bcc3c7004d7bfc7f9f64b0afde40a980a388c4549d0ce471eff348dac/plan.so",
+        "modes": [
+          "L2"
+        ],
+        "decode_loop": true,
+        "require_loop": true
+      },
+      {
+        "label": "L2_loop_no_phase",
+        "prefill": "/root/.cache/tilemega/plans/d752bf0aac01c227d59eecb729f0929b4ceba819a305903e8d8c11ab27cf512d/plan.so",
+        "decode": "/root/.cache/tilemega/plans/46b4d98bcc3c7004d7bfc7f9f64b0afde40a980a388c4549d0ce471eff348dac/plan.so",
+        "modes": [
+          "L2"
+        ],
+        "decode_loop": true,
+        "require_loop": true,
+        "env": {
+          "TILEMEGA_KPHASE_MASK": "0"
+        }
+      }
+    ]
+  }
+]

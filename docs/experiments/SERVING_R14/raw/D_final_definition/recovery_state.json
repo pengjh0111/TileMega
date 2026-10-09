@@ -1,0 +1,92 @@
+{
+  "Dpre_v2": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1791432695.1538384,
+    "retry_at": 0,
+    "wait_s": 0.0008618831634521484,
+    "pid": 1142358,
+    "run_s": 110.12784944102168,
+    "exit_code": 0
+  },
+  "D_baseline_build_v2": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1791432695.1538413,
+    "retry_at": 0,
+    "wait_s": 110.14698576927185,
+    "pid": 1142544,
+    "run_s": 1056.437872702023,
+    "exit_code": 0
+  },
+  "D_baseline_smoke_v2": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1791432695.1538427,
+    "retry_at": 0,
+    "wait_s": 1166.6840863227844,
+    "pid": 1146254,
+    "run_s": 133.02786849695258,
+    "exit_code": 0
+  },
+  "D1_llama_v2": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1791432695.1538446,
+    "retry_at": 0,
+    "wait_s": 1359.9521090984344,
+    "pid": 1147068,
+    "run_s": 6725.583363274112,
+    "exit_code": 0
+  },
+  "D1_smoke_llama_v2": {
+    "status": "done",
+    "attempts": 3,
+    "enqueued": 1791432695.153876,
+    "retry_at": 1791442761.529381,
+    "wait_s": 10066.811957120895,
+    "pid": 1190043,
+    "run_s": 31.7357481259387,
+    "exit_code": 0
+  },
+  "D1_family_llama_v2": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1791432695.1538782,
+    "retry_at": 0,
+    "wait_s": 10098.566467285156,
+    "pid": 1190223,
+    "run_s": 0.3226120581384748,
+    "exit_code": 0
+  },
+  "D1_qwen3_v2": {
+    "status": "done",
+    "attempts": 55,
+    "enqueued": 1791432695.15388,
+    "retry_at": 1791494977.274222,
+    "wait_s": 62282.527064561844,
+    "pid": 1274701,
+    "run_s": 2403.682623527944,
+    "exit_code": 0
+  },
+  "D1_smoke_qwen3_v2": {
+    "status": "done",
+    "attempts": 7,
+    "enqueued": 1791432695.1538813,
+    "retry_at": 1791500606.8451865,
+    "wait_s": 67912.09860110283,
+    "pid": 1293702,
+    "run_s": 33.36636812193319,
+    "exit_code": 0
+  },
+  "D1_family_qwen3_v2": {
+    "status": "done",
+    "attempts": 1,
+    "enqueued": 1791432695.153883,
+    "retry_at": 0,
+    "wait_s": 67945.48207712173,
+    "pid": 1293887,
+    "run_s": 0.3222715677693486,
+    "exit_code": 0
+  }
+}

@@ -1515,8 +1515,8 @@ R13 closed with declared limitations: two optional canary reruns and three depen
 | TR-4 | Phase A trace overhead medians below 2%; sampled extrema and missing nonpaged first-ready remain explicit limits |
 | Phase A | 36/36 done, archived and accepted; four C-1/C-2 pass; Llama B1 baseline becomes corrected N1 |
 | Phase B | 72/72 done; 100 artifacts verify; 50 model variants C-1/C-2 pass; three required protocols each 50/50 |
-| GV-1 / SL-6 | GEMV variants correct but slower; Ec/implementation variants integrated; final CLI selection pending |
+| GV-1 / SL-6 | GEMV variants correct but slower; both CLI builds complete with budget-limited structural admission |
 | Conditional Phase C | 21/22 original steps pass; repaired architecture check passes all five architectures; three candidates regress and are rejected; RW1/AT4 each 50/50 |
-| Phase D | Six of nine recovery steps pass; Llama build/smoke verify; Qwen3 waits on exit-75 occupancy; noisy Llama B16 finalists get one guarded recollection; limited structural admission recorded; D2/D3 pending |
+| Phase D | Nine recovery steps and bounded B16 recollection pass; four selected identities/smoke verify; PlanFamily not triggered in measured subset; D2/D3 definitions prepared, 41 final steps |
 
 Resume at SERVING_R14/scheduler/progress.tsv and state.json. Do not treat the Phase-0 queue as complete R14 implementation or acceptance.

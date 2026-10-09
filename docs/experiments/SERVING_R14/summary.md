@@ -1,4 +1,4 @@
-# R14 sm_89 — Phase B accepted; conditional Phase C queued
+# R14 sm_89 — D1 recovery accepted; final comparison prepared
 
 - Specified baseline: `76beaea5e2d66e3311b36d020f470c4f016406d0`.
 - Initial local HEAD: `9aebaf6553247ec83c79bc8f101e61ad4ce564fd`; fast-forwarded before implementation.
@@ -17,14 +17,14 @@
 | FX-24 | Implemented; fixed and joint repaired search-only replays pass | bb42f31bd; StageFlowModel.cpp, stage_flow_test.cpp |
 | FX-25 | Implemented; unit checks and all four diagnostic artifact identities pass | 7c2cd2436; build/identity.py, compile.cpp, ServingRuntime.cuh, identity_join.py |
 | TR-4 | Partial: diagnostics reviewed; sampled stage and task profiles implemented, all five stage/task trace medians below 2%; sampled extrema remain estimates | 377c674d2, 5ec398310, 686dc3afc; ServingTrace.cuh, ServingTaskProfile.h, ledger_r14.py |
-| RW-3 / AT-1 | Integrated RW-3 and Ec32 legality; default pipeline off. Small-chunk L1 distribution integrated; model validation pending | df96abb7f, 821c64cf6, 9fa448f3a; full-model checks pending |
+| RW-3 / AT-1 | Implemented; model numerical/C-1/C-2 checks pass; default pipeline off | df96abb7f, 821c64cf6, 9fa448f3a; Phase-B evidence below |
 | AT-3a | Implemented; five-architecture compile and position-coded tests pass; default unchanged | 0c3d9ac45, 68410eb88, dd7af352c; ServingAttentionPVSwap.h |
 | AT-2 / SK-1 | Implemented; three required fresh-process cases each pass 50/50; measured LA/fill variants remain slower | c0849f8a2, 68c592729, ac731bc10, 84def10d5; ModelHarness.cuh, MonotonicLastArriver.cuh, SkeletonSearch.cpp |
-| EP-1 / RA-1 | Integrated: parallel argmax and noinline variants compile on five architectures and pass numeric tests; L1 tail spreading awaits integrated check | 5434f44bb, a8588fb82, 9f0c36c2d; ServingEpilogue.h, PagedAttentionTaskBody.h |
+| EP-1 / RA-1 | Implemented; five-architecture compilation and model checks pass; measured variants lose | 5434f44bb, a8588fb82, 9f0c36c2d; ServingEpilogue.h, PagedAttentionTaskBody.h |
 | GV-1 | Partial TN8/16 epilogue domain; production numerical/C-1/C-2 pass; measured variants slower | 54756a6e3, 771aea037, 5ae2ffc8d; ServingGemv.h, ServingGemvTaskBody.h |
-| SL-6 | Implemented selection path: pinned Ec/attention/LA variants, required GEMV family, multi-past halving; full CLI build validation pending | e95dbf3ee, 96205607b, a28bbb629; SkeletonSearch.cpp, cli.py, integrated_selection.py |
-| C-RW1 / C-EP2 / C-AT4 | Implemented, default off; conditional acceptance pending | 1b00e23ef, bb48614c7, 45f482860; IndependentAttentionTaskBody.h, ServingEpilogue.h, ServingPages.cuh |
-| Phase D | Pending Phase C retention | No final configuration or final acceptance yet |
+| SL-6 | Partial acceptance: both CLI builds complete; candidate admission limited by budget; final E2E remains pending | e95dbf3ee, 96205607b, a28bbb629; SkeletonSearch.cpp, cli.py, integrated_selection.py |
+| C-RW1 / C-EP2 / C-AT4 | Implemented and correct, all rejected by retention; defaults off | 1b00e23ef, bb48614c7, 45f482860; IndependentAttentionTaskBody.h, ServingEpilogue.h, ServingPages.cuh |
+| Phase D | D0/D1 and recovery smoke/family review complete; D2/D3 prepared | 9d1270bb0; phase_d_final.py, make_phase_d_final.py |
 
 ## Evidence / T1–T12
 
@@ -35,7 +35,8 @@
 | T3 | results/T3_phase_b_resources.tsv binds all 100 artifacts to identity and resources |
 | T4–T7 | Phase-B matrices and task profiles collected; T4_phase_b.tsv and T5_phase_b_tasks.tsv; derived attention/coverage views remain to assemble |
 | T8 | results/T8_phase_c.tsv: three conditional trials are correct but slower; none retained |
-| T9–T10 | Phase D integral selection and final comparison pending |
+| T9 | results/T9_d1_selection.tsv records all admitted/unmeasured candidates, past times and reviewed selection |
+| T10 | Four-cell final comparison pending; no final performance-gate claim |
 | T11 | Old attention: 26 failures; initial repair: 768 cases, zero failures. Final Full predicate numerical rerun and multi-architecture checks pass; 64-step three-arm smoke token/KV mismatches zero |
 | T12 | Old fixed and joint sm120 failures reproduced. Both repaired searches pass; fixed/joint conservation checks 6/468 |
 
@@ -54,7 +55,7 @@ The old joint command's cached options were not archived; reconstruction uses th
 - Q3 (verified): measured fill and GEMV variants lose to their same-round controls; they do not enter defaults.
 - Q4 (verified/inferred): register pipeline has no resolvable E2E improvement; sampled class profiles trigger only the Llama B16 resident-two experiment. Cause attribution remains incomplete.
 - Q5 (verified): PV swap reduces paged spill and improves Qwen3 B16; noinline is slower. Final spill comparison remains pending.
-- Q6: full multi-past CLI selection is pending Phase D.
+- Q6 (verified): both multi-past CLI builds finish; selected Ec256/mma16 in all four cells, but most structural variants were budget-unmeasured. Final selection quality awaits D2.
 
 ## Queue and resume
 
@@ -181,10 +182,28 @@ Recovery uses nine new `_v2` steps with separate baseline and driver output path
 Prior successful D0/control/architecture evidence is raw/phase_d_pre_recovery.tar.xz, with phase_d_pre_recovery_manifest.json; failed-run evidence is raw/D1_recovery/. Generated sources and binaries are registered by path/hash, not committed.
 Resume by reading scheduler/progress.tsv once and results/D1_planfamily_*_v2.json. Monitor all D steps with `watch -n 10 'python3 /root/TileMega/docs/experiments/SERVING_R14/status.py --prefix D'`; old failed/skipped names intentionally remain visible beside the new recovery steps.
 
-## Recovery result review
+## Recovery result review (original 2026-10-08 snapshot)
 
 Verified: results/D1_recovery_progress.json and raw/d1_llama_review.tar.xz, with d1_llama_review_manifest.json. Of the nine recovery steps, six are done and three remain pending at this snapshot. Rebuilt controls and selected Llama B1/B16 artifact identities verify; all four controls and both selected Llama plans pass 64-step smoke. Llama D1 final guard returns 0. Qwen3 D1's latest attempt returns 75/preflight occupied after 34 attempts; its smoke/family steps wait for successful build. Scheduler remains alive; no new compiler failure is recorded.
 Llama B1 selects pages/L2/loop, Ec256/mma16, with integral confirmation samples 2.887087/2.888612/2.884280 ms. Llama B16 selects the same execution/attention combination, but its samples 3.516804/7.479870/3.506781 ms are not reliable performance evidence; other B16 finalists also have large ranges despite the accepted guard. Build/identity/arithmetic acceptance does not close timing acceptance.
 One bounded recollection of all three B16 finalists is queued as D1_reconfirm_llama_B16_v2 (e3d89b898), retaining the original samples. It rotates three rounds, uses the identical binaries and three-past protocol under the existing GPU guard, applies the registered 2% reference-canary rule, and never rewrites cached choices or defaults automatically. If still unstable, report that outcome; do not keep recollecting.
 Budget limited structural admission: B1 has six piloted executions and three confirmed finalists out of 108 candidates; B16 has nine and three out of 180. The remaining 102/171 candidates are budget-unmeasured. PlanFamily reports no trigger only within this measured subset; it does not exclude benefits from unmeasured Ec/implementation families. SL-6 coverage and final selection quality remain limitations pending the final comparison.
 The recollection uses raw/D1_review/plans_llama.json, captured in the committed archive; restore that member if resuming on a clean checkout. Final D2/D3 are still pending. Do not report R14 complete from these build/smoke results.
+
+## Recovery acceptance and final queue (2026-10-09)
+
+Verified: all nine recovery steps and the one bounded B16 recollection finish successfully. Four selected artifacts match their 64-step smoke identities; both models' PlanFamily audits are not_triggered within the budget-admitted subset. Qwen3's final accepted guard returns child exit 0; prior exit-75 attempts remain recorded, without accepting their timings.
+Evidence: results/D1_recovery_acceptance.json, raw/d1_recovery_completed_review.tar.xz and d1_recovery_completed_review_manifest.json. The archive contains inputs, choices, aggregate predictions, resource/identity files, measurements, smoke and guards; expanded edge/task/price dumps not used by any reported number are excluded and listed by path/size. Binaries and generated sources remain registered by path/hash.
+
+| Cell | Reviewed D1 pg / mode / loop | Integral confirmation ms (3 rounds) | Piloted / total | Budget-unmeasured | Actual kernel spills |
+|---|---|---|---|---:|---|
+| Llama B1 | pages / L2 / yes | 2.887087, 2.888612, 2.884280 | 6 / 108 | 102 | No |
+| Llama B16 | pages / L2 / no | 3.509447, 3.521283, 3.501730 | 9 / 180 | 171 | No |
+| Qwen3 B1 | pages / L2 / yes | 4.390193, 4.371947, 4.384237 | 6 / 108 | 102 | No |
+| Qwen3 B16 | pages / L1 / no | 5.681081, 5.670789, 5.671946 | 6 / 108 | 102 | Yes |
+
+All selected attention variants are Ec256/mma16. These are three-past candidate measurements, not final E2E results. B16's stable recollection replaces the noisy confirmation only after review: L2 separate median 3.509447 ms versus loop 3.518002 ms; the 0.24% difference is not discernible. Minimum median still selects separate under the preregistered candidate rule. Original samples/choices remain archived; only serving sidecars and run plans.json change, never manifests, identities or binaries.
+All rebuilt controls and selected prefill/decode artifacts share one source_digest/compiler_sha256 state, despite documentation-only HEAD differences. Final rows verify actual executor, loop use, prefill identity and trace exclusion; Qwen3 B16's selected spilling kernel remains explicitly marked.
+Final definitions: 41 steps, including 12 paired 1024-token rounds with vLLM, four C-1 jobs, four C-2 jobs and four explicit paged 50-process cases, plus CPU checks. Each TM arm uses the same new prefill, L1; R13D is its historical decode binary with that common prefill. R14F reads reviewed sidecars via auto. Final paged protocols cover paths absent from B6's nonpaged cases; no reliability claim is made before they finish.
+Five CPU definition tests pass; raw/D_final_definition/{cpu_tests.log,static_validation.json,recovery_state.json} bind the prepared work. Guard requirements are unchanged; device memory comes from the recorded property query. Any marked final canary may be replayed once; it cannot silently enter final defaults.
+Publish queue_phase_d_final.pending.json as queue/queue_phase_d_final.json to the existing scheduler. Resume with one read of progress.tsv, then D2/D3 result/guard records; do not rerun build/calibration. Monitor: `watch -n 10 'python3 /root/TileMega/docs/experiments/SERVING_R14/status.py --prefix D'`. Historical failed/skipped D1 names are retained separately from successful `_v2` recovery and new D2/D3 work.
