@@ -122,7 +122,8 @@ def _packed_gpu(recipe: Mapping[str, object], source) -> torch.Tensor:
     if kind == 'tile_pages':
         weight = _packed_gpu(recipe['source'], source)
         tn, tk = int(recipe['tile_n']), int(recipe['tile_k'])
-        if weight.ndim != 2 or tn <= 0 or tk <= 0 or tn % 8 or tk % 64:
+        if (weight.ndim != 2 or tn <= 0 or tk <= 0 or tn % 8 or
+                (tk not in (16, 32) and tk % 64)):
             raise ValueError('invalid tile_pages source or geometry')
         n, k = weight.shape
         nt, kt = (n + tn - 1) // tn, (k + tk - 1) // tk
@@ -132,8 +133,15 @@ def _packed_gpu(recipe: Mapping[str, object], source) -> torch.Tensor:
         logical = padded.reshape(nt, tn, kt, tk).permute(0, 2, 1, 3)
         index = torch.arange(tn * tk, device=weight.device)
         row, col = index // tk, index % tk
-        perm = (512 * (row // 8 + (tn // 8) * (col // 64)) +
-                64 * (row % 8) + 8 * ((col % 64 // 8) ^ (row % 8)) + col % 8)
+        if tk < 64:
+            # Swizzle<B,3,3> takes its XOR source from linear address bit 6.
+            # At TK=16/32 that is row bit 2/1, rather than the lowest row bit.
+            atom = (row % 8) * tk + col
+            perm = (8 * tk * (row // 8) +
+                    (atom ^ (((atom >> 6) & (tk // 8 - 1)) << 3)))
+        else:
+            perm = (512 * (row // 8 + (tn // 8) * (col // 64)) +
+                    64 * (row % 8) + 8 * ((col % 64 // 8) ^ (row % 8)) + col % 8)
         packed = torch.empty((nt, kt, tn * tk), device=weight.device,
                              dtype=torch.bfloat16)
         packed[..., perm] = logical.reshape(nt, kt, tn * tk)
