@@ -95,10 +95,21 @@ struct ServingDmGemm {
         Async::Copy16Bytes(b+(it%kSlots)*TN*TK+LayoutB{}(v/TK,v%TK),source,
             valid?min(8,p.k_count-col)*int(sizeof(Element)):0);
       }
-      cp_async_fence();
     };
+    return Pipeline(issue,iterations,shared);
+  }
+  // The callback issues copies; this loop commits exactly one group per stage.
+  // Both dense and gathered operands share the register-pipelined MMA loop.
+  template<class Issue>
+  __device__ static float* Pipeline(Issue&& issue,int iterations,char* shared) {
+    using namespace cute;
+    using codegen::executor::ComputeThread;
+    using codegen::executor::ComputeSync;
+    auto* a=reinterpret_cast<Element*>(shared);
+    auto* b=a+Stages*TM*TK;
     for(int it=0;it<kSlots-1;++it) {
-      if(it<iterations)issue(it);else cp_async_fence();
+      if(it<iterations)issue(it);
+      asm volatile("cp.async.commit_group;" ::: "memory");
     }
     ComputeMma mma;
     int lane=ComputeThread()%(128/kKSplits),split=ComputeThread()/(128/kKSplits);
@@ -107,9 +118,14 @@ struct ServingDmGemm {
     auto ca=make_tiled_copy_A(SmemCopyAtom{},mma);
     auto cb=make_tiled_copy_B(SmemCopyAtomB{},mma);
     for(int it=0;it<iterations;++it) {
-      cp_async_wait<kSlots-2>();ComputeSync();
+      // Once no future copy will be issued, empty groups must not stand in
+      // for pending data. Drain the tail while keeping steady-state lookahead.
+      if(it+kSlots-1>=iterations)asm volatile("cp.async.wait_all;" ::: "memory");
+      else asm volatile("cp.async.wait_group %0;" :: "n"(kSlots-2):"memory");
+      ComputeSync();
       int ahead=it+kSlots-1;
-      if(ahead<iterations)issue(ahead);else cp_async_fence();
+      if(ahead<iterations)issue(ahead);
+      asm volatile("cp.async.commit_group;" ::: "memory");
       auto sa=make_tensor(make_smem_ptr(a+(it%kSlots)*TM*TK),LayoutA{});
       auto sb=make_tensor(make_smem_ptr(b+(it%kSlots)*TN*TK),LayoutB{});
       auto ra=thread.partition_fragment_A(sa);
@@ -131,7 +147,7 @@ struct ServingDmGemm {
           gemm(mma,ra(_,_,k),rb(_,_,k),accum);
       });
     }
-    cp_async_wait<0>();ComputeSync();
+    asm volatile("cp.async.wait_all;" ::: "memory");ComputeSync();
     auto coordinates=make_identity_tensor(Shape<Int<TM>,Int<TN>>{});
     auto owned=thread.partition_C(coordinates);
     float* tile=reinterpret_cast<float*>(shared);
