@@ -600,6 +600,12 @@ if(TILEMEGA_BUILD_TESTS)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
   tilemega_configure_cuda_target(dm_depthwise_test)
   add_test(NAME dm_depthwise COMMAND dm_depthwise_test)
+  add_executable(dm_dwpw_fused_test test/unit/dm_dwpw_fused_test.cu)
+  target_link_libraries(dm_dwpw_fused_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_dwpw_fused_test PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG;-Xptxas=-v,-warn-spills>)
+  tilemega_configure_cuda_target(dm_dwpw_fused_test)
+  add_test(NAME dm_dwpw_fused COMMAND dm_dwpw_fused_test)
   add_executable(dm_encoder_attention_test test/unit/dm_encoder_attention_test.cu)
   target_link_libraries(dm_encoder_attention_test PRIVATE TileMega::tilemega)
   target_compile_options(dm_encoder_attention_test PRIVATE
