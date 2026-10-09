@@ -10,6 +10,7 @@
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/Parser/Parser.h>
 #include <cassert>
+#include <algorithm>
 
 namespace tilemega::tests::exact_task_metadata_test {
 namespace {
@@ -143,8 +144,66 @@ void FiniteFibers() {
     assert(symbolic.Image().BoundTaskCard().Eval(known) == batch+2);
   }
 }
+void BindingRequests() {
+  for(long capacity:{1,5,17})for(long tokens:{1,2,19}) {
+    SemanticOp sem;sem.name="expert";sem.exact_task_access=true;
+    IterationDim v{"v",ClosedForm::Symbol("live")};v.runtime=true;v.capacity=F(capacity);
+    v.binding_source="bindings";v.binding_requirement="prefix_sum";
+    sem.domain={v,{"row",F(4)},{"n",F(7)},{"k",F(5),F(0),IteratorType::kReduction}};
+    sem.task_space={"virtual",{{"v",v.extent,F(0),true},{"row",F(4)},{"n",F(7)}}};
+    sem.task_map.results={IndexResult::Dim("v"),IndexResult::Dim("row"),IndexResult::Dim("n")};
+    sem.result={"partial",{{"t",F(tokens)},{"rank",F(3)},{"n",F(7)}}};
+    sem.result_map.results={IndexResult::DataDependent("rows",{"v","row"}),
+        IndexResult::DataDependent("rows",{"v","row"}),IndexResult::Dim("n")};
+    TensorSpace a{"hidden",{{"t",F(tokens)},{"k",F(5)}}};
+    TensorSpace b{"experts",{{"e",F(2)},{"n",F(7)},{"k",F(5)}}};
+    sem.operands={{"input",a,{{IndexResult::DataDependent("rows",{"v","row"}),IndexResult::Dim("k")}},{}},
+        {"",b,{{IndexResult::DataDependent("bindings",{"v"}),IndexResult::Dim("n"),IndexResult::Dim("k")}}, {}}};
+    auto encoded=EncodeSemanticOp(sem);auto decoded=DecodeSemanticOp(encoded);
+    assert(EncodeSemanticOp(decoded)==encoded && decoded.Serialize()==sem.Serialize());
+    auto graph=Instantiate({{decoded}},Granularity{}.Tile("expert","v",F(1))
+        .Tile("expert","row",F(3)).Tile("expert","n",F(4)));
+    auto const& task=graph.nodes[0];auto const& partition=task.element_access->partition;
+    auto work=DeriveTaskWork(decoded,task,{});
+    assert(work.task_count.Eval({})==capacity*4);
+    assert(work.parallel_extent.Eval({})==capacity*4*7 && work.reduce_extent.Eval({})==5);
+    assert(work.write_elements.SumDomain().Eval({})==capacity*4*7);
+    assert(work.nominal_write_elements.SumDomain().Eval({})==capacity*4*3*4);
+    auto requests_a=ProjectTaskRequests(decoded,task,partition,a,decoded.operands[0].map,{},{});
+    auto requests_b=ProjectTaskRequests(decoded,task,partition,b,decoded.operands[1].map,{},{});
+    auto conservative=ProjectTaskRead(decoded,task,partition,a,decoded.operands[0].map,{},{});
+    for(long vt=0;vt<capacity;++vt)for(long rt=0;rt<2;++rt)for(long nt=0;nt<2;++nt) {
+      ParamBinding owner;owner.Bind("v",vt);owner.Bind("row",rt);owner.Bind("n",nt);
+      long rows=rt==0?3:1,cols=nt==0?4:3;
+      assert(requests_a.BoundTaskCard().BindCoordinates(owner).Eval({})==rows*5);
+      assert(requests_b.BoundTaskCard().BindCoordinates(owner).Eval({})==cols*5);
+      assert(conservative.BoundTaskCard().BindCoordinates(owner).Eval({})==tokens*5);
+      assert(work.read_elements.BindCoordinates(owner).Eval({})==(rows+cols)*5);
+      assert(work.frontier_read_elements.BindCoordinates(owner).Eval({})==cols*5);
+      assert(work.write_elements.BindCoordinates(owner).Eval({})==rows*cols);
+    }
+    // Enumeration counts binding requests, even when several requests name
+    // the same physical row. I2 retains the complete legal address envelope.
+    auto coordinates=task.Coordinates();
+    for(auto const& [owner,key]:requests_a.Points()) {
+      auto coordinate=[&](char const* name) {
+        auto found=std::find(coordinates.begin(),coordinates.end(),name);
+        return found==coordinates.end()?0L:owner.at(found-coordinates.begin());
+      };
+      assert(key[0]==coordinate("v") && key[1]/3==coordinate("row") && key[2]>=0 && key[2]<5);
+    }
+    auto reject=[&](SemanticOp wrong) {
+      bool caught=false;try{(void)DecodeSemanticOp(EncodeSemanticOp(wrong));}
+      catch(std::invalid_argument const&){caught=true;}assert(caught);
+    };
+    auto wrong=sem;wrong.operands[0].map.results[0].request_dims={"unknown"};reject(wrong);
+    wrong=sem;wrong.operands[0].map.results[0].request_dims={"v","v"};reject(wrong);
+    wrong=sem;wrong.operands[0].map.results[0].binding_source.clear();reject(wrong);
+    wrong=sem;wrong.operands[0].map.results[0].kind=IndexResult::Kind::kAffine;reject(wrong);
+  }
+}
 }
 int TestExactTaskMetadata(int, char**) {
-  IslContext isl; DynamicAxis(); SymbolicAndOrigin(); AttributeProof(); SplitOrigin(); FiniteFibers(); return 0;
+  IslContext isl; DynamicAxis(); SymbolicAndOrigin(); AttributeProof(); SplitOrigin(); FiniteFibers(); BindingRequests(); return 0;
 }
 }
