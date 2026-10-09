@@ -53,6 +53,9 @@ class CouplingRelation {
   CouplingRelation Subtract(CouplingRelation const& other) const;
   CouplingRelation ImageIdentity() const;
   CouplingRelation RangeProduct(CouplingRelation const& other) const;
+  /// Independent Cartesian product with both tuple pairs flattened. Used to
+  /// pull a shared-element relation over (consumer,producer) phase coordinates.
+  CouplingRelation FlatProduct(CouplingRelation const& other) const;
   CouplingRelation ProjectRange(unsigned first, unsigned count) const;
   /// Restrict the domain to `domain_set_text` (isl set syntax over the same
   /// domain tuple/parameters). DeriveCoupling uses this to bind every

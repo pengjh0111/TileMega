@@ -86,6 +86,7 @@ namespace tilemega::tests::degradation_test { int TestDegradation(int, char**); 
 namespace tilemega::tests::task_arithmetic_domain_test { int TestTaskArithmeticDomain(int, char**); }
 namespace tilemega::tests::dm_store_geometry_test { int TestDmStoreGeometry(int, char**); }
 namespace tilemega::tests::dm_exact_fusion_test { int TestDmExactFusion(int, char**); }
+namespace tilemega::tests::dm_fused_dependencies_test { int TestDmFusedDependencies(int, char**); }
 namespace tilemega::tests::typed_affine_pricing_test { int TestTypedAffinePricing(int, char**); }
 namespace tilemega::tests::counted_write_test { int TestCountedWrite(int, char**); }
 namespace tilemega::tests::counted_threshold_test { int TestCountedThreshold(int, char**); }
@@ -120,6 +121,7 @@ int main(int argc, char** argv) {
     {"counted_write", tilemega::tests::counted_write_test::TestCountedWrite},
     {"dm_store_geometry", tilemega::tests::dm_store_geometry_test::TestDmStoreGeometry},
     {"dm_exact_fusion", tilemega::tests::dm_exact_fusion_test::TestDmExactFusion},
+    {"dm_fused_dependencies", tilemega::tests::dm_fused_dependencies_test::TestDmFusedDependencies},
     {"typed_affine_pricing", tilemega::tests::typed_affine_pricing_test::TestTypedAffinePricing},
     {"task_arithmetic_domain", tilemega::tests::task_arithmetic_domain_test::TestTaskArithmeticDomain},
     {"target_spec", tilemega::tests::target_spec_test::TestTargetSpec},

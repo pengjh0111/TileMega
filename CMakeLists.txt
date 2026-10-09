@@ -378,6 +378,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/task_arithmetic_domain_test.cpp
     test/unit/dm_store_geometry_test.cpp
     test/unit/dm_exact_fusion_test.cpp
+    test/unit/dm_fused_dependencies_test.cpp
     test/unit/dm_dram_images_test.cpp
     test/unit/binding_request_traffic_test.cpp
     test/unit/binding_request_pricing_test.cpp
@@ -785,6 +786,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME task_arithmetic_domain COMMAND tilemega-unit task_arithmetic_domain)
   add_test(NAME dm_store_geometry COMMAND tilemega-unit dm_store_geometry)
   add_test(NAME dm_exact_fusion COMMAND tilemega-unit dm_exact_fusion)
+  add_test(NAME dm_fused_dependencies COMMAND tilemega-unit dm_fused_dependencies)
   add_test(NAME dm_dram_images COMMAND tilemega-unit dm_dram_images)
   add_test(NAME binding_request_traffic COMMAND tilemega-unit binding_request_traffic)
   add_test(NAME binding_request_pricing COMMAND tilemega-unit binding_request_pricing)

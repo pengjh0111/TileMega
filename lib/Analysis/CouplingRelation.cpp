@@ -130,6 +130,16 @@ CouplingRelation CouplingRelation::ProjectRange(unsigned first, unsigned count) 
   return CouplingRelation(isl_util::ToString(projected.get()));
 }
 
+CouplingRelation CouplingRelation::FlatProduct(CouplingRelation const& other) const {
+  IslReferenceAudit audit(__func__);
+  if (empty() || other.empty()) return {};
+  auto lhs=isl_util::ReadMap(Ctx(),text_);
+  auto rhs=isl_util::ReadMap(Ctx(),other.text_);
+  isl_util::Map product(isl_map_flat_product(lhs.release(),rhs.release()));
+  if (!product) throw std::invalid_argument("cannot form independent relation product");
+  return CouplingRelation(isl_util::ToString(product.get()));
+}
+
 CouplingRelation CouplingRelation::IntersectRange(
     std::string const& range_set_text) const {
   if (empty()) return {};
