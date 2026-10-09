@@ -25,5 +25,5 @@
   "queue_sha256": "d487c32b1024ce10d17383d8711d3af1b950c50cb94b8df39c86636f7e195923",
   "completion_sha256": "38df9fc8385c6cef344e4a679e5b64eb456a7e434609246b0db0838186b674e9",
   "log_sha256": "1a588d872f1456d590d0e060ccb81907fa5a8560174baedab2a4432ccb392423",
-  "production_state": "Identity implementation committed in isolated worktree; native SO validation pending"
+  "production_state": "Complete macro identity validated on eight actual native forward shared objects; see CI3_forward_cli_cuda.json"
 }

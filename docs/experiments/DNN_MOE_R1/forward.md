@@ -38,5 +38,7 @@ passes another 50/50. Independent numerical references and bitwise L1/L2
 comparisons pass, with five-architecture compile/resource records. See
 `page_invariants.md` and `results/CI5_paged_{phases,attention}.json`.
 
-Pending: forward CLI model import; DNN and MoE states/weights; binding-aware
+verified: eight native CG CLI plans pass ABI, FP32 tolerance and same-binary L1/L2 checks (`results/CI3_forward_cli_cuda.json`); complete macro identities and all ptxas resources are sealed. Initial crash and shape-instantiation failures remain in the receipt. Other-architecture compilation is queued.
+
+Pending: upstream DNN/MoE model import; DNN and MoE states/weights; binding-aware
 page execution and new bodies; complete G-REG at the Phase 1 checkpoint.
