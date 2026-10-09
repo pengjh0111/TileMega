@@ -655,6 +655,30 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
   if(config && model.serving && stage.kind==StageKind::kGemm &&
      semantic.op.arithmetic=="argmax_gemm")
     result.collective_k_extent=model.gemms.at(stage.gemm).k;
+  if(model.dm) {
+    switch(stage.kind) {
+      case StageKind::kGemm:
+        if(!model.gemm_access.empty()) {
+          auto const& access=model.gemm_access.at(stage.gemm);
+          if(access.a==codegen::DmAAccess::kIm2Col)result.serving_body_kind="gemm_im2col";
+          else if(access.b==codegen::DmBAccess::kExpertIndirect)result.serving_body_kind="gemm_expert_indirect";
+          else if(access.a==codegen::DmAAccess::kRowGather)result.serving_body_kind="gemm_rowgather";
+          else if(access.a_scale!=codegen::kDmNoIndex)result.serving_body_kind="gemm_a_scale";
+        }
+        break;
+      case StageKind::kDepthwiseConv: result.serving_body_kind="depthwise_conv";break;
+      case StageKind::kPool: result.serving_body_kind="pool";break;
+      case StageKind::kGlobalPoolReduce: result.serving_body_kind="global_pool_reduce";break;
+      case StageKind::kLayerNorm: result.serving_body_kind="layernorm";break;
+      case StageKind::kEncoderAttention: result.serving_body_kind="encoder_attention";break;
+      case StageKind::kEmbeddingSum: result.serving_body_kind="embedding_sum";break;
+      case StageKind::kDwPwFused: result.serving_body_kind="dwpw_fused";break;
+      case StageKind::kMoETopK: result.serving_body_kind="moe_topk_dispatch";break;
+      case StageKind::kMoECombine: result.serving_body_kind="moe_combine";break;
+      case StageKind::kLayoutConvert: result.serving_body_kind="layout_convert";break;
+      default: break;
+    }
+  }
   if(model.serving && stage.kind==StageKind::kFusedAttention &&
      stage.attention_kv_block>0) {
     bool prefill=model.dims.seq>1;
