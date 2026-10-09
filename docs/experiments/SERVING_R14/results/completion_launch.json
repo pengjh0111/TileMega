@@ -1,0 +1,136 @@
+{
+  "observed_at": "2026-10-09T11:43:05.324320+00:00",
+  "pid": 1454773,
+  "queue": "docs/experiments/SERVING_R14/queue/queue_completion_repair.json",
+  "steps": {
+    "R_complete_prepare": {
+      "status": "running",
+      "attempts": 1,
+      "enqueued": 1791546128.3223834,
+      "retry_at": 0,
+      "wait_s": 0.005443572998046875,
+      "pid": 1454774
+    },
+    "R_complete_numeric": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.322386,
+      "retry_at": 0
+    },
+    "R_complete_build": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.3223875,
+      "retry_at": 0
+    },
+    "R_complete_compare": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.3223894,
+      "retry_at": 0
+    },
+    "R_complete_smoke": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.3223908,
+      "retry_at": 0
+    },
+    "R_complete_c1_llama_tn8_row": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.3223925,
+      "retry_at": 0
+    },
+    "R_complete_c1_llama_tn16_tiled": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.3223944,
+      "retry_at": 0
+    },
+    "R_complete_c1_qwen3_tn8_row": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.3223953,
+      "retry_at": 0
+    },
+    "R_complete_c1_qwen3_tn16_tiled": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.3223968,
+      "retry_at": 0
+    },
+    "R_complete_trace": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.3223977,
+      "retry_at": 0
+    },
+    "R_complete_overhead_r0": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.3223987,
+      "retry_at": 0
+    },
+    "R_complete_overhead_r1": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.3224,
+      "retry_at": 0
+    },
+    "R_complete_overhead_r2": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.322401,
+      "retry_at": 0
+    },
+    "R_complete_overhead": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.322402,
+      "retry_at": 0
+    },
+    "D0_v3": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.3224037,
+      "retry_at": 0
+    },
+    "D1_llama_v3": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.3224049,
+      "retry_at": 0
+    },
+    "D1_smoke_llama_v3": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.3224075,
+      "retry_at": 0
+    },
+    "D1_family_llama_v3": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.322409,
+      "retry_at": 0
+    },
+    "D1_qwen3_v3": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.3224099,
+      "retry_at": 0
+    },
+    "D1_smoke_qwen3_v3": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.3224115,
+      "retry_at": 0
+    },
+    "D1_family_qwen3_v3": {
+      "status": "pending",
+      "attempts": 0,
+      "enqueued": 1791546128.3224123,
+      "retry_at": 0
+    }
+  },
+  "monitor": "watch -n 10 'python3 /root/TileMega/docs/experiments/SERVING_R14/status.py --queue queue_completion_repair.json'"
+}
