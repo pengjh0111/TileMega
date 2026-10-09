@@ -41,6 +41,9 @@ enum class OpRole {
   kActivation,
   kResidualAdd,  ///< the `beta * C` half of a fused GEMM epilogue
   kGeneric,
+  kLayerNorm,
+  kEmbeddingSum,
+  kLayoutConvert,
 };
 
 std::string ToString(OpRole role);
@@ -106,6 +109,7 @@ struct LiftOptions {
 /// with `beta != 0`, whose epilogue residual is its own pointwise op.
 LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options);
 LiftedModel LiftServingSemantics(ModelPlan const& plan, LiftOptions const& options);
+LiftedModel LiftDnnSemantics(ModelPlan const& plan, LiftOptions const& options);
 
 /// §0.1 degradation: one conservative task space per FX call_function, used
 /// when no decoder layer was recognized. Never a placeholder -- the read set

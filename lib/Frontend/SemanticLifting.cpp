@@ -125,6 +125,9 @@ std::string ToString(OpRole role) {
     case OpRole::kActivation: return "activation";
     case OpRole::kResidualAdd: return "residual_add";
     case OpRole::kGeneric: return "generic";
+    case OpRole::kLayerNorm: return "layernorm";
+    case OpRole::kEmbeddingSum: return "embedding_sum";
+    case OpRole::kLayoutConvert: return "layout_convert";
   }
   return "generic";
 }
@@ -135,6 +138,14 @@ std::string ToString(OwnershipKind kind) {
 }
 
 LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
+  if(plan.dm && plan.forward && std::any_of(plan.stages.begin(),plan.stages.end(),
+      [&](auto const& stage) {
+        return stage.kind==PlanTaskKind::kLayerNorm ||
+            stage.kind==PlanTaskKind::kEmbeddingSum ||
+            stage.kind==PlanTaskKind::kLayoutConvert ||
+            (stage.kind==PlanTaskKind::kGemm &&
+             plan.gemms.at(stage.gemm).access.a==codegen::DmAAccess::kIm2Col);
+      })) return LiftDnnSemantics(plan,options);
   if (plan.serving) return LiftServingSemantics(plan, options);
   LiftedModel model;
   if (plan.stages.empty()) return model;
@@ -537,6 +548,12 @@ analysis::Granularity LaunchGranularity(LiftedModel const& model) {
         // RMSNormTaskBody and EmbeddingTaskBody: one token per CTA.
         g.Tile(op.name, "m", one);
         break;
+      case OpRole::kLayerNorm:
+      case OpRole::kEmbeddingSum:
+      case OpRole::kLayoutConvert:
+        g.Tile(op.name,"m",one)
+            .Tile(op.name,"n",model.sem.Find(op.name)->Dim("n")->extent);
+        break;
       case OpRole::kQKNorm:
         // QKNormTaskBody: one (token, head) per CTA.
         g.Tile(op.name, "m", one).Tile(op.name, "c", model.head_dim);
@@ -686,6 +703,12 @@ analysis::Granularity LaunchGranularity(
   for (auto const& op : model.ops) {
     if(virtual_gemms.count(op.name))continue;
     switch (op.role) {
+      case OpRole::kLayerNorm:
+      case OpRole::kEmbeddingSum:
+      case OpRole::kLayoutConvert:
+        g.Tile(op.name,"m",Fixed(plan.stages.at(op.stage).group))
+            .Tile(op.name,"n",model.sem.Find(op.name)->Dim("n")->extent);
+        break;
       case OpRole::kNorm:
       case OpRole::kEmbedding:
         g.Tile(op.name, "m", one);
@@ -758,6 +781,12 @@ analysis::Granularity ReferenceGranularity(LiftedModel const& model) {
       case OpRole::kNorm:
       case OpRole::kEmbedding:
         g.Tile(op.name, "m", Tm);
+        break;
+      case OpRole::kLayerNorm:
+      case OpRole::kEmbeddingSum:
+      case OpRole::kLayoutConvert:
+        g.Tile(op.name,"m",Tm)
+            .Tile(op.name,"n",model.sem.Find(op.name)->Dim("n")->extent);
         break;
       case OpRole::kQKNorm:
         g.Tile(op.name, "m", Tm).Tile(op.name, "c", model.head_dim);

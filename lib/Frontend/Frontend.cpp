@@ -272,6 +272,9 @@ llvm::StringRef taskKindOf(OpRole role) {
     case OpRole::kActivation:
     case OpRole::kResidualAdd: return "elementwise";
     case OpRole::kGeneric: return "generic";
+    case OpRole::kLayerNorm: return "layernorm";
+    case OpRole::kEmbeddingSum: return "embedding_sum";
+    case OpRole::kLayoutConvert: return "layout_convert";
   }
   return "generic";
 }
