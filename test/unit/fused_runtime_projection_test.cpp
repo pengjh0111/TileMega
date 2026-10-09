@@ -78,7 +78,8 @@ int TestFusedRuntimeProjection(int argc, char** argv) try {
   }
   // Counted publication survives fusion beside either endpoint. The
   // independent permutation oracle also changes the consumer's tile order.
-  for(int selected:{0,2})for(int grid:{1,3,8})for(int kappa:{0,1,4,16})for(bool permuted:{false,true}) {
+  for(int selected:{0,2})for(int grid:{1,3,8})for(int kappa:{0,1,4,16})
+    for(bool permuted:{false,true})for(int contracts:{1,2}) {
     ModelDescription counted_model;counted_model.dims.seq=counted_model.dims.total=1;
     ModelStage stage;stage.kind=StageKind::kElementwise;stage.extent=5*128;
     counted_model.stages.assign(4,stage);
@@ -91,13 +92,17 @@ int TestFusedRuntimeProjection(int argc, char** argv) try {
     contract.contributions.expected={2,2,2,2,1};
     contract.conservative_relation=R::FromIslText("{ [c] -> [p] : 0<=c<5 and 0<=p<5 }");
     edge.counted=contract;counted_plan.dependencies.push_back(edge);
+    if(contracts==2) {
+      edge.counted->tensor="partial.other";
+      counted_plan.dependencies.push_back(edge);
+    }
     RuntimeProjectionOptions counted_options{grid,128,kappa};
     auto counted_original=ProjectRuntimeQueues(counted_model,counted_plan,counted_options);
     if(permuted)counted_plan.dependencies[selected==0?0:1].window={true,1,-1,4,1};
     counted_original=ProjectRuntimeQueues(counted_model,counted_plan,counted_options);
     auto identity=R::FromIslText(permuted?"{ [c] -> [p=4-c] : 0<=c<5 }":"{ [c] -> [p=c] : 0<=c<5 }");
     auto replacement=FuseProjectedQueues(counted_original,selected,selected+1,identity,counted_options).projection;
-    assert(replacement.runtime_counted.size()==1);
+    assert(replacement.runtime_counted.size()==unsigned(contracts));
     auto const& transported=replacement.runtime_counted[0];
     assert(transported.producer==0 && transported.consumer==(selected==0?1:2));
     for(unsigned target=0;target<5;++target)
@@ -109,9 +114,16 @@ int TestFusedRuntimeProjection(int argc, char** argv) try {
     unsigned arrivals=0;
     for(auto const& [task,event]:replacement.waits.Points())if(event[2]==3) {
       assert(task[0]==transported.consumer && event[0]==task[1]%grid);
-      assert(event[1]==transported.producer && event[3]==task[1]);++arrivals;
+      assert(event[1]==transported.producer);
+      assert(event[3]==task[1] || (contracts==2 && event[3]==5+task[1]));++arrivals;
     }
-    assert(arrivals==5);++checks;
+    assert(arrivals==unsigned(5*contracts));
+    if(contracts==2) {
+      auto const& other=replacement.runtime_counted[1];
+      assert(other.contract.tensor=="partial.other");
+      assert(other.contract.contributions.expected==transported.contract.contributions.expected);
+    }
+    ++checks;
   }
   if (isl.ReferenceCount()) throw std::runtime_error("fusion projection retained references");
   std::cout << "FUSED_RUNTIME checks=" << checks << " errors=" << errors << " remaining=0\n";
