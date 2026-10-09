@@ -85,6 +85,11 @@ struct Builder {
   std::map<std::string,unsigned> packed_buffer;
   struct RowView {unsigned stride=1,offset=0,rows=0;};
   std::map<std::string,RowView> row_views;
+  struct ImageNorm {std::string input,gamma,beta;double epsilon;};
+  std::map<std::string,ImageNorm> image_norms;
+  std::map<std::string,std::string> image_gates;
+  std::map<std::string,std::pair<unsigned,unsigned>> scaled_residuals,scaled_activations;
+  std::map<std::string,std::pair<std::string,unsigned>> image_shuffles;
   Builder(std::vector<FxNodeRecord> const& n,std::vector<SignatureInput> const& inputs,
           std::vector<std::string> const& outputs,DnnPlanOptions o)
       :nodes(n),options(o) {
@@ -105,6 +110,7 @@ struct Builder {
     }
     for(auto const& x:inputs)if(x.kind=="USER_INPUT")Input(*records.at(x.name));
     if(p.serving_seq!=1)PrepareEncoder();
+    else {PrepareImageNorms();PrepareImageGates();PrepareImageShuffles();}
   }
   unsigned Add(PlanBuffer b) {auto id=p.buffers.size();p.buffers.push_back(std::move(b));return id;}
   unsigned Value(std::string const& name) const {
@@ -149,6 +155,13 @@ struct Builder {
   unsigned Bias(std::string const& ref) {
     auto const& node=Parameter(ref);std::uint64_t elements=1;for(auto const& x:node.shape)elements*=U(x);
     return Weight(Fqn(ref)+".bias_f32",llvm::json::Object{{"kind","linear_bias"},{"source",Fqn(ref)}},Checked(elements),"f32");
+  }
+  unsigned ChannelScale(std::string const& ref,unsigned channels) {
+    auto const& shape=Parameter(ref).shape;
+    if(shape!=std::vector<std::string>{"1",std::to_string(channels),"1","1"})
+      throw std::invalid_argument("image residual scale must broadcast over channels");
+    return Weight(Fqn(ref)+".channel_f32",llvm::json::Object{
+        {"kind","linear_bias"},{"source",Fqn(ref)},{"channel_axis",1}},channels,"f32");
   }
   unsigned Table(std::string const& ref) {
     auto const& node=Parameter(ref);std::uint64_t elements=1;
@@ -220,6 +233,191 @@ struct Builder {
       if(number!=i)throw std::invalid_argument("position buffer is not the initial token sequence");
     }
     collapsed.insert(slice.name);
+  }
+  void PrepareImageNorms() {
+    auto at=[&](FxNodeRecord const& n,unsigned index)->FxNodeRecord const* {
+      auto const& a=Arg(n,index);auto found=records.find(a.text);
+      return a.kind==FxArgument::Kind::kNode && found!=records.end()?found->second:nullptr;
+    };
+    auto channel_mean=[](FxNodeRecord const& n) {
+      auto const& dims=Arg(n,1);auto const& keep=Arg(n,2);
+      return Op(n)=="mean" && dims.kind==FxArgument::Kind::kList && dims.items.size()==1 &&
+          dims.items[0].kind==FxArgument::Kind::kInt && dims.items[0].integer==1 &&
+          keep.kind==FxArgument::Kind::kBool && keep.boolean;
+    };
+    for(auto const& output:nodes) {
+      if(Op(output)!="add" || output.args.size()<2)continue;
+      auto* affine=at(output,0);auto* beta=at(output,1);
+      if(affine && beta && parameters.count(affine->name))std::swap(affine,beta);
+      if(!affine || !beta || !parameters.count(beta->name) || Op(*affine)!="mul")continue;
+      auto* gamma=at(*affine,0);auto* div=at(*affine,1);
+      if(gamma && div && parameters.count(div->name))std::swap(gamma,div);
+      if(!gamma || !div || !parameters.count(gamma->name) || Op(*div)!="div")continue;
+      auto* centered=at(*div,0);auto* root=at(*div,1);
+      if(!centered || !root || Op(*centered)!="sub" || Op(*root)!="sqrt")continue;
+      auto* input=at(*centered,0);auto* mean=at(*centered,1);auto* epsilon=at(*root,0);
+      if(!input || !mean || !epsilon || !channel_mean(*mean) || Op(*epsilon)!="add")continue;
+      auto* variance=at(*epsilon,0);auto* square=variance?at(*variance,0):nullptr;
+      auto* variance_center=square?at(*square,0):nullptr;
+      if(!variance || !square || !variance_center || !channel_mean(*variance) || Op(*square)!="pow" ||
+          Real(Arg(*square,1),0)!=2 || Op(*variance_center)!="sub")continue;
+      if(Ref(*mean,0)!=input->name || Ref(*variance_center,0)!=input->name ||
+         Ref(*variance_center,1)!=mean->name || input->shape.size()!=4 ||
+         output.shape!=input->shape || input->dtype!="torch.bfloat16" ||
+         Real(Arg(output,2),1)!=1 || Real(Arg(*centered,2),1)!=1 ||
+         Real(Arg(*variance_center,2),1)!=1 || Real(Arg(*epsilon,2),1)!=1)
+        throw std::invalid_argument("image LayerNorm has incompatible reductions or affine operands");
+      auto channels=U(input->shape[1]);double eps=Real(Arg(*epsilon,1),0);
+      if(!(eps>0) || !std::isfinite(eps) || channels>4096)
+        throw std::invalid_argument("image LayerNorm has invalid epsilon or channel width");
+      for(auto const* parameter:{gamma,beta}) {
+        auto const& shape=Parameter(parameter->name).shape;
+        if(shape.size()!=1 || U(shape[0])!=channels || parameter->shape!=std::vector<std::string>{"1",std::to_string(channels),"1","1"})
+          throw std::invalid_argument("image LayerNorm affine parameters must broadcast over channels");
+      }
+      std::set<std::string> internal={affine->name,div->name,centered->name,root->name,
+          mean->name,epsilon->name,variance->name,square->name,variance_center->name};
+      for(auto const& ref:internal) {
+        if(externally_observed.count(ref))throw std::invalid_argument("image LayerNorm exposes an internal value");
+        for(auto const& use:nodes)if(!internal.count(use.name) && use.name!=output.name &&
+            std::find(use.inputs.begin(),use.inputs.end(),ref)!=use.inputs.end())
+          throw std::invalid_argument("image LayerNorm internal value has an unmatched consumer");
+      }
+      collapsed.insert(internal.begin(),internal.end());
+      image_norms[output.name]={input->name,gamma->name,beta->name,eps};
+    }
+  }
+  void PrepareImageGates() {
+    for(auto const& node:nodes) {
+      if(Op(node)!="mul" || node.args.size()!=2 || collapsed.count(node.name) ||
+         Arg(node,0).kind!=FxArgument::Kind::kNode || Arg(node,1).kind!=FxArgument::Kind::kNode)continue;
+      auto const& a=*records.at(Ref(node,0));auto const& b=*records.at(Ref(node,1));
+      if(Op(a)!="getitem" || Op(b)!="getitem" || Ref(a,0)!=Ref(b,0) ||
+         std::set<long>{Int(Arg(a,1),-1),Int(Arg(b,1),-1)}!=std::set<long>{0,1})continue;
+      auto const& split=*records.at(Ref(a,0));auto kind=Op(split);
+      if(kind!="chunk" && kind!="split_with_sizes")continue;
+      auto const& input=*records.at(Ref(split,0));
+      if(input.shape.size()!=4 || node.shape.size()!=4 || Int(Arg(split,2),0)!=1 ||
+         U(input.shape[1])!=2*U(node.shape[1]) || a.shape!=node.shape || b.shape!=node.shape)
+        throw std::invalid_argument("SimpleGate requires two equal channel halves");
+      auto channels=U(node.shape[1]);
+      if(kind=="chunk" && Int(Arg(split,1),0)!=2)
+        throw std::invalid_argument("SimpleGate chunk count must be two");
+      if(kind=="split_with_sizes") {
+        auto const& sizes=Arg(split,1);
+        if(sizes.kind!=FxArgument::Kind::kList || sizes.items.size()!=2 ||
+           Int(sizes.items[0],0)!=channels || Int(sizes.items[1],0)!=channels)
+          throw std::invalid_argument("SimpleGate split sizes must be equal");
+      }
+      RequireExclusive(input.name);RequireExclusive(a.name);RequireExclusive(b.name);
+      if(users[split.name]!=2 || externally_observed.count(split.name))
+        throw std::invalid_argument("SimpleGate split has an unmatched consumer");
+      collapsed.insert({split.name,a.name,b.name});image_gates[node.name]=input.name;
+    }
+  }
+  void PrepareImageShuffles() {
+    for(auto const& node:nodes) {
+      if(Op(node)=="pixel_shuffle") {image_shuffles[node.name]={Ref(node,0),unsigned(Int(Arg(node,1),0))};continue;}
+      if(Op(node)!="view" || node.shape.size()!=4 || Arg(node,0).kind!=FxArgument::Kind::kNode)continue;
+      auto const& clone=*records.at(Ref(node,0));if(Op(clone)!="clone")continue;
+      auto const& permute=*records.at(Ref(clone,0));if(Op(permute)!="permute")continue;
+      auto const& view=*records.at(Ref(permute,0));if(Op(view)!="view" || view.shape.size()!=6)continue;
+      auto const& axes=Arg(permute,1);
+      std::vector<long> actual;if(axes.kind==FxArgument::Kind::kList)
+        for(auto const& axis:axes.items)actual.push_back(Int(axis,-1));
+      if(actual!=std::vector<long>{0,1,4,2,5,3})continue;
+      auto factor=U(view.shape[2]);
+      if(factor!=U(view.shape[3]) || U(node.shape[1])!=U(view.shape[1]) ||
+         U(node.shape[2])!=factor*U(view.shape[4]) || U(node.shape[3])!=factor*U(view.shape[5]))
+        throw std::invalid_argument("Core pixel shuffle shape differs from its permutation");
+      for(auto const* internal:{&view,&permute,&clone})RequireExclusive(internal->name);
+      collapsed.insert({view.name,permute.name,clone.name});
+      image_shuffles[node.name]={Ref(view,0),factor};
+    }
+  }
+  void ImageGate(FxNodeRecord const& node) {
+    auto input=Value(image_gates.at(node.name));auto& stage=p.stages.at(owner.at(input));
+    auto layout=p.buffers[input].layout;
+    if(layout.kind!=DmLayout::kNHWC || layout.logical[3]%32)
+      throw std::invalid_argument("SimpleGate requires complete 16-channel pairs");
+    auto channels=layout.logical[3]/2;
+    DmEpilogueOp gate;gate.kind=DmEpilogueKind::kGatePair;gate.gate=DmGatePair::kSimpleGate;
+    gate.unit=16;gate.input_rounding=DmRounding::kBF16;
+    if(stage.kind==PlanTaskKind::kGemm) {
+      auto& gemm=p.gemms.at(stage.gemm);
+      auto interleave=[&](unsigned id) {
+        auto parsed=llvm::json::parse(p.buffers[id].pack_json);
+        if(!parsed)throw std::invalid_argument("SimpleGate parameter has no packing recipe");
+        p.buffers[id].pack_json=Json(llvm::json::Object{
+            {"kind","gate_pair_interleave"},{"u",16},{"source",std::move(*parsed)}});
+      };
+      interleave(gemm.b);
+      for(unsigned i=0;i<gemm.chain.count;++i) {
+        if(gemm.chain.operations[i].kind!=DmEpilogueKind::kBias)
+          throw std::invalid_argument("SimpleGate GEMM needs a direct bias/conv anchor");
+        interleave(gemm.chain.operations[i].parameter[0]);
+      }
+    }else if(stage.kind==PlanTaskKind::kDepthwiseConv)stage.extent=channels;
+    else throw std::invalid_argument("SimpleGate has no convolution producer");
+    Append(input,gate);
+    p.buffers[input].layout=Image(layout.logical[1],layout.logical[2],channels);
+    p.buffers[input].per_batch=Checked(p.buffers[input].layout.strides[0]);
+    p.node_buffer[node.name]=input;
+  }
+  void ImageShuffle(FxNodeRecord const& node) {
+    auto const& pattern=image_shuffles.at(node.name);RequireExclusive(pattern.first);
+    auto input=Value(pattern.first);auto const layout=p.buffers[input].layout;
+    if(!owner.count(input) || consumed.count(input) || p.stages[owner.at(input)].kind!=PlanTaskKind::kGemm ||
+       layout.kind!=DmLayout::kNHWC || !pattern.second ||
+       layout.logical[3]%(std::uint64_t(pattern.second)*pattern.second))
+      throw std::invalid_argument("pixel shuffle requires a mutable convolution output");
+    auto& gemm=p.gemms[p.stages[owner.at(input)].gemm];
+    if(gemm.access.write.kind!=DmWriteKind::kDense)
+      throw std::invalid_argument("pixel shuffle producer already has a write permutation");
+    auto factor=pattern.second;
+    p.buffers[input].layout=Image(Checked(std::uint64_t(layout.logical[1])*factor),
+        Checked(std::uint64_t(layout.logical[2])*factor),layout.logical[3]/(factor*factor));
+    p.buffers[input].per_batch=Checked(p.buffers[input].layout.strides[0]);
+    gemm.access.write.kind=DmWriteKind::kPixelShuffle;gemm.access.write.factor=factor;
+    p.node_buffer[node.name]=input;
+  }
+  void ImageMultiply(FxNodeRecord const& node) {
+    for(unsigned i=0;i<2;++i)if(parameters.count(Ref(node,i))) {
+      auto ref=Ref(node,1-i);RequireExclusive(ref);RequireExclusive(node.name);
+      auto input=Value(ref);auto const& layout=p.buffers[input].layout;
+      if(layout.kind!=DmLayout::kNHWC || !owner.count(input) ||
+         p.stages[owner.at(input)].kind!=PlanTaskKind::kGemm)
+        throw std::invalid_argument("scaled residual requires an image GEMM producer");
+      scaled_residuals[node.name]={input,ChannelScale(Ref(node,i),layout.logical[3])};
+      p.node_buffer[node.name]=input;return;
+    }
+    auto a=Value(Ref(node,0)),scale=Value(Ref(node,1));
+    if(p.buffers[a].layout.logical[1]==1 && p.buffers[a].layout.logical[2]==1)std::swap(a,scale);
+    auto const image=p.buffers[a].layout;auto vector=p.buffers[scale].layout;
+    if(image.kind!=DmLayout::kNHWC || vector.kind!=DmLayout::kNHWC || vector.rank!=4 ||
+       vector.logical[1]!=1 || vector.logical[2]!=1 || image.logical[3]!=vector.logical[3] ||
+       vector.physical[3]!=vector.logical[3] || vector.halo_top || vector.halo_bottom ||
+       vector.halo_left || vector.halo_right || image.logical[0]!=vector.logical[0])
+      throw std::invalid_argument("SCA multiplication requires one channel vector per image");
+    RequireExclusive(node.name);
+    // The 1x1 producer's physical allocation already is [batch,channels].
+    // Give the access descriptor the same explicit rank-two scale layout.
+    DmBufferLayout matrix;matrix.rank=2;matrix.logical[0]=matrix.physical[0]=options.batch;
+    matrix.logical[1]=matrix.physical[1]=vector.logical[3];Strides(matrix);
+    p.buffers[scale].layout=matrix;
+    scaled_activations[node.name]={a,scale};p.node_buffer[node.name]=a;consumed.insert(scale);
+  }
+  void ImageLayerNorm(FxNodeRecord const& node) {
+    auto const& pattern=image_norms.at(node.name);auto input=Value(pattern.input);
+    auto const layout=p.buffers[input].layout;
+    if(layout.kind!=DmLayout::kNHWC || layout.rank!=4)
+      throw std::invalid_argument("image LayerNorm requires an NHWC producer");
+    auto output=ImageBuffer(node.name,layout.logical[1],layout.logical[2],layout.logical[3]);
+    auto stage=Stage(PlanTaskKind::kLayerNorm,node,output,
+        {input,Table(pattern.gamma),Table(pattern.beta),output});
+    auto& t=p.stages[stage];t.width=layout.logical[3];t.group=4;
+    t.rows_per_batch=Checked(std::uint64_t(layout.logical[1])*layout.logical[2]);t.norm_epsilon=pattern.epsilon;
+    consumed.insert(input);
   }
   void Iota(std::string ref,unsigned axis) const {
     auto const* n=records.at(ref);
@@ -526,6 +724,7 @@ struct Builder {
     bool core=Op(node)=="convolution";
     if(core && ((Arg(node,6).kind==FxArgument::Kind::kBool && Arg(node,6).boolean) || Pair(Arg(node,7),0,true)!=std::make_pair(0u,0u)))
       throw std::invalid_argument("transposed convolution is outside the DNN contract");
+    if(in.kind!=DmLayout::kNHWC || in.rank!=4)throw std::invalid_argument("convolution requires a rank-four image");
     unsigned groups=Int(Arg(node,core?8:6),1),channels=in.logical[3];
     bool depthwise=groups==channels && out_c==channels && weight_c==1;
     if(!depthwise && (groups!=1 || weight_c!=channels))throw std::invalid_argument("unsupported grouped convolution");
@@ -547,6 +746,12 @@ struct Builder {
     }else {
       PlanGemm g;g.a=a;g.b=b;g.c=g.d=output;g.n=out_c;g.k=Checked(std::uint64_t(r)*s*channels);
       g.access.a=DmAAccess::kIm2Col;g.access.conv=conv;g.access.rows_per_batch=ph*pw;
+      auto scaled=scaled_activations.find(Ref(node,0));
+      if(scaled!=scaled_activations.end()) {
+        if(r!=1 || s!=1 || stride!=std::make_pair(1u,1u))
+          throw std::invalid_argument("SCA scale producer requires pixel-preserving pointwise convolution");
+        g.access.a_scale=scaled->second.second;
+      }
       g.access.write.layout=output;unsigned gemm=p.gemms.size();p.gemms.push_back(g);
       auto stage=Stage(PlanTaskKind::kGemm,node,output);p.stages[stage].gemm=gemm;
     }
@@ -625,6 +830,12 @@ struct Builder {
     if(x.rank!=y.rank || !std::equal(x.logical,x.logical+x.rank,y.logical))
       throw std::invalid_argument("DNN residual shapes disagree");
     DmEpilogueOp step;step.kind=DmEpilogueKind::kResidual;step.parameter[0]=b;step.residual_map.layout=b;
+    auto source=Value(Ref(node,0))==a?Ref(node,0):Ref(node,1);
+    if(auto scaled=scaled_residuals.find(source);scaled!=scaled_residuals.end())step.parameter[1]=scaled->second.second;
+    auto const& gemm=p.gemms[p.stages[owner.at(a)].gemm];
+    if(gemm.access.write.kind==DmWriteKind::kPixelShuffle) {
+      step.residual_map.kind=DmWriteKind::kPixelShuffle;step.residual_map.factor=gemm.access.write.factor;
+    }
     Append(a,step);consumed.insert(b);p.node_buffer[node.name]=a;
   }
   void Pool(FxNodeRecord const& node) {
@@ -674,7 +885,8 @@ struct Builder {
       chain.side[chain.side_count++]={DmSideOutputKind::kChannelPartialSums,sums};
     }
     auto output=RowsBuffer(node.name+".fp32",1,channels,"f32");
-    auto rounded=RowsBuffer(node.name,1,channels);
+    auto rounded=node.shape.size()==4 && channels%8==0?ImageBuffer(node.name,1,1,channels):
+        RowsBuffer(node.name,1,channels);
     auto stage=Stage(PlanTaskKind::kGlobalPoolReduce,node,rounded,{sums,output,rounded});
     auto& t=p.stages[stage];t.width=128;t.extent=channels;t.group=tile;t.rows_per_batch=area;
     t.partial_rows_per_image=dw?parts:0;consumed.insert(input);
@@ -706,6 +918,9 @@ struct Builder {
     if(collapsed.count(node.name))return;
     auto kind=Op(node);
     if(!node.has_arguments)throw std::invalid_argument("DNN import requires structured FX arguments: "+node.name);
+    if(image_norms.count(node.name)) {ImageLayerNorm(node);return;}
+    if(image_gates.count(node.name)) {ImageGate(node);return;}
+    if(image_shuffles.count(node.name)) {ImageShuffle(node);return;}
     if(embeddings.count(node.name)) {Embedding(node);return;}
     if(packed_attention.count(node.name)) {Qkv(node);return;}
     if(attention_anchor.count(node.name)) {AttentionStage(node);return;}
@@ -720,10 +935,29 @@ struct Builder {
     else if(kind=="relu" || kind=="relu_" || kind=="hardtanh" || kind=="hardtanh_" ||
             kind=="gelu" || kind=="tanh" || kind=="silu")Activation(node);
     else if(kind=="add" || kind=="add_")Residual(node);
+    else if(kind=="mul" && p.serving_seq==1)ImageMultiply(node);
     else if(kind=="max_pool2d" || kind=="max_pool2d_with_indices")Pool(node);
     else if(kind=="mean" || kind=="adaptive_avg_pool2d")GlobalPool(node);
     else if(kind=="linear" || kind=="addmm" || (kind=="bmm" && parameters.count(Ref(node,1))))Linear(node);
     else if(kind=="layer_norm" || kind=="native_layer_norm")LayerNorm(node);
+    else if(kind=="pad" || kind=="constant_pad_nd") {
+      auto const& pad=Arg(node,1);
+      if(pad.kind!=FxArgument::Kind::kList || pad.items.size()%2 || pad.items.size()>8 ||
+         std::any_of(pad.items.begin(),pad.items.end(),[](auto const& item) {
+           return item.kind!=FxArgument::Kind::kInt || item.integer!=0;}))
+        throw std::invalid_argument("DNN layout padding must be identically zero");
+      Alias(node,Ref(node,0));
+    }
+    else if(kind=="slice") {
+      auto const& input=*records.at(Ref(node,0));long axis=Int(Arg(node,1),0);
+      if(axis<0)axis+=input.shape.size();
+      if(axis<0 || unsigned(axis)>=input.shape.size() || Int(Arg(node,2),0)!=0 ||
+         Int(Arg(node,4),1)!=1 || node.shape!=input.shape)
+        throw std::invalid_argument("DNN slice is not a range identity");
+      auto extent=axis==0?options.batch:U(input.shape[axis]);
+      if(Int(Arg(node,3),0)<extent)throw std::invalid_argument("DNN slice truncates its axis");
+      Alias(node,Ref(node,0));
+    }
     else if(kind=="select") {
       auto const& input=*records.at(Ref(node,0));
       if(p.serving_seq==1 || input.shape.size()!=3 || Int(Arg(node,1),-1)!=1 ||
@@ -756,6 +990,15 @@ ModelPlan BuildDnnModelPlan(std::vector<FxNodeRecord> const& nodes,
   for(auto const& node:nodes)builder.Visit(node);
   for(auto const& name:outputs) {
     auto id=builder.Value(name);auto& buffer=builder.p.buffers[id];
+    if(buffer.layout.kind==DmLayout::kNHWC && builder.owner.count(id) &&
+       builder.p.stages[builder.owner.at(id)].kind==PlanTaskKind::kGemm) {
+      auto const shape=buffer.layout;
+      auto& gemm=builder.p.gemms[builder.p.stages[builder.owner.at(id)].gemm];
+      if(builder.consumed.count(id) || gemm.access.write.kind!=DmWriteKind::kDense)
+        throw std::invalid_argument("external NCHW output requires an unconsumed dense GEMM result");
+      buffer.layout=builder.Image(shape.logical[1],shape.logical[2],shape.logical[3],true);
+      buffer.per_batch=Checked(buffer.layout.strides[0]);gemm.access.write.kind=DmWriteKind::kNCHW;
+    }
     buffer.role="external";buffer.external_name=name;builder.p.outputs.push_back({id,{}});
   }
   ValidateDmModelPlan(builder.p);return std::move(builder.p);

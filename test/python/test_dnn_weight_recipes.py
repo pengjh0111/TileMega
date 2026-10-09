@@ -101,6 +101,15 @@ class DnnRecipes(unittest.TestCase):
                     self.assertTrue(torch.equal(packed[2*block*unit:(2*block+1)*unit], first[block*unit:(block+1)*unit]))
                     self.assertTrue(torch.equal(packed[(2*block+1)*unit:(2*block+2)*unit], second[block*unit:(block+1)*unit]))
 
+    def test_image_channel_scales(self):
+        values=dict(scale=torch.randn(1,32,1,1).bfloat16())
+        recipe=dict(kind='linear_bias',source='scale',channel_axis=1)
+        packed=self.packed(recipe,values)
+        self.assertTrue(torch.equal(packed,values['scale'][0,:,0,0].float()))
+        for shape in [(2,32,1,1),(1,32,2,1),(32,), (1,1,32,1)]:
+            with self.assertRaises(ValueError):
+                _packed_cpu(recipe,Source(dict(scale=torch.randn(shape).bfloat16())))
+
     def test_checkpoint_dtype_and_nested_pages(self):
         values = dict(w=torch.randn(32, 16).bfloat16(), gamma=torch.rand(16).bfloat16(),
                       beta=torch.randn(16).bfloat16(), bias=torch.randn(32).bfloat16())

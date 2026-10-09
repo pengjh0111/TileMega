@@ -100,6 +100,62 @@ int TestDnnModelPlan(int argc,char** argv) {
       assert(guard!=invalid.nodes.end());guard->args[1]=I(1);reject(invalid,"fully masked");
     }
   }
+  auto gated=std::count_if(plan.stages.begin(),plan.stages.end(),[](auto const& stage) {
+    if(stage.kind!=PlanTaskKind::kDepthwiseConv)return false;
+    for(unsigned i=0;i<stage.chain.count;++i)if(stage.chain.operations[i].kind==codegen::DmEpilogueKind::kGatePair)return true;
+    return false;
+  });
+  if(gated==36 && plan.outputs.size()==1) {
+    assert(plan.stages.size()==335 && plan.gemms.size()==190 && plan.convolutions.size()==226);
+    assert(std::count_if(plan.stages.begin(),plan.stages.end(),[](auto const& stage) {
+      return stage.kind==PlanTaskKind::kLayerNorm;})==72);
+    assert(std::count_if(plan.gemms.begin(),plan.gemms.end(),[](auto const& gemm) {
+      return gemm.access.a_scale!=codegen::kDmNoIndex;})==36);
+    assert(std::count_if(plan.gemms.begin(),plan.gemms.end(),[](auto const& gemm) {
+      return gemm.access.write.kind==codegen::DmWriteKind::kPixelShuffle;})==4);
+    assert(plan.gemms.back().access.write.kind==codegen::DmWriteKind::kNCHW);
+    auto reject=[&](ExportBridge const& bad) {
+      bool rejected=false;try{BuildDnnModelPlan(bad.nodes,bad.inputs,bad.outputs,options);}
+      catch(std::invalid_argument const&){rejected=true;}assert(rejected);
+    };
+    auto invalid=bridge;
+    auto split=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[](auto const& node) {
+      return node.target=="aten.chunk.default" || node.target=="aten.split_with_sizes.default";
+    });
+    assert(split!=invalid.nodes.end());split->args[2]=I(2);reject(invalid);
+    invalid=bridge;
+    auto gate=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[](auto const& node) {
+      return node.target=="<built-in function getitem>" && node.args.size()>1 && node.args[1].integer==1;
+    });
+    assert(gate!=invalid.nodes.end());invalid.outputs.push_back(gate->name);reject(invalid);
+    invalid=bridge;
+    auto scaled=std::find_if(invalid.inputs.begin(),invalid.inputs.end(),[](auto const& input) {
+      return input.target.find(".beta")!=std::string::npos;
+    });
+    assert(scaled!=invalid.inputs.end());
+    auto parameter=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[&](auto const& node) {
+      return node.name==scaled->name;
+    });
+    assert(parameter!=invalid.nodes.end());parameter->shape[0]="2";reject(invalid);
+  }
+  if(plan.serving_seq==1 && plan.stages.back().kind==PlanTaskKind::kLayerNorm) {
+    assert(plan.stages.size()==3 && plan.gemms.size()==1);
+    assert(plan.buffers[plan.stages.back().operands[3]].layout.kind==codegen::DmLayout::kNHWC);
+    auto reject=[&](ExportBridge const& bad) {
+      bool rejected=false;try{BuildDnnModelPlan(bad.nodes,bad.inputs,bad.outputs,options);}
+      catch(std::invalid_argument const&){rejected=true;}assert(rejected);
+    };
+    auto invalid=bridge;
+    auto epsilon=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[](auto const& n) {
+      return n.target=="aten.add.Tensor" && n.args.size()>1 && n.args[1].kind==FxArgument::Kind::kFloat;
+    });
+    assert(epsilon!=invalid.nodes.end());epsilon->args[1]=F(0);reject(invalid);
+    invalid=bridge;auto mean=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[](auto const& n) {
+      return n.target=="aten.mean.dim";
+    });
+    assert(mean!=invalid.nodes.end());auto mean_name=mean->name;mean->args[1]=L({2});reject(invalid);
+    invalid=bridge;invalid.outputs.push_back(mean_name);reject(invalid);
+  }
   LiftOptions lift;lift.forward=true;lift.static_seq=plan.serving_seq;lift.batch_symbol="B";
   for(auto const& input:bridge.inputs)if(input.kind=="USER_INPUT") {
     auto node=std::find_if(bridge.nodes.begin(),bridge.nodes.end(),[&](auto const& n){return n.name==input.name;});
