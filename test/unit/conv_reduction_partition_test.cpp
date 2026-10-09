@@ -42,7 +42,7 @@ int TestConvReductionPartition(int,char**) {
   ParamBinding known;known.Bind("B",2);
   for(unsigned c:{3,24,27,64})for(unsigned r:{1,3})for(unsigned s:{2,3})
     for(unsigned tk:{16,32,64})for(unsigned split:{1,2,4}) {
-    codegen::ConvDesc conv;conv.c=c;conv.r=r;conv.s=s;
+    codegen::ConvDesc conv;conv.k=7;conv.c=c;conv.r=r;conv.s=s;
     codegen::DmBufferLayout layout;layout.kind=codegen::DmLayout::kNHWC;layout.rank=4;
     layout.logical[3]=c;layout.physical[3]=c==3?4:(c+7)/8*8;
     if(layout.physical[3]<tk && tk%layout.physical[3]) {
@@ -101,7 +101,7 @@ int TestConvReductionPartition(int,char**) {
     Reject([&]{Instantiate({{op}},wrong);},rejected);
     ++cases;
   }
-  auto op=Conv(24,3,3);codegen::ConvDesc conv;conv.c=24;conv.r=conv.s=3;
+  auto op=Conv(24,3,3);codegen::ConvDesc conv;conv.k=7;conv.c=24;conv.r=conv.s=3;
   codegen::DmBufferLayout layout;layout.kind=codegen::DmLayout::kNHWC;layout.rank=4;
   layout.logical[3]=layout.physical[3]=24;
   Granularity g;solver::PartitionDmConvGemm(op,conv,layout,{16,16,16,2,2},g);

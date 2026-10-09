@@ -68,7 +68,27 @@ void BindTaskDramProvenance(DerivedTaskInput& input,
     // Exact affine tasks also have typed main/side stores. Retain the
     // legacy scalar-runtime projection unless binding requests require this path.
     if(requests || !input.scalar_access) {
-      auto traffic=DeriveBindingRequestTraffic(input.task,floor,theta);
+      auto typed=floor;
+      auto const& original=semantic.op;
+      // The geometry-independent DRAM floor omits split temporaries. Their
+      // declaration, not a missing-name fallback, proves internal FP32 storage.
+      if(original.reduction.splittable && !original.reduction.partial_tensor.empty() &&
+          !typed.tensors.count(original.reduction.partial_tensor)) {
+        auto const& name=original.reduction.partial_tensor;
+        analysis::CouplingRelation writes;
+        auto const& partition=input.task.element_access->partition;
+        if(op.result.name==name)
+          writes=analysis::ProjectTaskWrite(op,input.task,partition,
+              op.result,op.result_map,{},theta).Image();
+        for(auto const& read:op.operands)if(read.tensor.name==name)
+          writes=writes.Union(analysis::ProjectTaskRead(op,input.task,partition,
+              read.tensor,read.map,{},theta).Image());
+        if(!writes.empty()) {
+          auto& partial=typed.tensors[name];partial.element_bytes=4;
+          partial.writes=std::move(writes);
+        }
+      }
+      auto traffic=DeriveBindingRequestTraffic(input.task,typed,theta);
       input.physical_read_bytes=std::move(traffic.read_bytes);
       input.physical_write_bytes=std::move(traffic.write_bytes);
       input.no_producer_read_bytes=std::move(traffic.no_producer_read_bytes);

@@ -66,6 +66,40 @@ int TestTypedAffinePricing(int,char**) {
   }
   assert(cases==72);
   std::cout<<"Typed affine pricing: 72 main/statistic-store, mixed-provenance and tail cases PASS\n";
+  for(long k:{17,27,65})for(int split:{2,3,5}) {
+    SemanticOp op;op.name="split";op.kind=OperatorKind::kMatmul;
+    op.dtype=ScalarType::kBF16;op.arithmetic="gemm";op.exact_task_access=true;
+    op.domain={{"m",f(17)},{"n",f(19)},{"k",f(k),f(0),IteratorType::kReduction}};
+    op.task_space={"owners",{{"m",f(17)},{"n",f(19)}}};
+    op.task_map.results={IndexResult::Dim("m"),IndexResult::Dim("n")};
+    op.result={"out",op.task_space.axes};op.result_map=op.task_map;
+    op.operands={{"",{"a",{{"m",f(17)},{"k",f(k)}}},
+          {{IndexResult::Dim("m"),IndexResult::Dim("k")}},{}},
+        {"",{"b",{{"n",f(19)},{"k",f(k)}}},
+          {{IndexResult::Dim("n"),IndexResult::Dim("k")}}, {}}};
+    op.reduction={"k","add","split.partial","split.combine",true};
+    solver::ModelDescription model;model.dm=model.serving=true;
+    model.dtype=solver::ScalarType::kBF16;model.dims={1,0,1};
+    model.gemms={{19,k,0,1}};model.stages.resize(1);model.stages.front().gemm=0;
+    model.task_semantics={{op,{{"m",f(16)},{"n",f(16)}},0,false}};
+    solver::GemmConfig geometry{16,16,16,2,split};
+    auto graph=solver::InstantiateModelTasks(model,{geometry});assert(graph.nodes.size()==2);
+    DramFloorOptions options;options.dram_gbps=1;options.tc_gflops=1;options.outputs={"out"};
+    auto floor=DeriveDramFloor({{op}},options);
+    assert(!floor.tensors.count("split.partial"));
+    auto contribution=solver::DeriveModelTaskInput(model,model.task_semantics.front(),graph,&geometry);
+    auto combine=solver::DeriveCombineTaskInput(model,0,geometry,graph,128,true,true);
+    for(auto* input:{&contribution,&combine})
+      solver::BindTaskDramProvenance(*input,model.task_semantics.front(),floor,{},true);
+    auto chunks=std::min<long>(split,(k+15)/16);
+    assert(contribution.physical_write_bytes->SumDomain().Eval({})==17*19*chunks*4);
+    assert(contribution.external_write_bytes->SumDomain().Eval({})==0);
+    assert(combine.physical_read_bytes->SumDomain().Eval({})==17*19*chunks*4);
+    assert(combine.physical_write_bytes->SumDomain().Eval({})==17*19*2);
+    assert(combine.external_write_bytes->SumDomain().Eval({})==17*19*2);
+    assert(!floor.tensors.count("split.partial"));
+  }
+  std::cout<<"Typed affine split pricing: 9 issued-K geometries preserve internal FP32 partials PASS\n";
   return 0;
 }
 }

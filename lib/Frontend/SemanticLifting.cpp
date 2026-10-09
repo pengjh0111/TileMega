@@ -260,6 +260,14 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
             space_of(gemm.b, {Ax("n", n), Ax("k", k)}),
             {IndexResult::Dim("n"), IndexResult::Dim("k")}));
 #endif
+        if(plan.dm) {
+#if !TILEMEGA_COMPLETE_GEMM_READS
+          op.operands.push_back(Read(producer_of(gemm.b),
+              space_of(gemm.b,{Ax("n",n),Ax("k",k)}),
+              {IndexResult::Dim("n"),IndexResult::Dim("k")}));
+#endif
+          op.exact_task_access=true;op.task_space=op.result;op.task_map=op.result_map;
+        }
         op.reduction.dim = "k";
         op.reduction.reduction_operator = "add";
         op.reduction.partial_tensor = name + ".partial";
