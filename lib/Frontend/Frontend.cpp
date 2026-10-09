@@ -281,6 +281,8 @@ llvm::StringRef taskKindOf(OpRole role) {
     case OpRole::kGlobalPoolReduce: return "global_pool_reduce";
     case OpRole::kEncoderAttention: return "encoder_attention";
     case OpRole::kDepthwiseConv: return "depthwise_conv";
+    case OpRole::kMoERouting: return "moe_topk";
+    case OpRole::kMoECombine: return "moe_combine";
   }
   return "generic";
 }

@@ -132,6 +132,8 @@ std::string ToString(OpRole role) {
     case OpRole::kGlobalPoolReduce: return "global_pool_reduce";
     case OpRole::kEncoderAttention: return "encoder_attention";
     case OpRole::kDepthwiseConv: return "depthwise_conv";
+    case OpRole::kMoERouting: return "moe_topk";
+    case OpRole::kMoECombine: return "moe_combine";
   }
   return "generic";
 }
@@ -142,6 +144,8 @@ std::string ToString(OwnershipKind kind) {
 }
 
 LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
+  if(plan.dm && plan.forward && plan.forward_token_axis)
+    return LiftMoeRegionSemantics(plan,options);
   if(plan.dm && plan.forward && !plan.forward_token_axis)
     return LiftDnnSemantics(plan,options);
   if (plan.serving) return LiftServingSemantics(plan, options);
@@ -723,6 +727,18 @@ analysis::Granularity LaunchGranularity(
   for (auto const& op : model.ops) {
     if(virtual_gemms.count(op.name))continue;
     switch (op.role) {
+      case OpRole::kMoERouting: {
+        auto const& stage=plan.stages.at(op.stage);auto step=stage.moe.step;
+        auto rows=step==codegen::DmMoeStep::kPrefix || step==codegen::DmMoeStep::kSelectAndDispatch?
+            model.sem.Find(op.name)->Dim("m")->extent:
+            Fixed(step==codegen::DmMoeStep::kSelect?stage.group:stage.moe.chunk_tokens);
+        g.Tile(op.name,"m",rows).Tile(op.name,"n",Fixed(stage.moe.top_k));
+        break;
+      }
+      case OpRole::kMoECombine:
+        g.Tile(op.name,"m",Fixed(plan.stages.at(op.stage).group))
+            .Tile(op.name,"n",Fixed(plan.stages.at(op.stage).width));
+        break;
       case OpRole::kEncoderAttention:
         g.Tile(op.name,"m",Fixed(plan.stages.at(op.stage).group)).Tile(op.name,"n",ClosedForm::Constant(64));
         break;
@@ -746,6 +762,8 @@ analysis::Granularity LaunchGranularity(
       case OpRole::kNorm:
       case OpRole::kEmbedding:
         g.Tile(op.name, "m", one);
+        if(plan.dm && model.sem.Find(op.name)->Dim("n"))
+          g.Tile(op.name,"n",model.sem.Find(op.name)->Dim("n")->extent);
         break;
       case OpRole::kQKNorm:
         g.Tile(op.name, "m", one).Tile(op.name, "c", model.head_dim);

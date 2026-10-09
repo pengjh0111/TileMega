@@ -146,6 +146,7 @@ add_library(tilemega_core STATIC
   lib/Frontend/DnnModelPlan.cpp
   lib/Frontend/MoeRegionPattern.cpp
   lib/Frontend/MoeRegionPlan.cpp
+  lib/Frontend/MoeSemanticLifting.cpp
   lib/Frontend/ServingSemanticLifting.cpp
   lib/Analysis/SemanticCodec.cpp
   lib/Dialect/CouplingGraph/CGDialect.cpp
@@ -389,6 +390,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/dnn_model_plan_test.cpp
     test/unit/moe_region_pattern_test.cpp
     test/unit/moe_region_plan_test.cpp
+    test/unit/moe_semantic_lifting_test.cpp
     test/unit/task_storage_test.cpp
     test/unit/dm_counted_fusion_test.cpp
     test/unit/dm_gemm_class_domain_test.cpp
@@ -870,6 +872,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME binding_request_pricing COMMAND tilemega-unit binding_request_pricing)
   add_test(NAME typed_affine_pricing COMMAND tilemega-unit typed_affine_pricing)
   add_test(NAME dm_virtual_gemm_partition COMMAND tilemega-unit dm_virtual_gemm_partition)
+  add_test(NAME moe_semantic_lifting COMMAND tilemega-unit moe_semantic_lifting)
   add_test(NAME dm_semantic_signature COMMAND tilemega-unit dm_semantic_signature)
   add_test(NAME dm_virtual_frontend COMMAND tilemega-unit dm_virtual_frontend)
   add_test(NAME dm_piece_pricing COMMAND tilemega-unit dm_piece_pricing)
