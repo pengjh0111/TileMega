@@ -19,21 +19,26 @@ def versions():
             ('torch', 'torchvision', 'timm', 'transformers')}
 
 
-def model(name, structure_only=False, nafnet_weights=DEFAULT_NAFNET):
+def model(name, structure_only=False, nafnet_weights=DEFAULT_NAFNET, checkpoint=None):
     if name in ('resnet18', 'mbv2'):
         import torchvision.models as tv
         if name == 'resnet18':
-            module = tv.resnet18(weights=None if structure_only else
+            module = tv.resnet18(weights=None if structure_only or checkpoint else
                                  tv.ResNet18_Weights.IMAGENET1K_V1)
             source = 'torchvision/resnet18/IMAGENET1K_V1'
         else:
-            module = tv.mobilenet_v2(weights=None if structure_only else
+            module = tv.mobilenet_v2(weights=None if structure_only or checkpoint else
                                      tv.MobileNet_V2_Weights.IMAGENET1K_V2)
             source = 'torchvision/mobilenet_v2/IMAGENET1K_V2'
+        if checkpoint and not structure_only:
+            module.load_state_dict(torch.load(checkpoint, map_location='cpu', weights_only=True), strict=True)
     elif name == 'mbv1':
         import timm
         source = 'mobilenetv1_100.ra4_e3600_r224_in1k'
-        module = timm.create_model(source, pretrained=not structure_only)
+        module = timm.create_model(source, pretrained=not structure_only and not checkpoint)
+        if checkpoint and not structure_only:
+            from safetensors.torch import load_file
+            module.load_state_dict(load_file(str(Path(checkpoint) / 'model.safetensors')), strict=True)
     elif name == 'bert':
         from transformers import BertConfig, BertModel
         source = 'google-bert/bert-base-uncased'
@@ -42,7 +47,8 @@ def model(name, structure_only=False, nafnet_weights=DEFAULT_NAFNET):
             config._attn_implementation = 'sdpa'
             module = BertModel(config)
         else:
-            module = BertModel.from_pretrained(source, attn_implementation='sdpa')
+            module = BertModel.from_pretrained(str(checkpoint) if checkpoint else source,
+                attn_implementation='sdpa', local_files_only=bool(checkpoint))
     elif name == 'nafnet':
         from .models import nafnet
         module = nafnet()
@@ -56,6 +62,21 @@ def model(name, structure_only=False, nafnet_weights=DEFAULT_NAFNET):
     else:
         raise ValueError(name)
     return module.eval().to(dtype=torch.bfloat16, device='cpu'), source
+
+
+def write_checkpoint(module, directory):
+    """Retain exported module FQNs and dtype, including integer BN counters."""
+    from safetensors.torch import save_file
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    # Preserve every FQN even when the upstream module aliases a parameter.
+    tensors = {name: value.detach().cpu().contiguous().clone()
+               for name, value in module.state_dict().items()}
+    path = directory / 'model.safetensors'
+    save_file(tensors, str(path), metadata={'format': 'pt', 'source': 'upstream module state_dict'})
+    return dict(path=str(path), sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                bytes=path.stat().st_size, tensors={name: dict(shape=list(value.shape),
+                    dtype=str(value.dtype)) for name, value in tensors.items()})
 
 
 def inventory(program):
@@ -91,10 +112,10 @@ def conv_geometries(program):
 
 
 def export(name, out, fixtures, structure_only=False, mask=False,
-           nafnet_weights=DEFAULT_NAFNET):
+           nafnet_weights=DEFAULT_NAFNET, checkpoint=None):
     torch.manual_seed(20261007)
     torch.set_num_threads(4)
-    module, source = model(name, structure_only, nafnet_weights)
+    module, source = model(name, structure_only, nafnet_weights, checkpoint)
     batch = torch.export.Dim('batch', min=1, max=64)
     # Export specializes dimensions of size one, so the example must use B=2.
     if name == 'bert':
@@ -132,6 +153,9 @@ def export(name, out, fixtures, structure_only=False, mask=False,
                     accuracy_eligible=not structure_only,
                     artifacts={p.name: hashlib.sha256(p.read_bytes()).hexdigest()
                                for p in (out / 'exported_program.pt2', out / 'core_aten.pt2')})
+    if not structure_only:
+        manifest['checkpoint'] = write_checkpoint(module, out / 'checkpoint')
+        manifest['checkpoint_input'] = str(checkpoint) if checkpoint else source
     (out / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     print(json.dumps(dict(model=label, before=sum(fixture['before'].values()),
                           core_aten=sum(fixture['core_aten'].values()),
@@ -148,10 +172,14 @@ def main():
                         help='Phase 0 inventories; ineligible for correctness/performance')
     parser.add_argument('--attention-mask', action='store_true')
     parser.add_argument('--nafnet-weights', type=Path, default=DEFAULT_NAFNET)
+    parser.add_argument('--checkpoint', type=Path,
+                        help='local official torchvision .pth or timm/HF checkpoint directory')
     args = parser.parse_args()
+    if args.checkpoint and args.model == 'all':
+        parser.error('--checkpoint requires a single model')
     for name in MODELS if args.model == 'all' else (args.model,):
         export(name, args.out, args.fixtures, args.structure_only,
-               args.attention_mask and name == 'bert', args.nafnet_weights)
+               args.attention_mask and name == 'bert', args.nafnet_weights, args.checkpoint)
 
 
 if __name__ == '__main__':
