@@ -284,10 +284,10 @@ resource record, SASS and 64-step tokens for all eight LLM plans
 reference passes 94/97. Both retain the same independent-attention mismatch;
 reference also fails target schema/missing norm executable. G-REG remains false.
 
-T4/T12 foundation: verified multi-page GEMM passes 100/100 fresh processes
-for three 2/4-page geometries wrapping 3/5-slot rings; ten builds cover five
-architectures without spills (`results/CI5_multipage_gemm_cuda.json`). All 76
-workspace byte constants compile on five architectures; that compile-only
+T4/T12 foundation: verified multi-page GEMM passes 100/100 fresh processes;
+native PageStream forward/prefill each pass 50/50 (`results/CI5_native_multipage_phases_cuda.json`).
+Both cover five architectures; native sm_100 loop-kernel spills are retained.
+All 76 workspace constants compile on five architectures; that compile-only
 proof has no kernel resource claim (`results/CI7_page_workspace_caps_identity.json`).
 
 T12 foundation: verified binding byte/provenance (368), virtual geometry (384),

@@ -220,3 +220,12 @@ were restored. The common independent-attention mismatch is unchanged.
 Reference also retains six missing wait_protocol schema fields and the missing
 norm_prologue_gemm executable. These failures keep G-REG false; record-only
 queue completion never overrides them (`results/T1_CI7_typed_fusion.json`).
+
+verified: native multi-page PageStream passes 50/50 fresh forward processes and
+50/50 fresh prefill processes after the timeout was moved inside the shared
+flock. All ten binaries and their macro/resource identities are preserved.
+sm_89 executed kernels have zero spills; the sm_100 loop kernel spills
+8-byte stores/216-byte loads for forward and 4/4 bytes for prefill. Other
+compiled kernels have zero spills. The original lock-wait timeout and its
+50/50 forward, 8/8 prefill partial cohort remain a failed audit. No timing or
+model gate is inferred (`results/CI5_native_multipage_phases_cuda.json`).
