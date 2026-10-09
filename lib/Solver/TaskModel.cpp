@@ -568,7 +568,8 @@ ModelFusionCandidate ComposeModelCandidate(ModelDescription const& model,
         if (operand.tensor.name==name) external.insert(name);
     }
   }
-  auto accesses=analysis::ComposeFusionAccesses(pa,ca,internal,external);
+  auto accesses=analysis::ComposeFusionAccesses(pa,ca,internal,external,
+      model.dm?model.MetricBindings():analysis::ParamBinding{});
   // Arithmetic phases keep distinct output domains. The coupled producer
   // work is re-indexed by the consumer relation, not averaged over fanout.
   auto producer_outputs=accesses.intermediate_tiles.at(*internal.begin()).Card();

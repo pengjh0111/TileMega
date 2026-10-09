@@ -127,12 +127,22 @@ std::vector<FusedTaskInput> ReadFusedTaskInputs(mlir::ModuleOp module) {
         if (producer.writes.count(name.getValue().str())) retained.insert(name.getValue().str());
       }
     }
-    auto composed=analysis::ComposeFusionAccesses(producer,consumer,internal,retained);
+    analysis::ParamBinding known;
+    for(auto name:{"tilemega.theta","tilemega.g"})
+      if(auto values=module->getAttrOfType<mlir::DictionaryAttr>(name))
+        for(auto item:values)
+          if(auto value=llvm::dyn_cast<mlir::IntegerAttr>(item.getValue()))
+            known.Bind(item.getName().str(),value.getInt());
+    auto composed=analysis::ComposeFusionAccesses(producer,consumer,internal,retained,known);
     auto equal=[](auto const& a,auto const& b) { return a.IsSubset(b) && b.IsSubset(a); };
     if (!equal(composed.consumer_to_producer,input.phase_maps[0]))
       throw std::invalid_argument("fusion phase map differs from semantic coupling");
     auto const& write=consumer.writes.begin()->second;
-    if (!equal(write.ApplyRange(write.Reverse()),input.phase_maps[1]))
+    auto identity=write.ApplyRange(write.Reverse());
+    if(auto const& access=input.phases[1].task.element_access)
+      identity=analysis::ProjectTaskElements(access->semantic,input.phases[1].task,access->partition,
+          access->semantic.task_space,access->semantic.task_map,{},{}).Reverse().ImageIdentity();
+    if (!equal(identity,input.phase_maps[1]))
       throw std::invalid_argument("fusion consumer map is not its task identity");
     auto same_accesses=[&](auto const& a,auto const& b) {
       if (a.size()!=b.size()) return false;
@@ -192,7 +202,8 @@ ModelFusionCandidate DeriveWrittenFusionCandidate(FusedTaskInput const& input,
     if (ca.reads.count(tensor)) internal.insert(tensor);
     if (input.accesses.writes.count(tensor)) external.insert(tensor);
   }
-  auto accesses=analysis::ComposeFusionAccesses(pa,ca,internal,external);
+  auto accesses=analysis::ComposeFusionAccesses(pa,ca,internal,external,
+      context.dm?context.MetricBindings():analysis::ParamBinding{});
   if (!accesses.consumer_to_producer.IsSubset(input.phase_maps[0]) ||
       !input.phase_maps[0].IsSubset(accesses.consumer_to_producer))
     throw std::invalid_argument("written fusion mapping differs from price input");

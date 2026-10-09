@@ -3,7 +3,9 @@
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/BoundDependencyForm.h>
+#include <tilemega/Analysis/TaskElementRelation.h>
 #include <tilemega/Dialect/CouplingGraph/BoundDependency.h>
+#include <tilemega/Dialect/CouplingGraph/CountedDependency.h>
 #include <tilemega/Codegen/RuntimePlan.h>
 #include <tilemega/Codegen/RuntimeDependencyCodec.h>
 #include <tilemega/Solver/TaskModel.h>
@@ -36,6 +38,12 @@ void Rewrite(mlir::ModuleOp module,std::string const& producer,std::string const
   auto const& mapping=candidate.accesses.consumer_to_producer;
   auto const& cw=candidate.consumer_accesses.writes.begin()->second;
   auto identity=cw.ApplyRange(cw.Reverse());
+  if(auto const& access=candidate.consumer.task.element_access) {
+    auto const& semantic=access->semantic;
+    // Scatter addresses overlap in the I2 envelope; task ownership does not.
+    identity=analysis::ProjectTaskElements(semantic,candidate.consumer.task,access->partition,
+        semantic.task_space,semantic.task_map,{},{}).Reverse().ImageIdentity();
+  }
   if (!identity.IsSingleValued()) throw std::invalid_argument("consumer writes do not define unique task ownership");
   OpBuilder builder(module.getContext()); builder.setInsertionPoint(p);
   auto maps=[&](auto const& accesses) {
@@ -58,6 +66,12 @@ void Rewrite(mlir::ModuleOp module,std::string const& producer,std::string const
     tasks.erase(ps);tasks.erase(cs);
     tasks.emplace(name,candidate.consumer.task);
   }
+  analysis::ParamBinding metric_binding;
+  for(auto key:{"tilemega.theta","tilemega.g"})
+    if(auto values=module->getAttrOfType<DictionaryAttr>(key))
+      for(auto item:values)
+        if(auto value=llvm::dyn_cast<IntegerAttr>(item.getValue()))
+          metric_binding.Bind(item.getName().str(),value.getInt());
   std::vector<Operation*> erase;
   std::set<std::string> replaced_events;
   for (auto edge:module.getOps<CouplingOp>()) {
@@ -102,7 +116,8 @@ void Rewrite(mlir::ModuleOp module,std::string const& producer,std::string const
       edge.setCountAttr(MetricAttr::get(module.getContext(),candidate.accesses.task_count));
     }
     if (source) edge.setSrcAttr(FlatSymbolRefAttr::get(module.getContext(),name));
-    if (!wait.SumDomain().Add(fanout.SumDomain().Scale(-1)).IsZero())
+    if (exact?!wait.SumDomain().SemanticallyEqual(fanout.SumDomain(),metric_binding):
+        !wait.SumDomain().Add(fanout.SumDomain().Scale(-1)).IsZero())
       throw std::invalid_argument("fused graph violates sum(wait) == sum(fanout)");
     // The old window/placement/sync selection no longer describes this task.
     edge->removeAttr("wait_map");
@@ -133,7 +148,10 @@ void Rewrite(mlir::ModuleOp module,std::string const& producer,std::string const
       edge->setAttr("dependency_geometry",EncodeBoundTaskGeometry(builder,
           {bound.encoded_relation,producers,consumers},pc,cc,known));
       edge->removeAttr("dependency_table");
-      if (bound.table)
+      if (edge->hasAttr("dependency_counted")) {
+        edge->setAttr("dependency_counted",RebindBoundCountedScatter(builder,edge,known));
+        edge->removeAttr("wait_map");
+      } else if (bound.table)
         edge->setAttr("dependency_table",EncodeBoundDependencyTable(builder,*bound.table,pc,cc,known));
       else edge->setAttr("wait_map",builder.getStringAttr(bound.window.ToString()));
       // Runtime event IDs use the complete producer linearization, including
@@ -142,7 +160,14 @@ void Rewrite(mlir::ModuleOp module,std::string const& producer,std::string const
     }
     edge.setSyncKindAttr(SyncKindAttr::get(module.getContext(),builder.getStringAttr("global")));
     std::string event_name=edge.getSymName().str()+"__fused_event";
-    if (SymbolTable::lookupSymbolIn(module,event_name)) throw std::invalid_argument("fused event symbol already exists");
+    if (SymbolTable::lookupSymbolIn(module,event_name)) {
+      if(edge.getEvent()!=event_name)
+        throw std::invalid_argument("fused event symbol already exists");
+      // A batch may rebase both endpoints of this same external edge.
+      event_name+="__"+name;
+      if(SymbolTable::lookupSymbolIn(module,event_name))
+        throw std::invalid_argument("rebound fused event symbol already exists");
+    }
     auto extent=MetricAttr::get(module.getContext(),event_slots ?
         analysis::QuasiPolynomial::Constant(*event_slots) : relation.ImageCard());
     OperationState event(edge.getLoc(),EventTensorOp::getOperationName());

@@ -7,6 +7,11 @@ namespace tilemega::analysis {
 FusionAccesses ComposeFusionAccesses(TaskAccesses const& producer,
     TaskAccesses const& consumer, std::set<std::string> const& internal_tensors,
     std::set<std::string> const& externally_read_tensors) {
+  return ComposeFusionAccesses(producer,consumer,internal_tensors,externally_read_tensors,{});
+}
+FusionAccesses ComposeFusionAccesses(TaskAccesses const& producer,
+    TaskAccesses const& consumer,std::set<std::string> const& internal_tensors,
+    std::set<std::string> const& externally_read_tensors,ParamBinding const& known) {
   IslReferenceAudit audit(__func__);
 #if !TILEMEGA_FUSION_ACCESS
   throw std::runtime_error("fusion access composition disabled");
@@ -60,7 +65,7 @@ FusionAccesses ComposeFusionAccesses(TaskAccesses const& producer,
   out.fanout = coupling.FanoutCard();
   out.recompute_tasks = out.fanout.SumDomain().Add(coupling.ImageCard().Scale(-1));
   out.task_count = consumer_domain.ImageCard();
-  if (!coupling.Card().SumDomain().SemanticallyEqual(out.fanout.SumDomain(), {}))
+  if (!coupling.Card().SumDomain().SemanticallyEqual(out.fanout.SumDomain(), known))
     throw std::runtime_error("fusion coupling violates wait/fanout conservation");
   return out;
 }

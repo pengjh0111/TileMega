@@ -376,6 +376,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/conv_iteration_test.cpp
     test/unit/conv_reduction_partition_test.cpp
     test/unit/conv_reduction_cg_test.cpp
+    test/unit/dm_counted_fusion_test.cpp
     test/unit/dm_gemm_class_domain_test.cpp
     test/unit/dm_forward_search_test.cpp
     test/unit/task_arithmetic_domain_test.cpp
@@ -787,6 +788,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME conv_iteration COMMAND tilemega-unit conv_iteration)
   add_test(NAME conv_reduction_partition COMMAND tilemega-unit conv_reduction_partition)
   add_test(NAME conv_reduction_cg COMMAND tilemega-unit conv_reduction_cg)
+  add_test(NAME dm_counted_fusion COMMAND tilemega-unit dm_counted_fusion)
   add_test(NAME dm_gemm_class_domain COMMAND tilemega-unit dm_gemm_class_domain)
   add_test(NAME dm_forward_search COMMAND tilemega-unit dm_forward_search)
   add_test(NAME task_arithmetic_domain COMMAND tilemega-unit task_arithmetic_domain)
