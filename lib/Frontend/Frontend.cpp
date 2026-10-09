@@ -591,6 +591,12 @@ ExportBridge ReadExportBridge(std::string const& path) {
       if(!constant)throw std::invalid_argument("node constant must be an object");
       node.constant=ReadFxConstant(*constant);
     }
+    if(auto* value=object->get("immutable_buffer_value")) {
+      auto* constant=value->getAsObject();
+      if(!constant || node.op!="placeholder")
+        throw std::invalid_argument("immutable buffer value must describe a placeholder");
+      node.immutable_buffer_value=ReadFxConstant(*constant);
+    }
     if(auto* shape_constant=object->getObject("shape_constant")) {
       node.shape_constant_symbols=readStrings(shape_constant->getArray("symbols"));
       if(auto* fragment=shape_constant->get("fragment"))
@@ -736,7 +742,8 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   std::vector<std::string>& signatureOutputs = bridge.outputs;
   // Degradation, not refusal: the operators no rule covers are reported and
   // each becomes one conservative task space.
-  if (!bridge.unsupported.empty())
+  bool selected_dm=selected_plan && selected_plan->dm && !selected_plan->stages.empty();
+  if (!selected_dm && !bridge.unsupported.empty())
     llvm::errs() << "IMPORT_DEGRADED " << llvm::join(bridge.unsupported, ", ")
                  << "\n";
 
@@ -1408,7 +1415,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     throw std::runtime_error("C++ importer produced an invalid CG module");
   if (summary)
     *summary = {graph.nodes.size(), edge, plan.stages.size(), guards.size(),
-                symbolicWindows, fallbackWindows, bridge.unsupported};
+                symbolicWindows, fallbackWindows, selected_dm?lifted.degraded:bridge.unsupported};
   return mlir::OwningOpRef<mlir::ModuleOp>(module);
 }
 

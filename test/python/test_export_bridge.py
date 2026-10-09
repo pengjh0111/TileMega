@@ -110,6 +110,32 @@ class BridgeTests(unittest.TestCase):
         for name, value in before.items():
             self.assertTrue(torch.equal(value, program.constants[name]))
 
+    def test_nonpersistent_buffer_facts_do_not_fold_buffer_reads(self):
+        class Frozen(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.register_buffer('positions', torch.arange(16).view(1, 16), persistent=False)
+
+            def forward(self, x):
+                return x + self.positions[:, :8]
+        program = torch.export.export(Frozen(), (torch.ones(1, 8),), strict=False)
+        nodes = serialize(program)['nodes']
+        source = next(n for n in nodes if n['op'] == 'placeholder' and 'positions' in n['name'])
+        value = source['immutable_buffer_value']
+        self.assertEqual(struct.unpack('<16q', base64.b64decode(value['data_base64'])), tuple(range(16)))
+        self.assertNotIn('constant', source)
+        for node in nodes:
+            if node['target'].startswith(('aten.slice.', 'aten.add.')):
+                self.assertNotIn('constant', node)
+
+        class Mutable(Frozen):
+            def forward(self, x):
+                self.positions.add_(1)
+                return x + self.positions[:, :8]
+        program = torch.export.export(Mutable(), (torch.ones(1, 8),), strict=False).run_decompositions()
+        self.assertTrue(any(spec.kind.name == 'BUFFER_MUTATION' for spec in program.graph_signature.output_specs))
+        self.assertFalse(any('immutable_buffer_value' in n for n in serialize(program)['nodes']))
+
     def test_shape_fragment_binding_and_value_mask(self):
         class ShapeMask(torch.nn.Module):
             def forward(self, ids):

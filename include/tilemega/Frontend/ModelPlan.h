@@ -57,6 +57,7 @@ struct FxNodeRecord {
   std::vector<FxArgument> args;
   std::map<std::string, FxArgument> kwargs;
   FxConstant constant;
+  FxConstant immutable_buffer_value;
   std::vector<std::string> shape_constant_symbols;
   std::map<std::string, std::int64_t> shape_constant_bindings;
   std::string shape_constant_fragment_json;

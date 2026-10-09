@@ -147,6 +147,8 @@ def annotate(program, records, bindings=None):
             raise ValueError('shape binding is outside the export range: ' + symbol)
     roles = {spec.arg.name: spec for spec in program.graph_signature.input_specs
              if hasattr(spec.arg, 'name')}
+    mutations = {spec.target for spec in program.graph_signature.output_specs
+                 if spec.kind.name == 'BUFFER_MUTATION'}
     records_by_name = {record['name']: record for record in records}
     eligibility, symbols = {}, {}
     interpreter = _CpuInterpreter(program.graph_module, bindings)
@@ -154,6 +156,14 @@ def annotate(program, records, bindings=None):
         record = records_by_name[node.name]
         if node.op == 'placeholder':
             spec = roles.get(node.name)
+            # Nonpersistent buffers travel in the archive's constants bank.
+            # Preserve their frozen values separately: a buffer read is still
+            # value-dependent and must not become a constant-subgraph ancestor.
+            if spec is not None and spec.kind.name == 'BUFFER' and \
+                    spec.persistent is False and spec.target not in mutations:
+                value = program.constants.get(spec.target)
+                if isinstance(value, torch.Tensor) and _bounded(value, bindings):
+                    record['immutable_buffer_value'] = constant(value)
             eligibility[node] = spec is not None and spec.kind.name == 'CONSTANT_TENSOR'
             symbols[node] = set()
             if eligibility[node]:
