@@ -170,5 +170,14 @@ verified: synthetic per-consumer tail thresholds and weighted last-arriver
 pass 50/50 fresh sm_89 processes, with shuffled contribution rows, poisoned
 partials, empty virtual notifications, two banks and 32 epochs. Five architecture
 builds (sm_80/89/90/100/120) have zero spills
-(`results/CI5_counted_threshold_cuda.json`). Native threshold-table/stage and
-real dispatch/combine gates remain pending.
+(`results/CI5_counted_threshold_cuda.json`). This is primitive evidence.
+
+verified: production model creation uploads per-consumer thresholds [8,8,2]
+and the I2 ordering table; the native stage waits and slot probes pass
+150/150 fresh sm_89 processes, fifty each for kappa=1/4/16, with separate
+L1/L2 counter banks and sixteen poisoned alternating epochs. Seven builds
+cover sm_80/89/90/100/120 with zero spills. Transitive source hashes and
+artifact identities are checked (`results/CI5_native_counted_threshold_cuda.json`).
+The uniform legacy count is zero in this fixture, so the tail consumer must
+read its own immutable threshold. Real dispatch/combine and paged counted
+body gates remain pending; these bodies are synthetic.
