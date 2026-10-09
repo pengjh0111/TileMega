@@ -1,0 +1,843 @@
+{
+  "evidence": "verified",
+  "scope": "Standalone dense/tiled and paged TaskBodies after shared asynchronous pipeline extraction. Not a model correctness gate.",
+  "passed": true,
+  "completion": {
+    "event": "queue_complete",
+    "steps": 138,
+    "passed": true
+  },
+  "preparation_sha256": "ce30bdcef7c84549e1b8076d466b4b1417aad01404bdc608c00b7f4d3f58566f",
+  "fresh_processes_per_canonical_layout": {
+    "rowmajor": 50,
+    "tiled": 50
+  },
+  "canonical_pass_rate": "100/100",
+  "neighbor_config_checks": 12,
+  "architectures": [
+    "sm_80",
+    "sm_89",
+    "sm_90",
+    "sm_100",
+    "sm_120"
+  ],
+  "artifacts": [
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m16-n16-k16-s3-tiled0-sm_100.identity.json",
+      "sha256": "b94e66a0a2fb1d8645cff1a15c54501e22f0e24e7168156159033661ae0f9a5b",
+      "artifact_id": "a3e8e0bda6da217f22ba0743faeab174698ad9535bb4b262bb26a6a2b78fb774",
+      "target_arch": "sm_100",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 48,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 48 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m16-n16-k16-s3-tiled0-sm_120.identity.json",
+      "sha256": "166159b4f386b49f04d11656f41733e1269466292be3dc7523ddcb67c0bb05b9",
+      "artifact_id": "70ba7de89b747c4d737676018fb4ac9bf1ef237cedf112ce001ce39f6b9ea263",
+      "target_arch": "sm_120",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 64,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 48,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 48 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m16-n16-k16-s3-tiled0-sm_80.identity.json",
+      "sha256": "7ac001dea91b39b5cd787bb957ee00f48cc7be5ee8b224024ac98b1a14a6b573",
+      "artifact_id": "cb8832196316fdcd45763f92d758ca058d7b4875fbbeb29cbc0a8fbf83c21151",
+      "target_arch": "sm_80",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 76,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 76 registers, used 2 barriers, 96 bytes cumulative stack size, 1208 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 48,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 48 registers, used 2 barriers, 96 bytes cumulative stack size, 1209 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m16-n16-k16-s3-tiled0-sm_89.identity.json",
+      "sha256": "b53c38be878d0f9a591533f39dcdb7db28633dbd7a30af7214ee1e01004fb7b8",
+      "artifact_id": "943b7a873d3ccc7e9cbca24208d2c28df4cd87bdd03d72cdabb3ac5fa13eeb0d",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 76,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 76 registers, used 2 barriers, 96 bytes cumulative stack size, 1208 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 48,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 48 registers, used 2 barriers, 96 bytes cumulative stack size, 1209 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m16-n16-k16-s3-tiled0-sm_90.identity.json",
+      "sha256": "60bfd1e24556e6689a186ba77bc294f70265e6be9514b94d63b976051c51036c",
+      "artifact_id": "0c44df863ac3815efe975a96b8fbfcedc150c84820254b28e7d66e6275d978b5",
+      "target_arch": "sm_90",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 74,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 74 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 48,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 48 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m16-n16-k16-s3-tiled1-sm_100.identity.json",
+      "sha256": "3772b62871cc0d41f98cb08e760b0fdb9524d3e765eaba0474c14a36d241587a",
+      "artifact_id": "78e1c7ed4eff5a839285cbd6548f0d4cb8ea980a259c810546b3c003fe441428",
+      "target_arch": "sm_100",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 44,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 44 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m16-n16-k16-s3-tiled1-sm_120.identity.json",
+      "sha256": "7c271cbe6b5a73c8114f44ef06246cf04b2ac038d3987d31889842cf5fe7fd48",
+      "artifact_id": "15804342342e1c3b11287e29482d2ade20db4d231f9bfe006b907cd2c31801fb",
+      "target_arch": "sm_120",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 64,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 44,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 44 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m16-n16-k16-s3-tiled1-sm_80.identity.json",
+      "sha256": "f145578f2f6a04d5fba8cfa659bf32385fde4a98abb459d6a6ff50135605f2f9",
+      "artifact_id": "10198dbcf5c62ac7bfb3b8bd3fd53ed89c5d996253730c50b41968307ab484bd",
+      "target_arch": "sm_80",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 78,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 78 registers, used 2 barriers, 96 bytes cumulative stack size, 1208 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 50,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 50 registers, used 2 barriers, 96 bytes cumulative stack size, 1209 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m16-n16-k16-s3-tiled1-sm_89.identity.json",
+      "sha256": "13d2325e8d54109d1f91b100fb69e76fdb2ccfdf7770ee97a4bf49d2624249bc",
+      "artifact_id": "ec7a383c1b5fc102159e60a4cc48ba50dda4a30c489da619913caf0ff09ac8d4",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 78,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 78 registers, used 2 barriers, 96 bytes cumulative stack size, 1208 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 50,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 50 registers, used 2 barriers, 96 bytes cumulative stack size, 1209 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m16-n16-k16-s3-tiled1-sm_90.identity.json",
+      "sha256": "9329061b08857ba5a68ab95259df1cfce9f9798e9078a7523c5b424358d9e383",
+      "artifact_id": "5285610cc69c698a08e386728553a01655fddb412d29be08e87af94ef39f900a",
+      "target_arch": "sm_90",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 66,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 66 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 50,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 50 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m16-n16-k16-s8-tiled0-sm_89.identity.json",
+      "sha256": "92a9cc294532b6874110fa766cc837cc790eed8b80651dcc91dd547d3c63c5be",
+      "artifact_id": "e7ce00d0fde020b10cc39fb1c62d50f0f078c5d09b3607eef7a69f66fbccbb3c",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 76,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 76 registers, used 2 barriers, 96 bytes cumulative stack size, 1208 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 48,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 48 registers, used 2 barriers, 96 bytes cumulative stack size, 1209 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 8192,
+          "total_shared_bytes": 8192
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m16-n16-k16-s8-tiled1-sm_89.identity.json",
+      "sha256": "9e29216d80fc544bd42fbdadef02d914d7f7659ced14407993f01e76bdf746e5",
+      "artifact_id": "706f380829cc1d3dd42eac5402a9ff763a756f2b05d11fc0972085e3e9d02746",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 78,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 78 registers, used 2 barriers, 96 bytes cumulative stack size, 1208 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 50,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 50 registers, used 2 barriers, 96 bytes cumulative stack size, 1209 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 8192,
+          "total_shared_bytes": 8192
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m16-n16-k32-s3-tiled0-sm_89.identity.json",
+      "sha256": "6dd0aaa7512dde06923b886161850bf27aaf5c4ca1b61322a1d1ad63fb08e9c8",
+      "artifact_id": "ba0cb1509a53afdbb7bd6e74b9451a331522da5b8c74eec5b8560c90aabbd7f3",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 72,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 72 registers, used 2 barriers, 96 bytes cumulative stack size, 1208 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 48,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 48 registers, used 2 barriers, 96 bytes cumulative stack size, 1209 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 6144,
+          "total_shared_bytes": 6144
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m16-n16-k32-s3-tiled1-sm_89.identity.json",
+      "sha256": "bb8581e89042a7b82864e9700493fe8dedc0126895c102398769a1ef7b2b56c4",
+      "artifact_id": "af278bcc7e3fb6fa6a571640b65f326da3f516426dc7d656ba4c89dca6575779",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 80,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 80 registers, used 2 barriers, 96 bytes cumulative stack size, 1208 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 1209 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 6144,
+          "total_shared_bytes": 6144
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m16-n16-k64-s3-tiled0-sm_89.identity.json",
+      "sha256": "0debcb0e72e793a1757a635c8b84d3226f12fdfd1d967fc8f9c277770c6f7f22",
+      "artifact_id": "2ef79010ba76eb544911a59b406b152152356e2d307f00d1f5c2c88ece27d6c1",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 72,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 72 registers, used 2 barriers, 96 bytes cumulative stack size, 1208 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 21504,
+          "total_shared_bytes": 21504
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 54,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 54 registers, used 2 barriers, 96 bytes cumulative stack size, 1209 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 12288,
+          "total_shared_bytes": 12288
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m16-n16-k64-s3-tiled1-sm_89.identity.json",
+      "sha256": "98ffd30462ad05ceb8c42b138de38c7a175ee831da5f9ec2de9f3b9234a289e5",
+      "artifact_id": "f68a2569af585a3643586fc625341af1d2984a3d628f7463ee00609b54daa382",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 80,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 80 registers, used 2 barriers, 96 bytes cumulative stack size, 1208 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 21504,
+          "total_shared_bytes": 21504
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 1209 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 12288,
+          "total_shared_bytes": 12288
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m16-n32-k16-s3-tiled0-sm_89.identity.json",
+      "sha256": "396736b8425140de3d34f1443d0bd974d6f2b4e2d2385c782953abffea5b544a",
+      "artifact_id": "e7952f6fb0a0656e139c5c9f5f54afa4175b5a54f4d7e2970967f42ead4a4011",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 64,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers, 96 bytes cumulative stack size, 1208 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 20480,
+          "total_shared_bytes": 20480
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 1209 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 4608,
+          "total_shared_bytes": 4608
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m16-n32-k16-s3-tiled1-sm_89.identity.json",
+      "sha256": "e8efb505042253c6929ece95bb139691161588323e8a41bfc459f0c2aa7d334f",
+      "artifact_id": "f63b99fabf107509214e530fd06d665741b85fd9f2cb7873b26920ddbc838a8a",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 66,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 66 registers, used 2 barriers, 96 bytes cumulative stack size, 1208 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 20480,
+          "total_shared_bytes": 20480
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 1209 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 4608,
+          "total_shared_bytes": 4608
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m32-n16-k32-s3-tiled0-sm_89.identity.json",
+      "sha256": "3fcbb12d1fb4d0a528e12287c4c18ff6c1235a6e2d50be4e15281d65a13d00f3",
+      "artifact_id": "24ec0d5f22e17b83a8f65bbff124243d13fe76dab79dafb673b4344554a5b8b6",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 64,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers, 96 bytes cumulative stack size, 1208 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 21504,
+          "total_shared_bytes": 21504
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 1209 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 9216,
+          "total_shared_bytes": 9216
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m32-n16-k32-s3-tiled1-sm_89.identity.json",
+      "sha256": "c8b5274f9b0cca3f457d49945729fc53fa31a7dce9cfcd4aa230d11a2a2ccc20",
+      "artifact_id": "142b92b4941789f7f7b8185c93c5576985552a61b120ea529df1082e27a3a620",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 70,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 70 registers, used 2 barriers, 96 bytes cumulative stack size, 1208 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 21504,
+          "total_shared_bytes": 21504
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 1209 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 9216,
+          "total_shared_bytes": 9216
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m64-n16-k64-s3-tiled0-sm_89.identity.json",
+      "sha256": "a1532cefe996371c8b87a1497350fd2e03cd03ee93c1f3e76e82a137697663f6",
+      "artifact_id": "a6b10bd60002b80a7efa9994daa9bd5e863a8998c9ed0b32f111cfe0d703fecf",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 64,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers, 96 bytes cumulative stack size, 1208 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 33792,
+          "total_shared_bytes": 33792
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 1209 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 30720,
+          "total_shared_bytes": 30720
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/m64-n16-k64-s3-tiled1-sm_89.identity.json",
+      "sha256": "b6ae5c875191403529e29f97bd6ccb8a4cf26f305bd83dbfaba4d26af39db1c2",
+      "artifact_id": "4e7f0ca597cfc0bd555492717bda6528613cf12ddcda10c8d9f6880fe6f90dc2",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tE": {
+          "registers": 72,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 72 registers, used 2 barriers, 96 bytes cumulative stack size, 1208 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 33792,
+          "total_shared_bytes": 33792
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsEPN7cutlass10bfloat16_tEb": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 1209 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 30720,
+          "total_shared_bytes": 30720
+        }
+      }
+    }
+  ],
+  "sanitizer_logs": {
+    "sanitizer_m16-n16-k16-s3-tiled0_memcheck.log": {
+      "path": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/events/sanitizer_m16-n16-k16-s3-tiled0_memcheck.log",
+      "sha256": "c8c0f383152a111875c1bb682b7a3d62f0e28cd9c8adb79c02313502fdfd76e2"
+    },
+    "sanitizer_m16-n16-k16-s3-tiled0_racecheck.log": {
+      "path": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/events/sanitizer_m16-n16-k16-s3-tiled0_racecheck.log",
+      "sha256": "f7c6e00cc786cf6db6c6d67ed3d3834c8cda99eccfbb5c239933b0cfdcc047b8"
+    },
+    "sanitizer_m16-n16-k16-s3-tiled1_memcheck.log": {
+      "path": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/events/sanitizer_m16-n16-k16-s3-tiled1_memcheck.log",
+      "sha256": "955e7116788ef41327be7892e10b463a03e7f7c2d5637410d72850b42df5ad8c"
+    },
+    "sanitizer_m16-n16-k16-s3-tiled1_racecheck.log": {
+      "path": "/root/dm1_work/development/runs/dm1-dense-pipeline-regression-v3/events/sanitizer_m16-n16-k16-s3-tiled1_racecheck.log",
+      "sha256": "ece4c6ba545322d0ab169f57d45c980484572ee41732fe0c5cc64a58f2c17f4c"
+    }
+  },
+  "retained_failure": {
+    "queue": "runs/dm1-dense-pipeline-regression-v2",
+    "racecheck_errors_per_layout": 144,
+    "reason": "Page release did not join compute warps before scratch reuse.",
+    "numerical_checks_passed": "100/100; insufficient to prove race freedom"
+  },
+  "utc": "2026-10-09T11:13:49.173332+00:00"
+}
