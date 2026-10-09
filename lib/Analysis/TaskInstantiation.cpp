@@ -182,6 +182,16 @@ OperatorGraph Instantiate(SemanticGraph const& graph, Granularity const& g) {
   };
   for (auto const& op : graph.ops) {
     ClosedForm chunk;
+    if(!op.domain_nonnegative.empty()) {
+      if(!op.exact_task_access)
+        throw std::invalid_argument("iteration predicates require exact task access");
+      for(auto const& predicate:op.domain_nonnegative) {
+        if(predicate.kind!=IndexResult::Kind::kAffine)
+          throw std::invalid_argument("iteration predicate must be quasi-affine");
+        for(auto const& term:predicate.terms)
+          if(!op.Dim(term.dim))throw std::invalid_argument("iteration predicate names an unknown axis");
+      }
+    }
     bool split = op.reduction.splittable && g.ChunkOf(op.name, &chunk);
     auto index=g.reduction_index.find(op.name);
     bool indexed=index!=g.reduction_index.end();

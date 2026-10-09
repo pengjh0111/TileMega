@@ -94,7 +94,8 @@ struct Builder {
     writer[id]=op.name;written[id]=space;result.written[id]=1;
   }
   void Record(unsigned stage,SemanticOp op,OpRole role,unsigned output) {
-    op.dtype=ScalarType::kBF16;op.result_effect.kind=EffectKind::kWrite;
+    op.dtype=Buffer(output).dtype=="f32"?ScalarType::kF32:ScalarType::kBF16;
+    op.result_effect.kind=EffectKind::kWrite;
     writer[output]=op.name;written[output]=op.result;result.written[output]=1;
     result.ops.push_back({op.name,role,OwnershipKind::kTilePerBlock,int(stage),0,
                           plan.stages[stage].representative});
@@ -159,6 +160,44 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
       }
       b.Own(op,rows,width);b.Stats(op,stage.operands[6],rows);
       b.Record(index,std::move(op),OpRole::kEmbeddingSum,out);
+    }else if(stage.kind==PlanTaskKind::kPool) {
+      auto input=stage.operands[0],output=stage.operands[1];
+      auto const& conv=plan.convolutions.at(stage.conv);
+      auto const& layout=b.Buffer(input).layout;
+      if(conv.input_layout!=input || conv.output_layout!=output || conv.c!=stage.extent ||
+         conv.k!=conv.c || stage.rows_per_batch!=conv.p*conv.q)
+        throw std::invalid_argument("pool ownership differs from its window geometry");
+      op.kind=OperatorKind::kReduction;op.arithmetic="pool";
+      op.domain={D("m",rows),D("n",C(conv.c)),D("r",C(conv.r),true),D("s",C(conv.s),true)};
+      op.result=b.Space(output,rows,conv.c);op.result_map.results=b.Rows(output,"n");
+      auto y=Add({I("m",conv.stride_h,conv.q),
+          I("m",-long(conv.stride_h)*conv.p,conv.p*conv.q),I("r",conv.dilation_h)},-long(conv.pad_h));
+      auto x=Add({I("m",conv.stride_w),I("m",-long(conv.stride_w)*conv.q,conv.q),
+          I("s",conv.dilation_w)},-long(conv.pad_w));
+      auto negate=[](IndexResult value,long maximum) {
+        value.offset=C(maximum)+C(-1)*value.offset;
+        for(auto& term:value.terms)term.coefficient=C(-1)*term.coefficient;
+        return value;
+      };
+      auto py=y,px=x;py.offset=py.offset+C(layout.halo_top);px.offset=px.offset+C(layout.halo_left);
+      auto read=b.Read(input,b.Space(input,b.batch*C(conv.h*conv.w),conv.c),
+          {I("m",1,conv.p*conv.q),py,px,I("n")});
+      op.operands={read};
+      op.element_reads={{read.tensor,read.map,{y,negate(y,conv.h-1),x,negate(x,conv.w-1)}}};
+      b.Own(op,rows,conv.c);b.Record(index,std::move(op),OpRole::kPool,output);
+    }else if(stage.kind==PlanTaskKind::kGlobalPoolReduce) {
+      auto input=stage.operands[0],output=stage.operands[1];
+      auto area=stage.rows_per_batch,tile=stage.group,channels=stage.extent;
+      if(!area || !tile || !channels)throw std::invalid_argument("empty global pool reduction");
+      auto parts=(b.batch*C(area)).CeilDiv(C(tile));
+      op.kind=OperatorKind::kReduction;op.arithmetic="global_pool_reduce";
+      op.domain={D("m",b.batch),D("n",C(channels)),D("r",parts,true)};
+      op.domain_nonnegative={Add({I("r",tile),I("m",-long(area))},tile-1),
+          Add({I("m",area),I("r",-long(tile))},area-1)};
+      op.result=b.Space(output,b.batch,channels);op.result_map.results=b.Rows(output,"n");
+      op.operands={b.Read(input,T(b.Buffer(input).name,
+          {{"image",b.batch},{"part",parts},{"channel",C(channels)}}),{I("m"),I("r"),I("n")})};
+      b.Own(op,b.batch,channels);b.Record(index,std::move(op),OpRole::kGlobalPoolReduce,output);
     }else if(stage.kind==PlanTaskKind::kGemm) {
       auto const& g=plan.gemms.at(stage.gemm);
       if(g.chain.count || g.beta!=0 || g.access.a_scale!=missing ||

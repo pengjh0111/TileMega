@@ -128,6 +128,8 @@ std::string ToString(OpRole role) {
     case OpRole::kLayerNorm: return "layernorm";
     case OpRole::kEmbeddingSum: return "embedding_sum";
     case OpRole::kLayoutConvert: return "layout_convert";
+    case OpRole::kPool: return "pool";
+    case OpRole::kGlobalPoolReduce: return "global_pool_reduce";
   }
   return "generic";
 }
@@ -143,6 +145,8 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
         return stage.kind==PlanTaskKind::kLayerNorm ||
             stage.kind==PlanTaskKind::kEmbeddingSum ||
             stage.kind==PlanTaskKind::kLayoutConvert ||
+            stage.kind==PlanTaskKind::kPool ||
+            stage.kind==PlanTaskKind::kGlobalPoolReduce ||
             (stage.kind==PlanTaskKind::kGemm &&
              plan.gemms.at(stage.gemm).access.a==codegen::DmAAccess::kIm2Col);
       })) return LiftDnnSemantics(plan,options);
@@ -554,6 +558,10 @@ analysis::Granularity LaunchGranularity(LiftedModel const& model) {
         g.Tile(op.name,"m",one)
             .Tile(op.name,"n",model.sem.Find(op.name)->Dim("n")->extent);
         break;
+      case OpRole::kPool:
+      case OpRole::kGlobalPoolReduce:
+        g.Tile(op.name,"m",one).Tile(op.name,"n",ClosedForm::Constant(128));
+        break;
       case OpRole::kQKNorm:
         // QKNormTaskBody: one (token, head) per CTA.
         g.Tile(op.name, "m", one).Tile(op.name, "c", model.head_dim);
@@ -709,6 +717,11 @@ analysis::Granularity LaunchGranularity(
         g.Tile(op.name,"m",Fixed(plan.stages.at(op.stage).group))
             .Tile(op.name,"n",model.sem.Find(op.name)->Dim("n")->extent);
         break;
+      case OpRole::kPool:
+      case OpRole::kGlobalPoolReduce:
+        g.Tile(op.name,"m",op.role==OpRole::kPool?Fixed(plan.stages.at(op.stage).group):one)
+            .Tile(op.name,"n",Fixed(plan.stages.at(op.stage).width));
+        break;
       case OpRole::kNorm:
       case OpRole::kEmbedding:
         g.Tile(op.name, "m", one);
@@ -787,6 +800,10 @@ analysis::Granularity ReferenceGranularity(LiftedModel const& model) {
       case OpRole::kLayoutConvert:
         g.Tile(op.name,"m",Tm)
             .Tile(op.name,"n",model.sem.Find(op.name)->Dim("n")->extent);
+        break;
+      case OpRole::kPool:
+      case OpRole::kGlobalPoolReduce:
+        g.Tile(op.name,"m",op.role==OpRole::kPool?Tm:one).Tile(op.name,"n",Tn);
         break;
       case OpRole::kQKNorm:
         g.Tile(op.name, "m", Tm).Tile(op.name, "c", model.head_dim);

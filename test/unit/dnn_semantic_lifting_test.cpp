@@ -73,7 +73,79 @@ void Equal(CouplingRelation const& actual,Points const& points) {
   auto oracle=Relation(points,actual.DomainDimNames().size(),actual.RangeDimNames().size());
   assert(Contains(actual,oracle) && Contains(oracle,actual));assert(Listed(actual)==points);
 }
+void PoolAndGlobal() {
+  LiftOptions options;options.forward=true;options.batch_symbol="B";options.static_seq=1;
+  unsigned cases=0;
+  for(unsigned batch:{1,2,3})for(unsigned stride:{1,2})for(unsigned dilation:{1,2}) {
+    auto plan=Fixture(batch);plan.stages.resize(2);plan.gemms.clear();
+    auto& conv=plan.convolutions.front();conv.c=conv.k=3;
+    conv.pad_h=conv.pad_w=dilation;conv.dilation_h=conv.dilation_w=dilation;
+    conv.stride_h=conv.stride_w=stride;conv.p=(7+stride-1)/stride;conv.q=(11+stride-1)/stride;
+    plan.buffers[3].layout=Image(batch,conv.p,conv.q,3,8,1);
+    auto& pool=plan.stages[1];pool.kind=PlanTaskKind::kPool;pool.width=32;pool.group=17;
+    pool.extent=3;pool.conv=0;pool.rows_per_batch=conv.p*conv.q;
+    pool.operands.fill(codegen::kDmNoIndex);pool.operands[0]=1;pool.operands[1]=3;
+    auto model=LiftSemantics(plan,options);auto graph=Instantiate(model.sem,LaunchGranularity(model,plan,{}));
+    ParamBinding known;known.Bind("B",batch);
+    auto const& task=graph.nodes.back();auto const& access=*task.element_access;
+    auto const& read=access.semantic.element_reads.front();
+    auto reads=ProjectTaskRead(access.semantic,task,access.partition,read.tensor,read.map,read.nonnegative,known);
+    Points expected;
+    for(unsigned row=0;row<batch*conv.p*conv.q;++row)for(unsigned c=0;c<3;++c)
+      for(unsigned r=0;r<3;++r)for(unsigned s=0;s<3;++s) {
+        long image=row/(conv.p*conv.q),y=(row%(conv.p*conv.q))/conv.q*stride+r*dilation-long(dilation);
+        long x=row%conv.q*stride+s*dilation-long(dilation);
+        if(y<0 || y>=7 || x<0 || x>=11)continue;
+        expected.insert({Coords(task,{long(row/17),0}),{image,y+1,x+1,long(c)}});
+      }
+    Equal(reads,expected);++cases;
+  }
+  for(unsigned batch:{1,2,5})for(unsigned area:{1,49,77})for(unsigned tile:{16,64,128})
+    for(unsigned channels:{19,144}) {
+      ModelPlan plan;plan.dm=plan.forward=true;plan.serving_seq=1;plan.buffers.resize(2);
+      for(unsigned i=0;i<2;++i) {plan.buffers[i].name="partial"+std::to_string(i);plan.buffers[i].dtype="f32";}
+      PlanStage stage;stage.kind=PlanTaskKind::kGlobalPoolReduce;
+      stage.width=64;stage.group=tile;stage.extent=channels;stage.rows_per_batch=area;
+      stage.operands.fill(codegen::kDmNoIndex);stage.operands[0]=0;stage.operands[1]=1;plan.stages={stage};
+      auto model=LiftSemantics(plan,options);auto const& op=model.sem.ops.front();
+      assert(op.dtype==ScalarType::kF32 && op.domain_nonnegative.size()==2);
+      assert(EncodeSemanticOp(DecodeSemanticOp(EncodeSemanticOp(op)))==EncodeSemanticOp(op));
+      auto graph=Instantiate(model.sem,LaunchGranularity(model,plan,{}));auto const& task=graph.nodes.front();
+      ParamBinding known;known.Bind("B",batch);
+      auto const& input=op.operands.front();auto const& partition=task.element_access->partition;
+      auto reads=ProjectTaskRead(op,task,partition,input.tensor,input.map,{},known);
+      auto work=DeriveTaskWork(op,task,known);Points expected;
+      unsigned total_parts=0;
+      for(unsigned image=0;image<batch;++image) {
+        unsigned first=image*area/tile,last=((image+1)*area+tile-1)/tile;
+        total_parts+=last-first;
+        for(unsigned c=0;c<channels;++c)for(unsigned part=first;part<last;++part)
+          expected.insert({Coords(task,{long(image),long(c/64)}),{long(image),long(part),long(c)}});
+        for(unsigned c=0;c<(channels+63)/64;++c) {
+          ParamBinding point;point.Bind("m",image).Bind("n",c);
+          assert(work.task_reduce_extent.BindCoordinates(point).Eval(known)==last-first);
+          assert(work.nominal_task_reduce_extent.BindCoordinates(point).Eval(known)==last-first);
+        }
+      }
+      Equal(reads,expected);
+      assert(work.read_elements.SumDomain().Eval(known)==total_parts*channels);
+      assert(work.write_elements.SumDomain().Eval(known)==batch*channels);
+      for(unsigned invalid=0;invalid<3;++invalid) {
+        auto bad=op;
+        if(invalid==0)bad.exact_task_access=false;
+        if(invalid==1)bad.domain_nonnegative.front()=IndexResult::FullRange();
+        if(invalid==2)bad.domain_nonnegative.front()=IndexResult::Dim("unknown");
+        bool rejected=false;try {Instantiate(SemanticGraph{{bad}},{});}catch(std::invalid_argument const&){rejected=true;}
+        assert(rejected);
+        rejected=false;try {DecodeSemanticOp(EncodeSemanticOp(bad));}catch(std::invalid_argument const&){rejected=true;}
+        assert(rejected);
+      }
+      ++cases;
+    }
+  std::cout<<"DNN_POOL_GLOBAL exact_read_domain_work_codec cases="<<cases<<" PASS\n";
+}
 void Integration(int argc,char** argv) {
+  bool pool=argc==3 && std::string(argv[1])=="--emit-pool";
   auto plan=Fixture(2);
   unsigned counts[]={231,936,1368,576,19,19,456,48};
   for(unsigned i=0;i<8;++i) {
@@ -87,6 +159,18 @@ void Integration(int argc,char** argv) {
   plan.buffers[0].role=plan.buffers[6].role="external";
   plan.buffers[0].external_name="input";plan.buffers[6].external_name="output";
   plan.buffers[7].dtype="f32";
+  if(pool) {
+    plan.buffers.resize(9);plan.buffers[8].name="buffer8";
+    plan.buffers[8].layout=Image(2,2,3,19,24,0);plan.buffers[8].per_batch=144;
+    plan.buffers[6].per_batch=114;plan.buffers[7].per_batch=12;
+    auto window=plan.convolutions.front();window.h=4;window.w=6;window.c=window.k=19;
+    window.p=2;window.q=3;window.input_layout=3;window.output_layout=8;
+    plan.convolutions.push_back(window);
+    PlanStage stage;stage.kind=PlanTaskKind::kPool;stage.width=32;stage.group=5;
+    stage.extent=19;stage.conv=1;stage.rows_per_batch=6;stage.operands.fill(codegen::kDmNoIndex);
+    stage.operands[0]=3;stage.operands[1]=8;plan.stages.insert(plan.stages.begin()+2,stage);
+    plan.stages.back().operands[0]=8;plan.stages.back().rows_per_batch=6;
+  }
   plan.outputs.push_back({6,""});
   auto node=[](int index,char const* name,char const* op,char const* target,
       std::initializer_list<llvm::json::Value> inputs,
@@ -95,17 +179,20 @@ void Integration(int argc,char** argv) {
         {"inputs",llvm::json::Array(inputs)},{"shape",llvm::json::Array(shape)},
         {"dtype","torch.bfloat16"}};
   };
-  llvm::json::Value json=llvm::json::Object{
-      {"schema","tilemega.exported_program.v1"},{"guards",llvm::json::Array{}},
-      {"range_constraints",llvm::json::Object{{"s0","VR[1, 64]"}}},
-      {"nodes",llvm::json::Array{
+  llvm::json::Array nodes{
         node(0,"input","placeholder","input",{}, {"s0","3","7","11"}),
         node(1,"weight","placeholder","weight",{}, {"19","3","3","3"}),
         node(2,"gamma","placeholder","gamma",{}, {"19"}),
         node(3,"beta","placeholder","beta",{}, {"19"}),
         node(4,"layout","call_function","aten.permute.default",{"input"},{"s0","7","11","3"}),
-        node(5,"conv","call_function","aten.convolution.default",{"layout","weight"},{"s0","4","6","19"}),
-        node(6,"norm","call_function","aten.layer_norm.default",{"conv","gamma","beta"},{"s0","24","19"})}},
+        node(5,"conv","call_function","aten.convolution.default",{"layout","weight"},{"s0","4","6","19"})};
+  if(pool)nodes.push_back(node(6,"pool","call_function","aten.max_pool2d.default",{"conv"},{"s0","2","3","19"}));
+  nodes.push_back(node(pool?7:6,"norm","call_function","aten.layer_norm.default",
+      {pool?"pool":"conv","gamma","beta"},{"s0",pool?"6":"24","19"}));
+  llvm::json::Value json=llvm::json::Object{
+      {"schema","tilemega.exported_program.v1"},{"guards",llvm::json::Array{}},
+      {"range_constraints",llvm::json::Object{{"s0","VR[1, 64]"}}},
+      {"nodes",std::move(nodes)},
       {"signature",llvm::json::Object{
         {"inputs",llvm::json::Array{
           llvm::json::Object{{"name","input"},{"kind","USER_INPUT"},{"target",""}},
@@ -113,12 +200,13 @@ void Integration(int argc,char** argv) {
           llvm::json::Object{{"name","gamma"},{"kind","PARAMETER"},{"target","buffer4"}},
           llvm::json::Object{{"name","beta"},{"kind","PARAMETER"},{"target","buffer5"}}}},
         {"outputs",llvm::json::Array{llvm::json::Object{{"name","norm"},{"kind","USER_OUTPUT"}}}}}}};
-  for(unsigned i=0;i<3;++i) {
+  for(unsigned i=0;i<plan.stages.size();++i) {
     plan.stages[i].representative_index=4+i;
-    plan.stages[i].representative=i==0?"layout":i==1?"conv":"norm";
+    plan.stages[i].representative=i==0?"layout":i==1?"conv":pool&&i==2?"pool":"norm";
   }
   plan.node_buffer={{"input",0},{"weight",2},{"gamma",4},{"beta",5},
       {"layout",1},{"conv",3},{"norm",6}};
+  if(pool)plan.node_buffer["pool"]=8;
   int fd;llvm::SmallString<128> filename;
   assert(!llvm::sys::fs::createTemporaryFile("dm-dnn-cg","json",fd,filename));
   {llvm::raw_fd_ostream out(fd,true);out<<llvm::formatv("{0:2}",json);}
@@ -131,8 +219,8 @@ void Integration(int argc,char** argv) {
   auto module=TorchExportImporter{}.ImportPlan(filename.str().str(),plan,context,nullptr,options);
   trace("model_description");
   auto description=solver::ModelDescription::FromCouplingGraph(*module,{1,0,1},"dnn-primitives");
-  assert(description.dm && description.serving && description.stages.size()==3);
-  assert(description.task_semantics.size()==3 && description.batch_metric_parameter=="s0");
+  assert(description.dm && description.serving && description.stages.size()==plan.stages.size());
+  assert(description.task_semantics.size()==plan.stages.size() && description.batch_metric_parameter=="s0");
   for(auto const& semantic:description.task_semantics) {
     trace(semantic.op.name.c_str());
     auto graph=Instantiate(SemanticGraph{{semantic.op}},Granularity{});
@@ -145,7 +233,8 @@ void Integration(int argc,char** argv) {
   auto source=codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});
   assert(source.find("Run<TaskKind::kLayerNorm, 19, 4>")!=std::string::npos);
   assert(source.find("Run<TaskKind::kLayoutConvert, 3, 17>")!=std::string::npos);
-  if(argc==3 && std::string(argv[1])=="--emit") {
+  if(pool)assert(source.find("Run<TaskKind::kPool, 32, 5>")!=std::string::npos);
+  if(argc==3 && (std::string(argv[1])=="--emit" || pool)) {
     std::error_code error;llvm::raw_fd_ostream output(argv[2],error);assert(!error);output<<source;
   }
   assert(!llvm::sys::fs::remove(filename));
@@ -153,6 +242,8 @@ void Integration(int argc,char** argv) {
 }
 int TestDnnSemanticLifting(int argc,char** argv) {
   IslContext isl;unsigned cases=0;
+  if(argc==2 && std::string(argv[1])=="--pool-global-only") {PoolAndGlobal();return 0;}
+  if(argc==3 && std::string(argv[1])=="--emit-pool") {Integration(argc,argv);return 0;}
   if(argc==2 && std::string(argv[1])=="--integration-only") {
     Integration(argc,argv);return 0;
   }

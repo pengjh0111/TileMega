@@ -44,6 +44,8 @@ enum class OpRole {
   kLayerNorm,
   kEmbeddingSum,
   kLayoutConvert,
+  kPool,
+  kGlobalPoolReduce,
 };
 
 std::string ToString(OpRole role);

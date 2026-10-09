@@ -92,6 +92,9 @@ TaskWork DeriveExactTaskWork(OperatorNode const& task, ParamBinding const& known
   }
   auto tasks = writes.Reverse().ImageIdentity();
   work.nominal_task_reduce_extent = Polynomial(issued, known).SumAlong(tasks);
+  if(!sem.domain_nonnegative.empty() && options.reduction_tiles.empty() &&
+     access.partition.reduction_chunk.IsLiteral(0))
+    work.nominal_task_reduce_extent=local_reduction;
   ClosedForm owned = ClosedForm::Constant(1), tiled = ClosedForm::Constant(1);
   for (unsigned axis = 0; axis < access.partition.ownership.results.size(); ++axis) {
     owned = owned * task.output.axes[axis].extent;

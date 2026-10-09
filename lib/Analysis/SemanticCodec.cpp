@@ -141,6 +141,8 @@ Value Encode(SemanticOp const& op) {
     encoded.emplace_back("task_space", EncodeTensor(op.task_space));
     encoded.emplace_back("task_map", EncodeMap(op.task_map));
   }
+  if(!op.domain_nonnegative.empty())
+    encoded.emplace_back("domain_nonnegative",EncodeArray(op.domain_nonnegative,EncodeIndex));
   return encoded;
 }
 }  // namespace
@@ -212,6 +214,17 @@ SemanticOp DecodeSemanticOp(std::string const& payload) {
       op.task_space = DecodeTensor(value.At("task_space"));
       op.task_map = DecodeMap(value.At("task_map"));
     }
+  }
+  if(auto const* predicates=value.Find("domain_nonnegative"))
+    for(auto const& predicate:predicates->AsArray("domain_nonnegative"))
+      op.domain_nonnegative.push_back(DecodeIndex(predicate));
+  if(!op.exact_task_access && !op.domain_nonnegative.empty())
+    throw std::invalid_argument("iteration predicates require exact task access");
+  for(auto const& predicate:op.domain_nonnegative) {
+    if(predicate.kind!=IndexResult::Kind::kAffine)
+      throw std::invalid_argument("iteration predicate must be quasi-affine");
+    for(auto const& term:predicate.terms)
+      if(!names.count(term.dim))throw std::invalid_argument("iteration predicate names an unknown axis");
   }
   auto check=[&](IndexingMap const& map,TensorSpace const& tensor) {
     if (map.results.size()!=tensor.axes.size()) throw std::invalid_argument("semantic indexing rank mismatch");

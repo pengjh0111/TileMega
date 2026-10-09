@@ -189,6 +189,9 @@ struct SemanticOp {
   bool exact_task_access = false;
   TensorSpace task_space;
   IndexingMap task_map;
+  // Exact quasi-affine restrictions on the iteration domain. An empty list
+  // retains the rectangular legacy domain and its serialized representation.
+  std::vector<IndexResult> domain_nonnegative;
 
   IterationDim const* Dim(std::string const& name) const;
   std::string Serialize() const;

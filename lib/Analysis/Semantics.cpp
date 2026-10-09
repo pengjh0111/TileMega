@@ -207,6 +207,8 @@ std::string SemanticOp::Serialize() const {
   if (!arithmetic.empty()) out << " arithmetic=" << arithmetic;
   if (exact_task_access)
     out << "\n  task_space " << SerializeTensor(task_space) << " " << task_map.Serialize();
+  for(auto const& predicate:domain_nonnegative)
+    out<<"\n  domain_where "<<predicate.Serialize()<<">=0";
   for (auto const& read:element_reads) {
     out << "\n  element_read " << SerializeTensor(read.tensor) << ' ' << read.map.Serialize();
     for (auto const& predicate:read.nonnegative)

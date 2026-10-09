@@ -116,6 +116,8 @@ CouplingRelation ProjectTaskElements(SemanticOp const& semantic,
                      expression(tensor.axes[axis].extent) + ")");
   }
   for (auto const& predicate : nonnegative) bounds.push_back("(" + index(predicate) + ") >= 0");
+  for(auto const& predicate:semantic.domain_nonnegative)
+    bounds.push_back("("+index(predicate)+") >= 0");
   std::string condition = Join(bounds, " and ");
   if (!variables.empty()) condition = "exists (" + Join(variables, ",") + " : " + condition + ")";
   std::string prefix;

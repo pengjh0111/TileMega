@@ -275,6 +275,8 @@ llvm::StringRef taskKindOf(OpRole role) {
     case OpRole::kLayerNorm: return "layernorm";
     case OpRole::kEmbeddingSum: return "embedding_sum";
     case OpRole::kLayoutConvert: return "layout_convert";
+    case OpRole::kPool: return "pool";
+    case OpRole::kGlobalPoolReduce: return "global_pool_reduce";
   }
   return "generic";
 }
