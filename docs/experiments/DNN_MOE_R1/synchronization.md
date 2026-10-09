@@ -198,7 +198,9 @@ so group sizes need not divide the ring length. The native PageStream full
 forward/prefill cohort is pending; this receipt checks the TaskBody/ring.
 
 verified: all 76 workspace byte constants compile on sm_80/89/90/100/120
-(`results/CI7_page_workspace_caps.json`). No global kernel is instantiated,
+(`results/CI7_page_workspace_caps_identity.json`). The before-build source,
+diff, transitive inputs and complete macro sets are sealed for all five builds.
+The earlier post-completion scoped snapshot remains archived. No global kernel is instantiated,
 so register and spill status is unavailable for this compile-only proof.
 The numerical cohort supplies the resource evidence above. Original failed
 compiles/launches are retained; numerical expectations were not changed.

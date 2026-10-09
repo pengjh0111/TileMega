@@ -288,4 +288,4 @@ T4/T12 foundation: verified multi-page GEMM passes 100/100 fresh processes
 for three 2/4-page geometries wrapping 3/5-slot rings; ten builds cover five
 architectures without spills (`results/CI5_multipage_gemm_cuda.json`). All 76
 workspace byte constants compile on five architectures; that compile-only
-proof has no kernel resource claim (`results/CI7_page_workspace_caps.json`).
+proof has no kernel resource claim (`results/CI7_page_workspace_caps_identity.json`).
