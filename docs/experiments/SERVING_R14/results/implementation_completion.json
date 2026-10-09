@@ -1,7 +1,7 @@
 {
   "scope": "implementation and bounded logic correctness only; shared GPU explicitly permitted by user",
   "baseline": "76beaea5e2d66e3311b36d020f470c4f016406d0",
-  "reviewed_head": "d51f016f1abe0e314afe64e493311ead9d593095",
+  "reviewed_head": "e065f3f29be825ce24dffede1e9e7e463e0058de",
   "prompt_sha256": "c7e5771383873ae450c153d873bc633cf4481d9be5cea0f65e216e5b7073330e",
   "items": [
     {
@@ -30,7 +30,7 @@
       "code_status": "implemented",
       "commit": "258d6e73c",
       "location": "include/tilemega/Backend/ServingProfiledMainloop.h:55",
-      "validation": "First-ready observer, sampled task/stage trace and ledger implemented; five-architecture compile and numerical probe pass; new model traces pending."
+      "validation": "Five-architecture compile/numerical probe and full-model sampled stage/task traces pass; nonzero GEMM first-ready observations inside span. Four default paths preserve CU/resources/SASS. Fresh trace-overhead performance acceptance deferred."
     },
     {
       "id": "AT-1",
@@ -65,7 +65,7 @@
       "code_status": "implemented",
       "commit": "26d7f4c14",
       "location": "include/tilemega/Backend/ServingGemv.h:11",
-      "validation": "TN8/16/32 register streaming, row/tiled, all epilogues, narrow DN sums and SwiGLU supported; five-architecture compile and numerical suite pass; fresh narrow model checks pending."
+      "validation": "Five-architecture dispatch compile and TN8/16/32 all-epilogue numerical suite pass. Llama/Qwen TN8 row and TN16 tiled each pass 64-step token/KV smoke, four-arm C-2 and HF teacher-forced C-1."
     },
     {
       "id": "RW-3",
@@ -93,7 +93,7 @@
       "code_status": "implemented",
       "commit": "06090c9ea",
       "location": "python/tilemega/serving/integrated_selection.py:56",
-      "validation": "Required structure families, configurable shortlist, multi-past halving, three final confirmations, hard deadline, fail-closed coverage and identity persistence implemented; actual CLI orchestration with explicit test doubles passes, fresh hardware selection deferred."
+      "validation": "CPU primitives and actual Run.build orchestration with explicit compiler/measurement test doubles pass, including persistence and fail-closed incomplete coverage. No fresh hardware selection claim."
     },
     {
       "id": "C-AT3b",
@@ -134,7 +134,7 @@
   "performance_accepted": false,
   "new_synchronization_reliability_claim": false,
   "reviewed_acceptance": "raw/logic_completion/reviewed_acceptance.json",
-  "fresh_validation_status": "running; do not infer success from code_status",
+  "fresh_validation_status": "bounded logic review complete: 20/20 checks; full request/performance acceptance deferred",
   "deferred": [
     "TR-4 fresh overhead retention",
     "fresh D1 hardware selection and C-PF decision",

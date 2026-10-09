@@ -1,0 +1,527 @@
+{
+  "scope": "bounded implementation correctness; no performance or new synchronization reliability conclusion",
+  "functional_review_pass": true,
+  "operational_checks": 19,
+  "builds": [
+    {
+      "cell": "llama_B1",
+      "label": "baseline",
+      "artifact_id": "d019dc5bf93a4b08c3eb90adc4ec47fdacdc6b80894ab3a0499405efd1508ea7",
+      "binary_sha256": "6484b30978f5c7d7030d359e254fa13f2e574c5874ca48ac5314e42cdb0c1372",
+      "source_sha256": "5769a75d7d87d02030fdd146dfbf841fb961034e27d5fe527a6d2640d5db7e02",
+      "trace": false,
+      "execution": {
+        "artifact_id": "d019dc5bf93a4b08c3eb90adc4ec47fdacdc6b80894ab3a0499405efd1508ea7",
+        "executor": "L1",
+        "loop": false,
+        "pdl": false,
+        "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "spill": true,
+        "trace": false,
+        "execution_id": "bce16dbb33982707d6b9794005292ff94d10a9c3595abdb208b475f5091b8584"
+      },
+      "record": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/build/llama_B1/baseline/record.json"
+    },
+    {
+      "cell": "llama_B16",
+      "label": "baseline",
+      "artifact_id": "edd437fd91a536f9239b481cc7d224b9dd9897210c4d17e5f253d73ba937e651",
+      "binary_sha256": "cba9496341a6e9feca946dcd4edacbcce7cee6cb1e795a4c7d0e50919c133c7c",
+      "source_sha256": "e08384edab90f89bb0fa345471a4e6e9b5a30a36b1a7f865304e86dc380b0011",
+      "trace": false,
+      "execution": {
+        "artifact_id": "edd437fd91a536f9239b481cc7d224b9dd9897210c4d17e5f253d73ba937e651",
+        "executor": "L1",
+        "loop": false,
+        "pdl": false,
+        "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "spill": true,
+        "trace": false,
+        "execution_id": "c4b8a991a10f5d9567c2783bdba4fd77c680b70fac2c96e4183c3944a7809143"
+      },
+      "record": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/build/llama_B16/baseline/record.json"
+    },
+    {
+      "cell": "qwen3_B1",
+      "label": "baseline",
+      "artifact_id": "63e58c1bea9612e67c9f87ba998743b19266c1cea7f42430b96f22e765e4a620",
+      "binary_sha256": "59cac23d7cb828ee598f9220e0cfe36d75414371c20e8656a59471c588e31f88",
+      "source_sha256": "e7e57dcf4405190cd9793cd52478b8c21ccdc66bb18aa725ae94403b12869547",
+      "trace": false,
+      "execution": {
+        "artifact_id": "63e58c1bea9612e67c9f87ba998743b19266c1cea7f42430b96f22e765e4a620",
+        "executor": "L1",
+        "loop": false,
+        "pdl": false,
+        "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "spill": true,
+        "trace": false,
+        "execution_id": "ff75abf654c811ce9369fadca70d5d5eed718e70894637b75ff28fc611ea82d6"
+      },
+      "record": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/build/qwen3_B1/baseline/record.json"
+    },
+    {
+      "cell": "qwen3_B16",
+      "label": "baseline",
+      "artifact_id": "054403099061d30f83382b3579421a964a26e3c746852e5e5c9428fc4792a5fb",
+      "binary_sha256": "c23922156e945c3b532b3c82604431b517f9f89d8b17924e8c660327fb6fbd86",
+      "source_sha256": "6c45c128875ee14174ed6c326d047a90337fafdfeea99c6e48439e609afa0e94",
+      "trace": false,
+      "execution": {
+        "artifact_id": "054403099061d30f83382b3579421a964a26e3c746852e5e5c9428fc4792a5fb",
+        "executor": "L1",
+        "loop": false,
+        "pdl": false,
+        "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "spill": true,
+        "trace": false,
+        "execution_id": "425d9961d7c727b9885db90807f395b73cfe79d67eca8f19731f2c863b007549"
+      },
+      "record": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/build/qwen3_B16/baseline/record.json"
+    },
+    {
+      "cell": "llama_B1",
+      "label": "llama_tn8_row",
+      "artifact_id": "750ef0043ce73231d935f6f37a716423f7634c4511276cdd521a894c7c4631f3",
+      "binary_sha256": "548d354474935532bcfd3443edee50f8fecdf1dfa5dd7c209fdb94bec71a57af",
+      "source_sha256": "56c9feadf5851febb84fd441a8c5e060bfccfc4c0758e95033d7d1a6bc71ed44",
+      "trace": false,
+      "execution": {
+        "artifact_id": "750ef0043ce73231d935f6f37a716423f7634c4511276cdd521a894c7c4631f3",
+        "executor": "L1",
+        "loop": false,
+        "pdl": false,
+        "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "spill": false,
+        "trace": false,
+        "execution_id": "ec2743386668755ed38d493331a73900c71dde8185ea7b59130bacee0c6a3897"
+      },
+      "record": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/build/llama_B1/llama_tn8_row/record.json"
+    },
+    {
+      "cell": "llama_B1",
+      "label": "llama_tn16_tiled",
+      "artifact_id": "5321687403953db156660225a1b85a1c0ae0e37dee7832f6c95bed6d005c409e",
+      "binary_sha256": "09d92274214bd0364d266d069fe210d2a91632c54bfeee49a93235f2353a3e3e",
+      "source_sha256": "8bd41c20f0b4caba7c45946ac25bdf13d378b6a81bb5d679fd59bdcc6a75fe57",
+      "trace": false,
+      "execution": {
+        "artifact_id": "5321687403953db156660225a1b85a1c0ae0e37dee7832f6c95bed6d005c409e",
+        "executor": "L1",
+        "loop": false,
+        "pdl": false,
+        "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "spill": false,
+        "trace": false,
+        "execution_id": "c12c55bf124d7d8207820a9c0280ac8360c18abe99876fdffc3e23a535be33b5"
+      },
+      "record": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/build/llama_B1/llama_tn16_tiled/record.json"
+    },
+    {
+      "cell": "qwen3_B1",
+      "label": "qwen3_tn8_row",
+      "artifact_id": "e858a4c4d85b93f1e923dfcf42b04e941daee859c104c12d21806432315e7775",
+      "binary_sha256": "471a828f7bdff5ccacee456e22fba69fafd186fa6ec1cd6182ec31246b9eed92",
+      "source_sha256": "cdc54738c86a46dd070bf60017229757d4236a469efded7462f18ea04a3e164b",
+      "trace": false,
+      "execution": {
+        "artifact_id": "e858a4c4d85b93f1e923dfcf42b04e941daee859c104c12d21806432315e7775",
+        "executor": "L1",
+        "loop": false,
+        "pdl": false,
+        "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "spill": true,
+        "trace": false,
+        "execution_id": "e06e34ff0edbc18d88224572f0541bbdd76a437217a8337b60ee539e277e7dac"
+      },
+      "record": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/build/qwen3_B1/qwen3_tn8_row/record.json"
+    },
+    {
+      "cell": "qwen3_B1",
+      "label": "qwen3_tn16_tiled",
+      "artifact_id": "7a678328aced6f276fd48ea11a0f57dcc4388e2fe1f3ce66eb5ec72e208349c3",
+      "binary_sha256": "1aeea18d83e849607211762b8c54504905bd9d81ede57a9026c97f7c17f44992",
+      "source_sha256": "7abc18595cd3475baf0bf3f3ae2507ea785032dce0be8c4c5580628fdddfe2e7",
+      "trace": false,
+      "execution": {
+        "artifact_id": "7a678328aced6f276fd48ea11a0f57dcc4388e2fe1f3ce66eb5ec72e208349c3",
+        "executor": "L1",
+        "loop": false,
+        "pdl": false,
+        "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "spill": true,
+        "trace": false,
+        "execution_id": "6ee70f9467303c01b6cb35be32e53ea3f665320f5ccdf6519307833d4ff82a64"
+      },
+      "record": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/build/qwen3_B1/qwen3_tn16_tiled/record.json"
+    },
+    {
+      "cell": "llama_B1",
+      "label": "stage",
+      "artifact_id": "d7c397ed0c3eae1df18b2b78642a0549d4e3c07826aa726fb569821edf638907",
+      "binary_sha256": "eea8b5b2c28a69807f4bcaefdcd5bc3eb1985232f1e4c367da4c5fcb2554aa5d",
+      "source_sha256": "5769a75d7d87d02030fdd146dfbf841fb961034e27d5fe527a6d2640d5db7e02",
+      "trace": true,
+      "execution": {
+        "artifact_id": "d7c397ed0c3eae1df18b2b78642a0549d4e3c07826aa726fb569821edf638907",
+        "executor": "L1",
+        "loop": false,
+        "pdl": false,
+        "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "spill": true,
+        "trace": true,
+        "execution_id": "8ff8d23bb860b6344bb4af8782a5bd2aab58bbfb285db63349d38cdc13db92b2"
+      },
+      "record": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/build/llama_B1/stage/record.json"
+    },
+    {
+      "cell": "llama_B1",
+      "label": "task",
+      "artifact_id": "5719eaf63e65a6d163346214f2d156b0ac6171befa52c95bcf1f266778d48166",
+      "binary_sha256": "7ebf78b41511a5a0cad7e353aae28dbba7229b41693fea62859c8915fd5f4b6b",
+      "source_sha256": "5769a75d7d87d02030fdd146dfbf841fb961034e27d5fe527a6d2640d5db7e02",
+      "trace": true,
+      "execution": {
+        "artifact_id": "5719eaf63e65a6d163346214f2d156b0ac6171befa52c95bcf1f266778d48166",
+        "executor": "L1",
+        "loop": false,
+        "pdl": false,
+        "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "spill": true,
+        "trace": true,
+        "execution_id": "db81f760eddd804af18137e477e7313284e6e67b0c463224fae5331353f6b10f"
+      },
+      "record": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/build/llama_B1/task/record.json"
+    }
+  ],
+  "smoke": [
+    {
+      "path": "docs/experiments/SERVING_R14/raw/logic_completion/smoke/llama_B1/baseline/smoke.json",
+      "arms": [
+        "L2_separate",
+        "L1_separate",
+        "L1_loop"
+      ],
+      "pass_": true,
+      "token_and_kv_mismatches": 0,
+      "steps": 64
+    },
+    {
+      "path": "docs/experiments/SERVING_R14/raw/logic_completion/smoke/llama_B1/llama_tn16_tiled/smoke.json",
+      "arms": [
+        "L2_separate",
+        "L1_separate",
+        "L1_loop"
+      ],
+      "pass_": true,
+      "token_and_kv_mismatches": 0,
+      "steps": 64
+    },
+    {
+      "path": "docs/experiments/SERVING_R14/raw/logic_completion/smoke/llama_B1/llama_tn8_row/smoke.json",
+      "arms": [
+        "L2_separate",
+        "L1_separate",
+        "L1_loop"
+      ],
+      "pass_": true,
+      "token_and_kv_mismatches": 0,
+      "steps": 64
+    },
+    {
+      "path": "docs/experiments/SERVING_R14/raw/logic_completion/smoke/llama_B16/baseline/smoke.json",
+      "arms": [
+        "L2_separate",
+        "L1_separate",
+        "L1_loop"
+      ],
+      "pass_": true,
+      "token_and_kv_mismatches": 0,
+      "steps": 64
+    },
+    {
+      "path": "docs/experiments/SERVING_R14/raw/logic_completion/smoke/qwen3_B1/baseline/smoke.json",
+      "arms": [
+        "L2_separate",
+        "L2_loop",
+        "L1_separate"
+      ],
+      "pass_": true,
+      "token_and_kv_mismatches": 0,
+      "steps": 64
+    },
+    {
+      "path": "docs/experiments/SERVING_R14/raw/logic_completion/smoke/qwen3_B1/qwen3_tn16_tiled/smoke.json",
+      "arms": [
+        "L2_separate",
+        "L1_separate",
+        "L1_loop"
+      ],
+      "pass_": true,
+      "token_and_kv_mismatches": 0,
+      "steps": 64
+    },
+    {
+      "path": "docs/experiments/SERVING_R14/raw/logic_completion/smoke/qwen3_B1/qwen3_tn8_row/smoke.json",
+      "arms": [
+        "L2_separate",
+        "L1_separate",
+        "L1_loop"
+      ],
+      "pass_": true,
+      "token_and_kv_mismatches": 0,
+      "steps": 64
+    },
+    {
+      "path": "docs/experiments/SERVING_R14/raw/logic_completion/smoke/qwen3_B16/baseline/smoke.json",
+      "arms": [
+        "L2_separate",
+        "L2_loop",
+        "L1_separate"
+      ],
+      "pass_": true,
+      "token_and_kv_mismatches": 0,
+      "steps": 64
+    }
+  ],
+  "real_model": [
+    {
+      "label": "llama_tn16_tiled",
+      "steps": 64,
+      "c2_mismatches": {
+        "L1_separate": 0,
+        "L2_separate": 0,
+        "L1_loop": 0,
+        "L1_loop_no_phase": 0
+      },
+      "c1_pass": true,
+      "c1_gap_le_0_5_ratio": 1.0,
+      "c1_max_gap": 0.0,
+      "modes": "docs/experiments/SERVING_R14/raw/logic_completion/real/llama_tn16_tiled/modes/mode_check.json",
+      "hf": "docs/experiments/SERVING_R14/raw/logic_completion/real/llama_tn16_tiled/hf.json"
+    },
+    {
+      "label": "llama_tn8_row",
+      "steps": 64,
+      "c2_mismatches": {
+        "L1_separate": 0,
+        "L2_separate": 0,
+        "L1_loop": 0,
+        "L1_loop_no_phase": 0
+      },
+      "c1_pass": true,
+      "c1_gap_le_0_5_ratio": 1.0,
+      "c1_max_gap": 0.0,
+      "modes": "docs/experiments/SERVING_R14/raw/logic_completion/real/llama_tn8_row/modes/mode_check.json",
+      "hf": "docs/experiments/SERVING_R14/raw/logic_completion/real/llama_tn8_row/hf.json"
+    },
+    {
+      "label": "qwen3_tn16_tiled",
+      "steps": 64,
+      "c2_mismatches": {
+        "L1_separate": 0,
+        "L2_separate": 0,
+        "L1_loop": 0,
+        "L1_loop_no_phase": 0
+      },
+      "c1_pass": true,
+      "c1_gap_le_0_5_ratio": 1.0,
+      "c1_max_gap": 0.0,
+      "modes": "docs/experiments/SERVING_R14/raw/logic_completion/real/qwen3_tn16_tiled/modes/mode_check.json",
+      "hf": "docs/experiments/SERVING_R14/raw/logic_completion/real/qwen3_tn16_tiled/hf.json"
+    },
+    {
+      "label": "qwen3_tn8_row",
+      "steps": 64,
+      "c2_mismatches": {
+        "L1_separate": 0,
+        "L2_separate": 0,
+        "L1_loop": 0,
+        "L1_loop_no_phase": 0
+      },
+      "c1_pass": true,
+      "c1_gap_le_0_5_ratio": 1.0,
+      "c1_max_gap": 0.0,
+      "modes": "docs/experiments/SERVING_R14/raw/logic_completion/real/qwen3_tn8_row/modes/mode_check.json",
+      "hf": "docs/experiments/SERVING_R14/raw/logic_completion/real/qwen3_tn8_row/hf.json"
+    }
+  ],
+  "traces": [
+    {
+      "label": "stage",
+      "identity": {
+        "artifact_id": "d7c397ed0c3eae1df18b2b78642a0549d4e3c07826aa726fb569821edf638907",
+        "executor": "L1",
+        "loop": false,
+        "pdl": false,
+        "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "spill": true,
+        "trace": true,
+        "execution_id": "de65a2d0e81ad441dbb282922505b0ed3a6f211203ec8f9e3b8b4394c166aaa1",
+        "shared_memory_bytes": 86016
+      },
+      "path": "docs/experiments/SERVING_R14/raw/logic_completion/trace/stage/past575/trace.json",
+      "timing_eligible": false
+    },
+    {
+      "label": "task",
+      "identity": {
+        "artifact_id": "5719eaf63e65a6d163346214f2d156b0ac6171befa52c95bcf1f266778d48166",
+        "executor": "L1",
+        "loop": false,
+        "pdl": false,
+        "kernel": "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "spill": true,
+        "trace": true,
+        "execution_id": "8ab4508840ce0b50c271eda6b21a58a84ca03a86f88a2d307407bfb08f77ce71",
+        "shared_memory_bytes": 86016
+      },
+      "path": "docs/experiments/SERVING_R14/raw/logic_completion/trace/task/past575/trace.json",
+      "timing_eligible": false,
+      "gemm_sample_count": 767,
+      "all_nonzero_byte_operands_observed": true
+    }
+  ],
+  "architecture_compile_checks": [
+    {
+      "arch": 80,
+      "name": "serving_gemv_dispatch_test",
+      "path": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/arch/serving_gemv_dispatch_test_sm80.o",
+      "sha256": "3d388e0583137de7d29f19492aaa39a39f4b2fa03f63125514d5d7122c689109",
+      "executed": false
+    },
+    {
+      "arch": 80,
+      "name": "serving_task_profile_test",
+      "path": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/arch/serving_task_profile_test_sm80.o",
+      "sha256": "510009cbe90c518d788775f9b543150575fd16afe15a86054c15caa23b289644",
+      "executed": false
+    },
+    {
+      "arch": 89,
+      "name": "serving_gemv_dispatch_test",
+      "path": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/arch/serving_gemv_dispatch_test_sm89.o",
+      "sha256": "0bbb99910b75f991a96f74f64668058380823beec4c73cae6a3846c78c2b133a",
+      "executed": false
+    },
+    {
+      "arch": 89,
+      "name": "serving_task_profile_test",
+      "path": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/arch/serving_task_profile_test_sm89.o",
+      "sha256": "7ed04ab30934e71a2cd6bedd6088b5a03df9416ece46325e4e068060831ffb4d",
+      "executed": false
+    },
+    {
+      "arch": 90,
+      "name": "serving_gemv_dispatch_test",
+      "path": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/arch/serving_gemv_dispatch_test_sm90.o",
+      "sha256": "1f5bfeb73b39db7b8cba26a833962b834e87823a63fb1e50f3e145271498f31b",
+      "executed": false
+    },
+    {
+      "arch": 90,
+      "name": "serving_task_profile_test",
+      "path": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/arch/serving_task_profile_test_sm90.o",
+      "sha256": "e8dbe35b849b41df518152b39097659a4f91422c735d76d1afa80d0fc3f72cd9",
+      "executed": false
+    },
+    {
+      "arch": 100,
+      "name": "serving_gemv_dispatch_test",
+      "path": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/arch/serving_gemv_dispatch_test_sm100.o",
+      "sha256": "34864fd46fd45eb6ea7ecb743a795299d8a7cd74c687af79050dc75e76336ecc",
+      "executed": false
+    },
+    {
+      "arch": 100,
+      "name": "serving_task_profile_test",
+      "path": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/arch/serving_task_profile_test_sm100.o",
+      "sha256": "d11f747abef4f9b2fa4fdf693a375bfc6b70e70402e511a488a8054e332aabf3",
+      "executed": false
+    },
+    {
+      "arch": 120,
+      "name": "serving_gemv_dispatch_test",
+      "path": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/arch/serving_gemv_dispatch_test_sm120.o",
+      "sha256": "18186660f77b1a7dc3456c067aaa15ca5c3f3ee021a4ba9ffec31d01a3c5b1e6",
+      "executed": false
+    },
+    {
+      "arch": 120,
+      "name": "serving_task_profile_test",
+      "path": "/root/TileMega/docs/experiments/SERVING_R14/raw/logic_completion/arch/serving_task_profile_test_sm120.o",
+      "sha256": "7b29334957d2dd78856b10df7dd2a3097b6b25b6241608313831f4800ecff823",
+      "executed": false
+    }
+  ],
+  "host_contracts": 4,
+  "host_ctests": 5,
+  "gpu_numerical_tests": 8,
+  "final_full_request_validation": false,
+  "real_model_steps": 64,
+  "timing_eligible": false,
+  "default_assembly_comparison": [
+    {
+      "cell": "llama_B1",
+      "source_equal": true,
+      "sass_equal": true,
+      "resources_equal": true,
+      "existing_functions": [
+        "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi",
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "_ZN8tilemega7codegen23tilemega_l1_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy",
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj"
+      ],
+      "new_functions": [],
+      "resource_scope": "entry kernel and called function; new kernel contexts excluded"
+    },
+    {
+      "cell": "llama_B16",
+      "source_equal": true,
+      "sass_equal": true,
+      "resources_equal": true,
+      "existing_functions": [
+        "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi",
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "_ZN8tilemega7codegen23tilemega_l1_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy",
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj"
+      ],
+      "new_functions": [],
+      "resource_scope": "entry kernel and called function; new kernel contexts excluded"
+    },
+    {
+      "cell": "qwen3_B1",
+      "source_equal": true,
+      "sass_equal": true,
+      "resources_equal": true,
+      "existing_functions": [
+        "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi",
+        "_ZN8tilemega7codegen20tilemega_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy",
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj"
+      ],
+      "new_functions": [],
+      "resource_scope": "entry kernel and called function; new kernel contexts excluded"
+    },
+    {
+      "cell": "qwen3_B16",
+      "source_equal": true,
+      "sass_equal": true,
+      "resources_equal": true,
+      "existing_functions": [
+        "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi",
+        "_ZN8tilemega7codegen20tilemega_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy",
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy",
+        "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj"
+      ],
+      "new_functions": [],
+      "resource_scope": "entry kernel and called function; new kernel contexts excluded"
+    }
+  ],
+  "reviewed_checks": 20,
+  "reviewed_acceptance_pass": true
+}
