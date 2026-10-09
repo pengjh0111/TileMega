@@ -242,8 +242,10 @@ struct PagedGemmTaskBody {
   template<class Accumulator>
   __device__ static float* Materialize(Accumulator const& accum,Mma const& mma,char* workspace) {
     using namespace cute;
-    // Page release follows the final MMA. Every K owner stores a separate
-    // plane before the final two-warp reduction reuses activation scratch.
+    // Page release does not join compute warps. Finish activation reads and
+    // asynchronous copies before their scratch is reused for FP32 planes.
+    cute::cp_async_wait<0>();
+    ComputeSync();
     auto coordinates=make_identity_tensor(Shape<Int<TileM>,Int<TileN>>{});
     int split=ComputeThread()/(kComputeThreads/kKSplits);
     auto owned=mma.get_slice(ComputeThread()%(kComputeThreads/kKSplits)).partition_C(coordinates);
