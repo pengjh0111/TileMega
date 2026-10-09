@@ -72,3 +72,18 @@ against centered CPU FP64 statistics. They check the intermediate values, final
 outputs, statistics and L1/L2 bit equality with the original tolerance. Missing
 tile-owned combiner flags caused the original split-five failure; expectations
 are unchanged. Native paged sanitizer completion remains a separate gate.
+
+verified: DNN checkpoint recipes pass 12 CPU checks, including independent
+module expressions and the existing host CuTe page-layout oracle
+(`results/DN_weight_recipes_host.json`). BN statistics retain their checkpoint
+precision; the folded convolution weight is rounded to BF16, and its separate
+bias remains FP32. Linear and packed QKV bias remain FP32. QKV packing is
+head-major `[Q_head, K_head, V_head]`; SimpleGate interleaves channel chunks
+without changing their values.
+
+verified: deferred LN stores `W' = bf16(W*gamma)`, uses FP32
+`u = sum(float(W'))` and `v = W.float() @ beta.float() + bias.float()`.
+Summing the stored weight makes the mean correction cancel constant input
+rows. Weight folding still changes the rounding relative to explicit LN;
+model-level G-DNN remains required. Nested page packing preserves these
+recipes, and the loader binds the dtype declared by each buffer.
