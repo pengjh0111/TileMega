@@ -99,8 +99,8 @@ unit axes and missing binding sources are rejected
 
 A contribution unit needs exactly one writer. Separate column partitions
 require a partition axis in the unit or compatible producer/consumer tiles.
-Native test registration, counted CG transport, variable device thresholds
-and real-body fresh-process synchronization checks remain pending.
+The primitive proof does not establish a dispatch permutation or a real-body
+synchronization gate; those checks remain pending.
 
 verified: the aligned-scatter helper reconstructs reads/stores from L-sem,
 checks the binding-indexed unit axes and proves that every producer covers
@@ -112,8 +112,9 @@ establish a permutation of the logical units; static I2 cannot prove it.
 verified: the per-consumer threshold view passes host offset, tail, uniform
 compatibility and 64-bit epoch overflow checks
 (`results/CI5_counted_threshold_host.json`). Threshold storage is immutable;
-counter storage remains separate for each executor bank. Device synchronization
-and native stage/table integration are pending.
+counter storage remains separate for each executor bank. Native integration
+now passes 150/150 fresh processes (`results/CI5_native_counted_threshold_cuda.json`)
+and the standard CUDA ctest (`results/CI5_native_counted_ctest.json`). Real bodies remain pending.
 
 verified: exact task arithmetic now pulls constants, reduction work and model
 extents onto an identity task domain. Symbolic tail reductions, width ratios,
@@ -139,4 +140,7 @@ verified: dependency provenance roundtrips pass 45 cases and 81 corruption
 rejections, with 7/7 native checks including existing fusion regressions
 (`results/CI7_dependency_transport_host.json`). Retained table encodings and
 counted thresholds are checked against their exact relation/unit image.
-Counted fusion endpoint rebinding, event transport and body lowering remain pending.
+verified: counted fusion event transport passes 96 bound cases, including two
+contracts on one stage pair, reversed target numbering, grids 1/3/8 and
+kappa 0/1/4/16 (`results/CI7_counted_fusion_projection_host.json`).
+Counted CG endpoint rebinding and body lowering remain pending.

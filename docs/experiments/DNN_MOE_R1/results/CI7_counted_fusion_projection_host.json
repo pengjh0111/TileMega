@@ -1,7 +1,7 @@
 {
   "evidence": "verified",
   "passed": true,
-  "implementation_head": "4e00d62d5 + multiple-contract test",
+  "implementation_head": "f839d4c2d4c2bf58c80f87fe819e92a3d0f6d7b7",
   "counted_fusion_cases": 96,
   "native_checks": 6,
   "assertions_enabled": true,
@@ -23,5 +23,9 @@
     "runs/dm1-ci7-counted-fusion-projection-multiple/events/01_build.log": "972dcaf7966e8d10075377682585283b9f306053c3f237bf1c77187f88dc482b"
   },
   "failed_compile_audit": "runs/dm1-ci7-counted-fusion-projection",
-  "multiple_contracts": true
+  "multiple_contracts": true,
+  "implementation_commits": [
+    "4e00d62d5",
+    "f839d4c2d"
+  ]
 }
