@@ -5,6 +5,7 @@
 #include <tilemega/Frontend/ModelPlan.h>
 #include <tilemega/Codegen/tasks/TaskResources.h>
 #include <tilemega/Frontend/DmDescriptorCodec.h>
+#include <tilemega/Frontend/DnnStorage.h>
 #include <tilemega/Frontend/SemanticLifting.h>
 #include <tilemega/Analysis/CouplingDerivation.h>
 #include <tilemega/Analysis/DependencyForm.h>
@@ -855,6 +856,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
                            : LiftSemantics(plan, liftOptions);
   // The plan attribute is written after lifting because the read-only
   // frontier it carries is the lifting replay's own write relation.
+  MaterializeDnnStorage(plan,runtimeGemms,options.phase_batch);
   if (!plan.stages.empty())
     module->setAttr("tilemega.model_plan",
                     modelPlanAttr(builder, plan, lifted.written));

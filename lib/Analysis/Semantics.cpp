@@ -220,6 +220,12 @@ std::string SemanticOp::Serialize() const {
     for (auto const& predicate:write.nonnegative)
       out << " where " << predicate.Serialize() << ">=0";
   }
+  for(auto const& storage:tile_storage)
+    out<<"\n  tile_storage "<<storage.tensor<<" owner="<<storage.owner_axis
+       <<" insert_axis="<<storage.tensor_axis;
+  for(auto const& read:tile_storage_reads)
+    out<<"\n  tile_storage_read "<<read.tensor<<" reduction="<<read.reduction_dim
+       <<" segment="<<read.segment_dim<<" extent="<<read.segment_extent.ToString();
   out << "\n  domain";
   for (auto const& dim : domain) {
     out << " " << dim.name << ":" << ToString(dim.type) << "["

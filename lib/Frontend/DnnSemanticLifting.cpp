@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Frontend/SemanticLifting.h>
 #include <algorithm>
+#include <set>
 #include <stdexcept>
 #include <unordered_map>
 
@@ -107,8 +108,6 @@ struct Builder {
   void Chain(SemanticOp& op,PlanGemm const& g,ClosedForm rows) const {
     if(g.chain.count>8 || g.chain.side_count>5)
       throw std::invalid_argument("invalid DNN epilogue descriptor length");
-    if(g.chain.side_count)
-      throw std::invalid_argument("DNN GEMM side stores require task-level reduction semantics");
     for(unsigned i=0;i<g.chain.count;++i) {
       auto const& step=g.chain.operations[i];
       using K=codegen::DmEpilogueKind;
@@ -127,6 +126,35 @@ struct Builder {
       }else if(step.kind!=K::kActivation) {
         throw std::invalid_argument("DNN GEMM pairing/norm requires explicit reduction semantics");
       }
+    }
+  }
+  void GemmSideStores(SemanticOp& op,PlanGemm const& g,ClosedForm rows) {
+    std::set<unsigned> seen;
+    for(unsigned i=0;i<g.chain.side_count;++i) {
+      auto const& side=g.chain.side[i];auto id=side.buffer;
+      if(id==missing || !seen.insert(id).second || Buffer(id).dtype!="f32")
+        throw std::invalid_argument("DNN GEMM side output requires distinct FP32 storage");
+      TensorSpace space;std::vector<IndexResult> map;
+      if(side.kind==codegen::DmSideOutputKind::kRowStats) {
+        space=T(Buffer(id).name,{{"row",rows},{"stat",C(2)}});
+        for(unsigned stat=0;stat<2;++stat) {
+          ElementWrite write;write.tensor=space;write.effect.kind=EffectKind::kWrite;
+          write.map.results={I("m"),IndexResult::Affine({},C(stat))};
+          op.additional_writes.push_back(std::move(write));
+        }
+        op.tile_storage.push_back({space.name,"n",1});
+      }else if(side.kind==codegen::DmSideOutputKind::kChannelPartialSums) {
+        if(!g.access.rows_per_batch)
+          throw std::invalid_argument("DNN channel partials require per-image rows");
+        space=T(Buffer(id).name,{{"image",batch},{"channel",C(g.n)}});
+        ElementWrite write;write.tensor=space;write.effect.kind=EffectKind::kWrite;
+        write.map.results={I("m",1,g.access.rows_per_batch),I("n")};
+        op.additional_writes.push_back(std::move(write));
+        op.tile_storage.push_back({space.name,"m",1});
+      }else {
+        throw std::invalid_argument("DNN GEMM selection/partial side stores require their reduction semantics");
+      }
+      writer[id]=op.name;written[id]=space;result.written[id]=1;
     }
   }
   SemanticOperand Read(unsigned id,TensorSpace space,std::vector<IndexResult> map) const {
@@ -331,13 +359,21 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
       auto parts=stage.partial_rows_per_image?C(stage.partial_rows_per_image):
           (b.batch*C(area)).CeilDiv(C(tile));
       op.kind=OperatorKind::kReduction;op.arithmetic="global_pool_reduce";
-      op.domain={D("m",b.batch),D("n",C(channels)),D("r",parts,true)};
+      bool partitioned=false;
+      for(auto const& prior:b.result.sem.ops)for(auto const& store:prior.tile_storage)
+        partitioned|=store.tensor==b.Buffer(input).name;
+      op.domain={D("m",b.batch),D("n",C(channels)),D("r",partitioned?C(area):parts,true)};
       op.domain_nonnegative={Add({I("r",tile),I("m",-long(area))},tile-1),
           Add({I("m",area),I("r",-long(tile))},area-1)};
       if(stage.partial_rows_per_image)op.domain_nonnegative.clear();
       op.result=b.Space(output,b.batch,channels);op.result_map.results=b.Rows(output,"n");
       op.operands={b.Read(input,T(b.Buffer(input).name,
           {{"image",b.batch},{"part",parts},{"channel",C(channels)}}),{I("m"),I("r"),I("n")})};
+      if(partitioned) {
+        op.domain_nonnegative.clear();
+        op.operands={b.Read(input,b.written.at(input),{I("m"),I("n")})};
+        op.tile_storage_reads.push_back({b.Buffer(input).name,"r","m",C(area)});
+      }
       b.Own(op,b.batch,channels);b.Record(index,std::move(op),OpRole::kGlobalPoolReduce,output);
     }else if(stage.kind==PlanTaskKind::kGemm) {
       auto const& g=plan.gemms.at(stage.gemm);
@@ -393,7 +429,8 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
         op.reduction.dim="k";
       }else throw std::invalid_argument("DNN GEMM has an unsupported A map");
       b.Chain(op,g,rows);
-      b.Own(op,rows,g.n);b.Record(index,std::move(op),OpRole::kProjection,g.d);
+      b.Own(op,rows,g.n);b.GemmSideStores(op,g,rows);
+      b.Record(index,std::move(op),OpRole::kProjection,g.d);
     }else throw std::invalid_argument("DNN L-sem has no rule for plan stage "+std::to_string(index));
   }
   return std::move(b.result);

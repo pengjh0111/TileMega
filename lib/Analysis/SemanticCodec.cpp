@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/SemanticCodec.h>
 #include <tilemega/Analysis/VirtualTaskBinding.h>
+#include <tilemega/Analysis/TaskStorage.h>
 #include <tilemega/Support/Json.h>
 #include <set>
 #include <stdexcept>
@@ -105,6 +106,7 @@ MemoryEffect DecodeEffect(Value const& value) {
 }
 Value Encode(SemanticOp const& op) {
   (void)VirtualBindings(op);
+  ValidateTileStorage(op);
   Object encoded{{"version",1},{"name",op.name},{"kind",int(op.kind)},{"dtype",int(op.dtype)},
     {"arithmetic",op.arithmetic},{"generic",op.generic},
     {"domain",EncodeArray(op.domain,[](auto const& dim) {
@@ -142,6 +144,16 @@ Value Encode(SemanticOp const& op) {
           return Value(Object{{"producer",operand.producer},{"tensor",EncodeTensor(operand.tensor)},
               {"map",EncodeMap(operand.map)},{"effect",EncodeEffect(operand.effect)}});
         }));
+  if(!op.tile_storage.empty())
+    encoded.emplace_back("tile_storage",EncodeArray(op.tile_storage,[](auto const& storage) {
+      return Value(Object{{"tensor",storage.tensor},{"owner_axis",storage.owner_axis},
+          {"tensor_axis",int(storage.tensor_axis)}});
+    }));
+  if(!op.tile_storage_reads.empty())
+    encoded.emplace_back("tile_storage_reads",EncodeArray(op.tile_storage_reads,[](auto const& read) {
+      return Value(Object{{"tensor",read.tensor},{"reduction_dim",read.reduction_dim},
+          {"segment_dim",read.segment_dim},{"segment_extent",read.segment_extent.ToString()}});
+    }));
   if (op.exact_task_access) {
     encoded.emplace_back("exact_task_access", true);
     encoded.emplace_back("task_space", EncodeTensor(op.task_space));
@@ -225,6 +237,18 @@ SemanticOp DecodeSemanticOp(std::string const& payload) {
       op.task_map = DecodeMap(value.At("task_map"));
     }
   }
+  if(auto const* partitions=value.Find("tile_storage"))
+    for(auto const& spec:partitions->AsArray("tile_storage")) {
+      auto axis=spec.At("tensor_axis").AsNumber("tensor_axis");
+      if(axis<0 || axis>4 || axis!=int(axis))
+        throw std::invalid_argument("invalid tile storage insertion axis");
+      op.tile_storage.push_back({String(spec,"tensor"),String(spec,"owner_axis"),unsigned(axis)});
+    }
+  if(auto const* selections=value.Find("tile_storage_reads"))
+    for(auto const& read:selections->AsArray("tile_storage_reads"))
+      op.tile_storage_reads.push_back({String(read,"tensor"),String(read,"reduction_dim"),
+          String(read,"segment_dim"),Form(read,"segment_extent")});
+  ValidateTileStorage(op);
   if(auto const* predicates=value.Find("domain_nonnegative"))
     for(auto const& predicate:predicates->AsArray("domain_nonnegative"))
       op.domain_nonnegative.push_back(DecodeIndex(predicate));

@@ -142,6 +142,7 @@ add_library(tilemega_core STATIC
   lib/Frontend/DmDescriptorCodec.cpp
   lib/Frontend/SemanticLifting.cpp
   lib/Frontend/DnnSemanticLifting.cpp
+  lib/Frontend/DnnStorage.cpp
   lib/Frontend/ServingSemanticLifting.cpp
   lib/Analysis/SemanticCodec.cpp
   lib/Dialect/CouplingGraph/CGDialect.cpp
@@ -161,6 +162,7 @@ add_library(tilemega_core STATIC
   lib/Analysis/CouplingCache.cpp
   lib/Analysis/Semantics.cpp
   lib/Analysis/TaskInstantiation.cpp
+  lib/Analysis/TaskStorage.cpp
   lib/Analysis/CouplingDerivation.cpp
   lib/Analysis/DependencyForm.cpp
   lib/Analysis/ReferenceModels.cpp
@@ -381,6 +383,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/conv_reduction_cg_test.cpp
     test/unit/dnn_semantic_lifting_test.cpp
     test/unit/dnn_epilogue_semantics_test.cpp
+    test/unit/task_storage_test.cpp
     test/unit/dm_counted_fusion_test.cpp
     test/unit/dm_gemm_class_domain_test.cpp
     test/unit/dm_forward_search_test.cpp
@@ -845,6 +848,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME conv_reduction_cg COMMAND tilemega-unit conv_reduction_cg)
   add_test(NAME dnn_semantic_lifting COMMAND tilemega-unit dnn_semantic_lifting)
   add_test(NAME dnn_epilogue_semantics COMMAND tilemega-unit dnn_epilogue_semantics)
+  add_test(NAME task_storage COMMAND tilemega-unit task_storage)
   add_test(NAME dm_counted_fusion COMMAND tilemega-unit dm_counted_fusion)
   add_test(NAME dm_gemm_class_domain COMMAND tilemega-unit dm_gemm_class_domain)
   add_test(NAME dm_forward_search COMMAND tilemega-unit dm_forward_search)

@@ -8,6 +8,7 @@
 #include <tilemega/Analysis/DramFloor.h>
 #include <tilemega/Solver/TaskModel.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
+#include <tilemega/Frontend/DnnStorage.h>
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/JSON.h>
@@ -155,6 +156,66 @@ void Emit(DmWriteKind kind,char const* output) {
   assert(!llvm::sys::fs::remove(filename));
   std::cout<<"DNN_EPILOGUE_CG split_final_reads map="<<unsigned(kind)<<" PASS\n";
 }
+void EmitSides(char const* output) {
+  auto plan=Plan(DmWriteKind::kDense);plan.buffers[2].layout=Layout(DmWriteKind::kDense,20);
+  char const* names[]={"input","weight","output","bias","row_stats","channel_partials","pooled"};
+  for(unsigned i=0;i<7;++i) {
+    auto& b=plan.buffers[i];b.name=b.external_name=names[i];b.role="external";
+    b.dtype=i>=3?"f32":"bf16";
+  }
+  plan.buffers[0].per_batch=15*72;plan.buffers[1].constant=20*72;
+  plan.buffers[2].per_batch=plan.buffers[2].layout.strides[0];
+  plan.buffers[3].constant=20;plan.buffers[6].per_batch=20;
+  auto& g=plan.gemms[0];g.n=20;g.k=72;g.chain.count=2;
+  g.chain.operations[1]=g.chain.operations[3];g.chain.side_count=2;
+  g.chain.side[0]={DmSideOutputKind::kRowStats,4};
+  g.chain.side[1]={DmSideOutputKind::kChannelPartialSums,5};
+  auto& first=plan.stages[0];first.representative="projection";first.representative_index=3;
+  PlanStage pool;pool.kind=PlanTaskKind::kGlobalPoolReduce;pool.extent=20;pool.width=32;
+  pool.group=16;pool.rows_per_batch=15;pool.operands.fill(kDmNoIndex);
+  pool.operands[0]=5;pool.operands[1]=6;pool.representative="pool";pool.representative_index=4;
+  plan.stages.push_back(pool);plan.outputs={{2,""},{6,""}};
+  plan.node_buffer={{"input",0},{"weight",1},{"bias",3},{"projection",2},{"pool",6}};
+  auto node=[](int index,char const* name,char const* op,char const* target,
+      std::initializer_list<llvm::json::Value> inputs,std::initializer_list<llvm::json::Value> shape,
+      char const* dtype="torch.bfloat16") {
+    return llvm::json::Object{{"index",index},{"name",name},{"op",op},{"target",target},
+        {"inputs",llvm::json::Array(inputs)},{"shape",llvm::json::Array(shape)},{"dtype",dtype}};
+  };
+  llvm::json::Value json=llvm::json::Object{{"schema","tilemega.exported_program.v1"},
+      {"guards",llvm::json::Array{}},{"range_constraints",llvm::json::Object{{"s0","VR[1, 64]"}}},
+      {"nodes",llvm::json::Array{
+          node(0,"input","placeholder","input",{}, {"s0","15","72"}),
+          node(1,"weight","placeholder","weight",{}, {"20","72"}),
+          node(2,"bias","placeholder","bias",{}, {"20"},"torch.float32"),
+          node(3,"projection","call_function","aten.linear.default",{"input","weight","bias"},{"s0","15","20"}),
+          node(4,"pool","call_function","aten.mean.dim",{"projection"},{"s0","20"},"torch.float32")}},
+      {"signature",llvm::json::Object{{"inputs",llvm::json::Array{
+          llvm::json::Object{{"name","input"},{"kind","USER_INPUT"},{"target",""}},
+          llvm::json::Object{{"name","weight"},{"kind","PARAMETER"},{"target","weight"}},
+          llvm::json::Object{{"name","bias"},{"kind","PARAMETER"},{"target","bias"}}}},
+          {"outputs",llvm::json::Array{llvm::json::Object{{"name","pool"},{"kind","USER_OUTPUT"}}}}}}};
+  int fd;llvm::SmallString<128> filename;
+  assert(!llvm::sys::fs::createTemporaryFile("dm-side-cg","json",fd,filename));
+  {llvm::raw_fd_ostream stream(fd,true);stream<<llvm::formatv("{0:2}",json);}
+  auto concrete=plan;MaterializeDnnStorage(concrete,{{16,16,16,3,3}},2);
+  assert(concrete.buffers[4].per_batch==60 && concrete.buffers[5].per_batch==40);
+  mlir::MLIRContext context;ImportOptions options;options.phase_batch=2;
+  options.combiner_tile_per_block=true;options.gemms={{16,16,16,3,3}};
+  auto module=TorchExportImporter{}.ImportPlan(filename.str().str(),plan,context,nullptr,options);
+  solver::ModelDims dims{1,0,1};dims.batch=2;
+  auto model=solver::ModelDescription::FromCouplingGraph(*module,dims,"side-stores");
+  auto graph=solver::InstantiateModelTasks(model,{{16,16,16,3,3}});
+  auto const& final=*graph.Find("dnn.s0.combine");assert(final.element_access->semantic.additional_writes.size()==3);
+  auto combined=solver::DeriveCombineTaskInput(model,0,{16,16,16,3,3},graph,128,true,true);
+  auto accesses=solver::DeriveModelTaskAccesses(model.task_semantics[0],combined);
+  assert(accesses.writes.at("row_stats").BindParams(model.MetricBindings()).Card().SumDomain().Eval({})==120);
+  assert(accesses.writes.at("channel_partials").BindParams(model.MetricBindings()).Card().SumDomain().Eval({})==60);
+  auto source=codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});
+  std::error_code error;llvm::raw_fd_ostream stream(output,error);assert(!error);stream<<source;
+  assert(!llvm::sys::fs::remove(filename));
+  std::cout<<"DNN_SIDE_CG segmented pool and row stats split-K PASS\n";
+}
 }
 int TestDnnEpilogueSemantics(int argc,char** argv) {
   IslContext isl;LiftOptions options;options.forward=true;options.batch_symbol="B";options.static_seq=1;
@@ -163,6 +224,7 @@ int TestDnnEpilogueSemantics(int argc,char** argv) {
     if(flag=="--emit-dense") {Emit(DmWriteKind::kDense,argv[2]);return 0;}
     if(flag=="--emit-nchw") {Emit(DmWriteKind::kNCHW,argv[2]);return 0;}
     if(flag=="--emit-shuffle") {Emit(DmWriteKind::kPixelShuffle,argv[2]);return 0;}
+    if(flag=="--emit-side") {EmitSides(argv[2]);return 0;}
   }
   ParamBinding known;known.Bind("B",2);unsigned cases=0;
   for(auto kind:{DmWriteKind::kDense,DmWriteKind::kNCHW,DmWriteKind::kPixelShuffle}) {

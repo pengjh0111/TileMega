@@ -79,7 +79,7 @@ void BindTaskDramProvenance(DerivedTaskInput& input,
     }
   }
   auto accesses=DeriveModelTaskAccesses(semantic,input);
-  std::vector<analysis::QuasiPolynomial> external_reads,external_writes,typed_reads;
+  std::vector<analysis::QuasiPolynomial> external_reads,external_writes,typed_reads,typed_writes;
   bool mixed_width=false;
   input.stream_bytes=floor.no_producer_bytes.Eval(theta);input.produced_live_bytes=0;
   for(auto const& [name,read]:accesses.reads) {
@@ -105,10 +105,13 @@ void BindTaskDramProvenance(DerivedTaskInput& input,
     auto found=floor.tensors.find(name);if(found==floor.tensors.end())continue;
     auto const& tensor=found->second;
     auto concrete=serving ? write.BindParams(theta) : write;
+    typed_writes.push_back(concrete.Card().Scale(tensor.element_bytes));
     auto external=serving ? tensor.external_writes.BindParams(theta) : tensor.external_writes;
     external_writes.push_back(concrete.ApplyRange(external.ImageIdentity()).Card().Scale(tensor.element_bytes));
   }
   if(mixed_width && !input.physical_read_bytes)input.physical_read_bytes=analysis::QuasiPolynomial::Sum(typed_reads);
+  if(input.task.element_access && input.scalar_access)
+    input.physical_write_bytes=analysis::QuasiPolynomial::Sum(typed_writes);
   input.no_producer_read_bytes=analysis::QuasiPolynomial::Sum(external_reads);
   input.external_write_bytes=analysis::QuasiPolynomial::Sum(external_writes);
 }
@@ -537,7 +540,14 @@ analysis::TaskAccesses DeriveModelTaskAccesses(ModelTaskSemantics const& semanti
     throw std::invalid_argument("fusion output tensor identity is missing");
   if (input.scalar_access) {
     accesses.reads=input.scalar_access->reads;
-    accesses.writes.emplace(task.output.name,input.scalar_access->writes);
+    if(task.element_access) {
+      auto const& exact=*task.element_access;
+      accesses.writes.emplace(exact.semantic.result.name,input.scalar_access->writes);
+      for(auto const& side:exact.semantic.additional_writes)
+        accesses.writes[side.tensor.name]=accesses.writes[side.tensor.name].Union(
+            input.scalar_access->ownership.ApplyRange(analysis::ProjectTaskWrite(
+                exact.semantic,task,exact.partition,side.tensor,side.map,side.nonnegative,{})));
+    }else accesses.writes.emplace(task.output.name,input.scalar_access->writes);
     return accesses;
   }
   if (task.element_access) {

@@ -164,6 +164,20 @@ struct ReductionSemantics {
   std::string Serialize() const;
 };
 
+// A fused reduction stores one contribution per ownership tile. The raw
+// tensor omits that storage axis; only L-task inserts it after choosing g.
+struct TileStoragePartition {
+  std::string tensor, owner_axis;
+  unsigned tensor_axis = 0;
+};
+
+// A segmented consumer reduces only the producer tiles intersecting one
+// logical segment (e.g. an image). No producer tile size enters L-sem.
+struct TileStorageSelection {
+  std::string tensor, reduction_dim, segment_dim;
+  ClosedForm segment_extent = ClosedForm::Constant(1);
+};
+
 /// One structured operator. Everything about it is g-independent.
 struct SemanticOp {
   std::string name;
@@ -183,6 +197,8 @@ struct SemanticOp {
   /// to operands. Coupling projection and issued nominal work stay separate.
   std::vector<ElementRead> element_reads;
   std::vector<ElementWrite> additional_writes;
+  std::vector<TileStoragePartition> tile_storage;
+  std::vector<TileStorageSelection> tile_storage_reads;
   ReductionSemantics reduction;
   /// Set when the op fell through every declarative pattern and was given the
   /// conservative generic semantics (identity result map, full-range reads).

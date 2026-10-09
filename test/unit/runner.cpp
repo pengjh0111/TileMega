@@ -61,6 +61,7 @@ namespace tilemega::tests::serving_task_index_test { int TestServingTaskIndex(in
 namespace tilemega::tests::serving_model_plan_test { int TestServingModelPlan(int, char**); }
 namespace tilemega::tests::serving_token_sets_test { int TestServingTokenSets(int, char**); }
 namespace tilemega::tests::serving_import_test { int TestServingImport(int, char**); }
+namespace tilemega::tests::task_storage_test { int TestTaskStorage(int, char**); }
 namespace tilemega::tests::forward_frontend_test { int TestForwardFrontend(int, char**); }
 namespace tilemega::tests::frontend_import_test { int TestFrontendImport(int, char**); }
 namespace tilemega::tests::dm_descriptor_test { int TestDmDescriptor(int, char**); }
@@ -220,6 +221,7 @@ int main(int argc, char** argv) {
     {"model_plan_order_test", tilemega::tests::model_plan_order_test::TestModelPlanOrder},
     {"serving_model_plan_test", tilemega::tests::serving_model_plan_test::TestServingModelPlan},
     {"serving_import_test", tilemega::tests::serving_import_test::TestServingImport},
+    {"task_storage", tilemega::tests::task_storage_test::TestTaskStorage},
   };
   if (argc < 2) { std::cerr << "usage: tilemega-unit <case> [args...]\n"; return 2; }
   for (auto const& e : entries)

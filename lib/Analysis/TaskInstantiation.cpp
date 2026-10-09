@@ -2,6 +2,7 @@
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Analysis/TaskElementRelation.h>
 #include <tilemega/Analysis/VirtualTaskBinding.h>
+#include <tilemega/Analysis/TaskStorage.h>
 
 #include <map>
 #include <algorithm>
@@ -168,7 +169,8 @@ std::string Granularity::Serialize() const {
   return out.str();
 }
 
-OperatorGraph Instantiate(SemanticGraph const& graph, Granularity const& g) {
+OperatorGraph Instantiate(SemanticGraph const& semantics, Granularity const& g) {
+  auto graph=MaterializeTaskStorage(semantics,g);
   OperatorGraph result;
   // Splitting inserts a combiner between an op and its consumers, so which
   // node carries the final result is a function of g. Consumers name the
