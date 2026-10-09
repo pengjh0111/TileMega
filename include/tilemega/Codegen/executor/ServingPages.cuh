@@ -682,6 +682,7 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
       case TaskKind::kEmbeddingSum:
       case TaskKind::kPool:
       case TaskKind::kGlobalPoolReduce:
+      case TaskKind::kDepthwiseConv:
       case TaskKind::kEncoderAttention:
       case TaskKind::kLayoutConvert:
         DispatchDmStage(unsigned(s.kind),s.width,s.group,DmStageRunner<PageArch>{p,s,unsigned(task),work});break;

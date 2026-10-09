@@ -363,6 +363,10 @@ BackendTraits ModelTaskTraits(ModelDescription const& model, int index,
     if (semantic.stage == index)
       uses_collective |= semantic.op.kind == analysis::OperatorKind::kMatmul;
   if (uses_collective) return collective;
+  if(model.dm && stage.dm_workspace_bytes) {
+    BackendTraits traits;traits.threads=128;traits.smem_bytes=stage.dm_workspace_bytes;
+    traits.shape_legal=true;return traits;
+  }
   if (stage.kind == StageKind::kFusedAttention) {
     BackendTraits traits;
     traits.threads = 128;
@@ -402,7 +406,8 @@ analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
       for(unsigned axis=0;axis<op.task_space.axes.size();++axis) {
         auto found=input.tiles.find(op.task_space.axes[axis].name);
         if(found==input.tiles.end())throw std::invalid_argument("DM task is missing its ownership tile");
-        granularity.Tile(op.name,analysis::UnitTaskOwnershipDimension(op,axis),found->second);
+        granularity.Tile(op.name,stage.gemm<0?op.task_space.axes[axis].name:
+            analysis::UnitTaskOwnershipDimension(op,axis),found->second);
       }
     } else if (!model.serving) {
       for(auto const& [dim,tile]:input.tiles)granularity.Tile(op.name,dim,tile);

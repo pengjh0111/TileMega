@@ -279,6 +279,7 @@ llvm::StringRef taskKindOf(OpRole role) {
     case OpRole::kPool: return "pool";
     case OpRole::kGlobalPoolReduce: return "global_pool_reduce";
     case OpRole::kEncoderAttention: return "encoder_attention";
+    case OpRole::kDepthwiseConv: return "depthwise_conv";
   }
   return "generic";
 }
@@ -433,6 +434,18 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
         fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(codegen::EncoderAttentionSharedBytes())));
       if(stage.norm_epsilon!=0.0f)
         fields.push_back(builder.getNamedAttr("dm_norm_epsilon",builder.getF32FloatAttr(stage.norm_epsilon)));
+      if(stage.partial_rows_per_image)
+        fields.push_back(builder.getNamedAttr("dm_partial_rows_per_image",builder.getI64IntegerAttr(stage.partial_rows_per_image)));
+      if(stage.kind==PlanTaskKind::kDepthwiseConv) {
+        fields.push_back(builder.getNamedAttr("dm_chain",EncodeDm(builder,stage.chain)));
+        auto const& c=plan.convolutions.at(stage.conv);
+        unsigned gates=0;
+        for(unsigned i=0;i<stage.chain.count;++i)
+          gates+=stage.chain.operations[i].kind==codegen::DmEpilogueKind::kGatePair;
+        auto bytes=std::uint64_t((stage.group-1)*c.stride_h+(c.r-1)*c.dilation_h+1)*
+            plan.buffers.at(c.input_layout).layout.physical[2]*stage.width*(gates?2:1)*2;
+        fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(std::max<std::uint64_t>(bytes,4096))));
+      }
     }
     stages.push_back(builder.getDictionaryAttr(fields));
   }

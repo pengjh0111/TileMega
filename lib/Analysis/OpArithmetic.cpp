@@ -62,6 +62,8 @@ std::vector<ArithmeticDeclaration> const& ArithmeticDeclarations() {
      "placeholder_taskbody", "softmax over expert scores as above; top-k comparison/selection is not floating arithmetic; existing body only stores an integer, so pricing rejects it"},
     {"depthwise_conv", {0,2,0,0,1,false}, {0,0,0,0,1,false}, false,true,true,
      "dm_depthwise", "one length-RS dot per output channel; affine epilogue is a separate phase"},
+    {"depthwise_simple_gate", {1,2,0,0,1,false}, {0,0,0,0,1,false}, false,true,true,
+     "dm_depthwise_simple_gate", "R=2*RS: two channel dots followed by one SimpleGate multiplication"},
     {"pool", {0,0,0,0,1,false}, {0,0,0,0,1,false}, false,false,true,
      "dm_pool", "maximum selection uses comparisons, excluded from floating arithmetic"},
     {"global_pool_reduce", {0,1,0,0,1,false}, {0,0,0,0,1,false}, false,false,true,

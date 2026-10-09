@@ -451,6 +451,7 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
     case TaskKind::kEmbeddingSum:
     case TaskKind::kPool:
     case TaskKind::kGlobalPoolReduce:
+    case TaskKind::kDepthwiseConv:
     case TaskKind::kEncoderAttention:
     case TaskKind::kLayoutConvert:
       for(int task=int(blockIdx.x);task<DmStageTaskCount(stage,p.dims);task+=int(gridDim.x))
@@ -562,6 +563,7 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
     case TaskKind::kEmbeddingSum:
     case TaskKind::kPool:
     case TaskKind::kGlobalPoolReduce:
+    case TaskKind::kDepthwiseConv:
     case TaskKind::kEncoderAttention:
     case TaskKind::kLayoutConvert:
       DispatchDmStage(unsigned(stage.kind),stage.width,stage.group,DmStageRunner<HarnessArch>{p,stage,logical_task,reinterpret_cast<char*>(&smem)});
@@ -753,6 +755,7 @@ __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
     case TaskKind::kEmbeddingSum:
     case TaskKind::kPool:
     case TaskKind::kGlobalPoolReduce:
+    case TaskKind::kDepthwiseConv:
     case TaskKind::kEncoderAttention:
     case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,p.dims);
 #endif
@@ -2216,7 +2219,8 @@ inline DeviceModel Create(ModelSpec const& spec,
     auto const& stage=spec.stages[i];
     if(stage.kind!=TaskKind::kLayerNorm && stage.kind!=TaskKind::kEmbeddingSum &&
        stage.kind!=TaskKind::kLayoutConvert && stage.kind!=TaskKind::kPool &&
-       stage.kind!=TaskKind::kGlobalPoolReduce && stage.kind!=TaskKind::kEncoderAttention)continue;
+       stage.kind!=TaskKind::kGlobalPoolReduce && stage.kind!=TaskKind::kEncoderAttention &&
+       stage.kind!=TaskKind::kDepthwiseConv)continue;
     if(!stage.group || stage.group>1024 || !stage.width || stage.width>4096)
       throw std::invalid_argument("invalid DM scalar task geometry");
     auto rows=stage.rows_per_batch?std::uint64_t(stage.rows_per_batch)*dims.batch:
@@ -2275,6 +2279,60 @@ inline DeviceModel Create(ModelSpec const& spec,
       operand(3,0,std::uint64_t(types.logical[0])*stage.width);
       operand(4,0,std::uint64_t(positions.logical[0])*stage.width);
       operand(5,0,rows*stage.width);operand(6,1,2*rows,true);
+    }else if(stage.kind==TaskKind::kDepthwiseConv) {
+      operand(0,0,0);operand(1,0,0);operand(2,0,0);operand(3,1,0,true);
+      if((stage.width!=32 && stage.width!=64 && stage.width!=128 && stage.width!=256) ||
+         stage.group>128 || stage.conv>=spec.convolution_count || !stage.extent ||
+         stage.chain.count>8 || stage.chain.side_count || stage.chain.store_rounding!=DmRounding::kBF16)
+        throw std::invalid_argument("invalid depthwise geometry or chain");
+      unsigned gates=0,total_gates=0;
+      for(unsigned op=0;op<stage.chain.count;++op)
+        total_gates+=stage.chain.operations[op].kind==DmEpilogueKind::kGatePair;
+      for(unsigned op=0;op<stage.chain.count;++op) {
+        auto const& step=stage.chain.operations[op];
+        if(step.kind==DmEpilogueKind::kGatePair) {
+          ++gates;if(step.gate!=DmGatePair::kSimpleGate)
+            throw std::invalid_argument("depthwise requires SimpleGate");
+        }else if(step.kind==DmEpilogueKind::kBias || step.kind==DmEpilogueKind::kScale) {
+          auto id=step.parameter[0];
+          if(id>=spec.buffer_count || spec.buffers[id].dtype!=1 ||
+             spec.buffers[id].Elements(dims)<stage.extent*(total_gates && !gates?2:1))
+            throw std::invalid_argument("invalid depthwise channel parameter");
+        }else if(step.kind!=DmEpilogueKind::kActivation)
+          throw std::invalid_argument("unsupported depthwise epilogue");
+      }
+      auto const& conv=spec.convolutions[stage.conv];
+      if(gates>1 || (gates && conv.c%16) || conv.c!=conv.k || conv.c!=stage.extent*(gates?2:1) ||
+         !conv.p || !conv.q || !conv.r || !conv.s || !conv.stride_h || !conv.stride_w ||
+         !conv.dilation_h || !conv.dilation_w || stage.spatial_width!=conv.q ||
+         std::uint64_t(conv.p)*conv.q!=stage.rows_per_batch ||
+         conv.input_layout!=stage.operand[0] || conv.output_layout!=stage.operand[2] ||
+         std::uint64_t(dims.batch)*((conv.p+stage.group-1)/stage.group)*
+             ((stage.extent+stage.width-1)/stage.width)>std::uint64_t(std::numeric_limits<int>::max()))
+        throw std::invalid_argument("depthwise ownership differs from descriptor");
+      operand(1,0,std::uint64_t(conv.c)*conv.r*conv.s*8);
+      for(unsigned slot:{0u,2u}) {
+        auto const& buffer=spec.buffers[stage.operand[slot]];auto const& l=buffer.layout;
+        auto h=slot?conv.p:conv.h,w=slot?conv.q:conv.w,channels=slot?stage.extent:conv.c;
+        if(l.kind!=DmLayout::kNHWC || l.rank!=4 || l.logical[0]!=unsigned(dims.batch) ||
+           l.logical[1]!=h || l.logical[2]!=w || l.logical[3]!=channels ||
+           l.physical[1]<std::uint64_t(h)+l.halo_top+l.halo_bottom ||
+           l.physical[2]<std::uint64_t(w)+l.halo_left+l.halo_right || l.physical[3]<channels ||
+           l.strides[3]!=1 || l.strides[2]%8 || l.strides[2]<l.physical[3] ||
+           l.strides[1]<std::uint64_t(l.physical[2])*l.strides[2] ||
+           l.strides[0]<std::uint64_t(l.physical[1])*l.strides[1] ||
+           buffer.Elements(dims)<std::uint64_t(dims.batch)*l.strides[0])
+          throw std::invalid_argument("invalid depthwise physical layout");
+      }
+      if(stage.operand[3]!=kNoOperand) {
+        auto const& buffer=spec.buffers[stage.operand[3]];auto const& l=buffer.layout;
+        auto bands=(conv.p+stage.group-1)/stage.group;
+        if(l.rank!=3 || l.logical[0]!=unsigned(dims.batch) || l.logical[1]!=bands ||
+           l.logical[2]!=stage.extent || l.strides[2]!=1 || l.strides[1]<stage.extent ||
+           l.strides[0]<std::uint64_t(bands)*l.strides[1] ||
+           buffer.Elements(dims)<std::uint64_t(dims.batch)*l.strides[0])
+          throw std::invalid_argument("invalid depthwise partial layout");
+      }
     }else if(stage.kind==TaskKind::kPool) {
       operand(0,0,0);operand(1,0,0);
       if(stage.width<32 || stage.width>256 || stage.width%32 || !stage.extent ||
@@ -2321,9 +2379,11 @@ inline DeviceModel Create(ModelSpec const& spec,
     }else if(stage.kind==TaskKind::kGlobalPoolReduce) {
       operand(0,1,0);operand(1,1,std::uint64_t(dims.batch)*stage.extent);
       auto const& buffer=spec.buffers[stage.operand[0]];auto const& l=buffer.layout;
-      auto tiles=(rows+stage.group-1)/stage.group;
+      auto tiles=stage.partial_rows_per_image?stage.partial_rows_per_image:(rows+stage.group-1)/stage.group;
       if(stage.width<32 || stage.width>256 || stage.width%32 || !stage.extent ||
-         !stage.rows_per_batch || l.rank!=3 || l.logical[0]!=unsigned(dims.batch) ||
+         !stage.rows_per_batch || (stage.partial_rows_per_image &&
+            stage.partial_rows_per_image!=(std::uint64_t(stage.rows_per_batch)+stage.group-1)/stage.group) ||
+         l.rank!=3 || l.logical[0]!=unsigned(dims.batch) ||
          l.logical[1]!=tiles || l.logical[2]!=stage.extent || l.strides[2]!=1 ||
          l.strides[1]<stage.extent || l.strides[0]<tiles*l.strides[1] ||
          buffer.Elements(dims)<std::uint64_t(dims.batch)*l.strides[0])
@@ -2877,6 +2937,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       case TaskKind::kEmbeddingSum:
       case TaskKind::kPool:
       case TaskKind::kGlobalPoolReduce:
+      case TaskKind::kDepthwiseConv:
       case TaskKind::kEncoderAttention:
       case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,dims);
 #endif

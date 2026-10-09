@@ -142,6 +142,8 @@ struct PlanStage {
   std::uint32_t rows_per_batch = 0;
   std::uint32_t binding_producer = codegen::kDmNoIndex;
   float norm_epsilon = 0.0f;
+  codegen::DmEpilogueChain chain{};
+  std::uint32_t partial_rows_per_image = 0;
 };
 
 struct PlanOutput {

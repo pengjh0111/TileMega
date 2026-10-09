@@ -277,6 +277,10 @@ struct StageDesc {
   std::uint32_t rows_per_batch = 0;
   std::uint32_t binding_producer = kDmNoIndex;
   float norm_epsilon = 0.0f;
+  DmEpilogueChain chain{};
+  std::uint32_t dm_program = 0;
+  std::uint32_t spatial_width = 0;
+  std::uint32_t partial_rows_per_image = 0;
 #endif
 };
 inline constexpr std::uint32_t kHandoffAutoCombine = kNoOperand - 1u;

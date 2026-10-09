@@ -134,6 +134,14 @@ inline ScalarDataflow ScalarTaskDataflow(TaskKind kind) {
       flow.nodes[input].read_operands={0};
       flow.Add(ScalarPhase::kStore,{flow.Add(ScalarPhase::kArithmetic,{input})});
       return flow;
+    case TaskKind::kDepthwiseConv: {
+      flow.nodes[input].read_operands={0,1};
+      int published=flow.Add(ScalarPhase::kPublish,{input});
+      int dot=flow.Add(ScalarPhase::kArithmetic,{published});
+      int stored=flow.Add(ScalarPhase::kStore,{dot});
+      flow.Add(ScalarPhase::kPublish,{stored});
+      return flow;
+    }
     case TaskKind::kRoPE:
     case TaskKind::kKVAppend:
     case TaskKind::kElementwise:

@@ -187,6 +187,59 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
           {I("m",1,heads*sequence),I("j")}));
       b.Own(op,b.batch*C(heads*sequence),64);
       b.Record(index,std::move(op),OpRole::kEncoderAttention,output);
+    }else if(stage.kind==PlanTaskKind::kDepthwiseConv) {
+      auto input=stage.operands[0],weight=stage.operands[1],output=stage.operands[2];
+      auto const& conv=plan.convolutions.at(stage.conv);
+      auto const& layout=b.Buffer(input).layout;
+      unsigned gates=0;
+      for(unsigned i=0;i<stage.chain.count;++i)
+        gates+=stage.chain.operations[i].kind==codegen::DmEpilogueKind::kGatePair;
+      auto channels=conv.c/(gates?2:1),bands=(conv.p+stage.group-1)/stage.group;
+      if(gates>1 || !channels || channels!=stage.extent || conv.c!=conv.k ||
+         conv.input_layout!=input || conv.output_layout!=output ||
+         stage.rows_per_batch!=conv.p*conv.q)
+        throw std::invalid_argument("depthwise ownership differs from its convolution");
+      auto channel=I("n");
+      if(gates)channel=Add({I("n"),I("pair",channels)});
+      op.kind=OperatorKind::kReduction;
+      op.arithmetic=gates?"depthwise_simple_gate":"depthwise_conv";
+      op.domain={D("m",rows),D("n",C(channels)),D("r",C(conv.r),true),D("s",C(conv.s),true)};
+      if(gates)op.domain.push_back(D("pair",C(2),true));
+      op.result=b.Space(output,rows,channels);op.result_map.results=b.Rows(output,"n");
+      auto input_map=std::vector<IndexResult>{I("m",1,conv.p*conv.q),
+          Add({I("m",conv.stride_h,conv.q),I("m",-long(conv.stride_h)*conv.p,conv.p*conv.q),
+               I("r",conv.dilation_h)},long(layout.halo_top)-conv.pad_h),
+          Add({I("m",conv.stride_w),I("m",-long(conv.stride_w)*conv.q,conv.q),
+               I("s",conv.dilation_w)},long(layout.halo_left)-conv.pad_w),channel};
+      op.operands={b.Read(input,b.Space(input,b.batch*C(conv.h*conv.w),conv.c),input_map),
+          b.Read(weight,T(b.Buffer(weight).name,{{"channel",C(conv.c)},
+              {"r",C(conv.r)},{"s",C(conv.s)},{"padding",C(8)}}),
+              {channel,I("r"),I("s"),IndexResult::Affine({},C(0))})};
+      bool contracted=false;
+      for(unsigned i=0;i<stage.chain.count;++i) {
+        auto const& step=stage.chain.operations[i];
+        if(step.kind==codegen::DmEpilogueKind::kGatePair)contracted=true;
+        if(step.kind==codegen::DmEpilogueKind::kBias || step.kind==codegen::DmEpilogueKind::kScale) {
+          auto id=step.parameter[0];
+          op.operands.push_back(b.Read(id,T(b.Buffer(id).name,
+              {{"channel",C(contracted?channels:conv.c)}}),{contracted?I("n"):channel}));
+        }
+      }
+      b.Own(op,b.batch*C(bands*stage.group*conv.q),channels);
+      // Pad each image's ownership range independently: a final short row
+      // band must never take ownership of the next image's first rows.
+      op.task_map.results[0]=Add({I("m"),I("m",long(bands*stage.group-conv.p)*conv.q,conv.p*conv.q)});
+      if(stage.operands[3]!=missing) {
+        auto id=stage.operands[3];auto space=T(b.Buffer(id).name,
+            {{"image",b.batch},{"band",C(bands)},{"channel",C(channels)}});
+        ElementWrite write;write.tensor=space;write.effect.kind=EffectKind::kWrite;
+        auto local_band=Add({I("m"),I("m",-long(conv.p)*conv.q,conv.p*conv.q)});
+        local_band.outer_divisor=C(stage.group*conv.q);
+        write.map.results={I("m",1,conv.p*conv.q),local_band,I("n")};
+        op.additional_writes.push_back(std::move(write));
+        b.writer[id]=op.name;b.written[id]=space;b.result.written[id]=1;
+      }
+      b.Record(index,std::move(op),OpRole::kDepthwiseConv,output);
     }else if(stage.kind==PlanTaskKind::kPool) {
       auto input=stage.operands[0],output=stage.operands[1];
       auto const& conv=plan.convolutions.at(stage.conv);
@@ -216,11 +269,13 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
       auto input=stage.operands[0],output=stage.operands[1];
       auto area=stage.rows_per_batch,tile=stage.group,channels=stage.extent;
       if(!area || !tile || !channels)throw std::invalid_argument("empty global pool reduction");
-      auto parts=(b.batch*C(area)).CeilDiv(C(tile));
+      auto parts=stage.partial_rows_per_image?C(stage.partial_rows_per_image):
+          (b.batch*C(area)).CeilDiv(C(tile));
       op.kind=OperatorKind::kReduction;op.arithmetic="global_pool_reduce";
       op.domain={D("m",b.batch),D("n",C(channels)),D("r",parts,true)};
       op.domain_nonnegative={Add({I("r",tile),I("m",-long(area))},tile-1),
           Add({I("m",area),I("r",-long(tile))},area-1)};
+      if(stage.partial_rows_per_image)op.domain_nonnegative.clear();
       op.result=b.Space(output,b.batch,channels);op.result_map.results=b.Rows(output,"n");
       op.operands={b.Read(input,T(b.Buffer(input).name,
           {{"image",b.batch},{"part",parts},{"channel",C(channels)}}),{I("m"),I("r"),I("n")})};

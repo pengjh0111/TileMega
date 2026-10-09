@@ -285,6 +285,12 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
         }
         break;
       }
+      case StageKind::kDepthwiseConv: {
+        auto const& conv=model.convolutions.at(stage.dm_conv);
+        count=Mul(batch,((conv.p+stage.group-1)/stage.group)*
+            ((stage.extent+stage.width-1)/stage.width));
+        break;
+      }
       case StageKind::kRMSNorm:
       case StageKind::kEmbedding:
         count = stage.batch_rows ? batch : tokens; break;

@@ -131,6 +131,7 @@ std::string ToString(OpRole role) {
     case OpRole::kPool: return "pool";
     case OpRole::kGlobalPoolReduce: return "global_pool_reduce";
     case OpRole::kEncoderAttention: return "encoder_attention";
+    case OpRole::kDepthwiseConv: return "depthwise_conv";
   }
   return "generic";
 }
@@ -149,6 +150,7 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
             stage.kind==PlanTaskKind::kPool ||
             stage.kind==PlanTaskKind::kGlobalPoolReduce ||
             stage.kind==PlanTaskKind::kEncoderAttention ||
+            stage.kind==PlanTaskKind::kDepthwiseConv ||
             (stage.kind==PlanTaskKind::kGemm &&
              plan.gemms.at(stage.gemm).access.a==codegen::DmAAccess::kIm2Col);
       })) return LiftDnnSemantics(plan,options);
@@ -565,6 +567,7 @@ analysis::Granularity LaunchGranularity(LiftedModel const& model) {
         break;
       case OpRole::kPool:
       case OpRole::kGlobalPoolReduce:
+      case OpRole::kDepthwiseConv:
         g.Tile(op.name,"m",one).Tile(op.name,"n",ClosedForm::Constant(128));
         break;
       case OpRole::kQKNorm:
@@ -730,6 +733,12 @@ analysis::Granularity LaunchGranularity(
         g.Tile(op.name,"m",op.role==OpRole::kPool?Fixed(plan.stages.at(op.stage).group):one)
             .Tile(op.name,"n",Fixed(plan.stages.at(op.stage).width));
         break;
+      case OpRole::kDepthwiseConv: {
+        auto const& stage=plan.stages.at(op.stage);
+        g.Tile(op.name,"m",Fixed(stage.group*plan.convolutions.at(stage.conv).q))
+            .Tile(op.name,"n",Fixed(stage.width));
+        break;
+      }
       case OpRole::kNorm:
       case OpRole::kEmbedding:
         g.Tile(op.name, "m", one);
@@ -814,6 +823,7 @@ analysis::Granularity ReferenceGranularity(LiftedModel const& model) {
         break;
       case OpRole::kPool:
       case OpRole::kGlobalPoolReduce:
+      case OpRole::kDepthwiseConv:
         g.Tile(op.name,"m",op.role==OpRole::kPool?Tm:one).Tile(op.name,"n",Tn);
         break;
       case OpRole::kQKNorm:

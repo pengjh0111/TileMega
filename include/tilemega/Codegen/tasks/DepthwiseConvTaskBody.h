@@ -79,6 +79,10 @@ struct DepthwiseConvTaskBody {
     auto const& c=p.convolution;auto const& in=p.input_layout;auto const& out=p.output_layout;
     unsigned channels=c.c/kBands,blocks=(channels+ChannelTile-1)/ChannelTile;
     unsigned row_bands=(c.p+RowBand-1)/RowBand;
+    if(!blocks || !row_bands || !c.n || !c.q || !c.r || !c.s ||
+       !c.stride_h || !c.stride_w || !c.dilation_h || !c.dilation_w ||
+       p.weight_channel_pitch<8 || p.weight_channel_pitch%8 ||
+       c.k!=c.c || (kGated && c.c%2)) {asm volatile("trap;");return;}
     unsigned image=task/(blocks*row_bands),band=(task/blocks)%row_bands;
     unsigned first_channel=(task%blocks)*ChannelTile;
     if(!p.input || !p.weight || !p.output || !scratch || !blocks || image>=c.n ||

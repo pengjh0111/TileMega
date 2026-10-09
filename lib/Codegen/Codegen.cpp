@@ -496,7 +496,9 @@ std::string emitModelPlan(mlir::ModuleOp module,
       if(conv<0 || conv>std::numeric_limits<std::uint32_t>::max() ||
          rows<0 || rows>std::numeric_limits<std::uint32_t>::max())
         throw std::invalid_argument("DM stage descriptor is outside 32-bit range");
-      stage.conv=conv; stage.rows_per_batch=rows; validation.stages.push_back(stage);
+      stage.conv=conv; stage.rows_per_batch=rows;
+      if(item.get("dm_chain"))stage.chain=frontend::DecodeDmChain(item.get("dm_chain"));
+      validation.stages.push_back(stage);
     }
     frontend::ValidateDmModelPlan(validation);
   }
@@ -638,6 +640,7 @@ std::string emitModelPlan(mlir::ModuleOp module,
     out << "},\n";
   }
   out << "};\n\nconstexpr StageDesc kStages[] = {\n";
+  unsigned primitive_index=0;
   for (auto value : stages) {
     auto item = dictionaryEntry(value, "stages");
     auto operands = llvm::dyn_cast<mlir::DenseI64ArrayAttr>(
@@ -682,13 +685,25 @@ std::string emitModelPlan(mlir::ModuleOp module,
       }
       out<<", "<<integerField(item,"dm_conv")<<"u, "
          <<integerField(item,"dm_rows_per_batch")<<'u';
-      if(item.get("dm_binding_producer") || item.get("dm_norm_epsilon"))
+      if(item.get("dm_binding_producer") || item.get("dm_norm_epsilon") || item.get("dm_chain") || item.get("dm_partial_rows_per_image"))
         out<<", "<<(item.get("dm_binding_producer") ?
             integerField(item,"dm_binding_producer") : codegen::kDmNoIndex)<<'u';
       if(auto epsilon=item.getAs<mlir::FloatAttr>("dm_norm_epsilon"))
         out<<", "<<formatFloat(epsilon.getValueAsDouble())<<'f';
+      if(item.get("dm_chain")) {
+        if(!item.get("dm_norm_epsilon"))out<<", 0.0f";
+        auto conv=frontend::DecodeDmConv(arrayField(plan,"dm_convolutions")[integerField(item,"dm_conv")]);
+        out<<", "<<frontend::EmitDm(frontend::DecodeDmChain(item.get("dm_chain")))
+           <<", "<<primitive_index<<"u, "<<conv.q<<'u';
+      }
+      if(item.get("dm_partial_rows_per_image")) {
+        if(!item.get("dm_norm_epsilon"))out<<", 0.0f";
+        if(!item.get("dm_chain"))out<<", {}, 0u, 0u";
+        out<<", "<<integerField(item,"dm_partial_rows_per_image")<<'u';
+      }
     }
     out << "},\n";
+    ++primitive_index;
   }
   out << "};\n\nconstexpr OutputDesc kOutputs[] = {\n";
   for (auto value : outputs) {
@@ -1037,6 +1052,25 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
       out<<">;\n";
     }
     auto stages = arrayField(plan, "stages");
+    bool depthwise=false;
+    for(std::size_t i=0;i<stages.size();++i) {
+      auto stage=dictionaryEntry(stages[i],"stages");
+      if(stringField(stage,"kind")!="kDepthwiseConv")continue;
+      depthwise=true;
+      auto chain=frontend::DecodeDmChain(stage.get("dm_chain"));
+      out<<"using DmPrimitiveChain"<<i<<" = DmEpilogueProgram<";
+      for(unsigned j=0;j<chain.count;++j) {
+        auto const& op=chain.operations[j];if(j)out<<", ";
+        out<<"DmEpilogueStep<static_cast<DmEpilogueKind>("<<unsigned(op.kind)
+           <<"u), static_cast<DmActivation>("<<unsigned(op.activation)
+           <<"u), static_cast<DmGatePair>("<<unsigned(op.gate)<<"u), "<<op.unit
+           <<"u, static_cast<DmRounding>("<<unsigned(op.input_rounding)
+           <<"u), static_cast<DmRounding>("<<unsigned(op.output_rounding)
+           <<"u), static_cast<DmWriteKind>("<<unsigned(op.residual_map.kind)
+           <<"u), "<<op.residual_map.factor<<"u>";
+      }
+      out<<">;\n";
+    }
     std::set<std::tuple<std::string,std::int64_t,std::int64_t>> scalar_shapes;
     for(auto value:stages) {
       auto stage=dictionaryEntry(value,"stages");
@@ -1055,10 +1089,14 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
       scalar_shapes.emplace(kind,width,rows);
     }
     int dm_shared=0;
+    for(auto value:stages) {
+      auto stage=dictionaryEntry(value,"stages");
+      if(stage.get("dm_workspace_bytes"))dm_shared=std::max(dm_shared,int(integerField(stage,"dm_workspace_bytes")));
+    }
     for(auto const& [kind,width,rows]:scalar_shapes)
       if(kind=="kEncoderAttention")dm_shared=std::max(dm_shared,EncoderAttentionSharedBytes());
     if(dm_shared)out<<"#define TILEMEGA_DM_STAGE_SHARED_BYTES "<<dm_shared<<"\n";
-    if(!scalar_shapes.empty()) {
+    if(!scalar_shapes.empty() || depthwise) {
       out<<"} // namespace tilemega::codegen\n"
          <<"#include <tilemega/Codegen/tasks/TaskBase.h>\n"
          <<"#define TILEMEGA_DM_STAGE_DISPATCH 1\n"
@@ -1068,6 +1106,13 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
       for(auto const& [kind,width,rows]:scalar_shapes)
         out<<"  if(kind==unsigned(TaskKind::"<<kind<<") && width=="<<width<<"u && rows=="<<rows
            <<"u) {runner.template Run<TaskKind::"<<kind<<", "<<width<<", "<<rows<<">(); return;}\n";
+      for(std::size_t i=0;i<stages.size();++i) {
+        auto stage=dictionaryEntry(stages[i],"stages");
+        if(stringField(stage,"kind")=="kDepthwiseConv")
+          out<<"  if(kind==unsigned(TaskKind::kDepthwiseConv) && runner.stage.dm_program=="<<i
+             <<"u) {runner.template RunDepthwise<"<<integerField(stage,"group")<<", "
+             <<integerField(stage,"width")<<", DmPrimitiveChain"<<i<<">(); return;}\n";
+      }
       out<<"  asm volatile(\"trap;\");\n}\n";
     }
     out << "template<class Runner>\n"

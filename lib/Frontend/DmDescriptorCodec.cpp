@@ -106,7 +106,7 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
     for(auto const& stage:plan.stages)
       extended|=stage.kind>=PlanTaskKind::kDepthwiseConv ||
           stage.conv!=kDmNoIndex || stage.rows_per_batch || stage.binding_producer!=kDmNoIndex ||
-          stage.norm_epsilon!=0.0f;
+          stage.norm_epsilon!=0.0f || stage.chain.count || stage.chain.side_count || stage.partial_rows_per_image;
     if(extended)throw std::invalid_argument("extended descriptors require the DM device ABI");
     return;
   }
@@ -121,17 +121,11 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
   for(auto const& conv:plan.convolutions) {
     buffer(conv.input_layout,true); buffer(conv.output_layout,true);
   }
-  for(auto const& gemm:plan.gemms) {
-    auto const& a=gemm.access;
-    if(a.conv!=kDmNoIndex && a.conv>=plan.convolutions.size())
-      throw std::invalid_argument("DM GEMM convolution outside geometry table");
-    buffer(a.rows,a.a==DmAAccess::kRowGather);
-    buffer(a.binding,a.a==DmAAccess::kRowGather || a.b==DmBAccess::kExpertIndirect);
-    buffer(a.a_scale); write(a.write);
-    if(gemm.chain.count>8 || gemm.chain.side_count>5)
+  auto validate_chain=[&](DmEpilogueChain const& chain) {
+    if(chain.count>8 || chain.side_count>5)
       throw std::invalid_argument("DM epilogue capacity exceeded");
-    for(unsigned i=0;i<gemm.chain.count;++i) {
-      auto const& op=gemm.chain.operations[i];
+    for(unsigned i=0;i<chain.count;++i) {
+      auto const& op=chain.operations[i];
       unsigned required=0;
       switch(op.kind) {
         case DmEpilogueKind::kBias: case DmEpilogueKind::kScale:
@@ -143,15 +137,30 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
       for(unsigned p=0;p<4;++p)buffer(op.parameter[p],p<required);
       write(op.residual_map);
     }
-    for(unsigned i=0;i<gemm.chain.side_count;++i) {
-      buffer(gemm.chain.side[i].buffer,true); buffer(gemm.chain.side[i].auxiliary);
+    for(unsigned i=0;i<chain.side_count;++i) {
+      buffer(chain.side[i].buffer,true); buffer(chain.side[i].auxiliary);
     }
+  };
+  for(auto const& gemm:plan.gemms) {
+    auto const& a=gemm.access;
+    if(a.conv!=kDmNoIndex && a.conv>=plan.convolutions.size())
+      throw std::invalid_argument("DM GEMM convolution outside geometry table");
+    buffer(a.rows,a.a==DmAAccess::kRowGather);
+    buffer(a.binding,a.a==DmAAccess::kRowGather || a.b==DmBAccess::kExpertIndirect);
+    buffer(a.a_scale); write(a.write);
+    validate_chain(gemm.chain);
   }
+
   for(unsigned i=0;i<plan.stages.size();++i) {
     auto const& stage=plan.stages[i];
+    validate_chain(stage.chain);
+    if(stage.partial_rows_per_image && (stage.kind!=PlanTaskKind::kGlobalPoolReduce || !stage.group ||
+       stage.partial_rows_per_image!=(std::uint64_t(stage.rows_per_batch)+stage.group-1)/stage.group))
+      throw std::invalid_argument("invalid per-image partial count");
     if(stage.kind==PlanTaskKind::kLayerNorm || stage.kind==PlanTaskKind::kEmbeddingSum ||
        stage.kind==PlanTaskKind::kLayoutConvert || stage.kind==PlanTaskKind::kPool ||
-       stage.kind==PlanTaskKind::kGlobalPoolReduce || stage.kind==PlanTaskKind::kEncoderAttention) {
+       stage.kind==PlanTaskKind::kGlobalPoolReduce || stage.kind==PlanTaskKind::kEncoderAttention ||
+       stage.kind==PlanTaskKind::kDepthwiseConv) {
       if(!stage.width || stage.width>4096 || !stage.group || stage.group>1024)
         throw std::invalid_argument("invalid DM scalar task geometry");
       auto typed=[&](unsigned operand,char const* dtype,bool optional=false) {
@@ -175,6 +184,32 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
            positions.logical[1]!=stage.width ||
            (plan.forward && positions.logical[0]<unsigned(plan.serving_seq)))
           throw std::invalid_argument("invalid embedding table extents");
+      }else if(stage.kind==PlanTaskKind::kDepthwiseConv) {
+        for(unsigned o=0;o<3;++o)typed(o,"bf16");typed(3,"f32",true);
+        if((stage.width!=32 && stage.width!=64 && stage.width!=128 && stage.width!=256) ||
+           stage.group>128 || !stage.extent || stage.conv>=plan.convolutions.size() ||
+           stage.chain.side_count || stage.chain.store_rounding!=DmRounding::kBF16)
+          throw std::invalid_argument("invalid depthwise task geometry or chain");
+        unsigned gates=0;
+        for(unsigned op=0;op<stage.chain.count;++op) {
+          auto const& step=stage.chain.operations[op];
+          if(step.kind!=DmEpilogueKind::kBias && step.kind!=DmEpilogueKind::kScale &&
+             step.kind!=DmEpilogueKind::kActivation && step.kind!=DmEpilogueKind::kGatePair)
+            throw std::invalid_argument("unsupported depthwise epilogue");
+          if(step.kind==DmEpilogueKind::kGatePair) {
+            ++gates;if(step.gate!=DmGatePair::kSimpleGate)
+              throw std::invalid_argument("depthwise requires SimpleGate");
+          }
+        }
+        auto const& conv=plan.convolutions[stage.conv];
+        if(gates>1 || (gates && conv.c%16) || conv.c!=conv.k ||
+           stage.extent*(gates?2:1)!=conv.c ||
+           conv.input_layout!=stage.operands[0] || conv.output_layout!=stage.operands[2] ||
+           std::uint64_t(conv.p)*conv.q!=stage.rows_per_batch)
+          throw std::invalid_argument("depthwise ownership differs from its convolution");
+        for(auto id:{stage.operands[0],stage.operands[2]})
+          if(plan.buffers[id].layout.kind!=DmLayout::kNHWC)
+            throw std::invalid_argument("depthwise requires NHWC buffers");
       }else if(stage.kind==PlanTaskKind::kPool) {
         typed(0,"bf16");typed(1,"bf16");
         if(stage.width<32 || stage.width>256 || stage.width%32 || !stage.extent ||

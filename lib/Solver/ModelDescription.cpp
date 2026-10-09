@@ -275,6 +275,11 @@ ModelDescription ModelDescription::ReadCouplingGraph(
          rows.getInt()>std::numeric_limits<std::uint32_t>::max())
         throw std::invalid_argument("invalid DM stage geometry");
       stage.dm_conv=conv.getInt(); stage.rows_per_batch=rows.getInt();
+      if(auto bytes=dict.getAs<mlir::IntegerAttr>("dm_workspace_bytes")) {
+        if(bytes.getInt()<0 || bytes.getInt()>std::numeric_limits<std::uint32_t>::max())
+          throw std::invalid_argument("invalid DM stage workspace");
+        stage.dm_workspace_bytes=bytes.getInt();
+      }
     }
     for (auto operand : operands.asArrayRef())
       if (operand != std::numeric_limits<std::uint32_t>::max())

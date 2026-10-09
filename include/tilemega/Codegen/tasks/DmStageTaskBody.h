@@ -7,6 +7,7 @@
 #include <tilemega/Codegen/tasks/PoolTaskBody.h>
 #include <tilemega/Codegen/tasks/GlobalPoolReduceTaskBody.h>
 #include <tilemega/Codegen/tasks/EncoderAttentionTaskBody.h>
+#include <tilemega/Codegen/tasks/DepthwiseConvTaskBody.h>
 
 namespace tilemega::codegen {
 #ifndef TILEMEGA_DM_STAGE_DISPATCH
@@ -24,6 +25,10 @@ __host__ __device__ inline int DmStageTaskCount(StageDesc const& stage,ModelDims
     return stage.width?dims.batch*((stage.extent+stage.width-1)/stage.width):0;
   if(stage.kind==TaskKind::kEncoderAttention)
     return stage.group?dims.batch*stage.extent*((stage.width+stage.group-1)/stage.group):0;
+  if(stage.kind==TaskKind::kDepthwiseConv)
+    return stage.group && stage.width && stage.spatial_width?
+        dims.batch*((stage.rows_per_batch/stage.spatial_width+stage.group-1)/stage.group)*
+            ((stage.extent+stage.width-1)/stage.width):0;
   int rows=DmStageRows(stage,dims);
   int count=stage.group ? (rows+int(stage.group)-1)/int(stage.group) : 0;
   if(stage.kind==TaskKind::kPool)
@@ -40,6 +45,21 @@ struct DmStageRunner {
   StageDesc const& stage;
   unsigned task;
   char* scratch;
+  template<int RowBand,int ChannelTile,class Program>
+  __device__ void RunDepthwise() const {
+    using E=cutlass::bfloat16_t;
+    auto const& buffers=params.dm_buffers;
+    auto conv=params.dm_convolutions[stage.conv];conv.n=params.dims.batch;
+    DepthwiseConvOperands inputs{static_cast<E const*>(buffers.data[stage.operand[0]]),
+        static_cast<E const*>(buffers.data[stage.operand[1]]),
+        static_cast<E*>(buffers.data[stage.operand[2]]),conv,
+        buffers.layouts[stage.operand[0]],buffers.layouts[stage.operand[2]],8,buffers,stage.chain};
+    if(stage.operand[3]!=kNoOperand) {
+      inputs.channel_partials=static_cast<float*>(buffers.data[stage.operand[3]]);
+      inputs.partial_layout=buffers.layouts[stage.operand[3]];
+    }
+    DepthwiseConvTaskBody<Arch,RowBand,ChannelTile,Program>::Run(inputs,task,scratch);
+  }
   template<TaskKind Kind,int Width,int RowsPerTask>
   __device__ void Run() const {
     using E=cutlass::bfloat16_t;
@@ -90,7 +110,7 @@ struct DmStageRunner {
       GlobalPoolReduceTaskBody<Arch,Width>::Run({static_cast<float const*>(pointer(0)),
           static_cast<float*>(pointer(1)),params.dm_buffers.layouts[stage.operand[0]],
           unsigned(params.dims.batch),stage.extent,stage.rows_per_batch,RowsPerTask,
-          unsigned(output.rank?output.strides[0]:stage.extent)},task);
+          unsigned(output.rank?output.strides[0]:stage.extent),stage.partial_rows_per_image},task);
     }else {
       static_assert(Kind==TaskKind::kLayerNorm || Kind==TaskKind::kEmbeddingSum ||
                     Kind==TaskKind::kLayoutConvert || Kind==TaskKind::kPool ||

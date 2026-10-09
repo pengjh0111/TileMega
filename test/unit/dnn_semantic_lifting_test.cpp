@@ -221,6 +221,108 @@ void EncoderIntegration(char const* output_path) {
   assert(!llvm::sys::fs::remove(filename));
   std::cout<<"ENCODER_CG exact_noncausal_read_ownership_arithmetic_codegen PASS\n";
 }
+void DepthwiseIntegration(char const* output_path,bool gated,bool pool=false) {
+  ModelPlan plan;plan.dm=plan.forward=true;plan.dtype="bf16";plan.serving_seq=1;
+  unsigned channels=gated?32:19,output_channels=gated?16:19,row_band=gated?2:3;
+  plan.buffers.resize(5);
+  char const* names[]={"input","weight","output","bias","partials"};
+  for(unsigned i=0;i<5;++i) {
+    auto& buffer=plan.buffers[i];buffer.name=buffer.external_name=names[i];buffer.role="external";
+    buffer.dtype=i>=3?"f32":"bf16";
+  }
+  plan.buffers[0].layout=Image(2,7,11,channels,(channels+7)/8*8,1);
+  plan.buffers[2].layout=Image(2,7,11,output_channels,(output_channels+7)/8*8,1);
+  plan.buffers[0].per_batch=plan.buffers[0].layout.strides[0];
+  plan.buffers[1].constant=channels*9*8;
+  plan.buffers[2].per_batch=plan.buffers[2].layout.strides[0];
+  plan.buffers[3].constant=channels;
+  auto bands=(7+row_band-1)/row_band;
+  auto& l=plan.buffers[4].layout;l.rank=3;
+  l.logical[0]=l.physical[0]=2;l.logical[1]=l.physical[1]=bands;
+  l.logical[2]=l.physical[2]=output_channels;
+  l.strides[2]=1;l.strides[1]=output_channels;l.strides[0]=bands*output_channels;
+  plan.buffers[4].per_batch=l.strides[0];
+  codegen::ConvDesc conv;conv.n=2;conv.h=conv.p=7;conv.w=conv.q=11;
+  conv.c=conv.k=channels;conv.r=conv.s=3;conv.pad_h=conv.pad_w=1;
+  conv.input_layout=0;conv.output_layout=2;plan.convolutions={conv};
+  PlanStage stage;stage.kind=PlanTaskKind::kDepthwiseConv;stage.conv=0;
+  stage.width=32;stage.group=row_band;stage.extent=output_channels;stage.rows_per_batch=77;
+  stage.operands.fill(codegen::kDmNoIndex);
+  stage.operands[0]=0;stage.operands[1]=1;stage.operands[2]=2;stage.operands[3]=4;
+  stage.chain.count=2;stage.chain.operations[0].kind=codegen::DmEpilogueKind::kBias;
+  stage.chain.operations[0].parameter[0]=3;
+  stage.chain.operations[1].kind=gated?codegen::DmEpilogueKind::kGatePair:codegen::DmEpilogueKind::kActivation;
+  stage.chain.operations[1].activation=codegen::DmActivation::kRelu6;
+  stage.chain.operations[1].gate=codegen::DmGatePair::kSimpleGate;
+  stage.representative="depthwise";stage.representative_index=3;
+  plan.stages={stage};plan.outputs={{2,""}};
+  plan.node_buffer={{"input",0},{"weight",1},{"bias",3},{"depthwise",2}};
+  if(pool) {
+    PlanBuffer mean;mean.name=mean.external_name="mean";mean.role="external";
+    mean.dtype="f32";mean.per_batch=output_channels;plan.buffers.push_back(mean);
+    PlanStage reduce;reduce.kind=PlanTaskKind::kGlobalPoolReduce;
+    reduce.width=32;reduce.extent=output_channels;reduce.group=row_band*11;
+    reduce.rows_per_batch=77;reduce.partial_rows_per_image=bands;
+    reduce.operands.fill(codegen::kDmNoIndex);reduce.operands[0]=4;reduce.operands[1]=5;
+    reduce.representative="mean";reduce.representative_index=4;
+    plan.stages.push_back(reduce);plan.outputs={{5,""}};plan.node_buffer["mean"]=5;
+  }
+  LiftOptions lift;lift.forward=true;lift.static_seq=1;lift.batch_symbol="s0";
+  auto lifted=LiftSemantics(plan,lift);auto graph=Instantiate(lifted.sem,LaunchGranularity(lifted,plan,{}));
+  ParamBinding known;known.Bind("s0",2);
+  auto const& task=graph.nodes.front();auto const& op=lifted.sem.ops.front();
+  assert(task.Count().Eval(known,{})==2*bands);
+  auto const& read=op.operands.front();
+  auto reads=ProjectTaskRead(op,task,task.element_access->partition,read.tensor,read.map,{},known);
+  std::string owners=task.IsTiled(1)?"[m,n]":"[m]";
+  std::string channel_owner=task.IsTiled(1)?" and n=0":"";
+  auto only=reads.IntersectDomain("{ "+owners+" : m="+std::to_string(2*bands-1)+channel_owner+" }");
+  auto oracle=CouplingRelation::FromIslText("{ "+owners+" -> [b,y,x,c] : m="+std::to_string(2*bands-1)+channel_owner+
+      " and b=1 and 6 <= y <= 8 and 0 <= x <= 12 and 0 <= c < "+std::to_string(channels)+" }");
+  assert(Contains(only,oracle) && Contains(oracle,only));
+  auto const& write=op.additional_writes.front();
+  auto writes=ProjectTaskWrite(op,task,task.element_access->partition,write.tensor,write.map,{},known);
+  auto expected=CouplingRelation::FromIslText("{ "+owners+" -> [b,p,c] : 0 <= b < 2"+channel_owner+" and 0 <= p < "+
+      std::to_string(bands)+" and 0 <= c < "+std::to_string(output_channels)+" and m=b*"+
+      std::to_string(bands)+"+p }");
+  assert(Contains(writes,expected) && Contains(expected,writes));
+  llvm::json::Array nodes;
+  for(unsigned i=0;i<3;++i)nodes.push_back(llvm::json::Object{{"index",i},{"name",names[i==2?3:i]},
+      {"op","placeholder"},{"target",names[i==2?3:i]},{"inputs",llvm::json::Array{}},
+      {"shape",llvm::json::Array{"s0","7","11",std::to_string(channels)}},{"dtype","torch.bfloat16"}});
+  nodes.push_back(llvm::json::Object{{"index",3},{"name","depthwise"},{"op","call_function"},
+      {"target","aten.conv2d.default"},{"inputs",llvm::json::Array{"input","weight","bias"}},
+      {"shape",llvm::json::Array{"s0","7","11",std::to_string(output_channels)}},{"dtype","torch.bfloat16"}});
+  if(pool)nodes.push_back(llvm::json::Object{{"index",4},{"name","mean"},{"op","call_function"},
+      {"target","aten.mean.dim"},{"inputs",llvm::json::Array{"depthwise"}},
+      {"shape",llvm::json::Array{"s0",std::to_string(output_channels)}},{"dtype","torch.float32"}});
+  llvm::json::Value json=llvm::json::Object{{"schema","tilemega.exported_program.v1"},
+      {"guards",llvm::json::Array{}},{"range_constraints",llvm::json::Object{{"s0","VR[1, 64]"}}},
+      {"nodes",std::move(nodes)},{"signature",llvm::json::Object{{"inputs",llvm::json::Array{
+      llvm::json::Object{{"name","input"},{"kind","USER_INPUT"},{"target",""}},
+      llvm::json::Object{{"name","weight"},{"kind","USER_INPUT"},{"target",""}},
+      llvm::json::Object{{"name","bias"},{"kind","USER_INPUT"},{"target",""}}}},
+      {"outputs",llvm::json::Array{llvm::json::Object{{"name",pool?"mean":"depthwise"},{"kind","USER_OUTPUT"}}}}}}};
+  int fd;llvm::SmallString<128> filename;
+  assert(!llvm::sys::fs::createTemporaryFile("dm-depthwise-cg","json",fd,filename));
+  {llvm::raw_fd_ostream out(fd,true);out<<llvm::formatv("{0:2}",json);}
+  mlir::MLIRContext context;ImportOptions options;options.phase_batch=2;
+  auto module=TorchExportImporter{}.ImportPlan(filename.str().str(),plan,context,nullptr,options);
+  solver::ModelDims dims{1,0,1};dims.batch=2;
+  auto description=solver::ModelDescription::FromCouplingGraph(*module,dims,"depthwise");
+  auto candidate_graph=solver::InstantiateModelTasks(description,{});
+  auto input=solver::DeriveModelTaskInput(description,description.task_semantics.front(),candidate_graph,nullptr,false);
+  assert(input.arithmetic.runtime_implemented && input.serving_body_kind=="depthwise_conv");
+  auto traits=solver::ModelTaskTraits(description,0,{16,16,16,3,1});
+  assert(traits.threads==128 && traits.smem_bytes==int((row_band+2)*13*32*(gated?2:1)*2));
+  auto runtime=solver::ProjectRuntimeQueues(description,codegen::ReadRuntimePlan(*module),{1,128,1});
+  assert(runtime.runtime_task_refs.Eval(description.MetricBindings())==2*bands+(pool?2:0));
+  auto source=codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});
+  assert(source.find("RunDepthwise<"+std::to_string(row_band)+", 32, DmPrimitiveChain0>")!=std::string::npos);
+  std::error_code error;llvm::raw_fd_ostream out(output_path,error);assert(!error);out<<source;
+  assert(!llvm::sys::fs::remove(filename));
+  std::cout<<"DEPTHWISE_CG gated="<<gated<<" pool="<<pool<<" exact_halo_band_partial_ownership_count_codegen PASS\n";
+}
 void GlobalIntegration(char const* output_path) {
   ModelPlan plan;plan.dm=plan.forward=true;plan.dtype="bf16";plan.serving_seq=1;
   plan.buffers.resize(2);
@@ -380,6 +482,9 @@ int TestDnnSemanticLifting(int argc,char** argv) {
   IslContext isl;unsigned cases=0;
   if(argc==3 && std::string(argv[1])=="--emit-global") {GlobalIntegration(argv[2]);return 0;}
   if(argc==3 && std::string(argv[1])=="--emit-encoder") {EncoderIntegration(argv[2]);return 0;}
+  if(argc==3 && std::string(argv[1])=="--emit-depthwise") {DepthwiseIntegration(argv[2],false);return 0;}
+  if(argc==3 && std::string(argv[1])=="--emit-depthwise-gated") {DepthwiseIntegration(argv[2],true);return 0;}
+  if(argc==3 && std::string(argv[1])=="--emit-depthwise-pool") {DepthwiseIntegration(argv[2],false,true);return 0;}
   if(argc==2 && std::string(argv[1])=="--pool-global-only") {PoolAndGlobal();return 0;}
   if(argc==3 && std::string(argv[1])=="--emit-pool") {Integration(argc,argv);return 0;}
   if(argc==2 && std::string(argv[1])=="--integration-only") {
