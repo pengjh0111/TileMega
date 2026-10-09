@@ -9,8 +9,11 @@ from tilemega.build.identity import verify,sha
 from tilemega.serving.integrated_selection import integrated_ms,PASTS
 
 TAG=''
+RUN_PREFIX='r14'
+CONFIG_DIR=None
 def evidence_path(name):return HERE/'raw'/(name+TAG)
-def config(model):return ROOT/f'configs/e2e/{model}_r14.json'
+def config(model):return (CONFIG_DIR/f'{model}_r14.json') if CONFIG_DIR else ROOT/f'configs/e2e/{model}_r14.json'
+def run_dir(model):return ROOT/f'runs/{RUN_PREFIX}-{model}'
 def prepare():
     out=evidence_path('Dpre')
     run(['cmake','--build','build-phase12','--target','tilemega','tilemega-loadbench','tilemega-unit','-j','6'],out/'build.log',6000)
@@ -33,22 +36,28 @@ def calibrate():
 def build(model):
     out=evidence_path(f'D1_{model}');cfg=read_config(config(model))
     limit=2*len(cfg['workload']['batch'])*cfg['solver']['time_budget_s']+1800
-    run([PYTHON,'-m','tilemega','build','--config',config(model),'--run-dir',ROOT/f'runs/r14-{model}'],out/'build.log',limit)
-    plans=json.loads((ROOT/f'runs/r14-{model}/plans.json').read_text())
+    run([PYTHON,'-m','tilemega','build','--config',config(model),'--run-dir',run_dir(model)],out/'build.log',limit)
+    plans=json.loads((run_dir(model)/'plans.json').read_text())
     # Preserve original cache/selection data inside the committed evidence
     # tree, including rejected and budget-eliminated candidates.
     saved=out/'evidence';saved.mkdir(parents=True,exist_ok=True)
-    run_dir=ROOT/f'runs/r14-{model}'
-    for p in run_dir.rglob('*'):
+    directory=run_dir(model);excluded=[]
+    def retain(p):
+        if p.suffix=='.tsv' and any(t in p.name for t in ('.edges.','.tasks.','.prices.','.task_prices.')):
+            excluded.append(dict(path=str(p),bytes=p.stat().st_size,reason='unused expanded search dump'));return False
+        return True
+    for p in directory.rglob('*'):
         if p.is_file() and p.suffix in ('.json','.jsonl','.tsv','.txt'):
-            dst=saved/'run'/p.relative_to(run_dir);dst.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(p,dst)
+            if not retain(p):continue
+            dst=saved/'run'/p.relative_to(directory);dst.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(p,dst)
     cache=Path(cfg['device']['cache_dir']).expanduser()
-    events=json.loads((run_dir/'cache.json').read_text())
+    events=json.loads((directory/'cache.json').read_text())
     for event in events:
         if event['layer'] not in ('plan','attention_variant'):continue
         folder=cache/'plans'/event['key']
         for p in folder.iterdir():
             if p.is_file() and p.suffix in ('.json','.tsv','.log','.txt','.patch'):
+                if not retain(p):continue
                 dst=saved/'plans'/event['key']/p.name;dst.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(p,dst)
     identities=[]
     for batch,plan in plans.items():
@@ -60,10 +69,11 @@ def build(model):
         for observation in winner['measurements']:
             if set(observation['by_past'])!={str(p) for p in PASTS} or observation['execution_identity']['trace']:raise ValueError('invalid integral measurement')
     write(out/'identities.json',identities)
-    write(out/'result.json',dict(model=model,cells=list(plans),pass_=True,plans_sha256=sha(ROOT/f'runs/r14-{model}/plans.json')))
+    write(out/'excluded_dumps.json',excluded)
+    write(out/'result.json',dict(model=model,cells=list(plans),pass_=True,plans_sha256=sha(directory/'plans.json')))
 
 def smoke(model):
-    rows=[];plans=json.loads((ROOT/f'runs/r14-{model}/plans.json').read_text());cfg=read_config(config(model))
+    rows=[];plans=json.loads((run_dir(model)/'plans.json').read_text());cfg=read_config(config(model))
     for b,plan in plans.items():
         out=evidence_path(f'D1_smoke_{model}')/f'B{b}'
         run([PYTHON,'-m','tilemega.serving.smoke','--so',plan['decode'],'--model',cfg['model']['path'],'--batch',b,'--steps','64','--out',out],out/'run.log',600)
@@ -106,17 +116,20 @@ def family_candidate(rows):
 
 def family(model):
     cells={}
-    plans=json.loads((ROOT/f'runs/r14-{model}/plans.json').read_text())
+    plans=json.loads((run_dir(model)/'plans.json').read_text())
     for b,plan in plans.items():cells[f'{model}_B{b}']=family_candidate(plan['decode_pg_choice']['candidates'])
     triggered=[cell for cell,row in cells.items() if row['different_past_winner'] and row['compatible_kv_packing'] and row['family_integral_gain']>=.02]
     write(HERE/f'results/D1_planfamily_{model}{TAG}.json',dict(cells=cells,triggered=triggered,status='requires_bounded_implementation' if triggered else 'not_triggered'))
     print('D1 completed; PlanFamily gate '+('triggered: '+','.join(triggered) if triggered else 'not triggered'))
 
 def main():
-    global TAG
-    p=argparse.ArgumentParser();p.add_argument('action',choices=('prepare','calibrate','build','smoke','baseline_smoke','family'));p.add_argument('--model',choices=('llama','qwen3'));p.add_argument('--tag',default='');a=p.parse_args()
+    global TAG,RUN_PREFIX,CONFIG_DIR
+    p=argparse.ArgumentParser();p.add_argument('action',choices=('prepare','calibrate','build','smoke','baseline_smoke','family'));p.add_argument('--model',choices=('llama','qwen3'));p.add_argument('--tag',default='')
+    p.add_argument('--run-prefix',default='r14');p.add_argument('--config-dir',type=Path);a=p.parse_args()
     if any(c not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-' for c in a.tag):p.error('invalid evidence tag')
     TAG=a.tag
+    if not a.run_prefix or any(c not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-' for c in a.run_prefix):p.error('invalid run prefix')
+    RUN_PREFIX=a.run_prefix;CONFIG_DIR=a.config_dir
     if a.action in ('build','smoke','family'):globals()[a.action](a.model)
     else:globals()[a.action]()
 if __name__=='__main__':main()

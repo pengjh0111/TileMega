@@ -3,14 +3,17 @@
 import argparse,json,os
 from collections import Counter
 from pathlib import Path
-p=argparse.ArgumentParser();p.add_argument('--prefix');p.add_argument('--queue',type=Path,help='Show only this queue file; relative paths resolve inside queue/');a=p.parse_args()
 h=Path(__file__).resolve().parent
-state=json.loads((h/'scheduler/state.json').read_text())
-files=[h/'queue'/a.queue] if a.queue else sorted((h/'queue').glob('queue_*.json'))
+p=argparse.ArgumentParser();p.add_argument('--prefix');p.add_argument('--queue',type=Path,help='Show only this queue file; relative paths resolve inside the queue directory')
+p.add_argument('--queue-dir',type=Path,default=h/'queue');p.add_argument('--state-dir',type=Path,default=h/'scheduler');a=p.parse_args()
+state_path=a.state_dir/'state.json';state=json.loads(state_path.read_text()) if state_path.exists() else {}
+files=[a.queue_dir/a.queue] if a.queue else sorted(a.queue_dir.glob('queue_*.json'))
 prefix=a.prefix if a.prefix is not None else ('' if a.queue else 'C')
 steps=[s for q in files for s in json.loads(q.read_text())]
-pid=int((h/'scheduler/scheduler.pid').read_text())
-try:os.kill(pid,0);alive=True
+pid_path=a.state_dir/'scheduler.pid';pid=int(pid_path.read_text()) if pid_path.exists() else None
+try:
+    if pid is None:raise ProcessLookupError
+    os.kill(pid,0);alive=True
 except ProcessLookupError:alive=False
 print(f'scheduler PID={pid} alive={alive}; queue={a.queue or "all"}; prefix={prefix or "all"}')
 counts=Counter()
