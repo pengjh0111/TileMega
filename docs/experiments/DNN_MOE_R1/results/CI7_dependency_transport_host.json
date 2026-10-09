@@ -1,0 +1,32 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_head": "091f1cda48e598d952cecc1a042367515f26e06f",
+  "roundtrips": 45,
+  "corruption_rejections": 81,
+  "native_checks": 7,
+  "assertions_enabled": true,
+  "expectations_changed": false,
+  "scope": "Typed dependency codec retains legacy windows, phase windows, exact sparse/empty tables and counted unit images, thresholds and I2 relations before fusion removes original owners; the reader rederives bound tables/cardinalities. Original window-only spelling remains three fields; existing fusion regressions pass. Counted fusion endpoint rebinding, projected counted event transport and runtime body lowering remain pending.",
+  "inputs": {
+    "include/tilemega/Codegen/RuntimeDependencyCodec.h": "55334a42a53b833e30d6302058271031c7a719bb5c35a186e5596ba8d7e4efe8",
+    "lib/Codegen/RuntimeDependencyCodec.cpp": "931b7fff40489ac0fc518bbbb5ec3ecab0d40ce72471f8766516ec7717fb3bd6",
+    "lib/Codegen/Codegen.cpp": "d9fe3c937ec595df4f9544db2f15e76253e3cebc66136d10ea2f0808568bbdfd",
+    "lib/Dialect/CouplingGraph/FusionPass.cpp": "a35a03eb1b924abe1c535b26586014686e7877a76d73c6af6151e2d3256d60b0",
+    "test/unit/runtime_dependency_codec_test.cpp": "4a9b39e10ec5dc6bd66b5e2fc89cb1a253dd33d7c75f1017ae136b21f98223d7",
+    "CMakeLists.txt": "f07005317f7630eb2d3e8720c635e90a88da6d91ad12966e321f7756012c59d2",
+    "test/unit/runner.cpp": "7329159d354f96807a0b17ad2cc501d482bebfb0ef246f0b9acad24c25e32e97"
+  },
+  "artifacts": {
+    "build-dm/tilemega-unit": "810d10cd778166c15c85042432d97e6f5c739506046739d689daca6bf256ecb4",
+    "build-dm/tools/tilemega": "04fe73662654565cbbce3c8647f5f8c53b070d8f59982ea4e5c664228a953968",
+    "build-dm/libtilemega.a": "414cabe11cc5972528c28331c13fb11a0562bd0560734b66b7b438c694b04354"
+  },
+  "queue_sha256": "a5a4826ddded5c78dae1091b70fd26d2c52aec2208457eacc813115a70d1e33e",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "logs": {
+    "runs/dm1-runtime-dependency-codec/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/dm1-runtime-dependency-codec/events/02_ctest.log": "282bb4c954deb3a8aec98dbd1e66bba7680d633c74833485236a36511e579f4e",
+    "runs/dm1-runtime-dependency-codec/events/01_build.log": "c1b5bf2dadfcfd31fa533a5e359489066aa8640294a8968676e9e0e437b4f58b"
+  }
+}

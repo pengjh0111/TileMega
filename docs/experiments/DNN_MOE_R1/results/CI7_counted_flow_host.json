@@ -1,0 +1,37 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_head": "b135bf1c5512d73e5c139385829b9ca81bc43c74",
+  "geometry_transitions": 216,
+  "cg_bound_shapes": 96,
+  "cg_projection_options_per_shape": 12,
+  "native_ctest_checks": 12,
+  "assertions_enabled": true,
+  "expectations_changed": false,
+  "scope": "Rebuild counted thresholds and access-derived I2 queue ordering for each candidate geometry; native regression includes the original counted CG gate, mapped stores, task arithmetic and legacy flow/projection. Synthetic contraction semantics carry ownership; no real MoE body execution or complete Phase 1 claim.",
+  "inputs": {
+    "lib/Solver/FlowPreparation.cpp": "4d72427475597a8e393516098bad879bc257d6b1e89db907795170e076cee142",
+    "test/unit/counted_dependency_cg_test.cpp": "b30af0832c8a6df934f70d6fa45991073a30f2b516814574eb3b0b76b58ed198"
+  },
+  "artifacts": {
+    "build-dm/tilemega-unit": "186a04837687ed44ab54d0181c98c830a01931a916b51952e1ecb3c963d3a1f7",
+    "build-dm/tools/tilemega": "b4e58cd49717edbba3e2a4b6bf226afe741cc8c672ecfcbf5079c6340248d4b2",
+    "build-dm/libtilemega.a": "a70b477822a07fb964f185922d914823c6cd7a90788b6c1d323b5ee99bc9a102"
+  },
+  "queue_sha256": "75dde27d11b99000940727aa052f17c21a1c901709845e2f60bf1dd5831dd268",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "logs": {
+    "runs/dm1-ci7-counted-flow-native/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/dm1-ci7-counted-flow-native/events/02_ctest.log": "dc0c57f1234c75d81847a0154a5f7f2fd81359e0c652da637376646b26bd713a",
+    "runs/dm1-ci7-counted-flow-native/events/01_build.log": "4cd7973f5705a922445b103109aaa16482e8c95c7d75210ff9c050f67a80c624"
+  },
+  "preceding_failed_fixtures": [
+    "runs/dm1-ci7-counted-flow-host",
+    "runs/dm1-ci7-counted-flow-host-v2"
+  ],
+  "remaining": [
+    "Counted fusion/handoff transport and lowering",
+    "Actual SIMT and MoE binding coordinates",
+    "G-REG after shared extensions"
+  ]
+}

@@ -131,4 +131,12 @@ contribution semantics; static ordering tables retain I2, including affine
 column partitions. The CG test covers 96 shapes x 12 grid/kappa choices and
 rejects malformed metadata. Host page-resource checks cover 76 geometries
 and exact/insufficient target budgets (`results/CI4_CI7_native_host.json`).
-Geometry rebinding, fusion transport and native GPU threshold gates remain pending.
+verified: native geometry rebinding passes 216 candidate transitions and 12/12
+focused ctests (`results/CI7_counted_flow_host.json`). Synthetic contraction
+semantics carry the ownership geometry; executable MoE bodies remain pending.
+
+verified: dependency provenance roundtrips pass 45 cases and 81 corruption
+rejections, with 7/7 native checks including existing fusion regressions
+(`results/CI7_dependency_transport_host.json`). Retained table encodings and
+counted thresholds are checked against their exact relation/unit image.
+Counted fusion endpoint rebinding, event transport and body lowering remain pending.
