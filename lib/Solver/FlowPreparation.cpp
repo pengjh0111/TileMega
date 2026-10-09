@@ -152,7 +152,7 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     auto window=edge.window;
     if(edge.producer>=entry.size() || edge.consumer>=entry.size())
       throw std::invalid_argument("flow runtime dependency outside stage range");
-    if(edge.table)continue;
+    if(edge.table || edge.counted)continue;
     if(done[edge.producer]!=entry[edge.producer] &&
        result.model.stages[edge.producer].kind==StageKind::kGemm &&
        !result.model.combiner_tile_ownership)
@@ -194,6 +194,32 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     exact_edges.emplace(std::make_pair(edge.src.name,edge.dst.name),relation);
     grouped[{p.stage,c.stage}].push_back(std::move(relation));}
   for(auto const& [pair,relations]:grouped)result.data_edges.push_back({pair.first,pair.second,(relations.size()==1?relations.front():analysis::CouplingRelation::UnionAll(relations))});
+  for(auto& edge:result.runtime.dependencies)if(edge.counted) {
+    int producer=done[edge.producer],consumer=entry[edge.consumer];
+    auto exact=std::find_if(result.data_edges.begin(),result.data_edges.end(),[&](auto const& item) {
+      return item.producer==producer && item.consumer==consumer;
+    });
+    if(exact==result.data_edges.end())throw std::invalid_argument("counted edge has no access-derived flow relation");
+    auto task_for=[&](int stage,bool produced) -> analysis::OperatorNode const& {
+      auto semantic=std::find_if(result.model.task_semantics.begin(),result.model.task_semantics.end(),
+          [&](auto const& item){return item.stage==stage;});
+      if(semantic==result.model.task_semantics.end())throw std::invalid_argument("counted flow task has no L-sem");
+      auto name=produced && done[stage]!=entry[stage]?semantic->op.reduction.combiner:semantic->op.name;
+      auto* task=graph.Find(name);
+      if(!task)throw std::invalid_argument("counted flow task is absent from candidate geometry");
+      return *task;
+    };
+    auto& contract=*edge.counted;
+    contract.contributions=analysis::BindAlignedCountedScatterDependency(
+        task_for(edge.producer,true),task_for(edge.consumer,false),contract.tensor,
+        contract.unit_axes,contract.contributions.binding_source,theta);
+    if(contract.contributions.expected.size()!=unsigned(result.counts[consumer]))
+      throw std::invalid_argument("counted flow consumer is not one task per owned tile");
+    contract.producers=result.counts[producer];
+    contract.conservative_relation=exact->relation.Reverse().BindParams(theta);
+    edge.window={true,1,0,0,1};
+    result.projection.runtime_counted.push_back({producer,consumer,contract});
+  }
   for(auto& edge:result.runtime.dependencies)if(edge.table) {
     int producer=done[edge.producer],consumer=entry[edge.consumer];
     auto exact=std::find_if(result.data_edges.begin(),result.data_edges.end(),[&](auto const& item) {

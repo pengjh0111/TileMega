@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Solver/FlowPreparation.h>
 #include <tilemega/Dialect/CouplingGraph/CountedDependency.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Analysis/ISLContext.h>
@@ -31,7 +32,8 @@ ImportedSemantics Fixture(int tokens) {
   plan.buffers[1].constant=plan.buffers[2].constant=64*16;
   plan.buffers[3].constant=tokens*2*64;plan.buffers[4].constant=tokens*64;
   PlanGemm p;p.n=64;p.k=16;p.a=0;p.b=1;p.d=3;p.access.rows_per_batch=tokens*2;
-  auto c=p;c.a=3;c.b=2;c.d=4;c.access.rows_per_batch=tokens;
+  auto c=p;c.k=2;c.a=3;c.b=2;c.d=4;c.access.rows_per_batch=tokens;
+  plan.buffers[2].constant=64*2;
   plan.gemms={p,c};
   for(unsigned i=0;i<2;++i) {
     PlanStage stage;stage.gemm=i;stage.representative=i?"combine":"down";
@@ -45,18 +47,28 @@ ImportedSemantics Fixture(int tokens) {
   SemanticOp down;down.name="down";down.exact_task_access=true;
   IterationDim m;m.name="m";m.extent=ClosedForm::Symbol("live");m.runtime=true;
   m.capacity=t*F(2);m.binding_source="rows";m.binding_requirement="tensor_values";
-  down.domain={m,{"n",F(64)}};
+  down.kind=OperatorKind::kMatmul;down.arithmetic="gemm";
+  down.domain={m,{"n",F(64)},{"k",F(16),F(0),IteratorType::kReduction}};
+  down.reduction={"k","add","","",false};
+  down.operands={{"",{"x",{{"t",t},{"k",F(16)}}},
+      {{IndexResult::DataDependent("rows"),IndexResult::Dim("k")}},{}},
+      {"",{"weight",{{"n",F(64)},{"k",F(16)}}},
+      {{IndexResult::Dim("n"),IndexResult::Dim("k")}}, {}}};
   down.result={"partial",{{"t",t},{"r",F(2)},{"c",F(64)}}};
   down.result_map.results={IndexResult::DataDependent("rows"),IndexResult::DataDependent("rows"),IndexResult::Dim("n")};
   down.task_space={"virtual",{{"m",t*F(2)},{"n",F(64)}}};
   down.task_map.results={IndexResult::Dim("m"),IndexResult::Dim("n")};
   SemanticOp combine;combine.name="combine";combine.exact_task_access=true;
+  combine.kind=OperatorKind::kMatmul;combine.arithmetic="gemm";
+  combine.reduction={"r","add","","",false};
   combine.domain={{"m",t},{"r",F(2),F(0),IteratorType::kReduction},{"n",F(64)}};
   combine.result={"output",{{"m",t},{"n",F(64)}}};
   combine.result_map.results={IndexResult::Dim("m"),IndexResult::Dim("n")};
   combine.task_space=combine.result;combine.task_map=combine.result_map;
   combine.operands.push_back({"down",down.result,
       {{IndexResult::Dim("m"),IndexResult::Dim("r"),IndexResult::Dim("n")}}, {}});
+  combine.operands.push_back({"",{"combine.weight",{{"r",F(2)},{"n",F(64)}}},
+      {{IndexResult::Dim("r"),IndexResult::Dim("n")}}, {}});
   prepared.lifted.sem.ops={down,combine};prepared.lifted.has_plan=true;
   prepared.lifted.ops={{"down",OpRole::kProjection,OwnershipKind::kTilePerBlock,0,0,"down"},
       {"combine",OpRole::kProjection,OwnershipKind::kTilePerBlock,1,0,"combine"}};
@@ -163,3 +175,53 @@ int TestCountedDependencyCg(int argc,char** argv) {
   return 0;
 }
 } // namespace tilemega::tests::counted_dependency_cg_test
+
+namespace tilemega::tests::counted_dependency_cg_test {
+int TestCountedDependencyFlow(int,char**) {
+  using namespace tilemega;
+  analysis::IslContext isl;mlir::MLIRContext context;mlir::OpBuilder builder(&context);
+  unsigned checked=0;
+  for(int tokens:{1,17,65})for(int initial_block:{16,64})
+    for(int initial_rows:{16,32})for(int n:{16,32}) {
+    frontend::ImportOptions options;options.gemms={{initial_block,n,16,2,1},{initial_rows,n,16,2,1}};
+    options.phase_batch=1;options.task_binding.Bind("T",tokens);
+    auto module=frontend::TorchExportImporter{}.InstantiateForGranularity(Fixture(tokens),context,options);
+    auto spaces=module->getOps<dialect::TileSpaceOp>();auto p=*spaces.begin();auto c=*std::next(spaces.begin());
+    auto edge=*module->getOps<dialect::CouplingOp>().begin();edge->removeAttr("dependency_table");
+    edge->setAttr("dependency_counted",dialect::EncodeBoundCountedScatter(builder,p,c,"partial",{0,1},"rows",options.task_binding));
+    auto runtime=codegen::ReadRuntimePlan(*module);
+    solver::ModelDims dims;dims.seq=dims.total=dims.batch=1;
+    auto model=solver::ModelDescription::FromCouplingGraph(*module,dims,"counted-flow");
+    for(int block:{16,32,128})for(int rows:{1,16,64}) {
+      solver::SymbolicProblem base;base.model=model;base.runtime=runtime;base.threads=128;
+      // Synthetic contractions carry the two ownership geometries; these
+      // checks establish dependency transport, not executable dense operands.
+      for(auto& sem:base.model.task_semantics) {
+        sem.tiles["m"]=analysis::ClosedForm::Constant(sem.stage?rows:block);
+        sem.tiles["n"]=analysis::ClosedForm::Constant(n);
+      }
+      std::vector<solver::GemmConfig> geometry{{block,n,16,2,1},{rows,n,16,2,1}};
+      analysis::CouplingCache cache;
+      auto flow=solver::PrepareFlowStructure(base,geometry,3,4,cache);
+      long producers=((2*tokens+block-1)/block)*(64/n);
+      long consumers=((tokens+rows-1)/rows)*(64/n);
+      assert(flow.counts==std::vector<int>({int(producers),int(consumers)}));
+      assert(flow.projection.runtime_windows.empty() && flow.projection.runtime_tables.empty());
+      assert(flow.projection.runtime_counted.size()==1 && flow.runtime.dependencies.size()==1);
+      auto const& counted=*flow.runtime.dependencies[0].counted;
+      assert(counted.producers==unsigned(producers) && counted.contributions.expected.size()==unsigned(consumers));
+      for(long target=0;target<consumers;++target)
+        assert(counted.contributions.expected[target]==unsigned(2*std::min(rows,tokens-int(target/(64/n))*rows)));
+      auto relation=flow.data_edges[0].relation.Reverse().BindParams(model.MetricBindings());
+      assert(counted.conservative_relation.IsSubset(relation) && relation.IsSubset(counted.conservative_relation));
+      auto projected=solver::ProjectRuntimeQueues(flow.model,flow.runtime,{3,128,4});
+      assert(projected.runtime_task_refs.Eval(runtime.task_binding)==producers+consumers);
+      assert(projected.runtime_wait_entries.Eval(runtime.task_binding)==consumers);
+      ++checked;
+    }
+  }
+  assert(checked==216);
+  std::cout<<"Counted flow: 216 candidate geometry transitions, fresh contribution thresholds, aligned partitions, I2 and projected event counts PASS\n";
+  return 0;
+}
+}
