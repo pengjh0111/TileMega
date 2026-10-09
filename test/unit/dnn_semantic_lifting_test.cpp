@@ -9,6 +9,7 @@
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Solver/ModelDescription.h>
+#include <tilemega/Solver/TaskModel.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/JSON.h>
 #include <llvm/Support/raw_ostream.h>
@@ -218,9 +219,11 @@ void Integration(int argc,char** argv) {
   trace("import");
   auto module=TorchExportImporter{}.ImportPlan(filename.str().str(),plan,context,nullptr,options);
   trace("model_description");
-  auto description=solver::ModelDescription::FromCouplingGraph(*module,{1,0,1},"dnn-primitives");
-  assert(description.dm && description.serving && description.stages.size()==plan.stages.size());
+  solver::ModelDims dims{1,0,1};dims.batch=2;
+  auto description=solver::ModelDescription::FromCouplingGraph(*module,dims,"dnn-primitives");
+  assert(description.dm && description.serving && description.forward && description.stages.size()==plan.stages.size());
   assert(description.task_semantics.size()==plan.stages.size() && description.batch_metric_parameter=="s0");
+  auto candidate_graph=solver::InstantiateModelTasks(description,{{16,16,16,3,1}});
   for(auto const& semantic:description.task_semantics) {
     trace(semantic.op.name.c_str());
     auto graph=Instantiate(SemanticGraph{{semantic.op}},Granularity{});
@@ -228,6 +231,17 @@ void Integration(int argc,char** argv) {
     ParamBinding known;known.Bind("s0",2);
     auto work=DeriveTaskWork(semantic.op,task,known);
     assert(work.task_count.SumDomain().Eval(known)>0);
+    auto traits=solver::ModelTaskTraits(description,semantic.stage,{16,16,16,3,1});
+    assert(traits.threads==128 && traits.shape_legal);
+    if(description.stages[semantic.stage].kind!=solver::StageKind::kGemm) {
+      assert(traits.smem_bytes==0);
+      auto flow=codegen::ScalarTaskDataflow(static_cast<codegen::TaskKind>(description.stages[semantic.stage].kind));
+      assert(flow.MemoryDepthAndBarriers(128)==std::make_pair(2,0));
+      auto candidate=solver::DeriveModelTaskInput(description,semantic,candidate_graph,nullptr,false);
+      assert(candidate.arithmetic.runtime_implemented);
+      if(description.stages[semantic.stage].kind==solver::StageKind::kLayerNorm)
+        assert(std::abs(candidate.arithmetic.flops_per_output_element.Eval(known)-(8.0+1.0/19))<1e-12);
+    }
   }
   trace("codegen");
   auto source=codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});

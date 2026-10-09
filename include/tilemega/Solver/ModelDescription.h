@@ -160,6 +160,7 @@ struct ModelDescription {
   bool fusion_phase_context = false;
   bool combiner_tile_ownership = false;
   bool serving = false;
+  bool forward = false;
   int serving_capacity = 0;
   bool dm = false;
   std::vector<codegen::ConvDesc> convolutions;

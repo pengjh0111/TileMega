@@ -28,6 +28,11 @@ constexpr int SimtSharedElements(TaskKind kind, int threads, int attention_exten
     case TaskKind::kAttentionMerge:
     case TaskKind::kArgmaxReduce: return 4;
     case TaskKind::kGemm: return 0;
+    case TaskKind::kLayerNorm:
+    case TaskKind::kLayoutConvert:
+    case TaskKind::kPool:
+    case TaskKind::kGlobalPoolReduce: return 0;
+    case TaskKind::kEmbeddingSum: return 8;
   }
   return 0;
 }
@@ -77,6 +82,11 @@ inline TaskResourceInfo ReadSimtTaskResources(TaskKind kind) {
     case TaskKind::kGemmCombine: return ReadSimtTaskResources<TaskKind::kGemmCombine, Threads>();
     case TaskKind::kAttentionMerge: return ReadSimtTaskResources<TaskKind::kAttentionMerge, Threads>();
     case TaskKind::kArgmaxReduce: return ReadSimtTaskResources<TaskKind::kArgmaxReduce, Threads>();
+    case TaskKind::kLayerNorm: return ReadSimtTaskResources<TaskKind::kLayerNorm, Threads>();
+    case TaskKind::kLayoutConvert: return ReadSimtTaskResources<TaskKind::kLayoutConvert, Threads>();
+    case TaskKind::kPool: return ReadSimtTaskResources<TaskKind::kPool, Threads>();
+    case TaskKind::kGlobalPoolReduce: return ReadSimtTaskResources<TaskKind::kGlobalPoolReduce, Threads>();
+    case TaskKind::kEmbeddingSum: return ReadSimtTaskResources<TaskKind::kEmbeddingSum, Threads>();
     default: throw std::invalid_argument("TaskBody has no scalar resource declaration");
   }
 }

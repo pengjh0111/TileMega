@@ -150,9 +150,12 @@ int TestDmDescriptor(int, char**) {
   inputs.reduction=tilemega::analysis::QuasiPolynomial::Constant(8);
   inputs.total=tilemega::analysis::QuasiPolynomial::Constant(128);
   inputs.width=64; inputs.dtype=tilemega::analysis::ScalarType::kBF16;
-  for(auto const* name:{"depthwise_conv","pool","global_pool_reduce","layernorm",
-      "encoder_attention","embedding_sum","dwpw_depthwise","moe_topk",
-      "moe_combine","layout_convert","moe_router"}) {
+  for(auto const* name:{"layernorm","embedding_sum","layout_convert","pool","global_pool_reduce","depthwise_conv"}) {
+    auto arithmetic=tilemega::analysis::InstantiateArithmetic(name,inputs);
+    assert(arithmetic.runtime_implemented);
+    tilemega::analysis::RequireArithmeticImplementation(arithmetic);
+  }
+  for(auto const* name:{"encoder_attention","dwpw_depthwise","moe_topk","moe_combine","moe_router"}) {
     auto arithmetic=tilemega::analysis::InstantiateArithmetic(name,inputs);
     assert(!arithmetic.runtime_implemented);
     rejects([&]{tilemega::analysis::RequireArithmeticImplementation(arithmetic);});

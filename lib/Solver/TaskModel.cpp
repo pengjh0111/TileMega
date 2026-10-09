@@ -371,7 +371,8 @@ BackendTraits ModelTaskTraits(ModelDescription const& model, int index,
     return traits;
   }
   auto resources = codegen::ReadSimtTaskResources(
-      static_cast<codegen::TaskKind>(stage.kind), collective.threads);
+      static_cast<codegen::TaskKind>(stage.kind),
+      model.dm && stage.kind>=StageKind::kDepthwiseConv?128:collective.threads);
   BackendTraits traits;
   traits.threads = resources.threads;
   traits.smem_bytes = resources.shared_bytes;
@@ -674,7 +675,9 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
   if (config && semantic.op.reduction.splittable)
     options.reduction_tiles.emplace(semantic.op.reduction.dim,
                                     analysis::ClosedForm::Constant(config->tile_k));
-  auto work=analysis::DeriveTaskWork(semantic.op,*task,{},options);
+  auto known=model.dm && model.forward && semantic.op.exact_task_access?
+      model.MetricBindings():analysis::ParamBinding{};
+  auto work=analysis::DeriveTaskWork(semantic.op,*task,known,options);
   analysis::ArithmeticInputs arithmetic;
   arithmetic.reduction=work.nominal_task_reduce_extent;
   arithmetic.total=work.reduce_extent;
@@ -686,7 +689,7 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
   if(model.dm && task->element_access) {
     auto const& access=*task->element_access;
     auto domain=analysis::ProjectTaskElements(access.semantic,*task,access.partition,
-        access.semantic.task_space,access.semantic.task_map,{},{}).Reverse().ImageIdentity();
+        access.semantic.task_space,access.semantic.task_map,{},known).Reverse().ImageIdentity();
     signature=analysis::InstantiateTaskArithmetic(semantic.op.arithmetic,arithmetic,domain);
   } else signature=analysis::InstantiateArithmetic(semantic.op.arithmetic,arithmetic);
   analysis::RequireArithmeticImplementation(signature);
