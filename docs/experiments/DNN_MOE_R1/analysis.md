@@ -204,3 +204,11 @@ units (`results/complete_macro_capture_host.json`). Included defaults,
 architecture conditionals and unit-local macros are preserved; unsafe or
 incomplete dry-run command records reject. No binary was compiled or launched.
 Identity generator integration follows the active PageStream cohort.
+
+verified: the compiler/pricing overlay passes 72 typed traffic cases, 8
+physical-image cases, 256 virtual geometries and 768 symbolic bindings.
+Coordinate arithmetic, typed side-output FLOPs and memoization pass the cost
+contract; the unchanged legacy regime-A test passes 18 bit-exact checks with
+its CMake-specified target (`results/CI7_binding_pricing_integration_host.json`).
+The failed private-header, shared_ptr and wrong-target attempts are retained.
+The committed validation worktree still needs native checks before integration.
