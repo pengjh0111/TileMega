@@ -21,6 +21,9 @@ if __name__ == '__main__':
         shutil.copy2(Path(__file__).with_name(name), root/'framework'/name)
     shutil.copy2(Path(__file__).with_name('check_generated_dnn.py'), root/'check.py')
     shutil.copy2(args.source, root/'generated.cu')
+    for name in ['tilemega/__init__.py', 'tilemega/serving/__init__.py', 'tilemega/serving/plan.py']:
+        (root/'python'/name).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(repo/'python'/name, root/'python'/name)
     shutil.copytree(repo/'include', root/'include')
     for name in ['include', 'tools/util/include']:
         shutil.copytree(repo/'third_party/cutlass'/name, root/'third_party/cutlass'/name)

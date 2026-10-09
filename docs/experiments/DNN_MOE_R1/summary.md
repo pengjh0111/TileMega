@@ -36,7 +36,7 @@ Export coverage and primitive checks do not imply model correctness.
 | DN-1 | verified: six real-weight upstream exports, before/Core fixtures, source FQN/dtype preservation and weight recipes. These are not model gates |
 | DN-2/3 | verified: automatic primitive DNN L-sem and exact ownership/halo oracles; exported-model planning and remaining operators pending |
 | DN-4 | verified: im2col operands and dense/tiled/page TaskBodies, small channels, tails, stride/dilation, issued split-K. Native ABI primitives verified; complete models pending |
-| DN-5/6 | verified: staged depthwise/SimpleGate and window/global pooling bodies; generated pool pipeline. dw→pw, SCA and complete model integration pending |
+| DN-5/6 | verified: staged depthwise/SimpleGate and window/global pooling bodies; generated pool pipeline. dw→pw body verified; fused planning, SCA and complete model integration pending |
 | DN-7 | verified: explicit LayerNorm and ordered BF16 embedding sum primitives; native/generated LN stages. Deferred LN/model integration pending |
 | DN-8/9/10/11 | verified: encoder attention body and layout conversion; generated encoder integration in progress. Full chain/model numerics, memory reuse and model CLI pending |
 | MO-1 through MO-9 | full MoE model/region implementation and end-to-end gates pending; shared binding/profile foundations exist |
@@ -154,7 +154,7 @@ verified: staged depthwise covers 58 geometries/SimpleGate chains and encoder
 attention covers 24 noncausal/masked geometries, each with three epochs, 50/50
 fresh processes, five architectures, zero spills/stack and zero-error sanitizers
 (`results/DN_depthwise_cuda.json`, `results/DN_encoder_attention_cuda.json`).
-Seven of the ten new body kinds have local numerical evidence; dw→pw fusion,
+Eight of the ten new body kinds have local numerical evidence;
 MoE top-k/dispatch and MoE combine remain. Pool/global L-sem and primitive
 solver traits pass 8/8 host checks (`results/DN_pool_primitive_pricing_host.json`).
 
@@ -165,6 +165,13 @@ Both have zero spills and 5/5 stack frames. Exact ownership, task-count
 projection and forward batch binding pass 9/9 host checks
 (`results/DN_encoder_global_host.json`). The pre-launch batch-binding failure
 is retained; numerical criteria are unchanged.
+
+verified: fused dw→pw passes 48 cases covering three repeated epochs and dense,
+tiled and paged weights in 50/50 fresh processes, five architecture builds and
+zero-error sanitizers (`results/DN_dwpw_fused_cuda.json`). All five artifacts
+have zero spills and stack frames. Generated depthwise/per-image pool host
+integration passes 15/15 checks and a separate ownership-padding oracle
+(`results/DN_depthwise_host.json`); its generated-library GPU gates are pending.
 
 ### Synchronization coverage
 

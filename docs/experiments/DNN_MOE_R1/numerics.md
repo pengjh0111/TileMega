@@ -101,3 +101,11 @@ architecture builds and zero-error sanitizers. Its shared-library artifacts
 have no spills and 5/5 stack frames (`results/DN_generated_encoder_cuda.json`).
 The generated global-pool region passes the same checks against FP64 segmented
 means (`results/DN_generated_global_cuda.json`). Full model gates remain open.
+
+verified: fused dw→pw computes depthwise taps in FP32, applies its finite
+bias/scale/activation chain, then materializes BF16 in shared memory before
+the pointwise MMA. Each pointwise column tile recomputes the same complete
+depthwise tile. Optional depthwise global stores have one designated column
+owner. Dense/tiled/paged pointwise paths agree bitwise in the local fixture;
+48 cases, three epochs, 50/50 fresh processes and zero-error sanitizers are
+sealed in `results/DN_dwpw_fused_cuda.json`. Full-model fusion remains pending.

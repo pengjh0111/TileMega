@@ -3,17 +3,21 @@
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 import subprocess
 import sys
 
 
 def execute(root):
+    sys.path.insert(0, str(root/'python'))
     import torch
     from tilemega.serving.plan import FORWARD, PlanLibrary
     torch.manual_seed(20261009)
     torch.backends.cuda.matmul.allow_tf32 = False
     library = PlanLibrary(root / 'generated-sm_89.so')
+    if 'RunDepthwise<' in (root/'generated.cu').read_text():
+        return execute_depthwise(torch, library, (root/'generated.cu').read_text())
     if 'Run<TaskKind::kGlobalPoolReduce,' in (root/'generated.cu').read_text():
         return execute_global(torch, library)
     if 'Run<TaskKind::kEncoderAttention,' in (root/'generated.cu').read_text():
@@ -123,6 +127,67 @@ def execute_global(torch, library):
         scope='CG-generated segmented global pooling ABI against FP64 mean; no full CNN gate', cases=cases)), flush=True)
 
 
+def execute_depthwise(torch, library, source):
+    from tilemega.serving.plan import FORWARD
+    assert library.info.phase == FORWARD and library.info.capacity == 0 and library.info.seq == 1
+    row_band = int(re.search(r'RunDepthwise<(\d+),', source)[1])
+    gated = row_band == 2
+    channels, output_channels = (32, 16) if gated else (19, 19)
+    cp, output_cp = (channels+7)//8*8, (output_channels+7)//8*8
+    x = torch.randn(2, channels, 7, 11, device='cuda', dtype=torch.bfloat16)
+    weight = torch.randn(channels, 1, 3, 3, device='cuda', dtype=torch.bfloat16)
+    packed = torch.zeros(channels, 3, 3, 8, device='cuda', dtype=torch.bfloat16)
+    packed[..., 0] = weight[:, 0]
+    bias = torch.randn(channels, device='cuda', dtype=torch.float32)
+    input_storage = torch.zeros(2, 9, 13, cp, device='cuda', dtype=torch.bfloat16)
+    input_storage[:, 1:8, 1:12, :channels] = x.permute(0, 2, 3, 1)
+    output_storage = torch.empty(2, 9, 13, output_cp, device='cuda', dtype=torch.bfloat16)
+    partials = torch.empty(2, (7+row_band-1)//row_band, output_channels, device='cuda')
+    dot = torch.nn.functional.conv2d(x.float(), weight.float(), bias, padding=1, groups=channels)
+    if gated:
+        reference = (dot[:, :output_channels] * dot[:, output_channels:]).to(torch.bfloat16)
+    else:
+        reference = dot.clamp(0, 6).to(torch.bfloat16)
+    reference = reference.permute(0, 2, 3, 1)
+    written = torch.zeros_like(output_storage, dtype=torch.bool)
+    written[:, 1:8, 1:12, :output_channels] = True
+    buffers = dict(input=input_storage, weight=packed, output=output_storage, bias=bias, partials=partials)
+    mean = None
+    if any(b.name == 'mean' for b in library.buffers):
+        mean = torch.empty(2, output_channels, device='cuda')
+        buffers['mean'] = mean
+    assert {b.name for b in library.buffers if b.role == 1} == set(buffers)
+    cases = []
+    with library.create(2, {name: value.data_ptr() for name, value in buffers.items()}, 0) as plan:
+        plan.set_steps([0])
+        first = first_partials = None
+        for epoch in range(3):
+            for mode in (1, 2):
+                output_storage.fill_(-12345)
+                partials.fill_(float('nan'))
+                if mean is not None:
+                    mean.fill_(float('nan'))
+                plan.launch(0, mode, torch.cuda.current_stream().cuda_stream)
+                torch.cuda.synchronize()
+                output = output_storage[:, 1:8, 1:12, :output_channels]
+                error = (output.float() - reference.float()).abs()
+                assert torch.all(error <= 1.6e-2 + 1.6e-2 * reference.float().abs()), error.max().item()
+                assert torch.all(output_storage[~written] == torch.tensor(-12345., dtype=torch.bfloat16, device='cuda'))
+                for band in range(partials.shape[1]):
+                    expected = output[:, band*row_band:min((band+1)*row_band, 7)].double().sum((1, 2))
+                    assert torch.all((partials[:, band].double()-expected).abs() <= 1e-5+1e-5*expected.abs())
+                if mean is not None:
+                    expected = output.double().mean((1, 2))
+                    assert torch.all((mean.double()-expected).abs() <= 1e-6+1e-6*expected.abs())
+                if first is None:
+                    first, first_partials = output_storage.clone(), partials.clone()
+                else:
+                    assert torch.equal(first, output_storage) and torch.equal(first_partials, partials)
+                cases.append(dict(epoch=epoch, mode=mode, max_error=error.max().item()))
+    print(json.dumps(dict(event='generated_depthwise_correctness', passed=True,
+        scope='CG-generated depthwise halo/chain/partial ABI; no full model gate', gated=gated, cases=cases)), flush=True)
+
+
 def build(root, arch):
     sys.path.insert(0, str(root / 'framework'))
     from capture_macros_dm import capture
@@ -149,7 +214,8 @@ def build(root, arch):
     macros = root / f'generated-sm_{arch}.macros'
     capture(command, macros)
     unchanged()
-    implementations = (['GlobalPoolReduceTaskBody'] if 'Run<TaskKind::kGlobalPoolReduce,' in source.read_text()
+    implementations = (['DepthwiseConvTaskBody'] if 'RunDepthwise<' in source.read_text()
+        else ['GlobalPoolReduceTaskBody'] if 'Run<TaskKind::kGlobalPoolReduce,' in source.read_text()
         else ['EncoderAttentionTaskBody'] if 'Run<TaskKind::kEncoderAttention,' in source.read_text()
         else ['LayoutConvertTaskBody', 'ServingGemmTaskBody::RunDm', 'LayerNormTaskBody'])
     if 'Run<TaskKind::kPool,' in source.read_text():
