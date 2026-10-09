@@ -372,6 +372,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/dm_gemm_class_domain_test.cpp
     test/unit/dm_forward_search_test.cpp
     test/unit/task_arithmetic_domain_test.cpp
+    test/unit/dm_store_geometry_test.cpp
     test/unit/coupling_cache_test.cpp
     test/unit/semantic_lifting_test.cpp
     test/unit/embedding_plan_test.cpp
@@ -745,6 +746,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME dm_gemm_class_domain COMMAND tilemega-unit dm_gemm_class_domain)
   add_test(NAME dm_forward_search COMMAND tilemega-unit dm_forward_search)
   add_test(NAME task_arithmetic_domain COMMAND tilemega-unit task_arithmetic_domain)
+  add_test(NAME dm_store_geometry COMMAND tilemega-unit dm_store_geometry)
 
   add_test(NAME coupling_cache COMMAND tilemega-unit coupling_cache)
 

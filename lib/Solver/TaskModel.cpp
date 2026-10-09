@@ -2,6 +2,7 @@
 #include <tilemega/Solver/TaskModel.h>
 #include <tilemega/Solver/DmGemmTraits.h>
 #include <tilemega/Analysis/TaskElementRelation.h>
+#include <tilemega/Analysis/TaskOwnershipGeometry.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Solver/RuntimeProjection.h>
 #include <tilemega/Analysis/ISLContext.h>
@@ -175,6 +176,40 @@ DerivedTaskInput DeriveCombineTaskInput(ModelDescription const& model,int stage,
   if (!declared || declared->output.axes.size()<2 || declared->operands.size()!=1)
     throw std::invalid_argument("combine requires the instantiated partial tensor");
   auto task=*declared;
+  if(model.dm && task.element_access) {
+    if(!tile_ownership)
+      throw std::invalid_argument("mapped DM split combine requires tile ownership");
+    auto work=DeriveTaskWork(task.element_access->semantic,task,{});
+    auto ownership_semantic=*semantic;ownership_semantic.element_chunk=false;
+    auto ownership=ProjectTaskOwnership(ownership_semantic,task,model.stages.at(stage),threads);
+    auto const& exact=*task.element_access;
+    RuntimeScalarAccess accesses;accesses.ownership=ownership;
+    accesses.writes=ownership.ApplyRange(ProjectTaskElements(exact.semantic,task,
+        exact.partition,exact.semantic.result,exact.semantic.result_map,{},{}));
+    std::vector<QuasiPolynomial> read_counts,read_bytes;
+    int element_bytes=model.dtype==ScalarType::kBF16?2:4;
+    for(auto const& operand:exact.semantic.operands) {
+      auto relation=ownership.ApplyRange(ProjectTaskRead(exact.semantic,task,exact.partition,
+          operand.tensor,operand.map,{},{}));
+      accesses.reads[operand.tensor.name]=accesses.reads[operand.tensor.name].Union(relation);
+      auto count=relation.BoundTaskCard();read_counts.push_back(count);
+      read_bytes.push_back(count.Scale(fp32_partials?4:element_bytes));
+    }
+    work.read_elements=QuasiPolynomial::Sum(read_counts);
+    work.nominal_read_elements=work.read_elements;
+    work.write_elements=accesses.writes.BoundTaskCard();
+    work.nominal_write_elements=work.nominal_write_elements.SumAlong(ownership);
+    work.task_count=accesses.writes.Reverse().Image().BoundTaskCard();
+    work.task_reduce_extent=work.task_reduce_extent.SumAlong(ownership);
+    work.nominal_task_reduce_extent=work.nominal_task_reduce_extent.SumAlong(ownership);
+    ArithmeticInputs arithmetic;arithmetic.reduction=work.task_reduce_extent;
+    auto signature=InstantiateTaskArithmetic("sum",arithmetic,
+        accesses.writes.Reverse().ImageIdentity());
+    DerivedTaskInput result{task,work,signature,{"q"},
+        codegen::ScalarTaskDataflow(codegen::TaskKind::kGemmCombine),accesses};
+    result.physical_read_bytes=QuasiPolynomial::Sum(read_bytes);
+    return result;
+  }
   if (!tile_ownership)
     task.tile.assign(task.output.axes.size(),ClosedForm::Constant(1));
   SemanticOp reduction;
@@ -239,14 +274,13 @@ DerivedTaskInput DeriveCombineTaskInput(ModelDescription const& model,int stage,
 BackendTraits ModelTaskTraits(ModelDescription const& model, int index,
                               GemmConfig const& config) {
   auto collective = model.dtype == ScalarType::kBF16
-      ? (model.serving
-             ? (model.dm
-                    ? DmServingBF16Traits(config.tile_m, config.tile_n, config.tile_k,
-                                         config.stages)
-                    : ServingBF16Traits(config.tile_m, config.tile_n, config.tile_k,
-                                        config.stages))
+      ? (model.dm
+             ? DmServingBF16Traits(config.tile_m, config.tile_n, config.tile_k,config.stages)
+             : (model.serving
+                    ? ServingBF16Traits(config.tile_m, config.tile_n, config.tile_k,
+                                        config.stages)
              : TensorBF16Traits(config.tile_m, config.tile_n, config.tile_k,
-                                config.stages))
+                                config.stages)))
       : SimtF32Traits(config.tile_m, config.tile_n, config.tile_k, config.stages);
   auto const& stage = model.stages.at(index);
   bool uses_collective = false;
@@ -283,7 +317,14 @@ analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
     if (!names.insert(op.name).second) throw std::invalid_argument("duplicate semantic cost task");
     auto const& stage=model.stages.at(input.stage);
     semantics.ops.push_back(op);
-    if (!model.serving) {
+    bool owned=model.dm && op.exact_task_access;
+    if(owned) {
+      for(unsigned axis=0;axis<op.task_space.axes.size();++axis) {
+        auto found=input.tiles.find(op.task_space.axes[axis].name);
+        if(found==input.tiles.end())throw std::invalid_argument("DM task is missing its ownership tile");
+        granularity.Tile(op.name,analysis::UnitTaskOwnershipDimension(op,axis),found->second);
+      }
+    } else if (!model.serving) {
       for(auto const& [dim,tile]:input.tiles)granularity.Tile(op.name,dim,tile);
     } else for (std::size_t axis=0;axis<op.result.axes.size();++axis) {
       auto found=input.tiles.find(op.result.axes[axis].name);
@@ -298,23 +339,25 @@ analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
     auto const& config=configs.at(stage.gemm);
     if (config.tile_m<=0 || config.tile_n<=0 || config.tile_k<=0 || config.split_k<=0)
       throw std::invalid_argument("invalid candidate task granularity");
-    bool grouped = model.serving && op.result.axes.size()==3 &&
+    auto const& output=owned?op.task_space:op.result;
+    auto const& output_map=owned?op.task_map:op.result_map;
+    bool grouped = !owned && model.serving && op.result.axes.size()==3 &&
                    op.result.axes[1].name=="g" &&
                    op.result.axes[2].name=="u";
-    if ((!grouped && op.result.axes.size()!=2) ||
-        op.result_map.results.size()!=op.result.axes.size())
+    if ((!grouped && output.axes.size()!=2) ||
+        output_map.results.size()!=output.axes.size())
       throw std::invalid_argument("collective output rank is not implemented: "+op.name);
     if (grouped && op.result.axes[2].extent.Eval({}, {}) % config.tile_n)
       throw std::invalid_argument("packed group width must divide the serving N tile: "+op.name);
-    for (int axis=0;axis<int(op.result.axes.size());++axis) {
-      auto const& index=op.result_map.results[axis];
+    for (int axis=0;axis<int(output.axes.size());++axis) {
+      auto const& index=output_map.results[axis];
       if (index.kind!=analysis::IndexResult::Kind::kAffine || index.terms.size()!=1 ||
           !index.terms[0].coefficient.IsLiteral(1) || !index.terms[0].group.IsLiteral(1))
         throw std::invalid_argument("collective output requires unit iteration indexing");
       int tile = axis==0 ? config.tile_m :
                  ((grouped && axis==1) ||
-                  (model.serving && op.result.axes[axis].name=="tile")
-                     ? 1 : (model.serving && op.result.axes[axis].name=="i"
+                  (!owned && model.serving && output.axes[axis].name=="tile")
+                     ? 1 : (!owned && model.serving && output.axes[axis].name=="i"
                                 ? config.tile_n/2 : config.tile_n));
       granularity.Tile(op.name,index.terms[0].dim,
                        analysis::ClosedForm::Constant(tile));
@@ -529,9 +572,17 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
   analysis::ArithmeticInputs arithmetic;
   arithmetic.reduction=work.nominal_task_reduce_extent;
   arithmetic.total=work.reduce_extent;
-  arithmetic.width=task->tile.at(semantic.op.result.axes.size()-1).Eval({},{});
+  auto width_axis=model.dm && task->element_access?
+      task->element_access->partition.ownership.results.size():semantic.op.result.axes.size();
+  arithmetic.width=task->tile.at(width_axis-1).Eval({},{});
   arithmetic.dtype=semantic.op.dtype;
-  auto signature=analysis::InstantiateArithmetic(semantic.op.arithmetic,arithmetic);
+  analysis::OpArithmetic signature;
+  if(model.dm && task->element_access) {
+    auto const& access=*task->element_access;
+    auto domain=analysis::ProjectTaskElements(access.semantic,*task,access.partition,
+        access.semantic.task_space,access.semantic.task_map,{},{}).Reverse().ImageIdentity();
+    signature=analysis::InstantiateTaskArithmetic(semantic.op.arithmetic,arithmetic,domain);
+  } else signature=analysis::InstantiateArithmetic(semantic.op.arithmetic,arithmetic);
   analysis::RequireArithmeticImplementation(signature);
   DerivedTaskInput result{*task,std::move(work),std::move(signature),task->Coordinates(),std::nullopt,std::nullopt};
   auto const& stage=model.stages.at(semantic.stage);

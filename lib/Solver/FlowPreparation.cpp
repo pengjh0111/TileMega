@@ -7,6 +7,7 @@
 #include <tilemega/Codegen/tasks/TaskResources.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/BoundDependencyForm.h>
+#include <tilemega/Analysis/TaskOwnershipGeometry.h>
 #include <isl/map.h>
 #include <isl/set.h>
 #include <isl/point.h>
@@ -92,7 +93,13 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
   std::map<std::string,int> logical;
   for(auto const& sem:result.model.task_semantics){semantics.ops.push_back(sem.op);logical[sem.op.name]=sem.stage;if(!sem.op.reduction.combiner.empty())logical[sem.op.reduction.combiner]=sem.stage;
     auto const* node=graph.Find(sem.op.name);if(!node)throw std::runtime_error("missing flow task");
-    for(std::size_t a=0;a<sem.op.result.axes.size();++a) {
+    bool owned=result.model.dm && sem.op.exact_task_access;
+    auto const& output=owned?sem.op.task_space:sem.op.result;
+    for(std::size_t a=0;a<output.axes.size();++a) {
+      if(owned) {
+        granularity.Tile(sem.op.name,analysis::UnitTaskOwnershipDimension(sem.op,a),node->tile[a]);
+        continue;
+      }
       if(!result.model.serving) {
         granularity.Tile(sem.op.name,sem.op.result.axes[a].name,node->tile[a]);
         continue;
@@ -127,7 +134,14 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     auto value=count.Eval(theta);prepared->task_counts.emplace(std::move(key),value);return value;
   };
   std::vector<int> entry(result.model.stages.size()),done(entry);result.offsets={0};
-  auto append=[&](int stage,bool combine,FlowPreparationCache::OwnershipEntry const& ownership){auto count=ownership.count;result.projection.stages.push_back({stage,combine,count});result.counts.push_back(evaluate_count(count));result.offsets.push_back(result.offsets.back()+result.counts.back());};
+  auto append=[&](int stage,bool combine,FlowPreparationCache::OwnershipEntry const& ownership){
+    auto count=ownership.count;
+    result.projection.stages.push_back({stage,combine,count});
+    result.counts.push_back(evaluate_count(count));
+    result.offsets.push_back(result.offsets.back()+result.counts.back());
+    if(result.model.dm)
+      result.projection.runtime_task_refs=result.projection.runtime_task_refs.Add(count);
+  };
   for(std::size_t stage=0;stage<result.model.stages.size();++stage) {
     auto sem=std::find_if(result.model.task_semantics.begin(),result.model.task_semantics.end(),[&](auto const& s){return s.stage==int(stage) && (!result.model.stages[stage].IsCollective() || s.op.kind==analysis::OperatorKind::kMatmul);});
     if(sem==result.model.task_semantics.end())throw std::runtime_error("missing flow stage semantic");

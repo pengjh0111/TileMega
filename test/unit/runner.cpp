@@ -84,9 +84,11 @@ namespace tilemega::tests::embedding_plan_test { int TestEmbeddingPlan(int, char
 namespace tilemega::tests::wiring_coupling_test { int TestWiringCoupling(int, char**); }
 namespace tilemega::tests::degradation_test { int TestDegradation(int, char**); }
 namespace tilemega::tests::task_arithmetic_domain_test { int TestTaskArithmeticDomain(int, char**); }
+namespace tilemega::tests::dm_store_geometry_test { int TestDmStoreGeometry(int, char**); }
 int main(int argc, char** argv) {
   struct Entry { char const* name; int (*run)(int, char**); };
   Entry const entries[] = {
+    {"dm_store_geometry", tilemega::tests::dm_store_geometry_test::TestDmStoreGeometry},
     {"task_arithmetic_domain", tilemega::tests::task_arithmetic_domain_test::TestTaskArithmeticDomain},
     {"target_spec", tilemega::tests::target_spec_test::TestTargetSpec},
     {"coupling_types", tilemega::tests::coupling_types_test::TestCouplingTypes},
