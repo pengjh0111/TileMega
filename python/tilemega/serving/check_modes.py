@@ -6,7 +6,8 @@ import os
 from pathlib import Path
 import torch
 from .engine import ServingEngine
-from .measure import _exclusive, _preflight_external_memory
+from .measure import _preflight_external_memory
+from .validation_guard import validation_guard
 
 
 def main() -> None:
@@ -15,10 +16,12 @@ def main() -> None:
         p.add_argument('--'+name,type=Path,required=True)
     p.add_argument('--batch',type=int,required=True)
     p.add_argument('--steps',type=int,default=1024)
+    p.add_argument('--allow-shared-gpu',action='store_true',
+                   help='correctness only; bypass occupancy gates and report no timing')
     a=p.parse_args();a.out.mkdir(parents=True,exist_ok=True)
     torch.cuda.init()
     guard_allocation=torch.empty(1,device='cuda')
-    _preflight_external_memory(a.out)
+    if not a.allow_shared_gpu:_preflight_external_memory(a.out)
     prompts=torch.tensor(json.loads(a.prompt_ids.read_text())[:a.batch],dtype=torch.int32)
     metadata=json.loads(Path(str(a.decode_so)+".plan.json").read_text())
     arms=(('L1_separate','L1',False,None),('L2_separate','L2',False,None),
@@ -28,7 +31,7 @@ def main() -> None:
               ('L1_loop','L1',True,None),('L1_loop_no_phase','L1',True,'0'))
     results={};mismatches={}
     for label,mode,loop,mask in arms:
-        if not _exclusive(a.out/'guard.jsonl',label+'-before',True):
+        if not validation_guard(a.out/'guard.jsonl',label+'-before',True,allow_shared=a.allow_shared_gpu):
             raise SystemExit(75)
         previous=os.environ.get('TILEMEGA_KPHASE_MASK')
         if mask is not None:os.environ['TILEMEGA_KPHASE_MASK']=mask
@@ -48,10 +51,12 @@ def main() -> None:
         finally:
             if previous is None:os.environ.pop('TILEMEGA_KPHASE_MASK',None)
             else:os.environ['TILEMEGA_KPHASE_MASK']=previous
-        if not _exclusive(a.out/'guard.jsonl',label+'-after',False):
+        if not validation_guard(a.out/'guard.jsonl',label+'-after',False,allow_shared=a.allow_shared_gpu):
             raise SystemExit(75)
         mismatches[label]=int((results[label]!=results[arms[0][0]]).sum().item())
     report=dict(batch=a.batch,steps=a.steps,mismatches=mismatches,
+                guard_mode='shared_correctness' if a.allow_shared_gpu else 'exclusive',
+                timing_eligible=False,
                 **{'pass':all(n==0 for n in mismatches.values())})
     (a.out/'mode_check.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report))

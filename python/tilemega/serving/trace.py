@@ -10,7 +10,7 @@ from pathlib import Path
 import torch
 
 from .engine import ServingEngine
-from .measure import _exclusive
+from .validation_guard import validation_guard
 
 
 def serving_trace(args):
@@ -28,7 +28,7 @@ def serving_trace(args):
             dump = getattr(engine.decode_lib.lib, "tm_plan_dump_serving_trace", None)
             if dump is None:
                 raise RuntimeError("decode plan lacks stage/step trace instrumentation")
-            if not _exclusive(out / "guard.jsonl", "before", True):
+            if not validation_guard(out / "guard.jsonl", "before", True,allow_shared=args.allow_shared_gpu):
                 raise SystemExit(75)
             engine.state.tokens.zero_()
             engine.state.kv_storage.zero_()
@@ -55,12 +55,13 @@ def serving_trace(args):
             status = dump(engine.decode.handle, os.fsencode(out.resolve()))
             if status:
                 raise RuntimeError(f"serving trace dump failed: {status}")
-            if not _exclusive(out / "guard.jsonl", "after", False):
+            if not validation_guard(out / "guard.jsonl", "after", False,allow_shared=args.allow_shared_gpu):
                 raise SystemExit(75)
             report = dict(past=past, mode=args.mode, loop=bool(args.decode_loop),
                           execution_identity=engine.decode.execution_identity(mode,bool(args.decode_loop)),
                           launches=args.launches, steps=args.steps,
-                          mean_step_ms=begin.elapsed_time(end)/(args.launches*args.steps))
+                          timing_eligible=not args.allow_shared_gpu)
+            report['diagnostic_step_ms' if args.allow_shared_gpu else 'mean_step_ms']=begin.elapsed_time(end)/(args.launches*args.steps)
             (out / "trace.json").write_text(json.dumps(report, indent=2)+"\n")
             reports.append(report)
     print(json.dumps(reports))
@@ -81,6 +82,8 @@ def main() -> None:
     parser.add_argument("--mode", choices=("L1", "L2"), default="L2")
     parser.add_argument("--decode-loop", type=int, choices=(0, 1), default=0)
     parser.add_argument("--steps", type=int, default=1)
+    parser.add_argument("--allow-shared-gpu", action="store_true",
+                        help="validate trace output only; timings are ineligible")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     if args.stage or args.step or args.task:
@@ -92,7 +95,7 @@ def main() -> None:
                        args.batch) as engine:
         if not hasattr(engine.decode_lib.lib, "tm_plan_dump_trace_v2"):
             raise RuntimeError("decode plan is not a trace-enabled build")
-        if not _exclusive(args.out / "guard.jsonl", "before", True):
+        if not validation_guard(args.out / "guard.jsonl", "before", True,allow_shared=args.allow_shared_gpu):
             raise SystemExit(75)
         engine.state.tokens.zero_()
         engine.state.kv_storage.zero_()
@@ -114,15 +117,16 @@ def main() -> None:
         status = dump(engine.decode.handle, step_ms)
         if status:
             raise RuntimeError(f"tm_plan_dump_trace_v2 returned {status}")
-        if not _exclusive(args.out / "guard.jsonl", "after", False):
+        if not validation_guard(args.out / "guard.jsonl", "after", False,allow_shared=args.allow_shared_gpu):
             raise SystemExit(75)
         report = {"model": str(args.model), "batch": args.batch,
                   "execution_identity": engine.decode.execution_identity(2,False),
                   "past": args.past, "mode": "L2 diagnostic",
-                  "launches": args.launches, "mean_step_ms": step_ms,
+                  "launches": args.launches, "timing_eligible": not args.allow_shared_gpu,
                   "trace_compiled": True,
                   "trace_files": ["meta.tsv", "slots.tsv", "waits.tsv",
                                   "events.tsv", "runtime_dependencies.cuh"]}
+        report['diagnostic_step_ms' if args.allow_shared_gpu else 'mean_step_ms']=step_ms
         (args.out / "trace.json").write_text(json.dumps(report, indent=2) + "\n")
         print(json.dumps(report))
 
