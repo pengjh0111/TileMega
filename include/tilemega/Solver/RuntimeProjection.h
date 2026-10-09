@@ -74,6 +74,11 @@ struct RuntimeProjection {
     analysis::DependencyTable table;
   };
   std::vector<TaskTable> runtime_tables;
+  struct CountedWait {
+    int producer=-1,consumer=-1;
+    codegen::CountedWaitRecord contract;
+  };
+  std::vector<CountedWait> runtime_counted;
 };
 struct FusedRuntimeProjection {
   RuntimeProjection projection;

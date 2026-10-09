@@ -10,6 +10,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <set>
+#include <limits>
 
 #ifndef TILEMEGA_SYMBOLIC_RUNTIME_PROJECTION
 #define TILEMEGA_SYMBOLIC_RUNTIME_PROJECTION 1
@@ -309,12 +310,13 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
     analysis::WaitWindow window;
     std::string offset;
     std::optional<analysis::DependencyTable> table;
+    std::optional<codegen::CountedWaitRecord> counted;
   };
   std::vector<Edge> edges;
   for (auto const& edge : plan.dependencies) {
     if (edge.producer >= entry.size() || edge.consumer >= entry.size())
       throw std::invalid_argument("dependency outside runtime projection stages");
-    if (edge.table && ((model.stages[edge.consumer].kind==StageKind::kAttention &&
+    if ((edge.table || edge.counted) && ((model.stages[edge.consumer].kind==StageKind::kAttention &&
         stage_chunks[edge.consumer]>1) ||
         (done[edge.producer]!=entry[edge.producer] &&
          !(plan.ownership_flags & codegen::kCombinerTileOwnership))))
@@ -328,7 +330,7 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
         stage_chunks[edge.consumer]>1 && window.narrowed)
       window.div *= stage_chunks[edge.consumer];
     edges.push_back({done[edge.producer],entry[edge.consumer],window,
-                     std::to_string(window.offset),edge.table});
+                     std::to_string(window.offset),edge.table,edge.counted});
   }
   for (std::size_t i=0; i<entry.size(); ++i) if (done[i] != entry[i]) {
     if (model.stages[i].kind==StageKind::kAttention) {
@@ -344,7 +346,8 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
     } else edges.push_back({entry[i],done[i],{},"0"});
   }
   for (auto const& edge : edges)
-    if (edge.table)
+    if (edge.counted)result.runtime_counted.push_back({edge.producer,edge.consumer,*edge.counted});
+    else if (edge.table)
       result.runtime_tables.push_back({edge.producer,edge.consumer,*edge.table});
     else result.runtime_windows.push_back({edge.producer, edge.consumer,
                                            edge.window, edge.offset});
@@ -352,7 +355,40 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
   std::map<std::pair<int,int>,std::vector<std::string>> event_pieces;
   std::vector<analysis::CouplingRelation> table_dependencies,table_waits,table_requested;
   std::map<std::pair<int,int>,std::vector<analysis::CouplingRelation>> table_events;
+  std::uint64_t counted_offset=0;
   for (auto const& edge : edges) {
+    if (edge.counted && !options.force_all_dependencies) {
+      auto const& counted=*edge.counted;
+      auto consumers=counted.contributions.expected.size();
+      if(edge.table || !consumers || !counted.producers)
+        throw std::invalid_argument("incomplete counted runtime ownership");
+      for(auto count:counted.contributions.expected)
+        if(!count)throw std::invalid_argument("nonpositive counted runtime threshold");
+      for(auto [stage,count]:{std::pair{edge.producer,std::size_t(counted.producers)},
+                              std::pair{edge.consumer,consumers}})
+        if(cardinality(relation({"[] -> [t] : "+valid+" and 0<=t<("+counts[stage]+")"}),
+                       "counted_domain",stage).Eval(plan.task_binding)!=long(count))
+          throw std::invalid_argument("counted runtime ownership differs from projected task count");
+      auto domain=analysis::CouplingRelation::FromIslText("{ [c] -> [p] : 0<=c<"+
+          std::to_string(consumers)+" and 0<=p<"+std::to_string(counted.producers)+" }");
+      if(!analysis::Contains(domain,counted.conservative_relation))
+        throw std::invalid_argument("counted I2 coupling escapes physical ownership");
+      auto consumer=relation({"[cs="+std::to_string(edge.consumer)+",c] -> [c] : "+
+          valid+" and 0<=c<("+counts[edge.consumer]+")"});
+      auto producer=relation({"[p] -> [ps="+std::to_string(edge.producer)+",p] : "+
+          valid+" and 0<=p<("+counts[edge.producer]+")"});
+      table_dependencies.push_back(consumer.ApplyRange(counted.conservative_relation).ApplyRange(producer));
+      auto event=relation({"[cs="+std::to_string(edge.consumer)+",c] -> [w,pstage="+
+          std::to_string(edge.producer)+",kind=3,g] : "+valid+" and 0<=c<("+
+          counts[edge.consumer]+") and w=c%"+std::to_string(options.grid)+
+          " and g="+std::to_string(counted_offset)+"+c"});
+      table_waits.push_back(event);table_requested.push_back(event);
+      table_events[{edge.producer,3}].push_back(event);
+      counted_offset+=consumers;
+      if(counted_offset>std::numeric_limits<std::uint32_t>::max())
+        throw std::invalid_argument("counted runtime counter storage overflows");
+      continue;
+    }
     if (edge.table && !options.force_all_dependencies) {
       auto const& table=*edge.table;
       auto proved=analysis::BuildDependencyTableLinear(table.linear_relation,table.producers,table.consumers);
