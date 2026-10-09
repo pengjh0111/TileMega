@@ -4948,6 +4948,6 @@
       "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a"
     }
   ],
-  "architecture_compile_followup": "runs/dm1-forward-cli-architectures; other four targets pending",
+  "architecture_compile_followup": "verified: results/CI3_forward_cli_architectures.json seals ten T=128/4096 builds over five architectures; all resources are spill-free",
   "identity_storage": "Full identity files, including all source hashes and complete macro values, are addressed by identity_path and identity_sha256. This committed receipt retains their metadata, macro-file hashes/counts and per-kernel resources; it is not a replacement identity."
 }

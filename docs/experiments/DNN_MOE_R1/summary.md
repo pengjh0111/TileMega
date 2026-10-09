@@ -297,4 +297,4 @@ legacy bit-exact checks (`results/CI7_binding_pricing_integration_host.json`).
 Complete macros pass 3 capture and 2 identity tests; total-memory serialization
 passes 30 host checks/30 rejections plus a 50,894,602,240-byte device probe
 (`complete_macro_identity_host.json`, `CI7_target_memory_host.json`). Native
-integration is queued in an isolated worktree; model gates remain pending.
+CG CLI checks pass eight plans (`CI3_forward_cli_cuda.json`); model gates remain pending.
