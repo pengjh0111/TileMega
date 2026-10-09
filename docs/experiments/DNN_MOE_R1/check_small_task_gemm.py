@@ -36,6 +36,7 @@ def main():
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--overlay', type=Path)
     parser.add_argument('--fixture', type=Path)
+    parser.add_argument('--geometry-set',choices=('small','multipage'),default='small')
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--smoke', action='store_true')
     args = parser.parse_args()
@@ -57,6 +58,8 @@ def main():
               for n in (16, 32, 64, 128, 256) for k in (16, 32, 64, 128)
               if m*n <= 16384 and (n == 16 or k < 64) and (m, n, k) not in covered]
     groups = critical + [others[i:i+4] for i in range(0, len(others), 4)]
+    if args.geometry_set=='multipage':
+        groups=critical=[[(16,128,128),(16,256,64),(16,256,128)]]
     if args.smoke:
         groups = groups[:1]
     sources = []
@@ -80,7 +83,8 @@ def main():
         compiler_version=subprocess.check_output([nvcc, '--version'], text=True), compiler_sha256=sha(nvcc),
         baselines=dict(vllm_version=subprocess.check_output(['/root/venv_vllm/bin/python', '-c',
             'from importlib.metadata import version; print(version("vllm"))'], text=True).strip()),
-        scope='46 additional finite-chain dense/page TaskBody geometries; row/tiled weights, independent FP32 oracle, page wrap, tails, offsets, canaries and BF16 bitwise nonpaged/paged; im2col/rowgather/expert policies, complete chains and model gates pending')
+        scope=('46 additional finite-chain dense/page TaskBody geometries; row/tiled weights, independent FP32 oracle, page wrap, tails, offsets, canaries and BF16 bitwise nonpaged/paged; im2col/rowgather/expert policies, complete chains and model gates pending' if args.geometry_set=='small' else
+               'three 2/4-page B stage geometries; circular ldmatrix addresses start at nonzero slots and wrap 3/5-slot rings; row/tiled weights, tails, offsets, canaries and independent FP32 oracles; production PageStream/solver integration pending'))
     try:
         for i, source in enumerate(sources):
             for tiled in (0, 1):
@@ -106,7 +110,8 @@ def main():
                         macros_sha256=sha(macros), arch=f'sm_{arch}', baselines=result['baselines'],
                         execution=dict(pg=['l2', 'pages'], phase='body_unit', tiled_weights=bool(tiled)),
                         implementations=dict(gemm='ServingGemmTaskBody/ServingDmGemm',
-                            paged_gemm='PagedGemmTaskBody', geometries=groups[i], stages=2, pages=2),
+                            paged_gemm='PagedGemmTaskBody', geometries=groups[i], stages=2,
+                            pages=(2 if args.geometry_set=='small' else [3,3,5])),
                         kernels=kernels, spill=any(row['spill'] for row in kernels.values()))
                     identity['artifact_id'] = hashlib.sha256(json.dumps(identity,
                         sort_keys=True, separators=(',', ':')).encode()).hexdigest()
