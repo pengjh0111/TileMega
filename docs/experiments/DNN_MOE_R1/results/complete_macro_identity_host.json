@@ -1,0 +1,29 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Isolated identity module overlay. Synthetic shared-object/resource fixtures are never loaded or executed; actual nvcc preprocessing supplies macro tables.",
+  "source": {
+    "head": "d85080a4dc959157b7fa9e6583218ba5dfeb0956",
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "inputs": {
+      "runs/dm1-complete-macro-identity/overlay/docs/experiments/DNN_MOE_R1/identity_dm.py": "735a81a9ee20f786b0238b7a848396b7ee108f38972431bd8cfbe44e165cdaad",
+      "runs/dm1-ci7-binding-pricing-integration/identity.patch": "5c66daa9c00c35c02b2efc11bf98c293176984051073ba5dd0e69c1f9a3e2562",
+      "docs/experiments/DNN_MOE_R1/test_identity_macro_dm.py": "1a2936fc7be80ee3cd1fb1e4307463a59c57e3aa959d224d63a4c62d4d8f8f88",
+      "docs/experiments/DNN_MOE_R1/capture_macros_dm.py": "040b4e4319acac09811e34ffb12db4c783a71436961547bf8f8f3bdb458cc535"
+    },
+    "scope": "Isolated identity module overlay. Synthetic shared-object/resource fixtures are never loaded or executed; actual nvcc preprocessing supplies macro tables.",
+    "assertions_enabled": true,
+    "expectations_changed": false
+  },
+  "tests": 2,
+  "actual_nvcc_preprocessing": true,
+  "synthetic_shared_objects": true,
+  "synthetic_ptxas_resources": true,
+  "synthetic_plan_compiler": true,
+  "loaded_shared_objects": false,
+  "expectations_changed": false,
+  "queue_sha256": "d487c32b1024ce10d17383d8711d3af1b950c50cb94b8df39c86636f7e195923",
+  "completion_sha256": "38df9fc8385c6cef344e4a679e5b64eb456a7e434609246b0db0838186b674e9",
+  "log_sha256": "1a588d872f1456d590d0e060ccb81907fa5a8560174baedab2a4432ccb392423",
+  "production_state": "Identity implementation committed in isolated worktree; native SO validation pending"
+}
