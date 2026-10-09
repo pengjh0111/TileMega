@@ -95,4 +95,9 @@ covers S=128/384/512, query tiles 64/128 and key-padding cases (including only
 one valid key). All-true masking is bitwise equal to the unmasked body.
 `results/DN_encoder_attention_cuda.json` seals 24 cases, three epochs, 50/50
 fresh processes, five architectures, no spills/stack and zero-error sanitizers.
-This verifies the body, not generated-stage/model integration.
+verified: the CG-generated masked encoder region also passes 50/50 fresh
+processes with repeated L1/L2 bit equality against PyTorch FP32 SDPA, five
+architecture builds and zero-error sanitizers. Its shared-library artifacts
+have no spills and 5/5 stack frames (`results/DN_generated_encoder_cuda.json`).
+The generated global-pool region passes the same checks against FP64 segmented
+means (`results/DN_generated_global_cuda.json`). Full model gates remain open.

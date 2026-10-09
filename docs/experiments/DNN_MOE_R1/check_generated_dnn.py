@@ -14,6 +14,10 @@ def execute(root):
     torch.manual_seed(20261009)
     torch.backends.cuda.matmul.allow_tf32 = False
     library = PlanLibrary(root / 'generated-sm_89.so')
+    if 'Run<TaskKind::kGlobalPoolReduce,' in (root/'generated.cu').read_text():
+        return execute_global(torch, library)
+    if 'Run<TaskKind::kEncoderAttention,' in (root/'generated.cu').read_text():
+        return execute_encoder(torch, library)
     pool = 'Run<TaskKind::kPool,' in (root/'generated.cu').read_text()
     assert library.info.phase == FORWARD and library.info.capacity == 0
     x = torch.randn(2, 3, 7, 11, device='cuda', dtype=torch.bfloat16)
@@ -51,6 +55,74 @@ def execute(root):
         scope='CG-generated layout/conv/pool/LN ABI; no full model gate', pool=pool, cases=cases)), flush=True)
 
 
+def execute_encoder(torch, library):
+    from tilemega.serving.plan import FORWARD
+    assert library.info.phase == FORWARD and library.info.capacity == 0 and library.info.seq == 128
+    qkv = torch.randn(2, 128, 3, 3, 64, device='cuda', dtype=torch.bfloat16)
+    output = torch.empty(2, 128, 192, device='cuda', dtype=torch.bfloat16)
+    mask = torch.ones(2, 128, device='cuda', dtype=torch.int64)
+    mask[0, 103:] = 0
+    mask[1, :37] = 0
+    q, k, v = (qkv[:, :, :, index].permute(0, 2, 1, 3).float() for index in range(3))
+    reference = torch.nn.functional.scaled_dot_product_attention(q, k, v,
+        attn_mask=mask[:, None, None, :].bool(), is_causal=False).permute(0, 2, 1, 3).reshape_as(output)
+    buffers = dict(qkv=qkv, context=output, mask=mask)
+    assert {b.name for b in library.buffers if b.role == 1} == set(buffers)
+    cases = []
+    with library.create(2, {name: value.data_ptr() for name, value in buffers.items()}, 0) as plan:
+        plan.set_steps([0])
+        first = None
+        for epoch in range(3):
+            for mode in (1, 2):
+                output.fill_(float('nan'))
+                plan.launch(0, mode, torch.cuda.current_stream().cuda_stream)
+                torch.cuda.synchronize()
+                error = (output.float() - reference).abs()
+                assert torch.all(error <= 1.6e-2 + 1.6e-2 * reference.abs()), error.max().item()
+                if first is None:
+                    first = output.clone()
+                else:
+                    assert torch.equal(first, output)
+                cases.append(dict(epoch=epoch, mode=mode, max_error=error.max().item()))
+    print(json.dumps(dict(event='generated_encoder_correctness', passed=True,
+        scope='CG-generated masked encoder attention ABI against PyTorch SDPA; no full BERT gate', cases=cases)), flush=True)
+
+
+def execute_global(torch, library):
+    from tilemega.serving.plan import FORWARD
+    assert library.info.phase == FORWARD and library.info.capacity == 0 and library.info.seq == 1
+    x = torch.randn(2, 49, 19, device='cuda', dtype=torch.float32)
+    partials = torch.full((2, 7, 19), float('nan'), device='cuda')
+    for image in range(2):
+        for tile in range(image*49//16, ((image+1)*49+15)//16):
+            begin, end = max(tile*16, image*49)-image*49, min((tile+1)*16, (image+1)*49)-image*49
+            partials[image, tile] = x[image, begin:end].sum(0)
+    guarded = torch.full((2*19+32,), -12345., device='cuda')
+    output = guarded[16:-16].view(2, 19)
+    reference = x.double().mean(1)
+    buffers = dict(partials=partials, mean=output)
+    assert {b.name for b in library.buffers if b.role == 1} == set(buffers)
+    cases = []
+    with library.create(2, {name: value.data_ptr() for name, value in buffers.items()}, 0) as plan:
+        plan.set_steps([0])
+        first = None
+        for epoch in range(3):
+            for mode in (1, 2):
+                output.fill_(float('nan'))
+                plan.launch(0, mode, torch.cuda.current_stream().cuda_stream)
+                torch.cuda.synchronize()
+                error = (output.double() - reference).abs()
+                assert torch.all(error <= 1e-6 + 1e-6 * reference.abs()), error.max().item()
+                assert torch.all(guarded[:16] == -12345.) and torch.all(guarded[-16:] == -12345.)
+                if first is None:
+                    first = output.clone()
+                else:
+                    assert torch.equal(first, output)
+                cases.append(dict(epoch=epoch, mode=mode, max_error=error.max().item()))
+    print(json.dumps(dict(event='generated_global_correctness', passed=True,
+        scope='CG-generated segmented global pooling ABI against FP64 mean; no full CNN gate', cases=cases)), flush=True)
+
+
 def build(root, arch):
     sys.path.insert(0, str(root / 'framework'))
     from capture_macros_dm import capture
@@ -77,7 +149,9 @@ def build(root, arch):
     macros = root / f'generated-sm_{arch}.macros'
     capture(command, macros)
     unchanged()
-    implementations = ['LayoutConvertTaskBody', 'ServingGemmTaskBody::RunDm', 'LayerNormTaskBody']
+    implementations = (['GlobalPoolReduceTaskBody'] if 'Run<TaskKind::kGlobalPoolReduce,' in source.read_text()
+        else ['EncoderAttentionTaskBody'] if 'Run<TaskKind::kEncoderAttention,' in source.read_text()
+        else ['LayoutConvertTaskBody', 'ServingGemmTaskBody::RunDm', 'LayerNormTaskBody'])
     if 'Run<TaskKind::kPool,' in source.read_text():
         implementations.append('PoolTaskBody')
     identity = dict(schema='tilemega.dm1.native-test.identity.v1', evidence='verified',

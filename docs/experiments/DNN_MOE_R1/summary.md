@@ -158,6 +158,14 @@ Seven of the ten new body kinds have local numerical evidence; dw→pw fusion,
 MoE top-k/dispatch and MoE combine remain. Pool/global L-sem and primitive
 solver traits pass 8/8 host checks (`results/DN_pool_primitive_pricing_host.json`).
 
+verified: CG-generated encoder attention and global pooling each pass 50/50
+fresh L1/L2 processes, five architecture builds and zero-error sanitizers
+(`results/DN_generated_encoder_cuda.json`, `results/DN_generated_global_cuda.json`).
+Both have zero spills and 5/5 stack frames. Exact ownership, task-count
+projection and forward batch binding pass 9/9 host checks
+(`results/DN_encoder_global_host.json`). The pre-launch batch-binding failure
+is retained; numerical criteria are unchanged.
+
 ### Synchronization coverage
 
 verified: shared primitives and synthetic table/counted/threshold stages have
