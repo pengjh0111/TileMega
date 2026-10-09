@@ -114,7 +114,9 @@ TaskWork DeriveExactTaskWork(OperatorNode const& task, ParamBinding const& known
     output_width = per_chunk;
   }
   ClosedForm ratio;
-  if (output_width.TryExactDivide(owned, &ratio))
+  if(output_width.Substitute(known).IsLiteral(0))
+    work.nominal_write_elements=work.write_elements;
+  else if (output_width.TryExactDivide(owned, &ratio))
     work.nominal_write_elements = Polynomial(tiled * ratio, known).SumAlong(tasks);
   else if (owned.TryExactDivide(output_width, &ratio) && ratio.Substitute(known).IsConstant()) {
     auto inverse = ratio.Eval(known, {});
