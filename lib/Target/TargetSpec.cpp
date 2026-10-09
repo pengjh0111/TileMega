@@ -377,6 +377,7 @@ TargetSpec TargetSpec::Probe(int device_ordinal) {
   spec.res.regs_per_sm = properties.regsPerMultiprocessor;
   spec.res.max_threads_per_sm = properties.maxThreadsPerMultiProcessor;
   spec.res.warp_size = properties.warpSize;
+  spec.res.dram_capacity_bytes = properties.totalGlobalMem;
   return spec;
 }
 
@@ -461,6 +462,13 @@ TargetSpec TargetSpec::FromJson(std::string const& path) {
   spec.res.max_cluster_size = res_int("max_cluster_size");
   spec.res.max_threads_per_sm = res_int("max_threads_per_sm");
   spec.res.warp_size = res_int("warp_size");
+  if(auto value=res_json.Find("dram_capacity_bytes")) {
+    auto bytes=value->AsNumber("dram_capacity_bytes");
+    // Json stores numbers as doubles; reject values that lose byte identity.
+    if(!std::isfinite(bytes) || bytes<0 || bytes>9007199254740991. || std::floor(bytes)!=bytes)
+      throw std::invalid_argument("DRAM capacity must be an exact nonnegative byte count");
+    spec.res.dram_capacity_bytes=std::uint64_t(bytes);
+  }
 
   ParseCalibration(root.At("calibration"), spec.calib);
   if (json::Value const* grouped = root.Find("calibration_by_dtype")) {
@@ -538,6 +546,13 @@ std::string TargetSpec::ToJson() const {
                         {"max_threads_per_sm", res.max_threads_per_sm},
                         {"warp_size", res.warp_size}});
 
+  if(res.dram_capacity_bytes) {
+    if(res.dram_capacity_bytes>9007199254740991ULL)
+      throw std::invalid_argument("DRAM capacity exceeds exact JSON integer range");
+    auto resources=root.At("resources");
+    resources.Set("dram_capacity_bytes",double(res.dram_capacity_bytes));
+    root.Set("resources",resources);
+  }
   root.Set("calibration", CalibrationJson(calib));
   auto event_json = [](EventCalibration const& e) {
     auto rate = [](EventRate const& r) {

@@ -384,6 +384,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/dm_semantic_signature_test.cpp
     test/unit/dm_virtual_frontend_test.cpp
     test/unit/dm_piece_pricing_test.cpp
+    test/unit/dm_target_memory_test.cpp
     test/unit/dm_page_resources_test.cpp
     test/unit/counted_dependency_cg_test.cpp
     test/unit/runtime_dependency_codec_test.cpp
@@ -777,6 +778,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME dm_semantic_signature COMMAND tilemega-unit dm_semantic_signature)
   add_test(NAME dm_virtual_frontend COMMAND tilemega-unit dm_virtual_frontend)
   add_test(NAME dm_piece_pricing COMMAND tilemega-unit dm_piece_pricing)
+  add_test(NAME dm_target_memory COMMAND tilemega-unit dm_target_memory)
   add_test(NAME dm_page_resources COMMAND tilemega-unit dm_page_resources)
   add_test(NAME counted_dependency_cg COMMAND tilemega-unit counted_dependency_cg)
   add_test(NAME counted_dependency_flow COMMAND tilemega-unit counted_dependency_flow)
