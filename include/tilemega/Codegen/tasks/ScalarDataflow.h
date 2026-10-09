@@ -84,6 +84,7 @@ inline ScalarDataflow ScalarTaskDataflow(TaskKind kind) {
       flow.Add(ScalarPhase::kStore,{pv});
       return flow;
     }
+    case TaskKind::kEncoderAttention:
     case TaskKind::kFusedAttention: {
       int qk=flow.Add(ScalarPhase::kArithmetic,{input});
       int softmax=flow.Add(ScalarPhase::kArithmetic,{qk});

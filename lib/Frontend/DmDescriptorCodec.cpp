@@ -151,7 +151,7 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
     auto const& stage=plan.stages[i];
     if(stage.kind==PlanTaskKind::kLayerNorm || stage.kind==PlanTaskKind::kEmbeddingSum ||
        stage.kind==PlanTaskKind::kLayoutConvert || stage.kind==PlanTaskKind::kPool ||
-       stage.kind==PlanTaskKind::kGlobalPoolReduce) {
+       stage.kind==PlanTaskKind::kGlobalPoolReduce || stage.kind==PlanTaskKind::kEncoderAttention) {
       if(!stage.width || stage.width>4096 || !stage.group || stage.group>1024)
         throw std::invalid_argument("invalid DM scalar task geometry");
       auto typed=[&](unsigned operand,char const* dtype,bool optional=false) {
@@ -188,6 +188,12 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
         for(auto id:{stage.operands[0],stage.operands[1]})
           if(plan.buffers[id].layout.kind!=DmLayout::kNHWC)
             throw std::invalid_argument("pool requires NHWC buffers");
+      }else if(stage.kind==PlanTaskKind::kEncoderAttention) {
+        typed(0,"bf16");typed(1,"bf16");typed(2,"i64",true);
+        if((stage.width!=128 && stage.width!=384 && stage.width!=512) ||
+           (stage.group!=64 && stage.group!=128) || !stage.extent ||
+           stage.rows_per_batch!=stage.width || unsigned(plan.serving_seq)!=stage.width)
+          throw std::invalid_argument("invalid encoder attention geometry");
       }else if(stage.kind==PlanTaskKind::kGlobalPoolReduce) {
         typed(0,"f32");typed(1,"f32");
         auto const& partial=plan.buffers[stage.operands[0]].layout;

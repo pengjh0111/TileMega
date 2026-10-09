@@ -125,6 +125,23 @@ int TestDmDescriptor(int, char**) {
   scalar.buffers[0].dtype="i32";rejects([&]{ValidateDmModelPlan(scalar);});scalar.buffers[0].dtype="i64";
   scalar.buffers[4].layout.logical[0]=127;rejects([&]{ValidateDmModelPlan(scalar);});
   scalar.buffers[4].layout.logical[0]=512;
+  ModelPlan encoder;encoder.dm=encoder.forward=true;encoder.serving_seq=128;
+  encoder.buffers.resize(3);encoder.buffers[2].dtype="i64";
+  PlanStage attention;attention.kind=PlanTaskKind::kEncoderAttention;
+  attention.width=128;attention.group=64;attention.extent=12;attention.rows_per_batch=128;
+  attention.operands.fill(kDmNoIndex);attention.operands[0]=0;
+  attention.operands[1]=1;attention.operands[2]=2;encoder.stages={attention};
+  ValidateDmModelPlan(encoder);
+  for(unsigned field=0;field<5;++field) {
+    auto bad=encoder;
+    if(field==0)bad.stages[0].width=64;
+    if(field==1)bad.stages[0].group=32;
+    if(field==2)bad.stages[0].extent=0;
+    if(field==3)bad.stages[0].rows_per_batch=64;
+    if(field==4)bad.buffers[2].dtype="i32";
+    rejects([&]{ValidateDmModelPlan(bad);});
+  }
+  encoder.stages[0].operands[2]=kDmNoIndex;ValidateDmModelPlan(encoder);
   auto module=mlir::ModuleOp::create(builder.getUnknownLoc());
   auto stage_attr=[&](char const* kind,unsigned width,unsigned group) {
     return builder.getDictionaryAttr({builder.getNamedAttr("kind",builder.getStringAttr(kind)),
@@ -150,12 +167,12 @@ int TestDmDescriptor(int, char**) {
   inputs.reduction=tilemega::analysis::QuasiPolynomial::Constant(8);
   inputs.total=tilemega::analysis::QuasiPolynomial::Constant(128);
   inputs.width=64; inputs.dtype=tilemega::analysis::ScalarType::kBF16;
-  for(auto const* name:{"layernorm","embedding_sum","layout_convert","pool","global_pool_reduce","depthwise_conv"}) {
+  for(auto const* name:{"layernorm","embedding_sum","layout_convert","pool","global_pool_reduce","depthwise_conv","encoder_attention"}) {
     auto arithmetic=tilemega::analysis::InstantiateArithmetic(name,inputs);
     assert(arithmetic.runtime_implemented);
     tilemega::analysis::RequireArithmeticImplementation(arithmetic);
   }
-  for(auto const* name:{"encoder_attention","dwpw_depthwise","moe_topk","moe_combine","moe_router"}) {
+  for(auto const* name:{"dwpw_depthwise","moe_topk","moe_combine","moe_router"}) {
     auto arithmetic=tilemega::analysis::InstantiateArithmetic(name,inputs);
     assert(!arithmetic.runtime_implemented);
     rejects([&]{tilemega::analysis::RequireArithmeticImplementation(arithmetic);});

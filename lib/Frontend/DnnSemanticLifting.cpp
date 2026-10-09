@@ -160,6 +160,33 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
       }
       b.Own(op,rows,width);b.Stats(op,stage.operands[6],rows);
       b.Record(index,std::move(op),OpRole::kEmbeddingSum,out);
+    }else if(stage.kind==PlanTaskKind::kEncoderAttention) {
+      auto packed=stage.operands[0],output=stage.operands[1],mask=stage.operands[2];
+      auto sequence=stage.width,heads=stage.extent;
+      if((sequence!=128 && sequence!=384 && sequence!=512) || !heads ||
+         (stage.group!=64 && stage.group!=128) || stage.rows_per_batch!=sequence)
+        throw std::invalid_argument("encoder attention ownership differs from packed geometry");
+      auto packed_space=T(b.Buffer(packed).name,{{"row",b.batch*C(sequence)},
+          {"channel",C(heads*192)}});
+      auto row=Add({I("m"),I("m",-long(sequence),sequence),I("m",sequence,heads*sequence)});
+      auto head=Add({I("m",192,sequence),I("m",-long(heads)*192,heads*sequence)});
+      auto channel=[&](char const* dim,long offset) {
+        auto value=head;value.terms.push_back(I(dim).terms.front());value.offset=C(offset);return value;
+      };
+      auto kv_row=Add({I("m",sequence,heads*sequence),I("j")});
+      op.kind=OperatorKind::kReduction;op.arithmetic="encoder_attention";
+      op.domain={D("m",b.batch*C(heads*sequence)),D("n",C(64)),
+          D("j",C(sequence),true),D("d",C(64),true)};
+      op.result=T(b.Buffer(output).name,{{"row",b.batch*C(sequence)},{"channel",C(heads*64)}});
+      op.result_map.results={row,Add({I("m",64,sequence),I("m",-long(heads)*64,heads*sequence),I("n")})};
+      op.operands={b.Read(packed,packed_space,{row,channel("d",0)}),
+          b.Read(packed,packed_space,{kv_row,channel("d",64)}),
+          b.Read(packed,packed_space,{kv_row,channel("n",128)})};
+      if(mask!=missing)op.operands.push_back(b.Read(mask,
+          T(b.Buffer(mask).name,{{"image",b.batch},{"token",C(sequence)}}),
+          {I("m",1,heads*sequence),I("j")}));
+      b.Own(op,b.batch*C(heads*sequence),64);
+      b.Record(index,std::move(op),OpRole::kEncoderAttention,output);
     }else if(stage.kind==PlanTaskKind::kPool) {
       auto input=stage.operands[0],output=stage.operands[1];
       auto const& conv=plan.convolutions.at(stage.conv);

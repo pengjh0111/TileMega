@@ -7,9 +7,12 @@
 #include <tilemega/Analysis/TaskElementRelation.h>
 #include <tilemega/Analysis/TaskWork.h>
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Solver/ModelDescription.h>
 #include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Solver/RuntimeProjection.h>
+#include <tilemega/Codegen/RuntimePlan.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/JSON.h>
 #include <llvm/Support/raw_ostream.h>
@@ -145,6 +148,121 @@ void PoolAndGlobal() {
     }
   std::cout<<"DNN_POOL_GLOBAL exact_read_domain_work_codec cases="<<cases<<" PASS\n";
 }
+void EncoderIntegration(char const* output_path) {
+  ModelPlan plan;plan.dm=plan.forward=true;plan.dtype="bf16";plan.serving_seq=128;
+  plan.buffers.resize(3);
+  for(unsigned i=0;i<3;++i) {
+    auto& buffer=plan.buffers[i];buffer.name=buffer.external_name=i==0?"qkv":i==1?"context":"mask";
+    buffer.role="external";buffer.dtype=i==2?"i64":"bf16";
+    buffer.per_batch=128*(i==0?576:i==1?192:1);
+  }
+  PlanStage stage;stage.kind=PlanTaskKind::kEncoderAttention;
+  stage.width=128;stage.group=64;stage.extent=3;stage.rows_per_batch=128;
+  stage.operands.fill(codegen::kDmNoIndex);stage.operands[0]=0;stage.operands[1]=1;stage.operands[2]=2;
+  stage.representative="attention";stage.representative_index=2;
+  plan.stages={stage};plan.outputs={{1,""}};plan.node_buffer={{"qkv",0},{"mask",2},{"attention",1}};
+  LiftOptions lift;lift.forward=true;lift.static_seq=128;lift.batch_symbol="s0";
+  auto lifted=LiftSemantics(plan,lift);auto graph=Instantiate(lifted.sem,LaunchGranularity(lifted,plan,{}));
+  ParamBinding known;known.Bind("s0",2);
+  auto const& task=graph.nodes.front();auto const& access=*task.element_access;
+  assert(task.Count().Eval(known,{})==12);
+  std::vector<CouplingRelation> reads;
+  for(unsigned i=0;i<3;++i) {
+    auto const& read=access.semantic.operands[i];
+    auto relation=ProjectTaskRead(access.semantic,task,access.partition,read.tensor,read.map,{},known);
+    auto only=relation.IntersectDomain("{ [m] : m=9 }");
+    Points expected;
+    unsigned image=1,head=1,query_begin=64;
+    for(unsigned row=0;row<(i?128:64);++row)for(unsigned d=0;d<64;++d)
+      expected.insert({Coords(task,{9,0}),{long(image*128+(i?row:query_begin+row)),long(head*192+i*64+d)}});
+    auto oracle=CouplingRelation::FromIslText("{ [m] -> [row,col] : m=9 and "+
+        std::to_string(image*128+(i?0:query_begin))+" <= row < "+
+        std::to_string(image*128+(i?128:query_begin+64))+" and "+
+        std::to_string(head*192+i*64)+" <= col < "+std::to_string(head*192+(i+1)*64)+" }");
+    assert(Contains(only,oracle) && Contains(oracle,only));assert(Listed(only)==expected);
+    reads.push_back(std::move(relation));
+  }
+  assert(CouplingRelation::UnionAll(reads).Card().SumDomain().Eval({})==12*(64+256)*64);
+  llvm::json::Value json=llvm::json::Object{
+    {"schema","tilemega.exported_program.v1"},{"guards",llvm::json::Array{}},
+    {"range_constraints",llvm::json::Object{{"s0","VR[1, 64]"}}},
+    {"nodes",llvm::json::Array{
+      llvm::json::Object{{"index",0},{"name","qkv"},{"op","placeholder"},{"target","qkv"},
+        {"inputs",llvm::json::Array{}},{"shape",llvm::json::Array{"s0","128","576"}},{"dtype","torch.bfloat16"}},
+      llvm::json::Object{{"index",1},{"name","mask"},{"op","placeholder"},{"target","mask"},
+        {"inputs",llvm::json::Array{}},{"shape",llvm::json::Array{"s0","128"}},{"dtype","torch.int64"}},
+      llvm::json::Object{{"index",2},{"name","attention"},{"op","call_function"},{"target","aten.scaled_dot_product_attention.default"},
+        {"inputs",llvm::json::Array{"qkv","mask"}},{"shape",llvm::json::Array{"s0","128","192"}},{"dtype","torch.bfloat16"}}}},
+    {"signature",llvm::json::Object{{"inputs",llvm::json::Array{
+      llvm::json::Object{{"name","qkv"},{"kind","USER_INPUT"},{"target",""}},
+      llvm::json::Object{{"name","mask"},{"kind","USER_INPUT"},{"target",""}}}},
+      {"outputs",llvm::json::Array{llvm::json::Object{{"name","attention"},{"kind","USER_OUTPUT"}}}}}}};
+  int fd;llvm::SmallString<128> filename;
+  assert(!llvm::sys::fs::createTemporaryFile("dm-encoder-cg","json",fd,filename));
+  {llvm::raw_fd_ostream out(fd,true);out<<llvm::formatv("{0:2}",json);}
+  mlir::MLIRContext context;ImportOptions options;options.phase_batch=2;
+  auto module=TorchExportImporter{}.ImportPlan(filename.str().str(),plan,context,nullptr,options);
+  solver::ModelDims dims{128,0,128};dims.batch=2;
+  auto description=solver::ModelDescription::FromCouplingGraph(*module,dims,"encoder");
+  assert(description.forward && description.task_semantics.size()==1);
+  auto candidate_graph=solver::InstantiateModelTasks(description,{});
+  auto input=solver::DeriveModelTaskInput(description,description.task_semantics.front(),candidate_graph,nullptr,false);
+  assert(input.arithmetic.runtime_implemented && input.serving_body_kind=="encoder_attention");
+  assert(input.arithmetic.flops_per_output_element.Eval(description.MetricBindings())==512);
+  auto traits=solver::ModelTaskTraits(description,0,{16,16,16,3,1});
+  assert(traits.threads==128 && traits.smem_bytes==codegen::EncoderAttentionSharedBytes());
+  auto runtime=solver::ProjectRuntimeQueues(description,codegen::ReadRuntimePlan(*module),{1,128,1});
+  assert(runtime.runtime_task_refs.Eval(description.MetricBindings())==12);
+  auto source=codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});
+  assert(source.find("#define TILEMEGA_DM_BOUND_BATCH 2")!=std::string::npos);
+  assert(source.find("Run<TaskKind::kEncoderAttention, 128, 64>")!=std::string::npos);
+  assert(source.find("#define TILEMEGA_DM_STAGE_SHARED_BYTES 35520")!=std::string::npos);
+  std::error_code error;llvm::raw_fd_ostream out(output_path,error);assert(!error);out<<source;
+  assert(!llvm::sys::fs::remove(filename));
+  std::cout<<"ENCODER_CG exact_noncausal_read_ownership_arithmetic_codegen PASS\n";
+}
+void GlobalIntegration(char const* output_path) {
+  ModelPlan plan;plan.dm=plan.forward=true;plan.dtype="bf16";plan.serving_seq=1;
+  plan.buffers.resize(2);
+  for(unsigned i=0;i<2;++i) {
+    auto& buffer=plan.buffers[i];buffer.name=buffer.external_name=i?"mean":"partials";
+    buffer.role="external";buffer.dtype="f32";buffer.per_batch=i?19:7*19;
+  }
+  auto& l=plan.buffers[0].layout;l.rank=3;
+  l.logical[0]=l.physical[0]=2;l.logical[1]=l.physical[1]=7;l.logical[2]=l.physical[2]=19;
+  l.strides[2]=1;l.strides[1]=19;l.strides[0]=7*19;
+  PlanStage stage;stage.kind=PlanTaskKind::kGlobalPoolReduce;
+  stage.width=32;stage.group=16;stage.extent=19;stage.rows_per_batch=49;
+  stage.operands.fill(codegen::kDmNoIndex);stage.operands[0]=0;stage.operands[1]=1;
+  stage.representative="mean";stage.representative_index=1;
+  plan.stages={stage};plan.outputs={{1,""}};plan.node_buffer={{"partials",0},{"mean",1}};
+  llvm::json::Value json=llvm::json::Object{
+    {"schema","tilemega.exported_program.v1"},{"guards",llvm::json::Array{}},
+    {"range_constraints",llvm::json::Object{{"s0","VR[1, 64]"}}},
+    {"nodes",llvm::json::Array{
+      llvm::json::Object{{"index",0},{"name","partials"},{"op","placeholder"},{"target","partials"},
+        {"inputs",llvm::json::Array{}},{"shape",llvm::json::Array{"s0","7","19"}},{"dtype","torch.float32"}},
+      llvm::json::Object{{"index",1},{"name","mean"},{"op","call_function"},{"target","aten.mean.dim"},
+        {"inputs",llvm::json::Array{"partials"}},{"shape",llvm::json::Array{"s0","19"}},{"dtype","torch.float32"}}}},
+    {"signature",llvm::json::Object{{"inputs",llvm::json::Array{
+      llvm::json::Object{{"name","partials"},{"kind","USER_INPUT"},{"target",""}}}},
+      {"outputs",llvm::json::Array{llvm::json::Object{{"name","mean"},{"kind","USER_OUTPUT"}}}}}}};
+  int fd;llvm::SmallString<128> filename;
+  assert(!llvm::sys::fs::createTemporaryFile("dm-global-cg","json",fd,filename));
+  {llvm::raw_fd_ostream out(fd,true);out<<llvm::formatv("{0:2}",json);}
+  mlir::MLIRContext context;ImportOptions options;options.phase_batch=2;
+  auto module=TorchExportImporter{}.ImportPlan(filename.str().str(),plan,context,nullptr,options);
+  solver::ModelDims dims{1,0,1};dims.batch=2;
+  auto description=solver::ModelDescription::FromCouplingGraph(*module,dims,"global");
+  auto runtime=solver::ProjectRuntimeQueues(description,codegen::ReadRuntimePlan(*module),{1,128,1});
+  assert(runtime.runtime_task_refs.Eval(description.MetricBindings())==2);
+  auto source=codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});
+  assert(source.find("#define TILEMEGA_DM_BOUND_BATCH 2")!=std::string::npos);
+  assert(source.find("Run<TaskKind::kGlobalPoolReduce, 32, 16>")!=std::string::npos);
+  std::error_code error;llvm::raw_fd_ostream out(output_path,error);assert(!error);out<<source;
+  assert(!llvm::sys::fs::remove(filename));
+  std::cout<<"GLOBAL_CG segmented_partial_ownership_codegen PASS\n";
+}
 void Integration(int argc,char** argv) {
   bool pool=argc==3 && std::string(argv[1])=="--emit-pool";
   auto plan=Fixture(2);
@@ -224,6 +342,10 @@ void Integration(int argc,char** argv) {
   assert(description.dm && description.serving && description.forward && description.stages.size()==plan.stages.size());
   assert(description.task_semantics.size()==plan.stages.size() && description.batch_metric_parameter=="s0");
   auto candidate_graph=solver::InstantiateModelTasks(description,{{16,16,16,3,1}});
+  auto projected=solver::ProjectRuntimeQueues(description,codegen::ReadRuntimePlan(*module),{1,128,1});
+  long expected_tasks=0;
+  for(auto const& task:candidate_graph.nodes)expected_tasks+=task.Count().Eval(description.MetricBindings(),{});
+  assert(projected.runtime_task_refs.Eval(description.MetricBindings())==expected_tasks);
   for(auto const& semantic:description.task_semantics) {
     trace(semantic.op.name.c_str());
     auto graph=Instantiate(SemanticGraph{{semantic.op}},Granularity{});
@@ -256,6 +378,8 @@ void Integration(int argc,char** argv) {
 }
 int TestDnnSemanticLifting(int argc,char** argv) {
   IslContext isl;unsigned cases=0;
+  if(argc==3 && std::string(argv[1])=="--emit-global") {GlobalIntegration(argv[2]);return 0;}
+  if(argc==3 && std::string(argv[1])=="--emit-encoder") {EncoderIntegration(argv[2]);return 0;}
   if(argc==2 && std::string(argv[1])=="--pool-global-only") {PoolAndGlobal();return 0;}
   if(argc==3 && std::string(argv[1])=="--emit-pool") {Integration(argc,argv);return 0;}
   if(argc==2 && std::string(argv[1])=="--integration-only") {

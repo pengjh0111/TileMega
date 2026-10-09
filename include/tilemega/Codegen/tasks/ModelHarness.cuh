@@ -243,6 +243,9 @@ union TaskSmem {
   SimtTaskResources<TaskKind::kAttention,kHarnessThreads>::SharedStorage attention;
   SimtTaskResources<TaskKind::kElementwise,kHarnessThreads>::SharedStorage pointwise;
   GemmVariantSmem gemm;
+#if defined(TILEMEGA_DM_STAGE_SHARED_BYTES) && TILEMEGA_DM_STAGE_SHARED_BYTES > 0
+  alignas(16) unsigned char dm_stage[TILEMEGA_DM_STAGE_SHARED_BYTES];
+#endif
 #if TILEMEGA_SERVING_RUNTIME
   ServingArgmaxReduceTaskBody::SharedStorage argmax;
 #endif
@@ -261,6 +264,9 @@ inline constexpr std::size_t kNonGemmTaskSmem =
     std::max({sizeof(TaskSmem::rms), sizeof(TaskSmem::attention), sizeof(TaskSmem::pointwise)});
 inline constexpr std::size_t kExpectedTaskSmem =
     std::max({sizeof(GemmVariantSmem),kNonGemmTaskSmem
+#if defined(TILEMEGA_DM_STAGE_SHARED_BYTES) && TILEMEGA_DM_STAGE_SHARED_BYTES > 0
+        ,sizeof(TaskSmem::dm_stage)
+#endif
 #if TILEMEGA_SERVING_RUNTIME
         ,sizeof(TaskSmem::argmax)
 #endif
@@ -445,6 +451,7 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
     case TaskKind::kEmbeddingSum:
     case TaskKind::kPool:
     case TaskKind::kGlobalPoolReduce:
+    case TaskKind::kEncoderAttention:
     case TaskKind::kLayoutConvert:
       for(int task=int(blockIdx.x);task<DmStageTaskCount(stage,p.dims);task+=int(gridDim.x))
         DispatchDmStage(unsigned(stage.kind),stage.width,stage.group,DmStageRunner<HarnessArch>{p,stage,unsigned(task),reinterpret_cast<char*>(&smem)});
@@ -555,6 +562,7 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
     case TaskKind::kEmbeddingSum:
     case TaskKind::kPool:
     case TaskKind::kGlobalPoolReduce:
+    case TaskKind::kEncoderAttention:
     case TaskKind::kLayoutConvert:
       DispatchDmStage(unsigned(stage.kind),stage.width,stage.group,DmStageRunner<HarnessArch>{p,stage,logical_task,reinterpret_cast<char*>(&smem)});
       break;
@@ -745,6 +753,7 @@ __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
     case TaskKind::kEmbeddingSum:
     case TaskKind::kPool:
     case TaskKind::kGlobalPoolReduce:
+    case TaskKind::kEncoderAttention:
     case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,p.dims);
 #endif
     case TaskKind::kGemm: return T_Gemm::Ownership(p, stage).count;
@@ -2207,7 +2216,7 @@ inline DeviceModel Create(ModelSpec const& spec,
     auto const& stage=spec.stages[i];
     if(stage.kind!=TaskKind::kLayerNorm && stage.kind!=TaskKind::kEmbeddingSum &&
        stage.kind!=TaskKind::kLayoutConvert && stage.kind!=TaskKind::kPool &&
-       stage.kind!=TaskKind::kGlobalPoolReduce)continue;
+       stage.kind!=TaskKind::kGlobalPoolReduce && stage.kind!=TaskKind::kEncoderAttention)continue;
     if(!stage.group || stage.group>1024 || !stage.width || stage.width>4096)
       throw std::invalid_argument("invalid DM scalar task geometry");
     auto rows=stage.rows_per_batch?std::uint64_t(stage.rows_per_batch)*dims.batch:
@@ -2269,8 +2278,10 @@ inline DeviceModel Create(ModelSpec const& spec,
     }else if(stage.kind==TaskKind::kPool) {
       operand(0,0,0);operand(1,0,0);
       if(stage.width<32 || stage.width>256 || stage.width%32 || !stage.extent ||
-         stage.conv>=spec.convolution_count)
-        throw std::invalid_argument("invalid pool window or channel tile");
+         stage.conv>=spec.convolution_count ||
+         ((rows+stage.group-1)/stage.group)*((std::uint64_t(stage.extent)+stage.width-1)/stage.width)>
+             std::uint64_t(std::numeric_limits<int>::max()))
+        throw std::invalid_argument("invalid pool window, channel tile or task count");
       auto const& conv=spec.convolutions[stage.conv];
       if(conv.input_layout!=stage.operand[0] || conv.output_layout!=stage.operand[1] ||
          conv.c!=stage.extent || conv.k!=conv.c || !conv.r || !conv.s ||
@@ -2289,6 +2300,23 @@ inline DeviceModel Create(ModelSpec const& spec,
            l.strides[0]<std::uint64_t(l.physical[1])*l.strides[1] ||
            buffer.Elements(dims)<std::uint64_t(dims.batch)*l.strides[0])
           throw std::invalid_argument("invalid pool physical image layout");
+      }
+    }else if(stage.kind==TaskKind::kEncoderAttention) {
+      if((stage.width!=128 && stage.width!=384 && stage.width!=512) ||
+         (stage.group!=64 && stage.group!=128) || !stage.extent ||
+         stage.rows_per_batch!=stage.width || unsigned(dims.seq)!=stage.width ||
+         std::uint64_t(dims.batch)*stage.extent*((stage.width+stage.group-1)/stage.group)>
+             std::uint64_t(std::numeric_limits<int>::max()))
+        throw std::invalid_argument("invalid encoder attention geometry");
+      operand(0,0,rows*stage.extent*192);operand(1,0,rows*stage.extent*64);
+      operand(2,3,rows,true);
+      for(unsigned slot:{0u,1u}) {
+        auto const& layout=spec.buffers[stage.operand[slot]].layout;
+        unsigned channels=stage.extent*(slot?64:192);
+        if(layout.rank && (layout.kind!=DmLayout::kRowMajor || layout.rank!=2 ||
+           layout.logical[0]!=rows || layout.logical[1]!=channels ||
+           layout.strides[1]!=1 || layout.strides[0]!=channels))
+          throw std::invalid_argument("encoder attention requires contiguous packed rows");
       }
     }else if(stage.kind==TaskKind::kGlobalPoolReduce) {
       operand(0,1,0);operand(1,1,std::uint64_t(dims.batch)*stage.extent);
@@ -2849,6 +2877,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       case TaskKind::kEmbeddingSum:
       case TaskKind::kPool:
       case TaskKind::kGlobalPoolReduce:
+      case TaskKind::kEncoderAttention:
       case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,dims);
 #endif
       case TaskKind::kGemm:

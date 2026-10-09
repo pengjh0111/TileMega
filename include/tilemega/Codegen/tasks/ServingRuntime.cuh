@@ -79,6 +79,7 @@ inline int Count(ModelSpec const& spec, RuntimeVariantDesc const& variant,
     case TaskKind::kEmbeddingSum:
     case TaskKind::kPool:
     case TaskKind::kGlobalPoolReduce:
+    case TaskKind::kEncoderAttention:
     case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,dims);
 #endif
     case TaskKind::kGemm:

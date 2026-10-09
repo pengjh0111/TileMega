@@ -267,6 +267,24 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
         count = Mul(tiles[i],stage_chunks[i]);
         break;
       }
+      case StageKind::kLayerNorm:
+      case StageKind::kEmbeddingSum:
+      case StageKind::kLayoutConvert:
+      case StageKind::kPool:
+      case StageKind::kGlobalPoolReduce:
+      case StageKind::kEncoderAttention: {
+        if(!model.dm || stage.width<=0 || stage.group<=0)
+          throw std::invalid_argument("incomplete DM primitive task geometry");
+        if(stage.kind==StageKind::kGlobalPoolReduce)
+          count=Mul(batch,(stage.extent+stage.width-1)/stage.width);
+        else if(stage.kind==StageKind::kEncoderAttention)
+          count=Mul(batch,stage.extent*((stage.width+stage.group-1)/stage.group));
+        else {
+          count=Ceil(stage.rows_per_batch?Mul(batch,stage.rows_per_batch):tokens,stage.group);
+          if(stage.kind==StageKind::kPool)count=Mul(count,(stage.extent+stage.width-1)/stage.width);
+        }
+        break;
+      }
       case StageKind::kRMSNorm:
       case StageKind::kEmbedding:
         count = stage.batch_rows ? batch : tokens; break;

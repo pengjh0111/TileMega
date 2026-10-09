@@ -513,8 +513,9 @@ std::string emitModelPlan(mlir::ModuleOp module,
 
   std::ostringstream out;
   auto couplings = module.getOps<dialect::CouplingOp>();
-  if (dm && serving && std::any_of(couplings.begin(), couplings.end(),
-        [](auto edge) { return edge->hasAttr("dependency_geometry") || edge->hasAttr("dependency_counted"); })) {
+  if (dm && serving && (optionalBoolField(plan,"forward") ||
+      std::any_of(couplings.begin(), couplings.end(),
+        [](auto edge) { return edge->hasAttr("dependency_geometry") || edge->hasAttr("dependency_counted"); }))) {
     auto roles = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.dimension_roles");
     auto role = roles ? roles.getAs<mlir::StringAttr>("batch") : mlir::StringAttr{};
     auto theta = readBinding(module, "tilemega.theta");
@@ -1041,15 +1042,22 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
       auto stage=dictionaryEntry(value,"stages");
       auto kind=stringField(stage,"kind");
       if(kind!="kLayerNorm" && kind!="kEmbeddingSum" && kind!="kLayoutConvert" &&
-         kind!="kPool" && kind!="kGlobalPoolReduce")continue;
+         kind!="kPool" && kind!="kGlobalPoolReduce" && kind!="kEncoderAttention")continue;
       auto width=integerField(stage,"width"),rows=integerField(stage,"group");
       if(width<=0 || width>4096 || rows<=0 || rows>1024 ||
          (kind=="kLayerNorm" && rows%4) ||
          ((kind=="kPool" || kind=="kGlobalPoolReduce") &&
           (width<32 || width>256 || width%32)))
         throw std::invalid_argument("invalid DM scalar task geometry");
+      if(kind=="kEncoderAttention" &&
+         ((width!=128 && width!=384 && width!=512) || (rows!=64 && rows!=128)))
+        throw std::invalid_argument("invalid encoder attention specialization");
       scalar_shapes.emplace(kind,width,rows);
     }
+    int dm_shared=0;
+    for(auto const& [kind,width,rows]:scalar_shapes)
+      if(kind=="kEncoderAttention")dm_shared=std::max(dm_shared,EncoderAttentionSharedBytes());
+    if(dm_shared)out<<"#define TILEMEGA_DM_STAGE_SHARED_BYTES "<<dm_shared<<"\n";
     if(!scalar_shapes.empty()) {
       out<<"} // namespace tilemega::codegen\n"
          <<"#include <tilemega/Codegen/tasks/TaskBase.h>\n"
@@ -1848,6 +1856,10 @@ std::string CouplingGraphToCUDA::LowerVariants(
     }
     records.push_back(std::move(record));
   }
+
+  // The shared harness ABI still has a GEMM storage alternative even when
+  // a DM region contains only primitive tasks. No GEMM stage is introduced.
+  if(shapes.empty() && optionalBoolField(first_plan,"dm"))shapes.emplace_back(16,16,16,2);
 
   std::ostringstream out;
   out << "// SPDX-License-Identifier: BSD-3-Clause\n"

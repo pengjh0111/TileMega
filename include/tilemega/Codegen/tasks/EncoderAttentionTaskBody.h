@@ -2,6 +2,7 @@
 #pragma once
 #include <tilemega/Backend/ServingAttentionWarp.h>
 #include <tilemega/Codegen/executor/Async.cuh>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 #include <cstdint>
 #include <cmath>
 
@@ -32,7 +33,7 @@ struct EncoderAttentionTaskBody {
     float maxima[4][16],sums[4][16],row_max[16],row_sum[16],alpha[16];
   };
   static constexpr int kSharedBytes=sizeof(SharedStorage);
-  static_assert(kSharedBytes==35520);
+  static_assert(kSharedBytes==EncoderAttentionSharedBytes());
   __host__ __device__ static unsigned Count(EncoderAttentionOperands const& p) {
     return p.batch*p.heads*((Sequence+QueryRows-1)/QueryRows);
   }

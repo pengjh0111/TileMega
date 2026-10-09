@@ -3,6 +3,7 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Frontend/ModelPlan.h>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 #include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Frontend/SemanticLifting.h>
 #include <tilemega/Analysis/CouplingDerivation.h>
@@ -277,6 +278,7 @@ llvm::StringRef taskKindOf(OpRole role) {
     case OpRole::kLayoutConvert: return "layout_convert";
     case OpRole::kPool: return "pool";
     case OpRole::kGlobalPoolReduce: return "global_pool_reduce";
+    case OpRole::kEncoderAttention: return "encoder_attention";
   }
   return "generic";
 }
@@ -427,6 +429,8 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
       fields.push_back(builder.getNamedAttr("dm_rows_per_batch",builder.getI64IntegerAttr(stage.rows_per_batch)));
       if(stage.binding_producer!=codegen::kDmNoIndex)
         fields.push_back(builder.getNamedAttr("dm_binding_producer",builder.getI64IntegerAttr(stage.binding_producer)));
+      if(stage.kind==PlanTaskKind::kEncoderAttention)
+        fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(codegen::EncoderAttentionSharedBytes())));
       if(stage.norm_epsilon!=0.0f)
         fields.push_back(builder.getNamedAttr("dm_norm_epsilon",builder.getF32FloatAttr(stage.norm_epsilon)));
     }

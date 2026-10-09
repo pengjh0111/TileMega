@@ -12,6 +12,8 @@
 
 namespace tilemega::codegen {
 
+constexpr int EncoderAttentionSharedBytes() { return (16*64+4*64*64)*2+704; }
+
 // Shared storage belongs to the implementation, including the one-float
 // empty-storage ABI. The GEMM collective provides its own storage type.
 constexpr int SimtSharedElements(TaskKind kind, int threads, int attention_extent) {
@@ -33,6 +35,7 @@ constexpr int SimtSharedElements(TaskKind kind, int threads, int attention_exten
     case TaskKind::kPool:
     case TaskKind::kGlobalPoolReduce: return 0;
     case TaskKind::kEmbeddingSum: return 8;
+    case TaskKind::kEncoderAttention: return EncoderAttentionSharedBytes()/sizeof(float);
   }
   return 0;
 }
@@ -87,6 +90,7 @@ inline TaskResourceInfo ReadSimtTaskResources(TaskKind kind) {
     case TaskKind::kPool: return ReadSimtTaskResources<TaskKind::kPool, Threads>();
     case TaskKind::kGlobalPoolReduce: return ReadSimtTaskResources<TaskKind::kGlobalPoolReduce, Threads>();
     case TaskKind::kEmbeddingSum: return ReadSimtTaskResources<TaskKind::kEmbeddingSum, Threads>();
+    case TaskKind::kEncoderAttention: return ReadSimtTaskResources<TaskKind::kEncoderAttention, Threads>();
     default: throw std::invalid_argument("TaskBody has no scalar resource declaration");
   }
 }

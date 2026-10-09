@@ -6,6 +6,7 @@
 #include <tilemega/Codegen/tasks/LayoutConvertTaskBody.h>
 #include <tilemega/Codegen/tasks/PoolTaskBody.h>
 #include <tilemega/Codegen/tasks/GlobalPoolReduceTaskBody.h>
+#include <tilemega/Codegen/tasks/EncoderAttentionTaskBody.h>
 
 namespace tilemega::codegen {
 #ifndef TILEMEGA_DM_STAGE_DISPATCH
@@ -21,6 +22,8 @@ __host__ __device__ inline int DmStageRows(StageDesc const& stage,ModelDims cons
 __host__ __device__ inline int DmStageTaskCount(StageDesc const& stage,ModelDims const& dims) {
   if(stage.kind==TaskKind::kGlobalPoolReduce)
     return stage.width?dims.batch*((stage.extent+stage.width-1)/stage.width):0;
+  if(stage.kind==TaskKind::kEncoderAttention)
+    return stage.group?dims.batch*stage.extent*((stage.width+stage.group-1)/stage.group):0;
   int rows=DmStageRows(stage,dims);
   int count=stage.group ? (rows+int(stage.group)-1)/int(stage.group) : 0;
   if(stage.kind==TaskKind::kPool)
@@ -73,6 +76,15 @@ struct DmStageRunner {
       PoolTaskBody<Arch,RowsPerTask,Width>::Run({static_cast<E const*>(pointer(0)),
           static_cast<E*>(pointer(1)),window,params.dm_buffers.layouts[stage.operand[0]],
           params.dm_buffers.layouts[stage.operand[1]]},task);
+    }else if constexpr(Kind==TaskKind::kEncoderAttention) {
+      EncoderAttentionOperands inputs{static_cast<E const*>(pointer(0)),
+          static_cast<E*>(pointer(1)),static_cast<std::int64_t const*>(pointer(2)),
+          unsigned(params.dims.batch),stage.extent};
+      using Masked=EncoderAttentionTaskBody<Arch,Width,RowsPerTask,true>;
+      using Unmasked=EncoderAttentionTaskBody<Arch,Width,RowsPerTask,false>;
+      auto& shared=*reinterpret_cast<typename Masked::SharedStorage*>(scratch);
+      if(inputs.key_padding)Masked::Run(inputs,task,shared);
+      else Unmasked::Run(inputs,task,*reinterpret_cast<typename Unmasked::SharedStorage*>(scratch));
     }else if constexpr(Kind==TaskKind::kGlobalPoolReduce) {
       auto const& output=params.dm_buffers.layouts[stage.operand[1]];
       GlobalPoolReduceTaskBody<Arch,Width>::Run({static_cast<float const*>(pointer(0)),

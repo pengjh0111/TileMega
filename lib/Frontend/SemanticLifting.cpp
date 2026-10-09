@@ -130,6 +130,7 @@ std::string ToString(OpRole role) {
     case OpRole::kLayoutConvert: return "layout_convert";
     case OpRole::kPool: return "pool";
     case OpRole::kGlobalPoolReduce: return "global_pool_reduce";
+    case OpRole::kEncoderAttention: return "encoder_attention";
   }
   return "generic";
 }
@@ -147,6 +148,7 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
             stage.kind==PlanTaskKind::kLayoutConvert ||
             stage.kind==PlanTaskKind::kPool ||
             stage.kind==PlanTaskKind::kGlobalPoolReduce ||
+            stage.kind==PlanTaskKind::kEncoderAttention ||
             (stage.kind==PlanTaskKind::kGemm &&
              plan.gemms.at(stage.gemm).access.a==codegen::DmAAccess::kIm2Col);
       })) return LiftDnnSemantics(plan,options);
@@ -552,6 +554,9 @@ analysis::Granularity LaunchGranularity(LiftedModel const& model) {
         // RMSNormTaskBody and EmbeddingTaskBody: one token per CTA.
         g.Tile(op.name, "m", one);
         break;
+      case OpRole::kEncoderAttention:
+        g.Tile(op.name,"m",ClosedForm::Constant(64)).Tile(op.name,"n",ClosedForm::Constant(64));
+        break;
       case OpRole::kLayerNorm:
       case OpRole::kEmbeddingSum:
       case OpRole::kLayoutConvert:
@@ -711,6 +716,9 @@ analysis::Granularity LaunchGranularity(
   for (auto const& op : model.ops) {
     if(virtual_gemms.count(op.name))continue;
     switch (op.role) {
+      case OpRole::kEncoderAttention:
+        g.Tile(op.name,"m",Fixed(plan.stages.at(op.stage).group)).Tile(op.name,"n",ClosedForm::Constant(64));
+        break;
       case OpRole::kLayerNorm:
       case OpRole::kEmbeddingSum:
       case OpRole::kLayoutConvert:
@@ -794,6 +802,9 @@ analysis::Granularity ReferenceGranularity(LiftedModel const& model) {
       case OpRole::kNorm:
       case OpRole::kEmbedding:
         g.Tile(op.name, "m", Tm);
+        break;
+      case OpRole::kEncoderAttention:
+        g.Tile(op.name,"m",ClosedForm::Constant(64)).Tile(op.name,"n",ClosedForm::Constant(64));
         break;
       case OpRole::kLayerNorm:
       case OpRole::kEmbeddingSum:

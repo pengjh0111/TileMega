@@ -46,6 +46,7 @@ enum class OpRole {
   kLayoutConvert,
   kPool,
   kGlobalPoolReduce,
+  kEncoderAttention,
 };
 
 std::string ToString(OpRole role);
