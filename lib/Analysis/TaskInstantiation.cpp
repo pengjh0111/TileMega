@@ -103,6 +103,12 @@ std::vector<ClosedForm> LowerTiles(SemanticOp const& op,
   auto space = op.exact_task_access ? BindCapacityTaskSpace(op) : op.result;
   for (std::size_t axis = 0; axis < space.axes.size(); ++axis) {
     ClosedForm tile = space.axes[axis].extent;
+    // Exact ownership may pad or permute an iteration coordinate. Such an
+    // axis is tiled in ownership space even when it has no identity inverse.
+    if(op.exact_task_access) {
+      ClosedForm chosen;
+      if(g.TileOf(op.name,space.axes[axis].name,&chosen))tile=chosen;
+    }
     for (auto const& dim : op.domain) {
       if (ResultAxisOf(op, dim.name) != static_cast<int>(axis)) continue;
       ClosedForm chosen;
