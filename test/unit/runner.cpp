@@ -84,6 +84,7 @@ namespace tilemega::tests::conv_reduction_cg_test { int TestConvReductionCg(int,
 namespace tilemega::tests::dnn_semantic_lifting_test { int TestDnnSemanticLifting(int, char**); }
 namespace tilemega::tests::dnn_epilogue_semantics_test { int TestDnnEpilogueSemantics(int, char**); }
 namespace tilemega::tests::dnn_model_plan_test { int TestDnnModelPlan(int, char**); }
+namespace tilemega::tests::moe_region_pattern_test { int TestMoeRegionPattern(int, char**); }
 namespace tilemega::tests::dm_counted_fusion_test { int TestDmCountedFusion(int, char**); }
 namespace tilemega::tests::dm_gemm_class_domain_test { int TestDmGemmClassDomain(int, char**); }
 namespace tilemega::tests::dm_forward_search_test { int TestDmForwardSearch(int, char**); }
@@ -212,6 +213,7 @@ int main(int argc, char** argv) {
     {"dnn_semantic_lifting", tilemega::tests::dnn_semantic_lifting_test::TestDnnSemanticLifting},
     {"dnn_epilogue_semantics", tilemega::tests::dnn_epilogue_semantics_test::TestDnnEpilogueSemantics},
     {"dnn_model_plan", tilemega::tests::dnn_model_plan_test::TestDnnModelPlan},
+    {"moe_region_pattern", tilemega::tests::moe_region_pattern_test::TestMoeRegionPattern},
     {"dm_counted_fusion", tilemega::tests::dm_counted_fusion_test::TestDmCountedFusion},
     {"dm_gemm_class_domain", tilemega::tests::dm_gemm_class_domain_test::TestDmGemmClassDomain},
     {"dm_forward_search", tilemega::tests::dm_forward_search_test::TestDmForwardSearch},

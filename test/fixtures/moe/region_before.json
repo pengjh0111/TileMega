@@ -1,0 +1,1305 @@
+{
+  "schema": "tilemega.exported_program.v1",
+  "torch_version": "2.14.1+cpu",
+  "nodes": [
+    {
+      "index": 0,
+      "name": "p_model_layers_0_post_attention_layernorm_weight",
+      "op": "placeholder",
+      "target": "p_model_layers_0_post_attention_layernorm_weight",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "2048"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 1,
+      "name": "p_model_layers_0_mlp_gate_weight",
+      "op": "placeholder",
+      "target": "p_model_layers_0_mlp_gate_weight",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "128",
+        "2048"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 2,
+      "name": "p_model_layers_0_mlp_experts_gate_up_proj",
+      "op": "placeholder",
+      "target": "p_model_layers_0_mlp_experts_gate_up_proj",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "128",
+        "1536",
+        "2048"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 3,
+      "name": "p_model_layers_0_mlp_experts_down_proj",
+      "op": "placeholder",
+      "target": "p_model_layers_0_mlp_experts_down_proj",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "128",
+        "2048",
+        "768"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 4,
+      "name": "h",
+      "op": "placeholder",
+      "target": "h",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "2048"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 5,
+      "name": "sym_size_int_1",
+      "op": "call_function",
+      "target": "aten.sym_size.int",
+      "inputs": [
+        "h"
+      ],
+      "scalar_args": [
+        0
+      ],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "h"
+          },
+          {
+            "t": "int",
+            "v": 0
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": null,
+      "dtype": null,
+      "nn_module_stack": [
+        {
+          "path": "_empty_nn_module_stack_from_metadata_hook",
+          "type": "_empty_nn_module_stack_from_metadata_hook"
+        }
+      ],
+      "source_fn_stack": [],
+      "shape_constant": {
+        "symbols": [
+          "s6"
+        ],
+        "fragment": [
+          {
+            "name": "sym_size_int_1",
+            "op": "call_function",
+            "target": "aten.sym_size.int",
+            "args": {
+              "t": "list",
+              "v": [
+                {
+                  "t": "node",
+                  "v": "h"
+                },
+                {
+                  "t": "int",
+                  "v": 0
+                }
+              ]
+            },
+            "kwargs": {},
+            "input_shape": [
+              "s6",
+              "2048"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "index": 6,
+      "name": "_assert_tensor_metadata_default",
+      "op": "call_function",
+      "target": "aten._assert_tensor_metadata.default",
+      "inputs": [
+        "h"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "h"
+          }
+        ]
+      },
+      "kwargs": {
+        "device": {
+          "t": "device",
+          "v": "meta"
+        },
+        "dtype": {
+          "t": "dtype",
+          "v": "torch.bfloat16"
+        },
+        "layout": {
+          "t": "layout",
+          "v": "torch.strided"
+        }
+      },
+      "shape": null,
+      "dtype": null,
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.post_attention_layernorm",
+          "type": "tilemega.serving.export.RMSNorm"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 7,
+      "name": "to",
+      "op": "call_function",
+      "target": "aten.to.dtype",
+      "inputs": [
+        "h"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "h"
+          },
+          {
+            "t": "dtype",
+            "v": "torch.float32"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "2048"
+      ],
+      "dtype": "torch.float32",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.post_attention_layernorm",
+          "type": "tilemega.serving.export.RMSNorm"
+        }
+      ],
+      "source_fn_stack": [
+        "('float_1', 'float')"
+      ]
+    },
+    {
+      "index": 8,
+      "name": "square",
+      "op": "call_function",
+      "target": "aten.square.default",
+      "inputs": [
+        "to"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "to"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "2048"
+      ],
+      "dtype": "torch.float32",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.post_attention_layernorm",
+          "type": "tilemega.serving.export.RMSNorm"
+        }
+      ],
+      "source_fn_stack": [
+        "('square', 'square')"
+      ]
+    },
+    {
+      "index": 9,
+      "name": "mean",
+      "op": "call_function",
+      "target": "aten.mean.dim",
+      "inputs": [
+        "square"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "square"
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": -1
+              }
+            ]
+          },
+          {
+            "t": "bool",
+            "v": true
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "1"
+      ],
+      "dtype": "torch.float32",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.post_attention_layernorm",
+          "type": "tilemega.serving.export.RMSNorm"
+        }
+      ],
+      "source_fn_stack": [
+        "('mean', 'mean')"
+      ]
+    },
+    {
+      "index": 10,
+      "name": "add",
+      "op": "call_function",
+      "target": "aten.add.Tensor",
+      "inputs": [
+        "mean"
+      ],
+      "scalar_args": [
+        1e-06
+      ],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "mean"
+          },
+          {
+            "t": "float",
+            "v": 1e-06
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "1"
+      ],
+      "dtype": "torch.float32",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.post_attention_layernorm",
+          "type": "tilemega.serving.export.RMSNorm"
+        }
+      ],
+      "source_fn_stack": [
+        "('add', <built-in function add>)"
+      ]
+    },
+    {
+      "index": 11,
+      "name": "rsqrt",
+      "op": "call_function",
+      "target": "aten.rsqrt.default",
+      "inputs": [
+        "add"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "add"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "1"
+      ],
+      "dtype": "torch.float32",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.post_attention_layernorm",
+          "type": "tilemega.serving.export.RMSNorm"
+        }
+      ],
+      "source_fn_stack": [
+        "('rsqrt', <built-in method rsqrt of type object at 0x7f5b7c7820c0>)"
+      ]
+    },
+    {
+      "index": 12,
+      "name": "mul",
+      "op": "call_function",
+      "target": "aten.mul.Tensor",
+      "inputs": [
+        "to",
+        "rsqrt"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "to"
+          },
+          {
+            "t": "node",
+            "v": "rsqrt"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "2048"
+      ],
+      "dtype": "torch.float32",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.post_attention_layernorm",
+          "type": "tilemega.serving.export.RMSNorm"
+        }
+      ],
+      "source_fn_stack": [
+        "('mul', <built-in function mul>)"
+      ]
+    },
+    {
+      "index": 13,
+      "name": "_assert_tensor_metadata_default_1",
+      "op": "call_function",
+      "target": "aten._assert_tensor_metadata.default",
+      "inputs": [
+        "mul"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "mul"
+          }
+        ]
+      },
+      "kwargs": {
+        "device": {
+          "t": "device",
+          "v": "meta"
+        },
+        "dtype": {
+          "t": "dtype",
+          "v": "torch.float32"
+        },
+        "layout": {
+          "t": "layout",
+          "v": "torch.strided"
+        }
+      },
+      "shape": null,
+      "dtype": null,
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.post_attention_layernorm",
+          "type": "tilemega.serving.export.RMSNorm"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 14,
+      "name": "to_1",
+      "op": "call_function",
+      "target": "aten.to.dtype",
+      "inputs": [
+        "mul"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "mul"
+          },
+          {
+            "t": "dtype",
+            "v": "torch.bfloat16"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "2048"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.post_attention_layernorm",
+          "type": "tilemega.serving.export.RMSNorm"
+        }
+      ],
+      "source_fn_stack": [
+        "('to', 'to')"
+      ]
+    },
+    {
+      "index": 15,
+      "name": "mul_1",
+      "op": "call_function",
+      "target": "aten.mul.Tensor",
+      "inputs": [
+        "p_model_layers_0_post_attention_layernorm_weight",
+        "to_1"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "p_model_layers_0_post_attention_layernorm_weight"
+          },
+          {
+            "t": "node",
+            "v": "to_1"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "2048"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.post_attention_layernorm",
+          "type": "tilemega.serving.export.RMSNorm"
+        }
+      ],
+      "source_fn_stack": [
+        "('mul_1', <built-in function mul>)"
+      ]
+    },
+    {
+      "index": 16,
+      "name": "reshape",
+      "op": "call_function",
+      "target": "aten.reshape.default",
+      "inputs": [
+        "mul_1"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "mul_1"
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": -1
+              },
+              {
+                "t": "int",
+                "v": 2048
+              }
+            ]
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "2048"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.mlp",
+          "type": "__main__.SparseMLP"
+        }
+      ],
+      "source_fn_stack": [
+        "('reshape', 'reshape')"
+      ]
+    },
+    {
+      "index": 17,
+      "name": "linear",
+      "op": "call_function",
+      "target": "aten.linear.default",
+      "inputs": [
+        "reshape",
+        "p_model_layers_0_mlp_gate_weight"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "reshape"
+          },
+          {
+            "t": "node",
+            "v": "p_model_layers_0_mlp_gate_weight"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "128"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.mlp",
+          "type": "__main__.SparseMLP"
+        },
+        {
+          "path": "model.layers.0.mlp.gate",
+          "type": "torch.nn.modules.linear.Linear"
+        }
+      ],
+      "source_fn_stack": [
+        "('linear', <class 'torch.nn.modules.linear.Linear'>)"
+      ]
+    },
+    {
+      "index": 18,
+      "name": "softmax",
+      "op": "call_function",
+      "target": "aten.softmax.int",
+      "inputs": [
+        "linear"
+      ],
+      "scalar_args": [
+        -1
+      ],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "linear"
+          },
+          {
+            "t": "int",
+            "v": -1
+          },
+          {
+            "t": "dtype",
+            "v": "torch.float32"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "128"
+      ],
+      "dtype": "torch.float32",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.mlp",
+          "type": "__main__.SparseMLP"
+        }
+      ],
+      "source_fn_stack": [
+        "('softmax', <built-in method softmax of type object at 0x7f5b7c7820c0>)"
+      ]
+    },
+    {
+      "index": 19,
+      "name": "topk",
+      "op": "call_function",
+      "target": "aten.topk.default",
+      "inputs": [
+        "softmax"
+      ],
+      "scalar_args": [
+        8
+      ],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "softmax"
+          },
+          {
+            "t": "int",
+            "v": 8
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        [
+          "s6",
+          "8"
+        ],
+        [
+          "s6",
+          "8"
+        ]
+      ],
+      "dtype": [
+        "torch.float32",
+        "torch.int64"
+      ],
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.mlp",
+          "type": "__main__.SparseMLP"
+        }
+      ],
+      "source_fn_stack": [
+        "('topk', <built-in method topk of type object at 0x7f5b7c7820c0>)"
+      ]
+    },
+    {
+      "index": 20,
+      "name": "getitem",
+      "op": "call_function",
+      "target": "<built-in function getitem>",
+      "inputs": [
+        "topk"
+      ],
+      "scalar_args": [
+        0
+      ],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "topk"
+          },
+          {
+            "t": "int",
+            "v": 0
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "8"
+      ],
+      "dtype": "torch.float32",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.mlp",
+          "type": "__main__.SparseMLP"
+        }
+      ],
+      "source_fn_stack": [
+        "('topk', <built-in method topk of type object at 0x7f5b7c7820c0>)"
+      ]
+    },
+    {
+      "index": 21,
+      "name": "getitem_1",
+      "op": "call_function",
+      "target": "<built-in function getitem>",
+      "inputs": [
+        "topk"
+      ],
+      "scalar_args": [
+        1
+      ],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "topk"
+          },
+          {
+            "t": "int",
+            "v": 1
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "8"
+      ],
+      "dtype": "torch.int64",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.mlp",
+          "type": "__main__.SparseMLP"
+        }
+      ],
+      "source_fn_stack": [
+        "('topk', <built-in method topk of type object at 0x7f5b7c7820c0>)"
+      ]
+    },
+    {
+      "index": 22,
+      "name": "sum_1",
+      "op": "call_function",
+      "target": "aten.sum.dim_IntList",
+      "inputs": [
+        "getitem"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "getitem"
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": -1
+              }
+            ]
+          },
+          {
+            "t": "bool",
+            "v": true
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "1"
+      ],
+      "dtype": "torch.float32",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.mlp",
+          "type": "__main__.SparseMLP"
+        }
+      ],
+      "source_fn_stack": [
+        "('sum_1', 'sum')"
+      ]
+    },
+    {
+      "index": 23,
+      "name": "div",
+      "op": "call_function",
+      "target": "aten.div.Tensor",
+      "inputs": [
+        "getitem",
+        "sum_1"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "getitem"
+          },
+          {
+            "t": "node",
+            "v": "sum_1"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "8"
+      ],
+      "dtype": "torch.float32",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.mlp",
+          "type": "__main__.SparseMLP"
+        }
+      ],
+      "source_fn_stack": [
+        "('truediv', <built-in function truediv>)"
+      ]
+    },
+    {
+      "index": 24,
+      "name": "_assert_tensor_metadata_default_2",
+      "op": "call_function",
+      "target": "aten._assert_tensor_metadata.default",
+      "inputs": [
+        "div"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "div"
+          }
+        ]
+      },
+      "kwargs": {
+        "device": {
+          "t": "device",
+          "v": "meta"
+        },
+        "dtype": {
+          "t": "dtype",
+          "v": "torch.float32"
+        },
+        "layout": {
+          "t": "layout",
+          "v": "torch.strided"
+        }
+      },
+      "shape": null,
+      "dtype": null,
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.mlp",
+          "type": "__main__.SparseMLP"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 25,
+      "name": "to_2",
+      "op": "call_function",
+      "target": "aten.to.dtype",
+      "inputs": [
+        "div"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "div"
+          },
+          {
+            "t": "dtype",
+            "v": "torch.bfloat16"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "8"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.mlp",
+          "type": "__main__.SparseMLP"
+        }
+      ],
+      "source_fn_stack": [
+        "('to_1', 'to')"
+      ]
+    },
+    {
+      "index": 26,
+      "name": "moe_experts",
+      "op": "call_function",
+      "target": "tilemega.moe_experts.default",
+      "inputs": [
+        "reshape",
+        "getitem_1",
+        "to_2",
+        "p_model_layers_0_mlp_experts_gate_up_proj",
+        "p_model_layers_0_mlp_experts_down_proj"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "reshape"
+          },
+          {
+            "t": "node",
+            "v": "getitem_1"
+          },
+          {
+            "t": "node",
+            "v": "to_2"
+          },
+          {
+            "t": "node",
+            "v": "p_model_layers_0_mlp_experts_gate_up_proj"
+          },
+          {
+            "t": "node",
+            "v": "p_model_layers_0_mlp_experts_down_proj"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "2048"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.mlp",
+          "type": "__main__.SparseMLP"
+        }
+      ],
+      "source_fn_stack": [
+        "('moe_experts_default', <OpOverload(op='tilemega.moe_experts', overload='default')>)"
+      ]
+    },
+    {
+      "index": 27,
+      "name": "reshape_1",
+      "op": "call_function",
+      "target": "aten.reshape.default",
+      "inputs": [
+        "moe_experts",
+        "sym_size_int_1"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "moe_experts"
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "node",
+                "v": "sym_size_int_1"
+              },
+              {
+                "t": "int",
+                "v": 2048
+              }
+            ]
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "2048"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        },
+        {
+          "path": "model.layers.0.mlp",
+          "type": "__main__.SparseMLP"
+        }
+      ],
+      "source_fn_stack": [
+        "('reshape_1', 'reshape')"
+      ]
+    },
+    {
+      "index": 28,
+      "name": "add_1",
+      "op": "call_function",
+      "target": "aten.add.Tensor",
+      "inputs": [
+        "h",
+        "reshape_1"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "h"
+          },
+          {
+            "t": "node",
+            "v": "reshape_1"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s6",
+        "2048"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Region"
+        }
+      ],
+      "source_fn_stack": [
+        "('add_1', <built-in function add>)"
+      ]
+    },
+    {
+      "index": 29,
+      "name": "output",
+      "op": "output",
+      "target": "output",
+      "inputs": [
+        "add_1"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "node",
+                "v": "add_1"
+              }
+            ]
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        [
+          "s6",
+          "2048"
+        ]
+      ],
+      "dtype": [
+        "torch.bfloat16"
+      ],
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    }
+  ],
+  "range_constraints": {
+    "s6": "VR[1, 4096]"
+  },
+  "guards": [],
+  "signature": {
+    "inputs": [
+      {
+        "name": "p_model_layers_0_post_attention_layernorm_weight",
+        "kind": "PARAMETER",
+        "target": "model.layers.0.post_attention_layernorm.weight",
+        "persistent": null
+      },
+      {
+        "name": "p_model_layers_0_mlp_gate_weight",
+        "kind": "PARAMETER",
+        "target": "model.layers.0.mlp.gate.weight",
+        "persistent": null
+      },
+      {
+        "name": "p_model_layers_0_mlp_experts_gate_up_proj",
+        "kind": "PARAMETER",
+        "target": "model.layers.0.mlp.experts.gate_up_proj",
+        "persistent": null
+      },
+      {
+        "name": "p_model_layers_0_mlp_experts_down_proj",
+        "kind": "PARAMETER",
+        "target": "model.layers.0.mlp.experts.down_proj",
+        "persistent": null
+      },
+      {
+        "name": "h",
+        "kind": "USER_INPUT",
+        "target": null,
+        "persistent": null
+      }
+    ],
+    "outputs": [
+      {
+        "name": "add_1",
+        "kind": "USER_OUTPUT",
+        "target": null
+      }
+    ]
+  },
+  "graph_signature": "\n# inputs\np_model_layers_0_post_attention_layernorm_weight: PARAMETER target='model.layers.0.post_attention_layernorm.weight'\np_model_layers_0_mlp_gate_weight: PARAMETER target='model.layers.0.mlp.gate.weight'\np_model_layers_0_mlp_experts_gate_up_proj: PARAMETER target='model.layers.0.mlp.experts.gate_up_proj'\np_model_layers_0_mlp_experts_down_proj: PARAMETER target='model.layers.0.mlp.experts.down_proj'\nh: USER_INPUT\n\n# outputs\nadd_1: USER_OUTPUT\n"
+}

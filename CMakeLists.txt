@@ -144,6 +144,7 @@ add_library(tilemega_core STATIC
   lib/Frontend/DnnSemanticLifting.cpp
   lib/Frontend/DnnStorage.cpp
   lib/Frontend/DnnModelPlan.cpp
+  lib/Frontend/MoeRegionPattern.cpp
   lib/Frontend/ServingSemanticLifting.cpp
   lib/Analysis/SemanticCodec.cpp
   lib/Dialect/CouplingGraph/CGDialect.cpp
@@ -385,6 +386,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/dnn_semantic_lifting_test.cpp
     test/unit/dnn_epilogue_semantics_test.cpp
     test/unit/dnn_model_plan_test.cpp
+    test/unit/moe_region_pattern_test.cpp
     test/unit/task_storage_test.cpp
     test/unit/dm_counted_fusion_test.cpp
     test/unit/dm_gemm_class_domain_test.cpp
@@ -851,6 +853,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME dnn_semantic_lifting COMMAND tilemega-unit dnn_semantic_lifting)
   add_test(NAME dnn_epilogue_semantics COMMAND tilemega-unit dnn_epilogue_semantics)
   add_test(NAME dnn_model_plan COMMAND tilemega-unit dnn_model_plan)
+  add_test(NAME moe_region_pattern COMMAND tilemega-unit moe_region_pattern)
   add_test(NAME task_storage COMMAND tilemega-unit task_storage)
   add_test(NAME dm_counted_fusion COMMAND tilemega-unit dm_counted_fusion)
   add_test(NAME dm_gemm_class_domain COMMAND tilemega-unit dm_gemm_class_domain)

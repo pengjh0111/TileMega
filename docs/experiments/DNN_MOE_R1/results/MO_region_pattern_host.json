@@ -1,0 +1,17 @@
+{
+  "evidence": "verified",
+  "scope": "Structural standalone MoE region recognition; not plan integration or model execution",
+  "passed": true,
+  "accepted": 4,
+  "rejected": 16,
+  "binary_sha256": "ac29392aab856ec775b24bfe108445b088ee393e5a51b3b6a879bbde43ac2bea",
+  "source_head": "d0e59c204fee2ce2fdfad347f1eb2b1b4043029d",
+  "inputs": {
+    "include/tilemega/Frontend/MoeRegionPattern.h": "88905cd564ce7ccd3c7792dca5b0e1283719eb467d5c90ac2d3ed7a2acd892a3",
+    "lib/Frontend/MoeRegionPattern.cpp": "078ba2e5e8177fe2c2f420b01dfa569786bdbea563f5ebd36963cf5964b7c84e",
+    "test/unit/moe_region_pattern_test.cpp": "233651a2189d0e632fe93f993a58fb7e951ae94e9f6f20c9f6e18055c8f9b103",
+    "test/fixtures/moe/region_before.json": "f87217e861eb0f0f38c3faffd6166d5ccbb42f16bd402f99c8344a1fd2bfaaf1",
+    "test/fixtures/moe/region_core.json": "7572bbde2fcd9fd4b4465d33a7ab43c01974d07c58580733519806774248539b"
+  },
+  "log_sha256": "38dbc392eaab28fa6dfa67049ddfdfcece5042d99add0b4d6156c6176225c936"
+}
