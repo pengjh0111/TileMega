@@ -33,12 +33,12 @@ Export coverage and primitive checks do not imply model correctness.
 | CI-5 | verified: synthetic waits/binding/LA and native forward/prefill PageStream; real model dispatch remains incomplete (`synchronization.md`) |
 | CI-6 | verified: fitting/profile schema and streaming collection foundations; real routing collection waits for checkpoint download; body fits pending |
 | CI-7 | verified: class/candidate, exact projection, issued convolution K, conditional/live-row and histogram pricing foundations; profile consumers/structural search pending |
-| DN-1 | verified: before/Core fixtures; upstream NAFNet source; official weight/data integrity. These are not model gates |
+| DN-1 | verified: six real-weight upstream exports, before/Core fixtures, source FQN/dtype preservation and weight recipes. These are not model gates |
 | DN-2/3 | verified: automatic primitive DNN L-sem and exact ownership/halo oracles; exported-model planning and remaining operators pending |
-| DN-4 | verified: im2col operands and dense/tiled/page TaskBodies, small channels, tails, stride/dilation, issued split-K. Native ABI integration under validation |
-| DN-5/6 | depthwise, fusion, pooling/SCA body and model integration pending |
-| DN-7 | verified: explicit LayerNorm and ordered BF16 embedding sum primitives; native stage integration under validation; deferred LN/model integration pending |
-| DN-8/9/10/11 | encoder attention, full chain/model numerics, memory reuse and model CLI integration pending; layout conversion primitive verified |
+| DN-4 | verified: im2col operands and dense/tiled/page TaskBodies, small channels, tails, stride/dilation, issued split-K. Native ABI primitives verified; complete models pending |
+| DN-5/6 | verified: staged depthwise/SimpleGate and window/global pooling bodies; generated pool pipeline. dw→pw, SCA and complete model integration pending |
+| DN-7 | verified: explicit LayerNorm and ordered BF16 embedding sum primitives; native/generated LN stages. Deferred LN/model integration pending |
+| DN-8/9/10/11 | verified: encoder attention body and layout conversion; generated encoder integration in progress. Full chain/model numerics, memory reuse and model CLI pending |
 | MO-1 through MO-9 | full MoE model/region implementation and end-to-end gates pending; shared binding/profile foundations exist |
 
 ## Tables and gates
@@ -131,13 +131,32 @@ SwiGLU instantiation at TN16; the DM branch is separated and rechecked.
 verified: split-five fixtures omitted tile-owned combiner flags and left output
 columns unwritten. The corrected fixture passes all six native memchecks and
 numerical paths; malformed DM split ownership is rejected. Prior paged racechecks
-fail on page generation and cross-task scratch/page reuse. Repairs are under
-validation in v5; the full native synchronization gate remains pending.
+fail on page generation and cross-task scratch/page reuse. The frozen v5 repair passes 300/300 fresh processes across six configurations,
+30 architecture builds and 12 zero-error sanitizers (`results/DN_native_forward_cuda.json`). The full
+model synchronization gate remains pending.
 
 verified: `results/CI7_moe_histogram_pricing_host.json` records 5/5 native checks,
 650 histogram cases (472 empty contributions) and an equal-mean contrast that
 rejects mean-only costing. Real profile attachment, cache identities and the
 MoE DRAM floor remain pending. Synthetic coefficients are not body calibration.
+
+verified: real-weight exports reload for all six variants, retaining original source
+FQNs/dtypes (`results/DN_real_exports.json`). DNN packing passes 12 independent
+recipe checks (`results/DN_weight_recipes_host.json`).
+
+verified: actual CG-generated layout→conv→LN and layout→conv→pool→LN shared
+libraries each pass 50/50 fresh processes, five architecture builds, repeated
+L1/L2 bit equality and zero-error sanitizers (`results/DN_generated_primitive_cuda.json`,
+`results/DN_generated_pool_cuda.json`). Each has zero spills and 5/5 stack frames.
+These small pipelines are not the five upstream model gates.
+
+verified: staged depthwise covers 58 geometries/SimpleGate chains and encoder
+attention covers 24 noncausal/masked geometries, each with three epochs, 50/50
+fresh processes, five architectures, zero spills/stack and zero-error sanitizers
+(`results/DN_depthwise_cuda.json`, `results/DN_encoder_attention_cuda.json`).
+Seven of the ten new body kinds have local numerical evidence; dw→pw fusion,
+MoE top-k/dispatch and MoE combine remain. Pool/global L-sem and primitive
+solver traits pass 8/8 host checks (`results/DN_pool_primitive_pricing_host.json`).
 
 ### Synchronization coverage
 
