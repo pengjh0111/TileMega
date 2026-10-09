@@ -944,6 +944,14 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     state.addAttribute(mlir::SymbolTable::getSymbolAttrName(), builder.getStringAttr(symbol));
     state.addAttribute("kind", dialect::TaskKindAttr::get(
         &context, builder.getStringAttr(taskKindOf(origin.role))));
+    if(node.element_access && node.element_access->partition.reduction_index) {
+      auto const& partition=node.element_access->partition;
+      tiles.push_back(builder.getNamedAttr("reduction_index",builder.getStringAttr(
+          analysis::EncodeTaskReductionIndex(*partition.reduction_index))));
+      if(!partition.reduction_chunk.IsLiteral(0))
+        tiles.push_back(builder.getNamedAttr("reduction_chunk",builder.getStringAttr(
+            partition.reduction_chunk.ToString())));
+    }
     state.addAttribute("granularity", builder.getDictionaryAttr(tiles));
     llvm::SmallVector<std::string> extents;
     for (auto const& axis : node.output.axes) extents.push_back(axis.extent.ToString());

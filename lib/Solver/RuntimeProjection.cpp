@@ -2,6 +2,7 @@
 #include <tilemega/Solver/RuntimeProjection.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Solver/ListScheduler.h>
+#include <tilemega/Backend/ConvIteration.h>
 
 #include <algorithm>
 #include <map>
@@ -197,7 +198,15 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
     auto const& g = plan.gemms[i];
     if (!g.tile_m || !g.tile_n || !g.tile_k || !g.split_k || model.gemms[i].k <= 0)
       throw std::invalid_argument("invalid GEMM in runtime projection");
-    chunks.push_back(std::min<int>(g.split_k,
+    if(model.dm && !model.gemm_access.empty() &&
+       model.gemm_access.at(i).a==codegen::DmAAccess::kIm2Col) {
+      auto const& conv=model.convolutions.at(model.gemm_access.at(i).conv);
+      auto geometry=backend::ConvIterationGeometry::Build(conv,
+          model.buffer_layouts.at(conv.input_layout),g.tile_k);
+      if(geometry.iterations%g.split_k)
+        throw std::invalid_argument("runtime convolution split does not divide issued iterations");
+      chunks.push_back(g.split_k);
+    } else chunks.push_back(std::min<int>(g.split_k,
         (model.gemms[i].k+g.tile_k-1)/g.tile_k));
   }
   RuntimeProjection result;

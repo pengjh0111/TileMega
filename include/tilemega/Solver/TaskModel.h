@@ -7,12 +7,15 @@
 #include <tilemega/Analysis/DramFloor.h>
 #include <tilemega/Codegen/tasks/ScalarDataflow.h>
 
+namespace tilemega::analysis { struct Granularity; }
 namespace tilemega::solver {
 #ifndef TILEMEGA_SCALAR_TASK_WORK
 #define TILEMEGA_SCALAR_TASK_WORK 1
 #endif
 analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
                                             std::vector<GemmConfig> const& configs);
+analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
+    std::vector<GemmConfig> const& configs,analysis::Granularity* granularity);
 std::vector<ModelCouplingMetrics> InstantiateModelCouplings(
     ModelDescription const& model,std::vector<GemmConfig> const& configs,
     std::optional<std::pair<int,int>> stage_pair=std::nullopt);

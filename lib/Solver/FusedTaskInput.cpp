@@ -6,6 +6,7 @@
 #include <tilemega/Analysis/TaskOwnershipGeometry.h>
 #include <tilemega/Analysis/TaskElementRelation.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
+#include <tilemega/Dialect/CouplingGraph/TaskReductionGeometry.h>
 #include <mlir/IR/Verifier.h>
 #include <stdexcept>
 
@@ -33,6 +34,7 @@ std::vector<FusedTaskInput> ReadFusedTaskInputs(mlir::ModuleOp module) {
       phase.op=analysis::DecodeSemanticOp(llvm::cast<mlir::StringAttr>(text).getValue().str());
       phase.stage=stage;
       auto dictionary=llvm::cast<mlir::DictionaryAttr>(tiles);
+      dialect::ApplyTaskReductionGeometry(dictionary,phase.op,granularity);
       phase.element_chunk=dictionary.getAs<mlir::StringAttr>("ownership")=="element_chunk";
       for (auto [axis_index,axis]:llvm::enumerate(analysis::TaskOwnershipSpace(phase.op).axes)) {
         auto tile=analysis::ClosedForm::Parse(dictionary.getAs<mlir::StringAttr>(axis.name).getValue().str());
@@ -63,8 +65,9 @@ std::vector<FusedTaskInput> ReadFusedTaskInputs(mlir::ModuleOp module) {
         signature=analysis::InstantiateTaskArithmetic(phase.op.arithmetic,args,domain);
       } else signature=analysis::InstantiateArithmetic(phase.op.arithmetic,args);
       analysis::RequireArithmeticImplementation(signature);
-      auto write=node->element_access?analysis::ProjectTaskWrite(phase.op,*node,
-          node->element_access->partition,phase.op.result,phase.op.result_map,{},{}):
+      auto const& effective=node->element_access?node->element_access->semantic:phase.op;
+      auto write=node->element_access?analysis::ProjectTaskWrite(effective,*node,
+          node->element_access->partition,effective.result,effective.result_map,{},{}):
           analysis::ElementAccess(*node,analysis::BuildWriteMap(*node),{},
                                  analysis::AccessDomain::kPhysicalTensor);
       if (!mapping.Image().IsSubset(write.Reverse().Image()))

@@ -8,6 +8,7 @@
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/BoundDependencyForm.h>
 #include <tilemega/Analysis/TaskOwnershipGeometry.h>
+#include <tilemega/Analysis/TaskElementRelation.h>
 #include <isl/map.h>
 #include <isl/set.h>
 #include <isl/point.h>
@@ -88,10 +89,15 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
   result.projection.options={workers,result.threads,kappa};result.projection.options.count_wait_entries=false;
   for(std::size_t i=0;i<geometry.size();++i){auto const& g=geometry[i];auto& r=result.runtime.gemms[i];r.tile_m=g.tile_m;r.tile_n=g.tile_n;r.tile_k=g.tile_k;r.stages=g.stages;r.split_k=g.split_k;}
   for(auto const& a:result.runtime.attention)if(a.chunks>1)throw std::invalid_argument("flow structure needs explicit expanded attention phases");
-  auto graph=InstantiateModelTasks(result.model,geometry);auto theta=result.model.MetricBindings();
   analysis::SemanticGraph semantics;analysis::Granularity granularity;
+  auto graph=result.model.dm?InstantiateModelTasks(result.model,geometry,&granularity):
+      InstantiateModelTasks(result.model,geometry);
+  auto theta=result.model.MetricBindings();
   std::map<std::string,int> logical;
   for(auto const& sem:result.model.task_semantics){semantics.ops.push_back(sem.op);logical[sem.op.name]=sem.stage;if(!sem.op.reduction.combiner.empty())logical[sem.op.reduction.combiner]=sem.stage;
+    // Keep the same issued-iteration partition in access analysis and cache
+    // keys. Reconstructing it from logical K loses per-filter channel tails.
+    if(result.model.dm)continue;
     auto const* node=graph.Find(sem.op.name);if(!node)throw std::runtime_error("missing flow task");
     bool owned=result.model.dm && sem.op.exact_task_access;
     auto const& output=owned?sem.op.task_space:sem.op.result;
@@ -169,6 +175,16 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     auto const& g=geometry.at(stage.gemm);
     int chunks=std::max(1,std::min(g.split_k,
         (result.model.gemms.at(stage.gemm).k+g.tile_k-1)/g.tile_k));
+    if(result.model.dm) {
+      auto semantic=std::find_if(result.model.task_semantics.begin(),result.model.task_semantics.end(),
+          [&](auto const& item){return item.stage==int(i) && item.op.reduction.splittable;});
+      if(semantic==result.model.task_semantics.end())
+        throw std::invalid_argument("split DM flow stage lacks reduction semantics");
+      auto const* combine=graph.Find(semantic->op.reduction.combiner);
+      if(!combine || combine->operands.size()!=1)
+        throw std::invalid_argument("split DM flow stage lacks its partial tensor");
+      chunks=combine->operands.front().tensor.axes.back().extent.Eval(theta,{});
+    }
     if(result.projection.options.cg_split_task_order) {
       result.projection.runtime_windows.push_back({entry[i],done[i],
           {true,1,chunks,0,chunks},"0"});
@@ -460,7 +476,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
         input.serving_attention->kv_tile=codegen::ServingAttentionKvTile(stage.width,serving_gemm_shared);
         traits.smem_bytes=codegen::ServingAttentionSharedBytes(stage.width,input.serving_attention->kv_tile);
       }
-      chunks=stage.IsCollective()?cost.Chunks(model.gemms.at(stage.gemm),g):1;
+      chunks=stage.IsCollective()?cost.Chunks(model,stage.gemm,g):1;
     }
     auto const price_start=std::chrono::steady_clock::now();
     cache.derive_ms+=std::chrono::duration<double,std::milli>(price_start-derive_start).count();
@@ -475,6 +491,11 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
       p.dram_rate_cap=p.compute_ns>0 ? p.dram_bytes/p.compute_ns : cal.dram_gbps;
       if(stage.kind==StageKind::kGemm && !projected.combine) {
         int iterations=std::max(1,(int(model.gemms.at(stage.gemm).k)+g.tile_k*chunks-1)/(g.tile_k*chunks));
+        if(model.dm && input.task.element_access && input.task.element_access->partition.reduction_index) {
+          auto const& partition=input.task.element_access->partition;
+          iterations=(chunks>1?partition.reduction_chunk:
+              partition.reduction_index->capacity).Eval(theta,{});
+        }
         p.inflight_bytes=std::max(16.,std::min(p.dram_bytes,
             (g.stages-1)*p.no_producer_dram_bytes/iterations));
       }else if(stage.kind==StageKind::kFusedAttention) {

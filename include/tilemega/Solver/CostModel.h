@@ -272,6 +272,7 @@ class CostModel {
 
   /// Number of K chunks this configuration actually splits into.
   int Chunks(GemmOp const& gemm, GemmConfig const& config) const;
+  int Chunks(ModelDescription const& model,int gemm,GemmConfig const& config) const;
 
   Fit const& fit() const { return fit_; }
   CostModelOptions const& options() const { return options_; }

@@ -5,6 +5,7 @@
 #include <tilemega/Codegen/tasks/TaskResources.h>
 #include <tilemega/Solver/AttentionWork.h>
 #include <tilemega/Analysis/SemanticCodec.h>
+#include <tilemega/Backend/ConvIteration.h>
 
 #include <algorithm>
 #include <cmath>
@@ -327,6 +328,18 @@ int CostModel::Chunks(GemmOp const& gemm, GemmConfig const& config) const {
   int const k_tiles = static_cast<int>(CeilDiv(gemm.k, config.tile_k));
   int chunks = config.split_k < k_tiles ? config.split_k : k_tiles;
   return chunks < 1 ? 1 : chunks;
+}
+int CostModel::Chunks(ModelDescription const& model,int gemm,GemmConfig const& config) const {
+  if(!model.dm || model.gemm_access.empty() ||
+     model.gemm_access.at(gemm).a!=codegen::DmAAccess::kIm2Col)
+    return Chunks(model.gemms.at(gemm),config);
+  if(!options_.split_k)return 1;
+  auto const& conv=model.convolutions.at(model.gemm_access.at(gemm).conv);
+  auto geometry=backend::ConvIterationGeometry::Build(conv,
+      model.buffer_layouts.at(conv.input_layout),config.tile_k);
+  if(config.split_k<=0 || geometry.iterations%config.split_k)
+    throw std::invalid_argument("convolution cost split does not divide issued iterations");
+  return config.split_k;
 }
 
 double CostModel::GemmStageNs(GemmOp const& gemm, GemmConfig const& config,
@@ -775,7 +788,7 @@ double CostModel::TaskStageNs(ModelDescription const& model,int index,
   if (!selected) throw std::invalid_argument("runtime stage lacks a CG semantic cost input");
   BackendTraits traits=ModelTaskTraits(model,index,config);
   bool collective=stage.IsCollective();
-  int chunks=collective ? Chunks(model.gemms.at(stage.gemm),config) : 1;
+  int chunks=collective ? Chunks(model,stage.gemm,config) : 1;
   std::ostringstream key;
   key << analysis::EncodeSemanticOp(selected->op) << ':' << selected->element_chunk << ':'
       << stage.width << ':' << stage.extent << ':' << stage.group << ':' << int(model.dtype);
@@ -796,7 +809,7 @@ double CostModel::TaskStageNs(ModelDescription const& model,int index,
 double CostModel::CombineTaskStageNs(ModelDescription const& model,int index,
     GemmConfig const& config,Residency residency) const {
   auto const& stage=model.stages.at(index);
-  if (Chunks(model.gemms.at(stage.gemm),config)<=1) return 0;
+  if (Chunks(model,stage.gemm,config)<=1) return 0;
   auto collective=ModelTaskTraits(model,index,config);
   auto resources=codegen::ReadSimtTaskResources(codegen::TaskKind::kGemmCombine,collective.threads);
   BackendTraits traits;traits.threads=resources.threads;traits.smem_bytes=resources.shared_bytes;traits.shape_legal=true;
@@ -922,8 +935,7 @@ CostBreakdown CostModel::Evaluate(ModelDescription const& model,
         (configs.empty() ? GemmConfig{} : configs.front());
     out.task_ns_sum+=TaskStageNs(model,int(i),config,residency);
     if (!stage.IsCollective()) continue;
-    auto const& gemm=model.gemms.at(stage.gemm);
-    int chunks=Chunks(gemm,config);
+    int chunks=Chunks(model,stage.gemm,config);
     if (chunks>1) {
       out.combine_ns+=CombineTaskStageNs(model,int(i),config,residency);
       ++out.stage_count;

@@ -133,7 +133,7 @@ SymbolicDpSolution ChainDP::SolveSymbolicParameter(ModelDescription const& symbo
     for (int i=0;i<layers;++i) for (int c:admitted) if (allowed[i][c]) {
       auto const& config=candidates_[c].config;
       auto const& gemm=model.gemms.at(model.stages.at(stages[i]).gemm);
-      int chunks=cost_->Chunks(gemm,config);
+      int chunks=cost_->Chunks(model,model.stages.at(stages[i]).gemm,config);
       auto value=cost_->SymbolicStageNs(model,stages[i],config,{r},parameter,domain.begin,domain.end).Add(barrier);
       if (chunks>1) value=value.Add(cost_->SymbolicCombineNs(gemm,chunks,parameter,domain.begin,domain.end)).Add(barrier);
       unary[i].emplace(c,std::move(value));

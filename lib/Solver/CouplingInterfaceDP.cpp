@@ -101,8 +101,7 @@ ChainDpSolution ChainDP::SolveCouplingInterfaces(ModelDescription const& model,
     for (auto& f:factors) if (f.variables.empty()) fixed+=price(f,empty);
     std::vector<std::vector<double>> unary(layers,std::vector<double>(candidates_.size()));
     for (int i=0;i<layers;++i) for (int c:admitted) {
-      auto const& gemm=model.gemms.at(model.stages.at(gemm_stages[i]).gemm);
-      int chunks=cost_->Chunks(gemm,candidates_[c].config);
+      int chunks=cost_->Chunks(model,model.stages.at(gemm_stages[i]).gemm,candidates_[c].config);
       double ns=cost_->TaskStageNs(model,gemm_stages[i],candidates_[c].config,residency)+barrier;
       if (chunks>1) ns+=cost_->CombineTaskStageNs(model,gemm_stages[i],candidates_[c].config,residency)+barrier;
       unary[i][c]=ns;

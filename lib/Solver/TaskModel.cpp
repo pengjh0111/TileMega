@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Solver/DmConvReductionPartition.h>
 #include <tilemega/Solver/DmGemmTraits.h>
 #include <tilemega/Solver/BindingRequestTraffic.h>
 #include <tilemega/Solver/DmVirtualGemmPartition.h>
@@ -340,6 +341,10 @@ BackendTraits ModelTaskTraits(ModelDescription const& model, int index,
 
 analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
                                             std::vector<GemmConfig> const& configs) {
+  return InstantiateModelTasks(model,configs,nullptr);
+}
+analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
+    std::vector<GemmConfig> const& configs,analysis::Granularity* partition) {
   analysis::IslReferenceAudit audit(__func__);
   if (model.task_semantics.empty() || configs.size()!=model.gemms.size())
     throw std::invalid_argument("task pricing requires CG semantics and every GEMM configuration");
@@ -373,6 +378,15 @@ analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
     auto const& config=configs.at(stage.gemm);
     if (config.tile_m<=0 || config.tile_n<=0 || config.tile_k<=0 || config.split_k<=0)
       throw std::invalid_argument("invalid candidate task granularity");
+    bool convolution=owned && !model.gemm_access.empty() && model.gemm_access.at(stage.gemm).a==
+        codegen::DmAAccess::kIm2Col;
+    if(convolution) {
+      auto const& access=model.gemm_access.at(stage.gemm);
+      auto const& conv=model.convolutions.at(access.conv);
+      PartitionDmConvGemm(op,conv,model.buffer_layouts.at(conv.input_layout),
+                          config,granularity,model.MetricBindings());
+      continue;
+    }
     bool virtual_binding=owned && !model.gemm_access.empty() && model.gemm_access.at(stage.gemm).b==
         codegen::DmBAccess::kExpertIndirect;
     if(virtual_binding) {
@@ -392,7 +406,8 @@ analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
       for (int axis=0;axis<int(output.axes.size());++axis) {
         auto const& index=output_map.results[axis];
         if (index.kind!=analysis::IndexResult::Kind::kAffine || index.terms.size()!=1 ||
-            !index.terms[0].coefficient.IsLiteral(1) || !index.terms[0].group.IsLiteral(1))
+            !index.terms[0].coefficient.IsLiteral(1) || !index.terms[0].group.IsLiteral(1) ||
+            !index.outer_divisor.IsLiteral(1))
           throw std::invalid_argument("collective output requires unit iteration indexing");
         int tile = axis==0 ? config.tile_m :
                    ((grouped && axis==1) ||
@@ -412,7 +427,9 @@ analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
     if (chunks>1)
       granularity.Split(op.name,reduction->extent.CeilDiv(analysis::ClosedForm::Constant(chunks)));
   }
-  return analysis::Instantiate(semantics,granularity);
+  auto graph=analysis::Instantiate(semantics,granularity);
+  if(partition)*partition=granularity;
+  return graph;
 }
 
 std::vector<ModelCouplingMetrics> InstantiateModelCouplings(

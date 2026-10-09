@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Frontend/SemanticLifting.h>
 #include <tilemega/Solver/DmVirtualGemmPartition.h>
+#include <tilemega/Solver/DmConvReductionPartition.h>
 
 #include <algorithm>
 #include <cctype>
@@ -592,10 +593,18 @@ analysis::Granularity LaunchGranularity(
     auto const& stage=plan.stages.at(op.stage);
     if(stage.kind!=PlanTaskKind::kGemm || stage.gemm>=plan.gemms.size())continue;
     auto const& access=plan.gemms.at(stage.gemm).access;
-    if(access.b!=codegen::DmBAccess::kExpertIndirect)continue;
+    if(access.b!=codegen::DmBAccess::kExpertIndirect &&
+       access.a!=codegen::DmAAccess::kIm2Col)continue;
     auto const* semantic=model.sem.Find(op.name);
     if(!semantic)throw std::invalid_argument("virtual GEMM lacks L-sem");
     auto const& impl=gemms.empty()?GemmGranularity{}:gemms.at(stage.gemm);
+    if(access.a==codegen::DmAAccess::kIm2Col) {
+      auto const& conv=plan.convolutions.at(access.conv);
+      solver::PartitionDmConvGemm(*semantic,conv,plan.buffers.at(conv.input_layout).layout,
+          {impl.tile_m,impl.tile_n,impl.tile_k,impl.stages,impl.split_k},g);
+      virtual_gemms.insert(op.name);
+      continue;
+    }
     solver::PartitionDmVirtualGemm(*semantic,access,
         {impl.tile_m,impl.tile_n,impl.tile_k,impl.stages,impl.split_k},g);
     if(impl.split_k>1) {

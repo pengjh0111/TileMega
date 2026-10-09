@@ -170,7 +170,7 @@ SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& t
         if(found==model.task_semantics.end())throw std::invalid_argument("stage lacks derived semantic task costs");
         prepared.input=DeriveModelTaskInput(model,*found,*semantic_graph,stage.IsCollective()?&g:nullptr);
         prepared.traits=ModelTaskTraits(model,projected.logical_stage,g);
-        prepared.chunks=stage.IsCollective()?cost.Chunks(model.gemms.at(stage.gemm),g):1;
+        prepared.chunks=stage.IsCollective()?cost.Chunks(model,stage.gemm,g):1;
         if(prepared.input.scalar_access){for(int t=0;t<counts[s];++t)prepared.coordinates[t].Bind("q",t);}
         else {
           auto ownership=ProjectTaskOwnership(*found,prepared.input.task,stage,threads).BindParams(theta);

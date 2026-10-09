@@ -6,6 +6,7 @@
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/OpArithmetic.h>
 #include <tilemega/Analysis/SemanticCodec.h>
+#include <tilemega/Dialect/CouplingGraph/TaskReductionGeometry.h>
 #include <tilemega/Dialect/CouplingGraph/BoundDependency.h>
 #include <tilemega/Dialect/CouplingGraph/CountedDependency.h>
 #include <tilemega/Analysis/TaskElementRelation.h>
@@ -136,8 +137,12 @@ LogicalResult TileSpaceOp::verify() {
       auto op=analysis::DecodeSemanticOp(payload->str());
       if (op.name!=getOperatorName() || op.arithmetic!=getArithmetic().value_or(""))
         return emitOpError("semantic identity/arithmetic differs from task space");
+      VerifyTaskReductionGeometry(getGranularity(),op);
     } catch (std::exception const& error) { return emitOpError(error.what()); }
   }
+  if(!getSemantic() && (getGranularity().get("reduction_index") ||
+      getGranularity().get("reduction_chunk")))
+    return emitOpError("indexed task geometry requires L-sem");
   if (auto name = getArithmetic()) {
     auto const& declarations = analysis::ArithmeticDeclarations();
     auto found = llvm::find_if(declarations, [&](auto const& declaration) {
@@ -176,6 +181,7 @@ LogicalResult FusedTileSpaceOp::verify() {
         (void)analysis::ClosedForm::Parse(tile.getValue().str());
       }
       if (!identities.insert(op.name).second) return emitOpError("duplicate fusion phase identity");
+      VerifyTaskReductionGeometry(tiles,op);
       auto const& declarations=analysis::ArithmeticDeclarations();
       auto found=llvm::find_if(declarations,[&](auto const& d) { return op.arithmetic==d.name; });
       if (found==declarations.end()) return emitOpError("fusion phase lacks arithmetic signature");

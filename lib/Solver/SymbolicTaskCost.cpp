@@ -99,7 +99,7 @@ Polynomial CostModel::SymbolicStageNs(ModelDescription const& model,int stage_id
   if (collective) {
     traits=dtype_==ScalarType::kBF16 ? TensorBF16Traits(config.tile_m,config.tile_n,config.tile_k,config.stages)
                                   : SimtF32Traits(config.tile_m,config.tile_n,config.tile_k,config.stages);
-    return SymbolicCollectiveNs(input,traits,residency,model,Chunks(model.gemms.at(stage.gemm),config),parameter,begin,end);
+    return SymbolicCollectiveNs(input,traits,residency,model,Chunks(model,stage.gemm,config),parameter,begin,end);
   }
   traits=ModelTaskTraits(model,stage_id,config);
   return SymbolicScalarNs(input,traits,residency,model,parameter,begin,end);

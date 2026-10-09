@@ -78,6 +78,7 @@ namespace tilemega::tests::dm_gemm_traits_test { int TestDmGemmTraits(int, char*
 namespace tilemega::tests::dm_gemm_candidates_test { int TestDmGemmCandidates(int, char**); }
 namespace tilemega::tests::conv_iteration_test { int TestConvIteration(int, char**); }
 namespace tilemega::tests::conv_reduction_partition_test { int TestConvReductionPartition(int, char**); }
+namespace tilemega::tests::conv_reduction_cg_test { int TestConvReductionCg(int, char**); }
 namespace tilemega::tests::dm_gemm_class_domain_test { int TestDmGemmClassDomain(int, char**); }
 namespace tilemega::tests::dm_forward_search_test { int TestDmForwardSearch(int, char**); }
 namespace tilemega::tests::coupling_cache_test { int TestCouplingCache(int, char**); }
@@ -200,6 +201,7 @@ int main(int argc, char** argv) {
     {"dm_gemm_candidates", tilemega::tests::dm_gemm_candidates_test::TestDmGemmCandidates},
     {"conv_iteration", tilemega::tests::conv_iteration_test::TestConvIteration},
     {"conv_reduction_partition", tilemega::tests::conv_reduction_partition_test::TestConvReductionPartition},
+    {"conv_reduction_cg", tilemega::tests::conv_reduction_cg_test::TestConvReductionCg},
     {"dm_gemm_class_domain", tilemega::tests::dm_gemm_class_domain_test::TestDmGemmClassDomain},
     {"dm_forward_search", tilemega::tests::dm_forward_search_test::TestDmForwardSearch},
     {"coupling_cache", tilemega::tests::coupling_cache_test::TestCouplingCache},
