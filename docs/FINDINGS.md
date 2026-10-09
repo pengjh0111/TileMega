@@ -9142,3 +9142,16 @@ page fractions for optimization. B16 paged/R13F, uncovered protocol groups, C-1
 and unit failures stay explicit; this is a limited closure, not full PASS.
 Evidence: SERVING_R13_SM120/raw/acceptance_05/; results/S7_pages.tsv;
 results/{S6_cross_arch,S7_cross_arch}.tsv; summary.md.
+
+
+### DM-1: nvcc constexpr else-for scope counterexample
+
+Verified with nvcc 12.8.93 at `-std=c++17 -O3 --expt-relaxed-constexpr` on
+sm_89: a templated captured lambda with an unbraced `if constexpr ... else
+for (...)` drops the following increment in its true device instantiation.
+Independent host integer addition gives `9,10`; the device returns `1,10`.
+Replacing the increment with a local declaration produces an undefined-name
+compile error. Explicit compound blocks give `9,10` on both host and device.
+Sources and identities: [compiler scope receipt](experiments/DNN_MOE_R1/results/CI2_nvcc_constexpr_scope.json).
+This is a scalar compiler observation; the convolution workaround still
+requires its own numerical and 50-process synchronization checks.
