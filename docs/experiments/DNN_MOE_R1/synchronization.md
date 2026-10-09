@@ -181,3 +181,24 @@ artifact identities are checked (`results/CI5_native_counted_threshold_cuda.json
 The uniform legacy count is zero in this fixture, so the tail consumer must
 read its own immutable threshold. Real dispatch/combine and paged counted
 body gates remain pending; these bodies are synthetic.
+
+
+verified: multi-page GEMM TaskBodies pass 100/100 fresh sm_89 processes,
+fifty each for row-major and tiled B, and ten builds cover five architectures
+without spills (`results/CI5_multipage_gemm_cuda.json`). Two/four-page B stages
+begin at nonzero sequence slots and wrap three/five-slot rings; M/N/K tails,
+K offsets and canaries retain independent FP32 expectations. The largest dense
+comparison exceeds this device's dynamic-shared-memory cap and is recorded as
+unavailable; its paged FP32 oracle is still required and passes.
+
+inferred: a stage acquires all of its consecutive pages before its first MMA
+and releases them after its final MMA. Circular ldmatrix row addresses preserve
+the static register ownership. No alignment padding enters the page sequence,
+so group sizes need not divide the ring length. The native PageStream full
+forward/prefill cohort is pending; this receipt checks the TaskBody/ring.
+
+verified: all 76 workspace byte constants compile on sm_80/89/90/100/120
+(`results/CI7_page_workspace_caps.json`). No global kernel is instantiated,
+so register and spill status is unavailable for this compile-only proof.
+The numerical cohort supplies the resource evidence above. Original failed
+compiles/launches are retained; numerical expectations were not changed.

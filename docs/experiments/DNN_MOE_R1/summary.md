@@ -33,7 +33,7 @@ that DNN or MoE execution is implemented.
 | CI-2 | verified descriptors, finite epilogue and GEMM/combiner dispatch (`descriptors.md`, `numerics.md`); new operand policies follow DN/MO bodies |
 | CI-3 | verified core ABI/dimensions, five targets, 50/50 fresh processes per seq (1/128/4096); CLI/model integration pending (`forward.md`) |
 | CI-4 | verified static access/metrics/table/WAR-WAW, exact bound encoding, virtual capacity/provenance, counted-write CG contracts and native threshold upload/waits (150/150); memory-planner and real-body integration pending (`analysis.md`, `synchronization.md`) |
-| CI-5 | verified primitives (50/50), synthetic table/counted stages (150/150), paged forward/prefill cores (150/150), binding PageStream synthetic dispatch (100/100), nonpaged split-K LA (100/100); attention LA and new bodies pending (`synchronization.md`) |
+| CI-5 | verified primitives (50/50), synthetic table/counted stages (150/150), paged forward/prefill cores (150/150), binding PageStream synthetic dispatch (100/100), nonpaged split-K LA (100/100); attention LA verified (100/100), multi-page TaskBody verified (100/100); real DNN/MoE bodies pending (`synchronization.md`) |
 | CI-6 | verified CPU fitting and streaming-routing foundations (5/5 each); native samplers, actual fits and real routing profiles pending (`calibration.md`) |
 | CI-7 | verified table projection, geometry rebinding, GEMM access/conv classes, routing-cost validation and small-tile mainloops; TaskBody/operand integration, profile consumers, structural search and second-level selection pending |
 | DN-2 through DN-11 | not implemented |
@@ -283,3 +283,9 @@ resource record, SASS and 64-step tokens for all eight LLM plans
 (`results/T1_CI7_forward.json`). Candidate ctest passes 124/125 with the
 existing independent-attention mismatch. Reference ctest also has missing
 fixtures/executables and target-schema failures. G-REG remains false.
+
+T4/T12 foundation: verified multi-page GEMM passes 100/100 fresh processes
+for three 2/4-page geometries wrapping 3/5-slot rings; ten builds cover five
+architectures without spills (`results/CI5_multipage_gemm_cuda.json`). All 76
+workspace byte constants compile on five architectures; that compile-only
+proof has no kernel resource claim (`results/CI7_page_workspace_caps.json`).
