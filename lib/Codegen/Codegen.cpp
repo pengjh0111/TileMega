@@ -16,6 +16,7 @@
 #include <tilemega/Analysis/DependencyForm.h>
 #include <tilemega/Analysis/BoundDependencyForm.h>
 #include <tilemega/Dialect/CouplingGraph/BoundDependency.h>
+#include <tilemega/Dialect/CouplingGraph/CountedDependency.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <tilemega/Dialect/CouplingGraph/PlacementPlan.h>
 #include <tilemega/Solver/VariantSchedule.h>
@@ -512,7 +513,7 @@ std::string emitModelPlan(mlir::ModuleOp module,
   std::ostringstream out;
   auto couplings = module.getOps<dialect::CouplingOp>();
   if (dm && serving && std::any_of(couplings.begin(), couplings.end(),
-        [](auto edge) { return edge->hasAttr("dependency_geometry"); })) {
+        [](auto edge) { return edge->hasAttr("dependency_geometry") || edge->hasAttr("dependency_counted"); })) {
     auto roles = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.dimension_roles");
     auto role = roles ? roles.getAs<mlir::StringAttr>("batch") : mlir::StringAttr{};
     auto theta = readBinding(module, "tilemega.theta");
@@ -697,6 +698,7 @@ std::string emitModelPlan(mlir::ModuleOp module,
     return a.seq_begin < b.seq_begin;
   });
   std::uint32_t cursor_seq = serving ? variants.front().seq_begin : 1;
+  std::vector<std::uint64_t> variant_interval_counts(variants.size());
   for (std::size_t v = 0; v < variants.size(); ++v) {
     auto& variant = variants[v];
     if (variant.seq_begin != cursor_seq || variant.seq_end < variant.seq_begin)
@@ -734,11 +736,22 @@ std::string emitModelPlan(mlir::ModuleOp module,
           << "u, " << impl.stages << "u},\n";
     out << "};\n\n";
     std::vector<std::uint32_t> table_offsets(variant.dependencies.size());
+    std::vector<std::optional<analysis::DependencyTable>> ordering_tables(variant.dependencies.size());
     std::uint64_t interval_count = 0;
     bool has_tables = false;
     for (std::size_t e = 0; e < variant.dependencies.size(); ++e) {
       table_offsets[e] = interval_count;
-      if (auto const& table = variant.dependencies[e].table) {
+      auto const& edge=variant.dependencies[e];
+      ordering_tables[e]=edge.table;
+      if(edge.counted) {
+        if(edge.table || edge.phase_window || !edge.counted->producers ||
+            edge.counted->contributions.expected.empty())
+          throw std::invalid_argument("counted wait lacks its I2 ordering contract");
+        ordering_tables[e]=analysis::BuildDependencyTableLinear(
+            edge.counted->conservative_relation,edge.counted->producers,
+            edge.counted->contributions.expected.size());
+      }
+      if (auto const& table = ordering_tables[e]) {
         if (!dm || variant.dependencies[e].phase_window)
           throw std::invalid_argument("table waits require a DM plan without a K-phase gate");
         has_tables = true; interval_count += table->intervals.size();
@@ -746,13 +759,35 @@ std::string emitModelPlan(mlir::ModuleOp module,
           throw std::invalid_argument("variant dependency interval storage overflows");
       }
     }
+    variant_interval_counts[v]=interval_count;
     if (has_tables) {
       out << "constexpr RuntimeDependencyInterval kDependencyIntervals" << v << "[] = {\n";
-      for (auto const& edge : variant.dependencies) if (edge.table)
-        for (auto const& interval : edge.table->intervals)
+      for (auto const& table : ordering_tables) if (table)
+        for (auto const& interval : table->intervals)
           out << "  {" << interval.first << "u, " << interval.count << "u},\n";
       if (!interval_count) out << "  {0u, 0u},\n";
       out << "};\n\n";
+    }
+    std::vector<std::uint32_t> counted_offsets(variant.dependencies.size());
+    std::uint64_t counted_count=0;
+    for (std::size_t e=0;e<variant.dependencies.size();++e) {
+      counted_offsets[e]=counted_count;
+      if (auto const& counted=variant.dependencies[e].counted) {
+        if (!dm || variant.dependencies[e].table || variant.dependencies[e].phase_window ||
+            counted->contributions.expected.empty())
+          throw std::invalid_argument("counted waits require a bound DM contribution contract");
+        for (auto count:counted->contributions.expected)
+          if (!count)throw std::invalid_argument("zero counted contribution threshold");
+        counted_count+=counted->contributions.expected.size();
+        if (counted_count>std::numeric_limits<std::uint32_t>::max())
+          throw std::invalid_argument("variant counted threshold storage overflows");
+      }
+    }
+    if (counted_count) {
+      out << "constexpr std::uint32_t kCountedThresholds" << v << "[] = {\n  ";
+      for (auto const& edge:variant.dependencies) if(edge.counted)
+        for(auto count:edge.counted->contributions.expected)out<<count<<"u, ";
+      out << "\n};\n\n";
     }
     out << "constexpr StageDependency kDependencies" << v << "[] = {\n";
     std::size_t dependency_index = 0;
@@ -761,7 +796,7 @@ std::string emitModelPlan(mlir::ModuleOp module,
       if(edge.phase_window && !phase_legal)
         std::cerr<<"E2E_KPHASE_DISABLED kappa is not uniformly one\n";
       analysis::WaitWindow const& w = use_phase?*edge.phase_window:edge.window;
-      char const* kind = edge.table ? "kTable" : use_phase?"kPhase":!w.narrowed ? "kAll"
+      char const* kind = edge.counted ? "kCounted" : edge.table ? "kTable" : use_phase?"kPhase":!w.narrowed ? "kAll"
                          : w.IsIdentity() ? "kIdentity" : "kWindow";
       out << "  {" << edge.producer << "u, " << edge.consumer
           << "u, StageDependency::Map::" << kind << ", " << w.div << "u, "
@@ -770,6 +805,11 @@ std::string emitModelPlan(mlir::ModuleOp module,
       if (edge.table)
         out << ", " << table_offsets[dependency_index] << "u, " << edge.table->consumers << "u, "
             << edge.table->stride << "u, 0u";
+      if (edge.counted)
+        out << ", " << table_offsets[dependency_index] << "u, "
+            << edge.counted->contributions.expected.size()
+            << "u, " << ordering_tables[dependency_index]->stride << "u, " << counted_offsets[dependency_index]
+            << "u, " << counted_offsets[dependency_index] << "u";
       out << "},\n";
       ++dependency_index;
     }
@@ -875,7 +915,22 @@ std::string emitModelPlan(mlir::ModuleOp module,
         << "u, " << variants[v].ownership_flags << "u";
     bool const carries_plan = variants[v].plan.carried;
     bool const has_tables = std::any_of(variants[v].dependencies.begin(), variants[v].dependencies.end(),
-        [](auto const& edge) { return edge.table.has_value(); });
+        [](auto const& edge) { return edge.table.has_value() || edge.counted.has_value(); });
+    bool const has_counted=std::any_of(variants[v].dependencies.begin(),variants[v].dependencies.end(),
+        [](auto const& edge){return edge.counted.has_value();});
+    if (has_counted) {
+      std::uint64_t intervals=variant_interval_counts[v],thresholds=0;
+      for(auto const& edge:variants[v].dependencies) {
+        if(edge.counted)thresholds+=edge.counted->contributions.expected.size();
+      }
+      out << (variants[v].attention.empty()?", nullptr":", kRuntimeAttention"+std::to_string(v));
+      out << ", true, " << (variants[v].balanced_placement?"true":"false") << ", "
+          << (variants[v].exact_tasks.empty()?"nullptr":"&kExactDependencies"+std::to_string(v)) << ", "
+          << (carries_plan?planInitializer(v):"{}") << ", "
+          << (has_tables?"kDependencyIntervals"+std::to_string(v):"nullptr") << ", "
+          << intervals << "u, {kCountedThresholds" << v << ", " << thresholds << "u}},\n";
+      continue;
+    }
     if (has_tables) {
       std::uint64_t intervals = 0;
       for (auto const& edge : variants[v].dependencies) if (edge.table) intervals += edge.table->intervals.size();
@@ -1112,6 +1167,8 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
   std::map<std::pair<std::uint32_t, std::uint32_t>, analysis::WaitWindow> pairs;
   std::map<std::pair<std::uint32_t, std::uint32_t>, dialect::BoundTaskGeometry> geometries;
   std::set<std::pair<std::uint32_t, std::uint32_t>> table_pairs, legacy_pairs;
+  std::vector<DependencyRecord> counted_edges;
+  std::set<std::tuple<std::uint32_t,std::uint32_t,std::string,std::string>> counted_keys;
   std::size_t couplings = 0, cluster_edges = 0;
   for (auto coupling : module.getOps<dialect::CouplingOp>()) {
     ++couplings;
@@ -1140,6 +1197,21 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
     if (auto text = coupling.getWaitMap())
       window = analysis::ParseWaitWindow(text->str());
     auto pair = std::make_pair(source->second, target->second);
+    if (auto counted=dialect::ReadBoundCountedScatter(coupling,known)) {
+      auto geometry=dialect::ReadBoundTaskGeometry(coupling,known);
+      auto fields=coupling->getAttrOfType<mlir::DictionaryAttr>("dependency_counted");
+      if (!geometry || counted->expected.size()!=geometry->consumers)
+        throw std::invalid_argument("counted wait requires bound physical task ownership");
+      auto tensor=fields.getAs<mlir::StringAttr>("tensor").getValue().str();
+      if (!counted_keys.emplace(pair.first,pair.second,tensor,counted->binding_source).second)
+        throw std::invalid_argument("duplicate counted contribution contract");
+      DependencyRecord record{pair.first,pair.second,{true,1,1,0,1}};
+      std::vector<unsigned> units;
+      for(auto axis:fields.getAs<mlir::DenseI64ArrayAttr>("unit_axes").asArrayRef())units.push_back(unsigned(axis));
+      record.counted=CountedWaitRecord{*counted,geometry->relation,geometry->producers,tensor,std::move(units)};
+      counted_edges.push_back(std::move(record));
+      continue;
+    }
     auto [at, fresh] = pairs.emplace(pair, window);
     if (!fresh && at->second != window) at->second = analysis::WaitWindow{};
     auto geometry = dialect::ReadBoundTaskGeometry(coupling, known);
@@ -1193,6 +1265,7 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
     }
     result.dependencies.push_back(std::move(record));
   }
+  result.dependencies.insert(result.dependencies.end(),counted_edges.begin(),counted_edges.end());
   return result;
 }
 
@@ -1644,7 +1717,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
   runtime.dependencies = std::move(dependencies);
   auto dependency_ops = module.getOps<dialect::CouplingOp>();
   if (std::any_of(dependency_ops.begin(), dependency_ops.end(),
-        [](auto edge) { return edge->hasAttr("dependency_geometry"); }))
+        [](auto edge) { return edge->hasAttr("dependency_geometry") || edge->hasAttr("dependency_counted"); }))
     runtime.dependencies = AnalyzeVariantModule(module).dependencies;
   runtime.ownership_flags = readOwnershipFlags(module);
   runtime.explicit_resident_constraint = readResidentConstraint(module);
