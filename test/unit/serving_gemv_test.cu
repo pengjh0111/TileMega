@@ -9,7 +9,11 @@
 #include <cmath>
 using namespace tilemega;
 using Element=cutlass::bfloat16_t;
-using Arch=std::conditional_t<std::is_void_v<arch::CurrentArch>,arch::Sm80,arch::CurrentArch>;
+#ifdef TILEMEGA_ARCH_ID
+using Arch=arch::CurrentArch;
+#else
+using Arch=arch::Sm80;
+#endif
 using Op=backend::ServingEpilogueOp;
 __host__ __device__ float A(int r,int k){return float((r*7+k)%13-6)*.0625f;}
 __host__ __device__ float B(int n,int k){return float((n*3+k*5)%17-8)*.03125f;}
@@ -39,7 +43,7 @@ template<int TN,int TK,bool Tiled>void Run(int m,int k,Op op){
   p.output_stride=op==Op::kArgmaxPartial?nt:width;p.partial_stride=n;p.epilogue=op;
   p.ss_out=op==Op::kResidual?ss:nullptr;
   if(op!=Op::kPartial){p.norm_ss=norm;p.norm_k=128;p.norm_eps=0;}
-  Probe<TN,TK,Tiled><<<nt,128>>>(p);Check(cudaDeviceSynchronize());
+  Probe<TN,TK,Tiled><<<nt,128>>>(p);Check(cudaGetLastError());Check(cudaDeviceSynchronize());
   auto dot=[&](int r,int c){float s=0;for(int kk=0;kk<k;++kk)s+=A(r,kk)*B(c,kk);return s;};
   for(int r=0;r<m;++r){
     if(op==Op::kArgmaxPartial){for(int t=0;t<nt;++t){float best=-INFINITY;int index=INT32_MAX;

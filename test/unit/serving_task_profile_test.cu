@@ -6,7 +6,11 @@
 #include <cstdlib>
 using namespace tilemega;
 using E=cutlass::bfloat16_t;
+#ifdef TILEMEGA_ARCH_ID
 using Arch=arch::CurrentArch;
+#else
+using Arch=arch::Sm80;
+#endif
 template<class Body> __global__ void Probe(codegen::ServingGemmOperands p) {
   __shared__ __align__(16) char work[Body::kSharedBytes];
   if(threadIdx.x==0)p.profile->run_begin=codegen::TaskProfileNow(p.profile);
@@ -22,9 +26,13 @@ template<class Body>void Run() {
   for(int i=0;i<32*128;++i)b[i]=E(1);
   codegen::ServingGemmOperands p;p.a=a;p.b=b;p.output=out;p.profile=profile;
   p.m=1;p.n=32;p.k_count=p.k_total=128;p.output_stride=32;
-  Probe<Body><<<1,128>>>(p);Check(cudaDeviceSynchronize());
-  if(!(profile->run_begin<=profile->first_ready && profile->first_ready<profile->run_end))std::exit(3);
-  for(int i=0;i<32;++i)if(float(out[i])!=128)std::exit(4);
+  Probe<Body><<<1,128>>>(p);Check(cudaGetLastError());Check(cudaDeviceSynchronize());
+  codegen::ServingTaskProfile observed;
+  Check(cudaMemcpy(&observed,profile,sizeof(observed),cudaMemcpyDeviceToHost));
+  if(!(observed.run_begin<=observed.first_ready && observed.first_ready<observed.run_end)) {
+    std::fprintf(stderr,"profile begin=%llu first=%llu end=%llu\n",observed.run_begin,observed.first_ready,observed.run_end);std::exit(3);
+  }
+  for(int i=0;i<32;++i)if(float(out[i])!=128){std::fprintf(stderr,"output %d = %g, expected 128\n",i,float(out[i]));std::exit(4);}
   Check(cudaFree(a));Check(cudaFree(b));Check(cudaFree(out));Check(cudaFree(profile));
 }
 int main(){Run<codegen::ServingGemmTaskBody<Arch,16,32,64,2>>();

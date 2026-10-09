@@ -28,7 +28,7 @@ int TestServingSearchRejection(int, char**) try {
     for(auto id:classes[c].gemms)
       if(plan.gemms[id].epilogue==frontend::PlanGemm::Epilogue::kArgmaxPartial)head=c;
   if(head==classes.size())throw std::runtime_error("regression fixture lacks lm_head");
-  auto invalid=valid;invalid[head]={16,8,64,2,1,1};
+  auto invalid=valid;invalid[head]={16,4,64,2,1,0};
   auto alternate=valid;alternate[head]={16,64,128,4,1};
   auto dir=std::filesystem::temp_directory_path()/"tilemega-serving-rejected-structure";
   std::filesystem::create_directories(dir);
