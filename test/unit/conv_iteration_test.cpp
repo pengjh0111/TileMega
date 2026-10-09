@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Backend/ConvIteration.h>
+#include <tilemega/Codegen/DmConvRuntime.h>
 #include <cassert>
 #include <iostream>
 #include <set>
@@ -83,9 +84,60 @@ int TestConvIteration(int,char**) {
     catch(std::invalid_argument const&){rejected=true;}
     assert(rejected);++rejections;
   }
+  unsigned launches=0,invalid_launches=0;
+  for(unsigned channels:{3,24,64})for(unsigned kernel:{1,2,3,7})
+    for(unsigned tk:{16,32,64,128})for(unsigned stride:{1,2}) {
+      codegen::ConvDesc c;c.n=2;c.h=9;c.w=11;c.c=channels;c.k=19;
+      c.r=c.s=kernel;c.pad_h=c.pad_w=3;c.stride_h=c.stride_w=stride;
+      c.p=(c.h+6-kernel)/stride+1;c.q=(c.w+6-kernel)/stride+1;
+      codegen::DmBufferLayout l;l.kind=codegen::DmLayout::kNHWC;l.rank=4;
+      l.logical[0]=l.physical[0]=2;l.logical[1]=c.h;l.logical[2]=c.w;
+      l.logical[3]=channels;l.physical[3]=channels==3?4:channels;
+      l.halo_top=l.halo_bottom=l.halo_left=l.halo_right=3;
+      l.physical[1]=c.h+6;l.physical[2]=c.w+6;
+      l.strides[3]=1;l.strides[2]=(l.physical[3]+7)/8*8;
+      l.strides[1]=l.physical[2]*l.strides[2];l.strides[0]=l.physical[1]*l.strides[1];
+      if(channels==24 && tk>24) {
+        bool rejected=false;
+        try {(void)codegen::DmConvRuntime::Build(c,l,2*c.p*c.q,19,channels*kernel*kernel,tk,1);}
+        catch(std::invalid_argument const&) {rejected=true;}
+        assert(rejected);++invalid_launches;continue;
+      }
+      auto expected=backend::ConvIterationGeometry::Build(c,l,tk);
+      for(unsigned split:{1,2,4,8}) {
+        bool rejected=false;
+        try {
+          auto launch=codegen::DmConvRuntime::Build(c,l,2*c.p*c.q,19,channels*kernel*kernel,tk,split);
+          assert(expected.iterations%split==0 && launch.tiles==int(expected.iterations));
+          assert(launch.storage_k==launch.tiles*int(tk));++launches;
+        }catch(std::invalid_argument const&) {rejected=true;}
+        assert(rejected==(expected.iterations%split!=0));
+      }
+      for(unsigned fault=0;fault<11;++fault) {
+        auto bad=c;auto wrong=l;int rows=2*c.p*c.q,k=channels*kernel*kernel;
+        switch(fault) {
+          case 0:++rows;break;
+          case 1:++k;break;
+          case 2:++bad.p;break;
+          case 3:bad.stride_h=0;break;
+          case 4:bad.dilation_w=0;break;
+          case 5:wrong.halo_top=0;break;
+          case 6:wrong.strides[2]=4;break;
+          case 7:wrong.physical[1]=c.h;break;
+          case 8:wrong.fill=codegen::DmFill::kNegativeInfinity;break;
+          case 9:wrong.strides[1]=1;break;
+          case 10:wrong.strides[0]=1;break;
+        }
+        bool rejected=false;
+        try {(void)codegen::DmConvRuntime::Build(bad,wrong,rows,19,k,tk,1);}
+        catch(std::invalid_argument const&) {rejected=true;}
+        assert(rejected);++invalid_launches;
+      }
+    }
   std::cout<<"CONV_ITERATION geometries="<<geometries<<" splits="<<splits
       <<" rejected="<<rejections<<" issued_slots="<<checked
-      <<" cursors="<<cursors<<" cursor_slots="<<cursor_slots<<" PASS\n";
+      <<" cursors="<<cursors<<" cursor_slots="<<cursor_slots
+      <<" runtime_launches="<<launches<<" invalid_launches="<<invalid_launches<<" PASS\n";
   return 0;
 }
 
