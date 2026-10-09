@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: BSD-3-Clause
+#pragma once
+#include <tilemega/Frontend/MoeRegionPattern.h>
+
+namespace tilemega::frontend {
+struct MoeRegionOptions {
+  unsigned tokens=1;
+  bool grouped=false;
+  unsigned block_rows=16;
+  unsigned router_tile_n=64;
+  unsigned combine_token_tile=1,combine_channel_tile=128;
+};
+ModelPlan BuildMoeRegion(std::vector<FxNodeRecord> const&,
+    std::vector<SignatureInput> const&,std::vector<std::string> const&,
+    MoeRegionOptions const& = {});
+// Router partial storage follows the selected N geometry, not export geometry.
+void MaterializeMoeRegionStorage(ModelPlan&,unsigned router_tile_n);
+} // namespace tilemega::frontend

@@ -24,6 +24,7 @@ struct Reader {
   }
   FxArgument Arg(FxNodeRecord const& n,unsigned i,char const* key=nullptr,
                  FxArgument fallback={}) const {
+    if(i<n.args.size() && key && n.kwargs.count(key))Fail("argument supplied twice at "+n.name);
     if(i<n.args.size())return n.args[i];
     if(key)if(auto it=n.kwargs.find(key);it!=n.kwargs.end())return it->second;
     return fallback;
@@ -40,6 +41,11 @@ struct Reader {
   }
   static bool Target(FxNodeRecord const& n,std::initializer_list<char const*> names) {
     for(auto name:names)if(n.target==name)return true;return false;
+  }
+  void UnitAlpha(FxNodeRecord const& n) const {
+    auto a=Arg(n,2,"alpha");
+    if(a.kind!=K::kNone && !((a.kind==K::kInt && a.integer==1) ||
+        (a.kind==K::kFloat && a.real==1)))Fail("addition has non-unit alpha at "+n.name);
   }
   FxNodeRecord const& Rows(FxNodeRecord const& n) {
     if(!Target(n,{"aten.reshape.default","aten.view.default"}))return n;
@@ -169,6 +175,7 @@ MoeRegionMatch MatchMoeRegion(std::vector<FxNodeRecord> const& nodes,
     Reader::Fail("RMSNorm does not normalize the region input");
   auto const& add=r.Ref(*rsqrt,0);
   if(add.target!="aten.add.Tensor")Reader::Fail("RMSNorm epsilon must follow variance");
+  r.UnitAlpha(add);
   auto epsilon=r.Arg(add,1);
   result.epsilon=epsilon.kind==K::kFloat?epsilon.real:epsilon.kind==K::kInt?epsilon.integer:0;
   if(!(result.epsilon>0) || !std::isfinite(result.epsilon))Reader::Fail("invalid RMSNorm epsilon");
@@ -182,6 +189,7 @@ MoeRegionMatch MatchMoeRegion(std::vector<FxNodeRecord> const& nodes,
   auto const& output=r.Node(outputs.front());result.output=output.name;
   if(output.target!="aten.add.Tensor" || output.shape!=h.shape || experts->shape!=h.shape)
     Reader::Fail("output must be the hidden-state residual sum");
+  r.UnitAlpha(output);
   auto const* residual=&r.Rows(r.Ref(output,0));auto const* branch=&r.Rows(r.Ref(output,1));
   if(residual->name!=h.name)std::swap(residual,branch);
   if(residual->name!=h.name || branch->name!=experts->name)Reader::Fail("residual source differs from region input");

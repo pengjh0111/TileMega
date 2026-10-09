@@ -1,0 +1,169 @@
+// SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Frontend/MoeRegionPlan.h>
+#include <tilemega/Frontend/DmDescriptorCodec.h>
+#include <tilemega/Codegen/MoeBinding.h>
+#include <llvm/Support/FormatVariadic.h>
+#include <llvm/Support/JSON.h>
+#include <algorithm>
+#include <limits>
+#include <map>
+#include <stdexcept>
+
+namespace tilemega::frontend {
+namespace {
+using namespace codegen;
+unsigned Checked(std::uint64_t value) {
+  if(value>std::numeric_limits<unsigned>::max())
+    throw std::invalid_argument("MoE region buffer exceeds descriptor capacity");
+  return unsigned(value);
+}
+void Matrix(PlanBuffer& b,unsigned rows,unsigned columns) {
+  b.constant=Checked(std::uint64_t(rows)*columns);b.per_seq=b.per_batch=0;
+  b.layout={};b.layout.rank=2;
+  b.layout.logical[0]=b.layout.physical[0]=rows;
+  b.layout.logical[1]=b.layout.physical[1]=columns;
+  b.layout.strides[0]=columns;b.layout.strides[1]=1;
+}
+}
+
+ModelPlan BuildMoeRegion(std::vector<FxNodeRecord> const& nodes,
+    std::vector<SignatureInput> const& inputs,std::vector<std::string> const& outputs,
+    MoeRegionOptions const& options) {
+  auto match=MatchMoeRegion(nodes,inputs,outputs);
+  if(!options.tokens || options.tokens>4096 || !options.router_tile_n ||
+      (options.grouped && options.block_rows!=16 && options.block_rows!=32 &&
+       options.block_rows!=64 && options.block_rows!=128) ||
+      !options.combine_token_tile || options.combine_token_tile>128 ||
+      options.combine_channel_tile<32 || options.combine_channel_tile>256 ||
+      options.combine_channel_tile%32)
+    throw std::invalid_argument("invalid MoE region geometry");
+  unsigned bm=options.grouped?options.block_rows:1,capacity=0;
+  if(!MoeVirtualCapacity(options.tokens,match.top_k,match.expert_count,bm,
+       options.grouped,&capacity))throw std::invalid_argument("invalid MoE virtual capacity");
+  ModelPlan plan;plan.dm=plan.forward=plan.forward_token_axis=true;
+  plan.dtype="bf16";plan.serving_seq=options.tokens;plan.norm_epsilon=match.epsilon;
+  std::map<std::string,std::string> parameters;
+  std::map<std::string,int> indices;
+  for(auto const& s:inputs)if(s.kind=="PARAMETER")parameters.emplace(s.name,s.target);
+  for(auto const& n:nodes)indices.emplace(n.name,n.index);
+  auto buffer=[&](std::string name,unsigned rows,unsigned columns,char const* dtype="bf16") {
+    PlanBuffer b;b.name=std::move(name);b.dtype=dtype;Matrix(b,rows,columns);
+    unsigned id=plan.buffers.size();plan.buffers.push_back(std::move(b));return id;
+  };
+  auto weight=[&](std::string name,unsigned count,llvm::json::Object recipe) {
+    PlanBuffer b;b.name=std::move(name);b.source=PlanBuffer::Source::kWeight;
+    b.constant=count;b.role="external";b.external_name=b.name;
+    b.pack_json=llvm::formatv("{0}",llvm::json::Value(std::move(recipe))).str();
+    unsigned id=plan.buffers.size();plan.buffers.push_back(std::move(b));return id;
+  };
+  auto alias=[&](std::string const& node,unsigned count) {
+    auto fqn=parameters.at(node);
+    return weight(fqn,count,llvm::json::Object{{"kind","alias"},{"source",fqn}});
+  };
+  auto stage=[&](PlanTaskKind kind,std::string const& anchor,std::initializer_list<unsigned> operands) {
+    PlanStage s;s.kind=kind;s.operands.fill(kDmNoIndex);
+    std::copy(operands.begin(),operands.end(),s.operands.begin());
+    s.representative=anchor;s.representative_index=indices.at(anchor);
+    unsigned id=plan.stages.size();plan.stages.push_back(s);return id;
+  };
+  unsigned t=options.tokens,h=match.hidden,i=match.intermediate,e=match.expert_count,k=match.top_k;
+  auto x=buffer(match.input,t,h),y=buffer(match.output,t,h);
+  for(auto id:{x,y}) {auto& b=plan.buffers[id];b.role="external";b.external_name=b.name;}
+  plan.node_buffer[match.input]=x;plan.node_buffer[match.output]=y;
+  auto normalized=buffer(match.normalized,t,h);
+  auto gamma=alias(match.norm_weight,h);
+  auto norm=stage(PlanTaskKind::kRMSNorm,match.normalized,{x,gamma,normalized});
+  plan.stages[norm].width=h;
+  // An external region input has no producer epilogue from which to transfer
+  // RMS statistics. Full decoder regions can defer this normalization only
+  // after proving the preceding residual producer's statistics access.
+  plan.node_buffer[match.normalized]=normalized;
+  auto logits=buffer(match.router,t,e);
+  auto router_weight=alias(match.router_weight,Checked(std::uint64_t(e)*h));
+  auto partial_logits=buffer(match.router+".topk_logits",t,e*k,"f32");
+  auto partial_indices=buffer(match.router+".topk_indices",t,e*k,"i32");
+  auto top_indices=buffer(match.indices,t,k,"i32"),top_weights=buffer(match.weights,t,k);
+  auto bindings=buffer(match.experts+".bindings",capacity,4,"i32");
+  auto rows=buffer(match.experts+".rows",t*k,4,"i32");
+  unsigned chunks=(t+127)/128;
+  auto histogram=buffer(match.experts+".histogram",chunks,e,"i32");
+  auto expert_offsets=buffer(match.experts+".expert_offsets",1,e+1,"i32");
+  auto block_offsets=buffer(match.experts+".block_offsets",1,e+1,"i32");
+  PlanGemm router;router.n=e;router.k=h;router.a=normalized;router.b=router_weight;
+  router.c=router.d=logits;router.access.write.layout=logits;
+  router.chain.side_count=1;
+  router.chain.side[0]={DmSideOutputKind::kTopKPartial,partial_logits,partial_indices,k};
+  plan.gemms.push_back(router);
+  auto route=stage(PlanTaskKind::kGemm,match.router,{});plan.stages[route].gemm=0;
+  plan.node_buffer[match.router]=logits;
+  DmMoeStage config;config.experts=e;config.top_k=k;config.block_rows=bm;
+  config.binding_capacity=capacity;config.row_capacity=t*k;config.router_gemm=0;
+  config.grouped=options.grouped;
+  auto dispatch=[&](DmMoeStep step,unsigned group) {
+    auto id=stage(PlanTaskKind::kMoETopK,match.topk,{partial_logits,partial_indices,
+        top_indices,top_weights,bindings,rows,histogram,expert_offsets,block_offsets});
+    auto& s=plan.stages[id];s.extent=e;s.width=k;s.group=group;s.moe=config;s.moe.step=step;
+    return id;
+  };
+  unsigned binding_producer;
+  if(std::uint64_t(t)*k<=4096)binding_producer=dispatch(DmMoeStep::kSelectAndDispatch,t);
+  else {
+    dispatch(DmMoeStep::kSelect,128);
+    if(options.grouped) {dispatch(DmMoeStep::kHistogram,128);dispatch(DmMoeStep::kPrefix,128);}
+    binding_producer=dispatch(DmMoeStep::kScatter,128);
+  }
+  plan.node_buffer[match.indices]=top_indices;plan.node_buffer[match.weights]=top_weights;
+  auto prefix=parameters.at(match.gate_up_weight),down_name=parameters.at(match.down_weight);
+  std::string suffix="gate_up_proj";
+  if(prefix.size()<suffix.size() || prefix.substr(prefix.size()-suffix.size())!=suffix)
+    throw std::invalid_argument("MoE expert weight lacks the stacked gate_up_proj FQN");
+  prefix.resize(prefix.size()-suffix.size());
+  if(down_name!=prefix+"down_proj")throw std::invalid_argument("MoE expert FQN namespaces disagree");
+  auto expert_weight=[&](char const* part,unsigned count) {
+    return weight(prefix+part+".packed",count,llvm::json::Object{{"kind","expert_stack"},
+        {"prefix",prefix},{"part",part},{"experts",e},{"hidden",h},{"intermediate",i},{"u",16}});
+  };
+  auto gate_weight=expert_weight("gate_up",Checked(std::uint64_t(e)*2*i*h));
+  auto down_weight=expert_weight("down",Checked(std::uint64_t(e)*h*i));
+  auto gated=buffer(match.experts+".gated",Checked(std::uint64_t(capacity)*bm),i);
+  auto partials=buffer(match.experts+".partials",t*k,h);
+  auto expert=[&](unsigned a,unsigned b,unsigned d,unsigned n,unsigned inner,bool gate) {
+    PlanGemm g;g.a=a;g.b=b;g.c=g.d=d;g.n=n;g.k=inner;
+    auto& access=g.access;access.a=gate?DmAAccess::kRowGather:DmAAccess::kDense;
+    access.b=DmBAccess::kExpertIndirect;access.binding=bindings;access.rows=rows;
+    access.binding_blocks=capacity;access.binding_rows=t*k;access.experts=e;
+    access.block_rows=bm;access.expert_stride=std::uint64_t(n)*inner;access.routing_topk=k;
+    access.write.layout=d;
+    if(gate) {
+      g.chain.count=1;g.chain.operations[0].kind=DmEpilogueKind::kGatePair;
+      g.chain.operations[0].gate=DmGatePair::kSwiGLU;g.chain.operations[0].unit=16;
+      g.chain.operations[0].input_rounding=DmRounding::kBF16;
+      g.chain.operations[0].output_rounding=DmRounding::kBF16;
+    }else {access.write.kind=DmWriteKind::kRowScatter;access.write.rows=rows;}
+    unsigned index=plan.gemms.size();plan.gemms.push_back(g);
+    auto id=stage(PlanTaskKind::kGemm,match.experts,{});
+    plan.stages[id].gemm=index;plan.stages[id].binding_producer=binding_producer;
+  };
+  expert(normalized,gate_weight,gated,2*i,h,true);expert(gated,down_weight,partials,h,i,false);
+  unsigned stats=buffer(match.output+".row_stats",t,2*((h+options.combine_channel_tile-1)/options.combine_channel_tile),"f32");
+  auto combine=stage(PlanTaskKind::kMoECombine,match.output,{partials,top_weights,x,y,stats});
+  auto& s=plan.stages[combine];s.extent=h;s.width=options.combine_channel_tile;
+  s.group=options.combine_token_tile;s.moe=config;s.moe.step=DmMoeStep::kCombine;
+  plan.outputs.push_back({y,""});
+  MaterializeMoeRegionStorage(plan,options.router_tile_n);
+  ValidateDmModelPlan(plan);return plan;
+}
+
+void MaterializeMoeRegionStorage(ModelPlan& plan,unsigned tile_n) {
+  if(!plan.dm || !plan.forward || !plan.forward_token_axis || !tile_n)
+    throw std::invalid_argument("router storage needs a token-axis forward plan and positive tile N");
+  for(auto const& stage:plan.stages) {
+    auto const& config=stage.moe;
+    if(config.step!=DmMoeStep::kSelect && config.step!=DmMoeStep::kSelectAndDispatch)continue;
+    if(config.router_gemm>=plan.gemms.size())throw std::invalid_argument("invalid router GEMM index");
+    auto const& router=plan.gemms[config.router_gemm];
+    unsigned parts=(router.n+tile_n-1)/tile_n;
+    for(auto operand:{0,1})Matrix(plan.buffers.at(stage.operands[operand]),plan.serving_seq,Checked(std::uint64_t(parts)*config.top_k));
+  }
+}
+} // namespace tilemega::frontend

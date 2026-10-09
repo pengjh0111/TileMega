@@ -49,11 +49,17 @@ int TestMoeRegionPattern(int,char**) {
     mutate([](auto& b) {for(auto& n:b.nodes)if(n.op=="placeholder" && n.shape.size()==3 && n.shape[1]=="1536")
         n.shape[2]="1024";});
     mutate([](auto& b) {b.outputs.push_back(b.outputs.front());});
+    mutate([](auto& b) {for(auto& n:b.nodes)if(n.target=="aten.add.Tensor") {
+      FxArgument a;a.kind=FxArgument::Kind::kInt;a.integer=2;n.kwargs["alpha"]=a;
+    }});
+    mutate([](auto& b) {for(auto& n:b.nodes)if(n.target=="aten.topk.default") {
+      n.kwargs["k"]=n.args.at(1);
+    }});
     mutate([](auto& b) {FxNodeRecord n;n.op="call_function";n.name="unmatched";
       n.target="aten.sin.default";b.nodes.push_back(n);});
   }
-  assert(accepted==4 && rejected==16);
-  std::cout<<"MoE region structure: before/Core, renamed graphs and 16 negative contracts PASS\n";
+  assert(accepted==4 && rejected==20);
+  std::cout<<"MoE region structure: before/Core, renamed graphs and 20 negative contracts PASS\n";
   return 0;
 }
 } // namespace tilemega::tests::moe_region_pattern_test
