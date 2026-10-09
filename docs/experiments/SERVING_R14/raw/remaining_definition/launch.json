@@ -1,0 +1,29 @@
+{
+  "pid": 1523582,
+  "alive": true,
+  "observed_utc": "2026-10-09T15:36:45.516231+00:00",
+  "source_head": "e525034799e3cd932f69f73c3f87bcb305e693b1",
+  "command": [
+    "/root/venvs/tilemega-torch213-cu126/bin/python",
+    "docs/experiments/SERVING_R14/scheduler.py",
+    "--queue-dir",
+    "docs/experiments/SERVING_R14/queue_remaining",
+    "--out",
+    "docs/experiments/SERVING_R14/scheduler_remaining",
+    "--policy",
+    "docs/experiments/SERVING_R14/guard_policy.json",
+    "--deadline-hours",
+    "96"
+  ],
+  "queue": "docs/experiments/SERVING_R14/queue_remaining/queue_r14_remaining.json",
+  "state_directory": "docs/experiments/SERVING_R14/scheduler_remaining",
+  "counts": {
+    "done": 1,
+    "running": 1,
+    "pending": 63
+  },
+  "running": [
+    "R14_remaining_prepare"
+  ],
+  "lock": "/root/r14_work/gpu.lock"
+}
