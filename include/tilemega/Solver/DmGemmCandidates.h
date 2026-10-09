@@ -4,6 +4,7 @@
 #include <tilemega/Frontend/ModelPlan.h>
 #include <tilemega/Solver/CostModel.h>
 #include <tilemega/Solver/DmGemmTraits.h>
+#include <tilemega/Backend/ConvIteration.h>
 #include <algorithm>
 #include <stdexcept>
 #include <string_view>
@@ -26,13 +27,8 @@ inline std::uint64_t DmGemmIterations(frontend::PlanGemm const& gemm,
   if(layout.kind!=codegen::DmLayout::kNHWC || layout.rank!=4 ||
      !layout.physical[3] || !conv.r || !conv.s)
     throw std::invalid_argument("im2col GEMM lacks an NHWC channel extent");
-  auto channels=std::uint64_t(layout.physical[3]);
-  auto positions=std::uint64_t(conv.r)*conv.s;
-  // Large channels finish each filter position with a predicated C block;
-  // small channels concatenate complete filter positions into one K tile.
-  return channels>=std::uint64_t(tile_k)
-      ?positions*((channels+tile_k-1)/tile_k)
-      :(positions*channels+tile_k-1)/tile_k;
+  return backend::ConvIterationGeometry::CountIterations(
+      layout.physical[3],conv.r,conv.s,unsigned(tile_k));
 }
 
 inline std::string_view DmGemmCandidateRejection(frontend::PlanGemm const& gemm,

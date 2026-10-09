@@ -76,6 +76,7 @@ namespace tilemega::tests::moe_routing_profile_test { int TestMoeRoutingProfile(
 namespace tilemega::tests::moe_group_profile_test { int TestMoeGroupProfile(int, char**); }
 namespace tilemega::tests::dm_gemm_traits_test { int TestDmGemmTraits(int, char**); }
 namespace tilemega::tests::dm_gemm_candidates_test { int TestDmGemmCandidates(int, char**); }
+namespace tilemega::tests::conv_iteration_test { int TestConvIteration(int, char**); }
 namespace tilemega::tests::dm_gemm_class_domain_test { int TestDmGemmClassDomain(int, char**); }
 namespace tilemega::tests::dm_forward_search_test { int TestDmForwardSearch(int, char**); }
 namespace tilemega::tests::coupling_cache_test { int TestCouplingCache(int, char**); }
@@ -196,6 +197,7 @@ int main(int argc, char** argv) {
     {"moe_group_profile", tilemega::tests::moe_group_profile_test::TestMoeGroupProfile},
     {"dm_gemm_traits", tilemega::tests::dm_gemm_traits_test::TestDmGemmTraits},
     {"dm_gemm_candidates", tilemega::tests::dm_gemm_candidates_test::TestDmGemmCandidates},
+    {"conv_iteration", tilemega::tests::conv_iteration_test::TestConvIteration},
     {"dm_gemm_class_domain", tilemega::tests::dm_gemm_class_domain_test::TestDmGemmClassDomain},
     {"dm_forward_search", tilemega::tests::dm_forward_search_test::TestDmForwardSearch},
     {"coupling_cache", tilemega::tests::coupling_cache_test::TestCouplingCache},
