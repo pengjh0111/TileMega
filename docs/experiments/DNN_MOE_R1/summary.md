@@ -28,18 +28,18 @@ Export coverage and primitive checks do not imply model correctness.
 | Phase 0 | verified: R13 framework, preregistration, reference bank, five model exports and fixtures committed |
 | CI-1 | verified: typed arguments, CPU constants/shape bindings, legacy bridge compatibility (`bridge.md`) |
 | CI-2 | verified: DM descriptors, finite epilogue chains, dense/page/split-K dispatch, narrow tile families (`descriptors.md`, `numerics.md`) |
-| CI-3 | verified: forward ABI, native CG CLI plans and five-target builds; exported DNN/MoE model entry pending (`forward.md`) |
+| CI-3 | verified: forward ABI and native CG CLI; DNN exported-model entry implemented; complete CLI checks and MoE region entry pending |
 | CI-4 | verified: exact window/table/WAR-WAW foundations, virtual capacity/counting, native thresholds; memory-planner and body integration pending (`analysis.md`) |
 | CI-5 | verified: synthetic waits/binding/LA and native forward/prefill PageStream; real model dispatch remains incomplete (`synchronization.md`) |
-| CI-6 | verified: fitting/profile schema and streaming collection foundations; checkpoint downloaded and real routing collection in progress; body fits pending |
+| CI-6 | verified: full 48-layer real routing profile and layer 0/24/47 input captures; profile consumers and body fits pending |
 | CI-7 | verified: class/candidate, exact projection, issued convolution K, conditional/live-row and histogram pricing foundations; profile consumers/structural search pending |
 | DN-1 | verified: six real-weight upstream exports, before/Core fixtures, source FQN/dtype preservation and weight recipes. These are not model gates |
-| DN-2/3 | verified: automatic primitive DNN L-sem and exact ownership/halo oracles; exported-model planning and remaining operators pending |
+| DN-2/3 | verified: three CNN and BERT before/Core planning and lifting, including masked BERT; NAFNet patterns and remaining semantics pending |
 | DN-4 | verified: im2col operands and dense/tiled/page TaskBodies, small channels, tails, stride/dilation, issued split-K. Native ABI primitives verified; complete models pending |
 | DN-5/6 | verified: staged depthwise/SimpleGate and window/global pooling bodies; generated pool pipeline. dw→pw body verified; fused planning, SCA and complete model integration pending |
-| DN-7 | verified: explicit LayerNorm and ordered BF16 embedding sum primitives; native/generated LN stages. Deferred LN/model integration pending |
+| DN-7 | verified: explicit LN and ordered embedding sum, including BERT plans; deferred LN and full model gates pending |
 | DN-8/9/10/11 | verified: encoder attention body and layout conversion; generated encoder integration in progress. Full chain/model numerics, memory reuse and model CLI pending |
-| MO-1 through MO-9 | verified: checkpoint transformations and expert streaming recipes; real L12/E16 checkpoints generated. Model/region integration and end-to-end gates pending |
+| MO-1 through MO-9 | verified: real exports/checkpoints, single-copy streaming under 24 GiB and routing inputs; device routing/combine checks in progress; integration and end-to-end gates pending |
 
 ## Tables and gates
 
@@ -91,6 +91,19 @@ NAFNet, ResNet18 and MobileNetV2 pretrained states load strictly. BERT and
 MobileNetV1 weight identities are recorded; complete model correctness is pending.
 
 ### T3/T4/T12: new primitive evidence
+
+verified: complete upstream MobileNetV1 graph execution at B=2 passes 50/50
+fresh processes, repeated L1/L2 bit equality and zero-error memcheck/racecheck.
+Five architecture builds pass; all five artifacts spill and have stack frames.
+Minimum cosine with the exported BF16 checkpoint promoted to FP32 is
+0.9997538328 (`results/DN_mbv1_model_smoke_cuda.json`). Random-input smoke
+does not replace the 1000-image G-DNN gate. The separate actual CLI import
+timed out; its failure remains in `runs/dm1-dnn-cli-host-v1/events/mbv1.log`.
+
+verified: BERT before/Core, masked/unmasked planning and lifting pass four
+real-graph checks plus negative mask/attention/position contracts; plans have
+87 stages and 49 packed GEMMs (`results/DN_encoder_model_plan_host.json`).
+Native CUDA model execution is queued; no BERT model gate is claimed.
 
 verified: `results/CI2_conv_operand_matrix_cuda.json` records 13 tile configurations,
 650/650 fresh numerical processes and 65 final architecture artifacts. A unique
