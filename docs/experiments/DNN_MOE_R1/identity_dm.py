@@ -8,6 +8,8 @@ import shlex
 import subprocess
 from pathlib import Path
 
+from capture_macros_dm import capture as capture_macros
+
 
 def sha(path):
     digest = hashlib.sha256()
@@ -23,7 +25,8 @@ def source_snapshot(root, compiler):
     paths = git('ls-files', '-z', 'include', 'lib', 'python', 'tools',
                 'CMakeLists.txt', 'cmake').decode().split('\0')
     files = {p: sha(Path(root) / p) for p in paths if p and (Path(root) / p).is_file()}
-    return dict(head=git('rev-parse', 'HEAD').decode().strip(),
+    return dict(root=str(Path(root).resolve()),
+                head=git('rev-parse', 'HEAD').decode().strip(),
                 diff_sha256=hashlib.sha256(git('diff', '--binary', 'HEAD')).hexdigest(),
                 source_files=files, compiler_binary_sha256=sha(compiler),
                 compiler_version=json.loads(subprocess.check_output(
@@ -60,12 +63,27 @@ def resources(text):
     return entries
 
 
+def validate_snapshot_inputs(source):
+    root = Path(source['root'])
+    if not source.get('source_files'):
+        raise ValueError('build snapshot lacks source input hashes')
+    for name, expected in source['source_files'].items():
+        if sha(root / name) != expected:
+            raise ValueError('build source changed after its before-build snapshot: ' + name)
+    compiler = root / 'build-dm/tools/tilemega'
+    if sha(compiler) != source['compiler_binary_sha256']:
+        raise ValueError('plan compiler changed after its before-build snapshot')
+
+
 def generate(so, source, executor='L1', loop=False):
     so = Path(so)
     command = shlex.split(Path(str(so) + '.build_command.txt').read_text())
     cu = Path(str(so) + '.cu')
     manifest = Path(str(so) + '.plan.json')
     plan = json.loads(manifest.read_text())
+    validate_snapshot_inputs(source)
+    complete = capture_macros(command, Path(str(so) + '.macro_capture'))
+    validate_snapshot_inputs(source)
     definitions = dict(re.findall(r'^#define\s+(\w+)\s+([^\n]+)', cu.read_text(), re.M))
     for arg in command:
         if arg.startswith('-D'):
@@ -88,7 +106,8 @@ def generate(so, source, executor='L1', loop=False):
                     cu_sha256=sha(cu), so_sha256=sha(so), manifest_sha256=sha(manifest),
                     nvcc_version=subprocess.check_output([command[0], '--version'], text=True),
                     baselines=dict(vllm_version=vllm_version, vllm_python=vllm_python),
-                    compiler_command=command, macros=definitions, arch=arch, trace=trace,
+                    compiler_command=command, macros=definitions, complete_macros=complete,
+                    arch=arch, trace=trace,
                     execution=dict(pg=plan['pg'], executor=executor, loop=loop,
                                    pdl=plan.get('pdl'), phase=plan['phase']),
                     implementations=dict(gemm='ServingGemmTaskBody',
@@ -115,5 +134,12 @@ def verify(so):
     if sha(str(so) + '.cu') != identity['cu_sha256'] or \
             sha(str(so) + '.plan.json') != identity['manifest_sha256']:
         raise ValueError('source or manifest changed')
+    complete = identity.get('complete_macros')
+    if complete is not None:
+        if complete['compiler_command'] != identity['compiler_command']:
+            raise ValueError('macro capture compiler command differs from the build')
+        for unit in complete['translation_units']:
+            if sha(unit['macros_file']) != unit['macros_sha256']:
+                raise ValueError('complete preprocessor macro table changed')
     identity['artifact_id'] = claimed
     return identity
