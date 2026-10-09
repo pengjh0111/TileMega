@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/PiecePricing.h>
 #include <tilemega/Analysis/CouplingCache.h>
+#include <tilemega/Solver/DmSemanticSignature.h>
 #include <functional>
 #include <iomanip>
 #include <sstream>
@@ -10,7 +11,8 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
     ModelDescription const& model,int chunks,PiecePriceCache* cache,int kernel_shared_bytes) {
   if(!cost.options().regime_a || model.dtype!=ScalarType::kBF16)throw std::invalid_argument("boundary parts require regime A");
   auto theta=model.MetricBindings();auto const& cal=cost.target().CalibrationFor("bf16");
-  std::ostringstream key;key<<analysis::SemanticSignature(semantic.op)<<std::hexfloat;
+  std::ostringstream key;key<<(model.dm && semantic.op.exact_task_access?DmSemanticSignature(semantic.op):
+      analysis::SemanticSignature(semantic.op))<<std::hexfloat;
   key<<':'<<traits.tile_m<<':'<<traits.tile_n<<':'<<traits.tile_k<<':'<<traits.stages<<':'<<chunks<<':'<<residency.ctas_per_sm<<':'<<traits.threads<<':'<<traits.smem_bytes;
   // Serving's resource probe has already fixed residency. At fixed residency
   // the union size does not enter PriceParts, so changing another class must
@@ -29,6 +31,14 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
   // Resource calibration is immutable during a search. Include its values
   // so an explicitly reused cache cannot alias a different target profile.
   key<<':'<<cal.dram_gbps<<':'<<cal.l2_gbps<<':'<<cal.task_body.latency_scale<<':'<<cal.task_body.stage_rate_bytes_per_ns;
+  if(model.dm && input.task.element_access) {
+    for(auto const* quantity:{input.physical_read_bytes?&*input.physical_read_bytes:nullptr,
+        input.physical_write_bytes?&*input.physical_write_bytes:nullptr,
+        input.no_producer_read_bytes?&*input.no_producer_read_bytes:nullptr,
+        input.external_write_bytes?&*input.external_write_bytes:nullptr})
+      key<<":"<<(quantity?quantity->ToString():"absent");
+    key<<":"<<input.serving_body_kind;
+  }
   if(cache){auto found=cache->entries.find(key.str());if(found!=cache->entries.end()){++cache->hits;return found->second;}++cache->misses;}
   struct Axis {std::string name;std::vector<std::pair<long,long>> parts;};std::vector<Axis> axes;
   long tasks=input.work.task_count.Eval(theta);
@@ -44,7 +54,12 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
   if(input.physical_read_bytes)quantities.push_back(&*input.physical_read_bytes);
   if(input.no_producer_read_bytes)quantities.push_back(&*input.no_producer_read_bytes);
   if(input.external_write_bytes)quantities.push_back(&*input.external_write_bytes);
-  // PriceParts depends on coordinates only through these access quantities.
+  if(model.dm && input.task.element_access) {
+    if(input.physical_write_bytes)quantities.push_back(&*input.physical_write_bytes);
+    quantities.push_back(&input.arithmetic.flops_per_output_element.numerator);
+    quantities.push_back(&input.arithmetic.transcendental_per_output_element.numerator);
+  }
+  // PriceParts depends on coordinates only through these access and arithmetic quantities.
   // Causal rows in different heads remain separate pieces but share arithmetic.
   std::map<std::vector<long>,TaskPriceParts> equal_prices;
   auto append=[&](analysis::CouplingRelation const& domain,analysis::ParamBinding const& point,std::vector<long> const* batch_values=nullptr,TaskMemoryTraffic const* memory=nullptr){

@@ -526,6 +526,7 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
 #endif
   if (model.dims.IsSymbolic()) throw std::invalid_argument("bind theta before FP64 task evaluation");
   auto known=model.MetricBindings();
+  bool const coordinate_arithmetic=model.dm && static_cast<bool>(input.task.element_access);
   if(options_.regime_a && dtype_==ScalarType::kBF16) {
     if(coordinates)return IsolatedNs(PriceParts(input,traits,residency,model,chunks,
         *coordinates,active_ctas_per_sm,memory),calib_->dram_gbps/(target_->res.num_sms*active_ctas_per_sm));
@@ -541,13 +542,18 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
     std::vector<long> nominal_read(count),nominal_write(count),reduction(count),physical_write(count);
     physical_write=input.work.write_elements.EvalPoints(known,points);
     if(traits.stages>0){nominal_read=input.work.nominal_read_elements.EvalPoints(known,points);nominal_write=input.work.nominal_write_elements.EvalPoints(known,points);reduction=input.work.nominal_task_reduce_extent.EvalPoints(known,points);}
-    std::map<std::array<double,10>,double> price_classes;
+    std::map<std::array<double,12>,double> price_classes;
     double sum=0;for(long first=0;first<count;first+=grid) {
       long active=std::min(grid,count-first);
       double o=options_.wave_tail?std::max(1.,double(active)/target_->res.num_sms):residency.ctas_per_sm;
       double wave=0;for(long linear=first;linear<first+active;++linear) {
-        auto const& t=traffic[linear];std::array<double,10> key{o,t.global_read_bytes,t.global_write_bytes,t.no_producer_read_bytes,t.external_write_bytes,
-          double(nominal_read[linear]),double(nominal_write[linear]),double(reduction[linear]),double(physical_write[linear]),t.produced_read_bytes};
+        auto arithmetic=[&](analysis::ArithmeticRatio const& ratio) {
+          return coordinate_arithmetic
+              ? double(ratio.numerator.BindCoordinates(points[linear]).Eval(known))/ratio.denominator:0.0;
+        };
+        auto const& t=traffic[linear];std::array<double,12> key{o,t.global_read_bytes,t.global_write_bytes,t.no_producer_read_bytes,t.external_write_bytes,
+          double(nominal_read[linear]),double(nominal_write[linear]),double(reduction[linear]),double(physical_write[linear]),t.produced_read_bytes,
+          arithmetic(input.arithmetic.flops_per_output_element),arithmetic(input.arithmetic.transcendental_per_output_element)};
         auto found=price_classes.find(key);double price;
         if(found!=price_classes.end())price=found->second;
         else {price=IsolatedNs(PriceParts(input,traits,residency,model,chunks,points[linear],o,memory),calib_->dram_gbps/(target_->res.num_sms*o));price_classes.emplace(key,price);}
@@ -575,8 +581,10 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
     if (coordinates) ctas=1;
     double grid=double(target_->res.num_sms)*std::max(1,residency.ctas_per_sm);
     double miss=1.0-CacheHitProbability(model.LiveFootprintBytes());
-    double flops_per_output=input.arithmetic.flops_per_output_element.Eval(known)+flow.extra_flops_per_output;
-    double transc_per_output=input.arithmetic.transcendental_per_output_element.Eval(known);
+    double flops_per_output=coordinate_arithmetic?0:
+        input.arithmetic.flops_per_output_element.Eval(known)+flow.extra_flops_per_output;
+    double transc_per_output=coordinate_arithmetic?0:
+        input.arithmetic.transcendental_per_output_element.Eval(known);
     std::ostringstream cache_key;
     cache_key << input.work.read_elements.ToString() << '\n' << input.work.write_elements.ToString()
               << '\n' << input.work.task_count.ToString() << '\n' << std::hexfloat
@@ -591,6 +599,13 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
     if (memory) cache_key << ":memory:" << memory->global_read_bytes << ':' << memory->global_write_bytes
         << ':' << memory->local_read_bytes << ':' << memory->local_write_bytes;
     if (input.physical_read_bytes) cache_key << ":typed_reads:" << input.physical_read_bytes->ToString();
+    if(coordinate_arithmetic) {
+      cache_key<<":arithmetic:"<<input.arithmetic.flops_per_output_element.numerator.ToString()
+          <<":"<<input.arithmetic.flops_per_output_element.denominator
+          <<":"<<input.arithmetic.transcendental_per_output_element.numerator.ToString()
+          <<":"<<input.arithmetic.transcendental_per_output_element.denominator;
+      if(input.physical_write_bytes)cache_key<<":typed_writes:"<<input.physical_write_bytes->ToString();
+    }
     auto cached=scalar_price_cache_.find(cache_key.str());
     if (cached!=scalar_price_cache_.end()) return cached->second;
     double total=0;
@@ -618,9 +633,17 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
       double wave=-std::numeric_limits<double>::infinity();
       for (long q=first;q<first+long(active);++q) {
         auto const& traffic=traffic_batch[q-initial];
-        double writes=traffic.global_write_bytes/ElementBytes(dtype_);
+        double writes=coordinate_arithmetic?
+            double(input.work.write_elements.BindCoordinates(points[q-initial]).Eval(known)):
+            traffic.global_write_bytes/ElementBytes(dtype_);
         double bytes=traffic.global_read_bytes+traffic.global_write_bytes;
-        double flops=flops_per_output*writes,transc=transc_per_output*writes;
+        auto arithmetic=[&](analysis::ArithmeticRatio const& ratio) {
+          return double(ratio.numerator.BindCoordinates(points[q-initial]).Eval(known))/ratio.denominator;
+        };
+        double flops=coordinate_arithmetic?
+            (arithmetic(input.arithmetic.flops_per_output_element)+flow.extra_flops_per_output)*writes:flops_per_output*writes;
+        double transc=coordinate_arithmetic?
+            arithmetic(input.arithmetic.transcendental_per_output_element)*writes:transc_per_output*writes;
         // The fitted alpha+beta*tile_area describes a collective accumulator
         // tile's setup. ScalarDataflow has no such initialization phase:
         // scalar arithmetic is charged in u, memory phases in this DAG term.
@@ -657,8 +680,11 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
       options_.fp32_partials && dtype_==ScalarType::kBF16 && chunks>1
           ? int(sizeof(float)) : ElementBytes(dtype_),analysis::AccessDomain::kNominalTile);
   double const bytes=(memory ? memory->global_read_bytes : traffic.global_read_bytes)/iters;
-  double const flops=input.arithmetic.flops_per_output_element.Eval(known)*writes/iters;
-  double const transc=input.arithmetic.transcendental_per_output_element.Eval(known)*writes/iters;
+  auto arithmetic=[&](analysis::ArithmeticRatio const& ratio) {
+    return coordinate_arithmetic?value(ratio.numerator)/ratio.denominator:ratio.Eval(known);
+  };
+  double const flops=arithmetic(input.arithmetic.flops_per_output_element)*writes/iters;
+  double const transc=arithmetic(input.arithmetic.transcendental_per_output_element)*writes/iters;
   double const dram_fraction=1.0-CacheHitProbability(model.LiveFootprintBytes());
   // Keep the calibrated factorized FP64 setup order. beta*(M*N) is not in
   // general bit-identical to (beta*M)*N, although the integer work is exact.

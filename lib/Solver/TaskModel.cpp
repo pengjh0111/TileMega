@@ -154,13 +154,20 @@ std::vector<double> PriceTaskInstances(CostModel const& cost,DerivedTaskInput co
   // Within one immutable task signature these are every coordinate-dependent
   // quantity consumed by TaskCostImpl. Equal work classes have exactly equal
   // prices; no averaging, sampling, stage-kind rule or fitted shortcut occurs.
-  std::map<std::tuple<double,double,long,double,double>,double> classes;
-  std::map<std::tuple<double,double,long>,double> prefetch_classes;
+  std::map<std::tuple<double,double,long,double,double,double,double>,double> classes;
+  std::map<std::tuple<double,double,long,double,double>,double> prefetch_classes;
   std::vector<double> result;result.reserve(coordinates.size());
   if (prefetch && prefetch->ns) prefetch->ns->assign(coordinates.size(),0.0);
   for (std::size_t i=0;i<coordinates.size();++i) {
+    auto arithmetic=[&](analysis::ArithmeticRatio const& ratio) {
+      return model.dm && input.task.element_access
+          ? double(ratio.numerator.BindCoordinates(coordinates[i]).Eval(theta))/ratio.denominator:0.0;
+    };
+    double flops=arithmetic(input.arithmetic.flops_per_output_element);
+    double transcendental=arithmetic(input.arithmetic.transcendental_per_output_element);
     auto key=std::make_tuple(traffic[i].global_read_bytes,traffic[i].global_write_bytes,reduction[i],
-        regime_a?traffic[i].no_producer_read_bytes:0.0,regime_a?traffic[i].external_write_bytes:0.0);
+        regime_a?traffic[i].no_producer_read_bytes:0.0,regime_a?traffic[i].external_write_bytes:0.0,
+        flops,transcendental);
     auto found=classes.find(key);
     if (found==classes.end()) found=classes.emplace(key,cost.TaskInstanceNs(
         input,traits,residency,model,chunks,coordinates[i],active_ctas_per_sm,nullptr,
@@ -178,7 +185,7 @@ std::vector<double> PriceTaskInstances(CostModel const& cost,DerivedTaskInput co
     local.global_read_bytes=std::max(0.0,local.global_read_bytes-fetched);
     local.local_read_bytes+=fetched;
     local.local_read_operands.insert(input.prefetch_operand);
-    auto local_key=std::make_tuple(local.global_read_bytes,local.global_write_bytes,reduction[i]);
+    auto local_key=std::make_tuple(local.global_read_bytes,local.global_write_bytes,reduction[i],flops,transcendental);
     auto cheaper=prefetch_classes.find(local_key);
     if (cheaper==prefetch_classes.end()) cheaper=prefetch_classes.emplace(local_key,
         cost.TaskInstanceNs(input,traits,residency,model,chunks,coordinates[i],

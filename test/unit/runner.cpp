@@ -97,6 +97,7 @@ namespace tilemega::tests::binding_request_pricing_test { int TestBindingRequest
 namespace tilemega::tests::dm_virtual_gemm_partition_test { int TestDmVirtualGemmPartition(int,char**); }
 namespace tilemega::tests::dm_semantic_signature_test { int TestDmSemanticSignature(int,char**); }
 namespace tilemega::tests::dm_virtual_frontend_test { int TestDmVirtualFrontend(int,char**); }
+namespace tilemega::tests::dm_piece_pricing_test { int TestDmPiecePricing(int,char**); }
 int main(int argc, char** argv) {
   struct Entry { char const* name; int (*run)(int, char**); };
   Entry const entries[] = {
@@ -106,6 +107,7 @@ int main(int argc, char** argv) {
     {"dm_virtual_gemm_partition", tilemega::tests::dm_virtual_gemm_partition_test::TestDmVirtualGemmPartition},
     {"dm_semantic_signature", tilemega::tests::dm_semantic_signature_test::TestDmSemanticSignature},
     {"dm_virtual_frontend", tilemega::tests::dm_virtual_frontend_test::TestDmVirtualFrontend},
+    {"dm_piece_pricing", tilemega::tests::dm_piece_pricing_test::TestDmPiecePricing},
     {"dm_page_resources", tilemega::tests::dm_page_resources_test::TestDmPageResources},
     {"counted_dependency_cg", tilemega::tests::counted_dependency_cg_test::TestCountedDependencyCg},
     {"counted_dependency_flow", tilemega::tests::counted_dependency_cg_test::TestCountedDependencyFlow},

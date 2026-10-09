@@ -15,6 +15,10 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
     throw std::invalid_argument("PriceParts requires the BF16 regime-A path");
   if(!(o>=1 && o<=residency.ctas_per_sm))throw std::invalid_argument("invalid price occupancy");
   auto theta=model.MetricBindings();auto eval=[&](auto const& q){return double(q.BindCoordinates(point).Eval(theta));};
+  auto arithmetic=[&](analysis::ArithmeticRatio const& value) {
+    return model.dm && input.task.element_access
+        ? eval(value.numerator)/value.denominator : value.Eval(theta);
+  };
   auto domain=traits.stages<=0 || options_.physical_traffic?analysis::AccessDomain::kPhysicalTensor:analysis::AccessDomain::kNominalTile;
   auto traffic=memory?*memory:DeriveTaskMemoryTraffic(input,theta,point,2,options_.fp32_partials && chunks>1 && traits.stages>0?4:2,domain);
   double stream=input.no_producer_read_bytes?input.stream_bytes:model.LiveFootprintBytes();
@@ -38,10 +42,11 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
   if(traits.stages<=0) {
     if(!input.scalar_flow)throw std::invalid_argument("scalar flow not supplied");
     auto [depth,barriers]=input.scalar_flow->MemoryDepthAndBarriers(traits.threads);
-    double writes=traffic.global_write_bytes/2,bytes=traffic.global_read_bytes+traffic.global_write_bytes;
-    double flops=(input.arithmetic.flops_per_output_element.Eval(theta)+input.scalar_flow->extra_flops_per_output)*writes;
+    double writes=model.dm && input.task.element_access?eval(input.work.write_elements):traffic.global_write_bytes/2;
+    double bytes=traffic.global_read_bytes+traffic.global_write_bytes;
+    double flops=(arithmetic(input.arithmetic.flops_per_output_element)+input.scalar_flow->extra_flops_per_output)*writes;
     serving_flops=flops;
-    double transc=input.arithmetic.transcendental_per_output_element.Eval(theta)*writes;
+    double transc=arithmetic(input.arithmetic.transcendental_per_output_element)*writes;
     double structural=depth*calib_->l2_latency_ns+barriers*calib_->syncthreads_ns+traffic.global_write_bytes/l2_bytes_per_ns_per_sm_;
     result.fixed_ns=(fit.samples>0?fit.scalar_fixed_ns:0)+structural;
     // A fused attention task has a scalar control flow but executes its QK/PV
@@ -61,14 +66,14 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
         : eval(input.work.nominal_task_reduce_extent)/traits.tile_k;
     if(!(iters>0))throw std::invalid_argument("invalid reduction iterations");
     double reads=eval(input.work.nominal_read_elements)/iters,writes=eval(input.work.nominal_write_elements);
-    serving_flops=input.arithmetic.flops_per_output_element.Eval(theta)*writes;
+    serving_flops=arithmetic(input.arithmetic.flops_per_output_element)*writes;
     double nominal_bytes=2*reads,bytes=traffic.global_read_bytes/iters;
     ResourceVector u;u.smem=o*nominal_bytes*fit_.lds_ns;
     if(options_.resource_lanes) {
-      double flops=input.arithmetic.flops_per_output_element.Eval(theta)*writes/iters;
+      double flops=arithmetic(input.arithmetic.flops_per_output_element)*writes/iters;
       if(input.arithmetic.flops_use_mma)u.tensor_core=o*flops/tc_flops_per_ns_per_sm_;
       else u.cuda_core=o*flops/cuda_flops_per_ns_per_sm_;
-      u.sfu=o*input.arithmetic.transcendental_per_output_element.Eval(theta)*writes/iters/sfu_ops_per_ns_per_sm_;
+      u.sfu=o*arithmetic(input.arithmetic.transcendental_per_output_element)*writes/iters/sfu_ops_per_ns_per_sm_;
       u.l2=o*bytes/l2_bytes_per_ns_per_sm_;
     }
     for(int i=0;i<ResourceVector::kLaneCount;++i) {
