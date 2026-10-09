@@ -577,6 +577,13 @@ if(TILEMEGA_BUILD_TESTS)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
   tilemega_configure_cuda_target(forward_runtime_test)
   add_test(NAME forward_runtime COMMAND forward_runtime_test)
+  add_executable(dm_counted_stage_threshold_test test/unit/dm_counted_stage_threshold_test.cu)
+  target_link_libraries(dm_counted_stage_threshold_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(dm_counted_stage_threshold_test PRIVATE TILEMEGA_EVENT_KAPPA=1)
+  target_compile_options(dm_counted_stage_threshold_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(dm_counted_stage_threshold_test)
+  add_test(NAME dm_counted_stage_threshold COMMAND dm_counted_stage_threshold_test)
   target_link_libraries(task_body_contract_test PRIVATE TileMega::tilemega)
   add_test(NAME task_body_contract COMMAND task_body_contract_test)
 
