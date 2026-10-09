@@ -45,8 +45,9 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
     t.element_bytes=bytes;return t;
   };
   std::map<std::string,CouplingRelation> read_envelopes,write_envelopes;
-  for(auto const& op:semantics.ops) {
-    auto const* task=graph.Find(op.name);if(!task)throw std::invalid_argument("missing semantic task "+op.name);
+  for(auto const& source:semantics.ops) {
+    auto const* task=graph.Find(source.name);if(!task)throw std::invalid_argument("missing semantic task "+source.name);
+    auto const& op=task->element_access?task->element_access->semantic:source;
     auto dependent=[](IndexingMap const& map) {
       for(auto const& index:map.results)
         if(index.kind==IndexResult::Kind::kDataDependent)return true;

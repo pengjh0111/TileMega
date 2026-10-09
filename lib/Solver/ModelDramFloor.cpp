@@ -18,6 +18,7 @@ analysis::DramFloor DeriveModelDramFloor(mlir::ModuleOp module,ModelDescription 
   analysis::DramFloorOptions options;auto cal=target.CalibrationFor(model.dtype==solver::ScalarType::kBF16?"bf16":"f32");
   options.dram_gbps=cal.dram_gbps;options.tc_gflops=model.dtype==solver::ScalarType::kBF16?cal.tc_bf16_gflops:cal.cuda_fp32_gflops;
   options.outputs=model.exported_tensors;
+  if(model.dm)options.element_bytes=model.buffer_element_bytes;
   analysis::SemanticGraph semantics;std::set<std::string> names;
   bool const serving = static_cast<bool>(module->getAttr("tilemega.serving"));
   auto token_axis=plan.getAs<mlir::BoolAttr>("forward_token_axis");

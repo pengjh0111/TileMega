@@ -248,27 +248,38 @@ DerivedTaskInput DeriveCombineTaskInput(ModelDescription const& model,int stage,
   if (semantic==model.task_semantics.end() || threads<=0)
     throw std::invalid_argument("combine lacks split semantics or launch width");
   auto const* declared=graph.Find(semantic->op.reduction.combiner);
-  if (!declared || declared->output.axes.size()<2 || declared->operands.size()!=1)
+  if (!declared || declared->output.axes.size()<2 || declared->operands.empty() ||
+      (!model.dm && declared->operands.size()!=1))
     throw std::invalid_argument("combine requires the instantiated partial tensor");
   auto task=*declared;
   if(model.dm && task.element_access) {
     if(!tile_ownership)
       throw std::invalid_argument("mapped DM split combine requires tile ownership");
-    auto work=DeriveTaskWork(task.element_access->semantic,task,{});
+    auto theta=model.MetricBindings();
+    auto work=DeriveTaskWork(task.element_access->semantic,task,theta);
     auto ownership_semantic=*semantic;ownership_semantic.element_chunk=false;
-    auto ownership=ProjectTaskOwnership(ownership_semantic,task,model.stages.at(stage),threads);
+    auto ownership=ProjectTaskOwnership(ownership_semantic,task,model.stages.at(stage),threads)
+        .BindParams(theta);
     auto const& exact=*task.element_access;
     RuntimeScalarAccess accesses;accesses.ownership=ownership;
     accesses.writes=ownership.ApplyRange(ProjectTaskElements(exact.semantic,task,
-        exact.partition,exact.semantic.result,exact.semantic.result_map,{},{}));
+        exact.partition,exact.semantic.result,exact.semantic.result_map,{},theta));
     std::vector<QuasiPolynomial> read_counts,read_bytes;
     int element_bytes=model.dtype==ScalarType::kBF16?2:4;
-    for(auto const& operand:exact.semantic.operands) {
+    for(unsigned i=0;i<exact.semantic.operands.size();++i) {
+      auto const& operand=exact.semantic.operands[i];
       auto relation=ownership.ApplyRange(ProjectTaskRead(exact.semantic,task,exact.partition,
-          operand.tensor,operand.map,{},{}));
+          operand.tensor,operand.map,{},theta));
       accesses.reads[operand.tensor.name]=accesses.reads[operand.tensor.name].Union(relation);
       auto count=relation.BoundTaskCard();read_counts.push_back(count);
-      read_bytes.push_back(count.Scale(fp32_partials?4:element_bytes));
+      int bytes=i==0 && fp32_partials?4:element_bytes;
+      if(i>0) {
+        auto found=model.buffer_element_bytes.find(operand.tensor.name);
+        if(found==model.buffer_element_bytes.end())
+          throw std::invalid_argument("DM combine epilogue input lacks typed storage metadata");
+        bytes=found->second;
+      }
+      read_bytes.push_back(count.Scale(bytes));
     }
     work.read_elements=QuasiPolynomial::Sum(read_counts);
     work.nominal_read_elements=work.read_elements;

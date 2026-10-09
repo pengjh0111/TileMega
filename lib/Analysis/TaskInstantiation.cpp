@@ -188,6 +188,19 @@ OperatorGraph Instantiate(SemanticGraph const& graph, Granularity const& g) {
   };
   for (auto const& op : graph.ops) {
     ClosedForm chunk;
+    if (!op.epilogue_operands.empty()) {
+      if (!op.exact_task_access || !op.element_reads.empty())
+        throw std::invalid_argument("epilogue reads require exact ownership and operand-derived reads");
+      for (auto const& operand:op.epilogue_operands) {
+        if (operand.map.results.size()!=operand.tensor.axes.size())
+          throw std::invalid_argument("epilogue read rank mismatch");
+        for (auto const& index:operand.map.results) for (auto const& term:index.terms) {
+          auto dim=op.Dim(term.dim);
+          if (!dim || dim->type==IteratorType::kReduction)
+            throw std::invalid_argument("epilogue read depends on an absent or reduction coordinate");
+        }
+      }
+    }
     if(!op.domain_nonnegative.empty()) {
       if(!op.exact_task_access)
         throw std::invalid_argument("iteration predicates require exact task access");
@@ -221,8 +234,15 @@ OperatorGraph Instantiate(SemanticGraph const& graph, Granularity const& g) {
         node.operands.push_back(LowerOperand(op, operand, {}));
         node.operands.back().producer = resolve(operand.producer);
       }
+      for (auto const& operand : op.epilogue_operands) {
+        node.operands.push_back(LowerOperand(op,operand,{}));
+        node.operands.back().producer=resolve(operand.producer);
+      }
       if (op.exact_task_access) {
         TaskElementAccess access; access.semantic = op;
+        access.semantic.operands.insert(access.semantic.operands.end(),
+            op.epilogue_operands.begin(),op.epilogue_operands.end());
+        access.semantic.epilogue_operands.clear();
         access.partition.ownership = op.task_map;
         if(indexed)access.partition.reduction_index=index->second;
         node.element_access = std::make_shared<TaskElementAccess>(std::move(access));
@@ -256,6 +276,7 @@ OperatorGraph Instantiate(SemanticGraph const& graph, Granularity const& g) {
       partial.axes.push_back(chunk_axis);
       auto contribution_sem = op; contribution_sem.result = partial;
       contribution_sem.additional_writes.clear();
+      contribution_sem.epilogue_operands.clear();
       if(indexed) {
         auto partial_index=index->second.index;
         // floor(floor(x/a)/b) == floor(x/(a*b)) for positive a,b.
@@ -292,10 +313,17 @@ OperatorGraph Instantiate(SemanticGraph const& graph, Granularity const& g) {
       combine_sem.domain.push_back({chunk_axis.name, chunk_axis.extent, ClosedForm::Constant(0), IteratorType::kReduction, chunk_axis.runtime});
       auto map = op.result_map; map.results.push_back(IndexResult::Dim(chunk_axis.name));
       combine_sem.operands.push_back({op.name, partial, map, {}});
+      combine_sem.operands.insert(combine_sem.operands.end(),
+          op.epilogue_operands.begin(),op.epilogue_operands.end());
+      combine_sem.epilogue_operands.clear();
       OperatorNode combine;
       combine.name = combine_sem.name; combine.kind = combine_sem.kind;
       combine.output = BindCapacityTaskSpace(op); combine.tile = LowerTiles(op, g);
-      combine.operands.push_back(LowerOperand(combine_sem, combine_sem.operands.front(), {}));
+      for (auto const& operand:combine_sem.operands) {
+        combine.operands.push_back(LowerOperand(combine_sem,operand,{}));
+        if (operand.producer!=op.name)
+          combine.operands.back().producer=resolve(operand.producer);
+      }
       TaskElementAccess final_access; final_access.semantic = std::move(combine_sem);
       final_access.partition.ownership = op.task_map;
       combine.element_access = std::make_shared<TaskElementAccess>(std::move(final_access));

@@ -70,6 +70,65 @@ struct Builder {
     }
     return map;
   }
+  std::pair<TensorSpace,std::vector<IndexResult>> Mapped(unsigned id,
+      codegen::DmWriteMap const& mapping,ClosedForm rows,unsigned columns) const {
+    if(mapping.layout!=missing && mapping.layout!=id)
+      throw std::invalid_argument("DNN map layout must describe its tensor");
+    auto const& l=Buffer(id).layout;
+    if(l.rank && mapping.layout==missing)
+      throw std::invalid_argument("DNN structured output requires its device layout map");
+    if(mapping.kind==codegen::DmWriteKind::kDense)
+      return {Space(id,rows,columns),Rows(id,"n")};
+    if(l.rank!=4)throw std::invalid_argument("DNN image map requires a rank-four layout");
+    auto space=Space(id,rows,columns);space.axes[0].extent=batch;
+    if(mapping.kind==codegen::DmWriteKind::kNCHW) {
+      if(l.kind!=codegen::DmLayout::kRowMajor || l.logical[1]!=columns)
+        throw std::invalid_argument("DNN NCHW map disagrees with its channels");
+      auto h=l.logical[2],w=l.logical[3];
+      if(!h || !w)throw std::invalid_argument("empty NCHW image map");
+      return {space,{I("m",1,h*w),I("n"),
+          Add({I("m",1,w),I("m",-long(h),h*w)}),
+          Add({I("m"),I("m",-long(w),w)})}};
+    }
+    if(mapping.kind==codegen::DmWriteKind::kPixelShuffle) {
+      auto r=mapping.factor;
+      if(!r || l.kind!=codegen::DmLayout::kNHWC || l.logical[1]%r ||
+         l.logical[2]%r || std::uint64_t(l.logical[3])*r*r!=columns)
+        throw std::invalid_argument("DNN pixel shuffle map disagrees with its image geometry");
+      auto h=l.logical[1]/r,w=l.logical[2]/r;
+      if(!h || !w)throw std::invalid_argument("empty pixel shuffle image map");
+      return {space,{I("m",1,h*w),
+          Add({I("m",r,w),I("m",-long(r)*h,h*w),I("n",1,r),I("n",-long(r),r*r)},l.halo_top),
+          Add({I("m",r),I("m",-long(r)*w,w),I("n"),I("n",-long(r),r)},l.halo_left),
+          I("n",1,r*r)}};
+    }
+    throw std::invalid_argument("DNN write map requires explicit bound scatter semantics");
+  }
+  void Chain(SemanticOp& op,PlanGemm const& g,ClosedForm rows) const {
+    if(g.chain.count>8 || g.chain.side_count>5)
+      throw std::invalid_argument("invalid DNN epilogue descriptor length");
+    if(g.chain.side_count)
+      throw std::invalid_argument("DNN GEMM side stores require task-level reduction semantics");
+    for(unsigned i=0;i<g.chain.count;++i) {
+      auto const& step=g.chain.operations[i];
+      using K=codegen::DmEpilogueKind;
+      if(step.kind==K::kBias || step.kind==K::kScale) {
+        auto id=step.parameter[0];
+        op.epilogue_operands.push_back(Read(id,
+            T(Buffer(id).name,{{"channel",C(g.n)}}),{I("n")}));
+      }else if(step.kind==K::kResidual) {
+        auto id=step.parameter[0];auto mapped=Mapped(id,step.residual_map,rows,g.n);
+        op.epilogue_operands.push_back(Read(id,std::move(mapped.first),std::move(mapped.second)));
+        if(step.parameter[1]!=missing) {
+          auto scale=step.parameter[1];
+          op.epilogue_operands.push_back(Read(scale,
+              T(Buffer(scale).name,{{"channel",C(g.n)}}),{I("n")}));
+        }
+      }else if(step.kind!=K::kActivation) {
+        throw std::invalid_argument("DNN GEMM pairing/norm requires explicit reduction semantics");
+      }
+    }
+  }
   SemanticOperand Read(unsigned id,TensorSpace space,std::vector<IndexResult> map) const {
     SemanticOperand read;read.producer=Producer(id);read.tensor=std::move(space);
     read.map.results=std::move(map);return read;
@@ -282,13 +341,13 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
       b.Own(op,b.batch,channels);b.Record(index,std::move(op),OpRole::kGlobalPoolReduce,output);
     }else if(stage.kind==PlanTaskKind::kGemm) {
       auto const& g=plan.gemms.at(stage.gemm);
-      if(g.chain.count || g.beta!=0 || g.access.a_scale!=missing ||
-         g.access.b!=codegen::DmBAccess::kDense ||
-         g.access.write.kind!=codegen::DmWriteKind::kDense)
+      if(g.beta!=0 || g.epilogue!=PlanGemm::Epilogue::kStore || g.access.a_scale!=missing ||
+         g.access.b!=codegen::DmBAccess::kDense)
         throw std::invalid_argument("DNN GEMM requires explicit semantics for its epilogue/access recipe");
       rows=b.batch*C(g.access.rows_per_batch?g.access.rows_per_batch:options.static_seq);
       op.kind=OperatorKind::kMatmul;op.arithmetic="gemm";
-      op.result=b.Space(g.d,rows,g.n);op.result_map.results=b.Rows(g.d,"n");
+      auto output=b.Mapped(g.d,g.access.write,rows,g.n);
+      op.result=std::move(output.first);op.result_map.results=std::move(output.second);
       op.reduction.splittable=true;op.reduction.reduction_operator="add";
       op.reduction.partial_tensor=op.name+".partial";op.reduction.combiner=op.name+".combine";
       op.reduction.ownership={"m","n"};
@@ -309,6 +368,18 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
                 {"s",C(conv.s)},{"channel",C(l.physical[3])}}),{I("n"),I("r"),I("s"),I("c")})};
         op.reduction.dim="c";
       }else if(g.access.a==codegen::DmAAccess::kDense) {
+        auto const& layout=b.Buffer(g.a).layout;
+        if(layout.rank) {
+          auto pitch=std::uint64_t(g.k);
+          if(layout.logical[layout.rank-1]!=g.k || layout.strides[layout.rank-1]!=1 ||
+             layout.halo_top || layout.halo_bottom || layout.halo_left || layout.halo_right)
+            throw std::invalid_argument("DNN dense A requires contiguous rows without halo");
+          for(unsigned axis=layout.rank-1;axis-->0;) {
+            if(layout.strides[axis]!=pitch)
+              throw std::invalid_argument("DNN dense A physical row pitch differs from GEMM K");
+            pitch*=layout.logical[axis];
+          }
+        }
         op.domain={D("m",rows),D("n",C(g.n)),D("k",C(g.k),true)};
         auto map=b.Rows(g.a,"k");
         if(g.access.a_row_offset || g.access.a_row_stride>1) {
@@ -321,6 +392,7 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
             b.Read(g.b,T(b.Buffer(g.b).name,{{"output",C(g.n)},{"channel",C(g.k)}}),{I("n"),I("k")})};
         op.reduction.dim="k";
       }else throw std::invalid_argument("DNN GEMM has an unsupported A map");
+      b.Chain(op,g,rows);
       b.Own(op,rows,g.n);b.Record(index,std::move(op),OpRole::kProjection,g.d);
     }else throw std::invalid_argument("DNN L-sem has no rule for plan stage "+std::to_string(index));
   }

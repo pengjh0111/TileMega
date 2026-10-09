@@ -235,6 +235,10 @@ std::string SemanticOp::Serialize() const {
     out << "  operand " << (operand.producer.empty() ? "-" : operand.producer)
         << " " << SerializeTensor(operand.tensor) << " "
         << operand.map.Serialize() << " " << operand.effect.Serialize() << "\n";
+  for (auto const& operand : epilogue_operands)
+    out << "  epilogue_operand " << (operand.producer.empty() ? "-" : operand.producer)
+        << " " << SerializeTensor(operand.tensor) << " "
+        << operand.map.Serialize() << " " << operand.effect.Serialize() << "\n";
   out << "  reduction " << reduction.Serialize() << "\n";
   return out.str();
 }

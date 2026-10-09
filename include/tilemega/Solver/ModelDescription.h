@@ -168,6 +168,7 @@ struct ModelDescription {
   std::vector<codegen::DmGemmAccess> gemm_access;
   std::vector<codegen::DmEpilogueChain> epilogue_chains;
   std::vector<codegen::DmBufferLayout> buffer_layouts;
+  std::map<std::string,int> buffer_element_bytes;
 
   /// Parse the `kGemms` and `kStages` tables out of a generated .cu.  Throws
   /// std::runtime_error when either table is missing or malformed -- a silent

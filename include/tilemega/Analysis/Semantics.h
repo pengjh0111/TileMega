@@ -175,6 +175,10 @@ struct SemanticOp {
   IndexingMap result_map;
   MemoryEffect result_effect;
   std::vector<SemanticOperand> operands;
+  // Reads performed after the reduction completes. SplitReduction moves
+  // these to the combiner; partial GEMMs must not wait for residual inputs.
+  // Empty retains the legacy semantic serialization.
+  std::vector<SemanticOperand> epilogue_operands;
   /// When nonempty this is the complete physical read set, not an increment
   /// to operands. Coupling projection and issued nominal work stay separate.
   std::vector<ElementRead> element_reads;

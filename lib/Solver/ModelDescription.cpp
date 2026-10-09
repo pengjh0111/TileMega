@@ -227,6 +227,15 @@ ModelDescription ModelDescription::ReadCouplingGraph(
       auto entry=llvm::dyn_cast<mlir::DictionaryAttr>(buffer);
       if(!entry)throw std::invalid_argument("malformed DM buffer entry");
       model.buffer_layouts.push_back(frontend::DecodeDmLayout(entry.get("dm_layout")));
+      auto name=entry.getAs<mlir::StringAttr>("name");
+      auto dtype=entry.getAs<mlir::StringAttr>("dtype");
+      if(!name || !dtype)throw std::invalid_argument("DM buffer lacks typed storage metadata");
+      auto type=dtype.getValue();
+      int bytes=type=="bf16" || type=="torch.bfloat16"?2:
+          type=="f32" || type=="i32" || type=="torch.float32" || type=="torch.int32"?4:
+          type=="i64" || type=="torch.int64"?8:0;
+      if(!bytes)throw std::invalid_argument("unsupported DM buffer storage dtype");
+      model.buffer_element_bytes.emplace(name.getValue().str(),bytes);
     }
   for (auto output:array("outputs")) {
     auto entry=llvm::dyn_cast<mlir::DictionaryAttr>(output);

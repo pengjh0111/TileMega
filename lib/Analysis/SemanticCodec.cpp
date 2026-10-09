@@ -136,6 +136,12 @@ Value Encode(SemanticOp const& op) {
               {"nonnegative",EncodeArray(write.nonnegative,EncodeIndex)},
               {"effect",EncodeEffect(write.effect)}});
         }));
+  if (!op.epilogue_operands.empty())
+    encoded.emplace_back("epilogue_operands", EncodeArray(op.epilogue_operands,
+        [](auto const& operand) {
+          return Value(Object{{"producer",operand.producer},{"tensor",EncodeTensor(operand.tensor)},
+              {"map",EncodeMap(operand.map)},{"effect",EncodeEffect(operand.effect)}});
+        }));
   if (op.exact_task_access) {
     encoded.emplace_back("exact_task_access", true);
     encoded.emplace_back("task_space", EncodeTensor(op.task_space));
@@ -189,6 +195,10 @@ SemanticOp DecodeSemanticOp(std::string const& payload) {
   for (auto const& operand:value.At("operands").AsArray("operands"))
     op.operands.push_back({String(operand,"producer"),DecodeTensor(operand.At("tensor")),
                           DecodeMap(operand.At("map")),DecodeEffect(operand.At("effect"))});
+  if (auto const* operands=value.Find("epilogue_operands"))
+    for (auto const& operand:operands->AsArray("epilogue_operands"))
+      op.epilogue_operands.push_back({String(operand,"producer"),DecodeTensor(operand.At("tensor")),
+          DecodeMap(operand.At("map")),DecodeEffect(operand.At("effect"))});
   for (auto const& read:value.At("element_reads").AsArray("element_reads")) {
     ElementRead element{DecodeTensor(read.At("tensor")),DecodeMap(read.At("map")),{}};
     for (auto const& predicate:read.At("nonnegative").AsArray("nonnegative"))
@@ -236,6 +246,14 @@ SemanticOp DecodeSemanticOp(std::string const& payload) {
   check(op.result_map,op.result);
   if (op.exact_task_access) check(op.task_map, op.task_space);
   for (auto const& operand:op.operands) check(operand.map,operand.tensor);
+  if (!op.epilogue_operands.empty() && (!op.exact_task_access || !op.element_reads.empty()))
+    throw std::invalid_argument("epilogue reads require exact ownership and operand-derived reads");
+  for (auto const& operand:op.epilogue_operands) {
+    check(operand.map,operand.tensor);
+    for (auto const& index:operand.map.results) for (auto const& term:index.terms)
+      if (op.Dim(term.dim)->type==IteratorType::kReduction)
+        throw std::invalid_argument("epilogue read depends on a reduction coordinate");
+  }
   for (auto const& read:op.element_reads) {
     check(read.map,read.tensor);
     for (auto const& predicate:read.nonnegative) for (auto const& term:predicate.terms)

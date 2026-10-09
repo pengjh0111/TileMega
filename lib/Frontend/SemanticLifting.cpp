@@ -142,18 +142,8 @@ std::string ToString(OwnershipKind kind) {
 }
 
 LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
-  if(plan.dm && plan.forward && std::any_of(plan.stages.begin(),plan.stages.end(),
-      [&](auto const& stage) {
-        return stage.kind==PlanTaskKind::kLayerNorm ||
-            stage.kind==PlanTaskKind::kEmbeddingSum ||
-            stage.kind==PlanTaskKind::kLayoutConvert ||
-            stage.kind==PlanTaskKind::kPool ||
-            stage.kind==PlanTaskKind::kGlobalPoolReduce ||
-            stage.kind==PlanTaskKind::kEncoderAttention ||
-            stage.kind==PlanTaskKind::kDepthwiseConv ||
-            (stage.kind==PlanTaskKind::kGemm &&
-             plan.gemms.at(stage.gemm).access.a==codegen::DmAAccess::kIm2Col);
-      })) return LiftDnnSemantics(plan,options);
+  if(plan.dm && plan.forward && !plan.forward_token_axis)
+    return LiftDnnSemantics(plan,options);
   if (plan.serving) return LiftServingSemantics(plan, options);
   LiftedModel model;
   if (plan.stages.empty()) return model;
