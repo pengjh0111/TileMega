@@ -1,0 +1,20 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_commit": "cd4e611f41f2ccae84c6c1bad491552914e74c67",
+  "scope": "Host symbolic task arithmetic: six token extents with tail reductions, width/transcendental ratios, legacy scalar output and nonidentity redistribution rejection. No device arithmetic or model claim.",
+  "inputs": {
+    "include/tilemega/Analysis/OpArithmetic.h": "25be423389814961ec1bbab562b3941c30f60f28da7f841ce5a79fa033210b43",
+    "lib/Analysis/OpArithmetic.cpp": "01c0092a3f1c69de9e1fb4baa0419d07bf7d73d0cfd1890a1d403969a495c1e5",
+    "test/unit/task_arithmetic_domain_test.cpp": "aecc2fa8452c61da4fa33556d57b3a427977dba8e90ea4c0717a543fee63ac31"
+  },
+  "queue_sha256": "a8570db945d0e745c10ea7457dda263237ed90aeff694c1ca455335ab92b3c18",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "binary_sha256": "e67e3f677ef6f668376595eba417fba8b7cca58ca1699a139cde6b98943c7c82",
+  "logs": {
+    "runs/dm1-ci4-task-arithmetic-host/events/02_check.log": "65e55b629e2638b468869b1a77a8731b97033e0ae761d61b365877655bc5ab8e",
+    "runs/dm1-ci4-task-arithmetic-host/events/01_compile.log": "94b8d1e1c94b4feed2b334f1e02d71af6b870915c51bf85ba39a3ef047a07959",
+    "runs/dm1-ci4-task-arithmetic-host/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "assertions_enabled": true
+}

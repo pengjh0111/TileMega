@@ -114,3 +114,8 @@ compatibility and 64-bit epoch overflow checks
 (`results/CI5_counted_threshold_host.json`). Threshold storage is immutable;
 counter storage remains separate for each executor bank. Device synchronization
 and native stage/table integration are pending.
+
+verified: exact task arithmetic now pulls constants, reduction work and model
+extents onto an identity task domain. Symbolic tail reductions, width ratios,
+legacy scalar output and nonidentity rejection pass host checks with assertions
+enabled (`results/CI4_task_arithmetic_host.json`). Device/model gates remain pending.
