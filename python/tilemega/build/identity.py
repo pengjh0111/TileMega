@@ -138,6 +138,11 @@ def generate(so, source, executor='L1', loop=False):
     if 'dnn_structure' in plan:
         identity['implementations']['dnn_structure'] = plan['dnn_structure']
         identity['implementations']['dnn_structure_search_sha256'] = plan['dnn_structure_search_sha256']
+    if 'moe_structure' in plan:
+        identity['implementations']['moe_structure'] = plan['moe_structure']
+        identity['implementations']['moe_structure_search_sha256'] = plan['moe_structure_search_sha256']
+    if 'routing_profile' in plan:
+        identity['implementations']['routing_profile'] = plan['routing_profile']
     identity['artifact_id'] = hashlib.sha256(json.dumps(
         identity, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     Path(str(so) + '.identity.json').write_text(json.dumps(identity, indent=2) + '\n')

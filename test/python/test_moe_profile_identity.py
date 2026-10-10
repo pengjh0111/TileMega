@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from tilemega.moe.profile_identity import read_profile, verify_profile
+from tilemega.moe.profile_identity import read_profile, verify_profile, main
 
 
 def digest(value):
@@ -57,6 +57,39 @@ def fixture():
 
 
 class MoeProfileIdentityTest(unittest.TestCase):
+    def test_compiler_verification_entry(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source, output = Path(folder)/'profile.json', Path(folder)/'identity.json'
+            value = fixture();source.write_text(json.dumps(value))
+            args = ['--path', str(source), '--output', str(output), '--layers', '2',
+                    '--experts', '2', '--top-k', '1', '--tokens', '1,2']
+            self.assertEqual(main(args), 0)
+            self.assertEqual(json.loads(output.read_text()), dict(profile_id=value['profile_id'],
+                file_sha256=hashlib.sha256(source.read_bytes()).hexdigest()))
+            output.unlink();value['profile_id'] = 'a'*64;source.write_text(json.dumps(value))
+            with self.assertRaisesRegex(ValueError, 'content differs'):
+                main(args)
+            self.assertFalse(output.exists())
+
+    def test_serving_config_profile_is_explicit_and_moe_only(self):
+        from tilemega.cli import read_config
+        from tilemega.serving.execution import compiler_features
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); config = root/'run.json'; model = root/'config.json'
+            profile = root/'profile.json'; profile.write_text('{}')
+            value = dict(model=dict(path=folder), features=dict(routing_profile=str(profile), moe_profile_layer=24))
+            config.write_text(json.dumps(value));model.write_text('{"model_type":"qwen3_moe"}')
+            actual = read_config(config)['features']
+            self.assertEqual(actual['routing_profile'], str(profile.resolve()))
+            self.assertEqual(compiler_features(actual)['moe_profile_layer'], 24)
+            model.write_text('{"model_type":"qwen3"}')
+            with self.assertRaisesRegex(ValueError, 'requires qwen3_moe'):read_config(config)
+            model.write_text('{"model_type":"qwen3_moe"}')
+            value['features']['moe_profile_layer'] = -1;config.write_text(json.dumps(value))
+            with self.assertRaisesRegex(ValueError, 'nonnegative integer'):read_config(config)
+            value['features'] = {};config.write_text(json.dumps(value))
+            self.assertNotIn('routing_profile', read_config(config)['features'])
+
     def test_virtual_row_conservation(self):
         for corrupted in ([3, 0], [True, 0], [4], [4, 1], [4, -1], [0, 4]):
             value=fixture()

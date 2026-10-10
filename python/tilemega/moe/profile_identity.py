@@ -185,3 +185,26 @@ def read_profile(path, **model):
     value = json.loads(raw, object_pairs_hook=unique)
     identity = verify_profile(value, **model)
     return value, dict(profile_id=identity, file_sha256=hashlib.sha256(raw).hexdigest())
+
+
+def main(argv=None):
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--path', required=True)
+    parser.add_argument('--layers', required=True, type=int)
+    parser.add_argument('--experts', required=True, type=int)
+    parser.add_argument('--top-k', required=True, type=int)
+    parser.add_argument('--tokens', default=','.join(str(1 << i) for i in range(13)))
+    parser.add_argument('--block-rows', default='16,32,64,128')
+    parser.add_argument('--output', required=True)
+    args = parser.parse_args(argv)
+    _, identity = read_profile(args.path, layers=args.layers, experts=args.experts,
+                               top_k=args.top_k,
+                               tokens=tuple(map(int, args.tokens.split(','))),
+                               block_rows=tuple(map(int, args.block_rows.split(','))))
+    Path(args.output).write_text(json.dumps(identity, indent=2)+'\n')
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

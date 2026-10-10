@@ -16,6 +16,7 @@
 #include <tilemega/Solver/CompilerSearch.h>
 #include <tilemega/Solver/SkeletonSearch.h>
 #include <tilemega/Solver/DnnStructureSearch.h>
+#include <tilemega/Solver/MoeStructureSearch.h>
 #include <tilemega/Solver/IntervalSegments.h>
 #include <tilemega/Solver/DmSharedWeights.h>
 #include <llvm/Support/raw_ostream.h>
@@ -279,6 +280,7 @@ int RunCompile(int argc, char** argv) {
                  " --serving-pruning 0|1 --incremental-prepare 0|1 --serving-warm-start PREVIOUS.plan.json\n"
                  " --search-capacity N --per-stage-kappa 0|1 --stage-kappa CSV\n"
                  " --segments 1|2 --segment-candidates N\n"
+                 " --routing-profile FILE.json --moe-profile-layer N\n"
                  " --dump-cg FILE.mlir\n"
                  " --hop-curve FILE.tsv --seq-begin N\n"
                  " --prefetch-page-bytes N]\n";
@@ -318,7 +320,10 @@ int RunCompile(int argc, char** argv) {
     int interval_begin=0,segments=1,segment_candidates=3;
     std::vector<mlir::OwningOpRef<mlir::ModuleOp>> variant_modules;
     tilemega::solver::CompilerSearchOptions solve_options;
-    std::string moe_binding="auto";unsigned moe_bm=16;
+    std::string moe_binding="auto",routing_profile_path;unsigned moe_bm=16,moe_profile_layer=0;
+    bool moe_bm_auto=true;
+    std::shared_ptr<tilemega::solver::MoeRoutingProfile const> moe_routing_profile;
+    std::string routing_profile_sha;
     std::string memory_reuse="none",search_selection="measure";
     std::string dnn_deferred_ln="auto",dnn_dwpw_fuse="auto",global_la="auto";
     bool sequence_pinned=false;
@@ -346,12 +351,17 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--moe-opaque") moe_opaque=std::stoi(value);
       else if (flag=="--moe-gemv") moe_gemv=std::stoi(value);
       else if (flag=="--moe-binding") moe_binding=value;
+      else if (flag=="--routing-profile") routing_profile_path=value;
+      else if (flag=="--moe-profile-layer") {
+        int layer=std::stoi(value);if(layer<0)throw std::invalid_argument("negative routing profile layer");
+        moe_profile_layer=layer;
+      }
       else if (flag=="--reuse") memory_reuse=value;
       else if (flag=="--deferred-ln") dnn_deferred_ln=value;
       else if (flag=="--dwpw-fuse") dnn_dwpw_fuse=value;
       else if (flag=="--global-la") global_la=value;
       else if (flag=="--selection") search_selection=value;
-      else if (flag=="--moe-bm") moe_bm=value=="auto"?16:std::stoul(value);
+      else if (flag=="--moe-bm") {moe_bm_auto=value=="auto";moe_bm=moe_bm_auto?16:std::stoul(value);}
       else if (flag=="--emit") emit_mode=value;
       else if (flag=="--measure-cmd") measure_command=value;
       else if (flag=="--serving-warm-start") serving_warm_start=value;
@@ -470,6 +480,11 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("--search-jobs must be positive");
     if(search_budget_ms<0)
       throw std::runtime_error("--search-budget-ms must be nonnegative");
+    if((!routing_profile_path.empty() || moe_profile_layer) &&
+        (!serving || frontend_mode!="decoder" || input.extension()==".mlir"))
+      throw std::invalid_argument("routing profiles require a decoder export input");
+    if(moe_profile_layer && routing_profile_path.empty())
+      throw std::invalid_argument("routing profile layer requires --routing-profile");
     if(search_selection!="measure" && search_selection!="predicted")
       throw std::runtime_error("--selection expects measure or predicted");
     if(search_selection=="predicted" && !measure_command.empty())
@@ -591,6 +606,40 @@ int RunCompile(int argc, char** argv) {
       dnn_plan=tilemega::frontend::BuildMoeRegion(bridge.nodes,bridge.inputs,bridge.outputs,options);
       forward_seq=dnn_plan->serving_seq;
     }
+    auto bind_routing_profile=[&](tilemega::frontend::ModelPlan const& plan) {
+      if(routing_profile_path.empty() || moe_routing_profile)return;
+      std::map<unsigned,tilemega::codegen::DmMoeStage> regions;
+      for(auto const& stage:plan.stages)if(stage.kind==tilemega::frontend::PlanTaskKind::kMoETopK)
+        regions.emplace(stage.moe.router_gemm,stage.moe);
+      if(regions.empty())throw std::invalid_argument("routing profile requires MoE stages");
+      auto value=tilemega::json::ParseFile(routing_profile_path);
+      auto layers=value.At("sampling").At("layers").AsNumber("profile layers");
+      if(layers<1 || layers>UINT32_MAX || std::floor(layers)!=layers ||
+          layers!=value.At("layers").AsArray("profile layers").size())
+        throw std::invalid_argument("invalid routing profile layer count");
+      auto const& cfg=regions.begin()->second;
+      auto profile=tilemega::solver::MoeRoutingProfile::Read(value,unsigned(layers),cfg.experts,cfg.top_k);
+      unsigned offset=moe_profile_layer;
+      for(auto const& [router,region]:regions) {
+        if(region.experts!=cfg.experts || region.top_k!=cfg.top_k || !region.top_k)
+          throw std::invalid_argument("routing profile differs between MoE layers");
+        auto const& point=profile.At(offset++,region.row_capacity/region.top_k);
+        if(region.row_capacity!=point.SlotCapacity())
+          throw std::invalid_argument("routing profile differs from assignment capacity");
+      }
+      auto receipt=std::string(argv[2])+".routing-profile.identity.json";
+      auto command="python3 "+quote(std::string(TILEMEGA_SOURCE_DIR)+
+          "/python/tilemega/moe/profile_identity.py")+" --path "+quote(routing_profile_path)+
+          " --layers "+std::to_string(unsigned(layers))+" --experts "+std::to_string(cfg.experts)+
+          " --top-k "+std::to_string(cfg.top_k)+" --output "+quote(receipt);
+      if(std::system(command.c_str()))throw std::runtime_error("routing profile identity verification failed");
+      auto identity=tilemega::json::ParseFile(receipt);
+      routing_profile_sha=modelFingerprint(routing_profile_path);
+      if(identity.At("file_sha256").AsString("file SHA256")!=routing_profile_sha ||
+          identity.At("profile_id").AsString("profile id")!=profile.profile_id)
+        throw std::runtime_error("routing profile changed during verification");
+      moe_routing_profile=std::make_shared<tilemega::solver::MoeRoutingProfile const>(std::move(profile));
+    };
     double selected_serving_ms=std::numeric_limits<double>::infinity();
     if(serving && solve_target.empty()) {
       if(has_variants)throw std::runtime_error("serving needs one exported model or solved CG");
@@ -639,6 +688,7 @@ int RunCompile(int argc, char** argv) {
       options.argmax_tile_n=serving_argmax_tile_n;
       auto plan=dnn_plan?*dnn_plan:tilemega::frontend::BuildModelPlan(
           bridge.nodes,bridge.inputs,bridge.outputs,options);
+      bind_routing_profile(plan);
       if(plan.dm && !tilemega::analysis::active_exact_memo)dm_memo.emplace();
       defer_dm_lowering=plan.dm && (use_pages || use_nonpaged_tiled || pg_mode=="l2");
       if(forward)options.seq=forward_seq;
@@ -870,6 +920,9 @@ int RunCompile(int argc, char** argv) {
           options.argmax_tile_n=serving_argmax_tile_n;
           auto plan=dnn_plan?*dnn_plan:tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,
               bridge.outputs,options);
+          bind_routing_profile(plan);
+          skeleton.moe_routing_profile=moe_routing_profile;
+          skeleton.moe_profile_layer=moe_profile_layer;
           if(plan.dm && !tilemega::analysis::active_exact_memo)dm_memo.emplace();
           if(!shared_weight_layout.empty())
             skeleton.dm_shared_weights=tilemega::solver::SharedDmWeightLayouts(plan,
@@ -959,6 +1012,8 @@ int RunCompile(int argc, char** argv) {
           std::string nongemm_source;
           if(probe_plan && dnn_options && !tile)
             nongemm_source=tilemega::frontend::DnnNonGemmProbeSource(*probe_plan);
+          else if(probe_plan && probe_plan->dm && probe_plan->forward_token_axis && !tile)
+            nongemm_source=tilemega::frontend::MoeRegionNonGemmProbeSource(*probe_plan);
           // The compiled TaskBody template has no class or split-K parameter.
           // Keep logical variant keys above, but reuse its identical probe.
           auto body=std::make_tuple(tile?tile->tile_m:0,tile?tile->tile_n:0,
@@ -1001,13 +1056,26 @@ int RunCompile(int argc, char** argv) {
         skeleton.variant_probe=[&](auto const& signature,auto const* tile,auto dtype) {
           return variant_probe(serving_imported?&serving_imported->plan:nullptr,signature,tile,dtype);
         };
-        if(dnn_options)skeleton.dm_variant_probe=[&](auto const& plan,auto const& signature,auto const* tile,auto dtype) {
+        if(serving_imported && serving_imported->plan.dm)skeleton.dm_variant_probe=[&](auto const& plan,auto const& signature,auto const* tile,auto dtype) {
           return variant_probe(&plan,signature,tile,dtype);
         };
+        std::vector<tilemega::solver::MoeBindingChoice> binding_choices;
+        bool has_moe=serving_imported && std::any_of(serving_imported->plan.stages.begin(),
+            serving_imported->plan.stages.end(),[](auto const& stage) {
+              return stage.kind==tilemega::frontend::PlanTaskKind::kMoETopK;
+            });
+        if(has_moe) {
+          if(moe_binding!="group")binding_choices.push_back({false,1});
+          if(moe_binding!="slot")for(auto bm:moe_bm_auto?std::vector<unsigned>{16,32,64,128}:
+              std::vector<unsigned>{moe_bm})binding_choices.push_back({true,bm});
+        }
         auto result=dnn_options && search_selection=="predicted" && skeleton.evaluation_cases.empty()
             ? tilemega::solver::SolveDnnStructures(*serving_imported,*dnn_options,
                 memory_reuse=="auto"?std::vector<std::string>{"none","greedy","l2"}:
                     std::vector<std::string>{dnn_options->memory_reuse},
+                context,skeleton,&summary,evidence)
+            : has_moe && search_selection=="predicted" && skeleton.evaluation_cases.empty()
+            ? tilemega::solver::SolveMoeStructures(*serving_imported,binding_choices,
                 context,skeleton,&summary,evidence)
             : serving
             ? tilemega::solver::SolveSkeletonImported(*serving_imported,context,skeleton,&summary,evidence)
@@ -1598,12 +1666,20 @@ int RunCompile(int argc, char** argv) {
         if(!shared_weight_layout.empty())
           manifest<<",\n  \"shared_weight_layout\": "<<std::quoted(shared_weight_layout)
                   <<",\n  \"shared_weight_layout_sha256\": "<<std::quoted(modelFingerprint(shared_weight_layout));
+      if(moe_routing_profile)
+        manifest<<",\n  \"routing_profile\": {\"profile_id\": "<<std::quoted(moe_routing_profile->profile_id)
+                <<", \"file_sha256\": "<<std::quoted(routing_profile_sha)
+                <<", \"first_layer\": "<<moe_profile_layer<<'}';
         if(frontend_mode=="dnn")manifest<<",\n  \"deferred_ln\": "<<std::quoted(dnn_deferred_ln);
         if(frontend_mode=="dnn")manifest<<",\n  \"dwpw_fuse\": "<<std::quoted(dnn_dwpw_fuse);
         if(auto structure=(*module)->getAttrOfType<mlir::StringAttr>("tilemega.dnn_structure"))
           manifest<<",\n  \"dnn_structure\": "<<std::quoted(structure.getValue().str())
                   <<",\n  \"dnn_structure_search_sha256\": "
                   <<std::quoted(modelFingerprint(std::string(argv[2])+".structures.json"));
+        if(auto structure=(*module)->getAttrOfType<mlir::StringAttr>("tilemega.moe_structure"))
+          manifest<<",\n  \"moe_structure\": "<<std::quoted(structure.getValue().str())
+                  <<",\n  \"moe_structure_search_sha256\": "
+                  <<std::quoted(modelFingerprint(std::string(argv[2])+".moe_structures.json"));
         if(search_selection=="predicted")manifest<<",\n  \"selection\": \"predicted\"";
         if(auto reuse=plan.getAs<mlir::StringAttr>("dm_memory_reuse"))
           manifest<<",\n  \"reuse\": "<<std::quoted(reuse.getValue().str())

@@ -135,6 +135,20 @@ def read_config(path: Path) -> dict:
     if not explicit_nonpaged_la and model_config.is_file() and \
             json.loads(model_config.read_text()).get('model_type') == 'qwen3_moe':
         config['features']['nonpaged_la'] = 1
+    routing_profile = config['features'].get('routing_profile')
+    if routing_profile is not None:
+        if not isinstance(routing_profile, str) or not routing_profile:
+            raise ValueError('features.routing_profile must be a nonempty path')
+        profile = Path(routing_profile).expanduser().resolve()
+        if not profile.is_file():
+            raise ValueError('features.routing_profile does not exist: ' + str(profile))
+        if not model_config.is_file() or json.loads(model_config.read_text()).get('model_type') != 'qwen3_moe':
+            raise ValueError('features.routing_profile requires qwen3_moe')
+        config['features']['routing_profile'] = str(profile)
+    if 'moe_profile_layer' in config['features']:
+        layer = config['features']['moe_profile_layer']
+        if type(layer) is not int or layer < 0 or routing_profile is None:
+            raise ValueError('features.moe_profile_layer requires a profile and nonnegative integer')
     if config['workload']['prompt_len'] != 64:
         raise ValueError('the serving exporter currently supports prompt_len=64')
     if config['solver']['measure_top'] != 3:
@@ -389,6 +403,8 @@ class Run:
                     target_inputs = dict(target.get('calibration_sections', {}), target_sha256=file_sha(self.target))
                     if shared_manifest:
                         target_inputs['shared_weight_layout_sha256']=file_sha(shared_manifest)
+                    if choice_features.get('routing_profile'):
+                        target_inputs['routing_profile_sha256']=file_sha(Path(choice_features['routing_profile']))
                     seed_manifest = str(built['l2'])+'.plan.json' if pg=='pages' and 'l2' in built else None
                     prefill_pin=settings['prefill_pins'].get(str(batch)) if phase=='prefill' else None
                     if prefill_pin:
