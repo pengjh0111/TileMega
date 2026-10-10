@@ -71,7 +71,9 @@ def internal(library,plan,name,shape,dtype,*,batch=1):
 
 
 @torch.inference_mode()
-def check(library_path,bridge_path,checkpoint=None,hidden_path=None,sequence=None):
+def check(library_path,bridge_path,checkpoint=None,hidden_path=None,sequence=None,epochs=1):
+    if not 1 <= epochs <= 64:
+        raise ValueError('correctness epochs must be in [1,64]')
     torch.set_num_threads(4);torch.manual_seed(20261009)
     torch.backends.cuda.matmul.allow_tf32=False
     identity_path=Path(str(library_path)+'.identity.json')
@@ -150,7 +152,7 @@ def check(library_path,bridge_path,checkpoint=None,hidden_path=None,sequence=Non
     cases=[];first=None
     with library.create(1,{name:value.data_ptr() for name,value in tensors.items()},0) as plan:
         plan.set_steps([0])
-        for epoch in range(3):
+        for epoch in range(epochs):
             for mode in (1,2):
                 output.fill_(float('nan'));plan.launch(0,mode,torch.cuda.current_stream().cuda_stream)
                 torch.cuda.synchronize()
@@ -190,8 +192,9 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--library',type=Path,required=True)
     parser.add_argument('--bridge',type=Path,required=True);parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--checkpoint',type=Path);parser.add_argument('--hidden',type=Path)
-    parser.add_argument('--sequence');args=parser.parse_args()
-    result=check(args.library,args.bridge,args.checkpoint,args.hidden,args.sequence)
+    parser.add_argument('--sequence');parser.add_argument('--epochs',type=int,default=1)
+    args=parser.parse_args()
+    result=check(args.library,args.bridge,args.checkpoint,args.hidden,args.sequence,args.epochs)
     args.out.write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps({key:result[key] for key in ('evidence','passed','scope','artifact_id','cases')}),flush=True)
     raise SystemExit(0 if result['passed'] else 1)

@@ -1,0 +1,91 @@
+{
+  "evidence": "verified",
+  "scope": "one fixed synthetic input; not a 50-process synchronization claim",
+  "artifact_id": "84d1157d5f56a1ee7ba929be627e5fa74eb815fd24223fd26b7ce0003ed9a4e0",
+  "correctness": "runs/dm1-dynamic-region-native-v1/correctness.json",
+  "identity": "runs/dm1-dynamic-region-native-v1/generated-sm_89.so.identity.json",
+  "cases": [
+    {
+      "epoch": 0,
+      "mode": 1,
+      "passed": true,
+      "max_error": 0.0078125,
+      "set_equal_fraction": 1.0,
+      "routing_intersection_fraction": 1.0,
+      "router_max_error": 0.0078125,
+      "same_binary_bits": true
+    },
+    {
+      "epoch": 0,
+      "mode": 2,
+      "passed": true,
+      "max_error": 0.0078125,
+      "set_equal_fraction": 1.0,
+      "routing_intersection_fraction": 1.0,
+      "router_max_error": 0.0078125,
+      "same_binary_bits": true
+    },
+    {
+      "epoch": 1,
+      "mode": 1,
+      "passed": true,
+      "max_error": 0.0078125,
+      "set_equal_fraction": 1.0,
+      "routing_intersection_fraction": 1.0,
+      "router_max_error": 0.0078125,
+      "same_binary_bits": true
+    },
+    {
+      "epoch": 1,
+      "mode": 2,
+      "passed": true,
+      "max_error": 0.0078125,
+      "set_equal_fraction": 1.0,
+      "routing_intersection_fraction": 1.0,
+      "router_max_error": 0.0078125,
+      "same_binary_bits": true
+    }
+  ],
+  "implementation": [
+    "RMSNormTaskBody",
+    "MoETopKTaskBody",
+    "MoEDispatchTaskBody",
+    "ServingGemmTaskBody::RunDm",
+    "DmSplitKCombine",
+    "MoECombineTaskBody",
+    "PublishMoeCountedRows",
+    "DynamicTaskCursor",
+    "ClaimDynamicTask"
+  ],
+  "performance_measured": false,
+  "resources": {
+    "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": {
+      "registers": 56,
+      "stack_bytes": 72,
+      "spill_store_bytes": 0,
+      "spill_load_bytes": 0,
+      "spill": false
+    },
+    "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+      "registers": 255,
+      "stack_bytes": 2624,
+      "spill_store_bytes": 88,
+      "spill_load_bytes": 84,
+      "spill": true
+    },
+    "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+      "registers": 255,
+      "stack_bytes": 2656,
+      "spill_store_bytes": 168,
+      "spill_load_bytes": 280,
+      "spill": true
+    },
+    "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": {
+      "registers": 255,
+      "stack_bytes": 2688,
+      "spill_store_bytes": 204,
+      "spill_load_bytes": 440,
+      "spill": true
+    }
+  }
+}
