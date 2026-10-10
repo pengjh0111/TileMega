@@ -21,10 +21,15 @@ if [[ ! -f "$task_checkpoint/model.safetensors.index.json" ]]; then
         exit 1
     fi
 fi
-task_args=(--checkpoint "$task_checkpoint" --out "$task_output" "$@")
+task_target="${TILEMEGA_TARGET:-auto}"
+if [[ "${TILEMEGA_DRY_ONLY:-0}" == 1 && -z "${TILEMEGA_TARGET:-}" ]]; then
+    task_target="$task_root/configs/targets/sm_89.json"
+fi
+task_args=(--checkpoint "$task_checkpoint" --out "$task_output" --target "$task_target" "$@")
 "$task_python" -m tilemega.moe.full dry-build "${task_args[@]}"
 if [[ "${TILEMEGA_DRY_ONLY:-0}" == 1 ]]; then
     exit 0
 fi
+"$task_python" -m tilemega.moe.full preflight "${task_args[@]}"
 "$task_python" -m tilemega.moe.full build "${task_args[@]}"
 "$task_python" -m tilemega.moe.full check "${task_args[@]}" --hf-check

@@ -11,6 +11,31 @@ from tilemega.cache import atomic_json, file_sha
 from tilemega.fingerprint import ROOT
 
 
+def resolve_target(args):
+    if str(args.target) != 'auto':
+        return Path(args.target).resolve()
+    from tilemega.dnn.cli import gpu_lock
+    with gpu_lock():
+        probe = subprocess.run([str(args.compiler), 'probe', 'device'],
+            cwd=ROOT, capture_output=True, text=True, check=True)
+    device = json.loads(probe.stdout)
+    arch = device['arch_tag']
+    if arch not in ('sm_80', 'sm_89', 'sm_90', 'sm_100', 'sm_120'):
+        raise ValueError('unsupported full-model device architecture '+arch)
+    profile = ROOT/'configs'/'targets'/f'{arch}.json'
+    target = json.loads(profile.read_text())
+    for key in ('arch_tag', 'sm_major', 'sm_minor', 'caps'):
+        target[key] = device[key]
+    target['resources'].update(device['resources'])
+    # Resource discovery is not calibration. Retain the profile's provenance.
+    target['dm_device_binding'] = dict(evidence='verified', device=device,
+        profile=str(profile), profile_sha256=file_sha(profile),
+        calibration_scope='existing architecture profile; no new measurements')
+    path = args.out/'target.json'
+    atomic_json(path, target)
+    return path
+
+
 def memory_report(config, manifests, batch, capacity):
     """Account for shared recipes, request state and both plans' buffers.
 
@@ -166,13 +191,35 @@ def check_plans(args, config):
     return receipts
 
 
+def preflight(args):
+    import torch
+    from tilemega.dnn.cli import gpu_lock
+    reports = []
+    with gpu_lock():
+        available, capacity = torch.cuda.mem_get_info()
+    for batch in args.batch:
+        report = json.loads((args.out/f'B{batch}'/'memory.json').read_text())
+        reports.append(dict(batch=batch,
+            estimated_allocation_bytes=report['estimated_allocation_bytes'],
+            available_bytes=available, device_capacity_bytes=capacity,
+            exceeds_available=report['estimated_allocation_bytes'] > available))
+    atomic_json(args.out/'memory-preflight.json', dict(evidence='inferred',
+        scope='manifest estimate compared to available memory; not a fit certificate',
+        batches=reports))
+    if any(report['exceeds_available'] for report in reports):
+        raise MemoryError('insufficient GPU memory for the manifest allocation estimate; '
+                          'see '+str(args.out/'memory-preflight.json'))
+    return reports
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('dry-build', 'build', 'check'))
+    parser.add_argument('command', choices=('dry-build', 'preflight', 'build', 'check'))
     parser.add_argument('--checkpoint', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--compiler', type=Path, default=ROOT/'build-dm/tools/tilemega')
-    parser.add_argument('--target', type=Path, default=ROOT/'configs/targets/sm_89.json')
+    parser.add_argument('--target', default=str(ROOT/'configs/targets/sm_89.json'),
+                        help='target JSON, or auto to bind the current device resources')
     parser.add_argument('--batch', type=int, nargs='+', default=[1, 16])
     parser.add_argument('--capacity', type=int, default=1088)
     parser.add_argument('--steps', type=int, default=64)
@@ -184,11 +231,15 @@ def main(argv=None):
     if not 2<=args.steps<=1024 or args.capacity<64+args.steps:
         parser.error('steps must be in [2,1024] and capacity must cover the 64-token prompt')
     args.checkpoint=args.checkpoint.resolve();args.out=args.out.resolve()
-    args.compiler=args.compiler.resolve();args.target=args.target.resolve()
+    args.compiler=args.compiler.resolve()
     config = json.loads((args.checkpoint/'config.json').read_text())
     if config.get('model_type') != 'qwen3_moe':
         parser.error('checkpoint must be Qwen3 MoE')
     args.out.mkdir(parents=True, exist_ok=True)
+    if args.command == 'preflight':
+        return preflight(args)
+    if args.command != 'check':
+        args.target = resolve_target(args)
     return check_plans(args, config) if args.command == 'check' else build_plans(args, config)
 
 

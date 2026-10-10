@@ -4,17 +4,22 @@ stated: the user removed performance measurements, real-weight gates and repeate
 input/process matrices. The full-model entry remains available for a future device;
 it collects no latency data and is not executed with full weights in this round.
 
-verified: `python -m tilemega.moe.full {dry-build,build,check}` exports the real
+verified: `python -m tilemega.moe.full {dry-build,preflight,build,check}` exports the real
 configuration, binds batch and past ranges, checks checkpoint headers/recipes,
-and emits plan and source identities. Three CPU unit checks cover the deployment
-allocation estimate and compiler arguments. `scripts/run_qwen3_moe_full.sh` passes
+and emits plan and source identities. Seven CPU unit checks cover deployment
+accounting, compiler arguments, native architecture/resource binding and rejection
+when the allocation estimate exceeds available memory. `--target auto` probes
+under the shared lock and overlays device resources onto its architecture profile;
+it records that the retained calibration is not newly measured on this device.
+The execution script defaults to this binding and checks memory after dry construction,
+before native compilation. `scripts/run_qwen3_moe_full.sh` passes
 shell syntax validation; `TILEMEGA_DRY_ONLY=1` stops after host construction.
 
 verified: `runs/dm1-moe-full-dry-v2` generated the full 48-layer E=128 B=1 decode
-and prefill CUDA and validated their checkpoint recipes. The B=16 decode phase
-then exceeded the enclosing 900-second host timeout. This is partial dry-build
-coverage, not a completed full-model check. The new B=16 attempt uses the repaired
-disjoint cardinality implementation and is recorded separately.
+and prefill CUDA and validated their checkpoint recipes. B=16 decode subsequently
+generated in `runs/dm1-moe-full-dry-v3`. Full B=16 prefill still exceeds its
+900-second host limit in `runs/dm1-moe-full-b16-prefill-host-v10`. This is partial
+dry-build coverage, not a completed full-model check.
 
 verified: the first dry build exposed incompatible router and gate/up recipes:
 decode folded the post-attention RMSNorm gamma, while prefill did not. Both MoE
