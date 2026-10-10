@@ -39,3 +39,18 @@ verified: the seven-GEMM split-K reuse fixture executes in L1/L2 with maximum
 error 0.0001220703125 (`results/CI5_reuse_split_endpoints_native.json`). Its
 storage edges retain main/combiner ownership separately from RAW edges. The
 L2 kernel has 255 registers and aggregate spill stores/loads 68/200 bytes.
+
+verified: DM cache inputs now carry the actual BufferDesc allocation extents,
+dtype widths, arena offsets and total arena size. Whole-plan footprint counts
+one arena plus all separate allocations, including retained buffers. A task's
+produced-input footprint unions overlapping arena intervals and includes halo
+and padding storage. Geometry-appended split-K partials retain their typed
+semantic write footprint. The flow cache key includes the complete allocation
+contract. Seven focused host checks pass, including reuse search warm/cold
+equivalence and direct CG allocation accounting
+(`results/CI7_physical_footprint_host.json`).
+
+inferred: separate external bindings may share caller-owned memory, but no such
+alias is assumed without a contract. This is a physical allocation upper bound
+used by the existing cache model, not a measured cache hit rate or a guarantee
+that the entire allocated arena is simultaneously resident.

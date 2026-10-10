@@ -1,0 +1,208 @@
+{
+  "evidence": "verified",
+  "scope": "host structural search and final CUDA generation; native execution and real resource probe pending; no latency or optimality claim",
+  "source_commits": [
+    "1b44ff7a4",
+    "d78ebe4c7",
+    "381632fbd",
+    "c3906c3d5",
+    "9423cf383"
+  ],
+  "source_scope": "host v7 used the compiled working changes subsequently committed above; no contemporaneous host compiler hash captured",
+  "states": 11,
+  "search": {
+    "budget_exhausted": false,
+    "evaluated": [
+      {
+        "error": "",
+        "key": "c=8;reuse=none;fuse=1,3,;ln=5:add_1:2;5:add_1:4;",
+        "score_ns": 14599.1977995205,
+        "top": [
+          {
+            "flow_ns": 14599.1977995205,
+            "key": "16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;kappa=1;residency=4;Ec=0;Rq=0"
+          }
+        ]
+      },
+      {
+        "error": "",
+        "key": "c=8;reuse=none;fuse=3,;ln=5:add_1:2;5:add_1:4;",
+        "score_ns": 16044.398811107669,
+        "top": [
+          {
+            "flow_ns": 16044.398811107669,
+            "key": "16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;kappa=1;residency=7;Ec=0;Rq=0"
+          }
+        ]
+      },
+      {
+        "error": "",
+        "key": "c=8;reuse=none;fuse=1,;ln=5:add_1:2;5:add_1:4;",
+        "score_ns": 16046.311553713716,
+        "top": [
+          {
+            "flow_ns": 16046.311553713716,
+            "key": "16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;kappa=1;residency=7;Ec=0;Rq=0"
+          }
+        ]
+      },
+      {
+        "error": "",
+        "key": "c=8;reuse=none;fuse=1,3,;ln=5:add_1:4;",
+        "score_ns": 16432.271873977406,
+        "top": [
+          {
+            "flow_ns": 16432.271873977406,
+            "key": "16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;kappa=1;residency=12;Ec=0;Rq=0"
+          }
+        ]
+      },
+      {
+        "error": "",
+        "key": "c=8;reuse=none;fuse=1,3,;ln=5:add_1:2;",
+        "score_ns": 14606.943165282735,
+        "top": [
+          {
+            "flow_ns": 14606.943165282735,
+            "key": "16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;kappa=1;residency=10;Ec=0;Rq=0"
+          }
+        ]
+      },
+      {
+        "error": "",
+        "key": "c=8;reuse=greedy;fuse=1,3,;ln=5:add_1:2;5:add_1:4;",
+        "score_ns": 14599.1977995205,
+        "top": [
+          {
+            "flow_ns": 14599.1977995205,
+            "key": "16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;kappa=1;residency=4;Ec=0;Rq=0"
+          }
+        ]
+      },
+      {
+        "error": "",
+        "key": "c=8;reuse=l2;fuse=1,3,;ln=5:add_1:2;5:add_1:4;",
+        "score_ns": 14599.1977995205,
+        "top": [
+          {
+            "flow_ns": 14599.1977995205,
+            "key": "16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;kappa=1;residency=4;Ec=0;Rq=0"
+          }
+        ]
+      },
+      {
+        "error": "",
+        "key": "c=4;reuse=none;fuse=1,3,;ln=5:add_1:2;5:add_1:4;",
+        "score_ns": 14597.219704236115,
+        "top": [
+          {
+            "flow_ns": 14597.219704236115,
+            "key": "16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;kappa=1;residency=4;Ec=0;Rq=0"
+          }
+        ]
+      },
+      {
+        "error": "",
+        "key": "c=8;reuse=none;fuse=;ln=",
+        "score_ns": 19320.81890027683,
+        "top": [
+          {
+            "flow_ns": 19320.81890027683,
+            "key": "16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;kappa=1;residency=12;Ec=0;Rq=0"
+          }
+        ]
+      },
+      {
+        "error": "",
+        "key": "c=8;reuse=none;fuse=1,;ln=",
+        "score_ns": 17878.16469614369,
+        "top": [
+          {
+            "flow_ns": 17878.16469614369,
+            "key": "16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;kappa=1;residency=12;Ec=0;Rq=0"
+          }
+        ]
+      },
+      {
+        "error": "",
+        "key": "c=8;reuse=none;fuse=1,3,;ln=",
+        "score_ns": 16432.271873977406,
+        "top": [
+          {
+            "flow_ns": 16432.271873977406,
+            "key": "16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;16x16x16s2k1;kappa=1;residency=12;Ec=0;Rq=0"
+          }
+        ]
+      }
+    ],
+    "rounds": 2,
+    "scope": "predicted flow; no latency measurement or optimality proof",
+    "winner": 7
+  },
+  "files": [
+    {
+      "path": "runs/dm1-dnn-structure-host-v7/plan.cu",
+      "sha256": "5bf28af36461c251e1d315e52cef64fa71f999e1d4e99cfcb4af75c1fa7d2d18"
+    },
+    {
+      "path": "runs/dm1-dnn-structure-host-v7/plan.cu.nongemm.cu",
+      "sha256": "ffdb6395bb35e87ee7c5fbf20b58a6cfbf561f1eeffc8dee9387124e5792c9be"
+    },
+    {
+      "path": "runs/dm1-dnn-structure-host-v7/plan.cu.search.structures.json",
+      "sha256": "b9d6e49631aeca701d9c515801ea513107172a9a299ad3961785ba131aff21ae"
+    },
+    {
+      "path": "runs/dm1-dnn-structure-host-v7/check.log",
+      "sha256": "611c45435b7d4ec84fb4fda099cbce2e2adb607affc9fa922eb6193ef401745a"
+    },
+    {
+      "path": "runs/dm1-dnn-structure-host-v7/nongemm.probe.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "regressions": [
+    {
+      "test": "dm_descriptor",
+      "exit_code": 0,
+      "root": "runs/dm1-dnn-structure-regressions-v3"
+    },
+    {
+      "test": "typed_affine_pricing",
+      "exit_code": 0,
+      "root": "runs/dm1-dnn-structure-regressions-v3"
+    },
+    {
+      "test": "dnn_epilogue_semantics",
+      "exit_code": 0
+    },
+    {
+      "test": "dm_forward_search",
+      "exit_code": 0
+    },
+    {
+      "test": "binding_request_pricing",
+      "exit_code": 0
+    },
+    {
+      "test": "flow_runtime_release",
+      "exit_code": 0
+    },
+    {
+      "test": "runtime_dependency_codec",
+      "exit_code": 0
+    },
+    {
+      "test": "dnn_deferred_ln",
+      "exit_code": 0
+    }
+  ],
+  "retained_failure": {
+    "test": "dnn_semantic_lifting",
+    "exit_code": 124,
+    "timeout_s": 240,
+    "root": "runs/dm1-dnn-structure-regressions-v3",
+    "diagnosis": "runs/dm1-dnn-semantic-timeout-diagnosis-v1/stack.txt",
+    "interpretation": "inferred: expensive enumerated ISL oracle construction; not a numerical/kernel failure"
+  }
+}

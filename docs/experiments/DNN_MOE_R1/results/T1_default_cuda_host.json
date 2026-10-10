@@ -239,11 +239,80 @@
     "candidate_binary_sha256": "1b668ade063d9c2eb6be23212505f4b31841ba2d5de69fec6d5415d0d4ea5fba",
     "source_scope": "host binary includes the counted-bounds and final-only lowering changes subsequently committed as 60f87f185 and 74a8b47e7; later Python-only changes do not form part of this CUDA generation check"
   },
-  "previous_latest": null,
-  "latest": {
+  "previous_latest": {
     "root": "runs/dm1-default-cuda-invariance-v7",
     "head": "1edb771ce37700c7bcc70d7f1475627328ac9d4f",
     "compiler_sha256": "479e246dab39337a4a7a72ed7873b53cd4a5bc143ddb22634a1f3162ccd7a8d5",
+    "cases": [
+      {
+        "cell": "llama_B1_prefill",
+        "exit_code": 0,
+        "cu_equal": true,
+        "sha256": "d7c4d5dfb15c985ea29a7596fa296ba7aaa6cc6aa830a09de4237c7495251e21",
+        "reference": "runs/dm1-default-cuda-invariance-v1/llama_B1_prefill_reference.cu"
+      },
+      {
+        "cell": "llama_B16_prefill",
+        "exit_code": 0,
+        "cu_equal": true,
+        "sha256": "7482f66a94086e970ead900b3c2da806c10ea3d5911ff52583ebff4a7160f558",
+        "reference": "runs/dm1-default-cuda-invariance-v1/llama_B16_prefill_reference.cu"
+      },
+      {
+        "cell": "qwen3_B1_prefill",
+        "exit_code": 0,
+        "cu_equal": true,
+        "sha256": "66020f71af0a151bbc5870238c3a51da5b483f78d39e93dc8ad3a4c88704f3c0",
+        "reference": "runs/dm1-default-cuda-invariance-v1/qwen3_B1_prefill_reference.cu"
+      },
+      {
+        "cell": "qwen3_B16_prefill",
+        "exit_code": 0,
+        "cu_equal": true,
+        "sha256": "45d5f1ac73c3b88a7dc2c6406f7c7d79d66fac97d5df57994401a0321aaba767",
+        "reference": "runs/dm1-default-cuda-invariance-v1/qwen3_B16_prefill_reference.cu"
+      },
+      {
+        "cell": "llama_B1_decode",
+        "exit_code": 0,
+        "cu_equal": true,
+        "sha256": "6aed601de676f4aeb690934bb9dc2706163583845a7c7740d7c5be5a977bb6a0",
+        "reference": "runs/dm1-default-cuda-invariance-v2/llama_B1_decode_reference.cu"
+      },
+      {
+        "cell": "llama_B16_decode",
+        "exit_code": 0,
+        "cu_equal": true,
+        "sha256": "f03c545fd65cd9efa0066b7f7336aeb8436b088d5fe0cda69d59d35bda28b458",
+        "reference": "runs/dm1-default-cuda-invariance-v2/llama_B16_decode_reference.cu"
+      },
+      {
+        "cell": "qwen3_B1_decode",
+        "exit_code": 0,
+        "cu_equal": true,
+        "sha256": "0497c197e57e3bcd038a372724dca16fceae5ffec0dd9fb716ff3c7cd9243eb4",
+        "reference": "runs/dm1-default-cuda-invariance-v2/qwen3_B1_decode_reference.cu"
+      },
+      {
+        "cell": "qwen3_B16_decode",
+        "exit_code": 0,
+        "cu_equal": true,
+        "sha256": "829381269aa9fc308146bd23bca695d4c4a933afe21dc2ccac29d242d63ec6d5",
+        "reference": "runs/dm1-default-cuda-invariance-v2/qwen3_B16_decode_reference.cu"
+      }
+    ],
+    "scope": "host CUDA equality only; full G-REG remains false"
+  },
+  "latest": {
+    "root": "runs/dm1-default-cuda-invariance-v8",
+    "source_commits": [
+      "1b44ff7a4",
+      "d78ebe4c7",
+      "381632fbd",
+      "c3906c3d5",
+      "9423cf383"
+    ],
+    "source_scope": "host v7 used the compiled working changes subsequently committed above; no contemporaneous host compiler hash captured",
     "cases": [
       {
         "cell": "llama_B1_prefill",
