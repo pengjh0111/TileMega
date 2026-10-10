@@ -1,0 +1,31 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_head": "f839d4c2d4c2bf58c80f87fe819e92a3d0f6d7b7",
+  "counted_fusion_cases": 96,
+  "native_checks": 6,
+  "assertions_enabled": true,
+  "expectations_changed": false,
+  "scope": "Bijective fusion preserves counted publication and acquire events through stage renumbering and a reversed consumer permutation; contribution thresholds are rederived from the transported unit image, and counter waits remain independent of kappa and owner. Both counted endpoints, grids 1/3/8 and kappa 0/1/4/16 are covered. Native legacy fusion/forward/page resource checks pass. Counted CG endpoint metadata and executable fused body lowering remain pending. A second counted tensor on the same stage pair keeps a distinct prefix of counter identities.",
+  "inputs": {
+    "lib/Solver/FusedRuntimeProjection.cpp": "acaf843b21c7218cf5c43d7b2208e284e452b7af8d0cdd78b8c52c61d854a3dd",
+    "test/unit/fused_runtime_projection_test.cpp": "9d00f6353807e20687618ef9734762973e263acd2345f19caf6ddb01ce5e044c"
+  },
+  "artifacts": {
+    "build-dm/tilemega-unit": "0384eb993f97d3592729e21911b7abe08249899ccd11675136351017d6af9bc1",
+    "build-dm/libtilemega.a": "3e2afcd0984f1fd02a9f9c817937f12ff8c6eab52cbb1f328e241482934091ce"
+  },
+  "queue_sha256": "eb07e19fd84162cc6c082c187cbf2f142e4236eea4414d6c39ba1ce199925a99",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "logs": {
+    "runs/dm1-ci7-counted-fusion-projection-multiple/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/dm1-ci7-counted-fusion-projection-multiple/events/02_ctest.log": "739cec410e8ac1527d381fef2a2639ea4aef282c17d6dc43a5696c84ed27c9ee",
+    "runs/dm1-ci7-counted-fusion-projection-multiple/events/01_build.log": "972dcaf7966e8d10075377682585283b9f306053c3f237bf1c77187f88dc482b"
+  },
+  "failed_compile_audit": "runs/dm1-ci7-counted-fusion-projection",
+  "multiple_contracts": true,
+  "implementation_commits": [
+    "4e00d62d5",
+    "f839d4c2d"
+  ]
+}

@@ -1,0 +1,229 @@
+[
+  {
+    "model": "resnet18",
+    "spelling": "before",
+    "evidence": "verified",
+    "differences": {},
+    "observed": {
+      "adaptive_avg_pool2d": 1,
+      "add_": 8,
+      "batch_norm": 20,
+      "conv2d": 20,
+      "flatten": 1,
+      "linear": 1,
+      "max_pool2d": 1,
+      "relu_": 17
+    }
+  },
+  {
+    "model": "resnet18",
+    "spelling": "core_aten",
+    "evidence": "verified",
+    "differences": {},
+    "observed": {
+      "getitem": 21,
+      "_native_batch_norm_legit_no_training": 20,
+      "add": 8,
+      "addmm": 1,
+      "convolution": 20,
+      "max_pool2d_with_indices": 1,
+      "mean": 1,
+      "permute": 1,
+      "relu": 17,
+      "sym_size": 1,
+      "view": 1
+    }
+  },
+  {
+    "model": "mbv2",
+    "spelling": "before",
+    "evidence": "verified",
+    "differences": {},
+    "observed": {
+      "adaptive_avg_pool2d": 1,
+      "add": 10,
+      "batch_norm": 52,
+      "conv2d": 52,
+      "dropout": 1,
+      "flatten": 1,
+      "hardtanh_": 35,
+      "linear": 1
+    }
+  },
+  {
+    "model": "mbv2",
+    "spelling": "core_aten",
+    "evidence": "verified",
+    "differences": {},
+    "observed": {
+      "getitem": 52,
+      "_native_batch_norm_legit_no_training": 52,
+      "add": 10,
+      "addmm": 1,
+      "convolution": 52,
+      "hardtanh": 35,
+      "mean": 1,
+      "permute": 1,
+      "sym_size": 1,
+      "view": 1
+    }
+  },
+  {
+    "model": "mbv1",
+    "spelling": "before",
+    "evidence": "verified",
+    "differences": {},
+    "observed": {
+      "adaptive_avg_pool2d": 1,
+      "batch_norm": 27,
+      "conv2d": 27,
+      "flatten": 1,
+      "hardtanh_": 27,
+      "linear": 1
+    }
+  },
+  {
+    "model": "mbv1",
+    "spelling": "core_aten",
+    "evidence": "verified",
+    "differences": {},
+    "observed": {
+      "getitem": 27,
+      "_native_batch_norm_legit_no_training": 27,
+      "addmm": 1,
+      "convolution": 27,
+      "hardtanh": 27,
+      "mean": 1,
+      "permute": 1,
+      "sym_size": 1,
+      "view": 1
+    }
+  },
+  {
+    "model": "nafnet",
+    "spelling": "before",
+    "evidence": "verified",
+    "differences": {},
+    "observed": {
+      "getitem": 144,
+      "adaptive_avg_pool2d": 36,
+      "add": 221,
+      "alias": 1,
+      "chunk": 72,
+      "conv2d": 226,
+      "div": 72,
+      "mean": 144,
+      "mul": 252,
+      "pad": 1,
+      "pixel_shuffle": 4,
+      "pow": 72,
+      "sqrt": 72,
+      "sub": 144,
+      "view": 144
+    }
+  },
+  {
+    "model": "nafnet",
+    "spelling": "core_aten",
+    "evidence": "verified",
+    "differences": {},
+    "observed": {
+      "getitem": 144,
+      "add": 221,
+      "alias": 1,
+      "clone": 8,
+      "constant_pad_nd": 1,
+      "convolution": 226,
+      "div": 72,
+      "mean": 180,
+      "mul": 252,
+      "permute": 4,
+      "pow": 72,
+      "split_with_sizes": 72,
+      "sqrt": 72,
+      "sub": 144,
+      "sym_size": 1,
+      "view": 152
+    }
+  },
+  {
+    "model": "bert",
+    "spelling": "before",
+    "evidence": "verified",
+    "differences": {},
+    "observed": {
+      "add": 28,
+      "arange": 4,
+      "dropout": 25,
+      "embedding": 3,
+      "expand": 1,
+      "ge": 1,
+      "gelu": 12,
+      "layer_norm": 25,
+      "linear": 73,
+      "reshape": 12,
+      "scaled_dot_product_attention": 12,
+      "select": 1,
+      "slice": 1,
+      "sym_size": 1,
+      "tanh": 1,
+      "transpose": 48,
+      "unsqueeze": 12,
+      "view": 36
+    }
+  },
+  {
+    "model": "bert",
+    "spelling": "core_aten",
+    "evidence": "verified",
+    "differences": {
+      "addmm": {
+        "stated": 73,
+        "observed": 61
+      },
+      "bmm": {
+        "stated": 24,
+        "observed": 36
+      },
+      "view": {
+        "stated": 264,
+        "observed": 276
+      }
+    },
+    "observed": {
+      "getitem": 25,
+      "<built-in function mul>": 2,
+      "_softmax": 12,
+      "_to_copy": 48,
+      "add": 51,
+      "addmm": 61,
+      "any": 12,
+      "arange": 1,
+      "bmm": 36,
+      "clone": 48,
+      "embedding": 3,
+      "eq": 12,
+      "expand": 73,
+      "full_like": 12,
+      "ge": 1,
+      "gelu": 12,
+      "logical_not": 24,
+      "mul": 24,
+      "native_layer_norm": 25,
+      "permute": 157,
+      "scalar_tensor": 24,
+      "select": 1,
+      "slice": 1,
+      "sym_size": 1,
+      "tanh": 1,
+      "unsqueeze": 3,
+      "view": 276,
+      "where": 24
+    },
+    "explanation": {
+      "evidence": "verified",
+      "source": "core_aten.pt2 nn_module_stack",
+      "detail": "Twelve attention.output.dense linears decompose to bmm plus bias rather than addmm; remaining 24 bmm are attention score/value."
+    }
+  }
+]

@@ -139,7 +139,17 @@ add_library(tilemega_core STATIC
   lib/Frontend/Frontend.cpp
   lib/Frontend/GraphPattern.cpp
   lib/Frontend/ModelPlan.cpp
+  lib/Frontend/DmDescriptorCodec.cpp
   lib/Frontend/SemanticLifting.cpp
+  lib/Frontend/DnnSemanticLifting.cpp
+  lib/Frontend/DnnStorage.cpp
+  lib/Frontend/DnnModelPlan.cpp
+  lib/Frontend/DnnDeferredNorm.cpp
+  lib/Frontend/DnnResourceProbe.cpp
+  lib/Frontend/DnnDwPwFusion.cpp
+  lib/Frontend/MoeRegionPattern.cpp
+  lib/Frontend/MoeRegionPlan.cpp
+  lib/Frontend/MoeSemanticLifting.cpp
   lib/Frontend/ServingSemanticLifting.cpp
   lib/Analysis/SemanticCodec.cpp
   lib/Dialect/CouplingGraph/CGDialect.cpp
@@ -159,6 +169,7 @@ add_library(tilemega_core STATIC
   lib/Analysis/CouplingCache.cpp
   lib/Analysis/Semantics.cpp
   lib/Analysis/TaskInstantiation.cpp
+  lib/Analysis/TaskStorage.cpp
   lib/Analysis/CouplingDerivation.cpp
   lib/Analysis/DependencyForm.cpp
   lib/Analysis/ReferenceModels.cpp
@@ -176,6 +187,7 @@ add_library(tilemega_core STATIC
   lib/Solver/ListScheduler.cpp
   lib/Solver/ExecutionSimulator.cpp
   lib/Solver/SkeletonSearch.cpp
+  lib/Solver/DnnStructureSearch.cpp
   lib/Solver/SkeletonFinalize.cpp
   lib/Solver/SkeletonPlacement.cpp
   lib/Solver/PlanSkeleton.cpp
@@ -189,9 +201,12 @@ add_library(tilemega_core STATIC
   lib/Solver/BalancedPlacement.cpp
   lib/Solver/LaneIntersections.cpp
   lib/Codegen/RuntimeTaskGraph.cpp
+  lib/Codegen/RuntimeDependencyCodec.cpp
   lib/Solver/CacheServiceCurve.cpp
   lib/Solver/ModelDescription.cpp
+  lib/Solver/MemoryPlan.cpp
   lib/Solver/TaskModel.cpp
+  lib/Solver/BindingRequestTraffic.cpp
   lib/Solver/FusedTaskInput.cpp
   lib/Solver/RuntimeProjection.cpp
   lib/Solver/HandoffRuntimeProjection.cpp
@@ -199,11 +214,24 @@ add_library(tilemega_core STATIC
   lib/Codegen/ExactRuntimeTaskGraph.cpp
   lib/Analysis/OpArithmetic.cpp
   lib/Analysis/TaskWork.cpp
+  lib/Analysis/TaskElementRelation.cpp
+  lib/Analysis/StorageHazards.cpp
+  lib/Analysis/DependencyTable.cpp
+  lib/Analysis/BoundDependencyForm.cpp
+  lib/Analysis/CountedDependencyForm.cpp
+  lib/Dialect/CouplingGraph/BoundDependency.cpp
+  lib/Dialect/CouplingGraph/CountedDependency.cpp
+  lib/Analysis/VirtualTaskBinding.cpp
+  lib/Analysis/ExactTaskWork.cpp
   lib/Analysis/DramFloor.cpp
   lib/Solver/TaskPriceParts.cpp
   lib/Solver/PiecePricing.cpp
+  lib/Solver/MoeTaskPricing.cpp
   lib/Solver/DramFluid.cpp
   lib/Solver/ModelDramFloor.cpp
+  lib/Solver/MoeDramBindings.cpp
+  lib/Solver/MoeStructureSearch.cpp
+  lib/Solver/DmReductionFlow.cpp
   lib/Solver/FlowPreparation.cpp
   lib/Solver/StageFlowModel.cpp
   lib/Solver/FluidExecutionSimulator.cpp
@@ -286,6 +314,10 @@ add_custom_target(check-policy
 
 if(TILEMEGA_BUILD_TESTS)
   enable_testing()
+  add_executable(dm_reduction_plan_test test/unit/dm_reduction_plan_test.cpp)
+  target_link_libraries(dm_reduction_plan_test PRIVATE TileMega::tilemega CUDA::cudart)
+  target_compile_options(dm_reduction_plan_test PRIVATE -UNDEBUG)
+  add_test(NAME dm_reduction_plan COMMAND dm_reduction_plan_test)
   add_executable(tilemega-unit test/unit/runner.cpp
     test/unit/target_spec_test.cpp
     test/unit/coupling_types_test.cpp
@@ -302,6 +334,19 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/runtime_projection_test.cpp
     test/unit/relation_bounds_test.cpp
     test/unit/task_element_work_test.cpp
+    test/unit/window_task_access_test.cpp
+    test/unit/exact_task_metadata_test.cpp
+    test/unit/dynamic_task_cursor_test.cpp
+    test/unit/moe_opaque_control_test.cpp
+    test/unit/storage_hazards_test.cpp
+    test/unit/bound_dependency_form_test.cpp
+    test/unit/capacity_form_test.cpp
+    test/unit/virtual_task_binding_test.cpp
+    test/unit/runtime_dependency_table_test.cpp
+    test/unit/bound_dependency_codegen_test.cpp
+    test/unit/dm_page_layout_test.cpp
+    test/unit/attention_page_layout_test.cpp
+    test/unit/moe_binding_test.cpp
     test/unit/graph_pattern_test.cpp
     test/unit/model_plan_order_test.cpp
     test/unit/layout_bridge_test.cpp
@@ -337,7 +382,9 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/serving_model_plan_test.cpp
     test/unit/serving_token_sets_test.cpp
     test/unit/serving_import_test.cpp
+    test/unit/forward_frontend_test.cpp
     test/unit/frontend_import_test.cpp
+    test/unit/dm_descriptor_test.cpp
     test/unit/skeleton_placement_test.cpp
     test/unit/isolated_evaluation_test.cpp
     test/unit/skeleton_search_isolation_test.cpp
@@ -345,6 +392,51 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/variant_resource_test.cpp
     test/unit/symbolic_oracle_test.cpp
     test/unit/operator_classes_test.cpp
+    test/unit/moe_routing_profile_test.cpp
+    test/unit/moe_task_pricing_test.cpp
+    test/unit/moe_dram_bindings_test.cpp
+    test/unit/moe_structure_search_test.cpp
+    test/unit/moe_group_profile_test.cpp
+    test/unit/dm_gemm_traits_test.cpp
+    test/unit/dm_gemm_candidates_test.cpp
+    test/unit/conv_iteration_test.cpp
+    test/unit/conv_reduction_partition_test.cpp
+    test/unit/conv_reduction_cg_test.cpp
+    test/unit/dnn_semantic_lifting_test.cpp
+    test/unit/dnn_epilogue_semantics_test.cpp
+    test/unit/dnn_model_plan_test.cpp
+    test/unit/dnn_deferred_ln_test.cpp
+    test/unit/dnn_dwpw_fusion_test.cpp
+    test/unit/dnn_memory_codegen_test.cpp
+    test/unit/moe_region_pattern_test.cpp
+    test/unit/moe_region_plan_test.cpp
+    test/unit/moe_semantic_lifting_test.cpp
+    test/unit/moe_region_codegen_test.cpp
+    test/unit/task_storage_test.cpp
+    test/unit/dm_counted_fusion_test.cpp
+    test/unit/dm_gemm_class_domain_test.cpp
+    test/unit/dm_forward_search_test.cpp
+    test/unit/dm_physical_footprint_test.cpp
+    test/unit/dnn_structure_search_test.cpp
+    test/unit/task_arithmetic_domain_test.cpp
+    test/unit/dm_store_geometry_test.cpp
+    test/unit/dm_exact_fusion_test.cpp
+    test/unit/memory_plan_test.cpp
+    test/unit/dm_fused_dependencies_test.cpp
+    test/unit/dm_dram_images_test.cpp
+    test/unit/binding_request_traffic_test.cpp
+    test/unit/binding_request_pricing_test.cpp
+    test/unit/typed_affine_pricing_test.cpp
+    test/unit/dm_virtual_gemm_partition_test.cpp
+    test/unit/dm_semantic_signature_test.cpp
+    test/unit/dm_virtual_frontend_test.cpp
+    test/unit/dm_piece_pricing_test.cpp
+    test/unit/dm_target_memory_test.cpp
+    test/unit/dm_page_resources_test.cpp
+    test/unit/counted_dependency_cg_test.cpp
+    test/unit/runtime_dependency_codec_test.cpp
+    test/unit/counted_threshold_test.cpp
+    test/unit/counted_write_test.cpp
     test/unit/coupling_cache_test.cpp
     test/unit/semantic_lifting_test.cpp
     test/unit/embedding_plan_test.cpp
@@ -423,6 +515,17 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME relation_bounds COMMAND tilemega-unit relation_bounds)
 
   add_test(NAME graph_pattern COMMAND tilemega-unit graph_pattern)
+  add_test(NAME window_task_access COMMAND tilemega-unit window_task_access)
+  add_test(NAME exact_task_metadata COMMAND tilemega-unit exact_task_metadata)
+  add_test(NAME storage_hazards COMMAND tilemega-unit storage_hazards)
+  add_test(NAME bound_dependency_form COMMAND tilemega-unit bound_dependency_form)
+  add_test(NAME capacity_form COMMAND tilemega-unit capacity_form)
+  add_test(NAME virtual_task_binding COMMAND tilemega-unit virtual_task_binding)
+  add_test(NAME runtime_dependency_table COMMAND tilemega-unit runtime_dependency_table)
+  add_test(NAME bound_dependency_codegen COMMAND tilemega-unit bound_dependency_codegen)
+  add_test(NAME dm_page_layout COMMAND tilemega-unit dm_page_layout)
+  add_test(NAME attention_page_layout COMMAND tilemega-unit attention_page_layout)
+  add_test(NAME moe_binding COMMAND tilemega-unit moe_binding)
 
   add_test(NAME task_element_work COMMAND tilemega-unit task_element_work
     ${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/gqa2.json
@@ -451,6 +554,11 @@ if(TILEMEGA_BUILD_TESTS)
       ${split_case} ${CMAKE_CURRENT_SOURCE_DIR}/docs/experiments/SERVING_R12C/target_r12b.json)
   endforeach()
   add_test(NAME handoff_access COMMAND tilemega-unit handoff_access)
+  foreach(split_case IN ITEMS four one off escape)
+    add_test(NAME handoff_nonpaged_split_${split_case} COMMAND tilemega-unit handoff_ir
+      nonpaged_splitk_import ${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/serving_split.json
+      ${split_case} ${CMAKE_CURRENT_SOURCE_DIR}/docs/experiments/SERVING_R12C/target_r12b.json)
+  endforeach()
 
   add_test(NAME lane_intersections COMMAND tilemega-unit lane_intersections)
 
@@ -492,6 +600,128 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME impl_contract COMMAND tilemega-unit impl_contract)
 
   add_executable(task_body_contract_test test/unit/task_body_contract_test.cu)
+  add_executable(dm_conv_operands_test test/unit/dm_conv_operands_test.cu)
+  target_link_libraries(dm_conv_operands_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_conv_operands_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
+  tilemega_configure_cuda_target(dm_conv_operands_test)
+  add_test(NAME dm_conv_operands COMMAND dm_conv_operands_test)
+  add_executable(dm_conv_task_test test/unit/dm_conv_task_test.cu)
+  target_link_libraries(dm_conv_task_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_conv_task_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
+  tilemega_configure_cuda_target(dm_conv_task_test)
+  add_test(NAME dm_conv_task COMMAND dm_conv_task_test)
+
+  add_executable(dm_dnn_runtime_test test/unit/dm_dnn_runtime_test.cu)
+  target_link_libraries(dm_dnn_runtime_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_dnn_runtime_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:-UNDEBUG;--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(dm_dnn_runtime_test)
+  add_test(NAME dm_dnn_runtime COMMAND dm_dnn_runtime_test)
+  add_executable(dm_norm_embedding_layout_test test/unit/dm_norm_embedding_layout_test.cu)
+  target_link_libraries(dm_norm_embedding_layout_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_norm_embedding_layout_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
+  tilemega_configure_cuda_target(dm_norm_embedding_layout_test)
+  add_test(NAME dm_norm_embedding_layout COMMAND dm_norm_embedding_layout_test)
+  add_executable(dm_pool_global_test test/unit/dm_pool_global_test.cu)
+  target_link_libraries(dm_pool_global_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_pool_global_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
+  tilemega_configure_cuda_target(dm_pool_global_test)
+  add_test(NAME dm_pool_global COMMAND dm_pool_global_test)
+  add_executable(dm_depthwise_test test/unit/dm_depthwise_test.cu)
+  target_link_libraries(dm_depthwise_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_depthwise_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
+  tilemega_configure_cuda_target(dm_depthwise_test)
+  add_test(NAME dm_depthwise COMMAND dm_depthwise_test)
+  add_executable(dm_dwpw_fused_test test/unit/dm_dwpw_fused_test.cu)
+  target_link_libraries(dm_dwpw_fused_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_dwpw_fused_test PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG;-Xptxas=-v,-warn-spills>)
+  tilemega_configure_cuda_target(dm_dwpw_fused_test)
+  add_test(NAME dm_dwpw_fused COMMAND dm_dwpw_fused_test)
+  add_executable(dm_encoder_attention_test test/unit/dm_encoder_attention_test.cu)
+  target_link_libraries(dm_encoder_attention_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_encoder_attention_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
+  tilemega_configure_cuda_target(dm_encoder_attention_test)
+  add_test(NAME dm_encoder_attention COMMAND dm_encoder_attention_test)
+  add_executable(dm_descriptor_device_test test/unit/dm_descriptor_device_test.cu)
+  target_link_libraries(dm_descriptor_device_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(dm_descriptor_device_test PRIVATE TILEMEGA_DM_SUPPORT=1)
+  target_compile_options(dm_descriptor_device_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(dm_descriptor_device_test)
+  add_test(NAME dm_descriptor_device COMMAND dm_descriptor_device_test)
+  add_executable(dm_epilogue_value_test test/unit/dm_epilogue_value_test.cu)
+  target_link_libraries(dm_epilogue_value_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_epilogue_value_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(dm_epilogue_value_test)
+  add_test(NAME dm_epilogue_value COMMAND dm_epilogue_value_test
+    "${CMAKE_SOURCE_DIR}/test/fixtures/dnn/epilogue_values.bin")
+  add_executable(dm_epilogue_tile_test test/unit/dm_epilogue_tile_test.cu)
+  target_link_libraries(dm_epilogue_tile_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_epilogue_tile_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(dm_epilogue_tile_test)
+  add_test(NAME dm_epilogue_tile COMMAND dm_epilogue_tile_test
+    "${CMAKE_SOURCE_DIR}/test/fixtures/dnn/epilogue_tiles.bin")
+  add_executable(dm_gemm_chain_test test/unit/dm_gemm_chain_test.cu)
+  target_link_libraries(dm_gemm_chain_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_gemm_chain_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(dm_gemm_chain_test)
+  add_test(NAME dm_gemm_chain COMMAND dm_gemm_chain_test
+    "${CMAKE_SOURCE_DIR}/test/fixtures/dnn/gemm_chains.bin")
+  add_executable(forward_runtime_test test/unit/forward_runtime_test.cu)
+  target_link_libraries(forward_runtime_test PRIVATE TileMega::tilemega)
+  target_compile_options(forward_runtime_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(forward_runtime_test)
+  add_test(NAME forward_runtime COMMAND forward_runtime_test)
+  add_executable(dm_counted_stage_threshold_test test/unit/dm_counted_stage_threshold_test.cu)
+  target_link_libraries(dm_counted_stage_threshold_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(dm_counted_stage_threshold_test PRIVATE TILEMEGA_EVENT_KAPPA=1)
+  target_compile_options(dm_counted_stage_threshold_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(dm_counted_stage_threshold_test)
+  add_test(NAME dm_counted_stage_threshold COMMAND dm_counted_stage_threshold_test)
+  foreach(phase IN ITEMS 0 2)
+    add_executable(dm_paged_multipage_phase${phase}_test
+      test/unit/dm_paged_multipage_phase_test.cu)
+    target_link_libraries(dm_paged_multipage_phase${phase}_test PRIVATE TileMega::tilemega)
+    target_compile_definitions(dm_paged_multipage_phase${phase}_test PRIVATE DM_TEST_PHASE=${phase})
+    target_compile_options(dm_paged_multipage_phase${phase}_test PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
+    tilemega_configure_cuda_target(dm_paged_multipage_phase${phase}_test)
+    add_test(NAME dm_paged_multipage_phase${phase}
+      COMMAND dm_paged_multipage_phase${phase}_test)
+  endforeach()
+  foreach(mode IN ITEMS 0 1 2 3 4)
+    add_executable(dm_qperkv8_attention_mode${mode}_test test/unit/dm_qperkv8_attention_test.cu)
+    target_link_libraries(dm_qperkv8_attention_mode${mode}_test PRIVATE TileMega::tilemega)
+    target_compile_definitions(dm_qperkv8_attention_mode${mode}_test PRIVATE DM_TEST_ATTN_MODE=${mode})
+    target_compile_options(dm_qperkv8_attention_mode${mode}_test PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
+    tilemega_configure_cuda_target(dm_qperkv8_attention_mode${mode}_test)
+    add_test(NAME dm_qperkv8_attention_mode${mode} COMMAND dm_qperkv8_attention_mode${mode}_test)
+  endforeach()
+  add_executable(dm_qperkv8_prefill_test test/unit/dm_qperkv8_prefill_test.cu)
+  target_link_libraries(dm_qperkv8_prefill_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_qperkv8_prefill_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
+  tilemega_configure_cuda_target(dm_qperkv8_prefill_test)
+  add_test(NAME dm_qperkv8_prefill COMMAND dm_qperkv8_prefill_test)
+  add_executable(dm_moe_rms_stats_test test/unit/dm_moe_rms_stats_test.cu)
+  target_link_libraries(dm_moe_rms_stats_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_moe_rms_stats_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
+  tilemega_configure_cuda_target(dm_moe_rms_stats_test)
+  add_test(NAME dm_moe_rms_stats COMMAND dm_moe_rms_stats_test)
   target_link_libraries(task_body_contract_test PRIVATE TileMega::tilemega)
   add_test(NAME task_body_contract COMMAND task_body_contract_test)
 
@@ -644,7 +874,9 @@ if(TILEMEGA_BUILD_TESTS)
   tilemega_configure_cuda_target(fused_harness_compile_test)
   add_test(NAME fused_harness_compile COMMAND fused_harness_compile_test)
 
+  add_test(NAME forward_frontend COMMAND tilemega-unit forward_frontend)
   add_test(NAME frontend_import COMMAND tilemega-unit frontend_import)
+  add_test(NAME dm_descriptor COMMAND tilemega-unit dm_descriptor)
 
   add_test(NAME skeleton_placement COMMAND tilemega-unit skeleton_placement)
 
@@ -659,6 +891,59 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME symbolic_oracle COMMAND tilemega-unit symbolic_oracle)
 
   add_test(NAME operator_classes COMMAND tilemega-unit operator_classes)
+  add_test(NAME dm_operator_classes COMMAND tilemega-unit dm_operator_classes)
+  add_test(NAME moe_routing_profile COMMAND tilemega-unit moe_routing_profile)
+  add_test(NAME moe_task_pricing COMMAND tilemega-unit moe_task_pricing)
+  add_test(NAME moe_dram_bindings COMMAND tilemega-unit moe_dram_bindings)
+  add_test(NAME moe_structure_search COMMAND tilemega-unit moe_structure_search)
+  add_test(NAME moe_group_profile COMMAND tilemega-unit moe_group_profile)
+  add_test(NAME dm_gemm_traits COMMAND tilemega-unit dm_gemm_traits)
+  add_test(NAME dm_gemm_candidates COMMAND tilemega-unit dm_gemm_candidates)
+  add_test(NAME conv_iteration COMMAND tilemega-unit conv_iteration)
+  add_test(NAME conv_reduction_partition COMMAND tilemega-unit conv_reduction_partition)
+  add_test(NAME conv_reduction_cg COMMAND tilemega-unit conv_reduction_cg)
+  add_test(NAME dnn_semantic_lifting COMMAND tilemega-unit dnn_semantic_lifting)
+  add_test(NAME dnn_epilogue_semantics COMMAND tilemega-unit dnn_epilogue_semantics)
+  add_test(NAME dnn_model_plan COMMAND tilemega-unit dnn_model_plan)
+  add_test(NAME moe_region_pattern COMMAND tilemega-unit moe_region_pattern)
+  add_test(NAME moe_region_plan COMMAND tilemega-unit moe_region_plan)
+  add_test(NAME task_storage COMMAND tilemega-unit task_storage)
+  add_test(NAME dm_counted_fusion COMMAND tilemega-unit dm_counted_fusion)
+  add_test(NAME dm_gemm_class_domain COMMAND tilemega-unit dm_gemm_class_domain)
+  add_test(NAME dynamic_task_cursor COMMAND tilemega-unit dynamic_task_cursor)
+  add_test(NAME moe_opaque_control COMMAND tilemega-unit moe_opaque_control)
+  add_test(NAME dm_forward_search COMMAND tilemega-unit dm_forward_search)
+  add_test(NAME dm_physical_footprint COMMAND tilemega-unit dm_physical_footprint)
+  add_test(NAME dnn_structure_search COMMAND tilemega-unit dnn_structure_search)
+  add_test(NAME task_arithmetic_domain COMMAND tilemega-unit task_arithmetic_domain)
+  add_test(NAME dm_store_geometry COMMAND tilemega-unit dm_store_geometry)
+  add_test(NAME dm_exact_fusion COMMAND tilemega-unit dm_exact_fusion)
+  add_test(NAME dnn_deferred_ln COMMAND tilemega-unit dnn_deferred_ln)
+  add_test(NAME dnn_dwpw_fusion COMMAND tilemega-unit dnn_dwpw_fusion
+    "${CMAKE_SOURCE_DIR}/test/fixtures/dnn/dwpw_pair.json")
+  file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/test-fixtures")
+  add_test(NAME dnn_memory_codegen COMMAND tilemega-unit dnn_memory_codegen
+    --emit "${CMAKE_BINARY_DIR}/test-fixtures/dnn-memory.cu")
+  add_test(NAME dnn_memory_search COMMAND tilemega-unit dnn_memory_codegen
+    --emit "${CMAKE_BINARY_DIR}/test-fixtures/dnn-memory-search.cu" --search)
+  add_test(NAME dm_fused_dependencies COMMAND tilemega-unit dm_fused_dependencies)
+  add_test(NAME dm_dram_images COMMAND tilemega-unit dm_dram_images)
+  add_test(NAME binding_request_traffic COMMAND tilemega-unit binding_request_traffic)
+  add_test(NAME binding_request_pricing COMMAND tilemega-unit binding_request_pricing)
+  add_test(NAME typed_affine_pricing COMMAND tilemega-unit typed_affine_pricing)
+  add_test(NAME dm_virtual_gemm_partition COMMAND tilemega-unit dm_virtual_gemm_partition)
+  add_test(NAME moe_semantic_lifting COMMAND tilemega-unit moe_semantic_lifting)
+  add_test(NAME moe_region_codegen COMMAND tilemega-unit moe_region_codegen)
+  add_test(NAME dm_semantic_signature COMMAND tilemega-unit dm_semantic_signature)
+  add_test(NAME dm_virtual_frontend COMMAND tilemega-unit dm_virtual_frontend)
+  add_test(NAME dm_piece_pricing COMMAND tilemega-unit dm_piece_pricing)
+  add_test(NAME dm_target_memory COMMAND tilemega-unit dm_target_memory)
+  add_test(NAME dm_page_resources COMMAND tilemega-unit dm_page_resources)
+  add_test(NAME counted_dependency_cg COMMAND tilemega-unit counted_dependency_cg)
+  add_test(NAME counted_dependency_flow COMMAND tilemega-unit counted_dependency_flow)
+  add_test(NAME runtime_dependency_codec COMMAND tilemega-unit runtime_dependency_codec)
+  add_test(NAME counted_threshold COMMAND tilemega-unit counted_threshold)
+  add_test(NAME counted_write COMMAND tilemega-unit counted_write)
 
   add_test(NAME coupling_cache COMMAND tilemega-unit coupling_cache)
 

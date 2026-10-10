@@ -4,6 +4,7 @@
 #include <tilemega/Solver/TaskModel.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/SemanticCodec.h>
+#include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <mlir/IR/Verifier.h>
 
@@ -102,6 +103,16 @@ StageKind ParseKind(std::string const& text) {
   if (text == "TaskKind::kFusedAttention") return StageKind::kFusedAttention;
   if (text == "TaskKind::kAttentionMerge") return StageKind::kAttentionMerge;
   if (text == "TaskKind::kArgmaxReduce") return StageKind::kArgmaxReduce;
+  if (text == "TaskKind::kDepthwiseConv") return StageKind::kDepthwiseConv;
+  if (text == "TaskKind::kPool") return StageKind::kPool;
+  if (text == "TaskKind::kGlobalPoolReduce") return StageKind::kGlobalPoolReduce;
+  if (text == "TaskKind::kLayerNorm") return StageKind::kLayerNorm;
+  if (text == "TaskKind::kEncoderAttention") return StageKind::kEncoderAttention;
+  if (text == "TaskKind::kEmbeddingSum") return StageKind::kEmbeddingSum;
+  if (text == "TaskKind::kDwPwFused") return StageKind::kDwPwFused;
+  if (text == "TaskKind::kMoETopK") return StageKind::kMoETopK;
+  if (text == "TaskKind::kMoECombine") return StageKind::kMoECombine;
+  if (text == "TaskKind::kLayoutConvert") return StageKind::kLayoutConvert;
   throw std::runtime_error("unmodelled stage kind: " + text);
 }
 
@@ -177,6 +188,17 @@ ModelDescription ModelDescription::ReadCouplingGraph(
     return value;
   };
   ModelDescription model;
+  if(auto dm=plan.getAs<mlir::BoolAttr>("dm"))model.dm=dm.getValue();
+  if(auto gemv=plan.getAs<mlir::BoolAttr>("moe_gemv"))model.moe_gemv=gemv.getValue();
+  if(model.moe_gemv && !model.dm)throw std::invalid_argument("GEMV model lacks DM descriptors");
+  if(auto mask=plan.getAs<mlir::IntegerAttr>("dm_reduction_mask")) {
+    if(!model.dm || mask.getInt()<0 || mask.getInt()>7)
+      throw std::invalid_argument("invalid model DM reduction selection");
+    model.dm_reduction_mask=mask.getInt();
+  }
+  model.storage_reuse=module->hasAttr("tilemega.memory_hazard_count");
+  if(model.dm)
+    for(auto conv:array("dm_convolutions"))model.convolutions.push_back(frontend::DecodeDmConv(conv));
   model.fusion_phase_context = phase_context;
   model.serving = module->hasAttr("tilemega.serving");
   if (auto info = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving"))
@@ -192,7 +214,9 @@ ModelDescription ModelDescription::ReadCouplingGraph(
   model.past_metric_parameter = roles.getAs<mlir::StringAttr>("past").getValue().str();
   if (auto batch = roles.getAs<mlir::StringAttr>("batch"))
     model.batch_metric_parameter = batch.getValue().str();
-  if (module->hasAttr("tilemega.serving")) {
+  auto token_axis = plan.getAs<mlir::BoolAttr>("forward_token_axis");
+  if(auto forward=plan.getAs<mlir::BoolAttr>("forward"))model.forward=forward.getValue();
+  if (module->hasAttr("tilemega.serving") && !(token_axis && token_axis.getValue())) {
     // S is a plan constant; it is not an ISL parameter or a substitute for B.
     model.seq_metric_parameter.clear();
     model.dims.seq_parameter.clear();
@@ -206,6 +230,47 @@ ModelDescription ModelDescription::ReadCouplingGraph(
     throw std::invalid_argument("unsupported CG model dtype");
   model.dtype = dtype.getValue() == "bf16" ? ScalarType::kBF16 : ScalarType::kF32;
   auto buffers=array("buffers");
+  if(model.dm) {
+    if(auto arena=plan.getAs<mlir::IntegerAttr>("dm_memory_arena_bytes")) {
+      if(arena.getInt()<0)throw std::invalid_argument("negative DM memory arena");
+      model.memory_arena_bytes=arena.getInt();
+    }
+  }
+  if(model.dm)
+    for(auto buffer:buffers) {
+      auto entry=llvm::dyn_cast<mlir::DictionaryAttr>(buffer);
+      if(!entry)throw std::invalid_argument("malformed DM buffer entry");
+      model.buffer_layouts.push_back(frontend::DecodeDmLayout(entry.get("dm_layout")));
+      auto name=entry.getAs<mlir::StringAttr>("name");
+      auto dtype=entry.getAs<mlir::StringAttr>("dtype");
+      if(!name || !dtype)throw std::invalid_argument("DM buffer lacks typed storage metadata");
+      auto type=dtype.getValue();
+      int bytes=type=="bf16" || type=="torch.bfloat16"?2:
+          type=="f32" || type=="i32" || type=="torch.float32" || type=="torch.int32"?4:
+          type=="i64" || type=="torch.int64"?8:0;
+      if(!bytes)throw std::invalid_argument("unsupported DM buffer storage dtype");
+      model.buffer_element_bytes.emplace(name.getValue().str(),bytes);
+      auto count=[&](llvm::StringRef field) {
+        auto v=entry.getAs<mlir::IntegerAttr>(field);
+        if(!v || v.getInt()<0 || std::uint64_t(v.getInt())>UINT32_MAX)
+          throw std::invalid_argument("invalid DM buffer allocation extent");
+        return std::uint64_t(v.getInt());
+      };
+      ModelBufferAllocation allocation{count("constant"),count("per_seq"),
+          count("per_past"),count("per_total"),count("per_batch"),unsigned(bytes),{}};
+      if(auto offset=entry.getAs<mlir::IntegerAttr>("dm_arena_offset")) {
+        auto role=entry.getAs<mlir::StringAttr>("role");
+        auto source=entry.getAs<mlir::StringAttr>("source");
+        auto file=entry.getAs<mlir::StringAttr>("file");
+        if(offset.getInt()<0 || offset.getInt()%256 || !role || role.getValue()!="internal" ||
+            !source || source.getValue()!="zero" || !file || !file.getValue().empty() ||
+            std::uint64_t(offset.getInt())>model.memory_arena_bytes)
+          throw std::invalid_argument("invalid DM physical arena alias");
+        allocation.arena_offset=offset.getInt();
+      }
+      if(!model.physical_buffers.emplace(name.getValue().str(),allocation).second)
+        throw std::invalid_argument("duplicate DM allocation identity");
+    }
   for (auto output:array("outputs")) {
     auto entry=llvm::dyn_cast<mlir::DictionaryAttr>(output);
     if (!entry) throw std::invalid_argument("malformed CG output entry");
@@ -222,6 +287,10 @@ ModelDescription ModelDescription::ReadCouplingGraph(
     if (!dict) throw std::invalid_argument("malformed CG GEMM plan");
     model.gemms.push_back({integer(dict, "n"), integer(dict, "k"),
                            integer(dict, "a"), integer(dict, "d")});
+    if(model.dm) {
+      model.gemm_access.push_back(frontend::DecodeDmAccess(dict.get("dm_access")));
+      model.epilogue_chains.push_back(frontend::DecodeDmChain(dict.get("dm_chain")));
+    }
   }
   for (auto item : array("stages")) {
     auto dict = llvm::dyn_cast<mlir::DictionaryAttr>(item);
@@ -231,7 +300,7 @@ ModelDescription ModelDescription::ReadCouplingGraph(
     if (!kind || !operands) throw std::invalid_argument("incomplete CG stage plan");
     ModelStage stage;
     stage.kind = ParseKind("TaskKind::" + kind.getValue().str());
-    stage.gemm = stage.kind == StageKind::kGemm || stage.kind == StageKind::kAdd
+    stage.gemm = IsGemmStage(stage.kind) || stage.kind == StageKind::kAdd
         ? integer(dict, "gemm") : -1;
     stage.extent = integer(dict, "extent"); stage.width = integer(dict, "width");
     stage.group = integer(dict, "group");
@@ -241,6 +310,21 @@ ModelDescription ModelDescription::ReadCouplingGraph(
       stage.attention_kv_block = block.getInt();
     if (auto rows = dict.getAs<mlir::IntegerAttr>("attention_query_rows"))
       stage.attention_query_rows = rows.getInt();
+    if(model.dm) {
+      auto conv=dict.getAs<mlir::IntegerAttr>("dm_conv");
+      auto rows=dict.getAs<mlir::IntegerAttr>("dm_rows_per_batch");
+      if(!conv || !rows || conv.getInt()<0 || rows.getInt()<0 ||
+         conv.getInt()>std::numeric_limits<std::uint32_t>::max() ||
+         rows.getInt()>std::numeric_limits<std::uint32_t>::max())
+        throw std::invalid_argument("invalid DM stage geometry");
+      stage.dm_conv=conv.getInt(); stage.rows_per_batch=rows.getInt();
+      if(auto moe=dict.get("dm_moe"))stage.moe=frontend::DecodeDmMoeStage(moe);
+      if(auto bytes=dict.getAs<mlir::IntegerAttr>("dm_workspace_bytes")) {
+        if(bytes.getInt()<0 || bytes.getInt()>std::numeric_limits<std::uint32_t>::max())
+          throw std::invalid_argument("invalid DM stage workspace");
+        stage.dm_workspace_bytes=bytes.getInt();
+      }
+    }
     for (auto operand : operands.asArrayRef())
       if (operand != std::numeric_limits<std::uint32_t>::max())
         stage.operands.push_back(static_cast<int>(operand));
@@ -260,7 +344,8 @@ ModelDescription ModelDescription::ReadCouplingGraph(
       if (!ownership || (ownership!="element_chunk" && ownership!="tile_per_block"))
         throw std::invalid_argument("semantic task has no exact ownership model");
       input.element_chunk=ownership=="element_chunk";
-      for (auto const& axis:input.op.result.axes) {
+      auto const& ownership_space=model.dm && input.op.exact_task_access?input.op.task_space:input.op.result;
+      for (auto const& axis:ownership_space.axes) {
         auto tile=granularity.getAs<mlir::StringAttr>(axis.name);
         if (!tile) throw std::invalid_argument("semantic task is missing an output tile");
         input.tiles.emplace(axis.name,analysis::ClosedForm::Parse(tile.getValue().str()));
@@ -285,6 +370,8 @@ ModelDescription ModelDescription::ReadCouplingGraph(
         edge.getWait().getValue(), edge.getFanout().getValue(),
         edge.getVolume().getValue(), edge.getCount().getValue(), edge.getRelation().getMap(),
         task_name.at(edge.getSrc().str()),task_name.at(edge.getDst().str())});
+    if (auto elements = edge->getAttrOfType<dialect::MetricAttr>("interface_elements"))
+      model.coupling_metrics.edges.back().interface_elements = elements.getValue();
     if (producer != consumer) model.stage_successors.at(producer).push_back(consumer);
   }
   for (auto& successors : model.stage_successors) {
@@ -328,6 +415,7 @@ ModelDescription ModelDescription::SubstituteParams(analysis::ParamBinding const
     edge.wait = edge.wait.SubstituteParams(known);
     edge.fanout = edge.fanout.SubstituteParams(known);
     edge.volume = edge.volume.SubstituteParams(known);
+    if (edge.interface_elements) edge.interface_elements = edge.interface_elements->SubstituteParams(known);
     edge.count = edge.count.SubstituteParams(known);
     edge.relation = edge.relation.BindParams(known);
   }
@@ -386,7 +474,7 @@ ModelDescription ModelDescription::FromGeneratedCuda(std::string const& path,
     if (fields.size() < 5) throw std::runtime_error("short StageDesc in " + path);
     ModelStage stage;
     stage.kind = ParseKind(fields[0]);
-    stage.gemm = stage.kind == StageKind::kGemm || stage.kind == StageKind::kAdd ? AsInt(fields[1], "stage.gemm")
+    stage.gemm = IsGemmStage(stage.kind) || stage.kind == StageKind::kAdd ? AsInt(fields[1], "stage.gemm")
                                                 : -1;
     stage.extent = AsInt(fields[2], "stage.extent");
     stage.width = AsInt(fields[3], "stage.width");
@@ -429,8 +517,63 @@ ModelDescription ModelDescription::FromGeneratedCuda(std::string const& path,
   return model;
 }
 
+std::uint64_t ModelDescription::PhysicalFootprintBytes(std::set<std::string> const* subset) const {
+  if(!dm || dims.IsSymbolic() || dims.seq<0 || dims.past<0 || dims.total<0 || dims.batch<1)
+    throw std::invalid_argument("physical footprint needs bound DM dimensions");
+  auto add=[](std::uint64_t a,std::uint64_t b) {
+    if(a>UINT64_MAX-b)throw std::overflow_error("physical footprint addition overflow");
+    return a+b;
+  };
+  auto mul=[](std::uint64_t a,std::uint64_t b) {
+    if(b && a>UINT64_MAX/b)throw std::overflow_error("physical footprint product overflow");
+    return a*b;
+  };
+  std::uint64_t bytes=subset?0:memory_arena_bytes;
+  std::vector<std::pair<std::uint64_t,std::uint64_t>> intervals;
+  auto append=[&](ModelBufferAllocation const& allocation) {
+    if(allocation.element_bytes!=2 && allocation.element_bytes!=4 && allocation.element_bytes!=8)
+      throw std::invalid_argument("invalid physical allocation element width");
+    auto elements=allocation.constant;
+    for(auto const& [coefficient,dimension]:{
+        std::pair{allocation.per_seq,dims.seq},{allocation.per_past,dims.past},
+        {allocation.per_total,dims.total},{allocation.per_batch,dims.batch}})
+      elements=add(elements,mul(coefficient,dimension));
+    auto size=mul(elements,allocation.element_bytes);
+    if(allocation.arena_offset) {
+      auto offset=*allocation.arena_offset;
+      if(offset%256 || offset>memory_arena_bytes || size>memory_arena_bytes-offset)
+        throw std::invalid_argument("physical allocation exceeds its arena");
+      if(subset && size)intervals.emplace_back(offset,offset+size);
+    } else bytes=add(bytes,size);
+  };
+  if(subset) {
+    for(auto const& name:*subset)append(physical_buffers.at(name));
+  } else for(auto const& [name,allocation]:physical_buffers)append(allocation);
+  std::sort(intervals.begin(),intervals.end());
+  std::uint64_t last=0;
+  for(auto const& [begin,end]:intervals) {
+    if(end>last)bytes=add(bytes,end-std::max(begin,last));
+    last=std::max(last,end);
+  }
+  return bytes;
+}
+std::string ModelDescription::PhysicalFootprintKey() const {
+  if(physical_buffers.empty())return {};
+  std::ostringstream key;key<<"dm_storage:"<<memory_arena_bytes;
+  for(auto const& [name,a]:physical_buffers) {
+    key<<';'<<name.size()<<':'<<name<<':'<<a.constant<<','<<a.per_seq<<','
+       <<a.per_past<<','<<a.per_total<<','<<a.per_batch<<','<<a.element_bytes<<',';
+    if(a.arena_offset)key<<*a.arena_offset;else key<<"separate";
+  }
+  return key.str();
+}
 double ModelDescription::LiveFootprintBytes() const {
   if (dims.IsSymbolic()) throw std::invalid_argument("bind theta before evaluating footprint");
+  if(dm && !physical_buffers.empty()) {
+    double bytes=PhysicalFootprintBytes();
+    if(attention_plan)bytes+=double(attention_plan->workspace_bytes.Eval(MetricBindings()));
+    return bytes;
+  }
   double bytes = 0.0;
   double const element_bytes = dtype == ScalarType::kBF16 ? 2.0 : 4.0;
   if (!task_semantics.empty()) {
@@ -471,7 +614,9 @@ int ModelDescription::RuntimeStages(int stage) const {
 }
 
 int ModelDescription::NonGemmSharedBytes() const {
-  return attention_plan ? attention_plan->shared_bytes : 0;
+  int bytes=attention_plan ? attention_plan->shared_bytes : 0;
+  if(dm)for(auto const& stage:stages)bytes=std::max(bytes,int(stage.dm_workspace_bytes));
+  return bytes;
 }
 
 }  // namespace tilemega::solver

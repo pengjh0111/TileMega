@@ -19,6 +19,7 @@
 #include <set>
 #include <tilemega/Codegen/RuntimePlan.h>
 #include <optional>
+#include <tilemega/Codegen/DmDescriptors.h>
 
 #include <string>
 #include <vector>
@@ -55,6 +56,7 @@ struct ModelCouplingMetrics {
   analysis::QuasiPolynomial wait, fanout, volume, count;
   analysis::CouplingRelation relation;
   std::string producer_task, consumer_task;
+  std::optional<analysis::QuasiPolynomial> interface_elements;
 };
 struct ModelRuntimeEventMetrics {
   analysis::QuasiPolynomial task_refs, wait_entries, max_worker_task_refs;
@@ -94,7 +96,21 @@ enum class StageKind {
   kFusedAttention = 13,
   kAttentionMerge = 14,
   kArgmaxReduce = 15,
+  kDepthwiseConv = 16,
+  kPool = 17,
+  kGlobalPoolReduce = 18,
+  kLayerNorm = 19,
+  kEncoderAttention = 20,
+  kEmbeddingSum = 21,
+  kDwPwFused = 22,
+  kMoETopK = 23,
+  kMoECombine = 24,
+  kLayoutConvert = 25,
 };
+
+inline constexpr bool IsGemmStage(StageKind kind) {
+  return kind==StageKind::kGemm || kind==StageKind::kDwPwFused;
+}
 
 struct ModelStage {
   StageKind kind = StageKind::kGemm;
@@ -107,13 +123,16 @@ struct ModelStage {
   bool batch_rows = false;
   int attention_kv_block = 0;
   int attention_query_rows = 0;
+  std::uint32_t dm_conv = codegen::kDmNoIndex, rows_per_batch = 0;
+  std::uint32_t dm_workspace_bytes = 0;
+  codegen::DmMoeStage moe{};
 
   /// How many contiguous elements of a read buffer one task of this stage
   /// covers.  This is the `Tr` of §P4.3's wait inflation, and it is read off
   /// the generated table rather than assumed: RoPE and KVAppend carry it in
   /// `width` (the head dimension), the elementwise tail in `extent`.
   int ReadGranularity() const;
-  bool IsCollective() const { return kind == StageKind::kGemm; }
+  bool IsCollective() const { return IsGemmStage(kind); }
 };
 
 struct ModelTaskSemantics {
@@ -121,6 +140,12 @@ struct ModelTaskSemantics {
   std::map<std::string,analysis::ClosedForm> tiles;
   int stage = -1;
   bool element_chunk = false;
+};
+
+struct ModelBufferAllocation {
+  std::uint64_t constant=0,per_seq=0,per_past=0,per_total=0,per_batch=0;
+  unsigned element_bytes=0;
+  std::optional<std::uint64_t> arena_offset;
 };
 
 struct ModelDescription {
@@ -147,7 +172,23 @@ struct ModelDescription {
   bool fusion_phase_context = false;
   bool combiner_tile_ownership = false;
   bool serving = false;
+  bool forward = false;
   int serving_capacity = 0;
+  bool dm = false;
+  bool moe_gemv = false;
+  int dm_reduction_mask = -1;
+  // Storage hazards are ownership-dependent, unlike RAW-only semantic reuse.
+  bool storage_reuse = false;
+  std::vector<codegen::ConvDesc> convolutions;
+  std::vector<codegen::DmGemmAccess> gemm_access;
+  std::vector<codegen::DmEpilogueChain> epilogue_chains;
+  std::vector<codegen::DmBufferLayout> buffer_layouts;
+  std::map<std::string,int> buffer_element_bytes;
+  // Mirrors allocated BufferDesc storage, including padding and retained
+  // buffers. External allocations are counted separately unless an arena
+  // alias is proved; possible caller-side aliasing is not assumed.
+  std::map<std::string,ModelBufferAllocation> physical_buffers;
+  std::uint64_t memory_arena_bytes=0;
 
   /// Parse the `kGemms` and `kStages` tables out of a generated .cu.  Throws
   /// std::runtime_error when either table is missing or malformed -- a silent
@@ -173,6 +214,8 @@ struct ModelDescription {
   /// Bytes of parameter and activation storage the model keeps live, which is
   /// what the L2 must hold for the weight stream to stay resident (§2.2(e)).
   double LiveFootprintBytes() const;
+  std::uint64_t PhysicalFootprintBytes(std::set<std::string> const* subset=nullptr) const;
+  std::string PhysicalFootprintKey() const;
   int RuntimeStages(int stage) const;
   int NonGemmSharedBytes() const;
 };

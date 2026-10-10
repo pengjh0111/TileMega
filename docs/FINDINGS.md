@@ -9142,3 +9142,40 @@ page fractions for optimization. B16 paged/R13F, uncovered protocol groups, C-1
 and unit failures stay explicit; this is a limited closure, not full PASS.
 Evidence: SERVING_R13_SM120/raw/acceptance_05/; results/S7_pages.tsv;
 results/{S6_cross_arch,S7_cross_arch}.tsv; summary.md.
+
+
+### DM-1: nvcc constexpr else-for scope counterexample
+
+Verified with nvcc 12.8.93 at `-std=c++17 -O3 --expt-relaxed-constexpr` on
+sm_89: a templated captured lambda with an unbraced `if constexpr ... else
+for (...)` drops the following increment in its true device instantiation.
+Independent host integer addition gives `9,10`; the device returns `1,10`.
+Replacing the increment with a local declaration produces an undefined-name
+compile error. Explicit compound blocks give `9,10` on both host and device.
+Sources and identities: [compiler scope receipt](experiments/DNN_MOE_R1/results/CI2_nvcc_constexpr_scope.json).
+This is a scalar compiler observation; the convolution workaround still
+requires its own numerical and 50-process synchronization checks.
+
+### DM-1: exact table proofs need not repeat cardinality analysis
+
+verified: generated full MobileNetV1 fusion and full-depth B16 MoE prefill
+reached repeated dependency-table recovery after the linear-window repair.
+A one-shot debugger trace identifies integer endpoint minimization and row
+projection in `ReadBoundDependencyTable`, rather than numerical execution,
+as the current generation bottleneck. The five targeted linear-window host
+checks and eight default-geometry LLM CUDA comparisons pass. See
+`DNN_MOE_R1/exact_fibers.md`; full-graph completion is not claimed by those
+smaller checks. No performance measurements were taken.
+
+### DM-1: changing MoE down columns also changes counted ownership
+
+- verified: a TN128 seed followed by a TN32 expert-down candidate retained the
+  seed combine tile in the GEMM-only incremental path. The exact counted proof
+  rejected its partial-column contributions. Candidate preparation now reimports
+  combine ownership, thresholds and statistic storage when down N changes; the
+  seed128-to-selected32 host regression and actual public CLI pass.
+- inferred: sharing a binding shape or logical tensor extent does not justify
+  reusing a counted contract across a changed physical column partition.
+- Evidence: `experiments/DNN_MOE_R1/dm_reduction_search.md`,
+  `experiments/DNN_MOE_R1/results/CI7_dm_reduction_selection_host.json`. No new race-rate or
+  latency conclusion is claimed.

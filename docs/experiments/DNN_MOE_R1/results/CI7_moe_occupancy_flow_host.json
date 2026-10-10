@@ -1,0 +1,46 @@
+{
+  "evidence": "verified",
+  "implementation_commit": "b837fdb1b",
+  "scope": "host conditional occupancy pricing and final-plan metadata only; no timings or new native execution",
+  "cases": 650,
+  "empty_window_contributions": 472,
+  "checks": [
+    "independent occupancy traffic enumeration",
+    "piece partition and expected isolated total",
+    "strict missing empty fit rejection",
+    "explicit inferred capacity surrogate",
+    "production split-K candidates finite",
+    "final materialized pricing attribution",
+    "runtime release and DM piece cache regressions",
+    "check-policy"
+  ],
+  "empty_cost_policy": "inferred full-capacity isolated-cost surrogate when no calibrated binding-check fit is available; empty requests/compute remain zero, no measured-cost claim",
+  "retained_failures": [
+    "runs/dm1-moe-occupancy-price-host-v1.log",
+    "runs/dm1-moe-occupancy-flow-host-v1.log",
+    "runs/dm1-moe-occupancy-flow-host-v2.log",
+    "runs/dm1-moe-occupancy-flow-gdb-v1.log"
+  ],
+  "files": [
+    {
+      "path": "runs/dm1-moe-occupancy-price-host-v2.log",
+      "sha256": "0e9276310cfd71c87258eacd7c6fb2683341c2630ba5519646b6fc9447a7357b"
+    },
+    {
+      "path": "runs/dm1-moe-occupancy-flow-host-v3.log",
+      "sha256": "7d58d90d5e3e074149ac2b9e45cf12b9caebeec05593b0313681d2d995f9ce58"
+    },
+    {
+      "path": "runs/dm1-moe-occupancy-flow-regression-v1.log",
+      "sha256": "5ed893af47e68df727cbb20842978114c2045db223c0363d74f80e5a3848a809"
+    },
+    {
+      "path": "runs/dm1-moe-occupancy-piece-regression-v1.log",
+      "sha256": "11fa4886131763ec35e6fb39e4e8e39a847e088ef19aa6fe720be51498c46299"
+    },
+    {
+      "path": "runs/dm1-moe-occupancy-policy-v1.log",
+      "sha256": "828184fc3f2a677dc6a150a7d50571f48713f7a0ab06b4730cdb7e3b20af7e94"
+    }
+  ]
+}

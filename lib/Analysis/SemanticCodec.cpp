@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/SemanticCodec.h>
+#include <tilemega/Analysis/VirtualTaskBinding.h>
+#include <tilemega/Analysis/TaskStorage.h>
 #include <tilemega/Support/Json.h>
 #include <set>
 #include <stdexcept>
+#include <limits>
+#include <cmath>
 
 namespace tilemega::analysis {
 namespace {
@@ -24,18 +28,60 @@ template<class T,class F> Value EncodeArray(std::vector<T> const& values,F encod
   return array;
 }
 Value EncodeIndex(IndexResult const& index) {
-  return Object{{"kind",int(index.kind)}, {"offset",index.offset.ToString()},
+  Object encoded{{"kind",int(index.kind)}, {"offset",index.offset.ToString()},
     {"span",index.span.ToString()}, {"terms",EncodeArray(index.terms,[](auto const& term) {
-      return Value(Object{{"dim",term.dim},{"coefficient",term.coefficient.ToString()},
-                          {"group",term.group.ToString()}});
+      Object encoded{{"dim",term.dim},{"coefficient",term.coefficient.ToString()},
+                     {"group",term.group.ToString()}};
+      if (!term.shift.IsLiteral(0)) encoded.emplace_back("shift", term.shift.ToString());
+      return Value(std::move(encoded));
     })}};
+  if (!index.binding_source.empty()) encoded.emplace_back("binding_source", index.binding_source);
+  if(!index.request_dims.empty())encoded.emplace_back("request_dims",
+      EncodeArray(index.request_dims,[](auto const& dim){return Value(dim);}));
+  if(!index.window_stride.IsLiteral(1))
+    encoded.emplace_back("window_stride",index.window_stride.ToString());
+  if(!index.outer_divisor.IsLiteral(1))
+    encoded.emplace_back("outer_divisor",index.outer_divisor.ToString());
+  return encoded;
 }
 IndexResult DecodeIndex(Value const& value) {
   IndexResult result;
   result.kind=Enum(value,"kind",IndexResult::Kind::kDataDependent);
   result.offset=Form(value,"offset"); result.span=Form(value,"span");
-  for (auto const& term:value.At("terms").AsArray("terms"))
-    result.terms.push_back({String(term,"dim"),Form(term,"coefficient"),Form(term,"group")});
+  if(auto const* stride=value.Find("window_stride")) {
+    result.window_stride=ClosedForm::Parse(stride->AsString("window_stride"));
+    if(result.kind!=IndexResult::Kind::kAffine ||
+        (result.window_stride.IsConstant() && result.window_stride.Eval({},{})<=0))
+      throw std::invalid_argument("invalid affine read window stride");
+  }
+  if(auto const* divisor=value.Find("outer_divisor")) {
+    result.outer_divisor=ClosedForm::Parse(divisor->AsString("outer_divisor"));
+    if(result.kind!=IndexResult::Kind::kAffine ||
+       (result.outer_divisor.IsConstant() && result.outer_divisor.Eval({},{})<=0))
+      throw std::invalid_argument("outer floor requires an affine index and positive divisor");
+  }
+  if (auto const* source = value.Find("binding_source")) {
+    result.binding_source = source->AsString("binding_source");
+    if (result.kind != IndexResult::Kind::kDataDependent)
+      throw std::invalid_argument("binding source requires a data-dependent index");
+  }
+  if(auto const* requests=value.Find("request_dims")) {
+    if(result.kind!=IndexResult::Kind::kDataDependent || result.binding_source.empty())
+      throw std::invalid_argument("logical requests require a bound data-dependent index");
+    std::set<std::string> seen;
+    for(auto const& dim:requests->AsArray("request_dims")) {
+      auto name=dim.AsString("request dimension");
+      if(name.empty() || !seen.insert(name).second)
+        throw std::invalid_argument("logical request dimensions must be distinct");
+      result.request_dims.push_back(std::move(name));
+    }
+    if(result.request_dims.empty())throw std::invalid_argument("logical request dimensions are empty");
+  }
+  for (auto const& term:value.At("terms").AsArray("terms")) {
+    IndexResult::Term decoded{String(term,"dim"),Form(term,"coefficient"),Form(term,"group")};
+    if (auto const* shift = term.Find("shift")) decoded.shift = ClosedForm::Parse(shift->AsString("shift"));
+    result.terms.push_back(std::move(decoded));
+  }
   return result;
 }
 Value EncodeMap(IndexingMap const& map) { return EncodeArray(map.results,EncodeIndex); }
@@ -69,11 +115,22 @@ MemoryEffect DecodeEffect(Value const& value) {
   return {Enum(value,"kind",EffectKind::kReadWrite),String(value,"alias"),String(value,"state")};
 }
 Value Encode(SemanticOp const& op) {
+  (void)VirtualBindings(op);
+  ValidateTileStorage(op);
+  if(op.reduction.partial_values!=1 && (op.reduction.partial_values!=2 ||
+      !op.exact_task_access || !op.reduction.splittable || (op.arithmetic!="simple_gate_gemm" && op.arithmetic!="swiglu_gemm")))
+    throw std::invalid_argument("paired partials require an exact gate-pair GEMM reduction");
   Object encoded{{"version",1},{"name",op.name},{"kind",int(op.kind)},{"dtype",int(op.dtype)},
     {"arithmetic",op.arithmetic},{"generic",op.generic},
     {"domain",EncodeArray(op.domain,[](auto const& dim) {
-      return Value(Object{{"name",dim.name},{"extent",dim.extent.ToString()},
-        {"origin",dim.origin.ToString()},{"type",int(dim.type)},{"runtime",dim.runtime}});
+      Object encoded{{"name",dim.name},{"extent",dim.extent.ToString()},
+        {"origin",dim.origin.ToString()},{"type",int(dim.type)},{"runtime",dim.runtime}};
+      if (dim.capacity) {
+        encoded.emplace_back("capacity", dim.capacity->ToString());
+        encoded.emplace_back("binding_source", dim.binding_source);
+        encoded.emplace_back("binding_requirement", dim.binding_requirement);
+      }
+      return Value(std::move(encoded));
     })},{"result",EncodeTensor(op.result)},{"result_map",EncodeMap(op.result_map)},
     {"result_effect",EncodeEffect(op.result_effect)},
     {"operands",EncodeArray(op.operands,[](auto const& operand) {
@@ -86,6 +143,8 @@ Value Encode(SemanticOp const& op) {
         {"partial",op.reduction.partial_tensor},{"combiner",op.reduction.combiner},
         {"splittable",op.reduction.splittable},
         {"ownership",EncodeArray(op.reduction.ownership,[](auto const& name){return Value(name);})}}}};
+  if(op.reduction.partial_values!=1)
+    encoded.emplace_back("partial_values",int(op.reduction.partial_values));
   if (!op.additional_writes.empty())
     encoded.emplace_back("additional_writes",
         EncodeArray(op.additional_writes,[](auto const& write) {
@@ -94,11 +153,66 @@ Value Encode(SemanticOp const& op) {
               {"nonnegative",EncodeArray(write.nonnegative,EncodeIndex)},
               {"effect",EncodeEffect(write.effect)}});
         }));
+  if (!op.epilogue_operands.empty())
+    encoded.emplace_back("epilogue_operands", EncodeArray(op.epilogue_operands,
+        [](auto const& operand) {
+          return Value(Object{{"producer",operand.producer},{"tensor",EncodeTensor(operand.tensor)},
+              {"map",EncodeMap(operand.map)},{"effect",EncodeEffect(operand.effect)}});
+        }));
+  if(!op.tile_storage.empty())
+    encoded.emplace_back("tile_storage",EncodeArray(op.tile_storage,[](auto const& storage) {
+      return Value(Object{{"tensor",storage.tensor},{"owner_axis",storage.owner_axis},
+          {"tensor_axis",int(storage.tensor_axis)}});
+    }));
+  if(!op.tile_storage_reads.empty())
+    encoded.emplace_back("tile_storage_reads",EncodeArray(op.tile_storage_reads,[](auto const& read) {
+      return Value(Object{{"tensor",read.tensor},{"reduction_dim",read.reduction_dim},
+          {"segment_dim",read.segment_dim},{"segment_extent",read.segment_extent.ToString()}});
+    }));
+  if (op.exact_task_access) {
+    encoded.emplace_back("exact_task_access", true);
+    encoded.emplace_back("task_space", EncodeTensor(op.task_space));
+    encoded.emplace_back("task_map", EncodeMap(op.task_map));
+  }
+  if(!op.compute_prologue.empty())
+    encoded.emplace_back("compute_prologue",EncodeArray(op.compute_prologue,[](auto const& phase) {
+      return Value(Object{{"arithmetic",phase.arithmetic},{"output",EncodeTensor(phase.output)},
+          {"map",EncodeMap(phase.map)},{"reduction",phase.reduction.ToString()}});
+    }));
+  if(!op.domain_nonnegative.empty())
+    encoded.emplace_back("domain_nonnegative",EncodeArray(op.domain_nonnegative,EncodeIndex));
   return encoded;
 }
 }  // namespace
 
 std::string EncodeSemanticOp(SemanticOp const& op) { return Encode(op).Dump(0); }
+
+std::string EncodeTaskReductionIndex(TaskReductionIndex const& index) {
+  Object value{{"version",1},{"index",EncodeIndex(index.index)},
+      {"capacity",index.capacity.ToString()},{"issued_width",index.issued_width.ToString()}};
+  if(index.chunks)value.emplace_back("chunks",int(index.chunks));
+  return Value(std::move(value)).Dump(0);
+}
+TaskReductionIndex DecodeTaskReductionIndex(std::string const& payload) {
+  auto value=json::Parse(payload);
+  if(value.At("version").AsNumber("version")!=1)
+    throw std::invalid_argument("unsupported task reduction index version");
+  TaskReductionIndex index{DecodeIndex(value.At("index")),Form(value,"capacity"),Form(value,"issued_width")};
+  if(auto chunks=value.Find("chunks")) {
+    auto count=chunks->AsNumber("chunks");
+    if(count<1 || count>std::numeric_limits<int>::max() || count!=std::floor(count))
+      throw std::invalid_argument("invalid balanced reduction chunk count");
+    index.chunks=static_cast<unsigned>(count);
+  }
+  if(index.index.kind!=IndexResult::Kind::kAffine ||
+     (index.capacity.IsConstant() && index.capacity.Eval({},{})<=0) ||
+     (index.issued_width.IsConstant() && index.issued_width.Eval({},{})<=0))
+    throw std::invalid_argument("invalid task reduction index payload");
+  if(index.chunks && (!index.capacity.IsConstant() || index.capacity.Eval({},{})<index.chunks ||
+     !index.index.outer_divisor.IsLiteral(1)))
+    throw std::invalid_argument("invalid balanced reduction geometry");
+  return index;
+}
 
 SemanticOp DecodeSemanticOp(std::string const& payload) {
   auto value=json::Parse(payload);
@@ -112,15 +226,31 @@ SemanticOp DecodeSemanticOp(std::string const& payload) {
   for (auto const& dim:value.At("domain").AsArray("domain")) {
     IterationDim axis{String(dim,"name"),Form(dim,"extent"),Form(dim,"origin"),
                      Enum(dim,"type",IteratorType::kReduction),Boolean(dim,"runtime")};
+    if (auto const* capacity = dim.Find("capacity")) axis.capacity = ClosedForm::Parse(capacity->AsString("capacity"));
+    if (auto const* source = dim.Find("binding_source")) axis.binding_source = source->AsString("binding_source");
+    if (auto const* requirement = dim.Find("binding_requirement")) axis.binding_requirement = requirement->AsString("binding_requirement");
     if (axis.name.empty() || !names.insert(axis.name).second)
       throw std::invalid_argument("duplicate or empty semantic iteration axis");
     op.domain.push_back(std::move(axis));
   }
   op.result=DecodeTensor(value.At("result")); op.result_map=DecodeMap(value.At("result_map"));
   op.result_effect=DecodeEffect(value.At("result_effect"));
+  if(auto const* phases=value.Find("compute_prologue"))
+    for(auto const& phase:phases->AsArray("compute_prologue")) {
+      PrivateComputePhase parsed{String(phase,"arithmetic"),DecodeTensor(phase.At("output")),
+          DecodeMap(phase.At("map")),Form(phase,"reduction")};
+      if(parsed.arithmetic.empty() || parsed.map.results.size()!=parsed.output.axes.size() ||
+          (parsed.reduction.IsConstant() && parsed.reduction.Eval({},{})<=0))
+        throw std::invalid_argument("invalid private arithmetic phase");
+      op.compute_prologue.push_back(std::move(parsed));
+    }
   for (auto const& operand:value.At("operands").AsArray("operands"))
     op.operands.push_back({String(operand,"producer"),DecodeTensor(operand.At("tensor")),
                           DecodeMap(operand.At("map")),DecodeEffect(operand.At("effect"))});
+  if (auto const* operands=value.Find("epilogue_operands"))
+    for (auto const& operand:operands->AsArray("epilogue_operands"))
+      op.epilogue_operands.push_back({String(operand,"producer"),DecodeTensor(operand.At("tensor")),
+          DecodeMap(operand.At("map")),DecodeEffect(operand.At("effect"))});
   for (auto const& read:value.At("element_reads").AsArray("element_reads")) {
     ElementRead element{DecodeTensor(read.At("tensor")),DecodeMap(read.At("map")),{}};
     for (auto const& predicate:read.At("nonnegative").AsArray("nonnegative"))
@@ -140,13 +270,62 @@ SemanticOp DecodeSemanticOp(std::string const& payload) {
                 String(reduction,"combiner"),Boolean(reduction,"splittable"),{}};
   for (auto const& name:reduction.At("ownership").AsArray("ownership"))
     op.reduction.ownership.push_back(name.AsString("ownership axis"));
+  if(auto const* count=value.Find("partial_values")) {
+    auto number=count->AsNumber("partial_values");
+    if(number!=1 && number!=2)throw std::invalid_argument("semantic partial_values must be one or two");
+    op.reduction.partial_values=unsigned(number);
+  }
+  if (auto const* exact = value.Find("exact_task_access")) {
+    op.exact_task_access = exact->AsBool("exact_task_access");
+    if (op.exact_task_access) {
+      op.task_space = DecodeTensor(value.At("task_space"));
+      op.task_map = DecodeMap(value.At("task_map"));
+    }
+  }
+  if(auto const* partitions=value.Find("tile_storage"))
+    for(auto const& spec:partitions->AsArray("tile_storage")) {
+      auto axis=spec.At("tensor_axis").AsNumber("tensor_axis");
+      if(axis<0 || axis>4 || axis!=int(axis))
+        throw std::invalid_argument("invalid tile storage insertion axis");
+      op.tile_storage.push_back({String(spec,"tensor"),String(spec,"owner_axis"),unsigned(axis)});
+    }
+  if(auto const* selections=value.Find("tile_storage_reads"))
+    for(auto const& read:selections->AsArray("tile_storage_reads"))
+      op.tile_storage_reads.push_back({String(read,"tensor"),String(read,"reduction_dim"),
+          String(read,"segment_dim"),Form(read,"segment_extent")});
+  ValidateTileStorage(op);
+  if(auto const* predicates=value.Find("domain_nonnegative"))
+    for(auto const& predicate:predicates->AsArray("domain_nonnegative"))
+      op.domain_nonnegative.push_back(DecodeIndex(predicate));
+  if(!op.exact_task_access && !op.domain_nonnegative.empty())
+    throw std::invalid_argument("iteration predicates require exact task access");
+  for(auto const& predicate:op.domain_nonnegative) {
+    if(predicate.kind!=IndexResult::Kind::kAffine)
+      throw std::invalid_argument("iteration predicate must be quasi-affine");
+    for(auto const& term:predicate.terms)
+      if(!names.count(term.dim))throw std::invalid_argument("iteration predicate names an unknown axis");
+  }
   auto check=[&](IndexingMap const& map,TensorSpace const& tensor) {
     if (map.results.size()!=tensor.axes.size()) throw std::invalid_argument("semantic indexing rank mismatch");
     for (auto const& index:map.results) for (auto const& term:index.terms)
       if (!names.count(term.dim)) throw std::invalid_argument("semantic indexing names an unknown axis");
+    for(auto const& index:map.results)for(auto const& dim:index.request_dims)
+      if(!names.count(dim))throw std::invalid_argument("logical request names an unknown iteration axis");
   };
   check(op.result_map,op.result);
+  if(!op.compute_prologue.empty() && !op.exact_task_access)
+    throw std::invalid_argument("private arithmetic requires exact task ownership");
+  for(auto const& phase:op.compute_prologue)check(phase.map,phase.output);
+  if (op.exact_task_access) check(op.task_map, op.task_space);
   for (auto const& operand:op.operands) check(operand.map,operand.tensor);
+  if (!op.epilogue_operands.empty() && (!op.exact_task_access || !op.element_reads.empty()))
+    throw std::invalid_argument("epilogue reads require exact ownership and operand-derived reads");
+  for (auto const& operand:op.epilogue_operands) {
+    check(operand.map,operand.tensor);
+    for (auto const& index:operand.map.results) for (auto const& term:index.terms)
+      if (op.Dim(term.dim)->type==IteratorType::kReduction)
+        throw std::invalid_argument("epilogue read depends on a reduction coordinate");
+  }
   for (auto const& read:op.element_reads) {
     check(read.map,read.tensor);
     for (auto const& predicate:read.nonnegative) for (auto const& term:predicate.terms)
@@ -161,6 +340,10 @@ SemanticOp DecodeSemanticOp(std::string const& payload) {
   }
   if (op.reduction.splittable && !names.count(op.reduction.dim))
     throw std::invalid_argument("semantic reduction names an unknown axis");
+  if(op.reduction.partial_values!=1 && (!op.exact_task_access || !op.reduction.splittable ||
+      (op.arithmetic!="simple_gate_gemm" && op.arithmetic!="swiglu_gemm")))
+    throw std::invalid_argument("paired partials require an exact gate-pair GEMM reduction");
+  (void)VirtualBindings(op);
   return op;
 }
 }  // namespace tilemega::analysis

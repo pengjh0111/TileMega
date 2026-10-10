@@ -92,6 +92,7 @@ struct TargetSpec {
     int max_cluster_size         = 1;  ///< 1 when caps.cluster == false
     int max_threads_per_sm       = 0;
     int warp_size                = 32;
+    std::uint64_t dram_capacity_bytes = 0;  ///< total memory; zero means unknown
   } res;
 
   /// One calibrated quantity together with the evidence behind it.  The cost

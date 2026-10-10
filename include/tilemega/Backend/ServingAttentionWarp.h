@@ -40,6 +40,13 @@ struct ServingAttentionWarp {
     auto result=cute::partition_fragment_C(Mma{},cute::Shape<cute::_16,cute::Int<N>>{});
     cute::clear(result);return result;
   }
+  __device__ static auto OutputCoordinates(int lane) {
+    return Mma{}.get_slice(lane).partition_C(
+        cute::make_identity_tensor(cute::Shape<cute::_16,cute::Int<N>>{}));
+  }
+  template<class Coord> __device__ static int QueryRow(Coord const& coord) {return cute::get<0>(coord);}
+  template<class Coord> __device__ static int OutputDim(Coord const& coord) {return cute::get<1>(coord);}
+  __device__ static float RowStatistic(float const (&stats)[2],int query) {return stats[query/8];}
   template<class Acc>
   __device__ static void QK(Element* a,Element* b,Acc& out) {
     using namespace cute;
@@ -81,6 +88,55 @@ struct ServingAttentionWarp {
     auto bs=cb.get_slice(ComputeThread()&31).partition_S(sB);
     auto bd=cb.get_slice(ComputeThread()&31).retile_D(rB);
     copy(LoadB{},bs(_,_,0),bd(_,_,0));
+    gemm(mma,rA(_,_,0),rB(_,_,0),out);
+  }
+};
+
+// For at most eight query rows, V^T P^T uses half as many output registers.
+// QK's four probabilities for query lane/4 are already the m16n8k16 B
+// fragment. They round to BF16 here, exactly as in the original PV path.
+template<class Arch,int D,class PageLayoutB=void>
+struct ServingAttentionPvSwap {
+  using Legacy=ServingAttentionWarp<Arch,D,16,true,PageLayoutB>;
+  using Element=typename Legacy::Element;
+  using LayoutB=typename Legacy::LayoutB;
+  using Mma=decltype(cute::make_tiled_mma(cute::SM80_16x8x16_F32BF16BF16F32_TN{},
+      cute::Layout<cute::Shape<cute::_1,cute::_1,cute::_1>>{},
+      cute::Tile<cute::Int<D>,cute::_8,cute::_16>{}));
+  using LoadA=cute::Copy_Atom<cute::SM75_U16x8_LDSM_T,Element>;
+  __device__ static auto Accumulator() {
+    auto result=cute::partition_fragment_C(Mma{},cute::Shape<cute::Int<D>,cute::_8>{});
+    cute::clear(result);return result;
+  }
+  __device__ static auto OutputCoordinates(int lane) {
+    return Mma{}.get_slice(lane).partition_C(
+        cute::make_identity_tensor(cute::Shape<cute::Int<D>,cute::_8>{}));
+  }
+  template<class Coord> __device__ static int QueryRow(Coord const& coord) {return cute::get<1>(coord);}
+  template<class Coord> __device__ static int OutputDim(Coord const& coord) {return cute::get<0>(coord);}
+  __device__ static float RowStatistic(float const (&stats)[2],int query) {
+    return __shfl_sync(0xffffffffu,stats[0],query*4);
+  }
+  template<class Prob,class Coords,class Acc>
+  __device__ static void PV(Prob const& probability,Coords const& source_coords,
+                            Element* value,Acc& out) {
+    using namespace cute;
+    Mma mma;auto thr=mma.get_slice(ComputeThread()&31);
+    auto sA=make_tensor(make_smem_ptr(value),LayoutB{});
+    auto rA=thr.partition_fragment_A(sA);
+    auto cb=thr.partition_B(make_identity_tensor(Shape<_8,_16>{}));
+    auto rB=make_fragment_like<Element>(cb);clear(rB);
+    #pragma unroll
+    for(int i=0;i<size(rB);++i) {
+      #pragma unroll
+      for(int j=0;j<size(probability);++j)
+        if(get<0>(cb(i))==get<0>(source_coords(j)) &&
+           get<1>(cb(i))==get<1>(source_coords(j)))rB(i)=Element(probability(j));
+    }
+    auto copy_a=make_tiled_copy_A(LoadA{},mma);
+    auto source=copy_a.get_slice(ComputeThread()&31).partition_S(sA);
+    auto target=copy_a.get_slice(ComputeThread()&31).retile_D(rA);
+    copy(LoadA{},source(_,_,0),target(_,_,0));
     gemm(mma,rA(_,_,0),rB(_,_,0),out);
   }
 };

@@ -14,9 +14,37 @@
 #include <tilemega/Codegen/RuntimeOwnership.h>
 #include <tilemega/Codegen/AttentionPlan.h>
 #include <tilemega/Codegen/RuntimeTaskGraph.h>
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Codegen/DmDescriptors.h>
+#include <tilemega/Codegen/RuntimeDependencies.h>
+#include <tilemega/Codegen/RuntimeCountedThresholds.h>
+#include <tilemega/Codegen/DmReduction.h>
+#endif
 #include <cutlass/bfloat16.h>
 
 #include <cstdint>
+
+#ifndef TILEMEGA_MOE_DYNAMIC
+#define TILEMEGA_MOE_DYNAMIC 0
+#endif
+#ifndef TILEMEGA_MOE_OPAQUE
+#define TILEMEGA_MOE_OPAQUE 0
+#endif
+#ifndef TILEMEGA_DM_REDUCTIONS
+#define TILEMEGA_DM_REDUCTIONS 0
+#endif
+#ifndef TILEMEGA_DM_POOL_LA
+#define TILEMEGA_DM_POOL_LA 0
+#endif
+#ifndef TILEMEGA_DM_MOE_LA_MASK
+#define TILEMEGA_DM_MOE_LA_MASK 3
+#endif
+#ifndef TILEMEGA_DM_MOE_LA
+#define TILEMEGA_DM_MOE_LA 0
+#endif
+#if TILEMEGA_MOE_DYNAMIC
+#include <tilemega/Codegen/DynamicTaskCursor.h>
+#endif
 
 namespace tilemega::codegen {
 
@@ -30,6 +58,9 @@ namespace tilemega::codegen {
 /// folds against the single `TILEMEGA_EVENT_KAPPA` literal as before.
 #ifndef TILEMEGA_EVENT_KAPPA_PER_STAGE
 #define TILEMEGA_EVENT_KAPPA_PER_STAGE 0
+#endif
+#ifndef TILEMEGA_NONPAGED_LA
+#define TILEMEGA_NONPAGED_LA 0
 #endif
 /// One page holds one task's read-only operand. Two of them follow the task
 /// union in shared memory, so the budget is twice this. B1-b measured 3072
@@ -163,6 +194,10 @@ struct GemmDesc {
   std::uint32_t serving_argmax_index = 0xffffffffu;
   std::uint32_t serving_norm_ss = 0xffffffffu;
   std::uint32_t serving_ss_out = 0xffffffffu;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  DmGemmAccess access{};
+  DmEpilogueChain chain{};
+#endif
 };
 
 /// One GEMM implementation selected by a runtime model variant.  The tile
@@ -209,10 +244,14 @@ struct BufferDesc {
   // Serving fields are unconditional and appended: host and device must see
   // the same descriptor layout regardless of optional feature macros.
   std::uint32_t per_batch = 0;
-  std::uint32_t dtype = 0;  ///< 0 BF16, 1 FP32, 2 int32
+  std::uint32_t dtype = 0;  ///< 0 BF16, 1 FP32, 2 int32, 3 int64 (DM)
   std::uint32_t role = 0;   ///< 0 internal, 1 external
   char const* external_name = nullptr;
   char const* pack_json = nullptr;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  DmBufferLayout layout{};
+  std::uint64_t arena_offset = ~std::uint64_t(0);
+#endif
 
   std::size_t Elements(ModelDims const& dims) const {
     return constant + static_cast<std::size_t>(per_seq) * dims.seq +
@@ -257,6 +296,21 @@ struct StageDesc {
   // the host/device descriptor layout keep their existing fields unchanged.
   std::uint32_t handoff_reduce_stage = kNoOperand;
   bool handoff_elided = false;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  std::uint32_t conv = kDmNoIndex;
+  std::uint32_t rows_per_batch = 0;
+  std::uint32_t binding_producer = kDmNoIndex;
+  float norm_epsilon = 0.0f;
+  DmEpilogueChain chain{};
+  std::uint32_t dm_program = 0;
+  std::uint32_t spatial_width = 0;
+  std::uint32_t partial_rows_per_image = 0;
+  DmMoeStage moe{};
+#if TILEMEGA_MOE_OPAQUE
+  std::uint32_t opaque_predecessor = kDmNoIndex;
+#endif
+  std::uint32_t dm_reduce_stage = kDmNoIndex;
+#endif
 };
 inline constexpr std::uint32_t kHandoffAutoCombine = kNoOperand - 1u;
 
@@ -287,14 +341,40 @@ struct StageDependency {
     kIdentity = 0,
     kAll = 1,
     kWindow = 2,
-    kPhase = 3
+    kPhase = 3,
+    kTable = 4,
+    kCounted = 5
   } map;
   std::uint32_t div;
   std::int32_t scale;
   std::int32_t offset;
   std::uint32_t count;
   std::uint32_t phase_tiles = 0;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  std::uint32_t table_offset = 0, table_rows = 0, table_stride = 0;
+  std::uint32_t counted_offset = 0;
+  std::uint32_t counted_threshold_offset = kDmNoIndex;
+  bool producer_main = false, consumer_done = false;
+#endif
 };
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+template<class Visit>
+TILEMEGA_TASK_HD bool VisitStageDependencyIntervals(StageDependency const& dep,
+    RuntimeDependencyInterval const* intervals, unsigned consumer,
+    unsigned producers, Visit const& visit) {
+  if (dep.map == StageDependency::Map::kCounted) return false;
+  if (dep.map == StageDependency::Map::kTable) {
+    auto base = intervals ? intervals + dep.table_offset : nullptr;
+    return VisitDependencyTable({base, dep.table_rows, dep.table_stride},
+                                consumer, producers, visit);
+  }
+  auto bounds = RuntimeDependencyBounds(consumer, producers,
+      dep.map == StageDependency::Map::kAll || dep.map == StageDependency::Map::kPhase,
+      dep.div, dep.scale, dep.offset, dep.count);
+  if (bounds.first < bounds.past) visit(bounds);
+  return true;
+}
+#endif
 struct PhaseGateDesc {
   std::uint32_t producer = kNoOperand;
   std::uint32_t div = 1;
@@ -518,6 +598,11 @@ struct RuntimeVariantDesc {
   RuntimeExactDependencyDesc const* exact_dependencies = nullptr;
   /// Last, and defaulted, so a legacy variant's initializer is unchanged.
   RuntimePlanDesc plan = {};
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  RuntimeDependencyInterval const* dependency_intervals = nullptr;
+  std::uint32_t dependency_interval_count = 0;
+  RuntimeCountedThresholdView counted_thresholds{};
+#endif
 };
 
 #ifndef TILEMEGA_EVENT_SPLIT_LINES
@@ -752,10 +837,28 @@ struct Params {
   // once per serving plan and reset by the final arriving producer CTA.
   unsigned* serving_handoff_tickets = nullptr;
   std::uint32_t serving_handoff_ticket_stride = 0;
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  unsigned long long* serving_epoch_handoff_tickets = nullptr;
+  std::uint32_t serving_epoch_handoff_stride = 0;
+#endif
   LagDependency const* lag_dependencies = nullptr;
   std::uint32_t lag_dependency_count = 0;
   WatchdogRecord* serving_watchdog = nullptr;
   unsigned long long serving_watchdog_ns = 0;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  RuntimeDependencyInterval const* dependency_intervals = nullptr;
+  unsigned long long* counted_dependencies = nullptr;
+  std::uint32_t counted_dependency_count = 0;
+  RuntimeCountedThresholdView counted_thresholds{};
+  DmReductionView dm_reductions{};
+  DmBufferView dm_buffers{};
+  ConvDesc const* dm_convolutions = nullptr;
+#if TILEMEGA_MOE_DYNAMIC
+  DynamicStageRange const* dynamic_ranges = nullptr;
+  std::uint32_t const* dynamic_canonical = nullptr;
+  unsigned long long* dynamic_claims = nullptr;
+#endif
+#endif
 #if TILEMEGA_TRACE_STAGE
   StageTraceRecord* serving_stage_trace=nullptr;
 #endif
@@ -790,6 +893,11 @@ struct ModelSpec {
   /// Defaulted so that the fixed pre-generated sources used for the SASS
   /// identity check keep compiling unchanged.
   float norm_epsilon = TILEMEGA_NORM_EPSILON;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  ConvDesc const* convolutions = nullptr;
+  std::uint32_t convolution_count = 0;
+  std::uint64_t memory_arena_bytes = 0;
+#endif
 };
 
 }  // namespace tilemega::codegen

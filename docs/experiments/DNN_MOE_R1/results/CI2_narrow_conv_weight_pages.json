@@ -1,0 +1,100 @@
+{
+  "schema": "tilemega.dm1.weight-pages-check.v1",
+  "evidence": "verified",
+  "checks": [
+    {
+      "schema": "tilemega.dm1.host-check.v1",
+      "evidence": "verified",
+      "utc": "2026-10-09T08:07:06.036901+00:00",
+      "source": {
+        "head": "ec06086ec92075ac92edcfb298c1b3991d6f5ae0",
+        "diff_sha256": "a3b3ac3c1e4aad5f9f64b1fc095efc45a90694205c7c174f7f9f1584daaec07c",
+        "inputs": {
+          "/root/dm1_work/integration-stage/python/tilemega/serving/weights.py": "eedd30c45f423818606fc55b75aab70f4be63021ab52befd4298fdf622f7c611",
+          "/root/dm1_work/integration-stage/test/unit/dm_weight_page_oracle.cpp": "2f4496c9499b913b59b04a9209d4208688d7bd41679d7632a59464aae7c1554a",
+          "/root/dm1_work/integration-stage/test/python/test_dm_weight_pages.py": "bbd8f6f4939efda747f705cde64546d40db4f61cfcd9e1557ae7f42acb546c60"
+        },
+        "cutlass_head": "dc45f979ae336a235da1676b311f35efeb30149a",
+        "scope": "CPU weight packing, independent host CuTe index oracle and old wide-K byte compatibility; no GPU/model gate"
+      },
+      "completion": {
+        "event": "queue_complete",
+        "steps": 2,
+        "passed": true
+      },
+      "scope": "CPU weight packing, independent host CuTe index oracle and old wide-K byte compatibility; no GPU/model gate",
+      "counts": {
+        "unittest_tests": 5,
+        "cute_layouts": 24,
+        "layout_tail_cases": 72,
+        "legacy_wide_layouts": 12
+      },
+      "logs": {
+        "01_cpu_test.log": {
+          "path": "/root/dm1_work/development/runs/dm1-narrow-weight-pages/events/01_cpu_test.log",
+          "sha256": "687a25d7b55a36f723f11d7992673669fd2530bb53c9e6c494880cdf67c9f3e0"
+        },
+        "02_policy.log": {
+          "path": "/root/dm1_work/development/runs/dm1-narrow-weight-pages/events/02_policy.log",
+          "sha256": "749e1a27839e387cc0003ec04cd6690a5f81fc579eaac86744672339f60742d7"
+        }
+      },
+      "limitations": [
+        "CPU packing and host CuTe oracle only; no GPU numerical, model or synchronization claim"
+      ]
+    },
+    {
+      "schema": "tilemega.dm1.host-check.v1",
+      "evidence": "verified",
+      "utc": "2026-10-09T08:11:48.489115+00:00",
+      "source": {
+        "head": "7b896f60932f992a9eb1930441141e98db83d75a",
+        "diff_sha256": "2cc9b7cb2dbfdd02cb014075304d5534ab8d1cba8b82e3de8985144fd706b159",
+        "inputs": {
+          "/root/dm1_work/integration-stage/python/tilemega/serving/weights.py": "11d0d339f9cd009c916830aa52625155368cb0d657ba62846e0e95f699770063",
+          "/root/dm1_work/integration-stage/test/python/test_dm_weight_pages.py": "f6c6d747a92a65f5273d5574eac51579b2155d3a339309754b9c196788d30927",
+          "/root/dm1_work/integration-stage/test/unit/dm_weight_page_oracle.cpp": "2f4496c9499b913b59b04a9209d4208688d7bd41679d7632a59464aae7c1554a"
+        },
+        "scope": "CPU convolution KRSC and issued-iteration page packing against independent element enumeration and CuTe; old wide-K packing compatibility; no GPU/model claim"
+      },
+      "completion": {
+        "event": "queue_complete",
+        "steps": 2,
+        "passed": true
+      },
+      "scope": "CPU convolution KRSC and issued-iteration page packing against independent element enumeration and CuTe; old wide-K packing compatibility; no GPU/model claim",
+      "counts": {
+        "unittest_tests": 7,
+        "cute_layouts": 24,
+        "layout_tail_cases": 72,
+        "legacy_wide_layouts": 12,
+        "conv_legal_cases": 84,
+        "conv_illegal_cases": 12,
+        "krsc_layouts": 24
+      },
+      "logs": {
+        "01_cpu_test.log": {
+          "path": "/root/dm1_work/development/runs/dm1-conv-weight-pages-v2/events/01_cpu_test.log",
+          "sha256": "0d4d3855a9eccee0f606bc532d4ea27d2ccd92df931cf8dda79b91bd267c4a6f"
+        },
+        "02_policy.log": {
+          "path": "/root/dm1_work/development/runs/dm1-conv-weight-pages-v2/events/02_policy.log",
+          "sha256": "174ce74793b3a343fa5aa5b7b1b3924823391aa7ee87c45b3f921c947e98671a"
+        }
+      },
+      "retained_failure": "/root/dm1_work/development/runs/dm1-conv-weight-pages/failure.json",
+      "limitations": [
+        "CPU packing and host CuTe oracle only; no GPU numerical, model or synchronization claim"
+      ]
+    }
+  ],
+  "scope": "Shared CPU packing recipes; no DNN model, GPU body or synchronization gate",
+  "commits": [
+    "7b896f609",
+    "1d38f0644"
+  ],
+  "limitations": [
+    "GPU convolution operand diagnostic remains unresolved and excluded from performance",
+    "G-REG still running on frozen development HEAD d382659f4; these commits are not integrated yet"
+  ]
+}

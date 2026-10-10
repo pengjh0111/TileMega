@@ -1,0 +1,82 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Isolated compiler/pricing source overlay; no CUDA execution, synchronization or model gate",
+  "source": {
+    "head": "d85080a4dc959157b7fa9e6583218ba5dfeb0956",
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "inputs": {
+      "runs/dm1-ci7-binding-pricing-integration/integration.patch": "974638c072a1230ada8189289d48e521e4e7803a324bb2dfd3ca4b43642efe12",
+      "runs/dm1-ci7-binding-pricing-integration/frontend-signature.patch": "993efc8bc4069497defe2f0adab060f0465e76ffc9c2d3d3ceeabfc350dd9707",
+      "runs/dm1-ci7-binding-pricing-integration/dram-images.patch": "754bfb15c83dfbb7626c4df727aca5a7850033240bafd8fafc88a008b332dd65",
+      "runs/dm1-ci7-binding-pricing-integration/symbolic-partition.patch": "48621b20f38efd585d1fa71b6244de806d80d286c5406f0c9e11602191b3d7cd",
+      "runs/dm1-ci7-binding-pricing-integration/pricing-integrity.patch": "93596c69f355c8e503328043d33234d052412c45f3f77d71a8b01f7027ebefd0",
+      "runs/dm1-ci7-binding-pricing-integration/pricing-arithmetic-keys.patch": "9450897f923c7dba78567d4736a1efc18f14edd800c2d529e5bc18a5e8645bf0",
+      "test/unit/binding_request_pricing_test.cpp": "ad8c8d3cc0b114633f1d53d2ff2166acd47bfce4ea900ce99541569a4080f9d9",
+      "test/unit/dm_dram_images_test.cpp": "f5f88635e2bb5f4f6d03a0bdaed90252165a1858d7726d0472e476aaeb064983",
+      "test/unit/dm_virtual_frontend_test.cpp": "420a9e6fc005bbe292636495dd06b6f6e0456faba1e3d362427aa22dc17ad007",
+      "test/unit/dm_piece_pricing_test.cpp": "14d06160488aba426dabc93a9515a8d0946e47e18ac9d2f48313d64866ad6410",
+      "test/unit/regime_a_price_test.cpp": "4f8d9a12da83ca8269da80ffede3ad660f40323eba07a9188afc4e6020052ad5",
+      "lib/Solver/BindingRequestTraffic.cpp": "1bc61ba8f836edf58b2c76cf406ea9705afab0a775791eb8687db22d65e73203",
+      "include/tilemega/Solver/BindingRequestTraffic.h": "167c2ae46ecad52dfb158d0173ea7ec6774aade35a89c32d20ae6ed4ca1f41a8",
+      "include/tilemega/Solver/DmSemanticSignature.h": "df4fd3a5b4850f40b94899afb11b7138d037bccd0d3bf393a2cd209854610e2d",
+      "runs/dm1-ci7-binding-integration-overlay-v4/driver.cpp": "46728b71b25ca095428e2d3901045001e847f2863cc9d01b5b34fd3e6a2e5200",
+      "runs/dm1-ci7-binding-integration-overlay-v4/overlay/CMakeLists.txt": "1d72805f8697404ce2a04af224b8116f89ae538c2fa3075b201fdf57401712a1",
+      "runs/dm1-ci7-binding-integration-overlay-v4/overlay/test/unit/runner.cpp": "e825a8f86b71033dc71460e77ec154da368cf77611ba37440519d8acaecf1eea",
+      "runs/dm1-ci7-binding-integration-overlay-v4/overlay/lib/Frontend/SemanticLifting.cpp": "386e3b368d8808564b4cefbd5bab45bffcf1f79330b15310f5b3c073fe248afe",
+      "runs/dm1-ci7-binding-integration-overlay-v4/overlay/lib/Solver/CostModel.cpp": "7ba4264dd7afbf969833b09abac1c7bda686d27185fa6000d8fbdda9e26e17e2",
+      "runs/dm1-ci7-binding-integration-overlay-v4/overlay/lib/Solver/TaskPriceParts.cpp": "f8ededf7b133cf0a1989b3e1cbbb130aff5f99c61eaeef705d25fbc74477a8a1",
+      "runs/dm1-ci7-binding-integration-overlay-v4/overlay/lib/Solver/TaskModel.cpp": "b088950e2de173b8b45b7eed9d633d1e3257db3382e24142f73aaed33e55beb8",
+      "runs/dm1-ci7-binding-integration-overlay-v4/overlay/lib/Solver/PiecePricing.cpp": "202a8dfe6b0396190064e3f1a61bfbe825bbf08c71304bbd33bab22ee06a0d3b",
+      "runs/dm1-ci7-binding-integration-overlay-v4/overlay/lib/Analysis/DramFloor.cpp": "81db5d8833f1491bffa4522c6546de347698c688cdff4861fe310f49fe0f77fb",
+      "runs/dm1-ci7-binding-integration-overlay-v4/overlay/include/tilemega/Solver/TaskModel.h": "752c192d3c327ad3731730178bac54280e6268eb2755adac44a31a73cd645bef",
+      "runs/dm1-ci7-binding-integration-overlay-v4/overlay/include/tilemega/Solver/DmVirtualGemmPartition.h": "11047193dc16497243b58de8c98ad651bed08b42da1c058fa71c2d32e1dedf83",
+      "runs/dm1-ci7-binding-integration-overlay-v4/overlay/include/tilemega/Solver/DmOperatorClasses.h": "f12bf94601e17c61addaf6329ce41238298bd9af7d5339dd409d2d405ef7b9e0",
+      "runs/dm1-ci7-binding-integration-overlay-v4/overlay/include/tilemega/Analysis/DramFloor.h": "45c472fc655492180ec54c9592d96cc506f2df56b0aade0f2f0f1cfd56240b9b",
+      "docs/experiments/SOLVER_R9B/fit/target.json": "a0b911663abe325846b9f4bbd6e2cb50a7deb14e27560fe8e3ca4fd44bad48f7"
+    },
+    "linked_library_sha256": "9c521e9c14eb3fe84e82e1e64c84ecd0cf46b056fb9641a400eb6ea306839f93",
+    "assertions_enabled": true,
+    "expectations_changed": false,
+    "scope": "Isolated source overlay of pending compiler/pricing integration. Existing LLM regime-A pricing regression is included; production inputs remain frozen for G-REG. Host C++ compilation and cost checks make no CUDA calls and do not acquire the GPU lock.",
+    "failed_audits": [
+      {
+        "path": "runs/dm1-ci7-binding-integration-overlay/events/01_compile.log",
+        "sha256": "5ab62126c7350cc08e0b0c26ab7a9557b538d78af7373c7b8b96f6e148a9f670",
+        "reason": "Copied analysis source could not find its private IslUtil.h; add the original analysis include directory."
+      },
+      {
+        "path": "runs/dm1-ci7-binding-integration-overlay-v2/events/01_compile.log",
+        "sha256": "879bf87a1cd46cf64a8623334dbe83f1bcc18b74e910aeb7d9a77d318d1544af",
+        "reason": "Use the boolean conversion of shared_ptr for exact task access."
+      },
+      {
+        "path": "runs/dm1-ci7-binding-integration-overlay-v3/events/02_check.log",
+        "sha256": "46828c1680627ea9db73f9e1c3d36a490b1f5763c46ae124a168ce8a8da6977a",
+        "reason": "Restore the unchanged regime_a_price CMake test target argument. The previous driver incorrectly used the R13 LLM regression target, whose measured cache endpoint has a nonzero 2 GB hit fraction; failure precedes changed pricing functions."
+      }
+    ]
+  },
+  "checks": {
+    "binding_request_tiles": 72,
+    "physical_image_cases": 8,
+    "virtual_geometries": 256,
+    "symbolic_bindings": 768,
+    "legacy_bit_exact_checks": 18
+  },
+  "legacy_target": "docs/experiments/SOLVER_R9B/fit/target.json",
+  "assertions_enabled": true,
+  "expectations_changed": false,
+  "executable_sha256": "3ad2b31c3e143ca959479684a7f045b7f90878a5a122eed4fc1784c7baa09770",
+  "compiler_version": "c++ (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0\nCopyright (C) 2021 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+  "queue_sha256": "3cfb3971492d2d3c1a62a377827bc3e25269834504fa184f7039ad02217b3dd5",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "logs": {
+    "01_compile.log": "7e3c187afb2bb8e5592d387127c5cea6fbd733571698abfe522dce2f5d9d67e2",
+    "02_check.log": "d3ec0c594529b403a1a2db91533ad0c7f093d1c82d897505b71018108032c478"
+  },
+  "integration_worktree": {
+    "root": "/root/dm1_work/integration-stage",
+    "state": "committed; native validation pending"
+  }
+}

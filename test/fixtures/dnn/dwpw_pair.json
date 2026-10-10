@@ -1,0 +1,405 @@
+{
+  "schema": "tilemega.exported_program.v1",
+  "torch_version": "2.14.1+cu130",
+  "nodes": [
+    {
+      "index": 0,
+      "name": "p_dw_weight",
+      "op": "placeholder",
+      "target": "p_dw_weight",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "32",
+        "1",
+        "3",
+        "3"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 1,
+      "name": "p_dw_bias",
+      "op": "placeholder",
+      "target": "p_dw_bias",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "32"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 2,
+      "name": "p_pw_weight",
+      "op": "placeholder",
+      "target": "p_pw_weight",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "48",
+        "32",
+        "1",
+        "1"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 3,
+      "name": "p_pw_bias",
+      "op": "placeholder",
+      "target": "p_pw_bias",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "48"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 4,
+      "name": "x",
+      "op": "placeholder",
+      "target": "x",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "32",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 5,
+      "name": "conv2d",
+      "op": "call_function",
+      "target": "aten.conv2d.default",
+      "inputs": [
+        "x",
+        "p_dw_weight",
+        "p_dw_bias"
+      ],
+      "scalar_args": [
+        32
+      ],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "x"
+          },
+          {
+            "t": "node",
+            "v": "p_dw_weight"
+          },
+          {
+            "t": "node",
+            "v": "p_dw_bias"
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": 2
+              },
+              {
+                "t": "int",
+                "v": 2
+              }
+            ]
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": 1
+              },
+              {
+                "t": "int",
+                "v": 1
+              }
+            ]
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": 1
+              },
+              {
+                "t": "int",
+                "v": 1
+              }
+            ]
+          },
+          {
+            "t": "int",
+            "v": 32
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "32",
+        "4",
+        "5"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Pair"
+        },
+        {
+          "path": "dw",
+          "type": "torch.nn.modules.conv.Conv2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 6,
+      "name": "hardtanh",
+      "op": "call_function",
+      "target": "aten.hardtanh.default",
+      "inputs": [
+        "conv2d"
+      ],
+      "scalar_args": [
+        0,
+        6
+      ],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "conv2d"
+          },
+          {
+            "t": "int",
+            "v": 0
+          },
+          {
+            "t": "int",
+            "v": 6
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "32",
+        "4",
+        "5"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Pair"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 7,
+      "name": "conv2d_1",
+      "op": "call_function",
+      "target": "aten.conv2d.default",
+      "inputs": [
+        "hardtanh",
+        "p_pw_weight",
+        "p_pw_bias"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "hardtanh"
+          },
+          {
+            "t": "node",
+            "v": "p_pw_weight"
+          },
+          {
+            "t": "node",
+            "v": "p_pw_bias"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "48",
+        "4",
+        "5"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Pair"
+        },
+        {
+          "path": "pw",
+          "type": "torch.nn.modules.conv.Conv2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 8,
+      "name": "relu",
+      "op": "call_function",
+      "target": "aten.relu.default",
+      "inputs": [
+        "conv2d_1"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "conv2d_1"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "48",
+        "4",
+        "5"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.Pair"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 9,
+      "name": "output",
+      "op": "output",
+      "target": "output",
+      "inputs": [
+        "relu"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "node",
+                "v": "relu"
+              }
+            ]
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": null,
+      "dtype": null,
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    }
+  ],
+  "range_constraints": {
+    "s77": "VR[1, 64]"
+  },
+  "guards": [],
+  "signature": {
+    "inputs": [
+      {
+        "name": "p_dw_weight",
+        "kind": "PARAMETER",
+        "target": "dw.weight",
+        "persistent": null
+      },
+      {
+        "name": "p_dw_bias",
+        "kind": "PARAMETER",
+        "target": "dw.bias",
+        "persistent": null
+      },
+      {
+        "name": "p_pw_weight",
+        "kind": "PARAMETER",
+        "target": "pw.weight",
+        "persistent": null
+      },
+      {
+        "name": "p_pw_bias",
+        "kind": "PARAMETER",
+        "target": "pw.bias",
+        "persistent": null
+      },
+      {
+        "name": "x",
+        "kind": "USER_INPUT",
+        "target": null,
+        "persistent": null
+      }
+    ],
+    "outputs": [
+      {
+        "name": "relu",
+        "kind": "USER_OUTPUT",
+        "target": null
+      }
+    ]
+  },
+  "graph_signature": "\n# inputs\np_dw_weight: PARAMETER target='dw.weight'\np_dw_bias: PARAMETER target='dw.bias'\np_pw_weight: PARAMETER target='pw.weight'\np_pw_bias: PARAMETER target='pw.bias'\nx: USER_INPUT\n\n# outputs\nrelu: USER_OUTPUT\n"
+}

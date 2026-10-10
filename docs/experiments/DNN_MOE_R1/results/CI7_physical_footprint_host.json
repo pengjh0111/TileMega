@@ -1,0 +1,78 @@
+{
+  "evidence": "verified",
+  "scope": "host physical allocation/cache input integration; no performance or device execution claim",
+  "checks": [
+    {
+      "test": "dm_physical_footprint",
+      "exit_code": 0
+    },
+    {
+      "test": "typed_affine_pricing",
+      "exit_code": 0
+    },
+    {
+      "test": "binding_request_pricing",
+      "exit_code": 0
+    },
+    {
+      "test": "dm_forward_search",
+      "exit_code": 0
+    },
+    {
+      "test": "dnn_structure_search",
+      "exit_code": 0
+    },
+    {
+      "test": "dnn_memory_codegen",
+      "exit_code": 0
+    },
+    {
+      "test": "moe_task_pricing",
+      "exit_code": 0
+    }
+  ],
+  "source_scope": "9423cf383 plus the physical footprint working change; build v2 fixed a missing caller-owned test IslContext",
+  "compiler_sha256": "e2d02ad1a2032bf88cbacf925c69ad3af47ac6f1262d3dd02bc4f60a0ca695c8",
+  "files": [
+    {
+      "path": "runs/dm1-physical-footprint-host-v2/moe_task_pricing.log",
+      "sha256": "0e9276310cfd71c87258eacd7c6fb2683341c2630ba5519646b6fc9447a7357b"
+    },
+    {
+      "path": "runs/dm1-physical-footprint-host-v2/dnn_structure_search.log",
+      "sha256": "611c45435b7d4ec84fb4fda099cbce2e2adb607affc9fa922eb6193ef401745a"
+    },
+    {
+      "path": "runs/dm1-physical-footprint-host-v2/typed_affine_pricing.log",
+      "sha256": "1222efd77cbf4b3783564d772481a33ae09fe83de003a775fc9f1142c1578515"
+    },
+    {
+      "path": "runs/dm1-physical-footprint-host-v2/binding_request_pricing.log",
+      "sha256": "4c1ce9a79a322c074b23520792980e69f7dcea7654e2a3450ac88c535d47e77a"
+    },
+    {
+      "path": "runs/dm1-physical-footprint-host-v2/dm_forward_search.log",
+      "sha256": "973deed417fa683361cfcfd13a291335662db055a13441dcc65629c82cca5f8e"
+    },
+    {
+      "path": "runs/dm1-physical-footprint-host-v2/dm_physical_footprint.log",
+      "sha256": "76b79b92a1a9ffb2f5eb66907aaeb35d3709fe7415ab9acd4b7a585829055a0a"
+    },
+    {
+      "path": "runs/dm1-physical-footprint-host-v2/dnn_memory_codegen.log",
+      "sha256": "ee8ab11b50169b441636301fa1b70b2411edf261a341aa17ec300c4c7ec2c510"
+    },
+    {
+      "path": "runs/dm1-physical-footprint-policy-v1.log",
+      "sha256": "828184fc3f2a677dc6a150a7d50571f48713f7a0ab06b4730cdb7e3b20af7e94"
+    },
+    {
+      "path": "runs/dm1-physical-footprint-build-v2.log",
+      "sha256": "13c80f5fe5500ff2e264bb08bb53bd7b15fe6a850c6554161fa6b4cad3fdb35e"
+    }
+  ],
+  "retained_failures": [
+    "runs/dm1-physical-footprint-host-v1/dm_physical_footprint.log"
+  ],
+  "model_scope": "physical allocation upper bound: descriptor arenas/retained buffers/typed external allocations; no unproved external pointer aliasing, no exact cache hit claim"
+}

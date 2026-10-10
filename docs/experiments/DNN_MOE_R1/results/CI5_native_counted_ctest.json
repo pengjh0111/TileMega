@@ -1,0 +1,20 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Register and build the native counted-threshold CUDA test in the standard CMake/ctest path; the linked host support ABI agrees with the direct nvcc validation. One native ctest passes; the independent 150-process synchronization evidence remains CI5_native_counted_threshold_cuda.json.",
+  "head": "df182fc2d879284e97fe3c11588a18ea1764b8a7",
+  "inputs": {
+    "CMakeLists.txt": "10f447cabf59eb9799109ec7a90e5d2c56b1e022123073b7d58954d3851e5bf0",
+    "test/unit/dm_counted_stage_threshold_test.cu": "b1cce9fb8737bd773d126bca4454f26af1886f8f18c2077be820250464fc4828"
+  },
+  "artifacts": {
+    "build-dm/dm_counted_stage_threshold_test": "cce4a53008f20e20d82daa574c1633d52709e5e678c3cc04efbc92f26b3b8905"
+  },
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "queue_sha256": "17823662947b1c92355b6ca4408fcaef7cdb09e3acd513557bd13b9ced253a8f",
+  "logs": {
+    "runs/dm1-counted-stage-ctest/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/dm1-counted-stage-ctest/events/02_ctest.log": "c3ce5b0b1a0295edd70eee27a6c688e1750cbfbd1c5aadb3ffc1ecb3a699ff86",
+    "runs/dm1-counted-stage-ctest/events/01_build.log": "dc883855375fd2adfa8a030deca9af91e56e0613d8ee36c274a9833ab012cb9c"
+  }
+}

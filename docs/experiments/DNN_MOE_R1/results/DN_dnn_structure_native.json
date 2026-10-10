@@ -1,0 +1,169 @@
+{
+  "evidence": "verified",
+  "scope": "one fixed synthetic B2 state/input; C4, two fused DW/PW pairs and two deferred LN edges; no performance/G-DNN/50-process claim",
+  "queue_result": {
+    "build_sm_89": 0,
+    "check_00": 0
+  },
+  "artifact_id": "444f7684f38fb81b9d8883b0b8cec84a1411162ef205597ad80b10f3f3fcea8c",
+  "cu_sha256": "5bf28af36461c251e1d315e52cef64fa71f999e1d4e99cfcb4af75c1fa7d2d18",
+  "binary_sha256": "2fec25eb79abab6cba1ce6fdbd05d6a6a621714d72437507ca9ac599f635d3f5",
+  "identity_path": "runs/dm1-dnn-structure-native-v2/generated-sm_89.so.identity.json",
+  "identity_sha256": "3efe6b10fc34cf63006b603c859b012ffa893ac9b516498be4cd5686216f4de9",
+  "checks": {
+    "evidence": "verified",
+    "passed": true,
+    "scope": "upstream DNN graph execution smoke; not G-DNN",
+    "reference": "fixed synthetic state promoted to FP32",
+    "synthetic_weights": true,
+    "synthetic_seed": 20261010,
+    "batch": 2,
+    "criterion": "elementwise BF16 tolerance",
+    "checker_sha256": "85f3cb352ea1e88ca2dfcfd41b0a59c773a6e50254ccc6c8f0e67062c12424e9",
+    "artifact_id": "444f7684f38fb81b9d8883b0b8cec84a1411162ef205597ad80b10f3f3fcea8c",
+    "bridge_sha256": "9bffb26901e08a95ba70097940417d4d89be0156daa2a10e68663bf1508a096e",
+    "archive_sha256": "c47ad06f91be09bb2f9647272391b53e80fecc49f4cd11ae22f3d0231d4f7505",
+    "input_tensors_sha256": null,
+    "cases": [
+      {
+        "epoch": 0,
+        "mode": 1,
+        "outputs": [
+          {
+            "name": "add_2",
+            "cosine_min": 0.9999465942382812,
+            "max_error": 0.018889665603637695,
+            "bf16_max_error": 0.03125
+          }
+        ]
+      },
+      {
+        "epoch": 0,
+        "mode": 2,
+        "outputs": [
+          {
+            "name": "add_2",
+            "cosine_min": 0.9999465942382812,
+            "max_error": 0.018889665603637695,
+            "bf16_max_error": 0.03125
+          }
+        ]
+      }
+    ]
+  },
+  "l1_l2_bit_equal": true,
+  "resources": {
+    "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": {
+      "registers": 56,
+      "stack_bytes": 72,
+      "spill_store_bytes": 0,
+      "spill_load_bytes": 0,
+      "smem_bytes": 0,
+      "resource_lines": [
+        "72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "ptxas info    : Used 56 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]"
+      ],
+      "spill": false
+    },
+    "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+      "registers": 255,
+      "stack_bytes": 5424,
+      "spill_store_bytes": 832,
+      "spill_load_bytes": 1136,
+      "smem_bytes": 0,
+      "resource_lines": [
+        "5424 bytes stack frame, 832 bytes spill stores, 1136 bytes spill loads",
+        "ptxas info    : Used 255 registers, used 2 barriers, 5424 bytes cumulative stack size, 376 bytes cmem[0], 264 bytes cmem[2]",
+        "0 bytes stack frame, 8 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 8 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 8 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 88 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+      ],
+      "spill": true
+    },
+    "_ZN8tilemega7codegen23tilemega_l1_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy": {
+      "registers": 255,
+      "stack_bytes": 6192,
+      "spill_store_bytes": 488,
+      "spill_load_bytes": 920,
+      "smem_bytes": 0,
+      "resource_lines": [
+        "6192 bytes stack frame, 488 bytes spill stores, 920 bytes spill loads",
+        "ptxas info    : Used 255 registers, used 2 barriers, 6192 bytes cumulative stack size, 392 bytes cmem[0], 248 bytes cmem[2]",
+        "0 bytes stack frame, 8 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 8 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 8 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 88 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+      ],
+      "spill": true
+    },
+    "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+      "registers": 255,
+      "stack_bytes": 6176,
+      "spill_store_bytes": 452,
+      "spill_load_bytes": 648,
+      "smem_bytes": 0,
+      "resource_lines": [
+        "6176 bytes stack frame, 452 bytes spill stores, 648 bytes spill loads",
+        "ptxas info    : Used 255 registers, used 2 barriers, 6176 bytes cumulative stack size, 376 bytes cmem[0], 248 bytes cmem[2]",
+        "0 bytes stack frame, 8 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 8 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 8 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 88 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+      ],
+      "spill": true
+    },
+    "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": {
+      "registers": 255,
+      "stack_bytes": 5168,
+      "spill_store_bytes": 476,
+      "spill_load_bytes": 1048,
+      "smem_bytes": 0,
+      "resource_lines": [
+        "5168 bytes stack frame, 476 bytes spill stores, 1048 bytes spill loads",
+        "ptxas info    : Used 255 registers, used 2 barriers, 5168 bytes cumulative stack size, 364 bytes cmem[0], 216 bytes cmem[2]",
+        "0 bytes stack frame, 8 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 8 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 8 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 88 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+      ],
+      "spill": true
+    }
+  },
+  "retained_failures": [
+    "runs/dm1-dnn-structure-native-v1/events/check_00.log",
+    "runs/dm1-dnn-structure-check-v2/events/check_00.log"
+  ],
+  "repairs": [
+    "36da02bdf"
+  ],
+  "source_note": "frozen f35c02e4b plus diff4f93c336..., including the fixes committed as 36da02bdf; the host CUDA itself is unchanged from structural hostv7"
+}

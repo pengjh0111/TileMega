@@ -54,6 +54,10 @@ std::vector<ArithmeticDeclaration> const& ArithmeticDeclarations();
 void ValidateArithmeticDeclaration(ArithmeticDeclaration const& declaration);
 OpArithmetic InstantiateArithmetic(std::string const& name,
                                   ArithmeticInputs const& inputs);
+// Exact task access produces coordinate-dependent reduction work. Constants
+// and model-wide extents must be pulled onto the same identity task domain.
+OpArithmetic InstantiateTaskArithmetic(std::string const& name,
+    ArithmeticInputs const& inputs, CouplingRelation const& task_domain);
 void RequireArithmeticImplementation(OpArithmetic const& arithmetic);
 
 // Sequential phases retain their own output domains and execution pipes.

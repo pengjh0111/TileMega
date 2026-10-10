@@ -1,0 +1,30 @@
+{
+  "evidence": "verified",
+  "torch_version": "2.13.0+cu126",
+  "rows": [
+    {
+      "archive": "/root/.cache/tilemega-dm/exports/regression/llama/decode/exported_program.pt2",
+      "nodes": 1429,
+      "legacy_fields_sha256": "f88e6bfd7d278250044fc4da810702b31b511b472879921277aae3e430d5ec86",
+      "legacy_fields_equal": true
+    },
+    {
+      "archive": "/root/.cache/tilemega-dm/exports/regression/llama/prefill/exported_program.pt2",
+      "nodes": 1443,
+      "legacy_fields_sha256": "544bced340af470419d047202b0e1f968d4cf5f8cf74595cfd92526b313dc86a",
+      "legacy_fields_equal": true
+    },
+    {
+      "archive": "/root/.cache/tilemega-dm/exports/regression/qwen3/decode/exported_program.pt2",
+      "nodes": 3101,
+      "legacy_fields_sha256": "1a51b4a7b9fdf3b6a82d0e15523d331fa4fa66c2b99b22b6a9ff0151742af730",
+      "legacy_fields_equal": true
+    },
+    {
+      "archive": "/root/.cache/tilemega-dm/exports/regression/qwen3/prefill/exported_program.pt2",
+      "nodes": 3127,
+      "legacy_fields_sha256": "0815d9e2bb8e9f354e08c439e207682180b5f741184005819bad419ca4009f0d",
+      "legacy_fields_equal": true
+    }
+  ]
+}

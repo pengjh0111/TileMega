@@ -1,0 +1,30 @@
+{
+  "evidence": "verified",
+  "scope": "G-DNN dataset correctness",
+  "passed": false,
+  "model": "mbv2",
+  "batch": 2,
+  "samples": 1000,
+  "artifact_id": "34bfdfce4ee444d1cf8d99eea9cc18ad66a3fe36c2f04337de6ce106972b9b4a",
+  "reference": {
+    "source": "torchvision/mobilenet_v2/IMAGENET1K_V2",
+    "exported_checkpoint_sha256": "00c129b57efd91b56148f9eef325f25de29bdec64cb17febced4c0d53246bdc2",
+    "fp32": "original upstream checkpoint",
+    "bf16": "same checkpoint cast to BF16"
+  },
+  "bridge_sha256": "3f404379b99b31ca01937f7a58acf350cf430cc4eaaffc1078724acc1f02debb",
+  "input_protocol": "identical BF16 images or int64 ids; original FP32 upstream reference",
+  "launches": 1000,
+  "metrics": {
+    "cosine": 0.9984051777720452,
+    "tm_top1_match": 0.969,
+    "bf16_top1_match": 0.971
+  },
+  "raw_receipt": "/root/dm1_work/development/runs/dm1-mbv2-imagenetv2-v1/correctness.json",
+  "raw_sha256": "67ccaa6bdd23b572b937caca0a0a04ef0930fc108b644aad07d9d5e226c7712b",
+  "criteria": {
+    "cosine_min": 0.999,
+    "top1_max_loss_pp": 0.2
+  },
+  "followup": "BN scale factorization in the FP32 epilogue; new generated kernel and unchanged G-DNN gate pending"
+}

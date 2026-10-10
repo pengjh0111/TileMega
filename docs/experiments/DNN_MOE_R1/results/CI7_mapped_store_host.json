@@ -1,0 +1,30 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_commit": "712ec5bfe8555a4d48232edfc41360e0763939e5",
+  "geometries": 32,
+  "scope": "Host exact-access NCHW and pixel-shuffle physical stores, aliased two-axis ownership, BF16 traits, split-K producer/combine write/read cardinalities, FP32 partial bytes and flow geometry task counts. No mapped TaskBody or model execution claim.",
+  "inputs": {
+    "include/tilemega/Analysis/TaskOwnershipGeometry.h": "bdbb325f640fb46eda9c4c4c1ce3246cd4e94011ec6242309110e56797dc6723",
+    "lib/Solver/FlowPreparation.cpp": "4e8d300ad2e4ad79dbff0918e82a8efd0fd8bf96bbf0793105b3fe1769f89933",
+    "lib/Solver/ModelDescription.cpp": "ef5ecb1684ab9a234a362ff6cc47a9ed29bdbd57211dbe82dd680a6c0a7ec553",
+    "lib/Solver/TaskModel.cpp": "aceead9112e7bf6fa1749e6c8999646e3950277e7f0e09b0dc6bccdd340c7bba",
+    "test/unit/dm_store_geometry_test.cpp": "27dce1dc8557e26ddccaf8f3f5a1eaf4e16824d4f3d17de09655636a33d74f29"
+  },
+  "queue_sha256": "be7e81f7952b793d9c061a6ab3ac246937a5121149dc23410c57719b1e33ac6d",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "binary_sha256": "ccb9c55bb4759720cc5736e85cfd60a839df0939e1dc36a6965f0e4ff9672c79",
+  "logs": {
+    "runs/dm1-ci7-store-geometry-host-v5/events/02_check.log": "55250591e4d025f9020d4fa0250b76625fc5aeb89cdb14af7b720291fd1541b9",
+    "runs/dm1-ci7-store-geometry-host-v5/events/01_compile.log": "544af005343fe6838a6312b781b49b3863412e709ed7e3cc63c88019f09efb4d",
+    "runs/dm1-ci7-store-geometry-host-v5/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "assertions_enabled": true,
+  "earlier_failures": {
+    "v1": "duplicate variable and missing ISL source include; no pass claim",
+    "v2": "mixed scalar/task arithmetic; assertions disabled by inherited NDEBUG; no numerical pass claim",
+    "v3": "driver mistakenly included v2 test; fixed driver without changing numerical expectations",
+    "v4": "DM flow did not fill runtime_task_refs; now sums derived ownership counts; expectations preserved"
+  },
+  "phase_contract": "ModelDescription.serving denotes shared serving ABI, including forward. Fixture.plan.forward and !Fixture.plan.serving establishes logical forward phase; test contract corrected, no numerical thresholds or counts changed."
+}

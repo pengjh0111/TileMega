@@ -1,0 +1,201 @@
+{
+  "evidence": "verified",
+  "torch": "2.14.1+cpu",
+  "seed": 20261007,
+  "fixture_sha256": "a00d9c1c6b5505c0cb7cf7f80d09a8030426acb648f2eec2d04169a06879bc73",
+  "cases": [
+    {
+      "mode": 0,
+      "m": 33,
+      "n": 61,
+      "output_shape": [
+        3,
+        1,
+        11,
+        61
+      ],
+      "factor": 1
+    },
+    {
+      "mode": 1,
+      "m": 17,
+      "n": 61,
+      "output_shape": [
+        1,
+        1,
+        17,
+        61
+      ],
+      "factor": 1
+    },
+    {
+      "mode": 2,
+      "m": 17,
+      "n": 61,
+      "output_shape": [
+        1,
+        1,
+        17,
+        61
+      ],
+      "factor": 1
+    },
+    {
+      "mode": 3,
+      "m": 17,
+      "n": 61,
+      "output_shape": [
+        1,
+        1,
+        17,
+        61
+      ],
+      "factor": 1
+    },
+    {
+      "mode": 4,
+      "m": 17,
+      "n": 61,
+      "output_shape": [
+        1,
+        1,
+        17,
+        61
+      ],
+      "factor": 1
+    },
+    {
+      "mode": 5,
+      "m": 17,
+      "n": 61,
+      "output_shape": [
+        1,
+        1,
+        17,
+        61
+      ],
+      "factor": 1
+    },
+    {
+      "mode": 6,
+      "m": 17,
+      "n": 61,
+      "output_shape": [
+        1,
+        1,
+        17,
+        61
+      ],
+      "factor": 1
+    },
+    {
+      "mode": 7,
+      "m": 17,
+      "n": 128,
+      "output_shape": [
+        1,
+        1,
+        17,
+        61
+      ],
+      "factor": 1
+    },
+    {
+      "mode": 8,
+      "m": 17,
+      "n": 128,
+      "output_shape": [
+        1,
+        1,
+        17,
+        61
+      ],
+      "factor": 1
+    },
+    {
+      "mode": 9,
+      "m": 17,
+      "n": 61,
+      "output_shape": [
+        1,
+        1,
+        17,
+        61
+      ],
+      "factor": 1
+    },
+    {
+      "mode": 10,
+      "m": 17,
+      "n": 61,
+      "output_shape": [
+        1,
+        1,
+        17,
+        61
+      ],
+      "factor": 1
+    },
+    {
+      "mode": 11,
+      "m": 17,
+      "n": 61,
+      "output_shape": [
+        1,
+        1,
+        17,
+        61
+      ],
+      "factor": 1
+    },
+    {
+      "mode": 12,
+      "m": 12,
+      "n": 12,
+      "output_shape": [
+        2,
+        4,
+        6,
+        3
+      ],
+      "factor": 2
+    },
+    {
+      "mode": 13,
+      "m": 30,
+      "n": 3,
+      "output_shape": [
+        2,
+        3,
+        5,
+        3
+      ],
+      "factor": 1
+    },
+    {
+      "mode": 14,
+      "m": 17,
+      "n": 61,
+      "output_shape": [
+        1,
+        1,
+        17,
+        61
+      ],
+      "factor": 1
+    },
+    {
+      "mode": 15,
+      "m": 17,
+      "n": 61,
+      "output_shape": [
+        1,
+        1,
+        17,
+        61
+      ],
+      "factor": 1
+    }
+  ],
+  "scope": "tile epilogue only; independent PyTorch maps and reduction oracles"
+}

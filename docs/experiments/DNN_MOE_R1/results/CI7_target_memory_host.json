@@ -1,0 +1,43 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Isolated TargetSpec/JSON source overlay; host roundtrips/rejections and device property probe; no timing or model gate",
+  "source": {
+    "evidence": "verified",
+    "scope": "before-build overlay hashes",
+    "inputs": {
+      "/root/dm1_work/development/runs/dm1-target-memory-overlay-v3/driver.cpp": "5a229324a64a24115a9a3d2ee3c94c6f2af687edc0e2ed765837d2ecb6d89633",
+      "/root/dm1_work/development/runs/dm1-target-memory-overlay-v3/overlay/include/tilemega/Target/TargetSpec.h": "715e85fa62a0ac1e42802049083395ef87d2355c1b6c6a23a3719d16d4ef73e1",
+      "/root/dm1_work/development/runs/dm1-target-memory-overlay-v3/overlay/lib/Target/TargetSpec.cpp": "ec58800d7f940d2834d2061a8c67f143cf1cf0123e96cae11e073e9ccb4e8813",
+      "/root/dm1_work/development/runs/dm1-target-memory-overlay-v3/overlay/lib/Support/Json.cpp": "2498762e0c3f2939e501d85625847af8acbb86171232c25ff0ec64622b76ecd2",
+      "/root/dm1_work/development/test/unit/dm_target_memory_test.cpp": "04015cfd922b416e8b76b7007118ebff4f0853141824f89fda83329a4ae404b3"
+    },
+    "failed_audits": [
+      "runs/dm1-target-memory-overlay",
+      "runs/dm1-target-memory-overlay-v2"
+    ],
+    "retry_reason": "Preserve exactly representable large JSON integers; previous ten-significant-digit fallback rounded the unchanged 2^53-1 expectation",
+    "expectations_changed": false
+  },
+  "host_checks": 30,
+  "rejections": 30,
+  "architectures": [
+    80,
+    89,
+    90,
+    100,
+    120
+  ],
+  "probed_dram_capacity_bytes": 50894602240,
+  "expectations_changed": false,
+  "executable_sha256": "75788c7e3f6129310220ba34b988fc00a46ca4c46b830edf2a6a2fe6c5c924e1",
+  "patch_sha256": "9eaf931c2e5f18bc343e5b571e93881de7ca547594daed3c3f5f4ade1053f3b0",
+  "queue_sha256": "b549b81865af0e29da598114ac275cc22e443705152bbcc7da9995bc2a43ff92",
+  "completion_sha256": "910b042167a7b260aa1da4ef4b980a5f5e454ae2cc64a3a7aaf069c9e48a52f9",
+  "logs": {
+    "01_compile.log": "70b8f79cfd8c288f6807c9e9cffb10ff7e36f6fa5462d19bcb842801beec3822",
+    "02_host.log": "49b93c14fed8f1d6dd26546aec1d0d924830d880b939e024027df1886229312a",
+    "03_probe.log": "a0f483d33bb92abd3f264fddb09a85090c6cd95a47120c1f064bca6c3e10b039"
+  },
+  "production_state": "Committed in isolated validation worktree; native integration pending"
+}

@@ -1,0 +1,55 @@
+{
+  "evidence": "verified",
+  "scope": "Split-K exact ownership and typed temporary provenance host regressions",
+  "preparation": {
+    "scope": "Host graph and exact relation regression checks; no GPU execution",
+    "head": "7edfd783af93dd4fa9535366ddc8f17808ea83e9",
+    "binary_sha256": "44892f5fa05a09b407aa4aeb2f6bcb03c6a9ce7318ffb07cd63f25a34bd07d89",
+    "diff_sha256": "a46b7dba0df00bfc7c610525975d95fdec0df29a8f5adcabe608c5c44fad144b"
+  },
+  "passed": true,
+  "cases": {
+    "forward_frontend": {
+      "status": "done",
+      "log_sha256": "38b4d5cac515df2cf1c42aa51a446b801321c73e457dec7fe4a0977595b357a4"
+    },
+    "conv_reduction_partition": {
+      "status": "done",
+      "log_sha256": "8c8f0eb3a520c09f27a7f2a2eb808fd51237afb40ce03690c320332d46feb7f6"
+    },
+    "dm_forward_search": {
+      "status": "done",
+      "log_sha256": "0c702f9e7e61cd2c70021550a87fee699e93e89d24d10266236d3192c21cbd43"
+    },
+    "typed_affine_pricing": {
+      "status": "done",
+      "log_sha256": "059a61b2546db27d7c4a49bd09cbc07579c4bf55deb0b1296b91f4e6042fb223"
+    },
+    "dnn_epilogue_semantics": {
+      "status": "done",
+      "log_sha256": "7e8fc509e750e27a3a948719f6a90f51e5457fbac38817281e465ffc34249efa"
+    },
+    "dnn_model_plan": {
+      "status": "done",
+      "log_sha256": "5b0d35be13fc30627a5d2dfc52a4e83525bff2bdbc502aea4d51812b519b1b24"
+    },
+    "dm_descriptor": {
+      "status": "done",
+      "log_sha256": "e5c84d142f3aad74d4df8884b5fab93cb6d369ed534f01e6bc5b6d849f4318d8"
+    },
+    "task_arithmetic_domain": {
+      "status": "done",
+      "log_sha256": "6f3c9369eaa9ddf5bed07f8c060ae49843a868ba6262b21af066c1f3a2615fb5"
+    }
+  },
+  "retained_queue_failures": {
+    "dense_split_partitions": "failed",
+    "scaled_gemm_semantics": "failed"
+  },
+  "note": "Two invalid selector attempts are retained and not credited; dnn_semantic_lifting replay is separate.",
+  "dnn_semantic_lifting_replay": {
+    "passed": true,
+    "log": "/root/dm1_work/development/runs/dm1-dnn-scaled-replay-v1.log",
+    "log_sha256": "16bfe748a6bc77872b3d704556ed187eb1c7a1c8a22f21466b5cdafe331966d6"
+  }
+}

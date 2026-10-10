@@ -18,16 +18,23 @@ import time
 ROOT = Path(__file__).resolve().parents[4]
 
 
-def shapes(max_m: int, max_smem: int, stages_filter: int | None = None):
+def shapes(max_m: int, max_smem: int, stages_filter: int | None = None, dm: bool = False):
     for m in (16, 32, 64, 128):
         if m > max_m:
             continue
-        for n in (32, 64, 128, 256):
+        for n in ((16, 32, 64, 128, 256) if dm else (32, 64, 128, 256)):
             if m * n > 16384:
                 continue
-            for k in (64, 128):
+            for k in ((16, 32, 64, 128) if dm else (64, 128)):
                 per_stage = 2 * k * (m + n)
-                for stages in range(2, max_smem // per_stage + 1):
+                stage_limit = max_smem // per_stage
+                if dm:
+                    stage_limit = min(8, stage_limit)
+                for stages in range(2, stage_limit + 1):
+                    if dm and max(per_stage * stages,
+                                  4 * (2 if m == n == 16 else 1) * m * n,
+                                  4 * m * n + 8 * m) > max_smem:
+                        continue
                     if stages_filter is None or stages == stages_filter:
                         yield m, n, k, stages
 
@@ -39,6 +46,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--max-m", type=int, choices=(16, 32, 64, 128),
                         default=128)
+    parser.add_argument("--dm", action="store_true")
     parser.add_argument("--jobs", type=int, default=8)
     parser.add_argument("--stages", type=int,
                         help="probe only this executed pipeline depth")
@@ -46,7 +54,7 @@ def main():
     target = json.loads(args.target.read_text())
     arch = f"sm_{target['sm_major']}{target['sm_minor']}"
     limit = target["resources"]["max_dynamic_smem_per_cta"]
-    configurations = list(shapes(args.max_m, limit, args.stages))
+    configurations = list(shapes(args.max_m, limit, args.stages, args.dm))
     if not configurations:
         parser.error("no legal variant at the requested pipeline depth")
     args.output.mkdir(parents=True, exist_ok=True)
@@ -60,6 +68,8 @@ def main():
                    "--cache", str(args.cache), "--output", str(result),
                    "--arch", arch, "--dtype", "bf16", "--serving",
                    "--tile", ",".join(map(str, shape))]
+        if args.dm:
+            command.append("--dm")
         with log.open("w") as stream:
             run = subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT)
         return label, run.returncode, result

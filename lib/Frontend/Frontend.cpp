@@ -3,11 +3,22 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Frontend/ModelPlan.h>
+#include <tilemega/Codegen/tasks/TaskResources.h>
+#include <tilemega/Frontend/DmDescriptorCodec.h>
+#include <tilemega/Frontend/DnnStorage.h>
+#include <tilemega/Frontend/MoeRegionPlan.h>
 #include <tilemega/Frontend/SemanticLifting.h>
 #include <tilemega/Analysis/CouplingDerivation.h>
 #include <tilemega/Analysis/DependencyForm.h>
+#include <tilemega/Analysis/BoundDependencyForm.h>
+#include <tilemega/Dialect/CouplingGraph/BoundDependency.h>
+#include <tilemega/Dialect/CouplingGraph/CountedDependency.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Analysis/SemanticCodec.h>
+#include <tilemega/Analysis/VirtualTaskBinding.h>
+#include <tilemega/Analysis/ExactMemo.h>
+#include <tilemega/Analysis/TaskElementRelation.h>
+#include <tilemega/Solver/MemoryPlan.h>
 #include <tilemega/Dialect/CouplingGraph/CGAttrs.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
@@ -22,6 +33,7 @@
 #include <mlir/IR/Verifier.h>
 
 #include <algorithm>
+#include <limits>
 #include <regex>
 #include <set>
 #include <sstream>
@@ -88,6 +100,91 @@ std::vector<std::string> readStrings(llvm::json::Array const* array) {
 }
 
 llvm::StringSet<> const& known();
+
+FxArgument ReadFxArgument(llvm::json::Value const& value, unsigned depth=0) {
+  if(depth>64)throw std::invalid_argument("FX argument nesting exceeds 64");
+  auto* object=value.getAsObject();
+  if(!object || !object->getString("t") || !object->get("v"))
+    throw std::invalid_argument("FX argument requires typed t/v fields");
+  auto tag=*object->getString("t");auto const& data=*object->get("v");
+  FxArgument result;using Kind=FxArgument::Kind;
+  if(tag=="none") {
+    if(!data.getAsNull())throw std::invalid_argument("FX none is not null");
+  }else if(tag=="int") {
+    auto integer=data.getAsInteger();
+    if(!integer)throw std::invalid_argument("FX int is not an integer");
+    result.kind=Kind::kInt;result.integer=*integer;
+  }else if(tag=="bool") {
+    auto boolean=data.getAsBoolean();
+    if(!boolean)throw std::invalid_argument("FX bool is not a boolean");
+    result.kind=Kind::kBool;result.boolean=*boolean;
+  }else if(tag=="float") {
+    result.kind=Kind::kFloat;
+    if(auto number=data.getAsNumber())result.real=*number;
+    else if(auto special=data.getAsString()) {
+      if(*special=="+inf")result.real=std::numeric_limits<double>::infinity();
+      else if(*special=="-inf")result.real=-std::numeric_limits<double>::infinity();
+      else if(*special=="nan")result.real=std::numeric_limits<double>::quiet_NaN();
+      else throw std::invalid_argument("unknown nonfinite FX float");
+    }else throw std::invalid_argument("FX float is not numeric");
+  }else if(tag=="list") {
+    auto* array=data.getAsArray();
+    if(!array)throw std::invalid_argument("FX list is not an array");
+    result.kind=Kind::kList;
+    for(auto const& item:*array)result.items.push_back(ReadFxArgument(item,depth+1));
+  }else {
+    if(tag=="node")result.kind=Kind::kNode;
+    else if(tag=="str")result.kind=Kind::kString;
+    else if(tag=="dtype")result.kind=Kind::kDtype;
+    else if(tag=="device")result.kind=Kind::kDevice;
+    else if(tag=="layout")result.kind=Kind::kLayout;
+    else if(tag=="memory_format")result.kind=Kind::kMemoryFormat;
+    else if(tag=="symbol")result.kind=Kind::kSymbol;
+    else throw std::invalid_argument("unknown FX argument tag: "+tag.str());
+    auto text=data.getAsString();
+    if(!text)throw std::invalid_argument("FX textual argument is not a string");
+    result.text=text->str();
+  }
+  return result;
+}
+
+FxConstant ReadFxConstant(llvm::json::Object const& object) {
+  FxConstant result;result.present=true;
+  auto dtype=object.getString("dtype");auto* shape=object.getArray("shape");
+  if(!dtype || !shape)throw std::invalid_argument("FX constant requires dtype and shape");
+  result.dtype=dtype->str();
+  for(auto const& dimension:*shape) {
+    auto integer=dimension.getAsInteger();
+    if(!integer || *integer<0)throw std::invalid_argument("invalid constant dimension");
+    result.shape.push_back(*integer);
+  }
+  std::uint64_t elements=1;
+  if(std::find(result.shape.begin(),result.shape.end(),0)==result.shape.end())
+    for(auto dimension:result.shape) {
+      if(elements>(1u<<20)/std::uint64_t(dimension))
+        throw std::invalid_argument("FX constant exceeds element limit");
+      elements*=std::uint64_t(dimension);
+    }
+  if(auto* scalar=object.get("scalar")) {
+    result.has_scalar=true;result.scalar=ReadFxArgument(*scalar);
+  }
+  if(auto all_true=object.getBoolean("all_true")) {
+    result.has_all_true=true;result.all_true=*all_true;
+  }
+  if(auto* summary=object.getObject("all_equal")) {
+    auto equal=summary->getBoolean("equal");auto* value=summary->get("value");
+    if(!equal || !value)throw std::invalid_argument("invalid constant equality summary");
+    result.has_all_equal=true;result.all_equal=*equal;
+    if(auto boolean=value->getAsBoolean()) {
+      result.equal_value.kind=FxArgument::Kind::kBool;result.equal_value.boolean=*boolean;
+    }else if(auto integer=value->getAsInteger()) {
+      result.equal_value.kind=FxArgument::Kind::kInt;result.equal_value.integer=*integer;
+    }else throw std::invalid_argument("constant equality value is not bool/int");
+  }
+  if(auto data=object.getString("data_base64"))result.data_base64=data->str();
+  if(auto order=object.getString("byte_order"))result.byte_order=order->str();
+  return result;
+}
 
 /// The composite spelling and its Core ATen decomposition classify the same
 /// way, so normalization does not move an operator between kinds.
@@ -181,6 +278,15 @@ llvm::StringRef taskKindOf(OpRole role) {
     case OpRole::kActivation:
     case OpRole::kResidualAdd: return "elementwise";
     case OpRole::kGeneric: return "generic";
+    case OpRole::kLayerNorm: return "layernorm";
+    case OpRole::kEmbeddingSum: return "embedding_sum";
+    case OpRole::kLayoutConvert: return "layout_convert";
+    case OpRole::kPool: return "pool";
+    case OpRole::kGlobalPoolReduce: return "global_pool_reduce";
+    case OpRole::kEncoderAttention: return "encoder_attention";
+    case OpRole::kDepthwiseConv: return "depthwise_conv";
+    case OpRole::kMoERouting: return "moe_topk";
+    case OpRole::kMoECombine: return "moe_combine";
   }
   return "generic";
 }
@@ -191,6 +297,7 @@ llvm::StringRef taskKindOf(OpRole role) {
 analysis::QuasiPolynomial metricOf(analysis::ClosedForm const& value,
                                    analysis::ParamBinding const& granularity) {
   analysis::ClosedForm reduced = value.Substitute(granularity);
+  if (reduced.HasPiecewise()) return analysis::QuasiPolynomial::FromClosedForm(reduced);
   std::vector<std::string> free = reduced.FreeSymbols();
   std::sort(free.begin(), free.end());
   free.erase(std::unique(free.begin(), free.end()), free.end());
@@ -214,6 +321,16 @@ llvm::StringRef taskKindName(PlanTaskKind kind) {
     case PlanTaskKind::kFusedAttention: return "kFusedAttention";
     case PlanTaskKind::kAttentionMerge: return "kAttentionMerge";
     case PlanTaskKind::kArgmaxReduce: return "kArgmaxReduce";
+    case PlanTaskKind::kDepthwiseConv: return "kDepthwiseConv";
+    case PlanTaskKind::kPool: return "kPool";
+    case PlanTaskKind::kGlobalPoolReduce: return "kGlobalPoolReduce";
+    case PlanTaskKind::kLayerNorm: return "kLayerNorm";
+    case PlanTaskKind::kEncoderAttention: return "kEncoderAttention";
+    case PlanTaskKind::kEmbeddingSum: return "kEmbeddingSum";
+    case PlanTaskKind::kDwPwFused: return "kDwPwFused";
+    case PlanTaskKind::kMoETopK: return "kMoETopK";
+    case PlanTaskKind::kMoECombine: return "kMoECombine";
+    case PlanTaskKind::kLayoutConvert: return "kLayoutConvert";
   }
   llvm_unreachable("unknown plan task kind");
 }
@@ -221,6 +338,7 @@ llvm::StringRef taskKindName(PlanTaskKind kind) {
 mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
                                    ModelPlan const& plan,
                                    std::vector<std::uint8_t> const& written) {
+  ValidateDmModelPlan(plan);
   llvm::SmallVector<mlir::Attribute> buffers, gemms, stages, outputs;
   for (auto const& buffer : plan.buffers) {
     std::size_t index = buffers.size();
@@ -237,7 +355,7 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
         builder.getNamedAttr("file", builder.getStringAttr(buffer.file)),
         builder.getNamedAttr("no_producer", builder.getBoolAttr(
             index >= written.size() || !written[index]))};
-    if (buffer.per_batch || buffer.role != "internal" ||
+    if (plan.dm || buffer.per_batch || buffer.role != "internal" ||
         !buffer.external_name.empty() || !buffer.pack_json.empty()) {
       fields.push_back(builder.getNamedAttr(
           "per_batch", builder.getI64IntegerAttr(buffer.per_batch)));
@@ -250,6 +368,10 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
       fields.push_back(builder.getNamedAttr(
           "pack_json", builder.getStringAttr(buffer.pack_json)));
     }
+    if(plan.dm)
+      fields.push_back(builder.getNamedAttr("dm_layout",EncodeDm(builder,buffer.layout)));
+    if(plan.dm && buffer.arena_offset!=~std::uint64_t(0))
+      fields.push_back(builder.getNamedAttr("dm_arena_offset",builder.getI64IntegerAttr(buffer.arena_offset)));
     buffers.push_back(builder.getDictionaryAttr(fields));
   }
   for (auto const& gemm : plan.gemms) {
@@ -279,6 +401,10 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
         fields.push_back(builder.getNamedAttr(
             "partial_tile_n", builder.getI64IntegerAttr(gemm.partial_tile_n)));
     }
+    if(plan.dm) {
+      fields.push_back(builder.getNamedAttr("dm_access",EncodeDm(builder,gemm.access)));
+      fields.push_back(builder.getNamedAttr("dm_chain",EncodeDm(builder,gemm.chain)));
+    }
     gemms.push_back(builder.getDictionaryAttr(fields));
   }
   for (auto const& stage : plan.stages) {
@@ -294,7 +420,7 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
         builder.getNamedAttr("representative", builder.getStringAttr(stage.representative)),
         builder.getNamedAttr("representative_index",
                              builder.getI64IntegerAttr(stage.representative_index))};
-    if (plan.serving) {
+    if (plan.serving || plan.forward) {
       fields.push_back(builder.getNamedAttr(
           "batch_rows", builder.getBoolAttr(stage.batch_rows)));
       fields.push_back(builder.getNamedAttr(
@@ -308,13 +434,44 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
           "attention_query_rows", builder.getI64IntegerAttr(
               stage.attention_query_rows)));
     }
+    if(plan.dm) {
+      fields.push_back(builder.getNamedAttr("dm_conv",builder.getI64IntegerAttr(stage.conv)));
+      fields.push_back(builder.getNamedAttr("dm_rows_per_batch",builder.getI64IntegerAttr(stage.rows_per_batch)));
+      if(stage.binding_producer!=codegen::kDmNoIndex)
+        fields.push_back(builder.getNamedAttr("dm_binding_producer",builder.getI64IntegerAttr(stage.binding_producer)));
+      if(stage.kind==PlanTaskKind::kEmbeddingSum)
+        fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(32)));
+      if(stage.kind==PlanTaskKind::kEncoderAttention)
+        fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(codegen::EncoderAttentionSharedBytes())));
+      if(stage.kind==PlanTaskKind::kMoETopK)
+        fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(codegen::MoeDispatchSharedBytes())));
+      if(stage.kind==PlanTaskKind::kMoECombine)
+        fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(codegen::MoeCombineSharedBytes(stage.group,stage.width))));
+      if(stage.norm_epsilon!=0.0f)
+        fields.push_back(builder.getNamedAttr("dm_norm_epsilon",builder.getF32FloatAttr(stage.norm_epsilon)));
+      if(stage.partial_rows_per_image)
+        fields.push_back(builder.getNamedAttr("dm_partial_rows_per_image",builder.getI64IntegerAttr(stage.partial_rows_per_image)));
+      if(stage.moe.step!=codegen::DmMoeStep::kNone)
+        fields.push_back(builder.getNamedAttr("dm_moe",EncodeDm(builder,stage.moe)));
+      if(stage.kind==PlanTaskKind::kDepthwiseConv || stage.kind==PlanTaskKind::kDwPwFused) {
+        fields.push_back(builder.getNamedAttr("dm_chain",EncodeDm(builder,stage.chain)));
+        auto const& c=plan.convolutions.at(stage.conv);
+        unsigned gates=0;
+        for(unsigned i=0;i<stage.chain.count;++i)
+          gates+=stage.chain.operations[i].kind==codegen::DmEpilogueKind::kGatePair;
+        auto bytes=std::uint64_t((stage.group-1)*c.stride_h+(c.r-1)*c.dilation_h+1)*
+            plan.buffers.at(c.input_layout).layout.physical[2]*stage.width*(gates?2:1)*2;
+        if(stage.kind==PlanTaskKind::kDepthwiseConv)
+          fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(std::max<std::uint64_t>(bytes,4096))));
+      }
+    }
     stages.push_back(builder.getDictionaryAttr(fields));
   }
   for (auto const& output : plan.outputs)
     outputs.push_back(dict(builder, {
         builder.getNamedAttr("buffer", builder.getI64IntegerAttr(output.buffer)),
         builder.getNamedAttr("file", builder.getStringAttr(output.file))}));
-  return dict(builder, {
+  llvm::SmallVector<mlir::NamedAttribute> fields = {
       builder.getNamedAttr("dtype", builder.getStringAttr(plan.dtype)),
       builder.getNamedAttr("norm_epsilon",
                            builder.getF64FloatAttr(plan.norm_epsilon)),
@@ -325,10 +482,42 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
       builder.getNamedAttr("buffers", builder.getArrayAttr(buffers)),
       builder.getNamedAttr("gemms", builder.getArrayAttr(gemms)),
       builder.getNamedAttr("stages", builder.getArrayAttr(stages)),
-      builder.getNamedAttr("outputs", builder.getArrayAttr(outputs))});
+      builder.getNamedAttr("outputs", builder.getArrayAttr(outputs))};
+  if (plan.forward) {
+    fields.push_back(builder.getNamedAttr("forward", builder.getBoolAttr(true)));
+    if (plan.forward_token_axis)
+      fields.push_back(builder.getNamedAttr("forward_token_axis", builder.getBoolAttr(true)));
+  }
+  if(plan.dm) {
+    llvm::SmallVector<mlir::Attribute> convs;
+    for(auto const& conv:plan.convolutions)convs.push_back(EncodeDm(builder,conv));
+    fields.push_back(builder.getNamedAttr("dm",builder.getBoolAttr(true)));
+    if(plan.dm_reduction_mask>=0)fields.push_back(builder.getNamedAttr("dm_reduction_mask",
+        builder.getI64IntegerAttr(plan.dm_reduction_mask)));
+    if(plan.moe_gemv)fields.push_back(builder.getNamedAttr("moe_gemv",builder.getBoolAttr(true)));
+    fields.push_back(builder.getNamedAttr("dm_convolutions",builder.getArrayAttr(convs)));
+    if(!plan.deferred_layernorm_edges.empty()) {
+      llvm::SmallVector<mlir::Attribute> edges;
+      for(auto const& [norm,gemm]:plan.deferred_layernorm_edges)
+        edges.push_back(dict(builder,{
+            builder.getNamedAttr("norm",builder.getStringAttr(norm)),
+            builder.getNamedAttr("gemm",builder.getI64IntegerAttr(gemm))}));
+      fields.push_back(builder.getNamedAttr("dm_deferred_layernorm_edges",builder.getArrayAttr(edges)));
+    }
+    if(plan.memory_reuse!="none") {
+      fields.push_back(builder.getNamedAttr("dm_memory_reuse",builder.getStringAttr(plan.memory_reuse)));
+      fields.push_back(builder.getNamedAttr("dm_memory_arena_bytes",builder.getI64IntegerAttr(plan.memory_arena_bytes)));
+    }
+  }
+  return builder.getDictionaryAttr(fields);
 }
 
 }  // namespace
+
+mlir::DictionaryAttr EncodeModelPlan(mlir::Builder& builder, ModelPlan const& plan,
+                                   std::vector<std::uint8_t> const& written) {
+  return modelPlanAttr(builder,plan,written);
+}
 
 SymbolicShape SymbolicShapeBridge::Parse(
     std::unordered_map<std::string, std::string> const& ranges,
@@ -418,6 +607,39 @@ ExportBridge ReadExportBridge(std::string const& path) {
       for (auto const& scalar : *scalars)
         if (auto number = scalar.getAsNumber()) node.scalars.push_back(*number);
     }
+    if(auto* arguments=object->get("args")) {
+      auto parsed_args=ReadFxArgument(*arguments);
+      if(parsed_args.kind!=FxArgument::Kind::kList)
+        throw std::invalid_argument("node args must be a typed list");
+      node.has_arguments=true;node.args=std::move(parsed_args.items);
+    }
+    if(auto* value=object->get("kwargs")) {
+      auto* kwargs=value->getAsObject();
+      if(!kwargs)throw std::invalid_argument("node kwargs must be an object");
+      for(auto const& item:*kwargs)node.kwargs.emplace(item.first.str(),ReadFxArgument(item.second));
+    }
+    if(auto* value=object->get("constant")) {
+      auto* constant=value->getAsObject();
+      if(!constant)throw std::invalid_argument("node constant must be an object");
+      node.constant=ReadFxConstant(*constant);
+    }
+    if(auto* value=object->get("immutable_buffer_value")) {
+      auto* constant=value->getAsObject();
+      if(!constant || node.op!="placeholder")
+        throw std::invalid_argument("immutable buffer value must describe a placeholder");
+      node.immutable_buffer_value=ReadFxConstant(*constant);
+    }
+    if(auto* shape_constant=object->getObject("shape_constant")) {
+      node.shape_constant_symbols=readStrings(shape_constant->getArray("symbols"));
+      if(auto* fragment=shape_constant->get("fragment"))
+        node.shape_constant_fragment_json=llvm::formatv("{0}",*fragment).str();
+      if(auto* bindings=shape_constant->getObject("bindings"))
+        for(auto const& item:*bindings) {
+          auto integer=item.second.getAsInteger();
+          if(!integer)throw std::invalid_argument("shape binding is not an integer");
+          node.shape_constant_bindings.emplace(item.first.str(),*integer);
+        }
+    }
     node.shape = readStrings(object->getArray("shape"));
     if (auto dtype = object->getString("dtype")) node.dtype = dtype->str();
     if (node.op == "call_function") {
@@ -457,6 +679,35 @@ ExportBridge ReadExportBridge(std::string const& path) {
       bridge.range_texts[item.first.str()] = item.second.getAsString()->str();
   bridge.guards = readStrings(root->getArray("guards"));
   return bridge;
+}
+
+static LiftOptions ForwardDimensionRoles(ExportBridge const& bridge,
+                                         ModelPlan const& plan,
+                                         SymbolicShape const& symbolic) {
+  if (!plan.dm || plan.serving || plan.serving_seq <= 0 || plan.serving_capacity)
+    throw std::invalid_argument("invalid forward plan phase or dimensions");
+  LiftOptions roles;
+  roles.forward = true;
+  roles.serving = !plan.forward_token_axis;
+  roles.static_seq = plan.serving_seq;
+  roles.seq_symbol = std::to_string(plan.serving_seq);
+  roles.past_symbol.clear();
+  std::string row_axis;
+  for (auto const& input : bridge.inputs) {
+    if (input.kind != "USER_INPUT") continue;
+    auto found = std::find_if(bridge.nodes.begin(), bridge.nodes.end(),
+        [&](FxNodeRecord const& node) { return node.name == input.name; });
+    if (found == bridge.nodes.end() || found->shape.empty())
+      throw std::invalid_argument("forward input has no row axis");
+    if (!row_axis.empty() && row_axis != found->shape[0])
+      throw std::invalid_argument("forward input row axes disagree");
+    row_axis = found->shape[0];
+  }
+  if (!symbolic.ranges.count(row_axis))
+    throw std::invalid_argument("forward input row axis must be symbolic");
+  if (plan.forward_token_axis) roles.seq_symbol = row_axis;
+  else roles.batch_symbol = row_axis;
+  return roles;
 }
 
 static LiftOptions ServingDimensionRoles(ExportBridge const& bridge,
@@ -523,7 +774,8 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   std::vector<std::string>& signatureOutputs = bridge.outputs;
   // Degradation, not refusal: the operators no rule covers are reported and
   // each becomes one conservative task space.
-  if (!bridge.unsupported.empty())
+  bool selected_dm=selected_plan && selected_plan->dm && !selected_plan->stages.empty();
+  if (!selected_dm && !bridge.unsupported.empty())
     llvm::errs() << "IMPORT_DEGRADED " << llvm::join(bridge.unsupported, ", ")
                  << "\n";
 
@@ -543,6 +795,8 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   std::vector<std::string> const& guards = bridge.guards;
   SymbolicShape symbolic = prepared ? prepared->symbolic : SymbolicShapeBridge{}.Parse(rangeTexts, guards, userShapes);
   ModelPlan plan = selected_plan ? *selected_plan : BuildModelPlan(allNodes, signatureInputs, signatureOutputs);
+  std::optional<analysis::ScopedExactAnalysisMemo> dmMemo;
+  if(plan.dm && !analysis::active_exact_memo)dmMemo.emplace();
   if (options.separate_residual_tasks) {
     if (!options.attention.empty())
       throw std::invalid_argument("separate residual stages require attention indices from the expanded plan");
@@ -608,14 +862,16 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   module->setAttr("tilemega.activation_tile_per_block",
                   builder.getBoolAttr(options.activation_tile_per_block));
   module->setAttr("tilemega.combiner_tile_per_block",
-                  builder.getBoolAttr(options.combiner_tile_per_block));
+                  builder.getBoolAttr(options.combiner_tile_per_block || plan.dm));
   module->setAttr("tilemega.guard_count", builder.getI64IntegerAttr(guards.size()));
   if (plan.stages.empty())
     llvm::errs() << "IMPORT_DEGRADED no decoder layer; one task space per operator\n";
   builder.setInsertionPointToStart(module.getBody());
 
   LiftOptions liftOptions;
-  if (plan.serving) {
+  if (plan.forward) {
+    liftOptions = ForwardDimensionRoles(bridge, plan, symbolic);
+  } else if (plan.serving) {
     liftOptions = ServingDimensionRoles(bridge, plan, symbolic);
   } else {
     if (!symbolic.dimensions.empty())
@@ -631,7 +887,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   llvm::SmallVector<mlir::NamedAttribute> dimension_roles = {
       builder.getNamedAttr("seq", builder.getStringAttr(liftOptions.seq_symbol)),
       builder.getNamedAttr("past", builder.getStringAttr(liftOptions.past_symbol))};
-  if (plan.serving)
+  if (plan.serving || (plan.forward && !plan.forward_token_axis))
     dimension_roles.push_back(builder.getNamedAttr(
         "batch", builder.getStringAttr(liftOptions.batch_symbol)));
   module->setAttr("tilemega.dimension_roles",
@@ -641,14 +897,31 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
                            : LiftSemantics(plan, liftOptions);
   // The plan attribute is written after lifting because the read-only
   // frontier it carries is the lifting replay's own write relation.
+  MaterializeDnnStorage(plan,runtimeGemms,options.phase_batch);
+  if(plan.dm) {
+    for(unsigned index=0;index<plan.gemms.size();++index) {
+      auto const& gemm=plan.gemms[index];
+      if(gemm.access.write.kind!=codegen::DmWriteKind::kRowScatter)continue;
+      auto stage=std::find_if(plan.stages.begin(),plan.stages.end(),[&](auto const& s) {
+        return s.kind==PlanTaskKind::kGemm && s.gemm==index;
+      });
+      if(stage==plan.stages.end() || stage->binding_producer==codegen::kDmNoIndex)
+        throw std::invalid_argument("MoE scatter has no dispatch stage");
+      unsigned router=plan.stages.at(stage->binding_producer).moe.router_gemm;
+      MaterializeMoeRegionStorage(plan,runtimeGemms.at(router).tile_n,
+                                 runtimeGemms.at(index).tile_n,router);
+    }
+  }
   if (!plan.stages.empty())
     module->setAttr("tilemega.model_plan",
                     modelPlanAttr(builder, plan, lifted.written));
-  if (plan.serving)
-    module->setAttr("tilemega.serving", dict(builder, {
+  if (plan.serving || plan.forward) {
+    llvm::SmallVector<mlir::NamedAttribute> runtime = {
         builder.getNamedAttr("seq", builder.getI64IntegerAttr(plan.serving_seq)),
-        builder.getNamedAttr("capacity", builder.getI64IntegerAttr(
-            plan.serving_capacity))}));
+        builder.getNamedAttr("capacity", builder.getI64IntegerAttr(plan.serving_capacity))};
+    if (plan.forward) runtime.push_back(builder.getNamedAttr("phase", builder.getI64IntegerAttr(2)));
+    module->setAttr("tilemega.serving", builder.getDictionaryAttr(runtime));
+  }
   if (options.rope_tile_per_block)
     for (auto& op : lifted.ops)
       if (op.role == OpRole::kRoPE)
@@ -685,6 +958,28 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   // The one place a workload minimum is still needed: an event tensor is a
   // real allocation, so its shape is resolved at the smallest instantiation
   // and any axis that is not constant there is emitted dynamic.
+  analysis::ParamBinding taskBinding = known;
+  for (auto const& [name, value] : options.task_binding.values) taskBinding.Bind(name, value);
+  bool const exactTasks = std::any_of(lifted.sem.ops.begin(), lifted.sem.ops.end(),
+      [](auto const& op) { return op.exact_task_access; });
+  if (exactTasks && (plan.forward || plan.dm)) {
+    if (plan.forward_token_axis && symbolic.ranges.count(liftOptions.seq_symbol))
+      taskBinding.Bind(liftOptions.seq_symbol, plan.serving_seq);
+    if (options.phase_batch > 0 && !liftOptions.batch_symbol.empty())
+      taskBinding.Bind(liftOptions.batch_symbol, options.phase_batch);
+  }
+  if (exactTasks) {
+    auto values = llvm::SmallVector<mlir::NamedAttribute>(theta);
+    for (auto const& [name, value] : taskBinding.values) {
+      if (auto range = symbolic.ranges.find(name); range != symbolic.ranges.end()) {
+        if (value < range->second.minimum || value > range->second.maximum)
+          throw std::invalid_argument("DM task shape binding is outside the export domain");
+        for (auto& attr : values) if (attr.getName().strref() == name)
+          attr = builder.getNamedAttr(name, builder.getI64IntegerAttr(value));
+      }
+    }
+    module->setAttr("tilemega.theta", builder.getDictionaryAttr(values));
+  }
   analysis::ParamBinding floorBinding = known;
   for (auto const& symbol : symbolic.dimensions)
     floorBinding.Bind(symbol, symbolic.ranges.at(symbol).minimum);
@@ -721,7 +1016,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     // it at element granularity -- exact, and finer than what one CTA runs --
     // and this field is what tells Codegen the composition is still owed.
     OwnershipKind ownership = llvm::StringRef(node.name).ends_with(".combine")
-        ? (options.combiner_tile_per_block ? OwnershipKind::kTilePerBlock
+        ? ((options.combiner_tile_per_block || (plan.dm && node.element_access)) ? OwnershipKind::kTilePerBlock
                                            : OwnershipKind::kElementChunk)
         : origin.ownership;
     tiles.push_back(builder.getNamedAttr(
@@ -730,6 +1025,14 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     state.addAttribute(mlir::SymbolTable::getSymbolAttrName(), builder.getStringAttr(symbol));
     state.addAttribute("kind", dialect::TaskKindAttr::get(
         &context, builder.getStringAttr(taskKindOf(origin.role))));
+    if(node.element_access && node.element_access->partition.reduction_index) {
+      auto const& partition=node.element_access->partition;
+      tiles.push_back(builder.getNamedAttr("reduction_index",builder.getStringAttr(
+          analysis::EncodeTaskReductionIndex(*partition.reduction_index))));
+      if(!partition.reduction_chunk.IsLiteral(0))
+        tiles.push_back(builder.getNamedAttr("reduction_chunk",builder.getStringAttr(
+            partition.reduction_chunk.ToString())));
+    }
     state.addAttribute("granularity", builder.getDictionaryAttr(tiles));
     llvm::SmallVector<std::string> extents;
     for (auto const& axis : node.output.axes) extents.push_back(axis.extent.ToString());
@@ -747,14 +1050,29 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
 #endif
       std::string arithmetic = semantic->arithmetic;
       if (llvm::StringRef(node.name).ends_with(".combine"))
-        arithmetic = semantic->reduction.reduction_operator == "add" ? "sum" : "";
+        arithmetic = plan.dm && node.element_access?node.element_access->semantic.arithmetic:
+            semantic->reduction.reduction_operator == "add" ? "sum" : "";
       if (!arithmetic.empty())
         state.addAttribute("arithmetic", builder.getStringAttr(arithmetic));
+    }
+    if (node.element_access) {
+      llvm::SmallVector<mlir::Attribute> bindings;
+      for (auto const& binding : analysis::VirtualBindings(node.element_access->semantic))
+        bindings.push_back(dict(builder, {
+            builder.getNamedAttr("dimension", builder.getStringAttr(binding.dimension)),
+            builder.getNamedAttr("capacity", builder.getStringAttr(binding.capacity.ToString())),
+            builder.getNamedAttr("binding_source", builder.getStringAttr(binding.source)),
+            builder.getNamedAttr("extent_kind", builder.getStringAttr("runtime_dynamic")),
+            builder.getNamedAttr("runtime_requirement", builder.getStringAttr(binding.requirement))}));
+      if (!bindings.empty()) state.addAttribute("virtual_bindings", builder.getArrayAttr(bindings));
+      if(plan.dm && node.name!=origin.name)
+        state.addAttribute("split_access_semantic",builder.getStringAttr(
+            analysis::EncodeSemanticOp(node.element_access->semantic)));
     }
     // A split introduces two distinct task spaces. Keep their exact access
     // witness separate from the g-independent source semantic used by pricing.
     // Serving handoff selection alone promotes it to a phase semantic.
-    if(plan.serving && (node.name==origin.name+".combine" ||
+    if(plan.serving && !plan.dm && (node.name==origin.name+".combine" ||
         (node.name==origin.name && lifted.sem.Find(origin.name) &&
          node.output.name!=lifted.sem.Find(origin.name)->result.name))) {
       analysis::SemanticOp witness;
@@ -803,12 +1121,33 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   // a placeholder.
   std::vector<analysis::CouplingEdge> derived = [&] {
     solver::SolverPhase phase(timing,"derive");
-    if(!cache)return analysis::CouplingDerivation{}.Derive(graph,known);
+    // A forward variant binds its workload before materializing table waits.
+    // Keep L-sem symbolic, but count the exact relation at that same binding:
+    // symbolic cardinality of convolution's floordiv unions is unnecessary.
+    auto const& analysisKnown=plan.dm && plan.forward && exactTasks?taskBinding:known;
+    if(!cache)return analysis::CouplingDerivation{}.Derive(graph,analysisKnown);
     auto hits=cache->hits,misses=cache->misses;
-    auto result=cache->Derive(lifted.sem,graph,g,known);
+    auto result=cache->Derive(lifted.sem,graph,g,analysisKnown);
     if(timing) { timing->Add("cache_hit",0,cache->hits-hits);timing->Add("cache_miss",0,cache->misses-misses); }
     return result;
   }();
+  std::set<std::size_t> storageEdges;
+
+  if(plan.memory_reuse!="none") {
+    auto memory=solver::PlanBufferReuse(plan,graph,taskBinding,plan.memory_reuse,
+                                      plan.memory_l2_budget_bytes);
+    plan.memory_arena_bytes=memory.arena_bytes;
+    for(auto const& alias:memory.aliases)plan.buffers.at(alias.buffer).arena_offset=alias.offset;
+    for(auto const& hazard:memory.hazards) {
+      storageEdges.insert(derived.size());derived.push_back(hazard.coupling);
+    }
+    module->setAttr("tilemega.model_plan",modelPlanAttr(builder,plan,lifted.written));
+    module->setAttr("tilemega.memory_live_peak_bytes",builder.getI64IntegerAttr(memory.live_peak_bytes));
+    module->setAttr("tilemega.memory_retained_internal_bytes",builder.getI64IntegerAttr(memory.retained_internal_bytes));
+    module->setAttr("tilemega.memory_total_internal_bytes",builder.getI64IntegerAttr(memory.total_internal_bytes));
+    module->setAttr("tilemega.memory_fits_l2_budget",builder.getBoolAttr(memory.fits_l2_budget));
+    module->setAttr("tilemega.memory_hazard_count",builder.getI64IntegerAttr(memory.hazards.size()));
+  }
 
   // A phase analysis changes only the consumer's reduction tile to one K
   // iteration. Its task graph is an analysis witness; the executable graph
@@ -936,6 +1275,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   // both TaskBodies declare `kTilePerBlock`: `kElementChunk` makes the
   // CTA->task map a function of gridDim, so the same id names different tasks
   // on the two sides and no per-CTA narrowing is sound.
+  std::vector<std::optional<analysis::BoundDependencyForm>> boundDependencies(derived.size());
   std::vector<std::string> waitMaps(derived.size(), "all");
   std::size_t symbolicWindows = 0, fallbackWindows = 0;
   {
@@ -947,7 +1287,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     std::vector<bool> owned(derived.size(), false);
     auto owns_tile = [&](std::string const& name) {
       if (llvm::StringRef(name).ends_with(".combine"))
-        return options.combiner_tile_per_block;
+        return options.combiner_tile_per_block || (plan.dm && graph.Find(name)->element_access);
       return liftedOf(name).ownership == OwnershipKind::kTilePerBlock;
     };
     for (std::size_t i = 0; i < derived.size(); ++i)
@@ -958,6 +1298,13 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
       analysis::OperatorNode const* source = graph.Find(derived[i].src.name);
       analysis::OperatorNode const* sink = graph.Find(derived[i].dst.name);
       if (!source || !sink) continue;
+      if (source->element_access || sink->element_access) {
+        auto bound = analysis::BindExactTaskDependency(derived[i], *source, *sink, taskBinding);
+        if (bound.encoding == analysis::BoundDependencyForm::Encoding::kWindow)
+          waitMaps[i] = bound.window.ToString();
+        boundDependencies[i] = std::move(bound);
+        continue;
+      }
       auto taskShape = [](analysis::OperatorNode const& node) {
         std::string key;
         for (std::size_t axis = 0; axis < node.output.axes.size(); ++axis)
@@ -1058,6 +1405,12 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
 
     LiftedOp const& consumer = liftedOf(item.dst.name);
     mlir::OperationState state(builder.getUnknownLoc(), "tmcg.coupling");
+    if(storageEdges.count(edge)) {
+      if(graph.Find(item.src.name+".combine"))
+        state.addAttribute("dependency_producer_main",builder.getBoolAttr(true));
+      if(llvm::StringRef(item.dst.name).ends_with(".combine"))
+        state.addAttribute("dependency_consumer_done",builder.getBoolAttr(true));
+    }
     state.addAttribute(mlir::SymbolTable::getSymbolAttrName(),
                        builder.getStringAttr("c" + std::to_string(edge)));
     state.addAttribute("src", mlir::FlatSymbolRefAttr::get(&context, source->second));
@@ -1067,6 +1420,35 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
             builder.getStringAttr(taskKindOf(consumer.role)))})));
     state.addAttribute("relation", dialect::CouplingMapAttr::get(&context, item.C));
     state.addAttribute("wait_map", builder.getStringAttr(waitMaps[edge]));
+    if (boundDependencies[edge]) {
+      auto p = graph.Find(item.src.name), c = graph.Find(item.dst.name);
+      auto pc = analysis::LinearizeTaskCoordinates(*p, item.C.RangeDimNames(), taskBinding, "_tm_p");
+      auto cc = analysis::LinearizeTaskCoordinates(*c, item.C.DomainDimNames(), taskBinding, "_tm_c");
+      auto geometry_relation=boundDependencies[edge]->table?
+          boundDependencies[edge]->table->linear_relation:boundDependencies[edge]->encoded_relation;
+      state.addAttribute("dependency_geometry", dialect::EncodeBoundTaskGeometry(builder,
+          {geometry_relation, std::uint32_t(p->Count().Eval(taskBinding, {})),
+           std::uint32_t(c->Count().Eval(taskBinding, {}))}, pc, cc, taskBinding));
+      if (boundDependencies[edge]->table)
+        state.addAttribute("dependency_table", dialect::EncodeBoundDependencyTable(builder,
+            *boundDependencies[edge]->table, pc, cc, taskBinding));
+    }
+    if(plan.dm && consumer.stage>=0 &&
+       plan.stages.at(consumer.stage).kind==PlanTaskKind::kMoECombine) {
+      auto const& producer=liftedOf(item.src.name);
+      auto const& stage=plan.stages.at(producer.stage);
+      if(stage.kind==PlanTaskKind::kGemm) {
+        auto const& gemm=plan.gemms.at(stage.gemm);
+        if(gemm.access.write.kind==codegen::DmWriteKind::kRowScatter &&
+            plan.stages.at(consumer.stage).moe.grouped) {
+          auto p=mlir::cast<dialect::TileSpaceOp>(mlir::SymbolTable::lookupSymbolIn(module,source->second));
+          auto c=mlir::cast<dialect::TileSpaceOp>(mlir::SymbolTable::lookupSymbolIn(module,target->second));
+          state.addAttribute("dependency_counted",dialect::EncodeBoundCountedScatter(builder,p,c,
+              plan.buffers.at(gemm.d).name,{0,1},plan.buffers.at(gemm.access.rows).name,taskBinding));
+          state.attributes.erase("dependency_table");
+        }
+      }
+    }
     if(auto found=phaseWindows.find(edge);found!=phaseWindows.end()) {
       state.addAttribute("phase_map",builder.getStringAttr(found->second.first.ToString()));
       state.addAttribute("phase_tiles",builder.getI64IntegerAttr(found->second.second));
@@ -1080,6 +1462,14 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     state.addAttribute("fanout", dialect::MetricAttr::get(&context, item.metrics.fanout));
     state.addAttribute("volume", dialect::MetricAttr::get(&context, item.metrics.volume));
     state.addAttribute("count", dialect::MetricAttr::get(&context, item.metrics.count));
+    if (item.shared_elements) {
+      state.addAttribute("shared_elements", dialect::CouplingMapAttr::get(&context, *item.shared_elements));
+      state.addAttribute("coupled_reads", dialect::CouplingMapAttr::get(&context, *item.coupled_reads));
+      state.addAttribute("interface_elements", dialect::MetricAttr::get(&context, *item.interface_elements));
+      state.addAttribute("consumer_elements", dialect::CouplingMapAttr::get(&context, *item.consumer_elements));
+      state.addAttribute("read_box", dialect::CouplingMapAttr::get(&context, *item.read_box));
+      state.addAttribute("read_box_exactness", builder.getStringAttr("over"));
+    }
     state.addAttribute("tier", dialect::TierAttr::get(
         &context, std::stol(analysis::ToString(item.tier))));
     state.addAttribute("coupling_attrs", dialect::CouplingAttributesAttr::get(
@@ -1118,7 +1508,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     throw std::runtime_error("C++ importer produced an invalid CG module");
   if (summary)
     *summary = {graph.nodes.size(), edge, plan.stages.size(), guards.size(),
-                symbolicWindows, fallbackWindows, bridge.unsupported};
+                symbolicWindows, fallbackWindows, selected_dm?lifted.degraded:bridge.unsupported};
   return mlir::OwningOpRef<mlir::ModuleOp>(module);
 }
 
@@ -1135,7 +1525,9 @@ ImportedSemantics TorchExportImporter::ImportSemantics(std::string const& path,
     shapes.push_back(it->shape);
   }
   result.symbolic=SymbolicShapeBridge{}.Parse(result.bridge.range_texts,result.bridge.guards,shapes);
-  if (plan.serving) {
+  if (plan.forward) {
+    result.lift_options = ForwardDimensionRoles(result.bridge, plan, result.symbolic);
+  } else if (plan.serving) {
     result.lift_options = ServingDimensionRoles(
         result.bridge, plan, result.symbolic);
   } else {

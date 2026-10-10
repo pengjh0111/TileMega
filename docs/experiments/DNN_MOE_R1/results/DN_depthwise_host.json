@@ -1,0 +1,105 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Exact depthwise/SimpleGate/partial read-write relations, owner padding, native counts, resource traits and generated regions; host only",
+  "completion": {
+    "event": "queue_complete",
+    "steps": 15,
+    "passed": true
+  },
+  "binary_sha256": "8b9d92e4f8554d4403fa2e0e6007fedde5d0a54d26b00cc5625e8717363d61a1",
+  "checks": {
+    "depthwise": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-depthwise-stage-host-v5/queue-results/depthwise.log",
+      "sha256": "317eb9a884b59f1a64e1cbf532dcfa58e2b5d5aadd6932e3aaf35d1e7af193e8"
+    },
+    "gated": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-depthwise-stage-host-v5/queue-results/gated.log",
+      "sha256": "9721c9a21de17a7a6bb066d845f33bd81b6d57a19c5423c5107299c15ccd6e82"
+    },
+    "descriptors": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-depthwise-stage-host-v5/queue-results/descriptors.log",
+      "sha256": "96441685fc6d50d5bc0b5935debae9edcbce29b5808140832c61225aec5c9def"
+    },
+    "semantics": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-depthwise-stage-host-v5/queue-results/semantics.log",
+      "sha256": "7d80813a708d705c507f047005d693aa8bd98b898998367f13878d4822dcc017"
+    },
+    "resources": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-depthwise-stage-host-v5/queue-results/resources.log",
+      "sha256": "e21d93aa98cbcf1298b4bd361607e2e32485cd5100782e6219d69628e92969df"
+    },
+    "encoder": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-depthwise-stage-host-v5/queue-results/encoder.log",
+      "sha256": "5ed9b6e1456d264a58139b450c9d3897efa40ac4267461ed669a671ea518a150"
+    },
+    "global": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-depthwise-stage-host-v5/queue-results/global.log",
+      "sha256": "30abaa3ad2b8298bfb8ba72b6f58f9f678632f9bf304a3259d84ecb62384fa0e"
+    },
+    "forward": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-depthwise-stage-host-v5/queue-results/forward.log",
+      "sha256": "b75a8c091fb0be261dfd0598609d3345647a0a89d73772e9bf913a980df70604"
+    },
+    "task_element_work": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-depthwise-stage-host-v5/queue-results/task_element_work.log",
+      "sha256": "6dafd8c9f5157eef6a1d398ac6cefe92e6989c3aff8e58f6b19109c3fbe016f9"
+    },
+    "dm_virtual_gemm_partition": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-depthwise-stage-host-v5/queue-results/dm_virtual_gemm_partition.log",
+      "sha256": "b8b5582c8be04fb1fd898b43814e1276a1d6bf385872e55472fd6fbe0d6b94a7"
+    },
+    "dm_virtual_frontend": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-depthwise-stage-host-v5/queue-results/dm_virtual_frontend.log",
+      "sha256": "d45db97d3b4805b05a37f0a55b0f2743bc4f5c8bbd84f092374ac897718ba5f2"
+    },
+    "conv_reduction_partition": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-depthwise-stage-host-v5/queue-results/conv_reduction_partition.log",
+      "sha256": "532bc47466cc837a15b94b6e35d8e712fc07f336186b23a22fcab0623a4b7c75"
+    },
+    "conv_reduction_cg": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-depthwise-stage-host-v5/queue-results/conv_reduction_cg.log",
+      "sha256": "67ff3c9bd0de946c823bd649770fbd97d2c4970352198cdc9b14eaef2985aa1e"
+    },
+    "semantic_lifting": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-depthwise-stage-host-v5/queue-results/semantic_lifting.log",
+      "sha256": "3ab596addc16ad4e4f9cd6d8e33428cebb9fa382a6343cf8b9003ea4a5ef429e"
+    },
+    "depthwise_pool": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-depthwise-stage-host-v5/queue-results/depthwise_pool.log",
+      "sha256": "6173cff89e3efcd4c0d7df0c3935b1fd5539a401b2e245a79f471353472a463b"
+    }
+  },
+  "failures_retained": [
+    "runs/dm1-depthwise-stage-host-v1",
+    "runs/dm1-depthwise-stage-host-v2",
+    "runs/dm1-depthwise-stage-host-v3",
+    "runs/dm1-depthwise-stage-host-v4"
+  ],
+  "utc": "2026-10-09T17:27:16.314370+00:00",
+  "ownership_padding_unit": {
+    "completion": {
+      "event": "queue_complete",
+      "steps": 1,
+      "passed": true
+    },
+    "binary_sha256": "f9735d3ecdc48d635a49f5f49c87674bb8fba5b32d7a94a0fae0ea04bd601e6e",
+    "log": "/root/dm1_work/development/runs/dm1-ownership-padding-host-v1/queue-results/padding.log",
+    "log_sha256": "ba3076d39e9aa735f06216d876c7e87a2d61b9f98860ac377a0b8eb195d80645"
+  }
+}

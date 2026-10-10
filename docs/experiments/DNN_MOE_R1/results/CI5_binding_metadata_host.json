@@ -1,0 +1,44 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "checks": [
+    "bound_dependency_codegen",
+    "dm_page_layout",
+    "moe_binding",
+    "plan_contract",
+    "forward_frontend",
+    "dm_descriptor"
+  ],
+  "pass_rate": "6/6",
+  "implementation_commit": "bc554c86eaad100eb1c0d6b0db510e903eed6cda",
+  "inputs": {
+    "include/tilemega/Codegen/DmDescriptors.h": "e4ceb9b768c75e1dcf8121c7f9d29b0f28fba1caffcc9b71cd4bfbb372778628",
+    "include/tilemega/Codegen/tasks/ModelRuntime.h": "ec2872fcc295e1174828ff9ffb9880e5ba490a74ee334a33ab08bd9ea29b1334",
+    "include/tilemega/Frontend/ModelPlan.h": "a60df0e8294671d87a62dbd065108a27f2025108c42d63884495fdadca6a9124",
+    "lib/Frontend/DmDescriptorCodec.cpp": "a0c2328c38e914b182b430d67dfa9dc1db66857129932d19e76da63072ec7d0c",
+    "lib/Frontend/Frontend.cpp": "d63355a3d3f28da7c38f189ca7395d012fbfa13eaaf835a6e0d485a9df7eda4c",
+    "lib/Codegen/Codegen.cpp": "627bab8110ed9b26a10982b5984996d0bb3ef57009b0fe760af046eb85fc9c2f",
+    "test/unit/dm_descriptor_test.cpp": "edf8aae98360707060eec59eaefd5fd5a27d076ab1ff4006422c08703b4f2546"
+  },
+  "unit_sha256": "405d5caa25e3a5b332ad23e4d52417ab54e8fbc98b5748f5e31b9a18cc4632fe",
+  "compiler_sha256": "be2af7f1354b6c3bb5fad133039933fd522ad54ae34feb8b3b6bdd970f82c485",
+  "compiler_identity": {
+    "source_sha256": "98ea698f9e208feed87d07e534df095816d67e92a4cd05f1ba5208bfc4e1f735",
+    "supported_arches": [
+      "sm_80",
+      "sm_89",
+      "sm_90",
+      "sm_100",
+      "sm_120"
+    ],
+    "nvcc": "/usr/local/cuda/bin/nvcc",
+    "cuda_library_dir": "/usr/local/cuda/lib64"
+  },
+  "logs": {
+    "/root/dm1_work/development/runs/dm1-ci5-pagestream-host-final/scheduler/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/root/dm1_work/development/runs/dm1-ci5-pagestream-host-final/scheduler/build_pagestream.log": "e44c98bc7d426fcbcb60447c9d7e2d3b29edb50d22da6f208d4650445ff80bb0",
+    "/root/dm1_work/development/runs/dm1-ci5-pagestream-host-final/scheduler/ctest_pagestream.log": "a1bd040bec521f41ec158ede69eda028f5676be11b623b31140e1a9955595f14"
+  },
+  "queue_sha256": "f9eb755bdb42b6022cd6f8318d1105f3bc29235a4f74001be6e40e1bd15f25ac",
+  "scope": "Host codecs preserve fourteen-word default access records; eighteen-word binding capacities round-trip, invalid capacities/self/OOB/dense-only provenance are rejected. check-policy passed. Device PageStream/runtime gates are separate checks."
+}

@@ -1,0 +1,1264 @@
+{
+  "evidence": "verified",
+  "scope": "Explicit LayerNorm, BF16 embedding sum and NCHW to NHWC layout conversion with immutable halo; standalone primitives, not an exported-model gate",
+  "passed": true,
+  "completion": {
+    "event": "queue_complete",
+    "steps": 57,
+    "passed": true
+  },
+  "preparation_sha256": "275a4375b559a5cf5112c3719b46739163b79c1ee227885a8b35f93e8cd13e03",
+  "check_processes": 50,
+  "fresh_processes_per_canonical_layout": {
+    "primitives": 50
+  },
+  "pass_rate": "50/50",
+  "sanitizers": [
+    {
+      "path": "/root/dm1_work/development/runs/dm1-norm-embedding-layout-v1/events/memcheck.log",
+      "sha256": "4f5de10cf0d14e59d05b2792663518fc3c54c84b9d37966ceb9eb068336ce566",
+      "result": "ATTEMPT 1 1791544101.4801717\n========= COMPUTE-SANITIZER\nNORM_EMBEDDING_LAYOUT cases=216 FP32_LN_BF16_add_order_stats_halo_canaries PASS\n========= ERROR SUMMARY: 0 errors"
+    },
+    {
+      "path": "/root/dm1_work/development/runs/dm1-norm-embedding-layout-v1/events/racecheck.log",
+      "sha256": "eaef757b784dbf649063ce934d42b6e464cd974740c0da968925f80a11491d70",
+      "result": "ATTEMPT 1 1791544176.9203415\n========= COMPUTE-SANITIZER\nNORM_EMBEDDING_LAYOUT cases=216 FP32_LN_BF16_add_order_stats_halo_canaries PASS\n========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)"
+    }
+  ],
+  "artifacts": [
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-norm-embedding-layout-v1/m16-n16-k16-s3-tiled0-sm_100.identity.json",
+      "sha256": "2a64c59ee5f124d33a799342fc8788750ecf2f2f0cf7afd16f4b9830a63df386",
+      "artifact_id": "e99ee376ccc3da0dce37ea47b5f18ce8bfe0f15a390781fbf3e97580afc61043",
+      "target_arch": "sm_100",
+      "resources": {
+        "_Z9EmbeddingILi1024EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 30,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 30 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi1024EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 94,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 94 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi768EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 32,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 32 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi768EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 64,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi512EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 32,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 32 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi512EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 62,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 62 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi256EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 32,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 32 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi256EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 64,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi128EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 28,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 28 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi128EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 56,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi64EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 28,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 28 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi64EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 44,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 44 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi33EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 28,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 28 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi33EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 38,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 38 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi32EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 28,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 28 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi32EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 38,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 38 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z7ConvertN8tilemega7codegen21LayoutConvertOperandsE": {
+          "registers": 30,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 30 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-norm-embedding-layout-v1/m16-n16-k16-s3-tiled0-sm_120.identity.json",
+      "sha256": "f7118c7d1ac7e67544cf71585e711beb87ad77150755d026562c60dc251cefc9",
+      "artifact_id": "0e4592a2a4e8210b2a73375ab09b76a69c042b99d84f582570ad79b4f49ef49b",
+      "target_arch": "sm_120",
+      "resources": {
+        "_Z9EmbeddingILi1024EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 34,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 34 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi1024EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 96,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi768EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 36,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 36 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi768EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 70,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 70 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi512EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 36,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 36 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi512EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 66,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 66 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi256EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 36,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 36 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi256EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 74,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 74 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi128EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 32,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 32 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi128EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 64,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi64EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 32,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 32 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi64EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 62,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 62 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi33EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 32,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 32 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi33EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 52,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 52 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi32EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 32,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 32 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi32EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 38,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 38 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z7ConvertN8tilemega7codegen21LayoutConvertOperandsE": {
+          "registers": 38,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 38 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-norm-embedding-layout-v1/m16-n16-k16-s3-tiled0-sm_80.identity.json",
+      "sha256": "d2d40f7eddf16c45bc1a37b384e38c0d3f38cfe5ab15f14e19b933cb951bb22e",
+      "artifact_id": "55e31b0508c2067be0fbd5863178bb6a214929b9a6ebb2b0dedaf61a174de832",
+      "target_arch": "sm_80",
+      "resources": {
+        "_Z9EmbeddingILi1024EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem, 432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi1024EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 62,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 62 registers, used 0 barriers, 600 bytes cmem[0], 56 bytes cmem[2]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi768EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem, 432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi768EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 54,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 54 registers, used 0 barriers, 600 bytes cmem[0], 56 bytes cmem[2]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi512EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem, 432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi512EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 48,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 48 registers, used 0 barriers, 600 bytes cmem[0], 56 bytes cmem[2]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi256EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem, 432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi256EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 0 barriers, 600 bytes cmem[0], 56 bytes cmem[2]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi128EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem, 432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi128EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 80,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 80 registers, used 0 barriers, 600 bytes cmem[0], 56 bytes cmem[2]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi64EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem, 432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi64EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 0 barriers, 600 bytes cmem[0], 56 bytes cmem[2]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi33EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem, 432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi33EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 38,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 38 registers, used 0 barriers, 600 bytes cmem[0], 56 bytes cmem[2]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi32EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem, 432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi32EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 38,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 38 registers, used 0 barriers, 600 bytes cmem[0], 56 bytes cmem[2]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z7ConvertN8tilemega7codegen21LayoutConvertOperandsE": {
+          "registers": 24,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 24 registers, used 0 barriers, 464 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-norm-embedding-layout-v1/m16-n16-k16-s3-tiled0-sm_89.identity.json",
+      "sha256": "b6f8c14a18b5e36cfd195927195982103896751dac7acd367611607e6338fd89",
+      "artifact_id": "46c15cea3cbdebf3d2c58de59fbc648f271a55c5bb8b5919e08e2b1cc10b9885",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z9EmbeddingILi1024EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem, 432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi1024EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 64,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 0 barriers, 600 bytes cmem[0], 56 bytes cmem[2]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi768EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem, 432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi768EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 56,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 0 barriers, 600 bytes cmem[0], 56 bytes cmem[2]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi512EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem, 432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi512EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 52,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 52 registers, used 0 barriers, 600 bytes cmem[0], 56 bytes cmem[2]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi256EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem, 432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi256EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 44,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 44 registers, used 0 barriers, 600 bytes cmem[0], 56 bytes cmem[2]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi128EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem, 432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi128EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 82,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 82 registers, used 0 barriers, 600 bytes cmem[0], 56 bytes cmem[2]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi64EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem, 432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi64EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 38,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 38 registers, used 0 barriers, 600 bytes cmem[0], 56 bytes cmem[2]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi33EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem, 432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi33EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 38,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 38 registers, used 0 barriers, 600 bytes cmem[0], 56 bytes cmem[2]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi32EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem, 432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi32EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 0 barriers, 600 bytes cmem[0], 56 bytes cmem[2]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z7ConvertN8tilemega7codegen21LayoutConvertOperandsE": {
+          "registers": 24,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 24 registers, used 0 barriers, 464 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-norm-embedding-layout-v1/m16-n16-k16-s3-tiled0-sm_90.identity.json",
+      "sha256": "bfc64bbe408439194972f8f6a8dfb644b6b4c19ef95ee487a7f28c06f0cbff74",
+      "artifact_id": "27456df55e6941b8ddafc0fe3452af7baa55fa5fac950e73543cf2ed69f69842",
+      "target_arch": "sm_90",
+      "resources": {
+        "_Z9EmbeddingILi1024EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi1024EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 62,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 62 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi768EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 32,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 32 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi768EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 54,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 54 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi512EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi512EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 48,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 48 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi256EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi256EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi128EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi128EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 42,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 42 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi64EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi64EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi33EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 32,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 32 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi33EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z9EmbeddingILi32EEvN8tilemega7codegen20EmbeddingSumOperandsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 32 bytes smem"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 32
+        },
+        "_Z4NormILi32EEvN8tilemega7codegen17LayerNormOperandsE": {
+          "registers": 38,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 38 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        },
+        "_Z7ConvertN8tilemega7codegen21LayoutConvertOperandsE": {
+          "registers": 28,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 28 registers, used 0 barriers"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 0,
+          "total_shared_bytes": 0
+        }
+      }
+    }
+  ],
+  "artifact_spill_count": 0,
+  "artifact_stack_count": 0,
+  "sample_check_output": "ATTEMPT 1 1791544178.9507844\nNORM_EMBEDDING_LAYOUT cases=216 FP32_LN_BF16_add_order_stats_halo_canaries PASS",
+  "utc": "2026-10-09T11:37:08.498342+00:00"
+}

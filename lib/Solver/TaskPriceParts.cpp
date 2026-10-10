@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Solver/DmGemvPricing.h>
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -8,6 +9,30 @@ double IsolatedNs(TaskPriceParts const& p,double fair_rate) {
   if(!(fair_rate>0) || !std::isfinite(fair_rate))throw std::invalid_argument("invalid fair DRAM rate");
   return p.fixed_ns+std::max(p.compute_ns,p.dram_bytes/fair_rate);
 }
+double CostModel::PrivateComputeNs(DerivedTaskInput const& input,
+    analysis::ParamBinding const& theta,analysis::ParamBinding const& point,double o) const {
+  if(!options_.resource_lanes)return 0;
+  auto value=[&](auto const& quantity) {return double(quantity.BindCoordinates(point).Eval(theta));};
+  double result=0;
+  for(auto const& phase:input.compute_prologue) {
+    auto const& a=phase.arithmetic;double outputs=value(phase.output_elements);
+    auto flops=outputs*value(a.flops_per_output_element.numerator)/a.flops_per_output_element.denominator;
+    auto transc=outputs*value(a.transcendental_per_output_element.numerator)/a.transcendental_per_output_element.denominator;
+    auto lane=a.flops_use_mma?ResourceVector::kTensorCore:ResourceVector::kCudaCore;
+    auto rate=a.flops_use_mma?tc_flops_per_ns_per_sm_:cuda_flops_per_ns_per_sm_;
+    double compute=0,sfu=0;
+    if(flops && lanes_[lane]==LaneStatus::kLive && !options_.disabled_lanes[lane]) {
+      if(!(rate>0))throw std::runtime_error("private arithmetic rate: not_calibrated");
+      compute=o*flops/rate;
+    }
+    if(transc && lanes_[ResourceVector::kSfu]==LaneStatus::kLive && !options_.disabled_lanes[ResourceVector::kSfu]) {
+      if(!(sfu_ops_per_ns_per_sm_>0))throw std::runtime_error("private SFU rate: not_calibrated");
+      sfu=o*transc/sfu_ops_per_ns_per_sm_;
+    }
+    result+=std::max(compute,sfu);
+  }
+  return result;
+}
 TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits const& traits,
     Residency residency,ModelDescription const& model,int chunks,
     analysis::ParamBinding const& point,double o,TaskMemoryTraffic const* memory) const {
@@ -15,6 +40,10 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
     throw std::invalid_argument("PriceParts requires the BF16 regime-A path");
   if(!(o>=1 && o<=residency.ctas_per_sm))throw std::invalid_argument("invalid price occupancy");
   auto theta=model.MetricBindings();auto eval=[&](auto const& q){return double(q.BindCoordinates(point).Eval(theta));};
+  auto arithmetic=[&](analysis::ArithmeticRatio const& value) {
+    return model.dm && input.task.element_access
+        ? eval(value.numerator)/value.denominator : value.Eval(theta);
+  };
   auto domain=traits.stages<=0 || options_.physical_traffic?analysis::AccessDomain::kPhysicalTensor:analysis::AccessDomain::kNominalTile;
   auto traffic=memory?*memory:DeriveTaskMemoryTraffic(input,theta,point,2,options_.fp32_partials && chunks>1 && traits.stages>0?4:2,domain);
   double stream=input.no_producer_read_bytes?input.stream_bytes:model.LiveFootprintBytes();
@@ -35,13 +64,37 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
   auto const& fit=calib_->task_body;
   double serving_flops=0;
   double serving_body_bytes=-1;
-  if(traits.stages<=0) {
+  bool gemv=UsesDmGemv(input,traits,theta,point);
+  if(gemv) {
+    double outputs=eval(input.work.write_elements);
+    double flops=arithmetic(input.arithmetic.flops_per_output_element)*outputs;
+    double transc=arithmetic(input.arithmetic.transcendental_per_output_element)*outputs;
+    serving_flops=flops;
+    int pages=0;
+    if(options_.paged) {
+      double iterations=eval(input.work.nominal_task_reduce_extent)/traits.tile_k;
+      int per_page=options_.paged_page_bytes/(2*traits.tile_n*traits.tile_k);
+      if(per_page<1)throw std::invalid_argument("GEMV page cannot hold a weight tile");
+      pages=int(std::ceil(iterations/per_page));
+    }
+    // Two materialization barriers plus one page-reader release per page.
+    // The scalar lane charges five warp reduction additions per output;
+    // no MMA fit or padded-M arithmetic is substituted for the dot product.
+    int barriers=2+pages;
+    double stores=traffic.global_write_bytes;
+    double bytes=traffic.global_read_bytes+stores;
+    double structural=calib_->l2_latency_ns+barriers*calib_->syncthreads_ns+stores/l2_bytes_per_ns_per_sm_;
+    result.fixed_ns=structural;
+    result.compute_ns=ScalarInstanceNs(bytes,stores,flops+5*outputs,transc,o,0,
+        false,1,barriers,4.*traits.tile_m*traits.tile_n+4*outputs)-structural;
+  } else if(traits.stages<=0) {
     if(!input.scalar_flow)throw std::invalid_argument("scalar flow not supplied");
     auto [depth,barriers]=input.scalar_flow->MemoryDepthAndBarriers(traits.threads);
-    double writes=traffic.global_write_bytes/2,bytes=traffic.global_read_bytes+traffic.global_write_bytes;
-    double flops=(input.arithmetic.flops_per_output_element.Eval(theta)+input.scalar_flow->extra_flops_per_output)*writes;
+    double writes=model.dm && input.task.element_access?eval(input.work.write_elements):traffic.global_write_bytes/2;
+    double bytes=traffic.global_read_bytes+traffic.global_write_bytes;
+    double flops=(arithmetic(input.arithmetic.flops_per_output_element)+input.scalar_flow->extra_flops_per_output)*writes;
     serving_flops=flops;
-    double transc=input.arithmetic.transcendental_per_output_element.Eval(theta)*writes;
+    double transc=arithmetic(input.arithmetic.transcendental_per_output_element)*writes;
     double structural=depth*calib_->l2_latency_ns+barriers*calib_->syncthreads_ns+traffic.global_write_bytes/l2_bytes_per_ns_per_sm_;
     result.fixed_ns=(fit.samples>0?fit.scalar_fixed_ns:0)+structural;
     // A fused attention task has a scalar control flow but executes its QK/PV
@@ -61,14 +114,14 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
         : eval(input.work.nominal_task_reduce_extent)/traits.tile_k;
     if(!(iters>0))throw std::invalid_argument("invalid reduction iterations");
     double reads=eval(input.work.nominal_read_elements)/iters,writes=eval(input.work.nominal_write_elements);
-    serving_flops=input.arithmetic.flops_per_output_element.Eval(theta)*writes;
+    serving_flops=arithmetic(input.arithmetic.flops_per_output_element)*writes;
     double nominal_bytes=2*reads,bytes=traffic.global_read_bytes/iters;
     ResourceVector u;u.smem=o*nominal_bytes*fit_.lds_ns;
     if(options_.resource_lanes) {
-      double flops=input.arithmetic.flops_per_output_element.Eval(theta)*writes/iters;
+      double flops=arithmetic(input.arithmetic.flops_per_output_element)*writes/iters;
       if(input.arithmetic.flops_use_mma)u.tensor_core=o*flops/tc_flops_per_ns_per_sm_;
       else u.cuda_core=o*flops/cuda_flops_per_ns_per_sm_;
-      u.sfu=o*input.arithmetic.transcendental_per_output_element.Eval(theta)*writes/iters/sfu_ops_per_ns_per_sm_;
+      u.sfu=o*arithmetic(input.arithmetic.transcendental_per_output_element)*writes/iters/sfu_ops_per_ns_per_sm_;
       u.l2=o*bytes/l2_bytes_per_ns_per_sm_;
     }
     for(int i=0;i<ResourceVector::kLaneCount;++i) {
@@ -141,7 +194,7 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
   }
   if(!input.serving_body_kind.empty() &&
      !(input.serving_attention && result.compute_ns==0 && result.dram_bytes==0)) {
-    auto calibrated=fit.serving.find(input.serving_body_kind);
+    auto calibrated=fit.serving.find((gemv?"gemv_":"")+input.serving_body_kind);
     if(calibrated!=fit.serving.end()) {
       auto const& body=calibrated->second;
       double bytes=serving_body_bytes>=0?serving_body_bytes:
@@ -153,7 +206,7 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
   }
   bool paged_fit_found=false;
   if(options_.paged && !input.serving_body_kind.empty()) {
-    std::string key=input.serving_body_kind;
+    std::string key=(gemv?"gemv_":"")+input.serving_body_kind;
     if(traits.stages>0)key+="_n"+std::to_string(traits.tile_n)+
         "_k"+std::to_string(traits.tile_k);
     else if(input.serving_attention)
@@ -180,6 +233,7 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
       result.compute_ns=std::max(0.0,iters*measured->second.iter_ns);
     }
   }
+  result.compute_ns+=PrivateComputeNs(input,theta,point,o);
   result.dram_rate_cap=std::min(l2_bytes_per_ns_per_sm_,result.compute_ns>0?result.dram_bytes/result.compute_ns:l2_bytes_per_ns_per_sm_);
   if(options_.paged && paged_fit_found &&
      fit.serving_paged_loader_gbps_per_sm>0)

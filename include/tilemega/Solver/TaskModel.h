@@ -7,12 +7,15 @@
 #include <tilemega/Analysis/DramFloor.h>
 #include <tilemega/Codegen/tasks/ScalarDataflow.h>
 
+namespace tilemega::analysis { struct Granularity; }
 namespace tilemega::solver {
 #ifndef TILEMEGA_SCALAR_TASK_WORK
 #define TILEMEGA_SCALAR_TASK_WORK 1
 #endif
 analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
                                             std::vector<GemmConfig> const& configs);
+analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
+    std::vector<GemmConfig> const& configs,analysis::Granularity* granularity);
 std::vector<ModelCouplingMetrics> InstantiateModelCouplings(
     ModelDescription const& model,std::vector<GemmConfig> const& configs,
     std::optional<std::pair<int,int>> stage_pair=std::nullopt);
@@ -51,13 +54,23 @@ struct DerivedTaskInput {
   std::optional<ServingAttention> serving_attention;
   // BF16 serving microbenchmark fit key; empty outside serving plans.
   std::string serving_body_kind;
+  bool serving_gemv=false;
   /// The operand the kind's body prefetches (`ScalarPrefetchOperand`) when it
   /// is on the read-only frontier, else -1.  Runtime-ownership tasks only.
   int prefetch_operand=-1;
+  // Typed main and side stores can have different physical byte widths.
+  std::optional<analysis::QuasiPolynomial> physical_write_bytes;
+  std::vector<analysis::MixedArithmeticPhase> compute_prologue;
 };
 void BindTaskDramProvenance(DerivedTaskInput& input,
     ModelTaskSemantics const& semantic,analysis::DramFloor const& floor,
-    analysis::ParamBinding const& theta,bool serving=false);
+    analysis::ParamBinding const& theta,bool serving=false,
+    ModelDescription const* storage_model=nullptr);
+// Condition physical requests on one observed binding row count. Static
+// ownership and issued MMA tiles remain those of the capacity plan.
+DerivedTaskInput RestrictVirtualTaskRows(DerivedTaskInput const& input,
+    std::uint32_t live_rows,BackendTraits const& traits,
+    analysis::ParamBinding const& theta={});
 /// What `PriceTaskInstances` credits to §5.3.1's Prefetch, per instance: the
 /// prefetch operand priced as a local read (the model's own fused-input
 /// semantics) subtracted from the task priced reading it from global, and only

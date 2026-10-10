@@ -1,0 +1,65 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Host dependency encoding; no device synchronization or performance claim",
+  "relations": 122,
+  "producer_and_consumer_counts": "1..5, at least one endpoint count equals 1",
+  "coverage": "All edge subsets for every selected endpoint count; both inclusion proofs and exact full-matrix window checks",
+  "assertions_enabled": true,
+  "expectations_changed": false,
+  "source": {
+    "head": "40fa884ba59ae5cdf20ef3d6e81e90c21f42b01e",
+    "stage_head": "e50921c893356f482c1c58cc3f90b1f378a3e866",
+    "inputs": {
+      "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v6/driver.cpp": "2be279989c58d3e208a7f937f3836e2405ba58a399b31c1c13e82266963c3f1e",
+      "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v6/dm_exact_fusion_test.cpp": "7c647f71f39d4dcf6ac3239ab4c2e54e239ff1b5cbb5e22898c2d933a05113c7",
+      "/root/dm1_work/integration-stage/test/unit/fusion_written_price_test.cpp": "65177dfc1ccaef2839da91a5137a9dcb9a7b3ef7fb978b85d3390c7198ab85ae",
+      "/root/dm1_work/integration-stage/test/unit/fusion_rewrite_test.cpp": "c74455fca20ab71587a303fa1f35ba0603f24b9e747a9a3f7241771d6e1c7bba",
+      "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v6/overlay/lib/Solver/TaskModel.cpp": "47d6b0018e8dbbc73733520368f1da0baa5fee04ce8d70345bbdde76c91bea94",
+      "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v6/overlay/lib/Solver/FusedTaskInput.cpp": "02131081d5b3b05c0733b0ec3882d0c34629d9d0da3d705ca8e02c03d51e31df",
+      "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v6/overlay/lib/Dialect/CouplingGraph/CGDialect.cpp": "2cc7253a7025b3025b28135d4e5b7c45627c85680f2cac20c6b391b33f37b4f1",
+      "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v6/overlay/lib/Analysis/BoundDependencyForm.cpp": "4b0a5bd495f5b7cbc6b110728078f13263e608a7bf47fa4a5229f6433cb98993",
+      "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v6/overlay/test/unit/bound_dependency_form_test.cpp": "709332a2ae7e7475f9f67e48771b17f7d4d438e43dab6f31bbc772d9197bbde1"
+    },
+    "linked_library_sha256": "c6fac1601948344085e61274d0ba6958530a9f4c9a65bd9b0c2ce32cff39430f",
+    "assertions_enabled": true,
+    "expectations_changed": false,
+    "scope": "Isolated host source overlay; exact mapped fusion plus unchanged legacy fusion tests. No CUDA calls or synchronization claims.",
+    "failed_audits": [
+      {
+        "path": "/root/dm1_work/development/runs/dm1-exact-fusion-overlay/events/01_compile.log",
+        "sha256": "5e74e390839138d498c061866ea540b3cb0f94ed846f1599832f73f8b019358f",
+        "reason": "Include TaskElementRelation.h for the exact task access definition and projection helpers."
+      },
+      {
+        "path": "runs/dm1-exact-fusion-overlay-v2/events/01_compile.log",
+        "sha256": "6cb206be9183f6a0f871f0bbb4a6e2144d4c9706a8775743fe61ad3f4e16832f",
+        "reason": "Include mlir/IR/Builders.h in the new test fixture."
+      },
+      {
+        "path": "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v3/events/01_compile.log",
+        "sha256": "6a6613c06314231d872587ad9ec1b4a296e19e40969e60d0e8f0d02afb0573c1",
+        "reason": "Match the native MLIR dialect build with -fno-rtti."
+      },
+      {
+        "path": "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v4/events/02_check.log",
+        "sha256": "073d53dd5a57f507658a451a43ff8205aeae968714cb545155e3a73b24f27031",
+        "reason": "A one-task linear runtime ID was elided by the synthetic OperatorNode. Preserve singleton linear geometry and prove its encoded relation directly."
+      },
+      {
+        "path": "/root/dm1_work/development/runs/dm1-exact-fusion-overlay-v5/events/02_check.log",
+        "sha256": "552ea74a6ae46d29290a9d0e957cc29fa5fadda87111d6f933e24d97ad72eb86",
+        "reason": "Instantiate exact phase arithmetic directly on its task domain, without first summing coordinate-dependent terms in a scalar domain."
+      }
+    ],
+    "library_source": "integration-stage native build 4f21589d5; build completion event received"
+  },
+  "binary_sha256": "dcef1d5a41ff2d65c069cc73ce25ebf57ed3f979c1b318b4cc4bd8cd45aaa0f6",
+  "queue_sha256": "840589bcd8af52478bda428a7313357b4ec6bc9924bc1cfd033c06cc34ee0b84",
+  "step": "02_bound_singletons",
+  "log_sha256": "f9e53a26450c62695f3841d44eabf189ba0926b3658f7f4c61300b59b8eb25f4",
+  "prior_failure": {
+    "path": "runs/dm1-exact-fusion-overlay-v4/events/02_check.log",
+    "sha256": "073d53dd5a57f507658a451a43ff8205aeae968714cb545155e3a73b24f27031"
+  }
+}

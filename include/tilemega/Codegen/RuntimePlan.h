@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Analysis/DependencyForm.h>
+#include <tilemega/Analysis/DependencyTable.h>
+#include <tilemega/Analysis/CountedDependencyForm.h>
 #include <tilemega/Codegen/RuntimeOwnership.h>
 #include <tilemega/Codegen/AttentionPlan.h>
 #include <cstdint>
@@ -12,12 +14,24 @@
 namespace mlir { class ModuleOp; }
 namespace tilemega::codegen {
 
+struct CountedWaitRecord {
+  analysis::CountedDependencyForm contributions;
+  // I2 is used for queue ordering; counters wait for logical contributions.
+  analysis::CouplingRelation conservative_relation;
+  std::uint32_t producers = 0;
+  std::string tensor;
+  std::vector<unsigned> unit_axes;
+};
+
 struct DependencyRecord {
   std::uint32_t producer;
   std::uint32_t consumer;
   analysis::WaitWindow window;
   std::optional<analysis::WaitWindow> phase_window;
   int phase_tiles = 0;
+  std::optional<analysis::DependencyTable> table;
+  std::optional<CountedWaitRecord> counted;
+  bool producer_main = false, consumer_done = false;
 };
 
 struct GemmRuntimeRecord {
@@ -40,6 +54,7 @@ struct RuntimePlan {
   bool resident_only = true;
   std::map<std::string,std::pair<long,long>> parameter_ranges;
   std::map<std::string,std::uint32_t> task_stages;
+  analysis::ParamBinding task_binding;
 };
 
 RuntimePlan ReadRuntimePlan(mlir::ModuleOp module);

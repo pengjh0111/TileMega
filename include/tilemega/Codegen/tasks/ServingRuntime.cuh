@@ -22,11 +22,25 @@
 #ifndef TILEMEGA_SERVING_BATCH_HI
 #define TILEMEGA_SERVING_BATCH_HI TILEMEGA_SERVING_BATCH_LO
 #endif
+#if defined(TILEMEGA_DM_BOUND_BATCH)
+static_assert(TILEMEGA_SERVING_BATCH_LO == TILEMEGA_DM_BOUND_BATCH &&
+              TILEMEGA_SERVING_BATCH_HI == TILEMEGA_DM_BOUND_BATCH,
+              "exact task dependencies bind one batch per plan");
+#endif
 #ifndef TILEMEGA_SERVING_PAST_LO
 #define TILEMEGA_SERVING_PAST_LO 0
 #endif
 #ifndef TILEMEGA_SERVING_PAST_HI
 #define TILEMEGA_SERVING_PAST_HI TILEMEGA_SERVING_PAST_LO
+#endif
+#if defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE == 2
+static_assert(TILEMEGA_SERVING_PAST_LO == 0 && TILEMEGA_SERVING_PAST_HI == 0,
+              "forward plans have no past state");
+static_assert(kModel.dims.capacity == 0, "forward plans have no KV capacity");
+#if defined(TILEMEGA_FORWARD_TOKEN_AXIS) && TILEMEGA_FORWARD_TOKEN_AXIS
+static_assert(TILEMEGA_SERVING_BATCH_LO == 1 && TILEMEGA_SERVING_BATCH_HI == 1,
+              "token-axis forward plans bind batch to one");
+#endif
 #endif
 
 namespace tilemega::codegen::serving {
@@ -60,14 +74,40 @@ struct Plan {
 inline int Count(ModelSpec const& spec, RuntimeVariantDesc const& variant,
                  StageDesc const& stage, ModelDims dims) {
   switch (stage.kind) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    case TaskKind::kLayerNorm:
+    case TaskKind::kEmbeddingSum:
+    case TaskKind::kPool:
+    case TaskKind::kGlobalPoolReduce:
+    case TaskKind::kDepthwiseConv:
+    case TaskKind::kEncoderAttention:
+    case TaskKind::kMoETopK:
+    case TaskKind::kMoECombine:
+    case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,dims);
+#endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    case TaskKind::kDwPwFused:
+#endif
     case TaskKind::kGemm:
     case TaskKind::kGemmCombine: {
       auto const& gemm = spec.gemms[stage.gemm];
       auto const& geometry = variant.gemms[stage.gemm];
       int rows = stage.batch_rows ? dims.batch : dims.tokens();
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if (gemm.access.rows_per_batch)
+        rows = dims.batch * int(gemm.access.rows_per_batch);
+      if (gemm.access.b==DmBAccess::kExpertIndirect) {
+        auto const& access=gemm.access;
+        if(!geometry.tile_m || !access.block_rows || !access.binding_blocks)return -1;
+        auto virtual_rows=std::uint64_t(access.binding_blocks)*
+            CeilDiv(access.block_rows,geometry.tile_m)*geometry.tile_m;
+        if(virtual_rows>std::uint64_t(std::numeric_limits<int>::max()))return -1;
+        rows=int(virtual_rows);
+      }
+#endif
       int tiles = CeilDiv(rows, geometry.tile_m) *
                   CeilDiv(gemm.n, geometry.tile_n);
-      return stage.kind == TaskKind::kGemm ? tiles * geometry.split_k : tiles;
+      return IsGemmStage(stage.kind) ? tiles * geometry.split_k : tiles;
     }
     case TaskKind::kEmbedding:
       return dims.tokens();
@@ -186,7 +226,31 @@ inline void Destroy(Plan* plan) {
   if (plan->lag_dependencies) cudaFree(plan->lag_dependencies);
   if (plan->watchdog) cudaFreeHost(plan->watchdog);
   auto& model = plan->model;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if(model.device_dm_convolutions)cudaFree(model.device_dm_convolutions);
+  if(model.device_dm_layouts)cudaFree(model.device_dm_layouts);
+  if(model.device_dm_dtypes)cudaFree(model.device_dm_dtypes);
+  if(model.device_dm_buffers)cudaFree(model.device_dm_buffers);
+  if(model.device_memory_arena)cudaFree(model.device_memory_arena);
+  if(model.device_dependency_intervals)cudaFree(model.device_dependency_intervals);
+  if(model.device_counted_thresholds)cudaFree(model.device_counted_thresholds);
+  if(model.params.dm_reductions.stages)cudaFree(const_cast<DmReductionStage*>(model.params.dm_reductions.stages));
+  if(model.params.dm_reductions.offsets)cudaFree(const_cast<unsigned*>(model.params.dm_reductions.offsets));
+  if(model.params.dm_reductions.arrivals)cudaFree(const_cast<DmReductionArrival*>(model.params.dm_reductions.arrivals));
+  if(model.params.dm_reductions.tickets)cudaFree(model.params.dm_reductions.tickets);
+  if(model.params.counted_dependencies)cudaFree(model.params.counted_dependencies);
+  if(model.device_counted_l2_params)cudaFree(model.device_counted_l2_params);
+#if TILEMEGA_MOE_DYNAMIC
+  if(model.device_dynamic_ranges)cudaFree(model.device_dynamic_ranges);
+  if(model.device_dynamic_canonical)cudaFree(model.device_dynamic_canonical);
+  if(model.params.dynamic_claims)cudaFree(model.params.dynamic_claims);
+#endif
+#endif
   if(model.params.serving_handoff_tickets)cudaFree(model.params.serving_handoff_tickets);
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  if(model.params.serving_epoch_handoff_tickets)cudaFree(model.params.serving_epoch_handoff_tickets);
+  if(model.device_epoch_l2_params)cudaFree(model.device_epoch_l2_params);
+#endif
   if(model.params.serving_no_producer)cudaFree(const_cast<std::uint8_t*>(model.params.serving_no_producer));
 #if TILEMEGA_TRACE_V2
   if (model.device_reducer_trace) cudaFree(model.device_reducer_trace);
@@ -227,7 +291,11 @@ extern "C" int tm_plan_query(tm_plan_info* output) {
   int grid=kModel.runtime_variants[0].plan.eft_grid
       ? int(kModel.runtime_variants[0].plan.eft_grid):target.res.num_sms;
   *output = {TM_SERVING_ABI_VERSION,
+#if defined(TILEMEGA_SERVING_PHASE)
+             TILEMEGA_SERVING_PHASE,
+#else
              TILEMEGA_SERVING_SEQ == 1 ? TM_SERVING_DECODE : TM_SERVING_PREFILL,
+#endif
              TILEMEGA_SERVING_BATCH_LO, TILEMEGA_SERVING_BATCH_HI,
              TILEMEGA_SERVING_SEQ, TILEMEGA_SERVING_PAST_LO,
              TILEMEGA_SERVING_PAST_HI, kModel.dims.capacity,
@@ -329,10 +397,16 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
     for(std::size_t i=0;i<plan->model.stages.size();++i) {
       auto const& stage=plan->model.stages[i];
       if(stage.handoff_reduce_stage==kNoOperand)continue;
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+      if(stage.handoff_reduce_stage<=i ||
+         stage.handoff_reduce_stage>=plan->model.stages.size())
+        throw std::invalid_argument("nonpaged last-arriver requires a later reducer");
+#else
       if(!TILEMEGA_PAGED || TILEMEGA_SERVING_SEQ!=1 ||
          stage.handoff_reduce_stage<=i ||
          stage.handoff_reduce_stage>=plan->model.stages.size())
         throw std::invalid_argument("last-arriver requires a later decode reducer in a paged plan");
+#endif
       auto const& reduce=plan->model.stages[stage.handoff_reduce_stage];
       if(!reduce.handoff_elided ||
          !((stage.kind==TaskKind::kGemm && reduce.kind==TaskKind::kGemmCombine &&
@@ -346,7 +420,11 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
     for(std::size_t i=0;i<reduce_users.size();++i)
       if(reduce_users[i]>1)
         throw std::invalid_argument("a reducer cannot have multiple last-arriver owners");
-    if(has_handoff) {
+    if(has_handoff
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+       && TILEMEGA_PAGED
+#endif
+       ) {
       std::uint32_t stride=1;
       for(std::uint32_t i=0;i<kModel.stage_count;++i) {
         auto const& stage=kModel.stages[i];
@@ -381,9 +459,15 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
         reinterpret_cast<void const*>(tilemega_l1_loop_kernel),kServingThreads,smem);
     if(grid<=target.res.num_sms*loop_resident)plan->loop_modes=1;
 #endif
+#if defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE == 2
+    plan->loop_modes = 0;
+#endif
     std::fprintf(stderr,"E2E_LOOP_MODES available=%u\n",plan->loop_modes);
     plan->pdl = TILEMEGA_SERVING_SEQ==1 && TILEMEGA_PDL &&
         !TILEMEGA_ARCH_PATH_SM80 && target.caps.pdl;
+#if defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE == 2
+    plan->pdl = false;
+#endif
     std::fprintf(stderr,"E2E_PDL enabled=%d caps=%d\n",int(plan->pdl),int(target.caps.pdl));
     return plan.release();
   } catch (std::exception const& error) {
@@ -398,6 +482,9 @@ extern "C" int tm_plan_set_steps(void* opaque,
   using namespace tilemega::codegen;
   auto* plan = static_cast<serving::Plan*>(opaque);
   if (!plan || !past || !count || plan->ring) return -1;
+#if defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE == 2
+  if (count != 1 || past[0] != 0) return -2;
+#endif
   std::vector<Params> host(count, plan->model.params);
 #if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
   auto capacity_env=std::getenv("TILEMEGA_TRACE_LAUNCHES");
@@ -433,9 +520,31 @@ extern "C" int tm_plan_set_steps(void* opaque,
     host[i].dims.past = past[i];
     host[i].dims.total = past[i] + host[i].dims.seq;
   }
-  if (cudaMalloc(&plan->ring, count * sizeof(Params)) != cudaSuccess)
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  bool mode_banks=plan->model.params.serving_epoch_handoff_tickets;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  mode_banks|=plan->model.params.counted_dependencies!=nullptr || plan->model.params.dm_reductions.tickets!=nullptr;
+#endif
+  if(mode_banks) {
+    host.reserve(2ull*count);
+    for(unsigned i=0;i<count;++i)host.push_back(harness::EpochL2Params(host[i]));
+  }
+#elif defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if (plan->model.params.counted_dependencies || plan->model.params.dm_reductions.tickets) {
+    // Bind the execution bank once on the host; per-thread Params copies
+    // would turn a dependency extension into large local-memory traffic.
+    host.reserve(2ull * count);
+    for (unsigned i = 0; i < count; ++i) {
+      Params l2 = host[i];
+      if(l2.counted_dependencies)l2.counted_dependencies += plan->model.params.counted_dependency_count;
+      if(l2.dm_reductions.tickets)l2.dm_reductions.tickets+=l2.dm_reductions.ticket_count;
+      host.push_back(l2);
+    }
+  }
+#endif
+  if (cudaMalloc(&plan->ring, host.size() * sizeof(Params)) != cudaSuccess)
     return -3;
-  if (cudaMemcpy(plan->ring, host.data(), count * sizeof(Params),
+  if (cudaMemcpy(plan->ring, host.data(), host.size() * sizeof(Params),
                  cudaMemcpyHostToDevice) != cudaSuccess) return -4;
   if (cudaMalloc(&plan->step_ns, (std::size_t(count)+1)*sizeof(std::uint64_t))
       != cudaSuccess) return -5;
@@ -454,6 +563,15 @@ extern "C" int tm_plan_launch(void* opaque, std::uint32_t step,
   std::uint32_t mode_index = mode == TM_SERVING_L1 ? 0 : 1;
   if (iteration != plan->next_iteration[mode_index]) return -2;
   auto* params = plan->ring + step;
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  bool mode_banks=plan->model.params.serving_epoch_handoff_tickets;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  mode_banks|=plan->model.params.counted_dependencies!=nullptr || plan->model.params.dm_reductions.tickets!=nullptr;
+#endif
+  if(mode_banks && mode_index)params+=plan->steps;
+#elif defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if ((plan->model.params.counted_dependencies || plan->model.params.dm_reductions.tickets) && mode_index) params += plan->steps;
+#endif
   auto cuda_stream = static_cast<cudaStream_t>(stream);
   cudaError_t status;
   if (mode == TM_SERVING_L1)
@@ -485,18 +603,33 @@ extern "C" int tm_plan_launch_steps(void* opaque, std::uint32_t first_step,
   if(base_iteration!=plan->next_iteration[index])return -2;
   auto cuda_stream=static_cast<cudaStream_t>(stream);
   cudaError_t status;
+  auto* loop_params = plan->ring + first_step;
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  bool mode_banks=plan->model.params.serving_epoch_handoff_tickets;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  mode_banks|=plan->model.params.counted_dependencies!=nullptr || plan->model.params.dm_reductions.tickets!=nullptr;
+#endif
+  if(mode_banks && index)loop_params+=plan->steps;
+  auto* loop_step_ns=plan->step_ns?reinterpret_cast<unsigned long long*>(plan->step_ns+first_step):nullptr;
+#elif defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if ((plan->model.params.counted_dependencies || plan->model.params.dm_reductions.tickets) && index) loop_params += plan->steps;
+#endif
 #if TILEMEGA_PAGED
   status=executor::LaunchServing(tilemega_loop_kernel,plan->grid,
         kServingThreads,plan->model.l2_smem_bytes,cuda_stream,plan->pdl,
-        static_cast<Params const*>(plan->ring+first_step),steps,
+        static_cast<Params const*>(loop_params),steps,
         plan->model.events,base_iteration,
         reinterpret_cast<unsigned long long*>(plan->step_ns+first_step));
 #elif TILEMEGA_SERVING_SEQ==1
   status=executor::LaunchServing(tilemega_l1_loop_kernel,plan->grid,
         kServingThreads,kServingSharedBytes,cuda_stream,plan->pdl,
-        static_cast<Params const*>(plan->ring+first_step),steps,
+        static_cast<Params const*>(loop_params),steps,
         plan->model.events,base_iteration,
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+        loop_step_ns);
+#else
         reinterpret_cast<unsigned long long*>(plan->step_ns+first_step));
+#endif
 #else
   return -3;
 #endif
@@ -581,6 +714,21 @@ extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
         name=plan->model.spec->buffers[inv.serving_weight_buffer].name;
     }
     char const* kind_name="unknown";switch(stage.kind) {case TaskKind::kGemm:kind_name="kGemm";break;case TaskKind::kRMSNorm:kind_name="kRMSNorm";break;case TaskKind::kRoPE:kind_name="kRoPE";break;case TaskKind::kKVAppend:kind_name="kKVAppend";break;case TaskKind::kElementwise:kind_name="kElementwise";break;case TaskKind::kAttention:kind_name="kAttention";break;case TaskKind::kGemmCombine:kind_name="kGemmCombine";break;case TaskKind::kGemmAdd:kind_name="kGemmAdd";break;case TaskKind::kGemmRMSNorm:kind_name="kGemmRMSNorm";break;case TaskKind::kRoPEKVAppend:kind_name="kRoPEKVAppend";break;case TaskKind::kAdd:kind_name="kAdd";break;case TaskKind::kEmbedding:kind_name="kEmbedding";break;case TaskKind::kQKNorm:kind_name="kQKNorm";break;case TaskKind::kFusedAttention:kind_name="kFusedAttention";break;case TaskKind::kAttentionMerge:kind_name="kAttentionMerge";break;case TaskKind::kArgmaxReduce:kind_name="kArgmaxReduce";break;}
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    switch(stage.kind) {
+      case TaskKind::kDepthwiseConv:kind_name="kDepthwiseConv";break;
+      case TaskKind::kPool:kind_name="kPool";break;
+      case TaskKind::kGlobalPoolReduce:kind_name="kGlobalPoolReduce";break;
+      case TaskKind::kLayerNorm:kind_name="kLayerNorm";break;
+      case TaskKind::kEncoderAttention:kind_name="kEncoderAttention";break;
+      case TaskKind::kEmbeddingSum:kind_name="kEmbeddingSum";break;
+      case TaskKind::kDwPwFused:kind_name="kDwPwFused";break;
+      case TaskKind::kMoETopK:kind_name="kMoETopK";break;
+      case TaskKind::kMoECombine:kind_name="kMoECombine";break;
+      case TaskKind::kLayoutConvert:kind_name="kLayoutConvert";break;
+      default:break;
+    }
+#endif
     std::fprintf(out,"%u\t%u\t%s\t%s\t%llu\t%u\t%u\t%u\t%u\t%u\t%u\n",i,
         unsigned(stage.kind),kind_name,name,bytes,stage.extent,stage.group,stage.width,
         unsigned(stage.attention_kv_block),unsigned(stage.handoff_elided),

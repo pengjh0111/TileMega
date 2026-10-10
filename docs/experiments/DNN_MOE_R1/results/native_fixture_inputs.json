@@ -1,0 +1,38 @@
+{
+  "evidence": "verified",
+  "files": [
+    {
+      "name": "gqa2",
+      "source": "/root/TileMega/docs/experiments/SEQSCAN/raw/export/gqa2.json",
+      "destination": "/root/dm1_work/development/docs/experiments/SEQSCAN/raw/export/gqa2.json",
+      "sha256": "cb0cc9afb4776cbdc201c839a4b0be7e3dde14e2938f38c6f9c7449fee273add",
+      "bytes": 126708,
+      "recipe_blob": "03e15651a2a91eb281739ca291da497d14e2103e"
+    },
+    {
+      "name": "mha4",
+      "source": "/root/TileMega/docs/experiments/SEQSCAN/raw/export/mha4.json",
+      "destination": "/root/dm1_work/development/docs/experiments/SEQSCAN/raw/export/mha4.json",
+      "sha256": "358de8479b7ae7197e13ca30730c9111759a45039b4efc24ef1210b7a03acad4",
+      "bytes": 255271,
+      "recipe_blob": "03e15651a2a91eb281739ca291da497d14e2103e"
+    },
+    {
+      "name": "gqa2_registers",
+      "source": "/root/TileMega/docs/experiments/ORACLE/raw_bf16/cost/registers_gqa2.tsv",
+      "destination": "/root/dm1_work/development/docs/experiments/ORACLE/raw_bf16/cost/registers_gqa2.tsv",
+      "sha256": "a4195ad0bade8f9d6a44338bf363ac7349f8c18e0812d21ed6d3d72f2b394c1a",
+      "bytes": 2431,
+      "consumer_recipe_blob": "b5a8f6161b538a958504cc6a561b63b6f287760d"
+    },
+    {
+      "name": "mha4_registers",
+      "source": "/root/TileMega/docs/experiments/ORACLE/raw_bf16/cost/registers_mha4.tsv",
+      "destination": "/root/dm1_work/development/docs/experiments/ORACLE/raw_bf16/cost/registers_mha4.tsv",
+      "sha256": "a4195ad0bade8f9d6a44338bf363ac7349f8c18e0812d21ed6d3d72f2b394c1a",
+      "bytes": 2431,
+      "consumer_recipe_blob": "b5a8f6161b538a958504cc6a561b63b6f287760d"
+    }
+  ],
+  "scope": "missing untracked native input fixtures; source files and test expectations unchanged"
+}

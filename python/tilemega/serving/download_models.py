@@ -9,10 +9,12 @@ from pathlib import Path
 SOURCES = {
     "llama": ["meta-llama/Llama-3.2-1B", "unsloth/Llama-3.2-1B"],
     "qwen3": ["Qwen/Qwen3-1.7B"],
+    "qwen3_moe": ["Qwen/Qwen3-30B-A3B"],
 }
 CONFIG_SOURCES = {
     "llama": "docs/experiments/MODELS/sources/llama_config_public_copy.json",
     "qwen3": "docs/experiments/MODELS/sources/qwen_config.json",
+    "qwen3_moe": "docs/experiments/MODELS/sources/qwen3_moe_config.json",
 }
 DIMENSIONS = ("hidden_size", "intermediate_size", "num_hidden_layers",
               "num_attention_heads", "num_key_value_heads", "head_dim",
@@ -47,6 +49,11 @@ def fetch(name: str, destination: Path, repo_root: Path) -> dict:
     expected = json.loads((repo_root / CONFIG_SOURCES[name]).read_text())
     differences = {key: {"checkpoint": actual.get(key), "recorded": expected.get(key)}
                    for key in DIMENSIONS if actual.get(key) != expected.get(key)}
+    if name == 'qwen3_moe':
+        for key in ('num_experts', 'num_experts_per_tok', 'moe_intermediate_size',
+                    'norm_topk_prob', 'decoder_sparse_step', 'mlp_only_layers'):
+            if actual.get(key) != expected.get(key):
+                differences[key] = {'checkpoint': actual.get(key), 'recorded': expected.get(key)}
     tensors = sorted(destination.glob("*.safetensors"))
     if not tensors:
         raise ValueError(f"no safetensors downloaded for {repo}")
@@ -61,7 +68,7 @@ def fetch(name: str, destination: Path, repo_root: Path) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", choices=("llama", "qwen3", "all"), default="all")
+    parser.add_argument("--model", choices=("llama", "qwen3", "qwen3_moe", "all"), default="all")
     parser.add_argument("--model-root", type=Path, default=Path("/root/models"))
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[3])
     parser.add_argument("--report", type=Path,
@@ -69,7 +76,8 @@ def main() -> None:
     args = parser.parse_args()
     names = [args.model] if args.model != "all" else ["llama", "qwen3"]
     paths = {"llama": args.model_root / "llama3_2_1b",
-             "qwen3": args.model_root / "qwen3_1_7b"}
+             "qwen3": args.model_root / "qwen3_1_7b",
+             "qwen3_moe": args.model_root / "qwen3_30b_a3b"}
     result = {}
     for name in names:
         paths[name].mkdir(parents=True, exist_ok=True)

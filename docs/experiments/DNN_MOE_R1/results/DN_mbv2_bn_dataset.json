@@ -1,0 +1,18 @@
+{
+  "evidence": "verified",
+  "passed": false,
+  "scope": "G-DNN dataset correctness",
+  "model": "mbv2",
+  "batch": 2,
+  "samples": 1000,
+  "artifact_id": "2b493d4aa43dc792564240705c50c9d19ca9054365f20c2657087830ebe2be94",
+  "metrics": {
+    "cosine": 0.998675222814083,
+    "bf16_cosine": 0.998611702978611,
+    "tm_top1_match": 0.971,
+    "bf16_top1_match": 0.971
+  },
+  "source_receipt": "runs/dm1-mbv2-bn-factor-imagenetv2-v1/correctness.json",
+  "source_receipt_sha256": "26a4926ab4f179c555418f444f51239c56719dcebe0448d86dfce9b98669ab66",
+  "criteria": "Original DM-1 model thresholds retained; BF16 diagnostics do not relax the FP32-reference gate"
+}

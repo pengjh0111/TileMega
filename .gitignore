@@ -79,3 +79,5 @@ docs/experiments/BF16/raw_splitk*/src/
 docs/experiments/BF16/raw_splitk_f32/export/
 docs/experiments/BF16/raw_splitk_f32/fixture/
 !docs/experiments/PARAMETRIC/input_gate.log
+runs/dm1-*/
+docs/experiments/DNN_MOE_R1/scheduler/

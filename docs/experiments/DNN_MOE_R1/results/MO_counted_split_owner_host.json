@@ -1,0 +1,7 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "96 counted scatter geometries, renamed split-combiner tensor ownership, invalid source/tensor/column guards and 24 weighted binding permutations; host proof, not a synchronization gate",
+  "log": "runs/dm1-counted-renamed-host-v1.log",
+  "log_sha256": "c68e0cd883abecb38f697b883f636ee96e548dacbd7ec0b18e9fc89af907450c"
+}

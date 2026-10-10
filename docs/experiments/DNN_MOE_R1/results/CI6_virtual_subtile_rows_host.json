@@ -1,0 +1,26 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_commit": "f48a6e95e532c101380a3ee4025c206f251da810",
+  "python_routing_checks": 6,
+  "python_identity_checks": 11,
+  "scope": "Standalone native and Python virtual row histograms, prefix/subtile activity, expected clipped rows and conservation; native ctest rebuild and real route collection pending.",
+  "inputs": {
+    "include/tilemega/Solver/MoeRoutingProfile.h": "f17a04b86e55fcd51cb1b0cc4c59ba163b6f52319379869f1d9bd88e82b7274c",
+    "python/tilemega/moe/profile_identity.py": "386c6bafa1e81741f8859e6e9a1c6258ca0dde79f2b6844ef964820945f1393b",
+    "python/tilemega/moe/routing_profile.py": "5cc3908723b43b6f0792d0fa65585d009c74d12a8a495ac8cee6e3a3911dc123",
+    "test/python/test_moe_profile_identity.py": "bc5d0cfced7d94cb8908ee919191dc8e2488c93c1a92dd12cd7031bb536b5d33",
+    "test/python/test_routing_profile.py": "7673f3cdb492154e65c59d902c523c7d38bb6521f9efdc92076c3ed1ffcf4796",
+    "test/unit/moe_group_profile_test.cpp": "e54905749d3ff545814b6ba35d3a3f44679545cf4fe9bad2f28f7ae00d247bf6"
+  },
+  "queue_sha256": "d6b460f1441217aaeeb7916b5c1bbdd4f798baedde113eae7f083c4d813a4b3f",
+  "completion_sha256": "33f38dc0fe2b94c561e11365a83893b790a7b2d05375d53ab403259b1f11435b",
+  "binary_sha256": "00fae5e99979a9886b6e1f2e765850d1fab77138f25e6d0d3fdeb9130e057d47",
+  "logs": {
+    "runs/dm1-ci6-row-distribution-host/events/01_cpp_compile.log": "712b400b0d9c4ec7037a296f85bd89eb2c7218bfba9b28d6cf3993b752818a13",
+    "runs/dm1-ci6-row-distribution-host/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/dm1-ci6-row-distribution-host/events/03_python_routing.log": "67cf6a0b5e87ef1a6046689b4bf43f058c73e88dc325cfa6b10b81c29694abfa",
+    "runs/dm1-ci6-row-distribution-host/events/04_python_identity.log": "d676d38093a54dbac0868c9a2dfb66dadea73328d94256f05d48d7549625b19f",
+    "runs/dm1-ci6-row-distribution-host/events/02_cpp_check.log": "2ed1ab617887039ebd8956c8fa8f16202f51dc9070d8a283b0b47c88dac360a9"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "evidence": "verified",
+  "scope": "host exact finite counts and row-wise bidirectional interval proof; no GPU timing",
+  "cases": [
+    {
+      "case": "window",
+      "exit_code": 0,
+      "log": "runs/dm1-coordinate-screen-window-host-v1.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "exact",
+      "exit_code": 0,
+      "log": "runs/dm1-coordinate-screen-exact-host-v1.log",
+      "log_sha256": "62cd4fb39d9e33fae7a74a72e1a6288eba982c62b897d1209752e7784c44381e"
+    },
+    {
+      "case": "fusion",
+      "exit_code": 0,
+      "log": "runs/dm1-coordinate-screen-fusion-host-v1.log",
+      "log_sha256": "2c75b135c0a307cd7e055f29abc21d468e4a0a90bb65ee11a491ba7345f932a8"
+    },
+    {
+      "case": "runtime_dependency_table",
+      "exit_code": 0,
+      "log": "runs/dm1-row-proof-table-host-v1.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "bound_dependency_codegen",
+      "exit_code": 0,
+      "log": "runs/dm1-row-proof-codegen-host-v1.log",
+      "log_sha256": "2bd2d9bfcebeecf29c1d2ece5f2229453c0e242190fc05fe8d8bad4fca40d30a"
+    },
+    {
+      "case": "runtime_dependency_codec",
+      "exit_code": 0,
+      "log": "runs/dm1-row-proof-codec-host-v1.log",
+      "log_sha256": "ea1d960b703b0d39a8839fe7ba8e574302bb3d2771246c658f17f980bba569e8"
+    }
+  ],
+  "superseded": "runs/dm1-exact-fiber-host-v1 window cancelled; pre-screen compiler"
+}

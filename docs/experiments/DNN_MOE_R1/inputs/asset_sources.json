@@ -1,0 +1,16 @@
+{
+  "resnet18": {
+    "url": "https://download.pytorch.org/models/resnet18-f37072fd.pth",
+    "sha256_prefix": "f37072fd"
+  },
+  "mbv2": {
+    "url": "https://download.pytorch.org/models/mobilenet_v2-7ebf99e0.pth",
+    "sha256_prefix": "7ebf99e0"
+  },
+  "imagenetv2": {
+    "url": "https://huggingface.co/datasets/vaishaal/ImageNetV2/resolve/d626240be2538720e83103a0e1178d24aca8b12c/imagenetv2-matched-frequency.tar.gz",
+    "revision": "d626240be2538720e83103a0e1178d24aca8b12c",
+    "bytes": 1264079360,
+    "etag": "f0c37fdf925916b19ea1323cd9a2208cdb6959ba2c32eef2a7fc393835c9ca7c"
+  }
+}

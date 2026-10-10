@@ -40,6 +40,12 @@ std::string geometry(OperatorNode const& node,SemanticOp const& op,Granularity c
   if(auto it=g.tiles.find(op.name);it!=g.tiles.end())
     for(auto const& [dim,value]:it->second)out<<dim<<'='<<value.Substitute(known).ToString()<<';';
   if(auto it=g.reduction_chunk.find(op.name);it!=g.reduction_chunk.end())out<<"split="<<it->second.Substitute(known).ToString()<<';';
+  if(auto it=g.reduction_index.find(op.name);it!=g.reduction_index.end()) {
+    out<<"reduction_index="<<it->second.index.Serialize()<<";capacity="
+       <<it->second.capacity.Substitute(known).ToString()<<";width="
+       <<it->second.issued_width.Substitute(known).ToString()<<';';
+    if(it->second.chunks)out<<"chunks="<<it->second.chunks<<';';
+  }
   for(auto const& value:node.tile)out<<value.Substitute(known).ToString()<<',';
   return out.str();
 }

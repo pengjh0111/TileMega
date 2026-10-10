@@ -53,6 +53,10 @@ class CouplingRelation {
   CouplingRelation Subtract(CouplingRelation const& other) const;
   CouplingRelation ImageIdentity() const;
   CouplingRelation RangeProduct(CouplingRelation const& other) const;
+  /// Independent Cartesian product with both tuple pairs flattened. Used to
+  /// pull a shared-element relation over (consumer,producer) phase coordinates.
+  CouplingRelation FlatProduct(CouplingRelation const& other) const;
+  CouplingRelation ProjectRange(unsigned first, unsigned count) const;
   /// Restrict the domain to `domain_set_text` (isl set syntax over the same
   /// domain tuple/parameters). DeriveCoupling uses this to bind every
   /// consumer coordinate to its own task-space extent before returning C
@@ -104,6 +108,9 @@ class CouplingRelation {
   /// wait(x) = |this(x)|, a function of `this`'s domain (consumer)
   /// coordinates.
   QuasiPolynomial Card() const;
+  // Exact finite-fiber counting for fully bound DM task spaces. Symbolic or
+  // large domains retain the Barvinok path; legacy callers keep using Card.
+  QuasiPolynomial BoundTaskCard(unsigned max_domain_points = 65536) const;
   QuasiPolynomial ImageCard() const;
   /// Exact, coalesced image represented as an empty-domain relation.
   CouplingRelation Image() const;

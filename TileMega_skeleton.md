@@ -281,6 +281,8 @@ trigger(e)     = C_κ(x) 的坐标映射        谁通知谁
 
 ## 2.4 Tier：耦合的可解析程度
 
+（⚠️ DM-1：虚拟 tile 的活跃长度及绑定来源记录为 `runtime_dynamic` 与 `prefix_sum`/`tensor_values`；静态容量空间内的仿射耦合保持 Tier 0。窗口项、floordiv/mod 与物理读写关系保留精确集合，逐轴盒包络标为 over；WAR/WAW 与 RAW 使用相同推导/编码。host 证据已封存，真实绑定与缓冲复用执行门待完成。）
+
 | Tier | 定义 | 实例 | `C` 的形态 | 代价 |
 |---|---|---|---|---|
 | **0** | 纯仿射 | norm / proj / elementwise / RoPE / GEMM(含 split-K) / GQA head 映射 | 完全闭式 | 0 |
@@ -871,6 +873,8 @@ BF16 形状再拟合出负的每 CTA setup。钳位已删除，改由 `combine_f
 
 ## 4.6 Serving harness（L5）
 
+（⚠️ DM-1：新增 forward phase=2、step=0、无 KV/RoPE 状态的 ABI 与行数/写回/epilogue 描述；任务种类追加 depthwise、pool、global-pool-reduce、LayerNorm、encoder-attention、embedding-sum、dw→pw、MoE top-k/combine、layout-convert。forward 核心与描述符已验证，新模型 bodies/CLI/页式路径尚未验收，旧 prefill/decode 默认生成契约保留。）
+
 | 组件 | 接入方式 |
 |---|---|
 | Paged KV cache | block table 走 Tier 1（布局抵消），在逻辑空间做依赖分析 |
@@ -1108,6 +1112,8 @@ L0.5/L1 保留 `RunStage` 用作正确性阶梯；只有 L2 走上述队列。�
 上面的骨架代码只表达 §5.7 语义中 W = 1 的特例。它与实现的差距见 `docs/STATUS.md` §1.5.2 的 G1–G3。
 
 ## 5.5 同步的三条 lowering 路径
+
+（⚠️ DM-1：`kTable` 按消费者保存精确生产者区间，`kCounted` 按绑定目标累积静态贡献数；LastArriver 追加带权到达，L1/L2 计数银行独立。原语 50/50、完整合成 stage 在 κ=1/4/16 各 50/50，五架构编译无 spill。真实 DNN/MoE bodies、绑定感知 PageStream 与其余 §8.A 门仍待完成。）
 
 由边的 `sync_kind`（Label 的输出）决定：
 
@@ -1696,3 +1702,13 @@ Codegen 与 host 只消费 Plan（§5.7.4），不得在其中新增调度决策
 | 2026-09 | v2.1 第九轮补充 | 以访问像计数的绝对下界锚定 regime A；引入默认关闭的 BF16 物理价格分量与设备级 DRAM 流体服务器；外层改用 task-space 释放律模型、仅 top-M 作模板/有界 EFT 物化与流体复核；保留旧路径及执行语义 |
 | 2026-09 | v2.1 第十轮补充 | 以 θ=(batch,past) 的离线静态批 serving 计划承载完整生成请求；BF16 后端按目标能力选择通用 SM80 类 CuTe collective；regime A 用在途字节曲线定价 DRAM，搜索增量准备并在 past 区间优化；外部状态 C ABI 复用结构不变的计划，每模式维持独立单调事件迭代 |
 | 2026-09 | v2.1 第十一轮补充 | decode serving 增加沿 σ 的 L2/页环预取、边级交接决策与按 Caps 选择的异步搬运/PDL 路径；目标驱动同步标定，工具统一为 `tilemega` 子命令与带分层缓存的端到端编排。原有 Plan 和单次前向执行语义保留；各路径的实现与验证状态由 `docs/STATUS.md`、`docs/TODO.md` 记录。 |
+
+（⚠️ DM-1：verified：forward phase、新任务种类、窗口精确关系、kTable/kCounted、WAR/WAW 与虚拟 tile 绑定已有生成执行证据；新增 MoE 动态 L2 领取与 opaque 入口/内部/出口屏障及 loader lookahead 边界，固定合成输入在 sm_89 执行通过。全深度 B1 prefill/decode 干构建与索引检查通过，B16 prefill 尚有生成瓶颈。完整图融合/复用、联合结构选择、GEMV 与通用 LA 仍未完成。用户已取消性能、真实数据集门及重复进程矩阵，新结果不构成 50 进程同步结论。详见 docs/experiments/DNN_MOE_R1/summary.md。）
+
+（⚠️ DM-1：verified：通用 DM reduction handoff 以已证明的窗口/区间表生成反向到达列表，其他输入须有完成证明才省去阶段；L1/L2/页式执行器已接入池化、dispatch 与 counted combine，带权到达使用独立 epoch bank。固定合成输入生成执行通过，但不是 50 进程同步证明。专家 GEMV 的 gathered/indirect、dense/页式路径也已执行；完整联合求解器选择仍待完成。见 docs/experiments/DNN_MOE_R1/dm_last_arriver.md、moe_gemv.md。）
+
+（⚠️ DM-1：verified：完整 MobileNetV1 的 13 组 dw→pw 融合生成内核已用固定合成 B=2 输入执行通过，L1/L2 输出逐位一致。共享打包权重按完整配方匹配，固定构建与求解候选均约束 TN/TK；显存容量不足的 MoE serving 部署先解 decode，再约束 prefill，主机接入测试通过。DNN CLI 支持 architecture-only 导出/构建及独立 synthetic smoke 结果，保留原精度失败记录。没有新增性能或 50 进程同步结论；完整图复用与联合结构选择仍待完成。见 DNN_MOE_R1/dwpw_fusion.md、moe_full.md、dnn_cli.md。）
+
+（⚠️ DM-1：verified：虚拟 tile 的 I2 容量与运行时绑定来源分开记录，绑定产生的内部数据不伪造物理读写像；MoE slot/group 与四种 BM 可重建同一 FX 图并联合几何搜索，公开编译器校验画像内容、文件 SHA256 与 HF 采集链，身份记录关联画像。组合 DNN 的 C′=4、融合与 deferred LN 固定输入执行通过。条件占用定价、GEMV/LA 联合坐标和完整模型验收仍未完成；无性能或新增 50 进程同步结论。）
+
+（⚠️ DM-1：verified：DNN 的池化 LA/stage 与 MoE 的绑定/BM、MMA/GEMV、dispatch/combine 独立 LA 坐标已接入共享证明、flow 定价和最终代码生成。40 组 MoE 主机组合及公开 CLI 通过；修复 down 列宽变化时 combine counted 所有权未重绑的问题。公开选出的 sm_89 megakernel 单次固定合成 T17 输入通过，路由100%、L1/L2逐位一致。默认 LLM 八格 CUDA 仍逐字节一致。按用户调整的实现/固定输入范围收尾；不宣称原始真实权重、完整回归和 50 进程门通过。详见 DNN_MOE_R1/dm_reduction_search.md 与 summary.md。）

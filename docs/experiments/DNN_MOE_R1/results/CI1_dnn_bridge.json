@@ -1,0 +1,140 @@
+{
+  "evidence": "verified",
+  "bound_batch": 8,
+  "rows": [
+    {
+      "model": "resnet18",
+      "archive": "exported_program.pt2",
+      "nodes": 193,
+      "constants": 0,
+      "shape_fragments": 0,
+      "evaluation_errors": [],
+      "sdpa_masks": []
+    },
+    {
+      "model": "resnet18",
+      "archive": "core_aten.pt2",
+      "nodes": 257,
+      "constants": 1,
+      "shape_fragments": 1,
+      "evaluation_errors": [],
+      "sdpa_masks": []
+    },
+    {
+      "model": "mbv1",
+      "archive": "exported_program.pt2",
+      "nodes": 250,
+      "constants": 0,
+      "shape_fragments": 0,
+      "evaluation_errors": [],
+      "sdpa_masks": []
+    },
+    {
+      "model": "mbv1",
+      "archive": "core_aten.pt2",
+      "nodes": 333,
+      "constants": 1,
+      "shape_fragments": 1,
+      "evaluation_errors": [],
+      "sdpa_masks": []
+    },
+    {
+      "model": "mbv2",
+      "archive": "exported_program.pt2",
+      "nodes": 469,
+      "constants": 0,
+      "shape_fragments": 0,
+      "evaluation_errors": [],
+      "sdpa_masks": []
+    },
+    {
+      "model": "mbv2",
+      "archive": "core_aten.pt2",
+      "nodes": 626,
+      "constants": 1,
+      "shape_fragments": 1,
+      "evaluation_errors": [],
+      "sdpa_masks": []
+    },
+    {
+      "model": "nafnet",
+      "archive": "exported_program.pt2",
+      "nodes": 2271,
+      "constants": 0,
+      "shape_fragments": 0,
+      "evaluation_errors": [],
+      "sdpa_masks": []
+    },
+    {
+      "model": "nafnet",
+      "archive": "core_aten.pt2",
+      "nodes": 2288,
+      "constants": 1,
+      "shape_fragments": 1,
+      "evaluation_errors": [],
+      "sdpa_masks": []
+    },
+    {
+      "model": "bert",
+      "archive": "exported_program.pt2",
+      "nodes": 500,
+      "constants": 21,
+      "shape_fragments": 6,
+      "evaluation_errors": [],
+      "sdpa_masks": [
+        "expand",
+        "expand",
+        "expand",
+        "expand",
+        "expand",
+        "expand",
+        "expand",
+        "expand",
+        "expand",
+        "expand",
+        "expand",
+        "expand"
+      ]
+    },
+    {
+      "model": "bert",
+      "archive": "core_aten.pt2",
+      "nodes": 1224,
+      "constants": 46,
+      "shape_fragments": 16,
+      "evaluation_errors": [],
+      "sdpa_masks": []
+    },
+    {
+      "model": "bert_masked",
+      "archive": "exported_program.pt2",
+      "nodes": 511,
+      "constants": 23,
+      "shape_fragments": 5,
+      "evaluation_errors": [],
+      "sdpa_masks": [
+        "expand",
+        "expand",
+        "expand",
+        "expand",
+        "expand",
+        "expand",
+        "expand",
+        "expand",
+        "expand",
+        "expand",
+        "expand",
+        "expand"
+      ]
+    },
+    {
+      "model": "bert_masked",
+      "archive": "core_aten.pt2",
+      "nodes": 1242,
+      "constants": 44,
+      "shape_fragments": 7,
+      "evaluation_errors": [],
+      "sdpa_masks": []
+    }
+  ]
+}

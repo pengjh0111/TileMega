@@ -1,0 +1,35 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Twenty-four mapped epilogue ownership combinations and three finite-chain CUDA emissions",
+  "preparation": {
+    "head": "026d94758932c726cd08dd4e4872b111c5bab8ad",
+    "diff_sha256": "d0963ae8d6f569c5772940238d30de480747017645b728abb2b7ac1617faf627",
+    "inputs": {
+      "tilemega-unit": "bd66fe32b88f616cb69b027dc54a6ef4cb6cb4e98f5b76e08343142c1be44085",
+      "test/unit/dnn_epilogue_semantics_test.cpp": "99b4f582425dd078b4c635070c1891a9694cd9c808984ef0de1597cfdfcdd2cc",
+      "queue/queue_host.json": "845cf4f32b9b74a2a30ab4772de07e855a7e16d255b95e9b484084334031ef6e",
+      "lib/Frontend/DnnSemanticLifting.cpp": "ebf4edf2296f000a97f5e5fcc099fbedd26caf4e76a8166b5842e45bfbc329eb",
+      "lib/Solver/TaskModel.cpp": "74c128b51433a7db0ce2d8096d32b73a26658ba6567bf71b2099e1ab6c4a5a85",
+      "lib/Analysis/TaskInstantiation.cpp": "6fb4ac72a0f6348c3e49a6c315287d20009d4453ec2fd29ec83a04c700145d78"
+    }
+  },
+  "completion": {
+    "event": "queue_complete",
+    "steps": 4,
+    "passed": true
+  },
+  "logs": {
+    "emit_shuffle.log": "37ec73c89a25123d6a37ada138f756cce68038f6cb6197fdf68e242de5a120d2",
+    "epilogue.log": "0a62a846626f84d1b8a35054510f1e415cea4ae552b75de401d5545aa169741b",
+    "scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "emit_nchw.log": "f0bdd9c1a22e3bfbf0cc787534ea309eac30b62e1040be236170c225705a62cf",
+    "emit_dense.log": "02a6a11e1b676b611196ff5ee7267e66f898cef1a2036578e4b92c07ae3c233a"
+  },
+  "failures_retained": [
+    "runs/dm1-dnn-epilogue-semantics-v1",
+    "runs/dm1-dnn-epilogue-semantics-v2",
+    "runs/dm1-dnn-epilogue-semantics-v3",
+    "runs/dm1-dnn-epilogue-semantics-v4"
+  ]
+}

@@ -1,0 +1,307 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "paths": [
+    {
+      "path": "runs/dm1-dwpw-generated-native-v2",
+      "artifact_id": "d9fb5b017d467a00c96d412b121a6545a47f263e9b17fdf16884c939c0550036",
+      "numerical": {
+        "evidence": "verified",
+        "passed": true,
+        "scope": "upstream DNN graph execution smoke; not G-DNN",
+        "reference": "exported BF16 checkpoint promoted to FP32",
+        "batch": 2,
+        "criterion": "elementwise BF16 tolerance",
+        "checker_sha256": "6517680ae571c4b2eb5857a52f9f218b018f3da4d9fb7ca36285598b214f0152",
+        "artifact_id": "d9fb5b017d467a00c96d412b121a6545a47f263e9b17fdf16884c939c0550036",
+        "bridge_sha256": "7c6fb93ab160b5232a1cd05a1a34794624e708738868cbf34ef8299ef524bc14",
+        "archive_sha256": "ef942554432da77bb30177508c7baf39bb1c01b2f8ea628349e9b8aa59c0c80d",
+        "input_tensors_sha256": null,
+        "cases": [
+          {
+            "epoch": 0,
+            "mode": 1,
+            "outputs": [
+              {
+                "name": "relu",
+                "cosine_min": 0.0,
+                "max_error": 0.0025449395179748535,
+                "bf16_max_error": 0.0
+              }
+            ]
+          },
+          {
+            "epoch": 0,
+            "mode": 2,
+            "outputs": [
+              {
+                "name": "relu",
+                "cosine_min": 0.0,
+                "max_error": 0.0025449395179748535,
+                "bf16_max_error": 0.0
+              }
+            ]
+          }
+        ]
+      },
+      "resources": {
+        "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": {
+          "registers": 56,
+          "stack_bytes": 72,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 4304,
+          "spill_store_bytes": 4,
+          "spill_load_bytes": 4,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "4304 bytes stack frame, 4 bytes spill stores, 4 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 4304 bytes cumulative stack size, 376 bytes cmem[0], 256 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen23tilemega_l1_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy": {
+          "registers": 255,
+          "stack_bytes": 4320,
+          "spill_store_bytes": 36,
+          "spill_load_bytes": 124,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "4320 bytes stack frame, 36 bytes spill stores, 124 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 4320 bytes cumulative stack size, 392 bytes cmem[0], 216 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 4288,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "4288 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 4288 bytes cumulative stack size, 376 bytes cmem[0], 216 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": {
+          "registers": 252,
+          "stack_bytes": 4304,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "4304 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 252 registers, used 2 barriers, 4304 bytes cumulative stack size, 364 bytes cmem[0], 184 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": false
+        }
+      },
+      "scope": "one fixed synthetic upstream graph, one epoch per ABI mode; not 50-process race evidence",
+      "architecture_builds": [
+        {
+          "architecture": 80,
+          "identity_file": "runs/dm1-dwpw-generated-native-v2/generated-sm_80.so.identity.json",
+          "artifact_id": "8701b738854c859178a90c632ce4b84c3a2dd56bab59a060fc3a861c902d596a"
+        },
+        {
+          "architecture": 89,
+          "identity_file": "runs/dm1-dwpw-generated-native-v2/generated-sm_89.so.identity.json",
+          "artifact_id": "d9fb5b017d467a00c96d412b121a6545a47f263e9b17fdf16884c939c0550036"
+        },
+        {
+          "architecture": 90,
+          "identity_file": "runs/dm1-dwpw-generated-native-v2/generated-sm_90.so.identity.json",
+          "artifact_id": "bab01673c59e8fdfd2df1221d2b369cd12725949c2beced4c3c4ba6df12992a4"
+        },
+        {
+          "architecture": 100,
+          "identity_file": "runs/dm1-dwpw-generated-native-v2/generated-sm_100.so.identity.json",
+          "artifact_id": "0309e85a566d46929d7fd6e59146d3842594d753115c14e7fff6e91305393cfb"
+        },
+        {
+          "architecture": 120,
+          "identity_file": "runs/dm1-dwpw-generated-native-v2/generated-sm_120.so.identity.json",
+          "artifact_id": "2186121ae62dfaefa06022d770d3cd9910c87121698fdfb5f1201de59e8a9397"
+        }
+      ]
+    },
+    {
+      "path": "runs/dm1-dwpw-pages-generated-native-v1",
+      "artifact_id": "cf108c5d294b5463899d0dd55d936572f0119c6d52e036db26bd14dbd86bfabd",
+      "numerical": {
+        "evidence": "verified",
+        "passed": true,
+        "scope": "upstream DNN graph execution smoke; not G-DNN",
+        "reference": "exported BF16 checkpoint promoted to FP32",
+        "batch": 2,
+        "criterion": "elementwise BF16 tolerance",
+        "checker_sha256": "6517680ae571c4b2eb5857a52f9f218b018f3da4d9fb7ca36285598b214f0152",
+        "artifact_id": "cf108c5d294b5463899d0dd55d936572f0119c6d52e036db26bd14dbd86bfabd",
+        "bridge_sha256": "7c6fb93ab160b5232a1cd05a1a34794624e708738868cbf34ef8299ef524bc14",
+        "archive_sha256": "ef942554432da77bb30177508c7baf39bb1c01b2f8ea628349e9b8aa59c0c80d",
+        "input_tensors_sha256": null,
+        "cases": [
+          {
+            "epoch": 0,
+            "mode": 1,
+            "outputs": [
+              {
+                "name": "relu",
+                "cosine_min": 0.0,
+                "max_error": 0.0025449395179748535,
+                "bf16_max_error": 0.0
+              }
+            ]
+          },
+          {
+            "epoch": 0,
+            "mode": 2,
+            "outputs": [
+              {
+                "name": "relu",
+                "cosine_min": 0.0,
+                "max_error": 0.0025449395179748535,
+                "bf16_max_error": 0.0
+              }
+            ]
+          }
+        ]
+      },
+      "resources": {
+        "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": {
+          "registers": 56,
+          "stack_bytes": 72,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen20tilemega_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy": {
+          "registers": 255,
+          "stack_bytes": 5168,
+          "spill_store_bytes": 2038,
+          "spill_load_bytes": 5008,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "5168 bytes stack frame, 2038 bytes spill stores, 5008 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 5168 bytes cumulative stack size, 392 bytes cmem[0], 2464 bytes cmem[2]",
+            "0 bytes stack frame, 428 bytes spill stores, 592 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 5184,
+          "spill_store_bytes": 1962,
+          "spill_load_bytes": 4896,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "5184 bytes stack frame, 1962 bytes spill stores, 4896 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 5184 bytes cumulative stack size, 376 bytes cmem[0], 2464 bytes cmem[2]",
+            "0 bytes stack frame, 412 bytes spill stores, 520 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 4528,
+          "spill_store_bytes": 1204,
+          "spill_load_bytes": 2460,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "4528 bytes stack frame, 1204 bytes spill stores, 2460 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 4528 bytes cumulative stack size, 376 bytes cmem[0], 1408 bytes cmem[2]",
+            "0 bytes stack frame, 248 bytes spill stores, 248 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": {
+          "registers": 255,
+          "stack_bytes": 4336,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "4336 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 4336 bytes cumulative stack size, 364 bytes cmem[0], 184 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": false
+        }
+      },
+      "scope": "one fixed synthetic upstream graph, one epoch per ABI mode; not 50-process race evidence",
+      "architecture_builds": [
+        {
+          "architecture": 80,
+          "identity_file": "runs/dm1-dwpw-pages-generated-native-v1/generated-sm_80.so.identity.json",
+          "artifact_id": "c533db578c73a5acd46cb91d64e256f150cd43441dbf619bf46c6d5e74cb42b3"
+        },
+        {
+          "architecture": 89,
+          "identity_file": "runs/dm1-dwpw-pages-generated-native-v1/generated-sm_89.so.identity.json",
+          "artifact_id": "cf108c5d294b5463899d0dd55d936572f0119c6d52e036db26bd14dbd86bfabd"
+        },
+        {
+          "architecture": 90,
+          "identity_file": "runs/dm1-dwpw-pages-generated-native-v1/generated-sm_90.so.identity.json",
+          "artifact_id": "b38fac4a0d24f039c843a87569c0c87f030e552340803788f86f7fe2c1e9278a"
+        },
+        {
+          "architecture": 100,
+          "identity_file": "runs/dm1-dwpw-pages-generated-native-v1/generated-sm_100.so.identity.json",
+          "artifact_id": "beb739a444124bd3fcdf1e7dd2a1d575a928aba0d026dd74755acbd95b12e1d2"
+        },
+        {
+          "architecture": 120,
+          "identity_file": "runs/dm1-dwpw-pages-generated-native-v1/generated-sm_120.so.identity.json",
+          "artifact_id": "0140644d665440189b98484b2eac9e2e5e3a84e2fc9e917057960759bb81de7b"
+        }
+      ]
+    }
+  ],
+  "host_pricing": {
+    "passed": true,
+    "log": "runs/dm1-dwpw-pricing-host-v2.log",
+    "scope": "exact private SIMT phase counts per N tile and split-K chunk; no timing fit"
+  }
+}

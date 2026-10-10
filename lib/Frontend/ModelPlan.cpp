@@ -2,6 +2,7 @@
 #include <tilemega/Frontend/ModelPlan.h>
 
 #include <tilemega/Frontend/GraphPattern.h>
+#include <tilemega/Frontend/MoeRegionPlan.h>
 
 #include <algorithm>
 #include <cctype>
@@ -231,6 +232,14 @@ GraphPattern const& DecoderLayerPattern() {
       // does not, which is the only other `add` reachable from `o`.
       {{"resid1", -1, "o", -1}, {"resid2", -1, "down", -1}},
   };
+  return pattern;
+}
+
+GraphPattern const& DecoderAttentionPrefix() {
+  static GraphPattern const pattern=[] {
+    auto result=DecoderLayerPattern();result.name="decoder_attention_prefix";
+    result.nodes.resize(11);result.shape.resize(1);return result;
+  }();
   return pattern;
 }
 
@@ -834,6 +843,23 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     throw std::invalid_argument("serving capacity or gate/up interleave is invalid");
   PatternMatcher matcher(nodes, inputs);
   auto layers = matcher.FindAll(DecoderLayerPattern());
+  std::map<std::string,MoeRegionMatch> moe_layers;
+  if(std::any_of(nodes.begin(),nodes.end(),[](auto const& n) {
+       return n.target=="tilemega.moe_experts.default";
+     })) {
+    auto blocks=FindDecoderMoeBlocks(nodes,inputs);
+    for(auto const& block:blocks)moe_layers.emplace(block.input,block);
+    if(!layers.empty() || moe_layers.empty())
+      throw std::invalid_argument("serving MoE export has ambiguous decoder FFNs");
+    for(auto match:matcher.FindAll(DecoderAttentionPrefix())) {
+      auto block=moe_layers.find(match.at("resid1")->name);
+      if(block==moe_layers.end())continue;
+      match["resid2"]=matcher.Find(block->second.output);layers.push_back(std::move(match));
+    }
+    if(layers.size()!=moe_layers.size() || serving.moe_batch<=0 || serving.moe_batch>64 ||
+        serving.moe_batch*serving.seq>4096)
+      throw std::invalid_argument("serving MoE decoder attention or batch geometry is incomplete");
+  }
   std::sort(layers.begin(), layers.end(), [](auto const& a, auto const& b) {
     return a.at("resid2")->index < b.at("resid2")->index;
   });
@@ -924,6 +950,9 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   std::uint32_t table = alias(embedding->inputs.at(0));
   std::uint32_t x = scratch("serving.hidden", serving.seq * hidden);
   bool const dn=serving.phase==ServingOptions::Phase::kDecode && serving.deferred_norm;
+  // The expert allocation is shared across decode and prefill. Both phases
+  // must fold the same post-attention gamma into router/gate-up weights.
+  bool const moe_dn=serving.deferred_norm && !moe_layers.empty();
   std::uint32_t ss_cur=kNoOperand;
   if(dn)ss_cur=scratch("embed.ss",hidden/32,"f32");
   builder.Stage(PlanTaskKind::kEmbedding, embedding->name, 0, vocab, hidden, 1,
@@ -934,9 +963,6 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     auto const& k = *match.at("k");
     auto const& v = *match.at("v");
     auto const& o = *match.at("o");
-    auto const& gate = *match.at("gate");
-    auto const& up = *match.at("up");
-    auto const& down = *match.at("down");
     auto const& score = *match.at("score");
     auto const& cat_k = *match.at("cat_k");
     auto const& cat_v = *match.at("cat_v");
@@ -955,7 +981,6 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     }
     int hkv = kvwidth / head_dim;
     int qperkv = qwidth / kvwidth;
-    int intermediate = StaticExtent(builder.Node(parameter(up.inputs.at(1)).name), 0);
     std::string prefix = "l" + std::to_string(number) + ".";
     // L2 may interleave task spaces from several layers. A single reused
     // normalized scratch buffer creates an unmodelled write-after-read hazard
@@ -1038,13 +1063,37 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
                     0, hkv, head_dim, qperkv, {po, lse, context});
       builder.plan.stages.back().attention_kv_block = block_extent;
     }
-    auto o_gemm = builder.Gemm(context, alias(o.inputs.at(1)), x, x,
+    // MoE's downstream gather may overlap other CTAs' projection reads.
+    auto attention_output=moe_layers.count(match.at("resid1")->name)?
+        scratch(prefix+"attn.residual",serving.seq*hidden):x;
+    auto o_gemm = builder.Gemm(context, alias(o.inputs.at(1)), x, attention_output,
                                hidden, qwidth, 1.0f);
-    if(dn){ss_cur=scratch(prefix+"o.ss",hidden/32,"f32");
+    if(dn || moe_dn){ss_cur=scratch(prefix+"o.ss",serving.seq*(hidden/32),"f32");
            builder.plan.gemms[o_gemm].ss_out=ss_cur;}
     builder.plan.gemms[o_gemm].epilogue = PlanGemm::Epilogue::kResidual;
     builder.Stage(PlanTaskKind::kGemm, match.at("resid1")->name,
                   o_gemm, 0, 0, 1);
+    if(auto block=moe_layers.find(match.at("resid1")->name);block!=moe_layers.end()) {
+      auto output=scratch(prefix+"moe.output",serving.seq*hidden);
+      auto next_stats=dn?scratch(prefix+"moe.ss",hidden/32,"f32"):kNoOperand;
+      if(moe_dn)for(auto id:{ss_cur,next_stats}) {
+        if(id==kNoOperand)continue;
+        auto& layout=builder.plan.buffers[id].layout;layout.rank=2;
+        layout.logical[0]=layout.physical[0]=serving.moe_batch*serving.seq;
+        layout.logical[1]=layout.physical[1]=hidden/32;
+        layout.strides[0]=hidden/32;layout.strides[1]=1;
+      }
+      MoeRegionOptions options;options.tokens=serving.moe_batch*serving.seq;
+      options.grouped=serving.moe_grouped;options.block_rows=serving.moe_block_rows;
+      AppendMoeBlock(builder.plan,block->second,nodes,inputs,attention_output,output,options,
+          moe_dn?ss_cur:kNoOperand,next_stats);
+      x=output;if(dn)ss_cur=next_stats;
+      continue;
+    }
+    auto const& gate = *match.at("gate");
+    auto const& up = *match.at("up");
+    auto const& down = *match.at("down");
+    int intermediate = StaticExtent(builder.Node(parameter(up.inputs.at(1)).name), 0);
     std::uint32_t norm2 = dn ? kNoOperand :
         scratch(prefix + "norm2", serving.seq * hidden);
     builder.Epsilon(NormalizationEpsilon(matcher, gate.inputs.at(0)));

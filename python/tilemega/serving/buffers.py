@@ -7,13 +7,13 @@ def _external_buffers(plan: PlanLibrary, batch: int,
                       vocab: int) -> dict[str, torch.Tensor]:
     torch.manual_seed(20260925)
     result = {}
-    dtypes = {0: torch.bfloat16, 1: torch.float32, 2: torch.int32}
+    dtypes = {0: torch.bfloat16, 1: torch.float32, 2: torch.int32, 3: torch.int64}
     for buffer in plan.buffers:
         if buffer.role != 1:
             continue
         elements = buffer.elements_constant + batch * buffer.elements_per_batch
-        if buffer.dtype == 2:
-            tensor = torch.randint(0, vocab, (elements,), dtype=torch.int32,
+        if buffer.dtype in (2, 3):
+            tensor = torch.randint(0, vocab, (elements,), dtype=dtypes[buffer.dtype],
                                    device="cuda")
         else:
             tensor = torch.randn(elements, dtype=torch.float32,

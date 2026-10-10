@@ -1,0 +1,30 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_commit": "1dc9704ae017189d04150e0036bf1ad60de195f9",
+  "assertions_enabled": true,
+  "expectations_changed": false,
+  "source_before_build": {
+    "head": "b2bd119e09d90e790fa7bba85804ec24a8906598",
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "inputs": {
+      "docs/experiments/DNN_MOE_R1/capture_macros_dm.py": "040b4e4319acac09811e34ffb12db4c783a71436961547bf8f8f3bdb458cc535",
+      "docs/experiments/DNN_MOE_R1/test_macro_capture_dm.py": "312e18f85bff4b072fe0a10c895523803b575f7ef9788b9679c3b81aa56bfc54"
+    },
+    "assertions_enabled": true,
+    "expectations_changed": false
+  },
+  "queue_sha256": "fbec2dd867f1a0b8515e971d195ee6fbcdd6ce0de2120cfb8cb655552ddb4f44",
+  "completion_sha256": "38df9fc8385c6cef344e4a679e5b64eb456a7e434609246b0db0838186b674e9",
+  "logs": {
+    "runs/dm1-complete-macro-capture/events/01_macro_tests.log": "c0222434ce7a6a5990f0b295e992aaa57c5813402f21cbf96f235e38847a0ce1",
+    "runs/dm1-complete-macro-capture/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "tests": 3,
+  "preprocessor_phases": 8,
+  "architectures": [
+    "sm_89",
+    "sm_100"
+  ],
+  "scope": "Actual nvcc host/device preprocessor command capture, header defaults, architecture conditionals, per-translation-unit macros and malformed command rejection. Preprocessing only: no binary is compiled or kernel executed. Build identity integration remains pending."
+}

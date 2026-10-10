@@ -1,0 +1,41 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_commit": "d87d6e5d06d6f18ba95e054ff4ea11bc06f7677f",
+  "scope": "Host joint block histograms and prefix activity probabilities; no real routing, device synchronization or performance claim",
+  "checks": {
+    "python_routing": "6/6",
+    "python_profile_identity": "9/9",
+    "native_ctest": "6/6",
+    "policy": "passed",
+    "standalone_cpp": "passed"
+  },
+  "inputs": {
+    "include/tilemega/Solver/MoeRoutingProfile.h": "2ce511ba677f5aec8e2e42926a3360f757e3c0489bec72160b7ee5674c7286d3",
+    "test/unit/moe_group_profile_test.cpp": "e32a1c5366f814473b28871f78722900169fac2a276ea685a88a5f5c576ab4da",
+    "python/tilemega/moe/routing_profile.py": "40ca5e5294a3a952f3c52c03d43eb01752f9af9480e326669b57ed7223ab4ee6",
+    "python/tilemega/moe/profile_identity.py": "be3b78c26c901f8608f3b7f98c28fa59f8895c99b61640b9d8a911da0f33d769",
+    "test/python/test_routing_profile.py": "fb81e14aa1d9c0c53f80df0650e5385bcf4505d082b591c7cc7e5aa53349738e",
+    "test/python/test_moe_profile_identity.py": "ce41506e982402ee820ab56a4aca0263fea4c61113f26cdaf70609d60c850a45"
+  },
+  "queues": {
+    "runs/dm1-ci6-joint-group-profile": {
+      "completion_sha256": "33f38dc0fe2b94c561e11365a83893b790a7b2d05375d53ab403259b1f11435b",
+      "queue_sha256": "e8c5b0618bf77a3235febc22da2e16c43e340f57b39b80a78889f07831ee90d2"
+    },
+    "runs/dm1-ci6-joint-group-native-host": {
+      "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+      "queue_sha256": "ae167fdee59e39a6b8d29ed1493b9608583d16c5d932b2c2c4a71b7853996bd2"
+    }
+  },
+  "logs": {
+    "runs/dm1-ci6-joint-group-profile/events/01_cpp_compile.log": "139701612430604551ef005fce8a099f5b9d6b4cc27e02e098cbe682bca295ef",
+    "runs/dm1-ci6-joint-group-profile/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/dm1-ci6-joint-group-profile/events/03_python_routing.log": "5afbdbf79526fef6ccc6bbc4270465b55ae1607a5053befa3d8278d873c03ed7",
+    "runs/dm1-ci6-joint-group-profile/events/04_python_identity.log": "71c6ec4287a583ba046095c862a6e6b230fc469acc7f0345402617a2b2467ac1",
+    "runs/dm1-ci6-joint-group-profile/events/02_cpp_check.log": "561b5d87ed6db9dc5abf1f0c4ba2d7c370d50fff5a2a2ca744fb7b65b0eda339",
+    "runs/dm1-ci6-joint-group-native-host/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/dm1-ci6-joint-group-native-host/events/02_ctest.log": "42686b1df113dbfbe9bd68a133babb7161d88e8d9f8c6abd9e6ce5ec8f8bf1c8",
+    "runs/dm1-ci6-joint-group-native-host/events/01_build.log": "a59b29441787af8a61dd5d07ec43a6d4046241b09dc55cfdc2f7f018a9cb6462"
+  }
+}

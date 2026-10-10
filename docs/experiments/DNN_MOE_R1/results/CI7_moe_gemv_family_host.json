@@ -1,0 +1,28 @@
+{
+  "status": "verified host search and actual CUDA resource compile; no timing or new numerical matrix",
+  "checks": {
+    "families": 10,
+    "pricing_cases": 650,
+    "empty_contributions": 472,
+    "host_search": "runs/dm1-moe-gemv-family-host-v2.log",
+    "pricing": "runs/dm1-moe-gemv-family-price-host-v2.log",
+    "policy": "runs/dm1-moe-gemv-family-policy-v1.log"
+  },
+  "probe": {
+    "registers": 128,
+    "shared_bytes": 12288,
+    "threads": 128,
+    "source_sha256": "197eb7cb164b5b1771a6510e5d55fe180565ac24a91870d3f6ef1a2850520448",
+    "artifact": "/root/.cache/tilemega-dm/resource-probes/197eb7cb164b5b1771a6510e5d55fe180565ac24a91870d3f6ef1a2850520448",
+    "compiled": true
+  },
+  "resources": {
+    "entry_stack_bytes": 288,
+    "entry_spill_store_bytes": 0,
+    "entry_spill_load_bytes": 0,
+    "callee_spill_store_bytes": 296,
+    "callee_spill_load_bytes": 416
+  },
+  "numerics": "Existing MO_gemv_generated_smoke.json fixed synthetic dense/pages execution retained; not repeated.",
+  "limits": "Analytic scalar pricing inferred; no calibration fit or performance selection claimed."
+}

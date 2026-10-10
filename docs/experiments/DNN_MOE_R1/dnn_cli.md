@@ -1,0 +1,52 @@
+# DNN correctness CLI
+
+implemented: `python -m tilemega dnn {export,build,run,check,report} --config
+configs/dnn/<model>.json`. The five configs retain official data and checkpoint
+paths. Builds validate pretrained upstream export manifests, bind each batch,
+use the prediction-only solver path and write source/build/ptxas identities.
+No latency benchmark is provided under the user's scope update.
+
+verified: configuration validation and inherited GPU-lock exclusivity pass
+`test/python/test_dnn_cli.py`. Unknown features are rejected. Numerical checks
+retain the original G-DNN criteria and join receipts by artifact identity.
+The complete public build/run entry still needs a native replay; existing
+native model results were generated through the experiment/compile entry.
+
+verified: the accepted feature surface now includes pg, forward_executor,
+reuse, deferred_ln, dwpw_fuse, global_la and explicit nonpaged_la/paged_la/
+paged_la_splitk overrides. Unknown features remain errors. Three CLI host
+checks pass, including inherited GPU-lock exclusivity and reduction controls.
+
+verified: the generated-model checker accepts `--synthetic-weights`, replacing
+the exported module state with one fixed seed and packing that same state for
+the native library. Normalization variances stay positive and integer buffers
+stay integral. The reference is that synthetic BF16 state promoted to FP32,
+recorded with its seed in the receipt; it is not a real-weight model gate. One
+host exported Conv/BN check verifies deterministic, finite execution and dtypes.
+verified: the complete fused MobileNetV1 graph passes a fixed synthetic B=2
+execution with L1/L2 bitwise equality (`results/DN_mbv1_full_fused_generated.json`).
+
+verified: `dnn check --synthetic-weights` exposes this checker without requiring
+`data.path`. It writes `smoke.json` separately from `correctness.json`, refuses
+to overwrite existing smoke evidence, and checks artifact identity. `report`
+retains both receipts, including a failed official gate beside a passing smoke.
+Four CLI host tests pass (`runs/dm1-dnn-public-smoke-host-v1.log`); the new dispatch
+uses the already executed checker and does not trigger another native replay.
+
+verified: `model.structure_only=true` also permits upstream architecture export
+and construction without pretrained downloads. Normal run and the official
+dataset gate reject this scope; `check --synthetic-weights` remains available.
+The pretrained default is preserved. Five CLI host tests pass, including this
+scope distinction (`runs/dm1-dnn-architecture-cli-host-v1.log`).
+
+verified: shipped DNN configurations explicitly name an archived sm89 calibration
+reference. The public build fills absent serving-hop, per-task event and body/
+inflight sections without changing target resources or existing rates. Architecture
+mismatches and partial per-task contracts are rejected; source/resolved SHA256 and
+borrowed fields are sealed beside the plans. Six CLI host tests pass in
+`runs/dm1-dnn-target-reference-host-v1.log`. This resolves the generic target's
+missing serving-hop build failure.
+
+inferred: transferring the explicitly selected archived rates is a construction
+aid, not a new device calibration or measured latency conclusion. No timing was
+performed. Omitting `solver.calibration_reference` leaves target resolution unchanged.

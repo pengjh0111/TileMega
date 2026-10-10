@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/FlowPreparation.h>
+#include <tilemega/Solver/DmGemmTraits.h>
+#include <tilemega/Solver/MoeTaskPricing.h>
 #include <tilemega/Codegen/RuntimeWindow.h>
 #include <tilemega/Solver/CacheServiceCurve.h>
 #include <tilemega/Solver/VariantSchedule.h>
 #include <tilemega/Codegen/tasks/TaskResources.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/BoundDependencyForm.h>
+#include <tilemega/Analysis/TaskOwnershipGeometry.h>
+#include <tilemega/Analysis/TaskElementRelation.h>
 #include <isl/map.h>
 #include <isl/set.h>
 #include <isl/point.h>
@@ -51,12 +56,26 @@ std::vector<BoundRuntimeWindow> BindRuntimeWindows(
   for(auto const& item:projection.runtime_windows)
     if(item.producer==producer && item.consumer==consumer)
       result.push_back({item.window,BoundWindowOffset(item.offset_expression,theta)});
+  for(auto const& item:projection.runtime_tables)
+    if(item.producer==producer && item.consumer==consumer)
+      result.push_back({{},0,item.table});
   return result;
 }
 int RuntimeReleaseEndpoint(int cg_last,int consumer_task,int producer_count,
     std::vector<BoundRuntimeWindow> const& windows,bool force_all) {
   int last=cg_last;
   for(auto const& item:windows) {
+    if(item.table) {
+      auto const& table=*item.table;
+      if(consumer_task<0 || consumer_task>=table.consumers || producer_count!=table.producers)
+        throw std::invalid_argument("runtime table release has different task ownership");
+      if(force_all) { last=std::max(last,producer_count-1); continue; }
+      for(unsigned i=0;i<table.stride;++i) {
+        auto interval=table.intervals.at(std::size_t(consumer_task)*table.stride+i);
+        if(interval.count)last=std::max<long>(last,std::uint64_t(interval.first)+interval.count-1);
+      }
+      continue;
+    }
     auto const& w=item.window;
     auto bounds=codegen::RuntimeDependencyBounds(consumer_task,producer_count,
         force_all || !w.narrowed,w.div,w.scale,item.offset,w.count);
@@ -67,16 +86,29 @@ int RuntimeReleaseEndpoint(int cg_last,int consumer_task,int producer_count,
 SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<GemmConfig> const& geometry,
     int workers,int kappa,analysis::CouplingCache& cache,FlowPreparationCache* prepared,
     bool phase_analysis) {
+  if(base.model.storage_reuse)
+    throw std::invalid_argument("storage reuse requires geometry-specific import and hazard derivation");
   SymbolicProblem result;result.model=base.model;result.runtime=base.runtime;result.geometry=geometry;result.threads=base.threads;
   result.projection.options={workers,result.threads,kappa};result.projection.options.count_wait_entries=false;
   for(std::size_t i=0;i<geometry.size();++i){auto const& g=geometry[i];auto& r=result.runtime.gemms[i];r.tile_m=g.tile_m;r.tile_n=g.tile_n;r.tile_k=g.tile_k;r.stages=g.stages;r.split_k=g.split_k;}
   for(auto const& a:result.runtime.attention)if(a.chunks>1)throw std::invalid_argument("flow structure needs explicit expanded attention phases");
-  auto graph=InstantiateModelTasks(result.model,geometry);auto theta=result.model.MetricBindings();
   analysis::SemanticGraph semantics;analysis::Granularity granularity;
+  auto graph=result.model.dm?InstantiateModelTasks(result.model,geometry,&granularity):
+      InstantiateModelTasks(result.model,geometry);
+  auto theta=result.model.MetricBindings();
   std::map<std::string,int> logical;
   for(auto const& sem:result.model.task_semantics){semantics.ops.push_back(sem.op);logical[sem.op.name]=sem.stage;if(!sem.op.reduction.combiner.empty())logical[sem.op.reduction.combiner]=sem.stage;
+    // Keep the same issued-iteration partition in access analysis and cache
+    // keys. Reconstructing it from logical K loses per-filter channel tails.
+    if(result.model.dm)continue;
     auto const* node=graph.Find(sem.op.name);if(!node)throw std::runtime_error("missing flow task");
-    for(std::size_t a=0;a<sem.op.result.axes.size();++a) {
+    bool owned=result.model.dm && sem.op.exact_task_access;
+    auto const& output=owned?sem.op.task_space:sem.op.result;
+    for(std::size_t a=0;a<output.axes.size();++a) {
+      if(owned) {
+        granularity.Tile(sem.op.name,analysis::UnitTaskOwnershipDimension(sem.op,a),node->tile[a]);
+        continue;
+      }
       if(!result.model.serving) {
         granularity.Tile(sem.op.name,sem.op.result.axes[a].name,node->tile[a]);
         continue;
@@ -111,7 +143,14 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     auto value=count.Eval(theta);prepared->task_counts.emplace(std::move(key),value);return value;
   };
   std::vector<int> entry(result.model.stages.size()),done(entry);result.offsets={0};
-  auto append=[&](int stage,bool combine,FlowPreparationCache::OwnershipEntry const& ownership){auto count=ownership.count;result.projection.stages.push_back({stage,combine,count});result.counts.push_back(evaluate_count(count));result.offsets.push_back(result.offsets.back()+result.counts.back());};
+  auto append=[&](int stage,bool combine,FlowPreparationCache::OwnershipEntry const& ownership){
+    auto count=ownership.count;
+    result.projection.stages.push_back({stage,combine,count});
+    result.counts.push_back(evaluate_count(count));
+    result.offsets.push_back(result.offsets.back()+result.counts.back());
+    if(result.model.dm)
+      result.projection.runtime_task_refs=result.projection.runtime_task_refs.Add(count);
+  };
   for(std::size_t stage=0;stage<result.model.stages.size();++stage) {
     auto sem=std::find_if(result.model.task_semantics.begin(),result.model.task_semantics.end(),[&](auto const& s){return s.stage==int(stage) && (!result.model.stages[stage].IsCollective() || s.op.kind==analysis::OperatorKind::kMatmul);});
     if(sem==result.model.task_semantics.end())throw std::runtime_error("missing flow stage semantic");
@@ -122,12 +161,13 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     auto window=edge.window;
     if(edge.producer>=entry.size() || edge.consumer>=entry.size())
       throw std::invalid_argument("flow runtime dependency outside stage range");
-    if(done[edge.producer]!=entry[edge.producer] &&
-       result.model.stages[edge.producer].kind==StageKind::kGemm &&
+    if(edge.table || edge.counted)continue;
+    if(!edge.producer_main && done[edge.producer]!=entry[edge.producer] &&
+       IsGemmStage(result.model.stages[edge.producer].kind) &&
        !result.model.combiner_tile_ownership)
       window={};
-    result.projection.runtime_windows.push_back({done[edge.producer],
-        entry[edge.consumer],window,std::to_string(window.offset)});
+    result.projection.runtime_windows.push_back({edge.producer_main?entry[edge.producer]:done[edge.producer],
+        edge.consumer_done?done[edge.consumer]:entry[edge.consumer],window,std::to_string(window.offset)});
   }
   for(std::size_t i=0;i<entry.size();++i)if(done[i]!=entry[i]) {
     if(!result.model.combiner_tile_ownership) {
@@ -138,6 +178,16 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     auto const& g=geometry.at(stage.gemm);
     int chunks=std::max(1,std::min(g.split_k,
         (result.model.gemms.at(stage.gemm).k+g.tile_k-1)/g.tile_k));
+    if(result.model.dm) {
+      auto semantic=std::find_if(result.model.task_semantics.begin(),result.model.task_semantics.end(),
+          [&](auto const& item){return item.stage==int(i) && item.op.reduction.splittable;});
+      if(semantic==result.model.task_semantics.end())
+        throw std::invalid_argument("split DM flow stage lacks reduction semantics");
+      auto const* combine=graph.Find(semantic->op.reduction.combiner);
+      if(!combine || combine->operands.size()!=1)
+        throw std::invalid_argument("split DM flow stage lacks its partial tensor");
+      chunks=combine->operands.front().tensor.axes.back().extent.Eval(theta,{});
+    }
     if(result.projection.options.cg_split_task_order) {
       result.projection.runtime_windows.push_back({entry[i],done[i],
           {true,1,chunks,0,chunks},"0"});
@@ -163,6 +213,49 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     exact_edges.emplace(std::make_pair(edge.src.name,edge.dst.name),relation);
     grouped[{p.stage,c.stage}].push_back(std::move(relation));}
   for(auto const& [pair,relations]:grouped)result.data_edges.push_back({pair.first,pair.second,(relations.size()==1?relations.front():analysis::CouplingRelation::UnionAll(relations))});
+  for(auto& edge:result.runtime.dependencies)if(edge.counted) {
+    int producer=edge.producer_main?entry[edge.producer]:done[edge.producer];
+    int consumer=edge.consumer_done?done[edge.consumer]:entry[edge.consumer];
+    auto exact=std::find_if(result.data_edges.begin(),result.data_edges.end(),[&](auto const& item) {
+      return item.producer==producer && item.consumer==consumer;
+    });
+    if(exact==result.data_edges.end())throw std::invalid_argument("counted edge has no access-derived flow relation");
+    auto task_for=[&](int stage,bool produced) -> analysis::OperatorNode const& {
+      auto semantic=std::find_if(result.model.task_semantics.begin(),result.model.task_semantics.end(),
+          [&](auto const& item){return item.stage==stage;});
+      if(semantic==result.model.task_semantics.end())throw std::invalid_argument("counted flow task has no L-sem");
+      auto name=produced && done[stage]!=entry[stage]?semantic->op.reduction.combiner:semantic->op.name;
+      auto* task=graph.Find(name);
+      if(!task)throw std::invalid_argument("counted flow task is absent from candidate geometry");
+      return *task;
+    };
+    auto& contract=*edge.counted;
+    contract.contributions=analysis::BindAlignedCountedScatterDependency(
+        task_for(edge.producer,true),task_for(edge.consumer,false),contract.tensor,
+        contract.unit_axes,contract.contributions.binding_source,theta);
+    if(contract.contributions.expected.size()!=unsigned(result.counts[consumer]))
+      throw std::invalid_argument("counted flow consumer is not one task per owned tile");
+    contract.producers=result.counts[producer];
+    contract.conservative_relation=exact->relation.Reverse().BindParams(theta);
+    edge.window={true,1,0,0,1};
+    result.projection.runtime_counted.push_back({producer,consumer,contract});
+  }
+  for(auto& edge:result.runtime.dependencies)if(edge.table) {
+    int producer=edge.producer_main?entry[edge.producer]:done[edge.producer];
+    int consumer=edge.consumer_done?done[edge.consumer]:entry[edge.consumer];
+    auto exact=std::find_if(result.data_edges.begin(),result.data_edges.end(),[&](auto const& item) {
+      return item.producer==producer && item.consumer==consumer;
+    });
+    if(exact==result.data_edges.end())throw std::invalid_argument("table edge has no access-derived flow relation");
+    // Geometry search changes task ownership. Rebind from L-sem instead of
+    // carrying the seed plan's concrete table into another tile geometry.
+    auto bound=analysis::BindExactTaskDependencyLinear(exact->relation.Reverse().BindParams(theta),
+        result.counts[producer],result.counts[consumer]);
+    edge.table=bound.table;edge.window=bound.window;
+    if(bound.table)result.projection.runtime_tables.push_back({producer,consumer,*bound.table});
+    else result.projection.runtime_windows.push_back({producer,consumer,bound.window,
+        std::to_string(bound.window.offset)});
+  }
   if(phase_analysis && result.model.serving && result.model.dims.seq==1 && kappa==1) {
     // Re-lift only the reduction granularity. This analysis graph is never
     // materialized; exact equality with the executable graph's edge is the
@@ -248,9 +341,54 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     analysis::CouplingCache& coupling,FlowPreparationCache& cache,bool colocate,int kernel_shared_bytes,
     PreparedFlow const* prior,std::vector<bool> const* reusable_stages,
     analysis::DramFloor::Value const* bound_floor,bool paged,
-    int paged_page_bytes) {
+    int paged_page_bytes,MoeRoutingProfile const* routing_profile,unsigned first_profile_layer) {
   if(problem.model.dtype!=ScalarType::kBF16)throw std::invalid_argument("flow preparation requires BF16");
-  auto target_key=target.ToJson();if(cache.target_key!=target_key){cache={};cache.target_key=std::move(target_key);}
+  std::map<unsigned,MoeRoutingPoint const*> routing;
+  if(routing_profile) {
+    if(!problem.model.dm || problem.model.dims.seq<=0 || problem.model.dims.batch<=0)
+      throw std::invalid_argument("profiled flow requires DM token geometry");
+    auto tokens=std::uint64_t(problem.model.dims.seq)*problem.model.dims.batch;
+    if(tokens>UINT32_MAX)throw std::overflow_error("profiled token count overflows");
+    for(auto const& access:problem.model.gemm_access)
+      if(access.b==codegen::DmBAccess::kExpertIndirect && !routing.count(access.binding)) {
+        if(routing.size()>UINT32_MAX-first_profile_layer)
+          throw std::overflow_error("profiled layer offset overflows");
+        routing.emplace(access.binding,&routing_profile->At(first_profile_layer+routing.size(),tokens));
+      }
+    if(routing.empty())throw std::invalid_argument("profiled flow has no expert stages");
+  }
+  auto target_key=target.ToJson();
+  // Include the observed distributions, not just a caller-provided identity.
+  // A reused cache must distinguish two profiles with the same DRAM mean.
+  for(auto const& [binding,point]:routing) {
+    std::ostringstream key;key<<":occupancy:"<<binding<<':'<<point->tokens<<':'<<point->experts
+        <<':'<<point->top_k<<':'<<point->windows;
+    for(auto const& [bm,histograms]:point->virtual_row_histograms) {
+      key<<":bm="<<bm<<':'<<histograms.size();
+      for(auto const& histogram:histograms) {
+        key<<'[';for(auto const& [rows,frequency]:histogram)key<<rows<<'='<<frequency<<',';key<<']';
+      }
+    }
+    target_key+=key.str();
+  }
+  if(problem.model.dm)target_key+=problem.model.PhysicalFootprintKey();
+  if(problem.model.moe_gemv)target_key+=":implementation=gemv";
+  for(auto const& [name,tensor]:floor.tensors)if(tensor.expected_read_elements) {
+    target_key+=":expected:";
+    for(auto const& value:{name,tensor.expected_read_elements->ToString(),tensor.expectation_source})
+      target_key+=std::to_string(value.size())+":"+value;
+    target_key+=":"+std::to_string(tensor.element_bytes)+":"+tensor.cardinality_kind;
+  }
+  for(auto const& [name,tensor]:floor.tensors)if(tensor.binding_producer) {
+    auto const& binding=*tensor.binding_producer;
+    target_key+=":binding:"+std::to_string(name.size())+":"+name+":"+
+        binding.envelope.ToString()+":"+binding.source;
+    for(auto const& writer:binding.writers)target_key+=":"+std::to_string(writer.size())+":"+writer;
+  }
+  if(cache.target_key!=target_key) {
+    cache={};cache.target_key=std::move(target_key);
+    prior=nullptr;reusable_stages=nullptr;
+  }
   PreparedFlow result;auto& flow=result.flow;auto model=problem.model;model.metric_bindings.values.erase("Tm");model.metric_bindings.values.erase("Tn");auto theta=model.MetricBindings();
   auto const profile_start=std::chrono::steady_clock::now();
   flow.workers=target.res.num_sms*residency;
@@ -258,7 +396,8 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   int serving_gemm_shared=0;
   if(model.serving)for(auto const& g:problem.geometry)
     serving_gemm_shared=std::max(serving_gemm_shared,
-        ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages));
+        model.dm?DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):
+                 ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages));
   // Serving refuses to silently invent a bandwidth curve once the measured
   // profile is selected. Older target files retain the R9b control physics.
   flow.inflight_dram=model.serving && !cal.inflight_curve_bytes.empty();
@@ -298,6 +437,12 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     auto const& f=tensor->second;
     std::string key=f.no_producer.ToString()+":"+f.writes.ToString()+":"+
         f.external_writes.ToString()+":"+std::to_string(f.element_bytes);
+    if(f.expected_read_elements)
+      key+=":expected:"+f.expected_read_elements->ToString()+":"+f.expectation_source+":"+f.cardinality_kind;
+    if(f.binding_producer) {
+      key+=":binding:"+f.binding_producer->envelope.ToString()+":"+f.binding_producer->source;
+      for(auto const& writer:f.binding_producer->writers)key+=":"+std::to_string(writer.size())+":"+writer;
+    }
     return cache.floor_tensor_keys.emplace(name,std::move(key)).first->second;
   };
   std::ostringstream binding_text;
@@ -387,21 +532,35 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
         input.serving_attention->kv_tile=codegen::ServingAttentionKvTile(stage.width,serving_gemm_shared);
         traits.smem_bytes=codegen::ServingAttentionSharedBytes(stage.width,input.serving_attention->kv_tile);
       }
-      chunks=stage.IsCollective()?cost.Chunks(model.gemms.at(stage.gemm),g):1;
+      chunks=stage.IsCollective()?cost.Chunks(model,stage.gemm,g):1;
     }
     auto const price_start=std::chrono::steady_clock::now();
     cache.derive_ms+=std::chrono::duration<double,std::milli>(price_start-derive_start).count();
     PiecePrices prices;
-    try {BindTaskDramProvenance(input,semantic,floor,theta,model.serving);
+    try {BindTaskDramProvenance(input,semantic,floor,theta,model.serving,&model);
       prices=PriceBoundaryPieces(cost,input,semantic,traits,{residency},model,chunks,&cache.prices,kernel_shared_bytes);
+      if(routing_profile && !projected.combine && IsGemmStage(stage.kind) && stage.gemm>=0) {
+        auto const& access=model.gemm_access.at(stage.gemm);
+        if(access.b==codegen::DmBAccess::kExpertIndirect)
+          prices=PriceMoeBoundaryPieces(cost,input,semantic,traits,{residency},model,chunks,
+              floor,*routing.at(access.binding),access.block_rows==1,prices,
+              MoeEmptyPricing::kCapacitySurrogate);
+      }
     }catch(std::exception const& e){throw std::runtime_error(input.task.name+": "+e.what());}
     auto const map_start=std::chrono::steady_clock::now();
     cache.price_ms+=std::chrono::duration<double,std::milli>(map_start-price_start).count();
     if(flow.inflight_dram)for(auto& piece:prices.pieces) {
       auto& p=piece.parts;
       p.dram_rate_cap=p.compute_ns>0 ? p.dram_bytes/p.compute_ns : cal.dram_gbps;
-      if(stage.kind==StageKind::kGemm && !projected.combine) {
+      if(IsGemmStage(stage.kind) && !projected.combine) {
         int iterations=std::max(1,(int(model.gemms.at(stage.gemm).k)+g.tile_k*chunks-1)/(g.tile_k*chunks));
+        if(model.dm && input.task.element_access && input.task.element_access->partition.reduction_index) {
+          auto const& partition=input.task.element_access->partition;
+          iterations=(chunks>1?partition.reduction_chunk:
+              partition.reduction_index->capacity).Eval(theta,{});
+          if(partition.reduction_index->chunks)
+            iterations=input.work.nominal_task_reduce_extent.BindCoordinates(piece.representative).Eval(theta)/g.tile_k;
+        }
         p.inflight_bytes=std::max(16.,std::min(p.dram_bytes,
             (g.stages-1)*p.no_producer_dram_bytes/iterations));
       }else if(stage.kind==StageKind::kFusedAttention) {
@@ -451,7 +610,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   result.colocated_producer.assign(flow.spaces.size(),-1);
   auto const edge_start=std::chrono::steady_clock::now();
   auto data_edges=problem.data_edges;
-  if(data_edges.empty()) {
+  if(data_edges.empty() && !problem.projection.dependencies.empty()) {
     auto* raw=isl_map_read_from_str(analysis::SharedIslContext().raw(),problem.projection.dependencies.ToString().c_str());
     auto* pairs=isl_map_project_out(isl_map_copy(raw),isl_dim_in,1,1);pairs=isl_map_project_out(pairs,isl_dim_out,1,1);
     for(auto const& [cpoint,ppoint]:ReadMap(pairs).BindParams(theta).Points()) {

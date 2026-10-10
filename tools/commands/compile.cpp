@@ -2,15 +2,23 @@
 #include "Toolchain.h"
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/ExactMemo.h>
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <tilemega/Dialect/CouplingGraph/HandoffPass.h>
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Frontend/ExportBridge.h>
+#include <tilemega/Frontend/DnnModelPlan.h>
+#include <tilemega/Frontend/DnnResourceProbe.h>
+#include <tilemega/Frontend/MoeRegionPlan.h>
+#include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Solver/CompilerSearch.h>
 #include <tilemega/Solver/SkeletonSearch.h>
+#include <tilemega/Solver/DnnStructureSearch.h>
+#include <tilemega/Solver/MoeStructureSearch.h>
 #include <tilemega/Solver/IntervalSegments.h>
+#include <tilemega/Solver/DmSharedWeights.h>
 #include <llvm/Support/raw_ostream.h>
 
 #include <mlir/IR/MLIRContext.h>
@@ -272,6 +280,7 @@ int RunCompile(int argc, char** argv) {
                  " --serving-pruning 0|1 --incremental-prepare 0|1 --serving-warm-start PREVIOUS.plan.json\n"
                  " --search-capacity N --per-stage-kappa 0|1 --stage-kappa CSV\n"
                  " --segments 1|2 --segment-candidates N\n"
+                 " --routing-profile FILE.json --moe-profile-layer N\n"
                  " --dump-cg FILE.mlir\n"
                  " --hop-curve FILE.tsv --seq-begin N\n"
                  " --prefetch-page-bytes N]\n";
@@ -286,13 +295,17 @@ int RunCompile(int argc, char** argv) {
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,paged_seed_from,artifact_cache;
+    std::string frontend_mode="decoder";
+    std::string shared_weight_layout;
     std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
     std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0,evict_first=0,evict_last=1;
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
+    int nonpaged_la=0,moe_dynamic=0,moe_opaque=0,moe_gemv=0;
+    bool moe_gemv_auto=true;
     std::string candidate_mode="L1",nonpaged_weight_layout="row";
-    bool page_bytes_pinned=false;
+    bool page_bytes_pinned=false,nonpaged_la_pinned=false;
     bool event_solo=false,event_red=false,barrier_v2=false;
     if(auto* cache=std::getenv("TILEMEGA_ARTIFACT_CACHE"))artifact_cache=cache;
     int serving_capacity=1088,serving_batch=1,serving_past_lo=64,
@@ -308,6 +321,13 @@ int RunCompile(int argc, char** argv) {
     int interval_begin=0,segments=1,segment_candidates=3;
     std::vector<mlir::OwningOpRef<mlir::ModuleOp>> variant_modules;
     tilemega::solver::CompilerSearchOptions solve_options;
+    std::string moe_binding="auto",routing_profile_path;unsigned moe_bm=16,moe_profile_layer=0;
+    bool moe_bm_auto=true;
+    std::shared_ptr<tilemega::solver::MoeRoutingProfile const> moe_routing_profile;
+    std::string routing_profile_sha;
+    std::string memory_reuse="none",search_selection="measure";
+    std::string dnn_deferred_ln="auto",dnn_dwpw_fuse="auto",global_la="auto";
+    bool sequence_pinned=false;
     solve_options.placement.dims={4,3,7};
     for (int i=3;i<argc;i+=2) {
       std::string flag=argv[i],value=argv[i+1];
@@ -326,6 +346,23 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--search-budget-ms") search_budget_ms=std::stoi(value);
       else if (flag=="--solve") solve_target=value;
       else if (flag=="--serving") serving_phase=value;
+      else if (flag=="--shared-weight-layout") shared_weight_layout=value;
+      else if (flag=="--frontend") frontend_mode=value;
+      else if (flag=="--moe-dynamic") moe_dynamic=std::stoi(value);
+      else if (flag=="--moe-opaque") moe_opaque=std::stoi(value);
+      else if (flag=="--moe-gemv") {moe_gemv_auto=value=="auto";moe_gemv=moe_gemv_auto?0:std::stoi(value);}
+      else if (flag=="--moe-binding") moe_binding=value;
+      else if (flag=="--routing-profile") routing_profile_path=value;
+      else if (flag=="--moe-profile-layer") {
+        int layer=std::stoi(value);if(layer<0)throw std::invalid_argument("negative routing profile layer");
+        moe_profile_layer=layer;
+      }
+      else if (flag=="--reuse") memory_reuse=value;
+      else if (flag=="--deferred-ln") dnn_deferred_ln=value;
+      else if (flag=="--dwpw-fuse") dnn_dwpw_fuse=value;
+      else if (flag=="--global-la") global_la=value;
+      else if (flag=="--selection") search_selection=value;
+      else if (flag=="--moe-bm") {moe_bm_auto=value=="auto";moe_bm=moe_bm_auto?16:std::stoul(value);}
       else if (flag=="--emit") emit_mode=value;
       else if (flag=="--measure-cmd") measure_command=value;
       else if (flag=="--serving-warm-start") serving_warm_start=value;
@@ -343,6 +380,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--deferred-norm") deferred_norm=std::stoi(value);
       else if (flag=="--paged-la") paged_la=std::stoi(value);
       else if (flag=="--paged-la-splitk") paged_la_splitk=std::stoi(value);
+      else if (flag=="--nonpaged-la") {nonpaged_la=std::stoi(value);nonpaged_la_pinned=true;}
       else if (flag=="--candidate-guard-wait-s") candidate_guard_wait_s=std::stoi(value);
       else if (flag=="--candidate-mode") candidate_mode=value;
       else if (flag=="--candidate-loop") candidate_loop=std::stoi(value);
@@ -373,7 +411,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--seq-begin") interval_begin=std::stoi(value);
       else if (flag=="--segments") segments=std::stoi(value);
       else if (flag=="--segment-candidates") segment_candidates=std::stoi(value);
-      else if (flag=="--seq") solve_options.placement.dims.seq=std::stoi(value);
+      else if (flag=="--seq") {solve_options.placement.dims.seq=std::stoi(value);sequence_pinned=true;}
       else if (flag=="--past") solve_options.placement.dims.past=std::stoi(value);
       else if (flag=="--search-capacity") solve_options.capacity=std::stoul(value);
       else if (flag=="--per-stage-kappa") solve_options.per_stage_kappa=std::stoi(value)!=0;
@@ -412,8 +450,22 @@ int RunCompile(int argc, char** argv) {
     }
     bool has_variants=!variants_path.empty();
     bool serving=!serving_phase.empty();
-    if(serving && serving_phase!="decode" && serving_phase!="prefill")
-      throw std::runtime_error("--serving expects decode or prefill");
+    bool const forward=serving_phase=="forward";
+    int forward_seq=0;
+    if(serving && serving_phase!="decode" && serving_phase!="prefill" && !forward)
+      throw std::runtime_error("--serving expects decode, prefill or forward");
+    if(frontend_mode!="decoder" && frontend_mode!="dnn")
+      throw std::runtime_error("--frontend expects decoder or dnn");
+    if(frontend_mode=="dnn" && !forward)
+      throw std::runtime_error("DNN frontend requires --emit serving --serving forward");
+    if(moe_binding!="auto" && moe_binding!="slot" && moe_binding!="group")
+      throw std::runtime_error("--moe-binding expects auto, slot or group");
+    if(moe_bm!=16 && moe_bm!=32 && moe_bm!=64 && moe_bm!=128)
+      throw std::runtime_error("--moe-bm expects auto, 16, 32, 64 or 128");
+    if((moe_gemv!=0 && moe_gemv!=1) ||
+       (moe_gemv && (!serving || frontend_mode!="decoder")))
+      throw std::invalid_argument("--moe-gemv expects 0 or 1 on a decoder serving plan");
+    if(forward)serving_capacity=serving_past_lo=serving_past_hi=0;
     if(!emit_mode.empty() && emit_mode!="serving")
       throw std::runtime_error("--emit expects serving");
     if(serving != (emit_mode=="serving"))
@@ -427,8 +479,27 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("--search-jobs must be positive");
     if(search_budget_ms<0)
       throw std::runtime_error("--search-budget-ms must be nonnegative");
+    if((!routing_profile_path.empty() || moe_profile_layer) &&
+        (!serving || frontend_mode!="decoder" || input.extension()==".mlir"))
+      throw std::invalid_argument("routing profiles require a decoder export input");
+    if(moe_profile_layer && routing_profile_path.empty())
+      throw std::invalid_argument("routing profile layer requires --routing-profile");
+    if(search_selection!="measure" && search_selection!="predicted")
+      throw std::runtime_error("--selection expects measure or predicted");
+    if(search_selection=="predicted" && !measure_command.empty())
+      throw std::runtime_error("predicted selection cannot run a measurement command");
+    if(memory_reuse!="none" && memory_reuse!="greedy" && memory_reuse!="l2" && memory_reuse!="auto")
+      throw std::runtime_error("--reuse expects auto, none, greedy or l2");
+    if(memory_reuse!="none" && frontend_mode!="dnn")
+      throw std::runtime_error("buffer reuse currently requires the DNN frontend");
+    if(global_la!="auto" && global_la!="0")
+      throw std::invalid_argument("--global-la expects auto or 0");
+    if(dnn_dwpw_fuse!="auto" && dnn_dwpw_fuse!="0")
+      throw std::runtime_error("--dwpw-fuse expects auto or 0");
+    if(dnn_deferred_ln!="auto" && dnn_deferred_ln!="0")
+      throw std::runtime_error("--deferred-ln expects auto or 0");
     if(serving && !solve_target.empty() && !flow_search_only &&
-       measure_command.empty())
+       search_selection=="measure" && measure_command.empty())
       throw std::runtime_error("serving solve requires --measure-cmd for the top-3 decision");
     if (!solve_target.empty() && has_variants)
       throw std::runtime_error("--solve chooses variants; cannot combine with --variants");
@@ -438,8 +509,16 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("--pg must be off, l2, pages or auto");
     if(handoff_mode!="off" && handoff_mode!="auto")
       throw std::runtime_error("--handoff must be off or auto");
-    bool use_pages=serving && serving_phase=="decode" && (pg_mode=="pages" || pg_mode=="auto");
-    if(pg_mode=="pages" && !use_pages)throw std::runtime_error("paged execution requires serving decode");
+    bool use_pages=serving && (pg_mode=="pages" || (serving_phase=="decode" && pg_mode=="auto"));
+    if(moe_dynamic!=0 && moe_dynamic!=1)
+      throw std::invalid_argument("--moe-dynamic must be 0 or 1");
+    if(moe_dynamic && (!serving || use_pages || pg_mode!="l2" || frontend_mode!="decoder"))
+      throw std::invalid_argument("--moe-dynamic requires a decoder MoE plan with --pg l2");
+    if(moe_opaque!=0 && moe_opaque!=1)
+      throw std::invalid_argument("--moe-opaque must be 0 or 1");
+    if(moe_opaque && (!serving || frontend_mode!="decoder" || (pg_mode!="l2" && !use_pages)))
+      throw std::invalid_argument("--moe-opaque requires a decoder MoE plan with --pg l2 or pages");
+    if(pg_mode=="pages" && !use_pages)throw std::runtime_error("paged execution requires a serving phase");
     if(handoff_mode=="auto" && use_pages)
       throw std::runtime_error("paged decode reductions use fixed last-arriver; --handoff auto is unsupported");
     if(handoff_mode=="auto" && !use_pages)
@@ -448,8 +527,17 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("--sync must be calibrated or legacy");
     if(nonpaged_weight_layout!="row" && nonpaged_weight_layout!="tiled")
       throw std::invalid_argument("--nonpaged-weight-layout must be row or tiled");
-    bool const use_nonpaged_tiled=serving && serving_phase=="decode" &&
+    bool const use_nonpaged_tiled=serving &&
         !use_pages && nonpaged_weight_layout=="tiled";
+    if(!shared_weight_layout.empty() && (!serving ||
+        (use_pages?weight_layout!="tiled":!use_nonpaged_tiled)))
+      throw std::invalid_argument("shared weight layout requires packed serving weights");
+    if(!shared_weight_layout.empty() && input.extension()==".mlir")
+      throw std::invalid_argument("shared weight layout requires export input and the planned GEMM family");
+    if(nonpaged_la!=0 && nonpaged_la!=1)
+      throw std::invalid_argument("--nonpaged-la must be 0 or 1");
+    if(nonpaged_la && !serving)
+      throw std::invalid_argument("--nonpaged-la requires a serving plan");
     if(serving) {
       runtime_flags+=" -DTILEMEGA_NONPAGED_TILED="+std::to_string(use_nonpaged_tiled);
       if(runtime_target.empty())runtime_target=solve_target;
@@ -487,6 +575,70 @@ int RunCompile(int argc, char** argv) {
        (paged_la_splitk!=0 && paged_la_splitk!=1) || candidate_guard_wait_s<0)
       throw std::runtime_error("invalid serving ablation option");
     std::string source,selected_serving_mode,selected_serving_binary;
+    bool defer_dm_lowering=false;
+    std::optional<tilemega::analysis::ScopedExactAnalysisMemo> dm_memo;
+    std::optional<tilemega::frontend::ModelPlan> dnn_plan;
+    std::optional<tilemega::frontend::DnnPlanOptions> dnn_options;
+    if(frontend_mode=="dnn" && input.extension()!=".mlir") {
+      auto bridge=tilemega::frontend::ReadExportBridge(input.string());
+      tilemega::frontend::DnnPlanOptions options;options.batch=serving_batch;
+      options.deferred_layernorm=dnn_deferred_ln=="auto";
+      options.dwpw_fuse=dnn_dwpw_fuse=="auto";
+      options.memory_reuse=memory_reuse=="auto"?"l2":memory_reuse;
+      if(!runtime_target.empty()) {
+        auto target=tilemega::TargetSpec::FromJson(runtime_target);
+        options.workspace_budget_bytes=target.res.max_dynamic_smem_per_cta;
+        options.memory_l2_budget_bytes=target.res.l2_bytes;
+        if(target.calib.l2_knee_bytes>0)
+          options.memory_l2_budget_bytes=std::min(options.memory_l2_budget_bytes,
+              std::uint64_t(target.calib.l2_knee_bytes));
+      }
+      dnn_plan=tilemega::frontend::BuildDnnModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
+      dnn_options=options;
+      forward_seq=dnn_plan->serving_seq;
+    }else if(forward && input.extension()!=".mlir") {
+      if(serving_batch!=1)throw std::runtime_error("MoE forward regions require batch one");
+      auto bridge=tilemega::frontend::ReadExportBridge(input.string());
+      tilemega::frontend::MoeRegionOptions options;
+      options.tokens=sequence_pinned?solve_options.placement.dims.seq:1;options.block_rows=moe_bm;
+      options.grouped=moe_binding=="group" || (moe_binding=="auto" && options.tokens>2);
+      dnn_plan=tilemega::frontend::BuildMoeRegion(bridge.nodes,bridge.inputs,bridge.outputs,options);
+      forward_seq=dnn_plan->serving_seq;
+    }
+    auto bind_routing_profile=[&](tilemega::frontend::ModelPlan const& plan) {
+      if(routing_profile_path.empty() || moe_routing_profile)return;
+      std::map<unsigned,tilemega::codegen::DmMoeStage> regions;
+      for(auto const& stage:plan.stages)if(stage.kind==tilemega::frontend::PlanTaskKind::kMoETopK)
+        regions.emplace(stage.moe.router_gemm,stage.moe);
+      if(regions.empty())throw std::invalid_argument("routing profile requires MoE stages");
+      auto value=tilemega::json::ParseFile(routing_profile_path);
+      auto layers=value.At("sampling").At("layers").AsNumber("profile layers");
+      if(layers<1 || layers>UINT32_MAX || std::floor(layers)!=layers ||
+          layers!=value.At("layers").AsArray("profile layers").size())
+        throw std::invalid_argument("invalid routing profile layer count");
+      auto const& cfg=regions.begin()->second;
+      auto profile=tilemega::solver::MoeRoutingProfile::Read(value,unsigned(layers),cfg.experts,cfg.top_k);
+      unsigned offset=moe_profile_layer;
+      for(auto const& [router,region]:regions) {
+        if(region.experts!=cfg.experts || region.top_k!=cfg.top_k || !region.top_k)
+          throw std::invalid_argument("routing profile differs between MoE layers");
+        auto const& point=profile.At(offset++,region.row_capacity/region.top_k);
+        if(region.row_capacity!=point.SlotCapacity())
+          throw std::invalid_argument("routing profile differs from assignment capacity");
+      }
+      auto receipt=std::string(argv[2])+".routing-profile.identity.json";
+      auto command="python3 "+quote(std::string(TILEMEGA_SOURCE_DIR)+
+          "/python/tilemega/moe/profile_identity.py")+" --path "+quote(routing_profile_path)+
+          " --layers "+std::to_string(unsigned(layers))+" --experts "+std::to_string(cfg.experts)+
+          " --top-k "+std::to_string(cfg.top_k)+" --output "+quote(receipt);
+      if(std::system(command.c_str()))throw std::runtime_error("routing profile identity verification failed");
+      auto identity=tilemega::json::ParseFile(receipt);
+      routing_profile_sha=modelFingerprint(routing_profile_path);
+      if(identity.At("file_sha256").AsString("file SHA256")!=routing_profile_sha ||
+          identity.At("profile_id").AsString("profile id")!=profile.profile_id)
+        throw std::runtime_error("routing profile changed during verification");
+      moe_routing_profile=std::make_shared<tilemega::solver::MoeRoutingProfile const>(std::move(profile));
+    };
     double selected_serving_ms=std::numeric_limits<double>::infinity();
     if(serving && solve_target.empty()) {
       if(has_variants)throw std::runtime_error("serving needs one exported model or solved CG");
@@ -494,13 +646,37 @@ int RunCompile(int argc, char** argv) {
         module=mlir::parseSourceFile<mlir::ModuleOp>(input.string(),&context);
         if(!module || !(*module)->hasAttr("tilemega.serving"))
           throw std::runtime_error("serving CG is missing its serving schema");
+        auto info=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
+        auto phase=info.getAs<mlir::IntegerAttr>("phase");
+        bool cg_forward=phase && phase.getInt()==2;
+        if(forward!=cg_forward)
+          throw std::runtime_error("serving request disagrees with CG forward phase");
+        if(forward) {
+          auto seq=info.getAs<mlir::IntegerAttr>("seq");
+          auto capacity=info.getAs<mlir::IntegerAttr>("capacity");
+          auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+          auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
+          auto region=plan?plan.getAs<mlir::BoolAttr>("forward"):mlir::BoolAttr{};
+          if(!seq || seq.getInt()<=0 || seq.getInt()>std::numeric_limits<int>::max() ||
+              !capacity || capacity.getInt()!=0 || !dm || !dm.getValue() ||
+              !region || !region.getValue())
+            throw std::runtime_error("invalid forward CG runtime schema");
+          forward_seq=int(seq.getInt());
+          auto token_axis=plan.getAs<mlir::BoolAttr>("forward_token_axis");
+          if(token_axis && token_axis.getValue() && serving_batch!=1)
+            throw std::runtime_error("forward token regions require batch one");
+        }
+        auto seq=forward?forward_seq:(serving_phase=="decode"?1:64);
         source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(
-            {{*module,static_cast<std::uint32_t>(serving_phase=="decode"?1:64),
-                       static_cast<std::uint32_t>(serving_phase=="decode"?1:64)}});
+            {{*module,static_cast<std::uint32_t>(seq),static_cast<std::uint32_t>(seq)}});
       }else {
       auto bridge=tilemega::frontend::ReadExportBridge(input.string());
       tilemega::frontend::ServingOptions options;
       options.deferred_norm=deferred_norm!=0;
+      options.moe_batch=serving_batch;
+      options.moe_grouped=moe_binding=="group" ||
+          (moe_binding=="auto" && serving_batch*(serving_phase=="decode"?1:64)>2);
+      options.moe_block_rows=moe_bm;
       options.phase=serving_phase=="decode"
           ? tilemega::frontend::ServingOptions::Phase::kDecode
           : tilemega::frontend::ServingOptions::Phase::kPrefill;
@@ -509,13 +685,55 @@ int RunCompile(int argc, char** argv) {
       options.kv_block=serving_kv_block;
       options.query_rows=serving_query_rows;
       options.argmax_tile_n=serving_argmax_tile_n;
-      auto plan=tilemega::frontend::BuildModelPlan(
+      auto plan=dnn_plan?*dnn_plan:tilemega::frontend::BuildModelPlan(
           bridge.nodes,bridge.inputs,bridge.outputs,options);
+      if(plan.dm) {
+        bool enabled=!moe_opaque && (use_pages?paged_la:(!nonpaged_la_pinned || nonpaged_la));
+        bool experts=std::any_of(plan.stages.begin(),plan.stages.end(),[](auto const& stage) {
+          return stage.kind==tilemega::frontend::PlanTaskKind::kMoETopK;
+        });
+        plan.dm_reduction_mask=enabled?((frontend_mode=="dnn" && global_la=="auto"?1:0)|(experts?6:0)):0;
+      }
+      bind_routing_profile(plan);
+      if(plan.dm && !tilemega::analysis::active_exact_memo)dm_memo.emplace();
+      defer_dm_lowering=plan.dm && (use_pages || use_nonpaged_tiled || pg_mode=="l2");
+      if(forward)options.seq=forward_seq;
       tilemega::frontend::ImportOptions import;
-      import.gemms.assign(plan.gemms.size(),{16,128,128,2,1});
+      if (plan.forward || plan.dm) import.phase_batch = serving_batch;
+      import.gemms.assign(plan.gemms.size(),forward?
+          tilemega::frontend::GemmGranularity{128,64,16,3,1}:
+          tilemega::frontend::GemmGranularity{16,128,128,2,1});
+      for(auto const& stage:plan.stages)
+        if(stage.kind==tilemega::frontend::PlanTaskKind::kDwPwFused)
+          import.gemms.at(stage.gemm).tile_m=16;
+      if(!shared_weight_layout.empty())
+        for(auto const& [id,layout]:tilemega::solver::SharedDmWeightLayouts(plan,
+            tilemega::json::ParseFile(shared_weight_layout))) {
+          import.gemms.at(id).tile_n=layout.tile_n;
+          import.gemms.at(id).tile_k=layout.tile_k;
+        }
+      if(moe_gemv) {
+        plan.moe_gemv=true;
+        bool expert=false;
+        for(auto const& g:plan.gemms)expert|=g.access.b==tilemega::codegen::DmBAccess::kExpertIndirect;
+        if(!expert)throw std::invalid_argument("--moe-gemv requires a MoE plan");
+        for(auto const& stage:plan.stages)if(tilemega::frontend::IsGemmStage(stage.kind)) {
+          auto const& g=plan.gemms.at(stage.gemm);
+          auto rows=g.access.b==tilemega::codegen::DmBAccess::kExpertIndirect?g.access.block_rows:
+              unsigned(serving_batch)*(g.access.rows_per_batch?g.access.rows_per_batch:
+                  (stage.batch_rows?1:options.seq));
+          if(rows && rows<=4 && g.access.a!=tilemega::codegen::DmAAccess::kIm2Col) {
+            auto& geometry=import.gemms.at(stage.gemm);
+            if(shared_weight_layout.empty())geometry={16,32,64,2,1};
+            else {geometry.tile_m=16;geometry.stages=2;geometry.split_k=1;}
+          }
+        }
+      }
       module=tilemega::frontend::TorchExportImporter{}.ImportPlan(
           input.string(),plan,context,&summary,import);
-      source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(
+      // Runtime configuration below replaces this source. DM graphs can be
+      // large; lower their final verified layout once instead of discarding it.
+      if(!defer_dm_lowering)source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(
           {{*module,static_cast<std::uint32_t>(options.seq),
                      static_cast<std::uint32_t>(options.seq)}});
       std::cerr<<"SERVING_SEED phase="<<serving_phase<<" batch="<<serving_batch
@@ -530,7 +748,7 @@ int RunCompile(int argc, char** argv) {
       solve_options.placement.target=tilemega::TargetSpec::FromJson(solve_target);
       if(serving) {
         auto& d=solve_options.placement.dims;
-        d.batch=serving_batch;d.seq=serving_phase=="decode"?1:64;
+        d.batch=serving_batch;d.seq=forward?forward_seq:(serving_phase=="decode"?1:64);
         d.past=serving_phase=="decode"?(serving_past_lo+serving_past_hi)/2:0;
         d.total=d.seq+d.past;
       }
@@ -699,15 +917,57 @@ int RunCompile(int argc, char** argv) {
           if(!legacy_seed.empty())throw std::runtime_error("serving search does not use a legacy seed");
           auto bridge=tilemega::frontend::ReadExportBridge(input.string());
           tilemega::frontend::ServingOptions options;
-      options.deferred_norm=deferred_norm!=0;
+          options.deferred_norm=deferred_norm!=0;
+          options.moe_batch=serving_batch;
+          options.moe_grouped=moe_binding=="group" ||
+              (moe_binding=="auto" && serving_batch*dims.seq>2);
+          options.moe_block_rows=moe_bm;
           options.phase=serving_phase=="decode"
               ? tilemega::frontend::ServingOptions::Phase::kDecode
               : tilemega::frontend::ServingOptions::Phase::kPrefill;
           options.seq=dims.seq;options.capacity=serving_capacity;
           options.kv_block=serving_kv_block;options.query_rows=serving_query_rows;
           options.argmax_tile_n=serving_argmax_tile_n;
-          auto plan=tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,
+          auto plan=dnn_plan?*dnn_plan:tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,
               bridge.outputs,options);
+          if(moe_gemv)plan.moe_gemv=true;
+          if(plan.dm) {
+            bool enabled=!moe_opaque && (use_pages?paged_la:(!nonpaged_la_pinned || nonpaged_la));
+            bool experts=std::any_of(plan.stages.begin(),plan.stages.end(),[](auto const& stage) {
+              return stage.kind==tilemega::frontend::PlanTaskKind::kMoETopK;
+            });
+            plan.dm_reduction_mask=enabled?((frontend_mode=="dnn" && global_la=="auto"?1:0)|(experts?6:0)):0;
+          }
+          bind_routing_profile(plan);
+          skeleton.moe_routing_profile=moe_routing_profile;
+          skeleton.moe_profile_layer=moe_profile_layer;
+          if(plan.dm && !tilemega::analysis::active_exact_memo)dm_memo.emplace();
+          if(!shared_weight_layout.empty())
+            skeleton.dm_shared_weights=tilemega::solver::SharedDmWeightLayouts(plan,
+                tilemega::json::ParseFile(shared_weight_layout));
+          if(plan.dm && plan.serving)
+            skeleton.dm_structure_rebuild=[](auto const& previous,auto const& bridge,
+                auto const& lift,int kv_block,int query_rows,int argmax_tile_n) {
+              auto binding=std::find_if(previous.stages.begin(),previous.stages.end(),[](auto const& s) {
+                return s.moe.step!=tilemega::codegen::DmMoeStep::kNone;
+              });
+              if(binding==previous.stages.end())
+                throw std::invalid_argument("MoE decoder rebuild has no binding geometry");
+              auto const& cfg=binding->moe;
+              tilemega::frontend::ServingOptions requested;
+              requested.seq=previous.serving_seq;requested.capacity=previous.serving_capacity;
+              requested.phase=requested.seq==1?tilemega::frontend::ServingOptions::Phase::kDecode:
+                  tilemega::frontend::ServingOptions::Phase::kPrefill;
+              requested.deferred_norm=std::any_of(previous.gemms.begin(),previous.gemms.end(),
+                  [](auto const& g){return g.norm_ss!=tilemega::codegen::kDmNoIndex;});
+              requested.moe_batch=cfg.row_capacity/cfg.top_k/requested.seq;
+              requested.moe_grouped=cfg.grouped;requested.moe_block_rows=cfg.block_rows;
+              requested.kv_block=kv_block;requested.query_rows=query_rows;
+              requested.argmax_tile_n=argmax_tile_n;
+              auto rebuilt=tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,requested);
+              auto semantics=tilemega::frontend::LiftSemantics(rebuilt,lift);
+              return std::make_pair(std::move(rebuilt),std::move(semantics));
+            };
           serving_imported.emplace(tilemega::frontend::TorchExportImporter{}.
               ImportSemantics(input.string(),plan,context));
           // A paged seed must satisfy the selected page's single-stage
@@ -757,6 +1017,7 @@ int RunCompile(int argc, char** argv) {
           // Paged decode uses the fixed two-stage local MMA mainloop;
           // additional stage templates cannot occur in its search domain.
           if(use_pages)command+=" --stages 2";
+          if(serving_imported->plan.dm)command+=" --dm";
           std::ofstream(resource_root/"prewarm.command.txt")<<command<<'\n';
           if(std::system((command+" >"+quote((resource_root/"prewarm.log").string())+
               " 2>&1").c_str()))
@@ -764,12 +1025,17 @@ int RunCompile(int argc, char** argv) {
                 (resource_root/"prewarm.log").string());
         }
         int variant_index=0;
-        std::map<std::tuple<int,int,int,int,int>,tilemega::solver::VariantResources> probed_bodies;
-        skeleton.variant_probe=[&](std::string const&,tilemega::solver::GemmConfig const* tile,tilemega::solver::ScalarType dtype) {
+        std::map<std::tuple<int,int,int,int,int,bool,std::string>,tilemega::solver::VariantResources> probed_bodies;
+        auto variant_probe=[&](tilemega::frontend::ModelPlan const* probe_plan,std::string const&,tilemega::solver::GemmConfig const* tile,tilemega::solver::ScalarType dtype) {
+          std::string nongemm_source;
+          if(probe_plan && dnn_options && !tile)
+            nongemm_source=tilemega::frontend::DnnNonGemmProbeSource(*probe_plan);
+          else if(probe_plan && probe_plan->dm && probe_plan->forward_token_axis && !tile)
+            nongemm_source=tilemega::frontend::MoeRegionNonGemmProbeSource(*probe_plan);
           // The compiled TaskBody template has no class or split-K parameter.
           // Keep logical variant keys above, but reuse its identical probe.
           auto body=std::make_tuple(tile?tile->tile_m:0,tile?tile->tile_n:0,
-              tile?tile->tile_k:0,tile?tile->stages:0,int(dtype));
+              tile?tile->tile_k:0,tile?tile->stages:0,int(dtype),probe_plan && probe_plan->moe_gemv,nongemm_source);
           if(auto found=probed_bodies.find(body);found!=probed_bodies.end()) {
             auto reused=found->second;reused.compiled=false;return reused;
           }
@@ -780,7 +1046,14 @@ int RunCompile(int argc, char** argv) {
             " --dtype "+std::string(dtype==tilemega::solver::ScalarType::kBF16 ? "bf16":"f32");
           if(serving) {
             command+=" --serving";
-            if(!tile) {
+            if(probe_plan && probe_plan->dm)command+=" --dm";
+            if(probe_plan && probe_plan->moe_gemv && tile)command+=" --dm-gemv";
+            if(!nongemm_source.empty()) {
+              auto source=output;source.replace_extension("cu");
+              {std::ofstream stream(source);stream<<nongemm_source;
+               if(!stream)throw std::runtime_error("cannot write DNN resource probe");}
+              command+=" --nongemm-source "+quote(source.string());
+            }else if(!tile) {
               auto found=std::find_if(serving_imported->plan.stages.begin(),
                   serving_imported->plan.stages.end(),[](auto const& stage){
                     return stage.kind==tilemega::frontend::PlanTaskKind::kFusedAttention;});
@@ -799,7 +1072,35 @@ int RunCompile(int argc, char** argv) {
           auto resource=tilemega::solver::VariantResources{int(requiredInteger(*object,"registers")),int(requiredInteger(*object,"shared_bytes")),int(requiredInteger(*object,"threads")),object->getBoolean("compiled").value_or(false)};
           probed_bodies.emplace(body,resource);return resource;
         };
-        auto result=serving
+        skeleton.variant_probe=[&](auto const& signature,auto const* tile,auto dtype) {
+          return variant_probe(serving_imported?&serving_imported->plan:nullptr,signature,tile,dtype);
+        };
+        if(serving_imported && serving_imported->plan.dm)skeleton.dm_variant_probe=[&](auto const& plan,auto const& signature,auto const* tile,auto dtype) {
+          return variant_probe(&plan,signature,tile,dtype);
+        };
+        std::vector<tilemega::solver::MoeBindingChoice> binding_choices;
+        bool has_moe=serving_imported && std::any_of(serving_imported->plan.stages.begin(),
+            serving_imported->plan.stages.end(),[](auto const& stage) {
+              return stage.kind==tilemega::frontend::PlanTaskKind::kMoETopK;
+            });
+        if(has_moe)for(bool gemv:moe_gemv_auto?std::vector<bool>{false,true}:
+            std::vector<bool>{moe_gemv!=0}) {
+          int allowed=serving_imported->plan.dm_reduction_mask&6;
+          for(int mask:{0,2,4,6})if((mask&allowed)==mask) {
+            if(moe_binding!="group")binding_choices.push_back({false,1,gemv,mask});
+            if(moe_binding!="slot")for(auto bm:moe_bm_auto?std::vector<unsigned>{16,32,64,128}:
+                std::vector<unsigned>{moe_bm})binding_choices.push_back({true,bm,gemv,mask});
+          }
+        }
+        auto result=dnn_options && search_selection=="predicted" && skeleton.evaluation_cases.empty()
+            ? tilemega::solver::SolveDnnStructures(*serving_imported,*dnn_options,
+                memory_reuse=="auto"?std::vector<std::string>{"none","greedy","l2"}:
+                    std::vector<std::string>{dnn_options->memory_reuse},
+                context,skeleton,&summary,evidence)
+            : has_moe && search_selection=="predicted" && skeleton.evaluation_cases.empty()
+            ? tilemega::solver::SolveMoeStructures(*serving_imported,binding_choices,
+                context,skeleton,&summary,evidence)
+            : serving
             ? tilemega::solver::SolveSkeletonImported(*serving_imported,context,skeleton,&summary,evidence)
             : tilemega::solver::SolveSkeletonExport(input.string(),context,skeleton,&summary,evidence);
         if(flow_search_only) {
@@ -868,6 +1169,7 @@ int RunCompile(int argc, char** argv) {
               " --evict-last "+std::to_string(evict_last)+
               " --paged-la "+std::to_string(paged_la)+
               " --paged-la-splitk "+std::to_string(paged_la_splitk)+
+              (nonpaged_la?" --nonpaged-la 1":"")+
               " --l2-prefetch-depth "+std::to_string(prefetch_depth)+" --l2-prefetch-stride "+std::to_string(prefetch_stride)+
               " --event-solo "+std::to_string(event_solo)+" --event-red-publish "+std::to_string(event_red)+
               " --barrier-v2 "+std::to_string(barrier_v2)+
@@ -1093,10 +1395,26 @@ int RunCompile(int argc, char** argv) {
       source = tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(inputs);
     }
     bool use_l2=serving && (pg_mode=="l2" || (pg_mode=="auto" && !use_pages));
+    if(moe_opaque)(*module)->setAttr("tmexec.moe_opaque",mlir::BoolAttr::get(&context,true));
+    if(serving && !use_pages && nonpaged_la) {
+      mlir::OpBuilder handoffs(module->getContext());
+      (*module)->setAttr("tmexec.nonpaged_la",handoffs.getBoolAttr(true));
+      auto reductions=tilemega::dialect::SelectServingHandoffs(*module,2|4);
+      std::cerr<<"NONPAGED_LAST_ARRIVER selected="<<reductions.last_arriver<<'\n';
+      handoff_mode="last_arriver";
+      if(!defer_dm_lowering)source=tilemega::codegen::CouplingGraphToCUDA{}.Lower(*module);
+    }
     if(use_l2) {
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
       tilemega::codegen::ConfigureServingPrefetch(*module,target,prefetch_depth,prefetch_stride);
-      source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});
+      auto seq=mlir::cast<mlir::IntegerAttr>((*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving").get("seq")).getInt();
+      auto model=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+      auto dm=model.getAs<mlir::BoolAttr>("dm");
+      // Existing nonpaged prefill dispatches through index 1; its token
+      // geometry is carried separately by TILEMEGA_SERVING_SEQ.
+      if(!(dm && dm.getValue()) && !nonpaged_la && !use_nonpaged_tiled)seq=1;
+      if(!(defer_dm_lowering && use_nonpaged_tiled))
+        source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,unsigned(seq),unsigned(seq)}});
     }
     if(use_pages) {
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
@@ -1113,13 +1431,15 @@ int RunCompile(int argc, char** argv) {
       std::cerr<<"R12_LAST_ARRIVER selected="<<r12_reductions.last_arriver<<'\n';
       handoff_mode="last_arriver";
       }else handoff_mode="off";
-      source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}});
+      auto seq=mlir::cast<mlir::IntegerAttr>((*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving").get("seq")).getInt();
+      source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,unsigned(seq),unsigned(seq)}});
     }
     if(use_nonpaged_tiled) {
       mlir::OpBuilder packing(module->getContext());
       (*module)->setAttr("tmexec.nonpaged_weight_layout_tiled",packing.getBoolAttr(true));
       tilemega::codegen::ResolveServingWeightPacking(*module);
-      source=use_l2 ? tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,1,1}})
+      auto seq=mlir::cast<mlir::IntegerAttr>((*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving").get("seq")).getInt();
+      source=use_l2 ? tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,unsigned(seq),unsigned(seq)}})
                     : tilemega::codegen::CouplingGraphToCUDA{}.Lower(*module);
     }
     if (!dump_cg.empty()) {
@@ -1136,7 +1456,7 @@ int RunCompile(int argc, char** argv) {
       }
     }
     if (serving) {
-      if (serving_phase == "prefill")
+      if (serving_phase == "prefill" || forward)
         serving_past_lo = serving_past_hi = 0;
       source = "#define TILEMEGA_PDL " +std::to_string(pdl=="auto")+"\n"+
           "#define TILEMEGA_ARCH_PATH_SM80 "+std::to_string(arch_paths=="sm80")+"\n"+
@@ -1148,6 +1468,40 @@ int RunCompile(int argc, char** argv) {
           std::to_string(serving_past_lo) + "\n" +
           "#define TILEMEGA_SERVING_PAST_HI " +
           std::to_string(serving_past_hi) + "\n" + source;
+    }
+    bool dm_pool_la=false,dm_moe_la=false;
+    int dm_reduction_mask=-1;
+    if(serving) {
+      auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+      auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
+      if(dm && dm.getValue()) {
+        bool enabled=!moe_opaque && (use_pages?paged_la:(!nonpaged_la_pinned || nonpaged_la));
+        auto selected_mask=plan.getAs<mlir::IntegerAttr>("dm_reduction_mask");
+        if(selected_mask)dm_reduction_mask=selected_mask.getInt();
+        dm_pool_la=selected_mask?bool(dm_reduction_mask&1):enabled && global_la=="auto";
+        dm_moe_la=selected_mask?bool(dm_reduction_mask&6):enabled;
+        if(!selected_mask && (dm_pool_la || dm_moe_la))source="#define TILEMEGA_DM_REDUCTIONS 1\n#define TILEMEGA_DM_POOL_LA "+
+            std::to_string(dm_pool_la)+"\n#define TILEMEGA_DM_MOE_LA "+std::to_string(dm_moe_la)+"\n"+source;
+      }
+    }
+    if(serving) {
+      auto selected=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+      if(auto family=selected?selected.getAs<mlir::BoolAttr>("moe_gemv"):mlir::BoolAttr{})
+        moe_gemv=family.getValue();
+    }
+    if(moe_dynamic || moe_opaque || moe_gemv) {
+      auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+      auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
+      bool experts=false;
+      if(dm && dm.getValue())for(auto entry:plan.getAs<mlir::ArrayAttr>("stages"))
+        experts|=bool(mlir::cast<mlir::DictionaryAttr>(entry).get("dm_moe"));
+      if(!experts)throw std::invalid_argument("MoE execution controls require virtual MoE stages");
+      if(moe_dynamic)source="#define TILEMEGA_MOE_DYNAMIC 1\n"+source;
+      if(moe_gemv && source.find("#define TILEMEGA_MOE_GEMV 1\n")==std::string::npos)
+        source="#define TILEMEGA_MOE_GEMV 1\n"+source;
+      if(moe_opaque) {
+        source="#define TILEMEGA_MOE_OPAQUE 1\n"+source;
+      }
     }
     std::filesystem::path requested(argv[2]);
     bool shared = requested.extension() == ".so";
@@ -1300,7 +1654,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"batch_hi\": "<<serving_batch
               <<",\n  \"past_lo\": "<<serving_past_lo
               <<",\n  \"past_hi\": "<<serving_past_hi
-              <<",\n  \"seq\": "<<(serving_phase=="decode"?1:64)
+              <<",\n  \"seq\": "<<(forward?forward_seq:(serving_phase=="decode"?1:64))
               <<",\n  \"capacity\": "<<serving_capacity
               <<",\n  \"sync\": "<<std::quoted(sync_policy)
               <<",\n  \"pg\": "<<std::quoted(use_pages?"pages":pg_mode)
@@ -1313,6 +1667,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"deferred_norm\": "<<(manifest_deferred_norm?"true":"false")
               <<",\n  \"paged_la\": "<<(use_pages && paged_la?"true":"false")
               <<",\n  \"paged_la_splitk\": "<<(use_pages && paged_la && paged_la_splitk?"true":"false")
+              <<",\n  \"nonpaged_la\": "<<(!use_pages && nonpaged_la?"true":"false")
               <<",\n  \"handoff\": "<<std::quoted(handoff_mode)
               <<",\n  \"pages\": "<<pages_json
               <<",\n  \"prefetch\": "<<prefetch_json
@@ -1327,8 +1682,79 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"residency\": "<<integer("tmexec.solved_residency",0)
               <<",\n  \"kappa\": "<<integer("tmexec.solved_kappa",1)
               <<",\n  \"attention_kv_block\": "<<attention_kv_block
-              <<",\n  \"attention_query_rows\": "<<attention_query_rows
-              <<",\n  \"gemms\": [\n";
+              <<",\n  \"attention_query_rows\": "<<attention_query_rows;
+      auto manifest_plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+      auto manifest_dm=manifest_plan?manifest_plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
+      if(forward || (manifest_dm && manifest_dm.getValue())) {
+        auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+        auto token_axis=plan?plan.getAs<mlir::BoolAttr>("forward_token_axis"):mlir::BoolAttr{};
+        manifest<<",\n  \"frontend\": "<<std::quoted(frontend_mode);
+        manifest<<",\n  \"moe_dynamic\": "<<(moe_dynamic?"true":"false");
+        manifest<<",\n  \"moe_opaque\": "<<(moe_opaque?"true":"false");
+        manifest<<",\n  \"moe_gemv\": "<<(moe_gemv?"true":"false");
+        manifest<<",\n  \"global_la\": "<<std::quoted(global_la);
+        if(dm_reduction_mask>=0)manifest<<",\n  \"dm_reduction_mask\": "<<dm_reduction_mask;
+        if(auto proved=(*module)->getAttrOfType<mlir::IntegerAttr>("tilemega.dm_reduction_proved_stages"))
+          manifest<<",\n  \"dm_reduction_proved_stages\": "<<proved.getInt();
+        manifest<<",\n  \"dm_pool_la\": "<<(dm_pool_la?"true":"false");
+        manifest<<",\n  \"dm_moe_la\": "<<(dm_moe_la?"true":"false");
+        if(!shared_weight_layout.empty())
+          manifest<<",\n  \"shared_weight_layout\": "<<std::quoted(shared_weight_layout)
+                  <<",\n  \"shared_weight_layout_sha256\": "<<std::quoted(modelFingerprint(shared_weight_layout));
+      if(moe_routing_profile)
+        manifest<<",\n  \"routing_profile\": {\"profile_id\": "<<std::quoted(moe_routing_profile->profile_id)
+                <<", \"file_sha256\": "<<std::quoted(routing_profile_sha)
+                <<", \"first_layer\": "<<moe_profile_layer<<'}';
+        if(auto pricing=(*module)->getAttrOfType<mlir::StringAttr>("tilemega.moe_profile_pricing"))
+          manifest<<",\n  \"moe_profile_pricing\": "<<std::quoted(pricing.getValue().str());
+        if(frontend_mode=="dnn")manifest<<",\n  \"deferred_ln\": "<<std::quoted(dnn_deferred_ln);
+        if(frontend_mode=="dnn")manifest<<",\n  \"dwpw_fuse\": "<<std::quoted(dnn_dwpw_fuse);
+        if(auto structure=(*module)->getAttrOfType<mlir::StringAttr>("tilemega.dnn_structure"))
+          manifest<<",\n  \"dnn_structure\": "<<std::quoted(structure.getValue().str())
+                  <<",\n  \"dnn_structure_search_sha256\": "
+                  <<std::quoted(modelFingerprint(std::string(argv[2])+".structures.json"));
+        if(auto structure=(*module)->getAttrOfType<mlir::StringAttr>("tilemega.moe_structure"))
+          manifest<<",\n  \"moe_structure\": "<<std::quoted(structure.getValue().str())
+                  <<",\n  \"moe_structure_search_sha256\": "
+                  <<std::quoted(modelFingerprint(std::string(argv[2])+".moe_structures.json"));
+        if(search_selection=="predicted")manifest<<",\n  \"selection\": \"predicted\"";
+        if(auto reuse=plan.getAs<mlir::StringAttr>("dm_memory_reuse"))
+          manifest<<",\n  \"reuse\": "<<std::quoted(reuse.getValue().str())
+                  <<",\n  \"memory_arena_bytes\": "<<plan.getAs<mlir::IntegerAttr>("dm_memory_arena_bytes").getInt()
+                  <<",\n  \"memory_retained_internal_bytes\": "<<integer("tilemega.memory_retained_internal_bytes",0)
+                  <<",\n  \"memory_total_internal_bytes\": "<<integer("tilemega.memory_total_internal_bytes",0)
+                  <<",\n  \"memory_hazard_count\": "<<integer("tilemega.memory_hazard_count",0);
+        llvm::json::Array buffer_records;
+        for(auto entry:plan.getAs<mlir::ArrayAttr>("buffers")) {
+          auto buffer=mlir::cast<mlir::DictionaryAttr>(entry);
+          llvm::json::Object record;
+          for(auto name:{"name","role","dtype","source"})
+            if(auto field=buffer.getAs<mlir::StringAttr>(name))record[name]=field.getValue().str();
+          for(auto name:{"constant","per_seq","per_past","per_total","per_batch","dm_arena_offset"})
+            if(auto field=buffer.getAs<mlir::IntegerAttr>(name))record[name]=field.getInt();
+          if(auto field=buffer.getAs<mlir::StringAttr>("pack_json");field && !field.getValue().empty()) {
+            auto recipe=llvm::json::parse(field.getValue());
+            if(!recipe)throw std::invalid_argument("manifest weight recipe is invalid JSON");
+            record["recipe"]=std::move(*recipe);
+          }
+          buffer_records.push_back(std::move(record));
+        }
+        manifest<<",\n  \"buffers\": "<<llvm::formatv("{0}",llvm::json::Value(std::move(buffer_records))).str();
+        if((token_axis && token_axis.getValue()) || !forward) {
+          for(auto entry:plan.getAs<mlir::ArrayAttr>("stages")) {
+            auto stage=mlir::cast<mlir::DictionaryAttr>(entry);
+            if(!stage.get("dm_moe"))continue;
+            auto moe=tilemega::frontend::DecodeDmMoeStage(stage.get("dm_moe"));
+            manifest<<",\n  \"moe_binding\": "<<std::quoted(moe.grouped?"group":"slot")
+                    <<",\n  \"moe_bm\": "<<moe.block_rows
+                    <<",\n  \"moe_experts\": "<<moe.experts
+                    <<",\n  \"moe_top_k\": "<<moe.top_k
+                    <<",\n  \"moe_binding_capacity\": "<<moe.binding_capacity;
+            break;
+          }
+        }
+      }
+      manifest<<",\n  \"gemms\": [\n";
       for(std::size_t i=0;i<runtime.gemms.size();++i) {
         auto const& g=runtime.gemms[i];
         manifest<<"    {\"index\": "<<i<<", \"tile_m\": "<<g.tile_m

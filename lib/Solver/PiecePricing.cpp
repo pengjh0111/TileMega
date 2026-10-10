@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/PiecePricing.h>
 #include <tilemega/Analysis/CouplingCache.h>
+#include <tilemega/Solver/DmSemanticSignature.h>
 #include <functional>
 #include <iomanip>
 #include <sstream>
@@ -10,7 +11,8 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
     ModelDescription const& model,int chunks,PiecePriceCache* cache,int kernel_shared_bytes) {
   if(!cost.options().regime_a || model.dtype!=ScalarType::kBF16)throw std::invalid_argument("boundary parts require regime A");
   auto theta=model.MetricBindings();auto const& cal=cost.target().CalibrationFor("bf16");
-  std::ostringstream key;key<<analysis::SemanticSignature(semantic.op)<<std::hexfloat;
+  std::ostringstream key;key<<(model.dm && semantic.op.exact_task_access?DmSemanticSignature(semantic.op):
+      analysis::SemanticSignature(semantic.op))<<std::hexfloat;
   key<<':'<<traits.tile_m<<':'<<traits.tile_n<<':'<<traits.tile_k<<':'<<traits.stages<<':'<<chunks<<':'<<residency.ctas_per_sm<<':'<<traits.threads<<':'<<traits.smem_bytes;
   // Serving's resource probe has already fixed residency. At fixed residency
   // the union size does not enter PriceParts, so changing another class must
@@ -29,6 +31,36 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
   // Resource calibration is immutable during a search. Include its values
   // so an explicitly reused cache cannot alias a different target profile.
   key<<':'<<cal.dram_gbps<<':'<<cal.l2_gbps<<':'<<cal.task_body.latency_scale<<':'<<cal.task_body.stage_rate_bytes_per_ns;
+  if(model.dm && input.task.element_access) {
+    for(auto const* quantity:{input.physical_read_bytes?&*input.physical_read_bytes:nullptr,
+        input.physical_write_bytes?&*input.physical_write_bytes:nullptr,
+        input.no_producer_read_bytes?&*input.no_producer_read_bytes:nullptr,
+        input.external_write_bytes?&*input.external_write_bytes:nullptr})
+      key<<":"<<(quantity?quantity->ToString():"absent");
+    key<<":"<<input.serving_body_kind<<":gemv="<<input.serving_gemv;
+    if(input.scalar_flow) {
+      key<<":scalar_flow:"<<input.scalar_flow->extra_flops_per_output;
+      for(auto const& node:input.scalar_flow->nodes) {
+        key<<':'<<int(node.phase)<<'[';
+        for(auto dependency:node.inputs)key<<dependency<<',';
+        key<<"](";for(auto operand:node.read_operands)key<<operand<<',';key<<')';
+      }
+    }
+    auto const& arithmetic=input.arithmetic;
+    key<<":arithmetic:"<<arithmetic.flops_per_output_element.numerator.ToString()
+       <<'/'<<arithmetic.flops_per_output_element.denominator
+       <<':'<<arithmetic.transcendental_per_output_element.numerator.ToString()
+       <<'/'<<arithmetic.transcendental_per_output_element.denominator
+       <<':'<<arithmetic.flops_use_mma<<':'<<arithmetic.smem_staged;
+
+  }
+  for(auto const& phase:input.compute_prologue)
+    key<<":private:"<<phase.output_elements.ToString()<<':'
+       <<phase.arithmetic.flops_per_output_element.numerator.ToString()<<'/'
+       <<phase.arithmetic.flops_per_output_element.denominator<<':'
+       <<phase.arithmetic.transcendental_per_output_element.numerator.ToString()<<'/'
+       <<phase.arithmetic.transcendental_per_output_element.denominator<<':'
+       <<phase.arithmetic.flops_use_mma;
   if(cache){auto found=cache->entries.find(key.str());if(found!=cache->entries.end()){++cache->hits;return found->second;}++cache->misses;}
   struct Axis {std::string name;std::vector<std::pair<long,long>> parts;};std::vector<Axis> axes;
   long tasks=input.work.task_count.Eval(theta);
@@ -44,12 +76,26 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
   if(input.physical_read_bytes)quantities.push_back(&*input.physical_read_bytes);
   if(input.no_producer_read_bytes)quantities.push_back(&*input.no_producer_read_bytes);
   if(input.external_write_bytes)quantities.push_back(&*input.external_write_bytes);
-  // PriceParts depends on coordinates only through these access quantities.
+  for(auto const& phase:input.compute_prologue)quantities.push_back(&phase.output_elements);
+  if(model.dm && input.task.element_access) {
+    if(input.physical_write_bytes)quantities.push_back(&*input.physical_write_bytes);
+    quantities.push_back(&input.arithmetic.flops_per_output_element.numerator);
+    quantities.push_back(&input.arithmetic.transcendental_per_output_element.numerator);
+  }
+  auto quantity_at=[&](analysis::QuasiPolynomial const* quantity,analysis::ParamBinding const& point) {
+    try {return quantity->BindCoordinates(point).Eval(theta);}
+    catch(std::exception const& error) {
+      auto found=std::find(quantities.begin(),quantities.end(),quantity);
+      throw std::runtime_error(std::string(error.what())+"; pricing quantity "+
+          std::to_string(found-quantities.begin())+": "+quantity->ToString());
+    }
+  };
+  // PriceParts depends on coordinates only through these access and arithmetic quantities.
   // Causal rows in different heads remain separate pieces but share arithmetic.
   std::map<std::vector<long>,TaskPriceParts> equal_prices;
   auto append=[&](analysis::CouplingRelation const& domain,analysis::ParamBinding const& point,std::vector<long> const* batch_values=nullptr,TaskMemoryTraffic const* memory=nullptr){
     PricePiece p;p.domain=domain;p.count=domain.ImageCard();p.representative=point;
-    std::vector<long> values;if(batch_values)values=*batch_values;else for(auto q:quantities)values.push_back(q->BindCoordinates(point).Eval(theta));
+    std::vector<long> values;if(batch_values)values=*batch_values;else for(auto q:quantities)values.push_back(quantity_at(q,point));
     auto found=equal_prices.find(values);
     if(found==equal_prices.end())found=equal_prices.emplace(std::move(values),cost.PriceParts(input,traits,residency,model,chunks,point,residency.ctas_per_sm,memory)).first;
     p.parts=found->second;
@@ -62,7 +108,7 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
     // example B=16, past=64); singleton pricing is exact for that space.
     bool constant=semantic.op.arithmetic!="fused_attention";
     if(constant)for(auto q:quantities) {
-      auto value=q->BindCoordinates(point).Eval(theta);
+      auto value=quantity_at(q,point);
       if(!q->SumAlong(domain).SemanticallyEqual(domain.Card().Scale(value),theta)){constant=false;break;}
     }
     if(constant){append(domain,point);return;}

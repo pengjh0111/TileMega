@@ -1,0 +1,9 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "16 compact before/Core token-slot/expert-group graphs and four counted contribution proofs; not a real-weight model gate",
+  "log": "runs/dm1-moe-semantics-host-v3.log",
+  "log_sha256": "d86365de47722ed5a5a7051fc23952ec48e73e3c0c7cd4fcff7fe501ed19ceda",
+  "sample": "MoE semantics: 16 compact before/Core slot/group graphs, invariant L-sem and four counted scatter proofs PASS\n",
+  "retained_incomplete_full_geometry_attempt": "runs/dm1-moe-semantics-host-v2.log"
+}

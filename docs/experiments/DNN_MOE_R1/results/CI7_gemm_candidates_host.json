@@ -1,0 +1,42 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "host DM GEMM candidate packing/resources only; production search and CUDA/model gates pending",
+  "pass_rate": "7/7",
+  "checks": [
+    "dm_gemm_candidates",
+    "dm_gemm_traits",
+    "dm_operator_classes",
+    "operator_classes",
+    "moe_routing_profile",
+    "serving_pruning",
+    "dm_descriptor"
+  ],
+  "implementation_commit": "4ca199f2a31a4fbb75a62d0f441c982145f02e45",
+  "inputs": {
+    "include/tilemega/Solver/DmGemmCandidates.h": "99ab3b37ff3be5371c1fd9e2b290edf95556d0b7cd6b93fb74e876d39544de5f",
+    "include/tilemega/Solver/DmGemmTraits.h": "4ae08f7ff4dc8cbaed97f3346ad31c88567611eda918daa370975b9298a7a16c",
+    "include/tilemega/Solver/BackendCostQuery.h": "ece3b309b1c9a9ce0826aa11225a90aa3a8c8118609a05cbbda07b3e765430f2",
+    "include/tilemega/Frontend/ModelPlan.h": "a60df0e8294671d87a62dbd065108a27f2025108c42d63884495fdadca6a9124",
+    "test/unit/dm_gemm_candidates_test.cpp": "2e499865968b7501792700adb96227353f48049ad3829c99e10a43d0c27e0ec4",
+    "CMakeLists.txt": "0e8dcf8081b692bfa6ad536e8d9bd3f7e91f58ed574df0322b10f11f0e7702ec",
+    "test/unit/runner.cpp": "0e7b90145b037efc3825ca5865de47cb6d3666c3e50cb46a209419643197be3d"
+  },
+  "unit_sha256": "23bb875ff10034f4b06079c5dfab1d642c59f4ae5d2fb40559a45fd14df07300",
+  "compiler_sha256": "f7e55cf2768c55e4980bc8723509d79f2c8c7c15defc9699e500b1c4e70fe414",
+  "logs": {
+    "/root/dm1_work/development/runs/dm1-ci7-candidates-host-v2/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/root/dm1_work/development/runs/dm1-ci7-candidates-host-v2/events/build_dm_gemm_candidates.log": "a29534e923b211f0372e3e21bac8f675533609216ee1631645291d0c41d9e094",
+    "/root/dm1_work/development/runs/dm1-ci7-candidates-host-v2/events/check_dm_gemm_candidates.log": "95f61f4f7cafc92f48f798cf0b11be00e08f97c1cb8b8d362e020c69aed6db59"
+  },
+  "completion": {
+    "event": "queue_complete",
+    "steps": 2,
+    "passed": true
+  },
+  "prior_failure": {
+    "log": "/root/dm1_work/development/runs/dm1-ci7-candidates-host/events/check_dm_gemm_candidates.log",
+    "sha256": "6dadaae1c771d7df142625b9881ea13252c98a595be3fd821e028b9dc766c726",
+    "reason": "fixture expected every expert tile to fit; target budget independently excludes TM16/TN256/TK128/stages2 (139264 B > 98304 B); oracle now includes original hardware budget, implementation unchanged"
+  }
+}

@@ -1,0 +1,39 @@
+[
+  {
+    "model": "llama",
+    "batch": 1,
+    "phase": "decode",
+    "export": "/root/.cache/tilemega-dm/exports/regression/llama/decode/bridge.json",
+    "target": "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/decode/target.json",
+    "manifest": "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/decode/manifest.json",
+    "classes": "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/decode/classes.tsv",
+    "overrides": {
+      "pg": "pages",
+      "sync": "calibrated",
+      "watchdog": 0,
+      "l2_slim": 0,
+      "nonpaged_weight_layout": "row",
+      "page_loop_split": 1,
+      "evict_first": 1,
+      "evict_last": 0,
+      "handoff": "off",
+      "arch_paths": "auto",
+      "pdl": "auto",
+      "event_solo": 0,
+      "event_red_publish": 0,
+      "barrier_v2": 0,
+      "deferred_norm": 1,
+      "paged_la": 1,
+      "paged_la_splitk": 1,
+      "v3_poll_ns": 0,
+      "kphase_mask": 31,
+      "weight_layout": "tiled",
+      "page_bytes": 16384,
+      "lookahead_bytes": 65536
+    },
+    "donor": "/root/.cache/tilemega/plans/6475a2e8ac718cb8e2bf23955bf407b29fb3ef0c28b037f03d97d54313e820e6/plan.so",
+    "donor_sha256": "c53cbe23525607bf00c52ffd7ab695d3090dc2b79c047cb97af7dbec5f4883ed",
+    "root": "/root/dm1_work/development",
+    "out": "/root/dm1_work/development/runs/dm1-regression/candidate/llama_B1/decode"
+  }
+]

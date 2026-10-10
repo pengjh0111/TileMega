@@ -29,4 +29,9 @@ struct FusionAccesses {
 FusionAccesses ComposeFusionAccesses(TaskAccesses const& producer,
     TaskAccesses const& consumer, std::set<std::string> const& internal_tensors,
     std::set<std::string> const& externally_read_tensors);
+// The relation remains symbolic; bound plans may verify aggregate metrics
+// under their exact theta when equivalent floor forms resist simplification.
+FusionAccesses ComposeFusionAccesses(TaskAccesses const& producer,
+    TaskAccesses const& consumer, std::set<std::string> const& internal_tensors,
+    std::set<std::string> const& externally_read_tensors,ParamBinding const& known);
 }  // namespace tilemega::analysis

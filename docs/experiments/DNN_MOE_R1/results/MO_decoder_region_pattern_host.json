@@ -1,0 +1,24 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Full decoder FX MoE residual-region recognition only; no decoder plan or execution gate",
+  "binary_sha256": "12e0300f13bf487bdddd627e4c628c92455c39b6a306e7cc797fe952a240755d",
+  "full_decode_bridge_sha256": "f3a4661f045173a6c3f2e341c4d3c2947602dae331393a56d416634479313cbd",
+  "recognized_regions": 48,
+  "contracts": [
+    "Before/Core region spelling and arbitrary naming",
+    "20 negative isolated-region contracts",
+    "Exact reshape element counts and residual input identity",
+    "Negative full-decoder expert row count"
+  ],
+  "logs": [
+    {
+      "path": "runs/dm1-moe-region-pattern-host-v3.log",
+      "sha256": "fd62bc412a83dcd7ec6d749573b1f7afacfaf1a85fd781092dd7b0ab7af9b674"
+    },
+    {
+      "path": "runs/dm1-moe-decoder-block-pattern-host-v1.log",
+      "sha256": "315f590d0e01b3a573fc1d68c3f5616eb6a14f2ee4e697463c288037a33d8a14"
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "evidence": "verified",
+  "head": "4af7a0285d02a85c129b9f02552246362d5c1190",
+  "scope": "48-layer E=128 config, host CUDA generation and checkpoint-header/recipe metadata validation only; not full-weight execution or G-MOE",
+  "plans": [
+    {
+      "batch": 1,
+      "phase": "decode",
+      "manifest": "runs/dm1-moe-full-dry-v2/B1/decode/plan.cu.plan.json",
+      "manifest_sha256": "c527b3a3e9720665868a56454cf9f2c8d5a1fa5c48eb400b0b077bbd8bad52c6",
+      "recipes": 532,
+      "checkpoint_bytes": 61064245248
+    },
+    {
+      "batch": 1,
+      "phase": "prefill",
+      "manifest": "runs/dm1-moe-full-dry-v2/B1/prefill/plan.cu.plan.json",
+      "manifest_sha256": "a025aa1c9209a729b0401c609e457977619fb3040dcd4dd9d07b7055c12848ca",
+      "recipes": 580,
+      "checkpoint_bytes": 61064245248
+    },
+    {
+      "batch": 16,
+      "phase": "decode",
+      "manifest": "runs/dm1-moe-full-b16-decode-shared-host-v1/plan.cu.plan.json",
+      "manifest_sha256": "ffb4c39897b1f95ed99bd70ff37f2617951910cbaca5c888522804ea4b618815",
+      "recipes": 387,
+      "checkpoint_bytes": 61064245248
+    },
+    {
+      "batch": 16,
+      "phase": "prefill",
+      "manifest": "runs/dm1-moe-full-b16-prefill-host-v12/plan.cu.plan.json",
+      "manifest_sha256": "92046363721eb42e8e08f2311da4dc1e5dacdd1dcf129d801169b32f500b8094",
+      "recipes": 435,
+      "checkpoint_bytes": 61064245248
+    }
+  ],
+  "checkpoint_bytes": 61064245248,
+  "memory_estimates": {
+    "B1": {
+      "evidence": "inferred",
+      "scope": "manifest estimate; excludes CUDA/event tables and inserted split-K storage; recipe-based weight deduplication",
+      "batch": 1,
+      "shared_weight_bytes": 66781605888,
+      "request_state_bytes": 107516160,
+      "phases": [
+        {
+          "phase": "decode",
+          "internal_bytes": 7752856
+        },
+        {
+          "phase": "prefill",
+          "internal_bytes": 450262680
+        }
+      ],
+      "estimated_allocation_bytes": 67347137584
+    },
+    "B16": {
+      "evidence": "inferred",
+      "scope": "manifest estimate; excludes CUDA/event tables and inserted split-K storage; recipe-based weight deduplication",
+      "batch": 16,
+      "shared_weight_bytes": 62693208064,
+      "request_state_bytes": 1711902720,
+      "phases": [
+        {
+          "phase": "decode",
+          "internal_bytes": 273935104
+        },
+        {
+          "phase": "prefill",
+          "internal_bytes": 4936864512
+        }
+      ],
+      "estimated_allocation_bytes": 69615910400
+    }
+  },
+  "b16_prefill": {
+    "exit_code": 0,
+    "wall_s": 1337.6960373697802,
+    "scope": "host generation with final-only DM lowering and counted-domain proof; no GPU or latency measurement",
+    "cu_sha256": "3afd49cb709fc664b01d03d92db6ccb051356e2525b5bbf592d771b186ecfa08",
+    "gemms": 241,
+    "buffers": 1594
+  },
+  "b16_decode_shared": {
+    "exit_code": 0,
+    "wall_s": 50.08978237956762,
+    "scope": "host generation with full-depth B16 decode with shared packed layout; header-only checks follow; no GPU or latency measurement",
+    "cu_sha256": "902e2ca4bbb83f8ee8c7fc5aa94873cc7ea6c93423e64099f48561d8ca79ca40",
+    "gemms": 241,
+    "buffers": 1547
+  },
+  "retained_incompatible_pair": "runs/dm1-moe-full-four-plan-host-v1: older row-major decode and tiled prefill disagree on the o_proj recipe; replaced by shared-layout tiled decode. No invalid pair was executed.",
+  "current_symbolic_generation": {
+    "evidence": "verified",
+    "root": "runs/dm1-moe-full-b16-prefill-host-v15",
+    "exit_code": 0,
+    "cu_sha256": "3afd49cb709fc664b01d03d92db6ccb051356e2525b5bbf592d771b186ecfa08",
+    "equal_to_v12": true,
+    "scope": "host generation only; no latency or GPU execution claim"
+  },
+  "current_header_validation": "runs/dm1-moe-full-four-plan-host-v3/results.json",
+  "qkv_config_head_geometry_checked": true
+}

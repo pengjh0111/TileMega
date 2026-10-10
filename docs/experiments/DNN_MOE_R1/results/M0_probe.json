@@ -1,0 +1,61 @@
+{
+  "evidence": "verified",
+  "checkpoint": "M0",
+  "utc": "2026-10-08T04:05:42.622367+00:00",
+  "origin_tilemega": "76beaea5e2d66e3311b36d020f470c4f016406d0",
+  "baseline": "76beaea5e2d66e3311b36d020f470c4f016406d0",
+  "merge_performed": false,
+  "reason": "Successful HTTP/1.1 fetch returned the unchanged baseline; AT-2 is absent from that revision.",
+  "fetch_attempts": [
+    {
+      "command": [
+        "git",
+        "fetch",
+        "origin"
+      ],
+      "exit_code": 128,
+      "error": "gnutls_handshake() failed: TLS connection non-properly terminated"
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "http.version=HTTP/1.1",
+        "fetch",
+        "origin"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "scope": "Remote checked before the nonpaged last-arriver extension. M1/M2 still pending; no local R14 worktree content was imported.",
+  "rechecks": [
+    {
+      "utc": "2026-10-08T04:44:22.290849+00:00",
+      "command": [
+        "git",
+        "-c",
+        "http.version=HTTP/1.1",
+        "fetch",
+        "origin"
+      ],
+      "exit_code": 0,
+      "origin_tilemega": "76beaea5e2d66e3311b36d020f470c4f016406d0",
+      "merge_performed": false,
+      "reason": "Remote unchanged before native nonpaged runtime integration."
+    },
+    {
+      "utc": "2026-10-08T15:28:52.886348+00:00",
+      "command": [
+        "git",
+        "-c",
+        "http.version=HTTP/1.1",
+        "fetch",
+        "origin"
+      ],
+      "exit_code": 0,
+      "origin_tilemega": "76beaea5e2d66e3311b36d020f470c4f016406d0",
+      "merge_performed": false,
+      "reason": "Remote remains baseline after interruption recovery; no local R14 content imported."
+    }
+  ]
+}

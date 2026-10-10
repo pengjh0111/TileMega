@@ -1,0 +1,27 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "source": {
+    "source_head": "a31c3b872982d61251b448f1f553f9e6e53b2b35",
+    "files": {
+      "CMakeLists.txt": "ec9ddff3032ff3d870c75ba5558d30a52037915caebca96073c825d02fccef7f",
+      "include/tilemega/Codegen/RuntimeDependencies.h": "ff335afab1bb22ffdf18a9ca84ae51924b49c64535677c0836776a4b1ae0f4ed",
+      "include/tilemega/Codegen/RuntimeTaskGraph.h": "d9686cf6d6144e1151aed8daf22357192a465831f6d0fa38cff5c221e891411c",
+      "include/tilemega/Codegen/executor/ServingPages.cuh": "5d5dd5bcf2fd8d3993f391a13d7b71675bd62d42c3aadf098ff5b5b2c700a566",
+      "include/tilemega/Codegen/tasks/ModelHarness.cuh": "0a1257c9bfbb0c1f5a0f33002cdc384fb2085c7c0a3db2dfeac3bdc056189a98",
+      "include/tilemega/Codegen/tasks/ModelRuntime.h": "0012a06b4b310a333c26d1243f375119c60723a3058aa9dc328c94ad35ce416d",
+      "include/tilemega/Codegen/tasks/ServingRuntime.cuh": "067520aa597f1839ebde574c8e7ffe075b54c3fa74ff3809745ff5dd6c9f84a8",
+      "lib/Codegen/RuntimeTaskGraph.cpp": "a3f41bb2f73bb85e1a41dbe4f05ebe9d7eb6bb20c7400098a365ac47d5f419b7",
+      "test/unit/runner.cpp": "d042bea54f61efd12371680fb09e4a959aee5405b6c43691e9e4761f38fe7364",
+      "test/unit/dm_stage_dependencies_test.cu": "dd989d22ca4198a53302c8fc7135ec83299a2636e1f8ffccd495861a0f010ba4",
+      "test/unit/runtime_dependency_table_test.cpp": "16b326ec1951e05c431aecd230ef04c7342e7e3f56695b8ee4bf2929aed2a54b"
+    }
+  },
+  "checks": 7,
+  "scope": "host table queue/DAG materialization and compatibility checks; GPU stage validation pending",
+  "binary_sha256": "2a64e922e007bc67275e488f0392a5a4046b53e8f4bb91ba376dea91f4cd3f6c",
+  "logs": {
+    "ctest_stage.log": "f02d1d4d5f0d69a42a6d71a173762c375642b6ec9d7bf89db85d04624c0d43fb",
+    "build_stage.log": "bc11d107859b2d61390b541fe5b0d44ebef6d8b5981e2a067b1cb3767c0b4e8d"
+  }
+}

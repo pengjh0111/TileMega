@@ -1,0 +1,53 @@
+{
+  "evidence": "verified",
+  "scope": "queue timeouts while blocked on the shared GPU lock; no compilation or numerical test result",
+  "checks": [
+    {
+      "run": "dm1-ci5-nonpaged-handoff-smoke",
+      "completion": {
+        "event": "queue_complete",
+        "steps": 1,
+        "passed": false
+      },
+      "state": {
+        "nonpaged_handoff_smoke": {
+          "status": "failed",
+          "attempts": 1,
+          "enqueued": 1791435088.2583501,
+          "retry_at": 0,
+          "wait_s": 0.0003211498260498047,
+          "pid": 1150434,
+          "run_s": 3600.0300402659923,
+          "exit_code": 124
+        }
+      }
+    },
+    {
+      "run": "dm1-ci7-access-classes-host",
+      "completion": {
+        "event": "queue_complete",
+        "steps": 2,
+        "passed": false
+      },
+      "state": {
+        "build_access_classes": {
+          "status": "failed",
+          "attempts": 1,
+          "enqueued": 1791436938.4367247,
+          "retry_at": 0,
+          "wait_s": 0.0003001689910888672,
+          "pid": 1161783,
+          "run_s": 3600.02401658101,
+          "exit_code": 124
+        },
+        "ctest_access_classes": {
+          "status": "skipped",
+          "attempts": 0,
+          "enqueued": 1791436938.4367275,
+          "retry_at": 0
+        }
+      }
+    }
+  ],
+  "retry": "Same criteria and numeric inputs; production nonpaged smoke and combined access/routing host queue resubmitted with a 14400-second outer wait budget."
+}

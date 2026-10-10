@@ -1,0 +1,571 @@
+{
+  "evidence": "verified",
+  "baseline_head": "76beaea5e2d66e3311b36d020f470c4f016406d0",
+  "plans": [
+    {
+      "cell": "llama_B1",
+      "phase": "prefill",
+      "binary": "/root/dm1_work/development/runs/dm1-regression/reference/llama_B1/prefill/plan.so",
+      "artifact_id": "bfe253517832488d082b01f9427f5a8ccc9134517915a9dfce23c471dd0be1d0",
+      "cu_sha256": "3307ae289278918117340e4990c22e7c9328d240b0e358ed41e029a420844292",
+      "so_sha256": "38f4d189e25bcfe1745656878be50026fea193688ad7b4837b7b2d6d0a31478c",
+      "sass_sha256": "e9d3986ae8b5618118b155b186c804b38c6a34435153086a15aa059881366154",
+      "resources": {
+        "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": {
+          "registers": 62,
+          "stack_bytes": 72,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 62 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 250,
+          "stack_bytes": 192,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "192 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 250 registers, used 2 barriers, 192 bytes cumulative stack size, 376 bytes cmem[0], 376 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 320,
+          "spill_store_bytes": 224,
+          "spill_load_bytes": 224,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "320 bytes stack frame, 20 bytes spill stores, 28 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 320 bytes cumulative stack size, 376 bytes cmem[0], 456 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 224 bytes spill stores, 224 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": {
+          "registers": 252,
+          "stack_bytes": 208,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "208 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 252 registers, used 2 barriers, 208 bytes cumulative stack size, 364 bytes cmem[0], 316 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": false
+        }
+      },
+      "tokens_sha256": "46e8357a608ec349ca5b9907ce3efbc74a81ce1691b26d892931df883791d0f9"
+    },
+    {
+      "cell": "llama_B1",
+      "phase": "decode",
+      "binary": "/root/dm1_work/development/runs/dm1-regression/reference/llama_B1/decode/plan.so",
+      "artifact_id": "bcded8db6fb937ad8d9fda896014ce7a578eeb666e721d66f272b506eecad989",
+      "cu_sha256": "00252038ea0e545c44a72c552ee16694bc221e1e4ca53579212616da3ff10c8f",
+      "so_sha256": "b8e0584ff54f6a0da575ea36cc3c3e6e99ac198dbccb9de986673b6bd9026950",
+      "sass_sha256": "226e27b01e1b765c22efdeeadb560d219ca0152eed09980c0583c8cdcf020e3d",
+      "resources": {
+        "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": {
+          "registers": 62,
+          "stack_bytes": 72,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 62 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen20tilemega_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy": {
+          "registers": 238,
+          "stack_bytes": 80,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "80 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 238 registers, used 2 barriers, 80 bytes cumulative stack size, 392 bytes cmem[0], 688 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 218,
+          "stack_bytes": 64,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "64 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 218 registers, used 2 barriers, 64 bytes cumulative stack size, 376 bytes cmem[0], 688 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 228,
+          "stack_bytes": 80,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "80 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 228 registers, used 2 barriers, 80 bytes cumulative stack size, 376 bytes cmem[0], 552 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": {
+          "registers": 186,
+          "stack_bytes": 208,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "208 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 186 registers, used 2 barriers, 208 bytes cumulative stack size, 364 bytes cmem[0], 108 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": false
+        }
+      },
+      "tokens_sha256": "46e8357a608ec349ca5b9907ce3efbc74a81ce1691b26d892931df883791d0f9"
+    },
+    {
+      "cell": "llama_B16",
+      "phase": "prefill",
+      "binary": "/root/dm1_work/development/runs/dm1-regression/reference/llama_B16/prefill/plan.so",
+      "artifact_id": "bf26fa035d0367cce5ff6d048959f74c653e01923ce3dcc876b01923d1cb0255",
+      "cu_sha256": "8fdafa04d3ac46591170d9a965089cef6d5382f3cde22b2de68fc9f9bb50825c",
+      "so_sha256": "557187337cac96742bbfe22b2fda4bd26e683fda7dbdc0aae250bb36b47899b4",
+      "sass_sha256": "97df3bbcc158797e76dbfb3f0dcdcfaf5a88d6d3f393c97f7703771f01fb4cb6",
+      "resources": {
+        "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": {
+          "registers": 62,
+          "stack_bytes": 72,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 62 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 656,
+          "spill_store_bytes": 492,
+          "spill_load_bytes": 1432,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "656 bytes stack frame, 492 bytes spill stores, 1432 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 656 bytes cumulative stack size, 376 bytes cmem[0], 256 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 4 bytes spill loads",
+            "0 bytes stack frame, 4 bytes spill stores, 60 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 704,
+          "spill_store_bytes": 524,
+          "spill_load_bytes": 1644,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "704 bytes stack frame, 524 bytes spill stores, 1644 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 704 bytes cumulative stack size, 376 bytes cmem[0], 304 bytes cmem[2]",
+            "0 bytes stack frame, 4 bytes spill stores, 60 bytes spill loads",
+            "0 bytes stack frame, 128 bytes spill stores, 132 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": {
+          "registers": 255,
+          "stack_bytes": 544,
+          "spill_store_bytes": 332,
+          "spill_load_bytes": 1064,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "544 bytes stack frame, 332 bytes spill stores, 1064 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 544 bytes cumulative stack size, 364 bytes cmem[0], 180 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 56 bytes spill stores, 56 bytes spill loads"
+          ],
+          "spill": true
+        }
+      },
+      "tokens_sha256": "df87894b2c0b50379be9837b45e21d79c651324d83173142a20b044a6366f849"
+    },
+    {
+      "cell": "llama_B16",
+      "phase": "decode",
+      "binary": "/root/dm1_work/development/runs/dm1-regression/reference/llama_B16/decode/plan.so",
+      "artifact_id": "f0f9fc243239e767e64879dd4a0b5dccc6f094219fc60fe6be75b6c5e03e5182",
+      "cu_sha256": "e08384edab90f89bb0fa345471a4e6e9b5a30a36b1a7f865304e86dc380b0011",
+      "so_sha256": "1832fdbbf5a08d4c22aa2f09658c0047460978833220c50552448af832da9519",
+      "sass_sha256": "b40d7c53ceb138e7884a88a95cbdbe192fa5335a69fe3bf9b40a904eb080c38f",
+      "resources": {
+        "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": {
+          "registers": 62,
+          "stack_bytes": 72,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 62 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 228,
+          "stack_bytes": 208,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "208 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 228 registers, used 2 barriers, 208 bytes cumulative stack size, 376 bytes cmem[0], 256 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen23tilemega_l1_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy": {
+          "registers": 255,
+          "stack_bytes": 240,
+          "spill_store_bytes": 136,
+          "spill_load_bytes": 168,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "240 bytes stack frame, 100 bytes spill stores, 168 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 240 bytes cumulative stack size, 392 bytes cmem[0], 316 bytes cmem[2]",
+            "0 bytes stack frame, 136 bytes spill stores, 136 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 176,
+          "spill_store_bytes": 80,
+          "spill_load_bytes": 88,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "176 bytes stack frame, 80 bytes spill stores, 88 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 176 bytes cumulative stack size, 376 bytes cmem[0], 304 bytes cmem[2]",
+            "0 bytes stack frame, 32 bytes spill stores, 32 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": {
+          "registers": 224,
+          "stack_bytes": 64,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "64 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 224 registers, used 2 barriers, 64 bytes cumulative stack size, 364 bytes cmem[0], 180 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": false
+        }
+      },
+      "tokens_sha256": "df87894b2c0b50379be9837b45e21d79c651324d83173142a20b044a6366f849"
+    },
+    {
+      "cell": "qwen3_B1",
+      "phase": "prefill",
+      "binary": "/root/dm1_work/development/runs/dm1-regression/reference/qwen3_B1/prefill/plan.so",
+      "artifact_id": "c0ecfd8e0c99144ad9b4e6a0c16499a7d23c19fb3c875085f7fd5852067e505f",
+      "cu_sha256": "fda79ea3b526e758123fca3d51f5150699d0660c7348def7cff3baf73884ff4b",
+      "so_sha256": "ae995906b3d5f28b8380df39ad9ece40b9a14fdd5b5c10bd416af17e349e6e63",
+      "sass_sha256": "a8e5eb4dbaf163a12b38311b112ed256221a43a0de35e9ef6746f1691399a6b0",
+      "resources": {
+        "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": {
+          "registers": 62,
+          "stack_bytes": 72,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 62 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 576,
+          "spill_store_bytes": 400,
+          "spill_load_bytes": 1300,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "576 bytes stack frame, 400 bytes spill stores, 1300 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 576 bytes cumulative stack size, 376 bytes cmem[0], 320 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 4 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 688,
+          "spill_store_bytes": 368,
+          "spill_load_bytes": 1228,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "688 bytes stack frame, 368 bytes spill stores, 1228 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 688 bytes cumulative stack size, 376 bytes cmem[0], 384 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 272 bytes spill stores, 260 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": {
+          "registers": 254,
+          "stack_bytes": 208,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "208 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 254 registers, used 2 barriers, 208 bytes cumulative stack size, 364 bytes cmem[0], 248 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": false
+        }
+      },
+      "tokens_sha256": "ecf62fd0f3ccfa4078aea7c2833a99377c9df0fb4c7fd7cec456b39cde131f6b"
+    },
+    {
+      "cell": "qwen3_B1",
+      "phase": "decode",
+      "binary": "/root/dm1_work/development/runs/dm1-regression/reference/qwen3_B1/decode/plan.so",
+      "artifact_id": "75019ef2a28bb50a357d63f04da3f62b92d28e91eaae3413fe5a90a9a7f47f14",
+      "cu_sha256": "e7e57dcf4405190cd9793cd52478b8c21ccdc66bb18aa725ae94403b12869547",
+      "so_sha256": "6d2289cfe8e632d86e616c0c41fe001315a0b11f32ba63a719827b2ca791d4e7",
+      "sass_sha256": "b44d37ccc2e604d579f7c9290c57e1ca39694ed0a2a57a33dee5d6a79fe9070e",
+      "resources": {
+        "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": {
+          "registers": 62,
+          "stack_bytes": 72,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 62 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen20tilemega_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy": {
+          "registers": 255,
+          "stack_bytes": 192,
+          "spill_store_bytes": 120,
+          "spill_load_bytes": 524,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "192 bytes stack frame, 120 bytes spill stores, 524 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 192 bytes cumulative stack size, 392 bytes cmem[0], 688 bytes cmem[2]"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 128,
+          "spill_store_bytes": 68,
+          "spill_load_bytes": 268,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "128 bytes stack frame, 68 bytes spill stores, 268 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 128 bytes cumulative stack size, 376 bytes cmem[0], 688 bytes cmem[2]"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 176,
+          "spill_store_bytes": 164,
+          "spill_load_bytes": 460,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "176 bytes stack frame, 164 bytes spill stores, 460 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 176 bytes cumulative stack size, 376 bytes cmem[0], 552 bytes cmem[2]"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": {
+          "registers": 255,
+          "stack_bytes": 224,
+          "spill_store_bytes": 8,
+          "spill_load_bytes": 8,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "224 bytes stack frame, 8 bytes spill stores, 8 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 224 bytes cumulative stack size, 364 bytes cmem[0], 108 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": true
+        }
+      },
+      "tokens_sha256": "ecf62fd0f3ccfa4078aea7c2833a99377c9df0fb4c7fd7cec456b39cde131f6b"
+    },
+    {
+      "cell": "qwen3_B16",
+      "phase": "prefill",
+      "binary": "/root/dm1_work/development/runs/dm1-regression/reference/qwen3_B16/prefill/plan.so",
+      "artifact_id": "6f20d1a3c628c88b4b5e9689837729be5b99ff7c6278e6e4600ddf50316c1989",
+      "cu_sha256": "fc179e5eff1b63bf4cdd88feccef507d37b0906c088e24631afb1fbcc5327265",
+      "so_sha256": "565671c6db600af0330b2517cf4ead0a7ed66e6a0f9e4ca299160fc4a7a3d348",
+      "sass_sha256": "cceffe70834935882f39a0ef5909fca96b8dbd01d9af8588190e17b67eaf77ec",
+      "resources": {
+        "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": {
+          "registers": 62,
+          "stack_bytes": 72,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 62 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 1200,
+          "spill_store_bytes": 1072,
+          "spill_load_bytes": 3628,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "1200 bytes stack frame, 1072 bytes spill stores, 3628 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 1200 bytes cumulative stack size, 376 bytes cmem[0], 208 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 32 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 1200,
+          "spill_store_bytes": 1048,
+          "spill_load_bytes": 3764,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "1200 bytes stack frame, 1048 bytes spill stores, 3764 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 1200 bytes cumulative stack size, 376 bytes cmem[0], 232 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 80 bytes spill stores, 88 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": {
+          "registers": 255,
+          "stack_bytes": 704,
+          "spill_store_bytes": 524,
+          "spill_load_bytes": 1696,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "704 bytes stack frame, 524 bytes spill stores, 1696 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 704 bytes cumulative stack size, 364 bytes cmem[0], 108 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 24 bytes spill stores, 24 bytes spill loads"
+          ],
+          "spill": true
+        }
+      },
+      "tokens_sha256": "e4cc2349716014b2c033e510c8455a17b5c5fb07debf570a73ac87e4c7b926c0"
+    },
+    {
+      "cell": "qwen3_B16",
+      "phase": "decode",
+      "binary": "/root/dm1_work/development/runs/dm1-regression/reference/qwen3_B16/decode/plan.so",
+      "artifact_id": "c0637883b89bcd4368166480321940c1a7dc9dffdc8eea1c2d43f3f703272bbe",
+      "cu_sha256": "6c45c128875ee14174ed6c326d047a90337fafdfeea99c6e48439e609afa0e94",
+      "so_sha256": "93ffdb31a375c430605b5c1ca82f1eaf231186de9ab24e4d4ac6afc808d5ac68",
+      "sass_sha256": "b44d37ccc2e604d579f7c9290c57e1ca39694ed0a2a57a33dee5d6a79fe9070e",
+      "resources": {
+        "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": {
+          "registers": 62,
+          "stack_bytes": 72,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 62 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen20tilemega_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy": {
+          "registers": 255,
+          "stack_bytes": 192,
+          "spill_store_bytes": 120,
+          "spill_load_bytes": 524,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "192 bytes stack frame, 120 bytes spill stores, 524 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 192 bytes cumulative stack size, 392 bytes cmem[0], 688 bytes cmem[2]"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 128,
+          "spill_store_bytes": 68,
+          "spill_load_bytes": 268,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "128 bytes stack frame, 68 bytes spill stores, 268 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 128 bytes cumulative stack size, 376 bytes cmem[0], 688 bytes cmem[2]"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 176,
+          "spill_store_bytes": 164,
+          "spill_load_bytes": 460,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "176 bytes stack frame, 164 bytes spill stores, 460 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 176 bytes cumulative stack size, 376 bytes cmem[0], 552 bytes cmem[2]"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": {
+          "registers": 255,
+          "stack_bytes": 224,
+          "spill_store_bytes": 8,
+          "spill_load_bytes": 8,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "224 bytes stack frame, 8 bytes spill stores, 8 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 224 bytes cumulative stack size, 364 bytes cmem[0], 108 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": true
+        }
+      },
+      "tokens_sha256": "e4cc2349716014b2c033e510c8455a17b5c5fb07debf570a73ac87e4c7b926c0"
+    }
+  ],
+  "scope": "reference artifacts and 64-step smoke; ctest remains a separate gate",
+  "seal_sha256": "0d7c170870af4c677daf14afdc9d7e6606f1192d014124fe9ab9f4853ce0641a"
+}

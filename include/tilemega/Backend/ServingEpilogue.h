@@ -268,6 +268,9 @@ struct ServingEpilogue {
         }
       }
       if constexpr(Op==ServingEpilogueOp::kResidual) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+        if constexpr(kOutputColumns%32==0) {
+#endif
         static_assert(kOutputColumns%32==0);
         if(ss_out) {
           // All lanes participate, including predicated rows/vectors. This
@@ -284,6 +287,13 @@ struct ServingEpilogue {
               ss_out[gr*(N/32)+gc/32]=sum;
           }
         }
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+        }else if(ss_out) {
+          // The legacy RMS statistics ABI owns 32 columns. Narrow DM tiles
+          // publish their explicit per-tile row_stats through the finite chain.
+          asm volatile("trap;");
+        }
+#endif
       }
     }
   }

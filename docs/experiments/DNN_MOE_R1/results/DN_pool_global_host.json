@@ -1,0 +1,38 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Exact pool reads, segmented partial domain, per-task reduction work, codecs, CG import and finite CUDA dispatch; no full model gate",
+  "completion": {
+    "event": "queue_complete",
+    "steps": 6,
+    "passed": true
+  },
+  "preparation": {
+    "source_head": "82985a3876883d03ff1f633bdd69cbfed4deb4aa",
+    "diff_sha256": "fcd75f9b486fe23a90d29674554400887f242c6f776b9085f4537cef542d37f6",
+    "inputs": {
+      "test/unit/dnn_semantic_lifting_test.cpp": "daa198bff671d96e93c2e30ac6999ad08fc8cf4f4b03bcde68f83d02ded5f595",
+      "lib/Frontend/DnnSemanticLifting.cpp": "6b023957e8c729da08751b74f422f37d520230ec9583162fdac66156e68f603d",
+      "lib/Frontend/SemanticLifting.cpp": "bddd5d8ca53dec374cb1f4e5d12258e3fb53a5a6c5cfe634ffd54da34f737190",
+      "lib/Analysis/ExactTaskWork.cpp": "b8ae3f407c56ea37da505bb33b84dd7fae45ab65569765b42c161c36b09b0ce6",
+      "lib/Analysis/TaskElementRelation.cpp": "48e291a3502006cb6481371e703fdc609e788e840c727e0b3e053aa85a6f8e70",
+      "lib/Analysis/TaskInstantiation.cpp": "8c7e2476c8439d15842de7f572bf86f399b6c00ce33671af7fb391c10e754bef",
+      "include/tilemega/Analysis/Semantics.h": "42d00382d60febc3295314b20bad23833dd92bd7e2b06457bae57a301eb818d5",
+      "lib/Analysis/SemanticCodec.cpp": "c71f8a989b941ffccf0bab41a2dc044de36f1b40b2d47cc23b21118213796380"
+    },
+    "binary_sha256": "8fd7a88d7823cd30ab6b76f1318447fd0f69d1eb14e7b8331118d1f34cbfe2b1"
+  },
+  "logs": {
+    "descriptors.log": "3f624e15866ab4cc8f635c0b3bde872814bebe1a55cdfd9d96155429b8d56f7d",
+    "arithmetic.log": "c7eff8a834efe69253c9eb52819185d46cee3bef6cc2628bc8a6993fc479499a",
+    "pool_global.log": "b1d3ab90dc0b5492874725eddd82eb16422bbf58b23e23828f22a3d2e9719b03",
+    "dnn_cg.log": "ffe9348aff7d311488d5e31047d1f8d2c3475dbba2b5a3ad5bdc98825f2f46bd",
+    "semantics.log": "a2f7c9759cd8b2cd7ca9b7ef54536822ef5f9d850b8ad113eb02afd4c9d0fea0",
+    "scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pool_cg.log": "f853f3a49e9034a119c105b56a653fcd920d7639c4dcc2ab2b8adf6dd0b03c21"
+  },
+  "generated_cuda": {
+    "pool.cu": "96106b58f7566ed56d4902df53ef22408ad04c03aefd869969644db7f20f0819",
+    "primitives.cu": "60befc21af097609893e22a624b1d2786155f7ed6fd386c17692d71f7667c0d9"
+  }
+}

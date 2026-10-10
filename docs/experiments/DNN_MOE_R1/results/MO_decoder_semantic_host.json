@@ -1,0 +1,61 @@
+{
+  "evidence": "verified",
+  "scope": "host planning, semantic lifting, import, projection and CUDA emission; numerical decoder gates pending",
+  "source_head": "82c4c8617b3c0e76182539cfe1f4602912c76a6d",
+  "source_diff_sha256": "cf1f3a8e1a73b13d0282a6433baff294efd04641124fac88c9cb3c0cc6904130",
+  "full_depth": {
+    "layers": 48,
+    "decode_cases": 8,
+    "prefill_cases": 8,
+    "batch": [
+      1,
+      16
+    ],
+    "binding": [
+      "slot",
+      "group"
+    ],
+    "normalization": [
+      "explicit",
+      "deferred_decode"
+    ]
+  },
+  "logs": {
+    "runs/dm1-moe-mixed-host-v4-0.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/dm1-moe-mixed-host-v4-1.log": "b14f26d45fb8a5b718c834a1f5c378e577e3baa28a982d174b2ddb8914947bc7",
+    "runs/dm1-moe-mixed-host-v4-2.log": "81a3ae1b4d7256240fec673612382208abc34b7987e7053eb2aa751679c190b2",
+    "runs/dm1-moe-mixed-host-v4-3.log": "81a3ae1b4d7256240fec673612382208abc34b7987e7053eb2aa751679c190b2"
+  },
+  "compact": [
+    {
+      "kind": "decode",
+      "log_sha256": "ba588f262a3441880946fe79e0a4c44a51189fadacd344b902ed1eeb929e5efe",
+      "cu_sha256": "b3a1d042e1f52574259549cfe337c2a4df90d7b229408cbfab21fe72cea50e79",
+      "result": "MoE decoder CUDA: batch=1 seq=1 deferred=1 pages=0 stages=21 PASS"
+    },
+    {
+      "kind": "prefill",
+      "log_sha256": "bcf47aed1ca6bc72d6e011530c129c0565910927b253ba16b1f63594ba0a0961",
+      "cu_sha256": "ec0c09905691d3e8cd84136f7a087e238aa3e826cd860d2b2d44b6e677e33cc6",
+      "result": "MoE decoder CUDA: batch=2 seq=64 deferred=0 pages=0 stages=24 PASS"
+    },
+    {
+      "kind": "decode_pages",
+      "log_sha256": "5eae4bbfe2bcea384cc08ec56e83fa3fc333ee2c44b123850bfe32ec5dbdce01",
+      "cu_sha256": "b71958ffa90df556c96cb79482b3e8adde86db5113a0e19079b7386a6a03d04b",
+      "result": "MoE decoder CUDA: batch=16 seq=1 deferred=1 pages=1 stages=21 PASS"
+    },
+    {
+      "kind": "prefill_pages",
+      "log_sha256": "2b13944cabae2442bb83838a66d1d51ee4febb1a70e8b11651628d2813c56105",
+      "cu_sha256": "cca9250542f3a7f2d80b1d6222439a398f4cbb4a7860646cbbbbdf9ebcd4497f",
+      "result": "MoE decoder CUDA: batch=1 seq=64 deferred=0 pages=1 stages=24 PASS"
+    }
+  ],
+  "oracle_correction": {
+    "failed_log": "runs/dm1-moe-mixed-host-v3-0.log",
+    "original_expected": 15,
+    "specified_operations": "8 weighted products + 7 rank-sum additions + 1 residual addition = 16",
+    "numerical_thresholds_changed": false
+  }
+}

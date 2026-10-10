@@ -1,0 +1,112 @@
+{
+  "evidence": "verified",
+  "scope": "Real original-weight streaming packing and shared phase allocations only; not MoE end-to-end execution",
+  "records": {
+    "l12_dense": {
+      "evidence": "verified",
+      "passed": true,
+      "scope": "real checkpoint weight packing/allocation only",
+      "checkpoint_index_sha256": "8aa06078bcf8507b1a3fe5956ec21058ed5be7d1fccdbcbb5d726a702a4b29c7",
+      "checkpoint_config_sha256": "7c0b43920f6867939f2ec4e02d49c772adf918c05d74cbb43c27083f1a5c316a",
+      "checkpoint_bytes": 16199559168,
+      "layers": 12,
+      "experts": 128,
+      "shared_phases": 2,
+      "pages": false,
+      "tile_n": null,
+      "tile_k": null,
+      "cap_bytes": 25769803776,
+      "peak_bytes": {
+        "allocated": 16200613888,
+        "reserved": 16202596352
+      },
+      "expert_matrices_checked": 3072,
+      "deployment_bytes": 16199559168,
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "checker_sha256": "d535b24b95ddd1b8465eaa99bdd6e4c1680991c39b37868b386fc351200b9555"
+    },
+    "l12_pages": {
+      "evidence": "verified",
+      "passed": true,
+      "scope": "real checkpoint weight packing/allocation only",
+      "checkpoint_index_sha256": "8aa06078bcf8507b1a3fe5956ec21058ed5be7d1fccdbcbb5d726a702a4b29c7",
+      "checkpoint_config_sha256": "7c0b43920f6867939f2ec4e02d49c772adf918c05d74cbb43c27083f1a5c316a",
+      "checkpoint_bytes": 16199559168,
+      "layers": 12,
+      "experts": 128,
+      "shared_phases": 2,
+      "pages": true,
+      "tile_n": 64,
+      "tile_k": 64,
+      "cap_bytes": 25769803776,
+      "peak_bytes": {
+        "allocated": 16200613888,
+        "reserved": 16202596352
+      },
+      "expert_matrices_checked": 3072,
+      "deployment_bytes": 16199559168,
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "checker_sha256": "d535b24b95ddd1b8465eaa99bdd6e4c1680991c39b37868b386fc351200b9555"
+    },
+    "e16_dense": {
+      "evidence": "verified",
+      "passed": true,
+      "scope": "real checkpoint weight packing/allocation only",
+      "checkpoint_index_sha256": "0ff9bcdb8f1fdedfa097ddfcafaf02ecea8982fb75d9b5e69b9a0f78c57752f5",
+      "checkpoint_config_sha256": "57b9bf1fcf510d64e8685868deb1f5e2d7d0d2f39bb6e77d08cce4f9c373f854",
+      "checkpoint_bytes": 10307923968,
+      "layers": 48,
+      "experts": 16,
+      "shared_phases": 2,
+      "pages": false,
+      "tile_n": null,
+      "tile_k": null,
+      "cap_bytes": 25769803776,
+      "peak_bytes": {
+        "allocated": 10308997120,
+        "reserved": 10309599232
+      },
+      "expert_matrices_checked": 1536,
+      "deployment_bytes": 10307923968,
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "checker_sha256": "d535b24b95ddd1b8465eaa99bdd6e4c1680991c39b37868b386fc351200b9555"
+    },
+    "e16_pages": {
+      "evidence": "verified",
+      "passed": true,
+      "scope": "real checkpoint weight packing/allocation only",
+      "checkpoint_index_sha256": "0ff9bcdb8f1fdedfa097ddfcafaf02ecea8982fb75d9b5e69b9a0f78c57752f5",
+      "checkpoint_config_sha256": "57b9bf1fcf510d64e8685868deb1f5e2d7d0d2f39bb6e77d08cce4f9c373f854",
+      "checkpoint_bytes": 10307923968,
+      "layers": 48,
+      "experts": 16,
+      "shared_phases": 2,
+      "pages": true,
+      "tile_n": 64,
+      "tile_k": 64,
+      "cap_bytes": 25769803776,
+      "peak_bytes": {
+        "allocated": 10308997120,
+        "reserved": 10309599232
+      },
+      "expert_matrices_checked": 1536,
+      "deployment_bytes": 10307923968,
+      "gpu_name": "NVIDIA GeForce RTX 4090",
+      "checker_sha256": "d535b24b95ddd1b8465eaa99bdd6e4c1680991c39b37868b386fc351200b9555"
+    }
+  },
+  "inputs": {
+    "/root/dm1_work/development/runs/dm1-real-moe-weight-load-v2/python/tilemega/__init__.py": "273773c967539b5025db97503d1912697ff0df0cdae0f44abc21d77d342c20ab",
+    "/root/dm1_work/development/runs/dm1-real-moe-weight-load-v2/python/tilemega/dnn/weights.py": "a4727681f563769d15deadcb81d58e8d3f6f1c8d664d37214cdf2f4cb7ebb3e6",
+    "/root/dm1_work/development/runs/dm1-real-moe-weight-load-v2/python/tilemega/dnn/__init__.py": "04a487f1d181446802de6de3a2bb5623b4f683d42fd000a62b3245ef93bbfeba",
+    "/root/dm1_work/development/runs/dm1-real-moe-weight-load-v2/python/tilemega/moe/weights.py": "20fb3291167c35ade9f089676cf88d212749115c510b37720e1ecc4df8db9d0c",
+    "/root/dm1_work/development/runs/dm1-real-moe-weight-load-v2/python/tilemega/moe/__init__.py": "53ec9754594686c3e9c7e984fdfbdde704827ee79d1b2f086a99341c2228f168",
+    "/root/dm1_work/development/runs/dm1-real-moe-weight-load-v2/python/tilemega/moe/checkpoints.py": "2718fbf99af96edf2151edb398cf31fcd4f63519456e9a5d1ed791fa8a116f39",
+    "/root/dm1_work/development/runs/dm1-real-moe-weight-load-v2/python/tilemega/moe/check_weights.py": "d535b24b95ddd1b8465eaa99bdd6e4c1680991c39b37868b386fc351200b9555",
+    "/root/dm1_work/development/runs/dm1-real-moe-weight-load-v2/python/tilemega/serving/weights.py": "571b9d35ce19b417b5576bb2854af6edb879962407819652cdbb38520676d4b8",
+    "/root/dm1_work/development/runs/dm1-real-moe-weight-load-v2/python/tilemega/serving/plan.py": "2a4d4e036255a28a0589a5593885bd28b2e0bb74d515a7d2b34a363ea7240b6d",
+    "/root/dm1_work/development/runs/dm1-real-moe-weight-load-v2/python/tilemega/serving/__init__.py": "4822788f6ffc455aff5a25b0f571a484dc5abe7a6c30805d0ba6f435f44c6ac1"
+  },
+  "queue": "/root/dm1_work/development/runs/dm1-real-moe-weight-load-v2/events/completion.json",
+  "prior_failed_queue": "/root/dm1_work/development/runs/dm1-real-moe-weight-load-v1/events/completion.json"
+}

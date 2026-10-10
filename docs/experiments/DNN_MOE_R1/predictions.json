@@ -1,0 +1,596 @@
+{
+  "prompt_sha256": "6ecaa5be8d5157937a959baeabac6b5497397c2abd56b25cf5a70e4b6f56e828",
+  "source_verbatim": "\n\n| 问题 | 判定数据 |\n|---|---|\n| Q1 五个未改写的上游模型能否经完整流水线正确运行？算子覆盖、耦合精确性如何？ | T2、T3、T4、T5 |\n| Q2 各格对 TensorRT 与 `torch.compile` 的延迟比 | T6 |\n| Q3 TileMega 的各机制各贡献多少：精确 halo 耦合与 L2/页式 vs L1、deferred LN、dw→pw 融合、缓冲复用、全局归约 LA | T7 |\n| Q4 MoE：模板 + 绑定 vs 不透明；静态放置 vs 动态领取；按槽 vs 按专家分组，随 T 如何变化 | T9 |\n| Q5 MoE 单层对 vLLM，随 T 如何变化；decoder 层与截断模型的 TPOT | T9、T10 |\n| Q6 MoE 端到端路径是否正确；完整模型是否就绪 | T8 |\n| Q7 编译时间随 stage 数的增长 | T11 |\n\n**初始预测**（【推断】，写入 `predictions.json`）。延迟比 = TileMega / 基线，越小越好：\n\n| 对比 | 预测 |\n|---|---|\n| TM/TRT-BF16，B=1 | ResNet18 0.80–1.20；MobileNetV1 0.70–1.05；MobileNetV2 0.70–1.05；BERT 0.85–1.20；NAFNet 0.80–1.20 |\n| TM/TRT-BF16，B=32 | ResNet18 1.00–1.50；MobileNetV1/V2 0.90–1.40；BERT 0.95–1.30 |\n| TM/torch.compile，B=1 | 五个模型都在 0.40–0.90 |\n| L2-exact 或页式（`TM-L2x`、`TM-pages` 中较快者）对 L1（`TM-L1`），B=1 | MobileNetV1/V2 与 ResNet18 −5%~−20%；BERT −3%~−10%；NAFNet −5%~−15% |\n| L2-exact 对 L2-relaxed（`TM-L2x` 对 `TM-L2r`） | CNN −5%~−15% |\n| deferred LN（`TM` 对 `TM-noDLN`） | BERT −3%~−8%；NAFNet −3%~−10% |\n| dw→pw 融合（`TM` 对 `TM-noFuse`） | MobileNetV1/V2，B=1 −5%~−20%；B=32 −3%~−10% |\n| 缓冲复用（`TM-reuseL2` 对 `TM-noReuse`） | NAFNet −5%~−25%；其他 ±3% |\n| MoE 单层（`TM` 对 vLLM） | T=1：0.75–0.95；T=16：0.85–1.05；T=256：0.85–1.10；T=4096：0.85–1.15 |\n| 按槽 vs 按专家分组（`TM-slot` 对 `TM-group`） | T≤2 时按槽更快或持平；T≥8 时分组更快，T=16 快 15%–35% |\n| 静态放置 vs 动态领取（`TM-L2` 对 `TM-dynamic`，同为 L2） | T≤64：±5%；T≥1024：动态快 0%–10% |\n| 模板 vs 不透明（`TM` 对 `TM-opaque`） | T≤16：模板快 5%–15%；T≥256：快 2%–8% |\n\n---\n",
+  "dnn_cells": [
+    "resnet18_B1",
+    "resnet18_B8",
+    "resnet18_B32",
+    "mbv1_B1",
+    "mbv1_B8",
+    "mbv1_B32",
+    "mbv2_B1",
+    "mbv2_B8",
+    "mbv2_B32",
+    "bert_B1",
+    "bert_B8",
+    "bert_B32",
+    "nafnet_B1"
+  ],
+  "moe_cells": [
+    "moe_T1",
+    "moe_T2",
+    "moe_T4",
+    "moe_T8",
+    "moe_T16",
+    "moe_T32",
+    "moe_T64",
+    "moe_T128",
+    "moe_T256",
+    "moe_T512",
+    "moe_T1024",
+    "moe_T2048",
+    "moe_T4096"
+  ],
+  "items": [
+    {
+      "id": "TM_TRT_B1_resnet18",
+      "metric": "latency_ratio",
+      "cells": [
+        "resnet18_B1"
+      ],
+      "arm": "TM",
+      "baseline_arm": "TRT-BF16",
+      "predicted": [
+        0.8,
+        1.2
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "TM_TRT_B1_mbv1",
+      "metric": "latency_ratio",
+      "cells": [
+        "mbv1_B1"
+      ],
+      "arm": "TM",
+      "baseline_arm": "TRT-BF16",
+      "predicted": [
+        0.7,
+        1.05
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "TM_TRT_B1_mbv2",
+      "metric": "latency_ratio",
+      "cells": [
+        "mbv2_B1"
+      ],
+      "arm": "TM",
+      "baseline_arm": "TRT-BF16",
+      "predicted": [
+        0.7,
+        1.05
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "TM_TRT_B1_bert",
+      "metric": "latency_ratio",
+      "cells": [
+        "bert_B1"
+      ],
+      "arm": "TM",
+      "baseline_arm": "TRT-BF16",
+      "predicted": [
+        0.85,
+        1.2
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "TM_TRT_B1_nafnet",
+      "metric": "latency_ratio",
+      "cells": [
+        "nafnet_B1"
+      ],
+      "arm": "TM",
+      "baseline_arm": "TRT-BF16",
+      "predicted": [
+        0.8,
+        1.2
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "TM_TRT_B32_resnet18",
+      "metric": "latency_ratio",
+      "cells": [
+        "resnet18_B32"
+      ],
+      "arm": "TM",
+      "baseline_arm": "TRT-BF16",
+      "predicted": [
+        1,
+        1.5
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "TM_TRT_B32_mbv1",
+      "metric": "latency_ratio",
+      "cells": [
+        "mbv1_B32"
+      ],
+      "arm": "TM",
+      "baseline_arm": "TRT-BF16",
+      "predicted": [
+        0.9,
+        1.4
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "TM_TRT_B32_mbv2",
+      "metric": "latency_ratio",
+      "cells": [
+        "mbv2_B32"
+      ],
+      "arm": "TM",
+      "baseline_arm": "TRT-BF16",
+      "predicted": [
+        0.9,
+        1.4
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "TM_TRT_B32_bert",
+      "metric": "latency_ratio",
+      "cells": [
+        "bert_B32"
+      ],
+      "arm": "TM",
+      "baseline_arm": "TRT-BF16",
+      "predicted": [
+        0.95,
+        1.3
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "TM_torch_B1",
+      "metric": "latency_ratio",
+      "cells": [
+        "resnet18_B1",
+        "mbv1_B1",
+        "mbv2_B1",
+        "bert_B1",
+        "nafnet_B1"
+      ],
+      "arm": "TM",
+      "baseline_arm": "torch.compile",
+      "predicted": [
+        0.4,
+        0.9
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "exact_or_pages_L1_CNN",
+      "metric": "latency_median_rel",
+      "cells": [
+        "resnet18_B1",
+        "mbv1_B1",
+        "mbv2_B1"
+      ],
+      "arm": [
+        "TM-L2x",
+        "TM-pages"
+      ],
+      "baseline_arm": "TM-L1",
+      "predicted": [
+        -0.2,
+        -0.05
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred",
+      "arm_aggregation": "min"
+    },
+    {
+      "id": "exact_or_pages_L1_bert",
+      "metric": "latency_median_rel",
+      "cells": [
+        "bert_B1"
+      ],
+      "arm": [
+        "TM-L2x",
+        "TM-pages"
+      ],
+      "baseline_arm": "TM-L1",
+      "predicted": [
+        -0.1,
+        -0.03
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred",
+      "arm_aggregation": "min"
+    },
+    {
+      "id": "exact_or_pages_L1_nafnet",
+      "metric": "latency_median_rel",
+      "cells": [
+        "nafnet_B1"
+      ],
+      "arm": [
+        "TM-L2x",
+        "TM-pages"
+      ],
+      "baseline_arm": "TM-L1",
+      "predicted": [
+        -0.15,
+        -0.05
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred",
+      "arm_aggregation": "min"
+    },
+    {
+      "id": "exact_relaxed_CNN",
+      "metric": "latency_median_rel",
+      "cells": [
+        "resnet18_B1",
+        "resnet18_B8",
+        "resnet18_B32",
+        "mbv1_B1",
+        "mbv1_B8",
+        "mbv1_B32",
+        "mbv2_B1",
+        "mbv2_B8",
+        "mbv2_B32",
+        "nafnet_B1"
+      ],
+      "arm": "TM-L2x",
+      "baseline_arm": "TM-L2r",
+      "predicted": [
+        -0.15,
+        -0.05
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "deferred_ln_bert",
+      "metric": "latency_median_rel",
+      "cells": [
+        "bert_B1",
+        "bert_B8",
+        "bert_B32"
+      ],
+      "arm": "TM",
+      "baseline_arm": "TM-noDLN",
+      "predicted": [
+        -0.08,
+        -0.03
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "deferred_ln_nafnet",
+      "metric": "latency_median_rel",
+      "cells": [
+        "nafnet_B1"
+      ],
+      "arm": "TM",
+      "baseline_arm": "TM-noDLN",
+      "predicted": [
+        -0.1,
+        -0.03
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "dwpw_fuse_B1",
+      "metric": "latency_median_rel",
+      "cells": [
+        "mbv1_B1",
+        "mbv2_B1"
+      ],
+      "arm": "TM",
+      "baseline_arm": "TM-noFuse",
+      "predicted": [
+        -0.2,
+        -0.05
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "dwpw_fuse_B32",
+      "metric": "latency_median_rel",
+      "cells": [
+        "mbv1_B32",
+        "mbv2_B32"
+      ],
+      "arm": "TM",
+      "baseline_arm": "TM-noFuse",
+      "predicted": [
+        -0.1,
+        -0.03
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "reuse_nafnet",
+      "metric": "latency_median_rel",
+      "cells": [
+        "nafnet_B1"
+      ],
+      "arm": "TM-reuseL2",
+      "baseline_arm": "TM-noReuse",
+      "predicted": [
+        -0.25,
+        -0.05
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "reuse_others",
+      "metric": "latency_median_rel",
+      "cells": [
+        "resnet18_B1",
+        "resnet18_B8",
+        "resnet18_B32",
+        "mbv1_B1",
+        "mbv1_B8",
+        "mbv1_B32",
+        "mbv2_B1",
+        "mbv2_B8",
+        "mbv2_B32",
+        "bert_B1",
+        "bert_B8",
+        "bert_B32"
+      ],
+      "arm": "TM-reuseL2",
+      "baseline_arm": "TM-noReuse",
+      "predicted": [
+        -0.03,
+        0.03
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "moe_vllm_T1",
+      "metric": "latency_ratio",
+      "cells": [
+        "moe_T1"
+      ],
+      "arm": "TM",
+      "baseline_arm": "vLLM",
+      "predicted": [
+        0.75,
+        0.95
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "moe_vllm_T16",
+      "metric": "latency_ratio",
+      "cells": [
+        "moe_T16"
+      ],
+      "arm": "TM",
+      "baseline_arm": "vLLM",
+      "predicted": [
+        0.85,
+        1.05
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "moe_vllm_T256",
+      "metric": "latency_ratio",
+      "cells": [
+        "moe_T256"
+      ],
+      "arm": "TM",
+      "baseline_arm": "vLLM",
+      "predicted": [
+        0.85,
+        1.1
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "moe_vllm_T4096",
+      "metric": "latency_ratio",
+      "cells": [
+        "moe_T4096"
+      ],
+      "arm": "TM",
+      "baseline_arm": "vLLM",
+      "predicted": [
+        0.85,
+        1.15
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "slot_group_small",
+      "metric": "latency_ratio",
+      "cells": [
+        "moe_T1",
+        "moe_T2"
+      ],
+      "arm": "TM-slot",
+      "baseline_arm": "TM-group",
+      "predicted": null,
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred",
+      "qualitative_prediction": "T≤2 时按槽更快或持平"
+    },
+    {
+      "id": "slot_group_large",
+      "metric": "latency_ratio",
+      "cells": [
+        "moe_T8",
+        "moe_T16",
+        "moe_T32",
+        "moe_T64",
+        "moe_T128",
+        "moe_T256",
+        "moe_T512",
+        "moe_T1024",
+        "moe_T2048",
+        "moe_T4096"
+      ],
+      "arm": "TM-group",
+      "baseline_arm": "TM-slot",
+      "predicted": null,
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred",
+      "qualitative_prediction": "T≥8 时分组更快"
+    },
+    {
+      "id": "slot_group_T16",
+      "metric": "latency_median_rel",
+      "cells": [
+        "moe_T16"
+      ],
+      "arm": "TM-group",
+      "baseline_arm": "TM-slot",
+      "predicted": [
+        -0.35,
+        -0.15
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "static_dynamic_small",
+      "metric": "latency_median_rel",
+      "cells": [
+        "moe_T1",
+        "moe_T2",
+        "moe_T4",
+        "moe_T8",
+        "moe_T16",
+        "moe_T32",
+        "moe_T64"
+      ],
+      "arm": "TM-L2",
+      "baseline_arm": "TM-dynamic",
+      "predicted": [
+        -0.05,
+        0.05
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "static_dynamic_large",
+      "metric": "latency_median_rel",
+      "cells": [
+        "moe_T1024",
+        "moe_T2048",
+        "moe_T4096"
+      ],
+      "arm": "TM-dynamic",
+      "baseline_arm": "TM-L2",
+      "predicted": [
+        -0.1,
+        0
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "template_opaque_small",
+      "metric": "latency_median_rel",
+      "cells": [
+        "moe_T1",
+        "moe_T2",
+        "moe_T4",
+        "moe_T8",
+        "moe_T16"
+      ],
+      "arm": "TM",
+      "baseline_arm": "TM-opaque",
+      "predicted": [
+        -0.15,
+        -0.05
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    },
+    {
+      "id": "template_opaque_large",
+      "metric": "latency_median_rel",
+      "cells": [
+        "moe_T256",
+        "moe_T512",
+        "moe_T1024",
+        "moe_T2048",
+        "moe_T4096"
+      ],
+      "arm": "TM",
+      "baseline_arm": "TM-opaque",
+      "predicted": [
+        -0.08,
+        -0.02
+      ],
+      "kill": {},
+      "committed_before_step": "Phase4-first-timing",
+      "evidence": "inferred"
+    }
+  ]
+}

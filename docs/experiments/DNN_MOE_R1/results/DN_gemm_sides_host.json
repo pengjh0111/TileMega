@@ -1,0 +1,28 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "CG side-store emission with selected geometry, exact split-final ownership and typed combine write traffic",
+  "preparation": {
+    "head": "496e02a76d5b4b701ec235997096c61d78b51fb3",
+    "diff_sha256": "9f5f2f7a67b6235e1fa36aa7a24f94cfdcbf70391173d25109551242630accfa",
+    "inputs": {
+      "/root/dm1_work/development/runs/dm1-gemm-side-storage-v2/tilemega-unit": "b132193d99840f40df39ec6d5fe3ac9a0d9b42ec5b6f64a77572cb109007574e",
+      "/root/dm1_work/development/runs/dm1-gemm-side-storage-v2/test/unit/dnn_epilogue_semantics_test.cpp": "8f24b2f2e9cfa680b5ea0a698fb620f11a353d1df29e69540614b2cd4ba1f058",
+      "/root/dm1_work/development/runs/dm1-gemm-side-storage-v2/queue/queue_host.json": "bc4b43efb1a03930851cf5b4cb6dcb40390b024cb3d5ac66fb67c8ebf2a156ca",
+      "/root/dm1_work/development/runs/dm1-gemm-side-storage-v2/lib/Frontend/DnnStorage.cpp": "0c5621cc54d3b29a5152537073f032b599ae486732be2b7c4f6be94137c24c68",
+      "/root/dm1_work/development/runs/dm1-gemm-side-storage-v2/lib/Analysis/TaskStorage.cpp": "55c55d55eed918bd33110ef0a6cd571678c28bf1021e0eb119bc522eed3b1885"
+    }
+  },
+  "completion": {
+    "event": "queue_complete",
+    "steps": 1,
+    "passed": true
+  },
+  "logs": {
+    "scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "emit_side.log": "b6d7bfca1b19a2df9a4a7a8182f63425f6e54793baa130f6e57522a763692778"
+  },
+  "failures_retained": [
+    "runs/dm1-gemm-side-storage-v1"
+  ]
+}

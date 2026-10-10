@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Target/TargetSpec.h>
+#include <tilemega/Solver/DmGemmTraits.h>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -23,32 +25,40 @@ struct PageLayout {
   // static page ring. Each GEMM shape is (M,N,K); attention widths are D.
   static std::pair<int,int> ServingWorkspace(
       std::vector<std::array<int,3>> const& gemms,
-      std::vector<std::array<int,2>> const& attention_shapes) {
-    int activation=0,scratch=0;
+      std::vector<std::array<int,2>> const& attention_shapes,
+      bool prefill=false,bool dm=false,int task_workspace=0,int kv_tile=64) {
+    if(task_workspace<0)throw std::invalid_argument("negative task workspace");
+    int activation=0,scratch=task_workspace;
     for(auto const& g:gemms) {
-      activation=std::max(activation,4*2*g[0]*g[2]);
-      scratch=std::max(scratch,4*g[0]*g[1]+4*g[0]);
+      activation=std::max(activation,dm?
+          DmServingPageActivationBytes(g[0],g[1],g[2]):4*2*g[0]*g[2]);
+      scratch=std::max(scratch,dm?
+          DmServingPageScratchBytes(g[0],g[1]):4*g[0]*g[1]+4*g[0]);
     }
     for(auto const& shape:attention_shapes) {
       int d=shape[0],q=shape[1];
-      scratch=std::max(scratch,16*d*2+4*q*d*4+4*q*4);
+      scratch=std::max(scratch,prefill ? codegen::ServingAttentionSharedBytes(d,kv_tile)
+          : 16*d*2+4*q*d*4+4*q*4);
     }
     return {activation,scratch};
   }
   static PageLayout Build(TargetSpec const& target,int page,int activation_bytes,
-                          int scratch_bytes,int task_control_bytes=0) {
-    if((page!=8192 && page!=16384) || activation_bytes<0 || scratch_bytes<0 || task_control_bytes<0)
+                          int scratch_bytes,int task_control_bytes=0,int requested_pages=0) {
+    if((page!=8192 && page!=16384) || activation_bytes<0 || scratch_bytes<0 || task_control_bytes<0 || requested_pages<0)
       throw std::invalid_argument("invalid page-pool layout input");
     int limit=target.res.max_dynamic_smem_per_cta;
+    if(requested_pages>limit/page)
+      throw std::invalid_argument("requested page count exceeds the target budget");
     // Each 32-byte slot owns full/empty barriers and a generation tag. Scratch
     // aliases activation storage only after the compute mainloop has drained.
-    for(int count=limit/page;count>0;--count) {
+    for(int count=requested_pages?requested_pages:limit/page;count>0;--count) {
       // Keep a dedicated 16-byte LA flag after the slot descriptors: the
       // reducer may reuse work[0] before all warps have read the flag.
       int operands=Align(count*4*sizeof(std::uint64_t)+16+task_control_bytes,128);
       int start=Align(operands+std::max(activation_bytes,scratch_bytes),1024);
       if(start+count*page<=limit)
         return {page,count,operands,operands,start,start+count*page};
+      if(requested_pages)break;
     }
     throw std::invalid_argument("target shared memory cannot hold one page and task workspace");
   }

@@ -1,0 +1,7 @@
+{
+  "torch": "2.14.1+cu130",
+  "seed": 20261007,
+  "records": 1024,
+  "variants": 16,
+  "scope": "epilogue value functions; no tile or synchronization claim"
+}

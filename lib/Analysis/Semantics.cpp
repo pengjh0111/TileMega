@@ -24,10 +24,10 @@ std::string ToString(EffectKind kind) {
 }
 
 IndexResult IndexResult::Dim(std::string name, ClosedForm coefficient,
-                             ClosedForm group) {
+                             ClosedForm group, ClosedForm shift) {
   IndexResult result;
   result.terms.push_back({std::move(name), std::move(coefficient),
-                          std::move(group)});
+                          std::move(group), std::move(shift)});
   return result;
 }
 
@@ -52,9 +52,12 @@ IndexResult IndexResult::Broadcast(ClosedForm span) {
   return result;
 }
 
-IndexResult IndexResult::DataDependent() {
+IndexResult IndexResult::DataDependent(std::string binding_source,
+                                     std::vector<std::string> request_dims) {
   IndexResult result;
   result.kind = Kind::kDataDependent;
+  result.binding_source = std::move(binding_source);
+  result.request_dims = std::move(request_dims);
   return result;
 }
 
@@ -66,9 +69,11 @@ std::string IndexResult::Serialize() const {
       for (std::size_t i = 0; i < terms.size(); ++i) {
         if (i) out << " + ";
         out << terms[i].coefficient.ToString() << "*";
-        if (terms[i].group.IsLiteral(1)) out << terms[i].dim;
-        else out << "floordiv(" << terms[i].dim << ", "
-                 << terms[i].group.ToString() << ")";
+        auto coordinate = terms[i].dim;
+        if (!terms[i].shift.IsLiteral(0))
+          coordinate = "(" + coordinate + " + " + terms[i].shift.ToString() + ")";
+        if (terms[i].group.IsLiteral(1)) out << coordinate;
+        else out << "floordiv(" << coordinate << ", " << terms[i].group.ToString() << ")";
       }
       if (!terms.empty() && !offset.IsLiteral(0))
         out << " + " << offset.ToString();
@@ -82,8 +87,18 @@ std::string IndexResult::Serialize() const {
       break;
     case Kind::kDataDependent:
       out << "data_dependent";
+      if (!binding_source.empty()) out << "(" << binding_source << ")";
+      if(!request_dims.empty()) {
+        out << " requests[";
+        for(unsigned i=0;i<request_dims.size();++i)out<<(i?",":"")<<request_dims[i];
+        out << "]";
+      }
       break;
   }
+  if (kind == Kind::kAffine && (!span.IsLiteral(1) || !window_stride.IsLiteral(1)))
+    out<<" window["<<span.ToString()<<", "<<window_stride.ToString()<<"]";
+  if (kind == Kind::kAffine && !outer_divisor.IsLiteral(1))
+    return "floordiv(" + out.str() + ", " + outer_divisor.ToString() + ")";
   return out.str();
 }
 
@@ -116,7 +131,9 @@ std::string ReductionSemantics::Serialize() const {
     if (i) out << ",";
     out << ownership[i];
   }
-  out << "])";
+  out << "]";
+  if(partial_values!=1)out<<", partial_values="<<partial_values;
+  out<<")";
   return out.str();
 }
 
@@ -192,6 +209,10 @@ std::string SemanticOp::Serialize() const {
       << " dtype=" << ToString(dtype)
       << (generic ? " generic" : "");
   if (!arithmetic.empty()) out << " arithmetic=" << arithmetic;
+  if (exact_task_access)
+    out << "\n  task_space " << SerializeTensor(task_space) << " " << task_map.Serialize();
+  for(auto const& predicate:domain_nonnegative)
+    out<<"\n  domain_where "<<predicate.Serialize()<<">=0";
   for (auto const& read:element_reads) {
     out << "\n  element_read " << SerializeTensor(read.tensor) << ' ' << read.map.Serialize();
     for (auto const& predicate:read.nonnegative)
@@ -203,16 +224,32 @@ std::string SemanticOp::Serialize() const {
     for (auto const& predicate:write.nonnegative)
       out << " where " << predicate.Serialize() << ">=0";
   }
+  for(auto const& storage:tile_storage)
+    out<<"\n  tile_storage "<<storage.tensor<<" owner="<<storage.owner_axis
+       <<" insert_axis="<<storage.tensor_axis;
+  for(auto const& read:tile_storage_reads)
+    out<<"\n  tile_storage_read "<<read.tensor<<" reduction="<<read.reduction_dim
+       <<" segment="<<read.segment_dim<<" extent="<<read.segment_extent.ToString();
+  for(auto const& phase:compute_prologue)
+    out<<"\n  private_compute "<<phase.arithmetic<<' '<<SerializeTensor(phase.output)
+       <<' '<<phase.map.Serialize()<<" reduction="<<phase.reduction.ToString();
   out << "\n  domain";
   for (auto const& dim : domain) {
     out << " " << dim.name << ":" << ToString(dim.type) << "["
         << dim.origin.ToString() << ", " << dim.extent.ToString() << ")";
     if (dim.runtime) out << "!";
+    if (dim.capacity)
+      out << " capacity=" << dim.capacity->ToString() << " binding=" << dim.binding_source
+          << " requirement=" << dim.binding_requirement;
   }
   out << "\n  result " << SerializeTensor(result) << " "
       << result_map.Serialize() << " " << result_effect.Serialize() << "\n";
   for (auto const& operand : operands)
     out << "  operand " << (operand.producer.empty() ? "-" : operand.producer)
+        << " " << SerializeTensor(operand.tensor) << " "
+        << operand.map.Serialize() << " " << operand.effect.Serialize() << "\n";
+  for (auto const& operand : epilogue_operands)
+    out << "  epilogue_operand " << (operand.producer.empty() ? "-" : operand.producer)
         << " " << SerializeTensor(operand.tensor) << " "
         << operand.map.Serialize() << " " << operand.effect.Serialize() << "\n";
   out << "  reduction " << reduction.Serialize() << "\n";

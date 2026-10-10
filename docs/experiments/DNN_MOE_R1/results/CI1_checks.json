@@ -1,0 +1,28 @@
+{
+  "evidence": "verified",
+  "item": "CI-1",
+  "checks": {
+    "python_tests": {
+      "passed": 7,
+      "total": 7
+    },
+    "frontend_import_ctest": {
+      "passed": 1,
+      "total": 1
+    },
+    "policy": "passed",
+    "system_python_without_numpy": "passed",
+    "bert_cli_bound_batch": 8,
+    "legacy_llm_json_archives": 4,
+    "dnn_archives": 12
+  },
+  "source_sha256": {
+    "python/tilemega/export_bridge.py": "89e6e432596b68caa4cdf2c4464f15fdc35f6ac8f733c175dc59ae6c48b264dd",
+    "python/tilemega/export_constants.py": "55022f9c1b440dab330bd7b7e63447d639048d3a4a5e29fe7a5cc29b78afac42",
+    "include/tilemega/Frontend/ModelPlan.h": "eb19aa0f82cfa20f32d6354983bc1772d41b556f109f41b24b40822532237188",
+    "lib/Frontend/Frontend.cpp": "347c8df5d1cf46a9e00eb5fbe6e447fa8e655c823ed5b6a8ff15f9df4b7ead96",
+    "test/python/test_export_bridge.py": "b2f607a98113a0ce83fde3b96e92b3ea2d2833a0a7e990c0104addccddabd56e",
+    "test/unit/frontend_import_test.cpp": "a4256a6d2157c0f3570eca30d09719c2f06f6999228d213219b870abca479a6d"
+  },
+  "scope": "structured bridge, constants and plan-binding interface; no complete G-REG or DNN runtime claim"
+}

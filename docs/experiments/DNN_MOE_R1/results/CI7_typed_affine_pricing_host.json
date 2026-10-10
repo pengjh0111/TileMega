@@ -1,0 +1,39 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Host solver traffic and arithmetic-cache integration; no CUDA body/model/performance gate claim",
+  "source": {
+    "head": "51e6acff9da7528e3aaa4fdfe065227a20944ec9",
+    "stage_head": "e50921c893356f482c1c58cc3f90b1f378a3e866",
+    "inputs": {
+      "/root/dm1_work/development/runs/dm1-typed-affine-pricing/driver.cpp": "3e0ab3d9b792ebccc62251dea3e3444b2a5247ff15a3aa8c0d76c359524733a7",
+      "/root/dm1_work/development/runs/dm1-typed-affine-pricing/typed_affine_pricing_test.cpp": "02e8bef0b9e3283ca2f4c659f64cbe47bc100320411c9d9605ac3bd92270086a",
+      "/root/dm1_work/development/runs/dm1-typed-affine-pricing/dm_piece_pricing_test.cpp": "fa49d7a49bdaa73342a1b5fa436e9047895f659a45416c65d546966371a9ee1c",
+      "/root/dm1_work/development/test/unit/binding_request_pricing_test.cpp": "ad8c8d3cc0b114633f1d53d2ff2166acd47bfce4ea900ce99541569a4080f9d9",
+      "/root/dm1_work/development/test/unit/regime_a_price_test.cpp": "4f8d9a12da83ca8269da80ffede3ad660f40323eba07a9188afc4e6020052ad5",
+      "/root/dm1_work/development/runs/dm1-typed-affine-pricing/overlay/lib/Solver/TaskModel.cpp": "72d0d72df0a7365e2bd94a38877e834d4eff4a0768f79e26487897cb3e95c443",
+      "/root/dm1_work/development/runs/dm1-typed-affine-pricing/overlay/lib/Solver/PiecePricing.cpp": "8767e95c55b52161d6a2a343823a7423109c430f150f144eb6ba408334733039",
+      "/root/dm1_work/development/docs/experiments/SOLVER_R9B/fit/target.json": "a0b911663abe325846b9f4bbd6e2cb50a7deb14e27560fe8e3ca4fd44bad48f7"
+    },
+    "library_sha256": "bfce85223db55e2ce927e915d931a9bb35d783c10e7a23453ddf0bc5eecade81",
+    "library_source": "integration-stage native build through 88dbd0858, replacing TaskModel and PiecePricing objects",
+    "scope": "Host exact affine traffic and arithmetic cache identity; no numerical TaskBody or model/performance gate",
+    "expectations_changed": false,
+    "assertions_enabled": true
+  },
+  "affine_traffic_cases": 72,
+  "binding_request_traffic_cases": 72,
+  "arithmetic_cache_cases": [
+    "numerator scale",
+    "FLOP denominator",
+    "transcendental numerator",
+    "transcendental denominator"
+  ],
+  "oracles": "Independent row/column-tail byte counts for BF16 main plus FP32 statistics, partial produced/external input rows, single/batch traffic agreement, cached/uncached arithmetic prices",
+  "legacy_bit_exact_checks": 18,
+  "expectations_changed": false,
+  "binary_sha256": "9fb56098868f3bcf1584325e0da27189387571be11ac5fe85cdc4ebe84a697a3",
+  "queue_sha256": "7415775a9f08d4a69cd805b240fdd786e817ee28892bf9d84e85b997ddf1aa0f",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "log_sha256": "fa1cd2aa91fa354f4ebad13ca4940350c3bd56dbbfebc4d7402c3049ff649e30"
+}

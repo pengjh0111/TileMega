@@ -9,12 +9,17 @@ TorchExportImporter and produce the CG dialect directly.
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import math
 from pathlib import Path
 from typing import Any
 
 import torch
+if __package__:
+    from .export_constants import argument, annotate
+else:
+    from export_constants import argument, annotate
 
 
 SCHEMA = "tilemega.exported_program.v1"
@@ -74,7 +79,8 @@ def _scalar_args(node: Any) -> list[float]:
     return out
 
 
-def serialize(program: torch.export.ExportedProgram) -> dict[str, Any]:
+def serialize(program: torch.export.ExportedProgram,
+              shape_bindings: dict[str, int] | None = None) -> dict[str, Any]:
     nodes = []
     for index, node in enumerate(program.graph.nodes):
         value = node.meta.get("val")
@@ -86,6 +92,8 @@ def serialize(program: torch.export.ExportedProgram) -> dict[str, Any]:
                 "target": str(node.target),
                 "inputs": [item.name for item in node.all_input_nodes],
                 "scalar_args": _scalar_args(node),
+                "args": argument(node.args),
+                "kwargs": {key: argument(value) for key, value in sorted(node.kwargs.items())},
                 "shape": _shape(value),
                 "dtype": _dtype(value),
                 "nn_module_stack": [
@@ -95,6 +103,7 @@ def serialize(program: torch.export.ExportedProgram) -> dict[str, Any]:
                 "source_fn_stack": [str(item) for item in node.meta.get("source_fn_stack", [])],
             }
         )
+    annotate(program, nodes, shape_bindings)
     def argument_name(spec: Any) -> str:
         name = getattr(spec.arg, "name", None)
         if not isinstance(name, str):
@@ -158,7 +167,13 @@ def main() -> None:
     parser.add_argument("--decompose", action="store_true",
                         help="run_decompositions() to Core ATen before serializing")
     parser.add_argument("--normalization-report", type=Path)
+    parser.add_argument("--bind-shape", action="append", default=[], metavar="SYMBOL=INTEGER",
+                        help="evaluate shape constants for a bound plan before compilation")
+    parser.add_argument("--pytree-module", action="append", default=[],
+                        help="import upstream output-type registrations before archive loading")
     args = parser.parse_args()
+    for module in args.pytree_module:
+        importlib.import_module(module)
     program = torch.export.load(args.input)
     before = _op_kinds(program)
     if args.decompose:
@@ -174,7 +189,16 @@ def main() -> None:
                         "targets_after": len(after),
                         "before": before, "after": after}, indent=2),
             encoding="utf-8")
-    document = serialize(program)
+    bindings = {}
+    for binding in args.bind_shape:
+        symbol, separator, value = binding.partition('=')
+        if not separator or not symbol or symbol in bindings:
+            parser.error('--bind-shape requires distinct SYMBOL=INTEGER entries')
+        try:
+            bindings[symbol] = int(value)
+        except ValueError:
+            parser.error('--bind-shape requires an integer value')
+    document = serialize(program, bindings)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(document, indent=2), encoding="utf-8")
     call_functions = [node for node in document["nodes"] if node["op"] == "call_function"]

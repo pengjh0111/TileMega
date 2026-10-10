@@ -1,0 +1,21 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "pass_rate": "6/6",
+  "scope": "host forward selection protocol only; synthetic records are not GPU measurements; guarded adaptive queue orchestration and model search integration pending",
+  "implementation_commit": "92a615140561863f6ec5f826f1092a596b2ba610",
+  "inputs": {
+    "docs/experiments/DNN_MOE_R1/second_level_dm.py": "92dfc1bc0aeb3f86234f0a4a1ba7968841efb47078e6b7ad08cdc6f29fc7567e",
+    "docs/experiments/DNN_MOE_R1/test_second_level_dm.py": "1c33e82298887ce6bbfc6c9d91b56928cd1ef88d8a19098afc2bb351b28b7d56",
+    "docs/experiments/DNN_MOE_R1/builds_dm.py": "199c9bb312f546baaab10b69efdc078ee0bbc53fcbc853e5e985fd78894b4d7d"
+  },
+  "logs": {
+    "/root/dm1_work/development/runs/dm1-ci7-second-level-host-v2/events/second_level_protocol.log": "e6c8723b87a1f45d1d78ac4eb3896b70f3c16d52a131d2ea98fb90fa8ead17fb",
+    "/root/dm1_work/development/runs/dm1-ci7-second-level-host-v2/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "prior_failure": {
+    "log": "/root/dm1_work/development/runs/dm1-ci7-second-level-host/events/second_level_protocol.log",
+    "sha256": "7cd07f9b1385412b1ef1eb9f43908d63f1c83d018572c6ba38f01cf3dd9fac24",
+    "reason": "final-round fixture placed both candidates in one family while requesting top-M=1; fixture now declares distinct MMA/GEMV families, retaining its median-based expected winner; protocol unchanged"
+  }
+}

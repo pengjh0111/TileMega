@@ -11,6 +11,7 @@ struct PricePiece {
 struct PiecePrices {
   std::vector<PricePiece> pieces;
   bool coordinate_varying=false;
+  bool routing_profiled=false,inferred_empty_cost=false;
   double total_isolated_ns=0;
 };
 struct PiecePriceCache {

@@ -1,0 +1,45 @@
+{
+  "evidence": "verified",
+  "scope": "BERT before/Core, masked/unmasked planning and semantic lifting, with negative structural contracts; no CUDA/model numerical gate",
+  "preparation": {
+    "binary_sha256": "cc37ee48d94da534d226d81269f38611ba530abad2fa0dceab681e51d5cd0e4c",
+    "sources": {
+      "lib/Frontend/DnnModelPlan.cpp": "a048d39beec590f660811e087e3f6b95d7edbd7662fd39c0dbe06bf3d2a2b3b8",
+      "lib/Frontend/DnnSemanticLifting.cpp": "b699537b453d1aa346154536e2efd500c7288a0fe9f961ba16c6f4b067b47870",
+      "test/unit/dnn_model_plan_test.cpp": "3aab080f6e54f08cb7b9e392e7929cef1b92a38318db1971efb2c22916e081c2",
+      "python/tilemega/export_constants.py": "bff22c61dcf191012e02db6d6c727960db96c29e64613ee347b32ef53961c919",
+      "include/tilemega/Frontend/ModelPlan.h": "cb4477460b3b07cdfb4ae802dcf7f6289f99f319ff8df8b241184a8a4bdba695"
+    }
+  },
+  "completion": {
+    "event": "queue_complete",
+    "steps": 4,
+    "passed": true
+  },
+  "cases": {
+    "bert_before": {
+      "status": "done",
+      "log_sha256": "45585db2eb43dfa067e82a2fce545b638394a96d0ee8946fec7fd0b70a2d6eda"
+    },
+    "bert_core": {
+      "status": "done",
+      "log_sha256": "dc1f070144c0f23d3644f7ad70be0c137f5d7634784a43e1633f952beccd26b1"
+    },
+    "bert_masked_before": {
+      "status": "done",
+      "log_sha256": "95ed99ef6f0733b7a33756acea9b24f4c85bdd2a31ea56a73be76b8dbb6b1980"
+    },
+    "bert_masked_core": {
+      "status": "done",
+      "log_sha256": "ad8e8e5bb0d485d16168e3aaf043f149e3bfe15a0801055ff0d10d6ab8ac7a89"
+    }
+  },
+  "stages": 87,
+  "gemms": 49,
+  "prior_failure": "/root/dm1_work/development/runs/dm1-encoder-model-plan-host-v3/events/bert_masked_core.log",
+  "python_bridge_tests": {
+    "passed": 8,
+    "log_sha256": "4f2b3e8d2af5b803523f26d651c5fe2eb9907296fadcdc33c7e7cc90ecaca844"
+  },
+  "related_regressions": "/root/dm1_work/development/runs/dm1-encoder-model-plan-host-v1/events/completion.json"
+}

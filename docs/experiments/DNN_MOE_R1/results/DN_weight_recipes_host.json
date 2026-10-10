@@ -1,0 +1,17 @@
+{
+  "evidence": "verified",
+  "scope": "DNN weight recipes and existing dense/convolution CuTe page-packing CPU checks; no CUDA or model correctness claim",
+  "passed": true,
+  "tests": 12,
+  "command": "PYTHONPATH=python /root/dm1_work/venv/bin/python -m unittest discover -s test/python -p '*weight*.py' -v",
+  "log": "/root/dm1_work/development/runs/dm1-dnn-weights-host.log",
+  "log_sha256": "0b3fc986fe39df316fcc5dd6a68d46a03b2b36a83b2d6a862efeea18f3646291",
+  "source_head": "c905adf688e45ca888fdec7c3254d1dfa0002d0f",
+  "tested_sources": {
+    "python/tilemega/dnn/weights.py": "a4727681f563769d15deadcb81d58e8d3f6f1c8d664d37214cdf2f4cb7ebb3e6",
+    "python/tilemega/serving/weights.py": "d3ef87263d0ac45d867b72d8e3b3a291796a11485e4e03c0ea3af83f33c501e0",
+    "test/python/test_dnn_weight_recipes.py": "76d67d7f2cf81379c6e0be726adedbbfac03a4886d65fa7c2fd4507b5b6a39e9",
+    "test/python/test_dm_weight_pages.py": "f6c6d747a92a65f5273d5574eac51579b2155d3a339309754b9c196788d30927"
+  },
+  "utc": "2026-10-09T13:35:42.799293+00:00"
+}

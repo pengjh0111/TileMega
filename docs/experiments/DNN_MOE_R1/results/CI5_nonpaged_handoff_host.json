@@ -1,0 +1,52 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "host selection/lowering/macro transport only; native nonpaged task execution and synchronization gates pending",
+  "checks": [
+    "handoff_runtime_projection",
+    "handoff_ir",
+    "handoff_split_four",
+    "handoff_split_one",
+    "handoff_split_off",
+    "handoff_split_escape",
+    "handoff_access",
+    "handoff_nonpaged_split_four",
+    "handoff_nonpaged_split_one",
+    "handoff_nonpaged_split_off",
+    "handoff_nonpaged_split_escape"
+  ],
+  "pass_rate": "11/11",
+  "implementation_commit": "a420ceb613c7ed061f1db8148c16bac7ecb386af",
+  "inputs": {
+    "CMakeLists.txt": "48c1bb7fda9a371d42984e16593bc42543ae100a2279809642e8f3f3bee20045",
+    "lib/Codegen/Codegen.cpp": "4132983d85d925a1685e170fba318289ba1f00aa58ded0bd0a247daccdefe9f1",
+    "lib/Dialect/CouplingGraph/HandoffPass.cpp": "d725a7b73857920f9e465160189395f857432c22cf834eeeeb8fc93ae671ccaa",
+    "python/tilemega/cli.py": "d94bf1ddd8bc17fa6f815293e4b912964ec561832339ece4e14ce2b56429dbb0",
+    "test/unit/handoff_ir_test.cpp": "81cb7a7a3b5709a9d57c07d5e1734dcdb55f27156da527a2b1569f055ae5c3e3",
+    "tools/commands/compile.cpp": "042b13f971db750cfd55b4fc1c3d4a15821872561f032c3ab1e01f41027f1a07"
+  },
+  "unit_sha256": "e742165cde6d01cfc85c6bfc2b40de7ae748c4f335c5f72fe54848c69a986e2c",
+  "compiler_sha256": "18b30067bfce5fe1b9d1da66da500fe75728cd33ac42b315b6649b69afc4d7ae",
+  "compiler_identity": {
+    "source_sha256": "3f92c19824b3892c031cd34e6cbc0965bed9434f5a23ee51afd7d1af930a16c9",
+    "supported_arches": [
+      "sm_80",
+      "sm_89",
+      "sm_90",
+      "sm_100",
+      "sm_120"
+    ],
+    "nvcc": "/usr/local/cuda/bin/nvcc",
+    "cuda_library_dir": "/usr/local/cuda/lib64"
+  },
+  "logs": {
+    "/root/dm1_work/development/runs/dm1-ci5-nonpaged-handoff-host/events/build_nonpaged_handoff.log": "f115e7d2a633c4d10b8dfe9416d9a89926a364c14564f32defd7d75e3c605e37",
+    "/root/dm1_work/development/runs/dm1-ci5-nonpaged-handoff-host/events/ctest_nonpaged_handoff.log": "022ed6042025ca8072f01689951af9a00df035914281ada589d26a12c6072b09",
+    "/root/dm1_work/development/runs/dm1-ci5-nonpaged-handoff-host/events/scheduler.log": "a5db5cb3d331e5df95c24d462b3ba3614e634b7deb8d0bb5e228309e9a81ddc6"
+  },
+  "completion": {
+    "event": "queue_complete",
+    "steps": 2,
+    "passed": true
+  }
+}

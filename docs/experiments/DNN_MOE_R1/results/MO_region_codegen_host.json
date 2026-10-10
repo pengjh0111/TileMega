@@ -1,0 +1,44 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Compact grouped MoE unsplit/split2: exact CG verification, counted contract, runtime projection and CUDA generation; native execution recorded separately",
+  "cases": [
+    {
+      "case": "grouped_unsplit",
+      "log": "runs/dm1-moe-region-wire-host-v5.log",
+      "log_sha256": "951a68ffb3ee14da76e1e6e27bdb21e635cf2129bc24a033e075386e59b65a3d",
+      "generated_cu": "runs/dm1-moe-compact-generated-v5.cu",
+      "generated_sha256": "c5bb1b1daca3dab7a096b62d53827e3768c6a2e9833e0e408c91469bcfde72f5"
+    },
+    {
+      "case": "grouped_split2",
+      "log": "runs/dm1-moe-region-split-host-v4.log",
+      "log_sha256": "505f8e1f59210a6d6eda25a0e6f9354e279ba2cd7abe11cfc2b17e15ca4c5101",
+      "generated_cu": "runs/dm1-moe-compact-split-generated-v4.cu",
+      "generated_sha256": "69012d4e23f2ca166985fa119fc94d6b521c3b4067bf109f6a58d83ce4837047"
+    }
+  ],
+  "negative_contract_regression": "results/CI7_unsplit_semantics_host.json",
+  "implementation_snapshot_at_sealing": {
+    "lib/Frontend/Frontend.cpp": "bec4edfa3a00efef73a13129f26a720b69480ef4ba19148e76565ebe1491a451",
+    "lib/Frontend/MoeRegionPlan.cpp": "2d05f740da212fa42592e1e3dd581e557e144f01820cb0c9b8c749c76ed06ac6",
+    "lib/Analysis/SemanticCodec.cpp": "3bed1648b2db5e08e32d3132c8479038528580b8bf8a5d200d75af50495090ec",
+    "lib/Dialect/CouplingGraph/CountedDependency.cpp": "4d09a0e7fe17a9b73a74051a8f0f9ff8c89b2f0dbc6979ef9f728e97b6cf7816",
+    "lib/Solver/RuntimeProjection.cpp": "79314a5b1267cd892ec4e8288d727971f1cd34e4adc85477c81c61f26d8b6d50",
+    "test/unit/moe_region_codegen_test.cpp": "7233ffbe16c932651e2672043694cf6989825cc9620612096c79ce9b3ec1b8fd"
+  },
+  "source_head_at_sealing": "e08e6ac23c68ba24c68b1191f137bbcfdd1a0516",
+  "retained_failures": [
+    "runs/dm1-moe-region-wire-host-v4.log",
+    "runs/dm1-moe-region-split-host-v2.log"
+  ],
+  "six_case_sweep": {
+    "evidence": "verified",
+    "passed": true,
+    "cases": 6,
+    "log": "runs/dm1-moe-region-wire-host-v7.log",
+    "log_sha256": "8400feaffed8f2fa53f200ee416b3d2c6563d2931091e16b11560cd5104534f0",
+    "source": "runs/dm1-moe-compact-generated-v7.cu",
+    "source_sha256": "c5bb1b1daca3dab7a096b62d53827e3768c6a2e9833e0e408c91469bcfde72f5"
+  }
+}

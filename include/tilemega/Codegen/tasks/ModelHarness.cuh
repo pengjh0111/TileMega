@@ -21,6 +21,12 @@
 #define TILEMEGA_KPHASE_CLASS_MASK 31
 #endif
 #include <tilemega/Codegen/tasks/EventSync.cuh>
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Codegen/executor/CountedDependency.cuh>
+#include <tilemega/Codegen/executor/BindingGate.cuh>
+#include <tilemega/Codegen/MoeBinding.h>
+#include <tilemega/Codegen/DmConvRuntime.h>
+#endif
 #include <tilemega/Codegen/executor/ServingLaunch.cuh>
 #ifndef TILEMEGA_PDL_TRIGGER
 #define TILEMEGA_PDL_TRIGGER 0
@@ -43,6 +49,24 @@
 #include <tilemega/Codegen/tasks/FusedRoPEKVTaskBody.h>
 #include <tilemega/Codegen/tasks/KVAppendTaskBody.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
+#if TILEMEGA_MOE_OPAQUE
+#include <tilemega/Codegen/MoeOpaqueControl.h>
+#endif
+#if TILEMEGA_MOE_DYNAMIC
+#include <tilemega/Codegen/executor/DynamicTaskClaim.cuh>
+static_assert(!TILEMEGA_PAGED && TILEMEGA_SLOT_WINDOW == 1 && !TILEMEGA_PREFETCH_RUNTIME,
+    "dynamic virtual task queues require nonpaged L2 and a single queue slot");
+#endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Codegen/tasks/DmStageTaskBody.h>
+#include <tilemega/Codegen/tasks/MoeCountedPublication.cuh>
+#if TILEMEGA_DM_REDUCTIONS
+#include <tilemega/Codegen/DmReductionPlan.h>
+#endif
+#endif
+#if (TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED) || TILEMEGA_DM_REDUCTIONS
+#include <tilemega/Codegen/executor/EpochLastArriver.cuh>
+#endif
 #include <tilemega/Codegen/tasks/ServingLag.h>
 #include <tilemega/Codegen/executor/ServingTrace.cuh>
 #include <tilemega/Codegen/tasks/Placement.cuh>
@@ -164,12 +188,26 @@ inline constexpr int kHarnessThreads = kGemmThreads;
 #ifndef TILEMEGA_SERVING_RUNTIME
 #define TILEMEGA_SERVING_RUNTIME 0
 #endif
+// Forward plans use their own attention family and carry no decoder KV state.
+#if TILEMEGA_SERVING_RUNTIME && defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE == 2
+#define TILEMEGA_SERVING_DECODER_ATTENTION 0
+#else
+#define TILEMEGA_SERVING_DECODER_ATTENTION TILEMEGA_SERVING_RUNTIME
+#endif
 #if TILEMEGA_SERVING_RUNTIME
 #ifndef TILEMEGA_SERVING_PAST_LO
+#if defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE == 2
+#define TILEMEGA_SERVING_PAST_LO 0
+#else
 #define TILEMEGA_SERVING_PAST_LO TILEMEGA_SOLVED_PAST
 #endif
+#endif
 #ifndef TILEMEGA_SERVING_PAST_HI
+#if defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE == 2
+#define TILEMEGA_SERVING_PAST_HI 0
+#else
 #define TILEMEGA_SERVING_PAST_HI TILEMEGA_SOLVED_PAST
+#endif
 #endif
 #ifndef TILEMEGA_SERVING_SEQ
 #define TILEMEGA_SERVING_SEQ 1
@@ -189,6 +227,7 @@ inline constexpr int kHarnessThreads = kGemmThreads;
 #ifndef TILEMEGA_SERVING_KV_TILE
 #define TILEMEGA_SERVING_KV_TILE 64
 #endif
+#if TILEMEGA_SERVING_DECODER_ATTENTION
 using T_ServingAttention = std::conditional_t<TILEMEGA_SERVING_SEQ==1,
     IndependentAttentionTaskBody<GemmVariantArch,TILEMEGA_SERVING_HEAD_DIM,TILEMEGA_SERVING_QPERKV,TILEMEGA_SERVING_QK_NORM!=0>,
     FusedAttentionTaskBody<
@@ -198,6 +237,7 @@ using T_ServingAttention = std::conditional_t<TILEMEGA_SERVING_SEQ==1,
 using T_ServingMerge = AttentionMergeTaskBody<
     TILEMEGA_SERVING_HEAD_DIM, TILEMEGA_SERVING_QPERKV,
     TILEMEGA_SERVING_SEQ>;
+#endif
 #endif
 #ifndef TILEMEGA_FUSION_GEMM_RUNTIME
 #define TILEMEGA_FUSION_GEMM_RUNTIME TILEMEGA_FUSION_RUNTIME
@@ -215,8 +255,13 @@ union TaskSmem {
   SimtTaskResources<TaskKind::kAttention,kHarnessThreads>::SharedStorage attention;
   SimtTaskResources<TaskKind::kElementwise,kHarnessThreads>::SharedStorage pointwise;
   GemmVariantSmem gemm;
+#if defined(TILEMEGA_DM_STAGE_SHARED_BYTES) && TILEMEGA_DM_STAGE_SHARED_BYTES > 0
+  alignas(16) unsigned char dm_stage[TILEMEGA_DM_STAGE_SHARED_BYTES];
+#endif
 #if TILEMEGA_SERVING_RUNTIME
   ServingArgmaxReduceTaskBody::SharedStorage argmax;
+#endif
+#if TILEMEGA_SERVING_DECODER_ATTENTION
   T_ServingAttention::SharedStorage serving_attention;
 #endif
 #if TILEMEGA_FUSION_GEMM_RUNTIME
@@ -231,8 +276,14 @@ inline constexpr std::size_t kNonGemmTaskSmem =
     std::max({sizeof(TaskSmem::rms), sizeof(TaskSmem::attention), sizeof(TaskSmem::pointwise)});
 inline constexpr std::size_t kExpectedTaskSmem =
     std::max({sizeof(GemmVariantSmem),kNonGemmTaskSmem
+#if defined(TILEMEGA_DM_STAGE_SHARED_BYTES) && TILEMEGA_DM_STAGE_SHARED_BYTES > 0
+        ,sizeof(TaskSmem::dm_stage)
+#endif
 #if TILEMEGA_SERVING_RUNTIME
-        ,sizeof(TaskSmem::argmax),sizeof(TaskSmem::serving_attention)
+        ,sizeof(TaskSmem::argmax)
+#endif
+#if TILEMEGA_SERVING_DECODER_ATTENTION
+        ,sizeof(TaskSmem::serving_attention)
 #endif
 #if TILEMEGA_FUSION_GEMM_RUNTIME
         ,sizeof(TaskSmem::fused_gemm)
@@ -343,6 +394,7 @@ __device__ inline void RunServingScalarTask(Params const& p,
   }
 }
 
+#if TILEMEGA_SERVING_DECODER_ATTENTION
 __device__ inline int ServingAttentionTaskCount(Params const& p,
                                                  StageDesc const& stage) {
   int query_blocks = CeilDiv(int(stage.group) * p.dims.seq,
@@ -396,6 +448,7 @@ __device__ inline void RunServingMergeTask(Params const& p,
       stage.attention_kv_block, p.dims.past);
 }
 #endif
+#endif
 
 /// The dispatch is over the TaskBody families, which are a property of the
 /// library, not of any model.  A model that needs no attention simply never
@@ -404,7 +457,24 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
                                 TaskSmem& smem) {
   StageDesc const& stage = p.stages[index];
   switch (stage.kind) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    case TaskKind::kDwPwFused:
+#endif
     case TaskKind::kGemm: T_Gemm{}(p, stage, smem); break;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    case TaskKind::kLayerNorm:
+    case TaskKind::kEmbeddingSum:
+    case TaskKind::kPool:
+    case TaskKind::kGlobalPoolReduce:
+    case TaskKind::kDepthwiseConv:
+    case TaskKind::kEncoderAttention:
+    case TaskKind::kMoETopK:
+    case TaskKind::kMoECombine:
+    case TaskKind::kLayoutConvert:
+      for(int task=int(blockIdx.x);task<DmStageTaskCount(stage,p.dims);task+=int(gridDim.x))
+        DispatchDmStage(unsigned(stage.kind),stage.width,stage.group,DmStageRunner<HarnessArch>{p,stage,unsigned(task),reinterpret_cast<char*>(&smem)});
+      break;
+#endif
     case TaskKind::kRMSNorm:
 #if TILEMEGA_SERVING_RUNTIME
       for (int row = int(blockIdx.x); row < (stage.batch_rows ? p.dims.batch : p.dims.tokens());
@@ -442,7 +512,7 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
 #endif
       break;
     case TaskKind::kFusedAttention:
-#if TILEMEGA_SERVING_RUNTIME
+#if TILEMEGA_SERVING_DECODER_ATTENTION
       for (int task = int(blockIdx.x); task < ServingAttentionTaskCount(p, stage);
            task += int(gridDim.x))
         RunServingAttentionTask(p, stage, smem, task);
@@ -451,7 +521,7 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
 #endif
       break;
     case TaskKind::kAttentionMerge:
-#if TILEMEGA_SERVING_RUNTIME
+#if TILEMEGA_SERVING_DECODER_ATTENTION
       for (int task = int(blockIdx.x); task < p.dims.batch * int(stage.extent);
            task += int(gridDim.x)) RunServingMergeTask(p, stage, task);
 #else
@@ -505,6 +575,22 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
   StageDesc const& stage = p.stages[index];
   int const task = static_cast<int>(logical_task);
   switch (stage.kind) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    case TaskKind::kLayerNorm:
+    case TaskKind::kEmbeddingSum:
+    case TaskKind::kPool:
+    case TaskKind::kGlobalPoolReduce:
+    case TaskKind::kDepthwiseConv:
+    case TaskKind::kEncoderAttention:
+    case TaskKind::kMoETopK:
+    case TaskKind::kMoECombine:
+    case TaskKind::kLayoutConvert:
+      DispatchDmStage(unsigned(stage.kind),stage.width,stage.group,DmStageRunner<HarnessArch>{p,stage,logical_task,reinterpret_cast<char*>(&smem)});
+      break;
+#endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    case TaskKind::kDwPwFused:
+#endif
     case TaskKind::kGemm:
       T_Gemm::RunLogicalTask(p, stage, smem, task TILEMEGA_PHASE_PASS);
       break;
@@ -533,14 +619,14 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
 #endif
       break;
     case TaskKind::kFusedAttention:
-#if TILEMEGA_SERVING_RUNTIME
+#if TILEMEGA_SERVING_DECODER_ATTENTION
       RunServingAttentionTask(p, stage, smem, task);
 #else
       asm volatile("trap;");
 #endif
       break;
     case TaskKind::kAttentionMerge:
-#if TILEMEGA_SERVING_RUNTIME
+#if TILEMEGA_SERVING_DECODER_ATTENTION
       RunServingMergeTask(p, stage, task);
 #else
       asm volatile("trap;");
@@ -686,6 +772,20 @@ __device__ inline int ActiveBlocksClamped(Params const& p, std::uint32_t stage);
 /// the skip.
 __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
   switch (stage.kind) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    case TaskKind::kLayerNorm:
+    case TaskKind::kEmbeddingSum:
+    case TaskKind::kPool:
+    case TaskKind::kGlobalPoolReduce:
+    case TaskKind::kDepthwiseConv:
+    case TaskKind::kEncoderAttention:
+    case TaskKind::kMoETopK:
+    case TaskKind::kMoECombine:
+    case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,p.dims);
+#endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    case TaskKind::kDwPwFused:
+#endif
     case TaskKind::kGemm: return T_Gemm::Ownership(p, stage).count;
     case TaskKind::kRMSNorm:
 #if TILEMEGA_SERVING_RUNTIME
@@ -704,7 +804,7 @@ __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
 #endif
     case TaskKind::kArgmaxReduce: return p.dims.batch;
     case TaskKind::kFusedAttention:
-#if TILEMEGA_SERVING_RUNTIME
+#if TILEMEGA_SERVING_DECODER_ATTENTION
       return ServingAttentionTaskCount(p, stage);
 #else
       return 0;
@@ -768,7 +868,7 @@ __device__ inline unsigned long long EventTriggers(Params const& p,
                                                    std::uint32_t producer,
                                                    std::uint32_t group) {
   unsigned long long const members = RawEventTriggers(p, producer, group);
-#if TILEMEGA_EVENT_SHARDED
+#if TILEMEGA_EVENT_SHARDED && !TILEMEGA_MOE_DYNAMIC
   // One global reduction per completed nonempty shard, rather than per raw
   // producer. The multiplier stays fixed for every monotone iteration.
   if (members > 1 && p.event_shard_count > 1)
@@ -811,6 +911,17 @@ __device__ inline unsigned long long StageArrivalTarget(
 /// exactly once per stage and read by everyone -- read-mostly sharing, which
 /// is the regime the hardware is good at. §8.2's monotonicity is what lets
 /// both be compared with `>=` and never reset between iterations.
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+__device__ inline void WaitDmCountedDependency(Params const& p,
+    StageDependency const& dep, unsigned task, unsigned long long iteration) {
+  std::uint64_t target;
+  auto index = std::uint64_t(dep.counted_offset) + task;
+  if (!p.counted_dependencies || index >= p.counted_dependency_count ||
+      !CountedThresholdTarget(p.counted_thresholds,dep.counted_threshold_offset,
+          dep.table_rows,task,dep.count,iteration,&target)) asm volatile("trap;");
+  executor::CountedDependency::Wait(p.counted_dependencies + index, target);
+}
+#endif
 __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
                                         std::uint32_t consumer, bool active,
                                         unsigned long long iteration) {
@@ -867,6 +978,33 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
     for (std::uint32_t edge = first; edge < last; ++edge) {
       StageDependency const& dep = p.dependencies[edge];
       std::uint32_t const producer = dep.producer;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if (dep.map == StageDependency::Map::kCounted) {
+        int owned = ActiveBlocks(p, p.stages[consumer]);
+        for (int task = PlacedBlock(); task < owned; task += gridDim.x)
+          WaitDmCountedDependency(p, dep, task, iteration);
+        continue;
+      }
+      if (dep.map == StageDependency::Map::kTable) {
+        int produced = ActiveBlocks(p, p.stages[producer]);
+        int owned = ActiveBlocks(p, p.stages[consumer]);
+        int grid = gridDim.x;
+        for (int task = PlacedBlock(); task < owned; task += grid) {
+          bool valid = VisitStageDependencyIntervals(dep, p.dependency_intervals, task, produced,
+              [&](RuntimeWindowBounds bounds) {
+#if TILEMEGA_EVENT_KAPPA > 0
+            int k = StageKappa(p, producer);
+            for (int group = bounds.first / k; group <= (bounds.past - 1) / k; ++group)
+              poll(producer, group);
+#else
+            poll(producer, kWholeStageEventGroup);
+#endif
+          });
+          if (!valid) asm volatile("trap;");
+        }
+        continue;
+      }
+#endif
 #if TILEMEGA_EVENT_KAPPA > 0
       // The producer tasks this CTA actually reads.  `kAll` is the whole
       // launch axis; a window is `[(c / div) * scale + offset, ... + count)`
@@ -953,6 +1091,13 @@ __device__ inline void WaitTaskDependencies(Params const& p,
   (void)iteration;
   return;
 #endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  for (unsigned i = 0; i < task.dependency_count; ++i) {
+    auto const& dep = p.dependencies[task.dependency_begin + i];
+    if (dep.map == StageDependency::Map::kCounted)
+      WaitDmCountedDependency(p, dep, task.logical_task, iteration);
+  }
+#endif
 #if TILEMEGA_SYNC_V3
   for(std::uint32_t i=threadIdx.x;i<task.wait_count;i+=blockDim.x) {
     TaskWait const& wait=p.task_waits[task.wait_begin+i];
@@ -1011,6 +1156,19 @@ __device__ inline bool ProbeTaskDependencies(Params const& p,
   return true;
 #endif
   int mine = 1;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  for (unsigned i = threadIdx.x; i < task.dependency_count; i += blockDim.x) {
+    auto const& dep = p.dependencies[task.dependency_begin + i];
+    if (dep.map != StageDependency::Map::kCounted) continue;
+    std::uint64_t target;
+    auto index = std::uint64_t(dep.counted_offset) + task.logical_task;
+    if (!p.counted_dependencies || index >= p.counted_dependency_count ||
+        !CountedThresholdTarget(p.counted_thresholds,dep.counted_threshold_offset,
+            dep.table_rows,task.logical_task,dep.count,iteration,&target)) asm volatile("trap;");
+    cuda::atomic_ref<unsigned long long, cuda::thread_scope_device> counter(p.counted_dependencies[index]);
+    if (counter.load(cuda::memory_order_acquire) < target) mine = 0;
+  }
+#endif
   for (std::uint32_t i = threadIdx.x; i < task.wait_count; i += blockDim.x) {
     TaskWait const& wait = p.task_waits[task.wait_begin + i];
 #if TILEMEGA_SYNC_V3
@@ -1075,7 +1233,7 @@ __device__ inline void ArriveEvent(Params const& p, EventCounter* events,
   return;
 #endif
   unsigned long long triggers = static_cast<unsigned long long>(members);
-#if TILEMEGA_EVENT_SHARDED
+#if TILEMEGA_EVENT_SHARDED && !TILEMEGA_MOE_DYNAMIC
   // The one-member and S=1 cases are the exact one-level degeneracy. Avoid
   // adding a second atomic when there is no fan-in to combine.
   if (members > 1 && p.event_shard_count > 1) {
@@ -1083,7 +1241,7 @@ __device__ inline void ArriveEvent(Params const& p, EventCounter* events,
     std::uint32_t shard;
     unsigned long long* counter;
     using CS = ClusterSync<arch::CurrentArch>;
-    if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled) {
+    if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled && !TILEMEGA_MOE_DYNAMIC) {
       shard = plan.begin + blockIdx.x / CS::Size() - plan.first_cluster;
       extern __shared__ unsigned char event_bytes[];
       auto* local = reinterpret_cast<unsigned long long*>(event_bytes + sizeof(TaskSmem));
@@ -1174,6 +1332,15 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
   __syncthreads();
 #endif
   return;
+#endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  auto const& stage=p.stages[producer];
+  if(IsGemmStage(stage.kind) || stage.kind==TaskKind::kGemmCombine) {
+    auto const& inv=static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+    auto tile=IsGemmStage(stage.kind)?
+        DecodeSplitTask(logical_task,inv.tiles_m*inv.tiles_n,inv.chunks).tile:logical_task;
+    PublishMoeCountedRows(p,producer,tile,inv);
+  }
 #endif
   std::uint32_t const event_flags = p.event_flags[producer];
   if (event_flags == 0) {
@@ -1287,6 +1454,12 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
 #if TILEMEGA_L2_PREFETCH
 #include <tilemega/Codegen/executor/ServingPrefetch.cuh>
 #endif
+#if TILEMEGA_DM_REDUCTIONS
+#include <tilemega/Codegen/executor/DmReduction.cuh>
+#endif
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+#include <tilemega/Codegen/executor/ServingNonpagedHandoff.cuh>
+#endif
 
 __device__ inline void GridBarrier(EventCounter* events, std::uint32_t stage,
                                    unsigned long long iteration,Params const* params=nullptr) {
@@ -1348,7 +1521,7 @@ __device__ inline void ServingPdlEnter(Params const& p) {
     if constexpr(TILEMEGA_PDL_TRIGGER==1)
       executor::GridDependency<arch::CurrentArch>::Release();
 #if TILEMEGA_L2_PREFETCH
-    for(unsigned s=0;s<p.stage_count;++s)if(p.stages[s].kind==TaskKind::kGemm) {
+    for(unsigned s=0;s<p.stage_count;++s)if(IsGemmStage(p.stages[s].kind)) {
       prefetch::NextStage(p,s);break;
     }
 #endif
@@ -1376,12 +1549,21 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
   extern __shared__ unsigned char bytes[];
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   for (std::uint32_t stage = 0; stage < params->stage_count; ++stage) {
+#if TILEMEGA_NONPAGED_LA || TILEMEGA_DM_REDUCTIONS
+    if(params->stages[stage].handoff_elided)continue;
+#endif
 #if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
     int tasks=ActiveBlocks(*params,params->stages[stage]);
     executor::StageBegin(*params,stage,iteration,
         tasks>int(blockIdx.x)?(tasks-blockIdx.x+gridDim.x-1)/gridDim.x:0);
 #endif
+#if TILEMEGA_NONPAGED_LA
+    nonpaged::RunStage(*params,stage,smem,events,iteration);
+#elif TILEMEGA_DM_REDUCTIONS
+    RunDmStage(*params,stage,smem,events,iteration);
+#else
     RunStage(*params, stage, smem);
+#endif
 #if TILEMEGA_L2_PREFETCH
     static_assert(TILEMEGA_GENERATED_CLUSTER_DIM==1,"split grid barrier requires the flat grid protocol");
     prefetch::Arrive(events,stage,iteration,params);
@@ -1413,19 +1595,28 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
     auto iteration=base_iteration+step;
     executor::StepBegin(p,iteration);
     for(unsigned stage=0;stage<p.stage_count;++stage) {
+#if TILEMEGA_NONPAGED_LA || TILEMEGA_DM_REDUCTIONS
+      if(p.stages[stage].handoff_elided)continue;
+#endif
 #if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
       int tasks=ActiveBlocks(p,p.stages[stage]);
       executor::StageBegin(p,stage,iteration,
           tasks>int(blockIdx.x)?(tasks-blockIdx.x+gridDim.x-1)/gridDim.x:0);
 #endif
+#if TILEMEGA_NONPAGED_LA
+      nonpaged::RunStage(p,stage,smem,events,iteration);
+#elif TILEMEGA_DM_REDUCTIONS
+      RunDmStage(p,stage,smem,events,iteration);
+#else
       RunStage(p,stage,smem);
+#endif
 #if TILEMEGA_L2_PREFETCH
       prefetch::Arrive(events,stage,iteration,&p);
       if(stage+1<p.stage_count)prefetch::NextStage(p,stage+1);
       else if(step+1<steps) {
         Params const& next=params[step+1];
         for(unsigned s=0;s<next.stage_count;++s)
-          if(next.stages[s].kind==TaskKind::kGemm) {
+          if(IsGemmStage(next.stages[s].kind)) {
             prefetch::NextStage(next,s);break;
           }
       }
@@ -1517,7 +1708,7 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
   extern __shared__ unsigned char bytes[];
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   using CS = ClusterSync<arch::CurrentArch>;
-  if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled) {
+  if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled && !TILEMEGA_MOE_DYNAMIC) {
     unsigned const cluster = blockIdx.x / CS::Size();
     unsigned const begin = params->cluster_shard_offsets[cluster];
     unsigned const end = params->cluster_shard_offsets[cluster + 1];
@@ -1530,7 +1721,21 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
   std::uint32_t const worker = static_cast<std::uint32_t>(blockIdx.x);
   std::uint32_t const first = params->schedule_offsets[worker];
   std::uint32_t const last = params->schedule_offsets[worker + 1];
-#if TILEMEGA_SLOT_WINDOW > 1
+#if TILEMEGA_MOE_DYNAMIC
+  DynamicTaskCursor cursor;
+  __shared__ std::uint32_t claimed_slot;
+  while(true) {
+    if(threadIdx.x==0)claimed_slot=cursor.Next(
+        params->dynamic_ranges+worker*params->stage_count,params->stage_count,
+        params->dynamic_canonical,[&](std::uint32_t stage,std::uint32_t count) {
+          return executor::ClaimDynamicTask(params->dynamic_claims+stage,count,iteration);
+        });
+    __syncthreads();
+    auto slot=claimed_slot;
+    if(slot==~std::uint32_t(0))break;
+    TaskRef const task=params->schedule[slot];
+    WaitTaskDependencies(*params,events,task,iteration);
+#elif TILEMEGA_SLOT_WINDOW > 1
   // §5.7.2: `head` is the lowest slot not yet complete and `done_mask` records
   // which of [head, head + W) are, so the queue is still consumed exactly once
   // while the order within the window is free.
@@ -1688,8 +1893,16 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
         PrefetchBytes(*params, task, current) ? page_of(slot) : nullptr;
 #endif
     executor::TaskBegin(*params,iteration);
+#if TILEMEGA_NONPAGED_LA
+    nonpaged::RunTask<true>(*params,task.stage,task.logical_task,smem,events,iteration
+            TILEMEGA_PHASE_PASS TILEMEGA_PREFETCH_PASS);
+#else
     RunTask(*params, task.stage, task.logical_task, smem TILEMEGA_PHASE_PASS
             TILEMEGA_PREFETCH_PASS);
+#if TILEMEGA_DM_REDUCTIONS
+    CompleteDmTask<true>(*params,task.stage,task.logical_task,smem,events,iteration);
+#endif
+#endif
 #if ((!TILEMEGA_BARRIER_V2 && !(TILEMEGA_L2_SLIM && TILEMEGA_SYNC_V3)) || TILEMEGA_TRACE_V2)
     // V3 slim and v2 drop this: NotifyTask converges writers before
     // release publication. If no publication is needed, the next task
@@ -1744,7 +1957,7 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
     }
 #endif
   }
-  if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled) {
+  if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled && !TILEMEGA_MOE_DYNAMIC) {
     // No CTA may leave while another still accesses its DSMEM allocation.
     CS::Sync();
     unsigned const cluster = blockIdx.x / CS::Size();
@@ -1872,6 +2085,23 @@ struct DeviceModel {
   std::vector<std::vector<ModelElement>> host_sources;
   ModelElement** device_buffers = nullptr;
   GemmInvocation* device_gemms = nullptr;
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  Params* device_epoch_l2_params = nullptr;
+#endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  ConvDesc* device_dm_convolutions = nullptr;
+  DmBufferLayout* device_dm_layouts = nullptr;
+  std::uint32_t* device_dm_dtypes = nullptr;
+  void** device_dm_buffers = nullptr;
+  void* device_memory_arena = nullptr;
+  RuntimeDependencyInterval* device_dependency_intervals = nullptr;
+  std::uint32_t* device_counted_thresholds = nullptr;
+  Params* device_counted_l2_params = nullptr;
+#if TILEMEGA_MOE_DYNAMIC
+  DynamicStageRange* device_dynamic_ranges = nullptr;
+  std::uint32_t* device_dynamic_canonical = nullptr;
+#endif
+#endif
   StageDesc* device_stages = nullptr;
   StageDependency* device_dependencies = nullptr;
   std::uint32_t* device_dependency_offsets = nullptr;
@@ -1937,6 +2167,9 @@ struct DeviceModel {
   EventCounter* events = nullptr;
   std::size_t event_count = 0;
 };
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+#include <tilemega/Codegen/executor/ServingNonpagedHandoffHost.cuh>
+#endif
 
 #if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE
 /// Trace v2 allocates and dumps only when asked at run time, so one build
@@ -2046,12 +2279,293 @@ inline DeviceModel Create(ModelSpec const& spec,
   // sized; the union default would put them on top of the union itself.
   model.l2_smem_bytes = l2_smem_bytes;
 #endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  for(unsigned i=0;i<spec.stage_count;++i) {
+    auto const& stage=spec.stages[i];
+    if(stage.kind==TaskKind::kMoETopK || stage.kind==TaskKind::kMoECombine) {
+      auto const& moe=stage.moe;unsigned capacity=0;
+      if(!MoeVirtualCapacity(dims.tokens(),moe.top_k,moe.experts,moe.block_rows,moe.grouped,&capacity) ||
+          moe.experts>128 || moe.top_k>32 || capacity!=moe.binding_capacity ||
+          moe.row_capacity!=std::uint64_t(dims.tokens())*moe.top_k || moe.chunk_tokens!=128 ||
+          moe.router_gemm>=spec.gemm_count || !stage.group || stage.group>1024)
+        throw std::invalid_argument("invalid MoE runtime capacity or specialization");
+      auto operand=[&](unsigned slot,unsigned dtype,std::uint64_t elements,bool optional=false) {
+        auto id=stage.operand[slot];if(optional && id==kNoOperand)return;
+        if(id>=spec.buffer_count || spec.buffers[id].dtype!=dtype ||
+            spec.buffers[id].Elements(dims)<elements)
+          throw std::invalid_argument("invalid MoE runtime operand type or extent");
+      };
+      auto row_matrix=[&](unsigned slot,unsigned rows,unsigned columns) {
+        auto const& l=spec.buffers[stage.operand[slot]].layout;
+        if(l.kind!=DmLayout::kRowMajor || l.rank!=2 || l.logical[0]!=rows ||
+            l.logical[1]!=columns || l.strides[0]!=columns || l.strides[1]!=1 ||
+            l.physical[0]!=rows || l.physical[1]!=columns)
+          throw std::invalid_argument("MoE stage requires contiguous bound row storage");
+      };
+      auto tokens=unsigned(dims.tokens());
+      if(stage.kind==TaskKind::kMoECombine) {
+        if(moe.step!=DmMoeStep::kCombine || stage.width<16 || stage.width>256 ||
+            stage.width%16 || stage.group>128 || !stage.extent)
+          throw std::invalid_argument("invalid MoE combine geometry");
+        operand(0,0,std::uint64_t(tokens)*moe.top_k*stage.extent);
+        operand(1,0,std::uint64_t(tokens)*moe.top_k);
+        operand(2,0,std::uint64_t(tokens)*stage.extent);
+        operand(3,0,std::uint64_t(tokens)*stage.extent);
+        row_matrix(0,tokens*moe.top_k,stage.extent);row_matrix(1,tokens,moe.top_k);
+        row_matrix(2,tokens,stage.extent);row_matrix(3,tokens,stage.extent);
+        auto stats=2*((stage.extent+stage.width-1)/stage.width);
+        operand(4,1,std::uint64_t(tokens)*stats,true);
+        if(stage.operand[4]!=kNoOperand)row_matrix(4,tokens,stats);
+      }else {
+        if(stage.width!=moe.top_k || stage.extent!=moe.experts ||
+            moe.step==DmMoeStep::kNone || moe.step>=DmMoeStep::kCombine ||
+            (moe.step==DmMoeStep::kSelectAndDispatch && (moe.row_capacity>4096 || stage.group<tokens)) ||
+            ((moe.step==DmMoeStep::kHistogram || moe.step==DmMoeStep::kPrefix) && !moe.grouped))
+          throw std::invalid_argument("invalid MoE dispatch geometry");
+        auto router_n=runtime_variant.gemms[moe.router_gemm].tile_n;
+        if(!router_n || spec.gemms[moe.router_gemm].n!=int(moe.experts))
+          throw std::invalid_argument("MoE router differs from its selected geometry");
+        unsigned columns=((moe.experts+router_n-1)/router_n)*moe.top_k;
+        operand(0,1,std::uint64_t(tokens)*columns);operand(1,2,std::uint64_t(tokens)*columns);
+        row_matrix(0,tokens,columns);row_matrix(1,tokens,columns);
+        operand(2,2,std::uint64_t(tokens)*moe.top_k);operand(3,0,std::uint64_t(tokens)*moe.top_k);
+        row_matrix(2,tokens,moe.top_k);row_matrix(3,tokens,moe.top_k);
+        operand(4,2,std::uint64_t(capacity)*4);operand(5,2,std::uint64_t(moe.row_capacity)*4);
+        row_matrix(4,capacity,4);row_matrix(5,moe.row_capacity,4);
+        unsigned chunks=(tokens+moe.chunk_tokens-1)/moe.chunk_tokens;
+        operand(6,2,std::uint64_t(chunks)*moe.experts);
+        operand(7,2,moe.experts+1);operand(8,2,moe.experts+1);
+        row_matrix(6,chunks,moe.experts);row_matrix(7,1,moe.experts+1);row_matrix(8,1,moe.experts+1);
+      }
+      continue;
+    }
+    if(stage.kind!=TaskKind::kLayerNorm && stage.kind!=TaskKind::kEmbeddingSum &&
+       stage.kind!=TaskKind::kLayoutConvert && stage.kind!=TaskKind::kPool &&
+       stage.kind!=TaskKind::kGlobalPoolReduce && stage.kind!=TaskKind::kEncoderAttention &&
+       stage.kind!=TaskKind::kDepthwiseConv)continue;
+    if(!stage.group || stage.group>1024 || !stage.width || stage.width>4096)
+      throw std::invalid_argument("invalid DM scalar task geometry");
+    auto rows=stage.rows_per_batch?std::uint64_t(stage.rows_per_batch)*dims.batch:
+                                  std::uint64_t(dims.tokens());
+    if(!rows || rows>std::uint64_t(std::numeric_limits<int>::max())-stage.group)
+      throw std::invalid_argument("DM scalar task rows exceed runtime range");
+    auto operand=[&](unsigned slot,unsigned dtype,std::uint64_t elements,bool optional=false) {
+      auto id=stage.operand[slot];
+      if(optional && id==kNoOperand)return;
+      if(id>=spec.buffer_count || spec.buffers[id].dtype!=dtype ||
+         spec.buffers[id].Elements(dims)<elements)
+        throw std::invalid_argument("invalid DM scalar buffer type or extent");
+    };
+    if(stage.kind==TaskKind::kLayerNorm) {
+      if(stage.group%4 || !(stage.norm_epsilon>0) || !std::isfinite(stage.norm_epsilon))
+        throw std::invalid_argument("invalid LayerNorm epsilon or row tile");
+      operand(0,0,rows*stage.width);operand(1,0,stage.width);
+      operand(2,0,stage.width);operand(3,0,rows*stage.width);operand(4,1,2*rows,true);
+      for(unsigned slot:{0u,3u}) {
+        auto const& buffer=spec.buffers[stage.operand[slot]];
+        auto const& layout=buffer.layout;
+        if(!layout.rank)continue;
+        if(layout.rank>4 || layout.logical[layout.rank-1]!=stage.width ||
+           layout.strides[layout.rank-1]!=1 ||
+           (layout.kind==DmLayout::kNHWC && layout.rank!=4))
+          throw std::invalid_argument("invalid LayerNorm logical layout");
+        std::uint64_t logical_rows=1,last=0,elements=buffer.Elements(dims);
+        for(unsigned axis=0;axis<layout.rank;++axis) {
+          auto logical=layout.logical[axis];
+          if(!logical || layout.physical[axis]<logical || !layout.strides[axis])
+            throw std::invalid_argument("invalid LayerNorm physical layout");
+          if(axis+1<layout.rank) {
+            if(logical_rows>rows/logical)
+              throw std::invalid_argument("LayerNorm layout differs from row ownership");
+            logical_rows*=logical;
+          }
+          if(layout.physical[axis]-1>(elements-1-last)/layout.strides[axis])
+            throw std::invalid_argument("LayerNorm layout exceeds storage");
+          last+=std::uint64_t(layout.physical[axis]-1)*layout.strides[axis];
+        }
+        if(logical_rows!=rows || (layout.kind==DmLayout::kNHWC &&
+           (std::uint64_t(layout.logical[1])+layout.halo_top+layout.halo_bottom>layout.physical[1] ||
+            std::uint64_t(layout.logical[2])+layout.halo_left+layout.halo_right>layout.physical[2])))
+          throw std::invalid_argument("LayerNorm layout differs from row ownership");
+      }
+    }else if(stage.kind==TaskKind::kEmbeddingSum) {
+      operand(3,0,0);operand(4,0,0);
+      auto const& types=spec.buffers[stage.operand[3]].layout;
+      auto const& positions=spec.buffers[stage.operand[4]].layout;
+      if(!stage.extent || types.rank!=2 || positions.rank!=2 || !types.logical[0] ||
+         types.logical[1]!=stage.width || positions.logical[1]!=stage.width ||
+         positions.logical[0]<unsigned(dims.seq))
+        throw std::invalid_argument("invalid embedding table geometry");
+      operand(0,3,rows);operand(1,3,rows);
+      operand(2,0,std::uint64_t(stage.extent)*stage.width);
+      operand(3,0,std::uint64_t(types.logical[0])*stage.width);
+      operand(4,0,std::uint64_t(positions.logical[0])*stage.width);
+      operand(5,0,rows*stage.width);operand(6,1,2*rows,true);
+    }else if(stage.kind==TaskKind::kDepthwiseConv) {
+      operand(0,0,0);operand(1,0,0);operand(2,0,0);operand(3,1,0,true);
+      if((stage.width!=32 && stage.width!=64 && stage.width!=128 && stage.width!=256) ||
+         stage.group>128 || stage.conv>=spec.convolution_count || !stage.extent ||
+         stage.chain.count>8 || stage.chain.side_count || stage.chain.store_rounding!=DmRounding::kBF16)
+        throw std::invalid_argument("invalid depthwise geometry or chain");
+      unsigned gates=0,total_gates=0;
+      for(unsigned op=0;op<stage.chain.count;++op)
+        total_gates+=stage.chain.operations[op].kind==DmEpilogueKind::kGatePair;
+      for(unsigned op=0;op<stage.chain.count;++op) {
+        auto const& step=stage.chain.operations[op];
+        if(step.kind==DmEpilogueKind::kGatePair) {
+          ++gates;if(step.gate!=DmGatePair::kSimpleGate)
+            throw std::invalid_argument("depthwise requires SimpleGate");
+        }else if(step.kind==DmEpilogueKind::kBias || step.kind==DmEpilogueKind::kScale) {
+          auto id=step.parameter[0];
+          if(id>=spec.buffer_count || spec.buffers[id].dtype!=1 ||
+             spec.buffers[id].Elements(dims)<stage.extent*(total_gates && !gates?2:1))
+            throw std::invalid_argument("invalid depthwise channel parameter");
+        }else if(step.kind!=DmEpilogueKind::kActivation)
+          throw std::invalid_argument("unsupported depthwise epilogue");
+      }
+      auto const& conv=spec.convolutions[stage.conv];
+      if(gates>1 || (gates && conv.c%16) || conv.c!=conv.k || conv.c!=stage.extent*(gates?2:1) ||
+         !conv.p || !conv.q || !conv.r || !conv.s || !conv.stride_h || !conv.stride_w ||
+         !conv.dilation_h || !conv.dilation_w || stage.spatial_width!=conv.q ||
+         std::uint64_t(conv.p)*conv.q!=stage.rows_per_batch ||
+         conv.input_layout!=stage.operand[0] || conv.output_layout!=stage.operand[2] ||
+         std::uint64_t(dims.batch)*((conv.p+stage.group-1)/stage.group)*
+             ((stage.extent+stage.width-1)/stage.width)>std::uint64_t(std::numeric_limits<int>::max()))
+        throw std::invalid_argument("depthwise ownership differs from descriptor");
+      operand(1,0,std::uint64_t(conv.c)*conv.r*conv.s*8);
+      for(unsigned slot:{0u,2u}) {
+        auto const& buffer=spec.buffers[stage.operand[slot]];auto const& l=buffer.layout;
+        auto h=slot?conv.p:conv.h,w=slot?conv.q:conv.w,channels=slot?stage.extent:conv.c;
+        if(l.kind!=DmLayout::kNHWC || l.rank!=4 || l.logical[0]!=unsigned(dims.batch) ||
+           l.logical[1]!=h || l.logical[2]!=w || l.logical[3]!=channels ||
+           l.physical[1]<std::uint64_t(h)+l.halo_top+l.halo_bottom ||
+           l.physical[2]<std::uint64_t(w)+l.halo_left+l.halo_right || l.physical[3]<channels ||
+           l.strides[3]!=1 || l.strides[2]%8 || l.strides[2]<l.physical[3] ||
+           l.strides[1]<std::uint64_t(l.physical[2])*l.strides[2] ||
+           l.strides[0]<std::uint64_t(l.physical[1])*l.strides[1] ||
+           buffer.Elements(dims)<std::uint64_t(dims.batch)*l.strides[0])
+          throw std::invalid_argument("invalid depthwise physical layout");
+      }
+      if(stage.operand[3]!=kNoOperand) {
+        auto const& buffer=spec.buffers[stage.operand[3]];auto const& l=buffer.layout;
+        auto bands=(conv.p+stage.group-1)/stage.group;
+        if(l.rank!=3 || l.logical[0]!=unsigned(dims.batch) || l.logical[1]!=bands ||
+           l.logical[2]!=stage.extent || l.strides[2]!=1 || l.strides[1]<stage.extent ||
+           l.strides[0]<std::uint64_t(bands)*l.strides[1] ||
+           buffer.Elements(dims)<std::uint64_t(dims.batch)*l.strides[0])
+          throw std::invalid_argument("invalid depthwise partial layout");
+      }
+    }else if(stage.kind==TaskKind::kPool) {
+      operand(0,0,0);operand(1,0,0);
+      if(stage.width<32 || stage.width>256 || stage.width%32 || !stage.extent ||
+         stage.conv>=spec.convolution_count ||
+         ((rows+stage.group-1)/stage.group)*((std::uint64_t(stage.extent)+stage.width-1)/stage.width)>
+             std::uint64_t(std::numeric_limits<int>::max()))
+        throw std::invalid_argument("invalid pool window, channel tile or task count");
+      auto const& conv=spec.convolutions[stage.conv];
+      if(conv.input_layout!=stage.operand[0] || conv.output_layout!=stage.operand[1] ||
+         conv.c!=stage.extent || conv.k!=conv.c || !conv.r || !conv.s ||
+         !conv.stride_h || !conv.stride_w || !conv.dilation_h || !conv.dilation_w ||
+         std::uint64_t(conv.p)*conv.q!=stage.rows_per_batch)
+        throw std::invalid_argument("pool ownership differs from its descriptor");
+      for(unsigned slot:{0u,1u}) {
+        auto const& buffer=spec.buffers[stage.operand[slot]];auto const& l=buffer.layout;
+        auto h=slot?conv.p:conv.h,w=slot?conv.q:conv.w;
+        if(l.kind!=DmLayout::kNHWC || l.rank!=4 || l.logical[0]!=unsigned(dims.batch) ||
+           l.logical[1]!=h || l.logical[2]!=w || l.logical[3]!=conv.c ||
+           l.physical[1]<std::uint64_t(h)+l.halo_top+l.halo_bottom ||
+           l.physical[2]<std::uint64_t(w)+l.halo_left+l.halo_right ||
+           l.physical[3]<conv.c || l.strides[3]!=1 || l.strides[2]<l.physical[3] ||
+           l.strides[1]<std::uint64_t(l.physical[2])*l.strides[2] ||
+           l.strides[0]<std::uint64_t(l.physical[1])*l.strides[1] ||
+           buffer.Elements(dims)<std::uint64_t(dims.batch)*l.strides[0])
+          throw std::invalid_argument("invalid pool physical image layout");
+      }
+    }else if(stage.kind==TaskKind::kEncoderAttention) {
+      if((stage.width!=128 && stage.width!=384 && stage.width!=512) ||
+         (stage.group!=64 && stage.group!=128) || !stage.extent ||
+         stage.rows_per_batch!=stage.width || unsigned(dims.seq)!=stage.width ||
+         std::uint64_t(dims.batch)*stage.extent*((stage.width+stage.group-1)/stage.group)>
+             std::uint64_t(std::numeric_limits<int>::max()))
+        throw std::invalid_argument("invalid encoder attention geometry");
+      operand(0,0,rows*stage.extent*192);operand(1,0,rows*stage.extent*64);
+      operand(2,3,rows,true);
+      for(unsigned slot:{0u,1u}) {
+        auto const& layout=spec.buffers[stage.operand[slot]].layout;
+        unsigned channels=stage.extent*(slot?64:192);
+        if(layout.rank && (layout.kind!=DmLayout::kRowMajor || layout.rank!=2 ||
+           layout.logical[0]!=rows || layout.logical[1]!=channels ||
+           layout.strides[1]!=1 || layout.strides[0]!=channels))
+          throw std::invalid_argument("encoder attention requires contiguous packed rows");
+      }
+    }else if(stage.kind==TaskKind::kGlobalPoolReduce) {
+      operand(0,1,0);operand(1,1,std::uint64_t(dims.batch)*stage.extent);
+      operand(2,0,std::uint64_t(dims.batch)*stage.extent,true);
+      auto const& buffer=spec.buffers[stage.operand[0]];auto const& l=buffer.layout;
+      auto tiles=stage.partial_rows_per_image?stage.partial_rows_per_image:(rows+stage.group-1)/stage.group;
+      if(stage.width<32 || stage.width>256 || stage.width%32 || !stage.extent ||
+         !stage.rows_per_batch || (stage.partial_rows_per_image &&
+            stage.partial_rows_per_image!=(std::uint64_t(stage.rows_per_batch)+stage.group-1)/stage.group) ||
+         l.rank!=3 || l.logical[0]!=unsigned(dims.batch) ||
+         l.logical[1]!=tiles || l.logical[2]!=stage.extent || l.strides[2]!=1 ||
+         l.strides[1]<stage.extent || l.strides[0]<tiles*l.strides[1] ||
+         buffer.Elements(dims)<std::uint64_t(dims.batch)*l.strides[0])
+        throw std::invalid_argument("invalid global pool partial layout");
+      auto const& output=spec.buffers[stage.operand[1]];auto const& out=output.layout;
+      if(out.rank && (out.kind!=DmLayout::kRowMajor || out.rank!=2 ||
+         out.logical[0]!=unsigned(dims.batch) || out.logical[1]!=stage.extent ||
+         out.strides[1]!=1 || out.strides[0]<stage.extent ||
+         output.Elements(dims)<std::uint64_t(dims.batch)*out.strides[0]))
+        throw std::invalid_argument("invalid global pool output layout");
+      if(stage.operand[2]!=kDmNoIndex) {
+        auto const& rounded=spec.buffers[stage.operand[2]];auto const& mirror=rounded.layout;
+        auto pitch=out.rank?out.strides[0]:stage.extent;
+        bool row=mirror.kind==DmLayout::kRowMajor && mirror.rank==2 &&
+            mirror.logical[0]==unsigned(dims.batch) && mirror.logical[1]==stage.extent &&
+            mirror.strides[1]==1 && mirror.strides[0]==pitch;
+        bool image=mirror.kind==DmLayout::kNHWC && mirror.rank==4 &&
+            mirror.logical[0]==unsigned(dims.batch) && mirror.logical[1]==1 &&
+            mirror.logical[2]==1 && mirror.logical[3]==stage.extent &&
+            !mirror.halo_top && !mirror.halo_bottom && !mirror.halo_left && !mirror.halo_right &&
+            mirror.strides[3]==1 && mirror.strides[0]==pitch;
+        if((mirror.rank && !row && !image) ||
+           rounded.Elements(dims)<std::uint64_t(dims.batch)*pitch)
+          throw std::invalid_argument("invalid global pool rounded mirror layout");
+      }
+    }else {
+      operand(0,0,rows*stage.width);operand(1,0,rows*stage.width);
+      auto const& layout=spec.buffers[stage.operand[1]].layout;
+      if(layout.kind!=DmLayout::kNHWC || layout.rank!=4 ||
+         layout.logical[3]!=stage.width ||
+         std::uint64_t(layout.logical[0])*layout.logical[1]*layout.logical[2]!=rows ||
+         layout.physical[1]<layout.logical[1]+layout.halo_top+layout.halo_bottom ||
+         layout.physical[2]<layout.logical[2]+layout.halo_left+layout.halo_right ||
+         layout.physical[3]<layout.logical[3] || layout.strides[3]!=1 ||
+         layout.strides[2]<layout.physical[3] ||
+         layout.strides[1]<std::uint64_t(layout.physical[2])*layout.strides[2] ||
+         layout.strides[0]<std::uint64_t(layout.physical[1])*layout.strides[1] ||
+         spec.buffers[stage.operand[1]].Elements(dims)<
+             std::uint64_t(layout.logical[0])*layout.strides[0])
+        throw std::invalid_argument("invalid NHWC layout conversion extent");
+    }
+  }
+#endif
   model.host_sources.resize(spec.buffer_count);
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if(spec.memory_arena_bytes)
+    TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_memory_arena,spec.memory_arena_bytes));
+#endif
   for (std::uint32_t i = 0; i < spec.buffer_count; ++i) {
     BufferDesc const& desc = spec.buffers[i];
     std::size_t elements = desc.Elements(dims);
     ModelElement* pointer = nullptr;
     std::size_t element_bytes = desc.dtype == 0 ? sizeof(ModelElement) : 4;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(desc.dtype>3)throw std::invalid_argument("invalid DM buffer dtype");
+    if(desc.dtype==3)element_bytes=sizeof(std::int64_t);
+    if(desc.role!=0 && desc.arena_offset!=~std::uint64_t(0))
+      throw std::invalid_argument("external buffer cannot alias the internal arena");
+#endif
     if (external_buffers && desc.role == 1) {
       if (!external_buffers[i])
         throw std::invalid_argument("serving external buffer is null");
@@ -2060,8 +2574,21 @@ inline DeviceModel Create(ModelSpec const& spec,
     } else {
       if (desc.role == 1)
         throw std::invalid_argument("serving external buffer is not bound");
-      TILEMEGA_CUDA_CHECK(cudaMalloc(&pointer, elements * element_bytes));
-      model.owned_buffers.push_back(true);
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if(desc.arena_offset!=~std::uint64_t(0)) {
+        if(desc.source!=BufferSource::kZero || desc.file || !model.device_memory_arena ||
+            desc.arena_offset%256 || desc.arena_offset>spec.memory_arena_bytes ||
+            elements> (spec.memory_arena_bytes-desc.arena_offset)/element_bytes)
+          throw std::invalid_argument("invalid planned buffer arena alias");
+        pointer=reinterpret_cast<ModelElement*>(static_cast<char*>(model.device_memory_arena)+desc.arena_offset);
+        model.owned_buffers.push_back(false);
+      }else {
+#endif
+        TILEMEGA_CUDA_CHECK(cudaMalloc(&pointer, elements * element_bytes));
+        model.owned_buffers.push_back(true);
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      }
+#endif
     }
     if (external_buffers && desc.role == 1) {
       // State and packed weights were uploaded once by the serving driver.
@@ -2074,6 +2601,13 @@ inline DeviceModel Create(ModelSpec const& spec,
                                      cudaMemcpyHostToDevice));
     } else {
       TILEMEGA_CUDA_CHECK(cudaMemset(pointer, 0, elements * element_bytes));
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if(desc.layout.fill==DmFill::kNegativeInfinity) {
+        if(desc.dtype!=0)throw std::invalid_argument("halo fill requires BF16 storage");
+        std::vector<ModelElement> fill(elements,ModelElement(-std::numeric_limits<float>::infinity()));
+        TILEMEGA_CUDA_CHECK(cudaMemcpy(pointer,fill.data(),elements*sizeof(ModelElement),cudaMemcpyHostToDevice));
+      }
+#endif
     }
     model.buffers.push_back(pointer);
   }
@@ -2092,9 +2626,17 @@ inline DeviceModel Create(ModelSpec const& spec,
     int m = dims.tokens();
 #if TILEMEGA_SERVING_RUNTIME
     for (std::uint32_t s = 0; s < spec.stage_count; ++s)
-      if (spec.stages[s].kind == TaskKind::kGemm &&
+      if (IsGemmStage(spec.stages[s].kind) &&
           spec.stages[s].gemm == i && spec.stages[s].batch_rows)
         m = dims.batch;
+#endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(desc.access.rows_per_batch) {
+      auto rows=std::uint64_t(dims.batch)*desc.access.rows_per_batch;
+      if(dims.batch<=0 || rows>std::uint64_t(std::numeric_limits<int>::max()))
+        throw std::invalid_argument("DM GEMM row count exceeds runtime range");
+      m=static_cast<int>(rows);
+    }
 #endif
     GemmRuntimeDesc const& runtime = runtime_variant.gemms[i];
     int variant = runtime.compiled_variant;
@@ -2112,11 +2654,58 @@ inline DeviceModel Create(ModelSpec const& spec,
                    runtime_variant_index, i);
       std::exit(2);
     }
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(desc.access.b==DmBAccess::kExpertIndirect) {
+      auto const& a=desc.access;
+      auto rows=std::uint64_t(a.binding_blocks)*CeilDiv(a.block_rows,tiling.tile_m)*tiling.tile_m;
+      if(!a.binding_blocks || !a.binding_rows || !a.experts || !a.block_rows ||
+         !a.expert_stride || rows>std::uint64_t(std::numeric_limits<int>::max()) ||
+         a.binding>=spec.buffer_count || a.rows>=spec.buffer_count ||
+         a.binding_blocks>spec.buffers[a.binding].Elements(dims)/
+             (16/(spec.buffers[a.binding].dtype==0?sizeof(ModelElement):4)) ||
+         a.binding_rows>spec.buffers[a.rows].Elements(dims)/
+             (16/(spec.buffers[a.rows].dtype==0?sizeof(ModelElement):4)) ||
+         a.expert_stride>spec.buffers[desc.b].Elements(dims)/a.experts)
+        throw std::invalid_argument("expert binding geometry escapes its allocation");
+      m=static_cast<int>(rows);
+    }
+#endif
     int split = runtime.split_k;
     int k_tiles = CeilDiv(desc.k, tiling.tile_k);
+    int storage_k=desc.k;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    backend::ConvIterationGeometry conv_iteration{};
+    bool const im2col=desc.access.a==DmAAccess::kIm2Col;
+    if(im2col) {
+      if(desc.access.conv>=spec.convolution_count || !spec.convolutions)
+        throw std::invalid_argument("convolution invocation lacks its descriptor");
+      auto const& conv=spec.convolutions[desc.access.conv];
+      if(conv.input_layout>=spec.buffer_count)
+        throw std::invalid_argument("convolution invocation lacks its input layout");
+      auto geometry=DmConvRuntime::Build(conv,spec.buffers[conv.input_layout].layout,
+          m,desc.n,desc.k,tiling.tile_k,split);
+      conv_iteration=geometry.geometry;k_tiles=geometry.tiles;storage_k=geometry.storage_k;
+    }
+    if(desc.access.a_scale!=kDmNoIndex) {
+      auto id=desc.access.a_scale;
+      if(id>=spec.buffer_count || !desc.access.rows_per_batch)
+        throw std::invalid_argument("GEMM A scale lacks its per-image geometry");
+      auto const& scale=spec.buffers[id];auto const& layout=scale.layout;
+      auto channels=im2col?spec.convolutions[desc.access.conv].c:desc.k;
+      if(scale.dtype>1 || layout.rank!=2 || layout.kind!=DmLayout::kRowMajor ||
+         layout.logical[0]!=unsigned(dims.batch) || layout.logical[1]!=unsigned(channels) ||
+         layout.strides[1]!=1 || layout.strides[0]<unsigned(channels) ||
+         scale.Elements(dims)<std::uint64_t(dims.batch-1)*layout.strides[0]+channels)
+        throw std::invalid_argument("GEMM A scale must be a bounded per-image channel matrix");
+    }
+#endif
     int chunks = split < k_tiles ? split : k_tiles;
     if (chunks < 1) chunks = 1;
     gemm_chunks[i] = chunks;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(chunks>1 && !(runtime_variant.ownership_flags & kCombinerTileOwnership))
+      throw std::invalid_argument("DM split-K requires tile-owned combine tasks");
+#endif
     gemm_base[i] = static_cast<std::uint32_t>(gemms.size());
     if (chunks > 1) {
       partial_bytes += static_cast<std::size_t>(chunks) * m * desc.n * sizeof(ModelPartialElement);
@@ -2137,12 +2726,26 @@ inline DeviceModel Create(ModelSpec const& spec,
       // legal invocation.
       int k_begin = chunk * k_tiles / chunks * tiling.tile_k;
       int k_end = (chunk + 1) * k_tiles / chunks * tiling.tile_k;
-      if (k_end > desc.k) k_end = desc.k;
+      if (k_end > storage_k) k_end = storage_k;
       GemmProblem problem{m, desc.n, k_end - k_begin, 1};
       // The chunk's A/B are the same matrices seen from a K offset: the row
       // stride is still the full k, so only the base pointer moves.
       auto stride_a = cutlass::make_cute_packed_stride(
           typename GemmMainloop::StrideA{}, cute::make_shape(m, desc.k, 1));
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if(desc.access.a==DmAAccess::kDense) {
+        auto pitch=std::uint64_t(desc.k)*std::max(1u,desc.access.a_row_stride);
+        if(pitch>std::uint64_t(std::numeric_limits<int>::max()))
+          throw std::invalid_argument("DM GEMM dense row pitch exceeds runtime range");
+        auto source_rows=desc.access.b==DmBAccess::kExpertIndirect?
+            std::uint64_t(desc.access.binding_blocks)*desc.access.block_rows:std::uint64_t(m);
+        auto last_row=std::uint64_t(desc.access.a_row_offset)+
+            (source_rows-1)*std::max(1u,desc.access.a_row_stride);
+        if(desc.k<=0 || m<=0 || last_row>=spec.buffers[desc.a].Elements(dims)/desc.k)
+          throw std::invalid_argument("DM GEMM dense row map exceeds A storage");
+        cute::get<0>(stride_a)=static_cast<std::int64_t>(pitch);
+      }
+#endif
       auto stride_b = cutlass::make_cute_packed_stride(
           typename GemmMainloop::StrideB{}, cute::make_shape(desc.n, desc.k, 1));
       auto stride_c = cutlass::make_cute_packed_stride(
@@ -2152,6 +2755,13 @@ inline DeviceModel Create(ModelSpec const& spec,
       GemmMainloopOperands main_args{
           model.buffers[desc.a] + k_begin, stride_a,
           model.buffers[desc.b] + k_begin, stride_b};
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if(im2col) {
+        main_args.ptr_A=model.buffers[desc.a];main_args.ptr_B=model.buffers[desc.b];
+      }
+      if(desc.access.a==DmAAccess::kDense)
+        main_args.ptr_A+=std::uint64_t(desc.access.a_row_offset)*desc.k;
+#endif
       // Only the first chunk applies beta*C; the combiner adds no residual, so
       // the split result differs from the unsplit one only by association.
 #if TILEMEGA_FP32_PARTIALS && TILEMEGA_MODEL_BF16
@@ -2186,14 +2796,26 @@ inline DeviceModel Create(ModelSpec const& spec,
       invocation.tile_n = tiling.tile_n;
       invocation.chunks = chunks;
       invocation.variant = variant;
-      invocation.k_total = desc.k;
+      invocation.k_total = storage_k;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      invocation.dm_enabled = desc.access.write.layout != kDmNoIndex ||
+          desc.access.a != DmAAccess::kDense || desc.access.b != DmBAccess::kDense ||
+          desc.access.a_scale != kDmNoIndex || desc.chain.count || desc.chain.side_count;
+      invocation.dm_gemm = i;
+      invocation.access=desc.access; invocation.chain=desc.chain;
+      invocation.conv_iteration=conv_iteration;
+      invocation.binding=desc.access.binding==kDmNoIndex ? nullptr : model.buffers.at(desc.access.binding);
+      invocation.rows=desc.access.rows==kDmNoIndex ? nullptr : model.buffers.at(desc.access.rows);
+      invocation.a_scale=desc.access.a_scale==kDmNoIndex ? nullptr :
+          reinterpret_cast<float const*>(model.buffers.at(desc.access.a_scale));
+#endif
 #if TILEMEGA_SERVING_RUNTIME
       if (desc.serving_epilogue > 3)
         throw std::invalid_argument("unknown serving GEMM epilogue");
       invocation.serving_weight_buffer=desc.b;
       invocation.serving_k_begin=k_begin;
       invocation.serving_weight_base=model.buffers[desc.b];
-      invocation.serving_k_total_full=desc.k;
+      invocation.serving_k_total_full=storage_k;
       invocation.serving_tile_k=tiling.tile_k;
       invocation.serving_norm_ss=desc.serving_norm_ss==kNoOperand?nullptr:
           reinterpret_cast<float const*>(model.buffers.at(desc.serving_norm_ss));
@@ -2210,6 +2832,14 @@ inline DeviceModel Create(ModelSpec const& spec,
       invocation.serving_output_stride = desc.serving_epilogue == 2
           ? desc.n / 2 : desc.serving_epilogue == 3 ?
               CeilDiv(desc.n, tiling.tile_n) : desc.n;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if (invocation.dm_enabled) {
+        invocation.serving_output_stride = desc.n;
+        for (unsigned operation = 0; operation < desc.chain.count; ++operation)
+          if (desc.chain.operations[operation].kind == DmEpilogueKind::kGatePair)
+            invocation.serving_output_stride /= 2;
+      }
+#endif
       invocation.serving_partial_stride = desc.n;
       if (chunks > 1)
         invocation.serving_partial = reinterpret_cast<float*>(
@@ -2228,8 +2858,8 @@ inline DeviceModel Create(ModelSpec const& spec,
   std::vector<std::uint32_t> attention_chunks(spec.stage_count,1);
   for (std::uint32_t i = 0; i < spec.stage_count; ++i) {
     StageDesc stage = spec.stages[i];
-    bool const fused_gemm = stage.kind == TaskKind::kGemmAdd ||
-                            stage.kind == TaskKind::kGemmRMSNorm;
+    bool const fused_gemm = stage.kind==TaskKind::kGemmAdd ||
+                            stage.kind==TaskKind::kGemmRMSNorm;
     if (fused_gemm) {
       if (!TILEMEGA_FUSION_RUNTIME || !TILEMEGA_FUSION_GEMM_RUNTIME ||
           !runtime_variant.exact_dependencies || stage.gemm >= spec.gemm_count ||
@@ -2239,7 +2869,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       }
       auto const& invocation = gemms[gemm_base[stage.gemm]];
       if (invocation.chunks != 1 ||
-          (stage.kind == TaskKind::kGemmRMSNorm && invocation.tiles_n != 1)) {
+          (stage.kind==TaskKind::kGemmRMSNorm && invocation.tiles_n != 1)) {
         std::fprintf(stderr,"fused GEMM requires unsplit accumulation and a full-row norm tile\n");
         std::exit(2);
       }
@@ -2256,6 +2886,19 @@ inline DeviceModel Create(ModelSpec const& spec,
         std::exit(2);
       }
     }
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(stage.kind==TaskKind::kDwPwFused) {
+      if(stage.conv>=spec.convolution_count || stage.gemm>=spec.gemm_count)
+        throw std::invalid_argument("fused depthwise stage outside descriptor tables");
+      auto conv=spec.convolutions[stage.conv];conv.n=dims.batch;
+      for(int chunk=0;chunk<gemm_chunks[stage.gemm];++chunk) {
+        auto& inv=gemms[gemm_base[stage.gemm]+chunk];inv.fused_program=i;
+        inv.fused_depthwise={model.buffers.at(stage.operand[0]),model.buffers.at(stage.operand[1]),
+            nullptr,conv,spec.buffers[stage.operand[0]].layout,spec.buffers[conv.output_layout].layout,
+            8,{},stage.chain};
+      }
+    }
+#endif
     entry[i] = static_cast<std::uint32_t>(model.stages.size());
     if (stage.kind == TaskKind::kAttention && runtime_variant.attention)
       attention_chunks[i] = runtime_variant.attention[i].chunks;
@@ -2280,8 +2923,8 @@ inline DeviceModel Create(ModelSpec const& spec,
       done[i] = static_cast<std::uint32_t>(model.stages.size())-1;
       continue;
     }
-    int chunks = stage.kind == TaskKind::kGemm ? gemm_chunks[stage.gemm] : 1;
-    if (stage.kind == TaskKind::kGemm || stage.kind == TaskKind::kAdd || fused_gemm)
+    int chunks = IsGemmStage(stage.kind) ? gemm_chunks[stage.gemm] : 1;
+    if (IsGemmStage(stage.kind) || stage.kind == TaskKind::kAdd || fused_gemm)
       stage.gemm = gemm_base[stage.gemm];
     model.stages.push_back(stage);
     done[i] = entry[i];
@@ -2299,9 +2942,42 @@ inline DeviceModel Create(ModelSpec const& spec,
   }
   // The generated plan names original stages. Split-K combines are created
   // above, so resolve handoff references only after entry[] is complete.
+#if TILEMEGA_MOE_OPAQUE
+  std::vector<OpaqueMoeStage> opaque_info;
+  for(unsigned i=0;i<spec.stage_count;++i) {
+    auto const& s=spec.stages[i];
+    opaque_info.push_back({IsGemmStage(s.kind),s.kind==TaskKind::kRMSNorm,
+        s.kind==TaskKind::kMoETopK,s.kind==TaskKind::kMoECombine,s.gemm,s.moe.router_gemm});
+  }
+  auto opaque_regions=FindOpaqueMoeRegions(opaque_info);
+  std::vector<bool> opaque_stage(spec.stage_count,false);
+  for(auto const& region:opaque_regions)
+    for(unsigned i=region.first;i<=region.last;++i) {
+      opaque_stage[i]=true;
+      for(unsigned expanded=entry[i];expanded<=done[i];++expanded) {
+        model.stages[expanded].handoff_elided=false;
+        model.stages[expanded].handoff_reduce_stage=kNoOperand;
+      }
+    }
+#endif
   for (std::uint32_t i = 0; i < spec.stage_count; ++i) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(spec.stages[i].binding_producer!=kDmNoIndex) {
+      auto source=spec.stages[i].binding_producer;
+      if(source>=spec.stage_count)
+        throw std::invalid_argument("binding producer outside generated stages");
+      for(unsigned expanded=entry[i];expanded<=done[i];++expanded)
+        model.stages[expanded].binding_producer=done[source];
+    }
+#endif
     auto target = spec.stages[i].handoff_reduce_stage;
     if (target == kNoOperand) continue;
+#if TILEMEGA_MOE_OPAQUE
+    if(opaque_stage[i] || (target<spec.stage_count && opaque_stage[target])) {
+      model.stages[entry[i]].handoff_reduce_stage=kNoOperand;
+      continue;
+    }
+#endif
     if (target == kHandoffAutoCombine) {
       if (done[i] != entry[i] + 1 ||
           model.stages[entry[i] + 1].kind != TaskKind::kGemmCombine)
@@ -2352,6 +3028,16 @@ inline DeviceModel Create(ModelSpec const& spec,
       std::uint32_t const producer = edge.producer;
       edge.producer = done[producer];
       edge.consumer = entry[i];
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if(edge.producer_main)edge.producer=entry[producer];
+      if(edge.consumer_done)edge.consumer=done[i];
+      if (attention_chunks[i] > 1 && (edge.map == StageDependency::Map::kTable ||
+                                     edge.map == StageDependency::Map::kCounted))
+        throw std::invalid_argument("bind table/counted ownership after attention chunk expansion");
+      if (edge.map == StageDependency::Map::kTable && !edge.producer_main && done[producer] != entry[producer] &&
+          !(model.params.ownership_flags & kCombinerTileOwnership))
+        throw std::invalid_argument("table dependency requires tile-owned split-K combiner");
+#endif
       if (attention_chunks[i] > 1 && edge.map != StageDependency::Map::kAll &&
           edge.map != StageDependency::Map::kPhase) {
         if (edge.div > std::numeric_limits<std::uint32_t>::max()/attention_chunks[i]) {
@@ -2362,7 +3048,10 @@ inline DeviceModel Create(ModelSpec const& spec,
       // Split-K moves the producer event onto the combiner, which owns its
       // tasks by element chunk -- blockIdx no longer names the tile the
       // window was fitted against, so the edge falls back to kAll.
-      if (spec.stages[producer].kind == TaskKind::kGemm && done[producer] != entry[producer] &&
+      if (IsGemmStage(spec.stages[producer].kind) && done[producer] != entry[producer] &&
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+          !edge.producer_main &&
+#endif
           !(model.params.ownership_flags & kCombinerTileOwnership)) {
         edge.map = StageDependency::Map::kAll;
         edge.div = 1u;
@@ -2373,6 +3062,24 @@ inline DeviceModel Create(ModelSpec const& spec,
       dependencies.push_back(edge);
     }
   }
+#if TILEMEGA_MOE_OPAQUE
+  for(auto const& region:opaque_regions) {
+    unsigned first=entry[region.first],last=done[region.last];
+    unsigned exit=last+1<model.stages.size()?last+1:last;
+    for(unsigned consumer=std::max(1u,first);consumer<=exit;++consumer) {
+      auto producer=consumer-1;
+      model.stages[consumer].opaque_predecessor=producer;
+      bool full=false;
+      for(auto& edge:dependencies)if(edge.producer==producer && edge.consumer==consumer &&
+          edge.map!=StageDependency::Map::kCounted) {
+        edge={producer,consumer,StageDependency::Map::kAll,1u,0,0,1u};full=true;
+      }
+      // Counted publication is retained even when a full-stage control edge
+      // also orders the pair. It is a different logical completion contract.
+      if(!full)dependencies.push_back({producer,consumer,StageDependency::Map::kAll,1u,0,0,1u});
+    }
+  }
+#endif
   std::sort(dependencies.begin(), dependencies.end(),
             [](StageDependency const& a, StageDependency const& b) {
               return a.consumer < b.consumer;
@@ -2462,7 +3169,21 @@ inline DeviceModel Create(ModelSpec const& spec,
   auto active_tasks = [&](std::uint32_t index) {
     StageDesc const& stage = model.stages[index];
     switch (stage.kind) {
-      case TaskKind::kGemm:
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      case TaskKind::kLayerNorm:
+      case TaskKind::kEmbeddingSum:
+      case TaskKind::kPool:
+      case TaskKind::kGlobalPoolReduce:
+      case TaskKind::kDepthwiseConv:
+      case TaskKind::kEncoderAttention:
+      case TaskKind::kMoETopK:
+      case TaskKind::kMoECombine:
+      case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,dims);
+#endif
+  #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    case TaskKind::kDwPwFused:
+#endif
+    case TaskKind::kGemm:
       case TaskKind::kGemmAdd: {
         GemmInvocation const& invocation = gemms[stage.gemm];
         return invocation.tiles_m * invocation.tiles_n * invocation.chunks;
@@ -2517,6 +3238,14 @@ inline DeviceModel Create(ModelSpec const& spec,
     }
     return 0;
   };
+
+#if TILEMEGA_DM_REDUCTIONS
+  std::vector<unsigned> dm_task_counts;
+  for(unsigned i=0;i<model.stages.size();++i)dm_task_counts.push_back(active_tasks(i));
+  auto dm_reductions=BuildDmReductionPlan(model.stages,dependencies,dm_task_counts,
+      runtime_variant.dependency_intervals,TILEMEGA_DM_POOL_LA,TILEMEGA_DM_MOE_LA,TILEMEGA_DM_MOE_LA_MASK);
+  std::printf("DM_LAST_ARRIVER selected=%u tickets=%u\n",dm_reductions.selected,dm_reductions.tickets);
+#endif
 
   // Materialize one queue per physical CTA.  Event requirements are first
   // deduplicated for the task and then lifted out of later tasks in the same
@@ -2641,12 +3370,73 @@ inline DeviceModel Create(ModelSpec const& spec,
   for (std::uint32_t stage=0;stage<model.stages.size();++stage)
     plan_counts.push_back(active_tasks(stage));
   std::vector<RuntimeDependencyWindow> plan_windows;
-  for (auto const& edge:dependencies)
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  std::vector<RuntimeTaskTableDependency> plan_tables;
+#endif
+  for (auto const& edge:dependencies) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if (edge.map == StageDependency::Map::kTable) {
+      if (std::uint64_t(edge.table_offset) + std::uint64_t(edge.table_rows) * edge.table_stride >
+          runtime_variant.dependency_interval_count)
+        throw std::invalid_argument("dependency table storage escapes its variant");
+      auto base = runtime_variant.dependency_intervals
+          ? runtime_variant.dependency_intervals + edge.table_offset : nullptr;
+      plan_tables.push_back({int(edge.producer), int(edge.consumer),
+                             {base, edge.table_rows, edge.table_stride}});
+      continue;
+    }
+    if (edge.map == StageDependency::Map::kCounted) {
+      auto const& target=model.stages.at(edge.consumer);
+      if(target.kind==TaskKind::kMoECombine) {
+        auto const& source=model.stages.at(edge.producer);
+        if((source.kind!=TaskKind::kGemm && source.kind!=TaskKind::kGemmCombine) ||
+            source.gemm>=gemms.size())
+          throw std::invalid_argument("MoE counted writer must be an expert GEMM or its combiner");
+        auto const& invocation=gemms.at(source.gemm);
+        auto const& access=invocation.access;
+        if(invocation.dm_gemm>=spec.gemm_count)
+          throw std::invalid_argument("MoE counted writer lost its GEMM descriptor");
+        if(access.b!=DmBAccess::kExpertIndirect || access.write.kind!=DmWriteKind::kRowScatter ||
+            target.width!=unsigned(invocation.tile_n) ||
+            target.moe.top_k!=access.routing_topk)
+          throw std::invalid_argument("MoE counted writer and combine ownership differ");
+      }
+      auto end = std::uint64_t(edge.counted_offset) + plan_counts[edge.consumer];
+      if(end>std::numeric_limits<std::uint32_t>::max())
+        throw std::invalid_argument("invalid counted dependency target space");
+      if(edge.counted_threshold_offset!=kDmNoIndex && edge.table_rows!=unsigned(plan_counts[edge.consumer]))
+        throw std::invalid_argument("counted threshold ownership differs from consumer tasks");
+      for(unsigned task=0;task<unsigned(plan_counts[edge.consumer]);++task) {
+        std::uint32_t count;
+        if(!ReadCountedThreshold(runtime_variant.counted_thresholds,edge.counted_threshold_offset,
+            edge.table_rows,task,edge.count,&count))
+          throw std::invalid_argument("invalid counted threshold table");
+      }
+      model.params.counted_dependency_count = std::max(model.params.counted_dependency_count, unsigned(end));
+      if(edge.table_stride) {
+        if(std::uint64_t(edge.table_offset)+std::uint64_t(edge.table_rows)*edge.table_stride >
+            runtime_variant.dependency_interval_count || !runtime_variant.dependency_intervals)
+          throw std::invalid_argument("counted I2 ordering table escapes its variant");
+        plan_tables.push_back({int(edge.producer),int(edge.consumer),
+            {runtime_variant.dependency_intervals+edge.table_offset,edge.table_rows,edge.table_stride}});
+      } else {
+        // Legacy uniform synthetic contracts omit access geometry. Their
+        // ordering remains I2; device waits still use contribution counters.
+        plan_windows.push_back({int(edge.producer),int(edge.consumer),true,1,0,0,1});
+      }
+      continue;
+    }
+#endif
     plan_windows.push_back({static_cast<int>(edge.producer),static_cast<int>(edge.consumer),
         edge.map==StageDependency::Map::kAll ||
           edge.map==StageDependency::Map::kPhase,
         edge.div,edge.scale,edge.offset,edge.count});
+  }
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  auto const runtime_graph=MaterializeRuntimeTaskGraphTables(plan_counts,plan_windows,plan_tables,grid);
+#else
   auto const runtime_graph=MaterializeRuntimeTaskGraph(plan_counts,plan_windows,grid);
+#endif
 #if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE
   model.trace_runtime_dependencies = dependencies;
 #endif
@@ -2779,6 +3569,9 @@ inline DeviceModel Create(ModelSpec const& spec,
   for(std::uint32_t edge=offsets[consumer];edge<offsets[consumer+1];++edge) {
     if(model.stages[consumer].handoff_elided)continue;
     StageDependency const& dep=dependencies[edge];
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if (dep.map == StageDependency::Map::kCounted) continue;
+#endif
 #if TILEMEGA_EVENT_KAPPA > 0
     if(dep.map==StageDependency::Map::kPhase) {
       model.event_flags[dep.producer]|=kNeedsFineEvents|kNeedsAggregateEvent;
@@ -2792,6 +3585,32 @@ inline DeviceModel Create(ModelSpec const& spec,
     model.event_flags[dep.producer] |= kNeedsAggregateEvent;
 #endif
   }
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  for(unsigned consumer=0;consumer<model.stages.size();++consumer) {
+    auto const& stage=model.stages[consumer];
+    if(stage.kind!=TaskKind::kGemm || gemms[stage.gemm].access.b!=DmBAccess::kExpertIndirect)continue;
+    auto source=stage.binding_producer;
+    StageDependency const* binding=nullptr;
+    for(unsigned edge=offsets[consumer];edge<offsets[consumer+1];++edge)
+      if(dependencies[edge].producer==source) {
+        if(binding)throw std::invalid_argument("binding source requires one unioned dependency");
+        binding=&dependencies[edge];
+      }
+    if(source>=model.stages.size() || !binding ||
+       binding->map==StageDependency::Map::kCounted || binding->map==StageDependency::Map::kPhase)
+      throw std::invalid_argument("expert task has no static binding dependency");
+    for(unsigned task=0;task<unsigned(active_tasks(consumer));++task) {
+      bool nonempty=false;
+      if(!VisitStageDependencyIntervals(*binding,runtime_variant.dependency_intervals,task,
+          active_tasks(source),[&](RuntimeWindowBounds){nonempty=true;}) || !nonempty)
+        throw std::invalid_argument("expert binding dependency has an empty or invalid row");
+    }
+    // Loader is a separate warp. Compute FIFO cannot discharge its binding
+    // acquire, even if all dispatch producers belong to the same worker.
+    model.event_flags[source]|=(stage_kappa(source)==0 || binding->map==StageDependency::Map::kAll)
+        ? kNeedsAggregateEvent : kNeedsFineEvents;
+  }
+#endif
   for(auto const& dep:dependencies)if(dep.map==StageDependency::Map::kPhase) {
     auto const flags=model.event_flags[dep.producer];
     if(stage_kappa(dep.producer)!=1 ||
@@ -2800,6 +3619,11 @@ inline DeviceModel Create(ModelSpec const& spec,
       throw std::invalid_argument("K-phase producer requires kappa one and both event rows");
   }
 #if TILEMEGA_SERVING_RUNTIME && TILEMEGA_PAGED
+#if TILEMEGA_MOE_OPAQUE
+  // Loader readiness cannot use compute's FIFO wait elision.
+  for(auto const& s:model.stages)if(s.opaque_predecessor!=kDmNoIndex)
+    model.event_flags[s.opaque_predecessor]|=kNeedsAggregateEvent;
+#endif
   // Lag-one safety rows: the next decode iteration reads the token and the
   // historical KV row produced by this one. These rows are deliberately not
   // ordinary forward task dependencies.
@@ -2833,7 +3657,7 @@ inline DeviceModel Create(ModelSpec const& spec,
         lag.consumer,static_cast<unsigned>(model.stages[lag.consumer].kind),
         lag.producer,static_cast<unsigned>(model.stages[lag.producer].kind));
 #endif
-#if TILEMEGA_EVENT_SHARDED
+#if TILEMEGA_EVENT_SHARDED && !TILEMEGA_MOE_DYNAMIC
   static_assert(TILEMEGA_EVENT_SHARDS >= 0, "negative shard count");
   // Automatic choice: the largest power of two no greater than num_sms.
   // Explicit values are experimental controls and may not exceed hardware.
@@ -2946,6 +3770,9 @@ inline DeviceModel Create(ModelSpec const& spec,
           // shipped build; SEQSCAN requires this build to fail.
           if (TILEMEGA_NEGATIVE_TASK_WAIT_CLAMP) break;
           StageDependency const& dep = dependencies[e];
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+          if (dep.map == StageDependency::Map::kCounted) continue;
+#endif
           int const produced = active_tasks(dep.producer);
 #if TILEMEGA_EVENT_KAPPA > 0
           auto observe_owner = [&](int owner) {
@@ -2989,7 +3816,7 @@ inline DeviceModel Create(ModelSpec const& spec,
               // wider window may start the two in either order, so only a
               // producer the window cannot reach is still discharged by FIFO.
               // The rest become local dependencies rather than global polls.
-              if (!model.stages[dep.producer].handoff_elided &&
+              if (!TILEMEGA_MOE_DYNAMIC && !model.stages[dep.producer].handoff_elided &&
                   stage_kappa(dep.producer) == 1 && owner == worker) {
                 int const producer_slot =
                     plan.slot[dep.producer][producer_task];
@@ -3012,6 +3839,15 @@ inline DeviceModel Create(ModelSpec const& spec,
               for (auto const& incoming:exact_predecessors[exact_stage_offsets[stage]+logical])
                 if (incoming.first==int(dep.producer)) require_task(incoming.second);
             } else
+#endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+              if (dep.map == StageDependency::Map::kTable) {
+                if (!VisitStageDependencyIntervals(dep, runtime_variant.dependency_intervals,
+                    logical, produced, [&](RuntimeWindowBounds interval) {
+                  for (int producer_task = interval.first; producer_task < interval.past; ++producer_task)
+                    require_task(producer_task);
+                })) throw std::invalid_argument("invalid table row during L2 materialization");
+              } else
 #endif
               for (int producer_task=begin;producer_task<end;++producer_task)
                 require_task(producer_task);
@@ -3046,7 +3882,7 @@ inline DeviceModel Create(ModelSpec const& spec,
           // next task measures its distance from the nearest observer.
           int const slot_index = plan.slot[stage][logical];
           auto const at = seen[worker].emplace(wait, slot_index);
-          if (at.second || at.first->second + window > slot_index) {
+          if (TILEMEGA_MOE_DYNAMIC || at.second || at.first->second + window > slot_index) {
             at.first->second = slot_index;
             model.task_waits.push_back({wait.first, wait.second});
           }
@@ -3065,6 +3901,41 @@ inline DeviceModel Create(ModelSpec const& spec,
     model.schedule_offsets[worker + 1] =
         static_cast<std::uint32_t>(model.schedule.size());
   }
+
+#if TILEMEGA_MOE_DYNAMIC
+  std::vector<DynamicStageRange> dynamic_ranges(std::size_t(grid)*model.stages.size());
+  std::vector<std::uint32_t> dynamic_prefix(model.stages.size()+1),dynamic_canonical;
+  for(unsigned stage=0;stage<model.stages.size();++stage)
+    dynamic_prefix[stage+1]=dynamic_prefix[stage]+
+        (model.stages[stage].handoff_elided?0:active_tasks(stage));
+  dynamic_canonical.assign(dynamic_prefix.back(),~std::uint32_t(0));
+  for(int worker=0;worker<grid;++worker) {
+    auto first=model.schedule_offsets[worker],past=model.schedule_offsets[worker+1];
+    std::stable_sort(model.schedule.begin()+first,model.schedule.begin()+past,
+        [](TaskRef const& a,TaskRef const& b) {
+          return std::tie(a.stage,a.logical_task)<std::tie(b.stage,b.logical_task);
+        });
+    auto slot=first;
+    for(unsigned stage=0;stage<model.stages.size();++stage) {
+      auto begin=slot;
+      while(slot<past && model.schedule[slot].stage==stage) {
+        auto logical=model.schedule[slot].logical_task;
+        if(logical>=dynamic_prefix[stage+1]-dynamic_prefix[stage])
+          throw std::invalid_argument("dynamic canonical task exceeds stage capacity");
+        auto& canonical=dynamic_canonical[dynamic_prefix[stage]+logical];
+        if(canonical!=~std::uint32_t(0))throw std::invalid_argument("duplicate dynamic task");
+        canonical=slot++;
+      }
+      auto const& desc=model.stages[stage];
+      bool dynamic=IsGemmStage(desc.kind) &&
+          gemms.at(desc.gemm).access.b==DmBAccess::kExpertIndirect;
+      dynamic_ranges[std::size_t(worker)*model.stages.size()+stage]={
+          begin,slot,dynamic_prefix[stage],dynamic_prefix[stage+1]-dynamic_prefix[stage],unsigned(dynamic)};
+    }
+  }
+  if(std::find(dynamic_canonical.begin(),dynamic_canonical.end(),~std::uint32_t(0))!=dynamic_canonical.end())
+    throw std::invalid_argument("dynamic canonical task coverage has a hole");
+#endif
 
   // A deterministic view of what the Plan materialized, written before any
   // device work so the H2/H3 byte identities compare tables, not timings.
@@ -3112,6 +3983,71 @@ inline DeviceModel Create(ModelSpec const& spec,
   };
   model.device_buffers = static_cast<ModelElement**>(
       upload(model.buffers.data(), model.buffers.size() * sizeof(ModelElement*)));
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if (runtime_variant.dependency_interval_count)
+    model.device_dependency_intervals = static_cast<RuntimeDependencyInterval*>(upload(
+        runtime_variant.dependency_intervals,
+        runtime_variant.dependency_interval_count * sizeof(RuntimeDependencyInterval)));
+  model.params.dependency_intervals = model.device_dependency_intervals;
+  if(runtime_variant.counted_thresholds.size) {
+    if(!runtime_variant.counted_thresholds.values)
+      throw std::invalid_argument("counted threshold variant has no values");
+    model.device_counted_thresholds=static_cast<std::uint32_t*>(upload(
+        runtime_variant.counted_thresholds.values,
+        std::size_t(runtime_variant.counted_thresholds.size)*sizeof(std::uint32_t)));
+  }
+  model.params.counted_thresholds={model.device_counted_thresholds,runtime_variant.counted_thresholds.size};
+#if TILEMEGA_DM_REDUCTIONS
+  if(dm_reductions.selected) {
+    model.params.dm_reductions.stages=static_cast<DmReductionStage*>(upload(
+        dm_reductions.stages.data(),dm_reductions.stages.size()*sizeof(DmReductionStage)));
+    model.params.dm_reductions.offsets=static_cast<unsigned*>(upload(
+        dm_reductions.offsets.data(),dm_reductions.offsets.size()*sizeof(unsigned)));
+    if(!dm_reductions.arrivals.empty())model.params.dm_reductions.arrivals=static_cast<DmReductionArrival*>(upload(
+        dm_reductions.arrivals.data(),dm_reductions.arrivals.size()*sizeof(DmReductionArrival)));
+    std::vector<unsigned long long> zero(2ull*dm_reductions.tickets);
+    model.params.dm_reductions.tickets=static_cast<unsigned long long*>(upload(zero.data(),zero.size()*sizeof(zero[0])));
+    model.params.dm_reductions.ticket_count=dm_reductions.tickets;
+  }
+#endif
+  if (model.params.counted_dependency_count) {
+    std::vector<unsigned long long> zero(2ull * model.params.counted_dependency_count);
+    model.params.counted_dependencies = static_cast<unsigned long long*>(upload(zero.data(), zero.size() * sizeof(zero[0])));
+  }
+  if(spec.convolution_count)
+    model.device_dm_convolutions=static_cast<ConvDesc*>(upload(spec.convolutions,
+        spec.convolution_count*sizeof(ConvDesc)));
+  std::vector<void*> dm_buffers;
+  std::vector<DmBufferLayout> dm_layouts;
+  std::vector<std::uint32_t> dm_dtypes;
+  for(unsigned i=0;i<spec.buffer_count;++i) {
+    dm_buffers.push_back(model.buffers[i]); dm_layouts.push_back(spec.buffers[i].layout);
+    dm_dtypes.push_back(spec.buffers[i].dtype);
+  }
+  model.device_dm_buffers=static_cast<void**>(upload(dm_buffers.data(),dm_buffers.size()*sizeof(void*)));
+  model.device_dm_layouts=static_cast<DmBufferLayout*>(upload(dm_layouts.data(),dm_layouts.size()*sizeof(DmBufferLayout)));
+  model.device_dm_dtypes=static_cast<std::uint32_t*>(upload(dm_dtypes.data(),dm_dtypes.size()*sizeof(std::uint32_t)));
+#if TILEMEGA_MOE_DYNAMIC
+  model.device_dynamic_ranges=static_cast<DynamicStageRange*>(upload(
+      dynamic_ranges.data(),dynamic_ranges.size()*sizeof(DynamicStageRange)));
+  model.device_dynamic_canonical=static_cast<std::uint32_t*>(upload(
+      dynamic_canonical.data(),dynamic_canonical.size()*sizeof(std::uint32_t)));
+  std::vector<unsigned long long> initial_claims(model.stages.size(),0);
+  model.params.dynamic_claims=static_cast<unsigned long long*>(upload(
+      initial_claims.data(),initial_claims.size()*sizeof(unsigned long long)));
+  model.params.dynamic_ranges=model.device_dynamic_ranges;
+  model.params.dynamic_canonical=model.device_dynamic_canonical;
+#endif
+  model.params.dm_convolutions=model.device_dm_convolutions;
+  model.params.dm_buffers={model.device_dm_buffers,model.device_dm_layouts,
+                          model.device_dm_dtypes,spec.buffer_count};
+  for(auto& invocation:gemms) {
+    invocation.fused_depthwise.buffers=model.params.dm_buffers;
+    invocation.convolutions=model.device_dm_convolutions;
+    invocation.dm_buffers={model.device_dm_buffers,model.device_dm_layouts,
+                           model.device_dm_dtypes,spec.buffer_count};
+  }
+#endif
 #if TILEMEGA_PREFETCH_RUNTIME
   std::vector<std::uint8_t> frontier(spec.buffer_count);
   for (std::uint32_t i = 0; i < spec.buffer_count; ++i)
@@ -3156,7 +4092,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       model.stage_kappa.data(),
       model.stage_kappa.size() * sizeof(std::uint32_t)));
 #endif
-#if TILEMEGA_EVENT_SHARDED
+#if TILEMEGA_EVENT_SHARDED && !TILEMEGA_MOE_DYNAMIC
   model.device_event_fanin = static_cast<EventFanIn*>(upload(
       model.event_fanin.data(), model.event_fanin.size() * sizeof(EventFanIn)));
   model.device_shard_targets = static_cast<std::uint32_t*>(upload(
@@ -3220,9 +4156,21 @@ inline DeviceModel Create(ModelSpec const& spec,
   model.params.task_trace = model.device_task_trace;
   model.params.trace_sequence = model.device_trace_sequence;
   model.params.ownership_flags = runtime_variant.ownership_flags;
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  PrepareEpochHandoffs(model,gemms);
+#endif
   TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_params, sizeof(Params)));
   TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_params, &model.params,
                                  sizeof(Params), cudaMemcpyHostToDevice));
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if (model.params.counted_dependencies || model.params.dm_reductions.tickets) {
+    Params l2 = model.params;
+    if(l2.counted_dependencies)l2.counted_dependencies += model.params.counted_dependency_count;
+    if(l2.dm_reductions.tickets)l2.dm_reductions.tickets+=l2.dm_reductions.ticket_count;
+    TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_counted_l2_params, sizeof(Params)));
+    TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_counted_l2_params, &l2, sizeof(Params), cudaMemcpyHostToDevice));
+  }
+#endif
 #if TILEMEGA_SERVING_RUNTIME
   {
     std::vector<bool> queued(model.stages.size(),false);
@@ -3249,6 +4197,11 @@ inline void PrepareEvents(DeviceModel& model, int grid) {
                       model.event_offsets.back();
   TILEMEGA_CUDA_CHECK(
       cudaMalloc(&model.events, sizeof(EventCounter) * model.event_count));
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_params,&model.params,
+                                 sizeof(Params),cudaMemcpyHostToDevice));
+  UploadEpochL2Params(model);
+#endif
 #if TILEMEGA_TRACE_V2 || TILEMEGA_TRACE_PHASE
   if (model.trace_v2_enabled && model.device_task_trace_v2 == nullptr) {
     TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_task_trace_v2,
@@ -3271,8 +4224,19 @@ inline void PrepareEvents(DeviceModel& model, int grid) {
     // device_params was uploaded by Create, before event_count existed.
     TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_params, &model.params,
                                    sizeof(Params), cudaMemcpyHostToDevice));
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if (model.device_counted_l2_params) {
+      Params l2 = model.params;
+      if(l2.counted_dependencies)l2.counted_dependencies += model.params.counted_dependency_count;
+      if(l2.dm_reductions.tickets)l2.dm_reductions.tickets+=l2.dm_reductions.ticket_count;
+      TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_counted_l2_params, &l2, sizeof(Params), cudaMemcpyHostToDevice));
+    }
+#endif
   }
   ZeroTraceV2(model);
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  UploadEpochL2Params(model);
+#endif
 #endif
 }
 
@@ -3316,6 +4280,20 @@ inline void ResetBuffersOnly(DeviceModel& model) {
 
 inline void Reset(DeviceModel& model) {
   ResetBuffersOnly(model);
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  if(model.params.serving_epoch_handoff_tickets)
+    TILEMEGA_CUDA_CHECK(cudaMemset(model.params.serving_epoch_handoff_tickets,0,
+        2ull*model.params.stage_count*model.params.serving_epoch_handoff_stride*
+            sizeof(unsigned long long)));
+#endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if(model.params.dm_reductions.tickets)
+    TILEMEGA_CUDA_CHECK(cudaMemset(model.params.dm_reductions.tickets,0,
+        2ull*model.params.dm_reductions.ticket_count*sizeof(unsigned long long)));
+  if (model.params.counted_dependencies)
+    TILEMEGA_CUDA_CHECK(cudaMemset(model.params.counted_dependencies, 0,
+        2ull * model.params.counted_dependency_count * sizeof(unsigned long long)));
+#endif
   if (model.events)
     TILEMEGA_CUDA_CHECK(cudaMemset(model.events, 0,
                                    sizeof(EventCounter) * model.event_count));
@@ -3422,7 +4400,7 @@ inline void DumpTraceV2(DeviceModel const& model, char const* fixture_dir,
       auto const& stage = model.stages[model.schedule[i].stage];
       int m=0, n=0, k=0, split=1;
       unsigned long long bytes=0;
-      if (stage.kind == TaskKind::kGemm) {
+      if (IsGemmStage(stage.kind)) {
         GemmInvocation g;
         TILEMEGA_CUDA_CHECK(cudaMemcpy(&g, model.device_gemms + stage.gemm,
             sizeof(g), cudaMemcpyDeviceToHost));
@@ -3750,7 +4728,22 @@ inline float LaunchL1(DeviceModel& model, int grid,
 inline float LaunchL2(DeviceModel& model, int grid,
                       unsigned long long iteration = 0, bool timed = true) {
   return benchmark::Time([&] {
-  LaunchPersistent(tilemega_l2_kernel, grid, model.l2_smem_bytes, model.device_params,
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  auto* parameters=model.device_epoch_l2_params;
+  if(!parameters) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    parameters=model.device_counted_l2_params;
+#endif
+    if(!parameters)parameters=model.device_params;
+  }
+#else
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  auto* parameters = model.device_counted_l2_params ? model.device_counted_l2_params : model.device_params;
+#else
+  auto* parameters = model.device_params;
+#endif
+#endif
+  LaunchPersistent(tilemega_l2_kernel, grid, model.l2_smem_bytes, parameters,
                    model.events, iteration);
   }, timed);
 }

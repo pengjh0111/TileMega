@@ -1,0 +1,1342 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "inputs": {
+    "test/unit/dm_epilogue_tile_test.cu": "64ba0c08b9714b20c6cbec73d9a70c90e4a8547e0f79ed466c4767cbd5e0471d",
+    "test/fixtures/dnn/epilogue_tiles.bin": "a00d9c1c6b5505c0cb7cf7f80d09a8030426acb648f2eec2d04169a06879bc73",
+    "include/tilemega/Backend/ServingDmEpilogue.h": "6786e4363b341d0af2f50dbed767a19d25528980282fd7625e99d3793240d9d9",
+    "include/tilemega/Backend/DmEpilogueValue.h": "4b90a8e845ad3a129fa651ba5363d109396392e5ca3112ae7ee8e5efe2876dad",
+    "include/tilemega/Backend/DmTensorAddress.h": "1f83b68bf3525f9e4d15b4d4ae9f26ec54411d658f0fa68259d3af7755cfb020",
+    "include/tilemega/Codegen/DmDescriptors.h": "1ff48082aa764f941ddf926c1e78c8e09df388fed4ccb22499fb98227f8deb2a",
+    "include/tilemega/Codegen/executor/ComputeGroup.cuh": "60e3da614f830d30eff3c12fd7500bf9cef3b2c72f81564a8cbf7baaeb57a8bc"
+  },
+  "builds": [
+    {
+      "arch": 80,
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "--expt-relaxed-constexpr",
+        "-arch=sm_80",
+        "-DTILEMEGA_ARCH_ID=800",
+        "-Xptxas=-v",
+        "-I/root/dm1_work/development/include",
+        "-I/root/dm1_work/development/third_party/cutlass/include",
+        "/root/dm1_work/development/test/unit/dm_epilogue_tile_test.cu",
+        "-o",
+        "/root/dm1_work/development/runs/dm1-ci2-epilogue-tile50/checks/tiles-sm_80"
+      ],
+      "binary_sha256": "dd3da0f5fd69ab0e86a8093eb76c7b3a4792219b44ae53b408870b8c2cda399d",
+      "kernels": {
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJEEELNS1_11DmWriteKindE0ELj1ELNS1_10DmRoundingE0EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_3ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_3ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_1ELj1EEEEEELS9_1ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 38,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 38 registers, used 2 barriers, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_3ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_2ELj2EEEEEELS9_2ELj2ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE5ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE7ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 60,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 60 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE6ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE4ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 54,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 54 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE4ELNS1_12DmActivationE0ELNS1_10DmGatePairE1ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 54,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 54 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE2ELNS1_12DmActivationE5ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE2ELNS1_12DmActivationE4ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE2ELNS1_12DmActivationE3ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_2ELS6_2ELS7_0ELj16ELS8_1ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE1ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_0ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_2ELS6_1ELS7_0ELj16ELS8_0ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_3ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_0ELj1EEENS4_ILS5_2ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 60,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 60 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_0ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_2ELS6_0ELS7_0ELj16ELS8_0ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJNS1_16DmSideOutputSpecILNS1_16DmSideOutputKindE0ELj0EEENSD_ILSE_1ELj0EEENSD_ILSE_2ELj8EEENSD_ILSE_3ELj0EEENSD_ILSE_4ELj0EEEEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 64,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        }
+      },
+      "spill": false
+    },
+    {
+      "arch": 89,
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "--expt-relaxed-constexpr",
+        "-arch=sm_89",
+        "-DTILEMEGA_ARCH_ID=890",
+        "-Xptxas=-v",
+        "-I/root/dm1_work/development/include",
+        "-I/root/dm1_work/development/third_party/cutlass/include",
+        "/root/dm1_work/development/test/unit/dm_epilogue_tile_test.cu",
+        "-o",
+        "/root/dm1_work/development/runs/dm1-ci2-epilogue-tile50/checks/tiles-sm_89"
+      ],
+      "binary_sha256": "2a0f004ceb55420adab717d0c40a351775721774851cea04a10a264b9499237e",
+      "kernels": {
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJEEELNS1_11DmWriteKindE0ELj1ELNS1_10DmRoundingE0EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_3ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_3ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_1ELj1EEEEEELS9_1ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 42,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 42 registers, used 2 barriers, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_3ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_2ELj2EEEEEELS9_2ELj2ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE5ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE7ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 60,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 60 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE6ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE4ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 54,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 54 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE4ELNS1_12DmActivationE0ELNS1_10DmGatePairE1ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 54,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 54 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE2ELNS1_12DmActivationE5ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE2ELNS1_12DmActivationE4ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE2ELNS1_12DmActivationE3ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_2ELS6_2ELS7_0ELj16ELS8_1ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE1ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_0ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_2ELS6_1ELS7_0ELj16ELS8_0ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_3ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_0ELj1EEENS4_ILS5_2ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 60,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 60 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_0ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_2ELS6_0ELS7_0ELj16ELS8_0ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJNS1_16DmSideOutputSpecILNS1_16DmSideOutputKindE0ELj0EEENSD_ILSE_1ELj0EEENSD_ILSE_2ELj8EEENSD_ILSE_3ELj0EEENSD_ILSE_4ELj0EEEEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 64,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem, 1000 bytes cmem[0]"
+          ],
+          "spill": false
+        }
+      },
+      "spill": false
+    },
+    {
+      "arch": 90,
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "--expt-relaxed-constexpr",
+        "-arch=sm_90",
+        "-DTILEMEGA_ARCH_ID=900",
+        "-Xptxas=-v",
+        "-I/root/dm1_work/development/include",
+        "-I/root/dm1_work/development/third_party/cutlass/include",
+        "/root/dm1_work/development/test/unit/dm_epilogue_tile_test.cu",
+        "-o",
+        "/root/dm1_work/development/runs/dm1-ci2-epilogue-tile50/checks/tiles-sm_90"
+      ],
+      "binary_sha256": "b6514737f687cad6df3a36015d517e77a7919ecd83529c0e99990d7e7cb39239",
+      "kernels": {
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJEEELNS1_11DmWriteKindE0ELj1ELNS1_10DmRoundingE0EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_3ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_3ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_1ELj1EEEEEELS9_1ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 38,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 38 registers, used 2 barriers, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_3ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_2ELj2EEEEEELS9_2ELj2ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 40,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE5ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE7ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 60,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 60 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE6ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE4ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 54,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 54 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE4ELNS1_12DmActivationE0ELNS1_10DmGatePairE1ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 54,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 54 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE2ELNS1_12DmActivationE5ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE2ELNS1_12DmActivationE4ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE2ELNS1_12DmActivationE3ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_2ELS6_2ELS7_0ELj16ELS8_1ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE1ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_0ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_2ELS6_1ELS7_0ELj16ELS8_0ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_3ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_0ELj1EEENS4_ILS5_2ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 60,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 60 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_0ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_2ELS6_0ELS7_0ELj16ELS8_0ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJNS1_16DmSideOutputSpecILNS1_16DmSideOutputKindE0ELj0EEENSD_ILSE_1ELj0EEENSD_ILSE_2ELj8EEENSD_ILSE_3ELj0EEENSD_ILSE_4ELj0EEEEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 64,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        }
+      },
+      "spill": false
+    },
+    {
+      "arch": 100,
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "--expt-relaxed-constexpr",
+        "-arch=sm_100",
+        "-DTILEMEGA_ARCH_ID=1000",
+        "-Xptxas=-v",
+        "-I/root/dm1_work/development/include",
+        "-I/root/dm1_work/development/third_party/cutlass/include",
+        "/root/dm1_work/development/test/unit/dm_epilogue_tile_test.cu",
+        "-o",
+        "/root/dm1_work/development/runs/dm1-ci2-epilogue-tile50/checks/tiles-sm_100"
+      ],
+      "binary_sha256": "4c2a142a756bd185d9c89914b5b882e4fb8bd89f57b043c88d3af1ed074e916c",
+      "kernels": {
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJEEELNS1_11DmWriteKindE0ELj1ELNS1_10DmRoundingE0EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 40,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_3ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 44,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 44 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_3ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_1ELj1EEEEEELS9_1ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 46,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 46 registers, used 2 barriers, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_3ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_2ELj2EEEEEELS9_2ELj2ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 44,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 44 registers, used 2 barriers, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE5ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 42,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 42 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE7ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 44,
+          "stack_bytes": 192,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "192 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 44 registers, used 2 barriers, 192 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE6ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 42,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 42 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE4ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 40,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE4ELNS1_12DmActivationE0ELNS1_10DmGatePairE1ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 40,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE2ELNS1_12DmActivationE5ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 40,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE2ELNS1_12DmActivationE4ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 40,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE2ELNS1_12DmActivationE3ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 40,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_2ELS6_2ELS7_0ELj16ELS8_1ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 40,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE1ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_0ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_2ELS6_1ELS7_0ELj16ELS8_0ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 40,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_3ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_0ELj1EEENS4_ILS5_2ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 56,
+          "stack_bytes": 192,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "192 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 2 barriers, 192 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_0ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_2ELS6_0ELS7_0ELj16ELS8_0ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJNS1_16DmSideOutputSpecILNS1_16DmSideOutputKindE0ELj0EEENSD_ILSE_1ELj0EEENSD_ILSE_2ELj8EEENSD_ILSE_3ELj0EEENSD_ILSE_4ELj0EEEEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 64,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        }
+      },
+      "spill": false
+    },
+    {
+      "arch": 120,
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "--expt-relaxed-constexpr",
+        "-arch=sm_120",
+        "-DTILEMEGA_ARCH_ID=1200",
+        "-Xptxas=-v",
+        "-I/root/dm1_work/development/include",
+        "-I/root/dm1_work/development/third_party/cutlass/include",
+        "/root/dm1_work/development/test/unit/dm_epilogue_tile_test.cu",
+        "-o",
+        "/root/dm1_work/development/runs/dm1-ci2-epilogue-tile50/checks/tiles-sm_120"
+      ],
+      "binary_sha256": "756d60275e7f32389afdafae78e2c1250ad183b963119d31da69f41c9cb9ea78",
+      "kernels": {
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJEEELNS1_11DmWriteKindE0ELj1ELNS1_10DmRoundingE0EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 42,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 42 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_3ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 48,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 48 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_3ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_1ELj1EEEEEELS9_1ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 48,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 48 registers, used 2 barriers, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_3ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_2ELj2EEEEEELS9_2ELj2ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 50,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 50 registers, used 2 barriers, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE5ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 48,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 48 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE7ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 48,
+          "stack_bytes": 192,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "192 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 48 registers, used 2 barriers, 192 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE6ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 48,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 48 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE4ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 40,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE4ELNS1_12DmActivationE0ELNS1_10DmGatePairE1ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 40,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 40 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE2ELNS1_12DmActivationE5ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 42,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 42 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE2ELNS1_12DmActivationE4ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 42,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 42 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE2ELNS1_12DmActivationE3ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE1ELS8_1ELNS1_11DmWriteKindE0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 42,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 42 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_2ELS6_2ELS7_0ELj16ELS8_1ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 42,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 42 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE1ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_0ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_2ELS6_1ELS7_0ELj16ELS8_0ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 42,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 42 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_1ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_3ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_0ELj1EEENS4_ILS5_2ELS6_0ELS7_0ELj16ELS8_1ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 54,
+          "stack_bytes": 192,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "192 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 54 registers, used 2 barriers, 192 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateIN8tilemega7codegen14DmEpilogueSpecINS1_17DmEpilogueProgramIJNS1_14DmEpilogueStepILNS1_14DmEpilogueKindE0ELNS1_12DmActivationE0ELNS1_10DmGatePairE0ELj16ELNS1_10DmRoundingE0ELS8_0ELNS1_11DmWriteKindE0ELj1EEENS4_ILS5_2ELS6_0ELS7_0ELj16ELS8_0ELS8_1ELS9_0ELj1EEEEEELS9_0ELj1ELS8_1EJNS1_16DmSideOutputSpecILNS1_16DmSideOutputKindE0ELj0EEENSD_ILSE_1ELj0EEENSD_ILSE_2ELj8EEENSD_ILSE_3ELj0EEENSD_ILSE_4ELj0EEEEEEEvPKfNS0_7backend19DmEpilogueArgumentsE": {
+          "registers": 64,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 4224,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers, 96 bytes cumulative stack size, 4224 bytes smem"
+          ],
+          "spill": false
+        }
+      },
+      "spill": false
+    }
+  ],
+  "execution_architecture": 89,
+  "fresh_processes": [
+    {
+      "process": 0,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 1,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 2,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 3,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 4,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 5,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 6,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 7,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 8,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 9,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 10,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 11,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 12,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 13,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 14,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 15,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 16,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 17,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 18,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 19,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 20,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 21,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 22,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 23,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 24,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 25,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 26,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 27,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 28,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 29,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 30,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 31,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 32,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 33,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 34,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 35,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 36,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 37,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 38,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 39,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 40,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 41,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 42,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 43,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 44,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 45,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 46,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 47,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 48,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    },
+    {
+      "process": 49,
+      "exit_code": 0,
+      "log_sha256": "383839627a43598aca1f2cffb0803b6e145730044de3524cc98d4309088de6b0"
+    }
+  ],
+  "head": "ba693a086ac1ca2cf3dc2b4137cdc26fcd0f0545",
+  "diff_sha256": "7c15df8eda96bd05ceb978665afb422605cde08bf25fb39f41a5584a148eeb17",
+  "compiler_version": "nvcc: NVIDIA (R) Cuda compiler driver\nCopyright (c) 2005-2025 NVIDIA Corporation\nBuilt on Fri_Feb_21_20:23:50_PST_2025\nCuda compilation tools, release 12.8, V12.8.93\nBuild cuda_12.8.r12.8/compiler.35583870_0\n",
+  "scope": "tile-local epilogue storage and synchronization; not inter-stage statistics or any \u00a78.A path",
+  "pass_rate": {
+    "passes": 50,
+    "attempts": 50,
+    "required": 50
+  }
+}

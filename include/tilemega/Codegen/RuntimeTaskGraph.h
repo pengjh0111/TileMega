@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <vector>
+#include <tilemega/Codegen/RuntimeDependencies.h>
 
 namespace tilemega::codegen {
 struct RuntimeDependencyWindow {
   int producer, consumer;
   bool all;
   long div, scale, offset, count;
+};
+struct RuntimeTaskTableDependency {
+  int producer, consumer;
+  RuntimeDependencyTableView table;
 };
 struct RuntimeTaskGraph {
   std::vector<int> stage_offsets;
@@ -23,6 +28,9 @@ struct RuntimeExactDependencyDesc {
 // Consumes the already projected/expanded runtime stages, never logical op IDs.
 RuntimeTaskGraph MaterializeRuntimeTaskGraph(std::vector<int> const& counts,
     std::vector<RuntimeDependencyWindow> const& dependencies, int workers);
+RuntimeTaskGraph MaterializeRuntimeTaskGraphTables(std::vector<int> const& counts,
+    std::vector<RuntimeDependencyWindow> const& windows,
+    std::vector<RuntimeTaskTableDependency> const& tables, int workers);
 RuntimeTaskGraph MaterializeExactRuntimeTaskGraph(std::vector<int> const& counts,
     RuntimeExactDependencyDesc const& dependencies,int seq,int past,int workers);
 }  // namespace tilemega::codegen

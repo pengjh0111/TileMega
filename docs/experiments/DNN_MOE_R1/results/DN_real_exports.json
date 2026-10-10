@@ -1,0 +1,152 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Official BF16 upstream exports and original-FQN safetensors; no model correctness or timing claim",
+  "models": [
+    {
+      "model": "resnet18",
+      "checkpoint": {
+        "path": "/root/dm1_work/development/runs/dm1-real-exports-v1/exports/resnet18/checkpoint/model.safetensors",
+        "sha256": "a35351230766e0829c9b64fc4be8a0903d529d745d032a43890b159fc7b5c039",
+        "bytes": 23409368,
+        "tensors": 122
+      },
+      "archives": [
+        {
+          "path": "/root/dm1_work/development/runs/dm1-real-exports-v1/exports/resnet18/exported_program.pt2",
+          "sha256": "dbab816cea72b88c7b007058a4c1d4661b6f24ab0c841c1362c76908438469f1",
+          "state_tensors": 122
+        },
+        {
+          "path": "/root/dm1_work/development/runs/dm1-real-exports-v1/exports/resnet18/core_aten.pt2",
+          "sha256": "ecb94561ec62a9709370bb204d39fbcf75fe1679eced46881a5beea89cf7eadf",
+          "state_tensors": 122
+        }
+      ],
+      "operator_inventories_unchanged": true,
+      "all_archive_state_tensors_equal": true
+    },
+    {
+      "model": "mbv1",
+      "checkpoint": {
+        "path": "/root/dm1_work/development/runs/dm1-real-exports-v1/exports/mbv1/checkpoint/model.safetensors",
+        "sha256": "28f2c2998cee5713135a862d489791443efa19c73a7cfd9a8bf5ab8d3ed604d6",
+        "bytes": 8522648,
+        "tensors": 164
+      },
+      "archives": [
+        {
+          "path": "/root/dm1_work/development/runs/dm1-real-exports-v1/exports/mbv1/exported_program.pt2",
+          "sha256": "492a6f3417fd848c65dff3f70b88ea69f4fde6ef78ac749c54cef367ae5bd8ee",
+          "state_tensors": 164
+        },
+        {
+          "path": "/root/dm1_work/development/runs/dm1-real-exports-v1/exports/mbv1/core_aten.pt2",
+          "sha256": "be4a1a0ae5e1d2f01a597b68f0310489d39942aed803796d2250e48ddacf0179",
+          "state_tensors": 164
+        }
+      ],
+      "operator_inventories_unchanged": true,
+      "all_archive_state_tensors_equal": true
+    },
+    {
+      "model": "mbv2",
+      "checkpoint": {
+        "path": "/root/dm1_work/development/runs/dm1-real-exports-v1/exports/mbv2/checkpoint/model.safetensors",
+        "sha256": "00c129b57efd91b56148f9eef325f25de29bdec64cb17febced4c0d53246bdc2",
+        "bytes": 7108288,
+        "tensors": 314
+      },
+      "archives": [
+        {
+          "path": "/root/dm1_work/development/runs/dm1-real-exports-v1/exports/mbv2/exported_program.pt2",
+          "sha256": "ee4331cde88274eb94b19796c8f74c4baa0096ea6b39812c1ceaca7e90bb4cf9",
+          "state_tensors": 314
+        },
+        {
+          "path": "/root/dm1_work/development/runs/dm1-real-exports-v1/exports/mbv2/core_aten.pt2",
+          "sha256": "335a616b2b70edaff3931e2577aa6c062e83d19f8c1f0f47d7ee98caae8ab419",
+          "state_tensors": 314
+        }
+      ],
+      "operator_inventories_unchanged": true,
+      "all_archive_state_tensors_equal": true
+    },
+    {
+      "model": "bert",
+      "checkpoint": {
+        "path": "/root/dm1_work/development/runs/dm1-real-exports-v1/exports/bert/checkpoint/model.safetensors",
+        "sha256": "459f70455e5ff8585ad958075c1374d15561c72853e459e1c55e35d9f6bbbbb1",
+        "bytes": 218986960,
+        "tensors": 199
+      },
+      "archives": [
+        {
+          "path": "/root/dm1_work/development/runs/dm1-real-exports-v1/exports/bert/exported_program.pt2",
+          "sha256": "b1371773046e404f77ef0071ebcbfd576f2bbb7ee282e5eca306f2de15069ecf",
+          "state_tensors": 199
+        },
+        {
+          "path": "/root/dm1_work/development/runs/dm1-real-exports-v1/exports/bert/core_aten.pt2",
+          "sha256": "4a7503542e2faf0c811e4949de33a10d46c65b311da6ab184d8912493e54dbe6",
+          "state_tensors": 199
+        }
+      ],
+      "operator_inventories_unchanged": true,
+      "all_archive_state_tensors_equal": true
+    },
+    {
+      "model": "bert_masked",
+      "checkpoint": {
+        "path": "/root/dm1_work/development/runs/dm1-real-exports-v1/exports/bert_masked/checkpoint/model.safetensors",
+        "sha256": "459f70455e5ff8585ad958075c1374d15561c72853e459e1c55e35d9f6bbbbb1",
+        "bytes": 218986960,
+        "tensors": 199
+      },
+      "archives": [
+        {
+          "path": "/root/dm1_work/development/runs/dm1-real-exports-v1/exports/bert_masked/exported_program.pt2",
+          "sha256": "37d0809e363fe4bdbd3355f8c5c052e0bcadc98d681654dd06fad2736b87d9cf",
+          "state_tensors": 199
+        },
+        {
+          "path": "/root/dm1_work/development/runs/dm1-real-exports-v1/exports/bert_masked/core_aten.pt2",
+          "sha256": "535f14c7085014f353b19cb5953283440ef18387c4b503363cbfd799385a0c73",
+          "state_tensors": 199
+        }
+      ],
+      "operator_inventories_unchanged": true,
+      "all_archive_state_tensors_equal": true
+    },
+    {
+      "model": "nafnet",
+      "checkpoint": {
+        "path": "/root/dm1_work/development/runs/dm1-real-exports-v1/exports/nafnet/checkpoint/model.safetensors",
+        "sha256": "95ca0a5a5705c28874d6dd5183ca14a66e3a60b4059803d4e45aeadb81939bad",
+        "bytes": 58382094,
+        "tensors": 664
+      },
+      "archives": [
+        {
+          "path": "/root/dm1_work/development/runs/dm1-real-exports-v1/exports/nafnet/exported_program.pt2",
+          "sha256": "ac16862511bda9caf6e19d3e980f86c53537ba710d282fbb48e5ea00cce47927",
+          "state_tensors": 664
+        },
+        {
+          "path": "/root/dm1_work/development/runs/dm1-real-exports-v1/exports/nafnet/core_aten.pt2",
+          "sha256": "f8c4aa239fb7743e84ee5fde950e0ac92eabe9f55f8139d8aa13cf957e714713",
+          "state_tensors": 664
+        }
+      ],
+      "operator_inventories_unchanged": true,
+      "all_archive_state_tensors_equal": true
+    }
+  ],
+  "receipt": "/root/dm1_work/development/runs/dm1-real-exports-v1/receipt.json",
+  "receipt_sha256": "e77c084016ec0bd8955cd9de746ede69b9384b823bc877fa9baf15184bb9f5b1",
+  "preparation": "/root/dm1_work/development/runs/dm1-real-exports-v1/preparation.json",
+  "preparation_sha256": "fbe96c6df86a42b823ed336ceac606538e60cf80f6cbe623e729b152c8a4f8b8",
+  "failed_check_preserved": "/root/dm1_work/development/runs/dm1-real-exports-v1/check_events",
+  "model_correctness_gate": false,
+  "utc": "2026-10-09T14:20:02.257637+00:00"
+}

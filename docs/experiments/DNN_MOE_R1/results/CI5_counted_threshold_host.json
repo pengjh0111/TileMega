@@ -1,0 +1,23 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_commit": "8982a9c9f357b80925a27d59132150a8ce1b9577",
+  "scope": "Host threshold offsets, tail counts, uniform compatibility, bounds and 64-bit epoch overflow; no device synchronization claim.",
+  "inputs": {
+    "include/tilemega/Codegen/RuntimeCountedThresholds.h": "e2a92983c4d3c3e2adf0c30c9d51cb6f62807555518a79c2ab3ec1919050c06f",
+    "test/unit/counted_threshold_test.cpp": "7f370d51d4522e1c4e13c934d2cf45e47b09fc69e681f548e23452d7dd2568e8"
+  },
+  "queue_sha256": "5ad8792260a0081f4e4e0945b09fd13ea3a4ff522d10f4ce261a48fc438549a2",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "binary_sha256": "605cf78617ab21ee0599477ebf2699f3c2051dd5df0bbc1369376ac33246914b",
+  "logs": {
+    "runs/dm1-ci5-counted-threshold-host/events/02_check.log": "1322eb51e9f5dbf30fd952c102bcb75dd1470b6a0a299bfb11fe757534f1c049",
+    "runs/dm1-ci5-counted-threshold-host/events/01_compile.log": "91fcb1c66509fe66d907dfeec87fc5d2715f46d43319bffb63138a385d222e72",
+    "runs/dm1-ci5-counted-threshold-host/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "remaining": [
+    "Five-architecture compilation and 50 fresh device processes",
+    "CG threshold table emission",
+    "Native L1/L2/paged stage integration"
+  ]
+}

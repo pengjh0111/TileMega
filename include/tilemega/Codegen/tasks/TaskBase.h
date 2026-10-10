@@ -97,7 +97,25 @@ enum class TaskKind : std::uint32_t {
   kFusedAttention = 13,
   kAttentionMerge = 14,
   kArgmaxReduce = 15,
+  kDepthwiseConv = 16,
+  kPool = 17,
+  kGlobalPoolReduce = 18,
+  kLayerNorm = 19,
+  kEncoderAttention = 20,
+  kEmbeddingSum = 21,
+  kDwPwFused = 22,
+  kMoETopK = 23,
+  kMoECombine = 24,
+  kLayoutConvert = 25,
 };
+
+TILEMEGA_TASK_HD constexpr bool IsGemmStage(TaskKind kind) {
+#if !defined(__CUDACC__) || (defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT)
+  return kind==TaskKind::kGemm || kind==TaskKind::kDwPwFused;
+#else
+  return kind==TaskKind::kGemm;
+#endif
+}
 
 /// The ownership each TaskKind's TaskBody declares. Every TaskBody's
 /// `Ownership` returns this rather than repeating a literal, so a host tool
@@ -116,6 +134,18 @@ TILEMEGA_TASK_HD constexpr TaskOwnershipKind OwnershipOf(TaskKind kind) {
     case TaskKind::kFusedAttention:
     case TaskKind::kAttentionMerge:
     case TaskKind::kArgmaxReduce:
+#if !defined(__CUDACC__) || (defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT)
+    case TaskKind::kDepthwiseConv:
+    case TaskKind::kPool:
+    case TaskKind::kGlobalPoolReduce:
+    case TaskKind::kLayerNorm:
+    case TaskKind::kEncoderAttention:
+    case TaskKind::kEmbeddingSum:
+    case TaskKind::kDwPwFused:
+    case TaskKind::kMoETopK:
+    case TaskKind::kMoECombine:
+    case TaskKind::kLayoutConvert:
+#endif
       return TaskOwnershipKind::kTilePerBlock;
     case TaskKind::kRoPE:
     case TaskKind::kKVAppend:

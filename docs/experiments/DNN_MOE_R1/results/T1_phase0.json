@@ -1,0 +1,21 @@
+{
+  "gate": "G-REG",
+  "passed": false,
+  "evidence": "verified",
+  "status": "blocked at native test build",
+  "baseline_head": "76beaea5e2d66e3311b36d020f470c4f016406d0",
+  "failure": {
+    "file": "test/unit/norm_prologue_gemm_test.cu",
+    "missing_include": "ServingRMSNormTaskBody.h",
+    "missing_api": "PagedGemmTaskBody::Run(..., norm_input, norm_weight, epsilon)",
+    "reference_reproduced": true,
+    "candidate_reproduced": true
+  },
+  "generated_cu_comparison": "not run",
+  "sass_comparison": "not run",
+  "ptxas_comparison": "not run",
+  "64_step_tokens": "not run",
+  "ctest": "not run (build fails)",
+  "reference_worktree_modified": false,
+  "queue_completion": "/root/dm1_work/development/docs/experiments/DNN_MOE_R1/scheduler/completion.json"
+}

@@ -2,8 +2,10 @@
 #pragma once
 #include <tilemega/Codegen/tasks/FusedAttentionTaskBody.h>
 #include <tilemega/Codegen/executor/PageRing.cuh>
+#include <tilemega/Codegen/tasks/AttentionPageLayout.h>
 namespace tilemega::codegen {
-template<class Arch,int D,int Q,bool QkNorm,int PageBytes,int Pages,bool ForceSm80=false,int PartialRows=Q>
+template<class Arch,int D,int Q,bool QkNorm,int PageBytes,int Pages,bool ForceSm80=false,int PartialRows=Q,
+         bool BoundLayout=(Q==8),AttentionPagePolicy Policy=AttentionPagePolicy::kPacked>
 struct PagedAttentionTaskBody {
   static_assert(Q<=16);
   using Element=cutlass::bfloat16_t;
@@ -14,9 +16,11 @@ struct PagedAttentionTaskBody {
   using ValueLayout=decltype(cute::composition(KeyLayout{},
       cute::Layout<cute::Shape<cute::Int<D>,cute::_16>,cute::Stride<cute::_16,cute::_1>>{}));
   using QK=backend::ServingAttentionWarp<Arch,16,D,false,KeyLayout>;
-  using PV=backend::ServingAttentionWarp<Arch,D,16,true,ValueLayout>;
+  using PV=std::conditional_t<Q==8,backend::ServingAttentionPvSwap<Arch,D,ValueLayout>,
+      backend::ServingAttentionWarp<Arch,D,16,true,ValueLayout>>;
   using Ring=executor::PageRing<PageBytes,Pages,Arch,ForceSm80>;
   using Copy=typename Ring::Copy;
+  using PageLayout=AttentionPageLayout<D,PageBytes,Policy>;
   static constexpr int kPageRows=PageBytes/(4*D);
   static_assert(kPageRows%16==0);
   struct SharedStorage {
@@ -33,9 +37,11 @@ struct PagedAttentionTaskBody {
                               BeforePage const& before_page=BeforePage{}) {
     int begin=Begin(p,c),end=End(p,c);if(begin>=end)return;
     unsigned remaining=2*max(0,min(end,p.past)-begin)*D*sizeof(Element);
-    int extent=WarpExtent(end-begin),waves=(extent+kPageRows-1)/kPageRows;
-    int warps_per_page=extent<kPageRows?min(4,kPageRows/extent):1;
-    int page_count=4/warps_per_page;
+    PageLayout layout{end-begin};
+    int extent=BoundLayout?layout.extent():WarpExtent(end-begin);
+    int waves=BoundLayout?layout.waves():(extent+kPageRows-1)/kPageRows;
+    int warps_per_page=BoundLayout?layout.owners_per_page():(extent<kPageRows?min(4,kPageRows/extent):1);
+    int page_count=BoundLayout?layout.pages_per_wave():4/warps_per_page;
     constexpr int vectors_per_lane=kPageRows*D/(executor::kLoaderThreads*8);
     int key_offsets[vectors_per_lane],value_offsets[vectors_per_lane];
     int rows[vectors_per_lane],columns[vectors_per_lane];
@@ -74,9 +80,11 @@ struct PagedAttentionTaskBody {
         int row=rows[step],d=columns[step];
         int owner=page_index*warps_per_page+
             (warps_per_page==1?0:row/extent);
-        int local=warps_per_page==1?row:row%extent;
-        int position=begin+owner*extent+wave*kPageRows+local;
-        bool valid=full || (local+wave*kPageRows<extent && position<end && position<p.past);
+        if constexpr(BoundLayout)owner=layout.OwnerOf(page_index,row);
+        int local=BoundLayout?layout.LocalRow(row):(warps_per_page==1?row:row%extent);
+        int position=begin+(BoundLayout?layout.Position(owner,wave,local):owner*extent+wave*kPageRows+local);
+        bool valid=full || ((BoundLayout?layout.Valid(owner,wave,local):
+            local+wave*kPageRows<extent && position<end) && position<p.past);
         std::size_t offset=((std::size_t(b)*p.heads_kv+g)*p.capacity+position)*D+d;
         auto* key=page+key_offsets[step];
         auto* value=page+kPageRows*D+value_offsets[step];
@@ -115,26 +123,28 @@ struct PagedAttentionTaskBody {
       PageSource const& ring,std::uint64_t& sequence,SharedStorage& s) {
     using namespace cute;
     int begin=Begin(p,c),end=End(p,c);if(begin>=end)return;
-    int extent=WarpExtent(end-begin),waves=(extent+kPageRows-1)/kPageRows;
-    int warps_per_page=extent<kPageRows?min(4,kPageRows/extent):1;
-    int page_count=4/warps_per_page;
+    PageLayout layout{end-begin};
+    int extent=BoundLayout?layout.extent():WarpExtent(end-begin);
+    int waves=BoundLayout?layout.waves():(extent+kPageRows-1)/kPageRows;
+    int warps_per_page=BoundLayout?layout.owners_per_page():(extent<kPageRows?min(4,kPageRows/extent):1);
+    int page_count=BoundLayout?layout.pages_per_wave():4/warps_per_page;
     int warp=ComputeThread()/32,lane=ComputeThread()%32;
     Query(p,s,b,g);ComputeSync();
     auto score_coords=typename QK::Mma{}.get_slice(lane).partition_C(make_identity_tensor(Shape<_16,_16>{}));
-    auto out_coords=typename PV::Mma{}.get_slice(lane).partition_C(make_identity_tensor(Shape<_16,Int<D>>{}));
+    auto out_coords=PV::OutputCoordinates(lane);
     auto output=PV::Accumulator();float maximum[2]={-INFINITY,-INFINITY},sum[2]={0,0};
     // Each warp advances independently. A page belongs to one warp, which
     // supplies the ring's 128 release arrivals (four per lane).
     for(int wave=0;wave<waves;++wave) {
-      auto cursor=sequence+wave*page_count+warp/warps_per_page;
+      auto cursor=sequence+(BoundLayout?layout.PageOf(warp,wave):wave*page_count+warp/warps_per_page);
       ring.AwaitFull(cursor);
       auto* page=reinterpret_cast<Element*>(ring.Page(cursor));
-      int start=begin+warp*extent+wave*kPageRows;
-      int page_row=(warp%warps_per_page)*extent;
+      int start=begin+(BoundLayout?layout.Position(warp,wave,0):warp*extent+wave*kPageRows);
+      int page_row=BoundLayout?layout.RowOffset(warp):(warp%warps_per_page)*extent;
       if(p.past>=start && p.past<start+kPageRows && p.past<begin+(warp+1)*extent && p.past<end)
         NewRow(p,page,page_row+p.past-start,b,g);
       __syncwarp();
-      int tile_limit=warps_per_page>1?extent:kPageRows;
+      int tile_limit=BoundLayout?layout.RowsPerOwner():(warps_per_page>1?extent:kPageRows);
       for(int tile=0;tile<tile_limit;tile+=16) {
         auto score=QK::Accumulator();QK::QK(s.query,page+(page_row+tile)*D,score);
         float next[2]={maximum[0],maximum[1]},alpha[2];
@@ -167,16 +177,18 @@ struct PagedAttentionTaskBody {
           sum[r]=sum[r]*alpha[r]+added[r];
         }
         #pragma unroll
-        for(int i=0;i<size(output);++i)output(i)*=alpha[int(get<0>(out_coords(i)))/8];
+        for(int i=0;i<size(output);++i)output(i)*=PV::RowStatistic(alpha,PV::QueryRow(out_coords(i)));
         PV::PV(score,score_coords,page+kPageRows*D+(page_row+tile)*D,output);
       }
-      for(int arrival=0;arrival<4/warps_per_page;++arrival)ring.Release(cursor);
+      int arrivals=BoundLayout?layout.ReleaseIterations(int(cursor-sequence)):4/warps_per_page;
+      for(int arrival=0;arrival<arrivals;++arrival)ring.Release(cursor);
     }
     sequence+=waves*page_count;
     #pragma unroll
     for(int i=0;i<size(output);++i) {
-      int row=get<0>(out_coords(i)),d=get<1>(out_coords(i));
-      if(row<PartialRows)s.partial[(warp*PartialRows+row)*D+d]=sum[row/8]>0?output(i)/sum[row/8]:0;
+      int row=PV::QueryRow(out_coords(i)),d=PV::OutputDim(out_coords(i));
+      float normalizer=PV::RowStatistic(sum,row);
+      if(row<PartialRows)s.partial[(warp*PartialRows+row)*D+d]=normalizer>0?output(i)/normalizer:0;
     }
     if((lane&3)==0)for(int r=0;r<2;++r)
       if(lane/4+8*r<PartialRows)s.lse[warp][lane/4+8*r]=sum[r]>0?maximum[r]+log2f(sum[r]):-INFINITY;

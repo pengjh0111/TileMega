@@ -41,4 +41,26 @@ RuntimeTaskGraph MaterializeRuntimeTaskGraph(std::vector<int> const& counts,
   graph.baseline_max_queue=*std::max_element(lengths.begin(),lengths.end());
   return graph;
 }
+RuntimeTaskGraph MaterializeRuntimeTaskGraphTables(std::vector<int> const& counts,
+    std::vector<RuntimeDependencyWindow> const& windows,
+    std::vector<RuntimeTaskTableDependency> const& tables, int workers) {
+  auto graph = MaterializeRuntimeTaskGraph(counts, windows, workers);
+  for (auto const& edge : tables) {
+    if (edge.producer < 0 || edge.consumer <= edge.producer ||
+        edge.consumer >= int(counts.size()) || edge.table.rows != unsigned(counts[edge.consumer]))
+      throw std::invalid_argument("invalid projected dependency table");
+    for (int c = 0; c < counts[edge.consumer]; ++c) {
+      if (!VisitDependencyTable(edge.table, c, counts[edge.producer], [&](RuntimeWindowBounds bounds) {
+        for (int p = bounds.first; p < bounds.past; ++p)
+          graph.successors[graph.stage_offsets[edge.producer] + p].push_back(
+              graph.stage_offsets[edge.consumer] + c);
+      })) throw std::invalid_argument("dependency table escapes physical producer tasks");
+    }
+  }
+  for (auto& edges : graph.successors) {
+    std::sort(edges.begin(), edges.end());
+    edges.erase(std::unique(edges.begin(), edges.end()), edges.end());
+  }
+  return graph;
+}
 }  // namespace tilemega::codegen

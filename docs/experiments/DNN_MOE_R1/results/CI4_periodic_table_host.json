@@ -1,0 +1,24 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Exact finite dependency-table proof compression and host CUDA generation; no GPU synchronization claim",
+  "source_head": "3e849b1e4eaa66fe6f99d0ced0cc0932f2ee3343",
+  "diff_sha256": "b35a678406a90f9ec09bdc8478bbebc9085deedc2a9abf905c9c11688aa9d020",
+  "binary_sha256": "7bbc2a811b94d8073be9e31a1135a1a0ce04caebd9226e6f185cced1e6762188",
+  "oracle": "132 consumers x 1160 producers, p mod 4 = c mod 4; all 38280 runtime intervals checked, both relation inclusions proved",
+  "host_cases": [
+    {
+      "log": "runs/dm1-moe-group-T513-host-v2.log",
+      "sha256": "7fb63af87cedbead9734312065d8f9c990a3e6dacb9cefd7cdcec94a404fc564"
+    },
+    {
+      "log": "runs/dm1-moe-group-pages-T513-host-v2.log",
+      "sha256": "7fb63af87cedbead9734312065d8f9c990a3e6dacb9cefd7cdcec94a404fc564"
+    },
+    {
+      "log": "runs/dm1-naf-codegen-host-v7.log",
+      "sha256": "582a821ad2010f55c602b057e89946c8d7d3676448b8e42010460d7961ea38dd"
+    }
+  ],
+  "naf_cuda_matches_previous": true
+}

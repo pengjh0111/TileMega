@@ -1,0 +1,27 @@
+{
+  "schema": "tilemega.dm1.host-check.v1",
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Conditional physical L-sem requests at observed binding row counts; static capacity and nominal MMA work retained. No measured routes, model or CUDA synchronization claim.",
+  "source_head": "1a3e5084d2505819564a638ececde466dfd1e19c",
+  "diff_sha256": "a16f246afc6db1c2e46aa74e681d847cdec407f3e0f50cf9279bef524acc7a12",
+  "source_manifest_sha256": "79b74c30964dbd44a90b833831b351c0959f3003663866219b8f0a1ad59bbbe6",
+  "source_input_files_verified": 175402,
+  "binary_sha256": "ddf5483163059feb13f1a69a589e2abb784033b96b040626b600299680408c19",
+  "tests": 6,
+  "details": [
+    "Binding request pricing: 72 capacity and 528 live-row mixed-width traffic, empty subtile and request containment cases PASS"
+  ],
+  "logs": {
+    "/root/dm1_work/development/runs/dm1-virtual-live-rows-native/events/01_host_build.log": "55e87f85d85805db66f1b16ec17fb09cdb08a7ba840f2608de526a01054afa8a",
+    "/root/dm1_work/development/runs/dm1-virtual-live-rows-native/events/02_host_tests.log": "e1b4d3261bec22f3787e375cdf4de127e991191ea2930031f1885a5009030a92",
+    "/root/dm1_work/development/runs/dm1-virtual-live-rows-native/events/completion.json": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a"
+  },
+  "utc": "2026-10-09T09:22:25.364396+00:00",
+  "committed_source_inputs": {
+    "include/tilemega/Solver/TaskModel.h": "7dae191aeb45a21e7a7200294165f08516f70bc6f7c681cf8d4742cb1c3df81d",
+    "lib/Solver/TaskModel.cpp": "5e68f9ca8c0b422798200760ad683565d65f5d89ee3498095f1c63dc37848fd6",
+    "lib/Analysis/ExactTaskWork.cpp": "2ad138aabe5599ee39b696eb2018c8aee847ba5072195f5dbc21eb3036dd0c60",
+    "test/unit/binding_request_pricing_test.cpp": "c9127e74df06473b6e96378153092c627604acd76833dc14b9cc6d28dd87a38e"
+  }
+}

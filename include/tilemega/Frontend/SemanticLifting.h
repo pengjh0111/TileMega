@@ -41,6 +41,15 @@ enum class OpRole {
   kActivation,
   kResidualAdd,  ///< the `beta * C` half of a fused GEMM epilogue
   kGeneric,
+  kLayerNorm,
+  kEmbeddingSum,
+  kLayoutConvert,
+  kPool,
+  kGlobalPoolReduce,
+  kEncoderAttention,
+  kDepthwiseConv,
+  kMoERouting,
+  kMoECombine,
 };
 
 std::string ToString(OpRole role);
@@ -99,12 +108,17 @@ struct LiftOptions {
   std::string batch_symbol;
   int static_seq = 0;
   bool serving = false;
+  bool forward = false;
 };
 
 /// Lift the recognized decoder stages. One sem op per stage, except a GEMM
 /// with `beta != 0`, whose epilogue residual is its own pointwise op.
 LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options);
 LiftedModel LiftServingSemantics(ModelPlan const& plan, LiftOptions const& options);
+LiftedModel LiftDnnSemantics(ModelPlan const& plan, LiftOptions const& options);
+LiftedModel LiftMoeRegionSemantics(ModelPlan const& plan, LiftOptions const& options);
+LiftedModel LiftMoeStageSemantics(ModelPlan const&,LiftOptions const&,unsigned,
+                                LiftedModel const& preceding);
 
 /// §0.1 degradation: one conservative task space per FX call_function, used
 /// when no decoder layer was recognized. Never a placeholder -- the read set

@@ -1,0 +1,8 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Real Qwen3 MoE region host planning: 112 before/Core binding geometries and 560 router storage layouts; not generated execution",
+  "log": "runs/dm1-moe-region-plan-host-v1.log",
+  "log_sha256": "58eaa3b64c670882e9a81ab1f0becf06690a250301abc89e3b08e3309fef5d95",
+  "sample": "MoE region planning: 112 before/Core geometries and 560 router storage layouts PASS\n"
+}

@@ -1,0 +1,24 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "checks": [
+    "moe_binding",
+    "dm_page_layout",
+    "runtime_dependency_table"
+  ],
+  "pass_rate": "3/3",
+  "inputs": {
+    "/root/dm1_work/development/CMakeLists.txt": "a254116a8cd80042637c75b0918fdd00ab465f7a867be5f999808c1a7b4a4888",
+    "/root/dm1_work/development/test/unit/runner.cpp": "1530fd38c72911c5c59ae85a98113ad4689a1fe50e78c087020c1bea3a72e6cb",
+    "/root/dm1_work/development/test/unit/moe_binding_test.cpp": "3d9a90761036bcbc910136b124c9e0a1f4fccbd9f3b2ab46625885969f8c9cde",
+    "/root/dm1_work/development/include/tilemega/Codegen/MoeBinding.h": "8315fb8e57800007441ed9618df71ac74d420e81fce70b0c070fac7f162b3e9e"
+  },
+  "unit_sha256": "b12971470df6f34d67534eb4a28d8e07fa1c08988ba79323c6744afd9a426eef",
+  "queue_sha256": "bfc123ea95e0774639625069f980fc09b472beb7c1fc1e2650bb62419ed19113",
+  "logs": {
+    "/root/dm1_work/development/runs/dm1-ci5-binding-host-registered/scheduler/build_binding.log": "478188c199ee4ae8e398ebf5b27c257d9c6092017ae0e1f7f878196a566353b7",
+    "/root/dm1_work/development/runs/dm1-ci5-binding-host-registered/scheduler/scheduler.log": "aad72b17cdce5cd594932639e7e5b97c41054df30d4c1d4f7138b98d17548f6c",
+    "/root/dm1_work/development/runs/dm1-ci5-binding-host-registered/scheduler/ctest_binding.log": "63079d5808e31c870f13adb6a78309d3d2d75a810f558817735d2a297e58d19a"
+  },
+  "scope": "Host binding capacity, stable empty validity and expert-stride bounds; check-policy passed."
+}

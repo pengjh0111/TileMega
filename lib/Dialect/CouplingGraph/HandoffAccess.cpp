@@ -6,6 +6,8 @@
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Analysis/TaskWork.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Dialect/CouplingGraph/TaskReductionGeometry.h>
+#include <tilemega/Analysis/TaskElementRelation.h>
 #include <mlir/IR/SymbolTable.h>
 #include <stdexcept>
 #include <algorithm>
@@ -24,6 +26,33 @@ TaskAccesses Access(TileSpaceOp space,bool elements=false) {
   if(auto found=cache.find(key);found!=cache.end())return found->second;
   auto op=analysis::DecodeSemanticOp(space.getSemantic()->str());
   analysis::Granularity g;
+  if(op.exact_task_access) {
+    ApplyTaskReductionGeometry(space.getGranularity(),op,g);
+    for(unsigned i=0;i<op.task_space.axes.size();++i) {
+      auto value=space.getGranularity().getAs<mlir::StringAttr>(op.task_space.axes[i].name);
+      if(!value)throw std::invalid_argument("exact handoff lacks its ownership tile");
+      g.Tile(op.name,analysis::UnitTaskOwnershipDimension(op,i),elements?
+          analysis::ClosedForm::Constant(1):analysis::ClosedForm::Parse(value.getValue().str()));
+    }
+    auto graph=analysis::Instantiate({{op}},g);auto const& task=*graph.Find(op.name);
+    auto const& access=*task.element_access;auto const& semantic=access.semantic;
+    TaskAccesses out;
+    auto read=[&](auto const& tensor,auto const& map,auto const& predicates) {
+      out.reads[tensor.name]=out.reads[tensor.name].Union(analysis::ProjectTaskRead(
+          semantic,task,access.partition,tensor,map,predicates,{}));
+    };
+    out.writes[semantic.result.name]=analysis::ProjectTaskWrite(semantic,task,
+        access.partition,semantic.result,semantic.result_map,{},{});
+    for(auto const& write:semantic.additional_writes)
+      out.writes[write.tensor.name]=out.writes[write.tensor.name].Union(
+          analysis::ProjectTaskWrite(semantic,task,access.partition,write.tensor,
+                                    write.map,write.nonnegative,{}));
+    if(semantic.element_reads.empty())
+      for(auto const& input:semantic.operands)read(input.tensor,input.map,std::vector<analysis::IndexResult>{});
+    else for(auto const& input:semantic.element_reads)read(input.tensor,input.map,input.nonnegative);
+    if(cache.size()>=2048)cache.clear();
+    cache.emplace(std::move(key),out);return out;
+  }
   for(auto const& axis:op.result.axes) {
     auto value=space.getGranularity().getAs<mlir::StringAttr>(axis.name);
     if(!value)throw std::invalid_argument("handoff lacks a task granularity");
