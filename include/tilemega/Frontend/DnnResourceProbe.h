@@ -8,4 +8,5 @@ namespace tilemega::frontend {
 // ProbeArch is supplied by the architecture-specific compilation driver.
 std::string DnnNonGemmProbeSource(ModelPlan const&);
 std::uint64_t DnnNonGemmSharedBytes(ModelPlan const&);
+std::string MoeRegionNonGemmProbeSource(ModelPlan const&);
 }

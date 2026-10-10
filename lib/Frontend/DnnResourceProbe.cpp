@@ -3,6 +3,7 @@
 #include <tilemega/Codegen/tasks/TaskResources.h>
 #include <algorithm>
 #include <sstream>
+#include <iomanip>
 #include <stdexcept>
 
 namespace tilemega::frontend {
@@ -70,6 +71,37 @@ std::string DnnNonGemmProbeSource(ModelPlan const& plan) {
       out<<"RunDepthwise<"<<stage.group<<','<<stage.width<<",Primitive"<<index<<">";
     else out<<"Run<TaskKind::"<<kind<<','<<stage.width<<','<<stage.group<<">";
     out<<"(); }\n";++index;
+  }
+  out<<"int main() { std::printf(\"%zu 128\\n\",std::size_t("<<shared<<")); }\n";
+  return out.str();
+}
+std::string MoeRegionNonGemmProbeSource(ModelPlan const& plan) {
+  if(!plan.dm || !plan.forward || !plan.forward_token_axis)
+    throw std::invalid_argument("MoE region probe requires token-axis forward semantics");
+  std::ostringstream out;
+  out<<"#include <tilemega/Codegen/tasks/DmStageTaskBody.h>\n"
+      <<"#include <tilemega/Codegen/tasks/ServingRMSNormTaskBody.h>\n"
+      <<"using namespace tilemega::codegen;\n";
+  unsigned index=0,shared=16;
+  for(auto const& stage:plan.stages) {
+    if(IsGemmStage(stage.kind))continue;
+    out<<"extern \"C\" __global__ __launch_bounds__(128) void probe_moe_"<<index++
+        <<"(Params const* p,StageDesc const* s,unsigned task) { extern __shared__ char bytes[]; ";
+    if(stage.kind==PlanTaskKind::kRMSNorm) {
+      out<<"using E=cutlass::bfloat16_t; ServingRMSNormTaskBody::RunRow("
+          <<"static_cast<E const*>(p->dm_buffers.data[s->operand[0]]),"
+          <<"static_cast<E const*>(p->dm_buffers.data[s->operand[1]]),"
+          <<"static_cast<E*>(p->dm_buffers.data[s->operand[2]]),task,1,0,"
+          <<stage.width<<","<<std::scientific<<std::setprecision(9)<<plan.norm_epsilon<<"f,reinterpret_cast<float*>(bytes)); }\n";
+    } else if(stage.kind==PlanTaskKind::kMoETopK || stage.kind==PlanTaskKind::kMoECombine) {
+      auto const& cfg=stage.moe;
+      auto workspace=stage.kind==PlanTaskKind::kMoETopK?codegen::MoeDispatchSharedBytes():
+          codegen::MoeCombineSharedBytes(stage.group,stage.width);
+      shared=std::max(shared,unsigned(workspace));
+      out<<"DmStageRunner<ProbeArch> runner{*p,*s,task,bytes}; runner.template RunMoe<"
+          <<"static_cast<DmMoeStep>("<<unsigned(cfg.step)<<"),"<<cfg.top_k<<','<<cfg.block_rows
+          <<','<<(cfg.grouped?"true":"false")<<','<<stage.group<<','<<stage.width<<">(); }\n";
+    } else throw std::invalid_argument("unsupported MoE region resource body");
   }
   out<<"int main() { std::printf(\"%zu 128\\n\",std::size_t("<<shared<<")); }\n";
   return out.str();
