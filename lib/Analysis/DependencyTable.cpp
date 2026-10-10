@@ -50,7 +50,12 @@ std::vector<TaskInterval> ProducerIntervals(isl_set* sources) {
       auto box=isl_util::Set(isl_set_universe(isl_set_get_space(set.get())));
       box=isl_util::Set(isl_set_lower_bound_val(box.release(),isl_dim_set,0,isl_val_copy(lo.get())));
       box=isl_util::Set(isl_set_upper_bound_val(box.release(),isl_dim_set,0,isl_val_copy(hi.get())));
-      if(isl_set_is_equal(set.get(),box.get())==isl_bool_true) {
+      // Exact extrema already prove set is inside box. A direct reverse
+      // inclusion avoids equality's expensive normalization of projected divs.
+      auto covered=isl_set_is_subset(box.get(),set.get());
+      if(covered==isl_bool_error)
+        throw std::runtime_error("dependency interval containment proof failed");
+      if(covered==isl_bool_true) {
         auto first=isl_val_get_num_si(lo.get()),last=isl_val_get_num_si(hi.get());
         into.intervals.push_back({std::uint32_t(first),std::uint32_t(last-first+1)});
         return isl_stat_ok;
