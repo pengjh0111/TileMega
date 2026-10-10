@@ -559,6 +559,7 @@ int RunCompile(int argc, char** argv) {
        (paged_la_splitk!=0 && paged_la_splitk!=1) || candidate_guard_wait_s<0)
       throw std::runtime_error("invalid serving ablation option");
     std::string source,selected_serving_mode,selected_serving_binary;
+    bool defer_dm_lowering=false;
     std::optional<tilemega::analysis::ScopedExactAnalysisMemo> dm_memo;
     std::optional<tilemega::frontend::ModelPlan> dnn_plan;
     if(frontend_mode=="dnn" && input.extension()!=".mlir") {
@@ -635,6 +636,7 @@ int RunCompile(int argc, char** argv) {
       auto plan=dnn_plan?*dnn_plan:tilemega::frontend::BuildModelPlan(
           bridge.nodes,bridge.inputs,bridge.outputs,options);
       if(plan.dm && !tilemega::analysis::active_exact_memo)dm_memo.emplace();
+      defer_dm_lowering=plan.dm && (use_pages || use_nonpaged_tiled || pg_mode=="l2");
       if(forward)options.seq=forward_seq;
       tilemega::frontend::ImportOptions import;
       if (plan.forward || plan.dm) import.phase_batch = serving_batch;
@@ -665,7 +667,9 @@ int RunCompile(int argc, char** argv) {
       }
       module=tilemega::frontend::TorchExportImporter{}.ImportPlan(
           input.string(),plan,context,&summary,import);
-      source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(
+      // Runtime configuration below replaces this source. DM graphs can be
+      // large; lower their final verified layout once instead of discarding it.
+      if(!defer_dm_lowering)source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(
           {{*module,static_cast<std::uint32_t>(options.seq),
                      static_cast<std::uint32_t>(options.seq)}});
       std::cerr<<"SERVING_SEED phase="<<serving_phase<<" batch="<<serving_batch
@@ -1282,7 +1286,7 @@ int RunCompile(int argc, char** argv) {
       auto reductions=tilemega::dialect::SelectServingHandoffs(*module,2|4);
       std::cerr<<"NONPAGED_LAST_ARRIVER selected="<<reductions.last_arriver<<'\n';
       handoff_mode="last_arriver";
-      source=tilemega::codegen::CouplingGraphToCUDA{}.Lower(*module);
+      if(!defer_dm_lowering)source=tilemega::codegen::CouplingGraphToCUDA{}.Lower(*module);
     }
     if(use_l2) {
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
@@ -1293,7 +1297,8 @@ int RunCompile(int argc, char** argv) {
       // Existing nonpaged prefill dispatches through index 1; its token
       // geometry is carried separately by TILEMEGA_SERVING_SEQ.
       if(!(dm && dm.getValue()) && !nonpaged_la && !use_nonpaged_tiled)seq=1;
-      source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,unsigned(seq),unsigned(seq)}});
+      if(!(defer_dm_lowering && use_nonpaged_tiled))
+        source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,unsigned(seq),unsigned(seq)}});
     }
     if(use_pages) {
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
