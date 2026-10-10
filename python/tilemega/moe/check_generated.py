@@ -114,7 +114,7 @@ def check(library_path,bridge_path,checkpoint=None,hidden_path=None,sequence=Non
         source=IndexedCheckpoint(checkpoint)
         block=load_hf_layer(source,config,layer,'cuda')
         mlp,norm=block.mlp,block.post_attention_layernorm
-        tensors=load_weights(checkpoint,library,device='cuda')
+        tensors={}
         captured=load_file(str(hidden_path))
         candidates=sorted(key for key in captured if key.endswith('.hidden'))
         key=sequence+'.hidden' if sequence else candidates[0]
@@ -138,6 +138,11 @@ def check(library_path,bridge_path,checkpoint=None,hidden_path=None,sequence=Non
         raise ValueError('captured input differs from the bound region')
     normalized=norm(x);hf_logits,hf_weights,hf_indices=mlp.gate(normalized)
     reference=(x+mlp(normalized.unsqueeze(0)).squeeze(0)).to(torch.bfloat16)
+    if checkpoint is not None:
+        # References and packed native weights need not coexist on the GPU.
+        del normalized,mlp,norm,block
+        torch.cuda.empty_cache()
+        tensors=load_weights(checkpoint,library,device='cuda')
     contribution=(reference.float()-x.float()).abs()
     if checkpoint is None and torch.all(contribution<=1.6e-2+1.6e-2*reference.float().abs()):
         raise ValueError('synthetic expert contribution is too small to detect a bypass')
