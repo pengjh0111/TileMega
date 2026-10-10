@@ -76,7 +76,8 @@ struct IndexResult {
   Kind kind = Kind::kAffine;
   std::vector<Term> terms;
   ClosedForm offset = ClosedForm::Constant(0);
-  ClosedForm span = ClosedForm::Constant(1);  ///< non-affine kinds only
+  ClosedForm span = ClosedForm::Constant(1);  ///< affine read window or broadcast extent
+  ClosedForm window_stride = ClosedForm::Constant(1);
   std::string binding_source;
   // Logical binding requests identify issued gathers/scatters independently
   // of the physical I2 address envelope. Empty keeps the legacy projection.

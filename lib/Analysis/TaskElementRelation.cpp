@@ -120,6 +120,9 @@ CouplingRelation ProjectTaskElements(SemanticOp const& semantic,
   for (unsigned axis = 0; axis < tensor.axes.size(); ++axis) {
     auto element = "_tm_e" + std::to_string(axis);
     elements.push_back(element);
+    if(indexing.results[axis].kind==IndexResult::Kind::kAffine &&
+        (!indexing.results[axis].span.IsLiteral(1) || !indexing.results[axis].window_stride.IsLiteral(1)))
+      throw std::invalid_argument("affine windows require read projection, never scalar writes");
     bounds.push_back(element + " = " + index(indexing.results[axis]));
     auto origin = expression(tensor.axes[axis].origin);
     bounds.push_back("(" + origin + ") <= " + element + " < (" + origin + ") + (" +
@@ -220,10 +223,21 @@ CouplingRelation ProjectTaskRead(SemanticOp const& semantic, OperatorNode const&
   auto map = indexing;
   for (unsigned axis = 0; axis < map.results.size(); ++axis) {
     auto& index = map.results[axis];
-    if (index.kind == IndexResult::Kind::kAffine) continue;
+    if (index.kind == IndexResult::Kind::kAffine && index.span.IsLiteral(1) &&
+        index.window_stride.IsLiteral(1)) continue;
     auto name = "_tm_access_dim_" + std::to_string(axis);
     while (expanded.Dim(name)) name += "_";
     IterationDim window; window.name = name; window.type = IteratorType::kReduction;
+    if(index.kind==IndexResult::Kind::kAffine) {
+      if(!index.outer_divisor.IsLiteral(1) || index.span.Eval(known,known)<=0 ||
+          index.window_stride.Eval(known,known)<=0)
+        throw std::invalid_argument("invalid affine read window");
+      window.extent=index.span;
+      index.terms.push_back({name,index.window_stride,ClosedForm::Constant(1)});
+      index.span=index.window_stride=ClosedForm::Constant(1);
+      expanded.domain.push_back(std::move(window));
+      continue;
+    }
     window.extent = tensor.axes[axis].extent;
     window.origin = tensor.axes[axis].origin;
     if (index.kind == IndexResult::Kind::kBroadcast) {

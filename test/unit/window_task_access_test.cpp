@@ -97,6 +97,19 @@ void Window(int n, int h, int w, int c, int o, int r, int s, int stride,
       Sum({I("m", stride, q), I("m", -stride * p, p * q), I("r", dilation)}, -pad),
       Sum({I("m", stride), I("m", -stride * q, q), I("s", dilation)}, -pad)}};
   auto reads = ProjectTaskElements(consumer, reader, rp, halo, map, {});
+  auto implicit=consumer;auto window_map=map;
+  implicit.domain.erase(std::remove_if(implicit.domain.begin(),implicit.domain.end(),
+      [](auto const& dim){return dim.name=="r" || dim.name=="s";}),implicit.domain.end());
+  for(unsigned axis=2;axis<4;++axis) {
+    auto& index=window_map.results[axis];
+    index.terms.erase(std::remove_if(index.terms.begin(),index.terms.end(),
+        [](auto const& term){return term.dim=="r" || term.dim=="s";}),index.terms.end());
+    index.span=F(axis==2?r:s);index.window_stride=F(dilation);
+  }
+  implicit.operands={{"",halo,window_map}};
+  implicit=DecodeSemanticOp(EncodeSemanticOp(implicit));
+  auto expanded=ProjectTaskRead(implicit,reader,rp,halo,implicit.operands[0].map,{},{});
+  assert(Contains(expanded,reads) && Contains(reads,expanded));
   auto exact = DeriveExactTaskCoupling(writes, reads, reader);
   auto coupling = exact.relation;
   Points expected_reads, expected_edges;

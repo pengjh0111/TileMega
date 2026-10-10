@@ -95,6 +95,8 @@ std::string IndexResult::Serialize() const {
       }
       break;
   }
+  if (kind == Kind::kAffine && (!span.IsLiteral(1) || !window_stride.IsLiteral(1)))
+    out<<" window["<<span.ToString()<<", "<<window_stride.ToString()<<"]";
   if (kind == Kind::kAffine && !outer_divisor.IsLiteral(1))
     return "floordiv(" + out.str() + ", " + outer_divisor.ToString() + ")";
   return out.str();

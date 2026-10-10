@@ -38,6 +38,8 @@ Value EncodeIndex(IndexResult const& index) {
   if (!index.binding_source.empty()) encoded.emplace_back("binding_source", index.binding_source);
   if(!index.request_dims.empty())encoded.emplace_back("request_dims",
       EncodeArray(index.request_dims,[](auto const& dim){return Value(dim);}));
+  if(!index.window_stride.IsLiteral(1))
+    encoded.emplace_back("window_stride",index.window_stride.ToString());
   if(!index.outer_divisor.IsLiteral(1))
     encoded.emplace_back("outer_divisor",index.outer_divisor.ToString());
   return encoded;
@@ -46,6 +48,12 @@ IndexResult DecodeIndex(Value const& value) {
   IndexResult result;
   result.kind=Enum(value,"kind",IndexResult::Kind::kDataDependent);
   result.offset=Form(value,"offset"); result.span=Form(value,"span");
+  if(auto const* stride=value.Find("window_stride")) {
+    result.window_stride=ClosedForm::Parse(stride->AsString("window_stride"));
+    if(result.kind!=IndexResult::Kind::kAffine ||
+        (result.window_stride.IsConstant() && result.window_stride.Eval({},{})<=0))
+      throw std::invalid_argument("invalid affine read window stride");
+  }
   if(auto const* divisor=value.Find("outer_divisor")) {
     result.outer_divisor=ClosedForm::Parse(divisor->AsString("outer_divisor"));
     if(result.kind!=IndexResult::Kind::kAffine ||

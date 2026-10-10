@@ -44,7 +44,8 @@ OperandAxisMap LowerResult(SemanticOp const& op, IndexResult const& result,
                            std::map<std::string, int> const& extra_axis) {
   // Exact element projection retains nested floors. The older rectangular
   // operand summary can only enclose that address set conservatively.
-  if(!result.outer_divisor.IsLiteral(1)) {
+  if(!result.outer_divisor.IsLiteral(1) || (result.kind==IndexResult::Kind::kAffine &&
+      (!result.span.IsLiteral(1) || !result.window_stride.IsLiteral(1)))) {
     if(!op.exact_task_access)
       throw std::invalid_argument("outer floor requires exact task access");
     return OperandAxisMap::FullRange();
