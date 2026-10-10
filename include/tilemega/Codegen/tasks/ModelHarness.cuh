@@ -51,6 +51,7 @@
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
 #include <tilemega/Codegen/tasks/DmStageTaskBody.h>
+#include <tilemega/Codegen/tasks/MoeCountedPublication.cuh>
 #endif
 #if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
 #include <tilemega/Codegen/executor/EpochLastArriver.cuh>
@@ -1305,6 +1306,15 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
   __syncthreads();
 #endif
   return;
+#endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  auto const& stage=p.stages[producer];
+  if(stage.kind==TaskKind::kGemm || stage.kind==TaskKind::kGemmCombine) {
+    auto const& inv=static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+    auto tile=stage.kind==TaskKind::kGemm?
+        DecodeSplitTask(logical_task,inv.tiles_m*inv.tiles_n,inv.chunks).tile:logical_task;
+    PublishMoeCountedRows(p,producer,tile,inv);
+  }
 #endif
   std::uint32_t const event_flags = p.event_flags[producer];
   if (event_flags == 0) {
@@ -3167,6 +3177,18 @@ inline DeviceModel Create(ModelSpec const& spec,
       continue;
     }
     if (edge.map == StageDependency::Map::kCounted) {
+      auto const& target=model.stages.at(edge.consumer);
+      if(target.kind==TaskKind::kMoECombine) {
+        auto const& source=model.stages.at(edge.producer);
+        if((source.kind!=TaskKind::kGemm && source.kind!=TaskKind::kGemmCombine) ||
+            source.gemm>=spec.gemm_count)
+          throw std::invalid_argument("MoE counted writer must be an expert GEMM or its combiner");
+        auto const& access=spec.gemms[source.gemm].access;
+        if(access.b!=DmBAccess::kExpertIndirect || access.write.kind!=DmWriteKind::kRowScatter ||
+            target.width!=runtime_variant.gemms[source.gemm].tile_n ||
+            target.moe.top_k!=access.routing_topk)
+          throw std::invalid_argument("MoE counted writer and combine ownership differ");
+      }
       auto end = std::uint64_t(edge.counted_offset) + plan_counts[edge.consumer];
       if(end>std::numeric_limits<std::uint32_t>::max())
         throw std::invalid_argument("invalid counted dependency target space");

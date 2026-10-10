@@ -742,6 +742,15 @@ __device__ inline void WaitDependencies(Params const& p,EventCounter* events,Tas
 }
 __device__ inline void Publish(Params const& p,EventCounter* events,unsigned stage,unsigned task,
                                unsigned long long iteration) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  auto const& descriptor=p.stages[stage];
+  if(descriptor.kind==TaskKind::kGemm || descriptor.kind==TaskKind::kGemmCombine) {
+    auto const& inv=static_cast<GemmInvocation const*>(p.gemms)[descriptor.gemm];
+    auto tile=descriptor.kind==TaskKind::kGemm?
+        DecodeSplitTask(task,inv.tiles_m*inv.tiles_n,inv.chunks).tile:task;
+    PublishMoeCountedRows(p,stage,tile,inv);
+  }
+#endif
   auto flags=p.event_flags[stage];if(!flags)return;
 #if !TILEMEGA_SYNC_V3 && !TILEMEGA_RELEASE_AFTER_BARRIER
   __threadfence();
