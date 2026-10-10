@@ -13,6 +13,7 @@
 #include <cctype>
 #include <map>
 #include <limits>
+#include <cmath>
 
 #ifndef TILEMEGA_EARLY_QP_BINDING
 #define TILEMEGA_EARLY_QP_BINDING 1
@@ -407,6 +408,20 @@ QuasiPolynomial QuasiPolynomial::BindCoordinates(ParamBinding const& point) cons
   value=isl_util::PwQPolynomial(isl_pw_qpolynomial_intersect_domain(value.release(),domain.release()));
   if (!value) throw std::runtime_error("cannot bind quasi-polynomial task point");
   return QuasiPolynomial(isl_util::ToString(value.get()));
+}
+
+double QuasiPolynomial::EvalReal(ParamBinding const& known) const {
+  IslReferenceAudit audit(__func__);
+  auto value=isl_util::ReadPwQPolynomial(Ctx(),BindParameterTokens(text_,known));
+  value=FixParams(std::move(value),known);
+  auto hi=isl_util::Val(isl_pw_qpolynomial_max(isl_pw_qpolynomial_copy(value.get())));
+  auto lo=isl_util::Val(isl_pw_qpolynomial_min(value.release()));
+  if(!hi || !lo || isl_val_is_rat(hi.get())!=isl_bool_true ||
+     isl_val_is_rat(lo.get())!=isl_bool_true || isl_val_eq(hi.get(),lo.get())!=isl_bool_true)
+    throw std::out_of_range("quasi-polynomial is not a finite scalar rational");
+  double result=isl_val_get_d(hi.get());
+  if(!std::isfinite(result))throw std::overflow_error("quasi-polynomial exceeds FP64 range");
+  return result;
 }
 
 long QuasiPolynomial::Eval(ParamBinding const& known) const {

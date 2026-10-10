@@ -94,14 +94,14 @@ void BindTaskDramProvenance(DerivedTaskInput& input,
       input.no_producer_read_bytes=std::move(traffic.no_producer_read_bytes);
       input.external_write_bytes=std::move(traffic.external_write_bytes);
       input.produced_live_bytes=traffic.produced_live_bytes;
-      input.stream_bytes=floor.no_producer_bytes.Eval(theta);
+      input.stream_bytes=floor.no_producer_bytes.EvalReal(theta);
       return;
     }
   }
   auto accesses=DeriveModelTaskAccesses(semantic,input);
   std::vector<analysis::QuasiPolynomial> external_reads,external_writes,typed_reads,typed_writes;
   bool mixed_width=false;
-  input.stream_bytes=floor.no_producer_bytes.Eval(theta);input.produced_live_bytes=0;
+  input.stream_bytes=floor.no_producer_bytes.EvalReal(theta);input.produced_live_bytes=0;
   for(auto const& [name,read]:accesses.reads) {
     // Serving plans are priced at a bound (B, past) point. Eliminating those
     // parameters before Barvinok cardinality avoids a very large parametric

@@ -44,7 +44,8 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
     if(bytes<=0 || (t.element_bytes && t.element_bytes!=bytes))throw std::invalid_argument("inconsistent tensor storage width: "+name);
     t.element_bytes=bytes;return t;
   };
-  std::map<std::string,CouplingRelation> read_envelopes,write_envelopes;
+  std::map<std::string,CouplingRelation> read_envelopes,write_envelopes,expected_envelopes;
+  std::set<std::string> affine_readers;
   for(auto const& source:semantics.ops) {
     auto const* task=graph.Find(source.name);if(!task)throw std::invalid_argument("missing semantic task "+source.name);
     auto const& op=task->element_access?task->element_access->semantic:source;
@@ -94,7 +95,7 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
     std::map<std::string,CouplingRelation> indirect_envelopes;
     auto indirect_read=[&](TensorSpace const& space,IndexingMap const& map,
                            std::vector<IndexResult> const& predicates) {
-      if(!dependent(map))return;
+      if(!dependent(map)){affine_readers.insert(space.name);return;}
       indirect.insert(space.name);
       if(task->element_access)
         indirect_envelopes[space.name]=indirect_envelopes[space.name].Union(
@@ -105,6 +106,17 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
     else for(auto const& read:op.element_reads)
       indirect_read(read.tensor,read.map,read.nonnegative);
     for(auto const& name:indirect) {
+      auto expected=options.expected_indirect_reads.find(name);
+      if(expected!=options.expected_indirect_reads.end()) {
+        if(options.indirect_read_images.count(name) || expected->second.source.empty() ||
+           !task->element_access || !indirect_envelopes.count(name))
+          throw std::invalid_argument("DramFloor expectation lacks a unique bounded source: "+name);
+        expected_envelopes[name]=expected_envelopes[name].Union(indirect_envelopes.at(name).Image());
+        auto& src=tensor(name,op.dtype);
+        src.expected_read_elements=expected->second.elements;
+        src.expectation_source=expected->second.source;
+        continue;
+      }
       auto actual=options.indirect_read_images.find(name);
       if(actual==options.indirect_read_images.end())throw std::invalid_argument("DramFloor needs the physical runtime read image for "+name);
       auto image=actual->second;
@@ -117,13 +129,17 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
       append(name,image);
     }
     if(!op.element_reads.empty()) {
-      for(auto const& read:op.element_reads)if(!indirect.count(read.tensor.name))
+      for(auto const& read:op.element_reads)if(!indirect.count(read.tensor.name)) {
+        affine_readers.insert(read.tensor.name);
         append(read.tensor.name,ExactElementRead(op,*task,read,fixed));
+      }
     } else {
-      for(std::size_t i=0;i<task->operands.size();++i)if(!indirect.count(task->operands[i].tensor.name))
+      for(std::size_t i=0;i<task->operands.size();++i)if(!indirect.count(task->operands[i].tensor.name)) {
+        affine_readers.insert(task->operands[i].tensor.name);
         append(task->operands[i].tensor.name, task->element_access
             ? ProjectTaskRead(op, *task, task->element_access->partition, op.operands[i].tensor, op.operands[i].map, {}, fixed)
             : ElementAccess(*task,BuildReadMap(*task,i),fixed,AccessDomain::kPhysicalTensor));
+      }
     }
     if(op.kind==OperatorKind::kMatmul) {
       // The interleaved gate/up epilogue computes two independent dots for
@@ -142,12 +158,22 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
   };
   validate_images(options.indirect_read_images,read_envelopes);
   validate_images(options.indirect_write_images,write_envelopes);
+  for(auto const& [name,expected]:options.expected_indirect_reads) {
+    auto footprint=result.tensors.find(name);
+    auto envelope=expected_envelopes.find(name);
+    if(footprint==result.tensors.end() || envelope==expected_envelopes.end() ||
+       !footprint->second.writes.empty() || footprint->second.state || affine_readers.count(name))
+      throw std::invalid_argument("DramFloor expectation requires an indirect-only external tensor: "+name);
+    auto count=expected.elements.EvalReal(fixed);
+    if(count<0 || count>Cardinality(envelope->second).EvalReal(fixed))
+      throw std::invalid_argument("DramFloor expectation exceeds its access envelope: "+name);
+  }
   std::vector<QuasiPolynomial> reads,writes;
   for(auto& [name,t]:result.tensors) {
     t.no_producer=t.reads.Subtract(t.writes);
     t.output=options.outputs.count(name) || (!t.writes.empty() && !consumers.count(name));
     if(t.state || t.output)t.external_writes=t.writes;
-    t.read_bytes=Cardinality(t.no_producer).Scale(t.element_bytes);
+    t.read_bytes=(t.expected_read_elements?*t.expected_read_elements:Cardinality(t.no_producer)).Scale(t.element_bytes);
     t.write_bytes=Cardinality(t.external_writes).Scale(t.element_bytes);
     reads.push_back(t.read_bytes);writes.push_back(t.write_bytes);
   }
@@ -157,9 +183,9 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
   return result;
 }
 DramFloor::Value DramFloor::Evaluate(ParamBinding const& theta) const {
-  // QuasiPolynomial::Eval is integral; retain fractional ns by evaluating
-  // integral work first, then dividing by the calibrated physical rate.
-  Value value;value.read_bytes=no_producer_bytes.Eval(theta);value.write_bytes=output_state_bytes.Eval(theta);
+  // Profile means may be fractional bytes; integer address cardinalities keep
+  // their exact representation until this physical-rate evaluation.
+  Value value;value.read_bytes=no_producer_bytes.EvalReal(theta);value.write_bytes=output_state_bytes.EvalReal(theta);
   value.flops=matmul_flops.Eval(theta);value.dram_ns=(value.read_bytes+value.write_bytes)/dram_rate;
   value.compute_ns=value.flops/compute_rate;value.floor_ns=std::max(value.dram_ns,value.compute_ns);return value;
 }

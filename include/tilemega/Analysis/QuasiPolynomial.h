@@ -72,6 +72,9 @@ class QuasiPolynomial {
   /// std::out_of_range naming the first dimension still unbound, matching
   /// ClosedForm::Eval's contract.
   long Eval(ParamBinding const& known) const;
+  /// Evaluate a finite scalar rational without truncating fractional work.
+  /// Integer-only callers retain Eval's stricter contract.
+  double EvalReal(ParamBinding const& known) const;
   std::vector<long> EvalPoints(ParamBinding const& known,
       std::vector<ParamBinding> const& coordinates) const;
   /// Sum over task-coordinate dimensions, retaining symbolic parameters.

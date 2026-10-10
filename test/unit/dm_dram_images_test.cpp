@@ -4,6 +4,7 @@
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
+#include <cmath>
 
 namespace tilemega::tests::dm_dram_images_test {
 int TestDmDramImages(int,char**) {
@@ -68,6 +69,37 @@ int TestDmDramImages(int,char**) {
   shared.indirect_read_images["shared"]=image("{ [] -> [t,k] : t=3 and 0<=k<4 }");
   auto floor=DeriveDramFloor({{a,b}},shared);
   assert(floor.Evaluate({}).read_bytes==8 && floor.Evaluate({}).write_bytes==16);
+  // The sampled mean counts distinct rows, not a fabricated set of addresses.
+  DramFloorOptions expected;expected.dram_gbps=1000;expected.tc_gflops=100000;
+  auto q=QuasiPolynomial::Constant(7).ScaleRational("1/3");
+  assert(std::abs(q.EvalReal({})-7./3)<1e-12);
+  bool nonintegral=false;try{(void)q.Eval({});}catch(std::runtime_error const&){nonintegral=true;}
+  assert(nonintegral);
+  expected.expected_indirect_reads["shared"]={q,"unit-test routing histogram"};
+  floor=DeriveDramFloor({{a,b}},expected);
+  assert(std::abs(floor.Evaluate({}).read_bytes-14./3)<1e-12);
+  assert(floor.tensors.at("shared").reads.empty());
+  assert(floor.tensors.at("shared").no_producer.empty());
+  assert(floor.tensors.at("shared").expected_read_elements);
+  auto reject_expected=[&](SemanticGraph const& graph,DramFloorOptions const& options) {
+    bool caught=false;try{(void)DeriveDramFloor(graph,options);}
+    catch(std::exception const&){caught=true;}assert(caught);
+  };
+  auto wrong=expected;wrong.expected_indirect_reads["shared"].elements=QuasiPolynomial::Constant(33);
+  reject_expected({{a,b}},wrong);
+  wrong=expected;wrong.expected_indirect_reads["shared"].elements=QuasiPolynomial::Constant(-1);
+  reject_expected({{a,b}},wrong);
+  wrong=expected;wrong.expected_indirect_reads["shared"].source.clear();reject_expected({{a,b}},wrong);
+  wrong=expected;wrong.indirect_read_images=shared.indirect_read_images;reject_expected({{a,b}},wrong);
+  wrong=expected;wrong.expected_indirect_reads["unused"]={q,"unused"};reject_expected({{a,b}},wrong);
+  auto direct=b;direct.operands[0].map.results[0]=IndexResult::Dim("m");
+  reject_expected({{a,direct}},expected);
+  auto producer=b;producer.result=source;producer.result_map.results={IndexResult::Dim("m"),IndexResult::Dim("k")};
+  producer.operands.clear();reject_expected({{producer,a}},expected);
+  auto varying=QuasiPolynomial::FromIslText("[T] -> { T : T>0 }").ScaleRational("1/3");
+  bool unbound=false;try{(void)varying.EvalReal({});}catch(std::out_of_range const&){unbound=true;}
+  assert(unbound);
+  ParamBinding bound;bound.Bind("T",7);assert(std::abs(varying.EvalReal(bound)-7./3)<1e-12);
   std::cout<<"DM physical images: "<<cases<<" typed gather/scatter cases, shared-column union and malformed witness rejection PASS\n";
   return 0;
 }
