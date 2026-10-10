@@ -19,13 +19,22 @@ CouplingRelation EncodeWindow(WaitWindow window, long producers, long consumers)
       ") + " + std::to_string(window.count) + " }");
 }
 std::optional<WaitWindow> FitClampedWindow(CouplingRelation const& linear,
-    long producers, long consumers) {
+    long producers, long consumers,DependencyTable const* table=nullptr) {
   // Solve the unclamped endpoints. Fitting only observed minima mistakes a
   // clipped halo (0,0,1,2,...) for a non-affine access.
   if (consumers <= 0 || producers <= 0 || consumers > 65536) return std::nullopt;
   std::map<long, long> first, last;
-  for (auto const& [c, p] : linear.LexMin().Points()) first[c.at(0)] = p.at(0);
-  for (auto const& [c, p] : linear.LexMax().Points()) last[c.at(0)] = p.at(0) + 1;
+  if(table) {
+    for(long c=0;c<consumers;++c)for(unsigned i=0;i<table->stride;++i) {
+      auto interval=table->intervals[c*table->stride+i];if(!interval.count)continue;
+      // A row with a genuine hole cannot be encoded by any one window.
+      if(first.count(c))return std::nullopt;
+      first[c]=interval.first;last[c]=std::uint64_t(interval.first)+interval.count;
+    }
+  }else {
+    for (auto const& [c, p] : linear.LexMin().Points()) first[c.at(0)] = p.at(0);
+    for (auto const& [c, p] : linear.LexMax().Points()) last[c.at(0)] = p.at(0) + 1;
+  }
   if (first.empty()) return std::nullopt;
   long width = 0, period = 0;
   auto changes = [&](std::map<long, long> const& endpoints, bool lower) {
@@ -77,6 +86,10 @@ std::optional<WaitWindow> FitClampedWindow(CouplingRelation const& linear,
         if(!equal) {refined=selected.insert(c).second;break;}
       }
       if(refined)continue;
+      // The table has already proved both inclusions for every bounded row.
+      // Equal contiguous endpoints therefore prove this window as well,
+      // without counting all relation pairs or parsing their cardinality.
+      if(table)return window;
       auto encoded=EncodeWindow(window,producers,consumers);
       if(Contains(encoded,linear) && Contains(linear,encoded))return window;
       break;
@@ -113,28 +126,14 @@ BoundDependencyForm BindExactTaskDependencyLinear(CouplingRelation const& relati
   if (!producers || !consumers || relation.DomainDimNames().size() != 1 ||
       relation.RangeDimNames().size() != 1)
     throw std::invalid_argument("invalid bound linear dependency dimensions");
-  // A linear runtime ID stays one-dimensional when its extent is one.
-  // OperatorNode elides whole axes, so that synthetic task representation
-  // cannot be used to re-linearize singleton producer/consumer spaces.
-  if(producers==1 || consumers==1) {
-    BoundDependencyForm result;
-    auto table=BuildDependencyTableLinear(relation,producers,consumers);
-    if(auto window=FitClampedWindow(relation,producers,consumers)) {
-      auto encoded=EncodeWindow(*window,producers,consumers);
-      if(Contains(encoded,relation) && Contains(relation,encoded)) {
-        result.encoding=BoundDependencyForm::Encoding::kWindow;
-        result.window=*window;result.encoded_relation=std::move(encoded);
-        return result;
-      }
-    }
-    result.encoded_relation=table.encoded_relation;result.table=std::move(table);
+  BoundDependencyForm result;
+  auto table=BuildDependencyTableLinear(relation,producers,consumers);
+  if(auto window=FitClampedWindow(relation,producers,consumers,&table)) {
+    result.encoding=BoundDependencyForm::Encoding::kWindow;
+    result.window=*window;result.encoded_relation=EncodeWindow(*window,producers,consumers);
     return result;
   }
-  OperatorNode producer, consumer;
-  producer.output = {"producer", {{relation.RangeDimNames()[0], ClosedForm::Constant(producers)}}};
-  consumer.output = {"consumer", {{relation.DomainDimNames()[0], ClosedForm::Constant(consumers)}}};
-  producer.tile = consumer.tile = {ClosedForm::Constant(1)};
-  CouplingEdge edge; edge.C = relation;
-  return BindExactTaskDependency(edge, producer, consumer, {});
+  result.encoded_relation=table.encoded_relation;result.table=std::move(table);
+  return result;
 }
 }  // namespace tilemega::analysis

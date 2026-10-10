@@ -32,3 +32,11 @@ relaxes dependencies. The caller's context/error/budget state is preserved.
 Interval runs are parsed as small pieces and combined by balanced set unions.
 The first implementation incorrectly called affine getters on map/unknown-div
 spaces; host failures in `runs/dm1-piece-screen-host-v1` are preserved.
+
+verified: the bound linear dependency path now proves its interval table first,
+then tests whether every row has the same clamped affine window. Contiguous
+endpoint equality against those proved rows certifies the window without
+parsing a global pair-cardinality polynomial. Rows with holes keep the table.
+Legacy symbolic binding is unchanged. Five targeted host checks pass in
+`runs/dm1-linear-window-host-v1/results.json`; the first DW/PW invocation
+omitted its fixture argument and failed before construction, and is retained.
