@@ -1,0 +1,380 @@
+{
+  "status": "compile_and_host_checks_pass; no_post_merge_GPU_execution",
+  "source_head": "8f4f7a6f0df60adac202d4e58c39c923d939abf3",
+  "r14_frozen": "97f7a2f1d",
+  "r14_closeout": "688ac56a0",
+  "preserved_remote": "a3f0dc6d10c368dbbe3073c66cc750aec92a70a3",
+  "preserved_dm": "0e64c56b010488a7229a75ed79814fb865aef197",
+  "source_fingerprint": "5b62da641040b94140e36a155332251adc3a2f9953cf8c8ebb87d861e232e00a",
+  "host_ctest_passed": 14,
+  "python_tests_passed": 45,
+  "optional_frontend_check": {
+    "requested": 9,
+    "passed": 3,
+    "complete": false,
+    "limit_seconds": 300,
+    "uncompleted": "40-family moe_structure_search did not complete within the bounded CPU command; later optional checks were not reached"
+  },
+  "cuda_compile_only": {
+    "arch": "sm_89",
+    "unit_sources": [
+      "attention_layout_test.cu",
+      "serving_gemv_test.cu",
+      "dm_gemv_compile.cu",
+      "dm_qperkv8_attention_test.cu"
+    ],
+    "full_runtime_sources": [
+      "forward_runtime_test.cu",
+      "dm_nonpaged_attention_handoff_test.cu"
+    ],
+    "r14_generated_control": "logic_completion_arms.json:llama_B1; original CU with integrated headers"
+  },
+  "compatibility_contracts": {
+    "r14_reference": "97f7a2f1d",
+    "dm_reference": "a3f0dc6d10c368dbbe3073c66cc750aec92a70a3",
+    "contracts": [
+      {
+        "header": "include/tilemega/Backend/ServingEpilogue.h",
+        "r14_body_sha256": "894e11343fa6937eb2c280a953bd74af722d3a6379a31e366ca8daf72ede7534",
+        "dm_header": "include/tilemega/Backend/DmServingEpilogue.h",
+        "dm_sha256": "4995441a43e22b8732101c2dc826c7aace31fd46f40e9c2b4f1859c95edb8924",
+        "r14_byte_identical": true,
+        "dm_reference_sha256": "4995441a43e22b8732101c2dc826c7aace31fd46f40e9c2b4f1859c95edb8924",
+        "dm_byte_identical": true
+      },
+      {
+        "header": "include/tilemega/Backend/ServingGemv.h",
+        "r14_body_sha256": "d8f6529dc73538f59acce61440df8e42f6aafa1da33b00af67809222fad22d44",
+        "dm_header": "include/tilemega/Backend/DmServingGemv.h",
+        "dm_sha256": "c8bc7ee2849854cdd4437e3ef06ebb0f2d083479ce2707363edeee675322f6f7",
+        "r14_byte_identical": true,
+        "dm_reference_sha256": "c8bc7ee2849854cdd4437e3ef06ebb0f2d083479ce2707363edeee675322f6f7",
+        "dm_byte_identical": true
+      },
+      {
+        "header": "include/tilemega/Codegen/tasks/AttentionPageLayout.h",
+        "r14_body_sha256": "87f265ab57437311b0bff2bc73961808c2a7d9e88ba956b9ac91aa43845e280a",
+        "dm_header": "include/tilemega/Codegen/tasks/DmAttentionPageLayout.h",
+        "dm_sha256": "39a2dfc62891cb6c7239079ba7d9e3ffda942622e13c69457a8498f3c10f3983",
+        "r14_byte_identical": true,
+        "dm_reference_sha256": "39a2dfc62891cb6c7239079ba7d9e3ffda942622e13c69457a8498f3c10f3983",
+        "dm_byte_identical": true
+      },
+      {
+        "header": "include/tilemega/Codegen/tasks/GemmStageTaskBody.h",
+        "r14_body_sha256": "d858f63b337d3e2fc26f39e2d00067627c0b3857baa23699eca0200293d91a95",
+        "dm_header": "include/tilemega/Codegen/tasks/DmGemmStageTaskBody.h",
+        "dm_sha256": "a92fbfc6cec517a780447eef600fa58566d491dec0ebe57342dc6d0a177fc86b",
+        "r14_byte_identical": true,
+        "dm_reference_sha256": "a92fbfc6cec517a780447eef600fa58566d491dec0ebe57342dc6d0a177fc86b",
+        "dm_byte_identical": true
+      },
+      {
+        "header": "include/tilemega/Codegen/tasks/IndependentAttentionTaskBody.h",
+        "r14_body_sha256": "e4b9c4a6fe273054445377d05334163d6c19a48287c9aa019c39b5291f528c38",
+        "dm_header": "include/tilemega/Codegen/tasks/DmIndependentAttentionTaskBody.h",
+        "dm_sha256": "b851340e4cc407e69fd53b013bf124cbde5aa65a0e3992fc78a220407676c005",
+        "r14_byte_identical": true,
+        "dm_reference_sha256": "b851340e4cc407e69fd53b013bf124cbde5aa65a0e3992fc78a220407676c005",
+        "dm_byte_identical": true
+      },
+      {
+        "header": "include/tilemega/Codegen/tasks/ModelHarness.cuh",
+        "r14_body_sha256": "3a11d895a87959829665fcd2ec869f377982d9aaa74c4def700b1bdd3873531a",
+        "dm_header": "include/tilemega/Codegen/tasks/DmModelHarness.cuh",
+        "dm_sha256": "308309b102cb22b46d81007d104338e14f995bcd5c38848ec786360854b59de2",
+        "r14_byte_identical": true,
+        "dm_reference_sha256": "308309b102cb22b46d81007d104338e14f995bcd5c38848ec786360854b59de2",
+        "dm_byte_identical": true
+      },
+      {
+        "header": "include/tilemega/Codegen/tasks/PagedAttentionTaskBody.h",
+        "r14_body_sha256": "1728eab4d1aedb4b62a34fdf60f889331ead5ffaa11859ea32428bea1ac11128",
+        "dm_header": "include/tilemega/Codegen/tasks/DmPagedAttentionTaskBody.h",
+        "dm_sha256": "52079e58aa5bc41519603e1a24c9d908146063189f3ca185d2a992ad5942965f",
+        "r14_byte_identical": true,
+        "dm_reference_sha256": "52079e58aa5bc41519603e1a24c9d908146063189f3ca185d2a992ad5942965f",
+        "dm_byte_identical": true
+      },
+      {
+        "header": "include/tilemega/Codegen/tasks/PagedGemmTaskBody.h",
+        "r14_body_sha256": "1472e6fee7ac77861a79a7e816143783cd04d3c815caaf3dcf0f8376f0d7c352",
+        "dm_header": "include/tilemega/Codegen/tasks/DmPagedGemmTaskBody.h",
+        "dm_sha256": "68d8cd27c62f9089ba8ba3c5d3463da37396a5f9740692cb2f41561532650df0",
+        "r14_byte_identical": true,
+        "dm_reference_sha256": "68d8cd27c62f9089ba8ba3c5d3463da37396a5f9740692cb2f41561532650df0",
+        "dm_byte_identical": true
+      },
+      {
+        "header": "include/tilemega/Codegen/tasks/ServingGemmCombineTaskBody.h",
+        "r14_body_sha256": "1d0444bc0ae35201774d163007451577dedf382dd15bf602fcceebe3829d4911",
+        "dm_header": "include/tilemega/Codegen/tasks/DmServingGemmCombineTaskBody.h",
+        "dm_sha256": "9cab541073e6493b7d53487938af1cefa8aa671dfd2a93eddcaa073d3dc95bcc",
+        "r14_byte_identical": true,
+        "dm_reference_sha256": "9cab541073e6493b7d53487938af1cefa8aa671dfd2a93eddcaa073d3dc95bcc",
+        "dm_byte_identical": true
+      },
+      {
+        "header": "include/tilemega/Codegen/tasks/ServingGemmTaskBody.h",
+        "r14_body_sha256": "5b266cc94de05ffbfb721139f701c183256df230b44aa4c82399e7a73fcd7f58",
+        "dm_header": "include/tilemega/Codegen/tasks/DmServingGemmTaskBody.h",
+        "dm_sha256": "2882477c44198094ac1f41d750cb115f9ec80920f01cad0729157d2abcf43e14",
+        "r14_byte_identical": true,
+        "dm_reference_sha256": "2882477c44198094ac1f41d750cb115f9ec80920f01cad0729157d2abcf43e14",
+        "dm_byte_identical": true
+      },
+      {
+        "header": "include/tilemega/Codegen/tasks/ServingRuntime.cuh",
+        "r14_body_sha256": "62d492d76ac04a06b69c916d0b92813c94b83d8f0de9dc4635c4375d08bc4288",
+        "dm_header": "include/tilemega/Codegen/tasks/DmServingRuntime.cuh",
+        "dm_sha256": "8770ef48305188f9cdae6dda88f754c050687a243e2d19542f61f680e424d2d7",
+        "r14_byte_identical": true,
+        "dm_reference_sha256": "2ec0a33f6bb26fcb2f00eb8b61a3267c7c07ba046a54b261a33a8c9e768edb58",
+        "dm_byte_identical": false,
+        "deviation": "three optional host-only artifact/execution introspection exports; device runtime retained"
+      },
+      {
+        "header": "include/tilemega/Codegen/executor/ServingPages.cuh",
+        "r14_body_sha256": "67f7f1bd0b136b30ddf87303932f7cc3b9758536df53e2a6939caf82b6f60ec2",
+        "dm_header": "include/tilemega/Codegen/executor/DmServingPages.cuh",
+        "dm_sha256": "519fffb62296d551604cc3d9ad82618237061b1b926a5c8253c9291bb4ab6579",
+        "r14_byte_identical": true,
+        "dm_reference_sha256": "519fffb62296d551604cc3d9ad82618237061b1b926a5c8253c9291bb4ab6579",
+        "dm_byte_identical": true
+      },
+      {
+        "header": "include/tilemega/Codegen/executor/ServingPrefetch.cuh",
+        "r14_body_sha256": "4c162d7d54aec69ccc16fb114ba5c8a8b1cd9998d10f4f272c189a95a627e3cc",
+        "dm_header": "include/tilemega/Codegen/executor/DmServingPrefetch.cuh",
+        "dm_sha256": "49af27cb818fd09e6844567101097283c8215ea2fcb4adf6572b286c10b8e71a",
+        "r14_byte_identical": true,
+        "dm_reference_sha256": "49af27cb818fd09e6844567101097283c8215ea2fcb4adf6572b286c10b8e71a",
+        "dm_byte_identical": true
+      }
+    ],
+    "count": 13
+  },
+  "submodules": {
+    "cutlass": "dc45f979ae336a235da1676b311f35efeb30149a",
+    "barvinok": "dd7e6d837ce3669c715da6fff3721508961b8a34"
+  },
+  "limitation": "Historical GPU evidence binds frozen pre-merge source. No new synchronization reliability or performance acceptance is claimed. Historical five-architecture compilation is not post-merge hardware validation.",
+  "initial_failures": [
+    "duplicate CMake test/runner registrations",
+    "missing handoff paged variable",
+    "four-field initializer after tuple extension",
+    "missing host fixture and model config fixture",
+    "DM combine used R14-only SwigLU macro",
+    "compile-only adaptation initially retained multiple host link inputs; corrected to one generated CUDA TU"
+  ],
+  "resolutions": "Source unions plus TILEMEGA_DM_SUPPORT-gated bodies; separate artifact schema APIs; optional host-only execution introspection; preserved runtime headers verified against each branch.",
+  "artifacts": [
+    {
+      "path": "/root/r14_work/closure_checks/dm_attention_handoff.o",
+      "sha256": "f61a033799914f37071493f7bed1249b439e9906d1ec54189248caa727349f0e",
+      "bytes": 7936480
+    },
+    {
+      "path": "/root/r14_work/closure_checks/dm_gemv.o",
+      "sha256": "df6d3a75432269741d8f1225ab8d475535da0c0dedde0832eb9364ee279bd765",
+      "bytes": 231864
+    },
+    {
+      "path": "/root/r14_work/closure_checks/dm_forward_runtime.o",
+      "sha256": "6e55520caaa22937102512f9100188e40958f7f2a7948e7d1f4d7a46b2a0bb21",
+      "bytes": 7694000
+    },
+    {
+      "path": "/root/r14_work/closure_checks/dm_attention.o",
+      "sha256": "d839d1dfdc76fdd00296900cb47a27b8efaf4401d808e90419344e27f45b8519",
+      "bytes": 736888
+    },
+    {
+      "path": "/root/r14_work/closure_checks/r14_attention.o",
+      "sha256": "4879867045d474bb8ecfc24df1b62638a90296718023717843a65612a9d957bd",
+      "bytes": 3610792
+    },
+    {
+      "path": "/root/r14_work/closure_checks/r14_gemv.o",
+      "sha256": "b4850612d7beb0273410f11ac22f9bd68ac8f677c88065b06227039c8bbba08d",
+      "bytes": 653760
+    },
+    {
+      "path": "/root/r14_work/closure_checks/r14_harness.o",
+      "sha256": "809b4db8bfc6c53e29112221d73c191e772ba455f6352def960d4a788cadfcb1",
+      "bytes": 4580752
+    },
+    {
+      "path": "/root/r14_work/closure_checks/build/tools/tilemega",
+      "sha256": "5ad80e5f9a0f7e53099d2b93fd2e401590b1e0e214feb3d097a5454b20a1ccc0",
+      "bytes": 19514584
+    },
+    {
+      "path": "/root/r14_work/closure_checks/build/tilemega-unit",
+      "sha256": "e938e65bf4820ddded5435542f8d043f77d83d2b465bc206591e47d1bfc88b2d",
+      "bytes": 19609760
+    }
+  ],
+  "archive": {
+    "path": "checks.tar.xz",
+    "sha256": "4b1f2b541be7bbe7d83536a1c6fa88ad4e0a2ca528c34d6cc5c0df52d17e1866",
+    "members": [
+      {
+        "source": "/root/r14_work/closure_checks/archive_integration.py",
+        "member": "archive_integration.py",
+        "sha256": "a1714f4f75c39c54bd75b024323636b901801720e1390ddb50792d9d09ff733f",
+        "bytes": 4402
+      },
+      {
+        "source": "/root/r14_work/closure_checks/build.done",
+        "member": "build.done",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "source": "/root/r14_work/closure_checks/build.log",
+        "member": "build.log",
+        "sha256": "69176e67ea00d3dfda21507e4f2e4d627922f065c1703a24d8b522cfb50ec624",
+        "bytes": 93274
+      },
+      {
+        "source": "/root/r14_work/closure_checks/check_cuda.sh",
+        "member": "check_cuda.sh",
+        "sha256": "ad4b009d35c6d19d882807e5ab6d635a7902b75d2bd48b48cf6cca8a1b1b6501",
+        "bytes": 742
+      },
+      {
+        "source": "/root/r14_work/closure_checks/check_final_host.sh",
+        "member": "check_final_host.sh",
+        "sha256": "1fcf8c2e5a2704c7575896d0d5fcce982f2165c18d156df38158016972d28a61",
+        "bytes": 651
+      },
+      {
+        "source": "/root/r14_work/closure_checks/check_frontends.sh",
+        "member": "check_frontends.sh",
+        "sha256": "b5cb312d0336725e963f9f73bea7308aea30606eed070ec125fb6f2d75d3cd31",
+        "bytes": 340
+      },
+      {
+        "source": "/root/r14_work/closure_checks/check_harness.sh",
+        "member": "check_harness.sh",
+        "sha256": "774621fefa86603a8b60476bbb5d852d8287b9377cfee3afbffba15c0715edfc",
+        "bytes": 1270
+      },
+      {
+        "source": "/root/r14_work/closure_checks/check_host.sh",
+        "member": "check_host.sh",
+        "sha256": "78b29ecd63200154c995b150257a81937fe70546aab0b93a8dd01d1264bc88f3",
+        "bytes": 1019
+      },
+      {
+        "source": "/root/r14_work/closure_checks/check_python.sh",
+        "member": "check_python.sh",
+        "sha256": "a9a5b9d4e28da70afb81b5ab330bb4497d378eef94ba8aaadc26e22f95fd55df",
+        "bytes": 487
+      },
+      {
+        "source": "/root/r14_work/closure_checks/check_r14_harness.py",
+        "member": "check_r14_harness.py",
+        "sha256": "aab88c4400a18ff7666c8c0ad9a371ca2e9a7608bee43a0a938cb93496f1b2db",
+        "bytes": 975
+      },
+      {
+        "source": "/root/r14_work/closure_checks/contracts.json",
+        "member": "contracts.json",
+        "sha256": "a998f803116b64e75ebeaa6ab6a4bfb90dc13f3f679ffd5218888b9887bde122",
+        "bytes": 6776
+      },
+      {
+        "source": "/root/r14_work/closure_checks/cuda.done",
+        "member": "cuda.done",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "source": "/root/r14_work/closure_checks/cuda.log",
+        "member": "cuda.log",
+        "sha256": "4a86d98d1582d69b9c87c4b9c7874c5bbc645a6206b4411c49e1d3f0e6d5920a",
+        "bytes": 924
+      },
+      {
+        "source": "/root/r14_work/closure_checks/final_host.before_combine.done",
+        "member": "final_host.before_combine.done",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "source": "/root/r14_work/closure_checks/final_host.done",
+        "member": "final_host.done",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "source": "/root/r14_work/closure_checks/final_host.log",
+        "member": "final_host.log",
+        "sha256": "ffed8e3b613950a15531a83bc149e58d034dbb387524c4d3e04d2f2180c3f3ed",
+        "bytes": 4045
+      },
+      {
+        "source": "/root/r14_work/closure_checks/frontends.log",
+        "member": "frontends.log",
+        "sha256": "ef2871c9cb3791942aad5e798be6e1f3b4ee26d761a60d33dc38c0c42f0fbaef",
+        "bytes": 481
+      },
+      {
+        "source": "/root/r14_work/closure_checks/harness.done",
+        "member": "harness.done",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "source": "/root/r14_work/closure_checks/harness.log",
+        "member": "harness.log",
+        "sha256": "70c099091cc1bd139f1a251dacfc7c62b3cc345cfb25d95e65ab25588be5e43c",
+        "bytes": 8017
+      },
+      {
+        "source": "/root/r14_work/closure_checks/host.log",
+        "member": "host.log",
+        "sha256": "ec53f98f62f5dfcb9a4b1ff911143972e85f312e5825c937b75e1cff297c38ed",
+        "bytes": 7866
+      },
+      {
+        "source": "/root/r14_work/closure_checks/orchestration.log",
+        "member": "orchestration.log",
+        "sha256": "a9fd3e4dfe661f02441e983076c3cd7cb2d889504e28b5a39da9b391abe63d2e",
+        "bytes": 100
+      },
+      {
+        "source": "/root/r14_work/closure_checks/python.done",
+        "member": "python.done",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "source": "/root/r14_work/closure_checks/python.log",
+        "member": "python.log",
+        "sha256": "77016cadb4798f83effb7ae6907eb284da2d9ac83d3622aa8d621e3106c72b16",
+        "bytes": 1063
+      },
+      {
+        "source": "/root/r14_work/closure_checks/r14_harness_command.json",
+        "member": "r14_harness_command.json",
+        "sha256": "06604d5e3535c2802a9e3e1ca670590166b62feac42c7b1b783a22757a01db2c",
+        "bytes": 1146
+      },
+      {
+        "source": "/root/r14_work/closure_checks/user_worktree_preserved.json",
+        "member": "user_worktree_preserved.json",
+        "sha256": "ced3ef97d8e63119d24e99bd2aed2ed9b983961fb143b386eb7e71819e64d7eb",
+        "bytes": 342
+      },
+      {
+        "source": "/root/TileMega/docs/experiments/SEQSCAN/raw/export/gqa2.json",
+        "member": "fixtures/gqa2.json",
+        "sha256": "cb0cc9afb4776cbdc201c839a4b0be7e3dde14e2938f38c6f9c7449fee273add",
+        "bytes": 126708
+      }
+    ]
+  }
+}

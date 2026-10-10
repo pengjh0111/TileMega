@@ -2,7 +2,7 @@
 
 - Prompt：`/root/Prompt/TileMega_R14_prompt.md`；SHA256 `c7e5771383873ae450c153d873bc633cf4481d9be5cea0f65e216e5b7073330e`。
 - 指定基线：`76beaea5e2d66e3311b36d020f470c4f016406d0`；开工实际 HEAD：`9aebaf6553247ec83c79bc8f101e61ad4ce564fd`，随后快进至指定基线。
-- 补充测试冻结源码：`97f7a2f1d`。最终推送 HEAD、相对基线提交数见本次交付消息；本报告随收尾提交发布。
+- 补充测试冻结源码：`97f7a2f1d`；代码整合 HEAD：`8f4f7a6f0`。最终发布 HEAD 为本报告所在收尾提交（`git rev-parse HEAD`），交付消息给出其 hash；相对基线 522 个提交，其中 R14 侧 120 个、远端既有 402 个（含 dnn-moe）。
 - 用户于 2026-10-10 要求停止未完成测试并整理推送。本轮据已有证据收口，没有重新发起 GPU 测量。
 - 远端用户合并：`a3f0dc6d10c368dbbe3073c66cc750aec92a70a3`，包含 dnn-moe `0e64c56b010488a7229a75ed79814fb865aef197`；整合保留两条历史，正常推送。
 - `R13_review.md` 未找到，以已保存 prompt 的审查结论为依据。
@@ -165,6 +165,7 @@ target SHA256：`14b69fbb3e2111bb8d9618b12449ecf9ae03d34d588ac2f46b250f1fd0c59d7
 停止记录：raw/closure_20261010/stop.json；原始失败、重试、progress 与取消标记均保留。没有把 GPU 占用误报为候选失败。
 历史 scheduler 的 failed/skipped 只代表旧尝试；不得据其计数推断本次仍在运行。用户要求不再测，所有旧/补充队列保持停止。
 若未来恢复，先读一次 state/progress 与 closure_acceptance.json；需显式重新定义剩余依赖，不能直接把旧 under-covered 胜者作为终版。
+state/progress/stop 属运行目录，已收进补充原始包；新 clone 可用 `tar -xOf raw/supplemental_closure.tar.xz docs/experiments/SERVING_R14/scheduler_remaining/state.json` 读取冻结状态，不应据旧队列自动重启。
 
 偏离与影响：
 - 16 KiB Independent 私有双缓冲超出 sm_89 共享内存；此数值组合通过 paged transport 验证，实际 Independent 使用合法 8 KiB。
@@ -174,6 +175,10 @@ target SHA256：`14b69fbb3e2111bb8d9618b12449ecf9ae03d34d588ac2f46b250f1fd0c59d7
 - 最终性能与 PlanFamily 留空，原因是用户取消余项；不自动启用单因素胜者，不声称四格 TM/vLLM 不退步。
 - 为保留远端 dnn-moe 与已测 R14 的不同模板/运行时 ABI，用现有 `TILEMEGA_DM_SUPPORT` 选择 Dm* 兼容头，身份 schema 分流；未重写二进制身份或回填旧数据。
 - 合并只进行编译与主机回归；历史 GPU 数据绑定合并前源码，不声称合并后已完成 GPU 终验。整合证据见 raw/closure_integration/。
+- 两条历史通过普通 merge 保留；13 个入口按既有 DM 宏分派，R14 分支体与 `97f7a2f1d` 逐字一致，12 个 DM 头与远端逐字一致，余下 runtime 仅增加三个主机身份查询导出。
+- 兼容实现暂时重复模板体，避免将两套已开发 ABI 强行混合；统一模板接口留待后续独立审查。DNN/MoE 身份 schema 保留，R14 校验器支持读取且不改写其哈希内容。
+- 整合验证：14 项主机检查、45 项 Python 检查通过；sm_89 编译通过四个数值测试源、两个 DM 完整运行时入口和一个原 R14 生成控制。编译器源码印章通过；无合并后 GPU 执行/性能结论。
+- 额外 MoE 40 族 CPU 搜索未在 300 s 命令窗口内完成，后续五项可选主机检查未运行；保留原日志，不列为通过，不续跑。整合验证不能替代 DNN/MoE 全量验收。
 
 ## R15 方案（仅记录，不实施）
 

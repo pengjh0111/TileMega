@@ -1518,6 +1518,6 @@ R13 closed with declared limitations: two optional canary reruns and three depen
 | D0 | Five clean processes, standard ceiling 979.97757 GB/s; target and raw evidence archived |
 | Phase D | Fresh D1 incomplete; D2/D3 and PlanFamily undecided; cancelled at user request |
 | Supplemental queue | 12 done / 53 cancelled / 0 running / 0 pending; no further tests scheduled |
-| Integration | Preserve remote tilemega's dnn-moe merge; existing DM ABI gate isolates conflicting runtime/template APIs |
+| Integration | Remote dnn-moe history retained; DM ABI gates checked by host/Python and sm_89 compilation only; no post-merge GPU acceptance |
 
 Recovery source: SERVING_R14/scheduler_remaining/{state.json,progress.tsv}; read once before any separately authorized restart. Final performance gates are unaccepted, not failed or passed. R15 work is proposals only; see SERVING_R14/summary.md and F-365.
