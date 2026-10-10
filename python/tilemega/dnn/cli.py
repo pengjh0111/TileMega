@@ -43,6 +43,8 @@ def read_config(path):
     name = config.get('model', {}).get('name')
     if name not in ('resnet18', 'mbv1', 'mbv2', 'bert', 'nafnet'):
         raise ValueError('model.name must identify one of the five DM-1 DNNs')
+    if type(config['model'].get('structure_only', False)) is not bool:
+        raise ValueError('model.structure_only must be boolean')
     config['workload'] = dict(dict(batch=[1]), **config.get('workload', {}))
     batches = config['workload']['batch']
     if not batches or len(set(batches)) != len(batches) or any(
@@ -82,11 +84,13 @@ def model_export(config, out):
         directory = out / 'exports' / label
         if not (directory / 'manifest.json').is_file():
             export(model['name'], out / 'exports', out / 'fixtures',
+                structure_only=model.get('structure_only', False),
                 mask=model.get('attention_mask', False),
                 nafnet_weights=Path(model.get('nafnet_weights', DEFAULT_NAFNET)),
                 checkpoint=model.get('checkpoint'))
     manifest = json.loads((directory / 'manifest.json').read_text())
-    if manifest['model'] != label or not manifest.get('accuracy_eligible'):
+    if manifest['model'] != label or (not model.get('structure_only') and
+                                      not manifest.get('accuracy_eligible')):
         raise ValueError('export must be the requested upstream model with pretrained weights')
     for name, expected in manifest['artifacts'].items():
         if file_sha(directory / name) != expected:
@@ -143,6 +147,8 @@ def build(config, out, compiler):
 
 
 def run(config, plans, out, inputs):
+    if config['model'].get('structure_only'):
+        raise ValueError('architecture-only exports require check --synthetic-weights')
     from safetensors.torch import load_file, save_file
     from .check import NativeForward
     if inputs is None:
@@ -172,6 +178,8 @@ def check(config, plans, out, *, synthetic_weights=False):
         return
     from .check import main as check_model
     model = config['model']
+    if model.get('structure_only'):
+        raise ValueError('architecture-only exports require check --synthetic-weights')
     data = config.get('data', {}).get('path')
     if not data:
         raise ValueError('data.path is required for the official G-DNN correctness gate')

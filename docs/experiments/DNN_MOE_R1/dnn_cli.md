@@ -32,3 +32,9 @@ to overwrite existing smoke evidence, and checks artifact identity. `report`
 retains both receipts, including a failed official gate beside a passing smoke.
 Four CLI host tests pass (`runs/dm1-dnn-public-smoke-host-v1.log`); the new dispatch
 uses the already executed checker and does not trigger another native replay.
+
+verified: `model.structure_only=true` also permits upstream architecture export
+and construction without pretrained downloads. Normal run and the official
+dataset gate reject this scope; `check --synthetic-weights` remains available.
+The pretrained default is preserved. Five CLI host tests pass, including this
+scope distinction (`runs/dm1-dnn-architecture-cli-host-v1.log`).

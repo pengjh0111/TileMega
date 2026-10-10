@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from tilemega.dnn.cli import read_config, check, report
+from tilemega.dnn.cli import read_config, model_export, check, report
 
 
 class DnnCliTest(unittest.TestCase):
@@ -63,6 +63,19 @@ class DnnCliTest(unittest.TestCase):
             (root/'B2/smoke.json').write_text(json.dumps(receipt))
             with self.assertRaisesRegex(ValueError,'another artifact'):
                 report([plan],root)
+
+    def test_architecture_export_requires_explicit_synthetic_scope(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            (root/'manifest.json').write_text(json.dumps(dict(model='mbv1',
+                accuracy_eligible=False,artifacts={})))
+            config=dict(model=dict(name='mbv1',export=str(root)))
+            with self.assertRaisesRegex(ValueError,'pretrained weights'):
+                model_export(config,root)
+            config['model']['structure_only']=True
+            self.assertEqual(model_export(config,root),root)
+            with self.assertRaisesRegex(ValueError,'synthetic-weights'):
+                check(config,[],root)
 
     def test_inherited_gpu_lock(self):
         # A nested correctness CLI must retain exclusivity without waiting on
