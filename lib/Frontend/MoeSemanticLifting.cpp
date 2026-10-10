@@ -115,6 +115,9 @@ void LiftStage(Builder& b,unsigned index) {
       auto const& g=plan.gemms.at(s.gemm);auto const& a=g.access;
       op.kind=OperatorKind::kMatmul;op.arithmetic="gemm";
       if(a.b==DmBAccess::kDense) {
+        // A region can begin at an external hidden-state matrix without a
+        // preceding normalization stage. Decoder inputs are already seeded.
+        b.Matrix(g.a,b.tokens,C(g.k));
         b.Matrix(g.b,C(g.n),C(g.k));b.Matrix(g.d,b.tokens,C(g.n));
         op.domain={D("m",b.tokens),D("n",C(g.n)),D("k",C(g.k),true)};
         op.operands={b.Read(g.a,{I("m"),I("k")}),b.Read(g.b,{I("n"),I("k")})};
