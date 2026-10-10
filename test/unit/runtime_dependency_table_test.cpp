@@ -58,6 +58,13 @@ int TestRuntimeDependencyTable(int, char**) {
   auto dense=analysis::CouplingRelation::FromIslText(
       "{ [c] -> [p] : 0<=c<4096 and 0<=p<8192 }");
   auto dense_table=analysis::BuildDependencyTableLinear(dense,8192,4097);
+  analysis::ValidateLinearTaskBounds(dense,8192,4096);
+  for(auto invalid:std::vector<std::pair<unsigned,unsigned>>{{8191,4096},{8192,4095},{0,4096}}) {
+    bool rejected=false;
+    try{analysis::ValidateLinearTaskBounds(dense,invalid.first,invalid.second);}
+    catch(std::invalid_argument const&){rejected=true;}
+    assert(rejected);
+  }
   assert(dense_table.stride==1 && dense_table.intervals.size()==4097);
   for(unsigned c=0;c<4096;++c)
     assert(dense_table.intervals[c].first==0 && dense_table.intervals[c].count==8192);

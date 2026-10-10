@@ -21,6 +21,9 @@ CouplingRelation LinearizeTaskCoordinates(OperatorNode const& node,
 // Prove serialized canonical interval rows directly against the source map.
 // Does not recover endpoints or count relation pairs.
 void ValidateDependencyTableLinear(DependencyTable const& table);
+// Check only bounded task domains, without constructing an interval encoding.
+void ValidateLinearTaskBounds(CouplingRelation const& relation,
+    std::uint32_t producers,std::uint32_t consumers);
 DependencyTable BuildDependencyTableLinear(CouplingRelation const& relation,
     std::uint32_t producers, std::uint32_t consumers);
 CouplingRelation LinearizeTaskCoupling(CouplingRelation const& relation,

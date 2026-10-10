@@ -147,6 +147,26 @@ DependencyTable BuildDependencyTable(CouplingRelation const& relation,
   return BuildDependencyTableLinear(LinearizeTaskCoupling(relation, producer, consumer, known),
                                    Count(producer, known), Count(consumer, known));
 }
+void ValidateLinearTaskBounds(CouplingRelation const& relation,
+    std::uint32_t producers,std::uint32_t consumers) {
+  IslReferenceAudit audit(__func__);
+  auto source=relation.ToString(),p=std::to_string(producers),c=std::to_string(consumers);
+  (void)MemoExact({"linear-task-domain-bounds-v1",source,p,c},[&] {
+    if(!producers || !consumers || relation.DomainDimNames().size()!=1 || relation.RangeDimNames().size()!=1)
+      throw std::invalid_argument("invalid linear task bounds");
+    auto* ctx=SharedIslContext().raw();auto map=isl_util::ReadMap(ctx,source);
+    if(isl_map_dim(map.get(),isl_dim_param))
+      throw std::invalid_argument("linear task bounds require bound parameters");
+    auto bounds=isl_util::Map(isl_map_universe(isl_map_get_space(map.get())));
+    bounds=isl_util::Map(isl_map_lower_bound_si(bounds.release(),isl_dim_in,0,0));
+    bounds=isl_util::Map(isl_map_upper_bound_val(bounds.release(),isl_dim_in,0,isl_val_int_from_ui(ctx,consumers-1)));
+    bounds=isl_util::Map(isl_map_lower_bound_si(bounds.release(),isl_dim_out,0,0));
+    bounds=isl_util::Map(isl_map_upper_bound_val(bounds.release(),isl_dim_out,0,isl_val_int_from_ui(ctx,producers-1)));
+    if(isl_map_is_subset(map.get(),bounds.get())!=isl_bool_true)
+      throw std::invalid_argument("linear task relation exceeds its task bounds");
+    return true;
+  });
+}
 void ValidateDependencyTableLinear(DependencyTable const& table) {
   IslReferenceAudit audit(__func__);
   (void)MemoTableProof(table,[&] {

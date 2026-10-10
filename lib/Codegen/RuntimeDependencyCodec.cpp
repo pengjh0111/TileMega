@@ -138,8 +138,9 @@ DependencyRecord DecodeRuntimeDependency(mlir::DictionaryAttr attr) {
     for(unsigned i=0;i<consumers;++i)if(counts[i]!=record.contributions.expected[i])
       throw std::invalid_argument("retained counted threshold differs from contribution image");
     record.conservative_relation=Relation(counted,"conservative_relation");
-    // Rebuild the finite I2 encoding to prove it stays inside both task domains.
-    (void)analysis::BuildDependencyTableLinear(record.conservative_relation,record.producers,consumers);
+    // Counted waits encode target counts, not producer intervals. Validate the
+    // I2 task domains without constructing an unused (potentially huge) table.
+    analysis::ValidateLinearTaskBounds(record.conservative_relation,record.producers,consumers);
     result.counted=std::move(record);
   }
   return result;
