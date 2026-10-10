@@ -328,6 +328,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/window_task_access_test.cpp
     test/unit/exact_task_metadata_test.cpp
     test/unit/dynamic_task_cursor_test.cpp
+    test/unit/moe_opaque_control_test.cpp
     test/unit/storage_hazards_test.cpp
     test/unit/bound_dependency_form_test.cpp
     test/unit/capacity_form_test.cpp
@@ -895,6 +896,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME dm_counted_fusion COMMAND tilemega-unit dm_counted_fusion)
   add_test(NAME dm_gemm_class_domain COMMAND tilemega-unit dm_gemm_class_domain)
   add_test(NAME dynamic_task_cursor COMMAND tilemega-unit dynamic_task_cursor)
+  add_test(NAME moe_opaque_control COMMAND tilemega-unit moe_opaque_control)
   add_test(NAME dm_forward_search COMMAND tilemega-unit dm_forward_search)
   add_test(NAME task_arithmetic_domain COMMAND tilemega-unit task_arithmetic_domain)
   add_test(NAME dm_store_geometry COMMAND tilemega-unit dm_store_geometry)

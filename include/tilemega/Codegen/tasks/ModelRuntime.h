@@ -26,6 +26,9 @@
 #ifndef TILEMEGA_MOE_DYNAMIC
 #define TILEMEGA_MOE_DYNAMIC 0
 #endif
+#ifndef TILEMEGA_MOE_OPAQUE
+#define TILEMEGA_MOE_OPAQUE 0
+#endif
 #if TILEMEGA_MOE_DYNAMIC
 #include <tilemega/Codegen/DynamicTaskCursor.h>
 #endif
@@ -290,6 +293,9 @@ struct StageDesc {
   std::uint32_t spatial_width = 0;
   std::uint32_t partial_rows_per_image = 0;
   DmMoeStage moe{};
+#if TILEMEGA_MOE_OPAQUE
+  std::uint32_t opaque_predecessor = kDmNoIndex;
+#endif
 #endif
 };
 inline constexpr std::uint32_t kHandoffAutoCombine = kNoOperand - 1u;

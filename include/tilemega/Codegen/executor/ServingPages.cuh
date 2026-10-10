@@ -94,6 +94,28 @@ __device__ inline bool BindingReady(Params const& p,unsigned stage,int task,
   });
   return ready;
 }
+#if TILEMEGA_MOE_OPAQUE
+__device__ inline executor::BindingGate OpaqueGate(Params const& p,unsigned stage,
+    bool l2,EventCounter* events,unsigned long long iteration,Watch const* watch=nullptr) {
+  auto producer=p.stages[stage].opaque_predecessor;
+  if(producer>=p.stage_count || !events){asm volatile("trap;");return {};}
+  if(l2) {
+    auto* row=events+EventIndex(p,producer,kWholeStageEventGroup);
+#if TILEMEGA_SYNC_V3 || TILEMEGA_EVENT_RED_PUBLISH
+    return {&row->arrivals,EventTriggers(p,producer,kWholeStageEventGroup)*(iteration+1),watch};
+#else
+    return {&row->epoch,iteration+1,watch};
+#endif
+  }
+  producer=BindingBarrierOwner(p.stages,p.stage_count,producer);
+  if(producer>=p.stage_count){asm volatile("trap;");return {};}
+#if TILEMEGA_SYNC_V3
+  return {&events[producer].arrivals,static_cast<unsigned long long>(gridDim.x)*(iteration+1),watch};
+#else
+  return {&events[producer].epoch,iteration+1,watch};
+#endif
+}
+#endif
 template<bool Loader>
 __device__ inline void WaitBinding(Params const& p,unsigned stage,int task,
     bool l2,EventCounter* events,unsigned long long iteration,Watch const* watch) {
@@ -170,6 +192,12 @@ struct PageStream {
         }
       }
       auto const& s=p.stages[stage];
+#if TILEMEGA_MOE_OPAQUE
+      // Probe before advancing over non-paged stages too. A blocked probe
+      // leaves the cursor intact, allowing compute to drain the current page.
+      if(s.opaque_predecessor!=kDmNoIndex &&
+          !OpaqueGate(p,stage,l2,events,base_iteration+step).LoaderReady())return false;
+#endif
       char const* source=nullptr;int total=0;
       if(IsGemmStage(s.kind)) {
 #if TILEMEGA_WEIGHT_LAYOUT_TILED
@@ -556,6 +584,10 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
                      Lookahead const* lookahead=nullptr) {
   auto const& s=p.stages[stage_index];using E=cutlass::bfloat16_t;
   if(s.handoff_elided)return;
+#if TILEMEGA_MOE_OPAQUE
+  if constexpr(Loader)if(s.opaque_predecessor!=kDmNoIndex)
+    OpaqueGate(p,stage_index,L2,events,iteration,ring.watch).WaitLoader();
+#endif
   if constexpr(Loader)if(lookahead)(*lookahead)(0);
   if constexpr(!Loader && L2)if(s.kind==TaskKind::kEmbedding && iteration) {
 #if TILEMEGA_TRACE_STEP

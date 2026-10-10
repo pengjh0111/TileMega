@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 namespace tilemega::tests::dynamic_task_cursor_test { int TestDynamicTaskCursor(int, char**); }
+namespace tilemega::tests::moe_opaque_control_test { int TestMoeOpaqueControl(int, char**); }
 namespace tilemega::tests::target_spec_test { int TestTargetSpec(int, char**); }
 namespace tilemega::tests::coupling_types_test { int TestCouplingTypes(int, char**); }
 namespace tilemega::tests::table27_test { int TestTable27(int, char**); }
@@ -125,6 +126,7 @@ int main(int argc, char** argv) {
   struct Entry { char const* name; int (*run)(int, char**); };
   Entry const entries[] = {
     {"dynamic_task_cursor", tilemega::tests::dynamic_task_cursor_test::TestDynamicTaskCursor},
+    {"moe_opaque_control", tilemega::tests::moe_opaque_control_test::TestMoeOpaqueControl},
     {"dm_dram_images", tilemega::tests::dm_dram_images_test::TestDmDramImages},
     {"binding_request_traffic", tilemega::tests::binding_request_traffic_test::TestBindingRequestTraffic},
     {"binding_request_pricing", tilemega::tests::binding_request_pricing_test::TestBindingRequestPricing},

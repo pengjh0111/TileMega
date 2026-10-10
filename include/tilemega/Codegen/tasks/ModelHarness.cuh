@@ -49,6 +49,9 @@
 #include <tilemega/Codegen/tasks/FusedRoPEKVTaskBody.h>
 #include <tilemega/Codegen/tasks/KVAppendTaskBody.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
+#if TILEMEGA_MOE_OPAQUE
+#include <tilemega/Codegen/MoeOpaqueControl.h>
+#endif
 #if TILEMEGA_MOE_DYNAMIC
 #include <tilemega/Codegen/executor/DynamicTaskClaim.cuh>
 static_assert(!TILEMEGA_PAGED && TILEMEGA_SLOT_WINDOW == 1 && !TILEMEGA_PREFETCH_RUNTIME,
@@ -2926,6 +2929,24 @@ inline DeviceModel Create(ModelSpec const& spec,
   }
   // The generated plan names original stages. Split-K combines are created
   // above, so resolve handoff references only after entry[] is complete.
+#if TILEMEGA_MOE_OPAQUE
+  std::vector<OpaqueMoeStage> opaque_info;
+  for(unsigned i=0;i<spec.stage_count;++i) {
+    auto const& s=spec.stages[i];
+    opaque_info.push_back({IsGemmStage(s.kind),s.kind==TaskKind::kRMSNorm,
+        s.kind==TaskKind::kMoETopK,s.kind==TaskKind::kMoECombine,s.gemm,s.moe.router_gemm});
+  }
+  auto opaque_regions=FindOpaqueMoeRegions(opaque_info);
+  std::vector<bool> opaque_stage(spec.stage_count,false);
+  for(auto const& region:opaque_regions)
+    for(unsigned i=region.first;i<=region.last;++i) {
+      opaque_stage[i]=true;
+      for(unsigned expanded=entry[i];expanded<=done[i];++expanded) {
+        model.stages[expanded].handoff_elided=false;
+        model.stages[expanded].handoff_reduce_stage=kNoOperand;
+      }
+    }
+#endif
   for (std::uint32_t i = 0; i < spec.stage_count; ++i) {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     if(spec.stages[i].binding_producer!=kDmNoIndex) {
@@ -2938,6 +2959,12 @@ inline DeviceModel Create(ModelSpec const& spec,
 #endif
     auto target = spec.stages[i].handoff_reduce_stage;
     if (target == kNoOperand) continue;
+#if TILEMEGA_MOE_OPAQUE
+    if(opaque_stage[i] || (target<spec.stage_count && opaque_stage[target])) {
+      model.stages[entry[i]].handoff_reduce_stage=kNoOperand;
+      continue;
+    }
+#endif
     if (target == kHandoffAutoCombine) {
       if (done[i] != entry[i] + 1 ||
           model.stages[entry[i] + 1].kind != TaskKind::kGemmCombine)
@@ -3017,6 +3044,24 @@ inline DeviceModel Create(ModelSpec const& spec,
       dependencies.push_back(edge);
     }
   }
+#if TILEMEGA_MOE_OPAQUE
+  for(auto const& region:opaque_regions) {
+    unsigned first=entry[region.first],last=done[region.last];
+    unsigned exit=last+1<model.stages.size()?last+1:last;
+    for(unsigned consumer=std::max(1u,first);consumer<=exit;++consumer) {
+      auto producer=consumer-1;
+      model.stages[consumer].opaque_predecessor=producer;
+      bool full=false;
+      for(auto& edge:dependencies)if(edge.producer==producer && edge.consumer==consumer &&
+          edge.map!=StageDependency::Map::kCounted) {
+        edge={producer,consumer,StageDependency::Map::kAll,1u,0,0,1u};full=true;
+      }
+      // Counted publication is retained even when a full-stage control edge
+      // also orders the pair. It is a different logical completion contract.
+      if(!full)dependencies.push_back({producer,consumer,StageDependency::Map::kAll,1u,0,0,1u});
+    }
+  }
+#endif
   std::sort(dependencies.begin(), dependencies.end(),
             [](StageDependency const& a, StageDependency const& b) {
               return a.consumer < b.consumer;
@@ -3548,6 +3593,11 @@ inline DeviceModel Create(ModelSpec const& spec,
       throw std::invalid_argument("K-phase producer requires kappa one and both event rows");
   }
 #if TILEMEGA_SERVING_RUNTIME && TILEMEGA_PAGED
+#if TILEMEGA_MOE_OPAQUE
+  // Loader readiness cannot use compute's FIFO wait elision.
+  for(auto const& s:model.stages)if(s.opaque_predecessor!=kDmNoIndex)
+    model.event_flags[s.opaque_predecessor]|=kNeedsAggregateEvent;
+#endif
   // Lag-one safety rows: the next decode iteration reads the token and the
   // historical KV row produced by this one. These rows are deliberately not
   // ordinary forward task dependencies.
