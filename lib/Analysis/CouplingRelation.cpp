@@ -13,6 +13,7 @@
 #include <map>
 #include <sstream>
 #include <isl/ilp.h>
+#include <optional>
 
 #ifndef TILEMEGA_ISL_COMPONENT_ENUMERATION
 #define TILEMEGA_ISL_COMPONENT_ENUMERATION 1
@@ -424,7 +425,7 @@ QuasiPolynomial CouplingRelation::BoundTaskCard(unsigned max_domain_points) cons
     isl_util::Set domain(isl_map_domain(isl_map_copy(map.get())));
     if (isl_set_is_empty(domain.get()) == isl_bool_true)
       return isl_map_dim(map.get(), isl_dim_in) == 0 ? QuasiPolynomial::Constant(0) : Card();
-    auto factor=[&]() -> QuasiPolynomial {
+    auto factor=[&]() -> std::optional<QuasiPolynomial> {
       // Many N/chunk coordinates repeat the same element fiber. Remove one
       // only after proving that its pullback reproduces the original map.
       // This keeps bound forward graphs out of huge symbolic floor sums.
@@ -438,8 +439,11 @@ QuasiPolynomial CouplingRelation::BoundTaskCard(unsigned max_domain_points) cons
           return CouplingRelation(isl_util::ToString(reduced.get())).BoundTaskCard(max_domain_points)
               .SumAlong(CouplingRelation(isl_util::ToString(projection.get())));
       }
-      return Card();
+      return std::nullopt;
     };
+    // Repeated channel/chunk coordinates dominate even small task domains.
+    // Prove independence before scanning fibers, not only after a size cap.
+    if(auto factored=factor())return *factored;
     std::uint64_t box = 1;bool box_exceeds_limit=false;
     for (int axis = 0; axis < isl_set_dim(domain.get(), isl_dim_set); ++axis) {
       isl_util::Val lo(isl_set_dim_min_val(isl_set_copy(domain.get()), axis));
@@ -463,7 +467,7 @@ QuasiPolynomial CouplingRelation::BoundTaskCard(unsigned max_domain_points) cons
         return isl_stat_ok;
       };
       auto status=isl_set_foreach_point(domain.get(),count,&actual);
-      if(actual.capped){isl_ctx_reset_error(Ctx());return factor();}
+      if(actual.capped){isl_ctx_reset_error(Ctx());return Card();}
       if(status!=isl_stat_ok)throw std::runtime_error("finite task domain scan failed");
     }
     struct Group {
