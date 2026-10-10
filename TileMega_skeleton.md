@@ -1702,3 +1702,5 @@ Codegen 与 host 只消费 Plan（§5.7.4），不得在其中新增调度决策
 | 2026-09 | v2.1 第九轮补充 | 以访问像计数的绝对下界锚定 regime A；引入默认关闭的 BF16 物理价格分量与设备级 DRAM 流体服务器；外层改用 task-space 释放律模型、仅 top-M 作模板/有界 EFT 物化与流体复核；保留旧路径及执行语义 |
 | 2026-09 | v2.1 第十轮补充 | 以 θ=(batch,past) 的离线静态批 serving 计划承载完整生成请求；BF16 后端按目标能力选择通用 SM80 类 CuTe collective；regime A 用在途字节曲线定价 DRAM，搜索增量准备并在 past 区间优化；外部状态 C ABI 复用结构不变的计划，每模式维持独立单调事件迭代 |
 | 2026-09 | v2.1 第十一轮补充 | decode serving 增加沿 σ 的 L2/页环预取、边级交接决策与按 Caps 选择的异步搬运/PDL 路径；目标驱动同步标定，工具统一为 `tilemega` 子命令与带分层缓存的端到端编排。原有 Plan 和单次前向执行语义保留；各路径的实现与验证状态由 `docs/STATUS.md`、`docs/TODO.md` 记录。 |
+
+（⚠️ DM-1：verified：forward phase、新任务种类、窗口精确关系、kTable/kCounted、WAR/WAW 与虚拟 tile 绑定已有生成执行证据；新增 MoE 动态 L2 领取与 opaque 入口/内部/出口屏障及 loader lookahead 边界，固定合成输入在 sm_89 执行通过。全深度 B1 prefill/decode 干构建与索引检查通过，B16 prefill 尚有生成瓶颈。完整图融合/复用、联合结构选择、GEMV 与通用 LA 仍未完成。用户已取消性能、真实数据集门及重复进程矩阵，新结果不构成 50 进程同步结论。详见 docs/experiments/DNN_MOE_R1/summary.md。）

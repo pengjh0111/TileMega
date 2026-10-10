@@ -1,6 +1,6 @@
 # DM-1 working report
 
-Status: **incomplete**. Shared infrastructure and DNN primitive integration are in progress.
+Status: **incomplete**. Generated DNN/MoE paths execute; full-graph analysis, solver and LA integration remain.
 Export coverage and primitive checks do not imply model correctness.
 
 ## Scope and provenance
@@ -31,17 +31,23 @@ Export coverage and primitive checks do not imply model correctness.
 | CI-1 | verified: typed arguments, CPU constants/shape bindings, legacy bridge compatibility (`bridge.md`) |
 | CI-2 | verified: DM descriptors, finite epilogue chains, dense/page/split-K dispatch, narrow tile families (`descriptors.md`, `numerics.md`) |
 | CI-3 | verified: forward ABI and native CG CLI; DNN exported-model entry implemented; MoE forward region CLI entry/codegen implemented; complete DNN gates and full decoder checks pending |
-| CI-4 | verified: exact window/table/WAR-WAW foundations, virtual capacity/counting, native thresholds; memory-planner and body integration pending (`analysis.md`) |
-| CI-5 | verified: synthetic waits/binding/LA and native forward/prefill PageStream; real model dispatch remains incomplete (`synchronization.md`) |
-| CI-6 | verified: full 48-layer real routing profile and layer 0/24/47 input captures; profile consumers and body fits pending |
-| CI-7 | verified: class/candidate, exact projection, issued convolution K, conditional/live-row and histogram pricing foundations; profile consumers/structural search pending |
-| DN-1 | verified: six real-weight upstream exports, before/Core fixtures, source FQN/dtype preservation and weight recipes. These are not model gates |
-| DN-2/3 | verified: five DNN before/Core planning and lifting, including masked BERT and full NAFNet LN2d/SG/SCA/shuffle; complete model gates pending |
-| DN-4 | verified: im2col operands and dense/tiled/page TaskBodies, small channels, tails, stride/dilation, issued split-K. Native ABI primitives verified; complete models pending |
-| DN-5/6 | verified: staged depthwise/SimpleGate and window/global pooling bodies; generated pool pipeline. dw→pw body verified; fused planning, SCA and complete model integration pending |
-| DN-7 | verified: explicit LN and ordered embedding sum, including BERT plans; proved deferred LN rewriting and generated synthetic execution verified; per-edge solver selection pending |
-| DN-8/9/10/11 | verified: encoder attention body and layout conversion; generated encoder integration in progress. Full chain/model numerics, exact memory reuse and public model CLI implemented; full-model reuse generation remains expensive |
-| MO-1 through MO-9 | verified: real exports/checkpoints, single-copy streaming under 24 GiB, routing inputs and local routing/combine bodies; gathered/indirect expert GEMMs and routing/combine wrappers verified; initial real-weight and paged regions execute correctly; full-model integration pending |
+| CI-4 | verified: exact windows/tables, WAR/WAW, virtual capacities/counting and native thresholds; large fused/reused graph cardinality generation still needs repair (`analysis.md`, `memory.md`) |
+| CI-5 | verified: native forward/prefill pages and table/counted/binding primitives; generated MoE dynamic L2 control now passes fixed-input checks; generic DNN/MoE LA elision remains incomplete (`moe_dynamic.md`) |
+| CI-6 | verified: 48-layer routing profile and layer 0/24/47 captures; profile consumers remain incomplete; empirical body fits omitted under the no-measurement scope |
+| CI-7 | verified: narrow tile/class candidates, private DW compute pricing, virtual/histogram work foundations; joint structural selection and profile/layout wiring remain incomplete |
+| DN-1 | verified: six upstream real-weight exports, before/Core fixtures and source-FQN recipes; assets are retained, no further real-weight/dataset checks are required |
+| DN-2/3 | verified: five DNN before/Core plans and semantics, including masked BERT and NAFNet SG/SCA/shuffle; prior model discrepancies remain recorded |
+| DN-4 | verified: im2col, small channels, tails, stride/dilation, split-K and paged B primitive execution (`conv.md`, T4 receipts) |
+| DN-5 | verified: DW/PW fusion integrated into frontend, exact semantics, resource pricing, split-K and executors; generated nonpaged/paged fixtures pass; full MobileNet fusion generation remains unresolved (`dwpw_fusion.md`) |
+| DN-6 | verified: window/global pooling and SCA bodies/plans; complete all-executor LA selection is pending |
+| DN-7 | verified: explicit LN, embedding sum and per-consumer deferred LN rewrite; generated synthetic execution passes; joint per-edge selection is pending |
+| DN-8/9 | verified: Tensor Core encoder attention, layouts and finite chains; independent primitive receipts exist; prior full-model numerical failures remain explicit |
+| DN-10 | verified: memory planner, arena aliases, exact hazards and retained-allocation budget accounting; generated small reuse case passes; full-model reuse generation remains unresolved (`memory.md`) |
+| DN-11 | verified: public DNN export/build/run/check entry; baseline/timing work is omitted under user scope (`dnn_cli.md`) |
+| MO-1/2/3 | verified: original-FQN exports/checkpoints, streaming expert packs, decoder/region plans, virtual/counting semantics; general automatic cross-phase layout constraints remain pending |
+| MO-4/5/6/7 | verified: routing, gathered/indirect expert GEMMs, combine and QPerKV=8 execute in generated region/decoder fixtures; GEMV implementation family and general LA wiring remain pending |
+| MO-8 | verified: slot/group binding and dynamic L2 control execute; opaque control executes with full-stage/prefetch boundaries; joint binding/BM selection remains pending |
+| MO-9 | verified: synthetic two-layer decoder paths execute; full-depth dry-build/build/check entry and correctness-only 80 GB script exist; B16 prefill generation remains unresolved; no real-weight model gate is claimed |
 
 ## Tables and gates
 
@@ -54,11 +60,10 @@ Export coverage and primitive checks do not imply model correctness.
 | T5 | MobileNetV1/ResNet18 B=2 pass ImageNetV2; NAFNet B=2 passes SIDD. Other configurations and MBV2/BERT remain incomplete |
 | T6 | Omitted under the user's no-performance-testing override |
 | T7 | Timing attribution omitted; full mechanism/model correctness remains pending |
-| T8 | G-MOE and real-weight end-to-end paths (a)(b)(c) have not passed |
+| T8 | G-MOE and real-weight end-to-end paths (a)(b) have not passed; full48 B1 dry-build/index checks pass |
 | T9/T10 | Performance measurements omitted under the user override |
 | T11 | Measured compile-scaling matrix omitted under the user override |
 | T12 | Per-artifact resources retained in identity receipts; calibration/model resource coverage remains incomplete |
-
 verified: complete synthetic two-layer QPerKV=8 decoder kernels execute in
 nonpaged/paged decode and prefill. The paged-prefill fixed case passes independent
 HF attention and MoE references on each native layer input, its final output head,
@@ -68,7 +73,6 @@ component numerical smoke under the user override, **not G-MOE**.
 `python/tilemega/moe/check_decoder.py` records both component and whole-model results.
 
 ### T1: regression
-
 verified: latest `results/T1_CI7_conv_counted.json` matches all eight generated
 CUDA/resource/SASS/token comparisons. Candidate native suite was 149/151;
 reference was 94/97. Candidate CG diagnostic failure was repaired and rebuilt
@@ -88,7 +92,6 @@ Prior checkpoint history is retained in T1 receipts and `analysis.md`.
 | NAFNet | 1605 | 1622 | none among stated counts |
 | BERT | 296 | 970 | addmm 61/73; bmm 36/24; view 276/264 |
 | BERT masked | 306 | 987 | extra correctness variant |
-
 verified: twelve BERT output-dense linears decompose to bmm+bias, accounting
 for the observed difference; the stated expectations are retained.
 All twelve archives reload with matching non-getitem inventories and BF16 weights;
@@ -101,7 +104,6 @@ NAFNet, ResNet18 and MobileNetV2 pretrained states load strictly. BERT and
 MobileNetV1 weight identities are recorded; complete model correctness is pending.
 
 ### T3/T4/T12: new primitive evidence
-
 verified: complete upstream MobileNetV1 graph execution at B=2 passes 50/50
 fresh processes, repeated L1/L2 bit equality and zero-error memcheck/racecheck.
 Five architecture builds pass; all five artifacts spill and have stack frames.
@@ -109,7 +111,6 @@ Minimum cosine with the exported BF16 checkpoint promoted to FP32 is
 0.9997538328 (`results/DN_mbv1_model_smoke_cuda.json`). Random-input smoke
 does not replace the 1000-image G-DNN gate. The actual CLI replay passes;
 its earlier timeout remains in `runs/dm1-dnn-cli-host-v1/events/mbv1.log`.
-
 verified: BERT before/Core, masked/unmasked planning and lifting pass four
 real-graph checks plus negative mask/attention/position contracts; plans have
 87 stages and 49 packed GEMMs (`results/DN_encoder_model_plan_host.json`).
@@ -118,7 +119,6 @@ repeated L1/L2 equality and zero-error sanitizers; replay passes 50/50 fresh pro
 The original-FP32 WikiText gate fails: minimum token/pooler cosine
 0.93862915/0.99785495. BF16 reference diagnostics also fail but do not relax
 the gate (`results/DN_bert_dataset_failure.json`). No BERT G-DNN gate is claimed.
-
 verified: complete NAFNet before/Core planning and lifting pass, with 335 stages,
 190 GEMMs, 226 convolutions, 72 LN2d, 36 SCA and four PixelShuffle mappings.
 Native CUDA is generated with target-bounded 99,840-byte workspace (sm_89);
@@ -134,31 +134,26 @@ verified: MobileNetV1's BN-factor artifact passes the original 1000-image
 numerical gate at B=2: mean cosine 0.99997887 and TM/BF16 top-1 0.963/0.960
 (`results/DN_mbv1_dataset.json`). This is one identified configuration;
 other batches, paged paths and feature integrations remain unverified.
-
 verified: `results/CI2_conv_operand_matrix_cuda.json` records 13 tile configurations,
 650/650 fresh numerical processes and 65 final architecture artifacts. A unique
 sm_100 recovery build replaces an interrupted overwritten artifact; its old failed
 queue and mismatched identity are retained and are not credited.
 All 65 final operand artifacts have zero spills; two have nonzero stack frames.
-
 verified: `results/CI7_dense_pipeline_cuda.json` records dense/tiled canonical
 100/100 processes, 12 neighboring configurations, five architectures and four
 zero-error sanitizers. The prior version passed numerically but produced 144
 racecheck errors per layout. A compute-warp join before scratch reuse repairs
 that race; the failed evidence is retained.
-
 verified: `results/CI2_conv_task_cuda.json` records 50 architecture/configuration
 artifacts, canonical row-major/tiled 50/50 each, eight neighbor checks, four
 zero-error sanitizers, and independent FP32 references for dense/page/split-K
 entries. **12/50 artifacts spill and 50/50 have stack frames**; every resource
 line is retained. This is standalone TaskBody coverage, not the complete DNN gate.
-
 verified: `results/DN_primitive_norm_embedding_layout_cuda.json` records 216
 primitive cases per process and 50/50 fresh processes, five architectures,
 zero spills/stack and zero-error memcheck/racecheck. It covers centered-variance
 LayerNorm, ordered BF16 embedding additions/statistics, NCHW conversion,
 channel padding, immutable 0/-inf halo and end canaries.
-
 verified: `results/CI2_conv_runtime_host.json` records 6/6 native host/CG checks
 of issued K, descriptor legality and ownership. Original illegal C24/TK fixtures
 and a stale CG diagnostic binary are retained; expectations were not loosened.
@@ -251,14 +246,10 @@ and 48-fragment metadata composition pass; neither proves full decoder execution
 
 ### Synchronization coverage
 
-verified: mapped GEMM epilogues preserve dense, NCHW and PixelShuffle outputs
-across split-K finalization. Each generated library passes 50/50 fresh L1/L2
-processes, five architectures and zero-error sanitizers, with zero spills and
-5/5 stack frames (`results/DN_generated_epilogue_{dense,nchw,shuffle}_cuda.json`).
-Tile side-storage geometry and exact segmented reads pass 9/9 host checks;
-the 24-case epilogue proof and side-store CG emissions also pass
-(`results/DN_tile_storage_host.json`, `DN_epilogue_semantics_host.json`,
-`DN_gemm_sides_host.json`). The generated side-store queue remains unsealed.
+verified: mapped dense/NCHW/PixelShuffle epilogues retain their earlier 50/50,
+five-architecture and sanitizer receipts in `results/DN_generated_epilogue_*`.
+Tile side-storage and epilogue proof receipts remain in `results/DN_tile_storage_host.json`,
+`DN_epilogue_semantics_host.json` and `DN_gemm_sides_host.json`.
 
 verified: original-weight MoE checkpoint tools pass four host tests, including
 unchanged HF loading; expert streaming/deduplication and prior weight regressions
@@ -283,7 +274,7 @@ These do not discharge the corresponding real DNN/MoE body/model paths in §8.A.
 - Q4/Q5 — stated: MoE performance comparisons are omitted; template/binding,
   placement and model correctness implementation remains required and incomplete.
 - Q6 — verified: checkpoint index/schema foundations exist; real-weight (a)(b)(c)
-  and the complete-model readiness script have not passed.
+  remain unverified; the correctness-only full-model script exists and B1 dry-build passes.
 - Q7 — stated: compile-scaling measurement is omitted under the user override.
 - verified: earlier failed builds/numerics/sanitizers are preserved. No numerical
   thresholds were changed to accommodate implementation errors.
@@ -300,9 +291,9 @@ These do not discharge the corresponding real DNN/MoE body/model paths in §8.A.
 
 ## Remaining work
 
-Complete NAFNet PSNR/dataset validation, MobileNetV2 and BERT numerics, deferred LN,
-fused dw→pw planning, memory reuse/anti-dependencies and DNN CLI/model coverage.
-Finish MoE region process/architecture gates, full decoder/QPerKV=8, all-executor LA,
-profile/search wiring, dynamic/opaque paths, real (a)(b)(c) and the 80 GB script.
-G-REG, merge checkpoints, final documentation and branch push remain pending.
-No performance matrices will be executed.
+Finish exact full-graph fusion/reuse generation, joint structural selection,
+MoE GEMV, all-executor LA elision and profile/cross-phase layout consumers.
+Complete B16 full-depth prefill generation and validate its build/check entry. Preserve prior model discrepancies.
+Default host CUDA invariance now passes 8/8 (`T1_default_cuda_host.json`); complete documentation and
+merge checkpoints, then push the completed branch. No latency matrices,
+real-weight/dataset gates or repeated-process matrices will be run.
