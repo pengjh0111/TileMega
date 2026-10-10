@@ -1486,7 +1486,25 @@ int RunCompile(int argc, char** argv) {
         if(auto reuse=plan.getAs<mlir::StringAttr>("dm_memory_reuse"))
           manifest<<",\n  \"reuse\": "<<std::quoted(reuse.getValue().str())
                   <<",\n  \"memory_arena_bytes\": "<<plan.getAs<mlir::IntegerAttr>("dm_memory_arena_bytes").getInt()
+                  <<",\n  \"memory_retained_internal_bytes\": "<<integer("tilemega.memory_retained_internal_bytes",0)
+                  <<",\n  \"memory_total_internal_bytes\": "<<integer("tilemega.memory_total_internal_bytes",0)
                   <<",\n  \"memory_hazard_count\": "<<integer("tilemega.memory_hazard_count",0);
+        llvm::json::Array buffer_records;
+        for(auto entry:plan.getAs<mlir::ArrayAttr>("buffers")) {
+          auto buffer=mlir::cast<mlir::DictionaryAttr>(entry);
+          llvm::json::Object record;
+          for(auto name:{"name","role","dtype","source"})
+            if(auto field=buffer.getAs<mlir::StringAttr>(name))record[name]=field.getValue().str();
+          for(auto name:{"constant","per_seq","per_past","per_total","per_batch","dm_arena_offset"})
+            if(auto field=buffer.getAs<mlir::IntegerAttr>(name))record[name]=field.getInt();
+          if(auto field=buffer.getAs<mlir::StringAttr>("pack_json");field && !field.getValue().empty()) {
+            auto recipe=llvm::json::parse(field.getValue());
+            if(!recipe)throw std::invalid_argument("manifest weight recipe is invalid JSON");
+            record["recipe"]=std::move(*recipe);
+          }
+          buffer_records.push_back(std::move(record));
+        }
+        manifest<<",\n  \"buffers\": "<<llvm::formatv("{0}",llvm::json::Value(std::move(buffer_records))).str();
         if((token_axis && token_axis.getValue()) || !forward) {
           for(auto entry:plan.getAs<mlir::ArrayAttr>("stages")) {
             auto stage=mlir::cast<mlir::DictionaryAttr>(entry);

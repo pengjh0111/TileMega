@@ -123,6 +123,7 @@ def generate(so, source, executor='L1', loop=False):
                                          gemms=plan['gemms'], frontend=plan.get('frontend'),
                                          reuse=plan.get('reuse', 'none'),
                                          deferred_ln=plan.get('deferred_ln'),
+                                         dwpw_fuse=plan.get('dwpw_fuse'),
                                          memory_arena_bytes=plan.get('memory_arena_bytes', 0)),
                     placement={k: plan[k] for k in ('kappa', 'grid', 'residency', 'pages')},
                     kernels=kernels, spill=any(r['spill'] for r in kernels.values()))
