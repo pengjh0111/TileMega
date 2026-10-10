@@ -157,7 +157,19 @@ def run(config, plans, out, inputs):
             save_file(dict(zip(native.outputs, outputs)), str(out / f'B{record["batch"]}' / 'outputs.safetensors'))
 
 
-def check(config, plans, out):
+def check(config, plans, out, *, synthetic_weights=False):
+    if synthetic_weights:
+        from .check_generated import check as check_generated
+        for record in plans:
+            receipt = out / f'B{record["batch"]}' / 'smoke.json'
+            if receipt.exists():
+                raise FileExistsError('refuse to overwrite a smoke receipt: ' + str(receipt))
+            result = check_generated(record['library'], record['export'], record['bridge'],
+                                     record['batch'], synthetic_weights=True)
+            if result['artifact_id'] != record['artifact_id']:
+                raise ValueError('smoke receipt belongs to another artifact')
+            atomic_json(receipt, result)
+        return
     from .check import main as check_model
     model = config['model']
     data = config.get('data', {}).get('path')
@@ -182,8 +194,13 @@ def report(plans, out):
         result = json.loads(path.read_text()) if path.is_file() else None
         if result and result['artifact_id'] != plan['artifact_id']:
             raise ValueError('correctness receipt belongs to another artifact')
+        smoke_path = out / f'B{plan["batch"]}' / 'smoke.json'
+        smoke = json.loads(smoke_path.read_text()) if smoke_path.is_file() else None
+        if smoke and smoke['artifact_id'] != plan['artifact_id']:
+            raise ValueError('smoke receipt belongs to another artifact')
         rows.append(dict(plan, correctness='pending' if result is None else
-            'passed' if result['passed'] else 'failed', metrics=result.get('metrics') if result else None))
+            'passed' if result['passed'] else 'failed', metrics=result.get('metrics') if result else None,
+            smoke=smoke))
     atomic_json(out / 'report.json', dict(scope='implementation and correctness; no performance testing', plans=rows))
     print(json.dumps(rows), flush=True)
 
@@ -195,7 +212,11 @@ def main(argv=None):
     parser.add_argument('--tilemega', type=Path, default=ROOT / 'build-dm/tools/tilemega')
     parser.add_argument('--run-dir', type=Path)
     parser.add_argument('--inputs', type=Path)
+    parser.add_argument('--synthetic-weights', action='store_true',
+        help='check one fixed synthetic state/input without a dataset; does not certify G-DNN')
     args = parser.parse_args(argv)
+    if args.synthetic_weights and args.command != 'check':
+        parser.error('--synthetic-weights requires check')
     config = read_config(args.config)
     out = (args.run_dir or Path(config['output']['dir'])).expanduser().resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -209,7 +230,8 @@ def main(argv=None):
     plans = json.loads((out / 'plans.json').read_text())
     if args.command in ('run', 'check'):
         with gpu_lock():
-            run(config, plans, out, args.inputs) if args.command == 'run' else check(config, plans, out)
+            run(config, plans, out, args.inputs) if args.command == 'run' else check(
+                config, plans, out, synthetic_weights=args.synthetic_weights)
     if args.command == 'report':
         report(plans, out)
 

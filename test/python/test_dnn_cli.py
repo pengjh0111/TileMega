@@ -5,8 +5,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from tilemega.dnn.cli import read_config
+from tilemega.dnn.cli import read_config, check, report
 
 
 class DnnCliTest(unittest.TestCase):
@@ -39,6 +40,29 @@ class DnnCliTest(unittest.TestCase):
             data['features']['global_la']='1'
             path.write_text(json.dumps(data))
             with self.assertRaisesRegex(ValueError,'global_la'):read_config(path)
+
+    def test_synthetic_smoke_preserves_dataset_evidence_and_checks_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory); (root/'B2').mkdir()
+            plan=dict(batch=2,library='plan.so',export='export',bridge='bridge.json',artifact_id='id')
+            official=root/'B2/correctness.json'
+            official.write_text(json.dumps(dict(artifact_id='id',passed=False,metrics=dict(cosine=.9))))
+            before=official.read_bytes()
+            receipt=dict(artifact_id='id',passed=True,scope='smoke; not G-DNN')
+            with patch('tilemega.dnn.check_generated.check',return_value=receipt) as execute:
+                check({},[plan],root,synthetic_weights=True)
+                execute.assert_called_once_with('plan.so','export','bridge.json',2,synthetic_weights=True)
+                with self.assertRaises(FileExistsError):
+                    check({},[plan],root,synthetic_weights=True)
+            self.assertEqual(official.read_bytes(),before)
+            report([plan],root)
+            row=json.loads((root/'report.json').read_text())['plans'][0]
+            self.assertEqual(row['correctness'],'failed')
+            self.assertTrue(row['smoke']['passed'])
+            receipt['artifact_id']='other'
+            (root/'B2/smoke.json').write_text(json.dumps(receipt))
+            with self.assertRaisesRegex(ValueError,'another artifact'):
+                report([plan],root)
 
     def test_inherited_gpu_lock(self):
         # A nested correctness CLI must retain exclusivity without waiting on

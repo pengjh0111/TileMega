@@ -23,4 +23,12 @@ the native library. Normalization variances stay positive and integer buffers
 stay integral. The reference is that synthetic BF16 state promoted to FP32,
 recorded with its seed in the receipt; it is not a real-weight model gate. One
 host exported Conv/BN check verifies deterministic, finite execution and dtypes.
-Native full-graph synthetic replay remains pending.
+verified: the complete fused MobileNetV1 graph passes a fixed synthetic B=2
+execution with L1/L2 bitwise equality (`results/DN_mbv1_full_fused_generated.json`).
+
+verified: `dnn check --synthetic-weights` exposes this checker without requiring
+`data.path`. It writes `smoke.json` separately from `correctness.json`, refuses
+to overwrite existing smoke evidence, and checks artifact identity. `report`
+retains both receipts, including a failed official gate beside a passing smoke.
+Four CLI host tests pass (`runs/dm1-dnn-public-smoke-host-v1.log`); the new dispatch
+uses the already executed checker and does not trigger another native replay.
