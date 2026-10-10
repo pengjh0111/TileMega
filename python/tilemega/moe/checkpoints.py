@@ -106,7 +106,7 @@ def inventory(directory):
     return dict(index_sha256=_sha(index_path), total_bytes=total, tensors=result, shards=headers)
 
 
-def index_check(directory, recipes=None, expected_bytes=None):
+def index_check(directory, recipes=None, expected_bytes=None, *, recipe_elements=None):
     directory = Path(directory)
     config = json.loads((directory/'config.json').read_text())
     expected = expected_tensors(config); actual = inventory(directory)
@@ -119,13 +119,22 @@ def index_check(directory, recipes=None, expected_bytes=None):
     if expected_bytes is not None and actual['total_bytes'] != expected_bytes:
         raise ValueError('checkpoint byte total differs from required identity')
     if recipes is not None:
-        from tilemega.serving.weights import _recipe_sources
-        used = set()
-        for recipe in recipes.values():
-            used.update(_recipe_sources(recipe))
+        from tilemega.moe.recipe_metadata import describe
+        if recipe_elements is not None and set(recipe_elements) != set(recipes):
+            raise ValueError('plan packing extents omit or add recipes')
+        used = set(); shapes = {}
+        for name, recipe in recipes.items():
+            metadata = describe(recipe, actual['tensors'], config)
+            used.update(metadata['sources']); shapes[name] = metadata['shape']
+            if recipe_elements is not None and (type(recipe_elements[name]) is not int or
+                    recipe_elements[name] != metadata['elements']):
+                raise ValueError('plan packed extent differs from recipe: '+name)
         if used-set(expected):
             raise ValueError('plan recipes name absent checkpoint tensors: '+str(sorted(used-set(expected))))
         actual['recipe_sources'] = sorted(used)
+        actual['recipe_shapes'] = shapes
+    elif recipe_elements is not None:
+        raise ValueError('packing extents require plan recipes')
     return dict(evidence='verified', passed=True, config_sha256=_sha(directory/'config.json'), **actual)
 
 

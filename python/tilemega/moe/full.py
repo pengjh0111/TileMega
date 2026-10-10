@@ -151,7 +151,11 @@ def build_plans(args, config):
             manifest_path = Path(str(binary)+'.plan.json')
             manifest = json.loads(manifest_path.read_text()); manifests.append(manifest)
             recipes = {buffer['name']: buffer['recipe'] for buffer in manifest['buffers'] if 'recipe' in buffer}
-            index_check(args.checkpoint, recipes)
+            extents = {buffer['name']: sum(int(buffer.get(key, 0))*bound for key, bound in (
+                ('constant', 1), ('per_seq', manifest['seq']), ('per_past', manifest['past_hi']),
+                ('per_total', manifest['seq']+manifest['past_hi']), ('per_batch', batch)))
+                for buffer in manifest['buffers'] if 'recipe' in buffer}
+            index_check(args.checkpoint, recipes, recipe_elements=extents)
             plans.append(dict(batch=batch, phase=phase, binary=str(binary),
                 bridge=str(bridges[phase, batch]), manifest=str(manifest_path),
                 manifest_sha256=file_sha(manifest_path), binary_sha256=file_sha(binary)))
