@@ -76,7 +76,9 @@ CountedDependencyForm BindAlignedCountedScatterDependency(
   if(!ca.semantic.element_reads.empty()) {
     for(auto const& read:ca.semantic.element_reads)add_read(read.tensor,read.map,read.nonnegative);
   } else for(auto const& read:ca.semantic.operands)
-    if(read.producer==producer.name)add_read(read.tensor,read.map,{});
+    // A split combiner owns the original logical tensor; its physical stage
+    // name differs from the producer retained in the source L-sem.
+    add_read(read.tensor,read.map,{});
   if(writes.empty() || reads.empty())
     throw std::invalid_argument("counted scatter has no shared tensor access");
   auto result=BindCountedTaskDependency(consumer,reads,unit_axes,binding_source,known);

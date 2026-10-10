@@ -49,6 +49,9 @@ int TestCountedWrite(int,char**) {
     auto contract=BindCountedTaskDependency(consumer,reads,{0,1},"rows");
     auto aligned=BindAlignedCountedScatterDependency(producer,consumer,"partial",{0,1},"rows");
     assert(aligned.expected==contract.expected && aligned.target_units==contract.target_units);
+    auto renamed=producer;renamed.name+=".combine";
+    auto split_aligned=BindAlignedCountedScatterDependency(renamed,consumer,"partial",{0,1},"rows");
+    assert(split_aligned.expected==contract.expected && split_aligned.target_units==contract.target_units);
     int ntiles=(channels+channels_per_task-1)/channels_per_task;
     for(unsigned target=0;target<contract.expected.size();++target) {
       int begin=(target/ntiles)*consumer_rows;
