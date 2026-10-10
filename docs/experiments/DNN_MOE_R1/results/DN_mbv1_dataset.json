@@ -1,0 +1,21 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "MobileNetV1 one identified native B=2 construction on 1000 ImageNetV2 images; remaining batch/executor/feature integration is not covered",
+  "artifact_id": "176a595676167ac0e2d9b079db208c4c1a9390bed1d25214b931efd6f80fade6",
+  "metrics": {
+    "cosine": 0.9999788749217987,
+    "bf16_cosine": 0.9999755688309669,
+    "tm_top1_match": 0.963,
+    "bf16_top1_match": 0.96
+  },
+  "criteria": {
+    "mean_cosine_min": 0.999,
+    "tm_top1_min": 0.958
+  },
+  "samples": 1000,
+  "source_receipt": "runs/dm1-mbv1-bn-factor-imagenetv2-v1/correctness.json",
+  "source_receipt_sha256": "c68c0e6d9775fb681b24216e805699e84b1b60e5d4a307918d734207820319e2",
+  "comparison": "FP32 and BF16 upstream reference from the original checkpoint",
+  "previous_failed_receipt": "runs/dm1-mbv1-imagenetv2-v1/correctness.json"
+}

@@ -1,0 +1,20 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "artifact_id": "005bd784291d8db0897505386ec07c2cff6f32e47b5b17ab6a2b0df41ab625a3",
+  "metrics": {
+    "cosine": 0.999906014919281,
+    "bf16_cosine": 0.9999216821789741,
+    "tm_top1_match": 0.992,
+    "bf16_top1_match": 0.983
+  },
+  "samples": 1000,
+  "scope": "ResNet18 one identified native B=2 construction on 1000 ImageNetV2 images; remaining batch/executor/feature integration is not covered",
+  "criteria": {
+    "mean_cosine_min": 0.999,
+    "tm_top1_min": 0.981
+  },
+  "source_receipt": "runs/dm1-resnet-imagenetv2-v1/correctness.json",
+  "source_receipt_sha256": "1974065bd0857b7e1871e4f0b2b9024a358d00b7e74f9fd1c99ef3c1ee992b85",
+  "comparison": "FP32 and BF16 upstream references from the original checkpoint"
+}

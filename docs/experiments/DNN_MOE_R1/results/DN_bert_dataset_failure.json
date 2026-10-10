@@ -1,0 +1,19 @@
+{
+  "evidence": "verified",
+  "passed": false,
+  "scope": "G-DNN dataset correctness",
+  "model": "bert",
+  "batch": 2,
+  "samples": 256,
+  "artifact_id": "1bc674bfcedcb09673e909dbfc76d2c634f5880629afccc1dc4069a8ec8e1c87",
+  "metrics": {
+    "hidden_cosine_min": 0.938629150390625,
+    "pooler_cosine": 0.9978549480438232,
+    "bf16_hidden_cosine_min": 0.9456302523612976,
+    "bf16_pooler_cosine": 0.9957603812217712,
+    "tm_bf16_hidden_cosine_min": 0.9131689667701721
+  },
+  "source_receipt": "runs/dm1-bert-wikitext-baseline-v2/correctness.json",
+  "source_receipt_sha256": "d80108d49ac480cdee738cb69191512bfe860a57781c1ed945f5c9e9276a03f5",
+  "criteria": "Original DM-1 model thresholds retained; BF16 diagnostics do not relax the FP32-reference gate"
+}

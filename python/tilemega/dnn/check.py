@@ -254,7 +254,13 @@ def check(args):
                     length = items[i][1]['valid_length']
                     records.append(dict(items[i][1], hidden_cosine_min=float(cosine(
                         hidden[i, :length], truth.last_hidden_state[i, :length]).min()),
-                        pooler_cosine=float(cosine(pooler[i], truth.pooler_output[i]))))
+                        pooler_cosine=float(cosine(pooler[i], truth.pooler_output[i])),
+                        bf16_hidden_cosine_min=float(cosine(baseline.last_hidden_state[i, :length],
+                            truth.last_hidden_state[i, :length]).min()),
+                        bf16_pooler_cosine=float(cosine(baseline.pooler_output[i],
+                            truth.pooler_output[i])),
+                        tm_bf16_hidden_cosine_min=float(cosine(hidden[i, :length],
+                            baseline.last_hidden_state[i, :length]).min())))
             else:
                 image = torch.stack([item[0] for item in items]).cuda()
                 truth, baseline = fp32(image.float()), bf16(image)
@@ -282,6 +288,8 @@ def check(args):
             metrics = {key: min(row[key] for row in records)
                        for key in ('hidden_cosine_min', 'pooler_cosine')}
             passed = all(value >= .999 for value in metrics.values())
+            metrics.update({key: min(row[key] for row in records) for key in
+                ('bf16_hidden_cosine_min', 'bf16_pooler_cosine', 'tm_bf16_hidden_cosine_min')})
         elif args.model == 'nafnet':
             metrics = {key: mean(key) for key in
                        ('tm_fp32_psnr', 'bf16_fp32_psnr', 'tm_gt_psnr', 'bf16_gt_psnr')}

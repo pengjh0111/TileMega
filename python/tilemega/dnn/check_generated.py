@@ -89,6 +89,12 @@ def _diagnose(library, plan, module, arguments, bridge, destination):
             top,_,left,_ = meta[14:18]
             value=value[:,top:top+logical[1],left:left+logical[2],:logical[3]].permute(0,3,1,2)
         reference=captured[reference_name].float().to('cuda')
+        # The body stores [batch, query, head, dim]; ATen SDPA returns
+        # [batch, head, query, dim]. This is a layout comparison, not a reshape.
+        if nodes_target := next((node['target'] for node in bridge['nodes']
+                if node['name']==reference_name), None):
+            if nodes_target=='aten.scaled_dot_product_attention.default' and reference.ndim==4:
+                reference=reference.permute(0,2,1,3).contiguous()
         if value.numel()!=reference.numel():
             rows.append(dict(buffer=buffer.name,reference=reference_name,shape_mismatch=True,
                 actual_shape=list(value.shape),reference_shape=list(reference.shape)))
@@ -96,11 +102,13 @@ def _diagnose(library, plan, module, arguments, bridge, destination):
         value=value.reshape_as(reference).float()
         cosine=torch.nn.functional.cosine_similarity(value.flatten(1),reference.flatten(1),dim=1)
         rows.append(dict(buffer=buffer.name,reference=reference_name,cosine_min=cosine.min().item(),
+            token_cosine_min=torch.nn.functional.cosine_similarity(value,reference,dim=-1).min().item(),
             max_error=(value-reference).abs().max().item(),reference_max=reference.abs().max().item()))
     destination.write_text(json.dumps(dict(evidence='verified',scope='diagnostic only',buffers=rows),indent=2)+'\n')
 
 
-def check(library_path, export_dir, bridge_path, batch, *, epochs=3, diagnostics=None):
+def check(library_path, export_dir, bridge_path, batch, *, epochs=3, diagnostics=None,
+          input_tensors=None):
     torch.set_num_threads(4); torch.manual_seed(20261009)
     torch.backends.cuda.matmul.allow_tf32 = False
     export_dir, bridge_path = Path(export_dir), Path(bridge_path)
@@ -123,6 +131,12 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=3, diagnostics
     image_input = False
     input_uses = {item['name']: [node for node in bridge['nodes']
         if item['name'] in node['inputs']] for item in user_inputs}
+    supplied = None
+    if input_tensors is not None:
+        from safetensors.torch import load_file
+        supplied = load_file(str(input_tensors), device='cpu')
+        if set(supplied) != {item['name'] for item in user_inputs}:
+            raise ValueError('diagnostic input names differ from the exported signature')
     for item in user_inputs:
         record = nodes[item['name']]
         shape = (batch, *(int(value) for value in record['shape'][1:]))
@@ -142,6 +156,11 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=3, diagnostics
                 value = (torch.arange(shape[1], device='cuda')[None, :] < lengths[:, None]).long()
         else:
             raise ValueError('DNN smoke entry needs BF16 NCHW images or int64 encoder inputs')
+        if supplied is not None:
+            original = supplied[item['name']]
+            if original.shape != value.shape or original.dtype != value.dtype:
+                raise ValueError('diagnostic input shape or dtype differs from the plan')
+            value = original.cuda()
         tensors[item['name']] = value; arguments.append(value)
     # Export preserves the original positional/keyword pytree contract.
     # HF BERT's supplied keyword inputs must not become positional inputs.
@@ -207,7 +226,8 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=3, diagnostics
     return dict(evidence='verified', passed=True, scope='upstream DNN graph execution smoke; not G-DNN',
         reference='exported BF16 checkpoint promoted to FP32', batch=batch,
         artifact_id=identity['artifact_id'], bridge_sha256=_sha(bridge_path),
-        archive_sha256=_sha(export_dir/'exported_program.pt2'), cases=cases)
+        archive_sha256=_sha(export_dir/'exported_program.pt2'),
+        input_tensors_sha256=_sha(input_tensors) if input_tensors is not None else None, cases=cases)
 
 
 def main():
@@ -219,8 +239,11 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--diagnostics',type=Path,
         help='test-only intermediate receipt; requires the separate diagnostic accessor')
+    parser.add_argument('--input-tensors',type=Path,
+        help='identified safetensors inputs for an additional smoke diagnostic')
     args = parser.parse_args()
-    result = check(args.library, args.export, args.bridge, args.batch,diagnostics=args.diagnostics)
+    result = check(args.library, args.export, args.bridge, args.batch,diagnostics=args.diagnostics,
+                   input_tensors=args.input_tensors)
     args.out.write_text(json.dumps(result, indent=2)+'\n')
     print(json.dumps(result), flush=True)
 
