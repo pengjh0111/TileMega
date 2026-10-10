@@ -326,21 +326,38 @@ def build(root, arch):
     macros = root / f'generated-sm_{arch}.macros'
     capture(command, macros)
     unchanged()
-    implementations = (['ServingGemmTaskBody::RunDm', 'DmSplitKCombine'] if '"weight0"' in source.read_text()
+    text=source.read_text()
+    moe='RunMoe<' in text
+    implementations = (['RMSNormTaskBody','MoETopKTaskBody','MoEDispatchTaskBody',
+        'ServingGemmTaskBody::RunDm','DmSplitKCombine','MoECombineTaskBody','PublishMoeCountedRows'] if moe else
+        ['ServingGemmTaskBody::RunDm', 'DmSplitKCombine'] if '"weight0"' in source.read_text()
         else ['DepthwiseConvTaskBody'] if 'RunDepthwise<' in source.read_text()
         else ['GlobalPoolReduceTaskBody'] if 'Run<TaskKind::kGlobalPoolReduce,' in source.read_text()
         else ['EncoderAttentionTaskBody'] if 'Run<TaskKind::kEncoderAttention,' in source.read_text()
         else ['LayoutConvertTaskBody', 'ServingGemmTaskBody::RunDm', 'LayerNormTaskBody'])
     if 'Run<TaskKind::kPool,' in source.read_text():
         implementations.append('PoolTaskBody')
+    for marker,body in [('RunDepthwise<','DepthwiseConvTaskBody'),
+        ('Run<TaskKind::kLayerNorm,','LayerNormTaskBody'),
+        ('Run<TaskKind::kEmbeddingSum,','EmbeddingSumTaskBody'),
+        ('Run<TaskKind::kEncoderAttention,','EncoderAttentionTaskBody'),
+        ('Run<TaskKind::kGlobalPoolReduce,','GlobalPoolReduceTaskBody'),
+        ('Run<TaskKind::kLayoutConvert,','LayoutConvertTaskBody')]:
+        if marker in text:implementations.append(body)
+    if 'TaskKind::kGemm' in text:
+        implementations+=['ServingGemmTaskBody::RunDm','DmSplitKCombine']
+    paged='#define TILEMEGA_PAGED 1' in text
+    if paged:implementations+=['PagedGemmTaskBody','PageStream']
+    implementations=list(dict.fromkeys(implementations))
     identity = dict(schema='tilemega.dm1.native-test.identity.v1', evidence='verified',
-        source=preparation, scope='CG-generated DNN', cu_sha256=sha(source),
+        source=preparation, scope='CG-generated MoE region' if moe else 'CG-generated DNN', cu_sha256=sha(source),
         binary_sha256=sha(binary), command=command, target_arch=f'sm_{arch}',
         compiler=dict(path=command[0], sha256=sha(command[0]),
             version=subprocess.check_output([command[0], '--version'], text=True)),
         complete_macros=dict(path=str(macros/'capture.json'), sha256=sha(macros/'capture.json')),
         implementations=implementations,
-        resources=resources(log.read_text()), execution=dict(phase='forward', modes=['L1', 'L2']))
+        resources=resources(log.read_text()), execution=dict(phase='forward', modes=['L1', 'L2'],
+            executor='pages' if paged else 'nonpaged'))
     identity['artifact_id'] = hashlib.sha256(json.dumps(identity, sort_keys=True,
         separators=(',', ':')).encode()).hexdigest()
     Path(str(binary)+'.identity.json').write_text(json.dumps(identity, indent=2)+'\n')

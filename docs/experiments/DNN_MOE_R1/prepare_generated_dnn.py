@@ -17,11 +17,21 @@ if __name__ == '__main__':
     parser.add_argument('--batch', type=int, default=2)
     parser.add_argument('--diagnostic',action='store_true',
         help='separate sm89 intermediate-copy diagnostic; not a correctness gate')
+    parser.add_argument('--input-tensors',type=Path)
+    parser.add_argument('--moe-bridge',type=Path)
+    parser.add_argument('--moe-checkpoint',type=Path)
+    parser.add_argument('--moe-hidden',type=Path)
     args = parser.parse_args()
     if bool(args.model_export)!=bool(args.bridge) or not 1<=args.batch<=64:
         parser.error('model checks require both export and bridge, with batch in [1,64]')
     if args.diagnostic and not args.model_export:
         parser.error('intermediate diagnostics require an upstream model export')
+    if args.input_tensors and not args.diagnostic:
+        parser.error('supplied inputs require the separate diagnostic artifact')
+    if args.moe_bridge and (args.model_export or args.diagnostic or args.input_tensors):
+        parser.error('MoE region validation uses its own bridge and inputs')
+    if bool(args.moe_checkpoint)!=bool(args.moe_hidden) or (args.moe_checkpoint and not args.moe_bridge):
+        parser.error('real MoE checks require --moe-bridge, --moe-checkpoint and --moe-hidden')
     repo = Path(__file__).resolve().parents[3]
     root = args.out.resolve()
     root.mkdir(parents=True, exist_ok=False)
@@ -30,7 +40,9 @@ if __name__ == '__main__':
         shutil.copy2(Path(__file__).with_name(name), root/'framework'/name)
     shutil.copy2(Path(__file__).with_name('check_generated_dnn.py'), root/'check.py')
     shutil.copy2(args.source, root/'generated.cu')
-    if args.diagnostic:
+    if args.input_tensors:
+        shutil.copy2(args.input_tensors,root/'inputs.safetensors')
+    if args.diagnostic or args.moe_bridge:
         with (root/'generated.cu').open('a') as stream:
             stream.write('''
 // Test-only accessor, appended to a separate diagnostic artifact.
@@ -59,10 +71,10 @@ extern "C" void* tm_dm_debug_buffer(void* handle, unsigned index,
     for name in ['tilemega/__init__.py', 'tilemega/serving/__init__.py', 'tilemega/serving/plan.py']:
         (root/'python'/name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(repo/'python'/name, root/'python'/name)
-    if args.model_export:
+    if args.model_export or args.moe_bridge:
         shutil.copytree(repo/'python/tilemega',root/'python/tilemega',dirs_exist_ok=True,
             ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
-        shutil.copy2(args.bridge,root/'bridge.json')
+        shutil.copy2(args.moe_bridge or args.bridge,root/'bridge.json')
     shutil.copytree(repo/'include', root/'include')
     for name in ['include', 'tools/util/include']:
         shutil.copytree(repo/'third_party/cutlass'/name, root/'third_party/cutlass'/name)
@@ -75,6 +87,8 @@ extern "C" void* tm_dm_debug_buffer(void* handle, unsigned index,
         shutil.copy2(repo/name, root/name)
     inputs = {str(path): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in root.rglob('*') if path.is_file()}
+    if args.moe_hidden:
+        inputs[str(args.moe_hidden.resolve())]=hashlib.sha256(args.moe_hidden.read_bytes()).hexdigest()
     preparation = dict(source_head=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo,
         text=True).strip(), diff_sha256=hashlib.sha256(subprocess.check_output(
             ['git', 'diff', 'HEAD'], cwd=repo)).hexdigest(), support=support, inputs=inputs,
@@ -94,8 +108,16 @@ extern "C" void* tm_dm_debug_buffer(void* handle, unsigned index,
             '-m','tilemega.dnn.check_generated','--library',str(root/'generated-sm_89.so'),
             '--export',str(args.model_export.resolve()),'--bridge',str(root/'bridge.json'),
             '--batch',str(args.batch),'--out',str(root/'correctness.json')]
+    if args.moe_bridge:
+        command=['env','PYTHONPATH='+str(root/'python'),'/root/dm1_work/venv-gpu/bin/python',
+            '-m','tilemega.moe.check_generated','--library',str(root/'generated-sm_89.so'),
+            '--bridge',str(root/'bridge.json'),'--out',str(root/'correctness.json')]
+        if args.moe_checkpoint:
+            command+=['--checkpoint',str(args.moe_checkpoint.resolve()),'--hidden',str(args.moe_hidden.resolve())]
     if args.diagnostic:
         command += ['--diagnostics',str(root/'intermediates.json')]
+    if args.input_tensors:
+        command += ['--input-tensors',str(root/'inputs.safetensors')]
     for process in range(1 if args.diagnostic else 50):
         step(f'check_{process:02}', command, ['build_sm_89' if process==0 else 'check_00'], 10, 300)
     for tool in ([] if args.diagnostic else ['memcheck', 'racecheck']):
