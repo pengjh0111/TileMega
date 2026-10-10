@@ -2,6 +2,8 @@
 #include <tilemega/Analysis/TaskElementRelation.h>
 #include <tilemega/Analysis/VirtualTaskBinding.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/ExactMemo.h>
+#include "IslUtil.h"
 #include <map>
 #include <set>
 #include <sstream>
@@ -179,19 +181,30 @@ void ValidateTaskReductionIndex(OperatorNode const& task) {
 }
 CouplingRelation TaskElementBoxEnvelope(CouplingRelation const& exact) {
   IslReferenceAudit audit(__func__);
+  return MemoExact({"task_element_box",exact.ToString()},[&] {
   auto rank = exact.RangeDimNames().size();
   if (!rank) return exact;
   CouplingRelation result;
   for (unsigned axis = 0; axis < rank; ++axis) {
     auto projection = exact.ProjectRange(axis + 1, rank - axis - 1).ProjectRange(0, axis);
-    auto endpoints = projection.LexMin().RangeProduct(projection.LexMax());
-    auto interval = CouplingRelation::FromIslText("{ [_tm_lo, _tm_hi] -> [_tm_box_" +
-        std::to_string(axis) + "] : _tm_lo <= _tm_box_" + std::to_string(axis) + " <= _tm_hi }");
-    auto box = endpoints.ApplyRange(interval);
+    auto coordinate="_tm_box_"+std::to_string(axis);
+    auto closure=[&](char const* comparison) {
+      return projection.ApplyRange(CouplingRelation::FromIslText(
+          "{ [_tm_point] -> ["+coordinate+"] : "+coordinate+comparison+"_tm_point }"));
+    };
+    auto lower=isl_util::ReadMap(SharedIslContext().raw(),closure(" >= ").ToString());
+    auto upper=isl_util::ReadMap(SharedIslContext().raw(),closure(" <= ").ToString());
+    // A point lies between min and max iff some fiber point is <= it and
+    // some fiber point is >= it. This avoids parametric integer optimization
+    // on quantified pixel-shuffle maps while retaining the minimal interval.
+    auto interval=isl_util::Map(isl_map_intersect(lower.release(),upper.release()));
+    if(!interval)throw std::invalid_argument("axis interval closure failed");
+    auto box=CouplingRelation::FromIslText(isl_util::ToString(interval.get()));
     result = axis ? result.RangeProduct(box) : box;
   }
   if (!exact.IsSubset(result)) throw std::logic_error("axis envelope violated I2");
   return result;
+  });
 }
 TaskElementEnvelope DescribeTaskElementBox(CouplingRelation const& exact) {
   return {TaskElementBoxEnvelope(exact)};

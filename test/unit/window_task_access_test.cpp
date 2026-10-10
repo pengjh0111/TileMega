@@ -210,9 +210,29 @@ void PixelShuffle() {
   auto table = BuildDependencyTable(coupling, writer, reader, {});
   assert(table.stride > 1);
 }
+void PeriodicEnvelope() {
+  auto reads=CouplingRelation::FromIslText(
+      "{ [m] -> [h] : exists (e0: 0 <= m <= 32767 and 0 <= h <= 255 and "
+      "0 <= e0 <= 255 and 4m - h - 256e0 <= 65536*floor((m-64e0)/16384) "
+      "<= 3 + 4m - h - 256e0) }");
+  auto expected=CouplingRelation::FromIslText(
+      "{ [m] -> [h] : 0 <= m <= 32767 and "
+      "4m - 256*floor(m/64) <= h <= 3 + 4m - 256*floor(m/64) }");
+  auto box=TaskElementBoxEnvelope(reads);
+  assert(Contains(box,expected) && Contains(expected,box));
+  auto holes=CouplingRelation::FromIslText(
+      "[S] -> { [m] -> [h,w] : 0 <= m < S and (m mod 3)=0 and "
+      "(h=m or h=m+4) and (w=2m or w=2m+3) }");
+  auto filled=CouplingRelation::FromIslText(
+      "[S] -> { [m] -> [h,w] : 0 <= m < S and (m mod 3)=0 and "
+      "m <= h <= m+4 and 2m <= w <= 2m+3 }");
+  auto hole_box=TaskElementBoxEnvelope(holes);
+  assert(Contains(hole_box,filled) && Contains(filled,hole_box));
+}
 }
 int TestWindowTaskAccess(int, char**) {
   IslContext context;
+  PeriodicEnvelope();
   Window(2, 5, 7, 5, 3, 3, 3, 1, 1, 1, false, 9, 2);
   Window(2, 5, 7, 5, 3, 3, 3, 2, 1, 1, false, 5, 2);
   Window(1, 7, 9, 5, 3, 3, 3, 1, 2, 2, false, 5, 2);

@@ -1,0 +1,12 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Exact minimal per-axis fiber intervals, nine convolution/depthwise window geometries, PixelShuffle, 32768-task NAFNet periodic projection and symbolic domain/range holes; bidirectional containment and element enumeration",
+  "algorithm": "intersection of upward and downward fiber closures; RAW/task dependency relations unchanged",
+  "selector": "window_task_access",
+  "exit_code": 0,
+  "log": "runs/dm1-axis-envelope-host-v2.log",
+  "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "build_log": "runs/dm1-exact-box-build-v11.log",
+  "build_log_sha256": "5223d52707c88e33408b5f7f824b815b4b17e437d17d3807d26e86f684eacef1"
+}
