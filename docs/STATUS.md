@@ -386,3 +386,5 @@ EX-S2c 的价格测试与队列放置修正已测，mha4 s128 保持 35 跳，�
 （⚠️ DM-1：verified：forward phase、新任务种类、窗口精确关系、kTable/kCounted、WAR/WAW 与虚拟 tile 绑定已有生成执行证据；新增 MoE 动态 L2 领取与 opaque 入口/内部/出口屏障及 loader lookahead 边界，固定合成输入在 sm_89 执行通过。全深度 B1 prefill/decode 干构建与索引检查通过，B16 prefill 尚有生成瓶颈。完整图融合/复用、联合结构选择、GEMV 与通用 LA 仍未完成。用户已取消性能、真实数据集门及重复进程矩阵，新结果不构成 50 进程同步结论。详见 docs/experiments/DNN_MOE_R1/summary.md。）
 
 （⚠️ DM-1：verified：按槽绑定的专家 GEMV 已在 dense/页式权重下执行通过；通用池化、dispatch 与 counted combine 的 last-arriver 已接入 L1/L2/页式执行器，固定合成输入功能检查通过。默认 LLM 八格 CUDA 再查仍逐字节一致。GEMV/LA 联合求解器坐标与完整图生成仍未完成；没有新增性能或 50 进程同步结论。见 DNN_MOE_R1/moe_gemv.md、dm_last_arriver.md。）
+
+（⚠️ DM-1：verified：完整 MobileNetV1 的 13 组 dw→pw 融合生成内核已用固定合成 B=2 输入执行通过，L1/L2 输出逐位一致。共享打包权重按完整配方匹配，固定构建与求解候选均约束 TN/TK；显存容量不足的 MoE serving 部署先解 decode，再约束 prefill，主机接入测试通过。DNN CLI 支持 architecture-only 导出/构建及独立 synthetic smoke 结果，保留原精度失败记录。没有新增性能或 50 进程同步结论；完整图复用与联合结构选择仍待完成。见 DNN_MOE_R1/dwpw_fusion.md、moe_full.md、dnn_cli.md。）
