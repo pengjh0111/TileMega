@@ -542,6 +542,9 @@ QuasiPolynomial QuasiPolynomial::SupportIndicator() const {
 
 bool QuasiPolynomial::SemanticallyEqual(QuasiPolynomial const& other,
                                         ParamBinding const& known) const {
+  // Canonical text equality proves function equality before any potentially
+  // expensive scalar extrema query over a large per-task piecewise domain.
+  if(text_==other.text_)return true;
   std::ostringstream binding;for(auto const& [name,value]:known.values)binding<<name.size()<<':'<<name<<'='<<value<<';';
   return MemoExact({"polynomial_equal",text_,other.text_,binding.str()},[&] {
     // Try the constant-vs-constant shortcut first: if both sides reduce to a
