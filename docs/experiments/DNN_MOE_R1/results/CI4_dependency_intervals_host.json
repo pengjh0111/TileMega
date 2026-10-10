@@ -1,0 +1,41 @@
+{
+  "evidence": "verified",
+  "scope": "exact interval materialization and containment; no GPU timing",
+  "cases": [
+    {
+      "case": "runtime_dependency_table",
+      "exit_code": 0,
+      "passed": true
+    },
+    {
+      "case": "runtime_dependency_codec",
+      "exit_code": 0,
+      "passed": true
+    },
+    {
+      "case": "bound_dependency_codegen",
+      "exit_code": 0,
+      "passed": true
+    },
+    {
+      "case": "counted_dependency_cg",
+      "exit_code": 0,
+      "passed": true
+    },
+    {
+      "case": "window_task_access",
+      "exit_code": 0,
+      "passed": true
+    },
+    {
+      "case": "exact_task_metadata",
+      "exit_code": 0,
+      "passed": true
+    },
+    {
+      "case": "moe_opaque_control",
+      "exit_code": 0,
+      "passed": true
+    }
+  ]
+}

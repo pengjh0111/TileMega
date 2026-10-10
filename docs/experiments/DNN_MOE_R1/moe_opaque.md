@@ -24,8 +24,8 @@ T=17 grouped region passes nonpaged and paged L1/L2 numerical and bit checks
 (`results/MO_opaque_generated_smoke.json`). Both have exact outputs/routes for this
 fixture. No latency was collected. These are one-process sm_89 checks, not 50-process
 synchronization evidence or a complete decoder/model gate. Resource/spill records
-are retained in the artifact identities. Enabled-lookahead execution is being
-checked separately on the same fixed fixture.
+are retained in the artifact identities. The enabled 65,536-byte lookahead path also passes on the same fixed fixture;
+this exercises the nonblocking lookahead gate as well as actual-loader waits.
 
 stated: no empirical choice between template, opaque or dynamic controls is made
 under the user's no-performance-testing scope. Opaque barriers are exclusive to
