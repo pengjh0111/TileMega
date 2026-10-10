@@ -4,6 +4,19 @@ import argparse,fcntl,json,os,signal,subprocess,sys,time
 from pathlib import Path
 from gpu_guard import gpu,idle,stop
 
+def acquire_command_lock(command,lock_path):
+    """Separate shared-lock queue time from the command's execution timeout."""
+    if len(command)<3 or Path(command[0]).name!='flock' or command[1]!=lock_path:
+        return command,None
+    descriptor=os.open(lock_path,os.O_CREAT|os.O_RDWR,0o600)
+    try:
+        fcntl.flock(descriptor,fcntl.LOCK_EX)
+    except BaseException:
+        os.close(descriptor);raise
+    # flock on an inherited descriptor uses the same open-file description.
+    # Opening the pathname again while the parent holds it would deadlock.
+    return [command[0],str(descriptor),*command[2:]],descriptor
+
 def main():
     p=argparse.ArgumentParser();p.add_argument('--queue-dir',type=Path,required=True);p.add_argument('--out',type=Path,required=True);p.add_argument('--policy',type=Path,required=True);p.add_argument('--deadline-hours',type=float,default=96);a=p.parse_args()
     a.out.mkdir(parents=True,exist_ok=True);a.queue_dir.mkdir(parents=True,exist_ok=True)
@@ -47,19 +60,26 @@ def main():
         if r['attempts']:cmd+=s.get('retry_args',[])
         if s.get('gpu'):
             cmd=[sys.executable,str(Path(__file__).with_name('gpu_guard.py')),'--policy',str(a.policy),'--out',str(folder),'--needs-free-mib',str(s.get('needs_free_mib',12288)),'--timeout-s',str(s['timeout_s']),'--']+cmd
+        lock_begin=time.monotonic();lock_fd=None
+        if not s.get('gpu'):cmd,lock_fd=acquire_command_lock(cmd,env['TILEMEGA_GPU_LOCK'])
+        r['lock_wait_s']=time.monotonic()-lock_begin
         r['attempts']+=1;r['status']='running';r['wait_s']=time.time()-r['enqueued'];persist();begin=time.monotonic()
         log=a.out/(name+'.log')
-        with log.open('a') as f:
-            f.write('\nATTEMPT '+str(r['attempts'])+' '+str(time.time())+'\n');f.flush()
-            proc=subprocess.Popen(cmd,cwd=s.get('cwd'),env=env,stdout=f,stderr=subprocess.STDOUT,start_new_session=True)
-            r['pid']=proc.pid;persist()
-            try:code=proc.wait(timeout=s['timeout_s']+(600 if s.get('gpu') else 0))
-            except subprocess.TimeoutExpired:
-                if s.get('gpu') and (folder/'pgid').exists():
-                    try:os.killpg(int((folder/'pgid').read_text()),signal.SIGKILL)
-                    except ProcessLookupError:pass
-                # Kill the whole CPU session including GNU timeout's separate groups.
-                subprocess.run(['pkill','-KILL','-s',str(proc.pid)],check=False);stop(proc);code=124
+        try:
+            with log.open('a') as f:
+                f.write('\nATTEMPT '+str(r['attempts'])+' '+str(time.time())+'\n');f.flush()
+                proc=subprocess.Popen(cmd,cwd=s.get('cwd'),env=env,stdout=f,stderr=subprocess.STDOUT,
+                    start_new_session=True,pass_fds=(() if lock_fd is None else (lock_fd,)))
+                r['pid']=proc.pid;persist()
+                try:code=proc.wait(timeout=s['timeout_s']+(600 if s.get('gpu') else 0))
+                except subprocess.TimeoutExpired:
+                    if s.get('gpu') and (folder/'pgid').exists():
+                        try:os.killpg(int((folder/'pgid').read_text()),signal.SIGKILL)
+                        except ProcessLookupError:pass
+                    # Kill the whole CPU session including GNU timeout's separate groups.
+                    subprocess.run(['pkill','-KILL','-s',str(proc.pid)],check=False);stop(proc);code=124
+        finally:
+            if lock_fd is not None:os.close(lock_fd)
         r['run_s']=time.monotonic()-begin;r['exit_code']=code
         if code==75:
             result=json.loads((folder/'guard_result.json').read_text()) if (folder/'guard_result.json').exists() else {}
