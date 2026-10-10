@@ -3,6 +3,7 @@
 #include <tilemega/Solver/PlanSkeleton.h>
 #include <tilemega/Solver/PiecePricing.h>
 #include <tilemega/Solver/StageFlowModel.h>
+#include <tilemega/Solver/MoeRoutingProfile.h>
 namespace tilemega::solver {
 struct FlowPreparationCache {
   std::string target_key;
@@ -55,7 +56,8 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     analysis::CouplingCache& coupling,FlowPreparationCache& cache,bool colocate=true,int kernel_shared_bytes=0,
     PreparedFlow const* prior=nullptr,std::vector<bool> const* reusable_stages=nullptr,
     analysis::DramFloor::Value const* bound_floor=nullptr,bool paged=false,
-    int paged_page_bytes=16384);
+    int paged_page_bytes=16384,MoeRoutingProfile const* routing_profile=nullptr,
+    unsigned first_profile_layer=0);
 void ApplyFlowPrices(SymbolicProblem& problem,PreparedFlow const& flow,TargetSpec const& target,int residency);
 std::vector<TaskPriceParts> ExpandFlowPrices(PreparedFlow const& flow);
 }

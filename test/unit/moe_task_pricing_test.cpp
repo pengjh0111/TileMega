@@ -70,10 +70,12 @@ int TestMoeTaskPricing(int,char**) {
       floor.tensors["partial"].external_writes=CouplingRelation::FromIslText("{ [] -> [t,r,n] : 0<=t<19 and 0<=r<2 and 0<=n<19 }");
       floor.no_producer_bytes=QuasiPolynomial::Constant(4*19*5*2);
       solver::BindTaskDramProvenance(input,semantic,floor,{},true);
+      double total_expected=0;
       for(unsigned v=0;v<capacity;++v)for(unsigned row=0;row<(bm+tm-1)/tm;++row)
         for(unsigned n=0;n<2;++n) {
           ParamBinding at;at.Bind("v",v).Bind("row",row).Bind("n",n);
           auto got=solver::PriceMoeVirtualTask(cost,input,semantic,traits,{1},model,1,floor,routing,slot,at);
+          total_expected+=got.expected_isolated_ns;
           solver::TaskPriceParts expected;double isolated=0,active=0,live_rows=0,service=0;
           for(auto const& window:windows) {
             auto rows=std::max<long>(0,std::min<long>(tm,long(window[v])-long(row)*tm));
@@ -102,6 +104,13 @@ int TestMoeTaskPricing(int,char**) {
           if(active==0){assert(got.parts.fixed_ns==7 && got.parts.compute_ns==0 && got.parts.dram_bytes==0);}
           ++checked;
         }
+      auto capacity_prices=solver::PriceBoundaryPieces(cost,input,semantic,traits,{1},model,1);
+      auto profiled=solver::PriceMoeBoundaryPieces(cost,input,semantic,traits,{1},model,1,
+          floor,routing,slot,capacity_prices);
+      assert(profiled.routing_profiled && !profiled.inferred_empty_cost);
+      close(profiled.total_isolated_ns,total_expected);
+      long covered=0;for(auto const& piece:profiled.pieces)covered+=piece.count.Eval({});
+      assert(covered==long(capacity*((bm+tm-1)/tm)*2));
       if(!slot && bm==32 && tm==16) {
         auto spread=routing,constant=routing;
         spread.virtual_row_histograms[bm].assign(capacity,{});
@@ -125,6 +134,10 @@ int TestMoeTaskPricing(int,char**) {
         ParamBinding at;at.Bind("v",capacity-1).Bind("row",0).Bind("n",0);
         bool rejected=false;try{(void)solver::PriceMoeVirtualTask(uncalibrated,input,semantic,traits,{1},model,1,floor,routing,slot,at);}
         catch(std::invalid_argument const&){rejected=true;}assert(rejected);
+        auto inferred=solver::PriceMoeVirtualTask(uncalibrated,input,semantic,traits,{1},model,
+            1,floor,routing,slot,at,solver::MoeEmptyPricing::kCapacitySurrogate);
+        assert(inferred.inferred_empty_cost && inferred.active_probability==0 &&
+            inferred.parts.compute_ns==0 && inferred.parts.dram_bytes==0 && inferred.parts.fixed_ns>0);
       }
     }
   }

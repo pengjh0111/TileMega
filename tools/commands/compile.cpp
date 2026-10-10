@@ -1670,6 +1670,8 @@ int RunCompile(int argc, char** argv) {
         manifest<<",\n  \"routing_profile\": {\"profile_id\": "<<std::quoted(moe_routing_profile->profile_id)
                 <<", \"file_sha256\": "<<std::quoted(routing_profile_sha)
                 <<", \"first_layer\": "<<moe_profile_layer<<'}';
+        if(auto pricing=(*module)->getAttrOfType<mlir::StringAttr>("tilemega.moe_profile_pricing"))
+          manifest<<",\n  \"moe_profile_pricing\": "<<std::quoted(pricing.getValue().str());
         if(frontend_mode=="dnn")manifest<<",\n  \"deferred_ln\": "<<std::quoted(dnn_deferred_ln);
         if(frontend_mode=="dnn")manifest<<",\n  \"dwpw_fuse\": "<<std::quoted(dnn_dwpw_fuse);
         if(auto structure=(*module)->getAttrOfType<mlir::StringAttr>("tilemega.dnn_structure"))

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/FlowPreparation.h>
 #include <tilemega/Solver/DmGemmTraits.h>
+#include <tilemega/Solver/MoeTaskPricing.h>
 #include <tilemega/Codegen/RuntimeWindow.h>
 #include <tilemega/Solver/CacheServiceCurve.h>
 #include <tilemega/Solver/VariantSchedule.h>
@@ -340,9 +341,36 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     analysis::CouplingCache& coupling,FlowPreparationCache& cache,bool colocate,int kernel_shared_bytes,
     PreparedFlow const* prior,std::vector<bool> const* reusable_stages,
     analysis::DramFloor::Value const* bound_floor,bool paged,
-    int paged_page_bytes) {
+    int paged_page_bytes,MoeRoutingProfile const* routing_profile,unsigned first_profile_layer) {
   if(problem.model.dtype!=ScalarType::kBF16)throw std::invalid_argument("flow preparation requires BF16");
+  std::map<unsigned,MoeRoutingPoint const*> routing;
+  if(routing_profile) {
+    if(!problem.model.dm || problem.model.dims.seq<=0 || problem.model.dims.batch<=0)
+      throw std::invalid_argument("profiled flow requires DM token geometry");
+    auto tokens=std::uint64_t(problem.model.dims.seq)*problem.model.dims.batch;
+    if(tokens>UINT32_MAX)throw std::overflow_error("profiled token count overflows");
+    for(auto const& access:problem.model.gemm_access)
+      if(access.b==codegen::DmBAccess::kExpertIndirect && !routing.count(access.binding)) {
+        if(routing.size()>UINT32_MAX-first_profile_layer)
+          throw std::overflow_error("profiled layer offset overflows");
+        routing.emplace(access.binding,&routing_profile->At(first_profile_layer+routing.size(),tokens));
+      }
+    if(routing.empty())throw std::invalid_argument("profiled flow has no expert stages");
+  }
   auto target_key=target.ToJson();
+  // Include the observed distributions, not just a caller-provided identity.
+  // A reused cache must distinguish two profiles with the same DRAM mean.
+  for(auto const& [binding,point]:routing) {
+    std::ostringstream key;key<<":occupancy:"<<binding<<':'<<point->tokens<<':'<<point->experts
+        <<':'<<point->top_k<<':'<<point->windows;
+    for(auto const& [bm,histograms]:point->virtual_row_histograms) {
+      key<<":bm="<<bm<<':'<<histograms.size();
+      for(auto const& histogram:histograms) {
+        key<<'[';for(auto const& [rows,frequency]:histogram)key<<rows<<'='<<frequency<<',';key<<']';
+      }
+    }
+    target_key+=key.str();
+  }
   if(problem.model.dm)target_key+=problem.model.PhysicalFootprintKey();
   for(auto const& [name,tensor]:floor.tensors)if(tensor.expected_read_elements) {
     target_key+=":expected:";
@@ -510,6 +538,13 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     PiecePrices prices;
     try {BindTaskDramProvenance(input,semantic,floor,theta,model.serving,&model);
       prices=PriceBoundaryPieces(cost,input,semantic,traits,{residency},model,chunks,&cache.prices,kernel_shared_bytes);
+      if(routing_profile && !projected.combine && IsGemmStage(stage.kind) && stage.gemm>=0) {
+        auto const& access=model.gemm_access.at(stage.gemm);
+        if(access.b==codegen::DmBAccess::kExpertIndirect)
+          prices=PriceMoeBoundaryPieces(cost,input,semantic,traits,{residency},model,chunks,
+              floor,*routing.at(access.binding),access.block_rows==1,prices,
+              MoeEmptyPricing::kCapacitySurrogate);
+      }
     }catch(std::exception const& e){throw std::runtime_error(input.task.name+": "+e.what());}
     auto const map_start=std::chrono::steady_clock::now();
     cache.price_ms+=std::chrono::duration<double,std::milli>(map_start-price_start).count();

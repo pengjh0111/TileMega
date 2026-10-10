@@ -67,6 +67,15 @@ int TestMoeDramBindings(int argc,char** argv) {
     for(unsigned e=0;e<16;++e)point.tokens_per_expert.push_back(e<8?
         std::map<std::uint32_t,std::uint64_t>{{17,1},{9,1}}:
         std::map<std::uint32_t,std::uint64_t>{{0,1},{8,1}});
+    for(unsigned block:{16u,32u,64u,128u}) {
+      auto& histograms=point.virtual_row_histograms[block];histograms.resize(point.GroupCapacity(block));
+      for(auto counts:{std::vector<unsigned>{17,17,17,17,17,17,17,17,0,0,0,0,0,0,0,0},
+                      std::vector<unsigned>{9,9,9,9,9,9,9,9,8,8,8,8,8,8,8,8}}) {
+        unsigned v=0;for(auto count:counts)while(count) {
+          unsigned rows=std::min(block,count);++histograms.at(v++)[rows];count-=rows;
+        }
+      }
+    }
     profile.layers[0].emplace(17,point);
     for(auto const& stage:plan.stages)if(stage.kind==PlanTaskKind::kMoETopK || stage.kind==PlanTaskKind::kMoECombine) {
       auto phases=codegen::DmMoeScalarTaskDataflow(stage.moe,17);
@@ -107,7 +116,7 @@ int TestMoeDramBindings(int argc,char** argv) {
       search.common.placement.target.res.num_sms=2;
       search.common.placement.dims=dims;search.moe_routing_profile=std::make_shared<MoeRoutingProfile const>(profile);search.seed={16,32,16,2,1};
       search.common.geometry_domain={search.seed};search.passes=1;search.top_m=1;
-      search.search_only=true;search.artifact_prefix=(std::filesystem::temp_directory_path()/"tilemega-moe-dram-search").string();
+      search.search_only=false;search.common.query_residency=[](auto,int){return 1;};search.artifact_prefix=(std::filesystem::temp_directory_path()/"tilemega-moe-dram-search").string();
       search.variant_probe=[](auto const&,auto const* geometry,auto) {
         return VariantResources{32,geometry?DmServingBF16SmemBytes(geometry->tile_m,
             geometry->tile_n,geometry->tile_k,geometry->stages):2560,128,false};
@@ -115,6 +124,9 @@ int TestMoeDramBindings(int argc,char** argv) {
       auto imported=TorchExportImporter{}.ImportSemantics(path,plan,context);
       std::ostringstream evidence;
       auto solved=SolveSkeletonImported(imported,context,search,nullptr,evidence);
+      assert(solved.compiled.module);
+      auto attribution=(*solved.compiled.module)->getAttrOfType<mlir::StringAttr>("tilemega.moe_profile_pricing");
+      assert(attribution && attribution.getValue()=="occupancy;empty=capacity_surrogate_inferred");
       bool valid=false;
       for(auto const& candidate:solved.evaluated) {
         if(!candidate.error.empty())std::cerr<<candidate.key<<": "<<candidate.error<<'\n';

@@ -143,6 +143,8 @@ def generate(so, source, executor='L1', loop=False):
         identity['implementations']['moe_structure_search_sha256'] = plan['moe_structure_search_sha256']
     if 'routing_profile' in plan:
         identity['implementations']['routing_profile'] = plan['routing_profile']
+    if 'moe_profile_pricing' in plan:
+        identity['implementations']['moe_profile_pricing'] = plan['moe_profile_pricing']
     identity['artifact_id'] = hashlib.sha256(json.dumps(
         identity, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     Path(str(so) + '.identity.json').write_text(json.dumps(identity, indent=2) + '\n')

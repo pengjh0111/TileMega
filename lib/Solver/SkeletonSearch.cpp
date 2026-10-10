@@ -425,7 +425,14 @@ struct SearchContext {
     {SolverPhase phase(timing,"piece_pricing_and_release");point.flow=PrepareFlow(
         point.problem,*floor,target,residency,options.common.placement.hop,
         cache,flow_cache,true,estimate.shared_bytes,prior,prior?&reusable:nullptr,
-        &bound->second,options.pg_pages,current_page_bytes);}
+        &bound->second,options.pg_pages,current_page_bytes,
+        options.moe_routing_profile.get(),options.moe_profile_layer);}
+    if(options.moe_routing_profile && point.module) {
+      bool inferred=false;
+      for(auto const& price:point.flow->prices)inferred|=price.inferred_empty_cost;
+      (*point.module)->setAttr("tilemega.moe_profile_pricing",mlir::StringAttr::get(&context,
+          inferred?"occupancy;empty=capacity_surrogate_inferred":"occupancy;empty=calibrated"));
+    }
     if(pages) {
       point.flow->flow.page_bytes=pages->page_bytes;
       point.flow->flow.pages_per_worker=pages->pages;
