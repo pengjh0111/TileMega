@@ -107,11 +107,28 @@ def _diagnose(library, plan, module, arguments, bridge, destination):
     destination.write_text(json.dumps(dict(evidence='verified',scope='diagnostic only',buffers=rows),indent=2)+'\n')
 
 
+def output_metrics(actual,fp32,bf16,*,restoration=False):
+    cosine=torch.nn.functional.cosine_similarity(
+        actual.reshape(-1,actual.shape[-1]),fp32.reshape(-1,fp32.shape[-1]),dim=1)
+    metrics=dict(cosine_min=cosine.min().item(),max_error=(actual-fp32).abs().max().item(),
+        bf16_max_error=(actual-bf16.float()).abs().max().item())
+    if restoration:
+        from .check import psnr
+        tm_psnr=psnr(actual,fp32);bf16_psnr=psnr(bf16,fp32)
+        metrics.update(psnr_fp32=tm_psnr.tolist(),bf16_psnr_fp32=bf16_psnr.tolist())
+        if not torch.all(tm_psnr>=bf16_psnr-1):
+            raise AssertionError(f'NAFNet PSNR with FP32 {tm_psnr.tolist()} is below BF16 - 1 dB {bf16_psnr.tolist()}')
+    elif cosine.min()<.999:
+        raise AssertionError(f'cosine with FP32 oracle is {cosine.min().item()}')
+    return metrics
+
+
 def check(library_path, export_dir, bridge_path, batch, *, epochs=3, diagnostics=None,
           input_tensors=None):
     torch.set_num_threads(4); torch.manual_seed(20261009)
     torch.backends.cuda.matmul.allow_tf32 = False
     export_dir, bridge_path = Path(export_dir), Path(bridge_path)
+    restoration=json.loads((export_dir/'manifest.json').read_text())['model']=='nafnet'
     library = PlanLibrary(library_path)
     if library.info.phase != FORWARD or library.info.capacity != 0:
         raise ValueError('DNN correctness requires a stateless forward plan')
@@ -204,13 +221,7 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=3, diagnostics
                     actual = tensors[name].float()
                     if not torch.isfinite(actual).all():
                         raise AssertionError('generated DNN produced a nonfinite output')
-                    cosine = torch.nn.functional.cosine_similarity(
-                        actual.reshape(-1, actual.shape[-1]), fp32.reshape(-1, fp32.shape[-1]), dim=1)
-                    if cosine.min() < .999:
-                        raise AssertionError(f'{name}: cosine with FP32 oracle is {cosine.min().item()}')
-                    metrics = dict(name=name, cosine_min=cosine.min().item(),
-                        max_error=(actual-fp32).abs().max().item(),
-                        bf16_max_error=(actual-bf16.float()).abs().max().item())
+                    metrics=dict(name=name,**output_metrics(actual,fp32,bf16,restoration=restoration))
                     if image_input and actual.ndim == 2:
                         metrics['top1_agreement'] = (actual.argmax(-1)==fp32.argmax(-1)).float().mean().item()
                     row['outputs'].append(metrics)
