@@ -95,7 +95,7 @@ int TestConvIteration(int,char**) {
       l.logical[3]=channels;l.physical[3]=channels==3?4:channels;
       l.halo_top=l.halo_bottom=l.halo_left=l.halo_right=3;
       l.physical[1]=c.h+6;l.physical[2]=c.w+6;
-      l.strides[3]=1;l.strides[2]=(l.physical[3]+7)/8*8;
+      l.strides[3]=1;l.strides[2]=l.physical[3];
       l.strides[1]=l.physical[2]*l.strides[2];l.strides[0]=l.physical[1]*l.strides[1];
       if(channels==24 && tk>24) {
         bool rejected=false;
@@ -122,7 +122,7 @@ int TestConvIteration(int,char**) {
           case 3:bad.stride_h=0;break;
           case 4:bad.dilation_w=0;break;
           case 5:wrong.halo_top=0;break;
-          case 6:wrong.strides[2]=4;break;
+          case 6:wrong.strides[2]=2;break;
           case 7:wrong.physical[1]=c.h;break;
           case 8:wrong.fill=codegen::DmFill::kNegativeInfinity;break;
           case 9:wrong.strides[1]=1;break;

@@ -69,7 +69,8 @@ struct ServingConv {
       asm volatile("trap;");return nullptr;
     }
     // Four packed BF16 channels form an 8-byte vector. The input pixel pitch
-    // remains 16-byte aligned; two adjacent filter positions need two copies.
+    // is 8-byte aligned in the compact RGB layout; adjacent filter positions
+    // still issue independent copies.
     if(geometry.channels==4)
       return RunPacked<4,TiledB>(p,conv,layout,geometry,tile_m,tile_n,begin,iterations,shared);
     return RunPacked<8,TiledB>(p,conv,layout,geometry,tile_m,tile_n,begin,iterations,shared);

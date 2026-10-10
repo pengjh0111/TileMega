@@ -31,7 +31,7 @@ struct DmConvRuntime {
        layout.physical[2]<std::uint64_t(conv.w)+layout.halo_left+layout.halo_right ||
        layout.halo_top<conv.pad_h || layout.halo_bottom<conv.pad_h ||
        layout.halo_left<conv.pad_w || layout.halo_right<conv.pad_w ||
-       layout.strides[3]!=1 || layout.strides[2]%8 ||
+       layout.strides[3]!=1 || layout.strides[2]%(geometry.channels==4?4:8) ||
        layout.strides[2]<layout.physical[3] ||
        layout.strides[1]<std::uint64_t(layout.physical[2])*layout.strides[2] ||
        layout.strides[0]<std::uint64_t(layout.physical[1])*layout.strides[1] ||

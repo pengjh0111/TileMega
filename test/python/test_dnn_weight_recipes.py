@@ -21,6 +21,18 @@ class Source:
 
 
 class DnnRecipes(unittest.TestCase):
+    def test_image_layernorm_vector_affine_matches_broadcast_parameters(self):
+        values = dict(w=torch.arange(24, dtype=torch.float32).reshape(6,1,1,4)/24,
+                      gamma=torch.tensor([.8,1.,1.2,.9]), beta=torch.tensor([.1,-.2,.3,-.4]))
+        recipe=dict(kind='fold_layernorm',source='w',gamma='gamma',beta='beta',channel_axis=1)
+        vector={part:self.packed(dict(recipe,part=part),values)
+                for part in ('weight','u','v')}
+        expanded={key:(value.reshape(1,4,1,1) if key in ('gamma','beta') else value)
+                  for key,value in values.items()}
+        for part in vector:
+            self.assertTrue(torch.equal(vector[part],self.packed(dict(recipe,part=part),expanded)))
+        self.assertTrue(torch.equal(self.packed(dict(kind='linear_bias',source='gamma',channel_axis=1),values,['gamma']), values['gamma']))
+
     def setUp(self):
         torch.manual_seed(20261009)
         torch.set_num_threads(2)
@@ -139,7 +151,7 @@ class DnnRecipes(unittest.TestCase):
         recipe=dict(kind='linear_bias',source='scale',channel_axis=1)
         packed=self.packed(recipe,values)
         self.assertTrue(torch.equal(packed,values['scale'][0,:,0,0].float()))
-        for shape in [(2,32,1,1),(1,32,2,1),(32,), (1,1,32,1)]:
+        for shape in [(2,32,1,1),(1,32,2,1),(32,1), (1,1,32,1)]:
             with self.assertRaises(ValueError):
                 _packed_cpu(recipe,Source(dict(scale=torch.randn(shape).bfloat16())))
 

@@ -76,7 +76,7 @@ def pack(recipe: Mapping, source, nested):
         def affine(name):
             value = source(str(recipe[name]))
             if recipe.get('channel_axis') == 1:
-                if value.shape != (1, width, 1, 1):
+                if value.shape not in ((width,), (1, width, 1, 1)):
                     raise ValueError('image LayerNorm affine shape differs from its channels')
                 value = value.reshape(-1)
             if value.shape != (width,):
@@ -103,8 +103,9 @@ def pack(recipe: Mapping, source, nested):
         raise ValueError('fold_layernorm part must be weight, u or v')
     if kind == 'linear_bias':
         if recipe.get('channel_axis') == 1:
-            if weight is None or weight.ndim != 4 or weight.shape[0] != 1 or weight.shape[2:] != (1,1):
-                raise ValueError('image channel scale requires shape [1,C,1,1]')
+            if weight is None or not (weight.ndim == 1 or
+                    (weight.ndim == 4 and weight.shape[0] == 1 and weight.shape[2:] == (1,1))):
+                raise ValueError('image channel scale requires shape [C] or [1,C,1,1]')
             return weight.reshape(-1).float()
         if 'channel_axis' in recipe:
             raise ValueError('linear_bias channel_axis must be one when present')
