@@ -12,6 +12,15 @@ retain the original G-DNN criteria and join receipts by artifact identity.
 The complete public build/run entry still needs a native replay; existing
 native model results were generated through the experiment/compile entry.
 
-Current feature surface: pg, forward_executor, reuse and deferred_ln. Structural
-fusion and other unfinished features are deliberately rejected until their
-complete runtime integration is available. Their implementation remains due.
+verified: the accepted feature surface now includes pg, forward_executor,
+reuse, deferred_ln, dwpw_fuse, global_la and explicit nonpaged_la/paged_la/
+paged_la_splitk overrides. Unknown features remain errors. Three CLI host
+checks pass, including inherited GPU-lock exclusivity and reduction controls.
+
+verified: the generated-model checker accepts `--synthetic-weights`, replacing
+the exported module state with one fixed seed and packing that same state for
+the native library. Normalization variances stay positive and integer buffers
+stay integral. The reference is that synthetic BF16 state promoted to FP32,
+recorded with its seed in the receipt; it is not a real-weight model gate. One
+host exported Conv/BN check verifies deterministic, finite execution and dtypes.
+Native full-graph synthetic replay remains pending.

@@ -24,6 +24,28 @@ def _sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+@torch.no_grad()
+def synthetic_state(module, seed=20261010):
+    """Use one stable state, retaining valid normalization buffers and dtypes."""
+    generator=torch.Generator(device='cpu').manual_seed(seed)
+    state=module.state_dict()
+    for name,value in state.items():
+        if not value.is_floating_point():
+            value.zero_()
+        elif name.endswith('running_var'):
+            value.fill_(1)
+        elif name.endswith('running_mean'):
+            value.zero_()
+        elif value.ndim==1 and name.endswith('weight'):
+            value.copy_(1+.05*torch.randn(value.shape,generator=generator))
+        else:
+            fan_in=1
+            for extent in value.shape[1:]:fan_in*=extent
+            scale=fan_in**-.5 if value.ndim>=2 else .05
+            value.copy_(scale*torch.randn(value.shape,generator=generator))
+    return state
+
+
 @torch.inference_mode()
 def _diagnose(library, plan, module, arguments, bridge, destination):
     """Copy test-only native intermediates and compare untouched FX values.
@@ -127,7 +149,7 @@ def output_metrics(actual,fp32,bf16,*,restoration=False,elementwise=False):
 
 
 def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics=None,
-          input_tensors=None,elementwise=False):
+          input_tensors=None,elementwise=False,synthetic_weights=False):
     torch.set_num_threads(4); torch.manual_seed(20261009)
     torch.backends.cuda.matmul.allow_tf32 = False
     export_dir, bridge_path = Path(export_dir), Path(bridge_path)
@@ -145,8 +167,16 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics
     # CPU exports may contain literal CPU devices in shape-only mask graphs.
     # Keep the untouched exported reference on its original device.
     module = program.module()
+    if synthetic_weights:
+        from tilemega.serving.weights import _packed_gpu
+        state=synthetic_state(module)
+        sources={name:value.cuda() for name,value in state.items()}
+        tensors={buffer.name:_packed_gpu(json.loads(buffer.pack_json),sources.__getitem__).contiguous()
+            for buffer in library.buffers if buffer.pack_json}
+        del sources
+    else:
+        tensors = load_weights(export_dir/'checkpoint', library, device='cuda')
     oracle = copy.deepcopy(module).float()
-    tensors = load_weights(export_dir/'checkpoint', library, device='cuda')
     arguments = []
     image_input = False
     input_uses = {item['name']: [node for node in bridge['nodes']
@@ -238,7 +268,8 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics
     if identity['binary_sha256'] != _sha(library.path):
         raise ValueError('generated library no longer matches its build identity')
     return dict(evidence='verified', passed=True, scope='upstream DNN graph execution smoke; not G-DNN',
-        reference='exported BF16 checkpoint promoted to FP32', batch=batch,
+        reference='fixed synthetic state promoted to FP32' if synthetic_weights else 'exported BF16 checkpoint promoted to FP32',
+        synthetic_weights=synthetic_weights, synthetic_seed=20261010 if synthetic_weights else None, batch=batch,
         criterion='elementwise BF16 tolerance' if elementwise else 'model output metric',
         checker_sha256=_sha(Path(__file__)),
         artifact_id=identity['artifact_id'], bridge_sha256=_sha(bridge_path),
@@ -253,6 +284,8 @@ def main():
     parser.add_argument('--bridge', type=Path, required=True)
     parser.add_argument('--batch', type=int, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--synthetic-weights',action='store_true',
+        help='use one fixed synthetic state in the exported graph and native weight recipes')
     parser.add_argument('--elementwise',action='store_true',
         help='operator fixture gate: |error| <= .016 + .016*|FP32|')
     parser.add_argument('--diagnostics',type=Path,
@@ -261,7 +294,8 @@ def main():
         help='identified safetensors inputs for an additional smoke diagnostic')
     args = parser.parse_args()
     result = check(args.library, args.export, args.bridge, args.batch,diagnostics=args.diagnostics,
-                   input_tensors=args.input_tensors,elementwise=args.elementwise)
+                   input_tensors=args.input_tensors,elementwise=args.elementwise,
+                   synthetic_weights=args.synthetic_weights)
     args.out.write_text(json.dumps(result, indent=2)+'\n')
     print(json.dumps(result), flush=True)
 
