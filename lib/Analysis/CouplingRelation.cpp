@@ -26,11 +26,16 @@ isl_ctx* Ctx() { return SharedIslContext().raw(); }
 isl_util::Val CountFiniteFiber(isl_set* elements) {
   if(isl_set_is_empty(elements)==isl_bool_true)
     return isl_util::Val(isl_val_zero(Ctx()));
+  // Optimize a polyhedral cover instead of repeatedly solving integer
+  // programs with the flattened layout's floor/mod divisions. The cover is
+  // used only to propose a box; exact set equality below still proves it.
+  auto hull=isl_util::Set(isl_set_from_basic_set(isl_set_polyhedral_hull(isl_set_copy(elements))));
+  if(!hull)throw std::runtime_error("finite task fiber hull failed");
   auto box=isl_util::Set(isl_set_universe(isl_set_get_space(elements)));
   auto product=isl_util::Val(isl_val_one(Ctx()));
   for(int axis=0;axis<isl_set_dim(elements,isl_dim_set);++axis) {
-    isl_util::Val lo(isl_set_dim_min_val(isl_set_copy(elements),axis));
-    isl_util::Val hi(isl_set_dim_max_val(isl_set_copy(elements),axis));
+    isl_util::Val lo(isl_set_dim_min_val(isl_set_copy(hull.get()),axis));
+    isl_util::Val hi(isl_set_dim_max_val(isl_set_copy(hull.get()),axis));
     if(!lo || !hi || isl_val_is_int(lo.get())!=isl_bool_true ||
         isl_val_is_int(hi.get())!=isl_bool_true)
       throw std::invalid_argument("finite task fiber is not bounded");
