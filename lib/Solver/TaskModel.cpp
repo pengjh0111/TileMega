@@ -58,7 +58,21 @@ DerivedTaskInput RestrictVirtualTaskRows(DerivedTaskInput const& input,
 }
 void BindTaskDramProvenance(DerivedTaskInput& input,
     ModelTaskSemantics const& semantic,analysis::DramFloor const& floor,
-    analysis::ParamBinding const& theta,bool serving) {
+    analysis::ParamBinding const& theta,bool serving,ModelDescription const* storage_model) {
+  auto bind_storage=[&](std::set<std::string> const& names,analysis::DramFloor const& storage_floor) {
+    if(!storage_model || !storage_model->dm || storage_model->physical_buffers.empty())return;
+    std::set<std::string> allocated;double temporary_bytes=0;
+    for(auto const& name:names) {
+      if(storage_model->physical_buffers.count(name))allocated.insert(name);
+      else {
+        // Split-K temporaries have typed write witnesses but are appended
+        // after the plan's BufferDesc metadata was encoded.
+        auto const& tensor=storage_floor.tensors.at(name);
+        temporary_bytes+=tensor.writes.BindParams(theta).ImageCard().Eval({})*double(tensor.element_bytes);
+      }
+    }
+    input.produced_live_bytes=storage_model->PhysicalFootprintBytes(&allocated)+temporary_bytes;
+  };
   if(input.task.element_access) {
     auto const& op=input.task.element_access->semantic;
     bool requests=analysis::HasBindingRequests(op.result_map);
@@ -94,6 +108,7 @@ void BindTaskDramProvenance(DerivedTaskInput& input,
       input.no_producer_read_bytes=std::move(traffic.no_producer_read_bytes);
       input.external_write_bytes=std::move(traffic.external_write_bytes);
       input.produced_live_bytes=traffic.produced_live_bytes;
+      bind_storage(traffic.produced_tensors,typed);
       input.stream_bytes=floor.no_producer_bytes.EvalReal(theta);
       return;
     }
@@ -101,6 +116,7 @@ void BindTaskDramProvenance(DerivedTaskInput& input,
   auto accesses=DeriveModelTaskAccesses(semantic,input);
   std::vector<analysis::QuasiPolynomial> external_reads,external_writes,typed_reads,typed_writes;
   bool mixed_width=false;
+  std::set<std::string> produced_tensors;
   input.stream_bytes=floor.no_producer_bytes.EvalReal(theta);input.produced_live_bytes=0;
   for(auto const& [name,read]:accesses.reads) {
     // Serving plans are priced at a bound (B, past) point. Eliminating those
@@ -118,8 +134,10 @@ void BindTaskDramProvenance(DerivedTaskInput& input,
     auto external=tensor.writes.ImageCard().Eval(theta)==0 ? concrete : concrete.ApplyRange(no_producer.ImageIdentity());
     external_reads.push_back(external.Card().Scale(tensor.element_bytes));
     auto produced=concrete.Subtract(external);
-    if(produced.ImageCard().Eval(theta)>0)
+    if(produced.ImageCard().Eval(theta)>0) {
+      produced_tensors.insert(name);
       input.produced_live_bytes+=tensor.writes.ImageCard().Eval(theta)*tensor.element_bytes;
+    }
   }
   for(auto const& [name,write]:accesses.writes) {
     auto found=floor.tensors.find(name);if(found==floor.tensors.end())continue;
@@ -134,6 +152,7 @@ void BindTaskDramProvenance(DerivedTaskInput& input,
     input.physical_write_bytes=analysis::QuasiPolynomial::Sum(typed_writes);
   input.no_producer_read_bytes=analysis::QuasiPolynomial::Sum(external_reads);
   input.external_write_bytes=analysis::QuasiPolynomial::Sum(external_writes);
+  bind_storage(produced_tensors,floor);
 }
 TaskMemoryTraffic DeriveTaskMemoryTraffic(DerivedTaskInput const& input,
     analysis::ParamBinding const& theta, analysis::ParamBinding const& coordinates,

@@ -70,7 +70,7 @@ MoeTaskPrice PriceMoeVirtualTask(CostModel const& cost,DerivedTaskInput const& i
     auto live=std::max<long>(0,std::min<long>(row_tile,long(rows)-row*row_tile));
     if(!live){empty+=count;continue;}
     auto conditioned=RestrictVirtualTaskRows(input,rows,traits,theta);
-    BindTaskDramProvenance(conditioned,semantic,floor,theta,model.serving);
+    BindTaskDramProvenance(conditioned,semantic,floor,theta,model.serving,&model);
     auto parts=cost.PriceParts(conditioned,traits,residency,model,chunks,
         coordinate,residency.ctas_per_sm);
     auto probability=double(count)/routing.windows;

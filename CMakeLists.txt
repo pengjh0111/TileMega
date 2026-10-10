@@ -411,6 +411,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/dm_counted_fusion_test.cpp
     test/unit/dm_gemm_class_domain_test.cpp
     test/unit/dm_forward_search_test.cpp
+    test/unit/dm_physical_footprint_test.cpp
     test/unit/dnn_structure_search_test.cpp
     test/unit/task_arithmetic_domain_test.cpp
     test/unit/dm_store_geometry_test.cpp
@@ -905,6 +906,7 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME dynamic_task_cursor COMMAND tilemega-unit dynamic_task_cursor)
   add_test(NAME moe_opaque_control COMMAND tilemega-unit moe_opaque_control)
   add_test(NAME dm_forward_search COMMAND tilemega-unit dm_forward_search)
+  add_test(NAME dm_physical_footprint COMMAND tilemega-unit dm_physical_footprint)
   add_test(NAME dnn_structure_search COMMAND tilemega-unit dnn_structure_search)
   add_test(NAME task_arithmetic_domain COMMAND tilemega-unit task_arithmetic_domain)
   add_test(NAME dm_store_geometry COMMAND tilemega-unit dm_store_geometry)

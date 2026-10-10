@@ -63,7 +63,8 @@ struct DerivedTaskInput {
 };
 void BindTaskDramProvenance(DerivedTaskInput& input,
     ModelTaskSemantics const& semantic,analysis::DramFloor const& floor,
-    analysis::ParamBinding const& theta,bool serving=false);
+    analysis::ParamBinding const& theta,bool serving=false,
+    ModelDescription const* storage_model=nullptr);
 // Condition physical requests on one observed binding row count. Static
 // ownership and issued MMA tiles remain those of the capacity plan.
 DerivedTaskInput RestrictVirtualTaskRows(DerivedTaskInput const& input,

@@ -223,6 +223,12 @@ ModelDescription ModelDescription::ReadCouplingGraph(
     throw std::invalid_argument("unsupported CG model dtype");
   model.dtype = dtype.getValue() == "bf16" ? ScalarType::kBF16 : ScalarType::kF32;
   auto buffers=array("buffers");
+  if(model.dm) {
+    if(auto arena=plan.getAs<mlir::IntegerAttr>("dm_memory_arena_bytes")) {
+      if(arena.getInt()<0)throw std::invalid_argument("negative DM memory arena");
+      model.memory_arena_bytes=arena.getInt();
+    }
+  }
   if(model.dm)
     for(auto buffer:buffers) {
       auto entry=llvm::dyn_cast<mlir::DictionaryAttr>(buffer);
@@ -237,6 +243,26 @@ ModelDescription ModelDescription::ReadCouplingGraph(
           type=="i64" || type=="torch.int64"?8:0;
       if(!bytes)throw std::invalid_argument("unsupported DM buffer storage dtype");
       model.buffer_element_bytes.emplace(name.getValue().str(),bytes);
+      auto count=[&](llvm::StringRef field) {
+        auto v=entry.getAs<mlir::IntegerAttr>(field);
+        if(!v || v.getInt()<0 || std::uint64_t(v.getInt())>UINT32_MAX)
+          throw std::invalid_argument("invalid DM buffer allocation extent");
+        return std::uint64_t(v.getInt());
+      };
+      ModelBufferAllocation allocation{count("constant"),count("per_seq"),
+          count("per_past"),count("per_total"),count("per_batch"),unsigned(bytes),{}};
+      if(auto offset=entry.getAs<mlir::IntegerAttr>("dm_arena_offset")) {
+        auto role=entry.getAs<mlir::StringAttr>("role");
+        auto source=entry.getAs<mlir::StringAttr>("source");
+        auto file=entry.getAs<mlir::StringAttr>("file");
+        if(offset.getInt()<0 || offset.getInt()%256 || !role || role.getValue()!="internal" ||
+            !source || source.getValue()!="zero" || !file || !file.getValue().empty() ||
+            std::uint64_t(offset.getInt())>model.memory_arena_bytes)
+          throw std::invalid_argument("invalid DM physical arena alias");
+        allocation.arena_offset=offset.getInt();
+      }
+      if(!model.physical_buffers.emplace(name.getValue().str(),allocation).second)
+        throw std::invalid_argument("duplicate DM allocation identity");
     }
   for (auto output:array("outputs")) {
     auto entry=llvm::dyn_cast<mlir::DictionaryAttr>(output);
@@ -484,8 +510,63 @@ ModelDescription ModelDescription::FromGeneratedCuda(std::string const& path,
   return model;
 }
 
+std::uint64_t ModelDescription::PhysicalFootprintBytes(std::set<std::string> const* subset) const {
+  if(!dm || dims.IsSymbolic() || dims.seq<0 || dims.past<0 || dims.total<0 || dims.batch<1)
+    throw std::invalid_argument("physical footprint needs bound DM dimensions");
+  auto add=[](std::uint64_t a,std::uint64_t b) {
+    if(a>UINT64_MAX-b)throw std::overflow_error("physical footprint addition overflow");
+    return a+b;
+  };
+  auto mul=[](std::uint64_t a,std::uint64_t b) {
+    if(b && a>UINT64_MAX/b)throw std::overflow_error("physical footprint product overflow");
+    return a*b;
+  };
+  std::uint64_t bytes=subset?0:memory_arena_bytes;
+  std::vector<std::pair<std::uint64_t,std::uint64_t>> intervals;
+  auto append=[&](ModelBufferAllocation const& allocation) {
+    if(allocation.element_bytes!=2 && allocation.element_bytes!=4 && allocation.element_bytes!=8)
+      throw std::invalid_argument("invalid physical allocation element width");
+    auto elements=allocation.constant;
+    for(auto const& [coefficient,dimension]:{
+        std::pair{allocation.per_seq,dims.seq},{allocation.per_past,dims.past},
+        {allocation.per_total,dims.total},{allocation.per_batch,dims.batch}})
+      elements=add(elements,mul(coefficient,dimension));
+    auto size=mul(elements,allocation.element_bytes);
+    if(allocation.arena_offset) {
+      auto offset=*allocation.arena_offset;
+      if(offset%256 || offset>memory_arena_bytes || size>memory_arena_bytes-offset)
+        throw std::invalid_argument("physical allocation exceeds its arena");
+      if(subset && size)intervals.emplace_back(offset,offset+size);
+    } else bytes=add(bytes,size);
+  };
+  if(subset) {
+    for(auto const& name:*subset)append(physical_buffers.at(name));
+  } else for(auto const& [name,allocation]:physical_buffers)append(allocation);
+  std::sort(intervals.begin(),intervals.end());
+  std::uint64_t last=0;
+  for(auto const& [begin,end]:intervals) {
+    if(end>last)bytes=add(bytes,end-std::max(begin,last));
+    last=std::max(last,end);
+  }
+  return bytes;
+}
+std::string ModelDescription::PhysicalFootprintKey() const {
+  if(physical_buffers.empty())return {};
+  std::ostringstream key;key<<"dm_storage:"<<memory_arena_bytes;
+  for(auto const& [name,a]:physical_buffers) {
+    key<<';'<<name.size()<<':'<<name<<':'<<a.constant<<','<<a.per_seq<<','
+       <<a.per_past<<','<<a.per_total<<','<<a.per_batch<<','<<a.element_bytes<<',';
+    if(a.arena_offset)key<<*a.arena_offset;else key<<"separate";
+  }
+  return key.str();
+}
 double ModelDescription::LiveFootprintBytes() const {
   if (dims.IsSymbolic()) throw std::invalid_argument("bind theta before evaluating footprint");
+  if(dm && !physical_buffers.empty()) {
+    double bytes=PhysicalFootprintBytes();
+    if(attention_plan)bytes+=double(attention_plan->workspace_bytes.Eval(MetricBindings()));
+    return bytes;
+  }
   double bytes = 0.0;
   double const element_bytes = dtype == ScalarType::kBF16 ? 2.0 : 4.0;
   if (!task_semantics.empty()) {

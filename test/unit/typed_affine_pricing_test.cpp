@@ -44,6 +44,9 @@ int TestTypedAffinePricing(int,char**) {
     assert(input.physical_read_bytes && input.physical_write_bytes);
     assert(input.produced_live_bytes==produced*5*2);
     assert(input.stream_bytes==n*5*bytes+(m-produced)*5*2);
+    model.physical_buffers["hidden"]={std::uint64_t(m*8),0,0,0,0,2,{}};
+    solver::BindTaskDramProvenance(input,model.task_semantics.front(),floor,{},true,&model);
+    assert(input.produced_live_bytes==m*8*2);
     std::vector<ParamBinding> points;
     for(long r=0;r<(m+15)/16;++r)for(long c=0;c<(n+15)/16;++c) {
       ParamBinding point;point.Bind("m",r).Bind("n",c);points.push_back(point);

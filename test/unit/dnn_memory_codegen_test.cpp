@@ -74,6 +74,19 @@ int TestDnnMemoryCodegen(int argc,char** argv) {
   auto module=TorchExportImporter{}.ImportPlan(path,plan,context,nullptr,options);
   auto stored=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   assert(stored.getAs<mlir::IntegerAttr>("dm_memory_arena_bytes").getInt()>0);
+  solver::ModelDims dims{7,0,7};dims.batch=2;
+  auto physical_model=solver::ModelDescription::FromCouplingGraph(*module,dims,"reuse-storage");
+  std::uint64_t expected_bytes=physical_model.memory_arena_bytes;
+  for(auto item:stored.getAs<mlir::ArrayAttr>("buffers")) {
+    auto b=llvm::cast<mlir::DictionaryAttr>(item);
+    if(b.get("dm_arena_offset"))continue;
+    auto count=[&](char const* name){return b.getAs<mlir::IntegerAttr>(name).getInt();};
+    auto name=b.getAs<mlir::StringAttr>("name").getValue().str();
+    expected_bytes+=(count("constant")+7*count("per_seq")+2*count("per_batch"))*
+        physical_model.buffer_element_bytes.at(name);
+  }
+  assert(physical_model.PhysicalFootprintBytes()==expected_bytes &&
+         physical_model.LiveFootprintBytes()==double(expected_bytes));
   auto hazards=(*module)->getAttrOfType<mlir::IntegerAttr>("tilemega.memory_hazard_count").getInt();
   assert(hazards>0);
   auto source=CouplingGraphToCUDA{}.LowerVariants({{*module,7,7}});

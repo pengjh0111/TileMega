@@ -343,6 +343,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     int paged_page_bytes) {
   if(problem.model.dtype!=ScalarType::kBF16)throw std::invalid_argument("flow preparation requires BF16");
   auto target_key=target.ToJson();
+  if(problem.model.dm)target_key+=problem.model.PhysicalFootprintKey();
   for(auto const& [name,tensor]:floor.tensors)if(tensor.expected_read_elements) {
     target_key+=":expected:";
     for(auto const& value:{name,tensor.expected_read_elements->ToString(),tensor.expectation_source})
@@ -497,7 +498,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     auto const price_start=std::chrono::steady_clock::now();
     cache.derive_ms+=std::chrono::duration<double,std::milli>(price_start-derive_start).count();
     PiecePrices prices;
-    try {BindTaskDramProvenance(input,semantic,floor,theta,model.serving);
+    try {BindTaskDramProvenance(input,semantic,floor,theta,model.serving,&model);
       prices=PriceBoundaryPieces(cost,input,semantic,traits,{residency},model,chunks,&cache.prices,kernel_shared_bytes);
     }catch(std::exception const& e){throw std::runtime_error(input.task.name+": "+e.what());}
     auto const map_start=std::chrono::steady_clock::now();

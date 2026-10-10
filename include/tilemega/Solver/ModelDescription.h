@@ -142,6 +142,12 @@ struct ModelTaskSemantics {
   bool element_chunk = false;
 };
 
+struct ModelBufferAllocation {
+  std::uint64_t constant=0,per_seq=0,per_past=0,per_total=0,per_batch=0;
+  unsigned element_bytes=0;
+  std::optional<std::uint64_t> arena_offset;
+};
+
 struct ModelDescription {
   std::string name;
   ScalarType dtype = ScalarType::kF32;
@@ -176,6 +182,11 @@ struct ModelDescription {
   std::vector<codegen::DmEpilogueChain> epilogue_chains;
   std::vector<codegen::DmBufferLayout> buffer_layouts;
   std::map<std::string,int> buffer_element_bytes;
+  // Mirrors allocated BufferDesc storage, including padding and retained
+  // buffers. External allocations are counted separately unless an arena
+  // alias is proved; possible caller-side aliasing is not assumed.
+  std::map<std::string,ModelBufferAllocation> physical_buffers;
+  std::uint64_t memory_arena_bytes=0;
 
   /// Parse the `kGemms` and `kStages` tables out of a generated .cu.  Throws
   /// std::runtime_error when either table is missing or malformed -- a silent
@@ -201,6 +212,8 @@ struct ModelDescription {
   /// Bytes of parameter and activation storage the model keeps live, which is
   /// what the L2 must hold for the weight stream to stay resident (§2.2(e)).
   double LiveFootprintBytes() const;
+  std::uint64_t PhysicalFootprintBytes(std::set<std::string> const* subset=nullptr) const;
+  std::string PhysicalFootprintKey() const;
   int RuntimeStages(int stage) const;
   int NonGemmSharedBytes() const;
 };

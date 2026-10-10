@@ -61,6 +61,7 @@ BindingRequestTraffic DeriveBindingRequestTraffic(analysis::OperatorNode const& 
       throw std::overflow_error("binding traffic live footprint overflows");
     result.produced_live_bytes+=std::uint64_t(elements)*tensor.element_bytes;
   }
+  result.produced_tensors=std::move(live);
   auto store=[&](TensorSpace const& tensor,IndexingMap const& map,
                  std::vector<IndexResult> const& predicates) {
     auto found=floor.tensors.find(tensor.name);
