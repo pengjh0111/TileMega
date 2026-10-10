@@ -345,12 +345,21 @@ struct ServingDmEpilogue {
       } else {
         constexpr unsigned count = Side::kKind == K::kArgmaxPartial ? 1 : Side::kCount;
         static_assert(count > 0 && count <= kColumns);
-        if (layout.rank != 3 || layout.logical[2] < count) {
-          asm volatile("trap;");
-          return;
-        }
         auto indices = Buffer<std::int32_t, 2>(p, descriptor.auxiliary);
         auto index_layout = Layout(p, descriptor.auxiliary);
+        auto valid=[&](codegen::DmBufferLayout const& l) {
+          unsigned parts=(columns+kColumns-1)/kColumns;
+          return (l.rank==3 && l.logical[1]>=parts && l.logical[2]>=count) ||
+              (l.rank==2 && l.logical[1]>=std::uint64_t(parts)*count && l.strides[1]==1);
+        };
+        if(!valid(layout) || !valid(index_layout)) {asm volatile("trap;");return;}
+        // MoE stores [row, part*K+rank]; standalone side-output fixtures may
+        // use [row, part, rank]. Both layouts retain the same finite chain.
+        auto offset=[&](codegen::DmBufferLayout const& l,int row,unsigned rank) {
+          return std::uint64_t(row)*l.strides[0]+(l.rank==2?
+              (std::uint64_t(tile_n)*count+rank)*l.strides[1]:
+              std::uint64_t(tile_n)*l.strides[1]+rank*l.strides[2]);
+        };
         // Only row leaders select from shared memory. The order is stable:
         // descending rounded logit, then ascending global expert index.
         for (int row = ComputeThread(); row < TileM; row += kComputeThreads) {
@@ -378,10 +387,8 @@ struct ServingDmEpilogue {
           }
           #pragma unroll
           for (unsigned rank = 0; rank < count; ++rank) {
-            output[global_row * layout.strides[0] + tile_n * layout.strides[1] +
-                   rank * layout.strides[2]] = values[rank];
-            indices[global_row * index_layout.strides[0] + tile_n * index_layout.strides[1] +
-                    rank * index_layout.strides[2]] = selected[rank];
+            output[offset(layout,global_row,rank)] = values[rank];
+            indices[offset(index_layout,global_row,rank)] = selected[rank];
           }
         }
       }
