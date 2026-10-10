@@ -911,8 +911,8 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     detail<<"tensor\telement_bytes\tno_producer_read_bytes\texternal_write_bytes\tstate\toutput\n";
     for(auto const& [name,tensor]:search.floor->tensors)
       detail<<name<<'\t'<<tensor.element_bytes<<'\t'
-            <<tensor.read_bytes.Eval(theta)<<'\t'
-            <<tensor.write_bytes.Eval(theta)<<'\t'
+            <<tensor.read_bytes.EvalReal(theta)<<'\t'
+            <<tensor.write_bytes.EvalReal(theta)<<'\t'
             <<tensor.state<<'\t'<<tensor.output<<'\n';
   }
   if(options.search_only) {

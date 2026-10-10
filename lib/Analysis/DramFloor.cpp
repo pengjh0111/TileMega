@@ -164,8 +164,8 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
     if(footprint==result.tensors.end() || envelope==expected_envelopes.end() ||
        !footprint->second.writes.empty() || footprint->second.state || affine_readers.count(name))
       throw std::invalid_argument("DramFloor expectation requires an indirect-only external tensor: "+name);
-    auto count=expected.elements.EvalReal(fixed);
-    if(count<0 || count>Cardinality(envelope->second).EvalReal(fixed))
+    if(expected.elements.CompareScalar(QuasiPolynomial::Constant(0),fixed)<0 ||
+       expected.elements.CompareScalar(Cardinality(envelope->second),fixed)>0)
       throw std::invalid_argument("DramFloor expectation exceeds its access envelope: "+name);
   }
   std::vector<QuasiPolynomial> reads,writes;

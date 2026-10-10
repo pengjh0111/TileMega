@@ -75,6 +75,8 @@ class QuasiPolynomial {
   /// Evaluate a finite scalar rational without truncating fractional work.
   /// Integer-only callers retain Eval's stricter contract.
   double EvalReal(ParamBinding const& known) const;
+  /// Compare finite scalar rationals exactly, returning -1, 0 or 1.
+  int CompareScalar(QuasiPolynomial const& other, ParamBinding const& known) const;
   std::vector<long> EvalPoints(ParamBinding const& known,
       std::vector<ParamBinding> const& coordinates) const;
   /// Sum over task-coordinate dimensions, retaining symbolic parameters.

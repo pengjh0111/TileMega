@@ -338,7 +338,17 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     analysis::DramFloor::Value const* bound_floor,bool paged,
     int paged_page_bytes) {
   if(problem.model.dtype!=ScalarType::kBF16)throw std::invalid_argument("flow preparation requires BF16");
-  auto target_key=target.ToJson();if(cache.target_key!=target_key){cache={};cache.target_key=std::move(target_key);}
+  auto target_key=target.ToJson();
+  for(auto const& [name,tensor]:floor.tensors)if(tensor.expected_read_elements) {
+    target_key+=":expected:";
+    for(auto const& value:{name,tensor.expected_read_elements->ToString(),tensor.expectation_source})
+      target_key+=std::to_string(value.size())+":"+value;
+    target_key+=":"+std::to_string(tensor.element_bytes);
+  }
+  if(cache.target_key!=target_key) {
+    cache={};cache.target_key=std::move(target_key);
+    prior=nullptr;reusable_stages=nullptr;
+  }
   PreparedFlow result;auto& flow=result.flow;auto model=problem.model;model.metric_bindings.values.erase("Tm");model.metric_bindings.values.erase("Tn");auto theta=model.MetricBindings();
   auto const profile_start=std::chrono::steady_clock::now();
   flow.workers=target.res.num_sms*residency;
@@ -387,6 +397,8 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     auto const& f=tensor->second;
     std::string key=f.no_producer.ToString()+":"+f.writes.ToString()+":"+
         f.external_writes.ToString()+":"+std::to_string(f.element_bytes);
+    if(f.expected_read_elements)
+      key+=":expected:"+f.expected_read_elements->ToString()+":"+f.expectation_source;
     return cache.floor_tensor_keys.emplace(name,std::move(key)).first->second;
   };
   std::ostringstream binding_text;

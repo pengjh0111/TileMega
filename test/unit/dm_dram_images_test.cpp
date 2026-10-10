@@ -87,6 +87,14 @@ int TestDmDramImages(int,char**) {
   };
   auto wrong=expected;wrong.expected_indirect_reads["shared"].elements=QuasiPolynomial::Constant(33);
   reject_expected({{a,b}},wrong);
+  auto just_over=QuasiPolynomial::Constant(32).Add(
+      QuasiPolynomial::Constant(1).ScaleRational("1/9007199254740992"));
+  assert(just_over.EvalReal({})==32.);
+  assert(just_over.CompareScalar(QuasiPolynomial::Constant(32),{})==1);
+  assert(QuasiPolynomial::Constant(32).CompareScalar(just_over,{})==-1);
+  assert(just_over.CompareScalar(just_over,{})==0);
+  wrong=expected;wrong.expected_indirect_reads["shared"].elements=just_over;
+  reject_expected({{a,b}},wrong);
   wrong=expected;wrong.expected_indirect_reads["shared"].elements=QuasiPolynomial::Constant(-1);
   reject_expected({{a,b}},wrong);
   wrong=expected;wrong.expected_indirect_reads["shared"].source.clear();reject_expected({{a,b}},wrong);

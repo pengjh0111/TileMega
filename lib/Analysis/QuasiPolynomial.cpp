@@ -410,18 +410,32 @@ QuasiPolynomial QuasiPolynomial::BindCoordinates(ParamBinding const& point) cons
   return QuasiPolynomial(isl_util::ToString(value.get()));
 }
 
-double QuasiPolynomial::EvalReal(ParamBinding const& known) const {
-  IslReferenceAudit audit(__func__);
-  auto value=isl_util::ReadPwQPolynomial(Ctx(),BindParameterTokens(text_,known));
+namespace {
+isl_util::Val ExactScalarValue(std::string const& text,ParamBinding const& known) {
+  auto value=isl_util::ReadPwQPolynomial(Ctx(),BindParameterTokens(text,known));
   value=FixParams(std::move(value),known);
   auto hi=isl_util::Val(isl_pw_qpolynomial_max(isl_pw_qpolynomial_copy(value.get())));
   auto lo=isl_util::Val(isl_pw_qpolynomial_min(value.release()));
   if(!hi || !lo || isl_val_is_rat(hi.get())!=isl_bool_true ||
      isl_val_is_rat(lo.get())!=isl_bool_true || isl_val_eq(hi.get(),lo.get())!=isl_bool_true)
     throw std::out_of_range("quasi-polynomial is not a finite scalar rational");
-  double result=isl_val_get_d(hi.get());
+  return hi;
+}
+}
+double QuasiPolynomial::EvalReal(ParamBinding const& known) const {
+  IslReferenceAudit audit(__func__);
+  auto scalar=ExactScalarValue(text_,known);
+  double result=isl_val_get_d(scalar.get());
   if(!std::isfinite(result))throw std::overflow_error("quasi-polynomial exceeds FP64 range");
   return result;
+}
+int QuasiPolynomial::CompareScalar(QuasiPolynomial const& other,ParamBinding const& known) const {
+  IslReferenceAudit audit(__func__);
+  auto a=ExactScalarValue(text_,known),b=ExactScalarValue(other.text_,known);
+  auto less=isl_val_lt(a.get(),b.get()),greater=isl_val_gt(a.get(),b.get());
+  if(less==isl_bool_error || greater==isl_bool_error)
+    throw std::runtime_error("cannot compare exact scalar rational values");
+  return less==isl_bool_true?-1:greater==isl_bool_true?1:0;
 }
 
 long QuasiPolynomial::Eval(ParamBinding const& known) const {
