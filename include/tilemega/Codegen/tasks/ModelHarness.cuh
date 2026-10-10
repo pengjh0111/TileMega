@@ -3246,11 +3246,14 @@ inline DeviceModel Create(ModelSpec const& spec,
       if(target.kind==TaskKind::kMoECombine) {
         auto const& source=model.stages.at(edge.producer);
         if((source.kind!=TaskKind::kGemm && source.kind!=TaskKind::kGemmCombine) ||
-            source.gemm>=spec.gemm_count)
+            source.gemm>=gemms.size())
           throw std::invalid_argument("MoE counted writer must be an expert GEMM or its combiner");
-        auto const& access=spec.gemms[source.gemm].access;
+        auto const& invocation=gemms.at(source.gemm);
+        auto const& access=invocation.access;
+        if(invocation.dm_gemm>=spec.gemm_count)
+          throw std::invalid_argument("MoE counted writer lost its GEMM descriptor");
         if(access.b!=DmBAccess::kExpertIndirect || access.write.kind!=DmWriteKind::kRowScatter ||
-            target.width!=runtime_variant.gemms[source.gemm].tile_n ||
+            target.width!=unsigned(invocation.tile_n) ||
             target.moe.top_k!=access.routing_topk)
           throw std::invalid_argument("MoE counted writer and combine ownership differ");
       }
