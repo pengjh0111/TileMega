@@ -33,7 +33,7 @@ Export coverage and primitive checks do not imply model correctness.
 | CI-3 | verified: forward ABI and native CG CLI; DNN exported-model entry implemented; MoE forward region CLI entry/codegen implemented; complete DNN gates and full decoder checks pending |
 | CI-4 | verified: exact windows/tables, WAR/WAW, virtual capacities/counting and native thresholds; full fused/reused MobileNetV1 and full B16 MoE prefill now generate; bounded symbolic interval proofs retain exact fallback (`analysis.md`, `memory.md`) |
 | CI-5 | verified: native forward/prefill pages and table/counted/binding primitives; generated MoE dynamic L2 control now passes fixed-input checks; generic pool/dispatch/counted-combine LA elision passes generated L1/L2/pages fixtures (`dm_last_arriver.md`) |
-| CI-6 | verified: 48-layer routing profile/captures and separate rational expected-read cardinalities; production binding/unique-expert floor consumers and public profile identity are implemented; conditional occupancy flow is being checked; empirical body fits omitted under the no-measurement scope |
+| CI-6 | verified: 48-layer routing profile/captures and separate rational expected-read cardinalities; production binding/unique-expert floor consumers and public profile identity are implemented; conditional occupancy flow and final-plan attribution pass host checks (`moe_structure_search.md`); empirical body fits omitted under the no-measurement scope |
 | CI-7 | verified: narrow tile/class candidates, private DW compute pricing, virtual/histogram work foundations; shared packed-layout constraints now cover fixed/solver plans and capacity-limited CLI deployments; DNN per-pair fusion, per-edge LN, reuse and C′ selection now pass host search/codegen; MoE slot/group BM16/32/64/128 host search now passes; GEMV/LA structural pricing remains incomplete |
 | DN-1 | verified: six upstream real-weight exports, before/Core fixtures and source-FQN recipes; assets are retained, no further real-weight/dataset checks are required |
 | DN-2/3 | verified: five DNN before/Core plans and semantics, including masked BERT and NAFNet SG/SCA/shuffle; prior model discrepancies remain recorded |
@@ -291,7 +291,7 @@ These do not discharge the corresponding real DNN/MoE body/model paths in §8.A.
 
 ## Remaining work
 
-Finish GEMV/LA solver coordinates and conditional routing-profile flow checks.
+Finish GEMV/LA solver integration and full-model generated execution checks.
 Combined DNN structural selection and fixed-input native execution now pass.
 Complete full-model native build/check coverage. Preserve prior model discrepancies.
 Default host CUDA invariance now passes 8/8 (`T1_default_cuda_host.json`); complete documentation and
