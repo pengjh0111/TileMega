@@ -121,6 +121,7 @@ struct ModelStage {
   int attention_query_rows = 0;
   std::uint32_t dm_conv = codegen::kDmNoIndex, rows_per_batch = 0;
   std::uint32_t dm_workspace_bytes = 0;
+  codegen::DmMoeStage moe{};
 
   /// How many contiguous elements of a read buffer one task of this stage
   /// covers.  This is the `Tr` of §P4.3's wait inflation, and it is read off

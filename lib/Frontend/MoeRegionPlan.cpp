@@ -34,8 +34,8 @@ ModelPlan BuildMoeRegion(std::vector<FxNodeRecord> const& nodes,
       (options.grouped && options.block_rows!=16 && options.block_rows!=32 &&
        options.block_rows!=64 && options.block_rows!=128) ||
       !options.combine_token_tile || options.combine_token_tile>128 ||
-      options.combine_channel_tile<32 || options.combine_channel_tile>256 ||
-      options.combine_channel_tile%32)
+      options.combine_channel_tile<16 || options.combine_channel_tile>256 ||
+      options.combine_channel_tile%16)
     throw std::invalid_argument("invalid MoE region geometry");
   unsigned bm=options.grouped?options.block_rows:1,capacity=0;
   if(!MoeVirtualCapacity(options.tokens,match.top_k,match.expert_count,bm,
@@ -154,7 +154,7 @@ ModelPlan BuildMoeRegion(std::vector<FxNodeRecord> const& nodes,
   ValidateDmModelPlan(plan);return plan;
 }
 
-void MaterializeMoeRegionStorage(ModelPlan& plan,unsigned tile_n) {
+void MaterializeMoeRegionStorage(ModelPlan& plan,unsigned tile_n,unsigned down_tile_n) {
   if(!plan.dm || !plan.forward || !plan.forward_token_axis || !tile_n)
     throw std::invalid_argument("router storage needs a token-axis forward plan and positive tile N");
   for(auto const& stage:plan.stages) {
@@ -164,6 +164,17 @@ void MaterializeMoeRegionStorage(ModelPlan& plan,unsigned tile_n) {
     auto const& router=plan.gemms[config.router_gemm];
     unsigned parts=(router.n+tile_n-1)/tile_n;
     for(auto operand:{0,1})Matrix(plan.buffers.at(stage.operands[operand]),plan.serving_seq,Checked(std::uint64_t(parts)*config.top_k));
+  }
+  if(down_tile_n) {
+    if(down_tile_n<16 || down_tile_n>256 || down_tile_n%16)
+      throw std::invalid_argument("invalid MoE down/combine channel alignment");
+    for(auto& stage:plan.stages)if(stage.kind==PlanTaskKind::kMoECombine) {
+      // A scatter publishes one contribution per row to its channel tile.
+      // Matching the consumer's columns prevents partial or duplicate units.
+      stage.width=down_tile_n;
+      Matrix(plan.buffers.at(stage.operands[4]),plan.serving_seq,
+             2*((stage.extent+down_tile_n-1)/down_tile_n));
+    }
   }
 }
 } // namespace tilemega::frontend

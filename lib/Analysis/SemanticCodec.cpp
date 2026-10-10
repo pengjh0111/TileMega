@@ -110,8 +110,8 @@ Value Encode(SemanticOp const& op) {
   (void)VirtualBindings(op);
   ValidateTileStorage(op);
   if(op.reduction.partial_values!=1 && (op.reduction.partial_values!=2 ||
-      !op.exact_task_access || !op.reduction.splittable || op.arithmetic!="simple_gate_gemm"))
-    throw std::invalid_argument("paired partials require an exact SimpleGate GEMM reduction");
+      !op.exact_task_access || !op.reduction.splittable || (op.arithmetic!="simple_gate_gemm" && op.arithmetic!="swiglu_gemm")))
+    throw std::invalid_argument("paired partials require an exact gate-pair GEMM reduction");
   Object encoded{{"version",1},{"name",op.name},{"kind",int(op.kind)},{"dtype",int(op.dtype)},
     {"arithmetic",op.arithmetic},{"generic",op.generic},
     {"domain",EncodeArray(op.domain,[](auto const& dim) {
@@ -316,8 +316,8 @@ SemanticOp DecodeSemanticOp(std::string const& payload) {
   if (op.reduction.splittable && !names.count(op.reduction.dim))
     throw std::invalid_argument("semantic reduction names an unknown axis");
   if(op.reduction.partial_values!=1 && (!op.exact_task_access || !op.reduction.splittable ||
-      op.arithmetic!="simple_gate_gemm"))
-    throw std::invalid_argument("paired partials require an exact SimpleGate GEMM reduction");
+      (op.arithmetic!="simple_gate_gemm" && op.arithmetic!="swiglu_gemm")))
+    throw std::invalid_argument("paired partials require an exact gate-pair GEMM reduction");
   (void)VirtualBindings(op);
   return op;
 }

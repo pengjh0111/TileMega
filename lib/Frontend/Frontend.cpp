@@ -6,14 +6,17 @@
 #include <tilemega/Codegen/tasks/TaskResources.h>
 #include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Frontend/DnnStorage.h>
+#include <tilemega/Frontend/MoeRegionPlan.h>
 #include <tilemega/Frontend/SemanticLifting.h>
 #include <tilemega/Analysis/CouplingDerivation.h>
 #include <tilemega/Analysis/DependencyForm.h>
 #include <tilemega/Analysis/BoundDependencyForm.h>
 #include <tilemega/Dialect/CouplingGraph/BoundDependency.h>
+#include <tilemega/Dialect/CouplingGraph/CountedDependency.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Analysis/SemanticCodec.h>
 #include <tilemega/Analysis/VirtualTaskBinding.h>
+#include <tilemega/Analysis/ExactMemo.h>
 #include <tilemega/Analysis/TaskElementRelation.h>
 #include <tilemega/Dialect/CouplingGraph/CGAttrs.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
@@ -435,6 +438,10 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
         fields.push_back(builder.getNamedAttr("dm_binding_producer",builder.getI64IntegerAttr(stage.binding_producer)));
       if(stage.kind==PlanTaskKind::kEncoderAttention)
         fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(codegen::EncoderAttentionSharedBytes())));
+      if(stage.kind==PlanTaskKind::kMoETopK)
+        fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(codegen::MoeDispatchSharedBytes())));
+      if(stage.kind==PlanTaskKind::kMoECombine)
+        fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(codegen::MoeCombineSharedBytes(stage.group,stage.width))));
       if(stage.norm_epsilon!=0.0f)
         fields.push_back(builder.getNamedAttr("dm_norm_epsilon",builder.getF32FloatAttr(stage.norm_epsilon)));
       if(stage.partial_rows_per_image)
@@ -767,6 +774,8 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   std::vector<std::string> const& guards = bridge.guards;
   SymbolicShape symbolic = prepared ? prepared->symbolic : SymbolicShapeBridge{}.Parse(rangeTexts, guards, userShapes);
   ModelPlan plan = selected_plan ? *selected_plan : BuildModelPlan(allNodes, signatureInputs, signatureOutputs);
+  std::optional<analysis::ScopedExactAnalysisMemo> dmMemo;
+  if(plan.dm && !analysis::active_exact_memo)dmMemo.emplace();
   if (options.separate_residual_tasks) {
     if (!options.attention.empty())
       throw std::invalid_argument("separate residual stages require attention indices from the expanded plan");
@@ -832,7 +841,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   module->setAttr("tilemega.activation_tile_per_block",
                   builder.getBoolAttr(options.activation_tile_per_block));
   module->setAttr("tilemega.combiner_tile_per_block",
-                  builder.getBoolAttr(options.combiner_tile_per_block));
+                  builder.getBoolAttr(options.combiner_tile_per_block || plan.dm));
   module->setAttr("tilemega.guard_count", builder.getI64IntegerAttr(guards.size()));
   if (plan.stages.empty())
     llvm::errs() << "IMPORT_DEGRADED no decoder layer; one task space per operator\n";
@@ -868,6 +877,15 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   // The plan attribute is written after lifting because the read-only
   // frontier it carries is the lifting replay's own write relation.
   MaterializeDnnStorage(plan,runtimeGemms,options.phase_batch);
+  if(plan.forward_token_axis) {
+    unsigned router=codegen::kDmNoIndex,down=codegen::kDmNoIndex;
+    for(auto const& stage:plan.stages)if(stage.moe.step!=codegen::DmMoeStep::kNone)
+      router=stage.moe.router_gemm;
+    for(unsigned index=0;index<plan.gemms.size();++index)
+      if(plan.gemms[index].access.write.kind==codegen::DmWriteKind::kRowScatter)down=index;
+    if(router!=codegen::kDmNoIndex && down!=codegen::kDmNoIndex)
+      MaterializeMoeRegionStorage(plan,runtimeGemms.at(router).tile_n,runtimeGemms.at(down).tile_n);
+  }
   if (!plan.stages.empty())
     module->setAttr("tilemega.model_plan",
                     modelPlanAttr(builder, plan, lifted.written));
@@ -972,7 +990,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     // it at element granularity -- exact, and finer than what one CTA runs --
     // and this field is what tells Codegen the composition is still owed.
     OwnershipKind ownership = llvm::StringRef(node.name).ends_with(".combine")
-        ? (options.combiner_tile_per_block ? OwnershipKind::kTilePerBlock
+        ? ((options.combiner_tile_per_block || (plan.dm && node.element_access)) ? OwnershipKind::kTilePerBlock
                                            : OwnershipKind::kElementChunk)
         : origin.ownership;
     tiles.push_back(builder.getNamedAttr(
@@ -1006,7 +1024,8 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
 #endif
       std::string arithmetic = semantic->arithmetic;
       if (llvm::StringRef(node.name).ends_with(".combine"))
-        arithmetic = semantic->reduction.reduction_operator == "add" ? "sum" : "";
+        arithmetic = plan.dm && node.element_access?node.element_access->semantic.arithmetic:
+            semantic->reduction.reduction_operator == "add" ? "sum" : "";
       if (!arithmetic.empty())
         state.addAttribute("arithmetic", builder.getStringAttr(arithmetic));
     }
@@ -1020,11 +1039,14 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
             builder.getNamedAttr("extent_kind", builder.getStringAttr("runtime_dynamic")),
             builder.getNamedAttr("runtime_requirement", builder.getStringAttr(binding.requirement))}));
       if (!bindings.empty()) state.addAttribute("virtual_bindings", builder.getArrayAttr(bindings));
+      if(plan.dm && node.name!=origin.name)
+        state.addAttribute("split_access_semantic",builder.getStringAttr(
+            analysis::EncodeSemanticOp(node.element_access->semantic)));
     }
     // A split introduces two distinct task spaces. Keep their exact access
     // witness separate from the g-independent source semantic used by pricing.
     // Serving handoff selection alone promotes it to a phase semantic.
-    if(plan.serving && (node.name==origin.name+".combine" ||
+    if(plan.serving && !plan.dm && (node.name==origin.name+".combine" ||
         (node.name==origin.name && lifted.sem.Find(origin.name) &&
          node.output.name!=lifted.sem.Find(origin.name)->result.name))) {
       analysis::SemanticOp witness;
@@ -1222,7 +1244,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     std::vector<bool> owned(derived.size(), false);
     auto owns_tile = [&](std::string const& name) {
       if (llvm::StringRef(name).ends_with(".combine"))
-        return options.combiner_tile_per_block;
+        return options.combiner_tile_per_block || (plan.dm && graph.Find(name)->element_access);
       return liftedOf(name).ownership == OwnershipKind::kTilePerBlock;
     };
     for (std::size_t i = 0; i < derived.size(); ++i)
@@ -1353,12 +1375,30 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
       auto p = graph.Find(item.src.name), c = graph.Find(item.dst.name);
       auto pc = analysis::LinearizeTaskCoordinates(*p, item.C.RangeDimNames(), taskBinding, "_tm_p");
       auto cc = analysis::LinearizeTaskCoordinates(*c, item.C.DomainDimNames(), taskBinding, "_tm_c");
+      auto geometry_relation=boundDependencies[edge]->table?
+          boundDependencies[edge]->table->linear_relation:boundDependencies[edge]->encoded_relation;
       state.addAttribute("dependency_geometry", dialect::EncodeBoundTaskGeometry(builder,
-          {boundDependencies[edge]->encoded_relation, std::uint32_t(p->Count().Eval(taskBinding, {})),
+          {geometry_relation, std::uint32_t(p->Count().Eval(taskBinding, {})),
            std::uint32_t(c->Count().Eval(taskBinding, {}))}, pc, cc, taskBinding));
       if (boundDependencies[edge]->table)
         state.addAttribute("dependency_table", dialect::EncodeBoundDependencyTable(builder,
             *boundDependencies[edge]->table, pc, cc, taskBinding));
+    }
+    if(plan.forward_token_axis && consumer.stage>=0 &&
+       plan.stages.at(consumer.stage).kind==PlanTaskKind::kMoECombine) {
+      auto const& producer=liftedOf(item.src.name);
+      auto const& stage=plan.stages.at(producer.stage);
+      if(stage.kind==PlanTaskKind::kGemm) {
+        auto const& gemm=plan.gemms.at(stage.gemm);
+        if(gemm.access.write.kind==codegen::DmWriteKind::kRowScatter &&
+            plan.stages.at(consumer.stage).moe.grouped) {
+          auto p=mlir::cast<dialect::TileSpaceOp>(mlir::SymbolTable::lookupSymbolIn(module,source->second));
+          auto c=mlir::cast<dialect::TileSpaceOp>(mlir::SymbolTable::lookupSymbolIn(module,target->second));
+          state.addAttribute("dependency_counted",dialect::EncodeBoundCountedScatter(builder,p,c,
+              plan.buffers.at(gemm.d).name,{0,1},plan.buffers.at(gemm.access.rows).name,taskBinding));
+          state.attributes.erase("dependency_table");
+        }
+      }
     }
     if(auto found=phaseWindows.find(edge);found!=phaseWindows.end()) {
       state.addAttribute("phase_map",builder.getStringAttr(found->second.first.ToString()));

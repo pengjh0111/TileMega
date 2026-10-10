@@ -171,7 +171,7 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
           (moe.step==DmMoeStep::kSelectAndDispatch &&
            (moe.row_capacity>4096 || stage.group<unsigned(plan.serving_seq))) ||
           ((moe.step==DmMoeStep::kHistogram || moe.step==DmMoeStep::kPrefix) && !moe.grouped) ||
-          (combine && (stage.width<32 || stage.width>256 || stage.width%32 ||
+          (combine && (stage.width<16 || stage.width>256 || stage.width%16 ||
                        stage.group>128 || !stage.extent)))
         throw std::invalid_argument("invalid MoE stage specialization");
       auto typed=[&](unsigned operand,char const* dtype,bool optional=false) {

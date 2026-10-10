@@ -29,9 +29,11 @@ analysis::OperatorNode Task(analysis::SemanticOp const& semantic,mlir::Dictionar
   return graph.nodes.front();
 }
 analysis::OperatorNode Task(TileSpaceOp space) {
-  if(!space || !space.getSemantic())
+  auto witness=space?space->getAttrOfType<mlir::StringAttr>("split_access_semantic"):mlir::StringAttr{};
+  if(!space || (!space.getSemantic() && !witness))
     throw std::invalid_argument("counted scatter needs L-sem on both tasks");
-  auto task=Task(analysis::DecodeSemanticOp(space.getSemantic()->str()),space.getGranularity());
+  auto task=Task(analysis::DecodeSemanticOp(space.getSemantic()?space.getSemantic()->str():
+      witness.getValue().str()),space.getGranularity());
   if(task.name!=space.getOperatorName())
     throw std::invalid_argument("counted scatter requires one unsplit semantic task");
   return task;
@@ -125,8 +127,9 @@ analysis::CountedDependencyForm Contract(mlir::Operation* producer,mlir::Operati
     if(auto c=mlir::dyn_cast_or_null<TileSpaceOp>(consumer)) {
       auto result=Contract(p,c,tensor,axes,source,binding);
       if(coupling) {
-        auto edges=analysis::CouplingDerivation{}.Derive({{Task(p),Task(c)}},binding);
-        for(auto const& edge:edges)*coupling=coupling->Union(edge.C);
+        auto writer=AccessEndpoint(producer,tensor,true,binding);
+        auto reader=AccessEndpoint(consumer,tensor,false,binding);
+        *coupling=reader.access.ApplyRange(writer.access.Reverse());
       }
       return result;
     }

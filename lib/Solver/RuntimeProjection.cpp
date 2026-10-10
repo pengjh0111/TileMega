@@ -261,12 +261,28 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
             throw std::invalid_argument("incomplete DM GEMM access table");
           if (auto per_batch=model.gemm_access[stage.gemm].rows_per_batch)
             rows=Mul(batch,per_batch);
+          auto const& access=model.gemm_access[stage.gemm];
+          if(access.b==codegen::DmBAccess::kExpertIndirect) {
+            if(!access.binding_blocks || !access.block_rows)
+              throw std::invalid_argument("incomplete virtual GEMM task capacity");
+            rows=std::to_string(std::uint64_t(access.binding_blocks)*
+                ((access.block_rows+g.tile_m-1)/g.tile_m)*g.tile_m);
+          }
         }
         tiles[i] = Mul(Ceil(rows,g.tile_m),ntiles);
         stage_chunks[i] = stage.kind==StageKind::kAdd ? 1 : chunks[stage.gemm];
         count = Mul(tiles[i],stage_chunks[i]);
         break;
       }
+      case StageKind::kMoETopK:
+        if(stage.moe.step==codegen::DmMoeStep::kPrefix ||
+            stage.moe.step==codegen::DmMoeStep::kSelectAndDispatch)count="1";
+        else if(stage.moe.step==codegen::DmMoeStep::kSelect)count=Ceil(tokens,stage.group);
+        else count=Ceil(tokens,stage.moe.chunk_tokens);
+        break;
+      case StageKind::kMoECombine:
+        count=Mul(Ceil(tokens,stage.group),(stage.extent+stage.width-1)/stage.width);
+        break;
       case StageKind::kLayerNorm:
       case StageKind::kEmbeddingSum:
       case StageKind::kLayoutConvert:

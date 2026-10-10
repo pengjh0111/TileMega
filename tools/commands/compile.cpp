@@ -9,6 +9,8 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Frontend/DnnModelPlan.h>
+#include <tilemega/Frontend/MoeRegionPlan.h>
+#include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Solver/CompilerSearch.h>
 #include <tilemega/Solver/SkeletonSearch.h>
 #include <tilemega/Solver/IntervalSegments.h>
@@ -311,6 +313,8 @@ int RunCompile(int argc, char** argv) {
     int interval_begin=0,segments=1,segment_candidates=3;
     std::vector<mlir::OwningOpRef<mlir::ModuleOp>> variant_modules;
     tilemega::solver::CompilerSearchOptions solve_options;
+    std::string moe_binding="auto";unsigned moe_bm=16;
+    bool sequence_pinned=false;
     solve_options.placement.dims={4,3,7};
     for (int i=3;i<argc;i+=2) {
       std::string flag=argv[i],value=argv[i+1];
@@ -330,6 +334,8 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--solve") solve_target=value;
       else if (flag=="--serving") serving_phase=value;
       else if (flag=="--frontend") frontend_mode=value;
+      else if (flag=="--moe-binding") moe_binding=value;
+      else if (flag=="--moe-bm") moe_bm=value=="auto"?16:std::stoul(value);
       else if (flag=="--emit") emit_mode=value;
       else if (flag=="--measure-cmd") measure_command=value;
       else if (flag=="--serving-warm-start") serving_warm_start=value;
@@ -378,7 +384,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--seq-begin") interval_begin=std::stoi(value);
       else if (flag=="--segments") segments=std::stoi(value);
       else if (flag=="--segment-candidates") segment_candidates=std::stoi(value);
-      else if (flag=="--seq") solve_options.placement.dims.seq=std::stoi(value);
+      else if (flag=="--seq") {solve_options.placement.dims.seq=std::stoi(value);sequence_pinned=true;}
       else if (flag=="--past") solve_options.placement.dims.past=std::stoi(value);
       else if (flag=="--search-capacity") solve_options.capacity=std::stoul(value);
       else if (flag=="--per-stage-kappa") solve_options.per_stage_kappa=std::stoi(value)!=0;
@@ -425,8 +431,10 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("--frontend expects decoder or dnn");
     if(frontend_mode=="dnn" && !forward)
       throw std::runtime_error("DNN frontend requires --emit serving --serving forward");
-    if(forward && input.extension()!=".mlir" && frontend_mode!="dnn")
-      throw std::runtime_error("decoder forward export requires its MoE region frontend");
+    if(moe_binding!="auto" && moe_binding!="slot" && moe_binding!="group")
+      throw std::runtime_error("--moe-binding expects auto, slot or group");
+    if(moe_bm!=16 && moe_bm!=32 && moe_bm!=64 && moe_bm!=128)
+      throw std::runtime_error("--moe-bm expects auto, 16, 32, 64 or 128");
     if(forward)serving_capacity=serving_past_lo=serving_past_hi=0;
     if(!emit_mode.empty() && emit_mode!="serving")
       throw std::runtime_error("--emit expects serving");
@@ -510,6 +518,14 @@ int RunCompile(int argc, char** argv) {
       auto bridge=tilemega::frontend::ReadExportBridge(input.string());
       tilemega::frontend::DnnPlanOptions options;options.batch=serving_batch;
       dnn_plan=tilemega::frontend::BuildDnnModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
+      forward_seq=dnn_plan->serving_seq;
+    }else if(forward && input.extension()!=".mlir") {
+      if(serving_batch!=1)throw std::runtime_error("MoE forward regions require batch one");
+      auto bridge=tilemega::frontend::ReadExportBridge(input.string());
+      tilemega::frontend::MoeRegionOptions options;
+      options.tokens=sequence_pinned?solve_options.placement.dims.seq:1;options.block_rows=moe_bm;
+      options.grouped=moe_binding=="group" || (moe_binding=="auto" && options.tokens>2);
+      dnn_plan=tilemega::frontend::BuildMoeRegion(bridge.nodes,bridge.inputs,bridge.outputs,options);
       forward_seq=dnn_plan->serving_seq;
     }
     double selected_serving_ms=std::numeric_limits<double>::infinity();
@@ -1394,8 +1410,26 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"residency\": "<<integer("tmexec.solved_residency",0)
               <<",\n  \"kappa\": "<<integer("tmexec.solved_kappa",1)
               <<",\n  \"attention_kv_block\": "<<attention_kv_block
-              <<",\n  \"attention_query_rows\": "<<attention_query_rows
-              <<",\n  \"gemms\": [\n";
+              <<",\n  \"attention_query_rows\": "<<attention_query_rows;
+      if(forward) {
+        auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+        auto token_axis=plan?plan.getAs<mlir::BoolAttr>("forward_token_axis"):mlir::BoolAttr{};
+        manifest<<",\n  \"frontend\": "<<std::quoted(frontend_mode);
+        if(token_axis && token_axis.getValue()) {
+          for(auto entry:plan.getAs<mlir::ArrayAttr>("stages")) {
+            auto stage=mlir::cast<mlir::DictionaryAttr>(entry);
+            if(!stage.get("dm_moe"))continue;
+            auto moe=tilemega::frontend::DecodeDmMoeStage(stage.get("dm_moe"));
+            manifest<<",\n  \"moe_binding\": "<<std::quoted(moe.grouped?"group":"slot")
+                    <<",\n  \"moe_bm\": "<<moe.block_rows
+                    <<",\n  \"moe_experts\": "<<moe.experts
+                    <<",\n  \"moe_top_k\": "<<moe.top_k
+                    <<",\n  \"moe_binding_capacity\": "<<moe.binding_capacity;
+            break;
+          }
+        }
+      }
+      manifest<<",\n  \"gemms\": [\n";
       for(std::size_t i=0;i<runtime.gemms.size();++i) {
         auto const& g=runtime.gemms[i];
         manifest<<"    {\"index\": "<<i<<", \"tile_m\": "<<g.tile_m
