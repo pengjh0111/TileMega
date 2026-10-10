@@ -29,6 +29,15 @@ class MoeDeploymentTest(TestCase):
             for capacity,expected in [(bound,False),(bound-1,True)]:
                 self.assertEqual(automatic_layout_policy(root,
                     dict(resources=dict(dram_capacity_bytes=capacity)),workload)['require_shared_layout'],expected)
+            config=json.loads((root/'config.json').read_text())
+            config['num_local_experts']=config.pop('num_experts')
+            (root/'config.json').write_text(json.dumps(config))
+            self.assertTrue(automatic_layout_policy(root,
+                dict(resources=dict(dram_capacity_bytes=bound-1)),workload)['require_shared_layout'])
+            config['num_experts']=config['num_local_experts']+1
+            (root/'config.json').write_text(json.dumps(config))
+            with self.assertRaisesRegex(ValueError,'aliases disagree'):
+                automatic_layout_policy(root,dict(resources=dict(dram_capacity_bytes=1)),workload)
             self.fixture(root,'llama')
             self.assertFalse(automatic_layout_policy(root,
                 dict(resources=dict(dram_capacity_bytes=1)),workload)['require_shared_layout'])

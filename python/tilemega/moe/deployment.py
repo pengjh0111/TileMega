@@ -22,7 +22,11 @@ def automatic_layout_policy(model, target, workload):
     if type(weight_bytes) is not int or weight_bytes<=0:
         raise ValueError('checkpoint index has no positive integer total_size')
     layers=config['num_hidden_layers']; hidden=config['hidden_size']
-    expert_bytes=layers*config['num_experts']*3*hidden*config['moe_intermediate_size']*2
+    experts=config.get('num_experts',config.get('num_local_experts'))
+    if type(experts) is not int or experts<=0 or \
+            config.get('num_local_experts',experts)!=experts:
+        raise ValueError('checkpoint expert-count aliases disagree or are invalid')
+    expert_bytes=layers*experts*3*hidden*config['moe_intermediate_size']*2
     if expert_bytes>weight_bytes:
         raise ValueError('expert geometry exceeds checkpoint allocation')
     batch=max(workload['batch']); tokens=workload['prompt_len']+workload['max_new_tokens']
