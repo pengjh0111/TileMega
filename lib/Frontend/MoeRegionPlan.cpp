@@ -168,6 +168,22 @@ void AppendMoeBlock(ModelPlan& destination,MoeRegionMatch const& match,
       plan.buffers[input].dtype!="bf16" || plan.buffers[output].dtype!="bf16")
     throw std::invalid_argument("MoE decoder block needs distinct BF16 input/output storage");
   auto block=BuildMatchedMoeRegion(match,nodes,inputs,options);
+  // Legacy decoder activations describe their allocation with per_seq and
+  // per_batch rather than a physical layout. The MoE region still needs an
+  // exact row map after its external endpoints are replaced by those buffers.
+  auto rows=[&](unsigned global,unsigned local) {
+    auto& target=plan.buffers.at(global).layout;
+    auto const& required=block.buffers.at(local).layout;
+    if(!target.rank) {target=required;return;}
+    if(target.kind!=required.kind || target.rank!=required.rank ||
+        !std::equal(std::begin(target.logical),std::end(target.logical),std::begin(required.logical)) ||
+        !std::equal(std::begin(target.physical),std::end(target.physical),std::begin(required.physical)) ||
+        !std::equal(std::begin(target.strides),std::end(target.strides),std::begin(required.strides)) || target.halo_top || target.halo_bottom ||
+        target.halo_left || target.halo_right)
+      throw std::invalid_argument("MoE decoder endpoint requires contiguous token rows");
+  };
+  rows(input,block.node_buffer.at(match.input));
+  rows(output,block.node_buffer.at(match.output));
   auto statistics=[&](unsigned id) {
     if(id==kDmNoIndex)return;
     if(id>=plan.buffers.size() || plan.buffers[id].dtype!="f32")

@@ -5,6 +5,7 @@
 #include <tilemega/Frontend/SemanticLifting.h>
 #include <tilemega/Codegen/MoeBinding.h>
 #include <mlir/IR/MLIRContext.h>
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
@@ -32,6 +33,13 @@ int TestMoeRegionPlan(int argc,char** argv) {
         if(stage.kind==PlanTaskKind::kMoECombine) {
           assert(stage.moe.row_capacity==batch*seq*8 && stage.moe.grouped==grouped);
           assert((stage.operands[5]!=kDmNoIndex)==(deferred && seq==1));++combines;
+          for(unsigned slot:{2u,3u}) {
+            auto const& layout=plan.buffers.at(stage.operands[slot]).layout;
+            assert(layout.rank==2 && layout.kind==DmLayout::kRowMajor &&
+                layout.logical[0]==batch*seq && layout.logical[1]==2048 &&
+                std::equal(std::begin(layout.physical),std::end(layout.physical),std::begin(layout.logical)) && layout.strides[0]==2048 &&
+                layout.strides[1]==1);
+          }
         }
       }
       for(auto const& gemm:plan.gemms) {
@@ -97,6 +105,11 @@ int TestMoeRegionPlan(int argc,char** argv) {
             assert(stage.binding_producer>=stages && stage.binding_producer<index);
         }
         assert(plan.stages.back().operands[2]==current && plan.stages.back().operands[3]==output);
+        for(auto endpoint:{current,output}) {
+          auto const& layout=plan.buffers.at(endpoint).layout;
+          assert(layout.rank==2 && layout.logical[0]==tokens && layout.logical[1]==2048 &&
+              std::equal(std::begin(layout.physical),std::end(layout.physical),std::begin(layout.logical)) && layout.strides[0]==2048 && layout.strides[1]==1);
+        }
         current=output;
       }
       assert(plan.dm && !plan.forward && plan.serving && plan.gemms.size()==144);
