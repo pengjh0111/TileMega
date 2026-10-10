@@ -373,7 +373,8 @@ codegen::DmBufferLayout DecodeDmLayout(mlir::Attribute attr) {
      (std::uint64_t(x.logical[1])+x.halo_top+x.halo_bottom>x.physical[1] ||
       std::uint64_t(x.logical[2])+x.halo_left+x.halo_right>x.physical[2] ||
       (x.physical[3]%8 && !(x.logical[3]<=4 && x.physical[3]==4)) ||
-      x.strides[3]!=1 || x.strides[2]%8))
+      x.strides[3]!=1 || x.strides[2]%
+          (x.logical[3]<=4 && x.physical[3]==4?4:8)))
     throw std::invalid_argument("DM NHWC layout has invalid halo or channel alignment");
   for(unsigned i=1;i<x.rank;++i)
     if(x.strides[i]>std::numeric_limits<std::uint64_t>::max()/x.physical[i] ||

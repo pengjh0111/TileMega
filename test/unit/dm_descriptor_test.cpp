@@ -36,7 +36,9 @@ int TestDmDescriptor(int, char**) {
   assert(l.logical[3]==3 && l.physical[3]==8 && l.halo_top==3);
   assert(EncodeDm(builder,l)==EncodeDm(builder,layout));
   layout.physical[3]=4; assert(DecodeDmLayout(EncodeDm(builder,layout)).physical[3]==4);
-  layout.strides[2]=4; rejects([&]{EncodeDm(builder,layout);}); layout.strides[2]=8;
+  auto narrow=layout;narrow.strides[2]=4;
+  assert(DecodeDmLayout(EncodeDm(builder,narrow)).strides[2]==4);
+  layout.strides[2]=2; rejects([&]{EncodeDm(builder,layout);}); layout.strides[2]=8;
   layout.halo_top=4; rejects([&]{EncodeDm(builder,layout);}); layout.halo_top=3;
   layout.strides[0]=1; rejects([&]{EncodeDm(builder,layout);});
 
@@ -196,12 +198,12 @@ int TestDmDescriptor(int, char**) {
   inputs.reduction=tilemega::analysis::QuasiPolynomial::Constant(8);
   inputs.total=tilemega::analysis::QuasiPolynomial::Constant(128);
   inputs.width=64; inputs.dtype=tilemega::analysis::ScalarType::kBF16;
-  for(auto const* name:{"layernorm","embedding_sum","layout_convert","pool","global_pool_reduce","depthwise_conv","encoder_attention","moe_topk","moe_combine"}) {
+  for(auto const* name:{"layernorm","embedding_sum","layout_convert","pool","global_pool_reduce","depthwise_conv","dwpw_depthwise","encoder_attention","moe_topk","moe_combine"}) {
     auto arithmetic=tilemega::analysis::InstantiateArithmetic(name,inputs);
     assert(arithmetic.runtime_implemented);
     tilemega::analysis::RequireArithmeticImplementation(arithmetic);
   }
-  for(auto const* name:{"dwpw_depthwise","moe_router"}) {
+  for(auto const* name:{"moe_router"}) {
     auto arithmetic=tilemega::analysis::InstantiateArithmetic(name,inputs);
     assert(!arithmetic.runtime_implemented);
     rejects([&]{tilemega::analysis::RequireArithmeticImplementation(arithmetic);});
