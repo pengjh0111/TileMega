@@ -236,6 +236,11 @@ inline void Destroy(Plan* plan) {
   if(model.device_counted_thresholds)cudaFree(model.device_counted_thresholds);
   if(model.params.counted_dependencies)cudaFree(model.params.counted_dependencies);
   if(model.device_counted_l2_params)cudaFree(model.device_counted_l2_params);
+#if TILEMEGA_MOE_DYNAMIC
+  if(model.device_dynamic_ranges)cudaFree(model.device_dynamic_ranges);
+  if(model.device_dynamic_canonical)cudaFree(model.device_dynamic_canonical);
+  if(model.params.dynamic_claims)cudaFree(model.params.dynamic_claims);
+#endif
 #endif
   if(model.params.serving_handoff_tickets)cudaFree(model.params.serving_handoff_tickets);
 #if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED

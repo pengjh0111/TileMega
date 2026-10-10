@@ -23,6 +23,13 @@
 
 #include <cstdint>
 
+#ifndef TILEMEGA_MOE_DYNAMIC
+#define TILEMEGA_MOE_DYNAMIC 0
+#endif
+#if TILEMEGA_MOE_DYNAMIC
+#include <tilemega/Codegen/DynamicTaskCursor.h>
+#endif
+
 namespace tilemega::codegen {
 
 /// §5.3.1's phase-split task ABI. Off by default: with it off the generated
@@ -824,6 +831,11 @@ struct Params {
   RuntimeCountedThresholdView counted_thresholds{};
   DmBufferView dm_buffers{};
   ConvDesc const* dm_convolutions = nullptr;
+#if TILEMEGA_MOE_DYNAMIC
+  DynamicStageRange const* dynamic_ranges = nullptr;
+  std::uint32_t const* dynamic_canonical = nullptr;
+  unsigned long long* dynamic_claims = nullptr;
+#endif
 #endif
 #if TILEMEGA_TRACE_STAGE
   StageTraceRecord* serving_stage_trace=nullptr;

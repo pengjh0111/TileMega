@@ -295,7 +295,7 @@ int RunCompile(int argc, char** argv) {
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0,evict_first=0,evict_last=1;
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
-    int nonpaged_la=0;
+    int nonpaged_la=0,moe_dynamic=0;
     std::string candidate_mode="L1",nonpaged_weight_layout="row";
     bool page_bytes_pinned=false;
     bool event_solo=false,event_red=false,barrier_v2=false;
@@ -336,6 +336,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--solve") solve_target=value;
       else if (flag=="--serving") serving_phase=value;
       else if (flag=="--frontend") frontend_mode=value;
+      else if (flag=="--moe-dynamic") moe_dynamic=std::stoi(value);
       else if (flag=="--moe-binding") moe_binding=value;
       else if (flag=="--reuse") memory_reuse=value;
       else if (flag=="--deferred-ln") dnn_deferred_ln=value;
@@ -479,6 +480,10 @@ int RunCompile(int argc, char** argv) {
     if(handoff_mode!="off" && handoff_mode!="auto")
       throw std::runtime_error("--handoff must be off or auto");
     bool use_pages=serving && (pg_mode=="pages" || (serving_phase=="decode" && pg_mode=="auto"));
+    if(moe_dynamic!=0 && moe_dynamic!=1)
+      throw std::invalid_argument("--moe-dynamic must be 0 or 1");
+    if(moe_dynamic && (!serving || use_pages || pg_mode!="l2" || frontend_mode!="decoder"))
+      throw std::invalid_argument("--moe-dynamic requires a decoder MoE plan with --pg l2");
     if(pg_mode=="pages" && !use_pages)throw std::runtime_error("paged execution requires a serving phase");
     if(handoff_mode=="auto" && use_pages)
       throw std::runtime_error("paged decode reductions use fixed last-arriver; --handoff auto is unsupported");
@@ -1294,6 +1299,15 @@ int RunCompile(int argc, char** argv) {
           "#define TILEMEGA_SERVING_PAST_HI " +
           std::to_string(serving_past_hi) + "\n" + source;
     }
+    if(moe_dynamic) {
+      auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+      auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
+      bool experts=false;
+      if(dm && dm.getValue())for(auto entry:plan.getAs<mlir::ArrayAttr>("stages"))
+        experts|=bool(mlir::cast<mlir::DictionaryAttr>(entry).get("dm_moe"));
+      if(!experts)throw std::invalid_argument("--moe-dynamic requires virtual MoE stages");
+      source="#define TILEMEGA_MOE_DYNAMIC 1\n"+source;
+    }
     std::filesystem::path requested(argv[2]);
     bool shared = requested.extension() == ".so";
     std::filesystem::path cuda = shared
@@ -1480,6 +1494,7 @@ int RunCompile(int argc, char** argv) {
         auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
         auto token_axis=plan?plan.getAs<mlir::BoolAttr>("forward_token_axis"):mlir::BoolAttr{};
         manifest<<",\n  \"frontend\": "<<std::quoted(frontend_mode);
+        manifest<<",\n  \"moe_dynamic\": "<<(moe_dynamic?"true":"false");
         if(frontend_mode=="dnn")manifest<<",\n  \"deferred_ln\": "<<std::quoted(dnn_deferred_ln);
         if(frontend_mode=="dnn")manifest<<",\n  \"dwpw_fuse\": "<<std::quoted(dnn_dwpw_fuse);
         if(search_selection=="predicted")manifest<<",\n  \"selection\": \"predicted\"";

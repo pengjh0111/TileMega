@@ -49,6 +49,11 @@
 #include <tilemega/Codegen/tasks/FusedRoPEKVTaskBody.h>
 #include <tilemega/Codegen/tasks/KVAppendTaskBody.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
+#if TILEMEGA_MOE_DYNAMIC
+#include <tilemega/Codegen/executor/DynamicTaskClaim.cuh>
+static_assert(!TILEMEGA_PAGED && TILEMEGA_SLOT_WINDOW == 1 && !TILEMEGA_PREFETCH_RUNTIME,
+    "dynamic virtual task queues require nonpaged L2 and a single queue slot");
+#endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
 #include <tilemega/Codegen/tasks/DmStageTaskBody.h>
 #include <tilemega/Codegen/tasks/MoeCountedPublication.cuh>
@@ -857,7 +862,7 @@ __device__ inline unsigned long long EventTriggers(Params const& p,
                                                    std::uint32_t producer,
                                                    std::uint32_t group) {
   unsigned long long const members = RawEventTriggers(p, producer, group);
-#if TILEMEGA_EVENT_SHARDED
+#if TILEMEGA_EVENT_SHARDED && !TILEMEGA_MOE_DYNAMIC
   // One global reduction per completed nonempty shard, rather than per raw
   // producer. The multiplier stays fixed for every monotone iteration.
   if (members > 1 && p.event_shard_count > 1)
@@ -1222,7 +1227,7 @@ __device__ inline void ArriveEvent(Params const& p, EventCounter* events,
   return;
 #endif
   unsigned long long triggers = static_cast<unsigned long long>(members);
-#if TILEMEGA_EVENT_SHARDED
+#if TILEMEGA_EVENT_SHARDED && !TILEMEGA_MOE_DYNAMIC
   // The one-member and S=1 cases are the exact one-level degeneracy. Avoid
   // adding a second atomic when there is no fan-in to combine.
   if (members > 1 && p.event_shard_count > 1) {
@@ -1230,7 +1235,7 @@ __device__ inline void ArriveEvent(Params const& p, EventCounter* events,
     std::uint32_t shard;
     unsigned long long* counter;
     using CS = ClusterSync<arch::CurrentArch>;
-    if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled) {
+    if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled && !TILEMEGA_MOE_DYNAMIC) {
       shard = plan.begin + blockIdx.x / CS::Size() - plan.first_cluster;
       extern __shared__ unsigned char event_bytes[];
       auto* local = reinterpret_cast<unsigned long long*>(event_bytes + sizeof(TaskSmem));
@@ -1690,7 +1695,7 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
   extern __shared__ unsigned char bytes[];
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   using CS = ClusterSync<arch::CurrentArch>;
-  if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled) {
+  if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled && !TILEMEGA_MOE_DYNAMIC) {
     unsigned const cluster = blockIdx.x / CS::Size();
     unsigned const begin = params->cluster_shard_offsets[cluster];
     unsigned const end = params->cluster_shard_offsets[cluster + 1];
@@ -1703,7 +1708,21 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
   std::uint32_t const worker = static_cast<std::uint32_t>(blockIdx.x);
   std::uint32_t const first = params->schedule_offsets[worker];
   std::uint32_t const last = params->schedule_offsets[worker + 1];
-#if TILEMEGA_SLOT_WINDOW > 1
+#if TILEMEGA_MOE_DYNAMIC
+  DynamicTaskCursor cursor;
+  __shared__ std::uint32_t claimed_slot;
+  while(true) {
+    if(threadIdx.x==0)claimed_slot=cursor.Next(
+        params->dynamic_ranges+worker*params->stage_count,params->stage_count,
+        params->dynamic_canonical,[&](std::uint32_t stage,std::uint32_t count) {
+          return executor::ClaimDynamicTask(params->dynamic_claims+stage,count,iteration);
+        });
+    __syncthreads();
+    auto slot=claimed_slot;
+    if(slot==~std::uint32_t(0))break;
+    TaskRef const task=params->schedule[slot];
+    WaitTaskDependencies(*params,events,task,iteration);
+#elif TILEMEGA_SLOT_WINDOW > 1
   // §5.7.2: `head` is the lowest slot not yet complete and `done_mask` records
   // which of [head, head + W) are, so the queue is still consumed exactly once
   // while the order within the window is free.
@@ -1922,7 +1941,7 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
     }
 #endif
   }
-  if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled) {
+  if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled && !TILEMEGA_MOE_DYNAMIC) {
     // No CTA may leave while another still accesses its DSMEM allocation.
     CS::Sync();
     unsigned const cluster = blockIdx.x / CS::Size();
@@ -2062,6 +2081,10 @@ struct DeviceModel {
   RuntimeDependencyInterval* device_dependency_intervals = nullptr;
   std::uint32_t* device_counted_thresholds = nullptr;
   Params* device_counted_l2_params = nullptr;
+#if TILEMEGA_MOE_DYNAMIC
+  DynamicStageRange* device_dynamic_ranges = nullptr;
+  std::uint32_t* device_dynamic_canonical = nullptr;
+#endif
 #endif
   StageDesc* device_stages = nullptr;
   StageDependency* device_dependencies = nullptr;
@@ -3558,7 +3581,7 @@ inline DeviceModel Create(ModelSpec const& spec,
         lag.consumer,static_cast<unsigned>(model.stages[lag.consumer].kind),
         lag.producer,static_cast<unsigned>(model.stages[lag.producer].kind));
 #endif
-#if TILEMEGA_EVENT_SHARDED
+#if TILEMEGA_EVENT_SHARDED && !TILEMEGA_MOE_DYNAMIC
   static_assert(TILEMEGA_EVENT_SHARDS >= 0, "negative shard count");
   // Automatic choice: the largest power of two no greater than num_sms.
   // Explicit values are experimental controls and may not exceed hardware.
@@ -3717,7 +3740,7 @@ inline DeviceModel Create(ModelSpec const& spec,
               // wider window may start the two in either order, so only a
               // producer the window cannot reach is still discharged by FIFO.
               // The rest become local dependencies rather than global polls.
-              if (!model.stages[dep.producer].handoff_elided &&
+              if (!TILEMEGA_MOE_DYNAMIC && !model.stages[dep.producer].handoff_elided &&
                   stage_kappa(dep.producer) == 1 && owner == worker) {
                 int const producer_slot =
                     plan.slot[dep.producer][producer_task];
@@ -3783,7 +3806,7 @@ inline DeviceModel Create(ModelSpec const& spec,
           // next task measures its distance from the nearest observer.
           int const slot_index = plan.slot[stage][logical];
           auto const at = seen[worker].emplace(wait, slot_index);
-          if (at.second || at.first->second + window > slot_index) {
+          if (TILEMEGA_MOE_DYNAMIC || at.second || at.first->second + window > slot_index) {
             at.first->second = slot_index;
             model.task_waits.push_back({wait.first, wait.second});
           }
@@ -3802,6 +3825,41 @@ inline DeviceModel Create(ModelSpec const& spec,
     model.schedule_offsets[worker + 1] =
         static_cast<std::uint32_t>(model.schedule.size());
   }
+
+#if TILEMEGA_MOE_DYNAMIC
+  std::vector<DynamicStageRange> dynamic_ranges(std::size_t(grid)*model.stages.size());
+  std::vector<std::uint32_t> dynamic_prefix(model.stages.size()+1),dynamic_canonical;
+  for(unsigned stage=0;stage<model.stages.size();++stage)
+    dynamic_prefix[stage+1]=dynamic_prefix[stage]+
+        (model.stages[stage].handoff_elided?0:active_tasks(stage));
+  dynamic_canonical.assign(dynamic_prefix.back(),~std::uint32_t(0));
+  for(int worker=0;worker<grid;++worker) {
+    auto first=model.schedule_offsets[worker],past=model.schedule_offsets[worker+1];
+    std::stable_sort(model.schedule.begin()+first,model.schedule.begin()+past,
+        [](TaskRef const& a,TaskRef const& b) {
+          return std::tie(a.stage,a.logical_task)<std::tie(b.stage,b.logical_task);
+        });
+    auto slot=first;
+    for(unsigned stage=0;stage<model.stages.size();++stage) {
+      auto begin=slot;
+      while(slot<past && model.schedule[slot].stage==stage) {
+        auto logical=model.schedule[slot].logical_task;
+        if(logical>=dynamic_prefix[stage+1]-dynamic_prefix[stage])
+          throw std::invalid_argument("dynamic canonical task exceeds stage capacity");
+        auto& canonical=dynamic_canonical[dynamic_prefix[stage]+logical];
+        if(canonical!=~std::uint32_t(0))throw std::invalid_argument("duplicate dynamic task");
+        canonical=slot++;
+      }
+      auto const& desc=model.stages[stage];
+      bool dynamic=IsGemmStage(desc.kind) &&
+          gemms.at(desc.gemm).access.b==DmBAccess::kExpertIndirect;
+      dynamic_ranges[std::size_t(worker)*model.stages.size()+stage]={
+          begin,slot,dynamic_prefix[stage],dynamic_prefix[stage+1]-dynamic_prefix[stage],unsigned(dynamic)};
+    }
+  }
+  if(std::find(dynamic_canonical.begin(),dynamic_canonical.end(),~std::uint32_t(0))!=dynamic_canonical.end())
+    throw std::invalid_argument("dynamic canonical task coverage has a hole");
+#endif
 
   // A deterministic view of what the Plan materialized, written before any
   // device work so the H2/H3 byte identities compare tables, not timings.
@@ -3880,6 +3938,17 @@ inline DeviceModel Create(ModelSpec const& spec,
   model.device_dm_buffers=static_cast<void**>(upload(dm_buffers.data(),dm_buffers.size()*sizeof(void*)));
   model.device_dm_layouts=static_cast<DmBufferLayout*>(upload(dm_layouts.data(),dm_layouts.size()*sizeof(DmBufferLayout)));
   model.device_dm_dtypes=static_cast<std::uint32_t*>(upload(dm_dtypes.data(),dm_dtypes.size()*sizeof(std::uint32_t)));
+#if TILEMEGA_MOE_DYNAMIC
+  model.device_dynamic_ranges=static_cast<DynamicStageRange*>(upload(
+      dynamic_ranges.data(),dynamic_ranges.size()*sizeof(DynamicStageRange)));
+  model.device_dynamic_canonical=static_cast<std::uint32_t*>(upload(
+      dynamic_canonical.data(),dynamic_canonical.size()*sizeof(std::uint32_t)));
+  std::vector<unsigned long long> initial_claims(model.stages.size(),0);
+  model.params.dynamic_claims=static_cast<unsigned long long*>(upload(
+      initial_claims.data(),initial_claims.size()*sizeof(unsigned long long)));
+  model.params.dynamic_ranges=model.device_dynamic_ranges;
+  model.params.dynamic_canonical=model.device_dynamic_canonical;
+#endif
   model.params.dm_convolutions=model.device_dm_convolutions;
   model.params.dm_buffers={model.device_dm_buffers,model.device_dm_layouts,
                           model.device_dm_dtypes,spec.buffer_count};
@@ -3934,7 +4003,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       model.stage_kappa.data(),
       model.stage_kappa.size() * sizeof(std::uint32_t)));
 #endif
-#if TILEMEGA_EVENT_SHARDED
+#if TILEMEGA_EVENT_SHARDED && !TILEMEGA_MOE_DYNAMIC
   model.device_event_fanin = static_cast<EventFanIn*>(upload(
       model.event_fanin.data(), model.event_fanin.size() * sizeof(EventFanIn)));
   model.device_shard_targets = static_cast<std::uint32_t*>(upload(
