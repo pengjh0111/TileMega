@@ -33,6 +33,7 @@ isl_util::Val CountFiniteFiber(isl_set* elements) {
   if(!hull)throw std::runtime_error("finite task fiber hull failed");
   auto box=isl_util::Set(isl_set_universe(isl_set_get_space(elements)));
   auto product=isl_util::Val(isl_val_one(Ctx()));
+  std::vector<isl_util::Val> lower,upper,widths;
   for(int axis=0;axis<isl_set_dim(elements,isl_dim_set);++axis) {
     isl_util::Val lo(isl_set_dim_min_val(isl_set_copy(hull.get()),axis));
     isl_util::Val hi(isl_set_dim_max_val(isl_set_copy(hull.get()),axis));
@@ -41,16 +42,35 @@ isl_util::Val CountFiniteFiber(isl_set* elements) {
       throw std::invalid_argument("finite task fiber is not bounded");
     box=isl_util::Set(isl_set_lower_bound_val(box.release(),isl_dim_set,axis,isl_val_copy(lo.get())));
     box=isl_util::Set(isl_set_upper_bound_val(box.release(),isl_dim_set,axis,isl_val_copy(hi.get())));
+    lower.emplace_back(isl_val_copy(lo.get()));upper.emplace_back(isl_val_copy(hi.get()));
     auto span=isl_util::Val(isl_val_add_ui(isl_val_sub(hi.release(),lo.release()),1));
+    widths.emplace_back(isl_val_copy(span.get()));
     product=isl_util::Val(isl_val_mul(product.release(),span.release()));
   }
   // Bounding boxes are used only after an exact equality proof. A generic
   // scan would enumerate millions of physical pixels for each reused tile.
   if(isl_set_is_equal(elements,box.get())==isl_bool_true)return product;
-  isl_util::PwQPolynomial count(isl_set_card(isl_set_copy(elements)));
+  auto reduced=isl_util::Set(isl_set_copy(elements));
+  auto factor=isl_util::Val(isl_val_one(Ctx()));
+  for(int axis=lower.size()-1;axis>=0;--axis) {
+    auto projection=isl_util::Set(isl_set_project_out(isl_set_copy(reduced.get()),isl_dim_set,axis,1));
+    auto cylinder=isl_util::Set(isl_set_insert_dims(isl_set_copy(projection.get()),isl_dim_set,axis,1));
+    cylinder=isl_util::Set(isl_set_reset_space(cylinder.release(),isl_set_get_space(reduced.get())));
+    cylinder=isl_util::Set(isl_set_lower_bound_val(cylinder.release(),isl_dim_set,axis,isl_val_copy(lower[axis].get())));
+    cylinder=isl_util::Set(isl_set_upper_bound_val(cylinder.release(),isl_dim_set,axis,isl_val_copy(upper[axis].get())));
+    if(isl_set_is_equal(reduced.get(),cylinder.get())!=isl_bool_true)continue;
+    reduced=std::move(projection);
+    factor=isl_util::Val(isl_val_mul(factor.release(),isl_val_copy(widths[axis].get())));
+    product=isl_util::Val(isl_val_div(product.release(),isl_val_copy(widths[axis].get())));
+  }
+  // Factoring a Cartesian channel interval leaves a small spatial boundary
+  // set. Scan only a proved small cover; large tensors still use barvinok.
+  if(isl_val_cmp_si(product.get(),4096)<=0)
+    return isl_util::Val(isl_val_mul(factor.release(),isl_set_count_val(reduced.get())));
+  isl_util::PwQPolynomial count(isl_set_card(reduced.release()));
   if(!count)throw std::runtime_error("finite task fiber cardinality failed");
   isl_util::Point point(isl_point_zero(isl_pw_qpolynomial_get_domain_space(count.get())));
-  return isl_util::Val(isl_pw_qpolynomial_eval(count.release(),point.release()));
+  return isl_util::Val(isl_val_mul(factor.release(),isl_pw_qpolynomial_eval(count.release(),point.release())));
 }
 }  // namespace
 
@@ -436,9 +456,15 @@ QuasiPolynomial CouplingRelation::BoundTaskCard(unsigned max_domain_points) cons
     if(box_exceeds_limit) {
       // Consumer/producer coordinates are often correlated by halo edges.
       // Their Cartesian cover can be huge while the actual domain is small.
-      isl_util::Val actual(isl_set_count_val(domain.get()));
-      if(!actual || isl_val_is_int(actual.get())!=isl_bool_true ||
-          isl_val_cmp_si(actual.get(),max_domain_points)>0)return factor();
+      struct Count {std::uint64_t size=0;unsigned limit;bool capped=false;} actual{0,max_domain_points};
+      auto count=[](isl_point* point,void* data)->isl_stat {
+        isl_point_free(point);auto& c=*static_cast<Count*>(data);
+        if(++c.size>c.limit){c.capped=true;return isl_stat_error;}
+        return isl_stat_ok;
+      };
+      auto status=isl_set_foreach_point(domain.get(),count,&actual);
+      if(actual.capped){isl_ctx_reset_error(Ctx());return factor();}
+      if(status!=isl_stat_ok)throw std::runtime_error("finite task domain scan failed");
     }
     struct Group {
       std::vector<isl_util::Set> points;

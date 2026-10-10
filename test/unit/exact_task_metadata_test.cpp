@@ -170,6 +170,13 @@ void FiniteFibers() {
   auto triangle=CouplingRelation::FromIslText(
       "{ [m] -> [p,q] : 0<=m<3 and 0<=p<1000 and 0<=q<=p }");
   assert(triangle.BoundTaskCard().Eval({})==500500);
+  auto channel_band=CouplingRelation::FromIslText(
+      "{ [m] -> [b,y,x,c] : 0<=m<3 and b=0 and 0<=y<4 and 0<=x<112 and "
+      "17<=112*y+x<145+m and 0<=c<1024 }");
+  for(long m=0;m<3;++m) {
+    ParamBinding point;point.Bind("m",m);
+    assert(channel_band.BoundTaskCard().BindCoordinates(point).Eval({})==(128+m)*1024);
+  }
   auto envelope = DescribeTaskElementBox(exact);
   assert(std::string(envelope.exactness) == "over");
   assert(Contains(envelope.relation, exact) && !Contains(exact, envelope.relation));
