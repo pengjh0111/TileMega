@@ -1,0 +1,134 @@
+{
+  "evidence": "verified",
+  "head": "1edb771ce37700c7bcc70d7f1475627328ac9d4f",
+  "scope": "host ownership/flow/codegen tests; no new GPU numerical or synchronization pass-rate claim",
+  "source_sha256": {
+    "CMakeLists.txt": "fb5cbcfaf4f577a4c956ad6b3738f302a9e71f067410d8a9fb0d1943aae3acf5",
+    "include/tilemega/Codegen/RuntimePlan.h": "cdfe3ad1b9e0169e74d6b53149aa0e5a608edeb066ced0ae0707df841363a4ac",
+    "include/tilemega/Codegen/tasks/ModelHarness.cuh": "1b65c99a477e54f71682a0ff5819668398333ffcd5b5dfae26fb85f6da83527d",
+    "include/tilemega/Codegen/tasks/ModelRuntime.h": "39de3a7ecbd3d7ca6e0ff0ab50e748cf94dccec0d183fa9077767ebe2ecdb7a7",
+    "include/tilemega/Solver/ModelDescription.h": "c7352d44bac50c41f96ba4752e2b2d5c76ada1a497d6108abdb156c68cdf74a0",
+    "lib/Codegen/Codegen.cpp": "cb144f96e9aaf8894b76af58dd087d37b430caff602e3651529e4afdb949f780",
+    "lib/Codegen/RuntimeDependencyCodec.cpp": "fb6f76d392292ef083f0677846af95045e18cbd5df68763aff1a7b3312b07789",
+    "lib/Frontend/Frontend.cpp": "62b079c263aeb4200c00e6e8324bc4d89d3afe979608e72bf245a096dfa5cba9",
+    "lib/Solver/FlowPreparation.cpp": "d88e1ba88b3f067a76c3874c583c62bb3c78a6a3a3ea3ccafa630063dcec3607",
+    "lib/Solver/ModelDescription.cpp": "93cacfa094304fcb2363dfab85f48420b56e7fd975c5da42304b87ce3e194404",
+    "lib/Solver/RuntimeProjection.cpp": "da9dff8dfe7329063b7b0f3757a7289d6d95c262f91f0095ee776215c8f62560",
+    "lib/Solver/SkeletonSearch.cpp": "1b4d0bbe340fbe44d4290099ecf6d8fbdfdd0b0eeee4782481a7c8e112f4781e",
+    "test/unit/dnn_memory_codegen_test.cpp": "9542a4be3ec471cacb0e1b9e19776474a9a063f4d4b38de41cfe9b7cb7621066",
+    "test/unit/runtime_dependency_codec_test.cpp": "4f6865a26abe79d4e8ba953f053fd9644ac0b5bfc1e6d638f39583b721bb9064"
+  },
+  "compiler_sha256": "479e246dab39337a4a7a72ed7873b53cd4a5bc143ddb22634a1f3162ccd7a8d5",
+  "tests": [
+    {
+      "command": [
+        "build-dm/tilemega-unit",
+        "dnn_memory_codegen",
+        "--emit",
+        "runs/dm1-reuse-split-endpoints-host-v2/plan.cu",
+        "--search"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "build-dm/tilemega-unit",
+        "runtime_dependency_codec"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "build-dm/tilemega-unit",
+        "memory_plan"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "build-dm/tilemega-unit",
+        "dm_forward_search"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "build-dm/tilemega-unit",
+        "binding_request_pricing"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "build-dm/tilemega-unit",
+        "flow_runtime_release"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "regression": [
+    {
+      "cell": "llama_B1_prefill",
+      "exit_code": 0,
+      "cu_equal": true,
+      "sha256": "d7c4d5dfb15c985ea29a7596fa296ba7aaa6cc6aa830a09de4237c7495251e21",
+      "reference": "runs/dm1-default-cuda-invariance-v1/llama_B1_prefill_reference.cu"
+    },
+    {
+      "cell": "llama_B16_prefill",
+      "exit_code": 0,
+      "cu_equal": true,
+      "sha256": "7482f66a94086e970ead900b3c2da806c10ea3d5911ff52583ebff4a7160f558",
+      "reference": "runs/dm1-default-cuda-invariance-v1/llama_B16_prefill_reference.cu"
+    },
+    {
+      "cell": "qwen3_B1_prefill",
+      "exit_code": 0,
+      "cu_equal": true,
+      "sha256": "66020f71af0a151bbc5870238c3a51da5b483f78d39e93dc8ad3a4c88704f3c0",
+      "reference": "runs/dm1-default-cuda-invariance-v1/qwen3_B1_prefill_reference.cu"
+    },
+    {
+      "cell": "qwen3_B16_prefill",
+      "exit_code": 0,
+      "cu_equal": true,
+      "sha256": "45d5f1ac73c3b88a7dc2c6406f7c7d79d66fac97d5df57994401a0321aaba767",
+      "reference": "runs/dm1-default-cuda-invariance-v1/qwen3_B16_prefill_reference.cu"
+    },
+    {
+      "cell": "llama_B1_decode",
+      "exit_code": 0,
+      "cu_equal": true,
+      "sha256": "6aed601de676f4aeb690934bb9dc2706163583845a7c7740d7c5be5a977bb6a0",
+      "reference": "runs/dm1-default-cuda-invariance-v2/llama_B1_decode_reference.cu"
+    },
+    {
+      "cell": "llama_B16_decode",
+      "exit_code": 0,
+      "cu_equal": true,
+      "sha256": "f03c545fd65cd9efa0066b7f7336aeb8436b088d5fe0cda69d59d35bda28b458",
+      "reference": "runs/dm1-default-cuda-invariance-v2/llama_B16_decode_reference.cu"
+    },
+    {
+      "cell": "qwen3_B1_decode",
+      "exit_code": 0,
+      "cu_equal": true,
+      "sha256": "0497c197e57e3bcd038a372724dca16fceae5ffec0dd9fb716ff3c7cd9243eb4",
+      "reference": "runs/dm1-default-cuda-invariance-v2/qwen3_B1_decode_reference.cu"
+    },
+    {
+      "cell": "qwen3_B16_decode",
+      "exit_code": 0,
+      "cu_equal": true,
+      "sha256": "829381269aa9fc308146bd23bca695d4c4a933afe21dc2ccac29d242d63ec6d5",
+      "reference": "runs/dm1-default-cuda-invariance-v2/qwen3_B16_decode_reference.cu"
+    }
+  ],
+  "invariant": "Storage reuse candidates reimport ownership and WAR/WAW for their own geometry. Split reader main and writer combiner endpoints remain distinct from RAW done-to-entry endpoints. No whole-stage relaxation replaces the exact relation. Legacy non-DM device ABI/text stays unchanged.",
+  "native_queue": "runs/dm1-reuse-split-endpoints-native-v1: pending shared lock; one fixed synthetic case",
+  "retained_failures": [
+    "reuse-search-host-v1 missing fixture seed repaired",
+    "reuse-search-host-v2/v3 split-K stage ownership mismatch repaired",
+    "reuse-split-endpoints-host-v1 codec summary count did not include new endpoint cases; prior expectations retained as 45+4*9 and 81+2*9"
+  ]
+}

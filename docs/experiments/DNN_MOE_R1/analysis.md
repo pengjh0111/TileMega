@@ -299,3 +299,5 @@ counts and out-of-envelope counts are rejected. Integer-only evaluation retains
 its previous contract; physical-rate evaluation preserves fractional means.
 Ten host checks pass (`results/CI6_expected_indirect_reads_host.json`). Attaching
 the routing profile to production MoE flow pricing remains incomplete.
+
+verified: storage-reuse search now reimports each candidate geometry, retaining WAR/WAW instead of using the RAW-only incremental builder. Split-K reader-main and writer-combiner endpoints are encoded independently and checked against their task spaces. Three multi-candidate flow scores equal their independent cold solves, including split-K; six focused host checks and eight unchanged LLM CUDA comparisons pass (`results/CI5_reuse_split_endpoints_host.json`). Native split-K reuse execution is queued as one fixed synthetic case; no synchronization pass-rate claim follows.
