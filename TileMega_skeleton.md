@@ -1708,3 +1708,5 @@ Codegen 与 host 只消费 Plan（§5.7.4），不得在其中新增调度决策
 （⚠️ DM-1：verified：通用 DM reduction handoff 以已证明的窗口/区间表生成反向到达列表，其他输入须有完成证明才省去阶段；L1/L2/页式执行器已接入池化、dispatch 与 counted combine，带权到达使用独立 epoch bank。固定合成输入生成执行通过，但不是 50 进程同步证明。专家 GEMV 的 gathered/indirect、dense/页式路径也已执行；完整联合求解器选择仍待完成。见 docs/experiments/DNN_MOE_R1/dm_last_arriver.md、moe_gemv.md。）
 
 （⚠️ DM-1：verified：完整 MobileNetV1 的 13 组 dw→pw 融合生成内核已用固定合成 B=2 输入执行通过，L1/L2 输出逐位一致。共享打包权重按完整配方匹配，固定构建与求解候选均约束 TN/TK；显存容量不足的 MoE serving 部署先解 decode，再约束 prefill，主机接入测试通过。DNN CLI 支持 architecture-only 导出/构建及独立 synthetic smoke 结果，保留原精度失败记录。没有新增性能或 50 进程同步结论；完整图复用与联合结构选择仍待完成。见 DNN_MOE_R1/dwpw_fusion.md、moe_full.md、dnn_cli.md。）
+
+（⚠️ DM-1：verified：虚拟 tile 的 I2 容量与运行时绑定来源分开记录，绑定产生的内部数据不伪造物理读写像；MoE slot/group 与四种 BM 可重建同一 FX 图并联合几何搜索，公开编译器校验画像内容、文件 SHA256 与 HF 采集链，身份记录关联画像。组合 DNN 的 C′=4、融合与 deferred LN 固定输入执行通过。条件占用定价、GEMV/LA 联合坐标和完整模型验收仍未完成；无性能或新增 50 进程同步结论。）

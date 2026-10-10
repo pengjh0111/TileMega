@@ -388,3 +388,5 @@ EX-S2c 的价格测试与队列放置修正已测，mha4 s128 保持 35 跳，�
 （⚠️ DM-1：verified：按槽绑定的专家 GEMV 已在 dense/页式权重下执行通过；通用池化、dispatch 与 counted combine 的 last-arriver 已接入 L1/L2/页式执行器，固定合成输入功能检查通过。默认 LLM 八格 CUDA 再查仍逐字节一致。GEMV/LA 联合求解器坐标与完整图生成仍未完成；没有新增性能或 50 进程同步结论。见 DNN_MOE_R1/moe_gemv.md、dm_last_arriver.md。）
 
 （⚠️ DM-1：verified：完整 MobileNetV1 的 13 组 dw→pw 融合生成内核已用固定合成 B=2 输入执行通过，L1/L2 输出逐位一致。共享打包权重按完整配方匹配，固定构建与求解候选均约束 TN/TK；显存容量不足的 MoE serving 部署先解 decode，再约束 prefill，主机接入测试通过。DNN CLI 支持 architecture-only 导出/构建及独立 synthetic smoke 结果，保留原精度失败记录。没有新增性能或 50 进程同步结论；完整图复用与联合结构选择仍待完成。见 DNN_MOE_R1/dwpw_fusion.md、moe_full.md、dnn_cli.md。）
+
+（⚠️ DM-1：verified：C′=4、两组 DW/PW 融合与两条 deferred LN 边的组合 megakernel 固定 B=2 合成输入检查通过，L1/L2 逐位一致。MoE 绑定来源与唯一专家权重画像已接入生产 DRAM/flow，slot 与 BM16/32/64/128 联合主机搜索及公开 profile 身份入口通过检查。实际 MoE 标量 TaskBody 资源探针编译通过。画像占用定价、GEMV/LA 求解器与完整模型执行仍在收尾；没有新增性能或 50 进程同步结论。）

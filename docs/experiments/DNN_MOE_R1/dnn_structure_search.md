@@ -15,8 +15,10 @@ verified: the synthetic two-pair, two-LN-edge, RGB/residual graph admits 11
 distinct structural states and generates final CUDA. Its host test checks mixed
 choices, exact edge provenance and rebuilt body probes. The fixed case selects
 C′=4, both fusion pairs and both deferred edges. This is predicted selection;
-no latency measurements or global optimality proof are claimed. Native execution
-of this combined case and the public CLI's real resource probe are pending.
+no latency measurements or global optimality proof are claimed. One fixed synthetic B=2 input now passes the unchanged elementwise tolerance
+and L1/L2 bit equality in the selected combined megakernel
+(`DN_dnn_structure_native.json`). The public CLI's actual resource probes also
+compile; its separate search-only run evaluates 14 structural states.
 `results/CI7_dnn_structure_host.json` seals the host evidence.
 
 verified: this integration exposed and repaired three independent defects:
@@ -39,3 +41,9 @@ the final megakernel resource query remains necessary for complete admission.
 No new empirical body fits were invented. Only the selected structure family is
 finally materialized; other families retain predictions, since measured second
 level selection was removed by the user's scope change.
+
+verified: the combined native check exposed vector LN2d affine packing and
+compact RGB host admission defects. Both spellings C and1,C,1,1 now pack
+identically; a four-channel physical pitch is admitted. The earlier failures
+remain recorded. The combined kernels spill; per-kernel resources are sealed
+in the native receipt. No new process matrix or timing run was performed.

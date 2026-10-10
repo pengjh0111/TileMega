@@ -1,6 +1,6 @@
 {
   "evidence": "verified",
-  "scope": "host structural search and final CUDA generation; native execution and real resource probe pending; no latency or optimality claim",
+  "scope": "host structural search and final CUDA generation; native fixed smoke and actual resource probe now independently pass; no latency or optimality claim",
   "source_commits": [
     "1b44ff7a4",
     "d78ebe4c7",
@@ -204,5 +204,14 @@
     "root": "runs/dm1-dnn-structure-regressions-v3",
     "diagnosis": "runs/dm1-dnn-semantic-timeout-diagnosis-v1/stack.txt",
     "interpretation": "inferred: expensive enumerated ISL oracle construction; not a numerical/kernel failure"
+  },
+  "native_receipt": "DN_dnn_structure_native.json",
+  "actual_resource_probe": {
+    "registers": 128,
+    "shared_bytes": 4224,
+    "threads": 128,
+    "source_sha256": "d030f71bd969d0159ba219d084137877451ac2ece70de55d2acd2eae7c460346",
+    "artifact": "/root/.cache/tilemega-dm/resource-probes/d030f71bd969d0159ba219d084137877451ac2ece70de55d2acd2eae7c460346",
+    "compiled": false
   }
 }
