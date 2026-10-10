@@ -133,6 +133,20 @@ void FiniteFibers() {
     assert(relation.BoundTaskCard(1).SemanticallyEqual(relation.Card(), {}));
   }
   auto exact = CouplingRelation::FromIslText("{ [t] -> [i,j] : 0 <= t < 3 and 0 <= i,j < 4 and j=i }");
+  auto replicated=CouplingRelation::FromIslText(
+      "{ [m,n,k] -> [i] : 0<=m<5 and 0<=n<100000 and 0<=k<2 and m<=i<m+3 }");
+  auto replicated_count=replicated.BoundTaskCard(16);
+  assert(replicated_count.SemanticallyEqual(replicated.Card(),{}));
+  assert(replicated_count.SumDomain().Eval({})==3000000);
+  auto sparse=CouplingRelation::FromIslText(
+      "{ [m,n] -> [i] : 0<=m<1000 and m<=n<=m+1 and 0<=i<2+m%2 }");
+  auto sparse_count=sparse.BoundTaskCard(2048);
+  assert(sparse_count.SemanticallyEqual(sparse.Card(),{}));
+  assert(sparse_count.SumDomain().Eval({})==5000);
+  // Correlated domains and genuinely different fibers must not be collapsed.
+  auto correlated=CouplingRelation::FromIslText(
+      "{ [m,n] -> [i] : 0<=m<5 and m<=n<m+4 and 0<=i<m+n+1 }");
+  assert(correlated.BoundTaskCard(8).SemanticallyEqual(correlated.Card(),{}));
   auto large=CouplingRelation::FromIslText(
       "{ [m] -> [i] : 0<=m<32768 and m%3!=0 and 0<=i<2+floor(m/16384) }");
   auto finite=large.BoundTaskCard();

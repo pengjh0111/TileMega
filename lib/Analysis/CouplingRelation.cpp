@@ -404,7 +404,23 @@ QuasiPolynomial CouplingRelation::BoundTaskCard(unsigned max_domain_points) cons
     isl_util::Set domain(isl_map_domain(isl_map_copy(map.get())));
     if (isl_set_is_empty(domain.get()) == isl_bool_true)
       return isl_map_dim(map.get(), isl_dim_in) == 0 ? QuasiPolynomial::Constant(0) : Card();
-    std::uint64_t box = 1;
+    auto factor=[&]() -> QuasiPolynomial {
+      // Many N/chunk coordinates repeat the same element fiber. Remove one
+      // only after proving that its pullback reproduces the original map.
+      // This keeps bound forward graphs out of huge symbolic floor sums.
+      for(int axis=isl_map_dim(map.get(),isl_dim_in)-1;axis>=0;--axis) {
+        auto reduced=isl_util::Map(isl_map_project_out(isl_map_copy(map.get()),isl_dim_in,axis,1));
+        auto projection=isl_util::Map(isl_map_identity(isl_space_map_from_set(isl_set_get_space(domain.get()))));
+        projection=isl_util::Map(isl_map_project_out(projection.release(),isl_dim_out,axis,1));
+        projection=isl_util::Map(isl_map_intersect_domain(projection.release(),isl_set_copy(domain.get())));
+        auto lifted=isl_util::Map(isl_map_apply_range(isl_map_copy(projection.get()),isl_map_copy(reduced.get())));
+        if(isl_map_is_equal(map.get(),lifted.get())==isl_bool_true)
+          return CouplingRelation(isl_util::ToString(reduced.get())).BoundTaskCard(max_domain_points)
+              .SumAlong(CouplingRelation(isl_util::ToString(projection.get())));
+      }
+      return Card();
+    };
+    std::uint64_t box = 1;bool box_exceeds_limit=false;
     for (int axis = 0; axis < isl_set_dim(domain.get(), isl_dim_set); ++axis) {
       isl_util::Val lo(isl_set_dim_min_val(isl_set_copy(domain.get()), axis));
       isl_util::Val hi(isl_set_dim_max_val(isl_set_copy(domain.get()), axis));
@@ -412,10 +428,17 @@ QuasiPolynomial CouplingRelation::BoundTaskCard(unsigned max_domain_points) cons
           isl_val_is_int(hi.get()) != isl_bool_true) return Card();
       isl_util::Val width(isl_val_add_ui(isl_val_sub(hi.release(), lo.release()), 1));
       if (isl_val_is_pos(width.get()) != isl_bool_true ||
-          isl_val_cmp_si(width.get(), max_domain_points) > 0) return Card();
+          isl_val_cmp_si(width.get(), max_domain_points) > 0) {box_exceeds_limit=true;break;}
       auto span = isl_val_get_num_si(width.get());
-      if (box > max_domain_points / std::uint64_t(span)) return Card();
+      if (box > max_domain_points / std::uint64_t(span)) {box_exceeds_limit=true;break;}
       box *= span;
+    }
+    if(box_exceeds_limit) {
+      // Consumer/producer coordinates are often correlated by halo edges.
+      // Their Cartesian cover can be huge while the actual domain is small.
+      isl_util::Val actual(isl_set_count_val(domain.get()));
+      if(!actual || isl_val_is_int(actual.get())!=isl_bool_true ||
+          isl_val_cmp_si(actual.get(),max_domain_points)>0)return factor();
     }
     struct Group {
       std::vector<isl_util::Set> points;
