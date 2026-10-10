@@ -68,6 +68,22 @@ int TestRuntimeDependencyTable(int, char**) {
   try{(void)analysis::BuildDependencyTableLinear(dense,8191,4096);}
   catch(std::invalid_argument const&){bad_range=true;}
   assert(bad_range);
+  analysis::ValidateDependencyTableLinear(large);
+  analysis::ValidateDependencyTableLinear(dense_table);
+  analysis::ValidateDependencyTableLinear(merged);
+  unsigned corruptions=0;
+  auto reject_table=[&](analysis::DependencyTable broken) {
+    bool caught=false;
+    try{analysis::ValidateDependencyTableLinear(broken);}catch(std::invalid_argument const&){caught=true;}
+    assert(caught);++corruptions;
+  };
+  auto corrupt=large;corrupt.intervals[17].first+=1;reject_table(corrupt);
+  corrupt=dense_table;corrupt.intervals.back()={1,0};reject_table(corrupt);
+  corrupt=dense_table;corrupt.intervals[0].count-=1;reject_table(corrupt);
+  corrupt=dense_table;corrupt.linear_relation=dense.Subtract(dense);reject_table(corrupt);
+  corrupt=merged;corrupt.stride=2;corrupt.intervals={{0,4},{4,4}};reject_table(corrupt);
+  corrupt=merged;corrupt.stride=2;corrupt.intervals.push_back({0,0});reject_table(corrupt);
+  assert(corruptions==6);
   std::uint64_t target;
   assert(codegen::CountedDependencyTarget(8, 17, &target) && target == 144);
   assert(!codegen::CountedDependencyTarget(0, 0, &target));

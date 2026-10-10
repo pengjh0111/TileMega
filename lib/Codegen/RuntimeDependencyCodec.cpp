@@ -96,13 +96,14 @@ DependencyRecord DecodeRuntimeDependency(mlir::DictionaryAttr attr) {
     auto table=attr.getAs<mlir::DictionaryAttr>("table");
     if(!table)throw std::invalid_argument("retained table is not a dictionary");
     auto p=Integer(table,"producers",true),c=Integer(table,"consumers",true);
-    auto derived=analysis::BuildDependencyTableLinear(Relation(table,"linear_relation"),p,c);
+    analysis::DependencyTable derived;
+    derived.producers=p;derived.consumers=c;derived.stride=Integer(table,"stride");
+    derived.linear_relation=Relation(table,"linear_relation");
     auto intervals=Array(table,"intervals");
-    if(Integer(table,"stride")!=derived.stride || intervals.size()!=2*derived.intervals.size())
-      throw std::invalid_argument("retained dependency table shape differs from relation");
-    for(unsigned i=0;i<derived.intervals.size();++i)
-      if(intervals[2*i]!=derived.intervals[i].first || intervals[2*i+1]!=derived.intervals[i].count)
-        throw std::invalid_argument("retained dependency table intervals differ from relation");
+    if(intervals.size()%2)throw std::invalid_argument("retained dependency interval array is odd");
+    for(std::size_t i=0;i<intervals.size();i+=2)derived.intervals.push_back({intervals[i],intervals[i+1]});
+    analysis::ValidateDependencyTableLinear(derived);
+    derived.encoded_relation=derived.linear_relation;
     auto encoded=Relation(table,"encoded_relation");
     if(!encoded.IsSubset(derived.encoded_relation) || !derived.encoded_relation.IsSubset(encoded))
       throw std::invalid_argument("retained dependency table changes its coupling");

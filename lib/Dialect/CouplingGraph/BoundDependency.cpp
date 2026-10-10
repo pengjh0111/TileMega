@@ -91,14 +91,21 @@ std::optional<analysis::DependencyTable> ReadBoundDependencyTable(mlir::Operatio
   auto stride = table.getAs<mlir::IntegerAttr>("stride");
   auto intervals = table.getAs<mlir::DenseI64ArrayAttr>("intervals");
   if (!stride || stride.getInt() < 0 || stride.getInt() > std::numeric_limits<std::uint32_t>::max() ||
-      !intervals || std::uint64_t(geometry.consumers) * stride.getInt() * 2 != intervals.size())
+      !intervals || intervals.size()%2 ||
+      std::uint64_t(geometry.consumers) * stride.getInt() != intervals.size()/2)
     throw std::invalid_argument("incomplete bound dependency intervals");
-  auto expected = analysis::BuildDependencyTableLinear(geometry.relation, geometry.producers, geometry.consumers);
-  if (stride.getInt() != expected.stride) throw std::invalid_argument("table stride differs from its exact intervals");
-  auto data = intervals.asArrayRef();
-  for (unsigned i = 0; i < expected.intervals.size(); ++i)
-    if (data[i*2] != expected.intervals[i].first || data[i*2+1] != expected.intervals[i].count)
-      throw std::invalid_argument("table intervals differ from their exact relation");
-  return expected;
+  analysis::DependencyTable result;
+  result.producers=geometry.producers;result.consumers=geometry.consumers;
+  result.stride=stride.getInt();result.linear_relation=geometry.relation;
+  auto data=intervals.asArrayRef();
+  for(std::size_t i=0;i<data.size();i+=2) {
+    if(data[i]<0 || data[i+1]<0 || std::uint64_t(data[i])>UINT32_MAX ||
+        std::uint64_t(data[i+1])>UINT32_MAX)
+      throw std::invalid_argument("invalid bound dependency interval element");
+    result.intervals.push_back({std::uint32_t(data[i]),std::uint32_t(data[i+1])});
+  }
+  analysis::ValidateDependencyTableLinear(result);
+  result.encoded_relation=result.linear_relation;
+  return result;
 }
 }  // namespace tilemega::dialect

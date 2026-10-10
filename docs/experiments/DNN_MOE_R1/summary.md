@@ -38,7 +38,7 @@ Export coverage and primitive checks do not imply model correctness.
 | DN-1 | verified: six upstream real-weight exports, before/Core fixtures and source-FQN recipes; assets are retained, no further real-weight/dataset checks are required |
 | DN-2/3 | verified: five DNN before/Core plans and semantics, including masked BERT and NAFNet SG/SCA/shuffle; prior model discrepancies remain recorded |
 | DN-4 | verified: im2col, small channels, tails, stride/dilation, split-K and paged B primitive execution (`conv.md`, T4 receipts) |
-| DN-5 | verified: DW/PW fusion integrated into frontend, exact semantics, resource pricing, split-K and executors; generated nonpaged/paged fixtures pass; full MobileNet fusion generation remains unresolved (`dwpw_fusion.md`) |
+| DN-5 | verified: DW/PW fusion integrated into frontend, exact semantics, resource pricing, split-K and executors; generated nonpaged/paged fixtures pass; full MobileNetV1 fused CUDA now generates; native replay is pending (`dwpw_fusion.md`) |
 | DN-6 | verified: window/global pooling and SCA bodies/plans; cross-image pool LA executes after split-K; structural solver selection remains pending |
 | DN-7 | verified: explicit LN, embedding sum and per-consumer deferred LN rewrite; generated synthetic execution passes; joint per-edge selection is pending |
 | DN-8/9 | verified: Tensor Core encoder attention, layouts and finite chains; independent primitive receipts exist; prior full-model numerical failures remain explicit |

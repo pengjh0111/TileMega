@@ -136,6 +136,54 @@ DependencyTable BuildDependencyTable(CouplingRelation const& relation,
   return BuildDependencyTableLinear(LinearizeTaskCoupling(relation, producer, consumer, known),
                                    Count(producer, known), Count(consumer, known));
 }
+void ValidateDependencyTableLinear(DependencyTable const& table) {
+  IslReferenceAudit audit(__func__);
+  if(!table.producers || !table.consumers || table.linear_relation.DomainDimNames().size()!=1 ||
+      table.linear_relation.RangeDimNames().size()!=1 ||
+      std::uint64_t(table.consumers)*table.stride!=table.intervals.size())
+    throw std::invalid_argument("invalid retained dependency table dimensions");
+  auto* ctx=SharedIslContext().raw();auto map=isl_util::ReadMap(ctx,table.linear_relation.ToString());
+  if(isl_map_dim(map.get(),isl_dim_param))
+    throw std::invalid_argument("retained dependency table has unbound parameters");
+  auto bounds=isl_util::Map(isl_map_universe(isl_map_get_space(map.get())));
+  bounds=isl_util::Map(isl_map_lower_bound_si(bounds.release(),isl_dim_in,0,0));
+  bounds=isl_util::Map(isl_map_upper_bound_val(bounds.release(),isl_dim_in,0,isl_val_int_from_ui(ctx,table.consumers-1)));
+  bounds=isl_util::Map(isl_map_lower_bound_si(bounds.release(),isl_dim_out,0,0));
+  bounds=isl_util::Map(isl_map_upper_bound_val(bounds.release(),isl_dim_out,0,isl_val_int_from_ui(ctx,table.producers-1)));
+  if(isl_map_is_subset(map.get(),bounds.get())!=isl_bool_true)
+    throw std::invalid_argument("retained dependency table contains out-of-range tasks");
+  unsigned maximum=0;
+  for(unsigned c=0;c<table.consumers;++c) {
+    Runs runs;bool padding=false;std::uint64_t past=0;
+    for(unsigned i=0;i<table.stride;++i) {
+      auto interval=table.intervals[std::size_t(c)*table.stride+i];
+      if(!interval.count) {
+        if(interval.first)throw std::invalid_argument("nonzero retained dependency padding");
+        padding=true;continue;
+      }
+      if(padding || (i && interval.first<=past) ||
+          std::uint64_t(interval.first)+interval.count>table.producers)
+        throw std::invalid_argument("retained dependency intervals are not canonical");
+      runs.emplace_back(interval.first,interval.count);past=std::uint64_t(interval.first)+interval.count;
+    }
+    maximum=std::max(maximum,unsigned(runs.size()));
+    auto source=isl_util::Map(isl_map_fix_val(isl_map_copy(map.get()),isl_dim_in,0,isl_val_int_from_ui(ctx,c)));
+    auto space=isl_util::Space(isl_space_range(isl_map_get_space(map.get())));
+    auto encoded_set=EncodeRuns(runs,space.get(),"_tm_p");
+    auto encoded=isl_util::Map(isl_map_from_range(encoded_set.release()));
+    encoded=isl_util::Map(isl_map_add_dims(encoded.release(),isl_dim_in,1));
+    if(isl_map_has_tuple_id(map.get(),isl_dim_in)==isl_bool_true)
+      encoded=isl_util::Map(isl_map_set_tuple_id(encoded.release(),isl_dim_in,
+          isl_map_get_tuple_id(map.get(),isl_dim_in)));
+    encoded=isl_util::Map(isl_map_fix_val(encoded.release(),isl_dim_in,0,isl_val_int_from_ui(ctx,c)));
+    // Keeping the fixed consumer coordinate avoids projecting a complicated
+    // source row merely to recover endpoints that are already serialized.
+    if(isl_map_is_subset(source.get(),encoded.get())!=isl_bool_true ||
+        isl_map_is_subset(encoded.get(),source.get())!=isl_bool_true)
+      throw std::invalid_argument("retained dependency intervals differ from their relation");
+  }
+  if(maximum!=table.stride)throw std::invalid_argument("retained dependency stride is not the maximum row size");
+}
 DependencyTable BuildDependencyTableLinear(CouplingRelation const& relation,
     std::uint32_t producers, std::uint32_t consumers) {
   IslReferenceAudit audit(__func__);

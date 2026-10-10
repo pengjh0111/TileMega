@@ -18,6 +18,9 @@ struct DependencyTable {
 CouplingRelation LinearizeTaskCoordinates(OperatorNode const& node,
     std::vector<std::string> const& coordinates, ParamBinding const& known,
     char const* id);
+// Prove serialized canonical interval rows directly against the source map.
+// Does not recover endpoints or count relation pairs.
+void ValidateDependencyTableLinear(DependencyTable const& table);
 DependencyTable BuildDependencyTableLinear(CouplingRelation const& relation,
     std::uint32_t producers, std::uint32_t consumers);
 CouplingRelation LinearizeTaskCoupling(CouplingRelation const& relation,
