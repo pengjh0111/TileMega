@@ -50,5 +50,14 @@ checked. Seven targeted host checks pass in
 `runs/dm1-direct-table-proof-host-v1/results.json`, including six new corruptions
 and existing IR/runtime codec tamper rejection. The initial compile used an
 unavailable ISL map API; its failed log is retained, and the repair preserves
-the source tuple identity through the public API. No proof is skipped or
+the source tuple identity through the public API. No proof is weakened or
 accepted on timeout. Native task arithmetic is unchanged.
+
+verified: complete-value table proofs are now retained in the existing bounded,
+compile-scoped pure-analysis memo. The key contains producer/consumer extents,
+stride, the complete relation text and every interval (including padding).
+Construction seeds a proof only after its bounds and two row inclusions pass.
+Fresh readers without that exact entry perform the complete direct proof; no
+module-verification result is cached. Six host checks pass in
+`runs/dm1-table-proof-memo-host-v1/results.json`; corruption cases change each
+key component, and a fresh memo exercises proof rather than cache reuse.

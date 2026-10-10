@@ -3,6 +3,7 @@
 #include <tilemega/Analysis/DependencyTable.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/ExactMemo.h>
 #include <cassert>
 #include <limits>
 #include <stdexcept>
@@ -11,6 +12,7 @@ namespace tilemega::tests::runtime_dependency_table_test {
 int TestRuntimeDependencyTable(int, char**) {
   using namespace tilemega;
   analysis::IslContext context;
+  analysis::ScopedExactAnalysisMemo memo;
   auto f = [](long x) { return analysis::ClosedForm::Constant(x); };
   analysis::OperatorNode p, c;
   p.output = {"p", {{"row", f(12)}}}; p.tile = {f(1)};
@@ -68,7 +70,9 @@ int TestRuntimeDependencyTable(int, char**) {
   try{(void)analysis::BuildDependencyTableLinear(dense,8191,4096);}
   catch(std::invalid_argument const&){bad_range=true;}
   assert(bad_range);
+  auto hits=memo.memo.hits;
   analysis::ValidateDependencyTableLinear(large);
+  assert(memo.memo.hits==hits+1);
   analysis::ValidateDependencyTableLinear(dense_table);
   analysis::ValidateDependencyTableLinear(merged);
   unsigned corruptions=0;
@@ -84,6 +88,20 @@ int TestRuntimeDependencyTable(int, char**) {
   corrupt=merged;corrupt.stride=2;corrupt.intervals={{0,4},{4,4}};reject_table(corrupt);
   corrupt=merged;corrupt.stride=2;corrupt.intervals.push_back({0,0});reject_table(corrupt);
   assert(corruptions==6);
+  // Cache lifetime cannot substitute for a proof when reading fresh IR.
+  {
+    analysis::ScopedExactAnalysisMemo fresh;
+    analysis::ValidateDependencyTableLinear(merged);
+    assert(fresh.memo.misses==1 && fresh.memo.hits==0);
+    analysis::ValidateDependencyTableLinear(merged);
+    assert(fresh.memo.hits==1);
+    corrupt=merged;corrupt.intervals[0].count=7;reject_table(corrupt);
+    corrupt=merged;corrupt.producers=9;analysis::ValidateDependencyTableLinear(corrupt);
+    corrupt=merged;corrupt.consumers=2;reject_table(corrupt);
+    corrupt=merged;corrupt.stride=0;reject_table(corrupt);
+    corrupt=merged;corrupt.linear_relation=analysis::CouplingRelation::FromIslText(
+        "{ [c] -> [p] : c=0 and 0<=p<7 }");reject_table(corrupt);
+  }
   std::uint64_t target;
   assert(codegen::CountedDependencyTarget(8, 17, &target) && target == 144);
   assert(!codegen::CountedDependencyTarget(0, 0, &target));

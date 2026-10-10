@@ -2,6 +2,7 @@
 #include "Toolchain.h"
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/ExactMemo.h>
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
@@ -550,6 +551,7 @@ int RunCompile(int argc, char** argv) {
        (paged_la_splitk!=0 && paged_la_splitk!=1) || candidate_guard_wait_s<0)
       throw std::runtime_error("invalid serving ablation option");
     std::string source,selected_serving_mode,selected_serving_binary;
+    std::optional<tilemega::analysis::ScopedExactAnalysisMemo> dm_memo;
     std::optional<tilemega::frontend::ModelPlan> dnn_plan;
     if(frontend_mode=="dnn" && input.extension()!=".mlir") {
       auto bridge=tilemega::frontend::ReadExportBridge(input.string());
@@ -624,6 +626,7 @@ int RunCompile(int argc, char** argv) {
       options.argmax_tile_n=serving_argmax_tile_n;
       auto plan=dnn_plan?*dnn_plan:tilemega::frontend::BuildModelPlan(
           bridge.nodes,bridge.inputs,bridge.outputs,options);
+      if(plan.dm && !tilemega::analysis::active_exact_memo)dm_memo.emplace();
       if(forward)options.seq=forward_seq;
       tilemega::frontend::ImportOptions import;
       if (plan.forward || plan.dm) import.phase_batch = serving_batch;

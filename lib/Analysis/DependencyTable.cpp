@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/DependencyTable.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/ExactMemo.h>
 #include "IslUtil.h"
 #include <isl/ilp.h>
 #include <algorithm>
@@ -24,6 +25,16 @@ std::uint32_t Count(OperatorNode const& node, ParamBinding const& known) {
   return static_cast<std::uint32_t>(count);
 }
 using Runs=std::vector<std::pair<std::uint32_t,std::uint32_t>>;
+template<class Proof>
+bool MemoTableProof(DependencyTable const& table,Proof proof) {
+  auto dimensions=std::to_string(table.producers)+","+std::to_string(table.consumers)+","+
+      std::to_string(table.stride);
+  std::string rows;
+  for(auto interval:table.intervals)
+    rows+=std::to_string(interval.first)+","+std::to_string(interval.count)+";";
+  auto relation=table.linear_relation.ToString();
+  return MemoExact({"dependency-table-proof-v1",dimensions,relation,rows},proof);
+}
 std::vector<TaskInterval> ProducerIntervals(isl_set* sources) {
   struct Collect {std::vector<TaskInterval> intervals;std::string error;} collected;
   auto component=[](isl_basic_set* raw,void* user)->isl_stat {
@@ -138,6 +149,7 @@ DependencyTable BuildDependencyTable(CouplingRelation const& relation,
 }
 void ValidateDependencyTableLinear(DependencyTable const& table) {
   IslReferenceAudit audit(__func__);
+  (void)MemoTableProof(table,[&] {
   if(!table.producers || !table.consumers || table.linear_relation.DomainDimNames().size()!=1 ||
       table.linear_relation.RangeDimNames().size()!=1 ||
       std::uint64_t(table.consumers)*table.stride!=table.intervals.size())
@@ -183,6 +195,8 @@ void ValidateDependencyTableLinear(DependencyTable const& table) {
       throw std::invalid_argument("retained dependency intervals differ from their relation");
   }
   if(maximum!=table.stride)throw std::invalid_argument("retained dependency stride is not the maximum row size");
+  return true;
+  });
 }
 DependencyTable BuildDependencyTableLinear(CouplingRelation const& relation,
     std::uint32_t producers, std::uint32_t consumers) {
@@ -238,6 +252,9 @@ DependencyTable BuildDependencyTableLinear(CouplingRelation const& relation,
   // description of these intervals. Rebuilding a disjunction of consumer
   // rows would lose its affine factoring and make the global proof enormous.
   result.encoded_relation=result.linear_relation;
+  // Construction proved bounds and both inclusions for every canonical row.
+  // Only this complete immutable value may reuse that proof in later readers.
+  (void)MemoTableProof(result,[]{return true;});
   return result;
 }
 }  // namespace tilemega::analysis
