@@ -1,0 +1,69 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Nine affected native host selectors, including negative table/counting mutations and unchanged nonsplittable semantic fixtures; not a GPU synchronization gate",
+  "preparation": {
+    "binary_sha256": "2663d3530bcd7e35c3b39f67811ea1bfdf23c39f1c6c705273a57139788ffa7c",
+    "source_head": "8a6f6bd41fdfc2548a9bad8ec71957fa5a3cf3af",
+    "diff_sha256": "132f7ba28856d0987a6c17b83c6d13ab1761ebf9614731ef8bc9ef1841894172",
+    "tests": [
+      "bound_dependency_form",
+      "bound_dependency_codegen",
+      "counted_dependency_cg",
+      "counted_dependency_flow",
+      "moe_region_plan",
+      "moe_semantic_lifting",
+      "dm_fused_dependencies",
+      "dm_counted_fusion",
+      "runtime_dependency_codec"
+    ]
+  },
+  "cases": {
+    "bound_dependency_form": {
+      "exit_code": 0,
+      "log": "runs/dm1-exact-table-host-v2/bound_dependency_form.log",
+      "log_sha256": "e6f58d82ebd7b89cf015d0c78c70cd0a34b4e4017e6423f117a41b74ee06b2f4"
+    },
+    "bound_dependency_codegen": {
+      "exit_code": 0,
+      "log": "runs/dm1-exact-table-host-v2/bound_dependency_codegen.log",
+      "log_sha256": "2bd2d9bfcebeecf29c1d2ece5f2229453c0e242190fc05fe8d8bad4fca40d30a"
+    },
+    "counted_dependency_cg": {
+      "exit_code": 0,
+      "log": "runs/dm1-exact-table-host-v2/counted_dependency_cg.log",
+      "log_sha256": "341b6bf9852b89c087b8caada11180b2be111ded3d9cdaf0dacead96596cfe6e"
+    },
+    "counted_dependency_flow": {
+      "exit_code": 0,
+      "log": "runs/dm1-exact-table-host-v2/counted_dependency_flow.log",
+      "log_sha256": "d9a9f721342420f43edcc8bf52721e91d4c1a405dfe301437c5a1d8c5a947854"
+    },
+    "moe_region_plan": {
+      "exit_code": 0,
+      "log": "runs/dm1-exact-table-host-v2/moe_region_plan.log",
+      "log_sha256": "58eaa3b64c670882e9a81ab1f0becf06690a250301abc89e3b08e3309fef5d95"
+    },
+    "moe_semantic_lifting": {
+      "exit_code": 0,
+      "log": "runs/dm1-exact-table-host-v2/moe_semantic_lifting.log",
+      "log_sha256": "d86365de47722ed5a5a7051fc23952ec48e73e3c0c7cd4fcff7fe501ed19ceda"
+    },
+    "dm_fused_dependencies": {
+      "exit_code": 0,
+      "log": "runs/dm1-exact-table-host-v2/dm_fused_dependencies.log",
+      "log_sha256": "7057d79c5ed1e2de879444dd7c6b12d5dc8e9bfdae14bdd9bc676fa1105e92c9"
+    },
+    "dm_counted_fusion": {
+      "exit_code": 0,
+      "log": "runs/dm1-exact-table-host-v2/dm_counted_fusion.log",
+      "log_sha256": "a05fb8fdfbe5c436a51a01946c4c7ec590a8340a571d337b1c5e07adb0f28405"
+    },
+    "runtime_dependency_codec": {
+      "exit_code": 0,
+      "log": "runs/dm1-exact-table-host-v2/runtime_dependency_codec.log",
+      "log_sha256": "ea1d960b703b0d39a8839fe7ba8e574302bb3d2771246c658f17f980bba569e8"
+    }
+  },
+  "retained_failed_attempt": "runs/dm1-exact-table-host-v1"
+}

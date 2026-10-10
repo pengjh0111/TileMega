@@ -778,7 +778,11 @@ analysis::Granularity LaunchGranularity(
         if(impl.tile_n%factor)throw std::invalid_argument("DM GEMM N tile splits a channel pair");
         g.Tile(op.name, "m", ClosedForm::Constant(impl.tile_m))
             .Tile(op.name, "n", ClosedForm::Constant(impl.tile_n/factor));
-        if (impl.split_k > 1 || plan.dm) {
+        auto const* semantic=model.sem.Find(op.name);
+        bool indexed=plan.dm && semantic && semantic->exact_task_access && semantic->reduction.splittable;
+        if(plan.dm && impl.split_k>1 && !indexed)
+          throw std::invalid_argument("DM split GEMM lacks exact splittable semantics");
+        if (impl.split_k > 1 || indexed) {
           int const k = static_cast<int>(plan.gemms[plan.stages[op.stage].gemm].k);
           int const chunks = std::min(impl.split_k,
                                       (k + impl.tile_k - 1) / impl.tile_k);
