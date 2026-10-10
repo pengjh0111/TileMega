@@ -2750,6 +2750,9 @@ inline DeviceModel Create(ModelSpec const& spec,
       invocation.variant = variant;
       invocation.k_total = storage_k;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      invocation.dm_enabled = desc.access.write.layout != kDmNoIndex ||
+          desc.access.a != DmAAccess::kDense || desc.access.b != DmBAccess::kDense ||
+          desc.access.a_scale != kDmNoIndex || desc.chain.count || desc.chain.side_count;
       invocation.dm_gemm = i;
       invocation.access=desc.access; invocation.chain=desc.chain;
       invocation.conv_iteration=conv_iteration;
@@ -2782,10 +2785,12 @@ inline DeviceModel Create(ModelSpec const& spec,
           ? desc.n / 2 : desc.serving_epilogue == 3 ?
               CeilDiv(desc.n, tiling.tile_n) : desc.n;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-      invocation.serving_output_stride = desc.n;
-      for (unsigned operation = 0; operation < desc.chain.count; ++operation)
-        if (desc.chain.operations[operation].kind == DmEpilogueKind::kGatePair)
-          invocation.serving_output_stride /= 2;
+      if (invocation.dm_enabled) {
+        invocation.serving_output_stride = desc.n;
+        for (unsigned operation = 0; operation < desc.chain.count; ++operation)
+          if (desc.chain.operations[operation].kind == DmEpilogueKind::kGatePair)
+            invocation.serving_output_stride /= 2;
+      }
 #endif
       invocation.serving_partial_stride = desc.n;
       if (chunks > 1)

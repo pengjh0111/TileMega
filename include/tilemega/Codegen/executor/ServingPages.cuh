@@ -401,7 +401,7 @@ __device__ void Gemm(Params const& params,GemmInvocation const& inv,int local,Ri
           (TILEMEGA_KPHASE_CLASS_MASK & (1u<<inv.serving_phase_class)) &&
           inv.serving_phase_gate.enabled,ring.watch};
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-      if (inv.chunks == 1) {
+      if (inv.chunks == 1 && inv.dm_enabled) {
         DispatchDmEpilogue(inv.dm_gemm, DmPageRunner<Body>{operands,
             local / inv.tiles_n, local % inv.tiles_n, ring, sequence, work, gate});
         return;
@@ -422,36 +422,42 @@ __device__ bool Combine(Params const& p,StageDesc const& stage,int task,char* wo
     using V=GemmVariant<Variant>;
     bool last=false;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-    auto operands = DmEpilogueOperands(Operands(inv,task/inv.tiles_n));
-    operands.output = p.buffers[stage.operand[1]];
-    auto reduce = [&] {
-      DispatchDmEpilogue(inv.dm_gemm, DmCombineRunner<PageArch, V::kTileM, V::kTileN>{
-          reinterpret_cast<float const*>(p.buffers[stage.operand[0]]), inv.chunks,
-          task / inv.tiles_n, task % inv.tiles_n, work, operands, cute::get<0>(inv.problem)});
-    };
-    if constexpr (Last)
-      return executor::LastArriver::Run(ticket, inv.chunks, shared_last, reduce);
-    else { reduce(); return false; }
-#else
-    auto run=[&](auto op){
-      auto reduction=[&](auto body){
-        body(
-          reinterpret_cast<float const*>(p.buffers[stage.operand[0]]),inv.chunks,
-          task/inv.tiles_n,task%inv.tiles_n,stage.batch_rows?p.dims.batch:p.dims.tokens(),
-          stage.width,stage.width,inv.serving_output_stride,
-          reinterpret_cast<cutlass::bfloat16_t*>(p.buffers[stage.operand[1]]),
-          reinterpret_cast<cutlass::bfloat16_t const*>(inv.residual),
-          reinterpret_cast<float*>(p.buffers[stage.operand[1]]),inv.serving_argmax_index,
-          reinterpret_cast<float*>(work),inv.serving_norm_ss,inv.serving_ss_out,
-          inv.k_total,TILEMEGA_NORM_EPSILON);
+    if (inv.dm_enabled) {
+      auto operands = DmEpilogueOperands(Operands(inv,task/inv.tiles_n));
+      operands.output = p.buffers[stage.operand[1]];
+      auto reduce = [&] {
+        DispatchDmEpilogue(inv.dm_gemm, DmCombineRunner<PageArch, V::kTileM, V::kTileN>{
+            reinterpret_cast<float const*>(p.buffers[stage.operand[0]]), inv.chunks,
+            task / inv.tiles_n, task % inv.tiles_n, work, operands, cute::get<0>(inv.problem)});
       };
-      if constexpr(Last)reduction([&](auto... args){
-        last=LastArriverGemmTaskBody<V::kTileM,V::kTileN,decltype(op)::value>::Run(
-            ticket,inv.chunks,shared_last,args...);
-      });
-      else reduction([&](auto... args){
-        ServingGemmCombineTaskBody<V::kTileM,V::kTileN,decltype(op)::value>::Run(args...);
-      });
+      if constexpr (Last)
+        return executor::LastArriver::Run(ticket, inv.chunks, shared_last, reduce);
+      else { reduce(); return false; }
+    }
+#endif
+    auto run=[&](auto op){
+      if constexpr (decltype(op)::value == backend::ServingEpilogueOp::kSwiGLU && V::kTileN % 32) {
+        asm volatile("trap;");
+      } else {
+        auto reduction=[&](auto body){
+          body(
+            reinterpret_cast<float const*>(p.buffers[stage.operand[0]]),inv.chunks,
+            task/inv.tiles_n,task%inv.tiles_n,stage.batch_rows?p.dims.batch:p.dims.tokens(),
+            stage.width,stage.width,inv.serving_output_stride,
+            reinterpret_cast<cutlass::bfloat16_t*>(p.buffers[stage.operand[1]]),
+            reinterpret_cast<cutlass::bfloat16_t const*>(inv.residual),
+            reinterpret_cast<float*>(p.buffers[stage.operand[1]]),inv.serving_argmax_index,
+            reinterpret_cast<float*>(work),inv.serving_norm_ss,inv.serving_ss_out,
+            inv.k_total,TILEMEGA_NORM_EPSILON);
+        };
+        if constexpr(Last)reduction([&](auto... args){
+          last=LastArriverGemmTaskBody<V::kTileM,V::kTileN,decltype(op)::value>::Run(
+              ticket,inv.chunks,shared_last,args...);
+        });
+        else reduction([&](auto... args){
+          ServingGemmCombineTaskBody<V::kTileM,V::kTileN,decltype(op)::value>::Run(args...);
+        });
+      }
     };
     switch(inv.serving_op) {
       case backend::ServingEpilogueOp::kStore:run(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kStore>{});break;
@@ -461,7 +467,6 @@ __device__ bool Combine(Params const& p,StageDesc const& stage,int task,char* wo
       default:asm volatile("trap;");
     }
     return last;
-#endif
   }else if constexpr(Variant + 1 < TILEMEGA_GEMM_VARIANT_COUNT)
     return Combine<Last,Variant+1>(p,stage,task,work,ticket,shared_last);
   else asm volatile("trap;");

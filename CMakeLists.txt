@@ -699,6 +699,12 @@ if(TILEMEGA_BUILD_TESTS)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
   tilemega_configure_cuda_target(dm_qperkv8_prefill_test)
   add_test(NAME dm_qperkv8_prefill COMMAND dm_qperkv8_prefill_test)
+  add_executable(dm_moe_rms_stats_test test/unit/dm_moe_rms_stats_test.cu)
+  target_link_libraries(dm_moe_rms_stats_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_moe_rms_stats_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
+  tilemega_configure_cuda_target(dm_moe_rms_stats_test)
+  add_test(NAME dm_moe_rms_stats COMMAND dm_moe_rms_stats_test)
   target_link_libraries(task_body_contract_test PRIVATE TileMega::tilemega)
   add_test(NAME task_body_contract COMMAND task_body_contract_test)
 

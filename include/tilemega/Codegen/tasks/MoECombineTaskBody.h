@@ -14,6 +14,7 @@ struct MoeCombineOperands {
   float* row_stats=nullptr;                    // [token, channel tile, 2]
   unsigned tokens=0,channels=0;
   std::uint64_t token_stride=0,rank_stride=0,row_stride=0,stats_stride=0;
+  float* rms_squares=nullptr;                 // optional legacy [token, channel/32]
 };
 
 template<class Arch,int TopK=8,int TokenTile=1,int ChannelTile=128>
@@ -27,7 +28,8 @@ struct MoECombineTaskBody {
   }
   __device__ static void Run(MoeCombineOperands const& p,unsigned task,SharedStorage& s) {
     if(!p.partials || !p.weights || !p.residual || !p.output || !p.channels ||
-       !p.token_stride || !p.rank_stride || !p.row_stride || (p.row_stats && !p.stats_stride)) {
+       !p.token_stride || !p.rank_stride || !p.row_stride || (p.row_stats && !p.stats_stride) ||
+       (p.rms_squares && p.channels%32)) {
       asm volatile("trap;");return;
     }
     unsigned tiles=(p.channels+ChannelTile-1)/ChannelTile;
@@ -70,6 +72,21 @@ struct MoECombineTaskBody {
           p.row_stats[offset]=sum;p.row_stats[offset+1]=square;
         }
       }
+    }
+    if(p.rms_squares) {
+      if constexpr(ChannelTile%32==0) {
+        unsigned lane=executor::ComputeThread()%32,warp=executor::ComputeThread()/32;
+        for(unsigned row=warp;row<TokenTile;row+=4) {
+          if(first_token+row>=p.tokens)continue;
+          for(unsigned column=0;column<ChannelTile;column+=32) {
+            float value=s.output[row*ChannelTile+column+lane];
+            float square=value*value;
+            for(unsigned shift=16;shift;shift/=2)square+=__shfl_xor_sync(0xffffffff,square,shift);
+            if(!lane && first_channel+column<p.channels)
+              p.rms_squares[(first_token+row)*(p.channels/32)+(first_channel+column)/32]=square;
+          }
+        }
+      }else asm volatile("trap;");
     }
     executor::ComputeSync();
   }

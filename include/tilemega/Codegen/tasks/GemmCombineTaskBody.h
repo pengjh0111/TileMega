@@ -37,6 +37,9 @@ struct GemmCombineTaskBody {
         static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
     int rows = stage.batch_rows ? p.dims.batch : p.dims.tokens();
     int columns = static_cast<int>(stage.width);
+    if constexpr (Op == backend::ServingEpilogueOp::kSwiGLU && V::kTileN % 32) {
+      asm volatile("trap;");
+    } else {
     ServingGemmCombineTaskBody<V::kTileM, V::kTileN, Op>::Run(
         reinterpret_cast<float const*>(p.buffers[stage.operand[0]]),
         invocation.chunks, task / invocation.tiles_n,
@@ -48,6 +51,7 @@ struct GemmCombineTaskBody {
         invocation.serving_argmax_index,
         reinterpret_cast<float*>(&smem.gemm),invocation.serving_norm_ss,
         invocation.serving_ss_out,invocation.k_total,TILEMEGA_NORM_EPSILON);
+    }
   }
 
   template <int Variant>
@@ -57,22 +61,24 @@ struct GemmCombineTaskBody {
     auto const& invocation =
         static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-    using V = GemmVariant<Variant>;
-    backend::DmEpilogueArguments operands;
-    ServingGemmOperands source;
-    source.dm_buffers=invocation.dm_buffers;source.chain=invocation.chain;
-    source.access=invocation.access;source.binding=invocation.binding;source.rows=invocation.rows;
-    source.output=reinterpret_cast<cutlass::bfloat16_t*>(p.buffers[stage.operand[1]]);
-    source.m=cute::get<0>(invocation.problem);source.n=stage.width;
-    source.output_stride=invocation.serving_output_stride;
-    source.norm_k=invocation.k_total;source.norm_eps=TILEMEGA_NORM_EPSILON;
-    if(!ResolveDmCombineOperands(source,task/invocation.tiles_n,V::kTileM,&operands))return;
-    DispatchDmEpilogue(invocation.dm_gemm, DmCombineRunner<Arch, V::kTileM, V::kTileN>{
-        reinterpret_cast<float const*>(p.buffers[stage.operand[0]]), invocation.chunks,
-        task / invocation.tiles_n, task % invocation.tiles_n,
-        reinterpret_cast<char*>(&smem.gemm), operands,source.m});
-    return;
-#else
+    if (invocation.dm_enabled) {
+      using V = GemmVariant<Variant>;
+      backend::DmEpilogueArguments operands;
+      ServingGemmOperands source;
+      source.dm_buffers=invocation.dm_buffers;source.chain=invocation.chain;
+      source.access=invocation.access;source.binding=invocation.binding;source.rows=invocation.rows;
+      source.output=reinterpret_cast<cutlass::bfloat16_t*>(p.buffers[stage.operand[1]]);
+      source.m=cute::get<0>(invocation.problem);source.n=stage.width;
+      source.output_stride=invocation.serving_output_stride;
+      source.norm_k=invocation.k_total;source.norm_eps=TILEMEGA_NORM_EPSILON;
+      if(!ResolveDmCombineOperands(source,task/invocation.tiles_n,V::kTileM,&operands))return;
+      DispatchDmEpilogue(invocation.dm_gemm, DmCombineRunner<Arch, V::kTileM, V::kTileN>{
+          reinterpret_cast<float const*>(p.buffers[stage.operand[0]]), invocation.chunks,
+          task / invocation.tiles_n, task % invocation.tiles_n,
+          reinterpret_cast<char*>(&smem.gemm), operands,source.m});
+      return;
+    }
+#endif
     switch (invocation.serving_op) {
       case backend::ServingEpilogueOp::kStore:
         RunServingOp<Variant, backend::ServingEpilogueOp::kStore>(p, stage, smem, task); break;
@@ -84,7 +90,6 @@ struct GemmCombineTaskBody {
         RunServingOp<Variant, backend::ServingEpilogueOp::kArgmaxPartial>(p, stage, smem, task); break;
       default: asm volatile("trap;"); break;
     }
-#endif
   }
 
   template <int Variant = 0>

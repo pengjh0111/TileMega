@@ -480,6 +480,7 @@ struct GemmInvocation {
   PhaseGateDesc serving_phase_gate{};
   std::uint8_t serving_phase_class = 0; // qkv, o, gate/up, down, lm_head
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  bool dm_enabled = true;
   std::uint32_t dm_gemm = 0;
   DmGemmAccess access{};
   DmEpilogueChain chain{};
@@ -638,7 +639,7 @@ struct GemmStageTaskBody {
     operands.binding=invocation.binding; operands.rows=invocation.rows;
     operands.a_scale=invocation.a_scale; operands.dm_buffers=invocation.dm_buffers;
     operands.a_row_stride=static_cast<int>(cute::get<0>(invocation.mainloop.dA));
-    if (invocation.chunks == 1) {
+    if (invocation.chunks == 1 && invocation.dm_enabled) {
       DispatchDmEpilogue(invocation.dm_gemm, DmRunner<Body>{
           operands, local / invocation.tiles_n, local % invocation.tiles_n, shared});
       return;

@@ -69,6 +69,7 @@ struct DmStageRunner {
           static_cast<E const*>(pointer(2)),static_cast<E*>(pointer(3)),static_cast<float*>(pointer(4)),
           tokens,stage.extent,std::uint64_t(TopK)*stage.extent,stage.extent,stage.extent,
           std::uint64_t((stage.extent+ChannelTile-1)/ChannelTile)*2};
+      p.rms_squares=static_cast<float*>(pointer(5));
       using Body=MoECombineTaskBody<Arch,TopK,TokenTile,ChannelTile>;
       Body::Run(p,task,*reinterpret_cast<typename Body::SharedStorage*>(scratch));
     }else {
