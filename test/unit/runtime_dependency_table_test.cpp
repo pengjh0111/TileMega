@@ -42,6 +42,17 @@ int TestRuntimeDependencyTable(int, char**) {
   reject({1, 0, view}); reject({0, 2, view}); reject({0, 1, {nullptr, 7, 1}});
   reject({0, 1, {intervals.data(), 8, table.stride}});
   intervals[0] = {11, 2}; reject({0, 1, view});
+  auto periodic=analysis::CouplingRelation::FromIslText(
+      "{ [c] -> [p] : 0<=c<132 and 0<=p<1160 and p%4=c%4 }");
+  auto large=analysis::BuildDependencyTableLinear(periodic,1160,132);
+  assert(large.stride==290 && large.intervals.size()==132*290);
+  assert(large.encoded_relation.ToString().size()<2000);
+  assert(analysis::Contains(periodic,large.encoded_relation) &&
+      analysis::Contains(large.encoded_relation,periodic));
+  for(unsigned consumer=0;consumer<132;++consumer)for(unsigned entry=0;entry<290;++entry) {
+    auto interval=large.intervals[consumer*290+entry];
+    assert(interval.first==4*entry+consumer%4 && interval.count==1);
+  }
   std::uint64_t target;
   assert(codegen::CountedDependencyTarget(8, 17, &target) && target == 144);
   assert(!codegen::CountedDependencyTarget(0, 0, &target));

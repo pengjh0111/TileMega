@@ -3,6 +3,7 @@
 #include <tilemega/Analysis/ISLContext.h>
 #include <algorithm>
 #include <limits>
+#include <map>
 #include <set>
 #include <stdexcept>
 
@@ -18,6 +19,27 @@ std::uint32_t Count(OperatorNode const& node, ParamBinding const& known) {
   if (count <= 0 || count > std::numeric_limits<std::uint32_t>::max())
     throw std::invalid_argument("dependency table task count outside 32-bit range");
   return static_cast<std::uint32_t>(count);
+}
+using Runs=std::vector<std::pair<std::uint32_t,std::uint32_t>>;
+std::string EncodeRuns(Runs const& runs,char const* coordinate) {
+  std::string text;
+  for(std::size_t begin=0;begin<runs.size();) {
+    std::size_t end=begin+1;std::uint64_t step=0;
+    if(end<runs.size() && runs[end].second==runs[begin].second) {
+      step=std::uint64_t(runs[end].first)-runs[begin].first;
+      ++end;
+      while(end<runs.size() && runs[end].second==runs[begin].second &&
+          std::uint64_t(runs[end].first)-runs[end-1].first==step)++end;
+    }
+    if(!text.empty())text+=" or ";
+    text+="("+std::to_string(runs[begin].first)+" <= "+coordinate+" < "+
+        std::to_string(std::uint64_t(runs[end-1].first)+runs[begin].second);
+    if(end>begin+1 && step>runs[begin].second)
+      text+=" and ("+std::string(coordinate)+"-"+std::to_string(runs[begin].first)+")%"+
+          std::to_string(step)+" < "+std::to_string(runs[begin].second);
+    text+=")";begin=end;
+  }
+  return text.empty()?"false":text;
 }
 CouplingRelation Linearization(OperatorNode const& node, std::vector<std::string> const& names,
                               ParamBinding const& known, char const* id) {
@@ -84,17 +106,22 @@ DependencyTable BuildDependencyTableLinear(CouplingRelation const& relation,
   if (std::uint64_t(result.consumers) * result.stride > std::numeric_limits<std::size_t>::max() / sizeof(TaskInterval))
     throw std::invalid_argument("dependency table storage size overflows");
   result.intervals.resize(std::size_t(result.consumers) * result.stride);
-  std::string encoded = "{ ";
-  bool first = true;
-  for (unsigned task = 0; task < result.consumers; ++task) {
+  std::map<Runs,Runs> repeated;
+  for(unsigned task=0;task<result.consumers;++task) {
     std::copy(intervals[task].begin(), intervals[task].end(),
               result.intervals.begin() + std::size_t(task) * result.stride);
-    for (auto const& interval : intervals[task]) {
-      if (!first) encoded += "; "; first = false;
-      encoded += "[_tm_c] -> [_tm_p] : _tm_c = " + std::to_string(task) +
-          " and " + std::to_string(interval.first) + " <= _tm_p < " +
-          std::to_string(std::uint64_t(interval.first) + interval.count);
-    }
+    Runs row;
+    for(auto const& interval:intervals[task])row.emplace_back(interval.first,interval.count);
+    if(!row.empty())repeated[row].emplace_back(task,1);
+  }
+  std::string encoded = "{ ";
+  bool first = true;
+  // Repeated channel rows and periodic producer runs have compact exact
+  // descriptions. The runtime's fixed-stride interval table is unchanged.
+  for(auto const& [row,consumers]:repeated) {
+    if(!first)encoded+="; ";first=false;
+    encoded+="[_tm_c] -> [_tm_p] : ("+EncodeRuns(consumers,"_tm_c")+") and ("+
+        EncodeRuns(row,"_tm_p")+")";
   }
   if (first) encoded += "[_tm_c] -> [_tm_p] : false";
   result.encoded_relation = CouplingRelation::FromIslText(encoded + " }");
