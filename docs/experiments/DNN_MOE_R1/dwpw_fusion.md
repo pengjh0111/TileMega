@@ -41,6 +41,14 @@ pointwise N tile and split-K chunk, including M tails, separately from the
 pointwise MMA lane. Split-K combiners clear this prologue to avoid charging it
 again. The generated fixture's host pricing/codec assertions pass.
 
-Pending: the complete MobileNetV1 fused CUDA emission exceeded a 300-second
-host-build limit. General large-graph analysis cost, per-pair joint solver
-selection and complete-model fusion coverage remain open.
+verified: after exact-analysis repairs, the complete MobileNetV1 fused graph
+generates with 13 fused pairs (`runs/dm1-mbv1-fused-host-v18`). Its frozen native
+sm_89 artifact executes one fixed synthetic state/input in both L1 and L2,
+with bitwise identical results, FP32 minimum cosine 0.9999978542 and maximum
+error 0.0005717725. `results/DN_mbv1_full_fused_generated.json` records identity
+7c6ba678… and all compiler resource/spill lines. The canonical L2 kernel has
+255 registers and aggregate spill stores/loads 280/1016 bytes. Earlier host
+timeouts remain recorded. This is a complete-graph execution smoke, not G-DNN.
+
+Pending: general large-graph analysis cost, per-pair joint solver selection
+and full MobileNetV2 fusion coverage remain open.
