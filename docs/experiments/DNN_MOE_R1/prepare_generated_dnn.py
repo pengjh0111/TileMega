@@ -30,6 +30,8 @@ if __name__ == '__main__':
     parser.add_argument('--moe-hidden',type=Path)
     parser.add_argument('--moe-decoder-config',type=Path,
         help='seeded complete decoder fixture; ineligible for the real-weight G-MOE gate')
+    parser.add_argument('--moe-decoder-bridge',type=Path,
+        help='enable native-input component checks for the complete decoder fixture')
     args = parser.parse_args()
     if args.processes<1:
         parser.error('--processes must be positive')
@@ -47,6 +49,8 @@ if __name__ == '__main__':
         parser.error('real MoE checks require --moe-bridge, --moe-checkpoint and --moe-hidden')
     if args.moe_decoder_config and (args.moe_bridge or args.model_export or args.diagnostic):
         parser.error('complete decoder fixtures use their own config and checker')
+    if args.moe_decoder_bridge and not args.moe_decoder_config:
+        parser.error('--moe-decoder-bridge requires --moe-decoder-config')
     repo = Path(__file__).resolve().parents[3]
     root = args.out.resolve()
     root.mkdir(parents=True, exist_ok=False)
@@ -94,8 +98,8 @@ extern "C" void* tm_dm_debug_buffer(void* handle, unsigned index,
     shutil.copytree(repo/'python/tilemega',root/'python/tilemega',dirs_exist_ok=True,
         ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
     if args.model_export or args.moe_bridge or args.moe_decoder_config:
-        if args.moe_bridge or args.bridge:
-            shutil.copy2(args.moe_bridge or args.bridge,root/'bridge.json')
+        if args.moe_bridge or args.bridge or args.moe_decoder_bridge:
+            shutil.copy2(args.moe_bridge or args.bridge or args.moe_decoder_bridge,root/'bridge.json')
     shutil.copytree(repo/'include', root/'include')
     for name in ['include', 'tools/util/include']:
         shutil.copytree(repo/'third_party/cutlass'/name, root/'third_party/cutlass'/name)
@@ -141,6 +145,8 @@ extern "C" void* tm_dm_debug_buffer(void* handle, unsigned index,
         command=['env','PYTHONPATH='+str(root/'python'),'/root/dm1_work/venv-gpu/bin/python',
             '-m','tilemega.moe.check_decoder','--library',str(root/'generated-sm_89.so'),
             '--config',str(root/'decoder_config.json'),'--out',str(root/'correctness.json')]
+        if args.moe_decoder_bridge:
+            command+=['--bridge',str(root/'bridge.json')]
     if args.diagnostic:
         command += ['--diagnostics',str(root/'intermediates.json')]
     if args.input_tensors:

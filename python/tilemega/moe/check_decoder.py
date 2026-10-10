@@ -224,7 +224,8 @@ def check(library_path, config_path, bridge_path=None):
     return dict(evidence='verified', passed=all(row['passed'] for row in cases),
         scope='synthetic complete MoE decoder smoke; not the real-weight G-MOE gate',
         artifact_id=identity['artifact_id'], checkpoint_sha256=source_sha256,
-        config_sha256=sha(config_path), seed=20261010, cases=cases)
+        config_sha256=sha(config_path), bridge_sha256=sha(bridge_path) if bridge_path else None,
+        checker_sha256=sha(Path(__file__)), seed=20261010, cases=cases)
 
 
 def main():
