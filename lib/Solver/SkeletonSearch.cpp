@@ -259,6 +259,11 @@ struct SearchContext {
   }
   ResourceEstimate EstimateResources(std::vector<GemmConfig> const& config) {
     auto const& target=options.common.placement.target;
+    if(!options.dm_shared_weights.empty())
+      for(std::size_t c=0;c<classes.size();++c)for(auto id:classes[c].gemms)
+        if(auto shared=options.dm_shared_weights.find(id);shared!=options.dm_shared_weights.end())
+          if(config.at(c).tile_n!=shared->second.tile_n || config.at(c).tile_k!=shared->second.tile_k)
+            throw std::invalid_argument("candidate violates shared packed weight layout");
     auto estimate=resources.Estimate(classes,config,target,dtype);
     if(ServingRuntimePlan()) {
       int gemm_shared=imported.plan.dm?estimate.shared_bytes:0;
@@ -555,7 +560,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       auto pruned=ServingClassCandidates(cls,search.imported,
           options.common.placement.target,options.common.placement.dims.batch,
           options.common.placement.dims.seq,options.serving_pruning,
-          false);
+          false,options.dm_shared_weights);
       domain=std::move(pruned.candidates);
       out<<"PRUNING\t"<<domains.size()<<'\t'<<pruned.raw<<'\t'
          <<pruned.removed_r1<<'\t'<<pruned.removed_r2<<'\t'
@@ -652,13 +657,15 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
               throw std::invalid_argument("paged seed geometry disagrees within class");
         }else if(op==frontend::PlanGemm::Epilogue::kSwiGLU ||
                  op==frontend::PlanGemm::Epilogue::kArgmaxPartial)g={16,128,64,2,1};
+        if(!options.dm_shared_weights.empty())g=seed.at(projected.size());
         g.stages=2;g.split_k=1;
-        if(g.tile_n*g.tile_k*2>bytes)g.tile_n=bytes/(2*g.tile_k);
+        if(options.dm_shared_weights.empty() && g.tile_n*g.tile_k*2>bytes)
+          g.tile_n=bytes/(2*g.tile_k);
         projected.push_back(g);
       }
       auto index=evaluate(projected,1,1);
       split1_seed_keys.push_back(evaluated[index].key);
-      starts.push_back(index);
+      if(options.dm_shared_weights.empty() || std::isfinite(evaluated[index].score))starts.push_back(index);
       out<<"PAGED_SPLIT1_SEED page_bytes="<<bytes<<" key="<<evaluated[index].key
          <<" error="<<evaluated[index].error<<'\n';
     }

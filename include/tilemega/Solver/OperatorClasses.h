@@ -73,10 +73,11 @@ struct ServingClassDomain {
 inline ServingClassDomain ServingClassCandidates(
     OperatorClass const& cls,frontend::ImportedSemantics const& imported,
     TargetSpec const& target,int batch,int seq,
-    bool enable_r2=true,bool enable_r3=false) {
+    bool enable_r2=true,bool enable_r3=false,
+    std::map<std::size_t,DmWeightLayoutConstraint> const& shared={}) {
   if(imported.plan.dm) {
     if(enable_r3)throw std::invalid_argument("DM R-3 requires an unpruned equivalence experiment");
-    auto dm=DmClassCandidates(cls.gemms,imported.plan,target,batch,seq);
+    auto dm=DmClassCandidates(cls.gemms,imported.plan,target,batch,seq,shared);
     return {std::move(dm.candidates),dm.raw,dm.removed_r1,dm.removed_r2,dm.removed_r3};
   }
   if(!imported.plan.serving || batch<1 || seq<1 || cls.gemms.empty())

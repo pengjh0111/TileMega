@@ -8,7 +8,7 @@ import unittest
 from contextlib import nullcontext
 from unittest.mock import patch
 
-from tilemega.moe.full import compile_command, memory_report, resolve_target, preflight
+from tilemega.moe.full import compile_command, memory_report, resolve_target, preflight, deployment_layout_decision
 
 
 class MoeFullTest(unittest.TestCase):
@@ -50,6 +50,16 @@ class MoeFullTest(unittest.TestCase):
         config, manifests = self.fixture()
         with self.assertRaisesRegex(ValueError, 'workload differs'):
             memory_report(config, manifests, 1, 128)
+
+    def test_shared_layout_restriction_depends_on_target_capacity(self):
+        config,manifests=self.fixture()
+        missing=deployment_layout_decision(config,manifests[0],2,128,{})
+        self.assertFalse(missing['require_shared_layout'])
+        estimate=missing['two_layout_estimate_bytes']
+        for capacity,expected in ((estimate-1,True),(estimate,False),(estimate+1,False)):
+            result=deployment_layout_decision(config,manifests[0],2,128,
+                dict(resources=dict(dram_capacity_bytes=capacity)))
+            self.assertEqual(result['require_shared_layout'],expected)
 
     def test_moe_cli_enables_handoffs_without_changing_dense_defaults(self):
         from tilemega.cli import read_config

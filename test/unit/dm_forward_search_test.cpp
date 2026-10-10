@@ -75,6 +75,7 @@ int TestDmForwardSearch(int,char**) {
       search.common.placement.dims.batch=token_axis?1:8;
       search.seed={16,16,16,2,1};
       search.common.geometry_domain={search.seed,{16,32,16,2,1},{32,16,16,2,1}};
+      search.dm_shared_weights={{0,{16,16}}};
       // Host search mechanics use synthetic resource callbacks. Native
       // compiled resources and fitted latency accuracy are separate gates.
       search.variant_probe=[](auto const&,auto const* g,auto) {
@@ -99,6 +100,7 @@ int TestDmForwardSearch(int,char**) {
         if(!candidate.error.empty())std::cerr<<candidate.key<<": "<<candidate.error<<'\n';
         assert(candidate.error.empty() && std::isfinite(candidate.score));
         assert(candidate.attention_kv_block==0 && candidate.attention_query_rows==0);
+        assert(candidate.config[0].tile_n==16 && candidate.config[0].tile_k==16);
         assert(candidate.shared_bytes>0 && candidate.shared_bytes<=
             search.common.placement.target.res.max_dynamic_smem_per_cta);
         if(paged)assert(candidate.actual_limit<=1 && candidate.estimated_limit==1);

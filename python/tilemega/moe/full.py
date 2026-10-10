@@ -103,6 +103,19 @@ def compile_command(args, bridge, binary, phase, batch):
         '--nonpaged-weight-layout', 'tiled', '--runtime-target', str(args.target)]
 
 
+def deployment_layout_decision(config, decode_manifest, batch, capacity, target):
+    report=memory_report(config, [decode_manifest], batch, capacity)
+    available=int(target.get('resources', {}).get('dram_capacity_bytes', 0))
+    # The opposite phase has not been built yet. Its workspace remains an
+    # estimate; the later two-manifest report/preflight still checks it.
+    estimate=2*report['shared_weight_bytes']+report['request_state_bytes']+ \
+        2*report['phases'][0]['internal_bytes']
+    return dict(evidence='inferred', device_capacity_bytes=available,
+        two_layout_estimate_bytes=estimate,
+        require_shared_layout=bool(available and estimate>available),
+        scope='decode packed allocations and doubled workspace estimate; unknown capacity leaves the domain unrestricted')
+
+
 def build_plans(args, config):
     from tilemega.moe.checkpoints import index_check
     from tilemega.dnn.cli import gpu_lock
@@ -111,6 +124,7 @@ def build_plans(args, config):
     atomic_json(args.out/'checkpoint-index.json', checkpoint)
     bridges = export_plans(config, args.out, args.batch, args.capacity)
     plans = []
+    target=json.loads(args.target.read_text())
     for batch in args.batch:
         manifests = []
         for phase in ('decode', 'prefill'):
@@ -118,6 +132,12 @@ def build_plans(args, config):
             directory.mkdir(parents=True, exist_ok=True)
             binary = directory/('plan.cu' if args.command == 'dry-build' else 'plan.so')
             command = compile_command(args, bridges[phase, batch], binary, phase, batch)
+            if phase == 'prefill':
+                decision=deployment_layout_decision(config,manifests[0],batch,args.capacity,target)
+                atomic_json(args.out/f'B{batch}'/'layout-decision.json',decision)
+                if decision['require_shared_layout']:
+                    reference=args.out/f'B{batch}'/'decode'/('plan.cu' if args.command=='dry-build' else 'plan.so')
+                    command += ['--shared-weight-layout', str(reference)+'.plan.json']
             atomic_json(directory/'command.json', command)
             snapshot = source_snapshot(ROOT, args.compiler)
             atomic_json(directory/'source.json', snapshot)

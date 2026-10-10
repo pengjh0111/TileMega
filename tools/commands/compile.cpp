@@ -15,6 +15,7 @@
 #include <tilemega/Solver/CompilerSearch.h>
 #include <tilemega/Solver/SkeletonSearch.h>
 #include <tilemega/Solver/IntervalSegments.h>
+#include <tilemega/Solver/DmSharedWeights.h>
 #include <llvm/Support/raw_ostream.h>
 
 #include <mlir/IR/MLIRContext.h>
@@ -291,6 +292,7 @@ int RunCompile(int argc, char** argv) {
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,paged_seed_from,artifact_cache;
     std::string frontend_mode="decoder";
+    std::string shared_weight_layout;
     std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
     std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
@@ -336,6 +338,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--search-budget-ms") search_budget_ms=std::stoi(value);
       else if (flag=="--solve") solve_target=value;
       else if (flag=="--serving") serving_phase=value;
+      else if (flag=="--shared-weight-layout") shared_weight_layout=value;
       else if (flag=="--frontend") frontend_mode=value;
       else if (flag=="--moe-dynamic") moe_dynamic=std::stoi(value);
       else if (flag=="--moe-opaque") moe_opaque=std::stoi(value);
@@ -510,6 +513,11 @@ int RunCompile(int argc, char** argv) {
       throw std::invalid_argument("--nonpaged-weight-layout must be row or tiled");
     bool const use_nonpaged_tiled=serving &&
         !use_pages && nonpaged_weight_layout=="tiled";
+    if(!shared_weight_layout.empty() && (!serving ||
+        (use_pages?weight_layout!="tiled":!use_nonpaged_tiled)))
+      throw std::invalid_argument("shared weight layout requires packed serving weights");
+    if(!shared_weight_layout.empty() && (input.extension()==".mlir" || moe_gemv))
+      throw std::invalid_argument("shared weight layout requires export input and the planned GEMM family");
     if(nonpaged_la!=0 && nonpaged_la!=1)
       throw std::invalid_argument("--nonpaged-la must be 0 or 1");
     if(nonpaged_la && !serving)
@@ -636,6 +644,12 @@ int RunCompile(int argc, char** argv) {
       for(auto const& stage:plan.stages)
         if(stage.kind==tilemega::frontend::PlanTaskKind::kDwPwFused)
           import.gemms.at(stage.gemm).tile_m=16;
+      if(!shared_weight_layout.empty())
+        for(auto const& [id,layout]:tilemega::solver::SharedDmWeightLayouts(plan,
+            tilemega::json::ParseFile(shared_weight_layout))) {
+          import.gemms.at(id).tile_n=layout.tile_n;
+          import.gemms.at(id).tile_k=layout.tile_k;
+        }
       if(moe_gemv) {
         bool expert=false;
         for(auto const& g:plan.gemms)expert|=g.access.b==tilemega::codegen::DmBAccess::kExpertIndirect;
@@ -848,6 +862,10 @@ int RunCompile(int argc, char** argv) {
           options.argmax_tile_n=serving_argmax_tile_n;
           auto plan=dnn_plan?*dnn_plan:tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,
               bridge.outputs,options);
+          if(plan.dm && !tilemega::analysis::active_exact_memo)dm_memo.emplace();
+          if(!shared_weight_layout.empty())
+            skeleton.dm_shared_weights=tilemega::solver::SharedDmWeightLayouts(plan,
+                tilemega::json::ParseFile(shared_weight_layout));
           if(plan.dm && plan.serving)
             skeleton.dm_structure_rebuild=[](auto const& previous,auto const& bridge,
                 auto const& lift,int kv_block,int query_rows,int argmax_tile_n) {
@@ -1547,6 +1565,9 @@ int RunCompile(int argc, char** argv) {
         manifest<<",\n  \"global_la\": "<<std::quoted(global_la);
         manifest<<",\n  \"dm_pool_la\": "<<(dm_pool_la?"true":"false");
         manifest<<",\n  \"dm_moe_la\": "<<(dm_moe_la?"true":"false");
+        if(!shared_weight_layout.empty())
+          manifest<<",\n  \"shared_weight_layout\": "<<std::quoted(shared_weight_layout)
+                  <<",\n  \"shared_weight_layout_sha256\": "<<std::quoted(modelFingerprint(shared_weight_layout));
         if(frontend_mode=="dnn")manifest<<",\n  \"deferred_ln\": "<<std::quoted(dnn_deferred_ln);
         if(frontend_mode=="dnn")manifest<<",\n  \"dwpw_fuse\": "<<std::quoted(dnn_dwpw_fuse);
         if(search_selection=="predicted")manifest<<",\n  \"selection\": \"predicted\"";

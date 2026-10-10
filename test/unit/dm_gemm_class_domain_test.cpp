@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/DmGemmClassDomain.h>
+#include <tilemega/Solver/DmSharedWeights.h>
+#include <tilemega/Solver/OperatorClasses.h>
 #include <cassert>
 #include <iostream>
 #include <set>
@@ -69,6 +71,39 @@ int TestDmGemmClassDomain(int,char**) {
   assert(!packed.candidates.empty());
   for(auto const& g:packed.candidates)assert(g.tile_n==64 && g.tile_k==32);
   assert(DmClassCandidates({0,1},plan,target,1,1,{{0,{64,32}},{1,{32,32}}}).candidates.empty());
+  plan.buffers.resize(2);
+  for(unsigned i=0;i<2;++i) {
+    plan.gemms[i].b=i;plan.buffers[i].name="w"+std::to_string(i);
+    plan.buffers[i].pack_json="{\"source\":\"w"+std::to_string(i)+"\",\"kind\":\"alias\"}";
+  }
+  auto manifest=json::Parse(R"({"buffers":[
+    {"dtype":"bf16","recipe":{"kind":"tile_pages","tile_n":64,"tile_k":32,"source":{"kind":"alias","source":"w0"}}},
+    {"dtype":"bf16","recipe":{"kind":"tile_pages","tile_n":64,"tile_k":32,"source":{"source":"w1","kind":"alias"}}}
+  ]})");
+  auto shared_layouts=SharedDmWeightLayouts(plan,manifest);
+  frontend::ImportedSemantics imported;imported.plan=plan;
+  OperatorClass cls;cls.gemms={0,1};
+  auto constrained=ServingClassCandidates(cls,imported,target,1,1,true,false,shared_layouts);
+  assert(!constrained.candidates.empty());
+  for(auto const& g:constrained.candidates)assert(g.tile_n==64 && g.tile_k==32);
+  auto rejected_manifest=[&](json::Value const& value) {
+    bool rejected=false;
+    try{(void)SharedDmWeightLayouts(plan,value);}catch(std::invalid_argument const&){rejected=true;}
+    assert(rejected);
+  };
+  auto broken=manifest;
+  broken.Set("buffers",json::Array{});rejected_manifest(broken);
+  auto extra=manifest.At("buffers").AsArray("buffers");
+  auto conflict=extra.front();auto recipe=conflict.At("recipe");recipe.Set("tile_n",32);
+  conflict.Set("recipe",recipe);extra.push_back(conflict);broken.Set("buffers",extra);
+  rejected_manifest(broken);
+  auto saved=plan.buffers[0].pack_json;
+  plan.buffers[0].pack_json="{\"kind\":\"fold_rmsnorm\",\"norm\":\"gamma\",\"source\":{\"kind\":\"alias\",\"source\":\"w0\"}}";
+  auto phase_specific=SharedDmWeightLayouts(plan,manifest);
+  assert(phase_specific.size()==1 && !phase_specific.count(0));
+  plan.gemms[0].access.b=codegen::DmBAccess::kExpertIndirect;
+  rejected_manifest(manifest);plan.buffers[0].pack_json=saved;
+  plan.gemms[0].access.b=codegen::DmBAccess::kDense;
   for(auto const& ids:std::vector<std::vector<std::size_t>>{{},{0,0}}) {
     bool rejected=false;
     try{DmClassCandidates(ids,plan,target,1,1);}catch(std::invalid_argument const&){rejected=true;}

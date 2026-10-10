@@ -127,6 +127,7 @@ def generate(so, source, executor='L1', loop=False):
                                          moe_dynamic=plan.get('moe_dynamic', False),
                                          moe_opaque=plan.get('moe_opaque', False),
                                          moe_gemv=plan.get('moe_gemv', False),
+                                         shared_weight_layout_sha256=plan.get('shared_weight_layout_sha256'),
                                          dm_pool_la=plan.get('dm_pool_la', False),
                                          dm_moe_la=plan.get('dm_moe_la', False),
                                          moe_binding=plan.get('moe_binding'),

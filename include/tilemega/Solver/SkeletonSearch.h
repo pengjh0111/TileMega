@@ -7,6 +7,7 @@
 #include <tilemega/Solver/SkeletonPlacement.h>
 #include <tilemega/Solver/VariantResourceCache.h>
 #include <tilemega/Solver/FlowPreparation.h>
+#include <tilemega/Solver/DmGemmCandidates.h>
 
 namespace tilemega::solver {
 struct SkeletonEvaluationCase {
@@ -39,6 +40,7 @@ struct SkeletonSearchOptions {
   // DM frontends retain their own graph recognition and L-sem when a
   // decoder attention or argmax coordinate changes.
   DmStructureRebuild dm_structure_rebuild;
+  std::map<std::size_t,DmWeightLayoutConstraint> dm_shared_weights;
   int page_bytes=8192;
   std::vector<int> page_choices;
   std::vector<int> lookahead_choices{0,65536,131072};

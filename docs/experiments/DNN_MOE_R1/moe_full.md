@@ -63,3 +63,26 @@ device without loading model weights or compiling another binary.
 allocation 67,347,137,584 bytes versus 50,480,283,648 available bytes. The estimate
 is inferred; available memory is queried under the shared lock. This does not
 prove that a smaller allocation would fit.
+
+inferred: shared layout constraints are keyed by canonical complete packing
+recipes, not by tensor names. `--shared-weight-layout REF.plan.json` limits
+matching GEMMs to the reference TN/TK in fixed builds and all solver candidates,
+including projected paged seeds. An expert recipe mismatch is an error; a
+phase-specific dense projection with different norm folding retains a separate
+allocation. The full-model entry applies this restriction when its target's
+DRAM capacity is below the inferred two-layout budget, and records the decision
+plus reference-manifest SHA256. General serving CLI automatic coupling remains
+pending; the compiler primitive is available to it.
+
+verified: host candidate/search checks and generated fixed packed-layout
+comparison pass in `runs/dm1-shared-layout-host-v1` and
+`runs/dm1-shared-layout-cli-host-v2`. The first paged search failed because its
+projected seed ignored the constraint; the repaired search passes all four
+forward/token-axis and nonpaged/paged cases in
+`runs/dm1-shared-layout-forward-host-v2.log`. Fixture preparation v1 failed on
+a null FX shape before invoking the compiler; its correction is retained as v2.
+No GPU numerical or performance matrix follows from these host checks.
+verified: the final candidate-domain and forward-search checks also pass in
+`runs/dm1-shared-layout-host-final-v1`; eight full-entry Python checks pass in
+`runs/dm1-full-entry-python-final-v1.log`, including known/unknown capacity and
+the exact capacity boundary.
