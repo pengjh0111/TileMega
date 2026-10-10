@@ -94,7 +94,8 @@ CountedDependencyForm BindAlignedCountedScatterDependency(
   auto required=coupling.RangeProduct(read_columns);
   auto provided=coupling.ApplyRange(producer_ids.RangeProduct(write_columns));
   if(!Contains(required,provided) || !Contains(provided,required))
-    throw std::invalid_argument("counted scatter producer and consumer columns are not aligned");
+    throw std::invalid_argument("counted scatter producer and consumer columns are not aligned: " +
+        producer.name + " -> " + consumer.name);
   return result;
 }
 } // namespace tilemega::analysis

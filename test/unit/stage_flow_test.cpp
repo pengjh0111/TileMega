@@ -205,6 +205,17 @@ int TestStageFlow(int argc, char** argv) try {
   if(inline_result.tasks[2].worker!=1)
     throw std::runtime_error("inline reducer did not run on the last producer");
   Near(inline_result.makespan_ns,24,"inline reducer completes on last producer");
+  FlowProblem handoff_flow;handoff_flow.workers=1;handoff_flow.dram_gbps=10;
+  handoff_flow.consumer_wait_ns=100;handoff_flow.hop_ns=100;
+  FlowSpace handoff_source;handoff_source.count=1;handoff_source.pieces={{1,{0,20,0,0}}};handoff_source.piece_of_task={0};
+  FlowSpace reducer=handoff_source;reducer.pieces={{1,{7,3,0,0}}};reducer.handoff_reducer=true;
+  handoff_flow.spaces={handoff_source,reducer};FlowRelease release;release.producer=0;release.consumer=1;
+  release.sorted=std::make_shared<std::vector<std::pair<int,int>> const>(
+      std::vector<std::pair<int,int>>{{0,0}});handoff_flow.edges={release};
+  auto handoff=EvaluateFlow(handoff_flow);
+  Near(handoff.makespan_ns,30,"DM flow retains body fixed cost");
+  Near(handoff.spaces[1].fixed_ns,7,"DM flow keeps reducer barriers");
+  Near(handoff.spaces[1].wait_ns,0,"proved DM flow elides event polling");
   tilemega::codegen::RuntimeTaskGraph reserved_graph;
   reserved_graph.stage_offsets={0,2,3,4,5};
   reserved_graph.successors={{2,3},{2,3},{},{},{}};
@@ -224,6 +235,16 @@ int TestStageFlow(int argc, char** argv) try {
   Near(inline_result.tasks[4].start_ns,36,"handoff reserves CTA before next FIFO task");
   Near(inline_result.makespan_ns,41,"DM handoff bounded worker makespan");
   Near(inline_result.busiest_worker_ns,41,"DM body charged to producer worker");
+  tilemega::codegen::RuntimeTaskGraph sibling_graph;
+  sibling_graph.stage_offsets={0,1,2,3};sibling_graph.successors={{1,2},{},{}};
+  MaterializedPlan sibling_plan;sibling_plan.queue={{{0,0},{1,0},{2,0}}};
+  SimulatorInput sibling_input;sibling_input.graph=&sibling_graph;
+  sibling_input.task_price_parts={{0,20,0,0},{0,5,0,0},{7,3,0,0}};
+  sibling_input.inline_reducer={0,0,1};sibling_input.inline_body_reserved={0,0,1};
+  if(!SimulateExecution(sibling_input,sibling_plan,inline_options,{},
+      &inline_result,&inline_error))throw std::runtime_error(inline_error);
+  Near(inline_result.tasks[2].start_ns,20,"inline handoff preempts newly ready ordinary sibling");
+  Near(inline_result.tasks[1].start_ns,30,"ordinary sibling waits until handoff finishes");
   reserved_input.inline_body_reserved[4]=1;
   if(SimulateExecution(reserved_input,reserved_plan,inline_options,{},
       &inline_result,&inline_error))throw std::runtime_error("accepted reserved ordinary node");

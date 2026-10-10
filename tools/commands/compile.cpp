@@ -687,6 +687,13 @@ int RunCompile(int argc, char** argv) {
       options.argmax_tile_n=serving_argmax_tile_n;
       auto plan=dnn_plan?*dnn_plan:tilemega::frontend::BuildModelPlan(
           bridge.nodes,bridge.inputs,bridge.outputs,options);
+      if(plan.dm) {
+        bool enabled=!moe_opaque && (use_pages?paged_la:(!nonpaged_la_pinned || nonpaged_la));
+        bool experts=std::any_of(plan.stages.begin(),plan.stages.end(),[](auto const& stage) {
+          return stage.kind==tilemega::frontend::PlanTaskKind::kMoETopK;
+        });
+        plan.dm_reduction_mask=enabled?((frontend_mode=="dnn" && global_la=="auto"?1:0)|(experts?6:0)):0;
+      }
       bind_routing_profile(plan);
       if(plan.dm && !tilemega::analysis::active_exact_memo)dm_memo.emplace();
       defer_dm_lowering=plan.dm && (use_pages || use_nonpaged_tiled || pg_mode=="l2");
@@ -924,6 +931,13 @@ int RunCompile(int argc, char** argv) {
           auto plan=dnn_plan?*dnn_plan:tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,
               bridge.outputs,options);
           if(moe_gemv)plan.moe_gemv=true;
+          if(plan.dm) {
+            bool enabled=!moe_opaque && (use_pages?paged_la:(!nonpaged_la_pinned || nonpaged_la));
+            bool experts=std::any_of(plan.stages.begin(),plan.stages.end(),[](auto const& stage) {
+              return stage.kind==tilemega::frontend::PlanTaskKind::kMoETopK;
+            });
+            plan.dm_reduction_mask=enabled?((frontend_mode=="dnn" && global_la=="auto"?1:0)|(experts?6:0)):0;
+          }
           bind_routing_profile(plan);
           skeleton.moe_routing_profile=moe_routing_profile;
           skeleton.moe_profile_layer=moe_profile_layer;
@@ -1071,9 +1085,12 @@ int RunCompile(int argc, char** argv) {
             });
         if(has_moe)for(bool gemv:moe_gemv_auto?std::vector<bool>{false,true}:
             std::vector<bool>{moe_gemv!=0}) {
-          if(moe_binding!="group")binding_choices.push_back({false,1,gemv});
-          if(moe_binding!="slot")for(auto bm:moe_bm_auto?std::vector<unsigned>{16,32,64,128}:
-              std::vector<unsigned>{moe_bm})binding_choices.push_back({true,bm,gemv});
+          int allowed=serving_imported->plan.dm_reduction_mask&6;
+          for(int mask:{0,2,4,6})if((mask&allowed)==mask) {
+            if(moe_binding!="group")binding_choices.push_back({false,1,gemv,mask});
+            if(moe_binding!="slot")for(auto bm:moe_bm_auto?std::vector<unsigned>{16,32,64,128}:
+                std::vector<unsigned>{moe_bm})binding_choices.push_back({true,bm,gemv,mask});
+          }
         }
         auto result=dnn_options && search_selection=="predicted" && skeleton.evaluation_cases.empty()
             ? tilemega::solver::SolveDnnStructures(*serving_imported,*dnn_options,
@@ -1453,14 +1470,17 @@ int RunCompile(int argc, char** argv) {
           std::to_string(serving_past_hi) + "\n" + source;
     }
     bool dm_pool_la=false,dm_moe_la=false;
+    int dm_reduction_mask=-1;
     if(serving) {
       auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
       auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
       if(dm && dm.getValue()) {
         bool enabled=!moe_opaque && (use_pages?paged_la:(!nonpaged_la_pinned || nonpaged_la));
-        dm_pool_la=enabled && global_la=="auto";
-        dm_moe_la=enabled;
-        if(dm_pool_la || dm_moe_la)source="#define TILEMEGA_DM_REDUCTIONS 1\n#define TILEMEGA_DM_POOL_LA "+
+        auto selected_mask=plan.getAs<mlir::IntegerAttr>("dm_reduction_mask");
+        if(selected_mask)dm_reduction_mask=selected_mask.getInt();
+        dm_pool_la=selected_mask?bool(dm_reduction_mask&1):enabled && global_la=="auto";
+        dm_moe_la=selected_mask?bool(dm_reduction_mask&6):enabled;
+        if(!selected_mask && (dm_pool_la || dm_moe_la))source="#define TILEMEGA_DM_REDUCTIONS 1\n#define TILEMEGA_DM_POOL_LA "+
             std::to_string(dm_pool_la)+"\n#define TILEMEGA_DM_MOE_LA "+std::to_string(dm_moe_la)+"\n"+source;
       }
     }
@@ -1673,6 +1693,9 @@ int RunCompile(int argc, char** argv) {
         manifest<<",\n  \"moe_opaque\": "<<(moe_opaque?"true":"false");
         manifest<<",\n  \"moe_gemv\": "<<(moe_gemv?"true":"false");
         manifest<<",\n  \"global_la\": "<<std::quoted(global_la);
+        if(dm_reduction_mask>=0)manifest<<",\n  \"dm_reduction_mask\": "<<dm_reduction_mask;
+        if(auto proved=(*module)->getAttrOfType<mlir::IntegerAttr>("tilemega.dm_reduction_proved_stages"))
+          manifest<<",\n  \"dm_reduction_proved_stages\": "<<proved.getInt();
         manifest<<",\n  \"dm_pool_la\": "<<(dm_pool_la?"true":"false");
         manifest<<",\n  \"dm_moe_la\": "<<(dm_moe_la?"true":"false");
         if(!shared_weight_layout.empty())

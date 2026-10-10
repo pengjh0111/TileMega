@@ -21,6 +21,8 @@ bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& 
   if(!input.inline_body_reserved.empty() && input.inline_body_reserved.size()!=std::size_t(nodes))
     throw std::invalid_argument("invalid reserved inline body mask");
   auto reserved_inline=[&](int n){return !input.inline_body_reserved.empty() && input.inline_body_reserved[n];};
+  bool reserved_mode=std::any_of(input.inline_body_reserved.begin(),input.inline_body_reserved.end(),
+      [](unsigned char value){return value!=0;});
   auto inline_node=[&](int n){return !input.inline_reducer.empty() && input.inline_reducer[n];};
   for(int n=0;n<nodes;++n)if(reserved_inline(n) && !inline_node(n))
     throw std::invalid_argument("reserved inline body is not a reducer");
@@ -131,6 +133,7 @@ bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& 
         int g=graph->group_of_node[n];double edge=options.flat_hop?hop.c0:hop.Ns(prepared->cross_fanout[n],std::max(1,running));
         arrivals[g].Add(w,now,now+edge);
         for(int s:forced[n])ready[s]=std::max(ready[s],now+edge);
+        std::vector<int> wake;
         if(--remaining[g]==0)graph->successors[g].Visit([&](int s){
           ready[s]=std::max(ready[s],inline_node(s)?now:arrivals[g].Ready(prepared->owner[s]));
           if(--pending[s]==0) {
@@ -139,10 +142,11 @@ bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& 
               if(reserved_inline(s))inline_ready[w].push_back(s);
               else events.push({ready[s],Start,s});
             }
+            else if(reserved_mode)wake.push_back(prepared->owner[s]);
             else enqueue(prepared->owner[s]);
           }
         });
-        enqueue(w);
+        enqueue(w);for(int worker:wake)enqueue(worker);
       }
     }
   }

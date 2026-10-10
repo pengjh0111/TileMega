@@ -231,6 +231,7 @@ add_library(tilemega_core STATIC
   lib/Solver/ModelDramFloor.cpp
   lib/Solver/MoeDramBindings.cpp
   lib/Solver/MoeStructureSearch.cpp
+  lib/Solver/DmReductionFlow.cpp
   lib/Solver/FlowPreparation.cpp
   lib/Solver/StageFlowModel.cpp
   lib/Solver/FluidExecutionSimulator.cpp

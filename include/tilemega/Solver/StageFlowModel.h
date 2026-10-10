@@ -9,6 +9,7 @@ struct FlowSpace {
   std::string name,category;
   int count=0,order=0;
   bool fused_reducer=false;
+  bool handoff_reducer=false;
   double rank_ns=0;
   std::vector<FlowPiece> pieces;
   std::vector<int> piece_of_task;

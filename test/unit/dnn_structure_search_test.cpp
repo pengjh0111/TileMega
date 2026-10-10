@@ -22,6 +22,7 @@ int TestDnnStructureSearch(int argc,char** argv) {
   assert(plan.gemms.size()==5 && plan.deferred_layernorm_edges.size()==2);
   unsigned fused=0;for(auto const& stage:plan.stages)fused+=stage.kind==PlanTaskKind::kDwPwFused;
   assert(fused==2);
+  plan.dm_reduction_mask=1;
   auto imported=TorchExportImporter{}.ImportSemantics(path,plan,context);
   SkeletonSearchOptions search;
   search.common.placement.target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+
@@ -43,19 +44,20 @@ int TestDnnStructureSearch(int argc,char** argv) {
   std::filesystem::create_directories(folder);search.artifact_prefix=(folder/"search").string();
   std::ostringstream evidence;
   auto result=SearchDnnStructures(imported,options,{"none","greedy","l2"},context,search,evidence);
-  bool mixed_fusion=false,mixed_norm=false,c4=false,greedy=false,l2=false;
+  bool mixed_fusion=false,mixed_norm=false,c4=false,greedy=false,l2=false,la=false,no_la=false;
   std::set<std::string> keys;
   for(auto const& item:result.evaluated) {
     if(!item.error.empty())std::cerr<<item.choice.Key()<<": "<<item.error<<'\n';
     assert(item.error.empty() && std::isfinite(item.score) && !item.top.empty());
     assert(keys.insert(item.choice.Key()).second);
+    la|=item.choice.reduction_mask==1;no_la|=item.choice.reduction_mask==0;
     mixed_fusion|=item.choice.fused_gemms.size()==1;
     mixed_norm|=item.choice.deferred_edges.size()==1;
     c4|=item.choice.small_channels==4;greedy|=item.choice.reuse=="greedy";l2|=item.choice.reuse=="l2";
     auto rebuilt=RebuildDnnStructure(imported,options,item.choice);
     assert(rebuilt.plan.deferred_layernorm_edges.size()==item.choice.deferred_edges.size());
   }
-  assert(mixed_fusion && mixed_norm && c4 && greedy && l2 && probes.size()>1);
+  assert(mixed_fusion && mixed_norm && c4 && greedy && l2 && la && no_la && probes.size()>1);
   if(argc==3 && std::string(argv[1])=="--emit") {
     search.search_only=false;search.artifact_prefix=std::string(argv[2])+".search";
     search.common.query_residency=[](auto,int){return 1;};

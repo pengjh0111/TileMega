@@ -9,6 +9,7 @@ struct DnnStructureChoice {
   std::set<frontend::DeferredLayerNormEdge> deferred_edges;
   std::string reuse;
   unsigned small_channels=8;
+  int reduction_mask=-1;
   std::string Key() const;
 };
 struct DnnStructureEvaluation {

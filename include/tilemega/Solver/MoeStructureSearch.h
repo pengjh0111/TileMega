@@ -7,6 +7,7 @@ struct MoeBindingChoice {
   bool grouped=false;
   unsigned block_rows=1;
   bool gemv=false;
+  int reduction_mask=-1;
   std::string Key() const;
 };
 struct MoeStructureEvaluation {

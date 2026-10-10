@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/ModelDramFloor.h>
+#include <tilemega/Solver/FlowPreparation.h>
 #include <tilemega/Solver/TaskModel.h>
 #include <tilemega/Solver/MoeDramBindings.h>
 #include <tilemega/Solver/SkeletonSearch.h>
@@ -91,6 +92,34 @@ int TestMoeDramBindings(int argc,char** argv) {
       if(argc==3 && std::string(argv[1])=="--emit-probe") {
         std::ofstream out(argv[2]);out<<MoeRegionNonGemmProbeSource(plan);assert(out);
       }
+      auto base=PrepareSymbolicProblem(*module,target,dims,2,1,1,nullptr,false);
+      CouplingCache coupling;FlowPreparationCache cache;
+      auto problem=PrepareFlowStructure(base,base.geometry,2,1,coupling,&cache);
+      auto prepared=PrepareFlow(problem,floor,target,1,{},coupling,cache);
+      auto baseline=ExpandFlowPrices(prepared);
+      for(unsigned mask:{0u,2u,4u,6u,6u,0u}) {
+        auto selected=ConfigureDmReductionFlow(prepared,problem,mask);
+        assert(selected==unsigned(bool(mask&2))+unsigned(bool(mask&4)));
+        unsigned handoffs=0;
+        for(unsigned stage=0;stage<prepared.flow.spaces.size();++stage) {
+          auto const& space=prepared.flow.spaces[stage];handoffs+=space.handoff_reducer;
+          for(unsigned piece=0;piece<space.pieces.size();++piece) {
+            auto const& price=space.pieces[piece].parts;
+            auto const& original=prepared.prices[stage].pieces[piece].parts;
+            assert(price.compute_ns==original.compute_ns && price.dram_bytes==original.dram_bytes);
+            if(space.handoff_reducer)assert(price.fixed_ns==original.fixed_ns);
+          }
+        }
+        assert(handoffs==selected);
+        assert(std::isfinite(EvaluateFlow(prepared.flow).makespan_ns));
+        if(!mask) {
+          auto restored=ExpandFlowPrices(prepared);assert(restored.size()==baseline.size());
+          for(unsigned task=0;task<baseline.size();++task)
+            assert(IsolatedNs(restored[task],prepared.flow.dram_gbps)==
+                IsolatedNs(baseline[task],prepared.flow.dram_gbps));
+        }
+      }
+      std::cout<<"MoE shared LA proof, independent dispatch/combine masks, body costs and cache reset PASS\n";
       DramFloorOptions contracts;contracts.dram_gbps=1000;contracts.tc_gflops=100000;
       contracts.element_bytes=model.buffer_element_bytes;
       contracts.outputs=model.exported_tensors;contracts.infer_leaf_outputs=false;

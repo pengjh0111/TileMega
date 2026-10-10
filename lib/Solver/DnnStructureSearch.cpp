@@ -15,6 +15,7 @@ std::string DnnStructureChoice::Key() const {
   for(auto id:fused_gemms)out<<id<<',';
   out<<";ln=";for(auto const& [norm,id]:deferred_edges)
     out<<norm.size()<<':'<<norm<<':'<<id<<';';
+  if(reduction_mask>=0)out<<";la="<<reduction_mask;
   return out.str();
 }
 frontend::ImportedSemantics RebuildDnnStructure(frontend::ImportedSemantics const& initial,
@@ -28,6 +29,7 @@ frontend::ImportedSemantics RebuildDnnStructure(frontend::ImportedSemantics cons
   if(result.plan.gemms.size()!=initial.plan.gemms.size() ||
       result.plan.serving_seq!=initial.plan.serving_seq)
     throw std::invalid_argument("DNN structure changed GEMM identities or workload");
+  result.plan.dm_reduction_mask=choice.reduction_mask;
   result.lifted=frontend::LiftSemantics(result.plan,result.lift_options);
   return result;
 }
@@ -53,6 +55,7 @@ DnnStructureSearchResult SearchDnnStructures(frontend::ImportedSemantics const& 
   };
   DnnStructureChoice enabled;enabled.reuse=options.memory_reuse;
   enabled.small_channels=options.small_input_channels;
+  enabled.reduction_mask=initial.plan.dm_reduction_mask;
   for(auto const& stage:initial.plan.stages)
     if(stage.kind==frontend::PlanTaskKind::kDwPwFused)enabled.fused_gemms.insert(stage.gemm);
   enabled.deferred_edges.insert(initial.plan.deferred_layernorm_edges.begin(),
@@ -62,7 +65,7 @@ DnnStructureSearchResult SearchDnnStructures(frontend::ImportedSemantics const& 
     if(buffer.layout.kind==codegen::DmLayout::kNHWC && buffer.layout.rank==4 &&
         buffer.layout.logical[3]<=4) {channels={4,8};break;}
   auto coordinates=enabled.fused_gemms.size()+enabled.deferred_edges.size()+
-      reuse_choices.size()+channels.size();
+      reuse_choices.size()+channels.size()+(enabled.reduction_mask>0);
   auto slice=search.search_budget_ms>0?std::max<std::size_t>(1,
       search.search_budget_ms/(2+2*search.passes*coordinates)):0;
   DnnStructureSearchResult result;std::map<std::string,std::size_t> memo;
@@ -99,6 +102,7 @@ DnnStructureSearchResult SearchDnnStructures(frontend::ImportedSemantics const& 
     return result.budget_exhausted;
   };
   auto off=enabled;off.fused_gemms.clear();off.deferred_edges.clear();
+  if(off.reduction_mask>=0)off.reduction_mask=0;
   for(auto const& seed:{enabled,off}) {
     if(!result.evaluated.empty() && expired())break;
     auto incumbent=evaluate(seed);
@@ -125,6 +129,10 @@ DnnStructureSearchResult SearchDnnStructures(frontend::ImportedSemantics const& 
       }
       for(auto channel:channels) {
         auto choice=result.evaluated[incumbent].choice;choice.small_channels=channel;attempt(choice);
+      }
+      if(enabled.reduction_mask>0) {
+        auto choice=result.evaluated[incumbent].choice;
+        choice.reduction_mask^=enabled.reduction_mask;attempt(choice);
       }
       if(!moved)break;
     }

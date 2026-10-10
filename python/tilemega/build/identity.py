@@ -135,6 +135,9 @@ def generate(so, source, executor='L1', loop=False):
                                          memory_arena_bytes=plan.get('memory_arena_bytes', 0)),
                     placement={k: plan[k] for k in ('kappa', 'grid', 'residency', 'pages')},
                     kernels=kernels, spill=any(r['spill'] for r in kernels.values()))
+    for key in ('dm_reduction_mask', 'dm_reduction_proved_stages'):
+        if key in plan:
+            identity['implementations'][key] = plan[key]
     if 'dnn_structure' in plan:
         identity['implementations']['dnn_structure'] = plan['dnn_structure']
         identity['implementations']['dnn_structure_search_sha256'] = plan['dnn_structure_search_sha256']

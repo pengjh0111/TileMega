@@ -58,6 +58,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     analysis::DramFloor::Value const* bound_floor=nullptr,bool paged=false,
     int paged_page_bytes=16384,MoeRoutingProfile const* routing_profile=nullptr,
     unsigned first_profile_layer=0);
+unsigned ConfigureDmReductionFlow(PreparedFlow& flow,SymbolicProblem const& problem,unsigned mask);
 void ApplyFlowPrices(SymbolicProblem& problem,PreparedFlow const& flow,TargetSpec const& target,int residency);
 std::vector<TaskPriceParts> ExpandFlowPrices(PreparedFlow const& flow);
 }

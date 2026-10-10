@@ -238,6 +238,7 @@ struct SearchContext {
       imported.plan=std::move(plan);
     }
     imported.plan.moe_gemv=previous.plan.moe_gemv;
+    imported.plan.dm_reduction_mask=previous.plan.dm_reduction_mask;
     auto next_classes=BuildOperatorClasses(imported);
     if(next_classes.size()!=previous.classes.size())
       throw std::runtime_error("attention coordinate changed GEMM class count");
@@ -360,9 +361,25 @@ struct SearchContext {
     point.candidate.page_bytes=options.pg_pages?current_page_bytes:0;
     point.candidate.lookahead_bytes=options.pg_pages?current_lookahead_bytes:0;
     point.candidate.handoff_mask=options.handoff_auto?current_handoff_mask:0;
+    bool rebind_moe_columns=false;
+    if(base && imported.plan.dm)for(auto const& stage:base->model.stages) {
+      if(stage.kind!=StageKind::kMoECombine)continue;
+      for(auto const& producer:imported.plan.stages) {
+        if(producer.kind!=frontend::PlanTaskKind::kGemm)continue;
+        auto const& access=imported.plan.gemms.at(producer.gemm).access;
+        if(access.write.kind!=codegen::DmWriteKind::kRowScatter ||
+           producer.binding_producer==codegen::kDmNoIndex)continue;
+        auto router=imported.plan.stages.at(producer.binding_producer).moe.router_gemm;
+        if(router==stage.moe.router_gemm &&
+           granularity.gemms.at(producer.gemm).tile_n!=stage.width)
+          rebind_moe_columns=true;
+      }
+    }
+    // Down N also changes combine ownership, counted thresholds and statistics
+    // storage. A GEMM-only incremental update cannot preserve that contract.
     // Reuse introduces WAR/WAW edges that the RAW-only incremental builder
     // cannot recover from L-sem. Reimport with this candidate's ownership.
-    if(!base || materialize || imported.plan.memory_reuse!="none") {
+    if(!base || materialize || rebind_moe_columns || imported.plan.memory_reuse!="none") {
       point.module=importer.InstantiateForGranularity(imported,context,granularity,&cache,nullptr,timing);
       {SolverPhase phase(timing,"prepare_relations");point.problem=PrepareSymbolicProblem(*point.module,target,options.common.placement.dims,target.res.num_sms*residency,residency,kappa,nullptr,false);}
       if(!base)base=point.problem;
@@ -445,6 +462,12 @@ struct SearchContext {
             kind==StageKind::kAttentionMerge ||
             kind==StageKind::kArgmaxReduce;
       }
+    }
+    if(point.problem.model.dm_reduction_mask>=0) {
+      unsigned selected=ConfigureDmReductionFlow(*point.flow,point.problem,
+          point.problem.model.dm_reduction_mask);
+      if(point.module)(*point.module)->setAttr("tilemega.dm_reduction_proved_stages",
+          mlir::IntegerAttr::get(mlir::IntegerType::get(&context,32),selected));
     }
     point.candidate.task_count=std::accumulate(point.problem.counts.begin(),point.problem.counts.end(),std::uint64_t(0));
     if(options.incremental_prepare && !materialize)
