@@ -11,7 +11,7 @@
 
 namespace tilemega::solver {
 std::string MoeBindingChoice::Key() const {
-  return grouped?"group;bm="+std::to_string(block_rows):"slot;bm=1";
+  return (grouped?"group;bm="+std::to_string(block_rows):"slot;bm=1")+(gemv?";family=gemv":";family=mma");
 }
 frontend::ImportedSemantics RebuildMoeStructure(frontend::ImportedSemantics const& initial,
     MoeBindingChoice const& choice) {
@@ -60,6 +60,7 @@ frontend::ImportedSemantics RebuildMoeStructure(frontend::ImportedSemantics cons
   for(unsigned i=0;i<result.plan.gemms.size();++i)
     if(result.plan.gemms[i].n!=initial.plan.gemms[i].n || result.plan.gemms[i].k!=initial.plan.gemms[i].k)
       throw std::invalid_argument("MoE binding structure changed contraction geometry");
+  result.plan.moe_gemv=choice.gemv;
   result.lifted=LiftSemantics(result.plan,result.lift_options);return result;
 }
 MoeStructureSearchResult SearchMoeStructures(frontend::ImportedSemantics const& initial,

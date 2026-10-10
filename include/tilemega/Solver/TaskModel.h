@@ -54,6 +54,7 @@ struct DerivedTaskInput {
   std::optional<ServingAttention> serving_attention;
   // BF16 serving microbenchmark fit key; empty outside serving plans.
   std::string serving_body_kind;
+  bool serving_gemv=false;
   /// The operand the kind's body prefetches (`ScalarPrefetchOperand`) when it
   /// is on the read-only frontier, else -1.  Runtime-ownership tasks only.
   int prefetch_operand=-1;

@@ -37,7 +37,7 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
         input.no_producer_read_bytes?&*input.no_producer_read_bytes:nullptr,
         input.external_write_bytes?&*input.external_write_bytes:nullptr})
       key<<":"<<(quantity?quantity->ToString():"absent");
-    key<<":"<<input.serving_body_kind;
+    key<<":"<<input.serving_body_kind<<":gemv="<<input.serving_gemv;
     if(input.scalar_flow) {
       key<<":scalar_flow:"<<input.scalar_flow->extra_flops_per_output;
       for(auto const& node:input.scalar_flow->nodes) {

@@ -68,6 +68,9 @@ template<class T, std::size_t N> void ArrayLiteral(std::ostream& out, T const (&
 }  // namespace
 
 void ValidateDmModelPlan(ModelPlan const& plan) {
+  if(plan.moe_gemv && (!plan.dm || std::none_of(plan.stages.begin(),plan.stages.end(),
+      [](auto const& stage){return stage.kind==PlanTaskKind::kMoETopK;})))
+    throw std::invalid_argument("GEMV implementation family requires a DM MoE plan");
   if (plan.forward_token_axis && !plan.forward)
     throw std::invalid_argument("forward token axis requires a forward plan");
   if (plan.forward && (!plan.dm || plan.serving || plan.serving_seq <= 0 ||

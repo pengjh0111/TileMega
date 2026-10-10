@@ -815,6 +815,10 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
      semantic.op.arithmetic=="argmax_gemm")
     result.collective_k_extent=model.gemms.at(stage.gemm).k;
   if(model.dm) {
+    if(stage.kind==StageKind::kGemm && model.moe_gemv && !model.gemm_access.empty()) {
+      auto const& access=model.gemm_access.at(stage.gemm);
+      result.serving_gemv=access.a!=codegen::DmAAccess::kIm2Col && access.a_scale==codegen::kDmNoIndex;
+    }
     switch(stage.kind) {
       case StageKind::kGemm:
         if(!model.gemm_access.empty()) {

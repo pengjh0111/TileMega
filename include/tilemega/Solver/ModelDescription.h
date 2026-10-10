@@ -175,6 +175,7 @@ struct ModelDescription {
   bool forward = false;
   int serving_capacity = 0;
   bool dm = false;
+  bool moe_gemv = false;
   // Storage hazards are ownership-dependent, unlike RAW-only semantic reuse.
   bool storage_reuse = false;
   std::vector<codegen::ConvDesc> convolutions;

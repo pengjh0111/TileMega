@@ -372,6 +372,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     target_key+=key.str();
   }
   if(problem.model.dm)target_key+=problem.model.PhysicalFootprintKey();
+  if(problem.model.moe_gemv)target_key+=":implementation=gemv";
   for(auto const& [name,tensor]:floor.tensors)if(tensor.expected_read_elements) {
     target_key+=":expected:";
     for(auto const& value:{name,tensor.expected_read_elements->ToString(),tensor.expectation_source})

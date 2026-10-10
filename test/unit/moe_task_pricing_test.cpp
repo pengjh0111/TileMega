@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/MoeTaskPricing.h>
+#include <tilemega/Solver/DmGemvPricing.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <cassert>
 #include <cmath>
@@ -127,6 +128,26 @@ int TestMoeTaskPricing(int,char**) {
         assert(a.active_probability==0.5 && b.active_probability==0);
         assert(a.expected_rows==1 && b.expected_rows==0);
         assert(a.expected_isolated_ns>b.expected_isolated_ns && b.expected_isolated_ns==7);
+      }
+      if(!slot && bm==32 && tm==16) {
+        auto scalar=input;scalar.serving_gemv=true;
+        auto scalar_traits=traits;scalar_traits.tile_k=32;
+        // Runtime BM and compile-time TM are independent. This conditions a
+        // later row tile to three live rows, retaining its static task id.
+        auto tail=solver::RestrictVirtualTaskRows(scalar,19,scalar_traits,{});
+        solver::BindTaskDramProvenance(tail,semantic,floor,{},true);
+        ParamBinding later;later.Bind("v",0).Bind("row",1).Bind("n",0);
+        ParamBinding first;first.Bind("v",0).Bind("row",0).Bind("n",0);
+        assert(solver::UsesDmGemv(tail,scalar_traits,{},later));
+        assert(!solver::UsesDmGemv(tail,scalar_traits,{},first));
+        auto vector_price=cost.PriceParts(tail,scalar_traits,{1},model,1,later,1);
+        tail.serving_gemv=false;
+        auto mma_price=cost.PriceParts(tail,scalar_traits,{1},model,1,later,1);
+        close(vector_price.dram_bytes,mma_price.dram_bytes);
+        assert(vector_price.compute_ns>0 && vector_price.fixed_ns>0 &&
+            std::abs(vector_price.compute_ns-mma_price.compute_ns)>1e-6);
+        scalar_traits.tile_n=64;tail.serving_gemv=true;
+        assert(!solver::UsesDmGemv(tail,scalar_traits,{},later));
       }
       auto missing=target;missing.CalibrationFor("bf16").task_body.serving.erase("gemm_expert_indirect_empty");
       if(!slot) {

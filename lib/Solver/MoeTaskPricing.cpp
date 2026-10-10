@@ -79,7 +79,7 @@ MoeTaskPrice PriceMoeVirtualTask(CostModel const& cost,DerivedTaskInput const& i
     result.expected_rows+=probability*live;
   }
   if(empty) {
-    auto fit=cal.task_body.serving.find(input.serving_body_kind+"_empty");
+    auto fit=cal.task_body.serving.find((input.serving_gemv?"gemv_":"")+input.serving_body_kind+"_empty");
     TaskPriceParts parts;
     if(input.serving_body_kind.empty() || fit==cal.task_body.serving.end() ||
        fit->second.samples<=0 || fit->second.fixed_ns<0 ||

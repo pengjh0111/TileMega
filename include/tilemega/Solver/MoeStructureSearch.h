@@ -6,6 +6,7 @@ namespace tilemega::solver {
 struct MoeBindingChoice {
   bool grouped=false;
   unsigned block_rows=1;
+  bool gemv=false;
   std::string Key() const;
 };
 struct MoeStructureEvaluation {

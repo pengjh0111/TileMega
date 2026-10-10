@@ -33,12 +33,14 @@ def main():
     ap.add_argument('--tile',default='32,16,16,2');ap.add_argument('--nongemm',action='store_true')
     ap.add_argument('--serving',action='store_true')
     ap.add_argument('--dm',action='store_true')
+    ap.add_argument('--dm-gemv',action='store_true')
     ap.add_argument('--nongemm-source',type=pathlib.Path)
     ap.add_argument('--head-dim',type=int,choices=(64,128),default=64)
     ap.add_argument('--qperkv',type=int,choices=(2,4,8),default=4)
     a=ap.parse_args();m,n,k,s=map(int,a.tile.split(','));threads=128 if a.dtype=='bf16' else 256
     if a.serving and a.dtype!='bf16':raise ValueError('serving resources require BF16')
     if a.dm and not a.serving:ap.error('--dm requires --serving')
+    if a.dm_gemv and (not a.dm or a.nongemm):ap.error('--dm-gemv requires --dm and a GEMM tile')
     if a.nongemm_source and not (a.dm and a.serving and a.nongemm):
         ap.error('--nongemm-source requires --dm --serving --nongemm')
     if not a.arch:
@@ -48,6 +50,7 @@ def main():
     arch_id=int(a.arch.removeprefix('sm_'))*10
     pre=f'#define TILEMEGA_MODEL_BF16 {int(a.dtype=="bf16")}\n#define TILEMEGA_MIDPOINT_REFINE 0\n#define TILEMEGA_GEMM_TILE_M {m}\n#define TILEMEGA_GEMM_TILE_N {n}\n#define TILEMEGA_GEMM_TILE_K {k}\n#define TILEMEGA_GEMM_STAGES {s}\n'
     if a.dm:pre+='#define TILEMEGA_DM_SUPPORT 1\n'
+    if a.dm_gemv:pre+='#define TILEMEGA_MOE_GEMV 1\n'
     if a.serving:
         text=pre+'#include <tilemega/Target/ArchDispatch.h>\n#include <cstdio>\n'
         if a.nongemm_source:
@@ -61,7 +64,11 @@ def main():
         else:
             text+='#include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>\n'
             text+=f'using ProbeArch=tilemega::arch::ArchFromId<{arch_id}>::type;\nusing Body=tilemega::codegen::ServingGemmTaskBody<ProbeArch,{m},{n},{k},{s}>;\n'
-            text+='extern "C" __global__ __launch_bounds__(128) void probe_gemm(tilemega::codegen::ServingGemmOperands const* p) { extern __shared__ char bytes[]; Body::Run(*p,0,0,bytes); }\n'
+            if a.dm_gemv:
+                text+='using Spec=tilemega::codegen::DmEpilogueSpec<tilemega::codegen::DmEpilogueProgram<>>;\n'
+                text+='extern "C" __global__ __launch_bounds__(128) void probe_gemm(tilemega::codegen::ServingGemmOperands const* p) { extern __shared__ char bytes[]; Body::RunDmResolved<Spec>(*p,0,0,bytes); }\n'
+            else:
+                text+='extern "C" __global__ __launch_bounds__(128) void probe_gemm(tilemega::codegen::ServingGemmOperands const* p) { extern __shared__ char bytes[]; Body::Run(*p,0,0,bytes); }\n'
             size='Body::kSharedBytes'
     else:
         text=pre+'#include <tilemega/Codegen/tasks/GemmStageTaskBody.h>\n#include <tilemega/Target/ArchDispatch.h>\n#include <cstdio>\n'

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Solver/DmGemvPricing.h>
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -63,7 +64,30 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
   auto const& fit=calib_->task_body;
   double serving_flops=0;
   double serving_body_bytes=-1;
-  if(traits.stages<=0) {
+  bool gemv=UsesDmGemv(input,traits,theta,point);
+  if(gemv) {
+    double outputs=eval(input.work.write_elements);
+    double flops=arithmetic(input.arithmetic.flops_per_output_element)*outputs;
+    double transc=arithmetic(input.arithmetic.transcendental_per_output_element)*outputs;
+    serving_flops=flops;
+    int pages=0;
+    if(options_.paged) {
+      double iterations=eval(input.work.nominal_task_reduce_extent)/traits.tile_k;
+      int per_page=options_.paged_page_bytes/(2*traits.tile_n*traits.tile_k);
+      if(per_page<1)throw std::invalid_argument("GEMV page cannot hold a weight tile");
+      pages=int(std::ceil(iterations/per_page));
+    }
+    // Two materialization barriers plus one page-reader release per page.
+    // The scalar lane charges five warp reduction additions per output;
+    // no MMA fit or padded-M arithmetic is substituted for the dot product.
+    int barriers=2+pages;
+    double stores=traffic.global_write_bytes;
+    double bytes=traffic.global_read_bytes+stores;
+    double structural=calib_->l2_latency_ns+barriers*calib_->syncthreads_ns+stores/l2_bytes_per_ns_per_sm_;
+    result.fixed_ns=structural;
+    result.compute_ns=ScalarInstanceNs(bytes,stores,flops+5*outputs,transc,o,0,
+        false,1,barriers,4.*traits.tile_m*traits.tile_n+4*outputs)-structural;
+  } else if(traits.stages<=0) {
     if(!input.scalar_flow)throw std::invalid_argument("scalar flow not supplied");
     auto [depth,barriers]=input.scalar_flow->MemoryDepthAndBarriers(traits.threads);
     double writes=model.dm && input.task.element_access?eval(input.work.write_elements):traffic.global_write_bytes/2;
@@ -170,7 +194,7 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
   }
   if(!input.serving_body_kind.empty() &&
      !(input.serving_attention && result.compute_ns==0 && result.dram_bytes==0)) {
-    auto calibrated=fit.serving.find(input.serving_body_kind);
+    auto calibrated=fit.serving.find((gemv?"gemv_":"")+input.serving_body_kind);
     if(calibrated!=fit.serving.end()) {
       auto const& body=calibrated->second;
       double bytes=serving_body_bytes>=0?serving_body_bytes:
@@ -182,7 +206,7 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
   }
   bool paged_fit_found=false;
   if(options_.paged && !input.serving_body_kind.empty()) {
-    std::string key=input.serving_body_kind;
+    std::string key=(gemv?"gemv_":"")+input.serving_body_kind;
     if(traits.stages>0)key+="_n"+std::to_string(traits.tile_n)+
         "_k"+std::to_string(traits.tile_k);
     else if(input.serving_attention)

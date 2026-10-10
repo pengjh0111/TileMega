@@ -303,6 +303,7 @@ int RunCompile(int argc, char** argv) {
     int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0,evict_first=0,evict_last=1;
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
     int nonpaged_la=0,moe_dynamic=0,moe_opaque=0,moe_gemv=0;
+    bool moe_gemv_auto=true;
     std::string candidate_mode="L1",nonpaged_weight_layout="row";
     bool page_bytes_pinned=false,nonpaged_la_pinned=false;
     bool event_solo=false,event_red=false,barrier_v2=false;
@@ -349,7 +350,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--frontend") frontend_mode=value;
       else if (flag=="--moe-dynamic") moe_dynamic=std::stoi(value);
       else if (flag=="--moe-opaque") moe_opaque=std::stoi(value);
-      else if (flag=="--moe-gemv") moe_gemv=std::stoi(value);
+      else if (flag=="--moe-gemv") {moe_gemv_auto=value=="auto";moe_gemv=moe_gemv_auto?0:std::stoi(value);}
       else if (flag=="--moe-binding") moe_binding=value;
       else if (flag=="--routing-profile") routing_profile_path=value;
       else if (flag=="--moe-profile-layer") {
@@ -464,8 +465,6 @@ int RunCompile(int argc, char** argv) {
     if((moe_gemv!=0 && moe_gemv!=1) ||
        (moe_gemv && (!serving || frontend_mode!="decoder")))
       throw std::invalid_argument("--moe-gemv expects 0 or 1 on a decoder serving plan");
-    if(moe_gemv && !solve_target.empty())
-      throw std::invalid_argument("GEMV search requires calibrated family pricing; use a fixed build");
     if(forward)serving_capacity=serving_past_lo=serving_past_hi=0;
     if(!emit_mode.empty() && emit_mode!="serving")
       throw std::runtime_error("--emit expects serving");
@@ -533,7 +532,7 @@ int RunCompile(int argc, char** argv) {
     if(!shared_weight_layout.empty() && (!serving ||
         (use_pages?weight_layout!="tiled":!use_nonpaged_tiled)))
       throw std::invalid_argument("shared weight layout requires packed serving weights");
-    if(!shared_weight_layout.empty() && (input.extension()==".mlir" || moe_gemv))
+    if(!shared_weight_layout.empty() && input.extension()==".mlir")
       throw std::invalid_argument("shared weight layout requires export input and the planned GEMM family");
     if(nonpaged_la!=0 && nonpaged_la!=1)
       throw std::invalid_argument("--nonpaged-la must be 0 or 1");
@@ -707,6 +706,7 @@ int RunCompile(int argc, char** argv) {
           import.gemms.at(id).tile_k=layout.tile_k;
         }
       if(moe_gemv) {
+        plan.moe_gemv=true;
         bool expert=false;
         for(auto const& g:plan.gemms)expert|=g.access.b==tilemega::codegen::DmBAccess::kExpertIndirect;
         if(!expert)throw std::invalid_argument("--moe-gemv requires a MoE plan");
@@ -715,8 +715,11 @@ int RunCompile(int argc, char** argv) {
           auto rows=g.access.b==tilemega::codegen::DmBAccess::kExpertIndirect?g.access.block_rows:
               unsigned(serving_batch)*(g.access.rows_per_batch?g.access.rows_per_batch:
                   (stage.batch_rows?1:options.seq));
-          if(rows && rows<=4 && g.access.a!=tilemega::codegen::DmAAccess::kIm2Col)
-            import.gemms.at(stage.gemm)={16,32,64,2,1};
+          if(rows && rows<=4 && g.access.a!=tilemega::codegen::DmAAccess::kIm2Col) {
+            auto& geometry=import.gemms.at(stage.gemm);
+            if(shared_weight_layout.empty())geometry={16,32,64,2,1};
+            else {geometry.tile_m=16;geometry.stages=2;geometry.split_k=1;}
+          }
         }
       }
       module=tilemega::frontend::TorchExportImporter{}.ImportPlan(
@@ -920,6 +923,7 @@ int RunCompile(int argc, char** argv) {
           options.argmax_tile_n=serving_argmax_tile_n;
           auto plan=dnn_plan?*dnn_plan:tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,
               bridge.outputs,options);
+          if(moe_gemv)plan.moe_gemv=true;
           bind_routing_profile(plan);
           skeleton.moe_routing_profile=moe_routing_profile;
           skeleton.moe_profile_layer=moe_profile_layer;
@@ -1007,7 +1011,7 @@ int RunCompile(int argc, char** argv) {
                 (resource_root/"prewarm.log").string());
         }
         int variant_index=0;
-        std::map<std::tuple<int,int,int,int,int,std::string>,tilemega::solver::VariantResources> probed_bodies;
+        std::map<std::tuple<int,int,int,int,int,bool,std::string>,tilemega::solver::VariantResources> probed_bodies;
         auto variant_probe=[&](tilemega::frontend::ModelPlan const* probe_plan,std::string const&,tilemega::solver::GemmConfig const* tile,tilemega::solver::ScalarType dtype) {
           std::string nongemm_source;
           if(probe_plan && dnn_options && !tile)
@@ -1017,7 +1021,7 @@ int RunCompile(int argc, char** argv) {
           // The compiled TaskBody template has no class or split-K parameter.
           // Keep logical variant keys above, but reuse its identical probe.
           auto body=std::make_tuple(tile?tile->tile_m:0,tile?tile->tile_n:0,
-              tile?tile->tile_k:0,tile?tile->stages:0,int(dtype),nongemm_source);
+              tile?tile->tile_k:0,tile?tile->stages:0,int(dtype),probe_plan && probe_plan->moe_gemv,nongemm_source);
           if(auto found=probed_bodies.find(body);found!=probed_bodies.end()) {
             auto reused=found->second;reused.compiled=false;return reused;
           }
@@ -1029,6 +1033,7 @@ int RunCompile(int argc, char** argv) {
           if(serving) {
             command+=" --serving";
             if(probe_plan && probe_plan->dm)command+=" --dm";
+            if(probe_plan && probe_plan->moe_gemv && tile)command+=" --dm-gemv";
             if(!nongemm_source.empty()) {
               auto source=output;source.replace_extension("cu");
               {std::ofstream stream(source);stream<<nongemm_source;
@@ -1064,10 +1069,11 @@ int RunCompile(int argc, char** argv) {
             serving_imported->plan.stages.end(),[](auto const& stage) {
               return stage.kind==tilemega::frontend::PlanTaskKind::kMoETopK;
             });
-        if(has_moe) {
-          if(moe_binding!="group")binding_choices.push_back({false,1});
+        if(has_moe)for(bool gemv:moe_gemv_auto?std::vector<bool>{false,true}:
+            std::vector<bool>{moe_gemv!=0}) {
+          if(moe_binding!="group")binding_choices.push_back({false,1,gemv});
           if(moe_binding!="slot")for(auto bm:moe_bm_auto?std::vector<unsigned>{16,32,64,128}:
-              std::vector<unsigned>{moe_bm})binding_choices.push_back({true,bm});
+              std::vector<unsigned>{moe_bm})binding_choices.push_back({true,bm,gemv});
         }
         auto result=dnn_options && search_selection=="predicted" && skeleton.evaluation_cases.empty()
             ? tilemega::solver::SolveDnnStructures(*serving_imported,*dnn_options,
@@ -1458,6 +1464,11 @@ int RunCompile(int argc, char** argv) {
             std::to_string(dm_pool_la)+"\n#define TILEMEGA_DM_MOE_LA "+std::to_string(dm_moe_la)+"\n"+source;
       }
     }
+    if(serving) {
+      auto selected=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+      if(auto family=selected?selected.getAs<mlir::BoolAttr>("moe_gemv"):mlir::BoolAttr{})
+        moe_gemv=family.getValue();
+    }
     if(moe_dynamic || moe_opaque || moe_gemv) {
       auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
       auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
@@ -1466,7 +1477,8 @@ int RunCompile(int argc, char** argv) {
         experts|=bool(mlir::cast<mlir::DictionaryAttr>(entry).get("dm_moe"));
       if(!experts)throw std::invalid_argument("MoE execution controls require virtual MoE stages");
       if(moe_dynamic)source="#define TILEMEGA_MOE_DYNAMIC 1\n"+source;
-      if(moe_gemv)source="#define TILEMEGA_MOE_GEMV 1\n"+source;
+      if(moe_gemv && source.find("#define TILEMEGA_MOE_GEMV 1\n")==std::string::npos)
+        source="#define TILEMEGA_MOE_GEMV 1\n"+source;
       if(moe_opaque) {
         source="#define TILEMEGA_MOE_OPAQUE 1\n"+source;
       }

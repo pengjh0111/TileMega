@@ -237,6 +237,7 @@ struct SearchContext {
       imported.lifted=frontend::LiftSemantics(plan,imported.lift_options);
       imported.plan=std::move(plan);
     }
+    imported.plan.moe_gemv=previous.plan.moe_gemv;
     auto next_classes=BuildOperatorClasses(imported);
     if(next_classes.size()!=previous.classes.size())
       throw std::runtime_error("attention coordinate changed GEMM class count");

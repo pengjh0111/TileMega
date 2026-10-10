@@ -1883,6 +1883,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
       << (stringField(emittedPlan, "dtype") == "bf16"
               ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
       << (optionalBoolField(emittedPlan,"dm") ? "#define TILEMEGA_DM_SUPPORT 1\n" : std::string())
+      << (optionalBoolField(emittedPlan,"moe_gemv") ? "#define TILEMEGA_MOE_GEMV 1\n" : std::string())
       << emitNormEpsilon(emittedPlan)
       << emitRoPEPrecision(emittedPlan) << emitTokenIdBits(emittedPlan) << emitTaskKindRuntime(emittedPlan)
       << emitServingAttentionConfig(emittedPlan, module)
@@ -2005,6 +2006,7 @@ std::string CouplingGraphToCUDA::LowerVariants(
       << (stringField(first_plan, "dtype") == "bf16"
               ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
       << (optionalBoolField(first_plan,"dm") ? "#define TILEMEGA_DM_SUPPORT 1\n" : std::string())
+      << (optionalBoolField(first_plan,"moe_gemv") ? "#define TILEMEGA_MOE_GEMV 1\n" : std::string())
       << emitNormEpsilon(first_plan)
       << emitRoPEPrecision(first_plan) << emitTokenIdBits(first_plan) << emitTaskKindRuntime(first_plan)
       << emitServingAttentionConfig(first_plan, first)

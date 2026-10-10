@@ -29,7 +29,7 @@ int TestMoeStructureSearch(int argc,char** argv) {
   search.common.placement.target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+
       "/docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/prefill/target.json");
   search.common.placement.target.res.num_sms=2;search.common.placement.dims={17,0,17};
-  search.seed={16,32,16,2,1};search.common.geometry_domain={search.seed};
+  search.seed={16,32,32,2,1};search.common.geometry_domain={search.seed};
   search.passes=1;search.top_m=1;search.search_only=true;
   std::set<std::string> probes;
   search.dm_variant_probe=[&](auto const& model,auto const&,auto const* g,auto) {
@@ -39,13 +39,15 @@ int TestMoeStructureSearch(int argc,char** argv) {
   auto directory=std::filesystem::temp_directory_path()/"tilemega-moe-binding-search";
   std::filesystem::create_directories(directory);search.artifact_prefix=(directory/"search").string();
   std::vector<MoeBindingChoice> choices{{false,1},{true,16},{true,32},{true,64},{true,128}};
+  auto mma_choices=choices;for(auto choice:mma_choices){choice.gemv=true;choices.push_back(choice);}
   std::ostringstream evidence;
   auto result=SearchMoeStructures(imported,choices,context,search,evidence);
-  assert(result.evaluated.size()==5 && probes.size()>=5 && !result.budget_exhausted);
+  assert(result.evaluated.size()==10 && probes.size()>=5 && !result.budget_exhausted);
   for(auto const& entry:result.evaluated) {
     if(!entry.error.empty())std::cerr<<entry.choice.Key()<<": "<<entry.error<<'\n';
     assert(entry.error.empty() && std::isfinite(entry.score) && !entry.top.empty());
     auto rebuilt=RebuildMoeStructure(imported,entry.choice);
+    assert(rebuilt.plan.moe_gemv==entry.choice.gemv);
     unsigned experts=0;
     for(auto const& gemm:rebuilt.plan.gemms)if(gemm.access.b==codegen::DmBAccess::kExpertIndirect) {
       assert(gemm.access.block_rows==entry.choice.block_rows && gemm.access.binding_rows==17*8);++experts;
@@ -59,7 +61,7 @@ int TestMoeStructureSearch(int argc,char** argv) {
     assert(solved.compiled.module && (*solved.compiled.module)->hasAttr("tilemega.moe_structure"));
     std::ofstream out(argv[2]);out<<codegen::CouplingGraphToCUDA{}.LowerVariants({{*solved.compiled.module,1,1}});assert(out);
   }
-  std::cout<<"MoE binding search: slot and four BM families, per-plan probes, geometry rescoring PASS\n";
+  std::cout<<"MoE binding search: slot and four BM families across MMA/GEMV, per-plan probes, geometry rescoring PASS\n";
   std::filesystem::remove_all(directory);return 0;
 }
 }
