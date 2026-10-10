@@ -133,6 +133,20 @@ void FiniteFibers() {
     assert(relation.BoundTaskCard(1).SemanticallyEqual(relation.Card(), {}));
   }
   auto exact = CouplingRelation::FromIslText("{ [t] -> [i,j] : 0 <= t < 3 and 0 <= i,j < 4 and j=i }");
+  auto large=CouplingRelation::FromIslText(
+      "{ [m] -> [i] : 0<=m<32768 and m%3!=0 and 0<=i<2+floor(m/16384) }");
+  auto finite=large.BoundTaskCard();
+  auto expected=QuasiPolynomial::FromIslText(
+      "{ [m] -> (2+floor(m/16384)) : 0<=m<32768 and m%3!=0 }");
+  assert(finite.SemanticallyEqual(expected,{}));
+  assert(finite.SumDomain().Eval({})==54613);
+  std::vector<ParamBinding> coordinates(32768);
+  for(unsigned m=0;m<coordinates.size();++m)coordinates[m].Bind("m",m);
+  auto values=finite.EvalPoints({},coordinates);
+  for(unsigned m=0;m<values.size();++m)assert(values[m]==(m%3?2+m/16384:0));
+  auto alternating=CouplingRelation::FromIslText(
+      "{ [m] -> [i] : 0<=m<64 and 0<=i<2+m%2 }");
+  assert(alternating.BoundTaskCard().SemanticallyEqual(alternating.Card(),{}));
   auto envelope = DescribeTaskElementBox(exact);
   assert(std::string(envelope.exactness) == "over");
   assert(Contains(envelope.relation, exact) && !Contains(exact, envelope.relation));

@@ -64,8 +64,9 @@ DependencyTable BuildDependencyTableLinear(CouplingRelation const& relation,
   DependencyTable result;
   result.consumers = consumers; result.producers = producers;
   result.linear_relation = relation;
+  auto pairs=result.linear_relation.Points();
   std::vector<std::set<std::uint32_t>> rows(result.consumers);
-  for (auto const& [to, from] : result.linear_relation.Points()) {
+  for (auto const& [to, from] : pairs) {
     if (to.size() != 1 || from.size() != 1 || to[0] < 0 || from[0] < 0 ||
         to[0] >= result.consumers || from[0] >= result.producers)
       throw std::invalid_argument("dependency table includes an out-of-range task");
@@ -97,8 +98,13 @@ DependencyTable BuildDependencyTableLinear(CouplingRelation const& relation,
   }
   if (first) encoded += "[_tm_c] -> [_tm_p] : false";
   result.encoded_relation = CouplingRelation::FromIslText(encoded + " }");
-  if (!Contains(result.encoded_relation, result.linear_relation) ||
-      !Contains(result.linear_relation, result.encoded_relation))
+  auto encoded_pairs=result.encoded_relation.Points();
+  std::sort(pairs.begin(),pairs.end());
+  std::sort(encoded_pairs.begin(),encoded_pairs.end());
+  // Both relations are bound and finite. Enumerating both sides independently
+  // proves each inclusion without subtracting thousands of union components.
+  if (!std::includes(encoded_pairs.begin(),encoded_pairs.end(),pairs.begin(),pairs.end()) ||
+      !std::includes(pairs.begin(),pairs.end(),encoded_pairs.begin(),encoded_pairs.end()))
     throw std::logic_error("dependency table failed exact containment proof");
   return result;
 }

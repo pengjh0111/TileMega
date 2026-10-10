@@ -387,14 +387,29 @@ QuasiPolynomial CouplingRelation::BoundTaskCard(unsigned max_domain_points) cons
       if (box > max_domain_points / std::uint64_t(span)) return Card();
       box *= span;
     }
+    struct Group {
+      std::vector<isl_util::Set> points;
+      std::vector<long> lower,upper;
+    };
     struct Fibers {
       isl_map* map;
-      std::map<long, isl_util::Set> groups;
+      std::map<long, Group> groups;
       std::string error;
     } fibers{map.get(), {}, {}};
     auto collect = [](isl_point* raw, void* data) -> isl_stat {
       auto& fibers = *static_cast<Fibers*>(data);
-      isl_util::Set point(isl_set_from_point(raw));
+      isl_util::Point coordinate(raw);
+      std::vector<long> values;
+      for(int axis=0;axis<isl_map_dim(fibers.map,isl_dim_in);++axis) {
+        isl_util::Val value(isl_point_get_coordinate_val(coordinate.get(),isl_dim_set,axis));
+        if(!value || isl_val_is_int(value.get())!=isl_bool_true ||
+            isl_val_cmp_si(value.get(),std::numeric_limits<long>::min())<0 ||
+            isl_val_cmp_si(value.get(),std::numeric_limits<long>::max())>0) {
+          fibers.error="finite task coordinate exceeds host range";return isl_stat_error;
+        }
+        values.push_back(isl_val_get_num_si(value.get()));
+      }
+      isl_util::Set point(isl_set_from_point(coordinate.release()));
       isl_util::Map restricted(isl_map_intersect_domain(isl_map_copy(fibers.map), isl_set_copy(point.get())));
       isl_util::Set image(isl_map_range(restricted.release()));
       isl_util::Val count(isl_set_count_val(image.get()));
@@ -405,8 +420,13 @@ QuasiPolynomial CouplingRelation::BoundTaskCard(unsigned max_domain_points) cons
       }
       auto value = isl_val_get_num_si(count.get());
       auto& group = fibers.groups[value];
-      group = group ? isl_util::Set(isl_set_union(group.release(), point.release())) : std::move(point);
-      return group ? isl_stat_ok : isl_stat_error;
+      if(group.points.empty())group.lower=group.upper=values;
+      else for(unsigned axis=0;axis<values.size();++axis) {
+        group.lower[axis]=std::min(group.lower[axis],values[axis]);
+        group.upper[axis]=std::max(group.upper[axis],values[axis]);
+      }
+      group.points.push_back(std::move(point));
+      return isl_stat_ok;
     };
     if (isl_set_foreach_point(domain.get(), collect, &fibers) != isl_stat_ok)
       throw std::runtime_error(fibers.error.empty() ? "finite task fiber enumeration failed" : fibers.error);
@@ -415,14 +435,39 @@ QuasiPolynomial CouplingRelation::BoundTaskCard(unsigned max_domain_points) cons
     if (isl_map_dim(map.get(), isl_dim_in) == 0)
       return QuasiPolynomial::Constant(fibers.groups.begin()->first);
     isl_util::PwQPolynomial count;
-    for (auto& [value, points] : fibers.groups) {
-      points = isl_util::Set(isl_set_coalesce(points.release()));
+    bool compact=true;
+    for (auto& [value, group] : fibers.groups) {
+      auto points=isl_util::Set(isl_set_copy(domain.get()));
+      for(unsigned axis=0;axis<group.lower.size();++axis) {
+        points=isl_util::Set(isl_set_lower_bound_val(points.release(),isl_dim_set,axis,
+            isl_val_int_from_si(Ctx(),group.lower[axis])));
+        points=isl_util::Set(isl_set_upper_bound_val(points.release(),isl_dim_set,axis,
+            isl_val_int_from_si(Ctx(),group.upper[axis])));
+      }
+      isl_util::Val size(isl_set_count_val(points.get()));
+      if(!size)throw std::runtime_error("finite task domain count failed");
+      // The original domain intersected with this box contains every group
+      // point. Equal finite cardinalities prove equality, including holes.
+      if(isl_val_cmp_si(size.get(),group.points.size())!=0) {
+        compact=false;
+        while(group.points.size()>1) {
+          std::vector<isl_util::Set> next;
+          for(std::size_t index=0;index<group.points.size();index+=2) {
+            auto merged=index+1<group.points.size()?isl_util::Set(isl_set_union(
+                group.points[index].release(),group.points[index+1].release())):std::move(group.points[index]);
+            if(!merged)throw std::runtime_error("finite task domain union failed");
+            next.push_back(std::move(merged));
+          }
+          group.points=std::move(next);
+        }
+        points=std::move(group.points.front());
+      }
       auto* polynomial = isl_qpolynomial_val_on_domain(isl_set_get_space(points.get()), isl_val_int_from_si(Ctx(), value));
       isl_util::PwQPolynomial piece(isl_pw_qpolynomial_alloc(points.release(), polynomial));
       count = count ? isl_util::PwQPolynomial(isl_pw_qpolynomial_add(count.release(), piece.release())) : std::move(piece);
     }
     if (!count) throw std::runtime_error("finite task fiber count failed");
-    count = isl_util::PwQPolynomial(isl_pw_qpolynomial_coalesce(count.release()));
+    if(compact)count = isl_util::PwQPolynomial(isl_pw_qpolynomial_coalesce(count.release()));
     return QuasiPolynomial::FromIslText(isl_util::ToString(count.get()));
   });
 }
