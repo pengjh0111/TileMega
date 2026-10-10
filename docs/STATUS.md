@@ -384,3 +384,5 @@ EX-S2c 的价格测试与队列放置修正已测，mha4 s128 保持 35 跳，�
 （⚠️ v2.1 第十轮补充：2026-09-26 的实现复核纠正“仅剩验证”的判断：LSE merge 向量读取、attention 的寄存器内 P→PV 与 KV 双缓冲、64/32 KV tile 选择、epilogue/argmax 向量访问、attention 定价与标定口径、结构切换缓存均有补充修改。详见 `SERVING_R10/implementation_completion/audit.md`。原后台矩阵保持 b22 工作树不变，其结果不验证本次源码；当前专项单测通过不代表 C-1/C-2、20 plan 预算或最终性能通过。当前源码缺少 20 个 SASS 审计，K-12/G-1 不记通过，重新标定和完整生成仍待执行。）
 
 （⚠️ DM-1：verified：forward phase、新任务种类、窗口精确关系、kTable/kCounted、WAR/WAW 与虚拟 tile 绑定已有生成执行证据；新增 MoE 动态 L2 领取与 opaque 入口/内部/出口屏障及 loader lookahead 边界，固定合成输入在 sm_89 执行通过。全深度 B1 prefill/decode 干构建与索引检查通过，B16 prefill 尚有生成瓶颈。完整图融合/复用、联合结构选择、GEMV 与通用 LA 仍未完成。用户已取消性能、真实数据集门及重复进程矩阵，新结果不构成 50 进程同步结论。详见 docs/experiments/DNN_MOE_R1/summary.md。）
+
+（⚠️ DM-1：verified：按槽绑定的专家 GEMV 已在 dense/页式权重下执行通过；通用池化、dispatch 与 counted combine 的 last-arriver 已接入 L1/L2/页式执行器，固定合成输入功能检查通过。默认 LLM 八格 CUDA 再查仍逐字节一致。GEMV/LA 联合求解器坐标与完整图生成仍未完成；没有新增性能或 50 进程同步结论。见 DNN_MOE_R1/moe_gemv.md、dm_last_arriver.md。）

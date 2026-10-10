@@ -106,5 +106,13 @@
   "source_logs": [
     "runs/dm1-default-cuda-invariance-v1",
     "runs/dm1-default-cuda-invariance-v2"
-  ]
+  ],
+  "latest_check": {
+    "evidence": "verified",
+    "scope": "host-only default CUDA; no GPU repetition",
+    "candidate_head": "1dc69fc83",
+    "results": "runs/dm1-default-cuda-invariance-v3/results.json",
+    "cuda_equal": true,
+    "rows": 8
+  }
 }

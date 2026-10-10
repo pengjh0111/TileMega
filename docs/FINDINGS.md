@@ -9155,3 +9155,14 @@ compile error. Explicit compound blocks give `9,10` on both host and device.
 Sources and identities: [compiler scope receipt](experiments/DNN_MOE_R1/results/CI2_nvcc_constexpr_scope.json).
 This is a scalar compiler observation; the convolution workaround still
 requires its own numerical and 50-process synchronization checks.
+
+### DM-1: exact table proofs need not repeat cardinality analysis
+
+verified: generated full MobileNetV1 fusion and full-depth B16 MoE prefill
+reached repeated dependency-table recovery after the linear-window repair.
+A one-shot debugger trace identifies integer endpoint minimization and row
+projection in `ReadBoundDependencyTable`, rather than numerical execution,
+as the current generation bottleneck. The five targeted linear-window host
+checks and eight default-geometry LLM CUDA comparisons pass. See
+`DNN_MOE_R1/exact_fibers.md`; full-graph completion is not claimed by those
+smaller checks. No performance measurements were taken.

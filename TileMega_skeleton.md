@@ -1704,3 +1704,5 @@ Codegen 与 host 只消费 Plan（§5.7.4），不得在其中新增调度决策
 | 2026-09 | v2.1 第十一轮补充 | decode serving 增加沿 σ 的 L2/页环预取、边级交接决策与按 Caps 选择的异步搬运/PDL 路径；目标驱动同步标定，工具统一为 `tilemega` 子命令与带分层缓存的端到端编排。原有 Plan 和单次前向执行语义保留；各路径的实现与验证状态由 `docs/STATUS.md`、`docs/TODO.md` 记录。 |
 
 （⚠️ DM-1：verified：forward phase、新任务种类、窗口精确关系、kTable/kCounted、WAR/WAW 与虚拟 tile 绑定已有生成执行证据；新增 MoE 动态 L2 领取与 opaque 入口/内部/出口屏障及 loader lookahead 边界，固定合成输入在 sm_89 执行通过。全深度 B1 prefill/decode 干构建与索引检查通过，B16 prefill 尚有生成瓶颈。完整图融合/复用、联合结构选择、GEMV 与通用 LA 仍未完成。用户已取消性能、真实数据集门及重复进程矩阵，新结果不构成 50 进程同步结论。详见 docs/experiments/DNN_MOE_R1/summary.md。）
+
+（⚠️ DM-1：verified：通用 DM reduction handoff 以已证明的窗口/区间表生成反向到达列表，其他输入须有完成证明才省去阶段；L1/L2/页式执行器已接入池化、dispatch 与 counted combine，带权到达使用独立 epoch bank。固定合成输入生成执行通过，但不是 50 进程同步证明。专家 GEMV 的 gathered/indirect、dense/页式路径也已执行；完整联合求解器选择仍待完成。见 docs/experiments/DNN_MOE_R1/dm_last_arriver.md、moe_gemv.md。）

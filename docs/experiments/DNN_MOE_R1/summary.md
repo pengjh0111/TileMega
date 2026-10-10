@@ -1,6 +1,6 @@
 # DM-1 working report
 
-Status: **incomplete**. Generated DNN/MoE paths execute; full-graph analysis, solver and LA integration remain.
+Status: **incomplete**. Generated DNN/MoE paths execute; full-graph analysis and joint solver integration remain.
 Export coverage and primitive checks do not imply model correctness.
 
 ## Scope and provenance
@@ -32,20 +32,20 @@ Export coverage and primitive checks do not imply model correctness.
 | CI-2 | verified: DM descriptors, finite epilogue chains, dense/page/split-K dispatch, narrow tile families (`descriptors.md`, `numerics.md`) |
 | CI-3 | verified: forward ABI and native CG CLI; DNN exported-model entry implemented; MoE forward region CLI entry/codegen implemented; complete DNN gates and full decoder checks pending |
 | CI-4 | verified: exact windows/tables, WAR/WAW, virtual capacities/counting and native thresholds; large fused/reused graph cardinality generation still needs repair (`analysis.md`, `memory.md`) |
-| CI-5 | verified: native forward/prefill pages and table/counted/binding primitives; generated MoE dynamic L2 control now passes fixed-input checks; generic DNN/MoE LA elision remains incomplete (`moe_dynamic.md`) |
+| CI-5 | verified: native forward/prefill pages and table/counted/binding primitives; generated MoE dynamic L2 control now passes fixed-input checks; generic pool/dispatch/counted-combine LA elision passes generated L1/L2/pages fixtures (`dm_last_arriver.md`) |
 | CI-6 | verified: 48-layer routing profile and layer 0/24/47 captures; profile consumers remain incomplete; empirical body fits omitted under the no-measurement scope |
 | CI-7 | verified: narrow tile/class candidates, private DW compute pricing, virtual/histogram work foundations; joint structural selection and profile/layout wiring remain incomplete |
 | DN-1 | verified: six upstream real-weight exports, before/Core fixtures and source-FQN recipes; assets are retained, no further real-weight/dataset checks are required |
 | DN-2/3 | verified: five DNN before/Core plans and semantics, including masked BERT and NAFNet SG/SCA/shuffle; prior model discrepancies remain recorded |
 | DN-4 | verified: im2col, small channels, tails, stride/dilation, split-K and paged B primitive execution (`conv.md`, T4 receipts) |
 | DN-5 | verified: DW/PW fusion integrated into frontend, exact semantics, resource pricing, split-K and executors; generated nonpaged/paged fixtures pass; full MobileNet fusion generation remains unresolved (`dwpw_fusion.md`) |
-| DN-6 | verified: window/global pooling and SCA bodies/plans; complete all-executor LA selection is pending |
+| DN-6 | verified: window/global pooling and SCA bodies/plans; cross-image pool LA executes after split-K; structural solver selection remains pending |
 | DN-7 | verified: explicit LN, embedding sum and per-consumer deferred LN rewrite; generated synthetic execution passes; joint per-edge selection is pending |
 | DN-8/9 | verified: Tensor Core encoder attention, layouts and finite chains; independent primitive receipts exist; prior full-model numerical failures remain explicit |
 | DN-10 | verified: memory planner, arena aliases, exact hazards and retained-allocation budget accounting; generated small reuse case passes; full-model reuse generation remains unresolved (`memory.md`) |
 | DN-11 | verified: public DNN export/build/run/check entry; baseline/timing work is omitted under user scope (`dnn_cli.md`) |
 | MO-1/2/3 | verified: original-FQN exports/checkpoints, streaming expert packs, decoder/region plans, virtual/counting semantics; general automatic cross-phase layout constraints remain pending |
-| MO-4/5/6/7 | verified: routing, gathered/indirect expert GEMMs, combine and QPerKV=8 execute in generated region/decoder fixtures; GEMV implementation family and general LA wiring remain pending |
+| MO-4/5/6/7 | verified: routing, gathered/indirect expert GEMMs, combine and QPerKV=8 execute in generated region/decoder fixtures; bound dense/paged GEMV and generic LA execute; GEMV pricing/search remains pending |
 | MO-8 | verified: slot/group binding and dynamic L2 control execute; opaque control executes with full-stage/prefetch boundaries; joint binding/BM selection remains pending |
 | MO-9 | verified: synthetic two-layer decoder paths execute; full-depth dry-build/build/check entry and correctness-only 80 GB script exist; B16 prefill generation remains unresolved; no real-weight model gate is claimed |
 
@@ -292,7 +292,7 @@ These do not discharge the corresponding real DNN/MoE body/model paths in §8.A.
 ## Remaining work
 
 Finish exact full-graph fusion/reuse generation, joint structural selection,
-MoE GEMV, all-executor LA elision and profile/cross-phase layout consumers.
+GEMV/LA solver coordinates and profile/cross-phase layout consumers.
 Complete B16 full-depth prefill generation and validate its build/check entry. Preserve prior model discrepancies.
 Default host CUDA invariance now passes 8/8 (`T1_default_cuda_host.json`); complete documentation and
 merge checkpoints, then push the completed branch. No latency matrices,
