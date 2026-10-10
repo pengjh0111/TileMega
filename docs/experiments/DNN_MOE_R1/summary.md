@@ -31,9 +31,9 @@ Export coverage and primitive checks do not imply model correctness.
 | CI-1 | verified: typed arguments, CPU constants/shape bindings, legacy bridge compatibility (`bridge.md`) |
 | CI-2 | verified: DM descriptors, finite epilogue chains, dense/page/split-K dispatch, narrow tile families (`descriptors.md`, `numerics.md`) |
 | CI-3 | verified: forward ABI and native CG CLI; DNN exported-model entry implemented; MoE forward region CLI entry/codegen implemented; complete DNN gates and full decoder checks pending |
-| CI-4 | verified: exact windows/tables, WAR/WAW, virtual capacities/counting and native thresholds; large fused/reused graph cardinality generation still needs repair (`analysis.md`, `memory.md`) |
+| CI-4 | verified: exact windows/tables, WAR/WAW, virtual capacities/counting and native thresholds; full fused/reused MobileNetV1 and full B16 MoE prefill now generate; bounded symbolic interval proofs retain exact fallback (`analysis.md`, `memory.md`) |
 | CI-5 | verified: native forward/prefill pages and table/counted/binding primitives; generated MoE dynamic L2 control now passes fixed-input checks; generic pool/dispatch/counted-combine LA elision passes generated L1/L2/pages fixtures (`dm_last_arriver.md`) |
-| CI-6 | verified: 48-layer routing profile and layer 0/24/47 captures; profile consumers remain incomplete; empirical body fits omitted under the no-measurement scope |
+| CI-6 | verified: 48-layer routing profile/captures and separate rational expected-read cardinalities; production profile consumers remain incomplete; empirical body fits omitted under the no-measurement scope |
 | CI-7 | verified: narrow tile/class candidates, private DW compute pricing, virtual/histogram work foundations; shared packed-layout constraints now cover fixed/solver plans and capacity-limited CLI deployments; joint structural selection and profile pricing remain incomplete |
 | DN-1 | verified: six upstream real-weight exports, before/Core fixtures and source-FQN recipes; assets are retained, no further real-weight/dataset checks are required |
 | DN-2/3 | verified: five DNN before/Core plans and semantics, including masked BERT and NAFNet SG/SCA/shuffle; prior model discrepancies remain recorded |
@@ -47,7 +47,7 @@ Export coverage and primitive checks do not imply model correctness.
 | MO-1/2/3 | verified: original-FQN exports/checkpoints, streaming expert packs, decoder/region plans, virtual/counting semantics; canonical shared-layout constraints and capacity-limited serving/full-entry integration have host evidence |
 | MO-4/5/6/7 | verified: routing, gathered/indirect expert GEMMs, combine and QPerKV=8 execute in generated region/decoder fixtures; bound dense/paged GEMV and generic LA execute; GEMV pricing/search remains pending |
 | MO-8 | verified: slot/group binding and dynamic L2 control execute; opaque control executes with full-stage/prefetch boundaries; joint binding/BM selection remains pending |
-| MO-9 | verified: synthetic two-layer decoder paths execute; full-depth dry-build/build/check entry and correctness-only 80 GB script exist; B16 prefill generation remains unresolved; no real-weight model gate is claimed |
+| MO-9 | verified: synthetic two-layer decoder paths execute; full B1/B16 decode/prefill generation, header/packing checks and allocation reports pass (`MO_full_four_plan_host.json`); full native execution remains unverified |
 
 ## Tables and gates
 
@@ -273,8 +273,8 @@ These do not discharge the corresponding real DNN/MoE body/model paths in §8.A.
   under the user override. Implementation/correctness requirements remain.
 - Q4/Q5 — stated: MoE performance comparisons are omitted; template/binding,
   placement and model correctness implementation remains required and incomplete.
-- Q6 — verified: checkpoint index/schema foundations exist; real-weight (a)(b)(c)
-  remain unverified; the correctness-only full-model script exists and B1 dry-build passes.
+- Q6 — verified: full B1/B16 decode/prefill generation and header/packing checks pass;
+  the correctness-only script exists. Full native execution and real-weight (a)(b) remain unverified.
 - Q7 — stated: compile-scaling measurement is omitted under the user override.
 - verified: earlier failed builds/numerics/sanitizers are preserved. No numerical
   thresholds were changed to accommodate implementation errors.
@@ -291,9 +291,9 @@ These do not discharge the corresponding real DNN/MoE body/model paths in §8.A.
 
 ## Remaining work
 
-Finish exact full-graph reuse generation and joint structural selection,
-GEMV/LA solver coordinates and profile/cross-phase layout consumers.
-Complete B16 full-depth prefill generation and validate its build/check entry. Preserve prior model discrepancies.
+Finish the queued full-graph reuse execution check and joint structural selection,
+GEMV/LA solver coordinates and production routing-profile consumers.
+Complete full-model native build/check coverage. Preserve prior model discrepancies.
 Default host CUDA invariance now passes 8/8 (`T1_default_cuda_host.json`); complete documentation and
 merge checkpoints, then push the completed branch. No latency matrices,
 real-weight/dataset gates or repeated-process matrices will be run.

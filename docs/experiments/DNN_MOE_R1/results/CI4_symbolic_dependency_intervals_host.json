@@ -1,0 +1,42 @@
+{
+  "evidence": "verified",
+  "head": "4af7a0285d02a85c129b9f02552246362d5c1190",
+  "scope": "host checks only; no GPU execution, latency or repeated-process claim",
+  "source_sha256": {
+    "lib/Analysis/DependencyTable.cpp": "f0810f6f5069ca75f7b9d7237e634d932b6b503328d136ce9917bcafaf9a2f24",
+    "test/unit/runtime_dependency_table_test.cpp": "e302fd2f536e05a597f5ce638e7eaa0faadc5038fa063fdf04c27acbedb752ef"
+  },
+  "tests": [
+    {
+      "test": "runtime_dependency_table",
+      "exit_code": 0
+    },
+    {
+      "test": "runtime_dependency_codec",
+      "exit_code": 0
+    },
+    {
+      "test": "bound_dependency_codegen",
+      "exit_code": 0
+    },
+    {
+      "test": "dm_gemm_class_domain",
+      "exit_code": 0
+    },
+    {
+      "test": "reference",
+      "exit_code": 0,
+      "cu_equal": true,
+      "sha256": "d881cf08b17b31c7b9f77061da838424c97e000cff9b779b6ea2dc87dd3f9a73"
+    },
+    {
+      "test": "shared",
+      "exit_code": 0,
+      "cu_equal": true,
+      "sha256": "6f681ea162209cc4e4f7ac39948142c917dcecddde9b872baaee643d89d08bf2"
+    }
+  ],
+  "build_log": "runs/dm1-symbolic-interval-budget-build-v1.log",
+  "policy_log": "runs/dm1-symbolic-interval-policy-v1.log",
+  "proof": "Each accepted basic-map interval band equals its source by two inclusions; only min/max endpoints are enumerated. Component unions merge exactly. The separate 10000-operation proof budget rejects optimization, never proof; sparse or difficult relations retain the row path. Complete relation/bounds/serialized intervals remain in the proof-cache key."
+}

@@ -6,7 +6,7 @@ it collects no latency data and is not executed with full weights in this round.
 
 verified: `python -m tilemega.moe.full {dry-build,preflight,build,check}` exports the real
 configuration, binds batch and past ranges, checks checkpoint headers/recipes,
-and emits plan and source identities. Seven CPU unit checks cover deployment
+and emits plan and source identities. Nine CPU unit checks cover deployment
 accounting, compiler arguments, native architecture/resource binding and rejection
 when the allocation estimate exceeds available memory. `--target auto` probes
 under the shared lock and overlays device resources onto its architecture profile;
@@ -17,9 +17,14 @@ shell syntax validation; `TILEMEGA_DRY_ONLY=1` stops after host construction.
 
 verified: `runs/dm1-moe-full-dry-v2` generated the full 48-layer E=128 B=1 decode
 and prefill CUDA and validated their checkpoint recipes. B=16 decode subsequently
-generated in `runs/dm1-moe-full-dry-v3`. Full B=16 prefill still exceeds its
-900-second host limit in `runs/dm1-moe-full-b16-prefill-host-v10`. This is partial
-dry-build coverage, not a completed full-model check.
+generated in `runs/dm1-moe-full-dry-v3`. Full B=16 prefill now generates in
+`runs/dm1-moe-full-b16-prefill-host-v12` (241 GEMMs, 1594 buffers). A new packed
+decode uses its shared TN/TK in `runs/dm1-moe-full-b16-decode-shared-host-v1`.
+All four plans pass header-only FQN/shape/dtype/packing-extent checks; their
+paired allocation reports pass (`results/MO_full_four_plan_host.json`). The
+prior row-major decode/tiled-prefill pairing is retained as an incompatible
+recipe failure, and older host timeouts remain. This completes host construction
+coverage, not a native full-model build, execution or G-MOE.
 
 verified: the first dry build exposed incompatible router and gate/up recipes:
 decode folded the post-attention RMSNorm gamma, while prefill did not. Both MoE
@@ -33,8 +38,8 @@ inferred: B=1 at capacity 1088 needs 66,781,605,888 bytes of recipe-deduplicated
 packed weights and an estimated total allocation of 67,347,137,584 bytes. The
 estimate includes both plans' workspaces and request state, but excludes CUDA
 context/event/queue tables and runtime-inserted split-K storage. It cannot certify
-fit. Attention/head recipes can remain phase-specific; general automatic shared
-layout constraints are still pending.
+fit. Attention/head recipes can remain phase-specific; capacity-limited automatic
+shared-layout constraints have host coverage described below.
 
 The 80 GB script downloads/checks the original checkpoint, constructs plans,
 then invokes the serving ABI directly for prefill and decode, compares same-binary

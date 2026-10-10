@@ -1,0 +1,62 @@
+{
+  "evidence": "verified",
+  "head": "4af7a0285d02a85c129b9f02552246362d5c1190",
+  "scope": "host checks only; no GPU execution, latency or repeated-process claim",
+  "source_sha256": {
+    "include/tilemega/Analysis/DramFloor.h": "7ed67427b96eda80a8c5bf1ca40728a4c078d7b43b2b61ce66eedaec3b615ed1",
+    "include/tilemega/Analysis/QuasiPolynomial.h": "2a8b02716e4dd172e79d47ae77990b0d90f24d6141e7399c0a639368324592d7",
+    "lib/Analysis/DramFloor.cpp": "e9f676a985556259a1e1ac334da42948180b2f86c5379066ddbfb1b06413cc5f",
+    "lib/Analysis/QuasiPolynomial.cpp": "89ec084ae2505086a93c21a08d05dba88024cff96bfca2d5e69ed6d7cc64644c",
+    "lib/Solver/TaskModel.cpp": "3b81c884d63cbd9441f16e544fe900fe2e517aef37d3aa0e460720a6c5de562a",
+    "test/unit/dm_dram_images_test.cpp": "bb1d4d5b966bea80d9d07e663d3356de4c1198114738a39f630ea8e69e7acba4"
+  },
+  "tests": [
+    {
+      "test": "dm_dram_images",
+      "exit_code": 0
+    },
+    {
+      "test": "dram_floor",
+      "exit_code": 0
+    },
+    {
+      "test": "binding_request_traffic",
+      "exit_code": 0
+    },
+    {
+      "test": "binding_request_pricing",
+      "exit_code": 0
+    },
+    {
+      "test": "moe_task_pricing",
+      "exit_code": 0
+    },
+    {
+      "test": "dm_forward_search",
+      "exit_code": 0
+    },
+    {
+      "test": "dnn_epilogue_semantics",
+      "exit_code": 0
+    },
+    {
+      "test": "runtime_dependency_table",
+      "exit_code": 0
+    },
+    {
+      "test": "runtime_dependency_codec",
+      "exit_code": 0
+    },
+    {
+      "test": "bound_dependency_codegen",
+      "exit_code": 0
+    }
+  ],
+  "build_log": "runs/dm1-expected-read-build-v2.log",
+  "expectation_scope": "Read-only indirect-only bounded tensor cardinalities, represented separately from physical images; rational means preserved until FP64 pricing. Production routing-profile attachment remains incomplete.",
+  "retained_failures": [
+    "v1 CXX build: mixed auto iterator declaration, repaired",
+    "host-v1 fixture: invalid ISL rational spelling, repaired",
+    "host-v2: incorrect serving_import test selector; not a numerical failure"
+  ]
+}

@@ -281,3 +281,21 @@ once, omitting intermediate CUDA strings that were subsequently discarded.
 Both packed nonpaged and paged MoE probe outputs remain byte-identical. This is
 host generation evidence; it does not establish full-model generation, GPU
 numerics, compilation speed, or a new synchronization pass rate.
+
+verified: dependency interval construction can prove each basic-map fiber band
+using symbolic lexicographic endpoints and two inclusions, then enumerate only
+the endpoints. A separate 10000-operation budget rejects this optional path;
+periodic holes and difficult proofs retain the original exact row construction.
+Dense, sparse, overlapping and moving floor/mod interval tests, malformed tables,
+codec checks and two packed MoE CUDA comparisons pass
+(`results/CI4_symbolic_dependency_intervals_host.json`). No synchronization or
+compiler-speed result follows from these host checks.
+
+verified: DRAM queries can carry a rational expected unique-read count for an
+entirely read-only, indirect-only bounded tensor. Its source and expected count
+are separate fields; no physical address image is fabricated. Mixed affine
+readers, writes, duplicate actual/expected witnesses, missing sources, negative
+counts and out-of-envelope counts are rejected. Integer-only evaluation retains
+its previous contract; physical-rate evaluation preserves fractional means.
+Ten host checks pass (`results/CI6_expected_indirect_reads_host.json`). Attaching
+the routing profile to production MoE flow pricing remains incomplete.
