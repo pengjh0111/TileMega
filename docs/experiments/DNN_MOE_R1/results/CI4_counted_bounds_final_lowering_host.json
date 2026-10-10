@@ -1,0 +1,48 @@
+{
+  "evidence": "verified",
+  "scope": "host dependency proofs and generated CUDA equality; no GPU execution, timing or 50-process claim",
+  "head": "3b4ef17606fa0a25bf4ce8db8be928cf925d145f",
+  "worktree_modified": true,
+  "source_sha256": {
+    "include/tilemega/Analysis/DependencyTable.h": "f83415788e77c68f3d72657b7c9655bf554dc4832e7abba1a93ea4da229f1aca",
+    "lib/Analysis/DependencyTable.cpp": "9ca2d651f0c20ec9a76b2cf5bc951a40873bd545a8e7d0de39729a4d1f46e593",
+    "lib/Codegen/RuntimeDependencyCodec.cpp": "059dc1c04e9345c2eba481e18c26ad50e597a94d0afc0945bc669d57f54798db",
+    "tools/commands/compile.cpp": "3be63d63460001daf759faecb1cf2ebab1549195eb05712997b905fe848bae36"
+  },
+  "tests": [
+    {
+      "test": "runtime_dependency_table",
+      "exit_code": 0
+    },
+    {
+      "test": "runtime_dependency_codec",
+      "exit_code": 0
+    },
+    {
+      "test": "bound_dependency_codegen",
+      "exit_code": 0
+    },
+    {
+      "test": "dm_gemm_class_domain",
+      "exit_code": 0
+    },
+    {
+      "test": "reference",
+      "exit_code": 0,
+      "cu_equal": true,
+      "sha256": "d881cf08b17b31c7b9f77061da838424c97e000cff9b779b6ea2dc87dd3f9a73"
+    },
+    {
+      "test": "shared",
+      "exit_code": 0,
+      "cu_equal": true,
+      "sha256": "6f681ea162209cc4e4f7ac39948142c917dcecddde9b872baaee643d89d08bf2"
+    }
+  ],
+  "build_log": "runs/dm1-final-lowering-host-build-v2.log",
+  "prior_queued_build": {
+    "log": "runs/dm1-final-lowering-build-v1.log",
+    "exit_code": 143,
+    "reason": "cancelled own pending GPU-lock acquisition after dry run proved every pending build step CPU-only"
+  }
+}

@@ -269,3 +269,15 @@ capacity task IDs and padded MMA work remain fixed. Empty subtiles have zero
 physical requests. Side stores and request-set containment are checked against
 independent integer enumeration. This does not establish measured routes,
 profile-aware flow selection, CUDA synchronization or model correctness.
+
+verified: counted dependencies now prove that their retained conservative map
+stays within both linear task domains without building an unused interval table.
+Contribution counts, thresholds and ownership checks are unchanged. Dense bounds
+and three invalid-domain cases pass, along with the codec and bound-codegen
+checks (`results/CI4_counted_bounds_final_lowering_host.json`).
+
+verified: fixed DM compilation now lowers the final configured runtime layout
+once, omitting intermediate CUDA strings that were subsequently discarded.
+Both packed nonpaged and paged MoE probe outputs remain byte-identical. This is
+host generation evidence; it does not establish full-model generation, GPU
+numerics, compilation speed, or a new synchronization pass rate.
