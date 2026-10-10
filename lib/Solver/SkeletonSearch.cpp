@@ -148,7 +148,12 @@ struct SearchContext {
   int current_lookahead_bytes=0;
   unsigned current_handoff_mask=0;
   SearchContext(frontend::ImportedSemantics input,mlir::MLIRContext& ctx,SkeletonSearchOptions const& opts)
-      :imported(std::move(input)),classes(BuildOperatorClasses(imported)),resources(opts.variant_probe,opts.common.timing),context(ctx),options(opts),
+      :imported(std::move(input)),classes(BuildOperatorClasses(imported)),resources([this](auto const& signature,auto const* tile,auto dtype) {
+          if(imported.plan.dm && options.dm_variant_probe)
+            return options.dm_variant_probe(imported.plan,signature,tile,dtype);
+          if(!options.variant_probe)throw std::invalid_argument("resource probe callback required");
+          return options.variant_probe(signature,tile,dtype);
+        },opts.common.timing),context(ctx),options(opts),
        dtype(imported.lifted.sem.ops.front().dtype==analysis::ScalarType::kBF16?ScalarType::kBF16:ScalarType::kF32) {
     current_page_bytes=options.page_bytes;
     if(ServingRuntimePlan())for(auto const& stage:imported.plan.stages)
@@ -882,7 +887,18 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     result.evaluated=CoordinateDescent(search,result.rounds,evidence,result.seed_key,result.split1_seed_keys);
   else for(std::size_t i=0;i<options.evaluation_cases.size();++i) {
     auto const& test=options.evaluation_cases[i];
-    try {result.evaluated.push_back(search.Evaluate(test.config,test.kappa,test.residency));}
+    try {
+      if(test.page_bytes>0) {
+        if(!options.pg_pages)throw std::invalid_argument("page case requires paged search");
+        search.current_page_bytes=test.page_bytes;
+      }
+      if(options.pg_pages && test.lookahead_bytes>=0)
+        search.current_lookahead_bytes=test.lookahead_bytes;
+      if(test.handoff_mask && !options.handoff_auto)
+        throw std::invalid_argument("handoff case requires handoff selection");
+      search.current_handoff_mask=test.handoff_mask;
+      result.evaluated.push_back(search.Evaluate(test.config,test.kappa,test.residency));
+    }
     catch(std::exception const& e) {
       SkeletonCandidate failed;failed.config=test.config;failed.kappa=test.kappa;
       failed.residency=test.residency;failed.error=e.what();result.evaluated.push_back(std::move(failed));

@@ -13,6 +13,8 @@ namespace tilemega::solver {
 struct SkeletonEvaluationCase {
   std::vector<GemmConfig> config;
   int kappa=1,residency=1;
+  int page_bytes=0,lookahead_bytes=-1;
+  unsigned handoff_mask=0;
 };
 struct SkeletonSearchOptions {
   CompilerSearchOptions common;
@@ -20,6 +22,8 @@ struct SkeletonSearchOptions {
   int kappa=1,k_base=8,passes=3,jobs=1;
   bool all_workers=false;
   VariantResourceCache::Probe variant_probe;
+  std::function<VariantResources(frontend::ModelPlan const&,std::string const&,
+      GemmConfig const*,ScalarType)> dm_variant_probe;
   std::string artifact_prefix,fixture;
   int seed_residency=1,top_m=8;
   // Bound only the outer Level 1 scan. The caller reserves the remainder of

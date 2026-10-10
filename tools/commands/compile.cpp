@@ -10,10 +10,12 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Frontend/DnnModelPlan.h>
+#include <tilemega/Frontend/DnnResourceProbe.h>
 #include <tilemega/Frontend/MoeRegionPlan.h>
 #include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Solver/CompilerSearch.h>
 #include <tilemega/Solver/SkeletonSearch.h>
+#include <tilemega/Solver/DnnStructureSearch.h>
 #include <tilemega/Solver/IntervalSegments.h>
 #include <tilemega/Solver/DmSharedWeights.h>
 #include <llvm/Support/raw_ostream.h>
@@ -562,6 +564,7 @@ int RunCompile(int argc, char** argv) {
     bool defer_dm_lowering=false;
     std::optional<tilemega::analysis::ScopedExactAnalysisMemo> dm_memo;
     std::optional<tilemega::frontend::ModelPlan> dnn_plan;
+    std::optional<tilemega::frontend::DnnPlanOptions> dnn_options;
     if(frontend_mode=="dnn" && input.extension()!=".mlir") {
       auto bridge=tilemega::frontend::ReadExportBridge(input.string());
       tilemega::frontend::DnnPlanOptions options;options.batch=serving_batch;
@@ -577,6 +580,7 @@ int RunCompile(int argc, char** argv) {
               std::uint64_t(target.calib.l2_knee_bytes));
       }
       dnn_plan=tilemega::frontend::BuildDnnModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
+      dnn_options=options;
       forward_seq=dnn_plan->serving_seq;
     }else if(forward && input.extension()!=".mlir") {
       if(serving_batch!=1)throw std::runtime_error("MoE forward regions require batch one");
@@ -942,6 +946,7 @@ int RunCompile(int argc, char** argv) {
           // Paged decode uses the fixed two-stage local MMA mainloop;
           // additional stage templates cannot occur in its search domain.
           if(use_pages)command+=" --stages 2";
+          if(serving_imported->plan.dm)command+=" --dm";
           std::ofstream(resource_root/"prewarm.command.txt")<<command<<'\n';
           if(std::system((command+" >"+quote((resource_root/"prewarm.log").string())+
               " 2>&1").c_str()))
@@ -949,12 +954,15 @@ int RunCompile(int argc, char** argv) {
                 (resource_root/"prewarm.log").string());
         }
         int variant_index=0;
-        std::map<std::tuple<int,int,int,int,int>,tilemega::solver::VariantResources> probed_bodies;
-        skeleton.variant_probe=[&](std::string const&,tilemega::solver::GemmConfig const* tile,tilemega::solver::ScalarType dtype) {
+        std::map<std::tuple<int,int,int,int,int,std::string>,tilemega::solver::VariantResources> probed_bodies;
+        auto variant_probe=[&](tilemega::frontend::ModelPlan const* probe_plan,std::string const&,tilemega::solver::GemmConfig const* tile,tilemega::solver::ScalarType dtype) {
+          std::string nongemm_source;
+          if(probe_plan && dnn_options && !tile)
+            nongemm_source=tilemega::frontend::DnnNonGemmProbeSource(*probe_plan);
           // The compiled TaskBody template has no class or split-K parameter.
           // Keep logical variant keys above, but reuse its identical probe.
           auto body=std::make_tuple(tile?tile->tile_m:0,tile?tile->tile_n:0,
-              tile?tile->tile_k:0,tile?tile->stages:0,int(dtype));
+              tile?tile->tile_k:0,tile?tile->stages:0,int(dtype),nongemm_source);
           if(auto found=probed_bodies.find(body);found!=probed_bodies.end()) {
             auto reused=found->second;reused.compiled=false;return reused;
           }
@@ -965,7 +973,13 @@ int RunCompile(int argc, char** argv) {
             " --dtype "+std::string(dtype==tilemega::solver::ScalarType::kBF16 ? "bf16":"f32");
           if(serving) {
             command+=" --serving";
-            if(!tile) {
+            if(probe_plan && probe_plan->dm)command+=" --dm";
+            if(!nongemm_source.empty()) {
+              auto source=output;source.replace_extension("cu");
+              {std::ofstream stream(source);stream<<nongemm_source;
+               if(!stream)throw std::runtime_error("cannot write DNN resource probe");}
+              command+=" --nongemm-source "+quote(source.string());
+            }else if(!tile) {
               auto found=std::find_if(serving_imported->plan.stages.begin(),
                   serving_imported->plan.stages.end(),[](auto const& stage){
                     return stage.kind==tilemega::frontend::PlanTaskKind::kFusedAttention;});
@@ -984,7 +998,18 @@ int RunCompile(int argc, char** argv) {
           auto resource=tilemega::solver::VariantResources{int(requiredInteger(*object,"registers")),int(requiredInteger(*object,"shared_bytes")),int(requiredInteger(*object,"threads")),object->getBoolean("compiled").value_or(false)};
           probed_bodies.emplace(body,resource);return resource;
         };
-        auto result=serving
+        skeleton.variant_probe=[&](auto const& signature,auto const* tile,auto dtype) {
+          return variant_probe(serving_imported?&serving_imported->plan:nullptr,signature,tile,dtype);
+        };
+        if(dnn_options)skeleton.dm_variant_probe=[&](auto const& plan,auto const& signature,auto const* tile,auto dtype) {
+          return variant_probe(&plan,signature,tile,dtype);
+        };
+        auto result=dnn_options && search_selection=="predicted" && skeleton.evaluation_cases.empty()
+            ? tilemega::solver::SolveDnnStructures(*serving_imported,*dnn_options,
+                memory_reuse=="auto"?std::vector<std::string>{"none","greedy","l2"}:
+                    std::vector<std::string>{dnn_options->memory_reuse},
+                context,skeleton,&summary,evidence)
+            : serving
             ? tilemega::solver::SolveSkeletonImported(*serving_imported,context,skeleton,&summary,evidence)
             : tilemega::solver::SolveSkeletonExport(input.string(),context,skeleton,&summary,evidence);
         if(flow_search_only) {
@@ -1575,6 +1600,10 @@ int RunCompile(int argc, char** argv) {
                   <<",\n  \"shared_weight_layout_sha256\": "<<std::quoted(modelFingerprint(shared_weight_layout));
         if(frontend_mode=="dnn")manifest<<",\n  \"deferred_ln\": "<<std::quoted(dnn_deferred_ln);
         if(frontend_mode=="dnn")manifest<<",\n  \"dwpw_fuse\": "<<std::quoted(dnn_dwpw_fuse);
+        if(auto structure=(*module)->getAttrOfType<mlir::StringAttr>("tilemega.dnn_structure"))
+          manifest<<",\n  \"dnn_structure\": "<<std::quoted(structure.getValue().str())
+                  <<",\n  \"dnn_structure_search_sha256\": "
+                  <<std::quoted(modelFingerprint(std::string(argv[2])+".structures.json"));
         if(search_selection=="predicted")manifest<<",\n  \"selection\": \"predicted\"";
         if(auto reuse=plan.getAs<mlir::StringAttr>("dm_memory_reuse"))
           manifest<<",\n  \"reuse\": "<<std::quoted(reuse.getValue().str())
