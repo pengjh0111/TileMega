@@ -18,3 +18,11 @@ No GPU poison check, 50-process result or complete model reuse gate is claimed.
 stated: no performance measurements are requested. `--selection predicted`
 retains the solver's prediction path and forbids a measurement command. The
 original measured selection remains the default for existing LLM builds.
+
+verified: the generated seven-GEMM arena fixture passes a fixed synthetic
+numerical check in L1 and L2, including three exact anti-dependencies and
+zero-error memcheck (`runs/dm1-memory-generated-native-v1/events/memcheck.log`).
+Maximum absolute output error is 0.0001220703125. This is an execution check,
+not a 50-process synchronization claim. Further repetitions were cancelled
+under the user's 2026-10-10 scope update. Full-model reuse generation still
+requires work on exact-metric representation; prior timeouts are retained.

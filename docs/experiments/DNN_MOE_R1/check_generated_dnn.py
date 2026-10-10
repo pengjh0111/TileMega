@@ -16,6 +16,8 @@ def execute(root):
     torch.manual_seed(20261009)
     torch.backends.cuda.matmul.allow_tf32 = False
     library = PlanLibrary(root / 'generated-sm_89.so')
+    if 'reuse_input' in {b.name for b in library.buffers}:
+        return execute_memory(torch, library)
     if 'deferred_ln_input' in {b.name for b in library.buffers}:
         return execute_deferred_ln(torch, library)
     if 'row_stats' in {b.name for b in library.buffers}:
@@ -49,7 +51,7 @@ def execute(root):
     with library.create(2, {name: value.data_ptr() for name, value in buffers.items()}, 0) as plan:
         plan.set_steps([0])
         first = None
-        for epoch in range(3):
+        for epoch in range(1):
             for mode in (1, 2):
                 output.fill_(float('nan'))
                 plan.launch(0, mode, torch.cuda.current_stream().cuda_stream)
@@ -63,6 +65,36 @@ def execute(root):
                 cases.append(dict(epoch=epoch, mode=mode, max_error=error.max().item()))
     print(json.dumps(dict(event='generated_dnn_correctness', passed=True,
         scope='CG-generated layout/conv/pool/LN ABI; no full model gate', pool=pool, cases=cases)), flush=True)
+
+
+def execute_memory(torch, library):
+    from tilemega.serving.plan import FORWARD
+    assert library.info.phase == FORWARD and library.info.batch_lo == 2
+    source = torch.randn(2, 7, 64, device='cuda').bfloat16()
+    reference = source.float()
+    buffers = {'reuse_input': source}
+    for index in range(7):
+        width = 32 if index % 3 == 1 else 64
+        weight = (torch.randn(width, reference.shape[-1], device='cuda') * .125).bfloat16()
+        buffers[f'reuse_weight{index}'] = weight
+        reference = torch.relu(torch.nn.functional.linear(reference, weight.float())).bfloat16().float()
+    output = torch.empty_like(source)
+    buffers['reuse_output'] = output
+    cases, first = [], None
+    with library.create(2, {name: value.data_ptr() for name, value in buffers.items()}, 0) as plan:
+        plan.set_steps([0])
+        for epoch in range(1):
+            for mode in (1, 2):
+                output.fill_(float('nan'))
+                plan.launch(0, mode, torch.cuda.current_stream().cuda_stream)
+                torch.cuda.synchronize()
+                error = (output.float() - reference).abs()
+                assert torch.isfinite(output).all() and torch.all(error <= .016 + .016 * reference.abs())
+                assert first is None or torch.equal(output, first)
+                if first is None:
+                    first = output.clone()
+                cases.append(dict(epoch=epoch, mode=mode, max_error=float(error.max())))
+    print(json.dumps(dict(event='generated_memory_correctness', passed=True, cases=cases)), flush=True)
 
 
 def execute_deferred_ln(torch, library):
@@ -88,7 +120,7 @@ def execute_deferred_ln(torch, library):
     cases=[];first=None
     with library.create(2,{name:value.data_ptr() for name,value in buffers.items()},0) as plan:
         plan.set_steps([0])
-        for epoch in range(3):
+        for epoch in range(1):
             for mode in (1,2):
                 output.fill_(float('nan'));plan.launch(0,mode,torch.cuda.current_stream().cuda_stream)
                 torch.cuda.synchronize();error=(output.float()-reference).abs()
@@ -116,7 +148,7 @@ def execute_sides(torch, library):
     cases = []
     with library.create(2, {name:value.data_ptr() for name,value in buffers.items()}, 0) as plan:
         plan.set_steps([0]); first = None
-        for epoch in range(3):
+        for epoch in range(1):
             for mode in (1, 2):
                 for value in buffers.values():
                     if value is output or value is stats or value is partials or value is pooled:
@@ -184,7 +216,7 @@ def execute_epilogue(torch, library):
     cases = []
     with library.create(2, {name:value.data_ptr() for name,value in buffers.items()}, 0) as plan:
         plan.set_steps([0]); first = None
-        for epoch in range(3):
+        for epoch in range(1):
             for mode in (1, 2):
                 output.fill_(-12345);residual.fill_(-12345)
                 plan.launch(0, mode, torch.cuda.current_stream().cuda_stream)
@@ -224,7 +256,7 @@ def execute_encoder(torch, library):
     with library.create(2, {name: value.data_ptr() for name, value in buffers.items()}, 0) as plan:
         plan.set_steps([0])
         first = None
-        for epoch in range(3):
+        for epoch in range(1):
             for mode in (1, 2):
                 output.fill_(float('nan'))
                 plan.launch(0, mode, torch.cuda.current_stream().cuda_stream)
@@ -258,7 +290,7 @@ def execute_global(torch, library):
     with library.create(2, {name: value.data_ptr() for name, value in buffers.items()}, 0) as plan:
         plan.set_steps([0])
         first = None
-        for epoch in range(3):
+        for epoch in range(1):
             for mode in (1, 2):
                 output.fill_(float('nan'))
                 plan.launch(0, mode, torch.cuda.current_stream().cuda_stream)
@@ -309,7 +341,7 @@ def execute_depthwise(torch, library, source):
     with library.create(2, {name: value.data_ptr() for name, value in buffers.items()}, 0) as plan:
         plan.set_steps([0])
         first = first_partials = None
-        for epoch in range(3):
+        for epoch in range(1):
             for mode in (1, 2):
                 output_storage.fill_(-12345)
                 partials.fill_(float('nan'))
@@ -385,14 +417,17 @@ def build(root, arch):
     paged='#define TILEMEGA_PAGED 1' in text
     if paged:implementations+=['PagedGemmTaskBody','PageStream']
     implementations=list(dict.fromkeys(implementations))
+    phase='forward' if re.search(r'^#define TILEMEGA_SERVING_PHASE 2$',text,re.M) else (
+        'decode' if re.search(r'^#define TILEMEGA_SERVING_SEQ 1$',text,re.M) else 'prefill')
     identity = dict(schema='tilemega.dm1.native-test.identity.v1', evidence='verified',
-        source=preparation, scope='CG-generated MoE region' if moe else 'CG-generated DNN', cu_sha256=sha(source),
+        source=preparation, scope=('CG-generated MoE region' if phase=='forward' else
+        'CG-generated complete MoE decoder') if moe else 'CG-generated DNN', cu_sha256=sha(source),
         binary_sha256=sha(binary), command=command, target_arch=f'sm_{arch}',
         compiler=dict(path=command[0], sha256=sha(command[0]),
             version=subprocess.check_output([command[0], '--version'], text=True)),
         complete_macros=dict(path=str(macros/'capture.json'), sha256=sha(macros/'capture.json')),
         implementations=implementations,
-        resources=resources(log.read_text()), execution=dict(phase='forward', modes=['L1', 'L2'],
+        resources=resources(log.read_text()), execution=dict(phase=phase, modes=['L1', 'L2'],
             executor='pages' if paged else 'nonpaged'))
     identity['artifact_id'] = hashlib.sha256(json.dumps(identity, sort_keys=True,
         separators=(',', ':')).encode()).hexdigest()

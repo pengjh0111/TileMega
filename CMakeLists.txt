@@ -392,6 +392,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/dnn_epilogue_semantics_test.cpp
     test/unit/dnn_model_plan_test.cpp
     test/unit/dnn_deferred_ln_test.cpp
+    test/unit/dnn_memory_codegen_test.cpp
     test/unit/moe_region_pattern_test.cpp
     test/unit/moe_region_plan_test.cpp
     test/unit/moe_semantic_lifting_test.cpp
@@ -888,6 +889,10 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME task_arithmetic_domain COMMAND tilemega-unit task_arithmetic_domain)
   add_test(NAME dm_store_geometry COMMAND tilemega-unit dm_store_geometry)
   add_test(NAME dm_exact_fusion COMMAND tilemega-unit dm_exact_fusion)
+  add_test(NAME dnn_deferred_ln COMMAND tilemega-unit dnn_deferred_ln)
+  file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/test-fixtures")
+  add_test(NAME dnn_memory_codegen COMMAND tilemega-unit dnn_memory_codegen
+    --emit "${CMAKE_BINARY_DIR}/test-fixtures/dnn-memory.cu")
   add_test(NAME dm_fused_dependencies COMMAND tilemega-unit dm_fused_dependencies)
   add_test(NAME dm_dram_images COMMAND tilemega-unit dm_dram_images)
   add_test(NAME binding_request_traffic COMMAND tilemega-unit binding_request_traffic)

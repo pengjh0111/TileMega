@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import re
 
 
 if __name__ == '__main__':
@@ -15,13 +16,21 @@ if __name__ == '__main__':
     parser.add_argument('--model-export', type=Path)
     parser.add_argument('--bridge', type=Path)
     parser.add_argument('--batch', type=int, default=2)
+    parser.add_argument('--architectures', type=int, nargs='+', default=[89],
+        choices=[80,89,90,100,120])
+    parser.add_argument('--processes', type=int, default=1)
+    parser.add_argument('--sanitizers', nargs='*', default=[], choices=['memcheck','racecheck'])
     parser.add_argument('--diagnostic',action='store_true',
         help='separate sm89 intermediate-copy diagnostic; not a correctness gate')
     parser.add_argument('--input-tensors',type=Path)
     parser.add_argument('--moe-bridge',type=Path)
     parser.add_argument('--moe-checkpoint',type=Path)
     parser.add_argument('--moe-hidden',type=Path)
+    parser.add_argument('--moe-decoder-config',type=Path,
+        help='seeded complete decoder fixture; ineligible for the real-weight G-MOE gate')
     args = parser.parse_args()
+    if args.processes<1:
+        parser.error('--processes must be positive')
     if bool(args.model_export)!=bool(args.bridge) or not 1<=args.batch<=64:
         parser.error('model checks require both export and bridge, with batch in [1,64]')
     if args.diagnostic and not args.model_export:
@@ -32,6 +41,8 @@ if __name__ == '__main__':
         parser.error('MoE region validation uses its own bridge and inputs')
     if bool(args.moe_checkpoint)!=bool(args.moe_hidden) or (args.moe_checkpoint and not args.moe_bridge):
         parser.error('real MoE checks require --moe-bridge, --moe-checkpoint and --moe-hidden')
+    if args.moe_decoder_config and (args.moe_bridge or args.model_export or args.diagnostic):
+        parser.error('complete decoder fixtures use their own config and checker')
     repo = Path(__file__).resolve().parents[3]
     root = args.out.resolve()
     root.mkdir(parents=True, exist_ok=False)
@@ -40,9 +51,14 @@ if __name__ == '__main__':
         shutil.copy2(Path(__file__).with_name(name), root/'framework'/name)
     shutil.copy2(Path(__file__).with_name('check_generated_dnn.py'), root/'check.py')
     shutil.copy2(args.source, root/'generated.cu')
+    if args.moe_decoder_config:
+        shutil.copy2(args.moe_decoder_config,root/'decoder_config.json')
+        text=(root/'generated.cu').read_text()
+        if re.search(r'^#define TILEMEGA_SERVING_SEQ 1$',text,re.M):
+            (root/'generated.cu').write_text('#define TILEMEGA_SERVING_PAST_LO 3\n#define TILEMEGA_SERVING_PAST_HI 3\n'+text)
     if args.input_tensors:
         shutil.copy2(args.input_tensors,root/'inputs.safetensors')
-    if args.diagnostic or args.moe_bridge:
+    if args.diagnostic or args.moe_bridge or args.moe_decoder_config:
         with (root/'generated.cu').open('a') as stream:
             stream.write('''
 // Test-only accessor, appended to a separate diagnostic artifact.
@@ -71,10 +87,11 @@ extern "C" void* tm_dm_debug_buffer(void* handle, unsigned index,
     for name in ['tilemega/__init__.py', 'tilemega/serving/__init__.py', 'tilemega/serving/plan.py']:
         (root/'python'/name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(repo/'python'/name, root/'python'/name)
-    if args.model_export or args.moe_bridge:
-        shutil.copytree(repo/'python/tilemega',root/'python/tilemega',dirs_exist_ok=True,
-            ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
-        shutil.copy2(args.moe_bridge or args.bridge,root/'bridge.json')
+    shutil.copytree(repo/'python/tilemega',root/'python/tilemega',dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
+    if args.model_export or args.moe_bridge or args.moe_decoder_config:
+        if args.moe_bridge or args.bridge:
+            shutil.copy2(args.moe_bridge or args.bridge,root/'bridge.json')
     shutil.copytree(repo/'include', root/'include')
     for name in ['include', 'tools/util/include']:
         shutil.copytree(repo/'third_party/cutlass'/name, root/'third_party/cutlass'/name)
@@ -99,7 +116,7 @@ extern "C" void* tm_dm_debug_buffer(void* handle, unsigned index,
         steps.append(dict(name=name, command=['flock', '/root/r14_work/gpu.lock',
             'timeout', str(seconds), *command], cwd=str(repo), gpu=False,
             after=after, priority=priority, timeout_s=seconds+600))
-    for arch in ([89] if args.diagnostic else [89, 80, 90, 100, 120]):
+    for arch in ([89] if args.diagnostic else args.architectures):
         step(f'build_sm_{arch}', ['python3', str(root/'check.py'), '--root', str(root),
             '--arch', str(arch)], [], 0 if arch==89 else 200, 1800)
     command = ['/root/dm1_work/venv-gpu/bin/python', str(root/'check.py'), '--root', str(root)]
@@ -114,13 +131,17 @@ extern "C" void* tm_dm_debug_buffer(void* handle, unsigned index,
             '--bridge',str(root/'bridge.json'),'--out',str(root/'correctness.json')]
         if args.moe_checkpoint:
             command+=['--checkpoint',str(args.moe_checkpoint.resolve()),'--hidden',str(args.moe_hidden.resolve())]
+    if args.moe_decoder_config:
+        command=['env','PYTHONPATH='+str(root/'python'),'/root/dm1_work/venv-gpu/bin/python',
+            '-m','tilemega.moe.check_decoder','--library',str(root/'generated-sm_89.so'),
+            '--config',str(root/'decoder_config.json'),'--out',str(root/'correctness.json')]
     if args.diagnostic:
         command += ['--diagnostics',str(root/'intermediates.json')]
     if args.input_tensors:
         command += ['--input-tensors',str(root/'inputs.safetensors')]
-    for process in range(1 if args.diagnostic else 50):
+    for process in range(1 if args.diagnostic else args.processes):
         step(f'check_{process:02}', command, ['build_sm_89' if process==0 else 'check_00'], 10, 300)
-    for tool in ([] if args.diagnostic else ['memcheck', 'racecheck']):
+    for tool in ([] if args.diagnostic else args.sanitizers):
         step(tool, ['/usr/local/cuda/bin/compute-sanitizer', '--tool', tool,
             '--target-processes', 'all', '--error-exitcode', '86', *command], ['build_sm_89'], 2, 1800)
     (root/'queue').mkdir()
