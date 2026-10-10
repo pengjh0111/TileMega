@@ -182,6 +182,15 @@ struct TileStorageSelection {
   ClosedForm segment_extent = ClosedForm::Constant(1);
 };
 
+// Sequential arithmetic on a private tile, without a global tensor store.
+// Its output image determines recomputation at each runtime task coordinate.
+struct PrivateComputePhase {
+  std::string arithmetic;
+  TensorSpace output;
+  IndexingMap map;
+  ClosedForm reduction = ClosedForm::Constant(1);
+};
+
 /// One structured operator. Everything about it is g-independent.
 struct SemanticOp {
   std::string name;
@@ -203,6 +212,7 @@ struct SemanticOp {
   std::vector<ElementWrite> additional_writes;
   std::vector<TileStoragePartition> tile_storage;
   std::vector<TileStorageSelection> tile_storage_reads;
+  std::vector<PrivateComputePhase> compute_prologue;
   ReductionSemantics reduction;
   /// Set when the op fell through every declarative pattern and was given the
   /// conservative generic semantics (identity result map, full-range reads).

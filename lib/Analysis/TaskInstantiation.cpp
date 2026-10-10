@@ -334,6 +334,7 @@ OperatorGraph Instantiate(SemanticGraph const& semantics, Granularity const& g) 
       if(indexed)ValidateTaskReductionIndex(contribution);
       result.nodes.push_back(std::move(contribution));
       SemanticOp combine_sem = op;
+      combine_sem.compute_prologue.clear();
       combine_sem.name = op.reduction.combiner; combine_sem.kind = OperatorKind::kReduction;
       combine_sem.arithmetic = op.reduction.partial_values==2?
           (op.arithmetic=="swiglu_gemm"?"swiglu_combine":"simple_gate_combine"):"sum";

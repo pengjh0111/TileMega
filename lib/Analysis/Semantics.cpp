@@ -230,6 +230,9 @@ std::string SemanticOp::Serialize() const {
   for(auto const& read:tile_storage_reads)
     out<<"\n  tile_storage_read "<<read.tensor<<" reduction="<<read.reduction_dim
        <<" segment="<<read.segment_dim<<" extent="<<read.segment_extent.ToString();
+  for(auto const& phase:compute_prologue)
+    out<<"\n  private_compute "<<phase.arithmetic<<' '<<SerializeTensor(phase.output)
+       <<' '<<phase.map.Serialize()<<" reduction="<<phase.reduction.ToString();
   out << "\n  domain";
   for (auto const& dim : domain) {
     out << " " << dim.name << ":" << ToString(dim.type) << "["

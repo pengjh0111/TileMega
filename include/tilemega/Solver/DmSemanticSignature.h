@@ -32,6 +32,7 @@ inline std::string DmSemanticSignature(analysis::SemanticOp op) {
   op.name="op";tensor(op.result);indexing(op.result_map);effect(op.result_effect);
   if(op.exact_task_access) {tensor(op.task_space);indexing(op.task_map);}
   for(auto& dim:op.domain)dim.binding_source=rename(tensors,dim.binding_source,"tensor");
+  for(auto& phase:op.compute_prologue) {tensor(phase.output);indexing(phase.map);}
   for(auto& operand:op.operands) {
     operand.producer=rename(producers,operand.producer,"producer");
     tensor(operand.tensor);indexing(operand.map);effect(operand.effect);

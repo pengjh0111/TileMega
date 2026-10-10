@@ -174,6 +174,11 @@ Value Encode(SemanticOp const& op) {
     encoded.emplace_back("task_space", EncodeTensor(op.task_space));
     encoded.emplace_back("task_map", EncodeMap(op.task_map));
   }
+  if(!op.compute_prologue.empty())
+    encoded.emplace_back("compute_prologue",EncodeArray(op.compute_prologue,[](auto const& phase) {
+      return Value(Object{{"arithmetic",phase.arithmetic},{"output",EncodeTensor(phase.output)},
+          {"map",EncodeMap(phase.map)},{"reduction",phase.reduction.ToString()}});
+    }));
   if(!op.domain_nonnegative.empty())
     encoded.emplace_back("domain_nonnegative",EncodeArray(op.domain_nonnegative,EncodeIndex));
   return encoded;
@@ -230,6 +235,15 @@ SemanticOp DecodeSemanticOp(std::string const& payload) {
   }
   op.result=DecodeTensor(value.At("result")); op.result_map=DecodeMap(value.At("result_map"));
   op.result_effect=DecodeEffect(value.At("result_effect"));
+  if(auto const* phases=value.Find("compute_prologue"))
+    for(auto const& phase:phases->AsArray("compute_prologue")) {
+      PrivateComputePhase parsed{String(phase,"arithmetic"),DecodeTensor(phase.At("output")),
+          DecodeMap(phase.At("map")),Form(phase,"reduction")};
+      if(parsed.arithmetic.empty() || parsed.map.results.size()!=parsed.output.axes.size() ||
+          (parsed.reduction.IsConstant() && parsed.reduction.Eval({},{})<=0))
+        throw std::invalid_argument("invalid private arithmetic phase");
+      op.compute_prologue.push_back(std::move(parsed));
+    }
   for (auto const& operand:value.At("operands").AsArray("operands"))
     op.operands.push_back({String(operand,"producer"),DecodeTensor(operand.At("tensor")),
                           DecodeMap(operand.At("map")),DecodeEffect(operand.At("effect"))});
@@ -299,6 +313,9 @@ SemanticOp DecodeSemanticOp(std::string const& payload) {
       if(!names.count(dim))throw std::invalid_argument("logical request names an unknown iteration axis");
   };
   check(op.result_map,op.result);
+  if(!op.compute_prologue.empty() && !op.exact_task_access)
+    throw std::invalid_argument("private arithmetic requires exact task ownership");
+  for(auto const& phase:op.compute_prologue)check(phase.map,phase.output);
   if (op.exact_task_access) check(op.task_map, op.task_space);
   for (auto const& operand:op.operands) check(operand.map,operand.tensor);
   if (!op.epilogue_operands.empty() && (!op.exact_task_access || !op.element_reads.empty()))
