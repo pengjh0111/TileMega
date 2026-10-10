@@ -10,6 +10,7 @@ struct MemoryAlias {
 };
 struct MemoryPlan {
   std::uint64_t arena_bytes = 0, live_peak_bytes = 0;
+  std::uint64_t retained_internal_bytes = 0, total_internal_bytes = 0;
   bool fits_l2_budget = false;
   std::vector<MemoryAlias> aliases;
   std::vector<analysis::StorageHazard> hazards;

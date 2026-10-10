@@ -43,6 +43,7 @@ int TestMemoryPlan(int,char**) {
   for(auto const* policy:{"greedy","l2"}) {
     auto memory=solver::PlanBufferReuse(plan,graph,{},policy,512);
     assert(memory.arena_bytes==512 && memory.live_peak_bytes==192 && memory.fits_l2_budget);
+    assert(!memory.retained_internal_bytes && memory.total_internal_bytes==512);
     assert(memory.aliases.size()==3 && memory.aliases[0].buffer==0 && memory.aliases[2].buffer==2);
     assert(memory.aliases[0].offset==memory.aliases[2].offset &&
            memory.aliases[1].offset!=memory.aliases[0].offset);
@@ -68,6 +69,19 @@ int TestMemoryPlan(int,char**) {
   auto output=plan;output.outputs.push_back({0,{}});
   auto observed=solver::PlanBufferReuse(output,graph,{},"greedy");
   for(auto const& alias:observed.aliases)assert(alias.buffer!=0);
+  auto with_scratch=plan;frontend::PlanBuffer scratch;scratch.name="unproved_scratch";
+  scratch.constant=384;with_scratch.buffers.push_back(scratch);
+  auto accounted=solver::PlanBufferReuse(with_scratch,graph,{},"l2",1024);
+  assert(accounted.arena_bytes==512 && accounted.retained_internal_bytes==768 &&
+      accounted.total_internal_bytes==1280 && accounted.live_peak_bytes==960 &&
+      !accounted.fits_l2_budget);
+  auto at_limit=solver::PlanBufferReuse(with_scratch,graph,{},"l2",1280);
+  assert(at_limit.fits_l2_budget && at_limit.aliases.size()==accounted.aliases.size());
+  with_scratch.buffers.back().constant=0;with_scratch.buffers.back().per_batch=384;
+  ParamBinding batch;batch.Bind("B",2);
+  auto batched=solver::PlanBufferReuse(with_scratch,graph,batch,"l2",2048);
+  assert(batched.retained_internal_bytes==1536 && batched.total_internal_bytes==2048 &&
+      batched.fits_l2_budget);
   auto fill=plan;fill.buffers[2].layout.fill=codegen::DmFill::kNegativeInfinity;
   assert(solver::PlanBufferReuse(fill,graph,{},"greedy").arena_bytes==768);
   auto nonexact=graph;nonexact.nodes[1].element_access.reset();

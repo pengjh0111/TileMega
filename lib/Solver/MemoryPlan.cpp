@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <limits>
 #include <map>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 
@@ -25,6 +26,37 @@ std::uint64_t Align(std::uint64_t bytes) {
   if(bytes>std::numeric_limits<std::uint64_t>::max()-255)
     throw std::overflow_error("memory arena size overflow");
   return (bytes+255)/256*256;
+}
+std::uint64_t AddBytes(std::uint64_t a,std::uint64_t b) {
+  if(a>std::numeric_limits<std::uint64_t>::max()-b)
+    throw std::overflow_error("memory allocation size overflow");
+  return a+b;
+}
+std::uint64_t AllocationBytes(frontend::PlanBuffer const& buffer,
+    frontend::ModelPlan const& plan,ParamBinding const& known) {
+  auto const& layout=buffer.layout;
+  std::uint64_t elements=0;
+  if(layout.rank) {
+    if(layout.physical[0] && layout.strides[0]>
+        std::numeric_limits<std::uint64_t>::max()/layout.physical[0])
+      throw std::overflow_error("memory allocation extent overflow");
+    elements=layout.physical[0]*layout.strides[0];
+  }else {
+    if(buffer.per_past || buffer.per_total)
+      throw std::invalid_argument("stateless memory planner found a state allocation");
+    elements=AddBytes(buffer.constant,std::uint64_t(buffer.per_seq)*plan.serving_seq);
+    if(buffer.per_batch) {
+      if(!known.Contains("B") || known.At("B")<=0)
+        throw std::invalid_argument("memory allocation needs the bound DNN batch");
+      auto batch=std::uint64_t(known.At("B"));
+      if(batch>std::numeric_limits<std::uint64_t>::max()/buffer.per_batch)
+        throw std::overflow_error("memory batch allocation overflow");
+      elements=AddBytes(elements,batch*buffer.per_batch);
+    }
+  }
+  if(elements>std::numeric_limits<std::uint64_t>::max()/Width(buffer))
+    throw std::overflow_error("memory allocation byte extent overflow");
+  return elements*Width(buffer);
 }
 bool Compatible(frontend::PlanBuffer const& a,frontend::PlanBuffer const& b) {
   if(a.dtype!=b.dtype || a.layout.fill!=b.layout.fill)return false;
@@ -69,9 +101,12 @@ MemoryPlan PlanBufferReuse(frontend::ModelPlan const& plan,OperatorGraph const& 
     throw std::invalid_argument("DNN buffer reuse requires a stateless DNN plan");
   if(policy=="l2" && !budget)throw std::invalid_argument("L2 reuse needs a target-derived budget");
   std::map<std::string,Lifetime> lives;
+  std::map<unsigned,std::uint64_t> internal_allocations;
   // Every internal allocation has already been bound by storage materialization.
   for(unsigned id=0;id<plan.buffers.size();++id) {
     auto const& b=plan.buffers[id];
+    if(b.role=="internal" && b.source==frontend::PlanBuffer::Source::kZero)
+      internal_allocations.emplace(id,AllocationBytes(b,plan,known));
     if(b.role!="internal" || b.source!=frontend::PlanBuffer::Source::kZero ||
         !b.pack_json.empty() || !b.file.empty())continue;
     if(std::any_of(plan.outputs.begin(),plan.outputs.end(),[&](auto const& output) {
@@ -125,9 +160,16 @@ MemoryPlan PlanBufferReuse(frontend::ModelPlan const& plan,OperatorGraph const& 
   }
   std::sort(ordered.begin(),ordered.end(),[](auto* a,auto* b) {
     return a->first!=b->first?a->first<b->first:a->bytes>b->bytes;});
+  std::set<unsigned> aliased;
+  for(auto* life:ordered)aliased.insert(life->buffer);
+  // Unproved layouts, retained outputs and multiple/data-dependent writers
+  // still allocate storage. Conservatively keep them live throughout the plan.
+  for(auto const& [id,bytes]:internal_allocations)if(!aliased.count(id))
+    result.retained_internal_bytes=AddBytes(result.retained_internal_bytes,Align(bytes));
   for(unsigned stage=0;stage<graph.nodes.size();++stage) {
-    std::uint64_t active=0;
-    for(auto* life:ordered)if(life->first<=stage && stage<=life->last)active+=life->bytes;
+    std::uint64_t active=result.retained_internal_bytes;
+    for(auto* life:ordered)if(life->first<=stage && stage<=life->last)
+      active=AddBytes(active,life->bytes);
     result.live_peak_bytes=std::max(result.live_peak_bytes,active);
   }
   struct Slot {
@@ -175,7 +217,9 @@ MemoryPlan PlanBufferReuse(frontend::ModelPlan const& plan,OperatorGraph const& 
     selected->history.push_back(life);
     result.aliases.push_back({life->buffer,selected->offset,life->bytes});
   }
-  result.fits_l2_budget=budget && result.arena_bytes<=budget;
+  result.total_internal_bytes=AddBytes(result.arena_bytes,result.retained_internal_bytes);
+  result.live_peak_bytes=std::max(result.live_peak_bytes,result.retained_internal_bytes);
+  result.fits_l2_budget=budget && result.total_internal_bytes<=budget;
   return result;
 }
 } // namespace tilemega::solver

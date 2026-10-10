@@ -1126,6 +1126,8 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     for(auto const& hazard:memory.hazards)derived.push_back(hazard.coupling);
     module->setAttr("tilemega.model_plan",modelPlanAttr(builder,plan,lifted.written));
     module->setAttr("tilemega.memory_live_peak_bytes",builder.getI64IntegerAttr(memory.live_peak_bytes));
+    module->setAttr("tilemega.memory_retained_internal_bytes",builder.getI64IntegerAttr(memory.retained_internal_bytes));
+    module->setAttr("tilemega.memory_total_internal_bytes",builder.getI64IntegerAttr(memory.total_internal_bytes));
     module->setAttr("tilemega.memory_fits_l2_budget",builder.getBoolAttr(memory.fits_l2_budget));
     module->setAttr("tilemega.memory_hazard_count",builder.getI64IntegerAttr(memory.hazards.size()));
   }
