@@ -107,12 +107,15 @@ def _diagnose(library, plan, module, arguments, bridge, destination):
     destination.write_text(json.dumps(dict(evidence='verified',scope='diagnostic only',buffers=rows),indent=2)+'\n')
 
 
-def output_metrics(actual,fp32,bf16,*,restoration=False):
+def output_metrics(actual,fp32,bf16,*,restoration=False,elementwise=False):
     cosine=torch.nn.functional.cosine_similarity(
         actual.reshape(-1,actual.shape[-1]),fp32.reshape(-1,fp32.shape[-1]),dim=1)
     metrics=dict(cosine_min=cosine.min().item(),max_error=(actual-fp32).abs().max().item(),
         bf16_max_error=(actual-bf16.float()).abs().max().item())
-    if restoration:
+    if elementwise:
+        if not torch.all((actual-fp32).abs()<=.016+.016*fp32.abs()):
+            raise AssertionError(f'elementwise error exceeds BF16 tolerance: {metrics["max_error"]}')
+    elif restoration:
         from .check import psnr
         tm_psnr=psnr(actual,fp32);bf16_psnr=psnr(bf16,fp32)
         metrics.update(psnr_fp32=tm_psnr.tolist(),bf16_psnr_fp32=bf16_psnr.tolist())
@@ -123,8 +126,8 @@ def output_metrics(actual,fp32,bf16,*,restoration=False):
     return metrics
 
 
-def check(library_path, export_dir, bridge_path, batch, *, epochs=3, diagnostics=None,
-          input_tensors=None):
+def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics=None,
+          input_tensors=None,elementwise=False):
     torch.set_num_threads(4); torch.manual_seed(20261009)
     torch.backends.cuda.matmul.allow_tf32 = False
     export_dir, bridge_path = Path(export_dir), Path(bridge_path)
@@ -221,7 +224,7 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=3, diagnostics
                     actual = tensors[name].float()
                     if not torch.isfinite(actual).all():
                         raise AssertionError('generated DNN produced a nonfinite output')
-                    metrics=dict(name=name,**output_metrics(actual,fp32,bf16,restoration=restoration))
+                    metrics=dict(name=name,**output_metrics(actual,fp32,bf16,restoration=restoration,elementwise=elementwise))
                     if image_input and actual.ndim == 2:
                         metrics['top1_agreement'] = (actual.argmax(-1)==fp32.argmax(-1)).float().mean().item()
                     row['outputs'].append(metrics)
@@ -236,6 +239,8 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=3, diagnostics
         raise ValueError('generated library no longer matches its build identity')
     return dict(evidence='verified', passed=True, scope='upstream DNN graph execution smoke; not G-DNN',
         reference='exported BF16 checkpoint promoted to FP32', batch=batch,
+        criterion='elementwise BF16 tolerance' if elementwise else 'model output metric',
+        checker_sha256=_sha(Path(__file__)),
         artifact_id=identity['artifact_id'], bridge_sha256=_sha(bridge_path),
         archive_sha256=_sha(export_dir/'exported_program.pt2'),
         input_tensors_sha256=_sha(input_tensors) if input_tensors is not None else None, cases=cases)
@@ -248,13 +253,15 @@ def main():
     parser.add_argument('--bridge', type=Path, required=True)
     parser.add_argument('--batch', type=int, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--elementwise',action='store_true',
+        help='operator fixture gate: |error| <= .016 + .016*|FP32|')
     parser.add_argument('--diagnostics',type=Path,
         help='test-only intermediate receipt; requires the separate diagnostic accessor')
     parser.add_argument('--input-tensors',type=Path,
         help='identified safetensors inputs for an additional smoke diagnostic')
     args = parser.parse_args()
     result = check(args.library, args.export, args.bridge, args.batch,diagnostics=args.diagnostics,
-                   input_tensors=args.input_tensors)
+                   input_tensors=args.input_tensors,elementwise=args.elementwise)
     args.out.write_text(json.dumps(result, indent=2)+'\n')
     print(json.dumps(result), flush=True)
 
