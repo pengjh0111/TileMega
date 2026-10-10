@@ -77,6 +77,9 @@ def parse_resources(text):
 
 def bind_execution(identity, executor, loop=False, pdl=False):
     if executor not in ('L1','L2'):raise ValueError('execution identity needs an explicit executor')
+    if identity.get('schema')=='tilemega.dm1.identity.v1':
+        identity=dict(identity,plan=identity['execution'],
+                      resources={k:dict(v,name=k) for k,v in identity['kernels'].items()})
     pg=identity['plan'].get('pg')
     if loop:
         if pg=='pages' and executor=='L2':needle='tilemega_loop_kernel'
@@ -95,6 +98,9 @@ def bind_execution(identity, executor, loop=False, pdl=False):
 def verify(so):
     so=Path(so);path=Path(str(so)+'.identity.json')
     identity=json.loads(path.read_text())
+    if identity.get('schema')=='tilemega.dm1.identity.v1':
+        from .dm_identity import verify as verify_dm
+        return verify_dm(so)
     payload={k:v for k,v in identity.items() if k!='artifact_id'}
     if digest(payload)!=identity['artifact_id']:raise ValueError('identity metadata digest mismatch')
     for suffix,key in [('', 'binary_sha256'),('.cu','generated_source_sha256'),

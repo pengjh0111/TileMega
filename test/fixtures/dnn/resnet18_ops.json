@@ -1,0 +1,784 @@
+{
+  "model": "resnet18",
+  "upstream": "torchvision/resnet18/IMAGENET1K_V1",
+  "versions": {
+    "torch": "2.14.1+cpu",
+    "torchvision": "0.29.1+cpu",
+    "timm": "1.0.30",
+    "transformers": "5.19.0"
+  },
+  "input_dtype": "bf16 images / int64 ids",
+  "weight_dtype": "bf16",
+  "dynamic_batch": [
+    1,
+    64
+  ],
+  "seq": 1,
+  "before": {
+    "aten.adaptive_avg_pool2d.default": 1,
+    "aten.add_.Tensor": 8,
+    "aten.batch_norm.default": 20,
+    "aten.conv2d.default": 20,
+    "aten.flatten.using_ints": 1,
+    "aten.linear.default": 1,
+    "aten.max_pool2d.default": 1,
+    "aten.relu_.default": 17
+  },
+  "core_aten": {
+    "<built-in function getitem>": 21,
+    "aten._native_batch_norm_legit_no_training.default": 20,
+    "aten.add.Tensor": 8,
+    "aten.addmm.default": 1,
+    "aten.convolution.default": 20,
+    "aten.max_pool2d_with_indices.default": 1,
+    "aten.mean.dim": 1,
+    "aten.permute.default": 1,
+    "aten.relu.default": 17,
+    "aten.sym_size.int": 1,
+    "aten.view.default": 1
+  },
+  "conv_geometries": [
+    {
+      "node": "conv2d",
+      "input_shape": [
+        "s77",
+        "3",
+        "224",
+        "224"
+      ],
+      "output_shape": [
+        "s77",
+        "64",
+        "112",
+        "112"
+      ],
+      "weight_shape": [
+        "64",
+        "3",
+        "7",
+        "7"
+      ],
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        3,
+        3
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 12544,
+      "n": 64,
+      "k": 147
+    },
+    {
+      "node": "conv2d_1",
+      "input_shape": [
+        "s77",
+        "64",
+        "56",
+        "56"
+      ],
+      "output_shape": [
+        "s77",
+        "64",
+        "56",
+        "56"
+      ],
+      "weight_shape": [
+        "64",
+        "64",
+        "3",
+        "3"
+      ],
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 3136,
+      "n": 64,
+      "k": 576
+    },
+    {
+      "node": "conv2d_2",
+      "input_shape": [
+        "s77",
+        "64",
+        "56",
+        "56"
+      ],
+      "output_shape": [
+        "s77",
+        "64",
+        "56",
+        "56"
+      ],
+      "weight_shape": [
+        "64",
+        "64",
+        "3",
+        "3"
+      ],
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 3136,
+      "n": 64,
+      "k": 576
+    },
+    {
+      "node": "conv2d_3",
+      "input_shape": [
+        "s77",
+        "64",
+        "56",
+        "56"
+      ],
+      "output_shape": [
+        "s77",
+        "64",
+        "56",
+        "56"
+      ],
+      "weight_shape": [
+        "64",
+        "64",
+        "3",
+        "3"
+      ],
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 3136,
+      "n": 64,
+      "k": 576
+    },
+    {
+      "node": "conv2d_4",
+      "input_shape": [
+        "s77",
+        "64",
+        "56",
+        "56"
+      ],
+      "output_shape": [
+        "s77",
+        "64",
+        "56",
+        "56"
+      ],
+      "weight_shape": [
+        "64",
+        "64",
+        "3",
+        "3"
+      ],
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 3136,
+      "n": 64,
+      "k": 576
+    },
+    {
+      "node": "conv2d_5",
+      "input_shape": [
+        "s77",
+        "64",
+        "56",
+        "56"
+      ],
+      "output_shape": [
+        "s77",
+        "128",
+        "28",
+        "28"
+      ],
+      "weight_shape": [
+        "128",
+        "64",
+        "3",
+        "3"
+      ],
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 784,
+      "n": 128,
+      "k": 576
+    },
+    {
+      "node": "conv2d_6",
+      "input_shape": [
+        "s77",
+        "128",
+        "28",
+        "28"
+      ],
+      "output_shape": [
+        "s77",
+        "128",
+        "28",
+        "28"
+      ],
+      "weight_shape": [
+        "128",
+        "128",
+        "3",
+        "3"
+      ],
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 784,
+      "n": 128,
+      "k": 1152
+    },
+    {
+      "node": "conv2d_7",
+      "input_shape": [
+        "s77",
+        "64",
+        "56",
+        "56"
+      ],
+      "output_shape": [
+        "s77",
+        "128",
+        "28",
+        "28"
+      ],
+      "weight_shape": [
+        "128",
+        "64",
+        "1",
+        "1"
+      ],
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 784,
+      "n": 128,
+      "k": 64
+    },
+    {
+      "node": "conv2d_8",
+      "input_shape": [
+        "s77",
+        "128",
+        "28",
+        "28"
+      ],
+      "output_shape": [
+        "s77",
+        "128",
+        "28",
+        "28"
+      ],
+      "weight_shape": [
+        "128",
+        "128",
+        "3",
+        "3"
+      ],
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 784,
+      "n": 128,
+      "k": 1152
+    },
+    {
+      "node": "conv2d_9",
+      "input_shape": [
+        "s77",
+        "128",
+        "28",
+        "28"
+      ],
+      "output_shape": [
+        "s77",
+        "128",
+        "28",
+        "28"
+      ],
+      "weight_shape": [
+        "128",
+        "128",
+        "3",
+        "3"
+      ],
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 784,
+      "n": 128,
+      "k": 1152
+    },
+    {
+      "node": "conv2d_10",
+      "input_shape": [
+        "s77",
+        "128",
+        "28",
+        "28"
+      ],
+      "output_shape": [
+        "s77",
+        "256",
+        "14",
+        "14"
+      ],
+      "weight_shape": [
+        "256",
+        "128",
+        "3",
+        "3"
+      ],
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 196,
+      "n": 256,
+      "k": 1152
+    },
+    {
+      "node": "conv2d_11",
+      "input_shape": [
+        "s77",
+        "256",
+        "14",
+        "14"
+      ],
+      "output_shape": [
+        "s77",
+        "256",
+        "14",
+        "14"
+      ],
+      "weight_shape": [
+        "256",
+        "256",
+        "3",
+        "3"
+      ],
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 196,
+      "n": 256,
+      "k": 2304
+    },
+    {
+      "node": "conv2d_12",
+      "input_shape": [
+        "s77",
+        "128",
+        "28",
+        "28"
+      ],
+      "output_shape": [
+        "s77",
+        "256",
+        "14",
+        "14"
+      ],
+      "weight_shape": [
+        "256",
+        "128",
+        "1",
+        "1"
+      ],
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 196,
+      "n": 256,
+      "k": 128
+    },
+    {
+      "node": "conv2d_13",
+      "input_shape": [
+        "s77",
+        "256",
+        "14",
+        "14"
+      ],
+      "output_shape": [
+        "s77",
+        "256",
+        "14",
+        "14"
+      ],
+      "weight_shape": [
+        "256",
+        "256",
+        "3",
+        "3"
+      ],
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 196,
+      "n": 256,
+      "k": 2304
+    },
+    {
+      "node": "conv2d_14",
+      "input_shape": [
+        "s77",
+        "256",
+        "14",
+        "14"
+      ],
+      "output_shape": [
+        "s77",
+        "256",
+        "14",
+        "14"
+      ],
+      "weight_shape": [
+        "256",
+        "256",
+        "3",
+        "3"
+      ],
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 196,
+      "n": 256,
+      "k": 2304
+    },
+    {
+      "node": "conv2d_15",
+      "input_shape": [
+        "s77",
+        "256",
+        "14",
+        "14"
+      ],
+      "output_shape": [
+        "s77",
+        "512",
+        "7",
+        "7"
+      ],
+      "weight_shape": [
+        "512",
+        "256",
+        "3",
+        "3"
+      ],
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 49,
+      "n": 512,
+      "k": 2304
+    },
+    {
+      "node": "conv2d_16",
+      "input_shape": [
+        "s77",
+        "512",
+        "7",
+        "7"
+      ],
+      "output_shape": [
+        "s77",
+        "512",
+        "7",
+        "7"
+      ],
+      "weight_shape": [
+        "512",
+        "512",
+        "3",
+        "3"
+      ],
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 49,
+      "n": 512,
+      "k": 4608
+    },
+    {
+      "node": "conv2d_17",
+      "input_shape": [
+        "s77",
+        "256",
+        "14",
+        "14"
+      ],
+      "output_shape": [
+        "s77",
+        "512",
+        "7",
+        "7"
+      ],
+      "weight_shape": [
+        "512",
+        "256",
+        "1",
+        "1"
+      ],
+      "stride": [
+        2,
+        2
+      ],
+      "padding": [
+        0,
+        0
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 49,
+      "n": 512,
+      "k": 256
+    },
+    {
+      "node": "conv2d_18",
+      "input_shape": [
+        "s77",
+        "512",
+        "7",
+        "7"
+      ],
+      "output_shape": [
+        "s77",
+        "512",
+        "7",
+        "7"
+      ],
+      "weight_shape": [
+        "512",
+        "512",
+        "3",
+        "3"
+      ],
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 49,
+      "n": 512,
+      "k": 4608
+    },
+    {
+      "node": "conv2d_19",
+      "input_shape": [
+        "s77",
+        "512",
+        "7",
+        "7"
+      ],
+      "output_shape": [
+        "s77",
+        "512",
+        "7",
+        "7"
+      ],
+      "weight_shape": [
+        "512",
+        "512",
+        "3",
+        "3"
+      ],
+      "stride": [
+        1,
+        1
+      ],
+      "padding": [
+        1,
+        1
+      ],
+      "dilation": [
+        1,
+        1
+      ],
+      "groups": 1,
+      "rows_per_batch": 49,
+      "n": 512,
+      "k": 4608
+    }
+  ],
+  "weights": "architecture initialization",
+  "evidence": "verified"
+}

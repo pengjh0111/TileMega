@@ -1,0 +1,23 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Automatic DNN primitive L-sem through CG import, workload-bound exact coupling, ModelDescription, TaskWork and CUDA generation, plus scalar fiber algebra; manually supplied ModelPlan, no exported-model gate",
+  "completion": {
+    "event": "queue_complete",
+    "steps": 2,
+    "passed": true
+  },
+  "logs": {
+    "arithmetic.log": "43c321147884a22f2967809393a207d4151b1bb0bb292986010949939c66d9ea",
+    "dnn_cg.log": "5aef58dcd5cfc5ee5028b9fd5117a24309d3f257bd27a61cccb54c117eeab3ac",
+    "scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "generated_cuda": "/root/dm1_work/development/runs/dm1-dnn-cg-host-v4/generated.cu",
+  "generated_sha256": "60befc21af097609893e22a624b1d2786155f7ed6fd386c17692d71f7667c0d9",
+  "failures_retained": [
+    "runs/dm1-dnn-cg-host-v1",
+    "runs/dm1-dnn-cg-host-v2",
+    "runs/dm1-dnn-cg-host-v3"
+  ],
+  "gpu_execution": false
+}

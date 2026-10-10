@@ -1,3 +1,7 @@
+// Preserve the independently validated serving and DM runtime contracts.
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Codegen/tasks/DmGemmStageTaskBody.h>
+#else
 // SPDX-License-Identifier: BSD-3-Clause
 // Skeleton ref: §5.3 CUTLASS/CuTe GEMM TaskBody.  Handwritten body; the
 // problem shape arrives as a generated GemmDesc, never as a constant here.
@@ -899,3 +903,5 @@ struct GemmStageTaskBody {
 };
 
 }  // namespace tilemega::codegen
+
+#endif

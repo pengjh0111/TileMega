@@ -194,8 +194,8 @@ void WriteString(std::string& out, std::string const& text) {
 }
 
 void WriteNumber(std::string& out, double value) {
-  if (std::isfinite(value) && value == static_cast<double>(static_cast<long long>(value)) &&
-      std::fabs(value) < 1e15) {
+  if (std::isfinite(value) && std::fabs(value)<=9007199254740992. &&
+      value==static_cast<double>(static_cast<long long>(value))) {
     out += std::to_string(static_cast<long long>(value));
     return;
   }

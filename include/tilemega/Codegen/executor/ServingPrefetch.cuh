@@ -1,3 +1,7 @@
+// Preserve the independently validated serving and DM runtime contracts.
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Codegen/executor/DmServingPrefetch.cuh>
+#else
 // SPDX-License-Identifier: BSD-3-Clause
 // Included in tilemega::codegen after task descriptors and event primitives.
 namespace prefetch {
@@ -100,3 +104,5 @@ __device__ inline void Wait(EventCounter* events,unsigned stage,unsigned long lo
 #endif
 }
 } // namespace prefetch
+
+#endif

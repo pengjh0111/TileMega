@@ -59,6 +59,11 @@ struct Async {
       asm volatile("cp.async.cg.shared.global [%0], [%1], 16, %2;" ::
           "r"(Shared(destination)),"l"(source),"r"(bytes):"memory");
   }
+  __device__ static void Copy8Bytes(void* destination,void const* source,unsigned bytes) {
+    if constexpr(Caps::kCpAsync)
+      asm volatile("cp.async.ca.shared.global [%0], [%1], 8, %2;" ::
+          "r"(Shared(destination)),"l"(source),"r"(bytes):"memory");
+  }
   __device__ static void Copy16(void* destination,void const* source,bool valid=true) {
     Copy16Bytes(destination,source,valid?16:0);
   }

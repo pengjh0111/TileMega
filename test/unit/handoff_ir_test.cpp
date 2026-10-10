@@ -20,7 +20,8 @@ namespace tilemega::tests::handoff_ir_test {
 int TestHandoffIr(int argc,char** argv) try {
   analysis::IslContext isl;mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();context.getOrLoadDialect<dialect::ExecDialect>();
-  if(argc==5 && std::string(argv[1])=="splitk_import") {
+  bool nonpaged_import=argc>1 && std::string(argv[1])=="nonpaged_splitk_import";
+  if(argc==5 && (std::string(argv[1])=="splitk_import" || nonpaged_import)) {
     auto bridge=frontend::ReadExportBridge(argv[2]);
     frontend::ServingOptions serving;serving.seq=1;
     serving.phase=frontend::ServingOptions::Phase::kDecode;
@@ -30,8 +31,9 @@ int TestHandoffIr(int argc,char** argv) try {
     options.gemms.assign(model.gemms.size(),{16,128,64,2,split?4:1});
     options.gemms.back().split_k=1;
     auto module=frontend::TorchExportImporter{}.ImportPlan(argv[2],model,context,nullptr,options);
-    bool nonpaged=std::string(argv[3]).find("nonpaged_")==0;
+    bool nonpaged=nonpaged_import || std::string(argv[3]).find("nonpaged_")==0;
     bool merge=std::string(argv[3])=="nonpaged_attention";
+    if(nonpaged)(*module)->setAttr("tmexec.nonpaged_la",mlir::BoolAttr::get(&context,true));
     if(!nonpaged)codegen::ConfigureServingPages(*module,TargetSpec::FromJson(argv[4]),16384);
     bool escape=std::string(argv[3])=="escape";
     if(escape) {
@@ -66,6 +68,11 @@ int TestHandoffIr(int argc,char** argv) try {
         }
         assert(merges>0 && selected.last_arriver==merges);
       }else assert(selected.last_arriver==(split && mask?model.gemms.size()-1:0));
+      if(nonpaged) {
+        auto source=codegen::CouplingGraphToCUDA{}.Lower(*module);
+        assert(source.find("#define TILEMEGA_NONPAGED_LA 1\n")!=std::string::npos);
+        assert(source.find("#define TILEMEGA_PAGED 1\n")==std::string::npos);
+      }
       std::cout<<"SPLIT_HANDOFF case="<<argv[3]<<" selected="<<selected.last_arriver<<" PASS\n";
     } catch(std::invalid_argument const& e) {
       if(!escape || std::string(e.what()).find("partial workspace")==std::string::npos)throw;

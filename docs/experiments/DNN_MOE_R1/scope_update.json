@@ -1,0 +1,17 @@
+{
+  "evidence": "stated",
+  "source": "User instruction in conversation, 2026-10-10",
+  "instruction": "优先完成全部扩展代码；每条执行路径用一种固定输入验证生成执行即可，不需要真实权重、其他输入形式或重复验证。继续不做性能测试。",
+  "scope": "Implement all DNN/MoE extension code and logical correctness. Validate each new execution path once using fixed synthetic weights/inputs and an independent numerical oracle. Do not run real-weight/dataset gates, repeated-process matrices or performance tests. Keep the shared GPU lock. Prior stronger evidence and failures remain recorded.",
+  "original_prompt_sha256": "6ecaa5be8d5157937a959baeabac6b5497397c2abd56b25cf5a70e4b6f56e828",
+  "removed_execution": [
+    "8.D DNN performance",
+    "8.E MoE performance",
+    "8.F measured compile scaling",
+    "performance-only attribution/ledger timing",
+    "real-weight and official-dataset acceptance matrices",
+    "50-process repetitions and additional input variants"
+  ],
+  "utc": "2026-10-10T06:46:34.255600+00:00",
+  "previous_instruction": "最后不需要做性能测试，只需要扩展实现能够跑通；GPU 污染不影响推进。"
+}

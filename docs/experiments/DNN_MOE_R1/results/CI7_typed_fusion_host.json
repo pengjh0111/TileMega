@@ -1,0 +1,34 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_commits": [
+    "4668effef",
+    "00feec5bf"
+  ],
+  "counted_fusion_cases": 192,
+  "mixed_sparse_counted_cases": 96,
+  "legacy_fusion_cases": 24,
+  "native_checks": 7,
+  "assertions_enabled": true,
+  "expectations_changed": false,
+  "scope": "Typed fusion projection transports sparse tables, per-target counted thresholds and I2 queue ordering; mixed ordinary waits use their sparse relation rather than the counted envelope. Bound descriptor reconstruction covers both endpoints, reverse ownership, one/two contracts, grid 1/3/8 and kappa 0/1/4/16. Existing CG fusion physical lowering checks pass. Real counted CG endpoint rewriting and DNN/MoE fused bodies remain pending.",
+  "inputs": {
+    "include/tilemega/Solver/RuntimeProjection.h": "3c086deeb076be2950716cbc558220d52f4bc9464a949fb3318f3cecfad71ade",
+    "lib/Solver/RuntimeProjection.cpp": "6ed7ecd0b72593874e2140bf91954f8be7c90f424e3fe47c1acaa6bafa989dc5",
+    "lib/Solver/FusedRuntimeProjection.cpp": "58be8db5bf60ff71457f98ed191f7c47bbc35245ef75db1fe472b40e08cca3db",
+    "lib/Codegen/Codegen.cpp": "0f5c29405f1be6a697dc51aef60ea4e885b3d5398870779b818d01538c8eb965",
+    "test/unit/fused_runtime_projection_test.cpp": "954560b8610f390cc516853fd3d977f7af42a215d4f88971cc5307008b934e4f"
+  },
+  "artifacts": {
+    "build-dm/tilemega-unit": "fb8bafee8241e08b1f06a8c6eccc4899df6478d567872490702bba65de5bb2f8",
+    "build-dm/libtilemega.a": "ab6d57132c036fc9745c80e9a5a59caece52a9270f8ec5164b9f3aff2be06b90",
+    "build-dm/tools/tilemega": "a7408b4cc0427d63bba5402e1a212cd253ba5946a59c5f76e35ef3cc13b79a27"
+  },
+  "queue_sha256": "5e3f9da46e7d282efac9f73caf0fc12624a5361e09238fc96afbe4a5dfc92eab",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "logs": {
+    "runs/dm1-ci7-typed-fusion-lowering/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/dm1-ci7-typed-fusion-lowering/events/02_ctest.log": "94e5afaf3355002f40c03c5a476ca828e0020061f6d8b995cec79ffaba800d92",
+    "runs/dm1-ci7-typed-fusion-lowering/events/01_build.log": "45c6c1a92b0a364400c13f19a5f81ae2f25eaa7aed2a2c21434b3a3c32c280e0"
+  }
+}

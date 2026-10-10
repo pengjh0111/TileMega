@@ -1,0 +1,157 @@
+{
+  "gate": "G-REG",
+  "passed": false,
+  "available_checks_passed": true,
+  "rows": [
+    {
+      "cell": "llama_B1",
+      "phase": "prefill",
+      "reference_identity": "bfe253517832488d082b01f9427f5a8ccc9134517915a9dfce23c471dd0be1d0",
+      "candidate_identity": "1113294d5ecf45d3c40d4c690df833ebdc66348c4adaf169d42739635ef466e1",
+      "cu_equal": true,
+      "resources_equal": true,
+      "sass_equal": true,
+      "token_equal": true
+    },
+    {
+      "cell": "llama_B1",
+      "phase": "decode",
+      "reference_identity": "bcded8db6fb937ad8d9fda896014ce7a578eeb666e721d66f272b506eecad989",
+      "candidate_identity": "6932926ce1314be41f383a8464c4c620ac77dc3180888e23d304f3a6e676baae",
+      "cu_equal": true,
+      "resources_equal": true,
+      "sass_equal": true,
+      "token_equal": true
+    },
+    {
+      "cell": "llama_B16",
+      "phase": "prefill",
+      "reference_identity": "bf26fa035d0367cce5ff6d048959f74c653e01923ce3dcc876b01923d1cb0255",
+      "candidate_identity": "79794da7ce8f4277d769abe4ae0064ac19de67265408db2da60df431080dc706",
+      "cu_equal": true,
+      "resources_equal": true,
+      "sass_equal": true,
+      "token_equal": true
+    },
+    {
+      "cell": "llama_B16",
+      "phase": "decode",
+      "reference_identity": "f0f9fc243239e767e64879dd4a0b5dccc6f094219fc60fe6be75b6c5e03e5182",
+      "candidate_identity": "f9e17e7f8897aacabe6aa510266f67df8e71228c84bd067adaf35272eaae121b",
+      "cu_equal": true,
+      "resources_equal": true,
+      "sass_equal": true,
+      "token_equal": true
+    },
+    {
+      "cell": "qwen3_B1",
+      "phase": "prefill",
+      "reference_identity": "c0ecfd8e0c99144ad9b4e6a0c16499a7d23c19fb3c875085f7fd5852067e505f",
+      "candidate_identity": "8df8b6e6db4d4a42bed17da88f6535cbe2afc4a872f80766264d7184b5ff8a1e",
+      "cu_equal": true,
+      "resources_equal": true,
+      "sass_equal": true,
+      "token_equal": true
+    },
+    {
+      "cell": "qwen3_B1",
+      "phase": "decode",
+      "reference_identity": "75019ef2a28bb50a357d63f04da3f62b92d28e91eaae3413fe5a90a9a7f47f14",
+      "candidate_identity": "7e757fb2bd8d32db2c087ebb847ee17bfb456852807032f819c41d886cc5c4fa",
+      "cu_equal": true,
+      "resources_equal": true,
+      "sass_equal": true,
+      "token_equal": true
+    },
+    {
+      "cell": "qwen3_B16",
+      "phase": "prefill",
+      "reference_identity": "6f20d1a3c628c88b4b5e9689837729be5b99ff7c6278e6e4600ddf50316c1989",
+      "candidate_identity": "a60cde970f9344f87f62810f73c264869a98252cc1c3079a6d6fc79a87c6f1fd",
+      "cu_equal": true,
+      "resources_equal": true,
+      "sass_equal": true,
+      "token_equal": true
+    },
+    {
+      "cell": "qwen3_B16",
+      "phase": "decode",
+      "reference_identity": "c0637883b89bcd4368166480321940c1a7dc9dffdc8eea1c2d43f3f703272bbe",
+      "candidate_identity": "39c95c0b8ae08569196151d490759b9501c01999e498f9ee40cd86c02808737f",
+      "cu_equal": true,
+      "resources_equal": true,
+      "sass_equal": true,
+      "token_equal": true
+    }
+  ],
+  "ctest": {
+    "reference": {
+      "exit_code": 8,
+      "command": [
+        "flock",
+        "/root/r14_work/gpu.lock",
+        "ctest",
+        "--test-dir",
+        "/root/dm1_work/reference/build-dm",
+        "--output-on-failure",
+        "-j",
+        "4"
+      ]
+    },
+    "candidate": {
+      "exit_code": 8,
+      "command": [
+        "flock",
+        "/root/r14_work/gpu.lock",
+        "ctest",
+        "--test-dir",
+        "/root/dm1_work/development/build-dm",
+        "--output-on-failure",
+        "-j",
+        "4"
+      ]
+    }
+  },
+  "evidence": "verified",
+  "checkpoint_head": "5d1eb74ce4ea61764febfd544a219c0a64b027d4",
+  "queue_completion": {
+    "event": "queue_complete",
+    "steps": 17,
+    "passed": true
+  },
+  "logs": {
+    "reference": {
+      "path": "/root/dm1_work/development/runs/dm1-regression-CI7-integrated/reference/ctest.log",
+      "sha256": "6cfe207bbac5d0d1b0d095eec692220be7b729cfed2c2fddb60ad86870ded629"
+    },
+    "candidate": {
+      "path": "/root/dm1_work/development/runs/dm1-regression-CI7-integrated/candidate/ctest.log",
+      "sha256": "85935ddab84d7ea869f28a2e8f269ac3fe5c9f1adede0a0c7500c5caacc3e735"
+    }
+  },
+  "native_suite": {
+    "candidate": {
+      "passed": 144,
+      "total": 147,
+      "failed": [
+        "independent_attention"
+      ],
+      "not_run": [
+        "dm_paged_multipage_phase0",
+        "dm_paged_multipage_phase2"
+      ]
+    },
+    "reference": {
+      "passed": 94,
+      "total": 97,
+      "failed": [
+        "target_audit",
+        "independent_attention"
+      ],
+      "not_run": [
+        "norm_prologue_gemm"
+      ]
+    }
+  },
+  "interpretation": "Eight CUDA/resource/SASS/token comparisons pass. G-REG remains false; record-only queue success does not override ctest. Candidate native command built only tilemega and tilemega-unit, omitting two registered CUDA test binaries. The next checkpoint must build all candidate default targets."
+}

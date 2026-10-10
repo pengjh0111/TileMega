@@ -30,6 +30,9 @@ def rotary_tables(config: object, capacity: int,
     elif architecture == "Qwen3ForCausalLM":
         from transformers.models.qwen3.modeling_qwen3 import Qwen3RotaryEmbedding
         module = Qwen3RotaryEmbedding(config, device=device)
+    elif architecture == "Qwen3MoeForCausalLM":
+        from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeRotaryEmbedding
+        module = Qwen3MoeRotaryEmbedding(config).to(device)
     else:
         raise ValueError(f"unsupported rotary position module {architecture}")
     head_dim = int(config.head_dim)

@@ -56,9 +56,12 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
               <<point.flow->flow.dram_gbps<<"\toff\n";
       }
     }
-    for(auto const& space:point.flow->flow.spaces)
+    for(auto const& space:point.flow->flow.spaces) {
       input.inline_reducer.insert(input.inline_reducer.end(),space.count,
-          space.fused_reducer ? 1 : 0);
+          space.fused_reducer || space.handoff_reducer ? 1 : 0);
+      input.inline_body_reserved.insert(input.inline_body_reserved.end(),space.count,
+          space.handoff_reducer ? 1 : 0);
+    }
     sim.dram_fluid=true;sim.dram_gbps=point.flow->flow.dram_gbps;
     sim.inflight_dram=point.flow->flow.inflight_dram;
     sim.inflight_curve_bytes=point.flow->flow.inflight_curve_bytes;

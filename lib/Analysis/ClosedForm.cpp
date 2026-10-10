@@ -12,7 +12,7 @@
 namespace tilemega::analysis {
 
 struct ClosedForm::Node {
-  enum class Kind { kConstant, kSymbol, kAdd, kMultiply, kCeilDiv, kFloorDiv };
+  enum class Kind { kConstant, kSymbol, kAdd, kMultiply, kCeilDiv, kFloorDiv, kMin };
   Kind kind = Kind::kConstant;
   long value = 0;
   std::string symbol;
@@ -96,6 +96,15 @@ class ClosedFormParser {
       if (!Consume(')')) Fail("expected ')'");
       return value;
     }
+    if (PeekIdentifier("min")) {
+      position_ += 3;
+      if (!Consume('(')) Fail("expected '(' after min");
+      auto lhs = ParseAdd();
+      if (!Consume(',')) Fail("expected ',' in min");
+      auto rhs = ParseAdd();
+      if (!Consume(')')) Fail("expected ')' after min");
+      return lhs.Min(rhs);
+    }
     if (PeekIdentifier("ceildiv")) {
       position_ += 7;
       if (!Consume('(')) Fail("expected '(' after ceildiv");
@@ -142,7 +151,8 @@ class ClosedFormParser {
     std::size_t length = std::char_traits<char>::length(word);
     return text_.compare(position_, length, word) == 0 &&
            (position_ + length == text_.size() ||
-            !std::isalnum(static_cast<unsigned char>(text_[position_ + length])));
+            (!std::isalnum(static_cast<unsigned char>(text_[position_ + length])) &&
+             text_[position_ + length] != '_'));
   }
   void Skip() {
     while (position_ < text_.size() &&
@@ -262,6 +272,8 @@ long ClosedForm::Eval(ParamBinding const& theta, ParamBinding const& g) const {
         return eval(node->lhs) + eval(node->rhs);
       case Node::Kind::kMultiply:
         return eval(node->lhs) * eval(node->rhs);
+      case Node::Kind::kMin:
+        return std::min(eval(node->lhs), eval(node->rhs));
       case Node::Kind::kCeilDiv: {
         long numerator = eval(node->lhs);
         long denominator = eval(node->rhs);
@@ -303,6 +315,8 @@ std::string ClosedForm::ToString() const {
         return "ceildiv(" + print(node->lhs) + ", " + print(node->rhs) + ")";
       case Node::Kind::kFloorDiv:
         return "floordiv(" + print(node->lhs) + ", " + print(node->rhs) + ")";
+      case Node::Kind::kMin:
+        return "min(" + print(node->lhs) + ", " + print(node->rhs) + ")";
     }
     throw std::logic_error("unknown closed-form node");
   };
@@ -403,6 +417,7 @@ std::vector<std::string> ClosedForm::FreeSymbols() const {
           case Node::Kind::kMultiply:
           case Node::Kind::kCeilDiv:
           case Node::Kind::kFloorDiv:
+          case Node::Kind::kMin:
             walk(node->lhs);
             walk(node->rhs);
             return;
@@ -429,6 +444,8 @@ ClosedForm ClosedForm::Substitute(ParamBinding const& known) const {
         return walk(node->lhs).CeilDiv(walk(node->rhs));
       case Node::Kind::kFloorDiv:
         return walk(node->lhs).FloorDiv(walk(node->rhs));
+      case Node::Kind::kMin:
+        return walk(node->lhs).Min(walk(node->rhs));
     }
     throw std::logic_error("unknown closed-form node");
   };
@@ -447,6 +464,8 @@ std::string ClosedForm::ToIslText() const {
         return "(" + emit(node->lhs) + " + " + emit(node->rhs) + ")";
       case Node::Kind::kMultiply:
         return "(" + emit(node->lhs) + " * " + emit(node->rhs) + ")";
+      case Node::Kind::kMin:
+        return "min(" + emit(node->lhs) + ", " + emit(node->rhs) + ")";
       case Node::Kind::kCeilDiv: {
         if (!ClosedForm(node->rhs).IsConstant())
           throw std::domain_error(
@@ -477,6 +496,48 @@ bool ClosedForm::IsConstant() const {
     return constant(node->lhs) && constant(node->rhs);
   };
   return constant(node_);
+}
+
+ClosedForm ClosedForm::Min(ClosedForm const& rhs) const {
+  if (IsConstant() && rhs.IsConstant()) return Constant(std::min(Eval({}, {}), rhs.Eval({}, {})));
+  if (ToString() == rhs.ToString()) return *this;
+  auto node = std::make_shared<Node>(); node->kind = Node::Kind::kMin;
+  node->lhs = node_; node->rhs = rhs.node_; return ClosedForm(std::move(node));
+}
+bool ClosedForm::HasPiecewise() const {
+  std::function<bool(std::shared_ptr<Node const> const&)> visit = [&](auto const& node) {
+    if (node->kind == Node::Kind::kMin) return true;
+    if (!node->lhs) return false;
+    return visit(node->lhs) || visit(node->rhs);
+  };
+  return visit(node_);
+}
+std::vector<std::pair<std::string, std::string>> ClosedForm::ToIslPieces() const {
+  using Pieces = std::vector<std::pair<std::string, std::string>>;
+  auto conjunction = [](std::string a, std::string const& b) {
+    if (a.empty()) return b; if (b.empty()) return a; return "(" + a + ") and (" + b + ")";
+  };
+  std::function<Pieces(std::shared_ptr<Node const> const&)> visit = [&](auto const& node) -> Pieces {
+    if (node->kind == Node::Kind::kConstant || node->kind == Node::Kind::kSymbol)
+      return {{ClosedForm(node).ToIslText(), ""}};
+    Pieces pieces;
+    for (auto const& [left, left_domain] : visit(node->lhs))
+      for (auto const& [right, right_domain] : visit(node->rhs)) {
+        auto domain = conjunction(left_domain, right_domain);
+        if (node->kind == Node::Kind::kMin) {
+          pieces.push_back({left, conjunction(domain, "(" + left + ") <= (" + right + ")")});
+          pieces.push_back({right, conjunction(domain, "(" + left + ") > (" + right + ")")});
+        } else if (node->kind == Node::Kind::kAdd || node->kind == Node::Kind::kMultiply)
+          pieces.push_back({"(" + left + (node->kind == Node::Kind::kAdd ? " + " : " * ") + right + ")", domain});
+        else {
+          if (!ClosedForm(node->rhs).IsConstant())
+            throw std::domain_error("piecewise closed-form division requires a literal divisor");
+          pieces.push_back({std::string(node->kind == Node::Kind::kCeilDiv ? "ceild(" : "floord(") + left + ", " + right + ")", domain});
+        }
+      }
+    return pieces;
+  };
+  return visit(node_);
 }
 
 }  // namespace tilemega::analysis

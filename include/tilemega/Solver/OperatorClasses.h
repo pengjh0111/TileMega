@@ -4,6 +4,8 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Solver/CandidateGenerator.h>
 #include <tilemega/Solver/CostModel.h>
+#include <tilemega/Solver/DmOperatorClasses.h>
+#include <tilemega/Solver/DmGemmClassDomain.h>
 #include <tilemega/Solver/ServingPruning.h>
 #include <set>
 
@@ -20,7 +22,7 @@ inline std::vector<OperatorClass> BuildOperatorClasses(frontend::ImportedSemanti
     if(op.kind!=analysis::OperatorKind::kMatmul)continue;
     int gemm=imported.plan.stages.at(info.stage).gemm;
     if(gemm<0)throw std::invalid_argument("matmul lacks GEMM invocation");
-    auto signature=analysis::SemanticSignature(op);
+    auto signature=GemmSemanticSignature(op,imported.plan.gemms.at(gemm),imported.plan);
     auto [it,added]=by_signature.emplace(signature,classes.size());
     if(added)classes.push_back({signature,{},{}});
     classes[it->second].gemms.push_back(std::size_t(gemm));
@@ -71,12 +73,18 @@ struct ServingClassDomain {
 inline ServingClassDomain ServingClassCandidates(
     OperatorClass const& cls,frontend::ImportedSemantics const& imported,
     TargetSpec const& target,int batch,int seq,
-    bool enable_r2=true,bool enable_r3=false) {
+    bool enable_r2=true,bool enable_r3=false,
+    std::map<std::size_t,DmWeightLayoutConstraint> const& shared={}) {
+  if(imported.plan.dm) {
+    if(enable_r3)throw std::invalid_argument("DM R-3 requires an unpruned equivalence experiment");
+    auto dm=DmClassCandidates(cls.gemms,imported.plan,target,batch,seq,shared);
+    return {std::move(dm.candidates),dm.raw,dm.removed_r1,dm.removed_r2,dm.removed_r3};
+  }
   if(!imported.plan.serving || batch<1 || seq<1 || cls.gemms.empty())
     throw std::invalid_argument("serving domain requires a serving model and bound batch");
   auto id=cls.gemms.front();auto const& gemm=imported.plan.gemms.at(id);
   auto stage=std::find_if(imported.plan.stages.begin(),imported.plan.stages.end(),
-      [&](auto const& s){return s.kind==frontend::PlanTaskKind::kGemm && s.gemm==id;});
+      [&](auto const& s){return frontend::IsGemmStage(s.kind) && s.gemm==id;});
   if(stage==imported.plan.stages.end())throw std::invalid_argument("serving GEMM has no stage");
   int const rows=stage->batch_rows ? batch : batch*seq;
   ServingPruneContext pruning{rows,int(gemm.n),int(gemm.k),

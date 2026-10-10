@@ -1,0 +1,33 @@
+{
+  "exit_code": 0,
+  "wall_s": 161.0637136879377,
+  "scope": "complete MobileNetV1 dw/pw fusion plus L2-budget reuse host generation; native execution pending",
+  "cu_sha256": "d2f13ffb8c32340364b1b83455a63bea5f0034953e8efec4c6521241df321c18",
+  "reuse": "l2",
+  "arena_bytes": 13559552,
+  "aliased_buffers": 18,
+  "evidence": "verified",
+  "command": [
+    "build-dm/tools/tilemega",
+    "compile",
+    "runs/dm1-real-bridges-v1/mbv1.before.json",
+    "runs/dm1-mbv1-full-reuse-host-v1/plan.cu",
+    "--frontend",
+    "dnn",
+    "--emit",
+    "serving",
+    "--serving",
+    "forward",
+    "--batch",
+    "2",
+    "--pg",
+    "l2",
+    "--runtime-target",
+    "configs/targets/sm_89.json",
+    "--reuse",
+    "l2"
+  ],
+  "manifest_sha256": "1b84d1db72c453489f59ce805bc3f5178a580f32a83303f489928ff5e7e4fb75",
+  "binary_sha256": "1b668ade063d9c2eb6be23212505f4b31841ba2d5de69fec6d5415d0d4ea5fba",
+  "generation_source": "host binary built from 3b4ef1760 plus final-only lowering/counted-bounds changes now committed as 60f87f185 and 74a8b47e7"
+}

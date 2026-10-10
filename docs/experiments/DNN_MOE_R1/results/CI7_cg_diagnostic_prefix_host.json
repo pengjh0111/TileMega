@@ -1,0 +1,24 @@
+{
+  "schema": "tilemega.dm1.host-check.v1",
+  "evidence": "verified",
+  "passed": true,
+  "source": {
+    "head": "0ee3aa636f6ff9e041a344e8ddb99bb11663a847",
+    "diff_sha256": "beecc37746743c1232c5a311c997568a113391b6d9d0dd9a4d6347e871e0e58c",
+    "inputs": {
+      "/root/dm1_work/integration-stage/lib/Dialect/CouplingGraph/CGDialect.cpp": "80b1870b92038c3d18f86b572b6dd4132e336ebf91a512f620443057ec8fcae2",
+      "/root/dm1_work/integration-stage/test/Dialect/CouplingGraph/fanout_mismatch.mlir": "ac8b465cc6b86ce1df636d11f41f47c78c16c16103d99811c14b8b715eebca49"
+    },
+    "unchanged_expectation": true,
+    "scope": "Restore the baseline diagnostic phrase and append both cardinalities; keep all verifier decisions and the original lit expectation."
+  },
+  "source_manifest_sha256": "1499e604c9760781487cad79c8e705d7e144219f755a01fac790d5c3096ce291",
+  "test_expectation_unchanged": true,
+  "tests": 1,
+  "lit_cases": 8,
+  "logs": {
+    "/root/dm1_work/development/runs/dm1-cg-diagnostic-prefix/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/root/dm1_work/development/runs/dm1-cg-diagnostic-prefix/events/01_build.log": "c6d2ed88d4245be358ce2ed3724c07946c648bbfc73535a002b815db4719fc9d",
+    "/root/dm1_work/development/runs/dm1-cg-diagnostic-prefix/events/02_cg_lit.log": "0ca488ba270ac4b219a7f25b66a1b4d34eb62d1bdd16389d3d7df1b8f39acd7f"
+  }
+}

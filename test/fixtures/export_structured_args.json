@@ -1,0 +1,265 @@
+{
+  "schema": "tilemega.exported_program.v1",
+  "nodes": [
+    {
+      "index": 0,
+      "name": "x",
+      "op": "placeholder",
+      "target": "x",
+      "inputs": [],
+      "shape": [
+        "s0",
+        "3",
+        "8",
+        "8"
+      ],
+      "dtype": "torch.bfloat16"
+    },
+    {
+      "index": 1,
+      "name": "conv",
+      "op": "call_function",
+      "target": "aten.conv2d.default",
+      "inputs": [
+        "x"
+      ],
+      "scalar_args": [
+        1e-06
+      ],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "x"
+          },
+          {
+            "t": "node",
+            "v": "w"
+          },
+          {
+            "t": "none",
+            "v": null
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": 2
+              },
+              {
+                "t": "int",
+                "v": 1
+              }
+            ]
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": 1
+              },
+              {
+                "t": "int",
+                "v": 2
+              }
+            ]
+          },
+          {
+            "t": "bool",
+            "v": false
+          },
+          {
+            "t": "str",
+            "v": "tanh"
+          },
+          {
+            "t": "float",
+            "v": "-inf"
+          },
+          {
+            "t": "dtype",
+            "v": "torch.bfloat16"
+          },
+          {
+            "t": "device",
+            "v": "cpu"
+          },
+          {
+            "t": "layout",
+            "v": "torch.strided"
+          },
+          {
+            "t": "memory_format",
+            "v": "torch.channels_last"
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "list",
+                "v": [
+                  {
+                    "t": "int",
+                    "v": 3
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "kwargs": {
+        "scale": {
+          "t": "float",
+          "v": 0.5
+        },
+        "enabled": {
+          "t": "bool",
+          "v": false
+        }
+      },
+      "shape": [
+        "s0",
+        "8",
+        "4",
+        "8"
+      ],
+      "dtype": "torch.bfloat16"
+    },
+    {
+      "index": 2,
+      "name": "mask",
+      "op": "call_function",
+      "target": "aten.ones.default",
+      "inputs": [],
+      "shape": [
+        "1"
+      ],
+      "dtype": "torch.bool",
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": 1
+              }
+            ]
+          }
+        ]
+      },
+      "kwargs": {
+        "dtype": {
+          "t": "dtype",
+          "v": "torch.bool"
+        }
+      },
+      "constant": {
+        "dtype": "torch.bool",
+        "shape": [
+          1
+        ],
+        "all_true": true,
+        "all_equal": {
+          "equal": true,
+          "value": true
+        },
+        "data_base64": "AQ==",
+        "byte_order": "little"
+      }
+    },
+    {
+      "index": 3,
+      "name": "expand",
+      "op": "call_function",
+      "target": "aten.expand.default",
+      "inputs": [
+        "mask"
+      ],
+      "shape": [
+        "s0",
+        "1",
+        "128",
+        "128"
+      ],
+      "dtype": "torch.bool",
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "mask"
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": 8
+              },
+              {
+                "t": "int",
+                "v": 1
+              },
+              {
+                "t": "int",
+                "v": 128
+              },
+              {
+                "t": "int",
+                "v": 128
+              }
+            ]
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape_constant": {
+        "symbols": [
+          "s0"
+        ],
+        "bindings": {
+          "s0": 8
+        },
+        "fragment": [
+          {
+            "name": "expand",
+            "op": "call_function",
+            "target": "aten.expand.default",
+            "args": {
+              "t": "list",
+              "v": []
+            },
+            "kwargs": {}
+          }
+        ]
+      }
+    }
+  ],
+  "signature": {
+    "inputs": [
+      {
+        "name": "x",
+        "kind": "USER_INPUT",
+        "target": null,
+        "persistent": null
+      }
+    ],
+    "outputs": [
+      {
+        "name": "conv",
+        "kind": "USER_OUTPUT",
+        "target": null
+      }
+    ]
+  },
+  "range_constraints": {
+    "s0": "VR[1,64]"
+  },
+  "guards": []
+}

@@ -6,6 +6,8 @@
 
 ## 1.5 当前状态
 
+（⚠️ DM-1：`dnn-moe` 分支的 forward phase=2、扩展任务/访问描述符、窗口项与精确物理关系、`kTable`/`kCounted` 原语、WAR/WAW 推导、虚拟容量与绑定来源已实现；forward 核心有五架构与 50/50 新进程/seq 证据，稀疏表与计数型合成 stage 在 κ=1/4/16 各 50/50。新 DNN/MoE TaskBody、内存规划、绑定感知页流和模型门仍待实现/验证；不得读成五模型或端到端支持已验收。证据见 `docs/experiments/DNN_MOE_R1/summary.md`。）
+
 （⚠️ v2.1 第十轮补充：2026-09-26 用户要求终止未完成测试并收尾推送。R10 的全部搜索/测量队列已停；旧 b22 版 18/20 plan 完成且全部超 600 s，新源码最终 plan 0/20，正式 EV-1 0/10。后端修正后 serving CTest 15/15、GEMM 1344/1344、四格种子全序列 HF/L1-L2 检查通过；在途及 66 点 TaskBody 新标定完成。G-1 因缺当前最终 SASS 仍 FAIL；Qwen 未剪枝控制超时，完整 G-6 未关闭。不得把此前“运行中/排队中”视作当前状态，也不得把旧版性能归于新后端。停摆、降级、逐门状态与 R11 缺失证据见 `docs/experiments/SERVING_R10/summary.md`；F-286。）
 
 （⚠️ v2.1 第十一轮补充：2026-09-27 所选 Llama B=1/16 的四个 plan 和两格 TileMega/vLLM 同会话计时已完成，R11 静态契约 18/18 与四个 SASS FP64=0；B=1 的 C-1/C-2 通过，但 B=16 的 L1/L2 有 4236/16384 个 token 不一致，完整 EV-2 验收停于 C-2。`smem_direct` 生成 CUDA、单类实测/模型偏差回写 top-M、相邻 B 区间 plan 合并仍是实现缺项，不是待测试项。四个求解仅一个满足 600 s。证据与门表见 `docs/experiments/SERVING_R11/summary.md`。）
@@ -380,3 +382,13 @@ EX-S2c 的价格测试与队列放置修正已测，mha4 s128 保持 35 跳，�
 
 
 （⚠️ v2.1 第十轮补充：2026-09-26 的实现复核纠正“仅剩验证”的判断：LSE merge 向量读取、attention 的寄存器内 P→PV 与 KV 双缓冲、64/32 KV tile 选择、epilogue/argmax 向量访问、attention 定价与标定口径、结构切换缓存均有补充修改。详见 `SERVING_R10/implementation_completion/audit.md`。原后台矩阵保持 b22 工作树不变，其结果不验证本次源码；当前专项单测通过不代表 C-1/C-2、20 plan 预算或最终性能通过。当前源码缺少 20 个 SASS 审计，K-12/G-1 不记通过，重新标定和完整生成仍待执行。）
+
+（⚠️ DM-1：verified：forward phase、新任务种类、窗口精确关系、kTable/kCounted、WAR/WAW 与虚拟 tile 绑定已有生成执行证据；新增 MoE 动态 L2 领取与 opaque 入口/内部/出口屏障及 loader lookahead 边界，固定合成输入在 sm_89 执行通过。全深度 B1 prefill/decode 干构建与索引检查通过，B16 prefill 尚有生成瓶颈。完整图融合/复用、联合结构选择、GEMV 与通用 LA 仍未完成。用户已取消性能、真实数据集门及重复进程矩阵，新结果不构成 50 进程同步结论。详见 docs/experiments/DNN_MOE_R1/summary.md。）
+
+（⚠️ DM-1：verified：按槽绑定的专家 GEMV 已在 dense/页式权重下执行通过；通用池化、dispatch 与 counted combine 的 last-arriver 已接入 L1/L2/页式执行器，固定合成输入功能检查通过。默认 LLM 八格 CUDA 再查仍逐字节一致。GEMV/LA 联合求解器坐标与完整图生成仍未完成；没有新增性能或 50 进程同步结论。见 DNN_MOE_R1/moe_gemv.md、dm_last_arriver.md。）
+
+（⚠️ DM-1：verified：完整 MobileNetV1 的 13 组 dw→pw 融合生成内核已用固定合成 B=2 输入执行通过，L1/L2 输出逐位一致。共享打包权重按完整配方匹配，固定构建与求解候选均约束 TN/TK；显存容量不足的 MoE serving 部署先解 decode，再约束 prefill，主机接入测试通过。DNN CLI 支持 architecture-only 导出/构建及独立 synthetic smoke 结果，保留原精度失败记录。没有新增性能或 50 进程同步结论；完整图复用与联合结构选择仍待完成。见 DNN_MOE_R1/dwpw_fusion.md、moe_full.md、dnn_cli.md。）
+
+（⚠️ DM-1：verified：C′=4、两组 DW/PW 融合与两条 deferred LN 边的组合 megakernel 固定 B=2 合成输入检查通过，L1/L2 逐位一致。MoE 绑定来源与唯一专家权重画像已接入生产 DRAM/flow，slot 与 BM16/32/64/128 联合主机搜索及公开 profile 身份入口通过检查。实际 MoE 标量 TaskBody 资源探针编译通过。画像占用定价、GEMV/LA 求解器与完整模型执行仍在收尾；没有新增性能或 50 进程同步结论。）
+
+（⚠️ DM-1：verified：DNN 的池化 LA/stage 与 MoE 的绑定/BM、MMA/GEMV、dispatch/combine 独立 LA 坐标已接入共享证明、flow 定价和最终代码生成。40 组 MoE 主机组合及公开 CLI 通过；修复 down 列宽变化时 combine counted 所有权未重绑的问题。公开选出的 sm_89 megakernel 单次固定合成 T17 输入通过，路由100%、L1/L2逐位一致。默认 LLM 八格 CUDA 仍逐字节一致。按用户调整的实现/固定输入范围收尾；不宣称原始真实权重、完整回归和 50 进程门通过。详见 DNN_MOE_R1/dm_reduction_search.md 与 summary.md。）

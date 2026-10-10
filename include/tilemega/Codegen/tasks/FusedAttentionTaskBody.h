@@ -39,7 +39,7 @@ template<class Arch,int kHeadDim,int kQPerKV,int kTokens,
          int kQRows,int kKvTile,bool kQkNorm>
 struct FusedAttentionTaskBody {
   static_assert(kHeadDim==64 || kHeadDim==128);
-  static_assert(kQPerKV==2 || kQPerKV==4);
+  static_assert(kQPerKV==2 || kQPerKV==4 || kQPerKV==8);
   static_assert(kTokens==1 || kTokens==64);
   static_assert((kQRows>0 && kQRows%16==0) || kTokens==1);
   static_assert(kKvTile==32 || kKvTile==64);
@@ -56,7 +56,9 @@ struct FusedAttentionTaskBody {
   }
   using Element=cutlass::bfloat16_t;
   using QK=backend::ServingAttentionWarp<Arch,16,kHeadDim>;
-  using PV=backend::ServingAttentionWarp<Arch,kHeadDim,16,true>;
+  // Prefill tiles contain sixteen query rows, including two tokens at Q=8.
+  using PV=std::conditional_t<kQPerKV==8 && kTokens==1,backend::ServingAttentionPvSwap<Arch,kHeadDim>,
+      backend::ServingAttentionWarp<Arch,kHeadDim,16,true>>;
   static constexpr int kQueryExtent=kTokens*kQPerKV;
   struct SharedStorage {
     alignas(16) Element query[16*kHeadDim];
@@ -182,8 +184,7 @@ struct FusedAttentionTaskBody {
     int cmax=(p.capacity+p.block_extent-1)/p.block_extent;
     auto score_coords=typename QK::Mma{}.get_slice(lane).partition_C(
         make_identity_tensor(Shape<_16,_16>{}));
-    auto out_coords=typename PV::Mma{}.get_slice(lane).partition_C(
-        make_identity_tensor(Shape<_16,Int<kHeadDim>>{}));
+    auto out_coords=PV::OutputCoordinates(lane);
     for(int query_begin=q_begin;query_begin<min(q_begin+kQRows,kQueryExtent);query_begin+=16) {
       Query(p,s,b,g,query_begin);
       if(ComputeThread()<16){s.row_max[ComputeThread()]=-INFINITY;s.row_sum[ComputeThread()]=0;}
@@ -243,7 +244,7 @@ struct FusedAttentionTaskBody {
           s.row_sum[row]=total;
         }
         #pragma unroll
-        for(int i=0;i<size(output);++i)output(i)*=s.alpha[int(get<0>(out_coords(i)))];
+        for(int i=0;i<size(output);++i)output(i)*=s.alpha[PV::QueryRow(out_coords(i))];
         if(warp*16<kKvTile)
           PV::PV(score,score_coords,s.storage.pipeline.value[slot]+warp*16*kHeadDim,output);
         ComputeSync();
@@ -253,7 +254,7 @@ struct FusedAttentionTaskBody {
       // Reuse the finished K/V pipeline allocation for the warp partial sum.
       #pragma unroll
       for(int i=0;i<size(output);++i)
-        s.storage.partial[(warp*16+int(get<0>(out_coords(i))))*kHeadDim+int(get<1>(out_coords(i)))]=output(i);
+        s.storage.partial[(warp*16+PV::QueryRow(out_coords(i)))*kHeadDim+PV::OutputDim(out_coords(i))]=output(i);
       ComputeSync();
       for(int index=ComputeThread()*8;index<16*kHeadDim;index+=kComputeThreads*8) {
         int local=index/kHeadDim,row=query_begin+local,d=index%kHeadDim;

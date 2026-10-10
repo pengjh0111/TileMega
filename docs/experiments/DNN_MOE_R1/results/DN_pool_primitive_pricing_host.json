@@ -1,0 +1,54 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Exact pool/global domains and issued candidate primitive resource/arithmetic traits; no model gate or timing",
+  "completion": {
+    "event": "queue_complete",
+    "steps": 8,
+    "passed": true
+  },
+  "binary_sha256": "8ada788927e83f52ed782e597ef142852e4fbd9817099c14b293940f05308f84",
+  "checks": {
+    "pool_global": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-pool-pricing-host-v2/queue-results/pool_global.log",
+      "sha256": "88129493cb28215b6d4f9d4e7de720cf918e29e353148945a6a628280024d88d"
+    },
+    "pool_cg": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-pool-pricing-host-v2/queue-results/pool_cg.log",
+      "sha256": "ae0ad473f170e4139da0b44d4ae3c3a3d0ff6539ecfb619c24471a039674f014"
+    },
+    "dnn_cg": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-pool-pricing-host-v2/queue-results/dnn_cg.log",
+      "sha256": "81c14e7222f21936367a35e82694b0b620591ee01273dea1471eb3b9a6f639e7"
+    },
+    "descriptors": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-pool-pricing-host-v2/queue-results/descriptors.log",
+      "sha256": "7d3626f4b26cdd4eae47589c269fa5eecfbdddc9f63a47de9d8d30eae3a376d5"
+    },
+    "semantics": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-pool-pricing-host-v2/queue-results/semantics.log",
+      "sha256": "e555d45de59f75b4bff5217ef2fa64bccc5d4e0ec90aa783d1a3024fd5af3382"
+    },
+    "arithmetic": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-pool-pricing-host-v2/queue-results/arithmetic.log",
+      "sha256": "b35d73b7eabe5bf902ff66b370f8489ef0d2cea60887a9c412eb6243138a69c3"
+    },
+    "forward_search": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-pool-pricing-host-v2/queue-results/forward_search.log",
+      "sha256": "5c811c54d675083fd6b2bb8cfe1987dd99cee6b9c9a6b6282a88806fa1ac20ff"
+    },
+    "resources": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-pool-pricing-host-v2/queue-results/resources.log",
+      "sha256": "fca23ba21df5f0460937279a9f61b1cb4545d0f12a3c609215b48a99be843ffb"
+    }
+  },
+  "utc": "2026-10-09T16:07:49.053274+00:00"
+}

@@ -48,6 +48,14 @@ int TestCgAttr(int argc, char** argv) {
     auto parsed = mlir::parseSourceString<mlir::ModuleOp>(text, &context);
     assert(static_cast<bool>(parsed) == (std::string(signature)=="add"));
   }
+  for(auto const* kind:{"depthwise_conv","pool","global_pool_reduce","layernorm",
+      "encoder_attention","embedding_sum","dwpw_fused","moe_topk",
+      "moe_combine","layout_convert"}) {
+    std::string text="module { tmcg.tile_space @t {granularity = {}, kind = #tmcg.task_kind<\"";
+    text+=kind;
+    text+="\">, stage = 0 : i64, operator_name = \"test\", write_map = #tmcg.access_map<{}>} }";
+    assert(mlir::parseSourceString<mlir::ModuleOp>(text,&context));
+  }
 
   // MetricAttr: a QuasiPolynomial (wait/fanout/volume/count's storage type)
   // round-trips through MLIR IR text with its value intact.

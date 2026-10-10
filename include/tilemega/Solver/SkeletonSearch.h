@@ -1,14 +1,21 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+
+#include <functional>
+#include <utility>
 #include <tilemega/Solver/CompilerSearch.h>
 #include <tilemega/Solver/SkeletonPlacement.h>
 #include <tilemega/Solver/VariantResourceCache.h>
 #include <tilemega/Solver/FlowPreparation.h>
+#include <tilemega/Solver/DmGemmCandidates.h>
+#include <tilemega/Solver/MoeRoutingProfile.h>
 
 namespace tilemega::solver {
 struct SkeletonEvaluationCase {
   std::vector<GemmConfig> config;
   int kappa=1,residency=1;
+  int page_bytes=0,lookahead_bytes=-1;
+  unsigned handoff_mask=0;
 };
 struct SkeletonSearchOptions {
   CompilerSearchOptions common;
@@ -16,6 +23,8 @@ struct SkeletonSearchOptions {
   int kappa=1,k_base=8,passes=3,jobs=1;
   bool all_workers=false;
   VariantResourceCache::Probe variant_probe;
+  std::function<VariantResources(frontend::ModelPlan const&,std::string const&,
+      GemmConfig const*,ScalarType)> dm_variant_probe;
   std::string artifact_prefix,fixture;
   int seed_residency=1,top_m=8,measure_top=6;
   // Bound only the outer Level 1 scan. The caller reserves the remainder of
@@ -31,6 +40,15 @@ struct SkeletonSearchOptions {
   // An edge class is a coordinate: bit 0 selects access-proved normalization
   // recompute, bit 1 selects access-proved attention last-arriver reduction.
   bool handoff_auto=false;
+  using DmStructureRebuild=std::function<std::pair<frontend::ModelPlan,frontend::LiftedModel>(
+      frontend::ModelPlan const&,frontend::ExportBridge const&,frontend::LiftOptions const&,
+      int,int,int)>;
+  // DM frontends retain their own graph recognition and L-sem when a
+  // decoder attention or argmax coordinate changes.
+  DmStructureRebuild dm_structure_rebuild;
+  std::map<std::size_t,DmWeightLayoutConstraint> dm_shared_weights;
+  std::shared_ptr<MoeRoutingProfile const> moe_routing_profile;
+  unsigned moe_profile_layer=0;
   int page_bytes=8192;
   std::vector<int> page_choices;
   std::vector<int> lookahead_choices{0,65536,131072};

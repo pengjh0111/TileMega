@@ -1,0 +1,27 @@
+{
+  "evidence": "verified",
+  "scope": "CNN graph planning/semantic lifting and bound dependency host checks; no generated model execution",
+  "queue": "/root/dm1_work/development/runs/dm1-dnn-model-plan-host-v5/events/completion.json",
+  "binary_sha256": "acdeaba6378c402bd7cf6c698b03230e20bee4bbb44100ecb9d2862be1f2c7b2",
+  "checks": {
+    "resnet18_before": "done",
+    "resnet18_core": "done",
+    "mbv1_before": "done",
+    "mbv1_core": "done",
+    "mbv2_before": "done",
+    "mbv2_core": "done",
+    "synthetic": "done",
+    "bound_dependency": "done"
+  },
+  "sources": {
+    "lib/Frontend/DnnModelPlan.cpp": "b5be03af39237f5f490108bcc7688f7d39c1cc7ef6ddb7f281aba2e8f6440412",
+    "test/unit/dnn_model_plan_test.cpp": "d8da81c49c37213ac976fa780bc6a29ab260e2da08d120bd4dfbcb33ca6f50c1",
+    "lib/Analysis/BoundDependencyForm.cpp": "fed12516a53d039fc020d16da7113789ac4b1c6fc434661ece853bd8da28f766",
+    "test/unit/bound_dependency_form_test.cpp": "d93ecb8cf991129b979b083c23d2a34611c2a3b10935416657e821638baed4e2"
+  },
+  "prior_failed_queues": [
+    "/root/dm1_work/development/runs/dm1-dnn-model-plan-host-v1/events/completion.json",
+    "/root/dm1_work/development/runs/dm1-dnn-model-plan-host-v4/events/completion.json"
+  ],
+  "cancelled_queue": "/root/dm1_work/development/runs/dm1-dnn-model-plan-host-v2/cancellation.json"
+}

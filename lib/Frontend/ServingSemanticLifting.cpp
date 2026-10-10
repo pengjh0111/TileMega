@@ -5,6 +5,7 @@
 #include <tilemega/Frontend/SemanticLifting.h>
 
 #include <algorithm>
+#include <iterator>
 #include <limits>
 #include <stdexcept>
 #include <unordered_map>
@@ -84,6 +85,10 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
   const auto cap = C(plan.serving_capacity);
   std::unordered_map<std::uint32_t, std::string> writer;
   std::unordered_map<std::uint32_t, TensorSpace> written;
+  std::unordered_map<std::string, std::uint32_t> buffer_ids;
+  if (plan.dm)
+    for (unsigned id = 0; id < plan.buffers.size(); ++id)
+      buffer_ids.emplace(plan.buffers[id].name, id);
   auto name = [&](std::uint32_t id) -> std::string {
     if (id == missing || id >= plan.buffers.size())
       throw std::invalid_argument("serving stage has an unknown operand");
@@ -98,6 +103,28 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
     return found == written.end() ? Tensor(name(id), std::move(axes))
                                   : found->second;
   };
+  auto register_dm_writes = [&](SemanticOp const& op) {
+    auto save = [&](TensorSpace const& tensor) {
+      auto found = buffer_ids.find(tensor.name);
+      if (found == buffer_ids.end()) return;
+      writer[found->second] = op.name;
+      written[found->second] = tensor;
+      result.written[found->second] = 1;
+    };
+    save(op.result);
+    for (auto const& write : op.additional_writes) save(write.tensor);
+  };
+  auto squares = [&](SemanticOp& op, unsigned id, ClosedForm rows,
+                     unsigned columns, IndexResult row, IndexResult column) {
+    if (id == missing) return;
+    if (columns % 32)
+      throw std::invalid_argument("serving RMS squares require 32-channel groups");
+    ElementWrite write;
+    write.tensor = Tensor(name(id), {Axis("m", rows), Axis("c", C(columns / 32))});
+    write.map.results = {std::move(row), std::move(column)};
+    write.effect.kind = EffectKind::kWrite;
+    op.additional_writes.push_back(std::move(write));
+  };
   auto record = [&](std::size_t i, SemanticOp op, OpRole role,
                     std::uint32_t output, std::string arithmetic) {
     op.dtype = ScalarType::kBF16;
@@ -105,6 +132,7 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
     writer[output] = op.name;
     written[output] = op.result;
     result.written[output] = 1;
+    if (plan.dm) register_dm_writes(op);
     result.ops.push_back({op.name, role, OwnershipKind::kTilePerBlock,
                           static_cast<int>(i), 0, plan.stages[i].representative});
     result.sem.ops.push_back(std::move(op));
@@ -112,6 +140,22 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
   for (std::size_t i = 0; i < plan.stages.size(); ++i) {
     auto const& stage = plan.stages[i];
     const auto op_name = "serving.s" + std::to_string(i);
+    bool moe = stage.kind == PlanTaskKind::kMoETopK ||
+               stage.kind == PlanTaskKind::kMoECombine;
+    if (plan.dm && stage.kind == PlanTaskKind::kGemm) {
+      auto const& g = plan.gemms.at(stage.gemm);
+      moe = g.access.write.layout != missing || g.chain.count || g.chain.side_count ||
+            g.access.b == codegen::DmBAccess::kExpertIndirect;
+    }
+    if (plan.dm && moe) {
+      auto fragment = LiftMoeStageSemantics(plan, options, i, result);
+      for (auto const& op : fragment.sem.ops) register_dm_writes(op);
+      result.ops.insert(result.ops.end(), fragment.ops.begin(), fragment.ops.end());
+      result.sem.ops.insert(result.sem.ops.end(),
+          std::make_move_iterator(fragment.sem.ops.begin()),
+          std::make_move_iterator(fragment.sem.ops.end()));
+      continue;
+    }
     if (stage.kind == PlanTaskKind::kEmbedding) {
       auto token = Tensor(name(stage.operands[0]),
                           {Axis("b", B), Axis("pos", cap)});
@@ -133,6 +177,9 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
       // exact cardinality upper bound; the tied lm_head reads the whole table.
       op.element_reads = {{token, id_read.map, {}},
                           {table, {{Aff({}), Id("h")}}, {}}};
+      if (plan.dm)
+        squares(op, stage.operands[3], M, stage.width, Id("m"),
+                Aff({{"h", C(1), C(32)}}));
       record(i, std::move(op), OpRole::kEmbedding, stage.operands[2], "embedding");
       continue;
     }
@@ -241,6 +288,13 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
       }
       auto op = Output(op_name, OperatorKind::kMatmul, std::move(domain),
                        std::move(dst), std::move(dst_map), std::move(reads));
+      if (plan.dm && gemm.norm_ss != missing)
+        op.operands.push_back(Input(producer(gemm.norm_ss),
+            space(gemm.norm_ss, {Axis("m", rows), Axis("c", C(gemm.k / 32))}),
+            {Id("m"), IndexResult::FullRange()}));
+      if (plan.dm)
+        squares(op, gemm.ss_out, rows, gemm.n, Id("m"),
+                Aff({{"n", C(1), C(32)}}));
       // The packed QKV/SwiGLU and vocabulary-partial maps couple output
       // tiles to specific weight rows. Rectangular operand projection would
       // forget those affine expressions and charge every task the full

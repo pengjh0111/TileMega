@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/OpArithmetic.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/CouplingRelation.h>
 #include <algorithm>
 #include <stdexcept>
 
@@ -13,6 +14,12 @@ std::vector<ArithmeticDeclaration> const& ArithmeticDeclarations() {
   static const std::vector<ArithmeticDeclaration> table = {
     {"gemm", {0,2,0,0,1,false}, {0,0,0,0,1,false}, true,true,true,
      "implemented", "one length-K dot per output: K FMA = 2K; BF16 MMA, FP32 SIMT"},
+    {"simple_gate_gemm", {1,4,0,0,1,false}, {0,0,0,0,1,false}, true,true,true,
+     "dm_simple_gate", "two length-K dots and one rounded channel-pair multiplication per compact output"},
+    {"simple_gate_combine", {-1,1,0,0,1,false}, {0,0,0,0,1,false}, false,false,true,
+     "dm_simple_gate_combine", "R=2*chunks: two (chunks-1) dot sums followed by one rounded pair multiplication"},
+    {"swiglu_combine", {2,1,0,0,1,false}, {1,0,0,0,1,false}, false,false,true,
+     "dm_swiglu_combine", "R=2*chunks: two (chunks-1) dot sums followed by four SiLU/product scalar operations and one exp"},
     {"swiglu_gemm", {0,4,0,0,1,false}, {1,0,0,0,1,false}, true,true,true,
      "serving_epilogue", "two length-K dots per output followed by one SiLU and multiplication"},
     {"argmax_gemm", {0,2,0,0,1,false}, {0,0,0,0,1,false}, true,true,true,
@@ -53,12 +60,40 @@ std::vector<ArithmeticDeclaration> const& ArithmeticDeclarations() {
      "combine_component", "R values require R-1 additions; zero-seeded implementation overhead is separate"},
     {"softmax", {-1,0,0,3,1,true}, {1,0,0,0,1,false}, false,true,false,
      "no_standalone_taskbody", "per row: W subtract + W-1 sum + W divide = 3W-1; W exp; max comparisons excluded"},
-    {"layernorm", {1,0,0,8,1,true}, {1,0,0,0,1,true}, false,true,false,
-     "no_standalone_taskbody", "two-pass: mean W ops, variance 3W ops, epsilon 1, center/normalize/affine 4W ops = 8W+1; one rsqrt"},
+    {"layernorm", {1,0,0,8,1,true}, {1,0,0,0,1,true}, false,false,true,
+     "dm_layernorm", "two-pass: mean W ops, variance 3W ops, epsilon 1, center/normalize/affine 4W ops = 8W+1; one rsqrt"},
     {"gelu_tanh", {8,0,0,0,1,false}, {1,0,0,0,1,false}, false,false,false,
      "no_standalone_taskbody", "0.5*x*(1+tanh(c*(x+0.044715*x^3))): cube 2, scaled cube 1, add 1, scale 1, add one 1, final multiplies 2 = 8"},
     {"moe_router", {-1,0,0,3,1,true}, {1,0,0,0,1,false}, false,true,false,
      "placeholder_taskbody", "softmax over expert scores as above; top-k comparison/selection is not floating arithmetic; existing body only stores an integer, so pricing rejects it"},
+    {"depthwise_conv", {0,2,0,0,1,false}, {0,0,0,0,1,false}, false,true,true,
+     "dm_depthwise", "one length-RS dot per output channel; affine epilogue is a separate phase"},
+    {"depthwise_simple_gate", {1,2,0,0,1,false}, {0,0,0,0,1,false}, false,true,true,
+     "dm_depthwise_simple_gate", "R=2*RS: two channel dots followed by one SimpleGate multiplication"},
+    {"pool", {0,0,0,0,1,false}, {0,0,0,0,1,false}, false,false,true,
+     "dm_pool", "maximum selection uses comparisons, excluded from floating arithmetic"},
+    {"global_pool_reduce", {0,1,0,0,1,false}, {0,0,0,0,1,false}, false,false,true,
+     "dm_global_pool_reduce", "R partial sums require R-1 additions and one division per output"},
+    {"encoder_attention", {0,0,4,0,64,false}, {0,0,1,0,4096,false}, true,true,true,
+     "dm_encoder_attention", "D=64, R=S*64: QK/PV use 4R/64 FLOP/output and softmax R/(64*64) exp/output; normalization uses separate SIMT phases"},
+    {"embedding_sum", {-1,1,0,0,1,false}, {0,0,0,0,1,false}, false,false,true,
+     "dm_embedding_sum", "R gathered tables require R-1 additions per output"},
+    {"dwpw_depthwise", {0,2,0,0,1,false}, {0,0,0,0,1,false}, false,true,true,
+     "dm_dwpw", "fused depthwise phase uses its own output domain; pointwise uses gemm arithmetic"},
+    {"dm_gelu_erf", {4,0,0,0,1,false}, {1,0,0,0,1,false}, false,false,true,
+     "dm_epilogue", "scale erf input, add one, and two product multiplies; one erf"},
+    {"dm_gelu_tanh", {8,0,0,0,1,false}, {1,0,0,0,1,false}, false,false,true,
+     "dm_epilogue", "cube and scale polynomial, add one, two final multiplies; one tanh"},
+    {"dm_tanh", {0,0,0,0,1,false}, {1,0,0,0,1,false}, false,false,true,
+     "dm_epilogue", "one tanh per private output"},
+    {"moe_topk", {3,0,0,0,1,false}, {1,0,0,0,1,false}, false,false,true,
+     "dm_topk", "per selected probability: subtract, zero-seeded sum and normalize; one exp; comparisons and integer dispatch excluded"},
+    {"moe_dispatch", {0,0,0,0,1,false}, {0,0,0,0,1,false}, false,false,true,
+     "dm_dispatch", "stable histogram, prefix sum and binding scatter use integer operations only"},
+    {"moe_combine", {0,2,0,0,1,false}, {0,0,0,0,1,false}, false,false,true,
+     "dm_combine", "K rounded products, K-1 additions and one residual addition per output; zero-seeded implementation overhead is separate"},
+    {"layout_convert", {0,0,0,0,1,false}, {0,0,0,0,1,false}, false,false,true,
+     "dm_layout_convert", "layout copy and halo initialization have no floating arithmetic"},
   };
   return table;
 }
@@ -75,7 +110,8 @@ double ArithmeticRatio::Eval(ParamBinding const& theta) const {
   return static_cast<double>(numerator.Eval(theta))/static_cast<double>(denominator);
 }
 
-OpArithmetic InstantiateArithmetic(std::string const& name, ArithmeticInputs const& inputs) {
+static OpArithmetic InstantiateArithmeticImpl(std::string const& name,
+    ArithmeticInputs const& inputs, CouplingRelation const* task_domain) {
   IslReferenceAudit audit(__func__);
 #if !TILEMEGA_OP_ARITHMETIC
   throw std::runtime_error("operator arithmetic declarations disabled");
@@ -97,12 +133,27 @@ OpArithmetic InstantiateArithmetic(std::string const& name, ArithmeticInputs con
       terms.push_back(inputs.total->Scale(f.total));
     }
     if (f.width) terms.push_back(QuasiPolynomial::Constant(f.width*inputs.width));
+    if(task_domain)for(auto& term:terms)term=term.SumAlong(*task_domain);
     return ArithmeticRatio{QuasiPolynomial::Sum(terms),
                            f.denominator*(f.divide_by_width ? inputs.width : 1)};
   };
   return {instantiate(found->flops),instantiate(found->transcendental),
           found->bf16_mma && inputs.dtype==ScalarType::kBF16,
           found->smem_staged,found->reason,found->runtime_implemented};
+}
+
+OpArithmetic InstantiateArithmetic(std::string const& name, ArithmeticInputs const& inputs) {
+  return InstantiateArithmeticImpl(name,inputs,nullptr);
+}
+OpArithmetic InstantiateTaskArithmetic(std::string const& name,
+    ArithmeticInputs const& inputs,CouplingRelation const& task_domain) {
+  if(task_domain.empty() ||
+      task_domain.DomainDimNames().size()!=task_domain.RangeDimNames().size())
+    throw std::invalid_argument("task arithmetic requires an identity domain");
+  auto identity=task_domain.ImageIdentity();
+  if(!task_domain.IsSubset(identity) || !identity.IsSubset(task_domain))
+    throw std::invalid_argument("task arithmetic cannot redistribute task work");
+  return InstantiateArithmeticImpl(name,inputs,&task_domain);
 }
 
 void RequireArithmeticImplementation(OpArithmetic const& a) {

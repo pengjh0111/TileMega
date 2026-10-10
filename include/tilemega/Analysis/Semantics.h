@@ -17,6 +17,7 @@
 #pragma once
 
 #include <string>
+#include <optional>
 #include <vector>
 
 #include <tilemega/Analysis/ClosedForm.h>
@@ -49,13 +50,17 @@ struct IterationDim {
   ClosedForm origin = ClosedForm::Constant(0);
   IteratorType type = IteratorType::kParallel;
   bool runtime = false;
+  std::optional<ClosedForm> capacity;
+  std::string binding_source;
+  std::string binding_requirement;
+  ClosedForm BoundExtent() const { return capacity ? *capacity : extent; }
 };
 
 /// One result of an indexing map: the element index along one tensor axis as a
 /// function of the iteration coordinates.
 struct IndexResult {
   enum class Kind {
-    kAffine,        ///< sum(coefficient * floordiv(dim, group)) + offset
+    kAffine,        ///< sum(coefficient * floordiv(dim + shift, group)) + offset
     kFullRange,     ///< the whole axis, independent of the iteration point
     kBroadcast,     ///< one element reused across the domain
     kDataDependent  ///< index read from a tensor
@@ -65,21 +70,32 @@ struct IndexResult {
     std::string dim;
     ClosedForm coefficient = ClosedForm::Constant(1);
     ClosedForm group = ClosedForm::Constant(1);
+    ClosedForm shift = ClosedForm::Constant(0);
   };
 
   Kind kind = Kind::kAffine;
   std::vector<Term> terms;
   ClosedForm offset = ClosedForm::Constant(0);
-  ClosedForm span = ClosedForm::Constant(1);  ///< non-affine kinds only
+  ClosedForm span = ClosedForm::Constant(1);  ///< affine read window or broadcast extent
+  ClosedForm window_stride = ClosedForm::Constant(1);
+  std::string binding_source;
+  // Logical binding requests identify issued gathers/scatters independently
+  // of the physical I2 address envelope. Empty keeps the legacy projection.
+  std::vector<std::string> request_dims;
+  // Optional outer floor of the entire affine sum. This represents an MMA
+  // iteration/chunk index without flattening the semantic reduction axes.
+  ClosedForm outer_divisor = ClosedForm::Constant(1);
 
   static IndexResult Dim(std::string name,
                          ClosedForm coefficient = ClosedForm::Constant(1),
-                         ClosedForm group = ClosedForm::Constant(1));
+                         ClosedForm group = ClosedForm::Constant(1),
+                         ClosedForm shift = ClosedForm::Constant(0));
   static IndexResult Affine(std::vector<Term> terms,
                             ClosedForm offset = ClosedForm::Constant(0));
   static IndexResult FullRange(ClosedForm offset = ClosedForm::Constant(0));
   static IndexResult Broadcast(ClosedForm span = ClosedForm::Constant(1));
-  static IndexResult DataDependent();
+  static IndexResult DataDependent(std::string binding_source = {},
+                                  std::vector<std::string> request_dims = {});
 
   std::string Serialize() const;
 };
@@ -146,7 +162,33 @@ struct ReductionSemantics {
   /// Which iteration dims own one partial contribution. Empty means every
   /// parallel dim, which is the ordinary case.
   std::vector<std::string> ownership;
+  // A fused channel gate keeps independent FP32 dots until the combiner.
+  // One preserves legacy partial tensors and serialization exactly.
+  unsigned partial_values = 1;
   std::string Serialize() const;
+};
+
+// A fused reduction stores one contribution per ownership tile. The raw
+// tensor omits that storage axis; only L-task inserts it after choosing g.
+struct TileStoragePartition {
+  std::string tensor, owner_axis;
+  unsigned tensor_axis = 0;
+};
+
+// A segmented consumer reduces only the producer tiles intersecting one
+// logical segment (e.g. an image). No producer tile size enters L-sem.
+struct TileStorageSelection {
+  std::string tensor, reduction_dim, segment_dim;
+  ClosedForm segment_extent = ClosedForm::Constant(1);
+};
+
+// Sequential arithmetic on a private tile, without a global tensor store.
+// Its output image determines recomputation at each runtime task coordinate.
+struct PrivateComputePhase {
+  std::string arithmetic;
+  TensorSpace output;
+  IndexingMap map;
+  ClosedForm reduction = ClosedForm::Constant(1);
 };
 
 /// One structured operator. Everything about it is g-independent.
@@ -160,14 +202,30 @@ struct SemanticOp {
   IndexingMap result_map;
   MemoryEffect result_effect;
   std::vector<SemanticOperand> operands;
+  // Reads performed after the reduction completes. SplitReduction moves
+  // these to the combiner; partial GEMMs must not wait for residual inputs.
+  // Empty retains the legacy semantic serialization.
+  std::vector<SemanticOperand> epilogue_operands;
   /// When nonempty this is the complete physical read set, not an increment
   /// to operands. Coupling projection and issued nominal work stay separate.
   std::vector<ElementRead> element_reads;
   std::vector<ElementWrite> additional_writes;
+  std::vector<TileStoragePartition> tile_storage;
+  std::vector<TileStorageSelection> tile_storage_reads;
+  std::vector<PrivateComputePhase> compute_prologue;
   ReductionSemantics reduction;
   /// Set when the op fell through every declarative pattern and was given the
   /// conservative generic semantics (identity result map, full-range reads).
   bool generic = false;
+  // The ownership domain is independent of storage coordinates (e.g. m vs
+  // NCHW). These fields are absent in the legacy path and serialize only when
+  // selected, so decoder exports retain their original representation.
+  bool exact_task_access = false;
+  TensorSpace task_space;
+  IndexingMap task_map;
+  // Exact quasi-affine restrictions on the iteration domain. An empty list
+  // retains the rectangular legacy domain and its serialized representation.
+  std::vector<IndexResult> domain_nonnegative;
 
   IterationDim const* Dim(std::string const& name) const;
   std::string Serialize() const;

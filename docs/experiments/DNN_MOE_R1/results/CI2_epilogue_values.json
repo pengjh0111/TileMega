@@ -1,0 +1,1078 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "output": "mode=0 cases=64 max_abs_error=0\nmode=1 cases=64 max_abs_error=0\nmode=2 cases=64 max_abs_error=2.38419e-07\nmode=3 cases=64 max_abs_error=0\nmode=4 cases=64 max_abs_error=0\nmode=5 cases=64 max_abs_error=0\nmode=6 cases=64 max_abs_error=0\nmode=7 cases=64 max_abs_error=0\nmode=8 cases=64 max_abs_error=0\nmode=9 cases=64 max_abs_error=0\nmode=10 cases=64 max_abs_error=0\nmode=11 cases=64 max_abs_error=0\nmode=12 cases=64 max_abs_error=0\nmode=13 cases=64 max_abs_error=0\nmode=14 cases=64 max_abs_error=3.8147e-06\nmode=15 cases=64 max_abs_error=0\nDM epilogue values: 1024 PyTorch reference cases passed across 16 variants\n",
+  "source_sha256": "bb60411cb93a76ada948cdc9aabf62f0bfc8c393bc231a8f3719e16dfbba69bd",
+  "fixture_sha256": "83fad22b967cf0cce8a7c464f16d9a5c89be0fea44baf477a48eda080bc6d2c0",
+  "headers": {
+    "include/tilemega/Backend/DmEpilogueValue.h": "4b90a8e845ad3a129fa651ba5363d109396392e5ca3112ae7ee8e5efe2876dad",
+    "include/tilemega/Codegen/DmDescriptors.h": "1ff48082aa764f941ddf926c1e78c8e09df388fed4ccb22499fb98227f8deb2a"
+  },
+  "head": "37c4a137ad455622df20be7d08b9c673e0764a40",
+  "diff_sha256": "928a1470e8e024c5b7e72b57492b5197d10c6223609959b1ad60ddb4de803f40",
+  "compiler_version": "nvcc: NVIDIA (R) Cuda compiler driver\nCopyright (c) 2005-2025 NVIDIA Corporation\nBuilt on Fri_Feb_21_20:23:50_PST_2025\nCuda compilation tools, release 12.8, V12.8.93\nBuild cuda_12.8.r12.8/compiler.35583870_0\n",
+  "execution_architecture": 89,
+  "builds": [
+    {
+      "arch": 80,
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "--expt-relaxed-constexpr",
+        "-arch=sm_80",
+        "-Xptxas=-v",
+        "-I/root/dm1_work/development/include",
+        "-I/root/dm1_work/development/third_party/cutlass/include",
+        "/root/dm1_work/development/test/unit/dm_epilogue_value_test.cu",
+        "-o",
+        "/root/dm1_work/development/runs/dm1-ci2-epilogue-walk/checks/epilogue-sm_80"
+      ],
+      "binary_sha256": "c24b418eeaab69981c4cacd12e1b8ca31237b5e56d8d74c7d9d5ed92938f97fc",
+      "kernels": {
+        "_Z8EvaluateILi15EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi14EEvPK6RecordPfi": {
+          "registers": 14,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 14 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi13EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi12EEvPK6RecordPfi": {
+          "registers": 13,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 13 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi11EEvPK6RecordPfi": {
+          "registers": 11,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 11 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi10EEvPK6RecordPfi": {
+          "registers": 10,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 10 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi9EEvPK6RecordPfi": {
+          "registers": 10,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 10 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi8EEvPK6RecordPfi": {
+          "registers": 10,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 10 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi7EEvPK6RecordPfi": {
+          "registers": 17,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 17 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi6EEvPK6RecordPfi": {
+          "registers": 11,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 11 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi5EEvPK6RecordPfi": {
+          "registers": 15,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 15 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi4EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi3EEvPK6RecordPfi": {
+          "registers": 11,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 11 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi2EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi1EEvPK6RecordPfi": {
+          "registers": 10,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 10 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi0EEvPK6RecordPfi": {
+          "registers": 10,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 10 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        }
+      },
+      "spill": false
+    },
+    {
+      "arch": 89,
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "--expt-relaxed-constexpr",
+        "-arch=sm_89",
+        "-Xptxas=-v",
+        "-I/root/dm1_work/development/include",
+        "-I/root/dm1_work/development/third_party/cutlass/include",
+        "/root/dm1_work/development/test/unit/dm_epilogue_value_test.cu",
+        "-o",
+        "/root/dm1_work/development/runs/dm1-ci2-epilogue-walk/checks/epilogue-sm_89"
+      ],
+      "binary_sha256": "d15c57e63ba19e72d8d050f80ec1247008cd600e0ee4517dddf6de185b9833b5",
+      "kernels": {
+        "_Z8EvaluateILi15EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi14EEvPK6RecordPfi": {
+          "registers": 13,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 13 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi13EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi12EEvPK6RecordPfi": {
+          "registers": 15,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 15 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi11EEvPK6RecordPfi": {
+          "registers": 14,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 14 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi10EEvPK6RecordPfi": {
+          "registers": 10,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 10 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi9EEvPK6RecordPfi": {
+          "registers": 10,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 10 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi8EEvPK6RecordPfi": {
+          "registers": 11,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 11 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi7EEvPK6RecordPfi": {
+          "registers": 16,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 16 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi6EEvPK6RecordPfi": {
+          "registers": 11,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 11 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi5EEvPK6RecordPfi": {
+          "registers": 16,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 16 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi4EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi3EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi2EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi1EEvPK6RecordPfi": {
+          "registers": 10,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 10 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi0EEvPK6RecordPfi": {
+          "registers": 10,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 10 registers, used 0 barriers, 372 bytes cmem[0]"
+          ],
+          "spill": false
+        }
+      },
+      "spill": false
+    },
+    {
+      "arch": 90,
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "--expt-relaxed-constexpr",
+        "-arch=sm_90",
+        "-Xptxas=-v",
+        "-I/root/dm1_work/development/include",
+        "-I/root/dm1_work/development/third_party/cutlass/include",
+        "/root/dm1_work/development/test/unit/dm_epilogue_value_test.cu",
+        "-o",
+        "/root/dm1_work/development/runs/dm1-ci2-epilogue-walk/checks/epilogue-sm_90"
+      ],
+      "binary_sha256": "c4ff59ef15bbb11d5e6f92d7dd052600c20d584f27fe933e167f8d5a0299f5e2",
+      "kernels": {
+        "_Z8EvaluateILi15EEvPK6RecordPfi": {
+          "registers": 14,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 14 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi14EEvPK6RecordPfi": {
+          "registers": 13,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 13 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi13EEvPK6RecordPfi": {
+          "registers": 14,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 14 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi12EEvPK6RecordPfi": {
+          "registers": 16,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 16 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi11EEvPK6RecordPfi": {
+          "registers": 18,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 18 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi10EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi9EEvPK6RecordPfi": {
+          "registers": 14,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 14 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi8EEvPK6RecordPfi": {
+          "registers": 14,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 14 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi7EEvPK6RecordPfi": {
+          "registers": 16,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 16 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi6EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi5EEvPK6RecordPfi": {
+          "registers": 16,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 16 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi4EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi3EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi2EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi1EEvPK6RecordPfi": {
+          "registers": 10,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 10 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi0EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers"
+          ],
+          "spill": false
+        }
+      },
+      "spill": false
+    },
+    {
+      "arch": 100,
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "--expt-relaxed-constexpr",
+        "-arch=sm_100",
+        "-Xptxas=-v",
+        "-I/root/dm1_work/development/include",
+        "-I/root/dm1_work/development/third_party/cutlass/include",
+        "/root/dm1_work/development/test/unit/dm_epilogue_value_test.cu",
+        "-o",
+        "/root/dm1_work/development/runs/dm1-ci2-epilogue-walk/checks/epilogue-sm_100"
+      ],
+      "binary_sha256": "b46560469247cf59c501bb5894cc0521b2c0340f988a9c023f52d2e5b46f0632",
+      "kernels": {
+        "_Z8EvaluateILi15EEvPK6RecordPfi": {
+          "registers": 13,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 13 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi14EEvPK6RecordPfi": {
+          "registers": 13,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 13 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi13EEvPK6RecordPfi": {
+          "registers": 14,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 14 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi12EEvPK6RecordPfi": {
+          "registers": 16,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 16 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi11EEvPK6RecordPfi": {
+          "registers": 14,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 14 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi10EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi9EEvPK6RecordPfi": {
+          "registers": 14,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 14 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi8EEvPK6RecordPfi": {
+          "registers": 14,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 14 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi7EEvPK6RecordPfi": {
+          "registers": 16,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 16 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi6EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi5EEvPK6RecordPfi": {
+          "registers": 16,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 16 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi4EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi3EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi2EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi1EEvPK6RecordPfi": {
+          "registers": 10,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 10 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi0EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers"
+          ],
+          "spill": false
+        }
+      },
+      "spill": false
+    },
+    {
+      "arch": 120,
+      "command": [
+        "/usr/local/cuda/bin/nvcc",
+        "-std=c++17",
+        "-O2",
+        "--expt-relaxed-constexpr",
+        "-arch=sm_120",
+        "-Xptxas=-v",
+        "-I/root/dm1_work/development/include",
+        "-I/root/dm1_work/development/third_party/cutlass/include",
+        "/root/dm1_work/development/test/unit/dm_epilogue_value_test.cu",
+        "-o",
+        "/root/dm1_work/development/runs/dm1-ci2-epilogue-walk/checks/epilogue-sm_120"
+      ],
+      "binary_sha256": "8cb5b50d74f954b5f1271d9c5f871980eae7f54ec5dbbb4984f6cbe691ad0468",
+      "kernels": {
+        "_Z8EvaluateILi15EEvPK6RecordPfi": {
+          "registers": 13,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 13 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi14EEvPK6RecordPfi": {
+          "registers": 13,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 13 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi13EEvPK6RecordPfi": {
+          "registers": 14,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 14 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi12EEvPK6RecordPfi": {
+          "registers": 16,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 16 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi11EEvPK6RecordPfi": {
+          "registers": 14,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 14 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi10EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi9EEvPK6RecordPfi": {
+          "registers": 14,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 14 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi8EEvPK6RecordPfi": {
+          "registers": 14,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 14 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi7EEvPK6RecordPfi": {
+          "registers": 17,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 17 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi6EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi5EEvPK6RecordPfi": {
+          "registers": 16,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 16 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi4EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi3EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi2EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi1EEvPK6RecordPfi": {
+          "registers": 10,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 10 registers, used 0 barriers"
+          ],
+          "spill": false
+        },
+        "_Z8EvaluateILi0EEvPK6RecordPfi": {
+          "registers": 12,
+          "stack_bytes": 0,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 12 registers, used 0 barriers"
+          ],
+          "spill": false
+        }
+      },
+      "spill": false
+    }
+  ],
+  "scope": "value functions and finite compile-time chains; no TaskBody or synchronization claim"
+}

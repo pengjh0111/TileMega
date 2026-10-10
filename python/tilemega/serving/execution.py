@@ -3,7 +3,23 @@ from pathlib import Path
 import json
 import warnings
 
-CLI_FEATURES=frozenset(('decode_executor','decode_loop','prefill_executor'))
+CLI_FEATURES=frozenset(('decode_executor','decode_loop','prefill_executor','prefill_pg'))
+
+def phase_pg_choices(features, phase):
+    if phase == 'prefill':
+        if features.get('prefill_pg', 'l2') == 'measure':
+            return ('l2', 'pages')
+        return (features['pg'],) if features['pg'] in ('off', 'l2') else ('l2',)
+    if phase != 'decode':
+        raise ValueError('unknown serving phase '+phase)
+    if features['pg'] in ('off', 'l2'):
+        return (features['pg'],)
+    return ('l2', 'pages') if features['pg'] == 'measure' else ('pages',)
+
+def prefill_combinations(pg, executor):
+    if pg not in ('off', 'l2', 'pages') or executor not in ('L1', 'L2', 'measure'):
+        raise ValueError('invalid prefill execution choice')
+    return [(mode, 0) for mode in ('L1', 'L2') if executor in ('measure', mode)]
 
 def compiler_features(features):
     return {k:v for k,v in features.items() if k not in CLI_FEATURES}

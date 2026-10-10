@@ -1,0 +1,35 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_commit": "b44d1ee5672368f88eb2220a5d2769021947b031",
+  "scope": "Host I2 projection of bound stores and static logical contribution counts; no runtime synchronization, body execution or counted CG/device integration claim.",
+  "geometries": 96,
+  "binding_permutations": 24,
+  "inputs": {
+    "include/tilemega/Analysis/TaskElementRelation.h": "c9593ac5b780354b207373ed6b0dcfe6dd0ac0a2814d78a927962d914210d0b2",
+    "lib/Analysis/TaskElementRelation.cpp": "b833e779acbba4e32f19ff92941e13be84cbce5f6836947cb5fcf96315c4d8df",
+    "lib/Analysis/CouplingDerivation.cpp": "21ea66f584234fb56d94548890965cbe89238a17a02e00bca1f756f0afae304a",
+    "include/tilemega/Analysis/CountedDependencyForm.h": "4809765d42cccbae7f92bccbd298de97c099000c76819475ad51eb5bae1a972f",
+    "lib/Analysis/CountedDependencyForm.cpp": "4930acc175bfe0d4075d3c804e7c1a8279bb8ebe2c42ca77592642e744d8cb37",
+    "test/unit/counted_write_test.cpp": "0fba46e9a6f901b54f06f48bd02cd8f37842ee9642bdcebab0996d8e171c336c"
+  },
+  "driver_sha256": "be62763401731c93c169b70c192a2f874726bc307d1e7dbfc584db5088941593",
+  "binary_sha256": "58b8b805320163e530528dbe8ec8e54614b89189aaf25537b6e05928aab63e5d",
+  "queue_sha256": "da23d780352c870b8a06838722a287c5ea1a85ac614578193786f6da58251d15",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "logs": {
+    "runs/dm1-ci4-counted-write-host-v5/events/01_compile.log": "2b0ee48b403bee439e3ded4dbc0c892833ce2a874b8e26b3ea63c2a693fecf4d",
+    "runs/dm1-ci4-counted-write-host-v5/events/02_check.log": "09d1c5fd116dc8edc6b202cb3d2bb509faa575a3af6d6a97c7e5b42f132058f0",
+    "runs/dm1-ci4-counted-write-host-v5/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "earlier_failures": {
+    "v1": "Standalone driver omitted the required derivation binding argument; corrected driver only.",
+    "v2_v3": "Standalone link used unavailable zstd development library then omitted NTL; replaced by native unit link dependencies.",
+    "v4": "Fixture indexed an omitted whole-tiled axis as coordinate 1; changed to the final channel coordinate. Channel equality and weighted count expectations unchanged."
+  },
+  "remaining": [
+    "Native test registration/build",
+    "Counted CG transport and per-consumer runtime thresholds",
+    "Production MoE bodies and 50 fresh-process synchronization gates"
+  ]
+}

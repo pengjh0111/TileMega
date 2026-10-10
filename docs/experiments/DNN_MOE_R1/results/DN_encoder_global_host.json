@@ -1,0 +1,63 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Exact encoder/pool/global ownership, runtime task counts, bound-batch pure forward ABI and legacy synthetic forward checks; no full-model gate",
+  "completion": {
+    "event": "queue_complete",
+    "steps": 9,
+    "passed": true
+  },
+  "binary_sha256": "358471d07491199bde629c6928eec1f2e87fb44b21746ffbbad8df150185c9ba",
+  "checks": {
+    "encoder": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-encoder-global-stage-host-v5/queue-results/encoder.log",
+      "sha256": "44c67baa87e6506b272915c3f2d0473df63365231945ab7924418ae03104180f"
+    },
+    "descriptors": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-encoder-global-stage-host-v5/queue-results/descriptors.log",
+      "sha256": "dde5d466f6c6968c67519ec4489ed5f9883c1c3c19e0cec24cebd1d56496c860"
+    },
+    "forward": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-encoder-global-stage-host-v5/queue-results/forward.log",
+      "sha256": "eeff933e5e150663bb6d81bb4e657e80462f00c7d12eb76b22e219386aec34f4"
+    },
+    "semantics": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-encoder-global-stage-host-v5/queue-results/semantics.log",
+      "sha256": "b7b3e7323e4009ba80831d92173adaba578393607c106515b89aeff59432f528"
+    },
+    "arithmetic": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-encoder-global-stage-host-v5/queue-results/arithmetic.log",
+      "sha256": "c61f018ed07ad921d72cd7183978efb0a58e8cebf9c72f3979604ef928217ec0"
+    },
+    "resources": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-encoder-global-stage-host-v5/queue-results/resources.log",
+      "sha256": "fdc54ba3d321a2586d28646f6618386f91f12c68a65c596c9e53192bb9f955a5"
+    },
+    "global": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-encoder-global-stage-host-v5/queue-results/global.log",
+      "sha256": "7c49da170c59c625bcdf68c0993a250679479575b387e62f75effc245d0e8243"
+    },
+    "pool_cg": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-encoder-global-stage-host-v5/queue-results/pool_cg.log",
+      "sha256": "b0b87b41b772f5fbf18e1ac2e3074453240707dfd460b5970f552129c6b13fb6"
+    },
+    "dnn_cg": {
+      "status": "done",
+      "log": "/root/dm1_work/development/runs/dm1-encoder-global-stage-host-v5/queue-results/dnn_cg.log",
+      "sha256": "1aa3394bee3c3c1c74667d20913b6208cf57fd8422cada06a9798cbb20d86443"
+    }
+  },
+  "failures_retained": [
+    "runs/dm1-encoder-stage-host-v1",
+    "runs/dm1-encoder-stage-host-v2"
+  ],
+  "utc": "2026-10-09T16:51:41.310793+00:00"
+}

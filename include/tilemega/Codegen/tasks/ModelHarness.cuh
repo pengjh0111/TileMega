@@ -1,3 +1,7 @@
+// Preserve the independently validated serving and DM runtime contracts.
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Codegen/tasks/DmModelHarness.cuh>
+#else
 // SPDX-License-Identifier: BSD-3-Clause
 // Skeleton refs: §5.2 (only TaskBodies are handwritten), §8 (sync and launch).
 //
@@ -4321,3 +4325,5 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
 }
 
 }  // namespace tilemega::codegen
+
+#endif

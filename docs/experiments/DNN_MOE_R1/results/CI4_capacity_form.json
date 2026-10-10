@@ -1,0 +1,25 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "source": {
+    "source_head": "0ccd6a52e3deb86f30973e6fad80dce74e75b557",
+    "files": {
+      "test/unit/capacity_form_test.cpp": "0d2c757527b4645f5cc55546a6ff8e4c18de8a4a0cfff6a4fa05213869786a8e",
+      "CMakeLists.txt": "1b0600115dc7550768343eaa73690e01cd8d4229314fbc8584b77415d9080b10",
+      "include/tilemega/Analysis/ClosedForm.h": "66e1ec088e210add2551b6bdf261200f549d5305c496c9800f9183c4dd2bc6af",
+      "include/tilemega/Analysis/QuasiPolynomial.h": "5ced657d1634a93c823aa280db1df3521f21ab18670aec9fbdd4f5b1b14f94fe",
+      "lib/Analysis/ClosedForm.cpp": "05b87c07ecbfc2d001f88a3859660bb7a07a58a47c0f7fd8253392768b12935d",
+      "lib/Analysis/ExactTaskWork.cpp": "80b64fb522a50109d620f8ac9ac0b4fbf3a8680179768110a70e5927c5bb936c",
+      "lib/Analysis/QuasiPolynomial.cpp": "309edd98d40d943312434681a6d87977a8990b8fb9247c77fa4ca4449178d511",
+      "lib/Analysis/TaskElementRelation.cpp": "f66f5e106a176d71d4dacada14f9e6187300d0f2d20d8465551f69828b15b63b",
+      "test/unit/runner.cpp": "3da2da9e20d67338255a5af0264021dd412b8de23bcd9b0c7c7b797e1450aa92"
+    }
+  },
+  "checks": 8,
+  "scope": "closed-form min, exact polynomial pieces and capacity bounds; no runtime binding or synchronization claim",
+  "binary_sha256": "1b2edaa4def1cb174c557216503fe6e4214f631414d125f9e1341b7de422d97c",
+  "logs": {
+    "build_capacity.log": "00a58d450a05f4eecce8ab7bb1d85945298a7be020a281ddad6c040a28d17d24",
+    "ctest_capacity.log": "248887e56a3d280fe4cdb426f28c32f5d1272b909e7732c8a633462f1860b93d"
+  }
+}

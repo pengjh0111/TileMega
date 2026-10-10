@@ -3,15 +3,23 @@
 #include <tilemega/Codegen/RuntimePlan.h>
 #include <tilemega/Solver/RuntimeProjection.h>
 #include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Solver/DmGemmTraits.h>
 #include <tilemega/Codegen/tasks/TaskResources.h>
 #include <mlir/IR/Builders.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/ExactMemo.h>
+#include <tilemega/Codegen/RuntimeDependencyCodec.h>
 #include <tilemega/Frontend/SymbolicShapeBridge.h>
+#include <tilemega/Frontend/DmDescriptorCodec.h>
+#include <tilemega/Frontend/ModelPlan.h>
 #include <tilemega/Codegen/HostLauncherEmitter.h>
 #include <tilemega/Codegen/ScheduleTableEmitter.h>
 #include <tilemega/Codegen/SyncEmitter.h>
 #include <tilemega/Codegen/TaskBodyEmitter.h>
 #include <tilemega/Analysis/DependencyForm.h>
+#include <tilemega/Analysis/BoundDependencyForm.h>
+#include <tilemega/Dialect/CouplingGraph/BoundDependency.h>
+#include <tilemega/Dialect/CouplingGraph/CountedDependency.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <tilemega/Dialect/CouplingGraph/PlacementPlan.h>
 #include <tilemega/Solver/VariantSchedule.h>
@@ -256,6 +264,15 @@ std::string emitServingAttentionConfig(mlir::DictionaryAttr plan,
                                        mlir::ModuleOp module) {
   auto serving = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
   if (!serving) return {};
+  if (optionalBoolField(plan, "forward")) {
+    if (!optionalBoolField(plan, "dm") || integerField(serving, "capacity") != 0 ||
+        integerField(serving, "seq") <= 0 || integerField(serving, "phase") != 2)
+      throw std::invalid_argument("invalid forward runtime metadata");
+    return std::string(optionalBoolField(plan, "forward_token_axis")
+        ? "#define TILEMEGA_FORWARD_TOKEN_AXIS 1\n" : "") +
+        "#define TILEMEGA_SERVING_PHASE 2\n#define TILEMEGA_SERVING_SEQ " +
+        std::to_string(integerField(serving, "seq")) + "\n";
+  }
   auto stages = arrayField(plan, "stages");
   for (auto value : stages) {
     auto item = dictionaryEntry(value, "stages");
@@ -312,6 +329,17 @@ std::string emitTokenIdBits(mlir::DictionaryAttr plan) {
          std::to_string(value.getInt()) + "\n#endif\n";
 }
 
+std::string emitDmReductionConfig(mlir::DictionaryAttr plan) {
+  auto mask=plan.getAs<mlir::IntegerAttr>("dm_reduction_mask");
+  if(!mask)return {};
+  if(!optionalBoolField(plan,"dm") || mask.getInt()<0 || mask.getInt()>7)
+    throw std::invalid_argument("invalid generated DM reduction selection");
+  unsigned value=mask.getInt();
+  return "#define TILEMEGA_DM_REDUCTIONS "+std::to_string(value!=0)+
+      "\n#define TILEMEGA_DM_POOL_LA "+std::to_string(bool(value&1))+
+      "\n#define TILEMEGA_DM_MOE_LA "+std::to_string(bool(value&6))+
+      "\n#define TILEMEGA_DM_MOE_LA_MASK "+std::to_string(value>>1)+"\n";
+}
 std::string emitNormEpsilon(mlir::DictionaryAttr plan) {
   double epsilon = optionalFloatField(plan, "norm_epsilon");
   if (epsilon <= 0.0) return {};
@@ -474,6 +502,34 @@ std::string emitModelPlan(mlir::ModuleOp module,
   auto gemms = arrayField(plan, "gemms");
   auto stages = arrayField(plan, "stages");
   auto outputs = arrayField(plan, "outputs");
+  bool const dm = optionalBoolField(plan,"dm");
+  if(dm) {
+    frontend::ModelPlan validation; validation.dm=true;
+    for(auto value:buffers) {
+      frontend::PlanBuffer buffer;
+      buffer.layout=frontend::DecodeDmLayout(dictionaryEntry(value,"buffers").get("dm_layout"));
+      validation.buffers.push_back(buffer);
+    }
+    for(auto value:arrayField(plan,"dm_convolutions"))
+      validation.convolutions.push_back(frontend::DecodeDmConv(value));
+    for(auto value:gemms) {
+      auto item=dictionaryEntry(value,"gemms"); frontend::PlanGemm gemm;
+      gemm.access=frontend::DecodeDmAccess(item.get("dm_access"));
+      gemm.chain=frontend::DecodeDmChain(item.get("dm_chain"));
+      validation.gemms.push_back(gemm);
+    }
+    for(auto value:stages) {
+      auto item=dictionaryEntry(value,"stages"); frontend::PlanStage stage;
+      auto conv=integerField(item,"dm_conv"),rows=integerField(item,"dm_rows_per_batch");
+      if(conv<0 || conv>std::numeric_limits<std::uint32_t>::max() ||
+         rows<0 || rows>std::numeric_limits<std::uint32_t>::max())
+        throw std::invalid_argument("DM stage descriptor is outside 32-bit range");
+      stage.conv=conv; stage.rows_per_batch=rows;
+      if(item.get("dm_chain"))stage.chain=frontend::DecodeDmChain(item.get("dm_chain"));
+      validation.stages.push_back(stage);
+    }
+    frontend::ValidateDmModelPlan(validation);
+  }
   std::string dtype = stringField(plan, "dtype");
   if (dtype != "f32" && dtype != "bf16")
     throw std::invalid_argument("unsupported tilemega.model_plan dtype: " + dtype);
@@ -486,6 +542,20 @@ std::string emitModelPlan(mlir::ModuleOp module,
       !module->hasAttr("tmexec.solved_stage_kappa");
 
   std::ostringstream out;
+  auto couplings = module.getOps<dialect::CouplingOp>();
+  if (dm && serving && (optionalBoolField(plan,"forward") ||
+      std::any_of(couplings.begin(), couplings.end(),
+        [](auto edge) { return edge->hasAttr("dependency_geometry") || edge->hasAttr("dependency_counted"); }))) {
+    auto roles = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.dimension_roles");
+    auto role = roles ? roles.getAs<mlir::StringAttr>("batch") : mlir::StringAttr{};
+    auto theta = readBinding(module, "tilemega.theta");
+    long batch = role && !role.getValue().empty() ? theta.At(role.getValue().str()) : 1;
+    if (batch <= 0 || batch > std::numeric_limits<int>::max())
+      throw std::invalid_argument("bound task batch is outside runtime range");
+    out << "#define TILEMEGA_DM_BOUND_BATCH " << batch << "\n"
+        << "#ifndef TILEMEGA_SERVING_BATCH_LO\n#define TILEMEGA_SERVING_BATCH_LO " << batch << "\n#endif\n"
+        << "#ifndef TILEMEGA_SERVING_BATCH_HI\n#define TILEMEGA_SERVING_BATCH_HI " << batch << "\n#endif\n";
+  }
   out << "namespace {\nusing namespace tilemega::codegen;\n\n"
       << "constexpr ModelDims kDims = {0, 0, 0, 1, "
       << (serving ? integerField(serving, "capacity") : 0)
@@ -518,7 +588,7 @@ std::string emitModelPlan(mlir::ModuleOp module,
       std::string buffer_dtype = stringField(item, "dtype");
       std::string buffer_role = stringField(item, "role");
       int dtype_code = buffer_dtype == "bf16" ? 0 : buffer_dtype == "f32" ? 1
-                     : buffer_dtype == "i32" ? 2 : -1;
+                     : buffer_dtype == "i32" ? 2 : dm && buffer_dtype == "i64" ? 3 : -1;
       int role_code = buffer_role == "internal" ? 0
                     : buffer_role == "external" ? 1 : -1;
       if (dtype_code < 0 || role_code < 0)
@@ -531,9 +601,22 @@ std::string emitModelPlan(mlir::ModuleOp module,
           << ", "
           << (pack_json.empty() ? "nullptr" : quoteCString(pack_json));
     }
+    if(dm) {
+      if(!item.get("per_batch")) out<<", 0u, 0u, 0u, nullptr, nullptr";
+      out<<", "<<frontend::EmitDm(frontend::DecodeDmLayout(item.get("dm_layout")));
+      if(item.get("dm_arena_offset"))out<<", "<<integerField(item,"dm_arena_offset")<<"ull";
+    }
     out << "},\n";
   }
   out << "};\n";
+  if(dm) {
+    auto convs=arrayField(plan,"dm_convolutions");
+    if(!convs.empty()) {
+      out<<"constexpr ConvDesc kConvolutions[] = {\n";
+      for(auto conv:convs)out<<"  "<<frontend::EmitDm(frontend::DecodeDmConv(conv))<<",\n";
+      out<<"};\n";
+    }
+  }
   if(module->getAttr("tmexec.prefetch")) {
     out<<"constexpr std::uint8_t kServingFrontier[] = {";
     for(auto value:buffers)out<<(optionalBoolField(dictionaryEntry(value,"buffers"),"no_producer")?1:0)<<',';
@@ -578,9 +661,15 @@ std::string emitModelPlan(mlir::ModuleOp module,
           << ", " << (ss_out<0?std::string("kNoOperand"):
                           std::to_string(ss_out)+"u");
     }
+    if(dm) {
+      if(!serving)out<<", 0u, kNoOperand, kNoOperand, kNoOperand";
+      out<<", "<<frontend::EmitDm(frontend::DecodeDmAccess(item.get("dm_access")))
+         <<", "<<frontend::EmitDm(frontend::DecodeDmChain(item.get("dm_chain")));
+    }
     out << "},\n";
   }
   out << "};\n\nconstexpr StageDesc kStages[] = {\n";
+  unsigned primitive_index=0;
   for (auto value : stages) {
     auto item = dictionaryEntry(value, "stages");
     auto operands = llvm::dyn_cast<mlir::DenseI64ArrayAttr>(
@@ -617,7 +706,41 @@ std::string emitModelPlan(mlir::ModuleOp module,
       } else if(item.get("prefetch_history_mask"))
         out<<", "<<integerField(item,"prefetch_history_mask");
     }
+    if(dm) {
+      if(!item.get("batch_rows"))out<<", false, 1, 0, 256, 64, 0, kNoOperand, false";
+      else if(!serving) {
+        if(!item.get("prefetch_history_mask"))out<<", 0";
+        out<<", kNoOperand, false";
+      }
+      out<<", "<<integerField(item,"dm_conv")<<"u, "
+         <<integerField(item,"dm_rows_per_batch")<<'u';
+      if(item.get("dm_binding_producer") || item.get("dm_norm_epsilon") || item.get("dm_chain") || item.get("dm_partial_rows_per_image") || item.get("dm_moe"))
+        out<<", "<<(item.get("dm_binding_producer") ?
+            integerField(item,"dm_binding_producer") : codegen::kDmNoIndex)<<'u';
+      if(auto epsilon=item.getAs<mlir::FloatAttr>("dm_norm_epsilon"))
+        out<<", "<<formatFloat(epsilon.getValueAsDouble())<<'f';
+      if(item.get("dm_chain")) {
+        if(!item.get("dm_norm_epsilon"))out<<", 0.0f";
+        auto conv=frontend::DecodeDmConv(arrayField(plan,"dm_convolutions")[integerField(item,"dm_conv")]);
+        out<<", "<<frontend::EmitDm(frontend::DecodeDmChain(item.get("dm_chain")))
+           <<", "<<primitive_index<<"u, "<<conv.q<<'u';
+      }
+      if(item.get("dm_partial_rows_per_image")) {
+        if(!item.get("dm_norm_epsilon"))out<<", 0.0f";
+        if(!item.get("dm_chain"))out<<", {}, 0u, 0u";
+        out<<", "<<integerField(item,"dm_partial_rows_per_image")<<'u';
+      }
+      if(item.get("dm_moe")) {
+        if(!item.get("dm_partial_rows_per_image")) {
+          if(!item.get("dm_norm_epsilon"))out<<", 0.0f";
+          if(!item.get("dm_chain"))out<<", {}, "<<primitive_index<<"u, 0u";
+          out<<", 0u";
+        }
+        out<<", "<<frontend::EmitDm(frontend::DecodeDmMoeStage(item.get("dm_moe")));
+      }
+    }
     out << "},\n";
+    ++primitive_index;
   }
   out << "};\n\nconstexpr OutputDesc kOutputs[] = {\n";
   for (auto value : outputs) {
@@ -632,6 +755,7 @@ std::string emitModelPlan(mlir::ModuleOp module,
     return a.seq_begin < b.seq_begin;
   });
   std::uint32_t cursor_seq = serving ? variants.front().seq_begin : 1;
+  std::vector<std::uint64_t> variant_interval_counts(variants.size());
   for (std::size_t v = 0; v < variants.size(); ++v) {
     auto& variant = variants[v];
     if (variant.seq_begin != cursor_seq || variant.seq_end < variant.seq_begin)
@@ -667,18 +791,91 @@ std::string emitModelPlan(mlir::ModuleOp module,
       out << "  {" << impl.compiled_variant << "u, " << impl.split_k << "u, "
           << impl.tile_m << "u, " << impl.tile_n << "u, " << impl.tile_k
           << "u, " << impl.stages << "u},\n";
-    out << "};\n\nconstexpr StageDependency kDependencies" << v << "[] = {\n";
+    out << "};\n\n";
+    std::vector<std::uint32_t> table_offsets(variant.dependencies.size());
+    std::vector<std::optional<analysis::DependencyTable>> ordering_tables(variant.dependencies.size());
+    std::uint64_t interval_count = 0;
+    bool has_tables = false;
+    for (std::size_t e = 0; e < variant.dependencies.size(); ++e) {
+      table_offsets[e] = interval_count;
+      auto const& edge=variant.dependencies[e];
+      ordering_tables[e]=edge.table;
+      if(edge.counted) {
+        if(edge.table || edge.phase_window || !edge.counted->producers ||
+            edge.counted->contributions.expected.empty())
+          throw std::invalid_argument("counted wait lacks its I2 ordering contract");
+        ordering_tables[e]=analysis::BuildDependencyTableLinear(
+            edge.counted->conservative_relation,edge.counted->producers,
+            edge.counted->contributions.expected.size());
+      }
+      if (auto const& table = ordering_tables[e]) {
+        if (!dm || variant.dependencies[e].phase_window)
+          throw std::invalid_argument("table waits require a DM plan without a K-phase gate");
+        has_tables = true; interval_count += table->intervals.size();
+        if (interval_count > std::numeric_limits<std::uint32_t>::max())
+          throw std::invalid_argument("variant dependency interval storage overflows");
+      }
+    }
+    variant_interval_counts[v]=interval_count;
+    if (has_tables) {
+      out << "constexpr RuntimeDependencyInterval kDependencyIntervals" << v << "[] = {\n";
+      for (auto const& table : ordering_tables) if (table)
+        for (auto const& interval : table->intervals)
+          out << "  {" << interval.first << "u, " << interval.count << "u},\n";
+      if (!interval_count) out << "  {0u, 0u},\n";
+      out << "};\n\n";
+    }
+    std::vector<std::uint32_t> counted_offsets(variant.dependencies.size());
+    std::uint64_t counted_count=0;
+    for (std::size_t e=0;e<variant.dependencies.size();++e) {
+      counted_offsets[e]=counted_count;
+      if (auto const& counted=variant.dependencies[e].counted) {
+        if (!dm || variant.dependencies[e].table || variant.dependencies[e].phase_window ||
+            counted->contributions.expected.empty())
+          throw std::invalid_argument("counted waits require a bound DM contribution contract");
+        for (auto count:counted->contributions.expected)
+          if (!count)throw std::invalid_argument("zero counted contribution threshold");
+        counted_count+=counted->contributions.expected.size();
+        if (counted_count>std::numeric_limits<std::uint32_t>::max())
+          throw std::invalid_argument("variant counted threshold storage overflows");
+      }
+    }
+    if (counted_count) {
+      out << "constexpr std::uint32_t kCountedThresholds" << v << "[] = {\n  ";
+      for (auto const& edge:variant.dependencies) if(edge.counted)
+        for(auto count:edge.counted->contributions.expected)out<<count<<"u, ";
+      out << "\n};\n\n";
+    }
+    out << "constexpr StageDependency kDependencies" << v << "[] = {\n";
+    std::size_t dependency_index = 0;
     for (auto const& edge : variant.dependencies) {
       bool const use_phase=edge.phase_window.has_value() && phase_legal;
       if(edge.phase_window && !phase_legal)
         std::cerr<<"E2E_KPHASE_DISABLED kappa is not uniformly one\n";
       analysis::WaitWindow const& w = use_phase?*edge.phase_window:edge.window;
-      char const* kind = use_phase?"kPhase":!w.narrowed ? "kAll"
+      char const* kind = edge.counted ? "kCounted" : edge.table ? "kTable" : use_phase?"kPhase":!w.narrowed ? "kAll"
                          : w.IsIdentity() ? "kIdentity" : "kWindow";
       out << "  {" << edge.producer << "u, " << edge.consumer
           << "u, StageDependency::Map::" << kind << ", " << w.div << "u, "
           << w.scale << ", " << w.offset << ", " << w.count << "u, "
-          << edge.phase_tiles << "u},\n";
+          << edge.phase_tiles << "u";
+      if (edge.table)
+        out << ", " << table_offsets[dependency_index] << "u, " << edge.table->consumers << "u, "
+            << edge.table->stride << "u, 0u";
+      if (edge.counted)
+        out << ", " << table_offsets[dependency_index] << "u, "
+            << edge.counted->contributions.expected.size()
+            << "u, " << ordering_tables[dependency_index]->stride << "u, " << counted_offsets[dependency_index]
+            << "u, " << counted_offsets[dependency_index] << "u";
+      if(edge.producer_main || edge.consumer_done) {
+        if(!dm || edge.counted || edge.phase_window)
+          throw std::invalid_argument("split storage endpoints require a DM task dependency");
+        if(!edge.table)out<<", 0u, 0u, 0u, 0u";
+        out<<", kDmNoIndex, "<<(edge.producer_main?"true":"false")
+           <<", "<<(edge.consumer_done?"true":"false");
+      }
+      out << "},\n";
+      ++dependency_index;
     }
     if (variant.dependencies.empty())
       out << "  {0u, 0u, StageDependency::Map::kAll, 1u, 0, 0, 1u},\n";
@@ -781,6 +978,33 @@ std::string emitModelPlan(mlir::ModuleOp module,
         << variants[v].seq_begin << "u, " << variants[v].seq_end
         << "u, " << variants[v].ownership_flags << "u";
     bool const carries_plan = variants[v].plan.carried;
+    bool const has_tables = std::any_of(variants[v].dependencies.begin(), variants[v].dependencies.end(),
+        [](auto const& edge) { return edge.table.has_value() || edge.counted.has_value(); });
+    bool const has_counted=std::any_of(variants[v].dependencies.begin(),variants[v].dependencies.end(),
+        [](auto const& edge){return edge.counted.has_value();});
+    if (has_counted) {
+      std::uint64_t intervals=variant_interval_counts[v],thresholds=0;
+      for(auto const& edge:variants[v].dependencies) {
+        if(edge.counted)thresholds+=edge.counted->contributions.expected.size();
+      }
+      out << (variants[v].attention.empty()?", nullptr":", kRuntimeAttention"+std::to_string(v));
+      out << ", true, " << (variants[v].balanced_placement?"true":"false") << ", "
+          << (variants[v].exact_tasks.empty()?"nullptr":"&kExactDependencies"+std::to_string(v)) << ", "
+          << (carries_plan?planInitializer(v):"{}") << ", "
+          << (has_tables?"kDependencyIntervals"+std::to_string(v):"nullptr") << ", "
+          << intervals << "u, {kCountedThresholds" << v << ", " << thresholds << "u}},\n";
+      continue;
+    }
+    if (has_tables) {
+      std::uint64_t intervals = 0;
+      for (auto const& edge : variants[v].dependencies) if (edge.table) intervals += edge.table->intervals.size();
+      if (variants[v].attention.empty()) out << ", nullptr";
+      else out << ", kRuntimeAttention" << v;
+      out << ", true, " << (variants[v].balanced_placement ? "true" : "false") << ", "
+          << (variants[v].exact_tasks.empty() ? "nullptr" : "&kExactDependencies" + std::to_string(v)) << ", "
+          << (carries_plan ? planInitializer(v) : "{}") << ", kDependencyIntervals" << v << ", " << intervals << "u},\n";
+      continue;
+    }
     if (!variants[v].exact_tasks.empty()) {
       if (variants[v].attention.empty()) out << ", nullptr";
       else out << ", kRuntimeAttention" << v;
@@ -819,8 +1043,14 @@ std::string emitModelPlan(mlir::ModuleOp module,
       << "u, kStages, " << stages.size() << "u, kOutputs, "
       << outputs.size() << "u, kRuntimeVariants, " << variants.size()
       << "u, kSeqVariant.data(), " << seq_count << "u"
-      << (epsilon > 0.0 ? ", " + formatFloat(epsilon) + "f" : std::string())
-      << "};\n\n}  // namespace\n\n";
+      << (epsilon > 0.0 ? ", " + formatFloat(epsilon) + "f" : std::string());
+  if(dm) {
+    if(epsilon<=0.0)out<<", TILEMEGA_NORM_EPSILON";
+    auto convs=arrayField(plan,"dm_convolutions");
+    out<<", "<<(convs.empty()?"nullptr":"kConvolutions")<<", "<<convs.size()<<'u';
+    if(plan.get("dm_memory_arena_bytes"))out<<", "<<integerField(plan,"dm_memory_arena_bytes")<<"ull";
+  }
+  out<<"};\n\n}  // namespace\n\n";
   if (serving)
     out << "#include <tilemega/Codegen/tasks/ServingRuntime.cuh>\n";
   else
@@ -833,8 +1063,154 @@ std::string emitModelPlan(mlir::ModuleOp module,
 }  // namespace
 
 std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
-  (void)module;
-  return "#include <tilemega/Codegen/tasks/ModelHarness.cuh>\n";
+  std::ostringstream out;
+  auto plan = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+  if (plan && optionalBoolField(plan, "dm")) {
+    auto gemms = arrayField(plan, "gemms");
+    out << "#include <tilemega/Codegen/DmDescriptors.h>\n"
+        << "#define TILEMEGA_DM_EPILOGUE_DISPATCH 1\n"
+        << "namespace tilemega::codegen {\n";
+    for(std::size_t i=0;i<gemms.size();++i) {
+      auto item=dictionaryEntry(gemms[i],"gemms");
+      auto chain=frontend::DecodeDmChain(item.get("dm_chain"));
+      auto access=frontend::DecodeDmAccess(item.get("dm_access"));
+      out<<"using DmChain"<<i<<" = DmEpilogueProgram<";
+      for(unsigned j=0;j<chain.count;++j) {
+        auto const& op=chain.operations[j];
+        if(j)out<<", ";
+        out<<"DmEpilogueStep<static_cast<DmEpilogueKind>("<<unsigned(op.kind)
+           <<"u), static_cast<DmActivation>("<<unsigned(op.activation)
+           <<"u), static_cast<DmGatePair>("<<unsigned(op.gate)<<"u), "<<op.unit
+           <<"u, static_cast<DmRounding>("<<unsigned(op.input_rounding)
+           <<"u), static_cast<DmRounding>("<<unsigned(op.output_rounding)
+           <<"u), static_cast<DmWriteKind>("<<unsigned(op.residual_map.kind)
+           <<"u), "<<op.residual_map.factor<<"u>";
+      }
+      out<<">;\n";
+      out<<"using DmSpec"<<i<<" = DmEpilogueSpec<DmChain"<<i
+         <<", static_cast<DmWriteKind>("<<unsigned(access.write.kind)<<"u), "
+         <<access.write.factor<<"u, static_cast<DmRounding>("
+         <<unsigned(chain.store_rounding)<<"u)";
+      for(unsigned j=0;j<chain.side_count;++j)
+        out<<", DmSideOutputSpec<static_cast<DmSideOutputKind>("
+           <<unsigned(chain.side[j].kind)<<"u), "<<chain.side[j].count<<"u>";
+      out<<">;\n";
+    }
+    auto stages = arrayField(plan, "stages");
+    bool depthwise=false,moe_stages=false;
+    for(auto value:stages)moe_stages|=bool(dictionaryEntry(value,"stages").get("dm_moe"));
+    for(std::size_t i=0;i<stages.size();++i) {
+      auto stage=dictionaryEntry(stages[i],"stages");
+      if(stringField(stage,"kind")!="kDepthwiseConv" && stringField(stage,"kind")!="kDwPwFused")continue;
+      depthwise=true;
+      auto chain=frontend::DecodeDmChain(stage.get("dm_chain"));
+      out<<"using DmPrimitiveChain"<<i<<" = DmEpilogueProgram<";
+      for(unsigned j=0;j<chain.count;++j) {
+        auto const& op=chain.operations[j];if(j)out<<", ";
+        out<<"DmEpilogueStep<static_cast<DmEpilogueKind>("<<unsigned(op.kind)
+           <<"u), static_cast<DmActivation>("<<unsigned(op.activation)
+           <<"u), static_cast<DmGatePair>("<<unsigned(op.gate)<<"u), "<<op.unit
+           <<"u, static_cast<DmRounding>("<<unsigned(op.input_rounding)
+           <<"u), static_cast<DmRounding>("<<unsigned(op.output_rounding)
+           <<"u), static_cast<DmWriteKind>("<<unsigned(op.residual_map.kind)
+           <<"u), "<<op.residual_map.factor<<"u>";
+      }
+      out<<">;\n";
+    }
+    bool fused_dw=false;
+    for(auto value:stages)fused_dw|=stringField(dictionaryEntry(value,"stages"),"kind")=="kDwPwFused";
+    if(fused_dw) {
+      out<<"#define TILEMEGA_DM_FUSED_DISPATCH 1\n"
+         <<"template<class Runner>\n__device__ inline bool DispatchDmFused(std::uint32_t stage, Runner const& runner) {\n";
+      for(std::size_t i=0;i<stages.size();++i) {
+        auto stage=dictionaryEntry(stages[i],"stages");
+        if(stringField(stage,"kind")!="kDwPwFused")continue;
+        auto conv=frontend::DecodeDmConv(arrayField(plan,"dm_convolutions")[integerField(stage,"dm_conv")]);
+        out<<"  if(stage=="<<i<<"u) {runner.template Run<"<<conv.c<<", DmPrimitiveChain"<<i
+           <<", DmSpec"<<integerField(stage,"gemm")<<">(); return true;}\n";
+      }
+      out<<"  return false;\n}\n";
+    }
+    std::set<std::tuple<std::string,std::int64_t,std::int64_t>> scalar_shapes;
+    for(auto value:stages) {
+      auto stage=dictionaryEntry(value,"stages");
+      auto kind=stringField(stage,"kind");
+      if(kind!="kLayerNorm" && kind!="kEmbeddingSum" && kind!="kLayoutConvert" &&
+         kind!="kPool" && kind!="kGlobalPoolReduce" && kind!="kEncoderAttention")continue;
+      auto width=integerField(stage,"width"),rows=integerField(stage,"group");
+      if(width<=0 || width>4096 || rows<=0 || rows>1024 ||
+         (kind=="kLayerNorm" && rows%4) ||
+         ((kind=="kPool" || kind=="kGlobalPoolReduce") &&
+          (width<32 || width>256 || width%32)))
+        throw std::invalid_argument("invalid DM scalar task geometry");
+      if(kind=="kEncoderAttention" &&
+         ((width!=128 && width!=384 && width!=512) || (rows!=64 && rows!=128)))
+        throw std::invalid_argument("invalid encoder attention specialization");
+      scalar_shapes.emplace(kind,width,rows);
+    }
+    int dm_shared=0;
+    for(auto value:stages) {
+      auto stage=dictionaryEntry(value,"stages");
+      if(stage.get("dm_workspace_bytes"))dm_shared=std::max(dm_shared,int(integerField(stage,"dm_workspace_bytes")));
+      if(stage.get("dm_moe")) {
+        auto config=frontend::DecodeDmMoeStage(stage.get("dm_moe"));
+        if(config.step==codegen::DmMoeStep::kCombine)
+          dm_shared=std::max(dm_shared,MoeCombineSharedBytes(integerField(stage,"group"),integerField(stage,"width")));
+        else if(config.step!=codegen::DmMoeStep::kSelect)dm_shared=std::max(dm_shared,MoeDispatchSharedBytes());
+      }
+    }
+    for(auto const& [kind,width,rows]:scalar_shapes)
+      if(kind=="kEncoderAttention")dm_shared=std::max(dm_shared,EncoderAttentionSharedBytes());
+    if(fused_dw) {
+      auto geometries=module->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime");
+      if(!geometries)throw std::invalid_argument("fused dw-pw requires selected GEMM geometry");
+      for(auto value:stages) {
+        auto stage=dictionaryEntry(value,"stages");
+        if(stringField(stage,"kind")!="kDwPwFused")continue;
+        auto g=dictionaryEntry(geometries[integerField(stage,"gemm")],"gemm_runtime");
+        int tm=integerField(g,"tile_m"),tn=integerField(g,"tile_n"),tk=integerField(g,"tile_k"),ss=integerField(g,"stages");
+        dm_shared=std::max(dm_shared,tm*int(integerField(stage,"width"))*2+
+            solver::DmServingBF16SmemBytes(tm,tn,tk,ss));
+      }
+    }
+    if(dm_shared)out<<"#define TILEMEGA_DM_STAGE_SHARED_BYTES "<<dm_shared<<"\n";
+    if(!scalar_shapes.empty() || depthwise || moe_stages) {
+      out<<"} // namespace tilemega::codegen\n"
+         <<"#include <tilemega/Codegen/tasks/TaskBase.h>\n"
+         <<"#define TILEMEGA_DM_STAGE_DISPATCH 1\n"
+         <<"namespace tilemega::codegen {\n"
+         <<"template<class Runner>\n"
+         <<"__device__ inline void DispatchDmStage(std::uint32_t kind, std::uint32_t width, std::uint32_t rows, Runner const& runner) {\n";
+      for(auto const& [kind,width,rows]:scalar_shapes)
+        out<<"  if(kind==unsigned(TaskKind::"<<kind<<") && width=="<<width<<"u && rows=="<<rows
+           <<"u) {runner.template Run<TaskKind::"<<kind<<", "<<width<<", "<<rows<<">(); return;}\n";
+      for(std::size_t i=0;i<stages.size();++i) {
+        auto stage=dictionaryEntry(stages[i],"stages");
+        if(stage.get("dm_moe")) {
+          auto config=frontend::DecodeDmMoeStage(stage.get("dm_moe"));
+          out<<"  if(kind==unsigned(TaskKind::"<<stringField(stage,"kind")
+             <<") && runner.stage.dm_program=="<<i<<"u) {runner.template RunMoe<static_cast<DmMoeStep>("
+             <<unsigned(config.step)<<"u), "<<config.top_k<<", "<<config.block_rows<<", "
+             <<(config.grouped?"true":"false")<<", "<<integerField(stage,"group")<<", "
+             <<integerField(stage,"width")<<">(); return;}\n";
+        }
+        if(stringField(stage,"kind")=="kDepthwiseConv")
+          out<<"  if(kind==unsigned(TaskKind::kDepthwiseConv) && runner.stage.dm_program=="<<i
+             <<"u) {runner.template RunDepthwise<"<<integerField(stage,"group")<<", "
+             <<integerField(stage,"width")<<", DmPrimitiveChain"<<i<<">(); return;}\n";
+      }
+      out<<"  asm volatile(\"trap;\");\n}\n";
+    }
+    out << "template<class Runner>\n"
+        << "__device__ inline void DispatchDmEpilogue(std::uint32_t gemm, Runner const& runner) {\n"
+        << "  switch (gemm) {\n";
+    for (std::size_t i = 0; i < gemms.size(); ++i)
+      out << "    case " << i << "u: runner.template Run<DmSpec" << i << ">(); break;\n";
+    out << "    default: asm volatile(\"trap;\"); break;\n"
+        << "  }\n}\n} // namespace tilemega::codegen\n";
+  }
+  out << "#include <tilemega/Codegen/tasks/ModelHarness.cuh>\n";
+  return out.str();
 }
 
 std::string SyncEmitter::EmitWait(std::string const& event) const {
@@ -950,15 +1326,26 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
   for (auto const& [name, value] : granularity.values) known.Bind(name, value);
   int max_stage = -1;
   std::unordered_map<std::string, std::uint32_t> task_stages;
+  std::map<std::string,bool> combine_tasks;
+  std::set<std::uint32_t> split_stages;
   std::size_t tasks = 0;
   for (auto task : module.getOps<dialect::TileSpaceOp>()) {
     ++tasks;
     max_stage = std::max(max_stage, static_cast<int>(task.getStage()));
     task_stages.emplace(task.getSymName().str(), task.getStage());
+    auto name=task->getAttrOfType<mlir::StringAttr>("operator_name");
+    bool combine=name && name.getValue().ends_with(".combine");
+    combine_tasks.emplace(task.getSymName().str(),combine);
+    if(combine)split_stages.insert(task.getStage());
   }
   if (max_stage < 0) throw std::invalid_argument("CG has no task spaces");
 
   std::map<std::pair<std::uint32_t, std::uint32_t>, analysis::WaitWindow> pairs;
+  std::map<std::pair<std::uint32_t, std::uint32_t>, dialect::BoundTaskGeometry> geometries;
+  std::set<std::pair<std::uint32_t, std::uint32_t>> table_pairs, legacy_pairs;
+  std::vector<DependencyRecord> counted_edges;
+  std::vector<DependencyRecord> endpoint_edges;
+  std::set<std::tuple<std::uint32_t,std::uint32_t,std::string,std::string>> counted_keys;
   std::size_t couplings = 0, cluster_edges = 0;
   for (auto coupling : module.getOps<dialect::CouplingOp>()) {
     ++couplings;
@@ -966,9 +1353,14 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
     if (sync == "cluster") ++cluster_edges;
     else if (sync != "global")
       throw std::invalid_argument("generator accepts global or cluster synchronization");
-    (void)coupling.getWait().getValue().Eval(known);
-    (void)coupling.getFanout().getValue().Eval(known);
-    (void)coupling.getVolume().getValue().Eval(known);
+    // Exact per-task metrics have already been checked against their ISL
+    // relations by the CG verifier. Runtime dependencies use those relations;
+    // summing the unused metrics would repeat expensive Barvinok elimination.
+    if (!coupling->hasAttr("shared_elements")) {
+      (void)coupling.getWait().getValue().Eval(known);
+      (void)coupling.getFanout().getValue().Eval(known);
+      (void)coupling.getVolume().getValue().Eval(known);
+    }
     (void)coupling.getCount().getValue().Eval(known);
     (void)coupling.getRelation().getMap();
     auto source = task_stages.find(coupling.getSrc().str());
@@ -980,8 +1372,67 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
     if (auto text = coupling.getWaitMap())
       window = analysis::ParseWaitWindow(text->str());
     auto pair = std::make_pair(source->second, target->second);
+    auto endpoint=[&](char const* name) {
+      auto flag=coupling->getAttrOfType<mlir::BoolAttr>(name);
+      if(coupling->hasAttr(name) && !flag)
+        throw std::invalid_argument("invalid split storage dependency endpoint");
+      return flag && flag.getValue();
+    };
+    bool producer_main=endpoint("dependency_producer_main");
+    bool consumer_done=endpoint("dependency_consumer_done");
+    if(producer_main || consumer_done) {
+      if((producer_main && (combine_tasks.at(coupling.getSrc().str()) ||
+            !split_stages.count(pair.first))) ||
+          (consumer_done && !combine_tasks.at(coupling.getDst().str())))
+        throw std::invalid_argument("split storage endpoint disagrees with its task space");
+      auto geometry=dialect::ReadBoundTaskGeometry(coupling,known);
+      if(!geometry || dialect::ReadBoundCountedScatter(coupling,known))
+        throw std::invalid_argument("split storage dependency requires exact task ownership");
+      auto bound=analysis::BindExactTaskDependencyLinear(geometry->relation,
+          geometry->producers,geometry->consumers);
+      DependencyRecord record{pair.first,pair.second,bound.window};record.table=bound.table;
+      record.producer_main=producer_main;record.consumer_done=consumer_done;
+      endpoint_edges.push_back(std::move(record));continue;
+    }
+    if (auto counted=dialect::ReadBoundCountedScatter(coupling,known)) {
+      auto geometry=dialect::ReadBoundTaskGeometry(coupling,known);
+      auto fields=coupling->getAttrOfType<mlir::DictionaryAttr>("dependency_counted");
+      if (!geometry || counted->expected.size()!=geometry->consumers)
+        throw std::invalid_argument("counted wait requires bound physical task ownership");
+      auto tensor=fields.getAs<mlir::StringAttr>("tensor").getValue().str();
+      if (!counted_keys.emplace(pair.first,pair.second,tensor,counted->binding_source).second)
+        throw std::invalid_argument("duplicate counted contribution contract");
+      DependencyRecord record{pair.first,pair.second,{true,1,1,0,1}};
+      std::vector<unsigned> units;
+      for(auto axis:fields.getAs<mlir::DenseI64ArrayAttr>("unit_axes").asArrayRef())units.push_back(unsigned(axis));
+      record.counted=CountedWaitRecord{*counted,geometry->relation,geometry->producers,tensor,std::move(units)};
+      counted_edges.push_back(std::move(record));
+      continue;
+    }
     auto [at, fresh] = pairs.emplace(pair, window);
     if (!fresh && at->second != window) at->second = analysis::WaitWindow{};
+    auto geometry = dialect::ReadBoundTaskGeometry(coupling, known);
+    if (geometry) {
+      auto [stored, inserted] = geometries.emplace(pair, *geometry);
+      if (!inserted) {
+        if (stored->second.producers != geometry->producers || stored->second.consumers != geometry->consumers)
+          throw std::invalid_argument("stage-pair dependencies have different task ownership");
+        stored->second.relation = stored->second.relation.Union(geometry->relation);
+      }
+    } else legacy_pairs.insert(pair);
+    if (dialect::ReadBoundDependencyTable(coupling, known)) table_pairs.insert(pair);
+  }
+  for (auto const& [pair, geometry] : geometries) {
+    if (legacy_pairs.count(pair)) throw std::invalid_argument("bound stage pair lacks geometry for an input");
+    auto bound = analysis::BindExactTaskDependencyLinear(geometry.relation, geometry.producers, geometry.consumers);
+    if (bound.table) {
+      table_pairs.insert(pair);
+      // Narrow edges cannot serve as a whole-stage transitivity proof.
+      pairs[pair] = {true, 1, 1, 0, 1};
+    } else {
+      pairs[pair] = bound.window;
+      table_pairs.erase(pair);
+    }
   }
 
   VariantAnalysis result;
@@ -1003,9 +1454,16 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
   if (result.cluster_dim == 1 && cluster_edges != 0)
     throw std::invalid_argument(
         "cluster synchronization requires a placement cluster larger than 1");
-  for (auto const& edge : TransitiveReduction(pairs, max_stage + 1))
-    result.dependencies.push_back(
-        {edge.first, edge.second, pairs.at(edge)});
+  for (auto const& edge : TransitiveReduction(pairs, max_stage + 1)) {
+    DependencyRecord record{edge.first, edge.second, pairs.at(edge)};
+    if (table_pairs.count(edge)) {
+      auto const& geometry = geometries.at(edge);
+      record.table = analysis::BuildDependencyTableLinear(geometry.relation, geometry.producers, geometry.consumers);
+    }
+    result.dependencies.push_back(std::move(record));
+  }
+  result.dependencies.insert(result.dependencies.end(),counted_edges.begin(),counted_edges.end());
+  result.dependencies.insert(result.dependencies.end(),endpoint_edges.begin(),endpoint_edges.end());
   return result;
 }
 
@@ -1031,6 +1489,9 @@ static void ReadParameterRanges(mlir::ModuleOp module,RuntimePlan& result) {
 
 RuntimePlan ReadRuntimePlan(mlir::ModuleOp module) {
   analysis::IslReferenceAudit audit(__func__);
+  std::optional<analysis::ScopedExactAnalysisMemo> memo;
+  auto plan=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+  if(plan && plan.get("dm") && !analysis::active_exact_memo)memo.emplace();
   auto analysis = AnalyzeVariantModule(module);
   auto model = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   if (!model) throw std::invalid_argument("CG has no runtime model plan");
@@ -1043,6 +1504,16 @@ RuntimePlan ReadRuntimePlan(mlir::ModuleOp module) {
   result.cluster_dim = analysis.cluster_dim;
   result.task_stages = std::move(analysis.task_stages);
   ReadParameterRanges(module,result);
+  for (auto edge : module.getOps<dialect::CouplingOp>())
+    if (auto geometry=edge->getAttrOfType<mlir::DictionaryAttr>("dependency_geometry"))
+      for (auto item : geometry.getAs<mlir::DictionaryAttr>("binding")) {
+        auto name=item.getName().str();
+        if (!result.parameter_ranges.count(name)) continue;
+        auto value=mlir::cast<mlir::IntegerAttr>(item.getValue()).getInt();
+        if (result.task_binding.Contains(name) && result.task_binding.At(name)!=value)
+          throw std::invalid_argument("runtime dependencies bind different workload shapes");
+        result.task_binding.Bind(name,value);
+      }
   return result;
 }
 
@@ -1063,13 +1534,23 @@ RuntimePlan ReadFusionSourcePlan(mlir::ModuleOp module) {
   result.attention=readRuntimeAttention(module);
   result.ownership_flags=readOwnershipFlags(module);
   ReadParameterRanges(module,result);
+  if(auto binding=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.fusion_source_task_binding"))
+    for(auto item:binding) {
+      auto value=mlir::dyn_cast<mlir::IntegerAttr>(item.getValue());
+      auto name=item.getName().str();
+      if(!value || (result.task_binding.Contains(name) && result.task_binding.At(name)!=value.getInt()))
+        throw std::invalid_argument("fusion source shape binding differs from model");
+      if(auto range=result.parameter_ranges.find(name);range!=result.parameter_ranges.end())
+        if(value.getInt()<range->second.first || value.getInt()>range->second.second)
+          throw std::invalid_argument("fusion source shape escapes model range");
+      result.task_binding.Bind(name,value.getInt());
+    }
   for (auto item:dependencies) {
     auto entry=dictionaryEntry(item,"fusion source dependency");
-    auto p=integerField(entry,"producer"),c=integerField(entry,"consumer");
-    if (p<0 || c<=p || c>=int64_t(arrayField(model,"stages").size()))
+    auto edge=DecodeRuntimeDependency(entry);
+    if (edge.consumer>=arrayField(model,"stages").size())
       throw std::invalid_argument("fusion source dependency stage is invalid");
-    result.dependencies.push_back({static_cast<std::uint32_t>(p),
-        static_cast<std::uint32_t>(c),analysis::ParseWaitWindow(stringField(entry,"window"))});
+    result.dependencies.push_back(std::move(edge));
   }
   for (auto task:module.getOps<dialect::TileSpaceOp>())
     result.task_stages.emplace(task.getSymName().str(),task.getStage());
@@ -1182,11 +1663,17 @@ std::string LowerFusedRuntime(mlir::ModuleOp module) {
     if (!source.attention.empty()) runtime.attention.push_back(source.attention[s]);
   }
   for (auto const& input:inputs) renumber[input.semantics[0].stage]=renumber[input.semantics[1].stage];
-  for (auto const& edge:source.dependencies) {
-    int p=renumber.at(edge.producer),c=renumber.at(edge.consumer);
-    if (p==c) continue;
-    runtime.dependencies.push_back({std::uint32_t(p),std::uint32_t(c),edge.window});
-  }
+  bool bound_dependencies=std::any_of(source.dependencies.begin(),source.dependencies.end(),
+      [](auto const& edge){return edge.table.has_value() || edge.counted.has_value();});
+  if(bound_dependencies)
+    runtime.dependencies=solver::RebuildBoundRuntimeDependencies(projected.projection);
+  else for (auto const& edge:source.dependencies) {
+      int p=renumber.at(edge.producer),c=renumber.at(edge.consumer);
+      if (p==c) continue;
+      auto rewritten_edge=edge;
+      rewritten_edge.producer=p;rewritten_edge.consumer=c;
+      runtime.dependencies.push_back(std::move(rewritten_edge));
+    }
   std::sort(runtime.dependencies.begin(),runtime.dependencies.end(),[](auto const& a,auto const& b) {
     return std::tie(a.consumer,a.producer)<std::tie(b.consumer,b.producer);
   });
@@ -1233,6 +1720,8 @@ std::string LowerFusedRuntime(mlir::ModuleOp module) {
 // Unsolved legacy modules emit no extra text or preprocessor definitions.
 std::string emitSolvedLaunch(mlir::ModuleOp module) {
   std::ostringstream out;
+  if(auto enabled=module->getAttrOfType<mlir::BoolAttr>("tmexec.nonpaged_la"))
+    if(enabled.getValue())out<<"#define TILEMEGA_NONPAGED_LA 1\n";
   if(auto prefetch=module->getAttrOfType<mlir::DictionaryAttr>("tmexec.prefetch")) {
     out<<"#define TILEMEGA_L2_PREFETCH 1\n";
     for(auto const& [field,macro]:std::vector<std::pair<char const*,char const*>>{
@@ -1268,7 +1757,7 @@ std::string emitSolvedLaunch(mlir::ModuleOp module) {
     }
   }
   // R8 BE-1: the Plan's architecture, as an identifier the device pass can
-  // compare against `__CUDA_ARCH__` and the harness against the device. A
+  // compare against the compiler's device arch and the harness's device. A
   // module solved before this attribute existed emits nothing and keeps the
   // header's own default.
   if (auto arch=module->getAttrOfType<mlir::StringAttr>("tmexec.solved_arch")) {
@@ -1346,9 +1835,14 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
           "generator accepts global or cluster synchronization");
     // Force semantic conversion through L3a; codegen never reads the printed
     // quasi-polynomial payload as an ad-hoc integer.
-    (void)coupling.getWait().getValue().Eval(known);
-    (void)coupling.getFanout().getValue().Eval(known);
-    (void)coupling.getVolume().getValue().Eval(known);
+    // Exact per-task metrics have already been checked against their ISL
+    // relations by the CG verifier. Runtime dependencies use those relations;
+    // summing the unused metrics would repeat expensive Barvinok elimination.
+    if (!coupling->hasAttr("shared_elements")) {
+      (void)coupling.getWait().getValue().Eval(known);
+      (void)coupling.getFanout().getValue().Eval(known);
+      (void)coupling.getVolume().getValue().Eval(known);
+    }
     (void)coupling.getCount().getValue().Eval(known);
     (void)coupling.getRelation().getMap();
     auto source = taskStages.find(coupling.getSrc().str());
@@ -1415,7 +1909,9 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
               ? "#define TILEMEGA_SERVING_RUNTIME 1\n" : std::string())
       << (stringField(emittedPlan, "dtype") == "bf16"
               ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
-      << emitNormEpsilon(emittedPlan)
+      << (optionalBoolField(emittedPlan,"dm") ? "#define TILEMEGA_DM_SUPPORT 1\n" : std::string())
+      << (optionalBoolField(emittedPlan,"moe_gemv") ? "#define TILEMEGA_MOE_GEMV 1\n" : std::string())
+      << emitDmReductionConfig(emittedPlan) << emitNormEpsilon(emittedPlan)
       << emitRoPEPrecision(emittedPlan) << emitServingNarrowLayout(emittedPlan) << emitTokenIdBits(emittedPlan) << emitTaskKindRuntime(emittedPlan)
       << emitServingAttentionConfig(emittedPlan, module)
       << (clusterDim > 1 ? "#define TILEMEGA_GENERATED_CLUSTER_DIM " +
@@ -1436,6 +1932,10 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
   runtime.gemms = readRuntimeGemms(module,
                                    arrayField(modelPlan, "gemms").size());
   runtime.dependencies = std::move(dependencies);
+  auto dependency_ops = module.getOps<dialect::CouplingOp>();
+  if (std::any_of(dependency_ops.begin(), dependency_ops.end(),
+        [](auto edge) { return edge->hasAttr("dependency_geometry") || edge->hasAttr("dependency_counted"); }))
+    runtime.dependencies = AnalyzeVariantModule(module).dependencies;
   runtime.ownership_flags = readOwnershipFlags(module);
   runtime.explicit_resident_constraint = readResidentConstraint(module);
   runtime.balanced_placement = readBalancedPlacement(module);
@@ -1456,6 +1956,8 @@ std::string CouplingGraphToCUDA::LowerVariants(
       "tilemega.model_plan");
   if (!first_plan)
     throw std::invalid_argument("variant has no tilemega.model_plan");
+  std::optional<analysis::ScopedExactAnalysisMemo> memo;
+  if(first_plan.get("dm") && !analysis::active_exact_memo)memo.emplace();
   std::size_t const gemm_count = arrayField(first_plan, "gemms").size();
 
   std::vector<RuntimeVariantRecord> records;
@@ -1519,6 +2021,10 @@ std::string CouplingGraphToCUDA::LowerVariants(
     records.push_back(std::move(record));
   }
 
+  // The shared harness ABI still has a GEMM storage alternative even when
+  // a DM region contains only primitive tasks. No GEMM stage is introduced.
+  if(shapes.empty() && optionalBoolField(first_plan,"dm"))shapes.emplace_back(16,16,16,2,0);
+
   std::ostringstream out;
   out << "// SPDX-License-Identifier: BSD-3-Clause\n"
       << "// Generated by CouplingGraphToCUDA from verified tilemega.* ops.\n"
@@ -1526,7 +2032,9 @@ std::string CouplingGraphToCUDA::LowerVariants(
               ? "#define TILEMEGA_SERVING_RUNTIME 1\n" : std::string())
       << (stringField(first_plan, "dtype") == "bf16"
               ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
-      << emitNormEpsilon(first_plan)
+      << (optionalBoolField(first_plan,"dm") ? "#define TILEMEGA_DM_SUPPORT 1\n" : std::string())
+      << (optionalBoolField(first_plan,"moe_gemv") ? "#define TILEMEGA_MOE_GEMV 1\n" : std::string())
+      << emitDmReductionConfig(first_plan) << emitNormEpsilon(first_plan)
       << emitRoPEPrecision(first_plan) << emitServingNarrowLayout(first_plan) << emitTokenIdBits(first_plan) << emitTaskKindRuntime(first_plan)
       << emitServingAttentionConfig(first_plan, first)
       << emitSolvedLaunch(first)

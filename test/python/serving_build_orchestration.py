@@ -11,6 +11,8 @@ class BuildOrchestration(unittest.TestCase):
         config=root/'config.json';config.write_text(json.dumps(dict(model=dict(path=str(root/'model')),
             device=dict(cache_dir=str(root/'cache')),output=dict(dir=str(root/'run')),
             workload=dict(batch=[1]),features=dict(pg='measure',decode_executor='measure',decode_loop='measure'))))
+        (root/'model').mkdir()
+        (root/'model/config.json').write_text(json.dumps({'model_type':'llama'}))
         r=Run.__new__(Run);r.config=read_config(config);r.model=root/'model';r.cache=root/'cache'
         r.out=root/'run';r.out.mkdir();r.binary='/compiler-test-double';r.version=dict(source_sha256='test-source')
         r.target=root/'target.json';r.target.write_text('{}');r.device_key='test-device';r.events=[]

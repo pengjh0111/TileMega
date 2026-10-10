@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Frontend/SemanticLifting.h>
+#include <tilemega/Solver/DmVirtualGemmPartition.h>
+#include <tilemega/Solver/DmConvReductionPartition.h>
 
 #include <algorithm>
 #include <cctype>
 #include <limits>
+#include <set>
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
@@ -122,6 +125,15 @@ std::string ToString(OpRole role) {
     case OpRole::kActivation: return "activation";
     case OpRole::kResidualAdd: return "residual_add";
     case OpRole::kGeneric: return "generic";
+    case OpRole::kLayerNorm: return "layernorm";
+    case OpRole::kEmbeddingSum: return "embedding_sum";
+    case OpRole::kLayoutConvert: return "layout_convert";
+    case OpRole::kPool: return "pool";
+    case OpRole::kGlobalPoolReduce: return "global_pool_reduce";
+    case OpRole::kEncoderAttention: return "encoder_attention";
+    case OpRole::kDepthwiseConv: return "depthwise_conv";
+    case OpRole::kMoERouting: return "moe_topk";
+    case OpRole::kMoECombine: return "moe_combine";
   }
   return "generic";
 }
@@ -132,6 +144,10 @@ std::string ToString(OwnershipKind kind) {
 }
 
 LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
+  if(plan.dm && plan.forward && plan.forward_token_axis)
+    return LiftMoeRegionSemantics(plan,options);
+  if(plan.dm && plan.forward && !plan.forward_token_axis)
+    return LiftDnnSemantics(plan,options);
   if (plan.serving) return LiftServingSemantics(plan, options);
   LiftedModel model;
   if (plan.stages.empty()) return model;
@@ -143,7 +159,7 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
       ? ClosedForm::Symbol(options.batch_symbol) *
             ClosedForm::Constant(options.static_seq)
       : ClosedForm::Symbol(options.seq_symbol);
-  ClosedForm const past = options.serving && options.past_symbol.empty()
+  ClosedForm const past = options.forward || (options.serving && options.past_symbol.empty())
       ? ClosedForm::Constant(0)
       : ClosedForm::Symbol(options.past_symbol);
   ClosedForm const total = S + past;
@@ -225,6 +241,9 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
       }
       case PlanTaskKind::kGemm: {
         PlanGemm const& gemm = plan.gemms[stage.gemm];
+        ClosedForm const rows = options.forward && !plan.forward_token_axis && gemm.access.rows_per_batch
+            ? ClosedForm::Symbol(options.batch_symbol) * Fixed(gemm.access.rows_per_batch)
+            : S;
         bool residual = gemm.beta != 0.0f;
         ClosedForm n = Fixed(gemm.n), k = Fixed(gemm.k);
         std::string name = StageName(layer, i, "proj");
@@ -233,10 +252,10 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
         std::string product = residual ? name : name_of(gemm.d);
         SemanticOp op = Op(
             name, OperatorKind::kMatmul,
-            {Par("m", S), Par("n", n), Red("k", k)},
-            Space(product, {Ax("m", S), Ax("n", n)}),
+            {Par("m", rows), Par("n", n), Red("k", k)},
+            Space(product, {Ax("m", rows), Ax("n", n)}),
             {Read(producer_of(gemm.a),
-                  space_of(gemm.a, {Ax("m", S), Ax("k", k)}),
+                  space_of(gemm.a, {Ax("m", rows), Ax("k", k)}),
                   {IndexResult::Dim("m"), IndexResult::Dim("k")})});
         op.reduction.splittable = true;
 #if TILEMEGA_COMPLETE_GEMM_READS
@@ -245,6 +264,14 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
             space_of(gemm.b, {Ax("n", n), Ax("k", k)}),
             {IndexResult::Dim("n"), IndexResult::Dim("k")}));
 #endif
+        if(plan.dm) {
+#if !TILEMEGA_COMPLETE_GEMM_READS
+          op.operands.push_back(Read(producer_of(gemm.b),
+              space_of(gemm.b,{Ax("n",n),Ax("k",k)}),
+              {IndexResult::Dim("n"),IndexResult::Dim("k")}));
+#endif
+          op.exact_task_access=true;op.task_space=op.result;op.task_map=op.result_map;
+        }
         op.reduction.dim = "k";
         op.reduction.reduction_operator = "add";
         op.reduction.partial_tensor = name + ".partial";
@@ -268,12 +295,12 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options) {
         model.sem.ops.push_back(std::move(op));
         std::string add = StageName(layer, i, "add");
         SemanticOp resid = Op(
-            add, OperatorKind::kPointwise, {Par("m", S), Par("n", n)},
-            Space(name_of(gemm.d), {Ax("m", S), Ax("n", n)}),
+            add, OperatorKind::kPointwise, {Par("m", rows), Par("n", n)},
+            Space(name_of(gemm.d), {Ax("m", rows), Ax("n", n)}),
             {Read(name, product_space,
                   {IndexResult::Dim("m"), IndexResult::Dim("n")}),
              Read(producer_of(gemm.c),
-                  space_of(gemm.c, {Ax("m", S), Ax("n", n)}),
+                  space_of(gemm.c, {Ax("m", rows), Ax("n", n)}),
                   {IndexResult::Dim("m"), IndexResult::Dim("n")})});
         record(std::move(resid), OpRole::kResidualAdd,
                OwnershipKind::kTilePerBlock, i, layer, gemm.d);
@@ -531,6 +558,20 @@ analysis::Granularity LaunchGranularity(LiftedModel const& model) {
         // RMSNormTaskBody and EmbeddingTaskBody: one token per CTA.
         g.Tile(op.name, "m", one);
         break;
+      case OpRole::kEncoderAttention:
+        g.Tile(op.name,"m",ClosedForm::Constant(64)).Tile(op.name,"n",ClosedForm::Constant(64));
+        break;
+      case OpRole::kLayerNorm:
+      case OpRole::kEmbeddingSum:
+      case OpRole::kLayoutConvert:
+        g.Tile(op.name,"m",one)
+            .Tile(op.name,"n",model.sem.Find(op.name)->Dim("n")->extent);
+        break;
+      case OpRole::kPool:
+      case OpRole::kGlobalPoolReduce:
+      case OpRole::kDepthwiseConv:
+        g.Tile(op.name,"m",one).Tile(op.name,"n",ClosedForm::Constant(128));
+        break;
       case OpRole::kQKNorm:
         // QKNormTaskBody: one (token, head) per CTA.
         g.Tile(op.name, "m", one).Tile(op.name, "c", model.head_dim);
@@ -582,10 +623,56 @@ analysis::Granularity LaunchGranularity(
         "runtime variant must provide one granularity per ModelPlan GEMM");
   analysis::Granularity g;
   ClosedForm const one = ClosedForm::Constant(1);
+  std::set<std::string> virtual_gemms;
+  if(plan.dm)for(auto const& op:model.ops) {
+    auto const& stage=plan.stages.at(op.stage);
+    if(stage.kind!=PlanTaskKind::kGemm || stage.gemm>=plan.gemms.size())continue;
+    auto const& access=plan.gemms.at(stage.gemm).access;
+    if(access.b!=codegen::DmBAccess::kExpertIndirect &&
+       access.a!=codegen::DmAAccess::kIm2Col)continue;
+    auto const* semantic=model.sem.Find(op.name);
+    if(!semantic)throw std::invalid_argument("virtual GEMM lacks L-sem");
+    auto const& impl=gemms.empty()?GemmGranularity{}:gemms.at(stage.gemm);
+    if(access.a==codegen::DmAAccess::kIm2Col) {
+      auto const& conv=plan.convolutions.at(access.conv);
+      solver::PartitionDmConvGemm(*semantic,conv,plan.buffers.at(conv.input_layout).layout,
+          {impl.tile_m,impl.tile_n,impl.tile_k,impl.stages,impl.split_k},g);
+      virtual_gemms.insert(op.name);
+      continue;
+    }
+    solver::PartitionDmVirtualGemm(*semantic,access,
+        {impl.tile_m,impl.tile_n,impl.tile_k,impl.stages,impl.split_k},g);
+    if(semantic->reduction.splittable || impl.split_k>1) {
+      if(impl.split_k>1 && !semantic->reduction.splittable)
+        throw std::invalid_argument("virtual GEMM has no split reduction");
+      int k=static_cast<int>(plan.gemms.at(stage.gemm).k);
+      int chunks=std::min(impl.split_k,(k+impl.tile_k-1)/impl.tile_k);
+      analysis::TaskReductionIndex index;
+      index.index=analysis::IndexResult::Dim(semantic->reduction.dim,
+          one,ClosedForm::Constant(impl.tile_k));
+      index.capacity=ClosedForm::Constant((k+impl.tile_k-1)/impl.tile_k);
+      index.issued_width=ClosedForm::Constant(impl.tile_k);index.chunks=chunks>1?chunks:0;
+      g.IndexReduction(op.name,std::move(index));
+      if(chunks>1)g.Split(op.name,one);
+    }
+    virtual_gemms.insert(op.name);
+  }
   if (plan.serving) {
     for (auto const& op : model.ops) {
+      if(virtual_gemms.count(op.name))continue;
       auto const& stage = plan.stages.at(op.stage);
       switch (op.role) {
+        case OpRole::kMoERouting: {
+          auto step=stage.moe.step;
+          auto rows=step==codegen::DmMoeStep::kPrefix || step==codegen::DmMoeStep::kSelectAndDispatch?
+              model.sem.Find(op.name)->Dim("m")->extent:
+              Fixed(step==codegen::DmMoeStep::kSelect?stage.group:stage.moe.chunk_tokens);
+          g.Tile(op.name,"m",rows).Tile(op.name,"n",Fixed(stage.moe.top_k));
+          break;
+        }
+        case OpRole::kMoECombine:
+          g.Tile(op.name,"m",Fixed(stage.group)).Tile(op.name,"n",Fixed(stage.width));
+          break;
         case OpRole::kNorm:
         case OpRole::kEmbedding:
           g.Tile(op.name, "m", one);
@@ -627,7 +714,17 @@ analysis::Granularity LaunchGranularity(
             g.Tile(op.name, "tile", one);
           else
             g.Tile(op.name, "n", ClosedForm::Constant(impl.tile_n));
-          if (impl.split_k > 1 && op.role != OpRole::kServingArgmaxPartial) {
+          auto const* semantic=model.sem.Find(op.name);
+          bool indexed=plan.dm && semantic && semantic->exact_task_access && semantic->reduction.splittable;
+          if(indexed) {
+            int k=static_cast<int>(plan.gemms.at(stage.gemm).k);
+            int chunks=std::min(impl.split_k,(k+impl.tile_k-1)/impl.tile_k);
+            analysis::TaskReductionIndex index;
+            index.index=analysis::IndexResult::Dim(semantic->reduction.dim,one,Fixed(impl.tile_k));
+            index.capacity=Fixed((k+impl.tile_k-1)/impl.tile_k);index.issued_width=Fixed(impl.tile_k);
+            index.chunks=chunks>1?chunks:0;g.IndexReduction(op.name,std::move(index));
+            if(chunks>1)g.Split(op.name,one);
+          }else if (impl.split_k > 1 && op.role != OpRole::kServingArgmaxPartial) {
             int k = static_cast<int>(plan.gemms.at(stage.gemm).k);
             int chunks = std::min(impl.split_k, (k + impl.tile_k - 1) / impl.tile_k);
             g.Split(op.name, ClosedForm::Constant((k + chunks - 1) / chunks));
@@ -643,16 +740,51 @@ analysis::Granularity LaunchGranularity(
     if (op.stage < 0 || static_cast<std::size_t>(op.stage) >= plan.stages.size())
       throw std::invalid_argument("lifted GEMM has no ModelPlan stage");
     PlanStage const& stage = plan.stages[op.stage];
-    if ((stage.kind != PlanTaskKind::kGemm && stage.kind != PlanTaskKind::kAdd) ||
+    if ((!IsGemmStage(stage.kind) && stage.kind != PlanTaskKind::kAdd) ||
         stage.gemm >= plan.gemms.size())
       throw std::invalid_argument("lifted projection does not name a ModelPlan GEMM");
     return gemms.empty() ? GemmGranularity{} : gemms[stage.gemm];
   };
   for (auto const& op : model.ops) {
+    if(virtual_gemms.count(op.name))continue;
     switch (op.role) {
+      case OpRole::kMoERouting: {
+        auto const& stage=plan.stages.at(op.stage);auto step=stage.moe.step;
+        auto rows=step==codegen::DmMoeStep::kPrefix || step==codegen::DmMoeStep::kSelectAndDispatch?
+            model.sem.Find(op.name)->Dim("m")->extent:
+            Fixed(step==codegen::DmMoeStep::kSelect?stage.group:stage.moe.chunk_tokens);
+        g.Tile(op.name,"m",rows).Tile(op.name,"n",Fixed(stage.moe.top_k));
+        break;
+      }
+      case OpRole::kMoECombine:
+        g.Tile(op.name,"m",Fixed(plan.stages.at(op.stage).group))
+            .Tile(op.name,"n",Fixed(plan.stages.at(op.stage).width));
+        break;
+      case OpRole::kEncoderAttention:
+        g.Tile(op.name,"m",Fixed(plan.stages.at(op.stage).group)).Tile(op.name,"n",ClosedForm::Constant(64));
+        break;
+      case OpRole::kLayerNorm:
+      case OpRole::kEmbeddingSum:
+      case OpRole::kLayoutConvert:
+        g.Tile(op.name,"m",Fixed(plan.stages.at(op.stage).group))
+            .Tile(op.name,"n",model.sem.Find(op.name)->Dim("n")->extent);
+        break;
+      case OpRole::kPool:
+      case OpRole::kGlobalPoolReduce:
+        g.Tile(op.name,"m",op.role==OpRole::kPool?Fixed(plan.stages.at(op.stage).group):one)
+            .Tile(op.name,"n",Fixed(plan.stages.at(op.stage).width));
+        break;
+      case OpRole::kDepthwiseConv: {
+        auto const& stage=plan.stages.at(op.stage);
+        g.Tile(op.name,"m",Fixed(stage.group*plan.convolutions.at(stage.conv).q))
+            .Tile(op.name,"n",Fixed(stage.width));
+        break;
+      }
       case OpRole::kNorm:
       case OpRole::kEmbedding:
         g.Tile(op.name, "m", one);
+        if(plan.dm && model.sem.Find(op.name)->Dim("n"))
+          g.Tile(op.name,"n",model.sem.Find(op.name)->Dim("n")->extent);
         break;
       case OpRole::kQKNorm:
         g.Tile(op.name, "m", one).Tile(op.name, "c", model.head_dim);
@@ -663,14 +795,30 @@ analysis::Granularity LaunchGranularity(
         if (impl.tile_m <= 0 || impl.tile_n <= 0 || impl.tile_k <= 0 ||
             impl.stages <= 0 || impl.split_k <= 0)
           throw std::invalid_argument("GEMM granularity fields must be positive");
+        auto factor=plan.dm && model.sem.Find(op.name)->arithmetic=="simple_gate_gemm"?2:1;
+        if(impl.tile_n%factor)throw std::invalid_argument("DM GEMM N tile splits a channel pair");
         g.Tile(op.name, "m", ClosedForm::Constant(impl.tile_m))
-            .Tile(op.name, "n", ClosedForm::Constant(impl.tile_n));
-        if (impl.split_k > 1) {
+            .Tile(op.name, "n", ClosedForm::Constant(impl.tile_n/factor));
+        auto const* semantic=model.sem.Find(op.name);
+        bool indexed=plan.dm && semantic && semantic->exact_task_access && semantic->reduction.splittable;
+        if(plan.dm && impl.split_k>1 && !indexed)
+          throw std::invalid_argument("DM split GEMM lacks exact splittable semantics");
+        if (impl.split_k > 1 || indexed) {
           int const k = static_cast<int>(plan.gemms[plan.stages[op.stage].gemm].k);
           int const chunks = std::min(impl.split_k,
                                       (k + impl.tile_k - 1) / impl.tile_k);
-          int const chunk_extent = (k + chunks - 1) / chunks;
-          g.Split(op.name, ClosedForm::Constant(chunk_extent));
+          if(plan.dm) {
+            analysis::TaskReductionIndex index;
+            index.index=analysis::IndexResult::Dim(model.sem.Find(op.name)->reduction.dim,
+                one,ClosedForm::Constant(impl.tile_k));
+            index.capacity=ClosedForm::Constant((k+impl.tile_k-1)/impl.tile_k);
+            index.issued_width=ClosedForm::Constant(impl.tile_k);index.chunks=chunks>1?chunks:0;
+            g.IndexReduction(op.name,std::move(index));
+            if(chunks>1)g.Split(op.name,one);
+          }else {
+            int const chunk_extent = (k + chunks - 1) / chunks;
+            g.Split(op.name, ClosedForm::Constant(chunk_extent));
+          }
         }
         break;
       }
@@ -722,6 +870,20 @@ analysis::Granularity ReferenceGranularity(LiftedModel const& model) {
       case OpRole::kNorm:
       case OpRole::kEmbedding:
         g.Tile(op.name, "m", Tm);
+        break;
+      case OpRole::kEncoderAttention:
+        g.Tile(op.name,"m",ClosedForm::Constant(64)).Tile(op.name,"n",ClosedForm::Constant(64));
+        break;
+      case OpRole::kLayerNorm:
+      case OpRole::kEmbeddingSum:
+      case OpRole::kLayoutConvert:
+        g.Tile(op.name,"m",Tm)
+            .Tile(op.name,"n",model.sem.Find(op.name)->Dim("n")->extent);
+        break;
+      case OpRole::kPool:
+      case OpRole::kGlobalPoolReduce:
+      case OpRole::kDepthwiseConv:
+        g.Tile(op.name,"m",op.role==OpRole::kPool?Tm:one).Tile(op.name,"n",Tn);
         break;
       case OpRole::kQKNorm:
         g.Tile(op.name, "m", Tm).Tile(op.name, "c", model.head_dim);

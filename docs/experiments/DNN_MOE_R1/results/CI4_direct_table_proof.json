@@ -1,0 +1,45 @@
+{
+  "evidence": "verified",
+  "scope": "host analysis and serialized interval corruption checks; no GPU repetition",
+  "tests": [
+    {
+      "case": "runtime_dependency_table",
+      "exit_code": 0
+    },
+    {
+      "case": "runtime_dependency_codec",
+      "exit_code": 0
+    },
+    {
+      "case": "bound_dependency_codegen",
+      "exit_code": 0
+    },
+    {
+      "case": "bound_dependency_form",
+      "exit_code": 0
+    },
+    {
+      "case": "exact_task_metadata",
+      "exit_code": 0
+    },
+    {
+      "case": "window_task_access",
+      "exit_code": 0
+    },
+    {
+      "case": "dnn_dwpw_fusion",
+      "exit_code": 0
+    }
+  ],
+  "implementation": [
+    "ValidateDependencyTableLinear",
+    "ReadBoundDependencyTable",
+    "DecodeRuntimeDependency"
+  ],
+  "full_mbv1_generation": {
+    "result": "passed",
+    "receipt": "runs/dm1-mbv1-fused-host-v17/result.json"
+  },
+  "full_moe_B16_prefill": "pending",
+  "failed_build": "runs/dm1-direct-table-proof-build-v1.log"
+}

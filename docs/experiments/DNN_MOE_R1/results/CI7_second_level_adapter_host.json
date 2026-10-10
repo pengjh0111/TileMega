@@ -1,0 +1,20 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "pass_rate": "8/8",
+  "scope": "host forward selection protocol and pre-queue binary/gate/budget rejection; no timer launched; full guarded real-candidate execution pending",
+  "implementation_commit": "697d19af244e2560df70e572c02031ea1eb77c47",
+  "inputs": {
+    "docs/experiments/DNN_MOE_R1/second_level_dm.py": "202118cc440b9a26a983b27f7ce988c59160e5a09db30287b28ccbe674f76c68",
+    "docs/experiments/DNN_MOE_R1/test_second_level_dm.py": "7ee1be9169cfcf262a38c42807fd6966058fc9d7c3165f5164035fc66831aa76",
+    "docs/experiments/DNN_MOE_R1/builds_dm.py": "292f95cde993bd102c98688fc246731434f66db62739cbe1e757bd7d144ee705",
+    "docs/experiments/DNN_MOE_R1/run_queue.py": "5c12f5fac0ac29268168503ebaab463c9cc0e7f303dc425165599002b8cedd11",
+    "docs/experiments/DNN_MOE_R1/scheduler.py": "dc833b8afe4d3ed70ea470e16679b7a29897fdbbb78eb1be063519a3a9d311d7",
+    "docs/experiments/DNN_MOE_R1/gpu_guard.py": "0fba3584b4681e5240d950d410c4cc3bc0ba1c2ca6c0d2e4764eeea26fc39d3a",
+    "docs/experiments/DNN_MOE_R1/guard_policy.json": "f1794ec492e24749bb808c7950dd652dd2c9fd8cae8f5608d300a956c59250fe"
+  },
+  "logs": {
+    "/root/dm1_work/development/runs/dm1-ci7-second-level-adapter-host/events/second_level_protocol.log": "5d441504a9bd72c5f9c98299406b6ed53ba0d6d478fb7c9a0619464d7193a38d",
+    "/root/dm1_work/development/runs/dm1-ci7-second-level-adapter-host/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

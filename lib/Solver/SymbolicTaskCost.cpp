@@ -99,7 +99,7 @@ Polynomial CostModel::SymbolicStageNs(ModelDescription const& model,int stage_id
   if (collective) {
     traits=dtype_==ScalarType::kBF16 ? TensorBF16Traits(config.tile_m,config.tile_n,config.tile_k,config.stages)
                                   : SimtF32Traits(config.tile_m,config.tile_n,config.tile_k,config.stages);
-    return SymbolicCollectiveNs(input,traits,residency,model,Chunks(model.gemms.at(stage.gemm),config),parameter,begin,end);
+    return SymbolicCollectiveNs(input,traits,residency,model,Chunks(model,stage.gemm,config),parameter,begin,end);
   }
   traits=ModelTaskTraits(model,stage_id,config);
   return SymbolicScalarNs(input,traits,residency,model,parameter,begin,end);
@@ -161,7 +161,8 @@ Polynomial CostModel::SymbolicInterfaceEdgeNs(ModelCouplingMetrics const& edge,
   auto known=FixedExceptSeq(model,parameter);
   auto repeated=edge.wait.SumDomain().SubstituteParams(known).Add(
       edge.relation.Reverse().ImageCard().SubstituteParams(known).Scale(-1));
-  auto bytes=repeated.Multiply(edge.volume.SubstituteParams(known)).Scale(dtype_==ScalarType::kBF16 ? 2 : 4);
+  auto bytes=(edge.interface_elements ? edge.interface_elements->SubstituteParams(known)
+      : repeated.Multiply(edge.volume.SubstituteParams(known))).Scale(dtype_==ScalarType::kBF16 ? 2 : 4);
   std::vector<Polynomial::PolynomialInterval> misses{{begin,end,{"1","0","0"}}};
   if (options_.cache_model) {
     if (!cache_service_curve_) throw std::invalid_argument("symbolic interface cache: not_calibrated");
@@ -191,6 +192,8 @@ Polynomial CostModel::SymbolicCollectiveNs(DerivedTaskInput const& input,
 #if !TILEMEGA_SYMBOLIC_TASK_COST
   throw std::runtime_error("symbolic task pricing disabled");
 #endif
+  if(!input.compute_prologue.empty())
+    throw std::invalid_argument("private compute pricing requires bound task coordinates");
   if (parameter.empty() || parameter!=model.seq_metric_parameter ||
       !model.dims.past_parameter.empty() || model.dims.past<0 || begin<=0 || begin>end ||
       end==std::numeric_limits<long>::max() || traits.stages<=0 || traits.tile_k<=0 ||

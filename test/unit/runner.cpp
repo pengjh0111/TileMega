@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <iostream>
 #include <string>
+namespace tilemega::tests::dynamic_task_cursor_test { int TestDynamicTaskCursor(int, char**); }
+namespace tilemega::tests::moe_opaque_control_test { int TestMoeOpaqueControl(int, char**); }
 namespace tilemega::tests::target_spec_test { int TestTargetSpec(int, char**); }
 namespace tilemega::tests::coupling_types_test { int TestCouplingTypes(int, char**); }
 namespace tilemega::tests::table27_test { int TestTable27(int, char**); }
@@ -18,6 +20,17 @@ namespace tilemega::tests::isl_relation_test { int TestIslRelation(int, char**);
 namespace tilemega::tests::runtime_projection_test { int TestRuntimeProjection(int, char**); }
 namespace tilemega::tests::relation_bounds_test { int TestRelationBounds(int, char**); }
 namespace tilemega::tests::task_element_work_test { int TestTaskElementWork(int, char**); }
+namespace tilemega::tests::window_task_access_test { int TestWindowTaskAccess(int, char**); }
+namespace tilemega::tests::exact_task_metadata_test { int TestExactTaskMetadata(int, char**); }
+namespace tilemega::tests::storage_hazards_test { int TestStorageHazards(int, char**); }
+namespace tilemega::tests::bound_dependency_form_test { int TestBoundDependencyForm(int, char**); }
+namespace tilemega::tests::capacity_form_test { int TestCapacityForm(int, char**); }
+namespace tilemega::tests::virtual_task_binding_test { int TestVirtualTaskBinding(int, char**); }
+namespace tilemega::tests::runtime_dependency_table_test { int TestRuntimeDependencyTable(int, char**); }
+namespace tilemega::tests::bound_dependency_codegen_test { int TestBoundDependencyCodegen(int, char**); }
+namespace tilemega::tests::dm_page_layout_test { int TestDmPageLayout(int, char**); }
+namespace tilemega::tests::dm_attention_page_layout_test { int TestDmAttentionPageLayout(int, char**); }
+namespace tilemega::tests::moe_binding_test { int TestMoeBinding(int, char**); }
 namespace tilemega::tests::graph_pattern_test { int TestGraphPattern(int, char**); }
 namespace tilemega::tests::model_plan_order_test { int TestModelPlanOrder(int, char**); }
 namespace tilemega::tests::layout_bridge_test { int TestLayoutBridge(int, char**); }
@@ -53,7 +66,10 @@ namespace tilemega::tests::serving_task_index_test { int TestServingTaskIndex(in
 namespace tilemega::tests::serving_model_plan_test { int TestServingModelPlan(int, char**); }
 namespace tilemega::tests::serving_token_sets_test { int TestServingTokenSets(int, char**); }
 namespace tilemega::tests::serving_import_test { int TestServingImport(int, char**); }
+namespace tilemega::tests::task_storage_test { int TestTaskStorage(int, char**); }
+namespace tilemega::tests::forward_frontend_test { int TestForwardFrontend(int, char**); }
 namespace tilemega::tests::frontend_import_test { int TestFrontendImport(int, char**); }
+namespace tilemega::tests::dm_descriptor_test { int TestDmDescriptor(int, char**); }
 namespace tilemega::tests::skeleton_placement_test { int TestSkeletonPlacement(int, char**); }
 namespace tilemega::tests::isolated_evaluation_test { int TestIsolatedEvaluation(int, char**); }
 namespace tilemega::tests::skeleton_search_isolation_test { int TestSkeletonSearchIsolation(int, char**); int TestServingSearchRejection(int, char**); }
@@ -61,14 +77,85 @@ namespace tilemega::tests::plan_skeleton_test { int TestPlanSkeleton(int, char**
 namespace tilemega::tests::variant_resource_test { int TestVariantResource(int, char**); }
 namespace tilemega::tests::symbolic_oracle_test { int TestSymbolicOracle(int, char**); }
 namespace tilemega::tests::operator_classes_test { int TestOperatorClasses(int, char**); }
+namespace tilemega::tests::operator_classes_test { int TestDmOperatorClasses(int, char**); }
+namespace tilemega::tests::moe_routing_profile_test { int TestMoeRoutingProfile(int, char**); }
+namespace tilemega::tests::moe_task_pricing_test { int TestMoeTaskPricing(int, char**); }
+namespace tilemega::tests::moe_dram_bindings_test { int TestMoeDramBindings(int, char**); }
+namespace tilemega::tests::moe_structure_search_test { int TestMoeStructureSearch(int, char**); }
+namespace tilemega::tests::moe_group_profile_test { int TestMoeGroupProfile(int, char**); }
+namespace tilemega::tests::dm_gemm_traits_test { int TestDmGemmTraits(int, char**); }
+namespace tilemega::tests::dm_gemm_candidates_test { int TestDmGemmCandidates(int, char**); }
+namespace tilemega::tests::conv_iteration_test { int TestConvIteration(int, char**); }
+namespace tilemega::tests::conv_reduction_partition_test { int TestConvReductionPartition(int, char**); }
+namespace tilemega::tests::conv_reduction_cg_test { int TestConvReductionCg(int, char**); }
+namespace tilemega::tests::dnn_semantic_lifting_test { int TestDnnSemanticLifting(int, char**); }
+namespace tilemega::tests::dnn_epilogue_semantics_test { int TestDnnEpilogueSemantics(int, char**); }
+namespace tilemega::tests::dnn_model_plan_test { int TestDnnModelPlan(int, char**); }
+namespace tilemega::tests::moe_region_pattern_test { int TestMoeRegionPattern(int, char**); }
+namespace tilemega::tests::moe_region_plan_test { int TestMoeRegionPlan(int, char**); }
+namespace tilemega::tests::moe_semantic_lifting_test { int TestMoeSemanticLifting(int, char**); }
+namespace tilemega::tests::moe_region_codegen_test { int TestMoeRegionCodegen(int, char**); }
+namespace tilemega::tests::dm_counted_fusion_test { int TestDmCountedFusion(int, char**); }
+namespace tilemega::tests::dm_gemm_class_domain_test { int TestDmGemmClassDomain(int, char**); }
+namespace tilemega::tests::dnn_structure_search_test { int TestDnnStructureSearch(int, char**); }
+namespace tilemega::tests::dm_forward_search_test { int TestDmForwardSearch(int, char**); }
+namespace tilemega::tests::dm_physical_footprint_test { int TestDmPhysicalFootprint(int, char**); }
 namespace tilemega::tests::coupling_cache_test { int TestCouplingCache(int, char**); }
 namespace tilemega::tests::semantic_lifting_test { int TestSemanticLifting(int, char**); }
 namespace tilemega::tests::embedding_plan_test { int TestEmbeddingPlan(int, char**); }
 namespace tilemega::tests::wiring_coupling_test { int TestWiringCoupling(int, char**); }
 namespace tilemega::tests::degradation_test { int TestDegradation(int, char**); }
+namespace tilemega::tests::task_arithmetic_domain_test { int TestTaskArithmeticDomain(int, char**); }
+namespace tilemega::tests::dm_store_geometry_test { int TestDmStoreGeometry(int, char**); }
+namespace tilemega::tests::dm_exact_fusion_test { int TestDmExactFusion(int, char**); }
+namespace tilemega::tests::memory_plan_test { int TestMemoryPlan(int, char**); }
+namespace tilemega::tests::dnn_dwpw_fusion_test { int TestDnnDwPwFusion(int, char**); }
+namespace tilemega::tests::dnn_deferred_ln_test { int TestDnnDeferredLN(int, char**); }
+namespace tilemega::tests::dnn_memory_codegen_test { int TestDnnMemoryCodegen(int, char**); }
+namespace tilemega::tests::dm_fused_dependencies_test { int TestDmFusedDependencies(int, char**); }
+namespace tilemega::tests::typed_affine_pricing_test { int TestTypedAffinePricing(int, char**); }
+namespace tilemega::tests::counted_write_test { int TestCountedWrite(int, char**); }
+namespace tilemega::tests::counted_threshold_test { int TestCountedThreshold(int, char**); }
+namespace tilemega::tests::counted_dependency_cg_test { int TestCountedDependencyCg(int, char**); }
+namespace tilemega::tests::counted_dependency_cg_test { int TestCountedDependencyFlow(int, char**); }
+namespace tilemega::tests::runtime_dependency_codec_test { int TestRuntimeDependencyCodec(int, char**); }
+namespace tilemega::tests::dm_page_resources_test { int TestDmPageResources(int, char**); }
+namespace tilemega::tests::dm_dram_images_test { int TestDmDramImages(int,char**); }
+namespace tilemega::tests::binding_request_traffic_test { int TestBindingRequestTraffic(int,char**); }
+namespace tilemega::tests::binding_request_pricing_test { int TestBindingRequestPricing(int,char**); }
+namespace tilemega::tests::dm_virtual_gemm_partition_test { int TestDmVirtualGemmPartition(int,char**); }
+namespace tilemega::tests::dm_semantic_signature_test { int TestDmSemanticSignature(int,char**); }
+namespace tilemega::tests::dm_virtual_frontend_test { int TestDmVirtualFrontend(int,char**); }
+namespace tilemega::tests::dm_piece_pricing_test { int TestDmPiecePricing(int,char**); }
+namespace tilemega::tests::dm_target_memory_test { int TestDmTargetMemory(int,char**); }
 int main(int argc, char** argv) {
   struct Entry { char const* name; int (*run)(int, char**); };
   Entry const entries[] = {
+    {"dynamic_task_cursor", tilemega::tests::dynamic_task_cursor_test::TestDynamicTaskCursor},
+    {"moe_opaque_control", tilemega::tests::moe_opaque_control_test::TestMoeOpaqueControl},
+    {"dm_dram_images", tilemega::tests::dm_dram_images_test::TestDmDramImages},
+    {"binding_request_traffic", tilemega::tests::binding_request_traffic_test::TestBindingRequestTraffic},
+    {"binding_request_pricing", tilemega::tests::binding_request_pricing_test::TestBindingRequestPricing},
+    {"dm_virtual_gemm_partition", tilemega::tests::dm_virtual_gemm_partition_test::TestDmVirtualGemmPartition},
+    {"dm_semantic_signature", tilemega::tests::dm_semantic_signature_test::TestDmSemanticSignature},
+    {"dm_virtual_frontend", tilemega::tests::dm_virtual_frontend_test::TestDmVirtualFrontend},
+    {"dm_piece_pricing", tilemega::tests::dm_piece_pricing_test::TestDmPiecePricing},
+    {"dm_target_memory", tilemega::tests::dm_target_memory_test::TestDmTargetMemory},
+    {"dm_page_resources", tilemega::tests::dm_page_resources_test::TestDmPageResources},
+    {"counted_dependency_cg", tilemega::tests::counted_dependency_cg_test::TestCountedDependencyCg},
+    {"counted_dependency_flow", tilemega::tests::counted_dependency_cg_test::TestCountedDependencyFlow},
+    {"runtime_dependency_codec", tilemega::tests::runtime_dependency_codec_test::TestRuntimeDependencyCodec},
+    {"counted_threshold", tilemega::tests::counted_threshold_test::TestCountedThreshold},
+    {"counted_write", tilemega::tests::counted_write_test::TestCountedWrite},
+    {"dm_store_geometry", tilemega::tests::dm_store_geometry_test::TestDmStoreGeometry},
+    {"dm_exact_fusion", tilemega::tests::dm_exact_fusion_test::TestDmExactFusion},
+    {"memory_plan", tilemega::tests::memory_plan_test::TestMemoryPlan},
+    {"dnn_dwpw_fusion", tilemega::tests::dnn_dwpw_fusion_test::TestDnnDwPwFusion},
+    {"dnn_deferred_ln", tilemega::tests::dnn_deferred_ln_test::TestDnnDeferredLN},
+    {"dnn_memory_codegen", tilemega::tests::dnn_memory_codegen_test::TestDnnMemoryCodegen},
+    {"dm_fused_dependencies", tilemega::tests::dm_fused_dependencies_test::TestDmFusedDependencies},
+    {"typed_affine_pricing", tilemega::tests::typed_affine_pricing_test::TestTypedAffinePricing},
+    {"task_arithmetic_domain", tilemega::tests::task_arithmetic_domain_test::TestTaskArithmeticDomain},
     {"target_spec", tilemega::tests::target_spec_test::TestTargetSpec},
     {"coupling_types", tilemega::tests::coupling_types_test::TestCouplingTypes},
     {"table27", tilemega::tests::table27_test::TestTable27},
@@ -86,6 +173,17 @@ int main(int argc, char** argv) {
     {"relation_bounds", tilemega::tests::relation_bounds_test::TestRelationBounds},
     {"graph_pattern", tilemega::tests::graph_pattern_test::TestGraphPattern},
     {"task_element_work", tilemega::tests::task_element_work_test::TestTaskElementWork},
+    {"window_task_access", tilemega::tests::window_task_access_test::TestWindowTaskAccess},
+    {"exact_task_metadata", tilemega::tests::exact_task_metadata_test::TestExactTaskMetadata},
+    {"storage_hazards", tilemega::tests::storage_hazards_test::TestStorageHazards},
+    {"bound_dependency_form", tilemega::tests::bound_dependency_form_test::TestBoundDependencyForm},
+    {"capacity_form", tilemega::tests::capacity_form_test::TestCapacityForm},
+    {"virtual_task_binding", tilemega::tests::virtual_task_binding_test::TestVirtualTaskBinding},
+    {"runtime_dependency_table", tilemega::tests::runtime_dependency_table_test::TestRuntimeDependencyTable},
+    {"bound_dependency_codegen", tilemega::tests::bound_dependency_codegen_test::TestBoundDependencyCodegen},
+    {"dm_page_layout", tilemega::tests::dm_page_layout_test::TestDmPageLayout},
+    {"dm_attention_page_layout", tilemega::tests::dm_attention_page_layout_test::TestDmAttentionPageLayout},
+    {"moe_binding", tilemega::tests::moe_binding_test::TestMoeBinding},
     {"isl_relation", tilemega::tests::isl_relation_test::TestIslRelation},
     {"layout_bridge", tilemega::tests::layout_bridge_test::TestLayoutBridge},
     {"cg_attr_roundtrip", tilemega::tests::cg_attr_test::TestCgAttr},
@@ -118,7 +216,9 @@ int main(int argc, char** argv) {
     {"serving_lag", tilemega::tests::serving_lag_test::TestServingLag},
     {"serving_task_index", tilemega::tests::serving_task_index_test::TestServingTaskIndex},
     {"serving_token_sets", tilemega::tests::serving_token_sets_test::TestServingTokenSets},
+    {"forward_frontend", tilemega::tests::forward_frontend_test::TestForwardFrontend},
     {"frontend_import", tilemega::tests::frontend_import_test::TestFrontendImport},
+    {"dm_descriptor", tilemega::tests::dm_descriptor_test::TestDmDescriptor},
     {"skeleton_placement", tilemega::tests::skeleton_placement_test::TestSkeletonPlacement},
     {"isolated_evaluation", tilemega::tests::isolated_evaluation_test::TestIsolatedEvaluation},
     {"skeleton_search_isolation", tilemega::tests::skeleton_search_isolation_test::TestSkeletonSearchIsolation},
@@ -127,6 +227,29 @@ int main(int argc, char** argv) {
     {"variant_resource", tilemega::tests::variant_resource_test::TestVariantResource},
     {"symbolic_oracle", tilemega::tests::symbolic_oracle_test::TestSymbolicOracle},
     {"operator_classes", tilemega::tests::operator_classes_test::TestOperatorClasses},
+    {"dm_operator_classes", tilemega::tests::operator_classes_test::TestDmOperatorClasses},
+    {"moe_routing_profile", tilemega::tests::moe_routing_profile_test::TestMoeRoutingProfile},
+    {"moe_task_pricing", tilemega::tests::moe_task_pricing_test::TestMoeTaskPricing},
+    {"moe_dram_bindings", tilemega::tests::moe_dram_bindings_test::TestMoeDramBindings},
+    {"moe_structure_search", tilemega::tests::moe_structure_search_test::TestMoeStructureSearch},
+    {"moe_group_profile", tilemega::tests::moe_group_profile_test::TestMoeGroupProfile},
+    {"dm_gemm_traits", tilemega::tests::dm_gemm_traits_test::TestDmGemmTraits},
+    {"dm_gemm_candidates", tilemega::tests::dm_gemm_candidates_test::TestDmGemmCandidates},
+    {"conv_iteration", tilemega::tests::conv_iteration_test::TestConvIteration},
+    {"conv_reduction_partition", tilemega::tests::conv_reduction_partition_test::TestConvReductionPartition},
+    {"conv_reduction_cg", tilemega::tests::conv_reduction_cg_test::TestConvReductionCg},
+    {"dnn_semantic_lifting", tilemega::tests::dnn_semantic_lifting_test::TestDnnSemanticLifting},
+    {"dnn_epilogue_semantics", tilemega::tests::dnn_epilogue_semantics_test::TestDnnEpilogueSemantics},
+    {"dnn_model_plan", tilemega::tests::dnn_model_plan_test::TestDnnModelPlan},
+    {"moe_region_pattern", tilemega::tests::moe_region_pattern_test::TestMoeRegionPattern},
+    {"moe_region_plan", tilemega::tests::moe_region_plan_test::TestMoeRegionPlan},
+    {"moe_semantic_lifting", tilemega::tests::moe_semantic_lifting_test::TestMoeSemanticLifting},
+    {"moe_region_codegen", tilemega::tests::moe_region_codegen_test::TestMoeRegionCodegen},
+    {"dm_counted_fusion", tilemega::tests::dm_counted_fusion_test::TestDmCountedFusion},
+    {"dm_gemm_class_domain", tilemega::tests::dm_gemm_class_domain_test::TestDmGemmClassDomain},
+    {"dnn_structure_search", tilemega::tests::dnn_structure_search_test::TestDnnStructureSearch},
+    {"dm_forward_search", tilemega::tests::dm_forward_search_test::TestDmForwardSearch},
+    {"dm_physical_footprint", tilemega::tests::dm_physical_footprint_test::TestDmPhysicalFootprint},
     {"coupling_cache", tilemega::tests::coupling_cache_test::TestCouplingCache},
     {"semantic_lifting", tilemega::tests::semantic_lifting_test::TestSemanticLifting},
     {"embedding_plan", tilemega::tests::embedding_plan_test::TestEmbeddingPlan},
@@ -135,6 +258,7 @@ int main(int argc, char** argv) {
     {"model_plan_order_test", tilemega::tests::model_plan_order_test::TestModelPlanOrder},
     {"serving_model_plan_test", tilemega::tests::serving_model_plan_test::TestServingModelPlan},
     {"serving_import_test", tilemega::tests::serving_import_test::TestServingImport},
+    {"task_storage", tilemega::tests::task_storage_test::TestTaskStorage},
   };
   if (argc < 2) { std::cerr << "usage: tilemega-unit <case> [args...]\n"; return 2; }
   for (auto const& e : entries)

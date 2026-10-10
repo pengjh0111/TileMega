@@ -236,6 +236,9 @@ class CostModel {
       Residency residency,ModelDescription const& model,int chunks,
       analysis::ParamBinding const& coordinates,double active_ctas_per_sm,
       TaskMemoryTraffic const* memory=nullptr) const;
+  double PrivateComputeNs(DerivedTaskInput const& input,
+      analysis::ParamBinding const& theta,analysis::ParamBinding const& coordinates,
+      double active_ctas_per_sm) const;
   double CombineTaskStageNs(ModelDescription const& model,int stage,GemmConfig const& config,
                             Residency residency) const;
   double TaskStageNs(ModelDescription const& model,int stage,GemmConfig const& config,
@@ -273,6 +276,7 @@ class CostModel {
 
   /// Number of K chunks this configuration actually splits into.
   int Chunks(GemmOp const& gemm, GemmConfig const& config) const;
+  int Chunks(ModelDescription const& model,int gemm,GemmConfig const& config) const;
 
   Fit const& fit() const { return fit_; }
   CostModelOptions const& options() const { return options_; }

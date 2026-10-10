@@ -1,0 +1,17 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Original-FQN tiny checkpoint truncation/expert slicing and unchanged HF loading; no real checkpoint or GPU gate",
+  "tests": 4,
+  "log": "/root/dm1_work/development/runs/dm1-moe-checkpoints-v3/check.log",
+  "log_sha256": "8480f7b14fb7ab0fb44acb0a6b518e94f04e3e9e611138899edd3a97927fc605",
+  "source_head": "a0549741742d721f42703983b74d154bf077734b",
+  "sources": {
+    "python/tilemega/moe/checkpoints.py": "2718fbf99af96edf2151edb398cf31fcd4f63519456e9a5d1ed791fa8a116f39",
+    "test/python/test_moe_checkpoints.py": "d4f5f316c7de27a61471d7ea9d0b60747623185cd564829df3b6f8b4c88c2f8e"
+  },
+  "failures_retained": [
+    "runs/dm1-moe-checkpoints-v1/check.log",
+    "runs/dm1-moe-checkpoints-v2/check.log"
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "evidence": "verified",
+  "scope": "Committed indexed-convolution/CG/pricing/counted-fusion host integration; no TaskBody/model/synchronization/timing claim",
+  "stage_head": "ec06086ec92075ac92edcfb298c1b3991d6f5ae0",
+  "source_sha256": "dcaccafab9b3f2197ff0cdd34a504e8117ccea4a86148d17be417717c86c4456",
+  "source": "/root/dm1_work/development/runs/dm1-conv-counted-committed/source.json",
+  "ctest": {
+    "passed": 7,
+    "total": 7,
+    "assertions_enabled": true
+  },
+  "build_and_check_policy": true,
+  "logs": {
+    "02_check.log": "d0f506d7625aa7e2dc35328e39510080884cdcaf2b879df5b2ff86ab8db11107",
+    "01_cpu_build.log": "a5ab5c997478ce3b8d907605b11d5539af715b2b6d44b30adf9b6d959e62eb09",
+    "scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "prior_native_suite": {
+    "receipt": "runs/dm1-ci7-conv-counted-native-v4/receipt.json",
+    "sha256": "0f93dda4916213c6ef21780a5650940cb124330ff99bd636bb879f34eac47c28",
+    "passed": 25,
+    "total": 25
+  },
+  "cost_overlay": {
+    "receipt": "runs/dm1-conv-cost-chunks-v2/receipt.json",
+    "sha256": "a26879f1163684d4fdccbdd20ce05350fb705702a98859811448083736ec7cbe"
+  },
+  "main_implementation_commits": [
+    "58fbc0934",
+    "e8770dd77",
+    "97b2043c4",
+    "035094d67",
+    "b80449f18"
+  ],
+  "expectations_changed": false,
+  "utc": "2026-10-09T07:44:18.002909+00:00"
+}

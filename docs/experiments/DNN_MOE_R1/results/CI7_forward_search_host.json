@@ -1,0 +1,42 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_commit": "d2d94e0666e3ef0a02c45371948814ff01bcdd16",
+  "pass_rate": "7/7",
+  "scope": "Host forward search mechanics: batch and token axes, paged and nonpaged, complete legal class intersection, shared weight constraints and legacy class checks. Synthetic resource callbacks do not establish compiled resources or prediction accuracy. Native/model/structural body gates remain pending.",
+  "inputs": {
+    "CMakeLists.txt": "b4937f3caa362463bb3ce0689667d38cfc06378696dc1cbdc7a155dd3df8046a",
+    "include/tilemega/Solver/DmGemmClassDomain.h": "776f84634708d9a3a7a437b53b1de78f22d2814d70e9456d82dcaca30add4c9c",
+    "include/tilemega/Solver/OperatorClasses.h": "f7595ecd7335e2170989632f66aa77c3330ac5c1695e5061ed0bb5ddead1420e",
+    "include/tilemega/Solver/SkeletonSearch.h": "c42cd6adf40289f46f961a8b4d123a63342903b7cc56a9b6e442376deb699246",
+    "lib/Solver/SkeletonSearch.cpp": "a069dddfe29f5e5a0d249ffbd3c4a1f71a83eb8ac26024401b68f53224b96c8c",
+    "lib/Solver/TaskModel.cpp": "e7b0a9053aa78689bd207e2e244b7d42e2e18217891625c4a1b58a2bfa0350d5",
+    "lib/Solver/FlowPreparation.cpp": "6654bf0da6aa77ea9c6596c75394ada3feb10358112609079daf4f658ce1b49c",
+    "lib/Solver/ModelDramFloor.cpp": "7648676dfa6b26b0bc69db29390ee002557e81bb09eb41484cba491380ab8b5a",
+    "test/unit/runner.cpp": "fa79ee12b9a31e4b8034ebcac00c9d3e6138ee0f15d5087ec3fc001eeaf3120e",
+    "test/unit/dm_forward_search_test.cpp": "eb9ecd16ea96afa669f67757c2ee849f7b8e1e852e82370d1ac95084f2ce2408",
+    "test/unit/dm_gemm_class_domain_test.cpp": "fc0f9ff6df0db494c7510e37ea20b118c82e2a7549bc12b9c928fefac7b68f57",
+    "docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/prefill/target.json": "68bb3ee93eb07a6fabaa39264cd6e07e65b17537a54d5df491a0bb101348ba1b"
+  },
+  "queue_sha256": "83a041e21759c9c0082b2aee54d7303ba54fa5db656ea518e7096d0c70b43eb5",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "logs": {
+    "runs/dm1-ci7-forward-native-host-v4/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/dm1-ci7-forward-native-host-v4/events/02_ctest.log": "8f16794584af7875d65bebb526220775d6799dd5aa87e6efc85a5a41ad8540c7",
+    "runs/dm1-ci7-forward-native-host-v4/events/01_build.log": "0739c39d5da3841d1cdb67231dead60c423491beff1ac03a7b34af398cb03166"
+  },
+  "earlier_failures": {
+    "v1": "fixture target lacked per-task event calibration; replaced by pinned measured target; numerical expectations unchanged",
+    "v2_v3": "incremental preparation parsed absent dependency text for independent graph; guarded empty dependency fallback; all-candidate finiteness requirement preserved"
+  },
+  "pruning": "DM R-1 only; legacy R-2 dominance not proved for the new warp/K-partial families",
+  "M0_probe": {
+    "evidence": "verified",
+    "fetch_exit_code": 0,
+    "checked_utc": "2026-10-08T20:38:21.295587+00:00",
+    "origin_tilemega": "76beaea5e2d66e3311b36d020f470c4f016406d0",
+    "baseline_head": "76beaea5e2d66e3311b36d020f470c4f016406d0",
+    "merge_performed": false,
+    "reason": "origin unchanged"
+  }
+}

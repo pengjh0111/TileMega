@@ -1,0 +1,40 @@
+{
+  "evidence": "verified",
+  "scope": "host containment tests and generated CUDA equality; no GPU execution or timing claim",
+  "head": "be370dedcb740c4d1a268fbfd5b68c5dc4562d59",
+  "source_sha256": {
+    "lib/Analysis/DependencyTable.cpp": "c63cb8a29ad192e726f95cb1ac53929f8e6a5553b4df74350fab7847fd7d04cd"
+  },
+  "tests": [
+    {
+      "test": "runtime_dependency_table",
+      "exit_code": 0
+    },
+    {
+      "test": "runtime_dependency_codec",
+      "exit_code": 0
+    },
+    {
+      "test": "bound_dependency_codegen",
+      "exit_code": 0
+    },
+    {
+      "test": "dm_gemm_class_domain",
+      "exit_code": 0
+    },
+    {
+      "test": "reference",
+      "exit_code": 0,
+      "cu_equal": true,
+      "sha256": "d881cf08b17b31c7b9f77061da838424c97e000cff9b779b6ea2dc87dd3f9a73"
+    },
+    {
+      "test": "shared",
+      "exit_code": 0,
+      "cu_equal": true,
+      "sha256": "6f681ea162209cc4e4f7ac39948142c917dcecddde9b872baaee643d89d08bf2"
+    }
+  ],
+  "build_log": "runs/dm1-interval-inclusion-build-v1.log",
+  "proof": "Exact producer extrema bound every point; reverse inclusion proves no holes in the interval. Sparse fibers retain point enumeration and final relation containment checks."
+}

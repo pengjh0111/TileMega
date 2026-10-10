@@ -1,0 +1,36 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "host DM GEMM trait legality and shared storage only; CUDA families and candidate integration pending",
+  "pass_rate": "6/6",
+  "checks": [
+    "serving_pruning",
+    "dm_descriptor",
+    "operator_classes",
+    "dm_operator_classes",
+    "moe_routing_profile",
+    "dm_gemm_traits"
+  ],
+  "implementation_commit": "3551351549a681e63496a8615ee5fc877e84b8f8",
+  "legal_geometries": 76,
+  "added_geometries": 46,
+  "inputs": {
+    "include/tilemega/Solver/DmGemmTraits.h": "4ae08f7ff4dc8cbaed97f3346ad31c88567611eda918daa370975b9298a7a16c",
+    "include/tilemega/Solver/BackendCostQuery.h": "ece3b309b1c9a9ce0826aa11225a90aa3a8c8118609a05cbbda07b3e765430f2",
+    "test/unit/dm_gemm_traits_test.cpp": "91031b44ae804bfeba82be5f62378865a1a88c4e4568d66455cde9c679d5c744",
+    "CMakeLists.txt": "a06576bbb5cb970dc962b70363d2bdcad244d1e3ae23b549ad905753233c182e",
+    "test/unit/runner.cpp": "a8ee0b6f3763818e536f7f13d1cf667695e4755fbaa8dec4b2b39fc3f22c43f0"
+  },
+  "unit_sha256": "4f7d1a110acc67ab4cf72f5d0563adc13373997f28b8c62aaaf24c88ea321d04",
+  "compiler_sha256": "843ce95837f46bcb955221fec5b387e8a6462894c461a00d0b7c226a035260f0",
+  "logs": {
+    "/root/dm1_work/development/runs/dm1-ci7-gemm-traits-host/events/check_dm_gemm_traits.log": "245370666b3dabbdcd01a06c736053c0144ab21055bb0763913a96f8472011d4",
+    "/root/dm1_work/development/runs/dm1-ci7-gemm-traits-host/events/build_dm_gemm_traits.log": "bfa68470d9fe3f44df56a6cf94ebc77c4dd53ce7264df7094f1955d818945c51",
+    "/root/dm1_work/development/runs/dm1-ci7-gemm-traits-host/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "completion": {
+    "event": "queue_complete",
+    "steps": 2,
+    "passed": true
+  }
+}

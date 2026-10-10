@@ -5,6 +5,7 @@
 #include <tilemega/Codegen/tasks/TaskResources.h>
 #include <tilemega/Solver/AttentionWork.h>
 #include <tilemega/Analysis/SemanticCodec.h>
+#include <tilemega/Backend/ConvIteration.h>
 
 #include <algorithm>
 #include <cmath>
@@ -328,6 +329,18 @@ int CostModel::Chunks(GemmOp const& gemm, GemmConfig const& config) const {
   int chunks = config.split_k < k_tiles ? config.split_k : k_tiles;
   return chunks < 1 ? 1 : chunks;
 }
+int CostModel::Chunks(ModelDescription const& model,int gemm,GemmConfig const& config) const {
+  if(!model.dm || model.gemm_access.empty() ||
+     model.gemm_access.at(gemm).a!=codegen::DmAAccess::kIm2Col)
+    return Chunks(model.gemms.at(gemm),config);
+  if(!options_.split_k)return 1;
+  auto const& conv=model.convolutions.at(model.gemm_access.at(gemm).conv);
+  auto geometry=backend::ConvIterationGeometry::Build(conv,
+      model.buffer_layouts.at(conv.input_layout),config.tile_k);
+  if(config.split_k<=0 || geometry.iterations%config.split_k)
+    throw std::invalid_argument("convolution cost split does not divide issued iterations");
+  return config.split_k;
+}
 
 double CostModel::GemmStageNs(GemmOp const& gemm, GemmConfig const& config,
                               Residency residency,
@@ -525,7 +538,10 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
   throw std::runtime_error("access-derived task pricing is disabled");
 #endif
   if (model.dims.IsSymbolic()) throw std::invalid_argument("bind theta before FP64 task evaluation");
+  if(traits.stages<=0 && !input.compute_prologue.empty())
+    throw std::invalid_argument("private compute requires a collective body");
   auto known=model.MetricBindings();
+  bool const coordinate_arithmetic=model.dm && static_cast<bool>(input.task.element_access);
   if(options_.regime_a && dtype_==ScalarType::kBF16) {
     if(coordinates)return IsolatedNs(PriceParts(input,traits,residency,model,chunks,
         *coordinates,active_ctas_per_sm,memory),calib_->dram_gbps/(target_->res.num_sms*active_ctas_per_sm));
@@ -541,13 +557,18 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
     std::vector<long> nominal_read(count),nominal_write(count),reduction(count),physical_write(count);
     physical_write=input.work.write_elements.EvalPoints(known,points);
     if(traits.stages>0){nominal_read=input.work.nominal_read_elements.EvalPoints(known,points);nominal_write=input.work.nominal_write_elements.EvalPoints(known,points);reduction=input.work.nominal_task_reduce_extent.EvalPoints(known,points);}
-    std::map<std::array<double,10>,double> price_classes;
+    std::map<std::array<double,12>,double> price_classes;
     double sum=0;for(long first=0;first<count;first+=grid) {
       long active=std::min(grid,count-first);
       double o=options_.wave_tail?std::max(1.,double(active)/target_->res.num_sms):residency.ctas_per_sm;
       double wave=0;for(long linear=first;linear<first+active;++linear) {
-        auto const& t=traffic[linear];std::array<double,10> key{o,t.global_read_bytes,t.global_write_bytes,t.no_producer_read_bytes,t.external_write_bytes,
-          double(nominal_read[linear]),double(nominal_write[linear]),double(reduction[linear]),double(physical_write[linear]),t.produced_read_bytes};
+        auto arithmetic=[&](analysis::ArithmeticRatio const& ratio) {
+          return coordinate_arithmetic
+              ? double(ratio.numerator.BindCoordinates(points[linear]).Eval(known))/ratio.denominator:0.0;
+        };
+        auto const& t=traffic[linear];std::array<double,12> key{o,t.global_read_bytes,t.global_write_bytes,t.no_producer_read_bytes,t.external_write_bytes,
+          double(nominal_read[linear]),double(nominal_write[linear]),double(reduction[linear]),double(physical_write[linear]),t.produced_read_bytes,
+          arithmetic(input.arithmetic.flops_per_output_element),arithmetic(input.arithmetic.transcendental_per_output_element)};
         auto found=price_classes.find(key);double price;
         if(found!=price_classes.end())price=found->second;
         else {price=IsolatedNs(PriceParts(input,traits,residency,model,chunks,points[linear],o,memory),calib_->dram_gbps/(target_->res.num_sms*o));price_classes.emplace(key,price);}
@@ -575,8 +596,10 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
     if (coordinates) ctas=1;
     double grid=double(target_->res.num_sms)*std::max(1,residency.ctas_per_sm);
     double miss=1.0-CacheHitProbability(model.LiveFootprintBytes());
-    double flops_per_output=input.arithmetic.flops_per_output_element.Eval(known)+flow.extra_flops_per_output;
-    double transc_per_output=input.arithmetic.transcendental_per_output_element.Eval(known);
+    double flops_per_output=coordinate_arithmetic?0:
+        input.arithmetic.flops_per_output_element.Eval(known)+flow.extra_flops_per_output;
+    double transc_per_output=coordinate_arithmetic?0:
+        input.arithmetic.transcendental_per_output_element.Eval(known);
     std::ostringstream cache_key;
     cache_key << input.work.read_elements.ToString() << '\n' << input.work.write_elements.ToString()
               << '\n' << input.work.task_count.ToString() << '\n' << std::hexfloat
@@ -591,6 +614,13 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
     if (memory) cache_key << ":memory:" << memory->global_read_bytes << ':' << memory->global_write_bytes
         << ':' << memory->local_read_bytes << ':' << memory->local_write_bytes;
     if (input.physical_read_bytes) cache_key << ":typed_reads:" << input.physical_read_bytes->ToString();
+    if(coordinate_arithmetic) {
+      cache_key<<":arithmetic:"<<input.arithmetic.flops_per_output_element.numerator.ToString()
+          <<":"<<input.arithmetic.flops_per_output_element.denominator
+          <<":"<<input.arithmetic.transcendental_per_output_element.numerator.ToString()
+          <<":"<<input.arithmetic.transcendental_per_output_element.denominator;
+      if(input.physical_write_bytes)cache_key<<":typed_writes:"<<input.physical_write_bytes->ToString();
+    }
     auto cached=scalar_price_cache_.find(cache_key.str());
     if (cached!=scalar_price_cache_.end()) return cached->second;
     double total=0;
@@ -618,9 +648,17 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
       double wave=-std::numeric_limits<double>::infinity();
       for (long q=first;q<first+long(active);++q) {
         auto const& traffic=traffic_batch[q-initial];
-        double writes=traffic.global_write_bytes/ElementBytes(dtype_);
+        double writes=coordinate_arithmetic?
+            double(input.work.write_elements.BindCoordinates(points[q-initial]).Eval(known)):
+            traffic.global_write_bytes/ElementBytes(dtype_);
         double bytes=traffic.global_read_bytes+traffic.global_write_bytes;
-        double flops=flops_per_output*writes,transc=transc_per_output*writes;
+        auto arithmetic=[&](analysis::ArithmeticRatio const& ratio) {
+          return double(ratio.numerator.BindCoordinates(points[q-initial]).Eval(known))/ratio.denominator;
+        };
+        double flops=coordinate_arithmetic?
+            (arithmetic(input.arithmetic.flops_per_output_element)+flow.extra_flops_per_output)*writes:flops_per_output*writes;
+        double transc=coordinate_arithmetic?
+            arithmetic(input.arithmetic.transcendental_per_output_element)*writes:transc_per_output*writes;
         // The fitted alpha+beta*tile_area describes a collective accumulator
         // tile's setup. ScalarDataflow has no such initialization phase:
         // scalar arithmetic is charged in u, memory phases in this DAG term.
@@ -657,8 +695,11 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
       options_.fp32_partials && dtype_==ScalarType::kBF16 && chunks>1
           ? int(sizeof(float)) : ElementBytes(dtype_),analysis::AccessDomain::kNominalTile);
   double const bytes=(memory ? memory->global_read_bytes : traffic.global_read_bytes)/iters;
-  double const flops=input.arithmetic.flops_per_output_element.Eval(known)*writes/iters;
-  double const transc=input.arithmetic.transcendental_per_output_element.Eval(known)*writes/iters;
+  auto arithmetic=[&](analysis::ArithmeticRatio const& ratio) {
+    return coordinate_arithmetic?value(ratio.numerator)/ratio.denominator:ratio.Eval(known);
+  };
+  double const flops=arithmetic(input.arithmetic.flops_per_output_element)*writes/iters;
+  double const transc=arithmetic(input.arithmetic.transcendental_per_output_element)*writes/iters;
   double const dram_fraction=1.0-CacheHitProbability(model.LiveFootprintBytes());
   // Keep the calibrated factorized FP64 setup order. beta*(M*N) is not in
   // general bit-identical to (beta*M)*N, although the integer work is exact.
@@ -712,7 +753,8 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
     // Resource lanes still bound service; phase calibration additionally
     // resolves per-iteration instruction latency and exposed operand waits.
     // Memory-overridden fusion probes retain their explicit traffic pricing.
-    total+=fixed+effective_iters*(std::max(u.Bottleneck(),measured_body)+measured_wait);
+    total+=fixed+effective_iters*(std::max(u.Bottleneck(),measured_body)+measured_wait)+
+        PrivateComputeNs(input,known,point,o);
   }
   return total;
 }
@@ -749,7 +791,7 @@ double CostModel::TaskStageNs(ModelDescription const& model,int index,
   if (!selected) throw std::invalid_argument("runtime stage lacks a CG semantic cost input");
   BackendTraits traits=ModelTaskTraits(model,index,config);
   bool collective=stage.IsCollective();
-  int chunks=collective ? Chunks(model.gemms.at(stage.gemm),config) : 1;
+  int chunks=collective ? Chunks(model,stage.gemm,config) : 1;
   std::ostringstream key;
   key << analysis::EncodeSemanticOp(selected->op) << ':' << selected->element_chunk << ':'
       << stage.width << ':' << stage.extent << ':' << stage.group << ':' << int(model.dtype);
@@ -770,7 +812,7 @@ double CostModel::TaskStageNs(ModelDescription const& model,int index,
 double CostModel::CombineTaskStageNs(ModelDescription const& model,int index,
     GemmConfig const& config,Residency residency) const {
   auto const& stage=model.stages.at(index);
-  if (Chunks(model.gemms.at(stage.gemm),config)<=1) return 0;
+  if (Chunks(model,stage.gemm,config)<=1) return 0;
   auto collective=ModelTaskTraits(model,index,config);
   auto resources=codegen::ReadSimtTaskResources(codegen::TaskKind::kGemmCombine,collective.threads);
   BackendTraits traits;traits.threads=resources.threads;traits.smem_bytes=resources.shared_bytes;traits.shape_legal=true;
@@ -805,6 +847,15 @@ double CostModel::InterfaceEdgeNs(ModelCouplingMetrics const& edge,
   throw std::runtime_error("CG interface pricing is disabled");
 #endif
   auto known=model.MetricBindings();
+  if (edge.interface_elements) {
+    long repeated = edge.interface_elements->SubstituteParams(known).Eval({});
+    if (repeated < 0) throw std::invalid_argument("negative exact interface rereads");
+    if (calib_->l2_gbps <= 0 || calib_->dram_gbps <= 0)
+      throw std::runtime_error("interface bandwidth: not_calibrated");
+    double miss = 1.0 - CacheHitProbability(model.LiveFootprintBytes());
+    return double(repeated) * ElementBytes(dtype_) *
+        ((1.0 - miss) / calib_->l2_gbps + miss / calib_->dram_gbps);
+  }
   long waits=edge.wait.SumDomain().SubstituteParams(known).Eval({});
   // Only consumers in domain(C) owe a first read. Subtracting |T_c| would
   // produce negative work for consumers outside a partial writer's domain.
@@ -887,8 +938,7 @@ CostBreakdown CostModel::Evaluate(ModelDescription const& model,
         (configs.empty() ? GemmConfig{} : configs.front());
     out.task_ns_sum+=TaskStageNs(model,int(i),config,residency);
     if (!stage.IsCollective()) continue;
-    auto const& gemm=model.gemms.at(stage.gemm);
-    int chunks=Chunks(gemm,config);
+    int chunks=Chunks(model,stage.gemm,config);
     if (chunks>1) {
       out.combine_ns+=CombineTaskStageNs(model,int(i),config,residency);
       ++out.stage_count;

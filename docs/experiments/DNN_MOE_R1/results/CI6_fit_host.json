@@ -1,0 +1,27 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "CPU NNLS mathematics and metadata constraints only; no measured body fit, timing sample or GPU numerical gate",
+  "implementation_commit": "2a5cf3002c9c53a554479fede13781ac18e3e90f",
+  "utc": "2026-10-08T05:10:23.710899+00:00",
+  "command": [
+    "/root/dm1_work/venv/bin/python",
+    "-m",
+    "unittest",
+    "-v",
+    "test_fit_dm"
+  ],
+  "cwd": "/root/dm1_work/development/docs/experiments/DNN_MOE_R1",
+  "pass_rate": "5/5",
+  "inputs": {
+    "docs/experiments/DNN_MOE_R1/fit_dm.py": "33c7ec300454b9aa1327a3cec463bf6f1cb5972d17a4d9fe4234e0c0e4d316ed",
+    "docs/experiments/DNN_MOE_R1/test_fit_dm.py": "914b2f00052ef6d1b6536fdb65c725e209400a5e72a88333d0eb7a0d76a81930"
+  },
+  "checks": [
+    "full-rank coefficients and independent heldout residual",
+    "rank-deficient observable predictions and identifiability flag",
+    "nonnegative boundary solution",
+    "invalid inputs and missing heldout rejection",
+    "artifact/gate/work linkage, 50-process receipt and no train/heldout leakage"
+  ]
+}

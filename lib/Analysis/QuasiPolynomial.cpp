@@ -13,6 +13,7 @@
 #include <cctype>
 #include <map>
 #include <limits>
+#include <cmath>
 
 #ifndef TILEMEGA_EARLY_QP_BINDING
 #define TILEMEGA_EARLY_QP_BINDING 1
@@ -264,6 +265,22 @@ QuasiPolynomial QuasiPolynomial::FromIslText(std::string const& text) {
 QuasiPolynomial QuasiPolynomial::Card(CouplingRelation const& relation) {
   return relation.Card();
 }
+QuasiPolynomial QuasiPolynomial::FromClosedForm(ClosedForm const& expression, ParamBinding const& known) {
+  auto bound = expression.Substitute(known);
+  std::string parameters;
+  for (auto const& symbol : bound.FreeSymbols()) {
+    if (!parameters.empty()) parameters += ',';
+    parameters += symbol;
+  }
+  std::string text = parameters.empty() ? "{ " : "[" + parameters + "] -> { ";
+  bool first = true;
+  for (auto const& [value, condition] : bound.ToIslPieces()) {
+    if (!first) text += "; "; first = false;
+    text += value;
+    if (!condition.empty()) text += " : " + condition;
+  }
+  return FromIslText(text + " }");
+}
 
 QuasiPolynomial QuasiPolynomial::Add(QuasiPolynomial const& other) const {
   return Sum({*this,other});
@@ -393,6 +410,34 @@ QuasiPolynomial QuasiPolynomial::BindCoordinates(ParamBinding const& point) cons
   return QuasiPolynomial(isl_util::ToString(value.get()));
 }
 
+namespace {
+isl_util::Val ExactScalarValue(std::string const& text,ParamBinding const& known) {
+  auto value=isl_util::ReadPwQPolynomial(Ctx(),BindParameterTokens(text,known));
+  value=FixParams(std::move(value),known);
+  auto hi=isl_util::Val(isl_pw_qpolynomial_max(isl_pw_qpolynomial_copy(value.get())));
+  auto lo=isl_util::Val(isl_pw_qpolynomial_min(value.release()));
+  if(!hi || !lo || isl_val_is_rat(hi.get())!=isl_bool_true ||
+     isl_val_is_rat(lo.get())!=isl_bool_true || isl_val_eq(hi.get(),lo.get())!=isl_bool_true)
+    throw std::out_of_range("quasi-polynomial is not a finite scalar rational");
+  return hi;
+}
+}
+double QuasiPolynomial::EvalReal(ParamBinding const& known) const {
+  IslReferenceAudit audit(__func__);
+  auto scalar=ExactScalarValue(text_,known);
+  double result=isl_val_get_d(scalar.get());
+  if(!std::isfinite(result))throw std::overflow_error("quasi-polynomial exceeds FP64 range");
+  return result;
+}
+int QuasiPolynomial::CompareScalar(QuasiPolynomial const& other,ParamBinding const& known) const {
+  IslReferenceAudit audit(__func__);
+  auto a=ExactScalarValue(text_,known),b=ExactScalarValue(other.text_,known);
+  auto less=isl_val_lt(a.get(),b.get()),greater=isl_val_gt(a.get(),b.get());
+  if(less==isl_bool_error || greater==isl_bool_error)
+    throw std::runtime_error("cannot compare exact scalar rational values");
+  return less==isl_bool_true?-1:greater==isl_bool_true?1:0;
+}
+
 long QuasiPolynomial::Eval(ParamBinding const& known) const {
   IslReferenceAudit audit(__func__);
   isl_util::PwQPolynomial value = isl_util::ReadPwQPolynomial(Ctx(), BindParameterTokens(text_,known));
@@ -417,7 +462,8 @@ long QuasiPolynomial::Eval(ParamBinding const& known) const {
         "quasi-polynomial has no finite max/min -- it depends on an unbound "
         "parameter, or its domain is empty");
   if (!isl_val_is_int(max_value.get()) || !isl_val_is_int(min_value.get()))
-    throw std::runtime_error("isl: quasi-polynomial did not reduce to an integer");
+    throw std::runtime_error("isl: quasi-polynomial did not reduce to an integer: "+
+        BindParameterTokens(text_,known));
   if (!isl_val_eq(max_value.get(), min_value.get()))
     throw std::out_of_range(
         "quasi-polynomial is genuinely position-dependent (max " +
@@ -487,13 +533,28 @@ QuasiPolynomial QuasiPolynomial::SumAlong(CouplingRelation const& relation) cons
   value=isl_util::PwQPolynomial(isl_union_pw_qpolynomial_extract_pw_qpolynomial(united.get(),space.release()));
   if (!value) throw std::invalid_argument("QP fiber aligned extraction failed");
   int inputs=isl_pw_qpolynomial_dim(value.get(),isl_dim_in),outputs=isl_map_dim(map.get(),isl_dim_out);
+  if(inputs==0 && outputs==0) {
+    // A zero-dimensional range has at most its one empty tuple. Its fiber
+    // sum is the scalar on the relation's domain; barvinok's general map
+    // summation rejects this valid scalar case.
+    isl_util::Set domain(isl_map_domain(map.release()));
+    auto dimensions=isl_set_dim(domain.get(),isl_dim_set);
+    if(dimensions)
+      value=isl_util::PwQPolynomial(isl_pw_qpolynomial_add_dims(value.release(),isl_dim_in,dimensions));
+    value=isl_util::PwQPolynomial(isl_pw_qpolynomial_reset_domain_space(
+        value.release(),isl_set_get_space(domain.get())));
+    value=isl_util::PwQPolynomial(isl_pw_qpolynomial_intersect_domain(value.release(),domain.release()));
+    if(!value)throw std::invalid_argument("QP scalar fiber restriction failed");
+    return FromIslText(isl_util::ToString(value.get()));
+  }
   if (inputs==0 && outputs>0) {
     value=isl_util::PwQPolynomial(isl_pw_qpolynomial_add_dims(value.release(),isl_dim_in,outputs));
     auto range=isl_util::Space(isl_space_range(isl_map_get_space(map.get())));
     value=isl_util::PwQPolynomial(isl_pw_qpolynomial_reset_domain_space(value.release(),range.release()));
   } else if (inputs!=outputs) throw std::invalid_argument("QP fiber sum coordinate rank mismatch");
   auto sum=isl_util::PwQPolynomial(isl_map_apply_pw_qpolynomial(map.release(),value.release()));
-  if (!sum) throw std::invalid_argument("cannot sum QP along relation");
+  if (!sum) throw std::invalid_argument("cannot sum QP along relation: polynomial="+
+      text_+" relation="+relation.ToString());
   return FromIslText(isl_util::ToString(sum.get()));
 }
 
@@ -511,6 +572,9 @@ QuasiPolynomial QuasiPolynomial::SupportIndicator() const {
 
 bool QuasiPolynomial::SemanticallyEqual(QuasiPolynomial const& other,
                                         ParamBinding const& known) const {
+  // Canonical text equality proves function equality before any potentially
+  // expensive scalar extrema query over a large per-task piecewise domain.
+  if(text_==other.text_)return true;
   std::ostringstream binding;for(auto const& [name,value]:known.values)binding<<name.size()<<':'<<name<<'='<<value<<';';
   return MemoExact({"polynomial_equal",text_,other.text_,binding.str()},[&] {
     // Try the constant-vs-constant shortcut first: if both sides reduce to a

@@ -98,7 +98,11 @@ class Layer(nn.Module):
         self.input_layernorm = RMSNorm(config["hidden_size"], config["rms_norm_eps"])
         self.self_attn = SelfAttention(config)
         self.post_attention_layernorm = RMSNorm(config["hidden_size"], config["rms_norm_eps"])
-        self.mlp = MLP(config)
+        if config['architectures'][0] == 'Qwen3MoeForCausalLM':
+            from tilemega.moe.export import SparseMLP
+            self.mlp = SparseMLP(config)
+        else:
+            self.mlp = MLP(config)
 
     def forward(self, x: torch.Tensor, past_k: torch.Tensor, past_v: torch.Tensor,
                 rope_cos: torch.Tensor,
@@ -123,7 +127,9 @@ class Decoder(nn.Module):
         super().__init__()
         self.model = Backbone(config)
         self.lm_head = nn.Linear(config["hidden_size"], config["vocab_size"], bias=False)
-        self.lm_head.weight = self.model.embed_tokens.weight
+        if (config['architectures'][0] != 'Qwen3MoeForCausalLM' or
+                config.get('tie_word_embeddings', False)):
+            self.lm_head.weight = self.model.embed_tokens.weight
 
     def execute(self, input_ids: torch.Tensor, caches: tuple[torch.Tensor, ...],
                 rope_cos: torch.Tensor, rope_sin: torch.Tensor) -> tuple[torch.Tensor, ...]:
@@ -143,7 +149,14 @@ def export(config: dict, phase: str, capacity: int, out: Path) -> dict:
     batch_example = 2
     dim = config.get("head_dim", config["hidden_size"] // config["num_attention_heads"])
     kv_heads = config["num_key_value_heads"]
-    model = Decoder(config).eval().to(torch.bfloat16)
+    moe = config['architectures'][0] == 'Qwen3MoeForCausalLM'
+    if moe:
+        # The full checkpoint is 61 GB. Export the static graph and FQNs
+        # without initializing or materializing any checkpoint tensors.
+        with torch.device('meta'):
+            model = Decoder(config).eval().to(torch.bfloat16)
+    else:
+        model = Decoder(config).eval().to(torch.bfloat16)
     names = [f"past_{kind}{layer}" for layer in range(config["num_hidden_layers"])
              for kind in "kv"]
     namespace = {}
@@ -160,6 +173,8 @@ def export(config: dict, phase: str, capacity: int, out: Path) -> dict:
             inputs.append(torch.zeros((batch_example, kv_heads, past, dim), dtype=torch.bfloat16))
     inputs.extend((torch.ones((capacity, dim), dtype=torch.bfloat16),
                    torch.zeros((capacity, dim), dtype=torch.bfloat16)))
+    if moe:
+        inputs = [value.to('meta') for value in inputs]
     batch = torch.export.Dim("batch", min=1, max=64)
     dynamic = [{0: batch}]
     if phase == "decode":
@@ -182,7 +197,7 @@ def export(config: dict, phase: str, capacity: int, out: Path) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, required=True)
-    parser.add_argument("--model", choices=("llama", "qwen3"), required=True)
+    parser.add_argument("--model", choices=("llama", "qwen3", "qwen3_moe"), required=True)
     parser.add_argument("--phase", choices=("decode", "prefill"), required=True)
     parser.add_argument("--capacity", type=int, default=1088)
     parser.add_argument("--out", type=Path)
@@ -193,6 +208,9 @@ def main() -> None:
         config.update(hidden_size=128, intermediate_size=256, num_attention_heads=4,
                       num_key_value_heads=2, num_hidden_layers=1, vocab_size=256,
                       head_dim=32)
+        if args.model == 'qwen3_moe':
+            config.update(moe_intermediate_size=64, num_experts=16, num_local_experts=16,
+                          num_experts_per_tok=8)
     out = args.out or Path(f"/root/r10_work/export/{args.model}_{args.phase}")
     print(json.dumps(export(config, args.phase, args.capacity, out)), flush=True)
 

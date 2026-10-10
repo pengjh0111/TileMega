@@ -84,6 +84,7 @@ inline ScalarDataflow ScalarTaskDataflow(TaskKind kind) {
       flow.Add(ScalarPhase::kStore,{pv});
       return flow;
     }
+    case TaskKind::kEncoderAttention:
     case TaskKind::kFusedAttention: {
       int qk=flow.Add(ScalarPhase::kArithmetic,{input});
       int softmax=flow.Add(ScalarPhase::kArithmetic,{qk});
@@ -105,6 +106,40 @@ inline ScalarDataflow ScalarTaskDataflow(TaskKind kind) {
       int row=flow.Add(ScalarPhase::kLoad,{input});
       flow.nodes[row].read_operands={1};
       flow.Add(ScalarPhase::kStore,{row});
+      return flow;
+    }
+    case TaskKind::kLayerNorm:
+      // Both statistics passes retain the row in registers and use warp
+      // shuffles; there is no block-wide shared reduction or global reread.
+      flow.nodes[input].read_operands={0,1,2};
+      flow.Add(ScalarPhase::kStore,{flow.Add(ScalarPhase::kArithmetic,{input})});
+      return flow;
+    case TaskKind::kEmbeddingSum: {
+      flow.nodes[input].read_operands={0,1};
+      int tables=flow.Add(ScalarPhase::kLoad,{input});
+      flow.nodes[tables].read_operands={2,3,4};
+      int values=flow.Add(ScalarPhase::kArithmetic,{tables});
+      int partials=flow.Add(ScalarPhase::kPublish,{values});
+      int statistics=flow.Add(ScalarPhase::kArithmetic,{partials});
+      flow.Add(ScalarPhase::kPublish,{statistics});
+      flow.Add(ScalarPhase::kStore,{values,statistics});
+      return flow;
+    }
+    case TaskKind::kLayoutConvert:
+      flow.nodes[input].read_operands={0};
+      flow.Add(ScalarPhase::kStore,{input});
+      return flow;
+    case TaskKind::kPool:
+    case TaskKind::kGlobalPoolReduce:
+      flow.nodes[input].read_operands={0};
+      flow.Add(ScalarPhase::kStore,{flow.Add(ScalarPhase::kArithmetic,{input})});
+      return flow;
+    case TaskKind::kDepthwiseConv: {
+      flow.nodes[input].read_operands={0,1};
+      int published=flow.Add(ScalarPhase::kPublish,{input});
+      int dot=flow.Add(ScalarPhase::kArithmetic,{published});
+      int stored=flow.Add(ScalarPhase::kStore,{dot});
+      flow.Add(ScalarPhase::kPublish,{stored});
       return flow;
     }
     case TaskKind::kRoPE:

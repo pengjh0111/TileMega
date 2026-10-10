@@ -2,6 +2,7 @@
 #include <tilemega/Solver/ServingAttentionLegality.h>
 #include <tilemega/Codegen/ServingPages.h>
 #include <tilemega/Codegen/RuntimePlan.h>
+#include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Solver/PageLayout.h>
 #include <tilemega/Solver/ModelDescription.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
@@ -9,6 +10,7 @@
 #include <mlir/IR/BuiltinOps.h>
 #include <mlir/IR/Builders.h>
 #include <algorithm>
+#include <limits>
 #include <set>
 #include <stdexcept>
 namespace tilemega::codegen {
@@ -22,27 +24,36 @@ void ConfigureServingPrefetch(mlir::ModuleOp module,TargetSpec const& target,int
   }
   if(depth<1 || depth>2 || (stride!=32 && stride!=64 && stride!=128))
     throw std::invalid_argument("prefetch depth must be 1/2 and stride 32/64/128");
-  auto model=solver::ModelDescription::FromCouplingGraph(module,{0,0,0},"prefetch-frontier");
-  analysis::SemanticGraph sem;std::set<std::string> seen;
-  for(auto const& s:model.task_semantics)if(seen.insert(s.op.name).second)sem.ops.push_back(s.op);
-  auto graph=analysis::Instantiate(sem,{});
-  std::map<std::string,analysis::CouplingRelation> written,reads;
-  for(auto const& op:sem.ops) {
-    auto const& task=*graph.Find(op.name);
-    written[op.result.name]=written[op.result.name].Union(analysis::ElementAccess(task,
-        analysis::BuildWriteMap(task),{},analysis::AccessDomain::kPhysicalTensor).Image());
-    for(auto const& w:op.additional_writes)
-      written[w.tensor.name]=written[w.tensor.name].Union(analysis::ExactElementRead(op,task,
-          {w.tensor,w.map,w.nonnegative},{}).Image());
-    for(auto const& read:op.element_reads)
-      reads[read.tensor.name]=reads[read.tensor.name].Union(analysis::ExactElementRead(op,task,read,{}).Image());
-  }
   auto plan=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   auto roles=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.dimension_roles");
-  auto buffers=plan.getAs<mlir::ArrayAttr>("buffers");
   auto info=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
-  std::string B=roles.getAs<mlir::StringAttr>("batch").getValue().str();
   auto past=roles.getAs<mlir::StringAttr>("past");
+  bool historical=false;
+  if(past && info.getAs<mlir::IntegerAttr>("seq").getInt()==1)
+    for(auto attr:plan.getAs<mlir::ArrayAttr>("stages"))
+      historical|=mlir::cast<mlir::DictionaryAttr>(attr).getAs<mlir::StringAttr>("kind").getValue()=="kFusedAttention";
+  std::map<std::string,analysis::CouplingRelation> written,reads;
+  // Only historical KV requests consume this frontier. Spatial DNN maps
+  // retain their exact coupling proof without constructing an unused union.
+  if(historical) {
+    auto model=solver::ModelDescription::FromCouplingGraph(module,{0,0,0},"prefetch-frontier");
+    analysis::SemanticGraph sem;std::set<std::string> seen;
+    for(auto const& s:model.task_semantics)if(seen.insert(s.op.name).second)sem.ops.push_back(s.op);
+    auto graph=analysis::Instantiate(sem,{});
+    for(auto const& op:sem.ops) {
+      auto const& task=*graph.Find(op.name);
+      written[op.result.name]=written[op.result.name].Union(analysis::ElementAccess(task,
+          analysis::BuildWriteMap(task),{},analysis::AccessDomain::kPhysicalTensor).Image());
+      for(auto const& w:op.additional_writes)
+        written[w.tensor.name]=written[w.tensor.name].Union(analysis::ExactElementRead(op,task,
+            {w.tensor,w.map,w.nonnegative},{}).Image());
+      for(auto const& read:op.element_reads)
+        reads[read.tensor.name]=reads[read.tensor.name].Union(analysis::ExactElementRead(op,task,read,{}).Image());
+    }
+  }
+  auto buffers=plan.getAs<mlir::ArrayAttr>("buffers");
+  auto batch=roles.getAs<mlir::StringAttr>("batch");
+  std::string B=batch?batch.getValue().str():std::string();
   mlir::OpBuilder b(module.getContext());std::vector<mlir::Attribute> stages,proofs;
   for(auto attr:plan.getAs<mlir::ArrayAttr>("stages")) {
     auto stage=mlir::cast<mlir::DictionaryAttr>(attr);mlir::NamedAttrList updated(stage);unsigned mask=0;
@@ -53,6 +64,8 @@ void ConfigureServingPrefetch(mlir::ModuleOp module,TargetSpec const& target,int
       long heads=stage.getAs<mlir::IntegerAttr>("extent").getInt();
       long width=stage.getAs<mlir::IntegerAttr>("width").getInt();
       std::string P=past.getValue().str();
+      if(B.empty() || P.empty())
+        throw std::invalid_argument("historical prefetch requires batch and past roles");
       auto history=analysis::CouplingRelation::FromIslText("["+B+","+P+"] -> { [] -> [b,g,pos,d] : 0<=b<"+B+
           " and 0<=g<"+std::to_string(heads)+" and 0<=pos<"+P+
           " and pos<"+std::to_string(info.getAs<mlir::IntegerAttr>("capacity").getInt())+
@@ -87,13 +100,14 @@ void ConfigureServingPrefetch(mlir::ModuleOp module,TargetSpec const& target,int
 void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int page_bytes) {
   auto serving=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
   auto model=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
-  if(!serving || !model || mlir::cast<mlir::IntegerAttr>(serving.get("seq")).getInt()!=1)
-    throw std::invalid_argument("page execution requires a decode serving graph");
+  if(!serving || !model)
+    throw std::invalid_argument("page execution requires a serving graph");
+  bool dm=model.getAs<mlir::BoolAttr>("dm") && model.getAs<mlir::BoolAttr>("dm").getValue();
   auto runtime=ReadRuntimePlan(module);
   std::vector<std::array<int,3>> gemm_shapes;
   for(auto const& g:runtime.gemms) {
-    if(g.tile_n*g.tile_k*2>page_bytes)
-      throw std::invalid_argument("decode page plan requires one-page GEMM stages");
+    if(!dm && g.tile_n*g.tile_k*2>page_bytes)
+      throw std::invalid_argument("page plan requires one-page GEMM stages");
     if(!solver::PageLayout::StageFits(page_bytes,g.tile_n,g.tile_k))
       throw std::invalid_argument("a GEMM B stage must divide a page or occupy whole pages");
     gemm_shapes.push_back({g.tile_m,g.tile_n,g.tile_k});
@@ -106,8 +120,27 @@ void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int pa
           int(mlir::cast<mlir::IntegerAttr>(stage.get("width")).getInt()),
           int(mlir::cast<mlir::IntegerAttr>(stage.get("group")).getInt())});
   }
+  int task_workspace=0;
+  for(auto a:mlir::cast<mlir::ArrayAttr>(model.get("stages"))) {
+    auto stage=mlir::cast<mlir::DictionaryAttr>(a);
+    if(stage.getAs<mlir::StringAttr>("kind").getValue()=="kDwPwFused") {
+      auto const& g=runtime.gemms.at(stage.getAs<mlir::IntegerAttr>("gemm").getInt());
+      int channels=stage.getAs<mlir::IntegerAttr>("width").getInt();
+      task_workspace=std::max(task_workspace,2*g.tile_m*channels+
+          std::max(solver::DmServingPageActivationBytes(g.tile_m,g.tile_n,g.tile_k),
+                   solver::DmServingPageScratchBytes(g.tile_m,g.tile_n)));
+    }
+    if(auto bytes=stage.getAs<mlir::IntegerAttr>("dm_workspace_bytes")) {
+      if(bytes.getInt()<0 || bytes.getInt()>std::numeric_limits<int>::max())
+        throw std::invalid_argument("task workspace exceeds the page layout range");
+      task_workspace=std::max(task_workspace,int(bytes.getInt()));
+    }
+  }
+  bool prefill=mlir::cast<mlir::IntegerAttr>(serving.get("seq")).getInt()>1;
+  int kv_tile=64;
+  if(auto tile=module->getAttrOfType<mlir::IntegerAttr>("tmexec.attention_kv_tile"))kv_tile=tile.getInt();
   auto parallel=module->getAttrOfType<mlir::BoolAttr>("tmexec.parallel_argmax");
-  auto [activation,scratch]=solver::PageLayout::ServingWorkspace(gemm_shapes,attention_shapes,parallel && parallel.getValue());
+  auto [activation,scratch]=solver::PageLayout::ServingWorkspace(gemm_shapes,attention_shapes,prefill,dm,task_workspace,kv_tile,parallel && parallel.getValue());
   auto layout=solver::PageLayout::Build(target,page_bytes,activation,scratch);
   for(auto a:mlir::cast<mlir::ArrayAttr>(model.get("stages"))) {
     auto stage=mlir::cast<mlir::DictionaryAttr>(a);
@@ -153,6 +186,44 @@ void ResolveServingWeightPacking(mlir::ModuleOp module) {
   std::vector<mlir::Attribute> buffers(old_buffers.begin(),old_buffers.end());
   std::vector<mlir::Attribute> gemms(old_gemms.begin(),old_gemms.end());
   std::vector<mlir::Attribute> stages(old_stages.begin(),old_stages.end());
+  auto dm=plan.getAs<mlir::BoolAttr>("dm");
+  auto chain_uses=[](mlir::Attribute attr,unsigned source) {
+    if(!attr)return false;
+    auto chain=frontend::DecodeDmChain(attr);
+    for(unsigned i=0;i<chain.count;++i)for(auto parameter:chain.operations[i].parameter)
+      if(parameter==source)return true;
+    for(unsigned i=0;i<chain.side_count;++i)
+      if(chain.side[i].buffer==source || chain.side[i].auxiliary==source)return true;
+    return false;
+  };
+  auto replace_dense=[&](unsigned source,int tn,int tk) {
+    if(!dm || !dm.getValue())return false;
+    for(unsigned j=0;j<old_gemms.size();++j) {
+      auto other=mlir::cast<mlir::DictionaryAttr>(old_gemms[j]);
+      for(auto name:{"a","c","d","norm_ss","ss_out"})
+        if(auto id=other.getAs<mlir::IntegerAttr>(name);id && id.getInt()==source)return false;
+      if(chain_uses(other.get("dm_chain"),source))return false;
+      if(auto attr=other.get("dm_access")) {
+        auto access=frontend::DecodeDmAccess(attr);
+        for(auto id:{access.rows,access.binding,access.a_scale,access.write.rows})
+          if(id==source)return false;
+      }
+      if(other.getAs<mlir::IntegerAttr>("b").getInt()==source &&
+          (runtime.gemms[j].tile_n!=tn || runtime.gemms[j].tile_k!=tk))return false;
+    }
+    for(auto item:old_stages) {
+      auto stage=mlir::cast<mlir::DictionaryAttr>(item);
+      auto operands=stage.getAs<mlir::DenseI64ArrayAttr>("operands").asArrayRef();
+      bool gemm=stage.getAs<mlir::StringAttr>("kind").getValue()=="kGemm";
+      for(unsigned slot=0;slot<operands.size();++slot)
+        if(operands[slot]==source && (!gemm || slot!=1))return false;
+      if(chain_uses(stage.get("dm_chain"),source))return false;
+    }
+    for(auto item:plan.getAs<mlir::ArrayAttr>("outputs"))
+      if(mlir::cast<mlir::DictionaryAttr>(item).getAs<mlir::IntegerAttr>("buffer").getInt()==source)
+        return false;
+    return true;
+  };
   std::map<std::tuple<int,int,int>,int> packed;
   for (std::size_t i=0;i<gemms.size();++i) {
     auto g=mlir::cast<mlir::DictionaryAttr>(gemms[i]);
@@ -167,27 +238,51 @@ void ResolveServingWeightPacking(mlir::ModuleOp module) {
     if(!recipe || recipe.getValue().empty())
       throw std::invalid_argument("page weight lacks a packing recipe");
     if(recipe.getValue().starts_with("{\"kind\":\"tile_pages\"")) continue;
+    auto access=g.get("dm_access")?frontend::DecodeDmAccess(g.get("dm_access")):DmGemmAccess{};
+    bool expert=access.b==DmBAccess::kExpertIndirect;
+    auto stride=std::int64_t((n+tn-1)/tn)*((k+tk-1)/tk)*tn*tk;
+    auto elements=stride*(expert?access.experts:1);
+    if(expert && (!access.experts || elements>std::numeric_limits<std::uint32_t>::max()))
+      throw std::invalid_argument("packed expert stack exceeds the buffer extent range");
     auto key=std::make_tuple(source,tn,tk);
     int destination;
     if(auto found=packed.find(key);found!=packed.end()) destination=found->second;
     else {
-      destination=int(buffers.size());
-      auto name=original.getAs<mlir::StringAttr>("name").getValue().str()+
-          "@t"+std::to_string(tn)+"x"+std::to_string(tk);
+      bool replace=expert || replace_dense(source,tn,tk);
+      for(auto const& [prior,id]:packed)if(std::get<0>(prior)==source)replace=false;
+      // Proven B-only DM weights replace the source slot so the loader does
+      // not retain an unused row-major allocation beside the packed weight.
+      if(replace && expert)for(auto const& item:old_gemms) {
+        auto other=mlir::cast<mlir::DictionaryAttr>(item);
+        for(auto operand:{"a","c","d"})
+          if(other.getAs<mlir::IntegerAttr>(operand).getInt()==source)
+            throw std::invalid_argument("expert weight storage is also an activation");
+        if(other.getAs<mlir::IntegerAttr>("b").getInt()==source &&
+            (!other.get("dm_access") ||
+             frontend::DecodeDmAccess(other.get("dm_access")).b!=DmBAccess::kExpertIndirect))
+          throw std::invalid_argument("expert weight storage has a dense consumer");
+      }
+      destination=replace?source:int(buffers.size());
+      auto name=original.getAs<mlir::StringAttr>("name").getValue().str();
+      if(!replace)name+="@t"+std::to_string(tn)+"x"+std::to_string(tk);
       auto nested="{\"kind\":\"tile_pages\",\"tile_n\":"+
           std::to_string(tn)+",\"tile_k\":"+std::to_string(tk)+
           ",\"source\":"+recipe.getValue().str()+"}";
       mlir::NamedAttrList updated(original);
       updated.set("name",b.getStringAttr(name));
       updated.set("external_name",b.getStringAttr(name));
-      updated.set("constant",b.getI64IntegerAttr(
-          std::int64_t((n+tn-1)/tn)*((k+tk-1)/tk)*tn*tk));
+      updated.set("constant",b.getI64IntegerAttr(elements));
       updated.set("pack_json",b.getStringAttr(nested));
-      buffers.push_back(updated.getDictionary(module.getContext()));
+      if(replace)buffers[source]=updated.getDictionary(module.getContext());
+      else buffers.push_back(updated.getDictionary(module.getContext()));
       packed.emplace(key,destination);
     }
     mlir::NamedAttrList rewritten(g);
     rewritten.set("b",b.getI64IntegerAttr(destination));
+    if(expert) {
+      access.expert_stride=stride;
+      rewritten.set("dm_access",frontend::EncodeDm(b,access));
+    }
     gemms[i]=rewritten.getDictionary(module.getContext());
     for(auto& attr:stages) {
       auto stage=mlir::cast<mlir::DictionaryAttr>(attr);

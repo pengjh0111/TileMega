@@ -1,0 +1,55 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_head": "7cd6824116459179d967b1e94c11da4de66ff7a5",
+  "source_head_at_queue_start": "495a615a2",
+  "tests_passed": 19,
+  "scope": "Native host integration: counted CG verifier/transport, 96 bound shapes x 12 grid/kappa projections, generated contribution thresholds and exact I2 ordering tables, task arithmetic/mapped geometry, 76 page resource geometries and routing histogram consumers; no GPU counted-stage, real model, fitting or complete Phase 1 claim.",
+  "inputs": {
+    "CMakeLists.txt": "0143751e667a9c230f62aa68d7aa1de94f868b3e10a35fd5b109329ef566b9f0",
+    "test/unit/runner.cpp": "5509662ca9a0d4d0c2de4d5a912d9f5faadc94b47a15edf9dd764c1d3de676f8",
+    "include/tilemega/Analysis/CountedDependencyForm.h": "a74bd43d2f56220f067470afb92238c593af33d80c39f63bad5147ad196b77ea",
+    "lib/Analysis/CountedDependencyForm.cpp": "e427bc755717100f5ec4995cb047bea86c4f72691582660bbd53b1f6c3525e57",
+    "include/tilemega/Dialect/CouplingGraph/CountedDependency.h": "3a663414bbf509112c2b540db49cc93eefb0469b363b0d77099428f40113a327",
+    "lib/Dialect/CouplingGraph/CountedDependency.cpp": "7c73aa0a7d346c7b18bceed146afd46d0e1c27a31f714981eff6c507c0b397e5",
+    "lib/Dialect/CouplingGraph/CGDialect.cpp": "4b8153e9aa2eee489afb5a5a2c418650e5f2358dc53067e3a440740b7e54c721",
+    "include/tilemega/Codegen/RuntimePlan.h": "b7abbbe0979cb608f601e606e0668a3be8c8159c1cccfb3b504d6ac0b0ffb617",
+    "lib/Codegen/Codegen.cpp": "b1268f83b604f9364c0fe8c4aa5323cc204b74dc2e083db5ff2699e43ecedfdc",
+    "include/tilemega/Solver/RuntimeProjection.h": "b9fad19a61578a214906e6e118a63f103450f1c3ca43ece6dea627f59adef51c",
+    "lib/Solver/RuntimeProjection.cpp": "937e090c8fb613654fc1bb7774d1a5f1994fe978f667734d570d4ecc312dfb87",
+    "test/unit/counted_dependency_cg_test.cpp": "9fe67d1b8b842d662db4714bea4cf7d563ff1559d117aa04cd360086c9efdac3",
+    "include/tilemega/Solver/DmGemmTraits.h": "6a600186523250897119113c235b4bc480acc986eb3225587af04c8194e10eaa",
+    "include/tilemega/Solver/PageLayout.h": "2a869570e599633d9ef9823fe35a0cc03d5ad9dcfb08934ffbfd858f01cf7c60",
+    "include/tilemega/Codegen/tasks/PagedGemmTaskBody.h": "57392cc3b7e85634fbcaae0ebe478ce6940ada4aea28377adc236215a3761a83",
+    "test/unit/dm_page_resources_test.cpp": "4436244ee7c1aa6ed92a2879f0ab14228bddbee79e9921a166b752b10c007f10",
+    "test/unit/counted_write_test.cpp": "089e55abbddd333f66441647dfa292976d949cda232abfca8e16aae28199e39b",
+    "test/unit/counted_threshold_test.cpp": "7f370d51d4522e1c4e13c934d2cf45e47b09fc69e681f548e23452d7dd2568e8",
+    "lib/Analysis/OpArithmetic.cpp": "01c0092a3f1c69de9e1fb4baa0419d07bf7d73d0cfd1890a1d403969a495c1e5",
+    "lib/Solver/TaskModel.cpp": "aceead9112e7bf6fa1749e6c8999646e3950277e7f0e09b0dc6bccdd340c7bba",
+    "lib/Solver/ModelDescription.cpp": "ef5ecb1684ab9a234a362ff6cc47a9ed29bdbd57211dbe82dd680a6c0a7ec553",
+    "lib/Solver/FlowPreparation.cpp": "4e8d300ad2e4ad79dbff0918e82a8efd0fd8bf96bbf0793105b3fe1769f89933",
+    "include/tilemega/Solver/MoeRoutingProfile.h": "f17a04b86e55fcd51cb1b0cc4c59ba163b6f52319379869f1d9bd88e82b7274c",
+    "test/unit/moe_group_profile_test.cpp": "e54905749d3ff545814b6ba35d3a3f44679545cf4fe9bad2f28f7ae00d247bf6",
+    "test/unit/moe_routing_profile_test.cpp": "66896df17c823939319fbd908c17ae7792c0c1a2c021a00acd79077e923c4da4"
+  },
+  "binaries": {
+    "build-dm/tilemega-unit": "be0ec51cbe415d13638220f6ef02e5b420b1e736d74cd456877bd67423d48ed5",
+    "build-dm/tools/tilemega": "dd3c6e0393a2d4a77392cbe3b5d7e7581bf90e98b63b7af9b2eacb9401e3c348",
+    "build-dm/libtilemega.a": "8ea4c4922c6df83761505f2daf4d221fea19a2767e0144651c1f51654d507170"
+  },
+  "queue_sha256": "cd3ebd841d4e15c03fb230fe4d823b7ad2cb30f18580010849629afedff7a57b",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "logs": {
+    "runs/dm1-ci4-ci7-native-integration/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/dm1-ci4-ci7-native-integration/events/02_ctest.log": "927e62f907af8b56e6e2ccf7053fa3cf8da408ff9ab8a82037b6e3b77191d8f7",
+    "runs/dm1-ci4-ci7-native-integration/events/01_build.log": "3ef4cd90a041b6abd19a82b66e6229aced98a1c913953c04f855dea130b0d2d7"
+  },
+  "assertions_enabled": true,
+  "policy": "check-policy passed in native build",
+  "remaining": [
+    "Counted geometry rebinding",
+    "Counted fusion/handoff contract transport",
+    "Native GPU threshold upload and waits",
+    "Full G-REG after shared extensions"
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "evidence": "verified",
+  "baseline_head": "76beaea5e2d66e3311b36d020f470c4f016406d0",
+  "prompt": "/root/Prompt/TileMega_DM1_prompt.md",
+  "prompt_sha256": "6ecaa5be8d5157937a959baeabac6b5497397c2abd56b25cf5a70e4b6f56e828",
+  "worktree": "/root/dm1_work/development",
+  "branch": "dnn-moe",
+  "build_dir": "build-dm",
+  "cache_dir": "~/.cache/tilemega-dm",
+  "output_dirs": [
+    "docs/experiments/DNN_MOE_R1",
+    "runs/dm1-*"
+  ],
+  "gpu_lock": "/root/r14_work/gpu.lock",
+  "guard_policy_sha256": "f1794ec492e24749bb808c7950dd652dd2c9fd8cae8f5608d300a956c59250fe",
+  "framework_sources": {
+    "gpu_guard.py": "0fba3584b4681e5240d950d410c4cc3bc0ba1c2ca6c0d2e4764eeea26fc39d3a",
+    "scheduler.py": "32bb2c58d8721653fbf93ea6230b5af5bfa8f35df139d800467b1bbdf7fda3d6",
+    "anchor.py": "58b7d0e70d0509adb6e4b98b39adc91652acf0ae35fc1ab794d3f377b591e8ce",
+    "arms.py": "9449629498e8e083167cf91a495b8cb13d465e09cb4e5a44cc58eb10d15aa7d3",
+    "measure_stub.py": "2c0a8bab99c697966c52df753ce684038de33d117df6badf4c1472f687369afd",
+    "pin_case.py": "06599bcbdf204f20330eac62459d5a32ffa940038f09fa8669c266e1aa58e6a9",
+    "fixed_builds.py": "d89c74d4563e8fa8e9cf5f9688ed500bcdb560bbc7602f61b80ab8af910b4a96",
+    "make_queue.py": "64034534460e82124166c5a20fea1752bd34c32d2f9e79de6f94a544eee696b8",
+    "test_framework.py": "6c13afc1e8cfc67b22b9f3762390c816d9a9f838b950f3dea12e426364e1ddc5",
+    "guard_policy.json": "f1794ec492e24749bb808c7950dd652dd2c9fd8cae8f5608d300a956c59250fe"
+  },
+  "target_sha256": "eaa076db0f28a4f7c871f85d26b62a5214be0c20e3fad5c930ca1f9b6f49f784",
+  "companion_plan": "/root/Prompt/DNN_MoE_plan.md",
+  "merges": {
+    "M0": "checked: origin unchanged at baseline; no merge",
+    "M1": "not reached",
+    "M2": "not reached"
+  },
+  "status": "Phase 1 in progress; Phase 0 reference/inventories/preregistration committed",
+  "companion_plan_sha256": "ce288acf9c9557cf98956eb201ffc10a7c7a5bef9b12787c12e41f36275d01ce",
+  "python_export_environment": "/root/dm1_work/venv (CPU, upstream pinned versions)",
+  "llm_regression_environment": "/root/venvs/tilemega-torch213-cu126 (existing 2.13.0+cu126)",
+  "regression_queue": "queue/queue_phase0_regression.json",
+  "regression_completion_mode": "inotify completion events; no status polling"
+}

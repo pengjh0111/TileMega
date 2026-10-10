@@ -1,0 +1,76 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Eleven affected exact-relation, finite-count, table/counting CG and runtime codec host selectors; no GPU synchronization claim",
+  "preparation": {
+    "binary_sha256": "c554f0dd76ea658d51fec0371672ba12b4f4ca004c9de0a00f62a1d5ecf64e59",
+    "source_head": "bc224569c791c42761077a56cdf65da31333c506",
+    "diff_sha256": "96169eed93dbcaf2f38ba521d23088c51c129c4a00c33182c2635cc08a05b5a9",
+    "tests": [
+      "isl_relation",
+      "exact_task_metadata",
+      "bound_dependency_form",
+      "runtime_dependency_table",
+      "runtime_dependency_codec",
+      "bound_dependency_codegen",
+      "counted_dependency_cg",
+      "counted_dependency_flow",
+      "dm_fused_dependencies",
+      "dm_counted_fusion",
+      "window_task_access"
+    ]
+  },
+  "cases": {
+    "isl_relation": {
+      "log": "runs/dm1-exact-table-host-v3/isl_relation.log",
+      "log_sha256": "8aa718fbf229489af977c11a1293fb0c56b99fee6151e3c3e21bdce42d4cf20b"
+    },
+    "exact_task_metadata": {
+      "log": "runs/dm1-exact-table-host-v3/exact_task_metadata.log",
+      "log_sha256": "4d2780e1b58cfd4c525005d7fe5ca7b03498d7843e7aff4597ea737446770b08"
+    },
+    "bound_dependency_form": {
+      "log": "runs/dm1-exact-table-host-v3/bound_dependency_form.log",
+      "log_sha256": "e6f58d82ebd7b89cf015d0c78c70cd0a34b4e4017e6423f117a41b74ee06b2f4"
+    },
+    "runtime_dependency_table": {
+      "log": "runs/dm1-exact-table-host-v3/runtime_dependency_table.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "runtime_dependency_codec": {
+      "log": "runs/dm1-exact-table-host-v3/runtime_dependency_codec.log",
+      "log_sha256": "ea1d960b703b0d39a8839fe7ba8e574302bb3d2771246c658f17f980bba569e8"
+    },
+    "bound_dependency_codegen": {
+      "log": "runs/dm1-exact-table-host-v3/bound_dependency_codegen.log",
+      "log_sha256": "2bd2d9bfcebeecf29c1d2ece5f2229453c0e242190fc05fe8d8bad4fca40d30a"
+    },
+    "counted_dependency_cg": {
+      "log": "runs/dm1-exact-table-host-v3/counted_dependency_cg.log",
+      "log_sha256": "341b6bf9852b89c087b8caada11180b2be111ded3d9cdaf0dacead96596cfe6e"
+    },
+    "counted_dependency_flow": {
+      "log": "runs/dm1-exact-table-host-v3/counted_dependency_flow.log",
+      "log_sha256": "d9a9f721342420f43edcc8bf52721e91d4c1a405dfe301437c5a1d8c5a947854"
+    },
+    "dm_fused_dependencies": {
+      "log": "runs/dm1-exact-table-host-v3/dm_fused_dependencies.log",
+      "log_sha256": "7057d79c5ed1e2de879444dd7c6b12d5dc8e9bfdae14bdd9bc676fa1105e92c9"
+    },
+    "dm_counted_fusion": {
+      "log": "runs/dm1-exact-table-host-v3/dm_counted_fusion.log",
+      "log_sha256": "a05fb8fdfbe5c436a51a01946c4c7ec590a8340a571d337b1c5e07adb0f28405"
+    },
+    "window_task_access": {
+      "log": "runs/dm1-exact-table-host-v3/window_task_access.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "finite_count_oracle": "Explicit cardinality formula and all 32768 coordinate values, including domain holes; alternating-count fallback compared with the symbolic oracle",
+  "table_proof": "Both bound finite relations independently enumerated, with both set inclusions checked",
+  "retained_failures": [
+    "runs/dm1-finite-task-union-host-v1.log",
+    "runs/dm1-finite-task-union-host-v2.log"
+  ],
+  "oracle_note": "The v2 comparison against Barvinok map_card failed with missing bounded-solution diagnostics. The declared relation and expected count formula were unchanged; the final oracle checks every task coordinate directly."
+}

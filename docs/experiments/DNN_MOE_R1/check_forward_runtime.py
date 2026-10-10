@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""Compile forward runtime and ABI and verify 50 fresh processes per seq."""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import shlex
+import subprocess
+
+from identity_dm import resources, sha
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--root', type=Path, required=True)
+    parser.add_argument('--out', type=Path, required=True)
+    args = parser.parse_args()
+    args.out.mkdir(parents=True, exist_ok=True)
+    nvcc = '/usr/local/cuda/bin/nvcc'
+    names = ['test/unit/forward_runtime_test.cu',
+             'lib/Target/TargetSpec.cpp', 'lib/Support/Json.cpp',
+             'lib/Codegen/RuntimeTaskGraph.cpp', 'lib/Solver/PlanMaterialize.cpp',
+             'lib/Dialect/CouplingGraph/PlacementPlan.cpp',
+             'lib/Solver/BalancedPlacement.cpp', 'lib/Solver/ListScheduler.cpp']
+    common = [nvcc, '-std=c++17', '-O2', '--expt-relaxed-constexpr',
+              '-I' + str(args.root / 'include'),
+              '-I' + str(args.root / 'third_party/cutlass/include'),
+              '-I' + str(args.root / 'third_party/cutlass/tools/util/include')]
+    dependencies = {Path(__file__).resolve()}
+    for source in names:
+        command = common + ['-arch=sm_80', '-DTILEMEGA_ARCH_ID=800', '-x', 'cu',
+                            '-M', str(args.root / source)]
+        listing = subprocess.check_output(command, text=True)
+        for word in shlex.split(listing.replace('\\\n', ' '))[1:]:
+            path = Path(word).resolve()
+            if path.is_file(): dependencies.add(path)
+    hashes = {str(path): sha(path) for path in sorted(dependencies)}
+    result = dict(evidence='verified', passed=False, inputs=hashes, builds=[],
+        execution_architecture=89, fresh_processes=[], support_builds=[],
+        head=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=args.root, text=True).strip(),
+        diff_sha256=hashlib.sha256(subprocess.check_output(
+            ['git', 'diff', '--binary', 'HEAD'], cwd=args.root)).hexdigest(),
+        compiler_version=subprocess.check_output([nvcc, '--version'], text=True),
+        compiler_sha256=sha(nvcc),
+        scope='synthetic forward GEMM, C ABI, no KV state, B=1/8, seq=1/128/4096, L1/L2 bitwise equality; no model or §8.A claim')
+    try:
+        objects = []
+        for source in names[1:]:
+            obj = args.out / (Path(source).stem + '.o')
+            log = args.out / (Path(source).stem + '.log')
+            command = common + ['-arch=sm_80', '-DTILEMEGA_ARCH_ID=800',
+                '-DTILEMEGA_DM_SUPPORT=1', '-x', 'cu', '-c', str(args.root / source), '-o', str(obj)]
+            with log.open('w') as stream:
+                subprocess.run(command, check=True, stdout=stream, stderr=subprocess.STDOUT)
+            objects.append(str(obj))
+            result['support_builds'].append(dict(command=command, object_sha256=sha(obj), log_sha256=sha(log)))
+        for seq in (1, 128, 4096):
+            for arch in (80, 89, 90, 100, 120):
+                binary = args.out / f'tiles-s{seq}-sm_{arch}'
+                command = common + [f'-arch=sm_{arch}', f'-DTILEMEGA_ARCH_ID={arch * 10}',
+                    f'-DTILEMEGA_FORWARD_TEST_SEQ={seq}', '-Xptxas=-v',
+                    str(args.root / names[0]), *objects, '-o', str(binary)]
+                log = args.out / f'tiles-s{seq}-sm_{arch}.log'
+                with log.open('w') as stream:
+                    subprocess.run(command, check=True, stdout=stream, stderr=subprocess.STDOUT)
+                kernels = resources(log.read_text())
+                result['builds'].append(dict(arch=arch, seq=seq, command=command,
+                    binary_sha256=sha(binary), kernels=kernels,
+                    spill=any(row['spill'] for row in kernels.values())))
+            for process in range(50):
+                log = args.out / f'process-s{seq}-{process:02d}.log'
+                with log.open('w') as stream:
+                    status = subprocess.run([str(args.out / f'tiles-s{seq}-sm_89')],
+                        stdout=stream, stderr=subprocess.STDOUT).returncode
+                result['fresh_processes'].append(dict(seq=seq, process=process, exit_code=status,
+                                                      log_sha256=sha(log)))
+                if status: raise RuntimeError(f'process {process}, seq {seq} failed; see {log}')
+        if hashes != {str(path): sha(path) for path in sorted(dependencies)}:
+            raise RuntimeError('forward runtime transitive inputs changed during validation')
+        result['passed'] = True
+    finally:
+        passes = sum(row['exit_code'] == 0 for row in result['fresh_processes'])
+        result['pass_rate'] = dict(passes=passes, attempts=len(result['fresh_processes']), required=150)
+        (args.out / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
+    print('Forward runtime: five targets compiled; 150/150 fresh processes passed (50 per seq)', flush=True)
+
+
+if __name__ == '__main__':
+    main()

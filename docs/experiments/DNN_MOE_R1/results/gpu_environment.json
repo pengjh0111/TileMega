@@ -1,0 +1,17 @@
+{
+  "evidence": "verified",
+  "environment": "/root/dm1_work/venv-gpu",
+  "torch": "2.14.1+cu130",
+  "torchvision": "0.29.1+cu130",
+  "timm": "1.0.30",
+  "transformers": "5.19.0",
+  "cuda_runtime": "13.0",
+  "device": "NVIDIA GeForce RTX 4090",
+  "capability": [
+    8,
+    9
+  ],
+  "dram_capacity_bytes": 50894602240,
+  "bf16_smoke": true,
+  "scope": "environment only; no TileMega body or model gate"
+}

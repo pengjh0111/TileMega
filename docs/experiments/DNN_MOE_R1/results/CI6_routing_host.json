@@ -1,0 +1,22 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "pass_rate": "5/5",
+  "scope": "CPU routing histograms and invalid observations; original expert shards loaded into unchanged tiny HF layers with bitwise parameter/output equality using eager experts on CPU; prompt/WikiText token assembly; locked per-layer queue structure. CUDA grouped_mm collection and real Qwen3-30B-A3B routing profiles remain pending.",
+  "implementation_commit": "36c3d43e4d5d5cbda1d457e7f330400f081fa005",
+  "inputs": {
+    "python/tilemega/moe/__init__.py": "53ec9754594686c3e9c7e984fdfbdde704827ee79d1b2f086a99341c2228f168",
+    "python/tilemega/moe/routing_profile.py": "f0af92d534422db52a36a296adcdc026043ad79c90832b08fb56dc5a8c4334e2",
+    "test/python/test_routing_profile.py": "f0593ac961118c142513832d4e548cf5d243414c69b63fa31bae9dced39f25ac"
+  },
+  "python": "/root/dm1_work/venv/bin/python",
+  "tests_log": {
+    "path": "/root/dm1_work/development/runs/dm1-ci6-routing-profile-host/tests.log",
+    "sha256": "b85d46ea9b6611cd82b910210c887f2ee81c41ca7385d5349bd2258e05f7b937"
+  },
+  "versions": {
+    "torch": "2.14.1+cpu",
+    "transformers": "5.19.0",
+    "safetensors": "0.8.0"
+  }
+}

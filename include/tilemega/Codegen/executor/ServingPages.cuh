@@ -1,3 +1,7 @@
+// Preserve the independently validated serving and DM runtime contracts.
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Codegen/executor/DmServingPages.cuh>
+#else
 // SPDX-License-Identifier: BSD-3-Clause
 // Included inside tilemega::codegen after event and task descriptor helpers.
 namespace paged {
@@ -789,3 +793,5 @@ void tilemega_loop_kernel(Params const* params,unsigned steps,EventCounter* even
   }
 #endif
 }
+
+#endif

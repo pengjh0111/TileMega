@@ -1,0 +1,28 @@
+{
+  "schema": "tilemega.dm1.host-check.v1",
+  "evidence": "verified",
+  "passed": true,
+  "tests": 6,
+  "source": {
+    "head": "4ffaa0016d821b50615773548689d1beeb456f6e",
+    "diff_sha256": "b97b695a373d73352cb1b3c93e9784789e316355e6e8edf9fa5fb30df9bf3906",
+    "inputs": {
+      "include/tilemega/Codegen/DmConvRuntime.h": "b184f257432e5d9dbd215ea77b5f1daedb64bf74644712515b0c97b6e96e63c4",
+      "test/unit/conv_iteration_test.cpp": "254527c52ddddf267859bd7da5bbd813e7de4292f5eb5c2a3c08bc80cc7627d5",
+      "CMakeLists.txt": "2a2b15d6e30e719c359eae6bfd6ee4acc613fcd241c5df8a6c191c66981572f6"
+    },
+    "scope": "Host convolution launch descriptors and original iteration/cursor oracle; no device timing",
+    "retained_failure": {
+      "path": "/root/dm1_work/development/runs/dm1-conv-runtime-host/events/02_host_checks.log",
+      "reason": "New positive launch fixture included illegal C=24/TK>24 packing; move those cases into explicit rejection assertions. cg_lit invoked stale tilemega-opt because first build target omitted it; rebuild the tool. Numerical expectations unchanged."
+    }
+  },
+  "source_manifest_sha256": "335c21c96449814ea31f00192b460bfca2b1603c4cff67b3434dcc3a3c4960bb",
+  "logs": {
+    "/root/dm1_work/development/runs/dm1-conv-runtime-host-v2/events/01_build.log": "2527534a0deb952221a27aabf289f21ce357cacab17c5e379d8291d03597edda",
+    "/root/dm1_work/development/runs/dm1-conv-runtime-host-v2/events/02_host_checks.log": "f10c9219ccc5664db6b72079e5546dc583064eb6794c9a3cc9097928af2f8d3d",
+    "/root/dm1_work/development/runs/dm1-conv-runtime-host-v2/events/scheduler.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "binary_sha256": "bc19bf20dd31caf0cd7da99898505c08f534a67b7a9830db13876993fbd09df6",
+  "scope": "Exact issued convolution K launch validation; original iteration/cursor/CG tests and unchanged lit expectation. No model gate."
+}

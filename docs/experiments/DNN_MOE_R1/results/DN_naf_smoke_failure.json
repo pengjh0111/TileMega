@@ -1,0 +1,23 @@
+{
+  "evidence": "verified",
+  "scope": "NAFNet random-input PSNR smoke; SIDD gate not passed",
+  "artifact_id": "cc81161e977841cc2e9108848f3d0529c9efec7f9be9dcd70ff66b7ee11df63f",
+  "passed": false,
+  "tm_psnr": [
+    22.443927764892578,
+    13.63620662689209
+  ],
+  "bf16_psnr": [
+    20.109485626220703,
+    21.39033317565918
+  ],
+  "criterion": "each image TM >= BF16 - 1 dB",
+  "log": "runs/dm1-naf-complete-checks-v4/events/check_00.log",
+  "log_sha256": "36734e6df004c2cf76d39f6ee8c2f7b80d2a5f8987dcc342c39de5465aa27b0e",
+  "dataset_attempt": {
+    "numerical_result": null,
+    "reason": "missing cv2 before first dataset item",
+    "log": "runs/dm1-naf-sidd-dataset-v1/events/dataset.log",
+    "log_sha256": "81b16e8b222a0b4844e9e98733111f23e82c4fa0405dc837a1ba793a3caaafbe"
+  }
+}

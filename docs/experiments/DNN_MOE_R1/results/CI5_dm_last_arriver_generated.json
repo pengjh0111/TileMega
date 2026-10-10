@@ -1,0 +1,367 @@
+{
+  "evidence": "verified",
+  "scope": "one fixed synthetic input per path; one process; not the original synchronization gate",
+  "performance_measured": false,
+  "rows": [
+    {
+      "artifact_id": "b4396c76e771cc42e5eb5e7a8a363ff8fe1314a91790b7935d4a616beabb42ef",
+      "identity": "runs/dm1-la-region-native-v2/generated-sm_89.so.identity.json",
+      "correctness": {
+        "evidence": "verified",
+        "passed": true,
+        "scope": "synthetic generated MoE region; no real-weight gate",
+        "artifact_id": "b4396c76e771cc42e5eb5e7a8a363ff8fe1314a91790b7935d4a616beabb42ef",
+        "bridge_sha256": "1ba848c81d35e5fa7ab9dac128389013ea52948c21569187b7d6833e9ea8c377",
+        "provenance": {
+          "seed": 20261009,
+          "synthetic": true
+        },
+        "expert_contribution_max": 0.19140625,
+        "cases": [
+          {
+            "epoch": 0,
+            "mode": 1,
+            "passed": true,
+            "max_error": 0.0078125,
+            "set_equal_fraction": 1.0,
+            "routing_intersection_fraction": 1.0,
+            "router_max_error": 0.0078125,
+            "same_binary_bits": true
+          },
+          {
+            "epoch": 0,
+            "mode": 2,
+            "passed": true,
+            "max_error": 0.0078125,
+            "set_equal_fraction": 1.0,
+            "routing_intersection_fraction": 1.0,
+            "router_max_error": 0.0078125,
+            "same_binary_bits": true
+          }
+        ]
+      },
+      "selected_reducers": 2,
+      "resources": {
+        "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": {
+          "registers": 56,
+          "stack_bytes": 72,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 2720,
+          "spill_store_bytes": 96,
+          "spill_load_bytes": 92,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "2720 bytes stack frame, 72 bytes spill stores, 68 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 2720 bytes cumulative stack size, 32 bytes smem, 376 bytes cmem[0], 2336 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 96 bytes spill stores, 92 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 2720,
+          "spill_store_bytes": 152,
+          "spill_load_bytes": 112,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "2720 bytes stack frame, 24 bytes spill stores, 48 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 2720 bytes cumulative stack size, 32 bytes smem, 376 bytes cmem[0], 312 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 4 bytes spill loads",
+            "0 bytes stack frame, 152 bytes spill stores, 112 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": {
+          "registers": 255,
+          "stack_bytes": 2688,
+          "spill_store_bytes": 204,
+          "spill_load_bytes": 440,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "2688 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 2688 bytes cumulative stack size, 364 bytes cmem[0], 240 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 204 bytes spill stores, 440 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": true
+        }
+      }
+    },
+    {
+      "artifact_id": "e93e4a665f21da08c3ed425dd2389e9fbd2a59f3634e75c0f77064c612e11990",
+      "identity": "runs/dm1-la-region-pages-native-v2/generated-sm_89.so.identity.json",
+      "correctness": {
+        "evidence": "verified",
+        "passed": true,
+        "scope": "synthetic generated MoE region; no real-weight gate",
+        "artifact_id": "e93e4a665f21da08c3ed425dd2389e9fbd2a59f3634e75c0f77064c612e11990",
+        "bridge_sha256": "1ba848c81d35e5fa7ab9dac128389013ea52948c21569187b7d6833e9ea8c377",
+        "provenance": {
+          "seed": 20261009,
+          "synthetic": true
+        },
+        "expert_contribution_max": 0.19140625,
+        "cases": [
+          {
+            "epoch": 0,
+            "mode": 1,
+            "passed": true,
+            "max_error": 0.0078125,
+            "set_equal_fraction": 1.0,
+            "routing_intersection_fraction": 1.0,
+            "router_max_error": 0.0078125,
+            "same_binary_bits": true
+          },
+          {
+            "epoch": 0,
+            "mode": 2,
+            "passed": true,
+            "max_error": 0.0078125,
+            "set_equal_fraction": 1.0,
+            "routing_intersection_fraction": 1.0,
+            "router_max_error": 0.0078125,
+            "same_binary_bits": true
+          }
+        ]
+      },
+      "selected_reducers": 2,
+      "resources": {
+        "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": {
+          "registers": 56,
+          "stack_bytes": 72,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen20tilemega_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy": {
+          "registers": 255,
+          "stack_bytes": 5664,
+          "spill_store_bytes": 1932,
+          "spill_load_bytes": 4376,
+          "smem_bytes": 1024,
+          "resource_lines": [
+            "5664 bytes stack frame, 1932 bytes spill stores, 4376 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 5664 bytes cumulative stack size, 1024 bytes smem, 392 bytes cmem[0], 6184 bytes cmem[2]",
+            "0 bytes stack frame, 12 bytes spill stores, 28 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 188 bytes spill stores, 264 bytes spill loads",
+            "0 bytes stack frame, 188 bytes spill stores, 264 bytes spill loads",
+            "0 bytes stack frame, 188 bytes spill stores, 264 bytes spill loads",
+            "0 bytes stack frame, 188 bytes spill stores, 268 bytes spill loads",
+            "0 bytes stack frame, 188 bytes spill stores, 268 bytes spill loads",
+            "0 bytes stack frame, 698 bytes spill stores, 1164 bytes spill loads",
+            "0 bytes stack frame, 220 bytes spill stores, 640 bytes spill loads",
+            "0 bytes stack frame, 8 bytes spill stores, 28 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 5664,
+          "spill_store_bytes": 1840,
+          "spill_load_bytes": 4292,
+          "smem_bytes": 1024,
+          "resource_lines": [
+            "5664 bytes stack frame, 1840 bytes spill stores, 4292 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 5664 bytes cumulative stack size, 1024 bytes smem, 376 bytes cmem[0], 6192 bytes cmem[2]",
+            "0 bytes stack frame, 8 bytes spill stores, 24 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 188 bytes spill stores, 264 bytes spill loads",
+            "0 bytes stack frame, 188 bytes spill stores, 268 bytes spill loads",
+            "0 bytes stack frame, 188 bytes spill stores, 264 bytes spill loads",
+            "0 bytes stack frame, 188 bytes spill stores, 268 bytes spill loads",
+            "0 bytes stack frame, 188 bytes spill stores, 272 bytes spill loads",
+            "0 bytes stack frame, 644 bytes spill stores, 1116 bytes spill loads",
+            "0 bytes stack frame, 236 bytes spill stores, 712 bytes spill loads",
+            "0 bytes stack frame, 8 bytes spill stores, 28 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 4608,
+          "spill_store_bytes": 1264,
+          "spill_load_bytes": 2196,
+          "smem_bytes": 1024,
+          "resource_lines": [
+            "4608 bytes stack frame, 1264 bytes spill stores, 2196 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 4608 bytes cumulative stack size, 1024 bytes smem, 376 bytes cmem[0], 2760 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 120 bytes spill stores, 152 bytes spill loads",
+            "0 bytes stack frame, 120 bytes spill stores, 152 bytes spill loads",
+            "0 bytes stack frame, 120 bytes spill stores, 152 bytes spill loads",
+            "0 bytes stack frame, 120 bytes spill stores, 152 bytes spill loads",
+            "0 bytes stack frame, 120 bytes spill stores, 152 bytes spill loads",
+            "0 bytes stack frame, 312 bytes spill stores, 280 bytes spill loads",
+            "0 bytes stack frame, 64 bytes spill stores, 136 bytes spill loads",
+            "0 bytes stack frame, 8 bytes spill stores, 12 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": {
+          "registers": 255,
+          "stack_bytes": 2688,
+          "spill_store_bytes": 204,
+          "spill_load_bytes": 440,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "2688 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 2688 bytes cumulative stack size, 364 bytes cmem[0], 240 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 204 bytes spill stores, 440 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": true
+        }
+      }
+    },
+    {
+      "artifact_id": "c55516935079ada0b1173c08ab6c660f52ae95d1127a3552821f8472285ac08f",
+      "identity": "runs/dm1-la-pool-native-v1/generated-sm_89.so.identity.json",
+      "correctness": {
+        "passed": true,
+        "scope": "split-K row statistics and segmented pooling",
+        "log": "runs/dm1-la-pool-native-v1/check-driver.log"
+      },
+      "selected_reducers": 1,
+      "resources": {
+        "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": {
+          "registers": 56,
+          "stack_bytes": 72,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 56 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]"
+          ],
+          "spill": false
+        },
+        "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 2864,
+          "spill_store_bytes": 76,
+          "spill_load_bytes": 52,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "2864 bytes stack frame, 76 bytes spill stores, 52 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 2864 bytes cumulative stack size, 32 bytes smem, 376 bytes cmem[0], 7384 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 12 bytes spill stores, 8 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen23tilemega_l1_loop_kernelEPKNS0_6ParamsEjPNS0_12EventCounterEyPy": {
+          "registers": 255,
+          "stack_bytes": 2624,
+          "spill_store_bytes": 32,
+          "spill_load_bytes": 52,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "2624 bytes stack frame, 32 bytes spill stores, 52 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 2624 bytes cumulative stack size, 32 bytes smem, 392 bytes cmem[0], 248 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+          "registers": 255,
+          "stack_bytes": 2608,
+          "spill_store_bytes": 12,
+          "spill_load_bytes": 12,
+          "smem_bytes": 32,
+          "resource_lines": [
+            "2608 bytes stack frame, 12 bytes spill stores, 12 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 2608 bytes cumulative stack size, 32 bytes smem, 376 bytes cmem[0], 248 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": true
+        },
+        "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": {
+          "registers": 252,
+          "stack_bytes": 2352,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "2352 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 252 registers, used 2 barriers, 2352 bytes cumulative stack size, 364 bytes cmem[0], 184 bytes cmem[2]",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+          ],
+          "spill": false
+        }
+      }
+    }
+  ]
+}

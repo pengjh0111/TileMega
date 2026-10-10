@@ -1,0 +1,92 @@
+{
+  "evidence": "verified",
+  "head": "de798132abf88aef28ad1d708482b07f7ccafba5",
+  "scope": "host checks only; no GPU execution, latency or repeated-process claim",
+  "source_sha256": {
+    "include/tilemega/Analysis/DramFloor.h": "7ed67427b96eda80a8c5bf1ca40728a4c078d7b43b2b61ce66eedaec3b615ed1",
+    "include/tilemega/Analysis/QuasiPolynomial.h": "10c438528c4e7c9ccd81adf4e007ebfc3c4e6f0cf149a928e88b752e70390d57",
+    "lib/Analysis/DramFloor.cpp": "bcf32f9151cad28a4aac2f7922e9c6647b9a39fdc35778fb378fb310c8bef0d0",
+    "lib/Analysis/QuasiPolynomial.cpp": "7b419bd238a61072d2f8ebd0d749569090b6260970799cb20a75be25a859590d",
+    "lib/Solver/TaskModel.cpp": "3b81c884d63cbd9441f16e544fe900fe2e517aef37d3aa0e460720a6c5de562a",
+    "test/unit/dm_dram_images_test.cpp": "c2b90cca29eab123edadb59242de492023c0524f0be36c1305c4fdf03335a490",
+    "lib/Solver/FlowPreparation.cpp": "131201ca13118fedfdfd9757101c03453be13277b5a22ec601984f74bb4d47f3",
+    "lib/Solver/SkeletonSearch.cpp": "67f765ea9a18266a77be7b80faab5b97edd4ab08feec2570ec6c3921996bbbf0",
+    "tools/commands/dram-floor.cpp": "4ed41f460edc381d5ea45a1a4b07629ef34e75eda6c3e6e722357174d5136d69"
+  },
+  "build_log": "runs/dm1-exact-expected-bound-build-v1.log",
+  "expectation_scope": "Read-only indirect-only bounded tensor cardinalities, represented separately from physical images; rational means preserved until FP64 pricing. Production routing-profile attachment remains incomplete.",
+  "retained_failures": [
+    "v1 CXX build: mixed auto iterator declaration, repaired",
+    "host-v1 fixture: invalid ISL rational spelling, repaired",
+    "host-v2: incorrect serving_import test selector; not a numerical failure"
+  ],
+  "previous_tests": [
+    {
+      "test": "dm_dram_images",
+      "exit_code": 0
+    },
+    {
+      "test": "dram_floor",
+      "exit_code": 0
+    },
+    {
+      "test": "binding_request_traffic",
+      "exit_code": 0
+    },
+    {
+      "test": "binding_request_pricing",
+      "exit_code": 0
+    },
+    {
+      "test": "moe_task_pricing",
+      "exit_code": 0
+    },
+    {
+      "test": "dm_forward_search",
+      "exit_code": 0
+    },
+    {
+      "test": "dnn_epilogue_semantics",
+      "exit_code": 0
+    },
+    {
+      "test": "runtime_dependency_table",
+      "exit_code": 0
+    },
+    {
+      "test": "runtime_dependency_codec",
+      "exit_code": 0
+    },
+    {
+      "test": "bound_dependency_codegen",
+      "exit_code": 0
+    }
+  ],
+  "tests": [
+    {
+      "test": "dm_dram_images",
+      "exit_code": 0
+    },
+    {
+      "test": "dram_floor",
+      "exit_code": 0
+    },
+    {
+      "test": "binding_request_traffic",
+      "exit_code": 0
+    },
+    {
+      "test": "binding_request_pricing",
+      "exit_code": 0
+    },
+    {
+      "test": "moe_task_pricing",
+      "exit_code": 0
+    },
+    {
+      "test": "dm_forward_search",
+      "exit_code": 0
+    }
+  ],
+  "exact_bound": "verified: count 32 + 1/2^53 is rejected against capacity 32 even though FP64 rounds it to 32; fractional report/pricing and expectation-keyed cache remain separate from physical address witnesses."
+}

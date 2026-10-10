@@ -9,6 +9,7 @@ from tilemega.build.identity import optional_identity, bind_execution, digest
 
 
 ABI_VERSION = 1
+PREFILL, DECODE, FORWARD = 0, 1, 2
 
 
 class PlanInfo(C.Structure):
@@ -85,6 +86,9 @@ class PlanLibrary:
         info = PlanInfo()
         if self.lib.tm_plan_query(C.byref(info)) != 0 or info.abi_version != ABI_VERSION:
             raise RuntimeError(f"incompatible serving plan ABI: {path}")
+        if info.phase == FORWARD and (info.past_lo or info.past_hi or info.capacity or
+                                      info.seq < 1):
+            raise RuntimeError("forward plan has invalid sequence or KV state metadata")
         self.info = info
         buffers = []
         for index in range(info.buffer_count):
@@ -130,6 +134,8 @@ class Plan:
         return execution
 
     def set_steps(self, past: list[int]) -> None:
+        if self.library.info.phase == FORWARD and past != [0]:
+            raise ValueError("forward plans accept only step zero")
         if not past or any(not self.library.info.past_lo <= p <= self.library.info.past_hi
                            for p in past):
             raise ValueError("past outside the solved interval")
@@ -138,6 +144,8 @@ class Plan:
             raise RuntimeError("tm_plan_set_steps failed")
 
     def launch(self, step: int, mode: int, stream: int) -> None:
+        if self.library.info.phase == FORWARD and step != 0:
+            raise ValueError("forward plans accept only step zero")
         if not self.library.info.modes & mode:
             raise ValueError("mode not present in this plan")
         if self.library.lib.tm_plan_launch(

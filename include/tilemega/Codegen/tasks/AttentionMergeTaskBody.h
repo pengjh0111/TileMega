@@ -19,7 +19,7 @@ using codegen::executor::kComputeThreads;
 template <int HeadDim, int QPerKV, int Tokens>
 struct AttentionMergeTaskBody {
   static_assert(HeadDim == 64 || HeadDim == 128);
-  static_assert(QPerKV == 2 || QPerKV == 4);
+  static_assert(QPerKV == 2 || QPerKV == 4 || QPerKV == 8);
   static constexpr int kThreads = 128;
   struct SharedStorage { alignas(16) unsigned char byte[16]; };
 

@@ -1,0 +1,90 @@
+{
+  "evidence": "verified",
+  "scope": "HF BF16 grouped_mm routing; causal token windows; no TileMega numerical or timing gate",
+  "profile_id": "b0436154441eacabf689b0b411a78feb6c87397cb25d8883ace5058f1d437231",
+  "profile_path": "/root/dm1_work/development/runs/dm1-routing-profile/profile.json",
+  "profile_sha256": "19cfc6a72b702719ee347891539a77777c3ede4d673af29ce1b2107b59a83534",
+  "layers": 48,
+  "tokens": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32,
+    64,
+    128,
+    256,
+    512,
+    1024,
+    2048,
+    4096
+  ],
+  "coordinate_checks": 624,
+  "sampling": {
+    "capture_layers": [
+      0,
+      24,
+      47
+    ],
+    "config_sha256": "2850ddb3bf7aecad20b611e2d44f3077fc8193f4827c93beddd4c02ad63c2297",
+    "context": 4096,
+    "experts": 128,
+    "filler": "consecutive non-repeated WikiText-103 validation tokens after each R10 prompt",
+    "layers": 48,
+    "prompts": {
+      "lengths": [
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64
+      ],
+      "path": "/root/dm1_work/development/docs/experiments/SERVING_R10/prompts/qwen3_ids.json",
+      "sha256": "fde7f712b970a3fb56e22ace96a5f3d7ff33dc430abccb191041c31749e427d1"
+    },
+    "schema": "tilemega.dm1.routing.sampling.v1",
+    "sequences": 16,
+    "tokenizer_files": {
+      "merges.txt": "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5",
+      "tokenizer.json": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+      "tokenizer_config.json": "d5d09f07b48c3086c508b30d1c9114bd1189145b74e982a265350c923acd8101",
+      "vocab.json": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"
+    },
+    "tokens_sha256": "9ae533e06f1bbb0119b88056e295d6c39c2af41657aeeda522df59cf65b68045",
+    "top_k": 8,
+    "wiki": {
+      "path": "/root/datasets/wikitext103/wikitext-103-raw-v1/validation-00000-of-00001.parquet",
+      "sha256": "204929b7ff9d6184953f867dedb860e40aa69c078fc1e54b3baaa8fb28511c4c"
+    },
+    "windows": "disjoint contiguous windows per sequence in a shared causal context"
+  },
+  "region_inputs": [
+    {
+      "layer": 0,
+      "path": "/root/dm1_work/development/runs/dm1-routing-profile/states/region_00.safetensors",
+      "sha256": "cd8be0590f5f1f2e989a56f63da2dd7d4147fd7076a3c25d636483cf5378aec5"
+    },
+    {
+      "layer": 24,
+      "path": "/root/dm1_work/development/runs/dm1-routing-profile/states/region_24.safetensors",
+      "sha256": "1226e99d2cfddb31b946126e1a193c5c1825086d25c45a10df5495e1d065e5ef"
+    },
+    {
+      "layer": 47,
+      "path": "/root/dm1_work/development/runs/dm1-routing-profile/states/region_47.safetensors",
+      "sha256": "06254ce29f092cba8a9d0cc8f08e3b38c15ac82ff686c5e6e5933b1ff6cefd19"
+    }
+  ]
+}

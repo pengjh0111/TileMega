@@ -277,10 +277,9 @@ ChainDpSolution ChainDP::Solve(ModelDescription const& model,
     // the one grid barrier each of those stages owns.
     std::vector<std::vector<double>> op_cost(layers, std::vector<double>(n));
     for (int i = 0; i < layers; ++i) {
-      GemmOp const& gemm = model.gemms[model.stages[gemm_stages[i]].gemm];
       for (std::size_t j = 0; j < n; ++j) {
         GemmConfig const& cfg = candidates_[admissible[j]].config;
-        int chunks=cost_->Chunks(gemm,cfg);
+        int chunks=cost_->Chunks(model,model.stages[gemm_stages[i]].gemm,cfg);
         double ns=cost_->TaskStageNs(model,gemm_stages[i],cfg,residency);
         if (chunks > 1) {
           ns += cost_->CombineTaskStageNs(model,gemm_stages[i],cfg,residency) + barrier;

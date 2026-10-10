@@ -1,3 +1,7 @@
+// Preserve the independently validated serving and DM runtime contracts.
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Codegen/tasks/DmServingRuntime.cuh>
+#else
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 
@@ -692,3 +696,5 @@ extern "C" void tm_plan_destroy(void* opaque) {
   tilemega::codegen::serving::Destroy(
       static_cast<tilemega::codegen::serving::Plan*>(opaque));
 }
+
+#endif

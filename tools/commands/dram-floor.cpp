@@ -61,7 +61,7 @@ int RunDramFloor(int argc, char** argv) {
     b.getNamedAttr("floor_value_ns",b.getF64FloatAttr(value.floor_ns)),b.getNamedAttr("indirect_input_bound",b.getBoolAttr(!options.indirect_read_images.empty()))}));
   std::error_code error;llvm::raw_fd_ostream out(argv[6],error);if(error)throw std::runtime_error(error.message());module->print(out);
   std::ofstream detail(argv[7]);detail<<"tensor\tsource\tread_bytes\twrite_bytes\tread_polynomial\twrite_polynomial\n";
-  double weights=0;for(auto const& [name,t]:floor.tensors){auto reads=t.read_bytes.Eval(theta),writes=t.write_bytes.Eval(theta);if(sources[name]=="weight")weights+=reads;
+  double weights=0;for(auto const& [name,t]:floor.tensors){auto reads=t.read_bytes.EvalReal(theta),writes=t.write_bytes.EvalReal(theta);if(sources[name]=="weight")weights+=reads;
     detail<<name<<'\t'<<sources[name]<<'\t'<<reads<<'\t'<<writes<<'\t'<<t.read_bytes.ToString()<<'\t'<<t.write_bytes.ToString()<<'\n';}
   if(argc==9) {
     std::ofstream stages(argv[8]);stages<<"logical_stage\top\ttensor\tno_producer_read_bytes\texternal_write_bytes\n";

@@ -1,0 +1,101 @@
+{
+  "gate": "G-REG",
+  "passed": false,
+  "available_checks_passed": false,
+  "rows": [
+    {
+      "cell": "llama_B1",
+      "phase": "prefill",
+      "reference_identity": "bfe253517832488d082b01f9427f5a8ccc9134517915a9dfce23c471dd0be1d0",
+      "candidate_identity": "1dd1b59c38d0527ab3c491a866a5378fcd4250c18bea3d9d4e0947fb10a5444d",
+      "cu_equal": false,
+      "resources_equal": true,
+      "sass_equal": true,
+      "token_equal": true
+    },
+    {
+      "cell": "llama_B1",
+      "phase": "decode",
+      "reference_identity": "bcded8db6fb937ad8d9fda896014ce7a578eeb666e721d66f272b506eecad989",
+      "candidate_identity": "7081f711d918bdc9735e6e01b6c9644629152836d422095828d7311650e00961",
+      "cu_equal": true,
+      "resources_equal": true,
+      "sass_equal": true,
+      "token_equal": true
+    },
+    {
+      "cell": "llama_B16",
+      "phase": "prefill",
+      "reference_identity": "bf26fa035d0367cce5ff6d048959f74c653e01923ce3dcc876b01923d1cb0255",
+      "candidate_identity": "c3cccbe1fdb6aa71d15fef32afd5f5f19a0a1ed4feb47295e05139b70f61a05b",
+      "cu_equal": false,
+      "resources_equal": true,
+      "sass_equal": true,
+      "token_equal": true
+    },
+    {
+      "cell": "llama_B16",
+      "phase": "decode",
+      "reference_identity": "f0f9fc243239e767e64879dd4a0b5dccc6f094219fc60fe6be75b6c5e03e5182",
+      "candidate_identity": "48599f332bcb78027b6e15604dc4ca8ea21939af032f6604cd3568d479a32397",
+      "cu_equal": true,
+      "resources_equal": true,
+      "sass_equal": true,
+      "token_equal": true
+    },
+    {
+      "cell": "qwen3_B1",
+      "phase": "prefill",
+      "reference_identity": "c0ecfd8e0c99144ad9b4e6a0c16499a7d23c19fb3c875085f7fd5852067e505f",
+      "candidate_identity": "565cdc450cc21e4013d0bd2cf95f414832550bfd2f4147bd66f9277c8fb2a8c7",
+      "cu_equal": false,
+      "resources_equal": true,
+      "sass_equal": true,
+      "token_equal": true
+    },
+    {
+      "cell": "qwen3_B1",
+      "phase": "decode",
+      "reference_identity": "75019ef2a28bb50a357d63f04da3f62b92d28e91eaae3413fe5a90a9a7f47f14",
+      "candidate_identity": "2596e96be0d8365e0054fb887e63a15439491621af317deec7405630d93b208f",
+      "cu_equal": true,
+      "resources_equal": true,
+      "sass_equal": true,
+      "token_equal": true
+    },
+    {
+      "cell": "qwen3_B16",
+      "phase": "prefill",
+      "reference_identity": "6f20d1a3c628c88b4b5e9689837729be5b99ff7c6278e6e4600ddf50316c1989",
+      "candidate_identity": "a26ef5af1d0857023980d323a1b967d45968d993c018f25c481a4f5d33cfb020",
+      "cu_equal": false,
+      "resources_equal": true,
+      "sass_equal": true,
+      "token_equal": true
+    },
+    {
+      "cell": "qwen3_B16",
+      "phase": "decode",
+      "reference_identity": "c0637883b89bcd4368166480321940c1a7dc9dffdc8eea1c2d43f3f703272bbe",
+      "candidate_identity": "be76e977fb5b8bc750290842265f2a934f0386c752736331c95a030194419ab2",
+      "cu_equal": true,
+      "resources_equal": true,
+      "sass_equal": true,
+      "token_equal": true
+    }
+  ],
+  "ctest": {
+    "reference": {
+      "exit_code": null,
+      "status": "not run; native test build failed"
+    },
+    "candidate": {
+      "exit_code": null,
+      "status": "not run; native test build failed"
+    },
+    "status_note": "This queue did not rerun ctest. Earlier native build was repaired; an unchanged baseline independent-attention numerical assertion remains failing."
+  },
+  "evidence": "verified",
+  "scope": "Pre-fix CI7 checkpoint; four default nonpaged prefill dispatch tables differ (1 versus 64), resources/SASS/token checks agree; complete G-REG remains failed",
+  "source_file_sha256": "2b8b2897aa82c2d6ae44dba9510331d00b3e984ada08b27b09e66c398d87c5a3"
+}

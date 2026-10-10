@@ -1,3 +1,7 @@
+#pragma once
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Backend/DmServingGemv.h>
+#else
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Backend/ServingVectorIO.h>
@@ -68,3 +72,5 @@ struct ServingGemv {
   }
 };
 }
+
+#endif

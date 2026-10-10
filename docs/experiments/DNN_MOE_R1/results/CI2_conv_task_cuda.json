@@ -1,0 +1,1845 @@
+{
+  "evidence": "verified",
+  "scope": "Im2col ServingGemmTaskBody and PagedGemmTaskBody, dense/tiled B, issued split-K partial entry; standalone primitive, not a frontend/model gate",
+  "passed": true,
+  "completion": {
+    "event": "queue_complete",
+    "steps": 162,
+    "passed": true
+  },
+  "preparation_sha256": "25b0277c0cbc9fac731f8bf7d4e0b29926abdebb41e192e63c212627f275d2c1",
+  "check_processes": 108,
+  "fresh_processes_per_canonical_layout": {
+    "rowmajor": 50,
+    "tiled": 50
+  },
+  "pass_rate": "100/100 canonical + 8 neighbor checks",
+  "sanitizers": [
+    {
+      "path": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/events/sanitizer_m16-n16-k16-s3-tiled0_memcheck.log",
+      "sha256": "d2789efa047cd35880e1a8ce162471df63b46465684f82540c00450a6dfd3b0d",
+      "result": "ATTEMPT 1 1791543345.3093529\n========= COMPUTE-SANITIZER\nCONV_TASKBODY tile=16x16x16 stages=3 cases=232 FP32_oracle_dense_paged_split_halo_canaries PASS\n========= ERROR SUMMARY: 0 errors"
+    },
+    {
+      "path": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/events/sanitizer_m16-n16-k16-s3-tiled0_racecheck.log",
+      "sha256": "d74f5b41137744ff3e2123ade6a18a1ecb05ee2072dccd2cca3e1208d4d2a2bd",
+      "result": "ATTEMPT 1 1791543347.7470837\n========= COMPUTE-SANITIZER\nCONV_TASKBODY tile=16x16x16 stages=3 cases=232 FP32_oracle_dense_paged_split_halo_canaries PASS\n========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)"
+    },
+    {
+      "path": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/events/sanitizer_m16-n16-k16-s3-tiled1_memcheck.log",
+      "sha256": "cf6d39d633001c2d9d3d4085a00e753cc578c619ffe3f95131b4ecbe7a30a896",
+      "result": "ATTEMPT 1 1791543388.565535\n========= COMPUTE-SANITIZER\nCONV_TASKBODY tile=16x16x16 stages=3 cases=232 FP32_oracle_dense_paged_split_halo_canaries PASS\n========= ERROR SUMMARY: 0 errors"
+    },
+    {
+      "path": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/events/sanitizer_m16-n16-k16-s3-tiled1_racecheck.log",
+      "sha256": "b0dabca5eb2567c468661b8551ee43fef72027f6cb646135442e9f3da90ce8c7",
+      "result": "ATTEMPT 1 1791543411.2763157\n========= COMPUTE-SANITIZER\nCONV_TASKBODY tile=16x16x16 stages=3 cases=232 FP32_oracle_dense_paged_split_halo_canaries PASS\n========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)"
+    }
+  ],
+  "artifacts": [
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m128-n16-k128-s2-tiled0-sm_100.identity.json",
+      "sha256": "cd7917cbabd771b79c31a59f6c8c59bac15c6941de73dda4aa4505467d4bb025",
+      "artifact_id": "91075c51e86c085a6239c6e31e2fe1ab8014359c6027848b32a80a6d50dfdd23",
+      "target_arch": "sm_100",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 254,
+          "stack_bytes": 2424,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "2424 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 254 registers, used 2 barriers, 2424 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 82944,
+          "total_shared_bytes": 82944
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 144,
+          "stack_bytes": 352,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "352 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 144 registers, used 2 barriers, 352 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 73728,
+          "total_shared_bytes": 73728
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m128-n16-k128-s2-tiled0-sm_120.identity.json",
+      "sha256": "1420e08b485f6f9ef0a9cbd7643271aab8240cd8707c84c88314b4cf2959f958",
+      "artifact_id": "ec0391c4c6e0a986490fac0bbec1a2f3dce5fc3b0b69b56794bde22de06e084c",
+      "target_arch": "sm_120",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 254,
+          "stack_bytes": 2432,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "2432 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 254 registers, used 2 barriers, 2432 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 82944,
+          "total_shared_bytes": 82944
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 128,
+          "stack_bytes": 352,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "352 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 128 registers, used 2 barriers, 352 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 73728,
+          "total_shared_bytes": 73728
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m128-n16-k128-s2-tiled0-sm_80.identity.json",
+      "sha256": "9019dd49a586cd6af585473fa7b8e32985c94c34b2a8221c4a1e05a862ba8df6",
+      "artifact_id": "3de1984b76fac49f357a7808350e90b5c6a0ba542a6dfd281f5fcf9de92b3bf9",
+      "target_arch": "sm_80",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 255,
+          "stack_bytes": 192,
+          "spill_store_bytes": 92,
+          "spill_load_bytes": 92,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "192 bytes stack frame, 92 bytes spill stores, 92 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 192 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": true,
+          "dynamic_shared_bytes": 82944,
+          "total_shared_bytes": 82944
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 245,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 245 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 73728,
+          "total_shared_bytes": 73728
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m128-n16-k128-s2-tiled0-sm_89.identity.json",
+      "sha256": "f4edaab503e984d70e61d61fb04be4aaa48dd773483267335ae1f43236822414",
+      "artifact_id": "a4e34a4de0b25631345bb261015b8e70ebd5ea2d257a779f3d0c22e727a0a35f",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 255,
+          "stack_bytes": 192,
+          "spill_store_bytes": 92,
+          "spill_load_bytes": 92,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "192 bytes stack frame, 92 bytes spill stores, 92 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 192 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": true,
+          "dynamic_shared_bytes": 82944,
+          "total_shared_bytes": 82944
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 245,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 245 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 73728,
+          "total_shared_bytes": 73728
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m128-n16-k128-s2-tiled0-sm_90.identity.json",
+      "sha256": "772a1818333daaf20d8ffbf0cc39036c37c97e1ff5985a805639fed0b11d6587",
+      "artifact_id": "5edf44df928020db1e92591d4b9da01e31ab788ebfa6813834dab0771fd6908f",
+      "target_arch": "sm_90",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 255,
+          "stack_bytes": 192,
+          "spill_store_bytes": 92,
+          "spill_load_bytes": 92,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "192 bytes stack frame, 92 bytes spill stores, 92 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 192 bytes cumulative stack size"
+          ],
+          "spill": true,
+          "dynamic_shared_bytes": 82944,
+          "total_shared_bytes": 82944
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 246,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 246 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 73728,
+          "total_shared_bytes": 73728
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m128-n16-k128-s2-tiled1-sm_100.identity.json",
+      "sha256": "4008be0df353be0a2ee1f8e21bd88722d980d202eb71c03db06957d3d44375b3",
+      "artifact_id": "a95af0516dc795eb152e925807681f0fc1c3b8b2f4d13c18ceaef396bbbfe8db",
+      "target_arch": "sm_100",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 254,
+          "stack_bytes": 2424,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "2424 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 254 registers, used 2 barriers, 2424 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 82944,
+          "total_shared_bytes": 82944
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 144,
+          "stack_bytes": 352,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "352 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 144 registers, used 2 barriers, 352 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 73728,
+          "total_shared_bytes": 73728
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m128-n16-k128-s2-tiled1-sm_120.identity.json",
+      "sha256": "a61819a3f89be947c0232afd773be625e45604eb4aef69ad1e261f6f27da7872",
+      "artifact_id": "163cafb99c283c717be5af23192a09b37e81abedcbdae5b5a14f59cf9e602742",
+      "target_arch": "sm_120",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 252,
+          "stack_bytes": 2424,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "2424 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 252 registers, used 2 barriers, 2424 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 82944,
+          "total_shared_bytes": 82944
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 128,
+          "stack_bytes": 352,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "352 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 128 registers, used 2 barriers, 352 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 73728,
+          "total_shared_bytes": 73728
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m128-n16-k128-s2-tiled1-sm_80.identity.json",
+      "sha256": "f286a4b3389bb5398be464e75c239c6a7676de506ade3994a46a21c3ebc93235",
+      "artifact_id": "df9d4406cf95e062130636b2c1ce18ce840a9fdb6c4a3da8a39275555731f30c",
+      "target_arch": "sm_80",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 255,
+          "stack_bytes": 192,
+          "spill_store_bytes": 92,
+          "spill_load_bytes": 92,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "192 bytes stack frame, 92 bytes spill stores, 92 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 192 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": true,
+          "dynamic_shared_bytes": 82944,
+          "total_shared_bytes": 82944
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 244,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 244 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 73728,
+          "total_shared_bytes": 73728
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m128-n16-k128-s2-tiled1-sm_89.identity.json",
+      "sha256": "6e92ef66b39dd0ed4adbcfc9616acd29060d07e13d2ea08a4c20307ee8a80994",
+      "artifact_id": "11673b833064a8c69a4593ab762e5e91d402057763fe7c7a0605845d1e6691a6",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 255,
+          "stack_bytes": 192,
+          "spill_store_bytes": 92,
+          "spill_load_bytes": 92,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "192 bytes stack frame, 92 bytes spill stores, 92 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 192 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": true,
+          "dynamic_shared_bytes": 82944,
+          "total_shared_bytes": 82944
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 244,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 244 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 73728,
+          "total_shared_bytes": 73728
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m128-n16-k128-s2-tiled1-sm_90.identity.json",
+      "sha256": "6276278bd338eb153ec0b8594024a522f3568bfc41558c4fc6b68fe196985ef8",
+      "artifact_id": "d3bafae8e720c3c089bec08f2a4131de152df2544cf05e0b70e83919fe027d6f",
+      "target_arch": "sm_90",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 255,
+          "stack_bytes": 168,
+          "spill_store_bytes": 68,
+          "spill_load_bytes": 68,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "168 bytes stack frame, 68 bytes spill stores, 68 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 168 bytes cumulative stack size"
+          ],
+          "spill": true,
+          "dynamic_shared_bytes": 82944,
+          "total_shared_bytes": 82944
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 244,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 244 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 73728,
+          "total_shared_bytes": 73728
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n128-k16-s3-tiled0-sm_100.identity.json",
+      "sha256": "fb9a50589f8ccef7d801d405286104e041dfa0544a5996002cd8b290b345310f",
+      "artifact_id": "93526e9ca23d63baa1f197cdc59f6225294d50cd567feafcbcac264fda82bbaf",
+      "target_arch": "sm_100",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 96,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 26624,
+          "total_shared_bytes": 26624
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 79,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 79 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 13824,
+          "total_shared_bytes": 13824
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n128-k16-s3-tiled0-sm_120.identity.json",
+      "sha256": "728e2efe39b705a69c624e2d8e042530933add7b0f038c71315b6749fa40d12e",
+      "artifact_id": "cbd6f8e271a3aed185aeb401b906af8f8088da68f5c5642d9a65b82823b609b9",
+      "target_arch": "sm_120",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 100,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 100 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 26624,
+          "total_shared_bytes": 26624
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 76,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 76 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 13824,
+          "total_shared_bytes": 13824
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n128-k16-s3-tiled0-sm_80.identity.json",
+      "sha256": "16cbe4a75298c120b3571685769d2c86c6281a5b3e7de9b71e652bd15a36bfc2",
+      "artifact_id": "dd6cdba0ba424587c0b731aa0ad024176a9b75a5cdfb37c23ba863ed40e2cb98",
+      "target_arch": "sm_80",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 90,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 90 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 26624,
+          "total_shared_bytes": 26624
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 96,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 13824,
+          "total_shared_bytes": 13824
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n128-k16-s3-tiled0-sm_89.identity.json",
+      "sha256": "d9f77d9d7e5ca721d7fecd34cb3f2b66e98128887d3e499f634b91e5d20b1f21",
+      "artifact_id": "2cc40d35df4bb03e030704a602cb62a889d52cea21422a60aa42f88174245d21",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 90,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 90 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 26624,
+          "total_shared_bytes": 26624
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 96,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 13824,
+          "total_shared_bytes": 13824
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n128-k16-s3-tiled0-sm_90.identity.json",
+      "sha256": "7e837c3b694c08163749a9e51882468ad26835b4a2249e6d38404765398040aa",
+      "artifact_id": "7f268c9485a2d730240474de2cb4c82d215f79d4bfcf14cddedf7e0fe33c4eb6",
+      "target_arch": "sm_90",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 85,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 85 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 26624,
+          "total_shared_bytes": 26624
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 96,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 13824,
+          "total_shared_bytes": 13824
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n128-k16-s3-tiled1-sm_100.identity.json",
+      "sha256": "61863517bb6aa6c62cf2f03ca45dbcdbd2650775a05574a156a8e7478a5cd49d",
+      "artifact_id": "7ca4aa44cd54ed4ce41698a89fd4f11ad98205d24f1f6dda436950ac79ce0127",
+      "target_arch": "sm_100",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 86,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 86 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 26624,
+          "total_shared_bytes": 26624
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 72,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 72 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 13824,
+          "total_shared_bytes": 13824
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n128-k16-s3-tiled1-sm_120.identity.json",
+      "sha256": "c1ab55d46b5f3fb98906752b3f743acef4ce357db36722058d70d431927d23e6",
+      "artifact_id": "4205c9c2ff2075ecf49a7fb555a468e39feb24ca14ff7d858fa560f738d4f3d9",
+      "target_arch": "sm_120",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 102,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 102 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 26624,
+          "total_shared_bytes": 26624
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 72,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 72 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 13824,
+          "total_shared_bytes": 13824
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n128-k16-s3-tiled1-sm_80.identity.json",
+      "sha256": "6e3ffd4d3935536e2967f3488fae7d5ff1ac86e78f26afcdf53838f571adf69d",
+      "artifact_id": "ec1a3733d7aa1749d89b9b2965dd7fb0070446aa80e1dcef6a9303d539287e41",
+      "target_arch": "sm_80",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 72,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 72 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 26624,
+          "total_shared_bytes": 26624
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 112,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 112 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 13824,
+          "total_shared_bytes": 13824
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n128-k16-s3-tiled1-sm_89.identity.json",
+      "sha256": "a5696c3bdcb3ca5836487bb61248c0fca68e636cfa4eb4e68477b61364fce95b",
+      "artifact_id": "03d48e4b772c66290ba15473031b97ce8ec57c439031774b6e17ae69621c8214",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 72,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 72 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 26624,
+          "total_shared_bytes": 26624
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 112,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 112 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 13824,
+          "total_shared_bytes": 13824
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n128-k16-s3-tiled1-sm_90.identity.json",
+      "sha256": "148685577b0f352d3cf6b7e852d3a0b7ae4346736f0aefcda0c860834a77901f",
+      "artifact_id": "10fff935e93828d3f01b5e083f6a4855379f63620a5203465b136abff2ee274c",
+      "target_arch": "sm_90",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 72,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 72 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 26624,
+          "total_shared_bytes": 26624
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 112,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 112 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 13824,
+          "total_shared_bytes": 13824
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n16-k16-s3-tiled0-sm_100.identity.json",
+      "sha256": "a934612477409a6e0d27182fda8aa353d2a4a889694d7f791e23a0f47a1e16e2",
+      "artifact_id": "2622700460dd68d36817ff4c479246bc62ac4b0ef85a97fbe9337b433aee5635",
+      "target_arch": "sm_100",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 78,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 78 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 69,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 69 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n16-k16-s3-tiled0-sm_120.identity.json",
+      "sha256": "a8e07d5b0c19074603d82c62ecd67d84202116b71c85bf72b3509a13da4ca9a8",
+      "artifact_id": "8f9fb016e062da81413458872b93fcbc137916ebdd86f6f092d495d2e35a2d46",
+      "target_arch": "sm_120",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 84,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 84 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 64,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n16-k16-s3-tiled0-sm_80.identity.json",
+      "sha256": "e370947236f2c9235e18f9e8212d0f314df982846c177018bf76f0b33a3ab76a",
+      "artifact_id": "a3b38ce422e3255404f8e7a6e8698984513765313b5752fa5a031540f89c721c",
+      "target_arch": "sm_80",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 84,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 84 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 80,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 80 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n16-k16-s3-tiled0-sm_89.identity.json",
+      "sha256": "a694a1fe1263290d00fb12f9b6ad7278b769f10c6606fd287f1f33c9a63f57d3",
+      "artifact_id": "11134fc91b411f96370a1c2d9d65765d7dcc412960199f869d836609ee96f980",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 84,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 84 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 80,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 80 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n16-k16-s3-tiled0-sm_90.identity.json",
+      "sha256": "71b9489c191d8b18a40ddcb768288b475d240d489df7b76828ac4a7e315658f4",
+      "artifact_id": "58782beb24ad50405d5ab62e116cde4939ddce5367c02198840adffe79874327",
+      "target_arch": "sm_90",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 80,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 80 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 96,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n16-k16-s3-tiled1-sm_100.identity.json",
+      "sha256": "56491494bed6c7b0a7b09a815da8129dcd0279a9a8cf47ec93f8ff9ba215a603",
+      "artifact_id": "cbf74709899c0a476b7ef4bc49232d6cbd6c6726e721831ad150767d5d003111",
+      "target_arch": "sm_100",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 74,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 74 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 64,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n16-k16-s3-tiled1-sm_120.identity.json",
+      "sha256": "33c2db89f336bfe04c8d83d87df1115bd1e81094d884cfa824ef1feff6d08505",
+      "artifact_id": "7056c0200ab09a904e8374e57e9d5b3c233139c292e91c9144e39c291fc35f4f",
+      "target_arch": "sm_120",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 82,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 82 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 64,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 64 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n16-k16-s3-tiled1-sm_80.identity.json",
+      "sha256": "4723b05c18540fe8024885691e5661249c5b4b8e8b3368c2f86ec501396f786d",
+      "artifact_id": "071e6aa7b2b5ad1eb16cf4407bd3b1560ddf86150444396d374631f39737bac6",
+      "target_arch": "sm_80",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 72,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 72 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 96,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n16-k16-s3-tiled1-sm_89.identity.json",
+      "sha256": "d5ccf26f588565c0a6dadec413444cff73cf6cee9cbad8c27a1ff2e7b8fb869f",
+      "artifact_id": "ea09f9c8bb83991c02b4f54263950790460d550e84d7001c32af1db86e42531b",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 72,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 72 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 96,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m16-n16-k16-s3-tiled1-sm_90.identity.json",
+      "sha256": "7bf37512106f380375f3751b3dc63a529b401f2b3eb60eaaf85cc79f2534463b",
+      "artifact_id": "bd1dace80142d10b2f63213813b770ec039317ede4cc26504e96df39d27afc6d",
+      "target_arch": "sm_90",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 72,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 72 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 19456,
+          "total_shared_bytes": 19456
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 96,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 3072,
+          "total_shared_bytes": 3072
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m32-n32-k32-s3-tiled0-sm_100.identity.json",
+      "sha256": "27c71f0f2584cecc102f38e31d609c6ba6fe877be88a81fe50af79d178c37715",
+      "artifact_id": "7605567d6c4638320f46620a571f8a18ff0b859370b687f73e95450824806de4",
+      "target_arch": "sm_100",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 96,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 22528,
+          "total_shared_bytes": 22528
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 80,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 80 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 12288,
+          "total_shared_bytes": 12288
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m32-n32-k32-s3-tiled0-sm_120.identity.json",
+      "sha256": "16f4c04be48cdd3b4a926ce61456dabe48c45fd10b6abd1bc50a05b485478787",
+      "artifact_id": "19a5174ad397780a87c2072175b21826c0c07ccd9d2801d32360402ab1b239cd",
+      "target_arch": "sm_120",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 98,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 98 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 22528,
+          "total_shared_bytes": 22528
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 72,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 72 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 12288,
+          "total_shared_bytes": 12288
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m32-n32-k32-s3-tiled0-sm_80.identity.json",
+      "sha256": "22b28c8c4fc9e87bcb1d337733c059eb0ee6ab9de1876c9aea1b1d33ff5459c0",
+      "artifact_id": "66533512997004e41d347ac5ac5656b340810214fa0037127a175eb94c28e3d7",
+      "target_arch": "sm_80",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 96,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 22528,
+          "total_shared_bytes": 22528
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 96,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 12288,
+          "total_shared_bytes": 12288
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m32-n32-k32-s3-tiled0-sm_89.identity.json",
+      "sha256": "fc220ebab75d75b673c2ed920abf4ff92f76d21d7f07f0952f5f53298674d9c4",
+      "artifact_id": "0be0e09545aa40788932600d6e377c7a97b76c3e8723d33ce8d3f39cf3752d4b",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 96,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 22528,
+          "total_shared_bytes": 22528
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 96,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 12288,
+          "total_shared_bytes": 12288
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m32-n32-k32-s3-tiled0-sm_90.identity.json",
+      "sha256": "d648b1ba2ae56cebcb097d53eeab90b07cfd2b0840e502474abc8ec438ffb885",
+      "artifact_id": "52d58c455d334badd4234d8d14979dc4f4e61fbe22095a08f20c4899785cbfca",
+      "target_arch": "sm_90",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 94,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 94 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 22528,
+          "total_shared_bytes": 22528
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 96,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 96 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 12288,
+          "total_shared_bytes": 12288
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m32-n32-k32-s3-tiled1-sm_100.identity.json",
+      "sha256": "74f84c669636e835d07479e217a4ba5b7edd22c84f79e610ababb81cc4223fb3",
+      "artifact_id": "3351c592558134f90b498996691740ba75716a1e27de92b387ea056c921d2cce",
+      "target_arch": "sm_100",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 113,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 113 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 22528,
+          "total_shared_bytes": 22528
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 72,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 72 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 12288,
+          "total_shared_bytes": 12288
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m32-n32-k32-s3-tiled1-sm_120.identity.json",
+      "sha256": "55168e8d90bd75fdbee0e853ed642222e8d44e656237ce32113b2f63e5d85b67",
+      "artifact_id": "52e570250cf9972f6d2ae17dd742c8fc5fe931cec8070c6639eaa0ccf335bc71",
+      "target_arch": "sm_120",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 112,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 112 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 22528,
+          "total_shared_bytes": 22528
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 72,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 72 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 12288,
+          "total_shared_bytes": 12288
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m32-n32-k32-s3-tiled1-sm_80.identity.json",
+      "sha256": "22319b38912fc4108589e7385478b37bb3e261e5204f619cbfe469c2d44379b9",
+      "artifact_id": "3e30bfa71047c063da7c7ad489a0006987d1651b4b83ebf81941fe05e2f9f289",
+      "target_arch": "sm_80",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 72,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 72 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 22528,
+          "total_shared_bytes": 22528
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 110,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 110 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 12288,
+          "total_shared_bytes": 12288
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m32-n32-k32-s3-tiled1-sm_89.identity.json",
+      "sha256": "bf8dafb629f491bb00cb3b17887366ce199ce571c9fed4aae853f879372b429f",
+      "artifact_id": "0f23d3e14e1d1e1d02f0b2dc7e3c07ef3318153809d0b83588ef48d58572a78a",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 72,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 72 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 22528,
+          "total_shared_bytes": 22528
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 110,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 110 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 12288,
+          "total_shared_bytes": 12288
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m32-n32-k32-s3-tiled1-sm_90.identity.json",
+      "sha256": "d3300234ed2d0d596284719b5e0365a71b383daae29546b6ae0cb503716b469d",
+      "artifact_id": "047994fdd7ba73daa63dbabc8fc709f511a7fe8aa9ade030d39f4a11994c6ee8",
+      "target_arch": "sm_90",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 72,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 72 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 22528,
+          "total_shared_bytes": 22528
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 110,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 110 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 12288,
+          "total_shared_bytes": 12288
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m64-n64-k64-s3-tiled0-sm_100.identity.json",
+      "sha256": "af65b6ad18d29e9f9e73cec93dc1b5bb35d1e8ede634632f216cceccbd8ce448",
+      "artifact_id": "39a7b07133a347546c725dd79539994a99fad25576dea6dff46c5754ddd368e6",
+      "target_arch": "sm_100",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 239,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 239 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 34816,
+          "total_shared_bytes": 34816
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 128,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 128 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 49152,
+          "total_shared_bytes": 49152
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m64-n64-k64-s3-tiled0-sm_120.identity.json",
+      "sha256": "2aca11ce826f40e3c8641dfa1e814ca4f92d1ac9a8f15d31f9c5619c4f51d1a0",
+      "artifact_id": "cc11a7dede3d9301d9f772fbb5ff7ee1a99edeb9aa564d53439bfb3a3ab36024",
+      "target_arch": "sm_120",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 220,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 220 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 34816,
+          "total_shared_bytes": 34816
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 127,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 127 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 49152,
+          "total_shared_bytes": 49152
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m64-n64-k64-s3-tiled0-sm_80.identity.json",
+      "sha256": "d46248cca5fa02ec3a02e03f453da769d17fe1082476e49d40e42ac2591c062c",
+      "artifact_id": "6b59d1f9afe18359c2ae1c277350500a23bf63d08b173168199c220dce2774f7",
+      "target_arch": "sm_80",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 255,
+          "stack_bytes": 160,
+          "spill_store_bytes": 68,
+          "spill_load_bytes": 188,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "160 bytes stack frame, 68 bytes spill stores, 188 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 160 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": true,
+          "dynamic_shared_bytes": 34816,
+          "total_shared_bytes": 34816
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 164,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 164 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 49152,
+          "total_shared_bytes": 49152
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m64-n64-k64-s3-tiled0-sm_89.identity.json",
+      "sha256": "e67e924559771ba6f568ea62477f620295e44069a6bfc0604900f166868e2f29",
+      "artifact_id": "3419f7a8f000edcd44a071bafe3fdf4f8a6b253f43a3dfbd5093ebf1bbe2a59b",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 255,
+          "stack_bytes": 160,
+          "spill_store_bytes": 68,
+          "spill_load_bytes": 188,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "160 bytes stack frame, 68 bytes spill stores, 188 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 160 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": true,
+          "dynamic_shared_bytes": 34816,
+          "total_shared_bytes": 34816
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 164,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 164 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 49152,
+          "total_shared_bytes": 49152
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m64-n64-k64-s3-tiled0-sm_90.identity.json",
+      "sha256": "83454cae21dc1160da0d00380930a5db2d74797fd5c3acb42b2216bfc1d83a87",
+      "artifact_id": "05f26cfb13f6b5718f7c20eb8ac0c57cf2d413140396896e8edcc5e988f4cc32",
+      "target_arch": "sm_90",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 255,
+          "stack_bytes": 152,
+          "spill_store_bytes": 56,
+          "spill_load_bytes": 152,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "152 bytes stack frame, 56 bytes spill stores, 152 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 152 bytes cumulative stack size"
+          ],
+          "spill": true,
+          "dynamic_shared_bytes": 34816,
+          "total_shared_bytes": 34816
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 163,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 163 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 49152,
+          "total_shared_bytes": 49152
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m64-n64-k64-s3-tiled1-sm_100.identity.json",
+      "sha256": "d7312c5f9aec59726fde1bdaa6704e1b9f8c9d4ba7fc7b6282f234156d8630d3",
+      "artifact_id": "f278b4a6a9d30f2f9ab41dd3d562b7b9afd9f4c4a7ea1bf0d1e54adcf09e3d0c",
+      "target_arch": "sm_100",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 227,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 227 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 34816,
+          "total_shared_bytes": 34816
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 128,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 128 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 49152,
+          "total_shared_bytes": 49152
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m64-n64-k64-s3-tiled1-sm_120.identity.json",
+      "sha256": "5c801b85600e5ff9f98301cea3d59c97c627bbb0eb38a40f640019431c03a8ee",
+      "artifact_id": "8c2d34f576aceb3bbd240265cb2491dc051c78d84273f0bf9279d75ef7e02bd5",
+      "target_arch": "sm_120",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 215,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 215 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 34816,
+          "total_shared_bytes": 34816
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 127,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 127 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 49152,
+          "total_shared_bytes": 49152
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m64-n64-k64-s3-tiled1-sm_80.identity.json",
+      "sha256": "539ded00be1fc33bbf68f8f868547489fe24e165fa46a092c5f03339d840515a",
+      "artifact_id": "699890babb2f60ff11642a3171044f10b53622b179967e74af33b4169f7598cd",
+      "target_arch": "sm_80",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 255,
+          "stack_bytes": 136,
+          "spill_store_bytes": 44,
+          "spill_load_bytes": 64,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "136 bytes stack frame, 44 bytes spill stores, 64 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 136 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": true,
+          "dynamic_shared_bytes": 34816,
+          "total_shared_bytes": 34816
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 136,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 136 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 49152,
+          "total_shared_bytes": 49152
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m64-n64-k64-s3-tiled1-sm_89.identity.json",
+      "sha256": "f6c8ce20cfc025868a3b2181af87243885d1314345f62c2431192a2d537b1567",
+      "artifact_id": "ac9b72bba07a85ce76dd3c389f74c101a3557972e44f7b120c2709f4d1f25076",
+      "target_arch": "sm_89",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 255,
+          "stack_bytes": 136,
+          "spill_store_bytes": 44,
+          "spill_load_bytes": 64,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "136 bytes stack frame, 44 bytes spill stores, 64 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 136 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": true,
+          "dynamic_shared_bytes": 34816,
+          "total_shared_bytes": 34816
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 136,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 136 registers, used 2 barriers, 96 bytes cumulative stack size, 1432 bytes cmem[0]"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 49152,
+          "total_shared_bytes": 49152
+        }
+      }
+    },
+    {
+      "identity": "/root/dm1_work/development/runs/dm1-conv-task-integration-v1/m64-n64-k64-s3-tiled1-sm_90.identity.json",
+      "sha256": "c61f3f7d8cc4bdf3715f1d9435cafb7c0fc48741ab95457e673c5c862f14db5c",
+      "artifact_id": "62f2f4829b6fe2e56f60ca7fd798efeaf13e36c14306d71490a4ab22414a179e",
+      "target_arch": "sm_90",
+      "resources": {
+        "_Z8RunPagedN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 255,
+          "stack_bytes": 136,
+          "spill_store_bytes": 40,
+          "spill_load_bytes": 60,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "136 bytes stack frame, 40 bytes spill stores, 60 bytes spill loads",
+            "ptxas info    : Used 255 registers, used 2 barriers, 136 bytes cumulative stack size"
+          ],
+          "spill": true,
+          "dynamic_shared_bytes": 34816,
+          "total_shared_bytes": 34816
+        },
+        "_Z3RunN8tilemega7codegen19ServingGemmOperandsENS0_8ConvDescENS0_14DmBufferLayoutENS_7backend21ConvIterationGeometryEiPf": {
+          "registers": 130,
+          "stack_bytes": 96,
+          "spill_store_bytes": 0,
+          "spill_load_bytes": 0,
+          "smem_bytes": 0,
+          "resource_lines": [
+            "96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+            "ptxas info    : Used 130 registers, used 2 barriers, 96 bytes cumulative stack size"
+          ],
+          "spill": false,
+          "dynamic_shared_bytes": 49152,
+          "total_shared_bytes": 49152
+        }
+      }
+    }
+  ],
+  "artifact_spill_count": 12,
+  "artifact_stack_count": 50,
+  "sample_check_output": "ATTEMPT 1 1791544176.0553832\nCONV_TASKBODY tile=128x16x128 stages=2 cases=128 FP32_oracle_dense_paged_split_halo_canaries PASS",
+  "utc": "2026-10-09T11:37:08.411628+00:00"
+}

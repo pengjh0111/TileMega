@@ -1,3 +1,7 @@
+#pragma once
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Backend/DmServingEpilogue.h>
+#else
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 
@@ -440,3 +444,5 @@ struct ServingEpilogue {
 };
 
 }  // namespace tilemega::backend
+
+#endif

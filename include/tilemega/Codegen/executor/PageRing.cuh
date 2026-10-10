@@ -3,11 +3,15 @@
 #include <tilemega/Codegen/executor/Async.cuh>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Codegen/executor/PageTrace.cuh>
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <cuda/atomic>
+#endif
 
 namespace tilemega::codegen::executor {
 struct NoPageHook { __device__ void operator()(unsigned) const {} };
 template<int PageBytes,int Pages,class Arch=arch::CurrentArch,bool ForceSm80=false>
 struct PageRing {
+  static constexpr int kPageBytes=PageBytes;
   static_assert(PageBytes==8192 || PageBytes==16384);
   static_assert(Pages>0);
   using Copy=Async<Arch,ForceSm80>;
@@ -48,8 +52,14 @@ struct PageRing {
 #if TILEMEGA_PAGE_TRACE
     if(LoaderLane()==0 && trace)trace->loader_issue_begin_ns=PageTraceNow();
 #endif
-    if(LoaderLane()==0)
+    if(LoaderLane()==0) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      cuda::atomic_ref<std::uint64_t,cuda::thread_scope_block>(
+          slots[SlotIndex(sequence)].generation).exchange(sequence,cuda::memory_order_release);
+#else
       *reinterpret_cast<volatile std::uint64_t*>(&slots[SlotIndex(sequence)].generation)=sequence;
+#endif
+    }
   }
   __device__ void EndIssue() const {
 #if TILEMEGA_PAGE_TRACE
@@ -83,12 +93,22 @@ struct PageRing {
     // Independent attention warps can request a slot two generations ahead.
     // Parity alone would accept an old completion; the sequence tag prevents
     // that ABA. The loader writes it only after acquiring the empty slot.
-    auto* generation=reinterpret_cast<volatile std::uint64_t*>(&slots[SlotIndex(sequence)].generation);
     unsigned long long start=0,failures=0;
     Watch here=watch?*watch:Watch{};here.site=6;here.row=sequence;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    cuda::atomic_ref<std::uint64_t,cuda::thread_scope_block> generation(
+        slots[SlotIndex(sequence)].generation);
+    auto observed=generation.fetch_add(0,cuda::memory_order_acquire);
+    while(observed!=sequence) {
+      if(watch)WatchExpired(&here,start,++failures,sequence,observed);
+      observed=generation.fetch_add(0,cuda::memory_order_acquire);
+    }
+#else
+    auto* generation=reinterpret_cast<volatile std::uint64_t*>(&slots[SlotIndex(sequence)].generation);
     while(*generation!=sequence) {
       if(watch)WatchExpired(&here,start,++failures,sequence,*generation);
     }
+#endif
     Copy::Wait(&slots[SlotIndex(sequence)].full,Phase(sequence),watch,7,sequence);
   }
   __device__ void Release(std::uint64_t sequence) const {

@@ -1,0 +1,63 @@
+{
+  "evidence": "verified",
+  "scope": "official data files and decodable image blocks; no model correctness gate",
+  "sidd": {
+    "input_crops.lmdb": {
+      "blocks": 1280,
+      "image_sizes": [
+        [
+          256,
+          256
+        ]
+      ],
+      "modes": [
+        "RGB"
+      ],
+      "formats": {
+        "PNG": 1280
+      },
+      "lmdb_entries": 1280
+    },
+    "gt_crops.lmdb": {
+      "blocks": 1280,
+      "image_sizes": [
+        [
+          256,
+          256
+        ]
+      ],
+      "modes": [
+        "RGB"
+      ],
+      "formats": {
+        "PNG": 1280
+      },
+      "lmdb_entries": 1280
+    }
+  },
+  "wikitext103": {
+    "path": "/root/datasets/wikitext103/wikitext-103-raw-v1/validation-00000-of-00001.parquet",
+    "rows": 3760,
+    "schema": "text: string\n-- schema metadata --\nhuggingface: '{\"info\": {\"features\": {\"text\": {\"dtype\": \"string\", \"_type\":' + 12",
+    "nonempty_rows": 2461,
+    "bytes": 657209,
+    "sha256": "204929b7ff9d6184953f867dedb860e40aa69c078fc1e54b3baaa8fb28511c4c",
+    "source": "Salesforce/wikitext",
+    "revision": "b08601e04326c79dfdd32d625aee71d232d685c3"
+  },
+  "sidd_pairing": {
+    "metadata_equal": true,
+    "ordered_keys_sha256": "c3d50d9858085c92a1db5d48bd0ea4c8892e2959c7f0e4a51ad8020a867a79bc",
+    "blocks": 1280
+  },
+  "imagenetv2": {
+    "evidence": "verified",
+    "scope": "official archive and first 1000 path-sorted images; no correctness gate",
+    "source_revision": "d626240be2538720e83103a0e1178d24aca8b12c",
+    "archive_sha256": "f0c37fdf925916b19ea1323cd9a2208cdb6959ba2c32eef2a7fc393835c9ca7c",
+    "archive_format": "uncompressed POSIX tar despite upstream .tar.gz suffix",
+    "images": 10000,
+    "selected_images": 1000,
+    "selected_paths_sha256": "627a1e4c47c71080a9df565f0f509427d02a5d80ec095d66e4502de54033e04d"
+  }
+}

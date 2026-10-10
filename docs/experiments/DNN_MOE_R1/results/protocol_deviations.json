@@ -1,0 +1,19 @@
+{
+  "evidence": "verified",
+  "deviations": [
+    {
+      "item": "DM-1 \u00a70.3",
+      "action": "cmake --build build-dm --target tilemega tilemega-unit -j 4",
+      "affected": [
+        "ServingPagedCalibration.cu",
+        "ServingTaskCalibration.cu"
+      ],
+      "description": "A build intended as a host compiler rebuild also compiled CUDA calibration objects without flock.",
+      "performance_data_generated": false,
+      "device_kernel_executed": false,
+      "resolution": "Repeat the affected compilation under the shared lock in the CI2 dispatch queue; all future CMake builds use flock.",
+      "repeat_verified": true,
+      "repeat_log": "runs/dm1-ci2-dispatch-retry/events/calibration_compile_repeat.log"
+    }
+  ]
+}

@@ -1,0 +1,1616 @@
+{
+  "schema": "tilemega.exported_program.v1",
+  "torch_version": "2.14.1+cpu",
+  "nodes": [
+    {
+      "index": 0,
+      "name": "p_intro_weight",
+      "op": "placeholder",
+      "target": "p_intro_weight",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "8",
+        "3",
+        "1",
+        "1"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 1,
+      "name": "p_intro_bias",
+      "op": "placeholder",
+      "target": "p_intro_bias",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "8"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 2,
+      "name": "p_dw1_weight",
+      "op": "placeholder",
+      "target": "p_dw1_weight",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "8",
+        "1",
+        "3",
+        "3"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 3,
+      "name": "p_dw1_bias",
+      "op": "placeholder",
+      "target": "p_dw1_bias",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "8"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 4,
+      "name": "p_pw1_weight",
+      "op": "placeholder",
+      "target": "p_pw1_weight",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "16",
+        "8",
+        "1",
+        "1"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 5,
+      "name": "p_pw1_bias",
+      "op": "placeholder",
+      "target": "p_pw1_bias",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "16"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 6,
+      "name": "p_norm_weight",
+      "op": "placeholder",
+      "target": "p_norm_weight",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "16"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 7,
+      "name": "p_norm_bias",
+      "op": "placeholder",
+      "target": "p_norm_bias",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "16"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 8,
+      "name": "p_middle_weight",
+      "op": "placeholder",
+      "target": "p_middle_weight",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "16",
+        "16",
+        "1",
+        "1"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 9,
+      "name": "p_middle_bias",
+      "op": "placeholder",
+      "target": "p_middle_bias",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "16"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 10,
+      "name": "p_dw2_weight",
+      "op": "placeholder",
+      "target": "p_dw2_weight",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "16",
+        "1",
+        "3",
+        "3"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 11,
+      "name": "p_dw2_bias",
+      "op": "placeholder",
+      "target": "p_dw2_bias",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "16"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 12,
+      "name": "p_pw2_weight",
+      "op": "placeholder",
+      "target": "p_pw2_weight",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "16",
+        "16",
+        "1",
+        "1"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 13,
+      "name": "p_pw2_bias",
+      "op": "placeholder",
+      "target": "p_pw2_bias",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "16"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 14,
+      "name": "p_end_weight",
+      "op": "placeholder",
+      "target": "p_end_weight",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "16",
+        "16",
+        "1",
+        "1"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 15,
+      "name": "p_end_bias",
+      "op": "placeholder",
+      "target": "p_end_bias",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "16"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 16,
+      "name": "x",
+      "op": "placeholder",
+      "target": "x",
+      "inputs": [],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": []
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "3",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    },
+    {
+      "index": 17,
+      "name": "conv2d",
+      "op": "call_function",
+      "target": "aten.conv2d.default",
+      "inputs": [
+        "x",
+        "p_intro_weight",
+        "p_intro_bias"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "x"
+          },
+          {
+            "t": "node",
+            "v": "p_intro_weight"
+          },
+          {
+            "t": "node",
+            "v": "p_intro_bias"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "8",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "intro",
+          "type": "torch.nn.modules.conv.Conv2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 18,
+      "name": "conv2d_1",
+      "op": "call_function",
+      "target": "aten.conv2d.default",
+      "inputs": [
+        "conv2d",
+        "p_dw1_weight",
+        "p_dw1_bias"
+      ],
+      "scalar_args": [
+        8
+      ],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "conv2d"
+          },
+          {
+            "t": "node",
+            "v": "p_dw1_weight"
+          },
+          {
+            "t": "node",
+            "v": "p_dw1_bias"
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": 1
+              },
+              {
+                "t": "int",
+                "v": 1
+              }
+            ]
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": 1
+              },
+              {
+                "t": "int",
+                "v": 1
+              }
+            ]
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": 1
+              },
+              {
+                "t": "int",
+                "v": 1
+              }
+            ]
+          },
+          {
+            "t": "int",
+            "v": 8
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "8",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "dw1",
+          "type": "torch.nn.modules.conv.Conv2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 19,
+      "name": "hardtanh",
+      "op": "call_function",
+      "target": "aten.hardtanh.default",
+      "inputs": [
+        "conv2d_1"
+      ],
+      "scalar_args": [
+        0.0,
+        6.0
+      ],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "conv2d_1"
+          },
+          {
+            "t": "float",
+            "v": 0.0
+          },
+          {
+            "t": "float",
+            "v": 6.0
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "8",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 20,
+      "name": "conv2d_2",
+      "op": "call_function",
+      "target": "aten.conv2d.default",
+      "inputs": [
+        "hardtanh",
+        "p_pw1_weight",
+        "p_pw1_bias"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "hardtanh"
+          },
+          {
+            "t": "node",
+            "v": "p_pw1_weight"
+          },
+          {
+            "t": "node",
+            "v": "p_pw1_bias"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "16",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "pw1",
+          "type": "torch.nn.modules.conv.Conv2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 21,
+      "name": "mean",
+      "op": "call_function",
+      "target": "aten.mean.dim",
+      "inputs": [
+        "conv2d_2"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "conv2d_2"
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": 1
+              }
+            ]
+          },
+          {
+            "t": "bool",
+            "v": true
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "1",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "norm",
+          "type": "basicsr.models.archs.arch_util.LayerNorm2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 22,
+      "name": "sub",
+      "op": "call_function",
+      "target": "aten.sub.Tensor",
+      "inputs": [
+        "conv2d_2",
+        "mean"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "conv2d_2"
+          },
+          {
+            "t": "node",
+            "v": "mean"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "16",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "norm",
+          "type": "basicsr.models.archs.arch_util.LayerNorm2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 23,
+      "name": "pow_1",
+      "op": "call_function",
+      "target": "aten.pow.Tensor_Scalar",
+      "inputs": [
+        "sub"
+      ],
+      "scalar_args": [
+        2
+      ],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "sub"
+          },
+          {
+            "t": "int",
+            "v": 2
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "16",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "norm",
+          "type": "basicsr.models.archs.arch_util.LayerNorm2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 24,
+      "name": "mean_1",
+      "op": "call_function",
+      "target": "aten.mean.dim",
+      "inputs": [
+        "pow_1"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "pow_1"
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": 1
+              }
+            ]
+          },
+          {
+            "t": "bool",
+            "v": true
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "1",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "norm",
+          "type": "basicsr.models.archs.arch_util.LayerNorm2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 25,
+      "name": "sub_1",
+      "op": "call_function",
+      "target": "aten.sub.Tensor",
+      "inputs": [
+        "conv2d_2",
+        "mean"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "conv2d_2"
+          },
+          {
+            "t": "node",
+            "v": "mean"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "16",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "norm",
+          "type": "basicsr.models.archs.arch_util.LayerNorm2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 26,
+      "name": "add",
+      "op": "call_function",
+      "target": "aten.add.Tensor",
+      "inputs": [
+        "mean_1"
+      ],
+      "scalar_args": [
+        1e-06
+      ],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "mean_1"
+          },
+          {
+            "t": "float",
+            "v": 1e-06
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "1",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "norm",
+          "type": "basicsr.models.archs.arch_util.LayerNorm2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 27,
+      "name": "sqrt",
+      "op": "call_function",
+      "target": "aten.sqrt.default",
+      "inputs": [
+        "add"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "add"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "1",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "norm",
+          "type": "basicsr.models.archs.arch_util.LayerNorm2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 28,
+      "name": "div",
+      "op": "call_function",
+      "target": "aten.div.Tensor",
+      "inputs": [
+        "sub_1",
+        "sqrt"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "sub_1"
+          },
+          {
+            "t": "node",
+            "v": "sqrt"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "16",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "norm",
+          "type": "basicsr.models.archs.arch_util.LayerNorm2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 29,
+      "name": "view",
+      "op": "call_function",
+      "target": "aten.view.default",
+      "inputs": [
+        "p_norm_weight"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "p_norm_weight"
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": 1
+              },
+              {
+                "t": "int",
+                "v": 16
+              },
+              {
+                "t": "int",
+                "v": 1
+              },
+              {
+                "t": "int",
+                "v": 1
+              }
+            ]
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "1",
+        "16",
+        "1",
+        "1"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "norm",
+          "type": "basicsr.models.archs.arch_util.LayerNorm2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 30,
+      "name": "mul",
+      "op": "call_function",
+      "target": "aten.mul.Tensor",
+      "inputs": [
+        "view",
+        "div"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "view"
+          },
+          {
+            "t": "node",
+            "v": "div"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "16",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "norm",
+          "type": "basicsr.models.archs.arch_util.LayerNorm2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 31,
+      "name": "view_1",
+      "op": "call_function",
+      "target": "aten.view.default",
+      "inputs": [
+        "p_norm_bias"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "p_norm_bias"
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": 1
+              },
+              {
+                "t": "int",
+                "v": 16
+              },
+              {
+                "t": "int",
+                "v": 1
+              },
+              {
+                "t": "int",
+                "v": 1
+              }
+            ]
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "1",
+        "16",
+        "1",
+        "1"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "norm",
+          "type": "basicsr.models.archs.arch_util.LayerNorm2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 32,
+      "name": "add_1",
+      "op": "call_function",
+      "target": "aten.add.Tensor",
+      "inputs": [
+        "mul",
+        "view_1"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "mul"
+          },
+          {
+            "t": "node",
+            "v": "view_1"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "16",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "norm",
+          "type": "basicsr.models.archs.arch_util.LayerNorm2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 33,
+      "name": "conv2d_3",
+      "op": "call_function",
+      "target": "aten.conv2d.default",
+      "inputs": [
+        "add_1",
+        "p_middle_weight",
+        "p_middle_bias"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "add_1"
+          },
+          {
+            "t": "node",
+            "v": "p_middle_weight"
+          },
+          {
+            "t": "node",
+            "v": "p_middle_bias"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "16",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "middle",
+          "type": "torch.nn.modules.conv.Conv2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 34,
+      "name": "conv2d_4",
+      "op": "call_function",
+      "target": "aten.conv2d.default",
+      "inputs": [
+        "conv2d_3",
+        "p_dw2_weight",
+        "p_dw2_bias"
+      ],
+      "scalar_args": [
+        16
+      ],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "conv2d_3"
+          },
+          {
+            "t": "node",
+            "v": "p_dw2_weight"
+          },
+          {
+            "t": "node",
+            "v": "p_dw2_bias"
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": 1
+              },
+              {
+                "t": "int",
+                "v": 1
+              }
+            ]
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": 1
+              },
+              {
+                "t": "int",
+                "v": 1
+              }
+            ]
+          },
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "int",
+                "v": 1
+              },
+              {
+                "t": "int",
+                "v": 1
+              }
+            ]
+          },
+          {
+            "t": "int",
+            "v": 16
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "16",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "dw2",
+          "type": "torch.nn.modules.conv.Conv2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 35,
+      "name": "hardtanh_1",
+      "op": "call_function",
+      "target": "aten.hardtanh.default",
+      "inputs": [
+        "conv2d_4"
+      ],
+      "scalar_args": [
+        0.0,
+        6.0
+      ],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "conv2d_4"
+          },
+          {
+            "t": "float",
+            "v": 0.0
+          },
+          {
+            "t": "float",
+            "v": 6.0
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "16",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 36,
+      "name": "conv2d_5",
+      "op": "call_function",
+      "target": "aten.conv2d.default",
+      "inputs": [
+        "hardtanh_1",
+        "p_pw2_weight",
+        "p_pw2_bias"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "hardtanh_1"
+          },
+          {
+            "t": "node",
+            "v": "p_pw2_weight"
+          },
+          {
+            "t": "node",
+            "v": "p_pw2_bias"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "16",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "pw2",
+          "type": "torch.nn.modules.conv.Conv2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 37,
+      "name": "conv2d_6",
+      "op": "call_function",
+      "target": "aten.conv2d.default",
+      "inputs": [
+        "conv2d_5",
+        "p_end_weight",
+        "p_end_bias"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "conv2d_5"
+          },
+          {
+            "t": "node",
+            "v": "p_end_weight"
+          },
+          {
+            "t": "node",
+            "v": "p_end_bias"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "16",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        },
+        {
+          "path": "end",
+          "type": "torch.nn.modules.conv.Conv2d"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 38,
+      "name": "add_2",
+      "op": "call_function",
+      "target": "aten.add.Tensor",
+      "inputs": [
+        "conv2d_6",
+        "add_1"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "node",
+            "v": "conv2d_6"
+          },
+          {
+            "t": "node",
+            "v": "add_1"
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": [
+        "s77",
+        "16",
+        "7",
+        "9"
+      ],
+      "dtype": "torch.bfloat16",
+      "nn_module_stack": [
+        {
+          "path": "",
+          "type": "__main__.StructureGraph"
+        }
+      ],
+      "source_fn_stack": []
+    },
+    {
+      "index": 39,
+      "name": "output",
+      "op": "output",
+      "target": "output",
+      "inputs": [
+        "add_2"
+      ],
+      "scalar_args": [],
+      "args": {
+        "t": "list",
+        "v": [
+          {
+            "t": "list",
+            "v": [
+              {
+                "t": "node",
+                "v": "add_2"
+              }
+            ]
+          }
+        ]
+      },
+      "kwargs": {},
+      "shape": null,
+      "dtype": null,
+      "nn_module_stack": [],
+      "source_fn_stack": []
+    }
+  ],
+  "range_constraints": {
+    "s77": "VR[1, 64]"
+  },
+  "guards": [],
+  "signature": {
+    "inputs": [
+      {
+        "name": "p_intro_weight",
+        "kind": "PARAMETER",
+        "target": "intro.weight",
+        "persistent": null
+      },
+      {
+        "name": "p_intro_bias",
+        "kind": "PARAMETER",
+        "target": "intro.bias",
+        "persistent": null
+      },
+      {
+        "name": "p_dw1_weight",
+        "kind": "PARAMETER",
+        "target": "dw1.weight",
+        "persistent": null
+      },
+      {
+        "name": "p_dw1_bias",
+        "kind": "PARAMETER",
+        "target": "dw1.bias",
+        "persistent": null
+      },
+      {
+        "name": "p_pw1_weight",
+        "kind": "PARAMETER",
+        "target": "pw1.weight",
+        "persistent": null
+      },
+      {
+        "name": "p_pw1_bias",
+        "kind": "PARAMETER",
+        "target": "pw1.bias",
+        "persistent": null
+      },
+      {
+        "name": "p_norm_weight",
+        "kind": "PARAMETER",
+        "target": "norm.weight",
+        "persistent": null
+      },
+      {
+        "name": "p_norm_bias",
+        "kind": "PARAMETER",
+        "target": "norm.bias",
+        "persistent": null
+      },
+      {
+        "name": "p_middle_weight",
+        "kind": "PARAMETER",
+        "target": "middle.weight",
+        "persistent": null
+      },
+      {
+        "name": "p_middle_bias",
+        "kind": "PARAMETER",
+        "target": "middle.bias",
+        "persistent": null
+      },
+      {
+        "name": "p_dw2_weight",
+        "kind": "PARAMETER",
+        "target": "dw2.weight",
+        "persistent": null
+      },
+      {
+        "name": "p_dw2_bias",
+        "kind": "PARAMETER",
+        "target": "dw2.bias",
+        "persistent": null
+      },
+      {
+        "name": "p_pw2_weight",
+        "kind": "PARAMETER",
+        "target": "pw2.weight",
+        "persistent": null
+      },
+      {
+        "name": "p_pw2_bias",
+        "kind": "PARAMETER",
+        "target": "pw2.bias",
+        "persistent": null
+      },
+      {
+        "name": "p_end_weight",
+        "kind": "PARAMETER",
+        "target": "end.weight",
+        "persistent": null
+      },
+      {
+        "name": "p_end_bias",
+        "kind": "PARAMETER",
+        "target": "end.bias",
+        "persistent": null
+      },
+      {
+        "name": "x",
+        "kind": "USER_INPUT",
+        "target": null,
+        "persistent": null
+      }
+    ],
+    "outputs": [
+      {
+        "name": "add_2",
+        "kind": "USER_OUTPUT",
+        "target": null
+      }
+    ]
+  },
+  "graph_signature": "\n# inputs\np_intro_weight: PARAMETER target='intro.weight'\np_intro_bias: PARAMETER target='intro.bias'\np_dw1_weight: PARAMETER target='dw1.weight'\np_dw1_bias: PARAMETER target='dw1.bias'\np_pw1_weight: PARAMETER target='pw1.weight'\np_pw1_bias: PARAMETER target='pw1.bias'\np_norm_weight: PARAMETER target='norm.weight'\np_norm_bias: PARAMETER target='norm.bias'\np_middle_weight: PARAMETER target='middle.weight'\np_middle_bias: PARAMETER target='middle.bias'\np_dw2_weight: PARAMETER target='dw2.weight'\np_dw2_bias: PARAMETER target='dw2.bias'\np_pw2_weight: PARAMETER target='pw2.weight'\np_pw2_bias: PARAMETER target='pw2.bias'\np_end_weight: PARAMETER target='end.weight'\np_end_bias: PARAMETER target='end.bias'\nx: USER_INPUT\n\n# outputs\nadd_2: USER_OUTPUT\n"
+}

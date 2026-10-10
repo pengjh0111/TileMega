@@ -9206,3 +9206,39 @@ Recovery follow-up (verified): all nine recovery steps pass, both selected model
 verified (code and targeted tests): TR-4 had no nonpaged GEMM first-operand-ready observer; GEMV TN8/16 rejected DN residual output and SwiGLU; selection could admit only base pilots after consuming its budget and still publish a winner. These were implementation gaps. 258d6e73c, 26d7f4c14 and 06090c9ea repair them. Three targeted ctests and 21 Python selection/config/identity tests pass. Earlier GEMV results do not cover the complete TN8/16 family; earlier D1 choices do not establish required-dimension coverage. No synchronization conclusion is drawn. Evidence: `experiments/SERVING_R14/raw/completion_repair_initial.tar.xz`, `completion_repair_initial_manifest.json`; `summary.md` implementation-completion section.
 
 Implementation follow-up (verified): the repair queue's first failure was a host-test contract mismatch (explicit RMSNorm expected with DN enabled), rather than a measured performance failure; 6276cf4c4 separates explicit/DN contracts. A later driver fixture used decode input for prefill and is corrected independently. The bounded logic review now passes 20/20: ten identified builds, eight token/KV smokes, four 64-step narrow-model C-1/four-arm C-2 cases, stage/task profiles, host/numerical suites and five-architecture compilation. The four default paths preserve CU/resources/SASS; the comparison's missing-cuobjdump failure was resolved via CUDA_HOME/bin without product changes. Two explicit CPU test-double tests exercise actual CLI selection/persistence and refusal to publish incomplete coverage; they supply no hardware timing evidence. User-authorized shared-GPU checks are timing-ineligible. Evidence: `experiments/SERVING_R14/results/logic_validation.json`, `raw/logic_completion_completed.tar.xz`, its manifest and `results/implementation_completion.json`. No new performance or synchronization reliability conclusion is drawn.
+
+### DM-1: nvcc constexpr else-for scope counterexample
+
+Verified with nvcc 12.8.93 at `-std=c++17 -O3 --expt-relaxed-constexpr` on
+sm_89: a templated captured lambda with an unbraced `if constexpr ... else
+for (...)` drops the following increment in its true device instantiation.
+Independent host integer addition gives `9,10`; the device returns `1,10`.
+Replacing the increment with a local declaration produces an undefined-name
+compile error. Explicit compound blocks give `9,10` on both host and device.
+Sources and identities: [compiler scope receipt](experiments/DNN_MOE_R1/results/CI2_nvcc_constexpr_scope.json).
+This is a scalar compiler observation; the convolution workaround still
+requires its own numerical and 50-process synchronization checks.
+
+### DM-1: exact table proofs need not repeat cardinality analysis
+
+verified: generated full MobileNetV1 fusion and full-depth B16 MoE prefill
+reached repeated dependency-table recovery after the linear-window repair.
+A one-shot debugger trace identifies integer endpoint minimization and row
+projection in `ReadBoundDependencyTable`, rather than numerical execution,
+as the current generation bottleneck. The five targeted linear-window host
+checks and eight default-geometry LLM CUDA comparisons pass. See
+`DNN_MOE_R1/exact_fibers.md`; full-graph completion is not claimed by those
+smaller checks. No performance measurements were taken.
+
+### DM-1: changing MoE down columns also changes counted ownership
+
+- verified: a TN128 seed followed by a TN32 expert-down candidate retained the
+  seed combine tile in the GEMM-only incremental path. The exact counted proof
+  rejected its partial-column contributions. Candidate preparation now reimports
+  combine ownership, thresholds and statistic storage when down N changes; the
+  seed128-to-selected32 host regression and actual public CLI pass.
+- inferred: sharing a binding shape or logical tensor extent does not justify
+  reusing a counted contract across a changed physical column partition.
+- Evidence: `experiments/DNN_MOE_R1/dm_reduction_search.md`,
+  `experiments/DNN_MOE_R1/results/CI7_dm_reduction_selection_host.json`. No new race-rate or
+  latency conclusion is claimed.

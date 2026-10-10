@@ -1,0 +1,75 @@
+{
+  "evidence": "verified",
+  "scope": "production binding provenance/floor/flow, five finite binding/BM structure families, public profile identity/manifest; host mechanics only, no native winner/latency claim",
+  "source_commits": [
+    "b38ad8c10",
+    "759016e4d",
+    "90f606b9f",
+    "564846a8a",
+    "1331acf26"
+  ],
+  "tests": [
+    "moe_dram_bindings",
+    "moe_structure_search",
+    "13 profile Python checks",
+    "4 prefill mocks"
+  ],
+  "binding_domain": [
+    "slot",
+    "group BM16",
+    "group BM32",
+    "group BM64",
+    "group BM128"
+  ],
+  "limitations": [
+    "binding/BM is global per deployment, not per layer",
+    "conditional occupancy production flow was added later and is not covered by this receipt",
+    "new empirical fits omitted; host search uses unit-test resource coefficients"
+  ],
+  "actual_scalar_probe": {
+    "registers": 58,
+    "shared_bytes": 2560,
+    "threads": 128,
+    "source_sha256": "7cdfc7d0892ef7554e958deff0e8b30e0de7ccf8b4037647f3ff18cbadb91bae",
+    "artifact": "/root/.cache/tilemega-dm/resource-probes/7cdfc7d0892ef7554e958deff0e8b30e0de7ccf8b4037647f3ff18cbadb91bae",
+    "compiled": true
+  },
+  "probe_build_log": "/root/.cache/tilemega-dm/resource-probes/7cdfc7d0892ef7554e958deff0e8b30e0de7ccf8b4037647f3ff18cbadb91bae/build.log",
+  "probe_log_sha256": "470ceda6ab48fb19822177c919cf44a6be50ab5c6500bc78e354ed08bcb34e57",
+  "probe_spill": false,
+  "probe_note": "actual RMSNorm, small topk/dispatch, combine bodies; maximum58 registers, 2560 shared bytes; RMSNorm48-byte stack; full kernel admission still required",
+  "files": [
+    {
+      "path": "runs/dm1-moe-dram-final-host-v1.log",
+      "sha256": "7d58d90d5e3e074149ac2b9e45cf12b9caebeec05593b0313681d2d995f9ce58"
+    },
+    {
+      "path": "runs/dm1-moe-binding-host-v1/test.log",
+      "sha256": "1806c45a7b0c3edbd120e4856c02e0ec02e96f95531432e3ee8996c8e099a8fd"
+    },
+    {
+      "path": "runs/dm1-moe-binding-host-v1/plan.cu",
+      "sha256": "477e463674cb1e5c6f25094d70f1a5ea0d88e10ee88e9fcbaaf8adb261ad2137"
+    },
+    {
+      "path": "runs/dm1-moe-binding-host-v1/plan.cu.search.moe_structures.json",
+      "sha256": "0b57be8461c4839404d66e295de4352ed0bbde9a7e46b1ac1f83abd75dc986af"
+    },
+    {
+      "path": "runs/dm1-moe-profile-cli-host-v1/plan.cu",
+      "sha256": "bb61f5f8bd0e90592bd45bf093e3bf2f92175901ea5d365d82747a5c1ae100ef"
+    },
+    {
+      "path": "runs/dm1-moe-profile-cli-host-v1/plan.cu.plan.json",
+      "sha256": "0ef40abf6393aadf936ecc0741a71144834f4e8cbd04a1c21d2fc721218577f7"
+    },
+    {
+      "path": "runs/dm1-profile-compiler-entry-host-v2.log",
+      "sha256": "a09520593916e0b128acabd3bed0e3e0aef662988fef2ac22716664bf2ecf721"
+    },
+    {
+      "path": "runs/dm1-profile-prefill-regression-v1.log",
+      "sha256": "0292b91377e3f5de5fc72b83a91ddacbecbc2c226b761793f9b4babe85f7ad63"
+    }
+  ]
+}

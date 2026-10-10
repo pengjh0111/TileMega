@@ -1,3 +1,7 @@
+#pragma once
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Codegen/tasks/DmAttentionPageLayout.h>
+#else
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 
@@ -76,3 +80,5 @@ struct AttentionPageLayout {
 };
 } // namespace tilemega::codegen
 #undef TILEMEGA_LAYOUT_HD
+
+#endif

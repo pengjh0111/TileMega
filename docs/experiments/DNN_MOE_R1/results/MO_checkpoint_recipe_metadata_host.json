@@ -1,0 +1,27 @@
+{
+  "evidence": "verified",
+  "head": "4af7a0285d02a85c129b9f02552246362d5c1190",
+  "scope": "Sparse synthetic safetensors headers and CPU entry tests. No tensor library is imported by checkpoint header/packing metadata validation; no model weights or GPU are loaded.",
+  "source_sha256": {
+    "python/tilemega/moe/recipe_metadata.py": "e81e281ec1c370f61eb36d36c4acff0ded007a02c09945f0006f36d7c85f91cf",
+    "python/tilemega/moe/checkpoints.py": "fe497f7eec1626f0ce9769cf7a523f62f857785a71187115e6054b545cad85da",
+    "python/tilemega/moe/full.py": "62d70d9bbbff8840662caf07c7158d6dcbe54f6cf30d362e1971ca4f95a9309d",
+    "test/python/test_moe_recipe_metadata.py": "365b1c1ca8ac9761b6eaa527a2a52969ea6c241496387c6de560f020977d0416"
+  },
+  "unit_tests": 3,
+  "full_entry_tests": 9,
+  "logs": [
+    "runs/dm1-moe-recipe-metadata-host-v2.log",
+    "runs/dm1-moe-full-metadata-host-v1.log"
+  ],
+  "checked_fields": [
+    "source FQNs",
+    "BF16 dtype",
+    "config and source dimensions",
+    "QKV head factorization",
+    "expert count/interleave",
+    "normalization width/order",
+    "page geometry",
+    "packed element count"
+  ]
+}

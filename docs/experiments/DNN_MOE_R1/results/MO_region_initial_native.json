@@ -1,0 +1,253 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Initial actual generated megakernel numerical executions; 50-process and five-architecture gates pending",
+  "cases": [
+    {
+      "root": "runs/dm1-moe-real-T1-native-v2",
+      "artifact_id": "57658c304ecd371eab2e3dfc6fb21a4c7c6c82d38f9e64f884f7fd9ca8d68bd1",
+      "identity": "runs/dm1-moe-real-T1-native-v2/generated-sm_89.so.identity.json",
+      "identity_sha256": "531fb674420b9f322721b5c57a871b8145c487982a030d5b157d91de76689754",
+      "scope": "real-weight MoE region numerical gate",
+      "cases": [
+        {
+          "epoch": 0,
+          "mode": 1,
+          "passed": true,
+          "max_error": 0.000244140625,
+          "set_equal_fraction": 1.0,
+          "routing_intersection_fraction": 1.0,
+          "router_max_error": 0.0,
+          "same_binary_bits": true
+        },
+        {
+          "epoch": 0,
+          "mode": 2,
+          "passed": true,
+          "max_error": 0.000244140625,
+          "set_equal_fraction": 1.0,
+          "routing_intersection_fraction": 1.0,
+          "router_max_error": 0.0,
+          "same_binary_bits": true
+        },
+        {
+          "epoch": 1,
+          "mode": 1,
+          "passed": true,
+          "max_error": 0.000244140625,
+          "set_equal_fraction": 1.0,
+          "routing_intersection_fraction": 1.0,
+          "router_max_error": 0.0,
+          "same_binary_bits": true
+        },
+        {
+          "epoch": 1,
+          "mode": 2,
+          "passed": true,
+          "max_error": 0.000244140625,
+          "set_equal_fraction": 1.0,
+          "routing_intersection_fraction": 1.0,
+          "router_max_error": 0.0,
+          "same_binary_bits": true
+        },
+        {
+          "epoch": 2,
+          "mode": 1,
+          "passed": true,
+          "max_error": 0.000244140625,
+          "set_equal_fraction": 1.0,
+          "routing_intersection_fraction": 1.0,
+          "router_max_error": 0.0,
+          "same_binary_bits": true
+        },
+        {
+          "epoch": 2,
+          "mode": 2,
+          "passed": true,
+          "max_error": 0.000244140625,
+          "set_equal_fraction": 1.0,
+          "routing_intersection_fraction": 1.0,
+          "router_max_error": 0.0,
+          "same_binary_bits": true
+        }
+      ],
+      "sanitizers": {
+        "memcheck": {
+          "log": "runs/dm1-moe-real-T1-native-v2/events/memcheck.log",
+          "sha256": "ce8f73a66d8c77e7f9d50fd59421b62f863aa0931d668e9a94c643920ab77603"
+        },
+        "racecheck": {
+          "log": "runs/dm1-moe-real-T1-native-v2/events/racecheck.log",
+          "sha256": "7c639269c01920602ebba679d0abd2d90c2bc9c996ca5f4bf8815f6e0d080aee"
+        }
+      }
+    },
+    {
+      "root": "runs/dm1-moe-compact-native-v3",
+      "artifact_id": "410e33e63adf56203017d9c0d83a3a5fe73bf9ac6a173ca733c626d8bb0a6d52",
+      "identity": "runs/dm1-moe-compact-native-v3/generated-sm_89.so.identity.json",
+      "identity_sha256": "bd18f01cc90cc211317f839ba178733b33b0c6ae58e98a2266b2c308db623936",
+      "scope": "synthetic generated MoE region; no real-weight gate",
+      "cases": [
+        {
+          "epoch": 0,
+          "mode": 1,
+          "passed": true,
+          "max_error": 0.0,
+          "set_equal_fraction": 1.0,
+          "routing_intersection_fraction": 1.0,
+          "router_max_error": 0.0,
+          "same_binary_bits": true
+        },
+        {
+          "epoch": 0,
+          "mode": 2,
+          "passed": true,
+          "max_error": 0.0,
+          "set_equal_fraction": 1.0,
+          "routing_intersection_fraction": 1.0,
+          "router_max_error": 0.0,
+          "same_binary_bits": true
+        },
+        {
+          "epoch": 1,
+          "mode": 1,
+          "passed": true,
+          "max_error": 0.0,
+          "set_equal_fraction": 1.0,
+          "routing_intersection_fraction": 1.0,
+          "router_max_error": 0.0,
+          "same_binary_bits": true
+        },
+        {
+          "epoch": 1,
+          "mode": 2,
+          "passed": true,
+          "max_error": 0.0,
+          "set_equal_fraction": 1.0,
+          "routing_intersection_fraction": 1.0,
+          "router_max_error": 0.0,
+          "same_binary_bits": true
+        },
+        {
+          "epoch": 2,
+          "mode": 1,
+          "passed": true,
+          "max_error": 0.0,
+          "set_equal_fraction": 1.0,
+          "routing_intersection_fraction": 1.0,
+          "router_max_error": 0.0,
+          "same_binary_bits": true
+        },
+        {
+          "epoch": 2,
+          "mode": 2,
+          "passed": true,
+          "max_error": 0.0,
+          "set_equal_fraction": 1.0,
+          "routing_intersection_fraction": 1.0,
+          "router_max_error": 0.0,
+          "same_binary_bits": true
+        }
+      ],
+      "sanitizers": {
+        "memcheck": {
+          "log": "runs/dm1-moe-compact-native-v3/events/memcheck.log",
+          "sha256": "7b513bd62f0b8955f599adc31d980551ea753be055f5f2a8b18574b986413e26"
+        },
+        "racecheck": {
+          "log": "runs/dm1-moe-compact-native-v3/events/racecheck.log",
+          "sha256": "ba457e06a0a8425354081aba1fcd9fa9d02b62fdac91e06f65ad7aa392d51054"
+        }
+      }
+    },
+    {
+      "root": "runs/dm1-moe-compact-split-native-v2",
+      "artifact_id": "8404be93c99a92b4208e08250455131b76dc18f594edd08d5ecf5afbcefe8a47",
+      "identity": "runs/dm1-moe-compact-split-native-v2/generated-sm_89.so.identity.json",
+      "identity_sha256": "e218e6e3f14bb1afc7fa31d28332ec0c2089c82fa6cafd15c437f7b7be359533",
+      "scope": "synthetic generated MoE region; no real-weight gate",
+      "cases": [
+        {
+          "epoch": 0,
+          "mode": 1,
+          "passed": true,
+          "max_error": 0.0,
+          "set_equal_fraction": 1.0,
+          "routing_intersection_fraction": 1.0,
+          "router_max_error": 0.0,
+          "same_binary_bits": true
+        },
+        {
+          "epoch": 0,
+          "mode": 2,
+          "passed": true,
+          "max_error": 0.0,
+          "set_equal_fraction": 1.0,
+          "routing_intersection_fraction": 1.0,
+          "router_max_error": 0.0,
+          "same_binary_bits": true
+        },
+        {
+          "epoch": 1,
+          "mode": 1,
+          "passed": true,
+          "max_error": 0.0,
+          "set_equal_fraction": 1.0,
+          "routing_intersection_fraction": 1.0,
+          "router_max_error": 0.0,
+          "same_binary_bits": true
+        },
+        {
+          "epoch": 1,
+          "mode": 2,
+          "passed": true,
+          "max_error": 0.0,
+          "set_equal_fraction": 1.0,
+          "routing_intersection_fraction": 1.0,
+          "router_max_error": 0.0,
+          "same_binary_bits": true
+        },
+        {
+          "epoch": 2,
+          "mode": 1,
+          "passed": true,
+          "max_error": 0.0,
+          "set_equal_fraction": 1.0,
+          "routing_intersection_fraction": 1.0,
+          "router_max_error": 0.0,
+          "same_binary_bits": true
+        },
+        {
+          "epoch": 2,
+          "mode": 2,
+          "passed": true,
+          "max_error": 0.0,
+          "set_equal_fraction": 1.0,
+          "routing_intersection_fraction": 1.0,
+          "router_max_error": 0.0,
+          "same_binary_bits": true
+        }
+      ],
+      "sanitizers": {
+        "memcheck": {
+          "log": "runs/dm1-moe-compact-split-native-v2/events/memcheck.log",
+          "sha256": "d992d017482148661539aea4c5acd19be0823067d986279317264e16f1a1e6fd"
+        },
+        "racecheck": {
+          "log": "runs/dm1-moe-compact-split-native-v2/events/racecheck.log",
+          "sha256": "262590ea9678a8c34e063f98e9ce4d687d5c5b5f8c967c22dcdd98ae0e92f6b3"
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "Synthetic v3 and split v2 use small random expert weights; their output check can mask a bypass. Corrected checker requires an observable expert contribution.",
+    "Real-weight case covers layer 0 and T=1 only; no decoder or end-to-end G-MOE claim."
+  ],
+  "retained_failures": [
+    "runs/dm1-moe-real-T1-native-v1",
+    "runs/dm1-moe-compact-native-v2",
+    "runs/dm1-moe-compact-split-native-v1"
+  ]
+}

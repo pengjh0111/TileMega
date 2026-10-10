@@ -1,0 +1,55 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Host exact static external fusion edges and event allocation; no counted-scatter fusion, actual fused TaskBody, synchronization, model or performance gate claim",
+  "source": {
+    "head": "7bf4c57082653ae8da55d1b2fb84a5f80c30e227",
+    "stage_head": "e50921c893356f482c1c58cc3f90b1f378a3e866",
+    "inputs": {
+      "/root/dm1_work/development/runs/dm1-exact-fusion-external-v2/driver.cpp": "7f3507436c79c47ab3a1bcf50167797971cf03a67d7f65eef1145196bfc8179b",
+      "/root/dm1_work/development/runs/dm1-exact-fusion-external-v2/dm_fused_dependencies_test.cpp": "221f638b65f096fce53ac597f059680b431132ae10d0351b9d7fec6c2d5373a2",
+      "/root/dm1_work/development/test/unit/fusion_written_price_test.cpp": "65177dfc1ccaef2839da91a5137a9dcb9a7b3ef7fb978b85d3390c7198ab85ae",
+      "/root/dm1_work/development/test/unit/fusion_rewrite_test.cpp": "c74455fca20ab71587a303fa1f35ba0603f24b9e747a9a3f7241771d6e1c7bba",
+      "/root/dm1_work/development/test/unit/fusion_batch_rewrite_test.cpp": "891bb7182675ee1877831ed6a6e84453f62d1bfbed50cba0548c8514856ad1ee",
+      "/root/dm1_work/development/lib/Solver/TaskModel.cpp": "72d0d72df0a7365e2bd94a38877e834d4eff4a0768f79e26487897cb3e95c443",
+      "/root/dm1_work/development/lib/Solver/FusedTaskInput.cpp": "0b3f790a6d59729b380cd3358c7d32ded521df38eb83f7960e19aa1ddfc08d00",
+      "/root/dm1_work/development/lib/Dialect/CouplingGraph/CGDialect.cpp": "2cc7253a7025b3025b28135d4e5b7c45627c85680f2cac20c6b391b33f37b4f1",
+      "/root/dm1_work/development/runs/dm1-exact-fusion-external-v2/overlay/lib/Dialect/CouplingGraph/FusionPass.cpp": "d00ffdca5c41343efc9225ffb874ebf8f8fa22178d5e7ca0475da324981c82c4",
+      "/root/dm1_work/development/runs/dm1-exact-fusion-external-v2/overlay/lib/Analysis/CouplingRelation.cpp": "f1ba9cdc834b500c2887453c9c1d1a6e3eb52e197ff3272cde983d7efb8dbb28",
+      "/root/dm1_work/development/lib/Analysis/BoundDependencyForm.cpp": "4b0a5bd495f5b7cbc6b110728078f13263e608a7bf47fa4a5229f6433cb98993",
+      "/root/dm1_work/development/runs/dm1-exact-fusion-external-v2/overlay/include/tilemega/Analysis/CouplingRelation.h": "adc4216c377601bcc97f5f0335b54fb7b36e2a936c7fdb5111271b87ef8de7e1"
+    },
+    "library_sha256": "b58b1b95c2360a53be307c1be22b0417b17f7800307a73f9f32f5f5be6c8c8ab",
+    "library_source": "integration-stage native build through 88dbd0858 with six replaced objects",
+    "assertions_enabled": true,
+    "expectations_changed": false,
+    "scope": "Isolated host external fusion dependency geometry, exact shared elements and event storage; no actual fused body or synchronization gate claim",
+    "failed_audits": [
+      {
+        "path": "/root/dm1_work/development/runs/dm1-exact-fusion-external/events/02_check.log",
+        "sha256": "133f2f2bc0e3ccbe0b60e517377998f388eef1578a6cf95fbc2e077846e1d04b",
+        "reason": "The isolated test library omitted the already committed singleton linear-ID fix (51e6acff9); GDB identifies BindExactTaskDependencyLinear via ReadRuntimePlan before the external rewrite. Link the actual committed implementation into this overlay."
+      }
+    ]
+  },
+  "legal_fused_candidates": 5,
+  "invalid_geometries": 11,
+  "external_edges": 10,
+  "exact_tables": 1,
+  "oracles": "Independent enumeration of original shared elements and reads under phase-coordinate rebasing; exact bound geometry/table verification; complete linear producer-ID event storage",
+  "legacy": {
+    "written_price_cases": 4,
+    "bit_identical_double_fields": 6,
+    "written_rejections": 10,
+    "rewrite_edge_identities": 1890,
+    "rewrite_rejections": 18,
+    "batch_tasks": 6,
+    "batch_edge_identities": 122,
+    "batch_rejections": 4
+  },
+  "expectations_changed": false,
+  "binary_sha256": "308a260be8f0f879a77ca988c922bbbacb36d6308ef62bd677ab3decba8678c0",
+  "queue_sha256": "45a6c67f208fd816289b7929407bd3ab3139a6e5b7eedb88d5fd79af5a511a5e",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "log_sha256": "b7c6814236b071319f77465d3b3d39ac5202c7dbab9e2369e2285023fd55bbeb"
+}

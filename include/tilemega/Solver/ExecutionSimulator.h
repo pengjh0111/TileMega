@@ -144,6 +144,9 @@ struct SimulatorInput {
   // A last-arriver reducer executes on the worker of its final producer and
   // is absent from sigma. The complete edge remains in legality checks.
   std::vector<unsigned char> inline_reducer;
+  // DM handoffs retain their body setup/barriers and occupy the final
+  // producer's CTA until completion. Empty preserves the legacy cost arm.
+  std::vector<unsigned char> inline_body_reserved;
   // Group events retain their visibility hop even with a common owner.
   std::vector<std::pair<int,int>> fluid_forced_local_hops;
   codegen::RuntimeTaskGraph const* graph = nullptr;

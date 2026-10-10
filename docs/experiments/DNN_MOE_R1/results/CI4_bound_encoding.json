@@ -1,0 +1,21 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "exact window/table selection and double containment; no runtime wait claim",
+  "source": {
+    "source_head": "ee959d6bba47c15c28b23ef913a9cbaad50f5bb0",
+    "files": {
+      "include/tilemega/Analysis/BoundDependencyForm.h": "85b8941c1149333a8b02bf229b9882b12756f0ea201bb8deb13c61cd9fe4dec2",
+      "lib/Analysis/BoundDependencyForm.cpp": "0981d4cd22cd591861659ec39781fff36445566faf05d590813b725872588a2b",
+      "test/unit/bound_dependency_form_test.cpp": "4b55385a8d617905e86cd0ad90ada2afdceee6f46da80b1e905529064bbfe235",
+      "CMakeLists.txt": "5d27ddda9170f17018a6001590a49013a0cfd370ea74d4d46bb4185e31b33e26",
+      "test/unit/runner.cpp": "dd105f959c3386537f6d151dba5a7c7553ea7e8c31e7fffee59b4aeadadbe3f4"
+    }
+  },
+  "checks": 6,
+  "log_sha256": {
+    "build_bound.log": "6b627b00383812bd6d25da9756363caabc3dc25db4aac9142b8408b4656608be",
+    "ctest_bound.log": "14bd41409c21cc1f2cc8cfb7ed0f5e5f3dda6f619c807a47177c0e131d568115"
+  },
+  "binary_sha256": "ec616f754e44a9956aaf3ff0da0b15843c4e6414d23a83b2822a6e17db711db9"
+}

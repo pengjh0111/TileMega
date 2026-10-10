@@ -1,3 +1,7 @@
+// Preserve the independently validated serving and DM runtime contracts.
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Codegen/tasks/DmPagedGemmTaskBody.h>
+#else
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Backend/ServingMmaPipeline.h>
@@ -283,3 +287,5 @@ struct PagedGemmTaskBody {
   }
 };
 } // namespace tilemega::codegen
+
+#endif

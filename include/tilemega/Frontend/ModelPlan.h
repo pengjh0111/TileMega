@@ -4,11 +4,38 @@
 
 #include <array>
 #include <cstdint>
+#include <map>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
+#include <tilemega/Codegen/DmDescriptors.h>
 
 namespace tilemega::frontend {
+using DeferredLayerNormEdge=std::pair<std::string,unsigned>;
+
+struct FxArgument {
+  enum class Kind { kNode, kInt, kFloat, kBool, kString, kNone, kList,
+                    kDtype, kDevice, kLayout, kMemoryFormat, kSymbol };
+  Kind kind = Kind::kNone;
+  std::int64_t integer = 0;
+  double real = 0.0;
+  bool boolean = false;
+  std::string text;
+  std::vector<FxArgument> items;
+};
+
+struct FxConstant {
+  bool present = false;
+  std::string dtype;
+  std::vector<std::int64_t> shape;
+  bool has_scalar = false;
+  FxArgument scalar;
+  bool has_all_true = false, all_true = false;
+  bool has_all_equal = false, all_equal = false;
+  FxArgument equal_value;
+  std::string data_base64, byte_order;
+};
 
 /// Stable FX facts serialized by export_bridge.py. No TileMega classification
 /// or scheduling decision is made on the Python side.
@@ -28,6 +55,14 @@ struct FxNodeRecord {
   /// before `scalar_args` existed says nothing about the epsilon, which is a
   /// different fact from a node that genuinely has no literal operand.
   bool has_scalars = false;
+  bool has_arguments = false;
+  std::vector<FxArgument> args;
+  std::map<std::string, FxArgument> kwargs;
+  FxConstant constant;
+  FxConstant immutable_buffer_value;
+  std::vector<std::string> shape_constant_symbols;
+  std::map<std::string, std::int64_t> shape_constant_bindings;
+  std::string shape_constant_fragment_json;
 };
 
 struct SignatureInput {
@@ -51,6 +86,8 @@ struct PlanBuffer {
   std::string role = "internal";
   std::string external_name;
   std::string pack_json;
+  codegen::DmBufferLayout layout{};
+  std::uint64_t arena_offset = ~std::uint64_t(0);
 };
 
 struct PlanGemm {
@@ -62,6 +99,8 @@ struct PlanGemm {
   std::uint32_t interleave_u = 16;
   std::uint32_t partial_tile_n = 0;
   std::uint32_t norm_ss = 0xffffffffu, ss_out = 0xffffffffu;
+  codegen::DmGemmAccess access{};
+  codegen::DmEpilogueChain chain{};
 };
 
 enum class PlanTaskKind {
@@ -77,7 +116,21 @@ enum class PlanTaskKind {
   kFusedAttention,
   kAttentionMerge,
   kArgmaxReduce,
+  kDepthwiseConv,
+  kPool,
+  kGlobalPoolReduce,
+  kLayerNorm,
+  kEncoderAttention,
+  kEmbeddingSum,
+  kDwPwFused,
+  kMoETopK,
+  kMoECombine,
+  kLayoutConvert,
 };
+
+inline constexpr bool IsGemmStage(PlanTaskKind kind) {
+  return kind==PlanTaskKind::kGemm || kind==PlanTaskKind::kDwPwFused;
+}
 
 struct PlanStage {
   PlanTaskKind kind = PlanTaskKind::kGemm;
@@ -93,6 +146,13 @@ struct PlanStage {
   int row_offset = 0;
   int attention_kv_block = 256;
   int attention_query_rows = 64;
+  std::uint32_t conv = codegen::kDmNoIndex;
+  std::uint32_t rows_per_batch = 0;
+  std::uint32_t binding_producer = codegen::kDmNoIndex;
+  float norm_epsilon = 0.0f;
+  codegen::DmEpilogueChain chain{};
+  std::uint32_t partial_rows_per_image = 0;
+  codegen::DmMoeStage moe{};
 };
 
 struct PlanOutput {
@@ -129,6 +189,18 @@ struct ModelPlan {
   int serving_seq = 0;
   int serving_capacity = 0;
   bool dn_vector_sums = false;
+  // Only DM plans emit the extended device ABI; legacy descriptors and CUDA
+  // initializers retain their exact layout and text when this is false.
+  bool dm = false;
+  bool moe_gemv = false;
+  int dm_reduction_mask = -1;
+  bool forward = false;
+  // MoE regions bind axis zero as tokens; DNN inputs bind it as batch.
+  bool forward_token_axis = false;
+  std::string memory_reuse = "none";
+  std::uint64_t memory_l2_budget_bytes = 0, memory_arena_bytes = 0;
+  std::vector<codegen::ConvDesc> convolutions;
+  std::vector<DeferredLayerNormEdge> deferred_layernorm_edges;
 };
 
 struct ServingOptions {
@@ -141,6 +213,9 @@ struct ServingOptions {
   int argmax_tile_n = 32;
   bool deferred_norm = true;
   bool dn_vector_sums = false;
+  int moe_batch = 1;
+  bool moe_grouped = false;
+  unsigned moe_block_rows = 16;
 };
 
 ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,

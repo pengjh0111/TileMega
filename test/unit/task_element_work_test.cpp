@@ -19,6 +19,26 @@ int TestTaskElementWork(int argc, char** argv) {
   IslContext context;
   auto c=[](long value){return ClosedForm::Constant(value);};
   auto S=ClosedForm::Symbol("S"),P=ClosedForm::Symbol("past");
+  {
+    SemanticOp padded;padded.name="padded_image_rows";padded.kind=OperatorKind::kPointwise;
+    padded.domain={{"m",c(14)},{"n",c(8)}};
+    padded.result={"out",{{"row",c(14)},{"channel",c(8)}}};
+    padded.result_map.results={IndexResult::Dim("m"),IndexResult::Dim("n")};
+    padded.operands={SemanticOperand{"",padded.result,padded.result_map}};
+    padded.exact_task_access=true;
+    padded.task_space={"owners",{{"m",c(18)},{"n",c(8)}}};
+    padded.task_map.results={IndexResult::Affine({{"m",c(1),c(1)},{"m",c(2),c(7)}}),IndexResult::Dim("n")};
+    Granularity g;g.Tile(padded.name,"m",c(3)).Tile(padded.name,"n",c(8));
+    auto graph=Instantiate(SemanticGraph{{padded}},g);auto const& task=graph.nodes.front();
+    Require(task.Count().Eval({},{})==6);
+    auto work=DeriveTaskWork(padded,task,{});
+    Require(work.write_elements.SumDomain().Eval({})==14*8);
+    Require(work.read_elements.SumDomain().Eval({})==14*8);
+    for(int band:{2,5}) {
+      ParamBinding point;point.Bind("m",band);
+      Require(work.write_elements.BindCoordinates(point).Eval(point)==8);
+    }
+  }
   SemanticOp rope;
   rope.name="rope"; rope.domain={{"m",S},{"hh",c(8)}};
   rope.result={"out",{{"m",S},{"hh",c(8)}}};

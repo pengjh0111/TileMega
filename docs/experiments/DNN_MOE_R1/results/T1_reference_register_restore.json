@@ -1,0 +1,26 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Two reference coupling-interface tests now pass after restoring ignored register fixtures with exact candidate hashes. Baseline target-audit schema, obsolete norm-prologue source and independent-attention numerical failures remain; this is not a full G-REG pass.",
+  "tests_passed": 2,
+  "fixture_receipt": {
+    "evidence": "verified",
+    "scope": "Restore missing ignored historical register fixtures from the exact candidate files; no tracked reference source or config changed. Original failure was map::at in interface-probe after reading an absent register table.",
+    "files": [
+      {
+        "source": "/root/dm1_work/development/docs/experiments/ORACLE/raw_bf16/cost/registers_gqa2.tsv",
+        "destination": "/root/dm1_work/reference/docs/experiments/ORACLE/raw_bf16/cost/registers_gqa2.tsv",
+        "sha256": "a4195ad0bade8f9d6a44338bf363ac7349f8c18e0812d21ed6d3d72f2b394c1a"
+      },
+      {
+        "source": "/root/dm1_work/development/docs/experiments/ORACLE/raw_bf16/cost/registers_mha4.tsv",
+        "destination": "/root/dm1_work/reference/docs/experiments/ORACLE/raw_bf16/cost/registers_mha4.tsv",
+        "sha256": "a4195ad0bade8f9d6a44338bf363ac7349f8c18e0812d21ed6d3d72f2b394c1a"
+      }
+    ],
+    "reference_head": "76beaea5e2d66e3311b36d020f470c4f016406d0"
+  },
+  "completion_sha256": "38df9fc8385c6cef344e4a679e5b64eb456a7e434609246b0db0838186b674e9",
+  "queue_sha256": "3cb918f17f41fb220e1398a4ddce921bf18e2855f2c116381966f0a5d3259e18",
+  "log_sha256": "cfe226859c9cb18ef9aa793437bd5cd7f899d226da57b218de9666377f1efa96"
+}

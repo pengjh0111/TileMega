@@ -61,7 +61,7 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   for(std::size_t e=0;e<p.edges.size();++e){auto const& r=p.edges[e];if(!r.sorted || r.producer<0 || r.producer>=n || r.consumer<0 || r.consumer>=n ||
       (r.phase && (!r.first || r.phase_iterations<1)))throw std::invalid_argument("invalid flow edge");
     outgoing[r.producer].push_back(e);incoming[r.consumer].push_back(e);
-    bool sync=!(r.colocated && r.kappa==1) && !p.spaces[r.consumer].fused_reducer;
+    bool sync=!(r.colocated && r.kappa==1) && !(p.spaces[r.consumer].fused_reducer || p.spaces[r.consumer].handoff_reducer);
     publishes[r.producer]=publishes[r.producer] || sync;
     waits[r.consumer]=waits[r.consumer] || (sync && !r.all_producer);all_waits[r.consumer]=all_waits[r.consumer] || (sync && r.all_producer);
   }
@@ -93,7 +93,7 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
   std::priority_queue<SpaceKey,std::vector<SpaceKey>,std::greater<SpaceKey>> ready_spaces;
   std::priority_queue<SpaceKey,std::vector<SpaceKey>,std::greater<SpaceKey>> fused_spaces;
   auto queue_space=[&](int s){
-    auto& queue=p.spaces[s].fused_reducer?fused_spaces:ready_spaces;
+    auto& queue=p.spaces[s].fused_reducer && !p.spaces[s].handoff_reducer?fused_spaces:ready_spaces;
     queue.emplace(ready[s].front().time,-p.spaces[s].rank_ns,p.spaces[s].order,s);
   };
   for(int s=0;s<n;++s)if(!ready[s].empty())queue_space(s);
@@ -242,7 +242,7 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
           auto& stats=result.spaces[s];stats.last_end=now;stats.last_edge=last_edge[s][cohort_tasks[c.begin+c.count-1]];stats.publication_ns+=(!options.no_sync && publishes[s]?p.publication_ns:0)*c.count;
           int before=prefix[s];while(prefix[s]+1<p.spaces[s].count && completed[s][prefix[s]+1])++prefix[s];
           if(prefix[s]!=before)for(int e:outgoing[s]){auto const& edge=p.edges[e];auto begin=edge_cursor[e];while(edge_cursor[e]<edge.sorted->size() && edge.sorted->at(edge_cursor[e]).first<=prefix[s])++edge_cursor[e];
-            double hop=options.no_sync || p.spaces[edge.consumer].fused_reducer || (edge.colocated && edge.kappa==1)?0:p.hop_ns;
+            double hop=options.no_sync || (p.spaces[edge.consumer].fused_reducer || p.spaces[edge.consumer].handoff_reducer) || (edge.colocated && edge.kappa==1)?0:p.hop_ns;
             if(begin!=edge_cursor[e])push(now+hop,edge.phase?GateArrival:Arrival,e,begin,edge_cursor[e],event.id);
             if(edge.phase) {
               begin=first_cursor[e];
@@ -259,11 +259,11 @@ FlowResult EvaluateFlow(FlowProblem const& p,FlowOptions const& options) {
       if(!fused_spaces.empty()) {s=std::get<3>(fused_spaces.top());fused_spaces.pop();}
       else {s=std::get<3>(ready_spaces.top());ready_spaces.pop();}
       int pi=p.spaces[s].piece_of_task.at(ready[s].front().task);auto const& parts=p.spaces[s].pieces.at(pi).parts;
-      bool fused=p.spaces[s].fused_reducer;
-      bool wait=!fused && !options.no_sync && (waits[s] || (all_waits[s] && launched[s]<std::min<long>(p.spaces[s].count,workers)));
+      bool fused=p.spaces[s].fused_reducer && !p.spaces[s].handoff_reducer;
+      bool wait=!fused && !p.spaces[s].handoff_reducer && !options.no_sync && (waits[s] || (all_waits[s] && launched[s]<std::min<long>(p.spaces[s].count,workers)));
       Cohort cohort;cohort.begin=cohort_tasks.size();cohort.space=s;cohort.piece=pi;cohort.start=now;cohort.wait=wait?p.consumer_wait_ns:0;cohort.fixed=fused || options.no_fixed?0:parts.fixed_ns;cohort.fused=fused;
       while((fused || free>0) && !ready[s].empty() && p.spaces[s].piece_of_task[ready[s].front().task]==pi) {
-        bool next_wait=!fused && !options.no_sync &&
+        bool next_wait=!fused && !p.spaces[s].handoff_reducer && !options.no_sync &&
             (waits[s] || (all_waits[s] && launched[s]<std::min<long>(p.spaces[s].count,workers)));
         if(next_wait!=wait)break;cohort.cause=last_cause[s][ready[s].front().task];cohort.edge=last_edge[s][ready[s].front().task];cohort_tasks.push_back(ready[s].front().task);++cohort.count;ready[s].pop_front();if(!fused)--free;++launched[s];
       }

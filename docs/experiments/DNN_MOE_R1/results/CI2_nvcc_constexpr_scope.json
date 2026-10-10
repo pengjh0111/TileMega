@@ -1,0 +1,160 @@
+{
+  "evidence": "verified",
+  "scope": "Compiler diagnostic observations, not a numerical gate",
+  "cases": {
+    "unbraced_call": {
+      "source_sha256": "e2b11d8fe4428f7f0fb1f7a1a8ac53a8b40a81cc9b94c1b35e56b9412d2f5fa1",
+      "expected": [
+        9,
+        10
+      ],
+      "host": {
+        "command": [
+          "c++",
+          "-std=c++17",
+          "-O3",
+          "-UNDEBUG",
+          "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/unbraced_call.cpp",
+          "-o",
+          "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/unbraced_call.host"
+        ],
+        "build_exit_code": 0,
+        "build_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "run_exit_code": 0,
+        "stdout": "host=9,10\n",
+        "binary_sha256": "a295ad46d0787306782070ebe0292d13487ef3b79048ffbf6e3da6695683794b",
+        "run_log_sha256": "083c2a395f8290d69d517590eae08de8e3098dd2ecf719a0e1556bc77a297783"
+      },
+      "cuda": {
+        "command": [
+          "/usr/local/cuda/bin/nvcc",
+          "-std=c++17",
+          "-O3",
+          "-UNDEBUG",
+          "--expt-relaxed-constexpr",
+          "-arch=sm_89",
+          "-Xptxas=-v,-warn-spills",
+          "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/unbraced_call.cu",
+          "-o",
+          "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/unbraced_call.cuda"
+        ],
+        "build_exit_code": 0,
+        "build_log_sha256": "14544cae701d16c1341e044975e1a200c6de25608a453a8009624641db9c7910",
+        "run_exit_code": 3,
+        "stdout": "host=9,10\ndevice=1,10\n",
+        "binary_sha256": "59d0d44177b0ae794fd51343ca4f856298d06ef992540213a90f5655e0d303d9",
+        "run_log_sha256": "2b9c22d92149102014c466c23a837cf932264cc47f30aab2e7e511210433d649",
+        "artifact_id": "45edc20556e3d59a98c10869466c3d042901dcff0ef6c227a92ac9c7846c6ce4"
+      }
+    },
+    "unbraced_declaration": {
+      "source_sha256": "40bc464a5e6d80606f4cc70b1cd96c4370a86d0f08939545c1e873f4b01abb54",
+      "expected": [
+        9,
+        10
+      ],
+      "host": {
+        "command": [
+          "c++",
+          "-std=c++17",
+          "-O3",
+          "-UNDEBUG",
+          "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/unbraced_declaration.cpp",
+          "-o",
+          "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/unbraced_declaration.host"
+        ],
+        "build_exit_code": 0,
+        "build_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "run_exit_code": 0,
+        "stdout": "host=9,10\n",
+        "binary_sha256": "9795fd771c723c908d77e05d3489e92a418d8969a4a4e9633da1d46842b3b6de",
+        "run_log_sha256": "083c2a395f8290d69d517590eae08de8e3098dd2ecf719a0e1556bc77a297783"
+      },
+      "cuda": {
+        "command": [
+          "/usr/local/cuda/bin/nvcc",
+          "-std=c++17",
+          "-O3",
+          "-UNDEBUG",
+          "--expt-relaxed-constexpr",
+          "-arch=sm_89",
+          "-Xptxas=-v,-warn-spills",
+          "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/unbraced_declaration.cu",
+          "-o",
+          "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/unbraced_declaration.cuda"
+        ],
+        "build_exit_code": 1,
+        "build_log_sha256": "9e781ef11f3f348dc318737f2db45e8838649a0b94dcaf5a38827aa8765dba5f"
+      }
+    },
+    "braced_declaration": {
+      "source_sha256": "3a2877d7425898fc47b7df9ae23087bea50165ed392e3d3ecd76205bf55c7c7f",
+      "expected": [
+        9,
+        10
+      ],
+      "host": {
+        "command": [
+          "c++",
+          "-std=c++17",
+          "-O3",
+          "-UNDEBUG",
+          "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/braced_declaration.cpp",
+          "-o",
+          "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/braced_declaration.host"
+        ],
+        "build_exit_code": 0,
+        "build_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "run_exit_code": 0,
+        "stdout": "host=9,10\n",
+        "binary_sha256": "e25f8605360a3cecd61499410afdd1beb02598db5188bfe15489e83c64464c6f",
+        "run_log_sha256": "083c2a395f8290d69d517590eae08de8e3098dd2ecf719a0e1556bc77a297783"
+      },
+      "cuda": {
+        "command": [
+          "/usr/local/cuda/bin/nvcc",
+          "-std=c++17",
+          "-O3",
+          "-UNDEBUG",
+          "--expt-relaxed-constexpr",
+          "-arch=sm_89",
+          "-Xptxas=-v,-warn-spills",
+          "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/braced_declaration.cu",
+          "-o",
+          "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/braced_declaration.cuda"
+        ],
+        "build_exit_code": 0,
+        "build_log_sha256": "54624201a912561d0c18075206df9a342c734a319af09a9354ede72710f92e01",
+        "run_exit_code": 0,
+        "stdout": "host=9,10\ndevice=9,10\n",
+        "binary_sha256": "68d59f9b9dcd9bbcfc02c5bc4acae664b840b9b6e071384a523da4eaa1a703cb",
+        "run_log_sha256": "99669852b22d2f3b272dd8e6f275f3ceebfeaceaf5c9a24477c975710bcd39c5",
+        "artifact_id": "b096c9ce97afa3ab4533b0025b46ac1ee9e11d651c021295868408ae998c9cb6"
+      }
+    }
+  },
+  "source": {
+    "head": "d382659f485054f5e9fcce8835e9bfc9f6baf8e9",
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "inputs": {
+      "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/check.py": "cb5e4e72cc03e0e0cc402441ade1ba8508975d79769d5b8fa00feb896d0010f7",
+      "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/unbraced_declaration.cu": "40bc464a5e6d80606f4cc70b1cd96c4370a86d0f08939545c1e873f4b01abb54",
+      "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/braced_declaration.cu": "3a2877d7425898fc47b7df9ae23087bea50165ed392e3d3ecd76205bf55c7c7f",
+      "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/unbraced_call.cu": "e2b11d8fe4428f7f0fb1f7a1a8ac53a8b40a81cc9b94c1b35e56b9412d2f5fa1",
+      "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/braced_declaration.cpp": "3a2877d7425898fc47b7df9ae23087bea50165ed392e3d3ecd76205bf55c7c7f",
+      "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/unbraced_call.cpp": "e2b11d8fe4428f7f0fb1f7a1a8ac53a8b40a81cc9b94c1b35e56b9412d2f5fa1",
+      "/root/dm1_work/development/runs/dm1-nvcc-constexpr-scope-v2/unbraced_declaration.cpp": "40bc464a5e6d80606f4cc70b1cd96c4370a86d0f08939545c1e873f4b01abb54"
+    },
+    "scope": "Independent compiler scope diagnostic; every test source generated before submission; no performance data"
+  },
+  "reproduction_sources": {
+    "docs/experiments/DNN_MOE_R1/inputs/compiler_scope/unbraced_declaration.cu": "40bc464a5e6d80606f4cc70b1cd96c4370a86d0f08939545c1e873f4b01abb54",
+    "docs/experiments/DNN_MOE_R1/inputs/compiler_scope/braced_declaration.cu": "3a2877d7425898fc47b7df9ae23087bea50165ed392e3d3ecd76205bf55c7c7f",
+    "docs/experiments/DNN_MOE_R1/inputs/compiler_scope/unbraced_call.cu": "e2b11d8fe4428f7f0fb1f7a1a8ac53a8b40a81cc9b94c1b35e56b9412d2f5fa1"
+  },
+  "interpretation": {
+    "verified": "For nvcc 12.8.93, the tested unbraced constexpr-else-for true device instantiation drops its following increment; a following declaration instead fails compilation. Braced scope returns the independently fixed values 9,10 on host and device.",
+    "scope": "Minimal scalar compiler counterexample; no synchronization or general CUDA version claim",
+    "production_workaround": "Use explicit compound blocks in convolution operand branches; independently verify convolution arithmetic and synchronization."
+  }
+}

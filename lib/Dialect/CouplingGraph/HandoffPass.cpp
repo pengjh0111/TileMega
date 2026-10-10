@@ -366,6 +366,7 @@ void LowerServingHandoffStages(mlir::ModuleOp module) {
 ServingHandoffSelection SelectServingHandoffs(mlir::ModuleOp module,
     unsigned selected_classes) {
   auto model=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+  bool paged=module->hasAttr("tmexec.pages");
   if(!model || (!module->hasAttr("tmexec.pages") && (selected_classes&~12u)))
     throw std::invalid_argument("serving handoff selection requires a model and supported reduction classes");
   if(module->hasAttr("tmexec.runtime_handoff_lowering"))
@@ -419,7 +420,7 @@ ServingHandoffSelection SelectServingHandoffs(mlir::ModuleOp module,
     auto pair=std::make_pair(int(p.getStage()),int(c.getStage()));
     if(pairs.count(pair) || claimed_consumers.count(pair.second))continue;
     std::string choice;
-    if((selected_classes&1) && kind(pair.first)=="kRMSNorm" &&
+    if(paged && (selected_classes&1) && kind(pair.first)=="kRMSNorm" &&
        kind(pair.second)=="kGemm") {
       bool shared=false;
       for(auto other:graph.getBody().front().getOps<CouplingOp>())
@@ -433,7 +434,7 @@ ServingHandoffSelection SelectServingHandoffs(mlir::ModuleOp module,
     else if((selected_classes&4) && pair.first==pair.second &&
             kind(pair.first)=="kGemm")
       choice="last_arriver";
-    else if((selected_classes&2) && kind(pair.first)=="kGemm" &&
+    else if(paged && (selected_classes&2) && kind(pair.first)=="kGemm" &&
             kind(pair.second)=="kArgmaxReduce" && !gemm_has_split(pair.first))
       choice="last_arriver";
     else continue;

@@ -3,7 +3,10 @@
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Analysis/SemanticCodec.h>
+#include <tilemega/Analysis/TaskOwnershipGeometry.h>
+#include <tilemega/Analysis/TaskElementRelation.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
+#include <tilemega/Dialect/CouplingGraph/TaskReductionGeometry.h>
 #include <mlir/IR/Verifier.h>
 #include <stdexcept>
 
@@ -31,11 +34,13 @@ std::vector<FusedTaskInput> ReadFusedTaskInputs(mlir::ModuleOp module) {
       phase.op=analysis::DecodeSemanticOp(llvm::cast<mlir::StringAttr>(text).getValue().str());
       phase.stage=stage;
       auto dictionary=llvm::cast<mlir::DictionaryAttr>(tiles);
+      dialect::ApplyTaskReductionGeometry(dictionary,phase.op,granularity);
       phase.element_chunk=dictionary.getAs<mlir::StringAttr>("ownership")=="element_chunk";
-      for (auto const& axis:phase.op.result.axes) {
+      for (auto [axis_index,axis]:llvm::enumerate(analysis::TaskOwnershipSpace(phase.op).axes)) {
         auto tile=analysis::ClosedForm::Parse(dictionary.getAs<mlir::StringAttr>(axis.name).getValue().str());
         phase.tiles.emplace(axis.name,tile);
-        granularity.Tile(phase.op.name,axis.name,tile);
+        granularity.Tile(phase.op.name,phase.op.exact_task_access?
+            analysis::UnitTaskOwnershipDimension(phase.op,axis_index):axis.name,tile);
       }
       semantics.ops.push_back(phase.op);
       input.semantics.push_back(std::move(phase));
@@ -48,20 +53,30 @@ std::vector<FusedTaskInput> ReadFusedTaskInputs(mlir::ModuleOp module) {
       if (!node) throw std::invalid_argument("fused phase absent from task graph");
       auto work=analysis::DeriveTaskWork(phase.op,*node,{});
       analysis::ArithmeticInputs args;
-      args.reduction=work.task_reduce_extent;
+      args.reduction=phase.op.exact_task_access?work.nominal_task_reduce_extent:work.task_reduce_extent;
       args.total=work.reduce_extent;
-      args.width=node->tile.at(phase.op.result.axes.size()-1).Eval({},{});
+      args.width=node->tile.at(analysis::TaskOwnershipSpace(phase.op).axes.size()-1).Eval({},{});
       args.dtype=phase.op.dtype;
-      auto signature=analysis::InstantiateArithmetic(phase.op.arithmetic,args);
+      analysis::OpArithmetic signature;
+      if(node->element_access) {
+        auto const& access=*node->element_access;
+        auto domain=analysis::ProjectTaskElements(access.semantic,*node,access.partition,
+            access.semantic.task_space,access.semantic.task_map,{},{}).Reverse().ImageIdentity();
+        signature=analysis::InstantiateTaskArithmetic(phase.op.arithmetic,args,domain);
+      } else signature=analysis::InstantiateArithmetic(phase.op.arithmetic,args);
       analysis::RequireArithmeticImplementation(signature);
-      auto write=analysis::ElementAccess(*node,analysis::BuildWriteMap(*node),{},
-                                        analysis::AccessDomain::kPhysicalTensor);
+      auto const& effective=node->element_access?node->element_access->semantic:phase.op;
+      auto write=node->element_access?analysis::ProjectTaskWrite(effective,*node,
+          node->element_access->partition,effective.result,effective.result_map,{},{}):
+          analysis::ElementAccess(*node,analysis::BuildWriteMap(*node),{},
+                                 analysis::AccessDomain::kPhysicalTensor);
       if (!mapping.Image().IsSubset(write.Reverse().Image()))
         throw std::invalid_argument("fusion phase map exceeds its original task domain");
       // Pull each phase's output work into consumer coordinates. Repeated
       // producer execution is counted once per consumer, not once globally.
       auto pulled=signature;
       auto pull=[&](analysis::QuasiPolynomial const& value) {
+        if (node->element_access) return value.SumAlong(mapping);
         try { (void)value.Eval({}); return value; }
         catch (std::out_of_range const&) { return value.SumAlong(mapping); }
       };
@@ -112,12 +127,22 @@ std::vector<FusedTaskInput> ReadFusedTaskInputs(mlir::ModuleOp module) {
         if (producer.writes.count(name.getValue().str())) retained.insert(name.getValue().str());
       }
     }
-    auto composed=analysis::ComposeFusionAccesses(producer,consumer,internal,retained);
+    analysis::ParamBinding known;
+    for(auto name:{"tilemega.theta","tilemega.g"})
+      if(auto values=module->getAttrOfType<mlir::DictionaryAttr>(name))
+        for(auto item:values)
+          if(auto value=llvm::dyn_cast<mlir::IntegerAttr>(item.getValue()))
+            known.Bind(item.getName().str(),value.getInt());
+    auto composed=analysis::ComposeFusionAccesses(producer,consumer,internal,retained,known);
     auto equal=[](auto const& a,auto const& b) { return a.IsSubset(b) && b.IsSubset(a); };
     if (!equal(composed.consumer_to_producer,input.phase_maps[0]))
       throw std::invalid_argument("fusion phase map differs from semantic coupling");
     auto const& write=consumer.writes.begin()->second;
-    if (!equal(write.ApplyRange(write.Reverse()),input.phase_maps[1]))
+    auto identity=write.ApplyRange(write.Reverse());
+    if(auto const& access=input.phases[1].task.element_access)
+      identity=analysis::ProjectTaskElements(access->semantic,input.phases[1].task,access->partition,
+          access->semantic.task_space,access->semantic.task_map,{},{}).Reverse().ImageIdentity();
+    if (!equal(identity,input.phase_maps[1]))
       throw std::invalid_argument("fusion consumer map is not its task identity");
     auto same_accesses=[&](auto const& a,auto const& b) {
       if (a.size()!=b.size()) return false;
@@ -153,7 +178,16 @@ ModelFusionCandidate DeriveWrittenFusionCandidate(FusedTaskInput const& input,
       if (stage.gemm<0 || stage.gemm>=static_cast<int>(configs.size()))
         throw std::invalid_argument("fusion collective phase has no selected GEMM");
       config=&configs[stage.gemm];
-      if (config->split_k!=1 || semantic.op.result.axes.size()!=2 ||
+      if(semantic.op.exact_task_access) {
+        auto expected=InstantiateModelTasks(context,configs);
+        auto const* task=expected.Find(semantic.op.name);
+        auto const& written=input.phases[index].task;
+        if(config->split_k!=1 || !task || task->tile.size()!=written.tile.size())
+          throw std::invalid_argument("selected GEMM differs from written fusion ownership");
+        for(unsigned axis=0;axis<task->tile.size();++axis)
+          if(task->tile[axis].ToString()!=written.tile[axis].ToString())
+            throw std::invalid_argument("selected GEMM differs from written fusion granularity");
+      } else if (config->split_k!=1 || semantic.op.result.axes.size()!=2 ||
           !input.phases[index].task.tile[0].IsLiteral(config->tile_m) ||
           !input.phases[index].task.tile[1].IsLiteral(config->tile_n))
         throw std::invalid_argument("selected GEMM differs from written fusion granularity");
@@ -168,7 +202,8 @@ ModelFusionCandidate DeriveWrittenFusionCandidate(FusedTaskInput const& input,
     if (ca.reads.count(tensor)) internal.insert(tensor);
     if (input.accesses.writes.count(tensor)) external.insert(tensor);
   }
-  auto accesses=analysis::ComposeFusionAccesses(pa,ca,internal,external);
+  auto accesses=analysis::ComposeFusionAccesses(pa,ca,internal,external,
+      context.dm?context.MetricBindings():analysis::ParamBinding{});
   if (!accesses.consumer_to_producer.IsSubset(input.phase_maps[0]) ||
       !input.phase_maps[0].IsSubset(accesses.consumer_to_producer))
     throw std::invalid_argument("written fusion mapping differs from price input");

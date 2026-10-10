@@ -55,6 +55,8 @@ class QuasiPolynomial {
   /// isl parse/print round trip so equal quantities compare textually equal
   /// (needed for MLIR attribute uniquing).
   static QuasiPolynomial FromIslText(std::string const& text);
+  static QuasiPolynomial FromClosedForm(ClosedForm const& expression,
+                                       ParamBinding const& known = {});
   /// card(C): image cardinality per domain point (Definition 4's wait(x) /
   /// fanout(y), depending on which side `relation` is oriented).
   static QuasiPolynomial Card(CouplingRelation const& relation);
@@ -70,6 +72,11 @@ class QuasiPolynomial {
   /// std::out_of_range naming the first dimension still unbound, matching
   /// ClosedForm::Eval's contract.
   long Eval(ParamBinding const& known) const;
+  /// Evaluate a finite scalar rational without truncating fractional work.
+  /// Integer-only callers retain Eval's stricter contract.
+  double EvalReal(ParamBinding const& known) const;
+  /// Compare finite scalar rationals exactly, returning -1, 0 or 1.
+  int CompareScalar(QuasiPolynomial const& other, ParamBinding const& known) const;
   std::vector<long> EvalPoints(ParamBinding const& known,
       std::vector<ParamBinding> const& coordinates) const;
   /// Sum over task-coordinate dimensions, retaining symbolic parameters.
@@ -109,6 +116,7 @@ class QuasiPolynomial {
   friend llvm::hash_code hash_value(QuasiPolynomial const& value);
 
  private:
+  friend class CouplingRelation;
   explicit QuasiPolynomial(std::string text) : text_(std::move(text)) {}
   std::string text_;
 };

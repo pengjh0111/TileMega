@@ -12,6 +12,10 @@
 
 namespace tilemega::codegen {
 
+constexpr int EncoderAttentionSharedBytes() { return (16*64+4*64*64)*2+704; }
+constexpr int MoeDispatchSharedBytes(int experts=128) { return 5*experts*sizeof(unsigned); }
+constexpr int MoeCombineSharedBytes(int rows,int columns) { return rows*columns*sizeof(float); }
+
 // Shared storage belongs to the implementation, including the one-float
 // empty-storage ABI. The GEMM collective provides its own storage type.
 constexpr int SimtSharedElements(TaskKind kind, int threads, int attention_extent) {
@@ -28,6 +32,14 @@ constexpr int SimtSharedElements(TaskKind kind, int threads, int attention_exten
     case TaskKind::kAttentionMerge:
     case TaskKind::kArgmaxReduce: return 4;
     case TaskKind::kGemm: return 0;
+    case TaskKind::kLayerNorm:
+    case TaskKind::kLayoutConvert:
+    case TaskKind::kPool:
+    case TaskKind::kGlobalPoolReduce: return 0;
+    case TaskKind::kEmbeddingSum: return 8;
+    case TaskKind::kEncoderAttention: return EncoderAttentionSharedBytes()/sizeof(float);
+    case TaskKind::kMoETopK: return MoeDispatchSharedBytes()/sizeof(float);
+    case TaskKind::kMoECombine: return 0;  // The plan supplies its row/column tile.
   }
   return 0;
 }
@@ -77,6 +89,14 @@ inline TaskResourceInfo ReadSimtTaskResources(TaskKind kind) {
     case TaskKind::kGemmCombine: return ReadSimtTaskResources<TaskKind::kGemmCombine, Threads>();
     case TaskKind::kAttentionMerge: return ReadSimtTaskResources<TaskKind::kAttentionMerge, Threads>();
     case TaskKind::kArgmaxReduce: return ReadSimtTaskResources<TaskKind::kArgmaxReduce, Threads>();
+    case TaskKind::kLayerNorm: return ReadSimtTaskResources<TaskKind::kLayerNorm, Threads>();
+    case TaskKind::kLayoutConvert: return ReadSimtTaskResources<TaskKind::kLayoutConvert, Threads>();
+    case TaskKind::kPool: return ReadSimtTaskResources<TaskKind::kPool, Threads>();
+    case TaskKind::kGlobalPoolReduce: return ReadSimtTaskResources<TaskKind::kGlobalPoolReduce, Threads>();
+    case TaskKind::kEmbeddingSum: return ReadSimtTaskResources<TaskKind::kEmbeddingSum, Threads>();
+    case TaskKind::kEncoderAttention: return ReadSimtTaskResources<TaskKind::kEncoderAttention, Threads>();
+    case TaskKind::kMoETopK: return ReadSimtTaskResources<TaskKind::kMoETopK, Threads>();
+    case TaskKind::kMoECombine: return ReadSimtTaskResources<TaskKind::kMoECombine, Threads>();
     default: throw std::invalid_argument("TaskBody has no scalar resource declaration");
   }
 }

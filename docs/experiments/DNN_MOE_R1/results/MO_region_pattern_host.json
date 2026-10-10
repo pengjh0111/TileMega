@@ -1,0 +1,8 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "MoE region structure: four positives and 20 negative contracts",
+  "log": "runs/dm1-moe-region-pattern-host-v2.log",
+  "log_sha256": "fd62bc412a83dcd7ec6d749573b1f7afacfaf1a85fd781092dd7b0ab7af9b674",
+  "sample": "MoE region structure: before/Core, renamed graphs and 20 negative contracts PASS\n"
+}

@@ -1,0 +1,28 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "implementation_commit": "5219ded2ec15699a6510b9b4305ce0404696f6fb",
+  "geometries": 96,
+  "binding_permutations": 24,
+  "scope": "Host aligned contribution partition proof; no dispatch permutation or runtime synchronization claim.",
+  "inputs": {
+    "include/tilemega/Analysis/CountedDependencyForm.h": "a74bd43d2f56220f067470afb92238c593af33d80c39f63bad5147ad196b77ea",
+    "lib/Analysis/CountedDependencyForm.cpp": "e427bc755717100f5ec4995cb047bea86c4f72691582660bbd53b1f6c3525e57",
+    "test/unit/counted_write_test.cpp": "089e55abbddd333f66441647dfa292976d949cda232abfca8e16aae28199e39b"
+  },
+  "queue_sha256": "218b6e17bce188997abceaeb895007bfd60a2fb5a531fd6b97526f68da99391d",
+  "completion_sha256": "f3431eedc229cab2154c06678a4dd41f811b15ddd0401bbb75e4c3d00d67e38a",
+  "binary_sha256": "e50238beccb8b2fb665141003887928c8d3addc07fa2b22c3bad56800a720b1a",
+  "logs": {
+    "runs/dm1-ci4-counted-write-host-v6/events/02_check.log": "99c8b3ecacce51e5e0ac09a8a2e660d895bbe764a5bc1cd72e821fdb93bcd52f",
+    "runs/dm1-ci4-counted-write-host-v6/events/01_compile.log": "e01d59faaf25fd057b1ac9eee8d5feea975fae45b0a54e67fe42a97af9050440",
+    "runs/dm1-ci4-counted-write-host-v6/events/scheduler.log": "aad72b17cdce5cd594932639e7e5b97c41054df30d4c1d4f7138b98d17548f6c"
+  },
+  "startup_failure": "An incorrect policy filename caused scheduler exit before any step; corrected to copied guard_policy.json; retained scheduler log.",
+  "remaining": [
+    "Dispatch permutation guarantee",
+    "CG transport/native integration",
+    "Per-target device threshold tables",
+    "Real-body 50-process synchronization"
+  ]
+}
