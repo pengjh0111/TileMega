@@ -153,37 +153,32 @@ DependencyTable BuildDependencyTableLinear(CouplingRelation const& relation,
     if(!text)throw std::runtime_error("cannot serialize dependency producer row");
     std::string key(text);free(text);
     auto found=row_cache.find(key);
-    if(found==row_cache.end())found=row_cache.emplace(std::move(key),ProducerIntervals(sources.get())).first;
+    if(found==row_cache.end()) {
+      auto row_intervals=ProducerIntervals(sources.get());
+      Runs runs;
+      for(auto const& interval:row_intervals)runs.emplace_back(interval.first,interval.count);
+      auto encoded=isl_util::ReadSet(ctx,"{ [_tm_p] : "+EncodeRuns(runs,"_tm_p")+" }");
+      encoded=isl_util::Set(isl_set_reset_space(encoded.release(),isl_set_get_space(sources.get())));
+      if(isl_set_is_subset(encoded.get(),sources.get())!=isl_bool_true ||
+          isl_set_is_subset(sources.get(),encoded.get())!=isl_bool_true)
+        throw std::logic_error("dependency table row failed exact containment proof");
+      found=row_cache.emplace(std::move(key),std::move(row_intervals)).first;
+    }
     intervals[task]=found->second;
     result.stride = std::max(result.stride, static_cast<std::uint32_t>(intervals[task].size()));
   }
   if (std::uint64_t(result.consumers) * result.stride > std::numeric_limits<std::size_t>::max() / sizeof(TaskInterval))
     throw std::invalid_argument("dependency table storage size overflows");
   result.intervals.resize(std::size_t(result.consumers) * result.stride);
-  std::map<Runs,Runs> repeated;
   for(unsigned task=0;task<result.consumers;++task) {
     std::copy(intervals[task].begin(), intervals[task].end(),
               result.intervals.begin() + std::size_t(task) * result.stride);
-    Runs row;
-    for(auto const& interval:intervals[task])row.emplace_back(interval.first,interval.count);
-    if(!row.empty())repeated[row].emplace_back(task,1);
   }
-  std::string encoded = "{ ";
-  bool first = true;
-  // Repeated channel rows and periodic producer runs have compact exact
-  // descriptions. The runtime's fixed-stride interval table is unchanged.
-  for(auto const& [row,consumers]:repeated) {
-    if(!first)encoded+="; ";first=false;
-    encoded+="[_tm_c] -> [_tm_p] : ("+EncodeRuns(consumers,"_tm_c")+") and ("+
-        EncodeRuns(row,"_tm_p")+")";
-  }
-  if (first) encoded += "[_tm_c] -> [_tm_p] : false";
-  result.encoded_relation = CouplingRelation::FromIslText(encoded + " }");
-  // Compare the compact interval relation directly, rather than expanding a
-  // dense fan-in into millions of pairs twice just to prove equality.
-  if (!Contains(result.encoded_relation,result.linear_relation) ||
-      !Contains(result.linear_relation,result.encoded_relation))
-    throw std::logic_error("dependency table failed exact containment proof");
+  // Bounds exclude every other consumer and both inclusions were proved for
+  // every row above. Thus the original compact relation is also an exact
+  // description of these intervals. Rebuilding a disjunction of consumer
+  // rows would lose its affine factoring and make the global proof enormous.
+  result.encoded_relation=result.linear_relation;
   return result;
 }
 }  // namespace tilemega::analysis

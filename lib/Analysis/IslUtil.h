@@ -21,6 +21,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace tilemega::analysis::isl_util {
 
@@ -90,6 +91,44 @@ inline Set ReadSet(isl_ctx* ctx, std::string const& text) {
 }
 
 inline PwQPolynomial ReadPwQPolynomial(isl_ctx* ctx, std::string const& text) {
+  // The stock parser combines pieces from left to right using general union
+  // addition. Large finite task partitions then repeatedly intersect every
+  // earlier piece. Parse each piece with ISL and prove disjoint supports
+  // before taking its disjoint-add path; overlapping input keeps ISL's usual
+  // additive semantics. No printed expression is evaluated by this splitter.
+  auto open=text.find('{'),close=text.rfind('}');
+  if(text.size()>4096 && open!=std::string::npos && close>open &&
+      text.find('{',open+1)==std::string::npos &&
+      text.find('}',open+1)==close && text.find('"')==std::string::npos &&
+      text.find_first_not_of(" \t\r\n",close+1)==std::string::npos) {
+    std::vector<PwQPolynomial> pieces;
+    std::size_t first=open+1;
+    while(first<close) {
+      auto end=text.find(';',first);
+      if(end==std::string::npos || end>close)end=close;
+      auto fragment=text.substr(0,open+1)+text.substr(first,end-first)+" }";
+      auto* piece=isl_pw_qpolynomial_read_from_str(ctx,fragment.c_str());
+      if(!piece)Fail(ctx,"failed to parse quasi-polynomial piece: "+fragment);
+      pieces.emplace_back(piece);first=end+1;
+    }
+    while(pieces.size()>1) {
+      std::vector<PwQPolynomial> next;
+      for(std::size_t i=0;i<pieces.size();i+=2) {
+        if(i+1==pieces.size()) {next.push_back(std::move(pieces[i]));continue;}
+        Set lhs(isl_pw_qpolynomial_domain(isl_pw_qpolynomial_copy(pieces[i].get())));
+        Set rhs(isl_pw_qpolynomial_domain(isl_pw_qpolynomial_copy(pieces[i+1].get())));
+        auto disjoint=isl_set_is_disjoint(lhs.get(),rhs.get());
+        if(disjoint==isl_bool_error)Fail(ctx,"failed to prove polynomial support disjointness");
+        auto* sum=disjoint==isl_bool_true?
+            isl_pw_qpolynomial_add_disjoint(pieces[i].release(),pieces[i+1].release()):
+            isl_pw_qpolynomial_add(pieces[i].release(),pieces[i+1].release());
+        if(!sum)Fail(ctx,"failed to combine quasi-polynomial pieces");
+        next.emplace_back(sum);
+      }
+      pieces=std::move(next);
+    }
+    if(!pieces.empty())return std::move(pieces.front());
+  }
   isl_pw_qpolynomial* value = isl_pw_qpolynomial_read_from_str(ctx, text.c_str());
   if (!value) Fail(ctx, "failed to parse quasi-polynomial: " + text);
   return PwQPolynomial(value);

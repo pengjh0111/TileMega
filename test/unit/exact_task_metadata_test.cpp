@@ -11,6 +11,7 @@
 #include <mlir/Parser/Parser.h>
 #include <cassert>
 #include <algorithm>
+#include <numeric>
 
 namespace tilemega::tests::exact_task_metadata_test {
 namespace {
@@ -167,6 +168,10 @@ void FiniteFibers() {
   auto holes=CouplingRelation::FromIslText(
       "{ [m] -> [i] : 0<=m<3 and 0<=i<100000000 and i%2=0 }");
   assert(holes.BoundTaskCard().Eval({})==50000000);
+  auto fragments=CouplingRelation::FromIslText(
+      "{ [m] -> [y,x,c] : 0<=m<4 and 0<=y<5 and 0<=x<11 and "
+      "0<=c<64 and (11*y+x<13+m or 29+m<=11*y+x<45) }");
+  assert(fragments.BoundTaskCard().SemanticallyEqual(fragments.Card(),{}));
   auto triangle=CouplingRelation::FromIslText(
       "{ [m] -> [p,q] : 0<=m<3 and 0<=p<1000 and 0<=q<=p }");
   assert(triangle.BoundTaskCard().Eval({})==500500);
@@ -188,6 +193,24 @@ void FiniteFibers() {
   }
   assert(jagged_count.EvalPoints({},jagged_at)==jagged_expected);
   assert(jagged_count.SumDomain().Eval({})==jagged_total);
+  for(bool overlap:{false,true}) {
+    std::string text="[B] -> { ";
+    std::vector<long> expected(515);
+    for(long i=0;i<256;++i) {
+      if(i)text+="; ";
+      text+="[m] -> B+"+std::to_string(i%7)+" : "+std::to_string(2*i)+
+          "<=m<"+std::to_string(2*i+2+overlap);
+      for(long m=2*i;m<2*i+2+overlap;++m)expected[m]+=3+i%7;
+    }
+    text+=" }";assert(text.size()>4096);
+    auto polynomial=QuasiPolynomial::FromIslText(text);
+    std::vector<ParamBinding> at(expected.size());
+    for(unsigned m=0;m<at.size();++m)at[m].Bind("m",m);
+    ParamBinding theta;theta.Bind("B",3);
+    assert(polynomial.EvalPoints(theta,at)==expected);
+    assert(polynomial.SumDomain().Eval(theta)==
+        std::accumulate(expected.begin(),expected.end(),0L));
+  }
   auto envelope = DescribeTaskElementBox(exact);
   assert(std::string(envelope.exactness) == "over");
   assert(Contains(envelope.relation, exact) && !Contains(exact, envelope.relation));

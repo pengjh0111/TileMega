@@ -111,6 +111,7 @@ class QuasiPolynomial {
   friend llvm::hash_code hash_value(QuasiPolynomial const& value);
 
  private:
+  friend class CouplingRelation;
   explicit QuasiPolynomial(std::string text) : text_(std::move(text)) {}
   std::string text_;
 };

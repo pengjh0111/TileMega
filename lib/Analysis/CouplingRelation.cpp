@@ -13,6 +13,7 @@
 #include <map>
 #include <sstream>
 #include <isl/ilp.h>
+#include <isl/constraint.h>
 #include <optional>
 
 #ifndef TILEMEGA_ISL_COMPONENT_ENUMERATION
@@ -24,20 +25,50 @@ namespace tilemega::analysis {
 namespace {
 isl_ctx* Ctx() { return SharedIslContext().raw(); }
 
+bool HasDirectOutputCoupling(isl_map* map,int axis) {
+  struct State {int axis;bool coupled=false;} state{axis};
+  auto component=[](isl_basic_map* raw,void* user)->isl_stat {
+    isl_util::Obj<isl_basic_map,isl_basic_map_copy,isl_basic_map_free> part(raw);
+    auto constraint=[](isl_constraint* raw,void* user)->isl_stat {
+      isl_util::Obj<isl_constraint,isl_constraint_copy,isl_constraint_free> c(raw);
+      auto& state=*static_cast<State*>(user);
+      auto coefficient=isl_util::Val(isl_constraint_get_coefficient_val(c.get(),isl_dim_in,state.axis));
+      if(!coefficient)return isl_stat_error;
+      if(isl_val_is_zero(coefficient.get())==isl_bool_true)return isl_stat_ok;
+      for(auto type:{isl_dim_out,isl_dim_div})
+        for(int i=0;i<isl_constraint_dim(c.get(),type);++i) {
+          auto value=isl_util::Val(isl_constraint_get_coefficient_val(c.get(),type,i));
+          if(!value)return isl_stat_error;
+          if(isl_val_is_zero(value.get())!=isl_bool_true)state.coupled=true;
+        }
+      return isl_stat_ok;
+    };
+    return isl_basic_map_foreach_constraint(part.get(),constraint,user);
+  };
+  if(isl_map_foreach_basic_map(map,component,&state)!=isl_stat_ok)
+    throw std::runtime_error("cannot inspect task coordinate coupling");
+  return state.coupled;
+}
+
 isl_util::Val CountFiniteFiber(isl_set* elements) {
   if(isl_set_is_empty(elements)==isl_bool_true)
     return isl_util::Val(isl_val_zero(Ctx()));
-  // Optimize a polyhedral cover instead of repeatedly solving integer
-  // programs with the flattened layout's floor/mod divisions. The cover is
-  // used only to propose a box; exact set equality below still proves it.
-  auto hull=isl_util::Set(isl_set_from_basic_set(isl_set_polyhedral_hull(isl_set_copy(elements))));
-  if(!hull)throw std::runtime_error("finite task fiber hull failed");
+  // Eliminating local divisions gives a rational cover without constructing
+  // the convex hull of a union of halo fragments. Exact equality below, not
+  // the cover, decides whether a proposed box can be counted as a product.
+  auto cover=isl_util::Set(isl_set_remove_divs(isl_set_copy(elements)));
+  if(!cover)throw std::runtime_error("finite task fiber cover failed");
   auto box=isl_util::Set(isl_set_universe(isl_set_get_space(elements)));
   auto product=isl_util::Val(isl_val_one(Ctx()));
   std::vector<isl_util::Val> lower,upper,widths;
   for(int axis=0;axis<isl_set_dim(elements,isl_dim_set);++axis) {
-    isl_util::Val lo(isl_set_dim_min_val(isl_set_copy(hull.get()),axis));
-    isl_util::Val hi(isl_set_dim_max_val(isl_set_copy(hull.get()),axis));
+    isl_util::Val lo(isl_set_dim_min_val(isl_set_copy(cover.get()),axis));
+    isl_util::Val hi(isl_set_dim_max_val(isl_set_copy(cover.get()),axis));
+    if(lo && hi && (isl_val_is_int(lo.get())!=isl_bool_true ||
+                    isl_val_is_int(hi.get())!=isl_bool_true)) {
+      lo=isl_util::Val(isl_set_dim_min_val(isl_set_copy(elements),axis));
+      hi=isl_util::Val(isl_set_dim_max_val(isl_set_copy(elements),axis));
+    }
     if(!lo || !hi || isl_val_is_int(lo.get())!=isl_bool_true ||
         isl_val_is_int(hi.get())!=isl_bool_true)
       throw std::invalid_argument("finite task fiber is not bounded");
@@ -430,14 +461,30 @@ QuasiPolynomial CouplingRelation::BoundTaskCard(unsigned max_domain_points) cons
       // only after proving that its pullback reproduces the original map.
       // This keeps bound forward graphs out of huge symbolic floor sums.
       for(int axis=isl_map_dim(map.get(),isl_dim_in)-1;axis>=0;--axis) {
+        // Reject visibly coupled coordinates before attempting a potentially
+        // expensive equality. This screen never authorizes a projection;
+        // every accepted coordinate still needs the full pullback proof.
+        if(HasDirectOutputCoupling(map.get(),axis))continue;
         auto reduced=isl_util::Map(isl_map_project_out(isl_map_copy(map.get()),isl_dim_in,axis,1));
         auto projection=isl_util::Map(isl_map_identity(isl_space_map_from_set(isl_set_get_space(domain.get()))));
         projection=isl_util::Map(isl_map_project_out(projection.release(),isl_dim_out,axis,1));
         projection=isl_util::Map(isl_map_intersect_domain(projection.release(),isl_set_copy(domain.get())));
         auto lifted=isl_util::Map(isl_map_apply_range(isl_map_copy(projection.get()),isl_map_copy(reduced.get())));
-        if(isl_map_is_equal(map.get(),lifted.get())==isl_bool_true)
-          return CouplingRelation(isl_util::ToString(reduced.get())).BoundTaskCard(max_domain_points)
-              .SumAlong(CouplingRelation(isl_util::ToString(projection.get())));
+        if(isl_map_is_equal(map.get(),lifted.get())==isl_bool_true) {
+          auto count=CouplingRelation(isl_util::ToString(reduced.get())).BoundTaskCard(max_domain_points);
+          auto value=isl_util::ReadPwQPolynomial(Ctx(),count.ToString());
+          // This proved projection is an identity with one coordinate
+          // removed. Inserting that coordinate and restricting the original
+          // domain is its exact pullback, with no general fiber summation.
+          value=isl_util::PwQPolynomial(isl_pw_qpolynomial_insert_dims(
+              value.release(),isl_dim_in,axis,1));
+          value=isl_util::PwQPolynomial(isl_pw_qpolynomial_reset_domain_space(
+              value.release(),isl_set_get_space(domain.get())));
+          value=isl_util::PwQPolynomial(isl_pw_qpolynomial_intersect_domain(
+              value.release(),isl_set_copy(domain.get())));
+          if(!value)throw std::runtime_error("finite task coordinate pullback failed");
+          return QuasiPolynomial(isl_util::ToString(value.get()));
+        }
       }
       return std::nullopt;
     };
