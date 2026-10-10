@@ -75,6 +75,8 @@ class NativeForward:
         if len(arguments) != len(self.inputs):
             raise ValueError('input arity differs from the exported graph')
         for name, value in zip(self.inputs, arguments):
+            if value.shape!=self.tensors[name].shape or value.dtype!=self.tensors[name].dtype:
+                raise ValueError('input shape/dtype differs from the bound forward plan: '+name)
             self.tensors[name].copy_(value)
         first = None
         for mode in (1, 2):

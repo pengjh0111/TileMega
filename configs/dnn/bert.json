@@ -1,0 +1,33 @@
+{
+  "model": {
+    "name": "bert",
+    "checkpoint": "/root/models/bert_base_uncased"
+  },
+  "workload": {
+    "batch": [
+      1,
+      8,
+      32
+    ]
+  },
+  "data": {
+    "path": "/root/datasets/wikitext103/wikitext-103-raw-v1/validation-00000-of-00001.parquet"
+  },
+  "target": "configs/targets/sm_89.json",
+  "device": {
+    "cache_dir": "~/.cache/tilemega-dm"
+  },
+  "solver": {
+    "passes": 2,
+    "jobs": 1,
+    "time_budget_s": 1800
+  },
+  "features": {
+    "pg": "l2",
+    "forward_executor": "L2",
+    "reuse": "auto"
+  },
+  "output": {
+    "dir": "runs/dm1-bert"
+  }
+}

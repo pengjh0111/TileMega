@@ -719,6 +719,9 @@ class Run:
 
 
 def main():
+    if len(sys.argv)>1 and sys.argv[1]=='dnn':
+        from .dnn.cli import main as dnn_main
+        return dnn_main(sys.argv[2:])
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=('doctor','calibrate','export','build','bench','check','report','run'))
     parser.add_argument('--config', type=Path)
