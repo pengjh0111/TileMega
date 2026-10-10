@@ -9166,3 +9166,16 @@ as the current generation bottleneck. The five targeted linear-window host
 checks and eight default-geometry LLM CUDA comparisons pass. See
 `DNN_MOE_R1/exact_fibers.md`; full-graph completion is not claimed by those
 smaller checks. No performance measurements were taken.
+
+### DM-1: changing MoE down columns also changes counted ownership
+
+- verified: a TN128 seed followed by a TN32 expert-down candidate retained the
+  seed combine tile in the GEMM-only incremental path. The exact counted proof
+  rejected its partial-column contributions. Candidate preparation now reimports
+  combine ownership, thresholds and statistic storage when down N changes; the
+  seed128-to-selected32 host regression and actual public CLI pass.
+- inferred: sharing a binding shape or logical tensor extent does not justify
+  reusing a counted contract across a changed physical column partition.
+- Evidence: `experiments/DNN_MOE_R1/dm_reduction_search.md`,
+  `experiments/DNN_MOE_R1/results/CI7_dm_reduction_selection_host.json`. No new race-rate or
+  latency conclusion is claimed.

@@ -47,3 +47,10 @@ compact RGB host admission defects. Both spellings C and1,C,1,1 now pack
 identically; a four-channel physical pitch is admitted. The earlier failures
 remain recorded. The combined kernels spill; per-kernel resources are sealed
 in the native receipt. No new process matrix or timing run was performed.
+
+verified: pool LA versus independent-stage selection now participates in the
+structural starts and coordinate scan. The selected mask is encoded in generated
+CUDA, manifest and identity; shared proof qualification and inferred arrival
+pricing are described in `dm_reduction_search.md`. The focused DNN final-CUDA
+check passes in `CI7_dm_reduction_selection_host.json`; the earlier combined
+DNN native receipt is retained without repeating its input check.

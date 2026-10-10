@@ -37,14 +37,14 @@ most one emitted range (at most one page), then stops until loader progress.
 Prefetch is a cache hint: it neither publishes full pages nor changes compute
 readiness. It cannot make a produced activation eligible for an early read.
 
-Pending binding-aware extension: the weight payload has no in-launch producer,
+inferred: in the binding-aware extension the weight payload has no in-launch producer,
 but its source address depends on dispatch. A lookahead cursor must stop at an
 unready binding without waiting and retain that cursor position. Blocking it
 could prevent the current page from reaching compute, which must run the
 dispatch producer. The actual loader task may wait for its binding's release
 event. Loader and compute must apply the same valid/empty predicate, so empty
 virtual tasks advance neither sequence and still publish completion. These
-requirements are not yet claimed as verified implementation.
+invariants describe the implemented BindingGate and shared valid/empty path.
 
 verified: forward dense GEMMs, prefill dense GEMMs and prefill attention each
 pass 50/50 fresh sm_89 processes, sixteen poisoned epochs per process. Native
@@ -52,5 +52,6 @@ C ABI L1/L2 outputs match bitwise and meet independent FP32-reference numerical
 criteria. TM=16/32/64/128 are covered for GEMMs; all five architectures compile.
 `results/CI5_paged_phases.json` and `results/CI5_paged_attention.json` retain
 identities, source hashes, process logs and all kernel resource/spill lines.
-These synthetic plans verify the core page paths; binding-aware full PageStream,
-real DNN/MoE TaskBodies and model gates remain separate checks.
+The bound PageStream additionally has fixed-input grouped-page and generic LA
+execution evidence (`MO_pages_initial_native.json`, `CI5_dm_last_arriver_generated.json`);
+these later functional checks do not claim a new 50-process synchronization rate.

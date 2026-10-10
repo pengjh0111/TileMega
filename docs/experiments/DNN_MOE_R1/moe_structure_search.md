@@ -37,3 +37,10 @@ labelled full-capacity isolated-cost surrogate for fixed cost. Empty tasks issue
 zero priced compute/DRAM; this surrogate is neither a new calibration nor a
 latency prediction verified on hardware. The strict public pricing API still
 rejects absent fits unless the caller explicitly selects this policy.
+
+verified: binding families now cross MMA/GEMV and four independent dispatch/
+combine LA masks, for 40 host-tested structures (`dm_reduction_search.md`). Actual
+hybrid resource compilation reports 128 registers and 12288 shared bytes; its
+out-of-line body has 296-byte spill stores and 416-byte spill loads. Scalar
+GEMV pricing is analytic and labelled inferred, not a new empirical body fit
+(`moe_gemv.md`, `CI7_moe_gemv_family_host.json`).

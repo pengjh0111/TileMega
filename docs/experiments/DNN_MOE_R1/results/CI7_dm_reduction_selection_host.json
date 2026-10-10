@@ -1,0 +1,115 @@
+{
+  "evidence": "verified",
+  "scope": "host proof, structural search and final CUDA; no timing or new process-rate matrix",
+  "families": {
+    "moe": 40,
+    "dnn": "pool LA/stage plus fusion, LN, reuse and C padding"
+  },
+  "checks": [
+    {
+      "case": "proof",
+      "command": [
+        "build-dm/dm_reduction_plan_test"
+      ],
+      "exit_code": 0
+    },
+    {
+      "case": "flow",
+      "command": [
+        "build-dm/tilemega-unit",
+        "stage_flow"
+      ],
+      "exit_code": 0
+    },
+    {
+      "case": "moe_flow",
+      "command": [
+        "build-dm/tilemega-unit",
+        "moe_dram_bindings"
+      ],
+      "exit_code": 0
+    },
+    {
+      "case": "moe_search",
+      "command": [
+        "build-dm/tilemega-unit",
+        "moe_structure_search",
+        "--emit",
+        "/root/dm1_work/development/runs/dm1-reduction-selection-host-v3/moe.cu"
+      ],
+      "exit_code": 0
+    },
+    {
+      "case": "dnn_search",
+      "command": [
+        "build-dm/tilemega-unit",
+        "dnn_structure_search",
+        "--emit",
+        "/root/dm1_work/development/runs/dm1-reduction-selection-host-v3/dnn.cu"
+      ],
+      "exit_code": 0
+    },
+    {
+      "case": "policy",
+      "command": [
+        "cmake",
+        "--build",
+        "build-dm",
+        "--target",
+        "check-policy"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "alignment": {
+    "log": "runs/dm1-reduction-alignment-host-v3.log",
+    "passed": true,
+    "contract": "H128 seed TN128 to selected TN32; counted combine ownership rematerialized"
+  },
+  "limits": "Target publication remains an inferred arrival proxy. Selected native one-input execution is sealed separately in MO_selected_reduction_gemv_native.json; no timing or race-rate claim.",
+  "multicolumn_family_search": {
+    "log": "runs/dm1-reduction-alignment-host-v1.log",
+    "passed": true,
+    "families": 40,
+    "scope": "H128 and I64 host search plus final CUDA; no native input matrix"
+  },
+  "preserved_failures": [
+    {
+      "root": "runs/dm1-la-gemv-search-cli-v3",
+      "reason": "incremental seed/selected down-column mismatch; repaired"
+    },
+    {
+      "root": "runs/dm1-la-gemv-search-cli-v4",
+      "reason": "same mismatch with exact relation diagnostics; repaired"
+    },
+    {
+      "root": "runs/dm1-la-gemv-search-cli-v5",
+      "reason": "final evaluation and CUDA compile pass; resource query rejects artificial num_sms=2 target, actual device 128; fixture uses actual resources in v6"
+    }
+  ],
+  "public_cli": {
+    "passed": true,
+    "root": "runs/dm1-la-gemv-search-cli-v6",
+    "cu_sha256": "274e00945df4d448031b82b2b81954e71450ef2cc372ccd59a6f672e8f310135",
+    "manifest_sha256": "81454b4367a15da02baa73e5ba0e63cb911ffd3363b4226d0d330002454800ca",
+    "selection": {
+      "grid": 128,
+      "residency": 1,
+      "moe_structure": "group;bm=16;family=gemv;la=2",
+      "dm_reduction_mask": 2,
+      "dm_reduction_proved_stages": 1
+    },
+    "resources": {
+      "resident": 2,
+      "l1": 2,
+      "l2": 2,
+      "registers_l1": 238,
+      "registers_l2": 236,
+      "dynamic_shared": 16384,
+      "threads": 128
+    },
+    "device_provenance": "target.json contains the locked actual device resource binding; archived rates are not new calibration",
+    "scope": "predicted structural selection and real kernel residency query; no latency data"
+  },
+  "architecture_scope": "Actual solved plan pins sm89. Cross-architecture attempts in selected-native-v1 reject the architecture identity mismatch; existing TaskBody five-architecture receipts remain the portability evidence."
+}

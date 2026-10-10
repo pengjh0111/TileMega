@@ -1,0 +1,142 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "one fixed synthetic T17 H128 I64 E16 K8 input; publicly selected groupBM16 conditional GEMV/MMA + dispatch LA; no performance, dataset or 50-process claim",
+  "source_head": "93b11c76e3b779a036c8b3cedab55bb345275e4d",
+  "artifact_id": "3ed1b6041f9c682286b08dcfa96265e87a2970d71ff96ba371ebbbc903ce9b53",
+  "identity_path": "runs/dm1-la-gemv-selected-native-v1/generated-sm_89.so.identity.json",
+  "identity_sha256": "37b2bc79a533c81ce5619fd644ee9db569fbc4ee33940dc9894b523a369e9846",
+  "cu_sha256": "9d40a704ffcf31e505276da26e1e3383022553b4abbc1e5fd275ab520ecd0857",
+  "binary_sha256": "124f50d031c25ad6c7e15c3ca03c411b546f09bfae27a938a3f39a5f1821ec88",
+  "selection": {
+    "moe_structure": "group;bm=16;family=gemv;la=2",
+    "dm_reduction_mask": 2,
+    "dm_reduction_proved_stages": 1,
+    "grid": 128,
+    "residency": 1
+  },
+  "checks": {
+    "evidence": "verified",
+    "passed": true,
+    "scope": "synthetic generated MoE region; no real-weight gate",
+    "artifact_id": "3ed1b6041f9c682286b08dcfa96265e87a2970d71ff96ba371ebbbc903ce9b53",
+    "bridge_sha256": "1ba848c81d35e5fa7ab9dac128389013ea52948c21569187b7d6833e9ea8c377",
+    "provenance": {
+      "seed": 20261009,
+      "synthetic": true
+    },
+    "expert_contribution_max": 0.19140625,
+    "cases": [
+      {
+        "epoch": 0,
+        "mode": 1,
+        "passed": true,
+        "max_error": 0.0078125,
+        "set_equal_fraction": 1.0,
+        "routing_intersection_fraction": 1.0,
+        "router_max_error": 0.0078125,
+        "same_binary_bits": true
+      },
+      {
+        "epoch": 0,
+        "mode": 2,
+        "passed": true,
+        "max_error": 0.0078125,
+        "set_equal_fraction": 1.0,
+        "routing_intersection_fraction": 1.0,
+        "router_max_error": 0.0078125,
+        "same_binary_bits": true
+      }
+    ]
+  },
+  "resources": {
+    "_ZN8tilemega7codegen28tilemega_wait_profile_kernelEPKNS0_6ParamsEi": {
+      "registers": 56,
+      "stack_bytes": 72,
+      "spill_store_bytes": 0,
+      "spill_load_bytes": 0,
+      "smem_bytes": 0,
+      "resource_lines": [
+        "72 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "ptxas info    : Used 56 registers, used 0 barriers, 72 bytes cumulative stack size, 364 bytes cmem[0], 48 bytes cmem[2]"
+      ],
+      "spill": false
+    },
+    "_ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+      "registers": 232,
+      "stack_bytes": 2480,
+      "spill_store_bytes": 0,
+      "spill_load_bytes": 0,
+      "smem_bytes": 32,
+      "resource_lines": [
+        "2480 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "ptxas info    : Used 232 registers, used 2 barriers, 2480 bytes cumulative stack size, 32 bytes smem, 376 bytes cmem[0], 2336 bytes cmem[2]",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+      ],
+      "spill": false
+    },
+    "_ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsEPNS0_12EventCounterEy": {
+      "registers": 236,
+      "stack_bytes": 2480,
+      "spill_store_bytes": 0,
+      "spill_load_bytes": 0,
+      "smem_bytes": 32,
+      "resource_lines": [
+        "2480 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "ptxas info    : Used 236 registers, used 2 barriers, 2480 bytes cumulative stack size, 32 bytes smem, 376 bytes cmem[0], 312 bytes cmem[2]",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+      ],
+      "spill": false
+    },
+    "_ZN8tilemega7codegen21tilemega_stage_kernelEPKNS0_6ParamsEj": {
+      "registers": 255,
+      "stack_bytes": 2416,
+      "spill_store_bytes": 8,
+      "spill_load_bytes": 8,
+      "smem_bytes": 0,
+      "resource_lines": [
+        "2416 bytes stack frame, 8 bytes spill stores, 8 bytes spill loads",
+        "ptxas info    : Used 255 registers, used 2 barriers, 2416 bytes cumulative stack size, 364 bytes cmem[0], 192 bytes cmem[2]",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads",
+        "0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads"
+      ],
+      "spill": true
+    }
+  },
+  "architecture": {
+    "executed": "sm89",
+    "other_arch_attempts": "80/90/100/120 rejected solved-sm89 identity guard; not compile passes",
+    "queue_result": {
+      "build_sm_80": 1,
+      "build_sm_89": 0,
+      "build_sm_90": 1,
+      "build_sm_100": 1,
+      "build_sm_120": 1,
+      "check_00": 0
+    },
+    "portability": "Reuse prior five-architecture TaskBody compile receipts; new reduction selection/proof changes are host-side"
+  }
+}

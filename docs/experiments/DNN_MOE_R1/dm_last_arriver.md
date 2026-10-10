@@ -32,5 +32,5 @@ opaque MoE also disables them. DNN configuration accepts these controls and
 default while preserving explicit overrides and dense LLM defaults.
 
 These are single-process functional checks, not 50-process race evidence.
-No latency was measured. Structural solver pricing and full-graph handoff
-coverage remain unfinished; no joint-search or complete model gate is claimed.
+No latency was measured. Structural solver pricing and the 40-family joint host
+search now pass (`dm_reduction_search.md`); complete model gates are not claimed.
