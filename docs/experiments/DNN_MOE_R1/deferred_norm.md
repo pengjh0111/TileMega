@@ -30,6 +30,10 @@ The original frozen queue failed because its Python snapshot omitted the weight
 loader; that failure is retained. This single numerical smoke does not establish
 a 50-process synchronization claim or full-model numerical correctness.
 
-Deviation/pending: `--deferred-ln auto|0` currently controls all proved edges
-as one structural choice. Per-edge joint solver selection and extra norm-work
-pricing remain to be integrated. No timing or speed claim is made.
+verified: per-consumer selection retains explicit LN for unselected or unsupported
+consumers, and isolates folded weights from shared original aliases. Host checks
+cover an enabled contraction, a retained residual, residual-only selection and an
+empty selection. `DnnPlanOptions.deferred_layernorm_gemms` exposes these choices.
+
+Pending: the CLI auto mode still enables all proved edges. Joint coordinate
+search over the selection and extra norm-work pricing remain to be integrated. No timing or speed claim is made.

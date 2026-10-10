@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Frontend/ModelPlan.h>
+#include <optional>
+#include <set>
 namespace tilemega::frontend {
 struct DnnPlanOptions {
   unsigned batch=1;
@@ -10,6 +12,7 @@ struct DnnPlanOptions {
   std::string memory_reuse="none";
   std::uint64_t memory_l2_budget_bytes=0;
   bool deferred_layernorm=false;
+  std::optional<std::set<unsigned>> deferred_layernorm_gemms;
 };
 ModelPlan BuildDnnModelPlan(std::vector<FxNodeRecord> const&,
     std::vector<SignatureInput> const&,std::vector<std::string> const&,

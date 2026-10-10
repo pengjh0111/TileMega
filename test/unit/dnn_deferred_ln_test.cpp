@@ -70,12 +70,28 @@ int TestDnnDeferredLN(int argc,char** argv) {
   assert(norm.kind==DmEpilogueKind::kDeferredLayerNorm && norm.norm_width==32 &&
       norm.norm_epsilon==1e-12f && residual.kind==DmEpilogueKind::kResidualLN &&
       residual.norm_width==32 && plan.gemms[2].k==64 && residual.norm_epsilon==1e-12f);
+  auto mixed=Fixture();std::set<unsigned> selected{1};
+  auto original_weight=mixed.gemms[1].b;
+  auto original_recipe=mixed.buffers[original_weight].pack_json;
+  assert(!ApplyDnnDeferredLayerNorm(mixed,&selected) && mixed.stages.size()==4);
+  assert(mixed.gemms[1].chain.operations[0].kind==DmEpilogueKind::kDeferredLayerNorm);
+  assert(mixed.gemms[2].chain.operations[1].kind==DmEpilogueKind::kResidual);
+  assert(mixed.gemms[1].b!=original_weight && mixed.buffers[original_weight].pack_json==original_recipe);
+  assert(mixed.node_buffer.at("normalized")==2 && mixed.stages[1].kind==PlanTaskKind::kLayerNorm);
+  auto disabled=Fixture();std::set<unsigned> empty;
+  assert(!ApplyDnnDeferredLayerNorm(disabled,&empty) && disabled.buffers.size()==Fixture().buffers.size());
+  auto residual_only=Fixture();std::set<unsigned> residual_choice{2};
+  assert(!ApplyDnnDeferredLayerNorm(residual_only,&residual_choice));
+  assert(residual_only.gemms[2].chain.operations[1].kind==DmEpilogueKind::kResidualLN &&
+      residual_only.gemms[1].a==2);
   auto observed=Fixture();observed.outputs.push_back({2,{}});
   assert(!ApplyDnnDeferredLayerNorm(observed) && observed.stages.size()==4);
   auto strided=Fixture();strided.gemms[1].access.a_row_stride=2;
-  assert(!ApplyDnnDeferredLayerNorm(strided));
+  assert(!ApplyDnnDeferredLayerNorm(strided) &&
+      strided.gemms[2].chain.operations[1].kind==DmEpilogueKind::kResidualLN);
   auto alias=Fixture();alias.gemms[2].chain.operations[1].parameter[1]=5;
-  assert(!ApplyDnnDeferredLayerNorm(alias));
+  assert(!ApplyDnnDeferredLayerNorm(alias) &&
+      alias.gemms[1].chain.operations[0].kind==DmEpilogueKind::kDeferredLayerNorm);
   LiftOptions options;options.forward=true;options.batch_symbol="B";options.static_seq=5;
   auto lifted=LiftDnnSemantics(plan,options);
   auto g=LaunchGranularity(lifted,plan,{{16,16,16,2,1},{16,32,16,2,1},{16,16,16,2,1}});

@@ -32,7 +32,7 @@ bool SameRows(DmBufferLayout const& x,DmBufferLayout const& y,unsigned width) {
   return std::equal(std::begin(x.logical),std::end(x.logical),std::begin(y.logical));
 }
 }
-unsigned ApplyDnnDeferredLayerNorm(ModelPlan& destination) {
+unsigned ApplyDnnDeferredLayerNorm(ModelPlan& destination,std::set<unsigned> const* selected_gemms) {
   if(!destination.dm || !destination.forward || destination.forward_token_axis)
     throw std::invalid_argument("deferred DNN normalization requires a DNN forward plan");
   auto plan=destination;std::set<unsigned> removed;unsigned count=0;
@@ -60,15 +60,15 @@ unsigned ApplyDnnDeferredLayerNorm(ModelPlan& destination) {
           std::any_of(std::begin(g.chain.operations),std::begin(g.chain.operations)+g.chain.count,
               [](auto const& op){return op.kind==DmEpilogueKind::kGatePair;}))continue;
     }
-    std::vector<unsigned> consumers;bool valid=true;
+    std::vector<unsigned> consumers;bool fully_deferred=true;
     for(unsigned after=index+1;after<plan.stages.size();++after) {
       auto const& s=plan.stages[after];
       if(s.kind!=PlanTaskKind::kGemm) {
-        for(auto id:s.operands)if(id==y)valid=false;
+        for(auto id:s.operands)if(id==y)fully_deferred=false;
         continue;
       }
-      auto const& g=plan.gemms.at(s.gemm);bool uses=g.a==y;
-      if(g.c==y && g.c!=g.d)valid=false;
+      auto const& g=plan.gemms.at(s.gemm);bool uses=g.a==y,valid=true;
+      if(g.c==y && g.c!=g.d){uses=true;valid=false;}
       if(g.a==y) {
         // Equality of logical rows plus a complete channel contraction is the
         // access proof: each dot reads exactly LN's one row, without a spatial
@@ -92,9 +92,12 @@ unsigned ApplyDnnDeferredLayerNorm(ModelPlan& destination) {
               g.n==width;
         }
       }
-      if(uses)consumers.push_back(s.gemm);
+      if(uses) {
+        if(valid && (!selected_gemms || selected_gemms->count(s.gemm)))consumers.push_back(s.gemm);
+        else fully_deferred=false;
+      }
     }
-    if(!valid || consumers.empty())continue;
+    if(consumers.empty())continue;
     auto gamma=Source(plan.buffers.at(norm.operands[1]));
     auto beta=Source(plan.buffers.at(norm.operands[2]));
     PlanBuffer stats;stats.name=plan.buffers[x].name+".deferred_ln_stats";stats.dtype="f32";
@@ -127,7 +130,13 @@ unsigned ApplyDnnDeferredLayerNorm(ModelPlan& destination) {
         };
         auto u=weight(plan.buffers[g.b].name+".ln_u",folded("u"),g.n);
         auto v=weight(plan.buffers[g.b].name+".ln_v",folded("v"),g.n);
-        plan.buffers[g.b].pack_json=Json(folded("weight"));g.a=x;
+        auto folded_weight=plan.buffers[g.b];
+        folded_weight.name+=".deferred_ln."+std::to_string(consumer);
+        folded_weight.external_name=folded_weight.name;
+        folded_weight.pack_json=Json(folded("weight"));
+        // A shared original weight may also serve an explicit-LN consumer.
+        // Give each folded edge its own recipe instead of mutating that alias.
+        g.b=plan.buffers.size();plan.buffers.push_back(std::move(folded_weight));g.a=x;
         if(g.access.a==DmAAccess::kIm2Col)plan.convolutions[g.access.conv].input_layout=x;
         if(bias!=kDmNoIndex) {
           for(unsigned op=1;op<g.chain.count;++op)g.chain.operations[op-1]=g.chain.operations[op];
@@ -153,8 +162,10 @@ unsigned ApplyDnnDeferredLayerNorm(ModelPlan& destination) {
         op.norm_width=width;op.norm_epsilon=norm.norm_epsilon;
       }
     }
-    for(auto& [name,id]:plan.node_buffer)if(id==y)id=x;
-    removed.insert(index);++count;
+    if(fully_deferred) {
+      for(auto& [name,id]:plan.node_buffer)if(id==y)id=x;
+      removed.insert(index);++count;
+    }
   }
   std::vector<PlanStage> stages;
   for(unsigned index=0;index<plan.stages.size();++index)

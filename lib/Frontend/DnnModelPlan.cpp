@@ -1026,7 +1026,8 @@ ModelPlan BuildDnnModelPlan(std::vector<FxNodeRecord> const& nodes,
     }
     buffer.role="external";buffer.external_name=name;builder.p.outputs.push_back({id,{}});
   }
-  if(options.deferred_layernorm)ApplyDnnDeferredLayerNorm(builder.p);
+  if(options.deferred_layernorm)ApplyDnnDeferredLayerNorm(builder.p,
+      options.deferred_layernorm_gemms?&*options.deferred_layernorm_gemms:nullptr);
   ValidateDmModelPlan(builder.p);return std::move(builder.p);
 }
 } // namespace tilemega::frontend
