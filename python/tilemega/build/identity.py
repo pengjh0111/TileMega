@@ -126,6 +126,7 @@ def generate(so, source, executor='L1', loop=False):
                                          dwpw_fuse=plan.get('dwpw_fuse'),
                                          moe_dynamic=plan.get('moe_dynamic', False),
                                          moe_opaque=plan.get('moe_opaque', False),
+                                         moe_gemv=plan.get('moe_gemv', False),
                                          moe_binding=plan.get('moe_binding'),
                                          moe_bm=plan.get('moe_bm'),
                                          memory_arena_bytes=plan.get('memory_arena_bytes', 0)),

@@ -11,6 +11,10 @@
 #include <tilemega/Codegen/tasks/DmEpilogueDispatch.cuh>
 #include <tilemega/Backend/ServingDmEpilogue.h>
 #include <tilemega/Backend/ServingConv.h>
+#include <tilemega/Backend/ServingGemv.h>
+#ifndef TILEMEGA_MOE_GEMV
+#define TILEMEGA_MOE_GEMV 0
+#endif
 #endif
 
 #ifndef TILEMEGA_NONPAGED_TILED
@@ -235,6 +239,17 @@ struct ServingGemmTaskBody {
   template <class Spec>
   __device__ static void RunDmResolved(ServingGemmOperands const& p, int tile_m,
                                      int tile_n, char* shared) {
+#if TILEMEGA_MOE_GEMV
+    if constexpr(TileN<=32 && TileK>=32) {
+      using Gemv=backend::ServingGemv<Arch,TileM,TileN,TileK>;
+      if(Gemv::Supported(p,tile_m)) {
+        auto* tile=Gemv::Dense(p,tile_m,tile_n,shared,TILEMEGA_NONPAGED_TILED!=0);
+        backend::ServingDmEpilogue<Arch,Spec,TileM,TileN,false>::RunFromTile(
+            tile,DmEpilogueOperands(p),tile_m,tile_n);
+        return;
+      }
+    }
+#endif
     if((p.a_scale && p.access.a==DmAAccess::kDense) ||
        p.access.a==DmAAccess::kRowGather || p.access.b==DmBAccess::kExpertIndirect) {
       auto* tile=backend::ServingDmGemm<Arch,TileM,TileN,TileK,Stages>::Dense(

@@ -508,6 +508,17 @@ struct PagedGemmTaskBody {
   template<class Spec, class Gate>
   __device__ static void RunDmResolved(ServingGemmOperands const& p,int tile_m,int tile_n,
       Ring const& ring,std::uint64_t& sequence,char* workspace,Gate gate) {
+#if TILEMEGA_MOE_GEMV
+    if constexpr(TileN<=32 && TileK>=32) {
+      using Gemv=backend::ServingGemv<Arch,TileM,TileN,TileK>;
+      if(Gemv::Supported(p,tile_m)) {
+        auto* tile=Gemv::Paged(p,tile_m,tile_n,ring,sequence,workspace,gate);
+        backend::ServingDmEpilogue<Arch,Spec,TileM,TileN,false>::RunFromTile(
+            tile,DmEpilogueOperands(p),tile_m,tile_n);
+        return;
+      }
+    }
+#endif
     if(p.access.a==DmAAccess::kIm2Col) {
       if(!p.convolutions || p.access.conv==kDmNoIndex ||
          p.k_begin%TileK || p.k_count%TileK || !p.conv_iteration.iterations) {

@@ -295,7 +295,7 @@ int RunCompile(int argc, char** argv) {
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0,evict_first=0,evict_last=1;
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
-    int nonpaged_la=0,moe_dynamic=0,moe_opaque=0;
+    int nonpaged_la=0,moe_dynamic=0,moe_opaque=0,moe_gemv=0;
     std::string candidate_mode="L1",nonpaged_weight_layout="row";
     bool page_bytes_pinned=false;
     bool event_solo=false,event_red=false,barrier_v2=false;
@@ -338,6 +338,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--frontend") frontend_mode=value;
       else if (flag=="--moe-dynamic") moe_dynamic=std::stoi(value);
       else if (flag=="--moe-opaque") moe_opaque=std::stoi(value);
+      else if (flag=="--moe-gemv") moe_gemv=std::stoi(value);
       else if (flag=="--moe-binding") moe_binding=value;
       else if (flag=="--reuse") memory_reuse=value;
       else if (flag=="--deferred-ln") dnn_deferred_ln=value;
@@ -443,6 +444,11 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("--moe-binding expects auto, slot or group");
     if(moe_bm!=16 && moe_bm!=32 && moe_bm!=64 && moe_bm!=128)
       throw std::runtime_error("--moe-bm expects auto, 16, 32, 64 or 128");
+    if((moe_gemv!=0 && moe_gemv!=1) ||
+       (moe_gemv && (!serving || frontend_mode!="decoder")))
+      throw std::invalid_argument("--moe-gemv expects 0 or 1 on a decoder serving plan");
+    if(moe_gemv && !solve_target.empty())
+      throw std::invalid_argument("GEMV search requires calibrated family pricing; use a fixed build");
     if(forward)serving_capacity=serving_past_lo=serving_past_hi=0;
     if(!emit_mode.empty() && emit_mode!="serving")
       throw std::runtime_error("--emit expects serving");
@@ -624,6 +630,19 @@ int RunCompile(int argc, char** argv) {
       for(auto const& stage:plan.stages)
         if(stage.kind==tilemega::frontend::PlanTaskKind::kDwPwFused)
           import.gemms.at(stage.gemm).tile_m=16;
+      if(moe_gemv) {
+        bool expert=false;
+        for(auto const& g:plan.gemms)expert|=g.access.b==tilemega::codegen::DmBAccess::kExpertIndirect;
+        if(!expert)throw std::invalid_argument("--moe-gemv requires a MoE plan");
+        for(auto const& stage:plan.stages)if(tilemega::frontend::IsGemmStage(stage.kind)) {
+          auto const& g=plan.gemms.at(stage.gemm);
+          auto rows=g.access.b==tilemega::codegen::DmBAccess::kExpertIndirect?g.access.block_rows:
+              unsigned(serving_batch)*(g.access.rows_per_batch?g.access.rows_per_batch:
+                  (stage.batch_rows?1:options.seq));
+          if(rows && rows<=4 && g.access.a!=tilemega::codegen::DmAAccess::kIm2Col)
+            import.gemms.at(stage.gemm)={16,32,64,2,1};
+        }
+      }
       module=tilemega::frontend::TorchExportImporter{}.ImportPlan(
           input.string(),plan,context,&summary,import);
       source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(
@@ -1305,7 +1324,7 @@ int RunCompile(int argc, char** argv) {
           "#define TILEMEGA_SERVING_PAST_HI " +
           std::to_string(serving_past_hi) + "\n" + source;
     }
-    if(moe_dynamic || moe_opaque) {
+    if(moe_dynamic || moe_opaque || moe_gemv) {
       auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
       auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
       bool experts=false;
@@ -1313,6 +1332,7 @@ int RunCompile(int argc, char** argv) {
         experts|=bool(mlir::cast<mlir::DictionaryAttr>(entry).get("dm_moe"));
       if(!experts)throw std::invalid_argument("MoE execution controls require virtual MoE stages");
       if(moe_dynamic)source="#define TILEMEGA_MOE_DYNAMIC 1\n"+source;
+      if(moe_gemv)source="#define TILEMEGA_MOE_GEMV 1\n"+source;
       if(moe_opaque) {
         source="#define TILEMEGA_MOE_OPAQUE 1\n"+source;
       }
@@ -1505,6 +1525,7 @@ int RunCompile(int argc, char** argv) {
         manifest<<",\n  \"frontend\": "<<std::quoted(frontend_mode);
         manifest<<",\n  \"moe_dynamic\": "<<(moe_dynamic?"true":"false");
         manifest<<",\n  \"moe_opaque\": "<<(moe_opaque?"true":"false");
+        manifest<<",\n  \"moe_gemv\": "<<(moe_gemv?"true":"false");
         if(frontend_mode=="dnn")manifest<<",\n  \"deferred_ln\": "<<std::quoted(dnn_deferred_ln);
         if(frontend_mode=="dnn")manifest<<",\n  \"dwpw_fuse\": "<<std::quoted(dnn_dwpw_fuse);
         if(search_selection=="predicted")manifest<<",\n  \"selection\": \"predicted\"";
