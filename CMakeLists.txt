@@ -679,6 +679,21 @@ if(TILEMEGA_BUILD_TESTS)
     add_test(NAME dm_paged_multipage_phase${phase}
       COMMAND dm_paged_multipage_phase${phase}_test)
   endforeach()
+  foreach(mode IN ITEMS 0 1 2 3 4)
+    add_executable(dm_qperkv8_attention_mode${mode}_test test/unit/dm_qperkv8_attention_test.cu)
+    target_link_libraries(dm_qperkv8_attention_mode${mode}_test PRIVATE TileMega::tilemega)
+    target_compile_definitions(dm_qperkv8_attention_mode${mode}_test PRIVATE DM_TEST_ATTN_MODE=${mode})
+    target_compile_options(dm_qperkv8_attention_mode${mode}_test PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
+    tilemega_configure_cuda_target(dm_qperkv8_attention_mode${mode}_test)
+    add_test(NAME dm_qperkv8_attention_mode${mode} COMMAND dm_qperkv8_attention_mode${mode}_test)
+  endforeach()
+  add_executable(dm_qperkv8_prefill_test test/unit/dm_qperkv8_prefill_test.cu)
+  target_link_libraries(dm_qperkv8_prefill_test PRIVATE TileMega::tilemega)
+  target_compile_options(dm_qperkv8_prefill_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
+  tilemega_configure_cuda_target(dm_qperkv8_prefill_test)
+  add_test(NAME dm_qperkv8_prefill COMMAND dm_qperkv8_prefill_test)
   target_link_libraries(task_body_contract_test PRIVATE TileMega::tilemega)
   add_test(NAME task_body_contract COMMAND task_body_contract_test)
 
