@@ -200,6 +200,25 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
     }else if(moe.step!=DmMoeStep::kNone)
       throw std::invalid_argument("MoE configuration is attached to another task kind");
     validate_chain(stage.chain);
+    if(stage.kind==PlanTaskKind::kDwPwFused) {
+      if(stage.gemm>=plan.gemms.size() || stage.conv>=plan.convolutions.size())
+        throw std::invalid_argument("fused dw-pw descriptor outside model tables");
+      auto const& conv=plan.convolutions[stage.conv];auto const& g=plan.gemms[stage.gemm];
+      buffer(stage.operands[0],true);buffer(stage.operands[1],true);
+      if(conv.c!=conv.k || conv.c%8 || stage.width!=conv.c || g.k!=conv.c ||
+          stage.rows_per_batch!=conv.p*conv.q || g.access.rows_per_batch!=stage.rows_per_batch ||
+          g.access.a!=DmAAccess::kDense || g.access.b!=DmBAccess::kDense ||
+          g.access.a_scale!=kDmNoIndex || stage.chain.side_count ||
+          stage.chain.store_rounding!=DmRounding::kBF16 ||
+          conv.input_layout!=stage.operands[0] || conv.output_layout!=g.a ||
+          stage.operands[2]!=kDmNoIndex || stage.operands[3]!=kDmNoIndex)
+        throw std::invalid_argument("invalid fused dw-pw ownership or operand contract");
+      for(unsigned i=0;i<stage.chain.count;++i) {
+        auto kind=stage.chain.operations[i].kind;
+        if(kind!=DmEpilogueKind::kBias && kind!=DmEpilogueKind::kScale && kind!=DmEpilogueKind::kActivation)
+          throw std::invalid_argument("unsupported fused depthwise epilogue");
+      }
+    }
     if(stage.partial_rows_per_image && (stage.kind!=PlanTaskKind::kGlobalPoolReduce || !stage.group ||
        stage.partial_rows_per_image!=(std::uint64_t(stage.rows_per_batch)+stage.group-1)/stage.group))
       throw std::invalid_argument("invalid per-image partial count");

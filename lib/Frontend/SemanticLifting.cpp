@@ -740,7 +740,7 @@ analysis::Granularity LaunchGranularity(
     if (op.stage < 0 || static_cast<std::size_t>(op.stage) >= plan.stages.size())
       throw std::invalid_argument("lifted GEMM has no ModelPlan stage");
     PlanStage const& stage = plan.stages[op.stage];
-    if ((stage.kind != PlanTaskKind::kGemm && stage.kind != PlanTaskKind::kAdd) ||
+    if ((!IsGemmStage(stage.kind) && stage.kind != PlanTaskKind::kAdd) ||
         stage.gemm >= plan.gemms.size())
       throw std::invalid_argument("lifted projection does not name a ModelPlan GEMM");
     return gemms.empty() ? GemmGranularity{} : gemms[stage.gemm];

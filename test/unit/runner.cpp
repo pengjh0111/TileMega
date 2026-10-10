@@ -101,6 +101,7 @@ namespace tilemega::tests::task_arithmetic_domain_test { int TestTaskArithmeticD
 namespace tilemega::tests::dm_store_geometry_test { int TestDmStoreGeometry(int, char**); }
 namespace tilemega::tests::dm_exact_fusion_test { int TestDmExactFusion(int, char**); }
 namespace tilemega::tests::memory_plan_test { int TestMemoryPlan(int, char**); }
+namespace tilemega::tests::dnn_dwpw_fusion_test { int TestDnnDwPwFusion(int, char**); }
 namespace tilemega::tests::dnn_deferred_ln_test { int TestDnnDeferredLN(int, char**); }
 namespace tilemega::tests::dnn_memory_codegen_test { int TestDnnMemoryCodegen(int, char**); }
 namespace tilemega::tests::dm_fused_dependencies_test { int TestDmFusedDependencies(int, char**); }
@@ -139,6 +140,7 @@ int main(int argc, char** argv) {
     {"dm_store_geometry", tilemega::tests::dm_store_geometry_test::TestDmStoreGeometry},
     {"dm_exact_fusion", tilemega::tests::dm_exact_fusion_test::TestDmExactFusion},
     {"memory_plan", tilemega::tests::memory_plan_test::TestMemoryPlan},
+    {"dnn_dwpw_fusion", tilemega::tests::dnn_dwpw_fusion_test::TestDnnDwPwFusion},
     {"dnn_deferred_ln", tilemega::tests::dnn_deferred_ln_test::TestDnnDeferredLN},
     {"dnn_memory_codegen", tilemega::tests::dnn_memory_codegen_test::TestDnnMemoryCodegen},
     {"dm_fused_dependencies", tilemega::tests::dm_fused_dependencies_test::TestDmFusedDependencies},

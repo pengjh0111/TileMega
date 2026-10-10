@@ -420,7 +420,7 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
         b.writer[id]=op.name;b.written[id]=space;b.result.written[id]=1;
       }
       b.Own(op,b.batch,channels);b.Record(index,std::move(op),OpRole::kGlobalPoolReduce,output);
-    }else if(stage.kind==PlanTaskKind::kGemm) {
+    }else if(IsGemmStage(stage.kind)) {
       auto const& g=plan.gemms.at(stage.gemm);
       if(g.beta!=0 || g.epilogue!=PlanGemm::Epilogue::kStore ||
          g.access.b!=codegen::DmBAccess::kDense)
@@ -460,7 +460,7 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
         op.reduction.dim="c";
       }else if(g.access.a==codegen::DmAAccess::kDense) {
         auto const& layout=b.Buffer(g.a).layout;
-        if(layout.rank) {
+        if(layout.rank && stage.kind!=PlanTaskKind::kDwPwFused) {
           auto pitch=std::uint64_t(g.k);
           if(layout.logical[layout.rank-1]!=g.k || layout.strides[layout.rank-1]!=1 ||
              layout.halo_top || layout.halo_bottom || layout.halo_left || layout.halo_right)
@@ -499,6 +499,53 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
           throw std::invalid_argument("DNN A scale requires a per-image channel matrix");
         op.operands.push_back(b.Read(id,T(scale.name,{{"image",b.batch},{"channel",C(channels)}}),
             {I("m",1,g.access.rows_per_batch),I(g.access.a==codegen::DmAAccess::kIm2Col?"c":"k")}));
+      }
+      if(stage.kind==PlanTaskKind::kDwPwFused) {
+        auto const& conv=plan.convolutions.at(stage.conv);
+        auto const& layout=b.Buffer(conv.input_layout).layout;
+        op.compute_prologue.push_back({"dwpw_depthwise",
+            T(op.name+".private_dw",{{"row",rows},{"channel",C(conv.c)}}),
+            {{I("m"),IndexResult::Broadcast(C(conv.c))}},C(conv.r*conv.s)});
+        for(unsigned i=0;i<stage.chain.count;++i) {
+          auto const& step=stage.chain.operations[i];auto kind=step.kind;
+          std::string arithmetic;
+          if(kind==codegen::DmEpilogueKind::kBias || kind==codegen::DmEpilogueKind::kScale) {
+            arithmetic=kind==codegen::DmEpilogueKind::kBias?"add":"mul";
+          }else if(kind==codegen::DmEpilogueKind::kActivation) {
+            using A=codegen::DmActivation;
+            switch(step.activation) {
+              case A::kRelu:case A::kRelu6:break; // Comparisons are excluded.
+              case A::kGeluErf:arithmetic="dm_gelu_erf";break;
+              case A::kGeluTanh:arithmetic="dm_gelu_tanh";break;
+              case A::kTanh:arithmetic="dm_tanh";break;
+              case A::kSilu:arithmetic="silu";break;
+            }
+          }
+          if(!arithmetic.empty()) {
+            auto phase=op.compute_prologue.front();
+            phase.arithmetic=std::move(arithmetic);
+            phase.reduction=C(1);op.compute_prologue.push_back(std::move(phase));
+          }
+        }
+        auto y=Add({I("m",conv.stride_h,conv.q),
+            I("m",-long(conv.stride_h)*conv.p,conv.p*conv.q)},long(layout.halo_top)-conv.pad_h);
+        auto x=Add({I("m",conv.stride_w),I("m",-long(conv.stride_w)*conv.q,conv.q)},
+            long(layout.halo_left)-conv.pad_w);
+        y.span=C(conv.r);y.window_stride=C(conv.dilation_h);
+        x.span=C(conv.s);x.window_stride=C(conv.dilation_w);
+        op.operands[0]=b.Read(stage.operands[0],b.Space(stage.operands[0],
+            b.batch*C(conv.h*conv.w),conv.c),{I("m",1,conv.p*conv.q),y,x,IndexResult::Broadcast(C(conv.c))});
+        auto r=IndexResult::Broadcast(C(conv.r)),s=IndexResult::Broadcast(C(conv.s));
+        op.operands.push_back(b.Read(stage.operands[1],T(b.Buffer(stage.operands[1]).name,
+            {{"channel",C(conv.c)},{"r",C(conv.r)},{"s",C(conv.s)},{"pitch",C(8)}}),
+            {IndexResult::Broadcast(C(conv.c)),r,s,Add({})}));
+        for(unsigned i=0;i<stage.chain.count;++i) {
+          auto const& step=stage.chain.operations[i];
+          if(step.kind==codegen::DmEpilogueKind::kBias || step.kind==codegen::DmEpilogueKind::kScale) {
+            auto id=step.parameter[0];op.operands.push_back(b.Read(id,
+                T(b.Buffer(id).name,{{"channel",C(conv.c)}}),{IndexResult::Broadcast(C(conv.c))}));
+          }
+        }
       }
       b.Chain(op,g,rows);
       b.Own(op,rows,columns);auto side_geometry=g;side_geometry.n=columns;

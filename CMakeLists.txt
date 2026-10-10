@@ -145,6 +145,7 @@ add_library(tilemega_core STATIC
   lib/Frontend/DnnStorage.cpp
   lib/Frontend/DnnModelPlan.cpp
   lib/Frontend/DnnDeferredNorm.cpp
+  lib/Frontend/DnnDwPwFusion.cpp
   lib/Frontend/MoeRegionPattern.cpp
   lib/Frontend/MoeRegionPlan.cpp
   lib/Frontend/MoeSemanticLifting.cpp
@@ -392,6 +393,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/dnn_epilogue_semantics_test.cpp
     test/unit/dnn_model_plan_test.cpp
     test/unit/dnn_deferred_ln_test.cpp
+    test/unit/dnn_dwpw_fusion_test.cpp
     test/unit/dnn_memory_codegen_test.cpp
     test/unit/moe_region_pattern_test.cpp
     test/unit/moe_region_plan_test.cpp
@@ -896,6 +898,8 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME dm_store_geometry COMMAND tilemega-unit dm_store_geometry)
   add_test(NAME dm_exact_fusion COMMAND tilemega-unit dm_exact_fusion)
   add_test(NAME dnn_deferred_ln COMMAND tilemega-unit dnn_deferred_ln)
+  add_test(NAME dnn_dwpw_fusion COMMAND tilemega-unit dnn_dwpw_fusion
+    "${CMAKE_SOURCE_DIR}/test/fixtures/dnn/dwpw_pair.json")
   file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/test-fixtures")
   add_test(NAME dnn_memory_codegen COMMAND tilemega-unit dnn_memory_codegen
     --emit "${CMAKE_BINARY_DIR}/test-fixtures/dnn-memory.cu")

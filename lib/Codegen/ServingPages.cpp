@@ -122,6 +122,13 @@ void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int pa
   int task_workspace=0;
   for(auto a:mlir::cast<mlir::ArrayAttr>(model.get("stages"))) {
     auto stage=mlir::cast<mlir::DictionaryAttr>(a);
+    if(stage.getAs<mlir::StringAttr>("kind").getValue()=="kDwPwFused") {
+      auto const& g=runtime.gemms.at(stage.getAs<mlir::IntegerAttr>("gemm").getInt());
+      int channels=stage.getAs<mlir::IntegerAttr>("width").getInt();
+      task_workspace=std::max(task_workspace,2*g.tile_m*channels+
+          std::max(solver::DmServingPageActivationBytes(g.tile_m,g.tile_n,g.tile_k),
+                   solver::DmServingPageScratchBytes(g.tile_m,g.tile_n)));
+    }
     if(auto bytes=stage.getAs<mlir::IntegerAttr>("dm_workspace_bytes")) {
       if(bytes.getInt()<0 || bytes.getInt()>std::numeric_limits<int>::max())
         throw std::invalid_argument("task workspace exceeds the page layout range");

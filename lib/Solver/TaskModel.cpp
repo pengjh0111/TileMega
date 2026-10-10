@@ -396,7 +396,10 @@ BackendTraits ModelTaskTraits(ModelDescription const& model, int index,
   for (auto const& semantic : model.task_semantics)
     if (semantic.stage == index)
       uses_collective |= semantic.op.kind == analysis::OperatorKind::kMatmul;
-  if (uses_collective) return collective;
+  if (uses_collective) {
+    if(stage.kind==StageKind::kDwPwFused)collective.smem_bytes+=2*config.tile_m*stage.width;
+    return collective;
+  }
   if(model.dm && stage.dm_workspace_bytes) {
     BackendTraits traits;traits.threads=128;traits.smem_bytes=stage.dm_workspace_bytes;
     traits.shape_legal=true;return traits;

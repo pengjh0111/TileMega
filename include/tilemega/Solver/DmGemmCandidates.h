@@ -40,8 +40,14 @@ inline std::string_view DmGemmCandidateRejection(frontend::PlanGemm const& gemm,
   if(!plan.dm || !target.caps.cp_async)return "DM/cp.async capability";
   if(!gemm.n || !gemm.k || !DmServingBF16ShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages))
     return "shape";
-  if(DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)>
-      target.res.max_dynamic_smem_per_cta)return "shared memory";
+  std::uint64_t workspace=DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages);
+  for(auto const& stage:plan.stages)if(stage.kind==frontend::PlanTaskKind::kDwPwFused) {
+    auto const& owner=plan.gemms.at(stage.gemm);
+    if(&owner==&gemm || (owner.a==gemm.a && owner.b==gemm.b && owner.d==gemm.d))
+      workspace=std::max<std::uint64_t>(workspace,std::uint64_t(DmServingBF16SmemBytes(
+          g.tile_m,g.tile_n,g.tile_k,g.stages))+2ull*g.tile_m*stage.width);
+  }
+  if(workspace>std::uint64_t(target.res.max_dynamic_smem_per_cta))return "shared memory";
   if(shared.tile_n && (g.tile_n!=shared.tile_n || g.tile_k!=shared.tile_k))
     return "shared weight layout";
   if(gemm.chain.count>8 || gemm.chain.side_count>5)

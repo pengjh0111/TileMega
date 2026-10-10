@@ -108,6 +108,10 @@ enum class StageKind {
   kLayoutConvert = 25,
 };
 
+inline constexpr bool IsGemmStage(StageKind kind) {
+  return kind==StageKind::kGemm || kind==StageKind::kDwPwFused;
+}
+
 struct ModelStage {
   StageKind kind = StageKind::kGemm;
   int gemm = -1;  ///< index into ModelDescription::gemms, -1 when not a GEMM
@@ -128,7 +132,7 @@ struct ModelStage {
   /// the generated table rather than assumed: RoPE and KVAppend carry it in
   /// `width` (the head dimension), the elementwise tail in `extent`.
   int ReadGranularity() const;
-  bool IsCollective() const { return kind == StageKind::kGemm; }
+  bool IsCollective() const { return IsGemmStage(kind); }
 };
 
 struct ModelTaskSemantics {

@@ -76,7 +76,7 @@ ProjectedPlacement BalanceProjectedQueues(RuntimeProjection const& projection,
 
 analysis::CouplingRelation ProjectScalarTaskOwnership(ModelTaskSemantics const& semantic,
     analysis::OperatorNode const& task,ModelStage const& stage,int threads) {
-  if (stage.kind==StageKind::kGemm || task.output.axes.empty())
+  if (IsGemmStage(stage.kind) || task.output.axes.empty())
     throw std::invalid_argument("unsupported scalar ownership domain");
   return ProjectTaskOwnership(semantic,task,stage,threads);
 }
@@ -250,7 +250,8 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
     std::string count;
     switch (stage.kind) {
       case StageKind::kAdd:
-      case StageKind::kGemm: {
+      case StageKind::kGemm:
+      case StageKind::kDwPwFused: {
         if (stage.gemm < 0 || static_cast<std::size_t>(stage.gemm) >= plan.gemms.size())
           throw std::invalid_argument("stage GEMM index outside projection plan");
         auto const& g = plan.gemms[stage.gemm];
@@ -372,7 +373,7 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
          !(plan.ownership_flags & codegen::kCombinerTileOwnership))))
       throw std::invalid_argument("table dependency requires bound tile ownership");
     auto window = edge.window;
-    if (model.stages[edge.producer].kind == StageKind::kGemm &&
+    if (IsGemmStage(model.stages[edge.producer].kind) &&
         done[edge.producer] != entry[edge.producer] &&
         !(plan.ownership_flags & codegen::kCombinerTileOwnership))
       window = {};

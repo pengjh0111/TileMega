@@ -90,7 +90,7 @@ double PriceServingHandoffFlow(FlowProblem flow,SymbolicProblem const& problem,
     auto const& projection=problem.projection.stages[s];
     if(!projection.combine)continue;
     int logical=projection.logical_stage;
-    if(plan.stages[logical].kind!=frontend::PlanTaskKind::kGemm)continue;
+    if(!frontend::IsGemmStage(plan.stages[logical].kind))continue;
     // One runtime stage can carry one handoff in the conservative lowering.
     // An earlier norm-to-GEMM recompute takes precedence over its split-K
     // combine until phase composition supports two handoffs on one tile.
@@ -265,6 +265,13 @@ struct SearchContext {
       for(auto const& g:config)gemm_shared=std::max(gemm_shared,imported.plan.dm?
           DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):
           ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages));
+      if(imported.plan.dm)for(std::size_t c=0;c<classes.size();++c)
+        for(auto id:classes[c].gemms)for(auto const& stage:imported.plan.stages)
+          if(stage.kind==frontend::PlanTaskKind::kDwPwFused && stage.gemm==id) {
+            auto const& g=config[c];
+            gemm_shared=std::max(gemm_shared,2*g.tile_m*int(stage.width)+
+                DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages));
+          }
       estimate.shared_bytes=gemm_shared;
       estimate.resident_limit=options.pg_pages?1:VariantResourceCache::ResidentLimit(estimate,target);
     }
@@ -298,6 +305,14 @@ struct SearchContext {
           attention_shapes.push_back({int(stage.width),int(stage.group)});
       auto [activation,scratch]=PageLayout::ServingWorkspace(shapes,attention_shapes,
           imported.plan.serving_seq>1,imported.plan.dm);
+      if(imported.plan.dm)for(auto const& stage:imported.plan.stages)
+        if(stage.kind==frontend::PlanTaskKind::kDwPwFused) {
+          auto const& g=granularity.gemms.at(stage.gemm);
+          int workspace=2*g.tile_m*stage.width+std::max(
+              DmServingPageActivationBytes(g.tile_m,g.tile_n,g.tile_k),
+              DmServingPageScratchBytes(g.tile_m,g.tile_n));
+          activation=std::max(activation,workspace);scratch=std::max(scratch,workspace);
+        }
       pages=PageLayout::Build(target,current_page_bytes,activation,scratch);
       for(auto const& g:granularity.gemms)
         if(g.tile_n*g.tile_k*2>current_page_bytes*pages->pages)
@@ -474,7 +489,7 @@ GemmConfig ServingSeed(OperatorClass const& cls,
   if(domain.empty())throw std::invalid_argument("serving class has no legal geometry");
   auto id=cls.gemms.front();
   auto stage=std::find_if(imported.plan.stages.begin(),imported.plan.stages.end(),
-      [&](auto const& s){return s.kind==frontend::PlanTaskKind::kGemm && s.gemm==id;});
+      [&](auto const& s){return frontend::IsGemmStage(s.kind) && s.gemm==id;});
   if(stage==imported.plan.stages.end())throw std::invalid_argument("serving seed has no GEMM stage");
   int rows=stage->batch_rows?batch:batch*seq;
   int columns=int(imported.plan.gemms.at(id).n);
@@ -579,7 +594,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       auto id=cls.gemms.front();
       auto stage=std::find_if(search.imported.plan.stages.begin(),
           search.imported.plan.stages.end(),[&](auto const& s){
-            return s.kind==frontend::PlanTaskKind::kGemm && s.gemm==id;});
+            return frontend::IsGemmStage(s.kind) && s.gemm==id;});
       if(stage==search.imported.plan.stages.end())continue;
       int rows=search.imported.plan.dm?
           DmGemmActiveRows(search.imported.plan.gemms[id],search.imported.plan,id,

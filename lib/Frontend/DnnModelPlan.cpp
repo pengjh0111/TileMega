@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Frontend/DnnModelPlan.h>
 #include <tilemega/Frontend/DnnDeferredNorm.h>
+#include <tilemega/Frontend/DnnDwPwFusion.h>
 #include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <llvm/Support/JSON.h>
 #include <llvm/Support/FormatVariadic.h>
@@ -1026,6 +1027,8 @@ ModelPlan BuildDnnModelPlan(std::vector<FxNodeRecord> const& nodes,
     }
     buffer.role="external";buffer.external_name=name;builder.p.outputs.push_back({id,{}});
   }
+  if(options.dwpw_fuse)ApplyDnnDwPwFusion(builder.p,
+      options.dwpw_fuse_gemms?&*options.dwpw_fuse_gemms:nullptr);
   if(options.deferred_layernorm)ApplyDnnDeferredLayerNorm(builder.p,
       options.deferred_layernorm_gemms?&*options.deferred_layernorm_gemms:nullptr);
   ValidateDmModelPlan(builder.p);return std::move(builder.p);

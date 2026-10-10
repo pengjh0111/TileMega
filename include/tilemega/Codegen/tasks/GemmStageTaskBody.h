@@ -13,6 +13,9 @@
 #include <cutlass/util/packed_stride.hpp>
 
 #include <type_traits>
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Codegen/tasks/DwPwFusedTaskBody.h>
+#endif
 
 #ifndef TILEMEGA_SERVING_RUNTIME
 #define TILEMEGA_SERVING_RUNTIME 0
@@ -480,6 +483,8 @@ struct GemmInvocation {
   PhaseGateDesc serving_phase_gate{};
   std::uint8_t serving_phase_class = 0; // qkv, o, gate/up, down, lm_head
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  DepthwiseConvOperands fused_depthwise{};
+  std::uint32_t fused_program = kDmNoIndex;
   bool dm_enabled = true;
   std::uint32_t dm_gemm = 0;
   DmGemmAccess access{};
@@ -545,6 +550,29 @@ __device__ inline float RefinedGemmElement(GemmInvocation const& invocation,
 template <class Arch, class SmemUnion, int Threads>
 struct GemmStageTaskBody {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  template<class V>
+  struct FusedRunner {
+    GemmInvocation const& invocation;
+    ServingGemmOperands operands;
+    int tile_m,tile_n;
+    char* shared;
+    template<int Channels,class DwProgram,class Spec>
+    __device__ void Run() const {
+      auto p=DwPwFusedOperands{invocation.fused_depthwise,operands};
+      using Partial=DmEpilogueSpec<DmEpilogueProgram<>,DmWriteKind::kDense,1,DmRounding::kFP32>;
+      if(invocation.chunks>1) {
+        p.pointwise.output=reinterpret_cast<cutlass::bfloat16_t*>(operands.partial);
+        p.pointwise.output_stride=operands.partial_stride;p.pointwise.chain={};
+        p.pointwise.chain.store_rounding=DmRounding::kFP32;p.pointwise.access.write={};
+        p.pointwise.dm_partial_rows=true;
+        using Body=DwPwFusedTaskBody<Arch,Channels,V::kTileM,V::kTileN,V::kTileK,V::kStages,DwProgram,Partial>;
+        Body::template Run<TILEMEGA_NONPAGED_TILED!=0>(p,tile_m,tile_n,shared);
+      }else {
+        using Body=DwPwFusedTaskBody<Arch,Channels,V::kTileM,V::kTileN,V::kTileK,V::kStages,DwProgram,Spec>;
+        Body::template Run<TILEMEGA_NONPAGED_TILED!=0>(p,tile_m,tile_n,shared);
+      }
+    }
+  };
   template <class Body>
   struct DmRunner {
     ServingGemmOperands const& operands;
@@ -639,6 +667,14 @@ struct GemmStageTaskBody {
     operands.binding=invocation.binding; operands.rows=invocation.rows;
     operands.a_scale=invocation.a_scale; operands.dm_buffers=invocation.dm_buffers;
     operands.a_row_stride=static_cast<int>(cute::get<0>(invocation.mainloop.dA));
+    if(invocation.fused_program!=kDmNoIndex) {
+      operands.k_total=invocation.k_total;operands.k_begin=invocation.serving_k_begin;
+      operands.b=invocation.mainloop.ptr_B-invocation.serving_k_begin;
+      operands.weight_base=invocation.serving_weight_base;
+      if(!DispatchDmFused(invocation.fused_program,FusedRunner<V>{invocation,operands,
+          local/invocation.tiles_n,local%invocation.tiles_n,shared}))asm volatile("trap;");
+      return;
+    }
     if (invocation.chunks == 1 && invocation.dm_enabled) {
       DispatchDmEpilogue(invocation.dm_gemm, DmRunner<Body>{
           operands, local / invocation.tiles_n, local % invocation.tiles_n, shared});

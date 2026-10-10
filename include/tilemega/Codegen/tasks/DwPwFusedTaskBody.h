@@ -4,6 +4,10 @@
 #include <tilemega/Codegen/tasks/PagedGemmTaskBody.h>
 
 namespace tilemega::codegen {
+#ifndef TILEMEGA_DM_FUSED_DISPATCH
+template<class Runner>
+__device__ inline bool DispatchDmFused(std::uint32_t,Runner const&) {return false;}
+#endif
 struct DwPwFusedOperands {
   DepthwiseConvOperands depthwise{};
   ServingGemmOperands pointwise{};

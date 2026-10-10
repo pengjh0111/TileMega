@@ -109,6 +109,14 @@ enum class TaskKind : std::uint32_t {
   kLayoutConvert = 25,
 };
 
+TILEMEGA_TASK_HD constexpr bool IsGemmStage(TaskKind kind) {
+#if !defined(__CUDACC__) || (defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT)
+  return kind==TaskKind::kGemm || kind==TaskKind::kDwPwFused;
+#else
+  return kind==TaskKind::kGemm;
+#endif
+}
+
 /// The ownership each TaskKind's TaskBody declares. Every TaskBody's
 /// `Ownership` returns this rather than repeating a literal, so a host tool
 /// reading it is reading the TaskBody's own declaration and the two cannot

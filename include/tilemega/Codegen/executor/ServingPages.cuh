@@ -171,7 +171,7 @@ struct PageStream {
       }
       auto const& s=p.stages[stage];
       char const* source=nullptr;int total=0;
-      if(s.kind==TaskKind::kGemm) {
+      if(IsGemmStage(s.kind)) {
 #if TILEMEGA_WEIGHT_LAYOUT_TILED
         auto const* table=static_cast<GemmInvocation const*>(p.gemms);
         auto const& first=table[s.gemm];
@@ -343,6 +343,33 @@ struct PhaseGate {
 #define TILEMEGA_KPHASE_CLASS_MASK 31
 #endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+template<class V>
+struct DmFusedPageRunner {
+  GemmInvocation const& invocation;
+  ServingGemmOperands operands;
+  int tile_m,tile_n;
+  Ring const& ring;
+  std::uint64_t& sequence;
+  char* workspace;
+  template<int Channels,class DwProgram,class Spec>
+  __device__ void Run() const {
+    auto p=DwPwFusedOperands{invocation.fused_depthwise,operands};
+    using Partial=DmEpilogueSpec<DmEpilogueProgram<>,DmWriteKind::kDense,1,DmRounding::kFP32>;
+    if(invocation.chunks>1) {
+      p.pointwise.output=reinterpret_cast<cutlass::bfloat16_t*>(operands.partial);
+      p.pointwise.output_stride=operands.partial_stride;p.pointwise.chain={};
+      p.pointwise.chain.store_rounding=DmRounding::kFP32;p.pointwise.access.write={};
+      p.pointwise.dm_partial_rows=true;
+      using Body=DwPwFusedTaskBody<PageArch,Channels,V::kTileM,V::kTileN,V::kTileK,V::kStages,DwProgram,Partial>;
+      Body::template RunPaged<TILEMEGA_PAGE_BYTES,TILEMEGA_PAGE_COUNT,TILEMEGA_ARCH_PATH_SM80!=0>(
+          p,tile_m,tile_n,ring,sequence,workspace);
+    }else {
+      using Body=DwPwFusedTaskBody<PageArch,Channels,V::kTileM,V::kTileN,V::kTileK,V::kStages,DwProgram,Spec>;
+      Body::template RunPaged<TILEMEGA_PAGE_BYTES,TILEMEGA_PAGE_COUNT,TILEMEGA_ARCH_PATH_SM80!=0>(
+          p,tile_m,tile_n,ring,sequence,workspace);
+    }
+  }
+};
 template <class Body>
 struct DmPageRunner {
   ServingGemmOperands const& operands;
@@ -401,6 +428,11 @@ __device__ void Gemm(Params const& params,GemmInvocation const& inv,int local,Ri
           (TILEMEGA_KPHASE_CLASS_MASK & (1u<<inv.serving_phase_class)) &&
           inv.serving_phase_gate.enabled,ring.watch};
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if(inv.fused_program!=kDmNoIndex) {
+        if(!DispatchDmFused(inv.fused_program,DmFusedPageRunner<V>{inv,operands,
+            local/inv.tiles_n,local%inv.tiles_n,ring,sequence,work}))asm volatile("trap;");
+        return;
+      }
       if (inv.chunks == 1 && inv.dm_enabled) {
         DispatchDmEpilogue(inv.dm_gemm, DmPageRunner<Body>{operands,
             local / inv.tiles_n, local % inv.tiles_n, ring, sequence, work, gate});
@@ -543,7 +575,7 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
     if(ComputeThread()==0)executor::StepDelay(p,iteration,0,lag_begin);
 #endif
   }
-  if(s.kind==TaskKind::kGemm) {
+  if(IsGemmStage(s.kind)) {
     auto const* table=static_cast<GemmInvocation const*>(p.gemms);
     auto point=DecodeSplitTask(task,table[s.gemm].tiles_m*table[s.gemm].tiles_n,table[s.gemm].chunks);
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
@@ -751,9 +783,9 @@ __device__ inline void Publish(Params const& p,EventCounter* events,unsigned sta
                                unsigned long long iteration) {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   auto const& descriptor=p.stages[stage];
-  if(descriptor.kind==TaskKind::kGemm || descriptor.kind==TaskKind::kGemmCombine) {
+  if(IsGemmStage(descriptor.kind) || descriptor.kind==TaskKind::kGemmCombine) {
     auto const& inv=static_cast<GemmInvocation const*>(p.gemms)[descriptor.gemm];
-    auto tile=descriptor.kind==TaskKind::kGemm?
+    auto tile=IsGemmStage(descriptor.kind)?
         DecodeSplitTask(task,inv.tiles_m*inv.tiles_n,inv.chunks).tile:task;
     PublishMoeCountedRows(p,stage,tile,inv);
   }

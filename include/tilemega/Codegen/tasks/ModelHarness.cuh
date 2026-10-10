@@ -446,6 +446,9 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
                                 TaskSmem& smem) {
   StageDesc const& stage = p.stages[index];
   switch (stage.kind) {
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    case TaskKind::kDwPwFused:
+#endif
     case TaskKind::kGemm: T_Gemm{}(p, stage, smem); break;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     case TaskKind::kLayerNorm:
@@ -573,6 +576,9 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
     case TaskKind::kLayoutConvert:
       DispatchDmStage(unsigned(stage.kind),stage.width,stage.group,DmStageRunner<HarnessArch>{p,stage,logical_task,reinterpret_cast<char*>(&smem)});
       break;
+#endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    case TaskKind::kDwPwFused:
 #endif
     case TaskKind::kGemm:
       T_Gemm::RunLogicalTask(p, stage, smem, task TILEMEGA_PHASE_PASS);
@@ -765,6 +771,9 @@ __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
     case TaskKind::kMoETopK:
     case TaskKind::kMoECombine:
     case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,p.dims);
+#endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    case TaskKind::kDwPwFused:
 #endif
     case TaskKind::kGemm: return T_Gemm::Ownership(p, stage).count;
     case TaskKind::kRMSNorm:
@@ -1315,9 +1324,9 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
 #endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   auto const& stage=p.stages[producer];
-  if(stage.kind==TaskKind::kGemm || stage.kind==TaskKind::kGemmCombine) {
+  if(IsGemmStage(stage.kind) || stage.kind==TaskKind::kGemmCombine) {
     auto const& inv=static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
-    auto tile=stage.kind==TaskKind::kGemm?
+    auto tile=IsGemmStage(stage.kind)?
         DecodeSplitTask(logical_task,inv.tiles_m*inv.tiles_n,inv.chunks).tile:logical_task;
     PublishMoeCountedRows(p,producer,tile,inv);
   }
@@ -1498,7 +1507,7 @@ __device__ inline void ServingPdlEnter(Params const& p) {
     if constexpr(TILEMEGA_PDL_TRIGGER==1)
       executor::GridDependency<arch::CurrentArch>::Release();
 #if TILEMEGA_L2_PREFETCH
-    for(unsigned s=0;s<p.stage_count;++s)if(p.stages[s].kind==TaskKind::kGemm) {
+    for(unsigned s=0;s<p.stage_count;++s)if(IsGemmStage(p.stages[s].kind)) {
       prefetch::NextStage(p,s);break;
     }
 #endif
@@ -1589,7 +1598,7 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
       else if(step+1<steps) {
         Params const& next=params[step+1];
         for(unsigned s=0;s<next.stage_count;++s)
-          if(next.stages[s].kind==TaskKind::kGemm) {
+          if(IsGemmStage(next.stages[s].kind)) {
             prefetch::NextStage(next,s);break;
           }
       }
@@ -2578,7 +2587,7 @@ inline DeviceModel Create(ModelSpec const& spec,
     int m = dims.tokens();
 #if TILEMEGA_SERVING_RUNTIME
     for (std::uint32_t s = 0; s < spec.stage_count; ++s)
-      if (spec.stages[s].kind == TaskKind::kGemm &&
+      if (IsGemmStage(spec.stages[s].kind) &&
           spec.stages[s].gemm == i && spec.stages[s].batch_rows)
         m = dims.batch;
 #endif
@@ -2810,8 +2819,8 @@ inline DeviceModel Create(ModelSpec const& spec,
   std::vector<std::uint32_t> attention_chunks(spec.stage_count,1);
   for (std::uint32_t i = 0; i < spec.stage_count; ++i) {
     StageDesc stage = spec.stages[i];
-    bool const fused_gemm = stage.kind == TaskKind::kGemmAdd ||
-                            stage.kind == TaskKind::kGemmRMSNorm;
+    bool const fused_gemm = stage.kind==TaskKind::kGemmAdd ||
+                            stage.kind==TaskKind::kGemmRMSNorm;
     if (fused_gemm) {
       if (!TILEMEGA_FUSION_RUNTIME || !TILEMEGA_FUSION_GEMM_RUNTIME ||
           !runtime_variant.exact_dependencies || stage.gemm >= spec.gemm_count ||
@@ -2821,7 +2830,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       }
       auto const& invocation = gemms[gemm_base[stage.gemm]];
       if (invocation.chunks != 1 ||
-          (stage.kind == TaskKind::kGemmRMSNorm && invocation.tiles_n != 1)) {
+          (stage.kind==TaskKind::kGemmRMSNorm && invocation.tiles_n != 1)) {
         std::fprintf(stderr,"fused GEMM requires unsplit accumulation and a full-row norm tile\n");
         std::exit(2);
       }
@@ -2838,6 +2847,19 @@ inline DeviceModel Create(ModelSpec const& spec,
         std::exit(2);
       }
     }
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(stage.kind==TaskKind::kDwPwFused) {
+      if(stage.conv>=spec.convolution_count || stage.gemm>=spec.gemm_count)
+        throw std::invalid_argument("fused depthwise stage outside descriptor tables");
+      auto conv=spec.convolutions[stage.conv];conv.n=dims.batch;
+      for(int chunk=0;chunk<gemm_chunks[stage.gemm];++chunk) {
+        auto& inv=gemms[gemm_base[stage.gemm]+chunk];inv.fused_program=i;
+        inv.fused_depthwise={model.buffers.at(stage.operand[0]),model.buffers.at(stage.operand[1]),
+            nullptr,conv,spec.buffers[stage.operand[0]].layout,spec.buffers[conv.output_layout].layout,
+            8,{},stage.chain};
+      }
+    }
+#endif
     entry[i] = static_cast<std::uint32_t>(model.stages.size());
     if (stage.kind == TaskKind::kAttention && runtime_variant.attention)
       attention_chunks[i] = runtime_variant.attention[i].chunks;
@@ -2862,8 +2884,8 @@ inline DeviceModel Create(ModelSpec const& spec,
       done[i] = static_cast<std::uint32_t>(model.stages.size())-1;
       continue;
     }
-    int chunks = stage.kind == TaskKind::kGemm ? gemm_chunks[stage.gemm] : 1;
-    if (stage.kind == TaskKind::kGemm || stage.kind == TaskKind::kAdd || fused_gemm)
+    int chunks = IsGemmStage(stage.kind) ? gemm_chunks[stage.gemm] : 1;
+    if (IsGemmStage(stage.kind) || stage.kind == TaskKind::kAdd || fused_gemm)
       stage.gemm = gemm_base[stage.gemm];
     model.stages.push_back(stage);
     done[i] = entry[i];
@@ -2961,7 +2983,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       // Split-K moves the producer event onto the combiner, which owns its
       // tasks by element chunk -- blockIdx no longer names the tile the
       // window was fitted against, so the edge falls back to kAll.
-      if (spec.stages[producer].kind == TaskKind::kGemm && done[producer] != entry[producer] &&
+      if (IsGemmStage(spec.stages[producer].kind) && done[producer] != entry[producer] &&
           !(model.params.ownership_flags & kCombinerTileOwnership)) {
         edge.map = StageDependency::Map::kAll;
         edge.div = 1u;
@@ -3072,7 +3094,10 @@ inline DeviceModel Create(ModelSpec const& spec,
       case TaskKind::kMoECombine:
       case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,dims);
 #endif
-      case TaskKind::kGemm:
+  #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    case TaskKind::kDwPwFused:
+#endif
+    case TaskKind::kGemm:
       case TaskKind::kGemmAdd: {
         GemmInvocation const& invocation = gemms[stage.gemm];
         return invocation.tiles_m * invocation.tiles_n * invocation.chunks;
@@ -3859,6 +3884,7 @@ inline DeviceModel Create(ModelSpec const& spec,
   model.params.dm_buffers={model.device_dm_buffers,model.device_dm_layouts,
                           model.device_dm_dtypes,spec.buffer_count};
   for(auto& invocation:gemms) {
+    invocation.fused_depthwise.buffers=model.params.dm_buffers;
     invocation.convolutions=model.device_dm_convolutions;
     invocation.dm_buffers={model.device_dm_buffers,model.device_dm_layouts,
                            model.device_dm_dtypes,spec.buffer_count};
@@ -4210,7 +4236,7 @@ inline void DumpTraceV2(DeviceModel const& model, char const* fixture_dir,
       auto const& stage = model.stages[model.schedule[i].stage];
       int m=0, n=0, k=0, split=1;
       unsigned long long bytes=0;
-      if (stage.kind == TaskKind::kGemm) {
+      if (IsGemmStage(stage.kind)) {
         GemmInvocation g;
         TILEMEGA_CUDA_CHECK(cudaMemcpy(&g, model.device_gemms + stage.gemm,
             sizeof(g), cudaMemcpyDeviceToHost));

@@ -126,6 +126,10 @@ enum class PlanTaskKind {
   kLayoutConvert,
 };
 
+inline constexpr bool IsGemmStage(PlanTaskKind kind) {
+  return kind==PlanTaskKind::kGemm || kind==PlanTaskKind::kDwPwFused;
+}
+
 struct PlanStage {
   PlanTaskKind kind = PlanTaskKind::kGemm;
   std::uint32_t gemm = 0;

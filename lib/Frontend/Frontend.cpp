@@ -451,7 +451,7 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
         fields.push_back(builder.getNamedAttr("dm_partial_rows_per_image",builder.getI64IntegerAttr(stage.partial_rows_per_image)));
       if(stage.moe.step!=codegen::DmMoeStep::kNone)
         fields.push_back(builder.getNamedAttr("dm_moe",EncodeDm(builder,stage.moe)));
-      if(stage.kind==PlanTaskKind::kDepthwiseConv) {
+      if(stage.kind==PlanTaskKind::kDepthwiseConv || stage.kind==PlanTaskKind::kDwPwFused) {
         fields.push_back(builder.getNamedAttr("dm_chain",EncodeDm(builder,stage.chain)));
         auto const& c=plan.convolutions.at(stage.conv);
         unsigned gates=0;
@@ -459,7 +459,8 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
           gates+=stage.chain.operations[i].kind==codegen::DmEpilogueKind::kGatePair;
         auto bytes=std::uint64_t((stage.group-1)*c.stride_h+(c.r-1)*c.dilation_h+1)*
             plan.buffers.at(c.input_layout).layout.physical[2]*stage.width*(gates?2:1)*2;
-        fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(std::max<std::uint64_t>(bytes,4096))));
+        if(stage.kind==PlanTaskKind::kDepthwiseConv)
+          fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(std::max<std::uint64_t>(bytes,4096))));
       }
     }
     stages.push_back(builder.getDictionaryAttr(fields));

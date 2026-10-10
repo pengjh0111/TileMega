@@ -266,7 +266,7 @@ ModelDescription ModelDescription::ReadCouplingGraph(
     if (!kind || !operands) throw std::invalid_argument("incomplete CG stage plan");
     ModelStage stage;
     stage.kind = ParseKind("TaskKind::" + kind.getValue().str());
-    stage.gemm = stage.kind == StageKind::kGemm || stage.kind == StageKind::kAdd
+    stage.gemm = IsGemmStage(stage.kind) || stage.kind == StageKind::kAdd
         ? integer(dict, "gemm") : -1;
     stage.extent = integer(dict, "extent"); stage.width = integer(dict, "width");
     stage.group = integer(dict, "group");
@@ -440,7 +440,7 @@ ModelDescription ModelDescription::FromGeneratedCuda(std::string const& path,
     if (fields.size() < 5) throw std::runtime_error("short StageDesc in " + path);
     ModelStage stage;
     stage.kind = ParseKind(fields[0]);
-    stage.gemm = stage.kind == StageKind::kGemm || stage.kind == StageKind::kAdd ? AsInt(fields[1], "stage.gemm")
+    stage.gemm = IsGemmStage(stage.kind) || stage.kind == StageKind::kAdd ? AsInt(fields[1], "stage.gemm")
                                                 : -1;
     stage.extent = AsInt(fields[2], "stage.extent");
     stage.width = AsInt(fields[3], "stage.width");

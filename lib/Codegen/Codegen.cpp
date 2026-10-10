@@ -3,6 +3,7 @@
 #include <tilemega/Codegen/RuntimePlan.h>
 #include <tilemega/Solver/RuntimeProjection.h>
 #include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Solver/DmGemmTraits.h>
 #include <tilemega/Codegen/tasks/TaskResources.h>
 #include <mlir/IR/Builders.h>
 #include <tilemega/Analysis/ISLContext.h>
@@ -1067,7 +1068,7 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
     for(auto value:stages)moe_stages|=bool(dictionaryEntry(value,"stages").get("dm_moe"));
     for(std::size_t i=0;i<stages.size();++i) {
       auto stage=dictionaryEntry(stages[i],"stages");
-      if(stringField(stage,"kind")!="kDepthwiseConv")continue;
+      if(stringField(stage,"kind")!="kDepthwiseConv" && stringField(stage,"kind")!="kDwPwFused")continue;
       depthwise=true;
       auto chain=frontend::DecodeDmChain(stage.get("dm_chain"));
       out<<"using DmPrimitiveChain"<<i<<" = DmEpilogueProgram<";
@@ -1082,6 +1083,20 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
            <<"u), "<<op.residual_map.factor<<"u>";
       }
       out<<">;\n";
+    }
+    bool fused_dw=false;
+    for(auto value:stages)fused_dw|=stringField(dictionaryEntry(value,"stages"),"kind")=="kDwPwFused";
+    if(fused_dw) {
+      out<<"#define TILEMEGA_DM_FUSED_DISPATCH 1\n"
+         <<"template<class Runner>\n__device__ inline bool DispatchDmFused(std::uint32_t stage, Runner const& runner) {\n";
+      for(std::size_t i=0;i<stages.size();++i) {
+        auto stage=dictionaryEntry(stages[i],"stages");
+        if(stringField(stage,"kind")!="kDwPwFused")continue;
+        auto conv=frontend::DecodeDmConv(arrayField(plan,"dm_convolutions")[integerField(stage,"dm_conv")]);
+        out<<"  if(stage=="<<i<<"u) {runner.template Run<"<<conv.c<<", DmPrimitiveChain"<<i
+           <<", DmSpec"<<integerField(stage,"gemm")<<">(); return true;}\n";
+      }
+      out<<"  return false;\n}\n";
     }
     std::set<std::tuple<std::string,std::int64_t,std::int64_t>> scalar_shapes;
     for(auto value:stages) {
@@ -1113,6 +1128,18 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
     }
     for(auto const& [kind,width,rows]:scalar_shapes)
       if(kind=="kEncoderAttention")dm_shared=std::max(dm_shared,EncoderAttentionSharedBytes());
+    if(fused_dw) {
+      auto geometries=module->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime");
+      if(!geometries)throw std::invalid_argument("fused dw-pw requires selected GEMM geometry");
+      for(auto value:stages) {
+        auto stage=dictionaryEntry(value,"stages");
+        if(stringField(stage,"kind")!="kDwPwFused")continue;
+        auto g=dictionaryEntry(geometries[integerField(stage,"gemm")],"gemm_runtime");
+        int tm=integerField(g,"tile_m"),tn=integerField(g,"tile_n"),tk=integerField(g,"tile_k"),ss=integerField(g,"stages");
+        dm_shared=std::max(dm_shared,tm*int(integerField(stage,"width"))*2+
+            solver::DmServingBF16SmemBytes(tm,tn,tk,ss));
+      }
+    }
     if(dm_shared)out<<"#define TILEMEGA_DM_STAGE_SHARED_BYTES "<<dm_shared<<"\n";
     if(!scalar_shapes.empty() || depthwise || moe_stages) {
       out<<"} // namespace tilemega::codegen\n"

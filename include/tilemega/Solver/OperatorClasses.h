@@ -83,7 +83,7 @@ inline ServingClassDomain ServingClassCandidates(
     throw std::invalid_argument("serving domain requires a serving model and bound batch");
   auto id=cls.gemms.front();auto const& gemm=imported.plan.gemms.at(id);
   auto stage=std::find_if(imported.plan.stages.begin(),imported.plan.stages.end(),
-      [&](auto const& s){return s.kind==frontend::PlanTaskKind::kGemm && s.gemm==id;});
+      [&](auto const& s){return frontend::IsGemmStage(s.kind) && s.gemm==id;});
   if(stage==imported.plan.stages.end())throw std::invalid_argument("serving GEMM has no stage");
   int const rows=stage->batch_rows ? batch : batch*seq;
   ServingPruneContext pruning{rows,int(gemm.n),int(gemm.k),

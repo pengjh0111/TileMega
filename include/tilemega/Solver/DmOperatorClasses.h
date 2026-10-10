@@ -77,6 +77,20 @@ inline std::string GemmSemanticSignature(analysis::SemanticOp const& op,
     auto const& s=chain.side[i];put(s.kind);put(s.count);
     buffer(s.buffer);buffer(s.auxiliary);
   }
+  for(auto const& stage:plan.stages)if(stage.kind==frontend::PlanTaskKind::kDwPwFused) {
+    auto const& owner=plan.gemms.at(stage.gemm);
+    if(&owner!=&gemm && (owner.a!=gemm.a || owner.b!=gemm.b || owner.d!=gemm.d))continue;
+    out<<"dwpw;";auto const& c=plan.convolutions.at(stage.conv);
+    for(auto x:{c.n,c.h,c.w,c.c,c.k,c.r,c.s,c.stride_h,c.stride_w,
+                c.pad_h,c.pad_w,c.dilation_h,c.dilation_w,c.p,c.q})put(x);
+    buffer(c.input_layout);buffer(stage.operands[1]);
+    put(stage.chain.count);put(stage.chain.store_rounding);
+    for(unsigned i=0;i<stage.chain.count;++i) {
+      auto const& e=stage.chain.operations[i];put(e.kind);
+      for(auto id:e.parameter)buffer(id);
+      put(e.activation);put(e.input_rounding);put(e.output_rounding);
+    }
+  }
   return out.str();
 }
 

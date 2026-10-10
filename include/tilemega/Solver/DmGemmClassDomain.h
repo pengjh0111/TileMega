@@ -25,7 +25,7 @@ inline int DmGemmActiveRows(frontend::PlanGemm const& gemm,
     return int(access.block_rows);
   }
   auto stage=std::find_if(plan.stages.begin(),plan.stages.end(),[&](auto const& s) {
-    return s.kind==frontend::PlanTaskKind::kGemm && s.gemm==id;
+    return frontend::IsGemmStage(s.kind) && s.gemm==id;
   });
   if(stage==plan.stages.end())throw std::invalid_argument("DM class GEMM has no stage");
   auto rows=std::uint64_t(batch)*(access.rows_per_batch?access.rows_per_batch:

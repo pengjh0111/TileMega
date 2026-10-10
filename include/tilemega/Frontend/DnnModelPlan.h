@@ -11,6 +11,8 @@ struct DnnPlanOptions {
   std::uint64_t workspace_budget_bytes=0;
   std::string memory_reuse="none";
   std::uint64_t memory_l2_budget_bytes=0;
+  bool dwpw_fuse=false;
+  std::optional<std::set<unsigned>> dwpw_fuse_gemms;
   bool deferred_layernorm=false;
   std::optional<std::set<unsigned>> deferred_layernorm_gemms;
 };

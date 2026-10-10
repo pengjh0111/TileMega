@@ -160,7 +160,7 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
       throw std::invalid_argument("flow runtime dependency outside stage range");
     if(edge.table || edge.counted)continue;
     if(done[edge.producer]!=entry[edge.producer] &&
-       result.model.stages[edge.producer].kind==StageKind::kGemm &&
+       IsGemmStage(result.model.stages[edge.producer].kind) &&
        !result.model.combiner_tile_ownership)
       window={};
     result.projection.runtime_windows.push_back({done[edge.producer],
@@ -489,7 +489,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     if(flow.inflight_dram)for(auto& piece:prices.pieces) {
       auto& p=piece.parts;
       p.dram_rate_cap=p.compute_ns>0 ? p.dram_bytes/p.compute_ns : cal.dram_gbps;
-      if(stage.kind==StageKind::kGemm && !projected.combine) {
+      if(IsGemmStage(stage.kind) && !projected.combine) {
         int iterations=std::max(1,(int(model.gemms.at(stage.gemm).k)+g.tile_k*chunks-1)/(g.tile_k*chunks));
         if(model.dm && input.task.element_access && input.task.element_access->partition.reduction_index) {
           auto const& partition=input.task.element_access->partition;

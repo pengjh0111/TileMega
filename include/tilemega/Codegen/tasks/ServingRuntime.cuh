@@ -85,6 +85,9 @@ inline int Count(ModelSpec const& spec, RuntimeVariantDesc const& variant,
     case TaskKind::kMoECombine:
     case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,dims);
 #endif
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    case TaskKind::kDwPwFused:
+#endif
     case TaskKind::kGemm:
     case TaskKind::kGemmCombine: {
       auto const& gemm = spec.gemms[stage.gemm];
@@ -104,7 +107,7 @@ inline int Count(ModelSpec const& spec, RuntimeVariantDesc const& variant,
 #endif
       int tiles = CeilDiv(rows, geometry.tile_m) *
                   CeilDiv(gemm.n, geometry.tile_n);
-      return stage.kind == TaskKind::kGemm ? tiles * geometry.split_k : tiles;
+      return IsGemmStage(stage.kind) ? tiles * geometry.split_k : tiles;
     }
     case TaskKind::kEmbedding:
       return dims.tokens();

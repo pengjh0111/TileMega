@@ -48,14 +48,14 @@ def read_config(path):
     if not batches or len(set(batches)) != len(batches) or any(
             type(batch) is not int or not 1 <= batch <= 64 for batch in batches):
         raise ValueError('workload.batch must contain distinct integers in [1,64]')
-    config['features'] = dict(dict(pg='l2', forward_executor='L2', reuse='auto',deferred_ln='auto'),
+    config['features'] = dict(dict(pg='l2', forward_executor='L2', reuse='auto',deferred_ln='auto',dwpw_fuse='auto'),
                               **config.get('features', {}))
-    unknown=set(config['features'])-{'pg','forward_executor','reuse','deferred_ln'}
+    unknown=set(config['features'])-{'pg','forward_executor','reuse','deferred_ln','dwpw_fuse'}
     if unknown:
         raise ValueError('unsupported DNN features: '+', '.join(sorted(unknown)))
     for key, values in dict(pg=('off', 'l2', 'pages', 'auto'),
             forward_executor=('L1', 'L2'), reuse=('auto', 'none', 'greedy', 'l2'),
-            deferred_ln=('auto','0')).items():
+            deferred_ln=('auto','0'), dwpw_fuse=('auto','0')).items():
         if config['features'][key] not in values:
             raise ValueError('invalid features.' + key)
     config['solver'] = dict(dict(passes=2, time_budget_s=1800, jobs=1),
@@ -114,6 +114,7 @@ def build(config, out, compiler):
             '--batch', str(batch), '--pg', config['features']['pg'],
             '--reuse', config['features']['reuse'], '--solve', config['target'],
             '--deferred-ln', config['features']['deferred_ln'],
+            '--dwpw-fuse', config['features']['dwpw_fuse'],
             '--runtime-target', config['target'], '--selection', 'predicted',
             '--search-passes', str(config['solver']['passes']), '--top-m', '1',
             '--search-jobs', str(config['solver']['jobs']),
