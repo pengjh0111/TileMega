@@ -15,7 +15,10 @@ def acquire_command_lock(command,lock_path):
         os.close(descriptor);raise
     # flock on an inherited descriptor uses the same open-file description.
     # Opening the pathname again while the parent holds it would deadlock.
-    return [command[0],str(descriptor),*command[2:]],descriptor
+    # Descriptor mode takes no command operands; pass argv through a shell
+    # without interpolating any command text or reopening the lock file.
+    return ['bash','-c','flock -x "$1" || exit "$?"; shift; exec "$@"',
+            'dm-lock',str(descriptor),*command[2:]],descriptor
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--queue-dir',type=Path,required=True);p.add_argument('--out',type=Path,required=True);p.add_argument('--policy',type=Path,required=True);p.add_argument('--deadline-hours',type=float,default=96);a=p.parse_args()

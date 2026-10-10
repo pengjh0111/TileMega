@@ -28,9 +28,11 @@ class SharedLock(unittest.TestCase):
                 ['flock',str(lock),'timeout','.1',sys.executable,'-c','print("executed")'],str(lock))
             try:
                 self.assertGreaterEqual(time.monotonic()-begin,.2)
-                result=subprocess.run(command,pass_fds=(descriptor,),capture_output=True,text=True,timeout=2)
+                result=subprocess.run(command,pass_fds=(descriptor,),cwd=folder,
+                    capture_output=True,text=True,timeout=2)
                 self.assertEqual(result.returncode,0,result.stderr)
                 self.assertEqual(result.stdout.strip(),'executed')
+                self.assertFalse((Path(folder)/str(descriptor)).exists())
                 competitor=os.open(lock,os.O_RDWR)
                 try:
                     with self.assertRaises(BlockingIOError):fcntl.flock(competitor,fcntl.LOCK_EX|fcntl.LOCK_NB)
