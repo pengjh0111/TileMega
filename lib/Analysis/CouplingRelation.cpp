@@ -251,12 +251,15 @@ CouplingRelation CouplingRelation::Coarsen(
 bool CouplingRelation::IsSubset(CouplingRelation const& wide) const {
   if (empty()) return true;
   if (wide.empty()) return false;
+  if(text_==wide.text_)return true;
+  return MemoExact({"relation_subset",text_,wide.text_},[&] {
   isl_util::Map narrow_map = isl_util::ReadMap(Ctx(), text_);
   isl_util::Map wide_map = isl_util::ReadMap(Ctx(), wide.text_);
   isl_bool result = isl_map_is_subset(narrow_map.get(), wide_map.get());
   if (result == isl_bool_error)
     throw std::runtime_error("isl: is_subset query failed");
   return result == isl_bool_true;
+  });
 }
 
 bool CouplingRelation::IsSingleValued() const {

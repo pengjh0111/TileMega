@@ -65,6 +65,16 @@ int TestIslRelation(int argc, char** argv) {
       "ceild(S,128) }");
   assert(C.IsSubset(relaxed));
   assert(!relaxed.IsSubset(C));  // not established the other way
+  {
+    ScopedExactAnalysisMemo memo;
+    for (int repeat=0;repeat<2;++repeat) {
+      assert(C.IsSubset(relaxed));
+      assert(!relaxed.IsSubset(C));
+      assert(C.IsSubset(C));
+    }
+    assert(memo.memo.hits==2 && memo.memo.misses==2);
+    std::cout<<"SUBSET_MEMO positive_negative_full_operands=1 PASS\n";
+  }
 
   // Bind/project parameters on an already-derived relation, then retain only
   // one endpoint per domain point.  Window synthesis uses this path instead

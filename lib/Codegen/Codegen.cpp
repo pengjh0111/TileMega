@@ -6,6 +6,7 @@
 #include <tilemega/Codegen/tasks/TaskResources.h>
 #include <mlir/IR/Builders.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Analysis/ExactMemo.h>
 #include <tilemega/Codegen/RuntimeDependencyCodec.h>
 #include <tilemega/Frontend/SymbolicShapeBridge.h>
 #include <tilemega/Frontend/DmDescriptorCodec.h>
@@ -1398,6 +1399,9 @@ static void ReadParameterRanges(mlir::ModuleOp module,RuntimePlan& result) {
 
 RuntimePlan ReadRuntimePlan(mlir::ModuleOp module) {
   analysis::IslReferenceAudit audit(__func__);
+  std::optional<analysis::ScopedExactAnalysisMemo> memo;
+  auto plan=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+  if(plan && plan.get("dm") && !analysis::active_exact_memo)memo.emplace();
   auto analysis = AnalyzeVariantModule(module);
   auto model = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   if (!model) throw std::invalid_argument("CG has no runtime model plan");
@@ -1862,6 +1866,8 @@ std::string CouplingGraphToCUDA::LowerVariants(
       "tilemega.model_plan");
   if (!first_plan)
     throw std::invalid_argument("variant has no tilemega.model_plan");
+  std::optional<analysis::ScopedExactAnalysisMemo> memo;
+  if(first_plan.get("dm") && !analysis::active_exact_memo)memo.emplace();
   std::size_t const gemm_count = arrayField(first_plan, "gemms").size();
 
   std::vector<RuntimeVariantRecord> records;
