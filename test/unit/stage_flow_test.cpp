@@ -205,6 +205,28 @@ int TestStageFlow(int argc, char** argv) try {
   if(inline_result.tasks[2].worker!=1)
     throw std::runtime_error("inline reducer did not run on the last producer");
   Near(inline_result.makespan_ns,24,"inline reducer completes on last producer");
+  tilemega::codegen::RuntimeTaskGraph reserved_graph;
+  reserved_graph.stage_offsets={0,2,3,4,5};
+  reserved_graph.successors={{2,3},{2,3},{},{},{}};
+  MaterializedPlan reserved_plan;
+  reserved_plan.queue={{{0,0},{3,0},{1,0},{2,0}},{{0,1}}};
+  SimulatorInput reserved_input;reserved_input.graph=&reserved_graph;
+  reserved_input.task_price_parts={{0,20,0,0},{0,5,0,0},
+      {7,3,0,0},{2,4,0,0},{0,5,0,0}};
+  reserved_input.inline_reducer={0,0,1,1,0};
+  reserved_input.inline_body_reserved={0,0,1,1,0};
+  if(!SimulateExecution(reserved_input,reserved_plan,inline_options,{},
+      &inline_result,&inline_error))throw std::runtime_error(inline_error);
+  Near(inline_result.tasks[2].start_ns,20,"DM body uses final producer CTA");
+  Near(inline_result.tasks[2].end_ns,30,"DM body retains fixed barriers");
+  Near(inline_result.tasks[3].start_ns,30,"two handoffs serialize on one CTA");
+  Near(inline_result.tasks[3].end_ns,36,"second handoff retains body work");
+  Near(inline_result.tasks[4].start_ns,36,"handoff reserves CTA before next FIFO task");
+  Near(inline_result.makespan_ns,41,"DM handoff bounded worker makespan");
+  Near(inline_result.busiest_worker_ns,41,"DM body charged to producer worker");
+  reserved_input.inline_body_reserved[4]=1;
+  if(SimulateExecution(reserved_input,reserved_plan,inline_options,{},
+      &inline_result,&inline_error))throw std::runtime_error("accepted reserved ordinary node");
   tilemega::codegen::RuntimeTaskGraph graph;graph.stage_offsets={0,2,4};graph.successors={{2},{3},{},{}};
   MaterializedPlan plan;plan.queue={{{0,0},{1,0}},{{0,1},{1,1}}};
   SimulatorInput input;input.graph=&graph;input.task_price_parts.assign(4,TaskPriceParts{2,3,20,4});

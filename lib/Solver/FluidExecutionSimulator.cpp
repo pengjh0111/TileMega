@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <queue>
+#include <deque>
 #include <optional>
 #include <stdexcept>
 namespace tilemega::solver {
@@ -17,7 +18,12 @@ bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& 
   if(input.task_price_parts.size()!=std::size_t(nodes))throw std::invalid_argument("missing per-task fluid prices");
   if(!input.inline_reducer.empty() && input.inline_reducer.size()!=std::size_t(nodes))
     throw std::invalid_argument("invalid inline reducer mask");
+  if(!input.inline_body_reserved.empty() && input.inline_body_reserved.size()!=std::size_t(nodes))
+    throw std::invalid_argument("invalid reserved inline body mask");
+  auto reserved_inline=[&](int n){return !input.inline_body_reserved.empty() && input.inline_body_reserved[n];};
   auto inline_node=[&](int n){return !input.inline_reducer.empty() && input.inline_reducer[n];};
+  for(int n=0;n<nodes;++n)if(reserved_inline(n) && !inline_node(n))
+    throw std::invalid_argument("reserved inline body is not a reducer");
   for(auto const* mask:{&input.publication_required,&input.consumer_wait_required})if(!mask->empty() && mask->size()!=std::size_t(nodes))throw std::invalid_argument("invalid fluid synchronization mask");
   PreparedExecutionGraph local_graph;auto graph=input.prepared_graph;
   if(!graph){if(!PrepareExecutionGraph(*input.graph,&local_graph,error))return false;graph=&local_graph;}
@@ -29,6 +35,8 @@ bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& 
   std::vector<int> prefetch_head(workers);
   std::vector<double> ready(nodes),available(workers),work(workers);
   std::vector<int> inline_worker(nodes,-1);
+  std::vector<std::deque<int>> inline_ready(workers);
+  std::vector<unsigned char> busy(workers);
   std::vector<double> page_hold(workers),reserved(nodes),prefetch_bytes(nodes);
   std::vector<unsigned char> prefetch_ready(nodes,!paged);
   std::vector<unsigned char> state(nodes),compute(nodes),bytes(nodes),closing(nodes);
@@ -48,11 +56,17 @@ bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& 
   double now=0;int completed=0,running=0;
   double const page_capacity=double(options.page_bytes)*options.pages_per_worker;
   *out={};out->tasks.resize(nodes);out->cross_worker_edges=prepared->cross_edges;out->same_worker_edges=prepared->same_edges;
-  auto enqueue=[&](int w){auto const& queue=prepared->queue[w];
+  auto enqueue=[&](int w){
+    if(busy[w])return;
+    if(!inline_ready[w].empty()) {
+      int n=inline_ready[w].front();inline_ready[w].pop_front();busy[w]=1;
+      events.push({std::max({now,available[w],ready[n]}),Start,n});return;
+    }
+    auto const& queue=prepared->queue[w];
     while(head[w]<int(queue.size()) && inline_node(queue[head[w]]))++head[w];
     if(head[w]>=int(queue.size()))return;int n=queue[head[w]];
     if(pending[n] || state[n] || !prefetch_ready[n])return;
-    state[n]=1;events.push({std::max({available[w],ready[n],paged?now:0.}),Start,n});};
+    state[n]=1;busy[w]=1;events.push({std::max({available[w],ready[n],paged?now:0.}),Start,n});};
   auto launch_prefetch=[&](int w){
     if(!paged)return;
     auto const& queue=prepared->queue[w];
@@ -81,7 +95,9 @@ bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& 
   }};
   for(int w=0;w<workers;++w){launch_prefetch(w);enqueue(w);}
   for(int n=0;n<nodes;++n)if(inline_node(n) && pending[n]==0) {
-    state[n]=1;inline_worker[n]=prepared->owner[n];events.push({0,Start,n});
+    state[n]=1;inline_worker[n]=prepared->owner[n];
+    if(reserved_inline(n)){inline_ready[inline_worker[n]].push_back(n);enqueue(inline_worker[n]);}
+    else events.push({0,Start,n});
   }
   while(completed<nodes) {
     double next=std::min(events.empty()?std::numeric_limits<double>::infinity():events.top().at,now+fluid_next());
@@ -90,12 +106,12 @@ bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& 
       if(owner<0){int n=-owner-1;prefetch_ready[n]=1;enqueue(prepared->owner[n]);}
       else {bytes[owner]=1;finish(owner);}}
     while(!events.empty() && events.top().at<=now){auto e=events.top();events.pop();int n=e.node,w=inline_node(n)?inline_worker[n]:prepared->owner[n];auto const& parts=input.task_price_parts[n];auto& task=out->tasks[n];
-      if(e.kind==Start){if(!inline_node(n))++running;
+      if(e.kind==Start){if(!inline_node(n) || reserved_inline(n))++running;
         task.worker=w;task.start_ns=now;
         task.block_ns=inline_node(n)?0:std::max(0.,now-available[w]);out->total_block_ns+=task.block_ns;
         bool wait=!inline_node(n) && (input.consumer_wait_required.empty()?prepared->cross_input[n]!=0:input.consumer_wait_required[n]!=0);
         events.push({now+(wait?options.consumer_wait_ns:0)+
-            (inline_node(n)?0:parts.fixed_ns),Main,n});
+            (inline_node(n) && !reserved_inline(n)?0:parts.fixed_ns),Main,n});
       }else if(e.kind==Main){
         double demand=parts.dram_bytes-(options.no_external_dram?parts.no_producer_dram_bytes:0)
             -(paged?prefetch_bytes[n]:0);
@@ -105,9 +121,12 @@ bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& 
           if(id!=int(fluid_owner.size()))throw std::runtime_error("fluid id discontinuity");fluid_owner.push_back(n);}else bytes[n]=1;
         events.push({now+parts.compute_ns,Computed,n});
       }else if(e.kind==Computed){compute[n]=1;finish(n);}
-      else{if(!inline_node(n))--running;++completed;task.end_ns=now;
+      else{if(!inline_node(n) || reserved_inline(n))--running;++completed;task.end_ns=now;
         out->total_work_ns+=now-task.start_ns;
-        if(!inline_node(n)){work[w]+=now-task.start_ns;available[w]=now;++head[w];}
+        if(!inline_node(n) || reserved_inline(n)) {
+          work[w]+=now-task.start_ns;available[w]=now;busy[w]=0;
+          if(!inline_node(n))++head[w];
+        }
         state[n]=2;
         int g=graph->group_of_node[n];double edge=options.flat_hop?hop.c0:hop.Ns(prepared->cross_fanout[n],std::max(1,running));
         arrivals[g].Add(w,now,now+edge);
@@ -115,7 +134,11 @@ bool SimulateFluidExecution(SimulatorInput const& input,MaterializedPlan const& 
         if(--remaining[g]==0)graph->successors[g].Visit([&](int s){
           ready[s]=std::max(ready[s],inline_node(s)?now:arrivals[g].Ready(prepared->owner[s]));
           if(--pending[s]==0) {
-            if(inline_node(s)) {inline_worker[s]=w;state[s]=1;events.push({ready[s],Start,s});}
+            if(inline_node(s)) {
+              inline_worker[s]=w;state[s]=1;
+              if(reserved_inline(s))inline_ready[w].push_back(s);
+              else events.push({ready[s],Start,s});
+            }
             else enqueue(prepared->owner[s]);
           }
         });
