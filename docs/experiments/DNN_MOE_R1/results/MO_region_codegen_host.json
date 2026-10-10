@@ -32,5 +32,13 @@
     "runs/dm1-moe-region-wire-host-v4.log",
     "runs/dm1-moe-region-split-host-v2.log"
   ],
-  "six_case_sweep": "pending"
+  "six_case_sweep": {
+    "evidence": "verified",
+    "passed": true,
+    "cases": 6,
+    "log": "runs/dm1-moe-region-wire-host-v7.log",
+    "log_sha256": "8400feaffed8f2fa53f200ee416b3d2c6563d2931091e16b11560cd5104534f0",
+    "source": "runs/dm1-moe-compact-generated-v7.cu",
+    "source_sha256": "c5bb1b1daca3dab7a096b62d53827e3768c6a2e9833e0e408c91469bcfde72f5"
+  }
 }

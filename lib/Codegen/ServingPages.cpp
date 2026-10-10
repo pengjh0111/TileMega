@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Codegen/ServingPages.h>
 #include <tilemega/Codegen/RuntimePlan.h>
+#include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Solver/PageLayout.h>
 #include <tilemega/Solver/ModelDescription.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
@@ -182,27 +183,51 @@ void ResolveServingWeightPacking(mlir::ModuleOp module) {
     if(!recipe || recipe.getValue().empty())
       throw std::invalid_argument("page weight lacks a packing recipe");
     if(recipe.getValue().starts_with("{\"kind\":\"tile_pages\"")) continue;
+    auto access=g.get("dm_access")?frontend::DecodeDmAccess(g.get("dm_access")):DmGemmAccess{};
+    bool expert=access.b==DmBAccess::kExpertIndirect;
+    auto stride=std::int64_t((n+tn-1)/tn)*((k+tk-1)/tk)*tn*tk;
+    auto elements=stride*(expert?access.experts:1);
+    if(expert && (!access.experts || elements>std::numeric_limits<std::uint32_t>::max()))
+      throw std::invalid_argument("packed expert stack exceeds the buffer extent range");
     auto key=std::make_tuple(source,tn,tk);
     int destination;
     if(auto found=packed.find(key);found!=packed.end()) destination=found->second;
     else {
-      destination=int(buffers.size());
-      auto name=original.getAs<mlir::StringAttr>("name").getValue().str()+
-          "@t"+std::to_string(tn)+"x"+std::to_string(tk);
+      bool replace=expert;
+      for(auto const& [prior,id]:packed)if(std::get<0>(prior)==source)replace=false;
+      // Expert stacks have no non-GEMM consumer. Replacing their source slot
+      // prevents retaining an unused row-major stack beside its tiled copy.
+      if(replace)for(auto const& item:old_gemms) {
+        auto other=mlir::cast<mlir::DictionaryAttr>(item);
+        for(auto operand:{"a","c","d"})
+          if(other.getAs<mlir::IntegerAttr>(operand).getInt()==source)
+            throw std::invalid_argument("expert weight storage is also an activation");
+        if(other.getAs<mlir::IntegerAttr>("b").getInt()==source &&
+            (!other.get("dm_access") ||
+             frontend::DecodeDmAccess(other.get("dm_access")).b!=DmBAccess::kExpertIndirect))
+          throw std::invalid_argument("expert weight storage has a dense consumer");
+      }
+      destination=replace?source:int(buffers.size());
+      auto name=original.getAs<mlir::StringAttr>("name").getValue().str();
+      if(!replace)name+="@t"+std::to_string(tn)+"x"+std::to_string(tk);
       auto nested="{\"kind\":\"tile_pages\",\"tile_n\":"+
           std::to_string(tn)+",\"tile_k\":"+std::to_string(tk)+
           ",\"source\":"+recipe.getValue().str()+"}";
       mlir::NamedAttrList updated(original);
       updated.set("name",b.getStringAttr(name));
       updated.set("external_name",b.getStringAttr(name));
-      updated.set("constant",b.getI64IntegerAttr(
-          std::int64_t((n+tn-1)/tn)*((k+tk-1)/tk)*tn*tk));
+      updated.set("constant",b.getI64IntegerAttr(elements));
       updated.set("pack_json",b.getStringAttr(nested));
-      buffers.push_back(updated.getDictionary(module.getContext()));
+      if(replace)buffers[source]=updated.getDictionary(module.getContext());
+      else buffers.push_back(updated.getDictionary(module.getContext()));
       packed.emplace(key,destination);
     }
     mlir::NamedAttrList rewritten(g);
     rewritten.set("b",b.getI64IntegerAttr(destination));
+    if(expert) {
+      access.expert_stride=stride;
+      rewritten.set("dm_access",frontend::EncodeDm(b,access));
+    }
     gemms[i]=rewritten.getDictionary(module.getContext());
     for(auto& attr:stages) {
       auto stage=mlir::cast<mlir::DictionaryAttr>(attr);
