@@ -39,8 +39,8 @@ Export coverage and primitive checks do not imply model correctness.
 | DN-2/3 | verified: five DNN before/Core planning and lifting, including masked BERT and full NAFNet LN2d/SG/SCA/shuffle; complete model gates pending |
 | DN-4 | verified: im2col operands and dense/tiled/page TaskBodies, small channels, tails, stride/dilation, issued split-K. Native ABI primitives verified; complete models pending |
 | DN-5/6 | verified: staged depthwise/SimpleGate and window/global pooling bodies; generated pool pipeline. dw→pw body verified; fused planning, SCA and complete model integration pending |
-| DN-7 | verified: explicit LN and ordered embedding sum, including BERT plans; deferred LN and full model gates pending |
-| DN-8/9/10/11 | verified: encoder attention body and layout conversion; generated encoder integration in progress. Full chain/model numerics, memory reuse and model CLI pending |
+| DN-7 | verified: explicit LN and ordered embedding sum, including BERT plans; proved deferred LN rewriting and generated synthetic execution verified; per-edge solver selection pending |
+| DN-8/9/10/11 | verified: encoder attention body and layout conversion; generated encoder integration in progress. Full chain/model numerics, exact memory reuse and public model CLI implemented; full-model reuse generation remains expensive |
 | MO-1 through MO-9 | verified: real exports/checkpoints, single-copy streaming under 24 GiB, routing inputs and local routing/combine bodies; gathered/indirect expert GEMMs and routing/combine wrappers verified; initial real-weight and paged regions execute correctly; full-model integration pending |
 
 ## Tables and gates
@@ -58,6 +58,14 @@ Export coverage and primitive checks do not imply model correctness.
 | T9/T10 | Performance measurements omitted under the user override |
 | T11 | Measured compile-scaling matrix omitted under the user override |
 | T12 | Per-artifact resources retained in identity receipts; calibration/model resource coverage remains incomplete |
+
+verified: complete synthetic two-layer QPerKV=8 decoder kernels execute in
+nonpaged/paged decode and prefill. The paged-prefill fixed case passes independent
+HF attention and MoE references on each native layer input, its final output head,
+and same-binary L1/L2 bit comparison. Its independent HF whole-model token differs;
+the original whole-decoder elementwise/token failures are retained. This is a
+component numerical smoke under the user override, **not G-MOE**.
+`python/tilemega/moe/check_decoder.py` records both component and whole-model results.
 
 ### T1: regression
 

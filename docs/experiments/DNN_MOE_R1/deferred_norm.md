@@ -23,10 +23,12 @@ FP32 sum and square sum; variance is clamped at zero before adding epsilon.
 
 verified: host descriptor round trips, exclusion/access contracts, unequal
 residual K, exact statistics lifting and eight CPU recipe checks pass.
-The generated three-GEMM numerical fixture is submitted in
-`runs/dm1-deferred-ln-generated-native-v1`; GPU, sanitizer, 50-process and
-five-architecture results remain pending. These host results do not establish
-full-model numerical correctness or a synchronization claim.
+verified: the generated three-GEMM numerical fixture executes with fixed
+synthetic BF16 weights and input. Maximum absolute error is 0.008995533 and
+L1/L2 outputs are bit-identical (`runs/dm1-deferred-ln-fixed-input-v2/check.log`).
+The original frozen queue failed because its Python snapshot omitted the weight
+loader; that failure is retained. This single numerical smoke does not establish
+a 50-process synchronization claim or full-model numerical correctness.
 
 Deviation/pending: `--deferred-ln auto|0` currently controls all proved edges
 as one structural choice. Per-edge joint solver selection and extra norm-work

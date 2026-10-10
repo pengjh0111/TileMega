@@ -52,13 +52,13 @@ def router_output(bridge,gate_name):
     return matches[0]
 
 
-def internal(library,plan,name,shape,dtype):
+def internal(library,plan,name,shape,dtype,*,batch=1):
     index=next(i for i,b in enumerate(library.buffers) if b.name==name)
     accessor=library.lib.tm_dm_debug_buffer
     accessor.argtypes=[C.c_void_p,C.c_uint32,C.POINTER(C.c_uint64)]
     accessor.restype=C.c_void_p
     meta=(C.c_uint64*18)();pointer=accessor(plan.handle,index,meta)
-    count=library.buffers[index].elements_constant+library.buffers[index].elements_per_batch
+    count=library.buffers[index].elements_constant+batch*library.buffers[index].elements_per_batch
     value=torch.empty(shape,device='cuda',dtype=dtype)
     if not pointer or count!=value.numel():
         raise ValueError('native routing buffer extent differs from the bound region')
