@@ -3029,10 +3029,12 @@ inline DeviceModel Create(ModelSpec const& spec,
       edge.producer = done[producer];
       edge.consumer = entry[i];
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if(edge.producer_main)edge.producer=entry[producer];
+      if(edge.consumer_done)edge.consumer=done[i];
       if (attention_chunks[i] > 1 && (edge.map == StageDependency::Map::kTable ||
                                      edge.map == StageDependency::Map::kCounted))
         throw std::invalid_argument("bind table/counted ownership after attention chunk expansion");
-      if (edge.map == StageDependency::Map::kTable && done[producer] != entry[producer] &&
+      if (edge.map == StageDependency::Map::kTable && !edge.producer_main && done[producer] != entry[producer] &&
           !(model.params.ownership_flags & kCombinerTileOwnership))
         throw std::invalid_argument("table dependency requires tile-owned split-K combiner");
 #endif
@@ -3047,6 +3049,9 @@ inline DeviceModel Create(ModelSpec const& spec,
       // tasks by element chunk -- blockIdx no longer names the tile the
       // window was fitted against, so the edge falls back to kAll.
       if (IsGemmStage(spec.stages[producer].kind) && done[producer] != entry[producer] &&
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+          !edge.producer_main &&
+#endif
           !(model.params.ownership_flags & kCombinerTileOwnership)) {
         edge.map = StageDependency::Map::kAll;
         edge.div = 1u;

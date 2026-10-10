@@ -1118,13 +1118,16 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     if(timing) { timing->Add("cache_hit",0,cache->hits-hits);timing->Add("cache_miss",0,cache->misses-misses); }
     return result;
   }();
+  std::set<std::size_t> storageEdges;
 
   if(plan.memory_reuse!="none") {
     auto memory=solver::PlanBufferReuse(plan,graph,taskBinding,plan.memory_reuse,
                                       plan.memory_l2_budget_bytes);
     plan.memory_arena_bytes=memory.arena_bytes;
     for(auto const& alias:memory.aliases)plan.buffers.at(alias.buffer).arena_offset=alias.offset;
-    for(auto const& hazard:memory.hazards)derived.push_back(hazard.coupling);
+    for(auto const& hazard:memory.hazards) {
+      storageEdges.insert(derived.size());derived.push_back(hazard.coupling);
+    }
     module->setAttr("tilemega.model_plan",modelPlanAttr(builder,plan,lifted.written));
     module->setAttr("tilemega.memory_live_peak_bytes",builder.getI64IntegerAttr(memory.live_peak_bytes));
     module->setAttr("tilemega.memory_retained_internal_bytes",builder.getI64IntegerAttr(memory.retained_internal_bytes));
@@ -1389,6 +1392,12 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
 
     LiftedOp const& consumer = liftedOf(item.dst.name);
     mlir::OperationState state(builder.getUnknownLoc(), "tmcg.coupling");
+    if(storageEdges.count(edge)) {
+      if(graph.Find(item.src.name+".combine"))
+        state.addAttribute("dependency_producer_main",builder.getBoolAttr(true));
+      if(llvm::StringRef(item.dst.name).ends_with(".combine"))
+        state.addAttribute("dependency_consumer_done",builder.getBoolAttr(true));
+    }
     state.addAttribute(mlir::SymbolTable::getSymbolAttrName(),
                        builder.getStringAttr("c" + std::to_string(edge)));
     state.addAttribute("src", mlir::FlatSymbolRefAttr::get(&context, source->second));

@@ -369,18 +369,19 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
       throw std::invalid_argument("dependency outside runtime projection stages");
     if ((edge.table || edge.counted) && ((model.stages[edge.consumer].kind==StageKind::kAttention &&
         stage_chunks[edge.consumer]>1) ||
-        (done[edge.producer]!=entry[edge.producer] &&
+        (!edge.producer_main && done[edge.producer]!=entry[edge.producer] &&
          !(plan.ownership_flags & codegen::kCombinerTileOwnership))))
       throw std::invalid_argument("table dependency requires bound tile ownership");
     auto window = edge.window;
-    if (IsGemmStage(model.stages[edge.producer].kind) &&
+    if (!edge.producer_main && IsGemmStage(model.stages[edge.producer].kind) &&
         done[edge.producer] != entry[edge.producer] &&
         !(plan.ownership_flags & codegen::kCombinerTileOwnership))
       window = {};
     if (model.stages[edge.consumer].kind==StageKind::kAttention &&
         stage_chunks[edge.consumer]>1 && window.narrowed)
       window.div *= stage_chunks[edge.consumer];
-    edges.push_back({done[edge.producer],entry[edge.consumer],window,
+    edges.push_back({edge.producer_main?entry[edge.producer]:done[edge.producer],
+                     edge.consumer_done?done[edge.consumer]:entry[edge.consumer],window,
                      std::to_string(window.offset),edge.table,edge.counted});
   }
   for (std::size_t i=0; i<entry.size(); ++i) if (done[i] != entry[i]) {

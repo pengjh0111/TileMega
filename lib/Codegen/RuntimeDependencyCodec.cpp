@@ -47,6 +47,8 @@ mlir::DictionaryAttr EncodeRuntimeDependency(mlir::OpBuilder& b,DependencyRecord
   result.set("producer",b.getI64IntegerAttr(edge.producer));
   result.set("consumer",b.getI64IntegerAttr(edge.consumer));
   result.set("window",b.getStringAttr(edge.window.ToString()));
+  if(edge.producer_main)result.set("producer_main",b.getBoolAttr(true));
+  if(edge.consumer_done)result.set("consumer_done",b.getBoolAttr(true));
   if(edge.phase_window) {
     result.set("phase_window",b.getStringAttr(edge.phase_window->ToString()));
     result.set("phase_tiles",b.getI64IntegerAttr(edge.phase_tiles));
@@ -83,6 +85,13 @@ DependencyRecord DecodeRuntimeDependency(mlir::DictionaryAttr attr) {
   if(!attr)throw std::invalid_argument("retained dependency is not a dictionary");
   DependencyRecord result{Integer(attr,"producer"),Integer(attr,"consumer"),
       analysis::ParseWaitWindow(String(attr,"window"))};
+  for(auto const& field:std::vector<std::pair<char const*,bool*>>{
+      {"producer_main",&result.producer_main},{"consumer_done",&result.consumer_done}})
+    if(auto value=attr.get(field.first)) {
+      auto flag=mlir::dyn_cast<mlir::BoolAttr>(value);
+      if(!flag)throw std::invalid_argument("invalid retained dependency endpoint");
+      *field.second=flag.getValue();
+    }
   if(result.consumer<=result.producer)
     throw std::invalid_argument("retained dependency is not producer-before-consumer");
   if(attr.get("phase_window")) {

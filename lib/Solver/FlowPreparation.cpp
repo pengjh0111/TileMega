@@ -85,6 +85,8 @@ int RuntimeReleaseEndpoint(int cg_last,int consumer_task,int producer_count,
 SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<GemmConfig> const& geometry,
     int workers,int kappa,analysis::CouplingCache& cache,FlowPreparationCache* prepared,
     bool phase_analysis) {
+  if(base.model.storage_reuse)
+    throw std::invalid_argument("storage reuse requires geometry-specific import and hazard derivation");
   SymbolicProblem result;result.model=base.model;result.runtime=base.runtime;result.geometry=geometry;result.threads=base.threads;
   result.projection.options={workers,result.threads,kappa};result.projection.options.count_wait_entries=false;
   for(std::size_t i=0;i<geometry.size();++i){auto const& g=geometry[i];auto& r=result.runtime.gemms[i];r.tile_m=g.tile_m;r.tile_n=g.tile_n;r.tile_k=g.tile_k;r.stages=g.stages;r.split_k=g.split_k;}
@@ -159,12 +161,12 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     if(edge.producer>=entry.size() || edge.consumer>=entry.size())
       throw std::invalid_argument("flow runtime dependency outside stage range");
     if(edge.table || edge.counted)continue;
-    if(done[edge.producer]!=entry[edge.producer] &&
+    if(!edge.producer_main && done[edge.producer]!=entry[edge.producer] &&
        IsGemmStage(result.model.stages[edge.producer].kind) &&
        !result.model.combiner_tile_ownership)
       window={};
-    result.projection.runtime_windows.push_back({done[edge.producer],
-        entry[edge.consumer],window,std::to_string(window.offset)});
+    result.projection.runtime_windows.push_back({edge.producer_main?entry[edge.producer]:done[edge.producer],
+        edge.consumer_done?done[edge.consumer]:entry[edge.consumer],window,std::to_string(window.offset)});
   }
   for(std::size_t i=0;i<entry.size();++i)if(done[i]!=entry[i]) {
     if(!result.model.combiner_tile_ownership) {
@@ -211,7 +213,8 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     grouped[{p.stage,c.stage}].push_back(std::move(relation));}
   for(auto const& [pair,relations]:grouped)result.data_edges.push_back({pair.first,pair.second,(relations.size()==1?relations.front():analysis::CouplingRelation::UnionAll(relations))});
   for(auto& edge:result.runtime.dependencies)if(edge.counted) {
-    int producer=done[edge.producer],consumer=entry[edge.consumer];
+    int producer=edge.producer_main?entry[edge.producer]:done[edge.producer];
+    int consumer=edge.consumer_done?done[edge.consumer]:entry[edge.consumer];
     auto exact=std::find_if(result.data_edges.begin(),result.data_edges.end(),[&](auto const& item) {
       return item.producer==producer && item.consumer==consumer;
     });
@@ -237,7 +240,8 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     result.projection.runtime_counted.push_back({producer,consumer,contract});
   }
   for(auto& edge:result.runtime.dependencies)if(edge.table) {
-    int producer=done[edge.producer],consumer=entry[edge.consumer];
+    int producer=edge.producer_main?entry[edge.producer]:done[edge.producer];
+    int consumer=edge.consumer_done?done[edge.consumer]:entry[edge.consumer];
     auto exact=std::find_if(result.data_edges.begin(),result.data_edges.end(),[&](auto const& item) {
       return item.producer==producer && item.consumer==consumer;
     });

@@ -354,7 +354,9 @@ struct SearchContext {
     point.candidate.page_bytes=options.pg_pages?current_page_bytes:0;
     point.candidate.lookahead_bytes=options.pg_pages?current_lookahead_bytes:0;
     point.candidate.handoff_mask=options.handoff_auto?current_handoff_mask:0;
-    if(!base || materialize) {
+    // Reuse introduces WAR/WAW edges that the RAW-only incremental builder
+    // cannot recover from L-sem. Reimport with this candidate's ownership.
+    if(!base || materialize || imported.plan.memory_reuse!="none") {
       point.module=importer.InstantiateForGranularity(imported,context,granularity,&cache,nullptr,timing);
       {SolverPhase phase(timing,"prepare_relations");point.problem=PrepareSymbolicProblem(*point.module,target,options.common.placement.dims,target.res.num_sms*residency,residency,kappa,nullptr,false);}
       if(!base)base=point.problem;

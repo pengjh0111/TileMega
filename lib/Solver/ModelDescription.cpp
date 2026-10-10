@@ -189,6 +189,7 @@ ModelDescription ModelDescription::ReadCouplingGraph(
   };
   ModelDescription model;
   if(auto dm=plan.getAs<mlir::BoolAttr>("dm"))model.dm=dm.getValue();
+  model.storage_reuse=module->hasAttr("tilemega.memory_hazard_count");
   if(model.dm)
     for(auto conv:array("dm_convolutions"))model.convolutions.push_back(frontend::DecodeDmConv(conv));
   model.fusion_phase_context = phase_context;

@@ -3,11 +3,16 @@
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
+#include <tilemega/Solver/SkeletonSearch.h>
+#include <tilemega/Solver/DmGemmTraits.h>
 #include <llvm/Support/JSON.h>
 #include <llvm/Support/FormatVariadic.h>
 #include <cassert>
 #include <fstream>
 #include <iostream>
+#include <cmath>
+#include <filesystem>
+#include <sstream>
 
 namespace tilemega::tests::dnn_memory_codegen_test {
 int TestDnnMemoryCodegen(int argc,char** argv) {
@@ -60,7 +65,8 @@ int TestDnnMemoryCodegen(int argc,char** argv) {
       {"guards",llvm::json::Array{}},{"range_constraints",llvm::json::Object{{"B","VR[1, 64]"}}},
       {"nodes",std::move(nodes)},{"signature",llvm::json::Object{{"inputs",std::move(inputs)},
       {"outputs",llvm::json::Array{llvm::json::Object{{"name","reuse_output"},{"kind","USER_OUTPUT"}}}}}}};
-  if(argc!=3 || std::string(argv[1])!="--emit")
+  if((argc!=3 && argc!=4) || std::string(argv[1])!="--emit" ||
+      (argc==4 && std::string(argv[3])!="--search"))
     throw std::invalid_argument("dnn_memory_codegen requires --emit OUTPUT.cu");
   auto path=std::string(argv[2])+".bridge.json";
   {std::ofstream stream(path);stream<<llvm::formatv("{0:2}",bridge).str();}
@@ -72,6 +78,77 @@ int TestDnnMemoryCodegen(int argc,char** argv) {
   assert(hazards>0);
   auto source=CouplingGraphToCUDA{}.LowerVariants({{*module,7,7}});
   std::ofstream output(argv[2]);output<<source;assert(output);
+  if(argc==4 && std::string(argv[3])=="--search") {
+    solver::SkeletonSearchOptions search;
+    search.common.placement.target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+
+        "/docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/prefill/target.json");
+    search.common.placement.target.res.num_sms=4;
+    search.common.placement.dims={7,0,7};search.common.placement.dims.batch=2;
+    search.seed={16,16,16,2,1};
+    search.search_only=true;
+    search.variant_probe=[](auto const&,auto const* g,auto) {
+      return solver::VariantResources{32,g?solver::DmServingBF16SmemBytes(
+          g->tile_m,g->tile_n,g->tile_k,g->stages):512,128,false};
+    };
+    auto imported=TorchExportImporter{}.ImportSemantics(path,plan,context);
+    auto classes=solver::BuildOperatorClasses(imported);
+    for(auto const& g:std::vector<solver::GemmConfig>{{16,16,16,2,1},
+          {32,32,16,2,1},{16,32,16,2,2}})
+      search.evaluation_cases.push_back({std::vector<solver::GemmConfig>(classes.size(),g),1,1});
+    search.artifact_prefix=std::string(argv[2])+".search";
+    std::ostringstream evidence;
+    auto warm=solver::SolveSkeletonImported(imported,context,search,nullptr,evidence);
+    assert(warm.evaluated.size()==search.evaluation_cases.size());
+    for(std::size_t i=0;i<search.evaluation_cases.size();++i) {
+      auto cold_options=search;cold_options.evaluation_cases={search.evaluation_cases[i]};
+      cold_options.artifact_prefix+=".cold"+std::to_string(i);
+      auto cold=solver::SolveSkeletonImported(imported,context,cold_options,nullptr,evidence);
+      if(!warm.evaluated[i].error.empty() || !cold.evaluated[0].error.empty())
+        std::cerr<<"reuse case "<<i<<" warm="<<warm.evaluated[i].error
+                 <<" cold="<<cold.evaluated[0].error<<'\n';
+      assert(warm.evaluated[i].error.empty() && cold.evaluated[0].error.empty());
+      assert(std::isfinite(warm.evaluated[i].score));
+      assert(std::abs(warm.evaluated[i].score-cold.evaluated[0].score)<1e-9);
+    }
+    auto base=solver::PrepareSymbolicProblem(*module,search.common.placement.target,
+        search.common.placement.dims,4,1,1,nullptr,false);
+    assert(base.model.storage_reuse);
+    analysis::CouplingCache cache;bool rejected=false;
+    try {solver::PrepareFlowStructure(base,base.geometry,4,1,cache);}
+    catch(std::invalid_argument const& e) {
+      rejected=std::string(e.what()).find("storage reuse")!=std::string::npos;
+    }
+    assert(rejected);
+    auto split_options=options;
+    for(auto& geometry:split_options.gemms)geometry={16,32,16,2,2};
+    auto split=TorchExportImporter{}.ImportPlan(path,plan,context,nullptr,split_options);
+    auto runtime=ReadRuntimePlan(*split);
+    assert(std::any_of(runtime.dependencies.begin(),runtime.dependencies.end(),
+        [](auto const& edge){return edge.producer_main && edge.consumer_done;}));
+    auto split_source=CouplingGraphToCUDA{}.LowerVariants({{*split,7,7}});
+    std::ofstream(std::string(argv[2])+".split.cu")<<split_source;
+    auto bad=mlir::OwningOpRef<mlir::ModuleOp>(mlir::cast<mlir::ModuleOp>(split->clone()));
+    bool corrupted=false;
+    for(auto edge:bad->getOps<dialect::CouplingOp>()) {
+      dialect::TileSpaceOp src,dst;
+      for(auto task:bad->getOps<dialect::TileSpaceOp>()) {
+        if(task.getSymName()==edge.getSrc())src=task;
+        if(task.getSymName()==edge.getDst())dst=task;
+      }
+      auto name=src->getAttrOfType<mlir::StringAttr>("operator_name");
+      if(src.getStage()<dst.getStage() && name && name.getValue().ends_with(".combine")) {
+        edge->setAttr("dependency_producer_main",mlir::BoolAttr::get(&context,true));
+        corrupted=true;break;
+      }
+    }
+    assert(corrupted);rejected=false;
+    try {(void)ReadRuntimePlan(*bad);}
+    catch(std::invalid_argument const& e) {
+      rejected=std::string(e.what()).find("endpoint disagrees")!=std::string::npos;
+    }
+    assert(rejected);
+    std::cout<<"Reuse search: warm/cold geometry, split-K and RAW-only rejection PASS\n";
+  }
   std::cout<<"Reusable storage generated CUDA: "<<hazards<<" exact anti-dependencies PASS\n";
   return 0;
 }

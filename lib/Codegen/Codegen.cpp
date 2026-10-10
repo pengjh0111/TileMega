@@ -841,6 +841,13 @@ std::string emitModelPlan(mlir::ModuleOp module,
             << edge.counted->contributions.expected.size()
             << "u, " << ordering_tables[dependency_index]->stride << "u, " << counted_offsets[dependency_index]
             << "u, " << counted_offsets[dependency_index] << "u";
+      if(edge.producer_main || edge.consumer_done) {
+        if(!dm || edge.counted || edge.phase_window)
+          throw std::invalid_argument("split storage endpoints require a DM task dependency");
+        if(!edge.table)out<<", 0u, 0u, 0u, 0u";
+        out<<", kDmNoIndex, "<<(edge.producer_main?"true":"false")
+           <<", "<<(edge.consumer_done?"true":"false");
+      }
       out << "},\n";
       ++dependency_index;
     }
@@ -1293,11 +1300,17 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
   for (auto const& [name, value] : granularity.values) known.Bind(name, value);
   int max_stage = -1;
   std::unordered_map<std::string, std::uint32_t> task_stages;
+  std::map<std::string,bool> combine_tasks;
+  std::set<std::uint32_t> split_stages;
   std::size_t tasks = 0;
   for (auto task : module.getOps<dialect::TileSpaceOp>()) {
     ++tasks;
     max_stage = std::max(max_stage, static_cast<int>(task.getStage()));
     task_stages.emplace(task.getSymName().str(), task.getStage());
+    auto name=task->getAttrOfType<mlir::StringAttr>("operator_name");
+    bool combine=name && name.getValue().ends_with(".combine");
+    combine_tasks.emplace(task.getSymName().str(),combine);
+    if(combine)split_stages.insert(task.getStage());
   }
   if (max_stage < 0) throw std::invalid_argument("CG has no task spaces");
 
@@ -1305,6 +1318,7 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
   std::map<std::pair<std::uint32_t, std::uint32_t>, dialect::BoundTaskGeometry> geometries;
   std::set<std::pair<std::uint32_t, std::uint32_t>> table_pairs, legacy_pairs;
   std::vector<DependencyRecord> counted_edges;
+  std::vector<DependencyRecord> endpoint_edges;
   std::set<std::tuple<std::uint32_t,std::uint32_t,std::string,std::string>> counted_keys;
   std::size_t couplings = 0, cluster_edges = 0;
   for (auto coupling : module.getOps<dialect::CouplingOp>()) {
@@ -1332,6 +1346,28 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
     if (auto text = coupling.getWaitMap())
       window = analysis::ParseWaitWindow(text->str());
     auto pair = std::make_pair(source->second, target->second);
+    auto endpoint=[&](char const* name) {
+      auto flag=coupling->getAttrOfType<mlir::BoolAttr>(name);
+      if(coupling->hasAttr(name) && !flag)
+        throw std::invalid_argument("invalid split storage dependency endpoint");
+      return flag && flag.getValue();
+    };
+    bool producer_main=endpoint("dependency_producer_main");
+    bool consumer_done=endpoint("dependency_consumer_done");
+    if(producer_main || consumer_done) {
+      if((producer_main && (combine_tasks.at(coupling.getSrc().str()) ||
+            !split_stages.count(pair.first))) ||
+          (consumer_done && !combine_tasks.at(coupling.getDst().str())))
+        throw std::invalid_argument("split storage endpoint disagrees with its task space");
+      auto geometry=dialect::ReadBoundTaskGeometry(coupling,known);
+      if(!geometry || dialect::ReadBoundCountedScatter(coupling,known))
+        throw std::invalid_argument("split storage dependency requires exact task ownership");
+      auto bound=analysis::BindExactTaskDependencyLinear(geometry->relation,
+          geometry->producers,geometry->consumers);
+      DependencyRecord record{pair.first,pair.second,bound.window};record.table=bound.table;
+      record.producer_main=producer_main;record.consumer_done=consumer_done;
+      endpoint_edges.push_back(std::move(record));continue;
+    }
     if (auto counted=dialect::ReadBoundCountedScatter(coupling,known)) {
       auto geometry=dialect::ReadBoundTaskGeometry(coupling,known);
       auto fields=coupling->getAttrOfType<mlir::DictionaryAttr>("dependency_counted");
@@ -1401,6 +1437,7 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
     result.dependencies.push_back(std::move(record));
   }
   result.dependencies.insert(result.dependencies.end(),counted_edges.begin(),counted_edges.end());
+  result.dependencies.insert(result.dependencies.end(),endpoint_edges.begin(),endpoint_edges.end());
   return result;
 }
 

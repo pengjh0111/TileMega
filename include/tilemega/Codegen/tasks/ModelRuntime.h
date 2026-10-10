@@ -351,6 +351,7 @@ struct StageDependency {
   std::uint32_t table_offset = 0, table_rows = 0, table_stride = 0;
   std::uint32_t counted_offset = 0;
   std::uint32_t counted_threshold_offset = kDmNoIndex;
+  bool producer_main = false, consumer_done = false;
 #endif
 };
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT

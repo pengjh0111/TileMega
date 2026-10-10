@@ -31,6 +31,7 @@ struct DependencyRecord {
   int phase_tiles = 0;
   std::optional<analysis::DependencyTable> table;
   std::optional<CountedWaitRecord> counted;
+  bool producer_main = false, consumer_done = false;
 };
 
 struct GemmRuntimeRecord {

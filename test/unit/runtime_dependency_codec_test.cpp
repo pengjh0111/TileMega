@@ -31,6 +31,16 @@ int TestRuntimeDependencyCodec(int,char**) {
     auto restored=codegen::DecodeRuntimeDependency(legacy);
     assert(restored.producer==2 && restored.consumer==5 && restored.window==seed.window);
     assert(!restored.table && !restored.counted && !restored.phase_window);++checks;
+    for(bool main:{false,true})for(bool done:{false,true}) {
+      seed.producer_main=main;seed.consumer_done=done;
+      auto encoded=codegen::EncodeRuntimeDependency(builder,seed);
+      auto endpoint=codegen::DecodeRuntimeDependency(encoded);
+      assert(endpoint.producer_main==main && endpoint.consumer_done==done);
+      assert(encoded.size()==3+unsigned(main)+unsigned(done));++checks;
+    }
+    reject(set(legacy,"producer_main",builder.getStringAttr("true")));
+    reject(set(legacy,"consumer_done",builder.getI64IntegerAttr(1)));
+    seed.producer_main=seed.consumer_done=false;
     seed.phase_window=analysis::WaitWindow{true,1,2,0,3};seed.phase_tiles=7;
     restored=codegen::DecodeRuntimeDependency(codegen::EncodeRuntimeDependency(builder,seed));
     assert(restored.phase_window==seed.phase_window && restored.phase_tiles==7);++checks;
@@ -80,8 +90,9 @@ int TestRuntimeDependencyCodec(int,char**) {
     reject(set(encoded,"counted",set(fields,"producers",builder.getI64IntegerAttr(producers-1))));
     reject(set(encoded,"consumer",builder.getI64IntegerAttr(2)));
   }
-  assert(checks==45 && rejected==81);
-  std::cout<<"Runtime dependency codec: 45 window/phase/sparse/empty/counted roundtrips and 81 corruption rejections PASS\n";
+  assert(checks==45+4*9 && rejected==81+2*9);
+  std::cout<<"Runtime dependency codec: "<<checks<<" roundtrips and "
+           <<rejected<<" corruption rejections PASS\n";
   return 0;
 }
 } // namespace tilemega::tests::runtime_dependency_codec_test
