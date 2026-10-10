@@ -96,6 +96,7 @@ struct Builder {
     if(!o.batch || o.batch>64 || (o.small_input_channels!=4 && o.small_input_channels!=8))
       throw std::invalid_argument("invalid DNN batch or small-channel layout");
     p.dm=p.forward=true;p.dtype="bf16";p.serving_seq=1;
+    p.memory_reuse=o.memory_reuse;p.memory_l2_budget_bytes=o.memory_l2_budget_bytes;
     externally_observed.insert(outputs.begin(),outputs.end());
     for(auto const& x:nodes) {records[x.name]=&x;for(auto const& input:x.inputs)++users[input];}
     for(auto const& x:inputs)if(x.kind=="PARAMETER" || x.kind=="BUFFER") {

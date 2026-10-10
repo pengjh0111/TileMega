@@ -18,6 +18,7 @@
 #include <tilemega/Analysis/VirtualTaskBinding.h>
 #include <tilemega/Analysis/ExactMemo.h>
 #include <tilemega/Analysis/TaskElementRelation.h>
+#include <tilemega/Solver/MemoryPlan.h>
 #include <tilemega/Dialect/CouplingGraph/CGAttrs.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
@@ -369,6 +370,8 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
     }
     if(plan.dm)
       fields.push_back(builder.getNamedAttr("dm_layout",EncodeDm(builder,buffer.layout)));
+    if(plan.dm && buffer.arena_offset!=~std::uint64_t(0))
+      fields.push_back(builder.getNamedAttr("dm_arena_offset",builder.getI64IntegerAttr(buffer.arena_offset)));
     buffers.push_back(builder.getDictionaryAttr(fields));
   }
   for (auto const& gemm : plan.gemms) {
@@ -487,6 +490,10 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
     for(auto const& conv:plan.convolutions)convs.push_back(EncodeDm(builder,conv));
     fields.push_back(builder.getNamedAttr("dm",builder.getBoolAttr(true)));
     fields.push_back(builder.getNamedAttr("dm_convolutions",builder.getArrayAttr(convs)));
+    if(plan.memory_reuse!="none") {
+      fields.push_back(builder.getNamedAttr("dm_memory_reuse",builder.getStringAttr(plan.memory_reuse)));
+      fields.push_back(builder.getNamedAttr("dm_memory_arena_bytes",builder.getI64IntegerAttr(plan.memory_arena_bytes)));
+    }
   }
   return builder.getDictionaryAttr(fields);
 }
@@ -1110,6 +1117,18 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
     if(timing) { timing->Add("cache_hit",0,cache->hits-hits);timing->Add("cache_miss",0,cache->misses-misses); }
     return result;
   }();
+
+  if(plan.memory_reuse!="none") {
+    auto memory=solver::PlanBufferReuse(plan,graph,taskBinding,plan.memory_reuse,
+                                      plan.memory_l2_budget_bytes);
+    plan.memory_arena_bytes=memory.arena_bytes;
+    for(auto const& alias:memory.aliases)plan.buffers.at(alias.buffer).arena_offset=alias.offset;
+    for(auto const& hazard:memory.hazards)derived.push_back(hazard.coupling);
+    module->setAttr("tilemega.model_plan",modelPlanAttr(builder,plan,lifted.written));
+    module->setAttr("tilemega.memory_live_peak_bytes",builder.getI64IntegerAttr(memory.live_peak_bytes));
+    module->setAttr("tilemega.memory_fits_l2_budget",builder.getBoolAttr(memory.fits_l2_budget));
+    module->setAttr("tilemega.memory_hazard_count",builder.getI64IntegerAttr(memory.hazards.size()));
+  }
 
   // A phase analysis changes only the consumer's reduction tile to one K
   // iteration. Its task graph is an analysis witness; the executable graph

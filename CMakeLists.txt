@@ -200,6 +200,7 @@ add_library(tilemega_core STATIC
   lib/Codegen/RuntimeDependencyCodec.cpp
   lib/Solver/CacheServiceCurve.cpp
   lib/Solver/ModelDescription.cpp
+  lib/Solver/MemoryPlan.cpp
   lib/Solver/TaskModel.cpp
   lib/Solver/BindingRequestTraffic.cpp
   lib/Solver/FusedTaskInput.cpp
@@ -400,6 +401,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/task_arithmetic_domain_test.cpp
     test/unit/dm_store_geometry_test.cpp
     test/unit/dm_exact_fusion_test.cpp
+    test/unit/memory_plan_test.cpp
     test/unit/dm_fused_dependencies_test.cpp
     test/unit/dm_dram_images_test.cpp
     test/unit/binding_request_traffic_test.cpp

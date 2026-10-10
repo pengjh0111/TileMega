@@ -85,6 +85,7 @@ struct PlanBuffer {
   std::string external_name;
   std::string pack_json;
   codegen::DmBufferLayout layout{};
+  std::uint64_t arena_offset = ~std::uint64_t(0);
 };
 
 struct PlanGemm {
@@ -187,6 +188,8 @@ struct ModelPlan {
   bool forward = false;
   // MoE regions bind axis zero as tokens; DNN inputs bind it as batch.
   bool forward_token_axis = false;
+  std::string memory_reuse = "none";
+  std::uint64_t memory_l2_budget_bytes = 0, memory_arena_bytes = 0;
   std::vector<codegen::ConvDesc> convolutions;
 };
 

@@ -228,6 +228,7 @@ inline void Destroy(Plan* plan) {
   if(model.device_dm_layouts)cudaFree(model.device_dm_layouts);
   if(model.device_dm_dtypes)cudaFree(model.device_dm_dtypes);
   if(model.device_dm_buffers)cudaFree(model.device_dm_buffers);
+  if(model.device_memory_arena)cudaFree(model.device_memory_arena);
   if(model.device_dependency_intervals)cudaFree(model.device_dependency_intervals);
   if(model.device_counted_thresholds)cudaFree(model.device_counted_thresholds);
   if(model.params.counted_dependencies)cudaFree(model.params.counted_dependencies);

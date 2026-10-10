@@ -577,6 +577,7 @@ std::string emitModelPlan(mlir::ModuleOp module,
     if(dm) {
       if(!item.get("per_batch")) out<<", 0u, 0u, 0u, nullptr, nullptr";
       out<<", "<<frontend::EmitDm(frontend::DecodeDmLayout(item.get("dm_layout")));
+      if(item.get("dm_arena_offset"))out<<", "<<integerField(item,"dm_arena_offset")<<"ull";
     }
     out << "},\n";
   }
@@ -1013,6 +1014,7 @@ std::string emitModelPlan(mlir::ModuleOp module,
     if(epsilon<=0.0)out<<", TILEMEGA_NORM_EPSILON";
     auto convs=arrayField(plan,"dm_convolutions");
     out<<", "<<(convs.empty()?"nullptr":"kConvolutions")<<", "<<convs.size()<<'u';
+    if(plan.get("dm_memory_arena_bytes"))out<<", "<<integerField(plan,"dm_memory_arena_bytes")<<"ull";
   }
   out<<"};\n\n}  // namespace\n\n";
   if (serving)

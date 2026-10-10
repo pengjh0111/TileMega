@@ -2049,6 +2049,7 @@ struct DeviceModel {
   DmBufferLayout* device_dm_layouts = nullptr;
   std::uint32_t* device_dm_dtypes = nullptr;
   void** device_dm_buffers = nullptr;
+  void* device_memory_arena = nullptr;
   RuntimeDependencyInterval* device_dependency_intervals = nullptr;
   std::uint32_t* device_counted_thresholds = nullptr;
   Params* device_counted_l2_params = nullptr;
@@ -2502,6 +2503,10 @@ inline DeviceModel Create(ModelSpec const& spec,
   }
 #endif
   model.host_sources.resize(spec.buffer_count);
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if(spec.memory_arena_bytes)
+    TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_memory_arena,spec.memory_arena_bytes));
+#endif
   for (std::uint32_t i = 0; i < spec.buffer_count; ++i) {
     BufferDesc const& desc = spec.buffers[i];
     std::size_t elements = desc.Elements(dims);
@@ -2510,6 +2515,8 @@ inline DeviceModel Create(ModelSpec const& spec,
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     if(desc.dtype>3)throw std::invalid_argument("invalid DM buffer dtype");
     if(desc.dtype==3)element_bytes=sizeof(std::int64_t);
+    if(desc.role!=0 && desc.arena_offset!=~std::uint64_t(0))
+      throw std::invalid_argument("external buffer cannot alias the internal arena");
 #endif
     if (external_buffers && desc.role == 1) {
       if (!external_buffers[i])
@@ -2519,8 +2526,21 @@ inline DeviceModel Create(ModelSpec const& spec,
     } else {
       if (desc.role == 1)
         throw std::invalid_argument("serving external buffer is not bound");
-      TILEMEGA_CUDA_CHECK(cudaMalloc(&pointer, elements * element_bytes));
-      model.owned_buffers.push_back(true);
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if(desc.arena_offset!=~std::uint64_t(0)) {
+        if(desc.source!=BufferSource::kZero || desc.file || !model.device_memory_arena ||
+            desc.arena_offset%256 || desc.arena_offset>spec.memory_arena_bytes ||
+            elements> (spec.memory_arena_bytes-desc.arena_offset)/element_bytes)
+          throw std::invalid_argument("invalid planned buffer arena alias");
+        pointer=reinterpret_cast<ModelElement*>(static_cast<char*>(model.device_memory_arena)+desc.arena_offset);
+        model.owned_buffers.push_back(false);
+      }else {
+#endif
+        TILEMEGA_CUDA_CHECK(cudaMalloc(&pointer, elements * element_bytes));
+        model.owned_buffers.push_back(true);
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      }
+#endif
     }
     if (external_buffers && desc.role == 1) {
       // State and packed weights were uploaded once by the serving driver.

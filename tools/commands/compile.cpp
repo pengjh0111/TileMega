@@ -314,6 +314,7 @@ int RunCompile(int argc, char** argv) {
     std::vector<mlir::OwningOpRef<mlir::ModuleOp>> variant_modules;
     tilemega::solver::CompilerSearchOptions solve_options;
     std::string moe_binding="auto";unsigned moe_bm=16;
+    std::string memory_reuse="none",search_selection="measure";
     bool sequence_pinned=false;
     solve_options.placement.dims={4,3,7};
     for (int i=3;i<argc;i+=2) {
@@ -335,6 +336,8 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--serving") serving_phase=value;
       else if (flag=="--frontend") frontend_mode=value;
       else if (flag=="--moe-binding") moe_binding=value;
+      else if (flag=="--reuse") memory_reuse=value;
+      else if (flag=="--selection") search_selection=value;
       else if (flag=="--moe-bm") moe_bm=value=="auto"?16:std::stoul(value);
       else if (flag=="--emit") emit_mode=value;
       else if (flag=="--measure-cmd") measure_command=value;
@@ -449,8 +452,16 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("--search-jobs must be positive");
     if(search_budget_ms<0)
       throw std::runtime_error("--search-budget-ms must be nonnegative");
+    if(search_selection!="measure" && search_selection!="predicted")
+      throw std::runtime_error("--selection expects measure or predicted");
+    if(search_selection=="predicted" && !measure_command.empty())
+      throw std::runtime_error("predicted selection cannot run a measurement command");
+    if(memory_reuse!="none" && memory_reuse!="greedy" && memory_reuse!="l2" && memory_reuse!="auto")
+      throw std::runtime_error("--reuse expects auto, none, greedy or l2");
+    if(memory_reuse!="none" && frontend_mode!="dnn")
+      throw std::runtime_error("buffer reuse currently requires the DNN frontend");
     if(serving && !solve_target.empty() && !flow_search_only &&
-       measure_command.empty())
+       search_selection=="measure" && measure_command.empty())
       throw std::runtime_error("serving solve requires --measure-cmd for the top-3 decision");
     if (!solve_target.empty() && has_variants)
       throw std::runtime_error("--solve chooses variants; cannot combine with --variants");
@@ -517,8 +528,15 @@ int RunCompile(int argc, char** argv) {
     if(frontend_mode=="dnn" && input.extension()!=".mlir") {
       auto bridge=tilemega::frontend::ReadExportBridge(input.string());
       tilemega::frontend::DnnPlanOptions options;options.batch=serving_batch;
-      if(!runtime_target.empty())options.workspace_budget_bytes=
-          tilemega::TargetSpec::FromJson(runtime_target).res.max_dynamic_smem_per_cta;
+      options.memory_reuse=memory_reuse=="auto"?"l2":memory_reuse;
+      if(!runtime_target.empty()) {
+        auto target=tilemega::TargetSpec::FromJson(runtime_target);
+        options.workspace_budget_bytes=target.res.max_dynamic_smem_per_cta;
+        options.memory_l2_budget_bytes=target.res.l2_bytes;
+        if(target.calib.l2_knee_bytes>0)
+          options.memory_l2_budget_bytes=std::min(options.memory_l2_budget_bytes,
+              std::uint64_t(target.calib.l2_knee_bytes));
+      }
       dnn_plan=tilemega::frontend::BuildDnnModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
       forward_seq=dnn_plan->serving_seq;
     }else if(forward && input.extension()!=".mlir") {
@@ -1444,11 +1462,18 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"kappa\": "<<integer("tmexec.solved_kappa",1)
               <<",\n  \"attention_kv_block\": "<<attention_kv_block
               <<",\n  \"attention_query_rows\": "<<attention_query_rows;
-      if(forward) {
+      auto manifest_plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+      auto manifest_dm=manifest_plan?manifest_plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
+      if(forward || (manifest_dm && manifest_dm.getValue())) {
         auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
         auto token_axis=plan?plan.getAs<mlir::BoolAttr>("forward_token_axis"):mlir::BoolAttr{};
         manifest<<",\n  \"frontend\": "<<std::quoted(frontend_mode);
-        if(token_axis && token_axis.getValue()) {
+        if(search_selection=="predicted")manifest<<",\n  \"selection\": \"predicted\"";
+        if(auto reuse=plan.getAs<mlir::StringAttr>("dm_memory_reuse"))
+          manifest<<",\n  \"reuse\": "<<std::quoted(reuse.getValue().str())
+                  <<",\n  \"memory_arena_bytes\": "<<plan.getAs<mlir::IntegerAttr>("dm_memory_arena_bytes").getInt()
+                  <<",\n  \"memory_hazard_count\": "<<integer("tilemega.memory_hazard_count",0);
+        if((token_axis && token_axis.getValue()) || !forward) {
           for(auto entry:plan.getAs<mlir::ArrayAttr>("stages")) {
             auto stage=mlir::cast<mlir::DictionaryAttr>(entry);
             if(!stage.get("dm_moe"))continue;

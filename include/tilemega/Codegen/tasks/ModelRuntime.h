@@ -227,6 +227,7 @@ struct BufferDesc {
   char const* pack_json = nullptr;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   DmBufferLayout layout{};
+  std::uint64_t arena_offset = ~std::uint64_t(0);
 #endif
 
   std::size_t Elements(ModelDims const& dims) const {
@@ -861,6 +862,7 @@ struct ModelSpec {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   ConvDesc const* convolutions = nullptr;
   std::uint32_t convolution_count = 0;
+  std::uint64_t memory_arena_bytes = 0;
 #endif
 };
 

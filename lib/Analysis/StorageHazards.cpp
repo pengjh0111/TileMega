@@ -98,8 +98,14 @@ std::vector<StorageHazard> DeriveStorageReuseHazards(
   }
   // A reader protects its observed elements through WAR and its existing RAW
   // edge. Elements with no reader need a direct old-writer -> new-writer edge.
-  auto unread = read_elements.empty() ? old_write
-      : old_write.Subtract(old_write.ApplyRange(read_elements.ImageIdentity()));
+  // Subtract in element space before restoring writer ownership. Keeping the
+  // task coordinates in this subtraction duplicates the same coverage proof
+  // for every tile and can explode flattened halo unions.
+  auto unread = old_write;
+  if(!read_elements.empty()) {
+    auto elements=old_write.Image().Subtract(read_elements);
+    unread=old_write.ApplyRange(elements.ImageIdentity());
+  }
   if (!NoPairs(new_write.ApplyRange(unread.Reverse())))
     hazards.push_back({StorageHazardKind::kWAW, Edge(previous_write, unread, next_write, known)});
   return hazards;
