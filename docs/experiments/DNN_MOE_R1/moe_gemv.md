@@ -22,6 +22,17 @@ plan epilogue/candidate domain has not been extended to TN8. The initial probe
 failed because `CurrentArch` is void during nvcc host parsing; the corrected
 probe uses the explicit generated architecture identifier.
 
-stated: automatic GEMV family search/pricing and its calibrated cost inputs
-remain unfinished. `--moe-gemv 1 --solve` rejects this unsupported combination;
-the fixed execution path does not substitute an invented empirical fit.
+verified: predicted structural search now jointly evaluates slot and four group
+BM families with MMA/GEMV (10 states), rescoring geometry and using actual
+family resource probes. The selected family survives plan rebuilding and is
+emitted into CUDA, manifest and identity. Host search/final CUDA generation and
+650 occupancy price checks pass. GEMV applies only to eligible conditioned live
+rows; remaining rows retain MMA. Scalar dot/reduction/barrier costs use target
+rates; their accuracy is inferred, with no invented empirical calibration.
+
+verified: the hybrid GEMV/MMA actual-body sm_89 resource probe compiles with
+128 registers, 12,288 shared bytes and 128 threads. The entry has a 288-byte
+stack and zero direct spills, but its out-of-line RunDmResolved callee has
+296-byte spill stores and 416-byte spill loads. This hybrid probe is not the
+zero-spill thin GEMV probe reported above. See
+`results/CI7_moe_gemv_family_host.json` for evidence and source identity.
