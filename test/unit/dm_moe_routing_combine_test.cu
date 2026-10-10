@@ -3,6 +3,13 @@
 #include <tilemega/Codegen/tasks/MoEDispatchTaskBody.h>
 #include <tilemega/Codegen/tasks/MoECombineTaskBody.h>
 #include <tilemega/Codegen/executor/LastArriver.cuh>
+#ifndef DM_TEST_STAGE_WRAPPERS
+#define DM_TEST_STAGE_WRAPPERS 0
+#endif
+#if DM_TEST_STAGE_WRAPPERS
+#define TILEMEGA_DM_SUPPORT 1
+#include <tilemega/Codegen/tasks/DmStageTaskBody.h>
+#endif
 #include <cuda_runtime.h>
 #include <algorithm>
 #include <cassert>
@@ -19,31 +26,74 @@ template<class T>T* Managed(std::size_t count) {
 }
 void Sync() {assert(cudaGetLastError()==cudaSuccess);assert(cudaDeviceSynchronize()==cudaSuccess);}
 using TopK=MoETopKTaskBody<Arch,8,32>;
-__global__ void Top(MoeTopKOperands p) {TopK::Run(p,blockIdx.x);}
+#if DM_TEST_STAGE_WRAPPERS
+template<DmMoeStep Step,int BM,bool Group,int TokenTile>
+__device__ void RoutingStage(MoeTopKOperands const& top,MoeDispatchOperands const& dispatch,
+                            char* scratch,unsigned task) {
+  void* buffers[]={const_cast<float*>(top.partial_logits),const_cast<std::int32_t*>(top.partial_indices),
+      dispatch.indices?const_cast<std::int32_t*>(dispatch.indices):top.indices,
+      dispatch.weights?const_cast<E*>(dispatch.weights):top.weights,dispatch.bindings,dispatch.rows,
+      dispatch.histogram,dispatch.expert_offsets,dispatch.block_offsets};
+  DmBufferLayout layouts[9]{};layouts[0].logical[1]=top.parts*8;
+  Params p{};p.dims.seq=top.tokens?top.tokens:dispatch.tokens;p.dims.batch=1;
+  p.dm_buffers={buffers,layouts,nullptr,9};
+  StageDesc s{};s.kind=TaskKind::kMoETopK;s.width=8;s.group=TokenTile;
+  for(unsigned slot=0;slot<16;++slot)s.operand[slot]=slot<9?slot:kNoOperand;
+  s.moe.step=Step;s.moe.experts=top.experts?top.experts:dispatch.experts;
+  s.moe.binding_capacity=dispatch.capacity;s.moe.top_k=8;s.moe.chunk_tokens=128;
+  DmStageRunner<Arch>{p,s,task,scratch}.template RunMoe<Step,8,BM,Group,TokenTile,8>();
+}
+#endif
+__global__ void Top(MoeTopKOperands p) {
+#if DM_TEST_STAGE_WRAPPERS
+  RoutingStage<DmMoeStep::kSelect,1,false,32>(p,{},nullptr,blockIdx.x);
+#else
+  TopK::Run(p,blockIdx.x);
+#endif
+}
 template<int BM,bool Group>using Dispatch=MoEDispatchTaskBody<Arch,8,BM,Group>;
 template<int BM,bool Group>
 __global__ void Hist(MoeDispatchOperands p,unsigned* ticket) {
   __shared__ typename Dispatch<BM,Group>::SharedStorage s;
   __shared__ unsigned last;
+#if DM_TEST_STAGE_WRAPPERS
+  RoutingStage<DmMoeStep::kHistogram,BM,Group,128>({},p,reinterpret_cast<char*>(&s),blockIdx.x);
+#else
   Dispatch<BM,Group>::Histogram(p,blockIdx.x,s);
+#endif
   executor::LastArriver::Run(ticket,Dispatch<BM,Group>::Count(p),&last,[&] {
+#if DM_TEST_STAGE_WRAPPERS
+    RoutingStage<DmMoeStep::kPrefix,BM,Group,128>({},p,reinterpret_cast<char*>(&s),0);
+#else
     Dispatch<BM,Group>::Prefix(p,s);
+#endif
   });
 }
 template<int BM,bool Group>
 __global__ void Scatter(MoeDispatchOperands p) {
   __shared__ typename Dispatch<BM,Group>::SharedStorage s;
+#if DM_TEST_STAGE_WRAPPERS
+  RoutingStage<DmMoeStep::kScatter,BM,Group,128>({},p,reinterpret_cast<char*>(&s),blockIdx.x);
+#else
   Dispatch<BM,Group>::Scatter(p,blockIdx.x,s);
+#endif
 }
 template<int BM,bool Group>
-__global__ void Small(MoeDispatchOperands p) {
+__global__ void Small(MoeDispatchOperands p,MoeTopKOperands top) {
   __shared__ typename Dispatch<BM,Group>::SharedStorage s;
+#if DM_TEST_STAGE_WRAPPERS
+  RoutingStage<DmMoeStep::kSelectAndDispatch,BM,Group,512>(top,p,reinterpret_cast<char*>(&s),0);
+#else
   Dispatch<BM,Group>::RunSmall(p,s);
+#endif
 }
 
 template<int BM,bool Group>
 unsigned Routing(unsigned tokens,unsigned experts,unsigned tile,unsigned mode) {
   unsigned parts=(experts+tile-1)/tile,part_stride=11,row_stride=parts*part_stride+5;
+#if DM_TEST_STAGE_WRAPPERS
+  part_stride=8;row_stride=parts*8;
+#endif
   auto* logits=Managed<float>(tokens*row_stride);
   auto* candidates=Managed<std::int32_t>(tokens*row_stride);
   auto* indices=Managed<std::int32_t>(tokens*8);
@@ -95,7 +145,7 @@ unsigned Routing(unsigned tokens,unsigned experts,unsigned tile,unsigned mode) {
         assert(std::abs(float(weights[at])-ref)<=1e-5f+.008f*std::abs(ref));
       }
     }
-    if(tokens*8<=4096 && epoch%2==0)Small<BM,Group><<<1,128>>>(p);
+    if(tokens*8<=4096 && epoch%2==0)Small<BM,Group><<<1,128>>>(p,top);
     else {
       if constexpr(Group) {Hist<BM,Group><<<chunks,128>>>(p,ticket);Sync();assert(*ticket==0);}
       Scatter<BM,Group><<<chunks,128>>>(p);
@@ -136,10 +186,25 @@ unsigned Routing(unsigned tokens,unsigned experts,unsigned tile,unsigned mode) {
 }
 
 template<int Rows,int Columns>using Combine=MoECombineTaskBody<Arch,8,Rows,Columns>;
+#if DM_TEST_STAGE_WRAPPERS
+template<int Rows,int Columns>
+__device__ void CombineStage(MoeCombineOperands const& source,char* scratch,unsigned task) {
+  void* buffers[]={const_cast<E*>(source.partials),const_cast<E*>(source.weights),
+      const_cast<E*>(source.residual),source.output,source.row_stats};
+  Params p{};p.dims.seq=source.tokens;p.dims.batch=1;p.dm_buffers={buffers,nullptr,nullptr,5};
+  StageDesc s{};s.kind=TaskKind::kMoECombine;s.width=Columns;s.group=Rows;s.extent=source.channels;
+  for(unsigned slot=0;slot<16;++slot)s.operand[slot]=slot<5?slot:kNoOperand;
+  DmStageRunner<Arch>{p,s,task,scratch}.template RunMoe<DmMoeStep::kCombine,8,1,false,Rows,Columns>();
+}
+#endif
 template<int Rows,int Columns>
 __global__ void Reduce(MoeCombineOperands p) {
   __shared__ typename Combine<Rows,Columns>::SharedStorage s;
+#if DM_TEST_STAGE_WRAPPERS
+  CombineStage<Rows,Columns>(p,reinterpret_cast<char*>(&s),blockIdx.x);
+#else
   Combine<Rows,Columns>::Run(p,blockIdx.x,s);
+#endif
 }
 template<int Rows,int Columns>
 __global__ void Weighted(MoeCombineOperands p,E const* source,unsigned* tickets) {
@@ -156,13 +221,20 @@ __global__ void Weighted(MoeCombineOperands p,E const* source,unsigned* tickets)
   }
   unsigned contribution=min(unsigned(Rows),p.tokens-first_row);
   executor::LastArriver::RunWeighted(tickets+task,8*contribution,contribution,&last,[&] {
+#if DM_TEST_STAGE_WRAPPERS
+    CombineStage<Rows,Columns>(p,reinterpret_cast<char*>(&s),task);
+#else
     Combine<Rows,Columns>::Run(p,task,s);
+#endif
   });
 }
 template<int Rows,int Columns>
 unsigned Combination(unsigned tokens,unsigned channels) {
   unsigned tiles=(channels+Columns-1)/Columns,row_stride=channels+7;
   unsigned rank_stride=channels+3,token_stride=8*rank_stride+5,stats_stride=tiles*2+4;
+#if DM_TEST_STAGE_WRAPPERS
+  row_stride=channels;rank_stride=channels;token_stride=8*channels;stats_stride=tiles*2;
+#endif
   auto* source=Managed<E>(tokens*token_stride);
   auto* partials=Managed<E>(tokens*token_stride);
   auto* residual=Managed<E>(tokens*row_stride);
@@ -226,7 +298,11 @@ unsigned Combination(unsigned tokens,unsigned channels) {
 int main() {
   unsigned routing=0,combine=0;
   for(unsigned tokens:{1,2,4,8,16,32,64,128,256,512,1024,2048,4096}) {
+#if DM_TEST_STAGE_WRAPPERS
+    routing+=Routing<1,false>(tokens,128,32,1);
+#else
     routing+=Routing<16,false>(tokens,128,32,1);
+#endif
     routing+=Routing<16,true>(tokens,128,32,1);
     routing+=Routing<32,true>(tokens,128,32,1);
     routing+=Routing<64,true>(tokens,128,32,1);

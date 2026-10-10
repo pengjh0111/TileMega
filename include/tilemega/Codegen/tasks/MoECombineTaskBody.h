@@ -19,7 +19,7 @@ struct MoeCombineOperands {
 template<class Arch,int TopK=8,int TokenTile=1,int ChannelTile=128>
 struct MoECombineTaskBody {
   static_assert(arch::Caps<Arch>::kBf16TensorCore);
-  static_assert(TopK>0 && TopK<=32 && TokenTile>0 && ChannelTile>0 && ChannelTile%32==0);
+  static_assert(TopK>0 && TopK<=32 && TokenTile>0 && ChannelTile>0 && ChannelTile%16==0);
   static constexpr int kThreads=128,kSharedBytes=TokenTile*ChannelTile*sizeof(float);
   struct SharedStorage {float output[TokenTile*ChannelTile];};
   __host__ __device__ static unsigned Count(MoeCombineOperands const& p) {

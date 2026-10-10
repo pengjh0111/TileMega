@@ -8,6 +8,9 @@
 #include <tilemega/Codegen/tasks/GlobalPoolReduceTaskBody.h>
 #include <tilemega/Codegen/tasks/EncoderAttentionTaskBody.h>
 #include <tilemega/Codegen/tasks/DepthwiseConvTaskBody.h>
+#include <tilemega/Codegen/tasks/MoETopKTaskBody.h>
+#include <tilemega/Codegen/tasks/MoEDispatchTaskBody.h>
+#include <tilemega/Codegen/tasks/MoECombineTaskBody.h>
 
 namespace tilemega::codegen {
 #ifndef TILEMEGA_DM_STAGE_DISPATCH
@@ -21,6 +24,15 @@ __host__ __device__ inline int DmStageRows(StageDesc const& stage,ModelDims cons
   return stage.rows_per_batch ? int(stage.rows_per_batch)*dims.batch : dims.tokens();
 }
 __host__ __device__ inline int DmStageTaskCount(StageDesc const& stage,ModelDims const& dims) {
+  if(stage.kind==TaskKind::kMoETopK) {
+    auto step=stage.moe.step;
+    if(step==DmMoeStep::kPrefix || step==DmMoeStep::kSelectAndDispatch)return 1;
+    auto rows=step==DmMoeStep::kSelect?stage.group:stage.moe.chunk_tokens;
+    return rows?(dims.tokens()+rows-1)/rows:0;
+  }
+  if(stage.kind==TaskKind::kMoECombine)
+    return stage.width && stage.group?
+        ((dims.tokens()+stage.group-1)/stage.group)*((stage.extent+stage.width-1)/stage.width):0;
   if(stage.kind==TaskKind::kGlobalPoolReduce)
     return stage.width?dims.batch*((stage.extent+stage.width-1)/stage.width):0;
   if(stage.kind==TaskKind::kEncoderAttention)
@@ -45,6 +57,51 @@ struct DmStageRunner {
   StageDesc const& stage;
   unsigned task;
   char* scratch;
+  template<DmMoeStep Step,int TopK,int BlockRows,bool Grouped,int TokenTile,int ChannelTile>
+  __device__ void RunMoe() const {
+    using E=cutlass::bfloat16_t;
+    auto pointer=[&](unsigned slot)->void* {
+      auto id=stage.operand[slot];return id==kNoOperand?nullptr:params.dm_buffers.data[id];
+    };
+    unsigned tokens=params.dims.tokens();
+    if constexpr(Step==DmMoeStep::kCombine) {
+      MoeCombineOperands p{static_cast<E const*>(pointer(0)),static_cast<E const*>(pointer(1)),
+          static_cast<E const*>(pointer(2)),static_cast<E*>(pointer(3)),static_cast<float*>(pointer(4)),
+          tokens,stage.extent,std::uint64_t(TopK)*stage.extent,stage.extent,stage.extent,
+          std::uint64_t((stage.extent+ChannelTile-1)/ChannelTile)*2};
+      using Body=MoECombineTaskBody<Arch,TopK,TokenTile,ChannelTile>;
+      Body::Run(p,task,*reinterpret_cast<typename Body::SharedStorage*>(scratch));
+    }else {
+      if constexpr(Step==DmMoeStep::kSelect || Step==DmMoeStep::kSelectAndDispatch) {
+        unsigned parts=params.dm_buffers.layouts[stage.operand[0]].logical[1]/TopK;
+        MoeTopKOperands select{static_cast<float const*>(pointer(0)),static_cast<std::int32_t const*>(pointer(1)),
+            static_cast<std::int32_t*>(pointer(2)),static_cast<E*>(pointer(3)),tokens,
+            stage.moe.experts,parts,std::uint64_t(parts)*TopK,TopK,1};
+        MoETopKTaskBody<Arch,TopK,TokenTile>::Run(select,task);
+      }
+      if constexpr(Step!=DmMoeStep::kSelect) {
+        using Body=MoEDispatchTaskBody<Arch,TopK,BlockRows,Grouped,128>;
+        auto& shared=*reinterpret_cast<typename Body::SharedStorage*>(scratch);
+        MoeDispatchOperands dispatch{static_cast<std::int32_t const*>(pointer(2)),
+            static_cast<E const*>(pointer(3)),static_cast<MoeBindingRecord*>(pointer(4)),
+            static_cast<MoeBindingRow*>(pointer(5)),static_cast<unsigned*>(pointer(6)),
+            static_cast<unsigned*>(pointer(7)),static_cast<unsigned*>(pointer(8)),
+            tokens,stage.moe.experts,stage.moe.binding_capacity};
+        if constexpr(Step==DmMoeStep::kSelectAndDispatch) {
+          executor::ComputeSync();Body::RunSmall(dispatch,shared);
+        }else if constexpr(Step==DmMoeStep::kHistogram) {
+          Body::Histogram(dispatch,task,shared);
+        }else if constexpr(Step==DmMoeStep::kPrefix) {
+          Body::Prefix(dispatch,shared);
+        }else if constexpr(Step==DmMoeStep::kScatter) {
+          Body::Scatter(dispatch,task,shared);
+        }else {
+          static_assert(Step==DmMoeStep::kSelectAndDispatch || Step==DmMoeStep::kHistogram ||
+              Step==DmMoeStep::kPrefix || Step==DmMoeStep::kScatter,"invalid MoE dispatch step");
+        }
+      }
+    }
+  }
   template<int RowBand,int ChannelTile,class Program>
   __device__ void RunDepthwise() const {
     using E=cutlass::bfloat16_t;

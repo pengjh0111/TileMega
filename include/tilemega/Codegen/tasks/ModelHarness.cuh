@@ -454,6 +454,8 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
     case TaskKind::kGlobalPoolReduce:
     case TaskKind::kDepthwiseConv:
     case TaskKind::kEncoderAttention:
+    case TaskKind::kMoETopK:
+    case TaskKind::kMoECombine:
     case TaskKind::kLayoutConvert:
       for(int task=int(blockIdx.x);task<DmStageTaskCount(stage,p.dims);task+=int(gridDim.x))
         DispatchDmStage(unsigned(stage.kind),stage.width,stage.group,DmStageRunner<HarnessArch>{p,stage,unsigned(task),reinterpret_cast<char*>(&smem)});
@@ -566,6 +568,8 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
     case TaskKind::kGlobalPoolReduce:
     case TaskKind::kDepthwiseConv:
     case TaskKind::kEncoderAttention:
+    case TaskKind::kMoETopK:
+    case TaskKind::kMoECombine:
     case TaskKind::kLayoutConvert:
       DispatchDmStage(unsigned(stage.kind),stage.width,stage.group,DmStageRunner<HarnessArch>{p,stage,logical_task,reinterpret_cast<char*>(&smem)});
       break;
@@ -758,6 +762,8 @@ __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
     case TaskKind::kGlobalPoolReduce:
     case TaskKind::kDepthwiseConv:
     case TaskKind::kEncoderAttention:
+    case TaskKind::kMoETopK:
+    case TaskKind::kMoECombine:
     case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,p.dims);
 #endif
     case TaskKind::kGemm: return T_Gemm::Ownership(p, stage).count;
@@ -2227,6 +2233,63 @@ inline DeviceModel Create(ModelSpec const& spec,
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   for(unsigned i=0;i<spec.stage_count;++i) {
     auto const& stage=spec.stages[i];
+    if(stage.kind==TaskKind::kMoETopK || stage.kind==TaskKind::kMoECombine) {
+      auto const& moe=stage.moe;unsigned capacity=0;
+      if(!MoeVirtualCapacity(dims.tokens(),moe.top_k,moe.experts,moe.block_rows,moe.grouped,&capacity) ||
+          moe.experts>128 || moe.top_k>32 || capacity!=moe.binding_capacity ||
+          moe.row_capacity!=std::uint64_t(dims.tokens())*moe.top_k || moe.chunk_tokens!=128 ||
+          moe.router_gemm>=spec.gemm_count || !stage.group || stage.group>1024)
+        throw std::invalid_argument("invalid MoE runtime capacity or specialization");
+      auto operand=[&](unsigned slot,unsigned dtype,std::uint64_t elements,bool optional=false) {
+        auto id=stage.operand[slot];if(optional && id==kNoOperand)return;
+        if(id>=spec.buffer_count || spec.buffers[id].dtype!=dtype ||
+            spec.buffers[id].Elements(dims)<elements)
+          throw std::invalid_argument("invalid MoE runtime operand type or extent");
+      };
+      auto row_matrix=[&](unsigned slot,unsigned rows,unsigned columns) {
+        auto const& l=spec.buffers[stage.operand[slot]].layout;
+        if(l.kind!=DmLayout::kRowMajor || l.rank!=2 || l.logical[0]!=rows ||
+            l.logical[1]!=columns || l.strides[0]!=columns || l.strides[1]!=1 ||
+            l.physical[0]!=rows || l.physical[1]!=columns)
+          throw std::invalid_argument("MoE stage requires contiguous bound row storage");
+      };
+      auto tokens=unsigned(dims.tokens());
+      if(stage.kind==TaskKind::kMoECombine) {
+        if(moe.step!=DmMoeStep::kCombine || stage.width<16 || stage.width>256 ||
+            stage.width%16 || stage.group>128 || !stage.extent)
+          throw std::invalid_argument("invalid MoE combine geometry");
+        operand(0,0,std::uint64_t(tokens)*moe.top_k*stage.extent);
+        operand(1,0,std::uint64_t(tokens)*moe.top_k);
+        operand(2,0,std::uint64_t(tokens)*stage.extent);
+        operand(3,0,std::uint64_t(tokens)*stage.extent);
+        row_matrix(0,tokens*moe.top_k,stage.extent);row_matrix(1,tokens,moe.top_k);
+        row_matrix(2,tokens,stage.extent);row_matrix(3,tokens,stage.extent);
+        auto stats=2*((stage.extent+stage.width-1)/stage.width);
+        operand(4,1,std::uint64_t(tokens)*stats,true);
+        if(stage.operand[4]!=kNoOperand)row_matrix(4,tokens,stats);
+      }else {
+        if(stage.width!=moe.top_k || stage.extent!=moe.experts ||
+            moe.step==DmMoeStep::kNone || moe.step>=DmMoeStep::kCombine ||
+            (moe.step==DmMoeStep::kSelectAndDispatch && (moe.row_capacity>4096 || stage.group<tokens)) ||
+            ((moe.step==DmMoeStep::kHistogram || moe.step==DmMoeStep::kPrefix) && !moe.grouped))
+          throw std::invalid_argument("invalid MoE dispatch geometry");
+        auto router_n=runtime_variant.gemms[moe.router_gemm].tile_n;
+        if(!router_n || spec.gemms[moe.router_gemm].n!=int(moe.experts))
+          throw std::invalid_argument("MoE router differs from its selected geometry");
+        unsigned columns=((moe.experts+router_n-1)/router_n)*moe.top_k;
+        operand(0,1,std::uint64_t(tokens)*columns);operand(1,2,std::uint64_t(tokens)*columns);
+        row_matrix(0,tokens,columns);row_matrix(1,tokens,columns);
+        operand(2,2,std::uint64_t(tokens)*moe.top_k);operand(3,0,std::uint64_t(tokens)*moe.top_k);
+        row_matrix(2,tokens,moe.top_k);row_matrix(3,tokens,moe.top_k);
+        operand(4,2,std::uint64_t(capacity)*4);operand(5,2,std::uint64_t(moe.row_capacity)*4);
+        row_matrix(4,capacity,4);row_matrix(5,moe.row_capacity,4);
+        unsigned chunks=(tokens+moe.chunk_tokens-1)/moe.chunk_tokens;
+        operand(6,2,std::uint64_t(chunks)*moe.experts);
+        operand(7,2,moe.experts+1);operand(8,2,moe.experts+1);
+        row_matrix(6,chunks,moe.experts);row_matrix(7,1,moe.experts+1);row_matrix(8,1,moe.experts+1);
+      }
+      continue;
+    }
     if(stage.kind!=TaskKind::kLayerNorm && stage.kind!=TaskKind::kEmbeddingSum &&
        stage.kind!=TaskKind::kLayoutConvert && stage.kind!=TaskKind::kPool &&
        stage.kind!=TaskKind::kGlobalPoolReduce && stage.kind!=TaskKind::kEncoderAttention &&
@@ -2528,7 +2591,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       auto const& a=desc.access;
       auto rows=std::uint64_t(a.binding_blocks)*CeilDiv(a.block_rows,tiling.tile_m)*tiling.tile_m;
       if(!a.binding_blocks || !a.binding_rows || !a.experts || !a.block_rows ||
-         !a.expert_stride || rows!=std::uint64_t(m) ||
+         !a.expert_stride || rows>std::uint64_t(std::numeric_limits<int>::max()) ||
          a.binding>=spec.buffer_count || a.rows>=spec.buffer_count ||
          a.binding_blocks>spec.buffers[a.binding].Elements(dims)/
              (16/(spec.buffers[a.binding].dtype==0?sizeof(ModelElement):4)) ||
@@ -2980,6 +3043,8 @@ inline DeviceModel Create(ModelSpec const& spec,
       case TaskKind::kGlobalPoolReduce:
       case TaskKind::kDepthwiseConv:
       case TaskKind::kEncoderAttention:
+      case TaskKind::kMoETopK:
+      case TaskKind::kMoECombine:
       case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,dims);
 #endif
       case TaskKind::kGemm:

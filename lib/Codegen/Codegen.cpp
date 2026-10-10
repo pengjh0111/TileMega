@@ -685,7 +685,7 @@ std::string emitModelPlan(mlir::ModuleOp module,
       }
       out<<", "<<integerField(item,"dm_conv")<<"u, "
          <<integerField(item,"dm_rows_per_batch")<<'u';
-      if(item.get("dm_binding_producer") || item.get("dm_norm_epsilon") || item.get("dm_chain") || item.get("dm_partial_rows_per_image"))
+      if(item.get("dm_binding_producer") || item.get("dm_norm_epsilon") || item.get("dm_chain") || item.get("dm_partial_rows_per_image") || item.get("dm_moe"))
         out<<", "<<(item.get("dm_binding_producer") ?
             integerField(item,"dm_binding_producer") : codegen::kDmNoIndex)<<'u';
       if(auto epsilon=item.getAs<mlir::FloatAttr>("dm_norm_epsilon"))
@@ -700,6 +700,14 @@ std::string emitModelPlan(mlir::ModuleOp module,
         if(!item.get("dm_norm_epsilon"))out<<", 0.0f";
         if(!item.get("dm_chain"))out<<", {}, 0u, 0u";
         out<<", "<<integerField(item,"dm_partial_rows_per_image")<<'u';
+      }
+      if(item.get("dm_moe")) {
+        if(!item.get("dm_partial_rows_per_image")) {
+          if(!item.get("dm_norm_epsilon"))out<<", 0.0f";
+          if(!item.get("dm_chain"))out<<", {}, "<<primitive_index<<"u, 0u";
+          out<<", 0u";
+        }
+        out<<", "<<frontend::EmitDm(frontend::DecodeDmMoeStage(item.get("dm_moe")));
       }
     }
     out << "},\n";
@@ -1052,7 +1060,8 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
       out<<">;\n";
     }
     auto stages = arrayField(plan, "stages");
-    bool depthwise=false;
+    bool depthwise=false,moe_stages=false;
+    for(auto value:stages)moe_stages|=bool(dictionaryEntry(value,"stages").get("dm_moe"));
     for(std::size_t i=0;i<stages.size();++i) {
       auto stage=dictionaryEntry(stages[i],"stages");
       if(stringField(stage,"kind")!="kDepthwiseConv")continue;
@@ -1092,11 +1101,17 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
     for(auto value:stages) {
       auto stage=dictionaryEntry(value,"stages");
       if(stage.get("dm_workspace_bytes"))dm_shared=std::max(dm_shared,int(integerField(stage,"dm_workspace_bytes")));
+      if(stage.get("dm_moe")) {
+        auto config=frontend::DecodeDmMoeStage(stage.get("dm_moe"));
+        if(config.step==codegen::DmMoeStep::kCombine)
+          dm_shared=std::max(dm_shared,MoeCombineSharedBytes(integerField(stage,"group"),integerField(stage,"width")));
+        else if(config.step!=codegen::DmMoeStep::kSelect)dm_shared=std::max(dm_shared,MoeDispatchSharedBytes());
+      }
     }
     for(auto const& [kind,width,rows]:scalar_shapes)
       if(kind=="kEncoderAttention")dm_shared=std::max(dm_shared,EncoderAttentionSharedBytes());
     if(dm_shared)out<<"#define TILEMEGA_DM_STAGE_SHARED_BYTES "<<dm_shared<<"\n";
-    if(!scalar_shapes.empty() || depthwise) {
+    if(!scalar_shapes.empty() || depthwise || moe_stages) {
       out<<"} // namespace tilemega::codegen\n"
          <<"#include <tilemega/Codegen/tasks/TaskBase.h>\n"
          <<"#define TILEMEGA_DM_STAGE_DISPATCH 1\n"
@@ -1108,6 +1123,14 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
            <<"u) {runner.template Run<TaskKind::"<<kind<<", "<<width<<", "<<rows<<">(); return;}\n";
       for(std::size_t i=0;i<stages.size();++i) {
         auto stage=dictionaryEntry(stages[i],"stages");
+        if(stage.get("dm_moe")) {
+          auto config=frontend::DecodeDmMoeStage(stage.get("dm_moe"));
+          out<<"  if(kind==unsigned(TaskKind::"<<stringField(stage,"kind")
+             <<") && runner.stage.dm_program=="<<i<<"u) {runner.template RunMoe<static_cast<DmMoeStep>("
+             <<unsigned(config.step)<<"u), "<<config.top_k<<", "<<config.block_rows<<", "
+             <<(config.grouped?"true":"false")<<", "<<integerField(stage,"group")<<", "
+             <<integerField(stage,"width")<<">(); return;}\n";
+        }
         if(stringField(stage,"kind")=="kDepthwiseConv")
           out<<"  if(kind==unsigned(TaskKind::kDepthwiseConv) && runner.stage.dm_program=="<<i
              <<"u) {runner.template RunDepthwise<"<<integerField(stage,"group")<<", "

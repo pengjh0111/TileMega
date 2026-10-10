@@ -81,6 +81,8 @@ inline int Count(ModelSpec const& spec, RuntimeVariantDesc const& variant,
     case TaskKind::kGlobalPoolReduce:
     case TaskKind::kDepthwiseConv:
     case TaskKind::kEncoderAttention:
+    case TaskKind::kMoETopK:
+    case TaskKind::kMoECombine:
     case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,dims);
 #endif
     case TaskKind::kGemm:
@@ -91,6 +93,14 @@ inline int Count(ModelSpec const& spec, RuntimeVariantDesc const& variant,
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
       if (gemm.access.rows_per_batch)
         rows = dims.batch * int(gemm.access.rows_per_batch);
+      if (gemm.access.b==DmBAccess::kExpertIndirect) {
+        auto const& access=gemm.access;
+        if(!geometry.tile_m || !access.block_rows || !access.binding_blocks)return -1;
+        auto virtual_rows=std::uint64_t(access.binding_blocks)*
+            CeilDiv(access.block_rows,geometry.tile_m)*geometry.tile_m;
+        if(virtual_rows>std::uint64_t(std::numeric_limits<int>::max()))return -1;
+        rows=int(virtual_rows);
+      }
 #endif
       int tiles = CeilDiv(rows, geometry.tile_m) *
                   CeilDiv(gemm.n, geometry.tile_n);
