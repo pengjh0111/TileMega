@@ -38,3 +38,15 @@ and construction without pretrained downloads. Normal run and the official
 dataset gate reject this scope; `check --synthetic-weights` remains available.
 The pretrained default is preserved. Five CLI host tests pass, including this
 scope distinction (`runs/dm1-dnn-architecture-cli-host-v1.log`).
+
+verified: shipped DNN configurations explicitly name an archived sm89 calibration
+reference. The public build fills absent serving-hop, per-task event and body/
+inflight sections without changing target resources or existing rates. Architecture
+mismatches and partial per-task contracts are rejected; source/resolved SHA256 and
+borrowed fields are sealed beside the plans. Six CLI host tests pass in
+`runs/dm1-dnn-target-reference-host-v1.log`. This resolves the generic target's
+missing serving-hop build failure.
+
+inferred: transferring the explicitly selected archived rates is a construction
+aid, not a new device calibration or measured latency conclusion. No timing was
+performed. Omitting `solver.calibration_reference` leaves target resolution unchanged.

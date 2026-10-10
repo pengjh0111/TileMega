@@ -11,6 +11,37 @@ from tilemega.dnn.cli import read_config, model_export, check, report
 
 
 class DnnCliTest(unittest.TestCase):
+    def test_explicit_calibration_reference_preserves_target_resources(self):
+        from tilemega.dnn.target import resolve_target
+        from tilemega.fingerprint import ROOT
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            original = json.loads((ROOT/'configs/targets/sm_89.json').read_text())
+            original['resources']['num_sms'] = 2
+            source = root/'target.json'
+            source.write_text(json.dumps(original))
+            reference = ROOT/'docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/prefill/target.json'
+            config = dict(target=str(source), solver=dict(calibration_reference=str(reference)))
+            resolved = resolve_target(config, root/'resolved')
+            target = json.loads(resolved.read_text())
+            self.assertEqual(target['resources'], original['resources'])
+            self.assertEqual(target['calibration_by_dtype']['bf16']['pipelines'],
+                             original['calibration_by_dtype']['bf16']['pipelines'])
+            archived = json.loads(reference.read_text())
+            for key in ('task_publication', 'task_wait', 'task_source', 'task_source_sha256'):
+                self.assertEqual(target['event_calibration_by_dtype']['bf16'][key],
+                                 archived['event_calibration_by_dtype']['bf16'][key])
+            provenance = json.loads((resolved.parent/'resolved_target.provenance.json').read_text())
+            self.assertIn('inferred', provenance['scope'])
+            self.assertIn('serving_hop', provenance['fields'])
+            with self.assertRaises(FileExistsError):
+                resolve_target(config, root/'resolved')
+            original['arch_tag'] = 'sm_80'
+            source.write_text(json.dumps(original))
+            with self.assertRaisesRegex(ValueError, 'architecture differs'):
+                resolve_target(config, root/'other')
+            self.assertEqual(resolve_target(dict(target=str(source)), root/'plain'), source)
+
     def test_bound_batch_contract(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'config.json'

@@ -105,6 +105,8 @@ def build(config, out, compiler):
     export = model_export(config, out)
     archive = export / 'exported_program.pt2'
     program = torch.export.load(archive)
+    from .target import resolve_target
+    target = str(resolve_target(config, out))
     plans = []
     for batch in config['workload']['batch']:
         directory = out / f'B{batch}'
@@ -119,10 +121,10 @@ def build(config, out, compiler):
         command = [str(compiler), 'compile', str(bridge), str(library),
             '--emit', 'serving', '--serving', 'forward', '--frontend', 'dnn',
             '--batch', str(batch), '--pg', config['features']['pg'],
-            '--reuse', config['features']['reuse'], '--solve', config['target'],
+            '--reuse', config['features']['reuse'], '--solve', target,
             '--deferred-ln', config['features']['deferred_ln'],
             '--dwpw-fuse', config['features']['dwpw_fuse'],
-            '--runtime-target', config['target'], '--selection', 'predicted',
+            '--runtime-target', target, '--selection', 'predicted',
             '--search-passes', str(config['solver']['passes']), '--top-m', '1',
             '--search-jobs', str(config['solver']['jobs']),
             '--search-budget-ms', str(round(config['solver']['time_budget_s'] * 1000)),
