@@ -49,3 +49,17 @@ sidecar. Existing defaults retain their previous nonpaged prefill choice.
 Four host tests cover the candidate domain, fixed selections, content-keyed
 cached winners and invalid configuration; mocked measurements launch no GPU.
 No prefill latency selection was executed in this round.
+
+verified: packed-only DM dense weights now replace their row-major buffer slot
+when every consumer uses the same packed geometry and no activation, epilogue
+or exported output observes the source. Legacy LLM packing is unchanged.
+The router plus expert region passes one fixed synthetic paged L1/L2 execution
+with exact reference output/routes and equal mode bits; identity/resources are
+in `results/MO_packed_only_weights_generated.json`.
+
+verified: the full B=1 manifest estimate reaches the memory rejection on this
+device without loading model weights or compiling another binary.
+`runs/dm1-moe-full-memory-preflight-v1/memory-preflight.json` records estimated
+allocation 67,347,137,584 bytes versus 50,480,283,648 available bytes. The estimate
+is inferred; available memory is queried under the shared lock. This does not
+prove that a smaller allocation would fit.
