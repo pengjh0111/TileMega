@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/TaskModel.h>
+#include <tilemega/Codegen/tasks/DmMoeScalarDataflow.h>
 #include <tilemega/Solver/DmConvReductionPartition.h>
 #include <tilemega/Solver/DmGemmTraits.h>
 #include <tilemega/Solver/BindingRequestTraffic.h>
@@ -103,10 +104,13 @@ void BindTaskDramProvenance(DerivedTaskInput& input,
         }
       }
       auto traffic=DeriveBindingRequestTraffic(input.task,typed,theta);
-      input.physical_read_bytes=std::move(traffic.read_bytes);
-      input.physical_write_bytes=std::move(traffic.write_bytes);
-      input.no_producer_read_bytes=std::move(traffic.no_producer_read_bytes);
-      input.external_write_bytes=std::move(traffic.external_write_bytes);
+      auto runtime_coordinates=[&](analysis::QuasiPolynomial quantity) {
+        return input.scalar_access?quantity.SumAlong(input.scalar_access->ownership):quantity;
+      };
+      input.physical_read_bytes=runtime_coordinates(std::move(traffic.read_bytes));
+      input.physical_write_bytes=runtime_coordinates(std::move(traffic.write_bytes));
+      input.no_producer_read_bytes=runtime_coordinates(std::move(traffic.no_producer_read_bytes));
+      input.external_write_bytes=runtime_coordinates(std::move(traffic.external_write_bytes));
       input.produced_live_bytes=traffic.produced_live_bytes;
       bind_storage(traffic.produced_tensors,typed);
       input.stream_bytes=floor.no_producer_bytes.EvalReal(theta);
@@ -304,7 +308,7 @@ DerivedTaskInput DeriveCombineTaskInput(ModelDescription const& model,int stage,
         .BindParams(theta);
     auto const& exact=*task.element_access;
     RuntimeScalarAccess accesses;accesses.ownership=ownership;
-    accesses.writes=ownership.ApplyRange(ProjectTaskElements(exact.semantic,task,
+    accesses.writes=ownership.ApplyRange(ProjectTaskWrite(exact.semantic,task,
         exact.partition,exact.semantic.result,exact.semantic.result_map,{},theta));
     std::vector<QuasiPolynomial> read_counts,read_bytes;
     int element_bytes=model.dtype==ScalarType::kBF16?2:4;
@@ -864,7 +868,10 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
     auto kind=static_cast<codegen::TaskKind>(model.stages.at(semantic.stage).kind);
     if (kind==codegen::TaskKind::kGemm && task->kind==analysis::OperatorKind::kPointwise)
       kind=codegen::TaskKind::kElementwise;
-    result.scalar_flow=codegen::ScalarTaskDataflow(kind);
+    if(model.dm && (kind==codegen::TaskKind::kMoETopK || kind==codegen::TaskKind::kMoECombine))
+      result.scalar_flow=codegen::DmMoeScalarTaskDataflow(stage.moe,
+          std::uint64_t(model.dims.seq)*model.dims.batch);
+    else result.scalar_flow=codegen::ScalarTaskDataflow(kind);
   }
   return result;
 }

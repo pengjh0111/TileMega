@@ -367,7 +367,8 @@ struct SearchContext {
       if(!base)base=point.problem;
       if(!floor){
         SolverPhase floor_phase(timing,"dram_floor");
-        floor=DeriveModelDramFloor(*point.module,point.problem.model,target,options.fixture);
+        floor=DeriveModelDramFloor(*point.module,point.problem.model,target,options.fixture,
+            options.moe_routing_profile.get(),options.moe_profile_layer);
         floor_attribute=(*point.module)->getAttr("tmexec.dram_floor");
       }
       else (*point.module)->setAttr("tmexec.dram_floor",floor_attribute);

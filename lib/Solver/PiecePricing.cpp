@@ -38,6 +38,14 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
         input.external_write_bytes?&*input.external_write_bytes:nullptr})
       key<<":"<<(quantity?quantity->ToString():"absent");
     key<<":"<<input.serving_body_kind;
+    if(input.scalar_flow) {
+      key<<":scalar_flow:"<<input.scalar_flow->extra_flops_per_output;
+      for(auto const& node:input.scalar_flow->nodes) {
+        key<<':'<<int(node.phase)<<'[';
+        for(auto dependency:node.inputs)key<<dependency<<',';
+        key<<"](";for(auto operand:node.read_operands)key<<operand<<',';key<<')';
+      }
+    }
     auto const& arithmetic=input.arithmetic;
     key<<":arithmetic:"<<arithmetic.flops_per_output_element.numerator.ToString()
        <<'/'<<arithmetic.flops_per_output_element.denominator
