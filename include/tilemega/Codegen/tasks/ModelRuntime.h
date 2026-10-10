@@ -18,6 +18,7 @@
 #include <tilemega/Codegen/DmDescriptors.h>
 #include <tilemega/Codegen/RuntimeDependencies.h>
 #include <tilemega/Codegen/RuntimeCountedThresholds.h>
+#include <tilemega/Codegen/DmReduction.h>
 #endif
 #include <cutlass/bfloat16.h>
 
@@ -28,6 +29,15 @@
 #endif
 #ifndef TILEMEGA_MOE_OPAQUE
 #define TILEMEGA_MOE_OPAQUE 0
+#endif
+#ifndef TILEMEGA_DM_REDUCTIONS
+#define TILEMEGA_DM_REDUCTIONS 0
+#endif
+#ifndef TILEMEGA_DM_POOL_LA
+#define TILEMEGA_DM_POOL_LA 0
+#endif
+#ifndef TILEMEGA_DM_MOE_LA
+#define TILEMEGA_DM_MOE_LA 0
 #endif
 #if TILEMEGA_MOE_DYNAMIC
 #include <tilemega/Codegen/DynamicTaskCursor.h>
@@ -296,6 +306,7 @@ struct StageDesc {
 #if TILEMEGA_MOE_OPAQUE
   std::uint32_t opaque_predecessor = kDmNoIndex;
 #endif
+  std::uint32_t dm_reduce_stage = kDmNoIndex;
 #endif
 };
 inline constexpr std::uint32_t kHandoffAutoCombine = kNoOperand - 1u;
@@ -835,6 +846,7 @@ struct Params {
   unsigned long long* counted_dependencies = nullptr;
   std::uint32_t counted_dependency_count = 0;
   RuntimeCountedThresholdView counted_thresholds{};
+  DmReductionView dm_reductions{};
   DmBufferView dm_buffers{};
   ConvDesc const* dm_convolutions = nullptr;
 #if TILEMEGA_MOE_DYNAMIC

@@ -29,7 +29,7 @@ __host__ __device__ inline unsigned BindingBarrierOwner(StageDesc const* stages,
   while(stages[producer].handoff_elided) {
     unsigned owner=kDmNoIndex;
     for(unsigned source=0;source<producer;++source)
-      if(stages[source].handoff_reduce_stage==producer) {
+      if(stages[source].handoff_reduce_stage==producer || stages[source].dm_reduce_stage==producer) {
         if(owner!=kDmNoIndex)return kDmNoIndex;
         owner=source;
       }
@@ -576,6 +576,14 @@ __device__ inline void TraceReducer(Params const& p,unsigned reducer,unsigned re
   }
 #endif
 }
+#if TILEMEGA_DM_REDUCTIONS
+template<bool L2>
+__device__ inline void CompleteDmPaged(Params const& p,unsigned stage,unsigned task,
+    char* work,EventCounter* events,unsigned long long iteration) {
+  RunDmReductions<PageArch,L2>(p,stage,task,work,iteration,
+      [&](unsigned reducer,unsigned target){Publish(p,events,reducer,target,iteration);});
+}
+#endif
 template<bool Loader,bool L2>
 __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& ring,
                      std::uint64_t& sequence,char* work,EventCounter* events,
@@ -654,6 +662,9 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& r
 #else
         bool last=Combine<true>(p,reducer,point.tile,work,ticket,
             ring.SharedLastFlag());
+#endif
+#if TILEMEGA_DM_REDUCTIONS
+        if(last)CompleteDmPaged<L2>(p,s.handoff_reduce_stage,point.tile,work,events,iteration);
 #endif
         if constexpr(L2)if(last) {
           Publish(p,events,s.handoff_reduce_stage,point.tile,iteration);
@@ -921,6 +932,9 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
       if constexpr(!Loader)executor::TaskBegin(p,iteration);
       Task<Loader,L2>(p,task.stage,task.logical_task,ring,sequence,work,
           events,iteration,step_ns,step,Loader?&lookahead:nullptr);
+#if TILEMEGA_DM_REDUCTIONS
+      if constexpr(!Loader)CompleteDmPaged<L2>(p,task.stage,task.logical_task,work,events,iteration);
+#endif
 #if TILEMEGA_TRACE_V2
       if constexpr(!Loader)if(ComputeThread()==0 && p.task_trace_v2) {
         p.task_trace_v2[slot].run_end=TraceNow();p.task_trace_v2[slot].run_end_clk=clock64();
@@ -946,6 +960,9 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
           watch.waiter_task=task;
                   Task<Loader,L2>(p,stage,task,ring,sequence,work,events,iteration,
               step_ns,step,Loader?&lookahead:nullptr);
+#if TILEMEGA_DM_REDUCTIONS
+              if constexpr(!Loader)CompleteDmPaged<L2>(p,stage,task,work,events,iteration);
+#endif
               if constexpr(!Loader)ComputeSync();
         }
       if constexpr(!Loader) {

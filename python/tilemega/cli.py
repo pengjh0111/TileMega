@@ -125,10 +125,15 @@ def read_config(path: Path) -> dict:
             raise ValueError('TOML requires Python >=3.11; this interpreter accepts equivalent JSON')
         import tomllib
         config = tomllib.loads(path.read_text())
+    explicit_nonpaged_la = 'nonpaged_la' in config.get('features', {})
     for section, values in DEFAULTS.items():
         config[section] = dict(values, **config.get(section, {}))
     if not config.get('model', {}).get('path'):
         raise ValueError('[model].path is required')
+    model_config = Path(config['model']['path']).expanduser() / 'config.json'
+    if not explicit_nonpaged_la and model_config.is_file() and \
+            json.loads(model_config.read_text()).get('model_type') == 'qwen3_moe':
+        config['features']['nonpaged_la'] = 1
     if config['workload']['prompt_len'] != 64:
         raise ValueError('the serving exporter currently supports prompt_len=64')
     if config['solver']['measure_top'] != 3:

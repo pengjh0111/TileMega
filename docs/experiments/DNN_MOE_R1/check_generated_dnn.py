@@ -423,6 +423,8 @@ def build(root, arch):
         implementations+=['OpaqueMoeStageDependencies','OpaquePageStreamGate']
     if '#define TILEMEGA_MOE_GEMV 1' in text:
         implementations+=['ServingGemv::Dense','ServingGemv::Paged'] if paged else ['ServingGemv::Dense']
+    if '#define TILEMEGA_DM_REDUCTIONS 1' in text:
+        implementations+=['DmReductionPlan','EpochLastArriver::RunWeighted','RunDmReductions']
     implementations=list(dict.fromkeys(implementations))
     phase='forward' if re.search(r'^#define TILEMEGA_SERVING_PHASE 2$',text,re.M) else (
         'decode' if re.search(r'^#define TILEMEGA_SERVING_SEQ 1$',text,re.M) else 'prefill')

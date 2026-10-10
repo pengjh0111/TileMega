@@ -27,6 +27,19 @@ class DnnCliTest(unittest.TestCase):
             invalid['features']=dict(unimplemented=True);path.write_text(json.dumps(invalid))
             with self.assertRaisesRegex(ValueError,'unsupported DNN features'):read_config(path)
 
+    def test_reduction_controls(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'config.json'
+            data=dict(model=dict(name='nafnet'),features=dict(global_la='0',
+                nonpaged_la=0,paged_la=0,paged_la_splitk=0))
+            path.write_text(json.dumps(data))
+            features=read_config(path)['features']
+            self.assertEqual(features['global_la'],'0')
+            self.assertEqual(features['nonpaged_la'],0)
+            data['features']['global_la']='1'
+            path.write_text(json.dumps(data))
+            with self.assertRaisesRegex(ValueError,'global_la'):read_config(path)
+
     def test_inherited_gpu_lock(self):
         # A nested correctness CLI must retain exclusivity without waiting on
         # its own scheduler's inherited flock description.

@@ -6,6 +6,7 @@ inline Params EpochL2Params(Params const& input) {
     result.serving_epoch_handoff_tickets+=
         std::size_t(result.stage_count)*result.serving_epoch_handoff_stride;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if(result.dm_reductions.tickets)result.dm_reductions.tickets+=result.dm_reductions.ticket_count;
   if(result.counted_dependencies)
     result.counted_dependencies+=result.counted_dependency_count;
 #endif
@@ -23,6 +24,16 @@ inline void PrepareEpochHandoffs(DeviceModel& model,
                                  std::vector<GemmInvocation> const& gemms) {
   std::vector<unsigned> owners(model.stages.size(),0);
   unsigned stride=0;
+#if TILEMEGA_DM_REDUCTIONS
+  for(unsigned source=0;source<model.stages.size();++source) {
+    auto target=model.stages[source].dm_reduce_stage;
+    if(target!=kNoOperand) {
+      if(target<=source || target>=model.stages.size() || ++owners[target]>1 ||
+          !model.stages[target].handoff_elided)
+        throw std::invalid_argument("DM last-arriver owner is invalid");
+    }
+  }
+#endif
   for(unsigned source=0;source<model.stages.size();++source) {
     auto const& producer=model.stages[source];
     auto target=producer.handoff_reduce_stage;

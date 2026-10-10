@@ -309,6 +309,10 @@ add_custom_target(check-policy
 
 if(TILEMEGA_BUILD_TESTS)
   enable_testing()
+  add_executable(dm_reduction_plan_test test/unit/dm_reduction_plan_test.cpp)
+  target_link_libraries(dm_reduction_plan_test PRIVATE TileMega::tilemega CUDA::cudart)
+  target_compile_options(dm_reduction_plan_test PRIVATE -UNDEBUG)
+  add_test(NAME dm_reduction_plan COMMAND dm_reduction_plan_test)
   add_executable(tilemega-unit test/unit/runner.cpp
     test/unit/target_spec_test.cpp
     test/unit/coupling_types_test.cpp

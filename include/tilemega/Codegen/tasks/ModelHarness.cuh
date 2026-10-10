@@ -60,8 +60,11 @@ static_assert(!TILEMEGA_PAGED && TILEMEGA_SLOT_WINDOW == 1 && !TILEMEGA_PREFETCH
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
 #include <tilemega/Codegen/tasks/DmStageTaskBody.h>
 #include <tilemega/Codegen/tasks/MoeCountedPublication.cuh>
+#if TILEMEGA_DM_REDUCTIONS
+#include <tilemega/Codegen/DmReductionPlan.h>
 #endif
-#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+#endif
+#if (TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED) || TILEMEGA_DM_REDUCTIONS
 #include <tilemega/Codegen/executor/EpochLastArriver.cuh>
 #endif
 #include <tilemega/Codegen/tasks/ServingLag.h>
@@ -1451,6 +1454,9 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
 #if TILEMEGA_L2_PREFETCH
 #include <tilemega/Codegen/executor/ServingPrefetch.cuh>
 #endif
+#if TILEMEGA_DM_REDUCTIONS
+#include <tilemega/Codegen/executor/DmReduction.cuh>
+#endif
 #if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
 #include <tilemega/Codegen/executor/ServingNonpagedHandoff.cuh>
 #endif
@@ -1543,7 +1549,7 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
   extern __shared__ unsigned char bytes[];
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   for (std::uint32_t stage = 0; stage < params->stage_count; ++stage) {
-#if TILEMEGA_NONPAGED_LA
+#if TILEMEGA_NONPAGED_LA || TILEMEGA_DM_REDUCTIONS
     if(params->stages[stage].handoff_elided)continue;
 #endif
 #if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
@@ -1553,6 +1559,8 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
 #endif
 #if TILEMEGA_NONPAGED_LA
     nonpaged::RunStage(*params,stage,smem,events,iteration);
+#elif TILEMEGA_DM_REDUCTIONS
+    RunDmStage(*params,stage,smem,events,iteration);
 #else
     RunStage(*params, stage, smem);
 #endif
@@ -1587,7 +1595,7 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
     auto iteration=base_iteration+step;
     executor::StepBegin(p,iteration);
     for(unsigned stage=0;stage<p.stage_count;++stage) {
-#if TILEMEGA_NONPAGED_LA
+#if TILEMEGA_NONPAGED_LA || TILEMEGA_DM_REDUCTIONS
       if(p.stages[stage].handoff_elided)continue;
 #endif
 #if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
@@ -1597,6 +1605,8 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
 #endif
 #if TILEMEGA_NONPAGED_LA
       nonpaged::RunStage(p,stage,smem,events,iteration);
+#elif TILEMEGA_DM_REDUCTIONS
+      RunDmStage(p,stage,smem,events,iteration);
 #else
       RunStage(p,stage,smem);
 #endif
@@ -1889,6 +1899,9 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
 #else
     RunTask(*params, task.stage, task.logical_task, smem TILEMEGA_PHASE_PASS
             TILEMEGA_PREFETCH_PASS);
+#if TILEMEGA_DM_REDUCTIONS
+    CompleteDmTask<true>(*params,task.stage,task.logical_task,smem,events,iteration);
+#endif
 #endif
 #if ((!TILEMEGA_BARRIER_V2 && !(TILEMEGA_L2_SLIM && TILEMEGA_SYNC_V3)) || TILEMEGA_TRACE_V2)
     // V3 slim and v2 drop this: NotifyTask converges writers before
@@ -3221,6 +3234,14 @@ inline DeviceModel Create(ModelSpec const& spec,
     return 0;
   };
 
+#if TILEMEGA_DM_REDUCTIONS
+  std::vector<unsigned> dm_task_counts;
+  for(unsigned i=0;i<model.stages.size();++i)dm_task_counts.push_back(active_tasks(i));
+  auto dm_reductions=BuildDmReductionPlan(model.stages,dependencies,dm_task_counts,
+      runtime_variant.dependency_intervals,TILEMEGA_DM_POOL_LA,TILEMEGA_DM_MOE_LA);
+  std::printf("DM_LAST_ARRIVER selected=%u tickets=%u\n",dm_reductions.selected,dm_reductions.tickets);
+#endif
+
   // Materialize one queue per physical CTA.  Event requirements are first
   // deduplicated for the task and then lifted out of later tasks in the same
   // worker queue.  The latter is valid only because epoch never decreases.
@@ -3971,6 +3992,19 @@ inline DeviceModel Create(ModelSpec const& spec,
         std::size_t(runtime_variant.counted_thresholds.size)*sizeof(std::uint32_t)));
   }
   model.params.counted_thresholds={model.device_counted_thresholds,runtime_variant.counted_thresholds.size};
+#if TILEMEGA_DM_REDUCTIONS
+  if(dm_reductions.selected) {
+    model.params.dm_reductions.stages=static_cast<DmReductionStage*>(upload(
+        dm_reductions.stages.data(),dm_reductions.stages.size()*sizeof(DmReductionStage)));
+    model.params.dm_reductions.offsets=static_cast<unsigned*>(upload(
+        dm_reductions.offsets.data(),dm_reductions.offsets.size()*sizeof(unsigned)));
+    if(!dm_reductions.arrivals.empty())model.params.dm_reductions.arrivals=static_cast<DmReductionArrival*>(upload(
+        dm_reductions.arrivals.data(),dm_reductions.arrivals.size()*sizeof(DmReductionArrival)));
+    std::vector<unsigned long long> zero(2ull*dm_reductions.tickets);
+    model.params.dm_reductions.tickets=static_cast<unsigned long long*>(upload(zero.data(),zero.size()*sizeof(zero[0])));
+    model.params.dm_reductions.ticket_count=dm_reductions.tickets;
+  }
+#endif
   if (model.params.counted_dependency_count) {
     std::vector<unsigned long long> zero(2ull * model.params.counted_dependency_count);
     model.params.counted_dependencies = static_cast<unsigned long long*>(upload(zero.data(), zero.size() * sizeof(zero[0])));
@@ -4124,9 +4158,10 @@ inline DeviceModel Create(ModelSpec const& spec,
   TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_params, &model.params,
                                  sizeof(Params), cudaMemcpyHostToDevice));
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-  if (model.params.counted_dependencies) {
+  if (model.params.counted_dependencies || model.params.dm_reductions.tickets) {
     Params l2 = model.params;
-    l2.counted_dependencies += model.params.counted_dependency_count;
+    if(l2.counted_dependencies)l2.counted_dependencies += model.params.counted_dependency_count;
+    if(l2.dm_reductions.tickets)l2.dm_reductions.tickets+=l2.dm_reductions.ticket_count;
     TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_counted_l2_params, sizeof(Params)));
     TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_counted_l2_params, &l2, sizeof(Params), cudaMemcpyHostToDevice));
   }
@@ -4186,7 +4221,9 @@ inline void PrepareEvents(DeviceModel& model, int grid) {
                                    sizeof(Params), cudaMemcpyHostToDevice));
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     if (model.device_counted_l2_params) {
-      Params l2 = model.params; l2.counted_dependencies += model.params.counted_dependency_count;
+      Params l2 = model.params;
+      if(l2.counted_dependencies)l2.counted_dependencies += model.params.counted_dependency_count;
+      if(l2.dm_reductions.tickets)l2.dm_reductions.tickets+=l2.dm_reductions.ticket_count;
       TILEMEGA_CUDA_CHECK(cudaMemcpy(model.device_counted_l2_params, &l2, sizeof(Params), cudaMemcpyHostToDevice));
     }
 #endif
@@ -4245,6 +4282,9 @@ inline void Reset(DeviceModel& model) {
             sizeof(unsigned long long)));
 #endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  if(model.params.dm_reductions.tickets)
+    TILEMEGA_CUDA_CHECK(cudaMemset(model.params.dm_reductions.tickets,0,
+        2ull*model.params.dm_reductions.ticket_count*sizeof(unsigned long long)));
   if (model.params.counted_dependencies)
     TILEMEGA_CUDA_CHECK(cudaMemset(model.params.counted_dependencies, 0,
         2ull * model.params.counted_dependency_count * sizeof(unsigned long long)));

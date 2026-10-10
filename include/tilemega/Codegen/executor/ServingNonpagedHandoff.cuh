@@ -25,6 +25,9 @@ __device__ inline void RunTask(Params const& p,unsigned stage_index,unsigned tas
   auto const& stage=p.stages[stage_index];
   tilemega::codegen::RunTask(p,stage_index,task,smem
       TILEMEGA_PHASE_PASS TILEMEGA_PREFETCH_PASS);
+#if TILEMEGA_DM_REDUCTIONS
+  CompleteDmTask<L2>(p,stage_index,task,smem,events,iteration);
+#endif
   if(stage.handoff_reduce_stage==kNoOperand)return;
   auto reducer_index=stage.handoff_reduce_stage;
   if(reducer_index>=p.stage_count){asm volatile("trap;");return;}
@@ -58,6 +61,9 @@ __device__ inline void RunTask(Params const& p,unsigned stage_index,unsigned tas
   bool completed=executor::EpochLastArriver::Run(Ticket(p,stage_index,reducer_task),
       producers,iteration,&last,reduce);
   if(completed) {
+#if TILEMEGA_DM_REDUCTIONS
+    CompleteDmTask<L2>(p,reducer_index,reducer_task,smem,events,iteration);
+#endif
     if constexpr(L2)NotifyTask(p,events,reducer_index,reducer_task,iteration);
     TraceReducer(p,reducer_index,reducer_task,stage_index,task);
   }

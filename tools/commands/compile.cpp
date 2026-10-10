@@ -297,7 +297,7 @@ int RunCompile(int argc, char** argv) {
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
     int nonpaged_la=0,moe_dynamic=0,moe_opaque=0,moe_gemv=0;
     std::string candidate_mode="L1",nonpaged_weight_layout="row";
-    bool page_bytes_pinned=false;
+    bool page_bytes_pinned=false,nonpaged_la_pinned=false;
     bool event_solo=false,event_red=false,barrier_v2=false;
     if(auto* cache=std::getenv("TILEMEGA_ARTIFACT_CACHE"))artifact_cache=cache;
     int serving_capacity=1088,serving_batch=1,serving_past_lo=64,
@@ -315,7 +315,7 @@ int RunCompile(int argc, char** argv) {
     tilemega::solver::CompilerSearchOptions solve_options;
     std::string moe_binding="auto";unsigned moe_bm=16;
     std::string memory_reuse="none",search_selection="measure";
-    std::string dnn_deferred_ln="auto",dnn_dwpw_fuse="auto";
+    std::string dnn_deferred_ln="auto",dnn_dwpw_fuse="auto",global_la="auto";
     bool sequence_pinned=false;
     solve_options.placement.dims={4,3,7};
     for (int i=3;i<argc;i+=2) {
@@ -343,6 +343,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--reuse") memory_reuse=value;
       else if (flag=="--deferred-ln") dnn_deferred_ln=value;
       else if (flag=="--dwpw-fuse") dnn_dwpw_fuse=value;
+      else if (flag=="--global-la") global_la=value;
       else if (flag=="--selection") search_selection=value;
       else if (flag=="--moe-bm") moe_bm=value=="auto"?16:std::stoul(value);
       else if (flag=="--emit") emit_mode=value;
@@ -362,7 +363,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--deferred-norm") deferred_norm=std::stoi(value);
       else if (flag=="--paged-la") paged_la=std::stoi(value);
       else if (flag=="--paged-la-splitk") paged_la_splitk=std::stoi(value);
-      else if (flag=="--nonpaged-la") nonpaged_la=std::stoi(value);
+      else if (flag=="--nonpaged-la") {nonpaged_la=std::stoi(value);nonpaged_la_pinned=true;}
       else if (flag=="--candidate-guard-wait-s") candidate_guard_wait_s=std::stoi(value);
       else if (flag=="--candidate-mode") candidate_mode=value;
       else if (flag=="--candidate-loop") candidate_loop=std::stoi(value);
@@ -471,6 +472,8 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("--reuse expects auto, none, greedy or l2");
     if(memory_reuse!="none" && frontend_mode!="dnn")
       throw std::runtime_error("buffer reuse currently requires the DNN frontend");
+    if(global_la!="auto" && global_la!="0")
+      throw std::invalid_argument("--global-la expects auto or 0");
     if(dnn_dwpw_fuse!="auto" && dnn_dwpw_fuse!="0")
       throw std::runtime_error("--dwpw-fuse expects auto or 0");
     if(dnn_deferred_ln!="auto" && dnn_deferred_ln!="0")
@@ -1324,6 +1327,18 @@ int RunCompile(int argc, char** argv) {
           "#define TILEMEGA_SERVING_PAST_HI " +
           std::to_string(serving_past_hi) + "\n" + source;
     }
+    bool dm_pool_la=false,dm_moe_la=false;
+    if(serving) {
+      auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+      auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
+      if(dm && dm.getValue()) {
+        bool enabled=!moe_opaque && (use_pages?paged_la:(!nonpaged_la_pinned || nonpaged_la));
+        dm_pool_la=enabled && global_la=="auto";
+        dm_moe_la=enabled;
+        if(dm_pool_la || dm_moe_la)source="#define TILEMEGA_DM_REDUCTIONS 1\n#define TILEMEGA_DM_POOL_LA "+
+            std::to_string(dm_pool_la)+"\n#define TILEMEGA_DM_MOE_LA "+std::to_string(dm_moe_la)+"\n"+source;
+      }
+    }
     if(moe_dynamic || moe_opaque || moe_gemv) {
       auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
       auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
@@ -1526,6 +1541,9 @@ int RunCompile(int argc, char** argv) {
         manifest<<",\n  \"moe_dynamic\": "<<(moe_dynamic?"true":"false");
         manifest<<",\n  \"moe_opaque\": "<<(moe_opaque?"true":"false");
         manifest<<",\n  \"moe_gemv\": "<<(moe_gemv?"true":"false");
+        manifest<<",\n  \"global_la\": "<<std::quoted(global_la);
+        manifest<<",\n  \"dm_pool_la\": "<<(dm_pool_la?"true":"false");
+        manifest<<",\n  \"dm_moe_la\": "<<(dm_moe_la?"true":"false");
         if(frontend_mode=="dnn")manifest<<",\n  \"deferred_ln\": "<<std::quoted(dnn_deferred_ln);
         if(frontend_mode=="dnn")manifest<<",\n  \"dwpw_fuse\": "<<std::quoted(dnn_dwpw_fuse);
         if(search_selection=="predicted")manifest<<",\n  \"selection\": \"predicted\"";

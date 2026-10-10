@@ -234,6 +234,10 @@ inline void Destroy(Plan* plan) {
   if(model.device_memory_arena)cudaFree(model.device_memory_arena);
   if(model.device_dependency_intervals)cudaFree(model.device_dependency_intervals);
   if(model.device_counted_thresholds)cudaFree(model.device_counted_thresholds);
+  if(model.params.dm_reductions.stages)cudaFree(const_cast<DmReductionStage*>(model.params.dm_reductions.stages));
+  if(model.params.dm_reductions.offsets)cudaFree(const_cast<unsigned*>(model.params.dm_reductions.offsets));
+  if(model.params.dm_reductions.arrivals)cudaFree(const_cast<DmReductionArrival*>(model.params.dm_reductions.arrivals));
+  if(model.params.dm_reductions.tickets)cudaFree(model.params.dm_reductions.tickets);
   if(model.params.counted_dependencies)cudaFree(model.params.counted_dependencies);
   if(model.device_counted_l2_params)cudaFree(model.device_counted_l2_params);
 #if TILEMEGA_MOE_DYNAMIC
@@ -519,19 +523,21 @@ extern "C" int tm_plan_set_steps(void* opaque,
 #if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
   bool mode_banks=plan->model.params.serving_epoch_handoff_tickets;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-  mode_banks|=plan->model.params.counted_dependencies!=nullptr;
+  mode_banks|=plan->model.params.counted_dependencies!=nullptr || plan->model.params.dm_reductions.tickets!=nullptr;
 #endif
   if(mode_banks) {
     host.reserve(2ull*count);
     for(unsigned i=0;i<count;++i)host.push_back(harness::EpochL2Params(host[i]));
   }
 #elif defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-  if (plan->model.params.counted_dependencies) {
+  if (plan->model.params.counted_dependencies || plan->model.params.dm_reductions.tickets) {
     // Bind the execution bank once on the host; per-thread Params copies
     // would turn a dependency extension into large local-memory traffic.
     host.reserve(2ull * count);
     for (unsigned i = 0; i < count; ++i) {
-      Params l2 = host[i]; l2.counted_dependencies += plan->model.params.counted_dependency_count;
+      Params l2 = host[i];
+      if(l2.counted_dependencies)l2.counted_dependencies += plan->model.params.counted_dependency_count;
+      if(l2.dm_reductions.tickets)l2.dm_reductions.tickets+=l2.dm_reductions.ticket_count;
       host.push_back(l2);
     }
   }
@@ -560,11 +566,11 @@ extern "C" int tm_plan_launch(void* opaque, std::uint32_t step,
 #if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
   bool mode_banks=plan->model.params.serving_epoch_handoff_tickets;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-  mode_banks|=plan->model.params.counted_dependencies!=nullptr;
+  mode_banks|=plan->model.params.counted_dependencies!=nullptr || plan->model.params.dm_reductions.tickets!=nullptr;
 #endif
   if(mode_banks && mode_index)params+=plan->steps;
 #elif defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-  if (plan->model.params.counted_dependencies && mode_index) params += plan->steps;
+  if ((plan->model.params.counted_dependencies || plan->model.params.dm_reductions.tickets) && mode_index) params += plan->steps;
 #endif
   auto cuda_stream = static_cast<cudaStream_t>(stream);
   cudaError_t status;
@@ -601,12 +607,12 @@ extern "C" int tm_plan_launch_steps(void* opaque, std::uint32_t first_step,
 #if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
   bool mode_banks=plan->model.params.serving_epoch_handoff_tickets;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-  mode_banks|=plan->model.params.counted_dependencies!=nullptr;
+  mode_banks|=plan->model.params.counted_dependencies!=nullptr || plan->model.params.dm_reductions.tickets!=nullptr;
 #endif
   if(mode_banks && index)loop_params+=plan->steps;
   auto* loop_step_ns=plan->step_ns?reinterpret_cast<unsigned long long*>(plan->step_ns+first_step):nullptr;
 #elif defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-  if (plan->model.params.counted_dependencies && index) loop_params += plan->steps;
+  if ((plan->model.params.counted_dependencies || plan->model.params.dm_reductions.tickets) && index) loop_params += plan->steps;
 #endif
 #if TILEMEGA_PAGED
   status=executor::LaunchServing(tilemega_loop_kernel,plan->grid,

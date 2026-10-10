@@ -1,5 +1,7 @@
 """Full-model construction command and shared deployment allocation accounting."""
 import copy
+import json
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -46,6 +48,19 @@ class MoeFullTest(unittest.TestCase):
         config, manifests = self.fixture()
         with self.assertRaisesRegex(ValueError, 'workload differs'):
             memory_report(config, manifests, 1, 128)
+
+    def test_moe_cli_enables_handoffs_without_changing_dense_defaults(self):
+        from tilemega.cli import read_config
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory); model=root/'model'; model.mkdir()
+            path=root/'run.json'
+            for model_type, explicit, expected in [('llama',None,0),
+                    ('qwen3_moe',None,1),('qwen3_moe',0,0)]:
+                (model/'config.json').write_text(json.dumps(dict(model_type=model_type)))
+                data=dict(model=dict(path=str(model)))
+                if explicit is not None:data['features']=dict(nonpaged_la=explicit)
+                path.write_text(json.dumps(data))
+                self.assertEqual(read_config(path)['features']['nonpaged_la'],expected)
 
     def test_commands_use_bound_past_range_and_common_weight_layout(self):
         args = SimpleNamespace(compiler=Path('/compiler'), capacity=128,
