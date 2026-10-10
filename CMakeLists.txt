@@ -145,6 +145,7 @@ add_library(tilemega_core STATIC
   lib/Frontend/DnnStorage.cpp
   lib/Frontend/DnnModelPlan.cpp
   lib/Frontend/DnnDeferredNorm.cpp
+  lib/Frontend/DnnResourceProbe.cpp
   lib/Frontend/DnnDwPwFusion.cpp
   lib/Frontend/MoeRegionPattern.cpp
   lib/Frontend/MoeRegionPlan.cpp

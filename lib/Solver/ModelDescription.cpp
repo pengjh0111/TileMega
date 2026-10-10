@@ -526,7 +526,9 @@ int ModelDescription::RuntimeStages(int stage) const {
 }
 
 int ModelDescription::NonGemmSharedBytes() const {
-  return attention_plan ? attention_plan->shared_bytes : 0;
+  int bytes=attention_plan ? attention_plan->shared_bytes : 0;
+  if(dm)for(auto const& stage:stages)bytes=std::max(bytes,int(stage.dm_workspace_bytes));
+  return bytes;
 }
 
 }  // namespace tilemega::solver
