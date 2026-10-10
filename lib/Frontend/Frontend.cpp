@@ -492,6 +492,8 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
     llvm::SmallVector<mlir::Attribute> convs;
     for(auto const& conv:plan.convolutions)convs.push_back(EncodeDm(builder,conv));
     fields.push_back(builder.getNamedAttr("dm",builder.getBoolAttr(true)));
+    if(plan.dm_reduction_mask>=0)fields.push_back(builder.getNamedAttr("dm_reduction_mask",
+        builder.getI64IntegerAttr(plan.dm_reduction_mask)));
     if(plan.moe_gemv)fields.push_back(builder.getNamedAttr("moe_gemv",builder.getBoolAttr(true)));
     fields.push_back(builder.getNamedAttr("dm_convolutions",builder.getArrayAttr(convs)));
     if(!plan.deferred_layernorm_edges.empty()) {

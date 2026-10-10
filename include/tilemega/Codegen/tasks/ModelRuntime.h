@@ -36,6 +36,9 @@
 #ifndef TILEMEGA_DM_POOL_LA
 #define TILEMEGA_DM_POOL_LA 0
 #endif
+#ifndef TILEMEGA_DM_MOE_LA_MASK
+#define TILEMEGA_DM_MOE_LA_MASK 3
+#endif
 #ifndef TILEMEGA_DM_MOE_LA
 #define TILEMEGA_DM_MOE_LA 0
 #endif

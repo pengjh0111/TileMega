@@ -68,6 +68,9 @@ template<class T, std::size_t N> void ArrayLiteral(std::ostream& out, T const (&
 }  // namespace
 
 void ValidateDmModelPlan(ModelPlan const& plan) {
+  if(plan.dm_reduction_mask < -1 || plan.dm_reduction_mask>7 ||
+      (plan.dm_reduction_mask>=0 && !plan.dm))
+    throw std::invalid_argument("invalid DM reduction selection mask");
   if(plan.moe_gemv && (!plan.dm || std::none_of(plan.stages.begin(),plan.stages.end(),
       [](auto const& stage){return stage.kind==PlanTaskKind::kMoETopK;})))
     throw std::invalid_argument("GEMV implementation family requires a DM MoE plan");

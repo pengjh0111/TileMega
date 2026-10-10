@@ -192,6 +192,7 @@ struct ModelPlan {
   // initializers retain their exact layout and text when this is false.
   bool dm = false;
   bool moe_gemv = false;
+  int dm_reduction_mask = -1;
   bool forward = false;
   // MoE regions bind axis zero as tokens; DNN inputs bind it as batch.
   bool forward_token_axis = false;

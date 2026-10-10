@@ -38,6 +38,12 @@ int main() {
         All(0,4),All(1,4),counted},{1,1,4,4,2},nullptr,false,true);
     assert(plan.selected==1 && stages[4].handoff_elided && plan.stages[3].counted_edge==5);
     assert(plan.tickets==2);
+    for(unsigned mask:{0u,1u,2u,3u}) {
+      stages[3].dm_reduce_stage=kDmNoIndex;stages[4].handoff_elided=false;
+      auto selected=BuildDmReductionPlan(stages,{All(0,2),All(1,2),Identity(2,3),
+          All(0,4),All(1,4),counted},{1,1,4,4,2},nullptr,false,true,mask);
+      assert(selected.selected==unsigned(bool(mask&2)));
+    }
   }
   {
     auto stages=std::vector<StageDesc>{Stage(TaskKind::kGemm),Stage(TaskKind::kGemm),

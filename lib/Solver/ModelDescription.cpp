@@ -191,6 +191,11 @@ ModelDescription ModelDescription::ReadCouplingGraph(
   if(auto dm=plan.getAs<mlir::BoolAttr>("dm"))model.dm=dm.getValue();
   if(auto gemv=plan.getAs<mlir::BoolAttr>("moe_gemv"))model.moe_gemv=gemv.getValue();
   if(model.moe_gemv && !model.dm)throw std::invalid_argument("GEMV model lacks DM descriptors");
+  if(auto mask=plan.getAs<mlir::IntegerAttr>("dm_reduction_mask")) {
+    if(!model.dm || mask.getInt()<0 || mask.getInt()>7)
+      throw std::invalid_argument("invalid model DM reduction selection");
+    model.dm_reduction_mask=mask.getInt();
+  }
   model.storage_reuse=module->hasAttr("tilemega.memory_hazard_count");
   if(model.dm)
     for(auto conv:array("dm_convolutions"))model.convolutions.push_back(frontend::DecodeDmConv(conv));

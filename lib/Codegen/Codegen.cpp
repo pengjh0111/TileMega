@@ -315,6 +315,17 @@ std::string emitTokenIdBits(mlir::DictionaryAttr plan) {
          std::to_string(value.getInt()) + "\n#endif\n";
 }
 
+std::string emitDmReductionConfig(mlir::DictionaryAttr plan) {
+  auto mask=plan.getAs<mlir::IntegerAttr>("dm_reduction_mask");
+  if(!mask)return {};
+  if(!optionalBoolField(plan,"dm") || mask.getInt()<0 || mask.getInt()>7)
+    throw std::invalid_argument("invalid generated DM reduction selection");
+  unsigned value=mask.getInt();
+  return "#define TILEMEGA_DM_REDUCTIONS "+std::to_string(value!=0)+
+      "\n#define TILEMEGA_DM_POOL_LA "+std::to_string(bool(value&1))+
+      "\n#define TILEMEGA_DM_MOE_LA "+std::to_string(bool(value&6))+
+      "\n#define TILEMEGA_DM_MOE_LA_MASK "+std::to_string(value>>1)+"\n";
+}
 std::string emitNormEpsilon(mlir::DictionaryAttr plan) {
   double epsilon = optionalFloatField(plan, "norm_epsilon");
   if (epsilon <= 0.0) return {};
@@ -1884,7 +1895,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
               ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
       << (optionalBoolField(emittedPlan,"dm") ? "#define TILEMEGA_DM_SUPPORT 1\n" : std::string())
       << (optionalBoolField(emittedPlan,"moe_gemv") ? "#define TILEMEGA_MOE_GEMV 1\n" : std::string())
-      << emitNormEpsilon(emittedPlan)
+      << emitDmReductionConfig(emittedPlan) << emitNormEpsilon(emittedPlan)
       << emitRoPEPrecision(emittedPlan) << emitTokenIdBits(emittedPlan) << emitTaskKindRuntime(emittedPlan)
       << emitServingAttentionConfig(emittedPlan, module)
       << (clusterDim > 1 ? "#define TILEMEGA_GENERATED_CLUSTER_DIM " +
@@ -2007,7 +2018,7 @@ std::string CouplingGraphToCUDA::LowerVariants(
               ? "#define TILEMEGA_MODEL_BF16 1\n" : std::string())
       << (optionalBoolField(first_plan,"dm") ? "#define TILEMEGA_DM_SUPPORT 1\n" : std::string())
       << (optionalBoolField(first_plan,"moe_gemv") ? "#define TILEMEGA_MOE_GEMV 1\n" : std::string())
-      << emitNormEpsilon(first_plan)
+      << emitDmReductionConfig(first_plan) << emitNormEpsilon(first_plan)
       << emitRoPEPrecision(first_plan) << emitTokenIdBits(first_plan) << emitTaskKindRuntime(first_plan)
       << emitServingAttentionConfig(first_plan, first)
       << emitSolvedLaunch(first)
