@@ -84,6 +84,7 @@ class DnnRecipes(unittest.TestCase):
         self.assertEqual(parts['weight'].dtype, torch.bfloat16)
         self.assertEqual(parts['u'].dtype, torch.float32)
         self.assertEqual(parts['v'].dtype, torch.float32)
+
         self.assertTrue(torch.equal(parts['u'], parts['weight'].float().sum(1)))
         unrounded = (values['w'].float()*values['gamma'].float()).sum(1)
         self.assertFalse(torch.equal(parts['u'], unrounded))
@@ -94,6 +95,20 @@ class DnnRecipes(unittest.TestCase):
         actual = torch.rsqrt(variance+1e-5) * (F.linear(x, parts['weight'].float())-mean*parts['u'])+parts['v']
         self.assertTrue(torch.all((actual-reference).abs() <= .016 + .016*reference.abs()))
         torch.testing.assert_close(actual[-1], reference[-1], atol=2e-5, rtol=0)
+
+    def test_deferred_pointwise_and_nested_bias(self):
+        values=dict(w=torch.randn(16,32,1,1).bfloat16(),
+            gamma=torch.randn(1,32,1,1).bfloat16(),beta=torch.randn(1,32,1,1).bfloat16(),
+            bias=torch.randn(16).bfloat16())
+        recipe=dict(kind='fold_layernorm',source=dict(kind='conv_krsc',source='w',padded_channels=32),
+            gamma='gamma',beta='beta',channel_axis=1,bias=dict(kind='linear_bias',source='bias'))
+        folded=self.packed(dict(recipe,part='weight'),values)
+        u=self.packed(dict(recipe,part='u'),values)
+        v=self.packed(dict(recipe,part='v'),values)
+        expected=(values['w'][:,:,0,0].float()*values['gamma'].reshape(1,32).float()).bfloat16()
+        self.assertTrue(torch.equal(folded[:,0,0,:],expected))
+        self.assertTrue(torch.equal(u,expected.float().sum(1)))
+        torch.testing.assert_close(v,values['w'][:,:,0,0].float()@values['beta'].reshape(32).float()+values['bias'].float())
 
     def test_qkv_and_gate(self):
         for part in ['weight', 'bias']:

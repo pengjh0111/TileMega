@@ -25,7 +25,8 @@ def recipe_sources(recipe: Mapping, nested) -> tuple[str, ...]:
     if kind == 'fold_layernorm':
         result += tuple(str(recipe[key]) for key in ('gamma', 'beta'))
         if recipe.get('bias') is not None:
-            result += (str(recipe['bias']),)
+            bias=recipe['bias']
+            result += nested(bias) if isinstance(bias, dict) else (str(bias),)
     return result
 
 
@@ -66,21 +67,38 @@ def pack(recipe: Mapping, source, nested):
         from tilemega.serving.weights import _conv_krsc
         return _conv_krsc(folded, int(recipe['padded_channels']))
     if kind == 'fold_layernorm':
+        shape = weight.shape if weight is not None else ()
+        if weight is not None and weight.ndim == 4 and weight.shape[1:3] == (1, 1):
+            weight = weight.reshape(weight.shape[0], -1)
         if weight is None or weight.ndim != 2:
-            raise ValueError('fold_layernorm requires a matrix weight')
+            raise ValueError('fold_layernorm requires a matrix or pointwise KRSC weight')
         outputs, width = weight.shape
-        gamma = _vector(source, recipe['gamma'], width, 'LayerNorm gamma')
-        beta = _vector(source, recipe['beta'], width, 'LayerNorm beta')
+        def affine(name):
+            value = source(str(recipe[name]))
+            if recipe.get('channel_axis') == 1:
+                if value.shape != (1, width, 1, 1):
+                    raise ValueError('image LayerNorm affine shape differs from its channels')
+                value = value.reshape(-1)
+            if value.shape != (width,):
+                raise ValueError('LayerNorm affine width differs from the contraction')
+            return value.float()
+        gamma, beta = affine('gamma'), affine('beta')
         # The correction sum must describe the stored BF16 weight, otherwise
         # a constant row leaks the folded-weight quantization error through mu.
         folded = (weight.float() * gamma[None, :]).to(torch.bfloat16)
         part = recipe['part']
         if part == 'weight':
-            return folded
+            return folded.reshape(shape)
         if part == 'u':
             return folded.float().sum(dim=1)
         if part == 'v':
-            bias = _vector(source, recipe['bias'], outputs, 'linear bias') if recipe.get('bias') is not None else 0
+            bias = recipe.get('bias')
+            if isinstance(bias, dict):
+                bias = nested(bias).float()
+                if bias.shape != (outputs,):
+                    raise ValueError('folded bias recipe differs from the output channels')
+            else:
+                bias = _vector(source, bias, outputs, 'linear bias') if bias is not None else 0
             return torch.mv(weight.float(), beta) + bias
         raise ValueError('fold_layernorm part must be weight, u or v')
     if kind == 'linear_bias':

@@ -128,17 +128,42 @@ struct Builder {
           column.offset=column.offset+C(unit);
           op.epilogue_operands.push_back(Read(id,T(Buffer(id).name,{{"channel",C(g.n)}}),{column}));
         }
-      }else if(step.kind==K::kResidual) {
+      }else if(step.kind==K::kResidual || step.kind==K::kResidualLN) {
         auto id=step.parameter[0];auto mapped=Mapped(id,step.residual_map,rows,g.n);
         op.epilogue_operands.push_back(Read(id,std::move(mapped.first),std::move(mapped.second)));
-        if(step.parameter[1]!=missing) {
+        if(step.kind==K::kResidualLN) {
+          for(unsigned parameter:{2u,3u}) {
+            auto affine=step.parameter[parameter];
+            op.epilogue_operands.push_back(Read(affine,
+                T(Buffer(affine).name,{{"channel",C(g.n)}}),{I("n")}));
+          }
+        }else if(step.parameter[1]!=missing) {
           auto scale=step.parameter[1];
           op.epilogue_operands.push_back(Read(scale,
               T(Buffer(scale).name,{{"channel",C(g.n)}}),{I("n")}));
         }
+      }else if(step.kind==K::kDeferredLayerNorm) {
+        for(unsigned parameter:{1u,2u}) {
+          auto id=step.parameter[parameter];
+          auto column=unit && !contracted?Add({I("n"),I("n",unit,unit)}):I("n");
+          op.epilogue_operands.push_back(Read(id,T(Buffer(id).name,{{"channel",C(g.n)}}),{column}));
+          if(unit && !contracted) {
+            column.offset=column.offset+C(unit);
+            op.epilogue_operands.push_back(Read(id,T(Buffer(id).name,{{"channel",C(g.n)}}),{column}));
+          }
+        }
       }else if(step.kind==K::kGatePair)contracted=true;
       else if(step.kind!=K::kActivation) {
         throw std::invalid_argument("DNN GEMM pairing/norm requires explicit reduction semantics");
+      }
+      if(step.kind==K::kDeferredLayerNorm || step.kind==K::kResidualLN) {
+        auto id=step.parameter[step.kind==K::kResidualLN?1:0];
+        // A producer's per-channel-tile partition is inserted by
+        // MaterializeTaskStorage. An unselected read expands over all parts,
+        // exactly matching the normalization reduction in the epilogue.
+        for(unsigned stat=0;stat<2;++stat)
+          op.epilogue_operands.push_back(Read(id,T(Buffer(id).name,{{"row",rows},{"stat",C(2)}}),
+              {I("m"),IndexResult::Affine({},C(stat))}));
       }
     }
   }

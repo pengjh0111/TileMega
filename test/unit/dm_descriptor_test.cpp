@@ -110,6 +110,17 @@ int TestDmDescriptor(int, char**) {
   }
   for(unsigned i=0;i<5;++i)chain.side[i]={static_cast<DmSideOutputKind>(i),i+1,7,8};
   auto c=EncodeDm(builder,chain); assert(c==EncodeDm(builder,DecodeDmChain(c)));
+  auto normalized=chain;normalized.operations[6].norm_width=768;
+  normalized.operations[6].norm_epsilon=1e-12f;
+  normalized.operations[7].norm_width=3072;normalized.operations[7].norm_epsilon=1e-6f;
+  auto geometry=EncodeDm(builder,normalized);
+  auto restored=DecodeDmChain(geometry);
+  assert(geometry==EncodeDm(builder,restored) && restored.operations[6].norm_width==768 &&
+      restored.operations[6].norm_epsilon==1e-12f && restored.operations[7].norm_width==3072);
+  normalized.operations[6].norm_epsilon=-1;rejects([&]{EncodeDm(builder,normalized);});
+  normalized.operations[6].norm_epsilon=0;rejects([&]{EncodeDm(builder,normalized);});
+  normalized.operations[6].norm_epsilon=1e-12f;normalized.operations[0].norm_width=768;
+  normalized.operations[0].norm_epsilon=1e-12f;rejects([&]{EncodeDm(builder,normalized);});
   chain.count=9; rejects([&]{EncodeDm(builder,chain);}); chain.count=8;
   chain.side[1].kind=chain.side[0].kind; rejects([&]{EncodeDm(builder,chain);});
   chain.side[1].kind=DmSideOutputKind::kChannelPartialSums;

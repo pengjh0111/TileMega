@@ -16,6 +16,8 @@ def execute(root):
     torch.manual_seed(20261009)
     torch.backends.cuda.matmul.allow_tf32 = False
     library = PlanLibrary(root / 'generated-sm_89.so')
+    if 'deferred_ln_input' in {b.name for b in library.buffers}:
+        return execute_deferred_ln(torch, library)
     if 'row_stats' in {b.name for b in library.buffers}:
         return execute_sides(torch, library)
     if 'weight0' in {b.name for b in library.buffers}:
@@ -61,6 +63,40 @@ def execute(root):
                 cases.append(dict(epoch=epoch, mode=mode, max_error=error.max().item()))
     print(json.dumps(dict(event='generated_dnn_correctness', passed=True,
         scope='CG-generated layout/conv/pool/LN ABI; no full model gate', pool=pool, cases=cases)), flush=True)
+
+
+def execute_deferred_ln(torch, library):
+    from tilemega.serving.weights import _packed_gpu
+    from tilemega.serving.plan import FORWARD
+    assert library.info.phase == FORWARD and library.info.batch_lo == 2
+    f = torch.nn.functional
+    source = {f'w{i}': (torch.randn(n, k, device='cuda')*.125).bfloat16()
+        for i, (n, k) in enumerate([(32,32),(64,32),(32,64)])}
+    source.update({f'b{i}': torch.randn(n, device='cuda')*.125 for i,n in enumerate([32,64,32])})
+    source.update(gamma=(torch.rand(32,device='cuda')+.5).bfloat16(),
+                  beta=(torch.randn(32,device='cuda')*.125).bfloat16())
+    x=torch.randn(2,5,32,device='cuda').bfloat16()
+    raw=f.linear(x.float(),source['w0'].float(),source['b0']).bfloat16().float()
+    normalized=f.layer_norm(raw,[32],source['gamma'].float(),source['beta'].float(),1e-12)
+    expanded=f.linear(normalized,source['w1'].float(),source['b1']).bfloat16().float()
+    reference=f.linear(expanded,source['w2'].float(),source['b2'])+normalized.bfloat16().float()
+    output=torch.empty_like(x)
+    buffers={buffer.name:_packed_gpu(json.loads(buffer.pack_json),source.__getitem__)
+        for buffer in library.buffers if buffer.pack_json}
+    buffers.update(deferred_ln_input=x,deferred_ln_output=output)
+    assert {buffer.name for buffer in library.buffers if buffer.role==1}==buffers.keys()
+    cases=[];first=None
+    with library.create(2,{name:value.data_ptr() for name,value in buffers.items()},0) as plan:
+        plan.set_steps([0])
+        for epoch in range(3):
+            for mode in (1,2):
+                output.fill_(float('nan'));plan.launch(0,mode,torch.cuda.current_stream().cuda_stream)
+                torch.cuda.synchronize();error=(output.float()-reference).abs()
+                assert torch.all(error<=.016+.016*reference.abs()), float(error.max())
+                assert first is None or torch.equal(output,first)
+                if first is None:first=output.clone()
+                cases.append(dict(epoch=epoch,mode=mode,max_error=float(error.max())))
+    print(json.dumps(dict(event='generated_deferred_ln_correctness',passed=True,cases=cases)),flush=True)
 
 
 def execute_sides(torch, library):

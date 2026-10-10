@@ -105,11 +105,16 @@ struct ServingDmEpilogue {
     DmEpilogueArguments const& p;
     int tile_m, tile_n;
 
-    __device__ void Statistics(std::uint32_t id, bool centered) {
+    __device__ void Statistics(std::uint32_t id, bool centered,
+        unsigned declared_width=0,float declared_epsilon=0) {
       using namespace codegen::executor;
       float const* statistics = Buffer<float, 1>(p, id);
       auto layout = Layout(p, id);
-      if (layout.rank != 3 || layout.logical[2] != 2 || p.norm_width <= 0) {
+      bool squares_only=!centered && layout.rank==2 && layout.strides[1]==1;
+      bool complete=centered && layout.rank==2 && layout.logical[1]==2 && layout.strides[1]==1;
+      int width=declared_width?declared_width:p.norm_width;
+      float epsilon=declared_width?declared_epsilon:p.norm_eps;
+      if ((!squares_only && !complete && (layout.rank != 3 || layout.logical[2] != 2)) || width <= 0) {
         asm volatile("trap;");
         return;
       }
@@ -121,10 +126,10 @@ struct ServingDmEpilogue {
         float sum = 0, square = 0;
         if (global_row < p.m) {
           auto source_row = p.StatisticRow(global_row);
-          for (unsigned part = lane; part < layout.logical[1]; part += 32) {
+          for (unsigned part = lane; part < (complete?1u:layout.logical[1]); part += 32) {
             auto offset = source_row * layout.strides[0] + part * layout.strides[1];
-            sum += statistics[offset];
-            square += statistics[offset + layout.strides[2]];
+            if(squares_only)square+=statistics[offset];
+            else {sum+=statistics[offset];square+=statistics[offset+(complete?1:layout.strides[2])];}
           }
         }
         for (int shift = 16; shift; shift /= 2) {
@@ -132,10 +137,10 @@ struct ServingDmEpilogue {
           square += __shfl_xor_sync(0xffffffff, square, shift);
         }
         if (lane == 0) {
-          float mean = sum / p.norm_width;
-          float variance = square / p.norm_width - (centered ? mean * mean : 0);
+          float mean = sum / width;
+          float variance = square / width - (centered ? mean * mean : 0);
           means[row] = centered ? mean : 0;
-          inverses[row] = rsqrtf(fmaxf(variance, 0) + p.norm_eps);
+          inverses[row] = rsqrtf(fmaxf(variance, 0) + epsilon);
         }
       }
       ComputeSync();
@@ -172,18 +177,18 @@ struct ServingDmEpilogue {
           if (op.parameter[1] != codegen::kDmNoIndex)
             first = Buffer<float, 1>(p, op.parameter[1]);
         } else {
-          Statistics(op.parameter[1], true);
+          Statistics(op.parameter[1], true,op.norm_width,op.norm_epsilon);
           second = Buffer<float, 1>(p, op.parameter[2]);
           third = Buffer<float, 1>(p, op.parameter[3]);
         }
       }
       if constexpr (Step::kKind == K::kDeferredLayerNorm) {
-        Statistics(op.parameter[0], true);
+        Statistics(op.parameter[0], true,op.norm_width,op.norm_epsilon);
         second = Buffer<float, 1>(p, op.parameter[1]);
         third = Buffer<float, 1>(p, op.parameter[2]);
       }
       if constexpr (Step::kKind == K::kDeferredRMSNorm)
-        Statistics(op.parameter[0], false);
+        Statistics(op.parameter[0], false,op.norm_width,op.norm_epsilon);
       constexpr bool contracting = Step::kKind == K::kGatePair;
       constexpr bool compact = Gated || contracting;
       constexpr int columns = compact ? kColumns : TileN;

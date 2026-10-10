@@ -315,6 +315,7 @@ int RunCompile(int argc, char** argv) {
     tilemega::solver::CompilerSearchOptions solve_options;
     std::string moe_binding="auto";unsigned moe_bm=16;
     std::string memory_reuse="none",search_selection="measure";
+    std::string dnn_deferred_ln="auto";
     bool sequence_pinned=false;
     solve_options.placement.dims={4,3,7};
     for (int i=3;i<argc;i+=2) {
@@ -337,6 +338,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--frontend") frontend_mode=value;
       else if (flag=="--moe-binding") moe_binding=value;
       else if (flag=="--reuse") memory_reuse=value;
+      else if (flag=="--deferred-ln") dnn_deferred_ln=value;
       else if (flag=="--selection") search_selection=value;
       else if (flag=="--moe-bm") moe_bm=value=="auto"?16:std::stoul(value);
       else if (flag=="--emit") emit_mode=value;
@@ -460,6 +462,8 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("--reuse expects auto, none, greedy or l2");
     if(memory_reuse!="none" && frontend_mode!="dnn")
       throw std::runtime_error("buffer reuse currently requires the DNN frontend");
+    if(dnn_deferred_ln!="auto" && dnn_deferred_ln!="0")
+      throw std::runtime_error("--deferred-ln expects auto or 0");
     if(serving && !solve_target.empty() && !flow_search_only &&
        search_selection=="measure" && measure_command.empty())
       throw std::runtime_error("serving solve requires --measure-cmd for the top-3 decision");
@@ -528,6 +532,7 @@ int RunCompile(int argc, char** argv) {
     if(frontend_mode=="dnn" && input.extension()!=".mlir") {
       auto bridge=tilemega::frontend::ReadExportBridge(input.string());
       tilemega::frontend::DnnPlanOptions options;options.batch=serving_batch;
+      options.deferred_layernorm=dnn_deferred_ln=="auto";
       options.memory_reuse=memory_reuse=="auto"?"l2":memory_reuse;
       if(!runtime_target.empty()) {
         auto target=tilemega::TargetSpec::FromJson(runtime_target);
@@ -1468,6 +1473,7 @@ int RunCompile(int argc, char** argv) {
         auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
         auto token_axis=plan?plan.getAs<mlir::BoolAttr>("forward_token_axis"):mlir::BoolAttr{};
         manifest<<",\n  \"frontend\": "<<std::quoted(frontend_mode);
+        if(frontend_mode=="dnn")manifest<<",\n  \"deferred_ln\": "<<std::quoted(dnn_deferred_ln);
         if(search_selection=="predicted")manifest<<",\n  \"selection\": \"predicted\"";
         if(auto reuse=plan.getAs<mlir::StringAttr>("dm_memory_reuse"))
           manifest<<",\n  \"reuse\": "<<std::quoted(reuse.getValue().str())

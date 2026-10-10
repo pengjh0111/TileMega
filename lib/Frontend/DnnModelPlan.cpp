@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Frontend/DnnModelPlan.h>
+#include <tilemega/Frontend/DnnDeferredNorm.h>
 #include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <llvm/Support/JSON.h>
 #include <llvm/Support/FormatVariadic.h>
@@ -1025,6 +1026,7 @@ ModelPlan BuildDnnModelPlan(std::vector<FxNodeRecord> const& nodes,
     }
     buffer.role="external";buffer.external_name=name;builder.p.outputs.push_back({id,{}});
   }
+  if(options.deferred_layernorm)ApplyDnnDeferredLayerNorm(builder.p);
   ValidateDmModelPlan(builder.p);return std::move(builder.p);
 }
 } // namespace tilemega::frontend

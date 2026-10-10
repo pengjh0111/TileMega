@@ -91,6 +91,10 @@ struct DmEpilogueOp {
   std::uint32_t unit = 16;
   DmRounding input_rounding = DmRounding::kFP32;
   DmRounding output_rounding = DmRounding::kFP32;
+  // Zero retains the invocation's normalization geometry. Residual LN can
+  // normalize H channels even when the enclosing GEMM contracts another K.
+  std::uint32_t norm_width = 0;
+  float norm_epsilon = 0;
 };
 
 enum class DmSideOutputKind : std::uint32_t {

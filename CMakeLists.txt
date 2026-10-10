@@ -144,6 +144,7 @@ add_library(tilemega_core STATIC
   lib/Frontend/DnnSemanticLifting.cpp
   lib/Frontend/DnnStorage.cpp
   lib/Frontend/DnnModelPlan.cpp
+  lib/Frontend/DnnDeferredNorm.cpp
   lib/Frontend/MoeRegionPattern.cpp
   lib/Frontend/MoeRegionPlan.cpp
   lib/Frontend/MoeSemanticLifting.cpp
@@ -390,6 +391,7 @@ if(TILEMEGA_BUILD_TESTS)
     test/unit/dnn_semantic_lifting_test.cpp
     test/unit/dnn_epilogue_semantics_test.cpp
     test/unit/dnn_model_plan_test.cpp
+    test/unit/dnn_deferred_ln_test.cpp
     test/unit/moe_region_pattern_test.cpp
     test/unit/moe_region_plan_test.cpp
     test/unit/moe_semantic_lifting_test.cpp

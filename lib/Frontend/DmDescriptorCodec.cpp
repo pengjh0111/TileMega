@@ -4,6 +4,8 @@
 #include <tilemega/Codegen/MoeBinding.h>
 #include <limits>
 #include <cmath>
+#include <cstring>
+#include <iomanip>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -128,6 +130,10 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
       throw std::invalid_argument("DM epilogue capacity exceeded");
     for(unsigned i=0;i<chain.count;++i) {
       auto const& op=chain.operations[i];
+      if((op.norm_width || op.norm_epsilon!=0) && (!op.norm_width || !(op.norm_epsilon>0) ||
+          !std::isfinite(op.norm_epsilon) || (op.kind!=DmEpilogueKind::kDeferredLayerNorm &&
+          op.kind!=DmEpilogueKind::kResidualLN && op.kind!=DmEpilogueKind::kDeferredRMSNorm)))
+        throw std::invalid_argument("invalid per-operation normalization geometry");
       unsigned required=0;
       switch(op.kind) {
         case DmEpilogueKind::kBias: case DmEpilogueKind::kScale:
@@ -423,6 +429,10 @@ mlir::DictionaryAttr EncodeDm(mlir::Builder& b, codegen::DmEpilogueChain const& 
     for(auto p:o.parameter)Put(w,p); PutWrite(w,o.residual_map);
     Put(w,o.activation); Put(w,o.gate); Put(w,o.unit);
     Put(w,o.input_rounding); Put(w,o.output_rounding);
+    if(o.norm_width || o.norm_epsilon!=0) {
+      Put(w,o.norm_width);std::uint32_t bits;
+      std::memcpy(&bits,&o.norm_epsilon,sizeof(bits));Put(w,bits);
+    }
     ops.push_back(b.getDenseI64ArrayAttr(w));
   }
   for(unsigned i=0;i<x.side_count;++i) {
@@ -446,10 +456,19 @@ codegen::DmEpilogueChain DecodeDmChain(mlir::Attribute attr) {
   DmEpilogueChain x; x.count=ops.size(); x.side_count=side.size();
   x.store_rounding=static_cast<DmRounding>(rounding.getInt());
   for(unsigned i=0;i<x.count;++i) {
-    Reader r(ops[i],14); auto& o=x.operations[i]; o.kind=r.Enum<DmEpilogueKind>(7);
+    auto words=llvm::dyn_cast<mlir::DenseI64ArrayAttr>(ops[i]);
+    Reader r(ops[i],words && words.size()==16?16:14);
+    auto& o=x.operations[i]; o.kind=r.Enum<DmEpilogueKind>(7);
     for(auto& p:o.parameter)p=r.U32(); o.residual_map=r.Write();
     o.activation=r.Enum<DmActivation>(5); o.gate=r.Enum<DmGatePair>(1); o.unit=r.U32();
     o.input_rounding=r.Enum<DmRounding>(1); o.output_rounding=r.Enum<DmRounding>(1);
+    if(r.words.size()==16) {
+      o.norm_width=r.U32();auto bits=r.U32();std::memcpy(&o.norm_epsilon,&bits,sizeof(bits));
+      if(!o.norm_width || !(o.norm_epsilon>0) || !std::isfinite(o.norm_epsilon) ||
+          (o.kind!=DmEpilogueKind::kDeferredLayerNorm && o.kind!=DmEpilogueKind::kResidualLN &&
+           o.kind!=DmEpilogueKind::kDeferredRMSNorm))
+        throw std::invalid_argument("invalid per-operation normalization geometry");
+    }
     if(o.kind==DmEpilogueKind::kGatePair && (!o.unit || (o.unit&(o.unit-1))))
       throw std::invalid_argument("DM gate interleave unit must be a power of two");
   }
@@ -510,7 +529,10 @@ std::string EmitDm(codegen::DmEpilogueChain const& x) {
     out<<", "<<WriteLiteral(o.residual_map)<<", static_cast<DmActivation>("
        <<unsigned(o.activation)<<"u), static_cast<DmGatePair>("<<unsigned(o.gate)
        <<"u), "<<o.unit<<"u, static_cast<DmRounding>("<<unsigned(o.input_rounding)
-       <<"u), static_cast<DmRounding>("<<unsigned(o.output_rounding)<<"u)}";
+       <<"u), static_cast<DmRounding>("<<unsigned(o.output_rounding)<<"u)";
+    if(o.norm_width || o.norm_epsilon!=0)
+      out<<", "<<o.norm_width<<"u, "<<std::scientific<<std::setprecision(9)<<o.norm_epsilon<<"f";
+    out<<'}';
   }
   out<<"}, "<<x.side_count<<"u, {";
   for(unsigned i=0;i<x.side_count;++i) {

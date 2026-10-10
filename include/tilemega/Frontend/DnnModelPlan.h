@@ -9,6 +9,7 @@ struct DnnPlanOptions {
   std::uint64_t workspace_budget_bytes=0;
   std::string memory_reuse="none";
   std::uint64_t memory_l2_budget_bytes=0;
+  bool deferred_layernorm=false;
 };
 ModelPlan BuildDnnModelPlan(std::vector<FxNodeRecord> const&,
     std::vector<SignatureInput> const&,std::vector<std::string> const&,
