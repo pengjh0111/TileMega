@@ -177,6 +177,17 @@ void FiniteFibers() {
     ParamBinding point;point.Bind("m",m);
     assert(channel_band.BoundTaskCard().BindCoordinates(point).Eval({})==(128+m)*1024);
   }
+  auto jagged=CouplingRelation::FromIslText(
+      "{ [m,n] -> [i] : 0<=m<19 and 0<=n<4+m%3 and 0<=i<2+(3*m+5*n)%17 }");
+  auto jagged_count=jagged.BoundTaskCard();long jagged_total=0;
+  std::vector<ParamBinding> jagged_at;std::vector<long> jagged_expected;
+  for(long m=0;m<19;++m)for(long n=0;n<4+m%3;++n) {
+    ParamBinding at;at.Bind("m",m).Bind("n",n);
+    long expected=2+(3*m+5*n)%17;
+    jagged_at.push_back(at);jagged_expected.push_back(expected);jagged_total+=expected;
+  }
+  assert(jagged_count.EvalPoints({},jagged_at)==jagged_expected);
+  assert(jagged_count.SumDomain().Eval({})==jagged_total);
   auto envelope = DescribeTaskElementBox(exact);
   assert(std::string(envelope.exactness) == "over");
   assert(Contains(envelope.relation, exact) && !Contains(exact, envelope.relation));

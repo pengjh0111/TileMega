@@ -540,10 +540,24 @@ QuasiPolynomial CouplingRelation::BoundTaskCard(unsigned max_domain_points) cons
           group.points=std::move(next);
         }
         points=std::move(group.points.front());
+        auto lattice=isl_util::Set(isl_set_from_basic_set(isl_set_affine_hull(isl_set_copy(points.get()))));
+        lattice=isl_util::Set(isl_set_intersect(lattice.release(),isl_set_copy(domain.get())));
+        for(unsigned axis=0;axis<group.lower.size();++axis) {
+          lattice=isl_util::Set(isl_set_lower_bound_val(lattice.release(),isl_dim_set,axis,
+              isl_val_int_from_si(Ctx(),group.lower[axis])));
+          lattice=isl_util::Set(isl_set_upper_bound_val(lattice.release(),isl_dim_set,axis,
+              isl_val_int_from_si(Ctx(),group.upper[axis])));
+        }
+        // Periodic fiber sizes often occupy a lattice rather than a box.
+        // The hull is a proposal only; equality retains holes and boundaries.
+        if(isl_set_is_equal(lattice.get(),points.get())==isl_bool_true)points=std::move(lattice);
       }
       auto* polynomial = isl_qpolynomial_val_on_domain(isl_set_get_space(points.get()), isl_val_int_from_si(Ctx(), value));
       isl_util::PwQPolynomial piece(isl_pw_qpolynomial_alloc(points.release(), polynomial));
-      count = count ? isl_util::PwQPolynomial(isl_pw_qpolynomial_add(count.release(), piece.release())) : std::move(piece);
+      // Enumeration partitions domain points by their fiber size. Each box
+      // was proved equal to its group, so these pieces are disjoint by
+      // construction; general addition needlessly intersects every pair.
+      count = count ? isl_util::PwQPolynomial(isl_pw_qpolynomial_add_disjoint(count.release(), piece.release())) : std::move(piece);
     }
     if (!count) throw std::runtime_error("finite task fiber count failed");
     if(compact)count = isl_util::PwQPolynomial(isl_pw_qpolynomial_coalesce(count.release()));
