@@ -41,3 +41,11 @@ then invokes the serving ABI directly for prefill and decode, compares same-bina
 L1/L2 tokens, and optionally runs the existing teacher-forced HF check. It does
 not call the timing-enabled `ServingEngine.generate` method. Full-weight execution
 and complete script execution remain unverified.
+
+verified: the public serving CLI accepts `features.prefill_pg=measure` and
+`features.prefill_executor=measure`, with independent prefill paging/executor
+selection. The prefill winner's resolved mode is recorded in the decode serving
+sidecar. Existing defaults retain their previous nonpaged prefill choice.
+Four host tests cover the candidate domain, fixed selections, content-keyed
+cached winners and invalid configuration; mocked measurements launch no GPU.
+No prefill latency selection was executed in this round.

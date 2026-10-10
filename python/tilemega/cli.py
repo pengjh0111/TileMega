@@ -18,7 +18,7 @@ import statistics
 
 from .cache import atomic_json, export_key, file_sha, key, locked, plan_key, record_outputs, valid_record
 from .fingerprint import ROOT, calibration_stamps, source_fingerprint
-from .serving.execution import compiler_features, execution_combinations, select_execution, write_execution, pin_prefill
+from .serving.execution import compiler_features, execution_combinations, select_execution, write_execution, pin_prefill, phase_pg_choices, prefill_combinations
 
 DEFAULTS = {
     'workload': dict(batch=[1, 16], prompt_len=64, max_new_tokens=1024,
@@ -126,6 +126,7 @@ def read_config(path: Path) -> dict:
         import tomllib
         config = tomllib.loads(path.read_text())
     explicit_nonpaged_la = 'nonpaged_la' in config.get('features', {})
+    config.setdefault('features', {}).setdefault('prefill_pg', 'l2')
     for section, values in DEFAULTS.items():
         config[section] = dict(values, **config.get(section, {}))
     if not config.get('model', {}).get('path'):
@@ -146,7 +147,8 @@ def read_config(path: Path) -> dict:
                               sync=['calibrated', 'legacy'], arch_paths=['auto', 'sm80'],
                               l2_slim=[0,1], page_loop_split=[0,1], pdl=['auto', 'off'], weight_layout=['row', 'tiled'], nonpaged_weight_layout=['row','tiled'], nonpaged_la=[0,1], evict_first=[0,1], evict_last=[0,1],
                               decode_executor=['L1', 'L2', 'measure'],
-                              decode_loop=[0, 1, 'measure'], prefill_executor=['L1', 'L2']).items():
+                              decode_loop=[0, 1, 'measure'], prefill_executor=['L1', 'L2', 'measure'],
+                              prefill_pg=['l2', 'measure']).items():
         if config['features'][name] not in allowed:
             raise ValueError(f'invalid features.{name}')
     if config['solver']['candidate_loop'] not in (0,1):
@@ -363,19 +365,13 @@ class Run:
             raise RuntimeError('compiler fingerprint differs from sources; rebuild tilemega')
         self.preflight_gpu(self.out / 'build_guard.json')
         result = {}
+        prefill_modes = {}
         for phase in ('prefill', 'decode'):
             export, directory = self.export(phase)
             previous_by_pg = {}
             for batch in sorted(workload['batch']):
                 interval = (0, 0) if phase == 'prefill' else (workload['prompt_len'], workload['prompt_len'] + workload['max_new_tokens'] - 2)
-                if features['pg'] in ('off', 'l2'):
-                    pg_choices = (features['pg'],)
-                elif phase == 'prefill':
-                    pg_choices = ('l2',)
-                elif features['pg'] == 'measure':
-                    pg_choices = ('l2', 'pages')
-                else:
-                    pg_choices = ('pages',)
+                pg_choices = phase_pg_choices(features, phase)
                 built = {}
                 for pg in pg_choices:
                     choice_features = dict(features, pg=pg, handoff='off',
@@ -409,12 +405,10 @@ class Run:
                             '--artifact-cache', str(self.cache / 'artifacts'), '--dump-cg', str(plan / 'selected.mlir'),
                             '--measure-cmd', shlex.join([sys.executable, '-m', 'tilemega.serving.measure_candidate', '--model', str(self.model)])]
                             for name, value in compiler_features(choice_features).items():
-                                if phase == 'prefill' and name in ('kphase_mask','lookahead_bytes','v3_poll_ns','l2_slim','page_loop_split','nonpaged_weight_layout','evict_first','evict_last','serve_kv_block','serve_query_rows'):
+                                if phase == 'prefill' and pg != 'pages' and name in ('kphase_mask','lookahead_bytes','v3_poll_ns','l2_slim','page_loop_split','nonpaged_weight_layout','evict_first','evict_last','serve_kv_block','serve_query_rows'):
                                     continue
                                 if name == 'handoff' and phase == 'prefill':
                                     value = 'off'
-                                if name == 'pg' and phase == 'prefill' and value == 'pages':
-                                    value = 'l2'
                                 options += ['--' + name.replace('_', '-'), str(value)]
                             if prefill_pin:
                                 options += pin_prefill(prefill_pin['manifest'],prefill_pin['classes'],plan)
@@ -443,7 +437,7 @@ class Run:
                             candidates.append(dict(pg=pg, mode=mode, loop=loop, library=str(library), samples_ms=[]))
                     selection_inputs=dict(libraries={pg:file_sha(library) for pg,library in built.items()},
                                           executor=features['decode_executor'], loop=features['decode_loop'],
-                                          prefill_mode=features['prefill_executor'],exclude_l1_loop=settings['exclude_l1_loop'])
+                                          prefill_mode=prefill_modes[batch],exclude_l1_loop=settings['exclude_l1_loop'])
                     choice_path=self.out / f'decode-choice-B{batch}.json'
                     cached=json.loads(choice_path.read_text()) if choice_path.exists() else {}
                     if cached.get('inputs')==selection_inputs:
@@ -470,15 +464,50 @@ class Run:
                         atomic_json(choice_path,dict(inputs=selection_inputs,candidates=candidates))
                     winner=select_execution(candidates)
                     selected=winner['pg']
-                    serving=write_execution(built[selected],winner['mode'],winner['loop'],features['prefill_executor'],
+                    serving=write_execution(built[selected],winner['mode'],winner['loop'],prefill_modes[batch],
                                             selection=winner,stage_one=dict(mode=settings['mode'],loop=settings['candidate_loop']))
                     result.setdefault(str(batch), {})['decode_pg_choice']=dict(candidates=candidates,selected=winner)
                     result[str(batch)]['serving']=serving
                 else:
-                    selected = next(iter(built))
+                    selected, prefill_modes[batch] = self.select_prefill(built, batch)
                 result.setdefault(str(batch), {})[phase] = str(built[selected])
         atomic_json(self.out / 'plans.json', result)
         return result
+
+    def select_prefill(self, built, batch):
+        features=self.config['features']; settings=self.config['solver']
+        candidates=[dict(pg=pg, mode=mode, loop=loop, library=str(library), samples_ms=[])
+            for pg,library in built.items()
+            for mode,loop in prefill_combinations(pg,features['prefill_executor'])]
+        if len(candidates)==1:
+            return candidates[0]['pg'], candidates[0]['mode']
+        inputs=dict(libraries={pg:file_sha(library) for pg,library in built.items()},
+                    executor=features['prefill_executor'])
+        path=self.out/f'prefill-choice-B{batch}.json'
+        cached=json.loads(path.read_text()) if path.exists() else {}
+        if cached.get('inputs')==inputs:
+            candidates=cached['candidates']
+        else:
+            for round in range(3):
+                for candidate in candidates[round:]+candidates[:round]:
+                    if candidate.get('error'):continue
+                    out=self.out/f"prefill-choice-B{batch}-{candidate['pg']}-{candidate['mode']}-r{round}"
+                    command=[sys.executable,'-m','tilemega.serving.measure_candidate',
+                        '--so',candidate['library'],'--model',str(self.model),'--batch',str(batch),
+                        '--mode',candidate['mode'],'--loop','0','--past-mid','0',
+                        '--out',str(out),'--guard-wait-s',str(settings['candidate_guard_wait_s'])]
+                    try:
+                        self.command(command,f"choose-prefill-B{batch}-{candidate['pg']}-{candidate['mode']}-r{round}",gpu=True)
+                        measured=json.loads((out/'measurements.json').read_text())['modes'][candidate['mode']]
+                        if measured.get('decode_loop_used'):
+                            raise RuntimeError('prefill candidate incorrectly used a decode loop')
+                        candidate['samples_ms'].append(measured['mean_ms'])
+                    except RuntimeError as error:
+                        candidate['error']=str(error)
+            atomic_json(path,dict(inputs=inputs,candidates=candidates))
+        winner=select_execution(candidates)
+        atomic_json(self.out/f'prefill-selected-B{batch}.json',winner)
+        return winner['pg'],winner['mode']
 
     def prompts(self):
         workload = self.config['workload']; source = workload['prompts']; destination = self.out / 'prompt_ids.json'
