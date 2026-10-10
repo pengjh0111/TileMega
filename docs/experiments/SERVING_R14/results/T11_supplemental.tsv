@@ -1,0 +1,5 @@
+label	steps	c1	near_tie_ratio	max_gap	c2	mismatches	artifact_id	qualification
+llama_tn16_tiled	1024	True	1.0	0.0	True	0	5321687403953db156660225a1b85a1c0ae0e37dee7832f6c95bed6d005c409e	nonpaged: disabling K-phase adds no K-phase coverage
+llama_tn8_row	1024	True	1.0	0.0	True	0	750ef0043ce73231d935f6f37a716423f7634c4511276cdd521a894c7c4631f3	nonpaged: disabling K-phase adds no K-phase coverage
+qwen3_tn16_tiled	1024	True	1.0	0.0	True	0	7a678328aced6f276fd48ea11a0f57dcc4388e2fe1f3ce66eb5ec72e208349c3	nonpaged: disabling K-phase adds no K-phase coverage
+qwen3_tn8_row	1024	True	1.0	0.0	True	0	e858a4c4d85b93f1e923dfcf42b04e941daee859c104c12d21806432315e7775	nonpaged: disabling K-phase adds no K-phase coverage

@@ -1,247 +1,185 @@
-# R14 sm_89 — bounded correctness accepted; performance deferred
+# R14 sm_89 收尾：实现与已完成正确性验收；终版性能未验收
 
-- Specified baseline: `76beaea5e2d66e3311b36d020f470c4f016406d0`.
-- Initial local HEAD: `9aebaf6553247ec83c79bc8f101e61ad4ce564fd`; fast-forwarded before implementation.
-- Prompt: `/root/Prompt/TileMega_R14_prompt.md`; SHA256 `c7e5771383873ae450c153d873bc633cf4481d9be5cea0f65e216e5b7073330e`.
-- This is an intermediate checkpoint. Final HEAD, total commits and final acceptance will be recorded after Phase D.
-- `R13_review.md` was not found; the saved prompt supplies the reviewed findings.
-- Unrelated pre-existing changes in PLACE_EFT2/summary.md and SYNC_V2/sass_identity/meta.tsv remain untouched.
+- Prompt：`/root/Prompt/TileMega_R14_prompt.md`；SHA256 `c7e5771383873ae450c153d873bc633cf4481d9be5cea0f65e216e5b7073330e`。
+- 指定基线：`76beaea5e2d66e3311b36d020f470c4f016406d0`；开工实际 HEAD：`9aebaf6553247ec83c79bc8f101e61ad4ce564fd`，随后快进至指定基线。
+- 补充测试冻结源码：`97f7a2f1d`。最终推送 HEAD、相对基线提交数见本次交付消息；本报告随收尾提交发布。
+- 用户于 2026-10-10 要求停止未完成测试并整理推送。本轮据已有证据收口，没有重新发起 GPU 测量。
+- 远端用户合并：`a3f0dc6d10c368dbbe3073c66cc750aec92a70a3`，包含 dnn-moe `0e64c56b010488a7229a75ed79814fb865aef197`；整合保留两条历史，正常推送。
+- `R13_review.md` 未找到，以已保存 prompt 的审查结论为依据。
 
-## Implementation
+## 实现清单
 
-| ID | Status | Commit / location |
+位置为原 R14 实现；合并后同名入口通过 `TILEMEGA_DM_SUPPORT` 选择 serving 或 `Dm*` 兼容实现。
+
+| ID | 状态 | 提交；关键代码位置 |
 |---|---|---|
-| Framework | Complete; CPU framework tests pass | f6599a0c0; gpu_guard.py, scheduler.py |
-| Predictions / rules | Registered before timing | 586c51b5d; predictions.json, choose_r14.py |
-| FX-23 | Implemented; final position-coded checks and five-architecture compilation pass | b3a6af1b3; AttentionPageLayout.h, IndependentAttentionTaskBody.h, PagedAttentionTaskBody.h |
-| FX-24 | Implemented; fixed and joint repaired search-only replays pass | bb42f31bd; StageFlowModel.cpp, stage_flow_test.cpp |
-| FX-25 | Implemented; unit checks and all four diagnostic artifact identities pass | 7c2cd2436; build/identity.py, compile.cpp, ServingRuntime.cuh, identity_join.py |
-| TR-4 | Code complete; new model stage/task profiles and first-ready observations pass; fresh overhead acceptance deferred | 377c674d2, 5ec398310, 686dc3afc, 258d6e73c; ServingTrace.cuh, ServingProfiledMainloop.h, ledger_r14.py |
-| RW-3 / AT-1 | Implemented; model numerical/C-1/C-2 checks pass; default pipeline off | df96abb7f, 821c64cf6, 9fa448f3a; Phase-B evidence below |
-| AT-3a | Implemented; five-architecture compile and position-coded tests pass; default unchanged | 0c3d9ac45, 68410eb88, dd7af352c; ServingAttentionPVSwap.h |
-| AT-2 / SK-1 | Implemented; three required fresh-process cases each pass 50/50; measured LA/fill variants remain slower | c0849f8a2, 68c592729, ac731bc10, 84def10d5; ModelHarness.cuh, MonotonicLastArriver.cuh, SkeletonSearch.cpp |
-| EP-1 / RA-1 | Implemented; five-architecture compilation and model checks pass; measured variants lose | 5434f44bb, a8588fb82, 9f0c36c2d; ServingEpilogue.h, PagedAttentionTaskBody.h |
-| GV-1 | Code complete for TN8/16/32, both layouts and DN/SwiGLU; new narrow real-model 64-step C-1/C-2 and KV checks pass | 54756a6e3, 771aea037, 5ae2ffc8d, 26d7f4c14; ServingGemv.h, ServingGemvTaskBody.h, ServingDeferredNorm.h |
-| SL-6 | Code complete; orchestration/coverage/deadline tests pass; fresh hardware selection and final E2E deferred | e95dbf3ee, 96205607b, a28bbb629, 06090c9ea; SkeletonSearch.cpp, cli.py, integrated_selection.py |
-| C-RW1 / C-EP2 / C-AT4 | Implemented and correct, all rejected by retention; defaults off | 1b00e23ef, bb48614c7, 45f482860; IndependentAttentionTaskBody.h, ServingEpilogue.h, ServingPages.cuh |
-| Phase D | Historical recovery retained; old queues stopped; fresh performance/final acceptance deferred by current user scope | 9d1270bb0; phase_d_final.py, make_phase_d_final.py |
+| Framework / rules | 完成 | `f6599a0c0`, `586c51b5d`；本目录 scheduler.py、gpu_guard.py、predictions.json、choose_r14.py |
+| FX-23 | 完成 | `b3a6af1b3`；include/tilemega/Codegen/tasks/AttentionPageLayout.h:14、IndependentAttentionTaskBody.h、PagedAttentionTaskBody.h |
+| FX-24 | 完成 | `bb42f31bd`；lib/Solver/StageFlowModel.cpp:46、test/unit/stage_flow_test.cpp |
+| FX-25 | 完成 | `7c2cd2436`；python/tilemega/build/identity.py:116、tools/commands/compile.cpp、identity_join.py |
+| TR-4 | 完成；补充开销验收限 Llama B1 | `377c674d2`, `5ec398310`, `686dc3afc`, `258d6e73c`；executor/ServingTrace.cuh、Backend/ServingProfiledMainloop.h、ledger_r14.py |
+| AT-1 | 完成；硬件联合选择未收口 | `821c64cf6`, `9fa448f3a`；lib/Solver/SkeletonSearch.cpp、python/tilemega/serving/attention_selection.py |
+| AT-2 / SK-1 | 完成；要求的三组协议各 50/50 | `c0849f8a2`, `68c592729`, `ac731bc10`, `84def10d5`；tasks/ModelHarness.cuh、executor/MonotonicLastArriver.cuh、SkeletonSearch.cpp |
+| AT-3a | 完成 | `0c3d9ac45`, `68410eb88`, `dd7af352c`；Backend/ServingAttentionPVSwap.h |
+| GV-1 | 完成；TN8/16 的 DN、SwiGLU 补齐并验证 | `54756a6e3`, `771aea037`, `5ae2ffc8d`, `26d7f4c14`；Backend/ServingGemv.h:11、tasks/ServingGemvTaskBody.h、ServingDeferredNorm.h |
+| RW-3 | 完成；默认关闭 | `df96abb7f`；tasks/PagedGemmTaskBody.h、Backend/ServingTiledMainloop.h |
+| RA-1 / EP-1 | 完成；已测候选未带来保留收益 | `5434f44bb`, `a8588fb82`, `9f0c36c2d`；PagedAttentionTaskBody.h、Backend/ServingEpilogue.h |
+| SL-6 | 实现完成；完整硬件选择未验收 | `e95dbf3ee`, `96205607b`, `a28bbb629`, `06090c9ea`；SkeletonSearch.cpp、python/tilemega/cli.py、serving/integrated_selection.py:56 |
+| 搜索状态恢复 | 完成 | `f5ce261bb`；SkeletonSearch.cpp:180；先验证新结构再移动当前状态，拒绝形状不破坏后续求解 |
+| C-RW1 / C-EP2 / C-AT4 | 实现并检验，均不保留默认开启 | `1b00e23ef`, `bb48614c7`, `45f482860`；IndependentAttentionTaskBody.h、ServingEpilogue.h、ServingPages.cuh |
+| C-AT3b / C-RW2 / C-GV2 | 未做；已收集证据未触发 | phase_c_decision.json、phase_c_retention.json |
+| C-PF | 未决定；缺少完整新 D1 证据 | results/T10_final_status.json |
+| D1/D2/D3 最终验收 | 未完成，依用户指示取消余项 | results/closure_acceptance.json；scheduler_remaining/state.json |
 
-## Evidence / T1–T12
+AT-2/SK-1：写 partial 后发布到单调 ticket，最后到达者 acquire 后读取有效 partial；L1 消费者通过下一阶段 barrier 排序，L2 等 reducer 的代发事件。
+GEMV 选择寄存器流读、fp32 累加与 shuffle 归约，写相同的 epilogue tile；窄 DN 使用明确的 8 列平方和 ABI，SwiGLU 按窄 tile 调整交错。
+SL-6：候选族覆盖、逐轮淘汰、三轮确认；past 64/575/1000 线性插值后按 64..1087 积分，1000 后保持端点。预算不足以覆盖必需维度时拒绝发布胜者。
 
-| Table | Checkpoint |
+## 证据与 T1–T12
+
+所有下列结果为已完成原始数据的 CPU 汇总；没有用未完成运行填表。
+历史原始包：raw/phase0_completed.tar.xz、phase_a_completed.tar.xz、phase_b_review.tar.xz、phase_c_completed.tar.xz、logic_completion_completed.tar.xz，均附 manifest。
+本次新增：raw/supplemental_closure.tar.xz 与 supplemental_closure_manifest.json，含成功测量、guard、失败/占用重试、取消记录和产物 SHA；不提交二进制与生成 CU。
+
+| 表 | 已交付范围与限制 |
 |---|---|
-| T1 | Phase A completed; paired anchor and baseline rule in results/phase_a_acceptance.json |
-| T2 | Diagnostics complete; full/timer/store median overhead +0.53%/+0.13%/+1.57%, but non-base outliers prevent stable attribution |
-| T3 | results/T3_phase_b_resources.tsv binds all 100 artifacts to identity and resources |
-| T4–T7 | Phase-B matrices and task profiles collected; T4_phase_b.tsv and T5_phase_b_tasks.tsv; derived attention/coverage views remain to assemble |
-| T8 | results/T8_phase_c.tsv: three conditional trials are correct but slower; none retained |
-| T9 | results/T9_d1_selection.tsv records all admitted/unmeasured candidates, past times and reviewed selection |
-| T10 | Four-cell final comparison pending; no final performance-gate claim |
-| T11 | Old attention: 26 failures; initial repair: 768 cases, zero failures. Final Full predicate numerical rerun and multi-architecture checks pass; 64-step three-arm smoke token/KV mismatches zero |
-| T12 | Old fixed and joint sm120 failures reproduced. Both repaired searches pass; fixed/joint conservation checks 6/468 |
+| T1 | results/T1_anchor.tsv、phase_a_acceptance.json：Phase A 全部完成；见下表 |
+| T2 | T2_diagnostic.json、T2_stage_ledger.tsv；新增 T2_supplemental_overhead.tsv、T2_supplemental_stage_past*.json |
+| T3 | T3_phase_b_resources.tsv：100 个构建身份与资源；新增 T3_closure_controls.tsv；终版尚未选出 |
+| T4 | T4_phase_b.tsv：B1–B5 同轮变化；见下表。新窄族只有正确性，未补性能矩阵 |
+| T5 | T5_phase_b_tasks.tsv、T5_supplemental_tasks.tsv：抽样运行/字节/就绪数据；混合几何拟合只作诊断 |
+| T6 | 部分：attention 分类数据在 T5_phase_b_tasks.tsv；完整逐 Ec/wave/层专表未完成 |
+| T7 | 部分：qkv/o/down/gate_up/head 分类数据在 T5_phase_b_tasks.tsv；完整覆盖专表未完成 |
+| T8 | T8_phase_c.tsv、phase_c_retention.json：三个触发候选均回退/关闭默认 |
+| T9 | T9_d1_selection.tsv 保留历史 under-covered 选择；不可充当新终版，fresh D1 未完成 |
+| T10 | T10_final_status.json：无完整 D2 四格终版对比，不作性能门通过声明 |
+| T11 | phase_b_acceptance.json、logic_validation.json、T11_supplemental.tsv；见正确性表 |
+| T12 | T12_audit.json、raw/FX24/：search-only 复现、修复与守恒检查 |
 
-FX-23 evidence: `raw/FX23/numerical_summary.json`, old/fixed numeric logs and binary SHA256 records.
-The layout host test covers ownership, release quorums and full-page validity. The final source's GPU rerun is archived in raw/phase0_completed.tar.xz.
-These numerical tests do not constitute 50-process synchronization validation.
-FX-24 evidence: `raw/FX24/reproductions_partial.tar.xz`, minimal before/after logs, host_tests.log.
-The negative fixed residual is -9.0949470177292824e-13 bytes: cohort averaging exceeded the task's own 4098.9888378587175-byte traffic by floating-point rounding.
-Per-task subtraction preserves provenance and checks conservation without clamping. No model defaults changed.
-The old joint command's cached options were not archived; reconstruction uses the recorded config/export and omits an unavailable sm120 seed manifest. This limitation is recorded rather than claiming an exact command replay.
+### T1：修复后基线（TPOT ms）
 
-## Q1–Q6
-
-- Q1 (verified): four R13D rebuilds preserve all 1024 tokens across three rounds; all four C-1 checks pass. N1' and B0h' also pass C-1. Llama B1 selects N1' under the registered rule. Old affected nonpaged timings remain invalid correctness baselines (inferred).
-- Q2 (verified): Ec128 improves Qwen3 B1 by 5.19%; PV swap improves Qwen3 B16 by 1.48%. Measured LA variants are slower. See paired Phase-B table below.
-- Q3 (verified): measured fill and GEMV variants lose to their same-round controls; they do not enter defaults.
-- Q4 (verified/inferred): register pipeline has no resolvable E2E improvement; sampled class profiles trigger only the Llama B16 resident-two experiment. Cause attribution remains incomplete.
-- Q5 (verified): PV swap reduces paged spill and improves Qwen3 B16; noinline is slower. Final spill comparison remains pending.
-- Q6 (verified): both multi-past CLI builds finish; selected Ec256/mma16 in all four cells, but most structural variants were budget-unmeasured. Final selection quality awaits D2.
-
-## Queue and resume
-
-`queue/queue_phase0.json` contains P0_correctness → P0_build → P0_smoke → three trace rounds → P0_trace_analyze.
-Scheduler PID is recorded in `/root/r14_work/scheduler.pid`; authoritative state is `scheduler/state.json`.
-P0_correctness waits on process-completion file descriptors, then checks evidence; it performs no sleep/progress polling.
-The flow and numerical/compiler check runners are `/root/r14_work/flow/run.sh` and `/root/r14_work/phase0/check.sh`.
-All numerical tests/builds hold `/root/r14_work/gpu.lock`; all timing uses the copied R13 guard and its occupancy checks.
-All seven original Phase-0 steps, both RW-3 numerical steps and all 36 Phase-A steps are done. Phase B is accepted; Phase C retention and the pending Phase-D queue are recorded below.
-On resume read `scheduler/progress.tsv` once, then state.json and the completed step's summary. Do not start a second scheduler.
-If any correctness step fails, no diagnostic timing can start; fix that failure and explicitly reset only its failed/skipped dependents.
-Phase-A binaries/source snapshots are preserved. Validated RW-3 and partial AT-1, and numerically gated AT-3a, are now integrated for further development.
-
-## Deviations / next work
-
-- Independent 16 KiB private double-buffer storage exceeds sm_89 shared memory; both policies at 16 KiB are tested via the paged transport, Independent uses 8 KiB. This does not enable an invalid runtime configuration.
-- Legacy R13 reference artifacts lack the new identity fields; preserve their binary/source SHA and unknown provenance explicitly. New artifacts enforce identity_schema=1.
-- Next: accept Phase D joint selection, evaluate PlanFamily, then complete final comparison and validation. No losing Phase-C optimization is enabled by default.
-- R15 scope remains unimplemented: multi-page stages, phase-subgraph handoff, shared simulator/codegen execution description, partial evaluation, architecture-specific collectives and prefill.
-
-Development checkpoint `001403629` has been merged. Main sources are frozen for Phase B (`queue/queue_phase_b.json`). See development.md for implementation limits.
-
-## Phase-0 review and TR-4 limitations
-
-Verified evidence: `results/phase0_acceptance.json`, `results/T12_audit.json`, `results/T2_diagnostic.json`.
-All cited Phase-0 raw measurements, identities, resource logs and final checks are in `raw/phase0_completed.tar.xz`; membership/SHA256 is in `raw/phase0_evidence_manifest.tsv`. Guard sampling is in `raw/phase0_guards.tar.xz`.
-The guard rejected intermediate occupied/interfered attempts; each final diagnostic attempt returned 0. Nevertheless full-trace round 0 and stores-only round 1 were outliers. Do not infer that all remaining variance is caused by instrumentation or that the GPU was certainly uncontaminated.
-TR-4 now moves the tasks-end store after barrier arrival and permits rotating 1/8 CTA stage sampling. Sampled extrema/tails are estimates, explicitly labeled by ledger_r14.py.
-Task profiles are separate, sample 1/8 CTAs, and report the leader's intervals. The CLI restricts them to L1. Nonpaged CUTLASS's missing first-ready observation was repaired in 258d6e73c; historical zero readings remain unavailable, not zero wait. Sampled extrema remain estimates.
-An initial trace-only build failed because the nonpaged L1 dispatcher lacked a profile scope; 686dc3afc fixes that scope and retains the original per-task barrier. The corrected full serving trace build passes.
-Phase-B model correctness and the three required 50-process checks have now passed; the new Phase-C frontier and single-slot reuse still require their own checks.
-
-## Phase-A acceptance
-
-Verified: results/phase_a_acceptance.json; raw/phase_a_completed.tar.xz with raw/phase_a_evidence_manifest.tsv. Guard rejected occupied/interfered attempts; only successful final attempts enter the tables.
-
-| Cell | Old R13D TPOT ms | Rebuilt R13D TPOT ms | Drift | Adopted baseline TPOT ms |
+| 格 | 旧 R13D | R13D' | 重建漂移 | 按规则采用基线 |
 |---|---:|---:|---:|---:|
-| llama_B1 | 2.82274 | 2.85861 | +1.27% | 2.84817 |
-| qwen3_B1 | 4.16167 | 4.23549 | +1.77% | 4.23549 |
-| llama_B16 | 3.18082 | 3.20018 | +0.61% | 3.20018 |
-| qwen3_B16 | 5.41712 | 5.49964 | +1.52% | 5.49964 |
+| Llama B1 | 2.82274 | 2.85861 | +1.27% | N1' 2.84817 |
+| Llama B16 | 3.18082 | 3.20018 | +0.61% | 3.20018 |
+| Qwen3 B1 | 4.16167 | 4.23549 | +1.77% | 4.23549 |
+| Qwen3 B16 | 5.41712 | 5.49964 | +1.52% | 5.49964 |
 
-All four rebuild drifts exceed the ±0.5% prediction; token stability passes the specified stop condition. The cause is not yet isolated, so these are corrected baselines, not a claimed performance win. N1' is 2.84817 ms versus 2.85861 ms for the paged rebuild; their difference exceeds both ranges.
-Stage/task trace median overhead spans −0.09% to +1.15%; instrumented tokens match base. Stage extrema use rotating 1/8 CTA samples and remain estimates.
-AT-3a initial compile failed in its test due to ambiguous `E` (CuTe namespace); dd7af352c fixes the test name without changing expected values. Fixed compile/numeric steps pass; evidence is raw/implementation_numeric_checks.tar.xz and its manifest. EP/RA checks also pass: argmax has 45 shapes repeated three times; unchanged paged GEMM has 33 cases. These are intermediate implementation checks, not final model acceptance.
-Nonpaged LA initially failed the host lowering gate and then lacked the nonpaged arrival include. ac731bc10 and 84def10d5 correct these implementation errors. Historical failed steps remain recorded; `_v2` checks are explicit retries. The v2 host/architecture and single-process tests pass; All three LA_model_build_v2 builds and their three-arm 64-step smoke checks pass (tokens and every KV cache match). No 50-process reliability conclusion is made.
-SL-6 integration detail: average linearly interpolated measurements at integer pasts 64..1087, holding the past1000 endpoint thereafter; retain half per pilot, then three fresh finalist rounds. Spill and execution identity are retained. Ec/attention/LA variant construction and required GEMV family are integrated; full CLI selection remains unvalidated.
-L1 small-chunk order changes only execution ordinals; logical g-major dependency indices remain unchanged. EP tail spreading uses a coprime CTA permutation, default off with parallel argmax; L2 retains the solved placement. These latest mapping changes await complete harness/model validation.
+四格重建漂移均超过预测 ±0.5%；token 一致，原因尚未隔离。N1' 的可分辨性按本格极差规则判断，不能把跨会话变化归因于优化。
+来源：results/phase_a_acceptance.json 与 phase_a_completed 原始包。
 
-## Latest implementation review
+### T2：补充同轮 trace 开销（Llama B1，三轮）
 
-Verified raw evidence: `raw/la_gemv_completed.tar.xz`, its SHA256 manifest, and `results/implementation_acceptance.json`.
-
-| LA case | Runtime / queued / elided stages | Split GEMMs | Smoke |
+| 臂 | TPOT 中位 ms | 相对基准 | token |
 |---|---:|---:|---|
-| Llama B1 | 99 / 83 / 16 | 0 | L2 separate, L1 separate, L1 loop: token/KV identical |
-| Qwen3 B1 | 171 / 143 / 28 | 0 | Same three arms pass |
-| Llama B16 | 131 / 83 / 48 | 32 | Same three arms pass |
+| 无 trace | 2.84684 | — | 基准 |
+| stage trace | 2.87236 | +0.90% | 相同 |
+| task trace | 2.88365 | +1.29% | 相同 |
 
-Standalone GEMV position-coded tests cover M/N/K tails, row/tiled layout and legal epilogues; sm_80/89/90/100/120 compile, only sm_89 executes. This is not yet end-to-end GEMV acceptance.
-GEMV TN8/16 cannot own DN's complete 32-column square-sum block or a SwiGLU pair: these combinations are explicitly rejected; TN32 retains all epilogues. This is a partial implementation deviation, not a changed correctness criterion.
-GEMV candidates account for the independent attention shared-memory union, retain implementation-specific resource/cache keys, and carry implementation into manifest and identity. Existing MMA keys remain unchanged.
-Performance defaults remained unchanged through Phase B. Its three prescribed fresh-process cases now each pass 50/50.
+本格满足 ≤2%；三臂实际内核均有 spill。不可推广为四格全通过。基准无 >2% 金丝雀标记，成功 guard 接受；这不排除未观测干扰。
+早期 timer-only/store-only/full 中位开销分别 +0.13%/+1.57%/+0.53%，存在异常轮，不能唯一归因。
+补充 task profile 的非零字节 GEMM 样本均观察到 first-ready；历史缺失值保留为不可用。1/8 CTA 抽样的尾部/极值是估计，负拟合截距不是可解释的固定开销。
+来源：results/closure_acceptance.json、T2_supplemental_overhead.tsv、T5_supplemental_tasks.tsv；对应 raw 已打包。
 
-## Phase-B freeze
+### T3：冻结控制产物实际 L1 逐步内核资源
 
-Verified GEMV production evidence: `raw/gemv_integration_completed.tar.xz`, SHA256 manifest and `results/gemv_integration_acceptance.json`; both B1 models have zero token/KV mismatches across the three smoke arms.
-`queue/queue_phase_b.json` contains 72 steps and 100 fixed/trace artifacts. Bpre rebuilds the frozen compiler and runs host/architecture checks; Bpre_numeric reruns arithmetic gates; B0b builds all declared arms, then per-cell B0c smoke gates performance. Failed nonbaseline artifacts are excluded with records.
-B1–B5 each use three paired rounds, followed by task trace, per-arm C-1/C-2 and the three required 50-process cases. Qwen B1 GEMV also includes its same-geometry nonpaged control (AT_la_ref), because the selected baseline is paged. No Phase-C change is enabled.
-SL-6 budget detail: the configured wall-clock budget stops admission of new second-stage pilots/builds; already admitted builds and three finalist confirmation rounds finish. The first-stage search remains bounded by its search budget and candidate count, not an interruptible global hard deadline. This is a remaining budget-enforcement deviation and must be reported against actual D1 durations.
-The multi-past variant grid uses Ec={32,64,128,256,512,capacity}, mma16/pvswap, and nonpaged LA=0/1. Defaults remain unchanged before measurement.
-Resume by reading progress.tsv once, then the completed step's result and guard record. Do not change runtime/compiler sources while this queue builds artifacts.
+| 格 | pg | 寄存器 | 栈 B | spill 存/取 B | smem B |
+|---|---|---:|---:|---:|---:|
+| Llama B1 | l2 | 255 | 160 | 80/88 | 86016 |
+| Llama B16 | l2 | 255 | 160 | 80/88 | 86016 |
+| Qwen3 B1 | pages | 255 | 176 | 164/408 | 99328 |
+| Qwen3 B16 | pages | 255 | 176 | 164/408 | 99328 |
 
-## Phase-B acceptance and Phase-C preparation
+这是 audited control，**不是新选定终版**。身份/执行 ID 见 T3_closure_controls.tsv；资源原文件在 logic_completion_completed 包。
 
-Verified: results/phase_b_acceptance.json, T3_phase_b_resources.tsv and T4_phase_b.tsv. All 72 scheduled steps returned 0, all 100 artifacts verify, all 50 model variants pass C-1/C-2. The three protocols are Llama B1 attention LA, Qwen3 B1 attention LA, and Llama B16 nonpaged combine LA: each 50 passed, zero failed. Final guard attempts accepted; no within-matrix canary exceeds 2%. This does not rule out slow drift between phases.
-Original matrix/correctness/resource records are archived in raw/phase_b_review.tar.xz and phase_b_review_manifest.tsv. Full task profiles/logs are packaged by C_archive into raw/phase_b_completed.tar.xz before new builds; commit that full archive on resume.
+### T4：已完成单因素矩阵
 
-| Cell | Same-round best supported change | TPOT ms | Relative baseline |
+| 格 | 同轮最快的已测臂 | TPOT ms | 对同轮基线 |
 |---|---|---:|---:|
-| Llama B1 | Baseline (B2) | 2.84820 | 0% |
-| Llama B16 | AT-pv | 3.17325 | −0.98% |
-| Qwen3 B1 | AT-ec128 | 4.16402 | −5.19% |
-| Qwen3 B16 | AT-pv | 5.62227 | −1.48% |
+| Llama B1 | baseline | 2.84820 | 0 |
+| Llama B16 | AT_pv | 3.17325 | −0.98% |
+| Qwen3 B1 | AT_ec128 | 4.16402 | −5.19% |
+| Qwen3 B16 | AT_pv | 5.62227 | −1.48% |
 
-These are separate registered matrices, not combined final defaults. All other choices, sample ranges and discernibility are retained in T4_phase_b.tsv. Qwen3 Phase-B baselines are slower than Phase A; do not attribute that drift to an optimization.
-All fill/GEMV trials, EP-1 and noinline lose; register pipeline's Qwen3 B16 change is not distinguishable from its range. The model and numerical correctness tests passed even for losing variants.
+来源 T4_phase_b.tsv；这些单因素结果没有经过本次完整组合终验，不直接写成最终默认。
+已测 fill/GEMV、parallel argmax、noinline 未胜出；RW-pipe 无可分辨收益。Qwen3 跨阶段基准漂移未解释。
 
-Phase-C decision was committed before implementation/timing (09237464c); predictions were registered in d57d10331. Triggered cells: C-RW1 Llama B16, C-EP2 Qwen3 B16, C-AT4 Qwen3 B1. C-AT3b, C-RW2 and C-GV2 did not trigger. PlanFamily waits for D1.
-- C-RW1: one-buffer independent attention plus four/two-stage GEMMs and TN128 head; fixed case requests residency 2. The measured family is retained by seed_resident2 (c5701f112).
-- C-EP2: Store/Residual directly write rounded fragments; only SwiGLU partner values and DN's exact ordered square sums use shared rearrangement. Small GEMV residuals keep the old fallback.
-- C-AT4: paged B1 L1 publishes one context event per KV group in a dedicated L1 bank; o_proj waits for that output frontier instead of all attention CTAs. Other barriers and L2 semantics remain intact. New wait site is 13.
-Correctness arguments: the final writer releases each complete context; consumer acquire plus compute barrier precedes A reads; the next ordinary stage barrier orders the remaining graph. The bank is separate from L2 and monotonically indexed by L1 iteration. The tested frontier and single-slot paths each now pass 50 fresh processes; the slower variants remain disabled by default.
-Queue definitions contain six immutable artifacts and 22 steps: full evidence archive; compiler/host and five-architecture checks; position-coded single-buffer and bitwise fragment numerics; builds and smoke; three paired rounds per cell; full C-1/C-2; two 50-process cases. A rejected conditional arm is recorded and excluded, not substituted.
-Integration details (d4e7729a3): decode first-level searches share one third of the budget; already built execution baselines remain measurable when new structural admission ends. Finalist confirmation can exceed wall budget and is reported. features_by_batch applies only the three conditional flags to their triggered decode cells, leaving prefill unchanged. CPU selection/config/identity tests pass (raw/C_definition_checks).
-queue/queue_phase_c.json was published to the existing scheduler (8d0808064); Phase C performance/correctness collection is accepted below. Final T9–T10 acceptance remains pending.
-Read-only monitoring: `watch -n 10 'python3 /root/TileMega/docs/experiments/SERVING_R14/status.py --prefix D'` shows each step as done/pending/running/failed; use `--prefix ''` to include all R14 queues. GPU occupancy/retry policy remains unchanged.
+### T8：条件项
 
-## Phase-C acceptance and Phase-D preparation
+| 项 | 格 | TPOT 变化 | 正确性 | 决定 |
+|---|---|---:|---|---|
+| C-RW1 | Llama B16 | +2.44% | C-1/C-2；50/50 | 默认关闭 |
+| C-EP2 | Qwen3 B16 | +3.80% | C-1/C-2 | 默认关闭 |
+| C-AT4 | Qwen3 B1 | +4.47% | C-1/C-2；50/50 | 默认关闭 |
 
-Verified: results/phase_c_acceptance.json, phase_c_retention.json and T8_phase_c.tsv. Of the original 22 steps, 21 pass; C_arch fails before compilation because its command omits CUTLASS tools/util/include. Production sm_89 builds and arithmetic tests pass. 761d75d34 preserves all original include/macro options and creates architecture-pinned compile-only specimens; C_arch_v2 now passes for sm_80/89/90/100/120 (sm_89 executed; others compiled only).
+来源 T8_phase_c.tsv、phase_c_retention.json；resident-2 结构族仍保留在条件要求的候选集合中。
 
-| Conditional item | Cell | Baseline TPOT ms | Candidate TPOT ms | Relative | Correctness / fresh processes | Retain |
-|---|---|---:|---:|---:|---|---|
-| C-RW1 | Llama B16 | 3.19906 | 3.27723 | +2.44% | C-1/C-2 pass; 50/50 | No |
-| C-EP2 | Qwen3 B16 | 5.70875 | 5.92546 | +3.80% | C-1/C-2 and baseline token equality pass | No |
-| C-AT4 | Qwen3 B1 | 4.39166 | 4.58783 | +4.47% | C-1/C-2 and baseline token equality pass; 50/50 | No |
+### T11 / T12：正确性与修复验收
 
-All 18 final GPU guards accept; no within-matrix canary exceeds 2%. These checks cannot exclude the previously recorded drift between phases. All six artifacts match their execution identities. C-RW1 actually uses residency 2 and 49152 B shared memory. C-EP2's ordered BF16 square sums pass 72 shapes repeated three times. Evidence, including original failed C_arch, is raw/phase_c_completed.tar.xz with phase_c_evidence_manifest.tsv.
-The full Phase-B evidence is committed as phase_b_completed.tar.xz.part00/part01 to keep each file below 100 MiB; phase_b_archive_parts.tsv records each checksum and the complete archive checksum. Restore with `cat raw/phase_b_completed.tar.xz.part* > raw/phase_b_completed.tar.xz`; phase_b_evidence_manifest.tsv binds every member.
-
-Phase D definitions contain 11 steps: C_arch_v2; frozen compiler/CPU checks; selective calibration plus five fresh bandwidth processes; four rebuilt controls and smoke; each model's SL-6 build, selected-plan smoke and PlanFamily audit. They were published in 3e2e9c7f9 as queue/queue_phase_d1.json to the existing scheduler. configs/e2e/*_r14.json retain ordinary double-buffer plans and disable frontier/direct epilogue. Llama B16 additionally searches the required single-buffer resident-2 family alongside ordinary plans (1162a8e08); the Phase-C fixed-trial loss is retained as evidence and does not enable a default.
-D1 is guarded for the entire compile/measure command, rather than only its internal GPU sections: hidden interference yields 75 and cache-assisted retry; children inherit LOCK_HELD. This stronger exclusion also holds the GPU lock during CPU compilation. Default APIs and device code are unchanged by this preparation.
-PlanFamily is screened from compatible same-GEMM, same-execution candidates using the three-past envelope; this is an optimistic trigger estimate, not a claimed two-segment gain. D2/D3 are deferred until D1 resolves this specified code dependency. If triggered, implement compatible two-segment switching and include measured switch cost before final comparison.
-CPU selection/config/family tests pass (raw/D_*tests.log, D_static_validation.log). On resume read progress.tsv once, inspect D1_planfamily_*.json, then generate guarded D2/D3. Do not change compiler/runtime sources while D0/D1 builds are queued. R14 remains incomplete until final comparison, C-1/C-2 and any uncovered synchronization path checks finish.
-
-## D1 failure acceptance and recovery (2026-10-08)
-
-Verified: raw/D1_recovery/acceptance.json and archived original logs. The initial D queue ended with 5 done, 2 failed and 4 skipped. D0, rebuilt-control smoke and the repaired architecture check pass; both D1 builds fail with SIGSEGV (-11), before completing their first nonpaged decode B1 search. Their selected-plan smoke/family steps were skipped. Earlier 75 retries are external occupancy/interference; final guard results are child exit 1, not contamination.
-Root cause: SkeletonSearch.cpp::SetServingStructure moved the active plan/classes into its cache before BuildModelPlan rejected a GEMV TN8 argmax tile. The next candidate accessed this moved-from state. gdb_before.log directly reproduces SearchContext::Evaluate SIGSEGV after rejection; original search tails preserve the argmax error for both models.
-f5ce261bb builds and validates a replacement before changing active state. Three CPU ctests pass; serving_search_rejection covers both incremental modes, with illegal-candidate rejection and later legal scores identical to the control. No device, synchronization, price or default-selection code changed. This is a necessary post-freeze correctness repair, recorded as a deviation; all nine D0 calibration stamps still match (calibration_stamps.json).
-Recovery uses nine new `_v2` steps with separate baseline and driver output paths, preserving failed records and original artifacts. Controls and both models' D1 are rebuilt under the repaired compiler, followed by smoke and PlanFamily audit. The existing scheduler, GPU guard and exit-75 policy remain in use; no live scheduler state is reset. Final D2/D3 still follow successful D1 and its conditional-family decision.
-Prior successful D0/control/architecture evidence is raw/phase_d_pre_recovery.tar.xz, with phase_d_pre_recovery_manifest.json; failed-run evidence is raw/D1_recovery/. Generated sources and binaries are registered by path/hash, not committed.
-Resume by reading scheduler/progress.tsv once and results/D1_planfamily_*_v2.json. Monitor all D steps with `watch -n 10 'python3 /root/TileMega/docs/experiments/SERVING_R14/status.py --prefix D'`; old failed/skipped names intentionally remain visible beside the new recovery steps.
-
-## Recovery result review (original 2026-10-08 snapshot)
-
-Verified: results/D1_recovery_progress.json and raw/d1_llama_review.tar.xz, with d1_llama_review_manifest.json. Of the nine recovery steps, six are done and three remain pending at this snapshot. Rebuilt controls and selected Llama B1/B16 artifact identities verify; all four controls and both selected Llama plans pass 64-step smoke. Llama D1 final guard returns 0. Qwen3 D1's latest attempt returns 75/preflight occupied after 34 attempts; its smoke/family steps wait for successful build. Scheduler remains alive; no new compiler failure is recorded.
-Llama B1 selects pages/L2/loop, Ec256/mma16, with integral confirmation samples 2.887087/2.888612/2.884280 ms. Llama B16 selects the same execution/attention combination, but its samples 3.516804/7.479870/3.506781 ms are not reliable performance evidence; other B16 finalists also have large ranges despite the accepted guard. Build/identity/arithmetic acceptance does not close timing acceptance.
-One bounded recollection of all three B16 finalists is queued as D1_reconfirm_llama_B16_v2 (e3d89b898), retaining the original samples. It rotates three rounds, uses the identical binaries and three-past protocol under the existing GPU guard, applies the registered 2% reference-canary rule, and never rewrites cached choices or defaults automatically. If still unstable, report that outcome; do not keep recollecting.
-Budget limited structural admission: B1 has six piloted executions and three confirmed finalists out of 108 candidates; B16 has nine and three out of 180. The remaining 102/171 candidates are budget-unmeasured. PlanFamily reports no trigger only within this measured subset; it does not exclude benefits from unmeasured Ec/implementation families. SL-6 coverage and final selection quality remain limitations pending the final comparison.
-The recollection uses raw/D1_review/plans_llama.json, captured in the committed archive; restore that member if resuming on a clean checkout. Final D2/D3 are still pending. Do not report R14 complete from these build/smoke results.
-
-## Recovery acceptance and final queue (2026-10-09)
-
-Verified: all nine recovery steps and the one bounded B16 recollection finish successfully. Four selected artifacts match their 64-step smoke identities; both models' PlanFamily audits are not_triggered within the budget-admitted subset. Qwen3's final accepted guard returns child exit 0; prior exit-75 attempts remain recorded, without accepting their timings.
-Evidence: results/D1_recovery_acceptance.json, raw/d1_recovery_completed_review.tar.xz and d1_recovery_completed_review_manifest.json. The archive contains inputs, choices, aggregate predictions, resource/identity files, measurements, smoke and guards; expanded edge/task/price dumps not used by any reported number are excluded and listed by path/size. Binaries and generated sources remain registered by path/hash.
-
-| Cell | Reviewed D1 pg / mode / loop | Integral confirmation ms (3 rounds) | Piloted / total | Budget-unmeasured | Actual kernel spills |
-|---|---|---|---|---:|---|
-| Llama B1 | pages / L2 / yes | 2.887087, 2.888612, 2.884280 | 6 / 108 | 102 | No |
-| Llama B16 | pages / L2 / no | 3.509447, 3.521283, 3.501730 | 9 / 180 | 171 | No |
-| Qwen3 B1 | pages / L2 / yes | 4.390193, 4.371947, 4.384237 | 6 / 108 | 102 | No |
-| Qwen3 B16 | pages / L1 / no | 5.681081, 5.670789, 5.671946 | 6 / 108 | 102 | Yes |
-
-All selected attention variants are Ec256/mma16. These are three-past candidate measurements, not final E2E results. B16's stable recollection replaces the noisy confirmation only after review: L2 separate median 3.509447 ms versus loop 3.518002 ms; the 0.24% difference is not discernible. Minimum median still selects separate under the preregistered candidate rule. Original samples/choices remain archived; only serving sidecars and run plans.json change, never manifests, identities or binaries.
-All rebuilt controls and selected prefill/decode artifacts share one source_digest/compiler_sha256 state, despite documentation-only HEAD differences. Final rows verify actual executor, loop use, prefill identity and trace exclusion; Qwen3 B16's selected spilling kernel remains explicitly marked.
-Final definitions: 41 steps, including 12 paired 1024-token rounds with vLLM, four C-1 jobs, four C-2 jobs and four explicit paged 50-process cases, plus CPU checks. Each TM arm uses the same new prefill, L1; R13D is its historical decode binary with that common prefill. R14F reads reviewed sidecars via auto. Final paged protocols cover paths absent from B6's nonpaged cases; no reliability claim is made before they finish.
-Five CPU definition tests pass; raw/D_final_definition/{cpu_tests.log,static_validation.json,recovery_state.json} bind the prepared work. Guard requirements are unchanged; device memory comes from the recorded property query. Any marked final canary may be replayed once; it cannot silently enter final defaults.
-0fed1fd6c published queue/queue_phase_d_final.json. This historical definition is retired by the implementation-completion review below; its 41 tasks are unfinished. GPU retries left partial measurements in one round; these are not accepted final results. Historical D1 failures/recovery remain preserved.
-
-## TR-4 / GV-1 / SL-6 implementation completion (2026-10-09)
-
-Verified code gaps, not merely missing tests: nonpaged GEMM/GEMV profiles had no first-ready observer; TN8/16 GEMV rejected DN residuals and SwiGLU; old budget admission could measure only base variants and still publish a choice. Earlier Phase-B GEMV results cover the implemented TN32 trials, not the full narrow family. Earlier D1 choices are historical, incomplete-coverage evidence.
-
-| Item | Completion commit / location | Validation |
+| 检查 | 结果 | 证据 |
 |---|---|---|
-| TR-4 | 258d6e73c; ServingProfiledMainloop.h:55, ServingGemmTaskBody.h:124, ledger_r14.py::tasks | GEMM/GEMV first-ready numerical probe and new model profiles pass; fresh overhead measurement deferred |
-| GV-1 | 26d7f4c14; ServingDeferredNorm.h:10, SkeletonSearch.cpp:175, ServingEpilogue.h | TN8/16/32 numeric suite and narrow real-model 64-step C-1/C-2/KV checks pass |
-| SL-6 | 06090c9ea; integrated_selection.py:13/31/56, build/budget.py:8, cli.py:435 | CPU budget/coverage/selection and identity tests pass; fresh D1 pending |
-| Test repair | bf6ba3cc4; serving_task_profile_test.cu, serving_gemv_test.cu, skeleton_search_isolation_test.cpp | Stable host/device architecture and immediate launch-error checks; rejection case now uses illegal TN4 |
+| FX-23 旧码反例 / 新码位置编码 | 旧码 26 项失败；初始修复 768 项零失败；最终 predicate 重验通过 | raw/FX23/、phase0_completed 包 |
+| R13D' 与旧默认 | 四格 1024 token × 三轮逐位一致；四格 C-1 通过；N1'/B0h' C-1 通过 | phase_a_acceptance.json |
+| Phase B | 72 步完成，100 构建身份通过；50 模型变体 C-1/C-2 通过 | phase_b_acceptance.json |
+| AT-2 attention LA | Llama B1 50/50；Qwen3 B1 50/50 | phase_b_acceptance.json protocols |
+| SK-1 非分页 combine LA | Llama B16 50/50 | 同上 |
+| 逻辑补齐 | 20/20；10 构建、8 次 64 步 token/KV smoke 零差异；默认四路径 CU/resources/SASS 相同 | logic_validation.json、logic_completion_completed 包 |
+| 新窄族长检查 | Llama/Qwen3 × TN8 row、TN16 tiled；各 1024 步 C-1 与四臂 C-2 通过，mismatch=0 | T11_supplemental.tsv |
+| 多架构 | sm_80/89/90/100/120 编译通过；只执行 sm_89 | implementation/logic 原始包 |
+| FX-24 | fixed/joint search-only 通过；守恒检查 6/468；保留修复前失败 | T12_audit.json、raw/FX24/ |
 
-Evidence: raw/completion_repair_initial.tar.xz and completion_repair_initial_manifest.json preserve initial failures, fixes and checks. Three targeted ctests and 21 selection/config/identity Python tests pass. First-ready probe's initial zero readings were a test architecture-tag mismatch, not accepted trace data. The subsequent five-architecture checks pass, as recorded in the final logic review below.
-Implementation detail: narrow residual writers use distinct eight-column sum slots, consumers reconstruct the existing 32-column sum tree, and embedding preserves its sequential sum. Narrow SwiGLU uses plan-wide gate/up interleave 4/8; default plans keep 16 and the original sum representation. Direct-register GEMV marks readiness after its first vector load. These support the specified narrow family without adding an optimization beyond GV-1.
-Budget deviation: R14 configurations now allow 10800 s per phase/batch instead of 1800 s, to build and attempt the required Ec/body/LA/execution dimensions. Deadline includes subprocess sessions; three confirmation rounds reserve time inside it. Missing coverage or incomplete confirmation fails with evidence and publishes no winner. No model coefficients, correctness thresholds or GPU guard limits change.
-Scheduler was stopped safely with no running tasks (raw/completion_repair/scheduler_pause.json). The old final definition is preserved at retired_queues/queue_phase_d_final.json; three tasks had exit-75 retries, and one left unaccepted partial arm measurements. completion_queue_validation.json and raw/completion_retired_final.tar.xz preserve this distinction. New queue/queue_completion_repair.json has 21 steps: compiler/host/architecture checks, numerics, ten fixed/trace builds, default-path CU/resource/SASS comparisons, smoke, four narrow-model C-1/C-2 checks, new traces/paired overhead, calibration and both models' fresh D1/smoke/family audits. Performance waits for numerical correctness. No old recollection or sidecar is reused as the new D1 choice.
-The 21-step repair queue is superseded by the correctness-only driver below. Its original failed/skipped state is preserved; do not restart it as part of the current scope. Fresh D1/PlanFamily and D2/D3 remain unaccepted.
+窄族 C-1 near-tie ratio 均为 1.0、max gap 为 0。其第四臂为非分页禁相位，不能声称覆盖分页 K-phase 协议。
+FX-24 最小负残差为 −9.0949470177292824e−13 B；cohort 平均扣减因舍入超过 task 自身流量。改为逐 task 归属扣减并检查守恒，不钳零、不改代价模型默认值。
+旧 joint 的完整缓存命令缺失，使用已存 config/export 重建且省略不可用 sm120 seed；不是逐字命令重放。
 
-## Current user scope and logic review (2026-10-09)
+## 带宽、预测与 Q1–Q6
 
-The user prioritizes completing code and proving execution logic, permits shared-GPU correctness checks, and defers performance collection. The scheduler is stopped; no calibration or performance matrix is launched here.
-The repair queue had one failed host test and 20 skipped steps: the test required an RMSNorm stage despite DN being the default. 6276cf4c4 separates explicit-norm and DN assertions without weakening either contract. A subsequent driver fixture incorrectly used a decode export for prefill; the immutable host-case list fixes this independently of product code. Both original failures are retained.
-a51c76e7d adds explicit `--allow-shared-gpu` to correctness and diagnostic tools; default timing guards remain unchanged. Shared diagnostics have `timing_eligible=false`; trace exports `diagnostic_step_ms`, never an accepted performance mean.
-c4247c9f3 tests real build orchestration with explicit CPU test doubles: two pg families, all required dimensions, three-past halving/confirmation, sidecars, immutable manifests, and fail-closed incomplete coverage. This proves orchestration logic, not hardware timing or a final selected plan.
-The bounded driver is `logic_completion.py`; progress is `raw/logic_completion/progress.tsv`. It checks host contracts, five-architecture compilation, numerical suites, fixed builds, 64-step token/KV smoke, narrow-model C-1/C-2, and trace readiness. Final reviewed status is `raw/logic_completion/reviewed_acceptance.json`; original failures remain in `result.json` and logs. All data here is ineligible for performance acceptance.
-Final bounded review: 20/20 checks pass. Ten identified builds, eight 64-step token/KV smokes (zero mismatches), four narrow real-model C-1/four-arm C-2 checks, both stage/task traces, four host model/phase contracts, five host ctests, eight GPU numerical tests, and sm_80/89/90/100/120 compilation pass. Each nonzero-byte GEMM sample observes first-ready inside its run span.
-The last comparison initially failed because `cuobjdump` was absent from PATH. e065f3f29 resolves CUDA_HOME/bin explicitly; rerunning only that check confirms identical generated CU, ptxas resources and SASS in all four default paths. This was a tool-environment failure; no product code or correctness thresholds changed.
-Evidence: results/logic_validation.json, results/implementation_completion.json, raw/logic_completion_completed.tar.xz and its manifest. The archive retains original host/fixture/tool failures, corrected results, inputs, identities and binary/source hashes. Shared trace builds spill and remain diagnostic-only; no overhead or performance conclusion is inferred from them.
-The correctness driver and comparison recheck have ended. Original all.failed/host_v2.failed markers describe superseded attempts; reviewed_acceptance.json is authoritative. The user's subsequent request resumes remaining testing below.
-Mandatory R14 code and triggered Phase-C trials are implemented. C-AT3b, C-RW2 and C-GV2 were not triggered; C-PF needs fresh timing evidence before a decision. Performance gates and full final validation remain unaccepted pending the continuation.
+D0 补充标准标定口径：五个新进程均未标 contaminated，中位 **979.97757 GB/s**，进程极差 **0.04187%**。
+target SHA256：`14b69fbb3e2111bb8d9618b12449ecf9ae03d34d588ac2f46b250f1fd0c59d79`；原 target、各进程读数/guard 在 supplemental_closure 包。
+原始其他方法最大值包含缓存/协议效应，不替代标准 DRAM 上限。没有新终版 E2E，因此不计算 R14F 的四格下界距离。
 
-## Guarded continuation (2026-10-09)
+| 预测 | 已测对照 / 结论 |
+|---|---|
+| R13D' ±0.5% 且 token 相同 | token 通过；时间漂移 +0.61%..+1.77%，区间未命中 |
+| N1' ±3%、C-1 通过 | C-1 通过；旧 N1 正确性无效且不稳定，不作优化归因 |
+| AT 全套 | 单因素 Ec/PV 有局部收益；全套终版未测 |
+| SK-1 / GV-1 | 已测版本未达到预测收益；补齐窄族只完成正确性 |
+| RW-3 / EP-1 | 未观察可保留收益 |
+| RA-1 单独消除溢出 | PV 混合了实现与 spill 变化，未单独隔离；noinline 未胜出 |
+| 终版对下界、TM/vLLM 门 | 未评估；四格目标不得标通过 |
+| 条件项 | RW1/EP2/AT4 都未达保留门槛 |
 
-The user's new request queues the remaining tests. `queue_remaining/queue_r14_remaining.json` defines 65 steps independently of all retired queues; `inputs/remaining/definition.json` binds frozen inputs and existing control binaries. No historical D1 winner is reused as the fresh choice.
-Scope: four narrow-family 1024-step checks; corrected stage/task profiles and three paired overhead rounds; D0 calibration with fresh-process bandwidth ceiling; both models' fresh D1/smoke/PlanFamily audit; four cells × three paired vLLM/R13D/baseline/R14F rounds; C-1/C-2 and final-binary fresh-process protocols. Final controls use the same frozen source/compiler and the same fresh prefill as R14F; old R13D remains a separately identified historical reference.
-All GPU steps restore the unchanged occupancy/power/memory guard and shared lock. Exit 75 requeues invalidated attempts; marked canary rounds have at most one clean replay. The two models have independent failure dependencies. An unmet trace-overhead target is recorded diagnostically; it cannot stop unrelated final collection. Missing coverage, identity, correctness or PlanFamily evidence prevents final defaults.
-Status lives only in `scheduler_remaining/{state.json,progress.tsv}`; launch details and CPU definition checks are in `raw/remaining_definition/`. Resume with `status.py --queue-dir docs/experiments/SERVING_R14/queue_remaining --state-dir docs/experiments/SERVING_R14/scheduler_remaining --queue queue_r14_remaining.json`. Read this state once before reviewing results; do not restart the old repair/final queues.
-Verified startup: `raw/remaining_definition/launch.json` records the detached live scheduler and initial state; `validation.json` and `cpu.log` record passing definition checks. Launching the continuation does not establish any new performance or final-acceptance conclusion.
+逐项原注册值与已测样本见 results/prediction_review.json；未隔离/未完成者明确标记。
+
+- **Q1 verified**：不受影响四格 token 一致；N1'/B0h' C-1 恢复通过；Llama B1 基线改为修正非分页。**inferred**：旧错误路径性能不能作有效正确性基线。
+- **Q2 verified**：Ec128、PV 的收益局部成立，LA 测试未胜出；加载协助未触发，未实现。
+- **Q3 verified**：已测 split-fill/GEMV 未胜出；完整窄族数值已通过。**stated**：补齐实现后的性能没有收集完成。
+- **Q4 verified/inferred**：RW-3 未带来可分辨收益；sampled GEMM 数据触发驻留 2，实测回退；不能唯一归因 B16 超出量。
+- **Q5 verified**：PV 降低部分分页 spill，Qwen3 B16 同轮改善；noinline 未胜出。**stated**：无新终版 spill 对照。
+- **Q6 stated**：多 past 与扩展族已实现、CPU orchestration 通过；早期 D1 under-covered 不算终验，fresh D1 未完成，选择变化尚不能回答。
+
+## 队列状态、偏离与整合
+
+最终唯一补充状态：`scheduler_remaining/state.json`，**12 done / 53 cancelled / 0 pending / 0 running**。
+完成：preflight、prepare、四组窄族、trace、三轮 overhead、overhead 汇总、D0。两模型 fresh D1 因 GPU 保护退出 75 多次重排，未产生完整新 plans.json。
+停止记录：raw/closure_20261010/stop.json；原始失败、重试、progress 与取消标记均保留。没有把 GPU 占用误报为候选失败。
+历史 scheduler 的 failed/skipped 只代表旧尝试；不得据其计数推断本次仍在运行。用户要求不再测，所有旧/补充队列保持停止。
+若未来恢复，先读一次 state/progress 与 closure_acceptance.json；需显式重新定义剩余依赖，不能直接把旧 under-covered 胜者作为终版。
+
+偏离与影响：
+- 16 KiB Independent 私有双缓冲超出 sm_89 共享内存；此数值组合通过 paged transport 验证，实际 Independent 使用合法 8 KiB。
+- 旧 R13 产物无新身份，明确登记旧二进制 SHA 与未知来源；新构建强制身份，trace 时间只进诊断表。
+- TR-4 用 1/8 CTA 采样；补充 ≤2% 只验证 Llama B1。过去 shared-GPU 逻辑检查 timing_eligible=false，不能作性能证据。
+- 早期实现缺口、拒绝形状后的状态损坏、测试 fixture/工具 PATH 问题均已修复并保留失败记录；旧 D1 不满足覆盖要求，作废其最终选择资格。
+- 最终性能与 PlanFamily 留空，原因是用户取消余项；不自动启用单因素胜者，不声称四格 TM/vLLM 不退步。
+- 为保留远端 dnn-moe 与已测 R14 的不同模板/运行时 ABI，用现有 `TILEMEGA_DM_SUPPORT` 选择 Dm* 兼容头，身份 schema 分流；未重写二进制身份或回填旧数据。
+- 合并只进行编译与主机回归；历史 GPU 数据绑定合并前源码，不声称合并后已完成 GPU 终验。整合证据见 raw/closure_integration/。
+
+## R15 方案（仅记录，不实施）
+
+- 先完成新 D1 必需族覆盖、同轮四格 D2、D3；修复预算/编译开销分配，保留 fail-closed，不能降低覆盖条件。
+- 用 ServingTrace.cuh / ServingProfiledMainloop.h 对同几何拆分寄存器、spill 与调度漂移，补 T6/T7 专表及 Qwen3 无 spill 同轮对照。
+- PagedGemmTaskBody / PageRing：多页 stage 协议与全阶段 smem 生命周期；不能从只加载微基准外推整网收益。
+- ModelHarness / HandoffPass：phase 子图 handoff 与 ready-task；需要独立数值门与 50 新进程。
+- StageFlowModel / codegen：共用执行描述；资源反馈与 codegen 部分求值，避免模型/实际产物偏离。
+- 5090 专用 collective、prefill 另立规格；本轮仅已有多架构编译，不宣称对应硬件执行。
