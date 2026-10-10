@@ -92,7 +92,14 @@
     "buffers": 1547
   },
   "retained_incompatible_pair": "runs/dm1-moe-full-four-plan-host-v1: older row-major decode and tiled prefill disagree on the o_proj recipe; replaced by shared-layout tiled decode. No invalid pair was executed.",
-  "current_symbolic_generation": "v15 pending; old v12 generation already passes",
+  "current_symbolic_generation": {
+    "evidence": "verified",
+    "root": "runs/dm1-moe-full-b16-prefill-host-v15",
+    "exit_code": 0,
+    "cu_sha256": "3afd49cb709fc664b01d03d92db6ccb051356e2525b5bbf592d771b186ecfa08",
+    "equal_to_v12": true,
+    "scope": "host generation only; no latency or GPU execution claim"
+  },
   "current_header_validation": "runs/dm1-moe-full-four-plan-host-v3/results.json",
   "qkv_config_head_geometry_checked": true
 }
