@@ -9242,3 +9242,9 @@ smaller checks. No performance measurements were taken.
 - Evidence: `experiments/DNN_MOE_R1/dm_reduction_search.md`,
   `experiments/DNN_MOE_R1/results/CI7_dm_reduction_selection_host.json`. No new race-rate or
   latency conclusion is claimed.
+
+### F-365 — R14 supplemental correctness accepted; final performance cancelled
+
+verified: four narrow GEMV cases (Llama/Qwen3, TN8 row and TN16 tiled) each pass 1024-step C-1 and four-arm C-2 with zero token mismatches. These nonpaged arms do not validate paged K-phase. Three guarded paired Llama B1 rounds measure stage/task trace overhead +0.90%/+1.29%, with identical tokens; the actual kernels all spill. Five clean fresh processes give standard-protocol DRAM median 979.97757 GB/s and range 0.04187%; other-method maxima are not substituted for the DRAM ceiling.
+The user cancelled the remaining collection: the final supplemental state is 12 done, 53 cancelled, none running/pending. Fresh D1 never completed after GPU-guard requeues; no fresh four-cell final E2E or PlanFamily decision exists. Historical under-covered choices must not be published as final defaults. No new synchronization reliability conclusion is drawn beyond archived required 50-process cases.
+Evidence: `experiments/SERVING_R14/results/{closure_acceptance.json,T11_supplemental.tsv,T2_supplemental_overhead.tsv,T3_closure_controls.tsv}`; `raw/supplemental_closure.tar.xz` and `supplemental_closure_manifest.json` contain original records, identities, guard/retry/cancellation logs and artifact hashes. The subsequent dnn-moe integration has compile/host scope only; these GPU results bind the pre-integration frozen source.

@@ -1,0 +1,5 @@
+cell	artifact_id	execution_id	pg	registers	stack	spill	spill_stores	spill_loads	smem	role
+llama_B1	d019dc5bf93a4b08c3eb90adc4ec47fdacdc6b80894ab3a0499405efd1508ea7	bce16dbb33982707d6b9794005292ff94d10a9c3595abdb208b475f5091b8584	l2	255	160	True	80	88	86016	audited frozen control; no new final binary selected
+llama_B16	edd437fd91a536f9239b481cc7d224b9dd9897210c4d17e5f253d73ba937e651	c4b8a991a10f5d9567c2783bdba4fd77c680b70fac2c96e4183c3944a7809143	l2	255	160	True	80	88	86016	audited frozen control; no new final binary selected
+qwen3_B1	63e58c1bea9612e67c9f87ba998743b19266c1cea7f42430b96f22e765e4a620	ff75abf654c811ce9369fadca70d5d5eed718e70894637b75ff28fc611ea82d6	pages	255	176	True	164	408	99328	audited frozen control; no new final binary selected
+qwen3_B16	054403099061d30f83382b3579421a964a26e3c746852e5e5c9428fc4792a5fb	425d9961d7c727b9885db90807f395b73cfe79d67eca8f19731f2c863b007549	pages	255	176	True	164	408	99328	audited frozen control; no new final binary selected

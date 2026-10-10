@@ -1,0 +1,424 @@
+[
+  {
+    "id": "R13D_prime_vs_R13D",
+    "prediction": {
+      "id": "R13D_prime_vs_R13D",
+      "metric": "tpot_median_rel",
+      "baseline": "R13D",
+      "predicted": [
+        -0.005,
+        0.005
+      ],
+      "prediction_text": "\u56db\u683c \u00b10.5%\uff1btoken \u9010\u4f4d\u4e00\u81f4",
+      "kill": {
+        "token_mismatch": "stop"
+      },
+      "committed_before_step": "A1"
+    },
+    "observed": [
+      {
+        "cell": "llama_B1",
+        "relative": 0.01270985667956892
+      },
+      {
+        "cell": "qwen3_B1",
+        "relative": 0.01773743200448563
+      },
+      {
+        "cell": "llama_B16",
+        "relative": 0.006086590097779565
+      },
+      {
+        "cell": "qwen3_B16",
+        "relative": 0.015233515196922731
+      }
+    ],
+    "status": "measured"
+  },
+  {
+    "id": "N1_prime_vs_N1",
+    "prediction": {
+      "id": "N1_prime_vs_N1",
+      "metric": "tpot_median_rel",
+      "baseline": "N1",
+      "predicted": [
+        -0.03,
+        0.03
+      ],
+      "prediction_text": "\u00b13%\uff1bC-1 \u6539\u4e3a\u901a\u8fc7",
+      "kill": {},
+      "committed_before_step": "A1"
+    },
+    "observed": [
+      {
+        "cell": "llama_B1",
+        "relative": -0.0033113492005197864,
+        "qualification": "old N1 correctness-invalid and timing-unstable; no optimization attribution"
+      }
+    ],
+    "status": "measured"
+  },
+  {
+    "id": "AT_all",
+    "prediction": {
+      "id": "AT_all",
+      "metric": "tpot_median_rel",
+      "baseline": "baseline",
+      "predicted": [
+        [
+          -0.05,
+          -0.03
+        ],
+        [
+          -0.02,
+          -0.005
+        ],
+        [
+          -0.09,
+          -0.05
+        ],
+        [
+          -0.08,
+          -0.04
+        ]
+      ],
+      "prediction_text": "\u22123~\u22125% / \u22120.5~\u22122% / \u22125~\u22129% / \u22124~\u22128%",
+      "kill": {
+        "any_cell_worse_than": 0.01
+      },
+      "committed_before_step": "B1"
+    },
+    "observed": [],
+    "status": "not_isolated_or_not_completed"
+  },
+  {
+    "id": "SK_fill",
+    "prediction": {
+      "id": "SK_fill",
+      "metric": "tpot_median_rel",
+      "baseline": "baseline",
+      "predicted": [
+        -0.03,
+        -0.01
+      ],
+      "prediction_text": "\u22121~\u22123%\uff0c\u56db\u683c",
+      "kill": {
+        "any_cell_worse_than": 0.01
+      },
+      "committed_before_step": "B1"
+    },
+    "observed": [
+      {
+        "cell": "llama_B1",
+        "label": "SK_fill",
+        "relative": 0.056665894432738506
+      },
+      {
+        "cell": "llama_B16",
+        "label": "SK_fill",
+        "relative": 0.08813925497929165
+      },
+      {
+        "cell": "qwen3_B1",
+        "label": "SK_fill",
+        "relative": 0.02153495937946137
+      },
+      {
+        "cell": "qwen3_B16",
+        "label": "SK_fill",
+        "relative": 0.03472438649321763
+      }
+    ],
+    "status": "measured"
+  },
+  {
+    "id": "GV",
+    "prediction": {
+      "id": "GV",
+      "metric": "tpot_median_rel",
+      "baseline": "baseline",
+      "predicted": [
+        -0.03,
+        -0.005
+      ],
+      "prediction_text": "B1 \u4e24\u683c \u22120.5~\u22123%\uff1bB16 \u4e0d\u9884\u6d4b",
+      "kill": {
+        "any_cell_worse_than": 0.01
+      },
+      "committed_before_step": "B1"
+    },
+    "observed": [
+      {
+        "cell": "llama_B1",
+        "label": "GV_o",
+        "relative": 0.11719292703546147
+      },
+      {
+        "cell": "llama_B1",
+        "label": "GV_down",
+        "relative": 0.3759841854159325
+      },
+      {
+        "cell": "llama_B1",
+        "label": "GV_all",
+        "relative": 1.0279806262207853
+      },
+      {
+        "cell": "qwen3_B1",
+        "label": "GV_all",
+        "relative": 0.8680399025940777
+      },
+      {
+        "cell": "qwen3_B1",
+        "label": "GV_down",
+        "relative": 0.3104392148180033
+      },
+      {
+        "cell": "qwen3_B1",
+        "label": "GV_o",
+        "relative": 0.10228944359243686
+      }
+    ],
+    "status": "measured"
+  },
+  {
+    "id": "RW_pipe",
+    "prediction": {
+      "id": "RW_pipe",
+      "metric": "tpot_median_rel",
+      "baseline": "baseline",
+      "predicted": {
+        "qwen3_B16": [
+          -0.03,
+          -0.01
+        ],
+        "llama_B1": [
+          -0.005,
+          0.005
+        ],
+        "qwen3_B1": [
+          -0.005,
+          0.005
+        ]
+      },
+      "prediction_text": "\u5206\u9875\u7684\u683c\uff1aQwen3 B16 \u22121~\u22123%\uff1bB1 \u4e24\u683c \u00b10.5%\u3002Llama B16\uff08\u975e\u5206\u9875\uff09\u4e0d\u9002\u7528",
+      "kill": {
+        "any_cell_worse_than": 0.01
+      },
+      "committed_before_step": "B1"
+    },
+    "observed": [
+      {
+        "cell": "qwen3_B1",
+        "label": "RW_pipe",
+        "relative": 0.0013745363235480035
+      },
+      {
+        "cell": "qwen3_B16",
+        "label": "RW_pipe",
+        "relative": -0.0006843742259838859
+      }
+    ],
+    "status": "measured"
+  },
+  {
+    "id": "RA_no_spill",
+    "prediction": {
+      "id": "RA_no_spill",
+      "metric": "tpot_median_rel",
+      "baseline": "baseline",
+      "predicted": [
+        -0.03,
+        -0.005
+      ],
+      "prediction_text": "Qwen3 \u4e24\u683c \u22120.5~\u22123%",
+      "kill": {},
+      "committed_before_step": "B1"
+    },
+    "observed": [],
+    "status": "not_isolated_or_not_completed"
+  },
+  {
+    "id": "EP_arg",
+    "prediction": {
+      "id": "EP_arg",
+      "metric": "tpot_median_rel",
+      "baseline": "baseline",
+      "predicted": {
+        "llama_B1": [
+          -0.003,
+          0.003
+        ],
+        "qwen3_B1": [
+          -0.003,
+          0.003
+        ],
+        "llama_B16": [
+          -0.01,
+          -0.003
+        ],
+        "qwen3_B16": [
+          -0.01,
+          -0.003
+        ]
+      },
+      "prediction_text": "B16 \u4e24\u683c \u22120.3~\u22121%\uff1bB1 \u4e24\u683c \u00b10.3%",
+      "kill": {},
+      "committed_before_step": "B1"
+    },
+    "observed": [
+      {
+        "cell": "llama_B1",
+        "label": "EP_arg",
+        "relative": 0.006756672930982699
+      },
+      {
+        "cell": "llama_B16",
+        "label": "EP_arg",
+        "relative": 0.0061805314629961305
+      },
+      {
+        "cell": "qwen3_B1",
+        "label": "EP_arg",
+        "relative": 0.04155265863870561
+      },
+      {
+        "cell": "qwen3_B16",
+        "label": "EP_arg",
+        "relative": 0.03189416402548684
+      }
+    ],
+    "status": "measured"
+  },
+  {
+    "id": "final_floor",
+    "prediction": {
+      "id": "final_floor",
+      "metric": "T_over_floor",
+      "baseline": "980GB/s",
+      "predicted": {
+        "llama_B1": 1.08,
+        "llama_B16": 1.08,
+        "qwen3_B1": 1.11,
+        "qwen3_B16": 1.11
+      },
+      "prediction_text": "Llama \u4e24\u683c \u2264 +8%\uff1bQwen3 \u4e24\u683c \u2264 +11%",
+      "kill": {
+        "TM_vllm_min": [
+          1.083,
+          1.162,
+          1.061,
+          1.107
+        ]
+      },
+      "committed_before_step": "B1"
+    },
+    "observed": [],
+    "status": "not_isolated_or_not_completed"
+  },
+  {
+    "id": "C-RW1",
+    "prediction": {
+      "id": "C-RW1",
+      "metric": "tpot_median_rel",
+      "baseline": "same-compiler C baseline",
+      "cells": [
+        "llama_B16"
+      ],
+      "predicted": [
+        -0.05,
+        -0.02
+      ],
+      "kill": {
+        "minimum_improvement": 0.02,
+        "correctness_required": true
+      },
+      "committed_before_step": "C_matrix_llama_B16",
+      "prediction_status": "inferred; interval registered before Phase C timing"
+    },
+    "observed": [
+      {
+        "cell": "llama_B16",
+        "label": "C_RW1",
+        "tpot_ms": "3.27723346516774",
+        "range_ms": "0.0013554837911566864",
+        "relative": "0.02443636008756611",
+        "execution_id": "ec06f051519a643afe65b7f1dd7ee1a135c66254f8e13903f8988c55e2eb2aed",
+        "spill": "True",
+        "smem": "49152",
+        "samples": "[3.276284392158394, 3.27723346516774, 3.277639875949551]"
+      }
+    ],
+    "status": "measured"
+  },
+  {
+    "id": "C-EP2",
+    "prediction": {
+      "id": "C-EP2",
+      "metric": "tpot_median_rel",
+      "baseline": "same-compiler C baseline",
+      "cells": [
+        "qwen3_B16"
+      ],
+      "predicted": [
+        -0.025,
+        -0.01
+      ],
+      "kill": {
+        "minimum_improvement": 0.01,
+        "correctness_required": true
+      },
+      "committed_before_step": "C_matrix_qwen3_B16",
+      "prediction_status": "inferred; interval registered before Phase C timing"
+    },
+    "observed": [
+      {
+        "cell": "qwen3_B16",
+        "label": "C_EP2",
+        "tpot_ms": "5.9254560635524385",
+        "range_ms": "0.011327245863534507",
+        "relative": "0.03796090906088834",
+        "execution_id": "ee308b151c7c676a3ef5eca2dd63293f1a3f889af5e5ac11de22af062412f3ed",
+        "spill": "True",
+        "smem": "99328",
+        "samples": "[5.923840609212513, 5.9254560635524385, 5.935167855076047]"
+      }
+    ],
+    "status": "measured"
+  },
+  {
+    "id": "C-AT4",
+    "prediction": {
+      "id": "C-AT4",
+      "metric": "tpot_median_rel",
+      "baseline": "same-compiler C baseline",
+      "cells": [
+        "qwen3_B1"
+      ],
+      "predicted": [
+        -0.04,
+        -0.015
+      ],
+      "kill": {
+        "minimum_improvement": 0.015,
+        "correctness_required": true
+      },
+      "committed_before_step": "C_matrix_qwen3_B1",
+      "prediction_status": "inferred; interval registered before Phase C timing"
+    },
+    "observed": [
+      {
+        "cell": "qwen3_B1",
+        "label": "C_AT4",
+        "tpot_ms": "4.587834709363089",
+        "range_ms": "0.0067685864126545425",
+        "relative": "0.04466937206775001",
+        "execution_id": "5d46aea2f3488f7b2f95e2e991613317326d2a697f5b7825d298fa96dd70d811",
+        "spill": "True",
+        "smem": "99328",
+        "samples": "[4.583666325507655, 4.590434911920309, 4.587834709363089]"
+      }
+    ],
+    "status": "measured"
+  }
+]

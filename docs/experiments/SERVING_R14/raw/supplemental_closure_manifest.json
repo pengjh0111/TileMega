@@ -1,0 +1,3104 @@
+{
+  "archive": "raw/supplemental_closure.tar.xz",
+  "sha256": "8f4c32912201c57457f5ddbbab3c5a3cdae54e5eade695a9275046f65ec62fbd",
+  "bytes": 2552436,
+  "members": [
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/dram_ceiling.json",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/dram_ceiling.json",
+      "sha256": "5104136dbd5fc23e2c9edac8305264cd1fa31457ca20fad9faa59714e4a21c37",
+      "bytes": 2019
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process0/command.json",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process0/command.json",
+      "sha256": "6c62c4ea780146df36ad7daf43d4c056f50c9fb534e38e7fbd3dc9ded40721ef",
+      "bytes": 185
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process0/loadbench.json",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process0/loadbench.json",
+      "sha256": "38d0364eb04116ff12fec233d94f00438920e07b73ecb804c147287731e9abd3",
+      "bytes": 133614
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process0/stdout.log",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process0/stdout.log",
+      "sha256": "33b773cb70a4ac1afabe4b64d89f4198bfd4bb9b6151c5cdc1849ff92784594e",
+      "bytes": 47639
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process1/command.json",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process1/command.json",
+      "sha256": "eca18d5d694a8bcb0f71434f6f8733c19d698e1d866abef64a82abd1c5556f90",
+      "bytes": 313
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process1/loadbench.json",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process1/loadbench.json",
+      "sha256": "c6f9e874827dedd082971dcbccbeabec99965a5f9f9b66b75c2f9d945e473649",
+      "bytes": 14857
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process1/stdout.log",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process1/stdout.log",
+      "sha256": "fc2237824364efd4bd8c6d721158147c7c368c6b1acdd9b6975d73f2c411ed13",
+      "bytes": 5274
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process2/command.json",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process2/command.json",
+      "sha256": "4611e739d1b958f60aef012d09f41ca6c1d48df768931aefd51d50cf7f31ab10",
+      "bytes": 313
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process2/loadbench.json",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process2/loadbench.json",
+      "sha256": "db5d18a8bfb7b86f5a116e45a55889e87a9e005be3342064c9ef9a43d7cf4764",
+      "bytes": 14860
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process2/stdout.log",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process2/stdout.log",
+      "sha256": "90a6c968144fff1d3bd79a93e7ca5bdaa1df53b8e28d157250782ccbd30c1971",
+      "bytes": 5273
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process3/command.json",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process3/command.json",
+      "sha256": "15fefdeb45b4290b8322d7c8db78fef7c1c9b9c3f7cc0a2ebd5288f03cf81ec7",
+      "bytes": 313
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process3/loadbench.json",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process3/loadbench.json",
+      "sha256": "ea918be454c77fcb8fbbed6e2b549709d2029d5b32a0a97ed44aa62646080844",
+      "bytes": 14865
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process3/stdout.log",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process3/stdout.log",
+      "sha256": "7ee684d82e83237cd38fe6e04ea3b5466e64b61fb909ed7cbaa48bab375fcdf6",
+      "bytes": 5274
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process4/command.json",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process4/command.json",
+      "sha256": "51e449f4e093c8c15b1eee46d1f8746cb4dcd25f763f14f80672b8fa0823d9ad",
+      "bytes": 313
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process4/loadbench.json",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process4/loadbench.json",
+      "sha256": "5f3c5be26611f3fb751f158e30ddf52019b5f57a1dfcea31a0fa5cb00cb3e0e4",
+      "bytes": 14876
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process4/stdout.log",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/ceiling/process4/stdout.log",
+      "sha256": "509e04c676fba0cc83efc1e8faac1cddff154835ba1fda991205b443cc4b4b21",
+      "bytes": 5273
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/ceiling.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/ceiling.command.json",
+      "sha256": "2d6ee648dbdd1c2ef0d33bf83bd68a6a022e7ebc8052a3c4449a04763e0a9b89",
+      "bytes": 462
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/ceiling.log",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/ceiling.log",
+      "sha256": "eb636100ab980e1f902a4c5b46ba3330e65ce1bc7da76335d55f23d01c39488e",
+      "bytes": 547
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/result.json",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/result.json",
+      "sha256": "866024e1317739aa3559088385dc7431f6889583cb32855323ba00c6005af788",
+      "bytes": 615
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D0_remaining/target.json",
+      "member": "docs/experiments/SERVING_R14/raw/D0_remaining/target.json",
+      "sha256": "14b69fbb3e2111bb8d9618b12449ecf9ae03d34d588ac2f46b250f1fd0c59d79",
+      "bytes": 88172
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_llama_remaining/build.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/D1_llama_remaining/build.command.json",
+      "sha256": "39e8bd4bf51c3a5861706019a750284ec1864c0991c26fc7faf78d576172b62d",
+      "bytes": 243
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_llama_remaining/build.log",
+      "member": "docs/experiments/SERVING_R14/raw/D1_llama_remaining/build.log",
+      "sha256": "7adf7c57c27803be376844adc2c98c7692c720a80c73945f064ecdba98fdc319",
+      "bytes": 6333
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_qwen3_remaining/build.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/D1_qwen3_remaining/build.command.json",
+      "sha256": "8b2b19d7c7db9efd372c7be90a90d19ac1a01aded8e254454bf5e847ce1614f5",
+      "bytes": 243
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/D1_qwen3_remaining/build.log",
+      "member": "docs/experiments/SERVING_R14/raw/D1_qwen3_remaining/build.log",
+      "sha256": "8302803836af61481310d86b161aafaa33d90860727f8f163116e8050d5e6885",
+      "bytes": 6333
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/Dpre_remaining/build.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/Dpre_remaining/build.command.json",
+      "sha256": "494af1fcaface32c8386d69c72b410d27f090e35c464c426487c39ae09fe062a",
+      "bytes": 132
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/Dpre_remaining/build.log",
+      "member": "docs/experiments/SERVING_R14/raw/Dpre_remaining/build.log",
+      "sha256": "69087f264443600ae7fd00347ec400dcdac39b2f4ccb024d0c2d51bd908643a7",
+      "bytes": 211
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/Dpre_remaining/fingerprint.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/Dpre_remaining/fingerprint.command.json",
+      "sha256": "0dd50d65c0c3bb94e34368973c1c41913b52bfc8ff25f869a1f1aa84f58b9cae",
+      "bytes": 138
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/Dpre_remaining/fingerprint.log",
+      "member": "docs/experiments/SERVING_R14/raw/Dpre_remaining/fingerprint.log",
+      "sha256": "c0622523adc280dda2a4f76be20e354d64bd58f80bdedd4b9bd604caa305ee8a",
+      "bytes": 89
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/Dpre_remaining/integrated_selection.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/Dpre_remaining/integrated_selection.command.json",
+      "sha256": "b2a1b202b73715ec1c40b5a3a38a1d9819f32d48cf453c5d9014b9ebc3acf466",
+      "bytes": 96
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/Dpre_remaining/integrated_selection.log",
+      "member": "docs/experiments/SERVING_R14/raw/Dpre_remaining/integrated_selection.log",
+      "sha256": "c86951a7f822abdb8c2f7cd8badfb662adaf9c24db9ee6c8f723d92e90c7135b",
+      "bytes": 110
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/Dpre_remaining/loadbench.json",
+      "member": "docs/experiments/SERVING_R14/raw/Dpre_remaining/loadbench.json",
+      "sha256": "6bf3edfc1a870b6da8f3ad3ff2ff2ad156f594d3643c1da17a043923f56dbd49",
+      "bytes": 311
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/Dpre_remaining/serving_identity.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/Dpre_remaining/serving_identity.command.json",
+      "sha256": "29231af6cc046e980f7696ed8749902c4966df391abd9bcf25048015dc53153c",
+      "bytes": 92
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/Dpre_remaining/serving_identity.log",
+      "member": "docs/experiments/SERVING_R14/raw/Dpre_remaining/serving_identity.log",
+      "sha256": "3507612a5e67de7f909c5daf665e72ae48703638023e5a20bbbf698936a10064",
+      "bytes": 103
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/Dpre_remaining/solver_regression.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/Dpre_remaining/solver_regression.command.json",
+      "sha256": "3ee30063159c031c226cd6888b613d4f4b06ed2117eff29b1d4b958172622a8d",
+      "bytes": 153
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/Dpre_remaining/solver_regression.log",
+      "member": "docs/experiments/SERVING_R14/raw/Dpre_remaining/solver_regression.log",
+      "sha256": "aeeb421fef7c52cc209bf920342f81cc0c2cadafa7e939af440cbe6ddeebbaa2",
+      "bytes": 506
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/Dpre_remaining/test_attention_selection.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/Dpre_remaining/test_attention_selection.command.json",
+      "sha256": "3289610500bb5117ab1f8ee2702886ed1a32a5c37e977c75cb86a6bb878ead66",
+      "bytes": 100
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/Dpre_remaining/test_attention_selection.log",
+      "member": "docs/experiments/SERVING_R14/raw/Dpre_remaining/test_attention_selection.log",
+      "sha256": "78eef06a986d8417523e74a16d2bb14e35ab64ab86924c647f2bc690902433d9",
+      "bytes": 103
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/Dpre_remaining/test_phase_d.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/Dpre_remaining/test_phase_d.command.json",
+      "sha256": "160b12f2b1a99a388c0cb8ec037f028433496c2b769897e92ec7dcc2d15c8dee",
+      "bytes": 105
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/Dpre_remaining/test_phase_d.log",
+      "member": "docs/experiments/SERVING_R14/raw/Dpre_remaining/test_phase_d.log",
+      "sha256": "35e173770e8b2ae664bb6a561f29ed51afa8d5f7cc9761dbdfa594317be439b2",
+      "bytes": 104
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/Dpre_remaining/test_selection.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/Dpre_remaining/test_selection.command.json",
+      "sha256": "1f2669280adfdb69bdb5d112795c326ae8afcb719b0a22200e727d45918837fd",
+      "bytes": 107
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/Dpre_remaining/test_selection.log",
+      "member": "docs/experiments/SERVING_R14/raw/Dpre_remaining/test_selection.log",
+      "sha256": "feabb4add9e2ca3374e538560634d1ec97dc4f4ce89aab12f3d726e36ea9b2f6",
+      "bytes": 102
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_build_llama/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_build_llama/guard.jsonl",
+      "sha256": "2151e8f704ddc295647430720e4a83973269be0caf27023b2d30f8f26c07c83b",
+      "bytes": 235339
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_build_llama/guard_result.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_build_llama/guard_result.json",
+      "sha256": "9dc89b6c30205b8fa2e7586c7d7910fe8eff1d81458da67cc215f9a7381ee267",
+      "bytes": 45
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_build_llama/pgid",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_build_llama/pgid",
+      "sha256": "23e49121c03e0e219572d3c7ca1d6b5163f08696c576ff4dd0891a86b96ccbe4",
+      "bytes": 8
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_build_qwen3/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_build_qwen3/guard.jsonl",
+      "sha256": "b311c559ef8e6b66d3c80601ff01ca821f0006ebca7dfd4e81feea51af405a97",
+      "bytes": 281411
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_build_qwen3/guard_result.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_build_qwen3/guard_result.json",
+      "sha256": "9dc89b6c30205b8fa2e7586c7d7910fe8eff1d81458da67cc215f9a7381ee267",
+      "bytes": 45
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_build_qwen3/pgid",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_build_qwen3/pgid",
+      "sha256": "ff1c746475fe3fe5d6cd1beb0d33dd9cfe12b20bb0bb10ec9668e18bb8c326ac",
+      "bytes": 8
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_calibrate/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_calibrate/guard.jsonl",
+      "sha256": "36ab895d83ce4e6bf02f6778da1fb536a6355d6f237946d9b503f793e630be02",
+      "bytes": 5048
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_calibrate/guard_result.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_calibrate/guard_result.json",
+      "sha256": "2d512016f7dde2335e0aafc176823404cef455eaa72f7ca23a5f5607c06c48ba",
+      "bytes": 38
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_calibrate/pgid",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_calibrate/pgid",
+      "sha256": "6901591b15964f3293f503b64b6f1596e97f3192cab30d0b36376b1d32a15b5e",
+      "bytes": 8
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/guard.jsonl",
+      "sha256": "0a68eea6f3a51e7efc0e134e7c39921375895789b1d9b53674b2716d1ed4b18b",
+      "bytes": 3655
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/guard_result.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/guard_result.json",
+      "sha256": "2d512016f7dde2335e0aafc176823404cef455eaa72f7ca23a5f5607c06c48ba",
+      "bytes": 38
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/hf.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/hf.command.json",
+      "sha256": "3416ba269eeb9837b29119f9734008ab30c19d23c7f97453404a93b72cf53b10",
+      "bytes": 597
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/hf.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/hf.json",
+      "sha256": "2a9f7f47c3cac181ba4a2cdf6e0295544073ea1ae4310a0094147156cc7024b4",
+      "bytes": 898
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/hf.log",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/hf.log",
+      "sha256": "8dd9d4b02ff18127a66a92ce8516cfdd31ae27b7983f99583e6251f86e9eef5e",
+      "bytes": 829
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/identity.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/identity.json",
+      "sha256": "03d1d9c2176e5426f2c4b9921fc85cabf8b6149f4f27284d64af1536e235875b",
+      "bytes": 72636
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/modes/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/modes/guard.jsonl",
+      "sha256": "df9e7cfd4aa5a5928c2c8e667f0d9dd431ce543d940edd7ac8af991a985b8859",
+      "bytes": 1350
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/modes/mode_check.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/modes/mode_check.json",
+      "sha256": "3304e017f020d4715f05e503ef605ecc54a38e260ce1f9642545321ed4482b7a",
+      "bytes": 218
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/modes/tokens_L1_loop.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/modes/tokens_L1_loop.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/modes/tokens_L1_loop_no_phase.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/modes/tokens_L1_loop_no_phase.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/modes/tokens_L1_separate.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/modes/tokens_L1_separate.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/modes/tokens_L2_separate.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/modes/tokens_L2_separate.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/modes.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/modes.command.json",
+      "sha256": "017e66b5f70673461ebd70f3ff7908e9dac52969dad61447336af2ae99a4f03a",
+      "bytes": 632
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/modes.log",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/modes.log",
+      "sha256": "120c1c6cdd30ed7043ee2ae39b175e4b74dd2fcc7db8213e45ca84ba403cf110",
+      "bytes": 2684
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/pgid",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn16_tiled/pgid",
+      "sha256": "d435f46a13fd23001ea34da833e9cc2bde829695a28626dd645e4283b220f6e2",
+      "bytes": 8
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/guard.jsonl",
+      "sha256": "905718041f393d778e85bfccb058404422eb868fbca72009c70118922499a40a",
+      "bytes": 7477
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/guard_result.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/guard_result.json",
+      "sha256": "2d512016f7dde2335e0aafc176823404cef455eaa72f7ca23a5f5607c06c48ba",
+      "bytes": 38
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/hf.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/hf.command.json",
+      "sha256": "0c49bd2b8ae8b0a96e58291e765a348a49a20c04681b9557a14744a8f70e2521",
+      "bytes": 591
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/hf.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/hf.json",
+      "sha256": "2a9f7f47c3cac181ba4a2cdf6e0295544073ea1ae4310a0094147156cc7024b4",
+      "bytes": 898
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/hf.log",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/hf.log",
+      "sha256": "c0cc54b3255f51c207bb782943f81a0330a85ab1d349811cc479ea601d384efa",
+      "bytes": 829
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/identity.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/identity.json",
+      "sha256": "2a931ed37656fbdb9565b8431b8cf2c08c114f874c75ca0f93b045cb90a924c0",
+      "bytes": 72556
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/modes/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/modes/guard.jsonl",
+      "sha256": "8a6dc91b7b603d1a0a06664e45b3c72c9800bc9071dc61a5f0f5761852bb3a48",
+      "bytes": 1610
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/modes/mode_check.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/modes/mode_check.json",
+      "sha256": "3304e017f020d4715f05e503ef605ecc54a38e260ce1f9642545321ed4482b7a",
+      "bytes": 218
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/modes/tokens_L1_loop.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/modes/tokens_L1_loop.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/modes/tokens_L1_loop_no_phase.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/modes/tokens_L1_loop_no_phase.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/modes/tokens_L1_separate.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/modes/tokens_L1_separate.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/modes/tokens_L2_separate.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/modes/tokens_L2_separate.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/modes.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/modes.command.json",
+      "sha256": "9ab00e619dddacdc616b391a2a75d5ac93de0dd65d01b28fd604dbbb3cfa6e71",
+      "bytes": 626
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/modes.log",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/modes.log",
+      "sha256": "f506efbb3710e67b47aa3607501f5676e7a2c48acd0d4c07fecae25debe9772d",
+      "bytes": 2696
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/pgid",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_llama_tn8_row/pgid",
+      "sha256": "c2915cc947f7f4c3155e2ad1e943ec17459d66980f93dd83f1c6a5c5f66ee7b1",
+      "bytes": 8
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/guard.jsonl",
+      "sha256": "38aa05112281802b7471fe831b7b3f64885dc83fdf9359a0981a310246fcba66",
+      "bytes": 18306
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/guard_result.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/guard_result.json",
+      "sha256": "2d512016f7dde2335e0aafc176823404cef455eaa72f7ca23a5f5607c06c48ba",
+      "bytes": 38
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/hf.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/hf.command.json",
+      "sha256": "b15a88065dd1361bf306d1bd23b0b1bc9a9a05a5134fda5bd70f1045ceb9eefe",
+      "bytes": 596
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/hf.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/hf.json",
+      "sha256": "4fe7a5c43b197b56c76e5172efb20940bff31f86c0405084d79e6dbf01933b48",
+      "bytes": 897
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/hf.log",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/hf.log",
+      "sha256": "1d89b6de367a6be52a89e942ec42b0cf92f7760b2c0d3d7d19ae1f6ae7a5fde1",
+      "bytes": 917
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/identity.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/identity.json",
+      "sha256": "0d7499ba31317e01fad62c1580fdfe96f46fe2baaf576d8ed90827c0e2aed556",
+      "bytes": 87562
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/modes/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/modes/guard.jsonl",
+      "sha256": "5b9366a54dae483db1813d29bcae16701d364d50431b0ec708aef565c4b6dab8",
+      "bytes": 3296
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/modes/mode_check.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/modes/mode_check.json",
+      "sha256": "3304e017f020d4715f05e503ef605ecc54a38e260ce1f9642545321ed4482b7a",
+      "bytes": 218
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/modes/tokens_L1_loop.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/modes/tokens_L1_loop.json",
+      "sha256": "d0d8d9aa21e8c777c57ed1e88b1e220c3411f1b723bc62d7330b85b906445a5d",
+      "bytes": 4312
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/modes/tokens_L1_loop_no_phase.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/modes/tokens_L1_loop_no_phase.json",
+      "sha256": "d0d8d9aa21e8c777c57ed1e88b1e220c3411f1b723bc62d7330b85b906445a5d",
+      "bytes": 4312
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/modes/tokens_L1_separate.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/modes/tokens_L1_separate.json",
+      "sha256": "d0d8d9aa21e8c777c57ed1e88b1e220c3411f1b723bc62d7330b85b906445a5d",
+      "bytes": 4312
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/modes/tokens_L2_separate.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/modes/tokens_L2_separate.json",
+      "sha256": "d0d8d9aa21e8c777c57ed1e88b1e220c3411f1b723bc62d7330b85b906445a5d",
+      "bytes": 4312
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/modes.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/modes.command.json",
+      "sha256": "7f0056e634add3eeac736f1c8915d50ba0c7573ad6c8356cf0a5c53a2a343e87",
+      "bytes": 631
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/modes.log",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/modes.log",
+      "sha256": "df4545dd72d08d2f039b2b890d40605df2261513497897b9f3f8b0f22ed71440",
+      "bytes": 2716
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/pgid",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn16_tiled/pgid",
+      "sha256": "9c670f447c9fd558016a1d20403f6c2d5edef997cc11a17b07b9d7c8655a0f8f",
+      "bytes": 8
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/guard.jsonl",
+      "sha256": "1e5bba5bbb1523a04502268ee8af767bc200f295154ab1bd43383488da2611a0",
+      "bytes": 10580
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/guard_result.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/guard_result.json",
+      "sha256": "2d512016f7dde2335e0aafc176823404cef455eaa72f7ca23a5f5607c06c48ba",
+      "bytes": 38
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/hf.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/hf.command.json",
+      "sha256": "fa458f453a4dea622e74087648cec6321db1470424a38aba706086ac17f445cf",
+      "bytes": 590
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/hf.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/hf.json",
+      "sha256": "4fe7a5c43b197b56c76e5172efb20940bff31f86c0405084d79e6dbf01933b48",
+      "bytes": 897
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/hf.log",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/hf.log",
+      "sha256": "0a9fbab69cc286ebb982842b1de8e415ccf0f1dc6e28fd42ff8b9ab16e690830",
+      "bytes": 913
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/identity.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/identity.json",
+      "sha256": "c6ed149935ba8fef8b74f42950ce92ff16a9420cff6480c87f7c55b50ee00f64",
+      "bytes": 87434
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/modes/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/modes/guard.jsonl",
+      "sha256": "dd5353317b5383ba44a9a5a7662279d8cd96d0e0728212d3086cf9840e18c4fa",
+      "bytes": 1620
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/modes/mode_check.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/modes/mode_check.json",
+      "sha256": "3304e017f020d4715f05e503ef605ecc54a38e260ce1f9642545321ed4482b7a",
+      "bytes": 218
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/modes/tokens_L1_loop.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/modes/tokens_L1_loop.json",
+      "sha256": "d0d8d9aa21e8c777c57ed1e88b1e220c3411f1b723bc62d7330b85b906445a5d",
+      "bytes": 4312
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/modes/tokens_L1_loop_no_phase.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/modes/tokens_L1_loop_no_phase.json",
+      "sha256": "d0d8d9aa21e8c777c57ed1e88b1e220c3411f1b723bc62d7330b85b906445a5d",
+      "bytes": 4312
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/modes/tokens_L1_separate.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/modes/tokens_L1_separate.json",
+      "sha256": "d0d8d9aa21e8c777c57ed1e88b1e220c3411f1b723bc62d7330b85b906445a5d",
+      "bytes": 4312
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/modes/tokens_L2_separate.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/modes/tokens_L2_separate.json",
+      "sha256": "d0d8d9aa21e8c777c57ed1e88b1e220c3411f1b723bc62d7330b85b906445a5d",
+      "bytes": 4312
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/modes.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/modes.command.json",
+      "sha256": "2bb091f0d94a2e9bb738207d14fb841870bc685c8131151085540007d2ec1db0",
+      "bytes": 625
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/modes.log",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/modes.log",
+      "sha256": "3579ec0647a68a60f66a3d6e10d5635492f1fdb4658730822c19c14a1ba83933",
+      "bytes": 2724
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/pgid",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_narrow_qwen3_tn8_row/pgid",
+      "sha256": "70659ba9669111efefa4d04260369c16cf31984b4044d6c329fe7859835f3b71",
+      "bytes": 8
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead/result.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead/result.json",
+      "sha256": "7c70f7451e86ea026a96a01ed39681de59ac12563ebb216d85ca8d878b8de096",
+      "bytes": 1132
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/guard.jsonl",
+      "sha256": "67862aabdaaced5ddf62ac4514246df5cc749512608edb971fd7e364f6ad90ad",
+      "bytes": 40658
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/guard_result.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/guard_result.json",
+      "sha256": "2d512016f7dde2335e0aafc176823404cef455eaa72f7ca23a5f5607c06c48ba",
+      "bytes": 38
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/command.json",
+      "sha256": "42b1e018f5a86403fee82697ee5d3f129fe0b47ada7a23dc8a82aa1451195b39",
+      "bytes": 964
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/guard.jsonl",
+      "sha256": "a0f5505f82c19f27272cc67492878dbeea6d68eddaedd85d4d1cd301ee6736c5",
+      "bytes": 88398
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/measurements.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/measurements.json",
+      "sha256": "036bea56b211842e35ceeda016f08691a33572f8ed114e2dc73c359968e22ac1",
+      "bytes": 95376
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/stderr.txt",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/stderr.txt",
+      "sha256": "4dbb5a74ef17875bfac85372032f009c2e6f5e209e7bf28c416d919f12f95e95",
+      "bytes": 284
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/stdout.txt",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/stdout.txt",
+      "sha256": "611044512bd037577d151dace3fb5ba03a2c3bb6a44b8145b0e951929f1e7b0a",
+      "bytes": 3104
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/step_times.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/step_times.tsv",
+      "sha256": "091870af2a1e5de374a5eabdc4f0637f9d1118be3092245411c8f6f6c0794aed",
+      "bytes": 17147
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/tokens_N1024_run0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/tokens_N1024_run0.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/tokens_N1024_run1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/tokens_N1024_run1.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/tokens_N1_run0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/tokens_N1_run0.json",
+      "sha256": "9ac72327ff9d7fbd7a81c384461b05d074ee99d9be0a065f7e8df066515fc227",
+      "bytes": 7
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/tokens_N1_run1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/baseline/round0/tokens_N1_run1.json",
+      "sha256": "9ac72327ff9d7fbd7a81c384461b05d074ee99d9be0a065f7e8df066515fc227",
+      "bytes": 7
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/round0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/round0.json",
+      "sha256": "7e3ed08c7537950ec39853fd1fb36201aeb512f70f4c657203f2281146075ddf",
+      "bytes": 339107
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/command.json",
+      "sha256": "45935ea757ab933374385a4a6b1e60289c81fe711e55e94ac4db3f0c4822e83a",
+      "bytes": 958
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/guard.jsonl",
+      "sha256": "9729db632196e17de42b9edd6881bc16d5004fcb76b2f71e94bd4fea025f142d",
+      "bytes": 32712
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/measurements.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/measurements.json",
+      "sha256": "f30d8cfc0047c0f8b6e7be389a4e5e5dfb88114099790c67e0cac3815b1d9118",
+      "bytes": 95330
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/stderr.txt",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/stderr.txt",
+      "sha256": "4dbb5a74ef17875bfac85372032f009c2e6f5e209e7bf28c416d919f12f95e95",
+      "bytes": 284
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/stdout.txt",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/stdout.txt",
+      "sha256": "976b3390f91d272ac688f6d6410ec95f8a10cd63aa1e8de587325aab3082d6ef",
+      "bytes": 3103
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/step_times.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/step_times.tsv",
+      "sha256": "af16ab2d52000c492028a05374cda927d2996c47d74db32a54ea711fd1cef586",
+      "bytes": 17152
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/tokens_N1024_run0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/tokens_N1024_run0.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/tokens_N1024_run1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/tokens_N1024_run1.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/tokens_N1_run0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/tokens_N1_run0.json",
+      "sha256": "9ac72327ff9d7fbd7a81c384461b05d074ee99d9be0a065f7e8df066515fc227",
+      "bytes": 7
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/tokens_N1_run1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/stage/round0/tokens_N1_run1.json",
+      "sha256": "9ac72327ff9d7fbd7a81c384461b05d074ee99d9be0a065f7e8df066515fc227",
+      "bytes": 7
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/command.json",
+      "sha256": "e35be732e6b01d553b042c5e56599f7a4ef3fc6dbfc42c21fc0a970572ca491f",
+      "bytes": 956
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/guard.jsonl",
+      "sha256": "ec7b4139279f30c93d82aa6d3d0116396b9155d39cf7fd128643274aa24f87a7",
+      "bytes": 16968
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/measurements.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/measurements.json",
+      "sha256": "386945f3bcb7df94f8d285aabd97fa910cc246ccc4bd7c12ae411e26843ba61a",
+      "bytes": 95316
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/stderr.txt",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/stderr.txt",
+      "sha256": "4dbb5a74ef17875bfac85372032f009c2e6f5e209e7bf28c416d919f12f95e95",
+      "bytes": 284
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/stdout.txt",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/stdout.txt",
+      "sha256": "ddcca1e28239ea4f9bde9047099ac0f4884fbf4b4fd47242ae12de93d13aa158",
+      "bytes": 3103
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/step_times.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/step_times.tsv",
+      "sha256": "7f401a91dd7d199899dfa18c3f78cc98ef76f16fa40d834a5d03f32d4116545c",
+      "bytes": 17170
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/tokens_N1024_run0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/tokens_N1024_run0.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/tokens_N1024_run1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/tokens_N1024_run1.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/tokens_N1_run0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/tokens_N1_run0.json",
+      "sha256": "9ac72327ff9d7fbd7a81c384461b05d074ee99d9be0a065f7e8df066515fc227",
+      "bytes": 7
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/tokens_N1_run1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/llama_B1/task/round0/tokens_N1_run1.json",
+      "sha256": "9ac72327ff9d7fbd7a81c384461b05d074ee99d9be0a065f7e8df066515fc227",
+      "bytes": 7
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/pgid",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r0/pgid",
+      "sha256": "ee86f2328eaa013906a4a271bdd3ead9a7fed432e43afd6eea4f945c38f10a7d",
+      "bytes": 8
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/guard.jsonl",
+      "sha256": "af6094e845d443b6130afefd53fa8fbe7513988ad4dd57383a285127a65a74c0",
+      "bytes": 27282
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/guard_result.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/guard_result.json",
+      "sha256": "2d512016f7dde2335e0aafc176823404cef455eaa72f7ca23a5f5607c06c48ba",
+      "bytes": 38
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/command.json",
+      "sha256": "c274cb6027ebd78530b364bfb675354a3a96bcd7ac66325607ac337d19e9b833",
+      "bytes": 964
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/guard.jsonl",
+      "sha256": "2769f16d0579a6bdf397e67cde408ae65a5747eaeaccdc46496e16a40234fd76",
+      "bytes": 16713
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/measurements.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/measurements.json",
+      "sha256": "a3ae6749f35eed24365332ec538957b8172ff5a2fa9b6856945e573803fcf2bf",
+      "bytes": 95429
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/stderr.txt",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/stderr.txt",
+      "sha256": "4dbb5a74ef17875bfac85372032f009c2e6f5e209e7bf28c416d919f12f95e95",
+      "bytes": 284
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/stdout.txt",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/stdout.txt",
+      "sha256": "3f1a8e0bbf8b6f9d49a6547ea848c3058abfed5e0dff8e2fe6a9a19ae9c4b5e4",
+      "bytes": 3103
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/step_times.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/step_times.tsv",
+      "sha256": "0942d9fa05a43cf731110df45133dd5f2799f4ab9105f0d255b8c739cb132717",
+      "bytes": 17159
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/tokens_N1024_run0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/tokens_N1024_run0.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/tokens_N1024_run1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/tokens_N1024_run1.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/tokens_N1_run0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/tokens_N1_run0.json",
+      "sha256": "9ac72327ff9d7fbd7a81c384461b05d074ee99d9be0a065f7e8df066515fc227",
+      "bytes": 7
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/tokens_N1_run1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/baseline/round1/tokens_N1_run1.json",
+      "sha256": "9ac72327ff9d7fbd7a81c384461b05d074ee99d9be0a065f7e8df066515fc227",
+      "bytes": 7
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/round1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/round1.json",
+      "sha256": "8f78da15c1954cffdada84fcc2f119db756e9324120ac8dc6f45ee16513693a7",
+      "bytes": 339303
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/command.json",
+      "sha256": "34c3ad7d5891b033d8686508db98b7891983ae124a987d081cb04e7ac192ca09",
+      "bytes": 958
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/guard.jsonl",
+      "sha256": "af645f3ff4623cb43e8091c6ae8b2e1298468d2781a1f3d305bf1c5e176e0a2e",
+      "bytes": 54188
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/measurements.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/measurements.json",
+      "sha256": "5c3d234960cb288e574cef9a8f9742f62b0dbbca507a919310234cb346886689",
+      "bytes": 95413
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/stderr.txt",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/stderr.txt",
+      "sha256": "4dbb5a74ef17875bfac85372032f009c2e6f5e209e7bf28c416d919f12f95e95",
+      "bytes": 284
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/stdout.txt",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/stdout.txt",
+      "sha256": "a1660b74230c094bef459f5650a8f5ec0c41e3287edb435a5bae5112f72a37a3",
+      "bytes": 3105
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/step_times.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/step_times.tsv",
+      "sha256": "7c43f5dfde9d82a42eecc15d51e27b6977edc7b65c26b53df34c9f4a32f9f5e6",
+      "bytes": 17113
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/tokens_N1024_run0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/tokens_N1024_run0.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/tokens_N1024_run1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/tokens_N1024_run1.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/tokens_N1_run0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/tokens_N1_run0.json",
+      "sha256": "9ac72327ff9d7fbd7a81c384461b05d074ee99d9be0a065f7e8df066515fc227",
+      "bytes": 7
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/tokens_N1_run1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/stage/round1/tokens_N1_run1.json",
+      "sha256": "9ac72327ff9d7fbd7a81c384461b05d074ee99d9be0a065f7e8df066515fc227",
+      "bytes": 7
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/command.json",
+      "sha256": "683d3aa22d2922306614c464bb17b12547dc8800baea94e73b16869a3ccf55f5",
+      "bytes": 956
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/guard.jsonl",
+      "sha256": "82632c25848e5de928058e2c158f2476ea5e0d9065f84edceadc9b36149bb9d9",
+      "bytes": 16818
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/measurements.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/measurements.json",
+      "sha256": "2555b770c3fc5c22f98a6627ad993e12c91c2e2bab086a58377b22a169f28765",
+      "bytes": 95376
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/stderr.txt",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/stderr.txt",
+      "sha256": "4dbb5a74ef17875bfac85372032f009c2e6f5e209e7bf28c416d919f12f95e95",
+      "bytes": 284
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/stdout.txt",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/stdout.txt",
+      "sha256": "3d2c54c5de9134131a88fa056f5196dcc1e75660e7b27d49460d3c0e8b8ab84f",
+      "bytes": 3099
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/step_times.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/step_times.tsv",
+      "sha256": "4e49d6dcff522fe3438ba13b2593becf6e4b2be70629804a3a501ead7779f647",
+      "bytes": 17195
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/tokens_N1024_run0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/tokens_N1024_run0.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/tokens_N1024_run1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/tokens_N1024_run1.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/tokens_N1_run0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/tokens_N1_run0.json",
+      "sha256": "9ac72327ff9d7fbd7a81c384461b05d074ee99d9be0a065f7e8df066515fc227",
+      "bytes": 7
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/tokens_N1_run1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/llama_B1/task/round1/tokens_N1_run1.json",
+      "sha256": "9ac72327ff9d7fbd7a81c384461b05d074ee99d9be0a065f7e8df066515fc227",
+      "bytes": 7
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/pgid",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r1/pgid",
+      "sha256": "ac2a24cb7d47a83ddbc1620b8fc124813a7374747bde5721dfeffbfd9bc708a5",
+      "bytes": 8
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/guard.jsonl",
+      "sha256": "64cb40dbdb02e3dfa914550ff878af4eabd9ca61f275d6f61d430fd65db68827",
+      "bytes": 16493
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/guard_result.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/guard_result.json",
+      "sha256": "2d512016f7dde2335e0aafc176823404cef455eaa72f7ca23a5f5607c06c48ba",
+      "bytes": 38
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/command.json",
+      "sha256": "42eb427407d6338dfe40bb5ac379d2e2417030af39b48ae22e008875d6ee8f84",
+      "bytes": 964
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/guard.jsonl",
+      "sha256": "32136ffa167df1540550db3b8d53efd5dfd5a64edfb801782e2722c6038619de",
+      "bytes": 16706
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/measurements.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/measurements.json",
+      "sha256": "ef73f56e0de313e5ce8b3160742cf98050e270626ed9b8ca7fe968246938b7d8",
+      "bytes": 95403
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/stderr.txt",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/stderr.txt",
+      "sha256": "4dbb5a74ef17875bfac85372032f009c2e6f5e209e7bf28c416d919f12f95e95",
+      "bytes": 284
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/stdout.txt",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/stdout.txt",
+      "sha256": "3e79bdbefbc16b88f0081191cef47b7e2537e71e1bcdb6612dc00a9893976739",
+      "bytes": 3103
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/step_times.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/step_times.tsv",
+      "sha256": "890e6b52f01264ca537a4ef870aeb8410d9c194cf3b23523b17eb67ba0c9edfd",
+      "bytes": 17186
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/tokens_N1024_run0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/tokens_N1024_run0.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/tokens_N1024_run1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/tokens_N1024_run1.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/tokens_N1_run0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/tokens_N1_run0.json",
+      "sha256": "9ac72327ff9d7fbd7a81c384461b05d074ee99d9be0a065f7e8df066515fc227",
+      "bytes": 7
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/tokens_N1_run1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/baseline/round2/tokens_N1_run1.json",
+      "sha256": "9ac72327ff9d7fbd7a81c384461b05d074ee99d9be0a065f7e8df066515fc227",
+      "bytes": 7
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/round2.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/round2.json",
+      "sha256": "63b4259c4251f45b58de5b93a7c17d551b6743495fe1f09088cd95da75d3d4b6",
+      "bytes": 339197
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/command.json",
+      "sha256": "559eef5c55aeaca9da63fea109b51113978f1cab06ccdbef580a693a970b5001",
+      "bytes": 958
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/guard.jsonl",
+      "sha256": "52274c9ccea0a49609de07838331f3fb08171f5f48174a4b81f3a2fc9b329a3f",
+      "bytes": 16943
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/measurements.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/measurements.json",
+      "sha256": "ea2211952d0ac05ddb4a644eb4f7e9930eb4a105b8915ccd2f1bdd06301e13b5",
+      "bytes": 95326
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/stderr.txt",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/stderr.txt",
+      "sha256": "4dbb5a74ef17875bfac85372032f009c2e6f5e209e7bf28c416d919f12f95e95",
+      "bytes": 284
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/stdout.txt",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/stdout.txt",
+      "sha256": "18f3e43e223ea8f56b706023703f4948be1be82e28d82a1b9d3d12c6a7e75a68",
+      "bytes": 3101
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/step_times.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/step_times.tsv",
+      "sha256": "18a2cd1b00bac883ac372dbb0fc9577c1bfc1a67e65303ba1846e25ade01354f",
+      "bytes": 17109
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/tokens_N1024_run0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/tokens_N1024_run0.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/tokens_N1024_run1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/tokens_N1024_run1.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/tokens_N1_run0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/tokens_N1_run0.json",
+      "sha256": "9ac72327ff9d7fbd7a81c384461b05d074ee99d9be0a065f7e8df066515fc227",
+      "bytes": 7
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/tokens_N1_run1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/stage/round2/tokens_N1_run1.json",
+      "sha256": "9ac72327ff9d7fbd7a81c384461b05d074ee99d9be0a065f7e8df066515fc227",
+      "bytes": 7
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/command.json",
+      "sha256": "c4a963dc98615bec13ade63c836a5ee8c3c57195803e9587d04614d99cc7738f",
+      "bytes": 956
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/guard.jsonl",
+      "sha256": "8ec9ad02b93f3a56c3c8112ae6aea882a7195b3e4a1b08dd7d36227ed02414a5",
+      "bytes": 18471
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/measurements.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/measurements.json",
+      "sha256": "1c34e532fb396899d39a1ec842097d593a8ae74aaecc69a798275906b5b9172d",
+      "bytes": 95383
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/stderr.txt",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/stderr.txt",
+      "sha256": "4dbb5a74ef17875bfac85372032f009c2e6f5e209e7bf28c416d919f12f95e95",
+      "bytes": 284
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/stdout.txt",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/stdout.txt",
+      "sha256": "5d5b003502c94505a5d60190b0d5f47b3730ce5723dfc22f7d23e447cc1896eb",
+      "bytes": 3102
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/step_times.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/step_times.tsv",
+      "sha256": "da033b2aa3a6bb70ba186487b0c86d4baec51c4c60d4c7bda2306db4d0afe982",
+      "bytes": 17150
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/tokens_N1024_run0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/tokens_N1024_run0.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/tokens_N1024_run1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/tokens_N1024_run1.json",
+      "sha256": "28978378ef4fef9c282fc8e0005c8eb4e03059f5656b0dccf7ec127f844cd17f",
+      "bytes": 4399
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/tokens_N1_run0.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/tokens_N1_run0.json",
+      "sha256": "9ac72327ff9d7fbd7a81c384461b05d074ee99d9be0a065f7e8df066515fc227",
+      "bytes": 7
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/tokens_N1_run1.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/llama_B1/task/round2/tokens_N1_run1.json",
+      "sha256": "9ac72327ff9d7fbd7a81c384461b05d074ee99d9be0a065f7e8df066515fc227",
+      "bytes": 7
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/pgid",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_overhead_r2/pgid",
+      "sha256": "b271deeb7d9756f9b5f106353d7ee92f605faa443d6b307692922b4bd1cbc425",
+      "bytes": 8
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_preflight/fingerprint.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_preflight/fingerprint.command.json",
+      "sha256": "f216fdbb0112cfb8418c758d5e82d875b9fecd29cbcb8aaa1ae9b148c9e83294",
+      "bytes": 153
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_preflight/fingerprint.log",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_preflight/fingerprint.log",
+      "sha256": "c0622523adc280dda2a4f76be20e354d64bd58f80bdedd4b9bd604caa305ee8a",
+      "bytes": 89
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_preflight/result.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_preflight/result.json",
+      "sha256": "3f3f9762e93f8b7a6b52efac8b38784e970882ca018666e7ae8bf59c2b3e4eb1",
+      "bytes": 48
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/guard.jsonl",
+      "sha256": "17de98d7c3e6b08fbd15f96df50c976e613fd6255c7d0e357d844620a8101962",
+      "bytes": 3256
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/guard_result.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/guard_result.json",
+      "sha256": "2d512016f7dde2335e0aafc176823404cef455eaa72f7ca23a5f5607c06c48ba",
+      "bytes": 38
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/pgid",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/pgid",
+      "sha256": "374448dba58cbca9418b33ba9291f093a4039bb29fd86ee9bc992fa6a87e6efd",
+      "bytes": 8
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past1000/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past1000/guard.jsonl",
+      "sha256": "02e22d74e8159de258223a19d4b2ab2e48efa6476ab72bca85cb406535e8a56f",
+      "bytes": 291
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past1000/runtime_stages.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past1000/runtime_stages.tsv",
+      "sha256": "92a486b70fe2c50e326feb3df3e432d642121b72e81ee732138ccc11362769c4",
+      "bytes": 6374
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past1000/stage_trace.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past1000/stage_trace.tsv",
+      "sha256": "aed8386b9ba3248755f1f64880ea7a019279a071b14d31fa86b59769dc7a1413",
+      "bytes": 15927301
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past1000/trace.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past1000/trace.json",
+      "sha256": "2341b6ae12e2f54cf2cf87302113ed9c72483fbc79da7c6bb86d8484fb0c3de1",
+      "bytes": 578
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past575/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past575/guard.jsonl",
+      "sha256": "94176f5567e0c6b439253030a3a550b3c2ed3e0f446878d0e97756de6cba63fa",
+      "bytes": 289
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past575/runtime_stages.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past575/runtime_stages.tsv",
+      "sha256": "92a486b70fe2c50e326feb3df3e432d642121b72e81ee732138ccc11362769c4",
+      "bytes": 6374
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past575/stage_trace.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past575/stage_trace.tsv",
+      "sha256": "5124acc9e4e8a0bd99f40909e973b6b0e838bd8ca69589f63bf4d02c15c41387",
+      "bytes": 15724549
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past575/trace.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past575/trace.json",
+      "sha256": "ef15dcac1e66f2ba68d39f11f93d7ec61031800618afa6f4a2bfc730a65cdaa7",
+      "bytes": 578
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past64/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past64/guard.jsonl",
+      "sha256": "fcf6528cd9a05c788d736662962c680085e7060ab3b3c0fbc4250a881303af11",
+      "bytes": 287
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past64/runtime_stages.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past64/runtime_stages.tsv",
+      "sha256": "92a486b70fe2c50e326feb3df3e432d642121b72e81ee732138ccc11362769c4",
+      "bytes": 6374
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past64/stage_trace.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past64/stage_trace.tsv",
+      "sha256": "c15c507f5166c76b74e9f063ae9d80534ddda49813f43c2763fdfb5f338421e2",
+      "bytes": 15521797
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past64/trace.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/past64/trace.json",
+      "sha256": "e2f5cc8f2a03e44acdd7255d939008bd48cc3a5e55b3f27690ef7150b5ba1db9",
+      "bytes": 577
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/run.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/run.command.json",
+      "sha256": "6b0226bfa4864934c91ba3cfe89447727a3477a8144560d0307023c2f2c18afb",
+      "bytes": 601
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/run.log",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/stage/run.log",
+      "sha256": "b17d8079d62b4c52b7252b462d19ecae972c87eb37154ff80d9c0d04853fc21d",
+      "bytes": 3426
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past1000/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past1000/guard.jsonl",
+      "sha256": "848fa622957ba7ad37bacb459c75c510de86fd248ee3729223186dd768da64cd",
+      "bytes": 290
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past1000/runtime_stages.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past1000/runtime_stages.tsv",
+      "sha256": "92a486b70fe2c50e326feb3df3e432d642121b72e81ee732138ccc11362769c4",
+      "bytes": 6374
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past1000/summary.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past1000/summary.json",
+      "sha256": "cc77bf33385371a6331679a44285ae704a5aca97f6ac4f533c9fdb24c00d6a1c",
+      "bytes": 5159756
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past1000/task_profile.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past1000/task_profile.tsv",
+      "sha256": "c6e0ccd30857b3b5302ee5d712ddc78a56499908d7016257a54a50b8ac098ccd",
+      "bytes": 1507769
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past1000/trace.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past1000/trace.json",
+      "sha256": "03e8e41eb28b2c0d4882ad2b9b01388913d42fed60e1836c29945b07e5993029",
+      "bytes": 579
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past575/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past575/guard.jsonl",
+      "sha256": "3868e30cd89769bd2b99b8d64093286e7b3fd4661f2e292f46b6325973e77905",
+      "bytes": 291
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past575/runtime_stages.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past575/runtime_stages.tsv",
+      "sha256": "92a486b70fe2c50e326feb3df3e432d642121b72e81ee732138ccc11362769c4",
+      "bytes": 6374
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past575/summary.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past575/summary.json",
+      "sha256": "70bda5b15d8e73e189bb3b03a944da046f2da1a6ff33b2dafef6e2f495557afe",
+      "bytes": 5116879
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past575/task_profile.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past575/task_profile.tsv",
+      "sha256": "a9d7bc34450044eb652b57ebe8f886b52e21c60f74659f6448398aac6badab38",
+      "bytes": 1473183
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past575/trace.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past575/trace.json",
+      "sha256": "1b1ae71ce1b0e4c0fa7f783ef0af5f9d51bdad825837d2124bb2f467aa6a58c4",
+      "bytes": 578
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past64/guard.jsonl",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past64/guard.jsonl",
+      "sha256": "a65dee92103c4414994e238922153235aa8bb96a4fd95358194972d25f55da63",
+      "bytes": 286
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past64/runtime_stages.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past64/runtime_stages.tsv",
+      "sha256": "92a486b70fe2c50e326feb3df3e432d642121b72e81ee732138ccc11362769c4",
+      "bytes": 6374
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past64/summary.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past64/summary.json",
+      "sha256": "29fef9e360aa3727812fcea8ecf04310f83ebf1056ae019e60aace7c1123323b",
+      "bytes": 5055192
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past64/task_profile.tsv",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past64/task_profile.tsv",
+      "sha256": "e0c1c962663d37bf2a684973f399dea36be13e66807d5da1e9d1b9dbe2d0c4ec",
+      "bytes": 1430729
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past64/trace.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/past64/trace.json",
+      "sha256": "aaa96b80d9807151ab8e12e65466d6d9d46c997820acbbd84ec0a685890c72b1",
+      "bytes": 577
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/run.command.json",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/run.command.json",
+      "sha256": "4f36c68c16de4a85472d14e334c0b738e111af1b6ff85f4515e44590a96b1ddf",
+      "bytes": 598
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/run.log",
+      "member": "docs/experiments/SERVING_R14/raw/R14_remaining_trace/task/run.log",
+      "sha256": "1aec8a35ae464f10a294d7e9844a17795f0795ed4ce202f43576886d1af3d2da",
+      "bytes": 3427
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/raw/closure_20261010/stop.json",
+      "member": "docs/experiments/SERVING_R14/raw/closure_20261010/stop.json",
+      "sha256": "29d1d290569645afeab34a517208053346f89fc5067d0339eb0cab0d65b7c6b2",
+      "bytes": 30302
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_analyze.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_analyze.cancelled",
+      "sha256": "4f4e3daa464ed0ab1f358750a4b1a9c50e39273e4cfa9b4b9a7289392d291e94",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_build_llama.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_build_llama.cancelled",
+      "sha256": "8e448fc943841103fc209d48b0c4e6ae701e1754822095b6f2b430856486a66e",
+      "bytes": 306
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_build_llama.log",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_build_llama.log",
+      "sha256": "6d686158d17cd115e23408fed3ea58e1afbf56204b5325645d68cc9c58b5a31e",
+      "bytes": 632
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_build_llama.pending",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_build_llama.pending",
+      "sha256": "340a6115947715c1cd6b407a7fa62818d9fa2df344e6285de427bd58525f7c6c",
+      "bytes": 191
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_build_qwen3.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_build_qwen3.cancelled",
+      "sha256": "e091944a2dd79be6fef90828c0e5dd1eaa8c5c911ed3cb9246307f81e1ad60b2",
+      "bytes": 307
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_build_qwen3.log",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_build_qwen3.log",
+      "sha256": "c2e32e2e450da055919d5737edadc6962ab2f29a50229cc4b701dc8bc02a8bee",
+      "bytes": 496
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_build_qwen3.pending",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_build_qwen3.pending",
+      "sha256": "7fc210510496fcca7ba74ce55a599b9b738252837ecfaf2759ed071ce9b979bd",
+      "bytes": 192
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_c1_llama_B1.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_c1_llama_B1.cancelled",
+      "sha256": "f780cd64f8a2eaca3d7b6fea2808aae28ece03f7b5fbead2ba69cd3a5dc7df7d",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_c1_llama_B16.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_c1_llama_B16.cancelled",
+      "sha256": "ceafc84d4e4388d2e4207bb4e37e9fa79278ebddf060e52543e988b639e03780",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_c1_qwen3_B1.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_c1_qwen3_B1.cancelled",
+      "sha256": "ac096fb1ff54ea48c55eb84401f64cd6d9dc424bc8d170f46d6dd45b59319058",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_c1_qwen3_B16.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_c1_qwen3_B16.cancelled",
+      "sha256": "617bb01a3ca8a3848fc255ee6d868e4b21ddf4978be4a4a652d528ce7dde5300",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_c2_llama_B1.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_c2_llama_B1.cancelled",
+      "sha256": "0efd0a9a541944334c46f0327e43219884270469461ebcc0ca83e229a949e2d9",
+      "bytes": 198
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_c2_llama_B16.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_c2_llama_B16.cancelled",
+      "sha256": "8b13ff88ced545b5919c74f68c816ac632da52c344e646fd69d01875e04db182",
+      "bytes": 198
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_c2_qwen3_B1.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_c2_qwen3_B1.cancelled",
+      "sha256": "7690a3ae46267267d986740f37222138fe70b18fda7f31d0203ebf1332ec149e",
+      "bytes": 198
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_c2_qwen3_B16.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_c2_qwen3_B16.cancelled",
+      "sha256": "4ba236aff562641041bf69ddb22c6955e2ca9bb625b76911ab3c5e8b376f54f7",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_calibrate.done",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_calibrate.done",
+      "sha256": "e99a5160f1ba321bcaaefd49a42e7a71f015d79cd6686d8402aab8ef7da7a3e2",
+      "bytes": 187
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_calibrate.log",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_calibrate.log",
+      "sha256": "a4d9df3d8405955e14b11d8262adb5ad643f0e37f39ac9e0f5c37880aed440d5",
+      "bytes": 5378
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_calibrate.pending",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_calibrate.pending",
+      "sha256": "75a653665decf6e4c476af7c4eaed3698ee49e7c2b35d64583d5aeb64cbfc384",
+      "bytes": 190
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_canary_llama_B1.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_canary_llama_B1.cancelled",
+      "sha256": "799656800e6fee238cbdfde5132d50a9830e8735a384e9fcede3640cbfcaf720",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_canary_llama_B16.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_canary_llama_B16.cancelled",
+      "sha256": "1dce05c53d635241b518c18eab05ae0e065cb0ae56bcdea4e589c212beaa62ff",
+      "bytes": 198
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_canary_qwen3_B1.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_canary_qwen3_B1.cancelled",
+      "sha256": "9b87fab06eb1179e6c4959b0def01377ac8e3ebd6348c80e4c2ec76804573aad",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_canary_qwen3_B16.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_canary_qwen3_B16.cancelled",
+      "sha256": "5e5aa3396c3be3eea3f3b7f0ce196222a6a8a47dfbc7e62d8d6acb9bdd236140",
+      "bytes": 198
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_llama_B16_r0.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_llama_B16_r0.cancelled",
+      "sha256": "b2d19ee98627b76949455866ea1fd6c9bc50105d44f4629d8d9a07025341cbe5",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_llama_B16_r1.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_llama_B16_r1.cancelled",
+      "sha256": "f486a0dce1e98114352baee96e611a77cb533423f5bbbbbe681d885ee2ad2743",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_llama_B16_r2.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_llama_B16_r2.cancelled",
+      "sha256": "fb51ada4ffc2aa3cc537bacdbeb57ab8fa5411cca71b16d46171eacb7725e697",
+      "bytes": 198
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_llama_B1_r0.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_llama_B1_r0.cancelled",
+      "sha256": "9530bea24b62c11a39badc70a11c6bcee0d01b911f3b7424f84bc88bfbd5b5c8",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_llama_B1_r1.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_llama_B1_r1.cancelled",
+      "sha256": "47b41403091e235c297d13663014cb15b767e5bb2a9bb229649ad17124ec4869",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_llama_B1_r2.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_llama_B1_r2.cancelled",
+      "sha256": "d51331afee0f2696809c22ef002994b5731554d7a965a6658c9ff55ca3df1a4e",
+      "bytes": 198
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_qwen3_B16_r0.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_qwen3_B16_r0.cancelled",
+      "sha256": "6ca46f0d89e27c576443617f8a1d6994770504a3235282916b772b10ccd1c43c",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_qwen3_B16_r1.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_qwen3_B16_r1.cancelled",
+      "sha256": "88e8cee0c0548ec91d1eec7853f9d94e5fb696eac0993bd0bc45da56b9af13d3",
+      "bytes": 198
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_qwen3_B16_r2.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_qwen3_B16_r2.cancelled",
+      "sha256": "31d43e1a2f2cfce280e18c376c9fce2cdabf79eac18eec032f5a8d4593a43c7a",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_qwen3_B1_r0.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_qwen3_B1_r0.cancelled",
+      "sha256": "605c3953e959ebd1dc4b7806f0f1cdbcdbd88b57df6a6ee0465049bfcdeb2ea8",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_qwen3_B1_r1.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_qwen3_B1_r1.cancelled",
+      "sha256": "a0098b9370a8bc8eec67f60839e970f7d3606e124ed257cbec3137907f510eb3",
+      "bytes": 198
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_qwen3_B1_r2.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_d2_qwen3_B1_r2.cancelled",
+      "sha256": "9ef6be324ac1c28af9f29a3872ed1bbc0af938b933b87388ee6e4d4f43b7f90b",
+      "bytes": 198
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_family_llama.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_family_llama.cancelled",
+      "sha256": "ef94424524d63e7760511901dca08e06dd6c40d09aceb84a1863d2001561340a",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_family_qwen3.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_family_qwen3.cancelled",
+      "sha256": "37b83fce711d3aa4130aba920cd7a3c256fd607f93ee27fc2506120ae45e0d72",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_llama_tn16_tiled.done",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_llama_tn16_tiled.done",
+      "sha256": "aa2af1d69bfba9945eb2938818ee72789a1f0a693850a3714c4cba19239b29d0",
+      "bytes": 187
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_llama_tn16_tiled.log",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_llama_tn16_tiled.log",
+      "sha256": "d3004bb696b7300248d6164e7a50564847c5b44265b882109a6d9dada59f1046",
+      "bytes": 92
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_llama_tn16_tiled.pending",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_llama_tn16_tiled.pending",
+      "sha256": "456f0cc1379f48ab704df0ab01342267abe6472ae1d9008bb3e8a895888335b0",
+      "bytes": 191
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_llama_tn8_row.done",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_llama_tn8_row.done",
+      "sha256": "ca08a8432d33f58cdb551c4b6d0a15408fef60210d8b4ab1ce6337ad76a2b711",
+      "bytes": 187
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_llama_tn8_row.log",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_llama_tn8_row.log",
+      "sha256": "802115f94948edffcc92a37b43e58367a3204d178b109d08e2e8bf388c0d0df5",
+      "bytes": 334
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_llama_tn8_row.pending",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_llama_tn8_row.pending",
+      "sha256": "71b481df810695d75dc14055d63f87b836e93fbf68f09b56e617059f539cbde1",
+      "bytes": 192
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_qwen3_tn16_tiled.done",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_qwen3_tn16_tiled.done",
+      "sha256": "94372af0ad38a98f0a28dc2a88ff77cb827b6a181ab71d382779c9da3e1a0da2",
+      "bytes": 188
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_qwen3_tn16_tiled.log",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_qwen3_tn16_tiled.log",
+      "sha256": "940d18351a875c4dd04c3c2e427575f9cc3b7d1bd66665153185b962571b67f4",
+      "bytes": 1181
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_qwen3_tn16_tiled.pending",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_qwen3_tn16_tiled.pending",
+      "sha256": "90c1cf7795b672cca9508813d791daaa7ae1df76f11253caf57ab80b3f9bda14",
+      "bytes": 193
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_qwen3_tn8_row.done",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_qwen3_tn8_row.done",
+      "sha256": "faefc432848196bc711a0f62aa2ded3bcf0c6b58a76bff4f173f40f36164a484",
+      "bytes": 187
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_qwen3_tn8_row.log",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_qwen3_tn8_row.log",
+      "sha256": "cff9a8028bbcb3165ce43b83bd7662b12e339c1502f41e228672848b7c71161f",
+      "bytes": 535
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_qwen3_tn8_row.pending",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_narrow_qwen3_tn8_row.pending",
+      "sha256": "1324588abf01a877dd2b06a9103fc7b2cb68958d829b81fef1bc644cb2cb385d",
+      "bytes": 191
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead.done",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead.done",
+      "sha256": "11acb5151cc80eda58aad82610c56e817ed69e12bbc22d4c657fdce7498e03e4",
+      "bytes": 170
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead.log",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead.log",
+      "sha256": "c45fb45eb5074e1ee67192a3594458753db0f3851f7b07bbc4998e32ed484d4b",
+      "bytes": 30
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead_r0.done",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead_r0.done",
+      "sha256": "6967ec763dca1cf02006cdffc385904988c9b7ff51de185781d91eafd396e24e",
+      "bytes": 189
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead_r0.log",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead_r0.log",
+      "sha256": "69b50839600a8a6060f7dc7c720c13ca1ab1d9794cc4b4520e86fbf283c409a4",
+      "bytes": 1122
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead_r0.pending",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead_r0.pending",
+      "sha256": "4cb2a6d361009c61d9bad25251090e4d91d251881768602c2f629737d8c40a60",
+      "bytes": 192
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead_r1.done",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead_r1.done",
+      "sha256": "cd516e70dee51e658879e713ae7574b7d535912fe21d10c9c06449d4ac55a728",
+      "bytes": 187
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead_r1.log",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead_r1.log",
+      "sha256": "feeceede770cb8a3e2c199c78030e1ba062a5c3a5e2cf06acd72e0dc5825f04a",
+      "bytes": 710
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead_r1.pending",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead_r1.pending",
+      "sha256": "5ebd668c241da8676cddc20d013563b3189d1fa84d4ab3d59c9a90fdb0aab51a",
+      "bytes": 192
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead_r2.done",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead_r2.done",
+      "sha256": "25f41f787b6dd9789c934ced0cf076fe5ae761aa784a0ca588ced2d794775f2a",
+      "bytes": 187
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead_r2.log",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead_r2.log",
+      "sha256": "780481eb714cd53068f1a0f15788c92672a7d0963b08fe81e05e5faf0e5ac13d",
+      "bytes": 516
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead_r2.pending",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_overhead_r2.pending",
+      "sha256": "e24ddbf7c05ac4f8c7af6fe3c9ce9a2d43a77bb1f31ae9ae2dcc7e989721f5d0",
+      "bytes": 191
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_preflight.done",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_preflight.done",
+      "sha256": "e0a332bb8725b66906df9b0ecc2be50d039fd32c946849390ccce7b6c834c75d",
+      "bytes": 175
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_preflight.log",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_preflight.log",
+      "sha256": "3e56593c13d8b2a21b4166a3b5665f1138702c73b6b09ad8bed9bcb4e96923f1",
+      "bytes": 30
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_prepare.done",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_prepare.done",
+      "sha256": "80ef6c10a72ca97d34bed38810d5a6e3375426c047944c16537ba77a766293eb",
+      "bytes": 171
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_prepare.log",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_prepare.log",
+      "sha256": "ecaf08d409ddfadcf0afc8a917dd4cf54307b4a1d30e78c2ede2e54dffea433c",
+      "bytes": 30
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_protocol_llama_B1.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_protocol_llama_B1.cancelled",
+      "sha256": "d339334963e0ebb0e09072422dd76fcf39c26d30f8addb6a5ee2dee44f160124",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_protocol_llama_B16.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_protocol_llama_B16.cancelled",
+      "sha256": "7440edbbcd4f8403e7012cbae5981609d84743d8ade86dee5f63fb0b5e9a1439",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_protocol_qwen3_B1.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_protocol_qwen3_B1.cancelled",
+      "sha256": "b1f4a774deb43f6602282d888d30da5e576ecd44f02b054ba8af2e083a7d9564",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_protocol_qwen3_B16.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_protocol_qwen3_B16.cancelled",
+      "sha256": "06fbe58eb87bac8a13e967bb66237273145b52894793f21a59aefb41b2ecdf4b",
+      "bytes": 198
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_register_llama.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_register_llama.cancelled",
+      "sha256": "7cc3d70a353aa18a541f6ae2ea7fc458b007321086dd0f298cfff4614dff917a",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_register_qwen3.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_register_qwen3.cancelled",
+      "sha256": "22f31586da13df33bad9644c1462574b711afb2eeb850398b41c97ca05ab29bd",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_replay_llama_B1.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_replay_llama_B1.cancelled",
+      "sha256": "d7e9ea1982dcc878be59cc0975db0b623cf3d8508bbd96b11b6512cc40f2eeca",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_replay_llama_B16.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_replay_llama_B16.cancelled",
+      "sha256": "347c1eb8182cb4c1b5f39a317f8b0677f9c02a9c818b2cdeafa65259a4379626",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_replay_qwen3_B1.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_replay_qwen3_B1.cancelled",
+      "sha256": "7f5630f7198c0c2165496d736ac05da168a719f842bf29695c9282f20eef8f49",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_replay_qwen3_B16.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_replay_qwen3_B16.cancelled",
+      "sha256": "052cbe85a806471d589eac88a2719f6292855c74b55b826424e7c042061da280",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_smoke_llama.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_smoke_llama.cancelled",
+      "sha256": "5cd4c4239aaec15cda287f70e48bd86faaadb84bd5941897c85d201a7e30410b",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_smoke_qwen3.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_smoke_qwen3.cancelled",
+      "sha256": "db1d348c9493cfc70b2915cb195d718115f16b04a29148dee8a5a7c515b37d8d",
+      "bytes": 198
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_trace.done",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_trace.done",
+      "sha256": "09ff389fbd060ad601bfbb170632a62b39c48c16f8a1f3ebf7cd4c06fd5270a1",
+      "bytes": 186
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_trace.log",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_trace.log",
+      "sha256": "ffbff544c6a35a22c1dd1c710368fda854ab6736d5f734f314469dba04178b27",
+      "bytes": 140
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_trace.pending",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_trace.pending",
+      "sha256": "aa0bffc27043c3269c5f6b9ef2e466d63e39b99bf9811e140e4d6bc87a0a88e7",
+      "bytes": 191
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_llama_B16_r0.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_llama_B16_r0.cancelled",
+      "sha256": "426be901ebc56e7392893e1cdbd9f6464cdcafd39f2f804fa57c6eaa696c9376",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_llama_B16_r1.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_llama_B16_r1.cancelled",
+      "sha256": "dd24f54ede95d63d5486d934125b12be3c0c1e0aede04a4765296403a3ae0afb",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_llama_B16_r2.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_llama_B16_r2.cancelled",
+      "sha256": "02a19739878d75f64d14b61f893e1c3043e806173d7352ae1fb79eaedfa737a0",
+      "bytes": 198
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_llama_B1_r0.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_llama_B1_r0.cancelled",
+      "sha256": "a41bf30b4e2da7883520f3b65c96441521ffec6c54f31b34a15e16a86d8c855d",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_llama_B1_r1.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_llama_B1_r1.cancelled",
+      "sha256": "c578a9f6fc6a7f16b0d05d99d183bbec38df398d62ffb1cd2e6dfe31e4a59307",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_llama_B1_r2.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_llama_B1_r2.cancelled",
+      "sha256": "10606e1fc33770e8074f7e18ac72c8c6e9c89ad92528804800cc4556f9f0ad31",
+      "bytes": 198
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_qwen3_B16_r0.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_qwen3_B16_r0.cancelled",
+      "sha256": "e26d26e71e9e81ab7688bc7987548d4e6a121b5195ebfa29f61527e191521f45",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_qwen3_B16_r1.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_qwen3_B16_r1.cancelled",
+      "sha256": "26cb07078dbc3ed9f91dcc767f22fa83d13ab6dd158febda081885201cbd5e17",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_qwen3_B16_r2.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_qwen3_B16_r2.cancelled",
+      "sha256": "467a98f66f6ff44336667b5b69a67db727c8c66f63edf248647e6fe4d3ae7b51",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_qwen3_B1_r0.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_qwen3_B1_r0.cancelled",
+      "sha256": "6d4cd2300277369c5deb29eda7046041e7a3dd295835941b216608b87bd5d960",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_qwen3_B1_r1.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_qwen3_B1_r1.cancelled",
+      "sha256": "e1ba6cf812fcea706d616cfe8e5be6e6e299525e022f25298aeb87fc12ec7968",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_qwen3_B1_r2.cancelled",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/R14_remaining_validate_qwen3_B1_r2.cancelled",
+      "sha256": "10dd8793945485bf68c9d8d42bd948d30df257f19d51fbb343140e83544d835f",
+      "bytes": 199
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/occupancy.jsonl",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/occupancy.jsonl",
+      "sha256": "b55cb2ece454b9682f14fcf1e75a3ac23de683d180447c7eceb8cfa570d54cd1",
+      "bytes": 91261
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/progress.tsv",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/progress.tsv",
+      "sha256": "4dd1d5d51a2f6e86ad1db6a89e358c61119cd4c3e8204510f9fa5d8d7e468003",
+      "bytes": 16255
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/scheduler.log",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/scheduler.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/scheduler.pid",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/scheduler.pid",
+      "sha256": "83df518e51330fe64cc85694651a4dc85a6681932144c03048825ecf1fda63d4",
+      "bytes": 8
+    },
+    {
+      "source": "/root/TileMega/docs/experiments/SERVING_R14/scheduler_remaining/state.json",
+      "member": "docs/experiments/SERVING_R14/scheduler_remaining/state.json",
+      "sha256": "7c7d74469c3cee0310ab8b1b9b9140716276ff5335b9b1f987c02adddd488500",
+      "bytes": 17231
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/build_guard.json",
+      "member": "runs/r14-remaining-llama/build_guard.json",
+      "sha256": "678df3919763024bacfa0fa38e3155f7526e1fcc6be8f180064d637103329c3b",
+      "bytes": 81
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/cache.json",
+      "member": "runs/r14-remaining-llama/cache.json",
+      "sha256": "db1a8952d07e5c5edc75d7c83103dae84993f74de9c4359d7b0d6383f57e6c9a",
+      "bytes": 1425
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/build-decode-l2-B1/command.json",
+      "member": "runs/r14-remaining-llama/commands/build-decode-l2-B1/command.json",
+      "sha256": "4aa65a8e27c23a84ef1eb8383a924c637d524c1a33035c4ee5902aad557c4ec7",
+      "bytes": 288
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/build-decode-l2-B1/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/build-decode-l2-B1/stderr.txt",
+      "sha256": "710725696b3af8289087f149bdf88e0d21917542f9daefd80175176c5a0b71f1",
+      "bytes": 5699
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/build-decode-l2-B1/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/build-decode-l2-B1/stdout.txt",
+      "sha256": "4cf1bb44c9203f6a56b814c6435f57cc5e2d4180d6d660602f28a351685a73e4",
+      "bytes": 1725
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/build-decode-pages-B1/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/build-decode-pages-B1/stderr.txt",
+      "sha256": "8819fd9499398ed825cb33b6a78ff39275cb9789c8bc1f39cd6753f133d85c8b",
+      "bytes": 870
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/build-decode-pages-B1/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/build-decode-pages-B1/stdout.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/build-prefill-l2-B1/command.json",
+      "member": "runs/r14-remaining-llama/commands/build-prefill-l2-B1/command.json",
+      "sha256": "14ecac51c947d89662a6fda93bcb7c5e74c4967ce056af055ae8a35a4ca20b33",
+      "bytes": 287
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/build-prefill-l2-B1/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/build-prefill-l2-B1/stderr.txt",
+      "sha256": "6af94d8b225ae2015500078fdb6e1756d592fbcd595430f390301a1e895275b1",
+      "bytes": 795
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/build-prefill-l2-B1/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/build-prefill-l2-B1/stdout.txt",
+      "sha256": "451d92e209e3b233fd95b11b22710f789c1b0af538e618259dcac40960c05b74",
+      "bytes": 70
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/build-prefill-l2-B16/command.json",
+      "member": "runs/r14-remaining-llama/commands/build-prefill-l2-B16/command.json",
+      "sha256": "ac903b78ba7585831dd7f21031e76b43a4ed75e8da973ed633889380db178a01",
+      "bytes": 287
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/build-prefill-l2-B16/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/build-prefill-l2-B16/stderr.txt",
+      "sha256": "9cee6c53072fec6273a9be0ada9d025db44f023a8e825e08fba97a221941feb2",
+      "bytes": 796
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/build-prefill-l2-B16/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/build-prefill-l2-B16/stdout.txt",
+      "sha256": "451d92e209e3b233fd95b11b22710f789c1b0af538e618259dcac40960c05b74",
+      "bytes": 70
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/calibrate/command.json",
+      "member": "runs/r14-remaining-llama/commands/calibrate/command.json",
+      "sha256": "6eef37eb996c39a55e157bf19aad06cffbd6c21124512abeb93e9c6de22901d1",
+      "bytes": 417
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/calibrate/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/calibrate/stderr.txt",
+      "sha256": "cf54345676c4165e3e7146ed6fda1e8308e4d019d1981fe56ad4d8b5b5c56441",
+      "bytes": 30
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/calibrate/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/calibrate/stdout.txt",
+      "sha256": "05fbcd49924e8e4a0df2bb3e837b0dcfc3fce3355289fdb8d082ec1529f6ab87",
+      "bytes": 81815
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/floor-decode-l2-B1/command.json",
+      "member": "runs/r14-remaining-llama/commands/floor-decode-l2-B1/command.json",
+      "sha256": "2e1dc479a44a52fe98ff9493db954a262ca252d3819c70a844371ded6ea4212b",
+      "bytes": 625
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/floor-decode-l2-B1/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/floor-decode-l2-B1/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/floor-decode-l2-B1/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/floor-decode-l2-B1/stdout.txt",
+      "sha256": "0621ac224471ab431a449b54e77b10f31b016a060ff22b162f152e2f2a8e2bc0",
+      "bytes": 1257
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/floor-prefill-l2-B1/command.json",
+      "member": "runs/r14-remaining-llama/commands/floor-prefill-l2-B1/command.json",
+      "sha256": "ea40b1bf0fc2e2ece94b39f394d8899812a881731c72b40e8f97ac6f2a59d639",
+      "bytes": 622
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/floor-prefill-l2-B1/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/floor-prefill-l2-B1/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/floor-prefill-l2-B1/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/floor-prefill-l2-B1/stdout.txt",
+      "sha256": "d9d03054dce7123251b81d3bd3588842af13af5d50a422c1a0f9700412d3a86d",
+      "bytes": 755
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/floor-prefill-l2-B16/command.json",
+      "member": "runs/r14-remaining-llama/commands/floor-prefill-l2-B16/command.json",
+      "sha256": "5dc47791e75418ddd1d9b4c7a62c53d97a1a8c9a3c67b48c201ce792e2c50f8c",
+      "bytes": 622
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/floor-prefill-l2-B16/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/floor-prefill-l2-B16/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/floor-prefill-l2-B16/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/floor-prefill-l2-B16/stdout.txt",
+      "sha256": "dbac457f6fa882700634933391896ec4acf639ee74e50b5cfb26f7c90fc569c3",
+      "bytes": 752
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791637736554377062/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791637736554377062/command.json",
+      "sha256": "33075290658bb6dd2fc0fd4f6a16057a9cbb6427f1382f5248033a6d1018d1ec",
+      "bytes": 173
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791637736554377062/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791637736554377062/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791637736554377062/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791637736554377062/stdout.txt",
+      "sha256": "ff048082dae4dc20c6360aecedd1d8c3f5e886a42fc01fcfc277a8ee483f092f",
+      "bytes": 271
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791637736572290127/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791637736572290127/command.json",
+      "sha256": "44ad1f96a52c72ab3bd77946f6a552cd310506733e1e5a982307bad89587319b",
+      "bytes": 170
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791637736572290127/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791637736572290127/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791637736572290127/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791637736572290127/stdout.txt",
+      "sha256": "c38075b7495d5d11358ba33237f385818f74bd7cad67361f5f682f4288fc8edf",
+      "bytes": 3994
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791637736777726901/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791637736777726901/command.json",
+      "sha256": "41a539af2ec9365da2a4646bbdbfb2f9d6a1f8e965a6e65bbd415ac8b0abb499",
+      "bytes": 178
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791637736777726901/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791637736777726901/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791637736777726901/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791637736777726901/stdout.txt",
+      "sha256": "304873d0648581a6be5f33d82f75529f1da637592f0637a39fc928c9e9d6ab32",
+      "bytes": 738
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791637893074057092/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791637893074057092/command.json",
+      "sha256": "a3637c134dd4dea91e0659f1b5cf445ae7d3fdc9912ba8ba99ab15d087e8b427",
+      "bytes": 174
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791637893074057092/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791637893074057092/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791637893074057092/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791637893074057092/stdout.txt",
+      "sha256": "ff048082dae4dc20c6360aecedd1d8c3f5e886a42fc01fcfc277a8ee483f092f",
+      "bytes": 271
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791637893087254595/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791637893087254595/command.json",
+      "sha256": "c15e3376003d382561d13331b940b143a5655e37dcef8cd33a1531a4d7e3cc2f",
+      "bytes": 171
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791637893087254595/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791637893087254595/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791637893087254595/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791637893087254595/stdout.txt",
+      "sha256": "c38075b7495d5d11358ba33237f385818f74bd7cad67361f5f682f4288fc8edf",
+      "bytes": 3994
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791637893282910644/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791637893282910644/command.json",
+      "sha256": "9f03814457119dd2881ab4e478ea09855d7cbfd256d62c03f7994f3cb00a04ff",
+      "bytes": 178
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791637893282910644/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791637893282910644/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791637893282910644/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791637893282910644/stdout.txt",
+      "sha256": "304873d0648581a6be5f33d82f75529f1da637592f0637a39fc928c9e9d6ab32",
+      "bytes": 738
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791645357313573444/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791645357313573444/command.json",
+      "sha256": "51390f79485742d4acf2ec7a1d0f94bc3153e3e78a4dffcacf82ab52d39a880a",
+      "bytes": 173
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791645357313573444/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791645357313573444/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791645357313573444/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791645357313573444/stdout.txt",
+      "sha256": "ff048082dae4dc20c6360aecedd1d8c3f5e886a42fc01fcfc277a8ee483f092f",
+      "bytes": 271
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791645357324814876/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791645357324814876/command.json",
+      "sha256": "91c0c9eecc17ad783f975e4ae32386ecb07a655b409ecadea69ad396b8946a75",
+      "bytes": 171
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791645357324814876/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791645357324814876/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791645357324814876/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791645357324814876/stdout.txt",
+      "sha256": "c38075b7495d5d11358ba33237f385818f74bd7cad67361f5f682f4288fc8edf",
+      "bytes": 3994
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791645357522572094/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791645357522572094/command.json",
+      "sha256": "a196d74910bf78b8d282d682936ea1ae979c327784cfa635471c1eb7eed52159",
+      "bytes": 178
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791645357522572094/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791645357522572094/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791645357522572094/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791645357522572094/stdout.txt",
+      "sha256": "304873d0648581a6be5f33d82f75529f1da637592f0637a39fc928c9e9d6ab32",
+      "bytes": 738
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791650428686464904/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791650428686464904/command.json",
+      "sha256": "5e6eb4756f90fc8f0b5ad0c481db228844be336a80f1c7e6808b2e88f1a1ca35",
+      "bytes": 173
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791650428686464904/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791650428686464904/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791650428686464904/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791650428686464904/stdout.txt",
+      "sha256": "ff048082dae4dc20c6360aecedd1d8c3f5e886a42fc01fcfc277a8ee483f092f",
+      "bytes": 271
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791650428702230862/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791650428702230862/command.json",
+      "sha256": "da5a6dd91b333fa5aacf5ea7a82be5ae26644dbb84d860b99948c011386e7f45",
+      "bytes": 171
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791650428702230862/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791650428702230862/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791650428702230862/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791650428702230862/stdout.txt",
+      "sha256": "c38075b7495d5d11358ba33237f385818f74bd7cad67361f5f682f4288fc8edf",
+      "bytes": 3994
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791650428895224584/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791650428895224584/command.json",
+      "sha256": "4c8ae9c2e985bd644698b5e1486b93646ffeab2dd93c5bf1c2c34d62fbc01b93",
+      "bytes": 178
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791650428895224584/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791650428895224584/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791650428895224584/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791650428895224584/stdout.txt",
+      "sha256": "304873d0648581a6be5f33d82f75529f1da637592f0637a39fc928c9e9d6ab32",
+      "bytes": 738
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791652375339061452/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791652375339061452/command.json",
+      "sha256": "6ee2828d7b92b93eff5aa535a087eb6bd4802e5597f53447b096ace627318726",
+      "bytes": 174
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791652375339061452/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791652375339061452/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791652375339061452/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791652375339061452/stdout.txt",
+      "sha256": "ff048082dae4dc20c6360aecedd1d8c3f5e886a42fc01fcfc277a8ee483f092f",
+      "bytes": 271
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791652375352631064/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791652375352631064/command.json",
+      "sha256": "39c425e40eb6c8d4bf727e1d2b413f02de18fa1e7f8b42c1d201b2b58c0b024e",
+      "bytes": 172
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791652375352631064/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791652375352631064/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791652375352631064/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791652375352631064/stdout.txt",
+      "sha256": "c38075b7495d5d11358ba33237f385818f74bd7cad67361f5f682f4288fc8edf",
+      "bytes": 3994
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791652375465136944/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791652375465136944/command.json",
+      "sha256": "26e293d94c7d8eeceffb9531777e6aad379e8628a94860496ab9ee91e8476948",
+      "bytes": 178
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791652375465136944/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791652375465136944/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791652375465136944/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791652375465136944/stdout.txt",
+      "sha256": "304873d0648581a6be5f33d82f75529f1da637592f0637a39fc928c9e9d6ab32",
+      "bytes": 738
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791654297244565903/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791654297244565903/command.json",
+      "sha256": "5dc6f152696175f68ff8e505f887d429fb5ee50e9d6924eb974e4490cc3f3d5c",
+      "bytes": 174
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791654297244565903/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791654297244565903/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791654297244565903/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791654297244565903/stdout.txt",
+      "sha256": "ff048082dae4dc20c6360aecedd1d8c3f5e886a42fc01fcfc277a8ee483f092f",
+      "bytes": 271
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791654297257036634/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791654297257036634/command.json",
+      "sha256": "e4b53e61628406b36320ae60ca8bdf39ccbede9a4e0dc390a412abc565541a12",
+      "bytes": 171
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791654297257036634/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791654297257036634/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791654297257036634/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791654297257036634/stdout.txt",
+      "sha256": "c38075b7495d5d11358ba33237f385818f74bd7cad67361f5f682f4288fc8edf",
+      "bytes": 3994
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791654297374206250/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791654297374206250/command.json",
+      "sha256": "4e7577a0223599cc766fb63d2f36d1169db17f724010c49faa2ebfef5ff4349c",
+      "bytes": 178
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791654297374206250/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791654297374206250/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791654297374206250/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791654297374206250/stdout.txt",
+      "sha256": "304873d0648581a6be5f33d82f75529f1da637592f0637a39fc928c9e9d6ab32",
+      "bytes": 738
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791658432378149567/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791658432378149567/command.json",
+      "sha256": "a7f187432d87e203caae220ae69efe53ef0b0c94e8b33cf24c424afceb63a120",
+      "bytes": 174
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791658432378149567/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791658432378149567/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791658432378149567/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791658432378149567/stdout.txt",
+      "sha256": "ff048082dae4dc20c6360aecedd1d8c3f5e886a42fc01fcfc277a8ee483f092f",
+      "bytes": 271
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791658432390483017/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791658432390483017/command.json",
+      "sha256": "ec7e98097047dc2fffb6efb9c71d597e07b47295a15f898518c6c47ec7730f90",
+      "bytes": 171
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791658432390483017/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791658432390483017/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791658432390483017/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791658432390483017/stdout.txt",
+      "sha256": "c38075b7495d5d11358ba33237f385818f74bd7cad67361f5f682f4288fc8edf",
+      "bytes": 3994
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791658432579365466/command.json",
+      "member": "runs/r14-remaining-llama/commands/query-1791658432579365466/command.json",
+      "sha256": "27c6a516bbe0b337c09bff65bd81e026ee107bb39d76aa8b98493cc1690a73de",
+      "bytes": 178
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791658432579365466/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791658432579365466/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/query-1791658432579365466/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/query-1791658432579365466/stdout.txt",
+      "sha256": "304873d0648581a6be5f33d82f75529f1da637592f0637a39fc928c9e9d6ab32",
+      "bytes": 738
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/sass-decode-l2-B1/command.json",
+      "member": "runs/r14-remaining-llama/commands/sass-decode-l2-B1/command.json",
+      "sha256": "4fecc3a35f746c4cafcf9414b1465a33d32e9830322de034f858ed7a3b659333",
+      "bytes": 396
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/sass-decode-l2-B1/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/sass-decode-l2-B1/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/sass-decode-l2-B1/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/sass-decode-l2-B1/stdout.txt",
+      "sha256": "6b4666694c24f0d8053366f19c2969bb4a535e11006349cbcaea90285ce04490",
+      "bytes": 691
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/sass-prefill-l2-B1/command.json",
+      "member": "runs/r14-remaining-llama/commands/sass-prefill-l2-B1/command.json",
+      "sha256": "47854dfe8953864d7724712b90c62d3b6c754e63a3ebf4b36cde7dccd3f9c37e",
+      "bytes": 399
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/sass-prefill-l2-B1/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/sass-prefill-l2-B1/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/sass-prefill-l2-B1/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/sass-prefill-l2-B1/stdout.txt",
+      "sha256": "909a6154d513c254e28df1a2f81453639ab77acf71a92d50e59c201055480747",
+      "bytes": 691
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/sass-prefill-l2-B16/command.json",
+      "member": "runs/r14-remaining-llama/commands/sass-prefill-l2-B16/command.json",
+      "sha256": "c3de6afef5ce80dea87959765fbeccbbeb4fdbe469c16f3997d49f3e5b4d1042",
+      "bytes": 398
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/sass-prefill-l2-B16/stderr.txt",
+      "member": "runs/r14-remaining-llama/commands/sass-prefill-l2-B16/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands/sass-prefill-l2-B16/stdout.txt",
+      "member": "runs/r14-remaining-llama/commands/sass-prefill-l2-B16/stdout.txt",
+      "sha256": "e60aa04987c2e256de9bf172461150619da1bb15c1f313d3763e5c3a034dd901",
+      "bytes": 691
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/commands.sh",
+      "member": "runs/r14-remaining-llama/commands.sh",
+      "sha256": "de9a6b08a97b7b79b6bc02fb1a301eee95aa08b40e7f705235b36667f9748616",
+      "bytes": 10527
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/config.json",
+      "member": "runs/r14-remaining-llama/config.json",
+      "sha256": "68df7a46b11e3b8a8cc27fc64fa2c3ac7bcd1bc4a8f640f29a84cc141980f4fe",
+      "bytes": 4003
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-llama/doctor.json",
+      "member": "runs/r14-remaining-llama/doctor.json",
+      "sha256": "cdc6aecaab75c4e773118d7e357efa468f61e9f0cfa27af7c1ebb60cdfddd26a",
+      "bytes": 5128
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/build_guard.json",
+      "member": "runs/r14-remaining-qwen3/build_guard.json",
+      "sha256": "9c776d9c410a063c24d38f9cc379e161f928b4508953e24eea360a78814b5233",
+      "bytes": 81
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/cache.json",
+      "member": "runs/r14-remaining-qwen3/cache.json",
+      "sha256": "2ef31f04977e08e596744e15a43f8fe4b81d9340dc511984a545f9107d6b6af1",
+      "bytes": 1425
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/build-decode-l2-B1/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/build-decode-l2-B1/command.json",
+      "sha256": "3a78d755d88ffa35ee103c890edac3671672ab54b639b83d20129ee385b2df0d",
+      "bytes": 288
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/build-decode-l2-B1/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/build-decode-l2-B1/stderr.txt",
+      "sha256": "d26073e1fca22b78d83ee58e2527ae501686d3f8c38d92933b79c85f8c0ab9a9",
+      "bytes": 5875
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/build-decode-l2-B1/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/build-decode-l2-B1/stdout.txt",
+      "sha256": "4cf1bb44c9203f6a56b814c6435f57cc5e2d4180d6d660602f28a351685a73e4",
+      "bytes": 1725
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/build-decode-pages-B1/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/build-decode-pages-B1/stderr.txt",
+      "sha256": "29d31c57fb9f50bf092e8aa00b281fc1d9e8d6b368a0e5f055da111b17fdeabd",
+      "bytes": 435
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/build-decode-pages-B1/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/build-decode-pages-B1/stdout.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/build-prefill-l2-B1/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/build-prefill-l2-B1/command.json",
+      "sha256": "712b55855ca6666712274a4fdc7b3f94fc933d7206c7415c7185f37f6684b7ea",
+      "bytes": 287
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/build-prefill-l2-B1/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/build-prefill-l2-B1/stderr.txt",
+      "sha256": "bd1051398dd93caa29f573cf44cac89965c22b457cf5d496422731cd153a6ac3",
+      "bytes": 796
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/build-prefill-l2-B1/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/build-prefill-l2-B1/stdout.txt",
+      "sha256": "451d92e209e3b233fd95b11b22710f789c1b0af538e618259dcac40960c05b74",
+      "bytes": 70
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/build-prefill-l2-B16/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/build-prefill-l2-B16/command.json",
+      "sha256": "dedb304b18743613faee3fda2f55bb355f54e3a2462d3ee25dcf23362a840df6",
+      "bytes": 287
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/build-prefill-l2-B16/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/build-prefill-l2-B16/stderr.txt",
+      "sha256": "4e4776906e42465174de6e2ac080ec3f1ad49197922b909f5c1bc10bca716df1",
+      "bytes": 796
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/build-prefill-l2-B16/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/build-prefill-l2-B16/stdout.txt",
+      "sha256": "451d92e209e3b233fd95b11b22710f789c1b0af538e618259dcac40960c05b74",
+      "bytes": 70
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/floor-decode-l2-B1/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/floor-decode-l2-B1/command.json",
+      "sha256": "e6eabad7e848b183b90d9f9cb9de68f620157a5803e0c33604fa0be63769e143",
+      "bytes": 626
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/floor-decode-l2-B1/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/floor-decode-l2-B1/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/floor-decode-l2-B1/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/floor-decode-l2-B1/stdout.txt",
+      "sha256": "4ee45852b16e21c203d03119165d1234e9fd4b9bad48c46ff1387b126ae2fd20",
+      "bytes": 1259
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/floor-prefill-l2-B1/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/floor-prefill-l2-B1/command.json",
+      "sha256": "06f6276769c9c5ebdbbb679bdce8a82d49d398af47f478fb80e69c6e4780c5d4",
+      "bytes": 621
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/floor-prefill-l2-B1/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/floor-prefill-l2-B1/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/floor-prefill-l2-B1/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/floor-prefill-l2-B1/stdout.txt",
+      "sha256": "d09f17e5187b3bfcfda49b3132b26fa80be1d58c7cc4665fa7607fc9c40b134f",
+      "bytes": 755
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/floor-prefill-l2-B16/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/floor-prefill-l2-B16/command.json",
+      "sha256": "c0152730279114d98dffcb11d425d01c3ad5e4a859c54af731650c5f58071f30",
+      "bytes": 622
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/floor-prefill-l2-B16/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/floor-prefill-l2-B16/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/floor-prefill-l2-B16/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/floor-prefill-l2-B16/stdout.txt",
+      "sha256": "e7c34fba16caa5128763143003330d4022e8037e60002e654c35b33026fc817d",
+      "bytes": 755
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791643206722189737/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791643206722189737/command.json",
+      "sha256": "748abb6c04c6bf1ba7eac6006b6df5602c07e7fcb4d4425b6338fd2eaf4c42b7",
+      "bytes": 174
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791643206722189737/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791643206722189737/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791643206722189737/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791643206722189737/stdout.txt",
+      "sha256": "ff048082dae4dc20c6360aecedd1d8c3f5e886a42fc01fcfc277a8ee483f092f",
+      "bytes": 271
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791643206734914722/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791643206734914722/command.json",
+      "sha256": "a081d385e55b88bfcccd667bce6e98c5f6c67480aee83b686f806779109afaaf",
+      "bytes": 171
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791643206734914722/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791643206734914722/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791643206734914722/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791643206734914722/stdout.txt",
+      "sha256": "c38075b7495d5d11358ba33237f385818f74bd7cad67361f5f682f4288fc8edf",
+      "bytes": 3994
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791643206934716254/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791643206934716254/command.json",
+      "sha256": "f613cf9e89bb861f474b2eff933607e9e259db05b3a2d1ce9041f7bdde89b79e",
+      "bytes": 178
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791643206934716254/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791643206934716254/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791643206934716254/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791643206934716254/stdout.txt",
+      "sha256": "304873d0648581a6be5f33d82f75529f1da637592f0637a39fc928c9e9d6ab32",
+      "bytes": 738
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791645761178806408/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791645761178806408/command.json",
+      "sha256": "b431041eee6c013357706ad7c01b7f61e3810eb59389882bb83e6da879064fce",
+      "bytes": 174
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791645761178806408/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791645761178806408/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791645761178806408/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791645761178806408/stdout.txt",
+      "sha256": "ff048082dae4dc20c6360aecedd1d8c3f5e886a42fc01fcfc277a8ee483f092f",
+      "bytes": 271
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791645761190752471/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791645761190752471/command.json",
+      "sha256": "1b864aa5ec41da9bf1d76eab098964eb04d9c88c4f848598136505bc5e6beacb",
+      "bytes": 171
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791645761190752471/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791645761190752471/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791645761190752471/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791645761190752471/stdout.txt",
+      "sha256": "c38075b7495d5d11358ba33237f385818f74bd7cad67361f5f682f4288fc8edf",
+      "bytes": 3994
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791645761386952125/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791645761386952125/command.json",
+      "sha256": "dc83ea3d344cceff6de4e25ffa1d6d3a09968cc49d130ab8016da9a565d39640",
+      "bytes": 178
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791645761386952125/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791645761386952125/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791645761386952125/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791645761386952125/stdout.txt",
+      "sha256": "304873d0648581a6be5f33d82f75529f1da637592f0637a39fc928c9e9d6ab32",
+      "bytes": 738
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791651153550404057/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791651153550404057/command.json",
+      "sha256": "471ab5e8d272bc8d235fd217b307c9a8234a77d8469ce40677df292efc33f964",
+      "bytes": 174
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791651153550404057/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791651153550404057/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791651153550404057/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791651153550404057/stdout.txt",
+      "sha256": "ff048082dae4dc20c6360aecedd1d8c3f5e886a42fc01fcfc277a8ee483f092f",
+      "bytes": 271
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791651153562213991/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791651153562213991/command.json",
+      "sha256": "c901a503ed17d18e40f26c4bb7f1ec743e56d533e955aa5f0bcb8a75427df4fb",
+      "bytes": 172
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791651153562213991/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791651153562213991/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791651153562213991/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791651153562213991/stdout.txt",
+      "sha256": "c38075b7495d5d11358ba33237f385818f74bd7cad67361f5f682f4288fc8edf",
+      "bytes": 3994
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791651153674298297/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791651153674298297/command.json",
+      "sha256": "60491548d005d22f22c688bc23d02728770a2b9de2e1dcb4d2436e01ae232a66",
+      "bytes": 178
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791651153674298297/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791651153674298297/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791651153674298297/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791651153674298297/stdout.txt",
+      "sha256": "304873d0648581a6be5f33d82f75529f1da637592f0637a39fc928c9e9d6ab32",
+      "bytes": 738
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791654937287942410/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791654937287942410/command.json",
+      "sha256": "337dfa83de616fcb70ee94824f6b48f911e4d9e85760b4db208041b57bca897e",
+      "bytes": 173
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791654937287942410/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791654937287942410/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791654937287942410/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791654937287942410/stdout.txt",
+      "sha256": "ff048082dae4dc20c6360aecedd1d8c3f5e886a42fc01fcfc277a8ee483f092f",
+      "bytes": 271
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791654937299509744/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791654937299509744/command.json",
+      "sha256": "e78aa9efbcca14ad097b702e88a530501379087ce173ea5a503a9525d954856f",
+      "bytes": 171
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791654937299509744/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791654937299509744/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791654937299509744/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791654937299509744/stdout.txt",
+      "sha256": "c38075b7495d5d11358ba33237f385818f74bd7cad67361f5f682f4288fc8edf",
+      "bytes": 3994
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791654937415529697/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791654937415529697/command.json",
+      "sha256": "56f3699d17aa0e2778dcb248062fa8fc8cf9336eeb9eb894db8c9de1ad62f8c4",
+      "bytes": 178
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791654937415529697/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791654937415529697/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/query-1791654937415529697/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/query-1791654937415529697/stdout.txt",
+      "sha256": "304873d0648581a6be5f33d82f75529f1da637592f0637a39fc928c9e9d6ab32",
+      "bytes": 738
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/sass-decode-l2-B1/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/sass-decode-l2-B1/command.json",
+      "sha256": "2f25c47fa53f7e791096122aea83b498a769569c9d15ed6f0187d3f68c3f35ad",
+      "bytes": 398
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/sass-decode-l2-B1/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/sass-decode-l2-B1/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/sass-decode-l2-B1/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/sass-decode-l2-B1/stdout.txt",
+      "sha256": "fe13cc32c1e8c3716ad4afa4bee12ba478a41123faf47697db8b589186e0a5ff",
+      "bytes": 691
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/sass-prefill-l2-B1/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/sass-prefill-l2-B1/command.json",
+      "sha256": "58099750c9683ee7d026424481a22d90a4401716b45ebe911260477f8881c155",
+      "bytes": 399
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/sass-prefill-l2-B1/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/sass-prefill-l2-B1/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/sass-prefill-l2-B1/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/sass-prefill-l2-B1/stdout.txt",
+      "sha256": "9dc31bbf84298cc4a067f53bc6e7fcd59c8723d5d717068dc62761fe5b11c7d3",
+      "bytes": 691
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/sass-prefill-l2-B16/command.json",
+      "member": "runs/r14-remaining-qwen3/commands/sass-prefill-l2-B16/command.json",
+      "sha256": "26caca86f2e0bf319aff9f73b79aa631b1e619306d1b7c7416598eacef309177",
+      "bytes": 399
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/sass-prefill-l2-B16/stderr.txt",
+      "member": "runs/r14-remaining-qwen3/commands/sass-prefill-l2-B16/stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands/sass-prefill-l2-B16/stdout.txt",
+      "member": "runs/r14-remaining-qwen3/commands/sass-prefill-l2-B16/stdout.txt",
+      "sha256": "68aa1e3d9c5c53602b98543fe44c60e92e86f412d56ae7ea29a04a6f14cd47af",
+      "bytes": 691
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/commands.sh",
+      "member": "runs/r14-remaining-qwen3/commands.sh",
+      "sha256": "ac4b56925ff6bdb1543583afb9b7405dde639b9fbfb00e31611cd1dd56132dc8",
+      "bytes": 7672
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/config.json",
+      "member": "runs/r14-remaining-qwen3/config.json",
+      "sha256": "7b3f474fda7eed3379158db5f8291662d94447533cc3ab34b5a898585c4af827",
+      "bytes": 3988
+    },
+    {
+      "source": "/root/TileMega/runs/r14-remaining-qwen3/doctor.json",
+      "member": "runs/r14-remaining-qwen3/doctor.json",
+      "sha256": "afb12aa7da4aa40776ac952d6037380304deabaf9e13d68e889b00886a38febb",
+      "bytes": 5128
+    }
+  ],
+  "excluded_artifacts": []
+}

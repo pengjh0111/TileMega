@@ -1,0 +1,818 @@
+{
+  "status": "closed_at_user_request; implementation/correctness evidence accepted, final performance unaccepted",
+  "prompt_sha256": "c7e5771383873ae450c153d873bc633cf4481d9be5cea0f65e216e5b7073330e",
+  "queue": {
+    "done": 12,
+    "cancelled": 53
+  },
+  "accepted_guards": {
+    "R14_remaining_narrow_llama_tn8_row": {
+      "code": 0,
+      "reason": "child exit 0"
+    },
+    "R14_remaining_narrow_llama_tn16_tiled": {
+      "code": 0,
+      "reason": "child exit 0"
+    },
+    "R14_remaining_narrow_qwen3_tn8_row": {
+      "code": 0,
+      "reason": "child exit 0"
+    },
+    "R14_remaining_narrow_qwen3_tn16_tiled": {
+      "code": 0,
+      "reason": "child exit 0"
+    },
+    "R14_remaining_trace": {
+      "code": 0,
+      "reason": "child exit 0"
+    },
+    "R14_remaining_overhead_r0": {
+      "code": 0,
+      "reason": "child exit 0"
+    },
+    "R14_remaining_overhead_r1": {
+      "code": 0,
+      "reason": "child exit 0"
+    },
+    "R14_remaining_overhead_r2": {
+      "code": 0,
+      "reason": "child exit 0"
+    },
+    "R14_remaining_calibrate": {
+      "code": 0,
+      "reason": "child exit 0"
+    }
+  },
+  "narrow": [
+    {
+      "label": "llama_tn16_tiled",
+      "steps": 1024,
+      "c1": true,
+      "near_tie_ratio": 1.0,
+      "max_gap": 0.0,
+      "c2": true,
+      "mismatches": 0,
+      "artifact_id": "5321687403953db156660225a1b85a1c0ae0e37dee7832f6c95bed6d005c409e",
+      "qualification": "nonpaged: disabling K-phase adds no K-phase coverage"
+    },
+    {
+      "label": "llama_tn8_row",
+      "steps": 1024,
+      "c1": true,
+      "near_tie_ratio": 1.0,
+      "max_gap": 0.0,
+      "c2": true,
+      "mismatches": 0,
+      "artifact_id": "750ef0043ce73231d935f6f37a716423f7634c4511276cdd521a894c7c4631f3",
+      "qualification": "nonpaged: disabling K-phase adds no K-phase coverage"
+    },
+    {
+      "label": "qwen3_tn16_tiled",
+      "steps": 1024,
+      "c1": true,
+      "near_tie_ratio": 1.0,
+      "max_gap": 0.0,
+      "c2": true,
+      "mismatches": 0,
+      "artifact_id": "7a678328aced6f276fd48ea11a0f57dcc4388e2fe1f3ce66eb5ec72e208349c3",
+      "qualification": "nonpaged: disabling K-phase adds no K-phase coverage"
+    },
+    {
+      "label": "qwen3_tn8_row",
+      "steps": 1024,
+      "c1": true,
+      "near_tie_ratio": 1.0,
+      "max_gap": 0.0,
+      "c2": true,
+      "mismatches": 0,
+      "artifact_id": "e858a4c4d85b93f1e923dfcf42b04e941daee859c104c12d21806432315e7775",
+      "qualification": "nonpaged: disabling K-phase adds no K-phase coverage"
+    }
+  ],
+  "trace_overhead": {
+    "arms": {
+      "baseline": {
+        "execution_id": "63654324f3c358c2b8bf9b7b643bfdcca38351e47602f5fae35427c30186831e",
+        "samples_ms": [
+          2.849392513703566,
+          2.8467959804480434,
+          2.8468419024802722
+        ],
+        "median_ms": 2.8468419024802722,
+        "relative": 0.0
+      },
+      "stage": {
+        "execution_id": "de65a2d0e81ad441dbb282922505b0ed3a6f211203ec8f9e3b8b4394c166aaa1",
+        "samples_ms": [
+          2.872157094950987,
+          2.878340519236388,
+          2.872364336983433
+        ],
+        "median_ms": 2.872364336983433,
+        "relative": 0.008965174525822572
+      },
+      "task": {
+        "execution_id": "8ab4508840ce0b50c271eda6b21a58a84ca03a86f88a2d307407bfb08f77ce71",
+        "samples_ms": [
+          2.8830849363460396,
+          2.8916473558695146,
+          2.8836535747806638
+        ],
+        "median_ms": 2.8836535747806638,
+        "relative": 0.012930704816561667
+      }
+    },
+    "within_two_percent": {
+      "baseline": true,
+      "stage": true,
+      "task": true
+    },
+    "semantics": "trace timing is diagnostic; failure of the overhead target does not invalidate independent performance collection"
+  },
+  "trace_tokens_equal": [
+    true,
+    true,
+    true
+  ],
+  "canary_rounds": [],
+  "ceiling": {
+    "median_gbps": 979.977571526,
+    "range_gbps": 0.4103297190000603,
+    "range_relative": 0.00041871337765526993,
+    "processes": 5,
+    "definition": "method 1; allocation A; 1, 1.5, 2 GiB; median within each process then across processes"
+  },
+  "controls": [
+    {
+      "cell": "llama_B1",
+      "artifact_id": "d019dc5bf93a4b08c3eb90adc4ec47fdacdc6b80894ab3a0499405efd1508ea7",
+      "execution_id": "bce16dbb33982707d6b9794005292ff94d10a9c3595abdb208b475f5091b8584",
+      "pg": "l2",
+      "registers": 255,
+      "stack": 160,
+      "spill": true,
+      "spill_stores": 80,
+      "spill_loads": 88,
+      "smem": 86016,
+      "role": "audited frozen control; no new final binary selected"
+    },
+    {
+      "cell": "llama_B16",
+      "artifact_id": "edd437fd91a536f9239b481cc7d224b9dd9897210c4d17e5f253d73ba937e651",
+      "execution_id": "c4b8a991a10f5d9567c2783bdba4fd77c680b70fac2c96e4183c3944a7809143",
+      "pg": "l2",
+      "registers": 255,
+      "stack": 160,
+      "spill": true,
+      "spill_stores": 80,
+      "spill_loads": 88,
+      "smem": 86016,
+      "role": "audited frozen control; no new final binary selected"
+    },
+    {
+      "cell": "qwen3_B1",
+      "artifact_id": "63e58c1bea9612e67c9f87ba998743b19266c1cea7f42430b96f22e765e4a620",
+      "execution_id": "ff75abf654c811ce9369fadca70d5d5eed718e70894637b75ff28fc611ea82d6",
+      "pg": "pages",
+      "registers": 255,
+      "stack": 176,
+      "spill": true,
+      "spill_stores": 164,
+      "spill_loads": 408,
+      "smem": 99328,
+      "role": "audited frozen control; no new final binary selected"
+    },
+    {
+      "cell": "qwen3_B16",
+      "artifact_id": "054403099061d30f83382b3579421a964a26e3c746852e5e5c9428fc4792a5fb",
+      "execution_id": "425d9961d7c727b9885db90807f395b73cfe79d67eca8f19731f2c863b007549",
+      "pg": "pages",
+      "registers": 255,
+      "stack": 176,
+      "spill": true,
+      "spill_stores": 164,
+      "spill_loads": 408,
+      "smem": 99328,
+      "role": "audited frozen control; no new final binary selected"
+    }
+  ],
+  "build_retry_events": [
+    {
+      "step": "R14_remaining_narrow_llama_tn16_tiled",
+      "attempt": "1",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_llama_tn8_row",
+      "attempt": "1",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "1",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn8_row",
+      "attempt": "1",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_llama_tn8_row",
+      "attempt": "2",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "2",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn8_row",
+      "attempt": "2",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_llama_tn8_row",
+      "attempt": "3",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_llama_tn8_row",
+      "attempt": "4",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "3",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn8_row",
+      "attempt": "3",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_llama_tn8_row",
+      "attempt": "5",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "4",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "5",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_narrow_llama_tn8_row",
+      "attempt": "6",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "6",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn8_row",
+      "attempt": "4",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_trace",
+      "attempt": "1",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "7",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "8",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "9",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "10",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "11",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "12",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "13",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "14",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "15",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "16",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "17",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn8_row",
+      "attempt": "5",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "18",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "19",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn8_row",
+      "attempt": "6",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "20",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn8_row",
+      "attempt": "7",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "21",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn8_row",
+      "attempt": "8",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "22",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn16_tiled",
+      "attempt": "23",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn8_row",
+      "attempt": "9",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_narrow_qwen3_tn8_row",
+      "attempt": "10",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_trace",
+      "attempt": "2",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "1",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_overhead_r1",
+      "attempt": "1",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r2",
+      "attempt": "1",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "2",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_overhead_r1",
+      "attempt": "2",
+      "reason": "exit interference"
+    },
+    {
+      "step": "R14_remaining_overhead_r2",
+      "attempt": "2",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_calibrate",
+      "attempt": "1",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "3",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r1",
+      "attempt": "3",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "4",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "5",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "6",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "7",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "8",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "9",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r1",
+      "attempt": "4",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "10",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_overhead_r2",
+      "attempt": "3",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_calibrate",
+      "attempt": "2",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r1",
+      "attempt": "5",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r2",
+      "attempt": "4",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "11",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_overhead_r1",
+      "attempt": "6",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "12",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r1",
+      "attempt": "7",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r2",
+      "attempt": "5",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "13",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_overhead_r1",
+      "attempt": "8",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "14",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r2",
+      "attempt": "6",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "15",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r1",
+      "attempt": "9",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "16",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r1",
+      "attempt": "10",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r2",
+      "attempt": "7",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "17",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r1",
+      "attempt": "11",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "18",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "19",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r1",
+      "attempt": "12",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r2",
+      "attempt": "8",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_overhead_r0",
+      "attempt": "20",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_build_llama",
+      "attempt": "1",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_build_qwen3",
+      "attempt": "1",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_build_llama",
+      "attempt": "2",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_build_qwen3",
+      "attempt": "2",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_build_llama",
+      "attempt": "3",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_build_qwen3",
+      "attempt": "3",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_build_llama",
+      "attempt": "4",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_build_qwen3",
+      "attempt": "4",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_build_qwen3",
+      "attempt": "5",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_build_llama",
+      "attempt": "5",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_build_qwen3",
+      "attempt": "6",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_build_llama",
+      "attempt": "6",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_build_qwen3",
+      "attempt": "7",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_build_llama",
+      "attempt": "7",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_build_qwen3",
+      "attempt": "8",
+      "reason": "running interference"
+    },
+    {
+      "step": "R14_remaining_build_llama",
+      "attempt": "8",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_build_llama",
+      "attempt": "9",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_build_qwen3",
+      "attempt": "9",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_build_llama",
+      "attempt": "10",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_build_qwen3",
+      "attempt": "10",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_build_llama",
+      "attempt": "11",
+      "reason": "preflight occupied"
+    },
+    {
+      "step": "R14_remaining_build_llama",
+      "attempt": "12",
+      "reason": "preflight occupied"
+    }
+  ],
+  "completed_fresh_models": [],
+  "final_e2e": "not_run",
+  "final_performance_gates": "not_evaluated",
+  "planfamily": "not_evaluated; no complete new D1",
+  "historical": {
+    "phase_a_steps": 36,
+    "phase_b_steps": 72,
+    "phase_b_variants": 50,
+    "phase_b_artifacts": 100,
+    "required_protocols": {
+      "B6_protocol_llama_B1": {
+        "passed": 50,
+        "failed": 0,
+        "complete": true,
+        "processes_per_case": 50
+      },
+      "B6_protocol_qwen3_B1": {
+        "passed": 50,
+        "failed": 0,
+        "complete": true,
+        "processes_per_case": 50
+      },
+      "B6_protocol_llama_B16": {
+        "passed": 50,
+        "failed": 0,
+        "complete": true,
+        "processes_per_case": 50
+      }
+    },
+    "phase_c_retention": {
+      "C-RW1": {
+        "retain": false,
+        "cells": [],
+        "cell": "llama_B16",
+        "relative": 0.02443636008756611,
+        "baseline": [
+          3.2011814534259946,
+          3.1990600810845984,
+          3.198530705680275
+        ],
+        "candidate": [
+          3.276284392158394,
+          3.27723346516774,
+          3.277639875949551
+        ],
+        "fresh_passed": 50,
+        "correct": true
+      },
+      "C-EP2": {
+        "retain": false,
+        "cells": [],
+        "cell": "qwen3_B16",
+        "relative": 0.03796090906088834,
+        "baseline": [
+          5.709572889335009,
+          5.696541297213991,
+          5.708746843764655
+        ],
+        "candidate": [
+          5.923840609212513,
+          5.9254560635524385,
+          5.935167855076047
+        ],
+        "fresh_passed": 0,
+        "correct": true
+      },
+      "C-AT4": {
+        "retain": false,
+        "cells": [],
+        "cell": "qwen3_B1",
+        "relative": 0.04466937206775001,
+        "baseline": [
+          4.391661928675319,
+          4.390164009656826,
+          4.396210467162472
+        ],
+        "candidate": [
+          4.583666325507655,
+          4.590434911920309,
+          4.587834709363089
+        ],
+        "fresh_passed": 50,
+        "correct": true
+      }
+    }
+  },
+  "limitation": "shared correctness diagnostics are timing-ineligible; only final accepted guards enter overhead/ceiling; no synchronization conclusion beyond archived 50-process cases"
+}

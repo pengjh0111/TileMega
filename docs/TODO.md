@@ -1504,19 +1504,20 @@ Decode uses pages only; nonpaged decode is an explicit baseline and never enters
 
 R13 closed with declared limitations: two optional canary reruns and three dependent steps cancelled, no GPU work pending. TR-1 overhead and genuine control C-1 failures remain recorded. No product/device code changed in final CPU acceptance.
 
-### 5.14 R14 — correctness, attention and measured resource choices
+### 5.14 R14 — closed at user request; final performance unaccepted
 
 | Scope | Status |
 |---|---|
-| Framework / preregistration | Copied; initial predictions and all selection/Phase C rules committed |
-| FX-23 | Layout contract implemented; old counterexample, final numerics and architecture compilation verified |
-| FX-24 | Per-task conservation implemented; fixed and joint search-only replays pass |
-| FX-25 | Artifact/execution identity implemented; diagnostic builds and identity checks pass |
-| TR-4 | Code complete including first-ready observer; new model stage/task profiles and four default-path CU/resource/SASS comparisons pass; fresh overhead measurement deferred |
-| Phase A | 36/36 done, archived and accepted; four C-1/C-2 pass; Llama B1 baseline becomes corrected N1 |
-| Phase B | 72/72 done; 100 artifacts verify; 50 model variants C-1/C-2 pass; three required protocols each 50/50 |
-| GV-1 / SL-6 | Code complete for narrow TN8/16 DN/SwiGLU and required coverage/deadlines; CPU orchestration and four narrow-model 64-step C-1/C-2 checks pass |
-| Conditional Phase C | 21/22 original steps pass; repaired architecture check passes all five architectures; three candidates regress and are rejected; RW1/AT4 each 50/50 |
-| Phase D | Old queues remain retired; guarded 65-step continuation launched in SERVING_R14/queue_remaining; use scheduler_remaining; fresh D1/PlanFamily/D2/D3 and full validation pending |
+| FX-23 / FX-24 / FX-25 | Layout/counterexample, conservation replay, artifact identity implemented and checked |
+| TR-4 | First-ready repaired; supplemental Llama B1 stage/task overhead 0.90%/1.29%; sampled extrema remain diagnostic |
+| AT-1/2/3a, SK-1, RW-3, RA-1, EP-1 | Implemented, numerical/model checks archived; required three protocols each 50/50 |
+| GV-1 | TN8/16/32 both layouts including narrow DN/SwiGLU; four narrow cases each 1024-step C-1/C-2 pass |
+| SL-6 | Required families, multipast integral, halving and budget fail-closed implemented; fresh complete hardware selection not accepted |
+| Phase 0/A/B | Accepted evidence retained; A 36 steps, B 72 steps / 100 artifacts / 50 model variants |
+| Phase C | RW1/EP2/AT4 correct but regress, defaults off; RW1/AT4 each 50/50; other non-triggered items not implemented |
+| D0 | Five clean processes, standard ceiling 979.97757 GB/s; target and raw evidence archived |
+| Phase D | Fresh D1 incomplete; D2/D3 and PlanFamily undecided; cancelled at user request |
+| Supplemental queue | 12 done / 53 cancelled / 0 running / 0 pending; no further tests scheduled |
+| Integration | Preserve remote tilemega's dnn-moe merge; existing DM ABI gate isolates conflicting runtime/template APIs |
 
-Bounded logic review is complete (20/20); shared diagnostics are timing-ineligible. User requests remaining tests: use SERVING_R14/scheduler_remaining/state.json and queue_remaining/queue_r14_remaining.json, not old queue state. Completed Phase 0/A/B/C evidence is preserved; no new synchronization reliability conclusion before final protocols.
+Recovery source: SERVING_R14/scheduler_remaining/{state.json,progress.tsv}; read once before any separately authorized restart. Final performance gates are unaccepted, not failed or passed. R15 work is proposals only; see SERVING_R14/summary.md and F-365.
