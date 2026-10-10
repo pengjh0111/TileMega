@@ -419,6 +419,8 @@ def build(root, arch):
     if paged:implementations+=['PagedGemmTaskBody','PageStream']
     if '#define TILEMEGA_MOE_DYNAMIC 1' in text:
         implementations+=['DynamicTaskCursor','ClaimDynamicTask']
+    if '#define TILEMEGA_MOE_OPAQUE 1' in text:
+        implementations+=['OpaqueMoeStageDependencies','OpaquePageStreamGate']
     implementations=list(dict.fromkeys(implementations))
     phase='forward' if re.search(r'^#define TILEMEGA_SERVING_PHASE 2$',text,re.M) else (
         'decode' if re.search(r'^#define TILEMEGA_SERVING_SEQ 1$',text,re.M) else 'prefill')
