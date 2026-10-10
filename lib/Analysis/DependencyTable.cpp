@@ -93,7 +93,7 @@ std::optional<std::vector<std::vector<TaskInterval>>> SymbolicProducerIntervals(
   // endpoints. A failed/quota-limited optimization retains the exact row path.
   IslContext proof;
   auto* ctx=proof.raw();isl_options_set_on_error(ctx,ISL_ON_ERROR_CONTINUE);
-  isl_ctx_set_max_operations(ctx,1000000);
+  isl_ctx_set_max_operations(ctx,10000);
   auto map=isl_util::Map(isl_map_read_from_str(ctx,relation.c_str()));
   struct State {
     std::vector<std::vector<TaskInterval>> rows;
@@ -105,7 +105,7 @@ std::optional<std::vector<std::vector<TaskInterval>>> SymbolicProducerIntervals(
     auto& state=*static_cast<State*>(user);
     auto part=isl_util::Map(isl_map_from_basic_map(raw));
     auto* ctx=isl_map_get_ctx(part.get());
-    isl_ctx_reset_operations(ctx);isl_ctx_set_max_operations(ctx,1000000);
+    isl_ctx_reset_operations(ctx);isl_ctx_set_max_operations(ctx,10000);
     auto lo=isl_util::Map(isl_map_lexmin(isl_map_copy(part.get())));
     auto hi=isl_util::Map(isl_map_lexmax(isl_map_copy(part.get())));
     if(!lo || !hi)return isl_stat_error;
