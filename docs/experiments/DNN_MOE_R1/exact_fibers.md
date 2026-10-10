@@ -22,3 +22,13 @@ because its stored relation is exact. Existing table/codec/codegen tests pass.
 
 Full MobileNetV1 fusion and B16 full-depth MoE prefill generation remain under
 investigation. Host checks above do not claim those graph paths are complete.
+
+verified: `runs/dm1-piece-screen-host-v2/results.json` passes exact metadata,
+window accesses, dependency table/codec/codegen and DW/PW fixture checks. A
+piece-bound signature rejects union-dependent candidate coordinates. Optional
+pullback equality runs with an isolated ISL operation quota: quota exhaustion
+rejects the optimization and retains exact counting, never accepts a proof or
+relaxes dependencies. The caller's context/error/budget state is preserved.
+Interval runs are parsed as small pieces and combined by balanced set unions.
+The first implementation incorrectly called affine getters on map/unknown-div
+spaces; host failures in `runs/dm1-piece-screen-host-v1` are preserved.

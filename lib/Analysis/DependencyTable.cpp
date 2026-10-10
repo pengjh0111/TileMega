@@ -69,8 +69,8 @@ std::vector<TaskInterval> ProducerIntervals(isl_set* sources) {
   }
   return result;
 }
-std::string EncodeRuns(Runs const& runs,char const* coordinate) {
-  std::string text;
+isl_util::Set EncodeRuns(Runs const& runs,isl_space* space,char const* coordinate) {
+  std::vector<isl_util::Set> pieces;
   for(std::size_t begin=0;begin<runs.size();) {
     std::size_t end=begin+1;std::uint64_t step=0;
     if(end<runs.size() && runs[end].second==runs[begin].second) {
@@ -79,15 +79,26 @@ std::string EncodeRuns(Runs const& runs,char const* coordinate) {
       while(end<runs.size() && runs[end].second==runs[begin].second &&
           std::uint64_t(runs[end].first)-runs[end-1].first==step)++end;
     }
-    if(!text.empty())text+=" or ";
-    text+="("+std::to_string(runs[begin].first)+" <= "+coordinate+" < "+
+    auto text="("+std::to_string(runs[begin].first)+" <= "+coordinate+" < "+
         std::to_string(std::uint64_t(runs[end-1].first)+runs[begin].second);
     if(end>begin+1 && step>runs[begin].second)
       text+=" and ("+std::string(coordinate)+"-"+std::to_string(runs[begin].first)+")%"+
           std::to_string(step)+" < "+std::to_string(runs[begin].second);
     text+=")";begin=end;
+    auto piece=isl_util::ReadSet(isl_space_get_ctx(space),
+        "{ ["+std::string(coordinate)+"] : "+text+" }");
+    pieces.emplace_back(isl_set_reset_space(piece.release(),isl_space_copy(space)));
   }
-  return text.empty()?"false":text;
+  // Keep independent interval disjuncts out of the parser's left-folded
+  // conjunction/disjunction expansion. Ordinary union preserves overlap.
+  while(pieces.size()>1) {
+    std::vector<isl_util::Set> next;
+    for(std::size_t i=0;i<pieces.size();i+=2)
+      if(i+1==pieces.size())next.push_back(std::move(pieces[i]));
+      else next.emplace_back(isl_set_union(pieces[i].release(),pieces[i+1].release()));
+    pieces=std::move(next);
+  }
+  return pieces.empty()?isl_util::Set(isl_set_empty(isl_space_copy(space))):std::move(pieces.front());
 }
 CouplingRelation Linearization(OperatorNode const& node, std::vector<std::string> const& names,
                               ParamBinding const& known, char const* id) {
@@ -157,8 +168,8 @@ DependencyTable BuildDependencyTableLinear(CouplingRelation const& relation,
       auto row_intervals=ProducerIntervals(sources.get());
       Runs runs;
       for(auto const& interval:row_intervals)runs.emplace_back(interval.first,interval.count);
-      auto encoded=isl_util::ReadSet(ctx,"{ [_tm_p] : "+EncodeRuns(runs,"_tm_p")+" }");
-      encoded=isl_util::Set(isl_set_reset_space(encoded.release(),isl_set_get_space(sources.get())));
+      auto space=isl_util::Space(isl_set_get_space(sources.get()));
+      auto encoded=EncodeRuns(runs,space.get(),"_tm_p");
       if(isl_set_is_subset(encoded.get(),sources.get())!=isl_bool_true ||
           isl_set_is_subset(sources.get(),encoded.get())!=isl_bool_true)
         throw std::logic_error("dependency table row failed exact containment proof");

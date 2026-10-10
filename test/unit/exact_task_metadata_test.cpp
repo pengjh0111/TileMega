@@ -133,6 +133,12 @@ void FiniteFibers() {
     assert(relation.BoundTaskCard().SemanticallyEqual(relation.Card(), {}));
     assert(relation.BoundTaskCard(1).SemanticallyEqual(relation.Card(), {}));
   }
+  for(auto const* text:{
+      "{ [m,n] -> [i] : 0<=m<3 and 0<=n<2 and 0<=i<2; [m,n] -> [i] : 0<=m<3 and 2<=n<4 and 0<=i<3 }",
+      "{ [m,n] -> [i] : 0<=m<3 and 0<=n<8 and 0<=i<2+n%2 }"}) {
+    auto relation=CouplingRelation::FromIslText(text);
+    assert(relation.BoundTaskCard().SemanticallyEqual(relation.Card(),{}));
+  }
   auto exact = CouplingRelation::FromIslText("{ [t] -> [i,j] : 0 <= t < 3 and 0 <= i,j < 4 and j=i }");
   auto replicated=CouplingRelation::FromIslText(
       "{ [m,n,k] -> [i] : 0<=m<5 and 0<=n<100000 and 0<=k<2 and m<=i<m+3 }");

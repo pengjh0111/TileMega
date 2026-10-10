@@ -14,6 +14,7 @@
 #include <sstream>
 #include <isl/ilp.h>
 #include <isl/constraint.h>
+#include <isl/options.h>
 #include <optional>
 
 #ifndef TILEMEGA_ISL_COMPONENT_ENUMERATION
@@ -26,9 +27,13 @@ namespace {
 isl_ctx* Ctx() { return SharedIslContext().raw(); }
 
 bool HasDirectOutputCoupling(isl_map* map,int axis) {
-  struct State {int axis;bool coupled=false;} state{axis};
+  struct State {
+    int axis;bool coupled=false,first=true;
+    std::vector<std::string> bounds,current;
+  } state{axis};
   auto component=[](isl_basic_map* raw,void* user)->isl_stat {
     isl_util::Obj<isl_basic_map,isl_basic_map_copy,isl_basic_map_free> part(raw);
+    auto& state=*static_cast<State*>(user);state.current.clear();
     auto constraint=[](isl_constraint* raw,void* user)->isl_stat {
       isl_util::Obj<isl_constraint,isl_constraint_copy,isl_constraint_free> c(raw);
       auto& state=*static_cast<State*>(user);
@@ -41,13 +46,49 @@ bool HasDirectOutputCoupling(isl_map* map,int axis) {
           if(!value)return isl_stat_error;
           if(isl_val_is_zero(value.get())!=isl_bool_true)state.coupled=true;
         }
+      std::string signature=std::to_string(isl_constraint_is_equality(c.get()));
+      auto append=[&](isl_val* raw) {
+        auto value=isl_util::Val(raw);if(!value)return false;
+        char* text=isl_val_to_str(value.get());if(!text)return false;
+        signature+=",";signature+=text;free(text);return true;
+      };
+      if(!append(isl_constraint_get_constant_val(c.get())))return isl_stat_error;
+      for(auto type:{isl_dim_param,isl_dim_in,isl_dim_out,isl_dim_div}) {
+        signature+="/";
+        for(int i=0;i<isl_constraint_dim(c.get(),type);++i)
+          if(!append(isl_constraint_get_coefficient_val(c.get(),type,i)))return isl_stat_error;
+      }
+      state.current.push_back(std::move(signature));
       return isl_stat_ok;
     };
-    return isl_basic_map_foreach_constraint(part.get(),constraint,user);
+    auto status=isl_basic_map_foreach_constraint(part.get(),constraint,user);
+    if(status!=isl_stat_ok)return status;
+    std::sort(state.current.begin(),state.current.end());
+    // Different input bounds can select different fibers across disjuncts,
+    // even when no individual constraint mixes this input with an output.
+    if(!state.first && state.current!=state.bounds)state.coupled=true;
+    state.bounds=state.current;state.first=false;return isl_stat_ok;
   };
   if(isl_map_foreach_basic_map(map,component,&state)!=isl_stat_ok)
     throw std::runtime_error("cannot inspect task coordinate coupling");
   return state.coupled;
+}
+
+bool ProveCoordinatePullback(isl_map* original,isl_map* lifted) {
+  // Independence is an optional fast path. Bound a failed proof in a separate
+  // context, so a difficult negative case cannot stall exact fiber counting
+  // or alter the caller's operation budget/error state. Quota is rejection,
+  // never proof; all accepted projections still pass full map equality.
+  auto lhs=isl_util::ToString(original),rhs=isl_util::ToString(lifted);
+  IslContext proof;
+  isl_options_set_on_error(proof.raw(),ISL_ON_ERROR_CONTINUE);
+  isl_ctx_set_max_operations(proof.raw(),100000);
+  auto a=isl_util::Map(isl_map_read_from_str(proof.raw(),lhs.c_str()));
+  auto b=isl_util::Map(isl_map_read_from_str(proof.raw(),rhs.c_str()));
+  auto equal=a && b?isl_map_is_equal(a.get(),b.get()):isl_bool_error;
+  if(equal==isl_bool_error && isl_ctx_last_error(proof.raw())!=isl_error_quota)
+    throw std::runtime_error("task coordinate pullback proof failed");
+  return equal==isl_bool_true;
 }
 
 isl_util::Val CountFiniteFiber(isl_set* elements) {
@@ -470,7 +511,7 @@ QuasiPolynomial CouplingRelation::BoundTaskCard(unsigned max_domain_points) cons
         projection=isl_util::Map(isl_map_project_out(projection.release(),isl_dim_out,axis,1));
         projection=isl_util::Map(isl_map_intersect_domain(projection.release(),isl_set_copy(domain.get())));
         auto lifted=isl_util::Map(isl_map_apply_range(isl_map_copy(projection.get()),isl_map_copy(reduced.get())));
-        if(isl_map_is_equal(map.get(),lifted.get())==isl_bool_true) {
+        if(ProveCoordinatePullback(map.get(),lifted.get())) {
           auto count=CouplingRelation(isl_util::ToString(reduced.get())).BoundTaskCard(max_domain_points);
           auto value=isl_util::ReadPwQPolynomial(Ctx(),count.ToString());
           // This proved projection is an identity with one coordinate
