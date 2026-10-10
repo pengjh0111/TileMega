@@ -118,13 +118,17 @@ int TestMoeRegionCodegen(int argc,char** argv) {
       assert(packed.gemms.size()==3);
       auto attr=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
       auto buffers=attr.getAs<mlir::ArrayAttr>("buffers"),gemms=attr.getAs<mlir::ArrayAttr>("gemms");
-      for(unsigned index=1;index<3;++index) {
+      // The router, too, has no row-major consumer. Packed-only plans must
+      // not expose an unused second copy to the weight loader.
+      assert(buffers.size()==plan.buffers.size());
+      for(unsigned index=0;index<3;++index) {
+
         auto gemm=mlir::cast<mlir::DictionaryAttr>(gemms[index]);
         unsigned buffer=gemm.getAs<mlir::IntegerAttr>("b").getInt();
         auto weight=mlir::cast<mlir::DictionaryAttr>(buffers[buffer]);
         assert(buffer==plan.gemms[index].b);
         assert(weight.getAs<mlir::IntegerAttr>("constant").getInt()==
-            16u*plan.gemms[index].n*plan.gemms[index].k);
+            (index?16u:1u)*plan.gemms[index].n*plan.gemms[index].k);
       }
       ResolveServingWeightPacking(*module);
       assert((*module)->getAttr("tilemega.model_plan")==attr);

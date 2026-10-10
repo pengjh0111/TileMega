@@ -176,6 +176,44 @@ void ResolveServingWeightPacking(mlir::ModuleOp module) {
   std::vector<mlir::Attribute> buffers(old_buffers.begin(),old_buffers.end());
   std::vector<mlir::Attribute> gemms(old_gemms.begin(),old_gemms.end());
   std::vector<mlir::Attribute> stages(old_stages.begin(),old_stages.end());
+  auto dm=plan.getAs<mlir::BoolAttr>("dm");
+  auto chain_uses=[](mlir::Attribute attr,unsigned source) {
+    if(!attr)return false;
+    auto chain=frontend::DecodeDmChain(attr);
+    for(unsigned i=0;i<chain.count;++i)for(auto parameter:chain.operations[i].parameter)
+      if(parameter==source)return true;
+    for(unsigned i=0;i<chain.side_count;++i)
+      if(chain.side[i].buffer==source || chain.side[i].auxiliary==source)return true;
+    return false;
+  };
+  auto replace_dense=[&](unsigned source,int tn,int tk) {
+    if(!dm || !dm.getValue())return false;
+    for(unsigned j=0;j<old_gemms.size();++j) {
+      auto other=mlir::cast<mlir::DictionaryAttr>(old_gemms[j]);
+      for(auto name:{"a","c","d","norm_ss","ss_out"})
+        if(auto id=other.getAs<mlir::IntegerAttr>(name);id && id.getInt()==source)return false;
+      if(chain_uses(other.get("dm_chain"),source))return false;
+      if(auto attr=other.get("dm_access")) {
+        auto access=frontend::DecodeDmAccess(attr);
+        for(auto id:{access.rows,access.binding,access.a_scale,access.write.rows})
+          if(id==source)return false;
+      }
+      if(other.getAs<mlir::IntegerAttr>("b").getInt()==source &&
+          (runtime.gemms[j].tile_n!=tn || runtime.gemms[j].tile_k!=tk))return false;
+    }
+    for(auto item:old_stages) {
+      auto stage=mlir::cast<mlir::DictionaryAttr>(item);
+      auto operands=stage.getAs<mlir::DenseI64ArrayAttr>("operands").asArrayRef();
+      bool gemm=stage.getAs<mlir::StringAttr>("kind").getValue()=="kGemm";
+      for(unsigned slot=0;slot<operands.size();++slot)
+        if(operands[slot]==source && (!gemm || slot!=1))return false;
+      if(chain_uses(stage.get("dm_chain"),source))return false;
+    }
+    for(auto item:plan.getAs<mlir::ArrayAttr>("outputs"))
+      if(mlir::cast<mlir::DictionaryAttr>(item).getAs<mlir::IntegerAttr>("buffer").getInt()==source)
+        return false;
+    return true;
+  };
   std::map<std::tuple<int,int,int>,int> packed;
   for (std::size_t i=0;i<gemms.size();++i) {
     auto g=mlir::cast<mlir::DictionaryAttr>(gemms[i]);
@@ -200,11 +238,11 @@ void ResolveServingWeightPacking(mlir::ModuleOp module) {
     int destination;
     if(auto found=packed.find(key);found!=packed.end()) destination=found->second;
     else {
-      bool replace=expert;
+      bool replace=expert || replace_dense(source,tn,tk);
       for(auto const& [prior,id]:packed)if(std::get<0>(prior)==source)replace=false;
-      // Expert stacks have no non-GEMM consumer. Replacing their source slot
-      // prevents retaining an unused row-major stack beside its tiled copy.
-      if(replace)for(auto const& item:old_gemms) {
+      // Proven B-only DM weights replace the source slot so the loader does
+      // not retain an unused row-major allocation beside the packed weight.
+      if(replace && expert)for(auto const& item:old_gemms) {
         auto other=mlir::cast<mlir::DictionaryAttr>(item);
         for(auto operand:{"a","c","d"})
           if(other.getAs<mlir::IntegerAttr>(operand).getInt()==source)
