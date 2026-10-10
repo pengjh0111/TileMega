@@ -20,6 +20,9 @@
 #ifndef DM_TEST_STAGES
 #define DM_TEST_STAGES 3
 #endif
+#ifndef DM_TEST_SCALE
+#define DM_TEST_SCALE 0
+#endif
 using namespace tilemega;
 using E=cutlass::bfloat16_t;
 using Arch=std::conditional_t<std::is_void_v<arch::CurrentArch>,arch::Sm89,arch::CurrentArch>;
@@ -35,7 +38,8 @@ using Spec=codegen::DmEpilogueSpec<codegen::DmEpilogueProgram<>,
 __device__ codegen::ServingGemmOperands Operands(codegen::ServingGemmOperands p,
     codegen::ConvDesc const& conv,codegen::DmBufferLayout const& layout,
     backend::ConvIterationGeometry geometry,int chunks,int chunk,float* output) {
-  p.convolutions=&conv;p.dm_buffers.layouts=&layout;p.dm_buffers.count=1;
+  p.convolutions=&conv;
+  if(!DM_TEST_SCALE) {p.dm_buffers.layouts=&layout;p.dm_buffers.count=1;}
   p.conv_iteration=geometry;p.access.a=codegen::DmAAccess::kIm2Col;p.access.conv=0;
   p.k_total=p.k_total_full=geometry.iterations*DM_TEST_TK;
   p.k_begin=chunk*(geometry.iterations/chunks)*DM_TEST_TK;
@@ -89,7 +93,8 @@ int main() {
   assert(cudaFuncSetAttribute(Run,cudaFuncAttributeMaxDynamicSharedMemorySize,Body::kSharedBytes)==cudaSuccess);
   assert(cudaFuncSetAttribute(RunPaged,cudaFuncAttributeMaxDynamicSharedMemorySize,PagedBytes)==cudaSuccess);
   for(auto shape:shapes)for(unsigned batch:{1,2})for(unsigned columns:{3,19})
-    for(unsigned rgb_pad:{4,8}) {
+    for(unsigned rgb_pad:{4,8})for(unsigned scale_type:{0,1}) {
+      if(!DM_TEST_SCALE && scale_type==0)continue;
       if(shape.c>4 && rgb_pad!=8)continue;
       unsigned cp=shape.c<=4?rgb_pad:(shape.c+7)/8*8;
       if(cp<DM_TEST_TK && DM_TEST_TK%cp)continue;
@@ -130,6 +135,22 @@ int main() {
         }
       codegen::ServingGemmOperands operands{};
       operands.a=a;operands.b=b;operands.weight_base=packed;operands.m=m;operands.n=columns;
+      float* scale=nullptr;E* scale_bf16=nullptr;
+      codegen::DmBufferLayout* layouts=nullptr;unsigned* dtypes=nullptr;
+      if(DM_TEST_SCALE) {
+        scale=Managed<float>(batch*shape.c);scale_bf16=Managed<E>(batch*shape.c);
+        for(unsigned image=0;image<batch;++image)for(unsigned c=0;c<shape.c;++c) {
+          auto index=image*shape.c+c;scale[index]=.91f+.00371f*c+.03531f*image;
+          scale_bf16[index]=E(scale[index]);
+        }
+        layouts=Managed<codegen::DmBufferLayout>(2);layouts[0]=layout;
+        layouts[1]={};layouts[1].rank=2;layouts[1].logical[0]=layouts[1].physical[0]=batch;
+        layouts[1].logical[1]=layouts[1].physical[1]=shape.c;layouts[1].strides[0]=shape.c;layouts[1].strides[1]=1;
+        dtypes=Managed<unsigned>(2);dtypes[0]=0;dtypes[1]=scale_type;
+        operands.a_scale=scale_type?scale:reinterpret_cast<float const*>(scale_bf16);
+        operands.access.a_scale=1;operands.dm_buffers.layouts=layouts;
+        operands.dm_buffers.dtypes=dtypes;operands.dm_buffers.count=2;
+      }
       std::vector<float> expected(m*columns);
       for(int row=0;row<m;++row)for(unsigned n=0;n<columns;++n) {
         unsigned image=row/(conv.p*conv.q),pixel=row%(conv.p*conv.q);
@@ -137,8 +158,11 @@ int main() {
         for(unsigned r=0;r<conv.r;++r)for(unsigned s=0;s<conv.s;++s)for(unsigned c=0;c<shape.c;++c) {
           int h=(pixel/conv.q)*conv.stride_h+r*conv.dilation_h-conv.pad_h;
           int w=(pixel%conv.q)*conv.stride_w+s*conv.dilation_w-conv.pad_w;
-          if(h>=0 && h<int(conv.h) && w>=0 && w<int(conv.w))
-            sum+=float(E(Input(image,h,w,c)))*float(E(Weight(n,r,s,c)));
+          if(h>=0 && h<int(conv.h) && w>=0 && w<int(conv.w)) {
+            auto value=E(Input(image,h,w,c));
+            if(DM_TEST_SCALE)value=E(float(value)*(scale_type?scale[image*shape.c+c]:float(scale_bf16[image*shape.c+c])));
+            sum+=float(value)*float(E(Weight(n,r,s,c)));
+          }
         }
         expected[row*columns+n]=sum;
       }
@@ -167,6 +191,7 @@ int main() {
         cudaFree(output);
       }
       cudaFree(a);cudaFree(b);cudaFree(packed);
+      if(DM_TEST_SCALE) {cudaFree(scale);cudaFree(scale_bf16);cudaFree(layouts);cudaFree(dtypes);}
     }
   std::printf("CONV_TASKBODY tile=%dx%dx%d stages=%d cases=%u FP32_oracle_dense_paged_split_halo_canaries PASS\n",
       DM_TEST_TM,DM_TEST_TN,DM_TEST_TK,DM_TEST_STAGES,cases);

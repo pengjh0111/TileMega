@@ -626,6 +626,15 @@ struct GemmStageTaskBody {
       operands.k_total_full=invocation.serving_k_total_full;
       operands.k_begin=invocation.serving_k_begin;
     }
+    if(invocation.access.a==DmAAccess::kRowGather ||
+       invocation.access.b==DmBAccess::kExpertIndirect) {
+      operands.a=invocation.mainloop.ptr_A-invocation.serving_k_begin;
+      operands.b=invocation.mainloop.ptr_B-invocation.serving_k_begin;
+      operands.weight_base=invocation.serving_weight_base;
+      operands.k_total=invocation.k_total;
+      operands.k_total_full=invocation.serving_k_total_full;
+      operands.k_begin=invocation.serving_k_begin;
+    }
     operands.binding=invocation.binding; operands.rows=invocation.rows;
     operands.a_scale=invocation.a_scale; operands.dm_buffers=invocation.dm_buffers;
     operands.a_row_stride=static_cast<int>(cute::get<0>(invocation.mainloop.dA));

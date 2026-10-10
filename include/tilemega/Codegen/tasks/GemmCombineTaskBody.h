@@ -59,20 +59,18 @@ struct GemmCombineTaskBody {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     using V = GemmVariant<Variant>;
     backend::DmEpilogueArguments operands;
-    operands.buffers = invocation.dm_buffers;
-    operands.chain = invocation.chain;
-    operands.write = invocation.access.write;
-    operands.output = p.buffers[stage.operand[1]];
-    operands.m = cute::get<0>(invocation.problem);
-    operands.n = stage.width;
-    operands.output_stride = invocation.serving_output_stride;
-    operands.norm_width = invocation.k_total;
-    operands.norm_eps = TILEMEGA_NORM_EPSILON;
-    operands.image_rows = invocation.access.rows_per_batch;
+    ServingGemmOperands source;
+    source.dm_buffers=invocation.dm_buffers;source.chain=invocation.chain;
+    source.access=invocation.access;source.binding=invocation.binding;source.rows=invocation.rows;
+    source.output=reinterpret_cast<cutlass::bfloat16_t*>(p.buffers[stage.operand[1]]);
+    source.m=cute::get<0>(invocation.problem);source.n=stage.width;
+    source.output_stride=invocation.serving_output_stride;
+    source.norm_k=invocation.k_total;source.norm_eps=TILEMEGA_NORM_EPSILON;
+    if(!ResolveDmCombineOperands(source,task/invocation.tiles_n,V::kTileM,&operands))return;
     DispatchDmEpilogue(invocation.dm_gemm, DmCombineRunner<Arch, V::kTileM, V::kTileN>{
         reinterpret_cast<float const*>(p.buffers[stage.operand[0]]), invocation.chunks,
         task / invocation.tiles_n, task % invocation.tiles_n,
-        reinterpret_cast<char*>(&smem.gemm), operands});
+        reinterpret_cast<char*>(&smem.gemm), operands,source.m});
     return;
 #else
     switch (invocation.serving_op) {

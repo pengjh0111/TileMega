@@ -32,6 +32,7 @@ def main():
                '-I' + str(root / 'third_party/cutlass/include'),
                '-I' + str(root / 'third_party/cutlass/tools/util/include'),
                '-Xptxas=-v,-warn-spills', str(source), '-o', str(binary)]
+    command[1:1]=['-D'+name+'='+value for name,value in sorted(prepared.get('definitions',{}).items())]
     log = root / f'task-sm_{args.arch}.build.log'
     with log.open('w') as stream:
         subprocess.run(command, check=True, stdout=stream, stderr=subprocess.STDOUT)

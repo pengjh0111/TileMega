@@ -2,8 +2,16 @@
 #pragma once
 #include <tilemega/Backend/ServingDmEpilogue.h>
 #include <tilemega/Codegen/tasks/DmEpilogueDispatch.cuh>
+#include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>
 
 namespace tilemega::codegen {
+__device__ inline bool ResolveDmCombineOperands(ServingGemmOperands const& source,
+    unsigned tile_m,unsigned tm,backend::DmEpilogueArguments* result) {
+  auto resolved=source;
+  if(!backend::ResolveDmMoeTile(resolved,tile_m,tm))return false;
+  *result=DmEpilogueOperands(resolved);
+  return true;
+}
 template <class Arch, int TileM, int TileN>
 struct DmCombineRunner {
   float const* partials;

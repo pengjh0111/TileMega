@@ -241,7 +241,12 @@ struct PagedGemmTaskBody {
       if(global_m>=p.m)continue;
       bool valid=local_k<p.k_count;
       auto* dest=shared+LayoutA{}(m,k);
-      auto* src=valid?p.a+std::int64_t(global_m)*pitch+p.k_begin+local_k:p.a;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      auto source_row=valid?backend::DmSourceRow(p,global_m):0;
+#else
+      auto source_row=global_m;
+#endif
+      auto* src=valid?p.a+std::int64_t(source_row)*pitch+p.k_begin+local_k:p.a;
       Async::Copy16Bytes(dest,src,valid?min(8,p.k_count-local_k)*sizeof(Element):0);
     }
     cute::cp_async_fence();
@@ -311,7 +316,8 @@ struct PagedGemmTaskBody {
       Ring const& ring,std::uint64_t& sequence,char* workspace,
       Gate gate={}) {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-    if(p.access.a==DmAAccess::kIm2Col) {
+    if(p.access.a==DmAAccess::kIm2Col || p.access.a==DmAAccess::kRowGather ||
+       p.access.b==DmBAccess::kExpertIndirect || p.a_scale) {
       if(p.epilogue!=backend::ServingEpilogueOp::kPartial || !p.partial) {
         asm volatile("trap;");return;
       }
@@ -319,6 +325,7 @@ struct PagedGemmTaskBody {
       partial.output_stride=p.partial_stride;
       partial.chain={};partial.chain.store_rounding=DmRounding::kFP32;
       partial.access.write={};
+      partial.dm_partial_rows=true;
       using Spec=DmEpilogueSpec<DmEpilogueProgram<>,DmWriteKind::kDense,1,DmRounding::kFP32>;
       RunDm<Spec>(partial,tile_m,tile_n,ring,sequence,workspace,gate);
       return;
@@ -494,6 +501,13 @@ struct PagedGemmTaskBody {
   __device__ static void RunDm(ServingGemmOperands const& p,int tile_m,int tile_n,
       Ring const& ring,std::uint64_t& sequence,char* workspace,
       Gate gate={}) {
+    auto resolved=p;
+    if(!backend::ResolveDmMoeTile(resolved,tile_m,TileM))return;
+    RunDmResolved<Spec>(resolved,tile_m,tile_n,ring,sequence,workspace,gate);
+  }
+  template<class Spec, class Gate>
+  __device__ static void RunDmResolved(ServingGemmOperands const& p,int tile_m,int tile_n,
+      Ring const& ring,std::uint64_t& sequence,char* workspace,Gate gate) {
     if(p.access.a==DmAAccess::kIm2Col) {
       if(!p.convolutions || p.access.conv==kDmNoIndex ||
          p.k_begin%TileK || p.k_count%TileK || !p.conv_iteration.iterations) {
@@ -530,6 +544,8 @@ struct PagedGemmTaskBody {
     Mma mma;auto thread=mma.get_slice(ComputeThread());
 #endif
     auto accum=partition_fragment_C(mma,Shape<Int<TileM>,Int<TileN>>{});clear(accum);
+    auto coordinates_a=thread.partition_A(make_identity_tensor(Shape<Int<TileM>,Int<TileK>>{}));
+    backend::DmScaledActivation<ServingGemmOperands,TileM,TileK> scale_a{p,tile_m};
     auto* activation=reinterpret_cast<Element*>(workspace);
     int iterations=(p.k_count+TileK-1)/TileK;
     if(iterations<=0)return;
@@ -612,6 +628,7 @@ struct PagedGemmTaskBody {
               copy(typename Config::SmemCopyAtom{},src_a(_,_,Int<next>{}),dst_a(_,_,Int<next>{}));
               copy(typename Config::SmemCopyAtomB{},src_b(_,_,Int<next>{}),dst_b(_,_,Int<next>{}));
             }
+            scale_a(rA(_,_,k),coordinates_a(_,_,k),it);
             if constexpr(kKSplits==1)gemm(mma,rA(_,_,k),rB(_,_,k),accum);
             else if((it*(TileK/16)+int(k))%kKSplits==ComputeThread()/(kComputeThreads/kKSplits))
               gemm(mma,rA(_,_,k),rB(_,_,k),accum);
@@ -622,6 +639,7 @@ struct PagedGemmTaskBody {
         for(int k=0;k<size<2>(rA);++k) {
           copy(typename Config::SmemCopyAtom{},src_a(_,_,k),dst_a(_,_,k));
           copy(typename Config::SmemCopyAtomB{},src_b(_,_,k),dst_b(_,_,k));
+          scale_a(rA(_,_,k),coordinates_a(_,_,k),it);
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
           if constexpr(kKSplits==2) {
             if((it*(TileK/16)+k)%kKSplits==ComputeThread()/(kComputeThreads/kKSplits))

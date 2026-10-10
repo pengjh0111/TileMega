@@ -3,6 +3,7 @@
 
 #include <tilemega/Backend/DmEpilogueValue.h>
 #include <tilemega/Backend/DmTensorAddress.h>
+#include <tilemega/Backend/DmMoeOperands.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <cute/tensor.hpp>
 
@@ -19,6 +20,16 @@ struct DmEpilogueArguments {
   // A gathered tile still uses its original token's normalization statistics.
   std::uint32_t const* statistic_rows = nullptr;
   int image_rows = 0;
+  DmMoeRows moe{};
+  bool partial_rows = false;
+  unsigned routing_topk = 0;
+
+  __device__ unsigned StatisticRow(unsigned row) const {
+    return statistic_rows?statistic_rows[row]:moe.Token(row);
+  }
+  __device__ unsigned StorageRow(unsigned row) const {
+    return partial_rows?row:moe.Storage(row);
+  }
 };
 
 template <class Program> struct DmGateShape;
@@ -109,7 +120,7 @@ struct ServingDmEpilogue {
         int global_row = tile_m * TileM + row;
         float sum = 0, square = 0;
         if (global_row < p.m) {
-          auto source_row = p.statistic_rows ? p.statistic_rows[global_row] : global_row;
+          auto source_row = p.StatisticRow(global_row);
           for (unsigned part = lane; part < layout.logical[1]; part += 32) {
             auto offset = source_row * layout.strides[0] + part * layout.strides[1];
             sum += statistics[offset];
@@ -227,14 +238,25 @@ struct ServingDmEpilogue {
     auto layout = Layout(p, p.write.layout);
     std::uint32_t const* scatter = nullptr;
     if constexpr (Spec::kWrite == codegen::DmWriteKind::kRowScatter)
-      scatter = Buffer<std::uint32_t, 2>(p, p.write.rows);
+      if(!p.moe.rows)scatter = Buffer<std::uint32_t, 2>(p, p.write.rows);
     for (int i = ComputeThread(); i < TileM * kColumns; i += kComputeThreads) {
       int row = i / kColumns, column = i % kColumns;
       int global_row = tile_m * TileM + row;
       int global_column = tile_n * kColumns + column;
       if (global_row >= p.m || global_column >= p.n / (Gate::kCount ? 2 : 1)) continue;
-      auto offset = DmTensorAddress<Spec::kWrite, Spec::kFactor>::Offset(
-          layout, global_row, global_column, p.output_stride, scatter);
+      std::uint64_t offset;
+      if constexpr(Spec::kWrite==codegen::DmWriteKind::kRowScatter) {
+        if(p.moe.rows) {
+          if(!p.routing_topk || p.moe.rows[p.moe.Entry(global_row)].rank>=p.routing_topk) {
+            asm volatile("trap;");return;
+          }
+          auto row=p.moe.Scatter(global_row,p.routing_topk);
+          offset=DmTensorAddress<codegen::DmWriteKind::kDense>::Offset(
+              layout,row,global_column,p.output_stride);
+        }else offset=DmTensorAddress<Spec::kWrite,Spec::kFactor>::Offset(
+            layout,global_row,global_column,p.output_stride,scatter);
+      }else offset=DmTensorAddress<Spec::kWrite,Spec::kFactor>::Offset(
+          layout,p.StorageRow(global_row),global_column,p.output_stride,scatter);
       float value = tile[Index(row, InputColumn<Gate::kCount != 0>(column))];
       if constexpr (Spec::kStore == codegen::DmRounding::kBF16)
         reinterpret_cast<cutlass::bfloat16_t*>(p.output)[offset] = cutlass::bfloat16_t(value);
@@ -284,7 +306,7 @@ struct ServingDmEpilogue {
             square += __shfl_xor_sync(0xffffffff, square, shift);
           }
           if (lane == 0) {
-            auto offset = global_row * layout.strides[0] + tile_n * layout.strides[1];
+            auto offset = p.StorageRow(global_row) * layout.strides[0] + tile_n * layout.strides[1];
             output[offset] = sum;
             output[offset + layout.strides[2]] = square;
           }

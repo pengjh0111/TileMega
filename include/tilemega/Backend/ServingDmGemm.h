@@ -4,6 +4,7 @@
 #include <tilemega/Codegen/executor/Async.cuh>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Solver/DmGemmTraits.h>
+#include <tilemega/Backend/DmActivationScale.h>
 #include <tilemega/Target/ArchDispatch.h>
 #include <cute/tensor.hpp>
 #include <cutlass/bfloat16.h>
@@ -79,7 +80,8 @@ struct ServingDmGemm {
       for(int v=ComputeThread()*8;v<TM*TK;v+=128*8) {
         int row=tm*TM+v/TK,col=it*TK+v%TK;
         bool valid=row<p.m && col<p.k_count;
-        auto* source=valid?p.a+std::size_t(row)*a_pitch+p.k_begin+col:p.a;
+        auto source_row=valid?DmSourceRow(p,row):0;
+        auto* source=valid?p.a+std::size_t(source_row)*a_pitch+p.k_begin+col:p.a;
         Async::Copy16Bytes(a+(it%kSlots)*TM*TK+LayoutA{}(v/TK,v%TK),source,
             valid?min(8,p.k_count-col)*int(sizeof(Element)):0);
       }
@@ -96,12 +98,15 @@ struct ServingDmGemm {
             valid?min(8,p.k_count-col)*int(sizeof(Element)):0);
       }
     };
+    if constexpr(HasDmActivationScale<Operands>::value) {
+      if(p.a_scale)return Pipeline(issue,iterations,shared,DmScaledActivation<Operands,TM,TK>{p,tm});
+    }
     return Pipeline(issue,iterations,shared);
   }
   // The callback issues copies; this loop commits exactly one group per stage.
   // Both dense and gathered operands share the register-pipelined MMA loop.
-  template<class Issue>
-  __device__ static float* Pipeline(Issue&& issue,int iterations,char* shared) {
+  template<class Issue,class Transform=DmUnscaledActivation>
+  __device__ static float* Pipeline(Issue&& issue,int iterations,char* shared,Transform transform={}) {
     using namespace cute;
     using codegen::executor::ComputeThread;
     using codegen::executor::ComputeSync;
@@ -114,6 +119,7 @@ struct ServingDmGemm {
     ComputeMma mma;
     int lane=ComputeThread()%(128/kKSplits),split=ComputeThread()/(128/kKSplits);
     auto thread=mma.get_slice(lane);
+    auto coordinates_a=thread.partition_A(make_identity_tensor(Shape<Int<TM>,Int<TK>>{}));
     auto accum=partition_fragment_C(mma,Shape<Int<TM>,Int<TN>>{});clear(accum);
     auto ca=make_tiled_copy_A(SmemCopyAtom{},mma);
     auto cb=make_tiled_copy_B(SmemCopyAtomB{},mma);
@@ -142,6 +148,7 @@ struct ServingDmGemm {
           copy(SmemCopyAtom{},as(_,_,Int<next>{}),ad(_,_,Int<next>{}));
           copy(SmemCopyAtomB{},bs(_,_,Int<next>{}),bd(_,_,Int<next>{}));
         }
+        transform(ra(_,_,k),coordinates_a(_,_,k),it);
         if constexpr(kKSplits==1)gemm(mma,ra(_,_,k),rb(_,_,k),accum);
         else if((it*(TK/16)+int(k))%kKSplits==split)
           gemm(mma,ra(_,_,k),rb(_,_,k),accum);

@@ -62,6 +62,8 @@ struct ServingGemmOperands {
   void const* rows = nullptr;
   float const* a_scale = nullptr;
   DmBufferView dm_buffers{};
+  backend::DmMoeRows moe{};
+  bool dm_partial_rows = false;
 #endif
 };
 
@@ -79,6 +81,9 @@ __device__ inline backend::DmEpilogueArguments DmEpilogueOperands(
   result.norm_width = p.norm_k;
   result.norm_eps = p.norm_eps;
   result.image_rows = p.access.rows_per_batch;
+  result.moe=p.moe;
+  result.partial_rows=p.dm_partial_rows;
+  result.routing_topk=p.access.routing_topk;
   return result;
 }
 #endif
@@ -114,7 +119,8 @@ struct ServingGemmTaskBody {
   __device__ static void Run(ServingGemmOperands const& p, int tile_m,
                              int tile_n, char* shared) {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-    if(p.access.a==DmAAccess::kIm2Col) {
+    if(p.access.a==DmAAccess::kIm2Col || p.access.a==DmAAccess::kRowGather ||
+       p.access.b==DmBAccess::kExpertIndirect || p.a_scale) {
       if(p.epilogue!=backend::ServingEpilogueOp::kPartial || !p.partial) {
         asm volatile("trap;");return;
       }
@@ -123,6 +129,7 @@ struct ServingGemmTaskBody {
       partial.output_stride=p.partial_stride;
       partial.chain={};partial.chain.store_rounding=DmRounding::kFP32;
       partial.access.write={};
+      partial.dm_partial_rows=true;
       using Spec=DmEpilogueSpec<DmEpilogueProgram<>,DmWriteKind::kDense,1,DmRounding::kFP32>;
       RunDm<Spec>(partial,tile_m,tile_n,shared);
       return;
@@ -221,6 +228,21 @@ struct ServingGemmTaskBody {
   template <class Spec>
   __device__ static void RunDm(ServingGemmOperands const& p, int tile_m,
                              int tile_n, char* shared) {
+    auto resolved=p;
+    if(!backend::ResolveDmMoeTile(resolved,tile_m,TileM))return;
+    RunDmResolved<Spec>(resolved,tile_m,tile_n,shared);
+  }
+  template <class Spec>
+  __device__ static void RunDmResolved(ServingGemmOperands const& p, int tile_m,
+                                     int tile_n, char* shared) {
+    if((p.a_scale && p.access.a==DmAAccess::kDense) ||
+       p.access.a==DmAAccess::kRowGather || p.access.b==DmBAccess::kExpertIndirect) {
+      auto* tile=backend::ServingDmGemm<Arch,TileM,TileN,TileK,Stages>::Dense(
+          p,tile_m,tile_n,shared,TILEMEGA_NONPAGED_TILED!=0);
+      backend::ServingDmEpilogue<Arch,Spec,TileM,TileN,false>::RunFromTile(
+          tile,DmEpilogueOperands(p),tile_m,tile_n);
+      return;
+    }
     if(p.access.a==DmAAccess::kIm2Col) {
       if(!p.convolutions || p.access.conv==kDmNoIndex ||
          p.k_begin%TileK || p.k_count%TileK || !p.conv_iteration.iterations) {

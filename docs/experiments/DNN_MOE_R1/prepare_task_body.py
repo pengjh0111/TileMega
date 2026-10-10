@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import re
 
 
 def main():
@@ -14,7 +15,14 @@ def main():
     parser.add_argument('--fixture', type=Path, required=True)
     parser.add_argument('--implementations', nargs='+', required=True)
     parser.add_argument('--scope', required=True)
+    parser.add_argument('--define', action='append', default=[])
     args = parser.parse_args()
+    definitions={}
+    for item in args.define:
+        name,separator,value=item.partition('=')
+        if not separator or not re.fullmatch(r'DM_TEST_[A-Z0-9_]+',name) or not re.fullmatch(r'[0-9]+',value) or name in definitions:
+            parser.error('--define requires distinct DM_TEST_NAME=INTEGER entries')
+        definitions[name]=value
     repo = Path(__file__).resolve().parents[3]
     root = args.out.resolve()
     root.mkdir(parents=True, exist_ok=False)
@@ -31,7 +39,7 @@ def main():
     preparation = dict(evidence='stated', source_head=subprocess.check_output(
         ['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip(),
         diff_sha256=hashlib.sha256(subprocess.check_output(['git', 'diff'], cwd=repo)).hexdigest(),
-        scope=args.scope, implementations=args.implementations, inputs=inputs)
+        scope=args.scope, implementations=args.implementations, definitions=definitions, inputs=inputs)
     (root / 'preparation.json').write_text(json.dumps(preparation, indent=2) + '\n')
     steps = []
     def step(name, command, after, priority, timeout):

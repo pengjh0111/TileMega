@@ -2398,9 +2398,15 @@ inline DeviceModel Create(ModelSpec const& spec,
       if(stage.operand[2]!=kDmNoIndex) {
         auto const& rounded=spec.buffers[stage.operand[2]];auto const& mirror=rounded.layout;
         auto pitch=out.rank?out.strides[0]:stage.extent;
-        if((mirror.rank && (mirror.kind!=DmLayout::kRowMajor || mirror.rank!=2 ||
-            mirror.logical[0]!=unsigned(dims.batch) || mirror.logical[1]!=stage.extent ||
-            mirror.strides[1]!=1 || mirror.strides[0]!=pitch)) ||
+        bool row=mirror.kind==DmLayout::kRowMajor && mirror.rank==2 &&
+            mirror.logical[0]==unsigned(dims.batch) && mirror.logical[1]==stage.extent &&
+            mirror.strides[1]==1 && mirror.strides[0]==pitch;
+        bool image=mirror.kind==DmLayout::kNHWC && mirror.rank==4 &&
+            mirror.logical[0]==unsigned(dims.batch) && mirror.logical[1]==1 &&
+            mirror.logical[2]==1 && mirror.logical[3]==stage.extent &&
+            !mirror.halo_top && !mirror.halo_bottom && !mirror.halo_left && !mirror.halo_right &&
+            mirror.strides[3]==1 && mirror.strides[0]==pitch;
+        if((mirror.rank && !row && !image) ||
            rounded.Elements(dims)<std::uint64_t(dims.batch)*pitch)
           throw std::invalid_argument("invalid global pool rounded mirror layout");
       }
@@ -2520,6 +2526,7 @@ inline DeviceModel Create(ModelSpec const& spec,
              (16/(spec.buffers[a.rows].dtype==0?sizeof(ModelElement):4)) ||
          a.expert_stride>spec.buffers[desc.b].Elements(dims)/a.experts)
         throw std::invalid_argument("expert binding geometry escapes its allocation");
+      m=static_cast<int>(rows);
     }
 #endif
     int split = runtime.split_k;
@@ -2537,6 +2544,18 @@ inline DeviceModel Create(ModelSpec const& spec,
       auto geometry=DmConvRuntime::Build(conv,spec.buffers[conv.input_layout].layout,
           m,desc.n,desc.k,tiling.tile_k,split);
       conv_iteration=geometry.geometry;k_tiles=geometry.tiles;storage_k=geometry.storage_k;
+    }
+    if(desc.access.a_scale!=kDmNoIndex) {
+      auto id=desc.access.a_scale;
+      if(id>=spec.buffer_count || !desc.access.rows_per_batch)
+        throw std::invalid_argument("GEMM A scale lacks its per-image geometry");
+      auto const& scale=spec.buffers[id];auto const& layout=scale.layout;
+      auto channels=im2col?spec.convolutions[desc.access.conv].c:desc.k;
+      if(scale.dtype>1 || layout.rank!=2 || layout.kind!=DmLayout::kRowMajor ||
+         layout.logical[0]!=unsigned(dims.batch) || layout.logical[1]!=unsigned(channels) ||
+         layout.strides[1]!=1 || layout.strides[0]<unsigned(channels) ||
+         scale.Elements(dims)<std::uint64_t(dims.batch-1)*layout.strides[0]+channels)
+        throw std::invalid_argument("GEMM A scale must be a bounded per-image channel matrix");
     }
 #endif
     int chunks = split < k_tiles ? split : k_tiles;
@@ -2577,8 +2596,10 @@ inline DeviceModel Create(ModelSpec const& spec,
         auto pitch=std::uint64_t(desc.k)*std::max(1u,desc.access.a_row_stride);
         if(pitch>std::uint64_t(std::numeric_limits<int>::max()))
           throw std::invalid_argument("DM GEMM dense row pitch exceeds runtime range");
+        auto source_rows=desc.access.b==DmBAccess::kExpertIndirect?
+            std::uint64_t(desc.access.binding_blocks)*desc.access.block_rows:std::uint64_t(m);
         auto last_row=std::uint64_t(desc.access.a_row_offset)+
-            std::uint64_t(m-1)*std::max(1u,desc.access.a_row_stride);
+            (source_rows-1)*std::max(1u,desc.access.a_row_stride);
         if(desc.k<=0 || m<=0 || last_row>=spec.buffers[desc.a].Elements(dims)/desc.k)
           throw std::invalid_argument("DM GEMM dense row map exceeds A storage");
         cute::get<0>(stride_a)=static_cast<std::int64_t>(pitch);

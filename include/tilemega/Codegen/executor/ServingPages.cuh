@@ -293,13 +293,7 @@ __device__ inline ServingGemmOperands Operands(GemmInvocation const& inv
   p.dm_buffers=inv.dm_buffers;
   p.a_row_stride=static_cast<int>(cute::get<0>(inv.mainloop.dA));
   if(tile_m>=0 && inv.access.b==DmBAccess::kExpertIndirect) {
-    MoeBindingRecord block;
-    if(Binding(inv,tile_m,&block)!=MoeBindingStatus::kActive) {asm volatile("trap;");return p;}
-    std::uint64_t expert;
-    if(!MoeExpertOffset(block,inv.access.expert_stride,&expert))asm volatile("trap;");
-    p.b+=expert;p.weight_base+=expert;
-    int tiles_per_block=CeilDiv(inv.access.block_rows,inv.tile_m);
-    p.m=(tile_m/tiles_per_block)*tiles_per_block*inv.tile_m+block.row_count;
+    if(!backend::ResolveDmMoeTile(p,tile_m,inv.tile_m))asm volatile("trap;");
   }
 #endif
   return p;

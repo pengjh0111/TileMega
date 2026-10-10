@@ -126,6 +126,7 @@ struct ServingConv {
       }
       cursor.Advance();
     };
+    if(p.a_scale)return Gemm::Pipeline(issue,iterations,shared,DmScaledActivation<Operands,TM,TK>{p,tile_m});
     return Gemm::Pipeline(issue,iterations,shared);
   }
 };
