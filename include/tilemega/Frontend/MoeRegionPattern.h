@@ -14,4 +14,6 @@ struct MoeRegionMatch {
 // h + MoE(RMSNorm(h)) region. Generic Value() deliberately skips getitem.
 MoeRegionMatch MatchMoeRegion(std::vector<FxNodeRecord> const&,
     std::vector<SignatureInput> const&,std::vector<std::string> const&);
+std::vector<MoeRegionMatch> FindDecoderMoeBlocks(std::vector<FxNodeRecord> const&,
+    std::vector<SignatureInput> const&);
 } // namespace tilemega::frontend

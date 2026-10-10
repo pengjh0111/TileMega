@@ -4,10 +4,30 @@
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
+#include <algorithm>
 
 namespace tilemega::tests::moe_region_pattern_test {
-int TestMoeRegionPattern(int,char**) {
+int TestMoeRegionPattern(int argc,char** argv) {
   using namespace frontend;unsigned accepted=0,rejected=0;
+  if(argc==2) {
+    auto bridge=ReadExportBridge(argv[1]);
+    auto blocks=FindDecoderMoeBlocks(bridge.nodes,bridge.inputs);
+    auto count=std::count_if(bridge.nodes.begin(),bridge.nodes.end(),[](auto const& n) {
+      return n.target=="tilemega.moe_experts.default";
+    });
+    assert(count>0 && blocks.size()==unsigned(count));
+    for(auto const& block:blocks)assert(block.hidden==2048 && block.intermediate==768 &&
+        block.expert_count==128 && block.top_k==8 && block.epsilon==1e-6);
+    auto bad=bridge;
+    auto expert=std::find_if(bad.nodes.begin(),bad.nodes.end(),[](auto const& n) {
+      return n.target=="tilemega.moe_experts.default";
+    });
+    expert->shape[0]="2*("+expert->shape[0]+")";
+    bool failed=false;try{FindDecoderMoeBlocks(bad.nodes,bad.inputs);}
+    catch(std::invalid_argument const&){failed=true;}assert(failed);
+    std::cout<<"Decoder MoE blocks: "<<blocks.size()<<" residual regions and negative row-count contract PASS\n";
+    return 0;
+  }
   for(auto spelling:{"before","core"}) {
     auto bridge=ReadExportBridge(std::string(TILEMEGA_SOURCE_DIR)+
         "/test/fixtures/moe/region_"+spelling+".json");

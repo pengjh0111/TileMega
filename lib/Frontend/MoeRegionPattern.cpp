@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Frontend/MoeRegionPattern.h>
+#include <tilemega/Analysis/ClosedForm.h>
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <map>
 #include <set>
 #include <stdexcept>
+#include <functional>
 
 namespace tilemega::frontend {
 namespace {
@@ -50,7 +52,14 @@ struct Reader {
   FxNodeRecord const& Rows(FxNodeRecord const& n) {
     if(!Target(n,{"aten.reshape.default","aten.view.default"}))return n;
     auto const& source=Ref(n,0);
-    if(n.shape!=source.shape || n.shape.size()!=2)Fail("row reshape changes geometry");
+    if(n.shape.size()<2 || n.shape.size()>3 || source.shape.size()<2 || source.shape.size()>3 ||
+        n.shape.back()!=source.shape.back())Fail("row reshape changes geometry");
+    auto elements=[](FxNodeRecord const& value) {
+      auto result=analysis::ClosedForm::Constant(1);
+      for(auto const& dim:value.shape)result=result*analysis::ClosedForm::Parse(dim);
+      return result.FactorStrings();
+    };
+    if(elements(n)!=elements(source))Fail("row reshape changes element count");
     return Rows(source);
   }
   FxNodeRecord const& Cast(FxNodeRecord const& n,char const* to,char const* from) {
@@ -67,7 +76,9 @@ struct Reader {
     if(a.kind==K::kList) {
       if(a.items.size()!=1)Fail("reduction must have one axis");a=a.items.front();
     }
-    auto axis=Int(a);if(axis!=-1 && axis!=1)Fail("reduction is not along the row's last axis");
+    auto axis=Int(a);auto const& source=Ref(n,0);
+    if(axis!=-1 && axis!=long(source.shape.size())-1)
+      Fail("reduction is not along the row's last axis");
     if(keepdim && !Bool(Arg(n,argument+1,"keepdim"),false))Fail("reduction must retain the last axis");
   }
   unsigned Extent(FxNodeRecord const& n,unsigned i) {
@@ -90,8 +101,9 @@ struct Reader {
 };
 } // namespace
 
-MoeRegionMatch MatchMoeRegion(std::vector<FxNodeRecord> const& nodes,
-    std::vector<SignatureInput> const& signature,std::vector<std::string> const& outputs) {
+static MoeRegionMatch Match(std::vector<FxNodeRecord> const& nodes,
+    std::vector<SignatureInput> const& signature,std::vector<std::string> const& outputs,
+    bool decoder) {
   Reader r;
   for(auto const& n:nodes)if(!r.nodes.emplace(n.name,&n).second)Reader::Fail("duplicate FX value");
   for(auto const& s:signature) {
@@ -108,8 +120,9 @@ MoeRegionMatch MatchMoeRegion(std::vector<FxNodeRecord> const& nodes,
   if(!experts || experts->args.size()!=5)Reader::Fail("missing expert custom-op boundary");
   MoeRegionMatch result;result.input=r.input;result.experts=experts->name;
   auto const& h=r.Node(r.input);
-  if(h.dtype!="torch.bfloat16" || h.shape.size()!=2)Reader::Fail("hidden input must be BF16 token rows");
-  result.hidden=r.Extent(h,1);
+  if(h.dtype!="torch.bfloat16" || (h.shape.size()!=2 && !(decoder && h.shape.size()==3)))
+    Reader::Fail("hidden input must be BF16 token rows");
+  result.hidden=r.Extent(h,h.shape.size()-1);
   auto const& gu=r.Ref(*experts,3);auto const& down=r.Ref(*experts,4);
   result.expert_count=r.Extent(gu,0);result.intermediate=r.Extent(down,2);
   if(result.expert_count>128 || result.intermediate%16)Reader::Fail("unsupported expert capacity or gate-pair width");
@@ -187,7 +200,12 @@ MoeRegionMatch MatchMoeRegion(std::vector<FxNodeRecord> const& nodes,
       r.Ref(square,0).name!=cast_input->name)Reader::Fail("RMSNorm variance is not the input square");
 
   auto const& output=r.Node(outputs.front());result.output=output.name;
-  if(output.target!="aten.add.Tensor" || output.shape!=h.shape || experts->shape!=h.shape)
+  auto expected_rows=analysis::ClosedForm::Constant(1);
+  for(unsigned axis=0;axis+1<h.shape.size();++axis)
+    expected_rows=expected_rows*analysis::ClosedForm::Parse(h.shape[axis]);
+  if(output.target!="aten.add.Tensor" || output.shape!=h.shape || experts->shape.size()!=2 ||
+      experts->shape.back()!=h.shape.back() ||
+      analysis::ClosedForm::Parse(experts->shape.front()).FactorStrings()!=expected_rows.FactorStrings())
     Reader::Fail("output must be the hidden-state residual sum");
   r.UnitAlpha(output);
   auto const* residual=&r.Rows(r.Ref(output,0));auto const* branch=&r.Rows(r.Ref(output,1));
@@ -196,6 +214,61 @@ MoeRegionMatch MatchMoeRegion(std::vector<FxNodeRecord> const& nodes,
   for(auto const& n:nodes)if(n.op=="call_function" && !r.covered.count(n.name) &&
       !Reader::Target(n,{"aten._assert_tensor_metadata.default","aten.sym_size.int"}))
     Reader::Fail("uncovered target "+n.target+" at "+n.name);
+  return result;
+}
+
+MoeRegionMatch MatchMoeRegion(std::vector<FxNodeRecord> const& nodes,
+    std::vector<SignatureInput> const& signature,std::vector<std::string> const& outputs) {
+  return Match(nodes,signature,outputs,false);
+}
+
+std::vector<MoeRegionMatch> FindDecoderMoeBlocks(std::vector<FxNodeRecord> const& nodes,
+    std::vector<SignatureInput> const& signature) {
+  std::map<std::string,FxNodeRecord const*> by_name;
+  for(auto const& n:nodes)if(!by_name.emplace(n.name,&n).second)Reader::Fail("duplicate FX value");
+  auto value=[&](std::string name) {
+    while(Reader::Target(*by_name.at(name),{"aten.reshape.default","aten.view.default"})) {
+      auto const& n=*by_name.at(name);
+      if(n.args.empty() || n.args[0].kind!=K::kNode)Reader::Fail("reshape lacks its source");
+      name=n.args[0].text;
+    }
+    return name;
+  };
+  std::vector<MoeRegionMatch> result;
+  std::set<std::string> matched;
+  for(auto const& output:nodes) {
+    if(output.target!="aten.add.Tensor" || output.inputs.size()<2)continue;
+    for(unsigned side=0;side<2;++side) {
+      auto expert=value(output.inputs[side]);
+      if(by_name.at(expert)->target!="tilemega.moe_experts.default")continue;
+      auto input=output.inputs[1-side];
+      if(!matched.insert(expert).second)Reader::Fail("expert boundary has multiple residual outputs");
+      std::set<std::string> selected;
+      std::function<void(std::string const&)> visit=[&](std::string const& name) {
+        if(!selected.insert(name).second || name==input)return;
+        auto const& node=*by_name.at(name);
+        if(node.target=="aten.sym_size.int")return;
+        for(auto const& source:node.inputs)visit(source);
+      };
+      visit(output.name);
+      std::vector<FxNodeRecord> region;
+      for(auto const& node:nodes)if(selected.count(node.name)) {
+        region.push_back(node);
+        // A region boundary declares an existing tensor value as its input.
+        // Its producing attention/residual graph remains in the decoder plan.
+        if(node.name==input) {
+          auto& boundary=region.back();boundary.op="placeholder";boundary.inputs.clear();
+          boundary.args.clear();boundary.kwargs.clear();
+        }
+      }
+      std::vector<SignatureInput> inputs;
+      for(auto const& item:signature)if(item.kind=="PARAMETER" && selected.count(item.name))inputs.push_back(item);
+      inputs.push_back({input,"USER_INPUT"});
+      result.push_back(Match(region,inputs,{output.name},true));
+    }
+  }
+  for(auto const& node:nodes)if(node.target=="tilemega.moe_experts.default" && !matched.count(node.name))
+    Reader::Fail("expert boundary lacks a proved residual region at "+node.name);
   return result;
 }
 } // namespace tilemega::frontend
