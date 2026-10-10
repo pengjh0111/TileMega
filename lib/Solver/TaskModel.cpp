@@ -220,7 +220,7 @@ std::vector<double> PriceTaskInstances(CostModel const& cost,DerivedTaskInput co
   // Within one immutable task signature these are every coordinate-dependent
   // quantity consumed by TaskCostImpl. Equal work classes have exactly equal
   // prices; no averaging, sampling, stage-kind rule or fitted shortcut occurs.
-  std::map<std::tuple<double,double,long,double,double,double,double>,double> classes;
+  std::map<std::tuple<double,double,long,double,double,double,double,double>,double> classes;
   std::map<std::tuple<double,double,long,double,double>,double> prefetch_classes;
   std::vector<double> result;result.reserve(coordinates.size());
   if (prefetch && prefetch->ns) prefetch->ns->assign(coordinates.size(),0.0);
@@ -233,7 +233,7 @@ std::vector<double> PriceTaskInstances(CostModel const& cost,DerivedTaskInput co
     double transcendental=arithmetic(input.arithmetic.transcendental_per_output_element);
     auto key=std::make_tuple(traffic[i].global_read_bytes,traffic[i].global_write_bytes,reduction[i],
         regime_a?traffic[i].no_producer_read_bytes:0.0,regime_a?traffic[i].external_write_bytes:0.0,
-        flops,transcendental);
+        flops,transcendental,cost.PrivateComputeNs(input,theta,coordinates[i],active_ctas_per_sm));
     auto found=classes.find(key);
     if (found==classes.end()) found=classes.emplace(key,cost.TaskInstanceNs(
         input,traits,residency,model,chunks,coordinates[i],active_ctas_per_sm,nullptr,
@@ -753,6 +753,19 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
   } else signature=analysis::InstantiateArithmetic(semantic.op.arithmetic,arithmetic);
   analysis::RequireArithmeticImplementation(signature);
   DerivedTaskInput result{*task,std::move(work),std::move(signature),task->Coordinates(),std::nullopt,std::nullopt};
+  for(auto const& phase:semantic.op.compute_prologue) {
+    if(!task->element_access)
+      throw std::invalid_argument("private arithmetic requires exact runtime ownership");
+    auto const& access=*task->element_access;
+    auto image=analysis::ProjectTaskRead(access.semantic,*task,access.partition,
+        phase.output,phase.map,{},known);
+    analysis::ArithmeticInputs inputs;
+    inputs.reduction=analysis::QuasiPolynomial::FromClosedForm(phase.reduction);
+    inputs.dtype=semantic.op.dtype;
+    auto declared=analysis::InstantiateArithmetic(phase.arithmetic,inputs);
+    analysis::RequireArithmeticImplementation(declared);
+    result.compute_prologue.push_back({std::move(declared),image.BoundTaskCard()});
+  }
   auto const& stage=model.stages.at(semantic.stage);
   if(model.serving) {
     switch(stage.kind) {

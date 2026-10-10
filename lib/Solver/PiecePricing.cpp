@@ -46,6 +46,13 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
        <<':'<<arithmetic.flops_use_mma<<':'<<arithmetic.smem_staged;
 
   }
+  for(auto const& phase:input.compute_prologue)
+    key<<":private:"<<phase.output_elements.ToString()<<':'
+       <<phase.arithmetic.flops_per_output_element.numerator.ToString()<<'/'
+       <<phase.arithmetic.flops_per_output_element.denominator<<':'
+       <<phase.arithmetic.transcendental_per_output_element.numerator.ToString()<<'/'
+       <<phase.arithmetic.transcendental_per_output_element.denominator<<':'
+       <<phase.arithmetic.flops_use_mma;
   if(cache){auto found=cache->entries.find(key.str());if(found!=cache->entries.end()){++cache->hits;return found->second;}++cache->misses;}
   struct Axis {std::string name;std::vector<std::pair<long,long>> parts;};std::vector<Axis> axes;
   long tasks=input.work.task_count.Eval(theta);
@@ -61,6 +68,7 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
   if(input.physical_read_bytes)quantities.push_back(&*input.physical_read_bytes);
   if(input.no_producer_read_bytes)quantities.push_back(&*input.no_producer_read_bytes);
   if(input.external_write_bytes)quantities.push_back(&*input.external_write_bytes);
+  for(auto const& phase:input.compute_prologue)quantities.push_back(&phase.output_elements);
   if(model.dm && input.task.element_access) {
     if(input.physical_write_bytes)quantities.push_back(&*input.physical_write_bytes);
     quantities.push_back(&input.arithmetic.flops_per_output_element.numerator);

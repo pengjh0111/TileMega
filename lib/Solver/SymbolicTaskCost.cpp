@@ -192,6 +192,8 @@ Polynomial CostModel::SymbolicCollectiveNs(DerivedTaskInput const& input,
 #if !TILEMEGA_SYMBOLIC_TASK_COST
   throw std::runtime_error("symbolic task pricing disabled");
 #endif
+  if(!input.compute_prologue.empty())
+    throw std::invalid_argument("private compute pricing requires bound task coordinates");
   if (parameter.empty() || parameter!=model.seq_metric_parameter ||
       !model.dims.past_parameter.empty() || model.dims.past<0 || begin<=0 || begin>end ||
       end==std::numeric_limits<long>::max() || traits.stages<=0 || traits.tile_k<=0 ||

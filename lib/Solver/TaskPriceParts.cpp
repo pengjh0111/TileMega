@@ -8,6 +8,30 @@ double IsolatedNs(TaskPriceParts const& p,double fair_rate) {
   if(!(fair_rate>0) || !std::isfinite(fair_rate))throw std::invalid_argument("invalid fair DRAM rate");
   return p.fixed_ns+std::max(p.compute_ns,p.dram_bytes/fair_rate);
 }
+double CostModel::PrivateComputeNs(DerivedTaskInput const& input,
+    analysis::ParamBinding const& theta,analysis::ParamBinding const& point,double o) const {
+  if(!options_.resource_lanes)return 0;
+  auto value=[&](auto const& quantity) {return double(quantity.BindCoordinates(point).Eval(theta));};
+  double result=0;
+  for(auto const& phase:input.compute_prologue) {
+    auto const& a=phase.arithmetic;double outputs=value(phase.output_elements);
+    auto flops=outputs*value(a.flops_per_output_element.numerator)/a.flops_per_output_element.denominator;
+    auto transc=outputs*value(a.transcendental_per_output_element.numerator)/a.transcendental_per_output_element.denominator;
+    auto lane=a.flops_use_mma?ResourceVector::kTensorCore:ResourceVector::kCudaCore;
+    auto rate=a.flops_use_mma?tc_flops_per_ns_per_sm_:cuda_flops_per_ns_per_sm_;
+    double compute=0,sfu=0;
+    if(flops && lanes_[lane]==LaneStatus::kLive && !options_.disabled_lanes[lane]) {
+      if(!(rate>0))throw std::runtime_error("private arithmetic rate: not_calibrated");
+      compute=o*flops/rate;
+    }
+    if(transc && lanes_[ResourceVector::kSfu]==LaneStatus::kLive && !options_.disabled_lanes[ResourceVector::kSfu]) {
+      if(!(sfu_ops_per_ns_per_sm_>0))throw std::runtime_error("private SFU rate: not_calibrated");
+      sfu=o*transc/sfu_ops_per_ns_per_sm_;
+    }
+    result+=std::max(compute,sfu);
+  }
+  return result;
+}
 TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits const& traits,
     Residency residency,ModelDescription const& model,int chunks,
     analysis::ParamBinding const& point,double o,TaskMemoryTraffic const* memory) const {
@@ -185,6 +209,7 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
       result.compute_ns=std::max(0.0,iters*measured->second.iter_ns);
     }
   }
+  result.compute_ns+=PrivateComputeNs(input,theta,point,o);
   result.dram_rate_cap=std::min(l2_bytes_per_ns_per_sm_,result.compute_ns>0?result.dram_bytes/result.compute_ns:l2_bytes_per_ns_per_sm_);
   if(options_.paged && paged_fit_found &&
      fit.serving_paged_loader_gbps_per_sm>0)

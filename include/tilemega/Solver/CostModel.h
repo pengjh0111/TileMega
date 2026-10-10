@@ -235,6 +235,9 @@ class CostModel {
       Residency residency,ModelDescription const& model,int chunks,
       analysis::ParamBinding const& coordinates,double active_ctas_per_sm,
       TaskMemoryTraffic const* memory=nullptr) const;
+  double PrivateComputeNs(DerivedTaskInput const& input,
+      analysis::ParamBinding const& theta,analysis::ParamBinding const& coordinates,
+      double active_ctas_per_sm) const;
   double CombineTaskStageNs(ModelDescription const& model,int stage,GemmConfig const& config,
                             Residency residency) const;
   double TaskStageNs(ModelDescription const& model,int stage,GemmConfig const& config,

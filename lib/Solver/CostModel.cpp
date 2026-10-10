@@ -538,6 +538,8 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
   throw std::runtime_error("access-derived task pricing is disabled");
 #endif
   if (model.dims.IsSymbolic()) throw std::invalid_argument("bind theta before FP64 task evaluation");
+  if(traits.stages<=0 && !input.compute_prologue.empty())
+    throw std::invalid_argument("private compute requires a collective body");
   auto known=model.MetricBindings();
   bool const coordinate_arithmetic=model.dm && static_cast<bool>(input.task.element_access);
   if(options_.regime_a && dtype_==ScalarType::kBF16) {
@@ -751,7 +753,8 @@ double CostModel::TaskCostImpl(DerivedTaskInput const& input, BackendTraits cons
     // Resource lanes still bound service; phase calibration additionally
     // resolves per-iteration instruction latency and exposed operand waits.
     // Memory-overridden fusion probes retain their explicit traffic pricing.
-    total+=fixed+effective_iters*(std::max(u.Bottleneck(),measured_body)+measured_wait);
+    total+=fixed+effective_iters*(std::max(u.Bottleneck(),measured_body)+measured_wait)+
+        PrivateComputeNs(input,known,point,o);
   }
   return total;
 }

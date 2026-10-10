@@ -59,6 +59,7 @@ struct DerivedTaskInput {
   int prefetch_operand=-1;
   // Typed main and side stores can have different physical byte widths.
   std::optional<analysis::QuasiPolynomial> physical_write_bytes;
+  std::vector<analysis::MixedArithmeticPhase> compute_prologue;
 };
 void BindTaskDramProvenance(DerivedTaskInput& input,
     ModelTaskSemantics const& semantic,analysis::DramFloor const& floor,
