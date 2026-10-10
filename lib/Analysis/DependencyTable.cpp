@@ -10,6 +10,8 @@
 #include <set>
 #include <stdexcept>
 #include <tuple>
+#include <optional>
+#include <isl/options.h>
 
 namespace tilemega::analysis {
 namespace {
@@ -84,6 +86,95 @@ std::vector<TaskInterval> ProducerIntervals(isl_set* sources) {
     }else result.push_back(interval);
   }
   return result;
+}
+std::optional<std::vector<std::vector<TaskInterval>>> SymbolicProducerIntervals(
+    std::string const& relation,std::uint32_t producers,std::uint32_t consumers) {
+  // Prove each component's interval fibers once, then enumerate only their
+  // endpoints. A failed/quota-limited optimization retains the exact row path.
+  IslContext proof;
+  auto* ctx=proof.raw();isl_options_set_on_error(ctx,ISL_ON_ERROR_CONTINUE);
+  isl_ctx_set_max_operations(ctx,1000000);
+  auto map=isl_util::Map(isl_map_read_from_str(ctx,relation.c_str()));
+  struct State {
+    std::vector<std::vector<TaskInterval>> rows;
+    std::uint32_t producers;
+    bool unavailable=false;
+    std::string error;
+  } state{std::vector<std::vector<TaskInterval>>(consumers),producers};
+  auto component=[](isl_basic_map* raw,void* user)->isl_stat {
+    auto& state=*static_cast<State*>(user);
+    auto part=isl_util::Map(isl_map_from_basic_map(raw));
+    auto* ctx=isl_map_get_ctx(part.get());
+    isl_ctx_reset_operations(ctx);isl_ctx_set_max_operations(ctx,1000000);
+    auto lo=isl_util::Map(isl_map_lexmin(isl_map_copy(part.get())));
+    auto hi=isl_util::Map(isl_map_lexmax(isl_map_copy(part.get())));
+    if(!lo || !hi)return isl_stat_error;
+    auto space=isl_util::Space(isl_space_range(isl_map_get_space(part.get())));
+    auto lower=isl_util::Map(isl_map_apply_range(isl_map_copy(lo.get()),
+        isl_map_lex_le(isl_space_copy(space.get()))));
+    auto upper=isl_util::Map(isl_map_apply_range(isl_map_copy(hi.get()),
+        isl_map_lex_ge(isl_space_copy(space.get()))));
+    auto band=isl_util::Map(isl_map_intersect(lower.release(),upper.release()));
+    if(!band)return isl_stat_error;
+    auto forward=isl_map_is_subset(part.get(),band.get());
+    auto reverse=isl_map_is_subset(band.get(),part.get());
+    if(forward==isl_bool_error || reverse==isl_bool_error)return isl_stat_error;
+    if(forward!=isl_bool_true || reverse!=isl_bool_true) {
+      state.unavailable=true;return isl_stat_error;
+    }
+    // Bounds have already been checked. Endpoint enumeration is finite and
+    // visits at most two points per consumer, rather than every RAW pair.
+    isl_ctx_set_max_operations(ctx,0);
+    auto endpoints=[&](isl_map* source,std::map<std::uint32_t,std::uint32_t>& into) {
+      auto wrapped=isl_util::Set(isl_map_wrap(isl_map_copy(source)));
+      struct Sink {std::map<std::uint32_t,std::uint32_t>* values;State* state;};
+      Sink sink{&into,&state};
+      return isl_set_foreach_point(wrapped.get(),[](isl_point* raw,void* user)->isl_stat {
+        auto& sink=*static_cast<Sink*>(user);isl_util::Point point(raw);
+        auto c=isl_util::Val(isl_point_get_coordinate_val(point.get(),isl_dim_set,0));
+        auto p=isl_util::Val(isl_point_get_coordinate_val(point.get(),isl_dim_set,1));
+        if(!c || !p || isl_val_is_int(c.get())!=isl_bool_true || isl_val_is_int(p.get())!=isl_bool_true)
+          return isl_stat_error;
+        auto consumer=isl_val_get_num_si(c.get()),producer=isl_val_get_num_si(p.get());
+        if(consumer<0 || std::uint64_t(consumer)>=sink.state->rows.size() ||
+           producer<0 || std::uint64_t(producer)>=sink.state->producers ||
+           !sink.values->emplace(consumer,producer).second) {
+          sink.state->error="invalid symbolic dependency interval endpoint";return isl_stat_error;
+        }
+        return isl_stat_ok;
+      },&sink);
+    };
+    std::map<std::uint32_t,std::uint32_t> first,last;
+    if(endpoints(lo.get(),first)!=isl_stat_ok || endpoints(hi.get(),last)!=isl_stat_ok)
+      return isl_stat_error;
+    if(first.size()!=last.size())return isl_stat_error;
+    for(auto const& [c,p]:first) {
+      auto end=last.find(c);
+      if(end==last.end() || end->second<p)return isl_stat_error;
+      state.rows[c].push_back({p,end->second-p+1});
+    }
+    return isl_stat_ok;
+  };
+  auto status=map?isl_map_foreach_basic_map(map.get(),component,&state):isl_stat_error;
+  if(status!=isl_stat_ok) {
+    if(state.unavailable || isl_ctx_last_error(ctx)==isl_error_quota)return std::nullopt;
+    throw std::runtime_error(state.error.empty()?"symbolic dependency interval proof failed":state.error);
+  }
+  for(auto& row:state.rows) {
+    std::sort(row.begin(),row.end(),[](auto const& a,auto const& b) {
+      return std::tie(a.first,a.count)<std::tie(b.first,b.count);
+    });
+    std::vector<TaskInterval> merged;
+    for(auto interval:row) {
+      if(!merged.empty() && std::uint64_t(merged.back().first)+merged.back().count>=interval.first) {
+        auto past=std::max(std::uint64_t(merged.back().first)+merged.back().count,
+            std::uint64_t(interval.first)+interval.count);
+        merged.back().count=std::uint32_t(past-merged.back().first);
+      }else merged.push_back(interval);
+    }
+    row=std::move(merged);
+  }
+  return std::move(state.rows);
 }
 isl_util::Set EncodeRuns(Runs const& runs,isl_space* space,char const* coordinate) {
   std::vector<isl_util::Set> pieces;
@@ -244,7 +335,9 @@ DependencyTable BuildDependencyTableLinear(CouplingRelation const& relation,
     throw std::invalid_argument("dependency table includes an out-of-range task");
   std::vector<std::vector<TaskInterval>> intervals(result.consumers);
   std::map<std::string,std::vector<TaskInterval>> row_cache;
-  for (unsigned task = 0; task < result.consumers; ++task) {
+  auto symbolic=SymbolicProducerIntervals(relation.ToString(),producers,consumers);
+  if(symbolic)intervals=std::move(*symbolic);
+  else for (unsigned task = 0; task < result.consumers; ++task) {
     auto row=isl_util::Map(isl_map_fix_val(isl_map_copy(map.get()),isl_dim_in,0,isl_val_int_from_ui(ctx,task)));
     auto sources=isl_util::Set(isl_map_range(row.release()));
     char* text=isl_set_to_str(sources.get());
@@ -263,8 +356,9 @@ DependencyTable BuildDependencyTableLinear(CouplingRelation const& relation,
       found=row_cache.emplace(std::move(key),std::move(row_intervals)).first;
     }
     intervals[task]=found->second;
-    result.stride = std::max(result.stride, static_cast<std::uint32_t>(intervals[task].size()));
   }
+  for(auto const& row:intervals)
+    result.stride=std::max(result.stride,static_cast<std::uint32_t>(row.size()));
   if (std::uint64_t(result.consumers) * result.stride > std::numeric_limits<std::size_t>::max() / sizeof(TaskInterval))
     throw std::invalid_argument("dependency table storage size overflows");
   result.intervals.resize(std::size_t(result.consumers) * result.stride);
@@ -273,11 +367,11 @@ DependencyTable BuildDependencyTableLinear(CouplingRelation const& relation,
               result.intervals.begin() + std::size_t(task) * result.stride);
   }
   // Bounds exclude every other consumer and both inclusions were proved for
-  // every row above. Thus the original compact relation is also an exact
+  // each symbolic component or each row. The compact relation is an exact
   // description of these intervals. Rebuilding a disjunction of consumer
   // rows would lose its affine factoring and make the global proof enormous.
   result.encoded_relation=result.linear_relation;
-  // Construction proved bounds and both inclusions for every canonical row.
+  // Construction proved bounds and both inclusions for the canonical rows.
   // Only this complete immutable value may reuse that proof in later readers.
   (void)MemoTableProof(result,[]{return true;});
   return result;

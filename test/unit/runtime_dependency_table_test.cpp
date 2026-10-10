@@ -73,6 +73,16 @@ int TestRuntimeDependencyTable(int, char**) {
       "{ [c] -> [p] : c=0 and 0<=p<=4; [c] -> [p] : c=0 and 3<=p<8 }");
   auto merged=analysis::BuildDependencyTableLinear(overlap,8,1);
   assert(merged.stride==1 && merged.intervals[0].first==0 && merged.intervals[0].count==8);
+  auto moving=analysis::CouplingRelation::FromIslText(
+      "{ [c] -> [p] : 0<=c<103 and 0<=p<321 and "
+      "(3*floor(c/7)<=p<=3*floor(c/7)+5 or 200+c%11<=p<204+c%11) }");
+  auto moving_table=analysis::BuildDependencyTableLinear(moving,321,104);
+  assert(moving_table.stride==2 && moving_table.intervals.back().count==0);
+  for(unsigned c=0;c<103;++c) {
+    assert(moving_table.intervals[2*c].first==3*(c/7) && moving_table.intervals[2*c].count==6);
+    assert(moving_table.intervals[2*c+1].first==200+c%11 && moving_table.intervals[2*c+1].count==4);
+  }
+  analysis::ValidateDependencyTableLinear(moving_table);
   bool bad_range=false;
   try{(void)analysis::BuildDependencyTableLinear(dense,8191,4096);}
   catch(std::invalid_argument const&){bad_range=true;}
