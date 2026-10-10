@@ -406,6 +406,7 @@ def build(root, arch):
     if 'Run<TaskKind::kPool,' in source.read_text():
         implementations.append('PoolTaskBody')
     for marker,body in [('RunDepthwise<','DepthwiseConvTaskBody'),
+        ('DispatchDmFused','DwPwFusedTaskBody'),
         ('Run<TaskKind::kLayerNorm,','LayerNormTaskBody'),
         ('Run<TaskKind::kEmbeddingSum,','EmbeddingSumTaskBody'),
         ('Run<TaskKind::kEncoderAttention,','EncoderAttentionTaskBody'),

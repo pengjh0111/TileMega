@@ -14,6 +14,8 @@ if __name__ == '__main__':
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--model-export', type=Path)
+    parser.add_argument('--elementwise',action='store_true',
+        help='use the operator-fixture BF16 tolerance instead of model output metrics')
     parser.add_argument('--bridge', type=Path)
     parser.add_argument('--batch', type=int, default=2)
     parser.add_argument('--architectures', type=int, nargs='+', default=[89],
@@ -33,6 +35,8 @@ if __name__ == '__main__':
         parser.error('--processes must be positive')
     if bool(args.model_export)!=bool(args.bridge) or not 1<=args.batch<=64:
         parser.error('model checks require both export and bridge, with batch in [1,64]')
+    if args.elementwise and not args.model_export:
+        parser.error('--elementwise requires an exported operator fixture')
     if args.diagnostic and not args.model_export:
         parser.error('intermediate diagnostics require an upstream model export')
     if args.input_tensors and not args.diagnostic:
@@ -125,6 +129,8 @@ extern "C" void* tm_dm_debug_buffer(void* handle, unsigned index,
             '-m','tilemega.dnn.check_generated','--library',str(root/'generated-sm_89.so'),
             '--export',str(args.model_export.resolve()),'--bridge',str(root/'bridge.json'),
             '--batch',str(args.batch),'--out',str(root/'correctness.json')]
+    if args.elementwise:
+        command+=['--elementwise']
     if args.moe_bridge:
         command=['env','PYTHONPATH='+str(root/'python'),'/root/dm1_work/venv-gpu/bin/python',
             '-m','tilemega.moe.check_generated','--library',str(root/'generated-sm_89.so'),
