@@ -8,7 +8,7 @@ import unittest
 from contextlib import nullcontext
 from unittest.mock import patch
 
-from tilemega.moe.full import compile_command, memory_report, resolve_target, preflight, deployment_layout_decision
+from tilemega.moe.full import compile_command, memory_report, resolve_target, preflight, deployment_layout_decision, generation_tokens
 
 
 class MoeFullTest(unittest.TestCase):
@@ -123,6 +123,37 @@ class MoeFullTest(unittest.TestCase):
             receipt=json.loads((root/'memory-preflight.json').read_text())
             self.assertEqual(receipt['evidence'], 'inferred')
             self.assertTrue(receipt['batches'][0]['exceeds_available'])
+
+    def test_same_input_modes_reset_request_state_without_reloading_weights(self):
+        import torch
+        state=SimpleNamespace(tokens=torch.empty((2,70),dtype=torch.int32),
+                              kv_storage=torch.empty((2,4)))
+        rows=torch.arange(128).reshape(2,64)
+        calls=[]
+        def prefill(step,mode,stream):
+            self.assertEqual(step,0);self.assertEqual(stream,7)
+            self.assertTrue(torch.equal(state.tokens[:,:64],rows.int()))
+            self.assertTrue(torch.all(state.tokens[:,64:]==-1))
+            self.assertTrue(torch.all(state.kv_storage==0))
+            state.tokens[:,64]=3;state.kv_storage.fill_(8)
+            calls.append(('prefill',mode))
+        def decode(step,mode,stream):
+            state.tokens[:,65+step]=4+step;calls.append(('decode',mode))
+        plan=SimpleNamespace(info=SimpleNamespace(modes=3))
+        engine=SimpleNamespace(state=state,prefill_lib=plan,decode_lib=plan,
+            prefill=SimpleNamespace(launch=prefill),decode=SimpleNamespace(launch=decode))
+        with patch('torch.cuda.current_stream',return_value=SimpleNamespace(
+                cuda_stream=7,synchronize=lambda:None)):
+            first=generation_tokens(engine,rows,3,1,10)
+            self.assertEqual(generation_tokens(engine,rows,3,2,10),first)
+            with self.assertRaisesRegex(AssertionError,'outside the vocabulary'):
+                generation_tokens(engine,rows,3,1,5)
+            engine.decode_lib=SimpleNamespace(info=SimpleNamespace(modes=1))
+            with self.assertRaisesRegex(ValueError,'absent'):
+                generation_tokens(engine,rows,3,2,10)
+        self.assertEqual(first,[[3,4,5],[3,4,5]])
+        self.assertEqual(calls[:6],[('prefill',1),('decode',1),('decode',1),
+                                    ('prefill',2),('decode',2),('decode',2)])
 
 
 if __name__ == '__main__':

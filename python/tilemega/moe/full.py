@@ -161,6 +161,26 @@ def build_plans(args, config):
     return plans
 
 
+def generation_tokens(engine, rows, steps, mode, vocab_size):
+    import torch
+    if mode not in (1,2) or not (engine.prefill_lib.info.modes & mode and
+                                 engine.decode_lib.info.modes & mode):
+        raise ValueError('requested correctness mode is absent from one plan')
+    stream = torch.cuda.current_stream()
+    engine.state.kv_storage.zero_()
+    engine.state.tokens.fill_(-1)
+    engine.state.tokens[:, :64].copy_(rows.to(
+        device=engine.state.tokens.device, dtype=torch.int32))
+    engine.prefill.launch(0, mode, stream.cuda_stream)
+    for step in range(steps-1):
+        engine.decode.launch(step, mode, stream.cuda_stream)
+    stream.synchronize()
+    tokens=engine.state.tokens[:, 64:64+steps].cpu()
+    if not torch.all((tokens>=0) & (tokens<vocab_size)):
+        raise AssertionError('generated tokens are unwritten or outside the vocabulary')
+    return tokens.tolist()
+
+
 def check_plans(args, config):
     import torch
     from tilemega.dnn.cli import gpu_lock
@@ -183,19 +203,14 @@ def check_plans(args, config):
             available, _ = torch.cuda.mem_get_info()
             if lower['estimated_allocation_bytes'] > available:
                 raise MemoryError('insufficient GPU memory for the manifest allocation estimate')
-            tokens = []
-            for mode in ('L1', 'L2'):
-                with ServingEngine(args.checkpoint, pair['prefill'], pair['decode'], batch,
-                        max_new_tokens=args.steps, mode=mode, decode_loop=False,
-                        step_events=False) as engine:
-                    stream = torch.cuda.current_stream()
-                    engine.state.tokens[:, :64].copy_(rows[:batch].to(device='cuda', dtype=torch.int32))
-                    engine.prefill.launch(0, engine.prefill_mode, stream.cuda_stream)
-                    for step in range(args.steps-1):
-                        engine.decode.launch(step, engine.decode_mode, stream.cuda_stream)
-                    stream.synchronize()
-                    tokens.append(engine.state.tokens[:, 64:64+args.steps].cpu().tolist())
-                del engine
+            # Both modes use one immutable weight allocation and one prompt.
+            # Reset request state so the second launch cannot read prior tokens/KV.
+            with ServingEngine(args.checkpoint, pair['prefill'], pair['decode'], batch,
+                    max_new_tokens=args.steps, mode='L1', prefill_mode='L1',
+                    decode_loop=False, step_events=False) as engine:
+                tokens=[generation_tokens(engine,rows[:batch],args.steps,mode,config['vocab_size'])
+                        for mode in (1,2)]
+            del engine
             if tokens[0] != tokens[1]:
                 raise AssertionError('C-2: same-binary L1/L2 generation tokens differ')
         generated = args.out/f'B{batch}'/'tokens.json'; atomic_json(generated, tokens[0])

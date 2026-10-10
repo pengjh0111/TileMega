@@ -96,3 +96,10 @@ unknown capacity and sufficient capacity preserve prefill-first ordering.
 Three host tests pass (`runs/dm1-shared-deployment-cli-host-v2.log`), including
 the exact memory boundary, selected-artifact propagation and the existing
 three-round selection/cache protocol with mocked measurements. No timing ran.
+
+verified: the full-model C-2 checker now keeps one engine/weight allocation for
+both L1/L2 launches of its fixed prompt. It clears request KV/tokens before each
+mode and rejects unwritten/out-of-vocabulary tokens. Nine full-entry host tests
+pass (`runs/dm1-full-single-weight-check-host-v1.log`), including state reset,
+supported-mode checks and invalid tokens with mocked launches. This change has
+not triggered another full real-weight or GPU replay.
