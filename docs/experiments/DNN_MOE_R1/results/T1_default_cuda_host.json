@@ -109,9 +109,9 @@
   ],
   "latest_check": {
     "evidence": "verified",
-    "scope": "host CUDA generation only; default geometry, not pinned R13D/full G-REG",
-    "candidate_head": "458bc09c9",
-    "cuda_equal": true,
+    "candidate_head": "3b4ef1760",
+    "candidate_worktree_modified": true,
+    "scope": "default fixed-plan CUDA equality after final-only DM lowering and counted-domain proof; host only, not full G-REG or pinned R13D geometry",
     "rows": [
       {
         "cell": "llama_B1_prefill",
@@ -170,8 +170,7 @@
         "reference": "runs/dm1-default-cuda-invariance-v2/qwen3_B16_decode_reference.cu"
       }
     ],
-    "source_logs": "runs/dm1-default-cuda-invariance-v4",
-    "candidate_worktree_modified": true,
-    "candidate_scope": "checkout plus uncommitted shared-layout integration; CUDA text hashes are recorded per cell"
+    "candidate_binary_sha256": "1b668ade063d9c2eb6be23212505f4b31841ba2d5de69fec6d5415d0d4ea5fba",
+    "source_scope": "host binary includes the counted-bounds and final-only lowering changes subsequently committed as 60f87f185 and 74a8b47e7; later Python-only changes do not form part of this CUDA generation check"
   }
 }

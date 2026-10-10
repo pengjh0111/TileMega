@@ -42,7 +42,7 @@ Export coverage and primitive checks do not imply model correctness.
 | DN-6 | verified: window/global pooling and SCA bodies/plans; cross-image pool LA executes after split-K; structural solver selection remains pending |
 | DN-7 | verified: explicit LN, embedding sum and per-consumer deferred LN rewrite; generated synthetic execution passes; joint per-edge selection is pending |
 | DN-8/9 | verified: Tensor Core encoder attention, layouts and finite chains; independent primitive receipts exist; prior full-model numerical failures remain explicit |
-| DN-10 | verified: memory planner, arena aliases, exact hazards and retained-allocation budget accounting; generated small reuse case passes; full-model reuse generation remains unresolved (`memory.md`) |
+| DN-10 | verified: memory planner, arena aliases, exact hazards and retained-allocation budget accounting; generated small reuse case passes; full fused MobileNetV1 reuse now generates (18 arena bindings, 13559552 B); its native replay is pending (`memory.md`) |
 | DN-11 | verified: public DNN export/build/run/check entry, architecture-only construction and separate fixed synthetic smoke receipts; baseline/timing work is omitted under user scope (`dnn_cli.md`) |
 | MO-1/2/3 | verified: original-FQN exports/checkpoints, streaming expert packs, decoder/region plans, virtual/counting semantics; canonical shared-layout constraints and capacity-limited serving/full-entry integration have host evidence |
 | MO-4/5/6/7 | verified: routing, gathered/indirect expert GEMMs, combine and QPerKV=8 execute in generated region/decoder fixtures; bound dense/paged GEMV and generic LA execute; GEMV pricing/search remains pending |
