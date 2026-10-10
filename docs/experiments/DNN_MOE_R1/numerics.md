@@ -89,7 +89,12 @@ verified: DNN checkpoint recipes pass 12 CPU checks, including independent
 module expressions and the existing host CuTe page-layout oracle
 (`results/DN_weight_recipes_host.json`). BN statistics retain their checkpoint
 precision; the folded convolution weight is rounded to BF16, and its separate
-bias remains FP32. Linear and packed QKV bias remain FP32. QKV packing is
+bias remains FP32. The original folded-weight path remains available for its
+identified artifacts. Current DNN planning factors BN scale and bias into the
+same convolution's FP32 epilogue and retains the original BF16 weight, avoiding
+repeated weight requantization. This is a declared departure from the prompt's
+scaled-weight recipe. Seven locked independent CPU recipe checks pass; full
+MobileNetV2 correctness after this change remains unverified. Linear and packed QKV bias remain FP32. QKV packing is
 head-major `[Q_head, K_head, V_head]`; SimpleGate interleaves channel chunks
 without changing their values.
 

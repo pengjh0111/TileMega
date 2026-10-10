@@ -1,0 +1,33 @@
+{
+  "evidence": "verified",
+  "scope": "G-DNN dataset correctness",
+  "passed": true,
+  "model": "nafnet",
+  "batch": 2,
+  "samples": 1280,
+  "artifact_id": "cc81161e977841cc2e9108848f3d0529c9efec7f9be9dcd70ff66b7ee11df63f",
+  "metrics": {
+    "tm_fp32_psnr": 66.42514934539795,
+    "bf16_fp32_psnr": 65.42523514628411,
+    "tm_gt_psnr": 39.92490682005882,
+    "bf16_gt_psnr": 39.92189448624849
+  },
+  "reference": {
+    "source": "/root/models/nafnet/NAFNet-SIDD-width32.pth",
+    "exported_checkpoint_sha256": "95ca0a5a5705c28874d6dd5183ca14a66e3a60b4059803d4e45aeadb81939bad",
+    "fp32": "original upstream checkpoint",
+    "bf16": "same checkpoint cast to BF16"
+  },
+  "bridge_sha256": "b745d44f0fdd3877e099e57ba32689b1800685773c5e344ccfb67b79b0e31faf",
+  "input_protocol": "identical BF16 images or int64 ids; original FP32 upstream reference",
+  "launches": 1280,
+  "receipt": {
+    "path": "runs/dm1-naf-sidd-dataset-v2/correctness.json",
+    "sha256": "901990162d82510a550d595bbdcec762fb8e48205cf6990f2879eca2a6fdad08"
+  },
+  "limits": [
+    "Only this B=2 identified configuration has passed the SIDD gate; B=1 and other arms remain pending.",
+    "The unchanged random-normal-input PSNR smoke failure is retained in DN_naf_smoke_failure.json.",
+    "This dataset result does not certify the required 50 fresh-process synchronization or all architecture builds."
+  ]
+}
