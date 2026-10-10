@@ -117,6 +117,8 @@ LiftedModel LiftSemantics(ModelPlan const& plan, LiftOptions const& options);
 LiftedModel LiftServingSemantics(ModelPlan const& plan, LiftOptions const& options);
 LiftedModel LiftDnnSemantics(ModelPlan const& plan, LiftOptions const& options);
 LiftedModel LiftMoeRegionSemantics(ModelPlan const& plan, LiftOptions const& options);
+LiftedModel LiftMoeStageSemantics(ModelPlan const&,LiftOptions const&,unsigned,
+                                LiftedModel const& preceding);
 
 /// §0.1 degradation: one conservative task space per FX call_function, used
 /// when no decoder layer was recognized. Never a placeholder -- the read set

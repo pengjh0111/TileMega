@@ -161,15 +161,58 @@ ModelPlan BuildMoeRegion(std::vector<FxNodeRecord> const& nodes,
 
 void AppendMoeBlock(ModelPlan& destination,MoeRegionMatch const& match,
     std::vector<FxNodeRecord> const& nodes,std::vector<SignatureInput> const& inputs,
-    unsigned input,unsigned output,MoeRegionOptions const& options) {
+    unsigned input,unsigned output,MoeRegionOptions const& options,
+    unsigned norm_stats,unsigned next_norm_stats) {
   auto plan=destination;
   if(input>=plan.buffers.size() || output>=plan.buffers.size() || input==output ||
       plan.buffers[input].dtype!="bf16" || plan.buffers[output].dtype!="bf16")
     throw std::invalid_argument("MoE decoder block needs distinct BF16 input/output storage");
   auto block=BuildMatchedMoeRegion(match,nodes,inputs,options);
+  auto statistics=[&](unsigned id) {
+    if(id==kDmNoIndex)return;
+    if(id>=plan.buffers.size() || plan.buffers[id].dtype!="f32")
+      throw std::invalid_argument("MoE decoder statistics require FP32 storage");
+    auto const& layout=plan.buffers[id].layout;
+    if(layout.rank!=2 || layout.logical[0]!=options.tokens ||
+        layout.logical[1]!=match.hidden/32 || layout.strides[1]!=1 || match.hidden%32)
+      throw std::invalid_argument("MoE decoder statistics disagree with 32-channel ownership");
+  };
+  statistics(norm_stats);statistics(next_norm_stats);
+  if(next_norm_stats!=kDmNoIndex && options.combine_channel_tile%32)
+    throw std::invalid_argument("MoE RMS output statistics require complete 32-channel groups");
+  unsigned local_stats=kDmNoIndex,local_next=kDmNoIndex;
+  auto binding=[&](unsigned source) {
+    auto value=plan.buffers.at(source);value.role.clear();value.external_name.clear();
+    unsigned local=block.buffers.size();block.buffers.push_back(std::move(value));return local;
+  };
+  if(norm_stats!=kDmNoIndex) {
+    local_stats=binding(norm_stats);
+    block.stages.erase(block.stages.begin());
+    for(auto& stage:block.stages)if(stage.binding_producer!=kDmNoIndex)--stage.binding_producer;
+    std::string gamma;
+    for(auto const& parameter:inputs)if(parameter.name==match.norm_weight)gamma=parameter.target;
+    if(gamma.empty())throw std::invalid_argument("MoE RMS fold lacks a source parameter");
+    for(unsigned index:{0u,1u}) {
+      auto& gemm=block.gemms.at(index);gemm.a=block.node_buffer.at(match.input);
+      auto& weight=block.buffers.at(gemm.b);
+      auto recipe=llvm::json::parse(weight.pack_json);
+      if(!recipe)throw std::invalid_argument("invalid MoE weight recipe before RMS folding");
+      weight.pack_json=llvm::formatv("{0}",llvm::json::Value(llvm::json::Object{
+          {"kind","fold_rmsnorm"},{"norm",gamma},{"source",std::move(*recipe)}})).str();
+      for(unsigned op=gemm.chain.count;op>0;--op)gemm.chain.operations[op]=gemm.chain.operations[op-1];
+      ++gemm.chain.count;auto& norm=gemm.chain.operations[0];norm={};
+      norm.kind=DmEpilogueKind::kDeferredRMSNorm;norm.parameter[0]=local_stats;
+      norm.output_rounding=DmRounding::kBF16;
+    }
+  }
+  if(next_norm_stats!=kDmNoIndex) {
+    local_next=binding(next_norm_stats);block.stages.back().operands[5]=local_next;
+  }
   std::vector<unsigned> remap(block.buffers.size());
   for(unsigned id=0;id<block.buffers.size();++id) {
-    if(id==block.node_buffer.at(match.input))remap[id]=input;
+    if(id==local_stats)remap[id]=norm_stats;
+    else if(id==local_next)remap[id]=next_norm_stats;
+    else if(id==block.node_buffer.at(match.input))remap[id]=input;
     else if(id==block.node_buffer.at(match.output))remap[id]=output;
     else {remap[id]=plan.buffers.size();plan.buffers.push_back(std::move(block.buffers[id]));}
   }
@@ -203,25 +246,31 @@ void AppendMoeBlock(ModelPlan& destination,MoeRegionMatch const& match,
   destination=std::move(plan);
 }
 
-void MaterializeMoeRegionStorage(ModelPlan& plan,unsigned tile_n,unsigned down_tile_n) {
-  if(!plan.dm || !plan.forward || !plan.forward_token_axis || !tile_n)
-    throw std::invalid_argument("router storage needs a token-axis forward plan and positive tile N");
+void MaterializeMoeRegionStorage(ModelPlan& plan,unsigned tile_n,unsigned down_tile_n,
+                                unsigned router_gemm) {
+  if(!plan.dm || !(plan.serving || (plan.forward && plan.forward_token_axis)) || !tile_n)
+    throw std::invalid_argument("router storage needs a MoE plan and positive tile N");
   for(auto const& stage:plan.stages) {
     auto const& config=stage.moe;
+    if(router_gemm!=kDmNoIndex && config.router_gemm!=router_gemm)continue;
     if(config.step!=DmMoeStep::kSelect && config.step!=DmMoeStep::kSelectAndDispatch)continue;
     if(config.router_gemm>=plan.gemms.size())throw std::invalid_argument("invalid router GEMM index");
     auto const& router=plan.gemms[config.router_gemm];
     unsigned parts=(router.n+tile_n-1)/tile_n;
-    for(auto operand:{0,1})Matrix(plan.buffers.at(stage.operands[operand]),plan.serving_seq,Checked(std::uint64_t(parts)*config.top_k));
+    unsigned tokens=config.row_capacity/config.top_k;
+    for(auto operand:{0,1})Matrix(plan.buffers.at(stage.operands[operand]),tokens,Checked(std::uint64_t(parts)*config.top_k));
   }
   if(down_tile_n) {
     if(down_tile_n<16 || down_tile_n>256 || down_tile_n%16)
       throw std::invalid_argument("invalid MoE down/combine channel alignment");
     for(auto& stage:plan.stages)if(stage.kind==PlanTaskKind::kMoECombine) {
+      if(router_gemm!=kDmNoIndex && stage.moe.router_gemm!=router_gemm)continue;
+      if(stage.operands[5]!=kDmNoIndex && down_tile_n%32)
+        throw std::invalid_argument("MoE residual squares require aligned 32-channel writers");
       // A scatter publishes one contribution per row to its channel tile.
       // Matching the consumer's columns prevents partial or duplicate units.
       stage.width=down_tile_n;
-      Matrix(plan.buffers.at(stage.operands[4]),plan.serving_seq,
+      Matrix(plan.buffers.at(stage.operands[4]),stage.moe.row_capacity/stage.moe.top_k,
              2*((stage.extent+down_tile_n-1)/down_tile_n));
     }
   }

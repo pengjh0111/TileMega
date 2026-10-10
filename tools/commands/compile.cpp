@@ -564,6 +564,10 @@ int RunCompile(int argc, char** argv) {
       auto bridge=tilemega::frontend::ReadExportBridge(input.string());
       tilemega::frontend::ServingOptions options;
       options.deferred_norm=deferred_norm!=0;
+      options.moe_batch=serving_batch;
+      options.moe_grouped=moe_binding=="group" ||
+          (moe_binding=="auto" && serving_batch*(serving_phase=="decode"?1:64)>2);
+      options.moe_block_rows=moe_bm;
       options.phase=serving_phase=="decode"
           ? tilemega::frontend::ServingOptions::Phase::kDecode
           : tilemega::frontend::ServingOptions::Phase::kPrefill;
@@ -576,7 +580,7 @@ int RunCompile(int argc, char** argv) {
           bridge.nodes,bridge.inputs,bridge.outputs,options);
       if(forward)options.seq=forward_seq;
       tilemega::frontend::ImportOptions import;
-      if (plan.forward) import.phase_batch = serving_batch;
+      if (plan.forward || plan.dm) import.phase_batch = serving_batch;
       import.gemms.assign(plan.gemms.size(),forward?
           tilemega::frontend::GemmGranularity{128,64,16,3,1}:
           tilemega::frontend::GemmGranularity{16,128,128,2,1});
@@ -766,7 +770,11 @@ int RunCompile(int argc, char** argv) {
           if(!legacy_seed.empty())throw std::runtime_error("serving search does not use a legacy seed");
           auto bridge=tilemega::frontend::ReadExportBridge(input.string());
           tilemega::frontend::ServingOptions options;
-      options.deferred_norm=deferred_norm!=0;
+          options.deferred_norm=deferred_norm!=0;
+          options.moe_batch=serving_batch;
+          options.moe_grouped=moe_binding=="group" ||
+              (moe_binding=="auto" && serving_batch*dims.seq>2);
+          options.moe_block_rows=moe_bm;
           options.phase=serving_phase=="decode"
               ? tilemega::frontend::ServingOptions::Phase::kDecode
               : tilemega::frontend::ServingOptions::Phase::kPrefill;
@@ -775,6 +783,29 @@ int RunCompile(int argc, char** argv) {
           options.argmax_tile_n=serving_argmax_tile_n;
           auto plan=dnn_plan?*dnn_plan:tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,
               bridge.outputs,options);
+          if(plan.dm && plan.serving)
+            skeleton.dm_structure_rebuild=[](auto const& previous,auto const& bridge,
+                auto const& lift,int kv_block,int query_rows,int argmax_tile_n) {
+              auto binding=std::find_if(previous.stages.begin(),previous.stages.end(),[](auto const& s) {
+                return s.moe.step!=tilemega::codegen::DmMoeStep::kNone;
+              });
+              if(binding==previous.stages.end())
+                throw std::invalid_argument("MoE decoder rebuild has no binding geometry");
+              auto const& cfg=binding->moe;
+              tilemega::frontend::ServingOptions requested;
+              requested.seq=previous.serving_seq;requested.capacity=previous.serving_capacity;
+              requested.phase=requested.seq==1?tilemega::frontend::ServingOptions::Phase::kDecode:
+                  tilemega::frontend::ServingOptions::Phase::kPrefill;
+              requested.deferred_norm=std::any_of(previous.gemms.begin(),previous.gemms.end(),
+                  [](auto const& g){return g.norm_ss!=tilemega::codegen::kDmNoIndex;});
+              requested.moe_batch=cfg.row_capacity/cfg.top_k/requested.seq;
+              requested.moe_grouped=cfg.grouped;requested.moe_block_rows=cfg.block_rows;
+              requested.kv_block=kv_block;requested.query_rows=query_rows;
+              requested.argmax_tile_n=argmax_tile_n;
+              auto rebuilt=tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,requested);
+              auto semantics=tilemega::frontend::LiftSemantics(rebuilt,lift);
+              return std::make_pair(std::move(rebuilt),std::move(semantics));
+            };
           serving_imported.emplace(tilemega::frontend::TorchExportImporter{}.
               ImportSemantics(input.string(),plan,context));
           // A paged seed must satisfy the selected page's single-stage

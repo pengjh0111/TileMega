@@ -15,8 +15,9 @@ ModelPlan BuildMoeRegion(std::vector<FxNodeRecord> const&,
     MoeRegionOptions const& = {});
 void AppendMoeBlock(ModelPlan&,MoeRegionMatch const&,
     std::vector<FxNodeRecord> const&,std::vector<SignatureInput> const&,
-    unsigned input,unsigned output,MoeRegionOptions const&);
+    unsigned input,unsigned output,MoeRegionOptions const&,
+    unsigned norm_stats=codegen::kDmNoIndex,unsigned next_norm_stats=codegen::kDmNoIndex);
 // Router partial storage follows the selected N geometry, not export geometry.
 void MaterializeMoeRegionStorage(ModelPlan&,unsigned router_tile_n,
-                                unsigned down_tile_n=0);
+                                unsigned down_tile_n=0,unsigned router_gemm=codegen::kDmNoIndex);
 } // namespace tilemega::frontend

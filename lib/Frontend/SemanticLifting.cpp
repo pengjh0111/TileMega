@@ -662,6 +662,17 @@ analysis::Granularity LaunchGranularity(
       if(virtual_gemms.count(op.name))continue;
       auto const& stage = plan.stages.at(op.stage);
       switch (op.role) {
+        case OpRole::kMoERouting: {
+          auto step=stage.moe.step;
+          auto rows=step==codegen::DmMoeStep::kPrefix || step==codegen::DmMoeStep::kSelectAndDispatch?
+              model.sem.Find(op.name)->Dim("m")->extent:
+              Fixed(step==codegen::DmMoeStep::kSelect?stage.group:stage.moe.chunk_tokens);
+          g.Tile(op.name,"m",rows).Tile(op.name,"n",Fixed(stage.moe.top_k));
+          break;
+        }
+        case OpRole::kMoECombine:
+          g.Tile(op.name,"m",Fixed(stage.group)).Tile(op.name,"n",Fixed(stage.width));
+          break;
         case OpRole::kNorm:
         case OpRole::kEmbedding:
           g.Tile(op.name, "m", one);
@@ -703,7 +714,17 @@ analysis::Granularity LaunchGranularity(
             g.Tile(op.name, "tile", one);
           else
             g.Tile(op.name, "n", ClosedForm::Constant(impl.tile_n));
-          if (impl.split_k > 1 && op.role != OpRole::kServingArgmaxPartial) {
+          auto const* semantic=model.sem.Find(op.name);
+          bool indexed=plan.dm && semantic && semantic->exact_task_access && semantic->reduction.splittable;
+          if(indexed) {
+            int k=static_cast<int>(plan.gemms.at(stage.gemm).k);
+            int chunks=std::min(impl.split_k,(k+impl.tile_k-1)/impl.tile_k);
+            analysis::TaskReductionIndex index;
+            index.index=analysis::IndexResult::Dim(semantic->reduction.dim,one,Fixed(impl.tile_k));
+            index.capacity=Fixed((k+impl.tile_k-1)/impl.tile_k);index.issued_width=Fixed(impl.tile_k);
+            index.chunks=chunks>1?chunks:0;g.IndexReduction(op.name,std::move(index));
+            if(chunks>1)g.Split(op.name,one);
+          }else if (impl.split_k > 1 && op.role != OpRole::kServingArgmaxPartial) {
             int k = static_cast<int>(plan.gemms.at(stage.gemm).k);
             int chunks = std::min(impl.split_k, (k + impl.tile_k - 1) / impl.tile_k);
             g.Split(op.name, ClosedForm::Constant((k + chunks - 1) / chunks));

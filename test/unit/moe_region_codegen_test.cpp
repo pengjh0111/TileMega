@@ -21,6 +21,49 @@ int TestMoeRegionCodegen(int argc,char** argv) {
   using namespace frontend;using namespace analysis;using namespace codegen;
   IslContext isl;unsigned cases=0;
   auto mode=argc>1?std::string(argv[1]):std::string();
+  if(mode=="--emit-decoder" && argc==7) {
+    auto bridge=ReadExportBridge(argv[2]);unsigned seq=0;
+    for(auto const& node:bridge.nodes)if(node.name=="input_ids")seq=std::stoul(node.shape.at(1));
+    unsigned batch=std::stoul(argv[4]);bool deferred=std::stoul(argv[5]),pages=std::stoul(argv[6]);
+    ServingOptions options;options.seq=seq;options.moe_batch=batch;options.capacity=192;
+    options.kv_block=64;options.query_rows=seq==1?8:16;options.argmax_tile_n=32;
+    options.phase=seq==1?ServingOptions::Phase::kDecode:ServingOptions::Phase::kPrefill;
+    options.moe_grouped=batch*seq>2;options.moe_block_rows=32;options.deferred_norm=deferred;
+    auto plan=BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
+    assert(plan.dm && plan.serving && !plan.forward);
+    mlir::MLIRContext context;ImportOptions geometry;geometry.phase_batch=batch;
+    geometry.gemms.assign(plan.gemms.size(),GemmGranularity{16,32,32,2,1});
+    for(unsigned index=0;index<plan.gemms.size();++index) {
+      auto const& gemm=plan.gemms[index];
+      if(gemm.chain.side_count)geometry.gemms[index]={16,16,32,2,1};
+      if(gemm.epilogue==PlanGemm::Epilogue::kArgmaxPartial)geometry.gemms[index]={16,32,32,2,1};
+    }
+    auto module=TorchExportImporter{}.ImportPlan(argv[2],plan,context,nullptr,geometry);
+    assert(mlir::succeeded(mlir::verify(*module)));
+    // This fixture bypasses the solver, which normally binds the ABI past range.
+    (*module)->setAttr("tmexec.solved_past",mlir::IntegerAttr::get(
+        mlir::IntegerType::get(&context,64),seq==1?3:0));
+    if(pages) {
+      auto target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+"/configs/targets/sm_89.json");
+      ConfigureServingPages(*module,target,8192);ResolveServingWeightPacking(*module);
+      assert(mlir::succeeded(mlir::verify(*module)));
+    }
+    auto runtime=ReadRuntimePlan(*module);
+    assert(runtime.gemms.size()==plan.gemms.size());
+    solver::ModelDims dims;dims.batch=batch;dims.seq=seq;dims.past=seq==1?3:0;
+    dims.total=dims.seq+dims.past;
+    auto model=solver::ModelDescription::FromCouplingGraph(*module,dims,"moe-decoder");
+    auto projected=solver::ProjectRuntimeQueues(model,runtime,{4,128,0});
+    unsigned combined=0;
+    for(auto const& stage:plan.stages)combined+=stage.kind==PlanTaskKind::kMoECombine;
+    assert(projected.runtime_counted.size()==(options.moe_grouped?combined:0));
+    auto cu=CouplingGraphToCUDA{}.LowerVariants({{*module,seq,seq}});
+    assert(cu.find("RunMoe<")!=std::string::npos && cu.find("TILEMEGA_SERVING_QPERKV 8")!=std::string::npos);
+    std::ofstream out(argv[3]);assert(out);out<<cu;
+    std::cout<<"MoE decoder CUDA: batch="<<batch<<" seq="<<seq<<" deferred="<<deferred
+             <<" pages="<<pages<<" stages="<<plan.stages.size()<<" PASS\n";
+    return 0;
+  }
   bool tokens_pinned=argc==4 && (mode=="--emit-group-tokens" || mode=="--emit-slot-tokens" ||
       mode=="--emit-group-pages-tokens" || mode=="--emit-slot-pages-tokens");
   bool pages=(argc==3 || tokens_pinned) && (mode=="--emit-group-pages" ||

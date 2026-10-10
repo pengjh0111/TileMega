@@ -877,14 +877,19 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   // The plan attribute is written after lifting because the read-only
   // frontier it carries is the lifting replay's own write relation.
   MaterializeDnnStorage(plan,runtimeGemms,options.phase_batch);
-  if(plan.forward_token_axis) {
-    unsigned router=codegen::kDmNoIndex,down=codegen::kDmNoIndex;
-    for(auto const& stage:plan.stages)if(stage.moe.step!=codegen::DmMoeStep::kNone)
-      router=stage.moe.router_gemm;
-    for(unsigned index=0;index<plan.gemms.size();++index)
-      if(plan.gemms[index].access.write.kind==codegen::DmWriteKind::kRowScatter)down=index;
-    if(router!=codegen::kDmNoIndex && down!=codegen::kDmNoIndex)
-      MaterializeMoeRegionStorage(plan,runtimeGemms.at(router).tile_n,runtimeGemms.at(down).tile_n);
+  if(plan.dm) {
+    for(unsigned index=0;index<plan.gemms.size();++index) {
+      auto const& gemm=plan.gemms[index];
+      if(gemm.access.write.kind!=codegen::DmWriteKind::kRowScatter)continue;
+      auto stage=std::find_if(plan.stages.begin(),plan.stages.end(),[&](auto const& s) {
+        return s.kind==PlanTaskKind::kGemm && s.gemm==index;
+      });
+      if(stage==plan.stages.end() || stage->binding_producer==codegen::kDmNoIndex)
+        throw std::invalid_argument("MoE scatter has no dispatch stage");
+      unsigned router=plan.stages.at(stage->binding_producer).moe.router_gemm;
+      MaterializeMoeRegionStorage(plan,runtimeGemms.at(router).tile_n,
+                                 runtimeGemms.at(index).tile_n,router);
+    }
   }
   if (!plan.stages.empty())
     module->setAttr("tilemega.model_plan",
@@ -936,7 +941,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   for (auto const& [name, value] : options.task_binding.values) taskBinding.Bind(name, value);
   bool const exactTasks = std::any_of(lifted.sem.ops.begin(), lifted.sem.ops.end(),
       [](auto const& op) { return op.exact_task_access; });
-  if (exactTasks && plan.forward) {
+  if (exactTasks && (plan.forward || plan.dm)) {
     if (plan.forward_token_axis && symbolic.ranges.count(liftOptions.seq_symbol))
       taskBinding.Bind(liftOptions.seq_symbol, plan.serving_seq);
     if (options.phase_batch > 0 && !liftOptions.batch_symbol.empty())
@@ -1384,7 +1389,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
         state.addAttribute("dependency_table", dialect::EncodeBoundDependencyTable(builder,
             *boundDependencies[edge]->table, pc, cc, taskBinding));
     }
-    if(plan.forward_token_axis && consumer.stage>=0 &&
+    if(plan.dm && consumer.stage>=0 &&
        plan.stages.at(consumer.stage).kind==PlanTaskKind::kMoECombine) {
       auto const& producer=liftedOf(item.src.name);
       auto const& stage=plan.stages.at(producer.stage);

@@ -185,12 +185,12 @@ int TestDmDescriptor(int, char**) {
   inputs.reduction=tilemega::analysis::QuasiPolynomial::Constant(8);
   inputs.total=tilemega::analysis::QuasiPolynomial::Constant(128);
   inputs.width=64; inputs.dtype=tilemega::analysis::ScalarType::kBF16;
-  for(auto const* name:{"layernorm","embedding_sum","layout_convert","pool","global_pool_reduce","depthwise_conv","encoder_attention"}) {
+  for(auto const* name:{"layernorm","embedding_sum","layout_convert","pool","global_pool_reduce","depthwise_conv","encoder_attention","moe_topk","moe_combine"}) {
     auto arithmetic=tilemega::analysis::InstantiateArithmetic(name,inputs);
     assert(arithmetic.runtime_implemented);
     tilemega::analysis::RequireArithmeticImplementation(arithmetic);
   }
-  for(auto const* name:{"dwpw_depthwise","moe_topk","moe_combine","moe_router"}) {
+  for(auto const* name:{"dwpw_depthwise","moe_router"}) {
     auto arithmetic=tilemega::analysis::InstantiateArithmetic(name,inputs);
     assert(!arithmetic.runtime_implemented);
     rejects([&]{tilemega::analysis::RequireArithmeticImplementation(arithmetic);});
@@ -198,7 +198,7 @@ int TestDmDescriptor(int, char**) {
   assert(tilemega::analysis::InstantiateArithmetic("depthwise_conv",inputs).
       flops_per_output_element.Eval({})==16);
   assert(tilemega::analysis::InstantiateArithmetic("moe_combine",inputs).
-      flops_per_output_element.Eval({})==15);
+      flops_per_output_element.Eval({})==8+7+1); // products, rank sum, residual
   return 0;
 }
 }  // namespace tilemega::tests::dm_descriptor_test

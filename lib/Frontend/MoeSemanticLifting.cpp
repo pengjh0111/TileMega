@@ -37,7 +37,7 @@ struct Builder {
   }
   TensorSpace const& At(unsigned id) const {return spaces.at(id);}
   void Matrix(unsigned id,ClosedForm rows,ClosedForm columns) {
-    spaces[id]=Space(id,{{"row",rows},{"column",columns}});
+    if(!spaces.count(id))spaces[id]=Space(id,{{"row",rows},{"column",columns}});
   }
   SemanticOperand Read(unsigned id,std::vector<IndexResult> map) const {
     SemanticOperand operand;operand.tensor=At(id);operand.map.results=std::move(map);
@@ -83,16 +83,23 @@ struct Builder {
     Matrix(ids[6],tokens.CeilDiv(C(cfg.chunk_tokens)),C(cfg.experts));
     Matrix(ids[7],C(1),C(cfg.experts+1));Matrix(ids[8],C(1),C(cfg.experts+1));
   }
+  void Normalization(SemanticOp& op,PlanGemm const& gemm,IndexResult row) {
+    for(unsigned i=0;i<gemm.chain.count;++i) {
+      auto const& step=gemm.chain.operations[i];
+      if(step.kind!=DmEpilogueKind::kDeferredRMSNorm)continue;
+      auto id=step.parameter[0];auto const& layout=plan.buffers.at(id).layout;
+      if(layout.rank!=2 || layout.logical[1]!=gemm.k/32 || gemm.k%32)
+        throw std::invalid_argument("MoE RMS semantic statistics require 32-channel squares");
+      Matrix(id,tokens,C(gemm.k/32));
+      op.operands.push_back(Read(id,{row,IndexResult::FullRange()}));
+    }
+  }
 };
 }
 
-LiftedModel LiftMoeRegionSemantics(ModelPlan const& plan,LiftOptions const& options) {
-  if(!plan.dm || !plan.forward || !plan.forward_token_axis || !options.forward ||
-      options.seq_symbol.empty())
-    throw std::invalid_argument("MoE region semantics require a symbolic token-axis forward plan");
-  ValidateDmModelPlan(plan);
-  Builder b(plan,ClosedForm::Symbol(options.seq_symbol));
-  for(unsigned index=0;index<plan.stages.size();++index) {
+namespace {
+void LiftStage(Builder& b,unsigned index) {
+  auto const& plan=b.plan;
     auto const& s=plan.stages[index];auto const& ids=s.operands;
     SemanticOp op;op.name="moe.s"+std::to_string(index);
     if(s.kind==PlanTaskKind::kRMSNorm) {
@@ -111,6 +118,7 @@ LiftedModel LiftMoeRegionSemantics(ModelPlan const& plan,LiftOptions const& opti
         b.Matrix(g.b,C(g.n),C(g.k));b.Matrix(g.d,b.tokens,C(g.n));
         op.domain={D("m",b.tokens),D("n",C(g.n)),D("k",C(g.k),true)};
         op.operands={b.Read(g.a,{I("m"),I("k")}),b.Read(g.b,{I("n"),I("k")})};
+        b.Normalization(op,g,I("m"));
         b.Own(op,{{"m",b.tokens},{"n",C(g.n)}},{I("m"),I("n")});
         for(unsigned side=0;side<g.chain.side_count;++side) {
           auto const& partial=g.chain.side[side];
@@ -129,6 +137,7 @@ LiftedModel LiftMoeRegionSemantics(ModelPlan const& plan,LiftOptions const& opti
         unsigned unit=0;
         for(unsigned chain=0;chain<g.chain.count;++chain) {
           auto const& step=g.chain.operations[chain];
+          if(step.kind==DmEpilogueKind::kDeferredRMSNorm)continue;
           if(step.kind!=DmEpilogueKind::kGatePair || step.gate!=DmGatePair::kSwiGLU || unit)
             throw std::invalid_argument("unsupported MoE expert epilogue semantics");
           unit=step.unit;
@@ -147,6 +156,7 @@ LiftedModel LiftMoeRegionSemantics(ModelPlan const& plan,LiftOptions const& opti
         auto expert=IndexResult::DataDependent(b.At(a.binding).name,{"v"});
         if(a.a==DmAAccess::kRowGather)op.operands.push_back(b.Read(g.a,{token,I("k")}));
         else op.operands.push_back(b.Read(g.a,{I("v"),I("row"),I("k")}));
+        b.Normalization(op,g,token);
         b.spaces[g.b]=b.Space(g.b,{{"expert",C(a.experts)},{"n",C(g.n)},{"k",C(g.k)}});
         auto column=paired?Sum({I("n"),I("n",unit,unit)}):I("n");
         op.operands.push_back(b.Read(g.b,{expert,column,I("k")}));
@@ -219,9 +229,40 @@ LiftedModel LiftMoeRegionSemantics(ModelPlan const& plan,LiftOptions const& opti
       b.Own(op,{{"m",b.tokens},{"n",C(s.extent)}},{I("m"),I("n")});
       for(unsigned stat=0;stat<2;++stat)b.Side(op,ids[4],{I("m"),IndexResult::Affine({},C(stat))});
       op.tile_storage.push_back({b.At(ids[4]).name,"n",1});
+      if(ids[5]!=kDmNoIndex) {
+        b.Matrix(ids[5],b.tokens,C(s.extent/32));
+        b.Side(op,ids[5],{I("m"),I("n",1,32)});
+      }
       b.Store(index,std::move(op),OpRole::kMoECombine,ids[3],{I("m"),I("n")});
     }else throw std::invalid_argument("MoE region has an unsupported stage kind");
-  }
+}
+}
+
+LiftedModel LiftMoeRegionSemantics(ModelPlan const& plan,LiftOptions const& options) {
+  if(!plan.dm || !plan.forward || !plan.forward_token_axis || !options.forward ||
+      options.seq_symbol.empty())
+    throw std::invalid_argument("MoE region semantics require a symbolic token-axis forward plan");
+  ValidateDmModelPlan(plan);
+  Builder b(plan,ClosedForm::Symbol(options.seq_symbol));
+  for(unsigned index=0;index<plan.stages.size();++index)LiftStage(b,index);
   return std::move(b.result);
+}
+
+LiftedModel LiftMoeStageSemantics(ModelPlan const& plan,LiftOptions const& options,
+    unsigned index,LiftedModel const& preceding) {
+  if(!plan.dm || !plan.serving || !options.serving || options.batch_symbol.empty() ||
+      options.static_seq!=plan.serving_seq || index>=plan.stages.size())
+    throw std::invalid_argument("MoE decoder semantics require bound serving dimension roles");
+  Builder b(plan,ClosedForm::Symbol(options.batch_symbol)*C(plan.serving_seq));
+  std::map<std::string,unsigned> buffers;
+  for(unsigned id=0;id<plan.buffers.size();++id)buffers.emplace(plan.buffers[id].name,id);
+  auto seed=[&](TensorSpace const& tensor,std::string const& writer) {
+    auto found=buffers.find(tensor.name);if(found==buffers.end())return;
+    b.spaces[found->second]=tensor;b.writers[found->second]=writer;
+  };
+  for(auto const& op:preceding.sem.ops) {
+    seed(op.result,op.name);for(auto const& write:op.additional_writes)seed(write.tensor,op.name);
+  }
+  LiftStage(b,index);return std::move(b.result);
 }
 } // namespace tilemega::frontend

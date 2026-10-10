@@ -199,6 +199,9 @@ struct ServingOptions {
   int query_rows = 64;
   int argmax_tile_n = 32;
   bool deferred_norm = true;
+  int moe_batch = 1;
+  bool moe_grouped = false;
+  unsigned moe_block_rows = 16;
 };
 
 ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,

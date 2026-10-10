@@ -2,16 +2,76 @@
 #include <tilemega/Frontend/MoeRegionPlan.h>
 #include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Frontend/ExportBridge.h>
+#include <tilemega/Frontend/SemanticLifting.h>
 #include <tilemega/Codegen/MoeBinding.h>
 #include <mlir/IR/MLIRContext.h>
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
+#include <unordered_set>
 
 namespace tilemega::tests::moe_region_plan_test {
 int TestMoeRegionPlan(int argc,char** argv) {
   using namespace frontend;using namespace codegen;
   mlir::MLIRContext context;mlir::Builder builder(&context);unsigned cases=0;
+  if(argc==3 && std::string(argv[2])=="--decoder") {
+    auto bridge=ReadExportBridge(argv[1]);unsigned seq=0;
+    for(auto const& node:bridge.nodes)if(node.name=="input_ids")seq=std::stoul(node.shape.at(1));
+    assert(seq==1 || seq==64);
+    for(unsigned batch:{1u,16u})for(bool grouped:{false,true})for(bool deferred:{false,true}) {
+      ServingOptions options;options.seq=seq;options.moe_batch=batch;
+      options.phase=seq==1?ServingOptions::Phase::kDecode:ServingOptions::Phase::kPrefill;
+      options.moe_grouped=grouped;options.moe_block_rows=32;options.deferred_norm=deferred;
+      auto plan=BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
+      assert(plan.serving && plan.dm && !plan.forward && plan.gemms.size()==241);
+      unsigned attention=0,combines=0,deferred_consumers=0;
+      for(auto const& stage:plan.stages) {
+        if(stage.kind==PlanTaskKind::kFusedAttention) {
+          assert(stage.group==8 && stage.width==128 && stage.extent==4);++attention;
+        }
+        if(stage.kind==PlanTaskKind::kMoECombine) {
+          assert(stage.moe.row_capacity==batch*seq*8 && stage.moe.grouped==grouped);
+          assert((stage.operands[5]!=kDmNoIndex)==(deferred && seq==1));++combines;
+        }
+      }
+      for(auto const& gemm:plan.gemms) {
+        if(gemm.epilogue==PlanGemm::Epilogue::kResidual)assert(gemm.c!=gemm.d);
+        if(gemm.chain.count && gemm.chain.operations[0].kind==DmEpilogueKind::kDeferredRMSNorm) {
+          assert(plan.buffers.at(gemm.chain.operations[0].parameter[0]).dtype=="f32");
+          assert(plan.buffers.at(gemm.b).pack_json.find("fold_rmsnorm")!=std::string::npos);
+          ++deferred_consumers;
+        }
+      }
+      assert(attention==48 && combines==48 && deferred_consumers==(deferred && seq==1?96u:0u));
+      auto const& head=plan.gemms.back();assert(head.n==151936 && head.k==2048);
+      assert(plan.buffers.at(head.b).pack_json.find("lm_head.weight")!=std::string::npos);
+      ValidateDmModelPlan(plan);
+      LiftOptions lift_options;lift_options.serving=true;lift_options.static_seq=seq;
+      lift_options.batch_symbol="batch";lift_options.past_symbol="past";
+      auto lifted=LiftServingSemantics(plan,lift_options);
+      assert(lifted.sem.ops.size()==plan.stages.size());
+      std::unordered_set<std::string> preceding;
+      unsigned routed=0,combined=0,normalization_reads=0;
+      for(auto const& op:lifted.sem.ops) {
+        for(auto const& input:op.operands) {
+          assert(input.producer.empty() || preceding.count(input.producer));
+          assert(input.map.results.size()==input.tensor.axes.size());
+          if(op.name.rfind("moe.s",0)==0 && input.tensor.axes.size()==2 &&
+              input.tensor.axes[1].extent.ToString()=="64" && !input.producer.empty())
+            ++normalization_reads;
+        }
+        routed+=op.arithmetic=="moe_topk";combined+=op.arithmetic=="moe_combine";
+        for(auto const& write:op.additional_writes)
+          assert(write.map.results.size()==write.tensor.axes.size());
+        preceding.insert(op.name);
+      }
+      assert(routed==48 && combined==48);
+      assert(!(deferred && seq==1) || normalization_reads>=96);
+      ++cases;
+    }
+    std::cout<<"Full MoE decoder plans: "<<cases<<" metadata and producer-complete semantic plans PASS\n";
+    return 0;
+  }
   if(argc==2) {
     auto bridge=ReadExportBridge(argv[1]);
     auto blocks=FindDecoderMoeBlocks(bridge.nodes,bridge.inputs);assert(blocks.size()==48);
