@@ -71,8 +71,7 @@ including projected paged seeds. An expert recipe mismatch is an error; a
 phase-specific dense projection with different norm folding retains a separate
 allocation. The full-model entry applies this restriction when its target's
 DRAM capacity is below the inferred two-layout budget, and records the decision
-plus reference-manifest SHA256. General serving CLI automatic coupling remains
-pending; the compiler primitive is available to it.
+plus reference-manifest SHA256.
 
 verified: host candidate/search checks and generated fixed packed-layout
 comparison pass in `runs/dm1-shared-layout-host-v1` and
@@ -86,3 +85,14 @@ verified: the final candidate-domain and forward-search checks also pass in
 `runs/dm1-shared-layout-host-final-v1`; eight full-entry Python checks pass in
 `runs/dm1-full-entry-python-final-v1.log`, including known/unknown capacity and
 the exact capacity boundary.
+
+verified: the regular serving CLI also selects decode first when the checkpoint
+bytes, an additional BF16 expert layout and KV/token/RoPE state already exceed
+known target DRAM capacity. The capacity decision is inferred and records its
+config/index hashes; workspaces are omitted from this lower bound. The selected
+decode manifest constrains all prefill candidates and their cache keys. The
+final sidecar uses the subsequently selected prefill executor. Other models,
+unknown capacity and sufficient capacity preserve prefill-first ordering.
+Three host tests pass (`runs/dm1-shared-deployment-cli-host-v2.log`), including
+the exact memory boundary, selected-artifact propagation and the existing
+three-round selection/cache protocol with mocked measurements. No timing ran.
