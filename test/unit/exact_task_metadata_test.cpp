@@ -147,6 +147,15 @@ void FiniteFibers() {
   auto alternating=CouplingRelation::FromIslText(
       "{ [m] -> [i] : 0<=m<64 and 0<=i<2+m%2 }");
   assert(alternating.BoundTaskCard().SemanticallyEqual(alternating.Card(),{}));
+  auto pixels=CouplingRelation::FromIslText(
+      "{ [m] -> [p,q,c] : 0<=m<3 and 0<=p<224 and 0<=q<224 and 0<=c<512 }");
+  assert(pixels.BoundTaskCard().Eval({})==224L*224*512);
+  auto holes=CouplingRelation::FromIslText(
+      "{ [m] -> [i] : 0<=m<3 and 0<=i<100000000 and i%2=0 }");
+  assert(holes.BoundTaskCard().Eval({})==50000000);
+  auto triangle=CouplingRelation::FromIslText(
+      "{ [m] -> [p,q] : 0<=m<3 and 0<=p<1000 and 0<=q<=p }");
+  assert(triangle.BoundTaskCard().Eval({})==500500);
   auto envelope = DescribeTaskElementBox(exact);
   assert(std::string(envelope.exactness) == "over");
   assert(Contains(envelope.relation, exact) && !Contains(exact, envelope.relation));

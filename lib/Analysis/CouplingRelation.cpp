@@ -22,6 +22,31 @@ namespace tilemega::analysis {
 
 namespace {
 isl_ctx* Ctx() { return SharedIslContext().raw(); }
+
+isl_util::Val CountFiniteFiber(isl_set* elements) {
+  if(isl_set_is_empty(elements)==isl_bool_true)
+    return isl_util::Val(isl_val_zero(Ctx()));
+  auto box=isl_util::Set(isl_set_universe(isl_set_get_space(elements)));
+  auto product=isl_util::Val(isl_val_one(Ctx()));
+  for(int axis=0;axis<isl_set_dim(elements,isl_dim_set);++axis) {
+    isl_util::Val lo(isl_set_dim_min_val(isl_set_copy(elements),axis));
+    isl_util::Val hi(isl_set_dim_max_val(isl_set_copy(elements),axis));
+    if(!lo || !hi || isl_val_is_int(lo.get())!=isl_bool_true ||
+        isl_val_is_int(hi.get())!=isl_bool_true)
+      throw std::invalid_argument("finite task fiber is not bounded");
+    box=isl_util::Set(isl_set_lower_bound_val(box.release(),isl_dim_set,axis,isl_val_copy(lo.get())));
+    box=isl_util::Set(isl_set_upper_bound_val(box.release(),isl_dim_set,axis,isl_val_copy(hi.get())));
+    auto span=isl_util::Val(isl_val_add_ui(isl_val_sub(hi.release(),lo.release()),1));
+    product=isl_util::Val(isl_val_mul(product.release(),span.release()));
+  }
+  // Bounding boxes are used only after an exact equality proof. A generic
+  // scan would enumerate millions of physical pixels for each reused tile.
+  if(isl_set_is_equal(elements,box.get())==isl_bool_true)return product;
+  isl_util::PwQPolynomial count(isl_set_card(isl_set_copy(elements)));
+  if(!count)throw std::runtime_error("finite task fiber cardinality failed");
+  isl_util::Point point(isl_point_zero(isl_pw_qpolynomial_get_domain_space(count.get())));
+  return isl_util::Val(isl_pw_qpolynomial_eval(count.release(),point.release()));
+}
 }  // namespace
 
 CouplingRelation CouplingRelation::FromIslText(std::string const& text) {
@@ -412,7 +437,7 @@ QuasiPolynomial CouplingRelation::BoundTaskCard(unsigned max_domain_points) cons
       isl_util::Set point(isl_set_from_point(coordinate.release()));
       isl_util::Map restricted(isl_map_intersect_domain(isl_map_copy(fibers.map), isl_set_copy(point.get())));
       isl_util::Set image(isl_map_range(restricted.release()));
-      isl_util::Val count(isl_set_count_val(image.get()));
+      auto count=CountFiniteFiber(image.get());
       if (!count || isl_val_is_int(count.get()) != isl_bool_true ||
           isl_val_is_nonneg(count.get()) != isl_bool_true ||
           isl_val_cmp_si(count.get(), std::numeric_limits<long>::max()) > 0) {
