@@ -1,0 +1,45 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Initial generated paged MoE numerical and sanitizer executions only; 50-process and five-architecture gates pending",
+  "cases": [
+    {
+      "root": "runs/dm1-moe-slot-pages-native-v2",
+      "artifact_id": "a80779b4d6183635764be4dedf61a768e778e9b00d91ffee66fade6e13a466ff",
+      "identity": "runs/dm1-moe-slot-pages-native-v2/generated-sm_89.so.identity.json",
+      "identity_sha256": "aa89ab073c934fa5fa633cdcd432714d6ea3135dea9fd2a0e8a02329359b42e1",
+      "sanitizers": {
+        "memcheck": {
+          "path": "runs/dm1-moe-slot-pages-native-v2/events/memcheck.log",
+          "sha256": "3dc035b092cca03f4804d71fc1007f1147a57246d2b8567b1ae4c9839448545f"
+        },
+        "racecheck": {
+          "path": "runs/dm1-moe-slot-pages-native-v2/events/racecheck.log",
+          "sha256": "a16c8659f31afb4f27c7dd2414faa3a78eab43f08b66a6b8615be95116785d6a"
+        }
+      }
+    },
+    {
+      "root": "runs/dm1-moe-group-pages-T513-native-v2",
+      "artifact_id": "d7e6ba083fff8f7af2f1a41b04c7c22a10e5af5fc9ca89f4531311cc892fb02c",
+      "identity": "runs/dm1-moe-group-pages-T513-native-v2/generated-sm_89.so.identity.json",
+      "identity_sha256": "01c5cea2b83defccc7be5faf70daedf41ac7705cdb7a41a5c3968dad82598e0a",
+      "sanitizers": {
+        "memcheck": {
+          "path": "runs/dm1-moe-group-pages-T513-native-v2/events/memcheck.log",
+          "sha256": "ff20d60acd18081e745b251248426e36f7c84f2ddf8188221d54901f1d2cc250"
+        },
+        "racecheck": {
+          "path": "runs/dm1-moe-group-pages-T513-native-v2/events/racecheck.log",
+          "sha256": "4b04631c1e986889a09a7d927725277b81683a4b0066474cd294cdc5bae07f73"
+        }
+      }
+    }
+  ],
+  "contracts": [
+    "Nontrivial synthetic expert contribution detects bypass",
+    "Slot T=17 and grouped T=513",
+    "Same binary L1/L2 across three epochs agree bitwise",
+    "HF router and expert comparison; no real-weight or decoder gate"
+  ]
+}
