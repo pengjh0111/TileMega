@@ -9,5 +9,6 @@ namespace tilemega::frontend {
 // A null selection enables every proved edge. An explicit set names GEMM
 // instances, allowing a solver to retain explicit LN for other consumers.
 unsigned ApplyDnnDeferredLayerNorm(ModelPlan& plan,
-    std::set<unsigned> const* selected_gemms = nullptr);
+    std::set<unsigned> const* selected_gemms = nullptr,
+    std::set<DeferredLayerNormEdge> const* selected_edges = nullptr);
 }

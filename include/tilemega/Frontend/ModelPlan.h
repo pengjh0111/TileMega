@@ -7,10 +7,12 @@
 #include <map>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 #include <tilemega/Codegen/DmDescriptors.h>
 
 namespace tilemega::frontend {
+using DeferredLayerNormEdge=std::pair<std::string,unsigned>;
 
 struct FxArgument {
   enum class Kind { kNode, kInt, kFloat, kBool, kString, kNone, kList,
@@ -195,6 +197,7 @@ struct ModelPlan {
   std::string memory_reuse = "none";
   std::uint64_t memory_l2_budget_bytes = 0, memory_arena_bytes = 0;
   std::vector<codegen::ConvDesc> convolutions;
+  std::vector<DeferredLayerNormEdge> deferred_layernorm_edges;
 };
 
 struct ServingOptions {

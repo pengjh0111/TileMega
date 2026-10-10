@@ -1030,7 +1030,8 @@ ModelPlan BuildDnnModelPlan(std::vector<FxNodeRecord> const& nodes,
   if(options.dwpw_fuse)ApplyDnnDwPwFusion(builder.p,
       options.dwpw_fuse_gemms?&*options.dwpw_fuse_gemms:nullptr);
   if(options.deferred_layernorm)ApplyDnnDeferredLayerNorm(builder.p,
-      options.deferred_layernorm_gemms?&*options.deferred_layernorm_gemms:nullptr);
+      options.deferred_layernorm_gemms?&*options.deferred_layernorm_gemms:nullptr,
+      options.deferred_layernorm_edges?&*options.deferred_layernorm_edges:nullptr);
   ValidateDmModelPlan(builder.p);return std::move(builder.p);
 }
 } // namespace tilemega::frontend

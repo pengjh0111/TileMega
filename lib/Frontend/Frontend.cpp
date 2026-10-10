@@ -439,6 +439,8 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
       fields.push_back(builder.getNamedAttr("dm_rows_per_batch",builder.getI64IntegerAttr(stage.rows_per_batch)));
       if(stage.binding_producer!=codegen::kDmNoIndex)
         fields.push_back(builder.getNamedAttr("dm_binding_producer",builder.getI64IntegerAttr(stage.binding_producer)));
+      if(stage.kind==PlanTaskKind::kEmbeddingSum)
+        fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(32)));
       if(stage.kind==PlanTaskKind::kEncoderAttention)
         fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(codegen::EncoderAttentionSharedBytes())));
       if(stage.kind==PlanTaskKind::kMoETopK)
@@ -491,6 +493,14 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
     for(auto const& conv:plan.convolutions)convs.push_back(EncodeDm(builder,conv));
     fields.push_back(builder.getNamedAttr("dm",builder.getBoolAttr(true)));
     fields.push_back(builder.getNamedAttr("dm_convolutions",builder.getArrayAttr(convs)));
+    if(!plan.deferred_layernorm_edges.empty()) {
+      llvm::SmallVector<mlir::Attribute> edges;
+      for(auto const& [norm,gemm]:plan.deferred_layernorm_edges)
+        edges.push_back(dict(builder,{
+            builder.getNamedAttr("norm",builder.getStringAttr(norm)),
+            builder.getNamedAttr("gemm",builder.getI64IntegerAttr(gemm))}));
+      fields.push_back(builder.getNamedAttr("dm_deferred_layernorm_edges",builder.getArrayAttr(edges)));
+    }
     if(plan.memory_reuse!="none") {
       fields.push_back(builder.getNamedAttr("dm_memory_reuse",builder.getStringAttr(plan.memory_reuse)));
       fields.push_back(builder.getNamedAttr("dm_memory_arena_bytes",builder.getI64IntegerAttr(plan.memory_arena_bytes)));

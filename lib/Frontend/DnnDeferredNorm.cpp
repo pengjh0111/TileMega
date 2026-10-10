@@ -32,7 +32,8 @@ bool SameRows(DmBufferLayout const& x,DmBufferLayout const& y,unsigned width) {
   return std::equal(std::begin(x.logical),std::end(x.logical),std::begin(y.logical));
 }
 }
-unsigned ApplyDnnDeferredLayerNorm(ModelPlan& destination,std::set<unsigned> const* selected_gemms) {
+unsigned ApplyDnnDeferredLayerNorm(ModelPlan& destination,std::set<unsigned> const* selected_gemms,
+    std::set<DeferredLayerNormEdge> const* selected_edges) {
   if(!destination.dm || !destination.forward || destination.forward_token_axis)
     throw std::invalid_argument("deferred DNN normalization requires a DNN forward plan");
   auto plan=destination;std::set<unsigned> removed;unsigned count=0;
@@ -49,12 +50,12 @@ unsigned ApplyDnnDeferredLayerNorm(ModelPlan& destination,std::set<unsigned> con
     unsigned producer=kDmNoIndex;
     for(unsigned before=0;before<index;++before) {
       auto const& s=plan.stages[before];
-      if(s.kind==PlanTaskKind::kGemm && plan.gemms.at(s.gemm).d==x)producer=before;
+      if(IsGemmStage(s.kind) && plan.gemms.at(s.gemm).d==x)producer=before;
       if(s.kind==PlanTaskKind::kEmbeddingSum && s.operands[5]==x)producer=before;
     }
     if(producer==kDmNoIndex)continue;
     auto& producing=plan.stages[producer];
-    if(producing.kind==PlanTaskKind::kGemm) {
+    if(IsGemmStage(producing.kind)) {
       auto const& g=plan.gemms.at(producing.gemm);
       if(g.access.write.kind!=DmWriteKind::kDense || g.n!=width || g.chain.side_count==5 ||
           std::any_of(std::begin(g.chain.operations),std::begin(g.chain.operations)+g.chain.count,
@@ -63,10 +64,14 @@ unsigned ApplyDnnDeferredLayerNorm(ModelPlan& destination,std::set<unsigned> con
     std::vector<unsigned> consumers;bool fully_deferred=true;
     for(unsigned after=index+1;after<plan.stages.size();++after) {
       auto const& s=plan.stages[after];
-      if(s.kind!=PlanTaskKind::kGemm) {
+      if(!IsGemmStage(s.kind)) {
         for(auto id:s.operands)if(id==y)fully_deferred=false;
         continue;
       }
+      // A fused depthwise prologue can still read the explicit normalized
+      // image while its pointwise epilogue recomputes an independent residual.
+      if(s.kind==PlanTaskKind::kDwPwFused)
+        for(auto id:s.operands)if(id==y)fully_deferred=false;
       auto const& g=plan.gemms.at(s.gemm);bool uses=g.a==y,valid=true;
       if(g.c==y && g.c!=g.d){uses=true;valid=false;}
       if(g.a==y) {
@@ -79,7 +84,7 @@ unsigned ApplyDnnDeferredLayerNorm(ModelPlan& destination,std::set<unsigned> con
           pointwise=c.r==1 && c.s==1 && c.stride_h==1 && c.stride_w==1 &&
               !c.pad_h && !c.pad_w && c.c==width;
         }
-        valid&=pointwise && g.k==width && !g.access.a_row_offset &&
+        valid&=s.kind==PlanTaskKind::kGemm && pointwise && g.k==width && !g.access.a_row_offset &&
             g.access.a_row_stride<=1 && g.access.a_scale==kDmNoIndex && g.chain.count<8 &&
             g.access.b==DmBAccess::kDense;
       }
@@ -93,7 +98,9 @@ unsigned ApplyDnnDeferredLayerNorm(ModelPlan& destination,std::set<unsigned> con
         }
       }
       if(uses) {
-        if(valid && (!selected_gemms || selected_gemms->count(s.gemm)))consumers.push_back(s.gemm);
+        if(valid && (!selected_gemms || selected_gemms->count(s.gemm)) &&
+            (!selected_edges || selected_edges->count({norm.representative,s.gemm})))
+          consumers.push_back(s.gemm);
         else fully_deferred=false;
       }
     }
@@ -116,6 +123,7 @@ unsigned ApplyDnnDeferredLayerNorm(ModelPlan& destination,std::set<unsigned> con
     bool image=plan.buffers.at(x).layout.kind==DmLayout::kNHWC;
     unsigned gamma_fp32=kDmNoIndex,beta_fp32=kDmNoIndex;
     for(unsigned consumer:consumers) {
+      plan.deferred_layernorm_edges.emplace_back(norm.representative,consumer);
       auto& g=plan.gemms[consumer];
       if(g.a==y) {
         unsigned bias=kDmNoIndex;

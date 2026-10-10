@@ -80,6 +80,33 @@ int TestDnnDeferredLN(int argc,char** argv) {
   assert(mixed.node_buffer.at("normalized")==2 && mixed.stages[1].kind==PlanTaskKind::kLayerNorm);
   auto disabled=Fixture();std::set<unsigned> empty;
   assert(!ApplyDnnDeferredLayerNorm(disabled,&empty) && disabled.buffers.size()==Fixture().buffers.size());
+  auto two_norms=Fixture();
+  auto second_output=two_norms.buffers.at(3);second_output.name="second_normalized";
+  auto second_id=unsigned(two_norms.buffers.size());two_norms.buffers.push_back(second_output);
+  auto affine=[&](char const* name) {
+    PlanBuffer buffer;buffer.name=buffer.external_name=name;buffer.constant=64;
+    buffer.role="external";buffer.source=PlanBuffer::Source::kWeight;
+    buffer.pack_json=llvm::formatv("{0}",llvm::json::Value(llvm::json::Object{
+        {"kind","alias"},{"source",name}})).str();
+    auto id=unsigned(two_norms.buffers.size());two_norms.buffers.push_back(buffer);return id;
+  };
+  auto second_norm=two_norms.stages.at(1);second_norm.width=64;
+  second_norm.representative="second_normalized";second_norm.operands[0]=3;
+  second_norm.operands[1]=affine("gamma64");second_norm.operands[2]=affine("beta64");
+  second_norm.operands[3]=second_id;two_norms.stages.insert(two_norms.stages.begin()+3,second_norm);
+  two_norms.gemms[2].a=second_id;
+  for(bool main:{false,true})for(bool residual:{false,true}) {
+    auto selected=two_norms;std::set<DeferredLayerNormEdge> edges;
+    if(main)edges.emplace("second_normalized",2);
+    if(residual)edges.emplace("normalized",2);
+    auto removed=ApplyDnnDeferredLayerNorm(selected,nullptr,&edges);
+    assert(removed==unsigned(main) && selected.stages.size()==5-unsigned(main));
+    auto const& chain=selected.gemms[2].chain;
+    assert((chain.operations[0].kind==DmEpilogueKind::kDeferredLayerNorm)==main);
+    assert((chain.operations[chain.count-1].kind==DmEpilogueKind::kResidualLN)==residual);
+    assert(selected.deferred_layernorm_edges.size()==unsigned(main)+unsigned(residual));
+    assert(selected.gemms[2].a==(main?3:second_id));
+  }
   auto residual_only=Fixture();std::set<unsigned> residual_choice{2};
   assert(!ApplyDnnDeferredLayerNorm(residual_only,&residual_choice));
   assert(residual_only.gemms[2].chain.operations[1].kind==DmEpilogueKind::kResidualLN &&
