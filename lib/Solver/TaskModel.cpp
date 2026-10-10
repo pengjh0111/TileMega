@@ -737,7 +737,7 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
   if (config && semantic.op.reduction.splittable)
     options.reduction_tiles.emplace(semantic.op.reduction.dim,
                                     analysis::ClosedForm::Constant(config->tile_k));
-  auto known=model.dm && model.forward && semantic.op.exact_task_access?
+  auto known=model.dm && semantic.op.exact_task_access?
       model.MetricBindings():analysis::ParamBinding{};
   auto work=analysis::DeriveTaskWork(semantic.op,*task,known,options);
   analysis::ArithmeticInputs arithmetic;
@@ -824,7 +824,11 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
         int(stage.width),prefill?int(stage.attention_query_rows):int(stage.group),
         prefill,int(stage.group)*model.dims.seq,int(stage.group)};
   }
-  if (!config && runtime_ownership) {
+  // DM task-space coordinates already match exact runtime ownership. The
+  // legacy scalar projection changes them to q and would leave task-local
+  // arithmetic and nominal reduction quantities in a different domain.
+  bool exact_dm=model.dm && bool(task->element_access);
+  if (!config && runtime_ownership && !exact_dm) {
     int threads=ModelTaskTraits(model,semantic.stage,{}).threads;
     result.scalar_access.emplace();
     result.work=DeriveRuntimeScalarWork(model,semantic,*task,std::move(result.work),threads,&*result.scalar_access);
@@ -837,7 +841,7 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
     if (declared>=0 && declared<int(task->operands.size()) && task->operands[declared].producer.empty())
       result.prefetch_operand=declared;
   }
-  if (!config && !runtime_ownership) {
+  if (!config && (!runtime_ownership || exact_dm)) {
     auto kind=static_cast<codegen::TaskKind>(model.stages.at(semantic.stage).kind);
     if (kind==codegen::TaskKind::kGemm && task->kind==analysis::OperatorKind::kPointwise)
       kind=codegen::TaskKind::kElementwise;

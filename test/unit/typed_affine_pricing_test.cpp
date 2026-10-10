@@ -64,6 +64,33 @@ int TestTypedAffinePricing(int,char**) {
       ++cases;
     }
   }
+  {
+    SemanticOp op;op.name="halo_writer";op.kind=OperatorKind::kMatmul;
+    op.dtype=ScalarType::kBF16;op.arithmetic="gemm";op.exact_task_access=true;
+    op.domain={{"m",f(126)},{"n",f(8)},{"k",f(3),f(0),IteratorType::kReduction}};
+    op.task_space={"owners",{{"m",f(126)},{"n",f(8)}}};
+    op.task_map.results={IndexResult::Dim("m"),IndexResult::Dim("n")};
+    op.result={"halo",{{"pixel",f(162)},{"channel",f(8)}}};
+    auto pixel=IndexResult::Dim("m");
+    pixel.terms.push_back({"m",f(2),f(7)});pixel.offset=f(1);
+    op.result_map.results={pixel,IndexResult::Dim("n")};
+    op.operands={{"",{"a",{{"m",f(126)},{"k",f(3)}}},
+        {{IndexResult::Dim("m"),IndexResult::Dim("k")}},{}},
+        {"",{"b",{{"n",f(8)},{"k",f(3)}}},
+        {{IndexResult::Dim("n"),IndexResult::Dim("k")}}, {}}};
+    solver::ModelDescription model;model.dm=model.forward=true;
+    model.dtype=solver::ScalarType::kBF16;model.dims={1,0,1};
+    model.gemms={{8,3,0,1}};model.stages.resize(1);model.stages.front().gemm=0;
+    model.task_semantics={{op,{{"m",f(16)},{"n",f(16)}},0,false}};
+    solver::GemmConfig geometry{16,16,16,2,1};
+    auto graph=solver::InstantiateModelTasks(model,{geometry});
+    auto input=solver::DeriveModelTaskInput(model,model.task_semantics.front(),graph,&geometry);
+    for(long row=0;row<8;++row) {
+      ParamBinding point;point.Bind("m",row).Bind("n",0);
+      assert(input.work.nominal_write_elements.BindCoordinates(point).Eval({})==256);
+      assert(input.work.write_elements.BindCoordinates(point).Eval({})==std::min(16L,126-16*row)*8);
+    }
+  }
   assert(cases==72);
   std::cout<<"Typed affine pricing: 72 main/statistic-store, mixed-provenance and tail cases PASS\n";
   for(long k:{17,27,65})for(int split:{2,3,5}) {

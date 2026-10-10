@@ -74,12 +74,20 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
     quantities.push_back(&input.arithmetic.flops_per_output_element.numerator);
     quantities.push_back(&input.arithmetic.transcendental_per_output_element.numerator);
   }
+  auto quantity_at=[&](analysis::QuasiPolynomial const* quantity,analysis::ParamBinding const& point) {
+    try {return quantity->BindCoordinates(point).Eval(theta);}
+    catch(std::exception const& error) {
+      auto found=std::find(quantities.begin(),quantities.end(),quantity);
+      throw std::runtime_error(std::string(error.what())+"; pricing quantity "+
+          std::to_string(found-quantities.begin())+": "+quantity->ToString());
+    }
+  };
   // PriceParts depends on coordinates only through these access and arithmetic quantities.
   // Causal rows in different heads remain separate pieces but share arithmetic.
   std::map<std::vector<long>,TaskPriceParts> equal_prices;
   auto append=[&](analysis::CouplingRelation const& domain,analysis::ParamBinding const& point,std::vector<long> const* batch_values=nullptr,TaskMemoryTraffic const* memory=nullptr){
     PricePiece p;p.domain=domain;p.count=domain.ImageCard();p.representative=point;
-    std::vector<long> values;if(batch_values)values=*batch_values;else for(auto q:quantities)values.push_back(q->BindCoordinates(point).Eval(theta));
+    std::vector<long> values;if(batch_values)values=*batch_values;else for(auto q:quantities)values.push_back(quantity_at(q,point));
     auto found=equal_prices.find(values);
     if(found==equal_prices.end())found=equal_prices.emplace(std::move(values),cost.PriceParts(input,traits,residency,model,chunks,point,residency.ctas_per_sm,memory)).first;
     p.parts=found->second;
@@ -92,7 +100,7 @@ PiecePrices PriceBoundaryPieces(CostModel const& cost,DerivedTaskInput const& in
     // example B=16, past=64); singleton pricing is exact for that space.
     bool constant=semantic.op.arithmetic!="fused_attention";
     if(constant)for(auto q:quantities) {
-      auto value=q->BindCoordinates(point).Eval(theta);
+      auto value=quantity_at(q,point);
       if(!q->SumAlong(domain).SemanticallyEqual(domain.Card().Scale(value),theta)){constant=false;break;}
     }
     if(constant){append(domain,point);return;}

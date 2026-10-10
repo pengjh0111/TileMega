@@ -115,6 +115,14 @@ TaskWork DeriveExactTaskWork(OperatorNode const& task, ParamBinding const& known
     tiled = tiled * task.tile[axis];
   }
   auto output_width = indirect_write?parallel:sem.result.Volume();
+  bool bound=true;
+  for(auto const& dim:sem.domain)
+    for(auto const& symbol:dim.BoundExtent().FreeSymbols())bound &= known.Contains(symbol);
+  if(!indirect_write && bound) {
+    // Allocated halo cells have no writers. A tensor's storage volume is not
+    // its logical output volume; only the exact write image supplies the latter.
+    output_width=ClosedForm::Constant(writes.Image().BoundTaskCard().Eval(known));
+  }
   auto chunk_count=[&]() {
     auto const* reduced=sem.Dim(sem.reduction.dim);
     if(!reduced)throw std::invalid_argument("partials lack their reduction dimension");

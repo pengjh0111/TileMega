@@ -462,7 +462,8 @@ long QuasiPolynomial::Eval(ParamBinding const& known) const {
         "quasi-polynomial has no finite max/min -- it depends on an unbound "
         "parameter, or its domain is empty");
   if (!isl_val_is_int(max_value.get()) || !isl_val_is_int(min_value.get()))
-    throw std::runtime_error("isl: quasi-polynomial did not reduce to an integer");
+    throw std::runtime_error("isl: quasi-polynomial did not reduce to an integer: "+
+        BindParameterTokens(text_,known));
   if (!isl_val_eq(max_value.get(), min_value.get()))
     throw std::out_of_range(
         "quasi-polynomial is genuinely position-dependent (max " +
