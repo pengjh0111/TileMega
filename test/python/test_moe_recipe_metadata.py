@@ -60,7 +60,8 @@ class MoeRecipeMetadataTest(unittest.TestCase):
             recipe = dict(self.packed,tile_n=tn,tile_k=tk)
             with self.subTest(tile=(tn,tk)),self.assertRaises(ValueError):
                 index_check(self.root,dict(e=recipe))
-        for change in [dict(qperkv=8),dict(hkv=2),dict(head_dim=16),dict(sources=self.qkv['sources'][:2])]:
+        for change in [dict(qperkv=8),dict(hkv=2),dict(head_dim=16),
+                dict(hkv=2,qperkv=4,head_dim=4),dict(sources=self.qkv['sources'][:2])]:
             with self.subTest(change=change),self.assertRaises(ValueError):
                 index_check(self.root,dict(q=dict(self.qkv,**change)))
         for recipe in [dict(kind='fold_rmsnorm',norm='model.layers.0.self_attn.q_norm.weight',source=self.stack),

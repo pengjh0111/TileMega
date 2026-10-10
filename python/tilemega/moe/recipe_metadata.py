@@ -72,6 +72,11 @@ def describe(recipe, tensors, config):
                 raise ValueError('projection packing input widths differ')
             if kind == 'qkv_group_interleave':
                 kv, q, d = (integer(value[k], k) for k in ('hkv', 'qperkv', 'head_dim'))
+                model_kv = config['num_key_value_heads']
+                model_q = config['num_attention_heads']
+                model_d = config.get('head_dim', config['hidden_size']//model_q)
+                if (kv, q, d) != (model_kv, model_q//model_kv, model_d):
+                    raise ValueError('QKV head geometry differs from checkpoint config')
                 if shapes != [(kv*q*d, shapes[0][1]), (kv*d, shapes[0][1]), (kv*d, shapes[0][1])]:
                     raise ValueError('QKV recipe dimensions differ from checkpoint shapes')
             else:
