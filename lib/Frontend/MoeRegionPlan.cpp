@@ -26,10 +26,9 @@ void Matrix(PlanBuffer& b,unsigned rows,unsigned columns) {
 }
 }
 
-ModelPlan BuildMoeRegion(std::vector<FxNodeRecord> const& nodes,
-    std::vector<SignatureInput> const& inputs,std::vector<std::string> const& outputs,
+static ModelPlan BuildMatchedMoeRegion(MoeRegionMatch const& match,std::vector<FxNodeRecord> const& nodes,
+    std::vector<SignatureInput> const& inputs,
     MoeRegionOptions const& options) {
-  auto match=MatchMoeRegion(nodes,inputs,outputs);
   if(!options.tokens || options.tokens>4096 || !options.router_tile_n ||
       (options.grouped && options.block_rows!=16 && options.block_rows!=32 &&
        options.block_rows!=64 && options.block_rows!=128) ||
@@ -152,6 +151,56 @@ ModelPlan BuildMoeRegion(std::vector<FxNodeRecord> const& nodes,
   plan.outputs.push_back({y,""});
   MaterializeMoeRegionStorage(plan,options.router_tile_n);
   ValidateDmModelPlan(plan);return plan;
+}
+
+ModelPlan BuildMoeRegion(std::vector<FxNodeRecord> const& nodes,
+    std::vector<SignatureInput> const& inputs,std::vector<std::string> const& outputs,
+    MoeRegionOptions const& options) {
+  return BuildMatchedMoeRegion(MatchMoeRegion(nodes,inputs,outputs),nodes,inputs,options);
+}
+
+void AppendMoeBlock(ModelPlan& destination,MoeRegionMatch const& match,
+    std::vector<FxNodeRecord> const& nodes,std::vector<SignatureInput> const& inputs,
+    unsigned input,unsigned output,MoeRegionOptions const& options) {
+  auto plan=destination;
+  if(input>=plan.buffers.size() || output>=plan.buffers.size() || input==output ||
+      plan.buffers[input].dtype!="bf16" || plan.buffers[output].dtype!="bf16")
+    throw std::invalid_argument("MoE decoder block needs distinct BF16 input/output storage");
+  auto block=BuildMatchedMoeRegion(match,nodes,inputs,options);
+  std::vector<unsigned> remap(block.buffers.size());
+  for(unsigned id=0;id<block.buffers.size();++id) {
+    if(id==block.node_buffer.at(match.input))remap[id]=input;
+    else if(id==block.node_buffer.at(match.output))remap[id]=output;
+    else {remap[id]=plan.buffers.size();plan.buffers.push_back(std::move(block.buffers[id]));}
+  }
+  auto id=[&](unsigned value) {return value==kDmNoIndex?value:remap.at(value);};
+  auto map=[&](DmWriteMap& write) {write.layout=id(write.layout);write.rows=id(write.rows);};
+  auto chain=[&](DmEpilogueChain& chain) {
+    for(unsigned op=0;op<chain.count;++op) {
+      for(auto& parameter:chain.operations[op].parameter)parameter=id(parameter);
+      map(chain.operations[op].residual_map);
+    }
+    for(unsigned side=0;side<chain.side_count;++side) {
+      auto& value=chain.side[side];value.buffer=id(value.buffer);value.auxiliary=id(value.auxiliary);
+    }
+  };
+  unsigned gemm_base=plan.gemms.size(),stage_base=plan.stages.size();
+  for(auto& g:block.gemms) {
+    g.a=id(g.a);g.b=id(g.b);g.c=id(g.c);g.d=id(g.d);g.norm_ss=id(g.norm_ss);g.ss_out=id(g.ss_out);
+    auto& a=g.access;a.rows=id(a.rows);a.binding=id(a.binding);a.a_scale=id(a.a_scale);
+    map(a.write);chain(g.chain);plan.gemms.push_back(std::move(g));
+  }
+  for(auto& s:block.stages) {
+    for(auto& operand:s.operands)operand=id(operand);
+    if(s.kind==PlanTaskKind::kGemm)s.gemm+=gemm_base;
+    if(s.binding_producer!=kDmNoIndex)s.binding_producer+=stage_base;
+    if(s.moe.step!=DmMoeStep::kNone)s.moe.router_gemm+=gemm_base;
+    chain(s.chain);plan.stages.push_back(std::move(s));
+  }
+  for(auto const& [name,buffer]:block.node_buffer)plan.node_buffer[name]=id(buffer);
+  plan.dm=true;
+  ValidateDmModelPlan(plan);
+  destination=std::move(plan);
 }
 
 void MaterializeMoeRegionStorage(ModelPlan& plan,unsigned tile_n,unsigned down_tile_n) {

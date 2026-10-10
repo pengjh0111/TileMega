@@ -1,0 +1,37 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Decoder MoE fragment composition metadata only; no attention, semantic lifting or model execution gate",
+  "binary_sha256": "f8389210b7e8dfb98efc5fea15597a85b346b0cc0a7291174f2291a626aefa63",
+  "cases_per_spelling": 8,
+  "layers": 48,
+  "bindings": [
+    "token_slot",
+    "expert_group"
+  ],
+  "tokens": [
+    1,
+    16,
+    64,
+    1024
+  ],
+  "contracts": [
+    "Buffer, GEMM, stage and binding producer ids remapped",
+    "Distinct BF16 residual input/output",
+    "Invalid aliasing or token capacity leaves destination unchanged"
+  ],
+  "bridges": {
+    "runs/dm1-moe-full-decode-before-v1.json": "f3a4661f045173a6c3f2e341c4d3c2947602dae331393a56d416634479313cbd",
+    "runs/dm1-moe-full-prefill-before-v1.json": "2adaef818c59283b27cbdcfca07481b9c31f9df9089144ac9127ff359ff50967"
+  },
+  "logs": [
+    {
+      "path": "runs/dm1-moe-decoder-compose-host-v1.log",
+      "sha256": "cb2a9585f802c7d8db5ce34247a22faf471a51990426b3f4b43d244aa22c5b73"
+    },
+    {
+      "path": "runs/dm1-moe-decoder-compose-host-v2.log",
+      "sha256": "cb2a9585f802c7d8db5ce34247a22faf471a51990426b3f4b43d244aa22c5b73"
+    }
+  ]
+}

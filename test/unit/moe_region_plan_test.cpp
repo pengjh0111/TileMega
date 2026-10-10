@@ -9,9 +9,52 @@
 #include <stdexcept>
 
 namespace tilemega::tests::moe_region_plan_test {
-int TestMoeRegionPlan(int,char**) {
+int TestMoeRegionPlan(int argc,char** argv) {
   using namespace frontend;using namespace codegen;
   mlir::MLIRContext context;mlir::Builder builder(&context);unsigned cases=0;
+  if(argc==2) {
+    auto bridge=ReadExportBridge(argv[1]);
+    auto blocks=FindDecoderMoeBlocks(bridge.nodes,bridge.inputs);assert(blocks.size()==48);
+    for(unsigned tokens:{1u,16u,64u,1024u})for(bool grouped:{false,true}) {
+      ModelPlan plan;plan.serving=true;plan.dtype="bf16";
+      plan.serving_seq=tokens<64?1:64;plan.serving_capacity=1088;
+      auto activation=[&](std::string name) {
+        PlanBuffer b;b.name=std::move(name);b.constant=tokens*2048;
+        unsigned index=plan.buffers.size();plan.buffers.push_back(b);return index;
+      };
+      unsigned current=activation("decoder.input");
+      MoeRegionOptions options;options.tokens=tokens;options.grouped=grouped;options.block_rows=32;
+      for(auto const& match:blocks) {
+        auto output=activation(match.output);auto gemms=plan.gemms.size(),stages=plan.stages.size();
+        AppendMoeBlock(plan,match,bridge.nodes,bridge.inputs,current,output,options);
+        assert(plan.gemms.size()==gemms+3 && plan.node_buffer.at(match.input)==current &&
+            plan.node_buffer.at(match.output)==output);
+        for(unsigned index=stages;index<plan.stages.size();++index) {
+          auto const& stage=plan.stages[index];
+          if(stage.kind==PlanTaskKind::kGemm)assert(stage.gemm>=gemms && stage.gemm<gemms+3);
+          if(stage.moe.step!=DmMoeStep::kNone)assert(stage.moe.router_gemm==gemms);
+          if(stage.binding_producer!=kDmNoIndex)
+            assert(stage.binding_producer>=stages && stage.binding_producer<index);
+        }
+        assert(plan.stages.back().operands[2]==current && plan.stages.back().operands[3]==output);
+        current=output;
+      }
+      assert(plan.dm && !plan.forward && plan.serving && plan.gemms.size()==144);
+      auto before=plan.stages.size(),buffers=plan.buffers.size();
+      bool rejected=false;
+      try{AppendMoeBlock(plan,blocks.front(),bridge.nodes,bridge.inputs,current,current,options);}
+      catch(std::invalid_argument const&){rejected=true;}
+      assert(rejected && plan.stages.size()==before && plan.buffers.size()==buffers);
+      auto incompatible=options;incompatible.tokens=tokens==1?2:tokens/2;
+      rejected=false;
+      try{AppendMoeBlock(plan,blocks.front(),bridge.nodes,bridge.inputs,0,current,incompatible);}
+      catch(std::invalid_argument const&){rejected=true;}
+      assert(rejected && plan.stages.size()==before && plan.buffers.size()==buffers);
+      ValidateDmModelPlan(plan);++cases;
+    }
+    std::cout<<"Decoder MoE composition: "<<cases<<" full-depth metadata plans with remapped buffers, GEMMs and bindings PASS\n";
+    return 0;
+  }
   for(auto spelling:{"before","core"}) {
     auto bridge=ReadExportBridge(std::string(TILEMEGA_SOURCE_DIR)+
         "/test/fixtures/moe/region_"+spelling+".json");

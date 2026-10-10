@@ -153,23 +153,29 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
     validate_chain(gemm.chain);
   }
 
+  unsigned moe_tokens=0;
   for(unsigned i=0;i<plan.stages.size();++i) {
     auto const& stage=plan.stages[i];
     auto const& moe=stage.moe;
     if(stage.kind==PlanTaskKind::kMoETopK || stage.kind==PlanTaskKind::kMoECombine) {
       unsigned capacity=0;
-      if(!plan.forward_token_axis || !MoeVirtualCapacity(plan.serving_seq,moe.top_k,
+      unsigned tokens=plan.forward_token_axis?plan.serving_seq:
+          (plan.serving && moe.top_k && moe.row_capacity%moe.top_k==0?moe.row_capacity/moe.top_k:0);
+      if(!tokens || tokens>4096 || (plan.serving && (plan.serving_seq<=0 ||
+          tokens%plan.serving_seq || tokens/plan.serving_seq>64)) ||
+          (moe_tokens && moe_tokens!=tokens) || !MoeVirtualCapacity(tokens,moe.top_k,
           moe.experts,moe.block_rows,moe.grouped,&capacity) ||
           moe.experts>128 || moe.top_k>32 || capacity!=moe.binding_capacity ||
-          moe.row_capacity!=std::uint64_t(plan.serving_seq)*moe.top_k ||
+          moe.row_capacity!=std::uint64_t(tokens)*moe.top_k ||
           moe.router_gemm>=plan.gemms.size() || !moe.chunk_tokens ||
           moe.step==DmMoeStep::kNone || unsigned(moe.step)>unsigned(DmMoeStep::kCombine))
         throw std::invalid_argument("invalid MoE stage capacity or router contract");
+      moe_tokens=tokens;
       bool combine=stage.kind==PlanTaskKind::kMoECombine;
       if(combine!=(moe.step==DmMoeStep::kCombine) || !stage.group ||
           (!combine && (stage.width!=moe.top_k || stage.extent!=moe.experts)) ||
           (moe.step==DmMoeStep::kSelectAndDispatch &&
-           (moe.row_capacity>4096 || stage.group<unsigned(plan.serving_seq))) ||
+           (moe.row_capacity>4096 || stage.group<tokens)) ||
           ((moe.step==DmMoeStep::kHistogram || moe.step==DmMoeStep::kPrefix) && !moe.grouped) ||
           (combine && (stage.width<16 || stage.width>256 || stage.width%16 ||
                        stage.group>128 || !stage.extent)))
