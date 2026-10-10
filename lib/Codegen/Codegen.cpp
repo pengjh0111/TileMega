@@ -1286,16 +1286,14 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
     if (sync == "cluster") ++cluster_edges;
     else if (sync != "global")
       throw std::invalid_argument("generator accepts global or cluster synchronization");
-    if (coupling->hasAttr("shared_elements")) {
-      (void)coupling.getWait().getValue().SumDomain().Eval(known);
-      (void)coupling.getFanout().getValue().SumDomain().Eval(known);
-    } else {
+    // Exact per-task metrics have already been checked against their ISL
+    // relations by the CG verifier. Runtime dependencies use those relations;
+    // summing the unused metrics would repeat expensive Barvinok elimination.
+    if (!coupling->hasAttr("shared_elements")) {
       (void)coupling.getWait().getValue().Eval(known);
       (void)coupling.getFanout().getValue().Eval(known);
+      (void)coupling.getVolume().getValue().Eval(known);
     }
-    if (coupling->hasAttr("shared_elements"))
-      (void)coupling.getVolume().getValue().SumDomain().Eval(known);
-    else (void)coupling.getVolume().getValue().Eval(known);
     (void)coupling.getCount().getValue().Eval(known);
     (void)coupling.getRelation().getMap();
     auto source = task_stages.find(coupling.getSrc().str());
@@ -1746,16 +1744,14 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
           "generator accepts global or cluster synchronization");
     // Force semantic conversion through L3a; codegen never reads the printed
     // quasi-polynomial payload as an ad-hoc integer.
-    if (coupling->hasAttr("shared_elements")) {
-      (void)coupling.getWait().getValue().SumDomain().Eval(known);
-      (void)coupling.getFanout().getValue().SumDomain().Eval(known);
-    } else {
+    // Exact per-task metrics have already been checked against their ISL
+    // relations by the CG verifier. Runtime dependencies use those relations;
+    // summing the unused metrics would repeat expensive Barvinok elimination.
+    if (!coupling->hasAttr("shared_elements")) {
       (void)coupling.getWait().getValue().Eval(known);
       (void)coupling.getFanout().getValue().Eval(known);
+      (void)coupling.getVolume().getValue().Eval(known);
     }
-    if (coupling->hasAttr("shared_elements"))
-      (void)coupling.getVolume().getValue().SumDomain().Eval(known);
-    else (void)coupling.getVolume().getValue().Eval(known);
     (void)coupling.getCount().getValue().Eval(known);
     (void)coupling.getRelation().getMap();
     auto source = taskStages.find(coupling.getSrc().str());
