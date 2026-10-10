@@ -45,12 +45,14 @@ int TestMoeRegionPlan(int argc,char** argv) {
       for(auto const& gemm:plan.gemms) {
         if(gemm.epilogue==PlanGemm::Epilogue::kResidual)assert(gemm.c!=gemm.d);
         if(gemm.chain.count && gemm.chain.operations[0].kind==DmEpilogueKind::kDeferredRMSNorm) {
-          assert(plan.buffers.at(gemm.chain.operations[0].parameter[0]).dtype=="f32");
+          auto const& statistics=plan.buffers.at(gemm.chain.operations[0].parameter[0]);
+          assert(statistics.dtype=="f32" && statistics.layout.logical[0]==batch*seq &&
+                 statistics.layout.logical[1]==2048/32);
           assert(plan.buffers.at(gemm.b).pack_json.find("fold_rmsnorm")!=std::string::npos);
           ++deferred_consumers;
         }
       }
-      assert(attention==48 && combines==48 && deferred_consumers==(deferred && seq==1?96u:0u));
+      assert(attention==48 && combines==48 && deferred_consumers==(deferred?96u:0u));
       auto const& head=plan.gemms.back();assert(head.n==151936 && head.k==2048);
       assert(plan.buffers.at(head.b).pack_json.find("lm_head.weight")!=std::string::npos);
       ValidateDmModelPlan(plan);
@@ -74,7 +76,7 @@ int TestMoeRegionPlan(int argc,char** argv) {
         preceding.insert(op.name);
       }
       assert(routed==48 && combined==48);
-      assert(!(deferred && seq==1) || normalization_reads>=96);
+      assert(!deferred || normalization_reads>=96);
       ++cases;
     }
     std::cout<<"Full MoE decoder plans: "<<cases<<" metadata and producer-complete semantic plans PASS\n";
