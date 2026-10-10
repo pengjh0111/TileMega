@@ -1,0 +1,29 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Attention page descriptor host position enumeration only; no device or synchronization claim",
+  "cases": 128,
+  "dimensions": [
+    64,
+    128
+  ],
+  "page_bytes": [
+    8192,
+    16384
+  ],
+  "policies": [
+    "warp_private",
+    "packed"
+  ],
+  "contracts": [
+    "Exact once-only valid cache position coverage",
+    "Loader and consumer owner/local row inverse",
+    "Page count and double-buffer in-flight bounds",
+    "128 barrier arrivals derived from actual consumers"
+  ],
+  "log": {
+    "path": "runs/dm1-attention-page-layout-host-v1.log",
+    "sha256": "ff1c272c1aa2c72689500a68844b0db7264b2d16f1d08895682e2166b257f8c8"
+  },
+  "binary_sha256": "1549821a6ba651500eba01f5d62647c3dae20fa4bce5fd63c57ddca4c2b8063b"
+}

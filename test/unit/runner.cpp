@@ -25,6 +25,7 @@ namespace tilemega::tests::virtual_task_binding_test { int TestVirtualTaskBindin
 namespace tilemega::tests::runtime_dependency_table_test { int TestRuntimeDependencyTable(int, char**); }
 namespace tilemega::tests::bound_dependency_codegen_test { int TestBoundDependencyCodegen(int, char**); }
 namespace tilemega::tests::dm_page_layout_test { int TestDmPageLayout(int, char**); }
+namespace tilemega::tests::attention_page_layout_test { int TestAttentionPageLayout(int, char**); }
 namespace tilemega::tests::moe_binding_test { int TestMoeBinding(int, char**); }
 namespace tilemega::tests::graph_pattern_test { int TestGraphPattern(int, char**); }
 namespace tilemega::tests::model_plan_order_test { int TestModelPlanOrder(int, char**); }
@@ -161,6 +162,7 @@ int main(int argc, char** argv) {
     {"runtime_dependency_table", tilemega::tests::runtime_dependency_table_test::TestRuntimeDependencyTable},
     {"bound_dependency_codegen", tilemega::tests::bound_dependency_codegen_test::TestBoundDependencyCodegen},
     {"dm_page_layout", tilemega::tests::dm_page_layout_test::TestDmPageLayout},
+    {"attention_page_layout", tilemega::tests::attention_page_layout_test::TestAttentionPageLayout},
     {"moe_binding", tilemega::tests::moe_binding_test::TestMoeBinding},
     {"isl_relation", tilemega::tests::isl_relation_test::TestIslRelation},
     {"layout_bridge", tilemega::tests::layout_bridge_test::TestLayoutBridge},
