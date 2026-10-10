@@ -79,6 +79,7 @@ namespace tilemega::tests::operator_classes_test { int TestDmOperatorClasses(int
 namespace tilemega::tests::moe_routing_profile_test { int TestMoeRoutingProfile(int, char**); }
 namespace tilemega::tests::moe_task_pricing_test { int TestMoeTaskPricing(int, char**); }
 namespace tilemega::tests::moe_dram_bindings_test { int TestMoeDramBindings(int, char**); }
+namespace tilemega::tests::moe_structure_search_test { int TestMoeStructureSearch(int, char**); }
 namespace tilemega::tests::moe_group_profile_test { int TestMoeGroupProfile(int, char**); }
 namespace tilemega::tests::dm_gemm_traits_test { int TestDmGemmTraits(int, char**); }
 namespace tilemega::tests::dm_gemm_candidates_test { int TestDmGemmCandidates(int, char**); }
@@ -225,6 +226,7 @@ int main(int argc, char** argv) {
     {"moe_routing_profile", tilemega::tests::moe_routing_profile_test::TestMoeRoutingProfile},
     {"moe_task_pricing", tilemega::tests::moe_task_pricing_test::TestMoeTaskPricing},
     {"moe_dram_bindings", tilemega::tests::moe_dram_bindings_test::TestMoeDramBindings},
+    {"moe_structure_search", tilemega::tests::moe_structure_search_test::TestMoeStructureSearch},
     {"moe_group_profile", tilemega::tests::moe_group_profile_test::TestMoeGroupProfile},
     {"dm_gemm_traits", tilemega::tests::dm_gemm_traits_test::TestDmGemmTraits},
     {"dm_gemm_candidates", tilemega::tests::dm_gemm_candidates_test::TestDmGemmCandidates},
