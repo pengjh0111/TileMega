@@ -4,6 +4,7 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Target/TargetSpec.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/raw_ostream.h>
 #include <mlir/IR/MLIRContext.h>
@@ -50,6 +51,8 @@ int TestDnnModelPlan(int argc,char** argv) {
   analysis::IslContext isl;
   auto bridge=argc>1?ReadExportBridge(argv[1]):Fixture();
   DnnPlanOptions options;options.batch=2;
+  options.workspace_budget_bytes=TargetSpec::FromJson(
+      std::string(TILEMEGA_SOURCE_DIR)+"/configs/targets/sm_89.json").res.max_dynamic_smem_per_cta;
   auto plan=BuildDnnModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
   assert(plan.dm && plan.forward && !plan.serving);
   assert(!plan.stages.empty() && (plan.stages.front().kind==PlanTaskKind::kLayoutConvert ||
@@ -106,6 +109,19 @@ int TestDnnModelPlan(int argc,char** argv) {
     return false;
   });
   if(gated==36 && plan.outputs.size()==1) {
+    auto too_small=options;too_small.workspace_budget_bytes=options.workspace_budget_bytes/2;
+    bool rejected=false;
+    try{BuildDnnModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,too_small);}
+    catch(std::invalid_argument const& e) {
+      rejected=std::string(e.what()).find("workspace budget")!=std::string::npos;
+    }
+    assert(rejected);
+    for(auto const& stage:plan.stages)if(stage.kind==PlanTaskKind::kDepthwiseConv) {
+      auto const& c=plan.convolutions.at(stage.conv);
+      auto bytes=std::uint64_t((stage.group-1)*c.stride_h+(c.r-1)*c.dilation_h+1)*
+          plan.buffers.at(c.input_layout).layout.physical[2]*stage.width*4;
+      assert(bytes<=options.workspace_budget_bytes);
+    }
     assert(plan.stages.size()==335 && plan.gemms.size()==190 && plan.convolutions.size()==226);
     assert(std::count_if(plan.stages.begin(),plan.stages.end(),[](auto const& stage) {
       return stage.kind==PlanTaskKind::kLayerNorm;})==72);

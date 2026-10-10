@@ -1,0 +1,19 @@
+{
+  "evidence": "verified",
+  "passed": true,
+  "scope": "Target-bounded depthwise channel ownership after SimpleGate/halo matching; native execution pending",
+  "source_head": "2f359eaefad1db375d83167e76e3bcd7a27b035b",
+  "binary_sha256": "59a99b4a2e040072c3ff6b4dad2387ab9bba3844b95cd73f9c820fc8974a6f1a",
+  "target_sha256": "d88df1a451d2c10249cd373983597e88ce8f8bade30239c9400f25e8509431d7",
+  "source_sha256": "15649f4032775b010e7fb42b7f94d5bd78bc305b0cf182d4c2c83cda7879c0ae",
+  "host_log": {
+    "path": "runs/dm1-naf-codegen-host-v8.log",
+    "sha256": "582a821ad2010f55c602b057e89946c8d7d3676448b8e42010460d7961ea38dd"
+  },
+  "stages": 335,
+  "gemms": 190,
+  "convolutions": 226,
+  "shared_bytes": 99840,
+  "negative_contract": "The same model with half the target workspace budget is rejected",
+  "retained_failure": "runs/dm1-naf-complete-native-v1"
+}

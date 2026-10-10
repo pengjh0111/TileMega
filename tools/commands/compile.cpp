@@ -517,6 +517,8 @@ int RunCompile(int argc, char** argv) {
     if(frontend_mode=="dnn" && input.extension()!=".mlir") {
       auto bridge=tilemega::frontend::ReadExportBridge(input.string());
       tilemega::frontend::DnnPlanOptions options;options.batch=serving_batch;
+      if(!runtime_target.empty())options.workspace_budget_bytes=
+          tilemega::TargetSpec::FromJson(runtime_target).res.max_dynamic_smem_per_cta;
       dnn_plan=tilemega::frontend::BuildDnnModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
       forward_seq=dnn_plan->serving_seq;
     }else if(forward && input.extension()!=".mlir") {

@@ -6,6 +6,7 @@ struct DnnPlanOptions {
   unsigned batch=1;
   unsigned small_input_channels=8;
   unsigned depthwise_rows=1,depthwise_channels=64;
+  std::uint64_t workspace_budget_bytes=0;
 };
 ModelPlan BuildDnnModelPlan(std::vector<FxNodeRecord> const&,
     std::vector<SignatureInput> const&,std::vector<std::string> const&,

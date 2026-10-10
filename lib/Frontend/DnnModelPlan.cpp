@@ -994,6 +994,23 @@ ModelPlan BuildDnnModelPlan(std::vector<FxNodeRecord> const& nodes,
     DnnPlanOptions const& options) {
   Builder builder(nodes,inputs,outputs,options);
   for(auto const& node:nodes)builder.Visit(node);
+  if(options.workspace_budget_bytes)for(auto& stage:builder.p.stages) {
+    if(stage.kind!=PlanTaskKind::kDepthwiseConv)continue;
+    auto const& c=builder.p.convolutions.at(stage.conv);
+    unsigned bands=1;
+    for(unsigned i=0;i<stage.chain.count;++i)
+      if(stage.chain.operations[i].kind==DmEpilogueKind::kGatePair)bands=2;
+    auto bytes=[&] {
+      return std::max<std::uint64_t>(4096,
+          std::uint64_t((stage.group-1)*c.stride_h+(c.r-1)*c.dilation_h+1)*
+          builder.p.buffers.at(c.input_layout).layout.physical[2]*stage.width*bands*2);
+    };
+    // Channel ownership is fixed only after SimpleGate and all consumer halo
+    // requirements are known. A narrower block preserves the row-band map.
+    while(bytes()>options.workspace_budget_bytes && stage.width>32)stage.width/=2;
+    if(bytes()>options.workspace_budget_bytes)
+      throw std::invalid_argument("depthwise geometry exceeds target workspace budget");
+  }
   for(auto const& name:outputs) {
     auto id=builder.Value(name);auto& buffer=builder.p.buffers[id];
     if(buffer.layout.kind==DmLayout::kNHWC && builder.owner.count(id) &&
