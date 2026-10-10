@@ -40,7 +40,11 @@ BindingRequestTraffic DeriveBindingRequestTraffic(analysis::OperatorNode const& 
     auto writes=tensor.writes.BindParams(known),external=tensor.no_producer.BindParams(known);
     auto count=row.issued.BoundTaskCard().Scale(tensor.element_bytes);
     read_bytes.push_back(count);
-    if(row.requests) {
+    if(tensor.binding_producer) {
+      if(!row.physical.Image().IsSubset(tensor.binding_producer->envelope.BindParams(known)))
+        throw std::invalid_argument("binding read exceeds its produced capacity");
+      live.insert(key.first);
+    } else if(row.requests) {
       auto image=row.physical.Image();
       if(writes.empty() || image.IsSubset(external))
         external_reads.push_back(count);
@@ -55,7 +59,8 @@ BindingRequestTraffic DeriveBindingRequestTraffic(analysis::OperatorNode const& 
   }
   for(auto const& name:live) {
     auto const& tensor=floor.tensors.at(name);
-    auto elements=tensor.writes.BindParams(known).ImageCard().Eval({});
+    auto const& allocated=tensor.binding_producer?tensor.binding_producer->envelope:tensor.writes;
+    auto elements=allocated.BindParams(known).ImageCard().Eval({});
     if(elements<0 || std::uint64_t(elements)>
         (UINT64_MAX-result.produced_live_bytes)/unsigned(tensor.element_bytes))
       throw std::overflow_error("binding traffic live footprint overflows");

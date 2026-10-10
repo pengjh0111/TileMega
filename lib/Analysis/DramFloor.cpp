@@ -46,6 +46,8 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
   };
   std::map<std::string,CouplingRelation> read_envelopes,write_envelopes,expected_envelopes;
   std::set<std::string> affine_readers;
+  std::map<std::string,std::set<std::string>> binding_writers;
+  std::set<std::string> active_rows_used;
   for(auto const& source:semantics.ops) {
     auto const* task=graph.Find(source.name);if(!task)throw std::invalid_argument("missing semantic task "+source.name);
     auto const& op=task->element_access?task->element_access->semantic:source;
@@ -62,6 +64,18 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
     };
     auto store=[&](TensorSpace const& space,IndexingMap const& map,
                    std::vector<IndexResult> const& predicates) {
+      if(auto contract=options.binding_internal.find(space.name);contract!=options.binding_internal.end()) {
+        if(!task->element_access || options.outputs.count(space.name) ||
+            !contract->second.writers.count(op.name) || contract->second.source.empty())
+          throw std::invalid_argument("DramFloor invalid binding producer contract: "+space.name);
+        auto image=ProjectTaskWrite(op,*task,task->element_access->partition,
+            space,map,predicates,fixed).Image();
+        if(!image.IsSubset(contract->second.envelope.BindParams(fixed)))
+          throw std::invalid_argument("DramFloor binding store exceeds capacity: "+space.name);
+        tensor(space.name,op.dtype).binding_producer=contract->second;
+        binding_writers[space.name].insert(op.name);
+        return CouplingRelation{};
+      }
       if(dependent(map)) {
         auto actual=options.indirect_write_images.find(space.name);
         if(!task->element_access || actual==options.indirect_write_images.end())
@@ -95,6 +109,23 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
     std::map<std::string,CouplingRelation> indirect_envelopes;
     auto indirect_read=[&](TensorSpace const& space,IndexingMap const& map,
                            std::vector<IndexResult> const& predicates) {
+      if(options.binding_internal.count(space.name)) {
+        auto const& contract=options.binding_internal.at(space.name);
+        if(!task->element_access || contract.source.empty())
+          throw std::invalid_argument("DramFloor binding read lacks exact task ownership: "+space.name);
+        auto image=ProjectTaskRead(op,*task,task->element_access->partition,
+            space,map,predicates,fixed).Image();
+        if(!image.IsSubset(contract.envelope.BindParams(fixed)))
+          throw std::invalid_argument("DramFloor binding read exceeds capacity: "+space.name);
+        auto producer=std::find_if(op.operands.begin(),op.operands.end(),[&](auto const& input) {
+          return input.tensor.name==space.name && contract.writers.count(input.producer);
+        });
+        if(producer==op.operands.end())
+          throw std::invalid_argument("DramFloor binding read has no declared producer: "+space.name);
+        tensor(space.name,op.dtype).binding_producer=contract;
+        indirect.insert(space.name);
+        return;
+      }
       if(!dependent(map)){affine_readers.insert(space.name);return;}
       indirect.insert(space.name);
       if(task->element_access)
@@ -106,15 +137,18 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
     else for(auto const& read:op.element_reads)
       indirect_read(read.tensor,read.map,read.nonnegative);
     for(auto const& name:indirect) {
+      if(options.binding_internal.count(name))continue;
       auto expected=options.expected_indirect_reads.find(name);
       if(expected!=options.expected_indirect_reads.end()) {
         if(options.indirect_read_images.count(name) || expected->second.source.empty() ||
+           (expected->second.kind!="expectation" && expected->second.kind!="lower_bound") ||
            !task->element_access || !indirect_envelopes.count(name))
           throw std::invalid_argument("DramFloor expectation lacks a unique bounded source: "+name);
         expected_envelopes[name]=expected_envelopes[name].Union(indirect_envelopes.at(name).Image());
         auto& src=tensor(name,op.dtype);
         src.expected_read_elements=expected->second.elements;
         src.expectation_source=expected->second.source;
+        src.cardinality_kind=expected->second.kind;
         continue;
       }
       auto actual=options.indirect_read_images.find(name);
@@ -147,8 +181,22 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
       // projection width, so multiply the physical MMA work by two here.
       ClosedForm work=ClosedForm::Constant(
           op.arithmetic=="swiglu_gemm" ? 4 : 2);
-      for(auto const& axis:op.domain)work=work*axis.extent;
-      result.matmul_flops=result.matmul_flops.Add(Polynomial(work,fixed));
+      if(auto rows=options.active_runtime_rows.find(op.name);rows!=options.active_runtime_rows.end()) {
+        active_rows_used.insert(op.name);
+        if(op.domain.size()!=4 || !op.domain[0].runtime || !op.domain[0].capacity ||
+            op.domain[1].runtime || !op.exact_task_access)
+          throw std::invalid_argument("DramFloor active row contract lacks virtual ownership");
+        for(unsigned axis:{2u,3u})work=work*op.domain[axis].extent;
+        auto active=rows->second;
+        auto capacity=Polynomial(op.domain[0].BoundExtent()*op.domain[1].BoundExtent(),fixed);
+        if(active.CompareScalar(QuasiPolynomial::Constant(0),fixed)<0 ||
+            active.CompareScalar(capacity,fixed)>0)
+          throw std::invalid_argument("DramFloor active row count exceeds virtual capacity");
+        result.matmul_flops=result.matmul_flops.Add(active.Multiply(Polynomial(work,fixed)));
+      } else {
+        for(auto const& axis:op.domain)work=work*axis.extent;
+        result.matmul_flops=result.matmul_flops.Add(Polynomial(work,fixed));
+      }
     }
   }
   auto validate_images=[&](auto const& supplied,auto const& envelopes) {
@@ -158,6 +206,17 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
   };
   validate_images(options.indirect_read_images,read_envelopes);
   validate_images(options.indirect_write_images,write_envelopes);
+  if(active_rows_used.size()!=options.active_runtime_rows.size())
+    throw std::invalid_argument("DramFloor unused active runtime row contract");
+  for(auto const& [name,contract]:options.binding_internal) {
+    auto found=result.tensors.find(name);
+    if(found==result.tensors.end() || !found->second.binding_producer ||
+        found->second.state || options.outputs.count(name) ||
+        binding_writers[name]!=contract.writers || contract.writers.empty() ||
+        options.indirect_read_images.count(name) || options.indirect_write_images.count(name) ||
+        options.expected_indirect_reads.count(name))
+      throw std::invalid_argument("DramFloor incomplete internal binding contract: "+name);
+  }
   for(auto const& [name,expected]:options.expected_indirect_reads) {
     auto footprint=result.tensors.find(name);
     auto envelope=expected_envelopes.find(name);
@@ -170,8 +229,12 @@ DramFloor DeriveDramFloor(SemanticGraph const& semantics,DramFloorOptions const&
   }
   std::vector<QuasiPolynomial> reads,writes;
   for(auto& [name,t]:result.tensors) {
+    if(t.binding_producer) {
+      t.read_bytes=t.write_bytes=QuasiPolynomial::Constant(0);
+      reads.push_back(t.read_bytes);writes.push_back(t.write_bytes);continue;
+    }
     t.no_producer=t.reads.Subtract(t.writes);
-    t.output=options.outputs.count(name) || (!t.writes.empty() && !consumers.count(name));
+    t.output=options.outputs.count(name) || (options.infer_leaf_outputs && !t.writes.empty() && !consumers.count(name));
     if(t.state || t.output)t.external_writes=t.writes;
     t.read_bytes=(t.expected_read_elements?*t.expected_read_elements:Cardinality(t.no_producer)).Scale(t.element_bytes);
     t.write_bytes=Cardinality(t.external_writes).Scale(t.element_bytes);
