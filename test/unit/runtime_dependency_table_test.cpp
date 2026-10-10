@@ -53,6 +53,21 @@ int TestRuntimeDependencyTable(int, char**) {
     auto interval=large.intervals[consumer*290+entry];
     assert(interval.first==4*entry+consumer%4 && interval.count==1);
   }
+  auto dense=analysis::CouplingRelation::FromIslText(
+      "{ [c] -> [p] : 0<=c<4096 and 0<=p<8192 }");
+  auto dense_table=analysis::BuildDependencyTableLinear(dense,8192,4097);
+  assert(dense_table.stride==1 && dense_table.intervals.size()==4097);
+  for(unsigned c=0;c<4096;++c)
+    assert(dense_table.intervals[c].first==0 && dense_table.intervals[c].count==8192);
+  assert(dense_table.intervals.back().count==0);
+  auto overlap=analysis::CouplingRelation::FromIslText(
+      "{ [c] -> [p] : c=0 and 0<=p<=4; [c] -> [p] : c=0 and 3<=p<8 }");
+  auto merged=analysis::BuildDependencyTableLinear(overlap,8,1);
+  assert(merged.stride==1 && merged.intervals[0].first==0 && merged.intervals[0].count==8);
+  bool bad_range=false;
+  try{(void)analysis::BuildDependencyTableLinear(dense,8191,4096);}
+  catch(std::invalid_argument const&){bad_range=true;}
+  assert(bad_range);
   std::uint64_t target;
   assert(codegen::CountedDependencyTarget(8, 17, &target) && target == 144);
   assert(!codegen::CountedDependencyTarget(0, 0, &target));

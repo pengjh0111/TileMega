@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/DependencyTable.h>
 #include <tilemega/Analysis/ISLContext.h>
+#include "IslUtil.h"
+#include <isl/ilp.h>
 #include <algorithm>
 #include <limits>
 #include <map>
 #include <set>
 #include <stdexcept>
+#include <tuple>
 
 namespace tilemega::analysis {
 namespace {
@@ -21,6 +24,51 @@ std::uint32_t Count(OperatorNode const& node, ParamBinding const& known) {
   return static_cast<std::uint32_t>(count);
 }
 using Runs=std::vector<std::pair<std::uint32_t,std::uint32_t>>;
+std::vector<TaskInterval> ProducerIntervals(isl_set* sources) {
+  struct Collect {std::vector<TaskInterval> intervals;std::string error;} collected;
+  auto component=[](isl_basic_set* raw,void* user)->isl_stat {
+    auto& into=*static_cast<Collect*>(user);
+    auto set=isl_util::Set(isl_set_from_basic_set(raw));
+    try {
+      if(isl_set_is_empty(set.get())==isl_bool_true)return isl_stat_ok;
+      auto lo=isl_util::Val(isl_set_dim_min_val(isl_set_copy(set.get()),0));
+      auto hi=isl_util::Val(isl_set_dim_max_val(isl_set_copy(set.get()),0));
+      if(!lo || !hi || isl_val_is_int(lo.get())!=isl_bool_true ||
+          isl_val_is_int(hi.get())!=isl_bool_true)
+        throw std::invalid_argument("unbounded dependency table producer interval");
+      auto box=isl_util::Set(isl_set_universe(isl_set_get_space(set.get())));
+      box=isl_util::Set(isl_set_lower_bound_val(box.release(),isl_dim_set,0,isl_val_copy(lo.get())));
+      box=isl_util::Set(isl_set_upper_bound_val(box.release(),isl_dim_set,0,isl_val_copy(hi.get())));
+      if(isl_set_is_equal(set.get(),box.get())==isl_bool_true) {
+        auto first=isl_val_get_num_si(lo.get()),last=isl_val_get_num_si(hi.get());
+        into.intervals.push_back({std::uint32_t(first),std::uint32_t(last-first+1)});
+        return isl_stat_ok;
+      }
+      // Periodic holes require separate runtime intervals. Only these sparse
+      // one-dimensional components need point enumeration.
+      return isl_set_foreach_point(set.get(),[](isl_point* raw,void* data)->isl_stat {
+        auto& into=*static_cast<Collect*>(data);isl_util::Point point(raw);
+        auto value=isl_util::Val(isl_point_get_coordinate_val(point.get(),isl_dim_set,0));
+        if(!value || isl_val_is_int(value.get())!=isl_bool_true)return isl_stat_error;
+        into.intervals.push_back({std::uint32_t(isl_val_get_num_si(value.get())),1});
+        return isl_stat_ok;
+      },user);
+    }catch(std::exception const& e){into.error=e.what();return isl_stat_error;}
+  };
+  if(isl_set_foreach_basic_set(sources,component,&collected)!=isl_stat_ok)
+    throw std::runtime_error(collected.error.empty()?"dependency producer interval scan failed":collected.error);
+  std::sort(collected.intervals.begin(),collected.intervals.end(),
+      [](auto const& a,auto const& b){return std::tie(a.first,a.count)<std::tie(b.first,b.count);});
+  std::vector<TaskInterval> result;
+  for(auto const& interval:collected.intervals) {
+    if(!result.empty() && std::uint64_t(result.back().first)+result.back().count>=interval.first) {
+      auto past=std::max(std::uint64_t(result.back().first)+result.back().count,
+                         std::uint64_t(interval.first)+interval.count);
+      result.back().count=std::uint32_t(past-result.back().first);
+    }else result.push_back(interval);
+  }
+  return result;
+}
 std::string EncodeRuns(Runs const& runs,char const* coordinate) {
   std::string text;
   for(std::size_t begin=0;begin<runs.size();) {
@@ -86,21 +134,27 @@ DependencyTable BuildDependencyTableLinear(CouplingRelation const& relation,
   DependencyTable result;
   result.consumers = consumers; result.producers = producers;
   result.linear_relation = relation;
-  auto pairs=result.linear_relation.Points();
-  std::vector<std::set<std::uint32_t>> rows(result.consumers);
-  for (auto const& [to, from] : pairs) {
-    if (to.size() != 1 || from.size() != 1 || to[0] < 0 || from[0] < 0 ||
-        to[0] >= result.consumers || from[0] >= result.producers)
-      throw std::invalid_argument("dependency table includes an out-of-range task");
-    rows[to[0]].insert(static_cast<std::uint32_t>(from[0]));
-  }
+  auto* ctx=SharedIslContext().raw();auto map=isl_util::ReadMap(ctx,relation.ToString());
+  if(isl_map_dim(map.get(),isl_dim_param))
+    throw std::invalid_argument("dependency table requires every parameter bound");
+  auto bounds=isl_util::Map(isl_map_universe(isl_map_get_space(map.get())));
+  bounds=isl_util::Map(isl_map_lower_bound_si(bounds.release(),isl_dim_in,0,0));
+  bounds=isl_util::Map(isl_map_upper_bound_val(bounds.release(),isl_dim_in,0,isl_val_int_from_ui(ctx,consumers-1)));
+  bounds=isl_util::Map(isl_map_lower_bound_si(bounds.release(),isl_dim_out,0,0));
+  bounds=isl_util::Map(isl_map_upper_bound_val(bounds.release(),isl_dim_out,0,isl_val_int_from_ui(ctx,producers-1)));
+  if(isl_map_is_subset(map.get(),bounds.get())!=isl_bool_true)
+    throw std::invalid_argument("dependency table includes an out-of-range task");
   std::vector<std::vector<TaskInterval>> intervals(result.consumers);
+  std::map<std::string,std::vector<TaskInterval>> row_cache;
   for (unsigned task = 0; task < result.consumers; ++task) {
-    for (auto source : rows[task]) {
-      auto& row = intervals[task];
-      if (!row.empty() && row.back().first + row.back().count == source) ++row.back().count;
-      else row.push_back({source, 1});
-    }
+    auto row=isl_util::Map(isl_map_fix_val(isl_map_copy(map.get()),isl_dim_in,0,isl_val_int_from_ui(ctx,task)));
+    auto sources=isl_util::Set(isl_map_range(row.release()));
+    char* text=isl_set_to_str(sources.get());
+    if(!text)throw std::runtime_error("cannot serialize dependency producer row");
+    std::string key(text);free(text);
+    auto found=row_cache.find(key);
+    if(found==row_cache.end())found=row_cache.emplace(std::move(key),ProducerIntervals(sources.get())).first;
+    intervals[task]=found->second;
     result.stride = std::max(result.stride, static_cast<std::uint32_t>(intervals[task].size()));
   }
   if (std::uint64_t(result.consumers) * result.stride > std::numeric_limits<std::size_t>::max() / sizeof(TaskInterval))
@@ -125,13 +179,10 @@ DependencyTable BuildDependencyTableLinear(CouplingRelation const& relation,
   }
   if (first) encoded += "[_tm_c] -> [_tm_p] : false";
   result.encoded_relation = CouplingRelation::FromIslText(encoded + " }");
-  auto encoded_pairs=result.encoded_relation.Points();
-  std::sort(pairs.begin(),pairs.end());
-  std::sort(encoded_pairs.begin(),encoded_pairs.end());
-  // Both relations are bound and finite. Enumerating both sides independently
-  // proves each inclusion without subtracting thousands of union components.
-  if (!std::includes(encoded_pairs.begin(),encoded_pairs.end(),pairs.begin(),pairs.end()) ||
-      !std::includes(pairs.begin(),pairs.end(),encoded_pairs.begin(),encoded_pairs.end()))
+  // Compare the compact interval relation directly, rather than expanding a
+  // dense fan-in into millions of pairs twice just to prove equality.
+  if (!Contains(result.encoded_relation,result.linear_relation) ||
+      !Contains(result.linear_relation,result.encoded_relation))
     throw std::logic_error("dependency table failed exact containment proof");
   return result;
 }
