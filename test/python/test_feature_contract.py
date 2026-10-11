@@ -48,6 +48,12 @@ class FeatureContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'conflicting compiler macro'):
             build_defines('', ['nvcc', '-DTILEMEGA_WATCHDOG=0', '-DTILEMEGA_WATCHDOG=1'])
 
+    def test_generated_ifndef_defaults_remain_overridable(self):
+        source = '#ifndef TILEMEGA_WATCHDOG\n#define TILEMEGA_WATCHDOG 1\n#endif\n'
+        self.assertEqual(build_defines(source, ['nvcc', '-DTILEMEGA_WATCHDOG=0'])[
+            'TILEMEGA_WATCHDOG'], '0')
+        self.assertEqual(build_defines(source, ['nvcc'])['TILEMEGA_WATCHDOG'], '1')
+
 
 if __name__ == '__main__':
     unittest.main()

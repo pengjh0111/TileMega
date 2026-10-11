@@ -24,6 +24,11 @@ def build_defines(generated, options):
             if key in defines and defines[key] != value:
                 raise ValueError('conflicting compiler macro: ' + key)
             defines[key] = value
+    # Codegen emits overridable defaults in this exact three-line form.
+    # Their inactive branch must not be mistaken for a source override.
+    generated = re.sub(r'^#ifndef (\w+)\n(#define \1 [^\n]+\n)#endif\n',
+                       lambda match: '' if match[1] in defines else match[2],
+                       generated, flags=re.M)
     for key, value in re.findall(r'^#define\s+(\w+)\s+([^\n]+)', generated, re.M):
         value = value.strip()
         if key in defines and defines[key] != value:
