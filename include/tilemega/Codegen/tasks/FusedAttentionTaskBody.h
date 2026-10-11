@@ -36,6 +36,17 @@ struct ServingAttentionOperands {
   ServingTaskProfile* profile=nullptr;
 #endif
 };
+// Keep transport-only host instantiation independent of device capabilities.
+// Naming LayoutB eagerly instantiates the warp, even when prefill uses no swap.
+template<class Arch,int D,bool Swap>
+struct AttentionPVSelection {
+  using Type=backend::ServingAttentionWarp<Arch,D,16,true>;
+};
+template<class Arch,int D>
+struct AttentionPVSelection<Arch,D,true> {
+  using Type=backend::ServingAttentionPVSwap<Arch,D,
+      typename backend::ServingAttentionWarp<Arch,D,16,true>::LayoutB>;
+};
 template<class Arch,int kHeadDim,int kQPerKV,int kTokens,
          int kQRows,int kKvTile,bool kQkNorm>
 struct FusedAttentionTaskBody {
@@ -58,8 +69,7 @@ struct FusedAttentionTaskBody {
   using Element=cutlass::bfloat16_t;
   using QK=backend::ServingAttentionWarp<Arch,16,kHeadDim>;
   // Prefill tiles contain sixteen query rows, including two tokens at Q=8.
-  using PV=std::conditional_t<kQPerKV==8 && kTokens==1,backend::ServingAttentionPVSwap<Arch,kHeadDim,typename backend::ServingAttentionWarp<Arch,kHeadDim,16,true>::LayoutB>,
-      backend::ServingAttentionWarp<Arch,kHeadDim,16,true>>;
+  using PV=typename AttentionPVSelection<Arch,kHeadDim,kQPerKV==8 && kTokens==1>::Type;
   static constexpr int kQueryExtent=kTokens*kQPerKV;
   struct SharedStorage {
     alignas(16) Element query[16*kHeadDim];
