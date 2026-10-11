@@ -1580,12 +1580,10 @@ int RunCompile(int argc, char** argv) {
     }
     std::filesystem::path requested(argv[2]);
     bool shared = requested.extension() == ".so";
-    bool use_dm_identity=false;
     if(serving && module) {
       auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
       auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
-      use_dm_identity=dm && dm.getValue();
-      if(use_dm_identity) {
+      if(dm && dm.getValue()) {
         std::string flag=" -DTILEMEGA_NONPAGED_LA="+std::to_string(nonpaged_la);
         auto at=runtime_flags.find(flag);
         if(at!=std::string::npos)runtime_flags.erase(at,flag.size());
@@ -1596,7 +1594,7 @@ int RunCompile(int argc, char** argv) {
       std::string command="PYTHONPATH="+quote(root+"/python")+
           " LD_LIBRARY_PATH="+quote(tilemega::commands::CudaLibraryDirectory()+":"+
               (std::getenv("LD_LIBRARY_PATH")?std::getenv("LD_LIBRARY_PATH"):""))+
-          " python3 -m "+std::string(use_dm_identity?"tilemega.build.dm_identity":"tilemega.build.identity")+" --root "+quote(root)+
+          " python3 -m tilemega.build.identity --root "+quote(root)+
           " --snapshot "+quote(requested.string()+".source.json");
       if(capture)command+=" --capture --compiler "+quote(
           std::filesystem::read_symlink("/proc/self/exe").string());
@@ -1637,7 +1635,7 @@ int RunCompile(int argc, char** argv) {
         if(serving) {
           std::string root=TILEMEGA_SOURCE_DIR;
           std::string command="PYTHONPATH="+quote(root+"/python")+
-              " python3 -m "+std::string(use_dm_identity?"tilemega.build.dm_identity":"tilemega.build.identity")+" --root "+quote(root)+
+              " python3 -m tilemega.build.identity --root "+quote(root)+
               " --snapshot "+quote(requested.string()+".source.json")+
               " --check-reuse "+quote(selected_serving_binary);
           identity_match=std::system(command.c_str())==0;

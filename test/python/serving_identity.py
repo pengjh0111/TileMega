@@ -1,9 +1,8 @@
-import copy,sys,unittest,json,tempfile
+import copy,unittest,json,tempfile
 from unittest.mock import patch,Mock
 from pathlib import Path
-sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'docs/experiments/SERVING_R14'))
 from tilemega.build.identity import parse_resources,bind_execution,digest,generate,verify,sha
-from identity_join import checked_join
+from tilemega.bench.identity_join import checked_join
 class IdentityTests(unittest.TestCase):
     def identity(self):
         text="""ptxas info : Compiling entry function 'tilemega_l1_kernel' for 'sm_89'

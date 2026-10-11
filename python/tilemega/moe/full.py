@@ -119,7 +119,7 @@ def deployment_layout_decision(config, decode_manifest, batch, capacity, target)
 def build_plans(args, config):
     from tilemega.moe.checkpoints import index_check
     from tilemega.dnn.cli import gpu_lock
-    from tilemega.build.dm_identity import source_snapshot, generate
+    from tilemega.build.identity import snapshot, verify
     checkpoint = index_check(args.checkpoint)
     atomic_json(args.out/'checkpoint-index.json', checkpoint)
     bridges = export_plans(config, args.out, args.batch, args.capacity)
@@ -139,15 +139,15 @@ def build_plans(args, config):
                     reference=args.out/f'B{batch}'/'decode'/('plan.cu' if args.command=='dry-build' else 'plan.so')
                     command += ['--shared-weight-layout', str(reference)+'.plan.json']
             atomic_json(directory/'command.json', command)
-            snapshot = source_snapshot(ROOT, args.compiler)
-            atomic_json(directory/'source.json', snapshot)
+            source = directory/'source.json'
+            inputs = snapshot(ROOT, source, args.compiler)
             with (directory/'build.log').open('w') as stream:
                 if args.command == 'dry-build':
                     subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT, check=True)
                 else:
                     with gpu_lock():
                         subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT, check=True)
-                        generate(binary, snapshot, executor='L2')
+                        verify(binary, expected_source=inputs)
             manifest_path = Path(str(binary)+'.plan.json')
             manifest = json.loads(manifest_path.read_text()); manifests.append(manifest)
             recipes = {buffer['name']: buffer['recipe'] for buffer in manifest['buffers'] if 'recipe' in buffer}
@@ -189,7 +189,7 @@ def check_plans(args, config):
     import torch
     from tilemega.dnn.cli import gpu_lock
     from tilemega.serving.engine import ServingEngine
-    from tilemega.build.dm_identity import verify
+    from tilemega.build.identity import verify
     plans = json.loads((args.out/'plans.json').read_text())
     for item in plans:
         if file_sha(Path(item['manifest'])) != item['manifest_sha256'] or \

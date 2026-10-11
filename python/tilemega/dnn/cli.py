@@ -101,7 +101,7 @@ def model_export(config, out):
 def build(config, out, compiler):
     import torch
     from tilemega.export_bridge import serialize
-    from tilemega.build.dm_identity import source_snapshot, generate
+    from tilemega.build.identity import snapshot, verify, bind_execution
     export = model_export(config, out)
     archive = export / 'exported_program.pt2'
     program = torch.export.load(archive)
@@ -134,14 +134,16 @@ def build(config, out, compiler):
             if feature in config['features']:
                 command += ['--'+feature.replace('_','-'),str(config['features'][feature])]
         atomic_json(directory / 'command.json', command)
-        snapshot = source_snapshot(ROOT, compiler)
-        atomic_json(directory / 'source.json', snapshot)
+        source = directory / 'source.json'
+        inputs = snapshot(ROOT, source, compiler)
         with gpu_lock():
             with (directory / 'build.log').open('w') as stream:
                 subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT, check=True)
-            identity = generate(library, snapshot, executor=config['features']['forward_executor'])
+            identity = verify(library, expected_source=inputs)
         record = dict(batch=batch, library=str(library), export=str(export), bridge=str(bridge),
-            artifact_id=identity['artifact_id'], selection='predicted; no performance measurement')
+            artifact_id=identity['artifact_id'],
+            execution_identity=bind_execution(identity,config['features']['forward_executor']),
+            selection='predicted; no performance measurement')
         plans.append(record)
         atomic_json(out / 'plans.json', plans)
         print(json.dumps(dict(event='dnn_build_complete', **record)), flush=True)

@@ -26,7 +26,7 @@ def snapshot(root, destination, compiler=None):
     root=Path(root).resolve()
     def git(*args):
         return subprocess.check_output(['git','-C',str(root),*args])
-    prefixes=['include','lib','tools','python','CMakeLists.txt']
+    prefixes=['include','lib','tools','python','cmake','CMakeLists.txt']
     diff=git('diff','--binary','HEAD','--',*prefixes)
     # git diff omits newly added files. Keep their bytes in the same patch so
     # HEAD + this patch reconstructs all locally changed compiler/runtime input.
@@ -41,7 +41,7 @@ def snapshot(root, destination, compiler=None):
     inputs={p:sha(root/p) for p in sorted(set(paths)) if (root/p).is_file() and
             (Path(p).suffix in {'.h','.hpp','.cuh','.cu','.cpp','.cc','.py','.cmake'} or p.endswith('CMakeLists.txt'))}
     patch=Path(str(destination)+'.patch');patch.write_bytes(diff)
-    result={'head':git('rev-parse','HEAD').decode().strip(),
+    result={'root':str(root),'head':git('rev-parse','HEAD').decode().strip(),
             'worktree_diff_sha256':hashlib.sha256(diff).hexdigest(),
             'source_files':inputs,'source_digest':digest(inputs),
             'patch':str(patch),'compiler':str(compiler) if compiler else None,
@@ -77,9 +77,6 @@ def parse_resources(text):
 
 def bind_execution(identity, executor, loop=False, pdl=False):
     if executor not in ('L1','L2'):raise ValueError('execution identity needs an explicit executor')
-    if identity.get('schema')=='tilemega.dm1.identity.v1':
-        identity=dict(identity,plan=identity['execution'],
-                      resources={k:dict(v,name=k) for k,v in identity['kernels'].items()})
     pg=identity['plan'].get('pg')
     if loop:
         if pg=='pages' and executor=='L2':needle='tilemega_loop_kernel'
@@ -95,17 +92,27 @@ def bind_execution(identity, executor, loop=False, pdl=False):
     return result
 
 
-def verify(so):
+def verify(so, expected_source=None):
     so=Path(so);path=Path(str(so)+'.identity.json')
     identity=json.loads(path.read_text())
-    if identity.get('schema')=='tilemega.dm1.identity.v1':
-        from .dm_identity import verify as verify_dm
-        return verify_dm(so)
+    if identity.get('schema')!=1:raise ValueError('unsupported artifact identity schema; rebuild the plan')
     payload={k:v for k,v in identity.items() if k!='artifact_id'}
     if digest(payload)!=identity['artifact_id']:raise ValueError('identity metadata digest mismatch')
+    if expected_source is not None and any(identity['source'].get(key)!=expected_source.get(key)
+            for key in ('source_digest','compiler_sha256')):
+        raise ValueError('artifact source/compiler differs from the requested build')
     for suffix,key in [('', 'binary_sha256'),('.cu','generated_source_sha256'),
                        ('.plan.json','manifest_sha256'),('.ptxas.log','resources_sha256')]:
         if sha(str(so)+suffix)!=identity[key]:raise ValueError(f'artifact identity mismatch: {so}{suffix}')
+    if 'build_command_sha256' in identity and sha(str(so)+'.build_command.txt')!=identity['build_command_sha256']:
+        raise ValueError('artifact compiler command changed')
+    complete=identity.get('complete_macros')
+    if complete is not None:
+        if complete['compiler_command']!=identity['options']:
+            raise ValueError('macro capture compiler command differs from the build')
+        for unit in complete['translation_units']:
+            if sha(unit['macros_file'])!=unit['macros_sha256']:
+                raise ValueError('complete preprocessor macro table changed')
     return identity
 
 
@@ -119,11 +126,29 @@ def optional_identity(so):
     return None
 
 
+def validate_snapshot_inputs(root, source):
+    root=Path(root).resolve()
+    if not source.get('source_files'):
+        raise ValueError('build snapshot lacks source input hashes')
+    if source.get('root') and Path(source['root']).resolve()!=root:
+        raise ValueError('build snapshot belongs to a different source tree')
+    if any(not (root/p).is_file() or sha(root/p)!=value for p,value in source['source_files'].items()):
+        raise ValueError('source changed during compilation; refuse artifact identity')
+    if source.get('compiler') and sha(source['compiler'])!=source['compiler_sha256']:
+        raise ValueError('plan compiler changed after its before-build snapshot')
+
+
+DM_FIELDS=('frontend','reuse','deferred_ln','dwpw_fuse','moe_dynamic','moe_opaque',
+           'moe_gemv','shared_weight_layout_sha256','dm_pool_la','dm_moe_la',
+           'moe_binding','moe_bm','memory_arena_bytes','dm_reduction_mask',
+           'dm_reduction_proved_stages','dnn_structure','dnn_structure_search_sha256',
+           'moe_structure','moe_structure_search_sha256','routing_profile','moe_profile_pricing')
+
+
 def generate(so, root, source_snapshot):
     so=Path(so).resolve();root=Path(root).resolve()
     source=json.loads(Path(source_snapshot).read_text())
-    if any(not (root/p).is_file() or sha(root/p)!=value for p,value in source['source_files'].items()):
-        raise ValueError('source changed during compilation; refuse artifact identity')
+    validate_snapshot_inputs(root,source)
     command=Path(str(so)+'.build_command.txt').read_text().strip();options=shlex.split(command)
     manifest=json.loads(Path(str(so)+'.plan.json').read_text())
     generated=Path(str(so)+'.cu').read_text()
@@ -137,6 +162,8 @@ def generate(so, root, source_snapshot):
     if arch is None and '-arch' in options:arch=options[options.index('-arch')+1]
     resources_path=Path(str(so)+'.ptxas.log')
     resources=parse_resources(resources_path.read_text())
+    if not resources or any('registers' not in row for row in resources.values()):
+        raise ValueError('missing ptxas kernel resources')
     paged=manifest.get('pg')=='pages';decode=manifest.get('phase')=='decode'
     library=ctypes.CDLL(str(so))
     shared=getattr(library,'tm_plan_shared_bytes',None)
@@ -147,6 +174,7 @@ def generate(so, root, source_snapshot):
               if k.startswith(('TILEMEGA_TRACE','TILEMEGA_PAGE_TRACE')))
     result={'schema':1,'source':source,'binary_path':str(so),'binary_sha256':sha(so),
             'generated_source_sha256':sha(str(so)+'.cu'),'manifest_sha256':sha(str(so)+'.plan.json'),
+            'build_command_sha256':sha(str(so)+'.build_command.txt'),
             'resources_sha256':sha(resources_path),'compiler_version':version,'options':options,
             'defines':defines,'arch':arch,'plan':manifest,'shared_memory_bytes':int(shared()),
             'resources':resources,'trace':trace,
@@ -163,6 +191,11 @@ def generate(so, root, source_snapshot):
                 'page_policy':('Packed' if paged else 'WarpPrivate') if decode else None,
                 'load':manifest.get('paged_attention_load','loader'),
                 'frontier':bool(int(defines.get('TILEMEGA_ATTENTION_FRONTIER','0')))}}}
+    if defines.get('TILEMEGA_DM_SUPPORT','0').strip()=='1':
+        from .compiler_macros import capture
+        result['dm']={key:manifest[key] for key in DM_FIELDS if key in manifest}
+        result['complete_macros']=capture(options,Path(str(so)+'.macro_capture'))
+    validate_snapshot_inputs(root,source)
     result['artifact_id']=digest(result)
     Path(str(so)+'.identity.json').write_text(json.dumps(result,indent=2)+'\n')
     return result
