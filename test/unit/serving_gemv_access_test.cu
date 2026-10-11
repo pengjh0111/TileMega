@@ -9,7 +9,10 @@
 using namespace tilemega;
 using namespace tilemega::codegen;
 using E=cutlass::bfloat16_t;
-using Arch=arch::CurrentArch;
+#ifndef TILEMEGA_ARCH_ID
+#define TILEMEGA_ARCH_ID 800
+#endif
+using Arch=typename arch::ArchFromId<TILEMEGA_ARCH_ID>::type;
 struct NoGate { bool enabled=false; __device__ void Wait(unsigned) const {} };
 void Check(cudaError_t error) {
   if(error!=cudaSuccess){std::fprintf(stderr,"%s\n",cudaGetErrorString(error));std::exit(2);}

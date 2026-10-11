@@ -10,7 +10,7 @@
 using namespace tilemega;
 using Element=cutlass::bfloat16_t;
 #ifdef TILEMEGA_ARCH_ID
-using Arch=arch::CurrentArch;
+using Arch=typename arch::ArchFromId<TILEMEGA_ARCH_ID>::type;
 #else
 using Arch=arch::Sm80;
 #endif

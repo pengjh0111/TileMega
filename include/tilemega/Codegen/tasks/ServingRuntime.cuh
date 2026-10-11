@@ -648,6 +648,10 @@ extern "C" int tm_plan_launch_steps(void* opaque, std::uint32_t first_step,
         plan->model.events,base_iteration,
         reinterpret_cast<unsigned long long*>(plan->step_ns+first_step));
 #elif TILEMEGA_SERVING_SEQ==1
+#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
+  auto* loop_step_ns=plan->step_ns?
+      reinterpret_cast<unsigned long long*>(plan->step_ns+first_step):nullptr;
+#endif
   status=executor::LaunchServing(tilemega_l1_loop_kernel,plan->grid,
         kServingThreads,kServingSharedBytes,cuda_stream,plan->pdl,
         static_cast<Params const*>(loop_params),steps,
