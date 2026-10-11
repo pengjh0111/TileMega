@@ -111,7 +111,8 @@ def build(out):
     with Path(os.environ['TILEMEGA_GPU_LOCK']).open('a') as stream:
         fcntl.flock(stream, fcntl.LOCK_EX)
         execute(command, out, 'configure', 600)
-        execute(['cmake', '--build', str(build_dir), '-j', '3'], out, 'build', 43200)
+        execute(['cmake', '--build', str(build_dir), '-j', '3', '--', '-k', '0'],
+                out, 'build', 43200)
         execute(['ctest', '--test-dir', str(build_dir), '--show-only=json-v1'], out, 'tests', 60)
     validate(out)
     print('PASS complete CTest build', flush=True)
