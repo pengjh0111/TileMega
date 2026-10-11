@@ -16,6 +16,7 @@ from tilemega.bench.gpu_guard import external, idle, stop
 from tilemega.bench.make_queue import prepare
 from tilemega.bench.report import metrics, discernible
 from tilemega.bench.scheduler import ready_steps, timing_pause
+from tilemega.bench.status import read_status
 from tilemega.bench.identity_join import checked_join
 from tilemega.build.identity import digest
 
@@ -57,6 +58,27 @@ class GuardTests(unittest.TestCase):
 
 
 class QueueTests(unittest.TestCase):
+    def test_status_includes_new_queue_files_and_guard_retries(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            out, queue = root / 'scheduler', root / 'queue'
+            out.mkdir(); queue.mkdir()
+            state = dict(finished=dict(status='done', attempts=1),
+                         guarded=dict(status='pending', attempts=2, exit_code=75, retry_at=200),
+                         active=dict(status='running', attempts=1, pid=123))
+            (out / 'state.json').write_text(json.dumps(state))
+            (out / 'control.json').write_text(json.dumps(dict(timing_paused=True, reason='six hours')))
+            (queue / 'queue_new.json').write_text(json.dumps([dict(name='new_check')]))
+            before = (out / 'state.json').read_bytes()
+            value = read_status(out, queue, now=100)
+            self.assertEqual(value['counts'], dict(done=1, pending=1, running=1, queued=1))
+            self.assertTrue(value['timing_paused'])
+            rows = {row['name']: row for row in value['steps']}
+            self.assertIn('GPU guard retry', rows['guarded']['note'])
+            self.assertIn('100s', rows['guarded']['note'])
+            self.assertEqual(rows['active']['note'], 'pid=123')
+            self.assertEqual((out / 'state.json').read_bytes(), before)
+
     def test_dependencies_and_cooldown(self):
         steps = {'a': dict(name='a', priority=2), 'b': dict(name='b', priority=1, after=['a']),
                  'c': dict(name='c', after_any=['a'])}
