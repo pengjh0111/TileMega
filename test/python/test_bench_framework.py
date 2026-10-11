@@ -92,6 +92,20 @@ class QueueTests(unittest.TestCase):
         state['b']['retry_at'] = 10
         self.assertEqual([s['name'] for s in ready_steps(steps, state, 0)[0]], ['c'])
 
+    def test_status_filters_history_to_explicit_queues(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            state = dict(old_failure=dict(status='failed'),
+                         current=dict(status='running', attempts=1, pid=7),
+                         accepted=dict(status='done', attempts=1))
+            (root / 'state.json').write_text(json.dumps(state))
+            queue = root / 'queue_new.json'
+            queue.write_text(json.dumps([dict(name='current'), dict(name='new')]))
+            before = (root / 'state.json').read_bytes()
+            value = read_status(root, queue_files=[queue])
+            self.assertEqual(value['counts'], dict(running=1, queued=1))
+            self.assertEqual([row['name'] for row in value['steps']], ['current', 'new'])
+            self.assertEqual((root / 'state.json').read_bytes(), before)
     def test_six_hours_pause_requires_explicit_resume(self):
         control = {}
         timing_pause(control, True, False, 1, 21600)

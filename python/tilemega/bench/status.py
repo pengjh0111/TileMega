@@ -6,15 +6,20 @@ import time
 from pathlib import Path
 
 
-def read_status(out, queue_dir=None, now=None):
+def read_status(out, queue_dir=None, now=None, queue_files=None):
     out = Path(out)
     now = time.time() if now is None else now
     path = out / 'state.json'
     state = json.loads(path.read_text()) if path.exists() else {}
-    if queue_dir is not None:
-        for path in sorted(Path(queue_dir).glob('queue_*.json')):
-            for step in json.loads(path.read_text()):
-                state.setdefault(step['name'], dict(status='queued', attempts=0))
+    paths = [Path(path) for path in queue_files] if queue_files is not None else (
+        sorted(Path(queue_dir).glob('queue_*.json')) if queue_dir is not None else [])
+    selected = set()
+    for path in paths:
+        for step in json.loads(path.read_text()):
+            selected.add(step['name'])
+            state.setdefault(step['name'], dict(status='queued', attempts=0))
+    if queue_files is not None:
+        state = {name: row for name, row in state.items() if name in selected}
     path = out / 'control.json'
     control = json.loads(path.read_text()) if path.exists() else {}
     rows = []
@@ -36,9 +41,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--queue-dir', type=Path)
+    parser.add_argument('--queue-file', type=Path, action='append',
+                        help='show only steps from these queue files; may be repeated')
     parser.add_argument('--json', action='store_true')
     args = parser.parse_args(argv)
-    value = read_status(args.out, args.queue_dir)
+    value = read_status(args.out, args.queue_dir, queue_files=args.queue_file)
     if args.json:
         print(json.dumps(value, indent=2))
         return
