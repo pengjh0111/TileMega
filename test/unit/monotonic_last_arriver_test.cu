@@ -11,6 +11,7 @@ __global__ void Produce(unsigned long long* tickets,int* partial,int* output,
   bool reduced=MonotonicLastArriver::Run(tickets+mode,producers,iteration,&last,[&]{
     int sum=0;for(unsigned c=0;c<live;++c)sum+=partial[c*128+threadIdx.x];
     output[threadIdx.x]=sum;
+    if(threadIdx.x==0)last=0;
   });
   if(reduced && threadIdx.x==0)atomicAdd(completions,1);
 }

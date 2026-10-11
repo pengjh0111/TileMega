@@ -24,14 +24,18 @@ struct EpochLastArriver {
       if(contribution) {
         cuda::atomic_ref<unsigned long long,cuda::thread_scope_device> value(*ticket);
         auto previous=value.fetch_add(contribution,cuda::memory_order_acq_rel);
-        if(previous>target || contribution>target-previous)asm volatile("trap;");
+        if(previous<target-total || previous>target || contribution>target-previous)
+          asm volatile("trap;");
         *shared_last=previous+contribution==target;
       }
     }
     ComputeSync();
-    if(*shared_last)reduce();
+    // Reducers reuse the task workspace, including shared_last. Every thread
+    // must capture the decision before any callback is allowed to overwrite it.
+    bool last=*shared_last!=0;
     ComputeSync();
-    return *shared_last!=0;
+    if(last) {reduce();ComputeSync();}
+    return last;
   }
   template<class Reduce>
   __device__ static bool Run(unsigned long long* ticket,unsigned producers,

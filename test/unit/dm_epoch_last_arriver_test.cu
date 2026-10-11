@@ -25,11 +25,14 @@ __global__ void EpochReduce(unsigned long long* tickets,unsigned long long* part
       output[group*kElements+i]=sum;
     }
     if(threadIdx.x==0)atomicAdd(callbacks+group,1);
+    // Real reducers reuse the shared task workspace for their own scratch.
+    if(threadIdx.x==0)last=0;
   };
   bool won=weighted ? executor::EpochLastArriver::RunWeighted(
       tickets+group,total,epoch,contribution,&last,reduce) :
       executor::EpochLastArriver::Run(tickets+group,total,epoch,&last,reduce);
   if(!contribution && won && threadIdx.x==0)atomicAdd(errors,1);
+  if(won && threadIdx.x==0)atomicAdd(callbacks+group,1);
   if(executor::EpochLastArriver::RunWeighted(tickets+group,total,epoch,0,&last,
        [&]{if(threadIdx.x==0)atomicAdd(errors,1);}) && threadIdx.x==0)atomicAdd(errors,1);
 }
@@ -56,7 +59,7 @@ int main() {
       assert(!*errors);
       for(unsigned group=0;group<kGroups;++group) {
         assert(tickets[bank+group]==std::uint64_t(weighted?15:4)*(epoch+1));
-        assert(callbacks[bank+group]==epoch+1);
+        assert(callbacks[bank+group]==2*(epoch+1));
         for(unsigned element=0;element<kElements;++element) {
           unsigned long long expected=0;
           for(unsigned producer=weighted?1:0;producer<kProducers;++producer)
