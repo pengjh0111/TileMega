@@ -89,6 +89,30 @@ int TestDnnModelPlan(int argc,char** argv) {
     invalid=bridge;
     auto attention=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[](auto const& n){return n.target=="aten.scaled_dot_product_attention.default";});
     if(attention!=invalid.nodes.end()) {
+      auto mask=std::find_if(bridge.nodes.begin(),bridge.nodes.end(),[&](auto const& n) {
+        return attention->args.size()>3 && attention->args[3].kind==FxArgument::Kind::kNode &&
+            n.name==attention->args[3].text;
+      });
+      if(mask!=bridge.nodes.end() && mask->target=="aten.expand.default") {
+        auto proof=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[&](auto const& n) {
+          return !mask->args.empty() && n.name==mask->args[0].text &&
+              n.target=="aten.ge.Scalar" && n.constant.has_all_true && n.constant.all_true;
+        });
+        if(proof!=invalid.nodes.end()) {
+          proof->constant.present=false;proof->constant.has_all_true=false;
+          reject(invalid,"unsupported value transform");
+          invalid=bridge;
+          proof=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[&](auto const& n) {
+            return n.name==mask->args[0].text;
+          });
+          proof->constant.all_true=false;
+          reject(invalid,"unsupported value transform");
+          invalid=bridge;
+          attention=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[](auto const& n) {
+            return n.target=="aten.scaled_dot_product_attention.default";
+          });
+        }
+      }
       attention->args.resize(6);attention->args[5].kind=FxArgument::Kind::kBool;attention->args[5].boolean=true;
       reject(invalid,"noncausal");
       invalid=bridge;

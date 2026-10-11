@@ -447,6 +447,10 @@ struct Builder {
       return ref;
     }
     collapsed.insert(ref);
+    // A symbolic batch expand may hide an immutable all-true mask. Only
+    // the export's value proof permits removing it; user masks stay dynamic.
+    if(node.dtype=="torch.bool" && node.constant.has_all_true && node.constant.all_true)
+      return {};
     if(kind=="expand") {
       if(node.shape.size()!=4 || U(node.shape[1])!=1 || U(node.shape[2])!=unsigned(p.serving_seq) || U(node.shape[3])!=unsigned(p.serving_seq))
         throw std::invalid_argument("key-padding expansion changes the query or key geometry");
