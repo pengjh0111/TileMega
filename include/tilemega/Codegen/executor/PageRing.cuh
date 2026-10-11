@@ -12,6 +12,7 @@ struct NoPageHook { __device__ void operator()(unsigned) const {} };
 template<int PageBytes,int Pages,class Arch=arch::CurrentArch,bool ForceSm80=false>
 struct PageRing {
   static constexpr int kPageBytes=PageBytes;
+  static constexpr int kPages=Pages;
   static_assert(PageBytes==8192 || PageBytes==16384);
   static_assert(Pages>0);
   using Copy=Async<Arch,ForceSm80>;

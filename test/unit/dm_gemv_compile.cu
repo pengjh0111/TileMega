@@ -4,7 +4,7 @@
 
 using Arch=typename tilemega::arch::ArchFromId<TILEMEGA_ARCH_ID>::type;
 using Operands=tilemega::codegen::ServingGemmOperands;
-using Paged=tilemega::codegen::PagedGemmTaskBody<Arch,16,32,64,8192,2>;
+using Paged=tilemega::codegen::PagedGemmTaskBody<Arch,16,32,64,8192,4>;
 
 template<int N>
 __global__ void GemvDense(Operands p,float* output) {
@@ -16,11 +16,12 @@ __global__ void GemvDense(Operands p,float* output) {
 template __global__ void GemvDense<8>(Operands,float*);
 template __global__ void GemvDense<16>(Operands,float*);
 template __global__ void GemvDense<32>(Operands,float*);
+template __global__ void GemvDense<64>(Operands,float*);
 
 __global__ void GemvPages(Operands p,float* output) {
   using namespace tilemega::codegen::executor;
   extern __shared__ char shared[];
-  Paged::Ring ring{reinterpret_cast<Paged::Ring::Slot*>(shared),shared+8192};
+  Paged::Ring ring{reinterpret_cast<Paged::Ring::Slot*>(shared),shared+9216};
   ring.Initialize();std::uint64_t sequence=0;
   if(IsCompute()) {
     using Body=tilemega::backend::ServingGemv<Arch,16,32,64>;

@@ -533,6 +533,7 @@ struct PagedGemmTaskBody {
 #if TILEMEGA_MOE_GEMV
     if constexpr(TileN<=32 && TileK>=32) {
       using Gemv=backend::ServingGemv<Arch,TileM,TileN,TileK>;
+      if constexpr(Gemv::template kPagedSupported<Ring> && kDmWorkspaceBytes>=Gemv::kSharedBytes)
       if(Gemv::Supported(p,tile_m)) {
         auto* tile=Gemv::Paged(p,tile_m,tile_n,ring,sequence,workspace,gate);
         backend::ServingDmEpilogue<Arch,Spec,TileM,TileN,false>::RunFromTile(

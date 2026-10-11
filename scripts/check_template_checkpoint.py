@@ -42,7 +42,13 @@ RUNTIME_CASES = [
     ('binding_stream', 'dm_binding_stream_test.cu', [], []),
     ('binding_pages', 'dm_binding_pages_test.cu', [], []),
 ]
-SUITES = {'gemm': CASES, 'attention': ATTENTION_CASES, 'runtime': RUNTIME_CASES}
+GEMV_CASES = [
+    ('epilogues', 'serving_gemv_test.cu', [], []),
+    ('access', 'serving_gemv_access_test.cu', [], []),
+    ('profile', 'serving_task_profile_test.cu', ['TILEMEGA_TRACE_TASK=1'], []),
+]
+SUITES = {'gemm': CASES, 'attention': ATTENTION_CASES, 'runtime': RUNTIME_CASES,
+          'gemv': GEMV_CASES}
 
 
 def sha(path):
@@ -76,7 +82,10 @@ def prepare(root, out, suite, build_dir):
         raise FileExistsError('checkpoint inputs already exist')
     shutil.copytree(root / 'include', source / 'include')
     (source / 'test/unit').mkdir(parents=True)
-    for name in {row[1] for row in SUITES[suite]}:
+    names = {row[1] for row in SUITES[suite]}
+    if suite == 'gemv':
+        names.add('dm_gemv_compile.cu')
+    for name in names:
         shutil.copy2(root / 'test/unit' / name, source / 'test/unit' / name)
     shutil.copytree(root / 'test/fixtures/dnn', source / 'test/fixtures/dnn')
     shutil.copy2(Path(__file__), out / 'runner.py')
@@ -140,12 +149,13 @@ def build(out):
             else:
                 execute(command, out, 'build_' + label)
             executables.append(dict(label=label, binary=str(binary), sha256=sha(binary),
-                processes=5 if record['suite'] == 'runtime' or label in ('epoch', 'monotonic', 'counted') else 1,
+                processes=5 if record['suite'] == 'runtime' or label in ('epoch', 'monotonic', 'counted', 'access') else 1,
                 args=[str(source / 'test/fixtures/dnn' / name) for name in fixtures]))
         for arch in (80, 89, 90, 100, 120):
             sources = {'attention': ['serving_pvswap_test.cu', 'dm_qperkv8_prefill_test.cu'],
                        'runtime': ['dm_nonpaged_attention_handoff_test.cu', 'dm_binding_stream_test.cu'],
-                       'gemm': ['dm_gemm_chain_test.cu']}[record['suite']]
+                       'gemm': ['dm_gemm_chain_test.cu'],
+                       'gemv': ['dm_gemv_compile.cu']}[record['suite']]
             for file in sources:
                 label = f'{Path(file).stem}_sm{arch}'
                 execute([*common, '-arch=sm_' + str(arch), '-DTILEMEGA_ARCH_ID=' + str(arch * 10),

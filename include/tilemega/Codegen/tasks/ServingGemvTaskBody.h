@@ -5,7 +5,7 @@
 namespace tilemega::codegen {
 template<class Arch,int TileN,int TileK,bool Tiled=false>
 struct ServingGemvTaskBody {
-  using Impl=backend::ServingGemv<Arch,TileN,TileK,Tiled>;
+  using Impl=backend::ServingGemv<Arch,16,TileN,TileK>;
   static constexpr int kThreads=128,kSharedBytes=Impl::kSharedBytes;
   template<class Emit>
   __device__ static void PrefetchRanges(ServingGemmOperands const& p,int tile_n,Emit emit) {
@@ -21,8 +21,7 @@ struct ServingGemvTaskBody {
     }
   }
   __device__ static void Run(ServingGemmOperands const& p,int tile_m,int tile_n,char* shared) {
-    auto* tile=reinterpret_cast<float*>(shared);
-    Impl::Accumulate(p,tile_m,tile_n,tile);
+    auto* tile=Impl::template Dense<true>(p,tile_m,tile_n,shared,Tiled);
 #if TILEMEGA_TRACE_TASK
     auto epilogue_begin=TaskProfileNow(p.profile);
 #endif

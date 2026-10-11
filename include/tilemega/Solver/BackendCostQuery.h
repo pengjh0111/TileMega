@@ -151,9 +151,13 @@ inline BackendTraits ServingBF16Traits(int m, int n, int k, int stages) {
 }
 
 constexpr bool ServingGemvShapeLegal(int m,int n,int k,int stages) {
-  return m==16 && (n==8 || n==16 || n==32) && (k==64 || k==128) && stages==2;
+  return m==16 && (n==8 || n==16 || n==32 || n==64) && (k==64 || k==128) && stages==2;
 }
-constexpr int ServingGemvSmemBytes(int m,int n) { return 4*m*n+32*m; }
+constexpr int ServingGemvSmemBytes(int m,int n) {
+  int a=2*(m<4?m:4)*256*2;
+  int epilogue=4*m*n+32*m;
+  return a>epilogue?a:epilogue;
+}
 inline BackendTraits ServingGemvTraits(int m,int n,int k,int stages) {
   auto r=ServingBF16Traits(m,32,k,stages);
   r.tile_n=n;r.smem_bytes=ServingGemvSmemBytes(m,n);

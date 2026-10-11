@@ -36,7 +36,7 @@ template<int TN,int TK,bool Tiled>void Run(int m,int k,Op op){
   for(int r=0;r<m;++r)for(int kk=0;kk<kp;++kk)a[r*kp+kk]=Element(kk<k?A(r,kk):0);
   for(int c=0;c<n;++c)for(int kk=0;kk<kp;++kk)b[c*kp+kk]=Element(kk<k?B(c,kk):0);
   for(int i=0;i<nt*kt*TN*TK;++i)packed[i]=Element(0);
-  for(int c=0;c<n;++c)for(int kk=0;kk<k;++kk)packed[(c/TN*kt+kk/TK)*TN*TK+backend::ServingGemv<Arch,TN,TK,Tiled>::PackedIndex(c%TN,kk%TK)]=Element(B(c,kk));
+  for(int c=0;c<n;++c)for(int kk=0;kk<k;++kk)packed[(c/TN*kt+kk/TK)*TN*TK+backend::ServingGemv<Arch,16,TN,TK>::PackedIndex(c%TN,kk%TK)]=Element(B(c,kk));
   for(int i=0;i<m*width;++i)residual[i]=Element(.25f);
   codegen::ServingGemmOperands p;p.a=a;p.b=b;p.weight_base=packed;p.output=output;p.residual=residual;p.partial=partial;
   p.argmax_value=values;p.argmax_index=indices;p.m=m;p.n=n;p.k_total=p.k_count=p.k_total_full=k;p.a_row_stride=p.b_row_stride=kp;
@@ -63,8 +63,9 @@ template<int TN,int TK,bool Tiled>void Run(int m,int k,Op op){
   }
   for(void* ptr:{(void*)a,(void*)b,(void*)packed,(void*)output,(void*)residual,(void*)partial,(void*)values,(void*)indices,(void*)ss,(void*)norm})Check(cudaFree(ptr));
 }
-template<int TN,int TK,bool Tiled>void Matrix(){for(int m:{1,4})for(int k:{128,257})for(Op op:{Op::kStore,Op::kResidual,Op::kPartial,Op::kArgmaxPartial,Op::kSwiGLU}){for(int repeat=0;repeat<3;++repeat)Run<TN,TK,Tiled>(m,k,op);}}
+template<int TN,int TK,bool Tiled>void Matrix(){for(int m:{1,4})for(int k:{128,257,2305})for(Op op:{Op::kStore,Op::kResidual,Op::kPartial,Op::kArgmaxPartial,Op::kSwiGLU}){for(int repeat=0;repeat<3;++repeat)Run<TN,TK,Tiled>(m,k,op);}}
 int main(){
   Matrix<8,64,false>();Matrix<8,64,true>();Matrix<16,128,false>();Matrix<16,128,true>();Matrix<32,64,false>();Matrix<32,64,true>();
+  Matrix<64,64,false>();Matrix<64,64,true>();
   std::puts("GEMV: position-coded M/N/K tails, both weight layouts and all legal epilogues PASS");
 }
