@@ -168,7 +168,8 @@ struct ServingGemv {
   __device__ static float* Paged(Operands const& p,int tile_m,int tile_n,
       Ring const& ring,std::uint64_t& sequence,char* shared,Gate gate) {
     using namespace codegen::executor;
-    static_assert(kPagedSupported<Ring>,"GEMV needs 32 KiB of B pages in flight");
+    static_assert(kPagedSupported<Ring>,
+        "paged GEMV needs 32 KiB in flight and a whole B stage per page");
     Validate(p,tile_m);
     if(p.k_begin%TileK)asm volatile("trap;");
     constexpr int page_k=Ring::kPageBytes/(TileN*sizeof(Element));

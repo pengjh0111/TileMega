@@ -107,7 +107,13 @@ template<int N,int K>void Matrix() {
   for(int m:{1,4})for(int length:{129,257,2305})for(int split:{1,2})for(bool binding:{false,true}) {
     Run<N,K>(m,length,split,false,binding);
     Run<N,K>(m,length,split,true,binding);
-    Run<N,K,8192>(m,length,split,true,binding);
+    if constexpr(N*K*sizeof(E)<=8192)
+      Run<N,K,8192>(m,length,split,true,binding);
+    else {
+      // A 64x128 B stage is 16 KiB and cannot use an 8 KiB page.
+      using SmallRing=executor::PageRing<8192,4,Arch>;
+      static_assert(!backend::ServingGemv<Arch,16,N,K>::template kPagedSupported<SmallRing>);
+    }
     Run<N,K,16384>(m,length,split,true,binding);
   }
 }
@@ -116,5 +122,5 @@ int main() {
   Matrix<16,32>();Matrix<16,64>();Matrix<16,128>();
   Matrix<32,32>();Matrix<32,64>();Matrix<32,128>();
   Matrix<64,32>();Matrix<64,64>();Matrix<64,128>();
-  std::puts("GEMV: four TN, three TK, dense/packed/paged/expert, row/K/N tails and split PASS");
+  std::puts("GEMV: legal four-TN/three-TK dense/packed/paged/expert matrix and page rejection PASS");
 }
