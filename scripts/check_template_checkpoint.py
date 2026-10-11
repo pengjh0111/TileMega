@@ -57,7 +57,9 @@ DM_CASES = [(name, 'dm_' + name + '_test.cu', [], []) for name in (
 DM_FORWARD_CASES = [
     (f'forward_paged{paged}_split{split}', 'dm_dnn_runtime_test.cu',
      [f'DM_TEST_PAGED={paged}', f'DM_TEST_SPLIT={split}'], [])
-    for paged in (0, 1) for split in (1, 2)
+    for paged in (0, 1) for split in (1, 5)
+] + [
+    ('forward_reject_split2', 'dm_dnn_runtime_test.cu', ['DM_TEST_SPLIT=2'], [])
 ] + [
     (f'forward_embedding_paged{paged}', 'dm_dnn_runtime_test.cu',
      [f'DM_TEST_PAGED={paged}', 'DM_TEST_EMBEDDING=1'], []) for paged in (0, 1)

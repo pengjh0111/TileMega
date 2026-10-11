@@ -203,7 +203,16 @@ int main() {
   assert(tm_plan_create(2,data.data(),0)==nullptr);
   kVariants[0].ownership_flags=kCombinerTileOwnership;
 #endif
-  auto* plan=tm_plan_create(2,data.data(),0);assert(plan);
+  auto* plan=tm_plan_create(2,data.data(),0);
+#if !DM_TEST_EMBEDDING
+  if(geometry.iterations%DM_TEST_SPLIT) {
+    assert(!plan);
+    for(auto p:data)TILEMEGA_CUDA_CHECK(cudaFree(p));
+    std::puts("DNN runtime: reject split not dividing exact convolution iterations PASS");
+    return 0;
+  }
+#endif
+  assert(plan);
   int step=0;assert(tm_plan_set_steps(plan,&step,1)==0);
   for(unsigned epoch=0;epoch<8;++epoch) {
     std::vector<E> expected(kRows*kWidth);
