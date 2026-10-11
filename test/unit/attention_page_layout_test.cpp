@@ -31,7 +31,7 @@ int TestAttentionPageLayout(int,char**) {
       }
       if(policy==AttentionPagePolicy::WarpPrivate && l.needs_cta_sync)
         throw std::runtime_error("private pages require no inter-warp synchronization");
-      if(l.pages_in_flight!=l.pages_per_wave)
+      if(l.pages_in_flight!=(count>0?l.pages_per_wave:0))
         throw std::runtime_error("live page frontier");
       ++cases;
     }
