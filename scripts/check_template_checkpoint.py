@@ -47,8 +47,28 @@ GEMV_CASES = [
     ('access', 'serving_gemv_access_test.cu', [], []),
     ('profile', 'serving_task_profile_test.cu', ['TILEMEGA_TRACE_TASK=1'], []),
 ]
+DM_CASES = [(name, 'dm_' + name + '_test.cu', [], []) for name in (
+    'conv_operands', 'conv_task', 'norm_embedding_layout', 'pool_global',
+    'depthwise', 'dwpw_fused', 'encoder_attention', 'descriptor_device',
+    'small_task_gemm', 'small_gemm', 'multipage_gemm', 'scaled_dense',
+    'stage_dependencies', 'dependency', 'counted_stage_threshold',
+    'moe_rms_stats', 'moe_expert_gemm', 'moe_routing_combine',
+    'moe_counted_publish')]
+DM_FORWARD_CASES = [
+    (f'forward_paged{paged}_split{split}', 'dm_dnn_runtime_test.cu',
+     [f'DM_TEST_PAGED={paged}', f'DM_TEST_SPLIT={split}'], [])
+    for paged in (0, 1) for split in (1, 2)
+] + [
+    (f'forward_embedding_paged{paged}', 'dm_dnn_runtime_test.cu',
+     [f'DM_TEST_PAGED={paged}', 'DM_TEST_EMBEDDING=1'], []) for paged in (0, 1)
+] + [
+    (f'{name}_phase{phase}', 'dm_' + name + '_test.cu',
+     [f'DM_TEST_PHASE={phase}'], [])
+    for name in ('paged_phase', 'paged_multipage_phase') for phase in (0, 2)
+]
 SUITES = {'gemm': CASES, 'attention': ATTENTION_CASES, 'runtime': RUNTIME_CASES,
-          'gemv': GEMV_CASES}
+          'gemv': GEMV_CASES, 'dm': DM_CASES, 'dm_forward': DM_FORWARD_CASES}
+LINKED_SUITES = {'runtime', 'dm', 'dm_forward'}
 
 
 def sha(path):
@@ -96,7 +116,7 @@ def prepare(root, out, suite, build_dir):
         cutlass=str(root / 'third_party/cutlass'),
         cutlass_head=subprocess.check_output(['git', 'rev-parse', 'HEAD'],
             cwd=root / 'third_party/cutlass', text=True).strip())
-    if suite == 'runtime':
+    if suite in LINKED_SUITES:
         build_dir = build_dir.resolve()
         line = subprocess.check_output(['ninja', '-C', str(build_dir), '-t',
             'commands', 'serving_epilogue_test'], text=True).splitlines()[-1]
@@ -140,7 +160,7 @@ def build(out):
             command = [*common, '-arch=sm_89', '-DTILEMEGA_ARCH_ID=890',
                 *['-D' + value for value in definitions], str(source / 'test/unit' / file),
                 '-o', str(binary)]
-            if record['suite'] == 'runtime':
+            if record['suite'] in LINKED_SUITES:
                 obj = binary.with_suffix('.o')
                 command[-1] = str(obj)
                 execute([*command, '-c'], out, 'compile_' + label)
@@ -149,13 +169,15 @@ def build(out):
             else:
                 execute(command, out, 'build_' + label)
             executables.append(dict(label=label, binary=str(binary), sha256=sha(binary),
-                processes=5 if record['suite'] == 'runtime' or label in ('epoch', 'monotonic', 'counted', 'access') else 1,
+                processes=5 if record['suite'] in LINKED_SUITES or label in ('epoch', 'monotonic', 'counted', 'access') else 1,
                 args=[str(source / 'test/fixtures/dnn' / name) for name in fixtures]))
         for arch in (80, 89, 90, 100, 120):
             sources = {'attention': ['serving_pvswap_test.cu', 'dm_qperkv8_prefill_test.cu'],
                        'runtime': ['dm_nonpaged_attention_handoff_test.cu', 'dm_binding_stream_test.cu'],
                        'gemm': ['dm_gemm_chain_test.cu'],
-                       'gemv': ['dm_gemv_compile.cu']}[record['suite']]
+                       'gemv': ['dm_gemv_compile.cu'],
+                       'dm': ['dm_moe_counted_publish_test.cu', 'dm_dwpw_fused_test.cu'],
+                       'dm_forward': ['dm_dnn_runtime_test.cu']}[record['suite']]
             for file in sources:
                 label = f'{Path(file).stem}_sm{arch}'
                 execute([*common, '-arch=sm_' + str(arch), '-DTILEMEGA_ARCH_ID=' + str(arch * 10),
