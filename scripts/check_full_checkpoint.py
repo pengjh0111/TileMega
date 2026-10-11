@@ -52,14 +52,24 @@ def prepare(root, out, tree):
         files.update(name for name in git(root, 'ls-files', folder).splitlines()
                      if Path(name).parent == Path(folder) and Path(name).suffix in ('.py', '.sh', '.txt'))
     files.add('docs/experiments/V_I/CMakeLists.txt')
+    tracked = set(git(root, 'ls-files', *sorted(files)).splitlines())
+    origins = {}
     for name in files:
         destination = tree / name
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(subprocess.check_output(['git', '-C', str(root), 'show', head + ':' + name]))
+        if name in tracked:
+            destination.write_bytes(subprocess.check_output(['git', '-C', str(root), 'show', head + ':' + name]))
+            origins[name] = 'committed:' + head
+        else:
+            # Legacy tests still reference generated local fixtures. Preserve
+            # their exact bytes; CLN-2 must migrate these before a clean clone.
+            shutil.copy2(root / name, destination)
+            origins[name] = 'local:' + str(root / name)
         destination.chmod((root / name).stat().st_mode)
     shutil.copy2(__file__, out / 'runner.py')
     (out / 'inputs.json').write_text(json.dumps(dict(root=str(root), tree=str(tree), head=head,
         runner_sha256=sha(out / 'runner.py'), fixtures={name:sha(tree / name) for name in files},
+        fixture_origins=origins,
         cutlass_head=git(root / 'third_party/cutlass', 'rev-parse', 'HEAD')), indent=2) + '\n')
     print('Prepared complete CTest checkpoint at ' + head)
 
