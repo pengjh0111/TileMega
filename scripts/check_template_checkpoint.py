@@ -73,7 +73,8 @@ SUITES = {'gemm': CASES, 'attention': ATTENTION_CASES, 'runtime': RUNTIME_CASES,
 LINKED_SUITES = {'runtime', 'dm', 'dm_forward'}
 ARCH_SOURCES = {'attention': ['serving_pvswap_test.cu', 'dm_qperkv8_prefill_test.cu'],
                 'runtime': ['dm_nonpaged_attention_handoff_test.cu', 'dm_binding_stream_test.cu'],
-                'gemm': ['dm_gemm_chain_test.cu'], 'gemv': ['dm_gemv_compile.cu'],
+                'gemm': ['dm_gemm_chain_test.cu'],
+                'gemv': ['dm_gemv_compile.cu', 'serving_task_profile_test.cu'],
                 'dm': ['dm_moe_counted_publish_test.cu', 'dm_dwpw_fused_test.cu'],
                 'dm_forward': ['dm_dnn_runtime_test.cu']}
 
