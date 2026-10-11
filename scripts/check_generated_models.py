@@ -76,6 +76,15 @@ def prepare(args):
                           export=str(export), batch=2, pg='off', processes=1,
                           files={str(export / name): sha(export / name) for name in
                                  ('exported_program.pt2', 'manifest.json')}))
+    if args.pipelines is not None:
+        for export in sorted(args.pipelines.resolve().iterdir()):
+            if not (export / 'bridge.json').is_file():
+                continue
+            cases.append(dict(label='fixture_' + export.name, kind='dnn',
+                bridge=str(export / 'bridge.json'), export=str(export), batch=2,
+                pg='off', processes=5, elementwise=True,
+                files={str(export / name):sha(export / name) for name in
+                       ('exported_program.pt2', 'manifest.json')}))
     for tokens in (1, 17, 513):
         cases.append(dict(label=f'moe_T{tokens}', kind='moe',
                           bridge=str(inputs / 'region/bridge.json'), tokens=tokens,
@@ -89,6 +98,11 @@ def prepare(args):
                               bridge=str(inputs / phase / 'bridge.json'),
                               config=str(inputs / 'decoder_config.json'),
                               batch=1, pg=pg, processes=5, files={}))
+    if args.labels:
+        selected = set(args.labels.split(','))
+        cases = [case for case in cases if case['label'] in selected]
+        if {case['label'] for case in cases} != selected:
+            raise ValueError('unknown generated checkpoint labels')
     for case in cases:
         folder = out / case['label']
         folder.mkdir()
@@ -177,7 +191,8 @@ def check_one(out, label, process):
     if case['kind'] == 'dnn':
         from tilemega.dnn.check_generated import check
         result = check(so, case['export'], case['bridge'], case['batch'],
-                       synthetic_weights=True, diagnostics=folder / f'intermediates_{process}.json')
+                       synthetic_weights=True, elementwise=case.get('elementwise', False),
+                       diagnostics=folder / f'intermediates_{process}.json')
     elif case['kind'] == 'moe':
         from tilemega.moe.check_generated import check
         result = check(so, case['bridge'])
@@ -218,6 +233,8 @@ def main():
     parser.add_argument('--target', type=Path)
     parser.add_argument('--inputs', type=Path)
     parser.add_argument('--dnn-exports', type=Path)
+    parser.add_argument('--pipelines', type=Path)
+    parser.add_argument('--labels', help='prepare only these comma-separated cases')
     args = parser.parse_args()
     if args.action == 'prepare':
         if any(getattr(args, key) is None for key in
