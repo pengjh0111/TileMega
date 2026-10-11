@@ -18,6 +18,7 @@ def reap(state, names):
             raise ValueError('checkpoint PID still exists or has been reused: ' + name)
         members = session_members(pid)
         starts = {member: process_start(member) for member in members}
+        starts[pid] = None
         # A session ID remains reserved while its orphan members survive.
         # The parent has exited; stop still verifies each member's birth time.
         class Completed:
