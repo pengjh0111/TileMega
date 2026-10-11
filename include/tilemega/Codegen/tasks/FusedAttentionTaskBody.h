@@ -5,6 +5,7 @@
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Codegen/executor/Prefetch.cuh>
 #include <tilemega/Backend/ServingAttentionWarp.h>
+#include <tilemega/Backend/ServingAttentionPVSwap.h>
 #include <tilemega/Backend/ServingVectorIO.h>
 #include <tilemega/Codegen/tasks/TaskResources.h>
 #include <cuda_runtime.h>
@@ -57,7 +58,7 @@ struct FusedAttentionTaskBody {
   using Element=cutlass::bfloat16_t;
   using QK=backend::ServingAttentionWarp<Arch,16,kHeadDim>;
   // Prefill tiles contain sixteen query rows, including two tokens at Q=8.
-  using PV=std::conditional_t<kQPerKV==8 && kTokens==1,backend::ServingAttentionPvSwap<Arch,kHeadDim>,
+  using PV=std::conditional_t<kQPerKV==8 && kTokens==1,backend::ServingAttentionPVSwap<Arch,kHeadDim,typename backend::ServingAttentionWarp<Arch,kHeadDim,16,true>::LayoutB>,
       backend::ServingAttentionWarp<Arch,kHeadDim,16,true>>;
   static constexpr int kQueryExtent=kTokens*kQPerKV;
   struct SharedStorage {

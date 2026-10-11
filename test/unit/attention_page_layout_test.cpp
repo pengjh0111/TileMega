@@ -8,7 +8,7 @@ namespace tilemega::tests::attention_page_layout_test {
 using namespace tilemega::codegen;
 int TestAttentionPageLayout(int,char**) {
   int cases=0;
-  for(int rows:{16,32,64})for(int count:{0,1,15,16,17,32,33,48,63,64,65,128,129,256})
+  for(int rows:{16,32,64})for(int count:{0,1,15,16,17,32,33,48,63,64,65,128,129,256,1087,4096})
     for(auto policy:{AttentionPagePolicy::WarpPrivate,AttentionPagePolicy::Packed}) {
       AttentionPageLayout l(rows,count,policy,64);
       std::set<int> positions;std::set<std::pair<int,int>> addresses;
@@ -31,6 +31,8 @@ int TestAttentionPageLayout(int,char**) {
       }
       if(policy==AttentionPagePolicy::WarpPrivate && l.needs_cta_sync)
         throw std::runtime_error("private pages require no inter-warp synchronization");
+      if(l.pages_in_flight!=l.pages_per_wave)
+        throw std::runtime_error("live page frontier");
       ++cases;
     }
   std::cout<<"attention_page_layout PASS cases="<<cases<<'\n';return 0;

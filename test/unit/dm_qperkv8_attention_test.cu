@@ -35,8 +35,8 @@ using TestArch=std::conditional_t<std::is_void_v<tilemega::arch::CurrentArch>,
 constexpr int Cap = 1088;
 #if DM_TEST_ATTN_MODE>=3
 template <int D,int Q,bool Norm>
-using Body=tilemega::codegen::PagedAttentionTaskBody<TestArch,D,Q,Norm,DM_TEST_PAGE_BYTES,3,false,Q,true,
-    DM_TEST_ATTN_MODE==4?tilemega::codegen::AttentionPagePolicy::kWarpPrivate:tilemega::codegen::AttentionPagePolicy::kPacked>;
+using Body=tilemega::codegen::PagedAttentionTaskBody<TestArch,D,Q,Norm,DM_TEST_PAGE_BYTES,3,false,Q,
+    DM_TEST_ATTN_MODE==4?tilemega::codegen::AttentionPagePolicy::WarpPrivate:tilemega::codegen::AttentionPagePolicy::Packed>;
 template <int D,int Q,bool Norm>
 constexpr int SharedBytes() {return (1024+sizeof(typename Body<D,Q,Norm>::SharedStorage)+1023)/1024*1024+3*DM_TEST_PAGE_BYTES;}
 template <int D,int Q,bool Norm>
@@ -53,8 +53,8 @@ constexpr int LaunchThreads=160;
 #else
 #if DM_TEST_ATTN_MODE==1 || DM_TEST_ATTN_MODE==2
 template <int D,int Q,bool Norm>
-using Body=tilemega::codegen::IndependentAttentionTaskBody<TestArch,D,Q,Norm,true,
-    DM_TEST_ATTN_MODE==2?tilemega::codegen::AttentionPagePolicy::kPacked:tilemega::codegen::AttentionPagePolicy::kWarpPrivate>;
+using Body=tilemega::codegen::IndependentAttentionTaskBody<TestArch,D,Q,Norm,8192,
+    DM_TEST_ATTN_MODE==2?tilemega::codegen::AttentionPagePolicy::Packed:tilemega::codegen::AttentionPagePolicy::WarpPrivate>;
 #else
 template <int D, int Q, bool Norm>
 using Body = tilemega::codegen::FusedAttentionTaskBody<

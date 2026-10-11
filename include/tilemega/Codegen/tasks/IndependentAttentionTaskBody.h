@@ -1,7 +1,3 @@
-#pragma once
-#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-#include <tilemega/Codegen/tasks/DmIndependentAttentionTaskBody.h>
-#else
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Codegen/tasks/PagedAttentionTaskBody.h>
@@ -77,5 +73,3 @@ struct IndependentAttentionTaskBody {
   }
 };
 } // namespace tilemega::codegen
-
-#endif

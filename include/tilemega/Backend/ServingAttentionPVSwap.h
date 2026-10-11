@@ -17,6 +17,19 @@ struct ServingAttentionPVSwap {
     auto result=cute::partition_fragment_C(Mma{},cute::Shape<cute::Int<D>,cute::_8>{});
     cute::clear(result);return result;
   }
+  __device__ static auto OutputCoordinates(int lane) {
+    return Mma{}.get_slice(lane).partition_C(
+        cute::make_identity_tensor(cute::Shape<cute::Int<D>,cute::_8>{}));
+  }
+  template<class Coord> __device__ static int QueryRow(Coord const& coord) {
+    return cute::get<1>(coord);
+  }
+  template<class Coord> __device__ static int OutputDim(Coord const& coord) {
+    return cute::get<0>(coord);
+  }
+  __device__ static float RowStatistic(float const (&stats)[2],int query) {
+    return __shfl_sync(0xffffffffu,stats[0],query*4);
+  }
   template<class Prob,class Coords,class Acc>
   __device__ static void PV(Prob const& probability,Coords const& source_coords,
                             Element* values,Acc& out) {
