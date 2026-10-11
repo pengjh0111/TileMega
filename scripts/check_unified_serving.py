@@ -22,11 +22,17 @@ def sha(path):
 
 
 def execute(command, cwd, log, timeout):
+    from tilemega.bench.gpu_guard import stop
     with Path(log).open('w') as stream:
-        result = subprocess.run(command, cwd=cwd, stdout=stream, stderr=subprocess.STDOUT,
-                                timeout=timeout)
-    if result.returncode:
-        raise RuntimeError(f'exit {result.returncode}: {log}')
+        process = subprocess.Popen(command, cwd=cwd, stdout=stream, stderr=subprocess.STDOUT,
+                                   start_new_session=True)
+        try:
+            code = process.wait(timeout=timeout)
+        except BaseException:
+            stop(process)
+            raise
+    if code:
+        raise RuntimeError(f'exit {code}: {log}')
 
 
 def git(root, *args):
@@ -128,6 +134,55 @@ def reuse_inputs(previous, out):
     print('Prepared new runner with unchanged, validated compiler inputs')
 
 
+def prepare_prefill(previous, out, nvcc_timeout_s):
+    record = validate(previous)
+    if set(record['numeric_cases']) != {'llama_B1', 'llama_B16', 'qwen3_B1', 'qwen3_B16'}:
+        raise ValueError('prefill regression requires all four default cells')
+    if out.exists():
+        raise FileExistsError('prefill checkpoint already exists')
+    if nvcc_timeout_s <= 0:
+        raise ValueError('nvcc timeout must be positive')
+    out.mkdir(parents=True)
+    root = Path(record['root'])
+    registry = root / 'docs/experiments/SERVING_R14/phase_a_arms.json'
+    arms = json.loads(registry.read_text())
+    shutil.copy2(registry, out / 'reference_arms.json')
+    cases = []
+    for cell, numeric in record['numeric_cases'].items():
+        matches = [arm for arm in arms[cell] if arm['label'] == 'R13D_prime']
+        if len(matches) != 1:
+            raise ValueError('expected one R14 default prefill for ' + cell)
+        so = Path(matches[0]['prefill'])
+        manifest = Path(str(so) + '.plan.json')
+        data = json.loads(manifest.read_text())
+        if data.get('phase') != 'prefill' or data.get('seq') != 64 or data.get('pg') != 'l2':
+            raise ValueError('unexpected R14 prefill contract: ' + str(manifest))
+        source = next(case for case in record['cases']
+                      if case['cell'] == cell and case['label'] == 'R13D_prime')
+        folder = out / 'inputs' / cell
+        folder.mkdir(parents=True)
+        files = {}
+        for origin, name in ((so.parent / 'selected.mlir', 'selected.mlir'),
+                (manifest, 'plan.json'), (Path(str(so)+'.build_command.txt'), 'nvcc.txt'),
+                (Path(source['input']) / 'target.json', 'target.json')):
+            shutil.copy2(origin, folder / name)
+            files[str(folder / name)] = sha(folder / name)
+        overrides = dict(watchdog=int(data.get('watchdog', 0)),
+                         pdl=data.get('pdl', 'auto'), sync=data.get('sync', 'calibrated'))
+        cases.append(dict(cell=cell, label='R14_prefill', phase='prefill', batch=numeric['batch'],
+                          input=str(folder), files=files, overrides=overrides))
+        numeric['prefill'] = str(so)
+        numeric['files'].update({str(so):sha(so), str(manifest):sha(manifest)})
+    record.update(cases=cases, decode_checkpoint=str(previous), nvcc_timeout_s=nvcc_timeout_s,
+                  runner_head=git(root, 'rev-parse', 'HEAD'),
+                  reference_registry=dict(path=str(out/'reference_arms.json'),
+                                          sha256=sha(out/'reference_arms.json')))
+    shutil.copy2(__file__, out / 'runner.py')
+    record['runner_sha256'] = sha(out / 'runner.py')
+    (out / 'inputs.json').write_text(json.dumps(record, indent=2) + '\n')
+    print('Prepared four R14 prefill comparisons with unchanged compiler worktrees')
+
+
 def validate(out):
     record = json.loads((out / 'inputs.json').read_text())
     if sha(out / 'runner.py') != record['runner_sha256']:
@@ -146,6 +201,9 @@ def validate(out):
         for path, expected in case['files'].items():
             if sha(path) != expected:
                 raise ValueError('numeric reference input changed: ' + path)
+    registry = record.get('reference_registry')
+    if registry and sha(registry['path']) != registry['sha256']:
+        raise ValueError('prefill registry changed')
     root = Path(record['root'])
     if git(root / 'third_party/cutlass', 'rev-parse', 'HEAD') != record['cutlass_head']:
         raise ValueError('CUTLASS revision changed')
@@ -194,9 +252,10 @@ def build(out):
                 folder = out / 'builds' / case['cell'] / case['label'] / label
                 folder.mkdir(parents=True)
                 so = folder / 'plan.so'
+                phase = case.get('phase', 'decode')
                 command = [item['compiler'], 'compile', str(input_dir / 'selected.mlir'), str(so) + '.cu',
-                    '--serving', 'decode', '--emit', 'serving', '--batch', str(case['batch']),
-                    '--past-range', '64:1086', '--capacity', '1088',
+                    '--serving', phase, '--emit', 'serving', '--batch', str(case['batch']),
+                    '--past-range', '0:0' if phase == 'prefill' else '64:1086', '--capacity', '1088',
                     '--runtime-target', str(input_dir / 'target.json')]
                 for key, value in opts.items():
                     command += ['--' + key.replace('_', '-'), str(value)]
@@ -213,7 +272,7 @@ def build(out):
                     elif token.startswith(str(root / 'lib') + '/'):
                         nvcc[i] = str(tree / Path(token).relative_to(root))
                 (folder / 'nvcc_command.json').write_text(json.dumps(nvcc) + '\n')
-                execute(nvcc, tree, Path(str(so) + '.ptxas.log'), 1800)
+                execute(nvcc, tree, Path(str(so) + '.ptxas.log'), record.get('nvcc_timeout_s', 1800))
                 shutil.copy2(input_dir / 'plan.json', str(so) + '.plan.json')
                 built.append(dict(cell=case['cell'], label=case['label'], variant=label,
                                   so=str(so), so_sha256=sha(so), cu_sha256=sha(str(so) + '.cu')))
@@ -234,10 +293,24 @@ def build(out):
     print('G-REG-U generated source, resources and SASS PASS')
 
 
+def execution_pair(record, case, row):
+    if case.get('phase', 'decode') != 'prefill':
+        return row['so'], None
+    checkpoint = Path(record['decode_checkpoint'])
+    built = json.loads((checkpoint / 'build.json').read_text())
+    matches = [plan for plan in built['plans'] if plan['cell'] == row['cell']
+               and plan['label'] == 'R13D_prime' and plan['variant'] == row['variant']]
+    if len(matches) != 1 or sha(matches[0]['so']) != matches[0]['so_sha256']:
+        raise ValueError('prefill comparison needs an unchanged matching decode artifact')
+    return matches[0]['so'], row['so']
+
+
 def run(out):
     if os.environ.get('TILEMEGA_GPU_LOCK_HELD') != '1':
         raise RuntimeError('numerical regression requires the bench guard')
     record = validate(out)
+    if record.get('decode_checkpoint'):
+        validate(Path(record['decode_checkpoint']))
     built = json.loads((out / 'build.json').read_text())
     reports = []
     for case in record['cases']:
@@ -250,8 +323,11 @@ def run(out):
             folder = out / 'numeric' / row['cell'] / row['label'] / row['variant']
             folder.mkdir(parents=True)
             env = dict(os.environ, PYTHONPATH=record['trees']['candidate']['root'] + '/python')
+            decode, prefill = execution_pair(record, case, row)
             command = [sys.executable, str(out / 'runner.py'), 'run-one', '--out', str(out),
-                       '--cell', row['cell'], '--so', row['so'], '--tokens', str(folder / 'tokens.json')]
+                       '--cell', row['cell'], '--so', decode, '--tokens', str(folder / 'tokens.json')]
+            if prefill:
+                command += ['--prefill-so', prefill]
             with (folder / 'run.log').open('w') as log:
                 process = subprocess.run(command, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=600)
             if process.returncode:
@@ -263,18 +339,19 @@ def run(out):
                             tokens_sha256=sha(outputs[0]), generated_tokens=64))
     validate(out)
     (out / 'numeric.json').write_text(json.dumps(dict(cases=reports, timing_eligible=False,
-        scope='G-REG-U decode cases; full G-DM-U remains separate'), indent=2) + '\n')
+        scope='G-REG-U ' + ('prefill' if record.get('decode_checkpoint') else 'decode') +
+              ' cases; full G-DM-U remains separate'), indent=2) + '\n')
     print('G-REG-U real-weight 64-token comparison PASS')
 
 
-def run_one(out, cell, so, tokens):
+def run_one(out, cell, so, tokens, prefill_so=None):
     if os.environ.get('TILEMEGA_GPU_LOCK_HELD') != '1':
         raise RuntimeError('numerical regression requires the bench guard')
     import torch
     from tilemega.serving.engine import ServingEngine
     spec = json.loads((out / 'inputs.json').read_text())['numeric_cases'][cell]
     prompts = torch.tensor(json.loads(Path(spec['prompts']).read_text())[:spec['batch']], dtype=torch.int32)
-    with ServingEngine(spec['model'], spec['prefill'], so, spec['batch'],
+    with ServingEngine(spec['model'], prefill_so or spec['prefill'], so, spec['batch'],
                        max_new_tokens=64, mode='L1', prefill_mode='L1',
                        decode_loop=False, step_events=False) as engine:
         try:
@@ -290,14 +367,20 @@ def main():
     parser.add_argument('action', choices=('prepare', 'build', 'run', 'run-one'))
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--work', type=Path, default=Path('/root/r15_work/unification'))
-    parser.add_argument('--reuse-inputs', type=Path)
+    inputs = parser.add_mutually_exclusive_group()
+    inputs.add_argument('--reuse-inputs', type=Path)
+    inputs.add_argument('--prefill-from', type=Path)
+    parser.add_argument('--nvcc-timeout-s', type=int, default=10800)
     parser.add_argument('--cell')
     parser.add_argument('--so', type=Path)
+    parser.add_argument('--prefill-so', type=Path)
     parser.add_argument('--tokens', type=Path)
     args = parser.parse_args()
     out = args.out.resolve()
     if args.action == 'prepare':
-        if args.reuse_inputs is not None:
+        if args.prefill_from is not None:
+            prepare_prefill(args.prefill_from.resolve(), out, args.nvcc_timeout_s)
+        elif args.reuse_inputs is not None:
             reuse_inputs(args.reuse_inputs.resolve(), out)
         else:
             prepare(Path(__file__).resolve().parents[1], out, args.work)
@@ -308,7 +391,7 @@ def main():
     else:
         if not args.cell or not args.so or not args.tokens:
             parser.error('run-one requires --cell, --so and --tokens')
-        run_one(out, args.cell, args.so, args.tokens)
+        run_one(out, args.cell, args.so, args.tokens, args.prefill_so)
 
 
 if __name__ == '__main__':
