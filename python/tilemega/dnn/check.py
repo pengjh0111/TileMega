@@ -10,6 +10,7 @@ from pathlib import Path
 import torch
 
 from .export import DEFAULT_NAFNET, model
+from .gates import evaluate, summarize
 from tilemega.serving.plan import FORWARD, PlanLibrary
 from tilemega.serving.weights import load_weights
 
@@ -143,7 +144,7 @@ def classification_inputs(name, checkpoint, dataset):
         image = root / path
         with Image.open(image) as value:
             tensor = transform(value.convert('RGB'))
-        yield tensor.to(torch.bfloat16), dict(path=path, sha256=sha(image))
+        yield tensor.to(torch.bfloat16), dict(path=path, sha256=sha(image), label=int(image.parent.name))
 
 
 def bert_inputs(dataset, checkpoint, masked):
@@ -254,11 +255,13 @@ def check(args):
                 hidden, pooler = actual
                 for i in range(valid):
                     length = items[i][1]['valid_length']
-                    records.append(dict(items[i][1], hidden_cosine_min=float(cosine(
-                        hidden[i, :length], truth.last_hidden_state[i, :length]).min()),
+                    tm_hidden = cosine(hidden[i, :length], truth.last_hidden_state[i, :length])
+                    bf16_hidden = cosine(baseline.last_hidden_state[i, :length], truth.last_hidden_state[i, :length])
+                    records.append(dict(items[i][1], hidden_cosine_min=float(tm_hidden.min()),
+                        hidden_cosine_sum=float(tm_hidden.double().sum()),
+                        bf16_hidden_cosine_sum=float(bf16_hidden.double().sum()),
                         pooler_cosine=float(cosine(pooler[i], truth.pooler_output[i])),
-                        bf16_hidden_cosine_min=float(cosine(baseline.last_hidden_state[i, :length],
-                            truth.last_hidden_state[i, :length]).min()),
+                        bf16_hidden_cosine_min=float(bf16_hidden.min()),
                         bf16_pooler_cosine=float(cosine(baseline.pooler_output[i],
                             truth.pooler_output[i])),
                         tm_bf16_hidden_cosine_min=float(cosine(hidden[i, :length],
@@ -271,8 +274,11 @@ def check(args):
                     gt = torch.stack([item[1] for item in items]).cuda()
                     metrics = [psnr(left, right) for left, right in
                                ((actual, truth), (baseline, truth), (actual, gt), (baseline, gt))]
+                    mse = [(left.float()-truth.float()).square().flatten(1).mean(-1)
+                           for left in (actual, baseline)]
                     for i in range(valid):
-                        records.append(dict(items[i][2], **{name: float(value[i]) for name, value in zip(
+                        records.append(dict(items[i][2], tm_fp32_mse=float(mse[0][i]),
+                            bf16_fp32_mse=float(mse[1][i]), **{name: float(value[i]) for name, value in zip(
                             ('tm_fp32_psnr', 'bf16_fp32_psnr', 'tm_gt_psnr', 'bf16_gt_psnr'), metrics)}))
                 else:
                     similarity = cosine(actual, truth)
@@ -282,26 +288,17 @@ def check(args):
                         records.append(dict(items[i][1], cosine=float(similarity[i]),
                             bf16_cosine=float(cosine(baseline[i],truth[i])),
                             tm_top1_match=bool(top1[i] == oracle_top1[i]),
-                            bf16_top1_match=bool(baseline_top1[i] == oracle_top1[i])))
+                            bf16_top1_match=bool(baseline_top1[i] == oracle_top1[i]),
+                            tm_top1_correct=bool(top1[i] == items[i][1]['label']),
+                            bf16_top1_correct=bool(baseline_top1[i] == items[i][1]['label']),
+                            fp32_top1_correct=bool(oracle_top1[i] == items[i][1]['label'])))
         if len(records) != total:
             raise ValueError('dataset gate did not visit every prescribed sample')
-        mean = lambda key: sum(row[key] for row in records) / total
-        if args.model == 'bert':
-            metrics = {key: min(row[key] for row in records)
-                       for key in ('hidden_cosine_min', 'pooler_cosine')}
-            passed = all(value >= .999 for value in metrics.values())
-            metrics.update({key: min(row[key] for row in records) for key in
-                ('bf16_hidden_cosine_min', 'bf16_pooler_cosine', 'tm_bf16_hidden_cosine_min')})
-        elif args.model == 'nafnet':
-            metrics = {key: mean(key) for key in
-                       ('tm_fp32_psnr', 'bf16_fp32_psnr', 'tm_gt_psnr', 'bf16_gt_psnr')}
-            passed = (metrics['tm_fp32_psnr'] >= metrics['bf16_fp32_psnr'] - 1 and
-                      abs(metrics['tm_gt_psnr'] - metrics['bf16_gt_psnr']) <= .05)
-        else:
-            metrics = {key: mean(key) for key in ('cosine', 'bf16_cosine', 'tm_top1_match', 'bf16_top1_match')}
-            passed = (metrics['cosine'] >= .999 and
-                      metrics['tm_top1_match'] >= metrics['bf16_top1_match'] - .002)
-        return dict(evidence='verified', scope='G-DNN dataset correctness', passed=passed,
+        metrics, legacy_passed = summarize(args.model, records)
+        gate = evaluate(args.model, metrics)
+        return dict(evidence='verified', scope='G-DNN-BF16 dataset correctness', passed=gate['passed'],
+            gate=gate, gate_source_sha256=sha(Path(__file__).with_name('gates.py')),
+            legacy_fp32_pass=legacy_passed,
             model=args.model, masked=args.mask, batch=args.batch, samples=total,
             artifact_id=native.identity['artifact_id'], identity=native.identity,
             reference=reference, bridge_sha256=sha(args.bridge),
