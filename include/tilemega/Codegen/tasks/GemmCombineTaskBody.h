@@ -36,6 +36,12 @@ struct GemmCombineTaskBody {
     auto const& invocation =
         static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
     int rows = stage.batch_rows ? p.dims.batch : p.dims.tokens();
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    // DM forward rows can be image pixels or bound slots rather than tokens.
+    // The producer's row count also determines the split-partial stride.
+    if (invocation.access.rows_per_batch)
+      rows = cute::get<0>(invocation.problem);
+#endif
     int columns = static_cast<int>(stage.width);
     if constexpr (Op == backend::ServingEpilogueOp::kSwiGLU && V::kTileN % 32) {
       asm volatile("trap;");

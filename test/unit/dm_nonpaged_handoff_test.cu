@@ -141,7 +141,8 @@ int main() {
       for(int row=0;row<kRows;++row)for(int dim=0;dim<kInput;++dim)
         data[0][row*kInput+dim]=input[row*kInput+dim]=
             E(((row*11+dim*5+int(epoch)*7)%23-11)*0.03125f);
-      auto expected=Reference(Reference(input,kHidden,kInput,0),kOutput,kHidden,1);
+      auto expected_hidden=Reference(input,kHidden,kInput,0);
+      auto expected=Reference(expected_hidden,kOutput,kHidden,1);
       std::vector<E> first;
       for(int mode:{TM_SERVING_L1,TM_SERVING_L2}) {
         for(int i:{3,4})TILEMEGA_CUDA_CHECK(cudaMemset(data[i],0xFF,kBuffers[i].constant*sizeof(E)));
@@ -149,6 +150,13 @@ int main() {
             kChunks*kRows*kHidden*sizeof(float)));
         assert(tm_plan_launch(opaque,0,mode,epoch,nullptr)==0);
         TILEMEGA_CUDA_CHECK(cudaDeviceSynchronize());
+        for(int i=0;i<kRows*kHidden;++i) {
+          float actual=float(data[3][i]),ref=float(expected_hidden[i]);
+          if(!std::isfinite(actual) || std::abs(actual-ref)>1.6e-2f+1.6e-2f*std::abs(ref)) {
+            std::fprintf(stderr,"hidden la=%d epoch=%u mode=%d element=%d actual=%g ref=%g\n",
+                la,epoch,mode,i,actual,ref);return 3;
+          }
+        }
         for(int i=0;i<kRows*kOutput;++i) {
           float actual=float(data[4][i]),ref=float(expected[i]);
           if(!std::isfinite(actual) || std::abs(actual-ref)>1.6e-2f+1.6e-2f*std::abs(ref)) {
