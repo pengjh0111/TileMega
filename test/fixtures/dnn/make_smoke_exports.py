@@ -11,10 +11,11 @@ from torch import nn
 class DenseResidual(nn.Module):
     def __init__(self):
         super().__init__()
+        self.projection = nn.Linear(32, 32)
         self.first, self.last = nn.Linear(32, 64), nn.Linear(64, 32)
 
     def forward(self, x):
-        x = x.flatten(1)
+        x = self.projection(x.flatten(1))
         return self.last(torch.nn.functional.gelu(self.first(x))) + x
 
 
@@ -46,9 +47,10 @@ class PixelShuffle(nn.Module):
         super().__init__()
         self.conv = nn.Conv2d(16, 64, 1)
         self.shuffle = nn.PixelShuffle(2)
+        self.head = nn.Conv2d(16, 16, 1)
 
     def forward(self, x):
-        return self.shuffle(self.conv(x))
+        return self.head(self.shuffle(self.conv(x)))
 
 
 def models():
@@ -57,7 +59,7 @@ def models():
     # Load the exact upstream NAFBlock registered by the existing NAFNet adapter.
     nafnet()
     from tilemega.dnn.models.nafnet_arch import NAFBlock
-    config = BertConfig(hidden_size=64, intermediate_size=128, num_hidden_layers=1,
+    config = BertConfig(hidden_size=256, intermediate_size=512, num_hidden_layers=1,
                         num_attention_heads=4, vocab_size=128, max_position_embeddings=192)
     config._attn_implementation = 'sdpa'
     return [('dense_residual', DenseResidual(), (2,32,1,1)),
@@ -71,11 +73,18 @@ def models():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--labels', help='export only these comma-separated pipeline names')
     args = parser.parse_args()
     torch.set_num_threads(4)
     torch.manual_seed(20261011)
     from tilemega.export_bridge import serialize
-    for name, module, shape in models():
+    entries = models()
+    if args.labels:
+        selected = set(args.labels.split(','))
+        if not selected <= {name for name, _, _ in entries}:
+            parser.error('unknown pipeline name')
+        entries = [entry for entry in entries if entry[0] in selected]
+    for name, module, shape in entries:
         out = args.out / name
         out.mkdir(parents=True, exist_ok=False)
         module = module.eval().bfloat16()
