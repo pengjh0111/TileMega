@@ -38,13 +38,20 @@ def size(path):
 def collect(root, out):
     root, out = root.resolve(), out.resolve()
     out.mkdir(parents=True, exist_ok=True)
-    rows, seen, audits = [], set(), []
+    rows, seen, audits = [], {}, []
 
     def add(path, category, action='review'):
         path = path.absolute()
-        if str(path) in seen or not path.exists():
+        if not path.exists():
             return
-        seen.add(str(path))
+        if str(path) in seen:
+            # An ignored build/cache directory first appears in category A;
+            # its more specific owner must still be represented.
+            existing = seen[str(path)]
+            priority = {'A': 0, 'F': 1, 'C': 2, 'D': 3, 'B': 4, 'E': 5}
+            if priority[category] > priority[existing['category']]:
+                existing.update(category=category, action=action)
+            return
         stat = path.lstat()
         try:
             owner = pwd.getpwuid(stat.st_uid).pw_name
@@ -53,6 +60,7 @@ def collect(root, out):
         rows.append(dict(path=str(path), category=category, bytes=size(path), owner=owner,
             modified_utc=datetime.datetime.fromtimestamp(stat.st_mtime, datetime.timezone.utc).isoformat(),
             action=action))
+        seen[str(path)] = rows[-1]
 
     worktrees = [Path(line[9:]) for line in git(root, 'worktree', 'list', '--porcelain').decode().splitlines()
                  if line.startswith('worktree ')]
