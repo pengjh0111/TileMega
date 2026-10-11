@@ -1,7 +1,3 @@
-// Split the independent serving and DM reduction contracts at their ABI gate.
-#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-#include <tilemega/Codegen/tasks/DmServingGemmCombineTaskBody.h>
-#else
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 
@@ -75,5 +71,3 @@ struct ServingGemmCombineTaskBody {
 };
 
 }  // namespace tilemega::codegen
-
-#endif
