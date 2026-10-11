@@ -171,16 +171,23 @@ def run(out):
         raise RuntimeError('numerical checks require the scheduler GPU guard')
     validate(out)
     build_record = json.loads((out / 'build.json').read_text())
-    passed = []
+    passed, failures = [], []
     for row in build_record['executables']:
         if sha(row['binary']) != row['sha256']:
             raise ValueError('checkpoint binary changed: ' + row['label'])
+        successes = 0
         for process in range(row.get('processes', 1)):
-            execute([row['binary'], *row['args']], out, f'numeric_{row["label"]}_{process}')
-        passed.append(dict(label=row['label'], passed=row.get('processes', 1),
+            try:
+                execute([row['binary'], *row['args']], out, f'numeric_{row["label"]}_{process}')
+                successes += 1
+            except (RuntimeError, subprocess.TimeoutExpired) as error:
+                failures.append(dict(label=row['label'], process=process, error=str(error)))
+        passed.append(dict(label=row['label'], passed=successes,
                            processes=row.get('processes', 1)))
-    (out / 'numeric.json').write_text(json.dumps(dict(passed=passed,
+    (out / 'numeric.json').write_text(json.dumps(dict(passed=passed, failures=failures,
         source_head=build_record['source_head'], scope='component regression; full G-REG-U/G-DM-U pending')) + '\n')
+    if failures:
+        raise RuntimeError(f'{len(failures)} numerical processes failed; see {out / "numeric.json"}')
 
 
 def main():
