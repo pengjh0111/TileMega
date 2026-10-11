@@ -152,10 +152,9 @@ def generate(so, root, source_snapshot):
     command=Path(str(so)+'.build_command.txt').read_text().strip();options=shlex.split(command)
     manifest=json.loads(Path(str(so)+'.plan.json').read_text())
     generated=Path(str(so)+'.cu').read_text()
-    defines=dict(re.findall(r'^#define\s+(\w+)\s+([^\n]+)',generated,re.M))
-    for arg in options:
-        if arg.startswith('-D'):
-            name,_,value=arg[2:].partition('=');defines[name]=value or '1'
+    from .feature_contract import build_defines, validate
+    defines=build_defines(generated,options)
+    validate(manifest,defines)
     nvcc=options[0]
     version=subprocess.check_output([nvcc,'--version'],text=True).strip()
     arch=next((x.split('=',1)[1] for x in options if x.startswith('-arch=')),None)
