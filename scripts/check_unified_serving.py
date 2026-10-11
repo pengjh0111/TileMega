@@ -210,6 +210,8 @@ def build(out):
                         nvcc[i+1] = str(so)
                     elif token.startswith('-I') and str(root / 'include') in token:
                         nvcc[i] = token.replace(str(root / 'include'), str(tree / 'include'))
+                    elif token.startswith(str(root / 'lib') + '/'):
+                        nvcc[i] = str(tree / Path(token).relative_to(root))
                 (folder / 'nvcc_command.json').write_text(json.dumps(nvcc) + '\n')
                 execute(nvcc, tree, Path(str(so) + '.ptxas.log'), 1800)
                 shutil.copy2(input_dir / 'plan.json', str(so) + '.plan.json')
