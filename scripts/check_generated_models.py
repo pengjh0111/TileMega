@@ -51,10 +51,16 @@ def sha(path):
 def execute(command, cwd, folder, label, timeout=1800):
     (folder / (label + '.command.json')).write_text(json.dumps(command) + '\n')
     with (folder / (label + '.log')).open('w') as stream:
-        result = subprocess.run(command, cwd=cwd, stdout=stream,
-                                stderr=subprocess.STDOUT, timeout=timeout)
-    if result.returncode:
-        raise RuntimeError(f'{label} exited {result.returncode}; see {folder}/{label}.log')
+        process = subprocess.Popen(command, cwd=cwd, stdout=stream,
+                                   stderr=subprocess.STDOUT, start_new_session=True)
+        try:
+            code = process.wait(timeout=timeout)
+        except BaseException:
+            from tilemega.bench.gpu_guard import stop
+            stop(process)
+            raise
+    if code:
+        raise RuntimeError(f'{label} exited {code}; see {folder}/{label}.log')
 
 
 def prepare(args):
@@ -115,7 +121,8 @@ def prepare(args):
             case['files'][case['config']] = sha(case['config'])
     record = dict(root=str(root), compiler=str(compiler), compiler_sha256=sha(compiler),
                   source_sha256=sha(out / 'source.json'), runner_sha256=sha(out / 'runner.py'),
-                  target_sha256=sha(out / 'target.json'), cases=cases, timing_eligible=False)
+                  target_sha256=sha(out / 'target.json'), cases=cases, timing_eligible=False,
+                  nvcc_timeout_s=args.nvcc_timeout_s)
     (out / 'inputs.json').write_text(json.dumps(record, indent=2) + '\n')
     print(f'Prepared {len(cases)} independently queued generated-model checks')
 
@@ -169,7 +176,7 @@ def build(out, label):
                 '-I' + str(root / 'third_party/cutlass/tools/util/include'),
                 *options, '-x', 'cu', str(so) + '.cu',
                 *[str(root / p) for p in SUPPORT], '-o', str(so)]
-        execute(nvcc, root, folder, 'nvcc', 3600)
+        execute(nvcc, root, folder, 'nvcc', record.get('nvcc_timeout_s', 3600))
         shutil.copy2(folder / 'nvcc.log', str(so) + '.ptxas.log')
         shutil.copy2(str(so) + '.cu.plan.json', str(so) + '.plan.json')
         Path(str(so) + '.build_command.txt').write_text(shlex.join(nvcc) + '\n')
@@ -235,7 +242,11 @@ def main():
     parser.add_argument('--dnn-exports', type=Path)
     parser.add_argument('--pipelines', type=Path)
     parser.add_argument('--labels', help='prepare only these comma-separated cases')
+    parser.add_argument('--nvcc-timeout-s', type=int, default=10800,
+                        help='frozen compilation budget; does not change optimization flags')
     args = parser.parse_args()
+    if args.nvcc_timeout_s <= 0:
+        parser.error('--nvcc-timeout-s must be positive')
     if args.action == 'prepare':
         if any(getattr(args, key) is None for key in
                ('root', 'compiler', 'target', 'inputs', 'dnn_exports')):
