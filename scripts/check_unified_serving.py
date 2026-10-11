@@ -115,6 +115,19 @@ def prepare(root, out, work):
     print('Prepared two compiler worktrees and ' + str(len(cases)) + ' regression plans')
 
 
+def reuse_inputs(previous, out):
+    record = validate(previous)
+    if out.exists():
+        raise FileExistsError('regression checkpoint already exists')
+    out.mkdir(parents=True)
+    shutil.copy2(__file__, out / 'runner.py')
+    record['runner_sha256'] = sha(out / 'runner.py')
+    record['runner_head'] = git(Path(record['root']), 'rev-parse', 'HEAD')
+    record['reuses_inputs'] = str(previous)
+    (out / 'inputs.json').write_text(json.dumps(record, indent=2) + '\n')
+    print('Prepared new runner with unchanged, validated compiler inputs')
+
+
 def validate(out):
     record = json.loads((out / 'inputs.json').read_text())
     if sha(out / 'runner.py') != record['runner_sha256']:
@@ -171,6 +184,11 @@ def build(out):
             opts = dict(case['overrides'])
             opts.update(pg=data['pg'], page_bytes=(data.get('pages') or {}).get('page_bytes', 16384),
                         weight_layout='tiled' if data['pg'] == 'pages' else 'row')
+            # selected.mlir already contains the proved/elided reductions.
+            # Lower those decisions; running selection again is rejected by
+            # both compilers. This flag only skips the repeated transform.
+            if data['pg'] == 'pages':
+                opts['paged_la'] = 0
             for label, item in record['trees'].items():
                 tree = Path(item['root'])
                 folder = out / 'builds' / case['cell'] / case['label'] / label
@@ -270,13 +288,17 @@ def main():
     parser.add_argument('action', choices=('prepare', 'build', 'run', 'run-one'))
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--work', type=Path, default=Path('/root/r15_work/unification'))
+    parser.add_argument('--reuse-inputs', type=Path)
     parser.add_argument('--cell')
     parser.add_argument('--so', type=Path)
     parser.add_argument('--tokens', type=Path)
     args = parser.parse_args()
     out = args.out.resolve()
     if args.action == 'prepare':
-        prepare(Path(__file__).resolve().parents[1], out, args.work)
+        if args.reuse_inputs is not None:
+            reuse_inputs(args.reuse_inputs.resolve(), out)
+        else:
+            prepare(Path(__file__).resolve().parents[1], out, args.work)
     elif args.action == 'build':
         build(out)
     elif args.action == 'run':
