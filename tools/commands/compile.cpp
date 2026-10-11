@@ -1609,6 +1609,11 @@ int RunCompile(int argc, char** argv) {
     if (!output) throw std::runtime_error("cannot open generated CUDA output");
     output << source;
     output.close();
+    if(serving) {
+      std::ofstream flags(requested.string()+".runtime_flags.txt");
+      if(!flags)throw std::runtime_error("cannot record serving compiler flags");
+      flags<<runtime_flags<<"\n";
+    }
     if (shared) {
       // The winner was already compiled for the GPU timing gate.  Reuse that
       // exact binary only when the final generated CUDA is byte-identical.
@@ -1777,6 +1782,8 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"watchdog\": "<<watchdog
               <<",\n  \"mma_reg_pipe\": "<<mma_reg_pipe
               <<",\n  \"attention_impl\": \""<<attention_impl<<"\""
+              <<",\n  \"kphase_mask\": "<<kphase_mask
+              <<",\n  \"v3_poll_ns\": "<<v3_poll_ns
               <<",\n  \"l2_slim\": "<<l2_slim
               <<",\n  \"nonpaged_weight_layout\": "<<std::quoted(nonpaged_weight_layout)
               <<",\n  \"page_loop_split\": "<<page_loop_split

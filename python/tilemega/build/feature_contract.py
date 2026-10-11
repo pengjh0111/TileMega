@@ -12,6 +12,10 @@ INTEGER_FEATURES = {
     'mma_reg_pipe': ('TILEMEGA_MMA_REG_PIPE', 0),
     'kphase_mask': ('TILEMEGA_KPHASE_CLASS_MASK', 31),
     'v3_poll_ns': ('TILEMEGA_V3_POLL_NS', 0),
+    'l2_slim': ('TILEMEGA_L2_SLIM', 0),
+    'page_loop_split': ('TILEMEGA_PAGE_LOOP_SPLIT', 0),
+    'evict_first': ('TILEMEGA_EVICT_FIRST', 0),
+    'evict_last': ('TILEMEGA_EVICT_LAST', 1),
 }
 
 
@@ -53,4 +57,26 @@ def validate(manifest, defines):
         actual = manifest.get('pg') != 'pages' and bool(int(defines.get('TILEMEGA_NONPAGED_LA', '0')))
         if bool(manifest['nonpaged_la']) != actual:
             raise ValueError('manifest nonpaged_la differs from compiler macros')
+
+
+def implementations(manifest, defines):
+    """The same implementation fields serve source checks and binary identity."""
+    paged = manifest.get('pg') == 'pages'
+    decode = manifest.get('phase') == 'decode'
+    return {'dn_vector_sums': bool(manifest.get('dn_vector_sums', False)),
+            'swiglu_interleave_u': int(manifest.get('swiglu_interleave_u', 16)),
+            'gemms': [{'index': g['index'], 'impl': g.get('impl', 'mma16'),
+                'task_body': 'PagedGemmTaskBody' if paged else (
+                    'ServingGemvTaskBody' if g.get('impl') == 'gemv' else 'ServingGemmTaskBody'),
+                'mma_reg_pipe': int(defines.get('TILEMEGA_MMA_REG_PIPE', '0')),
+                'ep_direct': int(defines.get('TILEMEGA_EP_DIRECT', '0'))}
+                for g in manifest['gemms']],
+            'attention': {'impl': manifest.get('attention_impl', 'mma16'),
+                'noinline': bool(manifest.get('attention_noinline', False)),
+                'buffers': int(defines.get('TILEMEGA_ATTENTION_BUFFERS', '2')),
+                'task_body': ('PagedAttentionTaskBody' if paged else
+                    'IndependentAttentionTaskBody') if decode else 'FusedAttentionTaskBody',
+                'page_policy': ('Packed' if paged else 'WarpPrivate') if decode else None,
+                'load': manifest.get('paged_attention_load', 'loader'),
+                'frontier': bool(int(defines.get('TILEMEGA_ATTENTION_FRONTIER', '0')))}}
 

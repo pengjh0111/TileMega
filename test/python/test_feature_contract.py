@@ -1,7 +1,7 @@
 """Implementation identity must agree for both ordinary and DM artifacts."""
 import unittest
 
-from tilemega.build.feature_contract import INTEGER_FEATURES, build_defines, validate
+from tilemega.build.feature_contract import INTEGER_FEATURES, build_defines, implementations, validate
 
 
 class FeatureContractTests(unittest.TestCase):
@@ -53,6 +53,20 @@ class FeatureContractTests(unittest.TestCase):
         self.assertEqual(build_defines(source, ['nvcc', '-DTILEMEGA_WATCHDOG=0'])[
             'TILEMEGA_WATCHDOG'], '0')
         self.assertEqual(build_defines(source, ['nvcc'])['TILEMEGA_WATCHDOG'], '1')
+
+    def test_source_checks_use_the_binary_identity_implementation_fields(self):
+        manifest = dict(pg='l2', phase='decode', attention_impl='pvswap',
+                        attention_noinline=True, gemms=[dict(index=0, impl='gemv')])
+        defines = dict(TILEMEGA_MMA_REG_PIPE='1', TILEMEGA_EP_DIRECT='1',
+                       TILEMEGA_ATTENTION_BUFFERS='1', TILEMEGA_ATTENTION_FRONTIER='1')
+        fields = implementations(manifest, defines)
+        self.assertEqual(fields['gemms'][0], dict(index=0, impl='gemv',
+            task_body='ServingGemvTaskBody', mma_reg_pipe=1, ep_direct=1))
+        self.assertEqual(fields['attention']['page_policy'], 'WarpPrivate')
+        self.assertEqual(fields['attention']['impl'], 'pvswap')
+        self.assertTrue(fields['attention']['noinline'])
+        self.assertEqual(fields['attention']['buffers'], 1)
+        self.assertTrue(fields['attention']['frontier'])
 
 
 if __name__ == '__main__':

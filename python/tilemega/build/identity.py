@@ -152,7 +152,7 @@ def generate(so, root, source_snapshot):
     command=Path(str(so)+'.build_command.txt').read_text().strip();options=shlex.split(command)
     manifest=json.loads(Path(str(so)+'.plan.json').read_text())
     generated=Path(str(so)+'.cu').read_text()
-    from .feature_contract import build_defines, validate
+    from .feature_contract import build_defines, implementations, validate
     defines=build_defines(generated,options)
     validate(manifest,defines)
     nvcc=options[0]
@@ -163,7 +163,6 @@ def generate(so, root, source_snapshot):
     resources=parse_resources(resources_path.read_text())
     if not resources or any('registers' not in row for row in resources.values()):
         raise ValueError('missing ptxas kernel resources')
-    paged=manifest.get('pg')=='pages';decode=manifest.get('phase')=='decode'
     library=ctypes.CDLL(str(so))
     shared=getattr(library,'tm_plan_shared_bytes',None)
     if shared is None:raise ValueError('new serving artifact lacks shared-memory identity export')
@@ -178,18 +177,7 @@ def generate(so, root, source_snapshot):
             'defines':defines,'arch':arch,'plan':manifest,'shared_memory_bytes':int(shared()),
             'resources':resources,'trace':trace,
             'target_sha256':sha(target) if target and Path(target).is_file() else None,
-            'implementations':{'dn_vector_sums':bool(manifest.get('dn_vector_sums',False)),
-                'swiglu_interleave_u':int(manifest.get('swiglu_interleave_u',16)),'gemms':[{'index':g['index'],'impl':g.get('impl','mma16'),
-                'task_body':'PagedGemmTaskBody' if paged else ('ServingGemvTaskBody' if g.get('impl')=='gemv' else 'ServingGemmTaskBody'),
-                'mma_reg_pipe':int(defines.get('TILEMEGA_MMA_REG_PIPE','0')),
-                'ep_direct':int(defines.get('TILEMEGA_EP_DIRECT','0'))} for g in manifest['gemms']],
-                'attention':{'impl':manifest.get('attention_impl','mma16'),
-                'noinline':bool(manifest.get('attention_noinline',False)),
-                'buffers':int(defines.get('TILEMEGA_ATTENTION_BUFFERS','2')),
-                'task_body':('PagedAttentionTaskBody' if paged else 'IndependentAttentionTaskBody') if decode else 'FusedAttentionTaskBody',
-                'page_policy':('Packed' if paged else 'WarpPrivate') if decode else None,
-                'load':manifest.get('paged_attention_load','loader'),
-                'frontier':bool(int(defines.get('TILEMEGA_ATTENTION_FRONTIER','0')))}}}
+            'implementations':implementations(manifest,defines)}
     if defines.get('TILEMEGA_DM_SUPPORT','0').strip()=='1':
         from .compiler_macros import capture
         result['dm']={key:manifest[key] for key in DM_FIELDS if key in manifest}
