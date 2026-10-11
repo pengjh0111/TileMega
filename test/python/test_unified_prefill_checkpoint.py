@@ -76,6 +76,24 @@ class PrefillCheckpointTest(unittest.TestCase):
                 ValueError, 'all four default cells'):
             unified.prepare_prefill(Path('/previous'), Path('/unused'), 10800)
 
+    def test_reuse_preserves_inputs_and_freezes_explicit_compiler_budget(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            original = root / 'previous'
+            original.mkdir()
+            marker = original / 'inputs.json'
+            marker.write_text('frozen original')
+            record = dict(root=str(root), cases=[dict(label='unchanged')])
+            out = root / 'retry'
+            with patch.object(unified, 'validate', return_value=record), patch.object(
+                    unified, 'git', return_value='runner-head'), contextlib.redirect_stdout(io.StringIO()):
+                unified.reuse_inputs(original, out, 10800)
+            frozen = json.loads((out / 'inputs.json').read_text())
+            self.assertEqual(frozen['cases'], [dict(label='unchanged')])
+            self.assertEqual(frozen['nvcc_timeout_s'], 10800)
+            self.assertEqual(frozen['reuses_inputs'], str(original))
+            self.assertEqual(marker.read_text(), 'frozen original')
+
 
 if __name__ == '__main__':
     unittest.main()

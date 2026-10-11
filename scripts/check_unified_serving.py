@@ -121,15 +121,18 @@ def prepare(root, out, work):
     print('Prepared two compiler worktrees and ' + str(len(cases)) + ' regression plans')
 
 
-def reuse_inputs(previous, out):
+def reuse_inputs(previous, out, nvcc_timeout_s=10800):
     record = validate(previous)
     if out.exists():
         raise FileExistsError('regression checkpoint already exists')
+    if nvcc_timeout_s <= 0:
+        raise ValueError('nvcc timeout must be positive')
     out.mkdir(parents=True)
     shutil.copy2(__file__, out / 'runner.py')
     record['runner_sha256'] = sha(out / 'runner.py')
     record['runner_head'] = git(Path(record['root']), 'rev-parse', 'HEAD')
     record['reuses_inputs'] = str(previous)
+    record['nvcc_timeout_s'] = nvcc_timeout_s
     (out / 'inputs.json').write_text(json.dumps(record, indent=2) + '\n')
     print('Prepared new runner with unchanged, validated compiler inputs')
 
@@ -381,7 +384,7 @@ def main():
         if args.prefill_from is not None:
             prepare_prefill(args.prefill_from.resolve(), out, args.nvcc_timeout_s)
         elif args.reuse_inputs is not None:
-            reuse_inputs(args.reuse_inputs.resolve(), out)
+            reuse_inputs(args.reuse_inputs.resolve(), out, args.nvcc_timeout_s)
         else:
             prepare(Path(__file__).resolve().parents[1], out, args.work)
     elif args.action == 'build':
