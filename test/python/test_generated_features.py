@@ -81,7 +81,8 @@ def one_layer_export(source):
 class GeneratedFeatureTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        base = ROOT / 'runs/r15/generated_feature_contract'
+        base = Path(os.environ.get('TILEMEGA_FEATURE_RESULTS',
+                                   ROOT / 'runs/r15/generated_feature_contract'))
         base.mkdir(parents=True, exist_ok=True)
         cls.out = Path(tempfile.mkdtemp(prefix='check_', dir=base))
         exported = json.loads((ROOT / 'test/fixtures/serving_rejection_export.json').read_text())
