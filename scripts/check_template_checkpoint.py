@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import shlex
 import subprocess
 
 
@@ -33,7 +34,15 @@ ATTENTION_CASES = [
     ('monotonic', 'monotonic_last_arriver_test.cu', [], []),
     ('counted', 'dm_counted_threshold_test.cu', [], []),
 ]
-SUITES = {'gemm': CASES, 'attention': ATTENTION_CASES}
+RUNTIME_CASES = [
+    ('combine', 'dm_nonpaged_handoff_test.cu', [], []),
+    ('combine_decode', 'dm_nonpaged_handoff_test.cu', ['DM_TEST_PHASE=1'], []),
+    ('attention_merge', 'dm_nonpaged_attention_handoff_test.cu', [], []),
+    ('small_combine', 'dm_small_native_gemm_test.cu', [], []),
+    ('binding_stream', 'dm_binding_stream_test.cu', [], []),
+    ('binding_pages', 'dm_binding_pages_test.cu', [], []),
+]
+SUITES = {'gemm': CASES, 'attention': ATTENTION_CASES, 'runtime': RUNTIME_CASES}
 
 
 def sha(path):
@@ -47,6 +56,9 @@ def validate(out):
     for name, expected in record['files'].items():
         if sha(out / 'source' / name) != expected:
             raise ValueError('frozen input changed: ' + name)
+    for name, expected in record.get('link_inputs', {}).items():
+        if sha(name) != expected:
+            raise ValueError('checkpoint link input changed: ' + name)
     return record
 
 
@@ -58,7 +70,7 @@ def execute(command, out, label):
         raise RuntimeError(f'{label} failed ({result.returncode}); see {out / (label + ".log")}')
 
 
-def prepare(root, out, suite):
+def prepare(root, out, suite, build_dir):
     source = out / 'source'
     if source.exists():
         raise FileExistsError('checkpoint inputs already exist')
@@ -75,6 +87,27 @@ def prepare(root, out, suite):
         cutlass=str(root / 'third_party/cutlass'),
         cutlass_head=subprocess.check_output(['git', 'rev-parse', 'HEAD'],
             cwd=root / 'third_party/cutlass', text=True).strip())
+    if suite == 'runtime':
+        build_dir = build_dir.resolve()
+        line = subprocess.check_output(['ninja', '-C', str(build_dir), '-t',
+            'commands', 'serving_epilogue_test'], text=True).splitlines()[-1]
+        tokens = shlex.split(line)
+        command = tokens[tokens.index('&&') + 1:tokens.index('&&', tokens.index('&&') + 1)]
+        link_inputs = {}
+        for i, token in enumerate(command):
+            if token.endswith('.o'):
+                command[i] = '{object}'
+            elif token == '-o':
+                command[i + 1] = '{binary}'
+            elif token.endswith(('.a', '.so')):
+                path = (build_dir / token).resolve()
+                if path.name == 'libtilemega.a':
+                    copy = out / path.name
+                    shutil.copy2(path, copy)
+                    path = copy
+                command[i] = str(path)
+                link_inputs[str(path)] = sha(path)
+        record.update(link_command=command, link_inputs=link_inputs)
     (out / 'source.json').write_text(json.dumps(record, indent=2) + '\n')
 
 
@@ -95,15 +128,24 @@ def build(out):
         fcntl.flock(handle, fcntl.LOCK_EX)
         for label, file, definitions, fixtures in SUITES[record['suite']]:
             binary = out / label
-            execute([*common, '-arch=sm_89', '-DTILEMEGA_ARCH_ID=890',
+            command = [*common, '-arch=sm_89', '-DTILEMEGA_ARCH_ID=890',
                 *['-D' + value for value in definitions], str(source / 'test/unit' / file),
-                '-o', str(binary)], out, 'build_' + label)
+                '-o', str(binary)]
+            if record['suite'] == 'runtime':
+                obj = binary.with_suffix('.o')
+                command[-1] = str(obj)
+                execute([*command, '-c'], out, 'compile_' + label)
+                execute([str(obj) if token == '{object}' else str(binary) if token == '{binary}'
+                    else token for token in record['link_command']], out, 'link_' + label)
+            else:
+                execute(command, out, 'build_' + label)
             executables.append(dict(label=label, binary=str(binary), sha256=sha(binary),
-                processes=5 if label in ('epoch', 'monotonic', 'counted') else 1,
+                processes=5 if record['suite'] == 'runtime' or label in ('epoch', 'monotonic', 'counted') else 1,
                 args=[str(source / 'test/fixtures/dnn' / name) for name in fixtures]))
         for arch in (80, 89, 90, 100, 120):
-            sources = (['serving_pvswap_test.cu', 'dm_qperkv8_prefill_test.cu']
-                       if record['suite'] == 'attention' else ['dm_gemm_chain_test.cu'])
+            sources = {'attention': ['serving_pvswap_test.cu', 'dm_qperkv8_prefill_test.cu'],
+                       'runtime': ['dm_nonpaged_attention_handoff_test.cu', 'dm_binding_stream_test.cu'],
+                       'gemm': ['dm_gemm_chain_test.cu']}[record['suite']]
             for file in sources:
                 label = f'{Path(file).stem}_sm{arch}'
                 execute([*common, '-arch=sm_' + str(arch), '-DTILEMEGA_ARCH_ID=' + str(arch * 10),
@@ -136,11 +178,12 @@ def main():
     parser.add_argument('action', choices=('prepare', 'build', 'run'))
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--suite', choices=SUITES, default='gemm')
+    parser.add_argument('--build-dir', type=Path, default=Path('build-phase12'))
     args = parser.parse_args()
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     if args.action == 'prepare':
-        prepare(Path(__file__).resolve().parents[1], out, args.suite)
+        prepare(Path(__file__).resolve().parents[1], out, args.suite, args.build_dir)
     elif args.action == 'build':
         build(out)
     else:

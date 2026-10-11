@@ -814,6 +814,16 @@ if(TILEMEGA_BUILD_TESTS)
     tilemega_configure_cuda_target(${test}_test)
     add_test(NAME ${test} COMMAND ${test}_test)
   endforeach()
+  foreach(test IN ITEMS dm_epoch_last_arriver dm_counted_threshold
+      dm_nonpaged_handoff dm_nonpaged_attention_handoff dm_small_native_gemm
+      dm_binding_stream dm_binding_pages dm_moe_counted_publish)
+    add_executable(${test}_test test/unit/${test}_test.cu)
+    target_link_libraries(${test}_test PRIVATE TileMega::tilemega)
+    target_compile_options(${test}_test PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr;-UNDEBUG>)
+    tilemega_configure_cuda_target(${test}_test)
+    add_test(NAME ${test} COMMAND ${test}_test)
+  endforeach()
   add_executable(norm_prologue_gemm_test test/unit/norm_prologue_gemm_test.cu)
   target_link_libraries(norm_prologue_gemm_test PRIVATE TileMega::tilemega)
   target_compile_options(norm_prologue_gemm_test PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
