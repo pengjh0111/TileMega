@@ -1172,3 +1172,7 @@ add_custom_target(tilemega_fingerprint
   VERBATIM)
 add_dependencies(tilemega tilemega_fingerprint)
 add_dependencies(tilemega_commands tilemega_fingerprint)
+add_test(NAME bench_framework
+  COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
+    ${Python3_EXECUTABLE} -m unittest discover
+    -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_bench_framework.py)

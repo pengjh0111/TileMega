@@ -942,6 +942,11 @@ def main():
         parser.error('--hwcheck is only valid with doctor')
     if not args.config and not args.hwcheck:
         parser.error('--config is required')
+    if args.command == 'bench' and args.config:
+        bench_config = json.loads(args.config.read_text())
+        if bench_config.get('schema') == 'tilemega.bench.v1':
+            from .bench.driver import run as run_bench
+            return run_bench(args.config, out=args.run_dir)
     config=read_config(args.config or ROOT / 'configs/e2e/llama_b1.json')
     if args.hwcheck:
         # This checks transport and protocol on a known Llama workload. TF-1

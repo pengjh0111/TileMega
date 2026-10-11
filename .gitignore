@@ -1,4 +1,5 @@
 build/
+runs/
 build-*/
 *.o
 *.so
