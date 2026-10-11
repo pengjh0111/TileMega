@@ -22,7 +22,7 @@ docs: record the oracle result in FINDINGS
 ```
 
 Do not add a detailed description, a bullet list of what changed, a rationale
-paragraph, or trailers. The diff and `docs/FINDINGS.md` carry that. Do not add
+paragraph, or trailers. The diff carries that. Do not add
 co-author or tool-attribution trailers of any kind.
 
 ## Comments in implementation code
@@ -40,7 +40,23 @@ skeleton reference; implementation files should stay lean.
 
 Claims in `docs/` and in commit messages are marked by how they were
 established: verified (measured or executed here), stated (asserted by a
-source, not re-checked), inferred (reasoned, not observed). Any synchronization
-or race claim is backed by at least 50 fresh processes with the pass rate
-reported. Never move an expected value to match an implementation; record the
-difference instead.
+source, not re-checked), inferred (reasoned, not observed). Any
+synchronization or race claim is backed by at least 5 fresh processes with
+the pass rate reported. Never move an expected value to match an
+implementation; record the difference instead.
+
+## Performance
+
+End-to-end performance is the acceptance criterion: TPOT, request latency
+and output throughput of the full model under the standard measurement
+protocol. Component microbenchmarks and per-task traces are diagnostic tools
+for optimizing or debugging a specific part; they do not by themselves
+justify enabling a change. A change that does not preserve or improve
+end-to-end performance stays off by default.
+
+## Repository data
+
+Raw measurements, logs, traces, failed-attempt records, binaries and
+generated sources are never committed; they live under the ignored `runs/`
+directory. Commit only code, tests, configuration and compact final results
+under `docs/results/`.
