@@ -42,9 +42,15 @@ def prepare(root, out, work):
         tree = work / label
         subprocess.run(['git', '-C', str(root), 'worktree', 'add', '--detach', '--no-checkout',
                         str(tree), head], check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(['git', '-C', str(tree), 'sparse-checkout', 'init', '--cone'],
+                       check=True, stdout=subprocess.DEVNULL)
         subprocess.run(['git', '-C', str(tree), 'sparse-checkout', 'set',
                         'include', 'lib', 'tools', 'cmake', 'python', 'scripts', 'test', 'configs'],
                        check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(['git', '-C', str(tree), 'read-tree', '-mu', 'HEAD'],
+                       check=True, stdout=subprocess.DEVNULL)
+        if not (tree / 'CMakeLists.txt').is_file():
+            raise FileNotFoundError('sparse compiler checkout was not materialized')
         # CUTLASS and the polyhedral libraries are unchanged pinned dependencies.
         # Sources and headers under include/lib/tools remain independent checkouts.
         third_party = tree / 'third_party'
