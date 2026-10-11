@@ -12,10 +12,19 @@ __device__ void RunDmReductions(Params const& p,unsigned producer,unsigned task,
     auto const& reducer=p.stages[program.target];
     __shared__ unsigned last;
     auto arrive=[&](unsigned target,unsigned expected,unsigned contribution) {
-      if(std::uint64_t(program.ticket_offset)+target>=view.ticket_count || !view.tickets)
+      if(std::uint64_t(program.ticket_offset)+target>=view.ticket_count)
         asm volatile("trap;");
+#if TILEMEGA_PAGED
+      auto* ticket=view.tickets+program.ticket_offset+target;
+      if(!view.tickets)asm volatile("trap;");
+#else
+      if(!p.serving_nonpaged_tickets || target>=p.serving_handoff_ticket_stride)
+        asm volatile("trap;");
+      auto* ticket=p.serving_nonpaged_tickets+
+          (std::size_t(L2)*p.stage_count+producer)*p.serving_handoff_ticket_stride+target;
+#endif
       bool completed=executor::EpochLastArriver::RunWeighted(
-          view.tickets+program.ticket_offset+target,expected,iteration,contribution,&last,[&] {
+          ticket,expected,iteration,contribution,&last,[&] {
             DispatchDmStage(unsigned(reducer.kind),reducer.width,reducer.group,
                 DmStageRunner<Arch>{p,reducer,target,scratch});
           });
@@ -81,11 +90,4 @@ __device__ inline void CompleteDmTask(Params const& p,unsigned producer,unsigned
     TaskSmem& smem,EventCounter* events,unsigned long long iteration) {
   RunDmReductions<HarnessArch,L2>(p,producer,task,reinterpret_cast<char*>(&smem),iteration,
       [&](unsigned reducer,unsigned target){NotifyTask(p,events,reducer,target,iteration);});
-}
-__device__ inline void RunDmStage(Params const& p,unsigned stage,TaskSmem& smem,
-    EventCounter* events,unsigned long long iteration) {
-  for(int task=blockIdx.x;task<ActiveBlocks(p,p.stages[stage]);task+=gridDim.x) {
-    RunTask(p,stage,task,smem);
-    CompleteDmTask<false>(p,stage,task,smem,events,iteration);
-  }
 }

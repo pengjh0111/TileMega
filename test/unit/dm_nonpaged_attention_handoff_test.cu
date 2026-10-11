@@ -159,9 +159,9 @@ int main() {
           assert(std::memcmp(first.data()+B*H,p(9),B*64*sizeof(E))==0);
         }
         if(la) {
-          auto stride=plan->model.params.serving_epoch_handoff_stride;
+          auto stride=plan->model.params.serving_handoff_ticket_stride;
           std::vector<unsigned long long> tickets(stride);
-          TILEMEGA_CUDA_CHECK(cudaMemcpy(tickets.data(),plan->model.params.serving_epoch_handoff_tickets+
+          TILEMEGA_CUDA_CHECK(cudaMemcpy(tickets.data(),plan->model.params.serving_nonpaged_tickets+
               (mode==TM_SERVING_L2?3*stride:0),stride*sizeof(unsigned long long),cudaMemcpyDeviceToHost));
           for(int i=0;i<B*G;++i)assert(tickets[i]==Cb*(epoch+1ull));
           EventCounter barrier;

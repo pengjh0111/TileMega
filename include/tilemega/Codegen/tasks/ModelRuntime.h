@@ -843,15 +843,11 @@ struct Params {
   PageTraceRecord* serving_page_trace = nullptr;
   // One ticket row per producer stage, indexed by its output tile. Allocated
   // once per serving plan and reset by the final arriving producer CTA.
-#if TILEMEGA_NONPAGED_LA
+#if TILEMEGA_NONPAGED_LA || (TILEMEGA_DM_REDUCTIONS && !TILEMEGA_PAGED)
   unsigned long long* serving_nonpaged_tickets = nullptr;
 #endif
   unsigned* serving_handoff_tickets = nullptr;
   std::uint32_t serving_handoff_ticket_stride = 0;
-#if TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED
-  unsigned long long* serving_epoch_handoff_tickets = nullptr;
-  std::uint32_t serving_epoch_handoff_stride = 0;
-#endif
   LagDependency const* lag_dependencies = nullptr;
   std::uint32_t lag_dependency_count = 0;
   WatchdogRecord* serving_watchdog = nullptr;

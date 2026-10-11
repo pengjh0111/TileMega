@@ -1,7 +1,3 @@
-// Preserve the independently validated serving and DM runtime contracts.
-#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-#include <tilemega/Codegen/executor/DmServingPrefetch.cuh>
-#else
 // SPDX-License-Identifier: BSD-3-Clause
 // Included in tilemega::codegen after task descriptors and event primitives.
 namespace prefetch {
@@ -34,7 +30,9 @@ __device__ inline void Task(Params const& p,unsigned stage_index,int task,unsign
     auto const& inv=table[s.gemm+point.chunk];
     // This byte is emitted from lifting's written frontier, not a buffer-name list.
     if(p.serving_no_producer[inv.serving_weight_buffer])Gemm(inv,point.tile,budget);
-  }else if(s.kind==TaskKind::kFusedAttention && s.prefetch_history_mask) {
+  }
+#if TILEMEGA_SERVING_DECODER_ATTENTION
+  else if(s.kind==TaskKind::kFusedAttention && s.prefetch_history_mask) {
     using E=cutlass::bfloat16_t;
     int blocks=CeilDiv(p.dims.capacity,s.attention_kv_block);
     int qb=CeilDiv(int(s.group)*p.dims.seq,s.attention_query_rows);
@@ -50,6 +48,7 @@ __device__ inline void Task(Params const& p,unsigned stage_index,int task,unsign
     Body::PrefetchRanges(op,point.batch,point.group,point.cache_block,s.prefetch_history_mask,
         [&](executor::PrefetchRange range){Issuer::Issue(range,budget,TILEMEGA_L2_PREFETCH_STRIDE);});
   }
+#endif
 }
 __device__ inline void Upcoming(Params const& p,unsigned slot,unsigned end) {
   unsigned budget=TILEMEGA_L2_PREFETCH_BYTES;
@@ -57,7 +56,7 @@ __device__ inline void Upcoming(Params const& p,unsigned slot,unsigned end) {
     Task(p,p.schedule[next].stage,p.schedule[next].logical_task,budget);
 }
 __device__ inline void NextStage(Params const& p,unsigned stage) {
-#if TILEMEGA_NONPAGED_LA
+#if TILEMEGA_NONPAGED_LA || TILEMEGA_DM_REDUCTIONS
   while(stage<p.stage_count && p.stages[stage].handoff_elided)++stage;
 #endif
   if(stage>=p.stage_count)return;
@@ -104,5 +103,3 @@ __device__ inline void Wait(EventCounter* events,unsigned stage,unsigned long lo
 #endif
 }
 } // namespace prefetch
-
-#endif

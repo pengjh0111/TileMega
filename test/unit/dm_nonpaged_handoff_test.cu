@@ -109,7 +109,7 @@ void RejectIncompatibleOwners() {
     bool rejected=false;
     try {harness::PrepareEpochHandoffs(model,gemms);}
     catch(std::invalid_argument const&){rejected=true;}
-    assert(rejected && !model.params.serving_epoch_handoff_tickets);
+    assert(rejected && !model.params.serving_nonpaged_tickets);
   }
 }
 }
@@ -159,10 +159,10 @@ int main() {
         if(first.empty())first.assign(data[4],data[4]+kRows*kOutput);
         else assert(std::memcmp(first.data(),data[4],first.size()*sizeof(E))==0);
         if(la) {
-          auto stride=plan->model.params.serving_epoch_handoff_stride;
+          auto stride=plan->model.params.serving_handoff_ticket_stride;
           std::vector<unsigned long long> tickets(stride);
           TILEMEGA_CUDA_CHECK(cudaMemcpy(tickets.data(),
-              plan->model.params.serving_epoch_handoff_tickets+
+              plan->model.params.serving_nonpaged_tickets+
                   (mode==TM_SERVING_L2?plan->model.stages.size()*stride:0),
               stride*sizeof(unsigned long long),cudaMemcpyDeviceToHost));
           for(int tile=0;tile<((kRows+15)/16)*2;++tile)
@@ -185,8 +185,8 @@ int main() {
     TILEMEGA_CUDA_CHECK(cudaDeviceSynchronize());
     assert(std::memcmp(data[4],control.back().data(),control.back().size()*sizeof(E))==0);
     if(la) {
-      std::vector<unsigned long long> tickets(plan->model.params.serving_epoch_handoff_stride);
-      TILEMEGA_CUDA_CHECK(cudaMemcpy(tickets.data(),plan->model.params.serving_epoch_handoff_tickets,
+      std::vector<unsigned long long> tickets(plan->model.params.serving_handoff_ticket_stride);
+      TILEMEGA_CUDA_CHECK(cudaMemcpy(tickets.data(),plan->model.params.serving_nonpaged_tickets,
           tickets.size()*sizeof(unsigned long long),cudaMemcpyDeviceToHost));
       for(int tile=0;tile<((kRows+15)/16)*2;++tile)assert(tickets[tile]==kChunks*20ull);
       EventCounter barrier;
