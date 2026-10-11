@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Identify the compiler/runtime sources behind an R10 experiment."""
+"""Identify compiler/runtime sources independently of experiment data."""
 import hashlib
 import json
 from pathlib import Path
@@ -9,9 +9,9 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def source_fingerprint(root: Path = ROOT) -> str:
     digest = hashlib.sha256()
-    files = [root / "CMakeLists.txt",
-             root / "docs/experiments/SERVING_R10/calibration/target_serving.json",
-             root / "docs/experiments/SIMULATOR/hop_ns.tsv"]
+    # Target inputs have their own artifact/cache hashes. Historical measured
+    # tables are not compiler sources and may be absent in a clean checkout.
+    files = [root / "CMakeLists.txt"]
     for directory in ("include", "lib", "tools", "python"):
         files.extend(p for p in (root / directory).rglob("*")
                      if p.is_file() and p.suffix in

@@ -49,6 +49,15 @@ def prepare(root, out, work):
                        check=True, stdout=subprocess.DEVNULL)
         subprocess.run(['git', '-C', str(tree), 'read-tree', '-mu', 'HEAD'],
                        check=True, stdout=subprocess.DEVNULL)
+        # Old compilers include these data files in their source fingerprint.
+        # Materialize their exact committed versions, without taking the
+        # experiment tree or changing the historical fingerprint algorithm.
+        for path in ('docs/experiments/SERVING_R10/calibration/target_serving.json',
+                     'docs/experiments/SIMULATOR/hop_ns.tsv'):
+            frozen = subprocess.check_output(['git', '-C', str(tree), 'show', head + ':' + path])
+            destination = tree / path
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(frozen)
         if not (tree / 'CMakeLists.txt').is_file():
             raise FileNotFoundError('sparse compiler checkout was not materialized')
         # CUTLASS and the polyhedral libraries are unchanged pinned dependencies.
