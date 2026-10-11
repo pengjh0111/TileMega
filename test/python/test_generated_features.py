@@ -22,6 +22,7 @@ COMPILER = os.environ.get('TILEMEGA_BIN')
 def one_layer_export(source):
     """Retain one complete decoder layer and reconnect the final norm."""
     source = copy.deepcopy(source)
+    exported_inputs = source['signature']['inputs']
 
     def layer(node):
         paths = [entry['path'] for entry in node.get('nn_module_stack', [])]
@@ -74,7 +75,33 @@ def one_layer_export(source):
     source['nodes'] = [node for node in source['nodes'] if node['name'] in reachable]
     source['signature']['inputs'] = [item for item in source['signature']['inputs']
                                      if item['name'] in reachable]
+    old_users = [item['name'] for item in exported_inputs
+                 if item['kind'] == 'USER_INPUT']
+    new_users = [item['name'] for item in source['signature']['inputs']
+                 if item['kind'] == 'USER_INPUT']
+    # Shape guards index user inputs, not graph placeholders. Project the
+    # removed layers' identical KV extents onto layer zero before reindexing.
+    def guard_input(match):
+        name = reconnect(old_users[int(match[1])])
+        return "L['flat_args'][" + str(new_users.index(name)) + ']'
+    source['guards'] = [re.sub(r"L\['flat_args'\]\[(\d+)\]", guard_input, guard)
+                        for guard in source.get('guards', [])]
     return source
+
+
+class FeatureFixtureTests(unittest.TestCase):
+    def test_single_layer_preserves_valid_shape_guards(self):
+        exported = json.loads((ROOT / 'test/fixtures/serving_rejection_export.json').read_text())
+        fixture = one_layer_export(exported)
+        users = [item for item in fixture['signature']['inputs'] if item['kind'] == 'USER_INPUT']
+        self.assertEqual([item['name'] for item in users],
+                         ['input_ids', 'past_k0', 'past_v0', 'rope_cos', 'rope_sin'])
+        self.assertEqual(len(fixture['guards']), len(exported['guards']))
+        nodes = {item['name']: item for item in fixture['nodes']}
+        for guard in fixture['guards']:
+            for index, dimension in re.findall(r"flat_args'\]\[(\d+)\]\.size\(\)\[(\d+)\]", guard):
+                self.assertLess(int(index), len(users))
+                self.assertLess(int(dimension), len(nodes[users[int(index)]['name']]['shape']))
 
 
 @unittest.skipUnless(COMPILER, 'set TILEMEGA_BIN to the compiler under test')

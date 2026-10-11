@@ -47,7 +47,8 @@ GEMV_CASES = [
     ('access', 'serving_gemv_access_test.cu', [], []),
     ('profile', 'serving_task_profile_test.cu', ['TILEMEGA_TRACE_TASK=1'], []),
 ]
-DM_CASES = [(name, 'dm_' + name + '_test.cu', [], []) for name in (
+DM_CASES = [(name, 'dm_' + name + '_test.cu',
+             ['TILEMEGA_DM_SUPPORT=1'] if name == 'descriptor_device' else [], []) for name in (
     'conv_operands', 'conv_task', 'norm_embedding_layout', 'pool_global',
     'depthwise', 'dwpw_fused', 'encoder_attention', 'descriptor_device',
     'small_task_gemm', 'small_gemm', 'multipage_gemm', 'scaled_dense',
