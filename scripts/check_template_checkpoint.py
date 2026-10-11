@@ -71,6 +71,11 @@ DM_FORWARD_CASES = [
 SUITES = {'gemm': CASES, 'attention': ATTENTION_CASES, 'runtime': RUNTIME_CASES,
           'gemv': GEMV_CASES, 'dm': DM_CASES, 'dm_forward': DM_FORWARD_CASES}
 LINKED_SUITES = {'runtime', 'dm', 'dm_forward'}
+ARCH_SOURCES = {'attention': ['serving_pvswap_test.cu', 'dm_qperkv8_prefill_test.cu'],
+                'runtime': ['dm_nonpaged_attention_handoff_test.cu', 'dm_binding_stream_test.cu'],
+                'gemm': ['dm_gemm_chain_test.cu'], 'gemv': ['dm_gemv_compile.cu'],
+                'dm': ['dm_moe_counted_publish_test.cu', 'dm_dwpw_fused_test.cu'],
+                'dm_forward': ['dm_dnn_runtime_test.cu']}
 
 
 def sha(path):
@@ -98,20 +103,24 @@ def execute(command, out, label):
         raise RuntimeError(f'{label} failed ({result.returncode}); see {out / (label + ".log")}')
 
 
-def prepare(root, out, suite, build_dir):
+def prepare(root, out, suite, build_dir, labels, arches):
     source = out / 'source'
     if source.exists():
         raise FileExistsError('checkpoint inputs already exist')
     shutil.copytree(root / 'include', source / 'include')
     (source / 'test/unit').mkdir(parents=True)
-    names = {row[1] for row in SUITES[suite]}
-    if suite == 'gemv':
-        names.add('dm_gemv_compile.cu')
+    selected = set(labels.split(',')) if labels else {row[0] for row in SUITES[suite]}
+    cases = [row for row in SUITES[suite] if row[0] in selected]
+    if {row[0] for row in cases} != selected:
+        raise ValueError('unknown checkpoint case labels')
+    names = {row[1] for row in cases}
+    if arches:
+        names.update(ARCH_SOURCES[suite])
     for name in names:
         shutil.copy2(root / 'test/unit' / name, source / 'test/unit' / name)
     shutil.copytree(root / 'test/fixtures/dnn', source / 'test/fixtures/dnn')
     shutil.copy2(Path(__file__), out / 'runner.py')
-    record = dict(suite=suite,
+    record = dict(suite=suite, cases=cases, arches=arches,
         head=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(),
         runner_sha256=sha(out / 'runner.py'),
         files={str(p.relative_to(source)): sha(p) for p in source.rglob('*') if p.is_file()},
@@ -152,42 +161,46 @@ def build(out):
         '--expt-relaxed-constexpr', '-UNDEBUG', '-Xptxas=-v',
         '-I' + str(source / 'include'), '-I' + str(cutlass / 'include'),
         '-I' + str(cutlass / 'tools/util/include')]
-    executables = []
+    executables, failures = [], []
     lock = Path(os.environ['TILEMEGA_GPU_LOCK'])
     lock.parent.mkdir(parents=True, exist_ok=True)
     with lock.open('a') as handle:
         fcntl.flock(handle, fcntl.LOCK_EX)
-        for label, file, definitions, fixtures in SUITES[record['suite']]:
+        for label, file, definitions, fixtures in record.get('cases', SUITES[record['suite']]):
             binary = out / label
             command = [*common, '-arch=sm_89', '-DTILEMEGA_ARCH_ID=890',
                 *['-D' + value for value in definitions], str(source / 'test/unit' / file),
                 '-o', str(binary)]
-            if record['suite'] in LINKED_SUITES:
-                obj = binary.with_suffix('.o')
-                command[-1] = str(obj)
-                execute([*command, '-c'], out, 'compile_' + label)
-                execute([str(obj) if token == '{object}' else str(binary) if token == '{binary}'
-                    else token for token in record['link_command']], out, 'link_' + label)
-            else:
-                execute(command, out, 'build_' + label)
+            try:
+                if record['suite'] in LINKED_SUITES:
+                    obj = binary.with_suffix('.o')
+                    command[-1] = str(obj)
+                    execute([*command, '-c'], out, 'compile_' + label)
+                    execute([str(obj) if token == '{object}' else str(binary) if token == '{binary}'
+                        else token for token in record['link_command']], out, 'link_' + label)
+                else:
+                    execute(command, out, 'build_' + label)
+            except (RuntimeError, subprocess.TimeoutExpired) as error:
+                failures.append(dict(label=label, error=str(error)))
+                continue
             executables.append(dict(label=label, binary=str(binary), sha256=sha(binary),
                 processes=5 if record['suite'] in LINKED_SUITES or label in ('epoch', 'monotonic', 'counted', 'access') else 1,
                 args=[str(source / 'test/fixtures/dnn' / name) for name in fixtures]))
-        for arch in (80, 89, 90, 100, 120):
-            sources = {'attention': ['serving_pvswap_test.cu', 'dm_qperkv8_prefill_test.cu'],
-                       'runtime': ['dm_nonpaged_attention_handoff_test.cu', 'dm_binding_stream_test.cu'],
-                       'gemm': ['dm_gemm_chain_test.cu'],
-                       'gemv': ['dm_gemv_compile.cu'],
-                       'dm': ['dm_moe_counted_publish_test.cu', 'dm_dwpw_fused_test.cu'],
-                       'dm_forward': ['dm_dnn_runtime_test.cu']}[record['suite']]
-            for file in sources:
+        for arch in record.get('arches', [80, 89, 90, 100, 120]):
+            for file in ARCH_SOURCES[record['suite']]:
                 label = f'{Path(file).stem}_sm{arch}'
-                execute([*common, '-arch=sm_' + str(arch), '-DTILEMEGA_ARCH_ID=' + str(arch * 10),
-                    '-c', str(source / 'test/unit' / file),
-                    '-o', str(out / (label + '.o'))], out, 'compile_' + label)
+                try:
+                    execute([*common, '-arch=sm_' + str(arch), '-DTILEMEGA_ARCH_ID=' + str(arch * 10),
+                        '-c', str(source / 'test/unit' / file),
+                        '-o', str(out / (label + '.o'))], out, 'compile_' + label)
+                except (RuntimeError, subprocess.TimeoutExpired) as error:
+                    failures.append(dict(label=label, error=str(error)))
     validate(out)
     (out / 'build.json').write_text(json.dumps(dict(source_head=record['head'],
-        executables=executables, arches=[80, 89, 90, 100, 120]), indent=2) + '\n')
+        executables=executables, failures=failures,
+        arches=record.get('arches', [80, 89, 90, 100, 120])), indent=2) + '\n')
+    if failures:
+        raise RuntimeError(f'{len(failures)} compile checks failed; see {out / "build.json"}')
 
 
 def run(out):
@@ -195,7 +208,7 @@ def run(out):
         raise RuntimeError('numerical checks require the scheduler GPU guard')
     validate(out)
     build_record = json.loads((out / 'build.json').read_text())
-    passed, failures = [], []
+    passed, failures = [], list(build_record.get('failures', []))
     for row in build_record['executables']:
         if sha(row['binary']) != row['sha256']:
             raise ValueError('checkpoint binary changed: ' + row['label'])
@@ -220,11 +233,17 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--suite', choices=SUITES, default='gemm')
     parser.add_argument('--build-dir', type=Path, default=Path('build-phase12'))
+    parser.add_argument('--labels', default='', help='prepare only these comma-separated cases')
+    parser.add_argument('--arches', default='80,89,90,100,120',
+                        help='compile architectures; empty for a targeted numerical retry')
     args = parser.parse_args()
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     if args.action == 'prepare':
-        prepare(Path(__file__).resolve().parents[1], out, args.suite, args.build_dir)
+        arches = [int(value) for value in args.arches.split(',') if value]
+        if any(value not in (80, 89, 90, 100, 120) for value in arches):
+            parser.error('unsupported compile architecture')
+        prepare(Path(__file__).resolve().parents[1], out, args.suite, args.build_dir, args.labels, arches)
     elif args.action == 'build':
         build(out)
     else:
