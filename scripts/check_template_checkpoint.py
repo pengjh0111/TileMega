@@ -30,6 +30,8 @@ def sha(path):
 
 def validate(out):
     record = json.loads((out / 'source.json').read_text())
+    if sha(out / 'runner.py') != record['runner_sha256']:
+        raise ValueError('frozen checkpoint runner changed')
     for name, expected in record['files'].items():
         if sha(out / 'source' / name) != expected:
             raise ValueError('frozen input changed: ' + name)
@@ -53,7 +55,9 @@ def prepare(root, out):
     for name in {row[1] for row in CASES}:
         shutil.copy2(root / 'test/unit' / name, source / 'test/unit' / name)
     shutil.copytree(root / 'test/fixtures/dnn', source / 'test/fixtures/dnn')
+    shutil.copy2(Path(__file__), out / 'runner.py')
     record = dict(head=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(),
+        runner_sha256=sha(out / 'runner.py'),
         files={str(p.relative_to(source)): sha(p) for p in source.rglob('*') if p.is_file()},
         cutlass=str(root / 'third_party/cutlass'),
         cutlass_head=subprocess.check_output(['git', 'rev-parse', 'HEAD'],
