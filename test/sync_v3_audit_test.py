@@ -6,9 +6,9 @@ import json
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('r4_verify',ROOT/'docs/experiments/SYNC_V3/verify.py')
-verify = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(verify)
+import sys
+sys.path.insert(0,str(ROOT/"python"))
+from tilemega.bench import process_audit as verify
 
 
 class LitmusAuditTest(unittest.TestCase):
@@ -51,19 +51,19 @@ class RawCorrectnessTest(unittest.TestCase):
     def test_single_failed_process_fails_fifty_run_gate(self):
         with tempfile.TemporaryDirectory() as tmp:
             raw=Path(tmp);self.make_cell(raw,failed=17)
-            with self.assertRaises(ValueError):verify.audit_raw.correctness(raw)
+            with self.assertRaises(ValueError):verify.correctness(raw,processes=50)
 
     def test_duplicate_timestamps_do_not_count_as_fresh_processes(self):
         with tempfile.TemporaryDirectory() as tmp:
             raw=Path(tmp);self.make_cell(raw)
             path=raw/'correctness/gqa2_s4_p3/r49.json'
             meta=json.loads(path.read_text());meta['time_ns']=0;path.write_text(json.dumps(meta))
-            with self.assertRaises(ValueError):verify.audit_raw.correctness(raw)
+            with self.assertRaises(ValueError):verify.correctness(raw,processes=50)
 
     def test_raw_logs_are_required_despite_pass_summary(self):
         with tempfile.TemporaryDirectory() as tmp:
             raw=Path(tmp);(raw/'summary.md').write_text('All 200/200 PASS')
-            with self.assertRaises(ValueError):verify.audit_raw.correctness(raw)
+            with self.assertRaises(ValueError):verify.correctness(raw,processes=50)
 
 
 if __name__=='__main__':

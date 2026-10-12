@@ -7,9 +7,9 @@ import tempfile
 import unittest
 
 REPO = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('trace_analyze', REPO / 'docs/experiments/TRACE_V2/analyze.py')
-trace = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(trace)
+import sys
+sys.path.insert(0,str(REPO/"python"))
+from tilemega.bench import trace_analysis as trace
 
 
 def table(path, columns, rows):

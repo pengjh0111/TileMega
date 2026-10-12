@@ -7,9 +7,8 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'docs/experiments/SERVING_R11'))
-from analyze_page_chain import analyze
-from archive_page_vector_diagnostics import SUMMARY
+sys.path.insert(0, str(ROOT / "python"))
+from tilemega.bench.page_chain import analyze, SUMMARY
 
 
 def write(path: Path, rows: list[dict]) -> None:
