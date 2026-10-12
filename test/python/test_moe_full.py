@@ -30,6 +30,24 @@ class MoeFullTest(unittest.TestCase):
         prefill.update(seq=64, past_hi=0, phase='prefill')
         return config, [decode, prefill]
 
+    def test_legacy_dense_buffer_abi_does_not_mutate_manifest(self):
+        from types import SimpleNamespace
+        from tilemega.serving.memory import allocation_metadata
+        from tilemega.serving.plan import Buffer
+        config, manifests=self.fixture()
+        old=dict(manifests[0]);del old['buffers']
+        library=SimpleNamespace(buffers=[
+            Buffer('w',1,0,100,0,json.dumps(dict(kind='alias',source='w.weight'))),
+            Buffer('workspace',0,1,12,2,'')])
+        recovered=allocation_metadata(old,library)
+        self.assertNotIn('buffers',old)
+        self.assertEqual(recovered['buffers'][1]['per_batch'],2)
+        result=memory_report(config,[recovered],2,128)
+        self.assertEqual(result['shared_weight_bytes'],200)
+        self.assertEqual(result['workspace_bytes'],64+(12+4)*4)
+        self.assertEqual(result['phases'][0]['metadata_source'],'legacy_buffer_abi')
+        self.assertIs(allocation_metadata(manifests[0],library),manifests[0])
+
     def test_shared_weights_state_and_distinct_plan_workspaces(self):
         config, manifests = self.fixture()
         result = memory_report(config, manifests, 2, 128)

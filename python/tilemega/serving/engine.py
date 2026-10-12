@@ -56,10 +56,11 @@ class ServingEngine:
         self.memory_report = None
         manifests=[Path(str(path)+'.plan.json') for path in (prefill_so,decode_so)]
         if all(path.exists() for path in manifests):
-            from .memory import memory_report
+            from .memory import allocation_metadata, memory_report
             self.memory_report=memory_report(
                 json.loads((Path(model_dir)/'config.json').read_text()),
-                [json.loads(path.read_text()) for path in manifests],batch,
+                [allocation_metadata(json.loads(path.read_text()),lib) for path,lib in
+                 zip(manifests,(self.prefill_lib,self.decode_lib))],batch,
                 self.decode_lib.info.capacity)
         self.weights = load_weights(model_dir, self.prefill_lib, self.decode_lib,
                                     device=torch.device("cuda", device))

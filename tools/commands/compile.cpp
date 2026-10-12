@@ -1895,6 +1895,11 @@ int RunCompile(int argc, char** argv) {
                   <<",\n  \"memory_retained_internal_bytes\": "<<integer("tilemega.memory_retained_internal_bytes",0)
                   <<",\n  \"memory_total_internal_bytes\": "<<integer("tilemega.memory_total_internal_bytes",0)
                   <<",\n  \"memory_hazard_count\": "<<integer("tilemega.memory_hazard_count",0);
+      }
+      // Allocation metadata is needed by dense serving as well as DM plans.
+      if(manifest_plan) {
+        auto plan=manifest_plan;
+        auto token_axis=plan.getAs<mlir::BoolAttr>("forward_token_axis");
         llvm::json::Array buffer_records;
         for(auto entry:plan.getAs<mlir::ArrayAttr>("buffers")) {
           auto buffer=mlir::cast<mlir::DictionaryAttr>(entry);

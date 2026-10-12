@@ -2,6 +2,28 @@
 import json
 
 
+
+def allocation_metadata(manifest, library):
+    """Use the optional manifest table or the unchanged ABI for old binaries.
+
+    This returns a detached accounting input; it never rewrites a cached
+    manifest or manufactures an identity for a historical binary.
+    """
+    if 'buffers' in manifest:
+        return manifest
+    widths={0:'bf16',1:'f32',2:'i32',3:'i64'}
+    buffers=[]
+    for buffer in library.buffers:
+        if buffer.dtype not in widths or buffer.role not in (0,1):
+            raise ValueError('unsupported legacy buffer dtype or role')
+        row=dict(name=buffer.name,dtype=widths[buffer.dtype],
+                 role='external' if buffer.role else 'internal',
+                 constant=buffer.elements_constant,per_batch=buffer.elements_per_batch)
+        if buffer.pack_json:row['recipe']=json.loads(buffer.pack_json)
+        buffers.append(row)
+    return dict(manifest,buffers=buffers,allocation_metadata_source='legacy_buffer_abi')
+
+
 def memory_report(config, manifests, batch, capacity):
     """Account for shared recipes, request state and both plans' buffers.
 
@@ -34,6 +56,7 @@ def memory_report(config, manifests, batch, capacity):
             elif buffer['role'] == 'internal' and 'dm_arena_offset' not in buffer:
                 internal += size
         phases.append(dict(phase=manifest['phase'], internal_bytes=internal,
+                           metadata_source=manifest.get('allocation_metadata_source','manifest'),
                            weight_bytes=sum(phase_weights.values())))
     layers = int(config['num_hidden_layers']); heads = int(config['num_key_value_heads'])
     dim = int(config.get('head_dim', config['hidden_size']//config['num_attention_heads']))
