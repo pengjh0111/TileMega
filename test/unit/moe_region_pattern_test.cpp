@@ -43,6 +43,20 @@ int TestMoeRegionPattern(int argc,char** argv) {
       assert(failed);++rejected;
     };
     check(bridge);
+    assert(!MatchMoeRegion(bridge.nodes,bridge.inputs,bridge.outputs).routing_weights_fp32);
+    auto fp32=bridge;
+    auto expert_fp32=std::find_if(fp32.nodes.begin(),fp32.nodes.end(),[](auto const& n) {
+      return n.target=="tilemega.moe_experts.default";
+    });
+    auto cast_name=expert_fp32->inputs.at(2);
+    auto cast=std::find_if(fp32.nodes.begin(),fp32.nodes.end(),[&](auto const& n) {
+      return n.name==cast_name;
+    });
+    auto probability=cast->inputs.at(0);
+    expert_fp32->inputs[2]=probability;expert_fp32->args[2].text=probability;
+    fp32.nodes.erase(cast);
+    check(fp32);
+    assert(MatchMoeRegion(fp32.nodes,fp32.inputs,fp32.outputs).routing_weights_fp32);
     auto renamed=bridge;
     auto rename_argument=[&](auto&& self,FxArgument& a)->void {
       if(a.kind==FxArgument::Kind::kNode)a.text="renamed_"+a.text;
@@ -78,7 +92,7 @@ int TestMoeRegionPattern(int argc,char** argv) {
     mutate([](auto& b) {FxNodeRecord n;n.op="call_function";n.name="unmatched";
       n.target="aten.sin.default";b.nodes.push_back(n);});
   }
-  assert(accepted==4 && rejected==20);
+  assert(accepted==6 && rejected==20);
   std::cout<<"MoE region structure: before/Core, renamed graphs and 20 negative contracts PASS\n";
   return 0;
 }

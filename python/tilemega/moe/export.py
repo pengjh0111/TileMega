@@ -12,7 +12,7 @@ from torch import nn
 @torch.library.custom_op('tilemega::moe_experts', mutates_args=())
 def moe_experts(h: torch.Tensor, topk_idx: torch.Tensor, topk_w: torch.Tensor,
                 gate_up: torch.Tensor, down: torch.Tensor) -> torch.Tensor:
-    """Reference with HF grouped_mm's BF16 projection/gate/product boundaries.
+    """Reference with HF grouped_mm's projection and routing dtype boundaries.
 
     Grouping changes row placement only. Restoring (token, rank) before the
     FP32 reduction avoids the BF16 index_add accumulation of HF eager experts.
@@ -26,7 +26,8 @@ def moe_experts(h: torch.Tensor, topk_idx: torch.Tensor, topk_w: torch.Tensor,
     k = topk_idx.shape[1]
     if k < 1 or k > experts or torch.any((topk_idx < 0) | (topk_idx >= experts)):
         raise ValueError('MoE expert index outside the expert table')
-    partials = torch.empty((tokens, k, hidden), device=h.device, dtype=h.dtype)
+    partials = torch.empty((tokens, k, hidden), device=h.device,
+                           dtype=torch.promote_types(h.dtype, topk_w.dtype))
     for expert in range(experts):
         token, rank = torch.where(topk_idx == expert)
         if token.numel():
@@ -81,7 +82,7 @@ class SparseMLP(nn.Module):
         weight, index = torch.topk(probability, self.top_k, dim=-1)
         if self.normalize:
             weight = weight / weight.sum(-1, keepdim=True)
-        weight = weight.to(logits.dtype)
+        # HF retains FP32 normalized routing weights through expert reduction.
         return moe_experts(rows, index, weight, self.experts.gate_up_proj,
                            self.experts.down_proj).reshape(shape)
 

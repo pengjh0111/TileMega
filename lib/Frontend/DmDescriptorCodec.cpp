@@ -197,10 +197,13 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
         if(id!=kDmNoIndex && plan.buffers[id].dtype!=dtype)
           throw std::invalid_argument("MoE stage operand has incompatible dtype");
       };
+      unsigned weights=stage.operands[combine?1:3];buffer(weights,true);
+      if(plan.buffers[weights].dtype!="bf16" && plan.buffers[weights].dtype!="f32")
+        throw std::invalid_argument("MoE routing weights must be BF16 or FP32");
       if(combine) {
-        for(unsigned j=0;j<4;++j)typed(j,"bf16");typed(4,"f32",true);
+        for(unsigned j:{0u,2u,3u})typed(j,"bf16");typed(4,"f32",true);
       }else {
-        typed(0,"f32");typed(1,"i32");typed(2,"i32");typed(3,"bf16");
+        typed(0,"f32");typed(1,"i32");typed(2,"i32");
         for(unsigned j=4;j<9;++j)typed(j,"i32");
       }
     }else if(moe.step!=DmMoeStep::kNone)

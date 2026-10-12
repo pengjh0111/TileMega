@@ -178,6 +178,25 @@ int TestMoeRegionPlan(int argc,char** argv) {
         }
         ValidateDmModelPlan(plan);++cases;
       }
+    auto fp32=bridge;
+    auto expert=std::find_if(fp32.nodes.begin(),fp32.nodes.end(),[](auto const& n) {
+      return n.target=="tilemega.moe_experts.default";
+    });
+    auto cast_name=expert->inputs.at(2);
+    auto cast=std::find_if(fp32.nodes.begin(),fp32.nodes.end(),[&](auto const& n) {
+      return n.name==cast_name;
+    });
+    auto probability=cast->inputs.at(0);
+    expert->inputs[2]=probability;expert->args[2].text=probability;
+    fp32.nodes.erase(cast);
+    auto plan=BuildMoeRegion(fp32.nodes,fp32.inputs,fp32.outputs);
+    auto weights=plan.stages.back().operands[1];
+    assert(plan.buffers[weights].dtype=="f32");
+    ValidateDmModelPlan(plan);
+    plan.buffers[weights].dtype="i32";
+    bool invalid_weights=false;
+    try{ValidateDmModelPlan(plan);}catch(std::invalid_argument const&){invalid_weights=true;}
+    assert(invalid_weights);
     auto rejects=[&](auto change) {
       MoeRegionOptions options;change(options);bool rejected=false;
       try{(void)BuildMoeRegion(bridge.nodes,bridge.inputs,bridge.outputs,options);}

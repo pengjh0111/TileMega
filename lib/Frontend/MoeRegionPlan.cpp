@@ -81,7 +81,8 @@ static ModelPlan BuildMatchedMoeRegion(MoeRegionMatch const& match,std::vector<F
   auto router_weight=alias(match.router_weight,Checked(std::uint64_t(e)*h));
   auto partial_logits=buffer(match.router+".topk_logits",t,e*k,"f32");
   auto partial_indices=buffer(match.router+".topk_indices",t,e*k,"i32");
-  auto top_indices=buffer(match.indices,t,k,"i32"),top_weights=buffer(match.weights,t,k);
+  auto top_indices=buffer(match.indices,t,k,"i32"),top_weights=buffer(match.weights,t,k,
+      match.routing_weights_fp32?"f32":"bf16");
   auto bindings=buffer(match.experts+".bindings",capacity,4,"i32");
   auto rows=buffer(match.experts+".rows",t*k,4,"i32");
   unsigned chunks=(t+127)/128;

@@ -32,11 +32,12 @@ __device__ void RoutingStage(MoeTopKOperands const& top,MoeDispatchOperands cons
                             char* scratch,unsigned task) {
   void* buffers[]={const_cast<float*>(top.partial_logits),const_cast<std::int32_t*>(top.partial_indices),
       dispatch.indices?const_cast<std::int32_t*>(dispatch.indices):top.indices,
-      dispatch.weights?const_cast<E*>(dispatch.weights):top.weights,dispatch.bindings,dispatch.rows,
+      dispatch.weights?const_cast<void*>(dispatch.weights):top.weights,dispatch.bindings,dispatch.rows,
       dispatch.histogram,dispatch.expert_offsets,dispatch.block_offsets};
   DmBufferLayout layouts[9]{};layouts[0].logical[1]=top.parts*8;
   Params p{};p.dims.seq=top.tokens?top.tokens:dispatch.tokens;p.dims.batch=1;
-  p.dm_buffers={buffers,layouts,nullptr,9};
+  unsigned dtypes[9]{};dtypes[3]=(top.weights_fp32 || dispatch.weights_fp32)?1:0;
+  p.dm_buffers={buffers,layouts,dtypes,9};
   StageDesc s{};s.kind=TaskKind::kMoETopK;s.width=8;s.group=TokenTile;
   for(unsigned slot=0;slot<16;++slot)s.operand[slot]=slot<9?slot:kNoOperand;
   s.moe.step=Step;s.moe.experts=top.experts?top.experts:dispatch.experts;
@@ -88,8 +89,9 @@ __global__ void Small(MoeDispatchOperands p,MoeTopKOperands top) {
 #endif
 }
 
-template<int BM,bool Group>
+template<int BM,bool Group,bool FP32=false>
 unsigned Routing(unsigned tokens,unsigned experts,unsigned tile,unsigned mode) {
+  using Weight=std::conditional_t<FP32,float,E>;
   unsigned parts=(experts+tile-1)/tile,part_stride=11,row_stride=parts*part_stride+5;
 #if DM_TEST_STAGE_WRAPPERS
   part_stride=8;row_stride=parts*8;
@@ -97,7 +99,7 @@ unsigned Routing(unsigned tokens,unsigned experts,unsigned tile,unsigned mode) {
   auto* logits=Managed<float>(tokens*row_stride);
   auto* candidates=Managed<std::int32_t>(tokens*row_stride);
   auto* indices=Managed<std::int32_t>(tokens*8);
-  auto* weights=Managed<E>(tokens*8);
+  auto* weights=Managed<Weight>(tokens*8);
   std::vector<float> full(tokens*experts);
   std::vector<unsigned> expected(tokens*8);
   for(unsigned token=0;token<tokens;++token) {
@@ -132,6 +134,7 @@ unsigned Routing(unsigned tokens,unsigned experts,unsigned tile,unsigned mode) {
   auto* ticket=Managed<unsigned>(1);*ticket=0;
   MoeTopKOperands top{logits,candidates,indices,weights,tokens,experts,parts,row_stride,part_stride,1};
   MoeDispatchOperands p{indices,weights,bindings,rows,histogram,offsets,blocks,tokens,experts,capacity};
+  top.weights_fp32=p.weights_fp32=FP32;
   for(unsigned epoch=0;epoch<3;++epoch) {
     for(unsigned v=0;v<capacity;++v)bindings[v]={0xdeadbeef,0xdeadbeef,0xdeadbeef,1};
     Top<<<TopK::Count(top),128>>>(top);Sync();
@@ -141,7 +144,7 @@ unsigned Routing(unsigned tokens,unsigned experts,unsigned tile,unsigned mode) {
         sum+=std::exp(double(full[token*experts+expected[token*8+rank]]-full[token*experts+expected[token*8]]));
       for(unsigned rank=0;rank<8;++rank) {
         auto at=token*8+rank;assert(indices[at]==int(expected[at]));
-        float ref=float(E(std::exp(double(full[token*experts+expected[at]]-full[token*experts+expected[token*8]]))/sum));
+        float ref=float(Weight(std::exp(double(full[token*experts+expected[at]]-full[token*experts+expected[token*8]]))/sum));
         assert(std::abs(float(weights[at])-ref)<=1e-5f+.008f*std::abs(ref));
       }
     }
@@ -158,7 +161,8 @@ unsigned Routing(unsigned tokens,unsigned experts,unsigned tile,unsigned mode) {
     for(unsigned row=0;row<tokens*8;++row) {
       auto assignment=assignments[row];auto const& actual=rows[row];
       assert(actual.token==assignment/8 && actual.rank==assignment%8);
-      assert(actual.weight_bf16==reinterpret_cast<std::uint16_t*>(weights)[assignment]);
+      E rounded=E(weights[assignment]);
+      assert(actual.weight_bf16==*reinterpret_cast<std::uint16_t*>(&rounded));
       assert(actual.reserved16==0 && actual.reserved32==0);
     }
     unsigned used=0;
@@ -189,9 +193,10 @@ template<int Rows,int Columns>using Combine=MoECombineTaskBody<Arch,8,Rows,Colum
 #if DM_TEST_STAGE_WRAPPERS
 template<int Rows,int Columns>
 __device__ void CombineStage(MoeCombineOperands const& source,char* scratch,unsigned task) {
-  void* buffers[]={const_cast<E*>(source.partials),const_cast<E*>(source.weights),
+  void* buffers[]={const_cast<E*>(source.partials),const_cast<void*>(source.weights),
       const_cast<E*>(source.residual),source.output,source.row_stats};
-  Params p{};p.dims.seq=source.tokens;p.dims.batch=1;p.dm_buffers={buffers,nullptr,nullptr,5};
+  unsigned dtypes[5]{};dtypes[1]=source.weights_fp32?1:0;
+  Params p{};p.dims.seq=source.tokens;p.dims.batch=1;p.dm_buffers={buffers,nullptr,dtypes,5};
   StageDesc s{};s.kind=TaskKind::kMoECombine;s.width=Columns;s.group=Rows;s.extent=source.channels;
   for(unsigned slot=0;slot<16;++slot)s.operand[slot]=slot<5?slot:kNoOperand;
   DmStageRunner<Arch>{p,s,task,scratch}.template RunMoe<DmMoeStep::kCombine,8,1,false,Rows,Columns>();
@@ -228,8 +233,9 @@ __global__ void Weighted(MoeCombineOperands p,E const* source,unsigned* tickets)
 #endif
   });
 }
-template<int Rows,int Columns>
+template<int Rows,int Columns,bool FP32=false>
 unsigned Combination(unsigned tokens,unsigned channels) {
+  using Weight=std::conditional_t<FP32,float,E>;
   unsigned tiles=(channels+Columns-1)/Columns,row_stride=channels+7;
   unsigned rank_stride=channels+3,token_stride=8*rank_stride+5,stats_stride=tiles*2+4;
 #if DM_TEST_STAGE_WRAPPERS
@@ -238,12 +244,12 @@ unsigned Combination(unsigned tokens,unsigned channels) {
   auto* source=Managed<E>(tokens*token_stride);
   auto* partials=Managed<E>(tokens*token_stride);
   auto* residual=Managed<E>(tokens*row_stride);
-  auto* weights=Managed<E>(tokens*8);
+  auto* weights=Managed<Weight>(tokens*8);
   auto* output=Managed<E>(tokens*row_stride+16);
   auto* stats=Managed<float>(tokens*stats_stride+16);
   for(unsigned token=0;token<tokens;++token) {
     for(unsigned rank=0;rank<8;++rank) {
-      weights[token*8+rank]=E(float(rank+1)/36);
+      weights[token*8+rank]=Weight(float(rank+1)/36);
       for(unsigned channel=0;channel<channels;++channel)
         source[token*token_stride+rank*rank_stride+channel]=E(float(int((token*31+rank*17+channel*13)%173)-86)*.03125f);
     }
@@ -252,13 +258,15 @@ unsigned Combination(unsigned tokens,unsigned channels) {
   }
   MoeCombineOperands p{partials,weights,residual,output+8,stats+8,tokens,channels,
                        token_stride,rank_stride,row_stride,stats_stride};
+  p.weights_fp32=FP32;
   unsigned count=Combine<Rows,Columns>::Count(p);auto* tickets=Managed<unsigned>(count);
   std::fill(tickets,tickets+count,0);
   std::vector<E> expected(tokens*row_stride,E(-12345));
   for(unsigned token=0;token<tokens;++token)for(unsigned column=0;column<channels;++column) {
     float sum=0;
     for(unsigned rank=0;rank<8;++rank) {
-      float product=float(E(float(weights[token*8+rank])*float(source[token*token_stride+rank*rank_stride+column])));
+      float product=float(weights[token*8+rank])*float(source[token*token_stride+rank*rank_stride+column]);
+      if constexpr(!FP32)product=float(E(product));
       sum+=product;
     }
     expected[token*row_stride+column]=E(float(E(sum))+float(residual[token*row_stride+column]));
@@ -317,6 +325,10 @@ int main() {
     combine+=Combination<4,64>(tokens,channels);
   }
   combine+=Combination<4,128>(4096,2048);
+  for(unsigned tokens:{1,17,513}) {
+    routing+=Routing<16,true,true>(tokens,128,32,1);
+    combine+=Combination<4,128,true>(tokens,257);
+  }
   std::printf("{\"passed\":true,\"routing_cases\":%u,\"combine_cases\":%u,\"epochs\":3,"
-      "\"scope\":\"MoE partial top-k, stable dispatch, BF16 rank combine, histogram LA and weighted combine LA\"}\n",routing,combine);
+      "\"scope\":\"MoE partial top-k, stable dispatch, BF16 and FP32 routing products, histogram LA and weighted combine LA\"}\n",routing,combine);
 }

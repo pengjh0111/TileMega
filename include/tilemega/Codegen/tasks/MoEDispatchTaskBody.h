@@ -8,7 +8,7 @@
 namespace tilemega::codegen {
 struct MoeDispatchOperands {
   std::int32_t const* indices=nullptr;
-  cutlass::bfloat16_t const* weights=nullptr;
+  void const* weights=nullptr;
   MoeBindingRecord* bindings=nullptr;
   MoeBindingRow* rows=nullptr;
   // Histogram changes in place to the exclusive prefix per expert/chunk.
@@ -16,6 +16,7 @@ struct MoeDispatchOperands {
   unsigned* expert_offsets=nullptr;
   unsigned* block_offsets=nullptr;
   unsigned tokens=0,experts=0,capacity=0;
+  bool weights_fp32=false;
 };
 
 template<class Arch,int TopK=8,int BlockRows=16,bool Grouped=true,
@@ -101,7 +102,12 @@ struct MoEDispatchTaskBody {
   }
   __device__ static MoeBindingRow Row(MoeDispatchOperands const& p,unsigned assignment) {
     MoeBindingRow result;result.token=assignment/TopK;result.rank=assignment%TopK;
-    result.weight_bf16=reinterpret_cast<std::uint16_t const*>(p.weights)[assignment];return result;
+    // Binding weights are informational; combine reads the original tensor.
+    // Keep the 16-byte binding ABI for existing expert gather implementations.
+    cutlass::bfloat16_t weight=p.weights_fp32?
+        cutlass::bfloat16_t(static_cast<float const*>(p.weights)[assignment]):
+        static_cast<cutlass::bfloat16_t const*>(p.weights)[assignment];
+    result.weight_bf16=*reinterpret_cast<std::uint16_t const*>(&weight);return result;
   }
   __device__ static void Scatter(MoeDispatchOperands const& p,unsigned chunk,SharedStorage& s) {
     Validate(p);

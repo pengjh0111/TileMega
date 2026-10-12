@@ -142,7 +142,9 @@ static MoeRegionMatch Match(std::vector<FxNodeRecord> const& nodes,
   if(!r.Bool(r.Arg(topk,3,"largest"),true) || !r.Bool(r.Arg(topk,4,"sorted"),true))
     Reader::Fail("top-k must select sorted largest values");
   auto const& weights=r.Ref(*experts,2);result.weights=weights.name;
-  auto const& division=r.Cast(weights,"torch.bfloat16","torch.float32");
+  result.routing_weights_fp32=weights.dtype=="torch.float32";
+  auto const& division=result.routing_weights_fp32?weights:
+      r.Cast(weights,"torch.bfloat16","torch.float32");
   if(division.target!="aten.div.Tensor")Reader::Fail("selected probabilities must be normalized");
   auto const& selected=r.Ref(division,0);auto const& sum=r.Ref(division,1);
   if(r.Tuple(selected,0).name!=topk.name || sum.target!="aten.sum.dim_IntList" ||

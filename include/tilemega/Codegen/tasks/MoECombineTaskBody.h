@@ -8,13 +8,14 @@
 namespace tilemega::codegen {
 struct MoeCombineOperands {
   cutlass::bfloat16_t const* partials=nullptr;  // [token, rank, channel]
-  cutlass::bfloat16_t const* weights=nullptr;   // [token, rank]
+  void const* weights=nullptr;   // [token, rank]
   cutlass::bfloat16_t const* residual=nullptr;  // [token, channel]
   cutlass::bfloat16_t* output=nullptr;
   float* row_stats=nullptr;                    // [token, channel tile, 2]
   unsigned tokens=0,channels=0;
   std::uint64_t token_stride=0,rank_stride=0,row_stride=0,stats_stride=0;
   float* rms_squares=nullptr;                 // optional legacy [token, channel/32]
+  bool weights_fp32=false;
 };
 
 template<class Arch,int TopK=8,int TokenTile=1,int ChannelTile=128>
@@ -41,11 +42,13 @@ struct MoECombineTaskBody {
         float sum=0;
         #pragma unroll
         for(unsigned rank=0;rank<TopK;++rank) {
-          float weight=float(p.weights[token*TopK+rank]);
+          float weight=p.weights_fp32?static_cast<float const*>(p.weights)[token*TopK+rank]:
+              float(static_cast<cutlass::bfloat16_t const*>(p.weights)[token*TopK+rank]);
           float partial=float(p.partials[token*p.token_stride+rank*p.rank_stride+channel]);
-          // HF grouped_mm rounds each weighted expert row to BF16, then
-          // accumulates the K rows in FP32 and rounds once before residual.
-          float product=float(cutlass::bfloat16_t(weight*partial));
+          // Preserve the exported routing dtype: modern HF keeps products in
+          // FP32; historical BF16 exports retain their explicit rounding.
+          float product=__fmul_rn(weight,partial);
+          if(!p.weights_fp32)product=float(cutlass::bfloat16_t(product));
           sum=__fadd_rn(sum,product);
         }
         auto moe=cutlass::bfloat16_t(sum);

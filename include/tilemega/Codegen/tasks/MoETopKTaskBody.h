@@ -13,9 +13,10 @@ struct MoeTopKOperands {
   float const* partial_logits=nullptr;
   std::int32_t const* partial_indices=nullptr;
   std::int32_t* indices=nullptr;
-  cutlass::bfloat16_t* weights=nullptr;
+  void* weights=nullptr;
   unsigned tokens=0,experts=0,parts=0;
   std::uint64_t row_stride=0,part_stride=0,rank_stride=1;
+  bool weights_fp32=false;
 };
 
 template<class Arch,int TopK=8,int TokensPerTask=128>
@@ -63,9 +64,9 @@ struct MoETopKTaskBody {
       #pragma unroll
       for(unsigned rank=0;rank<TopK;++rank) {
         p.indices[token*TopK+rank]=selected[rank];
-        // The normalized selected softmax has one BF16 rounding, after FP32
-        // exp/sum/div. No routing weight is folded into an expert GEMM.
-        p.weights[token*TopK+rank]=cutlass::bfloat16_t(probabilities[rank]/sum);
+        float weight=probabilities[rank]/sum;
+        if(p.weights_fp32)static_cast<float*>(p.weights)[token*TopK+rank]=weight;
+        else static_cast<cutlass::bfloat16_t*>(p.weights)[token*TopK+rank]=cutlass::bfloat16_t(weight);
       }
     }
   }

@@ -63,12 +63,16 @@ struct DmStageRunner {
     auto pointer=[&](unsigned slot)->void* {
       auto id=stage.operand[slot];return id==kNoOperand?nullptr:params.dm_buffers.data[id];
     };
+    auto weights_fp32=[&](unsigned slot) {
+      return params.dm_buffers.dtypes && params.dm_buffers.dtypes[stage.operand[slot]]==1;
+    };
     unsigned tokens=params.dims.tokens();
     if constexpr(Step==DmMoeStep::kCombine) {
-      MoeCombineOperands p{static_cast<E const*>(pointer(0)),static_cast<E const*>(pointer(1)),
+      MoeCombineOperands p{static_cast<E const*>(pointer(0)),pointer(1),
           static_cast<E const*>(pointer(2)),static_cast<E*>(pointer(3)),static_cast<float*>(pointer(4)),
           tokens,stage.extent,std::uint64_t(TopK)*stage.extent,stage.extent,stage.extent,
           std::uint64_t((stage.extent+ChannelTile-1)/ChannelTile)*2};
+      p.weights_fp32=weights_fp32(1);
       p.rms_squares=static_cast<float*>(pointer(5));
       using Body=MoECombineTaskBody<Arch,TopK,TokenTile,ChannelTile>;
       Body::Run(p,task,*reinterpret_cast<typename Body::SharedStorage*>(scratch));
@@ -76,8 +80,9 @@ struct DmStageRunner {
       if constexpr(Step==DmMoeStep::kSelect || Step==DmMoeStep::kSelectAndDispatch) {
         unsigned parts=params.dm_buffers.layouts[stage.operand[0]].logical[1]/TopK;
         MoeTopKOperands select{static_cast<float const*>(pointer(0)),static_cast<std::int32_t const*>(pointer(1)),
-            static_cast<std::int32_t*>(pointer(2)),static_cast<E*>(pointer(3)),tokens,
+            static_cast<std::int32_t*>(pointer(2)),pointer(3),tokens,
             stage.moe.experts,parts,std::uint64_t(parts)*TopK,TopK,1};
+        select.weights_fp32=weights_fp32(3);
         MoETopKTaskBody<Arch,TopK,TokenTile>::Run(select,task);
       }
       if constexpr(Step!=DmMoeStep::kSelect) {
@@ -88,6 +93,7 @@ struct DmStageRunner {
             static_cast<MoeBindingRow*>(pointer(5)),static_cast<unsigned*>(pointer(6)),
             static_cast<unsigned*>(pointer(7)),static_cast<unsigned*>(pointer(8)),
             tokens,stage.moe.experts,stage.moe.binding_capacity};
+        dispatch.weights_fp32=weights_fp32(3);
         if constexpr(Step==DmMoeStep::kSelectAndDispatch) {
           executor::ComputeSync();Body::RunSmall(dispatch,shared);
         }else if constexpr(Step==DmMoeStep::kHistogram) {
