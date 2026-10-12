@@ -814,6 +814,13 @@ if(TILEMEGA_BUILD_TESTS)
     tilemega_configure_cuda_target(${test}_test)
     add_test(NAME ${test} COMMAND ${test}_test)
   endforeach()
+  add_executable(attention_layout_pvswap_test test/unit/attention_layout_test.cu)
+  target_link_libraries(attention_layout_pvswap_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(attention_layout_pvswap_test PRIVATE TILEMEGA_ATTENTION_PVSWAP=1)
+  target_compile_options(attention_layout_pvswap_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(attention_layout_pvswap_test)
+  add_test(NAME attention_layout_pvswap COMMAND attention_layout_pvswap_test)
   foreach(test IN ITEMS dm_epoch_last_arriver dm_counted_threshold
       dm_nonpaged_handoff dm_nonpaged_attention_handoff dm_small_native_gemm
       dm_binding_stream dm_binding_pages dm_moe_counted_publish)

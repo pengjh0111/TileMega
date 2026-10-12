@@ -132,6 +132,8 @@ int main(int argc,char** argv) {
   okay&=Check<64,4,16,true>();okay&=Check<64,4,64,true>();
   okay&=Check<128,2,16,false>();okay&=Check<128,2,64,false>();
   okay&=Check<128,2,16,true>();okay&=Check<128,2,64,true>();
+  okay&=Check<128,3,16,false>();okay&=Check<128,3,64,false>();
+  okay&=Check<128,3,16,true>();okay&=Check<128,3,64,true>();
   if(!okay)return 1;
   std::puts("serving prefill attention matrix: pass");
 }

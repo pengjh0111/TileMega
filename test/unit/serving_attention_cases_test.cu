@@ -224,6 +224,7 @@ bool RunSuite() {
 
 int main() {
   if (!RunSuite<64, 4, false>() || !RunSuite<64, 4, true>() ||
-      !RunSuite<128, 2, false>() || !RunSuite<128, 2, true>()) return 1;
-  std::puts("serving decode attention matrix: 60/60 pass");
+      !RunSuite<128, 2, false>() || !RunSuite<128, 2, true>() ||
+      !RunSuite<128, 3, false>() || !RunSuite<128, 3, true>()) return 1;
+  std::puts("serving decode attention matrix: 90/90 pass");
 }

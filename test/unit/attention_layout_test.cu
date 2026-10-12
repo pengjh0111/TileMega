@@ -137,7 +137,8 @@ template<int D,int Q> int Shapes() {
   return failed;
 }
 int main() {
-  int failed=Shapes<64,2>()+Shapes<64,4>()+Shapes<128,2>()+Shapes<128,4>();
+  int failed=Shapes<64,2>()+Shapes<64,4>()+Shapes<128,2>()+Shapes<128,4>()+
+      Shapes<128,3>()+Shapes<128,8>();
   std::printf("attention_layout %s failures=%d\n",failed?"FAIL":"PASS",failed);
   return failed?1:0;
 }
