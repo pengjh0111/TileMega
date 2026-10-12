@@ -15,6 +15,11 @@ from tilemega.fingerprint import ROOT
 
 @contextmanager
 def gpu_lock():
+    # The bench guard owns the lock in a parent process, without passing its
+    # descriptor to children. Honor the same ownership marker as serving.
+    if os.environ.get('TILEMEGA_GPU_LOCK_HELD') == '1':
+        yield
+        return
     path=Path(os.environ.get('TILEMEGA_GPU_LOCK','/root/r14_work/gpu.lock'))
     path.parent.mkdir(parents=True,exist_ok=True)
     with path.open('a') as stream:
