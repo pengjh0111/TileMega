@@ -47,8 +47,7 @@ def prepare(root, out, tree):
         third.rmdir()
     third.symlink_to(root / 'third_party', target_is_directory=True)
     files = set(FIXTURES)
-    for folder in ('tools/experimental/crosscompile', 'docs/experiments/SERVING_R11',
-                   'docs/experiments/DNN_MOE_R1'):
+    for folder in ('tools/experimental/crosscompile',):
         files.update(name for name in git(root, 'ls-files', folder).splitlines()
                      if Path(name).parent == Path(folder) and Path(name).suffix in ('.py', '.sh', '.txt'))
     files.add('tools/experimental/crosscompile/CMakeLists.txt')
@@ -61,10 +60,7 @@ def prepare(root, out, tree):
             destination.write_bytes(subprocess.check_output(['git', '-C', str(root), 'show', head + ':' + name]))
             origins[name] = 'committed:' + head
         else:
-            # Legacy tests still reference generated local fixtures. Preserve
-            # their exact bytes; CLN-2 must migrate these before a clean clone.
-            shutil.copy2(root / name, destination)
-            origins[name] = 'local:' + str(root / name)
+            raise ValueError('full checkpoint fixture must be committed: ' + name)
         destination.chmod((root / name).stat().st_mode)
     shutil.copy2(__file__, out / 'runner.py')
     (out / 'inputs.json').write_text(json.dumps(dict(root=str(root), tree=str(tree), head=head,

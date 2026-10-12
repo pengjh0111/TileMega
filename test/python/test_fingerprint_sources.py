@@ -14,8 +14,8 @@ class SourceFingerprintTests(unittest.TestCase):
             header = root / 'include/runtime.h'
             header.write_text('int value = 1;\n')
             before = source_fingerprint(root)
-            (root / 'docs/experiments').mkdir(parents=True)
-            (root / 'docs/experiments/measurements.tsv').write_text('historical data\n')
+            (root / 'runs').mkdir(parents=True)
+            (root / 'runs/measurements.tsv').write_text('historical data\n')
             self.assertEqual(before, source_fingerprint(root))
             header.write_text('int value = 2;\n')
             self.assertNotEqual(before, source_fingerprint(root))

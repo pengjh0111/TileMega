@@ -1251,3 +1251,13 @@ if(TILEMEGA_BUILD_TESTS AND Python3_EXECUTABLE)
     PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python ${Python3_EXECUTABLE} -m unittest discover
     -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_workload*.py)
 endif()
+
+if(TILEMEGA_BUILD_TESTS AND Python3_EXECUTABLE)
+  foreach(suite model_registry serving_head light_selection moe_full
+      moe_deployment moe_routing_check serving_replay dnn_generated_metrics
+      dm_scheduler_lock)
+    add_test(NAME r15_${suite} COMMAND ${CMAKE_COMMAND} -E env
+      PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python ${Python3_EXECUTABLE} -m unittest discover
+      -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_${suite}.py)
+  endforeach()
+endif()
