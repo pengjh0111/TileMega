@@ -35,8 +35,41 @@ def size(path):
     return total
 
 
+def repository_audit(tree, status):
+    """Include detached HEADs and ignored sources in the deletion review."""
+    entries = iter(status.split(b'\0'))
+    changes = []
+    for entry in entries:
+        if not entry:
+            continue
+        code, name = entry[:2], os.fsdecode(entry[3:])
+        if code not in (b'??', b'!!'):
+            changes.append(dict(status=code.decode(), path=str(tree / name)))
+        if b'R' in code or b'C' in code:
+            original = next(entries, b'')
+            changes.append(dict(status='rename-source', path=str(tree / os.fsdecode(original))))
+    suffixes = {'.py', '.cpp', '.h', '.cuh', '.cu', '.sh', '.cmake', '.td', '.mlir'}
+    source_files, ignored_sources = [], []
+    for ignored, target in ((False, source_files), (True, ignored_sources)):
+        args = ['ls-files', '--others', '--exclude-standard', '-z']
+        if ignored:
+            args.append('--ignored')
+        for name in git(tree, *args).split(b'\0'):
+            if name and Path(os.fsdecode(name)).suffix in suffixes:
+                target.append(str(tree / os.fsdecode(name)))
+    return dict(root=str(tree),
+        head=git(tree, 'rev-parse', 'HEAD').decode().strip(),
+        stash=git(tree, 'stash', 'list').decode().splitlines(),
+        # --branches alone misses a detached worktree's unique unpublished tip.
+        unpushed=git(tree, 'log', 'HEAD', '--branches', '--not', '--remotes',
+                     '--format=%H %s').decode().splitlines(),
+        tracked_changes=changes, untracked_source=source_files, ignored_source=ignored_sources)
+
+
 def collect(root, out):
     root, out = root.resolve(), out.resolve()
+    if not out.is_relative_to(root / 'runs'):
+        raise ValueError('Inventory output must be inside the ignored runs/ directory')
     out.mkdir(parents=True, exist_ok=True)
     rows, seen, audits = [], {}, []
 
@@ -77,12 +110,7 @@ def collect(root, out):
         if not tree.exists():
             continue
         status = git(tree, 'status', '--porcelain=v1', '--ignored', '-z')
-        stash = git(tree, 'stash', 'list').decode()
-        unpushed = git(tree, 'log', '--branches', '--not', '--remotes', '--format=%H %s').decode()
         (out / f'worktree_{len(audits)}_status.bin').write_bytes(status)
-        source_files = [str(tree / os.fsdecode(name))
-            for name in git(tree, 'ls-files', '--others', '--exclude-standard', '-z').split(b'\0')
-            if name and Path(os.fsdecode(name)).suffix in ('.py', '.cpp', '.h', '.cuh', '.cu', '.sh', '.cmake')]
         entries = iter(status.split(b'\0'))
         for entry in entries:
             if not entry:
@@ -95,8 +123,7 @@ def collect(root, out):
                 if path == out or out.is_relative_to(path):
                     continue
                 add(path, 'A')
-        audits.append(dict(root=str(tree), stash=stash.splitlines(), unpushed=unpushed.splitlines(),
-                           untracked_source=source_files))
+        audits.append(repository_audit(tree, status))
         for name in ('build', 'build-dm'):
             add(tree / name, 'B')
         for path in tree.glob('build-*'):

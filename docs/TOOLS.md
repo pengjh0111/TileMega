@@ -107,6 +107,20 @@ output throughput and MBU. Each arm has the same prompt, fixed OSL and EOS
 policy. Model correctness is separate from timing; component benchmarks are
 diagnostic only. Raw receipts remain under ignored `runs/`.
 
+Local cleanup is prepared separately from acceptance and never runs during
+project jobs. Both commands below are read-only:
+
+```bash
+python scripts/cleanup_inventory.py --out runs/r15/cleanup_inventory
+python scripts/cleanup_plan.py --inventory runs/r15/cleanup_inventory/inventory.json \
+  --scheduler-state runs/r15/rf1/scheduler/state.json --out runs/r15/cleanup_dry_run
+```
+
+The dry-run preserves checkpoints and datasets, and blocks different owners,
+symlinks, unpublished commits (including detached worktrees), stashes, edits
+and local sources. Nested candidates count only once. It performs no deletion;
+repeat all checks after the final push before reviewing deletion candidates.
+
 For NAFNet diagnostics, run `tilemega.dnn.check_generated --diagnostics FILE`
 under the numerical-test guard on a separate `--reuse none` diagnostic build.
 Then run `python -m tilemega.dnn.diagnose --intermediates FILE --bridge BRIDGE
