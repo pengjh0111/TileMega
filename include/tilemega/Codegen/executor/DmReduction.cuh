@@ -1,5 +1,27 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Included inside tilemega::codegen after task dispatch and publication.
+// BuildDmReductionProof admits only pooling and MoE reducers. Reusing the
+// full stage runner here instantiates unrelated attention/convolution bodies
+// at every recursion depth even though no reduction program can reach them.
+template<class Arch>
+struct DmReductionRunner : DmStageRunner<Arch> {
+  using Base=DmStageRunner<Arch>;
+  template<TaskKind Kind,int Width,int RowsPerTask>
+  __device__ void Run() const {
+    if constexpr(Kind==TaskKind::kGlobalPoolReduce && TILEMEGA_DM_POOL_LA)
+      Base::template Run<Kind,Width,RowsPerTask>();
+    else asm volatile("trap;");
+  }
+  template<DmMoeStep Step,int TopK,int BlockRows,bool Grouped,int TokenTile,int ChannelTile>
+  __device__ void RunMoe() const {
+    constexpr unsigned bit=Step==DmMoeStep::kCombine?2:1;
+    if constexpr(TILEMEGA_DM_MOE_LA && (TILEMEGA_DM_MOE_LA_MASK&bit))
+      Base::template RunMoe<Step,TopK,BlockRows,Grouped,TokenTile,ChannelTile>();
+    else asm volatile("trap;");
+  }
+  template<int RowBand,int ChannelTile,class Program>
+  __device__ void RunDepthwise() const {asm volatile("trap;");}
+};
 template<class Arch,bool L2,unsigned Depth=0,class Publish>
 __device__ void RunDmReductions(Params const& p,unsigned producer,unsigned task,
     char* scratch,unsigned long long iteration,Publish const& publish) {
@@ -26,7 +48,7 @@ __device__ void RunDmReductions(Params const& p,unsigned producer,unsigned task,
       bool completed=executor::EpochLastArriver::RunWeighted(
           ticket,expected,iteration,contribution,&last,[&] {
             DispatchDmStage(unsigned(reducer.kind),reducer.width,reducer.group,
-                DmStageRunner<Arch>{p,reducer,target,scratch});
+                DmReductionRunner<Arch>{{p,reducer,target,scratch}});
           });
       if(completed) {
         RunDmReductions<Arch,L2,Depth+1>(p,program.target,target,scratch,iteration,publish);
