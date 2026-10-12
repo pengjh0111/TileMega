@@ -9,10 +9,8 @@ import threading
 import time
 import unittest
 
-FRAMEWORK=Path(__file__).resolve().parents[2]/'docs/experiments/DNN_MOE_R1'
-sys.path.insert(0,str(FRAMEWORK))
-spec=importlib.util.spec_from_file_location('dm_scheduler',FRAMEWORK/'scheduler.py')
-scheduler=importlib.util.module_from_spec(spec);spec.loader.exec_module(scheduler)
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]/"python"))
+from tilemega.bench import locking as scheduler
 
 
 class SharedLock(unittest.TestCase):

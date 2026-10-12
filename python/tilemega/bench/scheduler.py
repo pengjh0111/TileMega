@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 from .gpu_guard import gpu, idle, stop
+from .locking import acquire_command_lock
 
 TERMINAL = {'done', 'failed', 'skipped', 'not_run', 'cancelled'}
 
@@ -160,6 +161,9 @@ def main(argv=None):
             cmd = [sys.executable, '-m', 'tilemega.bench.gpu_guard', '--policy', str(args.policy),
                    '--out', str(folder), '--needs-free-mib', str(chosen.get('needs_free_mib', 12288)),
                    '--timeout-s', str(chosen['timeout_s']), '--', *cmd]
+        lock_descriptor=None
+        if not chosen.get('gpu'):
+            cmd,lock_descriptor=acquire_command_lock(cmd,env['TILEMEGA_GPU_LOCK'])
         rec.update(status='running', wait_s=time.time() - rec['enqueued'], out=str(folder), started=time.time())
         persist()
         begin = time.monotonic()
@@ -167,8 +171,12 @@ def main(argv=None):
         with log.open('a') as stream:
             stream.write(f"\nATTEMPT {rec['attempts']} {rec['started']}\n")
             stream.flush()
-            proc = subprocess.Popen(cmd, cwd=chosen.get('cwd'), env=env,
-                                    stdout=stream, stderr=subprocess.STDOUT, start_new_session=True)
+            try:
+                proc = subprocess.Popen(cmd, cwd=chosen.get('cwd'), env=env,
+                    pass_fds=() if lock_descriptor is None else (lock_descriptor,),
+                    stdout=stream, stderr=subprocess.STDOUT, start_new_session=True)
+            finally:
+                if lock_descriptor is not None:os.close(lock_descriptor)
             rec['pid'] = proc.pid
             persist()
             try:
