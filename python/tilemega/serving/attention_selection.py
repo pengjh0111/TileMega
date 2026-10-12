@@ -10,8 +10,11 @@ def variants(manifest):
     capacity=int(manifest['capacity'])
     extents=sorted(set((32,64,128,256,512,capacity)))
     paged=manifest['pg']=='pages'
+    impls=['mma16','pvswap','pvswap2']
+    if 1<=int(manifest.get('attention_q_per_kv',0))<=4 and int(manifest.get('attention_head_dim',0)) in (64,128):
+        impls.append('simt')
     return [dict(ec=ec,attention_impl=impl,nonpaged_la=la,paged_attention_load='loader')
-            for ec,impl,la in itertools.product(extents,('mma16','pvswap'),(0,) if paged else (0,1))]
+            for ec,impl,la in itertools.product(extents,impls,(0,) if paged else (0,1))]
 
 
 def matches(manifest,variant):

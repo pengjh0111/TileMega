@@ -50,7 +50,12 @@ def validate(manifest, defines):
             if int(manifest[feature]) != actual:
                 raise ValueError(f'manifest {feature} differs from {macro}')
     if 'attention_impl' in manifest:
-        actual = 'pvswap' if int(defines.get('TILEMEGA_ATTENTION_PVSWAP', '0')) else 'mma16'
+        if 'TILEMEGA_ATTENTION_IMPL' in defines:
+            index=int(defines['TILEMEGA_ATTENTION_IMPL'])
+            if not 0<=index<=3:raise ValueError('invalid attention implementation macro')
+            actual=('mma16','pvswap','pvswap2','simt')[index]
+        else:
+            actual = 'pvswap' if int(defines.get('TILEMEGA_ATTENTION_PVSWAP', '0')) else 'mma16'
         if manifest['attention_impl'] != actual:
             raise ValueError('manifest attention_impl differs from compiler macros')
     if 'nonpaged_la' in manifest:

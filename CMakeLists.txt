@@ -821,6 +821,23 @@ if(TILEMEGA_BUILD_TESTS)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
   tilemega_configure_cuda_target(attention_layout_pvswap_test)
   add_test(NAME attention_layout_pvswap COMMAND attention_layout_pvswap_test)
+  foreach(impl IN ITEMS pvswap2 simt)
+    if(impl STREQUAL "pvswap2")
+      set(impl_id 2)
+    else()
+      set(impl_id 3)
+    endif()
+    add_executable(attention_layout_${impl}_test test/unit/attention_layout_test.cu)
+    target_link_libraries(attention_layout_${impl}_test PRIVATE TileMega::tilemega)
+    target_compile_definitions(attention_layout_${impl}_test PRIVATE TILEMEGA_ATTENTION_IMPL=${impl_id})
+    target_compile_options(attention_layout_${impl}_test PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+    tilemega_configure_cuda_target(attention_layout_${impl}_test)
+    add_test(NAME attention_layout_${impl} COMMAND attention_layout_${impl}_test)
+  endforeach()
+  add_test(NAME attention_pvswap2_bitwise COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/python/attention_variant_equivalence.py
+    $<TARGET_FILE:attention_layout_pvswap_test> $<TARGET_FILE:attention_layout_pvswap2_test>)
   foreach(test IN ITEMS dm_epoch_last_arriver dm_counted_threshold
       dm_nonpaged_handoff dm_nonpaged_attention_handoff dm_small_native_gemm
       dm_binding_stream dm_binding_pages dm_moe_counted_publish)

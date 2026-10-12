@@ -194,7 +194,7 @@ def read_config(path: Path) -> dict:
         raise ValueError('static serving batches must lie in [1,16]')
     for name, allowed in dict(pg=['off', 'l2', 'pages', 'auto', 'measure'], handoff=['off', 'auto'],
                               sync=['calibrated', 'legacy'], arch_paths=['auto', 'sm80'],
-                              mma_reg_pipe=[0,1], nonpaged_la=[0,1], attention_frontier=[0,1], parallel_argmax=[0,1], ep_direct=[0,1], attention_noinline=[0,1], attention_buffers=[1,2], attention_impl=["mma16","pvswap"], l2_slim=[0,1], page_loop_split=[0,1], pdl=['auto', 'off'], weight_layout=['row', 'tiled'], nonpaged_weight_layout=['row','tiled'], evict_first=[0,1], evict_last=[0,1],
+                              mma_reg_pipe=[0,1], nonpaged_la=[0,1], attention_frontier=[0,1], parallel_argmax=[0,1], ep_direct=[0,1], attention_noinline=[0,1], attention_buffers=[1,2], attention_impl=["mma16","pvswap","pvswap2","simt"], l2_slim=[0,1], page_loop_split=[0,1], pdl=['auto', 'off'], weight_layout=['row', 'tiled'], nonpaged_weight_layout=['row','tiled'], evict_first=[0,1], evict_last=[0,1],
                               decode_executor=['L1', 'L2', 'measure'],
                               decode_loop=[0, 1, 'measure'], prefill_executor=['L1', 'L2', 'measure'],
                               prefill_pg=['l2', 'measure']).items():

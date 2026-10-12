@@ -31,6 +31,16 @@ class FeatureContractTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, 'attention_impl'):
                         validate(plan, defines)
 
+    def test_attention_family_macro_matches_identity(self):
+        for index,name in enumerate(('mma16','pvswap','pvswap2','simt')):
+            for dm in (False,True):
+                defines=build_defines('#define TILEMEGA_DM_SUPPORT '+str(int(dm))+'\n',
+                                      ['nvcc',f'-DTILEMEGA_ATTENTION_IMPL={index}'])
+                validate(dict(attention_impl=name),defines)
+                with self.assertRaises(ValueError):
+                    validate(dict(attention_impl='invalid'),defines)
+        with self.assertRaises(ValueError):validate(dict(attention_impl='simt'),{'TILEMEGA_ATTENTION_IMPL':'4'})
+
     def test_defaults_and_inactive_nonpaged_handoff(self):
         validate(dict(pg='pages', nonpaged_la=False, attention_buffers=2,
                       attention_impl='mma16'), {})

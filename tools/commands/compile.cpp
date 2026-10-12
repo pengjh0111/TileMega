@@ -585,7 +585,8 @@ int RunCompile(int argc, char** argv) {
       }
       if(kphase_mask<0 || kphase_mask>31 || v3_poll_ns<0)
         throw std::runtime_error("invalid K-phase mask or V3 poll interval");
-      if(attention_impl!="mma16" && attention_impl!="pvswap")throw std::runtime_error("--attention-impl must be mma16 or pvswap");
+      if(attention_impl!="mma16" && attention_impl!="pvswap" && attention_impl!="pvswap2" && attention_impl!="simt")
+        throw std::runtime_error("--attention-impl must be mma16, pvswap, pvswap2 or simt");
       if(mma_reg_pipe!=0 && mma_reg_pipe!=1)throw std::runtime_error("--mma-reg-pipe must be 0 or 1");
       if(watchdog!=0 && watchdog!=1)throw std::runtime_error("--watchdog must be 0 or 1");
       if(l2_slim!=0 && l2_slim!=1)throw std::runtime_error("--l2-slim must be 0 or 1");
@@ -603,7 +604,8 @@ int RunCompile(int argc, char** argv) {
       if(ep_direct)runtime_flags+=" -DTILEMEGA_EP_DIRECT=1";
       if(attention_frontier)runtime_flags+=" -DTILEMEGA_ATTENTION_FRONTIER=1";
       runtime_flags+=" -DTILEMEGA_NONPAGED_LA="+std::to_string(nonpaged_la);
-      runtime_flags+=" -DTILEMEGA_ATTENTION_PVSWAP="+std::to_string(attention_impl=="pvswap");
+      runtime_flags+=" -DTILEMEGA_ATTENTION_IMPL="+std::to_string(
+          attention_impl=="simt"?3:attention_impl=="pvswap2"?2:attention_impl=="pvswap"?1:0);
       runtime_flags+=" -DTILEMEGA_MMA_REG_PIPE="+std::to_string(mma_reg_pipe);
       runtime_flags+=" -DTILEMEGA_KPHASE_CLASS_MASK="+std::to_string(kphase_mask)+
           " -DTILEMEGA_V3_POLL_NS="+std::to_string(v3_poll_ns);
@@ -1586,6 +1588,17 @@ int RunCompile(int argc, char** argv) {
       if(auto family=selected?selected.getAs<mlir::BoolAttr>("moe_gemv"):mlir::BoolAttr{})
         moe_gemv=family.getValue();
     }
+    if(serving && serving_phase=="decode" && attention_impl=="simt") {
+      auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+      if(plan)for(auto entry:plan.getAs<mlir::ArrayAttr>("stages")) {
+        auto stage=mlir::cast<mlir::DictionaryAttr>(entry);
+        if(stage.getAs<mlir::StringAttr>("kind").getValue()!="kFusedAttention")continue;
+        auto q=stage.getAs<mlir::IntegerAttr>("group").getInt();
+        auto d=stage.getAs<mlir::IntegerAttr>("width").getInt();
+        if(q<1 || q>4 || (d!=64 && d!=128))
+          throw std::invalid_argument("simt attention requires QPerKV <= 4 and D = 64 or 128");
+      }
+    }
     if(moe_dynamic || moe_opaque || moe_gemv) {
       auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
       auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
@@ -1750,13 +1763,15 @@ int RunCompile(int argc, char** argv) {
           if(auto value=llvm::cast<mlir::DictionaryAttr>(entry).getAs<mlir::IntegerAttr>("interleave_u"))
             swiglu_interleave_u=std::min(swiglu_interleave_u,int(value.getInt()));
       }
-      int attention_kv_block=0,attention_query_rows=0;
+      int attention_kv_block=0,attention_query_rows=0,attention_head_dim=0,attention_q_per_kv=0;
       if(auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan"))
         if(auto stages=llvm::dyn_cast_or_null<mlir::ArrayAttr>(plan.get("stages")))
           for(auto entry:stages)
             if(auto stage=llvm::dyn_cast<mlir::DictionaryAttr>(entry))
               if(auto kind=stage.getAs<mlir::StringAttr>("kind");
                  kind && kind.getValue()=="kFusedAttention") {
+                attention_head_dim=int(stage.getAs<mlir::IntegerAttr>("width").getInt());
+                attention_q_per_kv=int(stage.getAs<mlir::IntegerAttr>("group").getInt());
                 attention_kv_block=int(stage.getAs<mlir::IntegerAttr>(
                     "attention_kv_block").getInt());
                 attention_query_rows=int(stage.getAs<mlir::IntegerAttr>(
@@ -1804,6 +1819,8 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"watchdog\": "<<watchdog
               <<",\n  \"mma_reg_pipe\": "<<mma_reg_pipe
               <<",\n  \"attention_impl\": \""<<attention_impl<<"\""
+              <<",\n  \"attention_head_dim\": "<<attention_head_dim
+              <<",\n  \"attention_q_per_kv\": "<<attention_q_per_kv
               <<",\n  \"kphase_mask\": "<<kphase_mask
               <<",\n  \"v3_poll_ns\": "<<v3_poll_ns
               <<",\n  \"l2_slim\": "<<l2_slim

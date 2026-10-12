@@ -24,10 +24,12 @@ class AttentionSelection(unittest.TestCase):
         self.assertEqual(len(winner['samples_ms']),3)
         self.assertEqual(sum(r['eliminated_round']=='budget_unmeasured' for r in rows),5)
     def test_dimensions(self):
-        p=dict(capacity=1088,pg='pages',attention_kv_block=256)
-        self.assertEqual(len(variants(p)),12)
+        p=dict(capacity=1088,pg='pages',attention_kv_block=256,attention_q_per_kv=4,attention_head_dim=64)
+        self.assertEqual(len(variants(p)),24)
         self.assertTrue(any(matches(p,v) for v in variants(p)))
-        p['pg']='l2';self.assertEqual(len(variants(p)),24)
+        p['pg']='l2';self.assertEqual(len(variants(p)),48)
+        p['attention_q_per_kv']=8
+        self.assertFalse(any(v['attention_impl']=='simt' for v in variants(p)))
     def test_winner_geometry_and_family_survive(self):
         with tempfile.TemporaryDirectory() as tmp:
             d=Path(tmp);classes=d/'classes.tsv'

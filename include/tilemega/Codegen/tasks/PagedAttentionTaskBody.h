@@ -4,9 +4,8 @@
 #include <tilemega/Codegen/tasks/AttentionPageLayout.h>
 #include <tilemega/Codegen/executor/PageRing.cuh>
 #include <tilemega/Backend/ServingAttentionPVSwap.h>
-#ifndef TILEMEGA_ATTENTION_PVSWAP
-#define TILEMEGA_ATTENTION_PVSWAP 0
-#endif
+#include <tilemega/Backend/ServingAttentionImpl.h>
+#include <tilemega/Backend/ServingAttentionSimt.h>
 #ifndef TILEMEGA_ATTENTION_NOINLINE
 #define TILEMEGA_ATTENTION_NOINLINE 0
 #endif
@@ -28,7 +27,9 @@ struct PagedAttentionTaskBody {
   using ValueLayout=decltype(cute::composition(KeyLayout{},
       cute::Layout<cute::Shape<cute::Int<D>,cute::_16>,cute::Stride<cute::_16,cute::_1>>{}));
   using QK=backend::ServingAttentionWarp<Arch,16,D,false,KeyLayout>;
-  static constexpr bool kPVSwap=TILEMEGA_ATTENTION_PVSWAP!=0;
+  static constexpr bool kPVSwap=TILEMEGA_ATTENTION_IMPL==1 || TILEMEGA_ATTENTION_IMPL==2;
+  static constexpr bool kSimt=TILEMEGA_ATTENTION_IMPL==3;
+  static_assert(!kSimt || Q<=4);
   static_assert(!kPVSwap || Q<=8);
   using PV=std::conditional_t<kPVSwap,backend::ServingAttentionPVSwap<Arch,D,ValueLayout>,
       backend::ServingAttentionWarp<Arch,D,16,true,ValueLayout>>;
@@ -141,6 +142,35 @@ struct PagedAttentionTaskBody {
 #if TILEMEGA_TRACE_TASK
     if(profile)profile->query_ns=TaskProfileNow(profile)-query_begin;
 #endif
+    if constexpr(kSimt) {
+      backend::ServingAttentionSimt<Arch,D,Q,typename QK::LayoutA,KeyLayout> simt(s.query);
+      for(int wave=0;wave<layout.waves;++wave) {
+        int logical_page=layout.PageOf(warp,wave);
+        auto cursor=sequence+logical_page;
+#if TILEMEGA_TRACE_TASK
+        auto wait_begin=TaskProfileNow(profile);
+#endif
+        ring.AwaitFull(cursor);
+#if TILEMEGA_TRACE_TASK
+        auto ready=TaskProfileNow(profile);
+        if(profile){if(!wave){profile->first_ready=ready;profile->first_page_wait_ns=ready-wait_begin;}
+          else profile->later_page_wait_ns+=ready-wait_begin;}
+#endif
+        auto* page=reinterpret_cast<Element*>(ring.Page(cursor));
+        int start=layout.Position(warp,wave,0),row=layout.RowOffset(warp);
+        if(layout.Valid(warp,wave,p.past-start,end,p.past+1))
+          NewRow(p,page,row+p.past-start,b,g);
+        __syncwarp();
+        simt.Page(page,page+kPageRows*D,row,layout.RowsPerOwner(),
+            [&](int local){return layout.Valid(warp,wave,local,end,p.past+1);});
+#if TILEMEGA_TRACE_TASK
+        if(profile)profile->wave_compute_ns+=TaskProfileNow(profile)-ready;
+#endif
+        for(int arrival=0;arrival<layout.ReleaseArrivals(logical_page);++arrival)ring.Release(cursor);
+      }
+      sequence+=layout.pages_per_task;
+      simt.Store(s.partial+warp*PartialRows*D,s.lse[warp],D);
+    }else {
     auto score_coords=typename QK::Mma{}.get_slice(lane).partition_C(make_identity_tensor(Shape<_16,_16>{}));
     auto out_coords=[&](){
       if constexpr(kPVSwap)return typename PV::Mma{}.get_slice(lane).partition_C(make_identity_tensor(Shape<Int<D>,_8>{}));
@@ -169,8 +199,15 @@ struct PagedAttentionTaskBody {
         NewRow(p,page,page_row+p.past-start,b,g);
       __syncwarp();
       int tile_limit=layout.RowsPerOwner();
+      auto pending=QK::Accumulator();
+      if constexpr(TILEMEGA_ATTENTION_IMPL==2)
+        QK::QK(s.query,page+page_row*D,pending);
       for(int tile=0;tile<tile_limit;tile+=16) {
-        auto score=QK::Accumulator();QK::QK(s.query,page+(page_row+tile)*D,score);
+        auto score=QK::Accumulator();
+        if constexpr(TILEMEGA_ATTENTION_IMPL==2) {
+          score=pending;clear(pending);
+          if(tile+16<tile_limit)QK::QK(s.query,page+(page_row+tile+16)*D,pending);
+        }else QK::QK(s.query,page+(page_row+tile)*D,score);
         float next[2]={maximum[0],maximum[1]},alpha[2];
         #pragma unroll
         for(int i=0;i<size(score);++i) {
@@ -226,6 +263,7 @@ struct PagedAttentionTaskBody {
     }
     if((lane&3)==0)for(int r=0;r<2;++r)
       if(lane/4+8*r<PartialRows)s.lse[warp][lane/4+8*r]=sum[r]>0?maximum[r]+log2f(sum[r]):-INFINITY;
+    }
     ComputeSync();
     int cmax=(p.capacity+p.block_extent-1)/p.block_extent;
     for(int vector=ComputeThread();vector<Q*D/8;vector+=kComputeThreads) {

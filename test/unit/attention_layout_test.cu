@@ -14,6 +14,7 @@ using Element=cutlass::bfloat16_t;
 using Arch=std::conditional_t<std::is_void_v<tilemega::arch::CurrentArch>,
     tilemega::arch::Sm80,tilemega::arch::CurrentArch>;
 constexpr int Capacity=1024;
+static std::FILE* dump=nullptr;
 static void CheckCuda(cudaError_t e) {
   if(e!=cudaSuccess){std::fprintf(stderr,"CUDA: %s\n",cudaGetErrorString(e));std::exit(2);}
 }
@@ -115,6 +116,12 @@ Totals Test() {
         pass=pass && std::isfinite(got) && std::abs(got-expected)<.006f*(1+std::abs(expected));
       }
     }
+    if(dump) {
+      int header[]={D,Q,Bytes,int(Policy),Independent,in.past,in.extent,in.chunk,in.steps};
+      if(std::fwrite(header,sizeof(header),1,dump)!=1 ||
+         std::fwrite(partial+in.chunk*Q*D,sizeof(float),Q*D,dump)!=Q*D ||
+         std::fwrite(lse+in.chunk*Q,sizeof(float),Q,dump)!=Q)std::exit(3);
+    }
     ++out.cases;out.failures+=!pass;
     out.context_error=std::max(out.context_error,error);out.lse_error=std::max(out.lse_error,log_error);
     if(!pass)std::printf("FAIL D=%d Q=%d page=%d policy=%d independent=%d count=%d chunk=%d extent=%d steps=%d context_error=%g lse_error=%g\n",D,Q,Bytes,int(Policy),Independent,end-begin,in.chunk,in.extent,in.steps,error,log_error);
@@ -137,8 +144,15 @@ template<int D,int Q> int Shapes() {
   return failed;
 }
 int main() {
-  int failed=Shapes<64,2>()+Shapes<64,4>()+Shapes<128,2>()+Shapes<128,4>()+
-      Shapes<128,3>()+Shapes<128,8>();
+  if(auto* path=std::getenv("TILEMEGA_ATTENTION_TEST_DUMP")) {
+    dump=std::fopen(path,"wb");if(!dump)return 3;
+  }
+  int failed=Shapes<64,2>()+Shapes<64,3>()+Shapes<64,4>()+Shapes<128,2>()+Shapes<128,4>()+
+      Shapes<128,3>();
+#if TILEMEGA_ATTENTION_IMPL!=3
+  failed+=Shapes<128,8>();
+#endif
   std::printf("attention_layout %s failures=%d\n",failed?"FAIL":"PASS",failed);
+  if(dump && std::fclose(dump))return 3;
   return failed?1:0;
 }
