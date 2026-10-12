@@ -15,6 +15,8 @@ using Arch=std::conditional_t<std::is_void_v<tilemega::arch::CurrentArch>,
     tilemega::arch::Sm80,tilemega::arch::CurrentArch>;
 constexpr int Capacity=1024;
 static std::FILE* dump=nullptr;
+static std::FILE* latency=nullptr;
+static int clock_khz=0;
 static void CheckCuda(cudaError_t e) {
   if(e!=cudaSuccess){std::fprintf(stderr,"CUDA: %s\n",cudaGetErrorString(e));std::exit(2);}
 }
@@ -35,9 +37,11 @@ struct Case {
   static constexpr int Shared=Independent?sizeof(typename Local::SharedStorage):Header+5*Bytes;
 };
 template<int D,int Q,int Bytes,AttentionPagePolicy Policy,bool Independent>
-__global__ void LayoutKernel(ServingAttentionOperands p,int chunk,int steps) {
+__global__ void LayoutKernel(ServingAttentionOperands p,int chunk,int steps,unsigned long long* cycles=nullptr) {
   using C=Case<D,Q,Bytes,Policy,Independent>;
   extern __shared__ __align__(1024) unsigned char memory[];
+  unsigned long long start=0;
+  if(cycles) {__syncthreads();if(threadIdx.x==0)start=clock64();}
   if constexpr(Independent) {
     auto& s=*reinterpret_cast<typename C::Local::SharedStorage*>(memory);
     for(int step=0;step<steps;++step,++p.past) {
@@ -57,6 +61,7 @@ __global__ void LayoutKernel(ServingAttentionOperands p,int chunk,int steps) {
       __syncthreads();
     }
   }
+  if(cycles) {__syncthreads();if(threadIdx.x==0)*cycles=clock64()-start;}
 }
 struct Totals {int cases=0,failures=0;float context_error=0,lse_error=0;};
 template<int D,int Q,int Bytes,AttentionPagePolicy Policy,bool Independent>
@@ -64,6 +69,7 @@ Totals Test() {
   using C=Case<D,Q,Bytes,Policy,Independent>;
   CheckCuda(cudaFuncSetAttribute(LayoutKernel<D,Q,Bytes,Policy,Independent>,
       cudaFuncAttributeMaxDynamicSharedMemorySize,C::Shared));
+  auto* cycles=latency?Allocate<unsigned long long>(1):nullptr;
   auto* qkv=Allocate<Element>((Q+2)*D);
   auto* k=Allocate<Element>(Capacity*D);auto* v=Allocate<Element>(Capacity*D);
   auto* cosine=Allocate<Element>(Capacity*D);auto* sine=Allocate<Element>(Capacity*D);
@@ -89,7 +95,7 @@ Totals Test() {
     for(int i=0;i<Capacity*Q*D;++i)partial[i]=NAN;
     ServingAttentionOperands p{qkv,k,v,cosine,sine,nullptr,nullptr,
       context,partial,lse,1,1,Capacity,in.past,in.extent,1e-6f};
-    LayoutKernel<D,Q,Bytes,Policy,Independent><<<1,Independent?128:160,C::Shared>>>(p,in.chunk,in.steps);
+    LayoutKernel<D,Q,Bytes,Policy,Independent><<<1,Independent?128:160,C::Shared>>>(p,in.chunk,in.steps,cycles);
     CheckCuda(cudaDeviceSynchronize());
     int end=std::min((in.chunk+1)*in.extent,in.past+in.steps),begin=in.chunk*in.extent;
     // Read the appended cache back, but independently verify its expected value
@@ -116,6 +122,15 @@ Totals Test() {
         pass=pass && std::isfinite(got) && std::abs(got-expected)<.006f*(1+std::abs(expected));
       }
     }
+    if(latency) {
+      // A single CTA isolates one (batch, KV head, chunk). These clocks are
+      // diagnostic only; they must never enter end-to-end selection tables.
+      std::fprintf(latency,"{\"impl\":%d,\"D\":%d,\"Q\":%d,\"page_bytes\":%d,"
+          "\"policy\":%d,\"independent\":%s,\"past\":%d,\"extent\":%d,"
+          "\"chunk\":%d,\"steps\":%d,\"cycles\":%llu,\"clock_khz\":%d,\"pass\":%s}\n",
+          TILEMEGA_ATTENTION_IMPL,D,Q,Bytes,int(Policy),Independent?"true":"false",
+          in.past,in.extent,in.chunk,in.steps,*cycles,clock_khz,pass?"true":"false");
+    }
     if(dump) {
       int header[]={D,Q,Bytes,int(Policy),Independent,in.past,in.extent,in.chunk,in.steps};
       if(std::fwrite(header,sizeof(header),1,dump)!=1 ||
@@ -127,6 +142,7 @@ Totals Test() {
     if(!pass)std::printf("FAIL D=%d Q=%d page=%d policy=%d independent=%d count=%d chunk=%d extent=%d steps=%d context_error=%g lse_error=%g\n",D,Q,Bytes,int(Policy),Independent,end-begin,in.chunk,in.extent,in.steps,error,log_error);
   }
   std::printf("RESULT D=%d Q=%d page=%d policy=%d independent=%d cases=%d failures=%d context_error=%g lse_error=%g\n",D,Q,Bytes,int(Policy),Independent,out.cases,out.failures,out.context_error,out.lse_error);
+  if(cycles)CheckCuda(cudaFree(cycles));
   void* allocations[]={qkv,k,v,cosine,sine,context,partial,lse};
   for(void* p:allocations)CheckCuda(cudaFree(p));
   return out;
@@ -144,6 +160,15 @@ template<int D,int Q> int Shapes() {
   return failed;
 }
 int main() {
+  if(auto* path=std::getenv("TILEMEGA_ATTENTION_TEST_LATENCY")) {
+    if(!std::getenv("TILEMEGA_GPU_LOCK_HELD")) {
+      std::fprintf(stderr,"latency diagnostics require the bench GPU guard\n");return 3;
+    }
+    latency=std::fopen(path,"w");if(!latency)return 3;
+    int device=0;cudaDeviceProp prop{};
+    CheckCuda(cudaGetDevice(&device));CheckCuda(cudaGetDeviceProperties(&prop,device));
+    clock_khz=prop.clockRate;
+  }
   if(auto* path=std::getenv("TILEMEGA_ATTENTION_TEST_DUMP")) {
     dump=std::fopen(path,"wb");if(!dump)return 3;
   }
@@ -154,5 +179,6 @@ int main() {
 #endif
   std::printf("attention_layout %s failures=%d\n",failed?"FAIL":"PASS",failed);
   if(dump && std::fclose(dump))return 3;
+  if(latency && std::fclose(latency))return 3;
   return failed?1:0;
 }
