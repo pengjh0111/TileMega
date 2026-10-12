@@ -9,6 +9,62 @@
 
 namespace tilemega::tests::operator_classes_test {
 using namespace tilemega;
+int TestServingModelDomains(int, char**) {
+ try {
+  auto target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+
+      "/configs/targets/sm_89.json");
+  frontend::ImportedSemantics imported;
+  auto& plan=imported.plan;plan.serving=true;plan.buffers.resize(3);
+  frontend::PlanGemm gemm;gemm.a=0;gemm.b=1;gemm.d=2;
+  gemm.n=8*(3+2)*128;gemm.k=3072;plan.gemms.push_back(gemm);
+  plan.stages.resize(2);
+  plan.stages[0].kind=frontend::PlanTaskKind::kGemm;
+  plan.stages[0].gemm=0;plan.stages[0].batch_rows=true;
+  plan.stages[1].kind=frontend::PlanTaskKind::kFusedAttention;
+  plan.stages[1].operands[0]=gemm.d;plan.stages[1].extent=8;
+  plan.buffers[1].pack_json="{\"kind\":\"qkv_group_interleave\"}";
+  solver::OperatorClass cls;cls.gemms={0};
+  auto require=[](bool ok,char const* message) {
+    if(!ok)throw std::runtime_error(message);
+  };
+  auto domain=[&](int batch) {
+    return solver::ServingClassCandidates(cls,imported,target,batch,1).candidates;
+  };
+  auto has=[](auto const& candidates,int n,int split,int impl) {
+    return std::any_of(candidates.begin(),candidates.end(),[&](auto const& g) {
+      return g.tile_m==16 && g.tile_n==n && g.tile_k==64 &&
+             g.stages==2 && g.split_k==split && g.impl==impl;
+    });
+  };
+  auto q3=domain(1);
+  require(!q3.empty(),"Q=3 group produced an empty domain");
+  for(auto const& g:q3)
+    require(640%g.tile_n==0,"Q=3 candidate crosses a packed QKV group");
+  for(int n:{32,64,128})
+    require(has(q3,n,1,0),"Q=3 domain lost a legal MMA width");
+  require(!has(q3,256,1,0),"Q=3 domain admitted TN=256 for width 640");
+  for(int n:{8,16,32})
+    require(has(q3,n,1,1),"Q=3 B1 domain lost a legal GEMV width");
+  auto batch16=domain(16);
+  require(std::none_of(batch16.begin(),batch16.end(),[](auto const& g) {
+    return g.impl!=0;
+  }),"B16 domain admitted a small-M GEMV");
+
+  // Qwen3-0.6B has hidden 1024 but a 2048-wide query projection.
+  plan.buffers[1].pack_json.clear();plan.gemms[0].n=1024;
+  for(int k:{2048,3072}) {
+    plan.gemms[0].k=k;auto output=domain(1);
+    int const tiles=(int(plan.gemms[0].n)+31)/32;
+    int const fill=std::min(4,(target.res.num_sms+tiles-1)/tiles);
+    require(tiles==32 && fill==4,"small-model fill fixture changed");
+    require(has(output,32,fill,0),"small-model domain lost split-4 coverage");
+    for(int n:{8,16})
+      require(has(output,n,1,1),"small-model domain lost narrow GEMV coverage");
+  }
+  std::cout<<"Serving model domains: Q=3 packing, batch legality, small-model fill PASS\n";
+ }catch(std::exception const& e){std::cerr<<e.what()<<'\n';return 1;}
+ return 0;
+}
 int TestDmOperatorClasses(int, char**) {
   using namespace codegen;
   analysis::IslContext isl;

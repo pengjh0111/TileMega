@@ -946,6 +946,7 @@ if(TILEMEGA_BUILD_TESTS)
 
   add_test(NAME operator_classes COMMAND tilemega-unit operator_classes)
   add_test(NAME dm_operator_classes COMMAND tilemega-unit dm_operator_classes)
+  add_test(NAME serving_model_domains COMMAND tilemega-unit serving_model_domains)
   add_test(NAME moe_routing_profile COMMAND tilemega-unit moe_routing_profile)
   add_test(NAME moe_task_pricing COMMAND tilemega-unit moe_task_pricing)
   add_test(NAME moe_dram_bindings COMMAND tilemega-unit moe_dram_bindings)

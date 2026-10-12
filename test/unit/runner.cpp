@@ -77,6 +77,7 @@ namespace tilemega::tests::variant_resource_test { int TestVariantResource(int, 
 namespace tilemega::tests::symbolic_oracle_test { int TestSymbolicOracle(int, char**); }
 namespace tilemega::tests::operator_classes_test { int TestOperatorClasses(int, char**); }
 namespace tilemega::tests::operator_classes_test { int TestDmOperatorClasses(int, char**); }
+namespace tilemega::tests::operator_classes_test { int TestServingModelDomains(int, char**); }
 namespace tilemega::tests::moe_routing_profile_test { int TestMoeRoutingProfile(int, char**); }
 namespace tilemega::tests::moe_task_pricing_test { int TestMoeTaskPricing(int, char**); }
 namespace tilemega::tests::moe_dram_bindings_test { int TestMoeDramBindings(int, char**); }
@@ -226,6 +227,7 @@ int main(int argc, char** argv) {
     {"symbolic_oracle", tilemega::tests::symbolic_oracle_test::TestSymbolicOracle},
     {"operator_classes", tilemega::tests::operator_classes_test::TestOperatorClasses},
     {"dm_operator_classes", tilemega::tests::operator_classes_test::TestDmOperatorClasses},
+    {"serving_model_domains", tilemega::tests::operator_classes_test::TestServingModelDomains},
     {"moe_routing_profile", tilemega::tests::moe_routing_profile_test::TestMoeRoutingProfile},
     {"moe_task_pricing", tilemega::tests::moe_task_pricing_test::TestMoeTaskPricing},
     {"moe_dram_bindings", tilemega::tests::moe_dram_bindings_test::TestMoeDramBindings},
