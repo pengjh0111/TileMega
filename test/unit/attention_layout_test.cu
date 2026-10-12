@@ -26,16 +26,19 @@ template<class T> T* Allocate(int count) {
 }
 template<int D,int Q,int Bytes,AttentionPagePolicy Policy,bool Independent>
 struct Case {
+  // Four consumers need at most four pages per wave. A fifth 16 KiB page
+  // plus Q=8 partials exceeds the sm_89 per-block budget before any work runs.
+  static constexpr int Pages=4;
 #ifdef TILEMEGA_LAYOUT_LEGACY
-  using Body=PagedAttentionTaskBody<Arch,D,Q,false,Bytes,5>;
+  using Body=PagedAttentionTaskBody<Arch,D,Q,false,Bytes,Pages>;
   using Local=IndependentAttentionTaskBody<Arch,D,Q,false>;
 #else
-  using Body=PagedAttentionTaskBody<Arch,D,Q,false,Bytes,5,false,Q,Policy>;
+  using Body=PagedAttentionTaskBody<Arch,D,Q,false,Bytes,Pages,false,Q,Policy>;
   using Local=IndependentAttentionTaskBody<Arch,D,Q,false,Bytes,Policy>;
 #endif
   using Ring=typename Body::Ring;
   static constexpr int Header=(1024+sizeof(typename Body::SharedStorage)+1023)/1024*1024;
-  static constexpr int Shared=Independent?sizeof(typename Local::SharedStorage):Header+5*Bytes;
+  static constexpr int Shared=Independent?sizeof(typename Local::SharedStorage):Header+Pages*Bytes;
 };
 template<int D,int Q,int Bytes,AttentionPagePolicy Policy,bool Independent>
 __global__ void LayoutKernel(ServingAttentionOperands p,int chunk,int steps,unsigned long long* cycles=nullptr) {
@@ -68,6 +71,14 @@ struct Totals {int cases=0,failures=0;float context_error=0,lse_error=0;};
 template<int D,int Q,int Bytes,AttentionPagePolicy Policy,bool Independent>
 Totals Test() {
   using C=Case<D,Q,Bytes,Policy,Independent>;
+  int device=0,limit=0;
+  CheckCuda(cudaGetDevice(&device));
+  CheckCuda(cudaDeviceGetAttribute(&limit,cudaDevAttrMaxSharedMemoryPerBlockOptin,device));
+  if(C::Shared>limit) {
+    std::fprintf(stderr,"attention fixture exceeds shared memory: D=%d Q=%d page=%d "
+        "independent=%d required=%d available=%d\n",D,Q,Bytes,Independent,int(C::Shared),limit);
+    std::exit(2);
+  }
   CheckCuda(cudaFuncSetAttribute(LayoutKernel<D,Q,Bytes,Policy,Independent>,
       cudaFuncAttributeMaxDynamicSharedMemorySize,C::Shared));
   auto* cycles=latency?Allocate<unsigned long long>(1):nullptr;

@@ -30,7 +30,7 @@ def execute(command,out,label,timeout=10800):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action',choices=('build','architectures','numeric'))
+    parser.add_argument('action',choices=('build','attention-build','architectures','numeric'))
     parser.add_argument('--out',type=Path,required=True)
     args=parser.parse_args();out=args.out.resolve();record=validate(out)
     root=Path(record['tree']);build=root/'build-r15'
@@ -44,7 +44,7 @@ def main():
     else:
         with Path(os.environ['TILEMEGA_GPU_LOCK']).open('a') as lock:
             fcntl.flock(lock,fcntl.LOCK_EX)
-            if args.action=='build':
+            if args.action in ('build','attention-build'):
                 command=['cmake','-S',str(root),'-B',str(build),'-G','Ninja','-DCMAKE_BUILD_TYPE=Release',
                     '-DTILEMEGA_TARGET_ARCH=sm_89','-DTILEMEGA_BUILD_TESTS=ON','-DTILEMEGA_BUILD_VERIFY=OFF',
                     '-DTILEMEGA_BUILD_EXPERIMENTAL=OFF','-DMLIR_DIR=/root/toolchains/mlir-23a60f15/lib/cmake/mlir',
@@ -52,7 +52,8 @@ def main():
                 for dep in ('ISL','POLYLIB','BARVINOK'):
                     command.append('-DTILEMEGA_'+dep+'_BUILD_DIR='+str(Path(record['root'])/('build-'+dep.lower())))
                 execute(command,out,'configure',600)
-                execute(['cmake','--build',str(build),'--target',*TARGETS,'-j','3'],out,'build',28800)
+                targets=TARGETS if args.action=='build' else TARGETS[2:]
+                execute(['cmake','--build',str(build),'--target',*targets,'-j','3'],out,'build',28800)
             else:
                 for arch in (80,89,90,100,120):
                     for impl in (0,1,2,3):
