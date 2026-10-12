@@ -1,0 +1,30 @@
+{
+  "id": "qwen3_8b",
+  "repo": "Qwen/Qwen3-8B",
+  "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+  "config_sha256": "f7c4eadfbbf522470667b797a3c89be2524832d2d599797248dc304fff447c30",
+  "tokenizer_family": "qwen",
+  "tie_word_embeddings": false,
+  "dimensions": {
+    "hidden_size": 4096,
+    "intermediate_size": 12288,
+    "num_hidden_layers": 36,
+    "num_attention_heads": 32,
+    "num_key_value_heads": 8,
+    "head_dim": 128,
+    "vocab_size": 151936,
+    "rope_theta": 1000000,
+    "rope_scaling": null,
+    "num_experts": null,
+    "num_experts_per_tok": null,
+    "moe_intermediate_size": null,
+    "norm_topk_prob": null,
+    "decoder_sparse_step": null,
+    "mlp_only_layers": null,
+    "qperkv": 4
+  },
+  "architectures": [
+    "Qwen3ForCausalLM"
+  ],
+  "qk_norm": true
+}

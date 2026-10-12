@@ -1,0 +1,38 @@
+{
+  "id": "llama3_1_8b",
+  "repo": "unsloth/Meta-Llama-3.1-8B",
+  "revision": "e9a141a2091ea561b96483212645a2a05e6f99fc",
+  "config_sha256": "0ea2186ccf686654fea498aae830b9de201334432b24b07f031d80b76dd928f0",
+  "tokenizer_family": "llama3",
+  "tie_word_embeddings": false,
+  "dimensions": {
+    "hidden_size": 4096,
+    "intermediate_size": 14336,
+    "num_hidden_layers": 32,
+    "num_attention_heads": 32,
+    "num_key_value_heads": 8,
+    "head_dim": 128,
+    "vocab_size": 128256,
+    "rope_theta": 500000.0,
+    "rope_scaling": {
+      "factor": 8.0,
+      "high_freq_factor": 4.0,
+      "low_freq_factor": 1.0,
+      "original_max_position_embeddings": 8192,
+      "rope_type": "llama3"
+    },
+    "num_experts": null,
+    "num_experts_per_tok": null,
+    "moe_intermediate_size": null,
+    "norm_topk_prob": null,
+    "decoder_sparse_step": null,
+    "mlp_only_layers": null,
+    "qperkv": 4
+  },
+  "architectures": [
+    "LlamaForCausalLM"
+  ],
+  "qk_norm": false,
+  "upstream_repo": "meta-llama/Meta-Llama-3.1-8B",
+  "source_note": "Pinned public checkpoint mirror; preserves the developer checkpoint source for 1B."
+}
