@@ -8,7 +8,7 @@ from types import ModuleType
 import unittest
 from unittest.mock import Mock, patch
 
-from tilemega.serving.download_models import fetch
+from tilemega.serving.download_models import fetch, main
 from tilemega.serving.model_registry import (
     ALIASES, ROOT, dimensions, load_model, model_ids, verify_config,
 )
@@ -111,6 +111,59 @@ class ModelRegistry(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'SHA256 mismatch'):
                     fetch('tiny', root/'checkpoint', root)
             hub.snapshot_download.assert_not_called()
+
+    def test_config_only_fetches_just_the_pinned_config(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, record, source = self.fixture(directory)
+            destination = root/'checkpoint'
+            hub = ModuleType('huggingface_hub')
+            hub.hf_hub_download = Mock(return_value=str(source))
+            hub.snapshot_download = Mock(side_effect=AssertionError('weights must not be requested'))
+            with patch.dict('sys.modules', {'huggingface_hub': hub}):
+                result = fetch('tiny', destination, root, config_only=True)
+            hub.hf_hub_download.assert_called_once_with(
+                repo_id=record['repo'], revision=record['revision'],
+                filename='config.json', local_dir=destination)
+            hub.snapshot_download.assert_not_called()
+            self.assertTrue(result['structure_only'])
+            self.assertEqual(result['safetensors_sha256'], {})
+            self.assertEqual(result['dimensions'], record['dimensions'])
+            self.assertFalse((destination/'tilemega_source_manifest.json').exists())
+
+    def test_config_only_reuses_local_config_without_hub_or_weight_access(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, _, source = self.fixture(directory)
+            destination = source.parent
+            manifest = destination/'tilemega_source_manifest.json'
+            manifest.write_text('existing weight provenance\n')
+            with patch.dict('sys.modules', {'huggingface_hub': None}), \
+                    patch('tilemega.serving.download_models.sha256',
+                          side_effect=AssertionError('do not hash weight shards')):
+                result = fetch('tiny', destination, root, config_only=True)
+            self.assertEqual(manifest.read_text(), 'existing weight provenance\n')
+            self.assertEqual(json.loads((destination/'tilemega_config_manifest.json').read_text()), result)
+
+    def test_config_only_rejects_mismatched_local_config_without_replacing_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, _, source = self.fixture(directory)
+            source.write_text('{}')
+            with patch.dict('sys.modules', {'huggingface_hub': None}):
+                with self.assertRaisesRegex(ValueError, 'SHA256 mismatch'):
+                    fetch('tiny', source.parent, root, config_only=True)
+            self.assertEqual(source.read_text(), '{}')
+            self.assertFalse((source.parent/'tilemega_config_manifest.json').exists())
+
+    def test_config_only_cli_selects_structure_validation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, _, source = self.fixture(directory)
+            destination = root/'models/tiny'
+            destination.mkdir(parents=True)
+            (destination/'config.json').write_bytes(source.read_bytes())
+            report = root/'report.json'
+            with patch.dict('sys.modules', {'huggingface_hub': None}), patch('builtins.print'):
+                main(['--model', 'tiny', '--model-root', str(root/'models'),
+                      '--repo-root', str(root), '--report', str(report), '--config-only'])
+            self.assertTrue(json.loads(report.read_text())['tiny']['structure_only'])
 
     def test_nonintegral_query_groups_are_rejected(self):
         with self.assertRaisesRegex(ValueError, 'QPerKV'):
