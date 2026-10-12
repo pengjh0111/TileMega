@@ -61,13 +61,13 @@ class MoeFullTest(unittest.TestCase):
                 dict(resources=dict(dram_capacity_bytes=capacity)))
             self.assertEqual(result['require_shared_layout'],expected)
 
-    def test_moe_cli_enables_handoffs_without_changing_dense_defaults(self):
+    def test_l1_configs_leave_handoffs_off_unless_explicit(self):
         from tilemega.cli import read_config
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory); model=root/'model'; model.mkdir()
             path=root/'run.json'
             for model_type, explicit, expected in [('llama',None,0),
-                    ('qwen3_moe',None,1),('qwen3_moe',0,0)]:
+                    ('qwen3_moe',None,0),('qwen3_moe',0,0),('qwen3_moe',1,1)]:
                 (model/'config.json').write_text(json.dumps(dict(model_type=model_type)))
                 data=dict(model=dict(path=str(model)))
                 if explicit is not None:data['features']=dict(nonpaged_la=explicit)
@@ -76,13 +76,14 @@ class MoeFullTest(unittest.TestCase):
 
     def test_commands_use_bound_past_range_and_common_weight_layout(self):
         args = SimpleNamespace(compiler=Path('/compiler'), capacity=128,
-                               pg='pages', target=Path('/target.json'))
-        for phase, expected in [('decode', '1:127'), ('prefill', '0:0')]:
+                               prompt_len=32,steps=96,pg='pages', target=Path('/target.json'))
+        for phase, expected in [('decode', '32:126'), ('prefill', '0:0')]:
             command = compile_command(args, '/bridge', '/plan.cu', phase, 2)
             options = dict(zip(command[4::2], command[5::2]))
             self.assertEqual(options['--past-range'], expected)
             self.assertEqual(options['--nonpaged-weight-layout'], 'tiled')
             self.assertEqual(options['--pg'], 'pages')
+            self.assertEqual(options['--prompt-len'],'32')
             self.assertNotIn('--measure-cmd', options)
 
     def test_device_binding_uses_native_profile_and_probed_resources(self):
@@ -123,6 +124,8 @@ class MoeFullTest(unittest.TestCase):
             receipt=json.loads((root/'memory-preflight.json').read_text())
             self.assertEqual(receipt['evidence'], 'inferred')
             self.assertTrue(receipt['batches'][0]['exceeds_available'])
+            report=preflight(SimpleNamespace(out=root,batch=[1],report_only=True))
+            self.assertTrue(report[0]['exceeds_available'])
 
     def test_same_input_modes_reset_request_state_without_reloading_weights(self):
         import torch

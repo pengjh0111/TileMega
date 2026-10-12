@@ -75,14 +75,14 @@ def memory_report(config, manifests, batch, capacity):
             sum(phase['internal_bytes'] for phase in phases))
 
 
-def export_plans(config, out, batches, capacity):
+def export_plans(config, out, batches, capacity, prompt_len=64):
     import torch
     from tilemega.serving.export import export
     from tilemega.export_bridge import serialize
     result = {}
     for phase in ('decode', 'prefill'):
         directory = out/'exports'/phase
-        export(config, phase, capacity, directory)
+        export(config, phase, capacity, directory, prompt_len)
         program = torch.export.load(directory/'exported_program.pt2')
         for batch in batches:
             inputs = set(program.graph_signature.user_inputs)
@@ -99,7 +99,8 @@ def compile_command(args, bridge, binary, phase, batch):
     return [str(args.compiler), 'compile', str(bridge), str(binary),
         '--frontend', 'decoder', '--emit', 'serving', '--serving', phase,
         '--batch', str(batch), '--capacity', str(args.capacity), '--pg', args.pg,
-        '--past-range', f'1:{args.capacity-1}' if phase == 'decode' else '0:0',
+        '--prompt-len', str(args.prompt_len),
+        '--past-range', f'{args.prompt_len}:{max(args.prompt_len,args.prompt_len+args.steps-2)}' if phase == 'decode' else '0:0',
         '--nonpaged-weight-layout', 'tiled', '--runtime-target', str(args.target)]
 
 
@@ -122,7 +123,7 @@ def build_plans(args, config):
     from tilemega.build.identity import snapshot, verify
     checkpoint = index_check(args.checkpoint)
     atomic_json(args.out/'checkpoint-index.json', checkpoint)
-    bridges = export_plans(config, args.out, args.batch, args.capacity)
+    bridges = export_plans(config, args.out, args.batch, args.capacity, args.prompt_len)
     plans = []
     target=json.loads(args.target.read_text())
     for batch in args.batch:
@@ -173,13 +174,14 @@ def generation_tokens(engine, rows, steps, mode, vocab_size):
     stream = torch.cuda.current_stream()
     engine.state.kv_storage.zero_()
     engine.state.tokens.fill_(-1)
-    engine.state.tokens[:, :64].copy_(rows.to(
+    prompt_len = rows.shape[1]
+    engine.state.tokens[:, :prompt_len].copy_(rows.to(
         device=engine.state.tokens.device, dtype=torch.int32))
     engine.prefill.launch(0, mode, stream.cuda_stream)
     for step in range(steps-1):
         engine.decode.launch(step, mode, stream.cuda_stream)
     stream.synchronize()
-    tokens=engine.state.tokens[:, 64:64+steps].cpu()
+    tokens=engine.state.tokens[:, prompt_len:prompt_len+steps].cpu()
     if not torch.all((tokens>=0) & (tokens<vocab_size)):
         raise AssertionError('generated tokens are unwritten or outside the vocabulary')
     return tokens.tolist()
@@ -196,7 +198,13 @@ def check_plans(args, config):
                 file_sha(Path(item['binary'])) != item['binary_sha256']:
             raise ValueError('full-model plan artifact changed since construction')
     generator = torch.Generator().manual_seed(20261010)
-    rows = torch.randint(0, config['vocab_size'], (max(args.batch), 64), generator=generator)
+    if args.prompt_ids:
+        from tilemega.serving.workload import validate_prompt_ids
+        values=json.loads(args.prompt_ids.read_text())
+        validate_prompt_ids(values,max(args.batch),args.prompt_len)
+        rows=torch.tensor(values[:max(args.batch)],dtype=torch.int64)
+    else:
+        rows = torch.randint(0, config['vocab_size'], (max(args.batch), args.prompt_len), generator=generator)
     atomic_json(args.out/'prompt_ids.json', rows.tolist())
     receipts = []
     for batch in args.batch:
@@ -210,6 +218,7 @@ def check_plans(args, config):
             # Both modes use one immutable weight allocation and one prompt.
             # Reset request state so the second launch cannot read prior tokens/KV.
             with ServingEngine(args.checkpoint, pair['prefill'], pair['decode'], batch,
+                    prompt_len=args.prompt_len,
                     max_new_tokens=args.steps, mode='L1', prefill_mode='L1',
                     decode_loop=False, step_events=False) as engine:
                 tokens=[generation_tokens(engine,rows[:batch],args.steps,mode,config['vocab_size'])
@@ -245,7 +254,7 @@ def preflight(args):
     atomic_json(args.out/'memory-preflight.json', dict(evidence='inferred',
         scope='manifest estimate compared to available memory; not a fit certificate',
         batches=reports))
-    if any(report['exceeds_available'] for report in reports):
+    if any(report['exceeds_available'] for report in reports) and not getattr(args,'report_only',False):
         raise MemoryError('insufficient GPU memory for the manifest allocation estimate; '
                           'see '+str(args.out/'memory-preflight.json'))
     return reports
@@ -262,13 +271,19 @@ def main(argv=None):
     parser.add_argument('--batch', type=int, nargs='+', default=[1, 16])
     parser.add_argument('--capacity', type=int, default=1088)
     parser.add_argument('--steps', type=int, default=64)
+    parser.add_argument('--prompt-len', type=int, default=64)
+    parser.add_argument('--prompt-ids', type=Path)
+    parser.add_argument('--report-only', action='store_true',
+                        help='preflight records insufficient memory without allocating or failing')
     parser.add_argument('--pg', choices=('l2', 'pages'), default='l2')
     parser.add_argument('--hf-check', action='store_true')
     args = parser.parse_args(argv)
     if not args.batch or len(set(args.batch)) != len(args.batch) or any(not 1<=b<=16 for b in args.batch):
         parser.error('batches must be distinct values in [1,16]')
-    if not 2<=args.steps<=1024 or args.capacity<64+args.steps:
-        parser.error('steps must be in [2,1024] and capacity must cover the 64-token prompt')
+    if args.steps<2 or args.prompt_len<1 or args.capacity<args.prompt_len+args.steps:
+        parser.error('steps must be >=2 and capacity must cover the prompt plus output')
+    if args.report_only and args.command!='preflight':
+        parser.error('--report-only is only valid for preflight')
     args.checkpoint=args.checkpoint.resolve();args.out=args.out.resolve()
     args.compiler=args.compiler.resolve()
     config = json.loads((args.checkpoint/'config.json').read_text())
