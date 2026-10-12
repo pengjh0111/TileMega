@@ -26,8 +26,8 @@ inline json::Value CanonicalDmRecipe(json::Value const& value) {
 
 inline std::map<std::size_t,DmWeightLayoutConstraint> SharedDmWeightLayouts(
     frontend::ModelPlan const& plan,json::Value const& manifest) {
-  if(!plan.dm || plan.dtype!="bf16")
-    throw std::invalid_argument("shared packed weights require a BF16 DM plan");
+  if(plan.dtype!="bf16")
+    throw std::invalid_argument("shared packed weights require a BF16 plan");
   std::map<std::string,DmWeightLayoutConstraint> recipes;
   for(auto const& buffer:manifest.At("buffers").AsArray("shared weight buffers")) {
     auto recipe=buffer.Find("recipe");

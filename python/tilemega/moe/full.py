@@ -36,43 +36,7 @@ def resolve_target(args):
     return path
 
 
-def memory_report(config, manifests, batch, capacity):
-    """Account for shared recipes, request state and both plans' buffers.
-
-    CUDA context, event/queue tables and runtime-inserted split-K storage
-    are not manifest buffers. Content-equal weights can also be deduplicated
-    by the loader. This estimate cannot certify that a plan fits.
-    """
-    widths = {'bf16': 2, 'f32': 4, 'i32': 4, 'i64': 8}
-    weights, names, phases = {}, {}, []
-    for manifest in manifests:
-        if manifest['batch_lo'] != batch or manifest['batch_hi'] != batch or \
-                manifest['capacity'] != capacity:
-            raise ValueError('memory report workload differs from the plan')
-        seq = manifest['seq']; past = manifest['past_hi']
-        internal = int(manifest.get('memory_arena_bytes', 0))
-        for buffer in manifest['buffers']:
-            elements = sum(int(buffer.get(k, 0))*v for k, v in (
-                ('constant', 1), ('per_seq', seq), ('per_past', past),
-                ('per_total', seq+past), ('per_batch', batch)))
-            size = elements*widths[buffer['dtype']]
-            if 'recipe' in buffer:
-                recipe = json.dumps(buffer['recipe'], sort_keys=True, separators=(',', ':'))
-                key = (recipe, buffer['dtype'], size)
-                prior = names.setdefault(buffer['name'], key)
-                if prior != key:
-                    raise ValueError('phase plans disagree on weight '+buffer['name'])
-                weights[key] = size
-            elif buffer['role'] == 'internal' and 'dm_arena_offset' not in buffer:
-                internal += size
-        phases.append(dict(phase=manifest['phase'], internal_bytes=internal))
-    layers = int(config['num_hidden_layers']); heads = int(config['num_key_value_heads'])
-    dim = int(config.get('head_dim', config['hidden_size']//config['num_attention_heads']))
-    state = layers*2*batch*heads*capacity*dim*2 + batch*capacity*4 + 2*capacity*dim*2
-    return dict(evidence='inferred', scope='manifest estimate; excludes CUDA/event tables and inserted split-K storage; recipe-based weight deduplication',
-        batch=batch, shared_weight_bytes=sum(weights.values()), request_state_bytes=state,
-        phases=phases, estimated_allocation_bytes=sum(weights.values())+state+
-            sum(phase['internal_bytes'] for phase in phases))
+from tilemega.serving.memory import memory_report
 
 
 def export_plans(config, out, batches, capacity, prompt_len=64):

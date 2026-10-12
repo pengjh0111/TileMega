@@ -81,6 +81,12 @@ int TestDmGemmClassDomain(int,char**) {
     {"dtype":"bf16","recipe":{"kind":"tile_pages","tile_n":64,"tile_k":32,"source":{"source":"w1","kind":"alias"}}}
   ]})");
   auto shared_layouts=SharedDmWeightLayouts(plan,manifest);
+  auto dense_plan=plan;dense_plan.dm=false;
+  auto dense_layouts=SharedDmWeightLayouts(dense_plan,manifest);
+  assert(dense_layouts.size()==shared_layouts.size());
+  for(auto const& [id,layout]:shared_layouts)
+    assert(dense_layouts.at(id).tile_n==layout.tile_n &&
+           dense_layouts.at(id).tile_k==layout.tile_k);
   frontend::ImportedSemantics imported;imported.plan=plan;
   OperatorClass cls;cls.gemms={0,1};
   auto constrained=ServingClassCandidates(cls,imported,target,1,1,true,false,shared_layouts);

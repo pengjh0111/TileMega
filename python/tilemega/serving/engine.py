@@ -53,6 +53,14 @@ class ServingEngine:
         self.decode_loop = decode_loop
         self.step_events = bool(step_events)
         self.decode_chunk = decode_chunk
+        self.memory_report = None
+        manifests=[Path(str(path)+'.plan.json') for path in (prefill_so,decode_so)]
+        if all(path.exists() for path in manifests):
+            from .memory import memory_report
+            self.memory_report=memory_report(
+                json.loads((Path(model_dir)/'config.json').read_text()),
+                [json.loads(path.read_text()) for path in manifests],batch,
+                self.decode_lib.info.capacity)
         self.weights = load_weights(model_dir, self.prefill_lib, self.decode_lib,
                                     device=torch.device("cuda", device))
         self.state = allocate_state(model_dir, batch, self.prefill_lib,

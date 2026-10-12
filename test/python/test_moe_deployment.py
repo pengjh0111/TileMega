@@ -10,6 +10,20 @@ from tilemega.moe.deployment import automatic_layout_policy
 
 
 class MoeDeploymentTest(TestCase):
+    def test_large_dense_models_request_compatible_shared_packing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);workload=self.fixture(root,'llama')
+            config=json.loads((root/'config.json').read_text())
+            config.update(hidden_size=4096,num_hidden_layers=32,num_attention_heads=32,
+                          num_key_value_heads=8,head_dim=128)
+            (root/'config.json').write_text(json.dumps(config))
+            (root/'model.safetensors.index.json').write_text(json.dumps(
+                dict(metadata=dict(total_size=16_000_000_000))))
+            result=automatic_layout_policy(root,dict(resources=dict(dram_capacity_bytes=48*1024**3)),workload)
+            self.assertTrue(result['require_shared_layout'])
+            self.assertEqual(result['second_layout_estimate_bytes'],16_000_000_000)
+            self.assertIn('norm folding',result['scope'])
+
     def fixture(self, root, model_type='qwen3_moe'):
         config=dict(model_type=model_type,num_hidden_layers=2,hidden_size=64,
             num_experts=4,moe_intermediate_size=32,num_key_value_heads=1,
@@ -63,15 +77,22 @@ class MoeDeploymentTest(TestCase):
                     if argv[1]!='compile':return
                     args=json.loads(Path(argv[-1]).read_text());options.append(args)
                     binary=Path(args[1]);binary.write_bytes(label.encode())
-                    Path(str(binary)+'.plan.json').write_text(json.dumps(dict(phase=args[args.index('--serving')+1])))
+                    Path(str(binary)+'.plan.json').write_text(json.dumps(dict(
+                        phase=args[args.index('--serving')+1],pg=args[args.index('--pg')+1],
+                        capacity=72,attention_kv_block=64)))
                 run.command=command
                 def decode(built,batch,prefill_mode):
                     winner=dict(pg='pages',mode='L2',loop=0,library=str(built['pages']))
                     return winner,[winner]
                 run.select_decode=decode
                 run.select_prefill=lambda built,batch:('l2','L1')
+                def select(candidates,*args,**kwargs):
+                    winner=next(c for c in candidates if c['pg']=='pages')
+                    winner=dict(winner,library=winner['base_library'])
+                    return winner,[winner]
                 with patch('tilemega.cli.source_fingerprint',return_value='source'), \
                         patch('tilemega.cli.valid_record',return_value=False), \
+                        patch('tilemega.cli.successive_halving',side_effect=select), \
                         patch('tilemega.cli.record_outputs'):
                     result=run.build()
                 self.assertEqual(order,['decode','prefill'] if constrained else ['prefill','decode'])
@@ -90,6 +111,7 @@ class MoeDeploymentTest(TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);run=Run.__new__(Run);run.model=root;run.out=root
             run.config=dict(features=dict(decode_executor='L2',decode_loop=0),
+                workload=dict(prompt_len=64,max_new_tokens=1024,batch=[1]),
                 solver=dict(exclude_l1_loop=False,candidate_guard_wait_s=0))
             built={pg:root/(pg+'.so') for pg in ('l2','pages')}
             for binary in built.values():binary.write_bytes(binary.name.encode())
@@ -100,7 +122,8 @@ class MoeDeploymentTest(TestCase):
                 out=Path(options['--out']);out.mkdir(exist_ok=True)
                 score=1 if options['--so'].endswith('pages.so') else 2
                 (out/'measurements.json').write_text(json.dumps(dict(
-                    modes={'L2':dict(mean_ms=score,decode_loop_used=False)})))
+                    modes={'L2':dict(by_past={str(p):dict(mean_ms=score,decode_loop_used=False)
+                                              for p in (64,575,1000)})})))
             run.command=command
             winner,_=run.select_decode(built,1,None)
             self.assertEqual(winner['pg'],'pages');self.assertEqual(len(calls),6)

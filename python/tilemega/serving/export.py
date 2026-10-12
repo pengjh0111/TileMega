@@ -140,6 +140,13 @@ class Decoder(nn.Module):
         return (self.lm_head(self.model.norm(x)), *outputs)
 
 
+def metadata_only(config: dict) -> bool:
+    # Keep the historical small-model export unchanged; large checkpoint values
+    # are loaded by recipes at runtime and need not exist during graph export.
+    return (config['architectures'][0]=='Qwen3MoeForCausalLM' or
+            config['hidden_size']>=3072)
+
+
 def export(config: dict, phase: str, capacity: int, out: Path, prompt_len: int = 64) -> dict:
     if phase not in ('decode', 'prefill') or prompt_len < 1 or capacity <= prompt_len:
         raise ValueError('export needs a positive ISL and capacity greater than ISL')
@@ -150,10 +157,8 @@ def export(config: dict, phase: str, capacity: int, out: Path, prompt_len: int =
     batch_example = 2
     dim = config.get("head_dim", config["hidden_size"] // config["num_attention_heads"])
     kv_heads = config["num_key_value_heads"]
-    moe = config['architectures'][0] == 'Qwen3MoeForCausalLM'
-    if moe:
-        # The full checkpoint is 61 GB. Export the static graph and FQNs
-        # without initializing or materializing any checkpoint tensors.
+    use_meta = metadata_only(config)
+    if use_meta:
         with torch.device('meta'):
             model = Decoder(config).eval().to(torch.bfloat16)
     else:
@@ -174,7 +179,7 @@ def export(config: dict, phase: str, capacity: int, out: Path, prompt_len: int =
             inputs.append(torch.zeros((batch_example, kv_heads, past, dim), dtype=torch.bfloat16))
     inputs.extend((torch.ones((capacity, dim), dtype=torch.bfloat16),
                    torch.zeros((capacity, dim), dtype=torch.bfloat16)))
-    if moe:
+    if use_meta:
         inputs = [value.to('meta') for value in inputs]
     batch = torch.export.Dim("batch", min=1, max=64)
     dynamic = [{0: batch}]

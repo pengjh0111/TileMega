@@ -128,6 +128,7 @@ def measure(engine: ServingEngine, prompts: torch.Tensor,
         at = q * (len(decode) - 1); low = int(at); high = min(low + 1, len(decode) - 1)
         return decode[low] + (decode[high] - decode[low]) * (at - low)
     summary = {"timed_tokens_identical": same_tokens,
+               "memory": getattr(engine,'memory_report',None),
                "execution_identity": engine.decode.execution_identity(
                    engine.decode_mode,all(r['decode_loop_used'] for r in timed_rows)),
                "prefill_execution_identity": engine.prefill.execution_identity(engine.prefill_mode),
@@ -138,7 +139,7 @@ def measure(engine: ServingEngine, prompts: torch.Tensor,
                "measurement_policy": policy.options,
                "batch": engine.batch, "max_tokens": engine.max_new_tokens,
                "e2e_seconds": e2e, "ttft_seconds": ttft,
-               "tpot_seconds": (e2e - ttft) / (engine.max_new_tokens - 1),
+               "tpot_seconds": (e2e - ttft) / (engine.max_new_tokens - 1) if engine.max_new_tokens>1 else 0.0,
                "output_tokens_per_second": engine.batch * engine.max_new_tokens / e2e,
                "runs": rows}
     if not decode:

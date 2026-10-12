@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import torch
 from safetensors.torch import save_file
@@ -12,6 +13,25 @@ from tilemega.serving.weights import Checkpoint
 
 
 class ServingHead(unittest.TestCase):
+    def test_meta_export_preserves_dense_graph_and_parameter_names(self):
+        config=dict(architectures=['LlamaForCausalLM'],hidden_size=32,
+                    intermediate_size=64,num_attention_heads=4,num_key_value_heads=2,
+                    head_dim=8,num_hidden_layers=1,vocab_size=64,rms_norm_eps=1e-6,
+                    tie_word_embeddings=False)
+        with tempfile.TemporaryDirectory() as temporary:
+            programs=[]
+            for meta in (False,True):
+                out=Path(temporary)/str(meta)
+                with patch('tilemega.serving.export.metadata_only',return_value=meta):
+                    export(config,'decode',128,out)
+                programs.append(torch.export.load(out/'exported_program.pt2'))
+            # Export records the construction device on constant-producing ops;
+            # all operators, edges and parameter FQNs must otherwise agree.
+            self.assertEqual(str(programs[0].graph).replace('device: cpu','device: meta'),
+                             str(programs[1].graph))
+            self.assertEqual(str(programs[0].graph_signature),str(programs[1].graph_signature))
+            self.assertTrue(all(t.is_meta for t in programs[1].state_dict.values()))
+
     def test_dense_export_uses_configured_head_in_both_phases(self):
         config = dict(hidden_size=32, intermediate_size=64,
                       num_attention_heads=4, num_key_value_heads=2, head_dim=8,

@@ -465,8 +465,7 @@ class Run:
         prefill_modes = {}; decode_choices = {}; shared_decodes = {}
         from .moe.deployment import automatic_layout_policy
         layout_policy=automatic_layout_policy(self.model,target,workload)
-        if layout_policy['require_shared_layout']:
-            atomic_json(self.out/'layout-policy.json',layout_policy)
+        atomic_json(self.out/'layout-policy.json',layout_policy)
         phases=('decode','prefill') if layout_policy['require_shared_layout'] else ('prefill','decode')
         for phase in phases:
             export, directory = self.export(phase)

@@ -34,6 +34,8 @@ class MoeFullTest(unittest.TestCase):
         config, manifests = self.fixture()
         result = memory_report(config, manifests, 2, 128)
         self.assertEqual(result['shared_weight_bytes'], 200)
+        self.assertEqual(result['cross_phase_saved_weight_bytes'],200)
+        self.assertEqual([v['weight_bytes'] for v in result['phases']],[200,200])
         self.assertEqual([v['internal_bytes'] for v in result['phases']],
                          [64+270*4, 64+205*4])
         state = 2*2*2*1*128*64*2 + 2*128*4 + 2*128*64*2
