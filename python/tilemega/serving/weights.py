@@ -17,6 +17,9 @@ from tilemega.moe.weights import is_expert_recipe, pack_experts, recipe_sources 
 class Checkpoint:
     def __init__(self, model_dir: str | Path):
         self.model_dir = Path(model_dir)
+        config = self.model_dir / 'config.json'
+        self.tie_word_embeddings = bool(json.loads(config.read_text()).get(
+            'tie_word_embeddings', False)) if config.exists() else False
         self.files: dict[str, Path] = {}
         for path in sorted(self.model_dir.glob("*.safetensors")):
             with safe_open(path, framework="pt", device="cpu") as stream:
@@ -30,7 +33,8 @@ class Checkpoint:
 
     def tensor(self, name: str) -> torch.Tensor:
         # The tied vocabulary may be recorded only under the embedding name.
-        if name == "lm_head.weight" and name not in self.files:
+        if (name == "lm_head.weight" and name not in self.files and
+                self.tie_word_embeddings):
             name = "model.embed_tokens.weight"
         path = self.files.get(name)
         if path is None:

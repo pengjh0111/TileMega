@@ -127,8 +127,7 @@ class Decoder(nn.Module):
         super().__init__()
         self.model = Backbone(config)
         self.lm_head = nn.Linear(config["hidden_size"], config["vocab_size"], bias=False)
-        if (config['architectures'][0] != 'Qwen3MoeForCausalLM' or
-                config.get('tie_word_embeddings', False)):
+        if config.get('tie_word_embeddings', False):
             self.lm_head.weight = self.model.embed_tokens.weight
 
     def execute(self, input_ids: torch.Tensor, caches: tuple[torch.Tensor, ...],

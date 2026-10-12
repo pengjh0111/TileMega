@@ -82,6 +82,9 @@ class MoeExport(unittest.TestCase):
         self.assertIsNot(model.lm_head.weight, model.model.embed_tokens.weight)
         dense = copy.deepcopy(config()); dense['architectures'] = ['Qwen3ForCausalLM']
         model = Decoder(dense)
+        self.assertIsNot(model.lm_head.weight, model.model.embed_tokens.weight)
+        dense['tie_word_embeddings'] = True
+        model = Decoder(dense)
         self.assertIs(model.lm_head.weight, model.model.embed_tokens.weight)
 
     def test_rotary_matches_hf(self):
