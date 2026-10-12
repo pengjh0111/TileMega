@@ -66,6 +66,8 @@ def _diagnose(library, plan, module, arguments, bridge, destination,
     it is not part of the serving ABI or normal generated model libraries.
     A diagnostic does not bypass the final output correctness assertion.
     """
+    from tilemega.build.identity import digest, verify
+    identity = verify(library.path)
     captured = {}
     class Capture(torch.fx.Interpreter):
         def run_node(self, node):
@@ -149,6 +151,8 @@ def _diagnose(library, plan, module, arguments, bridge, destination,
     rows.sort(key=lambda row:order[row['reference']])
     destination.write_text(json.dumps(dict(evidence='verified',
         scope='diagnostic surviving buffers against FP32 and BF16; use --reuse none to retain all stage outputs',
+        artifact_id=identity['artifact_id'], binary_sha256=identity['binary_sha256'],
+        bridge_digest=digest(bridge),
         buffers=rows),indent=2)+'\n')
 
 
