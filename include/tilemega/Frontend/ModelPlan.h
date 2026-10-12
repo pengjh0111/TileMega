@@ -203,6 +203,19 @@ struct ModelPlan {
   std::vector<DeferredLayerNormEdge> deferred_layernorm_edges;
 };
 
+inline unsigned SpecializeDmReductionMask(ModelPlan const& plan,unsigned requested) {
+  if(!plan.dm)return 0;
+  unsigned available=0;
+  for(auto const& stage:plan.stages) {
+    if(stage.kind==PlanTaskKind::kGlobalPoolReduce)available|=1;
+    if(stage.kind==PlanTaskKind::kMoETopK)available|=2;
+    if(stage.kind==PlanTaskKind::kMoECombine)available|=4;
+  }
+  // Absent reducer kinds cannot execute. Leaving their switch bodies in a
+  // generic completion chain needlessly instantiates every recursion depth.
+  return requested&available;
+}
+
 struct ServingOptions {
   enum class Phase { kPrefill, kDecode } phase = Phase::kDecode;
   int seq = 1;

@@ -730,7 +730,8 @@ int RunCompile(int argc, char** argv) {
         bool experts=std::any_of(plan.stages.begin(),plan.stages.end(),[](auto const& stage) {
           return stage.kind==tilemega::frontend::PlanTaskKind::kMoETopK;
         });
-        plan.dm_reduction_mask=enabled?((frontend_mode=="dnn" && global_la=="auto"?1:0)|(experts?6:0)):0;
+        plan.dm_reduction_mask=tilemega::frontend::SpecializeDmReductionMask(plan,
+            enabled?((frontend_mode=="dnn" && global_la=="auto"?1:0)|(experts?6:0)):0);
       }
       bind_routing_profile(plan);
       if(plan.dm && !tilemega::analysis::active_exact_memo)dm_memo.emplace();
@@ -977,7 +978,8 @@ int RunCompile(int argc, char** argv) {
             bool experts=std::any_of(plan.stages.begin(),plan.stages.end(),[](auto const& stage) {
               return stage.kind==tilemega::frontend::PlanTaskKind::kMoETopK;
             });
-            plan.dm_reduction_mask=enabled?((frontend_mode=="dnn" && global_la=="auto"?1:0)|(experts?6:0)):0;
+            plan.dm_reduction_mask=tilemega::frontend::SpecializeDmReductionMask(plan,
+                enabled?((frontend_mode=="dnn" && global_la=="auto"?1:0)|(experts?6:0)):0);
           }
           bind_routing_profile(plan);
           skeleton.moe_routing_profile=moe_routing_profile;

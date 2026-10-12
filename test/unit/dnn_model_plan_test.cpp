@@ -48,6 +48,21 @@ ExportBridge Fixture() {
   call("output","linear",{N("average"),N("wf"),N("bias")});b.outputs={"output"};return b;
 }
 int TestDnnModelPlan(int argc,char** argv) {
+  {
+    ModelPlan reductions;reductions.dm=true;
+    PlanStage stage;stage.kind=PlanTaskKind::kEncoderAttention;
+    reductions.stages.push_back(stage);
+    assert(SpecializeDmReductionMask(reductions,7)==0);
+    stage.kind=PlanTaskKind::kGlobalPoolReduce;reductions.stages.push_back(stage);
+    assert(SpecializeDmReductionMask(reductions,7)==1);
+    assert(SpecializeDmReductionMask(reductions,6)==0);
+    stage.kind=PlanTaskKind::kMoETopK;reductions.stages.push_back(stage);
+    stage.kind=PlanTaskKind::kMoECombine;reductions.stages.push_back(stage);
+    assert(SpecializeDmReductionMask(reductions,7)==7);
+    assert(SpecializeDmReductionMask(reductions,2)==2);
+    assert(SpecializeDmReductionMask(reductions,0)==0);
+    reductions.dm=false;assert(SpecializeDmReductionMask(reductions,7)==0);
+  }
   analysis::IslContext isl;
   auto bridge=argc>1?ReadExportBridge(argv[1]):Fixture();
   DnnPlanOptions options;options.batch=2;
