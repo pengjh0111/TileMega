@@ -36,11 +36,11 @@ def main():
                 for dep in ('ISL','POLYLIB','BARVINOK'):
                     command.append('-DTILEMEGA_'+dep+'_BUILD_DIR='+str(Path(record['root'])/('build-'+dep.lower())))
                 execute(command,out,'configure',600)
-                execute(['cmake','--build',str(build),'--target','tilemega-unit',
+                execute(['cmake','--build',str(build),'--target','tilemega','tilemega-unit',
                     'dm_moe_routing_combine_0_test','dm_moe_routing_combine_1_test',
                     'dm_moe_rms_stats_test','-j','3'],out,'build',21600)
                 execute(['ctest','--test-dir',str(build),'--output-on-failure','-R',
-                         '^moe_region_(pattern|plan)$'],out,'host',600)
+                         '^(moe_region_(pattern|plan)|r15_moe_full)$'],out,'host',600)
             else:
                 for arch in (80,89,90,100,120):
                     label=f'moe_fp32_sm{arch}'
