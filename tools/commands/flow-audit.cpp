@@ -62,7 +62,7 @@ int RunFlowAudit(int argc, char** argv) try {
   std::cout<<"RELATIONS ms="<<std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begin).count()<<std::endl;
   auto floor=solver::DeriveModelDramFloor(*module,problem.model,target,argv[4]);
   std::cout<<"FLOOR ms="<<std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begin).count()<<std::endl;
-  analysis::CouplingCache coupling;solver::FlowPreparationCache cache;solver::HopCurve hop;std::string error;if(!solver::HopCurve::FromTsv(std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/SIMULATOR/hop_ns.tsv",&hop,&error))throw std::runtime_error(error);
+  analysis::CouplingCache coupling;solver::FlowPreparationCache cache;solver::HopCurve hop;std::string error;if(!solver::HopCurve::FromTsv(std::string(TILEMEGA_SOURCE_DIR)+"/test/fixtures/cost_model/hop_ns.tsv",&hop,&error))throw std::runtime_error(error);
   auto prepared=solver::PrepareFlow(problem,floor,target,residency,hop,coupling,cache,false);
   std::cout<<std::setprecision(17)<<"PREPARE ms="<<std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begin).count()<<" spaces="<<prepared.flow.spaces.size()<<" edges="<<prepared.flow.edges.size()<<" price_hits="<<cache.prices.hits<<" price_misses="<<cache.prices.misses<<" varying="<<prepared.varying_spaces.size()<<std::endl;
   if(argc==9){std::ofstream traffic(argv[8]);if(!traffic)throw std::runtime_error("cannot open traffic output");AuditTraffic(problem,prepared,floor,traffic);return 0;}

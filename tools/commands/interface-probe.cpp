@@ -66,7 +66,8 @@ int RunInterfaceProbe(int argc, char** argv) try {
     }
   }
   std::map<std::string,int> registers;
-  std::ifstream regfile(root+"/docs/experiments/ORACLE/raw_bf16/cost/registers_"+name+".tsv");
+  std::ifstream regfile(root+"/test/fixtures/cost_model/registers_"+name+".tsv");
+  if (!regfile) throw std::runtime_error("missing interface-probe register fixture");
   std::string line;
   while (std::getline(regfile,line)) {
     if (line.empty() || line.front()=='#') continue;

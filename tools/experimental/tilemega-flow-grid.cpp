@@ -34,7 +34,7 @@ int main(int argc,char** argv) try {
     options.fixture=argv[3];options.artifact_prefix=prefix;
     options.kappa=(*seed)->getAttrOfType<mlir::IntegerAttr>("tmexec.solved_kappa").getInt();
     options.seed_residency=(*seed)->getAttrOfType<mlir::IntegerAttr>("tmexec.solved_residency").getInt();
-    std::string error;if(!solver::HopCurve::FromTsv(std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/SIMULATOR/hop_ns.tsv",&options.common.placement.hop,&error))throw std::runtime_error(error);
+    std::string error;if(!solver::HopCurve::FromTsv(std::string(TILEMEGA_SOURCE_DIR)+"/test/fixtures/cost_model/hop_ns.tsv",&options.common.placement.hop,&error))throw std::runtime_error(error);
     options.variant_probe=[&](auto const&,solver::GemmConfig const* tile,auto){
       auto name=tile?std::to_string(tile->tile_m)+"_"+std::to_string(tile->tile_n)+"_"+std::to_string(tile->tile_k)+"_"+std::to_string(tile->stages):"nongemm";
       auto file=llvm::MemoryBuffer::getFile((std::filesystem::path(argv[4])/(name+".json")).string());

@@ -88,7 +88,7 @@ int main(int argc,char** argv) try {
   analysis::CouplingCache couplings;solver::FlowPreparationCache cache;
   solver::VariantResourceCache resources([&](auto const&,auto const* g,auto){return ReadResource(argv[4],g);});
   solver::HopCurve hop;std::string error;
-  if(!solver::HopCurve::FromTsv(std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/SIMULATOR/hop_ns.tsv",&hop,&error))throw std::runtime_error(error);
+  if(!solver::HopCurve::FromTsv(std::string(TILEMEGA_SOURCE_DIR)+"/test/fixtures/cost_model/hop_ns.tsv",&hop,&error))throw std::runtime_error(error);
   bool prices_only=argc==10 && std::string(argv[9])=="--prices-only";
   auto mode=resume?std::ios::app:std::ios::out;
   std::ofstream audits(out/"price_checks.tsv",mode);if(!resume)audits<<std::setprecision(17)<<"configuration\tstage\tspace\ttasks\tpieces\tpiece_ns\ttile_ns\trelative_error\tbit_exact\tbit_coordinates\n";
