@@ -18,8 +18,8 @@ with tempfile.TemporaryDirectory() as d:
  body.parent.mkdir(parents=True);body.write_text('before')
  original=calibration_stamps(root);body.write_text('after')
  changed=calibration_stamps(root)
- assert original['task_bodies'] != changed['task_bodies']
- assert all(original[section] == changed[section] for section in original if section != 'task_bodies')
+ assert original['task_bodies_paged'] != changed['task_bodies_paged']
+ assert all(original[section] == changed[section] for section in original if section != 'task_bodies_paged')
  # An unchanged generated .cu reuses the same compiled artifact, while a
  # TaskBody in nvcc's transitive -M closure invalidates that artifact alone.
  compiler=p/'fake-nvcc';header=p/'TaskBody.h';header.write_text('first')
