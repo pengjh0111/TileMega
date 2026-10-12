@@ -163,7 +163,7 @@ int Report(char const* label, std::string const& bridge_path) {
 int main(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   std::string root = argc > 1 ? argv[1] : std::string(TILEMEGA_SOURCE_DIR);
-  int drift = Report("gqa2", root + "/docs/experiments/E2E_GEN/raw/export_bridge.json");
+  int drift = Report("gqa2", root + "/test/fixtures/exports/e2e.json");
   drift += Report("mha4",
                   root + "/docs/experiments/P3_GENERALIZATION/raw/export_bridge.json");
   return drift == 0 ? 0 : 1;

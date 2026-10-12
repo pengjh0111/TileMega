@@ -41,7 +41,7 @@ static void CheckReferenceModels(mlir::MLIRContext& ctx) {
   theta.values = {{"s11", 4}, {"s12", 3}};
   for (auto model : {"gqa2", "mha4"}) {
     auto module = frontend::TorchExportImporter{}.Import(
-        std::string(TILEMEGA_SOURCE_DIR) + "/docs/experiments/SEQSCAN/raw/export/" +
+        std::string(TILEMEGA_SOURCE_DIR) + "/test/fixtures/exports/seqscan/" +
         std::string(model) + ".json", ctx);
     auto description = ModelDescription::FromCouplingGraph(*module, {4, 3, 7}, model);
     auto plan = codegen::ReadRuntimePlan(*module);
@@ -94,7 +94,7 @@ static void CheckReferenceModels(mlir::MLIRContext& ctx) {
 /// body prefetches, under the executor's own page test.
 static void CheckPricing(mlir::MLIRContext& ctx) {
   auto module = frontend::TorchExportImporter{}.Import(
-      std::string(TILEMEGA_SOURCE_DIR) + "/docs/experiments/SEQSCAN/raw/export/gqa2.json", ctx);
+      std::string(TILEMEGA_SOURCE_DIR) + "/test/fixtures/exports/seqscan/gqa2.json", ctx);
   dialect::PlacementSolveOptions options;
   options.target = TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR) + "/configs/targets/sm_89.json");
   options.dims = {4, 3, 7};
@@ -139,7 +139,7 @@ static void CheckPricing(mlir::MLIRContext& ctx) {
 static void CheckRealWidth(mlir::MLIRContext& ctx) {
   auto module = frontend::TorchExportImporter{}.Import(
       std::string(TILEMEGA_SOURCE_DIR) +
-      "/docs/experiments/MODELS/covered_llama/auto.cu.export.json", ctx);
+      "/test/fixtures/exports/covered_llama.json", ctx);
   dialect::PlacementSolveOptions options;
   options.target = TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR) + "/configs/targets/sm_89.json");
   options.dims = {4, 3, 7};

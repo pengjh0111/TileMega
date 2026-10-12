@@ -56,7 +56,7 @@ int TestFrontendImport(int argc, char** argv) {
   tilemega::frontend::ImportSummary summary;
   auto module = tilemega::frontend::TorchExportImporter{}.Import(
       std::string(TILEMEGA_SOURCE_DIR) +
-          "/docs/experiments/E2E_GEN/raw/export_bridge.json",
+          "/test/fixtures/exports/e2e.json",
       context, &summary);
   // Operator granularity: one task space per L-task node of the instantiated
   // OperatorGraph (34 for the two-layer fixture), one coupling per
@@ -67,7 +67,7 @@ int TestFrontendImport(int argc, char** argv) {
   assert(module->getOperation()->getAttr("tilemega.model_plan"));
   {
     auto source=llvm::MemoryBuffer::getFile(std::string(TILEMEGA_SOURCE_DIR)+
-                   "/docs/experiments/E2E_GEN/raw/export_bridge.json");
+                   "/test/fixtures/exports/e2e.json");
     assert(source);auto json=llvm::json::parse(source.get()->getBuffer());assert(json);
     for(auto& value:*json->getAsObject()->getArray("nodes")) {
       auto* node=value.getAsObject();
@@ -83,7 +83,7 @@ int TestFrontendImport(int argc, char** argv) {
     {llvm::raw_string_ostream out(enriched_text);enriched->print(out);}
     assert(original_text==enriched_text);
     auto old_bridge=tilemega::frontend::ReadExportBridge(std::string(TILEMEGA_SOURCE_DIR)+
-                   "/docs/experiments/E2E_GEN/raw/export_bridge.json");
+                   "/test/fixtures/exports/e2e.json");
     assert(!old_bridge.nodes.front().has_arguments && !old_bridge.nodes.front().constant.present);
     auto* first=json->getAsObject()->getArray("nodes")->front().getAsObject();
     auto rejects=[&] {
@@ -146,7 +146,7 @@ int TestFrontendImport(int argc, char** argv) {
     using namespace tilemega::frontend;
     using namespace tilemega::codegen;
     auto bridge=ReadExportBridge(std::string(TILEMEGA_SOURCE_DIR)+
-                                "/docs/experiments/E2E_GEN/raw/export_bridge.json");
+                                "/test/fixtures/exports/e2e.json");
     auto plan=BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs);
     mlir::Builder builder(&context);
     auto original=module->getOperation()->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
@@ -202,7 +202,7 @@ int TestFrontendImport(int argc, char** argv) {
     separate.separate_residual_tasks=true;
     tilemega::frontend::ImportSummary expanded_summary;
     auto expanded=tilemega::frontend::TorchExportImporter{}.Import(
-        std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/E2E_GEN/raw/export_bridge.json",
+        std::string(TILEMEGA_SOURCE_DIR)+"/test/fixtures/exports/e2e.json",
         context,&expanded_summary,separate);
     assert(expanded_summary.stages==summary.stages+4);
     auto expanded_cuda=tilemega::codegen::CouplingGraphToCUDA{}.Lower(*expanded);
@@ -248,7 +248,7 @@ int TestFrontendImport(int argc, char** argv) {
   coarse.gemms.assign(14, {16, 64, 16, 2, 16});
   auto coarse_module = tilemega::frontend::TorchExportImporter{}.Import(
       std::string(TILEMEGA_SOURCE_DIR) +
-          "/docs/experiments/E2E_GEN/raw/export_bridge.json",
+          "/test/fixtures/exports/e2e.json",
       context, nullptr, coarse);
   std::string multi = tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(
       {{*module, 1, 3}, {*coarse_module, 4, 2048}});

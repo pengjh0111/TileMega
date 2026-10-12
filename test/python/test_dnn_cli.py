@@ -20,7 +20,7 @@ class DnnCliTest(unittest.TestCase):
             original['resources']['num_sms'] = 2
             source = root/'target.json'
             source.write_text(json.dumps(original))
-            reference = ROOT/'docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/prefill/target.json'
+            reference = ROOT/'test/fixtures/targets/dm_reference.json'
             config = dict(target=str(source), solver=dict(calibration_reference=str(reference)))
             resolved = resolve_target(config, root/'resolved')
             target = json.loads(resolved.read_text())

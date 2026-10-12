@@ -23,7 +23,7 @@ int RunAttentionWork(int argc, char** argv) try {
   std::cout << std::setprecision(17) << "model\tseq\tpast\tchunks\tphase\ttasks\tshared_bytes\tprice_ns\n";
   for (std::string model_name:{"gqa2","mha4"}) {
     auto module=frontend::TorchExportImporter{}.Import(std::string(argv[1])+
-        "/docs/experiments/SEQSCAN/raw/export/"+model_name+".json",context);
+        "/test/fixtures/exports/seqscan/"+model_name+".json",context);
     auto model=ModelDescription::FromCouplingGraph(*module,{4,3,7},model_name);
     CostModel cost(target,model.dtype);
     auto reject=[&](auto action) {

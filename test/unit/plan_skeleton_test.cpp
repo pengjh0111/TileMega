@@ -14,7 +14,7 @@ using namespace tilemega;
 int TestPlanSkeleton(int argc, char** argv) {
  try {
   analysis::IslContext isl;mlir::MLIRContext context;
-  std::string root=TILEMEGA_SOURCE_DIR,path=root+"/docs/experiments/E2E_GEN/raw/export_bridge.json";
+  std::string root=TILEMEGA_SOURCE_DIR,path=root+"/test/fixtures/exports/e2e.json";
   auto bridge=frontend::ReadExportBridge(path);auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs);
   for(auto const& buffer:plan.buffers)if(buffer.name.find("inv_freq")!=std::string::npos && buffer.constant!=64)
     throw std::runtime_error("F32 frequency storage was counted as BF16 words");
@@ -22,7 +22,7 @@ int TestPlanSkeleton(int argc, char** argv) {
   frontend::ImportOptions options;options.gemms.resize(plan.gemms.size(),{32,16,32,2,1});
   options.rope_tile_per_block=options.kv_tile_per_block=options.activation_tile_per_block=options.combiner_tile_per_block=true;
   analysis::CouplingCache cache;auto module=importer.InstantiateForGranularity(imported,context,options,&cache);
-  auto target=TargetSpec::FromJson(root+"/docs/experiments/COSTMODEL/event_fit/target.json");
+  auto target=TargetSpec::FromJson(root+"/test/fixtures/targets/event_fit.json");
   auto problem=solver::PrepareSymbolicProblem(*module,target,{4,3,7},8,1,1);
   solver::SymbolicPriceCache prices;
   auto cached=solver::PrepareSymbolicProblem(*module,target,{4,3,7},8,1,1,&prices);

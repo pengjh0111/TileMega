@@ -73,14 +73,14 @@ if(NOT TILEMEGA_ENABLE_MLIR)
   message(FATAL_ERROR
     "TILEMEGA_ENABLE_MLIR=OFF is no longer supported: the Coupling Graph "
     "dialect is the sole L4-L1 contract. Build MLIR and configure with "
-    "-DMLIR_DIR=/path/to/lib/cmake/mlir (see docs/experiments/V_F/result.md).")
+    "-DMLIR_DIR=/path/to/lib/cmake/mlir (see docs/BUILD_MLIR.md).")
 endif()
 find_package(MLIR QUIET CONFIG)
 if(NOT MLIR_FOUND)
   message(FATAL_ERROR
     "MLIR is required for the TileMega Coupling Graph dialect. Configure with "
     "-DMLIR_DIR=/path/to/lib/cmake/mlir. The pinned source/build recipe and "
-    "commit are recorded in docs/experiments/V_F/result.md.")
+    "commit are recorded in docs/BUILD_MLIR.md.")
 endif()
 message(STATUS "Using MLIR ${MLIR_PACKAGE_VERSION} from ${MLIR_DIR}")
 list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}" "${LLVM_CMAKE_DIR}")
@@ -499,7 +499,7 @@ if(TILEMEGA_BUILD_TESTS)
 
   add_test(NAME regime_a_price COMMAND tilemega-unit regime_a_price
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/docs/experiments/SOLVER_R9B/fit/target.json)
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/targets/solver_r9b.json)
 
   add_test(NAME dram_floor COMMAND tilemega-unit dram_floor)
 
@@ -530,12 +530,12 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME moe_binding COMMAND tilemega-unit moe_binding)
 
   add_test(NAME task_element_work COMMAND tilemega-unit task_element_work
-    ${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/gqa2.json
-    ${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/mha4.json)
+    ${CMAKE_SOURCE_DIR}/test/fixtures/exports/seqscan/gqa2.json
+    ${CMAKE_SOURCE_DIR}/test/fixtures/exports/seqscan/mha4.json)
   add_test(NAME op_arithmetic_audit COMMAND tilemega audit op)
   add_test(NAME task_work_domains COMMAND tilemega probe task-work-probe
-    "${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/gqa2.json"
-    "${CMAKE_SOURCE_DIR}/docs/experiments/SEQSCAN/raw/export/mha4.json")
+    "${CMAKE_SOURCE_DIR}/test/fixtures/exports/seqscan/gqa2.json"
+    "${CMAKE_SOURCE_DIR}/test/fixtures/exports/seqscan/mha4.json")
 
   add_test(NAME isl_relation COMMAND tilemega-unit isl_relation)
 
@@ -553,13 +553,13 @@ if(TILEMEGA_BUILD_TESTS)
   foreach(split_case IN ITEMS nonpaged_attention nonpaged_combine four one off escape)
     add_test(NAME handoff_split_${split_case} COMMAND tilemega-unit handoff_ir
       splitk_import ${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/serving_split.json
-      ${split_case} ${CMAKE_CURRENT_SOURCE_DIR}/docs/experiments/SERVING_R12C/target_r12b.json)
+      ${split_case} ${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/targets/serving_r12b.json)
   endforeach()
   add_test(NAME handoff_access COMMAND tilemega-unit handoff_access)
   foreach(split_case IN ITEMS four one off escape)
     add_test(NAME handoff_nonpaged_split_${split_case} COMMAND tilemega-unit handoff_ir
       nonpaged_splitk_import ${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/serving_split.json
-      ${split_case} ${CMAKE_CURRENT_SOURCE_DIR}/docs/experiments/SERVING_R12C/target_r12b.json)
+      ${split_case} ${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/targets/serving_r12b.json)
   endforeach()
 
   add_test(NAME lane_intersections COMMAND tilemega-unit lane_intersections)
@@ -1004,7 +1004,7 @@ if(TILEMEGA_BUILD_TESTS)
   # implementation and isl/barvinok in one binary, so a regression that
   # breaks this link/runtime combination is caught by `ctest`, not
   # rediscovered by hand next time this dependency set changes.
-  add_executable(isl_crosslink_test docs/experiments/P3_ISL/crosslink_probe.cpp)
+  add_executable(isl_crosslink_test test/unit/isl_crosslink_test.cpp)
   target_link_libraries(isl_crosslink_test PRIVATE MLIRIR MLIRSupport
     MLIRPresburger tilemega::isl_stack)
   if(NOT LLVM_ENABLE_RTTI)
@@ -1036,7 +1036,7 @@ if(TILEMEGA_BUILD_TESTS)
 endif()
 
 if(TILEMEGA_BUILD_VERIFY)
-  add_subdirectory(docs/experiments/V_I)
+  add_subdirectory(tools/experimental/crosscompile)
 endif()
 
 add_custom_target(check-tilemega DEPENDS check-policy)

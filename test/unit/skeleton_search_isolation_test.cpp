@@ -63,7 +63,7 @@ int TestSkeletonSearchIsolation(int argc, char** argv) try {
   std::string expected;
   for(int repeat=0;repeat<2;++repeat) {
     mlir::MLIRContext context;solver::SolverTiming timing;solver::SkeletonSearchOptions options;
-    options.common.placement.target=TargetSpec::FromJson(root+"/docs/experiments/SOLVER_R9B/fit/target.json");
+    options.common.placement.target=TargetSpec::FromJson(root+"/test/fixtures/targets/solver_r9b.json");
     options.common.placement.target.res.num_sms=4;
     options.common.placement.dims={4,3,7};options.common.timing=&timing;
     options.seed={32,16,32,2,1};options.common.geometry_domain={options.seed};
@@ -71,7 +71,7 @@ int TestSkeletonSearchIsolation(int argc, char** argv) try {
     options.jobs=repeat?3:1;options.passes=1;options.search_only=true;
     options.artifact_prefix=(dir/std::to_string(repeat)).string();
     std::ostringstream evidence;
-    auto result=solver::SolveSkeletonExport(root+"/docs/experiments/SEQSCAN/raw/export/gqa2.json",context,options,nullptr,evidence);
+    auto result=solver::SolveSkeletonExport(root+"/test/fixtures/exports/seqscan/gqa2.json",context,options,nullptr,evidence);
     if(result.evaluated.size()<6 || !result.top.empty())throw std::runtime_error("search-only must evaluate candidates without top-3 materialization");
     if(timing.phases.at("import").count!=1 || timing.phases.at("cache_hit").count==0)
       throw std::runtime_error("import/cache accounting changed");

@@ -29,7 +29,7 @@ int TestMoeDramBindings(int argc,char** argv) {
     else if(d=="1536")d="64";else if(d=="128")d="16";
   }
   auto target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+
-      "/docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/prefill/target.json");
+      "/test/fixtures/targets/dm_reference.json");
   for(bool group:{false,true})for(unsigned bm:{16u,32u}) {
     mlir::MLIRContext context;MoeRegionOptions options;
     options.tokens=17;options.grouped=group;options.block_rows=bm;

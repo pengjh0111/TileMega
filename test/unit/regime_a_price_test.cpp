@@ -20,7 +20,7 @@ int TestRegimeAPrice(int argc, char** argv) try {
   Require(curve.HitFraction(2.*1024*1024*1024,cal.l2_gbps,cal.dram_gbps)==0,"2 GiB external stream must miss L2");
   int checks=0;
   for(std::string name:{"gqa2","mha4"}) {
-    auto module=frontend::TorchExportImporter{}.Import(std::string(argv[1])+"/docs/experiments/SEQSCAN/raw/export/"+name+".json",context);
+    auto module=frontend::TorchExportImporter{}.Import(std::string(argv[1])+"/test/fixtures/exports/seqscan/"+name+".json",context);
     auto model=solver::ModelDescription::FromCouplingGraph(*module,{4,3,7},name);
     solver::CostModelOptions options;options.regime_a=true;solver::CostModel cost(target,model.dtype,options);
     for(int k:{16,32,64}) {

@@ -72,7 +72,7 @@ frontend::ExportBridge WithEmbedding(frontend::ExportBridge bridge,
 
 int TestEmbeddingPlan(int argc, char** argv) {
   std::string const path = std::string(TILEMEGA_SOURCE_DIR) +
-                           "/docs/experiments/E2E_GEN/raw/export_bridge.json";
+                           "/test/fixtures/exports/e2e.json";
   auto reference = frontend::ReadExportBridge(path);
   auto base = frontend::BuildModelPlan(reference.nodes, reference.inputs,
                                        reference.outputs);

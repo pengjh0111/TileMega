@@ -224,7 +224,7 @@ int main(int argc, char** argv) {
   if (which == "fixture" || which == "launch") {
     frontend::ExportBridge bridge = frontend::ReadExportBridge(
         std::string(TILEMEGA_SOURCE_DIR) +
-        "/docs/experiments/E2E_GEN/raw/export_bridge.json");
+        "/test/fixtures/exports/e2e.json");
     frontend::ModelPlan plan =
         frontend::BuildModelPlan(bridge.nodes, bridge.inputs, bridge.outputs);
     frontend::LiftedModel model =

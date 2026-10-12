@@ -21,7 +21,7 @@ int main(int argc,char** argv) try {
   frontend::ImportOptions import;
   import.rope_tile_per_block=import.kv_tile_per_block=import.activation_tile_per_block=import.combiner_tile_per_block=false;
   auto module=frontend::TorchExportImporter{}.Import(std::string(argv[1])+
-      "/docs/experiments/SEQSCAN/raw/export/"+argv[2]+".json",context,nullptr,import);
+      "/test/fixtures/exports/seqscan/"+argv[2]+".json",context,nullptr,import);
   auto model=ModelDescription::FromCouplingGraph(*module,{4,3,7},argv[2]);
   std::ifstream file(argv[3]); std::string line;
   if (!file || !std::getline(file,line) || line!="chunks\textent\tregisters\ttile_m\ttile_n\ttile_k\tstages\tsplit")

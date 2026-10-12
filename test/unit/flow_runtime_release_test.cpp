@@ -15,10 +15,10 @@ using namespace tilemega;
 int TestFlowRuntimeRelease(int argc, char** argv) try {
   analysis::IslContext isl;mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();context.getOrLoadDialect<dialect::ExecDialect>();
-  auto target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/SOLVER_R9B/fit/target.json");
+  auto target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+"/test/fixtures/targets/solver_r9b.json");
   long checks=0,mismatches=0,full_window_checks=0;
   for(auto model:{"gqa2","mha4"})for(int seq:{4,128})for(int kappa:{1,2,4}) {
-    auto module=frontend::TorchExportImporter{}.Import(std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/SEQSCAN/raw/export/"+model+".json",context);
+    auto module=frontend::TorchExportImporter{}.Import(std::string(TILEMEGA_SOURCE_DIR)+"/test/fixtures/exports/seqscan/"+model+".json",context);
     auto problem=solver::PrepareSymbolicProblem(*module,target,{seq,3,seq+3},128,1,kappa,nullptr,false);
     if(std::string(model)=="gqa2" && seq==4 && kappa==1) {
       analysis::CouplingCache cache;

@@ -23,7 +23,7 @@ int TestStageKappa(int argc, char** argv) try {
   analysis::IslContext isl;
   mlir::MLIRContext ctx;
   auto module=frontend::TorchExportImporter{}.Import(
-      std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/SEQSCAN/raw/export/gqa2.json",ctx);
+      std::string(TILEMEGA_SOURCE_DIR)+"/test/fixtures/exports/seqscan/gqa2.json",ctx);
   dialect::PlacementSolveOptions options;
   options.target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+"/configs/targets/sm_89.json");
   options.dims={4,3,7};options.residency=1;options.verified_resident_limit=1;

@@ -12,7 +12,7 @@ int TestMoeTaskPricing(int,char**) {
   auto f=[](long n){return ClosedForm::Constant(n);};
   auto close=[](double a,double b){assert(std::abs(a-b)<=1e-9*std::max({1.,std::abs(a),std::abs(b)}));};
   auto target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+
-      "/docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/prefill/target.json");
+      "/test/fixtures/targets/dm_reference.json");
   // Synthetic coefficients isolate the probability/traffic contract. They are
   // unit-test inputs and are never serialized as a device calibration.
   auto& calibration=target.CalibrationFor("bf16").task_body;

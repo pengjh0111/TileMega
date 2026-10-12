@@ -29,7 +29,7 @@ int TestFusionRewrite(int argc, char** argv) try {
   };
   for (auto model:{"gqa2","mha4"}) {
     auto module=frontend::TorchExportImporter{}.Import(std::string(TILEMEGA_SOURCE_DIR)+
-        "/docs/experiments/SEQSCAN/raw/export/"+model+".json",context);
+        "/test/fixtures/exports/seqscan/"+model+".json",context);
     auto description=solver::ModelDescription::FromCouplingGraph(*module,{4,3,7},model);
     auto plan=codegen::ReadRuntimePlan(*module);
     std::vector<solver::GemmConfig> configs;

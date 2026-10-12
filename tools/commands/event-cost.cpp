@@ -35,7 +35,7 @@ int RunEventCost(int argc, char** argv) try {
     import.rope_tile_per_block = import.kv_tile_per_block = true;
     import.activation_tile_per_block = import.combiner_tile_per_block = true;
     auto cg = tilemega::frontend::TorchExportImporter{}.Import(
-        root+"/docs/experiments/SEQSCAN/raw/export/"+name+".json", context, nullptr, import);
+        root+"/test/fixtures/exports/seqscan/"+name+".json", context, nullptr, import);
     for (int past : {0,3,512}) {
     auto symbolic = tilemega::solver::ModelDescription::FromCouplingGraph(
         *cg, tilemega::solver::ModelDims::Symbolic("S",past), name);

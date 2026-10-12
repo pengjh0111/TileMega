@@ -20,7 +20,7 @@ int main(int argc,char** argv) try {
   std::string repo=argv[1],name=argv[2];
   int chunks=std::stoi(argv[3]),extent=std::stoi(argv[4]),registers=std::stoi(argv[5]);
   if (chunks<1 || extent<1 || registers<1) throw std::invalid_argument("missing measured attention candidate resources");
-  std::string source=repo+"/docs/experiments/SEQSCAN/raw/export/"+name+".json";
+  std::string source=repo+"/test/fixtures/exports/seqscan/"+name+".json";
   frontend::ImportOptions import;
   // The frozen attention_models experiment uses element ownership.
   import.rope_tile_per_block=import.kv_tile_per_block=import.activation_tile_per_block=import.combiner_tile_per_block=false;

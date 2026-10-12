@@ -83,7 +83,7 @@ int TestHandoffIr(int argc,char** argv) try {
   auto const imported_case=argc<=1 || std::string(argv[1])=="audit" ||
       std::string(argv[1])=="smem_direct";
   auto module=!imported_case?mlir::parseSourceFile<mlir::ModuleOp>(argv[1],&context):
-    frontend::TorchExportImporter{}.Import(std::string(TILEMEGA_SOURCE_DIR)+"/docs/experiments/SEQSCAN/raw/export/gqa2.json",context);
+    frontend::TorchExportImporter{}.Import(std::string(TILEMEGA_SOURCE_DIR)+"/test/fixtures/exports/seqscan/gqa2.json",context);
   assert(module);
   if(argc>2 && (std::string(argv[2])=="select_serving" ||
                  std::string(argv[2])=="select_splitk" ||

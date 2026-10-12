@@ -27,7 +27,7 @@ int TestMoeStructureSearch(int argc,char** argv) {
   imported.bridge=bridge;
   SkeletonSearchOptions search;
   search.common.placement.target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+
-      "/docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/prefill/target.json");
+      "/test/fixtures/targets/dm_reference.json");
   search.common.placement.target.res.num_sms=2;search.common.placement.dims={17,0,17};
   search.seed={16,32,32,2,1};search.common.geometry_domain={search.seed};
   search.passes=1;search.top_m=1;search.search_only=true;

@@ -305,7 +305,7 @@ int TestSemanticLifting(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   auto bridge = frontend::ReadExportBridge(
       std::string(TILEMEGA_SOURCE_DIR) +
-      "/docs/experiments/E2E_GEN/raw/export_bridge.json");
+      "/test/fixtures/exports/e2e.json");
   auto plan = frontend::BuildModelPlan(bridge.nodes, bridge.inputs,
                                        bridge.outputs);
   assert(plan.stages.size() == 30);

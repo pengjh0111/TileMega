@@ -56,7 +56,7 @@ analysis::ParamBinding TileBinding() {
 std::vector<analysis::CouplingEdge> Lifted() {
   frontend::ExportBridge bridge = frontend::ReadExportBridge(
       std::string(TILEMEGA_SOURCE_DIR) +
-      "/docs/experiments/E2E_GEN/raw/export_bridge.json");
+      "/test/fixtures/exports/e2e.json");
   frontend::ModelPlan plan =
       frontend::BuildModelPlan(bridge.nodes, bridge.inputs, bridge.outputs);
   frontend::LiftOptions options;  // the reference model's own symbol names

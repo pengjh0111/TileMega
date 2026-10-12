@@ -81,7 +81,7 @@ int TestDnnDwPwFusion(int argc,char** argv) {
   std::vector<solver::GemmConfig> configs(plan.gemms.size(),{16,16,16,2,2});
   auto priced_graph=solver::InstantiateModelTasks(model,configs);
   target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+
-      "/docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/prefill/target.json");
+      "/test/fixtures/targets/dm_reference.json");
   solver::CostModelOptions pricing;pricing.regime_a=true;
   solver::CostModel cost(target,model.dtype,pricing);
   for(auto const& semantic:model.task_semantics)

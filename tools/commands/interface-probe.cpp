@@ -30,7 +30,7 @@ int RunInterfaceProbe(int argc, char** argv) try {
   mlir.getOrLoadDialect<dialect::CGDialect>();
   mlir.getOrLoadDialect<dialect::ExecDialect>();
   auto cg=frontend::TorchExportImporter{}.Import(
-      root+"/docs/experiments/SEQSCAN/raw/export/"+name+".json",mlir);
+      root+"/test/fixtures/exports/seqscan/"+name+".json",mlir);
   auto model=ModelDescription::FromCouplingGraph(*cg,{seq,3,seq+3},name);
   CostModelOptions historical;
   historical.cg_interface=false;

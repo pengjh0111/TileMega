@@ -324,7 +324,7 @@ int RunTargetAudit(int argc, char** argv) {
     context.getOrLoadDialect<tilemega::dialect::CGDialect>();
   context.getOrLoadDialect<tilemega::dialect::ExecDialect>();
     auto cg=tilemega::frontend::TorchExportImporter{}.Import(
-        repo+"/docs/experiments/E2E_GEN/raw/export_bridge.json",context);
+        repo+"/test/fixtures/exports/e2e.json",context);
     probe_storage=ModelDescription::FromCouplingGraph(*cg,ModelDims{4,3,7},"gqa2");
     probe = &probe_storage;
   } catch (std::exception const& error) {

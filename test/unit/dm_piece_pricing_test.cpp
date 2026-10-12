@@ -34,7 +34,7 @@ int TestDmPiecePricing(int,char**) {
   solver::ModelDescription model;model.dm=true;model.dtype=solver::ScalarType::kBF16;
   model.dims={1,0,1};
   auto target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+
-      "/docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/prefill/target.json");
+      "/test/fixtures/targets/dm_reference.json");
   solver::BackendTraits traits;traits.threads=128;traits.shape_legal=true;
   std::vector<ParamBinding> points(3);
   for(long q=0;q<3;++q)points[q].Bind("q",q);

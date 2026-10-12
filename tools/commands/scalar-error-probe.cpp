@@ -22,7 +22,7 @@ int RunScalarErrorProbe(int argc, char** argv) try {
     mlir.getOrLoadDialect<dialect::CGDialect>();
   mlir.getOrLoadDialect<dialect::ExecDialect>();
     auto cg=frontend::TorchExportImporter{}.Import(
-        std::string(argv[1])+"/docs/experiments/SEQSCAN/raw/export/gqa2.json",mlir);
+        std::string(argv[1])+"/test/fixtures/exports/seqscan/gqa2.json",mlir);
     auto model=ModelDescription::FromCouplingGraph(*cg,{4,3,7},"gqa2");
     std::vector<GemmConfig> configs(model.gemms.size(),{128,128,16,3,1});
     auto graph=InstantiateModelTasks(model,configs);

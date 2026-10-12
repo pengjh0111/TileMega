@@ -69,7 +69,7 @@ int TestDmForwardSearch(int,char**) {
       solver::SkeletonSearchOptions search;
       search.common.placement.target=TargetSpec::FromJson(
           std::string(TILEMEGA_SOURCE_DIR)+
-          "/docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/prefill/target.json");
+          "/test/fixtures/targets/dm_reference.json");
       search.common.placement.target.res.num_sms=4;
       search.common.placement.dims={plan.serving_seq,0,plan.serving_seq};
       search.common.placement.dims.batch=token_axis?1:8;

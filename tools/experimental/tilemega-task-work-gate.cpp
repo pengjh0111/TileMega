@@ -30,7 +30,7 @@ int main(int argc,char** argv) try {
   std::cout << "dtype\tmodel\tconfig\tgemm_stages\tseq_points\twork_bit_checks\tstatus\n";
   for (std::string dtype:{"bf16","f32"}) for (std::string model:{"gqa2","mha4"}) {
     std::string source=dtype=="bf16"
-        ? root+"/docs/experiments/SEQSCAN/raw/export/"+model+".json"
+        ? root+"/test/fixtures/exports/seqscan/"+model+".json"
         : root+"/docs/experiments/"+(model=="gqa2" ? "E2E_GEN" : "P3_GENERALIZATION")+
             "/raw/export_bridge.json";
     auto bridge=ReadExportBridge(source);

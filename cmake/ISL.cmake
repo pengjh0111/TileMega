@@ -64,7 +64,7 @@ target_include_directories(tilemega_isl_stack SYSTEM INTERFACE
   "${_tilemega_barvinok_src}/barvinok"
   "${TILEMEGA_BARVINOK_BUILD_DIR}")
 # Static-link order matters (barvinok -> isl -> polylib -> ntl -> gmp); this
-# exact order was validated by docs/experiments/P3_ISL/crosslink_probe.cpp.
+# exact order was validated by test/unit/isl_crosslink_test.cpp.
 target_link_libraries(tilemega_isl_stack INTERFACE
   "${TILEMEGA_BARVINOK_LIBRARY}"
   "${TILEMEGA_ISL_LIBRARY}"

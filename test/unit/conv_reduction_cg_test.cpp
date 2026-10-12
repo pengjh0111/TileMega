@@ -132,7 +132,7 @@ int TestConvReductionCg(int,char**) {
   // Four filter positions issue eight K tiles although logical K would
   // suggest only six. Every layer of the solver must retain all eight chunks.
   auto target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+
-      "/docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/prefill/target.json");
+      "/test/fixtures/targets/dm_reference.json");
   solver::CostModel cost(target,solver::ScalarType::kBF16);
   for(unsigned batch:{1,2}) {
     auto fixture=Fixture(batch,24,2);

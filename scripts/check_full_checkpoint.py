@@ -12,14 +12,14 @@ import sys
 
 
 FIXTURES = [
-    'docs/experiments/SOLVER_R9B/fit/target.json',
-    'docs/experiments/SERVING_R12C/target_r12b.json',
-    'docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/prefill/target.json',
-    'docs/experiments/MODELS/covered_llama/auto.cu.export.json',
-    'docs/experiments/E2E_GEN/raw/export_bridge.json',
-    'docs/experiments/P3_ISL/crosslink_probe.cpp',
-    'docs/experiments/SEQSCAN/raw/export/gqa2.json',
-    'docs/experiments/SEQSCAN/raw/export/mha4.json',
+    'test/fixtures/targets/solver_r9b.json',
+    'test/fixtures/targets/serving_r12b.json',
+    'test/fixtures/targets/dm_reference.json',
+    'test/fixtures/exports/covered_llama.json',
+    'test/fixtures/exports/e2e.json',
+    'test/unit/isl_crosslink_test.cpp',
+    'test/fixtures/exports/seqscan/gqa2.json',
+    'test/fixtures/exports/seqscan/mha4.json',
 ]
 
 
@@ -47,11 +47,11 @@ def prepare(root, out, tree):
         third.rmdir()
     third.symlink_to(root / 'third_party', target_is_directory=True)
     files = set(FIXTURES)
-    for folder in ('docs/experiments/V_I', 'docs/experiments/SERVING_R11',
+    for folder in ('tools/experimental/crosscompile', 'docs/experiments/SERVING_R11',
                    'docs/experiments/DNN_MOE_R1'):
         files.update(name for name in git(root, 'ls-files', folder).splitlines()
                      if Path(name).parent == Path(folder) and Path(name).suffix in ('.py', '.sh', '.txt'))
-    files.add('docs/experiments/V_I/CMakeLists.txt')
+    files.add('tools/experimental/crosscompile/CMakeLists.txt')
     tracked = set(git(root, 'ls-files', *sorted(files)).splitlines())
     origins = {}
     for name in files:

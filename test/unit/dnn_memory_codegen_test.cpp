@@ -94,7 +94,7 @@ int TestDnnMemoryCodegen(int argc,char** argv) {
   if(argc==4 && std::string(argv[3])=="--search") {
     solver::SkeletonSearchOptions search;
     search.common.placement.target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+
-        "/docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/prefill/target.json");
+        "/test/fixtures/targets/dm_reference.json");
     search.common.placement.target.res.num_sms=4;
     search.common.placement.dims={7,0,7};search.common.placement.dims.batch=2;
     search.seed={16,16,16,2,1};

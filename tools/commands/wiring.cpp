@@ -37,7 +37,7 @@ int RunWiring(int argc, char** argv) {
   tilemega::analysis::IslContext isl_context;
   std::string path = argc > 1 ? argv[1]
                               : std::string(TILEMEGA_SOURCE_DIR) +
-                                    "/docs/experiments/E2E_GEN/raw/export_bridge.json";
+                                    "/test/fixtures/exports/e2e.json";
   std::string which = argc > 2 ? argv[2] : "reference";
 
   frontend::ExportBridge bridge = frontend::ReadExportBridge(path);

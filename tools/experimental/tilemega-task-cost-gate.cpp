@@ -36,7 +36,7 @@ int main(int argc,char** argv) try {
             << std::setprecision(17);
   for (std::string dtype:{"bf16","f32"}) for (std::string name:{"gqa2","mha4"}) {
     std::string source=dtype=="bf16"
-        ? root+"/docs/experiments/SEQSCAN/raw/export/"+name+".json"
+        ? root+"/test/fixtures/exports/seqscan/"+name+".json"
         : root+"/docs/experiments/"+(name=="gqa2" ? "E2E_GEN" : "P3_GENERALIZATION")+
             "/raw/export_bridge.json";
     auto cg=frontend::TorchExportImporter{}.Import(source,mlir);

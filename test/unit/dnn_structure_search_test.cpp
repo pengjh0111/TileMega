@@ -26,7 +26,7 @@ int TestDnnStructureSearch(int argc,char** argv) {
   auto imported=TorchExportImporter{}.ImportSemantics(path,plan,context);
   SkeletonSearchOptions search;
   search.common.placement.target=TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+
-      "/docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/prefill/target.json");
+      "/test/fixtures/targets/dm_reference.json");
   search.common.placement.target.res.num_sms=2;
   search.common.placement.dims={1,0,1};search.common.placement.dims.batch=2;
   search.seed={16,16,16,2,1};search.common.geometry_domain={search.seed};

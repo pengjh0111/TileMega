@@ -23,7 +23,7 @@ int TestFusionBatchRewrite(int argc, char** argv) try {
   int errors=0,identities=0,tasks=0;
   for (auto name:{"gqa2","mha4"}) {
     auto module=frontend::TorchExportImporter{}.Import(std::string(TILEMEGA_SOURCE_DIR)+
-        "/docs/experiments/SEQSCAN/raw/export/"+name+".json",context);
+        "/test/fixtures/exports/seqscan/"+name+".json",context);
     auto model=solver::ModelDescription::FromCouplingGraph(*module,{4,3,7},name);
     auto plan=codegen::ReadRuntimePlan(*module);
     std::vector<std::pair<std::string,std::string>> pairs;

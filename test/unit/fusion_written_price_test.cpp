@@ -24,7 +24,7 @@ int TestFusionWrittenPrice(int argc, char** argv) try {
   for (auto model:{"gqa2","mha4"}) for (auto pair:{std::make_pair("l0.s05.rope","l0.s06.append"),
                                                 std::make_pair("l0.s09.proj","l0.s09.add")}) {
     auto module=frontend::TorchExportImporter{}.Import(std::string(TILEMEGA_SOURCE_DIR)+
-        "/docs/experiments/SEQSCAN/raw/export/"+model+".json",context);
+        "/test/fixtures/exports/seqscan/"+model+".json",context);
     auto description=ModelDescription::FromCouplingGraph(*module,{4,3,7},model);
     auto plan=codegen::ReadRuntimePlan(*module);
     std::vector<GemmConfig> configs;
