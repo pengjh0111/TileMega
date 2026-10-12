@@ -19,6 +19,8 @@ The Python entry point is `PYTHONPATH=python python -m tilemega`.
 | `python -m tilemega dnn` | DNN export, build, forward and correctness commands |
 | `python -m tilemega.moe.full` | Full-depth MoE dry construction, memory preflight and checks |
 | `python -m tilemega.serving.download_models --config-only` | Fetch and verify pinned model configs without downloading weights |
+| `python -m tilemega.serving.structure_check` | Check pinned model shapes on meta tensors without reading checkpoint weights |
+| `python -m tilemega.dnn.diagnose` | Locate per-image excess error in retained intermediate buffers |
 
 ## Compilation and identity
 
@@ -35,6 +37,23 @@ The serving execution choice lives in `<library>.serving.json` and `plans.json`;
 it does not rewrite the cached manifest. Explicit execution options override
 `auto`. Model configurations are under `configs/e2e/`, with pinned model
 metadata under `configs/models/`.
+
+For a structural check without allocating model weights:
+
+```bash
+PYTHONPATH=python python -m tilemega.serving.structure_check \
+  --model-root /root/models --points 64:1024,128:2048 --batches 1,16 \
+  --out runs/r15/models/structures.json
+```
+
+This executes the exporter's modules on meta tensors; it does not certify CUDA
+execution, numerical correctness or performance. The receipt says
+`model_gate_passed=false` even when all structural checks pass.
+
+`tilemega inspect parametric REPO ARCHIVE OUT [f32|bf16]` requires an explicit
+historical input archive containing `ORACLE`, `E2E_GEN`, `P3_GENERALIZATION`,
+`COST_MODEL` and `BF16`. It writes only to `OUT`. The compiler's fixed cost-model
+regression inputs live in `test/fixtures/cost_model/`.
 
 ## Workloads and measurement
 
@@ -74,6 +93,13 @@ Accepted comparisons rotate arm order and report TPOT, request latency,
 output throughput and MBU. Each arm has the same prompt, fixed OSL and EOS
 policy. Model correctness is separate from timing; component benchmarks are
 diagnostic only. Raw receipts remain under ignored `runs/`.
+
+For NAFNet diagnostics, run `tilemega.dnn.check_generated --diagnostics FILE`
+under the numerical-test guard on a separate `--reuse none` diagnostic build.
+Then run `python -m tilemega.dnn.diagnose --intermediates FILE --bridge BRIDGE
+--library SO --out REPORT`. It verifies the artifact and bridge binding before
+finding the first observed excess error for each image. Fused or unexposed
+nodes cannot be localized by this report. The dataset gate remains separate.
 
 ## Portability
 
