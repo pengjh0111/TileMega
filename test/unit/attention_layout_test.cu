@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <type_traits>
 #include <vector>
 
@@ -161,7 +162,8 @@ template<int D,int Q> int Shapes() {
 }
 int main() {
   if(auto* path=std::getenv("TILEMEGA_ATTENTION_TEST_LATENCY")) {
-    if(!std::getenv("TILEMEGA_GPU_LOCK_HELD")) {
+    if(!std::getenv("TILEMEGA_GPU_LOCK_HELD") ||
+       std::strcmp(std::getenv("TILEMEGA_GPU_LOCK_HELD"),"1")) {
       std::fprintf(stderr,"latency diagnostics require the bench GPU guard\n");return 3;
     }
     latency=std::fopen(path,"w");if(!latency)return 3;
