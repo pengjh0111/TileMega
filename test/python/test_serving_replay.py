@@ -28,6 +28,19 @@ class Replay(unittest.TestCase):
                 self.assertNotIn(str(old / 'plan.cu'), actual)
                 self.assertIn(str(new / 'include'), ' '.join(actual))
 
+    def test_source_comparison_checks_bytes_and_cardinality(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths=[Path(directory)/name for name in ('before.cu','after.cu')]
+            for path in paths:path.write_bytes(b'line\n')
+            rows=[dict(cell='llama_B1',head=str(i),source=str(path),cu_sha256=replay.sha(path))
+                  for i,path in enumerate(paths)]
+            self.assertTrue(replay.compare_sources(rows)['passed'])
+            paths[1].write_bytes(b'line\r\n');rows[1]['cu_sha256']=replay.sha(paths[1])
+            self.assertFalse(replay.compare_sources(rows)['passed'])
+            with self.assertRaises(ValueError):replay.compare_sources(rows[:1])
+            paths[1].write_bytes(b'changed')
+            with self.assertRaises(ValueError):replay.compare_sources(rows)
+
     def test_rejects_missing_output_or_source(self):
         for cmd in [['nvcc', 'plan.cu'], ['nvcc', '-o', 'p.so'], ['nvcc', 'p.cu', '-o']]:
             with self.assertRaises(ValueError):

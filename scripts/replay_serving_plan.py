@@ -88,7 +88,8 @@ def prepare(args):
         trees[head]=str(tree)
     shutil.copy2(__file__,out/'runner.py')
     (out/'inputs.json').write_text(json.dumps(dict(root=str(root),trees=trees,cases=cases,
-        runner_sha256=sha(out/'runner.py'),mlir_dir=args.mlir_dir,nvcc_timeout_s=args.nvcc_timeout_s),indent=2)+'\n')
+        runner_sha256=sha(out/'runner.py'),mlir_dir=args.mlir_dir,nvcc_timeout_s=args.nvcc_timeout_s,
+        sources_only=args.sources_only),indent=2)+'\n')
 
 
 def build(args):
@@ -130,6 +131,12 @@ def build(args):
                 for key,value in options.items():command+=['--'+key.replace('_','-'),str(value)]
                 snapshot(tree,folder/'source.json',compiler)
                 execute(command,tree,folder/'generate.log',1800)
+                if record.get('sources_only'):
+                    built.append(dict(head=head,cell=case['cell'],source=str(so)+'.cu',
+                                      cu_sha256=sha(str(so)+'.cu')))
+                    (out/'builds.json').write_text(json.dumps(built,indent=2)+'\n')
+                    print('GENERATED '+head[:12]+' '+case['cell'],flush=True)
+                    continue
                 nvcc=nvcc_command(shlex.split(inputs['nvcc'].read_text()),tree,Path(str(so)+'.cu'),so)
                 execute(nvcc,tree,Path(str(so)+'.ptxas.log'),record['nvcc_timeout_s'])
                 Path(str(so)+'.build_command.txt').write_text(shlex.join(nvcc)+'\n')
@@ -146,6 +153,29 @@ def build(args):
                 print('BUILT '+head[:12]+' '+case['cell'],flush=True)
 
 
+    if record.get('sources_only'):
+        comparisons=compare_sources(built)
+        (out/'source_comparison.json').write_text(json.dumps(comparisons,indent=2)+'\n')
+        if not comparisons['passed']:
+            raise RuntimeError('default-workload generated CUDA differs; inspect source_comparison.json')
+
+
+def compare_sources(rows):
+    by_cell={}
+    for row in rows:by_cell.setdefault(row['cell'],[]).append(row)
+    if not by_cell or any(len(group)!=2 or len({r['head'] for r in group})!=2
+                          for group in by_cell.values()):
+        raise ValueError('source comparison needs exactly two revisions per cell')
+    cases=[]
+    for cell,group in sorted(by_cell.items()):
+        for row in group:
+            if sha(row['source'])!=row['cu_sha256']:raise ValueError('generated source changed')
+        cases.append(dict(cell=cell,passed=Path(group[0]['source']).read_bytes()==
+                          Path(group[1]['source']).read_bytes(),sources=group))
+    return dict(passed=all(row['passed'] for row in cases),cases=cases,
+                scope='fixed designs at default 64/1024; source only, no GPU or binary equivalence claim')
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action',choices=('prepare','build'))
@@ -156,7 +186,10 @@ def main():
     parser.add_argument('--revision',action='append')
     parser.add_argument('--mlir-dir',default='/root/toolchains/mlir-23a60f15/lib/cmake/mlir')
     parser.add_argument('--nvcc-timeout-s',type=int,default=10800)
+    parser.add_argument('--sources-only',action='store_true',help='G-REG-W: compare generated CUDA at two revisions without nvcc')
     args=parser.parse_args()
+    if args.sources_only and len(args.revision or [])!=2:
+        parser.error('--sources-only preparation requires exactly two revisions')
     if args.action=='prepare' and not (args.design and args.work and args.revision):
         parser.error('prepare requires --design, --work and --revision')
     (prepare if args.action=='prepare' else build)(args)
