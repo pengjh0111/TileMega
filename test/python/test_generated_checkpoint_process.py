@@ -72,6 +72,32 @@ class GeneratedCheckpointProcessTest(unittest.TestCase):
                     checkpoint.reuse_inputs(args)
             self.assertFalse(out.exists())
 
+    def test_dnn_batch_override_preserves_source_and_original_case(self):
+        with tempfile.TemporaryDirectory() as directory:
+            previous, out = Path(directory) / 'old', Path(directory) / 'batch1'
+            previous.mkdir()
+            for name in ('source.json', 'target.json'):
+                (previous / name).write_text(name)
+            bridge = previous / 'bridge.json'
+            bridge.write_text('symbolic batch bridge')
+            record = dict(root='/frozen/tree', compiler='/frozen/compiler',
+                compiler_sha256='compiler-sha', source_sha256=checkpoint.sha(previous / 'source.json'),
+                target_sha256=checkpoint.sha(previous / 'target.json'), timing_eligible=False,
+                cases=[dict(label='nafnet', kind='dnn', batch=2, bridge=str(bridge),
+                            files={str(bridge):checkpoint.sha(bridge)})])
+            original = json.dumps(record)
+            (previous / 'inputs.json').write_text(original)
+            args = SimpleNamespace(reuse_inputs=previous, out=out, labels='nafnet',
+                dnn_batch=1, nvcc_timeout_s=28800, nvcc_split_compile=3, nvcc_diagnostics=True)
+            with patch.object(checkpoint, 'validate'):
+                checkpoint.reuse_inputs(args)
+            result = json.loads((out / 'inputs.json').read_text())
+            self.assertEqual(result['cases'][0]['batch'], 1)
+            self.assertEqual(result['source_sha256'], record['source_sha256'])
+            self.assertEqual(result['compiler_sha256'], record['compiler_sha256'])
+            self.assertEqual((previous / 'inputs.json').read_text(), original)
+            self.assertFalse((out / 'nafnet/plan.so').exists())
+
     def test_timeout_reaps_compiler_descendants(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)

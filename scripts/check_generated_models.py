@@ -80,7 +80,7 @@ def prepare(args):
     for model in ('resnet18', 'mbv1', 'mbv2', 'bert', 'nafnet'):
         export = args.dnn_exports.resolve() / model
         cases.append(dict(label=model, kind='dnn', bridge=str(inputs / (model + '.json')),
-                          export=str(export), batch=2, pg='off', processes=1,
+                          export=str(export), batch=args.dnn_batch or 2, pg='off', processes=1,
                           files={str(export / name): sha(export / name) for name in
                                  ('exported_program.pt2', 'manifest.json')}))
     if args.pipelines is not None:
@@ -162,6 +162,12 @@ def reuse_inputs(args):
         raise ValueError('unknown generated checkpoint labels')
     for case in cases:
         validate(previous, case['label'])
+    if getattr(args, 'dnn_batch', None) is not None:
+        if args.dnn_batch < 1 or not any(case.get('kind') == 'dnn' for case in cases):
+            raise ValueError('DNN batch override requires a positive batch and a DNN case')
+        for case in cases:
+            if case.get('kind') == 'dnn':
+                case['batch'] = args.dnn_batch
     out.mkdir(parents=True)
     for name in ('source.json', 'source.json.patch', 'target.json'):
         if (previous / name).exists():
@@ -294,6 +300,8 @@ def main():
     parser.add_argument('--target', type=Path)
     parser.add_argument('--inputs', type=Path)
     parser.add_argument('--dnn-exports', type=Path)
+    parser.add_argument('--dnn-batch', type=int,
+                        help='bind DNN model cases to this batch; default 2 or copied input batch')
     parser.add_argument('--pipelines', type=Path)
     parser.add_argument('--labels', help='prepare only these comma-separated cases')
     parser.add_argument('--reuse-inputs', type=Path,
@@ -309,6 +317,8 @@ def main():
         parser.error('--nvcc-timeout-s must be positive')
     if args.nvcc_split_compile < 1:
         parser.error('--nvcc-split-compile must be positive')
+    if args.dnn_batch is not None and args.dnn_batch < 1:
+        parser.error('--dnn-batch must be positive')
     if args.action == 'prepare':
         if args.reuse_inputs:
             reuse_inputs(args)
