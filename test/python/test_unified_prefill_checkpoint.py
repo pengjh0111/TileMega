@@ -33,14 +33,14 @@ class PrefillCheckpointTest(unittest.TestCase):
                 registry[cell] = [dict(label='R13D_prime', prefill=str(so))]
                 record['numeric_cases'][cell] = dict(batch=batch, prefill='/old/prefill.so', files={})
                 record['cases'].append(dict(cell=cell, label='R13D_prime', input=str(source)))
-            path = root / 'docs' / 'experiments' / 'SERVING_R14/phase_a_arms.json'
+            path = root / 'historical_inputs/phase_a_arms.json'
             path.parent.mkdir(parents=True)
             path.write_text(json.dumps(registry))
             original = path.read_bytes()
             out = root / 'runs/r15/prefill'
             with patch.object(unified, 'validate', return_value=record), patch.object(
                     unified, 'git', return_value='frozen-head'), contextlib.redirect_stdout(io.StringIO()):
-                unified.prepare_prefill(root / 'decode', out, 10800)
+                unified.prepare_prefill(root / 'decode', out, 10800, path)
             result = json.loads((out / 'inputs.json').read_text())
             self.assertEqual(len(result['cases']), 4)
             self.assertEqual(result['nvcc_timeout_s'], 10800)

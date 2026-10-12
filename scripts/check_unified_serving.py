@@ -39,7 +39,7 @@ def git(root, *args):
     return subprocess.check_output(['git', '-C', str(root), *args], text=True).strip()
 
 
-def prepare(root, out, work):
+def prepare(root, out, work, registry_dir, historical_inputs=()):
     if (out / 'inputs.json').exists():
         raise FileExistsError('reference inputs already frozen')
     out.mkdir(parents=True, exist_ok=True)
@@ -58,8 +58,9 @@ def prepare(root, out, work):
         # Old compilers include these data files in their source fingerprint.
         # Materialize their exact committed versions, without taking the
         # experiment tree or changing the historical fingerprint algorithm.
-        for path in ('docs/experiments/SERVING_R10/calibration/target_serving.json',
-                     'docs/experiments/SIMULATOR/hop_ns.tsv'):
+        for path in historical_inputs:
+            if Path(path).is_absolute() or '..' in Path(path).parts:
+                raise ValueError('historical fingerprint input must be repository relative')
             frozen = subprocess.check_output(['git', '-C', str(tree), 'show', head + ':' + path])
             destination = tree / path
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -76,8 +77,8 @@ def prepare(root, out, work):
         third_party.symlink_to(root / 'third_party', target_is_directory=True)
         records[label] = dict(root=str(tree), head=git(tree, 'rev-parse', 'HEAD'),
                               compiler=str(tree / 'build-r15/tools/tilemega'))
-    a = json.loads((root / 'docs/experiments/SERVING_R14/phase_a_builds.json').read_text())
-    b = json.loads((root / 'docs/experiments/SERVING_R14/phase_b_builds.json').read_text())
+    a = json.loads((registry_dir / 'phase_a_builds.json').read_text())
+    b = json.loads((registry_dir / 'phase_b_builds.json').read_text())
     jobs = [r for r in a if r['label'] == 'R13D_prime' or
             (r['cell'] == 'llama_B1' and r['label'] == 'N1_prime')]
     jobs += [r for r in b if r['label'] == 'AT_pv' or
@@ -137,7 +138,7 @@ def reuse_inputs(previous, out, nvcc_timeout_s=10800):
     print('Prepared new runner with unchanged, validated compiler inputs')
 
 
-def prepare_prefill(previous, out, nvcc_timeout_s):
+def prepare_prefill(previous, out, nvcc_timeout_s, registry=None):
     record = validate(previous)
     if set(record['numeric_cases']) != {'llama_B1', 'llama_B16', 'qwen3_B1', 'qwen3_B16'}:
         raise ValueError('prefill regression requires all four default cells')
@@ -147,7 +148,9 @@ def prepare_prefill(previous, out, nvcc_timeout_s):
         raise ValueError('nvcc timeout must be positive')
     out.mkdir(parents=True)
     root = Path(record['root'])
-    registry = root / 'docs/experiments/SERVING_R14/phase_a_arms.json'
+    if registry is None:
+        raise ValueError('prefill preparation requires an explicit reference arm registry')
+    registry = Path(registry)
     arms = json.loads(registry.read_text())
     shutil.copy2(registry, out / 'reference_arms.json')
     cases = []
@@ -370,6 +373,8 @@ def main():
     parser.add_argument('action', choices=('prepare', 'build', 'run', 'run-one'))
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--work', type=Path, default=Path('/root/r15_work/unification'))
+    parser.add_argument('--registry-dir', type=Path, help='external historical build/arm registries')
+    parser.add_argument('--historical-inputs', type=Path, help='JSON list of paths used by historical compiler fingerprints')
     inputs = parser.add_mutually_exclusive_group()
     inputs.add_argument('--reuse-inputs', type=Path)
     inputs.add_argument('--prefill-from', type=Path)
@@ -382,11 +387,15 @@ def main():
     out = args.out.resolve()
     if args.action == 'prepare':
         if args.prefill_from is not None:
-            prepare_prefill(args.prefill_from.resolve(), out, args.nvcc_timeout_s)
+            if args.registry_dir is None:parser.error('--prefill-from requires --registry-dir')
+            prepare_prefill(args.prefill_from.resolve(), out, args.nvcc_timeout_s,
+                            args.registry_dir/'phase_a_arms.json')
         elif args.reuse_inputs is not None:
             reuse_inputs(args.reuse_inputs.resolve(), out, args.nvcc_timeout_s)
         else:
-            prepare(Path(__file__).resolve().parents[1], out, args.work)
+            if args.registry_dir is None:parser.error('prepare requires --registry-dir')
+            historical=json.loads(args.historical_inputs.read_text()) if args.historical_inputs else []
+            prepare(Path(__file__).resolve().parents[1], out, args.work, args.registry_dir, historical)
     elif args.action == 'build':
         build(out)
     elif args.action == 'run':
