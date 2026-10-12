@@ -1,0 +1,49 @@
+{
+  "model": {
+    "path": "/root/models/qwen3_0_6b",
+    "name": "qwen3_0_6b"
+  },
+  "workload": {
+    "batch": [
+      1,
+      16
+    ],
+    "prompt_len": 64,
+    "max_new_tokens": 1024,
+    "prompts": "configs/prompts/passages.jsonl"
+  },
+  "device": {
+    "index": 0,
+    "cache_dir": "~/.cache/tilemega"
+  },
+  "solver": {
+    "mode": "L1",
+    "measure_top": 4,
+    "selection_candidates": 8,
+    "pilot_rounds": 1,
+    "jobs": 3,
+    "top_m": 8,
+    "time_budget_s": 1800,
+    "candidate_guard_wait_s": 1800,
+    "prefill_pins": {}
+  },
+  "features": {
+    "pg": "measure",
+    "nonpaged_la": 0,
+    "decode_executor": "measure",
+    "decode_loop": "measure",
+    "prefill_executor": "L1",
+    "watchdog": 0,
+    "attention_impl": "mma16",
+    "lookahead_bytes": 0
+  },
+  "test": {
+    "vllm": true,
+    "guard": true,
+    "warmup": 1,
+    "repeats": 3
+  },
+  "output": {
+    "dir": "runs/r15/qwen3_0_6b"
+  }
+}

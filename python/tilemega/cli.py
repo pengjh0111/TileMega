@@ -18,7 +18,7 @@ import time
 import statistics
 
 from .serving.workload import workload_points, validate_prompt_ids
-from .serving.integrated_selection import integrated_ms, successive_halving, SelectionBudgetExhausted, admit_pilot, first_stage_budget_ms, coverage_order
+from .serving.integrated_selection import integrated_ms, light_candidates, successive_halving, SelectionBudgetExhausted, admit_pilot, first_stage_budget_ms, coverage_order
 from .serving.attention_selection import variants as attention_variants, matches as matches_attention, label as attention_label, pinned_geometry, compile_options as attention_compile_options
 from .build.budget import run_until
 from .cache import atomic_json, export_key, file_sha, key, locked, plan_key, record_outputs, valid_record
@@ -27,9 +27,9 @@ from .serving.execution import compiler_features, execution_combinations, select
 
 DEFAULTS = {
     'workload': dict(batch=[1, 16], prompt_len=64, max_new_tokens=1024,
-                     prompts='docs/experiments/SERVING_R10/prompts/passages.jsonl'),
+                     prompts='configs/prompts/passages.jsonl'),
     'device': dict(index=0, cache_dir='~/.cache/tilemega'),
-    'solver': dict(passes=2, top_m=8, measure_top=6, jobs=3, mode='L2', candidate_loop=0, pruning=True, time_budget_s=600, candidate_guard_wait_s=300, prefill_pins={}, exclude_l1_loop=False, resident2_batches=[]),
+    'solver': dict(passes=2, top_m=8, measure_top=4, selection_candidates=8, pilot_rounds=1, jobs=3, mode='L2', candidate_loop=0, pruning=True, time_budget_s=600, candidate_guard_wait_s=300, prefill_pins={}, exclude_l1_loop=False, resident2_batches=[]),
     'features': dict(pg='auto', handoff='off', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='tiled', kphase_mask=31, lookahead_bytes=-1, v3_poll_ns=0, watchdog=0, mma_reg_pipe=0, nonpaged_la=0, attention_frontier=0, parallel_argmax=0, ep_direct=0, attention_noinline=0, attention_buffers=2, attention_impl="mma16", l2_slim=0, page_loop_split=0, nonpaged_weight_layout='row', evict_first=0, evict_last=1, decode_executor="L2", decode_loop=1, prefill_executor="L1"),
     'test': dict(warmup=1, repeats=3, hf_check=True, mode_check=True, guard=True, vllm=False,
                  vllm_python='/root/venv_vllm/bin/python', policy_file=None),
@@ -161,16 +161,12 @@ def read_config(path: Path) -> dict:
             raise ValueError('TOML requires Python >=3.11; this interpreter accepts equivalent JSON')
         import tomllib
         config = tomllib.loads(path.read_text())
-    explicit_nonpaged_la = 'nonpaged_la' in config.get('features', {})
     config.setdefault('features', {}).setdefault('prefill_pg', 'l2')
     for section, values in DEFAULTS.items():
         config[section] = dict(values, **config.get(section, {}))
     if not config.get('model', {}).get('path'):
         raise ValueError('[model].path is required')
     model_config = Path(config['model']['path']).expanduser() / 'config.json'
-    if not explicit_nonpaged_la and model_config.is_file() and \
-            json.loads(model_config.read_text()).get('model_type') == 'qwen3_moe':
-        config['features']['nonpaged_la'] = 1
     routing_profile = config['features'].get('routing_profile')
     if routing_profile is not None:
         if not isinstance(routing_profile, str) or not routing_profile:
@@ -188,6 +184,8 @@ def read_config(path: Path) -> dict:
     workload_points(config['workload'])
     if not 1 <= config['solver']['measure_top'] <= 8:
         raise ValueError('solver.measure_top must be in [1,8]')
+    if not 1<=config['solver']['selection_candidates']<=8 or config['solver']['pilot_rounds']!=1:
+        raise ValueError('R15 selection requires at most 8 candidates and one pilot round')
     if config['solver']['jobs'] < 1:
         raise ValueError('solver.jobs must be positive')
     if not config['workload']['batch'] or any(not 1 <= b <= 16 for b in config['workload']['batch']):
@@ -564,16 +562,20 @@ class Run:
                         variants.sort(key=lambda v:not matches_attention(manifest,v))
                         for variant in variants:
                             for mode, loop in execution_combinations(pg, features['decode_executor'], features['decode_loop']):
+                                if pg!='pages' and mode=='L1' and variant['nonpaged_la']:
+                                    continue
                                 if pg!='pages' and mode=='L1' and loop and settings['exclude_l1_loop']:
                                     continue
                                 candidates.append(dict(pg=pg, family=family, mode=mode, loop=loop,base_library=str(library),
                                     base_variant=matches_attention(manifest,variant),
                                     variant=variant,variant_label=attention_label(variant),samples_ms=[]))
-                    candidates=coverage_order(candidates)
+                    full_candidate_count=len(candidates)
+                    candidates=light_candidates(coverage_order(candidates),settings['selection_candidates'])
                     selection_inputs=dict(libraries={pg:file_sha(library) for pg,library in built.items()},
                                           executor=features['decode_executor'], loop=features['decode_loop'],
                                           prefill_mode=features['prefill_executor'],exclude_l1_loop=settings['exclude_l1_loop'],
-                                          objective=point.objective+'_coverage_budget_v4',pasts=list(point.pasts),
+                                          objective=point.objective+'_light_v1',pasts=list(point.pasts),
+                                          admitted=len(candidates),available=full_candidate_count,pilot_rounds=1,
                                           candidates=candidates)
                     choice_path=self.out / f'decode-choice-B{batch}.json'
                     cached=json.loads(choice_path.read_text()) if choice_path.exists() else {}
@@ -604,7 +606,7 @@ class Run:
                             return dict(by_past=measured,execution_identity=identities[0],
                                         spill=identities[0]['spill'],measurement_path=str(out/'measurements.json'))
                         try:
-                            winner,candidates=successive_halving(candidates,measure_execution,require_coverage=True,workload=point)
+                            winner,candidates=successive_halving(candidates,measure_execution,require_coverage=True,workload=point,pilot_rounds=1)
                         except (RuntimeError,SelectionBudgetExhausted) as error:
                             atomic_json(choice_path,dict(inputs=selection_inputs,candidates=getattr(error,"rows",None),error=str(error),status='failed_or_budget_exhausted',
                                 elapsed_s=time.monotonic()-batch_started))

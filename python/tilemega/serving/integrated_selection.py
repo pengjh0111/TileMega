@@ -41,6 +41,28 @@ def coverage_order(candidates):
     return order
 
 
+def light_candidates(candidates,limit=8):
+    """Bounded marginal coverage, not an exhaustive Cartesian search.
+
+    Ec, implementation, LA and execution values each occur in the pilot set;
+    unmeasured interactions remain explicitly outside this lightweight screen.
+    """
+    if not 1<=limit<=8:raise ValueError('light candidate limit must be in [1,8]')
+    def tags(c):
+        return {('family',str(c.get('family',c.get('pg')))),
+                ('execution',str((c['mode'],c['loop'])))} | {
+                    (k,str(v)) for k,v in c.get('variant',{}).items()}
+    required=set().union(*(tags(c) for c in candidates))
+    pending=list(range(len(candidates)));chosen=[];covered=set()
+    while pending and len(chosen)<limit:
+        i=max(pending,key=lambda i:(len(tags(candidates[i])-covered),
+                                   bool(candidates[i].get('base_variant')),-i))
+        pending.remove(i);chosen.append(candidates[i]);covered.update(tags(candidates[i]))
+    if required-covered:
+        raise ValueError('light candidate budget cannot cover declared dimensions: '+str(sorted(required-covered)))
+    return chosen
+
+
 def integrated_ms(by_past,workload=None):
     """Uniform discrete request trajectory; linear interior, held endpoints."""
     workload=workload or Workload()
@@ -58,12 +80,13 @@ def integrated_ms(by_past,workload=None):
         total+=value
     return total/workload.osl
 
-def successive_halving(candidates,measure,*,require_coverage=False,workload=None):
+def successive_halving(candidates,measure,*,require_coverage=False,workload=None,pilot_rounds=None):
     """Keep all evidence; finalists get three fresh alternating paired rounds.
 
     ``measure(candidate, label)`` must run through the caller's GPU guard and
     return by_past plus execution_identity. Exit 75 propagates unchanged.
     """
+    if pilot_rounds not in (None,1):raise ValueError('pilot_rounds must be 1 or None')
     rows=[dict(c,measurements=[],eliminated_round=None) for c in candidates]
     if not rows:raise ValueError('empty candidate set')
     active=list(range(len(rows)));round_index=0
@@ -85,7 +108,7 @@ def successive_halving(candidates,measure,*,require_coverage=False,workload=None
             raise ValueError('candidate execution identity changed across rounds')
         value=integrated_ms(r['by_past'],workload);rows[i]['measurements'].append(dict(round=label,score_ms=value,**r))
         return value
-    while len(active)>3 or (require_coverage and round_index==0):
+    while len(active)>3 or ((require_coverage or pilot_rounds==1) and round_index==0):
         scores={};exhausted=False
         order=active[round_index%len(active):]+active[:round_index%len(active)]
         for pos,i in enumerate(order):
@@ -100,7 +123,7 @@ def successive_halving(candidates,measure,*,require_coverage=False,workload=None
         ranked=sorted((i for i in active if i in scores and not rows[i].get('error')),key=lambda i:(scores[i],i))
         if round_index==0:check_coverage()
         if not ranked:raise RuntimeError('all serving execution candidates rejected')
-        keep=3 if exhausted else max(3,(len(ranked)+1)//2)
+        keep=3 if exhausted or pilot_rounds==1 else max(3,(len(ranked)+1)//2)
         for i in ranked[keep:]:rows[i]['eliminated_round']=f'pilot{round_index}'
         active=ranked[:keep];round_index+=1
     check_coverage()
