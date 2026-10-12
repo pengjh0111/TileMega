@@ -330,6 +330,21 @@ extern "C" int tm_plan_buffer(std::uint32_t index,
   return 0;
 }
 
+// Optional diagnostic export. The caller synchronizes its launch stream before
+// copying; these host reads never run on the inference or timing path.
+extern "C" int tm_plan_read_buffer(void* opaque, std::uint32_t index,
+                                    void* host, std::uint64_t bytes) {
+  using namespace tilemega::codegen;
+  auto* plan=static_cast<serving::Plan*>(opaque);
+  if(!plan || !host || index>=plan->model.buffers.size())return -1;
+  auto const& desc=plan->model.spec->buffers[index];
+  std::uint64_t element_bytes=desc.dtype==0?sizeof(ModelElement):(desc.dtype==3?8:4);
+  std::uint64_t elements=desc.Elements(plan->model.params.dims);
+  if(elements>std::numeric_limits<std::uint64_t>::max()/element_bytes ||
+     bytes!=elements*element_bytes || !plan->model.buffers[index])return -2;
+  return cudaMemcpy(host,plan->model.buffers[index],bytes,cudaMemcpyDeviceToHost)==cudaSuccess?0:-3;
+}
+
 extern "C" void* tm_plan_create(int batch, void* const* external,
                                         int device) {
   using namespace tilemega::codegen;

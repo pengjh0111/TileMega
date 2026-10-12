@@ -130,7 +130,7 @@ def build_plans(args, config):
     return plans
 
 
-def generation_tokens(engine, rows, steps, mode, vocab_size):
+def generation_tokens(engine, rows, steps, mode, vocab_size, capture_step=None):
     import torch
     if mode not in (1,2) or not (engine.prefill_lib.info.modes & mode and
                                  engine.decode_lib.info.modes & mode):
@@ -142,8 +142,12 @@ def generation_tokens(engine, rows, steps, mode, vocab_size):
     engine.state.tokens[:, :prompt_len].copy_(rows.to(
         device=engine.state.tokens.device, dtype=torch.int32))
     engine.prefill.launch(0, mode, stream.cuda_stream)
+    if capture_step is not None:
+        stream.synchronize();capture_step(engine.prefill, 'prefill')
     for step in range(steps-1):
         engine.decode.launch(step, mode, stream.cuda_stream)
+        if capture_step is not None:
+            stream.synchronize();capture_step(engine.decode, 'decode')
     stream.synchronize()
     tokens=engine.state.tokens[:, prompt_len:prompt_len+steps].cpu()
     if not torch.all((tokens>=0) & (tokens<vocab_size)):
@@ -175,6 +179,15 @@ def check_plans(args, config):
         pair = {item['phase']: Path(item['binary']) for item in plans if item['batch'] == batch}
         identities = {phase: verify(binary)['artifact_id'] for phase, binary in pair.items()}
         lower = json.loads((args.out/f'B{batch}'/'memory.json').read_text())
+        routing = []
+        capture_step = None
+        if getattr(args, 'routing_check', False):
+            from tilemega.moe.routing_check import index_names, capture
+            names = {item['phase']: index_names(json.loads(Path(item['bridge']).read_text()),
+                config['num_hidden_layers']) for item in plans if item['batch'] == batch}
+            def capture_step(plan, phase):
+                routing.append(capture(plan, names[phase], batch,
+                    args.prompt_len if phase == 'prefill' else 1, config['num_experts_per_tok']))
         with gpu_lock():
             available, _ = torch.cuda.mem_get_info()
             if lower['estimated_allocation_bytes'] > available:
@@ -185,12 +198,20 @@ def check_plans(args, config):
                     prompt_len=args.prompt_len,
                     max_new_tokens=args.steps, mode='L1', prefill_mode='L1',
                     decode_loop=False, step_events=False) as engine:
-                tokens=[generation_tokens(engine,rows[:batch],args.steps,mode,config['vocab_size'])
+                tokens=[generation_tokens(engine,rows[:batch],args.steps,mode,config['vocab_size'],
+                    capture_step if mode == 1 else None)
                         for mode in (1,2)]
             del engine
             if tokens[0] != tokens[1]:
                 raise AssertionError('C-2: same-binary L1/L2 generation tokens differ')
         generated = args.out/f'B{batch}'/'tokens.json'; atomic_json(generated, tokens[0])
+        if routing:
+            from tilemega.moe.routing_check import compare_hf
+            atomic_json(args.out/f'B{batch}'/'routing_indices.json', routing)
+            with gpu_lock():
+                compare_hf(args.checkpoint, rows[:batch].tolist(), tokens[0], routing,
+                           args.out/f'B{batch}'/'routing.json')
+                torch.cuda.empty_cache()
         if args.hf_check:
             with gpu_lock():
                 subprocess.run([sys.executable, '-m', 'tilemega.serving.hf_check',
@@ -241,6 +262,7 @@ def main(argv=None):
                         help='preflight records insufficient memory without allocating or failing')
     parser.add_argument('--pg', choices=('l2', 'pages'), default='l2')
     parser.add_argument('--hf-check', action='store_true')
+    parser.add_argument('--routing-check', action='store_true', help='report teacher-forced routing agreement')
     args = parser.parse_args(argv)
     if not args.batch or len(set(args.batch)) != len(args.batch) or any(not 1<=b<=16 for b in args.batch):
         parser.error('batches must be distinct values in [1,16]')

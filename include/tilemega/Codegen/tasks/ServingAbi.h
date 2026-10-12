@@ -43,6 +43,8 @@ int tm_plan_launch_steps(void* plan, uint32_t first_step, uint32_t steps,
 unsigned tm_plan_loop_modes(void* plan);
 int tm_plan_read_step_ns(void* plan, uint32_t first, uint32_t count,
                          uint64_t* host);
+// Optional diagnostic extension; synchronize the launch stream before reading.
+int tm_plan_read_buffer(void* plan, uint32_t index, void* host, uint64_t bytes);
 void tm_plan_destroy(void* plan);
 
 #ifdef __cplusplus
