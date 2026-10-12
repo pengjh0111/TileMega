@@ -31,10 +31,14 @@ def main() -> None:
     from vllm.inputs import TokensPrompt
 
     ids = json.loads(args.prompt_ids.read_text())
-    assert len(ids) == 16 and all(len(row) == 64 for row in ids)
+    from workload import validate_prompt_ids
+    batch_limit = 16 if args.batch == 'all' else int(args.batch)
+    prompt_len = validate_prompt_ids(ids, batch_limit)
+    if args.max_tokens < 1:
+        raise ValueError('max-tokens must be positive')
     try:
         llm = LLM(
-            model=str(args.model), dtype="bfloat16", max_model_len=2048,
+            model=str(args.model), dtype="bfloat16", max_model_len=max(2048, prompt_len+args.max_tokens),
             max_num_seqs=16, max_num_batched_tokens=2048,
             gpu_memory_utilization=0.85, enable_prefix_caching=False,
             enforce_eager=False, seed=0,

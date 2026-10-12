@@ -47,15 +47,31 @@ def passages(path: Path) -> None:
     path.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows))
 
 
-def token_ids(passages_path: Path, model: Path, out: Path) -> None:
+def tokenize_passage(tokenizer, text: str, prompt_len: int) -> list[int]:
+    if prompt_len < 1 or not text.strip():
+        raise ValueError('positive ISL and a nonempty passage are required')
+    ids = tokenizer(text, add_special_tokens=True).input_ids
+    # Longer requests repeat the same frozen passage, never another source.
+    # The ordinary 64-token path retains its exact input and tokenization.
+    repeated = text
+    while len(ids) < prompt_len:
+        repeated += '\n' + repeated
+        expanded = tokenizer(repeated, add_special_tokens=True).input_ids
+        if len(expanded) <= len(ids):
+            raise ValueError('tokenizer did not make progress on the passage')
+        ids = expanded
+    return ids[:prompt_len]
+
+
+def token_ids(passages_path: Path, model: Path, out: Path, prompt_len: int = 64) -> None:
     from transformers import AutoTokenizer
     tokenizer = AutoTokenizer.from_pretrained(model, trust_remote_code=False)
     rows = [json.loads(line) for line in passages_path.read_text().splitlines()]
-    ids = [tokenizer(row["text"], add_special_tokens=True).input_ids for row in rows]
-    if len(ids) != 16 or any(len(row) < 64 for row in ids):
-        raise ValueError("all 16 passages must yield at least 64 tokens")
+    ids = [tokenize_passage(tokenizer, row['text'], prompt_len) for row in rows]
+    if len(ids) != 16:
+        raise ValueError('expected the same 16 frozen passages')
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps([row[:64] for row in ids], separators=(",", ":")) + "\n")
+    out.write_text(json.dumps(ids, separators=(",", ":")) + "\n")
 
 
 def main() -> None:
@@ -63,13 +79,17 @@ def main() -> None:
     parser.add_argument("--passages", type=Path, required=True)
     parser.add_argument("--model", type=Path)
     parser.add_argument("--ids-out", type=Path)
+    parser.add_argument('--prompt-len', type=int, default=64)
+    parser.add_argument('--family', choices=('llama3', 'qwen'))
     args = parser.parse_args()
     if not args.passages.exists():
         passages(args.passages)
     if args.model:
         if not args.ids_out:
-            parser.error("--ids-out is required with --model")
-        token_ids(args.passages, args.model, args.ids_out)
+            if not args.family:
+                parser.error('--ids-out or --family is required with --model')
+            args.ids_out = Path(f'configs/prompts/{args.family}_isl{args.prompt_len}.json')
+        token_ids(args.passages, args.model, args.ids_out, args.prompt_len)
 
 
 if __name__ == "__main__":

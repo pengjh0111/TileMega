@@ -31,8 +31,8 @@ class ServingEngine:
                  device: int = 0, decode_loop: bool | str = True,
                  decode_chunk: int | None = None, step_events: bool = True,
                  prefill_mode: str | None = None):
-        if prompt_len != 64 or max_new_tokens < 1:
-            raise ValueError("the solved request uses a 64-token prompt")
+        if prompt_len < 1 or max_new_tokens < 1:
+            raise ValueError('prompt length and output length must be positive')
         torch.cuda.set_device(device)
         torch.cuda.init()  # Both generated libraries use this primary context.
         self.prefill_lib = PlanLibrary(prefill_so)

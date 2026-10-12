@@ -53,3 +53,15 @@ def workload_points(section: dict) -> tuple[Workload, ...]:
     if len({(item.isl, item.osl) for item in result}) != len(result):
         raise ValueError('duplicate workload points')
     return tuple(result)
+
+
+def validate_prompt_ids(ids, batch=None, prompt_len=None) -> int:
+    if not isinstance(ids, list) or not ids or not isinstance(ids[0], list) or not ids[0]:
+        raise ValueError('prompts must be a nonempty rectangular token table')
+    length = len(ids[0])
+    if (any(not isinstance(row, list) or len(row) != length or
+            any(type(token) is not int or token < 0 for token in row) for row in ids) or
+            (batch is not None and (batch < 1 or len(ids) < batch)) or
+            (prompt_len is not None and length != prompt_len)):
+        raise ValueError('prompt table does not cover the requested batch and ISL')
+    return length

@@ -22,7 +22,10 @@ def main() -> None:
     torch.cuda.init()
     guard_allocation=torch.empty(1,device='cuda')
     if not a.allow_shared_gpu:_preflight_external_memory(a.out)
-    prompts=torch.tensor(json.loads(a.prompt_ids.read_text())[:a.batch],dtype=torch.int32)
+    from .workload import validate_prompt_ids
+    ids=json.loads(a.prompt_ids.read_text())
+    prompt_len=validate_prompt_ids(ids,a.batch)
+    prompts=torch.tensor(ids[:a.batch],dtype=torch.int32)
     metadata=json.loads(Path(str(a.decode_so)+".plan.json").read_text())
     arms=(('L1_separate','L1',False,None),('L2_separate','L2',False,None),
           ('L2_loop','L2',True,None),('L2_loop_no_phase','L2',True,'0'))
@@ -37,7 +40,7 @@ def main() -> None:
         if mask is not None:os.environ['TILEMEGA_KPHASE_MASK']=mask
         try:
             with ServingEngine(a.model,a.prefill_so,a.decode_so,a.batch,
-                               max_new_tokens=a.steps,mode=mode,decode_loop=loop,prefill_mode="L1") as engine:
+                               prompt_len=prompt_len,max_new_tokens=a.steps,mode=mode,decode_loop=loop,prefill_mode="L1") as engine:
                 try:
                     generation=engine.generate(prompts,a.steps)
                     if loop and not generation.decode_loop_used:

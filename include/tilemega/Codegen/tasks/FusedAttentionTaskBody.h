@@ -52,7 +52,7 @@ template<class Arch,int kHeadDim,int kQPerKV,int kTokens,
 struct FusedAttentionTaskBody {
   static_assert(kHeadDim==64 || kHeadDim==128);
   static_assert(kQPerKV>=1 && kQPerKV<=8);
-  static_assert(kTokens==1 || kTokens==64);
+  static_assert(kTokens>=1);
   static_assert((kQRows>0 && kQRows%16==0) || kTokens==1);
   static_assert(kKvTile==32 || kKvTile==64);
   template<class Emit>

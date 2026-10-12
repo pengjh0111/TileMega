@@ -23,9 +23,9 @@ def key(value) -> str:
                                      allow_nan=False).encode()).hexdigest()
 
 
-def export_key(model_config: Path, exporter: Path, phase: str, seq: int, capacity: int) -> str:
+def export_key(model_config: Path, exporter: Path, phase: str, seq: int, capacity: int, prompt_len: int | None = None) -> str:
     return key(dict(config=file_sha(model_config), exporter=file_sha(exporter),
-                    phase=phase, seq=seq, capacity=capacity))
+                    phase=phase, seq=seq, capacity=capacity, prompt_len=prompt_len))
 
 
 def plan_key(export: str, stamps: dict, source: str, solver: dict, features: dict,

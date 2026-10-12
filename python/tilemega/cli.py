@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import datetime
 import json
 import math
@@ -16,7 +17,8 @@ import sys
 import time
 import statistics
 
-from .serving.integrated_selection import successive_halving, SelectionBudgetExhausted, admit_pilot, first_stage_budget_ms, coverage_order
+from .serving.workload import workload_points, validate_prompt_ids
+from .serving.integrated_selection import integrated_ms, successive_halving, SelectionBudgetExhausted, admit_pilot, first_stage_budget_ms, coverage_order
 from .serving.attention_selection import variants as attention_variants, matches as matches_attention, label as attention_label, pinned_geometry, compile_options as attention_compile_options
 from .build.budget import run_until
 from .cache import atomic_json, export_key, file_sha, key, locked, plan_key, record_outputs, valid_record
@@ -136,6 +138,19 @@ def plan_build_choices(pg_choices, settings, batch, phase):
     return rows
 
 
+def expand_workloads(config):
+    result=[]
+    for point in workload_points(config['workload']):
+        item=copy.deepcopy(config)
+        item['workload'].pop('points',None)
+        item['workload'].update(prompt_len=point.isl,max_new_tokens=point.osl,
+                                capacity=point.capacity,batch=list(point.batches))
+        if 'points' in config['workload']:
+            item['output']['dir']=str(Path(config['output']['dir'])/f'ISL{point.isl}_OSL{point.osl}')
+        result.append(item)
+    return result
+
+
 def read_config(path: Path) -> dict:
     if path.suffix == '.json':
         config = json.loads(path.read_text())
@@ -168,8 +183,7 @@ def read_config(path: Path) -> dict:
         layer = config['features']['moe_profile_layer']
         if type(layer) is not int or layer < 0 or routing_profile is None:
             raise ValueError('features.moe_profile_layer requires a profile and nonnegative integer')
-    if config['workload']['prompt_len'] != 64:
-        raise ValueError('the serving exporter currently supports prompt_len=64')
+    workload_points(config['workload'])
     if not 1 <= config['solver']['measure_top'] <= 8:
         raise ValueError('solver.measure_top must be in [1,8]')
     if config['solver']['jobs'] < 1:
@@ -391,9 +405,10 @@ class Run:
 
     def export(self, phase):
         workload = self.config['workload']
-        capacity = workload['prompt_len'] + workload['max_new_tokens']
+        point = workload_points(workload)[0]
+        capacity = point.capacity
         exporter = ROOT / 'python/tilemega/serving/export.py'
-        digest = export_key(self.model / 'config.json', exporter, phase, 1 if phase == 'decode' else workload['prompt_len'], capacity)
+        digest = export_key(self.model / 'config.json', exporter, phase, 1 if phase == 'decode' else workload['prompt_len'], capacity, prompt_len=point.isl)
         directory = self.cache / 'exports' / digest
         directory.mkdir(parents=True, exist_ok=True)
         marker = directory / 'record.json'
@@ -403,7 +418,7 @@ class Run:
             if not hit:
                 model_type = json.loads((self.model / 'config.json').read_text())['model_type']
                 self.command([sys.executable, '-m', 'tilemega.serving.export', '--config', self.model / 'config.json',
-                    '--model', model_type, '--phase', phase, '--capacity', capacity, '--out', directory], 'export-' + phase)
+                    '--model', model_type, '--phase', phase, '--capacity', capacity, '--prompt-len', point.isl, '--out', directory], 'export-' + phase)
                 self.command([sys.executable, '-m', 'tilemega.export_bridge', directory / 'exported_program.pt2',
                     '--out', directory / 'bridge.json'], 'bridge-' + phase)
                 record_outputs(marker, [directory / 'exported_program.pt2', directory / 'bridge.json', directory / 'manifest.json'])
@@ -441,6 +456,7 @@ class Run:
 
     def build(self):
         settings = self.config['solver']; features = self.config['features']; workload = self.config['workload']
+        point = workload_points(workload)[0]
         target = self.calibrate()
         if self.version['source_sha256'] != source_fingerprint():
             raise RuntimeError('compiler fingerprint differs from sources; rebuild tilemega')
@@ -461,7 +477,7 @@ class Run:
                 deadline=batch_started+settings['time_budget_s']
                 reserve=min(300,settings['time_budget_s']/4)
                 pilot_deadline=deadline-reserve
-                interval = (0, 0) if phase == 'prefill' else (workload['prompt_len'], workload['prompt_len'] + workload['max_new_tokens'] - 2)
+                interval = (0, 0) if phase == 'prefill' else (point.isl, max(point.isl, point.isl + point.osl - 2))
                 pg_choices = phase_pg_choices(features, phase)
                 built = {}
                 build_choices=plan_build_choices(pg_choices,settings,batch,phase)
@@ -495,7 +511,7 @@ class Run:
                         if not hit:
                             options = [str(directory / 'bridge.json'), str(library), '--serving', phase,
                             '--batch', str(batch), '--past-range', f'{interval[0]}:{interval[1]}',
-                            '--capacity', str(workload['prompt_len'] + workload['max_new_tokens']),
+                            '--capacity', str(point.capacity), '--prompt-len', str(point.isl),
                             '--solver', 'skeleton', '--solve', str(self.target), '--emit', 'serving',
                             '--search-passes', str(settings['passes']), '--top-m', str(settings['top_m']),
                             '--search-jobs', str(settings['jobs']), '--measure-top', str(settings['measure_top']),
@@ -555,7 +571,7 @@ class Run:
                     selection_inputs=dict(libraries={pg:file_sha(library) for pg,library in built.items()},
                                           executor=features['decode_executor'], loop=features['decode_loop'],
                                           prefill_mode=features['prefill_executor'],exclude_l1_loop=settings['exclude_l1_loop'],
-                                          objective='uniform_64_1087_coverage_budget_v3',pasts=[64,575,1000],
+                                          objective=point.objective+'_coverage_budget_v4',pasts=list(point.pasts),
                                           candidates=candidates)
                     choice_path=self.out / f'decode-choice-B{batch}.json'
                     cached=json.loads(choice_path.read_text()) if choice_path.exists() else {}
@@ -570,7 +586,7 @@ class Run:
                             stem=f"B{batch}-{candidate['family']}-{candidate['variant_label']}-{candidate['mode']}-{candidate['loop']}-{round_label}"
                             out=self.out / ('decode-choice-'+stem)
                             command=[sys.executable,'-m','tilemega.serving.measure_candidate','--so',candidate['library'],
-                                     '--model',str(self.model),'--batch',str(batch),'--past-list','64,575,1000',
+                                     '--model',str(self.model),'--batch',str(batch),'--past-list',','.join(map(str,point.pasts)),
                                      '--mode',candidate['mode'],'--loop',str(candidate['loop']),
                                      '--loop-steps','64','--warmup','8','--out',str(out),
                                      '--guard-wait-s',str(settings['candidate_guard_wait_s'])]
@@ -586,7 +602,7 @@ class Run:
                             return dict(by_past=measured,execution_identity=identities[0],
                                         spill=identities[0]['spill'],measurement_path=str(out/'measurements.json'))
                         try:
-                            winner,candidates=successive_halving(candidates,measure_execution,require_coverage=True)
+                            winner,candidates=successive_halving(candidates,measure_execution,require_coverage=True,workload=point)
                         except (RuntimeError,SelectionBudgetExhausted) as error:
                             atomic_json(choice_path,dict(inputs=selection_inputs,candidates=getattr(error,"rows",None),error=str(error),status='failed_or_budget_exhausted',
                                 elapsed_s=time.monotonic()-batch_started))
@@ -612,6 +628,7 @@ class Run:
         return result
 
     def select_decode(self, built, batch, prefill_mode):
+        point=workload_points(self.config['workload'])[0]
         features=self.config['features']; settings=self.config['solver']
         candidates=[]
         for pg, library in built.items():
@@ -621,7 +638,8 @@ class Run:
                 candidates.append(dict(pg=pg, mode=mode, loop=loop, library=str(library), samples_ms=[]))
         selection_inputs=dict(libraries={pg:file_sha(library) for pg,library in built.items()},
                               executor=features['decode_executor'], loop=features['decode_loop'],
-                              prefill_mode=prefill_mode,exclude_l1_loop=settings['exclude_l1_loop'])
+                              prefill_mode=prefill_mode,exclude_l1_loop=settings['exclude_l1_loop'],
+                              objective=point.objective,pasts=list(point.pasts))
         choice_path=self.out / f'decode-choice-B{batch}.json'
         cached=json.loads(choice_path.read_text()) if choice_path.exists() else {}
         if cached.get('inputs')==selection_inputs:
@@ -633,16 +651,17 @@ class Run:
                     if candidate.get('error'):continue
                     out=self.out / f"decode-choice-B{batch}-{candidate['pg']}-{candidate['mode']}-{candidate['loop']}-r{round}"
                     command=[sys.executable,'-m','tilemega.serving.measure_candidate','--so',candidate['library'],
-                             '--model',str(self.model),'--batch',str(batch),'--past-mid','575',
+                             '--model',str(self.model),'--batch',str(batch),'--past-list',','.join(map(str,point.pasts)),
                              '--mode',candidate['mode'],'--loop',str(candidate['loop']),
                              '--loop-steps','64','--warmup','8','--out',str(out),
                              '--guard-wait-s',str(settings['candidate_guard_wait_s'])]
                     try:
                         self.command(command,f"choose-B{batch}-{candidate['pg']}-{candidate['mode']}-{candidate['loop']}-r{round}",gpu=True)
                         measured=json.loads((out/'measurements.json').read_text())['modes'][candidate['mode']]
-                        if bool(measured.get('decode_loop_used'))!=bool(candidate['loop']):
+                        if any(bool(sample.get('decode_loop_used'))!=bool(candidate['loop'])
+                               for sample in measured['by_past'].values()):
                             raise RuntimeError('candidate did not use requested loop')
-                        candidate['samples_ms'].append(measured['mean_ms'])
+                        candidate['samples_ms'].append(integrated_ms(measured['by_past'],point))
                     except RuntimeError as error:
                         candidate['error']=str(error)
             atomic_json(choice_path,dict(inputs=selection_inputs,candidates=candidates))
@@ -696,7 +715,8 @@ class Run:
                 shutil.copy2(path, destination)
             else:
                 self.command([sys.executable, '-m', 'tilemega.serving.prepare_prompts', '--passages', path,
-                              '--model', self.model, '--ids-out', destination], 'prompts')
+                              '--model', self.model, '--prompt-len', workload['prompt_len'], '--ids-out', destination], 'prompts')
+        validate_prompt_ids(json.loads(destination.read_text()),max(workload['batch']),workload['prompt_len'])
         return destination
 
     def bench(self, plans):
@@ -840,10 +860,12 @@ class Run:
         atomic_json(cases, {'cases': [dict(geometries=[shape] * 6, kappa=1, residency=1)]})
         pair = {}
         prompt_len = self.config['workload']['prompt_len']
-        capacity = prompt_len + self.config['workload']['max_new_tokens']
+        point = workload_points(self.config['workload'])[0]
+        capacity = point.capacity
+        past_hi = max(prompt_len,prompt_len+point.osl-2)
         for phase in ('prefill', 'decode'):
             export_digest, exported = self.export(phase)
-            interval = (0, 0) if phase == 'prefill' else (prompt_len, capacity - 2)
+            interval = (0, 0) if phase == 'prefill' else (prompt_len, past_hi)
             library = smoke / (phase + '.so')
             smoke_key = key(dict(export=export_digest, target=file_sha(self.target),
                                  source=self.version['source_sha256'], phase=phase,
@@ -860,7 +882,7 @@ class Run:
                 if not hit:
                     self.command([self.binary, 'compile', exported / 'bridge.json', library,
                                   '--serving', phase, '--batch', '1', '--past-range',
-                                  f'{interval[0]}:{interval[1]}', '--capacity', str(capacity),
+                                  f'{interval[0]}:{interval[1]}', '--capacity', str(capacity), '--prompt-len', str(prompt_len),
                                   '--solver', 'skeleton', '--solve', self.target,
                                   '--emit', 'serving', '--search-passes', '1', '--top-m', '1',
                                   '--dump-cg', str(library) + '.selected.mlir',
@@ -905,7 +927,7 @@ class Run:
                 raise RuntimeError('PDL hardware check needs a paged decode plan')
             self.command([self.binary, 'compile', pair['decode'] + '.selected.mlir', plain,
                           '--serving', 'decode', '--emit', 'serving', '--batch', '1',
-                          '--past-range', f'{prompt_len}:{capacity - 2}', '--capacity', str(capacity),
+                          '--past-range', f'{prompt_len}:{past_hi}', '--capacity', str(capacity), '--prompt-len', str(prompt_len),
                           '--pg', 'pages', '--page-bytes', page_bytes,
                           '--pdl', 'off', '--sync', self.config['features']['sync'],
                           '--runtime-target', self.target], 'hwcheck-pdl-off-build')
@@ -956,21 +978,24 @@ def main():
         config['features']['weight_layout']='row'
         config['workload']['batch']=[1]
     if args.run_dir:config['output']['dir']=str(args.run_dir)
-    run=Run(config,args.tilemega)
-    if args.command=='doctor':
-        run.hwcheck() if args.hwcheck else run.doctor()
-        return
-    if args.command=='calibrate':run.calibrate();return
-    if args.command=='export':
-        for phase in ('prefill','decode'):run.export(phase)
-        return
-    if args.command in ('build','run'):plans=run.build()
-    else:plans=json.loads((run.out/'plans.json').read_text())
-    if args.command=='build':return
-    if args.command in ('bench','run'):prompts=run.bench(plans)
-    else:prompts=run.out/'prompt_ids.json'
-    if args.command in ('check','run'):run.check(plans,prompts)
-    if args.command in ('report','run'):run.report(plans)
+    points=expand_workloads(config)
+    if args.command in ('doctor','calibrate'):points=points[:1]
+    for config in points:
+        run=Run(config,args.tilemega)
+        if args.command=='doctor':
+            run.hwcheck() if args.hwcheck else run.doctor()
+            continue
+        if args.command=='calibrate':run.calibrate();continue
+        if args.command=='export':
+            for phase in ('prefill','decode'):run.export(phase)
+            continue
+        if args.command in ('build','run'):plans=run.build()
+        else:plans=json.loads((run.out/'plans.json').read_text())
+        if args.command=='build':continue
+        if args.command in ('bench','run'):prompts=run.bench(plans)
+        else:prompts=run.out/'prompt_ids.json'
+        if args.command in ('check','run'):run.check(plans,prompts)
+        if args.command in ('report','run'):run.report(plans)
 
 
 if __name__=='__main__':

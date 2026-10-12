@@ -36,6 +36,20 @@ class ServingHead(unittest.TestCase):
                                              'model.embed_tokens.weight' if tied
                                              else 'lm_head.weight')
 
+    def test_prefill_export_uses_request_sequence_length(self):
+        config=dict(architectures=['LlamaForCausalLM'],hidden_size=32,
+                    intermediate_size=64,num_attention_heads=4,num_key_value_heads=2,
+                    head_dim=8,num_hidden_layers=1,vocab_size=64,rms_norm_eps=1e-6,
+                    tie_word_embeddings=True)
+        with tempfile.TemporaryDirectory() as temporary:
+            out=Path(temporary)
+            export(config,'prefill',2176,out,prompt_len=128)
+            program=torch.export.load(out/'exported_program.pt2')
+            user_inputs=[node for node in program.graph.nodes if node.op=='placeholder'
+                         and node.name=='input_ids']
+            self.assertEqual(len(user_inputs),1)
+            self.assertEqual(user_inputs[0].meta['val'].shape[1],128)
+
     def test_checkpoint_does_not_substitute_untied_head(self):
         embedding = torch.full((64, 32), 1.0, dtype=torch.bfloat16)
         head = torch.full_like(embedding, 2.0)

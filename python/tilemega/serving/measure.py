@@ -174,12 +174,12 @@ def main() -> None:
     parser.add_argument("--policy", type=Path)
     args = parser.parse_args()
     ids = json.loads(args.prompt_ids.read_text())
-    if len(ids) != 16 or any(len(row) != 64 for row in ids):
-        raise ValueError("the frozen prompt table must be 16 by 64")
+    from .workload import validate_prompt_ids
+    prompt_len = validate_prompt_ids(ids, args.batch)
     prompts = torch.tensor(ids[:args.batch], dtype=torch.int32)
     _preflight_external_memory(args.out)
     with ServingEngine(args.model, args.prefill_so, args.decode_so,
-                       args.batch, max_new_tokens=args.max_new_tokens,
+                       args.batch, prompt_len=prompt_len, max_new_tokens=args.max_new_tokens,
                        mode=args.mode, decode_loop=("auto" if args.decode_loop == "auto" else bool(int(args.decode_loop))),
                        step_events=bool(args.step_events),
                        prefill_mode=args.prefill_mode) as engine:

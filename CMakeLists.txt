@@ -869,6 +869,14 @@ if(TILEMEGA_BUILD_TESTS)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
   tilemega_configure_cuda_target(serving_prefill_attention_test)
   add_test(NAME serving_prefill_attention COMMAND serving_prefill_attention_test)
+  add_executable(serving_prefill_attention_128_test
+    test/unit/serving_prefill_attention_test.cu)
+  target_link_libraries(serving_prefill_attention_128_test PRIVATE TileMega::tilemega)
+  target_compile_definitions(serving_prefill_attention_128_test PRIVATE TILEMEGA_TEST_PREFILL_SEQ=128)
+  target_compile_options(serving_prefill_attention_128_test PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+  tilemega_configure_cuda_target(serving_prefill_attention_128_test)
+  add_test(NAME serving_prefill_attention_128 COMMAND serving_prefill_attention_128_test)
   # Run explicitly: this numerical probe needs a CUDA device, unlike the
   # compile-only TaskBody contracts in the default CTest suite.
   add_executable(attention_phase_test test/unit/attention_phase_test.cu)
@@ -1220,3 +1228,9 @@ add_test(NAME dnn_bf16_gates
   COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
     ${Python3_EXECUTABLE} -m unittest discover
     -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_dnn_gates.py)
+
+if(TILEMEGA_BUILD_TESTS AND Python3_EXECUTABLE)
+  add_test(NAME serving_workload_host COMMAND ${CMAKE_COMMAND} -E env
+    PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python ${Python3_EXECUTABLE} -m unittest discover
+    -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_workload*.py)
+endif()

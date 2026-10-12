@@ -837,8 +837,8 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
                          std::vector<SignatureInput> const& inputs,
                          std::vector<std::string> const& outputs,
                          ServingOptions const& serving) {
-  if (serving.seq != 1 && serving.seq != 64)
-    throw std::invalid_argument("serving plan requires a fixed decode or prefill seq");
+  if (serving.seq < 1 || (serving.phase == ServingOptions::Phase::kDecode && serving.seq != 1))
+    throw std::invalid_argument("serving plan requires a positive prefill seq or decode seq one");
   if (serving.capacity <= serving.seq || (serving.interleave_u != 4 && serving.interleave_u != 8 && serving.interleave_u != 16))
     throw std::invalid_argument("serving capacity or gate/up interleave is invalid");
   PatternMatcher matcher(nodes, inputs);

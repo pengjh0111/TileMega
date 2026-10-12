@@ -29,7 +29,7 @@ def automatic_layout_policy(model, target, workload):
     expert_bytes=layers*experts*3*hidden*config['moe_intermediate_size']*2
     if expert_bytes>weight_bytes:
         raise ValueError('expert geometry exceeds checkpoint allocation')
-    batch=max(workload['batch']); tokens=workload['prompt_len']+workload['max_new_tokens']
+    batch=max(workload['batch']); tokens=workload.get('capacity') or workload['prompt_len']+workload['max_new_tokens']
     dim=config.get('head_dim',hidden//config['num_attention_heads'])
     state=layers*2*batch*config['num_key_value_heads']*tokens*dim*2 + \
         batch*tokens*4+2*tokens*dim*2

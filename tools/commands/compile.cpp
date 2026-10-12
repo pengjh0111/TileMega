@@ -280,6 +280,7 @@ int RunCompile(int argc, char** argv) {
                  " --solver legacy|skeleton --legacy-seed CG.mlir --k-base 4|8|16|W\n"
                  " --search-passes 1..3 --search-jobs 1 --variant-cache DIR --flow-fixture DIR --flow-search-only 0|1\n"
                  " --serving-pruning 0|1 --incremental-prepare 0|1 --serving-warm-start PREVIOUS.plan.json\n"
+                 " --prompt-len N --capacity N --past-range LO:HI\n"
                  " --search-capacity N --per-stage-kappa 0|1 --stage-kappa CSV\n"
                  " --segments 1|2 --segment-candidates N\n"
                  " --routing-profile FILE.json --moe-profile-layer N\n"
@@ -316,6 +317,8 @@ int RunCompile(int argc, char** argv) {
     bool page_bytes_pinned=false,nonpaged_la_pinned=false;
     bool event_solo=false,event_red=false,barrier_v2=false;
     if(auto* cache=std::getenv("TILEMEGA_ARTIFACT_CACHE"))artifact_cache=cache;
+    int serving_prompt_len=64;
+    bool serving_prompt_pinned=false,serving_capacity_pinned=false,serving_past_pinned=false;
     int serving_capacity=1088,serving_batch=1,serving_past_lo=64,
         serving_past_hi=1086,serving_kv_block=256,
         serving_query_rows=64,serving_argmax_tile_n=128;
@@ -421,9 +424,11 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--event-red-publish") event_red=std::stoi(value)!=0;
       else if (flag=="--barrier-v2") barrier_v2=std::stoi(value)!=0;
       else if (flag=="--artifact-cache") artifact_cache=value;
-      else if (flag=="--capacity") serving_capacity=std::stoi(value);
+      else if (flag=="--prompt-len") {serving_prompt_len=std::stoi(value);serving_prompt_pinned=true;}
+      else if (flag=="--capacity") {serving_capacity=std::stoi(value);serving_capacity_pinned=true;}
       else if (flag=="--batch") serving_batch=std::stoi(value);
       else if (flag=="--past-range") {
+        serving_past_pinned=true;
         auto colon=value.find(':');
         if(colon==std::string::npos)throw std::runtime_error("past range needs lo:hi");
         serving_past_lo=std::stoi(value.substr(0,colon));
@@ -489,6 +494,12 @@ int RunCompile(int argc, char** argv) {
     if((moe_gemv!=0 && moe_gemv!=1) ||
        (moe_gemv && (!serving || frontend_mode!="decoder")))
       throw std::invalid_argument("--moe-gemv expects 0 or 1 on a decoder serving plan");
+    if(serving_prompt_len<1 || serving_prompt_len>std::numeric_limits<int>::max()-1024)
+      throw std::invalid_argument("--prompt-len must be a positive supported integer");
+    if(!serving_capacity_pinned)serving_capacity=serving_prompt_len+1024;
+    if(!serving_past_pinned) {
+      serving_past_lo=serving_prompt_len;serving_past_hi=serving_capacity-2;
+    }
     if(forward)serving_capacity=serving_past_lo=serving_past_hi=0;
     if(!emit_mode.empty() && emit_mode!="serving")
       throw std::runtime_error("--emit expects serving");
@@ -704,7 +715,15 @@ int RunCompile(int argc, char** argv) {
           if(token_axis && token_axis.getValue() && serving_batch!=1)
             throw std::runtime_error("forward token regions require batch one");
         }
-        auto seq=forward?forward_seq:(serving_phase=="decode"?1:64);
+        if(!forward && serving_phase=="prefill") {
+          auto encoded_seq=info.getAs<mlir::IntegerAttr>("seq");
+          if(!encoded_seq || encoded_seq.getInt()<1 ||
+              encoded_seq.getInt()>std::numeric_limits<int>::max() ||
+              (serving_prompt_pinned && encoded_seq.getInt()!=serving_prompt_len))
+            throw std::runtime_error("prefill ISL disagrees with serving CG");
+          serving_prompt_len=int(encoded_seq.getInt());
+        }
+        auto seq=forward?forward_seq:(serving_phase=="decode"?1:serving_prompt_len);
         source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(
             {{*module,static_cast<std::uint32_t>(seq),static_cast<std::uint32_t>(seq)}});
       }else {
@@ -713,12 +732,12 @@ int RunCompile(int argc, char** argv) {
       options.deferred_norm=deferred_norm!=0;
       options.moe_batch=serving_batch;
       options.moe_grouped=moe_binding=="group" ||
-          (moe_binding=="auto" && serving_batch*(serving_phase=="decode"?1:64)>2);
+          (moe_binding=="auto" && serving_batch*(serving_phase=="decode"?1:serving_prompt_len)>2);
       options.moe_block_rows=moe_bm;
       options.phase=serving_phase=="decode"
           ? tilemega::frontend::ServingOptions::Phase::kDecode
           : tilemega::frontend::ServingOptions::Phase::kPrefill;
-      options.seq=serving_phase=="decode" ? 1 : 64;
+      options.seq=serving_phase=="decode" ? 1 : serving_prompt_len;
       options.capacity=serving_capacity;
       options.kv_block=serving_kv_block;
       options.query_rows=serving_query_rows;
@@ -787,7 +806,7 @@ int RunCompile(int argc, char** argv) {
       solve_options.placement.target=tilemega::TargetSpec::FromJson(solve_target);
       if(serving) {
         auto& d=solve_options.placement.dims;
-        d.batch=serving_batch;d.seq=forward?forward_seq:(serving_phase=="decode"?1:64);
+        d.batch=serving_batch;d.seq=forward?forward_seq:(serving_phase=="decode"?1:serving_prompt_len);
         d.past=serving_phase=="decode"?(serving_past_lo+serving_past_hi)/2:0;
         d.total=d.seq+d.past;
       }
@@ -1199,6 +1218,7 @@ int RunCompile(int argc, char** argv) {
               " --past-range "+quote(std::to_string(serving_past_lo)+":"+
                                     std::to_string(serving_past_hi))+
               " --capacity "+std::to_string(serving_capacity)+
+              " --prompt-len "+std::to_string(serving_prompt_len)+
               " --sync "+quote(sync_policy)+" --runtime-target "+quote(runtime_target)+
               " --arch-paths "+quote(arch_paths)+" --pdl "+quote(pdl)+
               " --pg "+quote(pg_mode)+" --page-bytes "+std::to_string(candidate_page_bytes)+
@@ -1777,7 +1797,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"batch_hi\": "<<serving_batch
               <<",\n  \"past_lo\": "<<serving_past_lo
               <<",\n  \"past_hi\": "<<serving_past_hi
-              <<",\n  \"seq\": "<<(forward?forward_seq:(serving_phase=="decode"?1:64))
+              <<",\n  \"seq\": "<<(forward?forward_seq:(serving_phase=="decode"?1:serving_prompt_len))
               <<",\n  \"capacity\": "<<serving_capacity
               <<",\n  \"sync\": "<<std::quoted(sync_policy)
               <<",\n  \"pg\": "<<std::quoted(use_pages?"pages":pg_mode)

@@ -140,10 +140,12 @@ class Decoder(nn.Module):
         return (self.lm_head(self.model.norm(x)), *outputs)
 
 
-def export(config: dict, phase: str, capacity: int, out: Path) -> dict:
+def export(config: dict, phase: str, capacity: int, out: Path, prompt_len: int = 64) -> dict:
+    if phase not in ('decode', 'prefill') or prompt_len < 1 or capacity <= prompt_len:
+        raise ValueError('export needs a positive ISL and capacity greater than ISL')
     torch.set_num_threads(4)
     torch.manual_seed(20260925)
-    seq = 1 if phase == "decode" else 64
+    seq = 1 if phase == "decode" else prompt_len
     past = 3 if phase == "decode" else 0
     batch_example = 2
     dim = config.get("head_dim", config["hidden_size"] // config["num_attention_heads"])
@@ -199,6 +201,7 @@ def main() -> None:
     parser.add_argument("--model", choices=("llama", "qwen3", "qwen3_moe"), required=True)
     parser.add_argument("--phase", choices=("decode", "prefill"), required=True)
     parser.add_argument("--capacity", type=int, default=1088)
+    parser.add_argument('--prompt-len', type=int, default=64)
     parser.add_argument("--out", type=Path)
     parser.add_argument("--test-small", action="store_true")
     args = parser.parse_args()
@@ -211,7 +214,7 @@ def main() -> None:
             config.update(moe_intermediate_size=64, num_experts=16, num_local_experts=16,
                           num_experts_per_tok=8)
     out = args.out or Path(f"/root/r10_work/export/{args.model}_{args.phase}")
-    print(json.dumps(export(config, args.phase, args.capacity, out)), flush=True)
+    print(json.dumps(export(config, args.phase, args.capacity, out, args.prompt_len)), flush=True)
 
 
 if __name__ == "__main__":

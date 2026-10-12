@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import hashlib
 from pathlib import Path
 
 
@@ -46,10 +47,14 @@ def main():
     ids = json.loads(args.prompt_ids.read_text())
     generated = json.loads(args.generated.read_text())
     count = len(generated[0]) if generated else 0
-    if not 1 <= count <= 1024 or any(len(row) != count for row in generated):
-        raise ValueError("expected [B][N] generated tokens, 1 <= N <= 1024")
-    if len(generated) > len(ids) or any(len(row) != 64 for row in ids[:len(generated)]):
-        raise ValueError("frozen prompt shape must be [16][64]")
+    if __package__:
+        from .workload import validate_prompt_ids
+    else:
+        from workload import validate_prompt_ids
+    if count < 1:
+        raise ValueError('generated token count must be positive')
+    validate_prompt_ids(generated)
+    prompt_len = validate_prompt_ids(ids, len(generated))
     config = json.loads((args.model / 'config.json').read_text())
     expert_options = {}
     if config.get('model_type') == 'qwen3_moe':
@@ -68,8 +73,9 @@ def main():
         prompt = torch.tensor([ids[b]], device="cuda", dtype=torch.long)
         whole = torch.tensor([ids[b] + output], device="cuda", dtype=torch.long)
         with torch.inference_mode():
-            logits = model(whole[:, :63 + count], use_cache=False).logits[0, 63:63 + count].float()
-            chosen = logits.gather(1, whole[0, 64:64 + count, None]).squeeze(1)
+            start = prompt_len - 1
+            logits = model(whole[:, :start + count], use_cache=False).logits[0, start:start + count].float()
+            chosen = logits.gather(1, whole[0, prompt_len:prompt_len + count, None]).squeeze(1)
             gaps = (logits.max(1).values - chosen).cpu()
             nll = (torch.logsumexp(logits, 1) - chosen).cpu()
         all_gaps.append(gaps)
@@ -77,7 +83,9 @@ def main():
         for bucket in range(len(buckets)):
             buckets[bucket].append(gaps[bucket * 256:(bucket + 1) * 256])
         if not args.skip_free_greedy:
-            free_path = args.out.parent / f"hf_free_greedy_b{b}.json"
+            cache_key = hashlib.sha256(json.dumps(dict(model=str(args.model.resolve()),
+                config=config,prompt=ids[b],count=count),sort_keys=True).encode()).hexdigest()[:20]
+            free_path = args.out.parent / f"hf_free_greedy_b{b}_{cache_key}.json"
             if free_path.exists():
                 free = json.loads(free_path.read_text())
             else:
@@ -97,6 +105,7 @@ def main():
             allowed_maximum = baseline["max_gap"] * 1.5
     report = {
         "model": str(args.model), "batch": len(generated), "positions": int(gaps.numel()),
+        "prompt_len": prompt_len, "max_new_tokens": count,
         "gap_le_0_5_ratio": ratio, "max_gap": maximum,
         "required_ratio": required_ratio, "allowed_maximum": allowed_maximum,
         "pass": ratio >= required_ratio and maximum <= allowed_maximum,

@@ -17,7 +17,10 @@
 #endif
 namespace {
 using Element=cutlass::bfloat16_t;
-constexpr int S=64;
+#ifndef TILEMEGA_TEST_PREFILL_SEQ
+#define TILEMEGA_TEST_PREFILL_SEQ 64
+#endif
+constexpr int S=TILEMEGA_TEST_PREFILL_SEQ;
 std::string dump_directory;
 template<class T> T* Managed(std::size_t count) {
   T* p=nullptr;assert(cudaMallocManaged(&p,count*sizeof(T))==cudaSuccess);
