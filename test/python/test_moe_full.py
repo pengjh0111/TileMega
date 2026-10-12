@@ -5,13 +5,62 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+import weakref
 from contextlib import nullcontext
 from unittest.mock import patch
 
-from tilemega.moe.full import compile_command, memory_report, resolve_target, preflight, deployment_layout_decision, generation_tokens
+from tilemega.moe.full import compile_command, memory_report, resolve_target, preflight, deployment_layout_decision, generation_tokens, check_plans
 
 
 class MoeFullTest(unittest.TestCase):
+    def test_native_memory_is_released_before_hf_reference(self):
+        from tilemega.cache import file_sha
+        class Engine:
+            def __enter__(self): return self
+            def __exit__(self, *_): pass
+        references = []
+        def make_engine(*_, **__):
+            engine = Engine(); references.append(weakref.ref(engine)); return engine
+        def released(*_, **__):
+            self.assertTrue(references)
+            self.assertIsNone(references[-1]())
+            return SimpleNamespace(returncode=0)
+        reclaimed = []
+        def reclaim():
+            released(); reclaimed.append(True)
+        def launch_hf(*_, **__):
+            self.assertTrue(reclaimed)
+            return released()
+        with tempfile.TemporaryDirectory() as directory:
+            out=Path(directory);(out/'B1').mkdir();plans=[]
+            for phase in ('prefill','decode'):
+                binary=out/(phase+'.so');binary.write_bytes(phase.encode())
+                manifest=out/(phase+'.json');manifest.write_text('{}')
+                plans.append(dict(batch=1,phase=phase,binary=str(binary),manifest=str(manifest),
+                    binary_sha256=file_sha(binary),manifest_sha256=file_sha(manifest)))
+            (out/'plans.json').write_text(json.dumps(plans))
+            (out/'B1/memory.json').write_text(json.dumps(dict(estimated_allocation_bytes=16)))
+            args=SimpleNamespace(out=out,checkpoint=out/'checkpoint',batch=[1],
+                steps=4,prompt_len=2,prompt_ids=None,hf_check=True,hf_max_tokens=2,routing_check=False)
+            with patch('tilemega.dnn.cli.gpu_lock',return_value=nullcontext()), \
+                    patch('torch.cuda.mem_get_info',return_value=(1024,2048)), \
+                    patch('torch.cuda.empty_cache',side_effect=reclaim) as cache, \
+                    patch('tilemega.build.identity.verify',return_value=dict(artifact_id='artifact')), \
+                    patch('tilemega.serving.engine.ServingEngine',new=make_engine), \
+                    patch('tilemega.moe.full.generation_tokens',new=lambda *_,**__: [[1,2,3,4]]), \
+                    patch('tilemega.moe.full.subprocess.run',side_effect=launch_hf) as hf:
+                check_plans(args,dict(vocab_size=16))
+            hf.assert_called_once()
+            cache.assert_called_once()
+            command=hf.call_args.args[0]
+            self.assertEqual(Path(command[command.index('--generated')+1]),out/'B1/hf_tokens.json')
+            self.assertEqual(json.loads((out/'B1/hf_tokens.json').read_text()),[[1,2]])
+            self.assertEqual(json.loads((out/'B1/tokens.json').read_text()),[[1,2,3,4]])
+            receipt=json.loads((out/'correctness.json').read_text())[0]
+            self.assertTrue(receipt['same_binary_l1_l2_tokens'])
+            self.assertEqual(receipt['steps'],4)
+            self.assertEqual(receipt['teacher_forced_steps'],2)
+
     def fixture(self):
         config = dict(num_hidden_layers=2, num_key_value_heads=1,
                       hidden_size=128, num_attention_heads=8, head_dim=64)

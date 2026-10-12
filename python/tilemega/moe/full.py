@@ -181,13 +181,15 @@ def check_plans(args, config):
         lower = json.loads((args.out/f'B{batch}'/'memory.json').read_text())
         routing = []
         capture_step = None
+        reference_steps = min(args.steps, getattr(args, 'hf_max_tokens', None) or args.steps)
         if getattr(args, 'routing_check', False):
             from tilemega.moe.routing_check import index_names, capture
             names = {item['phase']: index_names(json.loads(Path(item['bridge']).read_text()),
                 config['num_hidden_layers']) for item in plans if item['batch'] == batch}
             def capture_step(plan, phase):
-                routing.append(capture(plan, names[phase], batch,
-                    args.prompt_len if phase == 'prefill' else 1, config['num_experts_per_tok']))
+                if len(routing) < reference_steps:
+                    routing.append(capture(plan, names[phase], batch,
+                        args.prompt_len if phase == 'prefill' else 1, config['num_experts_per_tok']))
         with gpu_lock():
             available, _ = torch.cuda.mem_get_info()
             if lower['estimated_allocation_bytes'] > available:
@@ -201,7 +203,10 @@ def check_plans(args, config):
                 tokens=[generation_tokens(engine,rows[:batch],args.steps,mode,config['vocab_size'],
                     capture_step if mode == 1 else None)
                         for mode in (1,2)]
+            # Closing native plans retains Python tensor bindings. Release them
+            # and cached allocations before the HF subprocess needs memory.
             del engine
+            torch.cuda.empty_cache()
             if tokens[0] != tokens[1]:
                 raise AssertionError('C-2: same-binary L1/L2 generation tokens differ')
         generated = args.out/f'B{batch}'/'tokens.json'; atomic_json(generated, tokens[0])
@@ -209,17 +214,23 @@ def check_plans(args, config):
             from tilemega.moe.routing_check import compare_hf
             atomic_json(args.out/f'B{batch}'/'routing_indices.json', routing)
             with gpu_lock():
-                compare_hf(args.checkpoint, rows[:batch].tolist(), tokens[0], routing,
+                compare_hf(args.checkpoint, rows[:batch].tolist(), tokens[0][:reference_steps], routing,
                            args.out/f'B{batch}'/'routing.json')
                 torch.cuda.empty_cache()
         if args.hf_check:
+            reference_tokens = generated
+            if reference_steps < args.steps:
+                reference_tokens = args.out/f'B{batch}'/'hf_tokens.json'
+                atomic_json(reference_tokens, [row[:reference_steps] for row in tokens[0]])
             with gpu_lock():
                 subprocess.run([sys.executable, '-m', 'tilemega.serving.hf_check',
                     '--model', str(args.checkpoint), '--prompt-ids', str(args.out/'prompt_ids.json'),
-                    '--generated', str(generated), '--out', str(args.out/f'B{batch}'/'hf.json'),
+                    '--generated', str(reference_tokens), '--out', str(args.out/f'B{batch}'/'hf.json'),
                     '--experts-implementation', 'grouped_mm', '--skip-free-greedy'], check=True)
         receipts.append(dict(evidence='verified', batch=batch, steps=args.steps,
-            same_binary_l1_l2_tokens=True, artifacts=identities, performance_measured=False))
+            same_binary_l1_l2_tokens=True, artifacts=identities, performance_measured=False,
+            teacher_forced_steps=reference_steps if args.hf_check else 0,
+            routing_steps=len(routing)))
         atomic_json(args.out/'correctness.json', receipts)
     return receipts
 
@@ -262,6 +273,8 @@ def main(argv=None):
                         help='preflight records insufficient memory without allocating or failing')
     parser.add_argument('--pg', choices=('l2', 'pages'), default='l2')
     parser.add_argument('--hf-check', action='store_true')
+    parser.add_argument('--hf-max-tokens', type=int,
+                        help='limit HF and routing reference prefixes; C-2 still uses all steps')
     parser.add_argument('--routing-check', action='store_true', help='report teacher-forced routing agreement')
     args = parser.parse_args(argv)
     if not args.batch or len(set(args.batch)) != len(args.batch) or any(not 1<=b<=16 for b in args.batch):
@@ -270,6 +283,8 @@ def main(argv=None):
         parser.error('steps must be >=2 and capacity must cover the prompt plus output')
     if args.report_only and args.command!='preflight':
         parser.error('--report-only is only valid for preflight')
+    if args.hf_max_tokens is not None and args.hf_max_tokens < 1:
+        parser.error('--hf-max-tokens must be positive')
     args.checkpoint=args.checkpoint.resolve();args.out=args.out.resolve()
     args.compiler=args.compiler.resolve()
     config = json.loads((args.checkpoint/'config.json').read_text())
