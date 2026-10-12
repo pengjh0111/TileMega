@@ -132,6 +132,10 @@ python -m tilemega doctor --config configs/e2e/llama3_2_1b.json
 python -m tilemega run --config configs/e2e/llama3_2_1b.json
 ```
 
+For structure-only export and compilation, add `--config-only` to the download
+command. This verifies the pinned `config.json` without downloading weights.
+Serving and checkpoint correctness checks require the checkpoint tensors.
+
 Set model paths and ISL, OSL and batches in the configuration. Multiple request
 lengths use `workload.points`; `configs/e2e/sweep.json` is an example. These are
 search configurations; accepted defaults require the correctness and guarded

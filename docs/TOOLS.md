@@ -18,6 +18,7 @@ The Python entry point is `PYTHONPATH=python python -m tilemega`.
 | `python -m tilemega run` | Configured serving workflow |
 | `python -m tilemega dnn` | DNN export, build, forward and correctness commands |
 | `python -m tilemega.moe.full` | Full-depth MoE dry construction, memory preflight and checks |
+| `python -m tilemega.serving.download_models --config-only` | Fetch and verify pinned model configs without downloading weights |
 
 ## Compilation and identity
 
