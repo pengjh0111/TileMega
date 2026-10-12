@@ -14,8 +14,8 @@ using namespace tilemega::analysis;
 
 namespace {
 
-/// isl can only take a literal floor/ceildiv divisor (docs/experiments/
-/// P3_ISL/result.md), so every symbol a derivation might use as a tile size
+/// isl can only take a literal floor/ceildiv divisor, so every symbol a
+/// derivation might use as a tile size
 /// or a GQA group divisor -- everything Table27Theta/Table27G fix -- must be
 /// bound before DeriveCoupling builds an isl_map. Only S/L_s/past stay free,
 /// exactly as §2.7 presents them.

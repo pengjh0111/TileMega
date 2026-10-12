@@ -2,8 +2,7 @@
 #include <tilemega/Analysis/ISLContext.h>
 // Prints the coupling table the *frontend* derives for an exported model:
 // FX -> ModelPlan -> L-sem -> Instantiate(g) -> CouplingDerivation. Nothing
-// here is adjusted to match §2.7; the comparison against it lives in
-// docs/experiments/WIRING/result.md.
+// here is adjusted to match §2.7.
 #include <tilemega/Analysis/CouplingDerivation.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Frontend/ExportBridge.h>

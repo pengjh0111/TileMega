@@ -8,6 +8,7 @@
 #include <mlir/IR/MLIRContext.h>
 #include <cstring>
 #include <fstream>
+#include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <map>
@@ -27,13 +28,17 @@ std::vector<std::string> Fields(std::string const& line) {
 bool Bits(double a, double b) { return std::memcmp(&a, &b, sizeof(double)) == 0; }
 int RunParametric(int argc, char** argv) try {
   tilemega::analysis::IslContext isl_context;
-  if (argc < 2 || argc > 3) throw std::runtime_error("usage: tilemega-parametric REPO [f32|bf16]");
+  if (argc < 4 || argc > 5) throw std::runtime_error("usage: tilemega inspect parametric REPO ARCHIVE OUT [f32|bf16]");
   std::string root = argv[1];
-  std::string dtype = argc == 3 ? argv[2] : "f32";
+  std::string archive = argv[2], output = argv[3];
+  std::string dtype = argc == 5 ? argv[4] : "f32";
   if (dtype != "f32" && dtype != "bf16") throw std::invalid_argument("unknown gate dtype");
   bool const bf16 = dtype == "bf16";
   auto scalar = bf16 ? ScalarType::kBF16 : ScalarType::kF32;
-  std::string const oracle = root + "/docs/experiments/ORACLE/" + (bf16 ? "raw_bf16/" : "raw/");
+  std::string const oracle = archive + "/ORACLE/" + (bf16 ? "raw_bf16/" : "raw/");
+  if (!std::filesystem::is_directory(oracle))
+    throw std::runtime_error("missing explicit parametric oracle archive: " + oracle);
+  std::filesystem::create_directories(output);
   auto target = tilemega::TargetSpec::FromJson(root + "/configs/targets/sm_89.json");  // Fixed target fixture: this host analysis does not benchmark the local GPU.
   CostModelOptions legacy_options;
   legacy_options.unified_task_cost = false;  // Historical .cu input/price anchor.
@@ -47,13 +52,13 @@ int RunParametric(int argc, char** argv) try {
   context.getOrLoadDialect<tilemega::dialect::CGDialect>();
   context.getOrLoadDialect<tilemega::dialect::ExecDialect>();
   int total = 0;
-  std::ofstream dp_output(root + "/docs/experiments/PARAMETRIC/finite_dp" +
+  std::ofstream dp_output(output + "/finite_dp" +
                           (bf16 ? "_bf16.tsv" : ".tsv"));
   if (!dp_output) throw std::runtime_error("cannot write finite DP report");
   dp_output << "model\tbegin\tend\tctas_per_sm\tgemm\ttile_m\ttile_n\ttile_k\tstages\tsplit\n";
   std::cout << "model\tconfig\tinput_equal\tlegacy_total\tbound_cg_total\n" << std::setprecision(17);
   for (std::string const name : {"gqa2", "mha4"}) {
-    std::string const base = root + "/docs/experiments/" +
+    std::string const base = archive + "/" +
         (name == "gqa2" ? "E2E_GEN/raw/" : "P3_GENERALIZATION/raw/");
     auto cg = tilemega::frontend::TorchExportImporter{}.Import(
         bf16 ? oracle + "export/" + name + ".json" : base + "export_bridge.json", context);
@@ -71,7 +76,7 @@ int RunParametric(int argc, char** argv) try {
     std::string line; std::getline(input, line);
     std::map<std::string, int> registers;
     std::ifstream register_input((bf16 ? oracle + "cost/" :
-        root + "/docs/experiments/COST_MODEL/raw/") + "registers_" + name + ".tsv");
+        archive + "/COST_MODEL/raw/") + "registers_" + name + ".tsv");
     if (!register_input) throw std::runtime_error("missing measured register table");
     while (std::getline(register_input, line)) {
       if (line.empty() || line.front() == '#') continue;
@@ -91,7 +96,7 @@ int RunParametric(int argc, char** argv) try {
       if (row[8] == "PASS") {
         smem = std::stoi(row[10]); ctas = std::stoi(row[11]);
       } else {
-        std::ifstream replay(root + "/docs/experiments/BF16/runfail_audit/logs/" +
+        std::ifstream replay(archive + "/BF16/runfail_audit/logs/" +
                              name + "_" + shape + "k" + row[4] + ".txt");
         if (!replay) throw std::runtime_error("missing failure classification evidence");
         std::string text((std::istreambuf_iterator<char>(replay)), {});
