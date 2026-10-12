@@ -175,11 +175,11 @@ double MeasureLoader(TargetSpec const& target,int ctas,int repeats,bool row,
   return rate;
 }
 
-template<int D,int Q>
-using AttentionBody=PagedAttentionTaskBody<DeviceArch,D,Q,false,16384,5>;
-template<int D,int Q>
+template<int D,int Q,bool Norm>
+using AttentionBody=PagedAttentionTaskBody<DeviceArch,D,Q,Norm,16384,5>;
+template<int D,int Q,bool Norm>
 __global__ void TimePagedAttention(ServingAttentionOperands input) {
-  using Body=AttentionBody<D,Q>;using Ring=typename Body::Ring;
+  using Body=AttentionBody<D,Q,Norm>;using Ring=typename Body::Ring;
   extern __shared__ __align__(1024) char storage[];
   // The first KiB contains PageRing mbarriers. Attention scratch must begin
   // after it; overlapping the two makes the calibration kernel deadlock.
@@ -194,9 +194,9 @@ __global__ void TimePagedAttention(ServingAttentionOperands input) {
     }else Body::Load(input,blockIdx.x,0,0,ring,sequence);
   }
 }
-template<int D,int Q>
+template<int D,int Q,bool Norm>
 double MeasureAttention(TargetSpec const& target,int extent,int past,int repeats) {
-  using Body=AttentionBody<D,Q>;
+  using Body=AttentionBody<D,Q,Norm>;
   constexpr int cap=1088;
   constexpr int shared=1024+(sizeof(typename Body::SharedStorage)+1023)/1024*1024+5*16384;
   int sms=target.res.num_sms,cmax=(cap+extent-1)/extent;
@@ -212,15 +212,15 @@ double MeasureAttention(TargetSpec const& target,int extent,int past,int repeats
   alloc(context,std::size_t(sms)*Q*D);
   Check(cudaMalloc(&partial,std::size_t(sms)*cmax*Q*D*sizeof(float)));
   Check(cudaMalloc(&lse,std::size_t(sms)*cmax*Q*sizeof(float)));
-  ServingAttentionOperands operands{qkv,key,value,cos,sin,nullptr,nullptr,
+  ServingAttentionOperands operands{qkv,key,value,cos,sin,Norm?cos:nullptr,Norm?cos:nullptr,
       context,partial,lse,sms,1,cap,past,extent,1e-6f};
-  Check(cudaFuncSetAttribute(TimePagedAttention<D,Q>,
+  Check(cudaFuncSetAttribute(TimePagedAttention<D,Q,Norm>,
       cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
   cudaEvent_t start,stop;Check(cudaEventCreate(&start));Check(cudaEventCreate(&stop));
   std::vector<double> samples;
   for(int rep=-1;rep<repeats;++rep) {
     Check(cudaEventRecord(start));
-    TimePagedAttention<D,Q><<<sms,160,shared>>>(operands);
+    TimePagedAttention<D,Q,Norm><<<sms,160,shared>>>(operands);
     Check(cudaEventRecord(stop));Check(cudaEventSynchronize(stop));
     if(rep>=0) {
       float ms=0;Check(cudaEventElapsedTime(&ms,start,stop));
@@ -234,7 +234,7 @@ double MeasureAttention(TargetSpec const& target,int extent,int past,int repeats
   Check(cudaFree(partial));Check(cudaFree(lse));
   return samples[samples.size()/2];
 }
-template<int D,int Q>
+template<int D,int Q,bool Norm>
 TargetSpec::TaskBodyCalibration::PagedFit FitAttention(TargetSpec const& target,
     int repeats,std::ostream& log) {
   // Two histories at each fixed block extent identify launch cost and the
@@ -242,13 +242,13 @@ TargetSpec::TaskBodyCalibration::PagedFit FitAttention(TargetSpec const& target,
   std::array<int,2> extents{64,256};
   double sx=0,sy=0,sxx=0,sxy=0;int points=0;
   for(int extent:extents)for(int past:{extent/2,extent-1}) {
-    double ns=MeasureAttention<D,Q>(target,extent,past,repeats);
+    double ns=MeasureAttention<D,Q,Norm>(target,extent,past,repeats);
     int rows_per_page=16384/(4*D),warp_extent=((past+1+63)/64)*16;
     int warps_per_page=warp_extent<rows_per_page?
         std::min(4,rows_per_page/warp_extent):1;
     double pages=((warp_extent+rows_per_page-1)/rows_per_page)*
         (4/warps_per_page);
-    log<<"attention_decode_d"<<D<<'\t'<<extent<<'\t'<<past<<'\t'
+    log<<"attention_decode_d"<<D<<"_q"<<Q<<"_norm"<<Norm<<'\t'<<extent<<'\t'<<past<<'\t'
        <<pages<<'\t'<<ns<<'\n'<<std::flush;
     sx+=pages;sy+=ns;sxx+=pages*pages;sxy+=pages*ns;++points;
   }
@@ -285,7 +285,11 @@ void MeasureServingPagedBodies(TargetSpec& target,Options const& options,
   fit.serving_paged_loader_gbps_per_sm=MeasureLoader(target,1,3,false,log);
   fit.serving_paged_loader_gbps=MeasureLoader(target,target.res.num_sms,3,false,log);
   MeasureLoader(target,target.res.num_sms,3,true,log);
-  fit.serving_paged["attention_decode_d64"]=FitAttention<64,4>(target,3,log);
-  fit.serving_paged["attention_decode_d128"]=FitAttention<128,2>(target,3,log);
+  fit.serving_paged["attention_decode_d64_q4_norm0"]=FitAttention<64,4,false>(target,3,log);
+  fit.serving_paged["attention_decode_d128_q2_norm1"]=FitAttention<128,2,true>(target,3,log);
+  fit.serving_paged["attention_decode_d128_q3_norm0"]=FitAttention<128,3,false>(target,3,log);
+  fit.serving_paged["attention_decode_d128_q4_norm0"]=FitAttention<128,4,false>(target,3,log);
+  fit.serving_paged["attention_decode_d128_q4_norm1"]=FitAttention<128,4,true>(target,3,log);
+  fit.serving_paged["attention_decode_d128_q8_norm1"]=FitAttention<128,8,true>(target,3,log);
 }
 } // namespace tilemega::calib

@@ -195,6 +195,8 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
   if(!input.serving_body_kind.empty() &&
      !(input.serving_attention && result.compute_ns==0 && result.dram_bytes==0)) {
     auto calibrated=fit.serving.find((gemv?"gemv_":"")+input.serving_body_kind);
+    if(input.serving_attention && calibrated==fit.serving.end())
+      throw std::invalid_argument("missing attention calibration: "+input.serving_body_kind);
     if(calibrated!=fit.serving.end()) {
       auto const& body=calibrated->second;
       double bytes=serving_body_bytes>=0?serving_body_bytes:
@@ -210,9 +212,10 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
     if(traits.stages>0)key+="_n"+std::to_string(traits.tile_n)+
         "_k"+std::to_string(traits.tile_k);
     else if(input.serving_attention)
-      key="attention_decode_d"+
-          std::to_string(input.serving_attention->head_dim);
+      key=input.serving_body_kind.substr(std::string("fused_").size());
     auto measured=fit.serving_paged.find(key);
+    if(input.serving_attention && measured==fit.serving_paged.end())
+      throw std::invalid_argument("missing paged attention calibration: "+key);
     if(measured!=fit.serving_paged.end()) {
       paged_fit_found=true;
       double iters=0;

@@ -37,14 +37,16 @@ DEFAULTS = {
 }
 
 
+ATTENTION_FIT_SHAPES=((64,4,0),(128,2,1),(128,3,0),(128,4,0),(128,4,1),(128,8,1))
+
 def missing_serving_fit_sections(target):
     """Native measurements are independent of the optional legacy phase fit."""
     body = target.get('calibration_by_dtype', {}).get('bf16', {}).get('task_body', {})
     serving, paged = body.get('serving', {}), body.get('serving_paged', {})
     gemms = ('gemm_store', 'gemm_residual', 'gemm_swiglu', 'gemm_argmax_partial')
     kinds = (*gemms, 'embedding', 'rmsnorm', 'argmax_reduce', 'attention_merge',
-             'fused_attention_decode_d64', 'fused_attention_decode_d128',
-             'fused_attention_prefill_d64', 'fused_attention_prefill_d128')
+             *(f'fused_attention_{phase}_d{d}_q{q}_norm{norm}'
+               for d,q,norm in ATTENTION_FIT_SHAPES for phase in ('decode','prefill')))
     def valid(entry, fields):
         return isinstance(entry, dict) and all(
             isinstance(entry.get(k), (int, float)) and not isinstance(entry[k], bool)
@@ -55,7 +57,7 @@ def missing_serving_fit_sections(target):
         missing.append('task_bodies')
     paged_kinds = [f'{g}_n{n}_k{k}' for g in gemms
                    for n, k in ((128, 64), (32, 64), (64, 128), (64, 64))]
-    paged_kinds += ['attention_decode_d64', 'attention_decode_d128']
+    paged_kinds += [f'attention_decode_d{d}_q{q}_norm{norm}' for d,q,norm in ATTENTION_FIT_SHAPES]
     loader = paged.get('loader', {})
     if (any(not valid(paged.get(k), ('fixed_ns', 'iter_ns', 'median_relative_error'))
             for k in paged_kinds) or not valid(loader, ('stream_gbps_per_sm', 'aggregate_gbps'))

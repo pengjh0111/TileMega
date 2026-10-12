@@ -18,6 +18,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <type_traits>
 
 namespace tilemega::calib {
 namespace {
@@ -77,10 +78,12 @@ __global__ void TimeGemm(ServingGemmOperands operands,unsigned long long* cycles
   extern __shared__ char storage[];auto start=Begin(cycles);
   Body::Run(operands,0,0,storage);End(start,cycles);
 }
+using AttentionArch=std::conditional_t<std::is_void_v<arch::CurrentArch>,
+    arch::Sm80,arch::CurrentArch>;
 template<int D,int Q,int S,bool Norm>
 __global__ void TimeAttention(ServingAttentionOperands operands,
     unsigned long long* cycles,int query_block=0) {
-  using Body=FusedAttentionTaskBody<arch::Sm80,D,Q,S,16,64,Norm>;
+  using Body=FusedAttentionTaskBody<AttentionArch,D,Q,S,16,64,Norm>;
   extern __shared__ __align__(16) unsigned char bytes[];
   auto& storage=*reinterpret_cast<typename Body::SharedStorage*>(bytes);
   auto start=Begin(cycles);Body::Run(operands,storage,0,0,query_block,0);End(start,cycles);
@@ -168,22 +171,6 @@ void MeasureServingTaskBodies(TargetSpec& target,Options const& options,std::ost
   };
   log<<"kind\tbytes\tflops\tbody_ns\n";
   try {
-    Check(cudaFuncSetAttribute(TimeAttention<64,4,1,false>,
-        cudaFuncAttributeMaxDynamicSharedMemorySize,
-        sizeof(FusedAttentionTaskBody<arch::Sm80,64,4,1,16,64,false>::SharedStorage)),
-        "opt in attention D64 decode shared memory");
-    Check(cudaFuncSetAttribute(TimeAttention<128,2,1,true>,
-        cudaFuncAttributeMaxDynamicSharedMemorySize,
-        sizeof(FusedAttentionTaskBody<arch::Sm80,128,2,1,16,64,true>::SharedStorage)),
-        "opt in attention D128 decode shared memory");
-    Check(cudaFuncSetAttribute(TimeAttention<64,4,64,false>,
-        cudaFuncAttributeMaxDynamicSharedMemorySize,
-        sizeof(FusedAttentionTaskBody<arch::Sm80,64,4,64,16,64,false>::SharedStorage)),
-        "opt in attention D64 prefill shared memory");
-    Check(cudaFuncSetAttribute(TimeAttention<128,2,64,true>,
-        cudaFuncAttributeMaxDynamicSharedMemorySize,
-        sizeof(FusedAttentionTaskBody<arch::Sm80,128,2,64,16,64,true>::SharedStorage)),
-        "opt in attention D128 prefill shared memory");
     for(int width:{512,1024,2048,4096}) {
       record("embedding",4*width,0,[&]{TimeEmbed<<<1,128>>>(tokens,element,output,width,cycles);});
       record("rmsnorm",6*width,5*width,[&]{TimeNorm<<<1,128>>>(element,element,output,width,cycles);});
@@ -214,35 +201,42 @@ void MeasureServingTaskBodies(TargetSpec& target,Options const& options,std::ost
           else TimeGemm<TallerGemm><<<1,128,TallerGemm::kSharedBytes>>>(p,cycles);
         });
       }
-    // Attention spans both head dimensions, decode/prefill and the optional
-    // per-head Q/K normalization. All samples time the real fused TaskBody.
-    for(int past:{1,64,128})for(int d:{64,128})for(int phase:{1,64}) {
-      int q=d==64?4:2;
-      // Prefill has past=0. Vary qb instead of timing an impossible cached
-      // prefill, and fit the same per-task work units consumed by PriceParts.
-      int qb=phase==1?0:(past==1?0:past==64?1:3);
-      int active=phase==1?past+1:(qb+1)*16/q;
-      int queries=phase==1?q:16;
-      ServingAttentionOperands p{element,element,element,element,element,
-          element,element,output,numbers,lse,1,1,1088,phase==1?past:0,256,1e-6f};
-      double bytes=4.*d*active+2.*queries*d+(phase==1?4.*d:0.);
-      double flops=4.*queries*d*(active+(phase==1?1:0));
-      if(d==64 && phase==1)
-        record("fused_attention_decode_d64",bytes,flops,[&]{
-          TimeAttention<64,4,1,false><<<1,128,
-              sizeof(FusedAttentionTaskBody<arch::Sm80,64,4,1,16,64,false>::SharedStorage)>>>(p,cycles,qb);});
-      else if(d==128 && phase==1)
-        record("fused_attention_decode_d128",bytes,flops,[&]{
-          TimeAttention<128,2,1,true><<<1,128,
-              sizeof(FusedAttentionTaskBody<arch::Sm80,128,2,1,16,64,true>::SharedStorage)>>>(p,cycles,qb);});
-      else if(d==64)
-        record("fused_attention_prefill_d64",bytes,flops,[&]{
-          TimeAttention<64,4,64,false><<<1,128,
-              sizeof(FusedAttentionTaskBody<arch::Sm80,64,4,64,16,64,false>::SharedStorage)>>>(p,cycles,qb);});
-      else record("fused_attention_prefill_d128",bytes,flops,[&]{
-          TimeAttention<128,2,64,true><<<1,128,
-              sizeof(FusedAttentionTaskBody<arch::Sm80,128,2,64,16,64,true>::SharedStorage)>>>(p,cycles,qb);});
-    }
+    // Q and normalization select distinct measured bodies; a D-only fit
+    // cannot represent the Q=3, Q=4 and Q=8 model paths.
+    auto attention=[&](auto d_tag,auto q_tag,auto norm_tag) {
+      constexpr int D=decltype(d_tag)::value,Q=decltype(q_tag)::value;
+      constexpr bool Norm=decltype(norm_tag)::value;
+      using Decode=FusedAttentionTaskBody<AttentionArch,D,Q,1,16,64,Norm>;
+      using Prefill=FusedAttentionTaskBody<AttentionArch,D,Q,64,16,64,Norm>;
+      Check(cudaFuncSetAttribute(TimeAttention<D,Q,1,Norm>,
+          cudaFuncAttributeMaxDynamicSharedMemorySize,sizeof(typename Decode::SharedStorage)),
+          "opt in decode attention shared memory");
+      Check(cudaFuncSetAttribute(TimeAttention<D,Q,64,Norm>,
+          cudaFuncAttributeMaxDynamicSharedMemorySize,sizeof(typename Prefill::SharedStorage)),
+          "opt in prefill attention shared memory");
+      for(int past:{1,64,128})for(int phase:{1,64}) {
+        int qb=phase==1?0:(past==1?0:past==64?1:3);
+        int active=phase==1?past+1:((qb+1)*16+Q-1)/Q;
+        int queries=phase==1?Q:16;
+        ServingAttentionOperands p{element,element,element,element,element,
+            Norm?element:nullptr,Norm?element:nullptr,output,numbers,lse,
+            1,1,1088,phase==1?past:0,256,1e-6f};
+        double bytes=4.*D*active+2.*queries*D+(phase==1?4.*D:0.);
+        double flops=4.*queries*D*(active+(phase==1?1:0));
+        std::string key=std::string("fused_attention_")+(phase==1?"decode":"prefill")+
+            "_d"+std::to_string(D)+"_q"+std::to_string(Q)+"_norm"+std::to_string(Norm);
+        record(key,bytes,flops,[&] {
+          if(phase==1)TimeAttention<D,Q,1,Norm><<<1,128,sizeof(typename Decode::SharedStorage)>>>(p,cycles,qb);
+          else TimeAttention<D,Q,64,Norm><<<1,128,sizeof(typename Prefill::SharedStorage)>>>(p,cycles,qb);
+        });
+      }
+    };
+    attention(std::integral_constant<int,64>{},std::integral_constant<int,4>{},std::false_type{});
+    attention(std::integral_constant<int,128>{},std::integral_constant<int,2>{},std::true_type{});
+    attention(std::integral_constant<int,128>{},std::integral_constant<int,3>{},std::false_type{});
+    attention(std::integral_constant<int,128>{},std::integral_constant<int,4>{},std::false_type{});
+    attention(std::integral_constant<int,128>{},std::integral_constant<int,4>{},std::true_type{});
+    attention(std::integral_constant<int,128>{},std::integral_constant<int,8>{},std::true_type{});
     auto& serving=target.CalibrationFor("bf16").task_body.serving;
     serving.clear();for(auto const& [name,samples]:observations) {
       if(samples.size()<2)throw std::runtime_error("serving kind has fewer than two samples");
