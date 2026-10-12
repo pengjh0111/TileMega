@@ -76,7 +76,8 @@ def token_ids(passages_path: Path, model: Path, out: Path, prompt_len: int = 64)
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--passages", type=Path, required=True)
+    parser.add_argument("--passages", type=Path,
+                        default=Path(__file__).resolve().parents[3]/'configs/prompts/passages.jsonl')
     parser.add_argument("--model", type=Path)
     parser.add_argument("--ids-out", type=Path)
     parser.add_argument('--prompt-len', type=int, default=64)

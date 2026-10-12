@@ -1,57 +1,23 @@
 # TileMega
 
-**TileMega** is a compiler framework for automatically constructing tile-level execution graphs and generating persistent megakernels for LLM inference. At its core is a **parameterized Coupling Graph (CG)** that captures task spaces, inter-operator dependencies, synchronization requirements, and execution placement while preserving their dependence on model shapes and task granularity. TileMega uses **ISL-based symbolic** dependence analysis over parameterized task spaces and tensor access relations to derive coupling properties, combines hardware-aware models and search to explore execution configurations, and uses CuTe/CUTLASS to realize high-performance task implementations, ultimately lowering the scheduled CG to a CUDA persistent megakernel.
-
-## Serving quick start
-
-After building `tilemega` and installing the Python serving dependencies,
-place the HF checkpoint at the path in the configuration, then run:
-
-```bash
-PYTHONPATH=python python -m tilemega doctor --config configs/e2e/llama_b1.toml
-PYTHONPATH=python python -m tilemega run --config configs/e2e/llama_b1.toml
-```
-
-Python 3.11 or newer reads TOML; Python 3.10 can use the equivalent
-`configs/e2e/llama_b1.json`. For paged decode, the
-`configs/e2e/llama_r11_acceptance.json` example enables access-proved
-`features.handoff=auto`; the compiler measures a candidate handoff plan and
-keeps it only when it clears the 2% gain threshold.
-[`docs/TOOLS.md`](docs/TOOLS.md) describes the unified binary commands and
-cache layout.
-
-## Architecture
-
-<p align="center">
-  <img src="docs/TileMega_arch.png" width="100%">
-</p>
-
-## Dependencies
-
-| Dependency | Version | Notes |
-| --- | --- | --- |
-| C++ compiler | C++17 | |
-| CMake | 3.22 or newer | |
-| Ninja | any | generator used throughout |
-| CUDA Toolkit | provides `nvcc` and `cuobjdump` | required; the recorded `sm_120` build and cluster validation use CUDA 12.8 |
-| LLVM/MLIR | pinned commit `23a60f15f2fcafcf67b95b0a035053579958b732` (`23.0.0git`) | **required** — the CG dialect is the mandatory L4-to-L1 contract, so `TILEMEGA_ENABLE_MLIR=OFF` is rejected |
-| CUTLASS | `third_party/cutlass` submodule | task interiors and collectives |
-| isl | 0.28, pinned by barvinok | **required** — canonical coupling-relation representation and composition |
-| polylib | 5.22.9, pinned by barvinok | **required** by barvinok; built with the GMP backend |
-| barvinok | 0.41.9 (`third_party/barvinok`) | **required** — parametric cardinalities for wait, fanout, volume, and count |
-| GMP / NTL | system development packages | required to link the static polyhedral stack |
-| Autotools | autoconf, automake, libtool, pkg-config, m4 | required to bootstrap isl, polylib, and barvinok |
-| Python | 3.8 or newer | `lit` driver and the export bridge |
-| PyTorch | 2.13.x or 2.14.x | needed only by the version-checked `torch.export` bridge and BF16 fixture generators, not by the C++ compiler build; CUDA wheels are needed only when the Python reference itself runs on CUDA |
-
-MLIR must come from an **install tree**. A build tree's CMake package bakes
-absolute paths to both the build and source directories and breaks as soon as
-either moves; an install tree computes its paths relative to the config file and
-survives being relocated. `scripts/build_mlir.sh` builds the pinned commit and
-installs it; `docs/BUILD_MLIR.md` covers the details, including how to recover a
-build tree that has already been moved.
+**TileMega** is a compiler framework that automatically constructs
+tile-level execution graphs and generates persistent megakernels for deep
+learning inference, including decoder LLMs, mixture-of-experts models and
+conventional DNNs. At its core is a **parameterized Coupling Graph (CG)**
+that captures task spaces, inter-operator dependencies, synchronization
+requirements, and execution placement while preserving their dependence on
+model shapes and task granularity. TileMega uses **ISL-based symbolic**
+dependence analysis over parameterized task spaces and tensor access
+relations to derive coupling properties, combines hardware-aware models and
+search to explore execution configurations, and uses CuTe/CUTLASS to realize
+high-performance task implementations, ultimately lowering the scheduled CG
+to a CUDA persistent megakernel.
 
 ## Build
+
+Dependency versions and optional environments are listed in
+[DEPENDENCIES.md](docs/DEPENDENCIES.md). Use an MLIR install tree;
+[BUILD_MLIR.md](docs/BUILD_MLIR.md) describes its construction.
 
 On Ubuntu or Debian, install the host-side prerequisites first:
 
@@ -124,7 +90,7 @@ The three polyhedral build directories default to `build-isl`,
 `build-polylib`, and `build-barvinok`. Relocated builds can be supplied with
 `-DTILEMEGA_ISL_BUILD_DIR=...`, `-DTILEMEGA_POLYLIB_BUILD_DIR=...`, and
 `-DTILEMEGA_BARVINOK_BUILD_DIR=...`. See `docs/DEPENDENCIES.md` for the
-validated versions, static-link order, and provenance.
+versions and environment pins.
 
 CMake options:
 
@@ -146,59 +112,58 @@ ninja -C build check-policy           # rejects __CUDA_ARCH__ outside
                                       # ArchDispatch.h, sm-version comparisons
                                       # and hardware resource literals
 ninja -C build crosscompile-matrix    # compile one architecture-neutral source
-                                      # for sm_80/89/90/120 and record the
+                                      # for supported architectures and record the
                                       # ptxas resource matrix
 ```
 
 `crosscompile-matrix` requires `TILEMEGA_BUILD_VERIFY=ON`, which is the default;
 it will not exist as a target if verification was configured off.
 
-Generating a megakernel from a Coupling Graph:
+## Usage
+
+Install the serving environment from `requirements/serving.txt` with a CUDA
+wheel appropriate to the deployment system. Model repositories and revisions
+are pinned in `configs/models/`. For Llama-3.2-1B:
 
 ```bash
-# torch.export archive -> stable export JSON
-python3 python/tilemega/export_bridge.py model.pt2 --out export.json
+export PYTHONPATH="$PWD/python"
+python -m tilemega.serving.download_models --model llama3_2_1b --model-root /root/models
+python -m tilemega doctor --config configs/e2e/llama3_2_1b.json
+python -m tilemega run --config configs/e2e/llama3_2_1b.json
+```
 
-# stable export JSON -> Coupling Graph dialect (printed on stdout)
-build/tools/tilemega-import export.json > cg.mlir
+Set model paths and ISL, OSL and batches in the configuration. Multiple request
+lengths use `workload.points`; `configs/e2e/sweep.json` is an example. These are
+search configurations; accepted defaults require the correctness and guarded
+performance gates. Raw output belongs under ignored `runs/`.
 
-# parse, verify and round-trip the dialect (a standard mlir-opt driver)
+DNN forward uses a separate reference environment from `requirements/dnn-*`:
+
+```bash
+python -m tilemega dnn build --config configs/dnn/resnet18.json
+python -m tilemega dnn run --config configs/dnn/resnet18.json
+```
+
+Set the checkpoint and dataset paths in the DNN configuration before running.
+The full MoE script needs an 80 GB GPU; on a smaller device, dry-only generates
+plans and records the memory preflight without executing the model:
+
+```bash
+TILEMEGA_DRY_ONLY=1 scripts/run_qwen3_moe_full.sh
+# On an 80 GB device:
+scripts/run_qwen3_moe_full.sh
+```
+
+The lower-level flow is export → import → compile:
+
+```bash
+python python/tilemega/export_bridge.py model.pt2 --out export.json
+build/tools/tilemega inspect import export.json > cg.mlir
 build/tools/tilemega-opt cg.mlir
-
-# Coupling Graph -> generated CUDA (the already-materialized single variant)
-build/tools/tilemega-compile cg.mlir out.cu
-
-# Export JSON -> shared object with one or more generator-owned variants
-build/tools/tilemega-compile export.json out.so --variants plan.json
+build/tools/tilemega compile cg.mlir out.cu
 ```
 
-`tilemega-compile` accepts either a `.mlir` Coupling Graph or the stable export
-JSON directly; `--variants` requires the export JSON because each variant must
-be independently lifted and analyzed. Passing a `.cu` output writes only the generated CUDA; passing a
-`.so` writes the CUDA alongside it as `out.so.cu` and then invokes `nvcc`
-(honouring `CUDACXX`, defaulting to `/usr/local/cuda/bin/nvcc`).
-
-`plan.json` uses schema `tilemega.runtime_variants.v1`.  Each entry carries a
-`seq_begin`/`seq_end` interval, the GEMM tile/stages/split-K choices and its
-ownership flags.  The generator derives a separate exact dependency table for
-each entry and emits all selected CUTLASS template instantiations into one
-binary; the host launcher performs an O(1) `seq`-interval lookup.  See
-`docs/experiments/VARIANT/plan_two.json` and
-`docs/experiments/OWNERSHIP/plan_structured.json` for concrete plans.
-
-The current BF16 and structured-ownership migration checks regenerate their
-models and fixtures, probe capabilities from `TargetSpec`, and hard-fail when
-the requested hardware feature is absent:
-
-```bash
-# Native Blackwell/5090 migration correctness (50 fresh processes per model).
-bash docs/experiments/MIGRATION/run_on_sm120.sh
-
-# Cluster primitives plus generated BF16 megakernel (requires caps.cluster).
-bash docs/experiments/CLUSTER/run_on_cluster_gpu.sh
-```
-
-Expected successful output includes a probed target with `caps.cluster=1`,
-`gqa2` and `mha4` correctness totals equal to the requested run count, and—for
-the cluster script—nonzero `UCGABAR` instructions for cluster dimensions above
-one.  Neither script substitutes a flat kernel when the capability is absent.
+A `.cu` output generates source; `.so` also invokes NVCC. See
+[TOOLS.md](docs/TOOLS.md) for build identity, selection, measurement and cache
+interfaces. On shared GPUs, use one `TILEMEGA_GPU_LOCK` for builds and tests;
+all timing runs through the guarded benchmark scheduler.

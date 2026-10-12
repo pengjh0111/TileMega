@@ -14,9 +14,7 @@ BUILD=${3:-${TMPDIR:-/tmp}/llvm-build}
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 COMMIT=$(cat "${REPO_ROOT}/third_party/cutlass/cutlass_compiler/LLVM_COMMIT")
 
-# A full shallow clone of llvm-project through a proxy has failed near completion
-# before (docs/experiments/V_F/raw/fetch_attempts.txt); fetching the exact commit
-# is what worked.
+# Fetch the exact pinned commit without cloning unrelated history.
 if [ ! -d "${SRC}/.git" ]; then
   mkdir -p "${SRC}"
   git -C "${SRC}" init -q

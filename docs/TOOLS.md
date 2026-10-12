@@ -1,66 +1,84 @@
 # TileMega tools
 
-The default build provides `tilemega` and the independent MLIR driver
-`tilemega-opt`. Host tests share `tilemega-unit`; CTest still runs each case in
-its own process, with its original name and arguments, and assertions enabled.
-CUDA tests and the different-library `isl_crosslink_test` remain independent.
+The default build provides `tilemega`, `tilemega-opt` and `tilemega-unit`.
+The Python entry point is `PYTHONPATH=python python -m tilemega`.
 
-`tilemega compile` accepts the old compiler arguments. `--options FILE.json`
-expands a JSON array of argument strings at that position; this preserves
-argument order and repeated flags without a second compiler option parser.
+| Interface | Purpose |
+|---|---|
+| `tilemega compile` | Export JSON or CG MLIR to CUDA source or a shared library |
+| `tilemega inspect import` | Export JSON to the CG dialect |
+| `tilemega-opt` | Parse, verify and transform CG MLIR |
+| `tilemega calibrate` | Native hardware calibration |
+| `tilemega occupancy` | Compiled resource and occupancy queries |
+| `tilemega audit arch` / `sass` | Offline architecture compilation / binary instruction audit |
+| `tilemega inspect request-floor` | Request-level DRAM and compute floor |
+| `python -m tilemega doctor` | Configuration, checkpoint and toolchain checks |
+| `python -m tilemega export` / `build` | Cached export and plan selection |
+| `python -m tilemega check` | Model correctness checks |
+| `python -m tilemega run` | Configured serving workflow |
+| `python -m tilemega dnn` | DNN export, build, forward and correctness commands |
+| `python -m tilemega.moe.full` | Full-depth MoE dry construction, memory preflight and checks |
 
-```json
-["model.pt2", "plan.cu", "--emit", "serving", "--serving", "decode"]
+## Compilation and identity
+
+`tilemega compile --options FILE.json` expands an array of argument strings,
+preserving order and repeated options. A `.cu` output generates source only;
+`.so` also invokes NVCC. `CUDACXX` chooses NVCC. Compiler/source fingerprints,
+macros, artifact hashes, implementation and kernel resources are recorded in
+`<library>.identity.json`. Analysis rejects incompatible identities; trace
+artifacts do not supply end-to-end performance results.
+
+`device.cache_dir` contains calibration targets, exports, plans and artifacts.
+Keys include workload, source/calibration fingerprints and compilation options.
+The serving execution choice lives in `<library>.serving.json` and `plans.json`;
+it does not rewrite the cached manifest. Explicit execution options override
+`auto`. Model configurations are under `configs/e2e/`, with pinned model
+metadata under `configs/models/`.
+
+## Workloads and measurement
+
+A serving configuration defines `workload.prompt_len`, `max_new_tokens`,
+`batch`, and optionally `capacity` or `points: [[ISL, OSL], ...]`. Each sweep
+point gets a distinct output directory and workload-sensitive cache keys.
+Prompt tables must match the request ISL. Prepare another length with:
+
+```bash
+PYTHONPATH=python python -m tilemega.serving.prepare_prompts \
+  --model /root/models/llama3_2_1b --family llama3 --prompt-len 128
 ```
 
-| Old executable | Unified command |
-| --- | --- |
-| tilemega-compile | tilemega compile |
-| tilemega-calibrate | tilemega calibrate |
-| tilemega-wait-policy | tilemega calibrate wait-policy |
-| tilemega-occupancy | tilemega occupancy |
-| tilemega-import / derive / wiring / dram-floor / runtime-projection / parametric | tilemega inspect import / derive / wiring / dram-floor / runtime-projection / parametric |
-| tilemega-target-audit / op-audit / skeleton-audit / flow-audit | tilemega audit target / op / skeleton / flow |
-| tilemega-attention-work / event-cost / interface-probe / scalar-error-probe / task-work-probe | tilemega probe attention-work / event-cost / interface-probe / scalar-error-probe / task-work-probe |
-| tilemega-opt | unchanged |
+Reusable measurement code is under `python/tilemega/bench/`. A benchmark
+configuration uses `schema: "tilemega.bench.v1"`, a `cells` mapping, and a
+measurement policy. Each cell specifies `model_path`, `prompt_ids`,
+`workload: {"isl": 64, "osl": 1024, "batch": 1}`, and `arms`. A TileMega arm
+supplies `label`, `kind: "tm"`, `prefill`, `decode`, `mode`, `decode_loop` and
+`prefill_mode`; a vLLM arm supplies `kind: "vllm"` and its Python interpreter.
+All paths and binary identities are frozen before enqueueing.
 
-Historical standalone tools in `tools/experimental/` and the four experiment
-executables are built only with `-DTILEMEGA_BUILD_EXPERIMENTAL=ON`.
-The occupancy/calibrate shell compatibility entry points forward to the unified
-driver; they no longer compile an unmanaged binary or choose a CUDA directory.
+```bash
+PYTHONPATH=python python -m tilemega bench --config configs/bench/local.json
+PYTHONPATH=python python -m tilemega.bench.status \
+  --out runs/bench/scheduler --queue-dir runs/bench/queue
+```
 
-R11 implementation is in progress. The serving calibration suite, fingerprint
-command, architecture/SASS audits and cached Python end-to-end entry point are
-tracked in TODO §5.9.2; this initial migration does not claim their completion.
+Create `local.json` for the built artifacts first; it is not a shipped result.
+The scheduler serializes steps, and the guard holds the common
+`TILEMEGA_GPU_LOCK`. Occupancy or interference returns 75 and retries; an
+interfered round is discarded. Six hours without an idle timing window pauses
+timing while non-timing work may continue. Use the same lock for numerical
+tests and compiler checks. The monitor emits new failure/completion events;
+it does not retry, kill jobs or declare correctness gates passed.
 
-`tilemega audit sass` counts FP64 instructions in a compiled serving library.
-`tilemega audit arch` cross-compiles generated CUDA for requested architectures;
-it does not claim execution on an unavailable device. `tilemega inspect
-request-floor` evaluates the CG-derived DRAM and compute floor at each past
-position of a request.
+Accepted comparisons rotate arm order and report TPOT, request latency,
+output throughput and MBU. Each arm has the same prompt, fixed OSL and EOS
+policy. Model correctness is separate from timing; component benchmarks are
+diagnostic only. Raw receipts remain under ignored `runs/`.
 
-The Python entry point is `PYTHONPATH=python python -m tilemega`. Its
-`doctor`, `calibrate`, `build`, and `run` commands read TOML on Python 3.11 or
-newer and equivalent JSON on Python 3.10. The full parameter surface is in
-[`configs/e2e/llama_b1.toml`](../configs/e2e/llama_b1.toml). The configured
-`[device].cache_dir` stores stamped calibration in `targets/`, export graphs
-in `exports/`, solved plans in `plans/`, and compiled libraries in
-`artifacts/`. Keys include source and calibration fingerprints, options, and
-compiler dependencies. Paged decode accepts `features.handoff="auto"` and
-measures the handoff binary against its event-plan control; prefill uses the
-event plan. Tiled weight lowering remains unavailable, so serving examples
-use `features.weight_layout="row"`. The narrowed Llama B=1/16 acceptance
-configuration is `configs/e2e/llama_r11_acceptance.json` on Python 3.10
-and the equivalent `.toml` on Python 3.11 or newer.
+## Portability
 
-On a new accelerator, `PYTHONPATH=python python -m tilemega doctor --hwcheck`
-builds and runs the native page tests, calibrates and builds a Llama B=1 plan,
-checks 64 generated steps in L1/L2, and compares two-step PDL on/off output
-when the device supports PDL. The report prints the actual native `-arch`
-used; compiling a lower PTX target and relying on JIT would check the wrong
-transport path. The command uses row-major, handoff-off geometry because its
-purpose is to validate the architecture path; TF-1 has a separate gate.
-Hardware checking materializes one explicit legal 16×128×128×2 Llama seed
-configuration through the ordinary solver/codegen path. It does not run
-coordinate descent or establish a performance optimum; `build` and `run`
-perform the full search.
+`TILEMEGA_TARGET_ARCH` selects sm_80/89/90/100/120. `check-policy` checks device
+architecture dispatch conventions. Offline compilation does not certify
+execution on a different GPU. `configs/targets/sm_90_h800.json` is an
+uncalibrated H800 resource profile; it must be calibrated on hardware before
+performance selection. `doctor --hwcheck --config ...` exercises native
+transport paths and numerical smoke checks, not a performance optimum.
