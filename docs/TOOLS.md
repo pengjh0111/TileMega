@@ -101,6 +101,11 @@ Then run `python -m tilemega.dnn.diagnose --intermediates FILE --bridge BRIDGE
 finding the first observed excess error for each image. Fused or unexposed
 nodes cannot be localized by this report. The dataset gate remains separate.
 
+MoE checks accept `--hf-max-tokens 256` to bound the HF and routing reference
+prefix while `--steps 1024` retains the full same-binary L1/L2 comparison.
+The correctness receipt records these lengths separately. Native bindings and
+cached CUDA allocations are released before starting the HF subprocess.
+
 ## Portability
 
 `TILEMEGA_TARGET_ARCH` selects sm_80/89/90/100/120. `check-policy` checks device
