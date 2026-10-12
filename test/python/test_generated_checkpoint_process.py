@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -6,6 +7,8 @@ import sys
 import tempfile
 import time
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -16,6 +19,59 @@ spec.loader.exec_module(checkpoint)
 
 
 class GeneratedCheckpointProcessTest(unittest.TestCase):
+    def test_compiler_diagnostics_are_opt_in(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            self.assertEqual(checkpoint.compiler_options({}, folder), [])
+            options = checkpoint.compiler_options(
+                dict(nvcc_split_compile=3, nvcc_diagnostics=True), folder)
+            self.assertIn('-Xptxas=--split-compile=3', options)
+            self.assertIn('--keep', options)
+            self.assertTrue((folder / 'nvcc_intermediates').is_dir())
+            self.assertFalse(any(option.startswith('-O') for option in options))
+            with self.assertRaises(ValueError):
+                checkpoint.compiler_options(dict(nvcc_split_compile=0), folder)
+
+    def test_retry_copies_inputs_without_relabeling_compiler(self):
+        with tempfile.TemporaryDirectory() as directory:
+            previous, out = Path(directory) / 'old', Path(directory) / 'retry'
+            previous.mkdir()
+            for name in ('source.json', 'source.json.patch', 'target.json'):
+                (previous / name).write_text(name)
+            bridge, config = previous / 'bridge.json', previous / 'config.json'
+            bridge.write_text('bridge')
+            config.write_text('config')
+            record = dict(root='/frozen/compiler/tree', compiler='/frozen/compiler',
+                compiler_sha256='compiler-sha', source_sha256=checkpoint.sha(previous / 'source.json'),
+                target_sha256=checkpoint.sha(previous / 'target.json'), timing_eligible=False,
+                cases=[dict(label='decoder', bridge=str(bridge), config=str(config),
+                    files={str(bridge):checkpoint.sha(bridge), str(config):checkpoint.sha(config)})])
+            (previous / 'inputs.json').write_text(json.dumps(record))
+            args = SimpleNamespace(reuse_inputs=previous, out=out, labels='decoder',
+                nvcc_timeout_s=28800, nvcc_split_compile=3, nvcc_diagnostics=True)
+            with patch.object(checkpoint, 'validate') as validate:
+                checkpoint.reuse_inputs(args)
+            validate.assert_called_once_with(previous, 'decoder')
+            retry = json.loads((out / 'inputs.json').read_text())
+            for key in ('root', 'compiler', 'compiler_sha256', 'source_sha256', 'target_sha256'):
+                self.assertEqual(retry[key], record[key])
+            self.assertEqual(retry['cases'][0]['files'][str(out / 'decoder/bridge.json')],
+                             checkpoint.sha(bridge))
+            self.assertEqual(retry['reused_inputs_sha256'], checkpoint.sha(previous / 'inputs.json'))
+            self.assertFalse(retry['timing_eligible'])
+            self.assertFalse((out / 'decoder/plan.so').exists())
+
+    def test_invalid_frozen_input_prevents_retry_creation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            previous, out = Path(directory) / 'old', Path(directory) / 'retry'
+            previous.mkdir()
+            (previous / 'inputs.json').write_text(json.dumps(dict(cases=[dict(label='bert')])))
+            args = SimpleNamespace(reuse_inputs=previous, out=out, labels='bert')
+            with patch.object(checkpoint, 'validate', side_effect=ValueError('compiler changed')):
+                with self.assertRaisesRegex(ValueError, 'compiler changed'):
+                    checkpoint.reuse_inputs(args)
+            self.assertFalse(out.exists())
+
     def test_timeout_reaps_compiler_descendants(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)

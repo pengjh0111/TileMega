@@ -5,6 +5,7 @@ Build steps hold the shared GPU lock. Numerical steps run in fresh processes
 under the bench scheduler/guard. None of these results are latency samples.
 """
 import argparse
+import copy
 import fcntl
 import hashlib
 import json
@@ -122,7 +123,9 @@ def prepare(args):
     record = dict(root=str(root), compiler=str(compiler), compiler_sha256=sha(compiler),
                   source_sha256=sha(out / 'source.json'), runner_sha256=sha(out / 'runner.py'),
                   target_sha256=sha(out / 'target.json'), cases=cases, timing_eligible=False,
-                  nvcc_timeout_s=args.nvcc_timeout_s)
+                  nvcc_timeout_s=args.nvcc_timeout_s,
+                  nvcc_split_compile=args.nvcc_split_compile,
+                  nvcc_diagnostics=args.nvcc_diagnostics)
     (out / 'inputs.json').write_text(json.dumps(record, indent=2) + '\n')
     print(f'Prepared {len(cases)} independently queued generated-model checks')
 
@@ -145,6 +148,57 @@ def validate(out, label):
         if sha(path) != expected:
             raise ValueError('frozen reference changed: ' + path)
     return record, case
+
+
+def reuse_inputs(args):
+    previous, out = args.reuse_inputs.resolve(), args.out.resolve()
+    if out.exists():
+        raise FileExistsError('generated-model checkpoint already exists')
+    record = copy.deepcopy(json.loads((previous / 'inputs.json').read_text()))
+    selected = set(args.labels.split(',')) if args.labels else {
+        case['label'] for case in record['cases']}
+    cases = [case for case in record['cases'] if case['label'] in selected]
+    if not selected or {case['label'] for case in cases} != selected:
+        raise ValueError('unknown generated checkpoint labels')
+    for case in cases:
+        validate(previous, case['label'])
+    out.mkdir(parents=True)
+    for name in ('source.json', 'source.json.patch', 'target.json'):
+        if (previous / name).exists():
+            shutil.copy2(previous / name, out / name)
+    shutil.copy2(__file__, out / 'runner.py')
+    for case in cases:
+        folder = out / case['label']
+        folder.mkdir()
+        for key in ('bridge', 'config'):
+            if key not in case:
+                continue
+            original = case[key]
+            replacement = folder / (key + '.json')
+            shutil.copy2(original, replacement)
+            case[key] = str(replacement)
+            case['files'][str(replacement)] = case['files'].pop(original)
+    record.update(cases=cases, runner_sha256=sha(out / 'runner.py'),
+                  nvcc_timeout_s=args.nvcc_timeout_s,
+                  nvcc_split_compile=args.nvcc_split_compile,
+                  nvcc_diagnostics=args.nvcc_diagnostics,
+                  reused_inputs=str(previous), reused_inputs_sha256=sha(previous / 'inputs.json'))
+    (out / 'inputs.json').write_text(json.dumps(record, indent=2) + '\n')
+    print(f'Reused {len(cases)} source-bound generated-model inputs')
+
+
+def compiler_options(record, folder):
+    threads = record.get('nvcc_split_compile', 1)
+    if not isinstance(threads, int) or threads < 1:
+        raise ValueError('nvcc split-compile threads must be positive')
+    options = []
+    if threads > 1:
+        options.append(f'-Xptxas=--split-compile={threads}')
+    if record.get('nvcc_diagnostics', False):
+        keep = folder / 'nvcc_intermediates'
+        keep.mkdir(exist_ok=True)
+        options += ['--keep', '--keep-dir', str(keep), '--time', str(folder / 'nvcc_phases.csv')]
+    return options
 
 
 def build(out, label):
@@ -174,7 +228,7 @@ def build(out, label):
                 '--expt-relaxed-constexpr', '-Xptxas=-v',
                 '-I' + str(root / 'include'), '-I' + str(root / 'third_party/cutlass/include'),
                 '-I' + str(root / 'third_party/cutlass/tools/util/include'),
-                *options, '-x', 'cu', str(so) + '.cu',
+                *options, *compiler_options(record, folder), '-x', 'cu', str(so) + '.cu',
                 *[str(root / p) for p in SUPPORT], '-o', str(so)]
         execute(nvcc, root, folder, 'nvcc', record.get('nvcc_timeout_s', 3600))
         shutil.copy2(folder / 'nvcc.log', str(so) + '.ptxas.log')
@@ -242,12 +296,23 @@ def main():
     parser.add_argument('--dnn-exports', type=Path)
     parser.add_argument('--pipelines', type=Path)
     parser.add_argument('--labels', help='prepare only these comma-separated cases')
+    parser.add_argument('--reuse-inputs', type=Path,
+                        help='copy validated frozen inputs into a new checkpoint')
     parser.add_argument('--nvcc-timeout-s', type=int, default=10800,
                         help='frozen compilation budget; does not change optimization flags')
+    parser.add_argument('--nvcc-split-compile', type=int, default=1,
+                        help='ptxas optimization threads; recorded separately for correctness retries')
+    parser.add_argument('--nvcc-diagnostics', action='store_true',
+                        help='retain compiler intermediates and per-phase elapsed times')
     args = parser.parse_args()
     if args.nvcc_timeout_s <= 0:
         parser.error('--nvcc-timeout-s must be positive')
+    if args.nvcc_split_compile < 1:
+        parser.error('--nvcc-split-compile must be positive')
     if args.action == 'prepare':
+        if args.reuse_inputs:
+            reuse_inputs(args)
+            return
         if any(getattr(args, key) is None for key in
                ('root', 'compiler', 'target', 'inputs', 'dnn_exports')):
             parser.error('prepare requires root, compiler, target, inputs and dnn-exports')
