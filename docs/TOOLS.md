@@ -89,6 +89,19 @@ timing while non-timing work may continue. Use the same lock for numerical
 tests and compiler checks. The monitor emits new failure/completion events;
 it does not retry, kill jobs or declare correctness gates passed.
 
+Before adding a recovery queue, validate its dependencies against existing
+definitions and receipts:
+
+```bash
+PYTHONPATH=python python -m tilemega.bench.queue_check \
+  --queue-dir runs/bench/queue --state runs/bench/scheduler/state.json \
+  --proposed runs/bench/proposed.json --out runs/bench/dependency_check.json
+```
+
+Recovery steps need new names and must depend on the repaired numerical run.
+The check rejects failed required ancestors, unknown dependencies and cycles;
+`after_any` still permits diagnostics after failure. It never edits receipts.
+
 Accepted comparisons rotate arm order and report TPOT, request latency,
 output throughput and MBU. Each arm has the same prompt, fixed OSL and EOS
 policy. Model correctness is separate from timing; component benchmarks are
