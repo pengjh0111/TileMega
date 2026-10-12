@@ -5,9 +5,7 @@
   },
   "workload": {
     "batch": [
-      1,
-      8,
-      32
+      2
     ]
   },
   "data": {
@@ -21,14 +19,15 @@
     "passes": 2,
     "jobs": 1,
     "time_budget_s": 1800,
-    "calibration_reference": "docs/experiments/DNN_MOE_R1/inputs/regression/llama_B1/prefill/target.json"
+    "calibration_reference": "test/fixtures/targets/dm_reference.json"
   },
   "features": {
     "pg": "l2",
     "forward_executor": "L2",
-    "reuse": "auto"
+    "reuse": "auto",
+    "nonpaged_la": 0
   },
   "output": {
-    "dir": "runs/dm1-mbv1"
+    "dir": "runs/r15/dnn/mbv1"
   }
 }
