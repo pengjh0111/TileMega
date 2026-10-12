@@ -47,7 +47,19 @@ def synthetic_state(module, seed=20261010):
 
 
 @torch.inference_mode()
-def _diagnose(library, plan, module, arguments, bridge, destination):
+def intermediate_metrics(actual,fp32,bf16):
+    """Per-image errors expose batch-addressing failures hidden by averages."""
+    actual,fp32,bf16=[value.float().flatten(1) for value in (actual,fp32,bf16)]
+    return [dict(batch=index,tm_fp32_mse=(a-f).square().mean().item(),
+                 bf16_fp32_mse=(b-f).square().mean().item(),
+                 tm_bf16_mse=(a-b).square().mean().item(),
+                 tm_bf16_max_error=(a-b).abs().max().item())
+            for index,(a,f,b) in enumerate(zip(actual,fp32,bf16))]
+
+
+@torch.inference_mode()
+def _diagnose(library, plan, module, arguments, bridge, destination,
+              bf16_module, bf16_arguments):
     """Copy test-only native intermediates and compare untouched FX values.
 
     The optional accessor is appended to a separate diagnostic CUDA artifact;
@@ -62,6 +74,11 @@ def _diagnose(library, plan, module, arguments, bridge, destination):
                 captured[node.name] = value.detach().clone()
             return value
     Capture(module).run(*arguments)
+    captured_fp32=captured
+    captured={}
+    Capture(bf16_module).run(*bf16_arguments)
+    captured_bf16=captured
+    captured=captured_fp32
     aliases, terminal = {}, {}
     names = {buffer.name for buffer in library.buffers}
     order = {node['name']: index for index,node in enumerate(bridge['nodes'])}
@@ -111,22 +128,28 @@ def _diagnose(library, plan, module, arguments, bridge, destination):
             top,_,left,_ = meta[14:18]
             value=value[:,top:top+logical[1],left:left+logical[2],:logical[3]].permute(0,3,1,2)
         reference=captured[reference_name].float().to('cuda')
+        bf16_reference=captured_bf16[reference_name].float().to('cuda')
         # The body stores [batch, query, head, dim]; ATen SDPA returns
         # [batch, head, query, dim]. This is a layout comparison, not a reshape.
         if nodes_target := next((node['target'] for node in bridge['nodes']
                 if node['name']==reference_name), None):
             if nodes_target=='aten.scaled_dot_product_attention.default' and reference.ndim==4:
                 reference=reference.permute(0,2,1,3).contiguous()
+                bf16_reference=bf16_reference.permute(0,2,1,3).contiguous()
         if value.numel()!=reference.numel():
             rows.append(dict(buffer=buffer.name,reference=reference_name,shape_mismatch=True,
                 actual_shape=list(value.shape),reference_shape=list(reference.shape)))
             continue
         value=value.reshape_as(reference).float()
         cosine=torch.nn.functional.cosine_similarity(value.flatten(1),reference.flatten(1),dim=1)
-        rows.append(dict(buffer=buffer.name,reference=reference_name,cosine_min=cosine.min().item(),
+        rows.append(dict(buffer=buffer.name,reference=reference_name,graph_order=order[reference_name],
+            per_batch=intermediate_metrics(value,reference,bf16_reference),cosine_min=cosine.min().item(),
             token_cosine_min=torch.nn.functional.cosine_similarity(value,reference,dim=-1).min().item(),
             max_error=(value-reference).abs().max().item(),reference_max=reference.abs().max().item()))
-    destination.write_text(json.dumps(dict(evidence='verified',scope='diagnostic only',buffers=rows),indent=2)+'\n')
+    rows.sort(key=lambda row:order[row['reference']])
+    destination.write_text(json.dumps(dict(evidence='verified',
+        scope='diagnostic surviving buffers against FP32 and BF16; use --reuse none to retain all stage outputs',
+        buffers=rows),indent=2)+'\n')
 
 
 def output_metrics(actual,fp32,bf16,*,restoration=False,elementwise=False):
@@ -248,7 +271,7 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics
                 plan.launch(0, mode, torch.cuda.current_stream().cuda_stream)
                 torch.cuda.synchronize()
                 if diagnostics is not None and epoch == 0 and mode == 1:
-                    _diagnose(library,plan,oracle,fp32_arguments,bridge,diagnostics)
+                    _diagnose(library,plan,oracle,fp32_arguments,bridge,diagnostics,module,cpu_arguments)
                 row = dict(epoch=epoch, mode=mode, outputs=[])
                 for name, fp32, bf16 in zip(outputs, expected_fp32, expected_bf16):
                     actual = tensors[name].float()
