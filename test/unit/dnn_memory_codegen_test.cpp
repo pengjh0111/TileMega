@@ -7,6 +7,7 @@
 #include <tilemega/Solver/DmGemmTraits.h>
 #include <llvm/Support/JSON.h>
 #include <llvm/Support/FormatVariadic.h>
+#include <mlir/IR/Builders.h>
 #include <cassert>
 #include <fstream>
 #include <iostream>
@@ -80,6 +81,24 @@ int TestDnnMemoryCodegen(int argc,char** argv) {
     assert(source.find("#define TILEMEGA_GEMM_TILE_M 16\n")!=std::string::npos);
     assert(source.find("#define TILEMEGA_GEMM_V1_TILE_M 128\n")!=std::string::npos);
     assert(source.find("{1u, 1u, 128u, 16u, 16u, 3u}")!=std::string::npos);
+    assert(source.find("DmGemmBinding<1, 1> { static constexpr unsigned roles = 1u;")!=std::string::npos);
+    assert(source.find("DmGemmBinding<1, 0> {")==std::string::npos);
+    assert(source.find("Combine ? 2u : 1u")!=std::string::npos);
+    std::ofstream(std::string(argv[2])+".mixed.cu")<<source;
+
+    // Keep one semantic plan, but admit both a direct and a split variant of
+    // its second GEMM. The dispatcher must union roles across all sequences.
+    auto other=mlir::OwningOpRef<mlir::ModuleOp>(mlir::cast<mlir::ModuleOp>(alternate->clone()));
+    mlir::Builder builder(&context);
+    auto runtime=(*other)->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime");
+    std::vector<mlir::Attribute> entries(runtime.begin(),runtime.end());
+    mlir::NamedAttrList fields(mlir::cast<mlir::DictionaryAttr>(entries[1]));
+    fields.set("split_k",builder.getI64IntegerAttr(2));
+    entries[1]=fields.getDictionary(&context);
+    (*other)->setAttr("tilemega.gemm_runtime",builder.getArrayAttr(entries));
+    auto combined=CouplingGraphToCUDA{}.LowerVariants({{*alternate,1,6},{*other,7,7}});
+    assert(combined.find("DmGemmBinding<1, 1> { static constexpr unsigned roles = 3u;")!=std::string::npos);
+    std::ofstream(std::string(argv[2])+".union.cu")<<combined;
   }
   auto stored=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   assert(stored.getAs<mlir::IntegerAttr>("dm_memory_arena_bytes").getInt()>0);

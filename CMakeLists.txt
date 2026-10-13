@@ -981,6 +981,11 @@ if(TILEMEGA_BUILD_TESTS)
     --emit "${CMAKE_BINARY_DIR}/test-fixtures/dnn-memory.cu")
   add_test(NAME dnn_memory_search COMMAND tilemega-unit dnn_memory_codegen
     --emit "${CMAKE_BINARY_DIR}/test-fixtures/dnn-memory-search.cu" --search)
+  add_test(NAME dm_dispatch_codegen COMMAND ${Python3_EXECUTABLE}
+    "${CMAKE_SOURCE_DIR}/test/python/check_dm_dispatch_codegen.py"
+    --unit $<TARGET_FILE:tilemega-unit> --compiler "${CMAKE_CXX_COMPILER}"
+    --fixture "${CMAKE_SOURCE_DIR}/test/fixtures/dnn/dwpw_pair.json"
+    --out "${CMAKE_BINARY_DIR}/test-fixtures/dm-dispatch")
   add_test(NAME dm_fused_dependencies COMMAND tilemega-unit dm_fused_dependencies)
   add_test(NAME dm_dram_images COMMAND tilemega-unit dm_dram_images)
   add_test(NAME binding_request_traffic COMMAND tilemega-unit binding_request_traffic)

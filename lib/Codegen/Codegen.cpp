@@ -402,6 +402,37 @@ struct RuntimeVariantRecord {
   std::string exact_tasks,exact_dependencies,seq_parameter,past_parameter;
 };
 
+std::string emitDmGemmBindings(mlir::DictionaryAttr plan,
+                              std::vector<RuntimeVariantRecord> const& variants) {
+  if (!optionalBoolField(plan, "dm")) return {};
+  std::set<std::size_t> fused;
+  for (auto value : arrayField(plan, "stages")) {
+    auto stage = dictionaryEntry(value, "stages");
+    if (stringField(stage, "kind") == "kDwPwFused")
+      fused.insert(integerField(stage, "gemm"));
+  }
+  // A chain is callable only with its assigned geometry and reduction role.
+  // Union across sequence variants: a GEMM may be split in only some of them.
+  std::map<std::pair<std::size_t, unsigned>, unsigned> roles;
+  for (auto const& variant : variants)
+    for (std::size_t i = 0; i < variant.gemms.size(); ++i) {
+      auto const& gemm = variant.gemms[i];
+      auto& mask = roles[{i, gemm.compiled_variant}];
+      if (fused.count(i)) mask |= 4;
+      else if (gemm.split_k == 1) mask |= 1;
+      if (gemm.split_k > 1) mask |= 2;
+    }
+  std::ostringstream out;
+  out << "#define TILEMEGA_DM_GEMM_BINDINGS 1\n"
+      << "namespace tilemega::codegen {\n"
+      << "template<int Gemm, int Variant> struct DmGemmBinding { static constexpr unsigned roles = 0u; };\n";
+  for (auto const& [key, mask] : roles)
+    out << "template<> struct DmGemmBinding<" << key.first << ", " << key.second
+        << "> { static constexpr unsigned roles = " << mask << "u; };\n";
+  out << "} // namespace tilemega::codegen\n";
+  return out.str();
+}
+
 std::uint32_t readOwnershipFlags(mlir::ModuleOp module) {
   std::uint32_t flags = 0;
   auto add = [&](llvm::StringRef name, std::uint32_t bit) {
@@ -1069,7 +1100,11 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
     auto gemms = arrayField(plan, "gemms");
     out << "#include <tilemega/Codegen/DmDescriptors.h>\n"
         << "#define TILEMEGA_DM_EPILOGUE_DISPATCH 1\n"
-        << "namespace tilemega::codegen {\n";
+        << "#define TILEMEGA_DM_TYPED_DISPATCH 1\n"
+        << "namespace tilemega::codegen {\n"
+        << "#ifndef TILEMEGA_DM_GEMM_BINDINGS\n"
+        << "template<int Gemm, int Variant> struct DmGemmBinding { static constexpr unsigned roles = 7u; };\n"
+        << "#endif\n";
     for(std::size_t i=0;i<gemms.size();++i) {
       auto item=dictionaryEntry(gemms[i],"gemms");
       auto chain=frontend::DecodeDmChain(item.get("dm_chain"));
@@ -1121,12 +1156,14 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
     for(auto value:stages)fused_dw|=stringField(dictionaryEntry(value,"stages"),"kind")=="kDwPwFused";
     if(fused_dw) {
       out<<"#define TILEMEGA_DM_FUSED_DISPATCH 1\n"
-         <<"template<class Runner>\n__device__ inline bool DispatchDmFused(std::uint32_t stage, Runner const& runner) {\n";
+         <<"template<int Variant = -1, class Runner>\n__device__ inline bool DispatchDmFused(std::uint32_t stage, Runner const& runner) {\n";
       for(std::size_t i=0;i<stages.size();++i) {
         auto stage=dictionaryEntry(stages[i],"stages");
         if(stringField(stage,"kind")!="kDwPwFused")continue;
         auto conv=frontend::DecodeDmConv(arrayField(plan,"dm_convolutions")[integerField(stage,"dm_conv")]);
-        out<<"  if(stage=="<<i<<"u) {runner.template Run<"<<conv.c<<", DmPrimitiveChain"<<i
+        out<<"  if constexpr (Variant < 0 || (DmGemmBinding<"<<integerField(stage,"gemm")
+           <<", Variant>::roles & 4u))\n"
+           <<"  if(stage=="<<i<<"u) {runner.template Run<"<<conv.c<<", DmPrimitiveChain"<<i
            <<", DmSpec"<<integerField(stage,"gemm")<<">(); return true;}\n";
       }
       out<<"  return false;\n}\n";
@@ -1201,11 +1238,14 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
       }
       out<<"  asm volatile(\"trap;\");\n}\n";
     }
-    out << "template<class Runner>\n"
+    out << "template<int Variant = -1, bool Combine = false, class Runner>\n"
         << "__device__ inline void DispatchDmEpilogue(std::uint32_t gemm, Runner const& runner) {\n"
         << "  switch (gemm) {\n";
     for (std::size_t i = 0; i < gemms.size(); ++i)
-      out << "    case " << i << "u: runner.template Run<DmSpec" << i << ">(); break;\n";
+      out << "    case " << i << "u:\n"
+          << "      if constexpr (Variant < 0 || (DmGemmBinding<" << i
+          << ", Variant>::roles & (Combine ? 2u : 1u))) runner.template Run<DmSpec" << i << ">();\n"
+          << "      else asm volatile(\"trap;\");\n      break;\n";
     out << "    default: asm volatile(\"trap;\"); break;\n"
         << "  }\n}\n} // namespace tilemega::codegen\n";
   }
@@ -1943,6 +1983,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
       << SyncEmitter{}.EmitWait("global")
       << SyncEmitter{}.EmitSignal("global")
       << HostLauncherEmitter{}.Emit("l1_kernel")
+      << emitDmGemmBindings(emittedPlan, {runtime})
       << TaskBodyEmitter{}.Emit(module) << "\n";
   std::vector<DependencyRecord> dependencies;
   for (auto const& edge : TransitiveReduction(dependencyPairs, maxStage + 1))
@@ -2062,6 +2103,7 @@ std::string CouplingGraphToCUDA::LowerVariants(
       << SyncEmitter{}.EmitWait("global")
       << SyncEmitter{}.EmitSignal("global")
       << HostLauncherEmitter{}.Emit("l1_kernel")
+      << emitDmGemmBindings(first_plan, records)
       << TaskBodyEmitter{}.Emit(first) << "\n"
       << emitModelPlan(first, std::move(records));
   return out.str();

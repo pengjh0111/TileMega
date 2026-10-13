@@ -8,6 +8,15 @@ namespace tilemega::codegen {
 template<class Runner>
 __device__ inline bool DispatchDmFused(std::uint32_t,Runner const&) {return false;}
 #endif
+template<int Variant, class Runner>
+__device__ inline bool DispatchDmVariantFused(std::uint32_t stage,
+                                             Runner const& runner) {
+#if defined(TILEMEGA_DM_TYPED_DISPATCH) && defined(TILEMEGA_DM_FUSED_DISPATCH)
+  return DispatchDmFused<Variant>(stage, runner);
+#else
+  return DispatchDmFused(stage, runner);
+#endif
+}
 struct DwPwFusedOperands {
   DepthwiseConvOperands depthwise{};
   ServingGemmOperands pointwise{};

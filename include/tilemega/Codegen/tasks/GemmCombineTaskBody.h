@@ -78,7 +78,7 @@ struct GemmCombineTaskBody {
       source.output_stride=invocation.serving_output_stride;
       source.norm_k=invocation.k_total;source.norm_eps=TILEMEGA_NORM_EPSILON;
       if(!ResolveDmCombineOperands(source,task/invocation.tiles_n,V::kTileM,&operands))return;
-      DispatchDmEpilogue(invocation.dm_gemm, DmCombineRunner<Arch, V::kTileM, V::kTileN>{
+      DispatchDmVariantEpilogue<Variant, true>(invocation.dm_gemm, DmCombineRunner<Arch, V::kTileM, V::kTileN>{
           reinterpret_cast<float const*>(p.buffers[stage.operand[0]]), invocation.chunks,
           task / invocation.tiles_n, task % invocation.tiles_n,
           reinterpret_cast<char*>(&smem.gemm), operands,source.m});

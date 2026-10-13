@@ -742,12 +742,12 @@ struct GemmStageTaskBody {
       operands.k_total=invocation.k_total;operands.k_begin=invocation.serving_k_begin;
       operands.b=invocation.mainloop.ptr_B-invocation.serving_k_begin;
       operands.weight_base=invocation.serving_weight_base;
-      if(!DispatchDmFused(invocation.fused_program,FusedRunner<V>{invocation,operands,
+      if(!DispatchDmVariantFused<Variant>(invocation.fused_program,FusedRunner<V>{invocation,operands,
           local/invocation.tiles_n,local%invocation.tiles_n,shared}))asm volatile("trap;");
       return;
     }
     if (invocation.chunks == 1 && invocation.dm_enabled) {
-      DispatchDmEpilogue(invocation.dm_gemm, DmRunner<Body>{
+      DispatchDmVariantEpilogue<Variant>(invocation.dm_gemm, DmRunner<Body>{
           operands, local / invocation.tiles_n, local % invocation.tiles_n, shared});
       return;
     }

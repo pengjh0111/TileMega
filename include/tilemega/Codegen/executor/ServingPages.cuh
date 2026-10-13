@@ -497,12 +497,12 @@ __device__ void Gemm(Params const& params,GemmInvocation const& inv,int local,Ri
           inv.serving_phase_gate.enabled,ring.watch};
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
       if(inv.fused_program!=kDmNoIndex) {
-        if(!DispatchDmFused(inv.fused_program,DmFusedPageRunner<V>{inv,operands,
+        if(!DispatchDmVariantFused<Variant>(inv.fused_program,DmFusedPageRunner<V>{inv,operands,
             local/inv.tiles_n,local%inv.tiles_n,ring,sequence,work}))asm volatile("trap;");
         return;
       }
       if (inv.chunks == 1 && inv.dm_enabled) {
-        DispatchDmEpilogue(inv.dm_gemm, DmPageRunner<Body>{operands,
+        DispatchDmVariantEpilogue<Variant>(inv.dm_gemm, DmPageRunner<Body>{operands,
             local / inv.tiles_n, local % inv.tiles_n, ring, sequence, work, gate});
         return;
       }
@@ -526,7 +526,7 @@ __device__ bool Combine(Params const& p,StageDesc const& stage,int task,char* wo
       auto operands = DmEpilogueOperands(Operands(inv,task/inv.tiles_n));
       operands.output = p.buffers[stage.operand[1]];
       auto reduce = [&] {
-        DispatchDmEpilogue(inv.dm_gemm, DmCombineRunner<PageArch, V::kTileM, V::kTileN>{
+        DispatchDmVariantEpilogue<Variant, true>(inv.dm_gemm, DmCombineRunner<PageArch, V::kTileM, V::kTileN>{
             reinterpret_cast<float const*>(p.buffers[stage.operand[0]]), inv.chunks,
             task / inv.tiles_n, task % inv.tiles_n, work, operands, cute::get<0>(inv.problem)});
       };
