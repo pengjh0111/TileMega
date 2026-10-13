@@ -2,10 +2,12 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -15,6 +17,46 @@ spec.loader.exec_module(unified)
 
 
 class PrefillCheckpointTest(unittest.TestCase):
+    def test_numeric_retry_preserves_old_results_and_checks_binary_identity(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            checkpoint = root / 'checkpoint'
+            checkpoint.mkdir()
+            (checkpoint / 'numeric').mkdir()
+            marker = checkpoint / 'numeric/old.log'
+            marker.write_text('interrupted attempt')
+            (checkpoint / 'runner.py').write_text('original runner')
+            rows = []
+            for variant in ('reference', 'candidate'):
+                so = checkpoint / (variant + '.so')
+                so.write_bytes(variant.encode())
+                rows.append(dict(cell='llama_B1', label='R13D_prime', variant=variant,
+                                 so=str(so), so_sha256=unified.sha(so)))
+            (checkpoint / 'build.json').write_text(json.dumps(dict(plans=rows)))
+            record = dict(cases=[dict(cell='llama_B1', label='R13D_prime')],
+                          trees=dict(candidate=dict(root=str(root))))
+            def launch(command, **kwargs):
+                self.assertEqual(command[1], str(checkpoint / 'runner.py'))
+                self.assertEqual(command[command.index('--out') + 1], str(checkpoint))
+                Path(command[command.index('--tokens') + 1]).write_text('[[1,2,3]]')
+                return SimpleNamespace(returncode=0)
+            with patch.dict(os.environ, TILEMEGA_GPU_LOCK_HELD='1'), patch.object(
+                    unified, 'validate', return_value=record), patch.object(
+                    unified.subprocess, 'run', side_effect=launch) as process, contextlib.redirect_stdout(io.StringIO()):
+                result = root / 'retry'
+                unified.run(checkpoint, result)
+                self.assertEqual(process.call_count, 2)
+                receipt = json.loads((result / 'numeric.json').read_text())
+                self.assertTrue(receipt['cases'][0]['pass_tokens'])
+                self.assertEqual(receipt['build_sha256'], unified.sha(checkpoint / 'build.json'))
+                self.assertEqual(marker.read_text(), 'interrupted attempt')
+                with self.assertRaises(FileExistsError):
+                    unified.run(checkpoint, result)
+                Path(rows[0]['so']).write_bytes(b'changed')
+                with self.assertRaisesRegex(ValueError, 'binary changed'):
+                    unified.run(checkpoint, root / 'changed')
+                self.assertEqual(process.call_count, 2)
+
     def test_identity_recovery_rejects_a_changed_binary(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);so=root/'plan.so';so.write_bytes(b'original')

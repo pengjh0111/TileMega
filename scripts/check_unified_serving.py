@@ -347,13 +347,19 @@ def bind_identities(out):
     print(f'Bound canonical identities to {len(receipts)} unchanged regression artifacts')
 
 
-def run(out):
+def run(out, numeric_out=None):
     if os.environ.get('TILEMEGA_GPU_LOCK_HELD') != '1':
         raise RuntimeError('numerical regression requires the bench guard')
     record = validate(out)
     if record.get('decode_checkpoint'):
         validate(Path(record['decode_checkpoint']))
     built = json.loads((out / 'build.json').read_text())
+    # Retries retain the original, immutable build checkpoint and its runner.
+    # A separate result directory prevents an interrupted attempt from being
+    # overwritten or mistaken for the new token comparison.
+    result_out = numeric_out.resolve() if numeric_out is not None else out
+    if numeric_out is not None:
+        result_out.mkdir(parents=True)
     reports = []
     for case in record['cases']:
         outputs = []
@@ -362,7 +368,7 @@ def run(out):
                 continue
             if sha(row['so']) != row['so_sha256']:
                 raise ValueError('regression binary changed')
-            folder = out / 'numeric' / row['cell'] / row['label'] / row['variant']
+            folder = result_out / 'numeric' / row['cell'] / row['label'] / row['variant']
             folder.mkdir(parents=True)
             env = dict(os.environ, PYTHONPATH=record['trees']['candidate']['root'] + '/python')
             decode, prefill = execution_pair(record, case, row)
@@ -380,7 +386,9 @@ def run(out):
         reports.append(dict(cell=case['cell'], label=case['label'], pass_tokens=True,
                             tokens_sha256=sha(outputs[0]), generated_tokens=64))
     validate(out)
-    (out / 'numeric.json').write_text(json.dumps(dict(cases=reports, timing_eligible=False,
+    (result_out / 'numeric.json').write_text(json.dumps(dict(cases=reports, timing_eligible=False,
+        checkpoint=str(out), build_sha256=sha(out / 'build.json'),
+        runner_sha256=sha(out / 'runner.py'),
         scope='G-REG-U ' + ('prefill' if record.get('decode_checkpoint') else 'decode') +
               ' cases; full G-DM-U remains separate'), indent=2) + '\n')
     print('G-REG-U real-weight 64-token comparison PASS')
@@ -419,6 +427,8 @@ def main():
     parser.add_argument('--so', type=Path)
     parser.add_argument('--prefill-so', type=Path)
     parser.add_argument('--tokens', type=Path)
+    parser.add_argument('--numeric-out', type=Path,
+                        help='new result directory for run; never reuse an earlier attempt')
     args = parser.parse_args()
     out = args.out.resolve()
     if args.action == 'prepare':
@@ -435,7 +445,7 @@ def main():
     elif args.action == 'build':
         build(out)
     elif args.action == 'run':
-        run(out)
+        run(out, args.numeric_out)
     elif args.action == 'bind-identities':
         bind_identities(out)
     else:
