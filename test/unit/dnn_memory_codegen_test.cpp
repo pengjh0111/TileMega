@@ -72,6 +72,15 @@ int TestDnnMemoryCodegen(int argc,char** argv) {
   {std::ofstream stream(path);stream<<llvm::formatv("{0:2}",bridge).str();}
   mlir::MLIRContext context;ImportOptions options;options.phase_batch=2;options.gemms=geometry;
   auto module=TorchExportImporter{}.ImportPlan(path,plan,context,nullptr,options);
+  {
+    auto mixed=options;mixed.gemms[1]={128,16,16,3,1};
+    auto alternate=TorchExportImporter{}.ImportPlan(path,plan,context,nullptr,mixed);
+    auto source=CouplingGraphToCUDA{}.Lower(*alternate);
+    assert(source.find("#define TILEMEGA_GEMM_VARIANT_COUNT 2\n")!=std::string::npos);
+    assert(source.find("#define TILEMEGA_GEMM_TILE_M 16\n")!=std::string::npos);
+    assert(source.find("#define TILEMEGA_GEMM_V1_TILE_M 128\n")!=std::string::npos);
+    assert(source.find("{1u, 1u, 128u, 16u, 16u, 3u}")!=std::string::npos);
+  }
   auto stored=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   assert(stored.getAs<mlir::IntegerAttr>("dm_memory_arena_bytes").getInt()>0);
   solver::ModelDims dims{7,0,7};dims.batch=2;

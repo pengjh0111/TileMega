@@ -1901,6 +1901,26 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
       "tilemega.model_plan");
   if (!emittedPlan)
     throw std::invalid_argument("verified CG has no tilemega.model_plan");
+  RuntimeVariantRecord runtime;
+  runtime.gemms = readRuntimeGemms(module, arrayField(emittedPlan, "gemms").size());
+  if (optionalBoolField(emittedPlan, "dm")) {
+    // Depthwise and dense stages can use different shapes in a single module.
+    std::vector<std::tuple<int, int, int, int, int>> shapes;
+    for (auto& gemm : runtime.gemms) {
+      auto key = std::make_tuple(int(gemm.tile_m), int(gemm.tile_n),
+                                int(gemm.tile_k), int(gemm.stages), int(gemm.impl));
+      auto found = std::find(shapes.begin(), shapes.end(), key);
+      if (found == shapes.end()) {
+        if (shapes.size() == 16)
+          throw std::invalid_argument("runtime plans require more than 16 unique GEMM shapes");
+        shapes.push_back(key);
+        found = std::prev(shapes.end());
+      }
+      gemm.compiled_variant = static_cast<std::uint16_t>(std::distance(shapes.begin(), found));
+    }
+    if (shapes.empty()) shapes.emplace_back(16,16,16,2,0);
+    generatedGemm = EmitGemmInstantiations(shapes);
+  }
   RuntimeVariantRecord attention_storage;
   attention_storage.attention = readRuntimeAttention(module);
   out << "// SPDX-License-Identifier: BSD-3-Clause\n"
@@ -1927,10 +1947,6 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
   std::vector<DependencyRecord> dependencies;
   for (auto const& edge : TransitiveReduction(dependencyPairs, maxStage + 1))
     dependencies.push_back({edge.first, edge.second, dependencyPairs.at(edge)});
-  auto modelPlan = emittedPlan;
-  RuntimeVariantRecord runtime;
-  runtime.gemms = readRuntimeGemms(module,
-                                   arrayField(modelPlan, "gemms").size());
   runtime.dependencies = std::move(dependencies);
   auto dependency_ops = module.getOps<dialect::CouplingOp>();
   if (std::any_of(dependency_ops.begin(), dependency_ops.end(),
