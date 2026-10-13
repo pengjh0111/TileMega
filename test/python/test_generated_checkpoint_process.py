@@ -88,15 +88,25 @@ class GeneratedCheckpointProcessTest(unittest.TestCase):
             original = json.dumps(record)
             (previous / 'inputs.json').write_text(original)
             args = SimpleNamespace(reuse_inputs=previous, out=out, labels='nafnet',
-                dnn_batch=1, nvcc_timeout_s=28800, nvcc_split_compile=3, nvcc_diagnostics=True)
+                dnn_batch=1, fresh_processes=5, nvcc_timeout_s=28800, nvcc_split_compile=3, nvcc_diagnostics=True)
             with patch.object(checkpoint, 'validate'):
                 checkpoint.reuse_inputs(args)
             result = json.loads((out / 'inputs.json').read_text())
             self.assertEqual(result['cases'][0]['batch'], 1)
+            self.assertEqual(result['cases'][0]['processes'], 5)
             self.assertEqual(result['source_sha256'], record['source_sha256'])
             self.assertEqual(result['compiler_sha256'], record['compiler_sha256'])
             self.assertEqual((previous / 'inputs.json').read_text(), original)
             self.assertFalse((out / 'nafnet/plan.so').exists())
+
+    def test_fresh_process_count_is_validated_before_changing_cases(self):
+        cases = [dict(processes=1)]
+        for count in (0, -1, True, 1.5):
+            with self.subTest(count=count), self.assertRaises(ValueError):
+                checkpoint.set_fresh_processes(cases,count)
+            self.assertEqual(cases,[dict(processes=1)])
+        checkpoint.set_fresh_processes(cases,None)
+        self.assertEqual(cases,[dict(processes=1)])
 
     def test_timeout_reaps_compiler_descendants(self):
         with tempfile.TemporaryDirectory() as directory:

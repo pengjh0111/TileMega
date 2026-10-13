@@ -49,6 +49,15 @@ def sha(path):
     return h.hexdigest()
 
 
+def set_fresh_processes(cases, count):
+    if count is None:
+        return
+    if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+        raise ValueError('fresh process count must be a positive integer')
+    for case in cases:
+        case['processes'] = count
+
+
 def execute(command, cwd, folder, label, timeout=1800):
     (folder / (label + '.command.json')).write_text(json.dumps(command) + '\n')
     with (folder / (label + '.log')).open('w') as stream:
@@ -110,6 +119,7 @@ def prepare(args):
         cases = [case for case in cases if case['label'] in selected]
         if {case['label'] for case in cases} != selected:
             raise ValueError('unknown generated checkpoint labels')
+    set_fresh_processes(cases, getattr(args, 'fresh_processes', None))
     for case in cases:
         folder = out / case['label']
         folder.mkdir()
@@ -168,6 +178,7 @@ def reuse_inputs(args):
         for case in cases:
             if case.get('kind') == 'dnn':
                 case['batch'] = args.dnn_batch
+    set_fresh_processes(cases, getattr(args, 'fresh_processes', None))
     out.mkdir(parents=True)
     for name in ('source.json', 'source.json.patch', 'target.json'):
         if (previous / name).exists():
@@ -295,6 +306,8 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--case')
     parser.add_argument('--process', type=int, default=0)
+    parser.add_argument('--fresh-processes', type=int,
+                        help='bind the number of fresh numerical processes at preparation')
     parser.add_argument('--root', type=Path)
     parser.add_argument('--compiler', type=Path)
     parser.add_argument('--target', type=Path)
