@@ -619,9 +619,10 @@ __device__ inline void TraceReducer(Params const& p,unsigned reducer,unsigned re
 #if TILEMEGA_DM_REDUCTIONS
 template<bool L2>
 __device__ inline void CompleteDmPaged(Params const& p,unsigned stage,unsigned task,
-    char* work,EventCounter* events,unsigned long long iteration) {
+    char* work,EventCounter* events,unsigned long long iteration,Ring const& ring) {
   RunDmReductions<PageArch,L2>(p,stage,task,work,iteration,
-      [&](unsigned reducer,unsigned target){Publish(p,events,reducer,target,iteration);});
+      [&](unsigned reducer,unsigned target){Publish(p,events,reducer,target,iteration);},
+      ring.SharedLastFlag());
 }
 #endif
 template<bool Loader,bool L2>
@@ -711,7 +712,7 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& i
             ring.SharedLastFlag());
 #endif
 #if TILEMEGA_DM_REDUCTIONS
-        if(last)CompleteDmPaged<L2>(p,s.handoff_reduce_stage,point.tile,work,events,iteration);
+        if(last)CompleteDmPaged<L2>(p,s.handoff_reduce_stage,point.tile,work,events,iteration,ring);
 #endif
         if constexpr(L2)if(last) {
           Publish(p,events,s.handoff_reduce_stage,point.tile,iteration);
@@ -1001,7 +1002,7 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
       Task<Loader,L2>(p,task.stage,task.logical_task,ring,sequence,work,
           events,iteration,step_ns,step,Loader?&lookahead:nullptr);
 #if TILEMEGA_DM_REDUCTIONS
-      if constexpr(!Loader)CompleteDmPaged<L2>(p,task.stage,task.logical_task,work,events,iteration);
+      if constexpr(!Loader)CompleteDmPaged<L2>(p,task.stage,task.logical_task,work,events,iteration,ring);
 #endif
 #if TILEMEGA_TRACE_V2
       if constexpr(!Loader)if(ComputeThread()==0 && p.task_trace_v2) {
@@ -1035,7 +1036,7 @@ __device__ void Execute(Params const& p,EventCounter* events,unsigned long long 
                   Task<Loader,L2>(p,stage,task,ring,sequence,work,events,iteration,
               step_ns,step,Loader?&lookahead:nullptr);
 #if TILEMEGA_DM_REDUCTIONS
-              if constexpr(!Loader)CompleteDmPaged<L2>(p,stage,task,work,events,iteration);
+              if constexpr(!Loader)CompleteDmPaged<L2>(p,stage,task,work,events,iteration,ring);
 #endif
               if constexpr(!Loader)ComputeSync();
         }

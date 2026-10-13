@@ -8,10 +8,14 @@ constexpr unsigned kGroups=8,kProducers=4,kElements=256;
 __host__ __device__ unsigned Weight(unsigned producer,bool weighted) {
   return weighted ? (producer ? 2*producer+1 : 0) : 1;
 }
+template<bool DynamicFlag>
 __global__ void EpochReduce(unsigned long long* tickets,unsigned long long* partials,
     unsigned long long* output,unsigned* callbacks,unsigned* errors,
     unsigned epoch,bool weighted) {
-  __shared__ unsigned last;
+  extern __shared__ __align__(1024) unsigned char control[];
+  unsigned* flag;
+  if constexpr(DynamicFlag)flag=reinterpret_cast<unsigned*>(control);
+  else {__shared__ unsigned last;flag=&last;}
   unsigned producer=blockIdx.x%kProducers,group=blockIdx.x/kProducers;
   unsigned contribution=Weight(producer,weighted),total=weighted?15:4;
   for(unsigned i=threadIdx.x;i<kElements;i+=blockDim.x)
@@ -26,14 +30,14 @@ __global__ void EpochReduce(unsigned long long* tickets,unsigned long long* part
     }
     if(threadIdx.x==0)atomicAdd(callbacks+group,1);
     // Real reducers reuse the shared task workspace for their own scratch.
-    if(threadIdx.x==0)last=0;
+    if(threadIdx.x==0)*flag=0;
   };
   bool won=weighted ? executor::EpochLastArriver::RunWeighted(
-      tickets+group,total,epoch,contribution,&last,reduce) :
-      executor::EpochLastArriver::Run(tickets+group,total,epoch,&last,reduce);
+      tickets+group,total,epoch,contribution,flag,reduce) :
+      executor::EpochLastArriver::Run(tickets+group,total,epoch,flag,reduce);
   if(!contribution && won && threadIdx.x==0)atomicAdd(errors,1);
   if(won && threadIdx.x==0)atomicAdd(callbacks+group,1);
-  if(executor::EpochLastArriver::RunWeighted(tickets+group,total,epoch,0,&last,
+  if(executor::EpochLastArriver::RunWeighted(tickets+group,total,epoch,0,flag,
        [&]{if(threadIdx.x==0)atomicAdd(errors,1);}) && threadIdx.x==0)atomicAdd(errors,1);
 }
 template<class T>T* Allocate(unsigned count) {
@@ -41,20 +45,25 @@ template<class T>T* Allocate(unsigned count) {
 }
 int main() {
   cudaDeviceProp properties;assert(cudaGetDeviceProperties(&properties,0)==cudaSuccess);
-  int resident=0;assert(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&resident,EpochReduce,128,0)==cudaSuccess);
+  int resident=0;assert(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&resident,EpochReduce<false>,128,0)==cudaSuccess);
   assert(kGroups*kProducers<=unsigned(resident*properties.multiProcessorCount));
-  auto* tickets=Allocate<unsigned long long>(2*2*kGroups);
+  assert(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&resident,EpochReduce<true>,128,1024)==cudaSuccess);
+  assert(kGroups*kProducers<=unsigned(resident*properties.multiProcessorCount));
+  cudaFuncAttributes attr;assert(cudaFuncGetAttributes(&attr,EpochReduce<true>)==cudaSuccess);
+  assert(attr.sharedSizeBytes==0);
+  auto* tickets=Allocate<unsigned long long>(2*2*2*kGroups);
   auto* partials=Allocate<unsigned long long>(kGroups*kProducers*kElements);
   auto* output=Allocate<unsigned long long>(kGroups*kElements);
-  auto* callbacks=Allocate<unsigned>(2*2*kGroups);auto* errors=Allocate<unsigned>(1);
-  assert(cudaMemset(tickets,0,2*2*kGroups*sizeof(*tickets))==cudaSuccess);
-  assert(cudaMemset(callbacks,0,2*2*kGroups*sizeof(*callbacks))==cudaSuccess);*errors=0;
-  for(bool weighted:{false,true})for(unsigned epoch=0;epoch<32;++epoch)
+  auto* callbacks=Allocate<unsigned>(2*2*2*kGroups);auto* errors=Allocate<unsigned>(1);
+  assert(cudaMemset(tickets,0,2*2*2*kGroups*sizeof(*tickets))==cudaSuccess);
+  assert(cudaMemset(callbacks,0,2*2*2*kGroups*sizeof(*callbacks))==cudaSuccess);*errors=0;
+  for(bool dynamic:{false,true})for(bool weighted:{false,true})for(unsigned epoch=0;epoch<32;++epoch)
     for(unsigned mode=0;mode<2;++mode) {
-      unsigned bank=(unsigned(weighted)*2+mode)*kGroups;
+      unsigned bank=(unsigned(dynamic)*4+unsigned(weighted)*2+mode)*kGroups;
       assert(cudaMemset(partials,0xff,kGroups*kProducers*kElements*sizeof(*partials))==cudaSuccess);
       assert(cudaMemset(output,0xff,kGroups*kElements*sizeof(*output))==cudaSuccess);
-      EpochReduce<<<kGroups*kProducers,128>>>(tickets+bank,partials,output,callbacks+bank,errors,epoch,weighted);
+      if(dynamic)EpochReduce<true><<<kGroups*kProducers,128,1024>>>(tickets+bank,partials,output,callbacks+bank,errors,epoch,weighted);
+      else EpochReduce<false><<<kGroups*kProducers,128>>>(tickets+bank,partials,output,callbacks+bank,errors,epoch,weighted);
       assert(cudaGetLastError()==cudaSuccess && cudaDeviceSynchronize()==cudaSuccess);
       assert(!*errors);
       for(unsigned group=0;group<kGroups;++group) {

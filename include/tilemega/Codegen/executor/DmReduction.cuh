@@ -24,7 +24,8 @@ struct DmReductionRunner : DmStageRunner<Arch> {
 };
 template<class Arch,bool L2,unsigned Depth=0,class Publish>
 __device__ void RunDmReductions(Params const& p,unsigned producer,unsigned task,
-    char* scratch,unsigned long long iteration,Publish const& publish) {
+    char* scratch,unsigned long long iteration,Publish const& publish,
+    unsigned* shared_last=nullptr) {
   auto const& view=p.dm_reductions;
   if(!view.stages)return;
   auto const& program=view.stages[producer];
@@ -32,7 +33,15 @@ __device__ void RunDmReductions(Params const& p,unsigned producer,unsigned task,
   if constexpr(Depth>=6) {asm volatile("trap;");return;}
   else {
     auto const& reducer=p.stages[program.target];
+#if TILEMEGA_PAGED
+    // PageLayout already reserves a flag outside the reusable task workspace.
+    // A separate static symbol adds a full alignment unit before the 1024-byte
+    // aligned dynamic page pool and can exceed the CTA's shared-memory limit.
+    if(!shared_last){asm volatile("trap;");return;}
+#else
     __shared__ unsigned last;
+    shared_last=&last;
+#endif
     auto arrive=[&](unsigned target,unsigned expected,unsigned contribution) {
       if(std::uint64_t(program.ticket_offset)+target>=view.ticket_count)
         asm volatile("trap;");
@@ -46,12 +55,14 @@ __device__ void RunDmReductions(Params const& p,unsigned producer,unsigned task,
           (std::size_t(L2)*p.stage_count+producer)*p.serving_handoff_ticket_stride+target;
 #endif
       bool completed=executor::EpochLastArriver::RunWeighted(
-          ticket,expected,iteration,contribution,&last,[&] {
+          ticket,expected,iteration,contribution,shared_last,[&] {
             DispatchDmStage(unsigned(reducer.kind),reducer.width,reducer.group,
                 DmReductionRunner<Arch>{{p,reducer,target,scratch}});
           });
       if(completed) {
-        RunDmReductions<Arch,L2,Depth+1>(p,program.target,target,scratch,iteration,publish);
+        // RunWeighted captures the decision in every compute lane before
+        // invoking a reducer; nested reducers may reuse the same flag.
+        RunDmReductions<Arch,L2,Depth+1>(p,program.target,target,scratch,iteration,publish,shared_last);
         if constexpr(L2)publish(program.target,target);
       }
     };
