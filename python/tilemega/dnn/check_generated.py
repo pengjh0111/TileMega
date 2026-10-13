@@ -95,6 +95,8 @@ def _diagnose(library, plan, module, arguments, bridge, destination,
     runtime = C.CDLL('/usr/local/cuda/lib64/libcudart.so')
     runtime.cudaMemcpy.argtypes = [C.c_void_p,C.c_void_p,C.c_size_t,C.c_int]
     runtime.cudaMemcpy.restype = C.c_int
+    from .local_pool_probe import PoolProbe
+    pool_probe = PoolProbe(bridge['nodes'])
     rows = []
     for index,buffer in enumerate(library.buffers):
         reference_name = terminal.get(buffer.name)
@@ -131,6 +133,7 @@ def _diagnose(library, plan, module, arguments, bridge, destination,
                 actual_shape=list(value.shape),reference_shape=list(reference.shape)))
             continue
         value=value.reshape_as(reference).float()
+        pool_probe.observe(reference_name, value)
         cosine=torch.nn.functional.cosine_similarity(value.flatten(1),reference.flatten(1),dim=1)
         rows.append(dict(buffer=buffer.name,reference=reference_name,graph_order=order[reference_name],
             per_batch=intermediate_metrics(value,reference,bf16_reference),cosine_min=cosine.min().item(),
@@ -143,6 +146,7 @@ def _diagnose(library, plan, module, arguments, bridge, destination,
         bridge_digest=digest(bridge),
         materialized_buffers=materialized,
         excluded_unwritten_buffers=sorted(names-materialized.keys()),
+        local_pool_checks=pool_probe.report(),
         buffers=rows),indent=2)+'\n')
 
 
