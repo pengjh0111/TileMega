@@ -1089,9 +1089,6 @@ if(TILEMEGA_BUILD_EXPERIMENTAL)
   add_executable(tilemega-flow-point tools/experimental/tilemega-flow-point.cpp)
   target_link_libraries(tilemega-flow-point PRIVATE TileMega::tilemega MLIRParser)
   set_target_properties(tilemega-flow-point PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-  add_executable(tilemega-r9-early docs/experiments/SOLVER_R9B/early_signal.cpp)
-  target_link_libraries(tilemega-r9-early PRIVATE TileMega::tilemega)
-  set_target_properties(tilemega-r9-early PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
   add_executable(tilemega-shape-probe tools/experimental/tilemega-shape-probe.cpp)
   target_link_libraries(tilemega-shape-probe PRIVATE TileMega::tilemega)
   target_compile_definitions(tilemega-shape-probe PRIVATE
@@ -1133,18 +1130,6 @@ if(TILEMEGA_BUILD_EXPERIMENTAL)
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
   target_link_libraries(tilemega-task-cost-gate PRIVATE TileMega::tilemega)
   set_target_properties(tilemega-task-cost-gate PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-  add_executable(tilemega-simulate docs/experiments/SIMULATOR/simulate.cpp)
-  target_link_libraries(tilemega-simulate PRIVATE TileMega::tilemega)
-  set_target_properties(tilemega-simulate PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-  add_executable(tilemega-place-eft docs/experiments/PLACE_EFT/place_eft.cpp)
-  target_link_libraries(tilemega-place-eft PRIVATE TileMega::tilemega)
-  set_target_properties(tilemega-place-eft PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-  add_executable(tilemega-place-chain docs/experiments/CHAIN/place_chain.cpp)
-  target_link_libraries(tilemega-place-chain PRIVATE TileMega::tilemega)
-  set_target_properties(tilemega-place-chain PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
   target_link_libraries(tilemega-task-work-gate PRIVATE TileMega::tilemega)
   set_target_properties(tilemega-task-work-gate PROPERTIES
