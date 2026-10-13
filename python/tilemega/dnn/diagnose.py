@@ -13,6 +13,44 @@ from tilemega.build.identity import digest, verify
 from .gates import BF16_ERROR_FACTOR
 
 
+def reference_aliases(nodes, buffer_names, captured_names):
+    """Resolve surviving fused outputs, proving SimpleGate's paired halves."""
+    aliases, terminal, chunks, halves = {}, {}, {}, {}
+    order = {node['name']: index for index, node in enumerate(nodes)}
+    unary = {'batch_norm', '_native_batch_norm_legit_no_training', 'relu', 'relu_',
+             'hardtanh', 'hardtanh_', 'view', 'reshape', 'flatten', 'dropout',
+             'clone', 'contiguous', 'tanh', 'gelu', 'silu'}
+    for node in nodes:
+        name, target = node['name'], node['target']
+        op = target.split('.')[1] if target.startswith('aten.') else ''
+        inputs = node.get('inputs', [])
+        args = node.get('args', {}).get('v', [])
+        if op == 'chunk' and len(args) >= 3 and inputs:
+            if args[1] == {'t':'int','v':2} and args[2] == {'t':'int','v':1}:
+                chunks[name] = inputs[0]
+        if target in {'operator.getitem','<built-in function getitem>'} and inputs:
+            if inputs[0] in chunks and len(args) == 2 and args[1].get('t') == 'int':
+                halves[name] = (inputs[0], args[1]['v'])
+        if name in buffer_names:
+            aliases[name] = name
+        elif (op in unary or target == 'operator.getitem') and inputs:
+            if inputs[0] in aliases:
+                aliases[name] = aliases[inputs[0]]
+        elif op in {'add','add_'}:
+            sources = [aliases[source] for source in inputs if source in aliases]
+            if sources:
+                aliases[name] = max(sources, key=lambda source: order.get(source,-1))
+        elif op == 'mul' and len(inputs) == 2 and all(source in halves for source in inputs):
+            left, right = (halves[source] for source in inputs)
+            if left[0] == right[0] and {left[1],right[1]} == {0,1}:
+                source = chunks[left[0]]
+                if source in aliases:
+                    aliases[name] = aliases[source]
+        if name in aliases and name in captured_names:
+            terminal[aliases[name]] = name
+    return terminal
+
+
 def summarize(intermediates, bridge):
     nodes = {node['name']: (index, node['target'])
              for index, node in enumerate(bridge['nodes'])}

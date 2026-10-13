@@ -2,10 +2,29 @@ import copy
 import unittest
 
 from tilemega.build.identity import digest
-from tilemega.dnn.diagnose import check_binding, summarize
+from tilemega.dnn.diagnose import check_binding, reference_aliases, summarize
 
 
 class DnnDiagnose(unittest.TestCase):
+    def test_simple_gate_maps_to_the_fused_half_width_output(self):
+        def node(name, target, inputs=(), args=()):
+            return dict(name=name,target=target,inputs=list(inputs),args=dict(t='list',v=list(args)))
+        integer=lambda value:dict(t='int',v=value)
+        nodes=[node('conv','aten.conv2d.default'),
+               node('halves','aten.chunk.default',['conv'],[{},integer(2),integer(1)]),
+               node('left','<built-in function getitem>',['halves'],[{},integer(0)]),
+               node('right','<built-in function getitem>',['halves'],[{},integer(1)]),
+               node('gate','aten.mul.Tensor',['left','right'])]
+        self.assertEqual(reference_aliases(nodes,{'conv'},{'conv','gate'}),{'conv':'gate'})
+        for change in ('same_half','batch_split','other_source','unrelated_multiply'):
+            invalid=copy.deepcopy(nodes)
+            if change=='same_half':invalid[3]['args']['v'][1]=integer(0)
+            if change=='batch_split':invalid[1]['args']['v'][2]=integer(0)
+            if change=='other_source':invalid[3]['inputs']=['different_chunk']
+            if change=='unrelated_multiply':invalid[4]['inputs']=['conv','right']
+            with self.subTest(change=change):
+                self.assertEqual(reference_aliases(invalid,{'conv'},{'conv','gate'}),{'conv':'conv'})
+
     def fixture(self):
         bridge = dict(nodes=[dict(name='a', target='conv'), dict(name='b', target='gate')])
         def sample(batch, tm, bf16):

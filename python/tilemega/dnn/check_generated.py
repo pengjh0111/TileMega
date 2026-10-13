@@ -81,26 +81,10 @@ def _diagnose(library, plan, module, arguments, bridge, destination,
     Capture(bf16_module).run(*bf16_arguments)
     captured_bf16=captured
     captured=captured_fp32
-    aliases, terminal = {}, {}
     names = {buffer.name for buffer in library.buffers}
     order = {node['name']: index for index,node in enumerate(bridge['nodes'])}
-    unary = {'batch_norm', '_native_batch_norm_legit_no_training', 'relu', 'relu_',
-             'hardtanh', 'hardtanh_', 'view', 'reshape', 'flatten', 'dropout',
-             'clone', 'contiguous', 'tanh', 'gelu', 'silu'}
-    for node in bridge['nodes']:
-        name = node['name']; op = node['target'].split('.')[1] if node['target'].startswith('aten.') else ''
-        if name in names:
-            aliases[name] = name
-        elif (op in unary or node['target'] == 'operator.getitem') and node['inputs']:
-            source = node['inputs'][0]
-            if source in aliases:
-                aliases[name] = aliases[source]
-        elif op in {'add','add_'}:
-            sources = [aliases[source] for source in node['inputs'] if source in aliases]
-            if sources:
-                aliases[name] = max(sources, key=lambda source:order.get(source,-1))
-        if name in aliases and name in captured:
-            terminal[aliases[name]] = name
+    from .diagnose import reference_aliases
+    terminal = reference_aliases(bridge['nodes'], names, captured)
     accessor = library.lib.tm_dm_debug_buffer
     accessor.argtypes = [C.c_void_p,C.c_uint32,C.POINTER(C.c_uint64)]
     accessor.restype = C.c_void_p
