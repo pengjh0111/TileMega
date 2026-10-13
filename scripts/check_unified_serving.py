@@ -318,6 +318,9 @@ def bind_identities(out):
     built = json.loads((out / 'build.json').read_text())
     sources = {}
     for label, item in record['trees'].items():
+        original_compiler = built['trees'][label].get('compiler_sha256')
+        if not original_compiler or sha(item['compiler']) != original_compiler:
+            raise ValueError('regression compiler changed before identity capture')
         path = out / ('identity_source_' + label + '.json')
         snapshot(item['root'], path, item['compiler'])
         sources[label] = path

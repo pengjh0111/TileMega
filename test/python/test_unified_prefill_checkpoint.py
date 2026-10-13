@@ -21,9 +21,11 @@ class PrefillCheckpointTest(unittest.TestCase):
             Path(str(so)+'.cu').write_text('source')
             row=dict(so=str(so),variant='reference',so_sha256=unified.sha(so),
                      cu_sha256=unified.sha(str(so)+'.cu'))
-            (root/'build.json').write_text(json.dumps(dict(plans=[row])))
+            compiler=root/'compiler';compiler.write_bytes(b'compiler')
+            (root/'build.json').write_text(json.dumps(dict(plans=[row],
+                trees={'reference':dict(compiler_sha256=unified.sha(compiler))})))
             so.write_bytes(b'replaced')
-            record=dict(trees={'reference':dict(root=str(root),compiler='compiler')})
+            record=dict(trees={'reference':dict(root=str(root),compiler=str(compiler))})
             with patch.object(unified,'validate',return_value=record), patch(
                     'tilemega.build.identity.snapshot'), patch('tilemega.build.identity.generate') as generate:
                 with self.assertRaisesRegex(ValueError,'artifact changed'):
