@@ -59,7 +59,7 @@ def intermediate_metrics(actual,fp32,bf16):
 
 @torch.inference_mode()
 def _diagnose(library, plan, module, arguments, bridge, destination,
-              bf16_module, bf16_arguments):
+              bf16_module, bf16_arguments, local_through=None):
     """Copy test-only native intermediates and compare untouched FX values.
 
     The optional accessor is appended to a separate diagnostic CUDA artifact;
@@ -86,6 +86,9 @@ def _diagnose(library, plan, module, arguments, bridge, destination,
     materialized = materialized_buffers(Path(str(library.path) + '.cu').read_text(), manifest)
     names = {buffer.name for buffer in library.buffers}
     order = {node['name']: index for index,node in enumerate(bridge['nodes'])}
+    if local_through is not None and local_through not in order:
+        raise ValueError('unknown local diagnostic endpoint: ' + local_through)
+    native_boundaries = {}
     from .diagnose import reference_aliases
     parameters = {row['name'] for row in bridge['signature']['inputs'] if row['kind'] == 'PARAMETER'}
     terminal = reference_aliases(bridge['nodes'], set(materialized), captured, parameters)
@@ -134,12 +137,19 @@ def _diagnose(library, plan, module, arguments, bridge, destination,
             continue
         value=value.reshape_as(reference).float()
         pool_probe.observe(reference_name, value)
+        if local_through is not None and order[reference_name]<=order[local_through]:
+            native_boundaries[reference_name]=value.detach().cpu().clone()
         cosine=torch.nn.functional.cosine_similarity(value.flatten(1),reference.flatten(1),dim=1)
         rows.append(dict(buffer=buffer.name,reference=reference_name,graph_order=order[reference_name],
             per_batch=intermediate_metrics(value,reference,bf16_reference),cosine_min=cosine.min().item(),
             token_cosine_min=torch.nn.functional.cosine_similarity(value,reference,dim=-1).min().item(),
             max_error=(value-reference).abs().max().item(),reference_max=reference.abs().max().item()))
     rows.sort(key=lambda row:order[row['reference']])
+    local = None
+    if local_through is not None:
+        from .local_replay import local_replay
+        local=local_replay(module,arguments,bf16_module,bf16_arguments,
+                           native_boundaries,local_through)
     destination.write_text(json.dumps(dict(evidence='verified',
         scope='diagnostic surviving buffers against FP32 and BF16; use --reuse none to retain all stage outputs',
         artifact_id=identity['artifact_id'], binary_sha256=identity['binary_sha256'],
@@ -147,6 +157,7 @@ def _diagnose(library, plan, module, arguments, bridge, destination,
         materialized_buffers=materialized,
         excluded_unwritten_buffers=sorted(names-materialized.keys()),
         local_pool_checks=pool_probe.report(),
+        local_replay=local,
         buffers=rows),indent=2)+'\n')
 
 
@@ -170,7 +181,9 @@ def output_metrics(actual,fp32,bf16,*,restoration=False,elementwise=False):
 
 
 def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics=None,
-          input_tensors=None,elementwise=False,synthetic_weights=False):
+          input_tensors=None,elementwise=False,synthetic_weights=False,local_through=None):
+    if local_through is not None and diagnostics is None:
+        raise ValueError('local replay requires a diagnostic output path')
     torch.set_num_threads(4); torch.manual_seed(20261009)
     torch.backends.cuda.matmul.allow_tf32 = False
     export_dir, bridge_path = Path(export_dir), Path(bridge_path)
@@ -269,7 +282,7 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics
                 plan.launch(0, mode, torch.cuda.current_stream().cuda_stream)
                 torch.cuda.synchronize()
                 if diagnostics is not None and epoch == 0 and mode == 1:
-                    _diagnose(library,plan,oracle,fp32_arguments,bridge,diagnostics,module,cpu_arguments)
+                    _diagnose(library,plan,oracle,fp32_arguments,bridge,diagnostics,module,cpu_arguments,local_through)
                 row = dict(epoch=epoch, mode=mode, outputs=[])
                 for name, fp32, bf16 in zip(outputs, expected_fp32, expected_bf16):
                     actual = tensors[name].float()
@@ -313,10 +326,11 @@ def main():
         help='test-only intermediate receipt; requires the separate diagnostic accessor')
     parser.add_argument('--input-tensors',type=Path,
         help='identified safetensors inputs for an additional smoke diagnostic')
+    parser.add_argument('--local-through', help='replay from native stage inputs through this FX node')
     args = parser.parse_args()
     result = check(args.library, args.export, args.bridge, args.batch,diagnostics=args.diagnostics,
                    input_tensors=args.input_tensors,elementwise=args.elementwise,
-                   synthetic_weights=args.synthetic_weights)
+                   synthetic_weights=args.synthetic_weights,local_through=args.local_through)
     args.out.write_text(json.dumps(result, indent=2)+'\n')
     print(json.dumps(result), flush=True)
 
