@@ -419,7 +419,9 @@ std::string emitDmGemmBindings(mlir::DictionaryAttr plan,
       auto const& gemm = variant.gemms[i];
       auto& mask = roles[{i, gemm.compiled_variant}];
       if (fused.count(i)) mask |= 4;
-      else if (gemm.split_k == 1) mask |= 1;
+      // Create caps split by the number of K tiles (including im2col's
+      // physical iteration). Even a requested split can execute unsplit.
+      else mask |= 1;
       if (gemm.split_k > 1) mask |= 2;
     }
   std::ostringstream out;

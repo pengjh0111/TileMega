@@ -96,6 +96,8 @@ int TestDnnMemoryCodegen(int argc,char** argv) {
     fields.set("split_k",builder.getI64IntegerAttr(2));
     entries[1]=fields.getDictionary(&context);
     (*other)->setAttr("tilemega.gemm_runtime",builder.getArrayAttr(entries));
+    auto split_source=CouplingGraphToCUDA{}.Lower(*other);
+    assert(split_source.find("DmGemmBinding<1, 1> { static constexpr unsigned roles = 3u;")!=std::string::npos);
     auto combined=CouplingGraphToCUDA{}.LowerVariants({{*alternate,1,6},{*other,7,7}});
     assert(combined.find("DmGemmBinding<1, 1> { static constexpr unsigned roles = 3u;")!=std::string::npos);
     std::ofstream(std::string(argv[2])+".union.cu")<<combined;
