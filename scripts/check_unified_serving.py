@@ -311,6 +311,39 @@ def execution_pair(record, case, row):
     return matches[0]['so'], row['so']
 
 
+def bind_identities(out):
+    """Attach missing metadata after checking the original frozen build inputs."""
+    from tilemega.build.identity import generate, snapshot, verify
+    record = validate(out)
+    built = json.loads((out / 'build.json').read_text())
+    sources = {}
+    for label, item in record['trees'].items():
+        path = out / ('identity_source_' + label + '.json')
+        snapshot(item['root'], path, item['compiler'])
+        sources[label] = path
+    receipts = []
+    for row in built['plans']:
+        so = Path(row['so'])
+        if sha(so) != row['so_sha256'] or sha(str(so)+'.cu') != row['cu_sha256']:
+            raise ValueError('regression artifact changed before identity capture')
+        command = json.loads((so.parent / 'nvcc_command.json').read_text())
+        command_path = Path(str(so)+'.build_command.txt')
+        text = shlex.join(command) + '\n'
+        if command_path.exists() and command_path.read_text() != text:
+            raise ValueError('recorded regression build command differs')
+        command_path.write_text(text)
+        identity_path = Path(str(so)+'.identity.json')
+        if identity_path.exists():
+            identity = verify(so)
+        else:
+            identity = generate(so, record['trees'][row['variant']]['root'], sources[row['variant']])
+        receipts.append(dict(so=str(so), artifact_id=identity['artifact_id']))
+    (out / 'identity_binding.json').write_text(json.dumps(dict(evidence='verified',
+        scope='metadata recovery from unchanged frozen sources and original build commands',
+        plans=receipts),indent=2)+'\n')
+    print(f'Bound canonical identities to {len(receipts)} unchanged regression artifacts')
+
+
 def run(out):
     if os.environ.get('TILEMEGA_GPU_LOCK_HELD') != '1':
         raise RuntimeError('numerical regression requires the bench guard')
@@ -370,7 +403,7 @@ def run_one(out, cell, so, tokens, prefill_so=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('prepare', 'build', 'run', 'run-one'))
+    parser.add_argument('action', choices=('prepare', 'build', 'bind-identities', 'run', 'run-one'))
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--work', type=Path, default=Path('/root/r15_work/unification'))
     parser.add_argument('--registry-dir', type=Path, help='external historical build/arm registries')
@@ -400,6 +433,8 @@ def main():
         build(out)
     elif args.action == 'run':
         run(out)
+    elif args.action == 'bind-identities':
+        bind_identities(out)
     else:
         if not args.cell or not args.so or not args.tokens:
             parser.error('run-one requires --cell, --so and --tokens')

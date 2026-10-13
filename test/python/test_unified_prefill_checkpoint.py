@@ -15,6 +15,21 @@ spec.loader.exec_module(unified)
 
 
 class PrefillCheckpointTest(unittest.TestCase):
+    def test_identity_recovery_rejects_a_changed_binary(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);so=root/'plan.so';so.write_bytes(b'original')
+            Path(str(so)+'.cu').write_text('source')
+            row=dict(so=str(so),variant='reference',so_sha256=unified.sha(so),
+                     cu_sha256=unified.sha(str(so)+'.cu'))
+            (root/'build.json').write_text(json.dumps(dict(plans=[row])))
+            so.write_bytes(b'replaced')
+            record=dict(trees={'reference':dict(root=str(root),compiler='compiler')})
+            with patch.object(unified,'validate',return_value=record), patch(
+                    'tilemega.build.identity.snapshot'), patch('tilemega.build.identity.generate') as generate:
+                with self.assertRaisesRegex(ValueError,'artifact changed'):
+                    unified.bind_identities(root)
+                generate.assert_not_called()
+
     def test_preparation_uses_each_r14_prefill_not_old_decode_fixture_prefill(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
