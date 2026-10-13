@@ -6,10 +6,11 @@
 namespace tilemega::codegen {
 inline DmReductionPlan BuildDmReductionPlan(std::vector<StageDesc>& stages,
     std::vector<StageDependency> const& dependencies,std::vector<unsigned> const& tasks,
-    RuntimeDependencyInterval const* intervals,bool pooling,bool moe,unsigned moe_mask=3) {
+    RuntimeDependencyInterval const* intervals,bool pooling,bool moe,unsigned moe_mask=3,
+    unsigned max_depth=6) {
   auto visit=[&](auto const& dep,unsigned c,unsigned p,auto const& callback) {
     return VisitStageDependencyIntervals(dep,intervals,c,p,callback);
   };
-  return BuildDmReductionProof(stages,dependencies,tasks,visit,pooling,moe,moe_mask);
+  return BuildDmReductionProof(stages,dependencies,tasks,visit,pooling,moe,moe_mask,max_depth);
 }
 } // namespace tilemega::codegen

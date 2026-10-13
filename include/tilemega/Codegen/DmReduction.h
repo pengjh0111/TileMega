@@ -2,6 +2,10 @@
 #pragma once
 #include <cstdint>
 
+#ifndef TILEMEGA_DM_REDUCTION_DEPTH
+#define TILEMEGA_DM_REDUCTION_DEPTH 6
+#endif
+
 namespace tilemega::codegen {
 struct DmReductionArrival {
   std::uint32_t task=0,expected=0;

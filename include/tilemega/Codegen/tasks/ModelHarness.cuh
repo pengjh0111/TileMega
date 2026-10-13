@@ -3429,7 +3429,8 @@ inline DeviceModel Create(ModelSpec const& spec,
   std::vector<unsigned> dm_task_counts;
   for(unsigned i=0;i<model.stages.size();++i)dm_task_counts.push_back(active_tasks(i));
   auto dm_reductions=BuildDmReductionPlan(model.stages,dependencies,dm_task_counts,
-      runtime_variant.dependency_intervals,TILEMEGA_DM_POOL_LA,TILEMEGA_DM_MOE_LA,TILEMEGA_DM_MOE_LA_MASK);
+      runtime_variant.dependency_intervals,TILEMEGA_DM_POOL_LA,TILEMEGA_DM_MOE_LA,TILEMEGA_DM_MOE_LA_MASK,
+      TILEMEGA_DM_REDUCTION_DEPTH);
   std::printf("DM_LAST_ARRIVER selected=%u tickets=%u\n",dm_reductions.selected,dm_reductions.tickets);
 #endif
 

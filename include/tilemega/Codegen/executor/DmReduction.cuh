@@ -30,7 +30,7 @@ __device__ void RunDmReductions(Params const& p,unsigned producer,unsigned task,
   if(!view.stages)return;
   auto const& program=view.stages[producer];
   if(program.target==kNoOperand)return;
-  if constexpr(Depth>=6) {asm volatile("trap;");return;}
+  if constexpr(Depth>=TILEMEGA_DM_REDUCTION_DEPTH) {asm volatile("trap;");return;}
   else {
     auto const& reducer=p.stages[program.target];
 #if TILEMEGA_PAGED

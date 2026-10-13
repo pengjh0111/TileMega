@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #define TILEMEGA_DM_SUPPORT 1
 #include <tilemega/Codegen/DmReductionPlan.h>
+#include <tilemega/Codegen/DmReductionDepth.h>
 #include <cassert>
 
 using namespace tilemega::codegen;
@@ -8,6 +9,23 @@ StageDesc Stage(TaskKind kind) {StageDesc stage{};stage.kind=kind;return stage;}
 StageDependency All(unsigned p,unsigned c) {return {p,c,StageDependency::Map::kAll,1,0,0,1};}
 StageDependency Identity(unsigned p,unsigned c) {return {p,c,StageDependency::Map::kWindow,1,1,0,1};}
 int main() {
+  {
+    using K=TaskKind;
+    assert(DmReductionDepthBound({K::kGemm,K::kGlobalPoolReduce,K::kGemm,K::kGlobalPoolReduce},
+        {{0,1},{1,2},{2,3}},1)==1);
+    assert(DmReductionDepthBound({K::kGemm,K::kMoETopK,K::kMoETopK,K::kMoETopK,K::kMoETopK},
+        {{0,1},{1,2},{2,3},{3,4},{1,4}},6)==4);
+    // Separate decoder layers do not add to the recursive reducer depth.
+    assert(DmReductionDepthBound({K::kGemm,K::kMoETopK,K::kMoETopK,K::kGemm,K::kMoETopK},
+        {{0,1},{1,2},{2,3},{3,4}},6)==2);
+    assert(DmReductionDepthBound({K::kMoETopK,K::kMoETopK},{{0,1}},4)==1);
+    for(auto edges:std::vector<std::vector<std::pair<unsigned,unsigned>>>{{{1,0}},{{0,2}}}) {
+      bool rejected=false;
+      try {DmReductionDepthBound({K::kGemm,K::kMoETopK},edges,6);}
+      catch(std::invalid_argument const&) {rejected=true;}
+      assert(rejected);
+    }
+  }
   {
     auto stages=std::vector<StageDesc>{Stage(TaskKind::kGemm),Stage(TaskKind::kGlobalPoolReduce)};
     RuntimeDependencyInterval rows[]={{0,2},{1,2}};
@@ -17,6 +35,9 @@ int main() {
     assert(stages[0].dm_reduce_stage==1 && plan.arrivals.size()==4);
     assert(plan.offsets[0]==0 && plan.offsets[1]==1 && plan.offsets[2]==3 && plan.offsets[3]==4);
     for(auto a:plan.arrivals)assert(a.expected==2);
+    stages[0].dm_reduce_stage=kDmNoIndex;stages[1].handoff_elided=false;
+    auto bounded=BuildDmReductionPlan(stages,{dep},{3,2},rows,true,true,3,1);
+    assert(bounded.selected==plan.selected && bounded.arrivals.size()==plan.arrivals.size());
   }
   {
     auto stages=std::vector<StageDesc>{Stage(TaskKind::kGemm),Stage(TaskKind::kMoETopK),
@@ -27,6 +48,14 @@ int main() {
         All(3,4),Identity(1,4)},{2,2,2,1,2},nullptr,false,true);
     assert(plan.selected==4);
     for(unsigned i=1;i<5;++i)assert(stages[i].handoff_elided && stages[i-1].dm_reduce_stage==i);
+    for(auto& stage:stages){stage.handoff_elided=false;stage.dm_reduce_stage=kDmNoIndex;}
+    bool rejected=false;
+    try {BuildDmReductionPlan(stages,{Identity(0,1),Identity(1,2),All(2,3),
+        All(3,4),Identity(1,4)},{2,2,2,1,2},nullptr,false,true,3,3);}
+    catch(std::invalid_argument const& e) {
+      rejected=std::string(e.what()).find("compiled device depth")!=std::string::npos;
+    }
+    assert(rejected);
   }
   {
     auto stages=std::vector<StageDesc>{Stage(TaskKind::kGemm),Stage(TaskKind::kMoETopK),

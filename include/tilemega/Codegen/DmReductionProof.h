@@ -25,7 +25,7 @@ struct DmReductionPlan {
 template<class Stage,class Dependency,class Visit>
 DmReductionPlan BuildDmReductionProof(std::vector<Stage>& stages,
     std::vector<Dependency> const& dependencies,std::vector<unsigned> const& tasks,
-    Visit const& visit,bool pooling,bool moe,unsigned moe_mask=3) {
+    Visit const& visit,bool pooling,bool moe,unsigned moe_mask=3,unsigned max_depth=6) {
   using Map=typename Dependency::Map;
   if(stages.size()!=tasks.size())throw std::invalid_argument("DM reduction task counts differ");
   using Row=std::vector<RuntimeWindowBounds>;
@@ -153,7 +153,7 @@ DmReductionPlan BuildDmReductionProof(std::vector<Stage>& stages,
     unsigned depth=0,s=source;
     while(result.stages[s].target!=kDmNoIndex) {
       s=result.stages[s].target;
-      if(++depth>6)throw std::invalid_argument("DM reduction chain exceeds device depth");
+      if(++depth>max_depth)throw std::invalid_argument("DM reduction chain exceeds compiled device depth");
     }
   }
   return result;
