@@ -103,6 +103,16 @@ class MoeWeights(unittest.TestCase):
             self.assertEqual(len(calls),11 if part=='gate_up' else 5)
             gc.collect();self.assertTrue(all(item() is None for item in live))
 
+    def test_padded_expert_k_tail(self):
+        recipe = self.recipe('down',(128,128))
+        expected = torch.zeros((5,128,128),dtype=torch.bfloat16)
+        expected[:,:,:64] = self.reference('down')
+        packed = _packed_cpu(recipe,Source(self.values))
+        self.assertEqual(packed.numel(),5*128*128)
+        self.assertTrue(torch.equal(self.untile(packed,128,128,128,128),expected))
+        self.assertTrue(torch.equal(packed,_packed_gpu(recipe,self.values.__getitem__)))
+        self.assertEqual(len(_recipe_sources(recipe)),5)
+
     def test_shared_deployment_and_legacy_aliases(self):
         recipes = dict(gate_up=self.recipe('gate_up',(32,32),True), down=self.recipe('down',(32,32)),
             router=dict(kind='fold_rmsnorm', norm=self.norm,

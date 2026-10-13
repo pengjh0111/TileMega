@@ -35,9 +35,10 @@ def _parts(recipe):
     n,k = (2*intermediate,hidden) if part == 'gate_up' else (hidden,intermediate)
     if tile is not None:
         tn,tk = tile
-        if tn <= 0 or tk not in (16,32,64,128) or n % tn or k % tk or \
+        if tn <= 0 or tk not in (16,32,64,128) or n % tn or \
                 (part == 'gate_up' and tn % (2*unit)):
-            raise ValueError('expert page tiles must divide the expert and own complete gate pairs')
+            raise ValueError('expert page tiles must divide output rows and own complete gate pairs')
+        # tile_pack zero-pads the K tail; codegen uses that padded expert stride.
     if not prefix or not prefix.endswith('.'):
         raise ValueError('expert prefix must end at the original experts namespace')
     return prefix,part,experts,hidden,intermediate,unit,norm,tile
