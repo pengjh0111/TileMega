@@ -81,10 +81,14 @@ def _diagnose(library, plan, module, arguments, bridge, destination,
     Capture(bf16_module).run(*bf16_arguments)
     captured_bf16=captured
     captured=captured_fp32
+    from .debug_buffers import materialized_buffers
+    manifest = json.loads(Path(str(library.path) + '.plan.json').read_text())
+    materialized = materialized_buffers(Path(str(library.path) + '.cu').read_text(), manifest)
     names = {buffer.name for buffer in library.buffers}
     order = {node['name']: index for index,node in enumerate(bridge['nodes'])}
     from .diagnose import reference_aliases
-    terminal = reference_aliases(bridge['nodes'], names, captured)
+    parameters = {row['name'] for row in bridge['signature']['inputs'] if row['kind'] == 'PARAMETER'}
+    terminal = reference_aliases(bridge['nodes'], set(materialized), captured, parameters)
     accessor = library.lib.tm_dm_debug_buffer
     accessor.argtypes = [C.c_void_p,C.c_uint32,C.POINTER(C.c_uint64)]
     accessor.restype = C.c_void_p
@@ -94,7 +98,7 @@ def _diagnose(library, plan, module, arguments, bridge, destination,
     rows = []
     for index,buffer in enumerate(library.buffers):
         reference_name = terminal.get(buffer.name)
-        if reference_name is None or buffer.dtype != 0:
+        if reference_name is None or buffer.dtype != 0 or buffer.name not in materialized:
             continue
         meta = (C.c_uint64*18)(); pointer = accessor(plan.handle,index,meta)
         kind,rank = meta[:2]; logical,physical = list(meta[2:6]),list(meta[6:10])
@@ -137,6 +141,8 @@ def _diagnose(library, plan, module, arguments, bridge, destination,
         scope='diagnostic surviving buffers against FP32 and BF16; use --reuse none to retain all stage outputs',
         artifact_id=identity['artifact_id'], binary_sha256=identity['binary_sha256'],
         bridge_digest=digest(bridge),
+        materialized_buffers=materialized,
+        excluded_unwritten_buffers=sorted(names-materialized.keys()),
         buffers=rows),indent=2)+'\n')
 
 

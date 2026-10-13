@@ -13,7 +13,7 @@ from tilemega.build.identity import digest, verify
 from .gates import BF16_ERROR_FACTOR
 
 
-def reference_aliases(nodes, buffer_names, captured_names):
+def reference_aliases(nodes, buffer_names, captured_names, parameters=()):
     """Resolve surviving fused outputs, proving SimpleGate's paired halves."""
     aliases, terminal, chunks, halves = {}, {}, {}, {}
     order = {node['name']: index for index, node in enumerate(nodes)}
@@ -40,6 +40,10 @@ def reference_aliases(nodes, buffer_names, captured_names):
             sources = [aliases[source] for source in inputs if source in aliases]
             if sources:
                 aliases[name] = max(sources, key=lambda source: order.get(source,-1))
+        elif op == 'mul' and len(inputs) == 2 and sum(source in parameters for source in inputs) == 1:
+            source = next(source for source in inputs if source not in parameters)
+            if source in aliases:
+                aliases[name] = aliases[source]
         elif op == 'mul' and len(inputs) == 2 and all(source in halves for source in inputs):
             left, right = (halves[source] for source in inputs)
             if left[0] == right[0] and {left[1],right[1]} == {0,1}:
@@ -113,9 +117,20 @@ def main(argv=None):
     intermediates = json.loads(args.intermediates.read_text())
     bridge = json.loads(args.bridge.read_text())
     check_binding(intermediates, bridge, identity)
+    from .debug_buffers import materialized_buffers
+    materialized = materialized_buffers(Path(str(args.library) + '.cu').read_text(), manifest)
+    parameters = {row['name'] for row in bridge['signature']['inputs'] if row['kind'] == 'PARAMETER'}
+    expected = reference_aliases(bridge['nodes'], set(materialized),
+                                 {node['name'] for node in bridge['nodes']}, parameters)
+    excluded = [row['buffer'] for row in intermediates['buffers'] if row['buffer'] not in materialized]
+    intermediates['buffers'] = [row for row in intermediates['buffers'] if row['buffer'] in materialized]
+    mismatches = [row['buffer'] for row in intermediates['buffers'] if expected.get(row['buffer']) != row['reference']]
+    if mismatches:
+        raise ValueError('diagnostic references precede fused outputs; recollect intermediates: ' + ', '.join(mismatches[:8]))
     result = summarize(intermediates, bridge)
     from tilemega.cache import file_sha
     result.update(artifact_id=identity['artifact_id'],
+                  materialized_buffers=materialized, excluded_unwritten_buffers=excluded,
                   intermediates_sha256=file_sha(args.intermediates),
                   bridge_sha256=file_sha(args.bridge))
     args.out.parent.mkdir(parents=True, exist_ok=True)
