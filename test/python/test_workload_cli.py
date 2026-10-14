@@ -7,12 +7,35 @@ from types import SimpleNamespace
 import unittest
 
 from tilemega.cache import export_key
-from tilemega.cli import DEFAULTS, expand_workloads, read_config
+from tilemega.cli import DEFAULTS, Run, expand_workloads, read_config
 from tilemega.serving.prepare_prompts import tokenize_passage
 from tilemega.serving.workload import validate_prompt_ids
 
 
 class WorkloadCLI(unittest.TestCase):
+    def test_report_accepts_execution_and_selection_metadata(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run = Run.__new__(Run)
+            run.out, run.model, run.events = root, root/'model', []
+            run.config = dict(workload={'batch': [1]}, test={'vllm': False})
+            pair = dict(serving={'decode_mode': 'L1', 'decode_loop': 0},
+                        decode_pg_choice={'selected': {'pg': 'pages'}})
+            for phase in ('prefill', 'decode'):
+                folder = root/phase
+                folder.mkdir()
+                (folder/'floor.json').write_text(json.dumps({'sum_floor_seconds': .1}))
+                pair[phase] = str(folder/'plan.so')
+            folder = root/'B1'/'tilemega'
+            folder.mkdir(parents=True)
+            (folder/'measurements.json').write_text(json.dumps(dict(e2e_seconds=1.,
+                ttft_seconds=.01, output_tokens_per_second=1024.,
+                tpot_mean_seconds=.001, tpot_p50_seconds=.001, tpot_p90_seconds=.002)))
+            run.report({'1': pair})
+            result = json.loads((root/'report.json').read_text())['cells'][0]
+            self.assertEqual(set(result['floors']), {'prefill', 'decode'})
+            self.assertEqual(result['e2e_over_floor'], 5.)
+
     def test_sweep_outputs_are_isolated_and_input_is_not_mutated(self):
         config=copy.deepcopy(DEFAULTS)
         config['workload'].update(points=[[64,1024],[128,2048]],capacity=4096)

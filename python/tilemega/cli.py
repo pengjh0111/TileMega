@@ -817,7 +817,9 @@ class Run:
         for batch in self.config['workload']['batch']:
             cell = self.out / f'B{batch}';pair = plans[str(batch)]
             tm = json.loads((cell / 'tilemega/measurements.json').read_text())
-            floors = {phase: json.loads((Path(so).parent / 'floor.json').read_text()) for phase, so in pair.items()}
+            # plans.json also carries selection records, not just library paths.
+            floors = {phase: json.loads((Path(pair[phase]).parent / 'floor.json').read_text())
+                      for phase in ('prefill', 'decode')}
             total = sum(f['sum_floor_seconds'] for f in floors.values())
             row = dict(batch=batch, tilemega=tm, floors=floors, sum_floor_seconds=total,
                        e2e_over_floor=tm['e2e_seconds'] / total)
