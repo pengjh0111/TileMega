@@ -24,7 +24,8 @@ def register(arm):
         if not path.is_file():
             raise FileNotFoundError(path)
         record = {'path': str(path), 'sha256': sha256(path)}
-        for suffix, key in (('.plan.json', 'manifest'), ('.identity.json', 'identity')):
+        for suffix, key in (('.plan.json', 'manifest'), ('.identity.json', 'identity'),
+                            ('.serving.json', 'serving')):
             sidecar = Path(str(path) + suffix)
             if sidecar.exists():
                 record[key] = json.loads(sidecar.read_text())
@@ -40,6 +41,7 @@ def check_binaries(arm):
         path = Path(arm[phase])
         if sha256(path) != record['sha256']:
             raise ValueError('binary changed after registration: ' + str(path))
-        for suffix, key in (('.plan.json', 'manifest'), ('.identity.json', 'identity')):
+        for suffix, key in (('.plan.json', 'manifest'), ('.identity.json', 'identity'),
+                            ('.serving.json', 'serving')):
             if key + '_sha256' in record and sha256(str(path) + suffix) != record[key + '_sha256']:
                 raise ValueError('metadata changed after registration: ' + str(path))
