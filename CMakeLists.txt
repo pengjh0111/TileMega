@@ -318,6 +318,10 @@ if(TILEMEGA_BUILD_TESTS)
   target_link_libraries(dm_reduction_plan_test PRIVATE TileMega::tilemega CUDA::cudart)
   target_compile_options(dm_reduction_plan_test PRIVATE -UNDEBUG)
   add_test(NAME dm_reduction_plan COMMAND dm_reduction_plan_test)
+  add_executable(moe_runtime_operands_test test/unit/moe_runtime_operands_test.cpp)
+  target_link_libraries(moe_runtime_operands_test PRIVATE TileMega::tilemega CUDA::cudart)
+  target_compile_options(moe_runtime_operands_test PRIVATE -UNDEBUG)
+  add_test(NAME moe_runtime_operands COMMAND moe_runtime_operands_test)
   add_executable(tilemega-unit test/unit/runner.cpp
     test/unit/target_spec_test.cpp
     test/unit/coupling_types_test.cpp

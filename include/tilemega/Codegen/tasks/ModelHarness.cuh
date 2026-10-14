@@ -62,6 +62,7 @@ static_assert(!TILEMEGA_PAGED && TILEMEGA_SLOT_WINDOW == 1 && !TILEMEGA_PREFETCH
 #include <tilemega/Codegen/tasks/MoeCountedPublication.cuh>
 #if TILEMEGA_DM_REDUCTIONS
 #include <tilemega/Codegen/DmReductionPlan.h>
+#include <tilemega/Codegen/MoeRuntimeOperands.h>
 #endif
 #endif
 #if (TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED) || TILEMEGA_DM_REDUCTIONS
@@ -2476,10 +2477,7 @@ inline DeviceModel Create(ModelSpec const& spec,
           moe.router_gemm>=spec.gemm_count || !stage.group || stage.group>1024)
         throw std::invalid_argument("invalid MoE runtime capacity or specialization");
       auto operand=[&](unsigned slot,unsigned dtype,std::uint64_t elements,bool optional=false) {
-        auto id=stage.operand[slot];if(optional && id==kNoOperand)return;
-        if(id>=spec.buffer_count || spec.buffers[id].dtype!=dtype ||
-            spec.buffers[id].Elements(dims)<elements)
-          throw std::invalid_argument("invalid MoE runtime operand type or extent");
+        ValidateMoeRuntimeOperand(spec,stage,dims,slot,dtype,elements,optional);
       };
       auto row_matrix=[&](unsigned slot,unsigned rows,unsigned columns) {
         auto const& l=spec.buffers[stage.operand[slot]].layout;
@@ -2494,7 +2492,7 @@ inline DeviceModel Create(ModelSpec const& spec,
             stage.width%16 || stage.group>128 || !stage.extent)
           throw std::invalid_argument("invalid MoE combine geometry");
         operand(0,0,std::uint64_t(tokens)*moe.top_k*stage.extent);
-        operand(1,0,std::uint64_t(tokens)*moe.top_k);
+        ValidateMoeRoutingWeights(spec,stage,dims,1,std::uint64_t(tokens)*moe.top_k);
         operand(2,0,std::uint64_t(tokens)*stage.extent);
         operand(3,0,std::uint64_t(tokens)*stage.extent);
         row_matrix(0,tokens*moe.top_k,stage.extent);row_matrix(1,tokens,moe.top_k);
@@ -2514,7 +2512,8 @@ inline DeviceModel Create(ModelSpec const& spec,
         unsigned columns=((moe.experts+router_n-1)/router_n)*moe.top_k;
         operand(0,1,std::uint64_t(tokens)*columns);operand(1,2,std::uint64_t(tokens)*columns);
         row_matrix(0,tokens,columns);row_matrix(1,tokens,columns);
-        operand(2,2,std::uint64_t(tokens)*moe.top_k);operand(3,0,std::uint64_t(tokens)*moe.top_k);
+        operand(2,2,std::uint64_t(tokens)*moe.top_k);
+        ValidateMoeRoutingWeights(spec,stage,dims,3,std::uint64_t(tokens)*moe.top_k);
         row_matrix(2,tokens,moe.top_k);row_matrix(3,tokens,moe.top_k);
         operand(4,2,std::uint64_t(capacity)*4);operand(5,2,std::uint64_t(moe.row_capacity)*4);
         row_matrix(4,capacity,4);row_matrix(5,moe.row_capacity,4);
