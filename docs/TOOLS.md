@@ -123,6 +123,18 @@ The report pairs each TM/vLLM throughput ratio within its round. Configure
 produce an unavailable MBU, not a fabricated bandwidth estimate. An accepted
 timing report does not replace model correctness checks or select defaults.
 
+`scripts/check_serving_release.py` freezes a locally built candidate and an
+optional reference for release validation. Its recipe names the selected
+`plans.json`, model, prompts, workload, calibrated target directory, Python
+executables and policy. `freeze` rejects incomplete local safetensors shards
+and records binary, manifest, identity and execution-sidecar hashes.
+`correctness` runs under the scheduler guard, generates a vLLM reference,
+and checks full-request L1/L2/loop equality and teacher-forced HF thresholds
+for each TM arm. It skips only the optional HF free-greedy diagnostic.
+Reference-generation timing is excluded from performance reports; schedule
+rotated `bench.anchor` rounds only after this correctness step succeeds.
+No checkpoint is downloaded and no default is automatically promoted.
+
 Local cleanup is prepared separately from acceptance and never runs during
 project jobs. Both commands below are read-only:
 
