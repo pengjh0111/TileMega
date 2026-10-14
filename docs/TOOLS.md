@@ -107,6 +107,22 @@ output throughput and MBU. Each arm has the same prompt, fixed OSL and EOS
 policy. Model correctness is separate from timing; component benchmarks are
 diagnostic only. Raw receipts remain under ignored `runs/`.
 
+Summarize only the scheduler's accepted attempts after all comparison rounds
+finish. `--prefix` selects the comparison step names, excluding build/smoke
+steps. Missing rounds, changed execution identities, trace builds, rejected
+guard attempts and changed prompts are errors:
+
+```bash
+PYTHONPATH=python python -m tilemega.bench.audit \
+  --state runs/bench/scheduler/state.json --prefix comparison_ \
+  --compare reference candidate --out runs/bench/accepted.json
+```
+
+The report pairs each TM/vLLM throughput ratio within its round. Configure
+`step_bytes` and calibrated `dram_gbps` per cell to obtain MBU; absent inputs
+produce an unavailable MBU, not a fabricated bandwidth estimate. An accepted
+timing report does not replace model correctness checks or select defaults.
+
 Local cleanup is prepared separately from acceptance and never runs during
 project jobs. Both commands below are read-only:
 

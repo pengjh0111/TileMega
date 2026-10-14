@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from tilemega.bench.audit import accepted_rounds, compare
+from tilemega.build.identity import digest
 
 
 class AuditTests(unittest.TestCase):
@@ -55,6 +56,57 @@ class AuditTests(unittest.TestCase):
         rows['round0']['status'] = 'pending'
         self.state.write_text(json.dumps(rows))
         with self.assertRaisesRegex(ValueError, 'completed'):
+            accepted_rounds(self.state, 'round')
+
+    def test_vllm_pairing_and_bandwidth_report(self):
+        for rnd in range(3):
+            folder = self.root / f'round{rnd}' / 'attempt2'
+            path = folder / 'round.json'
+            data = json.loads(path.read_text())
+            data.update(step_bytes=1e9, dram_gbps=100)
+            data['arms']['vllm'] = dict(exit_code=0, e2e_seconds=2 + rnd,
+                                       ttft_seconds=.1, vllm_version='fixture')
+            path.write_text(json.dumps(data))
+            arm = folder / 'vllm'
+            (arm / 'B1').mkdir(parents=True)
+            (arm / 'command.json').write_text(json.dumps(dict(kind='vllm', binaries={})))
+            (arm / 'B1/tokens_N16_run1.json').write_text('[1,2,3]\n')
+        result = accepted_rounds(self.state, 'round')
+        arm = result['cells']['cell']['reference']
+        self.assertAlmostEqual(arm['mbu']['median'], 1e9 / (.9 / 15 * 100e9))
+        self.assertEqual(arm['throughput_ratios']['vllm']['samples'], [2, 3, 4])
+        self.assertTrue(compare(result, 'reference', 'vllm')[0]['tokens_identical'])
+
+    def test_reject_mixed_execution_or_trace(self):
+        for trace in (False, True):
+            path = self.root / 'round0/attempt2/round.json'
+            data = json.loads(path.read_text())
+            execution = dict(artifact_id='same_binary', executor='L2', loop=False, trace=trace)
+            execution['execution_id'] = digest(execution)
+            data['arms']['reference']['execution_identity'] = execution
+            path.write_text(json.dumps(data))
+            with self.assertRaisesRegex(ValueError, 'trace|execution_ids'):
+                accepted_rounds(self.state, 'round')
+
+    def test_reject_workload_drift_and_nonfinite_time(self):
+        path = self.root / 'round0/attempt2/round.json'
+        data = json.loads(path.read_text())
+        data['workload']['batch'] = 2
+        path.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError, 'workload'):
+            accepted_rounds(self.state, 'round')
+        data['workload']['batch'] = 1
+        data['arms']['reference']['e2e_seconds'] = float('nan')
+        path.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError, 'measurement'):
+            accepted_rounds(self.state, 'round')
+
+    def test_registered_identity_cannot_be_omitted(self):
+        path = self.root / 'round0/attempt2/reference/command.json'
+        data = json.loads(path.read_text())
+        data['binaries']['decode']['identity'] = dict(artifact_id='expected')
+        path.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError, 'no execution identity'):
             accepted_rounds(self.state, 'round')
 
 

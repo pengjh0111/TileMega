@@ -1,12 +1,17 @@
 """End-to-end summaries; component timing never selects defaults."""
+import math
 import statistics
 
 
 def metrics(record, workload, *, step_bytes=None, dram_gbps=None):
     batch, osl = int(workload['batch']), int(workload['osl'])
     e2e, ttft = float(record['e2e_seconds']), float(record['ttft_seconds'])
-    if osl <= 1 or e2e <= ttft or ttft < 0:
+    if batch <= 0 or osl <= 1 or not all(map(math.isfinite, (e2e, ttft))) or e2e <= ttft or ttft < 0:
         raise ValueError('invalid end-to-end measurement')
+    if step_bytes is not None and (not math.isfinite(step_bytes) or step_bytes < 0):
+        raise ValueError('invalid per-step byte count')
+    if dram_gbps is not None and (not math.isfinite(dram_gbps) or dram_gbps <= 0):
+        raise ValueError('invalid calibrated DRAM bandwidth')
     tpot = (e2e - ttft) / (osl - 1)
     return {'tpot_seconds': tpot, 'request_seconds': e2e,
             'ttft_seconds': ttft, 'output_tokens_per_second': batch * osl / e2e,
@@ -15,7 +20,7 @@ def metrics(record, workload, *, step_bytes=None, dram_gbps=None):
 
 
 def summarize(values):
-    if not values:
+    if not values or not all(map(math.isfinite, values)):
         raise ValueError('no accepted measurements')
     return {'median': statistics.median(values), 'range': max(values) - min(values),
             'samples': list(values)}

@@ -44,7 +44,8 @@ def run_round(data, cell_name, rnd, out):
         arms = list(reversed(arms))
     result = {'cell': cell_name, 'round': rnd, 'workload': cell['workload'],
               'order': [arm['label'] for arm in arms], 'arms': {},
-              'prompt_sha256': sha256(cell['prompt_ids'])}
+              'prompt_sha256': sha256(cell['prompt_ids']),
+              'step_bytes': cell.get('step_bytes'), 'dram_gbps': cell.get('dram_gbps')}
     failed = False
     out.mkdir(parents=True, exist_ok=True)
     for arm in arms:
@@ -53,7 +54,8 @@ def run_round(data, cell_name, rnd, out):
         folder.mkdir(parents=True, exist_ok=True)
         cmd, env = command(arm, cell, folder, data['measurement_policy'])
         (folder / 'command.json').write_text(json.dumps({
-            'command': cmd, 'env': arm.get('env', {}), 'binaries': arm.get('binaries', {})},
+            'command': cmd, 'env': arm.get('env', {}), 'kind': arm['kind'],
+            'binaries': arm.get('binaries', {})},
             indent=2) + '\n')
         with (folder / 'stdout.txt').open('w') as stdout, (folder / 'stderr.txt').open('w') as stderr:
             code = subprocess.run(cmd, cwd=arm['root'], env=env,
