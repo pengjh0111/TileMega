@@ -1113,12 +1113,6 @@ if(TILEMEGA_BUILD_EXPERIMENTAL)
     TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
   set_target_properties(tilemega-shape-probe PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-  add_executable(tilemega-identity-probe tools/experimental/tilemega-identity-probe.cpp)
-  target_link_libraries(tilemega-identity-probe PRIVATE TileMega::tilemega)
-  target_compile_definitions(tilemega-identity-probe PRIVATE
-    TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-  set_target_properties(tilemega-identity-probe PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
   add_executable(tilemega-symbolic-probe tools/experimental/tilemega-symbolic-probe.cpp)
   target_link_libraries(tilemega-symbolic-probe PRIVATE TileMega::tilemega)
   set_target_properties(tilemega-symbolic-probe PROPERTIES
@@ -1140,18 +1134,6 @@ if(TILEMEGA_BUILD_EXPERIMENTAL)
   set_target_properties(tilemega-fusion-chain PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
   target_link_libraries(tilemega-fusion-events PRIVATE TileMega::tilemega)
   set_target_properties(tilemega-fusion-events PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-  add_executable(tilemega-task-work-gate tools/experimental/tilemega-task-work-gate.cpp)
-  add_executable(tilemega-task-cost-gate tools/experimental/tilemega-task-cost-gate.cpp)
-  add_executable(tilemega-scalar-cost-probe tools/experimental/tilemega-scalar-cost-probe.cpp)
-  target_link_libraries(tilemega-scalar-cost-probe PRIVATE TileMega::tilemega)
-  set_target_properties(tilemega-scalar-cost-probe PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-  target_link_libraries(tilemega-task-cost-gate PRIVATE TileMega::tilemega)
-  set_target_properties(tilemega-task-cost-gate PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-  target_link_libraries(tilemega-task-work-gate PRIVATE TileMega::tilemega)
-  set_target_properties(tilemega-task-work-gate PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
   add_executable(tilemega-fusion-probe tools/experimental/tilemega-fusion-probe.cpp)
   add_executable(tilemega-fusion-cost tools/experimental/tilemega-fusion-cost.cpp)
   add_executable(tilemega-symbolic-task-price tools/experimental/tilemega-symbolic-task-price.cpp)
@@ -1167,18 +1149,6 @@ if(TILEMEGA_BUILD_EXPERIMENTAL)
   set_target_properties(tilemega-attention-plan-price PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
   target_link_libraries(tilemega-fusion-probe PRIVATE TileMega::tilemega)
   set_target_properties(tilemega-fusion-probe PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-  add_executable(tilemega-costmodel tools/experimental/tilemega-costmodel.cpp)
-  target_link_libraries(tilemega-costmodel PRIVATE TileMega::tilemega)
-  set_target_properties(tilemega-costmodel PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-  add_executable(tilemega-migrate tools/experimental/tilemega-migrate.cpp)
-  target_link_libraries(tilemega-migrate PRIVATE TileMega::tilemega)
-  set_target_properties(tilemega-migrate PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
-  add_executable(tilemega-solve tools/experimental/tilemega-solve.cpp)
-  target_link_libraries(tilemega-solve PRIVATE TileMega::tilemega)
-  set_target_properties(tilemega-solve PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools")
 endif()
 
 add_library(tilemega_commands OBJECT
