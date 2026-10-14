@@ -3563,13 +3563,14 @@ inline DeviceModel Create(ModelSpec const& spec,
   for (auto const& edge:dependencies) {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     if (edge.map == StageDependency::Map::kTable) {
-      if (std::uint64_t(edge.table_offset) + std::uint64_t(edge.table_rows) * edge.table_stride >
+      if (!ValidDependencyRowPeriod(edge.table_rows,edge.table_period) ||
+          std::uint64_t(edge.table_offset) + std::uint64_t(edge.table_period?edge.table_period:edge.table_rows) * edge.table_stride >
           runtime_variant.dependency_interval_count)
         throw std::invalid_argument("dependency table storage escapes its variant");
       auto base = runtime_variant.dependency_intervals
           ? runtime_variant.dependency_intervals + edge.table_offset : nullptr;
       plan_tables.push_back({int(edge.producer), int(edge.consumer),
-                             {base, edge.table_rows, edge.table_stride}});
+                             {base, edge.table_rows, edge.table_stride, edge.table_period}});
       continue;
     }
     if (edge.map == StageDependency::Map::kCounted) {
@@ -3601,11 +3602,12 @@ inline DeviceModel Create(ModelSpec const& spec,
       }
       model.params.counted_dependency_count = std::max(model.params.counted_dependency_count, unsigned(end));
       if(edge.table_stride) {
-        if(std::uint64_t(edge.table_offset)+std::uint64_t(edge.table_rows)*edge.table_stride >
+        if(!ValidDependencyRowPeriod(edge.table_rows,edge.table_period) ||
+            std::uint64_t(edge.table_offset)+std::uint64_t(edge.table_period?edge.table_period:edge.table_rows)*edge.table_stride >
             runtime_variant.dependency_interval_count || !runtime_variant.dependency_intervals)
           throw std::invalid_argument("counted I2 ordering table escapes its variant");
         plan_tables.push_back({int(edge.producer),int(edge.consumer),
-            {runtime_variant.dependency_intervals+edge.table_offset,edge.table_rows,edge.table_stride}});
+            {runtime_variant.dependency_intervals+edge.table_offset,edge.table_rows,edge.table_stride,edge.table_period}});
       } else {
         // Legacy uniform synthetic contracts omit access geometry. Their
         // ordering remains I2; device waits still use contribution counters.

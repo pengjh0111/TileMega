@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Codegen/RuntimeTaskGraph.h>
+#include <tilemega/Codegen/DependencyTablePacking.h>
 #include <tilemega/Analysis/DependencyTable.h>
 #include <tilemega/Analysis/TaskInstantiation.h>
 #include <tilemega/Analysis/ISLContext.h>
@@ -48,6 +49,32 @@ int TestRuntimeDependencyTable(int, char**) {
       "{ [c] -> [p] : 0<=c<132 and 0<=p<1160 and p%4=c%4 }");
   auto large=analysis::BuildDependencyTableLinear(periodic,1160,132);
   assert(large.stride==290 && large.intervals.size()==132*290);
+  auto period=codegen::DependencyTableRowPeriod(large);
+  assert(period==4);
+  std::vector<codegen::RuntimeDependencyInterval> packed;
+  for(unsigned i=0;i<period*large.stride;++i)
+    packed.push_back({large.intervals[i].first,large.intervals[i].count});
+  codegen::RuntimeDependencyTableView packed_view{packed.data(),large.consumers,large.stride,period};
+  std::vector<codegen::RuntimeDependencyInterval> full;
+  for(auto i:large.intervals)full.push_back({i.first,i.count});
+  for(unsigned c=0;c<large.consumers;++c) {
+    std::vector<std::pair<int,int>> original,compressed;
+    assert(codegen::VisitDependencyTable({full.data(),large.consumers,large.stride},c,1160,
+        [&](auto w){original.emplace_back(w.first,w.past);}));
+    assert(codegen::VisitDependencyTable(packed_view,c,1160,
+        [&](auto w){compressed.emplace_back(w.first,w.past);}));
+    assert(original==compressed);
+  }
+  auto full_graph=codegen::MaterializeRuntimeTaskGraphTables({1160,132},{},
+      {{0,1,{full.data(),132,large.stride}}},4);
+  auto packed_graph=codegen::MaterializeRuntimeTaskGraphTables({1160,132},{},
+      {{0,1,packed_view}},4);
+  assert(full_graph.successors==packed_graph.successors);
+  packed_view.row_period=5;
+  assert(!codegen::VisitDependencyTable(packed_view,0,1160,[](auto){}));
+  auto not_periodic=large;
+  not_periodic.intervals.back().count=0;
+  assert(codegen::DependencyTableRowPeriod(not_periodic)==0);
   assert(large.encoded_relation.ToString().size()<2000);
   assert(analysis::Contains(periodic,large.encoded_relation) &&
       analysis::Contains(large.encoded_relation,periodic));
@@ -66,6 +93,7 @@ int TestRuntimeDependencyTable(int, char**) {
     assert(rejected);
   }
   assert(dense_table.stride==1 && dense_table.intervals.size()==4097);
+  assert(codegen::DependencyTableRowPeriod(dense_table)==0);
   for(unsigned c=0;c<4096;++c)
     assert(dense_table.intervals[c].first==0 && dense_table.intervals[c].count==8192);
   assert(dense_table.intervals.back().count==0);

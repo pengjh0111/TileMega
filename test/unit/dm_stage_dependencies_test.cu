@@ -17,7 +17,7 @@
 
 namespace {
 using namespace tilemega::codegen;
-constexpr int kProducers = 24, kConsumers = 7, kCount = 13;
+constexpr int kProducers = 24, kConsumers = 9, kCount = 13;
 constexpr BufferDesc kBuffers[] = {
     {"a", 64, 0, 0, 0, BufferSource::kZero, nullptr},
     {"w0", kProducers*64*64, 0, 0, 0, BufferSource::kZero, nullptr},
@@ -40,7 +40,7 @@ constexpr unsigned short kSeqVariant[] = {0,0};
 constexpr OutputDesc kOutputs[] = {{5,nullptr}, {6,nullptr}};
 constexpr ModelSpec kModel = {{0,0,0,1,0}, ScalarType::kBF16,kBuffers,7,kGemms,3,kStages,3,
                          kOutputs,2,kVariants,1,kSeqVariant,2};
-__host__ __device__ bool Selected(int p, int c) { return c+1<kConsumers && (p+2*c)%3!=1; }
+__host__ __device__ bool Selected(int p, int c) { return (p+2*c)%3!=1; }
 __host__ __device__ int Value(int p, int lane, int epoch) { return (p+1)*101+lane*3+epoch*17; }
 __device__ void Body(Params const& params, unsigned stage, unsigned task,
                     int* values, int* output, unsigned epoch) {
@@ -92,9 +92,10 @@ int main() {
     }
     stride=std::max(stride,unsigned(rows[c].size()));
   }
-  std::vector<RuntimeDependencyInterval> table(kConsumers*stride);
-  for (int c=0;c<kConsumers;++c) std::copy(rows[c].begin(),rows[c].end(),table.begin()+c*stride);
+  std::vector<RuntimeDependencyInterval> table(3*stride);
+  for (int c=0;c<3;++c) std::copy(rows[c].begin(),rows[c].end(),table.begin()+c*stride);
   kDependencies[0].table_rows=kConsumers; kDependencies[0].table_stride=stride;
+  kDependencies[0].table_period=3;
   kVariants[0].dependency_intervals=table.data(); kVariants[0].dependency_interval_count=table.size();
   auto target=tilemega::TargetSpec::Probe();
   kVariants[0].plan.eft_grid=std::min(16,target.res.num_sms);

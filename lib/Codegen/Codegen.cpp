@@ -2,6 +2,7 @@
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Codegen/RuntimePlan.h>
 #include <tilemega/Codegen/DmReductionDepth.h>
+#include <tilemega/Codegen/DependencyTablePacking.h>
 #include <tilemega/Solver/RuntimeProjection.h>
 #include <tilemega/Solver/TaskModel.h>
 #include <tilemega/Solver/DmGemmTraits.h>
@@ -842,6 +843,7 @@ std::string emitModelPlan(mlir::ModuleOp module,
     out << "};\n\n";
     std::vector<std::uint32_t> table_offsets(variant.dependencies.size());
     std::vector<std::optional<analysis::DependencyTable>> ordering_tables(variant.dependencies.size());
+    std::vector<unsigned> table_periods(variant.dependencies.size());
     std::uint64_t interval_count = 0;
     bool has_tables = false;
     for (std::size_t e = 0; e < variant.dependencies.size(); ++e) {
@@ -855,6 +857,10 @@ std::string emitModelPlan(mlir::ModuleOp module,
         ordering_tables[e]=analysis::BuildDependencyTableLinear(
             edge.counted->conservative_relation,edge.counted->producers,
             edge.counted->contributions.expected.size());
+        table_periods[e]=DependencyTableRowPeriod(*ordering_tables[e]);
+        if (table_periods[e])
+          ordering_tables[e]->intervals.resize(
+              std::size_t(table_periods[e])*ordering_tables[e]->stride);
       }
       if (auto const& table = ordering_tables[e]) {
         if (!dm || variant.dependencies[e].phase_window)
@@ -915,6 +921,8 @@ std::string emitModelPlan(mlir::ModuleOp module,
             << edge.counted->contributions.expected.size()
             << "u, " << ordering_tables[dependency_index]->stride << "u, " << counted_offsets[dependency_index]
             << "u, " << counted_offsets[dependency_index] << "u";
+      if (table_periods[dependency_index])
+        out << ", false, false, " << table_periods[dependency_index] << "u";
       if(edge.producer_main || edge.consumer_done) {
         if(!dm || edge.counted || edge.phase_window)
           throw std::invalid_argument("split storage endpoints require a DM task dependency");

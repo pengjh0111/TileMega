@@ -7,6 +7,7 @@
 #include <tilemega/Dialect/CouplingGraph/CountedDependency.h>
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Codegen/RuntimePlan.h>
+#include <tilemega/Codegen/DependencyTablePacking.h>
 #include <tilemega/Codegen/ServingPages.h>
 #include <tilemega/Target/TargetSpec.h>
 #include <tilemega/Solver/ModelDescription.h>
@@ -137,6 +138,13 @@ int TestMoeRegionCodegen(int argc,char** argv) {
     auto cu=CouplingGraphToCUDA{}.LowerVariants({{*module,tokens,tokens}});
     assert(cu.find("RunMoe<")!=std::string::npos && cu.find("TILEMEGA_SERVING_PHASE 2")!=std::string::npos);
     assert((cu.find("StageDependency::Map::kCounted")!=std::string::npos)==grouped);
+    if(grouped && tokens>16)for(auto const& edge:runtime.dependencies)if(edge.counted) {
+      auto ordering=analysis::BuildDependencyTableLinear(edge.counted->conservative_relation,
+          edge.counted->producers,edge.counted->contributions.expected.size());
+      auto period=DependencyTableRowPeriod(ordering);
+      assert(period>0);
+      assert(cu.find(", false, false, "+std::to_string(period)+"u}")!=std::string::npos);
+    }
     if(((argc==3 && std::string(argv[1])=="--emit") || emit_group) &&
         grouped==selected_group && split==selected_split) {
       std::ofstream out(argv[2]);assert(out);out<<cu;

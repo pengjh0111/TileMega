@@ -363,6 +363,7 @@ struct StageDependency {
   std::uint32_t counted_offset = 0;
   std::uint32_t counted_threshold_offset = kDmNoIndex;
   bool producer_main = false, consumer_done = false;
+  std::uint32_t table_period = 0;
 #endif
 };
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
@@ -373,7 +374,7 @@ TILEMEGA_TASK_HD bool VisitStageDependencyIntervals(StageDependency const& dep,
   if (dep.map == StageDependency::Map::kCounted) return false;
   if (dep.map == StageDependency::Map::kTable) {
     auto base = intervals ? intervals + dep.table_offset : nullptr;
-    return VisitDependencyTable({base, dep.table_rows, dep.table_stride},
+    return VisitDependencyTable({base, dep.table_rows, dep.table_stride, dep.table_period},
                                 consumer, producers, visit);
   }
   auto bounds = RuntimeDependencyBounds(consumer, producers,

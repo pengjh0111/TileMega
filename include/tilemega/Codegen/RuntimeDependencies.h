@@ -16,17 +16,25 @@ struct RuntimeDependencyInterval {
 struct RuntimeDependencyTableView {
   RuntimeDependencyInterval const* intervals = nullptr;
   std::uint32_t rows = 0, stride = 0;
+  std::uint32_t row_period = 0;
 };
+TILEMEGA_DEPENDENCY_HD constexpr bool ValidDependencyRowPeriod(
+    std::uint32_t rows, std::uint32_t period) {
+  return !period || (period<=rows && rows%period==0);
+}
 // Each edge has one fixed row stride. Padding has count zero and contributes
-// no dependency; sparse rows remain sparse in every executor and host graph.
+// no dependency. An optional exact period stores repeated rows only once;
+// logical consumer IDs and sparse dependencies are unchanged.
 template <class Visit>
 TILEMEGA_DEPENDENCY_HD bool VisitDependencyTable(
     RuntimeDependencyTableView table, std::uint32_t consumer,
     std::uint32_t producers, Visit const& visit) {
   if (consumer >= table.rows) return false;
+  if (!ValidDependencyRowPeriod(table.rows,table.row_period)) return false;
   if (!table.stride) return true;
   if (!table.intervals) return false;
-  auto const* row = table.intervals + std::uint64_t(consumer) * table.stride;
+  auto stored_row=table.row_period ? consumer%table.row_period : consumer;
+  auto const* row = table.intervals + std::uint64_t(stored_row) * table.stride;
   for (std::uint32_t interval = 0; interval < table.stride; ++interval) {
     auto bounds = row[interval];
     if (!bounds.count) continue;
