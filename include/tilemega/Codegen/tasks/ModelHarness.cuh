@@ -60,9 +60,9 @@ static_assert(!TILEMEGA_PAGED && TILEMEGA_SLOT_WINDOW == 1 && !TILEMEGA_PREFETCH
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
 #include <tilemega/Codegen/tasks/DmStageTaskBody.h>
 #include <tilemega/Codegen/tasks/MoeCountedPublication.cuh>
+#include <tilemega/Codegen/MoeRuntimeOperands.h>
 #if TILEMEGA_DM_REDUCTIONS
 #include <tilemega/Codegen/DmReductionPlan.h>
-#include <tilemega/Codegen/MoeRuntimeOperands.h>
 #endif
 #endif
 #if (TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED) || TILEMEGA_DM_REDUCTIONS
