@@ -33,7 +33,9 @@ def reference_aliases(nodes, buffer_names, captured_names, parameters=()):
                 halves[name] = (inputs[0], args[1]['v'])
         if name in buffer_names:
             aliases[name] = name
-        elif (op in unary or target == 'operator.getitem') and inputs:
+        elif (op in unary or target == 'operator.getitem' or
+              (op == 'pixel_shuffle' and len(args) == 2 and
+               args[1].get('t') == 'int' and args[1]['v'] > 0)) and inputs:
             if inputs[0] in aliases:
                 aliases[name] = aliases[inputs[0]]
         elif op in {'add','add_'}:

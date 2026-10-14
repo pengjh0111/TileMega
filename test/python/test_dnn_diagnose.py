@@ -6,6 +6,19 @@ from tilemega.dnn.diagnose import check_binding, reference_aliases, summarize
 
 
 class DnnDiagnose(unittest.TestCase):
+    def test_pixel_shuffle_residual_belongs_to_the_upsample_producer(self):
+        def node(name, target, inputs=(), args=()):
+            return dict(name=name,target=target,inputs=list(inputs),args=dict(t='list',v=list(args)))
+        nodes=[node('skip_conv','aten.conv2d.default'),
+               node('skip','aten.add.Tensor',['skip_conv','older_skip']),
+               node('up_conv','aten.conv2d.default'),
+               node('shuffle','aten.pixel_shuffle.default',['up_conv'],
+                    [{},dict(t='int',v=2)]),
+               node('sum','aten.add.Tensor',['shuffle','skip'])]
+        self.assertEqual(reference_aliases(nodes,{'skip_conv','up_conv'},
+                         {n['name'] for n in nodes}),
+                         {'skip_conv':'skip','up_conv':'sum'})
+
     def test_simple_gate_maps_to_the_fused_half_width_output(self):
         def node(name, target, inputs=(), args=()):
             return dict(name=name,target=target,inputs=list(inputs),args=dict(t='list',v=list(args)))
