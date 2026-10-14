@@ -35,6 +35,11 @@ int TestServingSearchRejection(int, char**) try {
   for(bool incremental:{false,true}) {
     solver::SkeletonSearchOptions options;
     options.common.placement.target=TargetSpec::FromJson(root+"/test/fixtures/serving_rejection_target.json");
+    // This fixture predates combination-specific fits. Explicit synthetic
+    // prices isolate rejection recovery without a runtime calibration fallback.
+    auto& fits=options.common.placement.target.CalibrationFor("bf16").task_body.serving;
+    for(int norm:{0,1})fits["fused_attention_decode_d64_q4_norm"+std::to_string(norm)]=
+        {3500,0,0.02,0,1};
     options.common.placement.dims={1,1,575};options.search_only=true;
     options.incremental_prepare=incremental;options.artifact_prefix=(dir/std::to_string(incremental)).string();
     options.variant_probe=[](auto const&,auto const*,auto){return solver::VariantResources{32,86016,128,false};};
@@ -48,8 +53,12 @@ int TestServingSearchRejection(int, char**) try {
       throw std::runtime_error("illegal head tile was not rejected in place");
     for(auto [actual,expected]:{std::pair{0,0},std::pair{2,1},std::pair{3,2}}) {
       auto const& result=recovered.evaluated[actual];
-      if(!result.error.empty() || !std::isfinite(result.score) || result.score!=control.evaluated[expected].score)
+      if(!result.error.empty() || !std::isfinite(result.score) || result.score!=control.evaluated[expected].score) {
+        std::cerr<<"SERVING_REJECTION incremental="<<incremental<<" candidate="<<actual
+                 <<" score="<<result.score<<" expected="<<control.evaluated[expected].score
+                 <<" error="<<result.error<<" control_error="<<control.evaluated[expected].error<<'\n';
         throw std::runtime_error("rejected structure changed later legal candidate scores");
+      }
     }
     std::cout<<"SERVING_REJECTION incremental="<<incremental<<" invalid_rejected=1 later_scores_unchanged=1 PASS\n";
   }
