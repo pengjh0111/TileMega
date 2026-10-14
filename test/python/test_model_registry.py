@@ -1,6 +1,8 @@
 """Model pins, shape metadata and fail-before-weights download validation."""
 import copy
+import contextlib
 import hashlib
+import io
 import json
 from pathlib import Path
 import tempfile
@@ -15,6 +17,30 @@ from tilemega.serving.model_registry import (
 
 
 class ModelRegistry(unittest.TestCase):
+    def test_doctor_suggests_only_the_missing_registered_model(self):
+        from tilemega.cli import Run
+        with tempfile.TemporaryDirectory() as directory:
+            run = Run.__new__(Run)
+            run.model = Path(directory) / 'missing'
+            run.cache = Path(directory) / 'cache'
+            run.out = Path(directory)
+            run.binary = 'unused'
+            run.version = {}
+            run.config = {'device': {'index': 0}}
+            run.capture = lambda _: dict(name='fixture', arch_tag='sm_89',
+                resources={'num_sms': 128}, driver_version=12000)
+            for name, expected in [('qwen3_8b', 'qwen3_8b'), ('llama', 'llama3_2_1b'),
+                                   ('custom_model', None)]:
+                run.name = name
+                with patch('tilemega.cli.subprocess.check_output', side_effect=['20,100,100,30', '']), \
+                        contextlib.redirect_stdout(io.StringIO()):
+                    result = run.doctor()
+                if expected:
+                    self.assertIn('--model ' + expected, result['download_command'])
+                    self.assertNotIn('--model all', result['download_command'])
+                else:
+                    self.assertNotIn('download_command', result)
+
     def fixture(self, directory):
         root = Path(directory)
         config = dict(hidden_size=32, intermediate_size=64, num_hidden_layers=1,

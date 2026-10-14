@@ -339,8 +339,14 @@ class Run:
                     cache_dirs={name: str(self.cache / name) for name in ('targets', 'exports', 'plans', 'artifacts')})
         if not (self.model / 'config.json').is_file():
             data['missing_model'] = str(self.model)
-            data['download_command'] = shlex.join([sys.executable, '-m', 'tilemega.serving.download_models',
-                '--model', self.name if self.name in ('llama', 'qwen3') else 'all', '--model-root', str(self.model.parent)])
+            from .serving.model_registry import ALIASES, model_ids
+            model_id = ALIASES.get(self.name, self.name)
+            if model_id in model_ids():
+                data['download_command'] = shlex.join([
+                    sys.executable, '-m', 'tilemega.serving.download_models',
+                    '--model', model_id, '--model-root', str(self.model.parent)])
+            else:
+                data['model_setup'] = 'Supply the config and checkpoint for this unregistered model.'
         atomic_json(self.out / 'doctor.json', data)
         print(json.dumps(data, indent=2))
         return data
