@@ -214,7 +214,8 @@ def check_plans(args, config):
             from tilemega.moe.routing_check import compare_hf
             atomic_json(args.out/f'B{batch}'/'routing_indices.json', routing)
             with gpu_lock():
-                compare_hf(args.checkpoint, rows[:batch].tolist(), tokens[0][:reference_steps], routing,
+                compare_hf(args.checkpoint, rows[:batch].tolist(),
+                           [row[:reference_steps] for row in tokens[0]], routing,
                            args.out/f'B{batch}'/'routing.json')
                 torch.cuda.empty_cache()
         if args.hf_check:

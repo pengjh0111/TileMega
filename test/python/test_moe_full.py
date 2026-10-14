@@ -13,6 +13,47 @@ from tilemega.moe.full import compile_command, memory_report, resolve_target, pr
 
 
 class MoeFullTest(unittest.TestCase):
+    def test_routing_prefix_preserves_every_batch_row(self):
+        from tilemega.cache import file_sha
+        class Engine:
+            def __enter__(self): return self
+            def __exit__(self, *_): pass
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            (out / 'B3').mkdir()
+            plans = []
+            for phase in ('prefill', 'decode'):
+                binary = out / (phase + '.so'); binary.write_bytes(phase.encode())
+                manifest = out / (phase + '.json'); manifest.write_text('{}')
+                plans.append(dict(batch=3, phase=phase, binary=str(binary), manifest=str(manifest),
+                    bridge=str(manifest), binary_sha256=file_sha(binary), manifest_sha256=file_sha(manifest)))
+            (out / 'plans.json').write_text(json.dumps(plans))
+            (out / 'B3/memory.json').write_text(json.dumps(dict(estimated_allocation_bytes=16)))
+            args = SimpleNamespace(out=out, checkpoint=out/'checkpoint', batch=[3], steps=4,
+                prompt_len=2, prompt_ids=None, hf_check=False, hf_max_tokens=2, routing_check=True)
+            tokens = [[1, 2, 3, 4], [4, 3, 2, 1], [2, 1, 4, 3]]
+            def generate(engine, rows, steps, mode, vocab, capture_step):
+                if capture_step:
+                    for step in range(steps):
+                        capture_step(None, 'prefill' if step == 0 else 'decode')
+                return tokens
+            with patch('tilemega.dnn.cli.gpu_lock', return_value=nullcontext()), \
+                    patch('torch.cuda.mem_get_info', return_value=(1024, 2048)), \
+                    patch('torch.cuda.empty_cache'), \
+                    patch('tilemega.build.identity.verify', return_value=dict(artifact_id='artifact')), \
+                    patch('tilemega.serving.engine.ServingEngine', return_value=Engine()), \
+                    patch('tilemega.moe.full.generation_tokens', side_effect=generate), \
+                    patch('tilemega.moe.routing_check.index_names', return_value=['indices']), \
+                    patch('tilemega.moe.routing_check.capture', return_value=[[[0], [1], [2]]]), \
+                    patch('tilemega.moe.routing_check.compare_hf') as reference:
+                check_plans(args, dict(vocab_size=16, num_hidden_layers=1, num_experts_per_tok=1))
+            self.assertEqual(reference.call_args.args[2], [[1, 2], [4, 3], [2, 1]])
+            self.assertEqual(len(reference.call_args.args[3]), 2)
+            self.assertEqual(json.loads((out/'B3/tokens.json').read_text()), tokens)
+            receipt = json.loads((out/'correctness.json').read_text())[0]
+            self.assertEqual(receipt['routing_steps'], 2)
+            self.assertEqual(receipt['steps'], 4)
+
     def test_native_memory_is_released_before_hf_reference(self):
         from tilemega.cache import file_sha
         class Engine:
