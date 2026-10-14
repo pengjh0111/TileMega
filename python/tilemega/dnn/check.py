@@ -318,6 +318,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.mask and args.model != 'bert':
         parser.error('--mask requires BERT')
+    args.out.parent.mkdir(parents=True, exist_ok=True)
     result = check(args)
     args.out.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps({key: result[key] for key in
