@@ -1,7 +1,7 @@
 {
   "event_calibration_by_dtype": {
     "bf16": {
-      "source": "docs/experiments/OCCUPANCY/raw_sm120/attrib.tsv",
+      "source": "git-archive:archive/sm89-dev:experiment/OCCUPANCY/raw_sm120/attrib.tsv",
       "source_sha256": "5ad82afe973eaf2b8cb06e31659d68fa0613d8edf92498a0e69a75f59949f933",
       "method": "three-cell leave-one-out; final origin-constrained least squares on four cell medians",
       "notify": {

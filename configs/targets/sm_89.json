@@ -1,7 +1,7 @@
 {
   "event_calibration_by_dtype": {
     "bf16": {
-      "source": "docs/experiments/EVENT_COST/calibration_round5/attrib.tsv",
+      "source": "git-archive:archive/sm89-dev:experiment/EVENT_COST/calibration_round5/attrib.tsv",
       "source_sha256": "82c0ce990760410d8b6f63e911bfc500e73f05be7b65b39cc8e4aed2cccda9f3",
       "method": "stages + longest_worker_queue + total_work; nonnegative least squares; no intercept or regularization; twelve cells, paired warmup=5/repeat=11",
       "notify": {
@@ -978,7 +978,7 @@
         "d_l2_ns": 0.00064544765595,
         "d_dram_ns": 0.0043108035155,
         "reason": "measured",
-        "method": "sm_89 BF16 output / FP32 partials; median of 50 fresh processes, 41 interleaved paired CUDA-graph samples of 64 identical launches; unchanged combine kernel; 52428800 CPU bit-verified outputs; docs/experiments/COST_MODEL/partial_graph_validation"
+        "method": "sm_89 BF16 output / FP32 partials; median of 50 fresh processes, 41 interleaved paired CUDA-graph samples of 64 identical launches; unchanged combine kernel; 52428800 CPU bit-verified outputs; git-archive:archive/sm89-dev:experiment/COST_MODEL/partial_graph_validation"
       },
       "combine_fixed_resolved": false,
       "combine_d_dram_ns": 0.0006037476218,

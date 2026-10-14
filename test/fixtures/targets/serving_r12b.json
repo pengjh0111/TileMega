@@ -2031,7 +2031,7 @@
         "loop_fixed": [70.1844246, 0.0007616836473],
         "scalar_fixed_ns": 622.0237204,
         "samples": 43168,
-        "source": "/root/TileMega/docs/experiments/COSTMODEL/body_fit/sources.json",
+        "source": "git-archive:archive/sm89-dev:experiment/COSTMODEL/body_fit/sources.json",
         "latency_scale": 1.159390061,
         "stage_rate_bytes_per_ns": 42.48882702,
         "fixed_physical": [1542.841204, 0.3847793799, 0.1487025365],

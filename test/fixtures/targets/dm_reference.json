@@ -2652,7 +2652,7 @@
         ],
         "scalar_fixed_ns": 622.0237204,
         "samples": 43168,
-        "source": "/root/TileMega/docs/experiments/COSTMODEL/body_fit/sources.json",
+        "source": "git-archive:archive/sm89-dev:experiment/COSTMODEL/body_fit/sources.json",
         "serving": {
           "argmax_reduce": {
             "fixed_ns": 448.3179341,
