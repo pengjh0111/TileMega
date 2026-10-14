@@ -41,7 +41,7 @@ std::string ReadFile(std::string const& path) {
 }
 
 /// The two-layer GQA acceptance model: 4 tokens, hidden 512, intermediate
-/// 1024, 2 kv heads of 128 (docs/experiments/E2E/fixture/manifest.json).
+/// 1024, 2 kv heads of 128 (test/fixtures/exports/e2e.json).
 std::vector<GemmProblem> GqaProblems() {
   std::vector<GemmProblem> problems;
   for (int layer = 0; layer < 2; ++layer) {
@@ -73,7 +73,7 @@ int TestBackendQuery(int argc, char** argv) {
             << " wall_pruned=" << stats.wall_pruned
             << " rejected=" << stats.shape_rejected << " legal=" << stats.legal
             << " cartesian=" << stats.cartesian << '\n';
-  // The same envelope the CUTLASS probe walks (docs/experiments/ORACLE), whose
+  // The same envelope the archived CUTLASS oracle probe walks, whose
   // own instantiation of every point reports 224 candidates that fit sm_89's
   // 101376-byte opt-in budget.
   REQUIRE(stats.cartesian == 300);

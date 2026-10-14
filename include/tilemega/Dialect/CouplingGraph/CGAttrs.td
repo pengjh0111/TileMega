@@ -13,7 +13,7 @@ def CG_TaskKindAttr : CG_Attr<"TaskKind"> {
 // counts over a CouplingRelation (isl_pw_qpolynomial), not ClosedForm AST
 // values: they are *solved* quantities, and isl/barvinok is the sole
 // solving authority after the Part 3 migration (see docs/DEPENDENCIES.md,
-// docs/experiments/P3_ISL/). The mnemonic stays close to the pre-migration
+// the archived P3_ISL probes). The mnemonic stays close to the pre-migration
 // name to keep the IR text readable; the payload type is what changed.
 def CG_MetricParameter
     : AttrParameter<"::tilemega::analysis::QuasiPolynomial",

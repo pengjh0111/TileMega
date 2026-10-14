@@ -310,7 +310,7 @@ inline constexpr std::size_t kServingSharedBytes=sizeof(TaskSmem);
 // R8 BE-1: the architecture is the Plan's, not a constant in this header.
 // Codegen writes `TILEMEGA_ARCH_ID` from the solved target; a source written
 // before that macro existed keeps the Sm80 semantics it was compiled with,
-// which is what every pre-generated reference source in docs/experiments is.
+// which is the format of the archived pre-generated reference sources.
 #ifndef TILEMEGA_ARCH_ID
 #define TILEMEGA_ARCH_ID 800
 #endif

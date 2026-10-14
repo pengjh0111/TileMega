@@ -4,8 +4,7 @@
 // Hand-built RAII around the isl/barvinok C API.  Deliberately not
 // `isl-noexceptions.h`: barvinok is C-API-only, and mixing its raw pointer
 // ownership with isl's C++ wrapper's ownership model is a silent
-// use-after-free (confirmed during dependency evaluation, see
-// docs/DEPENDENCIES.md and docs/experiments/P3_ISL/).
+// use-after-free if both wrappers claim ownership of the same object.
 #pragma once
 
 #include <string>

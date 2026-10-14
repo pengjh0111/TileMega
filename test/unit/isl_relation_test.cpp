@@ -21,7 +21,7 @@ int TestIslRelation(int argc, char** argv) {
   // (W), a consumer that reads the whole matching row tile (R, an identity
   // on the row coordinate). Composing should recover the identity on m.
   // Tm is a literal (128): a tile size is a "g" quantity, known before any
-  // isl object is built (see docs/experiments/P3_ISL/result.md -- isl_aff_div
+  // isl object is built (isl_aff_div
   // rejects a parametric divisor/coefficient, so Tm cannot itself be an isl
   // parameter here). S stays a genuine isl parameter (a "theta" quantity,
   // symbolic through to the generated binary per invariant I1).

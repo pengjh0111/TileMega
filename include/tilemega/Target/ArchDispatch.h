@@ -36,9 +36,8 @@ struct Caps {
   static constexpr bool kPdl = false;
   /// R8 BE-2: CUTLASS ships a BF16 tensor-op `CollectiveBuilder` for this
   /// architecture. A capability of the *toolchain*, measured rather than
-  /// assumed -- `docs/experiments/BACKEND/be2_collective/` records the probe
-  /// that instantiates the builder for each arch, including the two that
-  /// refuse. Business code asks this; it never asks which CUTLASS this is.
+  /// assumed (stated: archived BE-2 builder instantiation probes).
+  /// Business code asks this; it never asks which CUTLASS this is.
   static constexpr bool kBf16CollectiveBuilder = false;
   static constexpr int kMaxClusterSize = 1;
   static constexpr char const* kCollective = "unsupported";

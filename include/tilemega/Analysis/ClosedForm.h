@@ -60,8 +60,7 @@ class ClosedForm {
 
   /// Replace every symbol named in `known` with its literal value; symbols
   /// not in `known` are left symbolic. Used before building an isl object:
-  /// isl's floor/ceildiv require a literal divisor (confirmed empirically,
-  /// see docs/experiments/P3_ISL/result.md), so a tile size ("g") must be
+  /// isl's floor/ceildiv require a literal divisor, so a tile size ("g") must be
   /// substituted before ToIslText, while a workload dimension ("theta") is
   /// deliberately left out of `known` so it survives as a genuine isl
   /// parameter (invariant I1).

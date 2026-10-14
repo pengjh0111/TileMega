@@ -15,9 +15,8 @@
 //     (W = 1, so a blocked head blocks the worker -- this is the whole point);
 //   * a task starts at max(worker free, every predecessor's end + hop), where
 //     the hop is zero for a same-worker predecessor;
-//   * `hop_ns(N, R)` comes from the measured curve in
-//     docs/experiments/SIMULATOR/ -- the primitive the runtime executes,
-//     backoff included;
+//   * `hop_ns(N, R)` comes from the target calibration of the runtime
+//     primitive, backoff included;
 //   * co-resident workers on one SM share that SM's busiest pipe, so a task's
 //     duration is stretched by the aggregate nine-lane demand of the set it
 //     runs with.

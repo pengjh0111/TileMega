@@ -4,8 +4,7 @@
 // `AffineRelation` (the relation class) and its `ProducerMap`/`AffineRange`
 // helpers are deleted: they were the hand-rolled, ClosedForm-AST-based
 // representation of the coupling relation C, and the whole point of the
-// isl/barvinok migration (see docs/DEPENDENCIES.md,
-// docs/experiments/P3_ISL/) is that CouplingRelation (an isl_map, see
+// isl/barvinok migration is that CouplingRelation (an isl_map, see
 // CouplingRelation.h) is now the sole representation of C -- keeping both
 // would recreate the "two semantic authorities for the same relation"
 // problem the migration exists to remove.
@@ -18,8 +17,7 @@
 // was never the duplicated authority; it is the same kind of "build up an
 // expression" value as ClosedForm; ToIslText renders it in isl syntax the
 // same way ClosedForm::ToIslText does, for the same reason (a symbolic
-// divisor is not representable in isl -- confirmed empirically, see
-// docs/experiments/P3_ISL/result.md).
+// divisor is not representable in isl; it must be substituted first).
 #pragma once
 
 #include <string>

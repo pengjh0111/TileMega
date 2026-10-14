@@ -466,7 +466,7 @@ CouplingRelation DeriveCoupling(AccessRelation const& W, AccessRelation const& R
     // the count over it, and that count is genuinely a *piecewise
     // quasi-polynomial* whenever span and tile are misaligned -- wait then
     // varies periodically with the consumer coordinate (see
-    // docs/experiments/P3_ISL/ and MisalignedTileModel in ReferenceModels.h).
+    // MisalignedTileModel in ReferenceModels.h).
     // Keeping the edge exact here is a precision gain the migration unlocks,
     // not a behaviour change for any previously covered access pattern:
     // the exact-quotient and single-element branches above still fire first,

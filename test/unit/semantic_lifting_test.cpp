@@ -282,7 +282,7 @@ void CompareTasks(analysis::OperatorGraph const& lifted,
 }
 
 /// Every difference the lifting genuinely has against the hand-written
-/// reference. They are recorded, not removed: docs/experiments/WIRING states
+/// reference. They are recorded, not removed: the archived WIRING audit states
 /// what each one is and why the reference, not the lifting, is the odd side.
 /// All ten are one difference: the reference names the second RMSNorm's
 /// parallel dim `i` while every other operator on both sides names it `m`.

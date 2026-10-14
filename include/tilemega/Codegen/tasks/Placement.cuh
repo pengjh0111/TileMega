@@ -12,7 +12,7 @@
 // consecutive logical indices land on distinct SMs.  `pair` inverts that: the
 // CTAs co-resident on one SM take *consecutive* logical indices.  It is the
 // only permutation the measured affinity argues for
-// (docs/experiments/PLACE/raw/affinity.txt): two GEMM tasks differing only in
+// (archived PLACE affinity probe): two GEMM tasks differing only in
 // the N tile share the whole A panel, and consecutive task indices differ in
 // N.  The other two arms exist to bound the opposite direction -- if
 // scattering the map costs nothing either, placement cannot be worth anything

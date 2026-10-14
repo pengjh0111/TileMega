@@ -235,8 +235,7 @@ struct TargetSpec {
     /// defaults are the generated wait these fields replace, so a target JSON
     /// written before this round parses to the behaviour it already had; a
     /// calibrated target overrides them from its own hop curve
-    /// (`docs/experiments/SYNC_V2/backoff_policy.tsv`) and the two
-    /// architectures do not agree on the answer (F-145).
+    /// rather than inheriting a backoff tuned on another architecture.
     int wait_spin_iters = 0;
     int wait_backoff_ns = 64;
     int wait_backoff_grow = 1;

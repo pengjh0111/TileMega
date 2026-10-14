@@ -317,7 +317,7 @@ CouplingRelation CouplingRelation::Coarsen(
   // reads `q1 = floord(q1, 2)` as a constraint on one variable, whose only
   // solution is 0, so a second Coarsen would collapse that coordinate to a
   // point instead of halving it (caught by the "floor(floor(./2)/2) ==
-  // floor(./4)" check in docs/experiments/P3_ISL/coarsen_probe.cpp). Pick a
+  // floor(./4)" regression). Pick a
   // prefix no input name shares, then rename the result's range dims back to
   // the original names so repeated coarsening is textually stable and
   // kappa = 1 is literally the identity.

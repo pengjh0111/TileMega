@@ -373,8 +373,7 @@ struct TypedGemmCandidate {
   // Pricing the builder path is not done here: the solver would have to
   // enumerate candidates it cannot cost, which is a cost-model change and
   // belongs with the occupancy successor (BE-6) and R10, not with a silently
-  // relaxed assertion. `docs/experiments/BACKEND/be2_collective/` records
-  // both numbers per architecture.
+  // relaxed assertion. The resource contract is checked per architecture.
   static constexpr bool kPricedCollective =
       !(BF16 && arch::Caps<Arch>::kBf16CollectiveBuilder);
   static_assert(!kPricedCollective || !kShapeLegal ||

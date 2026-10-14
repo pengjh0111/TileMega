@@ -18,7 +18,7 @@
 // EX-E3 step 0/2: the wait policy, one switch (H2) and four calibrated values.
 // With the switch off these hold the wait the generator has always emitted, so
 // `Pause()` folds to the `__nanosleep(64)` it replaces and the default build's
-// SASS does not move (docs/experiments/SYNC_V2/sass_identity/).  The values
+// SASS was identical in the archived SYNC_V2 check. The values
 // belong to the target, not to a runner: they come from `TargetSpec`'s `wait_*`
 // fields through `tilemega-wait-policy`, and sm_89 and sm_120 do not agree on
 // the answer (F-145 measured 910 of sm_89's 1235 ns hop to be this backoff,

@@ -5,8 +5,7 @@
 // §2.1's roofline form is not used, and not because it is inelegant: ranked
 // against the oracle's 1077 measured configurations it reaches Spearman 0.44
 // and places none of its top three inside the measured top 3%, against 0.945
-// for the model here.  The ablation in docs/experiments/COST_MODEL/result.md
-// carries that number and the rest of the ladder.
+// for the model here (stated: archived COST_MODEL ablation).
 //
 // §2.2(b)'s fill depth d = stages * resident_tiles_per_SM - 1 defaults off:
 // the calibration measures a line in `iters`, whose intercept and d*c are not

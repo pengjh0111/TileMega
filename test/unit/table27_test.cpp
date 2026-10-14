@@ -3,7 +3,7 @@
 // Skeleton ref: §2.7.  Every assertion below is read off the table; nothing is
 // read off the implementation.  Where the derivation and the table disagree the
 // difference is asserted in the form the derivation produces and explained in
-// docs/experiments/P3/table27.md -- the expectation is not moved to fit.
+// the comments below; the expectation is not moved to fit.
 //
 // This is the isl-backed re-derivation (Part 3 migration). Re-running the
 // same cross-validation this test always did surfaced one genuine new
@@ -16,7 +16,7 @@
 // bijectively from the producer coordinate; that is false for the floordiv
 // occurrence this edge has (many rows per block), and isl's genuine
 // |C^-1(y)| count (barvinok, not a heuristic) catches it. See
-// docs/experiments/P3/table27.md and TileMega_skeleton.md §2.7 for the
+// TileMega_skeleton.md §2.7 and the assertions below for the
 // corrected table entry. wait is unaffected (still 1: one row still needs
 // exactly one producer block).
 //
@@ -60,8 +60,7 @@ void Require(bool condition, std::string const& what, int line) {
 std::string Show(std::string const& value) { return value; }
 std::string Show(long value) { return std::to_string(value); }
 
-// isl can only take a literal floor/ceildiv divisor (docs/experiments/
-// P3_ISL/result.md), so every symbol a derivation might use as a tile size
+// isl can only take a literal floor/ceildiv divisor, so every symbol a derivation might use as a tile size
 // or GQA group divisor -- everything Table27Theta/Table27G fix -- must be
 // bound before DeriveCoupling builds an isl_map. S/L_s/past stay free in
 // the *derivation* (matching §2.7's own "S and L_s stay free"), but a fully

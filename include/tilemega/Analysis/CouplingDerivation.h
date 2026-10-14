@@ -134,8 +134,7 @@ struct CouplingEdge {
 /// emitting isl map constraint text per producer axis instead of building an
 /// AffineExpr/ProducerMap tree.  `known` supplies every symbol ("theta" or
 /// "g") whose value is already fixed at derivation time; isl can only take a
-/// literal floor/ceildiv divisor (confirmed empirically, see
-/// docs/experiments/P3_ISL/result.md), so any coefficient/group/tile/origin
+/// literal floor/ceildiv divisor, so any coefficient/group/tile/origin
 /// that ends up as a divisor must be in `known` or ToIslText throws. A
 /// symbol left out of `known` survives as a genuine isl parameter of the
 /// resulting relation (invariant I1: workload dimensions stay symbolic).
