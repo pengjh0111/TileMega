@@ -1,5 +1,0 @@
-model	arm	processes	passes	total_mismatch	timeouts
-gqa2	monotone	50	50	0	0
-gqa2	reset	50	50	0	0
-mha4	monotone	50	50	0	0
-mha4	reset	50	50	0	0

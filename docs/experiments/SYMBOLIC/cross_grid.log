@@ -1,2 +1,0 @@
-CROSS_GRID 256 candidates=6 winner=wavefront CPU_ONLY
-CROSS_GRID 340 candidates=6 winner=eft CPU_ONLY

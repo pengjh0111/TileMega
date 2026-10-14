@@ -1,2 +1,0 @@
-FUSION_CANDIDATES accepted=0 rejected=59 remaining=0
-ISL_CONTEXT remaining=0

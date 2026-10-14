@@ -1,1 +1,0 @@
-FUSION_CANDIDATES accepted=3 rejected=30 remaining=0

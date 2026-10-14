@@ -1,2 +1,0 @@
-ninja: Entering directory `/root/TileMega/build-phase12'
-ninja: no work to do.

@@ -1,1 +1,0 @@
-PASS phases=seqscan,paired,negative,trace,analyze,summary

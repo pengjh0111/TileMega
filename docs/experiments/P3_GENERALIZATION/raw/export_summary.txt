@@ -1,1 +1,0 @@
-{"layers": 4, "attention": "MHA", "outputs": 9}

@@ -1,2 +1,0 @@
-l2_median_ms	1.030144
-l2_over_l1_median	1.031795

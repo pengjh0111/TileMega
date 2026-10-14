@@ -1,3 +1,0 @@
-model	seq	past	logic	passes	mismatches	processes
-gqa2	2048	0	old_stage_wait_clamp	50	0	50
-gqa2	2048	0	task_wait_drop	0	50	50

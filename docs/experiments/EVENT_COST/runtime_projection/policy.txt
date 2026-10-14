@@ -1,3 +1,0 @@
-ninja: Entering directory `build-portable'
-[1/1] Checking architecture-dispatch and hardware-constant policy
--- TileMega policy checks passed

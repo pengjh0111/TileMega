@@ -1,1 +1,0 @@
-PASS handoff access proofs: multirow recompute, complete reduction fibre, same-worker adjacency; six negative controls
