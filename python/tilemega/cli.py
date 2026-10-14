@@ -972,7 +972,7 @@ def main():
         if bench_config.get('schema') == 'tilemega.bench.v1':
             from .bench.driver import run as run_bench
             return run_bench(args.config, out=args.run_dir)
-    config=read_config(args.config or ROOT / 'configs/e2e/llama_b1.json')
+    config=read_config(args.config or ROOT / 'configs/e2e/llama3_2_1b.json')
     if args.hwcheck:
         # This checks transport and protocol on a known Llama workload. TF-1
         # is separately tested by EV-2; do not disguise an unimplemented
