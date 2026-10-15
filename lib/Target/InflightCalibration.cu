@@ -18,55 +18,28 @@ namespace {
 void Check(cudaError_t code,char const* what) {
   if(code!=cudaSuccess)throw std::runtime_error(std::string(what)+": "+cudaGetErrorString(code));
 }
-__device__ inline void WaitCommittedGroups(int outstanding) {
-  // PTX requires a literal threshold. More than eight software stages can
-  // still be measured: hardware retains at most seven younger groups while
-  // the oldest group is consumed, so additional commits expose any stalls.
-  switch(outstanding<7 ? outstanding : 7) {
-    case 0:asm volatile("cp.async.wait_group 0;");break;
-    case 1:asm volatile("cp.async.wait_group 1;");break;
-    case 2:asm volatile("cp.async.wait_group 2;");break;
-    case 3:asm volatile("cp.async.wait_group 3;");break;
-    case 4:asm volatile("cp.async.wait_group 4;");break;
-    case 5:asm volatile("cp.async.wait_group 5;");break;
-    case 6:asm volatile("cp.async.wait_group 6;");break;
-    default:asm volatile("cp.async.wait_group 7;");break;
-  }
-}
-
-// Every CTA owns a disjoint slice of a buffer larger than four L2 knees.
-// Each committed group copies q bytes as 16-byte cp.async.cg transactions;
-// S-1 groups are outstanding before the first wait. The shared-memory read
-// makes the copy observable. No per-iteration global atomics enter the timing.
-__global__ void InflightRead(char const* source,std::size_t segment_bytes,
-    int bytes_per_stage,int stages,int rounds,unsigned* sink) {
-  extern __shared__ __align__(16) unsigned char shared[];
+// xcore1000: the serving bodies stream weights with register-direct 16-byte
+// loads (P-10, MX1_probe §2.7), not asynchronous copies, so the curve is
+// measured that way. Every CTA owns a disjoint slice of a buffer larger than
+// four L2 knees and 512 MiB; each of 128 threads issues `Loads` independent 16-byte loads
+// before consuming them, so a CTA has Loads * 2 KiB in flight. The xor into a
+// checksum keeps every load observable; no per-iteration atomics are timed.
+template<int Loads>
+__global__ void __launch_bounds__(128) InflightRead(uint4 const* source,std::size_t segment_vectors,
+    int rounds,unsigned* sink) {
+  uint4 const* slice=source+std::size_t(blockIdx.x)*segment_vectors;
   unsigned checksum=0;
-  auto issue=[&](int step) {
-    std::size_t limit=segment_bytes-std::size_t(bytes_per_stage)+16;
-    std::size_t start=(std::size_t(step)*bytes_per_stage)%limit;
-    char const* global=source+std::size_t(blockIdx.x)*segment_bytes+start;
-    unsigned char* slot=shared+std::size_t(step%stages)*bytes_per_stage;
-    for(int offset=threadIdx.x*16;offset<bytes_per_stage;offset+=blockDim.x*16) {
-      unsigned address=static_cast<unsigned>(__cvta_generic_to_shared(slot+offset));
-      asm volatile("cp.async.cg.shared.global [%0], [%1], 16;" ::
-          "r"(address),"l"(global+offset));
-    }
-    asm volatile("cp.async.commit_group;");
-  };
-  for(int i=0;i<stages-1 && i<rounds;++i)issue(i);
+  std::size_t constexpr step=std::size_t(Loads)*128;
+  std::size_t const limit=segment_vectors-step+1;
   for(int i=0;i<rounds;++i) {
-    if(i+stages-1<rounds)issue(i+stages-1);
-    // At the tail there may be fewer groups than the steady-state wait
-    // threshold. Drain them before consuming the last shared-memory slots.
-    WaitCommittedGroups(i+stages-1>=rounds ? 0 : stages-2);
-    __syncthreads();
-    auto* word=reinterpret_cast<volatile unsigned*>(shared+
-        std::size_t(i%stages)*bytes_per_stage);
-    checksum+=word[threadIdx.x];
-    __syncthreads();
+    std::size_t const first=(std::size_t(i)*step)%limit+threadIdx.x;
+    uint4 v[Loads];
+#pragma unroll
+    for(int l=0;l<Loads;++l)v[l]=__ldcg(slice+first+std::size_t(l)*128);
+#pragma unroll
+    for(int l=0;l<Loads;++l)checksum^=v[l].x^v[l].y^v[l].z^v[l].w;
   }
-  if(threadIdx.x==0)atomicAdd(sink,checksum);
+  if(checksum==0x9e3779b9u)atomicAdd(sink,checksum);
 }
 
 struct Point {double x=0,y=0;};
@@ -96,15 +69,13 @@ std::pair<std::vector<double>,std::vector<double>> Isotonic(
   return {x,y};
 }
 
-double TimePoint(char const* data,std::size_t segment,int groups,int q,int stages,
-    unsigned* sink,int repeats) {
+template<int Loads>
+double TimePoint(uint4 const* data,std::size_t segment_vectors,int groups,unsigned* sink,int repeats) {
   // The disjoint slices together cover the >4-L2 source once per launch.
-  int rounds=std::max(2,int(std::ceil(double(segment)/q)));
-  Check(cudaFuncSetAttribute(InflightRead,cudaFuncAttributeMaxDynamicSharedMemorySize,
-      q*stages),"opt in dynamic shared memory");
+  int rounds=std::max(2,int(segment_vectors/(std::size_t(Loads)*128)));
   cudaEvent_t begin{},end{};Check(cudaEventCreate(&begin),"create begin event");
   Check(cudaEventCreate(&end),"create end event");
-  auto launch=[&](){InflightRead<<<groups,128,q*stages>>>(data,segment,q,stages,rounds,sink);
+  auto launch=[&](){InflightRead<Loads><<<groups,128>>>(data,segment_vectors,rounds,sink);
     Check(cudaGetLastError(),"launch in-flight sweep");};
   launch();Check(cudaDeviceSynchronize(),"warm in-flight sweep");
   std::vector<double> samples;
@@ -112,7 +83,7 @@ double TimePoint(char const* data,std::size_t segment,int groups,int q,int stage
     Check(cudaEventRecord(begin),"record begin");launch();
     Check(cudaEventRecord(end),"record end");Check(cudaEventSynchronize(end),"synchronize end");
     float elapsed=0;Check(cudaEventElapsedTime(&elapsed,begin,end),"elapsed time");
-    samples.push_back(double(groups)*q*rounds/(double(elapsed)*1e6));
+    samples.push_back(double(groups)*Loads*2048.0*rounds/(double(elapsed)*1e6));
   }
   Check(cudaEventDestroy(begin),"destroy begin");Check(cudaEventDestroy(end),"destroy end");
   std::sort(samples.begin(),samples.end());return samples[samples.size()/2];
@@ -120,41 +91,36 @@ double TimePoint(char const* data,std::size_t segment,int groups,int q,int stage
 }
 
 void MeasureInflight(TargetSpec& target,Options const& options,std::ostream& log) {
-  auto const& caps=arch::RuntimeCapsForTag(target.arch_tag);
-  if(!caps.cp_async)throw std::invalid_argument("in-flight calibration needs cp.async");
+  if(target.arch_tag!="xcore1000")throw std::invalid_argument("in-flight calibration is built for xcore1000");
   Check(cudaSetDevice(options.device),"select device");
   auto& calib=target.CalibrationFor("bf16");
-  std::size_t buffer=std::size_t(std::ceil(4*calib.l2_knee_bytes));
+  // At least 512 MiB: launches on xcore1000 cost ~10-20 us, and a 4-knee
+  // (32 MiB) source read in ~20 us capped the sweep at 1 TB/s (measured).
+  std::size_t buffer=std::max(std::size_t(std::ceil(4*calib.l2_knee_bytes)),std::size_t(512)<<20);
   buffer=(buffer+2047u)&~std::size_t(2047u);
-  char* data=nullptr;unsigned* sink=nullptr;
+  uint4* data=nullptr;unsigned* sink=nullptr;
   Check(cudaMalloc(&data,buffer),"allocate streaming source");
   Check(cudaMalloc(&sink,sizeof(unsigned)),"allocate checksum");
   Check(cudaMemset(data,1,buffer),"initialize streaming source");
   Check(cudaMemset(sink,0,sizeof(unsigned)),"initialize checksum");
   std::vector<Point> device,cta;
   int const maximum=target.res.num_sms*std::max(1,target.res.max_threads_per_sm/128);
-  int maximum_stages=2;
-  while(solver::ServingBF16ShapeLegal(16,32,64,maximum_stages+1) &&
-        solver::ServingBF16SmemBytes(16,32,64,maximum_stages+1)<=
-            target.res.max_dynamic_smem_per_cta)++maximum_stages;
-  log<<"groups\tq_bytes\tstages\tdevice_inflight_bytes\tcta_inflight_bytes\tgbps\n";
+  log<<"groups\tloads_per_thread\tdevice_inflight_bytes\tcta_inflight_bytes\tgbps\n";
   try {
-    for(int groups=1;groups<=maximum;groups*=2)for(int kib:{2,4,8,16,32,64})
-      for(int stages=2;stages<=maximum_stages;++stages) {
-        int q=kib*1024;
-        if(q*stages>target.res.max_dynamic_smem_per_cta ||
-           q*stages>target.res.max_smem_per_sm ||
-           groups>target.res.num_sms*std::max(1,target.res.max_smem_per_sm/(q*stages)))continue;
-        std::size_t segment=(buffer/groups/2048)*2048;
-        if(segment<std::size_t(q*stages))continue;
-        double rate=TimePoint(data,segment,groups,q,stages,sink,
-            std::min(3,std::max(1,options.repeats)));
-        double outstanding=double(groups)*(stages-1)*q;
-        log<<groups<<'\t'<<q<<'\t'<<stages<<'\t'<<outstanding<<'\t'
-           <<(stages-1)*q<<'\t'<<rate<<'\n';
-        device.push_back({outstanding,rate});
-        if(groups<=target.res.num_sms)cta.push_back({double((stages-1)*q),rate/groups});
-      }
+    for(int groups=1;groups<=maximum;groups*=2)for(int loads:{1,2,4,8,16}) {
+      std::size_t segment=(buffer/groups/2048)*2048/16;
+      if(segment<std::size_t(loads)*128*2)continue;
+      int const repeats=std::min(3,std::max(1,options.repeats));
+      double rate=loads==1?TimePoint<1>(data,segment,groups,sink,repeats):
+                  loads==2?TimePoint<2>(data,segment,groups,sink,repeats):
+                  loads==4?TimePoint<4>(data,segment,groups,sink,repeats):
+                  loads==8?TimePoint<8>(data,segment,groups,sink,repeats):
+                           TimePoint<16>(data,segment,groups,sink,repeats);
+      double const per_cta=loads*2048.0,outstanding=groups*per_cta;
+      log<<groups<<'\t'<<loads<<'\t'<<outstanding<<'\t'<<per_cta<<'\t'<<rate<<'\n';
+      device.push_back({outstanding,rate});
+      if(groups<=target.res.num_sms)cta.push_back({per_cta,rate/groups});
+    }
     if(device.empty() || cta.empty())throw std::runtime_error("no legal in-flight measurements");
     auto [dx,dy]=Isotonic(device,calib.dram_gbps);
     auto [cx,cy]=Isotonic(cta,calib.dram_gbps);

@@ -19,7 +19,7 @@ namespace tilemega::codegen::mx {
 
 template <int D, int Q, bool QkNorm>
 struct DecodeAttentionSimt {
-  static_assert((D == 64 || D == 128) && Q >= 1 && Q <= 4, "simt decode attention: D in {64,128}, Q <= 4");
+  static_assert((D == 64 || D == 128) && Q >= 1 && Q <= 8, "simt decode attention: D in {64,128}, Q <= 8");
   using Element = tilemega::Bf16;
   static constexpr int kWarps = kComputeThreads / 32;
   static constexpr int kLanes = D / 8, kGroups = 32 / kLanes, kUnroll = 4;

@@ -148,7 +148,7 @@ int LaunchAttention(Kernel kernel, AttentionArgs const& a, int per_group, void* 
 }
 }  // namespace
 
-/// Decode attention: (D, Q, norm) in {(128,2,1), (64,4,0), (128,4,0), (128,3,0)}.
+/// Decode attention: (D, Q, norm) in {(128,2,1), (64,4,0), (128,4,0), (128,3,0), (128,8,1)}.
 extern "C" int tm_test_decode_attention(AttentionArgs const* a, int d, int q, int norm, void* stream) {
   int const blocks = (a->capacity + a->block_extent - 1) / a->block_extent;
 #define TM_CASE(D, Q, N)                                                                   \
@@ -156,7 +156,7 @@ extern "C" int tm_test_decode_attention(AttentionArgs const* a, int d, int q, in
     using B = mx::DecodeAttentionSimt<D, Q, N != 0>;                                       \
     return LaunchAttention<B>(RunDecodeAttention<B>, *a, blocks, stream);                  \
   }
-  TM_CASE(128, 2, 1) TM_CASE(64, 4, 0) TM_CASE(128, 4, 0) TM_CASE(128, 3, 0)
+  TM_CASE(128, 2, 1) TM_CASE(64, 4, 0) TM_CASE(128, 4, 0) TM_CASE(128, 3, 0) TM_CASE(128, 8, 1)
 #undef TM_CASE
   return 3;
 }

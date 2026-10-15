@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
-// In-body serving calibration: one CTA, device clock around the actual body.
+// In-body serving calibration: one CTA, device timer around the actual body.
+// xcore1000: the 100 MHz realtime counter (P-11) replaces clock64, whose rate
+// follows DVFS; bodies run for microseconds, so its 10 ns step is below 1 %.
+// Decode attention on xcore1000 is the simt body (attention_impl=simt).
+#ifndef TILEMEGA_ATTENTION_IMPL
+#define TILEMEGA_ATTENTION_IMPL 3
+#endif
 #include <tilemega/Target/Calibration.h>
 #include <tilemega/Codegen/tasks/ServingEmbeddingTaskBody.h>
 #include <tilemega/Codegen/tasks/ServingRMSNormTaskBody.h>
@@ -7,6 +13,9 @@
 #include <tilemega/Codegen/tasks/AttentionMergeTaskBody.h>
 #include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>
 #include <tilemega/Codegen/tasks/FusedAttentionTaskBody.h>
+#include <tilemega/Codegen/tasks/IndependentAttentionTaskBody.h>
+#include <tilemega/Codegen/tasks/ServingGemvTaskBody.h>
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <cuda_runtime.h>
 #include <algorithm>
 #include <array>
@@ -39,11 +48,11 @@ template<class T> T* Device(std::size_t n) {
 }
 struct Sample {double bytes=0,flops=0,ns=0;};
 
-__device__ unsigned long long Begin(unsigned long long* cycles) {
-  __syncthreads();return clock64();
+__device__ unsigned long long Begin(unsigned long long* ns) {
+  __syncthreads();return maca::GlobalTimerNs();
 }
-__device__ void End(unsigned long long start,unsigned long long* cycles) {
-  __syncthreads();if(threadIdx.x==0)*cycles=clock64()-start;
+__device__ void End(unsigned long long start,unsigned long long* ns) {
+  __syncthreads();if(threadIdx.x==0)*ns=maca::GlobalTimerNs()-start;
 }
 __global__ void TimeEmbed(int const* tokens,Element const* table,Element* output,
     int width,unsigned long long* cycles) {
@@ -70,32 +79,38 @@ __global__ void TimeMerge(float const* partial,float const* lse,
   AttentionMergeTaskBody<64,4,1>::Run(partial,lse,context,0,0,1,cap,block,past);
   End(start,cycles);
 }
-using Gemm=ServingGemmTaskBody<arch::Sm80,16,128,64,2>;
-using NarrowGemm=ServingGemmTaskBody<arch::Sm80,16,32,64,2>;
-using TallerGemm=ServingGemmTaskBody<arch::Sm80,32,128,64,2>;
+using X=arch::Xcore1000;
+using Gemm=ServingGemmTaskBody<X,16,128,64,2>;
+using NarrowGemm=ServingGemmTaskBody<X,16,32,64,2>;
+using TallerGemm=ServingGemmTaskBody<X,32,128,64,2>;
+// GEMV (M <= 4) is a distinct body; its fits carry the "gemv_" prefix.
+using Gemv=ServingGemvTaskBody<X,64,128>;
+using NarrowGemv=ServingGemvTaskBody<X,16,128>;
 template<class Body>
 __global__ void TimeGemm(ServingGemmOperands operands,unsigned long long* cycles) {
   extern __shared__ char storage[];auto start=Begin(cycles);
   Body::Run(operands,0,0,storage);End(start,cycles);
 }
-using AttentionArch=std::conditional_t<std::is_void_v<arch::CurrentArch>,
-    arch::Sm80,arch::CurrentArch>;
+// Decode runs the SIMT body (attention_impl=simt), prefill the MMA body.
+template<int D,int Q,int S,bool Norm>
+using AttentionBody=std::conditional_t<S==1,IndependentAttentionTaskBody<X,D,Q,Norm>,
+    FusedAttentionTaskBody<X,D,Q,S,16,64,Norm>>;
 template<int D,int Q,int S,bool Norm>
 __global__ void TimeAttention(ServingAttentionOperands operands,
     unsigned long long* cycles,int query_block=0) {
-  using Body=FusedAttentionTaskBody<AttentionArch,D,Q,S,16,64,Norm>;
+  using Body=AttentionBody<D,Q,S,Norm>;
   extern __shared__ __align__(16) unsigned char bytes[];
   auto& storage=*reinterpret_cast<typename Body::SharedStorage*>(bytes);
   auto start=Begin(cycles);Body::Run(operands,storage,0,0,query_block,0);End(start,cycles);
 }
 
 template<class Launch>
-double Measure(Launch launch,unsigned long long* cycles,int clock_khz,int repeats) {
+double Measure(Launch launch,unsigned long long* ns,int repeats) {
   launch();Check(cudaDeviceSynchronize(),"warm serving body");
   std::vector<double> values;
   for(int i=0;i<std::max(3,repeats);++i) {
     launch();Check(cudaDeviceSynchronize(),"time serving body");
-    values.push_back(double(*cycles)*1e6/clock_khz);
+    values.push_back(double(*ns));
   }
   std::sort(values.begin(),values.end());return values[values.size()/2];
 }
@@ -151,11 +166,9 @@ TargetSpec::TaskBodyCalibration::ServingFit Fit(std::vector<Sample> const& sampl
 } // namespace
 
 void MeasureServingTaskBodies(TargetSpec& target,Options const& options,std::ostream& log) {
-  auto const caps=arch::RuntimeCapsForTag(target.arch_tag);
-  if(!caps.cp_async || !caps.bf16_tensor_core)
-    throw std::invalid_argument("serving TaskBody calibration needs SM80-class BF16");
+  if(target.arch_tag!="xcore1000")
+    throw std::invalid_argument("serving TaskBody calibration is built for xcore1000");
   Check(cudaSetDevice(options.device),"select calibration device");
-  cudaDeviceProp device{};Check(cudaGetDeviceProperties(&device,options.device),"clock rate");
   auto* cycles=Managed<unsigned long long>(1);
   auto* element=Device<Element>(std::size_t(1088)*128*6);
   auto* output=Device<Element>(std::size_t(1088)*128*6);
@@ -165,7 +178,7 @@ void MeasureServingTaskBodies(TargetSpec& target,Options const& options,std::ost
   auto* lse=Device<float>(1088);
   std::map<std::string,std::vector<Sample>> observations;
   auto record=[&](std::string const& name,double bytes,double flops,auto launch) {
-    double ns=Measure(launch,cycles,device.clockRate,std::min(9,std::max(3,options.repeats)));
+    double ns=Measure(launch,cycles,std::min(9,std::max(3,options.repeats)));
     observations[name].push_back({bytes,flops,ns});
     log<<name<<'\t'<<bytes<<'\t'<<flops<<'\t'<<ns<<'\n';
   };
@@ -200,14 +213,22 @@ void MeasureServingTaskBodies(TargetSpec& target,Options const& options,std::ost
           else if(shape==1)TimeGemm<NarrowGemm><<<1,128,NarrowGemm::kSharedBytes>>>(p,cycles);
           else TimeGemm<TallerGemm><<<1,128,TallerGemm::kSharedBytes>>>(p,cycles);
         });
+        // GEMV: rows 1 and 4, two column widths.
+        if(shape<2)for(int rows:{1,4}) {
+          int gn=shape==0?64:16;auto q=p;q.m=rows;q.n=gn;q.output_stride=gn;
+          record("gemv_"+name,2.*(rows+gn)*k+2*rows*gn,2.*rows*gn*k,[&]{
+            if(shape==0)TimeGemm<Gemv><<<1,128,Gemv::kSharedBytes>>>(q,cycles);
+            else TimeGemm<NarrowGemv><<<1,128,NarrowGemv::kSharedBytes>>>(q,cycles);
+          });
+        }
       }
     // Q and normalization select distinct measured bodies; a D-only fit
     // cannot represent the Q=3, Q=4 and Q=8 model paths.
     auto attention=[&](auto d_tag,auto q_tag,auto norm_tag) {
       constexpr int D=decltype(d_tag)::value,Q=decltype(q_tag)::value;
       constexpr bool Norm=decltype(norm_tag)::value;
-      using Decode=FusedAttentionTaskBody<AttentionArch,D,Q,1,16,64,Norm>;
-      using Prefill=FusedAttentionTaskBody<AttentionArch,D,Q,64,16,64,Norm>;
+      using Decode=AttentionBody<D,Q,1,Norm>;
+      using Prefill=AttentionBody<D,Q,64,Norm>;
       Check(cudaFuncSetAttribute(TimeAttention<D,Q,1,Norm>,
           cudaFuncAttributeMaxDynamicSharedMemorySize,sizeof(typename Decode::SharedStorage)),
           "opt in decode attention shared memory");

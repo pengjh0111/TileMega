@@ -59,7 +59,7 @@ add_library(tilemega_maca_runtime INTERFACE)
 target_include_directories(tilemega_maca_runtime SYSTEM INTERFACE
   ${MACA_PATH}/tools/cu-bridge/include ${MACA_PATH}/include ${MACA_PATH}/include/mcr)
 target_link_directories(tilemega_maca_runtime INTERFACE ${MACA_PATH}/lib)
-target_link_libraries(tilemega_maca_runtime INTERFACE runtime_cu mcruntime)
+target_link_libraries(tilemega_maca_runtime INTERFACE runtime_cu mcruntime mccompiler)
 target_link_options(tilemega_maca_runtime INTERFACE "-Wl,-rpath,${MACA_PATH}/lib")
 set(CUDAToolkit_NVCC_EXECUTABLE "${TILEMEGA_CUCC}")
 set(CUDAToolkit_LIBRARY_DIR "${MACA_PATH}/lib")
@@ -298,8 +298,32 @@ set_target_properties(tilemega-opt PROPERTIES
 
 # Calibration groups not yet ported to the MetaX primitive layer raise at
 # run time instead of returning fabricated coefficients.
-add_library(tilemega_calibration STATIC lib/Target/CalibrationMaca.cpp)
-target_link_libraries(tilemega_calibration PUBLIC TileMega::tilemega)
+# Ported groups are device objects built by cucc and linked into the host
+# library (approach (b): CMake's CUDA language does not drive cucc).
+function(tilemega_add_maca_object out_var source)
+  get_filename_component(stem "${source}" NAME_WE)
+  set(out "${CMAKE_CURRENT_BINARY_DIR}/maca/${stem}.o")
+  file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/maca")
+  add_custom_command(OUTPUT "${out}"
+    COMMAND "${TILEMEGA_CUCC}" -std=c++17 -O3 -fno-strict-aliasing -Xcompiler=-fPIC
+      -DTILEMEGA_SERVING_RUNTIME=1
+      -I${CMAKE_CURRENT_SOURCE_DIR}/include -I${CMAKE_CURRENT_BINARY_DIR}/include
+      -c "${CMAKE_CURRENT_SOURCE_DIR}/${source}" -o "${out}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${source}"
+    IMPLICIT_DEPENDS CXX "${CMAKE_CURRENT_SOURCE_DIR}/${source}"
+    COMMENT "cucc ${source} -> ${stem}.o" VERBATIM)
+  set_source_files_properties("${out}" PROPERTIES EXTERNAL_OBJECT TRUE GENERATED TRUE)
+  set(${out_var} "${out}" PARENT_SCOPE)
+endfunction()
+set(tilemega_calibration_objects)
+foreach(source lib/Target/CalibrationXcore.cu lib/Target/ServingSyncCalibration.cu
+               lib/Target/InflightCalibration.cu lib/Target/ServingTaskCalibration.cu)
+  tilemega_add_maca_object(object ${source})
+  list(APPEND tilemega_calibration_objects ${object})
+endforeach()
+add_library(tilemega_calibration STATIC lib/Target/CalibrationMaca.cpp
+  ${tilemega_calibration_objects})
+target_link_libraries(tilemega_calibration PUBLIC TileMega::tilemega tilemega_maca_runtime)
 
 add_test(NAME scalar_cost_errors COMMAND tilemega probe scalar-error-probe "${CMAKE_SOURCE_DIR}")
 

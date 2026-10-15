@@ -2,6 +2,7 @@
 // Dithered cross-SM timestamps retain the SIMULATOR contention protocol.
 #include <tilemega/Target/Calibration.h>
 #include <tilemega/Codegen/tasks/EventSync.cuh>
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -13,11 +14,9 @@
 namespace tilemega::calib {
 namespace {
 
-__device__ inline unsigned long long Now() {
-  unsigned long long t;
-  asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t) :: "memory");
-  return t;
-}
+// xcore1000: the 100 MHz realtime counter (10 ns tick, consistent across
+// APs, P-11) replaces %globaltimer; the dither below spans many ticks.
+__device__ inline unsigned long long Now() { return ::tilemega::maca::GlobalTimerNs(); }
 
 /// One event row, padded exactly as EventCounter is, so a row's traffic does
 /// not land on a neighbour's cache line and R is really the number of lines.
@@ -60,7 +59,7 @@ __global__ void Contend(Row* rows_data, unsigned long long* publish_ns,
       // The guard covers barrier release skew; it is outside the stamp, so it
       // costs wall clock and not accuracy.  The dither is what makes averaging
       // work: without it the loop is periodic, the publish lands at a fixed
-      // phase inside the 1024 ns tick, and every round reports exactly one tick
+      // phase inside the timer tick, and every round reports exactly one tick
       // (measured -- that was this benchmark's first result).  The range spans
       // more than a tick at any plausible clock, so the phase is uniform and
       // the mean of the quantized differences converges on the true delay.

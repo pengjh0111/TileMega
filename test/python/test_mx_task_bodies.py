@@ -184,7 +184,7 @@ class ServingAttentionBodies(unittest.TestCase):
 
     def test_decode(self):
         torch = self.torch
-        for d, q, norm in ((128, 2, 1), (64, 4, 0), (128, 4, 0), (128, 3, 0)):
+        for d, q, norm in ((128, 2, 1), (64, 4, 0), (128, 4, 0), (128, 3, 0), (128, 8, 1)):
             for batch, heads, capacity, past, block in ((1, 8, 1088, 64, 1088), (2, 4, 1088, 700, 256),
                                                         (3, 2, 512, 0, 512), (1, 8, 1088, 1086, 128)):
                 with self.subTest(d=d, q=q, norm=norm, batch=batch, past=past, block=block):
