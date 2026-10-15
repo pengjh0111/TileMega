@@ -1,0 +1,17 @@
+model,isl,osl,batch,c1,c2,performance,reason,r14_tpot_ms,r15_tpot_ms,vllm_tpot_ms,request_seconds,throughput,mbu,executor,attention_impl,Ec,gemm_impl,evidence
+qwen3_0_6b,64,1024,1,not_run,not_run,not_run,missing_weights_download_cancelled,,,,,,,,,,,stated
+qwen3_0_6b,64,1024,16,not_run,not_run,not_run,missing_weights_download_cancelled,,,,,,,,,,,stated
+qwen3_1_7b,64,1024,1,not_run,not_run,not_run,cancelled_by_user,,,,,,,,,,,stated
+qwen3_1_7b,64,1024,16,not_run,not_run,not_run,cancelled_by_user,,,,,,,,,,,stated
+qwen3_1_7b,128,2048,1,not_run,not_run,not_run,cancelled_by_user,,,,,,,,,,,stated
+qwen3_1_7b,128,2048,16,not_run,not_run,not_run,cancelled_by_user,,,,,,,,,,,stated
+llama3_2_1b,64,1024,1,not_run,not_run,not_run,cancelled_by_user,,,,,,,,,,,stated
+llama3_2_1b,64,1024,16,not_run,not_run,not_run,cancelled_by_user,,,,,,,,,,,stated
+llama3_2_1b,128,2048,1,not_run,not_run,not_run,cancelled_by_user,,,,,,,,,,,stated
+llama3_2_1b,128,2048,16,not_run,not_run,not_run,cancelled_by_user,,,,,,,,,,,stated
+llama3_2_3b,64,1024,1,not_run,not_run,not_run,missing_weights_download_cancelled,,,,,,,,,,,stated
+llama3_2_3b,64,1024,16,not_run,not_run,not_run,missing_weights_download_cancelled,,,,,,,,,,,stated
+llama3_1_8b,64,1024,1,not_run,not_run,not_run,missing_weights_download_cancelled,,,,,,,,,,,stated
+llama3_1_8b,64,1024,16,not_run,not_run,not_run,missing_weights_download_cancelled,,,,,,,,,,,stated
+qwen3_8b,64,1024,1,not_run,not_run,not_run,missing_weights_download_cancelled,,,,,,,,,,,stated
+qwen3_8b,64,1024,16,not_run,not_run,not_run,missing_weights_download_cancelled,,,,,,,,,,,stated
