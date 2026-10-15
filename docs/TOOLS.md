@@ -204,6 +204,16 @@ two shared slots and mbarriers; packed B uses bulk. Each slot is overwritten
 only after its WGMMA group completes. End-to-end acceptance and calibrated
 costs remain required before automatic defaults change.
 
+Forward DNN export seeds can use `--seed-arch native --forward-seed-tile
+M64N128K64S2` without a skeleton solve. The explicit tuple is recorded in the
+plan identity and applies to unfused GEMMs; DW/PW bodies retain their existing
+specialized shapes. Omission preserves M128N64K16S3. WGMMA and im2col requests
+use the solver's existing access/layout eligibility checks, retaining MMA for
+unsupported classes. The seed coordinate rejects solved CGs, variants, paged
+execution and shared-layout overrides. Stated: this declares a candidate,
+not a solver optimum; guarded resource, numerical and end-to-end gates remain
+required before changing defaults.
+
 Resource probes reserve 8192 MiB of actual free disk by default. A bounded
 experiment may explicitly set `--resource-probe-min-free-mib 2048` (minimum
 1024); smaller reservations serialize compiler probes. Each probe records

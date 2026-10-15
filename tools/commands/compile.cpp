@@ -299,6 +299,7 @@ int RunCompile(int argc, char** argv) {
                  " --serving-pruning 0|1 --incremental-prepare 0|1 --serving-warm-start PREVIOUS.plan.json\n"
                  " --prompt-len N --capacity N --past-range LO:HI\n"
                  " --seed-arch legacy|native\n"
+                 " --forward-seed-tile M64N128K64S2 (native DNN seed only)\n"
                  " --search-capacity N --per-stage-kappa 0|1 --stage-kappa CSV\n"
                  " --segments 1|2 --segment-candidates N\n"
                  " --routing-profile FILE.json --moe-profile-layer N\n"
@@ -321,6 +322,8 @@ int RunCompile(int argc, char** argv) {
     std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
     std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
     std::string seed_arch="legacy",seed_target_arch;
+    tilemega::frontend::GemmGranularity forward_seed_tile{128,64,16,3,1};
+    bool forward_seed_explicit=false;
     std::string forward_gemm_impl="mma16",prefill_attention_impl="mma16",encoder_attention_impl="mma16",conv_impl="cpasync",gemv_load="ldg",depthwise_impl="cpasync",dwpw_impl="mma16";
     int qkv_epilogue=0,attention_tma=0;
     std::string combine_impl="stage",merge_impl="stage";
@@ -410,6 +413,14 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--dependency-intern") dependency_intern=std::stoi(value);
       else if (flag=="--activation-tma") activation_tma=std::stoi(value);
       else if (flag=="--decode-tile-m") decode_tile_m=std::stoi(value);
+      else if (flag=="--forward-seed-tile") {
+        std::istringstream tuple(value);char m,n,k,s;std::string extra;
+        if(!(tuple>>m>>forward_seed_tile.tile_m>>n>>forward_seed_tile.tile_n
+             >>k>>forward_seed_tile.tile_k>>s>>forward_seed_tile.stages) ||
+           m!='M' || n!='N' || k!='K' || s!='S' || (tuple>>extra))
+          throw std::invalid_argument("--forward-seed-tile expects M64N128K64S2 format");
+        forward_seed_explicit=true;
+      }
       else if (flag=="--cluster-dim") cluster_dim=std::stoi(value);
       else if (flag=="--combine") combine_impl=value;
       else if (flag=="--merge") merge_impl=value;
@@ -534,6 +545,16 @@ int RunCompile(int argc, char** argv) {
     if(seed_arch=="native" && (!serving || !solve_target.empty() || has_variants))
       throw std::invalid_argument("--seed-arch native requires an unsolved serving plan");
     bool const forward=serving_phase=="forward";
+    if(forward_seed_explicit && (!serving || !forward || frontend_mode!="dnn" ||
+        seed_arch!="native" || !solve_target.empty() || has_variants ||
+        input.extension()==".mlir" || pg_mode=="pages" || !shared_weight_layout.empty()))
+      throw std::invalid_argument("forward seed tile requires native nonpaged DNN export JSON without solve or variants");
+    if(forward_seed_explicit && (!tilemega::solver::DmServingBF16ShapeLegal(
+        forward_seed_tile.tile_m,forward_seed_tile.tile_n,forward_seed_tile.tile_k,
+        forward_seed_tile.stages) ||
+        2LL*forward_seed_tile.stages*forward_seed_tile.tile_k*
+          (forward_seed_tile.tile_m+forward_seed_tile.tile_n)>INT_MAX))
+      throw std::invalid_argument("forward seed tile is outside the legal DM BF16 family");
     int forward_seq=0;
     if(serving && serving_phase!="decode" && serving_phase!="prefill" && !forward)
       throw std::runtime_error("--serving expects decode, prefill or forward");
@@ -617,8 +638,12 @@ int RunCompile(int argc, char** argv) {
     if(forward_gemm_impl=="wgmma" && (arch_paths!="auto" || !serving ||
         serving_phase=="decode" || pg_mode=="pages"))
       throw std::invalid_argument("forward WGMMA requires native Hopper prefill/forward");
-    if(forward_gemm_impl=="wgmma" && solve_target.empty() && !has_variants)
-      throw std::invalid_argument("forward WGMMA needs skeleton solve or an explicit variant plan");
+    if(forward_gemm_impl=="wgmma" && solve_target.empty() && !has_variants && !forward_seed_explicit)
+      throw std::invalid_argument("forward WGMMA needs skeleton solve, an explicit native seed tile, or a variant plan");
+    if(forward_seed_explicit && (forward_gemm_impl=="wgmma" || conv_impl=="tma_im2col") &&
+       !tilemega::solver::ServingWgmmaShapeLegal(forward_seed_tile.tile_m,
+         forward_seed_tile.tile_n,forward_seed_tile.tile_k,forward_seed_tile.stages))
+      throw std::invalid_argument("forward seed WGMMA tile is outside the supported family");
     if(decode_tile_m!=8 && decode_tile_m!=16)
       throw std::invalid_argument("--decode-tile-m must be 8 or 16");
     if(decode_tile_m==8 && (!serving || serving_phase!="decode" || arch_paths!="auto" ||
@@ -697,8 +722,11 @@ int RunCompile(int argc, char** argv) {
     if(conv_impl!="cpasync" && conv_impl!="tma_im2col")
       throw std::invalid_argument("--conv-impl must be cpasync or tma_im2col");
     if(conv_impl=="tma_im2col" && (arch_paths!="auto" || !forward || pg_mode=="pages" ||
-        (solve_target.empty() && !has_variants)))
+        (solve_target.empty() && !has_variants && !forward_seed_explicit)))
       throw std::invalid_argument("TMA im2col requires native Hopper nonpaged forward and skeleton solve or explicit variants");
+    if(forward_seed_explicit && conv_impl=="tma_im2col" &&
+       (forward_seed_tile.tile_m!=64 || forward_seed_tile.tile_k!=64))
+      throw std::invalid_argument("TMA im2col forward seed requires M64 and K64");
     if(conv_impl=="tma_im2col")runtime_flags+=" -DTILEMEGA_CONV_TMA_IM2COL=1";
     if(pdl!="auto" && pdl!="off")throw std::runtime_error("--pdl must be auto or off");
     if(pg_mode!="off" && pg_mode!="pages" && pg_mode!="l2" && pg_mode!="auto")
@@ -1004,8 +1032,20 @@ int RunCompile(int argc, char** argv) {
       import.combiner_tile_per_block=combine_impl=="cluster";
       if (plan.forward || plan.dm) import.phase_batch = serving_batch;
       import.gemms.assign(plan.gemms.size(),forward?
-          tilemega::frontend::GemmGranularity{128,64,16,3,1}:
+          forward_seed_tile:
           tilemega::frontend::GemmGranularity{16,128,128,2,1});
+      if(forward_seed_explicit && (forward_gemm_impl=="wgmma" || conv_impl=="tma_im2col")) {
+        tilemega::frontend::ImportedSemantics eligibility;eligibility.plan=plan;
+        bool selected=false;
+        for(std::size_t i=0;i<plan.gemms.size();++i)
+          if((forward_gemm_impl=="wgmma" &&
+              tilemega::solver::ForwardSeedDenseWgmmaEligible(eligibility,i,serving_batch,forward_seq)) ||
+             (conv_impl=="tma_im2col" &&
+              tilemega::solver::ForwardSeedConvWgmmaEligible(eligibility,i))) {
+            import.gemms[i].impl=2;selected=true;
+          }
+        if(!selected)throw std::invalid_argument("forward seed Hopper request selected no eligible GEMM");
+      }
       if(!forward && decode_tile_m==8)
         for(std::size_t i=0;i<plan.gemms.size();++i)
           if(serving_impl[tilemega::solver::ServingGemmFamily(plan.gemms[i])]==2)
@@ -2291,8 +2331,14 @@ int RunCompile(int argc, char** argv) {
         json<<",\"history_proofs\":"<<prefetch.getAs<mlir::ArrayAttr>("history_proofs").size()<<'}';
         prefetch_json=json.str();
       }
-      manifest<<"{\n  \"identity_schema\": 1,\n  \"model\": "<<std::quoted(model_name)
-              <<",\n  \"phase\": "<<std::quoted(serving_phase)
+      manifest<<"{\n  \"identity_schema\": 1,\n  \"model\": "<<std::quoted(model_name);
+      if(forward_seed_explicit)
+        manifest<<",\n  \"forward_seed_tile\": {\"tile_m\":"<<forward_seed_tile.tile_m
+                <<",\"tile_n\":"<<forward_seed_tile.tile_n
+                <<",\"tile_k\":"<<forward_seed_tile.tile_k
+                <<",\"stages\":"<<forward_seed_tile.stages<<",\"split_k\":1}"
+                <<",\n  \"forward_seed_explicit\": true";
+      manifest<<",\n  \"phase\": "<<std::quoted(serving_phase)
               <<",\n  \"batch_lo\": "<<serving_batch
               <<",\n  \"batch_hi\": "<<serving_batch
               <<",\n  \"past_lo\": "<<serving_past_lo

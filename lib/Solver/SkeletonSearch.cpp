@@ -1421,4 +1421,16 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
   if(auto* t=options.common.timing){t->Add("cache_hit",0,search.cache.hits);t->Add("cache_miss",0,search.cache.misses);t->Add("incremental_space_hit",0,search.flow_cache.incremental_space_hits);t->Add("price_cache_hit",0,search.flow_cache.prices.hits);t->Add("release_cache_hit",0,search.flow_cache.release_hits);t->Add("search_evaluations",0,result.evaluated.size());t->Add("search_rounds",0,result.rounds);}
   return result;
 }
+
+bool ForwardSeedDenseWgmmaEligible(frontend::ImportedSemantics const& imported,
+                                  std::size_t gemm,int batch,int seq) {
+  OperatorClass one;one.gemms.push_back(gemm);
+  return ForwardWgmmaEligible(one,imported,batch,seq);
+}
+
+bool ForwardSeedConvWgmmaEligible(frontend::ImportedSemantics const& imported,
+                                 std::size_t gemm) {
+  OperatorClass one;one.gemms.push_back(gemm);
+  return ConvWgmmaEligible(one,imported);
+}
 }

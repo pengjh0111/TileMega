@@ -11,6 +11,11 @@
 #include <tilemega/Solver/MoeRoutingProfile.h>
 
 namespace tilemega::solver {
+// Native seed wiring uses the same access/layout proof as skeleton search.
+bool ForwardSeedDenseWgmmaEligible(frontend::ImportedSemantics const&,
+                                  std::size_t gemm, int batch, int seq);
+bool ForwardSeedConvWgmmaEligible(frontend::ImportedSemantics const&,
+                                 std::size_t gemm);
 struct SkeletonEvaluationCase {
   std::vector<GemmConfig> config;
   int kappa=1,residency=1;
