@@ -1,5 +1,8 @@
-model,system,batch,precision,compile_mode,candidate_id,candidate_receipt_sha256,native_artifact_ids,fresh_processes,protocol_complete,gpu,median_ms,p90_ms,acceptance
-resnet18,tensorrt,1,bf16,,,,,3,True,6,0.20684799551963806,0.207519993185997,provisional_container_pid_namespace
-resnet18,tensorrt,1,fp16,,,,,3,True,6,0.1544319987297058,0.15484799444675446,provisional_container_pid_namespace
-resnet18,torchcompile,1,bf16,max-autotune,,,,3,True,6,0.236735999584198,0.23769600689411163,provisional_container_pid_namespace
-resnet18,torchcompile,1,bf16,reduce-overhead,,,,3,True,6,0.23846399784088135,0.2396479994058609,provisional_container_pid_namespace
+model,system,batch,precision,compile_mode,candidate_id,candidate_receipt_sha256,native_artifact_ids,exported_program_sha256,source_checkpoint_sha256,checkpoint_hash_processes,fresh_processes,protocol_complete,gpu,median_ms,p90_ms,acceptance
+bert,tilemega,1,bf16,,,,881195e623826cc287f00a5c2a8c5a40ecad5f31786542c3689ad8c034486e81,19f3fe45c67c4ae77869851117561ef33ef2e0cd31419e4690ded2850777ebd8,,0,3,True,6,6.144000053405762,6.14793586730957,provisional_container_pid_namespace
+resnet18,tensorrt,1,bf16,,,,,e370edd622495c68591611f57477207a7cddaa77cf750e4571a3b0dd8d6d2d2d,,0,3,True,6,0.20684799551963806,0.207519993185997,provisional_container_pid_namespace
+resnet18,tensorrt,1,fp16,,,,,e370edd622495c68591611f57477207a7cddaa77cf750e4571a3b0dd8d6d2d2d,,0,3,True,6,0.1544319987297058,0.15484799444675446,provisional_container_pid_namespace
+resnet18,tilemega,1,bf16,,,,67b624d2fcaa09c14a940b3fd52e765acb0ab141ff9966a5d071d617a3c4faa6,e370edd622495c68591611f57477207a7cddaa77cf750e4571a3b0dd8d6d2d2d,,0,3,True,6,2.307231903076172,2.320352077484131,provisional_container_pid_namespace
+resnet18,tilemega,1,bf16,,,,b2e86d4b20894b0c6b93802bbf4aef5564ee2c2e3758d79448edb9b37f3685fc,e370edd622495c68591611f57477207a7cddaa77cf750e4571a3b0dd8d6d2d2d,,0,3,True,6,2.4128479957580566,2.4295361042022705,provisional_container_pid_namespace
+resnet18,torchcompile,1,bf16,max-autotune,,,,e370edd622495c68591611f57477207a7cddaa77cf750e4571a3b0dd8d6d2d2d,,0,3,True,6,0.236735999584198,0.23769600689411163,provisional_container_pid_namespace
+resnet18,torchcompile,1,bf16,reduce-overhead,,,,e370edd622495c68591611f57477207a7cddaa77cf750e4571a3b0dd8d6d2d2d,,0,3,True,6,0.23846399784088135,0.2396479994058609,provisional_container_pid_namespace
