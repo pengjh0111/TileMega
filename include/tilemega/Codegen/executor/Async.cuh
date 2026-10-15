@@ -117,6 +117,57 @@ struct Async {
       asm volatile("cp.async.bulk.tensor.2d.shared::cluster.global.mbarrier::complete_tx::bytes [%0], [%1, {%2, %3}], [%4];" ::
           "r"(Shared(destination)),"l"(map),"r"(x),"r"(y),"r"(Shared(barrier)):"memory");
   }
+  __device__ static void Tensor2DMulticast(void* destination,void const* map,
+      int x,int y,std::uint64_t* barrier,std::uint16_t mask) {
+    static_assert(Caps::kTmaMulticast,"TMA multicast requires cluster multicast support");
+    asm volatile("cp.async.bulk.tensor.2d.shared::cluster.global.mbarrier::complete_tx::bytes.multicast::cluster "
+        "[%0], [%1, {%2, %3}], [%4], %5;" ::
+        "r"(Shared(destination)),"l"(map),"r"(x),"r"(y),
+        "r"(Shared(barrier)),"h"(mask):"memory");
+  }
+  __device__ static std::uint32_t Mapa(void const* local,unsigned rank) {
+    static_assert(Caps::kDsmem,"peer shared addresses require DSMEM support");
+    std::uint32_t remote;
+    asm volatile("mapa.shared::cluster.u32 %0, %1, %2;" :"=r"(remote):
+        "r"(Shared(local)),"r"(rank));
+    return remote;
+  }
+  // The target must be a peer CTA; this instruction excludes local copies.
+  __device__ static void BulkSmemToPeer(std::uint32_t destination,
+      void const* source,unsigned bytes,std::uint32_t barrier) {
+    static_assert(Caps::kDsmem && Caps::kBulkCopy,"peer bulk copies require DSMEM and bulk support");
+    asm volatile("cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes "
+        "[%0], [%1], %2, [%3];" ::"r"(destination),"r"(Shared(source)),
+        "r"(bytes),"r"(barrier):"memory");
+  }
+  __device__ static void RemoteArrive(std::uint32_t barrier) {
+    static_assert(Caps::kDsmem,"remote barrier arrival requires DSMEM support");
+    asm volatile("mbarrier.arrive.release.cluster.shared::cluster.b64 _, [%0];" ::
+        "r"(barrier):"memory");
+  }
+  // Floating reductions have no fixed inter-CTA order and are opt-in only.
+  __device__ static void BulkReduceAddF32(float* destination,
+      float const* source,unsigned bytes) {
+    static_assert(Caps::kBulkReduce,"bulk reduction requires reduction support");
+    asm volatile("cp.reduce.async.bulk.global.shared::cta.bulk_group.add.f32 "
+        "[%0], [%1], %2;" ::"l"(destination),"r"(Shared(source)),"r"(bytes):"memory");
+  }
+  __device__ static void BulkCommit() {
+    static_assert(Caps::kBulkCopy,"bulk groups require bulk copy support");
+    asm volatile("cp.async.bulk.commit_group;" :::"memory");
+  }
+  template<int Pending=0,bool ReadOnly=false>
+  __device__ static void BulkWait() {
+    static_assert(Caps::kBulkCopy,"bulk groups require bulk copy support");
+    static_assert(Pending>=0 && Pending<=7,"bulk wait group count must be in [0,7]");
+    if constexpr(ReadOnly)
+      asm volatile("cp.async.bulk.wait_group.read %0;" ::"n"(Pending):"memory");
+    else asm volatile("cp.async.bulk.wait_group %0;" ::"n"(Pending):"memory");
+  }
+  __device__ static void PrefetchTensorMap(void const* map) {
+    static_assert(Caps::kTma,"tensor map prefetch requires TMA support");
+    asm volatile("prefetch.tensormap [%0];" ::"l"(map):"memory");
+  }
   __device__ static void TensorIm2col4D(void* destination,void const* map,
       int c,int w,int h,int n,std::uint16_t offset_w,std::uint16_t offset_h,
       std::uint64_t* barrier) {
