@@ -33,6 +33,68 @@ def sha(path):
     return digest.hexdigest()
 
 
+def engine_cache_key(identity):
+    """Content-address official build inputs; no framework objects are cached."""
+    required = {'schema_version', 'onnx_sha256', 'exported_program_sha256',
+                'source_checkpoint_sha256', 'precision', 'tensorrt_version',
+                'gpu_uuid', 'compute_capability', 'builder_flags', 'static_batch'}
+    if set(identity) != required or identity['schema_version'] != 1:
+        raise ValueError('incomplete TensorRT engine cache identity')
+    if identity['precision'] not in ('bf16', 'fp16') or not identity['gpu_uuid']:
+        raise ValueError('invalid TensorRT engine cache precision or GPU identity')
+    for name in ('onnx_sha256', 'exported_program_sha256', 'source_checkpoint_sha256'):
+        value = identity[name]
+        if len(value) != 64 or any(c not in '0123456789abcdef' for c in value):
+            raise ValueError('invalid TensorRT engine cache artifact digest')
+    return hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def serialized_engine_cache(directory, identity, build):
+    """Build once under flock; validate every byte before each deserialization."""
+    import fcntl
+    import time
+    key = engine_cache_key(identity)
+    directory = Path(directory).resolve()
+    entry = directory / key
+    directory.mkdir(parents=True, exist_ok=True)
+    lock_dir = directory / '.locks'
+    lock_dir.mkdir(exist_ok=True)
+    with (lock_dir / (key + '.lock')).open('a+b') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        engine_path, meta_path = entry / 'engine.plan', entry / 'identity.json'
+        hit = entry.exists()
+        if hit:
+            if (entry.is_symlink() or engine_path.is_symlink() or meta_path.is_symlink()
+                    or not engine_path.is_file() or not meta_path.is_file()):
+                raise ValueError('partial TensorRT engine cache entry; refusing reuse')
+            meta = json.loads(meta_path.read_text())
+            if meta.get('identity') != identity or meta.get('key') != key:
+                raise ValueError('TensorRT engine cache identity conflict')
+            serialized = engine_path.read_bytes()
+            if hashlib.sha256(serialized).hexdigest() != meta.get('serialized_engine_sha256'):
+                raise ValueError('TensorRT serialized engine cache SHA256 differs')
+        else:
+            serialized = bytes(build())
+            if not serialized:
+                raise RuntimeError('TensorRT engine build returned empty serialization')
+            entry.mkdir()
+            # A crash during publication leaves an explicit partial entry which
+            # must be diagnosed, rather than silently trusted or overwritten.
+            temp = entry / 'engine.plan.tmp'
+            temp.write_bytes(serialized)
+            temp.replace(engine_path)
+            meta = dict(schema_version=1, key=key, identity=identity,
+                        serialized_engine_sha256=sha(engine_path),
+                        builder_pid=os.getpid(), built_at=time.time())
+            temp = entry / 'identity.json.tmp'
+            temp.write_text(json.dumps(meta, indent=2) + '\n')
+            temp.replace(meta_path)
+        return serialized, engine_path, dict(key=key, hit=hit,
+            identity=identity, identity_file=str(meta_path), identity_sha256=sha(meta_path),
+            engine_file=str(engine_path), builder_pid=meta['builder_pid'],
+            deserialize_pid=os.getpid())
+
+
 def load_export(directory):
     import torch
     # Exported BERT outputs use HF's registered pytree nodes.
@@ -172,7 +234,7 @@ def torch_runner(module, args, kwargs, mode, metadata):
     return lambda: compiled(*args, **kwargs)
 
 
-def tensorrt_runner(directory, args, kwargs, precision, batch, out, metadata):
+def tensorrt_runner(directory, args, kwargs, precision, batch, out, metadata, engine_cache=None):
     import torch
     import tensorrt as trt
     info = json.loads((directory / f'onnx_b{batch}.json').read_text())
@@ -182,24 +244,54 @@ def tensorrt_runner(directory, args, kwargs, precision, batch, out, metadata):
             info['exported_program_sha256'] != manifest['artifacts']['exported_program.pt2']):
         raise ValueError('ONNX identity or static batch differs')
     logger = trt.Logger(trt.Logger.WARNING)
-    builder = trt.Builder(logger)
-    network = builder.create_network(1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
-    parser = trt.OnnxParser(network, logger)
-    if not parser.parse_from_file(str(onnx_path)):
-        raise RuntimeError('TensorRT ONNX parse failed: ' + '\n'.join(
-            str(parser.get_error(i)) for i in range(parser.num_errors)))
-    config = builder.create_builder_config()
-    config.builder_optimization_level = 5
-    config.profiling_verbosity = trt.ProfilingVerbosity.DETAILED
-    config.set_flag(trt.BuilderFlag.BF16 if precision == 'bf16' else trt.BuilderFlag.FP16)
-    serialized = builder.build_serialized_network(network, config)
-    if serialized is None:
-        raise RuntimeError('TensorRT engine build failed')
+    flags = dict(network_creation='EXPLICIT_BATCH', builder_optimization_level=5,
+                 profiling_verbosity='DETAILED', precision_flag=precision.upper(),
+                 workspace_limit='official default', tactic_sources='official default',
+                 remaining_builder_configuration='official defaults')
+    def build():
+        builder = trt.Builder(logger)
+        network = builder.create_network(1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
+        parser = trt.OnnxParser(network, logger)
+        if not parser.parse_from_file(str(onnx_path)):
+            raise RuntimeError('TensorRT ONNX parse failed: ' + '\n'.join(
+                str(parser.get_error(i)) for i in range(parser.num_errors)))
+        config = builder.create_builder_config()
+        config.builder_optimization_level = 5
+        config.profiling_verbosity = trt.ProfilingVerbosity.DETAILED
+        config.set_flag(trt.BuilderFlag.BF16 if precision == 'bf16' else trt.BuilderFlag.FP16)
+        serialized = builder.build_serialized_network(network, config)
+        if serialized is None:
+            raise RuntimeError('TensorRT engine build failed')
+        return bytes(serialized)
     engine_path = out / f'model_{precision}.plan'
-    engine_path.write_bytes(bytes(serialized))
+    if engine_cache is None:
+        serialized = build()
+        engine_path.write_bytes(serialized)
+    else:
+        import subprocess
+        properties = torch.cuda.get_device_properties(torch.cuda.current_device())
+        uuid = subprocess.check_output(['nvidia-smi', '--id=' + require_guard(),
+            '--query-gpu=uuid', '--format=csv,noheader,nounits'], text=True).strip()
+        if not uuid.startswith('GPU-') or '\n' in uuid:
+            raise ValueError('TensorRT engine cache requires a unique physical GPU UUID')
+        identity = dict(schema_version=1, onnx_sha256=info['sha256'],
+            exported_program_sha256=manifest['artifacts']['exported_program.pt2'],
+            source_checkpoint_sha256=sha(directory / 'checkpoint/model.safetensors'),
+            precision=precision, tensorrt_version=trt.__version__, gpu_uuid=uuid,
+            compute_capability=[properties.major, properties.minor],
+            builder_flags=flags, static_batch=batch)
+        serialized, cached_path, cache_metadata = serialized_engine_cache(engine_cache, identity, build)
+        if engine_path.exists() or engine_path.is_symlink():
+            raise ValueError('refusing to replace an existing TensorRT output engine')
+        engine_path.symlink_to(cached_path)
+        metadata['engine_cache'] = cache_metadata
     runtime = trt.Runtime(logger)
     engine = runtime.deserialize_cuda_engine(serialized)
+    if engine is None:
+        raise RuntimeError('TensorRT deserialization failed')
     context = engine.create_execution_context()
+    if context is None:
+        raise RuntimeError('TensorRT execution-context creation failed')
     buffers = {}
     incoming = dict(zip([x['name'] for x in info['inputs']], [*args, *kwargs.values()]))
     for i in range(engine.num_io_tensors):
@@ -265,10 +357,14 @@ def main():
     parser.add_argument('--warmup', type=int, default=50)
     parser.add_argument('--iterations', type=int, default=200)
     parser.add_argument('--round-index', type=int, default=0)
+    parser.add_argument('--engine-cache', type=Path,
+                        help='explicit shared serialized TensorRT engine cache; strict input/GPU identity')
     parser.add_argument('--out', type=Path)
     options = parser.parse_args()
     if not 1 <= options.batch <= 64 or options.warmup < 1 or options.iterations < 1:
         parser.error('invalid batch, warmup or iterations')
+    if options.engine_cache is not None and options.system != 'tensorrt':
+        parser.error('--engine-cache is only valid with --system tensorrt')
     import torch
     torch.set_num_threads(4)
     if options.system == 'export-onnx':
@@ -294,7 +390,8 @@ def main():
     with torch.inference_mode():
         run = (torch_runner(module, args, kwargs, options.compile_mode, metadata)
                if options.system == 'torchcompile' else tensorrt_runner(
-                   options.export, args, kwargs, options.precision, options.batch, options.out, metadata))
+                   options.export, args, kwargs, options.precision, options.batch, options.out, metadata,
+                   options.engine_cache))
         for _ in range(options.warmup):
             run()
         torch.cuda.synchronize()
