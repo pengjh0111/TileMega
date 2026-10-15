@@ -1,10 +1,18 @@
 native_system,native_comparison_arm,baseline_system,baseline_mode,native_precision,baseline_precision,checkpoint_scope,acceptance,matched_cells,coordinates,median_ms_speedup,p90_ms_speedup
 tilemega,20261015T143533Z-production-fixes:mbv1:h7c-mma16:B1,torchcompile,max-autotune,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,mbv1/B1,0.08131429200680515,0.08434193653827389
 tilemega,20261015T143533Z-production-fixes:mbv1:h7c-wgmma:B1,torchcompile,max-autotune,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,mbv1/B1,0.08605327900002661,0.08950927185453104
+tilemega,h7a-h7a-forward-seed-source18-naf-v1-nafnet-mma:B1,tensorrt,,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,nafnet/B1,0.08469825925789247,0.08482739433238431
+tilemega,h7a-h7a-forward-seed-source18-naf-v1-nafnet-mma:B1,tensorrt,,bf16,fp16,identical exported program,provisional_container_pid_namespace,1,nafnet/B1,0.03777564664932775,0.03814088611009336
+tilemega,h7a-h7a-forward-seed-source18-naf-v1-nafnet-mma:B1,torchcompile,max-autotune,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,nafnet/B1,0.03206626533387492,0.03229803612454184
+tilemega,h7a-h7a-forward-seed-source18-naf-v1-nafnet-mma:B1,torchcompile,reduce-overhead,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,nafnet/B1,0.03700532421561874,0.03728756016208153
 tilemega,h7a-source15-optin-resnet-mma-v1:mma:B1,tensorrt,,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.09151270628067029,0.09165430036618463
 tilemega,h7a-source15-optin-resnet-mma-v1:mma:B1,tensorrt,,bf16,fp16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.06832307030380036,0.06839092646559419
 tilemega,h7a-source15-optin-resnet-mma-v1:mma:B1,torchcompile,max-autotune,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.10473561487306167,0.10498198692686572
 tilemega,h7a-source15-optin-resnet-mma-v1:mma:B1,torchcompile,reduce-overhead,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.10550010764235399,0.10584411353566942
+tilemega,h7a-source17-resnet-mma-v1:mma:B1,tensorrt,,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.09145120645753181,0.09164652207803393
+tilemega,h7a-source17-resnet-mma-v1:mma:B1,tensorrt,,bf16,fp16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.06827715474834652,0.06838512243533243
+tilemega,h7a-source17-resnet-mma-v1:mma:B1,torchcompile,max-autotune,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.10466522878076052,0.10497307757791333
+tilemega,h7a-source17-resnet-mma-v1:mma:B1,torchcompile,reduce-overhead,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.10542920778347323,0.10583513102191015
 tilemega,tilemega@67b624d2fcaa09c14a940b3fd52e765acb0ab141ff9966a5d071d617a3c4faa6,tensorrt,,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.08965201774639689,0.08943470053518902
 tilemega,tilemega@67b624d2fcaa09c14a940b3fd52e765acb0ab141ff9966a5d071d617a3c4faa6,tensorrt,,bf16,fp16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.06693388667337934,0.06673469769926046
 tilemega,tilemega@67b624d2fcaa09c14a940b3fd52e765acb0ab141ff9966a5d071d617a3c4faa6,torchcompile,max-autotune,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.10260607062019386,0.10243962939961955
