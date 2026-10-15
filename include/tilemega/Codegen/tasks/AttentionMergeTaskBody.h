@@ -3,7 +3,7 @@
 
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 
-#include <cutlass/bfloat16.h>
+#include <tilemega/Target/Maca/Bf16.h>
 #include <tilemega/Backend/ServingVectorIO.h>
 
 #include <cuda_runtime.h>
@@ -24,7 +24,7 @@ struct AttentionMergeTaskBody {
   struct SharedStorage { alignas(16) unsigned char byte[16]; };
 
   __device__ static void Run(float const* partial, float const* lse,
-                             cutlass::bfloat16_t* context,
+                             tilemega::Bf16* context,
                              int batch, int group, int heads_kv,
                              int capacity, int block_extent, int past) {
     int blocks_max = (capacity + block_extent - 1) / block_extent;
@@ -61,10 +61,10 @@ struct AttentionMergeTaskBody {
       int head = row % QPerKV;
       std::size_t output = (std::size_t(batch) * Tokens + token) *
           heads_kv * QPerKV * HeadDim + (group * QPerKV + head) * HeadDim + dim;
-      alignas(16) cutlass::bfloat16_t result[8];
+      alignas(16) tilemega::Bf16 result[8];
       #pragma unroll
       for (int lane = 0; lane < 8; ++lane)
-        result[lane] = cutlass::bfloat16_t(
+        result[lane] = tilemega::Bf16(
             normalizer > 0.0f ? numerator[lane] / normalizer : 0.0f);
       backend::StoreGlobal16(context + output,*reinterpret_cast<uint4 const*>(result));
     }

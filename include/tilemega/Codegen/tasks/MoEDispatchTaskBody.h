@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/MoeBinding.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Target/ArchDispatch.h>
-#include <cutlass/bfloat16.h>
+#include <tilemega/Target/Maca/Bf16.h>
 
 namespace tilemega::codegen {
 struct MoeDispatchOperands {
@@ -35,7 +36,7 @@ struct MoEDispatchTaskBody {
     if(!p.indices || !p.weights || !p.bindings || !p.rows || p.experts>MaxExperts ||
        !MoeVirtualCapacity(p.tokens,TopK,p.experts,BlockRows,Grouped,&capacity) ||
        capacity!=p.capacity || (Grouped && (!p.histogram || !p.expert_offsets || !p.block_offsets)))
-      asm volatile("trap;");
+      maca::Trap();
   }
   __device__ static void Histogram(MoeDispatchOperands const& p,unsigned chunk,SharedStorage& s) {
     Validate(p);
@@ -44,7 +45,7 @@ struct MoEDispatchTaskBody {
       executor::ComputeSync();
       unsigned begin=chunk*ChunkTokens*TopK,end=min(p.tokens,(chunk+1)*ChunkTokens)*TopK;
       for(unsigned row=begin+executor::ComputeThread();row<end;row+=kThreads) {
-        auto e=p.indices[row];if(e<0 || unsigned(e)>=p.experts)asm volatile("trap;");
+        auto e=p.indices[row];if(e<0 || unsigned(e)>=p.experts)maca::Trap();
         atomicAdd(s.seen+e,1u);
       }
       executor::ComputeSync();
@@ -84,7 +85,7 @@ struct MoEDispatchTaskBody {
         p.expert_offsets[p.experts]=s.seen[p.experts-1];
         p.block_offsets[p.experts]=s.warps[0][p.experts-1];
         if(s.seen[p.experts-1]!=p.tokens*TopK || s.warps[0][p.experts-1]>p.capacity)
-          asm volatile("trap;");
+          maca::Trap();
       }
       // Every launch invalidates the entire tail before publishing active
       // records. Their other fields may retain bytes from an earlier step.
@@ -104,9 +105,9 @@ struct MoEDispatchTaskBody {
     MoeBindingRow result;result.token=assignment/TopK;result.rank=assignment%TopK;
     // Binding weights are informational; combine reads the original tensor.
     // Keep the 16-byte binding ABI for existing expert gather implementations.
-    cutlass::bfloat16_t weight=p.weights_fp32?
-        cutlass::bfloat16_t(static_cast<float const*>(p.weights)[assignment]):
-        static_cast<cutlass::bfloat16_t const*>(p.weights)[assignment];
+    tilemega::Bf16 weight=p.weights_fp32?
+        tilemega::Bf16(static_cast<float const*>(p.weights)[assignment]):
+        static_cast<tilemega::Bf16 const*>(p.weights)[assignment];
     result.weight_bf16=*reinterpret_cast<std::uint16_t const*>(&weight);return result;
   }
   __device__ static void Scatter(MoeDispatchOperands const& p,unsigned chunk,SharedStorage& s) {
@@ -115,7 +116,7 @@ struct MoEDispatchTaskBody {
     unsigned begin=chunk*ChunkTokens*TopK,end=min(p.tokens,(chunk+1)*ChunkTokens)*TopK;
     if constexpr(!Grouped) {
       for(unsigned row=begin+thread;row<end;row+=kThreads) {
-        auto e=p.indices[row];if(e<0 || unsigned(e)>=p.experts)asm volatile("trap;");
+        auto e=p.indices[row];if(e<0 || unsigned(e)>=p.experts)maca::Trap();
         p.rows[row]=Row(p,row);p.bindings[row]={unsigned(e),row,1,1};
       }
     }else {
@@ -130,7 +131,7 @@ struct MoEDispatchTaskBody {
         executor::ComputeSync();
         unsigned assignment=wave+thread,e=p.experts;
         if(assignment<end) {
-          auto index=p.indices[assignment];if(index<0 || unsigned(index)>=p.experts)asm volatile("trap;");
+          auto index=p.indices[assignment];if(index<0 || unsigned(index)>=p.experts)maca::Trap();
           e=index;
         }
         unsigned mask=__match_any_sync(0xffffffff,e),lane=thread%32,warp=thread/32;
@@ -152,7 +153,7 @@ struct MoEDispatchTaskBody {
     executor::ComputeSync();
   }
   __device__ static void RunSmall(MoeDispatchOperands const& p,SharedStorage& s) {
-    if(std::uint64_t(p.tokens)*TopK>4096) {asm volatile("trap;");return;}
+    if(std::uint64_t(p.tokens)*TopK>4096) {maca::Trap();return;}
     if constexpr(Grouped) {
       for(unsigned chunk=0;chunk<Count(p);++chunk)Histogram(p,chunk,s);
       Prefix(p,s);

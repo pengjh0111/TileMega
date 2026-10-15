@@ -4,7 +4,7 @@
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Target/ArchDispatch.h>
 #include <cute/tensor.hpp>
-#include <cutlass/bfloat16.h>
+#include <tilemega/Target/Maca/Bf16.h>
 
 namespace tilemega::backend {
 
@@ -16,7 +16,7 @@ using codegen::executor::kComputeThreads;
 template<class Arch, int N, int K, bool TransposeB = false, class PageLayoutB = void>
 struct ServingAttentionWarp {
   static_assert(arch::Caps<Arch>::kCpAsync && arch::Caps<Arch>::kBf16TensorCore);
-  using Element = cutlass::bfloat16_t;
+  using Element = tilemega::Bf16;
   using Mma = decltype(cute::make_tiled_mma(
       cute::SM80_16x8x16_F32BF16BF16F32_TN{},
       cute::Layout<cute::Shape<cute::_1,cute::_1,cute::_1>>{},

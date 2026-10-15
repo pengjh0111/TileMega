@@ -30,7 +30,7 @@ struct ServingGemmSm80 {
   static_assert(solver::ServingBF16ShapeLegal(TileM, TileN, TileK, Stages),
                 "serving BF16 tile is outside the legal family");
 
-  using Element = cutlass::bfloat16_t;
+  using Element = tilemega::Bf16;
   static constexpr int kThreads = solver::kServingBF16Threads;
   static constexpr bool kShapeLegal =
       solver::ServingBF16ShapeLegal(TileM, TileN, TileK, Stages);

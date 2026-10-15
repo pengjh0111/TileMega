@@ -18,7 +18,7 @@ struct LastArriverGemmTaskBody {
 template<int D,int Q,int S>
 struct LastArriverAttentionTaskBody {
   __device__ static bool Run(unsigned* ticket,unsigned* shared_last,int block,
-      float const* partial,float const* lse,cutlass::bfloat16_t* output,
+      float const* partial,float const* lse,tilemega::Bf16* output,
       int batch,int group,int heads,int capacity,int extent,int past) {
     unsigned live=(past+S+extent-1)/extent;
     if(block*extent>=past+S)return false;

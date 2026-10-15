@@ -890,7 +890,7 @@ void MeasureFP32PartialCombine(TargetSpec& spec, Options const& options,
   scratch.calib=spec.CalibrationFor(options.bf16 ? "bf16" : "f32");
   scratch.calib.measurements.clear();
   CombineFit fit=options.bf16
-      ? MeasureCombine<cutlass::bfloat16_t,float,solver::kTensorBF16Threads>(scratch,options,log)
+      ? MeasureCombine<tilemega::Bf16,float,solver::kTensorBF16Threads>(scratch,options,log)
       : MeasureCombine<float,float,solver::kSimtF32Threads>(scratch,options,log);
   auto& profile=spec.CalibrationFor(options.bf16 ? "bf16" : "f32");
   auto& combined=profile.fp32_partial_combine;
@@ -948,7 +948,7 @@ void MeasureStreamK(TargetSpec& spec, Options const& options,
                     std::ostream& log) {
   Buffers buffers;
   std::size_t const element_bytes =
-      options.bf16 ? sizeof(cutlass::bfloat16_t) : sizeof(float);
+      options.bf16 ? sizeof(tilemega::Bf16) : sizeof(float);
   std::size_t const ab_elements =
       static_cast<std::size_t>(kMaxN) * kCalibTilesN * kMaxK;
   std::size_t const cd_elements =
@@ -973,7 +973,7 @@ void MeasureStreamK(TargetSpec& spec, Options const& options,
             "cudaMemset(C)");
 
   if (options.bf16) {
-    CombineFit combine = MeasureCombine<cutlass::bfloat16_t>(spec, options, log);
+    CombineFit combine = MeasureCombine<tilemega::Bf16>(spec, options, log);
     FitShape<true, 128, 128, 16, 3>(spec, options, buffers, combine, log);
     FitShape<true, 64, 64, 16, 3>(spec, options, buffers, combine, log);
     FitShape<true, 32, 32, 32, 3>(spec, options, buffers, combine, log);

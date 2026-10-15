@@ -77,11 +77,11 @@ __device__ inline void VisitBindingEvents(Params const& p,unsigned stage,int tas
     bool l2,EventCounter* events,unsigned long long iteration,Visit const& visit) {
   auto producer=p.stages[stage].binding_producer;
   if(producer==kDmNoIndex || producer>=p.stage_count || !events) {
-    asm volatile("trap;");return;
+    maca::Trap();return;
   }
   if(!l2) {
     producer=BindingBarrierOwner(p.stages,p.stage_count,producer);
-    if(producer==kDmNoIndex){asm volatile("trap;");return;}
+    if(producer==kDmNoIndex){maca::Trap();return;}
 #if TILEMEGA_SYNC_V3
     visit(&events[producer].arrivals,static_cast<unsigned long long>(gridDim.x)*(iteration+1));
 #else
@@ -92,11 +92,11 @@ __device__ inline void VisitBindingEvents(Params const& p,unsigned stage,int tas
   StageDependency const* binding=nullptr;
   for(unsigned i=p.dependency_offsets[stage];i<p.dependency_offsets[stage+1];++i)
     if(p.dependencies[i].producer==producer) {
-      if(binding){asm volatile("trap;");return;}
+      if(binding){maca::Trap();return;}
       binding=p.dependencies+i;
     }
   if(!binding || binding->map==StageDependency::Map::kCounted ||
-     binding->map==StageDependency::Map::kPhase) {asm volatile("trap;");return;}
+     binding->map==StageDependency::Map::kPhase) {maca::Trap();return;}
   int produced=ActiveBlocks(p,p.stages[producer]);
   auto event=[&](unsigned group) {
     auto* row=events+EventIndex(p,producer,group);
@@ -118,7 +118,7 @@ __device__ inline void VisitBindingEvents(Params const& p,unsigned stage,int tas
           nonempty=true;
           event(group);
         }
-      }) || !nonempty) asm volatile("trap;");
+      }) || !nonempty) maca::Trap();
 }
 __device__ inline bool BindingReady(Params const& p,unsigned stage,int task,
     bool l2,EventCounter* events,unsigned long long iteration) {
@@ -132,7 +132,7 @@ __device__ inline bool BindingReady(Params const& p,unsigned stage,int task,
 __device__ inline executor::BindingGate OpaqueGate(Params const& p,unsigned stage,
     bool l2,EventCounter* events,unsigned long long iteration,Watch const* watch=nullptr) {
   auto producer=p.stages[stage].opaque_predecessor;
-  if(producer>=p.stage_count || !events){asm volatile("trap;");return {};}
+  if(producer>=p.stage_count || !events){maca::Trap();return {};}
   if(l2) {
     auto* row=events+EventIndex(p,producer,kWholeStageEventGroup);
 #if TILEMEGA_SYNC_V3 || TILEMEGA_EVENT_RED_PUBLISH
@@ -142,7 +142,7 @@ __device__ inline executor::BindingGate OpaqueGate(Params const& p,unsigned stag
 #endif
   }
   producer=BindingBarrierOwner(p.stages,p.stage_count,producer);
-  if(producer>=p.stage_count){asm volatile("trap;");return {};}
+  if(producer>=p.stage_count){maca::Trap();return {};}
 #if TILEMEGA_SYNC_V3
   return {&events[producer].arrivals,static_cast<unsigned long long>(gridDim.x)*(iteration+1),watch};
 #else
@@ -165,13 +165,13 @@ __device__ inline MoeBindingStatus Binding(GemmInvocation const& inv,int tile_m,
                                            MoeBindingRecord* block) {
   auto const& a=inv.access;
   int tiles_per_block=CeilDiv(a.block_rows,inv.tile_m);
-  if(!tiles_per_block) {asm volatile("trap;");return MoeBindingStatus::kInvalid;}
+  if(!tiles_per_block) {maca::Trap();return MoeBindingStatus::kInvalid;}
   auto id=tile_m/tiles_per_block;
   MoeBindingView view{static_cast<MoeBindingRecord const*>(inv.binding),
       static_cast<MoeBindingRow const*>(inv.rows),a.binding_blocks,a.binding_rows,
       a.experts,a.block_rows};
   auto status=view.Lookup(id,block);
-  if(status==MoeBindingStatus::kInvalid)asm volatile("trap;");
+  if(status==MoeBindingStatus::kInvalid)maca::Trap();
   if(status==MoeBindingStatus::kActive &&
      unsigned(tile_m%tiles_per_block)*inv.tile_m>=block->row_count)
     return MoeBindingStatus::kEmpty;
@@ -251,7 +251,7 @@ struct PageStream {
           auto status=Binding(inv,point.tile/inv.tiles_n,&binding);
           if(status==MoeBindingStatus::kActive) {
             std::uint64_t expert;
-            if(!MoeExpertOffset(binding,inv.access.expert_stride,&expert))asm volatile("trap;");
+            if(!MoeExpertOffset(binding,inv.access.expert_stride,&expert))maca::Trap();
             weight+=expert;
           }else weight=nullptr;
         }
@@ -357,7 +357,7 @@ __device__ inline ServingGemmOperands Operands(GemmInvocation const& inv
   p.dm_buffers=inv.dm_buffers;
   p.a_row_stride=static_cast<int>(cute::get<0>(inv.mainloop.dA));
   if(tile_m>=0 && inv.access.b==DmBAccess::kExpertIndirect) {
-    if(!backend::ResolveDmMoeTile(p,tile_m,inv.tile_m))asm volatile("trap;");
+    if(!backend::ResolveDmMoeTile(p,tile_m,inv.tile_m))maca::Trap();
   }
 #endif
   return p;
@@ -420,7 +420,7 @@ struct DmFusedPageRunner {
     auto p=DwPwFusedOperands{invocation.fused_depthwise,operands};
     using Partial=DmEpilogueSpec<DmEpilogueProgram<>,DmWriteKind::kDense,1,DmRounding::kFP32>;
     if(invocation.chunks>1) {
-      p.pointwise.output=reinterpret_cast<cutlass::bfloat16_t*>(operands.partial);
+      p.pointwise.output=reinterpret_cast<tilemega::Bf16*>(operands.partial);
       p.pointwise.output_stride=operands.partial_stride;p.pointwise.chain={};
       p.pointwise.chain.store_rounding=DmRounding::kFP32;p.pointwise.access.write={};
       p.pointwise.dm_partial_rows=true;
@@ -446,7 +446,7 @@ struct DmPageRunner {
   __device__ void Run() const {
     using Gate = backend::DmGateShape<typename Spec::Chain>;
     if constexpr (!Gate::template kFits<Body::kTileColumns>) {
-      asm volatile("trap;");
+      maca::Trap();
     } else Body::template RunDm<Spec>(
         operands, tile_m, tile_n, ring, sequence, workspace, gate);
   }
@@ -498,7 +498,7 @@ __device__ void Gemm(Params const& params,GemmInvocation const& inv,int local,Ri
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
       if(inv.fused_program!=kDmNoIndex) {
         if(!DispatchDmVariantFused<Variant>(inv.fused_program,DmFusedPageRunner<V>{inv,operands,
-            local/inv.tiles_n,local%inv.tiles_n,ring,sequence,work}))asm volatile("trap;");
+            local/inv.tiles_n,local%inv.tiles_n,ring,sequence,work}))maca::Trap();
         return;
       }
       if (inv.chunks == 1 && inv.dm_enabled) {
@@ -512,7 +512,7 @@ __device__ void Gemm(Params const& params,GemmInvocation const& inv,int local,Ri
     }
   }else if constexpr(Variant + 1 < TILEMEGA_GEMM_VARIANT_COUNT)
     Gemm<Loader,L2,Variant+1>(params,inv,local,ring,sequence,work,events,iteration,lookahead);
-  else asm volatile("trap;");
+  else maca::Trap();
 }
 template<bool Last=false,int Variant=0>
 __device__ bool Combine(Params const& p,StageDesc const& stage,int task,char* work,
@@ -537,15 +537,15 @@ __device__ bool Combine(Params const& p,StageDesc const& stage,int task,char* wo
 #endif
     auto run=[&](auto op){
       if constexpr (decltype(op)::value == backend::ServingEpilogueOp::kSwiGLU && V::kTileN % 32) {
-        asm volatile("trap;");
+        maca::Trap();
       } else {
         auto reduction=[&](auto body){
           body(
             reinterpret_cast<float const*>(p.buffers[stage.operand[0]]),inv.chunks,
             task/inv.tiles_n,task%inv.tiles_n,stage.batch_rows?p.dims.batch:p.dims.tokens(),
             stage.width,stage.width,inv.serving_output_stride,
-            reinterpret_cast<cutlass::bfloat16_t*>(p.buffers[stage.operand[1]]),
-            reinterpret_cast<cutlass::bfloat16_t const*>(inv.residual),
+            reinterpret_cast<tilemega::Bf16*>(p.buffers[stage.operand[1]]),
+            reinterpret_cast<tilemega::Bf16 const*>(inv.residual),
             reinterpret_cast<float*>(p.buffers[stage.operand[1]]),inv.serving_argmax_index,
             reinterpret_cast<float*>(work),inv.serving_norm_ss,inv.serving_ss_out,
             inv.k_total,TILEMEGA_NORM_EPSILON);
@@ -564,17 +564,17 @@ __device__ bool Combine(Params const& p,StageDesc const& stage,int task,char* wo
       case backend::ServingEpilogueOp::kResidual:run(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kResidual>{});break;
       case backend::ServingEpilogueOp::kSwiGLU:run(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kSwiGLU>{});break;
       case backend::ServingEpilogueOp::kArgmaxPartial:run(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kArgmaxPartial>{});break;
-      default:asm volatile("trap;");
+      default:maca::Trap();
     }
     return last;
   }else if constexpr(Variant + 1 < TILEMEGA_GEMM_VARIANT_COUNT)
     return Combine<Last,Variant+1>(p,stage,task,work,ticket,shared_last);
-  else asm volatile("trap;");
+  else maca::Trap();
   return false;
 }
 #if TILEMEGA_SERVING_DECODER_ATTENTION
 __device__ inline ServingAttentionOperands AttentionOperands(Params const& p,StageDesc const& s) {
-  using E=cutlass::bfloat16_t;
+  using E=tilemega::Bf16;
   auto ptr=[&](int i){return s.operand[i]==kNoOperand?nullptr:p.buffers[s.operand[i]];};
   ServingAttentionOperands operands{reinterpret_cast<E const*>(ptr(0)),reinterpret_cast<E*>(ptr(1)),reinterpret_cast<E*>(ptr(2)),
       reinterpret_cast<E const*>(ptr(3)),reinterpret_cast<E const*>(ptr(4)),reinterpret_cast<E const*>(ptr(5)),
@@ -603,7 +603,7 @@ __device__ bool ArgmaxLast(Params const& p,GemmInvocation const& inv,
   }
   if constexpr(Variant + 1 < TILEMEGA_GEMM_VARIANT_COUNT)
     return ArgmaxLast<Variant+1>(p,inv,reducer,tile_m,work,ticket,shared_last);
-  asm volatile("trap;");return false;
+  maca::Trap();return false;
 }
 __device__ inline void Publish(Params const&,EventCounter*,unsigned,unsigned,
                                unsigned long long);
@@ -631,7 +631,7 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& i
                      unsigned long long iteration,
                      unsigned long long* step_ns=nullptr,unsigned step=0,
                      Lookahead const* lookahead=nullptr) {
-  auto const& s=p.stages[stage_index];using E=cutlass::bfloat16_t;
+  auto const& s=p.stages[stage_index];using E=tilemega::Bf16;
   if(s.handoff_elided)return;
 #if TILEMEGA_TRACE_TASK
   executor::ProfileScope profile{!Loader && (s.kind==TaskKind::kGemm || s.kind==TaskKind::kFusedAttention)
@@ -856,7 +856,7 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& i
 #if TILEMEGA_SERVING_DECODER_ATTENTION
       case TaskKind::kAttentionMerge:RunServingMergeTask(p,s,task);break;
 #endif
-      default:asm volatile("trap;");
+      default:maca::Trap();
     }
   }
 }

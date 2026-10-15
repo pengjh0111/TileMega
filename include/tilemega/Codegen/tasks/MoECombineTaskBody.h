@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Target/ArchDispatch.h>
-#include <cutlass/bfloat16.h>
+#include <tilemega/Target/Maca/Bf16.h>
 #include <cstdint>
 
 namespace tilemega::codegen {
 struct MoeCombineOperands {
-  cutlass::bfloat16_t const* partials=nullptr;  // [token, rank, channel]
+  tilemega::Bf16 const* partials=nullptr;  // [token, rank, channel]
   void const* weights=nullptr;   // [token, rank]
-  cutlass::bfloat16_t const* residual=nullptr;  // [token, channel]
-  cutlass::bfloat16_t* output=nullptr;
+  tilemega::Bf16 const* residual=nullptr;  // [token, channel]
+  tilemega::Bf16* output=nullptr;
   float* row_stats=nullptr;                    // [token, channel tile, 2]
   unsigned tokens=0,channels=0;
   std::uint64_t token_stride=0,rank_stride=0,row_stride=0,stats_stride=0;
@@ -31,7 +32,7 @@ struct MoECombineTaskBody {
     if(!p.partials || !p.weights || !p.residual || !p.output || !p.channels ||
        !p.token_stride || !p.rank_stride || !p.row_stride || (p.row_stats && !p.stats_stride) ||
        (p.rms_squares && p.channels%32)) {
-      asm volatile("trap;");return;
+      maca::Trap();return;
     }
     unsigned tiles=(p.channels+ChannelTile-1)/ChannelTile;
     unsigned first_token=(task/tiles)*TokenTile,first_channel=(task%tiles)*ChannelTile;
@@ -43,16 +44,16 @@ struct MoECombineTaskBody {
         #pragma unroll
         for(unsigned rank=0;rank<TopK;++rank) {
           float weight=p.weights_fp32?static_cast<float const*>(p.weights)[token*TopK+rank]:
-              float(static_cast<cutlass::bfloat16_t const*>(p.weights)[token*TopK+rank]);
+              float(static_cast<tilemega::Bf16 const*>(p.weights)[token*TopK+rank]);
           float partial=float(p.partials[token*p.token_stride+rank*p.rank_stride+channel]);
           // Preserve the exported routing dtype: modern HF keeps products in
           // FP32; historical BF16 exports retain their explicit rounding.
           float product=__fmul_rn(weight,partial);
-          if(!p.weights_fp32)product=float(cutlass::bfloat16_t(product));
+          if(!p.weights_fp32)product=float(tilemega::Bf16(product));
           sum=__fadd_rn(sum,product);
         }
-        auto moe=cutlass::bfloat16_t(sum);
-        auto output=cutlass::bfloat16_t(__fadd_rn(float(moe),float(p.residual[token*p.row_stride+channel])));
+        auto moe=tilemega::Bf16(sum);
+        auto output=tilemega::Bf16(__fadd_rn(float(moe),float(p.residual[token*p.row_stride+channel])));
         p.output[token*p.row_stride+channel]=output;result=float(output);
       }
       s.output[i]=result;
@@ -89,7 +90,7 @@ struct MoECombineTaskBody {
               p.rms_squares[(first_token+row)*(p.channels/32)+(first_channel+column)/32]=square;
           }
         }
-      }else asm volatile("trap;");
+      }else maca::Trap();
     }
     executor::ComputeSync();
   }

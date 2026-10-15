@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Target/ArchDispatch.h>
-#include <cutlass/bfloat16.h>
+#include <tilemega/Target/Maca/Bf16.h>
 #include <cstdint>
 
 namespace tilemega::codegen {
 struct EmbeddingSumOperands {
   std::int64_t const* input_ids=nullptr;
   std::int64_t const* token_type_ids=nullptr;
-  cutlass::bfloat16_t const* word=nullptr;
-  cutlass::bfloat16_t const* token_type=nullptr;
-  cutlass::bfloat16_t const* position=nullptr;
-  cutlass::bfloat16_t* output=nullptr;
+  tilemega::Bf16 const* word=nullptr;
+  tilemega::Bf16 const* token_type=nullptr;
+  tilemega::Bf16 const* position=nullptr;
+  tilemega::Bf16* output=nullptr;
   float* row_stats=nullptr;
   std::uint64_t rows=0;
   std::uint32_t sequence=0,vocabulary=0,token_types=0,positions=0;
@@ -30,17 +31,17 @@ struct EmbeddingSumTaskBody {
     if(row>=p.rows)return;
     if(!p.input_ids || !p.token_type_ids || !p.word || !p.token_type ||
        !p.position || !p.output || !p.sequence || p.sequence>p.positions) {
-      asm volatile("trap;");return;
+      maca::Trap();return;
     }
     auto word=p.input_ids[row],type=p.token_type_ids[row];
     if(word<0 || std::uint64_t(word)>=p.vocabulary || type<0 ||
-       std::uint64_t(type)>=p.token_types) {asm volatile("trap;");return;}
+       std::uint64_t(type)>=p.token_types) {maca::Trap();return;}
     auto position=row%p.sequence;
     float sum=0,square=0;
     for(int column=ComputeThread();column<Width;column+=kThreads) {
-      cutlass::bfloat16_t first(float(p.word[word*Width+column])+
+      tilemega::Bf16 first(float(p.word[word*Width+column])+
           float(p.token_type[type*Width+column]));
-      cutlass::bfloat16_t value(float(first)+float(p.position[position*Width+column]));
+      tilemega::Bf16 value(float(first)+float(p.position[position*Width+column]));
       p.output[row*Width+column]=value;
       sum+=float(value);square+=float(value)*float(value);
     }

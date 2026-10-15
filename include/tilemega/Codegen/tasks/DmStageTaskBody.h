@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/LayerNormTaskBody.h>
 #include <tilemega/Codegen/tasks/EmbeddingSumTaskBody.h>
@@ -16,7 +17,7 @@ namespace tilemega::codegen {
 #ifndef TILEMEGA_DM_STAGE_DISPATCH
 template<class Runner>
 __device__ inline void DispatchDmStage(std::uint32_t,std::uint32_t,std::uint32_t,Runner const&) {
-  asm volatile("trap;");
+  maca::Trap();
 }
 #endif
 
@@ -59,7 +60,7 @@ struct DmStageRunner {
   char* scratch;
   template<DmMoeStep Step,int TopK,int BlockRows,bool Grouped,int TokenTile,int ChannelTile>
   __device__ void RunMoe() const {
-    using E=cutlass::bfloat16_t;
+    using E=tilemega::Bf16;
     auto pointer=[&](unsigned slot)->void* {
       auto id=stage.operand[slot];return id==kNoOperand?nullptr:params.dm_buffers.data[id];
     };
@@ -111,7 +112,7 @@ struct DmStageRunner {
   }
   template<int RowBand,int ChannelTile,class Program>
   __device__ void RunDepthwise() const {
-    using E=cutlass::bfloat16_t;
+    using E=tilemega::Bf16;
     auto const& buffers=params.dm_buffers;
     auto conv=params.dm_convolutions[stage.conv];conv.n=params.dims.batch;
     DepthwiseConvOperands inputs{static_cast<E const*>(buffers.data[stage.operand[0]]),
@@ -126,7 +127,7 @@ struct DmStageRunner {
   }
   template<TaskKind Kind,int Width,int RowsPerTask>
   __device__ void Run() const {
-    using E=cutlass::bfloat16_t;
+    using E=tilemega::Bf16;
     auto pointer=[&](int i)->void* {
       auto id=stage.operand[i];
       return id==kNoOperand?nullptr:params.dm_buffers.data[id];

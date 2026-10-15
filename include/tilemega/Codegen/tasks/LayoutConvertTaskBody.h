@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/executor/Async.cuh>
 #include <tilemega/Codegen/DmDescriptors.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
-#include <cutlass/bfloat16.h>
+#include <tilemega/Target/Maca/Bf16.h>
 
 namespace tilemega::codegen {
 struct LayoutConvertOperands {
-  cutlass::bfloat16_t const* input=nullptr;
-  cutlass::bfloat16_t* output=nullptr;
+  tilemega::Bf16 const* input=nullptr;
+  tilemega::Bf16* output=nullptr;
   DmBufferLayout layout{};
 };
 template<class Arch,int RowsPerTask=128>
@@ -21,7 +22,7 @@ struct LayoutConvertTaskBody {
     if(!p.input || !p.output || l.kind!=DmLayout::kNHWC || l.rank!=4 ||
        !l.logical[1] || !l.logical[2] || !l.logical[3] || l.strides[3]!=1 ||
        l.physical[3]<l.logical[3] || l.strides[2]<l.physical[3]) {
-      asm volatile("trap;");return;
+      maca::Trap();return;
     }
     auto spatial=std::uint64_t(l.logical[1])*l.logical[2];
     auto rows=std::uint64_t(l.logical[0])*spatial;
@@ -35,7 +36,7 @@ struct LayoutConvertTaskBody {
       auto target=image*l.strides[0]+(pixel/l.logical[2]+l.halo_top)*l.strides[1]+
           (pixel%l.logical[2]+l.halo_left)*l.strides[2]+column;
       p.output[target]=column<l.logical[3]?
-          p.input[(image*l.logical[3]+column)*spatial+pixel]:cutlass::bfloat16_t(0);
+          p.input[(image*l.logical[3]+column)*spatial+pixel]:tilemega::Bf16(0);
     }
   }
 };

@@ -22,7 +22,7 @@
 
 namespace tilemega::calib {
 namespace {
-using Element=cutlass::bfloat16_t;
+using Element=tilemega::Bf16;
 using namespace tilemega::codegen;
 using tilemega::backend::ServingEpilogueOp;
 

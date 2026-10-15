@@ -88,7 +88,7 @@ std::string MoeRegionNonGemmProbeSource(ModelPlan const& plan) {
     out<<"extern \"C\" __global__ __launch_bounds__(128) void probe_moe_"<<index++
         <<"(Params const* p,StageDesc const* s,unsigned task) { extern __shared__ char bytes[]; ";
     if(stage.kind==PlanTaskKind::kRMSNorm) {
-      out<<"using E=cutlass::bfloat16_t; ServingRMSNormTaskBody::RunRow("
+      out<<"using E=tilemega::Bf16; ServingRMSNormTaskBody::RunRow("
           <<"static_cast<E const*>(p->dm_buffers.data[s->operand[0]]),"
           <<"static_cast<E const*>(p->dm_buffers.data[s->operand[1]]),"
           <<"static_cast<E*>(p->dm_buffers.data[s->operand[2]]),task,1,0,"

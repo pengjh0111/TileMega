@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Target/ArchDispatch.h>
-#include <cutlass/bfloat16.h>
+#include <tilemega/Target/Maca/Bf16.h>
 #include <cstdint>
 #include <cmath>
 
@@ -30,7 +31,7 @@ struct MoETopKTaskBody {
   __device__ static void Run(MoeTopKOperands const& p,unsigned task) {
     if(!p.partial_logits || !p.partial_indices || !p.indices || !p.weights ||
        !p.parts || p.experts<TopK || !p.row_stride || !p.part_stride || !p.rank_stride) {
-      asm volatile("trap;");return;
+      maca::Trap();return;
     }
     for(unsigned local=executor::ComputeThread();local<TokensPerTask;local+=kThreads) {
       unsigned token=task*TokensPerTask+local;if(token>=p.tokens)continue;
@@ -42,7 +43,7 @@ struct MoETopKTaskBody {
         float value=p.partial_logits[offset];auto index=p.partial_indices[offset];
         if(index==INT32_MAX)continue;
         if(index<0 || unsigned(index)>=p.experts || !isfinite(value)) {
-          asm volatile("trap;");return;
+          maca::Trap();return;
         }
         #pragma unroll
         for(unsigned rank=0;rank<TopK;++rank) {
@@ -52,21 +53,21 @@ struct MoETopKTaskBody {
           }
         }
       }
-      if(selected[TopK-1]==INT32_MAX) {asm volatile("trap;");return;}
+      if(selected[TopK-1]==INT32_MAX) {maca::Trap();return;}
       float probabilities[TopK],sum=0;
       #pragma unroll
       for(unsigned rank=0;rank<TopK;++rank) {
         probabilities[rank]=expf(logits[rank]-logits[0]);sum+=probabilities[rank];
         #pragma unroll
         for(unsigned prior=0;prior<rank;++prior)
-          if(selected[prior]==selected[rank]) {asm volatile("trap;");return;}
+          if(selected[prior]==selected[rank]) {maca::Trap();return;}
       }
       #pragma unroll
       for(unsigned rank=0;rank<TopK;++rank) {
         p.indices[token*TopK+rank]=selected[rank];
         float weight=probabilities[rank]/sum;
         if(p.weights_fp32)static_cast<float*>(p.weights)[token*TopK+rank]=weight;
-        else static_cast<cutlass::bfloat16_t*>(p.weights)[token*TopK+rank]=cutlass::bfloat16_t(weight);
+        else static_cast<tilemega::Bf16*>(p.weights)[token*TopK+rank]=tilemega::Bf16(weight);
       }
     }
   }

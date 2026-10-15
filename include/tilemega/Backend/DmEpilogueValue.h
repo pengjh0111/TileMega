@@ -2,7 +2,7 @@
 #pragma once
 #include <tilemega/Codegen/DmDescriptors.h>
 #include <tilemega/Target/ArchDispatch.h>
-#include <cutlass/bfloat16.h>
+#include <tilemega/Target/Maca/Bf16.h>
 #include <cmath>
 
 #if defined(__CUDACC__)
@@ -23,7 +23,7 @@ struct DmEpilogueInputs {
 template <codegen::DmRounding Rounding>
 TILEMEGA_DM_VALUE_HD inline float DmRound(float value) {
   if constexpr(Rounding==codegen::DmRounding::kBF16)
-    return float(cutlass::bfloat16_t(value));
+    return float(tilemega::Bf16(value));
   return value;
 }
 

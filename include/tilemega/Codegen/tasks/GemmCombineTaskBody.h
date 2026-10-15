@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Skeleton ref: §2.4 split reduction -- the combiner of a split-K GEMM.
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/tasks/PhaseTrace.cuh>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/GemmStageTaskBody.h>
@@ -44,15 +45,15 @@ struct GemmCombineTaskBody {
 #endif
     int columns = static_cast<int>(stage.width);
     if constexpr (Op == backend::ServingEpilogueOp::kSwiGLU && V::kTileN % 32) {
-      asm volatile("trap;");
+      maca::Trap();
     } else {
     ServingGemmCombineTaskBody<V::kTileM, V::kTileN, Op>::Run(
         reinterpret_cast<float const*>(p.buffers[stage.operand[0]]),
         invocation.chunks, task / invocation.tiles_n,
         task % invocation.tiles_n, rows, columns, columns,
         invocation.serving_output_stride,
-        reinterpret_cast<cutlass::bfloat16_t*>(p.buffers[stage.operand[1]]),
-        reinterpret_cast<cutlass::bfloat16_t const*>(invocation.residual),
+        reinterpret_cast<tilemega::Bf16*>(p.buffers[stage.operand[1]]),
+        reinterpret_cast<tilemega::Bf16 const*>(invocation.residual),
         reinterpret_cast<float*>(p.buffers[stage.operand[1]]),
         invocation.serving_argmax_index,
         reinterpret_cast<float*>(&smem.gemm),invocation.serving_norm_ss,
@@ -73,7 +74,7 @@ struct GemmCombineTaskBody {
       ServingGemmOperands source;
       source.dm_buffers=invocation.dm_buffers;source.chain=invocation.chain;
       source.access=invocation.access;source.binding=invocation.binding;source.rows=invocation.rows;
-      source.output=reinterpret_cast<cutlass::bfloat16_t*>(p.buffers[stage.operand[1]]);
+      source.output=reinterpret_cast<tilemega::Bf16*>(p.buffers[stage.operand[1]]);
       source.m=cute::get<0>(invocation.problem);source.n=stage.width;
       source.output_stride=invocation.serving_output_stride;
       source.norm_k=invocation.k_total;source.norm_eps=TILEMEGA_NORM_EPSILON;
@@ -94,7 +95,7 @@ struct GemmCombineTaskBody {
         RunServingOp<Variant, backend::ServingEpilogueOp::kSwiGLU>(p, stage, smem, task); break;
       case backend::ServingEpilogueOp::kArgmaxPartial:
         RunServingOp<Variant, backend::ServingEpilogueOp::kArgmaxPartial>(p, stage, smem, task); break;
-      default: asm volatile("trap;"); break;
+      default: maca::Trap(); break;
     }
   }
 
@@ -109,7 +110,7 @@ struct GemmCombineTaskBody {
     } else if constexpr (Variant + 1 < TILEMEGA_GEMM_VARIANT_COUNT) {
       DispatchServing<Variant + 1>(p, stage, smem, task);
     } else {
-      asm volatile("trap;");
+      maca::Trap();
     }
   }
 #endif

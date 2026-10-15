@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/DmDescriptors.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Target/ArchDispatch.h>
-#include <cutlass/bfloat16.h>
+#include <tilemega/Target/Maca/Bf16.h>
 
 namespace tilemega::codegen {
 struct GlobalPoolReduceOperands {
@@ -17,7 +18,7 @@ struct GlobalPoolReduceOperands {
   // Strip producers number their partials independently within each image.
   // Zero retains the global GEMM M-tile indexing convention.
   unsigned partial_rows_per_image=0;
-  cutlass::bfloat16_t* rounded_output=nullptr;
+  tilemega::Bf16* rounded_output=nullptr;
 };
 
 template<class Arch,int ChannelsPerTask=128>
@@ -32,7 +33,7 @@ struct GlobalPoolReduceTaskBody {
     using namespace executor;
     unsigned blocks=(p.channels+ChannelsPerTask-1)/ChannelsPerTask;
     if(!blocks || !p.images || !p.image_rows || !p.partials || !p.output ||
-       (!p.partial_rows_per_image && !p.producer_tile_rows)) {asm volatile("trap;");return;}
+       (!p.partial_rows_per_image && !p.producer_tile_rows)) {maca::Trap();return;}
     unsigned image=task/blocks,first_channel=(task%blocks)*ChannelsPerTask;
     unsigned first=p.partial_rows_per_image?0:image*p.image_rows/p.producer_tile_rows;
     unsigned end=p.partial_rows_per_image?p.partial_rows_per_image:
@@ -47,7 +48,7 @@ struct GlobalPoolReduceTaskBody {
         sum+=p.partials[image*l.strides[0]+part*l.strides[1]+channel*l.strides[2]];
       auto offset=image*(p.output_stride?p.output_stride:p.channels)+channel;
       float mean=sum/p.image_rows;p.output[offset]=mean;
-      if(p.rounded_output)p.rounded_output[offset]=cutlass::bfloat16_t(mean);
+      if(p.rounded_output)p.rounded_output[offset]=tilemega::Bf16(mean);
     }
   }
 };

@@ -33,7 +33,7 @@ __device__ inline void Task(Params const& p,unsigned stage_index,int task,unsign
   }
 #if TILEMEGA_SERVING_DECODER_ATTENTION
   else if(s.kind==TaskKind::kFusedAttention && s.prefetch_history_mask) {
-    using E=cutlass::bfloat16_t;
+    using E=tilemega::Bf16;
     int blocks=CeilDiv(p.dims.capacity,s.attention_kv_block);
     int qb=CeilDiv(int(s.group)*p.dims.seq,s.attention_query_rows);
     auto point=p.dims.seq==1

@@ -66,7 +66,7 @@ struct SimtGemmF32TN {
 /// CTA; accumulation is FP32 and only the epilogue converts back to BF16.
 template <int TileM, int TileN, int TileK, int Stages>
 struct TensorGemmBF16TN {
-  using Element = cutlass::bfloat16_t;
+  using Element = tilemega::Bf16;
   using Accumulator = float;
   static constexpr int kThreads = 128;
   // One cp.async instruction moves two BF16 values (32 bits).
@@ -96,7 +96,7 @@ using cute::_1;
 template <int Count>
 class BF16GraphLinearCombination {
   using Base = cutlass::epilogue::thread::LinearCombination<
-      cutlass::bfloat16_t, Count, float, float>;
+      tilemega::Bf16, Count, float, float>;
   Base base_;
 
  public:

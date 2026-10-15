@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Backend/DmEpilogueValue.h>
 #include <tilemega/Codegen/executor/Async.cuh>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
@@ -7,9 +8,9 @@
 
 namespace tilemega::codegen {
 struct DepthwiseConvOperands {
-  cutlass::bfloat16_t const* input=nullptr;
-  cutlass::bfloat16_t const* weight=nullptr;
-  cutlass::bfloat16_t* output=nullptr;
+  tilemega::Bf16 const* input=nullptr;
+  tilemega::Bf16 const* weight=nullptr;
+  tilemega::Bf16* output=nullptr;
   ConvDesc convolution{};
   DmBufferLayout input_layout{},output_layout{};
   // Depthwise KRSC has one logical input channel per output filter.
@@ -26,7 +27,7 @@ template<class Arch,int RowBand=1,int ChannelTile=64,
 struct DepthwiseConvTaskBody {
   static_assert(arch::Caps<Arch>::kCpAsync && RowBand>0);
   static_assert(ChannelTile==32 || ChannelTile==64 || ChannelTile==128 || ChannelTile==256);
-  using E=cutlass::bfloat16_t;
+  using E=tilemega::Bf16;
   static constexpr int kThreads=128;
   static constexpr bool kGated=backend::DmEpilogueWalk<Program>::kGates!=0;
   static_assert(backend::DmEpilogueWalk<Program>::kGates<=1);
@@ -55,12 +56,12 @@ struct DepthwiseConvTaskBody {
       auto const& op=p.chain.operations[Position];
       if(op.kind!=Step::kKind || op.activation!=Step::kActivation || op.gate!=Step::kGate ||
          op.unit!=Step::kUnit || op.input_rounding!=Step::kInputRounding ||
-         op.output_rounding!=Step::kOutputRounding) {asm volatile("trap;");return;}
+         op.output_rounding!=Step::kOutputRounding) {maca::Trap();return;}
       backend::DmEpilogueInputs a,b;
       if constexpr(Step::kKind==K::kBias || Step::kKind==K::kScale) {
         auto id=op.parameter[0];
         if(id>=p.buffers.count || !p.buffers.dtypes || p.buffers.dtypes[id]!=1 ||
-           !p.buffers.data || !p.buffers.data[id]) {asm volatile("trap;");return;}
+           !p.buffers.data || !p.buffers.data[id]) {maca::Trap();return;}
         auto value=static_cast<float const*>(p.buffers.data[id]);
         if constexpr(Step::kKind==K::kBias) {
           a.bias=value[channel];if constexpr(kGated && !Gated)b.bias=value[partner];
@@ -82,7 +83,7 @@ struct DepthwiseConvTaskBody {
     if(!blocks || !row_bands || !c.n || !c.q || !c.r || !c.s ||
        !c.stride_h || !c.stride_w || !c.dilation_h || !c.dilation_w ||
        p.weight_channel_pitch<8 || p.weight_channel_pitch%8 ||
-       c.k!=c.c || (kGated && c.c%2)) {asm volatile("trap;");return;}
+       c.k!=c.c || (kGated && c.c%2)) {maca::Trap();return;}
     unsigned image=task/(blocks*row_bands),band=(task/blocks)%row_bands;
     unsigned first_channel=(task%blocks)*ChannelTile;
     if(!p.input || !p.weight || !p.output || !scratch || !blocks || image>=c.n ||
@@ -90,7 +91,7 @@ struct DepthwiseConvTaskBody {
        in.strides[3]!=1 || in.strides[2]%8 || in.physical[3]%8 ||
        p.chain.count!=Program::kCount || p.chain.side_count ||
        p.chain.store_rounding!=DmRounding::kBF16 || (kGated && c.c%16)) {
-      asm volatile("trap;");return;
+      maca::Trap();return;
     }
     unsigned input_rows=InputRows(c),input_width=in.physical[2];
     auto* tile=reinterpret_cast<E*>(scratch);
@@ -122,7 +123,7 @@ struct DepthwiseConvTaskBody {
       if(output_y>=c.p)continue;
       long input_x=long(x)*c.stride_w-c.pad_w+in.halo_left;
       if(input_x<0 || input_x+long((c.s-1)*c.dilation_w)>=long(input_width)) {
-        asm volatile("trap;");return;
+        maca::Trap();return;
       }
       float accum[kBands][8]={};
       for(unsigned r=0;r<c.r;++r)for(unsigned s=0;s<c.s;++s) {

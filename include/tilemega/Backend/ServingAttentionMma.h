@@ -6,7 +6,7 @@
 #include <tilemega/Target/ArchDispatch.h>
 
 #include <cute/tensor.hpp>
-#include <cutlass/bfloat16.h>
+#include <tilemega/Target/Maca/Bf16.h>
 
 namespace tilemega::backend {
 
@@ -21,7 +21,7 @@ struct ServingAttentionMma {
   static_assert(arch::Caps<Arch>::kBf16TensorCore &&
                 arch::Caps<Arch>::kCpAsync);
   static_assert(M == 16 && N % 32 == 0 && K % 16 == 0);
-  using Element = cutlass::bfloat16_t;
+  using Element = tilemega::Bf16;
   using AtomLayout = decltype(cute::composition(
       cute::Swizzle<3, 3, 3>{},
       cute::Layout<cute::Shape<cute::_8, cute::_64>,

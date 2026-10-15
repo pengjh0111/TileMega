@@ -20,7 +20,7 @@
 #include <tilemega/Codegen/RuntimeCountedThresholds.h>
 #include <tilemega/Codegen/DmReduction.h>
 #endif
-#include <cutlass/bfloat16.h>
+#include <tilemega/Target/Maca/Bf16.h>
 
 #include <cstdint>
 #include <tilemega/Codegen/tasks/ServingTaskProfile.h>
@@ -161,7 +161,7 @@ enum class ScalarType : std::uint32_t { kF32 = 0, kBF16 = 1 };
 #endif
 
 #if defined(TILEMEGA_MODEL_BF16) && TILEMEGA_MODEL_BF16
-using ModelElement = cutlass::bfloat16_t;
+using ModelElement = tilemega::Bf16;
 inline constexpr ScalarType kCompiledScalarType = ScalarType::kBF16;
 #else
 using ModelElement = float;

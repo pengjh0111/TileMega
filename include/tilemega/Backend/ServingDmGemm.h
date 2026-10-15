@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 
 #include <tilemega/Codegen/executor/Async.cuh>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
@@ -7,7 +8,7 @@
 #include <tilemega/Backend/DmActivationScale.h>
 #include <tilemega/Target/ArchDispatch.h>
 #include <cute/tensor.hpp>
-#include <cutlass/bfloat16.h>
+#include <tilemega/Target/Maca/Bf16.h>
 #include <type_traits>
 
 namespace tilemega::backend {
@@ -18,7 +19,7 @@ template<class Arch,int TM,int TN,int TK,int Stages>
 struct ServingDmGemm {
   static_assert(arch::Caps<Arch>::kCpAsync && arch::Caps<Arch>::kBf16TensorCore);
   static_assert(solver::DmServingBF16ShapeLegal(TM,TN,TK,Stages));
-  using Element=cutlass::bfloat16_t;
+  using Element=tilemega::Bf16;
   using Async=codegen::executor::Async<Arch>;
   static constexpr int kThreads=128,kKSplits=TM==16 && TN==16?2:1;
   static constexpr int kSlots=Stages<8?Stages:8;
@@ -73,7 +74,7 @@ struct ServingDmGemm {
        p.k_begin+p.k_count>p.k_total || a_pitch%8 || b_pitch%8 ||
        a_pitch<p.k_total || b_pitch<p.k_total ||
        (tiled_b && (!p.weight_base || p.k_total_full<=0 || p.k_begin%TK))) {
-      asm volatile("trap;");return nullptr;
+      maca::Trap();return nullptr;
     }
     int const iterations=(p.k_count+TK-1)/TK;
     auto issue=[&](int it) {

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 
@@ -26,13 +27,13 @@ struct ServingGemmCombineTaskBody {
   __device__ static void Run(float const* partial, int split_count,
                              int tile_m, int tile_n, int M, int N,
                              int partial_row_stride, int output_stride,
-                             cutlass::bfloat16_t* output,
-                             cutlass::bfloat16_t const* residual,
+                             tilemega::Bf16* output,
+                             tilemega::Bf16 const* residual,
                              float* argmax_value, int* argmax_index,
                              float* shared,float const* norm_ss=nullptr,
                              float* ss_out=nullptr,int norm_k=0,float norm_eps=0.0f) {
     if (split_count < 1 || partial_row_stride < N) {
-      asm volatile("trap;");
+      maca::Trap();
       return;
     }
     std::int64_t split_stride = std::int64_t(M) * partial_row_stride;

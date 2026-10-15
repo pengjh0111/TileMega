@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/tasks/DepthwiseConvTaskBody.h>
 #include <tilemega/Codegen/tasks/PagedGemmTaskBody.h>
 
@@ -29,7 +30,7 @@ template<class Arch,int Channels,int TM,int TN,int TK,int Stages,
 struct DwPwFusedTaskBody {
   static_assert(Channels>0 && Channels%8==0);
   static_assert(backend::DmEpilogueWalk<DwProgram>::kGates==0);
-  using E=cutlass::bfloat16_t;
+  using E=tilemega::Bf16;
   using Gemm=backend::ServingDmGemm<Arch,TM,TN,TK,Stages>;
   using Dw=DepthwiseConvTaskBody<Arch,1,32,DwProgram>;
   static constexpr int kThreads=128;
@@ -52,7 +53,7 @@ struct DwPwFusedTaskBody {
        p.pointwise.access.a!=DmAAccess::kDense || p.pointwise.access.b!=DmBAccess::kDense ||
        p.pointwise.access.a_scale!=kDmNoIndex ||
        (p.pointwise.b_row_stride && (p.pointwise.b_row_stride%8 || p.pointwise.b_row_stride<Channels))) {
-      asm volatile("trap;");return;
+      maca::Trap();return;
     }
     for(unsigned vector=ComputeThread();vector<TM*Channels/8;vector+=kThreads) {
       unsigned row=tile_m*TM+vector/(Channels/8),channel=vector%(Channels/8)*8;
@@ -63,7 +64,7 @@ struct DwPwFusedTaskBody {
         long x=long(pixel%c.q)*c.stride_w-c.pad_w+input.halo_left;
         if(y<0 || x<0 || y+long((c.r-1)*c.dilation_h)>=long(input.physical[1]) ||
            x+long((c.s-1)*c.dilation_w)>=long(input.physical[2])) {
-          asm volatile("trap;");return;
+          maca::Trap();return;
         }
         for(unsigned r=0;r<c.r;++r)for(unsigned s=0;s<c.s;++s) {
           alignas(16) E values[8];
@@ -123,7 +124,7 @@ struct DwPwFusedTaskBody {
   __device__ static void Run(DwPwFusedOperands const& p,int tile_m,int tile_n,char* scratch) {
     using namespace executor;
     if(!scratch || !p.pointwise.b || (TiledB && !p.pointwise.weight_base)) {
-      asm volatile("trap;");return;
+      maca::Trap();return;
     }
     auto* depthwise=reinterpret_cast<E*>(scratch);
     auto* workspace=scratch+kDepthwiseBytes;
@@ -164,7 +165,7 @@ struct DwPwFusedTaskBody {
       typename PagedGemmTaskBody<Arch,TM,TN,TK,PageBytes,Pages,ForceSm80>::Ring const& ring,
       std::uint64_t& sequence,char* scratch) {
     using Paged=PagedGemmTaskBody<Arch,TM,TN,TK,PageBytes,Pages,ForceSm80>;
-    if(!scratch) {asm volatile("trap;");return;}
+    if(!scratch) {maca::Trap();return;}
     auto* depthwise=reinterpret_cast<E*>(scratch);
     Depthwise(p,tile_m,tile_n,depthwise);
     SharedActivation<TM,TN> reader{depthwise,p.pointwise.k_begin,p.pointwise.k_count};

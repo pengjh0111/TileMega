@@ -9,7 +9,7 @@ template<class Arch,int D,int Q,class QueryLayout,class KeyLayout>
 struct ServingAttentionSimt {
   static_assert(arch::Caps<Arch>::kCpAsync);
   static_assert((D==64 || D==128) && Q>0 && Q<=4);
-  using Element=cutlass::bfloat16_t;
+  using Element=tilemega::Bf16;
   static constexpr int Lanes=D/8,Groups=32/Lanes;
   float query[Q][8],acc[Q][8],maximum[Q],sum[Q];
   __device__ explicit ServingAttentionSimt(Element const* source) {

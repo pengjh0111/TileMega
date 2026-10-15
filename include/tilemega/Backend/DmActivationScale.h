@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Backend/ConvIteration.h>
 #include <tilemega/Backend/DmMoeOperands.h>
 #include <cute/tensor.hpp>
-#include <cutlass/bfloat16.h>
+#include <tilemega/Target/Maca/Bf16.h>
 #include <type_traits>
 #include <utility>
 
@@ -30,16 +31,16 @@ struct DmScaledActivation {
     bool conv=p.access.a==DmAAccess::kIm2Col;
     unsigned channels=conv?p.convolutions[p.access.conv].c:p.k_total;
     unsigned image_rows=conv?p.convolutions[p.access.conv].p*p.convolutions[p.access.conv].q:p.access.rows_per_batch;
-    if(!image_rows) {asm volatile("trap;");return;}
+    if(!image_rows) {maca::Trap();return;}
     unsigned dtype=1;std::uint64_t pitch=channels;
     if(p.access.a_scale!=kDmNoIndex) {
       if(p.access.a_scale>=p.dm_buffers.count || !p.dm_buffers.dtypes || !p.dm_buffers.layouts) {
-        asm volatile("trap;");return;
+        maca::Trap();return;
       }
       dtype=p.dm_buffers.dtypes[p.access.a_scale];
       auto const& layout=p.dm_buffers.layouts[p.access.a_scale];
       if(dtype>1 || (layout.rank && (layout.rank!=2 || layout.logical[1]!=channels || layout.strides[1]!=1))) {
-        asm volatile("trap;");return;
+        maca::Trap();return;
       }
       if(layout.rank)pitch=layout.strides[0];
     }
@@ -56,9 +57,9 @@ struct DmScaledActivation {
       if(valid) {
         auto source_row=conv?row:DmSourceRow(p,row);
         auto index=std::uint64_t(source_row/image_rows)*pitch+column;
-        scale=dtype==0?float(reinterpret_cast<cutlass::bfloat16_t const*>(p.a_scale)[index]):p.a_scale[index];
+        scale=dtype==0?float(reinterpret_cast<tilemega::Bf16 const*>(p.a_scale)[index]):p.a_scale[index];
       }
-      values(i)=cutlass::bfloat16_t(valid?float(values(i))*scale:0);
+      values(i)=tilemega::Bf16(valid?float(values(i))*scale:0);
     }
   }
 };

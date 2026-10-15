@@ -7,7 +7,7 @@ namespace tilemega::backend {
 template<class Arch,int D,class ValueLayout>
 struct ServingAttentionPVSwap {
   static_assert(arch::Caps<Arch>::kBf16TensorCore && arch::Caps<Arch>::kCpAsync);
-  using Element=cutlass::bfloat16_t;
+  using Element=tilemega::Bf16;
   using LayoutB=ValueLayout; // The transport still stores V in the same page image.
   using Mma=decltype(cute::make_tiled_mma(cute::SM80_16x8x16_F32BF16BF16F32_TN{},
       cute::Layout<cute::Shape<cute::_1,cute::_1,cute::_1>>{},

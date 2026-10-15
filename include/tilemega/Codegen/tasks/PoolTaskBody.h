@@ -3,13 +3,13 @@
 #include <tilemega/Codegen/DmDescriptors.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Target/ArchDispatch.h>
-#include <cutlass/bfloat16.h>
+#include <tilemega/Target/Maca/Bf16.h>
 #include <cmath>
 
 namespace tilemega::codegen {
 struct PoolOperands {
-  cutlass::bfloat16_t const* input=nullptr;
-  cutlass::bfloat16_t* output=nullptr;
+  tilemega::Bf16 const* input=nullptr;
+  tilemega::Bf16* output=nullptr;
   ConvDesc window{};
   DmBufferLayout input_layout{},output_layout{};
 };
@@ -52,7 +52,7 @@ struct PoolTaskBody {
           (pixel%w.q+out.halo_left)*out.strides[2]+column;
       #pragma unroll
       for(unsigned lane=0;lane<4;++lane)if(column+lane<w.c)
-        p.output[base+lane]=cutlass::bfloat16_t(values[lane]);
+        p.output[base+lane]=tilemega::Bf16(values[lane]);
     }
   }
 };

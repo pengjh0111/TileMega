@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Backend/DmMoeOperands.h>
 #include <tilemega/Backend/ServingEpilogue.h>
 #include <tilemega/Backend/ServingVectorIO.h>
@@ -18,7 +19,7 @@ struct ServingGemv {
   static_assert(arch::Caps<Arch>::kCpAsync);
   static_assert(TileM>=1 && (TileN==8 || TileN==16 || TileN==32 || TileN==64));
   static_assert(TileK==32 || TileK==64 || TileK==128);
-  using Element=cutlass::bfloat16_t;
+  using Element=tilemega::Bf16;
   using Copy=codegen::executor::Async<Arch>;
   static constexpr int kRows=TileM<4?TileM:4,kThreads=128,kWarps=4;
   static constexpr int kColumns=TileN/kWarps,kUnroll=16/kColumns;
@@ -46,7 +47,7 @@ struct ServingGemv {
   }
   template<class Operands>
   __device__ static void Validate(Operands const& p,int tile_m) {
-    if(!Supported(p,tile_m) || !p.a || !p.b)asm volatile("trap;");
+    if(!Supported(p,tile_m) || !p.a || !p.b)maca::Trap();
   }
   __device__ static uint4 LoadShared16(void const* pointer) {
     uint4 value;
@@ -137,7 +138,7 @@ struct ServingGemv {
                                 char* shared,bool tiled) {
     using namespace codegen::executor;
     Validate(p,tile_m);
-    if(tiled && (!p.weight_base || p.k_total_full<=0 || p.k_begin%TileK))asm volatile("trap;");
+    if(tiled && (!p.weight_base || p.k_total_full<=0 || p.k_begin%TileK))maca::Trap();
     int pitch=p.b_row_stride?p.b_row_stride:p.k_total;
     int kt=(p.k_total_full+TileK-1)/TileK;
     float acc[kColumns][kRows]{};
@@ -171,7 +172,7 @@ struct ServingGemv {
     static_assert(kPagedSupported<Ring>,
         "paged GEMV needs 32 KiB in flight and a whole B stage per page");
     Validate(p,tile_m);
-    if(p.k_begin%TileK)asm volatile("trap;");
+    if(p.k_begin%TileK)maca::Trap();
     constexpr int page_k=Ring::kPageBytes/(TileN*sizeof(Element));
     static_assert(kBatchK%page_k==0);
     float acc[kColumns][kRows]{};

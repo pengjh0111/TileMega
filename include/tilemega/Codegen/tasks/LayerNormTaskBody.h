@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Backend/DmTensorAddress.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Target/ArchDispatch.h>
-#include <cutlass/bfloat16.h>
+#include <tilemega/Target/Maca/Bf16.h>
 #include <cmath>
 
 namespace tilemega::codegen {
 struct LayerNormOperands {
-  cutlass::bfloat16_t const* input=nullptr;
-  cutlass::bfloat16_t const* gamma=nullptr;
-  cutlass::bfloat16_t const* beta=nullptr;
-  cutlass::bfloat16_t* output=nullptr;
+  tilemega::Bf16 const* input=nullptr;
+  tilemega::Bf16 const* gamma=nullptr;
+  tilemega::Bf16 const* beta=nullptr;
+  tilemega::Bf16* output=nullptr;
   DmBufferLayout input_layout{},output_layout{};
   std::uint64_t rows=0;
   float epsilon=0;
@@ -29,7 +30,7 @@ struct LayerNormTaskBody {
   __device__ static void Run(LayerNormOperands const& p,std::uint64_t task) {
     using namespace executor;
     if(!p.input || !p.gamma || !p.beta || !p.output || !(p.epsilon>0)) {
-      asm volatile("trap;");return;
+      maca::Trap();return;
     }
     int lane=ComputeThread()%32,warp=ComputeThread()/32;
     for(auto row=task*RowsPerTask+warp;
@@ -56,7 +57,7 @@ struct LayerNormTaskBody {
         int column=lane+i*32;
         if(column>=Width)continue;
         float value=((values[i]-mean)*inverse)*float(p.gamma[column])+float(p.beta[column]);
-        cutlass::bfloat16_t rounded(value);
+        tilemega::Bf16 rounded(value);
         p.output[backend::DmTensorAddress<DmWriteKind::kDense>::Offset(
             p.output_layout,row,column,Width)]=rounded;
         out_sum+=float(rounded);out_square+=float(rounded)*float(rounded);

@@ -14,7 +14,7 @@
 namespace tilemega::calib {
 namespace {
 using namespace tilemega::codegen;
-using Element=cutlass::bfloat16_t;
+using Element=tilemega::Bf16;
 using DeviceArch=std::conditional_t<std::is_void_v<arch::CurrentArch>,
     arch::Sm80,arch::CurrentArch>;
 template<int N,int K>struct Shape {static constexpr int n=N,k=K;};

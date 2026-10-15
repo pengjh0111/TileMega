@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Backend/ServingAttentionWarp.h>
 #include <tilemega/Codegen/executor/Async.cuh>
 #include <tilemega/Codegen/tasks/TaskResources.h>
@@ -9,8 +10,8 @@
 namespace tilemega::codegen {
 struct EncoderAttentionOperands {
   // [batch, token, head, Q/K/V, 64], with each head's triple contiguous.
-  cutlass::bfloat16_t const* qkv=nullptr;
-  cutlass::bfloat16_t* context=nullptr;
+  tilemega::Bf16 const* qkv=nullptr;
+  tilemega::Bf16* context=nullptr;
   std::int64_t const* key_padding=nullptr;
   unsigned batch=0,heads=0;
 };
@@ -19,7 +20,7 @@ template<class Arch,int Sequence,int QueryRows=64,bool Masked=false>
 struct EncoderAttentionTaskBody {
   static_assert(Sequence==128 || Sequence==384 || Sequence==512);
   static_assert(QueryRows==64 || QueryRows==128);
-  using E=cutlass::bfloat16_t;
+  using E=tilemega::Bf16;
   using QK=backend::ServingAttentionWarp<Arch,16,64>;
   using PV=backend::ServingAttentionWarp<Arch,64,16,true>;
   using Async=executor::Async<Arch>;
@@ -61,7 +62,7 @@ struct EncoderAttentionTaskBody {
     using namespace cute;
     using namespace executor;
     if(!p.qkv || !p.context || !p.batch || !p.heads || (Masked && !p.key_padding)) {
-      asm volatile("trap;");return;
+      maca::Trap();return;
     }
     constexpr unsigned query_blocks=(Sequence+QueryRows-1)/QueryRows;
     unsigned query_begin=(task%query_blocks)*QueryRows;
@@ -74,7 +75,7 @@ struct EncoderAttentionTaskBody {
         shared.row_sum[0]=float(count);
       }
       ComputeSync();bool valid=shared.row_sum[0]>0;ComputeSync();
-      if(!valid) {asm volatile("trap;");return;}
+      if(!valid) {maca::Trap();return;}
     }
     int warp=ComputeThread()/32,lane=ComputeThread()%32;
     auto score_coords=typename QK::Mma{}.get_slice(lane).partition_C(make_identity_tensor(Shape<_16,_16>{}));

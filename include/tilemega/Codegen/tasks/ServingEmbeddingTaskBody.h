@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Backend/ServingDeferredNorm.h>
 
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 
-#include <cutlass/bfloat16.h>
+#include <tilemega/Target/Maca/Bf16.h>
 #include <cuda_runtime.h>
 
 #include <cstdint>
@@ -22,20 +23,20 @@ struct ServingEmbeddingTaskBody {
   static constexpr int kSharedBytes = 0;
 
   __device__ static void RunRow(int32_t const* tokens,
-                                cutlass::bfloat16_t const* table,
-                                cutlass::bfloat16_t* output,
+                                tilemega::Bf16 const* table,
+                                tilemega::Bf16* output,
                                 int token_row, int seq, int past,
                                 int capacity, int width, int vocab,
                                 float* ss_out=nullptr) {
     int batch = token_row / seq;
     int position = past + token_row % seq;
     if (position < 0 || position >= capacity) {
-      asm volatile("trap;");
+      maca::Trap();
       return;
     }
     int id = tokens[batch * capacity + position];
     if (id < 0 || id >= vocab) {
-      asm volatile("trap;");
+      maca::Trap();
       return;
     }
     auto const* source = table + std::int64_t(id) * width;

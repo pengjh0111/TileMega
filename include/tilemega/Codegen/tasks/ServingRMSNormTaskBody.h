@@ -3,7 +3,7 @@
 
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 
-#include <cutlass/bfloat16.h>
+#include <tilemega/Target/Maca/Bf16.h>
 #include <tilemega/Backend/ServingVectorIO.h>
 #include <cuda_runtime.h>
 
@@ -21,20 +21,20 @@ struct ServingRMSNormTaskBody {
   static constexpr int kThreads = 128;
   static constexpr int kSharedBytes = 4 * sizeof(float);
 
-  __device__ static cutlass::bfloat16_t Transform(
+  __device__ static tilemega::Bf16 Transform(
       float x, float inverse_rms, float weight) {
-    return cutlass::bfloat16_t(
-        float(cutlass::bfloat16_t(x * inverse_rms)) * weight);
+    return tilemega::Bf16(
+        float(tilemega::Bf16(x * inverse_rms)) * weight);
   }
 
-  __device__ static float RowInvRms(cutlass::bfloat16_t const* src,
+  __device__ static float RowInvRms(tilemega::Bf16 const* src,
                                     int width, float epsilon, float* shared) {
     float sum = 0.0f;
     for (int base = ComputeThread() * 8; base < width;
          base += kComputeThreads * 8) {
       if (base + 8 <= width &&
           (reinterpret_cast<std::uintptr_t>(src + base) & 15) == 0) {
-        alignas(16) cutlass::bfloat16_t values[8];
+        alignas(16) tilemega::Bf16 values[8];
         *reinterpret_cast<uint4*>(values) =
             backend::LoadGlobal16(src + base);
         for (int j = 0; j < 8; ++j) {
@@ -63,9 +63,9 @@ struct ServingRMSNormTaskBody {
     return shared[0];
   }
 
-  __device__ static void RunRow(cutlass::bfloat16_t const* input,
-                                cutlass::bfloat16_t const* weight,
-                                cutlass::bfloat16_t* output,
+  __device__ static void RunRow(tilemega::Bf16 const* input,
+                                tilemega::Bf16 const* weight,
+                                tilemega::Bf16* output,
                                 int row, int row_stride, int row_offset,
                                 int width, float epsilon, float* shared) {
     int source_row = row * row_stride + row_offset;
@@ -74,9 +74,9 @@ struct ServingRMSNormTaskBody {
     float scale = RowInvRms(src, width, epsilon, shared);
     for (int base = ComputeThread() * 8; base < width;
          base += kComputeThreads * 8) {
-      alignas(16) cutlass::bfloat16_t values[8];
-      alignas(16) cutlass::bfloat16_t source[8];
-      alignas(16) cutlass::bfloat16_t scales[8];
+      alignas(16) tilemega::Bf16 values[8];
+      alignas(16) tilemega::Bf16 source[8];
+      alignas(16) tilemega::Bf16 scales[8];
       int count = width - base < 8 ? width - base : 8;
       bool vector_input = count == 8 &&
                           (reinterpret_cast<std::uintptr_t>(src + base) & 15) == 0 &&

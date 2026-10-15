@@ -19,7 +19,7 @@ template<class Arch,int D,int Q,bool QkNorm,int PageBytes,int Pages,bool ForceSm
     AttentionPagePolicy PagePolicy=AttentionPagePolicy::Packed>
 struct PagedAttentionTaskBody {
   static_assert(Q<=16);
-  using Element=cutlass::bfloat16_t;
+  using Element=tilemega::Bf16;
   using Base=FusedAttentionTaskBody<Arch,D,Q,1,16,32,QkNorm>;
   using Atom=decltype(cute::composition(cute::Swizzle<3,3,3>{},
       cute::Layout<cute::Shape<cute::_8,cute::_64>,cute::Stride<cute::_64,cute::_1>>{}));

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 
 #include <tilemega/Backend/DmEpilogueValue.h>
 #include <tilemega/Backend/DmTensorAddress.h>
@@ -85,7 +86,7 @@ struct ServingDmEpilogue {
   __device__ static T* Buffer(DmEpilogueArguments const& p, std::uint32_t id) {
     if (id >= p.buffers.count || !p.buffers.data || !p.buffers.dtypes ||
         p.buffers.dtypes[id] != Dtype || !p.buffers.data[id]) {
-      asm volatile("trap;");
+      maca::Trap();
       return nullptr;
     }
     return reinterpret_cast<T*>(p.buffers.data[id]);
@@ -94,7 +95,7 @@ struct ServingDmEpilogue {
       DmEpilogueArguments const& p, std::uint32_t id) {
     if (id == codegen::kDmNoIndex) return {};
     if (id >= p.buffers.count || !p.buffers.layouts) {
-      asm volatile("trap;");
+      maca::Trap();
       return {};
     }
     return p.buffers.layouts[id];
@@ -115,7 +116,7 @@ struct ServingDmEpilogue {
       int width=declared_width?declared_width:p.norm_width;
       float epsilon=declared_width?declared_epsilon:p.norm_eps;
       if ((!squares_only && !complete && (layout.rank != 3 || layout.logical[2] != 2)) || width <= 0) {
-        asm volatile("trap;");
+        maca::Trap();
         return;
       }
       float* means = tile + TileM * TileN;
@@ -157,19 +158,19 @@ struct ServingDmEpilogue {
           op.output_rounding != Step::kOutputRounding ||
           op.residual_map.kind != Step::kResidualMap ||
           op.residual_map.factor != Step::kResidualFactor) {
-        asm volatile("trap;");
+        maca::Trap();
         return;
       }
       float const* first = nullptr;
       float const* second = nullptr;
       float const* third = nullptr;
-      cutlass::bfloat16_t const* residual = nullptr;
+      tilemega::Bf16 const* residual = nullptr;
       codegen::DmBufferLayout residual_layout{};
       std::uint32_t const* scatter = nullptr;
       if constexpr (Step::kKind == K::kBias || Step::kKind == K::kScale)
         first = Buffer<float, 1>(p, op.parameter[0]);
       if constexpr (Step::kKind == K::kResidual || Step::kKind == K::kResidualLN) {
-        residual = Buffer<cutlass::bfloat16_t, 0>(p, op.parameter[0]);
+        residual = Buffer<tilemega::Bf16, 0>(p, op.parameter[0]);
         residual_layout = Layout(p, op.residual_map.layout);
         if constexpr (Step::kResidualMap == codegen::DmWriteKind::kRowScatter)
           scatter = Buffer<std::uint32_t, 2>(p, op.residual_map.rows);
@@ -253,7 +254,7 @@ struct ServingDmEpilogue {
       if constexpr(Spec::kWrite==codegen::DmWriteKind::kRowScatter) {
         if(p.moe.rows) {
           if(!p.routing_topk || p.moe.rows[p.moe.Entry(global_row)].rank>=p.routing_topk) {
-            asm volatile("trap;");return;
+            maca::Trap();return;
           }
           auto row=p.moe.Scatter(global_row,p.routing_topk);
           offset=DmTensorAddress<codegen::DmWriteKind::kDense>::Offset(
@@ -264,7 +265,7 @@ struct ServingDmEpilogue {
           layout,p.StorageRow(global_row),global_column,p.output_stride,scatter);
       float value = tile[Index(row, InputColumn<Gate::kCount != 0>(column))];
       if constexpr (Spec::kStore == codegen::DmRounding::kBF16)
-        reinterpret_cast<cutlass::bfloat16_t*>(p.output)[offset] = cutlass::bfloat16_t(value);
+        reinterpret_cast<tilemega::Bf16*>(p.output)[offset] = tilemega::Bf16(value);
       else reinterpret_cast<float*>(p.output)[offset] = value;
     }
     ComputeSync();
@@ -284,7 +285,7 @@ struct ServingDmEpilogue {
       using K = codegen::DmSideOutputKind;
       auto const& descriptor = p.chain.side[Position];
       if (descriptor.kind != Side::kKind || descriptor.count != Side::kCount) {
-        asm volatile("trap;");
+        maca::Trap();
         return;
       }
       float* output = Buffer<float, 1>(p, descriptor.buffer);
@@ -292,7 +293,7 @@ struct ServingDmEpilogue {
       int columns = p.n / (Gate::kCount ? 2 : 1);
       if constexpr (Side::kKind == K::kRowStats) {
         if (layout.rank != 3 || layout.logical[2] != 2) {
-          asm volatile("trap;");
+          maca::Trap();
           return;
         }
         int lane = ComputeThread() & 31;
@@ -318,7 +319,7 @@ struct ServingDmEpilogue {
         }
       } else if constexpr (Side::kKind == K::kChannelPartialSums) {
         if (layout.rank != 3 || p.image_rows <= 0) {
-          asm volatile("trap;");
+          maca::Trap();
           return;
         }
         int first = tile_m * TileM / p.image_rows;
@@ -337,7 +338,7 @@ struct ServingDmEpilogue {
           }
         }
       } else if constexpr (Side::kKind == K::kPartial) {
-        if (layout.rank != 3) { asm volatile("trap;"); return; }
+        if (layout.rank != 3) { maca::Trap(); return; }
         for (int i = ComputeThread(); i < TileM * kColumns; i += kComputeThreads) {
           int row = i / kColumns, column = i % kColumns;
           int global_row = tile_m * TileM + row;
@@ -357,7 +358,7 @@ struct ServingDmEpilogue {
           return (l.rank==3 && l.logical[1]>=parts && l.logical[2]>=count) ||
               (l.rank==2 && l.logical[1]>=std::uint64_t(parts)*count && l.strides[1]==1);
         };
-        if(!valid(layout) || !valid(index_layout)) {asm volatile("trap;");return;}
+        if(!valid(layout) || !valid(index_layout)) {maca::Trap();return;}
         // MoE stores [row, part*K+rank]; standalone side-output fixtures may
         // use [row, part, rank]. Both layouts retain the same finite chain.
         auto offset=[&](codegen::DmBufferLayout const& l,int row,unsigned rank) {
@@ -424,7 +425,7 @@ struct ServingDmEpilogue {
     if (p.chain.count != Program::kCount || p.chain.side_count != Spec::kSideCount ||
         p.write.kind != Spec::kWrite || p.write.factor != Spec::kFactor ||
         p.chain.store_rounding != Spec::kStore || !p.output) {
-      asm volatile("trap;");
+      maca::Trap();
       return;
     }
     Visitor visitor{tile, p, tile_m, tile_n};
