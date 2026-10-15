@@ -57,6 +57,10 @@ struct PlanRequest {
   std::vector<int> physical_worker;
   /// Required by the modes that read the task DAG; ignored by the rest.
   codegen::RuntimeTaskGraph const* graph = nullptr;
+  /// kClusterSplit only: 0 for independent stages, cluster_dim for a
+  /// cooperative stage. The metadata describes logical tasks, not queues.
+  unsigned cluster_dim = 1;
+  std::vector<unsigned> cluster_chunks;
 
   /// `kEft`: pi and sigma per runtime node, flat node ids.  Only the
   /// materialized form appears here.  An offline caller runs

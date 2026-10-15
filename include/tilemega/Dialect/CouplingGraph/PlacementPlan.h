@@ -38,6 +38,8 @@ enum class PlacementTemplate {
   kBand = 0,
   /// The second schedule dimension modulo the worker count.
   kWavefront = 1,
+  /// Tile-major split axis is mapped to the matching physical cluster rank.
+  kClusterSplit = 2,
 };
 
 /// The module attribute an `eft` Plan's materialized (pi, sigma) travels in.

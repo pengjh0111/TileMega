@@ -126,6 +126,37 @@ bool MaterializePlanPlacement(PlanRequest const& request, MaterializedPlan* out,
 
     case PlacementMode::kTemplate: {
       auto const family = static_cast<dialect::PlacementTemplate>(request.params[0]);
+      if(family==dialect::PlacementTemplate::kClusterSplit) {
+        unsigned const c=request.cluster_dim;
+        if((c!=2 && c!=4) || request.grid%int(c) ||
+           request.cluster_chunks.size()!=stages || !request.graph)
+          return fail("cluster_split needs a divisible grid, task DAG and per-stage split metadata");
+        for(int worker=0;worker<request.grid;++worker)
+          if(request.physical_worker[worker]!=worker)
+            return fail("cluster_split requires contiguous physical cluster ranks");
+        std::vector<int> order(stages,-1);
+        for(unsigned i=0;i<request.stage_order.size();++i) {
+          unsigned s=request.stage_order[i];
+          if(s>=stages || order[s]!=-1)return fail("cluster_split stage order is not a permutation");
+          order[s]=int(i);
+        }
+        for(int position:order)if(position<0)return fail("cluster_split stage order omits a stage");
+        for(std::size_t s=0;s<stages;++s) {
+          auto chunks=request.cluster_chunks[s];
+          if(chunks && (chunks!=c || request.counts[s]%int(c)))
+            return fail("cluster_split cooperative stage must have exactly one task per rank");
+          for(int task=0;task<request.counts[s];++task)
+            out->owner[s][task]=task%request.grid;
+        }
+        // FIFO progress plus strictly forward stage dependencies prevents a
+        // rank from waiting on an episode that a peer must execute later.
+        auto const& graph=*request.graph;
+        for(unsigned node=0;node<graph.successors.size();++node)
+          for(int succ:graph.successors[node])
+            if(order[StageOfNode(graph,int(node))]>=order[StageOfNode(graph,succ)])
+              return fail("cluster_split requires strictly forward stage dependencies");
+        break;
+      }
       if (family == dialect::PlacementTemplate::kBand) {
         // The probe tiled the outermost parallel band coordinate
         // (`tile_width = ceil(span / workers)`, `w = value / tile_width`); on

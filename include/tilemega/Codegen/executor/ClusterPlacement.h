@@ -10,6 +10,10 @@
 #define TILEMEGA_SERVING_CLUSTER_DIM 1
 #endif
 
+#ifndef TILEMEGA_CLUSTER_COMBINE
+#define TILEMEGA_CLUSTER_COMBINE 0
+#endif
+
 #ifndef TILEMEGA_SERVING_RESIDENCY_REQUEST
 #define TILEMEGA_SERVING_RESIDENCY_REQUEST 0
 #endif
@@ -72,5 +76,33 @@ inline void ValidateClusterCooperation(unsigned cluster_dim,
       throw std::invalid_argument("cluster cooperation requires one task per rank in one cluster");
     mask|=1u<<rank;
   }
+}
+
+template<class Task>
+inline void ValidateClusterEpisodeOrder(unsigned c,unsigned grid,
+    std::vector<unsigned> const& chunks,std::vector<std::uint32_t> const& offsets,
+    std::vector<Task> const& tasks) {
+  if((c!=2 && c!=4) || !grid || grid%c || offsets.size()!=grid+1)
+    throw std::invalid_argument("cluster episodes require a divisible physical grid");
+  using Episode=std::pair<unsigned,unsigned>;
+  std::vector<std::vector<Episode>> episodes(grid);
+  for(unsigned worker=0;worker<grid;++worker) {
+    if(offsets[worker]>offsets[worker+1] || offsets[worker+1]>tasks.size())
+      throw std::invalid_argument("cluster episode offsets are invalid");
+    for(unsigned slot=offsets[worker];slot<offsets[worker+1];++slot) {
+      auto const& task=tasks[slot];
+      if(task.stage>=chunks.size())throw std::invalid_argument("cluster episode stage is out of range");
+      unsigned const split=chunks[task.stage];
+      if(!split)continue;
+      if(split!=c || task.logical_task%c!=worker%c ||
+          (task.logical_task/c)%(grid/c)!=worker/c)
+        throw std::invalid_argument("cluster episode does not map chunk to matching rank");
+      episodes[worker].emplace_back(task.stage,task.logical_task/c);
+    }
+  }
+  for(unsigned cluster=0;cluster<grid/c;++cluster)
+    for(unsigned rank=1;rank<c;++rank)
+      if(episodes[cluster*c]!=episodes[cluster*c+rank])
+        throw std::invalid_argument("cluster ranks execute different cooperative episode orders");
 }
 } // namespace tilemega::codegen::executor
