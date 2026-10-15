@@ -16,25 +16,22 @@ int TestServingPruning(int argc, char** argv) {
   assert(!PruneServingR1(g, decode));
   assert(PruneServingR1(GemmConfig{16, 128, 64, 2, 64},
                         ServingPruneContext{16, 2048, 6144, 0, 128, &target}));
+  // xcore1000: attention may exceed the GEMM storage, never the CTA limit.
+  target.res.max_dynamic_smem_per_cta=65536;
   assert(!PruneServingAttentionSmemR1(64,16,{g},target));
-  assert(!PruneServingAttentionSmemR1(64,128,{g},target));
-  assert(PruneServingAttentionSmemR1(128,16,{g},target));
-  assert(PruneServingAttentionSmemR1(64,16,
-      {GemmConfig{16,32,64,2,1}},target));
+  assert(!PruneServingAttentionSmemR1(128,16,{g},target));
+  assert(PruneServingAttentionSmemR1(128,0,{g},target));
   using tilemega::codegen::ServingAttentionKvTile;
   using tilemega::codegen::ServingAttentionSharedBytes;
   int small=ServingAttentionSharedBytes(128,32);
   int large=ServingAttentionSharedBytes(128,64);
-  assert(small<large);
+  assert(small<large && large<=65536);
   assert(ServingAttentionKvTile(128,small)==32);
   assert(ServingAttentionKvTile(128,large)==64);
-  GemmConfig medium{16,128,64,3,1};
-  auto saved_limit=target.res.max_dynamic_smem_per_cta;
-  target.res.max_dynamic_smem_per_cta=ServingBF16SmemBytes(16,128,64,3);
-  assert(target.res.max_dynamic_smem_per_cta>=small);
-  assert(target.res.max_dynamic_smem_per_cta<large);
-  assert(!PruneServingAttentionSmemR1(128,16,{medium},target));
-  target.res.max_dynamic_smem_per_cta=saved_limit;
+  target.res.max_dynamic_smem_per_cta=small-1;
+  assert(PruneServingAttentionSmemR1(128,16,{g},target));
+  target.res.max_dynamic_smem_per_cta=
+      ServingBF16SmemBytes(g.tile_m, g.tile_n, g.tile_k, g.stages);
   assert(!PruneServingR2(g, decode));
   assert(PruneServingR2(GemmConfig{32, 128, 64, 2, 1}, decode));
   assert(PruneServingR2(GemmConfig{16, 128, 64, 33, 1}, decode));
