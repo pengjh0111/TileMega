@@ -6,18 +6,33 @@
 #include <mlir/IR/Verifier.h>
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Codegen/RuntimePlan.h>
+#include <tilemega/Codegen/DependencyTablePacking.h>
+#include <tilemega/Codegen/RuntimeDependencies.h>
 #include <tilemega/Solver/ModelDescription.h>
 #include <tilemega/Solver/RuntimeProjection.h>
 #include <set>
 #include <fstream>
 #include <cassert>
 #include <iostream>
+#include <cctype>
+#include <regex>
+#include <sstream>
 
 namespace tilemega::tests::counted_dependency_cg_test {
 namespace {
 using namespace analysis;
 using namespace frontend;
 ClosedForm F(long x){return ClosedForm::Constant(x);}
+std::vector<unsigned> UnsignedInitializer(std::string const& cu,std::string const& name) {
+  auto begin=cu.find(name+"[]");assert(begin!=std::string::npos);
+  begin=cu.find('{',begin);auto end=cu.find("};",begin);
+  assert(begin!=std::string::npos && end!=std::string::npos);
+  auto text=cu.substr(begin+1,end-begin-1);
+  for(auto& ch:text)if(!std::isdigit(static_cast<unsigned char>(ch)))ch=' ';
+  std::istringstream stream(text);std::vector<unsigned> values;
+  for(unsigned value;stream>>value;)values.push_back(value);
+  return values;
+}
 ImportedSemantics Fixture(int tokens) {
   ImportedSemantics prepared;
   FxNodeRecord input;input.name="x";input.op="placeholder";input.target="x";
@@ -102,8 +117,33 @@ int TestCountedDependencyCg(int argc,char** argv) {
     assert(cu.find("constexpr RuntimeDependencyInterval kDependencyIntervals0[]")!=std::string::npos);
     auto ordering=analysis::BuildDependencyTableLinear(runtime.dependencies[0].counted->conservative_relation,
         runtime.dependencies[0].counted->producers,contract.expected.size());
-    assert(cu.find("kDependencyIntervals0, "+std::to_string(ordering.intervals.size())+"u")!=std::string::npos);
-    assert(cu.find("kCountedThresholds0, "+std::to_string(contract.expected.size())+"u")!=std::string::npos);
+    auto packed=UnsignedInitializer(cu,"kDependencyIntervals0");
+    auto thresholds=UnsignedInitializer(cu,"kCountedThresholds0");
+    assert(thresholds.size()==contract.expected.size() &&
+           std::equal(thresholds.begin(),thresholds.end(),contract.expected.begin()));
+    auto period=codegen::DependencyTableRowPeriod(ordering);
+    auto stored_rows=period?period:ordering.consumers;
+    assert(packed.size()==2u*stored_rows*ordering.stride);
+    std::vector<codegen::RuntimeDependencyInterval> intervals;
+    for(unsigned i=0;i<packed.size();i+=2)intervals.push_back({packed[i],packed[i+1]});
+    for(unsigned consumer=0;consumer<ordering.consumers;++consumer) {
+      std::set<unsigned> expected,actual;
+      for(unsigned i=0;i<ordering.stride;++i) {
+        auto interval=ordering.intervals[consumer*ordering.stride+i];
+        for(unsigned p=interval.first;p<interval.first+interval.count;++p)expected.insert(p);
+      }
+      assert(codegen::VisitDependencyTable({intervals.data(),ordering.consumers,ordering.stride,period},
+          consumer,runtime.dependencies[0].counted->producers,[&](auto bounds) {
+            for(unsigned p=bounds.first;p<unsigned(bounds.past);++p)actual.insert(p);
+          }));
+      assert(actual==expected);
+    }
+    std::smatch encoded;
+    assert(std::regex_search(cu,encoded,std::regex("kDependencyIntervals0\\s*,\\s*([0-9]+)u")) &&
+           std::stoul(encoded[1])==intervals.size());
+    assert(std::regex_search(cu,encoded,std::regex("kCountedThresholds0\\s*,\\s*([0-9]+)u")) &&
+           std::stoul(encoded[1])==thresholds.size());
+    if(period)assert(cu.find(", false, false, "+std::to_string(period)+"u}")!=std::string::npos);
     if(argc==3 && std::string(argv[1])=="--emit" && tokens==17 && block==16 && consumer_rows==16 && n==16) {
       std::ofstream output(argv[2]);assert(output);output<<cu;
     }

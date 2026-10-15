@@ -127,7 +127,7 @@ template<int Tokens>void Run(cudaDeviceProp const& device) {
 }
 int main() {
   int device;cudaDeviceProp properties;Check(cudaGetDevice(&device));Check(cudaGetDeviceProperties(&properties,device));
-  assert(properties.major==8 && properties.minor==9);
+  assert(properties.warpSize==32 && properties.maxThreadsPerBlock>=128);
   Run<1>(properties);Run<2>(properties);Run<17>(properties);Run<33>(properties);
   std::puts("Counted threshold synchronization: tail counts, weighted LA, shuffled rows, empty tiles, 32 epochs and separate banks PASS");
 }

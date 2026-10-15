@@ -52,9 +52,21 @@ class ServingHead(unittest.TestCase):
                                     if node.target == torch.ops.aten.linear.default and
                                     'lm_head' in str(node.meta.get('nn_module_stack'))]
                             self.assertEqual(len(head), 1)
-                            self.assertEqual(names[head[0].args[1].name],
-                                             'model.embed_tokens.weight' if tied
-                                             else 'lm_head.weight')
+                            embedding = [node for node in program.graph.nodes
+                                         if node.target == torch.ops.aten.embedding.default and
+                                         'embed_tokens' in str(node.meta.get('nn_module_stack'))]
+                            self.assertEqual(len(embedding), 1)
+                            head_weight, embedding_weight = head[0].args[1], embedding[0].args[0]
+                            if tied:
+                                # torch 2.8 canonicalizes this shared Parameter to
+                                # lm_head; later exporters may choose embed_tokens.
+                                self.assertIs(head_weight, embedding_weight)
+                                self.assertIn(names[head_weight.name],
+                                              ('model.embed_tokens.weight', 'lm_head.weight'))
+                            else:
+                                self.assertIsNot(head_weight, embedding_weight)
+                                self.assertEqual(names[head_weight.name], 'lm_head.weight')
+                                self.assertEqual(names[embedding_weight.name], 'model.embed_tokens.weight')
 
     def test_prefill_export_uses_request_sequence_length(self):
         config=dict(architectures=['LlamaForCausalLM'],hidden_size=32,
