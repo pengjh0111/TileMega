@@ -11,7 +11,7 @@ import tempfile
 import unittest
 
 from tilemega.build.feature_contract import (
-    INTEGER_FEATURES, build_defines, implementations, validate,
+    INTEGER_FEATURES, build_defines, implementations, validate, validate_gemm_dispatch,
 )
 
 
@@ -152,6 +152,8 @@ class GeneratedFeatureTests(unittest.TestCase):
         options = shlex.split(Path(str(cuda) + '.runtime_flags.txt').read_text())
         defines = build_defines(source, options)
         validate(manifest, defines)
+        dispatch=validate_gemm_dispatch(manifest,defines,source)
+        receipt['gemm_dispatch']=dispatch
         self.assertEqual(defines.get('TILEMEGA_DM_SUPPORT', '0'), '1' if family in ('dm','moe') else '0')
         fields = implementations(manifest, defines)
         receipt.update(source_sha256=hashlib.sha256(source.encode()).hexdigest(),
@@ -280,6 +282,21 @@ class GeneratedFeatureTests(unittest.TestCase):
         self.generate('llm','reject_residency0',['--residency','0'],
             '--residency must be 1 or 2',target=ROOT/'configs/targets/sm_90_h800.json')
         receipt['pass']=True
+
+    def test_dense_mixed_implementations_reach_actual_runtime_classes(self):
+        flags=['--deferred-norm','0','--nonpaged-weight-layout','tiled','--resource-probes','0',
+               '--gemm-impl-lm-head','mma16']
+        for family in ('qkv','o','gate-up','down'):flags+=['--gemm-impl-'+family,'wgmma']
+        for executor in ('off','l2'):
+            manifest,defines,fields,receipt=self.generate('llm','mixed_wgmma_mma_head_'+executor,
+                flags+['--pg',executor],target=ROOT/'configs/targets/sm_90_h800.json')
+            dispatch=receipt['gemm_dispatch']
+            self.assertEqual(len(dispatch),5)
+            self.assertTrue(all(g['impl']=='wgmma'for g in dispatch[:-1]))
+            self.assertEqual(dispatch[-1]['impl'],'mma16')
+            self.assertNotEqual(dispatch[0]['compiled_variant'],dispatch[-1]['compiled_variant'])
+            self.assertEqual(int(defines['TILEMEGA_GEMM_VARIANT_COUNT']),2)
+            receipt['pass']=True
 
     def test_decode_m8_requires_small_native_wgmma_decode(self):
         if 'decode_tile_m' not in INTEGER_FEATURES:

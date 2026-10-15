@@ -51,6 +51,42 @@ def build_defines(generated, options):
     return defines
 
 
+
+def validate_gemm_dispatch(manifest, defines, generated):
+    """Certify each manifest GEMM against its actual generated runtime class."""
+    gemms = manifest.get('gemms', [])
+    match = re.search(r'constexpr\s+GemmRuntimeDesc\s+kRuntimeGemms0\[\]\s*=\s*\{(.*?)\n\};',
+                      generated, re.S)
+    if match is None:
+        if not gemms:
+            return []
+        raise ValueError('GEMM dispatch runtime table is missing')
+    rows = re.findall(r'\{\s*(\d+)u?,\s*(\d+)u?,\s*(\d+)u?,\s*(\d+)u?,\s*(\d+)u?,\s*(\d+)u?\s*\}',match[1])
+    if len(rows) != len(gemms):
+        raise ValueError('GEMM dispatch row count differs from manifest')
+    count = int(defines.get('TILEMEGA_GEMM_VARIANT_COUNT', '1'))
+    result = []
+    for index, (gemm, raw) in enumerate(zip(gemms, rows)):
+        variant, split, m, n, k, stages = map(int, raw)
+        if gemm['index'] != index or not 0 <= variant < count:
+            raise ValueError(f'GEMM dispatch index/class is invalid at GEMM {index}')
+        actual_geometry = dict(split_k=split, tile_m=m, tile_n=n, tile_k=k, stages=stages)
+        if any(int(gemm[key]) != value for key, value in actual_geometry.items()):
+            raise ValueError(f'GEMM dispatch geometry differs from manifest at GEMM {index}')
+        prefix = 'TILEMEGA_GEMM_' if variant == 0 else f'TILEMEGA_GEMM_V{variant}_'
+        for field, value in [('TILE_M',m), ('TILE_N',n), ('TILE_K',k), ('STAGES',stages)]:
+            if prefix+field not in defines or int(defines[prefix+field]) != value:
+                raise ValueError(f'GEMM dispatch class geometry differs at GEMM {index}')
+        impl_index = int(defines.get(f'TILEMEGA_GEMM_IMPL_{variant}', '0'))
+        if impl_index not in (0,1,2):
+            raise ValueError(f'GEMM dispatch class implementation is invalid at GEMM {index}')
+        actual_impl = ('mma16', 'gemv', 'wgmma')[impl_index]
+        if gemm.get('impl', 'mma16') != actual_impl:
+            raise ValueError(f'GEMM dispatch implementation differs from manifest at GEMM {index}')
+        result.append(dict(index=index, compiled_variant=variant, impl=actual_impl, **actual_geometry))
+    return result
+
+
 def validate(manifest, defines):
     seed_arch = manifest.get('seed_arch', 'legacy')
     if seed_arch not in ('native', 'legacy'):

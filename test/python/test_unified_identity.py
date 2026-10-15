@@ -17,14 +17,19 @@ class UnifiedIdentityTests(unittest.TestCase):
         so.write_bytes(b'binary')
         (root / 'runtime.h').write_text('runtime source')
         (root / 'compiler').write_bytes(b'compiler binary')
-        plan = dict(pg='l2', phase='forward' if dm else 'decode', gemms=[dict(index=0)])
+        plan = dict(pg='l2', phase='forward' if dm else 'decode', gemms=[dict(index=0,
+            split_k=1, tile_m=16, tile_n=64, tile_k=64, stages=2, impl='mma16')])
         if dm:
             plan.update(frontend='dnn', memory_arena_bytes=4096, dm_pool_la=True,
                         dm_reduction_mask=3, dm_reduction_proved_stages=[2, 4],
                         dnn_structure=dict(deferred_ln=True))
         Path(str(so) + '.plan.json').write_text(json.dumps(plan))
         Path(str(so) + '.cu').write_text(
-            '#define TILEMEGA_WATCHDOG 0\n' + ('#define TILEMEGA_DM_SUPPORT 1\n' if dm else ''))
+            '#define TILEMEGA_WATCHDOG 0\n'
+            '#define TILEMEGA_GEMM_TILE_M 16\n#define TILEMEGA_GEMM_TILE_N 64\n'
+            '#define TILEMEGA_GEMM_TILE_K 64\n#define TILEMEGA_GEMM_STAGES 2\n'
+            'constexpr GemmRuntimeDesc kRuntimeGemms0[] = {\n{0,1,16,64,64,2}\n};\n'
+            + ('#define TILEMEGA_DM_SUPPORT 1\n' if dm else ''))
         Path(str(so) + '.build_command.txt').write_text(
             'nvcc -arch=sm_89 -DTILEMEGA_TRACE_STAGE=0 plan.so.cu -o plan.so')
         Path(str(so) + '.ptxas.log').write_text("""Compiling entry function 'tilemega_l1_kernel'

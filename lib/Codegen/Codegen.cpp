@@ -2024,16 +2024,11 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
     throw std::invalid_argument("verified CG has no tilemega.model_plan");
   RuntimeVariantRecord runtime;
   runtime.gemms = readRuntimeGemms(module, arrayField(emittedPlan, "gemms").size());
-  if (module->hasAttr("tilemega.serving") &&
-      !optionalBoolField(emittedPlan, "dm") && !runtime.gemms.empty()) {
-    // The generic FP32 fallback uses K=16, which is illegal for the BF16
-    // SW128 serving atom even when this fallback variant is never executed.
-    auto const& gemm = runtime.gemms.front();
-    generatedGemm = EmitGemmInstantiations({{int(gemm.tile_m), int(gemm.tile_n),
-        int(gemm.tile_k), int(gemm.stages), int(gemm.impl)}});
-  }
-  if (optionalBoolField(emittedPlan, "dm")) {
-    // Depthwise and dense stages can use different shapes in a single module.
+  if (optionalBoolField(emittedPlan, "dm") ||
+      (module->hasAttr("tilemega.serving") && !runtime.gemms.empty())) {
+    // Geometry and implementation both define a compiled class. Dense
+    // serving can mix MMA, GEMV and WGMMA just as DM forward can; mapping
+    // every dense GEMM to the first class silently changes its implementation.
     std::vector<std::tuple<int, int, int, int, int>> shapes;
     for (auto& gemm : runtime.gemms) {
       auto key = std::make_tuple(int(gemm.tile_m), int(gemm.tile_n),

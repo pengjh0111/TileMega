@@ -1,10 +1,35 @@
 """Implementation identity must agree for both ordinary and DM artifacts."""
 import unittest
 
-from tilemega.build.feature_contract import INTEGER_FEATURES, build_defines, implementations, validate
+from tilemega.build.feature_contract import INTEGER_FEATURES, build_defines, implementations, validate, validate_gemm_dispatch
 
 
 class FeatureContractTests(unittest.TestCase):
+    def test_manifest_gemm_dispatch_checks_actual_runtime_class(self):
+        gemms=[dict(index=i,tile_m=16,tile_n=n,tile_k=64,stages=2,split_k=1,impl=impl)
+               for i,(n,impl)in enumerate([(128,'wgmma'),(128,'mma16'),(32,'gemv')])]
+        plan=dict(gemms=gemms)
+        defines={'TILEMEGA_GEMM_VARIANT_COUNT':'3','TILEMEGA_GEMM_IMPL_0':'2',
+                 'TILEMEGA_GEMM_IMPL_2':'1'}
+        for variant,n in enumerate((128,128,32)):
+            prefix='TILEMEGA_GEMM_'if variant==0 else f'TILEMEGA_GEMM_V{variant}_'
+            defines.update({prefix+key:str(value)for key,value in
+                            [('TILE_M',16),('TILE_N',n),('TILE_K',64),('STAGES',2)]})
+        source='constexpr GemmRuntimeDesc kRuntimeGemms0[] = {\n'+''.join(
+            f'  {{{i}u, 1u, 16u, {g["tile_n"]}u, 64u, 2u}},\n'
+            for i,g in enumerate(gemms))+'};\n'
+        rows=validate_gemm_dispatch(plan,defines,source)
+        self.assertEqual([r['impl']for r in rows],['wgmma','mma16','gemv'])
+        # The old dense lowering mapped the equal-shape MMA row to WGMMA0.
+        with self.assertRaisesRegex(ValueError,'GEMM dispatch implementation'):
+            validate_gemm_dispatch(plan,defines,source.replace('{1u, 1u','{0u, 1u'))
+        with self.assertRaisesRegex(ValueError,'GEMM dispatch geometry'):
+            validate_gemm_dispatch(plan,defines,source.replace('16u, 32u','16u, 64u'))
+        with self.assertRaisesRegex(ValueError,'GEMM dispatch index/class'):
+            validate_gemm_dispatch(plan,{**defines,'TILEMEGA_GEMM_VARIANT_COUNT':'2'},source)
+        with self.assertRaisesRegex(ValueError,'GEMM dispatch row count'):
+            validate_gemm_dispatch(plan,defines,source.replace('  {2u, 1u, 16u, 32u, 64u, 2u},\n',''))
+
     def test_dwpw_wgmma_identity(self):
         for mode, value in (('mma16', 0), ('wgmma', 1)):
             plan = {'dwpw_impl': mode, 'gemms': []}

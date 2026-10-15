@@ -113,6 +113,10 @@ def verify(so, expected_source=None):
         for unit in complete['translation_units']:
             if sha(unit['macros_file'])!=unit['macros_sha256']:
                 raise ValueError('complete preprocessor macro table changed')
+    from .feature_contract import validate_gemm_dispatch
+    dispatch=validate_gemm_dispatch(identity['plan'],identity['defines'],Path(str(so)+'.cu').read_text())
+    if 'gemm_dispatch' in identity and dispatch!=identity['gemm_dispatch']:
+        raise ValueError('recorded GEMM dispatch differs from generated runtime table')
     return identity
 
 
@@ -152,9 +156,10 @@ def generate(so, root, source_snapshot):
     command=Path(str(so)+'.build_command.txt').read_text().strip();options=shlex.split(command)
     manifest=json.loads(Path(str(so)+'.plan.json').read_text())
     generated=Path(str(so)+'.cu').read_text()
-    from .feature_contract import build_defines, implementations, validate
+    from .feature_contract import build_defines, implementations, validate, validate_gemm_dispatch
     defines=build_defines(generated,options)
     validate(manifest,defines)
+    gemm_dispatch=validate_gemm_dispatch(manifest,defines,generated)
     nvcc=options[0]
     version=subprocess.check_output([nvcc,'--version'],text=True).strip()
     from .arch import architecture_identity
@@ -178,7 +183,7 @@ def generate(so, root, source_snapshot):
             'caps':manifest.get('target_spec',{}).get('caps',{}),'plan':manifest,'shared_memory_bytes':int(shared()),
             'resources':resources,'trace':trace,
             'target_sha256':sha(target) if target and Path(target).is_file() else None,
-            'implementations':implementations(manifest,defines)}
+            'implementations':implementations(manifest,defines), 'gemm_dispatch':gemm_dispatch}
     if defines.get('TILEMEGA_DM_SUPPORT','0').strip()=='1':
         from .compiler_macros import capture
         result['dm']={key:manifest[key] for key in DM_FIELDS if key in manifest}

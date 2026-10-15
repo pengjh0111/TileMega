@@ -23,10 +23,14 @@ ptxas info : Function properties for helper
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);so=root/'plan.so';source=root/'runtime.h'
             source.write_text('input');so.write_bytes(b'compiled artifact')
-            Path(str(so)+'.cu').write_text('#define TILEMEGA_WATCHDOG 0\n')
+            Path(str(so)+'.cu').write_text('#define TILEMEGA_WATCHDOG 0\n'
+                '#define TILEMEGA_GEMM_TILE_M 16\n#define TILEMEGA_GEMM_TILE_N 64\n'
+                '#define TILEMEGA_GEMM_TILE_K 64\n#define TILEMEGA_GEMM_STAGES 2\n'
+                'constexpr GemmRuntimeDesc kRuntimeGemms0[] = {\n{0,1,16,64,64,2}\n};\n')
             Path(str(so)+'.ptxas.log').write_text("ptxas info : Compiling entry function 'tilemega_l1_kernel' for 'sm_89'\nptxas info : Used 228 registers\n0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads\n")
             Path(str(so)+'.build_command.txt').write_text('nvcc -arch=sm_89 -DTILEMEGA_TRACE_STAGE=0 plan.so.cu -o plan.so')
-            Path(str(so)+'.plan.json').write_text(json.dumps({'pg':'pages','phase':'decode','gemms':[{'index':0}]}))
+            Path(str(so)+'.plan.json').write_text(json.dumps({'pg':'pages','phase':'decode','gemms':[
+                dict(index=0,split_k=1,tile_m=16,tile_n=64,tile_k=64,stages=2,impl='mma16')]}))
             snap=root/'source.json';snap.write_text(json.dumps({'head':'abc','source_files':{'runtime.h':sha(source)}}))
             library=Mock();library.tm_plan_shared_bytes.return_value=99328
             with patch('tilemega.build.identity.ctypes.CDLL',return_value=library), patch('tilemega.build.identity.subprocess.check_output',return_value='nvcc 12.8'):

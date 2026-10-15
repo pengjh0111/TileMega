@@ -33,7 +33,10 @@ constexpr std::uint32_t kOffsets[]={0,0};
 constexpr ScheduleStageDesc kSchedule[]={{0,0,0}};
 constexpr std::int64_t kPlanParams[]={std::int64_t(tilemega::dialect::PlacementTemplate::kClusterSplit)};
 constexpr RuntimeVariantDesc Variant() {
-  RuntimeVariantDesc v{kGeometry,nullptr,0,kOffsets,kSchedule,1,1,1,1,0};
+  // Split-K producers and their elided reducer own the same output tile.
+  // Cluster placement does not replace this last-arriver ownership contract.
+  RuntimeVariantDesc v{kGeometry,nullptr,0,kOffsets,kSchedule,1,1,1,1,
+      kCombinerTileOwnership};
   v.plan.mode=unsigned(tilemega::dialect::PlacementMode::kTemplate);
   v.plan.params=kPlanParams;v.plan.param_count=1;return v;
 }
