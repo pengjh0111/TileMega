@@ -34,7 +34,9 @@ struct BackendTraits {
   int smem_bytes = 0;
   ClusterShape cluster;
   AlignmentRequirement alignment;
-  int arch_sm = 0;  ///< minimum SM version, as 10 * major + minor
+  int arch_sm = 0;  ///< recorded only; legality uses arch_tag
+  /// Exact target tag this implementation is built for ("xcore1000").
+  std::string arch_tag;
   bool shape_legal = false;
 };
 
@@ -118,15 +120,16 @@ constexpr bool TensorBF16ShapeLegal(int m, int n, int k, int stages) {
 
 BackendTraits TensorBF16Traits(int m, int n, int k, int stages);
 
-/// Serving's SM80-class BF16 collective has a 16-row MMA specialization and
-/// reuses its mainloop storage for the FP32 epilogue tile.  The target's shared
-/// memory budget is checked by BackendCandidate::isLegal, not baked in here.
+/// xcore1000 serving MMA body (Backend/Mx/ServingGemmMma.h): operands stream
+/// from global memory straight into MMA fragments, so shared memory holds only
+/// the FP32 epilogue tile and its per-row inverse-RMS scratch. Stages is kept
+/// as a plan coordinate but stages no shared memory.
 constexpr int kServingBF16Threads = 128;
 
 constexpr int ServingBF16SmemBytes(int m, int n, int k, int stages) {
-  int const mainloop = 2 * stages * k * (m + n);
-  int const epilogue = 4 * m * n + 4 * m;
-  return mainloop > epilogue ? mainloop : epilogue;
+  (void)k;
+  (void)stages;
+  return 4 * m * n + 4 * m;
 }
 
 constexpr bool ServingBF16ShapeLegal(int m, int n, int k, int stages) {
@@ -144,8 +147,8 @@ inline BackendTraits ServingBF16Traits(int m, int n, int k, int stages) {
   result.stages = stages;
   result.threads = kServingBF16Threads;
   result.smem_bytes = ServingBF16SmemBytes(m, n, k, stages);
-  result.alignment = {8, 8};  // 16 B of BF16 per cp.async instruction.
-  result.arch_sm = 80;
+  result.alignment = {8, 8};  // 16 B of BF16 per vector load.
+  result.arch_tag = "xcore1000";
   result.shape_legal = ServingBF16ShapeLegal(m, n, k, stages);
   return result;
 }
@@ -153,10 +156,10 @@ inline BackendTraits ServingBF16Traits(int m, int n, int k, int stages) {
 constexpr bool ServingGemvShapeLegal(int m,int n,int k,int stages) {
   return m==16 && (n==8 || n==16 || n==32 || n==64) && (k==64 || k==128) && stages==2;
 }
+/// xcore1000 SIMT GEMV (Backend/Mx/ServingGemvMx.h): A and B are read from
+/// global memory into registers; shared memory is the FP32 epilogue tile.
 constexpr int ServingGemvSmemBytes(int m,int n) {
-  int a=2*(m<4?m:4)*256*2;
-  int epilogue=4*m*n+32*m;
-  return a>epilogue?a:epilogue;
+  return 4*m*n+4*m;
 }
 inline BackendTraits ServingGemvTraits(int m,int n,int k,int stages) {
   auto r=ServingBF16Traits(m,32,k,stages);

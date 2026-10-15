@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
-// Skeleton ref: §5.3 CUTLASS/CuTe GEMM TaskBody.  Handwritten body; the
-// problem shape arrives as a generated GemmDesc, never as a constant here.
+// Skeleton ref: §5.3 GEMM TaskBody.  Handwritten body; the problem shape
+// arrives as a generated GemmDesc, never as a constant here. On xcore1000 the
+// GEMM invocation ABI is TileMega-owned POD (Backend/Mx/ServingGemmConfig.h)
+// and only the serving runtime exists.
 #pragma once
 
-#include <tilemega/Backend/CutlassGemmCandidate.h>
-#include <tilemega/Backend/ServingGemm.h>
+#include <tilemega/Backend/Mx/ServingGemmConfig.h>
 #include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
-
-#include <cute/tensor.hpp>
-#include <cutlass/util/packed_stride.hpp>
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 
 #include <type_traits>
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
@@ -19,6 +18,9 @@
 
 #ifndef TILEMEGA_SERVING_RUNTIME
 #define TILEMEGA_SERVING_RUNTIME 0
+#endif
+#if !TILEMEGA_SERVING_RUNTIME
+#error "xcore1000 builds only the serving runtime; the legacy CUTLASS GEMM path is excluded"
 #endif
 #include <tilemega/Codegen/tasks/PhaseTrace.cuh>
 #if TILEMEGA_TRACE_PHASE
@@ -178,10 +180,8 @@ namespace tilemega::codegen {
 
 // R8 BE-2: the variants are file scope, so they read the Plan's architecture
 // from the macro codegen emits rather than from a body's template parameter.
-// The default keeps a source written before that macro on the sm_80 path it
-// was compiled with.
 #ifndef TILEMEGA_ARCH_ID
-#define TILEMEGA_ARCH_ID 800
+#define TILEMEGA_ARCH_ID 7000
 #endif
 using GemmVariantArch = typename arch::ArchFromId<TILEMEGA_ARCH_ID>::type;
 
@@ -265,15 +265,12 @@ struct GemmVariantStorage<true, Mainloop, M, N, K, S, Gemv> {
 #define TILEMEGA_DEFINE_GEMM_VARIANT(index, M, N, K, S)                     \
   template <>                                                               \
   struct GemmVariant<index> {                                               \
-    using Impl = std::conditional_t<TILEMEGA_SERVING_RUNTIME != 0,           \
-        std::conditional_t<TILEMEGA_GEMM_IMPL_##index != 0,               \
+    using Impl = std::conditional_t<TILEMEGA_GEMM_IMPL_##index != 0,      \
           ServingGemvConfig<GemmVariantArch,M,N,K,S>,                       \
-          backend::ServingGemmConfig<GemmVariantArch,M,N,K,S>>,            \
-        backend::GemmCandidate<M, N, K, S, GemmVariantArch>>;               \
+          backend::ServingGemmConfig<GemmVariantArch,M,N,K,S>>;            \
     static_assert(Impl::kShapeLegal,                                        \
                   "the selected GEMM tile shape is not a legal candidate; " \
-                  "query backend::GemmCandidate::kShapeLegal before "       \
-                  "compiling");                                             \
+                  "query the serving closed forms before compiling");      \
     using Mainloop = typename Impl::Mainloop;                               \
     using Epilogue = typename Impl::Epilogue;                               \
     using SharedStorage = typename GemmVariantStorage<                     \
@@ -340,16 +337,18 @@ TILEMEGA_DEFINE_GEMM_VARIANT(15, TILEMEGA_GEMM_V15_TILE_M, TILEMEGA_GEMM_V15_TIL
 using GemmImpl = GemmVariant<0>::Impl;
 using GemmMainloop = GemmImpl::Mainloop;
 using GemmEpilogue = GemmImpl::Epilogue;
-using GemmProblem = cute::Shape<int, int, int, int>;
-// CUTLASS's logical B tensor is (N,K); ColumnMajor gives (K,1) logical strides
-// and so consumes PyTorch's contiguous [N,K] weight directly.
-using ExpectedContiguousWeightStride = cute::tuple<int64_t, cute::C<1>, int64_t>;
-static_assert(std::is_same_v<typename GemmMainloop::StrideB,
-                             ExpectedContiguousWeightStride>,
-              "logical CUTLASS B(N,K) must expose contiguous [N,K] as (K,1)");
+/// (m, n, k, batch): `auto [m, n, k, batch] = invocation.problem`.
+struct GemmProblem {
+  int m, n, k, l;
+};
+// B is PyTorch's contiguous [N,K] weight: K is the unit-stride dimension and
+// only the row pitch is carried.
+static_assert(std::is_same_v<typename GemmMainloop::StrideB, backend::RowStride> &&
+                  std::is_same_v<typename GemmMainloop::StrideA, backend::RowStride>,
+              "serving operands are row-major with contiguous K");
 inline constexpr int kGemmThreads = GemmImpl::kThreads;
-inline constexpr int kGemmTileM = cute::size<0>(typename GemmMainloop::TileShape{});
-inline constexpr int kGemmTileN = cute::size<1>(typename GemmMainloop::TileShape{});
+inline constexpr int kGemmTileM = GemmMainloop::TileShape::kM;
+inline constexpr int kGemmTileN = GemmMainloop::TileShape::kN;
 inline constexpr int kGemmVariantCount = TILEMEGA_GEMM_VARIANT_COUNT;
 
 /// The host needs each variant's tiling to lay out its invocations, and the
@@ -499,19 +498,14 @@ struct GemmMainloopOperands {
   typename GemmMainloop::StrideB dB;
 };
 
-/// Host-built launch arguments for one generated GemmDesc.
-#if TILEMEGA_FP32_PARTIALS && TILEMEGA_MODEL_BF16
-using PartialEpilogue = cutlass::epilogue::collective::DefaultEpilogue<
-    float, typename GemmEpilogue::StrideC, typename GemmEpilogue::StrideD,
-    cutlass::epilogue::thread::LinearCombination<float, 1, float, float>,
-    typename GemmEpilogue::EpilogueSchedule>;
-#endif
+/// Host-built launch arguments for one generated GemmDesc. Split-K partials
+/// travel through `serving_partial`; the serving body has no partial epilogue
+/// collective.
 struct GemmInvocation {
   GemmProblem problem;
   GemmMainloopOperands mainloop;
   GemmEpilogue::Params epilogue;
 #if TILEMEGA_FP32_PARTIALS && TILEMEGA_MODEL_BF16
-  PartialEpilogue::Params partial_epilogue;
   ModelElement const* residual = nullptr;
   float residual_beta = 0;
 #endif
@@ -565,17 +559,13 @@ struct GemmInvocation {
 /// one; it settles the BF16 rounding the FP32 accumulator could not.
 __device__ inline float ExactGemmElement(GemmInvocation const& invocation,
                                          int m, int n) {
-  using namespace cute;
-  auto [M, N, K, L] = invocation.problem;
   int const k_total = invocation.k_total;
-  Tensor matrix_a = make_tensor(make_gmem_ptr(invocation.mainloop.ptr_A),
-                                make_shape(M, k_total, L), invocation.mainloop.dA);
-  Tensor matrix_b = make_tensor(make_gmem_ptr(invocation.mainloop.ptr_B),
-                                make_shape(N, k_total, L), invocation.mainloop.dB);
+  auto const* a = invocation.mainloop.ptr_A + std::int64_t(m) * invocation.mainloop.dA.row;
+  auto const* b = invocation.mainloop.ptr_B + std::int64_t(n) * invocation.mainloop.dB.row;
   double sum = 0.0;
   for (int k = 0; k < k_total; ++k)
-    sum += static_cast<double>(static_cast<float>(matrix_a(m, k, 0))) *
-           static_cast<double>(static_cast<float>(matrix_b(n, k, 0)));
+    sum += static_cast<double>(static_cast<float>(a[k])) *
+           static_cast<double>(static_cast<float>(b[k]));
   return static_cast<float>(sum);
 }
 
@@ -623,7 +613,7 @@ struct GemmStageTaskBody {
       auto p=DwPwFusedOperands{invocation.fused_depthwise,operands};
       using Partial=DmEpilogueSpec<DmEpilogueProgram<>,DmWriteKind::kDense,1,DmRounding::kFP32>;
       if(invocation.chunks>1) {
-        p.pointwise.output=reinterpret_cast<cutlass::bfloat16_t*>(operands.partial);
+        p.pointwise.output=reinterpret_cast<tilemega::Bf16*>(operands.partial);
         p.pointwise.output_stride=operands.partial_stride;p.pointwise.chain={};
         p.pointwise.chain.store_rounding=DmRounding::kFP32;p.pointwise.access.write={};
         p.pointwise.dm_partial_rows=true;
@@ -644,7 +634,7 @@ struct GemmStageTaskBody {
     __device__ void Run() const {
       using Gate = backend::DmGateShape<typename Spec::Chain>;
       if constexpr (!Gate::template kFits<Body::kTileColumns>) {
-        asm volatile("trap;");
+        maca::Trap();
       } else Body::template RunDm<Spec>(operands, tile_m, tile_n, shared);
     }
   };
@@ -737,13 +727,13 @@ struct GemmStageTaskBody {
     }
     operands.binding=invocation.binding; operands.rows=invocation.rows;
     operands.a_scale=invocation.a_scale; operands.dm_buffers=invocation.dm_buffers;
-    operands.a_row_stride=static_cast<int>(cute::get<0>(invocation.mainloop.dA));
+    operands.a_row_stride=static_cast<int>(invocation.mainloop.dA.row);
     if(invocation.fused_program!=kDmNoIndex) {
       operands.k_total=invocation.k_total;operands.k_begin=invocation.serving_k_begin;
       operands.b=invocation.mainloop.ptr_B-invocation.serving_k_begin;
       operands.weight_base=invocation.serving_weight_base;
       if(!DispatchDmVariantFused<Variant>(invocation.fused_program,FusedRunner<V>{invocation,operands,
-          local/invocation.tiles_n,local%invocation.tiles_n,shared}))asm volatile("trap;");
+          local/invocation.tiles_n,local%invocation.tiles_n,shared}))maca::Trap();
       return;
     }
     if (invocation.chunks == 1 && invocation.dm_enabled) {
@@ -755,95 +745,6 @@ struct GemmStageTaskBody {
     Body::Run(operands, local / invocation.tiles_n,
               local % invocation.tiles_n, shared);
     return;
-#else
-    using namespace cute;
-    using Mainloop = typename GemmVariant<Variant>::Mainloop;
-    using Epilogue = typename GemmVariant<Variant>::Epilogue;
-    int tile_n = local % invocation.tiles_n;
-    int tile_m = local / invocation.tiles_n;
-    constexpr auto tile_shape = typename Mainloop::TileShape{};
-    auto [M, N, K, L] = invocation.problem;
-    Tensor matrix_a = make_tensor(make_gmem_ptr(invocation.mainloop.ptr_A),
-                                  make_shape(M, K, L), invocation.mainloop.dA);
-    Tensor matrix_b = make_tensor(make_gmem_ptr(invocation.mainloop.ptr_B),
-                                  make_shape(N, K, L), invocation.mainloop.dB);
-    auto block_coord = make_coord(tile_m, tile_n, _, 0);
-    Tensor gA = local_tile(matrix_a(_, _, 0), tile_shape,
-                           take<0, 3>(block_coord), Step<_1, X, _1>{});
-    Tensor gB = local_tile(matrix_b(_, _, 0), tile_shape,
-                           take<0, 3>(block_coord), Step<X, _1, _1>{});
-    auto residue = make_tuple(M - size<0>(gA) * tile_m,
-                              N - size<0>(gB) * tile_n,
-                              K - size<1>(gA) * size<2>(gA));
-    typename Mainloop::TiledMma tiled_mma;
-    Tensor accum = partition_fragment_C(tiled_mma, take<0, 2>(tile_shape));
-    clear(accum);
-    auto k_iter = make_coord_iterator(shape<2>(gA));
-#if TILEMEGA_TRACE_PHASE
-    RunPhaseMainloop<Mainloop>(accum, gA, gB, accum, k_iter, size<2>(gA), residue,
-                              static_cast<int>(threadIdx.x), shared, phase);
-#else
-    Mainloop mainloop;
-    mainloop(accum, gA, gB, accum, k_iter, size<2>(gA), residue,
-             static_cast<int>(threadIdx.x), shared);
-#endif
-    TILEMEGA_PHASE_STAMP(3);
-#if TILEMEGA_MIDPOINT_REFINE
-    // An unsplit GEMM rounds here, so this is where an accumulator too close to
-    // a BF16 boundary has to be settled; a split one rounds in the combiner.
-    if (invocation.chunks == 1 && invocation.epilogue.thread.alpha == 1.0f) {
-      auto owned = tiled_mma.get_thread_slice(int(threadIdx.x))
-                       .partition_C(make_identity_tensor(take<0, 2>(tile_shape)));
-      auto source = make_tensor(make_gmem_ptr(invocation.epilogue.ptr_C),
-                                make_shape(M, N, L), invocation.epilogue.dC);
-      float const beta = invocation.epilogue.thread.beta;
-      CUTLASS_PRAGMA_UNROLL
-      for (int i = 0; i < size(accum); ++i) {
-        int global_m = tile_m * size<0>(tile_shape) + get<0>(owned(i));
-        int global_n = tile_n * size<1>(tile_shape) + get<1>(owned(i));
-        if (global_m >= M || global_n >= N) continue;
-        float bias = (beta != 0.0f && invocation.epilogue.ptr_C != nullptr)
-                         ? beta * static_cast<float>(source(global_m, global_n, 0))
-                         : 0.0f;
-        accum(i) = RefinedGemmElement(invocation, global_m, global_n, accum(i), bias);
-      }
-    }
-#endif
-    if constexpr (SharedOutput) {
-      static_assert(TILEMEGA_FUSION_SHARED_EPILOGUE || !SharedOutput,
-                    "shared fusion epilogue is disabled");
-      // A split partial cannot be rounded to ModelElement before combining.
-      if (invocation.chunks != 1) { asm volatile("trap;"); return; }
-      auto coordinates = make_identity_tensor(take<0, 2>(tile_shape));
-      auto owned = tiled_mma.get_thread_slice(int(threadIdx.x)).partition_C(coordinates);
-      auto source = make_tensor(make_gmem_ptr(invocation.epilogue.ptr_C),
-                                make_shape(M, N, L), invocation.epilogue.dC);
-      typename Epilogue::ThreadEpilogueOp op(invocation.epilogue.thread);
-      CUTE_STATIC_ASSERT_V(size(owned) == size(accum));
-      // The same thread operation preserves the graph's BF16 rounding boundary;
-      // only the destination address space changes from CUTLASS's global store.
-      CUTLASS_PRAGMA_UNROLL
-      for (int i = 0; i < size(accum); ++i) {
-        int m = get<0>(owned(i)), n = get<1>(owned(i));
-        int global_m = tile_m * size<0>(tile_shape) + m;
-        int global_n = tile_n * size<1>(tile_shape) + n;
-        if (global_m < M && global_n < N)
-          tile_output[m * size<1>(tile_shape) + n] = op.is_source_needed()
-              ? op(accum(i), source(global_m, global_n, 0)) : op(accum(i));
-      }
-      return;
-    }
-#if TILEMEGA_FP32_PARTIALS && TILEMEGA_MODEL_BF16
-    if (invocation.chunks > 1) {
-      PartialEpilogue epilogue(invocation.partial_epilogue);
-      epilogue(invocation.problem, tile_shape, make_coord(tile_m, tile_n, 0, 0),
-               accum, tiled_mma, residue, static_cast<int>(threadIdx.x), shared);
-      return;
-    }
-#endif
-    Epilogue epilogue(invocation.epilogue);
-    epilogue(invocation.problem, tile_shape, make_coord(tile_m, tile_n, 0, 0),
-             accum, tiled_mma, residue, static_cast<int>(threadIdx.x), shared);
 #endif
   }
 
