@@ -4,6 +4,7 @@
 #include <tilemega/Codegen/tasks/ServingAbi.h>
 #include <tilemega/Codegen/executor/ServingLaunch.cuh>
 #include <tilemega/Codegen/executor/TensorMap.h>
+#include <tilemega/Codegen/executor/TensorIm2col.h>
 
 #include <cuda_runtime.h>
 
@@ -180,9 +181,15 @@ inline bool ForwardWgmmaVariant(int index) {
 }
 #endif
 inline void CreateTensorMaps(Plan& plan,ModelSpec const& spec,TargetSpec const& target) {
-#if TILEMEGA_PAGED || TILEMEGA_ATTENTION_IMPL==4 || TILEMEGA_FORWARD_GEMM_WGMMA
+#if TILEMEGA_PAGED || TILEMEGA_ATTENTION_IMPL==4 || TILEMEGA_FORWARD_GEMM_WGMMA || TILEMEGA_ENCODER_ATTENTION_WGMMA
   if(!target.caps.tma || TILEMEGA_ARCH_PATH_SM80)return;
-  std::vector<executor::TensorMap> maps(spec.buffer_count
+  unsigned encoder_heads=0,encoder_map_count=0;
+#if TILEMEGA_ENCODER_ATTENTION_WGMMA
+  for(unsigned i=0;i<spec.stage_count;++i)if(spec.stages[i].kind==TaskKind::kEncoderAttention)
+    encoder_heads=std::max(encoder_heads,spec.stages[i].extent);
+  encoder_map_count=spec.buffer_count*plan.model.params.dims.batch*encoder_heads*3;
+#endif
+  std::vector<executor::TensorMap> maps(spec.buffer_count+encoder_map_count
 #if TILEMEGA_FORWARD_GEMM_WGMMA
       +2*plan.model.gemm_invocation_count
 #endif
@@ -194,7 +201,7 @@ inline void CreateTensorMaps(Plan& plan,ModelSpec const& spec,TargetSpec const& 
     if(code!=CUDA_SUCCESS)throw std::runtime_error("serving tensor map encoding failed: "+std::to_string(int(code)));
     encoded[id]=true;
   };
-#if TILEMEGA_PAGED
+#if TILEMEGA_PAGED && !TILEMEGA_WEIGHT_LAYOUT_TILED
   for(unsigned i=0;i<spec.gemm_count;++i) {
     auto const& g=spec.gemms[i];auto const& tile=spec.runtime_variants[0].gemms[i];
     encode(g.b,{std::uint64_t(g.k),std::uint64_t(g.n),std::uint64_t(g.k)*2,
@@ -217,7 +224,8 @@ inline void CreateTensorMaps(Plan& plan,ModelSpec const& spec,TargetSpec const& 
     auto const& g=gemms[i];auto [m,n,k,batch]=g.problem;(void)k;(void)batch;
     if(!ForwardWgmmaVariant(g.variant))continue;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-    if(g.access.a!=DmAAccess::kDense || g.access.b!=DmBAccess::kDense || g.a_scale)continue;
+    if((g.access.a!=DmAAccess::kDense && g.access.a!=DmAAccess::kIm2Col) ||
+       g.access.b!=DmBAccess::kDense || g.a_scale)continue;
 #endif
     auto encode_gemm=[&](unsigned index,void* address,executor::TensorMapShape shape) {
       auto code=executor::EncodeTensorMap(maps[index],address,shape);
@@ -225,6 +233,15 @@ inline void CreateTensorMaps(Plan& plan,ModelSpec const& spec,TargetSpec const& 
     };
     auto a_pitch=std::uint64_t(cute::get<0>(g.mainloop.dA));
     auto b_pitch=std::uint64_t(cute::get<0>(g.mainloop.dB));
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(g.access.a==DmAAccess::kIm2Col) {
+      auto const& conv=spec.convolutions[g.access.conv];
+      auto shape=executor::TensorIm2colShape::Build(conv,spec.buffers[conv.input_layout].layout);
+      auto code=executor::EncodeTensorIm2col(maps[spec.buffer_count+2*i],
+          plan.model.buffers.at(g.serving_activation_buffer),shape);
+      if(code!=CUDA_SUCCESS)throw std::runtime_error("convolution im2col map encoding failed: "+std::to_string(int(code)));
+    }else
+#endif
     encode_gemm(spec.buffer_count+2*i,plan.model.buffers.at(g.serving_activation_buffer),
         {std::uint64_t(g.k_total),std::uint64_t(m),a_pitch*2,64,std::uint32_t(g.tile_m)});
 #if !TILEMEGA_NONPAGED_TILED
@@ -233,14 +250,36 @@ inline void CreateTensorMaps(Plan& plan,ModelSpec const& spec,TargetSpec const& 
 #endif
   }
 #endif
+#if TILEMEGA_ENCODER_ATTENTION_WGMMA
+  unsigned encoder_offset=maps.size()-encoder_map_count;
+  for(unsigned i=0;i<spec.stage_count;++i) {
+    auto const& stage=spec.stages[i];if(stage.kind!=TaskKind::kEncoderAttention)continue;
+    if(stage.width!=128 || stage.group!=64 || stage.operand[2]!=kNoOperand)
+      throw std::invalid_argument("Hopper encoder attention requires S128, query64, and no padding mask");
+    for(unsigned b=0;b<unsigned(plan.model.params.dims.batch);++b)
+      for(unsigned h=0;h<stage.extent;++h)for(unsigned slot=0;slot<3;++slot) {
+        unsigned index=encoder_offset+((stage.operand[0]*plan.model.params.dims.batch+b)*encoder_heads+h)*3+slot;
+        auto* source=static_cast<ModelElement*>(plan.model.buffers.at(stage.operand[0]))+
+            (std::size_t(b)*128*stage.extent+h)*192+slot*64;
+        auto code=executor::EncodeTensorMap(maps[index],source,
+            {64,128,std::uint64_t(stage.extent)*192*2,64,slot==0?64u:128u});
+        if(code!=CUDA_SUCCESS)throw std::runtime_error("encoder tensor map encoding failed: "+std::to_string(int(code)));
+      }
+  }
+#endif
   TILEMEGA_CUDA_CHECK(cudaMalloc(&plan.tensor_maps,maps.size()*sizeof(maps[0])));
   TILEMEGA_CUDA_CHECK(cudaMemcpy(plan.tensor_maps,maps.data(),maps.size()*sizeof(maps[0]),cudaMemcpyHostToDevice));
   plan.model.params.serving_tensor_maps=plan.tensor_maps;
+#if TILEMEGA_ENCODER_ATTENTION_WGMMA
+  plan.model.params.encoder_tensor_maps=plan.tensor_maps+encoder_offset;
+  plan.model.params.encoder_tensor_map_heads=encoder_heads;
+#endif
 #if TILEMEGA_FORWARD_GEMM_WGMMA
   for(unsigned i=0;i<gemms.size();++i) {
     auto& g=gemms[i];if(!ForwardWgmmaVariant(g.variant))continue;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-    if(g.access.a!=DmAAccess::kDense || g.access.b!=DmBAccess::kDense || g.a_scale)continue;
+    if((g.access.a!=DmAAccess::kDense && g.access.a!=DmAAccess::kIm2Col) ||
+       g.access.b!=DmBAccess::kDense || g.a_scale)continue;
 #endif
     g.serving_activation_tensor_map=plan.tensor_maps+spec.buffer_count+2*i;
 #if !TILEMEGA_NONPAGED_TILED

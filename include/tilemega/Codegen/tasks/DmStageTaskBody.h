@@ -7,6 +7,9 @@
 #include <tilemega/Codegen/tasks/PoolTaskBody.h>
 #include <tilemega/Codegen/tasks/GlobalPoolReduceTaskBody.h>
 #include <tilemega/Codegen/tasks/EncoderAttentionTaskBody.h>
+#if TILEMEGA_ENCODER_ATTENTION_WGMMA
+#include <tilemega/Codegen/tasks/Sm90EncoderAttentionTaskBody.h>
+#endif
 #include <tilemega/Codegen/tasks/DepthwiseConvTaskBody.h>
 #include <tilemega/Codegen/tasks/MoETopKTaskBody.h>
 #include <tilemega/Codegen/tasks/MoEDispatchTaskBody.h>
@@ -164,11 +167,21 @@ struct DmStageRunner {
       EncoderAttentionOperands inputs{static_cast<E const*>(pointer(0)),
           static_cast<E*>(pointer(1)),static_cast<std::int64_t const*>(pointer(2)),
           unsigned(params.dims.batch),stage.extent};
+#if TILEMEGA_ENCODER_ATTENTION_WGMMA
+      static_assert(Width==128 && RowsPerTask==64,"Hopper encoder requires S128 and 64 query rows");
+      auto* maps=static_cast<executor::TensorMap const*>(params.encoder_tensor_maps);
+      if(!maps || inputs.key_padding) {asm volatile("trap;");return;}
+      maps+=std::size_t(stage.operand[0])*params.dims.batch*params.encoder_tensor_map_heads*3;
+      using Hopper=Sm90EncoderAttentionTaskBody<Arch>;
+      Hopper::Run({inputs,maps,params.encoder_tensor_map_heads},task,
+          *reinterpret_cast<typename Hopper::SharedStorage*>(scratch));
+#else
       using Masked=EncoderAttentionTaskBody<Arch,Width,RowsPerTask,true>;
       using Unmasked=EncoderAttentionTaskBody<Arch,Width,RowsPerTask,false>;
       auto& shared=*reinterpret_cast<typename Masked::SharedStorage*>(scratch);
       if(inputs.key_padding)Masked::Run(inputs,task,shared);
       else Unmasked::Run(inputs,task,*reinterpret_cast<typename Unmasked::SharedStorage*>(scratch));
+#endif
     }else if constexpr(Kind==TaskKind::kGlobalPoolReduce) {
       auto const& output=params.dm_buffers.layouts[stage.operand[1]];
       GlobalPoolReduceTaskBody<Arch,Width>::Run({static_cast<float const*>(pointer(0)),

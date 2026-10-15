@@ -58,6 +58,24 @@ class FeatureContractTests(unittest.TestCase):
             validate(dict(attention_impl='wgmma',attention_page='uniform'),
                      {'TILEMEGA_ATTENTION_IMPL':'4','TILEMEGA_ATTENTION_PAGE_UNIFORM':'0'})
 
+    def test_encoder_identity_requires_the_hopper_macro(self):
+        validate(dict(encoder_attention_impl='wgmma'),{'TILEMEGA_ENCODER_ATTENTION_WGMMA':'1'})
+        validate(dict(encoder_attention_impl='mma16'),{})
+        with self.assertRaisesRegex(ValueError,'encoder_attention_impl'):
+            validate(dict(encoder_attention_impl='wgmma'),{})
+        fields=implementations(dict(phase='forward',pg='l2',gemms=[],encoder_attention_impl='wgmma'),{'TILEMEGA_ENCODER_ATTENTION_WGMMA':'1'})
+        self.assertEqual(fields['encoder_attention']['task_body'],'Sm90EncoderAttentionTaskBody')
+
+    def test_prefill_hopper_identity_is_independent_of_decode(self):
+        for name,index in [('mma16', '0'),('wgmma','1')]:
+            defines={'TILEMEGA_PREFILL_ATTENTION_WGMMA':index}
+            validate(dict(prefill_attention_impl=name),defines)
+            with self.assertRaisesRegex(ValueError,'prefill_attention_impl'):
+                validate(dict(prefill_attention_impl='wgmma' if name=='mma16' else 'mma16'),defines)
+            fields=implementations(dict(phase='prefill',pg='off',gemms=[],prefill_attention_impl=name),defines)
+            self.assertEqual(fields['attention']['impl'],name)
+            self.assertEqual(fields['attention']['task_body'], 'Sm90PrefillAttentionTaskBody' if name=='wgmma' else 'FusedAttentionTaskBody')
+
     def test_generated_source_cannot_silently_override_build_options(self):
         with self.assertRaisesRegex(ValueError, 'overrides compiler macro'):
             build_defines('#define TILEMEGA_ATTENTION_PVSWAP 0\n',
@@ -88,6 +106,24 @@ class FeatureContractTests(unittest.TestCase):
         self.assertTrue(fields['attention']['noinline'])
         self.assertEqual(fields['attention']['buffers'], 1)
         self.assertTrue(fields['attention']['frontier'])
+
+
+    def test_convolution_loader_claim_is_bound_to_macro(self):
+        validate({'conv_impl': 'cpasync'}, {})
+        validate({'conv_impl': 'tma_im2col'}, {'TILEMEGA_CONV_TMA_IM2COL': '1'})
+        with self.assertRaisesRegex(ValueError, 'conv_impl'):
+            validate({'conv_impl': 'tma_im2col'}, {})
+        with self.assertRaisesRegex(ValueError, 'conv_impl'):
+            validate({'conv_impl': 'cpasync'}, {'TILEMEGA_CONV_TMA_IM2COL': '1'})
+
+
+    def test_gemv_weight_cache_policy_is_bound_to_macro(self):
+        validate({'gemv_load': 'ldg'}, {})
+        validate({'gemv_load': 'nc'}, {'TILEMEGA_GEMV_LOAD_NC': '1'})
+        with self.assertRaisesRegex(ValueError, 'gemv_load'):
+            validate({'gemv_load': 'nc'}, {})
+        with self.assertRaisesRegex(ValueError, 'gemv_load'):
+            validate({'gemv_load': 'ldg'}, {'TILEMEGA_GEMV_LOAD_NC': '1'})
 
 
 if __name__ == '__main__':

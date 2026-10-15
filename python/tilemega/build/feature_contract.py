@@ -3,6 +3,7 @@ import re
 
 
 INTEGER_FEATURES = {
+    'moe_activation_bulk': ('TILEMEGA_MOE_ACTIVATION_BULK', 0),
     'watchdog': ('TILEMEGA_WATCHDOG', 1),
     'attention_noinline': ('TILEMEGA_ATTENTION_NOINLINE', 0),
     'attention_buffers': ('TILEMEGA_ATTENTION_BUFFERS', 2),
@@ -58,11 +59,27 @@ def validate(manifest, defines):
             actual = 'pvswap' if int(defines.get('TILEMEGA_ATTENTION_PVSWAP', '0')) else 'mma16'
         if manifest['attention_impl'] != actual:
             raise ValueError('manifest attention_impl differs from compiler macros')
+    if 'encoder_attention_impl' in manifest:
+        actual = 'wgmma' if int(defines.get('TILEMEGA_ENCODER_ATTENTION_WGMMA', '0')) else 'mma16'
+        if manifest['encoder_attention_impl'] != actual:
+            raise ValueError('manifest encoder_attention_impl differs from compiler macros')
+    if 'prefill_attention_impl' in manifest:
+        actual = 'wgmma' if int(defines.get('TILEMEGA_PREFILL_ATTENTION_WGMMA', '0')) else 'mma16'
+        if manifest['prefill_attention_impl'] != actual:
+            raise ValueError('manifest prefill_attention_impl differs from compiler macros')
     if 'attention_page' in manifest:
         wgmma = int(defines.get('TILEMEGA_ATTENTION_IMPL', '0')) == 4
         uniform = bool(int(defines.get('TILEMEGA_ATTENTION_PAGE_UNIFORM', str(int(wgmma)))))
         if uniform != wgmma or manifest['attention_page'] != ('uniform' if uniform else 'chunk16'):
             raise ValueError('manifest attention_page differs from its legal compiler layout')
+    if 'gemv_load' in manifest:
+        actual = 'nc' if int(defines.get('TILEMEGA_GEMV_LOAD_NC', '0')) else 'ldg'
+        if manifest['gemv_load'] != actual:
+            raise ValueError('manifest gemv_load differs from compiler macros')
+    if 'conv_impl' in manifest:
+        actual = 'tma_im2col' if int(defines.get('TILEMEGA_CONV_TMA_IM2COL', '0')) else 'cpasync'
+        if manifest['conv_impl'] != actual:
+            raise ValueError('manifest conv_impl differs from compiler macros')
     if 'nonpaged_la' in manifest:
         actual = manifest.get('pg') != 'pages' and bool(int(defines.get('TILEMEGA_NONPAGED_LA', '0')))
         if bool(manifest['nonpaged_la']) != actual:
@@ -73,7 +90,11 @@ def implementations(manifest, defines):
     """The same implementation fields serve source checks and binary identity."""
     paged = manifest.get('pg') == 'pages'
     decode = manifest.get('phase') == 'decode'
-    return {'dn_vector_sums': bool(manifest.get('dn_vector_sums', False)),
+    return {'gemv_load': manifest.get('gemv_load', 'ldg'),
+            'conv_impl': manifest.get('conv_impl', 'cpasync'),
+            'encoder_attention': {'impl': manifest.get('encoder_attention_impl','mma16'),
+                'task_body': 'Sm90EncoderAttentionTaskBody' if manifest.get('encoder_attention_impl') == 'wgmma' else 'EncoderAttentionTaskBody'},
+            'dn_vector_sums': bool(manifest.get('dn_vector_sums', False)),
             'swiglu_interleave_u': int(manifest.get('swiglu_interleave_u', 16)),
             'gemms': [{'index': g['index'], 'impl': g.get('impl', 'mma16'),
                 'task_body': 'PagedGemmTaskBody' if paged else (
@@ -81,13 +102,14 @@ def implementations(manifest, defines):
                 'mma_reg_pipe': int(defines.get('TILEMEGA_MMA_REG_PIPE', '0')),
                 'ep_direct': int(defines.get('TILEMEGA_EP_DIRECT', '0'))}
                 for g in manifest['gemms']],
-            'attention': {'impl': manifest.get('attention_impl', 'mma16'),
+            'attention': {'impl': manifest.get('attention_impl', 'mma16') if decode else manifest.get('prefill_attention_impl', 'mma16'),
                 'page_layout': manifest.get('attention_page',
                     'uniform' if manifest.get('attention_impl') == 'wgmma' else 'chunk16'),
                 'noinline': bool(manifest.get('attention_noinline', False)),
                 'buffers': int(defines.get('TILEMEGA_ATTENTION_BUFFERS', '2')),
                 'task_body': ('PagedAttentionTaskBody' if paged else
-                    'IndependentAttentionTaskBody') if decode else 'FusedAttentionTaskBody',
+                    'IndependentAttentionTaskBody') if decode else ('Sm90PrefillAttentionTaskBody'
+                    if manifest.get('prefill_attention_impl') == 'wgmma' else 'FusedAttentionTaskBody'),
                 'page_policy': ('WarpGroup' if manifest.get('attention_impl') == 'wgmma'
                     else 'Packed' if paged else 'WarpPrivate') if decode else None,
                 'load': manifest.get('paged_attention_load', 'loader'),

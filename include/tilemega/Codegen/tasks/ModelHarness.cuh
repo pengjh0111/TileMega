@@ -78,6 +78,7 @@ static_assert(!TILEMEGA_PAGED && TILEMEGA_SLOT_WINDOW == 1 && !TILEMEGA_PREFETCH
 #include <tilemega/Codegen/tasks/ServingArgmaxReduceTaskBody.h>
 #include <tilemega/Codegen/tasks/AttentionMergeTaskBody.h>
 #include <tilemega/Codegen/tasks/FusedAttentionTaskBody.h>
+#include <tilemega/Codegen/tasks/Sm90PrefillAttentionTaskBody.h>
 #include <tilemega/Codegen/tasks/IndependentAttentionTaskBody.h>
 #include <tilemega/Codegen/tasks/ServingEmbeddingTaskBody.h>
 #include <tilemega/Codegen/tasks/ServingTaskIndex.h>
@@ -99,7 +100,7 @@ static_assert(!TILEMEGA_PAGED && TILEMEGA_SLOT_WINDOW == 1 && !TILEMEGA_PREFETCH
 #if !TILEMEGA_PAGED && TILEMEGA_ATTENTION_IMPL==4
 #include <tilemega/Codegen/executor/TensorMap.h>
 #endif
-#if TILEMEGA_ATTENTION_IMPL==4 || TILEMEGA_GEMM_IMPL_0==2 || TILEMEGA_GEMM_IMPL_1==2 || \
+#if TILEMEGA_ENCODER_ATTENTION_WGMMA || TILEMEGA_PREFILL_ATTENTION_WGMMA || TILEMEGA_ATTENTION_IMPL==4 || TILEMEGA_GEMM_IMPL_0==2 || TILEMEGA_GEMM_IMPL_1==2 || \
     TILEMEGA_GEMM_IMPL_2==2 || TILEMEGA_GEMM_IMPL_3==2 || TILEMEGA_GEMM_IMPL_4==2 || \
     TILEMEGA_GEMM_IMPL_5==2 || TILEMEGA_GEMM_IMPL_6==2 || TILEMEGA_GEMM_IMPL_7==2 || \
     TILEMEGA_GEMM_IMPL_8==2 || TILEMEGA_GEMM_IMPL_9==2 || TILEMEGA_GEMM_IMPL_10==2 || \
@@ -244,13 +245,19 @@ inline constexpr int kHarnessThreads = kGemmThreads;
 #ifndef TILEMEGA_SERVING_KV_TILE
 #define TILEMEGA_SERVING_KV_TILE 64
 #endif
+#ifndef TILEMEGA_PREFILL_ATTENTION_WGMMA
+#define TILEMEGA_PREFILL_ATTENTION_WGMMA 0
+#endif
 #if TILEMEGA_SERVING_DECODER_ATTENTION
 using T_ServingAttention = std::conditional_t<TILEMEGA_SERVING_SEQ==1,
     IndependentAttentionTaskBody<GemmVariantArch,TILEMEGA_SERVING_HEAD_DIM,TILEMEGA_SERVING_QPERKV,TILEMEGA_SERVING_QK_NORM!=0>,
-    FusedAttentionTaskBody<
+    std::conditional_t<TILEMEGA_PREFILL_ATTENTION_WGMMA,Sm90PrefillAttentionTaskBody<
+    GemmVariantArch,TILEMEGA_SERVING_HEAD_DIM,TILEMEGA_SERVING_QPERKV,
+    TILEMEGA_SERVING_SEQ,TILEMEGA_SERVING_QROWS,TILEMEGA_SERVING_KV_TILE,
+    TILEMEGA_SERVING_QK_NORM!=0>,FusedAttentionTaskBody<
     GemmVariantArch, TILEMEGA_SERVING_HEAD_DIM, TILEMEGA_SERVING_QPERKV,
     TILEMEGA_SERVING_SEQ, TILEMEGA_SERVING_QROWS, TILEMEGA_SERVING_KV_TILE,
-    TILEMEGA_SERVING_QK_NORM != 0>>;
+    TILEMEGA_SERVING_QK_NORM != 0>>>;
 using T_ServingMerge = AttentionMergeTaskBody<
     TILEMEGA_SERVING_HEAD_DIM, TILEMEGA_SERVING_QPERKV,
     TILEMEGA_SERVING_SEQ>;
@@ -268,6 +275,9 @@ using T_ServingMerge = AttentionMergeTaskBody<
 
 /// §8.6: one explicit union covering every family the dispatch can reach.
 union TaskSmem {
+#if TILEMEGA_ENCODER_ATTENTION_WGMMA
+  typename Sm90EncoderAttentionTaskBody<GemmVariantArch>::SharedStorage encoder_hopper;
+#endif
   SimtTaskResources<TaskKind::kRMSNorm,kHarnessThreads>::SharedStorage rms;
   SimtTaskResources<TaskKind::kAttention,kHarnessThreads>::SharedStorage attention;
   SimtTaskResources<TaskKind::kElementwise,kHarnessThreads>::SharedStorage pointwise;
@@ -293,6 +303,9 @@ inline constexpr std::size_t kNonGemmTaskSmem =
     std::max({sizeof(TaskSmem::rms), sizeof(TaskSmem::attention), sizeof(TaskSmem::pointwise)});
 inline constexpr std::size_t kExpectedTaskSmem =
     std::max({sizeof(GemmVariantSmem),kNonGemmTaskSmem
+#if TILEMEGA_ENCODER_ATTENTION_WGMMA
+        ,sizeof(TaskSmem::encoder_hopper)
+#endif
 #if defined(TILEMEGA_DM_STAGE_SHARED_BYTES) && TILEMEGA_DM_STAGE_SHARED_BYTES > 0
         ,sizeof(TaskSmem::dm_stage)
 #endif
@@ -591,7 +604,7 @@ __device__ inline void FinishNonpagedTask(Params const& p,unsigned index,
 /// The dispatch is over the TaskBody families, which are a property of the
 /// library, not of any model.  A model that needs no attention simply never
 /// emits those stage kinds.
-__device__ inline void RunStage(Params const& p, std::uint32_t index,
+__device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunStage(Params const& p, std::uint32_t index,
                                 TaskSmem& smem TILEMEGA_REDUCTION_ARG) {
   StageDesc const& stage = p.stages[index];
   switch (stage.kind) {
@@ -755,7 +768,7 @@ __host__ __device__ inline PrefetchOperand PrefetchFor(StageDesc const& stage) {
 }
 #endif
 
-__device__ inline void RunTask(Params const& p, std::uint32_t index,
+__device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunTask(Params const& p, std::uint32_t index,
                                std::uint32_t logical_task, TaskSmem& smem TILEMEGA_PHASE_ARG
                                TILEMEGA_PREFETCH_ARG TILEMEGA_REDUCTION_ARG) {
   StageDesc const& stage = p.stages[index];

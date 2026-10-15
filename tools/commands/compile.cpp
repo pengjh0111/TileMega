@@ -15,6 +15,7 @@
 #include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Solver/CompilerSearch.h>
 #include <tilemega/Solver/SkeletonSearch.h>
+#include <tilemega/Solver/ServingImplementation.h>
 #include <tilemega/Solver/DnnStructureSearch.h>
 #include <tilemega/Solver/MoeStructureSearch.h>
 #include <tilemega/Solver/IntervalSegments.h>
@@ -44,6 +45,7 @@
 #include <cmath>
 #include <limits>
 #include <set>
+#include <map>
 #include <sstream>
 
 namespace tilemega::commands::compile {
@@ -304,7 +306,7 @@ int RunCompile(int argc, char** argv) {
     std::string shared_weight_layout;
     std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
     std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
-    std::string forward_gemm_impl="mma16";
+    std::string forward_gemm_impl="mma16",prefill_attention_impl="mma16",encoder_attention_impl="mma16",conv_impl="cpasync",gemv_load="ldg";
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int mma_reg_pipe=0;
     std::string attention_impl="mma16",attention_page;
@@ -314,7 +316,7 @@ int RunCompile(int argc, char** argv) {
     int nonpaged_la=0,attention_frontier=0;
     std::array<int,5> serving_impl{{-1,-1,-1,-1,-1}};
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
-    int moe_dynamic=0,moe_opaque=0,moe_gemv=0;
+    int moe_dynamic=0,moe_opaque=0,moe_gemv=0,moe_activation_bulk=0;
     bool moe_gemv_auto=true;
     std::string candidate_mode="L1",nonpaged_weight_layout="row";
     bool page_bytes_pinned=false,nonpaged_la_pinned=false;
@@ -365,6 +367,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--frontend") frontend_mode=value;
       else if (flag=="--moe-dynamic") moe_dynamic=std::stoi(value);
       else if (flag=="--moe-opaque") moe_opaque=std::stoi(value);
+      else if (flag=="--moe-activation-bulk") moe_activation_bulk=std::stoi(value);
       else if (flag=="--moe-gemv") {moe_gemv_auto=value=="auto";moe_gemv=moe_gemv_auto?0:std::stoi(value);}
       else if (flag=="--moe-binding") moe_binding=value;
       else if (flag=="--routing-profile") routing_profile_path=value;
@@ -385,6 +388,10 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--sync") sync_policy=value;
       else if (flag=="--arch-paths") arch_paths=value;
       else if (flag=="--forward-gemm-impl") forward_gemm_impl=value;
+      else if (flag=="--conv-impl") conv_impl=value;
+      else if (flag=="--gemv-load") gemv_load=value;
+      else if (flag=="--prefill-attention-impl") prefill_attention_impl=value;
+      else if (flag=="--encoder-attention-impl") encoder_attention_impl=value;
       else if (flag=="--pdl") pdl=value;
       else if (flag=="--pg") pg_mode=value;
       else if (flag=="--weight-layout") weight_layout=value;
@@ -548,6 +555,16 @@ int RunCompile(int argc, char** argv) {
     if(std::find(serving_impl.begin(),serving_impl.end(),2)!=serving_impl.end() &&
        (arch_paths!="auto" || !serving || serving_phase!="decode"))
       throw std::invalid_argument("WGMMA requires native Hopper decode");
+    if(encoder_attention_impl!="mma16" && encoder_attention_impl!="wgmma")
+      throw std::invalid_argument("--encoder-attention-impl must be mma16 or wgmma");
+    if(encoder_attention_impl=="wgmma" && (!serving || serving_phase!="forward" ||
+        frontend_mode!="dnn" || arch_paths!="auto" || pg_mode=="pages"))
+      throw std::invalid_argument("encoder WGMMA requires native Hopper DNN forward");
+    if(prefill_attention_impl!="mma16" && prefill_attention_impl!="wgmma")
+      throw std::invalid_argument("--prefill-attention-impl must be mma16 or wgmma");
+    if(prefill_attention_impl=="wgmma" && (!serving || serving_phase!="prefill" ||
+        arch_paths!="auto" || pg_mode=="pages" || serving_query_rows%64))
+      throw std::invalid_argument("prefill WGMMA attention requires native Hopper prefill and query rows divisible by 64");
     if(forward_gemm_impl!="mma16" && forward_gemm_impl!="wgmma")
       throw std::invalid_argument("--forward-gemm-impl must be mma16 or wgmma");
     if(forward_gemm_impl=="wgmma" && (arch_paths!="auto" || !serving ||
@@ -555,6 +572,21 @@ int RunCompile(int argc, char** argv) {
       throw std::invalid_argument("forward WGMMA requires native Hopper prefill/forward");
     if(forward_gemm_impl=="wgmma" && solve_target.empty() && !has_variants)
       throw std::invalid_argument("forward WGMMA needs skeleton solve or an explicit variant plan");
+    if((moe_activation_bulk!=0 && moe_activation_bulk!=1) ||
+        (moe_activation_bulk && (!serving || serving_phase!="decode" || arch_paths!="auto")))
+      throw std::invalid_argument("--moe-activation-bulk requires 0/1 and native Hopper decode");
+    if(moe_activation_bulk)runtime_flags+=" -DTILEMEGA_MOE_ACTIVATION_BULK=1";
+    if(gemv_load!="ldg" && gemv_load!="nc")
+      throw std::invalid_argument("--gemv-load must be ldg or nc");
+    if(gemv_load=="nc" && (arch_paths!="auto" || !serving || pg_mode=="pages"))
+      throw std::invalid_argument("NC GEMV requires native Hopper nonpaged execution");
+    if(gemv_load=="nc")runtime_flags+=" -DTILEMEGA_GEMV_LOAD_NC=1";
+    if(conv_impl!="cpasync" && conv_impl!="tma_im2col")
+      throw std::invalid_argument("--conv-impl must be cpasync or tma_im2col");
+    if(conv_impl=="tma_im2col" && (arch_paths!="auto" || !forward || pg_mode=="pages" ||
+        (solve_target.empty() && !has_variants)))
+      throw std::invalid_argument("TMA im2col requires native Hopper nonpaged forward and skeleton solve or explicit variants");
+    if(conv_impl=="tma_im2col")runtime_flags+=" -DTILEMEGA_CONV_TMA_IM2COL=1";
     if(pdl!="auto" && pdl!="off")throw std::runtime_error("--pdl must be auto or off");
     if(pg_mode!="off" && pg_mode!="pages" && pg_mode!="l2" && pg_mode!="auto")
       throw std::runtime_error("--pg must be off, l2, pages or auto");
@@ -595,7 +627,17 @@ int RunCompile(int argc, char** argv) {
       if(runtime_target.empty())runtime_target=std::string(TILEMEGA_SOURCE_DIR)+
           "/configs/targets/"+tilemega::TargetSpec::Probe().arch_tag+".json";
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
-      if(forward_gemm_impl=="wgmma" && !target.caps.wgmma)
+      if(encoder_attention_impl=="wgmma" && !target.caps.wgmma)
+        throw std::invalid_argument("encoder WGMMA requires a Hopper target");
+      if(encoder_attention_impl=="wgmma")runtime_flags+=" -DTILEMEGA_ENCODER_ATTENTION_WGMMA=1";
+      if(prefill_attention_impl=="wgmma" && !target.caps.wgmma)
+        throw std::invalid_argument("prefill WGMMA attention requires a Hopper target");
+      if(prefill_attention_impl=="wgmma")runtime_flags+=" -DTILEMEGA_PREFILL_ATTENTION_WGMMA=1";
+      if(moe_activation_bulk && !target.caps.wgmma)
+        throw std::invalid_argument("MoE activation bulk requires a Hopper target");
+      if(gemv_load=="nc" && (!target.caps.wgmma || use_pages))
+        throw std::invalid_argument("NC GEMV requires native Hopper nonpaged execution");
+      if((forward_gemm_impl=="wgmma" || conv_impl=="tma_im2col") && !target.caps.wgmma)
         throw std::invalid_argument("forward WGMMA requires a Hopper target");
       if(sync_policy=="calibrated") {
         runtime_flags+=" -DTILEMEGA_SYNC_V3=1 -DTILEMEGA_EVENT_RED_PUBLISH=1";
@@ -714,10 +756,25 @@ int RunCompile(int argc, char** argv) {
         throw std::runtime_error("routing profile changed during verification");
       moe_routing_profile=std::make_shared<tilemega::solver::MoeRoutingProfile const>(std::move(profile));
     };
+    bool hopper_requested=std::find(serving_impl.begin(),serving_impl.end(),2)!=serving_impl.end() ||
+        attention_impl=="wgmma" || forward_gemm_impl=="wgmma" || prefill_attention_impl=="wgmma" ||
+        encoder_attention_impl=="wgmma" || conv_impl=="tma_im2col" || moe_activation_bulk;
+    auto bind_hopper_arch=[&](mlir::ModuleOp candidate) {
+      if(!hopper_requested)return;
+      auto target=tilemega::TargetSpec::FromJson(runtime_target);
+      if(!target.caps.wgmma || target.arch_tag!="sm_90" || arch_paths!="auto")
+        throw std::invalid_argument("requested Hopper implementation requires native sm_90 target");
+      auto existing=candidate->getAttrOfType<mlir::StringAttr>("tmexec.solved_arch");
+      if(existing && existing.getValue()!=target.arch_tag)
+        throw std::invalid_argument("requested Hopper implementation conflicts with plan architecture");
+      candidate->setAttr("tmexec.solved_arch",mlir::StringAttr::get(&context,target.arch_tag));
+    };
     double selected_serving_ms=std::numeric_limits<double>::infinity();
     if(serving && solve_target.empty()) {
       if(has_variants)throw std::runtime_error("serving needs one exported model or solved CG");
       if(input.extension()==".mlir") {
+        if(std::any_of(serving_impl.begin(),serving_impl.end(),[](int value){return value>=0;}))
+          throw std::invalid_argument("per-class implementation overrides require export JSON, not an imported CG");
         module=mlir::parseSourceFile<mlir::ModuleOp>(input.string(),&context);
         if(!module || !(*module)->hasAttr("tilemega.serving"))
           throw std::runtime_error("serving CG is missing its serving schema");
@@ -749,6 +806,7 @@ int RunCompile(int argc, char** argv) {
             throw std::runtime_error("prefill ISL disagrees with serving CG");
           serving_prompt_len=int(encoded_seq.getInt());
         }
+        bind_hopper_arch(*module);
         auto seq=forward?forward_seq:(serving_phase=="decode"?1:serving_prompt_len);
         source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(
             {{*module,static_cast<std::uint32_t>(seq),static_cast<std::uint32_t>(seq)}});
@@ -813,8 +871,12 @@ int RunCompile(int argc, char** argv) {
           }
         }
       }
+      if(serving_phase=="decode")tilemega::solver::ApplyServingSeedImplementations(
+          plan,import.gemms,serving_impl,hopper_requested && arch_paths=="auto" &&
+          tilemega::TargetSpec::FromJson(runtime_target).caps.wgmma,serving_batch,use_pages,page_bytes);
       module=tilemega::frontend::TorchExportImporter{}.ImportPlan(
           input.string(),plan,context,&summary,import);
+      bind_hopper_arch(*module);
       // Runtime configuration below replaces this source. DM graphs can be
       // large; lower their final verified layout once instead of discarding it.
       if(!defer_dm_lowering)source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(
@@ -915,6 +977,11 @@ int RunCompile(int argc, char** argv) {
         skeleton.attention_buffers=attention_buffers;
         skeleton.attention_wgmma=attention_impl=="wgmma";
         skeleton.forward_wgmma=forward_gemm_impl=="wgmma";
+        skeleton.conv_tma_im2col=conv_impl=="tma_im2col";
+        skeleton.gemv_nc=gemv_load=="nc";
+        skeleton.moe_activation_bulk=moe_activation_bulk;
+        skeleton.prefill_attention_wgmma=prefill_attention_impl=="wgmma";
+        skeleton.encoder_attention_wgmma=encoder_attention_impl=="wgmma";
         skeleton.handoff_auto=handoff_mode=="auto";
         skeleton.page_bytes=page_bytes;
         if(use_pages)skeleton.page_choices=page_bytes_pinned
@@ -1139,6 +1206,7 @@ int RunCompile(int argc, char** argv) {
             command+=" --serving";
             if(tile && tile->impl)command+=tile->impl==1?" --impl gemv":" --impl wgmma";
             if(probe_plan && probe_plan->dm)command+=" --dm";
+            if(moe_activation_bulk && tile && tile->impl==2)command+=" --moe-activation-bulk";
             if(probe_plan && probe_plan->moe_gemv && tile)command+=" --dm-gemv";
             if(!nongemm_source.empty()) {
               auto source=output;source.replace_extension("cu");
@@ -1249,7 +1317,7 @@ int RunCompile(int argc, char** argv) {
               " --capacity "+std::to_string(serving_capacity)+
               " --prompt-len "+std::to_string(serving_prompt_len)+
               " --sync "+quote(sync_policy)+" --runtime-target "+quote(runtime_target)+
-              " --arch-paths "+quote(arch_paths)+" --forward-gemm-impl "+quote(forward_gemm_impl)+" --pdl "+quote(pdl)+
+              " --arch-paths "+quote(arch_paths)+" --encoder-attention-impl "+quote(encoder_attention_impl)+" --prefill-attention-impl "+quote(prefill_attention_impl)+" --forward-gemm-impl "+quote(forward_gemm_impl)+" --conv-impl "+quote(conv_impl)+" --moe-activation-bulk "+std::to_string(moe_activation_bulk)+" --gemv-load "+quote(gemv_load)+" --pdl "+quote(pdl)+
               " --pg "+quote(pg_mode)+" --page-bytes "+std::to_string(candidate_page_bytes)+
               " --weight-layout "+quote(weight_layout)+
               " --nonpaged-weight-layout "+quote(nonpaged_weight_layout)+
@@ -1513,6 +1581,26 @@ int RunCompile(int argc, char** argv) {
       }
       source = tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(inputs);
     }
+    if(hopper_requested)bind_hopper_arch(*module);
+    if(moe_activation_bulk) {
+      auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+      auto runtime=(*module)->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime");
+      bool selected=false;
+      if(plan && runtime) {
+        auto gemms=plan.getAs<mlir::ArrayAttr>("gemms");
+        if(gemms && gemms.size()==runtime.size())for(unsigned i=0;i<gemms.size();++i) {
+          auto g=mlir::cast<mlir::DictionaryAttr>(gemms[i]);
+          auto config=mlir::cast<mlir::DictionaryAttr>(runtime[i]);
+          auto impl=config.getAs<mlir::IntegerAttr>("impl");
+          if(!impl || impl.getInt()!=2 || !g.get("dm_access"))continue;
+          auto access=tilemega::frontend::DecodeDmAccess(g.get("dm_access"));
+          selected|=access.a==tilemega::codegen::DmAAccess::kRowGather &&
+              access.b==tilemega::codegen::DmBAccess::kExpertIndirect;
+        }
+      }
+      if(!selected)throw std::invalid_argument("MoE activation bulk requires a WGMMA row-gather expert GEMM");
+      (*module)->setAttr("tmexec.moe_activation_bulk",mlir::BoolAttr::get(&context,true));
+    }
     bool use_l2=serving && (pg_mode=="l2" || (pg_mode=="auto" && !use_pages));
     if(moe_opaque)(*module)->setAttr("tmexec.moe_opaque",mlir::BoolAttr::get(&context,true));
     if(serving && !use_pages && nonpaged_la) {
@@ -1627,6 +1715,34 @@ int RunCompile(int argc, char** argv) {
           throw std::invalid_argument("simt attention requires QPerKV <= 4 and D = 64 or 128");
       }
     }
+    if(serving && encoder_attention_impl=="wgmma") {
+      auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+      bool found=false;
+      if(plan)for(auto entry:plan.getAs<mlir::ArrayAttr>("stages")) {
+        auto stage=mlir::cast<mlir::DictionaryAttr>(entry);
+        if(stage.getAs<mlir::StringAttr>("kind").getValue()!="kEncoderAttention")continue;
+        found=true;
+        if(stage.getAs<mlir::IntegerAttr>("width").getInt()!=128 || stage.getAs<mlir::IntegerAttr>("group").getInt()!=64)
+          throw std::invalid_argument("encoder WGMMA requires S128 and query rows64");
+        auto operands=stage.getAs<mlir::DenseI64ArrayAttr>("operands");
+        if(!operands || operands.size()<3 || operands[2]!=tilemega::codegen::kDmNoIndex)
+          throw std::invalid_argument("encoder WGMMA requires no padding mask");
+      }
+      if(!found)throw std::invalid_argument("encoder WGMMA requires an encoder attention stage");
+    }
+    if(serving && prefill_attention_impl=="wgmma") {
+      auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+      bool found=false;
+      if(plan)for(auto entry:plan.getAs<mlir::ArrayAttr>("stages")) {
+        auto stage=mlir::cast<mlir::DictionaryAttr>(entry);
+        if(stage.getAs<mlir::StringAttr>("kind").getValue()!="kFusedAttention")continue;
+        found=true;auto q=stage.getAs<mlir::IntegerAttr>("group").getInt();
+        auto d=stage.getAs<mlir::IntegerAttr>("width").getInt();
+        if(q<1 || q>8 || (d!=64 && d!=128))
+          throw std::invalid_argument("prefill WGMMA attention requires QPerKV<=8 and D64/128");
+      }
+      if(!found)throw std::invalid_argument("prefill WGMMA attention requires a decoder attention stage");
+    }
     if(serving && attention_impl=="wgmma") {
       auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
       if(plan)for(auto entry:plan.getAs<mlir::ArrayAttr>("stages")) {
@@ -1651,6 +1767,22 @@ int RunCompile(int argc, char** argv) {
       if(moe_opaque) {
         source="#define TILEMEGA_MOE_OPAQUE 1\n"+source;
       }
+    }
+    if(gemv_load=="nc") {
+      std::map<std::string,int> definitions;
+      std::istringstream lines(source);std::string line;
+      while(std::getline(lines,line)) {
+        std::istringstream fields(line);std::string directive,key;int value;
+        if(fields>>directive>>key>>value && directive=="#define")definitions[key]=value;
+      }
+      bool selected=moe_gemv;
+      for(int i=0;i<16;++i)if(definitions["TILEMEGA_GEMM_IMPL_"+std::to_string(i)]==1) {
+        auto prefix=i?"TILEMEGA_GEMM_V"+std::to_string(i)+"_":std::string("TILEMEGA_GEMM_");
+        if(definitions[prefix+"TILE_N"]>32)
+          throw std::invalid_argument("NC GEMV requires TN8/16/32; TN64 is unsupported");
+        selected=true;
+      }
+      if(!selected)throw std::invalid_argument("NC GEMV load policy requires an active GEMV implementation");
     }
     std::filesystem::path requested(argv[2]);
     bool shared = requested.extension() == ".so";
@@ -1859,6 +1991,11 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"watchdog\": "<<watchdog
               <<",\n  \"mma_reg_pipe\": "<<mma_reg_pipe
               <<",\n  \"forward_gemm_impl\": "<<std::quoted(forward_gemm_impl)
+              <<",\n  \"conv_impl\": "<<std::quoted(conv_impl)
+              <<",\n  \"gemv_load\": "<<std::quoted(gemv_load)
+              <<",\n  \"moe_activation_bulk\": "<<moe_activation_bulk
+              <<",\n  \"prefill_attention_impl\": "<<std::quoted(prefill_attention_impl)
+              <<",\n  \"encoder_attention_impl\": "<<std::quoted(encoder_attention_impl)
               <<",\n  \"attention_impl\": \""<<attention_impl<<"\""
               <<",\n  \"attention_page\": \""<<attention_page<<"\""
               <<",\n  \"attention_head_dim\": "<<attention_head_dim

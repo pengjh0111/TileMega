@@ -111,7 +111,7 @@ struct IndependentAttentionTaskBody {
       ComputeSync();Issue(int(cursor)+Buffers);
     }
   };
-  __device__ static void Run(ServingAttentionOperands const& p,SharedStorage& shared,
+  __device__ static TILEMEGA_HOPPER_TASK_INLINE void Run(ServingAttentionOperands const& p,SharedStorage& shared,
                             int batch,int group,int query_block,int block) {
     (void)query_block;
     int count=Body::End(p,block)-Body::Begin(p,block);if(count<=0)return;

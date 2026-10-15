@@ -13,6 +13,7 @@
 namespace tilemega::codegen {
 
 constexpr int EncoderAttentionSharedBytes() { return (16*64+4*64*64)*2+704; }
+constexpr int Sm90EncoderAttentionSharedBytes() { return 74752; }
 constexpr int MoeDispatchSharedBytes(int experts=128) { return 5*experts*sizeof(unsigned); }
 constexpr int MoeCombineSharedBytes(int rows,int columns) { return rows*columns*sizeof(float); }
 
@@ -47,6 +48,9 @@ constexpr int SimtSharedElements(TaskKind kind, int threads, int attention_exten
 // Double-buffered K/V and the final four-warp output reduction share storage.
 constexpr int ServingAttentionSharedBytes(int head_dim, int kv_tile = 64) {
   return (32 + (8 * kv_tile > 256 ? 8 * kv_tile : 256)) * head_dim + 704;
+}
+constexpr int ServingPrefillWgmmaSharedBytes(int head_dim) {
+  return ((384*head_dim+16384+768+1023)/1024)*1024;
 }
 constexpr int ServingAttentionKvTile(int head_dim, int gemm_shared_bytes) {
   return ServingAttentionSharedBytes(head_dim, 64) <= gemm_shared_bytes ? 64 : 32;

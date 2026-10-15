@@ -155,9 +155,14 @@ constexpr bool ServingWgmmaShapeLegal(int m,int n,int k,int stages) {
   bool forward=(m==64 || m==128) && k==64 && m*n<=16384;
   return (decode || forward) && (n==64 || n==128 || n==256) && stages==2;
 }
-constexpr int ServingWgmmaSmemBytes(int m,int n,int k,int stages) {
+constexpr int ServingWgmmaBulkGatherExtraBytes(int m,int k) { return 1024+2*m*k; }
+constexpr int ServingWgmmaSmemBytes(int m,int n,int k,int stages,bool bulk_gather=false) {
   int base=ServingBF16SmemBytes(m,n,k,stages);
   int tma=1024+4*k*(m+n);
+  if(m==16 && bulk_gather) {
+    int bytes=4*k*(m+n)+ServingWgmmaBulkGatherExtraBytes(m,k);
+    base=bytes>base?bytes:base;
+  }
   return m>=64 && tma>base?tma:base;
 }
 inline BackendTraits ServingWgmmaTraits(int m,int n,int k,int stages) {
@@ -180,6 +185,14 @@ inline BackendTraits ServingGemvTraits(int m,int n,int k,int stages) {
   auto r=ServingBF16Traits(m,32,k,stages);
   r.tile_n=n;r.smem_bytes=ServingGemvSmemBytes(m,n);
   r.shape_legal=ServingGemvShapeLegal(m,n,k,stages);return r;
+}
+
+// The load hint changes cache placement, not arithmetic or shared storage.
+// Until measured separately, the NC candidate inherits the SIMT cost fit.
+inline BackendTraits ServingGemvNcTraits(int m,int n,int k,int stages) {
+  auto result=ServingGemvTraits(m,n,k,stages);
+  result.arch_sm=90;result.shape_legal=result.shape_legal && n<=32;
+  return result;
 }
 
 /// `entry -> registers` for every entry point in a `-Xptxas=-v` log.

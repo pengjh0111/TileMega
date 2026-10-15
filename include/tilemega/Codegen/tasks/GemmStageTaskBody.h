@@ -202,14 +202,14 @@ struct GemmVariantStorage<true, Mainloop, M, N, K, S, Gemv,Wgmma> {
   struct alignas(16) type {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     static constexpr auto mainloop_bytes = Gemv ? solver::ServingGemvSmemBytes(M,N)
-        : Wgmma ? solver::ServingWgmmaSmemBytes(M,N,K,S):solver::DmServingBF16SmemBytes(M,N,K,S);
+        : Wgmma ? solver::ServingWgmmaSmemBytes(M,N,K,S,TILEMEGA_MOE_ACTIVATION_BULK):solver::DmServingBF16SmemBytes(M,N,K,S);
     static constexpr auto chain_bytes = (M*N+2*M)*sizeof(float);
     static constexpr auto shared_epilogue_bytes = backend::ServingEpilogueScratchBytes(M,N,TILEMEGA_EP_PARALLEL_ARGMAX);
     static constexpr auto epilogue_bytes = chain_bytes>shared_epilogue_bytes?chain_bytes:shared_epilogue_bytes;
     unsigned char bytes[mainloop_bytes>epilogue_bytes?mainloop_bytes:epilogue_bytes];
 #else
     unsigned char bytes[Gemv ? solver::ServingGemvSmemBytes(M,N) :
-        Wgmma ? solver::ServingWgmmaSmemBytes(M,N,K,S):backend::ServingGemmConfig<GemmVariantArch,M,(N<32?32:N),K,S>::kSharedBytes];
+        Wgmma ? solver::ServingWgmmaSmemBytes(M,N,K,S,TILEMEGA_MOE_ACTIVATION_BULK):backend::ServingGemmConfig<GemmVariantArch,M,(N<32?32:N),K,S>::kSharedBytes];
 #endif
   };
 };
@@ -677,7 +677,7 @@ struct GemmStageTaskBody {
   }
 
   template <int Variant, bool SharedOutput = false>
-  __device__ static void RunTask(GemmInvocation const& invocation, int local,
+  __device__ static TILEMEGA_HOPPER_TASK_INLINE void RunTask(GemmInvocation const& invocation, int local,
                                  char* shared, ModelElement* tile_output = nullptr TILEMEGA_PHASE_ARG
 #if TILEMEGA_TRACE_TASK
                                  ,ServingTaskProfile* profile=nullptr

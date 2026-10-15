@@ -341,7 +341,7 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
     analysis::CouplingCache& coupling,FlowPreparationCache& cache,bool colocate,int kernel_shared_bytes,
     PreparedFlow const* prior,std::vector<bool> const* reusable_stages,
     analysis::DramFloor::Value const* bound_floor,bool paged,
-    int paged_page_bytes,MoeRoutingProfile const* routing_profile,unsigned first_profile_layer) {
+    int paged_page_bytes,MoeRoutingProfile const* routing_profile,unsigned first_profile_layer,bool prefill_attention_wgmma,bool encoder_attention_wgmma) {
   if(problem.model.dtype!=ScalarType::kBF16)throw std::invalid_argument("flow preparation requires BF16");
   std::map<unsigned,MoeRoutingPoint const*> routing;
   if(routing_profile) {
@@ -530,8 +530,11 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
       traits=ModelTaskTraits(model,projected.logical_stage,g);
       if(input.serving_attention) {
         input.serving_attention->kv_tile=codegen::ServingAttentionKvTile(stage.width,serving_gemm_shared);
-        traits.smem_bytes=codegen::ServingAttentionSharedBytes(stage.width,input.serving_attention->kv_tile);
+        traits.smem_bytes=prefill_attention_wgmma?codegen::ServingPrefillWgmmaSharedBytes(stage.width):
+            codegen::ServingAttentionSharedBytes(stage.width,input.serving_attention->kv_tile);
       }
+      if(encoder_attention_wgmma && stage.kind==StageKind::kEncoderAttention)
+        traits.smem_bytes=codegen::Sm90EncoderAttentionSharedBytes();
       chunks=stage.IsCollective()?cost.Chunks(model,stage.gemm,g):1;
     }
     auto const price_start=std::chrono::steady_clock::now();

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/ServingAttentionLegality.h>
 #include <tilemega/Solver/SkeletonSearch.h>
+#include <tilemega/Solver/ServingImplementation.h>
 #include <tilemega/Solver/ModelDramFloor.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Analysis/ExactMemo.h>
@@ -25,6 +26,30 @@ bool ForwardWgmmaEligible(OperatorClass const& cls,frontend::ImportedSemantics c
     int rows=imported.plan.dm?DmGemmActiveRows(g,imported.plan,id,batch,seq):
         stage->batch_rows?batch:batch*seq;
     if(rows<64)return false;
+  }
+  return true;
+}
+bool ConvWgmmaEligible(OperatorClass const& cls,frontend::ImportedSemantics const& imported) {
+  if(cls.gemms.empty() || !imported.plan.dm)return false;
+  for(auto id:cls.gemms) {
+    auto const& g=imported.plan.gemms.at(id);
+    if(g.n<64 || g.access.a!=codegen::DmAAccess::kIm2Col ||
+       g.access.b!=codegen::DmBAccess::kDense || g.access.a_scale!=codegen::kDmNoIndex ||
+       g.access.conv>=imported.plan.convolutions.size())return false;
+    auto const& conv=imported.plan.convolutions[g.access.conv];
+    if(conv.c<64 || conv.c%64 || conv.input_layout>=imported.plan.buffers.size() ||
+       conv.stride_h>8 || conv.stride_w>8 || conv.dilation_h>128 || conv.dilation_w>128)return false;
+    auto const& layout=imported.plan.buffers[conv.input_layout].layout;
+    if(layout.kind!=codegen::DmLayout::kNHWC || layout.physical[3]!=conv.c ||
+       layout.strides[3]!=1 || layout.strides[2]%8 || layout.strides[1]%8 ||
+       layout.strides[0]%8)return false;
+    int lower[]={int(layout.halo_left)-int(conv.pad_w),int(layout.halo_top)-int(conv.pad_h)};
+    int upper[]={int(conv.w+layout.halo_left+conv.pad_w)-int(layout.physical[2])-int((conv.s-1)*conv.dilation_w),
+        int(conv.h+layout.halo_top+conv.pad_h)-int(layout.physical[1])-int((conv.r-1)*conv.dilation_h)};
+    for(int i=0;i<2;++i)if(lower[i]<-128 || lower[i]>127 || upper[i]<-128 || upper[i]>127)return false;
+    auto stage=std::find_if(imported.plan.stages.begin(),imported.plan.stages.end(),
+        [&](auto const& item){return frontend::IsGemmStage(item.kind) && item.gemm==id;});
+    if(stage==imported.plan.stages.end() || stage->kind==frontend::PlanTaskKind::kDwPwFused)return false;
   }
   return true;
 }
@@ -313,7 +338,7 @@ struct SearchContext {
     if(ServingRuntimePlan()) {
       int gemm_shared=imported.plan.dm?estimate.shared_bytes:0;
       for(auto const& g:config)gemm_shared=std::max(gemm_shared,
-          (imported.plan.dm && g.impl!=2?DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):g.impl==1?ServingGemvSmemBytes(g.tile_m,g.tile_n):g.impl==2?ServingWgmmaSmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)));
+          (imported.plan.dm && g.impl!=2?DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):g.impl==1?ServingGemvSmemBytes(g.tile_m,g.tile_n):g.impl==2?ServingWgmmaSmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages,options.moe_activation_bulk):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)));
       if(!options.pg_pages && (options.attention_buffers==1 || std::any_of(config.begin(),config.end(),[](auto const& g){return g.impl==1;})))
         for(auto const& stage:imported.plan.stages)
           if(stage.kind==frontend::PlanTaskKind::kFusedAttention) {
@@ -327,6 +352,10 @@ struct SearchContext {
             gemm_shared=std::max(gemm_shared,2*g.tile_m*int(stage.width)+
                 DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages));
           }
+      if(options.prefill_attention_wgmma)for(auto const& stage:imported.plan.stages)
+        if(stage.kind==frontend::PlanTaskKind::kFusedAttention)
+          gemm_shared=std::max(gemm_shared,codegen::ServingPrefillWgmmaSharedBytes(stage.width));
+      if(options.encoder_attention_wgmma)gemm_shared=std::max(gemm_shared,codegen::Sm90EncoderAttentionSharedBytes());
       estimate.shared_bytes=gemm_shared;
       estimate.resident_limit=options.pg_pages?1:VariantResourceCache::ResidentLimit(estimate,target);
     }
@@ -368,6 +397,9 @@ struct SearchContext {
               DmServingPageScratchBytes(g.tile_m,g.tile_n));
           activation=std::max(activation,workspace);scratch=std::max(scratch,workspace);
         }
+      if(options.moe_activation_bulk)for(auto const& g:config)if(g.impl==2)
+        activation=std::max(activation,DmServingPageActivationBytes(g.tile_m,g.tile_n,g.tile_k)+
+            ServingWgmmaBulkGatherExtraBytes(g.tile_m,g.tile_k));
       pages=PageLayout::Build(target,current_page_bytes,activation,scratch,0,0,
           (options.attention_wgmma || std::any_of(config.begin(),config.end(),[](auto const& g){return g.impl==2;}))?1024:128);
       for(auto const& stage:imported.plan.stages)
@@ -383,7 +415,7 @@ struct SearchContext {
     }
     // Paged decode uses PageLayout rather than the legacy TaskSmem union.
     // The union check would reject a legal Qwen3 page layout at the seed.
-    if(ServingRuntimePlan() && !options.pg_pages) {
+    if(ServingRuntimePlan() && !options.pg_pages && !options.prefill_attention_wgmma) {
       auto attention=std::find_if(imported.plan.stages.begin(),
           imported.plan.stages.end(),[](auto const& stage){
             return stage.kind==frontend::PlanTaskKind::kFusedAttention;
@@ -494,7 +526,7 @@ struct SearchContext {
         point.problem,*floor,target,residency,options.common.placement.hop,
         cache,flow_cache,true,estimate.shared_bytes,prior,prior?&reusable:nullptr,
         &bound->second,options.pg_pages,current_page_bytes,
-        options.moe_routing_profile.get(),options.moe_profile_layer);}
+        options.moe_routing_profile.get(),options.moe_profile_layer,options.prefill_attention_wgmma,options.encoder_attention_wgmma);}
     if(options.moe_routing_profile && point.module) {
       bool inferred=false;
       for(auto const& price:point.flow->prices)inferred|=price.inferred_empty_cost;
@@ -530,9 +562,10 @@ struct SearchContext {
     // has no effect on that kernel, so charging its R10 latency benefit here
     // would rank a different program from the one we execute.
     auto priced=config;
-    if(options.forward_wgmma)for(std::size_t c=0;c<priced.size();++c)
-      if(ForwardWgmmaEligible(classes[c],imported,options.common.placement.dims.batch,
-          options.common.placement.dims.seq))priced[c].impl=2;
+    for(std::size_t c=0;c<priced.size();++c)
+      if((options.forward_wgmma && ForwardWgmmaEligible(classes[c],imported,
+          options.common.placement.dims.batch,options.common.placement.dims.seq)) ||
+          (options.conv_tma_im2col && ConvWgmmaEligible(classes[c],imported)))priced[c].impl=2;
     if(imported.plan.serving)for(std::size_t c=0;c<priced.size();++c) {
       auto const& gemm=imported.plan.gemms[classes[c].gemms.front()];
       using Op=frontend::PlanGemm::Epilogue;
@@ -542,7 +575,7 @@ struct SearchContext {
       auto const& g=priced[c];
       if(g.impl==2 && (!options.common.placement.target.caps.wgmma ||
           (g.tile_m==16 && (options.common.placement.dims.seq!=1 || options.common.placement.dims.batch>16)) ||
-          (g.tile_m>=64 && (!options.forward_wgmma || options.pg_pages)) ||
+          (g.tile_m>=64 && (!(options.forward_wgmma || options.conv_tma_im2col) || options.pg_pages)) ||
           !ServingWgmmaShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages) ||
           (options.pg_pages && g.tile_n*g.tile_k*2>options.page_bytes)))
         throw std::invalid_argument("illegal Hopper WGMMA candidate");
@@ -551,16 +584,22 @@ struct SearchContext {
           !ServingGemvShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages)))
         throw std::invalid_argument("GEMV requires nonpaged M<=4, legal GEMV geometry");
     }
+    if(options.gemv_nc)for(auto const& g:priced)if(g.impl==1 &&
+        (!options.common.placement.target.caps.wgmma || options.pg_pages ||
+         !ServingGemvNcTraits(g.tile_m,g.tile_n,g.tile_k,g.stages).shape_legal))
+      throw std::invalid_argument("NC GEMV requires Hopper nonpaged TN8/16/32");
     for(std::size_t c=0;c<priced.size();++c)if(priced[c].impl==2) {
       auto const& g=priced[c];
       if(!options.common.placement.target.caps.wgmma ||
          !ServingWgmmaShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages) ||
-         (g.tile_m>=64 && (!options.forward_wgmma || options.pg_pages)))
+         (g.tile_m>=64 && (!(options.forward_wgmma || options.conv_tma_im2col) || options.pg_pages)))
         throw std::invalid_argument("illegal WGMMA implementation coordinate");
       for(auto id:classes[c].gemms) {
         auto const& access=imported.plan.gemms.at(id).access;
-        if(access.a==codegen::DmAAccess::kIm2Col || access.a_scale!=codegen::kDmNoIndex ||
-           (g.tile_m>=64 && (access.a!=codegen::DmAAccess::kDense || access.b!=codegen::DmBAccess::kDense)))
+        bool const convolution=access.a==codegen::DmAAccess::kIm2Col;
+        if((convolution && (!options.conv_tma_im2col || g.tile_m!=64 ||
+            !ConvWgmmaEligible(classes[c],imported))) || access.a_scale!=codegen::kDmNoIndex ||
+           (g.tile_m>=64 && ((!convolution && access.a!=codegen::DmAAccess::kDense) || access.b!=codegen::DmBAccess::kDense)))
           throw std::invalid_argument("WGMMA access pattern is not implemented");
       }
     }
@@ -699,9 +738,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
     }
     if(search.imported.plan.serving) {
       auto const& g=search.imported.plan.gemms[cls.gemms.front()];
-      using Op=frontend::PlanGemm::Epilogue;
-      int family=g.epilogue==Op::kArgmaxPartial?4:g.epilogue==Op::kSwiGLU?2:
-          g.epilogue==Op::kResidual?(g.k>g.n?3:1):0;
+      int family=ServingGemmFamily(g);
       int selected=options.serving_impl[family];
       if(selected==2) {
         for(auto id:cls.gemms) {
@@ -738,6 +775,21 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       if(hopper.empty())throw std::invalid_argument("forward WGMMA class has no supported geometry");
       domain=std::move(hopper);
     }
+    if(options.conv_tma_im2col && ConvWgmmaEligible(cls,search.imported)) {
+      if(options.pg_pages || !options.common.placement.target.caps.wgmma)
+        throw std::invalid_argument("TMA im2col requires native Hopper nonpaged execution");
+      std::vector<GemmConfig> hopper;
+      for(auto candidate:domain) {
+        if(candidate.tile_m!=64 || !ServingWgmmaShapeLegal(candidate.tile_m,candidate.tile_n,
+            candidate.tile_k,candidate.stages))continue;
+        candidate.impl=2;hopper.push_back(candidate);
+      }
+      if(hopper.empty())throw std::invalid_argument("TMA im2col class has no supported M64/K64 geometry");
+      domain=std::move(hopper);
+    }
+    if(options.gemv_nc)domain.erase(std::remove_if(domain.begin(),domain.end(),
+        [&](auto const& g){return g.impl==1 && !ServingGemvNcTraits(
+            g.tile_m,g.tile_n,g.tile_k,g.stages).shape_legal;}),domain.end());
     if(!options.common.geometry_domain.empty())domain.erase(std::remove_if(domain.begin(),domain.end(),[&](auto const& g){return std::none_of(options.common.geometry_domain.begin(),options.common.geometry_domain.end(),[&](auto const& a){return std::tie(g.tile_m,g.tile_n,g.tile_k,g.stages)==std::tie(a.tile_m,a.tile_n,a.tile_k,a.stages);});}),domain.end());
     out<<"DOMAIN\t"<<domains.size()<<'\t'<<domain.size()<<'\n';
     if(search.ServingRuntimePlan())for(auto const& g:domain)
@@ -976,7 +1028,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
           if(attention==search.imported.plan.stages.end())
             throw std::runtime_error("serving plan has no attention coordinate");
           for(int rows:{16,32,64,128})
-            if(rows<=int(attention->group)*search.imported.plan.serving_seq)
+            if((!options.prefill_attention_wgmma || rows%64==0) && rows<=int(attention->group)*search.imported.plan.serving_seq)
               attention_domain.push_back(rows);
         }
         std::sort(attention_domain.begin(),attention_domain.end());
