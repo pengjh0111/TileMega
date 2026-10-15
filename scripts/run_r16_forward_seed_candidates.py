@@ -22,6 +22,10 @@ KINDS = ('tilemega_l1_kernel', 'tilemega_l2_kernel',
          'tilemega_l1_loop_kernel', 'tilemega_stage_kernel')
 
 
+def scheduler_queue_path(root, gpu, stem):
+    return Path(root) / f'runs/r16/queue/gpu{gpu}' / ('queue_' + stem + '.json')
+
+
 def completed_receipt(path):
     receipt = base.read(path)
     if receipt.get('status') == 'completed' and receipt.get('compiler'):
@@ -250,7 +254,7 @@ def prepare(args):
             full_model_reference=str(reference), full_model_reference_sha256=base.sha(reference),
             full_model_counts=counts, host_probe=str(host_probe), compiler_tmpdir=str(args.tmpdir.absolute()),
             candidate_path=str(config_path), build_job=stem + '-certify',
-            publication_queue=str(root / f'runs/r16/queue/gpu{args.gpu}' / (stem + '.json')),
+            publication_queue=str(scheduler_queue_path(root, args.gpu, stem)),
             selection_scope='explicit public native seed; not a solver-optimal or final-default claim')
         base.write(config_path, c)
         node = 0 if args.gpu < 4 else 1

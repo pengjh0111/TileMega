@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))
-from run_r16_forward_seed_candidates import KINDS, completed_receipt, resource_gate
+from run_r16_forward_seed_candidates import KINDS, completed_receipt, resource_gate, scheduler_queue_path
 
 
 class ActualSeedResourcesTest(unittest.TestCase):
@@ -44,6 +44,11 @@ class ActualSeedResourcesTest(unittest.TestCase):
 
 
 class CompletedReceiptTest(unittest.TestCase):
+    def test_published_queue_matches_the_scheduler_discovery_glob(self):
+        self.assertEqual(scheduler_queue_path('/repo', 1, 'candidate'),
+                         Path('/repo/runs/r16/queue/gpu1/queue_candidate.json'))
+        self.assertTrue(scheduler_queue_path('/repo', 1, 'candidate').match('queue_*.json'))
+
     def test_compiler_schema_requires_reverified_head_and_source(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
