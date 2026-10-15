@@ -7,7 +7,7 @@ import csv
 import json
 from pathlib import Path
 import statistics
-from r16_measurement_validation import completed_guard, validate_llm, validate_dnn
+from r16_measurement_validation import completed_guard, validate_llm, validate_dnn, canonical_model
 
 
 def collect(root):
@@ -27,14 +27,14 @@ def collect(root):
                 continue
             for path in sorted((directory/'measurements').glob('B*/measurements.json')):
                 try:
-                    value, _, own = validate_llm(path, guard)
+                    value, _, own = validate_llm(path, guard, root)
                     if value['gpu_index'] != int(state_file.parent.name.removeprefix('gpu')):
                         raise ValueError('receipt GPU differs from scheduler card')
                 except (OSError, ValueError, KeyError, TypeError) as error:
                     rejected.append({'job': name, 'reason': str(error), 'measurement': str(path)})
                     continue
                 records.append({'job': name, 'phase': name.split('_')[0],
-                    'model': Path(value['model']).name, 'system': value['system'],
+                    'model': value.get('_r16_native', {}).get('canonical_model', canonical_model(root, value['model_config_sha256'], Path(value['model']).name)), 'system': value['system'],
                     'batch': value['batch'], 'round': value['round_index'],
                     'gpu': value['gpu_index'], 'e2e_ms': value['e2e_seconds']*1000,
                     'ttft_ms': value['ttft_seconds']*1000,
@@ -42,7 +42,11 @@ def collect(root):
                     'tokens_per_second': value['output_tokens_per_second'],
                     'acceptance': own['acceptance'], 'ownership_verified': own['ownership_verified'],
                     'unresolved_host_pids': ','.join(map(str, own['unresolved_host_pids'])),
-                    'checkpoint_identity_shared': False,
+                    'checkpoint_identity_shared': value.get('_r16_native', {}).get('checkpoint_identity_shared', False),
+                    'source_checkpoint_sha256': value.get('_r16_native', {}).get('source_checkpoint_sha256', ''),
+                    'source_checkpoint_label': value.get('_r16_native', {}).get('source_checkpoint_label',
+                        'backend-native dummy' if value.get('load_format') == 'dummy' else 'local checkpoint identity unavailable'),
+                    'native_artifact_ids': value.get('_r16_native', {}).get('native_artifact_ids', ''),
                     'measurement': str(path.relative_to(root))})
     return records, rejected
 
@@ -66,7 +70,9 @@ def aggregate(records):
                for field in ('e2e_ms', 'ttft_ms', 'tpot_ms', 'tokens_per_second')},
             'acceptance': 'strict' if all(row['acceptance'] == 'strict' for row in rows)
                            else 'provisional_container_pid_namespace',
-            'checkpoint_identity_shared': False})
+            'checkpoint_identity_shared': all(row['checkpoint_identity_shared'] for row in rows),
+            'source_checkpoint_sha256': ','.join(sorted({row['source_checkpoint_sha256'] for row in rows if row['source_checkpoint_sha256']})),
+            'native_artifact_ids': ','.join(sorted({row['native_artifact_ids'] for row in rows if row['native_artifact_ids']}))})
     return result
 
 
@@ -74,7 +80,7 @@ def collect_dnn(root):
     records, rejected = [], []
     for state_file in sorted((root/'runs/r16/scheduler').glob('gpu*/state.json')):
         for name, job in json.loads(state_file.read_text()).items():
-            if job.get('status') != 'done' or not name.startswith('dnn-') or name.startswith('dnn-smoke-'):
+            if job.get('status') != 'done' or not name.startswith(('dnn-', 'tm-dnn-', 'm3_')) or name.startswith('dnn-smoke-'):
                 continue
             directory = Path(job['out'])
             if not directory.is_absolute():
@@ -94,7 +100,9 @@ def collect_dnn(root):
                 acceptance=own['acceptance'], ownership_verified=own['ownership_verified'],
                 unresolved_host_pids=','.join(map(str, own['unresolved_host_pids'])),
                 ownership_metadata_source='completed guard and per-measurement telemetry',
-                random_weights=value.get('random_weights'), exported_program_sha256=value['exported_program_sha256'],
+                random_weights=value.get('random_weights'), exported_program_sha256=value.get('exported_program_sha256', ''),
+                native_artifact_ids=value.get('_r16_native', {}).get('native_artifact_ids', ''),
+                source_checkpoint_label=value.get('_r16_native', {}).get('source_checkpoint_label', 'stored export checkpoint'),
                 measurement=str(path.relative_to(root))))
     return records, rejected
 

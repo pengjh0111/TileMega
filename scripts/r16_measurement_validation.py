@@ -6,6 +6,107 @@ from pathlib import Path
 import statistics
 
 
+NATIVE_LLM_SYSTEMS = ('TileMega', 'TM-seed', 'TM-H1', 'TM-H1H4', 'TM-sm80', 'TM-noWGMMA')
+_HASH_CACHE = {}
+
+
+def json_digest(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def file_sha(path):
+    path = Path(path).resolve()
+    stat = path.stat()
+    key = str(path), stat.st_size, stat.st_mtime_ns
+    if key not in _HASH_CACHE:
+        result = hashlib.sha256()
+        with path.open('rb') as stream:
+            for chunk in iter(lambda: stream.read(8 << 20), b''):
+                result.update(chunk)
+        _HASH_CACHE[key] = result.hexdigest()
+    return _HASH_CACHE[key]
+
+
+def native_identity(binary, recorded=None):
+    binary = Path(binary)
+    identity = json.loads(Path(str(binary)+'.identity.json').read_text())
+    if identity.get('schema') != 1 or identity.get('artifact_id') != json_digest({
+            key: value for key, value in identity.items() if key != 'artifact_id'}):
+        raise ValueError('native artifact identity digest differs')
+    if recorded is not None and recorded != identity:
+        raise ValueError('recorded native identity differs from its sidecar')
+    if identity.get('trace') is not False:
+        raise ValueError('instrumented native artifact is ineligible for performance')
+    for suffix, key in (('', 'binary_sha256'), ('.cu', 'generated_source_sha256'),
+                        ('.plan.json', 'manifest_sha256'), ('.ptxas.log', 'resources_sha256')):
+        if file_sha(str(binary)+suffix) != identity.get(key):
+            raise ValueError('native artifact sidecar or binary changed: '+suffix)
+    if 'build_command_sha256' in identity and file_sha(str(binary)+'.build_command.txt') != identity['build_command_sha256']:
+        raise ValueError('native compiler command changed')
+    macros = identity.get('complete_macros')
+    if macros is not None:
+        if macros['compiler_command'] != identity['options']:
+            raise ValueError('native macro capture command differs')
+        for unit in macros['translation_units']:
+            if file_sha(unit['macros_file']) != unit['macros_sha256']:
+                raise ValueError('native macro capture changed')
+    return identity
+
+
+def canonical_model(root, config_sha, fallback=None):
+    candidates = [directory.name for directory in (Path(root)/'runs/r16/models').glob('*')
+                  if (directory/'config.json').is_file() and file_sha(directory/'config.json') == config_sha]
+    if len(candidates) == 1:
+        return candidates[0]
+    if not candidates and fallback is not None:
+        return fallback
+    raise ValueError('model config SHA does not identify one canonical R16 model')
+
+
+def native_llm(value, root):
+    if root is None:
+        raise ValueError('native receipt requires the canonical R16 model registry')
+    model = canonical_model(root, value['model_config_sha256'])
+    config = value['configuration']
+    identities = []
+    for index, phase in enumerate(('prefill', 'decode')):
+        identity = native_identity(config[phase+'_binary'], config['identities'][phase])
+        if identity['binary_sha256'] != config[phase+'_sha256'] or identity['plan'] != config['plan_manifests'][index]:
+            raise ValueError('native phase manifest or binary SHA differs')
+        identities.append(identity['artifact_id'])
+    path = Path(config['checkpoint_manifest'])
+    if path.resolve() != (Path(value['model'])/'random_checkpoint.json').resolve():
+        raise ValueError('shared checkpoint manifest belongs to a different model directory')
+    checkpoint = json.loads(path.read_text())
+    payload = {key: checkpoint[key] for key in ('algorithm', 'config_sha256', 'seed', 'aliases', 'tensors')}
+    checkpoint_sha = json_digest(payload)
+    if (checkpoint['state'] not in ('live', 'closed') or checkpoint['config_sha256'] != value['model_config_sha256'] or
+            checkpoint.get('checkpoint_sha256') != checkpoint_sha or config.get('checkpoint_sha256') != checkpoint_sha):
+        raise ValueError('shared checkpoint identity differs or supervisor failed')
+    return dict(canonical_model=model, native_artifact_ids=','.join(identities),
+                source_checkpoint_sha256=checkpoint_sha, checkpoint_identity_shared=True,
+                source_checkpoint_label='shared synthetic TileMega/HF checkpoint; pretrained C-1 unavailable')
+
+
+def native_dnn(value):
+    identity = native_identity(value['library_path'], value['identity'])
+    if value.get('artifact_id') != identity['artifact_id']:
+        raise ValueError('native DNN artifact ID differs')
+    execution = value['execution_identity']
+    if (execution.get('artifact_id') != identity['artifact_id'] or execution.get('trace') is not False or
+            execution.get('execution_id') != json_digest({key: item for key, item in execution.items() if key != 'execution_id'})):
+        raise ValueError('native DNN execution identity differs')
+    if file_sha(value['numerical_gate_path']) != value['numerical_gate_sha256'] or file_sha(value['input_path']) != value['input_sha256']:
+        raise ValueError('native DNN numerical gate or input changed')
+    gate = json.loads(Path(value['numerical_gate_path']).read_text())
+    if (gate.get('passed') is not True or gate.get('synthetic_weights') or gate.get('artifact_id') != identity['artifact_id'] or
+            gate.get('input_tensors_sha256') != value['input_sha256']):
+        raise ValueError('native DNN gate does not certify the timed artifact and input')
+    if gate.get('archive_sha256') and value.get('exported_program_sha256') != gate['archive_sha256']:
+        raise ValueError('native DNN export archive differs from its numerical gate')
+    return dict(native_artifact_ids=identity['artifact_id'], source_checkpoint_label='stored export checkpoint certified by native input gate')
+
+
 def positive(value, name):
     if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
         raise ValueError(f"{name} must be finite and positive")
@@ -58,7 +159,7 @@ def completed_guard(directory, job):
     return guard
 
 
-def validate_llm(path, guard):
+def validate_llm(path, guard, root=None):
     path = Path(path)
     value = json.loads(path.read_text())
     if (path.parent/'invalid_measurements.json').exists():
@@ -68,7 +169,8 @@ def validate_llm(path, guard):
     if value.get('valid') is False or value.get('evidence') != 'verified':
         raise ValueError('receipt does not report verified execution')
     package = {'vllm':'vllm', 'sglang':'sglang', 'tensorrt-llm':'tensorrt-llm', 'torch.compile':'transformers'}.get(value.get('system'))
-    if not package or not value.get('versions', {}).get('torch') or not value['versions'].get(package):
+    native = value.get('system') in NATIVE_LLM_SYSTEMS
+    if not value.get('versions', {}).get('torch') or (not native and (not package or not value['versions'].get(package))):
         raise ValueError('framework or torch version was not recorded')
     batch = value['batch']
     if type(batch) is not int or batch not in (1, 2, 4, 8, 16):
@@ -119,6 +221,8 @@ def validate_llm(path, guard):
     own = ownership(guard, samples)
     if value.get('ownership_verified') != own['ownership_verified'] or value.get('acceptance') != own['acceptance']:
         raise ValueError('summary ownership differs from its guard evidence')
+    if native:
+        value['_r16_native'] = native_llm(value, root)
     return value, samples, own
 
 
@@ -164,4 +268,6 @@ def validate_dnn(path, guard):
     if not {'before-measurement', 'after-measurement'} <= {sample['label'] for sample in samples}:
         raise ValueError('DNN measurement telemetry missing')
     own = ownership(guard, samples)
+    if value.get('system') in ('tilemega', 'TileMega'):
+        value['_r16_native'] = native_dnn(value)
     return value, own

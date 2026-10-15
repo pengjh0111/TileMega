@@ -13,6 +13,7 @@ from .baseline_common import guarded_main, measure, require_guard, validate_prom
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--model', type=Path)
+    parser.add_argument('--system-label', choices=('TileMega', 'TM-seed', 'TM-H1', 'TM-H1H4', 'TM-sm80', 'TM-noWGMMA'), default='TileMega')
     parser.add_argument('--prefill', type=Path, required=True)
     parser.add_argument('--decode', type=Path, required=True)
     parser.add_argument('--prompt-ids', type=Path, required=True)
@@ -43,22 +44,39 @@ def main():
     import torch
     from .engine import ServingEngine
     from .execution import execution_combinations
+    identities = {phase: json.loads(Path(str(path)+'.identity.json').read_text())
+                  for phase, path in (('prefill', args.prefill), ('decode', args.decode))}
     manifests = [json.loads(Path(str(path)+'.plan.json').read_text())
                  for path in (args.prefill, args.decode)]
     metadata = {'prefill_sha256': hashlib.sha256(args.prefill.read_bytes()).hexdigest(),
                 'decode_sha256': hashlib.sha256(args.decode.read_bytes()).hexdigest(),
                 'plan_manifests': manifests, 'mode': args.mode,
-                'decode_loop': args.decode_loop, 'weight_source': 'local shared checkpoint'}
+                'decode_loop': args.decode_loop, 'weight_source': 'local checkpoint',
+                'system_label': args.system_label,
+                'selection_status': 'diagnostic candidate; no RF2 final selection claimed',
+                'prefill_binary': str(args.prefill.resolve()), 'decode_binary': str(args.decode.resolve()),
+                'identities': identities}
+    checkpoint_manifest = args.model/'random_checkpoint.json'
+    if checkpoint_manifest.is_file():
+        checkpoint = json.loads(checkpoint_manifest.read_text())
+        metadata.update(checkpoint_manifest=str(checkpoint_manifest.resolve()),
+                        checkpoint_sha256=checkpoint['checkpoint_sha256'],
+                        weight_source='shared synthetic TileMega/HF checkpoint; pretrained C-1 unavailable')
     def engine(mode, loop):
         return ServingEngine(args.model, args.prefill, args.decode, int(args.batch),
             prompt_len=prompt_len, max_new_tokens=args.max_tokens, mode=mode,
             decode_loop=bool(loop), step_events=False)
     frozen = torch.tensor(ids[:int(args.batch)], dtype=torch.int32)
     with engine(args.mode, args.decode_loop) as current:
-        measure(args, ids, 'TileMega',
+        measure(args, ids, args.system_label,
             lambda rows, count: current.generate(frozen, count).tokens.tolist(),
             metadata, synchronize=torch.cuda.synchronize)
-        reference = current.generate(frozen, args.max_tokens).tokens.clone()
+        last = args.out/f'B{args.batch}'/f'tokens_N{args.max_tokens}_run{args.warmup+args.repeats-1}.json'
+        reference = torch.tensor(json.loads(last.read_text()), dtype=torch.int32, device='cuda')
+    # close() releases native contexts; Python still owns the full checkpoint.
+    # Drop it before loading another executor or the separate HF reference.
+    del current
+    torch.cuda.empty_cache()
     token_path = args.out/'reference_tokens.json'
     token_path.write_text(json.dumps(reference.tolist())+'\n')
     if args.check_executors:
@@ -66,6 +84,8 @@ def main():
         for mode, loop in execution_combinations(manifests[1].get('pg', 'off')):
             with engine(mode, loop) as other:
                 tokens = other.generate(frozen, args.max_tokens).tokens
+            del other
+            torch.cuda.empty_cache()
             passed = torch.equal(reference, tokens)
             checks.append({'mode': mode, 'decode_loop': loop, 'pass': passed})
             (args.out/f'tokens_{mode}_loop{loop}.json').write_text(json.dumps(tokens.tolist())+'\n')
