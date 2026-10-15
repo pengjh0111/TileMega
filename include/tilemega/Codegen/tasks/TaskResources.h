@@ -45,8 +45,11 @@ constexpr int SimtSharedElements(TaskKind kind, int threads, int attention_exten
 }
 
 // Double-buffered K/V and the final four-warp output reduction share storage.
+/// xcore1000 prefill attention (Codegen/tasks/mx/PrefillAttentionMma.h):
+/// query, key and transposed value tiles, the bf16 probability tile and the
+/// per-row statistics.
 constexpr int ServingAttentionSharedBytes(int head_dim, int kv_tile = 64) {
-  return (32 + (8 * kv_tile > 256 ? 8 * kv_tile : 256)) * head_dim + 704;
+  return 2 * head_dim * (16 + 2 * kv_tile) + 2 * 16 * kv_tile + 4 * 16 * 8;
 }
 constexpr int ServingAttentionKvTile(int head_dim, int gemm_shared_bytes) {
   return ServingAttentionSharedBytes(head_dim, 64) <= gemm_shared_bytes ? 64 : 32;

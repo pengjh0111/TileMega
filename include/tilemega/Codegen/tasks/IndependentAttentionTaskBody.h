@@ -1,75 +1,31 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
-#include <tilemega/Codegen/tasks/PagedAttentionTaskBody.h>
-#ifndef TILEMEGA_ATTENTION_BUFFERS
-#define TILEMEGA_ATTENTION_BUFFERS 2
-#endif
+// Decode attention TaskBody (one token per request). On xcore1000 the `simt`
+// implementation reads the KV cache directly (Codegen/tasks/mx/
+// DecodeAttentionSimt.h); `mma16` is not implemented yet and is rejected.
+#include <tilemega/Backend/ServingAttentionImpl.h>
+#include <tilemega/Codegen/tasks/AttentionPageLayout.h>
+#include <tilemega/Codegen/tasks/mx/DecodeAttentionSimt.h>
+#include <tilemega/Target/ArchDispatch.h>
+
+#include <type_traits>
+
 namespace tilemega::codegen {
-// The AT-3 arithmetic is shared with the page consumer. With PG disabled,
-// each warp supplies the same KV stream through a local cp.async double buffer.
-// This separates transport/protocol equivalence from changed softmax ordering.
+
 template<class Arch,int D,int Q,bool Norm,int PageBytes=8192,
-    AttentionPagePolicy Policy=AttentionPagePolicy::WarpPrivate,
-    int Buffers=TILEMEGA_ATTENTION_BUFFERS>
+    AttentionPagePolicy Policy=AttentionPagePolicy::WarpPrivate,int Buffers=2>
 struct IndependentAttentionTaskBody {
-  static_assert(Buffers==1 || Buffers==2);
-  using Body=PagedAttentionTaskBody<Arch,D,Q,Norm,PageBytes,3,false,Q,Policy>;
-  using Element=typename Body::Element;
-  using Copy=executor::Async<Arch>;
-  struct SharedStorage {
-    alignas(1024) char pages[4][Buffers][PageBytes];
-    typename Body::SharedStorage compute;
-  };
-  struct LocalPages {
-    ServingAttentionOperands const& p;
-    SharedStorage& shared;
-    int batch,group,block;
-    AttentionPageLayout layout;
-    mutable int releases=0;
-    __device__ char* Page(std::uint64_t cursor) const {
-      return shared.pages[cursor%layout.pages_per_wave][(cursor/layout.pages_per_wave)%Buffers];
-    }
-    __device__ void Issue(int wave) const {
-      if(wave>=layout.waves)return;
-      int warp=ComputeThread()/32,lane=ComputeThread()%32;
-      auto* page=reinterpret_cast<Element*>(Page(layout.PageOf(warp,wave)));
-      int begin=Body::Begin(p,block),end=Body::End(p,block);
-      for(int i=lane*8;i<layout.RowsPerOwner()*D;i+=32*8) {
-        int local=i/D,row=layout.RowOffset(warp)+local,d=i%D;
-        int position=layout.Position(warp,wave,local);
-        bool valid=layout.Valid(warp,wave,local,end,p.past);
-        std::size_t offset=((std::size_t(batch)*p.heads_kv+group)*p.capacity+position)*D+d;
-        auto* key=page+(row/16)*16*D+typename Body::QK::LayoutB{}(row%16,d);
-        auto* value=page+Body::kPageRows*D+(row/16)*16*D+typename Body::PV::LayoutB{}(d,row%16);
-        Copy::Copy16(key,valid?p.key_cache+offset:p.key_cache,valid);
-        Copy::Copy16(value,valid?p.value_cache+offset:p.value_cache,valid);
-      }
-      asm volatile("cp.async.commit_group;" ::: "memory");
-    }
-    __device__ void AwaitFull(std::uint64_t cursor) const {
-      if(Buffers==2 && int(cursor/layout.pages_per_wave)+1<layout.waves)asm volatile("cp.async.wait_group 1;" ::: "memory");
-      else asm volatile("cp.async.wait_group 0;" ::: "memory");
-      __syncwarp();
-      if(layout.needs_cta_sync)ComputeSync();
-    }
-    __device__ void Release(std::uint64_t cursor) const {
-      if(++releases%layout.ReleaseArrivals(int(cursor))==0) {
-        __syncwarp();
-        if(layout.needs_cta_sync)ComputeSync();
-        // All consumers have finished this slot before the next wave writes
-        // it. Packed ownership uses the same CTA rendezvous as double buffering.
-        Issue(int(cursor/layout.pages_per_wave)+Buffers);
-      }
-    }
-  };
+  static_assert(std::is_same_v<Arch,arch::Xcore1000>);
+  static_assert(TILEMEGA_ATTENTION_IMPL==3,
+      "xcore1000 decode attention implements attention_impl=simt only");
+  using Impl=mx::DecodeAttentionSimt<D,Q,Norm>;
+  using Element=tilemega::Bf16;
+  using SharedStorage=typename Impl::SharedStorage;
   __device__ static void Run(ServingAttentionOperands const& p,SharedStorage& shared,
                             int batch,int group,int query_block,int block) {
     (void)query_block;
-    int count=Body::End(p,block)-Body::Begin(p,block);if(count<=0)return;
-    auto layout=Body::Layout(count,Body::Begin(p,block));
-    LocalPages pages{p,shared,batch,group,block,layout};
-    pages.Issue(0);if constexpr(Buffers==2)pages.Issue(1);std::uint64_t sequence=0;
-    Body::Run(p,batch,group,block,pages,sequence,shared.compute);
+    Impl::Run(p,shared,batch,group,block);
   }
 };
-} // namespace tilemega::codegen
+
+}  // namespace tilemega::codegen
