@@ -199,8 +199,16 @@ def read_config(path: Path) -> dict:
                               prefill_pg=['l2', 'measure']).items():
         if config['features'][name] not in allowed:
             raise ValueError(f'invalid features.{name}')
+    if 'activation_tma' in config['features'] and config['features']['activation_tma'] not in (0, 1):
+        raise ValueError('invalid features.activation_tma')
+    if 'residency' in config['features'] and config['features']['residency'] not in (1, 2):
+        raise ValueError('invalid features.residency')
     if 'qkv_epilogue' in config['features'] and config['features']['qkv_epilogue'] not in (0, 1):
         raise ValueError('invalid features.qkv_epilogue')
+    if 'dwpw_impl' in config['features'] and config['features']['dwpw_impl'] not in ('mma16', 'wgmma'):
+        raise ValueError('invalid features.dwpw_impl')
+    if 'depthwise_impl' in config['features'] and config['features']['depthwise_impl'] not in ('cpasync', 'tma'):
+        raise ValueError('invalid features.depthwise_impl')
     if 'gemv_load' in config['features'] and config['features']['gemv_load'] not in ('ldg', 'nc'):
         raise ValueError('invalid features.gemv_load')
     if 'attention_page' in config['features'] and config['features']['attention_page'] not in ('chunk16', 'uniform'):

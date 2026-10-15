@@ -63,14 +63,14 @@ def read_config(path):
     config['features'] = dict(dict(pg='l2', forward_executor='L2', reuse='auto',deferred_ln='auto',dwpw_fuse='auto',global_la='auto',forward_gemm_impl='mma16',encoder_attention_impl='mma16'),
                               **config.get('features', {}))
     unknown=set(config['features'])-{'pg','forward_executor','reuse','deferred_ln','dwpw_fuse',
-        'global_la','nonpaged_la','paged_la','paged_la_splitk','forward_gemm_impl','conv_impl','encoder_attention_impl','gemv_load'}
+        'global_la','nonpaged_la','paged_la','paged_la_splitk','forward_gemm_impl','conv_impl','depthwise_impl','dwpw_impl','encoder_attention_impl','gemv_load'}
     if unknown:
         raise ValueError('unsupported DNN features: '+', '.join(sorted(unknown)))
     for key, values in dict(pg=('off', 'l2', 'pages', 'auto'),
             forward_executor=('L1', 'L2'), reuse=('auto', 'none', 'greedy', 'l2'),
             deferred_ln=('auto','0'), dwpw_fuse=('auto','0'),
             global_la=('auto','0'), nonpaged_la=(0,1), paged_la=(0,1),
-            paged_la_splitk=(0,1),forward_gemm_impl=('mma16','wgmma'),conv_impl=('cpasync','tma_im2col'),encoder_attention_impl=('mma16','wgmma'),gemv_load=('ldg','nc')).items():
+            paged_la_splitk=(0,1),forward_gemm_impl=('mma16','wgmma'),conv_impl=('cpasync','tma_im2col'),depthwise_impl=('cpasync','tma'),dwpw_impl=('mma16','wgmma'),encoder_attention_impl=('mma16','wgmma'),gemv_load=('ldg','nc')).items():
         if key in config['features'] and config['features'][key] not in values:
             raise ValueError('invalid features.' + key)
     config['solver'] = dict(dict(passes=2, time_budget_s=1800, jobs=1),
@@ -145,7 +145,7 @@ def build(config, out, compiler):
             '--search-budget-ms', str(round(config['solver']['time_budget_s'] * 1000)),
             '--artifact-cache', str(Path(config['device']['cache_dir']).expanduser()),
             '--dump-cg', str(directory / 'selected.mlir')]
-        for feature in ('global_la','nonpaged_la','paged_la','paged_la_splitk','forward_gemm_impl','conv_impl','encoder_attention_impl','gemv_load'):
+        for feature in ('global_la','nonpaged_la','paged_la','paged_la_splitk','forward_gemm_impl','conv_impl','depthwise_impl','dwpw_impl','encoder_attention_impl','gemv_load'):
             if feature in config['features']:
                 command += ['--'+feature.replace('_','-'),str(config['features'][feature])]
         atomic_json(directory / 'command.json', command)

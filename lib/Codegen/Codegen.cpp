@@ -1244,7 +1244,16 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
         if(stringField(stage,"kind")!="kDwPwFused")continue;
         auto g=dictionaryEntry(geometries[integerField(stage,"gemm")],"gemm_runtime");
         int tm=integerField(g,"tile_m"),tn=integerField(g,"tile_n"),tk=integerField(g,"tile_k"),ss=integerField(g,"stages");
-        dm_shared=std::max(dm_shared,tm*int(integerField(stage,"width"))*2+
+        auto impl=g.getAs<mlir::IntegerAttr>("impl");
+        if(impl && impl.getInt()==2) {
+          auto conv=frontend::DecodeDmConv(arrayField(plan,"dm_convolutions")[integerField(stage,"dm_conv")]);
+          auto chain=frontend::DecodeDmChain(stage.get("dm_chain"));bool gate=false;
+          for(unsigned j=0;j<chain.count;++j)gate|=chain.operations[j].kind==DmEpilogueKind::kGatePair;
+          if(tm!=64 || (tn!=64 && tn!=128) || tk!=64 || ss!=2 || integerField(g,"split_k")!=1 ||
+             conv.c<64 || conv.c%64 || gate)
+            throw std::invalid_argument("streamed DW/PW WGMMA requires M64/N64|128/K64/splitK1 and complete ungated channel blocks");
+          dm_shared=std::max(dm_shared,solver::ServingDwPwWgmmaSmemBytes(tm,tn));
+        }else dm_shared=std::max(dm_shared,tm*int(integerField(stage,"width"))*2+
             solver::DmServingBF16SmemBytes(tm,tn,tk,ss));
       }
     }
@@ -1808,6 +1817,11 @@ std::string LowerFusedRuntime(mlir::ModuleOp module) {
 // Unsolved legacy modules emit no extra text or preprocessor definitions.
 std::string emitSolvedLaunch(mlir::ModuleOp module) {
   std::ostringstream out;
+  if(auto activation=module->getAttrOfType<mlir::BoolAttr>("tmexec.activation_tma"))
+    if(activation.getValue())out<<"#define TILEMEGA_ACTIVATION_TMA 1\n"
+        <<"#define TILEMEGA_FORWARD_GEMM_WGMMA 1\n";
+  if(auto residency=module->getAttrOfType<mlir::IntegerAttr>("tmexec.requested_residency"))
+    out<<"#define TILEMEGA_SERVING_RESIDENCY_REQUEST "<<residency.getInt()<<"\n";
   if(auto intern=module->getAttrOfType<mlir::BoolAttr>("tmexec.dependency_intern"))
     if(intern.getValue())out<<"#define TILEMEGA_DEPENDENCY_INTERN 1\n";
   if(auto enabled=module->getAttrOfType<mlir::BoolAttr>("tmexec.nonpaged_la"))

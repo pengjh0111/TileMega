@@ -147,7 +147,11 @@ void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int pa
           solver::ServingWgmmaBulkGatherExtraBytes(g.tile_m,g.tile_k));
   bool wgmma=sw128_operands || std::any_of(runtime.gemms.begin(),runtime.gemms.end(),
       [](auto const& g){return g.impl==2;});
-  auto layout=solver::PageLayout::Build(target,page_bytes,activation,scratch,0,0,wgmma?1024:128);
+  int requested_residency=0;
+  if(auto request=module->getAttrOfType<mlir::IntegerAttr>("tmexec.requested_residency"))
+    requested_residency=request.getInt();
+  auto budget=solver::PageLayout::ResidencyBudget(target,requested_residency);
+  auto layout=solver::PageLayout::Build(budget,page_bytes,activation,scratch,0,0,wgmma?1024:128);
   for(auto a:mlir::cast<mlir::ArrayAttr>(model.get("stages"))) {
     auto stage=mlir::cast<mlir::DictionaryAttr>(a);
     if(mlir::cast<mlir::StringAttr>(stage.get("kind")).getValue()=="kFusedAttention" &&
@@ -160,8 +164,8 @@ void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int pa
     if(g.tile_n*g.tile_k*2>page_bytes*layout.pages)
       throw std::invalid_argument("a B stage exceeds the available page pool");
   if(auto grid=module->getAttrOfType<mlir::IntegerAttr>("tmexec.solved_grid"))
-    if(grid.getInt()>target.res.num_sms)
-      throw std::invalid_argument("paged execution requires at most one CTA per SM");
+    if(grid.getInt()>target.res.num_sms*(requested_residency?requested_residency:1))
+      throw std::invalid_argument("paged execution exceeds its requested CTA residency");
   mlir::OpBuilder b(module.getContext());mlir::NamedAttrList values;
   for(auto [key,value]:std::initializer_list<std::pair<char const*,int>>{
       {"page_bytes",layout.page_bytes},{"pages",layout.pages},

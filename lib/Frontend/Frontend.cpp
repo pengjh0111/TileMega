@@ -461,8 +461,16 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
           gates+=stage.chain.operations[i].kind==codegen::DmEpilogueKind::kGatePair;
         auto bytes=std::uint64_t((stage.group-1)*c.stride_h+(c.r-1)*c.dilation_h+1)*
             plan.buffers.at(c.input_layout).layout.physical[2]*stage.width*(gates?2:1)*2;
-        if(stage.kind==PlanTaskKind::kDepthwiseConv)
+        if(stage.kind==PlanTaskKind::kDepthwiseConv) {
+          if(plan.depthwise_tma) {
+            auto width=plan.buffers.at(c.input_layout).layout.physical[2];
+            auto chunks=(width+255)/256,box=(width+chunks-1)/chunks;
+            auto rows=(stage.group-1)*c.stride_h+(c.r-1)*c.dilation_h+1;
+            bytes=((std::uint64_t(rows)*box*stage.width*2+127)/128*128)*chunks*(gates?2:1);
+            bytes=128+std::max<std::uint64_t>(bytes,4096);
+          }
           fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(std::max<std::uint64_t>(bytes,4096))));
+        }
       }
     }
     stages.push_back(builder.getDictionaryAttr(fields));
@@ -492,6 +500,7 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
     llvm::SmallVector<mlir::Attribute> convs;
     for(auto const& conv:plan.convolutions)convs.push_back(EncodeDm(builder,conv));
     fields.push_back(builder.getNamedAttr("dm",builder.getBoolAttr(true)));
+    if(plan.depthwise_tma)fields.push_back(builder.getNamedAttr("depthwise_tma",builder.getBoolAttr(true)));
     if(plan.dm_reduction_mask>=0)fields.push_back(builder.getNamedAttr("dm_reduction_mask",
         builder.getI64IntegerAttr(plan.dm_reduction_mask)));
     if(plan.moe_gemv)fields.push_back(builder.getNamedAttr("moe_gemv",builder.getBoolAttr(true)));

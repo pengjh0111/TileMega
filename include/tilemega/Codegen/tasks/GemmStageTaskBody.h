@@ -16,6 +16,9 @@
 #include <type_traits>
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
 #include <tilemega/Codegen/tasks/DwPwFusedTaskBody.h>
+#if TILEMEGA_DWPW_WGMMA
+#include <tilemega/Codegen/tasks/DwPwWgmmaTaskBody.h>
+#endif
 #endif
 
 #ifndef TILEMEGA_SERVING_RUNTIME
@@ -203,14 +206,14 @@ struct GemmVariantStorage<true, Mainloop, M, N, K, S, Gemv,Wgmma> {
   struct alignas(16) type {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     static constexpr auto mainloop_bytes = Gemv ? solver::ServingGemvSmemBytes(M,N)
-        : Wgmma ? solver::ServingWgmmaSmemBytes(M,N,K,S,TILEMEGA_MOE_ACTIVATION_BULK):solver::DmServingBF16SmemBytes(M,N,K,S);
+        : Wgmma ? solver::ServingWgmmaSmemBytes(M,N,K,S,TILEMEGA_MOE_ACTIVATION_BULK,TILEMEGA_ACTIVATION_TMA):solver::DmServingBF16SmemBytes(M,N,K,S);
     static constexpr auto chain_bytes = (M*N+2*M)*sizeof(float);
     static constexpr auto shared_epilogue_bytes = backend::ServingEpilogueScratchBytes(M,N,TILEMEGA_EP_PARALLEL_ARGMAX);
     static constexpr auto epilogue_bytes = chain_bytes>shared_epilogue_bytes?chain_bytes:shared_epilogue_bytes;
     unsigned char bytes[mainloop_bytes>epilogue_bytes?mainloop_bytes:epilogue_bytes];
 #else
     unsigned char bytes[Gemv ? solver::ServingGemvSmemBytes(M,N) :
-        Wgmma ? solver::ServingWgmmaSmemBytes(M,N,K,S,TILEMEGA_MOE_ACTIVATION_BULK):backend::ServingGemmConfig<GemmVariantArch,M,(N<32?32:N),K,S>::kSharedBytes];
+        Wgmma ? solver::ServingWgmmaSmemBytes(M,N,K,S,TILEMEGA_MOE_ACTIVATION_BULK,TILEMEGA_ACTIVATION_TMA):backend::ServingGemmConfig<GemmVariantArch,M,(N<32?32:N),K,S>::kSharedBytes];
 #endif
   };
 };
@@ -542,6 +545,9 @@ struct GemmInvocation {
   int serving_partial_stride = 0;
   float* serving_partial = nullptr;
   std::uint32_t serving_weight_buffer = 0xffffffffu;
+#if TILEMEGA_DWPW_WGMMA
+  void const* serving_fused_weight_tensor_map = nullptr;
+#endif
 #if TILEMEGA_QKV_EPILOGUE
   QkvEpilogueDesc qkv_epilogue{};
 #endif
@@ -633,8 +639,21 @@ struct GemmStageTaskBody {
     int tile_m,tile_n;
     char* shared;
     template<int Channels,class DwProgram,class Spec>
-    __device__ void Run() const {
+#if TILEMEGA_DWPW_WGMMA
+    __device__ __forceinline__
+#else
+    __device__
+#endif
+    void Run() const {
       auto p=DwPwFusedOperands{invocation.fused_depthwise,operands};
+#if TILEMEGA_DWPW_WGMMA
+      if constexpr(V::kWgmma) {
+        if(invocation.chunks!=1){asm volatile("trap;");return;}
+        using Body=DwPwWgmmaTaskBody<Arch,Channels,V::kTileM,V::kTileN,V::kTileK,V::kStages,DwProgram,Spec>;
+        Body::template Run<TILEMEGA_NONPAGED_TILED!=0>(p,tile_m,tile_n,shared);return;
+      }else
+#endif
+      {
       using Partial=DmEpilogueSpec<DmEpilogueProgram<>,DmWriteKind::kDense,1,DmRounding::kFP32>;
       if(invocation.chunks>1) {
         p.pointwise.output=reinterpret_cast<cutlass::bfloat16_t*>(operands.partial);
@@ -646,6 +665,7 @@ struct GemmStageTaskBody {
       }else {
         using Body=DwPwFusedTaskBody<Arch,Channels,V::kTileM,V::kTileN,V::kTileK,V::kStages,DwProgram,Spec>;
         Body::template Run<TILEMEGA_NONPAGED_TILED!=0>(p,tile_m,tile_n,shared);
+      }
       }
     }
   };
@@ -729,7 +749,7 @@ struct GemmStageTaskBody {
     operands.norm_k=invocation.k_total;
     operands.norm_eps=TILEMEGA_NORM_EPSILON;
 #if TILEMEGA_FORWARD_GEMM_WGMMA
-    if constexpr(V::kWgmma && V::kTileM>=64) {
+    if constexpr(V::kWgmma && (V::kTileM>=64 || (TILEMEGA_ACTIVATION_TMA && V::kTileM==16))) {
       operands.activation_tensor_map=invocation.serving_activation_tensor_map;
       operands.tensor_map=invocation.serving_weight_tensor_map;
       operands.tensor_k_begin=invocation.serving_k_begin;
@@ -761,6 +781,9 @@ struct GemmStageTaskBody {
     operands.a_scale=invocation.a_scale; operands.dm_buffers=invocation.dm_buffers;
     operands.a_row_stride=static_cast<int>(cute::get<0>(invocation.mainloop.dA));
     if(invocation.fused_program!=kDmNoIndex) {
+#if TILEMEGA_DWPW_WGMMA
+      if constexpr(V::kWgmma)operands.tensor_map=invocation.serving_fused_weight_tensor_map;
+#endif
       operands.k_total=invocation.k_total;operands.k_begin=invocation.serving_k_begin;
       operands.b=invocation.mainloop.ptr_B-invocation.serving_k_begin;
       operands.weight_base=invocation.serving_weight_base;

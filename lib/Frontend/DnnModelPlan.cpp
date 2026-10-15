@@ -97,7 +97,7 @@ struct Builder {
       :nodes(n),options(o) {
     if(!o.batch || o.batch>64 || (o.small_input_channels!=4 && o.small_input_channels!=8))
       throw std::invalid_argument("invalid DNN batch or small-channel layout");
-    p.dm=p.forward=true;p.dtype="bf16";p.serving_seq=1;
+    p.dm=p.forward=true;p.dtype="bf16";p.serving_seq=1;p.depthwise_tma=o.depthwise_tma;
     p.memory_reuse=o.memory_reuse;p.memory_l2_budget_bytes=o.memory_l2_budget_bytes;
     externally_observed.insert(outputs.begin(),outputs.end());
     for(auto const& x:nodes) {records[x.name]=&x;for(auto const& input:x.inputs)++users[input];}
@@ -1037,9 +1037,16 @@ ModelPlan BuildDnnModelPlan(std::vector<FxNodeRecord> const& nodes,
     for(unsigned i=0;i<stage.chain.count;++i)
       if(stage.chain.operations[i].kind==DmEpilogueKind::kGatePair)bands=2;
     auto bytes=[&] {
-      return std::max<std::uint64_t>(4096,
-          std::uint64_t((stage.group-1)*c.stride_h+(c.r-1)*c.dilation_h+1)*
-          builder.p.buffers.at(c.input_layout).layout.physical[2]*stage.width*bands*2);
+      auto const& layout=builder.p.buffers.at(c.input_layout).layout;
+      auto rows=(stage.group-1)*c.stride_h+(c.r-1)*c.dilation_h+1;
+      if(options.depthwise_tma) {
+        if(rows>256 || !layout.physical[2] || layout.physical[3]%8 ||
+           (bands==2 && c.c%16))throw std::invalid_argument("unsupported depthwise TMA halo shape");
+        auto chunks=(layout.physical[2]+255)/256,box=(layout.physical[2]+chunks-1)/chunks;
+        auto tile=((std::uint64_t(rows)*box*stage.width*2+127)/128*128)*chunks*bands;
+        return 128+std::max<std::uint64_t>(4096,tile);
+      }
+      return std::max<std::uint64_t>(4096,std::uint64_t(rows)*layout.physical[2]*stage.width*bands*2);
     };
     // Channel ownership is fixed only after SimpleGate and all consumer halo
     // requirements are known. A narrower block preserves the row-band map.

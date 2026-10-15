@@ -125,7 +125,13 @@ struct DmStageRunner {
       inputs.channel_partials=static_cast<float*>(buffers.data[stage.operand[3]]);
       inputs.partial_layout=buffers.layouts[stage.operand[3]];
     }
+#if TILEMEGA_DEPTHWISE_TMA
+    inputs.input_tensor_maps=static_cast<char const*>(params.depthwise_tensor_maps)+
+        std::size_t(stage.dm_program)*params.dims.batch*sizeof(executor::TensorMap);
+    DepthwiseConvTaskBody<Arch,RowBand,ChannelTile,Program,true>::Run(inputs,task,scratch);
+#else
     DepthwiseConvTaskBody<Arch,RowBand,ChannelTile,Program>::Run(inputs,task,scratch);
+#endif
   }
   template<TaskKind Kind,int Width,int RowsPerTask>
   __device__ void Run() const {

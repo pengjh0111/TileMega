@@ -5,6 +5,24 @@ from tilemega.build.feature_contract import INTEGER_FEATURES, build_defines, imp
 
 
 class FeatureContractTests(unittest.TestCase):
+    def test_dwpw_wgmma_identity(self):
+        for mode, value in (('mma16', 0), ('wgmma', 1)):
+            plan = {'dwpw_impl': mode, 'gemms': []}
+            defines = build_defines('', ['nvcc', f'-DTILEMEGA_DWPW_WGMMA={value}'])
+            validate(plan, defines)
+            self.assertEqual(implementations(plan, defines)['dwpw_impl'], mode)
+            with self.assertRaisesRegex(ValueError, 'dwpw_impl'):
+                validate({'dwpw_impl': 'wgmma' if mode == 'mma16' else 'mma16'}, defines)
+
+    def test_depthwise_tma_identity(self):
+        for mode, value in (('cpasync', 0), ('tma', 1)):
+            plan = {'depthwise_impl': mode, 'gemms': []}
+            defines = build_defines('', ['nvcc', f'-DTILEMEGA_DEPTHWISE_TMA={value}'])
+            validate(plan, defines)
+            self.assertEqual(implementations(plan, defines)['depthwise_impl'], mode)
+            with self.assertRaisesRegex(ValueError, 'depthwise_impl'):
+                validate({'depthwise_impl': 'tma' if mode == 'cpasync' else 'cpasync'}, defines)
+
     def test_native_seed_identity_matches_taskbody_caps_for_all_targets(self):
         for target, value in [('sm_80',800),('sm_89',890),('sm_90',900),('sm_100',1000),('sm_120',1200)]:
             plan = dict(seed_arch='native', seed_target_arch=target, phase='decode', pg='off', gemms=[])

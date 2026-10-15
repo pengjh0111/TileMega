@@ -5,6 +5,7 @@
 #include <tilemega/Codegen/executor/ServingLaunch.cuh>
 #include <tilemega/Codegen/executor/TensorMap.h>
 #include <tilemega/Codegen/executor/TensorIm2col.h>
+#include <tilemega/Codegen/executor/TensorMap3D.h>
 
 #include <cuda_runtime.h>
 
@@ -175,13 +176,25 @@ inline bool StructureInvariant(ModelSpec const& spec,
 #if TILEMEGA_FORWARD_GEMM_WGMMA
 template<int Variant=0>
 inline bool ForwardWgmmaVariant(int index) {
-  if(index==Variant)return GemmVariant<Variant>::kWgmma && GemmVariant<Variant>::kTileM>=64;
+  if(index==Variant)return GemmVariant<Variant>::kWgmma &&
+      (GemmVariant<Variant>::kTileM>=64 ||
+       (TILEMEGA_ACTIVATION_TMA && GemmVariant<Variant>::kTileM==16));
   if constexpr(Variant+1<TILEMEGA_GEMM_VARIANT_COUNT)return ForwardWgmmaVariant<Variant+1>(index);
   return false;
 }
 #endif
+#if TILEMEGA_DWPW_WGMMA
+template<int Variant=0>
+inline bool DwPwWgmmaVariant(int index) {
+  if(index==Variant)return GemmVariant<Variant>::kWgmma && GemmVariant<Variant>::kTileM==64 &&
+      (GemmVariant<Variant>::kTileN==64 || GemmVariant<Variant>::kTileN==128) &&
+      GemmVariant<Variant>::kTileK==64 && GemmVariant<Variant>::kStages==2;
+  if constexpr(Variant+1<TILEMEGA_GEMM_VARIANT_COUNT)return DwPwWgmmaVariant<Variant+1>(index);
+  return false;
+}
+#endif
 inline void CreateTensorMaps(Plan& plan,ModelSpec const& spec,TargetSpec const& target) {
-#if TILEMEGA_PAGED || TILEMEGA_ATTENTION_IMPL==4 || TILEMEGA_FORWARD_GEMM_WGMMA || TILEMEGA_ENCODER_ATTENTION_WGMMA
+#if TILEMEGA_PAGED || TILEMEGA_ATTENTION_IMPL==4 || TILEMEGA_FORWARD_GEMM_WGMMA || TILEMEGA_ENCODER_ATTENTION_WGMMA || TILEMEGA_DEPTHWISE_TMA || TILEMEGA_DWPW_WGMMA
   if(!target.caps.tma || TILEMEGA_ARCH_PATH_SM80)return;
   unsigned encoder_heads=0,encoder_map_count=0;
 #if TILEMEGA_ENCODER_ATTENTION_WGMMA
@@ -223,6 +236,9 @@ inline void CreateTensorMaps(Plan& plan,ModelSpec const& spec,TargetSpec const& 
   for(unsigned i=0;i<gemms.size();++i) {
     auto const& g=gemms[i];auto [m,n,k,batch]=g.problem;(void)k;(void)batch;
     if(!ForwardWgmmaVariant(g.variant))continue;
+#if TILEMEGA_DWPW_WGMMA
+    if(g.fused_program!=kDmNoIndex)continue;
+#endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     if((g.access.a!=DmAAccess::kDense && g.access.a!=DmAAccess::kIm2Col) ||
        g.access.b!=DmBAccess::kDense || g.a_scale)continue;
@@ -267,9 +283,58 @@ inline void CreateTensorMaps(Plan& plan,ModelSpec const& spec,TargetSpec const& 
       }
   }
 #endif
+#if TILEMEGA_DEPTHWISE_TMA
+  unsigned depthwise_offset=maps.size(),depthwise_batch=plan.model.params.dims.batch;
+  maps.resize(maps.size()+spec.stage_count*depthwise_batch);
+  bool has_depthwise=false;
+  for(unsigned i=0;i<spec.stage_count;++i) {
+    auto const& stage=spec.stages[i];if(stage.kind!=TaskKind::kDepthwiseConv)continue;
+    has_depthwise=true;
+    if(stage.dm_program>=spec.stage_count)throw std::invalid_argument("invalid depthwise map program index");
+    auto const& conv=spec.convolutions[stage.conv];auto const& layout=spec.buffers[stage.operand[0]].layout;
+    auto shape=executor::TensorMap3DShape::Depthwise(conv,layout,stage.group,stage.width);
+    for(unsigned image=0;image<depthwise_batch;++image) {
+      auto* source=static_cast<ModelElement*>(plan.model.buffers.at(stage.operand[0]))+image*layout.strides[0];
+      auto index=depthwise_offset+stage.dm_program*depthwise_batch+image;
+      auto code=executor::EncodeTensorMap3D(maps[index],source,shape);
+      if(code!=CUDA_SUCCESS)throw std::runtime_error("depthwise 3D map encoding failed: "+std::to_string(int(code)));
+    }
+  }
+  if(!has_depthwise)throw std::invalid_argument("depthwise TMA candidate requires an active depthwise stage");
+#endif
+#if TILEMEGA_DWPW_WGMMA
+  unsigned dwpw_offset=maps.size();
+  std::vector<GemmInvocation> fused_gemms(plan.model.gemm_invocation_count);
+  TILEMEGA_CUDA_CHECK(cudaMemcpy(fused_gemms.data(),plan.model.device_gemms,
+      fused_gemms.size()*sizeof(fused_gemms[0]),cudaMemcpyDeviceToHost));
+  maps.resize(maps.size()+fused_gemms.size());bool has_dwpw_wgmma=false;
+  for(unsigned i=0;i<fused_gemms.size();++i) {
+    auto const& g=fused_gemms[i];if(g.fused_program==kDmNoIndex || !DwPwWgmmaVariant(g.variant))continue;
+    auto const& c=g.fused_depthwise.convolution;
+    if(g.chunks!=1 || c.c<64 || c.c%64 || g.serving_k_begin || g.k_total!=int(c.c))
+      throw std::invalid_argument("streamed DW/PW WGMMA requires unsplit complete K64 channel blocks");
+    for(unsigned j=0;j<g.fused_depthwise.chain.count;++j)
+      if(g.fused_depthwise.chain.operations[j].kind==DmEpilogueKind::kGatePair)
+        throw std::invalid_argument("streamed DW/PW WGMMA does not support a depthwise gate");
+    has_dwpw_wgmma=true;
+#if !TILEMEGA_NONPAGED_TILED
+    auto [m,n,k,batch]=g.problem;(void)m;(void)k;(void)batch;
+    if(int(cute::get<0>(g.mainloop.dB))!=int(c.c))
+      throw std::invalid_argument("streamed DW/PW WGMMA requires contiguous complete weight rows");
+    auto code=executor::EncodeTensorMap(maps[dwpw_offset+i],
+        plan.model.buffers.at(g.serving_weight_buffer),
+        {c.c,std::uint64_t(n),std::uint64_t(c.c)*2,64,std::uint32_t(g.tile_n)});
+    if(code!=CUDA_SUCCESS)throw std::runtime_error("DW/PW weight map encoding failed: "+std::to_string(int(code)));
+#endif
+  }
+  if(!has_dwpw_wgmma)throw std::invalid_argument("DW/PW WGMMA requires an active eligible fused projection");
+#endif
   TILEMEGA_CUDA_CHECK(cudaMalloc(&plan.tensor_maps,maps.size()*sizeof(maps[0])));
   TILEMEGA_CUDA_CHECK(cudaMemcpy(plan.tensor_maps,maps.data(),maps.size()*sizeof(maps[0]),cudaMemcpyHostToDevice));
   plan.model.params.serving_tensor_maps=plan.tensor_maps;
+#if TILEMEGA_DEPTHWISE_TMA
+  plan.model.params.depthwise_tensor_maps=plan.tensor_maps+depthwise_offset;
+#endif
 #if TILEMEGA_ENCODER_ATTENTION_WGMMA
   plan.model.params.encoder_tensor_maps=plan.tensor_maps+encoder_offset;
   plan.model.params.encoder_tensor_map_heads=encoder_heads;
@@ -277,6 +342,9 @@ inline void CreateTensorMaps(Plan& plan,ModelSpec const& spec,TargetSpec const& 
 #if TILEMEGA_FORWARD_GEMM_WGMMA
   for(unsigned i=0;i<gemms.size();++i) {
     auto& g=gemms[i];if(!ForwardWgmmaVariant(g.variant))continue;
+#if TILEMEGA_DWPW_WGMMA
+    if(g.fused_program!=kDmNoIndex)continue;
+#endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     if((g.access.a!=DmAAccess::kDense && g.access.a!=DmAAccess::kIm2Col) ||
        g.access.b!=DmBAccess::kDense || g.a_scale)continue;
@@ -288,6 +356,17 @@ inline void CreateTensorMaps(Plan& plan,ModelSpec const& spec,TargetSpec const& 
   }
   TILEMEGA_CUDA_CHECK(cudaMemcpy(plan.model.device_gemms,gemms.data(),
       gemms.size()*sizeof(gemms[0]),cudaMemcpyHostToDevice));
+#endif
+#if TILEMEGA_DWPW_WGMMA
+  // Patch only this coordinate's field; preserve any activation/weight maps
+  // installed by the independent forward/decode TMA initialization above.
+  for(unsigned i=0;i<fused_gemms.size();++i) {
+    auto const& g=fused_gemms[i];if(g.fused_program==kDmNoIndex || !DwPwWgmmaVariant(g.variant))continue;
+    void const* pointer=plan.tensor_maps+dwpw_offset+i;
+    auto offset=reinterpret_cast<char const*>(&g.serving_fused_weight_tensor_map)-reinterpret_cast<char const*>(&g);
+    TILEMEGA_CUDA_CHECK(cudaMemcpy(reinterpret_cast<char*>(plan.model.device_gemms)+
+        i*sizeof(GemmInvocation)+offset,&pointer,sizeof(pointer),cudaMemcpyHostToDevice));
+  }
 #endif
 #endif
 }
@@ -390,9 +469,15 @@ inline void Destroy(Plan* plan) {
 
 inline int ResidentServingGrid(tilemega::TargetSpec const& target) {
   int pinned=kModel.runtime_variants[0].plan.eft_grid;
-  if constexpr(TILEMEGA_SERVING_CLUSTER_DIM==1)
+  if constexpr(TILEMEGA_SERVING_CLUSTER_DIM==1) {
+    if constexpr(TILEMEGA_SERVING_RESIDENCY_REQUEST>0) {
+      int requested=target.res.num_sms*TILEMEGA_SERVING_RESIDENCY_REQUEST;
+      if(pinned && pinned!=requested)
+        throw std::invalid_argument("requested CTA residency differs from the pinned EFT grid");
+      return requested;
+    }
     return pinned?pinned:target.res.num_sms;
-  else {
+  } else {
     static_assert(TILEMEGA_SERVING_CLUSTER_DIM==1 || arch::Caps<GemmVariantArch>::kCluster,
                   "serving cluster launch requires native cluster capability");
     if(!target.caps.cluster || target.res.max_cluster_size<TILEMEGA_SERVING_CLUSTER_DIM)
@@ -419,6 +504,12 @@ inline int ResidentServingGrid(tilemega::TargetSpec const& target) {
     if(resident<=0 || resident>std::numeric_limits<int>::max()/TILEMEGA_SERVING_CLUSTER_DIM)
       throw std::invalid_argument("serving kernels have no resident cluster grid");
     grid=resident*TILEMEGA_SERVING_CLUSTER_DIM;
+    if constexpr(TILEMEGA_SERVING_RESIDENCY_REQUEST>0) {
+      int requested=target.res.num_sms*TILEMEGA_SERVING_RESIDENCY_REQUEST;
+      if(requested%TILEMEGA_SERVING_CLUSTER_DIM || requested>grid)
+        throw std::invalid_argument("cluster occupancy cannot satisfy requested CTA residency");
+      grid=requested;
+    }
     // EFT worker IDs are part of sigma; changing their grid changes the plan.
     if(pinned && pinned!=grid)
       throw std::invalid_argument("serving cluster occupancy differs from the pinned EFT grid");
@@ -523,9 +614,23 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
     int l2 = target.ActiveBlocksPerSM(
         reinterpret_cast<void const*>(tilemega_l2_kernel),
         kServingThreads, smem);
-    if (grid > target.res.num_sms * std::min(l1, l2)) return nullptr;
+    if (grid > target.res.num_sms * std::min(l1, l2)) {
+      if constexpr(TILEMEGA_SERVING_RESIDENCY_REQUEST>0) {
+        std::fprintf(stderr,"E2E_SERVING_RESIDENCY_REJECT requested=%d grid=%d l1_limit=%d l2_limit=%d shared=%zu\n",
+            TILEMEGA_SERVING_RESIDENCY_REQUEST,grid,l1,l2,smem);
+        throw std::invalid_argument("requested serving residency exceeds actual CUDA kernel occupancy");
+      }
+      return nullptr;
+    }
 #if TILEMEGA_PAGED
-    if(grid>target.res.num_sms)return nullptr;
+    if(grid>target.res.num_sms*(TILEMEGA_SERVING_RESIDENCY_REQUEST?
+          TILEMEGA_SERVING_RESIDENCY_REQUEST:1))return nullptr;
+    if constexpr(TILEMEGA_SERVING_RESIDENCY_REQUEST>0) {
+      int loop=target.ActiveBlocksPerSM(reinterpret_cast<void const*>(tilemega_loop_kernel),
+          kServingThreads,smem);
+      if(grid>target.res.num_sms*loop)
+        throw std::invalid_argument("paged loop occupancy cannot satisfy requested CTA residency");
+    }
 #endif
     plan->model = harness::Create(
         kModel, kModel.runtime_variants[0], 0, dims, "", grid,
@@ -618,6 +723,9 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
                    plan->model.event_count * sizeof(EventCounter)) != cudaSuccess)
       return nullptr;
     plan->grid = grid;
+    if constexpr(TILEMEGA_SERVING_RESIDENCY_REQUEST>0)
+      std::fprintf(stderr,"E2E_SERVING_RESIDENCY requested=%d grid=%d l1_limit=%d l2_limit=%d\n",
+          TILEMEGA_SERVING_RESIDENCY_REQUEST,grid,l1,l2);
     if constexpr(TILEMEGA_SERVING_CLUSTER_DIM>1)
       std::fprintf(stderr,"E2E_SERVING_CLUSTER dim=%d resident_grid=%d\n",
           TILEMEGA_SERVING_CLUSTER_DIM,grid);
@@ -765,6 +873,7 @@ extern "C" std::uint64_t tm_plan_shared_bytes() {
   return tilemega::codegen::kServingSharedBytes;
 }
 extern "C" unsigned tm_plan_cluster_dim() { return TILEMEGA_SERVING_CLUSTER_DIM; }
+extern "C" unsigned tm_plan_requested_residency() { return TILEMEGA_SERVING_RESIDENCY_REQUEST; }
 extern "C" unsigned tm_plan_pdl_enabled(void* opaque) {
   auto* plan=static_cast<tilemega::codegen::serving::Plan*>(opaque);
   return plan && plan->pdl;

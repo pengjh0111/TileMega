@@ -8,6 +8,10 @@
 #include <tilemega/Backend/ServingEpilogue.h>
 #include <tilemega/Backend/ServingGemm.h>
 #include <tilemega/Backend/Sm90Gmma.h>
+#include <tilemega/Backend/Sm90DecodePipeline.h>
+#ifndef TILEMEGA_ACTIVATION_TMA
+#define TILEMEGA_ACTIVATION_TMA 0
+#endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
 #include <tilemega/Backend/Sm90BulkGather.h>
 #endif
@@ -121,13 +125,14 @@ struct ServingGemmTaskBody {
   using Mainloop = typename Config::Mainloop;
   static constexpr int kThreads = Config::kThreads;
   static constexpr bool kBulkGather=UseWgmma && TileM==16 && TILEMEGA_MOE_ACTIVATION_BULK;
+  static constexpr bool kDecodeTma=UseWgmma && TileM==16 && TILEMEGA_ACTIVATION_TMA;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-  static constexpr int kSharedBytes=UseWgmma && (TileM>=64 || kBulkGather) ?
-      solver::ServingWgmmaSmemBytes(TileM,TileN,TileK,Stages,kBulkGather):
+  static constexpr int kSharedBytes=UseWgmma && (TileM>=64 || kBulkGather || kDecodeTma) ?
+      solver::ServingWgmmaSmemBytes(TileM,TileN,TileK,Stages,kBulkGather,kDecodeTma):
       solver::DmServingBF16SmemBytes(TileM,TileN,TileK,Stages);
 #else
-  static constexpr int kSharedBytes = UseWgmma && (TileM>=64 || kBulkGather) ?
-      solver::ServingWgmmaSmemBytes(TileM,TileN,TileK,Stages,kBulkGather):Config::kSharedBytes;
+  static constexpr int kSharedBytes = UseWgmma && (TileM>=64 || kBulkGather || kDecodeTma) ?
+      solver::ServingWgmmaSmemBytes(TileM,TileN,TileK,Stages,kBulkGather,kDecodeTma):Config::kSharedBytes;
 #endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   static constexpr int kTileColumns = TileN;
@@ -238,6 +243,13 @@ struct ServingGemmTaskBody {
       int tile_n,char* shared) {
     if constexpr(TileM>=64)return ComputeForwardWgmma(p,tile_m,tile_n,shared);
     else {
+    if constexpr(kDecodeTma) {
+      bool dense=true;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      dense=p.access.a==DmAAccess::kDense && p.access.b==DmBAccess::kDense && !p.a_scale;
+#endif
+      if(dense)return backend::Sm90DecodePipeline<Arch,TileM,TileN,TileK>::Run(p,tile_m,tile_n,shared);
+    }
     using namespace cute;
     using Async=executor::Async<Arch>;
     using Body=backend::Sm90DecodeGmma<Arch,TileM,TileN,TileK>;

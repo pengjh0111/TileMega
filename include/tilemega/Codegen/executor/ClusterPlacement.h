@@ -10,7 +10,13 @@
 #define TILEMEGA_SERVING_CLUSTER_DIM 1
 #endif
 
+#ifndef TILEMEGA_SERVING_RESIDENCY_REQUEST
+#define TILEMEGA_SERVING_RESIDENCY_REQUEST 0
+#endif
+
 namespace tilemega::codegen::executor {
+static_assert(TILEMEGA_SERVING_RESIDENCY_REQUEST>=0 && TILEMEGA_SERVING_RESIDENCY_REQUEST<=2,
+              "serving residency request must be unspecified, 1 or 2");
 static_assert(TILEMEGA_SERVING_CLUSTER_DIM==1 ||
               TILEMEGA_SERVING_CLUSTER_DIM==2 ||
               TILEMEGA_SERVING_CLUSTER_DIM==4,

@@ -192,6 +192,7 @@ struct ModelPlan {
   // Only DM plans emit the extended device ABI; legacy descriptors and CUDA
   // initializers retain their exact layout and text when this is false.
   bool dm = false;
+  bool depthwise_tma = false;
   bool moe_gemv = false;
   int dm_reduction_mask = -1;
   bool forward = false;

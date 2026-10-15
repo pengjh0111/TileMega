@@ -308,9 +308,9 @@ int RunCompile(int argc, char** argv) {
     std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
     std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
     std::string seed_arch="legacy",seed_target_arch;
-    std::string forward_gemm_impl="mma16",prefill_attention_impl="mma16",encoder_attention_impl="mma16",conv_impl="cpasync",gemv_load="ldg";
+    std::string forward_gemm_impl="mma16",prefill_attention_impl="mma16",encoder_attention_impl="mma16",conv_impl="cpasync",gemv_load="ldg",depthwise_impl="cpasync",dwpw_impl="mma16";
     int qkv_epilogue=0;
-    int dependency_intern=0,cluster_dim=1;
+    int dependency_intern=0,cluster_dim=1,serving_residency=0,activation_tma=0;
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int mma_reg_pipe=0;
     std::string attention_impl="mma16",attention_page;
@@ -393,10 +393,18 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--arch-paths") arch_paths=value;
       else if (flag=="--seed-arch") seed_arch=value;
       else if (flag=="--dependency-intern") dependency_intern=std::stoi(value);
+      else if (flag=="--activation-tma") activation_tma=std::stoi(value);
       else if (flag=="--cluster-dim") cluster_dim=std::stoi(value);
+      else if (flag=="--residency") {
+        serving_residency=std::stoi(value);
+        if(serving_residency!=1 && serving_residency!=2)
+          throw std::invalid_argument("--residency must be 1 or 2");
+      }
       else if (flag=="--forward-gemm-impl") forward_gemm_impl=value;
       else if (flag=="--conv-impl") conv_impl=value;
       else if (flag=="--gemv-load") gemv_load=value;
+      else if (flag=="--dwpw-impl") dwpw_impl=value;
+      else if (flag=="--depthwise-impl") depthwise_impl=value;
       else if (flag=="--qkv-epilogue") qkv_epilogue=std::stoi(value);
       else if (flag=="--prefill-attention-impl") prefill_attention_impl=value;
       else if (flag=="--encoder-attention-impl") encoder_attention_impl=value;
@@ -584,6 +592,12 @@ int RunCompile(int argc, char** argv) {
       throw std::invalid_argument("forward WGMMA requires native Hopper prefill/forward");
     if(forward_gemm_impl=="wgmma" && solve_target.empty() && !has_variants)
       throw std::invalid_argument("forward WGMMA needs skeleton solve or an explicit variant plan");
+    if(activation_tma!=0 && activation_tma!=1)
+      throw std::invalid_argument("--activation-tma must be 0 or 1");
+    if(activation_tma && (!serving || serving_phase!="decode" || arch_paths!="auto" ||
+        (pg_mode!="off" && pg_mode!="l2")))
+      throw std::invalid_argument("activation TMA currently requires native nonpaged Hopper decode");
+    if(activation_tma)runtime_flags+=" -DTILEMEGA_ACTIVATION_TMA=1 -DTILEMEGA_FORWARD_GEMM_WGMMA=1";
     if(dependency_intern!=0 && dependency_intern!=1)
       throw std::invalid_argument("--dependency-intern must be 0 or 1");
     if(cluster_dim!=1 && cluster_dim!=2 && cluster_dim!=4)
@@ -591,6 +605,9 @@ int RunCompile(int argc, char** argv) {
     if((dependency_intern || cluster_dim>1) && (!serving || arch_paths!="auto"))
       throw std::invalid_argument("dependency interning and clusters require native serving execution");
     if(dependency_intern)runtime_flags+=" -DTILEMEGA_DEPENDENCY_INTERN=1";
+    if(serving_residency && !serving)
+      throw std::invalid_argument("--residency requires serving execution");
+    if(serving_residency)runtime_flags+=" -DTILEMEGA_SERVING_RESIDENCY_REQUEST="+std::to_string(serving_residency);
     if(cluster_dim>1)runtime_flags+=" -DTILEMEGA_SERVING_CLUSTER_DIM="+std::to_string(cluster_dim);
     if((moe_activation_bulk!=0 && moe_activation_bulk!=1) ||
         (moe_activation_bulk && (!serving || serving_phase!="decode" || arch_paths!="auto")))
@@ -602,6 +619,18 @@ int RunCompile(int argc, char** argv) {
         (pg_mode!="l2" && pg_mode!="off") || attention_impl!="wgmma"))
       throw std::invalid_argument("qkv epilogue requires native Hopper decode, explicit nonpaged l2/off and WGMMA attention");
     if(qkv_epilogue)runtime_flags+=" -DTILEMEGA_QKV_EPILOGUE=1";
+    if(dwpw_impl!="mma16" && dwpw_impl!="wgmma")
+      throw std::invalid_argument("--dwpw-impl must be mma16 or wgmma");
+    if(dwpw_impl=="wgmma" && (!serving || serving_phase!="forward" || frontend_mode!="dnn" ||
+        arch_paths!="auto" || (pg_mode!="off" && pg_mode!="l2") || dnn_dwpw_fuse!="auto"))
+      throw std::invalid_argument("DW/PW WGMMA requires native Hopper DNN forward, fusion enabled and explicit nonpaged off/l2");
+    if(dwpw_impl=="wgmma")runtime_flags+=" -DTILEMEGA_DWPW_WGMMA=1";
+    if(depthwise_impl!="cpasync" && depthwise_impl!="tma")
+      throw std::invalid_argument("--depthwise-impl must be cpasync or tma");
+    if(depthwise_impl=="tma" && (!serving || serving_phase!="forward" || frontend_mode!="dnn" ||
+        arch_paths!="auto" || (pg_mode!="off" && pg_mode!="l2")))
+      throw std::invalid_argument("depthwise TMA requires native Hopper DNN forward, explicit nonpaged off/l2");
+    if(depthwise_impl=="tma")runtime_flags+=" -DTILEMEGA_DEPTHWISE_TMA=1";
     if(gemv_load!="ldg" && gemv_load!="nc")
       throw std::invalid_argument("--gemv-load must be ldg or nc");
     if(gemv_load=="nc" && (arch_paths!="auto" || !serving || pg_mode=="pages"))
@@ -653,10 +682,12 @@ int RunCompile(int argc, char** argv) {
       if(runtime_target.empty())runtime_target=std::string(TILEMEGA_SOURCE_DIR)+
           "/configs/targets/"+tilemega::TargetSpec::Probe().arch_tag+".json";
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
-      if((dependency_intern || cluster_dim>1) && target.arch_tag!="sm_90")
+      if((dependency_intern || cluster_dim>1 || serving_residency) && target.arch_tag!="sm_90")
         throw std::invalid_argument("dependency interning and serving clusters currently require sm_90");
       if(cluster_dim>1 && (!target.caps.cluster || target.res.max_cluster_size<cluster_dim))
         throw std::invalid_argument("requested cluster dimension exceeds target capability");
+      if(activation_tma && (!target.caps.wgmma || !target.caps.tma || target.arch_tag!="sm_90"))
+        throw std::invalid_argument("activation TMA requires a native Hopper target");
       if(encoder_attention_impl=="wgmma" && !target.caps.wgmma)
         throw std::invalid_argument("encoder WGMMA requires a Hopper target");
       if(encoder_attention_impl=="wgmma")runtime_flags+=" -DTILEMEGA_ENCODER_ATTENTION_WGMMA=1";
@@ -731,6 +762,7 @@ int RunCompile(int argc, char** argv) {
     if(frontend_mode=="dnn" && input.extension()!=".mlir") {
       auto bridge=tilemega::frontend::ReadExportBridge(input.string());
       tilemega::frontend::DnnPlanOptions options;options.batch=serving_batch;
+      options.depthwise_tma=depthwise_impl=="tma";
       options.deferred_layernorm=dnn_deferred_ln=="auto";
       options.dwpw_fuse=dnn_dwpw_fuse=="auto";
       options.memory_reuse=memory_reuse=="auto"?"l2":memory_reuse;
@@ -791,9 +823,9 @@ int RunCompile(int argc, char** argv) {
     bool hopper_requested=std::find(serving_impl.begin(),serving_impl.end(),2)!=serving_impl.end() ||
         attention_impl=="wgmma" || forward_gemm_impl=="wgmma" || prefill_attention_impl=="wgmma" ||
         encoder_attention_impl=="wgmma" || conv_impl=="tma_im2col" || moe_activation_bulk ||
-        dependency_intern || cluster_dim>1;
+        dependency_intern || cluster_dim>1 || activation_tma || depthwise_impl=="tma" || dwpw_impl=="wgmma";
     auto bind_requested_arch=[&](mlir::ModuleOp candidate) {
-      if(!hopper_requested && seed_arch!="native")return;
+      if(!hopper_requested && seed_arch!="native" && !serving_residency)return;
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
       if(hopper_requested && (!target.caps.wgmma || target.arch_tag!="sm_90" || arch_paths!="auto"))
         throw std::invalid_argument("requested Hopper implementation requires native sm_90 target");
@@ -802,6 +834,23 @@ int RunCompile(int argc, char** argv) {
         throw std::invalid_argument("requested target binding conflicts with plan architecture");
       candidate->setAttr("tmexec.solved_arch",mlir::StringAttr::get(&context,target.arch_tag));
       if(seed_arch=="native")seed_target_arch=target.arch_tag;
+      if(serving_residency) {
+        if(auto chosen=candidate->getAttrOfType<mlir::IntegerAttr>("tmexec.solved_residency"))
+          if(chosen.getInt()!=serving_residency)
+            throw std::invalid_argument("requested residency differs from the selected plan");
+        candidate->setAttr("tmexec.requested_residency",mlir::IntegerAttr::get(
+            mlir::IntegerType::get(&context,64),serving_residency));
+      }
+      if(depthwise_impl=="tma") {
+        auto plan=candidate->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+        auto selected=plan?plan.getAs<mlir::BoolAttr>("depthwise_tma"):mlir::BoolAttr{};
+        bool found=false;
+        if(plan)for(auto entry:plan.getAs<mlir::ArrayAttr>("stages"))
+          found|=mlir::cast<mlir::DictionaryAttr>(entry).getAs<mlir::StringAttr>("kind").getValue()=="kDepthwiseConv";
+        if(!selected || !selected.getValue() || !found)
+          throw std::invalid_argument("depthwise TMA requires an active depthwise stage with its exact TMA workspace metadata");
+      }
+      if(activation_tma)candidate->setAttr("tmexec.activation_tma",mlir::BoolAttr::get(&context,true));
       if(dependency_intern) {
         auto plan=candidate->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
         auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
@@ -889,6 +938,17 @@ int RunCompile(int argc, char** argv) {
       for(auto const& stage:plan.stages)
         if(stage.kind==tilemega::frontend::PlanTaskKind::kDwPwFused)
           import.gemms.at(stage.gemm).tile_m=16;
+      if(dwpw_impl=="wgmma") {
+        bool eligible=false;
+        for(auto const& stage:plan.stages)if(stage.kind==tilemega::frontend::PlanTaskKind::kDwPwFused) {
+          auto const& c=plan.convolutions.at(stage.conv);bool gate=false;
+          for(unsigned j=0;j<stage.chain.count;++j)
+            gate|=stage.chain.operations[j].kind==tilemega::codegen::DmEpilogueKind::kGatePair;
+          if(c.c<64 || c.c%64 || gate)continue;
+          import.gemms.at(stage.gemm)={64,64,64,2,1,2};eligible=true;
+        }
+        if(!eligible)throw std::invalid_argument("DW/PW WGMMA requires a fused complete K64 channel block");
+      }
       if(!shared_weight_layout.empty())
         for(auto const& [id,layout]:tilemega::solver::SharedDmWeightLayouts(plan,
             tilemega::json::ParseFile(shared_weight_layout))) {
@@ -1019,9 +1079,12 @@ int RunCompile(int argc, char** argv) {
         skeleton.attention_wgmma=attention_impl=="wgmma";
         skeleton.forward_wgmma=forward_gemm_impl=="wgmma";
         skeleton.conv_tma_im2col=conv_impl=="tma_im2col";
+        skeleton.dwpw_wgmma=dwpw_impl=="wgmma";
         skeleton.gemv_nc=gemv_load=="nc";
         skeleton.qkv_epilogue=qkv_epilogue!=0;
         skeleton.moe_activation_bulk=moe_activation_bulk;
+        skeleton.requested_serving_residency=serving_residency;
+        skeleton.activation_tma=activation_tma;
         skeleton.prefill_attention_wgmma=prefill_attention_impl=="wgmma";
         skeleton.encoder_attention_wgmma=encoder_attention_impl=="wgmma";
         skeleton.handoff_auto=handoff_mode=="auto";
@@ -1249,6 +1312,7 @@ int RunCompile(int argc, char** argv) {
             if(tile && tile->impl)command+=tile->impl==1?" --impl gemv":" --impl wgmma";
             if(probe_plan && probe_plan->dm)command+=" --dm";
             if(moe_activation_bulk && tile && tile->impl==2)command+=" --moe-activation-bulk";
+            if(activation_tma && tile && tile->impl==2 && tile->tile_m==16)command+=" --activation-tma";
             if(probe_plan && probe_plan->moe_gemv && tile)command+=" --dm-gemv";
             if(!nongemm_source.empty()) {
               auto source=output;source.replace_extension("cu");
@@ -1359,8 +1423,9 @@ int RunCompile(int argc, char** argv) {
               " --capacity "+std::to_string(serving_capacity)+
               " --prompt-len "+std::to_string(serving_prompt_len)+
               " --sync "+quote(sync_policy)+" --runtime-target "+quote(runtime_target)+
-              " --arch-paths "+quote(arch_paths)+" --encoder-attention-impl "+quote(encoder_attention_impl)+" --prefill-attention-impl "+quote(prefill_attention_impl)+" --forward-gemm-impl "+quote(forward_gemm_impl)+" --conv-impl "+quote(conv_impl)+" --moe-activation-bulk "+std::to_string(moe_activation_bulk)+
-              " --dependency-intern "+std::to_string(dependency_intern)+" --cluster-dim "+std::to_string(cluster_dim)+" --gemv-load "+quote(gemv_load)+" --qkv-epilogue "+std::to_string(qkv_epilogue)+" --pdl "+quote(pdl)+
+              " --arch-paths "+quote(arch_paths)+" --encoder-attention-impl "+quote(encoder_attention_impl)+" --prefill-attention-impl "+quote(prefill_attention_impl)+" --forward-gemm-impl "+quote(forward_gemm_impl)+" --conv-impl "+quote(conv_impl)+" --depthwise-impl "+quote(depthwise_impl)+" --dwpw-impl "+quote(dwpw_impl)+" --moe-activation-bulk "+std::to_string(moe_activation_bulk)+
+              " --activation-tma "+std::to_string(activation_tma)+" --dependency-intern "+std::to_string(dependency_intern)+" --cluster-dim "+std::to_string(cluster_dim)+
+              (serving_residency?" --residency "+std::to_string(serving_residency):std::string())+" --gemv-load "+quote(gemv_load)+" --qkv-epilogue "+std::to_string(qkv_epilogue)+" --pdl "+quote(pdl)+
               " --pg "+quote(pg_mode)+" --page-bytes "+std::to_string(candidate_page_bytes)+
               " --weight-layout "+quote(weight_layout)+
               " --nonpaged-weight-layout "+quote(nonpaged_weight_layout)+
@@ -1624,7 +1689,25 @@ int RunCompile(int argc, char** argv) {
       }
       source = tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(inputs);
     }
-    if(hopper_requested || seed_arch=="native")bind_requested_arch(*module);
+    if(hopper_requested || seed_arch=="native" || serving_residency)bind_requested_arch(*module);
+    if(activation_tma) {
+      auto model=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+      auto geometry=(*module)->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime");
+      bool selected=false;
+      if(model && geometry) {
+        auto gemms=model.getAs<mlir::ArrayAttr>("gemms");
+        if(gemms && gemms.size()==geometry.size())for(unsigned i=0;i<gemms.size();++i) {
+          auto g=mlir::cast<mlir::DictionaryAttr>(geometry[i]);
+          auto impl=g.getAs<mlir::IntegerAttr>("impl");
+          tilemega::codegen::DmGemmAccess access{};
+          if(auto attr=mlir::cast<mlir::DictionaryAttr>(gemms[i]).get("dm_access"))
+            access=tilemega::frontend::DecodeDmAccess(attr);
+          selected|=impl && impl.getInt()==2 && g.getAs<mlir::IntegerAttr>("tile_m").getInt()==16 &&
+              access.a==tilemega::codegen::DmAAccess::kDense && access.b==tilemega::codegen::DmBAccess::kDense;
+        }
+      }
+      if(!selected)throw std::invalid_argument("activation TMA requires an active dense M16 WGMMA GEMM");
+    }
     if(moe_activation_bulk) {
       auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
       auto runtime=(*module)->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime");
@@ -1796,6 +1879,31 @@ int RunCompile(int argc, char** argv) {
         if(q<1 || q>8 || (d!=64 && d!=128) || (use_pages && page_bytes!=4*d*64))
           throw std::invalid_argument("WGMMA attention requires QPerKV<=8, D64/128, and 64-row pages");
       }
+    }
+    if(dwpw_impl=="wgmma") {
+      auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+      auto geometries=(*module)->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime");
+      bool selected=false;
+      if(plan && geometries)for(auto entry:plan.getAs<mlir::ArrayAttr>("stages")) {
+        auto stage=mlir::cast<mlir::DictionaryAttr>(entry);
+        if(stage.getAs<mlir::StringAttr>("kind").getValue()!="kDwPwFused")continue;
+        auto g=mlir::cast<mlir::DictionaryAttr>(geometries[stage.getAs<mlir::IntegerAttr>("gemm").getInt()]);
+        auto impl=g.getAs<mlir::IntegerAttr>("impl");selected|=impl && impl.getInt()==2;
+      }
+      if(plan && geometries && forward_gemm_impl!="wgmma" && conv_impl!="tma_im2col") {
+        std::vector<bool> fused(geometries.size(),false);
+        for(auto entry:plan.getAs<mlir::ArrayAttr>("stages")) {
+          auto stage=mlir::cast<mlir::DictionaryAttr>(entry);
+          if(stage.getAs<mlir::StringAttr>("kind").getValue()=="kDwPwFused")
+            fused.at(stage.getAs<mlir::IntegerAttr>("gemm").getInt())=true;
+        }
+        for(std::size_t i=0;i<geometries.size();++i) {
+          auto g=mlir::cast<mlir::DictionaryAttr>(geometries[i]);auto impl=g.getAs<mlir::IntegerAttr>("impl");
+          if(impl && impl.getInt()==2 && !fused[i])
+            throw std::invalid_argument("DW/PW coordinate does not authorize a nonfused forward WGMMA implementation");
+        }
+      }
+      if(!selected)throw std::invalid_argument("DW/PW WGMMA coordinate selected no WGMMA fused projection");
     }
     if(qkv_epilogue) {
       auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
@@ -2067,10 +2175,14 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"mma_reg_pipe\": "<<mma_reg_pipe
               <<",\n  \"forward_gemm_impl\": "<<std::quoted(forward_gemm_impl)
               <<",\n  \"conv_impl\": "<<std::quoted(conv_impl)
+              <<",\n  \"depthwise_impl\": "<<std::quoted(depthwise_impl)
+              <<",\n  \"dwpw_impl\": "<<std::quoted(dwpw_impl)
               <<",\n  \"gemv_load\": "<<std::quoted(gemv_load)
               <<",\n  \"qkv_epilogue\": "<<qkv_epilogue
               <<",\n  \"dependency_intern\": "<<dependency_intern
+              <<",\n  \"activation_tma\": "<<activation_tma
               <<",\n  \"cluster_dim\": "<<cluster_dim
+              <<",\n  \"requested_residency\": "<<serving_residency
               <<",\n  \"moe_activation_bulk\": "<<moe_activation_bulk
               <<",\n  \"prefill_attention_impl\": "<<std::quoted(prefill_attention_impl)
               <<",\n  \"encoder_attention_impl\": "<<std::quoted(encoder_attention_impl)

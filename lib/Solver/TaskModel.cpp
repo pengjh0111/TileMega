@@ -420,7 +420,10 @@ BackendTraits ModelTaskTraits(ModelDescription const& model, int index,
     if (semantic.stage == index)
       uses_collective |= semantic.op.kind == analysis::OperatorKind::kMatmul;
   if (uses_collective) {
-    if(stage.kind==StageKind::kDwPwFused)collective.smem_bytes+=2*config.tile_m*stage.width;
+    if(stage.kind==StageKind::kDwPwFused) {
+      if(config.impl==2)collective=ServingDwPwWgmmaTraits(config.tile_m,config.tile_n,config.tile_k,config.stages);
+      else collective.smem_bytes+=2*config.tile_m*stage.width;
+    }
     return collective;
   }
   if(model.dm && stage.dm_workspace_bytes) {

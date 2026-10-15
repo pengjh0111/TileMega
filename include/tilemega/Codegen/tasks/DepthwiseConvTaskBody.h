@@ -4,6 +4,10 @@
 #include <tilemega/Codegen/executor/Async.cuh>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <cstddef>
+#include <tilemega/Codegen/executor/TensorMap3D.h>
+#ifndef TILEMEGA_DEPTHWISE_TMA
+#define TILEMEGA_DEPTHWISE_TMA 0
+#endif
 
 namespace tilemega::codegen {
 struct DepthwiseConvOperands {
@@ -19,12 +23,16 @@ struct DepthwiseConvOperands {
   float* channel_partials=nullptr;
   // [image, output row band, channel], excluding unwritten alignment lanes.
   DmBufferLayout partial_layout{};
+#if TILEMEGA_DEPTHWISE_TMA
+  void const* input_tensor_maps=nullptr;
+#endif
 };
 
 template<class Arch,int RowBand=1,int ChannelTile=64,
-         class Program=DmEpilogueProgram<>>
+         class Program=DmEpilogueProgram<>,bool Tma=false>
 struct DepthwiseConvTaskBody {
   static_assert(arch::Caps<Arch>::kCpAsync && RowBand>0);
+  static_assert(!Tma || arch::Caps<Arch>::kTma,"depthwise TMA requires native TMA capability");
   static_assert(ChannelTile==32 || ChannelTile==64 || ChannelTile==128 || ChannelTile==256);
   using E=cutlass::bfloat16_t;
   static constexpr int kThreads=128;
@@ -35,8 +43,14 @@ struct DepthwiseConvTaskBody {
     return (RowBand-1)*c.stride_h+(c.r-1)*c.dilation_h+1;
   }
   __host__ __device__ static std::size_t SharedBytes(DepthwiseConvOperands const& p) {
-    auto input=std::size_t(InputRows(p.convolution))*p.input_layout.physical[2]*ChannelTile*kBands*sizeof(E);
-    return input>kThreads*8*sizeof(float)?input:kThreads*8*sizeof(float);
+    unsigned width=p.input_layout.physical[2];
+    auto input=std::size_t(InputRows(p.convolution))*width*ChannelTile*kBands*sizeof(E);
+    if constexpr(Tma) {
+      if(!width)return 0;
+      unsigned chunks=(width+255)/256,box=(width+chunks-1)/chunks;
+      input=((std::size_t(InputRows(p.convolution))*box*ChannelTile*2+127)/128*128)*chunks*kBands;
+    }
+    return (Tma?128:0)+(input>kThreads*8*sizeof(float)?input:kThreads*8*sizeof(float));
   }
   __host__ __device__ static unsigned Count(DepthwiseConvOperands const& p) {
     auto const& c=p.convolution;auto channels=c.c/kBands;
@@ -93,10 +107,39 @@ struct DepthwiseConvTaskBody {
       asm volatile("trap;");return;
     }
     unsigned input_rows=InputRows(c),input_width=in.physical[2];
-    auto* tile=reinterpret_cast<E*>(scratch);
-    auto tile_elements=std::size_t(input_rows)*input_width*ChannelTile*kBands;
+    unsigned width_chunks=1,box_width=input_width;
+    if constexpr(Tma) {
+      if(!input_width){asm volatile("trap;");return;}
+      width_chunks=(input_width+255)/256;box_width=(input_width+width_chunks-1)/width_chunks;
+    }
+    unsigned tile_width=Tma?width_chunks*box_width:input_width;
+    auto* tile=reinterpret_cast<E*>(scratch+(Tma?128:0));
+    auto chunk_elements=Tma?(std::size_t(input_rows)*box_width*ChannelTile+63)/64*64:0;
+    auto tile_elements=Tma?chunk_elements*width_chunks*kBands:
+        std::size_t(input_rows)*tile_width*ChannelTile*kBands;
     auto* sums=reinterpret_cast<float*>(tile);
     long first_y=long(band)*RowBand*c.stride_h-c.pad_h+in.halo_top;
+    if constexpr(Tma) {
+#if TILEMEGA_DEPTHWISE_TMA
+      if(!p.input_tensor_maps || input_rows>256 || !box_width || box_width>256 ||
+         (kGated && channels%8)) {asm volatile("trap;");return;}
+      using Copy=Async<Arch>;auto* barrier=reinterpret_cast<std::uint64_t*>(scratch);
+      if(ComputeThread()==0){Copy::Init(barrier,1);Copy::InitFence();}
+      ComputeSync();
+      if(ComputeThread()==0) {
+        // The input producer's ordinary global writes precede the task acquire.
+        Copy::ProxyAsyncGlobalFence();Copy::ExpectTx(barrier,std::size_t(input_rows)*tile_width*ChannelTile*kBands*sizeof(E));
+        auto* map=static_cast<char const*>(p.input_tensor_maps)+image*sizeof(executor::TensorMap);
+        for(unsigned part=0;part<kBands;++part)for(unsigned chunk=0;chunk<width_chunks;++chunk) {
+          auto at=(std::size_t(part)*width_chunks+chunk)*chunk_elements;
+          Copy::Tensor3D(tile+at,map,first_channel+part*channels,chunk*box_width,int(first_y),barrier);
+        }
+      }
+      Copy::Wait(barrier,0);ComputeSync();
+#else
+      static_assert(!Tma,"depthwise TMA descriptors require TILEMEGA_DEPTHWISE_TMA=1");
+#endif
+    }else {
     // Complete channel vectors are copied for each strip; out-of-image tail
     // strips are zero-filled without forming an invalid global pointer.
     for(std::size_t vector=ComputeThread();vector<tile_elements/8;vector+=kThreads) {
@@ -114,6 +157,7 @@ struct DepthwiseConvTaskBody {
     }
     asm volatile("cp.async.commit_group;" ::: "memory");
     asm volatile("cp.async.wait_group 0;" ::: "memory");ComputeSync();
+    }
     constexpr unsigned groups=ChannelTile/8,spatial_lanes=kThreads/groups;
     unsigned vector=ComputeThread()%groups,spatial=ComputeThread()/groups;
     float partial[8]={};
@@ -126,7 +170,11 @@ struct DepthwiseConvTaskBody {
       }
       float accum[kBands][8]={};
       for(unsigned r=0;r<c.r;++r)for(unsigned s=0;s<c.s;++s) {
-        auto at=((y*c.stride_h+r*c.dilation_h)*input_width+input_x+s*c.dilation_w)*ChannelTile+vector*8;
+        std::size_t at;
+        if constexpr(Tma) {
+          auto ix=input_x+s*c.dilation_w;auto iy=y*c.stride_h+r*c.dilation_h;
+          at=(ix/box_width)*chunk_elements+(iy*box_width+ix%box_width)*ChannelTile+vector*8;
+        }else at=((y*c.stride_h+r*c.dilation_h)*input_width+input_x+s*c.dilation_w)*ChannelTile+vector*8;
         #pragma unroll
         for(unsigned part=0;part<kBands;++part) {
           #pragma unroll

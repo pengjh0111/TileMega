@@ -3,6 +3,8 @@ import re
 
 
 INTEGER_FEATURES = {
+    'activation_tma': ('TILEMEGA_ACTIVATION_TMA', 0),
+    'requested_residency': ('TILEMEGA_SERVING_RESIDENCY_REQUEST', 0),
     'dependency_intern': ('TILEMEGA_DEPENDENCY_INTERN', 0),
     'cluster_dim': ('TILEMEGA_SERVING_CLUSTER_DIM', 1),
     'qkv_epilogue': ('TILEMEGA_QKV_EPILOGUE', 0),
@@ -87,6 +89,14 @@ def validate(manifest, defines):
         actual = 'nc' if int(defines.get('TILEMEGA_GEMV_LOAD_NC', '0')) else 'ldg'
         if manifest['gemv_load'] != actual:
             raise ValueError('manifest gemv_load differs from compiler macros')
+    if 'dwpw_impl' in manifest:
+        actual = 'wgmma' if int(defines.get('TILEMEGA_DWPW_WGMMA', '0')) else 'mma16'
+        if manifest['dwpw_impl'] != actual:
+            raise ValueError('manifest dwpw_impl differs from compiler macros')
+    if 'depthwise_impl' in manifest:
+        actual = 'tma' if int(defines.get('TILEMEGA_DEPTHWISE_TMA', '0')) else 'cpasync'
+        if manifest['depthwise_impl'] != actual:
+            raise ValueError('manifest depthwise_impl differs from compiler macros')
     if 'conv_impl' in manifest:
         actual = 'tma_im2col' if int(defines.get('TILEMEGA_CONV_TMA_IM2COL', '0')) else 'cpasync'
         if manifest['conv_impl'] != actual:
@@ -101,7 +111,7 @@ def implementations(manifest, defines):
     """The same implementation fields serve source checks and binary identity."""
     paged = manifest.get('pg') == 'pages'
     decode = manifest.get('phase') == 'decode'
-    return {'seed_arch': manifest.get('seed_arch', 'legacy'),
+    return {'dwpw_impl': manifest.get('dwpw_impl', 'mma16'), 'depthwise_impl': manifest.get('depthwise_impl', 'cpasync'), 'seed_arch': manifest.get('seed_arch', 'legacy'),
             'execution_arch_id': int(defines.get('TILEMEGA_ARCH_ID', '800')),
             'qkv_epilogue': bool(manifest.get('qkv_epilogue', False)),
             'gemv_load': manifest.get('gemv_load', 'ldg'),

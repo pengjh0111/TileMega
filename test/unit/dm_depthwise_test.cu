@@ -6,10 +6,15 @@
 #include <cmath>
 #include <cstdio>
 #include <vector>
+#include <cstring>
+#include <string>
+#ifndef TILEMEGA_DEPTHWISE_TEST_TMA
+#define TILEMEGA_DEPTHWISE_TEST_TMA 0
+#endif
 using namespace tilemega;
 using namespace tilemega::codegen;
 using E=cutlass::bfloat16_t;
-using Arch=std::conditional_t<std::is_void_v<arch::CurrentArch>,arch::Sm89,arch::CurrentArch>;
+using Arch=std::conditional_t<std::is_void_v<arch::CurrentArch>,std::conditional_t<TILEMEGA_DEPTHWISE_TEST_TMA,arch::Sm90,arch::Sm89>,arch::CurrentArch>;
 template<DmEpilogueKind Kind,DmActivation Activation=DmActivation::kRelu>
 using Step=DmEpilogueStep<Kind,Activation,DmGatePair::kSimpleGate,16,
     DmRounding::kFP32,DmRounding::kFP32,DmWriteKind::kDense,1>;
@@ -35,9 +40,20 @@ std::uint64_t Offset(DmBufferLayout const& l,unsigned b,unsigned y,unsigned x,un
 }
 template<int Rows,int Channels,class Program>
 __global__ void Run(DepthwiseConvOperands p) {
+#if TILEMEGA_DEPTHWISE_TEST_TMA
+  extern __shared__ __align__(128) char scratch[];
+#else
   extern __shared__ __align__(16) char scratch[];
-  DepthwiseConvTaskBody<Arch,Rows,Channels,Program>::Run(p,blockIdx.x,scratch);
+#endif
+  DepthwiseConvTaskBody<Arch,Rows,Channels,Program,bool(TILEMEGA_DEPTHWISE_TEST_TMA)>::Run(p,blockIdx.x,scratch);
 }
+#if TILEMEGA_DEPTHWISE_TEST_TMA
+template<int Rows,int Channels,class Program>
+__global__ void Legacy(DepthwiseConvOperands p) {
+  extern __shared__ __align__(128) char scratch[];
+  DepthwiseConvTaskBody<Arch,Rows,Channels,Program,false>::Run(p,blockIdx.x,scratch);
+}
+#endif
 template<int Rows,int Channels,class Program>
 unsigned Check(unsigned input_channels,unsigned h,unsigned w,unsigned stride,unsigned dilation,unsigned batch) {
   constexpr bool gated=DepthwiseConvTaskBody<Arch,Rows,Channels,Program>::kGated;
@@ -74,7 +90,15 @@ unsigned Check(unsigned input_channels,unsigned h,unsigned w,unsigned stride,uns
     auto& op=p.chain.operations[1];op.kind=gated?DmEpilogueKind::kGatePair:DmEpilogueKind::kActivation;
     op.activation=gated?DmActivation::kRelu:DmActivation::kRelu6;op.gate=DmGatePair::kSimpleGate;
   }
-  auto shared=DepthwiseConvTaskBody<Arch,Rows,Channels,Program>::SharedBytes(p);
+#if TILEMEGA_DEPTHWISE_TEST_TMA
+  auto* maps=Managed<executor::TensorMap>(batch);
+  auto shape=executor::TensorMap3DShape::Depthwise(c,in,Rows,Channels);
+  for(unsigned image=0;image<batch;++image)
+    assert(executor::EncodeTensorMap3D(maps[image],input+image*in.strides[0],shape)==CUDA_SUCCESS);
+  p.input_tensor_maps=maps;
+  auto* legacy_output=Managed<E>(output_count+32);auto* legacy_partial=Managed<float>(batch*parts.strides[0]+16);
+#endif
+  auto shared=DepthwiseConvTaskBody<Arch,Rows,Channels,Program,bool(TILEMEGA_DEPTHWISE_TEST_TMA)>::SharedBytes(p);
   int limit=0;assert(cudaDeviceGetAttribute(&limit,cudaDevAttrMaxSharedMemoryPerBlockOptin,0)==cudaSuccess);
   if(shared>unsigned(limit)) {cudaFree(input);cudaFree(output);cudaFree(weight);cudaFree(bias);
     cudaFree(pointers);cudaFree(dtypes);cudaFree(partial);return 0;}
@@ -96,6 +120,18 @@ unsigned Check(unsigned input_channels,unsigned h,unsigned w,unsigned stride,uns
     for(unsigned i=0;i<batch*parts.strides[0]+16;++i)partial[i]=-12345;
     Run<Rows,Channels,Program><<<DepthwiseConvTaskBody<Arch,Rows,Channels,Program>::Count(p),128,shared>>>(p);
     assert(cudaGetLastError()==cudaSuccess && cudaDeviceSynchronize()==cudaSuccess);
+#if TILEMEGA_DEPTHWISE_TEST_TMA
+    auto reference=p;reference.output=legacy_output+16;reference.channel_partials=legacy_partial+8;
+    for(unsigned i=0;i<output_count+32;++i)legacy_output[i]=E(-12345);
+    for(unsigned i=0;i<batch*parts.strides[0]+16;++i)legacy_partial[i]=-12345;
+    auto legacy_shared=DepthwiseConvTaskBody<Arch,Rows,Channels,Program,false>::SharedBytes(p);
+    assert(cudaFuncSetAttribute(Legacy<Rows,Channels,Program>,cudaFuncAttributeMaxDynamicSharedMemorySize,legacy_shared)==cudaSuccess);
+    Legacy<Rows,Channels,Program><<<DepthwiseConvTaskBody<Arch,Rows,Channels,Program>::Count(p),128,legacy_shared>>>(reference);
+    assert(cudaGetLastError()==cudaSuccess && cudaDeviceSynchronize()==cudaSuccess);
+    assert(!std::memcmp(output,legacy_output,(output_count+32)*sizeof(E)));
+    assert(!std::memcmp(partial,legacy_partial,(batch*parts.strides[0]+16)*sizeof(float)));
+#endif
+
     std::fill(sums.begin(),sums.end(),0);
     for(unsigned image=0;image<batch;++image)for(unsigned y=0;y<c.p;++y)for(unsigned x=0;x<c.q;++x)
       for(unsigned channel=0;channel<channels;++channel) {
@@ -122,10 +158,29 @@ unsigned Check(unsigned input_channels,unsigned h,unsigned w,unsigned stride,uns
     for(unsigned x=0;x<in.physical[2];++x)for(unsigned ch=0;ch<in.physical[3];++ch)
       if(y<dilation || y>=h+dilation || x<dilation || x>=w+dilation || ch>=input_channels)
         assert(input[n*in.strides[0]+y*in.strides[1]+x*in.strides[2]+ch]==E(0));
+#if TILEMEGA_DEPTHWISE_TEST_TMA
+  cudaFree(maps);cudaFree(legacy_output);cudaFree(legacy_partial);
+#endif
   cudaFree(input);cudaFree(output);cudaFree(weight);cudaFree(bias);cudaFree(pointers);cudaFree(dtypes);cudaFree(partial);
   return 1;
 }
-int main() {
+int main(int argc,char** argv) {
+#if TILEMEGA_DEPTHWISE_TEST_TMA
+  if(argc>1 && std::string(argv[1])=="--host-only") {
+    ConvDesc c;c.c=c.k=64;c.r=c.s=3;c.pad_h=c.pad_w=1;
+    auto l=Image(1,256,256,64,1);auto shape=executor::TensorMap3DShape::Depthwise(c,l,1,32);
+    assert(shape.box_width==129 && shape.box_height==3);
+    int rejected=0;
+    for(int i=0;i<5;++i)try {
+      auto invalid=shape;
+      if(i==0)invalid.box_width=257;if(i==1)invalid.box_height=257;
+      if(i==2)invalid.pixel_stride_bytes=129;if(i==3)invalid.box_channels=16;
+      if(i==4)invalid.channels=19;
+      invalid.Validate(reinterpret_cast<void*>(16));
+    }catch(std::invalid_argument const&){++rejected;}
+    assert(rejected==5);std::puts("depthwise TMA 3D host shape and five invalid contracts PASS");return 0;
+  }
+#endif
   unsigned cases=0;
   // MobileNetV1/V2 channel/height/stride families, including narrow tails.
   unsigned geometries[][3]={{32,112,1},{32,112,2},{64,56,1},{64,56,2},{96,112,2},
@@ -143,5 +198,5 @@ int main() {
     cases+=Check<2,64,Gated>(128,7,11,stride,dilation,batch);
   }
   assert(cases>=58);
-  std::printf("DEPTHWISE cases=%u epochs=3 cp_async_bias_relu6_simple_gate_partials_halo_canaries PASS\n",cases);
+  std::printf("DEPTHWISE cases=%u epochs=3 tma=%d exact_SIMT_bias_relu6_simple_gate_partials_halo_canaries PASS\n",cases,TILEMEGA_DEPTHWISE_TEST_TMA);
 }
