@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import shutil
 import unittest
+from unittest.mock import patch
 
 import test_r16_measurement_analysis as fixtures
 
@@ -131,6 +132,43 @@ class NativeMeasurementTest(unittest.TestCase):
                           ('root',str(self.root)),('compiler_sha256','different-compiler')]:
             with self.subTest(key=key),self.assertRaisesRegex(ValueError,'pristine baseline'):
                 validation.pristine_r15({'source':dict(source,**{key:value})},self.root)
+
+    def test_repaired_ir_label_requires_both_pristine_backends_and_prefill_provenance(self):
+        import r16_r15_ir_provenance as ir
+        value=json.loads(self.native_llm_receipt().read_text())
+        value['system']='TM-R15-IR'
+        identities=value['configuration']['identities']
+        for identity in identities.values():
+            identity['source']={}
+        def actual_identity(binary, expected):
+            return expected
+        with patch.object(validation,'native_identity',side_effect=actual_identity), \
+                patch.object(validation,'pristine_r15') as pristine, \
+                patch.object(ir,'validate_frontend_ir',side_effect=ValueError('missing IR origin')) as origin:
+            with self.assertRaisesRegex(ValueError,'missing IR origin'):
+                validation.native_llm(value,self.root)
+            origin.side_effect=None
+            pristine.reset_mock();origin.reset_mock()
+            result=validation.native_llm(value,self.root)
+            self.assertTrue(result['checkpoint_identity_shared'])
+            self.assertEqual(pristine.call_count,2)
+            origin.assert_called_once_with(identities['prefill'],self.root)
+            identities['decode']['source']['frontend_ir_provenance']={'label':'TM-R15-IR'}
+            with self.assertRaisesRegex(ValueError,'decode must retain'):
+                validation.native_llm(value,self.root)
+
+    def test_repaired_ir_cannot_be_silently_labelled_pristine_r15(self):
+        value=json.loads(self.native_llm_receipt().read_text())
+        identities=value['configuration']['identities']
+        for identity in identities.values():
+            identity['source']={}
+        identities['prefill']['source']['frontend_ir_provenance']={'label':'TM-R15-IR'}
+        with patch.object(validation,'native_identity',side_effect=lambda binary, expected:expected), \
+                patch.object(validation,'pristine_r15'):
+            for label in ('TM-R15','TM-RF1-on'):
+                value['system']=label
+                with self.subTest(label=label), self.assertRaisesRegex(ValueError,'explicit TM-R15-IR label'):
+                    validation.native_llm(value,self.root)
 
     def test_rf1_off_label_requires_the_exact_single_function_patch(self):
         directory=self.root/'runs/r16/rf1/r15-no-l1-spread'

@@ -7,7 +7,7 @@ import re
 import statistics
 
 
-NATIVE_LLM_SYSTEMS = ('TileMega', 'TM-R15', 'TM-RF1-on', 'TM-RF1-off', 'TM-seed',
+NATIVE_LLM_SYSTEMS = ('TileMega', 'TM-R15', 'TM-R15-IR', 'TM-RF1-on', 'TM-RF1-off', 'TM-seed',
     'TM-H1', 'TM-H1H4', 'TM-sm80', 'TM-noWGMMA',
     'TM-H3-stage', 'TM-H3-cluster2', 'TM-H3-cluster4',
     'TM-paged-mma', 'TM-paged-h1h4',
@@ -183,8 +183,18 @@ def native_llm(value, root):
     identities = []
     for index, phase in enumerate(('prefill', 'decode')):
         identity = native_identity(config[phase+'_binary'], config['identities'][phase])
-        if value['system'] in ('TM-R15', 'TM-RF1-on'):
+        if value['system'] in ('TM-R15', 'TM-R15-IR', 'TM-RF1-on'):
             pristine_r15(identity, root)
+            provenance = identity['source'].get('frontend_ir_provenance')
+            if value['system'] == 'TM-R15-IR':
+                if phase == 'prefill':
+                    # Lazy import keeps existing frozen, non-IR harnesses standalone.
+                    from r16_r15_ir_provenance import validate_frontend_ir
+                    validate_frontend_ir(identity, root)
+                elif provenance is not None:
+                    raise ValueError('TM-R15-IR decode must retain the original R15 frontend')
+            elif provenance is not None:
+                raise ValueError('repaired frontend IR requires the explicit TM-R15-IR label')
         elif value['system'] == 'TM-RF1-off':
             rf1_ablation(identity, root)
         if identity['binary_sha256'] != config[phase+'_sha256'] or identity['plan'] != config['plan_manifests'][index]:
