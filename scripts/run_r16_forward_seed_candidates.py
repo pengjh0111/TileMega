@@ -22,6 +22,29 @@ KINDS = ('tilemega_l1_kernel', 'tilemega_l2_kernel',
          'tilemega_l1_loop_kernel', 'tilemega_stage_kernel')
 
 
+def completed_receipt(path):
+    receipt = base.read(path)
+    if receipt.get('status') == 'completed' and receipt.get('compiler'):
+        source = Path(receipt['source_dir'])
+        files = receipt.get('source_files', {})
+        if not files:
+            raise ValueError('completed receipt has no captured source checksums')
+        if subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'],
+                                   text=True).strip() != receipt['snapshot_head']:
+            raise ValueError('completed receipt source HEAD changed')
+        for name, expected in files.items():
+            if base.sha(source / name) != expected:
+                raise ValueError('captured source changed: ' + name)
+        receipt = dict(receipt, cli=receipt['compiler'],
+            cli_sha256=receipt['compiler_sha256'], build_completed=True,
+            snapshot_source_unchanged=True, source_files_reverified=len(files),
+            receipt_schema='completed/compiler; independently reverified source HEAD/files')
+    if (not receipt.get('build_completed') or not receipt.get('snapshot_source_unchanged') or
+        base.sha(receipt['cli']) != receipt['cli_sha256']):
+        raise ValueError('completed immutable CLI receipt is required')
+    return receipt
+
+
 def verified(path):
     c = base.verified_config(path)
     for name, expected in c['dependencies'].items():
@@ -170,14 +193,13 @@ def build(path):
 
 def prepare(args):
     root = args.root.absolute()
-    receipt = base.read(args.receipt)
-    if (not receipt.get('build_completed') or not receipt.get('snapshot_source_unchanged') or
-        base.sha(receipt['cli']) != receipt['cli_sha256']):
-        raise ValueError('completed immutable CLI receipt is required')
+    receipt = completed_receipt(args.receipt)
     out = args.out.absolute()
     if out.exists():
         raise FileExistsError('new run-id required')
     out.mkdir(parents=True)
+    base.write(out / 'normalized-cli-receipt.json', dict(receipt,
+        original_receipt=str(args.receipt.absolute()), original_receipt_sha256=base.sha(args.receipt)))
     dependencies = {}
     for module in (sys.modules[__name__], contract, probe, recovery, base):
         source = Path(module.__file__)

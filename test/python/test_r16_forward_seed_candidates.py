@@ -1,10 +1,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 import copy
+import hashlib
+import json
 from pathlib import Path
+import subprocess
 import sys
+import tempfile
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))
-from run_r16_forward_seed_candidates import KINDS, resource_gate
+from run_r16_forward_seed_candidates import KINDS, completed_receipt, resource_gate
 
 
 class ActualSeedResourcesTest(unittest.TestCase):
@@ -37,6 +41,35 @@ class ActualSeedResourcesTest(unittest.TestCase):
                 changed['kernels'][-1]['name'] = KINDS[0]
             with self.assertRaisesRegex(ValueError, 'kernel set'):
                 resource_gate(changed, self.target, 70000)
+
+
+class CompletedReceiptTest(unittest.TestCase):
+    def test_compiler_schema_requires_reverified_head_and_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'source'
+            source.mkdir()
+            file = source / 'fixture.cpp'
+            file.write_text('int fixture = 1;\n')
+            subprocess.run(['git', 'init', '-q', str(source)], check=True)
+            subprocess.run(['git', '-C', str(source), 'add', 'fixture.cpp'], check=True)
+            subprocess.run(['git', '-C', str(source), '-c', 'user.name=Fixture',
+                '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture'], check=True)
+            head = subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip()
+            compiler = root / 'compiler'
+            compiler.write_bytes(b'compiler fixture')
+            receipt = root / 'receipt.json'
+            value = dict(status='completed', compiler=str(compiler),
+                compiler_sha256=hashlib.sha256(compiler.read_bytes()).hexdigest(),
+                source_dir=str(source), snapshot_head=head,
+                source_files={'fixture.cpp': hashlib.sha256(file.read_bytes()).hexdigest()})
+            receipt.write_text(json.dumps(value))
+            actual = completed_receipt(receipt)
+            self.assertEqual(actual['cli'], str(compiler))
+            self.assertEqual(actual['source_files_reverified'], 1)
+            file.write_text('int fixture = 2;\n')
+            with self.assertRaisesRegex(ValueError, 'captured source changed'):
+                completed_receipt(receipt)
 
 
 if __name__ == '__main__':
