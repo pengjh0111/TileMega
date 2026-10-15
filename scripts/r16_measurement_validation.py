@@ -7,7 +7,11 @@ import re
 import statistics
 
 
-NATIVE_LLM_SYSTEMS = ('TileMega', 'TM-R15', 'TM-RF1-on', 'TM-RF1-off', 'TM-seed', 'TM-H1', 'TM-H1H4', 'TM-sm80', 'TM-noWGMMA')
+NATIVE_LLM_SYSTEMS = ('TileMega', 'TM-R15', 'TM-RF1-on', 'TM-RF1-off', 'TM-seed',
+    'TM-H1', 'TM-H1H4', 'TM-sm80', 'TM-noWGMMA',
+    'TM-H3-stage', 'TM-H3-cluster2', 'TM-H3-cluster4',
+    'TM-paged-mma', 'TM-paged-h1h4',
+    'TM-H4d-stage', 'TM-H4d-cluster2', 'TM-H4d-cluster4')
 R15_HEAD = '243fe9d06f5f8c55297c0c175295812f0843f329'
 RF1_PATCH_SHA256 = '9b233022186721f305abeeb57928e7a64f4b9e5b252b0d75dedec7172c7fa0c6'
 _HASH_CACHE = {}

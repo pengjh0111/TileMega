@@ -84,6 +84,21 @@ class NativeMeasurementTest(unittest.TestCase):
         self.assertFalse(rows);self.assertEqual(len(rejected),1)
         self.assertIn('shared checkpoint identity',rejected[0]['reason'])
 
+    def test_named_cluster_and_paged_arms_use_all_native_checks(self):
+        path=self.native_llm_receipt()
+        value=json.loads(path.read_text())
+        for label in ('TM-H3-stage','TM-H3-cluster2','TM-paged-h1h4','TM-H4d-cluster4'):
+            value['system']=label
+            path.write_text(json.dumps(value))
+            rows,rejected=summary.collect(self.root)
+            self.assertFalse(rejected)
+            self.assertTrue(rows[0]['checkpoint_identity_shared'])
+        value['system']='TM-unregistered-arm'
+        path.write_text(json.dumps(value))
+        rows,rejected=summary.collect(self.root)
+        self.assertFalse(rows)
+        self.assertTrue(rejected)
+
     def test_consistently_hashed_manifest_cannot_mislabel_actual_dispatch(self):
         binary, identity=self.identity('dispatch','decode')
         identity['plan']['gemms']=[dict(index=0,split_k=1,tile_m=16,tile_n=128,
