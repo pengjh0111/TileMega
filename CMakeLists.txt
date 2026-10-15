@@ -631,6 +631,12 @@ if(TILEMEGA_BUILD_TESTS)
     ${CMAKE_BINARY_DIR}/maca/maca_p7_litmus 200000)
   set_tests_properties(maca_p4_p5_p11_basic maca_p6_p8_p11_sync maca_p7_litmus maca_p9_mma
     maca_p10_bandwidth PROPERTIES SKIP_RETURN_CODE 77 LABELS gpu)
+  tilemega_add_maca_executable(maca_sync_litmus tools/probes/maca/sync_litmus.cu DEFINES TILEMEGA_SYNC_V3=1)
+  foreach(_path event barrier last)
+    add_test(NAME maca_sync_${_path} COMMAND ${CMAKE_SOURCE_DIR}/scripts/run_maca_probe.sh
+      ${CMAKE_BINARY_DIR}/maca/maca_sync_litmus ${_path} 2000)
+    set_tests_properties(maca_sync_${_path} PROPERTIES SKIP_RETURN_CODE 77 LABELS gpu)
+  endforeach()
   # xcore1000 TaskBody numerics against FP32 torch.
   tilemega_add_maca_library(mx_serving_bodies test/unit/mx/serving_bodies.cu)
   add_test(NAME mx_task_bodies COMMAND ${CMAKE_SOURCE_DIR}/scripts/run_maca_probe.sh

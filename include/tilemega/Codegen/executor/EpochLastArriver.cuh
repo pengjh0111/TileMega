@@ -3,7 +3,6 @@
 #include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/RuntimeDependencies.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
-#include <cuda/atomic>
 
 namespace tilemega::codegen::executor {
 // Nonpaged handoffs retain a monotonic ticket across launches. The runtime
@@ -23,8 +22,7 @@ struct EpochLastArriver {
     if(ComputeThread()==0) {
       *shared_last=0;
       if(contribution) {
-        cuda::atomic_ref<unsigned long long,cuda::thread_scope_device> value(*ticket);
-        auto previous=value.fetch_add(contribution,cuda::memory_order_acq_rel);
+        auto previous=maca::TicketAddAcqRel(ticket,static_cast<unsigned long long>(contribution));
         if(previous<target-total || previous>target || contribution>target-previous)
           maca::Trap();
         *shared_last=previous+contribution==target;

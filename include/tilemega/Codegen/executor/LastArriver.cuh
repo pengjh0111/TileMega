@@ -2,7 +2,6 @@
 #pragma once
 #include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
-#include <cuda/atomic>
 namespace tilemega::codegen::executor {
 // Each producer stores its partial before arrival. The callback is the same
 // fixed-order combine/merge used by a separate task, executed by the final CTA.
@@ -15,8 +14,7 @@ struct LastArriver {
     if (ComputeThread() == 0) {
       *shared_last = 0;
       if (contribution) {
-        cuda::atomic_ref<unsigned, cuda::thread_scope_device> counter(*ticket);
-        unsigned previous = counter.fetch_add(contribution, cuda::memory_order_acq_rel);
+        unsigned previous=maca::TicketAddAcqRel(ticket,unsigned(contribution));
         if (total == 0 || contribution > total || previous > total - contribution)
           maca::Trap();
         *shared_last = previous == total - contribution;
@@ -29,8 +27,7 @@ struct LastArriver {
       reduce();
       __threadfence(); ComputeSync();
       if (ComputeThread() == 0) {
-        cuda::atomic_ref<unsigned, cuda::thread_scope_device> counter(*ticket);
-        counter.store(0, cuda::memory_order_release);
+        maca::TicketStoreRelease(ticket,unsigned(0));
       }
       ComputeSync();
     }
@@ -41,8 +38,7 @@ struct LastArriver {
                             Reduction reduce) {
     __threadfence();ComputeSync();
     if(ComputeThread()==0) {
-      cuda::atomic_ref<unsigned,cuda::thread_scope_device> counter(*ticket);
-      unsigned previous=counter.fetch_add(1,cuda::memory_order_acq_rel);
+      unsigned previous=maca::TicketAddAcqRel(ticket,unsigned(1));
       if(previous>=producers || producers==0)maca::Trap();
       *shared_last=previous+1==producers;
     }
@@ -55,8 +51,7 @@ struct LastArriver {
       reduce();
       __threadfence();ComputeSync();
       if(ComputeThread()==0) {
-        cuda::atomic_ref<unsigned,cuda::thread_scope_device> counter(*ticket);
-        counter.store(0,cuda::memory_order_release);
+        maca::TicketStoreRelease(ticket,unsigned(0));
       }
       ComputeSync();
     }

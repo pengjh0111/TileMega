@@ -80,6 +80,24 @@ __device__ __forceinline__ void EventAddRelease(unsigned* event, unsigned value)
   atomicAdd(event, value);
 }
 
+// ---- tickets (grid barriers, last-arriver; §2.6 item 3) ---------------------
+// Fences on both sides of the RMW give it acquire-release order at device
+// scope; the trailing fence also keeps later loads after the observed ticket.
+
+template <class T>
+__device__ __forceinline__ T TicketAddAcqRel(T* ticket, T value) {
+  FenceDevice();
+  T previous = atomicAdd(ticket, value);
+  FenceDevice();
+  return previous;
+}
+
+template <class T>
+__device__ __forceinline__ void TicketStoreRelease(T* ticket, T value) {
+  FenceDevice();
+  atomicExch(ticket, value);
+}
+
 // ---- asynchronous global -> shared copies (P-10) ----------------------------
 // One 16-byte load per call; the copy is complete after WaitAsyncCopies<N>()
 // leaves at most N of this thread's async copies outstanding (in-order
