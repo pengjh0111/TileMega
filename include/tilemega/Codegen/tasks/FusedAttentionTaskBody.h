@@ -32,6 +32,9 @@ struct ServingAttentionOperands {
   float epsilon;
   void const* key_tensor_map = nullptr;
   void const* value_tensor_map = nullptr;
+#if TILEMEGA_QKV_EPILOGUE
+  bool qkv_preprocessed=false;
+#endif
 #if TILEMEGA_TRACE_TASK
   ServingTaskProfile* profile=nullptr;
 #endif
@@ -112,6 +115,11 @@ struct FusedAttentionTaskBody {
     }
     float inverse=1;
     if constexpr(kQkNorm)inverse=rsqrtf(WarpSum(square)/kHeadDim+epsilon);
+#if TILEMEGA_QKV_EPILOGUE
+    // QKV fusion may overwrite this head after loading its RoPE partner.
+    // Complete every lane's source reads before the first in-place store.
+    __syncwarp();
+#endif
     if(d<kHeadDim) {
       #pragma unroll
       for(int i=0;i<8;++i) {

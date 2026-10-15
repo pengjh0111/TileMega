@@ -7,6 +7,7 @@
 #include <tilemega/Backend/ServingGemm.h>
 #include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
+#include <tilemega/Codegen/tasks/ServingQkvEpilogue.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
 
 #include <cute/tensor.hpp>
@@ -541,6 +542,9 @@ struct GemmInvocation {
   int serving_partial_stride = 0;
   float* serving_partial = nullptr;
   std::uint32_t serving_weight_buffer = 0xffffffffu;
+#if TILEMEGA_QKV_EPILOGUE
+  QkvEpilogueDesc qkv_epilogue{};
+#endif
 #if TILEMEGA_FORWARD_GEMM_WGMMA
   std::uint32_t serving_activation_buffer = 0xffffffffu;
   void const* serving_activation_tensor_map = nullptr;
@@ -996,6 +1000,14 @@ struct GemmStageTaskBody {
         ); break;
 #endif
       default: break;
+    }
+#endif
+#if TILEMEGA_QKV_EPILOGUE && TILEMEGA_SERVING_RUNTIME
+    if(invocation.qkv_epilogue.key_cache) {
+      auto [rows,columns,reduction,batch]=invocation.problem;(void)reduction;(void)batch;
+      ServingQkvEpilogue<Arch>::Run(invocation.qkv_epilogue,invocation.epilogue.ptr_D,
+          rows,columns,local/invocation.tiles_n,local%invocation.tiles_n,
+          invocation.tile_m,invocation.tile_n,p.dims.past);
     }
 #endif
   }

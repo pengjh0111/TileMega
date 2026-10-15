@@ -34,10 +34,18 @@ struct Sm90AttentionTaskBody {
     auto layout=Owner::Layout(end-begin,begin);
     auto query_offsets=as_position_independent_swizzle_layout(QueryLayout{});
     for(int q=warp;q<8;q+=4) {
-      if(q<Q)Base::RotateRow(p.qkv+(b*p.heads_kv+g)*(Q+2)*D+q*D,p.q_norm,
-          p.cosine+p.past*D,p.sine+p.past*D,p.epsilon,[&](int d,uint4 value) {
-            *reinterpret_cast<uint4*>(s.query+query_offsets(q,d))=value;
-          });
+      if(q<Q) {
+#if TILEMEGA_QKV_EPILOGUE
+        if(p.qkv_preprocessed) {
+          if(lane*8<D)*reinterpret_cast<uint4*>(s.query+query_offsets(q,lane*8))=
+              backend::LoadGlobal16(p.qkv+(b*p.heads_kv+g)*(Q+2)*D+q*D+lane*8);
+        }else
+#endif
+        Base::RotateRow(p.qkv+(b*p.heads_kv+g)*(Q+2)*D+q*D,p.q_norm,
+            p.cosine+p.past*D,p.sine+p.past*D,p.epsilon,[&](int d,uint4 value) {
+              *reinterpret_cast<uint4*>(s.query+query_offsets(q,d))=value;
+            });
+      }
       else if(lane*8<D)*reinterpret_cast<uint4*>(s.query+query_offsets(q,lane*8))=make_uint4(0,0,0,0);
     }
     if(thread<8){s.maximum[thread]=-INFINITY;s.sum[thread]=0;}
@@ -52,7 +60,11 @@ struct Sm90AttentionTaskBody {
       auto cursor=sequence+wave;pages.AwaitFull(cursor);
       auto* page=reinterpret_cast<Element*>(pages.Page(cursor));
       int start=begin+wave*64;
-      if(warp==0 && p.past>=start && p.past<min(start+64,end))
+      if(warp==0 && p.past>=start && p.past<min(start+64,end)
+#if TILEMEGA_QKV_EPILOGUE
+          && !p.qkv_preprocessed
+#endif
+          )
         Owner::NewRow(p,page,p.past-start,b,g);
       executor::ComputeSync();Copy::FenceProxyAsyncShared();executor::ComputeSync();
       auto key=make_tensor(make_smem_ptr(page),backend::Sm90KLayout<64,D>{});

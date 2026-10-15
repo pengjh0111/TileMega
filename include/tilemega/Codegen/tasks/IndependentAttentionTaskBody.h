@@ -81,7 +81,14 @@ struct IndependentAttentionTaskBody {
       auto* barrier=&shared.full[wave%Buffers];
       int begin=Body::Begin(p,block),end=Body::End(p,block);
       int start=begin+wave*Body::kPageRows;
-      if(layout.Full(wave,end,p.past) && p.key_tensor_map && p.value_tensor_map) {
+      int cache_limit=p.past;
+#if TILEMEGA_QKV_EPILOGUE
+      cache_limit+=int(p.qkv_preprocessed);
+      // RunLogicalTask's projection release precedes this task's acquire.
+      // Its cache side writes cross into the TMA proxy before any row loads.
+      if(p.qkv_preprocessed)Copy::ProxyAsyncGlobalFence();
+#endif
+      if(layout.Full(wave,end,cache_limit) && p.key_tensor_map && p.value_tensor_map) {
         Copy::ProxyAsyncGlobalFence();
         if(Copy::ElectOne()) {
           Copy::ExpectTx(barrier,PageBytes);
@@ -94,7 +101,7 @@ struct IndependentAttentionTaskBody {
       }else {
         for(int i=lane*8;i<Body::kPageRows*D;i+=32*8) {
           int row=i/D,d=i%D,position=start+row;
-          bool valid=layout.Valid(0,wave,row,end,p.past);
+          bool valid=layout.Valid(0,wave,row,end,cache_limit);
           std::size_t offset=((std::size_t(batch)*p.heads_kv+group)*p.capacity+position)*D+d;
           auto page_offset=Body::PageCoordinates::Offset(row,d);
           Copy::Copy16(page+page_offset,valid?p.key_cache+offset:p.key_cache,valid);
