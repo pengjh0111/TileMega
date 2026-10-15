@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Populate the serving resource cache before a coordinate-descent run.
 
-Only the SM80-class legal shape set and the target's dynamic shared-memory
-limit determine which wrappers can compile.  The C++ solver still checks
+The xcore1000 serving GEMM shape set (M in 16/32/64, N in 32..256 with an
+even number of 16-wide atoms, K in 64/128) and the target's dynamic
+shared-memory limit determine which wrappers can compile; the MMA body keeps
+an FP32 tile, so its footprint is 4*M*N + 4*M bytes for every stage count.  The C++ solver still checks
 each class's semantic legality and queries the cached exact resources.
 """
 
@@ -19,11 +21,11 @@ ROOT = Path(__file__).resolve().parents[4]
 
 
 def shapes(max_m: int, max_smem: int, stages_filter: int | None = None, dm: bool = False):
-    for m in (16, 32, 64, 128):
+    for m in (16, 32, 64):
         if m > max_m:
             continue
         for n in ((16, 32, 64, 128, 256) if dm else (32, 64, 128, 256)):
-            if m * n > 16384:
+            if m * n > 16384 or (not dm and 4 * m * n + 4 * m > max_smem):
                 continue
             for k in ((16, 32, 64, 128) if dm else (64, 128)):
                 per_stage = 2 * k * (m + n)
@@ -52,7 +54,7 @@ def main():
                         help="probe only this executed pipeline depth")
     args = parser.parse_args()
     target = json.loads(args.target.read_text())
-    arch = f"sm_{target['sm_major']}{target['sm_minor']}"
+    arch = target["arch_tag"]
     limit = target["resources"]["max_dynamic_smem_per_cta"]
     configurations = list(shapes(args.max_m, limit, args.stages, args.dm))
     if not configurations:

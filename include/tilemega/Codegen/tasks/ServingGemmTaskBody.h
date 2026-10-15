@@ -93,6 +93,30 @@ __device__ inline backend::DmEpilogueArguments DmEpilogueOperands(
 
 /// xcore1000 serving GEMM TaskBody: the MMA mainloop of Backend/Mx fills the
 /// FP32 tile and the shared epilogue rounds and stores it.
+/// Epilogue dispatch shared by the MMA and GEMV bodies. Not inlined: inlined
+/// into the body, the five RunFromTile instantiations raised the GEMV kernel
+/// to 256 registers with a 924-byte spill and the MMA kernel to 222 with 184
+/// bytes, while the mainloops alone need 192 and 80 with no stack (measured,
+/// cucc -resource-usage). A call per tile is cheap next to its mainloop.
+template <int TileM, int TileN, int SwigluU = TILEMEGA_SWIGLU_U>
+__device__ __noinline__ void ServingEpilogueDispatch(float* tile, ServingGemmOperands const& p,
+                                                     int tile_m, int tile_n) {
+  auto finish = [&](auto op) {
+    backend::ServingEpilogue<decltype(op)::value, TileM, TileN, SwigluU>::template RunFromTile<false>(
+        tile, tile_m, tile_n, p.m, p.n, p.output_stride, p.partial_stride,
+        p.output, p.residual, p.partial, p.argmax_value, p.argmax_index,
+        p.norm_ss, p.ss_out, p.norm_k, p.norm_eps);
+  };
+  using Op = backend::ServingEpilogueOp;
+  switch (p.epilogue) {
+    case Op::kStore: finish(std::integral_constant<Op, Op::kStore>{}); break;
+    case Op::kResidual: finish(std::integral_constant<Op, Op::kResidual>{}); break;
+    case Op::kSwiGLU: finish(std::integral_constant<Op, Op::kSwiGLU>{}); break;
+    case Op::kArgmaxPartial: finish(std::integral_constant<Op, Op::kArgmaxPartial>{}); break;
+    case Op::kPartial: finish(std::integral_constant<Op, Op::kPartial>{}); break;
+  }
+}
+
 template <class Arch, int TileM, int TileN, int TileK, int Stages>
 struct ServingGemmTaskBody {
   using Config = backend::ServingGemmConfig<Arch, TileM, TileN, TileK, Stages>;
@@ -131,20 +155,7 @@ struct ServingGemmTaskBody {
 #if TILEMEGA_TRACE_TASK
     auto epilogue_begin=TaskProfileNow(p.profile);
 #endif
-    auto finish = [&](auto op) {
-      backend::ServingEpilogue<decltype(op)::value, TileM, TileN>::template RunFromTile<false>(
-          tile, tile_m, tile_n, p.m, p.n, p.output_stride, p.partial_stride,
-          p.output, p.residual, p.partial, p.argmax_value, p.argmax_index,
-          p.norm_ss, p.ss_out, p.norm_k, p.norm_eps);
-    };
-    using Op = backend::ServingEpilogueOp;
-    switch (p.epilogue) {
-      case Op::kStore: finish(std::integral_constant<Op, Op::kStore>{}); break;
-      case Op::kResidual: finish(std::integral_constant<Op, Op::kResidual>{}); break;
-      case Op::kSwiGLU: finish(std::integral_constant<Op, Op::kSwiGLU>{}); break;
-      case Op::kArgmaxPartial: finish(std::integral_constant<Op, Op::kArgmaxPartial>{}); break;
-      case Op::kPartial: finish(std::integral_constant<Op, Op::kPartial>{}); break;
-    }
+    ServingEpilogueDispatch<TileM, TileN>(tile, p, tile_m, tile_n);
 #if TILEMEGA_TRACE_TASK
     if(p.profile)p.profile->epilogue_ns=TaskProfileNow(p.profile)-epilogue_begin;
 #endif

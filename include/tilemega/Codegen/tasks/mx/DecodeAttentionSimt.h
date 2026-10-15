@@ -14,6 +14,7 @@
 #pragma once
 
 #include <tilemega/Codegen/tasks/mx/AttentionCommon.h>
+#include <tilemega/Codegen/tasks/TaskResources.h>
 
 namespace tilemega::codegen::mx {
 
@@ -31,6 +32,8 @@ struct DecodeAttentionSimt {
     alignas(16) float partial[kWarps * Q * D];
     float lse[kWarps][Q];
   };
+
+  static_assert(sizeof(SharedStorage) == ServingDecodeAttentionSimtSharedBytes(D, Q));
 
   __device__ static int Begin(ServingAttentionOperands const& p, int c) { return c * p.block_extent; }
   __device__ static int End(ServingAttentionOperands const& p, int c) {

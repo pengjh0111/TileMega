@@ -21,19 +21,7 @@ struct ServingGemvTaskBody {
 #if TILEMEGA_TRACE_TASK
     auto epilogue_begin=TaskProfileNow(p.profile);
 #endif
-    auto finish=[&](auto op) {
-      backend::ServingEpilogue<decltype(op)::value,16,TileN,(TILEMEGA_SWIGLU_U<TileN/2?TILEMEGA_SWIGLU_U:TileN/2)>::template RunFromTile<false>(
-          tile,tile_m,tile_n,p.m,p.n,p.output_stride,p.partial_stride,p.output,p.residual,
-          p.partial,p.argmax_value,p.argmax_index,p.norm_ss,p.ss_out,p.norm_k,p.norm_eps);
-    };
-    using Op=backend::ServingEpilogueOp;
-    switch(p.epilogue) {
-      case Op::kStore:finish(std::integral_constant<Op,Op::kStore>{});break;
-      case Op::kResidual:finish(std::integral_constant<Op,Op::kResidual>{});break;
-      case Op::kPartial:finish(std::integral_constant<Op,Op::kPartial>{});break;
-      case Op::kArgmaxPartial:finish(std::integral_constant<Op,Op::kArgmaxPartial>{});break;
-      case Op::kSwiGLU:finish(std::integral_constant<Op,Op::kSwiGLU>{});break;
-    }
+    ServingEpilogueDispatch<16,TileN,(TILEMEGA_SWIGLU_U<TileN/2?TILEMEGA_SWIGLU_U:TileN/2)>(tile,p,tile_m,tile_n);
 #if TILEMEGA_TRACE_TASK
     if(p.profile && ComputeThread()==0)p.profile->epilogue_ns=TaskProfileNow(p.profile)-epilogue_begin;
 #endif

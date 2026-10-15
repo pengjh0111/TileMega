@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Compile a TaskBody wrapper once; report ptxas registers and actual sizeof storage.
+"""Compile a TaskBody wrapper once; report registers and actual sizeof storage.
+
+xcore1000: the wrapper is built with cucc (cu-bridge); registers come from
+`-Xcompiler -resource-usage` ("Used N MTregisters", per-thread vector
+registers, MX1_probe P-1).
 
 The backend ABI receives dimensions and split at runtime. Identical generated
 wrapper text therefore shares a physical compile across semantic classes and
@@ -46,13 +50,15 @@ def main():
     if not a.arch:
         if not a.target:ap.error('--arch or --target is required')
         target=json.loads(a.target.read_text())
-        a.arch=f"sm_{target['sm_major']}{target['sm_minor']}"
-    arch_id=int(a.arch.removeprefix('sm_'))*10
+        a.arch=target['arch_tag']
+    if a.arch!='xcore1000':raise ValueError(f'unsupported arch {a.arch}: this build targets xcore1000')
+    arch_id=7000
     pre=f'#define TILEMEGA_MODEL_BF16 {int(a.dtype=="bf16")}\n#define TILEMEGA_MIDPOINT_REFINE 0\n#define TILEMEGA_GEMM_TILE_M {m}\n#define TILEMEGA_GEMM_TILE_N {n}\n#define TILEMEGA_GEMM_TILE_K {k}\n#define TILEMEGA_GEMM_STAGES {s}\n'
     if a.dm:pre+='#define TILEMEGA_DM_SUPPORT 1\n'
     if a.dm_gemv:pre+='#define TILEMEGA_MOE_GEMV 1\n'
     if a.serving:
-        text=pre+'#include <tilemega/Target/ArchDispatch.h>\n#include <cstdio>\n'
+        # Decode attention on xcore1000 is the simt body.
+        text=pre+'#define TILEMEGA_ATTENTION_IMPL 3\n#include <tilemega/Target/ArchDispatch.h>\n#include <cstdio>\n'
         if a.nongemm_source:
             text+=f'using ProbeArch=tilemega::arch::ArchFromId<{arch_id}>::type;\n'
             text+=a.nongemm_source.read_text()
@@ -86,8 +92,8 @@ def main():
         text+=f'extern "C" __global__ __launch_bounds__({threads}) void probe_gemm(GemmInvocation const* g,int task) {{ extern __shared__ char bytes[]; GemmStageTaskBody<tilemega::arch::CurrentArch,GemmVariantSmem,{threads}>::RunTask<0>(*g,task,bytes,nullptr); }}\n'
         size='sizeof(GemmVariantSmem)'
     if not a.nongemm_source:text+=f'int main() {{ std::printf("%zu {threads}\\n",{size}); }}\n'
-    compiler=os.environ.get('CUDACXX') or shutil.which('nvcc')
-    if not compiler:raise RuntimeError('nvcc not found; set CUDACXX to the configured toolkit')
+    compiler=os.environ.get('CUDACXX') or shutil.which('cucc') or '/opt/maca/tools/cu-bridge/bin/cucc'
+    if not pathlib.Path(compiler).exists():raise RuntimeError('cucc not found; set CUDACXX to the cu-bridge compiler')
     version=subprocess.check_output([compiler,'--version'],text=True)
     # Serving probes depend on a small, exact local include closure.  Hashing
     # every TaskBody made an unrelated RoPE or attention edit invalidate all
@@ -95,10 +101,6 @@ def main():
     digest=hashlib.sha256((text+a.arch+version).encode())
     if a.serving:
         files=serving_headers(text)
-        cutlass_revision=subprocess.check_output(
-            ['git','-C',str(ROOT/'third_party/cutlass'),'rev-parse','HEAD'],
-            text=True).strip()
-        digest.update(cutlass_revision.encode())
     else:
         files=[p for root in (ROOT/'include/tilemega/Codegen/tasks',
                               ROOT/'include/tilemega/Backend',
@@ -115,14 +117,15 @@ def main():
         free=shutil.disk_usage(directory).free//2**20;print(f'DISK NEED_MIB=1024 FREE_MIB={free}',flush=True)
         if free<1024:raise RuntimeError('insufficient disk for variant compilation')
         source=directory/'probe.cu';source.write_text(text)
-        command=[compiler,'-std=c++17','-O2','-Xptxas=-v','-arch='+a.arch,'-DTILEMEGA_MIDPOINT_REFINE=0']
-        for sub in ['include','third_party/cutlass/include','third_party/cutlass/tools/util/include','third_party/cutlass/test']:command+=['-I'+str(ROOT/sub)]
+        # Same device flags as the plan build (tools/commands/compile.cpp).
+        command=[compiler,'-std=c++17','-O3','-Xcompiler','-resource-usage','-fno-strict-aliasing',
+                 '-DTILEMEGA_MIDPOINT_REFINE=0','-DTILEMEGA_SERVING_RUNTIME=1','-I'+str(ROOT/'include')]
         command += [str(source),'-o',str(directory/'probe')]
         (directory/'command.json').write_text(json.dumps(command,indent=2)+'\n')
         p=subprocess.run(command,capture_output=True,text=True);(directory/'build.log').write_text(p.stdout+p.stderr)
         if p.returncode:raise RuntimeError('variant compile failed: '+str(directory/'build.log'))
-        registers=[int(x) for x in re.findall(r'Used (\d+) registers',p.stderr)]
-        if not registers:raise RuntimeError('missing ptxas registers')
+        registers=[int(x) for x in re.findall(r'Used\s+(\d+)\s+MTregisters',p.stdout+p.stderr)]
+        if not registers:raise RuntimeError('missing MTregisters in the resource report')
         shared,actual_threads=map(int,subprocess.check_output([str(directory/'probe')],text=True).split())
         result.write_text(json.dumps(dict(registers=max(registers),shared_bytes=shared,threads=actual_threads,source_sha256=digest.hexdigest(),artifact=str(directory)),indent=2)+'\n')
     data=json.loads(result.read_text());data['compiled']=compiled;a.output.parent.mkdir(parents=True,exist_ok=True);a.output.write_text(json.dumps(data,indent=2)+'\n')

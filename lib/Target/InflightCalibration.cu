@@ -42,6 +42,12 @@ __global__ void __launch_bounds__(128) InflightRead(uint4 const* source,std::siz
   if(checksum==0x9e3779b9u)atomicAdd(sink,checksum);
 }
 
+__global__ void FillHashed(unsigned* data,std::size_t words) {
+  for(std::size_t i=blockIdx.x*std::size_t(blockDim.x)+threadIdx.x;i<words;i+=std::size_t(gridDim.x)*blockDim.x) {
+    unsigned h=unsigned(i)*2654435761u+0x9e3779b9u;h^=h>>13;h*=0x5bd1e995u;h^=h>>15;data[i]=h;
+  }
+}
+
 struct Point {double x=0,y=0;};
 std::pair<std::vector<double>,std::vector<double>> Isotonic(
     std::vector<Point> points,double ceiling) {
@@ -101,7 +107,10 @@ void MeasureInflight(TargetSpec& target,Options const& options,std::ostream& log
   uint4* data=nullptr;unsigned* sink=nullptr;
   Check(cudaMalloc(&data,buffer),"allocate streaming source");
   Check(cudaMalloc(&sink,sizeof(unsigned)),"allocate checksum");
-  Check(cudaMemset(data,1,buffer),"initialize streaming source");
+  // Hashed contents: a constant fill is served compressed and read up to 7x
+  // faster than DRAM (measured on xcore1000, coverage-checked).
+  FillHashed<<<1024,256>>>(reinterpret_cast<unsigned*>(data),buffer/4);
+  Check(cudaDeviceSynchronize(),"initialize streaming source");
   Check(cudaMemset(sink,0,sizeof(unsigned)),"initialize checksum");
   std::vector<Point> device,cta;
   int const maximum=target.res.num_sms*std::max(1,target.res.max_threads_per_sm/128);

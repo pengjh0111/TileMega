@@ -301,7 +301,12 @@ struct SearchContext {
       if(!options.pg_pages && (options.attention_buffers==1 || std::any_of(config.begin(),config.end(),[](auto const& g){return g.impl!=0;})))
         for(auto const& stage:imported.plan.stages)
           if(stage.kind==frontend::PlanTaskKind::kFusedAttention) {
-            int bytes=32768*options.attention_buffers+32*int(stage.width)+16*int(stage.group)*int(stage.width)+16*int(stage.group);
+            // xcore1000: decode runs the SIMT body, prefill the MMA body;
+            // both bodies static_assert these footprints.
+            int bytes=imported.plan.serving_seq==1
+                ?codegen::ServingDecodeAttentionSimtSharedBytes(int(stage.width),int(stage.group))
+                :codegen::ServingAttentionSharedBytes(int(stage.width),
+                    codegen::ServingAttentionKvTile(int(stage.width),target.res.max_dynamic_smem_per_cta));
             gemm_shared=std::max(gemm_shared,((bytes+1023)/1024)*1024);
           }
       if(imported.plan.dm)for(std::size_t c=0;c<classes.size();++c)

@@ -51,6 +51,12 @@ constexpr int SimtSharedElements(TaskKind kind, int threads, int attention_exten
 constexpr int ServingAttentionSharedBytes(int head_dim, int kv_tile = 64) {
   return 2 * head_dim * (16 + 2 * kv_tile) + 2 * 16 * kv_tile + 4 * 16 * 8;
 }
+/// xcore1000 decode attention (Codegen/tasks/mx/DecodeAttentionSimt.h): the
+/// rotated queries, the new K/V row, four per-warp FP32 partials and their
+/// log-sum-exps.
+constexpr int ServingDecodeAttentionSimtSharedBytes(int head_dim, int q_per_kv) {
+  return 2 * q_per_kv * head_dim + 4 * head_dim + 16 * q_per_kv * head_dim + 16 * q_per_kv;
+}
 constexpr int ServingAttentionKvTile(int head_dim, int gemm_shared_bytes) {
   return ServingAttentionSharedBytes(head_dim, 64) <= gemm_shared_bytes ? 64 : 32;
 }

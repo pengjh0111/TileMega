@@ -82,51 +82,61 @@ struct ServingGemmMma {
     int const a_pitch = p.a_row_stride ? p.a_row_stride : p.k_total;
     int const b_pitch = p.b_row_stride ? p.b_row_stride : p.k_total;
 
+    // Rows past p.m and columns past p.n read the last valid row/column so
+    // every load is unconditional: a load under a lane-divergent branch
+    // serialized the mainloop (M = 1 leaves 15 of 16 A lanes invalid; the
+    // predicated form streamed ~8 GB/s per CTA, measured). Their results are
+    // zeroed when the tile is written.
     Element const* a_row[kAtomsM];
-    bool a_valid[kAtomsM];
 #pragma unroll
-    for (int am = 0; am < kAtomsM; ++am) {
-      int const m = tile_m * TileM + am * 16 + r;
-      a_valid[am] = m < p.m;
-      a_row[am] = p.a + (a_valid[am] ? std::int64_t(m) * a_pitch + p.k_begin : 0);
-    }
+    for (int am = 0; am < kAtomsM; ++am)
+      a_row[am] = p.a + std::int64_t(min(tile_m * TileM + am * 16 + r, p.m - 1)) * a_pitch + p.k_begin;
     Element const* b_row[kAtomsNPerWave];
-    bool b_valid[kAtomsNPerWave];
 #pragma unroll
-    for (int j = 0; j < kAtomsNPerWave; ++j) {
-      int const n = tile_n * TileN + (wave * kAtomsNPerWave + j) * 16 + r;
-      b_valid[j] = n < p.n;
-      b_row[j] = p.b + (b_valid[j] ? std::int64_t(n) * b_pitch + p.k_begin : 0);
-    }
+    for (int j = 0; j < kAtomsNPerWave; ++j)
+      b_row[j] = p.b + std::int64_t(min(tile_n * TileN + (wave * kAtomsNPerWave + j) * 16 + r, p.n - 1)) * b_pitch +
+                 p.k_begin;
 
     mx::MmaAccum acc[kAtomsM][kAtomsNPerWave];
 #pragma unroll
     for (int am = 0; am < kAtomsM; ++am)
 #pragma unroll
       for (int j = 0; j < kAtomsNPerWave; ++j) acc[am][j] = mx::MmaAccum{0.f, 0.f, 0.f, 0.f};
+    auto mma = [&](uint4 const (&a)[kAtomsM], uint4 const (&b)[kAtomsNPerWave]) {
+#pragma unroll
+      for (int am = 0; am < kAtomsM; ++am)
+#pragma unroll
+        for (int j = 0; j < kAtomsNPerWave; ++j) {
+          acc[am][j] = mx::Mma(mx::Lo(a[am]), mx::Lo(b[j]), acc[am][j]);
+          acc[am][j] = mx::Mma(mx::Hi(a[am]), mx::Hi(b[j]), acc[am][j]);
+        }
+    };
 
-    int const count = p.k_count;
-    for (int k0 = 0; k0 < count; k0 += kChunkK * kUnroll) {
+    int const count = p.k_count, full = count / (kChunkK * kUnroll) * (kChunkK * kUnroll);
+#pragma unroll 1
+    for (int k0 = 0; k0 < full; k0 += kChunkK * kUnroll) {
       uint4 a[kUnroll][kAtomsM], b[kUnroll][kAtomsNPerWave];
 #pragma unroll
       for (int u = 0; u < kUnroll; ++u) {
         int const k = k0 + u * kChunkK + 8 * g;
 #pragma unroll
-        for (int j = 0; j < kAtomsNPerWave; ++j)
-          b[u][j] = b_valid[j] && k < count ? mx::LoadK8(b_row[j], k, count) : uint4{0, 0, 0, 0};
+        for (int j = 0; j < kAtomsNPerWave; ++j) b[u][j] = LoadGlobal16(b_row[j] + k);
 #pragma unroll
-        for (int am = 0; am < kAtomsM; ++am)
-          a[u][am] = a_valid[am] && k < count ? mx::LoadK8(a_row[am], k, count) : uint4{0, 0, 0, 0};
+        for (int am = 0; am < kAtomsM; ++am) a[u][am] = LoadGlobal16(a_row[am] + k);
       }
 #pragma unroll
-      for (int u = 0; u < kUnroll; ++u)
+      for (int u = 0; u < kUnroll; ++u) mma(a[u], b[u]);
+    }
+    // K tail: predicated, fewer than kUnroll chunks.
+#pragma unroll 1
+    for (int k0 = full; k0 < count; k0 += kChunkK) {
+      int const k = k0 + 8 * g;
+      uint4 a[kAtomsM], b[kAtomsNPerWave];
 #pragma unroll
-        for (int am = 0; am < kAtomsM; ++am)
+      for (int j = 0; j < kAtomsNPerWave; ++j) b[j] = mx::LoadK8(b_row[j], k, count);
 #pragma unroll
-          for (int j = 0; j < kAtomsNPerWave; ++j) {
-            acc[am][j] = mx::Mma(mx::Lo(a[u][am]), mx::Lo(b[u][j]), acc[am][j]);
-            acc[am][j] = mx::Mma(mx::Hi(a[u][am]), mx::Hi(b[u][j]), acc[am][j]);
-          }
+      for (int am = 0; am < kAtomsM; ++am) a[am] = mx::LoadK8(a_row[am], k, count);
+      mma(a, b);
     }
 
     auto* tile = reinterpret_cast<float*>(shared);
@@ -135,8 +145,12 @@ struct ServingGemmMma {
 #pragma unroll
       for (int j = 0; j < kAtomsNPerWave; ++j) {
         int const col = (wave * kAtomsNPerWave + j) * 16 + r;
+        bool const col_valid = tile_n * TileN + col < p.n;
 #pragma unroll
-        for (int i = 0; i < 4; ++i) tile[(am * 16 + 4 * g + i) * TileN + col] = acc[am][j][i];
+        for (int i = 0; i < 4; ++i) {
+          int const row = am * 16 + 4 * g + i;
+          tile[row * TileN + col] = col_valid && tile_m * TileM + row < p.m ? acc[am][j][i] : 0.f;
+        }
       }
     ComputeSync();
     return tile;
