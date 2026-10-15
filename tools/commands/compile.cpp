@@ -1004,6 +1004,8 @@ int RunCompile(int argc, char** argv) {
         if(g.impl!=2 || access.a!=tilemega::codegen::DmAAccess::kDense ||
             access.b!=tilemega::codegen::DmBAccess::kDense ||
             access.a_scale!=tilemega::codegen::kDmNoIndex)continue;
+        // The current handoff proof covers BF16 outputs, not argmax partials.
+        if(plan.gemms[i].epilogue==tilemega::frontend::PlanGemm::Epilogue::kArgmaxPartial)continue;
         if(qkv_epilogue && tilemega::solver::ServingGemmFamily(plan.gemms[i])==0)continue;
         if(g.tile_m>16 || (plan.gemms[i].k+g.tile_k-1)/g.tile_k<cluster_dim)
           throw std::invalid_argument("cluster combine seed has insufficient K tiles for all cluster ranks");
