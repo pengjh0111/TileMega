@@ -165,7 +165,7 @@ class NativeMeasurementTest(unittest.TestCase):
         identities['prefill']['source']['frontend_ir_provenance']={'label':'TM-R15-IR'}
         with patch.object(validation,'native_identity',side_effect=lambda binary, expected:expected), \
                 patch.object(validation,'pristine_r15'):
-            for label in ('TM-R15','TM-RF1-on'):
+            for label in ('TM-R15','TM-RF1-on','TileMega','TM-H1','TM-seed'):
                 value['system']=label
                 with self.subTest(label=label), self.assertRaisesRegex(ValueError,'explicit TM-R15-IR label'):
                     validation.native_llm(value,self.root)
