@@ -603,6 +603,19 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME serving_task_index COMMAND tilemega-unit serving_task_index)
   add_test(NAME serving_token_sets COMMAND tilemega-unit serving_token_sets)
 
+  # MX-P device-convention probes (xcore1000). They run only under the GPU
+  # guard; elsewhere the wrapper reports SKIP.
+  foreach(_probe p4_p5_p11_basic p6_p8_p11_sync p7_litmus p9_mma p10_bandwidth)
+    tilemega_add_maca_executable(maca_${_probe} tools/probes/maca/${_probe}.cu)
+  endforeach()
+  foreach(_probe p4_p5_p11_basic p6_p8_p11_sync p9_mma p10_bandwidth)
+    add_test(NAME maca_${_probe} COMMAND ${CMAKE_SOURCE_DIR}/scripts/run_maca_probe.sh
+      ${CMAKE_BINARY_DIR}/maca/maca_${_probe})
+  endforeach()
+  add_test(NAME maca_p7_litmus COMMAND ${CMAKE_SOURCE_DIR}/scripts/run_maca_probe.sh
+    ${CMAKE_BINARY_DIR}/maca/maca_p7_litmus 200000)
+  set_tests_properties(maca_p4_p5_p11_basic maca_p6_p8_p11_sync maca_p7_litmus maca_p9_mma
+    maca_p10_bandwidth PROPERTIES SKIP_RETURN_CODE 77 LABELS gpu)
   add_test(NAME forward_frontend COMMAND tilemega-unit forward_frontend)
   add_test(NAME frontend_import COMMAND tilemega-unit frontend_import)
   add_test(NAME dm_descriptor COMMAND tilemega-unit dm_descriptor)
