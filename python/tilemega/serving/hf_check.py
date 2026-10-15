@@ -12,8 +12,23 @@ def _quantile(values, q):
     return float(torch.quantile(values, q).item())
 
 
+def _cat_empty_compat():
+    """MACA torch 2.10 rejects torch.cat of an empty 1-D tensor with a 4-D one
+    (verified), which transformers' DynamicLayer relies on. Starting the cache
+    from zero-length slices is equivalent everywhere, so apply it always."""
+    from transformers import cache_utils
+
+    def lazy_initialization(self, key_states, value_states):
+        self.dtype, self.device = key_states.dtype, key_states.device
+        self.keys = key_states[..., :0, :]
+        self.values = value_states[..., :0, :]
+        self.is_initialized = True
+    cache_utils.DynamicLayer.lazy_initialization = lazy_initialization
+
+
 def _free_greedy(model, prompt, steps):
     import torch
+    _cat_empty_compat()
     generated = []
     with torch.inference_mode():
         result = model(prompt, use_cache=True)
