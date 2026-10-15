@@ -57,6 +57,7 @@ def main(argv=None):
     parser.add_argument('--stay-open', action='store_true')
     parser.add_argument('--resume-timing', action='store_true')
     args = parser.parse_args(argv)
+    args.policy = args.policy.resolve()
     args.out.mkdir(parents=True, exist_ok=True)
     args.queue_dir.mkdir(parents=True, exist_ok=True)
     singleton = (args.out / 'scheduler.pid').open('a+')
@@ -86,6 +87,8 @@ def main(argv=None):
                 row.get('wait_s', 0), row.get('run_s', 0), last.replace('\t', ' ')[:500]])) + '\n')
         if row['status'] in TERMINAL:
             write_json(args.out / (name + '.' + row['status']), row)
+            print(json.dumps({'step': name, 'status': row['status'],
+                'exit_code': row.get('exit_code'), 'run_s': row.get('run_s')}), flush=True)
         persist()
 
     # Replaying an interrupted measurement without collecting its descendant
@@ -154,6 +157,7 @@ def main(argv=None):
         if rec['attempts'] > 1:
             cmd += chosen.get('retry_args', [])
         env = dict(os.environ, **chosen.get('env', {}))
+        env['TILEMEGA_TIMING']='1' if chosen.get('timing',chosen.get('gpu',False)) else '0'
         env['TILEMEGA_GPU_LOCK'] = os.environ['TILEMEGA_GPU_LOCK']
         # A stale inherited marker must never let a CPU step bypass the lock.
         env.pop('TILEMEGA_GPU_LOCK_HELD', None)

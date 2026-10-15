@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from tilemega.bench import anchor
 from tilemega.bench.arms import register, check_binaries
-from tilemega.bench.gpu_guard import external, idle, stop
+from tilemega.bench.gpu_guard import external, idle, idle_power, stop, throttle_invalid
 from tilemega.bench.make_queue import prepare
 from tilemega.bench.report import metrics, discernible
 from tilemega.bench.scheduler import ready_steps, timing_pause
@@ -31,8 +31,21 @@ class GuardTests(unittest.TestCase):
         with patch('tilemega.bench.gpu_guard.external', return_value={123}):
             self.assertFalse(idle(row, policy, 12288))
 
-    def test_own_and_dead(self):
-        self.assertEqual(external(dict(owners={os.getpid(): 100, 999999999: 100}), {os.getpid()}), set())
+    def test_own_and_invisible_owner(self):
+        self.assertEqual(external(dict(owners={os.getpid(): 100, 999999999: 100}), {os.getpid()}), {999999999})
+        self.assertEqual(external(dict(owners={os.getpid():100,999999999:100}),{os.getpid()},
+                                  allow_unresolved=True),set())
+
+    def test_h800_per_card_power_and_throttle(self):
+        policy=dict(idle_power_w=21.81,idle_power_w_by_gpu={'7':82.93},power_margin_w=30,
+                    max_util_pct=5,max_hidden_mib=1024)
+        row=dict(gpu_index=7,owners={},utilization_pct=0,power_w=90,hidden_mib=4,free_mib=80000,
+                 throttle_mask=1)
+        self.assertTrue(idle(row,policy))
+        self.assertFalse(idle(dict(row,gpu_index=0),policy))
+        for mask in (0x8,0x20,0x40,0x80):
+            self.assertTrue(throttle_invalid(dict(row,throttle_mask=mask)))
+            self.assertFalse(idle(dict(row,throttle_mask=mask),policy))
 
     def test_cleanup_after_parent_exit(self):
         worker = 'import os,signal;signal.signal(signal.SIGTERM,signal.SIG_IGN);print(os.getpid(),flush=True);signal.pause()'
