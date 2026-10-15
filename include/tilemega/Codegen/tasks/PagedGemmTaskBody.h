@@ -53,7 +53,9 @@ struct PagedGemmTaskBody {
 #else
   static constexpr int kActivationSlots=4;
 #endif
-  static constexpr int kActivationBytes=kActivationSlots*TileM*TileK*sizeof(Element);
+  static constexpr bool kBulkGather=UseWgmma && TILEMEGA_MOE_ACTIVATION_BULK;
+  static constexpr int kBulkGatherExtra=kBulkGather?solver::ServingWgmmaBulkGatherExtraBytes(TileM,TileK):0;
+  static constexpr int kActivationBytes=kActivationSlots*TileM*TileK*sizeof(Element)+kBulkGatherExtra;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   static constexpr int kEpilogueBytes=backend::ServingEpilogueScratchBytes(TileM,TileN,TILEMEGA_EP_PARALLEL_ARGMAX);
   static constexpr int kDmScratchBytes=(4*kKSplits*TileM*TileN>4*TileM*TileN+8*TileM)
@@ -316,7 +318,7 @@ struct PagedGemmTaskBody {
   }
 #endif
   template<class Gate>
-  __device__ static float* ComputeWgmma(ServingGemmOperands const& p,int tile_m,
+  __device__ static __forceinline__ float* ComputeWgmma(ServingGemmOperands const& p,int tile_m,
       Ring const& ring,std::uint64_t& sequence,char* workspace,Gate gate) {
     using namespace cute;
     static_assert(!ForceSm80 && arch::Caps<Arch>::kWgmma,
@@ -328,7 +330,8 @@ struct PagedGemmTaskBody {
     typename Body::Mma mma;
     auto accum=partition_fragment_C(mma,Shape<Int<TileN>,Int<TileM>>{});
     clear(accum);Gmma::Fence(accum);
-    auto* activation=reinterpret_cast<Element*>(workspace);
+    if constexpr(kBulkGather)ComputeSync();
+    auto* activation=reinterpret_cast<Element*>(workspace+(kBulkGather?1024:0));
     int iterations=(p.k_count+TileK-1)/TileK;
     int pitch=p.a_row_stride?p.a_row_stride:p.k_total;
     if(!p.a || !p.b || p.k_begin<0 || p.k_begin%8 || p.k_begin+p.k_count>p.k_total ||
@@ -344,7 +347,13 @@ struct PagedGemmTaskBody {
         int it=first+stage;
         if(gate.enabled && !gate.Ready())gate.Wait(p.k_begin/TileK+it);
         auto* slot=activation+(it%kActivationSlots)*TileM*TileK;
-        LoadActivation(p,tile_m,it,slot);
+        bool gathered=false;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+        if constexpr(kBulkGather)gathered=backend::Sm90BulkGather<Arch,TileM,TileK>::Load(
+            p,tile_m,it,slot,activation+kActivationSlots*TileM*TileK,
+            reinterpret_cast<std::uint64_t*>(workspace));
+#endif
+        if(!gathered)LoadActivation(p,tile_m,it,slot);
         cute::cp_async_wait<0>();ComputeSync();
         // Generic zero fill and cp.async writes become WGMMA async operands.
         asm volatile("fence.proxy.async.shared::cta;" ::: "memory");
@@ -574,10 +583,11 @@ struct PagedGemmTaskBody {
   static constexpr int kDmWorkspaceBytes = kActivationBytes >
       kScratchBytes ? kActivationBytes : kScratchBytes;
   static_assert(kActivationBytes==solver::DmServingPageActivationBytes(
-      TileM,TileN,TileK,TILEMEGA_DM_PAGE_A_STAGES));
+      TileM,TileN,TileK,TILEMEGA_DM_PAGE_A_STAGES)+kBulkGatherExtra);
   static_assert(kScratchBytes==solver::DmServingPageScratchBytes(TileM,TileN));
-  static_assert(kDmWorkspaceBytes==solver::DmServingPageWorkspaceBytes(
-      TileM,TileN,TileK,TILEMEGA_DM_PAGE_A_STAGES));
+  static_assert(kDmWorkspaceBytes==std::max(
+      solver::DmServingPageActivationBytes(TileM,TileN,TileK,TILEMEGA_DM_PAGE_A_STAGES)+kBulkGatherExtra,
+      solver::DmServingPageScratchBytes(TileM,TileN)));
   struct DenseActivation {
     ServingGemmOperands const& operands;
     __device__ void Copy(int iteration,Element* shared,int tile_m) {

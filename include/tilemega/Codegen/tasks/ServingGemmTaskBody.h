@@ -8,6 +8,12 @@
 #include <tilemega/Backend/ServingEpilogue.h>
 #include <tilemega/Backend/ServingGemm.h>
 #include <tilemega/Backend/Sm90Gmma.h>
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#include <tilemega/Backend/Sm90BulkGather.h>
+#endif
+#ifndef TILEMEGA_MOE_ACTIVATION_BULK
+#define TILEMEGA_MOE_ACTIVATION_BULK 0
+#endif
 #include <tilemega/Codegen/executor/Async.cuh>
 #if TILEMEGA_TRACE_TASK
 #include <tilemega/Backend/ServingProfiledMainloop.h>
@@ -17,6 +23,7 @@
 #include <tilemega/Codegen/tasks/DmEpilogueDispatch.cuh>
 #include <tilemega/Backend/ServingDmEpilogue.h>
 #include <tilemega/Backend/ServingConv.h>
+#include <tilemega/Backend/Sm90Conv.h>
 #include <tilemega/Backend/ServingGemv.h>
 #ifndef TILEMEGA_MOE_GEMV
 #define TILEMEGA_MOE_GEMV 0
@@ -113,13 +120,14 @@ struct ServingGemmTaskBody {
   using Config = backend::ServingGemmConfig<Arch, TileM, TileN, TileK, Stages>;
   using Mainloop = typename Config::Mainloop;
   static constexpr int kThreads = Config::kThreads;
+  static constexpr bool kBulkGather=UseWgmma && TileM==16 && TILEMEGA_MOE_ACTIVATION_BULK;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-  static constexpr int kSharedBytes=UseWgmma && TileM>=64 ?
-      solver::ServingWgmmaSmemBytes(TileM,TileN,TileK,Stages):
+  static constexpr int kSharedBytes=UseWgmma && (TileM>=64 || kBulkGather) ?
+      solver::ServingWgmmaSmemBytes(TileM,TileN,TileK,Stages,kBulkGather):
       solver::DmServingBF16SmemBytes(TileM,TileN,TileK,Stages);
 #else
-  static constexpr int kSharedBytes = UseWgmma && TileM>=64 ?
-      solver::ServingWgmmaSmemBytes(TileM,TileN,TileK,Stages):Config::kSharedBytes;
+  static constexpr int kSharedBytes = UseWgmma && (TileM>=64 || kBulkGather) ?
+      solver::ServingWgmmaSmemBytes(TileM,TileN,TileK,Stages,kBulkGather):Config::kSharedBytes;
 #endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   static constexpr int kTileColumns = TileN;
@@ -139,7 +147,7 @@ struct ServingGemmTaskBody {
                                   static_cast<unsigned>(2*p.k_count)});
 #endif
   }
-  __device__ static float* ComputeForwardWgmma(ServingGemmOperands const& p,int tile_m,
+  __device__ static __forceinline__ float* ComputeForwardWgmma(ServingGemmOperands const& p,int tile_m,
       int tile_n,char* shared) {
     using namespace cute;
     using Async=executor::Async<Arch>;
@@ -226,7 +234,7 @@ struct ServingGemmTaskBody {
     }
     return Body::Materialize(accum,shared);
   }
-  __device__ static float* ComputeWgmma(ServingGemmOperands const& p,int tile_m,
+  __device__ static __forceinline__ float* ComputeWgmma(ServingGemmOperands const& p,int tile_m,
       int tile_n,char* shared) {
     if constexpr(TileM>=64)return ComputeForwardWgmma(p,tile_m,tile_n,shared);
     else {
@@ -239,7 +247,8 @@ struct ServingGemmTaskBody {
     using LayoutB=backend::Sm90KLayout<TileN,TileK>;
     auto layout_a=as_position_independent_swizzle_layout(LayoutA{});
     auto layout_b=as_position_independent_swizzle_layout(LayoutB{});
-    auto* a=reinterpret_cast<Element*>(shared);
+    if constexpr(kBulkGather)ComputeSync();
+    auto* a=reinterpret_cast<Element*>(shared+(kBulkGather?1024:0));
     auto* b=a+2*TileM*TileK;
     typename Body::Mma mma;
     auto accum=partition_fragment_C(mma,Shape<Int<TileN>,Int<TileM>>{});
@@ -256,7 +265,12 @@ struct ServingGemmTaskBody {
     for(int it=0;it<iterations;++it) {
       auto* as=a+(it%2)*TileM*TileK;
       auto* bs=b+(it%2)*TileN*TileK;
-      for(int v=ComputeThread()*8;v<TileM*TileK;v+=kComputeThreads*8) {
+      bool gathered=false;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if constexpr(kBulkGather)gathered=backend::Sm90BulkGather<Arch,TileM,TileK>::Load(
+          p,tile_m,it,as,b+2*TileN*TileK,reinterpret_cast<std::uint64_t*>(shared));
+#endif
+      if(!gathered)for(int v=ComputeThread()*8;v<TileM*TileK;v+=kComputeThreads*8) {
         int row=tile_m*TileM+v/TileK,k=it*TileK+v%TileK;
         bool valid=row<p.m && k<p.k_count;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
@@ -292,7 +306,7 @@ struct ServingGemmTaskBody {
     return Body::Materialize(accum,shared);
     }
   }
-  __device__ static void Run(ServingGemmOperands const& p, int tile_m,
+  __device__ static TILEMEGA_HOPPER_TASK_INLINE void Run(ServingGemmOperands const& p, int tile_m,
                              int tile_n, char* shared) {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     if(p.access.a==DmAAccess::kIm2Col || p.access.a==DmAAccess::kRowGather ||
@@ -445,8 +459,23 @@ struct ServingGemmTaskBody {
   __device__ static void RunDmResolved(ServingGemmOperands const& p, int tile_m,
                                      int tile_n, char* shared) {
     if constexpr(UseWgmma) {
-      if(p.access.a==DmAAccess::kIm2Col || p.a_scale) {asm volatile("trap;");return;}
-      auto* tile=ComputeWgmma(p,tile_m,tile_n,shared);
+      if(p.a_scale) {asm volatile("trap;");return;}
+      float* tile=nullptr;
+      if(p.access.a==DmAAccess::kIm2Col) {
+#if TILEMEGA_CONV_TMA_IM2COL
+        if constexpr(TileM==64 && TileK==64) {
+          if(!p.convolutions || p.access.conv==kDmNoIndex || !p.dm_buffers.layouts) {
+            asm volatile("trap;");return;
+          }
+          auto const& conv=p.convolutions[p.access.conv];
+          if(conv.input_layout>=p.dm_buffers.count){asm volatile("trap;");return;}
+          tile=backend::Sm90Conv<Arch,TileM,TileN,TileK>::template Run<TILEMEGA_NONPAGED_TILED!=0>(
+              p,conv,p.dm_buffers.layouts[conv.input_layout],tile_m,tile_n,shared);
+        }else {asm volatile("trap;");return;}
+#else
+        asm volatile("trap;");return;
+#endif
+      }else tile=ComputeWgmma(p,tile_m,tile_n,shared);
       backend::ServingDmEpilogue<Arch,Spec,TileM,TileN,false>::RunFromTile(
           tile,DmEpilogueOperands(p),tile_m,tile_n);
       ComputeSync();

@@ -8,6 +8,12 @@
 #include <tilemega/Solver/BackendCostQuery.h>
 #include <cute/tensor.hpp>
 
+#ifndef TILEMEGA_GEMV_LOAD_NC
+#define TILEMEGA_GEMV_LOAD_NC 0
+#endif
+static_assert(TILEMEGA_GEMV_LOAD_NC==0 || TILEMEGA_GEMV_LOAD_NC==1,
+              "invalid GEMV load policy");
+
 namespace tilemega::backend {
 // One arithmetic path for row-major, packed, paged and resolved expert B.
 // Each warp owns TN/4 columns. A is copied once per 256-element K block,
@@ -54,6 +60,19 @@ struct ServingGemv {
         :"=r"(value.x),"=r"(value.y),"=r"(value.z),"=r"(value.w)
         :"r"(Copy::Shared(pointer)):"memory");
     return value;
+  }
+  __device__ static __forceinline__ uint4 LoadWeight16(void const* pointer,std::uint64_t policy) {
+    if constexpr(TILEMEGA_GEMV_LOAD_NC!=0) {
+      static_assert(arch::Caps<Arch>::kWgmma && TileN<=32,
+                    "NC GEMV weights require native Hopper and TN8/16/32");
+      // B remains immutable throughout a megakernel invocation; activations
+      // can change in that invocation and must retain their coherent path.
+      uint4 value;
+      asm volatile("ld.global.nc.L1::no_allocate.L2::cache_hint.v4.u32 {%0,%1,%2,%3}, [%4], %5;"
+          :"=r"(value.x),"=r"(value.y),"=r"(value.z),"=r"(value.w)
+          :"l"(pointer),"l"(policy):"memory");
+      return value;
+    }else return LoadGlobal16(pointer);
   }
   template<class Operands>
   __device__ static void IssueA(Operands const& p,int tile_m,int offset,
@@ -141,6 +160,8 @@ struct ServingGemv {
     int pitch=p.b_row_stride?p.b_row_stride:p.k_total;
     int kt=(p.k_total_full+TileK-1)/TileK;
     float acc[kColumns][kRows]{};
+    std::uint64_t policy=0;
+    if constexpr(TILEMEGA_GEMV_LOAD_NC!=0)policy=Copy::EvictFirst();
     for(int first=0;first<p.k_count;first+=kBatchK) {
       uint4 weights[kUnroll][kColumns]{};
       #pragma unroll
@@ -153,7 +174,7 @@ struct ServingGemv {
             auto const* source=tiled?p.weight_base+
                 (std::uint64_t(tile_n)*kt+global/TileK)*TileN*TileK+PackedIndex(col,global%TileK):
                 p.b+std::uint64_t(tile_n*TileN+col)*pitch+global;
-            weights[u][c]=LoadGlobal16(source);
+            weights[u][c]=LoadWeight16(source,policy);
           }
         }
       }
