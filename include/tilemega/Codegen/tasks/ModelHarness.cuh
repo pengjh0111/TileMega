@@ -1746,7 +1746,7 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
 #if TILEMEGA_DM_REDUCTIONS
 #include <tilemega/Codegen/executor/DmReduction.cuh>
 #if !TILEMEGA_PAGED
-#if TILEMEGA_DWPW_WGMMA
+#if TILEMEGA_DWPW_WGMMA || TILEMEGA_DM_WGMMA_INLINE
 __device__ __forceinline__
 #else
 __device__ inline

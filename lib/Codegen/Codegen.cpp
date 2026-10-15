@@ -1153,6 +1153,14 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
   auto plan = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   if (plan && optionalBoolField(plan, "dm")) {
     auto gemms = arrayField(plan, "gemms");
+    // Keep wide forward WGMMA inside one function without changing decode dispatch.
+    bool dm_wgmma = false;
+    if (auto runtime = module->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime"))
+      for (auto value : runtime)
+        if (auto item = mlir::dyn_cast<mlir::DictionaryAttr>(value))
+          if (auto impl = item.getAs<mlir::IntegerAttr>("impl"))
+            dm_wgmma |= impl.getInt() == 2 && integerField(item, "tile_m") >= 64;
+    if (dm_wgmma) out << "#define TILEMEGA_DM_WGMMA_INLINE 1\n";
     out << "#include <tilemega/Codegen/DmDescriptors.h>\n"
         << "#define TILEMEGA_DM_EPILOGUE_DISPATCH 1\n"
         << "#define TILEMEGA_DM_TYPED_DISPATCH 1\n"
@@ -1302,8 +1310,10 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
       }
       out<<"  asm volatile(\"trap;\");\n}\n";
     }
-    out << "template<int Variant = -1, bool Combine = false, class Runner>\n"
-        << "#if TILEMEGA_DWPW_WGMMA\n__device__ __forceinline__\n#else\n__device__ inline\n#endif\nvoid DispatchDmEpilogue(std::uint32_t gemm, Runner const& runner) {\n"
+    out << "template<int Variant = -1, bool Combine = false, class Runner>\n";
+    if (dm_wgmma) out << "__device__ __forceinline__\n";
+    else out << "#if TILEMEGA_DWPW_WGMMA\n__device__ __forceinline__\n#else\n__device__ inline\n#endif\n";
+    out << "void DispatchDmEpilogue(std::uint32_t gemm, Runner const& runner) {\n"
         << "  switch (gemm) {\n";
     for (std::size_t i = 0; i < gemms.size(); ++i)
       out << "    case " << i << "u:\n"

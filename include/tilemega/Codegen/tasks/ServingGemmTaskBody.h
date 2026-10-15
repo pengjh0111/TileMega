@@ -320,7 +320,12 @@ struct ServingGemmTaskBody {
     return Body::Materialize(accum,shared);
     }
   }
-  __device__ static TILEMEGA_HOPPER_TASK_INLINE void Run(ServingGemmOperands const& p, int tile_m,
+#if TILEMEGA_DM_WGMMA_INLINE
+  __device__ static __forceinline__
+#else
+  __device__ static TILEMEGA_HOPPER_TASK_INLINE
+#endif
+  void Run(ServingGemmOperands const& p, int tile_m,
                              int tile_n, char* shared) {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     if(p.access.a==DmAAccess::kIm2Col || p.access.a==DmAAccess::kRowGather ||
@@ -463,14 +468,24 @@ struct ServingGemmTaskBody {
   }
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   template <class Spec>
-  __device__ static void RunDm(ServingGemmOperands const& p, int tile_m,
+#if TILEMEGA_DM_WGMMA_INLINE
+  __device__ static __forceinline__
+#else
+  __device__ static
+#endif
+  void RunDm(ServingGemmOperands const& p, int tile_m,
                              int tile_n, char* shared) {
     auto resolved=p;
     if(!backend::ResolveDmMoeTile(resolved,tile_m,TileM))return;
     RunDmResolved<Spec>(resolved,tile_m,tile_n,shared);
   }
   template <class Spec>
-  __device__ static void RunDmResolved(ServingGemmOperands const& p, int tile_m,
+#if TILEMEGA_DM_WGMMA_INLINE
+  __device__ static __forceinline__
+#else
+  __device__ static
+#endif
+  void RunDmResolved(ServingGemmOperands const& p, int tile_m,
                                      int tile_n, char* shared) {
     if constexpr(UseWgmma) {
       if(p.a_scale) {asm volatile("trap;");return;}

@@ -12,7 +12,12 @@ __device__ inline void DispatchDmEpilogue(std::uint32_t, Runner const&) {
 #endif
 
 template <int Variant, bool Combine = false, class Runner>
-__device__ inline void DispatchDmVariantEpilogue(std::uint32_t gemm,
+#if TILEMEGA_DM_WGMMA_INLINE
+__device__ __forceinline__
+#else
+__device__ inline
+#endif
+void DispatchDmVariantEpilogue(std::uint32_t gemm,
                                                 Runner const& runner) {
 #if defined(TILEMEGA_DM_TYPED_DISPATCH)
   DispatchDmEpilogue<Variant, Combine>(gemm, runner);

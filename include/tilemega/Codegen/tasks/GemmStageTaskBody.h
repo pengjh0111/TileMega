@@ -19,7 +19,7 @@
 
 #include <type_traits>
 
-#if TILEMEGA_DWPW_WGMMA
+#if TILEMEGA_DWPW_WGMMA || TILEMEGA_DM_WGMMA_INLINE
 #define TILEMEGA_DWPW_TASK_INLINE __forceinline__
 #define TILEMEGA_GEMM_TASK_DISPATCH RunSelectedTask
 #else
@@ -712,7 +712,12 @@ struct GemmStageTaskBody {
     int tile_m, tile_n;
     char* shared;
     template <class Spec>
-    __device__ void Run() const {
+#if TILEMEGA_DM_WGMMA_INLINE
+    __device__ __forceinline__
+#else
+    __device__
+#endif
+    void Run() const {
       using Gate = backend::DmGateShape<typename Spec::Chain>;
       if constexpr (!Gate::template kFits<Body::kTileColumns>) {
         asm volatile("trap;");
@@ -997,7 +1002,7 @@ struct GemmStageTaskBody {
   }
 #endif
 
-#if TILEMEGA_DWPW_WGMMA
+#if TILEMEGA_DWPW_WGMMA || TILEMEGA_DM_WGMMA_INLINE
   // Inline the async region, but keep unrelated SM80 register live ranges out.
   template<int Variant>
   __device__ static __noinline__ void RunOutlinedTask(GemmInvocation const& invocation,int local,char* shared,ModelElement* output TILEMEGA_PHASE_ARG
