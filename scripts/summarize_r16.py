@@ -51,6 +51,7 @@ def collect(root):
                 records.append({'job': name, 'phase': name.split('_')[0],
                     'model': value.get('_r16_native', {}).get('canonical_model', canonical_model(root, value['model_config_sha256'], Path(value['model']).name)), 'system': value['system'],
                     'batch': value['batch'], 'round': value['round_index'],
+                    'pid': value['pid'],
                     'gpu': value['gpu_index'], 'e2e_ms': value['e2e_seconds']*1000,
                     'ttft_ms': value['ttft_seconds']*1000,
                     'tpot_ms': value['tpot_seconds']*1000,
@@ -71,13 +72,17 @@ def aggregate(records):
     for row in records:
         if row['phase'] != 'm1':
             continue
-        key = row['model'], row['system'], row['batch']
+        key = (row['model'], row['system'], row['batch'],
+               row.get('native_artifact_ids', ''), row.get('source_checkpoint_sha256', ''))
         groups.setdefault(key, []).append(row)
     result = []
-    for (model, system, batch), rows in sorted(groups.items()):
+    for (model, system, batch, artifacts, checkpoint), rows in sorted(groups.items()):
         rounds = {row['round'] for row in rows}
         if len(rounds) != len(rows):
             raise ValueError(f'duplicate completed process round for {model}/{system}/B{batch}')
+        pids = {row['pid'] for row in rows if row.get('pid') is not None}
+        if len(pids) != len(rows):
+            raise ValueError(f'LLM rounds lack distinct measured process identities for {model}/{system}/B{batch}')
         result.append({'model': model, 'system': system, 'batch': batch,
             'fresh_processes': len(rounds), 'protocol_complete': rounds == {0, 1, 2},
             'gpu': ','.join(map(str, sorted({row['gpu'] for row in rows}))),
@@ -86,8 +91,7 @@ def aggregate(records):
             'acceptance': 'strict' if all(row['acceptance'] == 'strict' for row in rows)
                            else 'provisional_container_pid_namespace',
             'checkpoint_identity_shared': all(row['checkpoint_identity_shared'] for row in rows),
-            'source_checkpoint_sha256': ','.join(sorted({row['source_checkpoint_sha256'] for row in rows if row['source_checkpoint_sha256']})),
-            'native_artifact_ids': ','.join(sorted({row['native_artifact_ids'] for row in rows if row['native_artifact_ids']}))})
+            'source_checkpoint_sha256': checkpoint, 'native_artifact_ids': artifacts})
     return result
 
 

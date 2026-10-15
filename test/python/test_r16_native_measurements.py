@@ -66,6 +66,10 @@ class NativeMeasurementTest(unittest.TestCase):
         self.assertTrue(row['source_checkpoint_sha256'])
         self.assertEqual(len(row['native_artifact_ids'].split(',')),2)
         self.assertEqual(len(summary.aggregate([row,dict(row,system='TM-H1')])),2)
+        separate = dict(row, round=1, pid=row['pid']+1, native_artifact_ids='different-binary')
+        self.assertEqual(len(summary.aggregate([row, separate])), 2)
+        with self.assertRaisesRegex(ValueError, 'distinct measured process'):
+            summary.aggregate([row, dict(row, round=1)])
 
     def test_native_binary_and_shared_checkpoint_tampering_are_rejected(self):
         path=self.native_llm_receipt()
@@ -79,6 +83,27 @@ class NativeMeasurementTest(unittest.TestCase):
         rows,rejected=summary.collect(self.root)
         self.assertFalse(rows);self.assertEqual(len(rejected),1)
         self.assertIn('shared checkpoint identity',rejected[0]['reason'])
+
+    def test_consistently_hashed_manifest_cannot_mislabel_actual_dispatch(self):
+        binary, identity=self.identity('dispatch','decode')
+        identity['plan']['gemms']=[dict(index=0,split_k=1,tile_m=16,tile_n=128,
+            tile_k=64,stages=5,impl='wgmma')]
+        identity['defines']=dict(TILEMEGA_GEMM_VARIANT_COUNT='1',TILEMEGA_GEMM_IMPL_0='2',
+            TILEMEGA_GEMM_TILE_M='16',TILEMEGA_GEMM_TILE_N='128',
+            TILEMEGA_GEMM_TILE_K='64',TILEMEGA_GEMM_STAGES='5')
+        Path(str(binary)+'.cu').write_text('constexpr GemmRuntimeDesc kRuntimeGemms0[] = {\n{0,1,16,128,64,5},\n};\n')
+        def persist():
+            Path(str(binary)+'.plan.json').write_text(json.dumps(identity['plan']))
+            identity['generated_source_sha256']=validation.file_sha(str(binary)+'.cu')
+            identity['manifest_sha256']=validation.file_sha(str(binary)+'.plan.json')
+            identity['artifact_id']=validation.json_digest({k:v for k,v in identity.items() if k!='artifact_id'})
+            Path(str(binary)+'.identity.json').write_text(json.dumps(identity))
+        persist()
+        self.assertEqual(validation.native_identity(binary)['plan']['gemms'][0]['impl'], 'wgmma')
+        identity['plan']['gemms'][0]['impl']='mma16'
+        persist()
+        with self.assertRaisesRegex(ValueError, 'actual GEMM implementation'):
+            validation.native_identity(binary)
 
     def test_r15_label_requires_pristine_code_and_the_original_compiler(self):
         compiler=self.root/'runs/r16/build-r15/tools/tilemega'

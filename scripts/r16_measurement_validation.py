@@ -3,6 +3,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import re
 import statistics
 
 
@@ -52,6 +53,32 @@ def native_identity(binary, recorded=None):
         for unit in macros['translation_units']:
             if file_sha(unit['macros_file']) != unit['macros_sha256']:
                 raise ValueError('native macro capture changed')
+    if 'gemms' in identity['plan']:
+        # An independent, stdlib-only check prevents matching sidecar hashes
+        # from certifying a manifest that disagrees with actual kernel dispatch.
+        generated = Path(str(binary)+'.cu').read_text()
+        table = re.search(r'constexpr\s+GemmRuntimeDesc\s+kRuntimeGemms0\[\]\s*=\s*\{(.*?)\n\};',
+                          generated, re.S)
+        if table is None:
+            raise ValueError('native generated GEMM dispatch table is absent')
+        rows = re.findall(r'\{\s*(\d+)u?,\s*(\d+)u?,\s*(\d+)u?,\s*(\d+)u?,\s*(\d+)u?,\s*(\d+)u?\s*\}', table[1])
+        if len(rows) != len(identity['plan']['gemms']):
+            raise ValueError('native generated GEMM count differs from manifest')
+        defines = identity['defines']
+        for index, (gemm, row) in enumerate(zip(identity['plan']['gemms'], rows)):
+            variant, split, m, n, k, stages = map(int, row)
+            if gemm['index'] != index or not 0 <= variant < int(defines.get('TILEMEGA_GEMM_VARIANT_COUNT', 1)):
+                raise ValueError('native GEMM class or index is invalid')
+            geometry = dict(split_k=split, tile_m=m, tile_n=n, tile_k=k, stages=stages)
+            if any(int(gemm[field]) != value for field, value in geometry.items()):
+                raise ValueError('native runtime GEMM geometry differs from manifest')
+            prefix = 'TILEMEGA_GEMM_' if variant == 0 else f'TILEMEGA_GEMM_V{variant}_'
+            if any(int(defines[prefix+field]) != value for field, value in
+                    (('TILE_M',m), ('TILE_N',n), ('TILE_K',k), ('STAGES',stages))):
+                raise ValueError('native compiled GEMM geometry differs from runtime table')
+            impl = int(defines.get(f'TILEMEGA_GEMM_IMPL_{variant}', 0))
+            if impl not in (0,1,2) or gemm.get('impl', 'mma16') != ('mma16','gemv','wgmma')[impl]:
+                raise ValueError('native actual GEMM implementation differs from manifest')
     return identity
 
 
