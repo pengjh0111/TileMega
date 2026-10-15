@@ -58,6 +58,10 @@ def main(argv=None):
     parser.add_argument('--resume-timing', action='store_true')
     args = parser.parse_args(argv)
     args.policy = args.policy.resolve()
+    # Child commands can use a different cwd. Evidence paths must retain the
+    # scheduler's original location across the guard and the child harness.
+    args.out = args.out.resolve()
+    args.queue_dir = args.queue_dir.resolve()
     args.out.mkdir(parents=True, exist_ok=True)
     args.queue_dir.mkdir(parents=True, exist_ok=True)
     singleton = (args.out / 'scheduler.pid').open('a+')

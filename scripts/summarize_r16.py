@@ -10,6 +10,23 @@ import statistics
 from r16_measurement_validation import completed_guard, validate_llm, validate_dnn, canonical_model
 
 
+def record_directory(root, name, record):
+    path=Path(record['out'])
+    directory=path if path.is_absolute() else root/path
+    if (directory/'guard_result.json').exists() or path.is_absolute():
+        return directory
+    provenance=root/'runs/r16/analysis/scheduler-cwd-provenance.json'
+    if provenance.is_file():
+        original=json.loads(provenance.read_text()).get('jobs',{}).get(name)
+        if original:
+            actual=(Path(original['cwd'])/path).resolve()
+            if root/'runs/r16' not in actual.parents:
+                raise ValueError('recorded job cwd resolves outside R16 evidence')
+            if (actual/'guard_result.json').exists():
+                return actual
+    return directory
+
+
 def collect(root):
     records, rejected = [], []
     for state_file in sorted((root/'runs/r16/scheduler').glob('gpu*/state.json')):
@@ -17,9 +34,7 @@ def collect(root):
         for name, job in state.items():
             if job.get('status') != 'done' or not name.startswith(('m1_', 'anchors_', 'm0_')):
                 continue
-            directory = Path(job['out'])
-            if not directory.is_absolute():
-                directory = root/directory
+            directory = record_directory(root, name, job)
             try:
                 guard = completed_guard(directory, job)
             except (OSError, ValueError, KeyError, TypeError) as error:
@@ -78,13 +93,16 @@ def aggregate(records):
 
 def collect_dnn(root):
     records, rejected = [], []
+    definitions={job['name']:job for queue in (root/'runs/r16/queue').glob('gpu*/queue_*.json')
+                 for job in json.loads(queue.read_text())}
     for state_file in sorted((root/'runs/r16/scheduler').glob('gpu*/state.json')):
         for name, job in json.loads(state_file.read_text()).items():
             if job.get('status') != 'done' or not name.startswith(('dnn-', 'tm-dnn-', 'm3_')) or name.startswith('dnn-smoke-'):
                 continue
-            directory = Path(job['out'])
-            if not directory.is_absolute():
-                directory = root/directory
+            definition=definitions.get(name)
+            if definition is not None and not definition.get('timing',definition.get('gpu',False)):
+                continue
+            directory = record_directory(root, name, job)
             path = directory/'measurements/measurements.json'
             try:
                 guard = completed_guard(directory, job)
@@ -96,6 +114,8 @@ def collect_dnn(root):
                 continue
             records.append(dict(job=name, model=value['model'], system=value['system'], batch=value['batch'],
                 precision=value['precision'], compile_mode=value.get('configuration', {}).get('compile_mode', ''),
+                candidate_id=value.get('candidate_id', value.get('configuration', {}).get('candidate_id', '')),
+                candidate_receipt_sha256=value.get('candidate_receipt_sha256', ''), pid=value.get('pid'),
                 round=value['round_index'], gpu=value['gpu_index'], median_ms=value['median_ms'], p90_ms=value['p90_ms'],
                 acceptance=own['acceptance'], ownership_verified=own['ownership_verified'],
                 unresolved_host_pids=','.join(map(str, own['unresolved_host_pids'])),
@@ -105,6 +125,33 @@ def collect_dnn(root):
                 source_checkpoint_label=value.get('_r16_native', {}).get('source_checkpoint_label', 'stored export checkpoint'),
                 measurement=str(path.relative_to(root))))
     return records, rejected
+
+
+def aggregate_dnn(records):
+    groups = {}
+    for row in records:
+        key = tuple(row[field] for field in ('model', 'system', 'batch', 'precision',
+            'compile_mode', 'candidate_id', 'candidate_receipt_sha256', 'native_artifact_ids'))
+        groups.setdefault(key, []).append(row)
+    result = []
+    for key, rows in sorted(groups.items()):
+        rounds = {row['round'] for row in rows}
+        pids = {row['pid'] for row in rows if row['pid'] is not None}
+        if len(rounds) != len(rows):
+            raise ValueError(f'duplicate DNN process round for {key}')
+        if len(pids) != len(rows):
+            raise ValueError(f'DNN rounds lack distinct measured process identities for {key}')
+        if len({row['exported_program_sha256'] for row in rows}) != 1:
+            raise ValueError(f'DNN checkpoint export differs across rounds for {key}')
+        result.append(dict(zip(('model', 'system', 'batch', 'precision', 'compile_mode',
+            'candidate_id', 'candidate_receipt_sha256', 'native_artifact_ids'), key),
+            fresh_processes=len(rows), protocol_complete=rounds == {0, 1, 2},
+            gpu=','.join(map(str, sorted({row['gpu'] for row in rows}))),
+            median_ms=statistics.median(row['median_ms'] for row in rows),
+            p90_ms=statistics.median(row['p90_ms'] for row in rows),
+            acceptance='strict' if all(row['acceptance'] == 'strict' for row in rows)
+                else 'provisional_container_pid_namespace'))
+    return result
 
 
 def write_csv(path, rows):
@@ -129,13 +176,16 @@ def main():
     dnn_records, dnn_rejected = collect_dnn(root)
     rejected.extend(dnn_rejected)
     cells = aggregate(records)
+    dnn_cells = aggregate_dnn(dnn_records)
     write_csv(out/'R16_llm_processes.csv', records)
     write_csv(out/'R16_llm_summary.csv', cells)
     write_csv(out/'R16_dnn_processes.csv', dnn_records)
+    write_csv(out/'R16_dnn_summary.csv', dnn_cells)
     print(json.dumps({'completed_process_cells': len(records), 'm1_cells': len(cells),
         'three_process_cells': sum(row['protocol_complete'] for row in cells),
         'strict_cells': sum(row['acceptance'] == 'strict' for row in cells),
         'completed_dnn_processes': len(dnn_records),
+        'complete_dnn_cells': sum(row['protocol_complete'] for row in dnn_cells),
         'rejected': rejected}, indent=2))
 
 
