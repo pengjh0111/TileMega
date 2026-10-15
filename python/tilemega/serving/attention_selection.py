@@ -38,7 +38,9 @@ def matches(manifest,variant):
 
 
 def label(variant):
-    return f"ec{variant['ec']}-{variant['attention_impl']}-la{variant['nonpaged_la']}-{variant['paged_attention_load']}"
+    name=f"ec{variant['ec']}-{variant['attention_impl']}-la{variant['nonpaged_la']}-{variant['paged_attention_load']}"
+    if variant.get('merge')=='cluster':name+=f"-cluster{variant['cluster_dim']}"
+    return name
 
 
 def pinned_geometry(manifest,class_file,directory):

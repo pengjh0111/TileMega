@@ -4701,6 +4701,10 @@ inline void PrepareEvents(DeviceModel& model, int grid) {
 inline void ResetBuffersOnly(DeviceModel& model) {
   ModelSpec const& spec = *model.spec;
   for (std::uint32_t i = 0; i < spec.buffer_count; ++i) {
+#if TILEMEGA_CLUSTER_ATTENTION_MERGE
+    // Private attention partial descriptors have no global allocation.
+    if(model.buffers[i]==nullptr)continue;
+#endif
     std::size_t bytes = spec.buffers[i].Elements(model.params.dims) *
                         sizeof(ModelElement);
     if (spec.buffers[i].file != nullptr)

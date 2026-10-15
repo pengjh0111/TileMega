@@ -28,6 +28,8 @@ class AttentionSelection(unittest.TestCase):
         p=dict(capacity=1088,phase='decode',pg='off',attention_q_per_kv=3,attention_head_dim=128,
                target_spec=dict(caps=dict(wgmma=True,dsmem=True)))
         candidates=cluster_merge_variants(p)
+        from tilemega.serving.attention_selection import label
+        self.assertTrue(all(label(v).endswith('-cluster'+str(v['cluster_dim']))for v in candidates))
         self.assertEqual([(v['cluster_dim'],v['ec'])for v in candidates],[(2,576),(4,320)])
         self.assertFalse(any(v.get('merge')=='cluster' for v in variants(p,include_hopper=True)))
         for v in candidates:
