@@ -300,6 +300,17 @@ def measure(args, ids, system, generate, metadata, synchronize=lambda: None):
 
 
 def guarded_main(main):
+    # A native crash must release the guard, rather than wait indefinitely on
+    # a host crash collector that cannot inspect this container's namespace.
+    import resource
+    _, maximum = resource.getrlimit(resource.RLIMIT_CORE)
+    resource.setrlimit(resource.RLIMIT_CORE, (0, maximum))
+    # Linux ignores RLIMIT_CORE for a piped core_pattern. Disable dumping on
+    # this worker as well, so a native destructor crash cannot retain its GPU.
+    import ctypes
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(4, 0, 0, 0, 0) != 0:  # PR_SET_DUMPABLE
+        raise OSError(ctypes.get_errno(), 'cannot disable worker core dumps')
     try:
         main()
     except InvalidMeasurement as error:
