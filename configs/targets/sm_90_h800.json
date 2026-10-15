@@ -1,4 +1,321 @@
 {
+  "arch_tag": "sm_90",
+  "nvcc_arch": "sm_90a",
+  "sm_major": 9,
+  "sm_minor": 0,
+  "caps": {
+    "cluster": true,
+    "tma": true,
+    "warp_specialized": true,
+    "tcgen05": false,
+    "l1_5": false,
+    "net": false,
+    "cp_async": true,
+    "mbarrier": true,
+    "mbarrier_try_wait": true,
+    "mbarrier_tx": true,
+    "bulk_copy": true,
+    "bulk_prefetch": true,
+    "pdl": true,
+    "wgmma": true,
+    "setmaxnreg": true,
+    "tma_im2col": true,
+    "tma_multicast": true,
+    "bulk_reduce": true,
+    "dsmem": true,
+    "elect_sync": true
+  },
+  "resources": {
+    "num_sms": 132,
+    "l2_bytes": 52428800,
+    "max_smem_per_sm": 233472,
+    "max_dynamic_smem_per_cta": 232448,
+    "regs_per_sm": 65536,
+    "max_cluster_size": 8,
+    "max_threads_per_sm": 2048,
+    "warp_size": 32,
+    "dram_capacity_bytes": 85017493504
+  },
+  "calibration": {
+    "calibrated": true,
+    "device": "NVIDIA H800",
+    "measured_at": "2026-10-15T10:22:29Z",
+    "wall_seconds": 14.28616433,
+    "pipelines": {
+      "tc_fp16_gflops": 631770.4981,
+      "tc_bf16_gflops": 0,
+      "cuda_fp32_gflops": 55276.37117,
+      "cuda_int32_gops": 15946.08669,
+      "sfu_exp2_gops": 4093.093145,
+      "sfu_rsqrt_gops": 4092.911437,
+      "smem_gbps": 54279.22628,
+      "smem_conflict_slope": 0.5555821095,
+      "l1_latency_ns": 23.75781332,
+      "l2_latency_ns": 142.3710872,
+      "dram_latency_ns": 348.8352619,
+      "l2_gbps": 7569.797719,
+      "l2_knee_bytes": 33554432,
+      "dram_gbps": 3162.528866,
+      "l2_curve_bytes": [
+        1048576,
+        2097152,
+        4194304,
+        8388608,
+        16777216,
+        25165824,
+        33554432,
+        50331648,
+        67108864,
+        75497472,
+        83886080,
+        100663296,
+        134217728,
+        201326592,
+        268435456,
+        536870912,
+        1073741824,
+        2147483648
+      ],
+      "l2_curve_gbps": [
+        1611.859641,
+        2809.022544,
+        4561.35916,
+        7021.187374,
+        7569.797719,
+        7537.077154,
+        7297.238175,
+        6765.37959,
+        5246.045703,
+        4209.270187,
+        3757.049026,
+        3359.686848,
+        3193.40102,
+        3173.229173,
+        3174.925826,
+        3159.352893,
+        3162.528866,
+        3175.698688
+      ],
+      "smem_occupancy_ctas": [
+        1,
+        2,
+        3,
+        4,
+        6
+      ],
+      "smem_occupancy_gbps": [
+        40518.74551,
+        50076.71035,
+        50447.83062,
+        52663.19014,
+        53993.38091
+      ]
+    },
+    "sync": {
+      "atomic_uncontended_ns": 153.3125032,
+      "atomic_contention_ctas": [
+        1,
+        2,
+        4,
+        8,
+        16,
+        32,
+        64,
+        128,
+        256,
+        512
+      ],
+      "atomic_contention_ns": [
+        153.359375,
+        77.22656301,
+        38.71875015,
+        19.32812484,
+        16.76074135,
+        8.670898751,
+        4.318847459,
+        2.153930609,
+        1.080932634,
+        0.7516784422
+      ],
+      "threadfence_ns": 544.4062554,
+      "syncthreads_ns": 150.187494,
+      "named_barrier_ns": 149.703119,
+      "cluster_sync_ns": 0,
+      "cluster_sync_calibrated": false,
+      "grid_barrier_ctas": [
+        132,
+        264,
+        396,
+        528,
+        660,
+        792,
+        924,
+        1056
+      ],
+      "grid_barrier_ns": [
+        2249.875106,
+        2328.06243,
+        2462.062519,
+        2698.562574,
+        3280.125093,
+        3791.250056,
+        4263.187293,
+        4804.187454
+      ],
+      "wait_spin_iters": 0,
+      "wait_backoff_ns": 64,
+      "wait_backoff_grow": 1,
+      "wait_backoff_cap_ns": 64,
+      "wait_protocol": "legacy"
+    },
+    "streamk": [
+      {
+        "tile_m": 128,
+        "tile_n": 128,
+        "tile_k": 16,
+        "stages": 3,
+        "a_ns": 3744.000103,
+        "b_ns": 0.004806703482,
+        "c_ns": 1723.31806,
+        "d_ns": 0.0004997418342,
+        "fit_r2": 0.9652131323,
+        "ac_r2": 0.9998856224,
+        "occ_per_sm": [
+          1
+        ],
+        "occ_a_ns": [
+          4362.667756
+        ],
+        "occ_c_ns": [
+          1773.333216
+        ]
+      },
+      {
+        "tile_m": 64,
+        "tile_n": 64,
+        "tile_k": 16,
+        "stages": 3,
+        "a_ns": 2015.999984,
+        "b_ns": 0.004806703482,
+        "c_ns": 744.7075467,
+        "d_ns": 0.0004997418342,
+        "fit_r2": 0.9652131323,
+        "ac_r2": 0.9999803483,
+        "occ_per_sm": [
+          1
+        ],
+        "occ_a_ns": [
+          2218.667107
+        ],
+        "occ_c_ns": [
+          741.3333127
+        ]
+      },
+      {
+        "tile_m": 32,
+        "tile_n": 32,
+        "tile_k": 32,
+        "stages": 3,
+        "a_ns": 1439.999789,
+        "b_ns": 0.004806703482,
+        "c_ns": 679.3246697,
+        "d_ns": 0.0004997418342,
+        "fit_r2": 0.9652131323,
+        "ac_r2": 0.9999700241,
+        "occ_per_sm": [
+          1
+        ],
+        "occ_a_ns": [
+          1749.332373
+        ],
+        "occ_c_ns": [
+          674.6667592
+        ]
+      },
+      {
+        "tile_m": 16,
+        "tile_n": 64,
+        "tile_k": 32,
+        "stages": 3,
+        "a_ns": 1983.99974,
+        "b_ns": 0.004806703482,
+        "c_ns": 901.7308177,
+        "d_ns": 0.0004997418342,
+        "fit_r2": 0.9652131323,
+        "ac_r2": 0.9999159408,
+        "occ_per_sm": [
+          1
+        ],
+        "occ_a_ns": [
+          2143.999562
+        ],
+        "occ_c_ns": [
+          896.0000705
+        ]
+      },
+      {
+        "tile_m": 16,
+        "tile_n": 64,
+        "tile_k": 16,
+        "stages": 2,
+        "a_ns": 1664.000098,
+        "b_ns": 0.004806703482,
+        "c_ns": 483.2170099,
+        "d_ns": 0.0004997418342,
+        "fit_r2": 0.9652131323,
+        "ac_r2": 0.9999891177,
+        "occ_per_sm": [
+          1,
+          2,
+          3
+        ],
+        "occ_a_ns": [
+          1952.000894,
+          1738.666091,
+          1717.333837
+        ],
+        "occ_c_ns": [
+          479.9999297,
+          909.3333501,
+          1322.66661
+        ]
+      },
+      {
+        "tile_m": 256,
+        "tile_n": 128,
+        "tile_k": 16,
+        "stages": 3,
+        "a_ns": 6400.000304,
+        "b_ns": 0.004806703482,
+        "c_ns": 3185.549898,
+        "d_ns": 0.0004997418342,
+        "fit_r2": 0.9652131323,
+        "ac_r2": 0.9999924998,
+        "occ_per_sm": [
+          1
+        ],
+        "occ_a_ns": [
+          6762.666162
+        ],
+        "occ_c_ns": [
+          3397.333552
+        ]
+      }
+    ],
+    "combine_fixed_ns": 0,
+    "combine_fixed_resolved": false,
+    "combine_d_dram_ns": 0.001403213889,
+    "fp32_partial_combine": {
+      "reason": "not_calibrated",
+      "method": "",
+      "fixed_ns": null,
+      "base_ns": null,
+      "d_l2_ns": null,
+      "d_dram_ns": null
+    },
+    "interference_ratio": 1.257600011,
+    "l2_prefetch_bytes": 0
+  },
   "event_calibration_by_dtype": {
     "bf16": {
       "source": "",
@@ -14,27 +331,27 @@
         "reason": "not_calibrated",
         "unit": ""
       },
+      "fence": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": ""
+      },
       "notify_stage": {
         "ns": null,
         "reason": "not_calibrated",
-        "unit": "ns/runtime_stage"
+        "unit": ""
       },
       "notify_longest_worker": {
         "ns": null,
         "reason": "not_calibrated",
-        "unit": "ns/max_worker_task_ref"
+        "unit": ""
       },
       "poll_stage": {
         "ns": null,
         "reason": "not_calibrated",
-        "unit": "ns/runtime_stage"
+        "unit": ""
       },
       "poll_longest_worker": {
-        "ns": null,
-        "reason": "not_calibrated",
-        "unit": "ns/max_worker_task_ref"
-      },
-      "fence": {
         "ns": null,
         "reason": "not_calibrated",
         "unit": ""
@@ -54,117 +371,511 @@
         "reason": "not_calibrated",
         "unit": ""
       },
+      "fence": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": ""
+      },
       "notify_stage": {
         "ns": null,
         "reason": "not_calibrated",
-        "unit": "ns/runtime_stage"
+        "unit": ""
       },
       "notify_longest_worker": {
         "ns": null,
         "reason": "not_calibrated",
-        "unit": "ns/max_worker_task_ref"
+        "unit": ""
       },
       "poll_stage": {
         "ns": null,
         "reason": "not_calibrated",
-        "unit": "ns/runtime_stage"
+        "unit": ""
       },
       "poll_longest_worker": {
-        "ns": null,
-        "reason": "not_calibrated",
-        "unit": "ns/max_worker_task_ref"
-      },
-      "fence": {
         "ns": null,
         "reason": "not_calibrated",
         "unit": ""
       }
     }
   },
-  "arch_tag": "sm_90",
-  "sm_major": 9,
-  "sm_minor": 0,
-  "caps": {
-    "cluster": true,
-    "tma": true,
-    "warp_specialized": true,
-    "tcgen05": false,
-    "l1_5": false,
-    "net": false,
-    "cp_async": true,
-    "mbarrier": true,
-    "mbarrier_try_wait": true,
-    "mbarrier_tx": true,
-    "bulk_copy": true,
-    "bulk_prefetch": true,
-    "pdl": true
+  "calibration_by_dtype": {
+    "bf16": {
+      "calibrated": true,
+      "device": "NVIDIA H800",
+      "measured_at": "2026-10-15T10:27:26Z",
+      "wall_seconds": 11.8998122,
+      "pipelines": {
+        "tc_fp16_gflops": 0,
+        "tc_bf16_gflops": 632040.9385,
+        "cuda_fp32_gflops": 55303.98048,
+        "cuda_int32_gops": 15953.43856,
+        "sfu_exp2_gops": 4093.213992,
+        "sfu_rsqrt_gops": 4093.093145,
+        "smem_gbps": 54281.88779,
+        "smem_conflict_slope": 0.5559591062,
+        "l1_latency_ns": 23.74999929,
+        "l2_latency_ns": 142.395997,
+        "dram_latency_ns": 348.8900714,
+        "l2_gbps": 7567.960839,
+        "l2_knee_bytes": 33554432,
+        "dram_gbps": 3163.721607,
+        "l2_curve_bytes": [
+          1048576,
+          2097152,
+          4194304,
+          8388608,
+          16777216,
+          25165824,
+          33554432,
+          50331648,
+          67108864,
+          75497472,
+          83886080,
+          100663296,
+          134217728,
+          201326592,
+          268435456,
+          536870912,
+          1073741824,
+          2147483648
+        ],
+        "l2_curve_gbps": [
+          1610.945554,
+          2805.489591,
+          4555.031831,
+          6995.993418,
+          7567.960839,
+          7534.335261,
+          7304.992402,
+          6778.836835,
+          5243.332187,
+          4207.826671,
+          3756.814871,
+          3365.362302,
+          3191.144717,
+          3173.94083,
+          3177.674849,
+          3160.741671,
+          3163.721607,
+          3175.698688
+        ],
+        "smem_occupancy_ctas": [
+          1,
+          2,
+          3,
+          4,
+          6
+        ],
+        "smem_occupancy_gbps": [
+          40329.8455,
+          49941.19805,
+          50362.17246,
+          52598.15215,
+          53926.76601
+        ]
+      },
+      "sync": {
+        "atomic_uncontended_ns": 153.328132,
+        "atomic_contention_ctas": [
+          1,
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512
+        ],
+        "atomic_contention_ns": [
+          153.3906179,
+          77.21093425,
+          38.72265734,
+          19.35742148,
+          16.77734326,
+          8.681152394,
+          4.320800599,
+          2.155029279,
+          1.081603955,
+          0.7519225846
+        ],
+        "threadfence_ns": 543.7031286,
+        "syncthreads_ns": 150.3437452,
+        "named_barrier_ns": 149.6406258,
+        "cluster_sync_ns": 0,
+        "cluster_sync_calibrated": false,
+        "grid_barrier_ctas": [
+          132,
+          264,
+          396,
+          528,
+          660,
+          792,
+          924,
+          1056
+        ],
+        "grid_barrier_ns": [
+          2251.249971,
+          2329.562558,
+          2462.937497,
+          2699.87504,
+          3279.624972,
+          3794.312477,
+          4266.312346,
+          4806.375131
+        ],
+        "wait_spin_iters": 0,
+        "wait_backoff_ns": 64,
+        "wait_backoff_grow": 1,
+        "wait_backoff_cap_ns": 64,
+        "wait_protocol": "legacy"
+      },
+      "streamk": [
+        {
+          "tile_m": 128,
+          "tile_n": 128,
+          "tile_k": 16,
+          "stages": 3,
+          "a_ns": 5824.000575,
+          "b_ns": 0.003426015351,
+          "c_ns": 345.7241892,
+          "d_ns": 0.0002669356364,
+          "fit_r2": 0.81913388,
+          "ac_r2": 0.9991286864,
+          "occ_per_sm": [
+            1,
+            2
+          ],
+          "occ_a_ns": [
+            6602.666496,
+            6741.332822
+          ],
+          "occ_c_ns": [
+            333.3333492,
+            554.666738
+          ]
+        },
+        {
+          "tile_m": 64,
+          "tile_n": 64,
+          "tile_k": 16,
+          "stages": 3,
+          "a_ns": 2272.000071,
+          "b_ns": 0.003426015351,
+          "c_ns": 178.0069495,
+          "d_ns": 0.0002669356364,
+          "fit_r2": 0.81913388,
+          "ac_r2": 0.9993799405,
+          "occ_per_sm": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "occ_a_ns": [
+            2655.999735,
+            2837.333363,
+            2741.333252,
+            2783.999468
+          ],
+          "occ_c_ns": [
+            184.0000041,
+            314.6666568,
+            426.6666559,
+            552.0000899
+          ]
+        },
+        {
+          "tile_m": 32,
+          "tile_n": 32,
+          "tile_k": 32,
+          "stages": 3,
+          "a_ns": 1568.000298,
+          "b_ns": 0.003426015351,
+          "c_ns": 262.5980576,
+          "d_ns": 0.0002669356364,
+          "fit_r2": 0.81913388,
+          "ac_r2": 0.9998241017,
+          "occ_per_sm": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "occ_a_ns": [
+            2005.333702,
+            2133.3339,
+            2037.334101,
+            2218.666176,
+            2250.666109,
+            2592.000179,
+            2848.000576
+          ],
+          "occ_c_ns": [
+            258.6666572,
+            442.6666225,
+            650.6665765,
+            853.3333506,
+            1077.333388,
+            1288.000029,
+            1495.999905
+          ]
+        },
+        {
+          "tile_m": 32,
+          "tile_n": 64,
+          "tile_k": 32,
+          "stages": 3,
+          "a_ns": 2015.999984,
+          "b_ns": 0.003426015351,
+          "c_ns": 385.8575625,
+          "d_ns": 0.0002669356364,
+          "fit_r2": 0.81913388,
+          "ac_r2": 0.9995691214,
+          "occ_per_sm": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "occ_a_ns": [
+            2762.666283,
+            2613.332899,
+            2869.334072,
+            2730.666194
+          ],
+          "occ_c_ns": [
+            373.3333821,
+            714.6667146,
+            962.6665851,
+            1325.333375
+          ]
+        },
+        {
+          "tile_m": 32,
+          "tile_n": 64,
+          "tile_k": 16,
+          "stages": 2,
+          "a_ns": 1728.000119,
+          "b_ns": 0.003426015351,
+          "c_ns": 289.9454332,
+          "d_ns": 0.0002669356364,
+          "fit_r2": 0.81913388,
+          "ac_r2": 0.999985233,
+          "occ_per_sm": [
+            1,
+            2,
+            3,
+            4,
+            6
+          ],
+          "occ_a_ns": [
+            2111.999784,
+            2037.333169,
+            2122.666221,
+            2005.334012,
+            1759.999897
+          ],
+          "occ_c_ns": [
+            296.000042,
+            402.6666672,
+            405.3333541,
+            506.6666054,
+            800.000038
+          ]
+        },
+        {
+          "tile_m": 256,
+          "tile_n": 128,
+          "tile_k": 16,
+          "stages": 3,
+          "a_ns": 10975.99929,
+          "b_ns": 0.003426015351,
+          "c_ns": 1626.767243,
+          "d_ns": 0.0002669356364,
+          "fit_r2": 0.81913388,
+          "ac_r2": 0.9993806362,
+          "occ_per_sm": [
+            1,
+            2
+          ],
+          "occ_a_ns": [
+            11008.00062,
+            13290.66449
+          ],
+          "occ_c_ns": [
+            2335.999937,
+            3949.333603
+          ]
+        },
+        {
+          "tile_m": 32,
+          "tile_n": 16,
+          "tile_k": 16,
+          "stages": 2,
+          "a_ns": 895.9998377,
+          "b_ns": 0.003426015351,
+          "c_ns": 224.2109521,
+          "d_ns": 0.0002669356364,
+          "fit_r2": 0.81913388,
+          "ac_r2": 0.999810114,
+          "occ_per_sm": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "occ_a_ns": [
+            1055.999969,
+            1237.333752,
+            1258.666782,
+            1237.332821,
+            1301.333929,
+            1215.999636,
+            1194.666295,
+            1386.666515,
+            1376.000699,
+            1503.99919
+          ],
+          "occ_c_ns": [
+            240.0000036,
+            250.6666351,
+            253.3333221,
+            306.6667123,
+            346.6666288,
+            424.0000465,
+            501.3333478,
+            549.3333253,
+            599.9999121,
+            648.0000836
+          ]
+        },
+        {
+          "tile_m": 32,
+          "tile_n": 128,
+          "tile_k": 32,
+          "stages": 3,
+          "a_ns": 3328.000195,
+          "b_ns": 0.003426015351,
+          "c_ns": 671.9999726,
+          "d_ns": 0.0002669356364,
+          "fit_r2": 0.81913388,
+          "ac_r2": 0.9999113025,
+          "occ_per_sm": [
+            1,
+            2
+          ],
+          "occ_a_ns": [
+            3861.333554,
+            4191.999945
+          ],
+          "occ_c_ns": [
+            666.6666983,
+            1112.000047
+          ]
+        },
+        {
+          "tile_m": 128,
+          "tile_n": 32,
+          "tile_k": 32,
+          "stages": 2,
+          "a_ns": 2176.000271,
+          "b_ns": 0.003426015351,
+          "c_ns": 688.1669815,
+          "d_ns": 0.0002669356364,
+          "fit_r2": 0.81913388,
+          "ac_r2": 0.9998930923,
+          "occ_per_sm": [
+            1,
+            2,
+            3
+          ],
+          "occ_a_ns": [
+            2666.665862,
+            3104.000352,
+            3445.333646
+          ],
+          "occ_c_ns": [
+            693.3334128,
+            991.9999866,
+            1466.666736
+          ]
+        },
+        {
+          "tile_m": 64,
+          "tile_n": 64,
+          "tile_k": 32,
+          "stages": 5,
+          "a_ns": 2783.999778,
+          "b_ns": 0.003426015351,
+          "c_ns": 457.5982585,
+          "d_ns": 0.0002669356364,
+          "fit_r2": 0.81913388,
+          "ac_r2": 0.9998177386,
+          "occ_per_sm": [
+            1,
+            2,
+            3
+          ],
+          "occ_a_ns": [
+            3424.000616,
+            3626.667274,
+            4106.665806
+          ],
+          "occ_c_ns": [
+            439.9999355,
+            845.3332509,
+            1205.333431
+          ]
+        }
+      ],
+      "combine_fixed_ns": 0,
+      "combine_fixed_resolved": false,
+      "combine_d_dram_ns": 0.000826210049,
+      "fp32_partial_combine": {
+        "reason": "not_calibrated",
+        "method": "",
+        "fixed_ns": null,
+        "base_ns": null,
+        "d_l2_ns": null,
+        "d_dram_ns": null
+      },
+      "interference_ratio": 1.127371302,
+      "l2_prefetch_bytes": 0
+    }
   },
-  "resources": {
-    "num_sms": 132,
-    "l2_bytes": 52428800,
-    "max_smem_per_sm": 233472,
-    "max_dynamic_smem_per_cta": 232448,
-    "regs_per_sm": 65536,
-    "max_cluster_size": 8,
-    "max_threads_per_sm": 2048,
-    "warp_size": 32
-  },
-  "calibration": {
-    "calibrated": false,
-    "l2_prefetch_bytes": 0,
-    "device": "NVIDIA H800 SXM (offline resource description; not calibrated)",
-    "measured_at": "",
-    "wall_seconds": 0,
-    "pipelines": {
-      "tc_fp16_gflops": 0.0,
-      "tc_bf16_gflops": 0.0,
-      "cuda_fp32_gflops": 0.0,
-      "cuda_int32_gops": 0.0,
-      "sfu_exp2_gops": 0.0,
-      "sfu_rsqrt_gops": 0.0,
-      "smem_gbps": 0.0,
-      "smem_conflict_slope": 0.0,
-      "l1_latency_ns": 0.0,
-      "l2_latency_ns": 0.0,
-      "dram_latency_ns": 0.0,
-      "l2_gbps": 0.0,
-      "l2_knee_bytes": 0,
-      "dram_gbps": 0.0,
-      "l2_curve_bytes": [],
-      "l2_curve_gbps": [],
-      "smem_occupancy_ctas": [],
-      "smem_occupancy_gbps": []
+  "r16_provenance": {
+    "evidence": "verified",
+    "gpu": 6,
+    "replicate_gpu": 7,
+    "method": "tilemega calibrate --dtype f32 then bf16 --base f32 --repeats 50; calibrated rates for existing kernels only",
+    "source_sha256": {
+      "tools/commands/calibrate.cpp": "30230c4703d3935414a77664c219f6931b504b0452057dfa8d6931e506cce155",
+      "lib/Target/Calibration.cu": "461e61639a1a9d8dae9e6402d47669fe729179f221498dce043cc3dc2e3d8176",
+      "lib/Target/GemmCalibration.cu": "8a24dc9f94f98b7453494cd8baeff7539038164e8a2e56cec9ee0baaa9ed633d",
+      "lib/Target/InflightCalibration.cu": "2800e58de9dfde77ad3ee5713dc1c76a6100bc1791ecb8a8cb512f865d1567c6",
+      "lib/Target/PrefetchCalibration.cu": "0db6b8b3504fa88f5480d97b3ccebf131e5d090e9285e228d690109e3dbd5937",
+      "lib/Target/ServingPagedCalibration.cu": "047788392eaf910fdf96d385024d3b77dde9449d69fe02d0e42072bdcfe01d8c",
+      "lib/Target/ServingSyncCalibration.cu": "bc0992885d1b89ea131be8c3b815a198b6cfeaf5bc9fd86931cdaf0f69ec6af2",
+      "lib/Target/ServingTaskCalibration.cu": "660254e34115960fd8b3988c5f07ae458fd4c6d4d540361692468ff3b7880934",
+      "include/tilemega/Target/Calibration.h": "118c89b885267f2cf7709e9351a647618da043f218bbd086ff2f9bca345a3d34"
     },
-    "sync": {
-      "wait_protocol": "legacy",
-      "atomic_uncontended_ns": 0.0,
-      "atomic_contention_ctas": [],
-      "atomic_contention_ns": [],
-      "threadfence_ns": 0.0,
-      "syncthreads_ns": 0.0,
-      "named_barrier_ns": 0.0,
-      "cluster_sync_ns": 0.0,
-      "cluster_sync_calibrated": false,
-      "grid_barrier_ctas": [],
-      "grid_barrier_ns": [],
-      "wait_spin_iters": 0,
-      "wait_backoff_ns": 64,
-      "wait_backoff_grow": 1,
-      "wait_backoff_cap_ns": 64
-    },
-    "streamk": [],
-    "combine_fixed_ns": 0.0,
-    "fp32_partial_combine": {
-      "fixed_ns": null,
-      "base_ns": null,
-      "d_l2_ns": null,
-      "d_dram_ns": null,
-      "reason": "not_calibrated",
-      "method": ""
-    },
-    "combine_fixed_resolved": false,
-    "combine_d_dram_ns": 0.0,
-    "interference_ratio": 0.0,
-    "measurements": []
+    "raw_target_sha256": "1f53c290329cfeb5aaad320b3743f4f1245acb234588f9f0f3c4c82b211b88d2",
+    "raw": "runs/r16/calibration/gpu6/bf16.json",
+    "replicate": "runs/r16/calibration/crosscard.json",
+    "limitations": [
+      "ownership provisional in Docker PID namespace",
+      "bulk/TMA/cluster/event and six attention fits remain uncalibrated"
+    ]
   }
 }
