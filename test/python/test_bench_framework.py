@@ -6,6 +6,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -32,7 +33,14 @@ class GuardTests(unittest.TestCase):
             self.assertFalse(idle(row, policy, 12288))
 
     def test_own_and_dead(self):
-        self.assertEqual(external(dict(owners={os.getpid(): 100, 999999999: 100}), {os.getpid()}), set())
+        # mx-smi lists container-local PIDs only: any listed owner outside the
+        # job is foreign, as is a listed owner count above the job's device openers.
+        with patch('tilemega.bench.gpu_guard.device_openers', side_effect=lambda pids: set(pids)):
+            self.assertEqual(external(dict(owners={os.getpid(): 100}), {os.getpid()}), set())
+            self.assertEqual(external(dict(owners={os.getpid(): 100, 999999999: 100}), {os.getpid()}),
+                             {999999999, -1})
+        with patch('tilemega.bench.gpu_guard.device_openers', return_value=set()):
+            self.assertEqual(external(dict(owners={os.getpid(): 100}), {os.getpid()}), {-1})
 
     def test_cleanup_after_parent_exit(self):
         worker = 'import os,signal;signal.signal(signal.SIGTERM,signal.SIG_IGN);print(os.getpid(),flush=True);signal.pause()'
@@ -40,10 +48,26 @@ class GuardTests(unittest.TestCase):
         process = subprocess.Popen([sys.executable, '-c', parent], stdout=subprocess.PIPE,
                                    text=True, start_new_session=True)
         child = int(process.stdout.readline())
-        pidfd = os.pidfd_open(child)
+        pidfd = None
+
+        def exited():
+            # Without pidfd_open (this Python build), a zombie or a vanished
+            # /proc entry is the exit. The container's init does not reap.
+            try:
+                return Path('/proc', str(child), 'stat').read_text().rsplit(')', 1)[1].split()[0] == 'Z'
+            except OSError:
+                return True
         try:
+            if hasattr(os, 'pidfd_open'):
+                pidfd = os.pidfd_open(child)
             stop(process)
-            self.assertTrue(select.select([pidfd], [], [], 2)[0])
+            if pidfd is not None:
+                self.assertTrue(select.select([pidfd], [], [], 2)[0])
+            else:
+                deadline = time.monotonic() + 2
+                while not exited() and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                self.assertTrue(exited())
             self.assertIsNotNone(process.poll())
         finally:
             try:
@@ -54,7 +78,8 @@ class GuardTests(unittest.TestCase):
                 process.kill()
                 process.wait()
             process.stdout.close()
-            os.close(pidfd)
+            if pidfd is not None:
+                os.close(pidfd)
 
 
 class QueueTests(unittest.TestCase):

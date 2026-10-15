@@ -93,7 +93,7 @@
       }
     }
   },
-  "arch_tag": "sm_89",
+  "arch_tag": "xcore1000",
   "sm_major": 8,
   "sm_minor": 9,
   "caps": {

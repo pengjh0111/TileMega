@@ -26,17 +26,14 @@ class UnifiedIdentityTests(unittest.TestCase):
         Path(str(so) + '.cu').write_text(
             '#define TILEMEGA_WATCHDOG 0\n' + ('#define TILEMEGA_DM_SUPPORT 1\n' if dm else ''))
         Path(str(so) + '.build_command.txt').write_text(
-            'nvcc -arch=sm_89 -DTILEMEGA_TRACE_STAGE=0 plan.so.cu -o plan.so')
-        Path(str(so) + '.ptxas.log').write_text("""Compiling entry function 'tilemega_l1_kernel'
-Function properties for tilemega_l1_kernel
-Used 128 registers
-0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
-Function properties for helper
-16 bytes stack frame, 8 bytes spill stores, 12 bytes spill loads
-Compiling entry function 'tilemega_l2_kernel'
-Function properties for tilemega_l2_kernel
-Used 120 registers
-0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+            'cucc -DTILEMEGA_TRACE_STAGE=0 plan.so.cu -o plan.so')
+        Path(str(so) + '.ptxas.log').write_text(""" maca info  : Function properties for  _ZN8tilemega7codegen18tilemega_l1_kernelEPKNS0_6ParamsE
+  16 bytes stack frame
+ maca info  : Used  128 MTregisters, 40 STregisters, 0 bytes shared mem
+ maca info  : staticMaxWarps/PEU : 2
+ maca info  : Function properties for  _ZN8tilemega7codegen18tilemega_l2_kernelEPKNS0_6ParamsE
+  0 bytes stack frame
+ maca info  : Used  120 MTregisters, 36 STregisters, 0 bytes shared mem
 """)
         inputs = dict(root=str(root), head='fixture', source_files={'runtime.h': sha(root / 'runtime.h')},
                       compiler=str(root / 'compiler'), compiler_sha256=sha(root / 'compiler'))
@@ -68,7 +65,7 @@ Used 120 registers
                 self.assertEqual(actual['schema'], 1)
                 self.assertEqual(verify(so, expected_source=inputs), actual)
                 self.assertEqual(actual['defines']['TILEMEGA_WATCHDOG'], '0')
-                self.assertEqual(actual['arch'], 'sm_89')
+                self.assertEqual(actual['arch'], 'xcore1000')
                 self.assertEqual('dm' in actual, dm)
                 self.assertEqual('complete_macros' in actual, dm)
                 if dm:

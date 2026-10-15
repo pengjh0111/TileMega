@@ -180,7 +180,7 @@ class GeneratedFeatureTests(unittest.TestCase):
 
     def test_attention_and_handoff_switches(self):
         for family in ('llm', 'dm'):
-            for attention in ('mma16', 'pvswap'):
+            for attention in ('mma16', 'simt'):
                 with self.subTest(family=family, attention=attention):
                     manifest, defines, fields, receipt = self.generate(
                         family, attention, ['--attention-impl', attention])

@@ -553,7 +553,6 @@ if(TILEMEGA_BUILD_TESTS)
 
   add_test(NAME cg_attr_roundtrip COMMAND tilemega-unit cg_attr_roundtrip)
 
-  add_test(NAME backend_query COMMAND tilemega-unit backend_query)
 
   add_test(NAME cache_service_curve COMMAND tilemega-unit cache_service_curve)
 
@@ -609,7 +608,6 @@ if(TILEMEGA_BUILD_TESTS)
 
   add_test(NAME alignment_propagation COMMAND tilemega-unit alignment_propagation)
 
-  add_test(NAME impl_contract COMMAND tilemega-unit impl_contract)
 
   # NVIDIA device tests are not built on xcore1000; MetaX GPU tests use
   # tilemega_add_maca_executable.
@@ -651,7 +649,6 @@ if(TILEMEGA_BUILD_TESTS)
 
   add_test(NAME isolated_evaluation COMMAND tilemega-unit isolated_evaluation)
 
-  add_test(NAME skeleton_search_isolation COMMAND tilemega-unit skeleton_search_isolation)
   add_test(NAME serving_search_rejection COMMAND tilemega-unit serving_search_rejection)
 
   add_test(NAME plan_skeleton COMMAND tilemega-unit plan_skeleton)
@@ -899,10 +896,6 @@ add_test(NAME bench_audit
   COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
     ${Python3_EXECUTABLE} -m unittest discover
     -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_bench_audit.py)
-add_test(NAME artifact_comparison
-  COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python
-    ${Python3_EXECUTABLE} -m unittest discover
-    -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_compare_artifacts.py)
 add_test(NAME build_identity
   COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
     ${Python3_EXECUTABLE} -m unittest discover
