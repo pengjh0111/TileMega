@@ -11,6 +11,7 @@ from pathlib import Path
 import statistics
 import subprocess
 import time
+import uuid
 
 
 class InvalidMeasurement(RuntimeError):
@@ -142,6 +143,72 @@ def observe(path, label):
     return sample
 
 
+def _process_start(pid):
+    try:
+        fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
+        return None if fields[0] in ("Z", "X") else fields[19]
+    except (OSError, IndexError):
+        return None
+
+
+def m0_pair_barrier(directory, gpu, participants, round_index, run, timeout_s=120, poll_s=.01):
+    participants = tuple(sorted(str(value) for value in participants))
+    gpu = str(gpu)
+    if len(participants) != 2 or len(set(participants)) != 2 or gpu not in participants:
+        raise InvalidTiming("M0 requires two distinct physical GPU participants")
+    if not math.isfinite(timeout_s) or timeout_s <= 0 or poll_s <= 0:
+        raise InvalidTiming("invalid M0 barrier timeout")
+    directory = Path(directory)/f"round{round_index}"/f"N1024-run{run}"
+    directory.mkdir(parents=True, exist_ok=True)
+    nonce = uuid.uuid4().hex
+    own = dict(gpu=gpu, pid=os.getpid(), process_start=_process_start(os.getpid()), nonce=nonce,
+               round=round_index, run=run, participants=list(participants), ready_against={})
+    own_path = directory/f"gpu{gpu}.json"
+    def write():
+        temporary = directory/f"gpu{gpu}.{nonce}.tmp"
+        temporary.write_text(json.dumps(own) + "\n")
+        temporary.replace(own_path)
+    write()
+    peer_gpu = next(value for value in participants if value != gpu)
+    peer_path = directory/f"gpu{peer_gpu}.json"
+    deadline = time.monotonic()+timeout_s
+    peer = None
+    while True:
+        try:
+            peer = json.loads(peer_path.read_text())
+            valid = (peer.get('gpu') == peer_gpu and peer.get('round') == round_index and peer.get('run') == run
+                     and peer.get('participants') == list(participants) and peer.get('nonce')
+                     and peer.get('process_start') is not None
+                     and _process_start(peer.get('pid')) == peer.get('process_start'))
+        except (OSError, ValueError, TypeError):
+            valid = False
+        if valid:
+            if own['ready_against'].get(peer_gpu) != peer['nonce']:
+                own['ready_against'][peer_gpu] = peer['nonce']
+                write()
+            # Both fresh nonces must be acknowledged. A live old receipt alone
+            # cannot release a retry, even when the OS later reuses its PID.
+            if peer.get('ready_against', {}).get(gpu) == nonce:
+                return dict(directory=str(directory.resolve()), participants=list(participants),
+                            round=round_index, run=run, nonce=nonce, peer_nonce=peer['nonce'],
+                            peer_pid=peer['pid'], peer_process_start=peer['process_start'])
+        if time.monotonic() >= deadline:
+            failure = dict(reason='M0 peer readiness timeout', own=own, peer=peer, timeout_s=timeout_s)
+            (directory/f"gpu{gpu}.{nonce}.failed.json").write_text(json.dumps(failure, indent=2) + "\n")
+            raise InvalidTiming("M0 peer readiness timeout", directory=str(directory), gpu=gpu,
+                                round=round_index, run=run, peer=peer)
+        time.sleep(poll_s)
+
+
+def optional_m0_barrier(args, count, run):
+    directory = os.environ.get('TILEMEGA_M0_BARRIER_DIR')
+    if not directory or count != 1024 or run < args.warmup:
+        return None
+    participants = os.environ.get('TILEMEGA_M0_PARTICIPANTS', '').split(',')
+    return m0_pair_barrier(directory, require_guard(), participants, args.round_index, run,
+                          timeout_s=float(os.environ.get('TILEMEGA_M0_BARRIER_TIMEOUT_S', '120')))
+
+
 def check_tokens(tokens, batch, count):
     if (not isinstance(tokens, list) or len(tokens) != batch or
             any(not isinstance(row, list) or len(row) != count or
@@ -174,6 +241,13 @@ def measure(args, ids, system, generate, metadata, synchronize=lambda: None):
         # N=1 first exposes initialization/compile failures before a long run.
         for count in dict.fromkeys((1, args.max_tokens)):
             for run in range(args.warmup + args.repeats):
+                try:
+                    barrier = optional_m0_barrier(args, count, run)
+                except InvalidTiming as error:
+                    (out/"invalid_measurements.json").write_text(json.dumps({
+                        "valid": False, "reason": str(error), "retryable": False,
+                        "diagnostics": error.diagnostics, "generation_runs": rows}, indent=2) + "\n")
+                    raise
                 sample = observe(guard_path, f"N{count}-run{run}-before")
                 unresolved.update(sample.get("unresolved_host_pids", []))
                 synchronize()
@@ -189,8 +263,11 @@ def measure(args, ids, system, generate, metadata, synchronize=lambda: None):
                 check_tokens(tokens, batch, count)
                 token_file = f"tokens_N{count}_run{run}.json"
                 (out/token_file).write_text(json.dumps(tokens, separators=(",", ":")) + "\n")
-                rows.append({"N": count, "run": run, "warmup": run < args.warmup,
-                             "wall_seconds": elapsed, "tokens_file": token_file})
+                record = {"N": count, "run": run, "warmup": run < args.warmup,
+                          "wall_seconds": elapsed, "tokens_file": token_file}
+                if barrier is not None:
+                    record["m0_barrier"] = barrier
+                rows.append(record)
         try:
             metrics = summarize(rows, batch, args.max_tokens)
         except (InvalidMeasurement, ValueError) as error:

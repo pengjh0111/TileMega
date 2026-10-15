@@ -133,6 +133,28 @@ def build_recovery_plan(root, env_root, gpus=(7, 6), numa=None, pid_mode="strict
     return phases
 
 
+def build_m0_plan(root, env_root, run_id, gpus=(7, 6), numa=None, pid_mode="strict", cpu_bind_only=False):
+    if not run_id or any(not (char.isalnum() or char in '-_') for char in run_id):
+        raise ValueError("M0 run-id must be a nonempty filename-safe identifier")
+    complete = build_plan(root, env_root, gpus, numa, pid_mode, cpu_bind_only)
+    phases = {}
+    for phase in ("m0_solo", "m0_concurrent"):
+        if phase not in complete:
+            raise ValueError("M0 requires two distinct cards")
+        destination = phase+'_'+run_id
+        phases[destination] = complete[phase]
+        for jobs in phases[destination].values():
+            for job in jobs:
+                job['name'] = job['name'].replace(phase+'_', destination+'_', 1)
+                job['timeout_s'] = 600
+                job['protocol']['m0_run_id'] = run_id
+                if phase == 'm0_concurrent':
+                    job['env']['TILEMEGA_M0_BARRIER_DIR'] = str(Path(root).resolve()/'runs/r16/m0_barriers'/run_id)
+                    job['env']['TILEMEGA_M0_PARTICIPANTS'] = ','.join(map(str, sorted(gpus[:2])))
+                    job['env']['TILEMEGA_M0_BARRIER_TIMEOUT_S'] = '120'
+    return phases
+
+
 def write_plan(directory, phases, root, pid_mode, cpu_bind_only):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=False)
@@ -183,12 +205,19 @@ def main():
     parser.add_argument("--gpus", type=int, nargs="+", default=[7, 6])
     parser.add_argument("--numa-map", type=Path, help="JSON mapping physical GPU index to NUMA node")
     parser.add_argument("--pid-mode", choices=("strict", "namespace_limited"), default="strict")
+    parser.add_argument("--m0-only", action="store_true", help="generate only uniquely named solo/concurrent trial queues")
+    parser.add_argument("--run-id", help="required unique identifier for --m0-only")
     parser.add_argument("--recovery-only", action="store_true", help="preview official TP1 and compiled-cache recovery plus remaining matrix")
     parser.add_argument("--cpu-bind-only", action="store_true", help="record unavailable membind as an explicit container deviation")
     args = parser.parse_args()
     numa = {int(key): int(value) for key, value in json.loads(args.numa_map.read_text()).items()} if args.numa_map else None
-    builder = build_recovery_plan if args.recovery_only else build_plan
-    phases = builder(args.root, args.env_root, tuple(args.gpus), numa, args.pid_mode, args.cpu_bind_only)
+    if args.m0_only:
+        if args.recovery_only or not args.run_id:
+            parser.error("--m0-only requires --run-id and cannot combine with --recovery-only")
+        phases = build_m0_plan(args.root, args.env_root, args.run_id, tuple(args.gpus), numa, args.pid_mode, args.cpu_bind_only)
+    else:
+        builder = build_recovery_plan if args.recovery_only else build_plan
+        phases = builder(args.root, args.env_root, tuple(args.gpus), numa, args.pid_mode, args.cpu_bind_only)
     manifest = write_plan(args.out, phases, args.root, args.pid_mode, args.cpu_bind_only)
     print(json.dumps({key: manifest[key] for key in ("enqueued", "m1_cells", "fresh_processes", "g_m0", "g_base")}))
 
