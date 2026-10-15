@@ -249,8 +249,6 @@ def prepare(args):
                 candidate['qkv_epilogue'] = int(getattr(args, 'qkv_epilogue', 0) and arm == 'h1h4')
                 for coordinate in ('activation_tma', 'qkv_epilogue'):
                     candidate['variant'][coordinate] = candidate[coordinate]
-                    if candidate[coordinate]:
-                        candidate['system'] += '-'+coordinate
                 candidate['file'] = str(directory/(arm+'-L2.json'))
                 write(candidate['file'], candidate)
                 queue.append(job(base, build_name, compile_command(candidate, 'decode', decode), after=[layout_name]))

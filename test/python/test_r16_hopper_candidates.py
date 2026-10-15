@@ -79,6 +79,7 @@ class HopperCandidates(unittest.TestCase):
         driver.prepare(self.args)
         candidates=driver.load(self.args.out/'plan.json')['cells'][0]['candidates']
         for candidate in candidates:
+            self.assertEqual(candidate['system'],driver.ARMS[candidate['arm']])
             self.assertEqual(candidate['activation_tma'],int(candidate['arm'] in ('h1','h1h4')))
             self.assertEqual(candidate['qkv_epilogue'],int(candidate['arm']=='h1h4'))
             command=driver.compile_command(candidate,'decode','out.so')
