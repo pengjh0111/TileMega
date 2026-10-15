@@ -282,6 +282,10 @@ def telemetry(path):
 
 
 def completed_guard(directory, job):
+    invalidation = Path(directory)/'guard_invalidation.json'
+    if invalidation.exists():
+        reason = json.loads(invalidation.read_text()).get('reason', 'guard invalidated')
+        raise ValueError('completed guard was invalidated; retest required: '+reason)
     if job.get('status') != 'done' or job.get('exit_code') != 0:
         raise ValueError('job did not complete successfully')
     guard = json.loads((directory/'guard_result.json').read_text())
