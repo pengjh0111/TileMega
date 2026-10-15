@@ -13,6 +13,7 @@ import subprocess
 import sys
 import time
 import check_r16_forward_seed as contract
+import r16_forward_sass_validation as selected_sass
 import run_r16_h7a_recertify as probe
 
 recovery = probe.recovery
@@ -147,17 +148,24 @@ def accept(path):
     if p.wait():
         raise ValueError('actual binary SASS audit failed')
     n = sum(g['impl'] == 'wgmma' for g in m['gemms'])
+    selected_path_proof = None
     if c['arm'] == 'tma-im2col':
-        if (not n or any(not audit['counts'].get(k) for k in ('HGMMA', 'UTMALDG.4D')) or
-            audit['hot_local_instructions']):
-            raise ValueError('actual WGMMA/im2col instructions or compute-loop spill gate failed')
+        if not n or any(not audit['counts'].get(k) for k in ('HGMMA', 'UTMALDG.4D')):
+            raise ValueError('actual WGMMA/im2col instructions are missing')
+        if audit['hot_local_instructions']:
+            with gzip.open(d / 'sass.txt.gz', 'rt') as saved:
+                selected_path_proof = selected_sass.selected_loop_proof(identity,
+                    (d / 'plan.so.cu').read_text(), audit, saved, c['source'])
+            base.write(d / 'selected-path-sass-proof.json', selected_path_proof)
     elif n or audit['counts'].get('HGMMA'):
         raise ValueError('MMA control actually contains WGMMA')
     base.write(d / 'cpu-build-result.json', dict(passed=True, candidate_id=c['candidate_id'],
         artifact_id=identity['artifact_id'], library_sha256=identity['binary_sha256'],
         source_head=c['source_head'], cli_sha256=c['cli_sha256'], gemms=m['gemms'],
         actual_wgmma_gemms=n, sass_counts=audit['counts'],
-        hot_local_gate=audit['hot_local_instructions'], resource_recertification=resource,
+        hot_local_gate=0 if selected_path_proof else audit['hot_local_instructions'],
+        conservative_generic_loop_locals=audit['hot_local_instructions'],
+        selected_path_proof=selected_path_proof, resource_recertification=resource,
         whole_kernel_spill_claim='not asserted; complete ptxas and loop audit retained',
         native_seed_not_solver_optimal=True))
 
@@ -215,7 +223,7 @@ def prepare(args):
     base.write(out / 'normalized-cli-receipt.json', dict(receipt,
         original_receipt=str(args.receipt.absolute()), original_receipt_sha256=base.sha(args.receipt)))
     dependencies = {}
-    for module in (sys.modules[__name__], contract, probe, recovery, base):
+    for module in (sys.modules[__name__], contract, probe, recovery, base, selected_sass):
         source = Path(module.__file__)
         dest = out / source.name
         shutil.copy2(source, dest)
