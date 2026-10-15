@@ -22,6 +22,16 @@ KINDS = ('tilemega_l1_kernel', 'tilemega_l2_kernel',
          'tilemega_l1_loop_kernel', 'tilemega_stage_kernel')
 
 
+def seed_shape(tile_n):
+    if tile_n not in (64, 128):
+        raise ValueError('predeclared forward seed N must be 64 or 128')
+    return dict(SHAPE, tile_n=tile_n)
+
+
+def seed_tuple(shape):
+    return 'M{tile_m}N{tile_n}K{tile_k}S{stages}'.format(**shape)
+
+
 def scheduler_queue_path(root, gpu, stem):
     return Path(root) / f'runs/r16/queue/gpu{gpu}' / ('queue_' + stem + '.json')
 
@@ -121,7 +131,7 @@ def accept(path):
     if any(m.get(k) != v for k, v in c['expected'].items()):
         raise ValueError('requested forward coordinate did not bind')
     contract.check_matrix(m, (d / 'plan.so.cu').read_text(),
-                          tuple(c['full_model_counts']), SHAPE)
+                          tuple(c['full_model_counts']), c['expected']['forward_seed_tile'])
     log = (d / 'plan.so.ptxas.log').read_text(errors='replace')
     if 'C7510' in log or re.search(r'wgmma[^\n]*serializ', log, re.I):
         raise ValueError('full model contains serialized WGMMA')
@@ -230,15 +240,16 @@ def prepare(args):
     bridge = d / 'export.json'
     shutil.copy2(export / 'bridge_b1.json', bridge)
     # The parent directory names the actual model in the official manifest.
+    shape = seed_shape(args.tile_n)
     for arm in args.arms:
         folder = d / arm
         folder.mkdir()
         expected = dict(model=args.model, conv_impl='cpasync' if arm == 'mma' else 'tma_im2col',
                         forward_gemm_impl='mma16' if arm == 'mma' else 'wgmma',
-                        forward_seed_tile=SHAPE, forward_seed_explicit=True)
+                        forward_seed_tile=shape, forward_seed_explicit=True)
         flags = ['--emit', 'serving', '--serving', 'forward', '--frontend', 'dnn', '--batch', '1',
                  '--runtime-target', str(target), '--pg', 'l2', '--resource-probes', '0',
-                 '--seed-arch', 'native', '--forward-seed-tile', 'M64N128K64S2',
+                 '--seed-arch', 'native', '--forward-seed-tile', seed_tuple(shape),
                  '--nonpaged-weight-layout', 'tiled', '--deferred-ln', 'auto', '--reuse', 'l2',
                  '--global-la', 'auto', '--dwpw-fuse', 'auto', '--forward-gemm-impl',
                  expected['forward_gemm_impl'], '--conv-impl', expected['conv_impl']]
@@ -294,6 +305,7 @@ def main():
     for name in ('receipt', 'out', 'target', 'export', 'full-model-reference'):
         a.add_argument('--'+name, type=Path, required=True)
     a.add_argument('--model', choices=('resnet18', 'nafnet'), required=True)
+    a.add_argument('--tile-n', type=int, choices=(64, 128), default=128)
     a.add_argument('--arms', nargs='+', choices=('mma', 'tma-im2col'), default=['mma', 'tma-im2col'])
     a.add_argument('--root', type=Path, default=Path('/root/TileMega'))
     a.add_argument('--python', type=Path, default=Path('/root/TileMega/runs/r16/env/dnn-export/bin/python'))

@@ -8,7 +8,19 @@ import sys
 import tempfile
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))
-from run_r16_forward_seed_candidates import KINDS, completed_receipt, resource_gate, scheduler_queue_path
+from run_r16_forward_seed_candidates import KINDS, completed_receipt, resource_gate, scheduler_queue_path, seed_shape, seed_tuple
+
+
+class SeedGeometryTest(unittest.TestCase):
+    def test_candidates_retain_their_explicit_geometry(self):
+        wide, narrow = seed_shape(128), seed_shape(64)
+        self.assertEqual(seed_tuple(wide), 'M64N128K64S2')
+        self.assertEqual(seed_tuple(narrow), 'M64N64K64S2')
+        self.assertEqual(wide['tile_n'], 128)
+        self.assertEqual(narrow['split_k'], 1)
+        for value in (0, 32, 65, 256):
+            with self.assertRaisesRegex(ValueError, 'predeclared'):
+                seed_shape(value)
 
 
 class ActualSeedResourcesTest(unittest.TestCase):
