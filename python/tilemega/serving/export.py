@@ -147,7 +147,8 @@ def metadata_only(config: dict) -> bool:
             config['hidden_size']>=3072)
 
 
-def export(config: dict, phase: str, capacity: int, out: Path, prompt_len: int = 64) -> dict:
+def export(config: dict, phase: str, capacity: int, out: Path, prompt_len: int = 64,
+           *, meta_weights: bool = False) -> dict:
     if phase not in ('decode', 'prefill') or prompt_len < 1 or capacity <= prompt_len:
         raise ValueError('export needs a positive ISL and capacity greater than ISL')
     torch.set_num_threads(4)
@@ -157,7 +158,7 @@ def export(config: dict, phase: str, capacity: int, out: Path, prompt_len: int =
     batch_example = 2
     dim = config.get("head_dim", config["hidden_size"] // config["num_attention_heads"])
     kv_heads = config["num_key_value_heads"]
-    use_meta = metadata_only(config)
+    use_meta = meta_weights or metadata_only(config)
     if use_meta:
         with torch.device('meta'):
             model = Decoder(config).eval().to(torch.bfloat16)
@@ -209,6 +210,8 @@ def main() -> None:
     parser.add_argument('--prompt-len', type=int, default=64)
     parser.add_argument("--out", type=Path)
     parser.add_argument("--test-small", action="store_true")
+    parser.add_argument('--meta-weights', action='store_true',
+                        help='export architecture without materializing or serializing random parameters')
     args = parser.parse_args()
     config = json.loads(args.config.read_text())
     if args.test_small:
@@ -219,7 +222,8 @@ def main() -> None:
             config.update(moe_intermediate_size=64, num_experts=16, num_local_experts=16,
                           num_experts_per_tok=8)
     out = args.out or Path(f"/root/r10_work/export/{args.model}_{args.phase}")
-    print(json.dumps(export(config, args.phase, args.capacity, out, args.prompt_len)), flush=True)
+    print(json.dumps(export(config, args.phase, args.capacity, out, args.prompt_len,
+                            meta_weights=args.meta_weights)), flush=True)
 
 
 if __name__ == "__main__":

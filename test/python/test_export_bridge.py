@@ -40,6 +40,20 @@ class BridgeTests(unittest.TestCase):
     def setUpClass(cls):
         torch.set_num_threads(4)
 
+    def test_shared_symbol_guards_preserve_input_equality(self):
+        class Add(torch.nn.Module):
+            def forward(self, x, y):
+                return x + y
+        batch = torch.export.Dim('batch', min=1, max=16)
+        program = torch.export.export(Add(), (torch.ones(2, 8), torch.ones(2, 8)),
+            dynamic_shapes=({0: batch}, {0: batch}), strict=False)
+        document = serialize(program)
+        self.assertTrue(any("flat_args" in guard and "==" in guard for guard in document['guards']))
+        self.assertEqual(document['range_constraints'],
+                         {str(k): str(v) for k,v in program.range_constraints.items()})
+        with self.assertRaises(RuntimeError):
+            program.module()(torch.ones(2,8),torch.ones(3,8))
+
     def test_recursive_types_and_nonfinite_json(self):
         values = [17, 0.5, True, 'tanh', None, [False, [2, 3]],
                   torch.bfloat16, torch.device('cpu'), torch.strided,
