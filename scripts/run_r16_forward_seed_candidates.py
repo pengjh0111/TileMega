@@ -33,6 +33,14 @@ def seed_tuple(shape):
     return 'M{tile_m}N{tile_n}K{tile_k}S{stages}'.format(**shape)
 
 
+def requested_seed_shape(candidate):
+    requested = candidate['expected']['forward_seed_tile']
+    actual = seed_shape(requested['tile_n'])
+    if requested != actual:
+        raise ValueError('candidate tuple differs from the predeclared seed shape')
+    return actual
+
+
 def scheduler_queue_path(root, gpu, stem):
     return Path(root) / f'runs/r16/queue/gpu{gpu}' / ('queue_' + stem + '.json')
 
@@ -132,7 +140,7 @@ def accept(path):
     if any(m.get(k) != v for k, v in c['expected'].items()):
         raise ValueError('requested forward coordinate did not bind')
     contract.check_matrix(m, (d / 'plan.so.cu').read_text(),
-                          tuple(c['full_model_counts']), c['expected']['forward_seed_tile'])
+                          tuple(c['full_model_counts']), requested_seed_shape(c))
     log = (d / 'plan.so.ptxas.log').read_text(errors='replace')
     if 'C7510' in log or re.search(r'wgmma[^\n]*serializ', log, re.I):
         raise ValueError('full model contains serialized WGMMA')
@@ -188,7 +196,7 @@ def build(path):
         raise ValueError('official complete-model native-seed compilation failed')
     identity = recovery.native_identity(d / 'plan.so')
     contract.check_matrix(identity['plan'], (d / 'plan.so.cu').read_text(),
-                          tuple(c['full_model_counts']), SHAPE)
+                          tuple(c['full_model_counts']), requested_seed_shape(c))
     lib = ctypes.CDLL(str(d / 'plan.so'))
     lib.tm_plan_shared_bytes.restype = ctypes.c_size_t
     # This exported constant accessor does not call the CUDA device probe.

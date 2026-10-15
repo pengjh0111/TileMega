@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))
-from run_r16_forward_seed_candidates import KINDS, completed_receipt, resource_gate, scheduler_queue_path, seed_shape, seed_tuple
+from run_r16_forward_seed_candidates import KINDS, completed_receipt, resource_gate, scheduler_queue_path, seed_shape, seed_tuple, requested_seed_shape
 
 
 class SeedGeometryTest(unittest.TestCase):
@@ -18,6 +18,10 @@ class SeedGeometryTest(unittest.TestCase):
         self.assertEqual(seed_tuple(narrow), 'M64N64K64S2')
         self.assertEqual(wide['tile_n'], 128)
         self.assertEqual(narrow['split_k'], 1)
+        self.assertEqual(requested_seed_shape(dict(expected=dict(forward_seed_tile=narrow))), narrow)
+        malformed = dict(narrow, tile_k=128)
+        with self.assertRaisesRegex(ValueError, 'predeclared seed'):
+            requested_seed_shape(dict(expected=dict(forward_seed_tile=malformed)))
         for value in (0, 32, 65, 256):
             with self.assertRaisesRegex(ValueError, 'predeclared'):
                 seed_shape(value)
