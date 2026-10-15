@@ -101,7 +101,7 @@ def collect_dnn(root):
                  for job in json.loads(queue.read_text())}
     for state_file in sorted((root/'runs/r16/scheduler').glob('gpu*/state.json')):
         for name, job in json.loads(state_file.read_text()).items():
-            if job.get('status') != 'done' or not name.startswith(('dnn-', 'tm-dnn-', 'm3_')) or name.startswith('dnn-smoke-'):
+            if job.get('status') != 'done' or not name.startswith(('dnn-', 'tm-dnn-', 'm3_', 'h7a-')) or name.startswith('dnn-smoke-'):
                 continue
             definition=definitions.get(name)
             if definition is not None and not definition.get('timing',definition.get('gpu',False)):
@@ -111,6 +111,7 @@ def collect_dnn(root):
             try:
                 guard = completed_guard(directory, job)
                 value, own = validate_dnn(path, guard)
+                adjustment = dnn_runtime_adjustment(value)
                 if value['gpu_index'] != int(state_file.parent.name.removeprefix('gpu')):
                     raise ValueError('receipt GPU differs from scheduler card')
             except (OSError, ValueError, KeyError, TypeError) as error:
@@ -120,6 +121,7 @@ def collect_dnn(root):
                 precision=value['precision'], compile_mode=value.get('configuration', {}).get('compile_mode', ''),
                 candidate_id=value.get('candidate_id', value.get('configuration', {}).get('candidate_id', '')),
                 candidate_receipt_sha256=value.get('candidate_receipt_sha256', ''), pid=value.get('pid'),
+                temporary_workaround=bool(adjustment), runtime_adjustment=adjustment,
                 source_checkpoint_sha256=value.get('source_checkpoint_sha256', ''),
                 round=value['round_index'], gpu=value['gpu_index'], median_ms=value['median_ms'], p90_ms=value['p90_ms'],
                 acceptance=own['acceptance'], ownership_verified=own['ownership_verified'],
@@ -130,6 +132,22 @@ def collect_dnn(root):
                 source_checkpoint_label=value.get('_r16_native', {}).get('source_checkpoint_label', 'stored export checkpoint'),
                 measurement=str(path.relative_to(root))))
     return records, rejected
+
+
+def dnn_runtime_adjustment(value):
+    key = 'runtime_shared_memory_optin_workaround'
+    top = value.get(key)
+    nested = value.get('configuration', {}).get(key)
+    if top is None and nested is None:
+        return ''
+    if not isinstance(top, dict) or top != nested:
+        raise ValueError('runtime workaround metadata is absent or contradictory')
+    if (top.get('enabled') is not True or top.get('temporary_workaround') is not True or
+            top.get('artifact_id') != value.get('artifact_id') or
+            top.get('library_sha256') != value.get('identity', {}).get('binary_sha256') or
+            not top.get('driver_sha256') or not top.get('production_fix_commit')):
+        raise ValueError('runtime workaround does not identify the measured artifact and repair')
+    return json.dumps(top, sort_keys=True, separators=(',', ':'))
 
 
 def aggregate_dnn(records):
@@ -151,9 +169,14 @@ def aggregate_dnn(records):
         checkpoint_hashes.discard('')
         if len(checkpoint_hashes) > 1:
             raise ValueError(f'DNN checkpoint hashes disagree for the same export for {key}')
+        adjustments = {row.get('runtime_adjustment', '') for row in rows}
+        if len(adjustments) != 1:
+            raise ValueError(f'DNN runtime workaround differs between fresh rounds for {key}')
         result.append(dict(zip(('model', 'system', 'batch', 'precision', 'compile_mode',
             'candidate_id', 'candidate_receipt_sha256', 'native_artifact_ids', 'exported_program_sha256'), key),
             source_checkpoint_sha256=next(iter(checkpoint_hashes), ''),
+            runtime_adjustment=next(iter(adjustments)),
+            temporary_workaround=bool(next(iter(adjustments))),
             checkpoint_hash_processes=sum(bool(row.get('source_checkpoint_sha256')) for row in rows),
             fresh_processes=len(rows), protocol_complete=rounds == {0, 1, 2},
             gpu=','.join(map(str, sorted({row['gpu'] for row in rows}))),

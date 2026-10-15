@@ -45,6 +45,8 @@ def compare(rows, family):
                 native_comparison_arm=tm.get('comparison_arm') or tm.get('candidate_id') or
                     tm['system'] + '@' + tm.get('native_artifact_ids', ''),
                 native_artifact_ids=tm.get('native_artifact_ids', ''),
+                native_temporary_workaround=tm.get('temporary_workaround', False),
+                native_runtime_adjustment=tm.get('runtime_adjustment', ''),
                 baseline_system=base['system'], baseline_mode=base.get('compile_mode', ''),
                 native_precision=tm.get('precision', 'bf16'), baseline_precision=base.get('precision', 'bf16'),
                 checkpoint_shared=shared,

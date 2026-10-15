@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]/'scripts'))
-from summarize_r16 import aggregate_dnn
+from summarize_r16 import aggregate_dnn, dnn_runtime_adjustment
 
 
 class DnnAggregation(unittest.TestCase):
@@ -52,6 +52,26 @@ class DnnAggregation(unittest.TestCase):
         rows[2]['source_checkpoint_sha256']='checkpoint-b'
         with self.assertRaises(ValueError):
             aggregate_dnn(rows)
+
+    def test_temporary_launch_configuration_stays_explicit(self):
+        metadata = dict(enabled=True, temporary_workaround=True, artifact_id='binary-a',
+                        library_sha256='library', driver_sha256='driver', production_fix_commit='fix')
+        value = dict(artifact_id='binary-a', identity={'binary_sha256':'library'},
+                     runtime_shared_memory_optin_workaround=metadata,
+                     configuration={'runtime_shared_memory_optin_workaround':metadata})
+        adjustment = dnn_runtime_adjustment(value)
+        rows = self.rows('mma-optin', 'binary-a')
+        for row in rows:
+            row['runtime_adjustment'] = adjustment
+        cell, = aggregate_dnn(rows)
+        self.assertTrue(cell['temporary_workaround'])
+        self.assertEqual(cell['runtime_adjustment'], adjustment)
+        rows[1]['runtime_adjustment'] = ''
+        with self.assertRaises(ValueError):
+            aggregate_dnn(rows)
+        value['runtime_shared_memory_optin_workaround'] = dict(metadata, library_sha256='different')
+        with self.assertRaises(ValueError):
+            dnn_runtime_adjustment(value)
 
 
 if __name__ == '__main__':
