@@ -3,11 +3,11 @@
 
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 
-#include <cute/tensor.hpp>
 #include <tilemega/Backend/ServingVectorIO.h>
 #include <tilemega/Backend/ServingDeferredNorm.h>
 #include <tilemega/Backend/ServingEpilogueScratch.h>
-#include <cutlass/bfloat16.h>
+#include <tilemega/Target/Maca/Bf16.h>
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <cuda_runtime.h>
 
 #include <climits>
@@ -32,24 +32,24 @@ enum class ServingEpilogueOp {
 /// is therefore independent of split-K.
 template <ServingEpilogueOp Op>
 struct ServingEpilogueValue {
-  __device__ static cutlass::bfloat16_t Apply(float acc,
-                                               cutlass::bfloat16_t residual = {}) {
+  __device__ static tilemega::Bf16 Apply(float acc,
+                                               tilemega::Bf16 residual = {}) {
     if constexpr (Op == ServingEpilogueOp::kResidual) {
-      auto rounded = cutlass::bfloat16_t(acc);
-      return cutlass::bfloat16_t(float(rounded) + float(residual));
+      auto rounded = tilemega::Bf16(acc);
+      return tilemega::Bf16(float(rounded) + float(residual));
     } else {
-      return cutlass::bfloat16_t(acc);
+      return tilemega::Bf16(acc);
     }
   }
 };
 
 template <>
 struct ServingEpilogueValue<ServingEpilogueOp::kSwiGLU> {
-  __device__ static cutlass::bfloat16_t Apply(float gate, float up) {
-    float g = float(cutlass::bfloat16_t(gate));
-    float v = float(cutlass::bfloat16_t(up));
-    auto activated = cutlass::bfloat16_t(g / (1.0f + expf(-g)));
-    return cutlass::bfloat16_t(float(activated) * v);
+  __device__ static tilemega::Bf16 Apply(float gate, float up) {
+    float g = float(tilemega::Bf16(gate));
+    float v = float(tilemega::Bf16(up));
+    auto activated = tilemega::Bf16(g / (1.0f + expf(-g)));
+    return tilemega::Bf16(float(activated) * v);
   }
 };
 
@@ -70,125 +70,15 @@ struct ServingEpilogue {
     return Swizzled ? SharedIndex(row, col) : row * TileN + col;
   }
 
-  template <class Accumulator, class TiledMma>
-  __device__ static void RunDirect(Accumulator const& accum,TiledMma const& mma,
-      char* shared,int tile_m,int tile_n,int M,int N,int stride,
-      cutlass::bfloat16_t* output,cutlass::bfloat16_t const* residual,
-      float const* norm_ss,float* ss_out,int norm_k,float norm_eps) {
-    auto coords=mma.get_thread_slice(ComputeThread()).partition_C(
-        cute::make_identity_tensor(cute::Shape<cute::Int<TileM>,cute::Int<TileN>>{}));
-    float* inv=reinterpret_cast<float*>(shared)+TileM*TileN;
-    if(norm_ss) {
-      for(int row=ComputeThread()/8;row<TileM;row+=16) {
-        int part=ComputeThread()%8,gr=tile_m*TileM+row;float sum=0;
-        if(gr<M)for(int j=part;j<norm_k/32;j+=8)sum+=DeferredNormBlock(norm_ss,gr,norm_k,j);
-        sum+=__shfl_xor_sync(0xffffffff,sum,1);
-        sum+=__shfl_xor_sync(0xffffffff,sum,2);
-        sum+=__shfl_xor_sync(0xffffffff,sum,4);
-        if(part==0)inv[row]=gr<M?rsqrtf(sum/float(norm_k)+norm_eps):0;
-      }
-      ComputeSync();
-    }
-    // SwiGLU's partner can belong to another warp. Exchange only rounded up
-    // values; Store and Residual keep the accumulator in registers.
-    if constexpr(Op==ServingEpilogueOp::kSwiGLU) {
-      for(int i=0;i<cute::size(accum);++i) {
-        int row=cute::get<0>(coords(i)),col=cute::get<1>(coords(i));
-        if(col%(2*U)>=U) {
-          float value=accum(i)*(norm_ss?inv[row]:1.0f);
-          reinterpret_cast<cutlass::bfloat16_t*>(shared)[row*(TileN/2)+(col/(2*U))*U+col%U]=cutlass::bfloat16_t(value);
-        }
-      }
-      ComputeSync();
-    }
-    for(int i=0;i<cute::size(accum);++i) {
-      int row=cute::get<0>(coords(i)),col=cute::get<1>(coords(i));
-      int gr=tile_m*TileM+row,gc=tile_n*TileN+col;
-      if(gr>=M || gc>=N)continue;
-      float value=accum(i)*(norm_ss?inv[row]:1.0f);cutlass::bfloat16_t result;
-      if constexpr(Op==ServingEpilogueOp::kSwiGLU) {
-        if(col%(2*U)>=U)continue;
-        int oc=(col/(2*U))*U+col%U;
-        result=ServingEpilogueValue<Op>::Apply(value,float(reinterpret_cast<cutlass::bfloat16_t*>(shared)[row*(TileN/2)+oc]));
-        output[gr*stride+tile_n*(TileN/2)+oc]=result;
-      }else {
-        auto res=residual?residual[gr*stride+gc]:cutlass::bfloat16_t{};
-        result=ServingEpilogueValue<Op>::Apply(value,res);output[gr*stride+gc]=result;
-        if constexpr(Op==ServingEpilogueOp::kResidual)
-          if(ss_out)reinterpret_cast<cutlass::bfloat16_t*>(shared)[row*TileN+col]=result;
-      }
-    }
-    if constexpr(Op==ServingEpilogueOp::kResidual)if(ss_out) {
-      static_assert(TileN%32==0);
-      // DN requires its original eight-element sum and xor-1/xor-2 order.
-      // Only the rounded residual tile is rearranged for that reduction.
-      ComputeSync();
-      constexpr int vectors=TileM*TileN/8,passes=(vectors+127)/128;
-      for(int pass=0;pass<passes;++pass) {
-        int v=ComputeThread()+128*pass,row=v/(TileN/8),col=(v%(TileN/8))*8;
-        int gr=tile_m*TileM+row,gc=tile_n*TileN+col;float sum=0;
-        if(v<vectors && gr<M)for(int e=0;e<8;++e)if(gc+e<N) {
-          float x=float(reinterpret_cast<cutlass::bfloat16_t*>(shared)[row*TileN+col+e]);sum+=x*x;
-        }
-#if TILEMEGA_DN_VECTOR_SUMS
-        if(v<vectors && gr<M && gc<N)ss_out[gr*((N+7)/8)+gc/8]=sum;
-#else
-        sum+=__shfl_xor_sync(0xffffffff,sum,1);sum+=__shfl_xor_sync(0xffffffff,sum,2);
-        if(ComputeThread()%4==0 && v<vectors && gr<M && gc<N)ss_out[gr*(N/32)+gc/32]=sum;
-#endif
-      }
-    }
-  }
-
-  template <class Accumulator, class TiledMma>
-  __device__ static void Run(Accumulator const& accum, TiledMma const& mma,
-                             char* shared, int tile_m, int tile_n,
-                             int M, int N, int output_stride,
-                             int partial_stride,
-                             cutlass::bfloat16_t* output,
-                             cutlass::bfloat16_t const* residual = nullptr,
-                             float* partial = nullptr,
-                             float* argmax_value = nullptr,
-                             int* argmax_index = nullptr,
-                             float const* norm_ss = nullptr,
-                             float* ss_out = nullptr, int norm_k = 0,
-                             float norm_eps = 0.0f) {
-    // The cp.async mainloop has vacated this storage.  The 4-byte accumulator
-    // tile fits in the same union as the (possibly larger) staged operands.
-    cute::cp_async_wait<0>();
-    ComputeSync();
-#if TILEMEGA_EP_DIRECT
-    if constexpr(Op==ServingEpilogueOp::kStore || (Op==ServingEpilogueOp::kResidual && TileN%32==0) || Op==ServingEpilogueOp::kSwiGLU) {
-      RunDirect(accum,mma,shared,tile_m,tile_n,M,N,output_stride,output,residual,norm_ss,ss_out,norm_k,norm_eps);
-      return;
-    }
-#endif
-    float* tile = reinterpret_cast<float*>(shared);
-    auto coordinates = cute::make_identity_tensor(
-        cute::Shape<cute::Int<TileM>, cute::Int<TileN>>{});
-    auto owned = mma.get_thread_slice(ComputeThread()).partition_C(coordinates);
-    CUTE_STATIC_ASSERT_V(cute::size(owned) == cute::size(accum));
-    for (int i = 0; i < cute::size(accum); i += 2) {
-      int row = cute::get<0>(owned(i));
-      int column = cute::get<1>(owned(i));
-      // m16n8k16 C fragments pair adjacent columns. A 64-bit store splits
-      // each warp into two bank-disjoint 128-byte transactions.
-      *reinterpret_cast<float2*>(tile + SharedIndex(row, column)) =
-          make_float2(accum(i), accum(i + 1));
-    }
-    ComputeSync();
-    RunFromTile<true>(tile, tile_m, tile_n, M, N, output_stride,
-                partial_stride, output,
-                residual, partial, argmax_value, argmax_index,
-                norm_ss,ss_out,norm_k,norm_eps);
-  }
+  // The MMA bodies materialize their accumulators into the FP32 tile
+  // themselves (no CuTe partitions on xcore1000) and then call RunFromTile.
 
   template <bool Swizzled = false>
   __device__ static void RunFromTile(
       float* tile, int tile_m, int tile_n, int M, int N, int output_stride,
       int partial_stride,
-      cutlass::bfloat16_t* output,
-      cutlass::bfloat16_t const* residual = nullptr,
+      tilemega::Bf16* output,
+      tilemega::Bf16 const* residual = nullptr,
       float* partial = nullptr, float* argmax_value = nullptr,
       int* argmax_index = nullptr,float const* norm_ss = nullptr,
       float* ss_out = nullptr,int norm_k = 0,float norm_eps = 0.0f) {
@@ -202,9 +92,9 @@ struct ServingEpilogue {
           float sum=0.0f;
           if(global_row<M)for(int j=part;j<norm_k/32;j+=8)
             sum+=DeferredNormBlock(norm_ss,global_row,norm_k,j);
-          sum+=__shfl_xor_sync(0xffffffff,sum,1);
-          sum+=__shfl_xor_sync(0xffffffff,sum,2);
-          sum+=__shfl_xor_sync(0xffffffff,sum,4);
+          sum+=__shfl_xor_sync(maca::kFullWaveMask,sum,1);
+          sum+=__shfl_xor_sync(maca::kFullWaveMask,sum,2);
+          sum+=__shfl_xor_sync(maca::kFullWaveMask,sum,4);
           if(part==0)inv[row]=global_row<M?rsqrtf(sum/float(norm_k)+norm_eps):0.0f;
         }
         ComputeSync();
@@ -226,12 +116,12 @@ struct ServingEpilogue {
         if(tile_m*TileM+row<M)
           for(int col=ComputeThread();col<TileN;col+=kComputeThreads) {
             int global=tile_n*TileN+col;if(global>=N)continue;
-            float value=float(cutlass::bfloat16_t(tile[Index<Swizzled>(row,col)]));
+            float value=float(tilemega::Bf16(tile[Index<Swizzled>(row,col)]));
             if(value>best || (value==best && global<index)){best=value;index=global;}
           }
         for(int offset=16;offset;offset>>=1) {
-          float other=__shfl_down_sync(0xffffffff,best,offset);
-          int oi=__shfl_down_sync(0xffffffff,index,offset);
+          float other=__shfl_down_sync(maca::kFullWaveMask,best,offset,32);
+          int oi=__shfl_down_sync(maca::kFullWaveMask,index,offset,32);
           if(other>best || (other==best && oi<index)){best=other;index=oi;}
         }
         if(lane==0){scratch_values[row*4+warp]=best;scratch_indices[row*4+warp]=index;}
@@ -261,15 +151,15 @@ struct ServingEpilogue {
         for (int column = ComputeThread(); column < TileN; column += kComputeThreads) {
           int global_column = tile_n * TileN + column;
           if (global_column >= N) continue;
-          float value = float(cutlass::bfloat16_t(tile[Index<Swizzled>(row, column)]));
+          float value = float(tilemega::Bf16(tile[Index<Swizzled>(row, column)]));
           if (value > best || (value == best && global_column < best_index)) {
             best = value;
             best_index = global_column;
           }
         }
         for (int offset = 16; offset != 0; offset >>= 1) {
-          float other = __shfl_down_sync(0xffffffff, best, offset);
-          int other_index = __shfl_down_sync(0xffffffff, best_index, offset);
+          float other = __shfl_down_sync(maca::kFullWaveMask, best, offset, 32);
+          int other_index = __shfl_down_sync(maca::kFullWaveMask, best_index, offset, 32);
           if (other > best || (other == best && other_index < best_index)) {
             best = other;
             best_index = other_index;
@@ -299,7 +189,7 @@ struct ServingEpilogue {
       }
 #endif
     } else if constexpr (Op == ServingEpilogueOp::kPartial) {
-      if (partial_stride < N) { asm volatile("trap;"); return; }
+      if (partial_stride < N) { maca::Trap(); return; }
       for (int index = ComputeThread() * 4; index < TileM * TileN; index += kComputeThreads * 4) {
         int row = index / TileN, col = index % TileN;
         int global_row = tile_m * TileM + row;
@@ -340,7 +230,7 @@ struct ServingEpilogue {
         int global_col = tile_n * (Op == ServingEpilogueOp::kSwiGLU ? TileN / 2 : TileN)
                          + out_col;
         if (global_row >= M) continue;
-        alignas(16) cutlass::bfloat16_t values[8], residual_values[8] = {};
+        alignas(16) tilemega::Bf16 values[8], residual_values[8] = {};
         bool vector_residual = residual && global_col + 8 <= N &&
             (reinterpret_cast<std::uintptr_t>(residual + global_row * output_stride + global_col) & 15) == 0;
         if constexpr (Op == ServingEpilogueOp::kResidual)
@@ -375,7 +265,7 @@ struct ServingEpilogue {
           } else {
             auto r = residual && col < N
                          ? (vector_residual ? residual_values[element] : residual[global_row * output_stride + col])
-                         : cutlass::bfloat16_t{};
+                         : tilemega::Bf16{};
             values[element] = ServingEpilogueValue<Op>::Apply(
                 acc[element], r);
           }
@@ -417,15 +307,15 @@ struct ServingEpilogue {
         if constexpr(kOutputColumns%32!=0) {
           // DN's producer owns a complete 32-column sum-of-squares block.
           // Small GEMV tiles may use residual only when no DN writer is attached.
-          if(ss_out)asm volatile("trap;");
+          if(ss_out)maca::Trap();
         }else if(ss_out) {
           // All lanes participate, including predicated rows/vectors. This
           // matches the fixed xor-1/xor-2 order without rereading output.
           #pragma unroll
           for(int pass=0;pass<kPasses;++pass) {
             float sum=square[pass];
-            sum+=__shfl_xor_sync(0xffffffff,sum,1);
-            sum+=__shfl_xor_sync(0xffffffff,sum,2);
+            sum+=__shfl_xor_sync(maca::kFullWaveMask,sum,1);
+            sum+=__shfl_xor_sync(maca::kFullWaveMask,sum,2);
             int vector=ComputeThread()+kComputeThreads*pass;
             int row=vector/(kOutputColumns/8),col=(vector%(kOutputColumns/8))*8;
             int gr=tile_m*TileM+row,gc=tile_n*kOutputColumns+col;
