@@ -6,6 +6,7 @@
 #include <tilemega/Codegen/executor/TensorMap.h>
 #include <tilemega/Codegen/executor/TensorIm2col.h>
 #include <tilemega/Codegen/executor/TensorMap3D.h>
+#include <tilemega/Codegen/executor/SharedMemoryBudget.h>
 
 #include <cuda_runtime.h>
 
@@ -511,6 +512,23 @@ inline void Destroy(Plan* plan) {
   delete plan;
 }
 
+inline cudaError_t ConfigureServingDynamicShared(void const* kernel,
+                                                std::size_t dynamic_bytes) {
+  cudaFuncAttributes attributes{};
+  cudaError_t status=cudaFuncGetAttributes(&attributes,kernel);
+  if(status!=cudaSuccess)return status;
+  int device=0,default_limit=0;
+  status=cudaGetDevice(&device);
+  if(status!=cudaSuccess)return status;
+  status=cudaDeviceGetAttribute(&default_limit,cudaDevAttrMaxSharedMemoryPerBlock,device);
+  if(status!=cudaSuccess)return status;
+  if(executor::SharedMemoryRequiresOptIn(dynamic_bytes,attributes.sharedSizeBytes,
+                                        static_cast<std::size_t>(default_limit)))
+    return cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,
+                                static_cast<int>(dynamic_bytes));
+  return cudaSuccess;
+}
+
 inline int ResidentServingGrid(tilemega::TargetSpec const& target) {
   int pinned=kModel.runtime_variants[0].plan.eft_grid;
   if constexpr(TILEMEGA_SERVING_CLUSTER_DIM==1) {
@@ -531,9 +549,8 @@ inline int ResidentServingGrid(tilemega::TargetSpec const& target) {
     int grid=candidates*TILEMEGA_SERVING_CLUSTER_DIM;
     int resident=std::numeric_limits<int>::max();
     auto check=[&](auto kernel) {
-      if(kServingSharedBytes>48*1024)
-        TILEMEGA_CUDA_CHECK(cudaFuncSetAttribute(kernel,
-            cudaFuncAttributeMaxDynamicSharedMemorySize,kServingSharedBytes));
+      TILEMEGA_CUDA_CHECK(ConfigureServingDynamicShared(
+          reinterpret_cast<void const*>(kernel),kServingSharedBytes));
       int clusters=0;
       TILEMEGA_CUDA_CHECK(executor::ServingActiveClusters(&clusters,kernel,
           kServingThreads,kServingSharedBytes,grid));
@@ -636,19 +653,19 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
     int const grid=serving::ResidentServingGrid(target);
     std::size_t const smem = kServingSharedBytes;
     if (smem > target.res.max_dynamic_smem_per_cta) return nullptr;
-    if (smem > 48 * 1024) {
-      if (cudaFuncSetAttribute(tilemega_l1_kernel,
-            cudaFuncAttributeMaxDynamicSharedMemorySize, smem) != cudaSuccess ||
-          cudaFuncSetAttribute(tilemega_l2_kernel,
-            cudaFuncAttributeMaxDynamicSharedMemorySize, smem) != cudaSuccess)
+    {
+      if (serving::ConfigureServingDynamicShared(
+            reinterpret_cast<void const*>(tilemega_l1_kernel),smem) != cudaSuccess ||
+          serving::ConfigureServingDynamicShared(
+            reinterpret_cast<void const*>(tilemega_l2_kernel),smem) != cudaSuccess)
         return nullptr;
 #if TILEMEGA_PAGED
-      if (cudaFuncSetAttribute(tilemega_loop_kernel,
-            cudaFuncAttributeMaxDynamicSharedMemorySize, smem) != cudaSuccess)
+      if (serving::ConfigureServingDynamicShared(
+            reinterpret_cast<void const*>(tilemega_loop_kernel),smem) != cudaSuccess)
         return nullptr;
 #elif TILEMEGA_SERVING_SEQ==1
-      if(cudaFuncSetAttribute(tilemega_l1_loop_kernel,
-          cudaFuncAttributeMaxDynamicSharedMemorySize,smem)!=cudaSuccess)
+      if(serving::ConfigureServingDynamicShared(
+          reinterpret_cast<void const*>(tilemega_l1_loop_kernel),smem)!=cudaSuccess)
         return nullptr;
 #endif
     }
