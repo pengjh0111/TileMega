@@ -53,10 +53,27 @@ def processes(index=None):
     return owners
 
 
-def query_csv(index):
-    """`used,free,total,power,util` in the order measure.py historically parsed."""
+def idle_vram_mib():
+    """Driver-resident memory on an idle C550 (guard policy, measured in MX-S)."""
+    import json
+    from pathlib import Path
+    policy = Path(__file__).resolve().parents[3] / 'configs/bench/guard_policy_c550.json'
+    return float(json.loads(policy.read_text())['idle_vram_mib'])
+
+
+def occupancy(index):
+    """(visible owners {pid: MiB}, visible MiB, used MiB above the idle baseline)."""
     row = device(index)
-    return row['used_mib'], row['free_mib'], row['total_mib'], row['power_w'], row['utilization_pct']
+    owners = row['owners']
+    return owners, sum(owners.values()), max(0.0, row['used_mib'] - idle_vram_mib())
+
+
+def telemetry(index):
+    """(power W, XCORE MHz, memory MHz, hotspot C) for timing records."""
+    row = device(index)
+    clocks, temps = row['clocks_mhz'], row['temperature_c']
+    hotspot = next((v for k, v in temps.items() if k.startswith('hotspot')), max(temps.values(), default=0.0))
+    return row['power_w'], clocks.get('XCORE', 0.0), clocks.get('MC', 0.0), hotspot
 
 
 if __name__ == '__main__':

@@ -1,0 +1,8 @@
+{
+  "idle_power_w": 97.2,
+  "idle_power_w_by_gpu": {"7": 97.2, "6": 94.7, "5": 95.6, "4": 95.9},
+  "power_margin_w": 30.0,
+  "cooldown_seconds": 30,
+  "retries": 3,
+  "guard": true
+}

@@ -16,16 +16,11 @@ from .measurement_policy import TimingPolicy
 
 
 def _gpu_owners() -> tuple[set[int], int, int]:
-    output = subprocess.check_output(
-        ["nvidia-smi", "-i", os.environ.get("TILEMEGA_DEVICE_INDEX", "0"), "--query-compute-apps=pid,process_name,used_memory",
-         "--format=csv,noheader,nounits"], text=True)
-    rows = [line.split(",") for line in output.splitlines() if line.strip()]
-    pids = {int(row[0].strip()) for row in rows}
-    visible_mib = sum(int(row[-1].strip()) for row in rows)
-    used_mib = int(subprocess.check_output(
-        ["nvidia-smi", "-i", os.environ.get("TILEMEGA_DEVICE_INDEX", "0"), "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
-        text=True).splitlines()[0].strip())
-    return pids, visible_mib, used_mib
+    # mx-smi lists this container's processes only; another tenant appears as
+    # used memory above the idle baseline that no visible owner accounts for.
+    from ..bench import mx_smi
+    owners, visible_mib, used_mib = mx_smi.occupancy(os.environ.get("TILEMEGA_DEVICE_INDEX", "0"))
+    return set(owners), int(visible_mib), int(used_mib)
 
 
 def _preflight_external_memory(out: Path) -> None:
@@ -56,7 +51,9 @@ def _exclusive(path: Path, label: str, wait: bool, wait_s: int = 1800) -> bool:
         # before they appear in the per-process table, so it is not an
         # exclusivity criterion. The required guard is the process list.
         hidden_mib = max(0, used_mib - visible_mib)
-        good = observed == {os.getpid()}
+        # mx-smi may list this process a moment after its first allocation;
+        # exclusivity is "no other visible owner and no unowned memory".
+        good = observed <= {os.getpid()} and hidden_mib <= 1024
         with path.open("a") as output:
             output.write(json.dumps({"label": label, "pids": sorted(observed),
                                      "visible_mib": visible_mib,
@@ -69,9 +66,9 @@ def _exclusive(path: Path, label: str, wait: bool, wait_s: int = 1800) -> bool:
 
 
 def _clocks() -> str:
-    return subprocess.check_output(
-        ["nvidia-smi", "-i", os.environ.get("TILEMEGA_DEVICE_INDEX", "0"), "--query-gpu=clocks.sm,clocks.mem,temperature.gpu,power.draw",
-         "--format=csv,noheader,nounits"], text=True).strip()
+    from ..bench import mx_smi
+    power, xcore, memory, temperature = mx_smi.telemetry(os.environ.get("TILEMEGA_DEVICE_INDEX", "0"))
+    return f"{xcore:g}, {memory:g}, {temperature:g}, {power:g}"
 
 
 def measure(engine: ServingEngine, prompts: torch.Tensor,
