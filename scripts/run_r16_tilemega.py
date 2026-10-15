@@ -10,8 +10,10 @@ from run_r16_baselines import MODELS
 
 
 def prepare(root, compiler, source, python, gpu, node, models, batches, label):
-    root, compiler, source, python = map(lambda p: Path(p).resolve(),
-                                       (root, compiler, source, python))
+    root, compiler, source = map(lambda p: Path(p).resolve(),
+                                (root, compiler, source))
+    # Resolving a venv interpreter symlink selects the base installation.
+    python = Path(python).absolute()
     if not compiler.is_file() or not python.is_file():
         raise FileNotFoundError('compiler and environment interpreter must exist')
     target = source/'configs/targets/sm_90_h800.json'

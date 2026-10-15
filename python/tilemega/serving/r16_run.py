@@ -72,7 +72,7 @@ def main():
             lambda rows, count: current.generate(frozen, count).tokens.tolist(),
             metadata, synchronize=torch.cuda.synchronize)
         last = args.out/f'B{args.batch}'/f'tokens_N{args.max_tokens}_run{args.warmup+args.repeats-1}.json'
-        reference = torch.tensor(json.loads(last.read_text()), dtype=torch.int32, device='cuda')
+        reference = torch.tensor(json.loads(last.read_text()), dtype=torch.int32)
     # close() releases native contexts; Python still owns the full checkpoint.
     # Drop it before loading another executor or the separate HF reference.
     del current
@@ -83,7 +83,7 @@ def main():
         checks = []
         for mode, loop in execution_combinations(manifests[1].get('pg', 'off')):
             with engine(mode, loop) as other:
-                tokens = other.generate(frozen, args.max_tokens).tokens
+                tokens = other.generate(frozen, args.max_tokens).tokens.cpu()
             del other
             torch.cuda.empty_cache()
             passed = torch.equal(reference, tokens)
