@@ -23,6 +23,25 @@ class AttentionSelection(unittest.TestCase):
         self.assertEqual(winner['id'],0)
         self.assertEqual(len(winner['samples_ms']),3)
         self.assertEqual(sum(r['eliminated_round']=='budget_unmeasured' for r in rows),5)
+    def test_cluster_attention_domain_is_explicit_and_capacity_aligned(self):
+        from tilemega.serving.attention_selection import cluster_merge_variants,cluster_merge_resources
+        p=dict(capacity=1088,phase='decode',pg='off',attention_q_per_kv=3,attention_head_dim=128,
+               target_spec=dict(caps=dict(wgmma=True,dsmem=True)))
+        candidates=cluster_merge_variants(p)
+        self.assertEqual([(v['cluster_dim'],v['ec'])for v in candidates],[(2,576),(4,320)])
+        self.assertFalse(any(v.get('merge')=='cluster' for v in variants(p,include_hopper=True)))
+        for v in candidates:
+            self.assertTrue(matches(dict(p,attention_impl='wgmma',attention_kv_block=v['ec'],
+                attention_page='uniform',nonpaged_la=True,merge='cluster',cluster_dim=v['cluster_dim']),v))
+            self.assertFalse(matches(dict(p,attention_impl='wgmma',attention_kv_block=v['ec'],
+                attention_page='uniform',nonpaged_la=True,merge='stage',cluster_dim=v['cluster_dim']),v))
+        for invalid in (dict(pg='pages'),dict(phase='prefill'),dict(arch_paths='sm80'),dict(attention_q_per_kv=9)):
+            self.assertEqual(cluster_merge_variants(dict(p,**invalid)),[])
+        cost=cluster_merge_resources(128,8,4,72704)
+        self.assertEqual(cost['mailbox_bytes'],25600)
+        self.assertEqual(cost['peer_bytes_per_episode'],12384)
+        self.assertIsNone(cost['latency_ns'])
+
     def test_dimensions(self):
         p=dict(capacity=1088,pg='pages',attention_kv_block=256,attention_q_per_kv=4,attention_head_dim=64)
         self.assertEqual(len(variants(p)),24)

@@ -22,9 +22,9 @@ struct Sm90AttentionTaskBody {
     alignas(1024) Element probabilities[8*64];
     float maximum[8],sum[8],alpha[8];
   };
-  template<class Owner,class PageSource>
+  template<class Owner,class PageSource,bool LocalPartial=false>
   __device__ static __forceinline__ void Run(ServingAttentionOperands const& p,
-      int b,int g,int c,PageSource const& pages,std::uint64_t& sequence,SharedStorage& s) {
+      int b,int g,int c,PageSource const& pages,std::uint64_t& sequence,SharedStorage& s,float* local_partial=nullptr) {
     using namespace cute;
     static_assert(arch::Caps<Arch>::kWgmma && Q<=8 && (D==64 || D==128));
     static_assert(sizeof(typename Gmma::Availability)>0);
@@ -122,11 +122,16 @@ struct Sm90AttentionTaskBody {
       int d=get<0>(output_coordinates(i)),q=get<1>(output_coordinates(i));
       if(q<Q) {
         float normalized=s.sum[q]>0?output(i)/s.sum[q]:0;
+        if constexpr(LocalPartial) {
+          local_partial[q*D+d]=normalized;
+          if(d==0)local_partial[Q*D+q]=s.sum[q]>0?s.maximum[q]+log2f(s.sum[q]):-INFINITY;
+        }else {
         if(splits==1)p.context[((std::size_t(b)*p.heads_kv+g)*Q+q)*D+d]=Element(normalized);
         else {
           std::size_t row=((std::size_t(b)*p.heads_kv+g)*splits+c)*Q+q;
           p.partial[row*D+d]=normalized;
           if(d==0)p.lse[row]=s.sum[q]>0?s.maximum[q]+log2f(s.sum[q]):-INFINITY;
+        }
         }
       }
     }

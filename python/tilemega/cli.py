@@ -205,6 +205,8 @@ def read_config(path: Path) -> dict:
         raise ValueError('invalid features.activation_tma')
     if 'attention_tma' in config['features'] and config['features']['attention_tma'] not in (0,1):
         raise ValueError('invalid features.attention_tma')
+    if 'merge' in config['features'] and config['features']['merge'] not in ('stage', 'cluster'):
+        raise ValueError('invalid features.merge')
     if 'combine' in config['features'] and config['features']['combine'] not in ('stage', 'cluster'):
         raise ValueError('invalid features.combine')
     if 'residency' in config['features'] and config['features']['residency'] not in (1, 2):
@@ -551,7 +553,7 @@ class Run:
                             for name, value in compiler_features(choice_features).items():
                                 if phase=='decode' and name in ('forward_gemm_impl','prefill_attention_impl','attention_tma'):continue
                                 if phase=='prefill' and name=='qkv_epilogue' and choice_features.get('prefill_attention_impl')!='wgmma':continue
-                                if phase=='prefill' and name in ('moe_activation_bulk','activation_tma','combine'):continue
+                                if phase=='prefill' and name in ('moe_activation_bulk','activation_tma','combine','merge'):continue
                                 if phase == 'prefill' and not (shared_manifest and name in ('nonpaged_weight_layout','weight_layout')) and (name.startswith('gemm_impl_') or name in ('attention_noinline','attention_buffers','parallel_argmax','ep_direct','attention_frontier','nonpaged_la','attention_impl','attention_page','mma_reg_pipe','kphase_mask','lookahead_bytes','v3_poll_ns','l2_slim','page_loop_split','nonpaged_weight_layout','evict_first','evict_last','serve_kv_block','serve_query_rows')):
                                     continue
                                 if name == 'handoff' and phase == 'prefill':

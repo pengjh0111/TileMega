@@ -127,6 +127,10 @@ def validate(manifest, defines):
         actual = 'nc' if int(defines.get('TILEMEGA_GEMV_LOAD_NC', '0')) else 'ldg'
         if manifest['gemv_load'] != actual:
             raise ValueError('manifest gemv_load differs from compiler macros')
+    if 'merge' in manifest:
+        actual='cluster' if int(defines.get('TILEMEGA_CLUSTER_ATTENTION_MERGE','0')) else 'stage'
+        if manifest['merge']!=actual:
+            raise ValueError('manifest merge differs from compiler macros')
     if 'combine' in manifest:
         actual='cluster' if int(defines.get('TILEMEGA_CLUSTER_COMBINE','0')) else 'stage'
         if manifest['combine']!=actual:
@@ -157,6 +161,7 @@ def implementations(manifest, defines):
             'execution_arch_id': int(defines.get('TILEMEGA_ARCH_ID', '800')),
             'decode_tile_m': int(manifest.get('decode_tile_m', 16)),
             'combine': manifest.get('combine', 'stage'),
+            'merge': manifest.get('merge', 'stage'),
             'qkv_epilogue': bool(manifest.get('qkv_epilogue', False)),
             'gemv_load': manifest.get('gemv_load', 'ldg'),
             'conv_impl': manifest.get('conv_impl', 'cpasync'),
@@ -175,8 +180,10 @@ def implementations(manifest, defines):
                     'uniform' if manifest.get('attention_impl') == 'wgmma' else 'chunk16'),
                 'noinline': bool(manifest.get('attention_noinline', False)),
                 'buffers': int(defines.get('TILEMEGA_ATTENTION_BUFFERS', '2')),
-                'task_body': ('PagedAttentionTaskBody' if paged else
-                    'IndependentAttentionTaskBody') if decode else ('Sm90PrefillAttentionTaskBody'
+                'merge': manifest.get('merge','stage'),
+                'global_partials': manifest.get('merge','stage')!='cluster',
+                'task_body': ('ClusterAttentionMergeTaskBody' if manifest.get('merge')=='cluster' else
+                    'PagedAttentionTaskBody' if paged else 'IndependentAttentionTaskBody') if decode else ('Sm90PrefillAttentionTaskBody'
                     if manifest.get('prefill_attention_impl') == 'wgmma' else 'FusedAttentionTaskBody'),
                 'page_policy': ('WarpGroup' if manifest.get('attention_impl') == 'wgmma'
                     else 'Packed' if paged else 'WarpPrivate') if decode else None,

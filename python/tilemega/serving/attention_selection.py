@@ -25,7 +25,9 @@ def variants(manifest, include_hopper=False):
 
 
 def matches(manifest,variant):
-    return ((not variant.get('page_bytes') or manifest.get('pg')!='pages' or
+    return (manifest.get('merge','stage')==variant.get('merge','stage') and
+            (not variant.get('cluster_dim') or int(manifest.get('cluster_dim',1))==variant['cluster_dim']) and
+            (not variant.get('page_bytes') or manifest.get('pg')!='pages' or
              int((manifest.get('pages') or {}).get('page_bytes',0))==variant['page_bytes']) and
             int(manifest['attention_kv_block'])==variant['ec'] and
             manifest.get('attention_impl','mma16')==variant['attention_impl'] and
@@ -80,3 +82,36 @@ def compile_options(original,variant,directory):
         if key not in remove:result.extend((str(key),str(value)))
     for key,value in replace.items():result.extend((key,str(value)))
     return result
+
+
+def cluster_merge_variants(manifest):
+    """Explicit H4d seed candidates; ordinary/default search remains unchanged."""
+    target=manifest.get('target_spec',{})
+    caps=target.get('caps',{})
+    if manifest.get('phase','decode')!='decode' or manifest.get('pg') not in ('off','l2') or \
+            manifest.get('arch_paths','auto')!='auto' or not caps.get('wgmma') or not caps.get('dsmem') or \
+            not 1<=int(manifest.get('attention_q_per_kv',0))<=8 or \
+            int(manifest.get('attention_head_dim',0)) not in (64,128):
+        return []
+    capacity=int(manifest['capacity'])
+    result=[]
+    for ranks in (2,4):
+        ec=((capacity+ranks*64-1)//(ranks*64))*64
+        if (capacity+ec-1)//ec!=ranks:continue
+        result.append(dict(ec=ec,attention_impl='wgmma',attention_page='uniform',
+            nonpaged_la=1,paged_attention_load='loader',merge='cluster',cluster_dim=ranks,
+            l2_prefetch_depth=0,combine='stage'))
+    return result
+
+
+def cluster_merge_resources(head_dim,queries,ranks,attention_shared_bytes):
+    """Exact storage/traffic, with latency explicitly unfitted until guarded calibration."""
+    if head_dim not in (64,128) or not 1<=queries<=8 or ranks not in (2,4):
+        raise ValueError('illegal cluster attention shape')
+    elements=queries*head_dim+((queries+3)&~3)
+    # Storage: full[2][r-1], ready/ack[2], episode, 16B-align, two peer slots.
+    metadata=2*(ranks-1)*8+4*8+4
+    mailbox=(( ((metadata+15)//16)*16+2*(ranks-1)*elements*4 +1023)//1024)*1024
+    return dict(mailbox_bytes=mailbox,shared_bytes=((attention_shared_bytes+1023)//1024)*1024+mailbox,
+        peer_bytes_per_episode=(ranks-1)*elements*4,rank_order=list(range(ranks)),
+        latency_ns=None,latency_evidence='not_calibrated',storage_evidence='inferred_from_cpp_layout')

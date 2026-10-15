@@ -310,7 +310,7 @@ int RunCompile(int argc, char** argv) {
     std::string seed_arch="legacy",seed_target_arch;
     std::string forward_gemm_impl="mma16",prefill_attention_impl="mma16",encoder_attention_impl="mma16",conv_impl="cpasync",gemv_load="ldg",depthwise_impl="cpasync",dwpw_impl="mma16";
     int qkv_epilogue=0,attention_tma=0;
-    std::string combine_impl="stage";
+    std::string combine_impl="stage",merge_impl="stage";
     int dependency_intern=0,cluster_dim=1,serving_residency=0,activation_tma=0,decode_tile_m=16;
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int mma_reg_pipe=0;
@@ -398,6 +398,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--decode-tile-m") decode_tile_m=std::stoi(value);
       else if (flag=="--cluster-dim") cluster_dim=std::stoi(value);
       else if (flag=="--combine") combine_impl=value;
+      else if (flag=="--merge") merge_impl=value;
       else if (flag=="--residency") {
         serving_residency=std::stoi(value);
         if(serving_residency!=1 && serving_residency!=2)
@@ -618,6 +619,19 @@ int RunCompile(int argc, char** argv) {
       throw std::invalid_argument("--dependency-intern must be 0 or 1");
     if(cluster_dim!=1 && cluster_dim!=2 && cluster_dim!=4)
       throw std::invalid_argument("--cluster-dim must be 1, 2 or 4");
+    if(merge_impl!="stage" && merge_impl!="cluster")
+      throw std::invalid_argument("--merge supports stage or cluster");
+    if(merge_impl=="cluster") {
+      if(!serving || serving_phase!="decode" || frontend_mode!="decoder" ||
+          arch_paths!="auto" || seed_arch!="native" || attention_impl!="wgmma" ||
+          (pg_mode!="off" && pg_mode!="l2") || cluster_dim==1 || !nonpaged_la ||
+          !solve_target.empty() || has_variants || combine_impl!="stage" ||
+          moe_dynamic || moe_opaque || parallel_argmax || prefetch_depth!=0 ||
+          serving_kv_block<=0 || serving_kv_block%64 ||
+          (serving_capacity+serving_kv_block-1)/serving_kv_block!=cluster_dim)
+        throw std::invalid_argument("cluster KV merge requires an explicit native nonpaged WGMMA decode seed, cluster-dim 2/4 equal to capacity splits, aligned Ec, nonpaged-la 1, l2-prefetch-depth 0, combine stage and static queues");
+      runtime_flags+=" -DTILEMEGA_CLUSTER_ATTENTION_MERGE=1";
+    }
     if(combine_impl!="stage" && combine_impl!="cluster")
       throw std::invalid_argument("--combine currently supports stage or cluster");
     if(combine_impl=="cluster") {
@@ -882,6 +896,7 @@ int RunCompile(int argc, char** argv) {
       if(activation_tma)candidate->setAttr("tmexec.activation_tma",mlir::BoolAttr::get(&context,true));
       if(attention_tma)candidate->setAttr("tmexec.prefill_attention_tma",mlir::BoolAttr::get(&context,true));
       if(combine_impl=="cluster")candidate->setAttr("tmexec.cluster_combine",mlir::BoolAttr::get(&context,true));
+      if(merge_impl=="cluster")candidate->setAttr("tmexec.cluster_attention_merge",mlir::BoolAttr::get(&context,true));
       if(dependency_intern) {
         auto plan=candidate->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
         auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
@@ -1473,7 +1488,7 @@ int RunCompile(int argc, char** argv) {
               " --prompt-len "+std::to_string(serving_prompt_len)+
               " --sync "+quote(sync_policy)+" --runtime-target "+quote(runtime_target)+
               " --arch-paths "+quote(arch_paths)+" --encoder-attention-impl "+quote(encoder_attention_impl)+" --prefill-attention-impl "+quote(prefill_attention_impl)+" --forward-gemm-impl "+quote(forward_gemm_impl)+" --conv-impl "+quote(conv_impl)+" --depthwise-impl "+quote(depthwise_impl)+" --dwpw-impl "+quote(dwpw_impl)+" --moe-activation-bulk "+std::to_string(moe_activation_bulk)+
-              " --decode-tile-m "+std::to_string(decode_tile_m)+" --activation-tma "+std::to_string(activation_tma)+" --dependency-intern "+std::to_string(dependency_intern)+" --cluster-dim "+std::to_string(cluster_dim)+" --combine "+quote(combine_impl)+
+              " --decode-tile-m "+std::to_string(decode_tile_m)+" --activation-tma "+std::to_string(activation_tma)+" --dependency-intern "+std::to_string(dependency_intern)+" --cluster-dim "+std::to_string(cluster_dim)+" --combine "+quote(combine_impl)+" --merge "+quote(merge_impl)+
               (serving_residency?" --residency "+std::to_string(serving_residency):std::string())+" --gemv-load "+quote(gemv_load)+" --qkv-epilogue "+std::to_string(qkv_epilogue)+" --attention-tma "+std::to_string(attention_tma)+" --pdl "+quote(pdl)+
               " --pg "+quote(pg_mode)+" --page-bytes "+std::to_string(candidate_page_bytes)+
               " --weight-layout "+quote(weight_layout)+
@@ -1739,6 +1754,23 @@ int RunCompile(int argc, char** argv) {
       source = tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(inputs);
     }
     if(hopper_requested || seed_arch=="native" || serving_residency)bind_requested_arch(*module);
+    if(merge_impl=="cluster") {
+      auto model=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+      unsigned count=0;
+      for(auto item:model.getAs<mlir::ArrayAttr>("stages")) {
+        auto stage=mlir::cast<mlir::DictionaryAttr>(item);
+        auto kind=stage.getAs<mlir::StringAttr>("kind").getValue();
+        if(kind.take_front(4)=="kMoE")throw std::invalid_argument("cluster KV merge currently requires a dense decoder graph");
+        if(kind!="kFusedAttention")continue;
+        auto width=stage.getAs<mlir::IntegerAttr>("width").getInt();
+        auto queries=stage.getAs<mlir::IntegerAttr>("group").getInt();
+        auto ec=stage.getAs<mlir::IntegerAttr>("attention_kv_block").getInt();
+        if((width!=64 && width!=128) || queries<1 || queries>8 || ec!=serving_kv_block)
+          throw std::invalid_argument("cluster KV merge attention geometry differs from its selected coordinate");
+        ++count;
+      }
+      if(!count)throw std::invalid_argument("cluster KV merge requires a decoder attention stage");
+    }
     if(combine_impl=="cluster") {
       auto geometry=tilemega::codegen::ReadRuntimeGemmRecords(*module);
       unsigned cooperative=0;
@@ -2258,6 +2290,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"activation_tma\": "<<activation_tma
               <<",\n  \"cluster_dim\": "<<cluster_dim
               <<",\n  \"combine\": "<<std::quoted(combine_impl)
+              <<",\n  \"merge\": "<<std::quoted(merge_impl)
               <<",\n  \"requested_residency\": "<<serving_residency
               <<",\n  \"moe_activation_bulk\": "<<moe_activation_bulk
               <<",\n  \"prefill_attention_impl\": "<<std::quoted(prefill_attention_impl)

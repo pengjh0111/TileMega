@@ -118,6 +118,35 @@ struct IndependentAttentionTaskBody {
       ComputeSync();Issue(int(cursor)+Buffers);
     }
   };
+  static constexpr int kClusterElements=Q*D+((Q+3)&~3);
+  __device__ static __forceinline__ float* RunLocalPartial(
+      ServingAttentionOperands const& p,SharedStorage& shared,int batch,int group,int block) {
+    static_assert(Body::kWgmma,"cluster KV merge requires WGMMA attention");
+    using Compute=typename Body::SharedStorage;
+    static_assert(kClusterElements*sizeof(float)<=offsetof(Compute,maximum),
+                  "partial must not overwrite live softmax normalization state");
+    // GMMA has finished reading query/scores before this region becomes the partial tile.
+    auto* tile=reinterpret_cast<float*>(&shared.compute);
+    for(int i=ComputeThread();i<kClusterElements;i+=executor::kComputeThreads)
+      tile[i]=i>=Q*D && i<Q*D+Q?-INFINITY:0;
+    ComputeSync();
+    int begin=Body::Begin(p,block),count=Body::End(p,block)-begin;
+    if(count>0) {
+      auto layout=Body::Layout(count,begin);
+      if(ComputeThread()==0) {
+        for(int slot=0;slot<Buffers;++slot)Copy::Init(&shared.full[slot],32);
+        Copy::InitFence();
+      }
+      ComputeSync();
+      HopperPages pages{p,shared,batch,group,block,layout};
+      pages.Issue(0);if constexpr(Buffers==2)pages.Issue(1);
+      std::uint64_t sequence=0;
+      Body::RunLocalPartial(p,batch,group,block,pages,sequence,shared.compute,tile);
+    }
+    for(int i=Q*D+Q+ComputeThread();i<kClusterElements;i+=executor::kComputeThreads)tile[i]=0;
+    ComputeSync();
+    return tile;
+  }
   __device__ static TILEMEGA_HOPPER_TASK_INLINE void Run(ServingAttentionOperands const& p,SharedStorage& shared,
                             int batch,int group,int query_block,int block) {
     (void)query_block;

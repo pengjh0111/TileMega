@@ -71,6 +71,39 @@ struct ClusterMailbox {
     __syncthreads();
     return rank==0;
   }
+  // Exchange retains each rank's numerical state for reductions such as softmax.
+  template<unsigned Elements,class Compute,class Finish>
+  __device__ static __forceinline__ bool Exchange(Storage& s,Compute compute,Finish finish) {
+    static_assert(Elements<=Capacity && Elements%4==0,"invalid mailbox exchange tile");
+    unsigned const rank=CS::Rank(),episode=s.episode;
+    unsigned const slot=episode&1,phase=(episode/2)&1;
+    if(rank==0 && threadIdx.x==0) {
+      for(unsigned peer=1;peer<Ranks;++peer) {
+        A::ExpectTx(&s.full[slot][peer-1],Elements*sizeof(float));
+        A::RemoteArrive(A::Mapa(&s.ready[slot],peer));
+      }
+    }
+    if(rank!=0)A::Wait(&s.ready[slot],phase);
+    __syncthreads();
+    float* tile=compute();
+    A::FenceProxyAsyncShared();
+    __syncthreads();
+    if(rank!=0 && threadIdx.x==0)
+      A::BulkSmemToPeer(A::Mapa(s.partial[slot][rank-1],0),tile,
+          Elements*sizeof(float),A::Mapa(&s.full[slot][rank-1],0));
+    if(rank==0) {
+      for(unsigned peer=1;peer<Ranks;++peer)A::Wait(&s.full[slot][peer-1],phase);
+      __syncthreads();
+      finish(tile,s.partial[slot]);
+      __syncthreads();
+      if(threadIdx.x==0)for(unsigned peer=1;peer<Ranks;++peer)
+        A::RemoteArrive(A::Mapa(&s.ack[slot],peer));
+    }else A::Wait(&s.ack[slot],phase);
+    __syncthreads();
+    if(threadIdx.x==0)++s.episode;
+    __syncthreads();
+    return rank==0;
+  }
   // A DSMEM target must remain alive until every peer stops using it.
   __device__ static __forceinline__ void Close() {CS::Sync();}
 };

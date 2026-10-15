@@ -161,8 +161,10 @@ PlacementPlanRecord readPlacementPlan(mlir::ModuleOp module) {
     throw std::invalid_argument(
         "placement mode eft needs its materialized table in " +
         std::string(dialect::kPlacementTableAttr));
-  if(auto cluster=module->getAttrOfType<mlir::BoolAttr>("tmexec.cluster_combine");
-      cluster && cluster.getValue()) {
+  auto cluster_combine=module->getAttrOfType<mlir::BoolAttr>("tmexec.cluster_combine");
+  auto cluster_merge=module->getAttrOfType<mlir::BoolAttr>("tmexec.cluster_attention_merge");
+  if((cluster_combine && cluster_combine.getValue()) ||
+      (cluster_merge && cluster_merge.getValue())) {
     if(plan.carried && mode!=dialect::PlacementMode::kLegacyGridStride)
       throw std::invalid_argument("cluster combine requires its explicit cluster_split placement template");
     plan.mode=unsigned(dialect::PlacementMode::kTemplate);
@@ -1832,6 +1834,8 @@ std::string LowerFusedRuntime(mlir::ModuleOp module) {
 // Unsolved legacy modules emit no extra text or preprocessor definitions.
 std::string emitSolvedLaunch(mlir::ModuleOp module) {
   std::ostringstream out;
+  if(auto merge=module->getAttrOfType<mlir::BoolAttr>("tmexec.cluster_attention_merge"))
+    if(merge.getValue())out<<"#define TILEMEGA_CLUSTER_ATTENTION_MERGE 1\n";
   if(auto attention=module->getAttrOfType<mlir::BoolAttr>("tmexec.prefill_attention_tma"))
     if(attention.getValue())out<<"#define TILEMEGA_PREFILL_ATTENTION_TMA 1\n";
   if(auto activation=module->getAttrOfType<mlir::BoolAttr>("tmexec.activation_tma"))

@@ -80,6 +80,9 @@ static_assert(!TILEMEGA_PAGED && TILEMEGA_SLOT_WINDOW == 1 && !TILEMEGA_PREFETCH
 #include <tilemega/Codegen/tasks/FusedAttentionTaskBody.h>
 #include <tilemega/Codegen/tasks/Sm90PrefillAttentionTaskBody.h>
 #include <tilemega/Codegen/tasks/IndependentAttentionTaskBody.h>
+#if TILEMEGA_CLUSTER_ATTENTION_MERGE
+#include <tilemega/Codegen/tasks/ClusterAttentionMergeTaskBody.h>
+#endif
 #include <tilemega/Codegen/tasks/ServingEmbeddingTaskBody.h>
 #include <tilemega/Codegen/tasks/ServingTaskIndex.h>
 #include <tilemega/Codegen/tasks/ServingRMSNormTaskBody.h>
@@ -258,6 +261,11 @@ using T_ServingAttention = std::conditional_t<TILEMEGA_SERVING_SEQ==1,
     GemmVariantArch, TILEMEGA_SERVING_HEAD_DIM, TILEMEGA_SERVING_QPERKV,
     TILEMEGA_SERVING_SEQ, TILEMEGA_SERVING_QROWS, TILEMEGA_SERVING_KV_TILE,
     TILEMEGA_SERVING_QK_NORM != 0>>>;
+#if TILEMEGA_CLUSTER_ATTENTION_MERGE
+using T_ClusterAttention=ClusterAttentionMergeTaskBody<GemmVariantArch,
+    TILEMEGA_SERVING_HEAD_DIM,TILEMEGA_SERVING_QPERKV,TILEMEGA_SERVING_CLUSTER_DIM,
+    TILEMEGA_SERVING_QK_NORM!=0>;
+#endif
 using T_ServingMerge = AttentionMergeTaskBody<
     TILEMEGA_SERVING_HEAD_DIM, TILEMEGA_SERVING_QPERKV,
     TILEMEGA_SERVING_SEQ>;
@@ -330,19 +338,27 @@ inline constexpr int kServingThreads=executor::kComputeThreads+executor::kLoader
 inline constexpr std::size_t kServingSharedBytes=TILEMEGA_PAGE_POOL_OFFSET+TILEMEGA_PAGE_BYTES*TILEMEGA_PAGE_COUNT;
 #else
 inline constexpr int kServingThreads=kHarnessThreads;
-#if TILEMEGA_CLUSTER_COMBINE
+#if TILEMEGA_CLUSTER_COMBINE || TILEMEGA_CLUSTER_ATTENTION_MERGE
+static_assert(!(TILEMEGA_CLUSTER_COMBINE && TILEMEGA_CLUSTER_ATTENTION_MERGE),
+              "GEMM and attention cluster mailboxes require separate candidate arms");
 static_assert(TILEMEGA_SERVING_RUNTIME && TILEMEGA_SERVING_SEQ==1 && TILEMEGA_NONPAGED_LA,
-              "cluster combine requires nonpaged serving decode and elided reducers");
+              "cluster reduction requires nonpaged serving decode and elided reducers");
 static_assert(TILEMEGA_FP32_PARTIALS,"cluster combine requires the FP32 split ABI");
 static_assert(TILEMEGA_SLOT_WINDOW==1 && !TILEMEGA_MOE_DYNAMIC &&
     !TILEMEGA_EVENT_CLUSTER_FANIN && !TILEMEGA_PREFETCH_RUNTIME && !TILEMEGA_EP_PARALLEL_ARGMAX,
     "cluster combine requires static stage-major queues without shared-memory aliases");
+#if TILEMEGA_CLUSTER_COMBINE
 using T_ClusterMailbox=ServingClusterMailbox<GemmVariantArch>;
-inline constexpr std::size_t kServingSharedBytes=kServingMailboxOffset<TaskSmem>+
+#else
+static_assert(TILEMEGA_ATTENTION_IMPL==4,"cluster KV merge requires WGMMA attention");
+using T_ClusterMailbox=typename T_ClusterAttention::Mailbox;
+#endif
+inline constexpr std::size_t kClusterMailboxOffset=(sizeof(TaskSmem)+1023)&~std::size_t(1023);
+inline constexpr std::size_t kServingSharedBytes=kClusterMailboxOffset+
     sizeof(typename T_ClusterMailbox::Storage);
 __device__ __forceinline__ typename T_ClusterMailbox::Storage& ClusterMailboxStorage(TaskSmem& smem) {
   return *reinterpret_cast<typename T_ClusterMailbox::Storage*>(
-      reinterpret_cast<char*>(&smem)+kServingMailboxOffset<TaskSmem>);
+      reinterpret_cast<char*>(&smem)+kClusterMailboxOffset);
 }
 #else
 inline constexpr std::size_t kServingSharedBytes=sizeof(TaskSmem);
@@ -508,8 +524,13 @@ __device__ inline void RunServingAttentionTask(Params const& p,
     inputs.value_tensor_map=maps+offset+stage.group+1;
   }
 #endif
+#if TILEMEGA_CLUSTER_ATTENTION_MERGE
+  T_ClusterAttention::Run(inputs,smem.serving_attention,ClusterMailboxStorage(smem),
+      batch,group,cache_block);
+#else
   T_ServingAttention::Run(inputs, smem.serving_attention, batch, group,
                           query_block, cache_block);
+#endif
 }
 
 __device__ inline void RunServingMergeTask(Params const& p,
@@ -543,9 +564,14 @@ __device__ inline int ServingL1TaskLimit(Params const& p,StageDesc const& s,int 
   return SpreadServingHead(p,s)?CeilDiv(count,int(gridDim.x))*int(gridDim.x):count;
 }
 __device__ inline int ServingL1Task(Params const& p,StageDesc const& s,int ordinal) {
-  if(s.kind==TaskKind::kFusedAttention)
+  if(s.kind==TaskKind::kFusedAttention) {
+#if TILEMEGA_CLUSTER_ATTENTION_MERGE
+    return ordinal;
+#else
     return ServingAttentionL1Task(ordinal,p.dims.batch,s.extent,
         CeilDiv(p.dims.capacity,s.attention_kv_block),s.attention_kv_block,p.dims.seq);
+#endif
+  }
   return SpreadServingHead(p,s)?ServingSpreadTailTask(ordinal,int(gridDim.x)):ordinal;
 }
 #else
@@ -597,6 +623,11 @@ __device__ inline void FinishNonpagedTask(Params const& p,unsigned index,
   else if(stage.kind==TaskKind::kFusedAttention && reducer.kind==TaskKind::kAttentionMerge) {
     producers=CeilDiv(p.dims.capacity,stage.attention_kv_block);
     output=task/producers;
+#if TILEMEGA_CLUSTER_ATTENTION_MERGE
+    if(ClusterSync<HarnessArch>::Rank()==0 && context.l2)
+      NotifyTask(p,context.events,stage.handoff_reduce_stage,output,context.iteration);
+    return;
+#endif
   }
 #endif
   else {asm volatile("trap;");return;}
@@ -1834,7 +1865,7 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
   extern __shared__ unsigned char bytes[];
 #endif
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
-#if TILEMEGA_CLUSTER_COMBINE
+#if TILEMEGA_CLUSTER_COMBINE || TILEMEGA_CLUSTER_ATTENTION_MERGE
   T_ClusterMailbox::Init(ClusterMailboxStorage(smem));
 #endif
   for (std::uint32_t stage = 0; stage < params->stage_count; ++stage) {
@@ -1862,7 +1893,7 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
     executor::StageRelease(*params,stage,iteration);
   }
   executor::StepEnd(*params,iteration);
-#if TILEMEGA_CLUSTER_COMBINE
+#if TILEMEGA_CLUSTER_COMBINE || TILEMEGA_CLUSTER_ATTENTION_MERGE
   T_ClusterMailbox::Close();
 #endif
   ServingPdlExit();
@@ -1880,7 +1911,7 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
   extern __shared__ unsigned char bytes[];
 #endif
   auto& smem=*reinterpret_cast<TaskSmem*>(bytes);
-#if TILEMEGA_CLUSTER_COMBINE
+#if TILEMEGA_CLUSTER_COMBINE || TILEMEGA_CLUSTER_ATTENTION_MERGE
   T_ClusterMailbox::Init(ClusterMailboxStorage(smem));
 #endif
   if(blockIdx.x==0 && threadIdx.x==0 && step_ns) {
@@ -1944,7 +1975,7 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
       step_ns[step+1]=now;
     }
   }
-  #if TILEMEGA_CLUSTER_COMBINE
+  #if TILEMEGA_CLUSTER_COMBINE || TILEMEGA_CLUSTER_ATTENTION_MERGE
   T_ClusterMailbox::Close();
   #endif
   ServingPdlExit();
@@ -2009,7 +2040,7 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
   extern __shared__ unsigned char bytes[];
 #endif
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
-#if TILEMEGA_CLUSTER_COMBINE
+#if TILEMEGA_CLUSTER_COMBINE || TILEMEGA_CLUSTER_ATTENTION_MERGE
   T_ClusterMailbox::Init(ClusterMailboxStorage(smem));
 #endif
   using CS = ClusterSync<arch::CurrentArch>;
@@ -2266,7 +2297,7 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
         params->shard_arrivals[params->cluster_shard_indices[begin + i]].arrivals = local[i];
   }
   executor::StepEnd(*params,iteration);
-#if TILEMEGA_CLUSTER_COMBINE
+#if TILEMEGA_CLUSTER_COMBINE || TILEMEGA_CLUSTER_ATTENTION_MERGE
   T_ClusterMailbox::Close();
 #endif
   ServingPdlExit();
@@ -2846,13 +2877,40 @@ inline DeviceModel Create(ModelSpec const& spec,
     }
   }
 #endif
+#if TILEMEGA_CLUSTER_ATTENTION_MERGE
+  std::vector<bool> cluster_private(spec.buffer_count,false);
+  for(unsigned stage=0;stage<spec.stage_count;++stage) {
+    auto const& attention=spec.stages[stage];
+    if(attention.kind!=TaskKind::kFusedAttention)continue;
+    if(attention.attention_kv_block<=0 || attention.attention_kv_block%64 ||
+        CeilDiv(dims.capacity,attention.attention_kv_block)!=TILEMEGA_SERVING_CLUSTER_DIM)
+      throw std::invalid_argument("cluster KV merge requires exactly one aligned split per cluster rank");
+    for(unsigned operand:{8u,9u}) {
+      auto id=attention.operand[operand];
+      if(id>=spec.buffer_count || spec.buffers[id].role!=0 ||
+          spec.buffers[id].source!=BufferSource::kZero || spec.buffers[id].file)
+        throw std::invalid_argument("cluster KV merge requires private internal partial descriptors");
+      cluster_private[id]=true;
+    }
+  }
+#endif
   model.host_sources.resize(spec.buffer_count);
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+#if TILEMEGA_CLUSTER_ATTENTION_MERGE
+  if(spec.memory_arena_bytes)
+    throw std::invalid_argument("cluster KV merge currently requires separately allocated dense buffers");
+#endif
   if(spec.memory_arena_bytes)
     TILEMEGA_CUDA_CHECK(cudaMalloc(&model.device_memory_arena,spec.memory_arena_bytes));
 #endif
   for (std::uint32_t i = 0; i < spec.buffer_count; ++i) {
     BufferDesc const& desc = spec.buffers[i];
+#if TILEMEGA_CLUSTER_ATTENTION_MERGE
+    if(cluster_private[i]) {
+      model.buffers.push_back(nullptr);model.owned_buffers.push_back(false);
+      continue;
+    }
+#endif
     std::size_t elements = desc.Elements(dims);
     ModelElement* pointer = nullptr;
     std::size_t element_bytes = desc.dtype == 0 ? sizeof(ModelElement) : 4;
@@ -3816,6 +3874,28 @@ inline DeviceModel Create(ModelSpec const& spec,
   }
   if(!cooperative)throw std::invalid_argument("cluster combine has no cooperative GEMM");
 #endif
+#if TILEMEGA_CLUSTER_ATTENTION_MERGE
+  if(plan_mode!=dialect::PlacementMode::kTemplate || plan_params.size()!=1 ||
+      plan_params[0]!=std::int64_t(dialect::PlacementTemplate::kClusterSplit))
+    throw std::invalid_argument("cluster KV merge requires the emitted cluster_split placement");
+  plan_request.cluster_dim=TILEMEGA_SERVING_CLUSTER_DIM;
+  for(unsigned stage=0;stage<model.stage_order.size();++stage)
+    if(model.stage_order[stage]!=stage)
+      throw std::invalid_argument("cluster KV merge requires forward stage-major queues");
+  plan_request.cluster_chunks.assign(model.stages.size(),0);
+  unsigned cluster_attention=0;
+  for(unsigned stage=0;stage<model.stages.size();++stage) {
+    auto const& attention=model.stages[stage];
+    if(attention.kind!=TaskKind::kFusedAttention)continue;
+    auto reducer=attention.handoff_reduce_stage;
+    if(reducer==kNoOperand || reducer>=model.stages.size() ||
+        model.stages[reducer].kind!=TaskKind::kAttentionMerge ||
+        !model.stages[reducer].handoff_elided)
+      throw std::invalid_argument("cluster KV merge requires its attention reducer to be elided");
+    plan_request.cluster_chunks[stage]=TILEMEGA_SERVING_CLUSTER_DIM;++cluster_attention;
+  }
+  if(!cluster_attention)throw std::invalid_argument("cluster KV merge has no cooperative attention stage");
+#endif
   if (plan_mode==dialect::PlacementMode::kEft) {
     auto const& plan_table=bound_plan;
     int const plan_nodes=runtime_graph.stage_offsets.empty()
@@ -4263,7 +4343,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       counts[stage]=model.stages[stage].handoff_elided?0:active_tasks(stage);
     (void)executor::ValidateClusterPlacement(TILEMEGA_SERVING_CLUSTER_DIM,
         grid,counts,model.schedule_offsets,model.schedule);
-#if TILEMEGA_CLUSTER_COMBINE
+#if TILEMEGA_CLUSTER_COMBINE || TILEMEGA_CLUSTER_ATTENTION_MERGE
     executor::ValidateClusterEpisodeOrder(TILEMEGA_SERVING_CLUSTER_DIM,grid,
         plan_request.cluster_chunks,model.schedule_offsets,model.schedule);
 #endif

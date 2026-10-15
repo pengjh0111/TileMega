@@ -30,6 +30,17 @@ class FeatureContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'GEMM dispatch row count'):
             validate_gemm_dispatch(plan,defines,source.replace('  {2u, 1u, 16u, 32u, 64u, 2u},\n',''))
 
+    def test_cluster_attention_identity_keeps_weighted_reduction_explicit(self):
+        plan=dict(phase='decode',pg='off',merge='cluster',gemms=[])
+        defines={'TILEMEGA_CLUSTER_ATTENTION_MERGE':'1'}
+        validate(plan,defines)
+        fields=implementations(plan,defines)
+        self.assertEqual(fields['merge'],'cluster')
+        self.assertEqual(fields['attention']['task_body'],'ClusterAttentionMergeTaskBody')
+        self.assertFalse(fields['attention']['global_partials'])
+        with self.assertRaisesRegex(ValueError,'merge'):validate(plan,{})
+        with self.assertRaisesRegex(ValueError,'merge'):validate(dict(merge='stage'),defines)
+
     def test_dwpw_wgmma_identity(self):
         for mode, value in (('mma16', 0), ('wgmma', 1)):
             plan = {'dwpw_impl': mode, 'gemms': []}

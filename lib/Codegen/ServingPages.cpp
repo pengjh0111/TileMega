@@ -16,6 +16,7 @@
 #include <stdexcept>
 namespace tilemega::codegen {
 void ConfigureServingPrefetch(mlir::ModuleOp module,TargetSpec const& target,int depth,int stride) {
+  if(depth==0) {module->removeAttr("tmexec.prefetch");return;}
   if(stride==0) {
     stride=target.CalibrationFor("bf16").l2_prefetch_bytes;
     // Targets without the optional L2 sector microbenchmark record zero.
@@ -24,7 +25,7 @@ void ConfigureServingPrefetch(mlir::ModuleOp module,TargetSpec const& target,int
     if(stride==0)stride=128;
   }
   if(depth<1 || depth>2 || (stride!=32 && stride!=64 && stride!=128))
-    throw std::invalid_argument("prefetch depth must be 1/2 and stride 32/64/128");
+    throw std::invalid_argument("prefetch depth must be 0/1/2 and stride 32/64/128");
   auto plan=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   auto roles=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.dimension_roles");
   auto info=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");

@@ -148,6 +148,13 @@ struct PagedAttentionTaskBody {
     }
   }
   template<class PageSource>
+  __device__ static __forceinline__ void RunLocalPartial(ServingAttentionOperands const& p,
+      int b,int g,int c,PageSource const& ring,std::uint64_t& sequence,
+      SharedStorage& shared,float* tile) {
+    static_assert(kWgmma,"local split-KV output requires the WGMMA attention body");
+    Hopper::template Run<PagedAttentionTaskBody,PageSource,true>(p,b,g,c,ring,sequence,shared,tile);
+  }
+  template<class PageSource>
   __device__ TILEMEGA_ATTENTION_RUN_ATTRIBUTE static void Run(ServingAttentionOperands const& p,int b,int g,int c,
       PageSource const& ring,std::uint64_t& sequence,SharedStorage& s) {
     if constexpr(kWgmma) {
