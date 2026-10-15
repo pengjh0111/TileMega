@@ -28,6 +28,10 @@ def load_driver(candidate):
     path=Path(candidate['script']);digest=file_sha(path)
     if digest!=candidate['script_sha256']:
         raise ValueError('frozen candidate driver changed')
+    helper_path=path.with_name('r16_argument_contract.py')
+    helper_digest=candidate.get('argument_contract_sha256')
+    if helper_digest is not None and file_sha(helper_path)!=helper_digest:
+        raise ValueError('frozen native argument helper changed')
     key=(str(path.resolve()),digest)
     if key not in DRIVERS:
         tree=ast.parse(path.read_text())
@@ -36,10 +40,22 @@ def load_driver(candidate):
             names=[]
             if isinstance(node,ast.Import):names=[x.name.split('.')[0] for x in node.names]
             elif isinstance(node,ast.ImportFrom):names=[(node.module or '').split('.')[0]]
-            if any(n not in sys.stdlib_module_names and n not in ('__future__','r16_measurement_validation') for n in names):
+            allowed=('__future__','r16_measurement_validation')+(
+                ('r16_argument_contract',) if helper_digest is not None else ())
+            if any(n not in sys.stdlib_module_names and n not in allowed for n in names):
                 raise ValueError('unsupported frozen driver: non-stdlib top-level import')
         spec=importlib.util.spec_from_file_location('candidate_collector_'+digest,path)
-        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        module=importlib.util.module_from_spec(spec)
+        previous=sys.modules.get('r16_argument_contract')
+        if helper_digest is not None:
+            helper_spec=importlib.util.spec_from_file_location('r16_argument_contract',helper_path)
+            helper=importlib.util.module_from_spec(helper_spec)
+            helper_spec.loader.exec_module(helper)
+            sys.modules['r16_argument_contract']=helper
+        try:spec.loader.exec_module(module)
+        finally:
+            if previous is not None:sys.modules['r16_argument_contract']=previous
+            else:sys.modules.pop('r16_argument_contract',None)
         if not callable(getattr(module,'measurement',None)) or not callable(getattr(module,'check_pair',None)):
             raise ValueError('unsupported frozen driver: measurement/check_pair API absent')
         DRIVERS[key]=module
@@ -83,7 +99,8 @@ def scheduled_jobs(plan_path,plan):
         path=Path(argv[argv.index('--candidate')+1]);c=read(path)
         matched=[b for b in bases if (b['id'],b['model'],b['batch'],b['prefill'],b['decode'],b['snapshot_head'])==(c['id'],c['model'],c['batch'],c['prefill'],c['decode'],c['snapshot_head'])]
         if len(matched)!=1:raise ValueError('explicit final command belongs to another plan candidate')
-        for key in ('seed','config_sha256','script_sha256','compiler_sha256','system','arm','variant'):
+        for key in ('seed','config_sha256','script_sha256','compiler_sha256','system','arm','variant',
+                    'native_system_label','argument_contract_sha256'):
             if matched[0].get(key)!=c.get(key):raise ValueError('explicit final candidate changed plan coordinate '+key)
         if Path(c['file']).resolve()!=path.resolve():raise ValueError('candidate file identity differs from explicit command')
         rnd=int(argv[argv.index('--round-index')+1])
@@ -107,6 +124,42 @@ def read_states(root):
     return state,cards
 
 
+def check_native_alias(candidate,value,directory,expected,actual):
+    label=candidate.get('native_system_label',candidate['system'])
+    if label not in NATIVE_LLM_SYSTEMS or value['system']!=label:
+        raise ValueError('native system label differs from explicit candidate')
+    if 'native_system_label' not in candidate:return
+    evidence=read(directory/'measurements/candidate-evidence.json')
+    for key,wanted in (('system',candidate['system']),('native_system_label',label),
+                       ('variant',candidate['variant']),
+                       ('artifact_ids',{p:i['artifact_id'] for p,i in expected.items()})):
+        if evidence.get(key)!=wanted:
+            raise ValueError('candidate alias evidence differs in '+key)
+    # The same guarded invocation writes both receipts; the execution receipt
+    # binds the outer candidate evidence to the immutable driver's bytes.
+    if actual['driver_sha256']!=candidate['script_sha256'] or (
+            'driver_sha256' in evidence and evidence['driver_sha256']!=actual['driver_sha256']):
+        raise ValueError('candidate alias evidence belongs to another driver')
+    contract=read(directory/'measurements/native-argument-contract.json')
+    runner=Path(candidate['snapshot_source'])/'python/tilemega/serving/r16_run.py'
+    if (Path(contract['runner']).resolve()!=runner.resolve() or
+            contract['runner_sha256']!=file_sha(runner) or
+            value['configuration']['runner_sha256']!=contract['runner_sha256'] or
+            contract.get('outer_system')!=candidate['system'] or
+            contract.get('variant')!=candidate['variant']):
+        raise ValueError('native alias parser/source evidence differs from candidate')
+    parsed=contract['parsed']
+    for key,wanted in (('system_label',label),('mode',candidate['mode']),
+                       ('decode_loop',candidate['loop']),('max_tokens',1024),
+                       ('round_index',value['round_index'])):
+        if parsed.get(key)!=wanted:
+            raise ValueError('native alias parsed arguments differ in '+key)
+    if (int(parsed['batch'])!=candidate['batch'] or
+            any(Path(parsed[p]).resolve()!=Path(candidate[p]).resolve() for p in ('prefill','decode')) or
+            Path(parsed['out']).resolve()!=(directory/'measurements').resolve()):
+        raise ValueError('native alias parsed workload belongs to another candidate')
+
+
 def inspect_measurement(root,state,cards,name,rnd,candidate):
     record=state[name]
     if record.get('status')!='done' or record.get('exit_code')!=0:
@@ -115,7 +168,7 @@ def inspect_measurement(root,state,cards,name,rnd,candidate):
     guard=completed_guard(directory,record)
     path=directory/'measurements'/f"B{candidate['batch']}"/'measurements.json'
     value,_,own=validate_llm(path,guard,root)
-    if value['system']!=candidate['system'] or value['round_index']!=rnd or value['batch']!=candidate['batch']:
+    if value['round_index']!=rnd or value['batch']!=candidate['batch']:
         raise ValueError('system/batch/final round differs from explicit candidate')
     if value['gpu_index']!=candidate['gpu'] or cards[name]!=candidate['gpu']:
         raise ValueError('physical GPU differs from plan or scheduler')
@@ -140,6 +193,7 @@ def inspect_measurement(root,state,cards,name,rnd,candidate):
     for phase,identity in expected.items():
         if identity['source']['head']!=candidate['snapshot_head']:
             raise ValueError('native source differs from declared frozen candidate')
+    check_native_alias(candidate,value,directory,expected,actual)
     driver=load_driver(candidate)
     pair=driver.check_pair(candidate)
     if {p:i['artifact_id'] for p,i in pair.items()}!={p:i['artifact_id'] for p,i in expected.items()}:
@@ -149,12 +203,15 @@ def inspect_measurement(root,state,cards,name,rnd,candidate):
     if measured['pid']!=value['pid'] or any(measured[k]!=value[k] for k in ('e2e_seconds','ttft_seconds','tpot_seconds')):
         raise ValueError('frozen driver measurement differs from independently validated receipt')
     return dict(job=name,round=rnd,pid=value['pid'],gpu=value['gpu_index'],measurement=str(path),
+        system=candidate['system'],native_system_label=candidate.get('native_system_label',candidate['system']),
+        variant=candidate.get('variant',{}),
         **{k:value[k] for k in METRICS},source_checkpoint_sha256=value['_r16_native']['source_checkpoint_sha256'],
         native_artifact_ids={p:i['artifact_id'] for p,i in expected.items()},
         binary_sha256={p:i['binary_sha256'] for p,i in expected.items()},versions=value['versions'],
         acceptance=own['acceptance'],ownership_verified=own['ownership_verified'],
         unresolved_host_pids=own['unresolved_host_pids'],source_head=candidate['snapshot_head'],
         actual_coordinates={p:dict(implementations=i.get('implementations',{}),
+            gemms=i['plan'].get('gemms',[]),
             plan={k:i['plan'].get(k) for k in ('pg','page_bytes','residency','cluster_dim','combine','attention_page','activation_tma','qkv_epilogue','forward_gemm_impl')},
             gemm_implementations={impl:sum(g.get('impl','mma16')==impl for g in i['plan'].get('gemms',[])) for impl in ('mma16','gemv','wgmma')}) for p,i in expected.items()})
 
@@ -163,7 +220,8 @@ def summarize_samples(samples):
     if not samples:return dict(status='not_finalized',fresh_processes=0,protocol_complete=False)
     rounds={s['round'] for s in samples};pids={s['pid'] for s in samples}
     if len(rounds)!=len(samples) or len(pids)!=len(samples):raise ValueError('duplicate final round or measured process PID')
-    for key in ('source_checkpoint_sha256','native_artifact_ids','binary_sha256','versions','gpu','source_head','actual_coordinates'):
+    for key in ('source_checkpoint_sha256','native_artifact_ids','binary_sha256','versions','gpu','source_head','actual_coordinates',
+                'system','native_system_label','variant'):
         if len({json.dumps(s[key],sort_keys=True) for s in samples})!=1:
             raise ValueError('final rounds disagree on '+key)
     return dict(status='completed' if rounds=={0,1,2} else 'partial',fresh_processes=len(samples),protocol_complete=rounds=={0,1,2},
@@ -199,8 +257,8 @@ def collect(root,plans):
         except (OSError,ValueError,KeyError,TypeError) as error:
             choices={};rejections.append(dict(plan=str(path),status='unsupported_selection_report',reason=str(error)))
         for c,jobs in requests:
-            base=dict(plan=str(path),plan_sha256=file_sha(path),model_config_sha256=c['config_sha256'],model=c['model'],batch=c['batch'],candidate=c['id'],executor=c['mode'],device_loop=c['loop'],gpu=c['gpu'],source_head=c['snapshot_head'],driver_sha256=c['script_sha256'],selected_by_report=False,default_promoted=False)
-            samples=[];statuses={};unsupported=c.get('system') not in NATIVE_LLM_SYSTEMS
+            base=dict(plan=str(path),plan_sha256=file_sha(path),model_config_sha256=c['config_sha256'],model=c['model'],batch=c['batch'],candidate=c['id'],system=c['system'],native_system_label=c.get('native_system_label',c['system']),executor=c['mode'],device_loop=c['loop'],gpu=c['gpu'],source_head=c['snapshot_head'],driver_sha256=c['script_sha256'],selected_by_report=False,default_promoted=False)
+            samples=[];statuses={};unsupported=c.get('native_system_label',c.get('system')) not in NATIVE_LLM_SYSTEMS
             if unsupported:rejections.append(dict(plan=str(path),candidate=c['id'],status='unsupported',reason='current native validation does not recognize system '+str(c.get('system'))))
             for name,rnd,definition in jobs:
                 statuses[name]=state.get(name,{}).get('status','not_enqueued')
@@ -231,7 +289,7 @@ def compact_coordinates(coordinates):
     result={}
     for phase,row in coordinates.items():
         implementations={k:v for k,v in row['implementations'].items() if k!='gemms'}
-        geometries=collections.Counter(tuple((key,g.get(key)) for key in ('impl','tile_m','tile_n','tile_k','stages','split_k')) for g in row['implementations'].get('gemms',[]))
+        geometries=collections.Counter(tuple((key,g.get(key)) for key in ('impl','tile_m','tile_n','tile_k','stages','split_k')) for g in row.get('gemms',[]))
         result[phase]=dict(implementations=implementations,plan=row['plan'],gemm_implementations=row['gemm_implementations'],geometries=[dict(key,count=count) for key,count in sorted(geometries.items(),key=lambda x:str(x[0]))])
     return result
 
@@ -239,7 +297,7 @@ def compact_coordinates(coordinates):
 def csv_rows(rows):
     result=[]
     for r in rows:
-        result.append(dict(model=r['model'],batch=r['batch'],candidate=r['candidate'],status=r['status'],fresh_processes=r['fresh_processes'],protocol_complete=r['protocol_complete'],selected_by_report=r['selected_by_report'],default_promoted=False,executor=r['executor'],device_loop=r['device_loop'],gpu=r['gpu'],
+        result.append(dict(model=r['model'],batch=r['batch'],candidate=r['candidate'],system=r['system'],native_system_label=r['native_system_label'],status=r['status'],fresh_processes=r['fresh_processes'],protocol_complete=r['protocol_complete'],selected_by_report=r['selected_by_report'],default_promoted=False,executor=r['executor'],device_loop=r['device_loop'],gpu=r['gpu'],
             e2e_ms=r.get('e2e_seconds','')*1000 if 'e2e_seconds' in r else '',ttft_ms=r.get('ttft_seconds','')*1000 if 'ttft_seconds' in r else '',tpot_ms=r.get('tpot_seconds','')*1000 if 'tpot_seconds' in r else '',tokens_per_second=r.get('output_tokens_per_second',''),
             acceptance=r.get('acceptance',''),ownership_verified=r.get('ownership_verified',''),unresolved_host_pids=json.dumps(r.get('unresolved_host_pids',[])),source_head=r['source_head'],model_config_sha256=r['model_config_sha256'],native_artifact_ids=json.dumps(r.get('native_artifact_ids',{}),sort_keys=True),binary_sha256=json.dumps(r.get('binary_sha256',{}),sort_keys=True),source_checkpoint_sha256=r.get('source_checkpoint_sha256',''),coordinates=json.dumps(compact_coordinates(r.get('actual_coordinates',{})),sort_keys=True,separators=(',',':')),versions=json.dumps(r.get('versions',{}),sort_keys=True),plan=r['plan'],plan_sha256=r['plan_sha256'],driver_sha256=r['driver_sha256']))
     return result

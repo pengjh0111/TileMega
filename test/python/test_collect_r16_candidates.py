@@ -5,11 +5,13 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+import shutil
 import unittest
 
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT/'scripts'))
 import collect_r16_candidates as collector
 import test_r16_native_measurements as native_fixture
+from r16_argument_contract import validate_native_arguments
 v=collector
 
 
@@ -63,6 +65,77 @@ def measurement(root,state,name,c):
         self.fixture.persist();self.plan=self.root/'runs/r16/explicit/plan.json';self.plan.parent.mkdir(parents=True)
         self.plan.write_text(json.dumps(dict(root=str(self.root),run_id='fixture',protocol=dict(isl=64,osl=1024,warmup=1,repeats=3,final_fresh_rounds=3),cells=[dict(model=self.c['model'],batch=16,candidates=[self.c])])) )
     def collect(self):return v.collect(self.root,[self.plan])
+    def enable_native_alias(self):
+        self.script.write_text(self.script.read_text()+'\nfrom r16_argument_contract import validate_native_arguments\n')
+        helper=self.script.with_name('r16_argument_contract.py')
+        shutil.copyfile(ROOT/'scripts/r16_argument_contract.py',helper)
+        self.c.update(system='TM-H3-stage',native_system_label='TM-seed',
+            variant={'combine':'stage','cluster_dim':1},script_sha256=v.file_sha(self.script),
+            argument_contract_sha256=v.file_sha(helper))
+        runner=Path(self.c['snapshot_source'])/'python/tilemega/serving/r16_run.py'
+        runner.parent.mkdir(parents=True,exist_ok=True)
+        shutil.copyfile(ROOT/'python/tilemega/serving/r16_run.py',runner)
+        for rnd,path in enumerate(self.paths):
+            row=v.read(path);row['configuration']['runner_sha256']=v.file_sha(runner)
+            path.write_text(json.dumps(row));directory=path.parent.parent
+            actual=v.read(directory/'actual-execution.json')
+            actual['driver_sha256']=self.c['script_sha256']
+            (directory/'actual-execution.json').write_text(json.dumps(actual))
+            evidence=dict(system=self.c['system'],native_system_label=self.c['native_system_label'],
+                variant=self.c['variant'],artifact_ids={p:i['artifact_id']for p,i in row['configuration']['identities'].items()})
+            (directory/'candidate-evidence.json').write_text(json.dumps(evidence))
+            arguments=['--prefill',self.c['prefill'],'--decode',self.c['decode'],
+                '--prompt-ids',self.c['prompt_ids'],'--batch','16','--out',str(directory),
+                '--system-label',self.c['native_system_label'],'--mode','L1','--decode-loop','1',
+                '--round-index',str(rnd)]
+            contract=validate_native_arguments(runner,arguments)
+            contract.update(outer_system=self.c['system'],variant=self.c['variant'])
+            (directory/'native-argument-contract.json').write_text(json.dumps(contract))
+        plan=v.read(self.plan);plan['cells'][0]['candidates']=[self.c]
+        self.plan.write_text(json.dumps(plan))
+
+    def test_explicit_native_alias_preserves_outer_candidate_system(self):
+        self.enable_native_alias();result=self.collect()
+        self.assertFalse(result['rejections']);self.assertEqual(len(result['processes']),3)
+        self.assertTrue(result['candidates'][0]['protocol_complete'])
+        for row in [*result['processes'],*v.csv_rows(result['candidates'])]:
+            self.assertEqual(row['system'],'TM-H3-stage')
+            self.assertEqual(row['native_system_label'],'TM-seed')
+
+    def test_alias_cannot_relabel_another_candidate_or_parser_workload(self):
+        self.enable_native_alias();self.assertEqual(len(self.collect()['processes']),3)
+        directory=self.paths[0].parent.parent
+        for damage in ('system','native_system_label','variant','artifact_ids','driver','parser_source','parser_binary'):
+            with self.subTest(damage=damage):
+                evidence=directory/'candidate-evidence.json';actual=directory/'actual-execution.json'
+                contract=directory/'native-argument-contract.json'
+                originals={p:p.read_text()for p in (evidence,actual,contract)}
+                if damage in ('system','native_system_label','variant','artifact_ids'):
+                    row=v.read(evidence)
+                    row[damage]={'combine':'cluster'}if damage=='variant'else({'decode':'other-binary'}if damage=='artifact_ids'else'other-candidate')
+                    evidence.write_text(json.dumps(row))
+                elif damage=='driver':
+                    row=v.read(actual);row['driver_sha256']='another-driver';actual.write_text(json.dumps(row))
+                else:
+                    row=v.read(contract)
+                    if damage=='parser_source':row['runner_sha256']='another-parser'
+                    else:row['parsed']['decode']='/other/decode.so'
+                    contract.write_text(json.dumps(row))
+                result=self.collect();self.assertEqual(len(result['processes']),2)
+                self.assertNotIn(self.jobs[0],{x['job']for x in result['processes']})
+                self.assertTrue(result['rejections'])
+                for path,text in originals.items():path.write_text(text)
+
+    def test_arbitrary_native_alias_and_changed_helper_are_rejected(self):
+        self.enable_native_alias()
+        for label in ('vllm','TM-H1H4'):
+            plan=v.read(self.plan);plan['cells'][0]['candidates'][0]['native_system_label']=label
+            self.plan.write_text(json.dumps(plan));self.assertFalse(self.collect()['processes'])
+        plan=v.read(self.plan);plan['cells'][0]['candidates'][0]['native_system_label']='TM-seed'
+        self.plan.write_text(json.dumps(plan))
+        self.script.with_name('r16_argument_contract.py').write_text('changed helper')
+        result=self.collect();self.assertFalse(result['processes'])
+        self.assertTrue(any('argument helper changed'in x['reason']for x in result['rejections']))
     def test_three_real_final_processes_complete_without_default_selection(self):
         result=self.collect();self.assertFalse(result['rejections']);self.assertEqual(len(result['processes']),3)
         row=result['candidates'][0];self.assertEqual(row['status'],'completed');self.assertEqual(row['fresh_processes'],3);self.assertFalse(row['selected_by_report']);self.assertFalse(row['default_promoted']);self.assertFalse(row['ownership_verified'])
@@ -71,6 +144,11 @@ def measurement(root,state,name,c):
         state=self.fixture.state[6]
         for name in self.jobs:state[name.replace('final','pilot')]=state.pop(name)
         self.fixture.persist();r=self.collect();self.assertFalse(r['processes']);self.assertEqual(r['candidates'][0]['status'],'not_finalized')
+    def test_csv_geometry_comes_from_verified_plan_not_implementation_labels(self):
+        result=self.collect();row=v.csv_rows(result['candidates'])[0]
+        coordinates=json.loads(row['coordinates'])
+        for phase,tile_m in [('prefill',64),('decode',16)]:
+            self.assertEqual(coordinates[phase]['geometries'],[dict(impl='mma16',tile_m=tile_m,tile_n=128,tile_k=64,stages=2,split_k=1,count=1)])
     def test_failed_guard_short_run_wrong_loop_and_thermal_are_excluded(self):
         for damage in ['failed_job','failed_guard','short','loop','thermal']:
             with self.subTest(damage=damage):
