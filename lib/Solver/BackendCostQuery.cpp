@@ -5,22 +5,14 @@
 #include <cctype>
 
 namespace tilemega::solver {
-namespace {
-
-int SmVersion(TargetSpec const& target) {
-  return 10 * target.sm_major + target.sm_minor;
-}
-
-}  // namespace
-
 bool BackendCandidate::isLegal(TargetSpec const& target) const {
   if (!traits_.shape_legal || traits_.smem_bytes <= 0 || traits_.threads <= 0)
     return false;
   if (traits_.smem_bytes > target.res.max_dynamic_smem_per_cta) return false;
   if (traits_.threads > target.res.max_threads_per_sm) return false;
-  // sm_89 does not run an sm_90 collective, and sm_90 does not run an sm_100
-  // one; the comparison is on the target's own version, never on a literal.
-  if (traits_.arch_sm > SmVersion(target)) return false;
+  // Implementations are built for one exact target; an NVIDIA family never
+  // enters the xcore1000 candidate domain.
+  if (traits_.arch_tag != target.arch_tag) return false;
   if (traits_.cluster.size() > 1 &&
       (!target.caps.cluster || traits_.cluster.size() > target.res.max_cluster_size))
     return false;
@@ -77,6 +69,7 @@ BackendTraits SimtF32Traits(int m, int n, int k, int stages) {
   traits.shape_legal = SimtF32ShapeLegal(m, n, k, stages);
   traits.smem_bytes = traits.shape_legal ? SimtF32SmemBytes(m, n, k, stages) : 0;
   traits.arch_sm = kSimtF32ArchSm;
+  traits.arch_tag = "sm_80";
   // cp.async moves one f32 per thread here, so neither operand needs more than
   // element alignment; the field exists because §4.2 makes it part of the
   // query, not because this family constrains it.
@@ -96,6 +89,7 @@ BackendTraits TensorBF16Traits(int m, int n, int k, int stages) {
   traits.smem_bytes =
       traits.shape_legal ? TensorBF16SmemBytes(m, n, k, stages) : 0;
   traits.arch_sm = kTensorBF16ArchSm;
+  traits.arch_tag = "sm_80";
   traits.alignment = {8, 8};
   traits.cluster = {1, 1, 1};
   return traits;
@@ -103,8 +97,9 @@ BackendTraits TensorBF16Traits(int m, int n, int k, int stages) {
 
 std::vector<std::pair<std::string, int>> ParsePtxasRegisters(
     std::string_view log) {
-  // ptxas -v prints one "Compiling entry function '<name>' for '<arch>'"
-  // followed, after the function-properties block, by "Used N registers".
+  // cucc -resource-usage prints "Function properties for <name>" followed by
+  // "Used N MTregisters, M STregisters, ..."; N (per-thread vector registers)
+  // is the occupancy-relevant count.
   std::vector<std::pair<std::string, int>> result;
   std::string current;
   std::size_t position = 0;
@@ -118,21 +113,22 @@ std::vector<std::pair<std::string, int>> ParsePtxasRegisters(
   };
   std::string_view line;
   while (next_line(&line)) {
-    std::size_t entry = line.find("Compiling entry function '");
+    constexpr std::string_view kEntry = "Function properties for ";
+    std::size_t entry = line.find(kEntry);
     if (entry != std::string_view::npos) {
-      std::size_t start = entry + std::string_view("Compiling entry function '").size();
-      std::size_t stop = line.find('\'', start);
-      if (stop != std::string_view::npos)
-        current = std::string(line.substr(start, stop - start));
+      std::size_t start = line.find_first_not_of(' ', entry + kEntry.size());
+      std::size_t stop = start == std::string_view::npos ? start : line.find(' ', start);
+      if (start != std::string_view::npos)
+        current = std::string(line.substr(start, stop == std::string_view::npos ? stop : stop - start));
       continue;
     }
     std::size_t used = line.find("Used ");
     if (used == std::string_view::npos || current.empty()) continue;
-    std::size_t digit = used + 5;
+    std::size_t digit = line.find_first_not_of(' ', used + 5);
     std::size_t end = digit;
     while (end < line.size() && std::isdigit(static_cast<unsigned char>(line[end])))
       ++end;
-    if (end == digit || line.find(" registers", end) != end) continue;
+    if (end == digit || line.find(" MTregisters", end) != end) continue;
     result.emplace_back(current, std::stoi(std::string(line.substr(digit, end - digit))));
     current.clear();
   }

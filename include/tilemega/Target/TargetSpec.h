@@ -57,8 +57,11 @@ struct TargetSpec {
   std::vector<double> serving_legacy_hop_coefficients;
 
   EventCalibration const& EventCalibrationFor(std::string_view dtype) const;
-  /// "sm_80" | "sm_89" | "sm_90" | "sm_120"
+  /// "xcore1000" (this branch builds MetaX C550 only).
   std::string arch_tag;
+  /// Device name the target was probed on; the generated harness compares it
+  /// (with the AP count) at run time instead of a compute capability.
+  std::string device_name;
   int sm_major = 0;
   int sm_minor = 0;
 

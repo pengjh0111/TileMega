@@ -98,7 +98,14 @@ int TestTargetSpec(int argc, char** argv) {
   body.serving_paged.at("attention_decode_d64").iter_ns=-1.0;
   assert(rejected());
   std::filesystem::remove(path);
-  static_assert(!tilemega::arch::Caps<tilemega::arch::Sm120>::kTcgen05);
+  auto xcore = TargetSpec::FromJson(
+      std::string(TILEMEGA_SOURCE_DIR) + "/configs/targets/xcore1000.json");
+  assert(xcore.arch_tag == "xcore1000" && xcore.device_name == "MetaX C550");
+  assert(xcore.res.num_sms == 104 && xcore.res.warp_size == 64);
+  assert(xcore.res.max_dynamic_smem_per_cta == 65536);
+  assert(!xcore.caps.cp_async && !xcore.caps.tma && !xcore.caps.pdl && !xcore.caps.cluster);
+  static_assert(tilemega::arch::Caps<tilemega::arch::Xcore1000>::kWarpSize == 64);
+  static_assert(!tilemega::arch::Caps<tilemega::arch::Xcore1000>::kPdl);
   return 0;
 }
 

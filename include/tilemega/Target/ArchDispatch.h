@@ -1,20 +1,17 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // TileMega -- the single compile-time architecture dispatch point.
 // Skeleton refs: §3.4, §5.3, §8.7.
+//
+// This branch targets MetaX C550 only (XCORE1000 family, ISA xcore1002). The
+// NVIDIA architectures and their CUTLASS tags are not part of this build.
 #pragma once
 
 #include <string_view>
 
-#include <cutlass/arch/arch.h>
-
 namespace tilemega::arch {
 
-using Sm80 = cutlass::arch::Sm80;
-using Sm86 = cutlass::arch::Sm86;
-using Sm89 = cutlass::arch::Sm89;
-using Sm90 = cutlass::arch::Sm90;
-using Sm100 = cutlass::arch::Sm100;
-using Sm120 = cutlass::arch::Sm120;
+/// MetaX XCORE1000 (C550). Tag `xcore1000`, identifier 7000.
+struct Xcore1000 {};
 
 /// Compile-time capability switches. Code generation queries these switches;
 /// it never infers a feature from an architecture version comparison.
@@ -34,17 +31,18 @@ struct Caps {
   static constexpr bool kBulkCopy = false;
   static constexpr bool kBulkPrefetch = false;
   static constexpr bool kPdl = false;
-  /// R8 BE-2: CUTLASS ships a BF16 tensor-op `CollectiveBuilder` for this
-  /// architecture. A capability of the *toolchain*, measured rather than
-  /// assumed (stated: archived BE-2 builder instantiation probes).
-  /// Business code asks this; it never asks which CUTLASS this is.
   static constexpr bool kBf16CollectiveBuilder = false;
   static constexpr int kMaxClusterSize = 1;
+  static constexpr int kWarpSize = 32;
+  static constexpr int kMaxThreadsPerBlock = 0;
   static constexpr char const* kCollective = "unsupported";
 };
 
+// Values verified by tools/probes/maca (docs/results/MX1_probe.md). The NVIDIA
+// async features (cp.async PTX, mbarrier, TMA, bulk, PDL, cluster) do not
+// exist; MetaX async copies go through Target/Maca/DevicePrimitives.h.
 template <>
-struct Caps<Sm80> {
+struct Caps<Xcore1000> {
   static constexpr bool kBf16TensorCore = true;
   static constexpr bool kCluster = false;
   static constexpr bool kTma = false;
@@ -52,8 +50,8 @@ struct Caps<Sm80> {
   static constexpr bool kTcgen05 = false;
   static constexpr bool kL15 = false;
   static constexpr bool kNet = false;
-  static constexpr bool kCpAsync = true;
-  static constexpr bool kMbarrier = true;
+  static constexpr bool kCpAsync = false;
+  static constexpr bool kMbarrier = false;
   static constexpr bool kMbarrierTryWait = false;
   static constexpr bool kMbarrierTx = false;
   static constexpr bool kBulkCopy = false;
@@ -61,82 +59,9 @@ struct Caps<Sm80> {
   static constexpr bool kPdl = false;
   static constexpr bool kBf16CollectiveBuilder = false;
   static constexpr int kMaxClusterSize = 1;
-  static constexpr char const* kCollective = "cp.async multistage";
-};
-
-template <>
-struct Caps<Sm86> : Caps<Sm80> {};
-
-template <>
-struct Caps<Sm89> : Caps<Sm80> {};
-
-template <>
-struct Caps<Sm90> {
-  static constexpr bool kBf16TensorCore = true;
-  static constexpr bool kCluster = true;
-  static constexpr bool kTma = true;
-  static constexpr bool kWarpSpecialized = true;
-  static constexpr bool kTcgen05 = false;
-  static constexpr bool kL15 = false;
-  static constexpr bool kNet = false;
-  static constexpr bool kCpAsync = true;
-  static constexpr bool kMbarrier = true;
-  static constexpr bool kMbarrierTryWait = true;
-  static constexpr bool kMbarrierTx = true;
-  static constexpr bool kBulkCopy = true;
-  static constexpr bool kBulkPrefetch = true;
-  static constexpr bool kPdl = true;
-  static constexpr bool kBf16CollectiveBuilder = true;
-  static constexpr int kMaxClusterSize = 8;
-  static constexpr char const* kCollective = "TMA warp-specialized";
-};
-
-// Blackwell datacenter (sm_100) is the only target with tcgen05, and so the
-// only one where the tmem and L1.5 lanes of the cost model exist at all.
-// Nothing here has been measured: TileMega has never run on one, which is
-// exactly why the lanes carry a status instead of a number.
-template <>
-struct Caps<Sm100> {
-  static constexpr bool kBf16TensorCore = true;
-  static constexpr bool kCluster = true;
-  static constexpr bool kTma = true;
-  static constexpr bool kWarpSpecialized = true;
-  static constexpr bool kTcgen05 = true;
-  static constexpr bool kL15 = true;
-  static constexpr bool kNet = false;
-  static constexpr bool kCpAsync = true;
-  static constexpr bool kMbarrier = true;
-  static constexpr bool kMbarrierTryWait = true;
-  static constexpr bool kMbarrierTx = true;
-  static constexpr bool kBulkCopy = true;
-  static constexpr bool kBulkPrefetch = true;
-  static constexpr bool kPdl = true;
-  static constexpr bool kBf16CollectiveBuilder = true;
-  static constexpr int kMaxClusterSize = 8;
-  static constexpr char const* kCollective = "TMA warp-specialized (tcgen05)";
-};
-
-// Blackwell GeForce (sm_120) is deliberately not derived from a numerically
-// earlier architecture: it has TMA/cluster support but no tcgen05/TMEM.
-template <>
-struct Caps<Sm120> {
-  static constexpr bool kBf16TensorCore = true;
-  static constexpr bool kCluster = true;
-  static constexpr bool kTma = true;
-  static constexpr bool kWarpSpecialized = true;
-  static constexpr bool kTcgen05 = false;
-  static constexpr bool kL15 = false;
-  static constexpr bool kNet = false;
-  static constexpr bool kCpAsync = true;
-  static constexpr bool kMbarrier = true;
-  static constexpr bool kMbarrierTryWait = true;
-  static constexpr bool kMbarrierTx = true;
-  static constexpr bool kBulkCopy = true;
-  static constexpr bool kBulkPrefetch = true;
-  static constexpr bool kPdl = true;
-  static constexpr bool kBf16CollectiveBuilder = false;
-  static constexpr int kMaxClusterSize = 8;
-  static constexpr char const* kCollective = "TMA warp-specialized (SM120 MMA)";
+  static constexpr int kWarpSize = 64;
+  static constexpr int kMaxThreadsPerBlock = 1024;
+  static constexpr char const* kCollective = "MetaX wave64 MMA";
 };
 
 /// Host-side projection of the same exact-tag capability table, used by
@@ -158,7 +83,6 @@ struct RuntimeCaps {
   bool bulk_copy;
   bool bulk_prefetch;
   bool pdl;
-
 };
 
 template <class Arch>
@@ -172,82 +96,47 @@ constexpr RuntimeCaps RuntimeCapsFor() {
 }
 
 inline constexpr RuntimeCaps RuntimeCapsForTag(std::string_view tag) {
-  return tag == "sm_80"  ? RuntimeCapsFor<Sm80>()
-       : tag == "sm_86"  ? RuntimeCapsFor<Sm86>()
-       : tag == "sm_89"  ? RuntimeCapsFor<Sm89>()
-       : tag == "sm_90"  ? RuntimeCapsFor<Sm90>()
-       : tag == "sm_100" ? RuntimeCapsFor<Sm100>()
-       : tag == "sm_120" ? RuntimeCapsFor<Sm120>()
-                           : RuntimeCapsFor<void>();
+  return tag == "xcore1000" ? RuntimeCapsFor<Xcore1000>() : RuntimeCapsFor<void>();
 }
 
-/// The arch tag codegen spells into the generated source, and the
-/// `major*100 + minor*10` identifier that travels with it. One numbering with
-/// `__CUDA_ARCH__` below, so a generated source and the device pass compare
-/// the same integer instead of two spellings of the same thing.
+/// The arch tag codegen spells into the generated source and the identifier
+/// that travels with it (`TILEMEGA_ARCH_ID`).
 template <class Arch>
 struct ArchId {
   static constexpr int kValue = 0;
   static constexpr char const* kTag = "unsupported";
 };
-template <> struct ArchId<Sm80>  { static constexpr int kValue = 800;  static constexpr char const* kTag = "sm_80"; };
-template <> struct ArchId<Sm86>  { static constexpr int kValue = 860;  static constexpr char const* kTag = "sm_86"; };
-template <> struct ArchId<Sm89>  { static constexpr int kValue = 890;  static constexpr char const* kTag = "sm_89"; };
-template <> struct ArchId<Sm90>  { static constexpr int kValue = 900;  static constexpr char const* kTag = "sm_90"; };
-template <> struct ArchId<Sm100> { static constexpr int kValue = 1000; static constexpr char const* kTag = "sm_100"; };
-template <> struct ArchId<Sm120> { static constexpr int kValue = 1200; static constexpr char const* kTag = "sm_120"; };
+template <> struct ArchId<Xcore1000> { static constexpr int kValue = 7000; static constexpr char const* kTag = "xcore1000"; };
 
-/// The inverse: the generated source carries the identifier, and the TaskBody
-/// instantiation needs the type back. `void` for an identifier no build of
-/// this compiler knows, which every caller turns into a hard failure rather
-/// than a silent fallback.
+/// The inverse: `void` for an identifier this build does not know, which every
+/// caller turns into a hard failure rather than a silent fallback.
 template <int Id> struct ArchFromId { using type = void; };
-template <> struct ArchFromId<800>  { using type = Sm80; };
-template <> struct ArchFromId<860>  { using type = Sm86; };
-template <> struct ArchFromId<890>  { using type = Sm89; };
-template <> struct ArchFromId<900>  { using type = Sm90; };
-template <> struct ArchFromId<1000> { using type = Sm100; };
-template <> struct ArchFromId<1200> { using type = Sm120; };
+template <> struct ArchFromId<7000> { using type = Xcore1000; };
 
-/// Host-side tag -> identifier, for codegen and for the runtime check.
 inline int ArchIdForTag(std::string_view tag) {
-  return tag == "sm_80"  ? ArchId<Sm80>::kValue
-       : tag == "sm_86"  ? ArchId<Sm86>::kValue
-       : tag == "sm_89"  ? ArchId<Sm89>::kValue
-       : tag == "sm_90"  ? ArchId<Sm90>::kValue
-       : tag == "sm_100" ? ArchId<Sm100>::kValue
-       : tag == "sm_120" ? ArchId<Sm120>::kValue
-                         : 0;
+  return tag == "xcore1000" ? ArchId<Xcore1000>::kValue : 0;
 }
 
-// The only __CUDA_ARCH__ selection in include/ or lib/. Exact matches avoid
-// accidentally treating sm_120 as an sm_100 tcgen05 target.
-#if defined(__CUDA_ARCH__)
-#  if __CUDA_ARCH__ == 1200
-using CurrentArch = Sm120;
-#  elif __CUDA_ARCH__ == 1000
-using CurrentArch = Sm100;
-#  elif __CUDA_ARCH__ == 900
-using CurrentArch = Sm90;
-#  elif __CUDA_ARCH__ == 890
-using CurrentArch = Sm89;
-#  elif __CUDA_ARCH__ == 860
-using CurrentArch = Sm86;
-#  elif __CUDA_ARCH__ == 800
-using CurrentArch = Sm80;
+// The only device-architecture selection in include/ or lib/. cucc defines
+// __CUDA_ARCH__ (as 800) next to __MACA_ARCH__, so __MACA_ARCH__ is tested
+// first and a pass with only __CUDA_ARCH__ comes from an NVIDIA compiler.
+#if defined(__MACA_ARCH__)
+#  if __MACA_ARCH__ == 1002
+using CurrentArch = Xcore1000;
+#  else
+#    error "TileMega xcore1000 build: unsupported __MACA_ARCH__ (expected 1002, C550)"
 #  endif
+#elif defined(__CUDA_ARCH__)
+#  error "TileMega on this branch targets MetaX only; NVIDIA device passes are not supported"
 #else
-// The host pass has no architecture of its own, yet nvcc still parses every
-// __device__ body in it.  `void` keeps those bodies well-formed while claiming
-// nothing: Caps<void> is the primary template, with every capability off.
+// The host pass has no architecture of its own, yet the compiler still parses
+// every __device__ body in it. Caps<void> keeps every capability off.
 using CurrentArch = void;
 #endif
 
-/// True only inside the device pass.  A capability assertion about
-/// `CurrentArch` is meaningful only there, and this is the one file allowed to
-/// know how to tell the two passes apart.
+/// True only inside the device pass.
 inline constexpr bool kDevicePass =
-#if defined(__CUDA_ARCH__)
+#if defined(__MACA_ARCH__)
     true;
 #else
     false;

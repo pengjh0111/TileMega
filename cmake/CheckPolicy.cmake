@@ -4,9 +4,9 @@ file(GLOB_RECURSE _tilemega_sources
 
 foreach(_file IN LISTS _tilemega_sources)
   file(READ "${_file}" _text)
-  if(_text MATCHES "__CUDA_ARCH__" AND
+  if(_text MATCHES "__CUDA_ARCH__|__MACA_ARCH__" AND
      NOT _file MATCHES "/Target/ArchDispatch\\.h$")
-    message(FATAL_ERROR "__CUDA_ARCH__ outside ArchDispatch.h: ${_file}")
+    message(FATAL_ERROR "device architecture macro outside ArchDispatch.h: ${_file}")
   endif()
   if(_text MATCHES "sm_major[ \t]*>=|sm_minor[ \t]*>=")
     message(FATAL_ERROR "architecture version comparison in business code: ${_file}")

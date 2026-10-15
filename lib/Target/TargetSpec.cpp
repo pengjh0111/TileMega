@@ -5,6 +5,7 @@
 #include <tilemega/Target/ArchDispatch.h>
 
 #include <cuda_runtime_api.h>
+#include <string_view>
 
 #include <algorithm>
 #include <cmath>
@@ -363,10 +364,16 @@ TargetSpec TargetSpec::Probe(int device_ordinal) {
             "cudaGetDeviceProperties");
 
   TargetSpec spec;
+  // The compute capability is not an architecture identity on MetaX (cu-bridge
+  // reports 10.2, torch 8.0); the device name selects the target and sm_* is
+  // recorded only.
   spec.sm_major = properties.major;
   spec.sm_minor = properties.minor;
-  spec.arch_tag = "sm_" + std::to_string(spec.sm_major) +
-                  std::to_string(spec.sm_minor);
+  if (std::string_view(properties.name).find("MetaX") == std::string_view::npos)
+    throw std::runtime_error(std::string("unsupported device for this branch: ") +
+                             properties.name + " (xcore1000 build)");
+  spec.arch_tag = "xcore1000";
+  spec.device_name = properties.name;
   ApplyKnownCaps(spec);
   spec.res.num_sms = properties.multiProcessorCount;
   CheckCuda(cudaDeviceGetAttribute(&spec.res.l2_bytes,cudaDevAttrL2CacheSize,device_ordinal),"L2 size");
@@ -392,6 +399,7 @@ TargetSpec TargetSpec::FromJson(std::string const& path) {
   if(auto* hop=root.Find("serving_legacy_hop"))
     spec.serving_legacy_hop_coefficients=NumberArray(*hop,"serving_legacy_hop");
   spec.arch_tag = root.At("arch_tag").AsString("arch_tag");
+  if (auto* name = root.Find("device_name")) spec.device_name = name->AsString("device_name");
   spec.sm_major = static_cast<int>(root.At("sm_major").AsNumber("sm_major"));
   spec.sm_minor = static_cast<int>(root.At("sm_minor").AsNumber("sm_minor"));
   if (auto grouped = root.Find("event_calibration_by_dtype")) {
@@ -521,6 +529,7 @@ std::string TargetSpec::ToJson() const {
   if(!serving_legacy_hop_coefficients.empty())
     root.Set("serving_legacy_hop",json::Numbers(serving_legacy_hop_coefficients));
   root.Set("arch_tag", arch_tag);
+  if (!device_name.empty()) root.Set("device_name", device_name);
   root.Set("sm_major", sm_major);
   root.Set("sm_minor", sm_minor);
   root.Set("caps", json::Object{{"cluster", caps.cluster},
