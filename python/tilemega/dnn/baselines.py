@@ -15,8 +15,14 @@ from pathlib import Path
 import statistics
 import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'serving'))
-from baseline_common import guarded_main, observe, require_guard, versions
+_helper_directory = str(Path(__file__).resolve().parents[1] / 'serving')
+sys.path.insert(0, _helper_directory)
+try:
+    from baseline_common import guarded_main, observe, require_guard, versions
+finally:
+    # Serving contains trace.py; retaining its path would shadow stdlib trace
+    # during Dynamo/TensorRT imports after this standalone helper is loaded.
+    sys.path.remove(_helper_directory)
 
 
 def sha(path):
