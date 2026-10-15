@@ -112,10 +112,9 @@ PreparedResidencyProbe prepareResidency(mlir::ModuleOp module,int kappa,
   wrapper.close();
   std::string root=TILEMEGA_SOURCE_DIR;
   std::string nvcc=tilemega::commands::NvccPath();
-  std::string command=quote(nvcc)+" -std=c++17 -O2 -lineinfo -Xptxas=-v -DTILEMEGA_MIDPOINT_REFINE=0 -arch="+
-      quote(options.placement.target.NvccArch())+runtime_flags;
-  for (char const* sub:{"include","third_party/cutlass/include","third_party/cutlass/tools/util/include","third_party/cutlass/test"})
-    command+=" -I"+quote(root+"/"+sub);
+  std::string command=quote(nvcc)+" -std=c++17 -O2 -DTILEMEGA_MIDPOINT_REFINE=0"+
+      tilemega::commands::DeviceBuildFlags()+runtime_flags;
+  command+=" -I"+quote(root+"/include");
   // The generated runtime uses a small host support set. Linking the whole
   // analysis archive pulls in ISL and LLVM, which nvcc does not link here.
   command+=" "+quote(probe.string())+
@@ -301,7 +300,7 @@ int RunCompile(int argc, char** argv) {
     std::string frontend_mode="decoder";
     std::string shared_weight_layout;
     std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
-    std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
+    std::string arch_paths="auto",pdl="off",handoff_mode="off",weight_layout="tiled";
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int mma_reg_pipe=0;
     std::string attention_impl="mma16";
@@ -539,13 +538,16 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("serving solve requires --measure-cmd for the top-3 decision");
     if (!solve_target.empty() && has_variants)
       throw std::runtime_error("--solve chooses variants; cannot combine with --variants");
-    if(arch_paths!="auto" && arch_paths!="sm80")throw std::runtime_error("--arch-paths must be auto or sm80");
-    if(pdl!="auto" && pdl!="off")throw std::runtime_error("--pdl must be auto or off");
+    // xcore1000 has neither PDL nor an SM80 transport subset to select.
+    if(arch_paths!="auto")throw std::runtime_error("--arch-paths must be auto on xcore1000");
+    if(pdl!="off")throw std::runtime_error("--pdl must be off on xcore1000 (no PDL)");
     if(pg_mode!="off" && pg_mode!="pages" && pg_mode!="l2" && pg_mode!="auto")
       throw std::runtime_error("--pg must be off, l2, pages or auto");
     if(handoff_mode!="off" && handoff_mode!="auto")
       throw std::runtime_error("--handoff must be off or auto");
     bool use_pages=serving && (pg_mode=="pages" || (serving_phase=="decode" && pg_mode=="auto"));
+    if(use_pages)
+      throw std::runtime_error("the paged executor is not implemented on xcore1000; use --pg off or l2");
     if(moe_dynamic!=0 && moe_dynamic!=1)
       throw std::invalid_argument("--moe-dynamic must be 0 or 1");
     if(moe_dynamic && (!serving || use_pages || pg_mode!="l2" || frontend_mode!="decoder"))
@@ -578,15 +580,15 @@ int RunCompile(int argc, char** argv) {
       runtime_flags+=" -DTILEMEGA_NONPAGED_TILED="+std::to_string(use_nonpaged_tiled);
       if(runtime_target.empty())runtime_target=solve_target;
       if(runtime_target.empty())runtime_target=std::string(TILEMEGA_SOURCE_DIR)+
-          "/configs/targets/"+tilemega::TargetSpec::Probe().arch_tag+".json";
+          "/configs/targets/xcore1000.json";
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
       if(sync_policy=="calibrated") {
         runtime_flags+=" -DTILEMEGA_SYNC_V3=1 -DTILEMEGA_EVENT_RED_PUBLISH=1";
       }
       if(kphase_mask<0 || kphase_mask>31 || v3_poll_ns<0)
         throw std::runtime_error("invalid K-phase mask or V3 poll interval");
-      if(attention_impl!="mma16" && attention_impl!="pvswap" && attention_impl!="pvswap2" && attention_impl!="simt")
-        throw std::runtime_error("--attention-impl must be mma16, pvswap, pvswap2 or simt");
+      if(attention_impl!="mma16" && attention_impl!="simt")
+        throw std::runtime_error("--attention-impl must be mma16 or simt on xcore1000");
       if(mma_reg_pipe!=0 && mma_reg_pipe!=1)throw std::runtime_error("--mma-reg-pipe must be 0 or 1");
       if(watchdog!=0 && watchdog!=1)throw std::runtime_error("--watchdog must be 0 or 1");
       if(l2_slim!=0 && l2_slim!=1)throw std::runtime_error("--l2-slim must be 0 or 1");
@@ -1697,14 +1699,10 @@ int RunCompile(int argc, char** argv) {
       if(!reused) {
       std::string root = TILEMEGA_SOURCE_DIR;
       std::string nvcc = tilemega::commands::NvccPath();
-      std::string arch = tilemega::TargetSpec::Probe().NvccArch();
       std::string command = quote(nvcc) +
-          " -std=c++17 -O3 -DTILEMEGA_MIDPOINT_REFINE=0 -arch="+
-          quote(arch)+runtime_flags+" --expt-relaxed-constexpr -shared -Xcompiler=-fPIC -cudart shared -Xptxas=-v -x cu" +
-          " -I" + quote(root + "/include") +
-          " -I" + quote(root + "/third_party/cutlass/include") +
-          " -I" + quote(root + "/third_party/cutlass/tools/util/include") +
-          " -I" + quote(root + "/third_party/cutlass/test") + " " +
+          " -std=c++17 -O3 -DTILEMEGA_MIDPOINT_REFINE=0"+
+          tilemega::commands::DeviceBuildFlags()+runtime_flags+" -shared -Xcompiler=-fPIC -x cu" +
+          " -I" + quote(root + "/include") + " " +
           quote(cuda.string()) + " -x cu " +
           quote(root + "/lib/Target/TargetSpec.cpp") +
           " -x cu " + quote(root + "/lib/Support/Json.cpp") +
@@ -1725,7 +1723,7 @@ int RunCompile(int argc, char** argv) {
             " >"+quote(requested.string()+".cache.stdout")+" 2>"+quote(requested.string()+".cache.stderr");
       }
       int status = std::system(invocation.c_str());
-      if (status != 0) throw std::runtime_error("nvcc failed while building shared object");
+      if (status != 0) throw std::runtime_error("cucc failed while building shared object");
       }
     }
     if(serving && module) {

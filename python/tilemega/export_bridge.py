@@ -44,9 +44,11 @@ def _dtype(value: Any) -> str | list[Any] | None:
 def _guards(program: torch.export.ExportedProgram) -> list[str]:
     """The only adapter touching a private torch API; fail loudly on drift."""
     major_minor = tuple(int(part) for part in torch.__version__.split("+")[0].split(".")[:2])
-    if major_minor not in {(2, 13), (2, 14)}:
+    # 2.10 is the MACA torch in the MetaX container; its ExportedProgram keeps
+    # the same _guards_code list (verified on Qwen3-0.6B decode).
+    if major_minor not in {(2, 10), (2, 13), (2, 14)}:
         raise RuntimeError(
-            "TileMega export guard adapter supports torch 2.13.x/2.14.x; got "
+            "TileMega export guard adapter supports torch 2.10.x/2.13.x/2.14.x; got "
             f"{torch.__version__}. Update _guards() as one atomic adapter."
         )
     if not hasattr(program, "_guards_code"):

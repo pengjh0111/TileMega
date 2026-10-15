@@ -51,27 +51,29 @@ def snapshot(root, destination, compiler=None):
 
 
 def parse_resources(text):
-    """Keep callee resources per entry; a spill in its hot callee counts too."""
-    result={};entry=None;function=None
+    """Per-kernel resources from `cucc -Xcompiler -resource-usage`.
+
+    MACA reports one block per kernel ("Function properties for <name>",
+    "<n> bytes stack frame", "Used <n> MTregisters, <m> STregisters, <s> bytes
+    shared mem"). MT registers are the per-thread vector registers. MACA does
+    not separate spill traffic, so a nonzero stack frame counts as a spill.
+    """
+    result={};entry=None
     for line in text.splitlines():
-        m=re.search(r"Compiling entry function '([^']+)'",line)
-        if m:
-            entry=m[1];function=entry
-            result.setdefault(entry,{'name':entry,'callees':{}})
         m=re.search(r"Function properties for\s+'?([^'\s]+)",line)
-        if m:function=m[1]
-        if not entry or not function:continue
-        row=result[entry] if function==entry else result[entry]['callees'].setdefault(function,{'name':function})
-        for pattern,key in [(r'Used (\d+) registers','registers'),
+        if m:
+            entry=m[1];result.setdefault(entry,{'name':entry,'callees':{}})
+            continue
+        if not entry:continue
+        row=result[entry]
+        for pattern,key in [(r'Used\s+(\d+) MTregisters','registers'),
+                            (r'(\d+) STregisters','scalar_registers'),
                             (r'(\d+) bytes stack frame','stack_bytes'),
-                            (r'(\d+) bytes spill stores','spill_store_bytes'),
-                            (r'(\d+) bytes spill loads','spill_load_bytes'),
-                            (r'(\d+) bytes smem','static_smem_bytes')]:
+                            (r'(\d+) bytes shared mem','static_smem_bytes')]:
             m=re.search(pattern,line)
             if m:row[key]=int(m[1])
     for row in result.values():
-        row['spill']=any(x.get('spill_store_bytes',0) or x.get('spill_load_bytes',0)
-                         for x in [row,*row['callees'].values()])
+        row['spill']=row.get('stack_bytes',0)>0
     return result
 
 
