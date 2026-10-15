@@ -1153,13 +1153,18 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
   auto plan = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   if (plan && optionalBoolField(plan, "dm")) {
     auto gemms = arrayField(plan, "gemms");
-    // Keep wide forward WGMMA inside one function without changing decode dispatch.
-    bool dm_wgmma = false;
+    // Narrow dispatch grouping requires the validated row-gather bulk candidate;
+    // wide forward retains its separately verified transitive inlining.
+    auto bulk = module->getAttrOfType<mlir::BoolAttr>("tmexec.moe_activation_bulk");
+    bool dm_wgmma = false, h10_wgmma = false;
     if (auto runtime = module->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime"))
       for (auto value : runtime)
         if (auto item = mlir::dyn_cast<mlir::DictionaryAttr>(value))
-          if (auto impl = item.getAs<mlir::IntegerAttr>("impl"))
-            dm_wgmma |= impl.getInt() == 2 && integerField(item, "tile_m") >= 64;
+          if (auto impl = item.getAs<mlir::IntegerAttr>("impl")) {
+            auto m = integerField(item, "tile_m");
+            h10_wgmma |= impl.getInt() == 2 && m == 16 && bulk && bulk.getValue();
+            dm_wgmma |= impl.getInt() == 2 && m >= 64;
+          }
     if (dm_wgmma) out << "#define TILEMEGA_DM_WGMMA_INLINE 1\n";
     out << "#include <tilemega/Codegen/DmDescriptors.h>\n"
         << "#define TILEMEGA_DM_EPILOGUE_DISPATCH 1\n"
@@ -1315,11 +1320,61 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
     else out << "#if TILEMEGA_DWPW_WGMMA\n__device__ __forceinline__\n#else\n__device__ inline\n#endif\n";
     out << "void DispatchDmEpilogue(std::uint32_t gemm, Runner const& runner) {\n"
         << "  switch (gemm) {\n";
-    for (std::size_t i = 0; i < gemms.size(); ++i)
+    auto emit_case = [&](std::size_t i) {
       out << "    case " << i << "u:\n"
           << "      if constexpr (Variant < 0 || (DmGemmBinding<" << i
           << ", Variant>::roles & (Combine ? 2u : 1u))) runner.template Run<DmSpec" << i << ">();\n"
           << "      else asm volatile(\"trap;\");\n      break;\n";
+    };
+    if (!h10_wgmma) {
+      for (std::size_t i = 0; i < gemms.size(); ++i) emit_case(i);
+    } else {
+      // The host key proposes groups; device constexpr checks prove identical
+      // complete Spec types and roles for the actually instantiated Variant.
+      // A different role retains the original per-GEMM dispatch, including traps.
+      struct Group {
+        std::vector<std::uint64_t> spec;
+        std::vector<std::size_t> members;
+      };
+      std::vector<Group> groups;
+      for (std::size_t i = 0; i < gemms.size(); ++i) {
+        auto item = dictionaryEntry(gemms[i], "gemms");
+        auto chain = frontend::DecodeDmChain(item.get("dm_chain"));
+        auto access = frontend::DecodeDmAccess(item.get("dm_access"));
+        // These are exactly the non-type template arguments emitted above.
+        // Runtime buffer ids/parameters remain in runner and cannot specialize Spec.
+        std::vector<std::uint64_t> spec{chain.count};
+        for (unsigned j = 0; j < chain.count; ++j) {
+          auto const& op = chain.operations[j];
+          spec.insert(spec.end(), {unsigned(op.kind), unsigned(op.activation), unsigned(op.gate),
+              op.unit, unsigned(op.input_rounding), unsigned(op.output_rounding),
+              unsigned(op.residual_map.kind), op.residual_map.factor});
+        }
+        spec.insert(spec.end(), {unsigned(access.write.kind), access.write.factor,
+            unsigned(chain.store_rounding), chain.side_count});
+        for (unsigned j = 0; j < chain.side_count; ++j)
+          spec.insert(spec.end(), {unsigned(chain.side[j].kind), chain.side[j].count});
+        auto group = std::find_if(groups.begin(), groups.end(), [&](auto const& g) {
+          return g.spec == spec;
+        });
+        if (group == groups.end()) groups.push_back({std::move(spec), {i}});
+        else group->members.push_back(i);
+      }
+      for (auto const& group : groups) {
+        auto first = group.members.front();
+        for (auto i : group.members) out << "    case " << i << "u:\n";
+        out << "    {\n      if constexpr (true";
+        for (auto i : group.members) if (i != first)
+          out << " && std::is_same_v<DmSpec" << first << ", DmSpec" << i << ">"
+              << " && (DmGemmBinding<" << first << ", Variant>::roles == DmGemmBinding<"
+              << i << ", Variant>::roles)";
+        out << ") {\n        if constexpr (Variant < 0 || (DmGemmBinding<" << first
+            << ", Variant>::roles & (Combine ? 2u : 1u))) runner.template Run<DmSpec" << first
+            << ">();\n        else asm volatile(\"trap;\");\n      } else {\n        switch (gemm) {\n";
+        for (auto i : group.members) emit_case(i);
+        out << "          default: asm volatile(\"trap;\"); break;\n        }\n      }\n      break;\n    }\n";
+      }
+    }
     out << "    default: asm volatile(\"trap;\"); break;\n"
         << "  }\n}\n} // namespace tilemega::codegen\n";
   }

@@ -191,6 +191,40 @@ int TestDmDescriptor(int, char**) {
   auto at=emitted.find(call);assert(at!=std::string::npos && emitted.find(call,at+1)==std::string::npos);
   assert(emitted.find("Run<TaskKind::kEmbeddingSum, 768, 1>()")!=std::string::npos);
   assert(emitted.find("Run<TaskKind::kLayoutConvert, 3, 128>()")!=std::string::npos);
+  // Narrow typed grouping is opt-in; complete Spec and per-Variant roles
+  // are both checked before equivalent case labels share a WGMMA body.
+  DmEpilogueChain empty_chain, fp32_chain;
+  fp32_chain.store_rounding=DmRounding::kFP32;
+  DmGemmAccess dense_access;
+  auto gemm_attr=[&](DmEpilogueChain const& epilogue) {
+    return builder.getDictionaryAttr({
+        builder.getNamedAttr("dm_chain",EncodeDm(builder,epilogue)),
+        builder.getNamedAttr("dm_access",EncodeDm(builder,dense_access))});
+  };
+  module->setAttr("tilemega.model_plan",builder.getDictionaryAttr({
+      builder.getNamedAttr("dm",builder.getBoolAttr(true)),
+      builder.getNamedAttr("gemms",builder.getArrayAttr({gemm_attr(empty_chain),gemm_attr(empty_chain),gemm_attr(fp32_chain)})),
+      builder.getNamedAttr("stages",builder.getArrayAttr({}))}));
+  auto emit_runtime=[&](int m,int impl,bool bulk) {
+    auto runtime=builder.getDictionaryAttr({builder.getNamedAttr("tile_m",builder.getI64IntegerAttr(m)),
+        builder.getNamedAttr("impl",builder.getI64IntegerAttr(impl))});
+    module->setAttr("tilemega.gemm_runtime",builder.getArrayAttr({runtime,runtime,runtime}));
+    module->setAttr("tmexec.moe_activation_bulk",builder.getBoolAttr(bulk));
+    return TaskBodyEmitter{}.Emit(module);
+  };
+  auto legacy=emit_runtime(16,0,false);
+  assert(legacy==emit_runtime(16,0,true));
+  assert(legacy==emit_runtime(16,2,false));
+  assert(legacy==emit_runtime(8,2,true));
+  auto narrow_dispatch=emit_runtime(16,2,true);
+  assert(narrow_dispatch.find("#define TILEMEGA_DM_WGMMA_INLINE 1")==std::string::npos);
+  assert(narrow_dispatch.find("std::is_same_v<DmSpec0, DmSpec1>")!=std::string::npos);
+  assert(narrow_dispatch.find("DmGemmBinding<0, Variant>::roles == DmGemmBinding<1, Variant>::roles")!=std::string::npos);
+  assert(narrow_dispatch.find("std::is_same_v<DmSpec0, DmSpec2>")==std::string::npos);
+  assert(narrow_dispatch.find("switch (gemm)",narrow_dispatch.find("switch (gemm)")+1)!=std::string::npos);
+  auto wide=emit_runtime(64,2,false);
+  assert(wide.find("#define TILEMEGA_DM_WGMMA_INLINE 1")!=std::string::npos);
+  assert(wide.find("std::is_same_v<DmSpec")==std::string::npos);
   module.erase();
 
   tilemega::analysis::IslContext isl;
