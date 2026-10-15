@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Validate a frozen workload/attention checkpoint without collecting timings."""
+from target_arch import nvcc_flag
+
 import argparse
 import fcntl
 import json
@@ -59,7 +61,7 @@ def main():
                     for impl in (0,1,2,3):
                         label=f'attention_impl{impl}_sm{arch}'
                         execute([os.getenv('NVCC','/usr/local/cuda/bin/nvcc'),'-std=c++17','-O3',
-                            '--expt-relaxed-constexpr','-arch=sm_'+str(arch),
+                            '--expt-relaxed-constexpr',nvcc_flag(arch),
                             '-DTILEMEGA_ARCH_ID='+str(arch*10),'-DTILEMEGA_ATTENTION_IMPL='+str(impl),
                             '-I'+str(root/'include'),'-I'+str(root/'third_party/cutlass/include'),
                             '-c',str(root/'test/unit/attention_impl_compile.cu'),'-o',str(out/(label+'.o'))],out,label,1800)

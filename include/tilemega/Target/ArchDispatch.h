@@ -16,6 +16,8 @@ using Sm90 = cutlass::arch::Sm90;
 using Sm100 = cutlass::arch::Sm100;
 using Sm120 = cutlass::arch::Sm120;
 
+/// Stated: new Hopper primitives follow CUDA 12.8 PTX ISA 8.7 target notes;
+/// architecture-accelerated instructions additionally need device-pass guards.
 /// Compile-time capability switches. Code generation queries these switches;
 /// it never infers a feature from an architecture version comparison.
 template <class Arch>
@@ -34,6 +36,13 @@ struct Caps {
   static constexpr bool kBulkCopy = false;
   static constexpr bool kBulkPrefetch = false;
   static constexpr bool kPdl = false;
+  static constexpr bool kWgmma = false;
+  static constexpr bool kSetmaxnreg = false;
+  static constexpr bool kTmaIm2col = false;
+  static constexpr bool kTmaMulticast = false;
+  static constexpr bool kBulkReduce = false;
+  static constexpr bool kDsmem = false;
+  static constexpr bool kElectSync = false;
   /// R8 BE-2: CUTLASS ships a BF16 tensor-op `CollectiveBuilder` for this
   /// architecture. A capability of the *toolchain*, measured rather than
   /// assumed (stated: archived BE-2 builder instantiation probes).
@@ -59,6 +68,13 @@ struct Caps<Sm80> {
   static constexpr bool kBulkCopy = false;
   static constexpr bool kBulkPrefetch = false;
   static constexpr bool kPdl = false;
+  static constexpr bool kWgmma = false;
+  static constexpr bool kSetmaxnreg = false;
+  static constexpr bool kTmaIm2col = false;
+  static constexpr bool kTmaMulticast = false;
+  static constexpr bool kBulkReduce = false;
+  static constexpr bool kDsmem = false;
+  static constexpr bool kElectSync = false;
   static constexpr bool kBf16CollectiveBuilder = false;
   static constexpr int kMaxClusterSize = 1;
   static constexpr char const* kCollective = "cp.async multistage";
@@ -86,6 +102,13 @@ struct Caps<Sm90> {
   static constexpr bool kBulkCopy = true;
   static constexpr bool kBulkPrefetch = true;
   static constexpr bool kPdl = true;
+  static constexpr bool kWgmma = true;
+  static constexpr bool kSetmaxnreg = true;
+  static constexpr bool kTmaIm2col = true;
+  static constexpr bool kTmaMulticast = true;
+  static constexpr bool kBulkReduce = true;
+  static constexpr bool kDsmem = true;
+  static constexpr bool kElectSync = true;
   static constexpr bool kBf16CollectiveBuilder = true;
   static constexpr int kMaxClusterSize = 8;
   static constexpr char const* kCollective = "TMA warp-specialized";
@@ -111,6 +134,13 @@ struct Caps<Sm100> {
   static constexpr bool kBulkCopy = true;
   static constexpr bool kBulkPrefetch = true;
   static constexpr bool kPdl = true;
+  static constexpr bool kWgmma = false;
+  static constexpr bool kSetmaxnreg = true;
+  static constexpr bool kTmaIm2col = true;
+  static constexpr bool kTmaMulticast = true;
+  static constexpr bool kBulkReduce = true;
+  static constexpr bool kDsmem = true;
+  static constexpr bool kElectSync = true;
   static constexpr bool kBf16CollectiveBuilder = true;
   static constexpr int kMaxClusterSize = 8;
   static constexpr char const* kCollective = "TMA warp-specialized (tcgen05)";
@@ -134,6 +164,13 @@ struct Caps<Sm120> {
   static constexpr bool kBulkCopy = true;
   static constexpr bool kBulkPrefetch = true;
   static constexpr bool kPdl = true;
+  static constexpr bool kWgmma = false;
+  static constexpr bool kSetmaxnreg = true;
+  static constexpr bool kTmaIm2col = true;
+  static constexpr bool kTmaMulticast = true;
+  static constexpr bool kBulkReduce = true;
+  static constexpr bool kDsmem = true;
+  static constexpr bool kElectSync = true;
   static constexpr bool kBf16CollectiveBuilder = false;
   static constexpr int kMaxClusterSize = 8;
   static constexpr char const* kCollective = "TMA warp-specialized (SM120 MMA)";
@@ -158,6 +195,13 @@ struct RuntimeCaps {
   bool bulk_copy;
   bool bulk_prefetch;
   bool pdl;
+  bool wgmma;
+  bool setmaxnreg;
+  bool tma_im2col;
+  bool tma_multicast;
+  bool bulk_reduce;
+  bool dsmem;
+  bool elect_sync;
 
 };
 
@@ -168,7 +212,8 @@ constexpr RuntimeCaps RuntimeCapsFor() {
           Caps<Arch>::kL15, Caps<Arch>::kNet,
           Caps<Arch>::kCpAsync, Caps<Arch>::kMbarrier,
           Caps<Arch>::kMaxClusterSize, Caps<Arch>::kCollective,
-          Caps<Arch>::kMbarrierTryWait, Caps<Arch>::kMbarrierTx, Caps<Arch>::kBulkCopy, Caps<Arch>::kBulkPrefetch, Caps<Arch>::kPdl};
+          Caps<Arch>::kMbarrierTryWait, Caps<Arch>::kMbarrierTx, Caps<Arch>::kBulkCopy, Caps<Arch>::kBulkPrefetch, Caps<Arch>::kPdl,
+          Caps<Arch>::kWgmma, Caps<Arch>::kSetmaxnreg, Caps<Arch>::kTmaIm2col, Caps<Arch>::kTmaMulticast, Caps<Arch>::kBulkReduce, Caps<Arch>::kDsmem, Caps<Arch>::kElectSync};
 }
 
 inline constexpr RuntimeCaps RuntimeCapsForTag(std::string_view tag) {
@@ -179,6 +224,12 @@ inline constexpr RuntimeCaps RuntimeCapsForTag(std::string_view tag) {
        : tag == "sm_100" ? RuntimeCapsFor<Sm100>()
        : tag == "sm_120" ? RuntimeCapsFor<Sm120>()
                            : RuntimeCapsFor<void>();
+}
+
+/// Stated: CUDA 12.8 PTX ISA architecture-accelerated targets. Resource
+/// identity stays at the base tag; only the compiler target carries the suffix.
+inline constexpr std::string_view NvccArchForTag(std::string_view tag) {
+  return tag == "sm_90" ? "sm_90a" : tag == "sm_100" ? "sm_100a" : tag;
 }
 
 /// The arch tag codegen spells into the generated source, and the
@@ -252,5 +303,19 @@ inline constexpr bool kDevicePass =
 #else
     false;
 #endif
+
+inline constexpr bool kSm90AllAvailable =
+#if defined(__CUDA_ARCH_FEAT_SM90_ALL)
+    true;
+#else
+    false;
+#endif
+
+/// Instantiate at each Hopper-only instruction site; host parsing is allowed.
+template <class Arch>
+struct RequireSm90All {
+  static_assert(!kDevicePass || (Caps<Arch>::kWgmma && kSm90AllAvailable),
+                "Hopper instructions require Caps::kWgmma and -arch=sm_90a");
+};
 
 }  // namespace tilemega::arch

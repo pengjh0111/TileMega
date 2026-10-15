@@ -112,8 +112,8 @@ PreparedResidencyProbe prepareResidency(mlir::ModuleOp module,int kappa,
   wrapper.close();
   std::string root=TILEMEGA_SOURCE_DIR;
   std::string nvcc=tilemega::commands::NvccPath();
-  std::string command=quote(nvcc)+" -std=c++17 -O2 -lineinfo -Xptxas=-v -DTILEMEGA_MIDPOINT_REFINE=0 -arch="+
-      quote(options.placement.target.NvccArch())+runtime_flags;
+  std::string command=quote(nvcc)+" -std=c++17 -O2 -lineinfo -Xptxas=-v -DTILEMEGA_MIDPOINT_REFINE=0 "+
+      quote(tilemega::commands::NvccArchFlag(options.placement.target.NvccArch()))+runtime_flags;
   for (char const* sub:{"include","third_party/cutlass/include","third_party/cutlass/tools/util/include","third_party/cutlass/test"})
     command+=" -I"+quote(root+"/"+sub);
   // The generated runtime uses a small host support set. Linking the whole
@@ -1697,10 +1697,11 @@ int RunCompile(int argc, char** argv) {
       if(!reused) {
       std::string root = TILEMEGA_SOURCE_DIR;
       std::string nvcc = tilemega::commands::NvccPath();
-      std::string arch = tilemega::TargetSpec::Probe().NvccArch();
+      std::string arch = runtime_target.empty() ? tilemega::TargetSpec::Probe().NvccArch()
+          : tilemega::TargetSpec::FromJson(runtime_target).NvccArch();
       std::string command = quote(nvcc) +
-          " -std=c++17 -O3 -DTILEMEGA_MIDPOINT_REFINE=0 -arch="+
-          quote(arch)+runtime_flags+" --expt-relaxed-constexpr -shared -Xcompiler=-fPIC -cudart shared -Xptxas=-v -x cu" +
+          " -std=c++17 -O3 -DTILEMEGA_MIDPOINT_REFINE=0 "+
+          quote(tilemega::commands::NvccArchFlag(arch))+runtime_flags+" --expt-relaxed-constexpr -shared -Xcompiler=-fPIC -cudart shared -Xptxas=-v -x cu" +
           " -I" + quote(root + "/include") +
           " -I" + quote(root + "/third_party/cutlass/include") +
           " -I" + quote(root + "/third_party/cutlass/tools/util/include") +

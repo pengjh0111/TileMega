@@ -59,6 +59,7 @@ struct TargetSpec {
   EventCalibration const& EventCalibrationFor(std::string_view dtype) const;
   /// "sm_80" | "sm_89" | "sm_90" | "sm_120"
   std::string arch_tag;
+  std::string nvcc_arch;
   int sm_major = 0;
   int sm_minor = 0;
 
@@ -78,6 +79,13 @@ struct TargetSpec {
     bool bulk_copy = false;
     bool bulk_prefetch = false;
     bool pdl = false;
+    bool wgmma = false;
+    bool setmaxnreg = false;
+    bool tma_im2col = false;
+    bool tma_multicast = false;
+    bool bulk_reduce = false;
+    bool dsmem = false;
+    bool elect_sync = false;
   } caps;
 
   /// Resource budgets.  All of these differ between consumer and datacenter
@@ -304,7 +312,7 @@ struct TargetSpec {
   void ToJson(std::string const& path) const;
 
   /// "sm_89" -> the value nvcc wants for -arch=
-  std::string NvccArch() const { return arch_tag; }
+  std::string NvccArch() const;
 
   /// Compile-time-ish helper used by TaskBody instantiation: how many pipeline
   /// stages fit in the dynamic smem budget for a given per-stage byte count.

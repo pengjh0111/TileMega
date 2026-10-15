@@ -157,8 +157,8 @@ def generate(so, root, source_snapshot):
     validate(manifest,defines)
     nvcc=options[0]
     version=subprocess.check_output([nvcc,'--version'],text=True).strip()
-    arch=next((x.split('=',1)[1] for x in options if x.startswith('-arch=')),None)
-    if arch is None and '-arch' in options:arch=options[options.index('-arch')+1]
+    from .arch import compiler_arch
+    arch=compiler_arch(options)
     resources_path=Path(str(so)+'.ptxas.log')
     resources=parse_resources(resources_path.read_text())
     if not resources or any('registers' not in row for row in resources.values()):
@@ -174,7 +174,8 @@ def generate(so, root, source_snapshot):
             'generated_source_sha256':sha(str(so)+'.cu'),'manifest_sha256':sha(str(so)+'.plan.json'),
             'build_command_sha256':sha(str(so)+'.build_command.txt'),
             'resources_sha256':sha(resources_path),'compiler_version':version,'options':options,
-            'defines':defines,'arch':arch,'plan':manifest,'shared_memory_bytes':int(shared()),
+            'defines':defines,'arch':arch,'nvcc_arch':arch,
+            'caps':manifest.get('target_spec',{}).get('caps',{}),'plan':manifest,'shared_memory_bytes':int(shared()),
             'resources':resources,'trace':trace,
             'target_sha256':sha(target) if target and Path(target).is_file() else None,
             'implementations':implementations(manifest,defines)}

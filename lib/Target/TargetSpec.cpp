@@ -46,6 +46,13 @@ void ApplyKnownCaps(TargetSpec& spec) {
   spec.caps.bulk_copy = caps.bulk_copy;
   spec.caps.bulk_prefetch = caps.bulk_prefetch;
   spec.caps.pdl = caps.pdl;
+  spec.caps.wgmma = caps.wgmma;
+  spec.caps.setmaxnreg = caps.setmaxnreg;
+  spec.caps.tma_im2col = caps.tma_im2col;
+  spec.caps.tma_multicast = caps.tma_multicast;
+  spec.caps.bulk_reduce = caps.bulk_reduce;
+  spec.caps.dsmem = caps.dsmem;
+  spec.caps.elect_sync = caps.elect_sync;
 
   spec.res.max_cluster_size = caps.max_cluster_size;
 }
@@ -357,6 +364,10 @@ json::Value CalibrationJson(TargetSpec::Calib const& calib) {
 
 }  // namespace
 
+std::string TargetSpec::NvccArch() const {
+  return nvcc_arch.empty() ? std::string(arch::NvccArchForTag(arch_tag)) : nvcc_arch;
+}
+
 TargetSpec TargetSpec::Probe(int device_ordinal) {
   cudaDeviceProp properties{};
   CheckCuda(cudaGetDeviceProperties(&properties, device_ordinal),
@@ -367,6 +378,7 @@ TargetSpec TargetSpec::Probe(int device_ordinal) {
   spec.sm_minor = properties.minor;
   spec.arch_tag = "sm_" + std::to_string(spec.sm_major) +
                   std::to_string(spec.sm_minor);
+  spec.nvcc_arch = arch::NvccArchForTag(spec.arch_tag);
   ApplyKnownCaps(spec);
   spec.res.num_sms = properties.multiProcessorCount;
   CheckCuda(cudaDeviceGetAttribute(&spec.res.l2_bytes,cudaDevAttrL2CacheSize,device_ordinal),"L2 size");
@@ -392,6 +404,8 @@ TargetSpec TargetSpec::FromJson(std::string const& path) {
   if(auto* hop=root.Find("serving_legacy_hop"))
     spec.serving_legacy_hop_coefficients=NumberArray(*hop,"serving_legacy_hop");
   spec.arch_tag = root.At("arch_tag").AsString("arch_tag");
+  spec.nvcc_arch = root.Find("nvcc_arch") ? root.At("nvcc_arch").AsString("nvcc_arch")
+                                         : std::string(arch::NvccArchForTag(spec.arch_tag));
   spec.sm_major = static_cast<int>(root.At("sm_major").AsNumber("sm_major"));
   spec.sm_minor = static_cast<int>(root.At("sm_minor").AsNumber("sm_minor"));
   if (auto grouped = root.Find("event_calibration_by_dtype")) {
@@ -449,6 +463,14 @@ TargetSpec TargetSpec::FromJson(std::string const& path) {
   spec.caps.bulk_prefetch = caps.Find("bulk_prefetch") ? caps.At("bulk_prefetch").AsBool("caps.bulk_prefetch") : defaults.bulk_prefetch;
   spec.caps.pdl = caps.Find("pdl") ? caps.At("pdl").AsBool("caps.pdl") : defaults.pdl;
 
+
+  spec.caps.wgmma = caps.Find("wgmma") ? caps.At("wgmma").AsBool("caps.wgmma") : defaults.wgmma;
+  spec.caps.setmaxnreg = caps.Find("setmaxnreg") ? caps.At("setmaxnreg").AsBool("caps.setmaxnreg") : defaults.setmaxnreg;
+  spec.caps.tma_im2col = caps.Find("tma_im2col") ? caps.At("tma_im2col").AsBool("caps.tma_im2col") : defaults.tma_im2col;
+  spec.caps.tma_multicast = caps.Find("tma_multicast") ? caps.At("tma_multicast").AsBool("caps.tma_multicast") : defaults.tma_multicast;
+  spec.caps.bulk_reduce = caps.Find("bulk_reduce") ? caps.At("bulk_reduce").AsBool("caps.bulk_reduce") : defaults.bulk_reduce;
+  spec.caps.dsmem = caps.Find("dsmem") ? caps.At("dsmem").AsBool("caps.dsmem") : defaults.dsmem;
+  spec.caps.elect_sync = caps.Find("elect_sync") ? caps.At("elect_sync").AsBool("caps.elect_sync") : defaults.elect_sync;
 
   json::Value const& res_json = root.At("resources");
   auto res_int = [&](char const* key) {
@@ -521,6 +543,7 @@ std::string TargetSpec::ToJson() const {
   if(!serving_legacy_hop_coefficients.empty())
     root.Set("serving_legacy_hop",json::Numbers(serving_legacy_hop_coefficients));
   root.Set("arch_tag", arch_tag);
+  root.Set("nvcc_arch", NvccArch());
   root.Set("sm_major", sm_major);
   root.Set("sm_minor", sm_minor);
   root.Set("caps", json::Object{{"cluster", caps.cluster},
@@ -535,7 +558,14 @@ std::string TargetSpec::ToJson() const {
                                 {"mbarrier_tx", caps.mbarrier_tx},
                                 {"bulk_copy", caps.bulk_copy},
                                 {"bulk_prefetch", caps.bulk_prefetch},
-                                {"pdl", caps.pdl}});
+                                {"pdl", caps.pdl},
+                                {"wgmma", caps.wgmma},
+                                {"setmaxnreg", caps.setmaxnreg},
+                                {"tma_im2col", caps.tma_im2col},
+                                {"tma_multicast", caps.tma_multicast},
+                                {"bulk_reduce", caps.bulk_reduce},
+                                {"dsmem", caps.dsmem},
+                                {"elect_sync", caps.elect_sync}});
   root.Set("resources",
            json::Object{{"num_sms", res.num_sms},
                         {"l2_bytes", res.l2_bytes},

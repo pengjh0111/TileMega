@@ -20,6 +20,7 @@ import statistics
 from .serving.workload import workload_points, validate_prompt_ids
 from .serving.integrated_selection import integrated_ms, light_candidates, successive_halving, SelectionBudgetExhausted, admit_pilot, first_stage_budget_ms, coverage_order
 from .serving.attention_selection import variants as attention_variants, matches as matches_attention, label as attention_label, pinned_geometry, compile_options as attention_compile_options
+from .build.arch import nvcc_arch, nvcc_flag
 from .build.budget import run_until
 from .cache import atomic_json, export_key, file_sha, key, locked, plan_key, record_outputs, valid_record
 from .fingerprint import ROOT, calibration_stamps, source_fingerprint
@@ -921,9 +922,9 @@ class Run:
         prompts = self.prompts()
         manifest = json.loads(Path(pair['decode'] + '.plan.json').read_text())
         command_file = Path(pair['decode'] + '.build_command.txt')
-        native_arch = device['arch_tag']
+        native_arch = device.get('nvcc_arch') or nvcc_arch(device['arch_tag'])
         command = command_file.read_text() if command_file.exists() else ''
-        if f'-arch={native_arch}' not in shlex.split(command):
+        if nvcc_flag(native_arch) not in shlex.split(command):
             raise RuntimeError(f'plan was not compiled for native {native_arch}')
         self.command([sys.executable, '-m', 'tilemega.serving.check_modes',
                       '--model', self.model, '--prefill-so', pair['prefill'],

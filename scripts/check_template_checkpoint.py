@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Freeze and check a template checkpoint while RF-1 uses old binaries."""
+from target_arch import nvcc_flag
+
 import argparse
 import fcntl
 import hashlib
@@ -193,7 +195,7 @@ def build(out):
             for file in ARCH_SOURCES[record['suite']]:
                 label = f'{Path(file).stem}_sm{arch}'
                 try:
-                    execute([*common, '-arch=sm_' + str(arch), '-DTILEMEGA_ARCH_ID=' + str(arch * 10),
+                    execute([*common, nvcc_flag(arch), '-DTILEMEGA_ARCH_ID=' + str(arch * 10),
                         '-c', str(source / 'test/unit' / file),
                         '-o', str(out / (label + '.o'))], out, 'compile_' + label)
                 except (RuntimeError, subprocess.TimeoutExpired) as error:

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include "Toolchain.h"
 #include <tilemega/Support/Json.h>
+#include <tilemega/Target/ArchDispatch.h>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -33,7 +34,7 @@ std::string Cuobjdump() {
 json::Value Scan(std::string const& binary,std::string const& dump) {
   std::regex kernel("tilemega_(l[12]|loop)_kernel");
   std::regex fp64(R"(\b(DADD|DMUL|DFMA|DSETP|F2F\.F64|F2F\.F32\.F64|I2F\.F64|F64)\b)");
-  std::regex async(R"(\b(UTMALDG|UBLKCP|SYNCS[^ ;]*|ACQBULK|PREEXIT|LDGSTS)\b)");
+  std::regex async(R"(\b(HGMMA|UTMALDG|UBLKCP|SYNCS[^ ;]*|ACQBULK|PREEXIT|LDGSTS)\b)");
   std::map<std::string,int> counts,instructions;
   std::map<std::string,json::Array> matches;
   std::string function,line; std::istringstream input(dump); int total=0;
@@ -102,11 +103,14 @@ int RunArch(int argc,char** argv) {
   std::string root=TILEMEGA_SOURCE_DIR;
   for(auto const& arch:arches) {
     if(!std::regex_match(arch,std::regex("sm_[0-9]+a?")))throw std::runtime_error("invalid arch: "+arch);
-    json::Value record(json::Object{{"arch",arch}});
-    if(supported.find(arch+"\n")==std::string::npos) {record.Set("status","UNCHECKED: nvcc unsupported");records.push_back(record);continue;}
+    std::string const nvcc_arch(tilemega::arch::NvccArchForTag(arch));
+    auto base_arch = nvcc_arch;
+    if(base_arch.back()=='a')base_arch.pop_back();
+    json::Value record(json::Object{{"arch",arch},{"nvcc_arch",nvcc_arch}});
+    if(supported.find(base_arch+"\n")==std::string::npos) {record.Set("status","UNCHECKED: nvcc unsupported");records.push_back(record);continue;}
     auto stem=(std::filesystem::path(output)/arch).string();
-    std::string command=Quote(NvccPath())+" -std=c++17 -O3 -c -Xptxas=-v --expt-relaxed-constexpr -arch="+
-        Quote(arch)+" -I"+Quote(root+"/include")+" -I"+Quote(root+"/third_party/cutlass/include")+
+    std::string command=Quote(NvccPath())+" -std=c++17 -O3 -c -Xptxas=-v --expt-relaxed-constexpr "+
+        Quote(NvccArchFlag(nvcc_arch))+" -I"+Quote(root+"/include")+" -I"+Quote(root+"/third_party/cutlass/include")+
         " -I"+Quote(root+"/third_party/cutlass/tools/util/include")+
         " -I"+Quote(root+"/third_party/cutlass/test")+" "+Quote(source)+" -o "+Quote(stem+".o");
     std::ofstream(stem+".command.txt")<<command<<'\n';

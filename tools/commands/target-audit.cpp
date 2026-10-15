@@ -137,6 +137,9 @@ void CheckSchema(std::string const& tag, std::string const& file) {
     schema.calib_bf16.calibrated = true;
   }
   CollectKeys(tilemega::json::Parse(schema.ToJson()), "", expected);
+  // Legacy targets infer these optional fields from the exact-tag table.
+  for (auto key : {"/nvcc_arch", "/caps/wgmma", "/caps/setmaxnreg", "/caps/tma_im2col", "/caps/tma_multicast", "/caps/bulk_reduce", "/caps/dsmem", "/caps/elect_sync"})
+    if (!actual.count(key)) expected.erase(key);
 
   int missing = 0, extra = 0, documented = 0;
   for (auto const& key : expected) {
@@ -178,6 +181,13 @@ void CheckCaps(std::string const& tag, TargetSpec const& spec) {
       {"bulk_copy", spec.caps.bulk_copy, table.bulk_copy},
       {"bulk_prefetch", spec.caps.bulk_prefetch, table.bulk_prefetch},
       {"pdl", spec.caps.pdl, table.pdl},
+      {"wgmma", spec.caps.wgmma, table.wgmma},
+      {"setmaxnreg", spec.caps.setmaxnreg, table.setmaxnreg},
+      {"tma_im2col", spec.caps.tma_im2col, table.tma_im2col},
+      {"tma_multicast", spec.caps.tma_multicast, table.tma_multicast},
+      {"bulk_reduce", spec.caps.bulk_reduce, table.bulk_reduce},
+      {"dsmem", spec.caps.dsmem, table.dsmem},
+      {"elect_sync", spec.caps.elect_sync, table.elect_sync},
 
   };
   int disagree = 0;
@@ -193,7 +203,7 @@ void CheckCaps(std::string const& tag, TargetSpec const& spec) {
     ++disagree;
   }
   std::printf("%-7s CAPS   checked=%d disagree=%d collective=\"%s\"\n",
-              tag.c_str(), 9, disagree, table.collective);
+              tag.c_str(), int(sizeof(pairs) / sizeof(pairs[0])), disagree, table.collective);
 }
 
 // ------------------------------------------------------------------- lanes --
@@ -283,7 +293,8 @@ bool NvccPath(std::string* out) {
 
 void CheckCross(std::string const& tag, TargetSpec const& spec,
                 std::string const& repo) {
-  if (spec.NvccArch() != tag) Fail(tag, "CROSS NvccArch() != arch_tag");
+  if (spec.NvccArch() != tilemega::arch::NvccArchForTag(tag))
+    Fail(tag, "CROSS NvccArch() disagrees with compiler-target mapping");
   int const stages = TargetSpec::ComputeStages(spec.res.max_dynamic_smem_per_cta,
                                                4 * 32 * (128 + 128));
   if (stages < 1) Fail(tag, "CROSS no pipeline stage fits the smem budget");
@@ -300,12 +311,12 @@ void CheckCross(std::string const& tag, TargetSpec const& spec,
         << "__global__ void probe(int* o) { *o = "
            "tilemega::arch::Caps<tilemega::arch::CurrentArch>::kMaxClusterSize; }\n";
   }
-  std::string const command = nvcc + " -std=c++17 -arch=" + tag + " -cubin " +
+  std::string const command = nvcc + " -std=c++17 -arch=" + spec.NvccArch() + " -cubin " +
                               source + " -I" + repo + "/include -I" + repo +
                               "/third_party/cutlass/include -o /dev/null "
                               "> /tmp/tilemega_audit_" + tag + ".log 2>&1";
   int const rc = std::system(command.c_str());
-  if (rc != 0) Fail(tag, "CROSS device compile for -arch=" + tag + " failed");
+  if (rc != 0) Fail(tag, "CROSS device compile for -arch=" + spec.NvccArch() + " failed");
   std::printf("%-7s CROSS  stages=%d nvcc=%s\n", tag.c_str(), stages,
               rc == 0 ? "ok" : "FAILED");
   std::remove(source.c_str());

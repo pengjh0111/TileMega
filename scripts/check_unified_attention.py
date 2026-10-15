@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Build and numerically check the first single-stack attention checkpoint."""
+from target_arch import nvcc_flag
+
 import argparse
 import fcntl
 import json
@@ -42,7 +44,7 @@ def main():
                       '-I' + str(root / 'third_party/cutlass/include')]
             arches = []
             for arch in (80, 89, 90, 100, 120):
-                command = [*common, '-arch=sm_' + str(arch), '-c',
+                command = [*common, nvcc_flag(arch), '-c',
                     str(root / 'test/unit/serving_pvswap_test.cu'),
                     '-o', str(args.out / f'pvswap_sm{arch}.o')]
                 run(command, args.out, f'compile_sm{arch}')

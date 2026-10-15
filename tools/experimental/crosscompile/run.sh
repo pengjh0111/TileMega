@@ -18,6 +18,7 @@ printf 'arch\tstages\ttask_smem_bytes\tcollective\tmain_status\tadvanced_status\
 
 for arch in 80 89 90 100 120; do
   config="$root/configs/targets/sm_${arch}.json"
+  compiler_flag=$(python3 "$root/scripts/target_arch.py" --flag "$arch")
   stages=$(python3 - "$config" <<'PY'
 import json, sys
 c = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -34,7 +35,7 @@ PY
   esac
 
   log="$out/sm_${arch}.ptxas.txt"
-  if "$nvcc" -std=c++17 -arch="sm_${arch}" -cubin -lineinfo \
+  if "$nvcc" -std=c++17 "$compiler_flag" -cubin -lineinfo \
       -Xptxas=-v -DTILEMEGA_STAGES="$stages" \
       -I"$root/include" -I"$root/third_party/cutlass/include" \
       -I"$root/third_party/cutlass/tools/util/include" \
@@ -48,7 +49,7 @@ PY
   advanced_status=not_applicable
   if [[ "$arch" == 90 || "$arch" == 100 || "$arch" == 120 ]]; then
     advanced_log="$out/sm_${arch}_cluster.ptxas.txt"
-    if "$nvcc" -std=c++17 -arch="sm_${arch}" -cubin -lineinfo -Xptxas=-v \
+    if "$nvcc" -std=c++17 "$compiler_flag" -cubin -lineinfo -Xptxas=-v \
         -I"$root/include" -I"$root/third_party/cutlass/include" \
         "$here/cluster_path.cu" -o "$out/sm_${arch}_cluster.cubin" \
         2>"$advanced_log"; then

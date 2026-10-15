@@ -18,6 +18,15 @@ int TestTargetSpec(int argc, char** argv) {
     auto file = std::string(TILEMEGA_SOURCE_DIR) + "/configs/targets/sm_" +
                 std::to_string(architecture) + ".json";
     auto explicit_policy = TargetSpec::FromJson(file);
+    assert(explicit_policy.NvccArch() == tilemega::arch::NvccArchForTag(explicit_policy.arch_tag));
+    auto table = tilemega::arch::RuntimeCapsForTag(explicit_policy.arch_tag);
+    assert(explicit_policy.caps.wgmma == table.wgmma);
+    assert(explicit_policy.caps.setmaxnreg == table.setmaxnreg);
+    assert(explicit_policy.caps.tma_im2col == table.tma_im2col);
+    assert(explicit_policy.caps.tma_multicast == table.tma_multicast);
+    assert(explicit_policy.caps.bulk_reduce == table.bulk_reduce);
+    assert(explicit_policy.caps.dsmem == table.dsmem);
+    assert(explicit_policy.caps.elect_sync == table.elect_sync);
     auto legacy_file = std::filesystem::temp_directory_path() /
         ("tilemega-legacy-policy-" + std::to_string(getpid()) + ".json");
     {
@@ -39,6 +48,13 @@ int TestTargetSpec(int argc, char** argv) {
       std::string(TILEMEGA_SOURCE_DIR) + "/configs/targets/sm_80.json");
   auto sm120 = TargetSpec::FromJson(
       std::string(TILEMEGA_SOURCE_DIR) + "/configs/targets/sm_120.json");
+  auto sm90 = TargetSpec::FromJson(
+      std::string(TILEMEGA_SOURCE_DIR) + "/configs/targets/sm_90.json");
+  assert(sm90.NvccArch() == "sm_90a" && sm90.caps.wgmma);
+  assert(!sm80.caps.wgmma && !sm120.caps.wgmma);
+  assert(sm120.caps.setmaxnreg && sm90.caps.setmaxnreg);
+  sm90.nvcc_arch = "sm_90";
+  assert(sm90.NvccArch() == "sm_90");
   assert(sm80.caps.cp_async && !sm80.caps.cluster);
   assert(sm120.caps.cluster && sm120.caps.tma && !sm120.caps.tcgen05);
   assert(!sm80.caps.mbarrier_try_wait && !sm80.caps.mbarrier_tx && !sm80.caps.pdl);
@@ -72,6 +88,9 @@ int TestTargetSpec(int argc, char** argv) {
       ("tilemega-target-"+std::to_string(getpid())+".json");
   sm120.ToJson(path.string());
   auto restored=TargetSpec::FromJson(path.string());std::filesystem::remove(path);
+  assert(restored.NvccArch()==sm120.NvccArch());
+  assert(restored.caps.setmaxnreg==sm120.caps.setmaxnreg);
+  assert(restored.caps.wgmma==sm120.caps.wgmma);
   assert(restored.calibration_stamps==sm120.calibration_stamps);
   assert(restored.serving_hop_coefficients==sm120.serving_hop_coefficients);
   assert(restored.serving_legacy_hop_coefficients==sm120.serving_legacy_hop_coefficients);
