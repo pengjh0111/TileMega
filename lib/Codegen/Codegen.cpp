@@ -1643,6 +1643,9 @@ std::string EmitGemmInstantiations(
     if(impl) out << "#define TILEMEGA_GEMM_IMPL_" << index << " " << impl << "\n";
   };
   for (std::size_t i = 0; i < shapes.size(); ++i) emit(i, shapes[i]);
+  if(std::any_of(shapes.begin(),shapes.end(),[](auto const& shape) {
+      return std::get<0>(shape)>=64 && std::get<4>(shape)==2;
+    }))out<<"#define TILEMEGA_FORWARD_GEMM_WGMMA 1\n";
   out << "#define TILEMEGA_GEMM_VARIANT_COUNT " << shapes.size() << "\n";
   return out.str();
 }
@@ -1968,6 +1971,14 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
     throw std::invalid_argument("verified CG has no tilemega.model_plan");
   RuntimeVariantRecord runtime;
   runtime.gemms = readRuntimeGemms(module, arrayField(emittedPlan, "gemms").size());
+  if (module->hasAttr("tilemega.serving") &&
+      !optionalBoolField(emittedPlan, "dm") && !runtime.gemms.empty()) {
+    // The generic FP32 fallback uses K=16, which is illegal for the BF16
+    // SW128 serving atom even when this fallback variant is never executed.
+    auto const& gemm = runtime.gemms.front();
+    generatedGemm = EmitGemmInstantiations({{int(gemm.tile_m), int(gemm.tile_n),
+        int(gemm.tile_k), int(gemm.stages), int(gemm.impl)}});
+  }
   if (optionalBoolField(emittedPlan, "dm")) {
     // Depthwise and dense stages can use different shapes in a single module.
     std::vector<std::tuple<int, int, int, int, int>> shapes;
