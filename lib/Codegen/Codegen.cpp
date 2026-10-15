@@ -161,6 +161,14 @@ PlacementPlanRecord readPlacementPlan(mlir::ModuleOp module) {
     throw std::invalid_argument(
         "placement mode eft needs its materialized table in " +
         std::string(dialect::kPlacementTableAttr));
+  if(auto cluster=module->getAttrOfType<mlir::BoolAttr>("tmexec.cluster_combine");
+      cluster && cluster.getValue()) {
+    if(plan.carried && mode!=dialect::PlacementMode::kLegacyGridStride)
+      throw std::invalid_argument("cluster combine requires its explicit cluster_split placement template");
+    plan.mode=unsigned(dialect::PlacementMode::kTemplate);
+    plan.params={std::int64_t(dialect::PlacementTemplate::kClusterSplit)};
+    plan.carried=true;
+  }
   return plan;
 }
 

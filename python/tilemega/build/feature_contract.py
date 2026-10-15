@@ -3,6 +3,7 @@ import re
 
 
 INTEGER_FEATURES = {
+    'decode_tile_m': ('TILEMEGA_DECODE_TILE_M', 16),
     'activation_tma': ('TILEMEGA_ACTIVATION_TMA', 0),
     'requested_residency': ('TILEMEGA_SERVING_RESIDENCY_REQUEST', 0),
     'dependency_intern': ('TILEMEGA_DEPENDENCY_INTERN', 0),
@@ -89,6 +90,10 @@ def validate(manifest, defines):
         actual = 'nc' if int(defines.get('TILEMEGA_GEMV_LOAD_NC', '0')) else 'ldg'
         if manifest['gemv_load'] != actual:
             raise ValueError('manifest gemv_load differs from compiler macros')
+    if 'combine' in manifest:
+        actual='cluster' if int(defines.get('TILEMEGA_CLUSTER_COMBINE','0')) else 'stage'
+        if manifest['combine']!=actual:
+            raise ValueError('manifest combine differs from compiler macros')
     if 'dwpw_impl' in manifest:
         actual = 'wgmma' if int(defines.get('TILEMEGA_DWPW_WGMMA', '0')) else 'mma16'
         if manifest['dwpw_impl'] != actual:
@@ -113,6 +118,8 @@ def implementations(manifest, defines):
     decode = manifest.get('phase') == 'decode'
     return {'dwpw_impl': manifest.get('dwpw_impl', 'mma16'), 'depthwise_impl': manifest.get('depthwise_impl', 'cpasync'), 'seed_arch': manifest.get('seed_arch', 'legacy'),
             'execution_arch_id': int(defines.get('TILEMEGA_ARCH_ID', '800')),
+            'decode_tile_m': int(manifest.get('decode_tile_m', 16)),
+            'combine': manifest.get('combine', 'stage'),
             'qkv_epilogue': bool(manifest.get('qkv_epilogue', False)),
             'gemv_load': manifest.get('gemv_load', 'ldg'),
             'conv_impl': manifest.get('conv_impl', 'cpasync'),

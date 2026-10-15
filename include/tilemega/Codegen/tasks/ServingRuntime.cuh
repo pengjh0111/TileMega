@@ -178,7 +178,7 @@ template<int Variant=0>
 inline bool ForwardWgmmaVariant(int index) {
   if(index==Variant)return GemmVariant<Variant>::kWgmma &&
       (GemmVariant<Variant>::kTileM>=64 ||
-       (TILEMEGA_ACTIVATION_TMA && GemmVariant<Variant>::kTileM==16));
+       (TILEMEGA_ACTIVATION_TMA && (GemmVariant<Variant>::kTileM==8 || GemmVariant<Variant>::kTileM==16)));
   if constexpr(Variant+1<TILEMEGA_GEMM_VARIANT_COUNT)return ForwardWgmmaVariant<Variant+1>(index);
   return false;
 }

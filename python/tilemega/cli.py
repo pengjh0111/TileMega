@@ -199,8 +199,12 @@ def read_config(path: Path) -> dict:
                               prefill_pg=['l2', 'measure']).items():
         if config['features'][name] not in allowed:
             raise ValueError(f'invalid features.{name}')
+    if 'decode_tile_m' in config['features'] and config['features']['decode_tile_m'] not in (8, 16):
+        raise ValueError('invalid features.decode_tile_m')
     if 'activation_tma' in config['features'] and config['features']['activation_tma'] not in (0, 1):
         raise ValueError('invalid features.activation_tma')
+    if 'combine' in config['features'] and config['features']['combine'] not in ('stage', 'cluster'):
+        raise ValueError('invalid features.combine')
     if 'residency' in config['features'] and config['features']['residency'] not in (1, 2):
         raise ValueError('invalid features.residency')
     if 'qkv_epilogue' in config['features'] and config['features']['qkv_epilogue'] not in (0, 1):
@@ -544,7 +548,7 @@ class Run:
                             '--measure-cmd', shlex.join([sys.executable, '-m', 'tilemega.serving.measure_candidate', '--model', str(self.model)])]
                             for name, value in compiler_features(choice_features).items():
                                 if phase=='decode' and name in ('forward_gemm_impl','prefill_attention_impl'):continue
-                                if phase=='prefill' and name=='moe_activation_bulk':continue
+                                if phase=='prefill' and name in ('moe_activation_bulk','activation_tma','combine'):continue
                                 if phase == 'prefill' and not (shared_manifest and name in ('nonpaged_weight_layout','weight_layout')) and (name.startswith('gemm_impl_') or name in ('attention_noinline','attention_buffers','parallel_argmax','ep_direct','attention_frontier','nonpaged_la','attention_impl','attention_page','mma_reg_pipe','kphase_mask','lookahead_bytes','v3_poll_ns','l2_slim','page_loop_split','nonpaged_weight_layout','evict_first','evict_last','serve_kv_block','serve_query_rows')):
                                     continue
                                 if name == 'handoff' and phase == 'prefill':

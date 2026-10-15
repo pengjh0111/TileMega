@@ -22,7 +22,7 @@ namespace tilemega::codegen {
 template<class Arch,int TileM,int TileN,int TileK,int PageBytes,int Pages,
          bool ForceSm80=false,bool UseWgmma=false>
 struct PagedGemmTaskBody {
-  using Config=backend::ServingGemmConfig<Arch,TileM,TileN,TileK,2>;
+  using Config=backend::ServingGemmConfig<Arch,(UseWgmma && TileM==8 ? 16 : TileM),TileN,TileK,2>;
   using Element=typename Config::Element;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   static constexpr bool kDmSmall=TileN==16 || TileK<64;

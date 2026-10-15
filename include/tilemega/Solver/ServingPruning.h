@@ -30,9 +30,9 @@ inline bool PruneServingR1(GemmConfig const& g,
                            ServingPruneContext const& context) {
   if (g.impl<0 || g.impl>2) return true;
   if (g.impl==2 && (!context.target || !context.target->caps.wgmma ||
-      (g.tile_m==16 && context.m>16) || !ServingWgmmaShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages))) return true;
+      (g.tile_m<=16 && context.m>g.tile_m) || !ServingWgmmaShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages))) return true;
   if (!context.target || context.m < 1 || context.n < 1 || context.k < 1 ||
-      g.split_k < 1 || !(g.impl==1 ? context.m<=4 && ServingGemvShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages) : ServingBF16ShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages))) return true;
+      g.split_k < 1 || !(g.impl==1 ? context.m<=4 && ServingGemvShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages) : g.impl==2 ? ServingWgmmaShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages) : ServingBF16ShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages))) return true;
   if ((g.impl==1?ServingGemvSmemBytes(g.tile_m,g.tile_n):g.impl==2?ServingWgmmaSmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)) >
       context.target->res.max_dynamic_smem_per_cta) return true;
   if (context.gate_interleave_u > 0 &&

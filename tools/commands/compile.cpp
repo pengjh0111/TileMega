@@ -310,7 +310,8 @@ int RunCompile(int argc, char** argv) {
     std::string seed_arch="legacy",seed_target_arch;
     std::string forward_gemm_impl="mma16",prefill_attention_impl="mma16",encoder_attention_impl="mma16",conv_impl="cpasync",gemv_load="ldg",depthwise_impl="cpasync",dwpw_impl="mma16";
     int qkv_epilogue=0;
-    int dependency_intern=0,cluster_dim=1,serving_residency=0,activation_tma=0;
+    std::string combine_impl="stage";
+    int dependency_intern=0,cluster_dim=1,serving_residency=0,activation_tma=0,decode_tile_m=16;
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int mma_reg_pipe=0;
     std::string attention_impl="mma16",attention_page;
@@ -394,7 +395,9 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--seed-arch") seed_arch=value;
       else if (flag=="--dependency-intern") dependency_intern=std::stoi(value);
       else if (flag=="--activation-tma") activation_tma=std::stoi(value);
+      else if (flag=="--decode-tile-m") decode_tile_m=std::stoi(value);
       else if (flag=="--cluster-dim") cluster_dim=std::stoi(value);
+      else if (flag=="--combine") combine_impl=value;
       else if (flag=="--residency") {
         serving_residency=std::stoi(value);
         if(serving_residency!=1 && serving_residency!=2)
@@ -592,6 +595,13 @@ int RunCompile(int argc, char** argv) {
       throw std::invalid_argument("forward WGMMA requires native Hopper prefill/forward");
     if(forward_gemm_impl=="wgmma" && solve_target.empty() && !has_variants)
       throw std::invalid_argument("forward WGMMA needs skeleton solve or an explicit variant plan");
+    if(decode_tile_m!=8 && decode_tile_m!=16)
+      throw std::invalid_argument("--decode-tile-m must be 8 or 16");
+    if(decode_tile_m==8 && (!serving || serving_phase!="decode" || arch_paths!="auto" ||
+        serving_batch>8 || moe_activation_bulk ||
+        std::none_of(serving_impl.begin(),serving_impl.end(),[](int impl){return impl==2;})))
+      throw std::invalid_argument("M8 requires native Hopper WGMMA decode B<=8 without expert bulk gather");
+    if(decode_tile_m==8)runtime_flags+=" -DTILEMEGA_DECODE_TILE_M=8";
     if(activation_tma!=0 && activation_tma!=1)
       throw std::invalid_argument("--activation-tma must be 0 or 1");
     if(activation_tma && (!serving || serving_phase!="decode" || arch_paths!="auto" ||
@@ -602,6 +612,15 @@ int RunCompile(int argc, char** argv) {
       throw std::invalid_argument("--dependency-intern must be 0 or 1");
     if(cluster_dim!=1 && cluster_dim!=2 && cluster_dim!=4)
       throw std::invalid_argument("--cluster-dim must be 1, 2 or 4");
+    if(combine_impl!="stage" && combine_impl!="cluster")
+      throw std::invalid_argument("--combine currently supports stage or cluster");
+    if(combine_impl=="cluster") {
+      if(!serving || serving_phase!="decode" || arch_paths!="auto" ||
+          (pg_mode!="off" && pg_mode!="l2") || cluster_dim==1 || !nonpaged_la ||
+          !solve_target.empty() || parallel_argmax)
+        throw std::invalid_argument("cluster combine requires native nonpaged decode, cluster-dim 2/4, nonpaged-la 1 and an explicit seed plan");
+      runtime_flags+=" -DTILEMEGA_CLUSTER_COMBINE=1";
+    }
     if((dependency_intern || cluster_dim>1) && (!serving || arch_paths!="auto"))
       throw std::invalid_argument("dependency interning and clusters require native serving execution");
     if(dependency_intern)runtime_flags+=" -DTILEMEGA_DEPENDENCY_INTERN=1";
@@ -851,6 +870,7 @@ int RunCompile(int argc, char** argv) {
           throw std::invalid_argument("depthwise TMA requires an active depthwise stage with its exact TMA workspace metadata");
       }
       if(activation_tma)candidate->setAttr("tmexec.activation_tma",mlir::BoolAttr::get(&context,true));
+      if(combine_impl=="cluster")candidate->setAttr("tmexec.cluster_combine",mlir::BoolAttr::get(&context,true));
       if(dependency_intern) {
         auto plan=candidate->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
         auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
@@ -935,6 +955,10 @@ int RunCompile(int argc, char** argv) {
       import.gemms.assign(plan.gemms.size(),forward?
           tilemega::frontend::GemmGranularity{128,64,16,3,1}:
           tilemega::frontend::GemmGranularity{16,128,128,2,1});
+      if(!forward && decode_tile_m==8)
+        for(std::size_t i=0;i<plan.gemms.size();++i)
+          if(serving_impl[tilemega::solver::ServingGemmFamily(plan.gemms[i])]==2)
+            import.gemms[i].tile_m=8;
       for(auto const& stage:plan.stages)
         if(stage.kind==tilemega::frontend::PlanTaskKind::kDwPwFused)
           import.gemms.at(stage.gemm).tile_m=16;
@@ -975,6 +999,16 @@ int RunCompile(int argc, char** argv) {
       if(serving_phase=="decode")tilemega::solver::ApplyServingSeedImplementations(
           plan,import.gemms,serving_impl,hopper_requested && arch_paths=="auto" &&
           tilemega::TargetSpec::FromJson(runtime_target).caps.wgmma,serving_batch,use_pages,page_bytes);
+      if(combine_impl=="cluster")for(unsigned i=0;i<import.gemms.size();++i) {
+        auto& g=import.gemms[i];auto const& access=plan.gemms[i].access;
+        if(g.impl!=2 || access.a!=tilemega::codegen::DmAAccess::kDense ||
+            access.b!=tilemega::codegen::DmBAccess::kDense ||
+            access.a_scale!=tilemega::codegen::kDmNoIndex)continue;
+        if(qkv_epilogue && tilemega::solver::ServingGemmFamily(plan.gemms[i])==0)continue;
+        if(g.tile_m>16 || (plan.gemms[i].k+g.tile_k-1)/g.tile_k<cluster_dim)
+          throw std::invalid_argument("cluster combine seed has insufficient K tiles for all cluster ranks");
+        g.split_k=cluster_dim;
+      }
       module=tilemega::frontend::TorchExportImporter{}.ImportPlan(
           input.string(),plan,context,&summary,import);
       bind_requested_arch(*module);
@@ -1085,6 +1119,7 @@ int RunCompile(int argc, char** argv) {
         skeleton.moe_activation_bulk=moe_activation_bulk;
         skeleton.requested_serving_residency=serving_residency;
         skeleton.activation_tma=activation_tma;
+        skeleton.decode_tile_m=decode_tile_m;
         skeleton.prefill_attention_wgmma=prefill_attention_impl=="wgmma";
         skeleton.encoder_attention_wgmma=encoder_attention_impl=="wgmma";
         skeleton.handoff_auto=handoff_mode=="auto";
@@ -1312,7 +1347,7 @@ int RunCompile(int argc, char** argv) {
             if(tile && tile->impl)command+=tile->impl==1?" --impl gemv":" --impl wgmma";
             if(probe_plan && probe_plan->dm)command+=" --dm";
             if(moe_activation_bulk && tile && tile->impl==2)command+=" --moe-activation-bulk";
-            if(activation_tma && tile && tile->impl==2 && tile->tile_m==16)command+=" --activation-tma";
+            if(activation_tma && tile && tile->impl==2 && tile->tile_m<=16)command+=" --activation-tma";
             if(probe_plan && probe_plan->moe_gemv && tile)command+=" --dm-gemv";
             if(!nongemm_source.empty()) {
               auto source=output;source.replace_extension("cu");
@@ -1424,7 +1459,7 @@ int RunCompile(int argc, char** argv) {
               " --prompt-len "+std::to_string(serving_prompt_len)+
               " --sync "+quote(sync_policy)+" --runtime-target "+quote(runtime_target)+
               " --arch-paths "+quote(arch_paths)+" --encoder-attention-impl "+quote(encoder_attention_impl)+" --prefill-attention-impl "+quote(prefill_attention_impl)+" --forward-gemm-impl "+quote(forward_gemm_impl)+" --conv-impl "+quote(conv_impl)+" --depthwise-impl "+quote(depthwise_impl)+" --dwpw-impl "+quote(dwpw_impl)+" --moe-activation-bulk "+std::to_string(moe_activation_bulk)+
-              " --activation-tma "+std::to_string(activation_tma)+" --dependency-intern "+std::to_string(dependency_intern)+" --cluster-dim "+std::to_string(cluster_dim)+
+              " --decode-tile-m "+std::to_string(decode_tile_m)+" --activation-tma "+std::to_string(activation_tma)+" --dependency-intern "+std::to_string(dependency_intern)+" --cluster-dim "+std::to_string(cluster_dim)+" --combine "+quote(combine_impl)+
               (serving_residency?" --residency "+std::to_string(serving_residency):std::string())+" --gemv-load "+quote(gemv_load)+" --qkv-epilogue "+std::to_string(qkv_epilogue)+" --pdl "+quote(pdl)+
               " --pg "+quote(pg_mode)+" --page-bytes "+std::to_string(candidate_page_bytes)+
               " --weight-layout "+quote(weight_layout)+
@@ -1690,6 +1725,30 @@ int RunCompile(int argc, char** argv) {
       source = tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants(inputs);
     }
     if(hopper_requested || seed_arch=="native" || serving_residency)bind_requested_arch(*module);
+    if(combine_impl=="cluster") {
+      auto geometry=tilemega::codegen::ReadRuntimeGemmRecords(*module);
+      unsigned cooperative=0;
+      for(auto const& g:geometry)if(g.split_k>1) {
+        if(g.split_k!=cluster_dim || g.impl!=2 || g.tile_m>16)
+          throw std::invalid_argument("cluster combine requires every split GEMM to use WGMMA decode with splitK equal to cluster-dim");
+        ++cooperative;
+      }
+      if(!cooperative)throw std::invalid_argument("cluster combine requires an active split-K WGMMA GEMM");
+    }
+    if(decode_tile_m==8) {
+      auto geometry=(*module)->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime");
+      bool selected=false;
+      if(geometry)for(auto value:geometry) {
+        auto g=mlir::cast<mlir::DictionaryAttr>(value);
+        auto impl=g.getAs<mlir::IntegerAttr>("impl");
+        if(impl && impl.getInt()==2) {
+          if(g.getAs<mlir::IntegerAttr>("tile_m").getInt()!=8)
+            throw std::invalid_argument("M8 coordinate conflicts with selected WGMMA geometry");
+          selected=true;
+        }
+      }
+      if(!selected)throw std::invalid_argument("M8 coordinate requires an active M8 WGMMA GEMM");
+    }
     if(activation_tma) {
       auto model=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
       auto geometry=(*module)->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime");
@@ -1702,11 +1761,11 @@ int RunCompile(int argc, char** argv) {
           tilemega::codegen::DmGemmAccess access{};
           if(auto attr=mlir::cast<mlir::DictionaryAttr>(gemms[i]).get("dm_access"))
             access=tilemega::frontend::DecodeDmAccess(attr);
-          selected|=impl && impl.getInt()==2 && g.getAs<mlir::IntegerAttr>("tile_m").getInt()==16 &&
+          selected|=impl && impl.getInt()==2 && g.getAs<mlir::IntegerAttr>("tile_m").getInt()<=16 &&
               access.a==tilemega::codegen::DmAAccess::kDense && access.b==tilemega::codegen::DmBAccess::kDense;
         }
       }
-      if(!selected)throw std::invalid_argument("activation TMA requires an active dense M16 WGMMA GEMM");
+      if(!selected)throw std::invalid_argument("activation TMA requires an active dense M8/M16 WGMMA GEMM");
     }
     if(moe_activation_bulk) {
       auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
@@ -2180,8 +2239,10 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"gemv_load\": "<<std::quoted(gemv_load)
               <<",\n  \"qkv_epilogue\": "<<qkv_epilogue
               <<",\n  \"dependency_intern\": "<<dependency_intern
+              <<",\n  \"decode_tile_m\": "<<decode_tile_m
               <<",\n  \"activation_tma\": "<<activation_tma
               <<",\n  \"cluster_dim\": "<<cluster_dim
+              <<",\n  \"combine\": "<<std::quoted(combine_impl)
               <<",\n  \"requested_residency\": "<<serving_residency
               <<",\n  \"moe_activation_bulk\": "<<moe_activation_bulk
               <<",\n  \"prefill_attention_impl\": "<<std::quoted(prefill_attention_impl)

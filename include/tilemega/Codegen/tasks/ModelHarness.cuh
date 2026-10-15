@@ -330,7 +330,23 @@ inline constexpr int kServingThreads=executor::kComputeThreads+executor::kLoader
 inline constexpr std::size_t kServingSharedBytes=TILEMEGA_PAGE_POOL_OFFSET+TILEMEGA_PAGE_BYTES*TILEMEGA_PAGE_COUNT;
 #else
 inline constexpr int kServingThreads=kHarnessThreads;
+#if TILEMEGA_CLUSTER_COMBINE
+static_assert(TILEMEGA_SERVING_RUNTIME && TILEMEGA_SERVING_SEQ==1 && TILEMEGA_NONPAGED_LA,
+              "cluster combine requires nonpaged serving decode and elided reducers");
+static_assert(TILEMEGA_FP32_PARTIALS,"cluster combine requires the FP32 split ABI");
+static_assert(TILEMEGA_SLOT_WINDOW==1 && !TILEMEGA_MOE_DYNAMIC &&
+    !TILEMEGA_EVENT_CLUSTER_FANIN && !TILEMEGA_PREFETCH_RUNTIME && !TILEMEGA_EP_PARALLEL_ARGMAX,
+    "cluster combine requires static stage-major queues without shared-memory aliases");
+using T_ClusterMailbox=ServingClusterMailbox<GemmVariantArch>;
+inline constexpr std::size_t kServingSharedBytes=kServingMailboxOffset<TaskSmem>+
+    sizeof(typename T_ClusterMailbox::Storage);
+__device__ __forceinline__ typename T_ClusterMailbox::Storage& ClusterMailboxStorage(TaskSmem& smem) {
+  return *reinterpret_cast<typename T_ClusterMailbox::Storage*>(
+      reinterpret_cast<char*>(&smem)+kServingMailboxOffset<TaskSmem>);
+}
+#else
 inline constexpr std::size_t kServingSharedBytes=sizeof(TaskSmem);
+#endif
 #endif
 
 // R8 BE-1: the architecture is the Plan's, not a constant in this header.
@@ -556,6 +572,12 @@ __device__ inline void FinishNonpagedTask(Params const& p,unsigned index,
     auto const& inv=static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
     output=DecodeSplitTask(task,inv.tiles_m*inv.tiles_n,inv.chunks).tile;
     producers=inv.chunks;
+#if TILEMEGA_CLUSTER_COMBINE
+    // The mailbox has already executed the final epilogue exactly once.
+    if(ClusterSync<HarnessArch>::Rank()==0 && context.l2)
+      NotifyTask(p,context.events,stage.handoff_reduce_stage,output,context.iteration);
+    return;
+#endif
   }
 #if TILEMEGA_SERVING_DECODER_ATTENTION && TILEMEGA_SERVING_SEQ==1
   else if(stage.kind==TaskKind::kFusedAttention && reducer.kind==TaskKind::kAttentionMerge) {
@@ -1793,6 +1815,9 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
   extern __shared__ unsigned char bytes[];
 #endif
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
+#if TILEMEGA_CLUSTER_COMBINE
+  T_ClusterMailbox::Init(ClusterMailboxStorage(smem));
+#endif
   for (std::uint32_t stage = 0; stage < params->stage_count; ++stage) {
 #if TILEMEGA_NONPAGED_LA || TILEMEGA_DM_REDUCTIONS
     if(params->stages[stage].handoff_elided)continue;
@@ -1818,6 +1843,9 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
     executor::StageRelease(*params,stage,iteration);
   }
   executor::StepEnd(*params,iteration);
+#if TILEMEGA_CLUSTER_COMBINE
+  T_ClusterMailbox::Close();
+#endif
   ServingPdlExit();
 }
 
@@ -1833,6 +1861,9 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
   extern __shared__ unsigned char bytes[];
 #endif
   auto& smem=*reinterpret_cast<TaskSmem*>(bytes);
+#if TILEMEGA_CLUSTER_COMBINE
+  T_ClusterMailbox::Init(ClusterMailboxStorage(smem));
+#endif
   if(blockIdx.x==0 && threadIdx.x==0 && step_ns) {
     unsigned long long now;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(now));
     step_ns[0]=now;
@@ -1894,6 +1925,9 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
       step_ns[step+1]=now;
     }
   }
+  #if TILEMEGA_CLUSTER_COMBINE
+  T_ClusterMailbox::Close();
+  #endif
   ServingPdlExit();
 }
 #endif
@@ -1956,6 +1990,9 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
   extern __shared__ unsigned char bytes[];
 #endif
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
+#if TILEMEGA_CLUSTER_COMBINE
+  T_ClusterMailbox::Init(ClusterMailboxStorage(smem));
+#endif
   using CS = ClusterSync<arch::CurrentArch>;
   if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled && !TILEMEGA_MOE_DYNAMIC) {
     unsigned const cluster = blockIdx.x / CS::Size();
@@ -2210,6 +2247,9 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
         params->shard_arrivals[params->cluster_shard_indices[begin + i]].arrivals = local[i];
   }
   executor::StepEnd(*params,iteration);
+#if TILEMEGA_CLUSTER_COMBINE
+  T_ClusterMailbox::Close();
+#endif
   ServingPdlExit();
 }
 
@@ -3731,6 +3771,33 @@ inline DeviceModel Create(ModelSpec const& spec,
   plan_request.stage_order.assign(model.stage_order.begin(),model.stage_order.end());
   plan_request.physical_worker=physical_worker;
   plan_request.graph=&runtime_graph;
+#if TILEMEGA_CLUSTER_COMBINE
+  if(plan_mode!=dialect::PlacementMode::kTemplate || plan_params.size()!=1 ||
+      plan_params[0]!=std::int64_t(dialect::PlacementTemplate::kClusterSplit))
+    throw std::invalid_argument("cluster combine requires the emitted cluster_split Plan");
+  plan_request.cluster_dim=TILEMEGA_SERVING_CLUSTER_DIM;
+  for(unsigned s=0;s<model.stage_order.size();++s)
+    if(model.stage_order[s]!=s)
+      throw std::invalid_argument("cluster combine L1/L2 require the same forward stage order");
+  plan_request.cluster_chunks.assign(model.stages.size(),0);
+  unsigned cooperative=0;
+  for(unsigned s=0;s<model.stages.size();++s) {
+    auto const& stage=model.stages[s];
+    if(stage.kind!=TaskKind::kGemm)continue;
+    auto const& inv=gemms.at(stage.gemm);
+    if(inv.chunks<=1)continue;
+    if(inv.chunks!=TILEMEGA_SERVING_CLUSTER_DIM || !ServingClusterVariant(inv.variant) ||
+        stage.handoff_reduce_stage==kNoOperand ||
+        !model.stages.at(stage.handoff_reduce_stage).handoff_elided)
+      throw std::invalid_argument("cluster combine requires dense decode splitK=c with an elided reducer");
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(inv.dm_enabled || inv.access.a!=DmAAccess::kDense || inv.access.b!=DmBAccess::kDense || inv.a_scale)
+      throw std::invalid_argument("cluster combine does not support DM or gathered operands");
+#endif
+    plan_request.cluster_chunks[s]=inv.chunks;++cooperative;
+  }
+  if(!cooperative)throw std::invalid_argument("cluster combine has no cooperative GEMM");
+#endif
   if (plan_mode==dialect::PlacementMode::kEft) {
     auto const& plan_table=bound_plan;
     int const plan_nodes=runtime_graph.stage_offsets.empty()
@@ -4178,6 +4245,10 @@ inline DeviceModel Create(ModelSpec const& spec,
       counts[stage]=model.stages[stage].handoff_elided?0:active_tasks(stage);
     (void)executor::ValidateClusterPlacement(TILEMEGA_SERVING_CLUSTER_DIM,
         grid,counts,model.schedule_offsets,model.schedule);
+#if TILEMEGA_CLUSTER_COMBINE
+    executor::ValidateClusterEpisodeOrder(TILEMEGA_SERVING_CLUSTER_DIM,grid,
+        plan_request.cluster_chunks,model.schedule_offsets,model.schedule);
+#endif
   }
 #endif
 

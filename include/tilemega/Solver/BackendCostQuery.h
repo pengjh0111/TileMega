@@ -151,7 +151,7 @@ inline BackendTraits ServingBF16Traits(int m, int n, int k, int stages) {
 }
 
 constexpr bool ServingWgmmaShapeLegal(int m,int n,int k,int stages) {
-  bool decode=m==16 && (k==64 || k==128);
+  bool decode=(m==8 || m==16) && (k==64 || k==128);
   bool forward=(m==64 || m==128) && k==64 && m*n<=16384;
   return (decode || forward) && (n==64 || n==128 || n==256) && stages==2;
 }

@@ -23,11 +23,11 @@ inline void ApplyServingSeedImplementations(frontend::ModelPlan const& plan,
     int impl=requested.at(ServingGemmFamily(g));if(impl<0)continue;
     if(impl==1 && (!ServingGemvShapeLegal(tile.tile_m,tile.tile_n,tile.tile_k,tile.stages) || paged))
       throw std::invalid_argument("requested seed GEMV has an unsupported shape or executor");
-    if(impl==2 && (!hopper_native || batch<1 || batch>16 || tile.tile_m!=16 ||
+    if(impl==2 && (!hopper_native || batch<1 || batch>16 || (tile.tile_m!=8 && tile.tile_m!=16) || batch>tile.tile_m ||
         !ServingWgmmaShapeLegal(tile.tile_m,tile.tile_n,tile.tile_k,tile.stages) ||
         (paged && 2*tile.tile_n*tile.tile_k>page_bytes) ||
         g.access.a==codegen::DmAAccess::kIm2Col || g.access.a_scale!=codegen::kDmNoIndex))
-      throw std::invalid_argument("requested seed WGMMA requires a legal native Hopper M16 shape and one weight page");
+      throw std::invalid_argument("requested seed WGMMA requires a legal native Hopper M8/M16 shape and one weight page");
     if(impl>2)throw std::invalid_argument("unknown seed GEMM implementation");
     tile.impl=impl;
   }

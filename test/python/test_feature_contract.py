@@ -167,5 +167,14 @@ class FeatureContractTests(unittest.TestCase):
             validate({'gemv_load': 'ldg'}, {'TILEMEGA_GEMV_LOAD_NC': '1'})
 
 
+    def test_decode_tile_m_claim_is_bound_to_macro(self):
+        validate({'decode_tile_m': 16}, {})
+        validate({'decode_tile_m': 8}, {'TILEMEGA_DECODE_TILE_M': '8'})
+        with self.assertRaisesRegex(ValueError, 'decode_tile_m'):
+            validate({'decode_tile_m': 8}, {})
+        with self.assertRaisesRegex(ValueError, 'decode_tile_m'):
+            validate({'decode_tile_m': 16}, {'TILEMEGA_DECODE_TILE_M': '8'})
+
+
 if __name__ == '__main__':
     unittest.main()

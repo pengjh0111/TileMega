@@ -9,6 +9,10 @@
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/ServingQkvEpilogue.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
+#include <tilemega/Codegen/executor/ClusterPlacement.h>
+#if TILEMEGA_CLUSTER_COMBINE
+#include <tilemega/Codegen/executor/ClusterMailbox.cuh>
+#endif
 
 #include <cute/tensor.hpp>
 #include <cutlass/util/packed_stride.hpp>
@@ -213,7 +217,7 @@ struct GemmVariantStorage<true, Mainloop, M, N, K, S, Gemv,Wgmma> {
     unsigned char bytes[mainloop_bytes>epilogue_bytes?mainloop_bytes:epilogue_bytes];
 #else
     unsigned char bytes[Gemv ? solver::ServingGemvSmemBytes(M,N) :
-        Wgmma ? solver::ServingWgmmaSmemBytes(M,N,K,S,TILEMEGA_MOE_ACTIVATION_BULK,TILEMEGA_ACTIVATION_TMA):backend::ServingGemmConfig<GemmVariantArch,M,(N<32?32:N),K,S>::kSharedBytes];
+        Wgmma ? solver::ServingWgmmaSmemBytes(M,N,K,S,TILEMEGA_MOE_ACTIVATION_BULK,TILEMEGA_ACTIVATION_TMA):backend::ServingGemmConfig<GemmVariantArch,(Wgmma && M==8?16:M),(N<32?32:N),K,S>::kSharedBytes];
 #endif
   };
 };
@@ -272,7 +276,7 @@ struct GemmVariantStorage<true, Mainloop, M, N, K, S, Gemv,Wgmma> {
     using Impl = std::conditional_t<TILEMEGA_SERVING_RUNTIME != 0,           \
         std::conditional_t<TILEMEGA_GEMM_IMPL_##index == 1,               \
           ServingGemvConfig<GemmVariantArch,M,N,K,S>,                       \
-          backend::ServingGemmConfig<GemmVariantArch,M,N,K,S>>,            \
+          backend::ServingGemmConfig<GemmVariantArch,(TILEMEGA_GEMM_IMPL_##index==2 && M==8?16:M),N,K,S>>,            \
         backend::GemmCandidate<M, N, K, S, GemmVariantArch>>;               \
     static_assert(Impl::kShapeLegal,                                        \
                   "the selected GEMM tile shape is not a legal candidate; " \
@@ -360,6 +364,30 @@ inline constexpr int kGemmThreads = GemmImpl::kThreads;
 inline constexpr int kGemmTileM = cute::size<0>(typename GemmMainloop::TileShape{});
 inline constexpr int kGemmTileN = cute::size<1>(typename GemmMainloop::TileShape{});
 inline constexpr int kGemmVariantCount = TILEMEGA_GEMM_VARIANT_COUNT;
+
+#if TILEMEGA_CLUSTER_COMBINE
+template<int Variant=0>
+constexpr unsigned ServingClusterTileFloats() {
+  if constexpr(Variant==TILEMEGA_GEMM_VARIANT_COUNT)return 0;
+  else {
+    using V=GemmVariant<Variant>;
+    constexpr unsigned own=V::kWgmma && V::kTileM<=16?V::kTileM*V::kTileN:0;
+    constexpr unsigned rest=ServingClusterTileFloats<Variant+1>();
+    return own>rest?own:rest;
+  }
+}
+template<class Arch>
+using ServingClusterMailbox=executor::ClusterMailbox<Arch,
+    TILEMEGA_SERVING_CLUSTER_DIM,ServingClusterTileFloats<>()>;
+template<int Variant=0>
+constexpr bool ServingClusterVariant(unsigned index) {
+  if constexpr(Variant==TILEMEGA_GEMM_VARIANT_COUNT)return false;
+  else return index==Variant?(GemmVariant<Variant>::kWgmma && GemmVariant<Variant>::kTileM<=16):
+      ServingClusterVariant<Variant+1>(index);
+}
+template<class Smem>
+inline constexpr std::size_t kServingMailboxOffset=(sizeof(Smem)+1023)&~std::size_t(1023);
+#endif
 
 /// The host needs each variant's tiling to lay out its invocations, and the
 /// megakernel needs the union of their shared storage; both are folded here so
@@ -749,7 +777,7 @@ struct GemmStageTaskBody {
     operands.norm_k=invocation.k_total;
     operands.norm_eps=TILEMEGA_NORM_EPSILON;
 #if TILEMEGA_FORWARD_GEMM_WGMMA
-    if constexpr(V::kWgmma && (V::kTileM>=64 || (TILEMEGA_ACTIVATION_TMA && V::kTileM==16))) {
+    if constexpr(V::kWgmma && (V::kTileM>=64 || (TILEMEGA_ACTIVATION_TMA && (V::kTileM==8 || V::kTileM==16)))) {
       operands.activation_tensor_map=invocation.serving_activation_tensor_map;
       operands.tensor_map=invocation.serving_weight_tensor_map;
       operands.tensor_k_begin=invocation.serving_k_begin;
@@ -892,6 +920,67 @@ struct GemmStageTaskBody {
 #endif
   }
 
+#if TILEMEGA_CLUSTER_COMBINE
+  template<int Variant=0>
+  __device__ static __forceinline__ void RunClusterTask(GemmInvocation const& invocation,
+      int local,char* shared,typename ServingClusterMailbox<Arch>::Storage& mailbox) {
+    using V=GemmVariant<Variant>;
+    if(invocation.variant!=Variant) {
+      if constexpr(Variant+1<TILEMEGA_GEMM_VARIANT_COUNT)
+        RunClusterTask<Variant+1>(invocation,local,shared,mailbox);
+      else asm volatile("trap;");
+      return;
+    }
+    if constexpr(!V::kWgmma || V::kTileM>16)asm volatile("trap;");
+    else {
+      using Body=ServingGemmTaskBody<Arch,V::kTileM,V::kTileN,V::kTileK,V::kStages,true>;
+      using Mailbox=ServingClusterMailbox<Arch>;
+      auto [m,n,k,batch]=invocation.problem;(void)batch;
+      ServingGemmOperands operands;
+      operands.a=invocation.mainloop.ptr_A;operands.b=invocation.mainloop.ptr_B;
+      operands.output=invocation.epilogue.ptr_D;operands.residual=invocation.epilogue.ptr_C;
+      operands.argmax_value=reinterpret_cast<float*>(invocation.epilogue.ptr_D);
+      operands.argmax_index=invocation.serving_argmax_index;
+      operands.m=m;operands.n=n;operands.k_total=k;operands.k_count=k;
+      operands.a_row_stride=invocation.k_total;operands.b_row_stride=invocation.k_total;
+      operands.output_stride=invocation.serving_output_stride;
+      operands.norm_ss=invocation.serving_norm_ss;operands.ss_out=invocation.serving_ss_out;
+      operands.norm_k=invocation.k_total;operands.norm_eps=TILEMEGA_NORM_EPSILON;
+#if TILEMEGA_NONPAGED_TILED
+      operands.a-=invocation.serving_k_begin;
+      operands.weight_base=invocation.serving_weight_base;
+      operands.k_total=invocation.k_total;operands.k_total_full=invocation.serving_k_total_full;
+      operands.k_begin=invocation.serving_k_begin;
+#endif
+#if TILEMEGA_FORWARD_GEMM_WGMMA
+      operands.activation_tensor_map=invocation.serving_activation_tensor_map;
+      operands.tensor_map=invocation.serving_weight_tensor_map;
+      operands.tensor_k_begin=invocation.serving_k_begin;
+      operands.k_total_full=invocation.serving_k_total_full;
+#endif
+      int tile_m=local/invocation.tiles_n,tile_n=local%invocation.tiles_n;
+      Mailbox::template Run<V::kTileM*V::kTileN>(mailbox,[&] {
+        return Body::ComputeWgmma(operands,tile_m,tile_n,shared);
+      },[&](float* tile) {
+        auto finish=[&](auto op) {
+          backend::ServingEpilogue<decltype(op)::value,V::kTileM,V::kTileN>::template RunFromTile<false>(
+              tile,tile_m,tile_n,m,n,operands.output_stride,0,operands.output,operands.residual,
+              nullptr,operands.argmax_value,operands.argmax_index,operands.norm_ss,operands.ss_out,
+              operands.norm_k,operands.norm_eps);
+        };
+        using Op=backend::ServingEpilogueOp;
+        switch(invocation.serving_op) {
+          case Op::kStore:finish(std::integral_constant<Op,Op::kStore>{});break;
+          case Op::kResidual:finish(std::integral_constant<Op,Op::kResidual>{});break;
+          case Op::kSwiGLU:finish(std::integral_constant<Op,Op::kSwiGLU>{});break;
+          case Op::kArgmaxPartial:finish(std::integral_constant<Op,Op::kArgmaxPartial>{});break;
+          default:asm volatile("trap;");break;
+        }
+      });
+    }
+  }
+#endif
+
   __device__ static void RunLogicalTask(Params const& p,
                                         StageDesc const& stage,
                                         SmemUnion& smem, int task TILEMEGA_PHASE_ARG
@@ -906,6 +995,14 @@ struct GemmStageTaskBody {
     int const local = coordinate.tile;
     auto const& invocation = table[stage.gemm + coordinate.chunk];
     char* shared = reinterpret_cast<char*>(&smem.gemm);
+#if TILEMEGA_CLUSTER_COMBINE
+    if(invocation.chunks>1) {
+      auto& mailbox=*reinterpret_cast<typename ServingClusterMailbox<Arch>::Storage*>(
+          reinterpret_cast<char*>(&smem)+kServingMailboxOffset<SmemUnion>);
+      RunClusterTask(invocation,local,shared,mailbox);
+      return;
+    }
+#endif
 #if TILEMEGA_GEMM_VARIANT_COUNT == 1
     RunTask<0>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
 #if TILEMEGA_TRACE_TASK

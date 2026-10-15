@@ -121,17 +121,19 @@ template <class Arch, int TileM, int TileN, int TileK, int Stages,bool UseWgmma=
 struct ServingGemmTaskBody {
   static_assert(!UseWgmma || !TILEMEGA_ARCH_PATH_SM80,
                 "WGMMA is incompatible with --arch-paths sm80");
-  using Config = backend::ServingGemmConfig<Arch, TileM, TileN, TileK, Stages>;
+  static_assert(!(UseWgmma && TileM==8 && TILEMEGA_MOE_ACTIVATION_BULK),
+                "M8 WGMMA does not support expert bulk gather");
+  using Config = backend::ServingGemmConfig<Arch, (UseWgmma && TileM==8 ? 16 : TileM), TileN, TileK, Stages>;
   using Mainloop = typename Config::Mainloop;
   static constexpr int kThreads = Config::kThreads;
   static constexpr bool kBulkGather=UseWgmma && TileM==16 && TILEMEGA_MOE_ACTIVATION_BULK;
-  static constexpr bool kDecodeTma=UseWgmma && TileM==16 && TILEMEGA_ACTIVATION_TMA;
+  static constexpr bool kDecodeTma=UseWgmma && (TileM==8 || TileM==16) && TILEMEGA_ACTIVATION_TMA;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-  static constexpr int kSharedBytes=UseWgmma && (TileM>=64 || kBulkGather || kDecodeTma) ?
+  static constexpr int kSharedBytes=UseWgmma && (TileM==8 || TileM>=64 || kBulkGather || kDecodeTma) ?
       solver::ServingWgmmaSmemBytes(TileM,TileN,TileK,Stages,kBulkGather,kDecodeTma):
       solver::DmServingBF16SmemBytes(TileM,TileN,TileK,Stages);
 #else
-  static constexpr int kSharedBytes = UseWgmma && (TileM>=64 || kBulkGather || kDecodeTma) ?
+  static constexpr int kSharedBytes = UseWgmma && (TileM==8 || TileM>=64 || kBulkGather || kDecodeTma) ?
       solver::ServingWgmmaSmemBytes(TileM,TileN,TileK,Stages,kBulkGather,kDecodeTma):Config::kSharedBytes;
 #endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT

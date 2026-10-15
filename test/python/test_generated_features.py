@@ -161,6 +161,8 @@ class GeneratedFeatureTests(unittest.TestCase):
     def test_integer_features_reach_both_frontends(self):
         for family in ('llm', 'dm'):
             for feature, (macro, default) in INTEGER_FEATURES.items():
+                if feature == 'decode_tile_m':
+                    continue  # Dedicated legal 8/16 Hopper decoder matrix below.
                 values = (1, 2) if feature == 'attention_buffers' else (
                     (0, 200) if feature == 'v3_poll_ns' else (0, 31) if feature == 'kphase_mask' else (0, 1))
                 for value in values:
@@ -260,6 +262,32 @@ class GeneratedFeatureTests(unittest.TestCase):
             '--residency must be 1 or 2',target=ROOT/'configs/targets/sm_90_h800.json')
         receipt['pass']=True
 
+    def test_decode_m8_requires_small_native_wgmma_decode(self):
+        if 'decode_tile_m' not in INTEGER_FEATURES:
+            self.skipTest('compiler snapshot predates the M8 coordinate')
+        flags=['--decode-tile-m','8','--deferred-norm','0',
+               '--nonpaged-weight-layout','tiled','--resource-probes','0']
+        for family in ('qkv','o','gate-up','down','lm-head'):
+            flags+=['--gemm-impl-'+family,'wgmma']
+        target=ROOT/'configs/targets/sm_90_h800.json'
+        for batch in (1,8):
+            manifest,defines,fields,receipt=self.generate('llm',f'hopper_m8_b{batch}',
+                flags+['--batch',str(batch)],target=target)
+            self.assertEqual(manifest['decode_tile_m'],8)
+            self.assertEqual(defines['TILEMEGA_DECODE_TILE_M'],'8')
+            self.assertEqual(fields['decode_tile_m'],8)
+            self.assertTrue(manifest['gemms'])
+            self.assertTrue(all(g['impl']=='wgmma' and g['tile_m']==8 for g in manifest['gemms']))
+            receipt['pass']=True
+        self.generate('llm','reject_m8_b16',flags+['--batch','16'],
+            'M8 requires native Hopper WGMMA decode B<=8',target=target)
+        self.generate('llm','reject_m8_mma',['--decode-tile-m','8'],
+            'M8 requires native Hopper WGMMA decode B<=8',target=target)
+        self.generate('llm','reject_m8_forced_sm80',flags+['--arch-paths','sm80'],
+            'WGMMA requires native Hopper decode',target=target)
+        self.generate('llm','reject_m8_expert_bulk',flags+['--moe-activation-bulk','1'],
+            'M8 requires native Hopper WGMMA decode B<=8',target=target)
+
     def test_activation_tma_requires_actual_native_dense_wgmma(self):
         if 'activation_tma' not in INTEGER_FEATURES:
             self.skipTest('compiler snapshot predates the activation TMA coordinate')
@@ -272,7 +300,7 @@ class GeneratedFeatureTests(unittest.TestCase):
         self.assertEqual(defines['TILEMEGA_ARCH_ID'],'900')
         self.assertTrue(all(g['impl']=='wgmma' for g in fields['gemms']))
         self.generate('llm','reject_mma_activation_tma',['--activation-tma','1','--deferred-norm','0'],
-            'activation TMA requires an active dense M16 WGMMA GEMM',target=ROOT/'configs/targets/sm_90_h800.json')
+            'activation TMA requires an active dense M8/M16 WGMMA GEMM',target=ROOT/'configs/targets/sm_90_h800.json')
         self.generate('llm','reject_invalid_activation_tma',['--activation-tma','2'],
             '--activation-tma must be 0 or 1',target=ROOT/'configs/targets/sm_90_h800.json')
         receipt['pass']=True

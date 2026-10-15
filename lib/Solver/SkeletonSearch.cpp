@@ -609,8 +609,10 @@ struct SearchContext {
           gemm.epilogue==Op::kResidual?(gemm.k>gemm.n?3:1):0;
       if(options.serving_impl[family]>=0)priced[c].impl=options.serving_impl[family];
       auto const& g=priced[c];
+      if(g.impl==2 && (options.serving_impl[family]==2 && options.decode_tile_m==8 && g.tile_m!=8))
+        throw std::invalid_argument("M8 coordinate conflicts with candidate WGMMA geometry");
       if(g.impl==2 && (!options.common.placement.target.caps.wgmma ||
-          (g.tile_m==16 && (options.common.placement.dims.seq!=1 || options.common.placement.dims.batch>16)) ||
+          (g.tile_m<=16 && (options.common.placement.dims.seq!=1 || options.common.placement.dims.batch>g.tile_m)) ||
           (g.tile_m>=64 && (!(options.forward_wgmma || options.conv_tma_im2col || options.dwpw_wgmma) || options.pg_pages)) ||
           !ServingWgmmaShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages) ||
           (options.pg_pages && g.tile_n*g.tile_k*2>options.page_bytes)))
@@ -795,10 +797,11 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
         }
         auto const& target=options.common.placement.target;
         if(!target.caps.wgmma || options.common.placement.dims.seq!=1 ||
-           options.common.placement.dims.batch>16)
-          throw std::invalid_argument("WGMMA requires native Hopper decode with B<=16");
+           options.common.placement.dims.batch>options.decode_tile_m)
+          throw std::invalid_argument("WGMMA requires native Hopper decode with B<=tile M");
         std::vector<GemmConfig> hopper;
         for(auto candidate:domain) {
+          if(options.decode_tile_m==8)candidate.tile_m=8;
           if(!ServingWgmmaShapeLegal(candidate.tile_m,candidate.tile_n,
               candidate.tile_k,candidate.stages))continue;
           if(options.pg_pages && candidate.tile_n*candidate.tile_k*2>options.page_bytes)continue;

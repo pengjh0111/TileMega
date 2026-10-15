@@ -20,5 +20,12 @@ int main(){using namespace tilemega;
   catch(std::invalid_argument const&){++rejected;}
  }
  assert(rejected==5);
+ auto m8=std::vector<frontend::GemmGranularity>(5,{8,128,64,2,1,0});
+ solver::ApplyServingSeedImplementations(plan,m8,{2,2,2,2,2},true,8,true,16384);
+ for(auto g:m8)assert(g.impl==2 && g.tile_m==8);
+ bool m8_batch_rejected=false;
+ try{solver::ApplyServingSeedImplementations(plan,m8,{2,2,2,2,2},true,9,true,16384);}
+ catch(std::invalid_argument const&){m8_batch_rejected=true;}
+ assert(m8_batch_rejected);
  std::puts("serving seed: five families, explicit propagation, five rejection contracts PASS");
 }

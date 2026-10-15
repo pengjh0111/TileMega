@@ -48,6 +48,7 @@ struct SkeletonSearchOptions {
   bool qkv_epilogue=false;
   bool moe_activation_bulk=false;
   bool activation_tma=false;
+  int decode_tile_m=16;
   // An edge class is a coordinate: bit 0 selects access-proved normalization
   // recompute, bit 1 selects access-proved attention last-arriver reduction.
   bool handoff_auto=false;
