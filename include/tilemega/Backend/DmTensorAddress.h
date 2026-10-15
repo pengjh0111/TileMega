@@ -41,6 +41,22 @@ struct DmTensorAddress {
              (w + layout.halo_left) * layout.strides[2] + channel * layout.strides[3];
     } else {
       if (!layout.rank) return row * fallback_pitch + column;
+#if TILEMEGA_DWPW_WGMMA
+      // Constant axis indices keep the small layout arrays in registers.
+      std::uint64_t pitch = layout.rank==1?layout.strides[0]:layout.rank==2?layout.strides[1]:layout.rank==3?layout.strides[2]:layout.strides[3];
+      std::uint64_t offset = column * pitch;
+      #pragma unroll
+      for (int axis = 2; axis >= 0; --axis) {
+        if (unsigned(axis)+1 >= layout.rank) continue;
+        auto coordinate = row % layout.logical[axis];
+        row /= layout.logical[axis];
+        if (layout.kind == codegen::DmLayout::kNHWC) {
+          if (axis == 1) coordinate += layout.halo_top;
+          if (axis == 2) coordinate += layout.halo_left;
+        }
+        offset += coordinate * layout.strides[axis];
+      }
+#else
       std::uint64_t offset = column * layout.strides[layout.rank - 1];
       for (unsigned axis = layout.rank - 1; axis-- > 0;) {
         auto coordinate = row % layout.logical[axis];
@@ -51,6 +67,7 @@ struct DmTensorAddress {
         }
         offset += coordinate * layout.strides[axis];
       }
+#endif
       return offset;
     }
   }

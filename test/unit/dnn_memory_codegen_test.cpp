@@ -83,6 +83,7 @@ int TestDnnMemoryCodegen(int argc,char** argv) {
     assert(source.find("{1u, 1u, 128u, 16u, 16u, 3u}")!=std::string::npos);
     assert(source.find("DmGemmBinding<1, 1> { static constexpr unsigned roles = 1u;")!=std::string::npos);
     assert(source.find("DmGemmBinding<1, 0> {")==std::string::npos);
+    assert(source.find("DmVariantBinding<1> { static constexpr unsigned roles = 1u;")!=std::string::npos);
     assert(source.find("Combine ? 2u : 1u")!=std::string::npos);
     std::ofstream(std::string(argv[2])+".mixed.cu")<<source;
 
@@ -100,6 +101,7 @@ int TestDnnMemoryCodegen(int argc,char** argv) {
     assert(split_source.find("DmGemmBinding<1, 1> { static constexpr unsigned roles = 3u;")!=std::string::npos);
     auto combined=CouplingGraphToCUDA{}.LowerVariants({{*alternate,1,6},{*other,7,7}});
     assert(combined.find("DmGemmBinding<1, 1> { static constexpr unsigned roles = 3u;")!=std::string::npos);
+    assert(combined.find("DmVariantBinding<1> { static constexpr unsigned roles = 3u;")!=std::string::npos);
     std::ofstream(std::string(argv[2])+".union.cu")<<combined;
   }
   auto stored=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");

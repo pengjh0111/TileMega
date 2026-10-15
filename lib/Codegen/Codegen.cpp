@@ -448,12 +448,19 @@ std::string emitDmGemmBindings(mlir::DictionaryAttr plan,
       else mask |= 1;
       if (gemm.split_k > 1) mask |= 2;
     }
+  std::map<unsigned, unsigned> variant_roles;
+  for (auto const& [key, mask] : roles) variant_roles[key.second] |= mask;
   std::ostringstream out;
   out << "#define TILEMEGA_DM_GEMM_BINDINGS 1\n"
       << "namespace tilemega::codegen {\n"
       << "template<int Gemm, int Variant> struct DmGemmBinding { static constexpr unsigned roles = 0u; };\n";
   for (auto const& [key, mask] : roles)
     out << "template<> struct DmGemmBinding<" << key.first << ", " << key.second
+        << "> { static constexpr unsigned roles = " << mask << "u; };\n";
+  out << "#define TILEMEGA_DM_VARIANT_BINDINGS 1\n"
+      << "template<int Variant> struct DmVariantBinding { static constexpr unsigned roles = 0u; };\n";
+  for (auto const& [variant, mask] : variant_roles)
+    out << "template<> struct DmVariantBinding<" << variant
         << "> { static constexpr unsigned roles = " << mask << "u; };\n";
   out << "} // namespace tilemega::codegen\n";
   return out.str();
@@ -1202,7 +1209,7 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
     for(auto value:stages)fused_dw|=stringField(dictionaryEntry(value,"stages"),"kind")=="kDwPwFused";
     if(fused_dw) {
       out<<"#define TILEMEGA_DM_FUSED_DISPATCH 1\n"
-         <<"template<int Variant = -1, class Runner>\n__device__ inline bool DispatchDmFused(std::uint32_t stage, Runner const& runner) {\n";
+         <<"template<int Variant = -1, class Runner>\n#if TILEMEGA_DWPW_WGMMA\n__device__ __forceinline__\n#else\n__device__ inline\n#endif\nbool DispatchDmFused(std::uint32_t stage, Runner const& runner) {\n";
       for(std::size_t i=0;i<stages.size();++i) {
         auto stage=dictionaryEntry(stages[i],"stages");
         if(stringField(stage,"kind")!="kDwPwFused")continue;
@@ -1272,7 +1279,7 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
          <<"#define TILEMEGA_DM_STAGE_DISPATCH 1\n"
          <<"namespace tilemega::codegen {\n"
          <<"template<class Runner>\n"
-         <<"__device__ inline void DispatchDmStage(std::uint32_t kind, std::uint32_t width, std::uint32_t rows, Runner const& runner) {\n";
+         <<"#if TILEMEGA_DWPW_WGMMA\n__device__ __forceinline__\n#else\n__device__ inline\n#endif\nvoid DispatchDmStage(std::uint32_t kind, std::uint32_t width, std::uint32_t rows, Runner const& runner) {\n";
       for(auto const& [kind,width,rows]:scalar_shapes)
         out<<"  if(kind==unsigned(TaskKind::"<<kind<<") && width=="<<width<<"u && rows=="<<rows
            <<"u) {runner.template Run<TaskKind::"<<kind<<", "<<width<<", "<<rows<<">(); return;}\n";
@@ -1294,7 +1301,7 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
       out<<"  asm volatile(\"trap;\");\n}\n";
     }
     out << "template<int Variant = -1, bool Combine = false, class Runner>\n"
-        << "__device__ inline void DispatchDmEpilogue(std::uint32_t gemm, Runner const& runner) {\n"
+        << "#if TILEMEGA_DWPW_WGMMA\n__device__ __forceinline__\n#else\n__device__ inline\n#endif\nvoid DispatchDmEpilogue(std::uint32_t gemm, Runner const& runner) {\n"
         << "  switch (gemm) {\n";
     for (std::size_t i = 0; i < gemms.size(); ++i)
       out << "    case " << i << "u:\n"
@@ -1825,6 +1832,8 @@ std::string LowerFusedRuntime(mlir::ModuleOp module) {
 // Unsolved legacy modules emit no extra text or preprocessor definitions.
 std::string emitSolvedLaunch(mlir::ModuleOp module) {
   std::ostringstream out;
+  if(auto attention=module->getAttrOfType<mlir::BoolAttr>("tmexec.prefill_attention_tma"))
+    if(attention.getValue())out<<"#define TILEMEGA_PREFILL_ATTENTION_TMA 1\n";
   if(auto activation=module->getAttrOfType<mlir::BoolAttr>("tmexec.activation_tma"))
     if(activation.getValue())out<<"#define TILEMEGA_ACTIVATION_TMA 1\n"
         <<"#define TILEMEGA_FORWARD_GEMM_WGMMA 1\n";

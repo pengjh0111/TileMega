@@ -11,13 +11,16 @@ struct DwPwWgmmaTaskBody {
   static_assert(arch::Caps<Arch>::kWgmma && Channels>=64 && Channels%64==0);
   static_assert(TM==64 && (TN==64 || TN==128) && TK==64 && Stages==2);
   static_assert(backend::DmEpilogueWalk<DwProgram>::kGates==0);
+  // Borrow the invocation descriptors; copying their chains makes local arrays.
+  struct Operands { DepthwiseConvOperands const& depthwise; ServingGemmOperands const& pointwise; };
   using E=cutlass::bfloat16_t;
   using Dw=DepthwiseConvTaskBody<Arch,1,32,DwProgram>;
   using Body=backend::Sm90ForwardGmma<Arch,TM,TN,TK>;
   using Gmma=typename Body::Gmma;
   using Copy=executor::Async<Arch>;
   static constexpr int kSharedBytes=1024+4*TK*(TM+TN)>4*TM*TN?1024+4*TK*(TM+TN):4*TM*TN;
-  __device__ static __forceinline__ void DepthwiseBlock(DwPwFusedOperands const& p,
+  template<class Operand>
+  __device__ static __forceinline__ void DepthwiseBlock(Operand const& p,
       int tile_m,int tile_n,int iteration,E* tile) {
     using namespace executor;auto const& dw=p.depthwise;auto const& c=dw.convolution;
     auto const& input=dw.input_layout;
@@ -58,8 +61,8 @@ struct DwPwWgmmaTaskBody {
     }
     ComputeSync();Copy::FenceProxyAsyncShared();ComputeSync();
   }
-  template<bool TiledB=false>
-  __device__ static __forceinline__ void Run(DwPwFusedOperands const& p,int tile_m,int tile_n,char* scratch) {
+  template<bool TiledB=false,class Operand>
+  __device__ static __forceinline__ void Run(Operand const& p,int tile_m,int tile_n,char* scratch) {
     using namespace cute;using namespace executor;
     auto const& dw=p.depthwise;auto const& c=dw.convolution;auto const& in=dw.input_layout;auto const& pw=p.pointwise;
     if(!scratch || (Copy::Shared(scratch)&1023) || !dw.input || !dw.weight || !pw.b ||

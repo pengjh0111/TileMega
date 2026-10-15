@@ -9,7 +9,12 @@ template<class Runner>
 __device__ inline bool DispatchDmFused(std::uint32_t,Runner const&) {return false;}
 #endif
 template<int Variant, class Runner>
-__device__ inline bool DispatchDmVariantFused(std::uint32_t stage,
+#if TILEMEGA_DWPW_WGMMA
+__device__ __forceinline__
+#else
+__device__ inline
+#endif
+bool DispatchDmVariantFused(std::uint32_t stage,
                                              Runner const& runner) {
 #if defined(TILEMEGA_DM_TYPED_DISPATCH) && defined(TILEMEGA_DM_FUSED_DISPATCH)
   return DispatchDmFused<Variant>(stage, runner);

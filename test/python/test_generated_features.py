@@ -335,6 +335,8 @@ class GeneratedFeatureTests(unittest.TestCase):
         source=(self.out/'dm/hopper_fused_dwpw/plan.cu').read_text()
         self.assertIn('{TaskKind::kDwPwFused,',source)
         self.assertIn('DispatchDmFused',source)
+        self.assertIn('#define TILEMEGA_DM_VARIANT_BINDINGS 1',source)
+        self.assertRegex(source,r'DmVariantBinding<0> \{ static constexpr unsigned roles = 4u;')
         self.assertEqual(len(fields['gemms']),1)
         self.assertEqual(fields['gemms'][0]['impl'],'wgmma')
         self.assertEqual(manifest['gemms'][0]['tile_m'],64)

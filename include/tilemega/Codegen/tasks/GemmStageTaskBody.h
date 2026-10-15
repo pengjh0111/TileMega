@@ -18,6 +18,14 @@
 #include <cutlass/util/packed_stride.hpp>
 
 #include <type_traits>
+
+#if TILEMEGA_DWPW_WGMMA
+#define TILEMEGA_DWPW_TASK_INLINE __forceinline__
+#define TILEMEGA_GEMM_TASK_DISPATCH RunSelectedTask
+#else
+#define TILEMEGA_DWPW_TASK_INLINE
+#define TILEMEGA_GEMM_TASK_DISPATCH RunTask
+#endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
 #include <tilemega/Codegen/tasks/DwPwFusedTaskBody.h>
 #if TILEMEGA_DWPW_WGMMA
@@ -673,15 +681,16 @@ struct GemmStageTaskBody {
     __device__
 #endif
     void Run() const {
-      auto p=DwPwFusedOperands{invocation.fused_depthwise,operands};
 #if TILEMEGA_DWPW_WGMMA
       if constexpr(V::kWgmma) {
         if(invocation.chunks!=1){asm volatile("trap;");return;}
         using Body=DwPwWgmmaTaskBody<Arch,Channels,V::kTileM,V::kTileN,V::kTileK,V::kStages,DwProgram,Spec>;
-        Body::template Run<TILEMEGA_NONPAGED_TILED!=0>(p,tile_m,tile_n,shared);return;
+        auto view=typename Body::Operands{invocation.fused_depthwise,operands};
+        Body::template Run<TILEMEGA_NONPAGED_TILED!=0>(view,tile_m,tile_n,shared);return;
       }else
 #endif
       {
+      auto p=DwPwFusedOperands{invocation.fused_depthwise,operands};
       using Partial=DmEpilogueSpec<DmEpilogueProgram<>,DmWriteKind::kDense,1,DmRounding::kFP32>;
       if(invocation.chunks>1) {
         p.pointwise.output=reinterpret_cast<cutlass::bfloat16_t*>(operands.partial);
@@ -819,6 +828,10 @@ struct GemmStageTaskBody {
           local/invocation.tiles_n,local%invocation.tiles_n,shared}))asm volatile("trap;");
       return;
     }
+#if TILEMEGA_DWPW_WGMMA && defined(TILEMEGA_DM_VARIANT_BINDINGS)
+    // A fusion-only geometry must not instantiate an unrelated GEMM mainloop.
+    if constexpr(DmVariantBinding<Variant>::roles==4u) { asm volatile("trap;"); return; } else {
+#endif
     if (invocation.chunks == 1 && invocation.dm_enabled) {
       DispatchDmVariantEpilogue<Variant>(invocation.dm_gemm, DmRunner<Body>{
           operands, local / invocation.tiles_n, local % invocation.tiles_n, shared});
@@ -828,6 +841,9 @@ struct GemmStageTaskBody {
     Body::Run(operands, local / invocation.tiles_n,
               local % invocation.tiles_n, shared);
     return;
+#if TILEMEGA_DWPW_WGMMA && defined(TILEMEGA_DM_VARIANT_BINDINGS)
+    }
+#endif
 #else
     using namespace cute;
     using Mainloop = typename GemmVariant<Variant>::Mainloop;
@@ -981,7 +997,37 @@ struct GemmStageTaskBody {
   }
 #endif
 
-  __device__ static void RunLogicalTask(Params const& p,
+#if TILEMEGA_DWPW_WGMMA
+  // Inline the async region, but keep unrelated SM80 register live ranges out.
+  template<int Variant>
+  __device__ static __noinline__ void RunOutlinedTask(GemmInvocation const& invocation,int local,char* shared,ModelElement* output TILEMEGA_PHASE_ARG
+#if TILEMEGA_TRACE_TASK
+      ,ServingTaskProfile* profile
+#endif
+      ) { RunTask<Variant>(invocation,local,shared,output TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+      ,profile
+#endif
+      ); }
+  template<int Variant>
+  __device__ static __forceinline__ void RunSelectedTask(GemmInvocation const& invocation,int local,char* shared,ModelElement* output TILEMEGA_PHASE_ARG
+#if TILEMEGA_TRACE_TASK
+      ,ServingTaskProfile* profile
+#endif
+      ) {
+    if constexpr(GemmVariant<Variant>::kWgmma) RunTask<Variant>(invocation,local,shared,output TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+      ,profile
+#endif
+      );
+    else RunOutlinedTask<Variant>(invocation,local,shared,output TILEMEGA_PHASE_PASS
+#if TILEMEGA_TRACE_TASK
+      ,profile
+#endif
+      );
+  }
+#endif
+  __device__ static TILEMEGA_DWPW_TASK_INLINE void RunLogicalTask(Params const& p,
                                         StageDesc const& stage,
                                         SmemUnion& smem, int task TILEMEGA_PHASE_ARG
 #if TILEMEGA_TRACE_TASK
@@ -1004,116 +1050,116 @@ struct GemmStageTaskBody {
     }
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT == 1
-    RunTask<0>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+    TILEMEGA_GEMM_TASK_DISPATCH<0>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
 #if TILEMEGA_TRACE_TASK
         ,profile
 #endif
         );
 #else
     switch (invocation.variant) {
-      case 0: RunTask<0>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+      case 0: TILEMEGA_GEMM_TASK_DISPATCH<0>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
 #if TILEMEGA_TRACE_TASK
         ,profile
 #endif
         ); break;
-      case 1: RunTask<1>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+      case 1: TILEMEGA_GEMM_TASK_DISPATCH<1>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
 #if TILEMEGA_TRACE_TASK
         ,profile
 #endif
         ); break;
 #if TILEMEGA_GEMM_VARIANT_COUNT > 2
-      case 2: RunTask<2>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+      case 2: TILEMEGA_GEMM_TASK_DISPATCH<2>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
 #if TILEMEGA_TRACE_TASK
         ,profile
 #endif
         ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 3
-      case 3: RunTask<3>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+      case 3: TILEMEGA_GEMM_TASK_DISPATCH<3>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
 #if TILEMEGA_TRACE_TASK
         ,profile
 #endif
         ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 4
-      case 4: RunTask<4>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+      case 4: TILEMEGA_GEMM_TASK_DISPATCH<4>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
 #if TILEMEGA_TRACE_TASK
         ,profile
 #endif
         ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 5
-      case 5: RunTask<5>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+      case 5: TILEMEGA_GEMM_TASK_DISPATCH<5>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
 #if TILEMEGA_TRACE_TASK
         ,profile
 #endif
         ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 6
-      case 6: RunTask<6>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+      case 6: TILEMEGA_GEMM_TASK_DISPATCH<6>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
 #if TILEMEGA_TRACE_TASK
         ,profile
 #endif
         ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 7
-      case 7: RunTask<7>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+      case 7: TILEMEGA_GEMM_TASK_DISPATCH<7>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
 #if TILEMEGA_TRACE_TASK
         ,profile
 #endif
         ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 8
-      case 8: RunTask<8>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+      case 8: TILEMEGA_GEMM_TASK_DISPATCH<8>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
 #if TILEMEGA_TRACE_TASK
         ,profile
 #endif
         ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 9
-      case 9: RunTask<9>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+      case 9: TILEMEGA_GEMM_TASK_DISPATCH<9>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
 #if TILEMEGA_TRACE_TASK
         ,profile
 #endif
         ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 10
-      case 10: RunTask<10>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+      case 10: TILEMEGA_GEMM_TASK_DISPATCH<10>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
 #if TILEMEGA_TRACE_TASK
         ,profile
 #endif
         ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 11
-      case 11: RunTask<11>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+      case 11: TILEMEGA_GEMM_TASK_DISPATCH<11>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
 #if TILEMEGA_TRACE_TASK
         ,profile
 #endif
         ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 12
-      case 12: RunTask<12>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+      case 12: TILEMEGA_GEMM_TASK_DISPATCH<12>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
 #if TILEMEGA_TRACE_TASK
         ,profile
 #endif
         ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 13
-      case 13: RunTask<13>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+      case 13: TILEMEGA_GEMM_TASK_DISPATCH<13>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
 #if TILEMEGA_TRACE_TASK
         ,profile
 #endif
         ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 14
-      case 14: RunTask<14>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+      case 14: TILEMEGA_GEMM_TASK_DISPATCH<14>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
 #if TILEMEGA_TRACE_TASK
         ,profile
 #endif
         ); break;
 #endif
 #if TILEMEGA_GEMM_VARIANT_COUNT > 15
-      case 15: RunTask<15>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
+      case 15: TILEMEGA_GEMM_TASK_DISPATCH<15>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
 #if TILEMEGA_TRACE_TASK
         ,profile
 #endif
@@ -1132,7 +1178,7 @@ struct GemmStageTaskBody {
 #endif
   }
 
-  __device__ void operator()(Params const& p, StageDesc const& stage,
+  __device__ TILEMEGA_DWPW_TASK_INLINE void operator()(Params const& p, StageDesc const& stage,
                              SmemUnion& smem) const {
     auto const* table = static_cast<GemmInvocation const*>(p.gemms);
     int const tiles = table[stage.gemm].tiles_m * table[stage.gemm].tiles_n;

@@ -1701,7 +1701,12 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
 #if TILEMEGA_DM_REDUCTIONS
 #include <tilemega/Codegen/executor/DmReduction.cuh>
 #if !TILEMEGA_PAGED
-__device__ inline void RunReductionStage(Params const& p,unsigned stage,TaskSmem& smem,
+#if TILEMEGA_DWPW_WGMMA
+__device__ __forceinline__
+#else
+__device__ inline
+#endif
+void RunReductionStage(Params const& p,unsigned stage,TaskSmem& smem,
     EventCounter* events,unsigned long long iteration) {
   int count=ActiveBlocks(p,p.stages[stage]);
   for(int ordinal=PlacedBlock();ordinal<ServingL1TaskLimit(p,p.stages[stage],count);ordinal+=gridDim.x) {
