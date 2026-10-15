@@ -53,6 +53,14 @@ class KernelResources(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'callgraph attribution'):
             validate_selected_entry(self.log+helper, 'L2', 0)
 
+    def test_repeated_helper_zero_does_not_hide_previous_spill(self):
+        helper = ('ptxas info : Function properties for helper_function\n'
+                  '    8 bytes stack frame, 8 bytes spill stores, 8 bytes spill loads\n'
+                  'ptxas info : Used 32 registers\n')
+        clean = helper.replace('8 bytes spill', '0 bytes spill')
+        with self.assertRaisesRegex(ValueError, 'callgraph attribution'):
+            validate_selected_entry(self.log+helper+clean, 'L2', 0)
+
     def test_invalid_executor_rejected(self):
         for mode, loop in [('L3', 0), ('L2', 2)]:
             with self.assertRaises(ValueError):

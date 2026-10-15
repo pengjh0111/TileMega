@@ -20,8 +20,13 @@ def resource_functions(log):
             functions.setdefault(active, {'symbol': active})
         spills = re.search(r'(\d+) bytes stack frame, (\d+) bytes spill stores, (\d+) bytes spill loads', line)
         if spills and active is not None:
-            functions[active].update(stack_bytes=int(spills[1]),
-                spill_store_bytes=int(spills[2]), spill_load_bytes=int(spills[3]))
+            # A device helper can be reported under multiple entry functions.
+            # Preserve its worst occurrence rather than overwriting a spill
+            # from an earlier entry with a later zero-spill occurrence.
+            for key, value in (('stack_bytes', spills[1]),
+                               ('spill_store_bytes', spills[2]),
+                               ('spill_load_bytes', spills[3])):
+                functions[active][key] = max(functions[active].get(key, 0), int(value))
         registers = re.search(r'Used (\d+) registers', line)
         if registers and active is not None:
             functions[active]['registers'] = int(registers[1])
