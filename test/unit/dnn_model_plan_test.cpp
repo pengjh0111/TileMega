@@ -79,6 +79,22 @@ int TestDnnModelPlan(int argc,char** argv) {
     assert(plan.gemms[0].chain.count==3 && plan.gemms[1].chain.count==2);
     assert(plan.gemms[1].chain.side_count==1);
     assert(plan.buffers[plan.stages[4].operands[2]].dtype=="bf16");
+    auto sliced=bridge;sliced.nodes.back().shape={"B","10"};
+    auto add_slice=[&](std::string name,std::vector<FxArgument> args) {
+      FxNodeRecord node;node.name=name;node.target="aten.slice.Tensor";node.op="call_function";
+      node.index=sliced.nodes.size();node.has_arguments=true;node.args=std::move(args);
+      node.inputs={node.args[0].text};node.shape={"B","10"};node.dtype="torch.bfloat16";
+      sliced.nodes.push_back(node);sliced.outputs={name};
+    };
+    add_slice("full_batch",{N("output")});
+    add_slice("full_width",{N("full_batch"),I(1)});
+    add_slice("explicit_end",{N("full_width"),I(1),{},I(10)});
+    auto identity=BuildDnnModelPlan(sliced.nodes,sliced.inputs,sliced.outputs,options);
+    assert(identity.stages.size()==plan.stages.size() && identity.gemms.size()==plan.gemms.size());
+    sliced.nodes.back().args[3]=I(9);bool truncation_rejected=false;
+    try{BuildDnnModelPlan(sliced.nodes,sliced.inputs,sliced.outputs,options);}
+    catch(std::invalid_argument const& e){truncation_rejected=std::string(e.what()).find("truncates its axis")!=std::string::npos;}
+    assert(truncation_rejected);
     auto invalid=bridge;invalid.nodes.back().target="aten.unknown.default";
     bool rejected=false;try{BuildDnnModelPlan(invalid.nodes,invalid.inputs,invalid.outputs,options);}
     catch(std::invalid_argument const& e){rejected=std::string(e.what()).find("unsupported DNN target")!=std::string::npos;}
@@ -101,6 +117,25 @@ int TestDnnModelPlan(int argc,char** argv) {
     auto positions=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[](auto const& n){return n.immutable_buffer_value.present;});
     assert(positions!=invalid.nodes.end());positions->immutable_buffer_value.byte_order="big";
     reject(invalid,"immutable value proof");
+    invalid=bridge;
+    auto prefix=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[&](auto const& n) {
+      if(n.target!="aten.slice.Tensor" || n.args.size()!=1 || n.args[0].kind!=FxArgument::Kind::kNode)return false;
+      return std::any_of(invalid.nodes.begin(),invalid.nodes.end(),[&](auto const& source) {
+        return source.name==n.args[0].text && source.immutable_buffer_value.present;
+      });
+    });
+    if(prefix!=invalid.nodes.end()) {
+      prefix->args.resize(4);prefix->args[3]=I(0);
+      reject(invalid,"position buffer prefix slice is not an identity");
+    }
+    invalid=bridge;
+    auto embedding_add=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[](auto const& n) {
+      return n.target=="aten.add_.Tensor";
+    });
+    if(embedding_add!=invalid.nodes.end()) {
+      embedding_add->args.resize(3);embedding_add->args[2]=F(2);
+      reject(invalid,"embedding-sum alpha must be one");
+    }
     invalid=bridge;
     auto attention=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[](auto const& n){return n.target=="aten.scaled_dot_product_attention.default";});
     if(attention!=invalid.nodes.end()) {
@@ -127,6 +162,23 @@ int TestDnnModelPlan(int argc,char** argv) {
             return n.target=="aten.scaled_dot_product_attention.default";
           });
         }
+      }
+      if(mask!=bridge.nodes.end() && mask->target=="aten.masked_fill.Scalar") {
+        auto proof=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[&](auto const& n) {
+          return mask->args.size()>1 && n.name==mask->args[1].text;
+        });
+        assert(proof!=invalid.nodes.end() && proof->constant.has_all_equal &&
+               proof->constant.all_equal && !proof->constant.equal_value.boolean);
+        proof->constant.has_all_equal=false;reject(invalid,"unsupported value transform");
+        invalid=bridge;
+        proof=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[&](auto const& n) {
+          return n.name==mask->args[1].text;
+        });
+        proof->constant.equal_value.boolean=true;reject(invalid,"unsupported value transform");
+        invalid=bridge;
+        attention=std::find_if(invalid.nodes.begin(),invalid.nodes.end(),[](auto const& n) {
+          return n.target=="aten.scaled_dot_product_attention.default";
+        });
       }
       attention->args.resize(6);attention->args[5].kind=FxArgument::Kind::kBool;attention->args[5].boolean=true;
       reject(invalid,"noncausal");

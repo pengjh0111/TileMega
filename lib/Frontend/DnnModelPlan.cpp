@@ -222,7 +222,18 @@ struct Builder {
     if(Op(slice)!="slice" || Int(Arg(slice,1),-1)!=1 || Int(Arg(slice,2),0)!=0 ||
        Int(Arg(slice,3),0)!=sequence || Int(Arg(slice,4),1)!=1)
       throw std::invalid_argument("position embedding requires a proven initial position slice");
-    auto const& value=records.at(Ref(slice,0))->immutable_buffer_value;
+    auto const* source=records.at(Ref(slice,0));
+    while(Op(*source)=="slice") {
+      auto const* input=records.at(Ref(*source,0));long axis=Int(Arg(*source,1),0);
+      if(axis<0)axis+=input->shape.size();
+      if(axis<0 || unsigned(axis)>=input->shape.size() || source->shape!=input->shape ||
+          Int(Arg(*source,2),0)!=0 || Int(Arg(*source,4),1)!=1 ||
+          (Arg(*source,3).kind!=FxArgument::Kind::kNone &&
+           Int(Arg(*source,3),0)<U(input->shape[axis])))
+        throw std::invalid_argument("position buffer prefix slice is not an identity");
+      collapsed.insert(source->name);source=input;
+    }
+    auto const& value=source->immutable_buffer_value;
     std::vector<char> bytes;
     auto error=llvm::decodeBase64(value.data_base64,bytes);
     if(error) {llvm::consumeError(std::move(error));throw std::invalid_argument("invalid frozen position buffer");}
@@ -451,6 +462,20 @@ struct Builder {
     // the export's value proof permits removing it; user masks stay dynamic.
     if(node.dtype=="torch.bool" && node.constant.has_all_true && node.constant.all_true)
       return {};
+    if(kind=="masked_fill" && node.dtype!="torch.bool") {
+      auto const& source=*records.at(Ref(node,0));
+      auto const& condition=*records.at(Ref(node,1));auto cast=Op(condition);
+      auto const& proof=condition.constant;
+      // HF's additive mask casts the same tensor to bool. A proven all-false
+      // cast proves every source value is zero, and no fill can change it.
+      if((cast=="to" || cast=="_to_copy") && condition.dtype=="torch.bool" &&
+          Ref(condition,0)==source.name && source.shape==node.shape &&
+          condition.shape==node.shape && proof.present && proof.has_all_equal &&
+          proof.all_equal && proof.equal_value.kind==FxArgument::Kind::kBool &&
+          !proof.equal_value.boolean && node.constant.present &&
+          (source.dtype=="torch.bfloat16" || source.dtype=="torch.float32") &&
+          source.dtype==node.dtype && !externally_observed.count(node.name))return {};
+    }
     if(kind=="expand") {
       if(node.shape.size()!=4 || U(node.shape[1])!=1 || U(node.shape[2])!=unsigned(p.serving_seq) || U(node.shape[3])!=unsigned(p.serving_seq))
         throw std::invalid_argument("key-padding expansion changes the query or key geometry");
@@ -614,12 +639,14 @@ struct Builder {
     }
   }
   void PrepareEncoder() {
-    for(auto const& node:nodes)if(Op(node)=="add" && node.inputs.size()==2) {
+    for(auto const& node:nodes)if((Op(node)=="add" || Op(node)=="add_") && node.inputs.size()==2) {
       auto const& first=*records.at(Ref(node,0));auto const& position=*records.at(Ref(node,1));
-      if(Op(first)!="add" || Op(position)!="embedding")continue;
+      if((Op(first)!="add" && Op(first)!="add_") || Op(position)!="embedding")continue;
       auto const& word=*records.at(Ref(first,0));auto const& type=*records.at(Ref(first,1));
       if(Op(word)!="embedding" || Op(type)!="embedding")continue;
       if(!p.node_buffer.count(Ref(word,1)) || !p.node_buffer.count(Ref(type,1)))continue;
+      if(Real(Arg(node,2),1)!=1 || Real(Arg(first,2),1)!=1)
+        throw std::invalid_argument("embedding-sum alpha must be one");
       PositionSequence(Ref(position,1),p.serving_seq);
       for(auto const* inner:{&word,&type,&position,&first}) {
         RequireExclusive(inner->name);collapsed.insert(inner->name);
@@ -968,7 +995,9 @@ struct Builder {
          Int(Arg(node,4),1)!=1 || node.shape!=input.shape)
         throw std::invalid_argument("DNN slice is not a range identity");
       auto extent=axis==0?options.batch:U(input.shape[axis]);
-      if(Int(Arg(node,3),0)<extent)throw std::invalid_argument("DNN slice truncates its axis");
+      // ATen's omitted/None end means the whole remaining axis, not zero.
+      if(Arg(node,3).kind!=FxArgument::Kind::kNone && Int(Arg(node,3),0)<extent)
+        throw std::invalid_argument("DNN slice truncates its axis");
       Alias(node,Ref(node,0));
     }
     else if(kind=="select") {
