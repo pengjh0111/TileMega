@@ -50,6 +50,11 @@ def read_config(path):
         raise ValueError('model.name must identify one of the five DM-1 DNNs')
     if type(config['model'].get('structure_only', False)) is not bool:
         raise ValueError('model.structure_only must be boolean')
+    if type(config['model'].get('random_weights', False)) is not bool:
+        raise ValueError('model.random_weights must be boolean')
+    if config['model'].get('random_weights') and (
+            config['model'].get('structure_only') or config['model'].get('checkpoint')):
+        raise ValueError('random_weights cannot be combined with structure_only or checkpoint')
     config['workload'] = dict(dict(batch=[1]), **config.get('workload', {}))
     batches = config['workload']['batch']
     if not batches or len(set(batches)) != len(batches) or any(
@@ -92,10 +97,13 @@ def model_export(config, out):
                 structure_only=model.get('structure_only', False),
                 mask=model.get('attention_mask', False),
                 nafnet_weights=Path(model.get('nafnet_weights', DEFAULT_NAFNET)),
-                checkpoint=model.get('checkpoint'))
+                checkpoint=model.get('checkpoint'), random_weights=model.get('random_weights', False),
+                seed=model.get('seed', 20261007))
     manifest = json.loads((directory / 'manifest.json').read_text())
-    if manifest['model'] != label or (not model.get('structure_only') and
-                                      not manifest.get('accuracy_eligible')):
+    random = model.get('random_weights', False)
+    valid_weights = (manifest.get('random_weights') and manifest.get('timing_eligible')
+                     if random else model.get('structure_only') or manifest.get('accuracy_eligible'))
+    if manifest['model'] != label or not valid_weights:
         raise ValueError('export must be the requested upstream model with pretrained weights')
     for name, expected in manifest['artifacts'].items():
         if file_sha(directory / name) != expected:
@@ -173,14 +181,16 @@ def run(config, plans, out, inputs):
 
 
 def check(config, plans, out, *, synthetic_weights=False):
-    if synthetic_weights:
+    if synthetic_weights or config['model'].get('random_weights'):
         from .check_generated import check as check_generated
         for record in plans:
             receipt = out / f'B{record["batch"]}' / 'smoke.json'
             if receipt.exists():
                 raise FileExistsError('refuse to overwrite a smoke receipt: ' + str(receipt))
             result = check_generated(record['library'], record['export'], record['bridge'],
-                                     record['batch'], synthetic_weights=True)
+                                     record['batch'], synthetic_weights=synthetic_weights)
+            result['random_weights'] = config['model'].get('random_weights', False)
+            result['accuracy_eligible'] = False
             if result['artifact_id'] != record['artifact_id']:
                 raise ValueError('smoke receipt belongs to another artifact')
             atomic_json(receipt, result)

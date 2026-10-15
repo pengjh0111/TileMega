@@ -20,15 +20,18 @@ def versions():
 
 
 def model(name, structure_only=False, nafnet_weights=DEFAULT_NAFNET, checkpoint=None,
-          dtype=torch.bfloat16):
+          dtype=torch.bfloat16, random_weights=False):
+    if random_weights and (structure_only or checkpoint):
+        raise ValueError('random weights cannot be combined with structure-only or a checkpoint')
+    initialize = structure_only or random_weights
     if name in ('resnet18', 'mbv2'):
         import torchvision.models as tv
         if name == 'resnet18':
-            module = tv.resnet18(weights=None if structure_only or checkpoint else
+            module = tv.resnet18(weights=None if initialize or checkpoint else
                                  tv.ResNet18_Weights.IMAGENET1K_V1)
             source = 'torchvision/resnet18/IMAGENET1K_V1'
         else:
-            module = tv.mobilenet_v2(weights=None if structure_only or checkpoint else
+            module = tv.mobilenet_v2(weights=None if initialize or checkpoint else
                                      tv.MobileNet_V2_Weights.IMAGENET1K_V2)
             source = 'torchvision/mobilenet_v2/IMAGENET1K_V2'
         if checkpoint and not structure_only:
@@ -36,14 +39,14 @@ def model(name, structure_only=False, nafnet_weights=DEFAULT_NAFNET, checkpoint=
     elif name == 'mbv1':
         import timm
         source = 'mobilenetv1_100.ra4_e3600_r224_in1k'
-        module = timm.create_model(source, pretrained=not structure_only and not checkpoint)
+        module = timm.create_model(source, pretrained=not initialize and not checkpoint)
         if checkpoint and not structure_only:
             from safetensors.torch import load_file
             module.load_state_dict(load_file(str(Path(checkpoint) / 'model.safetensors')), strict=True)
     elif name == 'bert':
         from transformers import BertConfig, BertModel
         source = 'google-bert/bert-base-uncased'
-        if structure_only:
+        if initialize:
             config = BertConfig()
             config._attn_implementation = 'sdpa'
             module = BertModel(config)
@@ -54,7 +57,7 @@ def model(name, structure_only=False, nafnet_weights=DEFAULT_NAFNET, checkpoint=
         from .models import nafnet
         module = nafnet()
         source = str(nafnet_weights)
-        if not structure_only:
+        if not initialize:
             if not Path(nafnet_weights).is_file():
                 raise FileNotFoundError('DN-1 requires the official NAFNet-SIDD-width32 '
                                         'checkpoint at ' + str(nafnet_weights))
@@ -113,10 +116,12 @@ def conv_geometries(program):
 
 
 def export(name, out, fixtures, structure_only=False, mask=False,
-           nafnet_weights=DEFAULT_NAFNET, checkpoint=None):
-    torch.manual_seed(20261007)
+           nafnet_weights=DEFAULT_NAFNET, checkpoint=None, random_weights=False,
+           seed=20261007):
+    torch.manual_seed(seed)
     torch.set_num_threads(4)
-    module, source = model(name, structure_only, nafnet_weights, checkpoint)
+    module, source = model(name, structure_only, nafnet_weights, checkpoint,
+                           random_weights=random_weights)
     batch = torch.export.Dim('batch', min=1, max=64)
     # Export specializes dimensions of size one, so the example must use B=2.
     if name == 'bert':
@@ -139,28 +144,38 @@ def export(name, out, fixtures, structure_only=False, mask=False,
     out = Path(out) / label
     out.mkdir(parents=True, exist_ok=True)
     torch.export.save(program, out / 'exported_program.pt2')
-    torch.export.save(core, out / 'core_aten.pt2')
+    # Random performance exports retain one archive; decomposition is reproducible.
+    if not random_weights:
+        torch.export.save(core, out / 'core_aten.pt2')
     fixture = dict(model=label, upstream=source, versions=versions(),
                    input_dtype='bf16 images / int64 ids', weight_dtype='bf16',
                    dynamic_batch=[1, 64], seq=128 if name == 'bert' else 1,
                    before=inventory(program), core_aten=inventory(core),
                    conv_geometries=conv_geometries(program),
-                   weights='architecture initialization' if structure_only else 'pretrained',
+                   weights='seeded random initialization' if random_weights else
+                       'architecture initialization' if structure_only else 'pretrained',
+                   random_weights=random_weights, initialization_seed=seed,
                    evidence='verified')
     fixtures = Path(fixtures)
     fixtures.mkdir(parents=True, exist_ok=True)
     (fixtures / (label + '_ops.json')).write_text(json.dumps(fixture, indent=2) + '\n')
+    artifacts = [out / 'exported_program.pt2']
+    if not random_weights:
+        artifacts.append(out / 'core_aten.pt2')
     manifest = dict(fixture, purpose='operator coverage' if structure_only else 'forward',
-                    accuracy_eligible=not structure_only,
+                    accuracy_eligible=not (structure_only or random_weights),
+                    timing_eligible=not structure_only,
                     artifacts={p.name: hashlib.sha256(p.read_bytes()).hexdigest()
-                               for p in (out / 'exported_program.pt2', out / 'core_aten.pt2')})
+                               for p in artifacts})
     if not structure_only:
         manifest['checkpoint'] = write_checkpoint(module, out / 'checkpoint')
-        manifest['checkpoint_input'] = str(checkpoint) if checkpoint else source
+        manifest['checkpoint_input'] = ('seeded random initialization' if random_weights
+                                        else str(checkpoint) if checkpoint else source)
     (out / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     print(json.dumps(dict(model=label, before=sum(fixture['before'].values()),
                           core_aten=sum(fixture['core_aten'].values()),
-                          accuracy_eligible=not structure_only)), flush=True)
+                          accuracy_eligible=manifest['accuracy_eligible'],
+                          timing_eligible=manifest['timing_eligible'])), flush=True)
     return manifest
 
 
@@ -169,8 +184,12 @@ def main():
     parser.add_argument('--model', choices=MODELS + ('all',), required=True)
     parser.add_argument('--out', type=Path, default=Path('runs/dm1-exports'))
     parser.add_argument('--fixtures', type=Path, default=Path('test/fixtures/dnn'))
-    parser.add_argument('--structure-only', action='store_true',
+    weights = parser.add_mutually_exclusive_group()
+    weights.add_argument('--structure-only', action='store_true',
                         help='Phase 0 inventories; ineligible for correctness/performance')
+    weights.add_argument('--random-weights', action='store_true',
+                        help='seeded full-model performance export without checkpoint downloads')
+    parser.add_argument('--seed', type=int, default=20261007)
     parser.add_argument('--attention-mask', action='store_true')
     parser.add_argument('--nafnet-weights', type=Path, default=DEFAULT_NAFNET)
     parser.add_argument('--checkpoint', type=Path,
@@ -178,9 +197,12 @@ def main():
     args = parser.parse_args()
     if args.checkpoint and args.model == 'all':
         parser.error('--checkpoint requires a single model')
+    if args.checkpoint and args.random_weights:
+        parser.error('--random-weights cannot load a checkpoint')
     for name in MODELS if args.model == 'all' else (args.model,):
         export(name, args.out, args.fixtures, args.structure_only,
-               args.attention_mask and name == 'bert', args.nafnet_weights, args.checkpoint)
+               args.attention_mask and name == 'bert', args.nafnet_weights, args.checkpoint,
+               random_weights=args.random_weights, seed=args.seed)
 
 
 if __name__ == '__main__':

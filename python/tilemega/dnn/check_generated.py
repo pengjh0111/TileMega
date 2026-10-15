@@ -211,6 +211,13 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics
     else:
         tensors = load_weights(export_dir/'checkpoint', library, device='cuda')
     oracle = copy.deepcopy(module).float()
+    # Export captures BERT mask factory dtypes as literals rather than buffers.
+    # Promote those literals together with the stored BF16 parameters.
+    for node in oracle.graph.nodes:
+        promote = lambda value: torch.float32 if value is torch.bfloat16 else value
+        node.args = torch.utils._pytree.tree_map(promote, node.args)
+        node.kwargs = torch.utils._pytree.tree_map(promote, node.kwargs)
+    oracle.recompile()
     arguments = []
     image_input = False
     input_uses = {item['name']: [node for node in bridge['nodes']
