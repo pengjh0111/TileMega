@@ -103,3 +103,15 @@ bytes of one row; a 16 B load feeds two MMAs if A and B share a k permutation.
   litmus loop crashes the backend ("sync scope"), while the same code in
   isolation compiles: avoid that builtin, use `__threadfence()`.
 - L2 bandwidth was not measured validly (launch-bound); deferred to MX-C.
+- Strict aliasing (verified): TileMega puns BF16 arrays through `uint4`;
+  MACA's clang at -O3 dropped such stores (RMSNorm produced zeros/NaN), so all
+  device builds use `-fno-strict-aliasing`.
+- Resource report (verified): `cucc -Xcompiler -resource-usage` prints, per
+  kernel, the stack frame and "Used N MTregisters, M STregisters, S bytes
+  shared mem"; MT = per-thread vector registers. No separate spill counter.
+- MACA torch 2.10 (verified): a contiguous 4-D CPU tensor copied with
+  `.cuda()` comes back with channels-last-like strides; `torch.cat` of an empty
+  1-D tensor with a 4-D one raises (breaks transformers' DynamicCache; shimmed
+  in `hf_check`).
+- `mx-smi` may list a process only after its first allocation registers;
+  exclusivity is "no other owner and no unowned memory above baseline".
