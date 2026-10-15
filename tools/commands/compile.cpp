@@ -87,11 +87,15 @@ struct PreparedResidencyProbe {
 PreparedResidencyProbe prepareResidency(mlir::ModuleOp module,int kappa,
     tilemega::solver::CompilerSearchOptions const& options,
     std::filesystem::path const& directory,std::filesystem::path const&,
-    std::string const& runtime_flags) {
+    std::string const& runtime_flags,int min_free_mib) {
   std::filesystem::create_directories(directory);
   auto const free_mib=std::filesystem::space(directory).available/(1024*1024);
-  std::cerr << "DISK NEED_MIB=8192 FREE_MIB=" << free_mib << '\n';
-  if (free_mib<8192) throw std::runtime_error("insufficient disk for resource probe");
+  std::cerr << "DISK NEED_MIB=" << min_free_mib << " FREE_MIB=" << free_mib << '\n';
+  std::ofstream(directory/"disk_budget.json") << "{\"minimum_free_mib\":" << min_free_mib
+      << ",\"observed_free_mib\":" << free_mib
+      << ",\"serial_probes\":" << (min_free_mib<8192 ? "true" : "false") << "}\n";
+  if (free_mib<static_cast<std::uint64_t>(min_free_mib))
+    throw std::runtime_error("insufficient disk for resource probe");
   std::vector<tilemega::codegen::RuntimeVariantModule> variants{{module,1,
       static_cast<std::uint32_t>(options.placement.dims.seq)}};
   auto source=directory/"candidate.cu",probe=directory/"query.cu",binary=directory/"query";
@@ -154,21 +158,30 @@ int executeResidency(PreparedResidencyProbe const& prepared) {
 int queryResidency(mlir::ModuleOp module,int kappa,
     tilemega::solver::CompilerSearchOptions const& options,
     std::filesystem::path const& directory,std::filesystem::path const& library,
-    std::string const& runtime_flags) {
-  return executeResidency(prepareResidency(module,kappa,options,directory,library,runtime_flags));
+    std::string const& runtime_flags,int min_free_mib) {
+  return executeResidency(prepareResidency(module,kappa,options,directory,library,runtime_flags,min_free_mib));
 }
 
 std::vector<int> queryResidencies(
     std::vector<std::pair<mlir::ModuleOp,int>> const& probes,
     tilemega::solver::CompilerSearchOptions const& options,
     std::filesystem::path const& directory,std::filesystem::path const& library,
-    std::string const& runtime_flags) {
+    std::string const& runtime_flags,int min_free_mib) {
+  // A smaller explicit workspace reservation permits only one active compiler
+  // probe. Each probe still checks real free space and queries CUDA occupancy.
+  if(min_free_mib<8192) {
+    std::vector<int> result;
+    for(std::size_t i=0;i<probes.size();++i)
+      result.push_back(executeResidency(prepareResidency(probes[i].first,probes[i].second,
+          options,directory/std::to_string(i),library,runtime_flags,min_free_mib)));
+    return result;
+  }
   std::vector<PreparedResidencyProbe> prepared;
   prepared.reserve(probes.size());
   // LowerVariants uses MLIR and ISL state owned by the caller's thread.
   for(std::size_t i=0;i<probes.size();++i)
     prepared.push_back(prepareResidency(probes[i].first,probes[i].second,
-        options,directory/std::to_string(i),library,runtime_flags));
+        options,directory/std::to_string(i),library,runtime_flags,min_free_mib));
   std::vector<std::future<int>> running;
   running.reserve(prepared.size());
   for(auto const& job:prepared)
@@ -333,6 +346,7 @@ int RunCompile(int argc, char** argv) {
         serving_past_hi=1086,serving_kv_block=256,
         serving_query_rows=64,serving_argmax_tile_n=128;
     bool resource_probes=true;bool dump_evaluated=false;
+    int resource_probe_min_free_mib=8192;
     std::string solver_mode="skeleton",legacy_seed,variant_cache,flow_fixture;
     int skeleton_k=8,search_passes=3,search_jobs=1,search_top_m=8,
         search_budget_ms=0,measure_top=6;
@@ -494,12 +508,15 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--dump-cg") dump_cg=value;
       else if (flag=="--hop-curve") hop_path=value;
       else if (flag=="--resource-probes") resource_probes=std::stoi(value)!=0;
+      else if (flag=="--resource-probe-min-free-mib") resource_probe_min_free_mib=std::stoi(value);
       else if (flag=="--dump-evaluated") dump_evaluated=std::stoi(value)!=0;
       else if (flag=="--search-domain") domain_path=value;
       else if (flag=="--evaluate-configs") evaluation_cases_path=value;
       else if (flag=="--numerical-rejections") rejections_path=value;
       else throw std::runtime_error("unknown option: "+flag);
     }
+    if(resource_probe_min_free_mib<1024)
+      throw std::invalid_argument("--resource-probe-min-free-mib must be at least 1024; smaller reservations serialize probes");
     if(input.extension()==".pt2") {
       auto bridge=std::filesystem::absolute(std::string(argv[2])+".export.json");
       std::string python_path=std::string(TILEMEGA_SOURCE_DIR)+"/python";
@@ -1107,12 +1124,12 @@ int RunCompile(int argc, char** argv) {
       int probe_index=0;
       solve_options.keep_evaluated=dump_evaluated;
       if (resource_probes) solve_options.query_residency=[&](mlir::ModuleOp m,int kappa) {
-        return queryResidency(m,kappa,solve_options,resource_root/std::to_string(probe_index++),library,runtime_flags);
+        return queryResidency(m,kappa,solve_options,resource_root/std::to_string(probe_index++),library,runtime_flags,resource_probe_min_free_mib);
       };
       if(resource_probes && serving && solver_mode=="skeleton")
         solve_options.query_residencies=[&](std::vector<std::pair<mlir::ModuleOp,int>> const& probes) {
           return queryResidencies(probes,solve_options,
-              resource_root/std::to_string(probe_index++),library,runtime_flags);
+              resource_root/std::to_string(probe_index++),library,runtime_flags,resource_probe_min_free_mib);
         };
       if(serving) {
         auto const& coefficients=sync_policy=="calibrated"

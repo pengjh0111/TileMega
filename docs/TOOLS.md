@@ -203,3 +203,10 @@ WGMMA serialization warnings. A/B tensor maps use per-invocation boxes, with
 two shared slots and mbarriers; packed B uses bulk. Each slot is overwritten
 only after its WGMMA group completes. End-to-end acceptance and calibrated
 costs remain required before automatic defaults change.
+
+Resource probes reserve 8192 MiB of actual free disk by default. A bounded
+experiment may explicitly set `--resource-probe-min-free-mib 2048` (minimum
+1024); smaller reservations serialize compiler probes. Each probe records
+its selected reservation and observed free space in `disk_budget.json` and
+still runs the real CUDA occupancy query under the GPU guard. This changes
+workspace admission only; numerical and performance criteria stay fixed.
