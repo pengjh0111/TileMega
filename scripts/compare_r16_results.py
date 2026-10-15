@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import math
 from pathlib import Path
 import statistics
@@ -26,7 +27,7 @@ def positive(row, field):
 def compare(rows, family):
     rows = [row for row in rows if complete(row)]
     def is_native(row):
-        return row['system'].startswith(('tilemega', 'TM-'))
+        return row['system'].lower().startswith(('tilemega', 'tm-'))
     native = [row for row in rows if is_native(row)]
     baselines = [row for row in rows if not is_native(row)]
     output = []
@@ -87,18 +88,48 @@ def write(path, rows):
             writer.writerows(rows)
 
 
+def candidate_rows(report):
+    if report.get('evidence') != 'verified_independent_receipt_analysis':
+        raise ValueError('independent candidate receipt analysis required')
+    rows = []
+    for item in report['candidates']:
+        if not item['protocol_complete'] or item['fresh_processes'] != 3:
+            continue
+        if item['status'] != 'completed' or item.get('default_promoted') is not False:
+            raise ValueError('unexpected candidate completion or promotion state')
+        # Keep source, body candidate and execution coordinates in each arm;
+        # separately compiled implementations must not share a geometric mean.
+        arm = f"{item['source_head']}:{item['candidate']}:{item['executor']}:loop{item['device_loop']}"
+        rows.append(dict(model=item['model'], batch=item['batch'], system='TileMega',
+            candidate_id=item['candidate'], comparison_arm=arm, precision='bf16',
+            fresh_processes=3, protocol_complete=True, gpu=str(item['gpu']),
+            acceptance=item['acceptance'],
+            source_checkpoint_sha256=item['source_checkpoint_sha256'],
+            native_artifact_ids=json.dumps(item['native_artifact_ids'], sort_keys=True),
+            e2e_ms=item['e2e_seconds']*1000, ttft_ms=item['ttft_seconds']*1000,
+            tpot_ms=item['tpot_seconds']*1000, tokens_per_second=item['output_tokens_per_second']))
+    return rows
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--llm', type=Path)
     parser.add_argument('--dnn', type=Path)
+    parser.add_argument('--candidates', type=Path,
+                        help='independent collect_r16_candidates.py candidates.json')
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
+    if args.candidates and not args.llm:
+        parser.error('--candidates requires --llm')
     args.out.mkdir(parents=True, exist_ok=True)
     for family in ('llm', 'dnn'):
         source = getattr(args, family)
         if source is not None:
             with source.open() as stream:
-                rows = compare(list(csv.DictReader(stream)), family)
+                cells = list(csv.DictReader(stream))
+            if family == 'llm' and args.candidates:
+                cells.extend(candidate_rows(json.loads(args.candidates.read_text())))
+            rows = compare(cells, family)
             write(args.out / f'R16_{family}_ratios.csv', rows)
             write(args.out / f'R16_{family}_geomeans.csv', geomeans(rows, family))
             print(f'{family}: {len(rows)} matched comparisons; speedup >1 means faster TileMega')
