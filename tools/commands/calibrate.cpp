@@ -8,10 +8,13 @@
 // target's numbers -- run this on that hardware, or leave the file
 // uncalibrated.
 #include <tilemega/Target/Calibration.h>
+#include <tilemega/Target/HopperCalibration.h>
 #include <tilemega/Target/ArchDispatch.h>
 #include <tilemega/Target/TargetSpec.h>
 
 #include <exception>
+#include <fstream>
+#include <filesystem>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -31,6 +34,7 @@ int RunCalibrate(int argc, char** argv) {
   bool partial_combine_only = false;
   bool inflight_only = false;
   bool serving_bodies_only = false;
+  bool hopper_diagnostics = false;
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
     if (arg == "--device" && i + 1 < argc) options.device = std::stoi(argv[++i]);
@@ -39,6 +43,7 @@ int RunCalibrate(int argc, char** argv) {
     else if (arg == "--skip-streamk") options.skip_streamk = true;
     else if (arg == "--fp32-partial-combine-only") partial_combine_only = true;
     else if (arg == "--inflight") inflight_only = true;
+    else if (arg == "--hopper-diagnostics") hopper_diagnostics = true;
     else if (arg == "--task-bodies" && i + 1 < argc) {
       if (std::string(argv[++i]) != "serving") {
         std::cerr << "--task-bodies supports only serving\n";
@@ -59,6 +64,7 @@ int RunCalibrate(int argc, char** argv) {
           "                          [--inflight]  # BF16, requires --base\n"
           "                          [--task-bodies serving]  # BF16, requires --base\n"
           "                          [--combine-graph-batch N]\n"
+          "                          [--hopper-diagnostics]  # separate JSON/TSV diagnostics\n"
           "\n"
           "Measures the §4.4 cost-model constants on the GPU at --device and\n"
           "writes the target JSON to --out (stdout when omitted).\n"
@@ -96,6 +102,12 @@ int RunCalibrate(int argc, char** argv) {
     return 2;
   }
 
+  if(hopper_diagnostics && (output.empty() || options.repeats<1 ||
+      partial_combine_only || inflight_only || serving_bodies_only || options.skip_streamk)) {
+    std::cerr << "--hopper-diagnostics requires --out and positive repeats, excludes other sections\n";
+    return 2;
+  }
+
   try {
     auto const probed = tilemega::TargetSpec::Probe(options.device);
     auto target = base.empty() ? probed : tilemega::TargetSpec::FromJson(base);
@@ -107,6 +119,15 @@ int RunCalibrate(int argc, char** argv) {
     std::ostream& log =
         quiet ? static_cast<std::ostream&>(discard) : std::cerr;
     log << target.Summary() << '\n';
+    if(hopper_diagnostics) {
+      target.res=probed.res;target.caps=probed.caps;
+      std::ofstream raw(output+".tsv"),fragment(output+".pending");
+      if(!raw || !fragment)throw std::runtime_error("cannot open Hopper diagnostic evidence");
+      tilemega::calib::MeasureHopperDiagnostics(target,options,raw,fragment);
+      raw.close();fragment.close();
+      std::filesystem::rename(output+".pending",output);
+      return 0;
+    }
     if(inflight_only) {
       if(!target.CalibrationFor("bf16").calibrated)
         throw std::runtime_error("in-flight sweep requires the calibrated BF16 target");
