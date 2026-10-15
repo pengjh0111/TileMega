@@ -449,7 +449,11 @@ __device__ inline int ServingAttentionTaskCount(Params const& p,
   return p.dims.batch * int(stage.extent) * query_blocks * cache_blocks;
 }
 
+#if TILEMEGA_PREFILL_ATTENTION_WGMMA
+__device__ __forceinline__ void RunServingAttentionTask(Params const& p,
+#else
 __device__ inline void RunServingAttentionTask(Params const& p,
+#endif
                                                 StageDesc const& stage,
                                                 TaskSmem& smem, int task
 #if TILEMEGA_TRACE_TASK
@@ -492,6 +496,16 @@ __device__ inline void RunServingAttentionTask(Params const& p,
   if(p.serving_tensor_maps) {
     auto* maps=static_cast<executor::TensorMap const*>(p.serving_tensor_maps);
     inputs.key_tensor_map=maps+stage.operand[1];inputs.value_tensor_map=maps+stage.operand[2];
+  }
+#endif
+#if TILEMEGA_PREFILL_ATTENTION_TMA
+  if(p.prefill_tensor_maps && p.prefill_tensor_map_offsets) {
+    auto* maps=static_cast<executor::TensorMap const*>(p.prefill_tensor_maps);
+    auto offset=p.prefill_tensor_map_offsets[stage.operand[0]]+
+        (batch*int(stage.extent)+group)*(int(stage.group)+2);
+    inputs.query_tensor_maps=maps+offset;
+    inputs.key_tensor_map=maps+offset+stage.group;
+    inputs.value_tensor_map=maps+offset+stage.group+1;
   }
 #endif
   T_ServingAttention::Run(inputs, smem.serving_attention, batch, group,
@@ -3132,7 +3146,6 @@ inline DeviceModel Create(ModelSpec const& spec,
             static_cast<std::size_t>(chunk) * m * desc.n;
 #endif
 #if TILEMEGA_QKV_EPILOGUE
-      if(dims.seq!=1)throw std::invalid_argument("qkv epilogue only supports decode");
       for(unsigned stage_id=0;stage_id<spec.stage_count;++stage_id) {
         auto const& attention=spec.stages[stage_id];
         if(attention.kind!=TaskKind::kFusedAttention || attention.operand[0]!=desc.d)continue;
@@ -3142,7 +3155,7 @@ inline DeviceModel Create(ModelSpec const& spec,
         q.q_norm=attention.operand[5]==kNoOperand?nullptr:model.buffers.at(attention.operand[5]);
         q.k_norm=attention.operand[6]==kNoOperand?nullptr:model.buffers.at(attention.operand[6]);
         q.heads_kv=attention.extent;q.head_dim=attention.width;q.q_per_kv=attention.group;
-        q.capacity=dims.capacity;q.epsilon=TILEMEGA_NORM_EPSILON;
+        q.capacity=dims.capacity;q.sequence=dims.seq;q.epsilon=TILEMEGA_NORM_EPSILON;
         q.Validate(desc.n,tiling.tile_n,chunks,dims.seq);
       }
 #endif

@@ -62,7 +62,7 @@ struct Sm90Gmma {
 template<class Arch,int M,int N,int K>
 struct Sm90DecodeGmma {
   static_assert((M==8 || M==16) && N>=64 && N%64==0 && (K==64 || K==128),
-                "decode WGMMA requires M16, N multiple of 64 and K64/128");
+                "decode WGMMA requires M8/M16, N multiple of 64 and K64/128");
   using Gmma=Sm90Gmma<Arch>;
   using Mma=decltype(cute::make_tiled_mma(typename Gmma::template SS<M>{}));
   using Element=cutlass::bfloat16_t;

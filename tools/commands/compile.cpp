@@ -309,7 +309,7 @@ int RunCompile(int argc, char** argv) {
     std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
     std::string seed_arch="legacy",seed_target_arch;
     std::string forward_gemm_impl="mma16",prefill_attention_impl="mma16",encoder_attention_impl="mma16",conv_impl="cpasync",gemv_load="ldg",depthwise_impl="cpasync",dwpw_impl="mma16";
-    int qkv_epilogue=0;
+    int qkv_epilogue=0,attention_tma=0;
     std::string combine_impl="stage";
     int dependency_intern=0,cluster_dim=1,serving_residency=0,activation_tma=0,decode_tile_m=16;
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
@@ -409,6 +409,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--dwpw-impl") dwpw_impl=value;
       else if (flag=="--depthwise-impl") depthwise_impl=value;
       else if (flag=="--qkv-epilogue") qkv_epilogue=std::stoi(value);
+      else if (flag=="--attention-tma") attention_tma=std::stoi(value);
       else if (flag=="--prefill-attention-impl") prefill_attention_impl=value;
       else if (flag=="--encoder-attention-impl") encoder_attention_impl=value;
       else if (flag=="--pdl") pdl=value;
@@ -588,6 +589,11 @@ int RunCompile(int argc, char** argv) {
     if(prefill_attention_impl=="wgmma" && (!serving || serving_phase!="prefill" ||
         arch_paths!="auto" || pg_mode=="pages" || serving_query_rows%64))
       throw std::invalid_argument("prefill WGMMA attention requires native Hopper prefill and query rows divisible by 64");
+    if(attention_tma!=0 && attention_tma!=1)
+      throw std::invalid_argument("--attention-tma must be 0 or 1");
+    if(attention_tma && (prefill_attention_impl!="wgmma" || !qkv_epilogue))
+      throw std::invalid_argument("attention TMA requires prefill WGMMA and qkv-epilogue 1");
+    if(attention_tma)runtime_flags+=" -DTILEMEGA_PREFILL_ATTENTION_TMA=1";
     if(forward_gemm_impl!="mma16" && forward_gemm_impl!="wgmma")
       throw std::invalid_argument("--forward-gemm-impl must be mma16 or wgmma");
     if(forward_gemm_impl=="wgmma" && (arch_paths!="auto" || !serving ||
@@ -634,9 +640,11 @@ int RunCompile(int argc, char** argv) {
     if(moe_activation_bulk)runtime_flags+=" -DTILEMEGA_MOE_ACTIVATION_BULK=1";
     if(qkv_epilogue!=0 && qkv_epilogue!=1)
       throw std::invalid_argument("--qkv-epilogue must be 0 or 1");
-    if(qkv_epilogue && (!serving || serving_phase!="decode" || arch_paths!="auto" ||
-        (pg_mode!="l2" && pg_mode!="off") || attention_impl!="wgmma"))
-      throw std::invalid_argument("qkv epilogue requires native Hopper decode, explicit nonpaged l2/off and WGMMA attention");
+    if(qkv_epilogue && (!serving || arch_paths!="auto" ||
+        (pg_mode!="l2" && pg_mode!="off") ||
+        !((serving_phase=="decode" && attention_impl=="wgmma") ||
+          (serving_phase=="prefill" && prefill_attention_impl=="wgmma"))))
+      throw std::invalid_argument("qkv epilogue requires native Hopper decode/prefill, explicit nonpaged l2/off and WGMMA attention");
     if(qkv_epilogue)runtime_flags+=" -DTILEMEGA_QKV_EPILOGUE=1";
     if(dwpw_impl!="mma16" && dwpw_impl!="wgmma")
       throw std::invalid_argument("--dwpw-impl must be mma16 or wgmma");
@@ -707,6 +715,8 @@ int RunCompile(int argc, char** argv) {
         throw std::invalid_argument("requested cluster dimension exceeds target capability");
       if(activation_tma && (!target.caps.wgmma || !target.caps.tma || target.arch_tag!="sm_90"))
         throw std::invalid_argument("activation TMA requires a native Hopper target");
+      if(attention_tma && (!target.caps.wgmma || !target.caps.tma || target.arch_tag!="sm_90"))
+        throw std::invalid_argument("prefill attention TMA requires a native Hopper target");
       if(encoder_attention_impl=="wgmma" && !target.caps.wgmma)
         throw std::invalid_argument("encoder WGMMA requires a Hopper target");
       if(encoder_attention_impl=="wgmma")runtime_flags+=" -DTILEMEGA_ENCODER_ATTENTION_WGMMA=1";
@@ -870,6 +880,7 @@ int RunCompile(int argc, char** argv) {
           throw std::invalid_argument("depthwise TMA requires an active depthwise stage with its exact TMA workspace metadata");
       }
       if(activation_tma)candidate->setAttr("tmexec.activation_tma",mlir::BoolAttr::get(&context,true));
+      if(attention_tma)candidate->setAttr("tmexec.prefill_attention_tma",mlir::BoolAttr::get(&context,true));
       if(combine_impl=="cluster")candidate->setAttr("tmexec.cluster_combine",mlir::BoolAttr::get(&context,true));
       if(dependency_intern) {
         auto plan=candidate->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
@@ -1123,6 +1134,7 @@ int RunCompile(int argc, char** argv) {
         skeleton.activation_tma=activation_tma;
         skeleton.decode_tile_m=decode_tile_m;
         skeleton.prefill_attention_wgmma=prefill_attention_impl=="wgmma";
+        skeleton.prefill_attention_tma=attention_tma;
         skeleton.encoder_attention_wgmma=encoder_attention_impl=="wgmma";
         skeleton.handoff_auto=handoff_mode=="auto";
         skeleton.page_bytes=page_bytes;
@@ -1462,7 +1474,7 @@ int RunCompile(int argc, char** argv) {
               " --sync "+quote(sync_policy)+" --runtime-target "+quote(runtime_target)+
               " --arch-paths "+quote(arch_paths)+" --encoder-attention-impl "+quote(encoder_attention_impl)+" --prefill-attention-impl "+quote(prefill_attention_impl)+" --forward-gemm-impl "+quote(forward_gemm_impl)+" --conv-impl "+quote(conv_impl)+" --depthwise-impl "+quote(depthwise_impl)+" --dwpw-impl "+quote(dwpw_impl)+" --moe-activation-bulk "+std::to_string(moe_activation_bulk)+
               " --decode-tile-m "+std::to_string(decode_tile_m)+" --activation-tma "+std::to_string(activation_tma)+" --dependency-intern "+std::to_string(dependency_intern)+" --cluster-dim "+std::to_string(cluster_dim)+" --combine "+quote(combine_impl)+
-              (serving_residency?" --residency "+std::to_string(serving_residency):std::string())+" --gemv-load "+quote(gemv_load)+" --qkv-epilogue "+std::to_string(qkv_epilogue)+" --pdl "+quote(pdl)+
+              (serving_residency?" --residency "+std::to_string(serving_residency):std::string())+" --gemv-load "+quote(gemv_load)+" --qkv-epilogue "+std::to_string(qkv_epilogue)+" --attention-tma "+std::to_string(attention_tma)+" --pdl "+quote(pdl)+
               " --pg "+quote(pg_mode)+" --page-bytes "+std::to_string(candidate_page_bytes)+
               " --weight-layout "+quote(weight_layout)+
               " --nonpaged-weight-layout "+quote(nonpaged_weight_layout)+
@@ -2240,6 +2252,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"dwpw_impl\": "<<std::quoted(dwpw_impl)
               <<",\n  \"gemv_load\": "<<std::quoted(gemv_load)
               <<",\n  \"qkv_epilogue\": "<<qkv_epilogue
+              <<",\n  \"attention_tma\": "<<attention_tma
               <<",\n  \"dependency_intern\": "<<dependency_intern
               <<",\n  \"decode_tile_m\": "<<decode_tile_m
               <<",\n  \"activation_tma\": "<<activation_tma

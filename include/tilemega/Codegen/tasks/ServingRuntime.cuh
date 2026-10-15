@@ -56,6 +56,9 @@ struct Plan {
   bool pdl = false;
   unsigned loop_modes = 0;
   executor::TensorMap* tensor_maps = nullptr;
+#if TILEMEGA_PREFILL_ATTENTION_TMA
+  std::uint32_t* prefill_map_offsets=nullptr;
+#endif
   LagDependency* lag_dependencies = nullptr;
   PageTraceRecord* page_trace = nullptr;
 #if TILEMEGA_TRACE_TASK
@@ -194,7 +197,7 @@ inline bool DwPwWgmmaVariant(int index) {
 }
 #endif
 inline void CreateTensorMaps(Plan& plan,ModelSpec const& spec,TargetSpec const& target) {
-#if TILEMEGA_PAGED || TILEMEGA_ATTENTION_IMPL==4 || TILEMEGA_FORWARD_GEMM_WGMMA || TILEMEGA_ENCODER_ATTENTION_WGMMA || TILEMEGA_DEPTHWISE_TMA || TILEMEGA_DWPW_WGMMA
+#if TILEMEGA_PAGED || TILEMEGA_ATTENTION_IMPL==4 || TILEMEGA_FORWARD_GEMM_WGMMA || TILEMEGA_ENCODER_ATTENTION_WGMMA || TILEMEGA_DEPTHWISE_TMA || TILEMEGA_DWPW_WGMMA || TILEMEGA_PREFILL_ATTENTION_TMA
   if(!target.caps.tma || TILEMEGA_ARCH_PATH_SM80)return;
   unsigned encoder_heads=0,encoder_map_count=0;
 #if TILEMEGA_ENCODER_ATTENTION_WGMMA
@@ -329,9 +332,47 @@ inline void CreateTensorMaps(Plan& plan,ModelSpec const& spec,TargetSpec const& 
   }
   if(!has_dwpw_wgmma)throw std::invalid_argument("DW/PW WGMMA requires an active eligible fused projection");
 #endif
+#if TILEMEGA_PREFILL_ATTENTION_TMA
+  unsigned prefill_offset=maps.size();
+  std::vector<std::uint32_t> prefill_offsets(spec.buffer_count,~std::uint32_t(0));
+  auto dims=plan.model.params.dims;
+  for(unsigned i=0;i<spec.stage_count;++i) {
+    auto const& s=spec.stages[i];if(s.kind!=TaskKind::kFusedAttention)continue;
+    if(dims.seq<=1 || dims.past+dims.seq>dims.capacity || s.group<1 || s.group>8 ||
+        (s.width!=64 && s.width!=128) || s.attention_kv_block<dims.capacity)
+      throw std::invalid_argument("prefill TMA maps require complete preprocessed QKV and a single KV chunk");
+    if(prefill_offsets.at(s.operand[0])!=~std::uint32_t(0))
+      throw std::invalid_argument("prefill TMA QKV buffer has multiple attention consumers");
+    prefill_offsets[s.operand[0]]=maps.size()-prefill_offset;
+    auto append=[&](void* address,executor::TensorMapShape shape) {
+      maps.emplace_back();auto status=executor::EncodeTensorMap(maps.back(),address,shape);
+      if(status!=CUDA_SUCCESS)throw std::invalid_argument("prefill attention tensor map encoding failed: "+std::to_string(int(status)));
+    };
+    unsigned columns=s.extent*(s.group+2)*s.width;
+    for(int batch=0;batch<dims.batch;++batch)for(unsigned group=0;group<s.extent;++group) {
+      for(unsigned head=0;head<s.group;++head) {
+        auto offset=std::size_t(batch)*dims.seq*columns+(group*(s.group+2)+head)*s.width;
+        append(plan.model.buffers.at(s.operand[0])+offset,
+            {s.width,std::uint64_t(dims.seq),std::uint64_t(columns)*2,64,
+             unsigned(ServingPrefillQueryMapRows(s.group))});
+      }
+      auto offset=(std::size_t(batch)*s.extent+group)*dims.capacity*s.width;
+      for(unsigned operand:{1u,2u})append(plan.model.buffers.at(s.operand[operand])+offset,
+          {s.width,std::uint64_t(dims.capacity),std::uint64_t(s.width)*2,64,64});
+    }
+  }
+  if(maps.size()==prefill_offset)throw std::invalid_argument("prefill TMA has no attention stage");
+  TILEMEGA_CUDA_CHECK(cudaMalloc(&plan.prefill_map_offsets,prefill_offsets.size()*sizeof(prefill_offsets[0])));
+  TILEMEGA_CUDA_CHECK(cudaMemcpy(plan.prefill_map_offsets,prefill_offsets.data(),
+      prefill_offsets.size()*sizeof(prefill_offsets[0]),cudaMemcpyHostToDevice));
+#endif
   TILEMEGA_CUDA_CHECK(cudaMalloc(&plan.tensor_maps,maps.size()*sizeof(maps[0])));
   TILEMEGA_CUDA_CHECK(cudaMemcpy(plan.tensor_maps,maps.data(),maps.size()*sizeof(maps[0]),cudaMemcpyHostToDevice));
   plan.model.params.serving_tensor_maps=plan.tensor_maps;
+#if TILEMEGA_PREFILL_ATTENTION_TMA
+  plan.model.params.prefill_tensor_maps=plan.tensor_maps+prefill_offset;
+  plan.model.params.prefill_tensor_map_offsets=plan.prefill_map_offsets;
+#endif
 #if TILEMEGA_DEPTHWISE_TMA
   plan.model.params.depthwise_tensor_maps=plan.tensor_maps+depthwise_offset;
 #endif
@@ -405,6 +446,9 @@ inline void Destroy(Plan* plan) {
   if (plan->ring) cudaFree(plan->ring);
   if (plan->step_ns) cudaFree(plan->step_ns);
   if (plan->tensor_maps) cudaFree(plan->tensor_maps);
+#if TILEMEGA_PREFILL_ATTENTION_TMA
+  if(plan->prefill_map_offsets)cudaFree(plan->prefill_map_offsets);
+#endif
   if (plan->lag_dependencies) cudaFree(plan->lag_dependencies);
   if (plan->watchdog) cudaFreeHost(plan->watchdog);
   auto& model = plan->model;

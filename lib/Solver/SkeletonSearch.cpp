@@ -347,6 +347,7 @@ struct SearchContext {
   std::string Key(std::vector<GemmConfig> const& config,int kappa,int residency) const {
     auto key=ConfigKey(config,kappa,residency);
     if(options.activation_tma)key+=";activation_tma=1";
+    if(options.prefill_attention_tma)key+=";prefill_attention_tma=1";
     if(ServingRuntimePlan())key+=";Ec="+std::to_string(attention_kv_block)+
         ";Rq="+std::to_string(attention_query_rows);
     if(options.pg_pages)key+=";page_bytes="+std::to_string(current_page_bytes)+
@@ -381,7 +382,8 @@ struct SearchContext {
           }
       if(options.prefill_attention_wgmma)for(auto const& stage:imported.plan.stages)
         if(stage.kind==frontend::PlanTaskKind::kFusedAttention)
-          gemm_shared=std::max(gemm_shared,codegen::ServingPrefillWgmmaSharedBytes(stage.width));
+          gemm_shared=std::max(gemm_shared,codegen::ServingPrefillWgmmaSharedBytes(
+              stage.width,stage.group,options.prefill_attention_tma));
       if(options.encoder_attention_wgmma)gemm_shared=std::max(gemm_shared,codegen::Sm90EncoderAttentionSharedBytes());
       estimate.shared_bytes=gemm_shared;
       estimate.resident_limit=options.pg_pages?1:VariantResourceCache::ResidentLimit(estimate,target);
@@ -561,7 +563,8 @@ struct SearchContext {
         point.problem,*floor,target,residency,options.common.placement.hop,
         cache,flow_cache,true,estimate.shared_bytes,prior,prior?&reusable:nullptr,
         &bound->second,options.pg_pages,current_page_bytes,
-        options.moe_routing_profile.get(),options.moe_profile_layer,options.prefill_attention_wgmma,options.encoder_attention_wgmma);}
+        options.moe_routing_profile.get(),options.moe_profile_layer,options.prefill_attention_wgmma,
+        options.encoder_attention_wgmma,options.prefill_attention_tma);}
     if(options.moe_routing_profile && point.module) {
       bool inferred=false;
       for(auto const& price:point.flow->prices)inferred|=price.inferred_empty_cost;

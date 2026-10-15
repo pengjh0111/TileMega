@@ -12,6 +12,10 @@
 #include <cmath>
 #include <cstdint>
 
+#ifndef TILEMEGA_PREFILL_ATTENTION_TMA
+#define TILEMEGA_PREFILL_ATTENTION_TMA 0
+#endif
+
 namespace tilemega::codegen {
 
 using codegen::executor::ComputeThread;
@@ -32,6 +36,9 @@ struct ServingAttentionOperands {
   float epsilon;
   void const* key_tensor_map = nullptr;
   void const* value_tensor_map = nullptr;
+#if TILEMEGA_PREFILL_ATTENTION_TMA
+  void const* query_tensor_maps=nullptr;
+#endif
 #if TILEMEGA_QKV_EPILOGUE
   bool qkv_preprocessed=false;
 #endif

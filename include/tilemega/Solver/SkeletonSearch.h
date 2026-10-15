@@ -40,6 +40,7 @@ struct SkeletonSearchOptions {
   int attention_buffers=2;
   bool attention_wgmma=false;
   bool prefill_attention_wgmma=false;
+  bool prefill_attention_tma=false;
   bool encoder_attention_wgmma=false;
   bool forward_wgmma=false;
   bool conv_tma_im2col=false;

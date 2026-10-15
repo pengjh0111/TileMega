@@ -839,6 +839,10 @@ struct Params {
 #endif
   // Descriptor storage is allocated once per plan, outside the Params ring.
   void const* serving_tensor_maps = nullptr;
+#if TILEMEGA_PREFILL_ATTENTION_TMA
+  void const* prefill_tensor_maps=nullptr;
+  std::uint32_t const* prefill_tensor_map_offsets=nullptr;
+#endif
 #if TILEMEGA_DEPTHWISE_TMA
   void const* depthwise_tensor_maps = nullptr;
 #endif

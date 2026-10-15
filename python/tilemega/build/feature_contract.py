@@ -3,6 +3,7 @@ import re
 
 
 INTEGER_FEATURES = {
+    'attention_tma': ('TILEMEGA_PREFILL_ATTENTION_TMA', 0),
     'decode_tile_m': ('TILEMEGA_DECODE_TILE_M', 16),
     'activation_tma': ('TILEMEGA_ACTIVATION_TMA', 0),
     'requested_residency': ('TILEMEGA_SERVING_RESIDENCY_REQUEST', 0),

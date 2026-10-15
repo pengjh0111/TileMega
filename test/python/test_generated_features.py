@@ -167,6 +167,10 @@ class GeneratedFeatureTests(unittest.TestCase):
                     (0, 200) if feature == 'v3_poll_ns' else (0, 31) if feature == 'kphase_mask' else (0, 1))
                 for value in values:
                     with self.subTest(family=family, feature=feature, value=value):
+                        if feature == 'attention_tma' and value == 1:
+                            self.generate(family,feature+str(value),['--attention-tma','1'],
+                                'attention TMA requires prefill WGMMA and qkv-epilogue 1')
+                            continue
                         if feature == 'activation_tma' and value == 1:
                             message = ('activation TMA requires a native Hopper target' if family == 'llm'
                                        else 'activation TMA currently requires native nonpaged Hopper decode')
@@ -249,6 +253,21 @@ class GeneratedFeatureTests(unittest.TestCase):
         self.generate('llm','reject_dependency_intern',['--dependency-intern','1'],
             'dependency interning requires a DM model plan',target=ROOT/'configs/targets/sm_90_h800.json')
         receipt['pass']=True
+
+    def test_prefill_tma_rejects_missing_preconditions(self):
+        if 'attention_tma' not in INTEGER_FEATURES:
+            self.skipTest('compiler snapshot predates prefill TMA')
+        target=ROOT/'configs/targets/sm_90_h800.json'
+        flags=['--serving','prefill','--pg','off','--seed-arch','native',
+               '--prefill-attention-impl','wgmma','--qkv-epilogue','1',
+               '--attention-tma','1','--deferred-norm','0',
+               '--nonpaged-weight-layout','tiled','--resource-probes','0']
+        self.generate('llm','reject_prefill_tma_qkv',flags+['--qkv-epilogue','0'],
+            'attention TMA requires prefill WGMMA and qkv-epilogue 1',target=target)
+        self.generate('llm','reject_prefill_tma_mma',flags+['--prefill-attention-impl','mma16'],
+            'attention TMA requires prefill WGMMA and qkv-epilogue 1',target=target)
+        self.generate('llm','reject_prefill_tma_value',flags+['--attention-tma','2'],
+            '--attention-tma must be 0 or 1',target=target)
 
     def test_explicit_native_residency_uses_the_public_coordinate(self):
         if 'requested_residency' not in INTEGER_FEATURES:

@@ -17,14 +17,16 @@ struct QkvEpilogueDesc {
   Element const* k_norm=nullptr;
   int heads_kv=0,head_dim=0,q_per_kv=0,capacity=0;
   float epsilon=0;
+  int sequence=1;
   bool Enabled() const {return key_cache!=nullptr;}
   void Validate(int columns,int tile_columns,int chunks,int sequence) const {
     if(!Enabled())return;
     if(!value_cache || !cosine || !sine || (bool(q_norm)!=bool(k_norm)) ||
        heads_kv<=0 || (head_dim!=64 && head_dim!=128) || q_per_kv<1 || q_per_kv>8 ||
        capacity<=0 || columns!=heads_kv*(q_per_kv+2)*head_dim ||
-       tile_columns<=0 || tile_columns%head_dim || chunks!=1 || sequence!=1)
-      throw std::invalid_argument("qkv epilogue requires unsplit decode, complete aligned heads and exact QKV/cache geometry");
+       tile_columns<=0 || tile_columns%head_dim || chunks!=1 || sequence<1 ||
+       sequence>capacity || sequence!=this->sequence)
+      throw std::invalid_argument("qkv epilogue requires unsplit complete aligned heads and exact QKV/cache geometry");
   }
 };
 
@@ -43,15 +45,16 @@ struct ServingQkvEpilogue {
       int row=tile_m*tile_rows+item/heads,head=tile_n*heads+item%heads;
       if(row>=rows || head>=columns/D)continue;
       int group=head/(p.q_per_kv+2),kind=head%(p.q_per_kv+2);
+      int batch=row/p.sequence,position=past+row%p.sequence;
       auto* source=qkv+std::size_t(row)*columns+head*D;
-      auto offset=((std::size_t(row)*p.heads_kv+group)*p.capacity+past)*D;
+      auto offset=((std::size_t(batch)*p.heads_kv+group)*p.capacity+position)*D;
       if(kind<p.q_per_kv) {
         // The existing epilogue already rounded the complete head to BF16.
         // One warp owns it; all source/partner loads precede in-place stores.
-        Base::RotateRow(source,p.q_norm,p.cosine+past*D,p.sine+past*D,p.epsilon,
+        Base::RotateRow(source,p.q_norm,p.cosine+position*D,p.sine+position*D,p.epsilon,
             [&](int d,uint4 value){backend::StoreGlobal16(source+d,value);});
       }else if(kind==p.q_per_kv) {
-        Base::RotateRow(source,p.k_norm,p.cosine+past*D,p.sine+past*D,p.epsilon,
+        Base::RotateRow(source,p.k_norm,p.cosine+position*D,p.sine+position*D,p.epsilon,
             [&](int d,uint4 value){backend::StoreGlobal16(p.key_cache+offset+d,value);});
       }else if(lane*8<D) {
         backend::StoreGlobal16(p.value_cache+offset+lane*8,backend::LoadGlobal16(source+lane*8));
@@ -62,7 +65,8 @@ struct ServingQkvEpilogue {
   __device__ static __forceinline__ void Run(QkvEpilogueDesc const& p,Element* qkv,
       int rows,int columns,int tile_m,int tile_n,int tile_rows,int tile_columns,int past) {
     if(!p.key_cache)return;
-    if((p.head_dim!=64 && p.head_dim!=128) || past<0 || past>=p.capacity || tile_columns%p.head_dim){asm volatile("trap;");return;}
+    if((p.head_dim!=64 && p.head_dim!=128) || p.sequence<1 || past<0 ||
+       past+p.sequence>p.capacity || tile_columns%p.head_dim){asm volatile("trap;");return;}
 #if defined(TILEMEGA_SERVING_HEAD_DIM) && defined(TILEMEGA_SERVING_QK_NORM)
     // A compiled decoder has one head geometry. Avoid keeping four runtime
     // norm/dimension branches live alongside the megakernel's MMA state.

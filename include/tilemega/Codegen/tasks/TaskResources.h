@@ -49,8 +49,14 @@ constexpr int SimtSharedElements(TaskKind kind, int threads, int attention_exten
 constexpr int ServingAttentionSharedBytes(int head_dim, int kv_tile = 64) {
   return (32 + (8 * kv_tile > 256 ? 8 * kv_tile : 256)) * head_dim + 704;
 }
-constexpr int ServingPrefillWgmmaSharedBytes(int head_dim) {
-  return ((384*head_dim+16384+768+1023)/1024)*1024;
+constexpr int ServingPrefillQueryMapRows(int q) {
+  int needed=64%q==0?64/q:(64+2*q-2)/q,rows=1;
+  while(rows<needed)rows*=2;
+  return rows;
+}
+constexpr int ServingPrefillWgmmaSharedBytes(int head_dim,int q=1,bool tma=false) {
+  int operands=tma?(640+2*q*ServingPrefillQueryMapRows(q))*head_dim:384*head_dim;
+  return ((operands+16384+768+(tma?32:0)+1023)/1024)*1024;
 }
 constexpr int ServingAttentionKvTile(int head_dim, int gemm_shared_bytes) {
   return ServingAttentionSharedBytes(head_dim, 64) <= gemm_shared_bytes ? 64 : 32;
