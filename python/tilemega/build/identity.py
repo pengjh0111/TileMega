@@ -161,6 +161,8 @@ def generate(so, root, source_snapshot):
     version=subprocess.check_output([nvcc,'--version'],text=True).strip()
     arch=next((x.split('=',1)[1] for x in options if x.startswith('-arch=')),None)
     if arch is None and '-arch' in options:arch=options[options.index('-arch')+1]
+    # cucc builds carry no -arch; the plan targets the branch's only architecture.
+    if arch is None:arch='xcore1000'
     resources_path=Path(str(so)+'.ptxas.log')
     resources=parse_resources(resources_path.read_text())
     if not resources or any('registers' not in row for row in resources.values()):
