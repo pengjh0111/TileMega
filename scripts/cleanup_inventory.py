@@ -100,7 +100,8 @@ def collect(root, out):
     # These clones historically contain project work even when not registered
     # in the main repository's worktree metadata.
     for parent in (Path('/root/r10_work'), Path('/root/r11_work'), Path('/root/r12_work'),
-                   Path('/root/r13_work'), Path('/root/r14_work'), Path('/root/dm1_work')):
+                   Path('/root/r12c_work'), Path('/root/r13_work'), Path('/root/r14_work'),
+                   Path('/root/r15_work'), Path('/root/dm1_work')):
         if parent.exists():
             add(parent, 'D')
             for marker in parent.glob('*/.git'):
