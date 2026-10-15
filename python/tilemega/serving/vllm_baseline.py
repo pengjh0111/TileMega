@@ -1,177 +1,34 @@
 """Independent vLLM baseline over frozen token IDs; imports no TileMega code."""
-from __future__ import annotations
-
-import argparse
-import json
-import os
-import statistics
-import subprocess
-import time
-import sys
-from pathlib import Path
+from baseline_common import arguments, guarded_main, measure, require_guard
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--model", type=Path, required=True)
-    parser.add_argument("--prompt-ids", type=Path, required=True)
-    parser.add_argument("--batch", choices=("1", "2", "4", "8", "16", "all"), default="all")
-    parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--max-tokens", type=int, default=1024)
-    parser.add_argument("--policy", type=Path)
-    parser.add_argument("--warmup", type=int, default=1)
-    parser.add_argument("--repeats", type=int, default=3)
-    args = parser.parse_args()
-    # This helper imports only the standard library; the vLLM environment
-    # never imports tilemega or its torch-dependent serving engine.
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from measurement_policy import TimingPolicy
-    policy = TimingPolicy(args.policy)
-    from vllm import LLM, SamplingParams, __version__ as vllm_version
-    from vllm.inputs import TokensPrompt
-
-    ids = json.loads(args.prompt_ids.read_text())
-    from workload import validate_prompt_ids
-    batch_limit = 16 if args.batch == 'all' else int(args.batch)
-    prompt_len = validate_prompt_ids(ids, batch_limit)
-    if args.max_tokens < 1:
-        raise ValueError('max-tokens must be positive')
+def main():
+    args, ids = arguments("vllm")
+    require_guard()
+    from vllm import LLM, SamplingParams
+    llm = LLM(model=str(args.model), dtype="bfloat16", kv_cache_dtype="auto",
+              load_format=args.load_format, skip_tokenizer_init=True,
+              max_model_len=max(2048, len(ids[0])+args.max_tokens), max_num_seqs=16,
+              max_num_batched_tokens=2048, gpu_memory_utilization=0.85,
+              enable_prefix_caching=False, enforce_eager=False, seed=0)
+    config = {"dtype": "bfloat16", "kv_cache_dtype": "bfloat16 (auto follows model)",
+              "prefix_caching": False, "speculative_decoding": False,
+              "cuda_graph": "V1 default compilation config", "seed": 0,
+              "attention_backend": "resolved by vLLM; see engine stdout"}
     try:
-        llm = LLM(
-            model=str(args.model), dtype="bfloat16", max_model_len=max(2048, prompt_len+args.max_tokens),
-            max_num_seqs=16, max_num_batched_tokens=2048,
-            gpu_memory_utilization=0.85, enable_prefix_caching=False,
-            enforce_eager=False, seed=0,
-        )
-    except BaseException:
-        # Use only standard-library NVML queries: engine initialization may
-        # fail before vLLM has exposed a usable object.
-        if _external_allocation():
-            raise SystemExit(75)
-        raise
-    batches = (1, 2, 4, 8, 16) if args.batch == "all" else (int(args.batch),)
-    for batch in batches:
-        out = args.out / f"B{batch}"
-        out.mkdir(parents=True, exist_ok=True)
-        prompts = [TokensPrompt(prompt_token_ids=row) for row in ids[:batch]]
-        rows = []
-        guard_path = out / "guard.jsonl"
-        for count in (args.max_tokens, 1):
-            sampling = SamplingParams(
-                temperature=0.0, max_tokens=count, ignore_eos=True,
-                detokenize=False,
-            )
-            for run in range(args.warmup + args.repeats):
-                for attempt in range(3):
-                    if policy.options.get("guard", True) and not _wait_for_exclusive_gpu(
-                            guard_path, f"N{count}-run{run}-before"):
-                        raise SystemExit(75)
-                    if not policy.observe(guard_path, f"N{count}-run{run}-attempt{attempt}-before"):
-                        continue
-                    start = time.perf_counter()
-                    result = llm.generate(prompts, sampling, use_tqdm=False)
-                    elapsed = time.perf_counter() - start
-                    exclusive = not policy.options.get("guard", True) or _wait_for_exclusive_gpu(
-                        guard_path, f"N{count}-run{run}-after", fail_fast=True)
-                    power_ok = policy.observe(guard_path, f"N{count}-run{run}-attempt{attempt}-after")
-                    if exclusive and power_ok:
-                        break
-                else:
-                    raise SystemExit(75)
-                if any(list(x.prompt_token_ids) != ids[i] for i, x in enumerate(result)):
-                    raise AssertionError("vLLM output order does not match the frozen prompts")
-                tokens = [list(x.outputs[0].token_ids) for x in result]
-                if len(tokens) != batch or any(len(row) != count for row in tokens):
-                    raise AssertionError("vLLM did not generate the requested tokens")
-                token_file = f"tokens_N{count}_run{run}.json"
-                row = {"N": count, "run": run, "warmup": run < args.warmup,
-                       "wall_seconds": elapsed, "tokens_file": token_file}
-                rows.append(row)
-                (out / token_file).write_text(
-                    json.dumps(tokens, separators=(",", ":")) + "\n")
-        timed = lambda n: [r["wall_seconds"] for r in rows if r["N"] == n and not r["warmup"]]
-        e2e = statistics.median(timed(args.max_tokens))
-        ttft = statistics.median(timed(1))
-        summary = {
-            "model": str(args.model), "batch": batch,
-            "vllm_version": vllm_version, "max_tokens": args.max_tokens,
-            "e2e_seconds": e2e, "ttft_seconds": ttft,
-            "tpot_seconds": (e2e - ttft) / (args.max_tokens - 1),
-            "output_tokens_per_second": batch * args.max_tokens / e2e,
-            "generation_runs": rows,
-            "measurement_policy": policy.options,
-        }
-        (out / "measurements.json").write_text(json.dumps(summary, indent=2) + "\n")
-        print(json.dumps({k: v for k, v in summary.items() if k != "generation_runs"}))
+        engine_config = llm.llm_engine.vllm_config
+        config["engine_config"] = str(engine_config)
+    except AttributeError:
+        pass
 
-
-def _external_allocation():
-    index = os.environ.get("TILEMEGA_DEVICE_INDEX", "0")
-    apps = subprocess.check_output(["nvidia-smi", "-i", index,
-        "--query-compute-apps=pid,used_memory", "--format=csv,noheader,nounits"], text=True)
-    owners = {}
-    for line in apps.splitlines():
-        try:
-            pid, memory = map(int, line.split(",")); owners[pid] = memory
-        except ValueError:
-            continue
-    own = {os.getpid()}
-    while True:
-        added = set()
-        for path in Path("/proc").glob("[0-9]*/stat"):
-            try:
-                if int(path.read_text().rsplit(")", 1)[1].split()[1]) in own:
-                    added.add(int(path.parent.name))
-            except (OSError, ValueError, IndexError):
-                continue
-        if added <= own: break
-        own.update(added)
-    used = int(subprocess.check_output(["nvidia-smi", "-i", index,
-        "--query-gpu=memory.used", "--format=csv,noheader,nounits"], text=True).splitlines()[0])
-    return bool(set(owners) - own) or used - sum(owners.values()) > 1024
-
-
-def _wait_for_exclusive_gpu(path: Path, label: str, fail_fast: bool = False) -> bool:
-    deadline = time.monotonic() if fail_fast else time.monotonic() + 30 * 60
-    while True:
-        output = subprocess.check_output(
-            ["nvidia-smi", "-i", os.environ.get("TILEMEGA_DEVICE_INDEX", "0"), "--query-compute-apps=pid,process_name,used_memory",
-             "--format=csv,noheader,nounits"], text=True)
-        rows = [line.split(",") for line in output.splitlines() if line.strip()]
-        pids = {int(row[0].strip()) for row in rows}
-        visible_mib = sum(int(row[-1].strip()) for row in rows)
-        used_mib = int(subprocess.check_output(
-            ["nvidia-smi", "-i", os.environ.get("TILEMEGA_DEVICE_INDEX", "0"), "--query-gpu=memory.used",
-             "--format=csv,noheader,nounits"], text=True).splitlines()[0].strip())
-        hidden_mib = max(0, used_mib - visible_mib)
-        # vLLM runs its GPU engine in a child process; that process is part of
-        # this measurement, whereas another user's PID invalidates the run.
-        own = {os.getpid()}
-        while True:
-            descendants = set()
-            for entry in Path("/proc").iterdir():
-                if not entry.name.isdigit():
-                    continue
-                try:
-                    stat = (entry / "stat").read_text().split()
-                    if int(stat[3]) in own:
-                        descendants.add(int(entry.name))
-                except (OSError, ValueError):
-                    continue
-            if descendants <= own:
-                break
-            own.update(descendants)
-        exclusive = bool(pids) and pids <= own and hidden_mib <= 256
-        with path.open("a") as stream:
-            stream.write(json.dumps({"label": label, "pids": sorted(pids),
-                                     "visible_mib": visible_mib,
-                                     "used_mib": used_mib,
-                                     "hidden_mib": hidden_mib,
-                                     "exclusive": exclusive, "time": time.time()}) + "\n")
-        if exclusive or time.monotonic() >= deadline:
-            return exclusive
-        time.sleep(10)
+    def generate(rows, count):
+        result = llm.generate([{"prompt_token_ids": row} for row in rows],
+            SamplingParams(temperature=0, max_tokens=count, ignore_eos=True, detokenize=False), use_tqdm=False)
+        if len(result) != len(rows) or any(list(item.prompt_token_ids) != rows[i] for i, item in enumerate(result)):
+            raise AssertionError("vLLM output prompt order changed")
+        return [list(item.outputs[0].token_ids) for item in result]
+    measure(args, ids, "vllm", generate, config)
 
 
 if __name__ == "__main__":
-    main()
+    guarded_main(main)
