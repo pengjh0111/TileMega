@@ -50,7 +50,7 @@ namespace {
 using tilemega::TargetSpec;
 using namespace tilemega::solver;
 
-char const* const kTags[] = {"sm_80", "sm_89", "sm_90", "sm_100", "sm_120"};
+char const* const kTags[] = {"xcore1000"};
 
 int failures = 0;
 void Fail(std::string const& tag, std::string const& what) {
@@ -80,6 +80,7 @@ void CollectKeys(tilemega::json::Value const& value, std::string const& path,
 TargetSpec FullyPopulated() {
   TargetSpec spec;
   spec.arch_tag = "schema";
+  spec.device_name = "schema";
   spec.calib.l2_curve_bytes = {1.0};
   spec.calib.l2_curve_gbps = {1.0};
   spec.calib.smem_occupancy_ctas = {1.0};
@@ -300,13 +301,12 @@ void CheckCross(std::string const& tag, TargetSpec const& spec,
         << "__global__ void probe(int* o) { *o = "
            "tilemega::arch::Caps<tilemega::arch::CurrentArch>::kMaxClusterSize; }\n";
   }
-  std::string const command = nvcc + " -std=c++17 -arch=" + tag + " -cubin " +
-                              source + " -I" + repo + "/include -I" + repo +
-                              "/third_party/cutlass/include -o /dev/null "
-                              "> /tmp/tilemega_audit_" + tag + ".log 2>&1";
+  // cucc compiles for the probed MetaX ISA; no CUTLASS header is on the path.
+  std::string const command = nvcc + " -std=c++17 -c " + source + " -I" + repo +
+                              "/include -o /dev/null > /tmp/tilemega_audit_" + tag + ".log 2>&1";
   int const rc = std::system(command.c_str());
-  if (rc != 0) Fail(tag, "CROSS device compile for -arch=" + tag + " failed");
-  std::printf("%-7s CROSS  stages=%d nvcc=%s\n", tag.c_str(), stages,
+  if (rc != 0) Fail(tag, "CROSS device compile for " + tag + " failed");
+  std::printf("%-7s CROSS  stages=%d cucc=%s\n", tag.c_str(), stages,
               rc == 0 ? "ok" : "FAILED");
   std::remove(source.c_str());
 }
