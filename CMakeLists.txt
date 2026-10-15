@@ -1420,6 +1420,9 @@ add_test(NAME build_feature_contract
   COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
     ${Python3_EXECUTABLE} -m unittest discover
     -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_feature_contract.py)
+add_test(NAME native_argument_contract
+  COMMAND ${Python3_EXECUTABLE} -m unittest discover
+    -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_r16_argument_contract.py)
 add_test(NAME source_fingerprint
   COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
     ${Python3_EXECUTABLE} -m unittest discover
