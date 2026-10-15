@@ -75,12 +75,27 @@ function(tilemega_add_maca_executable name source)
     list(APPEND defs "-D${d}")
   endforeach()
   add_custom_command(OUTPUT "${out}"
-    COMMAND "${TILEMEGA_CUCC}" -std=c++17 -O3 ${defs} ${ARG_OPTIONS}
+    COMMAND "${TILEMEGA_CUCC}" -std=c++17 -O3 -fno-strict-aliasing ${defs} ${ARG_OPTIONS}
       -I${CMAKE_CURRENT_SOURCE_DIR}/include -I${CMAKE_CURRENT_BINARY_DIR}/include
       "${CMAKE_CURRENT_SOURCE_DIR}/${source}" -o "${out}" -lcudart
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${source}"
     IMPLICIT_DEPENDS CXX "${CMAKE_CURRENT_SOURCE_DIR}/${source}"
     COMMENT "cucc ${source} -> ${name}" VERBATIM)
+  add_custom_target(${name} ALL DEPENDS "${out}")
+endfunction()
+
+# Same, producing a shared library for ctypes-driven numerical tests.
+function(tilemega_add_maca_library name source)
+  set(out "${CMAKE_CURRENT_BINARY_DIR}/maca/lib${name}.so")
+  file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/maca")
+  add_custom_command(OUTPUT "${out}"
+    COMMAND "${TILEMEGA_CUCC}" -std=c++17 -O3 -fno-strict-aliasing -shared -Xcompiler=-fPIC
+      -DTILEMEGA_SERVING_RUNTIME=1
+      -I${CMAKE_CURRENT_SOURCE_DIR}/include -I${CMAKE_CURRENT_BINARY_DIR}/include
+      "${CMAKE_CURRENT_SOURCE_DIR}/${source}" -o "${out}" -lcudart
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${source}"
+    IMPLICIT_DEPENDS CXX "${CMAKE_CURRENT_SOURCE_DIR}/${source}"
+    COMMENT "cucc ${source} -> lib${name}.so" VERBATIM)
   add_custom_target(${name} ALL DEPENDS "${out}")
 endfunction()
 
@@ -616,6 +631,12 @@ if(TILEMEGA_BUILD_TESTS)
     ${CMAKE_BINARY_DIR}/maca/maca_p7_litmus 200000)
   set_tests_properties(maca_p4_p5_p11_basic maca_p6_p8_p11_sync maca_p7_litmus maca_p9_mma
     maca_p10_bandwidth PROPERTIES SKIP_RETURN_CODE 77 LABELS gpu)
+  # xcore1000 TaskBody numerics against FP32 torch.
+  tilemega_add_maca_library(mx_serving_bodies test/unit/mx/serving_bodies.cu)
+  add_test(NAME mx_task_bodies COMMAND ${CMAKE_SOURCE_DIR}/scripts/run_maca_probe.sh
+    ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_SOURCE_DIR}/test/python/test_mx_task_bodies.py)
+  set_tests_properties(mx_task_bodies PROPERTIES SKIP_RETURN_CODE 77 LABELS gpu
+    ENVIRONMENT "TILEMEGA_MX_BODIES_SO=${CMAKE_BINARY_DIR}/maca/libmx_serving_bodies.so;PYTHONPATH=${CMAKE_SOURCE_DIR}/python")
   add_test(NAME forward_frontend COMMAND tilemega-unit forward_frontend)
   add_test(NAME frontend_import COMMAND tilemega-unit frontend_import)
   add_test(NAME dm_descriptor COMMAND tilemega-unit dm_descriptor)
