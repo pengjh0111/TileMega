@@ -38,8 +38,9 @@ def main():
     parser.add_argument("--vllm-metrics", type=Path,
                         help="checked vLLM output for the same model and batch")
     parser.add_argument("--skip-free-greedy", action="store_true")
-    parser.add_argument('--experts-implementation', choices=('grouped_mm',),
-                        help='MoE reference expert implementation (default: grouped_mm)')
+    parser.add_argument('--experts-implementation', choices=('default','grouped_mm'),
+                        default='default',
+                        help='MoE reference implementation (default: installed HF default)')
     args = parser.parse_args()
     import torch
     from transformers import AutoModelForCausalLM
@@ -58,8 +59,9 @@ def main():
     config = json.loads((args.model / 'config.json').read_text())
     expert_options = {}
     if config.get('model_type') == 'qwen3_moe':
-        expert_options['experts_implementation'] = args.experts_implementation or 'grouped_mm'
-    elif args.experts_implementation is not None:
+        if args.experts_implementation != 'default':
+            expert_options['experts_implementation'] = args.experts_implementation
+    elif args.experts_implementation != 'default':
         raise ValueError('experts implementation is only defined for a MoE checkpoint')
     model = AutoModelForCausalLM.from_pretrained(
         args.model, torch_dtype=torch.bfloat16,
@@ -104,6 +106,9 @@ def main():
             required_ratio = baseline["gap_le_0_5_ratio"] - 0.005
             allowed_maximum = baseline["max_gap"] * 1.5
     report = {
+        "checker_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "transformers_version": __import__('transformers').__version__,
+        "experts_implementation": args.experts_implementation if config.get('model_type')=='qwen3_moe' else None,
         "model": str(args.model), "batch": len(generated), "positions": int(gaps.numel()),
         "prompt_len": prompt_len, "max_new_tokens": count,
         "gap_le_0_5_ratio": ratio, "max_gap": maximum,

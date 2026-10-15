@@ -55,7 +55,18 @@ def main():
                 'system_label': args.system_label,
                 'selection_status': 'diagnostic candidate; no RF2 final selection claimed',
                 'prefill_binary': str(args.prefill.resolve()), 'decode_binary': str(args.decode.resolve()),
-                'identities': identities}
+                'identities': identities,
+                'runner_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                'hf_checker_sha256': hashlib.sha256(Path(__file__).with_name('hf_check.py').read_bytes()).hexdigest()}
+    runtime_manifest=os.environ.get('TILEMEGA_RUNTIME_MANIFEST')
+    if runtime_manifest:
+        path=Path(runtime_manifest)
+        recorded=json.loads(path.read_text())
+        for name,expected in recorded['files'].items():
+            if hashlib.sha256((path.parent/'python'/name).read_bytes()).hexdigest()!=expected:
+                raise ValueError('frozen runtime Python source changed: '+name)
+        metadata['runtime_manifest']=str(path.resolve())
+        metadata['runtime_manifest_sha256']=hashlib.sha256(path.read_bytes()).hexdigest()
     checkpoint_manifest = args.model/'random_checkpoint.json'
     if checkpoint_manifest.is_file():
         checkpoint = json.loads(checkpoint_manifest.read_text())
@@ -96,9 +107,14 @@ def main():
     if args.hf_check:
         import subprocess
         import sys
+        hf_tokens=token_path
+        model_config=json.loads((args.model/'config.json').read_text())
+        if model_config.get('model_type')=='qwen3_moe' and args.max_tokens>256:
+            hf_tokens=args.out/'teacher_forced_prefix_256.json'
+            hf_tokens.write_text(json.dumps(reference[:,:256].tolist())+'\n')
         subprocess.run([sys.executable, '-m', 'tilemega.serving.hf_check',
             '--model', str(args.model), '--prompt-ids', str(args.prompt_ids),
-            '--generated', str(token_path), '--out', str(args.out/'c1.json'),
+            '--generated', str(hf_tokens), '--out', str(args.out/'c1.json'),
             '--skip-free-greedy'], check=True)
 
 
