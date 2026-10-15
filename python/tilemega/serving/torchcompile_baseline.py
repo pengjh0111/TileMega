@@ -33,6 +33,8 @@ def main() -> None:
     parser.add_argument("--warmup", type=int, default=1)
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--mode", default="reduce-overhead")
+    parser.add_argument("--experts-implementation", default=None,
+                        help="MoE expert kernel (R16: grouped_mm); left unset for dense models")
     args = parser.parse_args()
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from measurement_policy import TimingPolicy
@@ -65,13 +67,15 @@ def main() -> None:
         torch.disable_flash_attn = True
         metax_flash_attn_disabled = True
     from transformers import AutoModelForCausalLM
-    model = AutoModelForCausalLM.from_pretrained(str(args.model), dtype=torch.bfloat16).cuda().eval()
+    extra = {"experts_implementation": args.experts_implementation} if args.experts_implementation else {}
+    model = AutoModelForCausalLM.from_pretrained(str(args.model), dtype=torch.bfloat16, **extra).cuda().eval()
     model.generation_config.cache_implementation = "static"
     model.generation_config.pad_token_id = model.generation_config.eos_token_id
     from transformers import CompileConfig
     meta = {"system": "torch.compile", "model": str(args.model), "torch_version": torch.__version__,
             "transformers_version": transformers.__version__, "mode": args.mode, "fullgraph": True,
             "compile_path": "generation_config.compile_config (decode forward; prefill eager)",
+            "experts_implementation": getattr(model.config, "_experts_implementation", None),
             "sdp_flags_constant": sdp_flags_constant,
             "metax_flash_attn_disabled": metax_flash_attn_disabled}
 

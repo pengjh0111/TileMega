@@ -135,8 +135,15 @@ int executeResidency(PreparedResidencyProbe const& prepared) {
   auto binary=directory/"query";
   if (std::system((prepared.command+" >"+quote((directory/"build.log").string())+" 2>&1").c_str()))
     throw std::runtime_error("resource probe compilation failed: "+directory.string());
-  if (std::system((quote(binary.string())+" >"+quote((directory/"resources.json").string())+
-      " 2>"+quote((directory/"query.log").string())).c_str()))
+  std::string query=quote(binary.string())+" >"+quote((directory/"resources.json").string())+
+      " 2>"+quote((directory/"query.log").string());
+  // The query is the only device use of a solve. TILEMEGA_DEVICE_RUN_PREFIX
+  // (e.g. the GPU guard wrapper) runs just this step on a guarded device so
+  // the CPU search does not hold a GPU; the wrapper's own output goes to
+  // device_run.log, not into resources.json.
+  if (char const* prefix=std::getenv("TILEMEGA_DEVICE_RUN_PREFIX"); prefix && *prefix)
+    query=std::string(prefix)+" sh -c "+quote(query)+" >"+quote((directory/"device_run.log").string())+" 2>&1";
+  if (std::system(query.c_str()))
     throw std::runtime_error("resource probe does not match target or failed: "+directory.string());
   auto file=llvm::MemoryBuffer::getFile((directory/"resources.json").string());
   if (!file) throw std::runtime_error("missing resource query result");
