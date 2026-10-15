@@ -141,6 +141,10 @@ void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int pa
   if(auto tile=module->getAttrOfType<mlir::IntegerAttr>("tmexec.attention_kv_tile"))kv_tile=tile.getInt();
   auto parallel=module->getAttrOfType<mlir::BoolAttr>("tmexec.parallel_argmax");
   auto [activation,scratch]=solver::PageLayout::ServingWorkspace(gemm_shapes,attention_shapes,prefill,dm,task_workspace,kv_tile,parallel && parallel.getValue());
+  if(auto bulk=module->getAttrOfType<mlir::BoolAttr>("tmexec.moe_activation_bulk");bulk && bulk.getValue())
+    for(auto const& g:runtime.gemms)if(g.impl==2)
+      activation=std::max(activation,solver::DmServingPageActivationBytes(g.tile_m,g.tile_n,g.tile_k)+
+          solver::ServingWgmmaBulkGatherExtraBytes(g.tile_m,g.tile_k));
   bool wgmma=sw128_operands || std::any_of(runtime.gemms.begin(),runtime.gemms.end(),
       [](auto const& g){return g.impl==2;});
   auto layout=solver::PageLayout::Build(target,page_bytes,activation,scratch,0,0,wgmma?1024:128);

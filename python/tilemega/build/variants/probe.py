@@ -36,12 +36,15 @@ def main():
     ap.add_argument('--serving',action='store_true');ap.add_argument('--impl',choices=('mma16','gemv','wgmma'),default='mma16')
     ap.add_argument('--dm',action='store_true')
     ap.add_argument('--dm-gemv',action='store_true')
+    ap.add_argument('--moe-activation-bulk',action='store_true')
     ap.add_argument('--nongemm-source',type=pathlib.Path)
     ap.add_argument('--head-dim',type=int,choices=(64,128),default=64)
     ap.add_argument('--qperkv',type=int,choices=(2,4,8),default=4)
     a=ap.parse_args();m,n,k,s=map(int,a.tile.split(','));threads=128 if a.dtype=='bf16' else 256
     if a.serving and a.dtype!='bf16':raise ValueError('serving resources require BF16')
     if a.dm and not a.serving:ap.error('--dm requires --serving')
+    if a.moe_activation_bulk and (not a.dm or a.nongemm or a.impl!='wgmma'):
+        ap.error('--moe-activation-bulk requires a DM WGMMA GEMM tile')
     if a.dm_gemv and (not a.dm or a.nongemm):ap.error('--dm-gemv requires --dm and a GEMM tile')
     if a.nongemm_source and not (a.dm and a.serving and a.nongemm):
         ap.error('--nongemm-source requires --dm --serving --nongemm')
@@ -55,6 +58,7 @@ def main():
     pre=f'#define TILEMEGA_MODEL_BF16 {int(a.dtype=="bf16")}\n#define TILEMEGA_MIDPOINT_REFINE 0\n#define TILEMEGA_GEMM_TILE_M {m}\n#define TILEMEGA_GEMM_TILE_N {n}\n#define TILEMEGA_GEMM_TILE_K {k}\n#define TILEMEGA_GEMM_STAGES {s}\n'
     if a.dm:pre+='#define TILEMEGA_DM_SUPPORT 1\n'
     if a.dm_gemv:pre+='#define TILEMEGA_MOE_GEMV 1\n'
+    if a.moe_activation_bulk:pre+='#define TILEMEGA_MOE_ACTIVATION_BULK 1\n'
     if a.serving:
         text=pre+'#include <tilemega/Target/ArchDispatch.h>\n#include <cstdio>\n'
         if a.nongemm_source:
