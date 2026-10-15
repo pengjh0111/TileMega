@@ -98,9 +98,12 @@ class HopperCandidates(unittest.TestCase):
         identity=dict(source={'root':str(self.source),'head':'abc','compiler_sha256':'compiler'},arch='sm_90',nvcc_arch='sm_90a',
             caps={'wgmma':True,'tma':True,'bulk_copy':True},defines={'TILEMEGA_ARCH_ID':'900'},trace=False,
             plan={'gemms':copy.deepcopy(gemms),'arch_paths':'auto','pg':'off','shared_weight_layout_sha256':driver.file_sha(layout),
+                  'target_spec':{'arch_tag':'sm_90'},
                   'seed_arch':'native','seed_target_arch':'sm_90','buffers':[{'recipe':recipe} for recipe in packed]},
             implementations={'gemms':gemms,'attention':{'impl':'mma16','page_layout':'chunk16'}})
         driver.assert_implementation(identity,candidate,'decode')
+        legacy=copy.deepcopy(identity);legacy['arch']='sm_90a'
+        driver.assert_implementation(legacy,candidate,'decode')
         dense=copy.deepcopy(identity);del dense['plan']['shared_weight_layout_sha256']
         driver.assert_implementation(dense,candidate,'decode')
         for coordinate,macro in (('activation_tma','TILEMEGA_ACTIVATION_TMA'),('qkv_epilogue','TILEMEGA_QKV_EPILOGUE')):
@@ -109,7 +112,7 @@ class HopperCandidates(unittest.TestCase):
             driver.assert_implementation(enabled,requested,'decode')
             enabled['defines'][macro]='0'
             with self.assertRaisesRegex(ValueError,coordinate):driver.assert_implementation(enabled,requested,'decode')
-        for change in ('arch800','missing_gemm','body_fallback','cap_missing','sm80_macro','packed_name','packed_shape','missing_weight','gemm_shape'):
+        for change in ('arch800','missing_gemm','body_fallback','cap_missing','sm80_macro','packed_name','packed_shape','missing_weight','gemm_shape','target_tag','generic90'):
             broken=copy.deepcopy(identity)
             if change=='arch800':broken['defines']={}
             elif change=='missing_gemm':broken['implementations']['gemms'].pop()
@@ -119,6 +122,8 @@ class HopperCandidates(unittest.TestCase):
             elif change=='packed_name':broken['plan']['buffers'][17]['recipe']['source']['source']='wrong'
             elif change=='packed_shape':broken['plan']['buffers'][17]['recipe']['tile_k']=128
             elif change=='missing_weight':broken['plan']['buffers'].pop()
+            elif change=='target_tag':broken['plan']['target_spec']['arch_tag']='sm_89'
+            elif change=='generic90':broken['nvcc_arch']='sm_90'
             else:broken['plan']['gemms'][17]['tile_k']=128
             with self.subTest(change=change),self.assertRaises(ValueError):
                 driver.assert_implementation(broken,candidate,'decode')

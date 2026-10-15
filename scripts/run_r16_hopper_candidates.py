@@ -60,7 +60,10 @@ def assert_implementation(identity, candidate, phase):
         raise ValueError('artifact source HEAD differs from frozen snapshot')
     if identity['source']['compiler_sha256'] != candidate['compiler_sha256']:
         raise ValueError('artifact compiler differs from frozen CLI')
-    if identity.get('arch') != 'sm_90' or identity.get('nvcc_arch') != 'sm_90a':
+    # Earlier sidecars used the compiler target in both fields. Their logical
+    # architecture is still independently recorded by the complete TargetSpec.
+    if (identity.get('arch') not in ('sm_90', 'sm_90a') or identity.get('nvcc_arch') != 'sm_90a'
+            or identity.get('plan', {}).get('target_spec', {}).get('arch_tag') != 'sm_90'):
         raise ValueError('candidate requires explicit sm_90a compilation')
     if int(identity.get('defines', {}).get('TILEMEGA_ARCH_ID', 800)) != 900:
         raise ValueError('seed TaskBody Caps still use ARCH_ID800; native binding was not applied')

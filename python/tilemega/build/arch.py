@@ -26,3 +26,14 @@ def compiler_arch(options):
             if code.startswith('sm_'):
                 return code
     return None
+
+
+def architecture_identity(options, target_spec):
+    compiled = compiler_arch(options)
+    if compiled is None:
+        raise ValueError('compiler command lacks an explicit architecture')
+    logical = target_spec.get('arch_tag', {'sm_90a': 'sm_90', 'sm_100a': 'sm_100'}.get(compiled, compiled))
+    expected = target_spec.get('nvcc_arch', nvcc_arch(logical))
+    if compiled != expected:
+        raise ValueError('compiler architecture differs from the recorded target')
+    return logical, compiled
