@@ -34,6 +34,59 @@ def file_sha(path):
     return _HASH_CACHE[key]
 
 
+def prefill_prefix_dependency_issues(identity, generated):
+    """Identify the observed current-M-tile-only prefill QKV dependency.
+
+    Attention also reads earlier tokens' K/V. A single producer M tile that
+    covers a whole aligned sample is outside this specific failure scope.
+    Inspect generated dependency tables rather than trusting a source version.
+    """
+    plan = identity.get('plan', {})
+    seq = int(plan.get('seq', 1))
+    if plan.get('phase') != 'prefill' or seq <= 1:
+        return []
+    stages = re.search(r'constexpr\s+StageDesc\s+kStages\[\]\s*=\s*\{(.*?)\n\};', generated, re.S)
+    if stages is None:
+        return []
+    kinds = re.findall(r'\{TaskKind::(\w+),\s*(\d+)u?', stages[1])
+    operands = []
+    for row in re.findall(r'^\s*\{TaskKind::.*$', stages[1], re.M):
+        values = re.search(r'\{([^{}]*)\}', row)
+        first = values[1].split(',')[0].strip().removesuffix('u') if values else ''
+        operands.append(int(first) if first.isdecimal() else None)
+    descriptors = re.search(r'constexpr\s+GemmDesc\s+kGemms\[\]\s*=\s*\{(.*?)\n\};', generated, re.S)
+    destinations = re.findall(r'\{\s*\d+,\s*\d+,\s*\d+u?,\s*\d+u?,\s*\d+u?,\s*(\d+)u?', descriptors[1]) if descriptors else []
+    issues = []
+    for deps in re.finditer(r'constexpr\s+StageDependency\s+kDependencies(\d+)\[\]\s*=\s*\{(.*?)\n\};', generated, re.S):
+        variant = deps[1]
+        table = re.search(r'constexpr\s+GemmRuntimeDesc\s+kRuntimeGemms'+variant+r'\[\]\s*=\s*\{(.*?)\n\};', generated, re.S)
+        if table is None:
+            continue
+        gemms = re.findall(r'\{\s*\d+u?,\s*\d+u?,\s*(\d+)u?,\s*\d+u?,\s*\d+u?,\s*\d+u?\s*\}', table[1])
+        rows = re.findall(r'\{(\d+)u?,\s*(\d+)u?,\s*StageDependency::Map::(\w+),\s*(\d+)u?,\s*(-?\d+),\s*(-?\d+),\s*(\d+)u?,\s*\d+u?\s*\}', deps[2])
+        for producer, consumer, mapping, divisor, scale, offset, count in rows:
+            producer, consumer = int(producer), int(consumer)
+            if max(producer, consumer) >= len(kinds):
+                raise ValueError('native dependency stage index outside stage table')
+            kind, gemm = kinds[producer]
+            if kinds[consumer][0] != 'kFusedAttention' or kind not in ('kGemm', 'kGemmCombine'):
+                continue
+            if int(gemm) >= len(destinations) or consumer >= len(operands):
+                raise ValueError('native prefill QKV operand metadata is incomplete')
+            if int(destinations[int(gemm)]) != operands[consumer]:
+                continue
+            if int(gemm) >= len(gemms):
+                raise ValueError('native dependency GEMM index outside runtime table')
+            tile_m = int(gemms[int(gemm)])
+            narrow = mapping == 'kIdentity' or (mapping == 'kWindow' and int(divisor) == 1
+                and int(offset) == 0 and int(scale) == int(count))
+            if tile_m < seq and narrow:
+                issues.append(dict(runtime_variant=int(variant), producer=producer,
+                    consumer=consumer, tile_m=tile_m, seq=seq, mapping=mapping,
+                    reason='current M tile omits earlier-token prefill K/V dependencies'))
+    return issues
+
+
 def native_identity(binary, recorded=None):
     binary = Path(binary)
     identity = json.loads(Path(str(binary)+'.identity.json').read_text())
@@ -57,10 +110,13 @@ def native_identity(binary, recorded=None):
         for unit in macros['translation_units']:
             if file_sha(unit['macros_file']) != unit['macros_sha256']:
                 raise ValueError('native macro capture changed')
+    generated = Path(str(binary)+'.cu').read_text()
+    issues = prefill_prefix_dependency_issues(identity, generated)
+    if issues:
+        raise ValueError('known invalid prefill K/V prefix dependency; regenerate and retest: '+json.dumps(issues))
     if 'gemms' in identity['plan']:
         # An independent, stdlib-only check prevents matching sidecar hashes
         # from certifying a manifest that disagrees with actual kernel dispatch.
-        generated = Path(str(binary)+'.cu').read_text()
         table = re.search(r'constexpr\s+GemmRuntimeDesc\s+kRuntimeGemms0\[\]\s*=\s*\{(.*?)\n\};',
                           generated, re.S)
         if table is None:
