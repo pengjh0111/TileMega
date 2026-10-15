@@ -22,13 +22,36 @@ class DnnAggregation(unittest.TestCase):
         self.assertTrue(all(row['protocol_complete'] for row in rows))
         self.assertEqual({row['native_artifact_ids'] for row in rows}, {'binary-a','binary-b'})
 
-    def test_repeated_process_or_checkpoint_is_rejected(self):
+    def test_repeated_process_or_round_is_rejected(self):
         rows=self.rows('mma', 'binary-a')
-        for change in ('pid', 'exported_program_sha256', 'round'):
+        for change in ('pid', 'round'):
             broken=copy.deepcopy(rows)
-            broken[1][change]=broken[0][change] if change != 'exported_program_sha256' else 'other-checkpoint'
+            broken[1][change]=broken[0][change]
             with self.subTest(change=change), self.assertRaises(ValueError):
                 aggregate_dnn(broken)
+
+    def test_checkpoint_variants_have_separate_complete_protocols(self):
+        original=self.rows('mma', 'binary-a')
+        changed=copy.deepcopy(original)
+        for row in changed:
+            row['exported_program_sha256']='nonzero-residual-checkpoint'
+            row['source_checkpoint_sha256']='checkpoint-b'
+            row['pid']+=10
+        cells=aggregate_dnn(original+changed)
+        self.assertEqual(len(cells), 2)
+        self.assertTrue(all(cell['protocol_complete'] for cell in cells))
+
+    def test_optional_checkpoint_hash_does_not_split_identical_exports(self):
+        rows=self.rows('mma', 'binary-a')
+        rows[1]['source_checkpoint_sha256']='checkpoint-a'
+        rows[2]['source_checkpoint_sha256']='checkpoint-a'
+        cell,=aggregate_dnn(rows)
+        self.assertTrue(cell['protocol_complete'])
+        self.assertEqual(cell['source_checkpoint_sha256'], 'checkpoint-a')
+        self.assertEqual(cell['checkpoint_hash_processes'], 2)
+        rows[2]['source_checkpoint_sha256']='checkpoint-b'
+        with self.assertRaises(ValueError):
+            aggregate_dnn(rows)
 
 
 if __name__ == '__main__':

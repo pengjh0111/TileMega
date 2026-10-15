@@ -116,6 +116,7 @@ def collect_dnn(root):
                 precision=value['precision'], compile_mode=value.get('configuration', {}).get('compile_mode', ''),
                 candidate_id=value.get('candidate_id', value.get('configuration', {}).get('candidate_id', '')),
                 candidate_receipt_sha256=value.get('candidate_receipt_sha256', ''), pid=value.get('pid'),
+                source_checkpoint_sha256=value.get('source_checkpoint_sha256', ''),
                 round=value['round_index'], gpu=value['gpu_index'], median_ms=value['median_ms'], p90_ms=value['p90_ms'],
                 acceptance=own['acceptance'], ownership_verified=own['ownership_verified'],
                 unresolved_host_pids=','.join(map(str, own['unresolved_host_pids'])),
@@ -131,7 +132,8 @@ def aggregate_dnn(records):
     groups = {}
     for row in records:
         key = tuple(row[field] for field in ('model', 'system', 'batch', 'precision',
-            'compile_mode', 'candidate_id', 'candidate_receipt_sha256', 'native_artifact_ids'))
+            'compile_mode', 'candidate_id', 'candidate_receipt_sha256', 'native_artifact_ids',
+            'exported_program_sha256'))
         groups.setdefault(key, []).append(row)
     result = []
     for key, rows in sorted(groups.items()):
@@ -141,10 +143,14 @@ def aggregate_dnn(records):
             raise ValueError(f'duplicate DNN process round for {key}')
         if len(pids) != len(rows):
             raise ValueError(f'DNN rounds lack distinct measured process identities for {key}')
-        if len({row['exported_program_sha256'] for row in rows}) != 1:
-            raise ValueError(f'DNN checkpoint export differs across rounds for {key}')
+        checkpoint_hashes = {row.get('source_checkpoint_sha256', '') for row in rows}
+        checkpoint_hashes.discard('')
+        if len(checkpoint_hashes) > 1:
+            raise ValueError(f'DNN checkpoint hashes disagree for the same export for {key}')
         result.append(dict(zip(('model', 'system', 'batch', 'precision', 'compile_mode',
-            'candidate_id', 'candidate_receipt_sha256', 'native_artifact_ids'), key),
+            'candidate_id', 'candidate_receipt_sha256', 'native_artifact_ids', 'exported_program_sha256'), key),
+            source_checkpoint_sha256=next(iter(checkpoint_hashes), ''),
+            checkpoint_hash_processes=sum(bool(row.get('source_checkpoint_sha256')) for row in rows),
             fresh_processes=len(rows), protocol_complete=rounds == {0, 1, 2},
             gpu=','.join(map(str, sorted({row['gpu'] for row in rows}))),
             median_ms=statistics.median(row['median_ms'] for row in rows),

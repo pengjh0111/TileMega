@@ -187,7 +187,12 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics
     torch.set_num_threads(4); torch.manual_seed(20261009)
     torch.backends.cuda.matmul.allow_tf32 = False
     export_dir, bridge_path = Path(export_dir), Path(bridge_path)
-    restoration=json.loads((export_dir/'manifest.json').read_text())['model']=='nafnet'
+    manifest=json.loads((export_dir/'manifest.json').read_text())
+    if manifest['artifacts']['exported_program.pt2'] != _sha(export_dir/'exported_program.pt2'):
+        raise ValueError('export archive differs from its manifest')
+    if not synthetic_weights and manifest['checkpoint']['sha256'] != _sha(export_dir/'checkpoint/model.safetensors'):
+        raise ValueError('source checkpoint differs from its manifest')
+    restoration=manifest['model']=='nafnet'
     library = PlanLibrary(library_path)
     if library.info.phase != FORWARD or library.info.capacity != 0:
         raise ValueError('DNN correctness requires a stateless forward plan')
@@ -315,6 +320,7 @@ def check(library_path, export_dir, bridge_path, batch, *, epochs=1, diagnostics
         checker_sha256=_sha(Path(__file__)),
         artifact_id=identity['artifact_id'], bridge_sha256=_sha(bridge_path),
         archive_sha256=_sha(export_dir/'exported_program.pt2'),
+        source_checkpoint_sha256=_sha(export_dir/'checkpoint/model.safetensors') if not synthetic_weights else None,
         input_tensors_sha256=_sha(input_tensors) if input_tensors is not None else None, cases=cases)
 
 

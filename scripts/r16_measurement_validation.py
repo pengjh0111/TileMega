@@ -133,6 +133,11 @@ def native_dnn(value):
         raise ValueError('native DNN gate does not certify the timed artifact and input')
     if gate.get('archive_sha256') and value.get('exported_program_sha256') != gate['archive_sha256']:
         raise ValueError('native DNN export archive differs from its numerical gate')
+    if value.get('source_checkpoint_sha256'):
+        checkpoint=Path(value['export_path'])/'checkpoint/model.safetensors'
+        if (gate.get('source_checkpoint_sha256') != value['source_checkpoint_sha256'] or
+                file_sha(checkpoint) != value['source_checkpoint_sha256']):
+            raise ValueError('native DNN source checkpoint differs from its numerical gate')
     return dict(native_artifact_ids=identity['artifact_id'], source_checkpoint_label='stored export checkpoint certified by native input gate')
 
 

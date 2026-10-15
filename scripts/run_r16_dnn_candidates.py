@@ -63,6 +63,10 @@ def verified_config(path):
     for filename, expected in config['export_files'].items():
         if sha(Path(config['export']) / filename) != expected:
             raise ValueError('shared exported checkpoint/input changed: ' + filename)
+    manifest = read(Path(config['export']) / 'manifest.json')
+    expected_checkpoint = manifest['checkpoint']['sha256']
+    if sha(Path(config['export']) / 'checkpoint/model.safetensors') != expected_checkpoint:
+        raise ValueError('shared source checkpoint differs from the frozen export manifest')
     return config
 
 
@@ -200,7 +204,8 @@ def aggregate(path):
         modes = {row['mode'] for row in gate['cases']}
         if not {1, 2} <= modes:
             raise ValueError('full-model same-binary L1/L2 gate is missing')
-    result = dict(gates[0], fresh_processes=5, fresh_passes=5,
+    result = dict(gates[0], source_checkpoint_sha256=read(Path(config['export']) / 'manifest.json')['checkpoint']['sha256'],
+                  fresh_processes=5, fresh_passes=5,
                   fresh_child_pids=[row['child_pid'] for row in rows],
                   fresh_receipts=[row['gate'] for row in rows],
                   candidate_id=config['candidate_id'], candidate_receipt_sha256=sha(path))
@@ -226,7 +231,9 @@ def measure(path, round_index, attempt):
     target = attempt / 'measurements/measurements.json'
     value = read(target)
     # Annotate successful raw measurements; never alter elapsed times or precision.
-    metadata = dict(candidate_id=config['candidate_id'], candidate_receipt_sha256=sha(path))
+    metadata = dict(candidate_id=config['candidate_id'], candidate_receipt_sha256=sha(path),
+                    source_checkpoint_sha256=read(Path(config['export']) / 'manifest.json')['checkpoint']['sha256'],
+                    execution_driver_sha256=sha(__file__))
     value.update(metadata)
     value['configuration'] = {**value.get('configuration', {}), **metadata}
     write(target, value)
@@ -328,6 +335,56 @@ def prepare(args):
     print(json.dumps({'queue': str(out / 'queue-preview.json'), 'jobs': len(jobs), 'rejected': rejected}))
 
 
+def publish_ready(args):
+    root, preparation = args.root.absolute(), args.preparation.absolute()
+    driver_path = (args.driver or preparation / 'driver.py').absolute()
+    existing = read(args.queue) if args.queue.exists() else []
+    published_names = {row['name'] for row in existing}
+    configs = read(preparation / 'preparation.json')['configurations']
+    accepted = {}
+    for filename in configs:
+        original = Path(filename)
+        result = original.parent / 'cpu-build-result.json'
+        if not result.is_file() or not read(result).get('passed'):
+            continue
+        validate_built(original)
+        value = read(original)
+        migrated = original.with_name(f'candidate-gpu{args.gpu}.json')
+        if not migrated.exists():
+            value.update(gpu=args.gpu, run_root=str(root),
+                         published_from_candidate_receipt_sha256=sha(original))
+            write(migrated, value)
+        accepted[str(original)] = str(migrated)
+    added = []
+    for row in read(preparation / 'queue-preview.json'):
+        original = row['command'][row['command'].index('--candidate') + 1]
+        if original not in accepted:
+            continue
+        name = row['name'] + f'_gpu{args.gpu}'
+        if name in published_names:
+            continue
+        row['name'] = name
+        row['after'] = [name + f'_gpu{args.gpu}' for name in row.get('after', [])]
+        row.update(cwd=str(root), priority=args.priority)
+        node = 0 if args.gpu < 4 else 1
+        row['env'].update(CUDA_VISIBLE_DEVICES=str(args.gpu), TILEMEGA_DEVICE_INDEX=str(args.gpu),
+                          TILEMEGA_NUMA_NODE=str(node))
+        row['command'] = [str(driver_path) if value == str(preparation / 'driver.py') else
+                          accepted.get(value, value) for value in row['command']]
+        row['command'] = [f'--cpunodebind={node}' if value.startswith('--cpunodebind=') else value
+                          for value in row['command']]
+        if name.endswith(f'-build_gpu{args.gpu}'):
+            row['command'][row['command'].index('build')] = 'validate-built'
+            row['timeout_s'] = 120
+        added.append(row)
+    write(args.queue, existing + added)
+    status = dict(added_jobs=[row['name'] for row in added], jobs=len(existing + added),
+                  queue=str(args.queue.absolute()), driver_sha256=sha(driver_path),
+                  gpu_execution_performed=False)
+    write(preparation / f'publication-gpu{args.gpu}.json', status)
+    print(json.dumps(status))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='operation', required=True)
@@ -341,6 +398,13 @@ def main():
     command.add_argument('--class-cases-helper', type=Path)
     command.add_argument('--gpu', type=int, default=7)
     command.add_argument('--pid-mode', choices=('strict', 'namespace_limited'), default='strict')
+    command = sub.add_parser('publish-ready')
+    command.add_argument('--root', type=Path, default=Path(__file__).absolute().parents[1])
+    command.add_argument('--preparation', type=Path, required=True)
+    command.add_argument('--queue', type=Path, required=True)
+    command.add_argument('--driver', type=Path)
+    command.add_argument('--gpu', type=int, default=5)
+    command.add_argument('--priority', type=float, default=3)
     for name in ('build', 'validate-built', 'check', 'aggregate', 'measure'):
         command = sub.add_parser(name)
         command.add_argument('--candidate', type=Path, required=True)
@@ -353,6 +417,8 @@ def main():
     args = parser.parse_args()
     if args.operation == 'prepare':
         prepare(args)
+    elif args.operation == 'publish-ready':
+        publish_ready(args)
     elif args.operation == 'build':
         build(args.candidate)
     elif args.operation == 'validate-built':

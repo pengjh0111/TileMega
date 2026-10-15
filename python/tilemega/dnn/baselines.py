@@ -311,6 +311,7 @@ def main():
         versions=versions(), accuracy_eligible=manifest.get('accuracy_eligible', False),
         random_weights=manifest.get('random_weights', False),
         exported_program_sha256=manifest['artifacts']['exported_program.pt2'],
+        source_checkpoint_sha256=sha(options.export / 'checkpoint/model.safetensors'),
         measurement=dict(warmup=options.warmup, iterations=options.iterations,
                          clock='CUDA events', fresh_processes='outer scheduler; this receipt is one process'),
         median_ms=statistics.median(values), p90_ms=ordered[math.ceil(0.9 * len(ordered)) - 1],

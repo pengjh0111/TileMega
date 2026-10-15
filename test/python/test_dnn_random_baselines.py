@@ -68,17 +68,50 @@ class DnnRandomTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'structure-only'):
                 baseline.load_export(root)
 
+    def test_correctness_rejects_unidentified_weights_before_device_query(self):
+        from tilemega.dnn.check_generated import check
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);(root/'checkpoint').mkdir()
+            archive=root/'exported_program.pt2';archive.write_bytes(b'archive identity fixture')
+            weights=root/'checkpoint/model.safetensors';weights.write_bytes(b'checkpoint identity fixture')
+            manifest=dict(model='resnet18',artifacts={'exported_program.pt2':'wrong'},
+                          checkpoint={'sha256':baseline.sha(weights)})
+            for wrong in ('archive','checkpoint'):
+                if wrong=='checkpoint':
+                    manifest['artifacts']['exported_program.pt2']=baseline.sha(archive)
+                    manifest['checkpoint']['sha256']='wrong'
+                (root/'manifest.json').write_text(json.dumps(manifest))
+                with patch('tilemega.dnn.check_generated.PlanLibrary',
+                           side_effect=AssertionError('invalid data must not query a device')):
+                    with self.assertRaisesRegex(ValueError,'differs from its manifest'):
+                        check(root/'not-a-library.so',root,root/'unused-bridge.json',1)
+
     def test_forward_timing_rejects_a_different_gate_or_inputs(self):
         with tempfile.TemporaryDirectory() as directory:
             inputs = Path(directory) / 'inputs'
             inputs.write_bytes(b'frozen input identity')
+            root=Path(directory);(root/'checkpoint').mkdir()
+            (root/'exported_program.pt2').write_bytes(b'identified export archive')
+            (root/'checkpoint/model.safetensors').write_bytes(b'identified source checkpoint')
+            bridge=root/'bridge.json';bridge.write_bytes(b'identified bound graph')
             receipt = dict(passed=True, artifact_id='binary', synthetic_weights=False,
-                           input_tensors_sha256=baseline.sha(inputs))
-            validate_gate(receipt, 'binary', inputs)
+                           input_tensors_sha256=baseline.sha(inputs),
+                           archive_sha256=baseline.sha(root/'exported_program.pt2'),
+                           source_checkpoint_sha256=baseline.sha(root/'checkpoint/model.safetensors'),
+                           bridge_sha256=baseline.sha(bridge))
+            validate_gate(receipt, 'binary', inputs, root, bridge)
             for changes in ({'passed': False}, {'synthetic_weights': True},
-                            {'artifact_id': 'another binary'}, {'input_tensors_sha256': 'tampered'}):
+                            {'artifact_id': 'another binary'}, {'input_tensors_sha256': 'tampered'},
+                            {'archive_sha256': 'another archive'},
+                            {'source_checkpoint_sha256': 'another checkpoint'},
+                            {'bridge_sha256': 'another graph'}):
                 with self.assertRaises(ValueError):
-                    validate_gate(dict(receipt, **changes), 'binary', inputs)
+                    validate_gate(dict(receipt, **changes), 'binary', inputs, root, bridge)
+
+            for field in ('archive_sha256','source_checkpoint_sha256','bridge_sha256'):
+                incomplete=dict(receipt);del incomplete[field]
+                with self.assertRaises(ValueError):
+                    validate_gate(incomplete,'binary',inputs,root,bridge)
 
 
 if __name__ == '__main__':

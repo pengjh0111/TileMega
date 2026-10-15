@@ -24,6 +24,9 @@ class DnnCandidateTest(unittest.TestCase):
         export.mkdir(parents=True)
         for name in ('bridge_b1.json', 'manifest.json', 'inputs_b1.safetensors', 'exported_program.pt2'):
             (export/name).write_bytes(b'shared-'+name.encode())
+        (export/'checkpoint').mkdir()
+        (export/'checkpoint/model.safetensors').write_bytes(b'fixed-random-checkpoint')
+        driver.write(export/'manifest.json', {'checkpoint':{'sha256':driver.sha(export/'checkpoint/model.safetensors')}})
         receipt = root/'receipt.json'
         driver.write(receipt, dict(build_completed=True, snapshot_source_unchanged=True,
                      source_dir=str(source), snapshot_head='fixed-head', cli=str(cli), cli_sha256=driver.sha(cli)))
@@ -49,6 +52,17 @@ class DnnCandidateTest(unittest.TestCase):
             self.assertTrue(all(not row['gpu'] for row in queue if row['name'].endswith('-build')))
             with self.assertRaises(FileExistsError):
                 driver.prepare(args)
+
+    def test_changed_checkpoint_is_rejected_before_execution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args = self.fixture(Path(directory))
+            driver.prepare(args)
+            candidate = Path(driver.read(args.out/'preparation.json')['configurations'][0])
+            config = driver.verified_config(candidate)
+            checkpoint = Path(config['export'])/'checkpoint/model.safetensors'
+            checkpoint.write_bytes(b'another-random-state')
+            with self.assertRaisesRegex(ValueError, 'checkpoint'):
+                driver.verified_config(candidate)
 
     def test_guard_lease_is_required(self):
         with patch.dict(os.environ, {'CUDA_VISIBLE_DEVICES':'7', 'TILEMEGA_DEVICE_INDEX':'7'}, clear=True):

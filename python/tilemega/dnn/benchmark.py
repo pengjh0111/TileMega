@@ -12,13 +12,19 @@ from .baselines import sha, timed
 from baseline_common import guarded_main, observe, require_guard, versions
 
 
-def validate_gate(receipt, artifact_id, inputs):
+def validate_gate(receipt, artifact_id, inputs, export_dir, bridge):
     if not receipt.get('passed') or receipt.get('artifact_id') != artifact_id:
         raise ValueError('forward timing requires a passed numerical receipt for this artifact')
     if receipt.get('synthetic_weights'):
         raise ValueError('a synthetic replacement state cannot certify the stored random checkpoint')
     if receipt.get('input_tensors_sha256') != sha(inputs):
         raise ValueError('numerical receipt and timed input identity differ')
+    if receipt.get('archive_sha256') != sha(Path(export_dir) / 'exported_program.pt2'):
+        raise ValueError('numerical receipt and timed export archive differ')
+    if receipt.get('source_checkpoint_sha256') != sha(Path(export_dir) / 'checkpoint/model.safetensors'):
+        raise ValueError('numerical receipt and timed source checkpoint differ')
+    if receipt.get('bridge_sha256') != sha(bridge):
+        raise ValueError('numerical receipt and timed bridge differ')
 
 
 def main():
@@ -42,7 +48,7 @@ def main():
     from safetensors.torch import load_file
     from .check import NativeForward
     identity = json.loads(Path(str(args.library) + '.identity.json').read_text())
-    validate_gate(json.loads(args.gate.read_text()), identity['artifact_id'], args.inputs)
+    validate_gate(json.loads(args.gate.read_text()), identity['artifact_id'], args.inputs, args.export, args.bridge)
     args.out.mkdir(parents=True, exist_ok=True)
     guard_path = args.out / 'guard.jsonl'
     observe(guard_path, 'before-initialization')
@@ -71,6 +77,7 @@ def main():
         pid=os.getpid(), gpu_index=int(require_guard()), versions=versions(),
         artifact_id=identity['artifact_id'], execution_identity=execution,
         input_sha256=sha(args.inputs), numerical_gate_sha256=sha(args.gate),
+        source_checkpoint_sha256=sha(args.export / 'checkpoint/model.safetensors'),
         library_path=str(args.library.resolve()), identity_path=str(Path(str(args.library)+'.identity.json').resolve()),
         identity=identity, input_path=str(args.inputs.resolve()), numerical_gate_path=str(args.gate.resolve()),
         export_path=str(args.export.resolve()),
