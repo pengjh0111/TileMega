@@ -3,16 +3,27 @@
 import argparse,fcntl,json,os,signal,subprocess,time
 from pathlib import Path
 
-def gpu():
+from tilemega.bench import mx_smi
+
+def gpu(policy):
     index=os.getenv('TILEMEGA_DEVICE_INDEX','0')
-    raw=subprocess.check_output(['nvidia-smi','-i',index,'--query-gpu=memory.used,memory.free,memory.total,power.draw,utilization.gpu','--format=csv,noheader,nounits'],text=True).splitlines()[0]
-    used,free,total,power,util=map(float,raw.split(','))
-    apps=subprocess.check_output(['nvidia-smi','-i',index,'--query-compute-apps=pid,used_memory','--format=csv,noheader,nounits'],text=True)
-    owners={}
-    for line in apps.splitlines():
-        try:pid,size=map(int,line.split(','));owners[pid]=size
-        except ValueError:continue
-    return dict(time=time.time(),used_mib=used,free_mib=free,total_mib=total,power_w=power,utilization_pct=util,owners=owners,hidden_mib=max(0,used-sum(owners.values())))
+    row=mx_smi.device(index)
+    # Other containers' processes are invisible to mx-smi; their memory is
+    # what remains after this container's owners and the driver baseline.
+    row['hidden_mib']=max(0,row['used_mib']-policy['idle_vram_mib']-sum(row['owners'].values()))
+    return row
+
+def device_openers(pids):
+    """PIDs among `pids` holding an open MetaX device file."""
+    openers=set()
+    for pid in pids:
+        try:
+            for fd in Path('/proc',str(pid),'fd').iterdir():
+                try:target=os.readlink(fd)
+                except OSError:continue
+                if target=='/dev/mxcd' or target.startswith('/dev/dri/'):openers.add(pid);break
+        except OSError:pass
+    return openers
 
 def descendants(pid):
     own={pid};parents={}
@@ -25,21 +36,16 @@ def descendants(pid):
         own.update(added)
 
 def external(row,own):
-    foreign=set()
-    for pid in row['owners']:
-        if int(pid) in own:continue
-        proc=Path('/proc')/str(pid)
-        if not proc.exists():continue
-        try:
-            exe=str((proc/'exe').resolve())
-            if '.resources/' in exe and exe.endswith('/query'):continue
-        except OSError:pass
-        foreign.add(int(pid))
+    # Listed PIDs are container-local, so any owner outside this job's tree is
+    # foreign; more listed owners than device-opening own processes is too.
+    foreign={int(pid) for pid in row['owners'] if int(pid) not in own}
+    if len(row['owners'])>len(device_openers(own)):foreign.add(-1)
     return foreign
 
 def idle(row,policy,needs=0):
+    idle_w=policy.get('idle_power_w_by_gpu',{}).get(os.getenv('TILEMEGA_DEVICE_INDEX','0'),policy['idle_power_w'])
     return (not external(row,descendants(os.getpid())) and row['utilization_pct']<=policy['max_util_pct']
-            and row['power_w']<=policy['idle_power_w']+policy['power_margin_w']
+            and row['power_w']<=idle_w+policy['power_margin_w']
             and row['hidden_mib']<=policy['max_hidden_mib'] and row['free_mib']>=needs)
 
 def session_members(sid):
@@ -82,7 +88,7 @@ def main():
     if not cmd:p.error('a child command is required')
     policy=json.loads(a.policy.read_text());a.out.mkdir(parents=True,exist_ok=True)
     def sample(phase,**extra):
-        row=gpu()
+        row=gpu(policy)
         with (a.out/'guard.jsonl').open('a') as f:f.write(json.dumps(dict(row,phase=phase,**extra))+'\n')
         return row
     def finish(code,reason):

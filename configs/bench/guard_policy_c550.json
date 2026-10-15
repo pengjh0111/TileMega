@@ -1,0 +1,12 @@
+{
+  "idle_power_w": 97.2,
+  "idle_power_w_by_gpu": {"7": 97.2, "6": 94.7, "5": 95.6, "4": 95.9},
+  "idle_vram_mib": 860,
+  "power_margin_w": 30.0,
+  "samples": 6,
+  "interval_s": 5,
+  "max_util_pct": 5,
+  "max_hidden_mib": 1024,
+  "hidden_violations": 3,
+  "max_idle_wait_s": 21600
+}
