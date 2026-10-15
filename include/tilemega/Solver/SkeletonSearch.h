@@ -51,6 +51,7 @@ struct SkeletonSearchOptions {
   bool conv_tma_im2col=false;
   bool dwpw_wgmma=false;
   bool gemv_nc=false;
+  bool gemv_bulk=false;
   bool qkv_epilogue=false;
   bool moe_activation_bulk=false;
   bool activation_tma=false;

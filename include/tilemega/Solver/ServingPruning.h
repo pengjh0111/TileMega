@@ -48,11 +48,11 @@ inline bool PruneServingR1(GemmConfig const& g,
 // A plan is illegal if attention would enlarge the GEMM SharedStorage union.
 inline bool PruneServingAttentionSmemR1(
     int head_dim,int query_rows,std::vector<GemmConfig> const& gemms,
-    TargetSpec const& target) {
+    TargetSpec const& target,bool gemv_bulk=false) {
   if(query_rows<=0 || gemms.empty())return true;
   int gemm_max=0;
   for(auto const& g:gemms)
-    gemm_max=std::max(gemm_max,(g.impl==1?ServingGemvSmemBytes(g.tile_m,g.tile_n):g.impl==2?ServingWgmmaSmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)));
+    gemm_max=std::max(gemm_max,(g.impl==1?ServingGemvSmemBytes(g.tile_m,g.tile_n,gemv_bulk):g.impl==2?ServingWgmmaSmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)));
   int attention=codegen::ServingAttentionSharedBytes(head_dim,
       codegen::ServingAttentionKvTile(head_dim,gemm_max));
   return attention>gemm_max ||

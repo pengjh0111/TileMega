@@ -346,6 +346,8 @@ struct SearchContext {
   }
   std::string Key(std::vector<GemmConfig> const& config,int kappa,int residency) const {
     auto key=ConfigKey(config,kappa,residency);
+    if(options.gemv_nc)key+=";gemv_load=nc";
+    if(options.gemv_bulk)key+=";gemv_load=bulk";
     if(options.activation_tma)key+=";activation_tma=1";
     if(options.prefill_attention_tma)key+=";prefill_attention_tma=1";
     if(ServingRuntimePlan())key+=";Ec="+std::to_string(attention_kv_block)+
@@ -366,7 +368,7 @@ struct SearchContext {
     if(ServingRuntimePlan()) {
       int gemm_shared=imported.plan.dm?estimate.shared_bytes:0;
       for(auto const& g:config)gemm_shared=std::max(gemm_shared,
-          (imported.plan.dm && g.impl!=2?DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):g.impl==1?ServingGemvSmemBytes(g.tile_m,g.tile_n):g.impl==2?ServingWgmmaSmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages,options.moe_activation_bulk,options.activation_tma):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)));
+          (imported.plan.dm && g.impl!=2?DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):g.impl==1?ServingGemvSmemBytes(g.tile_m,g.tile_n,options.gemv_bulk):g.impl==2?ServingWgmmaSmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages,options.moe_activation_bulk,options.activation_tma):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)));
       if(!options.pg_pages && (options.attention_buffers==1 || std::any_of(config.begin(),config.end(),[](auto const& g){return g.impl==1;})))
         for(auto const& stage:imported.plan.stages)
           if(stage.kind==frontend::PlanTaskKind::kFusedAttention) {
@@ -462,7 +464,7 @@ struct SearchContext {
       }else if(attention==imported.plan.stages.end() ||
          (options.attention_buffers==2 && !std::any_of(config.begin(),config.end(),[](auto const& g){return g.impl==1;}) &&
          PruneServingAttentionSmemR1(attention->width,
-             attention->attention_query_rows,config,target)))
+             attention->attention_query_rows,config,target,options.gemv_bulk)))
         throw std::invalid_argument("R-1 attention exceeds GEMM shared-memory union");
     }
     int limit=options.pg_pages && options.requested_serving_residency!=2?1:
@@ -632,6 +634,17 @@ struct SearchContext {
         (!options.common.placement.target.caps.wgmma || options.pg_pages ||
          !ServingGemvNcTraits(g.tile_m,g.tile_n,g.tile_k,g.stages).shape_legal))
       throw std::invalid_argument("NC GEMV requires Hopper nonpaged TN8/16/32");
+    if(options.gemv_bulk) {
+      if(imported.plan.dm || options.pg_pages || !options.common.placement.target.caps.bulk_copy)
+        throw std::invalid_argument("bulk GEMV requires native nonpaged dense decode");
+      for(std::size_t c=0;c<priced.size();++c)if(priced[c].impl==1) {
+        auto const& g=priced[c];
+        if(!ServingGemvBulkTraits(g.tile_m,g.tile_n,g.tile_k,g.stages).shape_legal)
+          throw std::invalid_argument("bulk GEMV requires TN8/16/32");
+        for(auto id:classes[c].gemms)if(imported.plan.gemms[id].k%g.tile_k)
+          throw std::invalid_argument("bulk GEMV requires complete K tiles");
+      }
+    }
     for(std::size_t c=0;c<priced.size();++c)if(priced[c].impl==2) {
       auto const& g=priced[c];
       if(!options.common.placement.target.caps.wgmma ||
@@ -855,6 +868,10 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
     if(options.gemv_nc)domain.erase(std::remove_if(domain.begin(),domain.end(),
         [&](auto const& g){return g.impl==1 && !ServingGemvNcTraits(
             g.tile_m,g.tile_n,g.tile_k,g.stages).shape_legal;}),domain.end());
+    if(options.gemv_bulk)domain.erase(std::remove_if(domain.begin(),domain.end(),
+        [&](auto const& g){return g.impl==1 &&
+          (!ServingGemvBulkTraits(g.tile_m,g.tile_n,g.tile_k,g.stages).shape_legal ||
+           std::any_of(cls.gemms.begin(),cls.gemms.end(),[&](auto id){return search.imported.plan.gemms[id].k%g.tile_k!=0;}));}),domain.end());
     if(!options.common.geometry_domain.empty())domain.erase(std::remove_if(domain.begin(),domain.end(),[&](auto const& g){return std::none_of(options.common.geometry_domain.begin(),options.common.geometry_domain.end(),[&](auto const& a){return std::tie(g.tile_m,g.tile_n,g.tile_k,g.stages)==std::tie(a.tile_m,a.tile_n,a.tile_k,a.stages);});}),domain.end());
     out<<"DOMAIN\t"<<domains.size()<<'\t'<<domain.size()<<'\n';
     if(search.ServingRuntimePlan())for(auto const& g:domain)

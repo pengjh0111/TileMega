@@ -189,10 +189,11 @@ inline BackendTraits ServingDwPwWgmmaTraits(int m,int n,int k,int stages) {
 constexpr bool ServingGemvShapeLegal(int m,int n,int k,int stages) {
   return m==16 && (n==8 || n==16 || n==32 || n==64) && (k==64 || k==128) && stages==2;
 }
-constexpr int ServingGemvSmemBytes(int m,int n) {
+constexpr int ServingGemvSmemBytes(int m,int n,bool bulk=false) {
   int a=2*(m<4?m:4)*256*2;
   int epilogue=4*m*n+32*m;
-  return a>epilogue?a:epilogue;
+  int base=a>epilogue?a:epilogue;
+  return bulk?((base+15)/16)*16+2*32768+16:base;
 }
 inline BackendTraits ServingGemvTraits(int m,int n,int k,int stages) {
   auto r=ServingBF16Traits(m,32,k,stages);
@@ -205,6 +206,16 @@ inline BackendTraits ServingGemvTraits(int m,int n,int k,int stages) {
 inline BackendTraits ServingGemvNcTraits(int m,int n,int k,int stages) {
   auto result=ServingGemvTraits(m,n,k,stages);
   result.arch_sm=90;result.shape_legal=result.shape_legal && n<=32;
+  return result;
+}
+
+// Arithmetic keeps the SIMT fit until a separate bulk fit is measured;
+// the two weight slots and their barriers are exact resource requirements.
+inline BackendTraits ServingGemvBulkTraits(int m,int n,int k,int stages) {
+  auto result=ServingGemvTraits(m,n,k,stages);
+  result.arch_sm=90;
+  result.shape_legal=result.shape_legal && n<=32;
+  result.smem_bytes=ServingGemvSmemBytes(m,n,true);
   return result;
 }
 

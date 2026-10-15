@@ -49,6 +49,14 @@ int TestServingPruning(int argc, char** argv) {
   assert(PruneServingR1(GemmConfig{16,8,128,2,1,0},decode));
   auto too_many=decode;too_many.m=16;
   assert(PruneServingR1(GemmConfig{16,32,128,2,1,1},too_many));
+  static_assert(ServingGemvSmemBytes(16,32,true)==69648);
+  assert(ServingGemvBulkTraits(16,32,64,2).shape_legal);
+  assert(!ServingGemvBulkTraits(16,64,64,2).shape_legal);
+  assert(!ServingGemvBulkTraits(16,32,64,3).shape_legal);
+  auto bulk_target=target;
+  bulk_target.res.max_dynamic_smem_per_cta=ServingGemvSmemBytes(16,32,true);
+  assert(!PruneServingAttentionSmemR1(128,16,{GemmConfig{16,32,64,2,1,1}},bulk_target,true));
+  assert(PruneServingAttentionSmemR1(128,16,{GemmConfig{16,32,64,2,1,1}},bulk_target));
   target.res.max_dynamic_smem_per_cta = 1024;
   assert(PruneServingR1(g, decode));
   target.res.max_dynamic_smem_per_cta =

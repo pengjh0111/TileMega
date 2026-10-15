@@ -714,11 +714,17 @@ int RunCompile(int argc, char** argv) {
         arch_paths!="auto" || (pg_mode!="off" && pg_mode!="l2")))
       throw std::invalid_argument("depthwise TMA requires native Hopper DNN forward, explicit nonpaged off/l2");
     if(depthwise_impl=="tma")runtime_flags+=" -DTILEMEGA_DEPTHWISE_TMA=1";
-    if(gemv_load!="ldg" && gemv_load!="nc")
-      throw std::invalid_argument("--gemv-load must be ldg or nc");
+    if(gemv_load!="ldg" && gemv_load!="nc" && gemv_load!="bulk")
+      throw std::invalid_argument("--gemv-load must be ldg, nc or bulk");
     if(gemv_load=="nc" && (arch_paths!="auto" || !serving || pg_mode=="pages"))
       throw std::invalid_argument("NC GEMV requires native Hopper nonpaged execution");
     if(gemv_load=="nc")runtime_flags+=" -DTILEMEGA_GEMV_LOAD_NC=1";
+    if(gemv_load=="bulk") {
+      if(arch_paths!="auto" || !serving || serving_phase!="decode" ||
+         (pg_mode!="off" && pg_mode!="l2") || moe_gemv)
+        throw std::invalid_argument("bulk GEMV requires native dense decode and explicit nonpaged off/l2");
+      runtime_flags+=" -DTILEMEGA_GEMV_LOAD_BULK=1";
+    }
     if(conv_impl!="cpasync" && conv_impl!="tma_im2col")
       throw std::invalid_argument("--conv-impl must be cpasync or tma_im2col");
     if(conv_impl=="tma_im2col" && (arch_paths!="auto" || !forward || pg_mode=="pages" ||
@@ -788,6 +794,8 @@ int RunCompile(int argc, char** argv) {
         throw std::invalid_argument("qkv epilogue requires a native Hopper target");
       if(gemv_load=="nc" && (!target.caps.wgmma || use_pages))
         throw std::invalid_argument("NC GEMV requires native Hopper nonpaged execution");
+      if(gemv_load=="bulk" && (!target.caps.bulk_copy || use_pages))
+        throw std::invalid_argument("bulk GEMV requires bulk-copy capability and nonpaged execution");
       if((forward_gemm_impl=="wgmma" || conv_impl=="tma_im2col") && !target.caps.wgmma)
         throw std::invalid_argument("forward WGMMA requires a Hopper target");
       if(sync_policy=="calibrated") {
@@ -1208,6 +1216,7 @@ int RunCompile(int argc, char** argv) {
         skeleton.conv_tma_im2col=conv_impl=="tma_im2col";
         skeleton.dwpw_wgmma=dwpw_impl=="wgmma";
         skeleton.gemv_nc=gemv_load=="nc";
+        skeleton.gemv_bulk=gemv_load=="bulk";
         skeleton.qkv_epilogue=qkv_epilogue!=0;
         skeleton.moe_activation_bulk=moe_activation_bulk;
         skeleton.requested_serving_residency=serving_residency;
@@ -2119,7 +2128,27 @@ int RunCompile(int argc, char** argv) {
         source="#define TILEMEGA_MOE_OPAQUE 1\n"+source;
       }
     }
-    if(gemv_load=="nc") {
+    if(gemv_load=="nc" || gemv_load=="bulk") {
+      if(gemv_load=="bulk") {
+        auto plan=module?(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan"):mlir::DictionaryAttr{};
+        auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
+        if(!plan || (dm && dm.getValue()))
+          throw std::invalid_argument("bulk GEMV requires dense serving operands");
+        auto gemms=plan.getAs<mlir::ArrayAttr>("gemms");
+        auto runtime=(*module)->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime");
+        if(!gemms || !runtime || gemms.size()!=runtime.size())
+          throw std::invalid_argument("bulk GEMV requires explicit runtime GEMM geometry");
+        for(std::size_t i=0;i<runtime.size();++i) {
+          auto geometry=mlir::cast<mlir::DictionaryAttr>(runtime[i]);
+          auto impl=geometry.getAs<mlir::IntegerAttr>("impl");
+          if(impl && impl.getInt()==1) {
+            auto gemm=mlir::cast<mlir::DictionaryAttr>(gemms[i]);
+            auto k=gemm.getAs<mlir::IntegerAttr>("k"),tile=geometry.getAs<mlir::IntegerAttr>("tile_k");
+            if(!k || !tile || tile.getInt()<=0 || k.getInt()%tile.getInt())
+              throw std::invalid_argument("bulk GEMV requires complete K tiles");
+          }
+        }
+      }
       std::map<std::string,int> definitions;
       std::istringstream lines(source);std::string line;
       while(std::getline(lines,line)) {
@@ -2130,10 +2159,10 @@ int RunCompile(int argc, char** argv) {
       for(int i=0;i<16;++i)if(definitions["TILEMEGA_GEMM_IMPL_"+std::to_string(i)]==1) {
         auto prefix=i?"TILEMEGA_GEMM_V"+std::to_string(i)+"_":std::string("TILEMEGA_GEMM_");
         if(definitions[prefix+"TILE_N"]>32)
-          throw std::invalid_argument("NC GEMV requires TN8/16/32; TN64 is unsupported");
+          throw std::invalid_argument("selected GEMV load policy requires TN8/16/32; TN64 is unsupported");
         selected=true;
       }
-      if(!selected)throw std::invalid_argument("NC GEMV load policy requires an active GEMV implementation");
+      if(!selected)throw std::invalid_argument("selected GEMV load policy requires an active GEMV implementation");
     }
     std::filesystem::path requested(argv[2]);
     bool shared = requested.extension() == ".so";

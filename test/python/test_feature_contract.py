@@ -202,6 +202,17 @@ class FeatureContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'gemv_load'):
             validate({'gemv_load': 'ldg'}, {'TILEMEGA_GEMV_LOAD_NC': '1'})
 
+    def test_bulk_gemv_transport_cannot_be_mislabelled_or_combined(self):
+        validate({'gemv_load':'bulk'},{'TILEMEGA_GEMV_LOAD_BULK':'1'})
+        for manifest,defines in [
+            ({'gemv_load':'bulk'},{}),
+            ({'gemv_load':'ldg'},{'TILEMEGA_GEMV_LOAD_BULK':'1'}),
+            ({'gemv_load':'nc'},{'TILEMEGA_GEMV_LOAD_BULK':'1'}),
+            ({'gemv_load':'bulk'},{'TILEMEGA_GEMV_LOAD_BULK':'1','TILEMEGA_GEMV_LOAD_NC':'1'}),
+            ({'gemv_load':'bulk'},{'TILEMEGA_GEMV_LOAD_BULK':'2'})]:
+            with self.subTest(defines=defines),self.assertRaisesRegex(ValueError,'gemv_load'):
+                validate(manifest,defines)
+
 
     def test_decode_tile_m_claim_is_bound_to_macro(self):
         validate({'decode_tile_m': 16}, {})

@@ -17,6 +17,7 @@ struct Sm90GemvBulk {
   static constexpr int kWeightOffset=(Base::kSharedBytes+15)/16*16;
   static constexpr int kBarrierOffset=kWeightOffset+2*kWeightBytes;
   static constexpr int kSharedBytes=kBarrierOffset+2*sizeof(std::uint64_t);
+  static_assert(kSharedBytes==solver::ServingGemvSmemBytes(TileM,TileN,true));
 
   template<class Operands>
   __device__ static void IssueB(Operands const& p,int tile_n,int first,int slot,

@@ -124,7 +124,11 @@ def validate(manifest, defines):
         if uniform != wgmma or manifest['attention_page'] != ('uniform' if uniform else 'chunk16'):
             raise ValueError('manifest attention_page differs from its legal compiler layout')
     if 'gemv_load' in manifest:
-        actual = 'nc' if int(defines.get('TILEMEGA_GEMV_LOAD_NC', '0')) else 'ldg'
+        nc=int(defines.get('TILEMEGA_GEMV_LOAD_NC','0'))
+        bulk=int(defines.get('TILEMEGA_GEMV_LOAD_BULK','0'))
+        if nc not in (0,1) or bulk not in (0,1) or (nc and bulk):
+            raise ValueError('invalid or conflicting gemv_load macros')
+        actual = 'bulk' if bulk else 'nc' if nc else 'ldg'
         if manifest['gemv_load'] != actual:
             raise ValueError('manifest gemv_load differs from compiler macros')
     if 'merge' in manifest:

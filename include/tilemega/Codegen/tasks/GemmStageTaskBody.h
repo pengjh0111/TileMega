@@ -204,7 +204,7 @@ using GemmVariantArch = typename arch::ArchFromId<TILEMEGA_ARCH_ID>::type;
 template<class Arch,int M,int N,int K,int S>
 struct ServingGemvConfig : backend::ServingGemmConfig<Arch,16,32,K,2> {
   static constexpr bool kShapeLegal=solver::ServingGemvShapeLegal(M,N,K,S);
-  static constexpr int kSharedBytes=solver::ServingGemvSmemBytes(M,N);
+  static constexpr int kSharedBytes=solver::ServingGemvSmemBytes(M,N,TILEMEGA_GEMV_LOAD_BULK);
 };
 template <int Variant>
 struct GemmVariant;
@@ -217,14 +217,14 @@ template <class Mainloop, int M, int N, int K, int S, bool Gemv,bool Wgmma>
 struct GemmVariantStorage<true, Mainloop, M, N, K, S, Gemv,Wgmma> {
   struct alignas(16) type {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-    static constexpr auto mainloop_bytes = Gemv ? solver::ServingGemvSmemBytes(M,N)
+    static constexpr auto mainloop_bytes = Gemv ? solver::ServingGemvSmemBytes(M,N,TILEMEGA_GEMV_LOAD_BULK)
         : Wgmma ? solver::ServingWgmmaSmemBytes(M,N,K,S,TILEMEGA_MOE_ACTIVATION_BULK,TILEMEGA_ACTIVATION_TMA):solver::DmServingBF16SmemBytes(M,N,K,S);
     static constexpr auto chain_bytes = (M*N+2*M)*sizeof(float);
     static constexpr auto shared_epilogue_bytes = backend::ServingEpilogueScratchBytes(M,N,TILEMEGA_EP_PARALLEL_ARGMAX);
     static constexpr auto epilogue_bytes = chain_bytes>shared_epilogue_bytes?chain_bytes:shared_epilogue_bytes;
     unsigned char bytes[mainloop_bytes>epilogue_bytes?mainloop_bytes:epilogue_bytes];
 #else
-    unsigned char bytes[Gemv ? solver::ServingGemvSmemBytes(M,N) :
+    unsigned char bytes[Gemv ? solver::ServingGemvSmemBytes(M,N,TILEMEGA_GEMV_LOAD_BULK) :
         Wgmma ? solver::ServingWgmmaSmemBytes(M,N,K,S,TILEMEGA_MOE_ACTIVATION_BULK,TILEMEGA_ACTIVATION_TMA):backend::ServingGemmConfig<GemmVariantArch,(Wgmma && M==8?16:M),(N<32?32:N),K,S>::kSharedBytes];
 #endif
   };

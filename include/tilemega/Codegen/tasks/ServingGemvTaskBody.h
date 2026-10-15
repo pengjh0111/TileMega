@@ -1,11 +1,21 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Backend/ServingGemv.h>
+#include <tilemega/Backend/Sm90GemvBulk.h>
 #include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>
+#ifndef TILEMEGA_GEMV_LOAD_BULK
+#define TILEMEGA_GEMV_LOAD_BULK 0
+#endif
+static_assert(TILEMEGA_GEMV_LOAD_BULK==0 || TILEMEGA_GEMV_LOAD_BULK==1,
+              "invalid bulk GEMV load policy");
+static_assert(!(TILEMEGA_GEMV_LOAD_BULK && TILEMEGA_GEMV_LOAD_NC),
+              "bulk and NC GEMV transports are mutually exclusive");
 namespace tilemega::codegen {
 template<class Arch,int TileN,int TileK,bool Tiled=false>
 struct ServingGemvTaskBody {
-  using Impl=backend::ServingGemv<Arch,16,TileN,TileK>;
+  using Impl=std::conditional_t<TILEMEGA_GEMV_LOAD_BULK!=0,
+      backend::Sm90GemvBulk<Arch,16,TileN,TileK>,
+      backend::ServingGemv<Arch,16,TileN,TileK>>;
   static constexpr int kThreads=128,kSharedBytes=Impl::kSharedBytes;
   template<class Emit>
   __device__ static void PrefetchRanges(ServingGemmOperands const& p,int tile_n,Emit emit) {
