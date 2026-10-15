@@ -1,4 +1,6 @@
 native_system,native_comparison_arm,baseline_system,baseline_mode,native_precision,baseline_precision,checkpoint_scope,acceptance,matched_cells,coordinates,median_ms_speedup,p90_ms_speedup
+tilemega,20261015T143533Z-production-fixes:mbv1:h7c-mma16:B1,torchcompile,max-autotune,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,mbv1/B1,0.08131429200680515,0.08434193653827389
+tilemega,20261015T143533Z-production-fixes:mbv1:h7c-wgmma:B1,torchcompile,max-autotune,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,mbv1/B1,0.08605327900002661,0.08950927185453104
 tilemega,h7a-source15-optin-resnet-mma-v1:mma:B1,tensorrt,,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.09151270628067029,0.09165430036618463
 tilemega,h7a-source15-optin-resnet-mma-v1:mma:B1,tensorrt,,bf16,fp16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.06832307030380036,0.06839092646559419
 tilemega,h7a-source15-optin-resnet-mma-v1:mma:B1,torchcompile,max-autotune,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.10473561487306167,0.10498198692686572
@@ -7,6 +9,7 @@ tilemega,tilemega@67b624d2fcaa09c14a940b3fd52e765acb0ab141ff9966a5d071d617a3c4fa
 tilemega,tilemega@67b624d2fcaa09c14a940b3fd52e765acb0ab141ff9966a5d071d617a3c4faa6,tensorrt,,bf16,fp16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.06693388667337934,0.06673469769926046
 tilemega,tilemega@67b624d2fcaa09c14a940b3fd52e765acb0ab141ff9966a5d071d617a3c4faa6,torchcompile,max-autotune,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.10260607062019386,0.10243962939961955
 tilemega,tilemega@67b624d2fcaa09c14a940b3fd52e765acb0ab141ff9966a5d071d617a3c4faa6,torchcompile,reduce-overhead,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.1033550192865067,0.10328087781648297
+tilemega,tilemega@a3a681f61b9f3422982415f4c77cae3fc9d61391054b474f1c5ebeaec68c2bd3,torchcompile,max-autotune,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,mbv1/B1,0.08152936194652614,0.08441653901801434
 tilemega,tilemega@b2e86d4b20894b0c6b93802bbf4aef5564ee2c2e3758d79448edb9b37f3685fc,tensorrt,,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.08572773580569114,0.08541548027504431
 tilemega,tilemega@b2e86d4b20894b0c6b93802bbf4aef5564ee2c2e3758d79448edb9b37f3685fc,tensorrt,,bf16,fp16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.06400403133608389,0.06373562186580398
 tilemega,tilemega@b2e86d4b20894b0c6b93802bbf4aef5564ee2c2e3758d79448edb9b37f3685fc,torchcompile,max-autotune,bf16,bf16,identical exported program,provisional_container_pid_namespace,1,resnet18/B1,0.09811475899036957,0.09783596402744477
