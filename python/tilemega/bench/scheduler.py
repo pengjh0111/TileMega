@@ -8,10 +8,28 @@ import sys
 import time
 from pathlib import Path
 
-from .gpu_guard import gpu, idle, stop
+from .gpu_guard import gpu, idle, needs_numa_lock, stop
 from .locking import acquire_command_lock
 
 TERMINAL = {'done', 'failed', 'skipped', 'not_run', 'cancelled'}
+
+
+def numa_window_available(step, base_env=None, lock_dir=Path('/tmp')):
+    """Avoid queuing behind a timing lock when correctness work can run.
+
+    This is only a scheduling hint. The child guard still acquires and holds
+    the real NUMA lock, including if another scheduler wins this race.
+    """
+    env = dict(os.environ if base_env is None else base_env, **step.get('env', {}))
+    env['TILEMEGA_TIMING'] = '1' if step.get('timing', step.get('gpu', False)) else '0'
+    if not needs_numa_lock(env) or env.get('TILEMEGA_NUMA_NODE') is None:
+        return True  # Missing required metadata is rejected by the child guard.
+    with (lock_dir / f"tilemega_numa{env['TILEMEGA_NUMA_NODE']}.lock").open('a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return False
+    return True
 
 
 def write_json(path, data):
@@ -140,7 +158,8 @@ def main(argv=None):
         timing_pause(control, pending_timing, False, time.time(), policy.get('max_idle_wait_s', 21600))
         chosen = next((s for s in gpu_steps
             if not (control.get('timing_paused') and s.get('timing', True))
-            and 'error' not in row and idle(row, policy, s.get('needs_free_mib', 12288))), None)
+            and 'error' not in row and idle(row, policy, s.get('needs_free_mib', 12288))
+            and numa_window_available(s)), None)
         if chosen is None:
             chosen = next((s for s in ready if not s.get('gpu')), None)
         if chosen is None:
