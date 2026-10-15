@@ -279,10 +279,7 @@ set_target_properties(tilemega_core PROPERTIES OUTPUT_NAME tilemega)
 target_compile_features(tilemega_core PUBLIC cxx_std_17)
 target_include_directories(tilemega_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/include>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/tools/util/include>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/cutlass/test>)
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 add_dependencies(tilemega_core TileMegaCGIncGen)
 target_link_libraries(tilemega_core PUBLIC tilemega_maca_runtime MLIRIR MLIRSupport MLIRPass
   tilemega::isl_stack)
