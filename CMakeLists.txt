@@ -320,6 +320,10 @@ add_custom_target(check-policy
 
 if(TILEMEGA_BUILD_TESTS)
   enable_testing()
+  add_executable(conv_weight_extent_test test/unit/conv_weight_extent_test.cpp)
+  target_link_libraries(conv_weight_extent_test PRIVATE TileMega::tilemega)
+  target_compile_options(conv_weight_extent_test PRIVATE -UNDEBUG)
+  add_test(NAME conv_weight_extent COMMAND conv_weight_extent_test)
   add_executable(serving_residency_budget_test test/unit/serving_residency_budget_test.cpp)
   target_link_libraries(serving_residency_budget_test PRIVATE TileMega::tilemega)
   target_compile_options(serving_residency_budget_test PRIVATE -UNDEBUG)

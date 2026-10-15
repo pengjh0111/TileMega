@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/ServingAttentionLegality.h>
+#include <tilemega/Backend/ConvIteration.h>
 #include <tilemega/Codegen/ServingPages.h>
 #include <tilemega/Codegen/RuntimePlan.h>
 #include <tilemega/Frontend/DmDescriptorCodec.h>
@@ -186,11 +187,11 @@ void ResolveServingWeightPacking(mlir::ModuleOp module) {
       !module->getAttr("tmexec.nonpaged_weight_layout_tiled")) return;
   auto plan=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   if (!plan) throw std::invalid_argument("page plan lacks model buffers");
-  auto runtime=ReadRuntimePlan(module);
+  auto runtime=ReadRuntimeGemmRecords(module);
   auto old_buffers=plan.getAs<mlir::ArrayAttr>("buffers");
   auto old_gemms=plan.getAs<mlir::ArrayAttr>("gemms");
   auto old_stages=plan.getAs<mlir::ArrayAttr>("stages");
-  if (runtime.gemms.size()!=old_gemms.size())
+  if (runtime.size()!=old_gemms.size())
     throw std::invalid_argument("page geometry does not cover each GEMM");
   mlir::OpBuilder b(module.getContext());
   std::vector<mlir::Attribute> buffers(old_buffers.begin(),old_buffers.end());
@@ -219,7 +220,7 @@ void ResolveServingWeightPacking(mlir::ModuleOp module) {
           if(id==source)return false;
       }
       if(other.getAs<mlir::IntegerAttr>("b").getInt()==source &&
-          (runtime.gemms[j].tile_n!=tn || runtime.gemms[j].tile_k!=tk))return false;
+          (runtime[j].tile_n!=tn || runtime[j].tile_k!=tk))return false;
     }
     for(auto item:old_stages) {
       auto stage=mlir::cast<mlir::DictionaryAttr>(item);
@@ -240,18 +241,42 @@ void ResolveServingWeightPacking(mlir::ModuleOp module) {
     int source=mlir::cast<mlir::IntegerAttr>(g.get("b")).getInt();
     int n=mlir::cast<mlir::IntegerAttr>(g.get("n")).getInt();
     int k=mlir::cast<mlir::IntegerAttr>(g.get("k")).getInt();
-    int tn=runtime.gemms[i].tile_n,tk=runtime.gemms[i].tile_k;
+    int tn=runtime[i].tile_n,tk=runtime[i].tile_k;
     if(source<0 || source>=int(old_buffers.size()) || tn<=0 || tk<=0)
       throw std::invalid_argument("invalid page weight source or tile");
     auto original=mlir::cast<mlir::DictionaryAttr>(old_buffers[source]);
     auto recipe=original.getAs<mlir::StringAttr>("pack_json");
     if(!recipe || recipe.getValue().empty())
       throw std::invalid_argument("page weight lacks a packing recipe");
-    if(recipe.getValue().starts_with("{\"kind\":\"tile_pages\"")) continue;
     auto access=g.get("dm_access")?frontend::DecodeDmAccess(g.get("dm_access")):DmGemmAccess{};
+    // ConvIteration is the consumer's physical K ordering. It includes RGB
+    // channel padding and a separate channel tail for each filter position.
+    // The logical GEMM reduction (C*R*S) is not the packed weight capacity.
+    if(access.a==DmAAccess::kIm2Col) {
+      auto convolutions=plan.getAs<mlir::ArrayAttr>("dm_convolutions");
+      if(!convolutions || access.conv>=convolutions.size())
+        throw std::invalid_argument("packed convolution lacks its descriptor");
+      auto conv=frontend::DecodeDmConv(convolutions[access.conv]);
+      if(conv.input_layout>=old_buffers.size())
+        throw std::invalid_argument("packed convolution lacks its input layout");
+      auto input=mlir::cast<mlir::DictionaryAttr>(old_buffers[conv.input_layout]);
+      auto layout=frontend::DecodeDmLayout(input.get("dm_layout"));
+      auto geometry=backend::ConvIterationGeometry::Build(conv,layout,tk);
+      if(geometry.iterations>std::uint64_t(std::numeric_limits<int>::max())/tk)
+        throw std::invalid_argument("packed convolution K exceeds its runtime extent");
+      k=int(geometry.iterations*tk);
+    }
     bool expert=access.b==DmBAccess::kExpertIndirect;
     auto stride=std::int64_t((n+tn-1)/tn)*((k+tk-1)/tk)*tn*tk;
     auto elements=stride*(expert?access.experts:1);
+    if(recipe.getValue().starts_with("{\"kind\":\"tile_pages\"")) {
+      if(access.a==DmAAccess::kIm2Col) {
+        mlir::NamedAttrList corrected(original);
+        corrected.set("constant",b.getI64IntegerAttr(elements));
+        buffers[source]=corrected.getDictionary(module.getContext());
+      }
+      continue;
+    }
     if(expert && (!access.experts || elements>std::numeric_limits<std::uint32_t>::max()))
       throw std::invalid_argument("packed expert stack exceeds the buffer extent range");
     auto key=std::make_tuple(source,tn,tk);
