@@ -26,6 +26,11 @@ def throttle_invalid(row):
     # slowdowns invalidate a round even if its numeric output is correct.
     return bool(row.get('throttle_mask',0)&(0x8|0x20|0x40|0x80))
 
+def needs_numa_lock(env):
+    return (env.get('TILEMEGA_TIMING')=='1'
+            and env.get('TILEMEGA_NUMA_CONCURRENCY_VERIFIED')!='1'
+            and env.get('TILEMEGA_NUMA_CONCURRENCY_TRIAL')!='1')
+
 def idle_power(policy,index=None):
     index=str(os.getenv('TILEMEGA_DEVICE_INDEX','0') if index is None else index)
     return policy.get('idle_power_w_by_gpu',{}).get(index,policy['idle_power_w'])
@@ -129,11 +134,12 @@ def main():
     def finish(code,reason):
         acceptance='provisional_container_pid_namespace' if limited else 'strict'
         (a.out/'guard_result.json').write_text(json.dumps(dict(code=code,reason=reason,
-            ownership_verified=not limited,acceptance=acceptance if code==0 else 'rejected'))+'\n')
+            ownership_verified=not limited,acceptance=acceptance if code==0 else 'rejected',
+            numa_concurrency_trial=os.environ.get('TILEMEGA_NUMA_CONCURRENCY_TRIAL')=='1'))+'\n')
         print(reason,flush=True);return code
     lock=Path(os.environ['TILEMEGA_GPU_LOCK']);lock.parent.mkdir(parents=True,exist_ok=True)
     with contextlib.ExitStack() as stack:
-        if os.environ.get('TILEMEGA_TIMING')=='1' and os.environ.get('TILEMEGA_NUMA_CONCURRENCY_VERIFIED')!='1':
+        if needs_numa_lock(os.environ):
             node=os.environ.get('TILEMEGA_NUMA_NODE')
             if node is None:p.error('timing jobs require TILEMEGA_NUMA_NODE')
             numa=stack.enter_context(Path(f'/tmp/tilemega_numa{node}.lock').open('a'))

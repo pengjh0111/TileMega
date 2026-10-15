@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from tilemega.bench import anchor
 from tilemega.bench.arms import register, check_binaries
-from tilemega.bench.gpu_guard import external, idle, idle_power, stop, throttle_invalid
+from tilemega.bench.gpu_guard import external, idle, idle_power, needs_numa_lock, stop, throttle_invalid
 from tilemega.bench.make_queue import prepare
 from tilemega.bench.report import metrics, discernible
 from tilemega.bench.scheduler import ready_steps, timing_pause
@@ -22,6 +22,16 @@ from tilemega.build.identity import digest
 
 
 class GuardTests(unittest.TestCase):
+    def test_timing_serialization_requires_explicit_trial_or_verified_result(self):
+        self.assertFalse(needs_numa_lock({}))
+        self.assertTrue(needs_numa_lock({'TILEMEGA_TIMING': '1'}))
+        self.assertTrue(needs_numa_lock({'TILEMEGA_TIMING': '1',
+                                       'TILEMEGA_NUMA_CONCURRENCY_TRIAL': '0'}))
+        self.assertFalse(needs_numa_lock({'TILEMEGA_TIMING': '1',
+                                        'TILEMEGA_NUMA_CONCURRENCY_TRIAL': '1'}))
+        self.assertFalse(needs_numa_lock({'TILEMEGA_TIMING': '1',
+                                        'TILEMEGA_NUMA_CONCURRENCY_VERIFIED': '1'}))
+
     def test_idle_limits(self):
         policy = dict(max_util_pct=5, idle_power_w=21.81, power_margin_w=30, max_hidden_mib=1024)
         row = dict(owners={}, utilization_pct=5, power_w=51.81, hidden_mib=1024, free_mib=12288)
