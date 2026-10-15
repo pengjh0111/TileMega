@@ -388,13 +388,54 @@ inline void Destroy(Plan* plan) {
   delete plan;
 }
 
+inline int ResidentServingGrid(tilemega::TargetSpec const& target) {
+  int pinned=kModel.runtime_variants[0].plan.eft_grid;
+  if constexpr(TILEMEGA_SERVING_CLUSTER_DIM==1)
+    return pinned?pinned:target.res.num_sms;
+  else {
+    static_assert(TILEMEGA_SERVING_CLUSTER_DIM==1 || arch::Caps<GemmVariantArch>::kCluster,
+                  "serving cluster launch requires native cluster capability");
+    if(!target.caps.cluster || target.res.max_cluster_size<TILEMEGA_SERVING_CLUSTER_DIM)
+      throw std::invalid_argument("serving cluster dimension exceeds runtime device capability");
+    int candidates=target.res.num_sms/TILEMEGA_SERVING_CLUSTER_DIM;
+    if(!candidates)throw std::invalid_argument("serving grid is smaller than one cluster");
+    int grid=candidates*TILEMEGA_SERVING_CLUSTER_DIM;
+    int resident=std::numeric_limits<int>::max();
+    auto check=[&](auto kernel) {
+      if(kServingSharedBytes>48*1024)
+        TILEMEGA_CUDA_CHECK(cudaFuncSetAttribute(kernel,
+            cudaFuncAttributeMaxDynamicSharedMemorySize,kServingSharedBytes));
+      int clusters=0;
+      TILEMEGA_CUDA_CHECK(executor::ServingActiveClusters(&clusters,kernel,
+          kServingThreads,kServingSharedBytes,grid));
+      resident=std::min(resident,clusters);
+    };
+    check(tilemega_l1_kernel);check(tilemega_l2_kernel);
+#if TILEMEGA_PAGED
+    check(tilemega_loop_kernel);
+#elif TILEMEGA_SERVING_SEQ==1
+    check(tilemega_l1_loop_kernel);
+#endif
+    if(resident<=0 || resident>std::numeric_limits<int>::max()/TILEMEGA_SERVING_CLUSTER_DIM)
+      throw std::invalid_argument("serving kernels have no resident cluster grid");
+    grid=resident*TILEMEGA_SERVING_CLUSTER_DIM;
+    // EFT worker IDs are part of sigma; changing their grid changes the plan.
+    if(pinned && pinned!=grid)
+      throw std::invalid_argument("serving cluster occupancy differs from the pinned EFT grid");
+    return grid;
+  }
+}
+
 }  // namespace tilemega::codegen::serving
 
 extern "C" int tm_plan_query(tm_plan_info* output) {
   if (!output) return -1;
   auto target = tilemega::TargetSpec::Probe();
-  int grid=kModel.runtime_variants[0].plan.eft_grid
-      ? int(kModel.runtime_variants[0].plan.eft_grid):target.res.num_sms;
+  int grid=0;
+  try { grid=tilemega::codegen::serving::ResidentServingGrid(target); }
+  catch(std::exception const& error) {
+    std::fprintf(stderr,"tm_plan_query: %s\n",error.what());return -5;
+  }
   *output = {TM_SERVING_ABI_VERSION,
 #if defined(TILEMEGA_SERVING_PHASE)
              TILEMEGA_SERVING_PHASE,
@@ -457,8 +498,7 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
       return nullptr;
     std::unique_ptr<serving::Plan, void (*)(serving::Plan*)> plan(
         new serving::Plan, serving::Destroy);
-    int const grid = kModel.runtime_variants[0].plan.eft_grid
-        ? int(kModel.runtime_variants[0].plan.eft_grid):target.res.num_sms;
+    int const grid=serving::ResidentServingGrid(target);
     std::size_t const smem = kServingSharedBytes;
     if (smem > target.res.max_dynamic_smem_per_cta) return nullptr;
     if (smem > 48 * 1024) {
@@ -578,6 +618,9 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
                    plan->model.event_count * sizeof(EventCounter)) != cudaSuccess)
       return nullptr;
     plan->grid = grid;
+    if constexpr(TILEMEGA_SERVING_CLUSTER_DIM>1)
+      std::fprintf(stderr,"E2E_SERVING_CLUSTER dim=%d resident_grid=%d\n",
+          TILEMEGA_SERVING_CLUSTER_DIM,grid);
 #if TILEMEGA_PAGED
     plan->loop_modes=2;
 #elif TILEMEGA_SERVING_SEQ==1
@@ -721,6 +764,7 @@ extern "C" unsigned tm_plan_loop_modes(void* opaque) {
 extern "C" std::uint64_t tm_plan_shared_bytes() {
   return tilemega::codegen::kServingSharedBytes;
 }
+extern "C" unsigned tm_plan_cluster_dim() { return TILEMEGA_SERVING_CLUSTER_DIM; }
 extern "C" unsigned tm_plan_pdl_enabled(void* opaque) {
   auto* plan=static_cast<tilemega::codegen::serving::Plan*>(opaque);
   return plan && plan->pdl;

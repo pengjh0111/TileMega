@@ -469,6 +469,9 @@ __device__ inline void RunServingAttentionTask(Params const& p,
 #if TILEMEGA_TRACE_TASK
   inputs.profile=profile;
 #endif
+#if TILEMEGA_QKV_EPILOGUE
+  inputs.qkv_preprocessed=true;
+#endif
 #if TILEMEGA_ATTENTION_IMPL==4
   if(p.serving_tensor_maps) {
     auto* maps=static_cast<executor::TensorMap const*>(p.serving_tensor_maps);
@@ -3083,9 +3086,35 @@ inline DeviceModel Create(ModelSpec const& spec,
             model.buffers[gemm_partial[i]]) +
             static_cast<std::size_t>(chunk) * m * desc.n;
 #endif
+#if TILEMEGA_QKV_EPILOGUE
+      if(dims.seq!=1)throw std::invalid_argument("qkv epilogue only supports decode");
+      for(unsigned stage_id=0;stage_id<spec.stage_count;++stage_id) {
+        auto const& attention=spec.stages[stage_id];
+        if(attention.kind!=TaskKind::kFusedAttention || attention.operand[0]!=desc.d)continue;
+        auto& q=invocation.qkv_epilogue;
+        q.key_cache=model.buffers.at(attention.operand[1]);q.value_cache=model.buffers.at(attention.operand[2]);
+        q.cosine=model.buffers.at(attention.operand[3]);q.sine=model.buffers.at(attention.operand[4]);
+        q.q_norm=attention.operand[5]==kNoOperand?nullptr:model.buffers.at(attention.operand[5]);
+        q.k_norm=attention.operand[6]==kNoOperand?nullptr:model.buffers.at(attention.operand[6]);
+        q.heads_kv=attention.extent;q.head_dim=attention.width;q.q_per_kv=attention.group;
+        q.capacity=dims.capacity;q.epsilon=TILEMEGA_NORM_EPSILON;
+        q.Validate(desc.n,tiling.tile_n,chunks,dims.seq);
+      }
+#endif
       gemms.push_back(invocation);
     }
   }
+
+#if TILEMEGA_QKV_EPILOGUE
+  for(unsigned stage_id=0;stage_id<spec.stage_count;++stage_id) {
+    auto const& attention=spec.stages[stage_id];
+    if(attention.kind!=TaskKind::kFusedAttention)continue;
+    unsigned writers=0;
+    for(unsigned gemm_id=0;gemm_id<spec.gemm_count;++gemm_id)
+      writers+=spec.gemms[gemm_id].d==attention.operand[0];
+    if(writers!=1)throw std::invalid_argument("qkv epilogue requires exactly one projection producer per attention stage");
+  }
+#endif
 
   // Rewrite the stage list and the dependency graph around the combiners.
   std::printf("E2E_PARTIALS fp32=%d element_bytes=%zu total_bytes=%zu\n",
@@ -4141,6 +4170,16 @@ inline DeviceModel Create(ModelSpec const& spec,
     model.schedule_offsets[worker + 1] =
         static_cast<std::uint32_t>(model.schedule.size());
   }
+
+#if TILEMEGA_SERVING_CLUSTER_DIM>1
+  {
+    std::vector<unsigned> counts(model.stages.size());
+    for(unsigned stage=0;stage<counts.size();++stage)
+      counts[stage]=model.stages[stage].handoff_elided?0:active_tasks(stage);
+    (void)executor::ValidateClusterPlacement(TILEMEGA_SERVING_CLUSTER_DIM,
+        grid,counts,model.schedule_offsets,model.schedule);
+  }
+#endif
 
 #if TILEMEGA_MOE_DYNAMIC
   std::vector<DynamicStageRange> dynamic_ranges(std::size_t(grid)*model.stages.size());

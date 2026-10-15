@@ -3,6 +3,9 @@ import re
 
 
 INTEGER_FEATURES = {
+    'dependency_intern': ('TILEMEGA_DEPENDENCY_INTERN', 0),
+    'cluster_dim': ('TILEMEGA_SERVING_CLUSTER_DIM', 1),
+    'qkv_epilogue': ('TILEMEGA_QKV_EPILOGUE', 0),
     'moe_activation_bulk': ('TILEMEGA_MOE_ACTIVATION_BULK', 0),
     'watchdog': ('TILEMEGA_WATCHDOG', 1),
     'attention_noinline': ('TILEMEGA_ATTENTION_NOINLINE', 0),
@@ -45,6 +48,14 @@ def build_defines(generated, options):
 
 
 def validate(manifest, defines):
+    seed_arch = manifest.get('seed_arch', 'legacy')
+    if seed_arch not in ('native', 'legacy'):
+        raise ValueError('manifest seed_arch must be native or legacy')
+    if seed_arch == 'native':
+        ids = {'sm_80':800, 'sm_89':890, 'sm_90':900, 'sm_100':1000, 'sm_120':1200}
+        target = manifest.get('seed_target_arch')
+        if target not in ids or int(defines.get('TILEMEGA_ARCH_ID', '800')) != ids[target]:
+            raise ValueError('manifest native seed target differs from TILEMEGA_ARCH_ID')
     for feature, (macro, default) in INTEGER_FEATURES.items():
         if feature in manifest:
             actual = int(defines.get(macro, str(default)))
@@ -90,7 +101,10 @@ def implementations(manifest, defines):
     """The same implementation fields serve source checks and binary identity."""
     paged = manifest.get('pg') == 'pages'
     decode = manifest.get('phase') == 'decode'
-    return {'gemv_load': manifest.get('gemv_load', 'ldg'),
+    return {'seed_arch': manifest.get('seed_arch', 'legacy'),
+            'execution_arch_id': int(defines.get('TILEMEGA_ARCH_ID', '800')),
+            'qkv_epilogue': bool(manifest.get('qkv_epilogue', False)),
+            'gemv_load': manifest.get('gemv_load', 'ldg'),
             'conv_impl': manifest.get('conv_impl', 'cpasync'),
             'encoder_attention': {'impl': manifest.get('encoder_attention_impl','mma16'),
                 'task_body': 'Sm90EncoderAttentionTaskBody' if manifest.get('encoder_attention_impl') == 'wgmma' else 'EncoderAttentionTaskBody'},

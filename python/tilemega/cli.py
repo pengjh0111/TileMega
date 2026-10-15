@@ -31,7 +31,7 @@ DEFAULTS = {
                      prompts='configs/prompts/passages.jsonl'),
     'device': dict(index=0, cache_dir='~/.cache/tilemega'),
     'solver': dict(passes=2, top_m=8, measure_top=4, selection_candidates=8, pilot_rounds=1, jobs=3, mode='L2', candidate_loop=0, pruning=True, time_budget_s=600, candidate_guard_wait_s=300, prefill_pins={}, exclude_l1_loop=False, resident2_batches=[]),
-    'features': dict(pg='auto', handoff='off', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='tiled', kphase_mask=31, lookahead_bytes=-1, v3_poll_ns=0, watchdog=0, mma_reg_pipe=0, nonpaged_la=0, attention_frontier=0, parallel_argmax=0, ep_direct=0, attention_noinline=0, attention_buffers=2, attention_impl="mma16", forward_gemm_impl="mma16", prefill_attention_impl="mma16", moe_activation_bulk=0, l2_slim=0, page_loop_split=0, nonpaged_weight_layout='row', evict_first=0, evict_last=1, decode_executor="L2", decode_loop=1, prefill_executor="L1"),
+    'features': dict(pg='auto', handoff='off', sync='calibrated', arch_paths='auto', pdl='auto', weight_layout='tiled', kphase_mask=31, lookahead_bytes=-1, v3_poll_ns=0, watchdog=0, mma_reg_pipe=0, nonpaged_la=0, attention_frontier=0, parallel_argmax=0, ep_direct=0, attention_noinline=0, attention_buffers=2, attention_impl="mma16", forward_gemm_impl="mma16", prefill_attention_impl="mma16", dependency_intern=0, cluster_dim=1, moe_activation_bulk=0, l2_slim=0, page_loop_split=0, nonpaged_weight_layout='row', evict_first=0, evict_last=1, decode_executor="L2", decode_loop=1, prefill_executor="L1"),
     'test': dict(warmup=1, repeats=3, hf_check=True, mode_check=True, guard=True, vllm=False,
                  vllm_python='/root/venv_vllm/bin/python', policy_file=None),
     'output': dict(dir='runs/{model}-{timestamp}'),
@@ -193,12 +193,14 @@ def read_config(path: Path) -> dict:
         raise ValueError('static serving batches must lie in [1,16]')
     for name, allowed in dict(pg=['off', 'l2', 'pages', 'auto', 'measure'], handoff=['off', 'auto'],
                               sync=['calibrated', 'legacy'], arch_paths=['auto', 'sm80'],
-                              mma_reg_pipe=[0,1], nonpaged_la=[0,1], attention_frontier=[0,1], parallel_argmax=[0,1], ep_direct=[0,1], attention_noinline=[0,1], attention_buffers=[1,2], attention_impl=["mma16","pvswap","pvswap2","simt","wgmma"], forward_gemm_impl=["mma16","wgmma"], prefill_attention_impl=["mma16","wgmma"], moe_activation_bulk=[0,1], l2_slim=[0,1], page_loop_split=[0,1], pdl=['auto', 'off'], weight_layout=['row', 'tiled'], nonpaged_weight_layout=['row','tiled'], evict_first=[0,1], evict_last=[0,1],
+                              mma_reg_pipe=[0,1], nonpaged_la=[0,1], attention_frontier=[0,1], parallel_argmax=[0,1], ep_direct=[0,1], attention_noinline=[0,1], attention_buffers=[1,2], attention_impl=["mma16","pvswap","pvswap2","simt","wgmma"], forward_gemm_impl=["mma16","wgmma"], prefill_attention_impl=["mma16","wgmma"], dependency_intern=[0,1], cluster_dim=[1,2,4], moe_activation_bulk=[0,1], l2_slim=[0,1], page_loop_split=[0,1], pdl=['auto', 'off'], weight_layout=['row', 'tiled'], nonpaged_weight_layout=['row','tiled'], evict_first=[0,1], evict_last=[0,1],
                               decode_executor=['L1', 'L2', 'measure'],
                               decode_loop=[0, 1, 'measure'], prefill_executor=['L1', 'L2', 'measure'],
                               prefill_pg=['l2', 'measure']).items():
         if config['features'][name] not in allowed:
             raise ValueError(f'invalid features.{name}')
+    if 'qkv_epilogue' in config['features'] and config['features']['qkv_epilogue'] not in (0, 1):
+        raise ValueError('invalid features.qkv_epilogue')
     if 'gemv_load' in config['features'] and config['features']['gemv_load'] not in ('ldg', 'nc'):
         raise ValueError('invalid features.gemv_load')
     if 'attention_page' in config['features'] and config['features']['attention_page'] not in ('chunk16', 'uniform'):

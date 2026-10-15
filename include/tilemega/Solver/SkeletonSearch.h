@@ -43,6 +43,7 @@ struct SkeletonSearchOptions {
   bool forward_wgmma=false;
   bool conv_tma_im2col=false;
   bool gemv_nc=false;
+  bool qkv_epilogue=false;
   bool moe_activation_bulk=false;
   // An edge class is a coordinate: bit 0 selects access-proved normalization
   // recompute, bit 1 selects access-proved attention last-arriver reduction.

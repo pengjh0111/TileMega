@@ -5,6 +5,29 @@ from tilemega.build.feature_contract import INTEGER_FEATURES, build_defines, imp
 
 
 class FeatureContractTests(unittest.TestCase):
+    def test_native_seed_identity_matches_taskbody_caps_for_all_targets(self):
+        for target, value in [('sm_80',800),('sm_89',890),('sm_90',900),('sm_100',1000),('sm_120',1200)]:
+            plan = dict(seed_arch='native', seed_target_arch=target, phase='decode', pg='off', gemms=[])
+            defines = {'TILEMEGA_ARCH_ID':str(value)}
+            validate(plan, defines)
+            fields = implementations(plan, defines)
+            self.assertEqual(fields['execution_arch_id'], value)
+            self.assertEqual(fields['seed_arch'], 'native')
+            with self.assertRaisesRegex(ValueError, 'native seed target'):
+                validate(plan, {'TILEMEGA_ARCH_ID':str(value+1)})
+        with self.assertRaisesRegex(ValueError, 'native seed target'):
+            validate(dict(seed_arch='native', seed_target_arch='sm_90'), {})
+        with self.assertRaisesRegex(ValueError, 'native seed target'):
+            validate(dict(seed_arch='native'), {'TILEMEGA_ARCH_ID':'900'})
+
+    def test_legacy_seed_keeps_existing_hopper_and_sm89_behavior(self):
+        for value in (800,890,900):
+            validate(dict(seed_arch='legacy', seed_target_arch=''), {'TILEMEGA_ARCH_ID':str(value)})
+        validate({}, {})
+        self.assertEqual(implementations(dict(pg='off',gemms=[]), {})['seed_arch'],'legacy')
+        with self.assertRaisesRegex(ValueError, 'seed_arch'):
+            validate(dict(seed_arch='unknown'), {})
+
     def test_every_integer_feature_in_llm_and_dm_plans(self):
         for dm in (False, True):
             for feature, (macro, default) in INTEGER_FEATURES.items():

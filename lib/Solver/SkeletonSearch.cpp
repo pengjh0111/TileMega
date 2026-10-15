@@ -53,6 +53,16 @@ bool ConvWgmmaEligible(OperatorClass const& cls,frontend::ImportedSemantics cons
   }
   return true;
 }
+bool QkvEpilogueLegal(OperatorClass const& cls,frontend::ImportedSemantics const& imported,
+    GemmConfig const& candidate) {
+  for(auto gemm_id:cls.gemms)for(auto const& attention:imported.plan.stages) {
+    if(attention.kind!=frontend::PlanTaskKind::kFusedAttention ||
+       attention.operands[0]!=imported.plan.gemms.at(gemm_id).d)continue;
+    if(candidate.split_k!=1 || !attention.width || candidate.tile_n%attention.width ||
+       candidate.impl==1)return false;
+  }
+  return true;
+}
 std::string ConfigKey(std::vector<GemmConfig> const& config,int kappa,int residency) {
   std::ostringstream out;for(auto const& g:config){out<<g.tile_m<<'x'<<g.tile_n<<'x'<<g.tile_k<<'s'<<g.stages<<'k'<<g.split_k;if(g.impl)out<<'i'<<g.impl;out<<';';}
   out<<"kappa="<<kappa<<";residency="<<residency;return out.str();
@@ -584,6 +594,9 @@ struct SearchContext {
           !ServingGemvShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages)))
         throw std::invalid_argument("GEMV requires nonpaged M<=4, legal GEMV geometry");
     }
+    if(options.qkv_epilogue)for(std::size_t c=0;c<priced.size();++c)
+      if(!QkvEpilogueLegal(classes[c],imported,priced[c]))
+        throw std::invalid_argument("qkv epilogue requires splitK1 and TN divisible by head dimension");
     if(options.gemv_nc)for(auto const& g:priced)if(g.impl==1 &&
         (!options.common.placement.target.caps.wgmma || options.pg_pages ||
          !ServingGemvNcTraits(g.tile_m,g.tile_n,g.tile_k,g.stages).shape_legal))
@@ -787,6 +800,8 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       if(hopper.empty())throw std::invalid_argument("TMA im2col class has no supported M64/K64 geometry");
       domain=std::move(hopper);
     }
+    if(options.qkv_epilogue)domain.erase(std::remove_if(domain.begin(),domain.end(),
+        [&](auto const& g){return !QkvEpilogueLegal(cls,search.imported,g);}),domain.end());
     if(options.gemv_nc)domain.erase(std::remove_if(domain.begin(),domain.end(),
         [&](auto const& g){return g.impl==1 && !ServingGemvNcTraits(
             g.tile_m,g.tile_n,g.tile_k,g.stages).shape_legal;}),domain.end());
