@@ -163,9 +163,43 @@ cached CUDA allocations are released before starting the HF subprocess.
 
 ## Portability
 
-`TILEMEGA_TARGET_ARCH` selects sm_80/89/90/100/120. `check-policy` checks device
+`TILEMEGA_TARGET_ARCH` selects sm_80/89/90/100/120. Stated: on H800, configure
+with `-DTILEMEGA_TARGET_ARCH=sm_90`; `auto` uses nvcc's native base target and
+does not enable Hopper architecture-accelerated instructions. Explicit sm_90
+and sm_100 use compute_90a/sm_90a and compute_100a/sm_100a gencode respectively,
+without requiring CMake support for an `a` architecture suffix. Target JSON
+accepts `nvcc_arch`; omitted values map sm_90 to sm_90a and sm_100 to sm_100a,
+with other tags unchanged. Verified: CUDA 12.8 `-arch=sm_90a` also emits a
+compute_90 pass for linked outputs; TileMega uses explicit gencode for accelerated
+targets so Hopper-only instructions are checked exclusively in compute_90a.
+Stated: the additional capability bits follow the
+[CUDA 12.8 PTX ISA](https://docs.nvidia.com/cuda/archive/12.8.0/parallel-thread-execution/index.html);
+WGMMA is Hopper-only, while setmaxnreg requires an accelerated target (including
+sm_120a when used on Sm120). `check-policy` checks device
 architecture dispatch conventions. Offline compilation does not certify
 execution on a different GPU. `configs/targets/sm_90_h800.json` is an
 uncalibrated H800 resource profile; it must be calibrated on hardware before
 performance selection. `doctor --hwcheck --config ...` exercises native
 transport paths and numerical smoke checks, not a performance optimum.
+
+
+Hopper decode GEMM can be explicitly selected with
+`--gemm-impl-{qkv,o,gate-up,down,lm-head} wgmma`. Verified: the implementation
+uses WGMMA SS on transposed operands and the existing FP32-tile epilogue.
+Only TileM=16, TileN=64/128/256, TileK=64/128, stages=2 are accepted; paged
+execution additionally requires each B stage to fit one page. Its activation
+workspace uses 1024-byte alignment. Nonpaged transfer currently uses cp.async;
+paged transfer retains the bulk/TMA loader. Im2col and scaled activation paths
+reject this selection. WGMMA stays outside automatic candidate enumeration
+until calibrated costs and model-level end-to-end A/B justify enabling it.
+
+
+Hopper prefill/forward dense GEMM is an explicit candidate through
+`--forward-gemm-impl wgmma` with the skeleton solver. It selects M64/128,
+N64/128/256, K64, stages=2 (M*N<=16384) for dense classes with at least 64
+active rows, preserving existing bodies for convolution, gathers and smaller
+classes. Verified: offline cubins contain HGMMA and UTMALDG with no spills or
+WGMMA serialization warnings. A/B tensor maps use per-invocation boxes, with
+two shared slots and mbarriers; packed B uses bulk. Each slot is overwritten
+only after its WGMMA group completes. End-to-end acceptance and calibrated
+costs remain required before automatic defaults change.

@@ -10,6 +10,7 @@ import torch
 
 from tilemega.dnn import export
 from tilemega.dnn.cli import model_export
+from tilemega.dnn.benchmark import validate_gate
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('dnn_baselines', ROOT / 'python/tilemega/dnn/baselines.py')
@@ -66,6 +67,18 @@ class DnnRandomTests(unittest.TestCase):
                 artifacts={'exported_program.pt2': baseline.sha(archive)})))
             with self.assertRaisesRegex(ValueError, 'structure-only'):
                 baseline.load_export(root)
+
+    def test_forward_timing_rejects_a_different_gate_or_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            inputs = Path(directory) / 'inputs'
+            inputs.write_bytes(b'frozen input identity')
+            receipt = dict(passed=True, artifact_id='binary', synthetic_weights=False,
+                           input_tensors_sha256=baseline.sha(inputs))
+            validate_gate(receipt, 'binary', inputs)
+            for changes in ({'passed': False}, {'synthetic_weights': True},
+                            {'artifact_id': 'another binary'}, {'input_tensors_sha256': 'tampered'}):
+                with self.assertRaises(ValueError):
+                    validate_gate(dict(receipt, **changes), 'binary', inputs)
 
 
 if __name__ == '__main__':

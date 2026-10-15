@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Backend/ServingMmaPipeline.h>
+#include <tilemega/Backend/Sm90Gmma.h>
 #include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>
 #include <tilemega/Codegen/executor/PageRing.cuh>
 #include <tilemega/Solver/PageLayout.h>
@@ -19,7 +20,7 @@ namespace tilemega::codegen {
 // Decode uses the same MMA ownership and epilogue as the collective, but its
 // B pipeline is the worker's cross-task page ring, not per-task storage.
 template<class Arch,int TileM,int TileN,int TileK,int PageBytes,int Pages,
-         bool ForceSm80=false>
+         bool ForceSm80=false,bool UseWgmma=false>
 struct PagedGemmTaskBody {
   using Config=backend::ServingGemmConfig<Arch,TileM,TileN,TileK,2>;
   using Element=typename Config::Element;
@@ -314,6 +315,66 @@ struct PagedGemmTaskBody {
     return tile;
   }
 #endif
+  template<class Gate>
+  __device__ static float* ComputeWgmma(ServingGemmOperands const& p,int tile_m,
+      Ring const& ring,std::uint64_t& sequence,char* workspace,Gate gate) {
+    using namespace cute;
+    static_assert(!ForceSm80 && arch::Caps<Arch>::kWgmma,
+                  "WGMMA requires the Hopper compute path");
+    static_assert(kGroupPages==1 && Pages>=2,
+                  "WGMMA needs contiguous weight stages and at least two pages");
+    using Body=backend::Sm90DecodeGmma<Arch,TileM,TileN,TileK>;
+    using Gmma=typename Body::Gmma;
+    typename Body::Mma mma;
+    auto accum=partition_fragment_C(mma,Shape<Int<TileN>,Int<TileM>>{});
+    clear(accum);Gmma::Fence(accum);
+    auto* activation=reinterpret_cast<Element*>(workspace);
+    int iterations=(p.k_count+TileK-1)/TileK;
+    int pitch=p.a_row_stride?p.a_row_stride:p.k_total;
+    if(!p.a || !p.b || p.k_begin<0 || p.k_begin%8 || p.k_begin+p.k_count>p.k_total ||
+       pitch<p.k_total || pitch%8 || p.k_begin+((p.k_count+7)&~7)>pitch ||
+       iterations<=0 || (Async::Shared(workspace)&1023)) {
+      asm volatile("trap;");return nullptr;
+    }
+    ZeroInactiveRows(p,tile_m,activation);
+    std::uint64_t previous=0;bool held=false;
+    for(int first=0;first<iterations;first+=kGroupStages) {
+      ring.AwaitFull(sequence);
+      for(int stage=0;stage<kGroupStages && first+stage<iterations;++stage) {
+        int it=first+stage;
+        if(gate.enabled && !gate.Ready())gate.Wait(p.k_begin/TileK+it);
+        auto* slot=activation+(it%kActivationSlots)*TileM*TileK;
+        LoadActivation(p,tile_m,it,slot);
+        cute::cp_async_wait<0>();ComputeSync();
+        // Generic zero fill and cp.async writes become WGMMA async operands.
+        asm volatile("fence.proxy.async.shared::cta;" ::: "memory");
+        ComputeSync();
+        Body::Accumulate(reinterpret_cast<Element const*>(ring.Page(sequence)+stage*kBBytes),
+            slot,accum);
+        Gmma::template Wait<1>();
+        if(stage==0 && held) {ComputeSync();ring.Release(previous);}
+      }
+      previous=sequence++;held=true;
+    }
+    Gmma::template Wait<0>();ComputeSync();ring.Release(previous);
+    return Body::Materialize(accum,workspace);
+  }
+  __device__ static void FinishWgmma(ServingGemmOperands const& p,int tile_m,
+      int tile_n,float* tile) {
+    auto finish=[&](auto op) {
+      backend::ServingEpilogue<decltype(op)::value,TileM,TileN>::template RunFromTile<false>(
+          tile,tile_m,tile_n,p.m,p.n,p.output_stride,p.partial_stride,p.output,
+          p.residual,p.partial,p.argmax_value,p.argmax_index,p.norm_ss,p.ss_out,
+          p.norm_k,p.norm_eps);
+    };
+    switch(p.epilogue) {
+      case backend::ServingEpilogueOp::kStore:finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kStore>{});break;
+      case backend::ServingEpilogueOp::kResidual:finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kResidual>{});break;
+      case backend::ServingEpilogueOp::kSwiGLU:finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kSwiGLU>{});break;
+      case backend::ServingEpilogueOp::kArgmaxPartial:finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kArgmaxPartial>{});break;
+      case backend::ServingEpilogueOp::kPartial:finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kPartial>{});break;
+    }
+  }
   template<class Gate=NoPhaseGate>
   __device__ static void Run(ServingGemmOperands const& p,int tile_m,int tile_n,
       Ring const& ring,std::uint64_t& sequence,char* workspace,
@@ -334,6 +395,10 @@ struct PagedGemmTaskBody {
       return;
     }
 #endif
+    if constexpr(UseWgmma) {
+      FinishWgmma(p,tile_m,tile_n,ComputeWgmma(p,tile_m,ring,sequence,workspace,gate));
+      return;
+    }
     using namespace cute;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     Mma mma;int lane=ComputeThread()%(kComputeThreads/kKSplits);
@@ -530,6 +595,13 @@ struct PagedGemmTaskBody {
   template<class Spec, class Gate>
   __device__ static void RunDmResolved(ServingGemmOperands const& p,int tile_m,int tile_n,
       Ring const& ring,std::uint64_t& sequence,char* workspace,Gate gate) {
+    if constexpr(UseWgmma) {
+      if(p.access.a==DmAAccess::kIm2Col || p.a_scale) {asm volatile("trap;");return;}
+      auto* tile=ComputeWgmma(p,tile_m,ring,sequence,workspace,gate);
+      backend::ServingDmEpilogue<Arch,Spec,TileM,TileN,false>::RunFromTile(
+          tile,DmEpilogueOperands(p),tile_m,tile_n);
+      return;
+    }
 #if TILEMEGA_MOE_GEMV
     if constexpr(TileN<=32 && TileK>=32) {
       using Gemv=backend::ServingGemv<Arch,TileM,TileN,TileK>;

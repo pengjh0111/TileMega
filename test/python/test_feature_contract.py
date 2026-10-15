@@ -47,6 +47,17 @@ class FeatureContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'nonpaged_la'):
             validate(dict(pg='l2', nonpaged_la=True), {})
 
+    def test_attention_storage_is_bound_to_the_arithmetic_family(self):
+        validate(dict(attention_impl='wgmma',attention_page='uniform'),
+                 {'TILEMEGA_ATTENTION_IMPL':'4'})
+        validate(dict(attention_impl='mma16',attention_page='chunk16'),{})
+        for impl,page,macro in [('wgmma','chunk16','4'),('mma16','uniform','0')]:
+            with self.assertRaisesRegex(ValueError,'attention_page'):
+                validate(dict(attention_impl=impl,attention_page=page),{'TILEMEGA_ATTENTION_IMPL':macro})
+        with self.assertRaisesRegex(ValueError,'attention_page'):
+            validate(dict(attention_impl='wgmma',attention_page='uniform'),
+                     {'TILEMEGA_ATTENTION_IMPL':'4','TILEMEGA_ATTENTION_PAGE_UNIFORM':'0'})
+
     def test_generated_source_cannot_silently_override_build_options(self):
         with self.assertRaisesRegex(ValueError, 'overrides compiler macro'):
             build_defines('#define TILEMEGA_ATTENTION_PVSWAP 0\n',

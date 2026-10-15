@@ -171,10 +171,22 @@ inline bool StructureInvariant(ModelSpec const& spec,
   return true;
 }
 
+#if TILEMEGA_FORWARD_GEMM_WGMMA
+template<int Variant=0>
+inline bool ForwardWgmmaVariant(int index) {
+  if(index==Variant)return GemmVariant<Variant>::kWgmma && GemmVariant<Variant>::kTileM>=64;
+  if constexpr(Variant+1<TILEMEGA_GEMM_VARIANT_COUNT)return ForwardWgmmaVariant<Variant+1>(index);
+  return false;
+}
+#endif
 inline void CreateTensorMaps(Plan& plan,ModelSpec const& spec,TargetSpec const& target) {
-#if TILEMEGA_PAGED
+#if TILEMEGA_PAGED || TILEMEGA_ATTENTION_IMPL==4 || TILEMEGA_FORWARD_GEMM_WGMMA
   if(!target.caps.tma || TILEMEGA_ARCH_PATH_SM80)return;
-  std::vector<executor::TensorMap> maps(spec.buffer_count);
+  std::vector<executor::TensorMap> maps(spec.buffer_count
+#if TILEMEGA_FORWARD_GEMM_WGMMA
+      +2*plan.model.gemm_invocation_count
+#endif
+      );
   std::vector<bool> encoded(spec.buffer_count,false);
   auto encode=[&](unsigned id,executor::TensorMapShape shape) {
     if(encoded.at(id))return;
@@ -182,21 +194,62 @@ inline void CreateTensorMaps(Plan& plan,ModelSpec const& spec,TargetSpec const& 
     if(code!=CUDA_SUCCESS)throw std::runtime_error("serving tensor map encoding failed: "+std::to_string(int(code)));
     encoded[id]=true;
   };
+#if TILEMEGA_PAGED
   for(unsigned i=0;i<spec.gemm_count;++i) {
     auto const& g=spec.gemms[i];auto const& tile=spec.runtime_variants[0].gemms[i];
     encode(g.b,{std::uint64_t(g.k),std::uint64_t(g.n),std::uint64_t(g.k)*2,
         64,std::uint32_t(std::min(int(tile.tile_n),TILEMEGA_PAGE_BYTES/128))});
   }
+#endif
   for(unsigned i=0;i<spec.stage_count;++i) {
     auto const& s=spec.stages[i];if(s.kind!=TaskKind::kFusedAttention)continue;
     auto dims=plan.model.params.dims;
     executor::TensorMapShape shape{std::uint64_t(s.width),
-        std::uint64_t(dims.batch)*s.extent*dims.capacity,std::uint64_t(s.width)*2,64,16};
+        std::uint64_t(dims.batch)*s.extent*dims.capacity,std::uint64_t(s.width)*2,
+        64,TILEMEGA_ATTENTION_IMPL==4?64u:16u};
     encode(s.operand[1],shape);encode(s.operand[2],shape);
   }
+#if TILEMEGA_FORWARD_GEMM_WGMMA
+  std::vector<GemmInvocation> gemms(plan.model.gemm_invocation_count);
+  TILEMEGA_CUDA_CHECK(cudaMemcpy(gemms.data(),plan.model.device_gemms,
+      gemms.size()*sizeof(gemms[0]),cudaMemcpyDeviceToHost));
+  for(unsigned i=0;i<gemms.size();++i) {
+    auto const& g=gemms[i];auto [m,n,k,batch]=g.problem;(void)k;(void)batch;
+    if(!ForwardWgmmaVariant(g.variant))continue;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(g.access.a!=DmAAccess::kDense || g.access.b!=DmBAccess::kDense || g.a_scale)continue;
+#endif
+    auto encode_gemm=[&](unsigned index,void* address,executor::TensorMapShape shape) {
+      auto code=executor::EncodeTensorMap(maps[index],address,shape);
+      if(code!=CUDA_SUCCESS)throw std::runtime_error("forward GEMM tensor map encoding failed: "+std::to_string(int(code)));
+    };
+    auto a_pitch=std::uint64_t(cute::get<0>(g.mainloop.dA));
+    auto b_pitch=std::uint64_t(cute::get<0>(g.mainloop.dB));
+    encode_gemm(spec.buffer_count+2*i,plan.model.buffers.at(g.serving_activation_buffer),
+        {std::uint64_t(g.k_total),std::uint64_t(m),a_pitch*2,64,std::uint32_t(g.tile_m)});
+#if !TILEMEGA_NONPAGED_TILED
+    encode_gemm(spec.buffer_count+2*i+1,plan.model.buffers.at(g.serving_weight_buffer),
+        {std::uint64_t(g.k_total),std::uint64_t(n),b_pitch*2,64,std::uint32_t(g.tile_n)});
+#endif
+  }
+#endif
   TILEMEGA_CUDA_CHECK(cudaMalloc(&plan.tensor_maps,maps.size()*sizeof(maps[0])));
   TILEMEGA_CUDA_CHECK(cudaMemcpy(plan.tensor_maps,maps.data(),maps.size()*sizeof(maps[0]),cudaMemcpyHostToDevice));
   plan.model.params.serving_tensor_maps=plan.tensor_maps;
+#if TILEMEGA_FORWARD_GEMM_WGMMA
+  for(unsigned i=0;i<gemms.size();++i) {
+    auto& g=gemms[i];if(!ForwardWgmmaVariant(g.variant))continue;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    if(g.access.a!=DmAAccess::kDense || g.access.b!=DmBAccess::kDense || g.a_scale)continue;
+#endif
+    g.serving_activation_tensor_map=plan.tensor_maps+spec.buffer_count+2*i;
+#if !TILEMEGA_NONPAGED_TILED
+    g.serving_weight_tensor_map=plan.tensor_maps+spec.buffer_count+2*i+1;
+#endif
+  }
+  TILEMEGA_CUDA_CHECK(cudaMemcpy(plan.model.device_gemms,gemms.data(),
+      gemms.size()*sizeof(gemms[0]),cudaMemcpyHostToDevice));
+#endif
 #endif
 }
 

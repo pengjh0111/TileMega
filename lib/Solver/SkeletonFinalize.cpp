@@ -115,7 +115,7 @@ CompilerSearchResult::ShortlistEntry FinalizeSkeletonPoint(SkeletonSolvedPoint&&
   WritePlanSkeleton(*point.module,sk);dialect::WriteSolvedPlacement(*point.module,selected,placement);
   if(options.pg_pages)
     codegen::ConfigureServingPages(*point.module,
-        options.common.placement.target,point.candidate.page_bytes);
+        options.common.placement.target,point.candidate.page_bytes,options.attention_wgmma);
   if(options.handoff_auto)
     (*point.module)->setAttr("tmexec.handoff_mask",
         mlir::IntegerAttr::get(mlir::IntegerType::get(point.module->getContext(),32),

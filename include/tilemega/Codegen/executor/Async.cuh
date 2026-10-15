@@ -29,6 +29,18 @@ struct Async {
     if constexpr(Caps::kBulkCopy)
       asm volatile("fence.proxy.async.global;" ::: "memory");
   }
+  __device__ static void FenceProxyAsyncShared() {
+    if constexpr(Caps::kBulkCopy)
+      asm volatile("fence.proxy.async.shared::cta;" ::: "memory");
+  }
+  __device__ static bool ElectOne() {
+    unsigned elected=0;
+    if constexpr(Caps::kElectSync)
+      asm volatile("{ .reg .pred p; elect.sync _|p, 0xffffffff; selp.u32 %0, 1, 0, p; }"
+          :"=r"(elected)::"memory");
+    else elected=(threadIdx.x&31)==0;
+    return elected!=0;
+  }
   __device__ static void Arrive(std::uint64_t* barrier) {
     if constexpr(Caps::kMbarrier)
       asm volatile("mbarrier.arrive.shared.b64 _, [%0];" ::"r"(Shared(barrier)):"memory");
@@ -104,6 +116,15 @@ struct Async {
     if constexpr(Caps::kTma)
       asm volatile("cp.async.bulk.tensor.2d.shared::cluster.global.mbarrier::complete_tx::bytes [%0], [%1, {%2, %3}], [%4];" ::
           "r"(Shared(destination)),"l"(map),"r"(x),"r"(y),"r"(Shared(barrier)):"memory");
+  }
+  __device__ static void TensorIm2col4D(void* destination,void const* map,
+      int c,int w,int h,int n,std::uint16_t offset_w,std::uint16_t offset_h,
+      std::uint64_t* barrier) {
+    static_assert(Caps::kTmaIm2col,"TMA im2col requires an architecture with im2col support");
+    asm volatile("cp.async.bulk.tensor.4d.shared::cluster.global.im2col.mbarrier::complete_tx::bytes "
+        "[%0], [%1, {%2, %3, %4, %5}], [%6], {%7, %8};" ::
+        "r"(Shared(destination)),"l"(map),"r"(c),"r"(w),"r"(h),"r"(n),
+        "r"(Shared(barrier)),"h"(offset_w),"h"(offset_h):"memory");
   }
   __device__ static void Prefetch(void const* source,unsigned bytes) {
     if constexpr(Caps::kBulkPrefetch)

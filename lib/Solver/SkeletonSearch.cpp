@@ -12,6 +12,22 @@
 #include <sstream>
 namespace tilemega::solver {
 namespace {
+bool ForwardWgmmaEligible(OperatorClass const& cls,frontend::ImportedSemantics const& imported,
+    int batch,int seq) {
+  if(cls.gemms.empty())return false;
+  for(auto id:cls.gemms) {
+    auto const& g=imported.plan.gemms.at(id);
+    if(g.n<64 || g.access.a!=codegen::DmAAccess::kDense ||
+       g.access.b!=codegen::DmBAccess::kDense || g.access.a_scale!=codegen::kDmNoIndex)return false;
+    auto stage=std::find_if(imported.plan.stages.begin(),imported.plan.stages.end(),
+        [&](auto const& s){return frontend::IsGemmStage(s.kind) && s.gemm==id;});
+    if(stage==imported.plan.stages.end() || stage->kind==frontend::PlanTaskKind::kDwPwFused)return false;
+    int rows=imported.plan.dm?DmGemmActiveRows(g,imported.plan,id,batch,seq):
+        stage->batch_rows?batch:batch*seq;
+    if(rows<64)return false;
+  }
+  return true;
+}
 std::string ConfigKey(std::vector<GemmConfig> const& config,int kappa,int residency) {
   std::ostringstream out;for(auto const& g:config){out<<g.tile_m<<'x'<<g.tile_n<<'x'<<g.tile_k<<'s'<<g.stages<<'k'<<g.split_k;if(g.impl)out<<'i'<<g.impl;out<<';';}
   out<<"kappa="<<kappa<<";residency="<<residency;return out.str();
@@ -190,7 +206,7 @@ struct SearchContext {
     bool next_vector_sums=false;
     for(std::size_t c=0;c<classes.size();++c)for(auto id:classes[c].gemms) {
       auto const& gemm=imported.plan.gemms.at(id);
-      if(config[c].impl && config[c].tile_n<32) {
+      if(config[c].impl==1 && config[c].tile_n<32) {
         if(gemm.epilogue==frontend::PlanGemm::Epilogue::kSwiGLU)
           next_u=std::min(next_u,config[c].tile_n/2);
         if(gemm.ss_out!=0xffffffffu)next_vector_sums=true;
@@ -297,8 +313,8 @@ struct SearchContext {
     if(ServingRuntimePlan()) {
       int gemm_shared=imported.plan.dm?estimate.shared_bytes:0;
       for(auto const& g:config)gemm_shared=std::max(gemm_shared,
-          (imported.plan.dm?DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):g.impl?ServingGemvSmemBytes(g.tile_m,g.tile_n):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)));
-      if(!options.pg_pages && (options.attention_buffers==1 || std::any_of(config.begin(),config.end(),[](auto const& g){return g.impl!=0;})))
+          (imported.plan.dm && g.impl!=2?DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):g.impl==1?ServingGemvSmemBytes(g.tile_m,g.tile_n):g.impl==2?ServingWgmmaSmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)));
+      if(!options.pg_pages && (options.attention_buffers==1 || std::any_of(config.begin(),config.end(),[](auto const& g){return g.impl==1;})))
         for(auto const& stage:imported.plan.stages)
           if(stage.kind==frontend::PlanTaskKind::kFusedAttention) {
             int bytes=32768*options.attention_buffers+32*int(stage.width)+16*int(stage.group)*int(stage.width)+16*int(stage.group);
@@ -352,11 +368,12 @@ struct SearchContext {
               DmServingPageScratchBytes(g.tile_m,g.tile_n));
           activation=std::max(activation,workspace);scratch=std::max(scratch,workspace);
         }
-      pages=PageLayout::Build(target,current_page_bytes,activation,scratch);
+      pages=PageLayout::Build(target,current_page_bytes,activation,scratch,0,0,
+          (options.attention_wgmma || std::any_of(config.begin(),config.end(),[](auto const& g){return g.impl==2;}))?1024:128);
       for(auto const& stage:imported.plan.stages)
         if(stage.kind==frontend::PlanTaskKind::kFusedAttention &&
            !ServingAttentionFrontierFits(current_page_bytes,pages->pages,
-                                         int(stage.width),stage.attention_kv_block))
+                                         int(stage.width),stage.attention_kv_block,options.attention_wgmma))
           throw std::invalid_argument("attention page frontier exceeds the ring or has invalid row alignment");
       for(auto const& g:granularity.gemms)
         if(g.tile_n*g.tile_k*2>current_page_bytes*pages->pages)
@@ -378,7 +395,7 @@ struct SearchContext {
                estimate.shared_bytes)
           throw std::invalid_argument("R-1 attention exceeds DM task shared-memory union");
       }else if(attention==imported.plan.stages.end() ||
-         (options.attention_buffers==2 && !std::any_of(config.begin(),config.end(),[](auto const& g){return g.impl!=0;}) &&
+         (options.attention_buffers==2 && !std::any_of(config.begin(),config.end(),[](auto const& g){return g.impl==1;}) &&
          PruneServingAttentionSmemR1(attention->width,
              attention->attention_query_rows,config,target)))
         throw std::invalid_argument("R-1 attention exceeds GEMM shared-memory union");
@@ -513,6 +530,9 @@ struct SearchContext {
     // has no effect on that kernel, so charging its R10 latency benefit here
     // would rank a different program from the one we execute.
     auto priced=config;
+    if(options.forward_wgmma)for(std::size_t c=0;c<priced.size();++c)
+      if(ForwardWgmmaEligible(classes[c],imported,options.common.placement.dims.batch,
+          options.common.placement.dims.seq))priced[c].impl=2;
     if(imported.plan.serving)for(std::size_t c=0;c<priced.size();++c) {
       auto const& gemm=imported.plan.gemms[classes[c].gemms.front()];
       using Op=frontend::PlanGemm::Epilogue;
@@ -520,10 +540,29 @@ struct SearchContext {
           gemm.epilogue==Op::kResidual?(gemm.k>gemm.n?3:1):0;
       if(options.serving_impl[family]>=0)priced[c].impl=options.serving_impl[family];
       auto const& g=priced[c];
-      if(g.impl && (options.pg_pages || options.common.placement.dims.seq!=1 ||
+      if(g.impl==2 && (!options.common.placement.target.caps.wgmma ||
+          (g.tile_m==16 && (options.common.placement.dims.seq!=1 || options.common.placement.dims.batch>16)) ||
+          (g.tile_m>=64 && (!options.forward_wgmma || options.pg_pages)) ||
+          !ServingWgmmaShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages) ||
+          (options.pg_pages && g.tile_n*g.tile_k*2>options.page_bytes)))
+        throw std::invalid_argument("illegal Hopper WGMMA candidate");
+      if(g.impl==1 && (options.pg_pages || options.common.placement.dims.seq!=1 ||
           options.common.placement.dims.batch>4 ||
           !ServingGemvShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages)))
         throw std::invalid_argument("GEMV requires nonpaged M<=4, legal GEMV geometry");
+    }
+    for(std::size_t c=0;c<priced.size();++c)if(priced[c].impl==2) {
+      auto const& g=priced[c];
+      if(!options.common.placement.target.caps.wgmma ||
+         !ServingWgmmaShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages) ||
+         (g.tile_m>=64 && (!options.forward_wgmma || options.pg_pages)))
+        throw std::invalid_argument("illegal WGMMA implementation coordinate");
+      for(auto id:classes[c].gemms) {
+        auto const& access=imported.plan.gemms.at(id).access;
+        if(access.a==codegen::DmAAccess::kIm2Col || access.a_scale!=codegen::kDmNoIndex ||
+           (g.tile_m>=64 && (access.a!=codegen::DmAAccess::kDense || access.b!=codegen::DmBAccess::kDense)))
+          throw std::invalid_argument("WGMMA access pattern is not implemented");
+      }
     }
     if(options.pg_pages)for(auto& g:priced)g.stages=2;
     auto point=Prepare(priced,kappa,residency,actual);
@@ -653,7 +692,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
     if(options.pg_pages) {
       auto before=domain.size();
       domain.erase(std::remove_if(domain.begin(),domain.end(),[](auto const& g){
-        return g.stages!=2 || g.impl!=0;
+        return g.stages!=2 || g.impl==1;
       }),domain.end());
       out<<"PG_STAGE_EQUIVALENCE\t"<<domains.size()<<'\t'<<before<<'\t'
          <<domain.size()<<"\tmainloop_stages=2\n";
@@ -664,8 +703,40 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       int family=g.epilogue==Op::kArgmaxPartial?4:g.epilogue==Op::kSwiGLU?2:
           g.epilogue==Op::kResidual?(g.k>g.n?3:1):0;
       int selected=options.serving_impl[family];
+      if(selected==2) {
+        for(auto id:cls.gemms) {
+          auto const& access=search.imported.plan.gemms.at(id).access;
+          if(access.a==codegen::DmAAccess::kIm2Col || access.a_scale!=codegen::kDmNoIndex)
+            throw std::invalid_argument("WGMMA convolution and scaled-activation candidates are not implemented");
+        }
+        auto const& target=options.common.placement.target;
+        if(!target.caps.wgmma || options.common.placement.dims.seq!=1 ||
+           options.common.placement.dims.batch>16)
+          throw std::invalid_argument("WGMMA requires native Hopper decode with B<=16");
+        std::vector<GemmConfig> hopper;
+        for(auto candidate:domain) {
+          if(!ServingWgmmaShapeLegal(candidate.tile_m,candidate.tile_n,
+              candidate.tile_k,candidate.stages))continue;
+          if(options.pg_pages && candidate.tile_n*candidate.tile_k*2>options.page_bytes)continue;
+          candidate.impl=2;hopper.push_back(candidate);
+        }
+        domain=std::move(hopper);
+      }
       if(selected>=0)domain.erase(std::remove_if(domain.begin(),domain.end(),
           [&](auto const& item){return item.impl!=selected;}),domain.end());
+    }
+    if(options.forward_wgmma && ForwardWgmmaEligible(cls,search.imported,
+        options.common.placement.dims.batch,options.common.placement.dims.seq)) {
+      if(options.pg_pages || !options.common.placement.target.caps.wgmma)
+        throw std::invalid_argument("forward WGMMA requires native Hopper nonpaged execution");
+      std::vector<GemmConfig> hopper;
+      for(auto candidate:domain) {
+        if(candidate.tile_m<64 || !ServingWgmmaShapeLegal(candidate.tile_m,candidate.tile_n,
+            candidate.tile_k,candidate.stages))continue;
+        candidate.impl=2;hopper.push_back(candidate);
+      }
+      if(hopper.empty())throw std::invalid_argument("forward WGMMA class has no supported geometry");
+      domain=std::move(hopper);
     }
     if(!options.common.geometry_domain.empty())domain.erase(std::remove_if(domain.begin(),domain.end(),[&](auto const& g){return std::none_of(options.common.geometry_domain.begin(),options.common.geometry_domain.end(),[&](auto const& a){return std::tie(g.tile_m,g.tile_n,g.tile_k,g.stages)==std::tie(a.tile_m,a.tile_n,a.tile_k,a.stages);});}),domain.end());
     out<<"DOMAIN\t"<<domains.size()<<'\t'<<domain.size()<<'\n';

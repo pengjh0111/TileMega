@@ -406,10 +406,11 @@ DerivedTaskInput DeriveCombineTaskInput(ModelDescription const& model,int stage,
 BackendTraits ModelTaskTraits(ModelDescription const& model, int index,
                               GemmConfig const& config) {
   auto collective = model.dtype == ScalarType::kBF16
-      ? (model.dm ? DmServingBF16Traits(config.tile_m,config.tile_n,config.tile_k,config.stages) :
+      ? (model.dm && config.impl!=2 ? DmServingBF16Traits(config.tile_m,config.tile_n,config.tile_k,config.stages) :
          (model.serving
-             ? (config.impl ? ServingGemvTraits(config.tile_m,config.tile_n,config.tile_k,config.stages) :
-                 ServingBF16Traits(config.tile_m, config.tile_n, config.tile_k,config.stages))
+             ? (config.impl==1 ? ServingGemvTraits(config.tile_m,config.tile_n,config.tile_k,config.stages) :
+                 (config.impl==2 ? ServingWgmmaTraits(config.tile_m,config.tile_n,config.tile_k,config.stages) :
+                 ServingBF16Traits(config.tile_m, config.tile_n, config.tile_k,config.stages)))
              : TensorBF16Traits(config.tile_m, config.tile_n, config.tile_k,
                                 config.stages)))
       : SimtF32Traits(config.tile_m, config.tile_n, config.tile_k, config.stages);

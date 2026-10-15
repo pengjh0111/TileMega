@@ -44,8 +44,9 @@ struct PageLayout {
     return {activation,scratch};
   }
   static PageLayout Build(TargetSpec const& target,int page,int activation_bytes,
-                          int scratch_bytes,int task_control_bytes=0,int requested_pages=0) {
-    if((page!=8192 && page!=16384) || activation_bytes<0 || scratch_bytes<0 || task_control_bytes<0 || requested_pages<0)
+                          int scratch_bytes,int task_control_bytes=0,int requested_pages=0,int operand_alignment=128) {
+    if((operand_alignment!=128 && operand_alignment!=1024) ||
+       (page!=8192 && page!=16384 && page!=32768) || activation_bytes<0 || scratch_bytes<0 || task_control_bytes<0 || requested_pages<0)
       throw std::invalid_argument("invalid page-pool layout input");
     int limit=target.res.max_dynamic_smem_per_cta;
     if(requested_pages>limit/page)
@@ -55,7 +56,7 @@ struct PageLayout {
     for(int count=requested_pages?requested_pages:limit/page;count>0;--count) {
       // Keep a dedicated 16-byte LA flag after the slot descriptors: the
       // reducer may reuse work[0] before all warps have read the flag.
-      int operands=Align(count*4*sizeof(std::uint64_t)+16+task_control_bytes,128);
+      int operands=Align(count*4*sizeof(std::uint64_t)+16+task_control_bytes,operand_alignment);
       int start=Align(operands+std::max(activation_bytes,scratch_bytes),1024);
       if(start+count*page<=limit)
         return {page,count,operands,operands,start,start+count*page};

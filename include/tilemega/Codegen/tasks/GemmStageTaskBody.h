@@ -193,23 +193,23 @@ struct ServingGemvConfig : backend::ServingGemmConfig<Arch,16,32,K,2> {
 template <int Variant>
 struct GemmVariant;
 
-template <bool Serving, class Mainloop, int M, int N, int K, int S, bool Gemv=false>
+template <bool Serving, class Mainloop, int M, int N, int K, int S, bool Gemv=false,bool Wgmma=false>
 struct GemmVariantStorage {
   using type = typename Mainloop::SharedStorage;
 };
-template <class Mainloop, int M, int N, int K, int S, bool Gemv>
-struct GemmVariantStorage<true, Mainloop, M, N, K, S, Gemv> {
+template <class Mainloop, int M, int N, int K, int S, bool Gemv,bool Wgmma>
+struct GemmVariantStorage<true, Mainloop, M, N, K, S, Gemv,Wgmma> {
   struct alignas(16) type {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     static constexpr auto mainloop_bytes = Gemv ? solver::ServingGemvSmemBytes(M,N)
-        : solver::DmServingBF16SmemBytes(M,N,K,S);
+        : Wgmma ? solver::ServingWgmmaSmemBytes(M,N,K,S):solver::DmServingBF16SmemBytes(M,N,K,S);
     static constexpr auto chain_bytes = (M*N+2*M)*sizeof(float);
     static constexpr auto shared_epilogue_bytes = backend::ServingEpilogueScratchBytes(M,N,TILEMEGA_EP_PARALLEL_ARGMAX);
     static constexpr auto epilogue_bytes = chain_bytes>shared_epilogue_bytes?chain_bytes:shared_epilogue_bytes;
     unsigned char bytes[mainloop_bytes>epilogue_bytes?mainloop_bytes:epilogue_bytes];
 #else
     unsigned char bytes[Gemv ? solver::ServingGemvSmemBytes(M,N) :
-        backend::ServingGemmConfig<GemmVariantArch,M,(N<32?32:N),K,S>::kSharedBytes];
+        Wgmma ? solver::ServingWgmmaSmemBytes(M,N,K,S):backend::ServingGemmConfig<GemmVariantArch,M,(N<32?32:N),K,S>::kSharedBytes];
 #endif
   };
 };
@@ -266,7 +266,7 @@ struct GemmVariantStorage<true, Mainloop, M, N, K, S, Gemv> {
   template <>                                                               \
   struct GemmVariant<index> {                                               \
     using Impl = std::conditional_t<TILEMEGA_SERVING_RUNTIME != 0,           \
-        std::conditional_t<TILEMEGA_GEMM_IMPL_##index != 0,               \
+        std::conditional_t<TILEMEGA_GEMM_IMPL_##index == 1,               \
           ServingGemvConfig<GemmVariantArch,M,N,K,S>,                       \
           backend::ServingGemmConfig<GemmVariantArch,M,N,K,S>>,            \
         backend::GemmCandidate<M, N, K, S, GemmVariantArch>>;               \
@@ -277,8 +277,13 @@ struct GemmVariantStorage<true, Mainloop, M, N, K, S, Gemv> {
     using Mainloop = typename Impl::Mainloop;                               \
     using Epilogue = typename Impl::Epilogue;                               \
     using SharedStorage = typename GemmVariantStorage<                     \
-        TILEMEGA_SERVING_RUNTIME != 0, Mainloop, M, N, K, S, TILEMEGA_GEMM_IMPL_##index != 0>::type;         \
-    static constexpr bool kGemv = TILEMEGA_GEMM_IMPL_##index != 0;       \
+        TILEMEGA_SERVING_RUNTIME != 0, Mainloop, M, N, K, S, TILEMEGA_GEMM_IMPL_##index == 1,TILEMEGA_GEMM_IMPL_##index == 2>::type;         \
+    static constexpr bool kGemv = TILEMEGA_GEMM_IMPL_##index == 1;       \
+    static constexpr bool kWgmma = TILEMEGA_GEMM_IMPL_##index == 2;      \
+    static_assert(TILEMEGA_GEMM_IMPL_##index >= 0 &&                     \
+                  TILEMEGA_GEMM_IMPL_##index <= 2, "unknown GEMM implementation"); \
+    static_assert(!kWgmma || (arch::Caps<GemmVariantArch>::kWgmma &&     \
+        solver::ServingWgmmaShapeLegal(M,N,K,S)), "illegal WGMMA geometry/target"); \
     static constexpr int kTileM = M;                                        \
     static constexpr int kTileN = N;                                        \
     static constexpr int kTileK = K;                                        \
@@ -536,6 +541,11 @@ struct GemmInvocation {
   int serving_partial_stride = 0;
   float* serving_partial = nullptr;
   std::uint32_t serving_weight_buffer = 0xffffffffu;
+#if TILEMEGA_FORWARD_GEMM_WGMMA
+  std::uint32_t serving_activation_buffer = 0xffffffffu;
+  void const* serving_activation_tensor_map = nullptr;
+  void const* serving_weight_tensor_map = nullptr;
+#endif
   int serving_k_begin = 0;
   ModelElement const* serving_weight_base = nullptr;
   int serving_k_total_full = 0;
@@ -678,7 +688,7 @@ struct GemmStageTaskBody {
     using V = GemmVariant<Variant>;
     using Body = std::conditional_t<V::kGemv,
         ServingGemvTaskBody<Arch,V::kTileN,V::kTileK,TILEMEGA_NONPAGED_TILED!=0>,
-        ServingGemmTaskBody<Arch,V::kTileM,V::kTileN,V::kTileK,V::kStages>>;
+        ServingGemmTaskBody<Arch,V::kTileM,V::kTileN,V::kTileK,V::kStages,V::kWgmma>>;
     auto [m, n, k, batch] = invocation.problem;
     (void)batch;
     ServingGemmOperands operands;
@@ -714,6 +724,14 @@ struct GemmStageTaskBody {
     operands.ss_out=invocation.serving_ss_out;
     operands.norm_k=invocation.k_total;
     operands.norm_eps=TILEMEGA_NORM_EPSILON;
+#if TILEMEGA_FORWARD_GEMM_WGMMA
+    if constexpr(V::kWgmma && V::kTileM>=64) {
+      operands.activation_tensor_map=invocation.serving_activation_tensor_map;
+      operands.tensor_map=invocation.serving_weight_tensor_map;
+      operands.tensor_k_begin=invocation.serving_k_begin;
+      operands.k_total_full=invocation.serving_k_total_full;
+    }
+#endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     operands.access=invocation.access;
     operands.chain=invocation.chain;

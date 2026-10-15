@@ -396,8 +396,8 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
   int serving_gemm_shared=0;
   if(model.serving)for(auto const& g:problem.geometry)
     serving_gemm_shared=std::max(serving_gemm_shared,
-        model.dm?DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):
-        (g.impl?ServingGemvSmemBytes(g.tile_m,g.tile_n):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)));
+        model.dm && g.impl!=2?DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):
+        (g.impl==1?ServingGemvSmemBytes(g.tile_m,g.tile_n):g.impl==2?ServingWgmmaSmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)));
   // Serving refuses to silently invent a bandwidth curve once the measured
   // profile is selected. Older target files retain the R9b control physics.
   flow.inflight_dram=model.serving && !cal.inflight_curve_bytes.empty();

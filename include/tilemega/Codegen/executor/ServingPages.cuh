@@ -459,7 +459,7 @@ __device__ void Gemm(Params const& params,GemmInvocation const& inv,int local,Ri
   if(inv.variant==Variant) {
     using V=GemmVariant<Variant>;
     using Body=PagedGemmTaskBody<PageArch,V::kTileM,V::kTileN,V::kTileK,
-        TILEMEGA_PAGE_BYTES,TILEMEGA_PAGE_COUNT,TILEMEGA_ARCH_PATH_SM80!=0>;
+        TILEMEGA_PAGE_BYTES,TILEMEGA_PAGE_COUNT,TILEMEGA_ARCH_PATH_SM80!=0,V::kWgmma>;
     static_assert(TILEMEGA_PAGE_POOL_OFFSET-TILEMEGA_PAGE_WORKSPACE_OFFSET>=Body::kActivationBytes);
     static_assert(TILEMEGA_PAGE_POOL_OFFSET-TILEMEGA_PAGE_WORKSPACE_OFFSET>=Body::kScratchBytes);
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT

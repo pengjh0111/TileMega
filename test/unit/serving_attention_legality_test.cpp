@@ -26,6 +26,9 @@ int TestServingAttentionLegality(int,char**) {
   if(ServingAttentionFrontierFits(4096,4,128,32) || ServingAttentionFrontierFits(8192,4,0,32) ||
      ServingAttentionFrontierFits(8192,4,64,0) || ServingAttentionFrontierFits(8192,0,64,32))
     throw std::runtime_error("invalid attention shape accepted");
+  for(int d:{64,128})for(int ec:{32,64,128,256,512,1088})
+    if(!ServingAttentionFrontierFits(4*d*64,1,d,ec,true))
+      throw std::runtime_error("one warpgroup page must cover the live frontier");
   // Audit existing g-major grid-stride coverage without silently changing it.
   for(int grid:{128,170})for(int batch:{1,16})for(int ec:{32,64})for(int past:{64,575,1000}) {
     int chunks=(1088+ec-1)/ec,active=0;std::vector<int> assigned(grid);

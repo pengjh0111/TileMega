@@ -13,7 +13,7 @@ template<int PageBytes,int Pages,class Arch=arch::CurrentArch,bool ForceSm80=fal
 struct PageRing {
   static constexpr int kPageBytes=PageBytes;
   static constexpr int kPages=Pages;
-  static_assert(PageBytes==8192 || PageBytes==16384);
+  static_assert(PageBytes==8192 || PageBytes==16384 || PageBytes==32768);
   static_assert(Pages>0);
   using Copy=Async<Arch,ForceSm80>;
   struct alignas(16) Slot { std::uint64_t full,empty,generation; };

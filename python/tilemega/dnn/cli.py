@@ -60,17 +60,17 @@ def read_config(path):
     if not batches or len(set(batches)) != len(batches) or any(
             type(batch) is not int or not 1 <= batch <= 64 for batch in batches):
         raise ValueError('workload.batch must contain distinct integers in [1,64]')
-    config['features'] = dict(dict(pg='l2', forward_executor='L2', reuse='auto',deferred_ln='auto',dwpw_fuse='auto',global_la='auto'),
+    config['features'] = dict(dict(pg='l2', forward_executor='L2', reuse='auto',deferred_ln='auto',dwpw_fuse='auto',global_la='auto',forward_gemm_impl='mma16'),
                               **config.get('features', {}))
     unknown=set(config['features'])-{'pg','forward_executor','reuse','deferred_ln','dwpw_fuse',
-        'global_la','nonpaged_la','paged_la','paged_la_splitk'}
+        'global_la','nonpaged_la','paged_la','paged_la_splitk','forward_gemm_impl'}
     if unknown:
         raise ValueError('unsupported DNN features: '+', '.join(sorted(unknown)))
     for key, values in dict(pg=('off', 'l2', 'pages', 'auto'),
             forward_executor=('L1', 'L2'), reuse=('auto', 'none', 'greedy', 'l2'),
             deferred_ln=('auto','0'), dwpw_fuse=('auto','0'),
             global_la=('auto','0'), nonpaged_la=(0,1), paged_la=(0,1),
-            paged_la_splitk=(0,1)).items():
+            paged_la_splitk=(0,1),forward_gemm_impl=('mma16','wgmma')).items():
         if key in config['features'] and config['features'][key] not in values:
             raise ValueError('invalid features.' + key)
     config['solver'] = dict(dict(passes=2, time_budget_s=1800, jobs=1),
@@ -117,6 +117,8 @@ def build(config, out, compiler):
     from tilemega.build.identity import snapshot, verify, bind_execution
     export = model_export(config, out)
     archive = export / 'exported_program.pt2'
+    if config['model']['name'] == 'bert':
+        import transformers.modeling_outputs
     program = torch.export.load(archive)
     from .target import resolve_target
     target = str(resolve_target(config, out))
@@ -143,7 +145,7 @@ def build(config, out, compiler):
             '--search-budget-ms', str(round(config['solver']['time_budget_s'] * 1000)),
             '--artifact-cache', str(Path(config['device']['cache_dir']).expanduser()),
             '--dump-cg', str(directory / 'selected.mlir')]
-        for feature in ('global_la','nonpaged_la','paged_la','paged_la_splitk'):
+        for feature in ('global_la','nonpaged_la','paged_la','paged_la_splitk','forward_gemm_impl'):
             if feature in config['features']:
                 command += ['--'+feature.replace('_','-'),str(config['features'][feature])]
         atomic_json(directory / 'command.json', command)
@@ -188,7 +190,8 @@ def check(config, plans, out, *, synthetic_weights=False):
             if receipt.exists():
                 raise FileExistsError('refuse to overwrite a smoke receipt: ' + str(receipt))
             result = check_generated(record['library'], record['export'], record['bridge'],
-                                     record['batch'], synthetic_weights=synthetic_weights)
+                                     record['batch'], synthetic_weights=synthetic_weights,
+                                     input_tensors=config.get('data', {}).get('inputs'))
             result['random_weights'] = config['model'].get('random_weights', False)
             result['accuracy_eligible'] = False
             if result['artifact_id'] != record['artifact_id']:

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Codegen/tasks/AttentionPageLayout.h>
 #include <tilemega/Codegen/tasks/IndependentAttentionTaskBody.h>
+#if TILEMEGA_ATTENTION_IMPL==4
+#include <tilemega/Codegen/executor/TensorMap.h>
+#endif
 #include <cuda_runtime.h>
 #include <algorithm>
 #include <cmath>
@@ -13,7 +16,8 @@
 using namespace tilemega::codegen;
 using Element=cutlass::bfloat16_t;
 using Arch=std::conditional_t<std::is_void_v<tilemega::arch::CurrentArch>,
-    tilemega::arch::Sm80,tilemega::arch::CurrentArch>;
+    std::conditional_t<TILEMEGA_ATTENTION_IMPL==4,tilemega::arch::Sm90,tilemega::arch::Sm80>,
+    tilemega::arch::CurrentArch>;
 constexpr int Capacity=1024;
 static std::FILE* dump=nullptr;
 static std::FILE* latency=nullptr;
@@ -81,12 +85,28 @@ Totals Test() {
   }
   CheckCuda(cudaFuncSetAttribute(LayoutKernel<D,Q,Bytes,Policy,Independent>,
       cudaFuncAttributeMaxDynamicSharedMemorySize,C::Shared));
+#if TILEMEGA_ATTENTION_IMPL==4
+  cudaFuncAttributes attributes{};int active=0;
+  CheckCuda(cudaFuncGetAttributes(&attributes,LayoutKernel<D,Q,Bytes,Policy,Independent>));
+  CheckCuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&active,
+      LayoutKernel<D,Q,Bytes,Policy,Independent>,Independent?128:160,C::Shared));
+  std::printf("RESOURCE D=%d Q=%d independent=%d registers=%d local_bytes=%zu dynamic_smem=%d active_ctas_per_sm=%d\n",
+      D,Q,Independent,attributes.numRegs,attributes.localSizeBytes,int(C::Shared),active);
+#endif
   auto* cycles=latency?Allocate<unsigned long long>(1):nullptr;
   auto* qkv=Allocate<Element>((Q+2)*D);
   auto* k=Allocate<Element>(Capacity*D);auto* v=Allocate<Element>(Capacity*D);
   auto* cosine=Allocate<Element>(Capacity*D);auto* sine=Allocate<Element>(Capacity*D);
   auto* context=Allocate<Element>(Q*D);
   auto* partial=Allocate<float>(Capacity*Q*D);auto* lse=Allocate<float>(Capacity*Q);
+#if TILEMEGA_ATTENTION_IMPL==4
+  auto* maps=Allocate<executor::TensorMap>(2);
+  executor::TensorMapShape map_shape{D,Capacity,D*2,64,64};
+  if(executor::EncodeTensorMap(maps[0],k,map_shape)!=CUDA_SUCCESS ||
+     executor::EncodeTensorMap(maps[1],v,map_shape)!=CUDA_SUCCESS) {
+    std::fprintf(stderr,"WGMMA fixture TMA encoding failed\n");std::exit(2);
+  }
+#endif
   for(int i=0;i<Capacity*D;++i){cosine[i]=Element(1);sine[i]=Element(0);}
   for(int i=0;i<(Q+2)*D;++i)qkv[i]=Element(.02f*(i%13-6));
   // The appended value is deliberately unlike the historical position code.
@@ -107,6 +127,9 @@ Totals Test() {
     for(int i=0;i<Capacity*Q*D;++i)partial[i]=NAN;
     ServingAttentionOperands p{qkv,k,v,cosine,sine,nullptr,nullptr,
       context,partial,lse,1,1,Capacity,in.past,in.extent,1e-6f};
+#if TILEMEGA_ATTENTION_IMPL==4
+    p.key_tensor_map=maps;p.value_tensor_map=maps+1;
+#endif
     LayoutKernel<D,Q,Bytes,Policy,Independent><<<1,Independent?128:160,C::Shared>>>(p,in.chunk,in.steps,cycles);
     CheckCuda(cudaDeviceSynchronize());
     int end=std::min((in.chunk+1)*in.extent,in.past+in.steps),begin=in.chunk*in.extent;
@@ -157,16 +180,23 @@ Totals Test() {
   if(cycles)CheckCuda(cudaFree(cycles));
   void* allocations[]={qkv,k,v,cosine,sine,context,partial,lse};
   for(void* p:allocations)CheckCuda(cudaFree(p));
+#if TILEMEGA_ATTENTION_IMPL==4
+  CheckCuda(cudaFree(maps));
+#endif
   return out;
 }
 template<int D,int Q> int Shapes() {
   int failed=0;
 #define RUN(B,P,I) failed+=Test<D,Q,B,AttentionPagePolicy::P,I>().failures
+#if TILEMEGA_ATTENTION_IMPL==4
+  RUN(4*D*64,WarpGroup,false);RUN(4*D*64,WarpGroup,true);
+#else
   RUN(8192,Packed,false);RUN(16384,Packed,false);
   RUN(8192,WarpPrivate,true);
 #ifndef TILEMEGA_LAYOUT_LEGACY
   RUN(8192,WarpPrivate,false);RUN(16384,WarpPrivate,false);
   RUN(8192,Packed,true);
+#endif
 #endif
 #undef RUN
   return failed;

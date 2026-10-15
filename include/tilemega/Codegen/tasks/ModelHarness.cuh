@@ -96,6 +96,19 @@ static_assert(!TILEMEGA_PAGED && TILEMEGA_SLOT_WINDOW == 1 && !TILEMEGA_PREFETCH
 #include <tilemega/Codegen/executor/TensorMap.h>
 #include <tilemega/Codegen/tasks/PagedAttentionTaskBody.h>
 #endif
+#if !TILEMEGA_PAGED && TILEMEGA_ATTENTION_IMPL==4
+#include <tilemega/Codegen/executor/TensorMap.h>
+#endif
+#if TILEMEGA_ATTENTION_IMPL==4 || TILEMEGA_GEMM_IMPL_0==2 || TILEMEGA_GEMM_IMPL_1==2 || \
+    TILEMEGA_GEMM_IMPL_2==2 || TILEMEGA_GEMM_IMPL_3==2 || TILEMEGA_GEMM_IMPL_4==2 || \
+    TILEMEGA_GEMM_IMPL_5==2 || TILEMEGA_GEMM_IMPL_6==2 || TILEMEGA_GEMM_IMPL_7==2 || \
+    TILEMEGA_GEMM_IMPL_8==2 || TILEMEGA_GEMM_IMPL_9==2 || TILEMEGA_GEMM_IMPL_10==2 || \
+    TILEMEGA_GEMM_IMPL_11==2 || TILEMEGA_GEMM_IMPL_12==2 || TILEMEGA_GEMM_IMPL_13==2 || \
+    TILEMEGA_GEMM_IMPL_14==2 || TILEMEGA_GEMM_IMPL_15==2
+#define TILEMEGA_OPERAND_SMEM_ALIGNMENT 1024
+#else
+#define TILEMEGA_OPERAND_SMEM_ALIGNMENT 16
+#endif
 
 #include <algorithm>
 #include <array>
@@ -442,6 +455,12 @@ __device__ inline void RunServingAttentionTask(Params const& p,
       stage.attention_kv_block, TILEMEGA_NORM_EPSILON};
 #if TILEMEGA_TRACE_TASK
   inputs.profile=profile;
+#endif
+#if TILEMEGA_ATTENTION_IMPL==4
+  if(p.serving_tensor_maps) {
+    auto* maps=static_cast<executor::TensorMap const*>(p.serving_tensor_maps);
+    inputs.key_tensor_map=maps+stage.operand[1];inputs.value_tensor_map=maps+stage.operand[2];
+  }
 #endif
   T_ServingAttention::Run(inputs, smem.serving_attention, batch, group,
                           query_block, cache_block);
@@ -1711,7 +1730,11 @@ __device__ inline void GridBarrier(EventCounter* events, std::uint32_t stage,
 
 __global__ __launch_bounds__(kHarnessThreads, TILEMEGA_MIN_BLOCKS_PER_SM)
 void tilemega_stage_kernel(Params const* params, std::uint32_t stage) {
+#if TILEMEGA_OPERAND_SMEM_ALIGNMENT==1024
+  extern __shared__ __align__(1024) unsigned char bytes[];
+#else
   extern __shared__ unsigned char bytes[];
+#endif
   RunStage(*params, stage, *reinterpret_cast<TaskSmem*>(bytes));
 }
 
@@ -1748,7 +1771,11 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
                         unsigned long long iteration) {
   ServingPdlEnter(*params);
   executor::StepBegin(*params,iteration);
+#if TILEMEGA_OPERAND_SMEM_ALIGNMENT==1024
+  extern __shared__ __align__(1024) unsigned char bytes[];
+#else
   extern __shared__ unsigned char bytes[];
+#endif
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   for (std::uint32_t stage = 0; stage < params->stage_count; ++stage) {
 #if TILEMEGA_NONPAGED_LA || TILEMEGA_DM_REDUCTIONS
@@ -1784,7 +1811,11 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
     EventCounter* events,unsigned long long base_iteration,
     unsigned long long* step_ns) {
   ServingPdlEnter(params[0]);
+#if TILEMEGA_OPERAND_SMEM_ALIGNMENT==1024
+  extern __shared__ __align__(1024) unsigned char bytes[];
+#else
   extern __shared__ unsigned char bytes[];
+#endif
   auto& smem=*reinterpret_cast<TaskSmem*>(bytes);
   if(blockIdx.x==0 && threadIdx.x==0 && step_ns) {
     unsigned long long now;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(now));
@@ -1903,7 +1934,11 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
                         unsigned long long iteration) {
   ServingPdlEnter(*params);
   executor::StepBegin(*params,iteration);
+#if TILEMEGA_OPERAND_SMEM_ALIGNMENT==1024
+  extern __shared__ __align__(1024) unsigned char bytes[];
+#else
   extern __shared__ unsigned char bytes[];
+#endif
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   using CS = ClusterSync<arch::CurrentArch>;
   if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled && !TILEMEGA_MOE_DYNAMIC) {
@@ -2275,6 +2310,7 @@ struct DeviceModel {
   std::vector<std::vector<ModelElement>> host_sources;
   ModelElement** device_buffers = nullptr;
   GemmInvocation* device_gemms = nullptr;
+  std::size_t gemm_invocation_count = 0;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   ConvDesc* device_dm_convolutions = nullptr;
   DmBufferLayout* device_dm_layouts = nullptr;
@@ -2998,6 +3034,9 @@ inline DeviceModel Create(ModelSpec const& spec,
       if (desc.serving_epilogue > 3)
         throw std::invalid_argument("unknown serving GEMM epilogue");
       invocation.serving_weight_buffer=desc.b;
+#if TILEMEGA_FORWARD_GEMM_WGMMA
+      invocation.serving_activation_buffer=desc.a;
+#endif
       invocation.serving_k_begin=k_begin;
       invocation.serving_weight_base=model.buffers[desc.b];
       invocation.serving_k_total_full=storage_k;
@@ -4247,6 +4286,7 @@ inline DeviceModel Create(ModelSpec const& spec,
   model.params.prefetch_page_offset = static_cast<std::uint32_t>(
       model.l2_smem_bytes - 2u * TILEMEGA_PREFETCH_PAGE_BYTES);
 #endif
+  model.gemm_invocation_count=gemms.size();
   model.device_gemms = static_cast<GemmInvocation*>(
       upload(gemms.data(), gemms.size() * sizeof(GemmInvocation)));
   model.device_stages = static_cast<StageDesc*>(upload(

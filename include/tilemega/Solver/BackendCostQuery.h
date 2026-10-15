@@ -150,6 +150,24 @@ inline BackendTraits ServingBF16Traits(int m, int n, int k, int stages) {
   return result;
 }
 
+constexpr bool ServingWgmmaShapeLegal(int m,int n,int k,int stages) {
+  bool decode=m==16 && (k==64 || k==128);
+  bool forward=(m==64 || m==128) && k==64 && m*n<=16384;
+  return (decode || forward) && (n==64 || n==128 || n==256) && stages==2;
+}
+constexpr int ServingWgmmaSmemBytes(int m,int n,int k,int stages) {
+  int base=ServingBF16SmemBytes(m,n,k,stages);
+  int tma=1024+4*k*(m+n);
+  return m>=64 && tma>base?tma:base;
+}
+inline BackendTraits ServingWgmmaTraits(int m,int n,int k,int stages) {
+  auto result=ServingBF16Traits(m,n,k,stages);
+  result.arch_sm=90;
+  result.smem_bytes=ServingWgmmaSmemBytes(m,n,k,stages);
+  result.shape_legal=ServingWgmmaShapeLegal(m,n,k,stages);
+  return result;
+}
+
 constexpr bool ServingGemvShapeLegal(int m,int n,int k,int stages) {
   return m==16 && (n==8 || n==16 || n==32 || n==64) && (k==64 || k==128) && stages==2;
 }

@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 
-def variants(manifest):
+def variants(manifest, include_hopper=False):
     """Execution modes are orthogonal; each tuple names one compiled artifact."""
     capacity=int(manifest['capacity'])
     extents=sorted(set((32,64,128,256,512,capacity)))
@@ -13,13 +13,24 @@ def variants(manifest):
     impls=['mma16','pvswap','pvswap2']
     if 1<=int(manifest.get('attention_q_per_kv',0))<=4 and int(manifest.get('attention_head_dim',0)) in (64,128):
         impls.append('simt')
-    return [dict(ec=ec,attention_impl=impl,nonpaged_la=la,paged_attention_load='loader')
-            for ec,impl,la in itertools.product(extents,impls,(0,) if paged else (0,1))]
+    result = [dict(ec=ec,attention_impl=impl,attention_page='chunk16',nonpaged_la=la,paged_attention_load='loader')
+              for ec,impl,la in itertools.product(extents,impls,(0,) if paged else (0,1))]
+    caps=manifest.get('target_spec',{}).get('caps',{})
+    d=int(manifest.get('attention_head_dim',0))
+    if include_hopper and caps.get('wgmma') and manifest.get('arch_paths','auto')=='auto' and \
+            1<=int(manifest.get('attention_q_per_kv',0))<=8 and d in (64,128):
+        result += [dict(ec=ec,attention_impl='wgmma',attention_page='uniform',nonpaged_la=0,
+                        paged_attention_load='loader',page_bytes=4*d*64) for ec in extents]
+    return result
 
 
 def matches(manifest,variant):
-    return (int(manifest['attention_kv_block'])==variant['ec'] and
+    return ((not variant.get('page_bytes') or manifest.get('pg')!='pages' or
+             int((manifest.get('pages') or {}).get('page_bytes',0))==variant['page_bytes']) and
+            int(manifest['attention_kv_block'])==variant['ec'] and
             manifest.get('attention_impl','mma16')==variant['attention_impl'] and
+            manifest.get('attention_page','uniform' if manifest.get('attention_impl')=='wgmma' else 'chunk16')==
+                variant.get('attention_page','uniform' if variant['attention_impl']=='wgmma' else 'chunk16') and
             int(manifest.get('nonpaged_la',False))==variant['nonpaged_la'] and
             manifest.get('paged_attention_load','loader')==variant['paged_attention_load'])
 
@@ -53,9 +64,12 @@ def compile_options(original,variant,directory):
     """Preserve target, packing and geometry while replacing structural flags."""
     directory=Path(directory)
     replace={'--serve-kv-block':variant['ec'],'--attention-impl':variant['attention_impl'],
+        '--attention-page':variant.get('attention_page','uniform' if variant['attention_impl']=='wgmma' else 'chunk16'),
         '--nonpaged-la':variant['nonpaged_la'],'--search-passes':1,'--top-m':1,'--measure-top':1,
         '--search-domain':directory/'domain.json','--evaluate-configs':directory/'cases.json',
         '--candidate-mode':'L1','--candidate-loop':0,'--dump-cg':directory/'selected.mlir'}
+    if variant.get('page_bytes'):
+        replace['--page-bytes']=variant['page_bytes']
     # The assisted transport enters this list only after its conditional gate.
     if variant['paged_attention_load']!='loader':
         replace['--paged-attention-load']=variant['paged_attention_load']

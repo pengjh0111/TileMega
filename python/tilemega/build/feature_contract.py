@@ -52,12 +52,17 @@ def validate(manifest, defines):
     if 'attention_impl' in manifest:
         if 'TILEMEGA_ATTENTION_IMPL' in defines:
             index=int(defines['TILEMEGA_ATTENTION_IMPL'])
-            if not 0<=index<=3:raise ValueError('invalid attention implementation macro')
-            actual=('mma16','pvswap','pvswap2','simt')[index]
+            if not 0<=index<=4:raise ValueError('invalid attention implementation macro')
+            actual=('mma16','pvswap','pvswap2','simt','wgmma')[index]
         else:
             actual = 'pvswap' if int(defines.get('TILEMEGA_ATTENTION_PVSWAP', '0')) else 'mma16'
         if manifest['attention_impl'] != actual:
             raise ValueError('manifest attention_impl differs from compiler macros')
+    if 'attention_page' in manifest:
+        wgmma = int(defines.get('TILEMEGA_ATTENTION_IMPL', '0')) == 4
+        uniform = bool(int(defines.get('TILEMEGA_ATTENTION_PAGE_UNIFORM', str(int(wgmma)))))
+        if uniform != wgmma or manifest['attention_page'] != ('uniform' if uniform else 'chunk16'):
+            raise ValueError('manifest attention_page differs from its legal compiler layout')
     if 'nonpaged_la' in manifest:
         actual = manifest.get('pg') != 'pages' and bool(int(defines.get('TILEMEGA_NONPAGED_LA', '0')))
         if bool(manifest['nonpaged_la']) != actual:
@@ -77,11 +82,14 @@ def implementations(manifest, defines):
                 'ep_direct': int(defines.get('TILEMEGA_EP_DIRECT', '0'))}
                 for g in manifest['gemms']],
             'attention': {'impl': manifest.get('attention_impl', 'mma16'),
+                'page_layout': manifest.get('attention_page',
+                    'uniform' if manifest.get('attention_impl') == 'wgmma' else 'chunk16'),
                 'noinline': bool(manifest.get('attention_noinline', False)),
                 'buffers': int(defines.get('TILEMEGA_ATTENTION_BUFFERS', '2')),
                 'task_body': ('PagedAttentionTaskBody' if paged else
                     'IndependentAttentionTaskBody') if decode else 'FusedAttentionTaskBody',
-                'page_policy': ('Packed' if paged else 'WarpPrivate') if decode else None,
+                'page_policy': ('WarpGroup' if manifest.get('attention_impl') == 'wgmma'
+                    else 'Packed' if paged else 'WarpPrivate') if decode else None,
                 'load': manifest.get('paged_attention_load', 'loader'),
                 'frontier': bool(int(defines.get('TILEMEGA_ATTENTION_FRONTIER', '0')))}}
 

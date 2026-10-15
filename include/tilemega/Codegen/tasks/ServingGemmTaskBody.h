@@ -7,6 +7,8 @@
 
 #include <tilemega/Backend/ServingEpilogue.h>
 #include <tilemega/Backend/ServingGemm.h>
+#include <tilemega/Backend/Sm90Gmma.h>
+#include <tilemega/Codegen/executor/Async.cuh>
 #if TILEMEGA_TRACE_TASK
 #include <tilemega/Backend/ServingProfiledMainloop.h>
 #endif
@@ -19,6 +21,10 @@
 #ifndef TILEMEGA_MOE_GEMV
 #define TILEMEGA_MOE_GEMV 0
 #endif
+#endif
+
+#ifndef TILEMEGA_ARCH_PATH_SM80
+#define TILEMEGA_ARCH_PATH_SM80 0
 #endif
 
 #ifndef TILEMEGA_NONPAGED_TILED
@@ -76,6 +82,7 @@ struct ServingGemmOperands {
   backend::DmMoeRows moe{};
   bool dm_partial_rows = false;
 #endif
+  void const* activation_tensor_map = nullptr;
 };
 
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
@@ -99,15 +106,20 @@ __device__ inline backend::DmEpilogueArguments DmEpilogueOperands(
 }
 #endif
 
-template <class Arch, int TileM, int TileN, int TileK, int Stages>
+template <class Arch, int TileM, int TileN, int TileK, int Stages,bool UseWgmma=false>
 struct ServingGemmTaskBody {
+  static_assert(!UseWgmma || !TILEMEGA_ARCH_PATH_SM80,
+                "WGMMA is incompatible with --arch-paths sm80");
   using Config = backend::ServingGemmConfig<Arch, TileM, TileN, TileK, Stages>;
   using Mainloop = typename Config::Mainloop;
   static constexpr int kThreads = Config::kThreads;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-  static constexpr int kSharedBytes=solver::DmServingBF16SmemBytes(TileM,TileN,TileK,Stages);
+  static constexpr int kSharedBytes=UseWgmma && TileM>=64 ?
+      solver::ServingWgmmaSmemBytes(TileM,TileN,TileK,Stages):
+      solver::DmServingBF16SmemBytes(TileM,TileN,TileK,Stages);
 #else
-  static constexpr int kSharedBytes = Config::kSharedBytes;
+  static constexpr int kSharedBytes = UseWgmma && TileM>=64 ?
+      solver::ServingWgmmaSmemBytes(TileM,TileN,TileK,Stages):Config::kSharedBytes;
 #endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   static constexpr int kTileColumns = TileN;
@@ -126,6 +138,159 @@ struct ServingGemmTaskBody {
       emit(executor::PrefetchRange{p.b+static_cast<long long>(n)*pitch+p.k_begin,
                                   static_cast<unsigned>(2*p.k_count)});
 #endif
+  }
+  __device__ static float* ComputeForwardWgmma(ServingGemmOperands const& p,int tile_m,
+      int tile_n,char* shared) {
+    using namespace cute;
+    using Async=executor::Async<Arch>;
+    using Body=backend::Sm90ForwardGmma<Arch,TileM,TileN,TileK>;
+    using Gmma=typename Body::Gmma;
+    using Element=cutlass::bfloat16_t;
+    auto layout_a=as_position_independent_swizzle_layout(backend::Sm90KLayout<TileM,TileK>{});
+    auto layout_b=as_position_independent_swizzle_layout(backend::Sm90KLayout<TileN,TileK>{});
+    // Scratch aliases the preceding task's FP32 epilogue; join its readers
+    // before either producer starts writing the new operand slots.
+    ComputeSync();
+    auto* barriers=reinterpret_cast<std::uint64_t*>(shared);
+    auto* a=reinterpret_cast<Element*>(shared+1024);
+    auto* b=a+2*TileM*TileK;
+    int a_pitch=p.a_row_stride?p.a_row_stride:p.k_total;
+    int b_pitch=p.b_row_stride?p.b_row_stride:p.k_total;
+    int iterations=(p.k_count+TileK-1)/TileK;
+    if(!p.a || !p.b || p.k_begin<0 || p.k_begin%8 || p.k_count<=0 ||
+       p.k_begin+p.k_count>p.k_total || a_pitch<p.k_total || b_pitch<p.k_total ||
+       a_pitch%8 || b_pitch%8 || (Async::Shared(shared)&1023)) {
+      asm volatile("trap;");return nullptr;
+    }
+    bool tma=p.activation_tensor_map &&
+#if TILEMEGA_NONPAGED_TILED
+        p.weight_base && p.k_begin%TileK==0 &&
+#else
+        p.tensor_map &&
+#endif
+        (p.k_count%TileK==0 || p.tensor_k_begin+p.k_count==p.k_total_full);
+    if(tma) {
+      if(ComputeThread()==0) {Async::Init(barriers,1);Async::Init(barriers+1,1);}
+      Async::InitFence();ComputeSync();Async::ProxyAsyncGlobalFence();
+    }
+    auto issue=[&](int it) {
+      auto* as=a+(it%2)*TileM*TileK;
+      auto* bs=b+(it%2)*TileN*TileK;
+      if(tma) {
+        if(ComputeThread()==0) {
+          auto* barrier=barriers+it%2;
+          Async::ExpectTx(barrier,2*TileK*(TileM+TileN));
+          Async::Tensor2D(as,p.activation_tensor_map,p.tensor_k_begin+it*TileK,tile_m*TileM,barrier);
+#if TILEMEGA_NONPAGED_TILED
+          int kt=(p.k_total_full+TileK-1)/TileK;
+          auto* source=p.weight_base+(std::size_t(tile_n)*kt+p.k_begin/TileK+it)*TileN*TileK;
+          Async::Bulk(bs,source,2*TileN*TileK,barrier);
+#else
+          Async::Tensor2D(bs,p.tensor_map,p.tensor_k_begin+it*TileK,tile_n*TileN,barrier);
+#endif
+        }
+      }else {
+        for(int v=ComputeThread()*8;v<TileM*TileK;v+=kComputeThreads*8) {
+          int row=tile_m*TileM+v/TileK,k=it*TileK+v%TileK;
+          bool valid=row<p.m && k<p.k_count;
+          auto* source=valid?p.a+std::int64_t(row)*a_pitch+p.k_begin+k:p.a;
+          Async::Copy16Bytes(as+layout_a(v/TileK,v%TileK),source,valid?min(8,p.k_count-k)*2:0);
+        }
+#if TILEMEGA_NONPAGED_TILED
+        if(!p.weight_base || p.k_begin%TileK) {asm volatile("trap;");return;}
+        int kt=(p.k_total_full+TileK-1)/TileK;
+        auto* source=p.weight_base+(std::size_t(tile_n)*kt+p.k_begin/TileK+it)*TileN*TileK;
+        for(int v=ComputeThread()*8;v<TileN*TileK;v+=kComputeThreads*8)Async::Copy16Bytes(bs+v,source+v,16);
+#else
+        for(int v=ComputeThread()*8;v<TileN*TileK;v+=kComputeThreads*8) {
+          int row=tile_n*TileN+v/TileK,k=it*TileK+v%TileK;
+          bool valid=row<p.n && k<p.k_count;
+          auto* source=valid?p.b+std::int64_t(row)*b_pitch+p.k_begin+k:p.b;
+          Async::Copy16Bytes(bs+layout_b(v/TileK,v%TileK),source,valid?min(8,p.k_count-k)*2:0);
+        }
+#endif
+        cute::cp_async_fence();
+      }
+    };
+    issue(0);if(iterations>1)issue(1);
+    typename Body::Mma mma;
+    auto accum=partition_fragment_C(mma,Shape<Int<TileM>,Int<TileN>>{});
+    clear(accum);Gmma::Fence(accum);
+    for(int it=0;it<iterations;++it) {
+      if(tma)Async::Wait(barriers+it%2,(it/2)&1);
+      else {cute::cp_async_wait<0>();ComputeSync();Async::FenceProxyAsyncShared();}
+      ComputeSync();Body::Accumulate(b+(it%2)*TileN*TileK,a+(it%2)*TileM*TileK,accum);
+      // The producer may overwrite a slot only after every WGMMA read ends.
+      Gmma::template Wait<0>();ComputeSync();
+      if(it+2<iterations)issue(it+2);
+    }
+    return Body::Materialize(accum,shared);
+  }
+  __device__ static float* ComputeWgmma(ServingGemmOperands const& p,int tile_m,
+      int tile_n,char* shared) {
+    if constexpr(TileM>=64)return ComputeForwardWgmma(p,tile_m,tile_n,shared);
+    else {
+    using namespace cute;
+    using Async=executor::Async<Arch>;
+    using Body=backend::Sm90DecodeGmma<Arch,TileM,TileN,TileK>;
+    using Gmma=typename Body::Gmma;
+    using Element=cutlass::bfloat16_t;
+    using LayoutA=backend::Sm90KLayout<TileM,TileK>;
+    using LayoutB=backend::Sm90KLayout<TileN,TileK>;
+    auto layout_a=as_position_independent_swizzle_layout(LayoutA{});
+    auto layout_b=as_position_independent_swizzle_layout(LayoutB{});
+    auto* a=reinterpret_cast<Element*>(shared);
+    auto* b=a+2*TileM*TileK;
+    typename Body::Mma mma;
+    auto accum=partition_fragment_C(mma,Shape<Int<TileN>,Int<TileM>>{});
+    clear(accum);Gmma::Fence(accum);
+    int a_pitch=p.a_row_stride?p.a_row_stride:p.k_total;
+    int b_pitch=p.b_row_stride?p.b_row_stride:p.k_total;
+    int iterations=(p.k_count+TileK-1)/TileK;
+    if(!p.a || !p.b || p.k_begin<0 || p.k_begin%8 || p.k_count<=0 ||
+       p.k_begin+p.k_count>p.k_total || a_pitch<p.k_total || b_pitch<p.k_total ||
+       a_pitch%8 || b_pitch%8 || p.k_begin+((p.k_count+7)&~7)>a_pitch ||
+       p.k_begin+((p.k_count+7)&~7)>b_pitch) {
+      asm volatile("trap;");return nullptr;
+    }
+    for(int it=0;it<iterations;++it) {
+      auto* as=a+(it%2)*TileM*TileK;
+      auto* bs=b+(it%2)*TileN*TileK;
+      for(int v=ComputeThread()*8;v<TileM*TileK;v+=kComputeThreads*8) {
+        int row=tile_m*TileM+v/TileK,k=it*TileK+v%TileK;
+        bool valid=row<p.m && k<p.k_count;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+        int source_row=valid?backend::DmSourceRow(p,row):0;
+#else
+        int source_row=row;
+#endif
+        auto* source=valid?p.a+std::int64_t(source_row)*a_pitch+p.k_begin+k:p.a;
+        Async::Copy16Bytes(as+layout_a(v/TileK,v%TileK),source,
+            valid?min(8,p.k_count-k)*2:0);
+      }
+#if TILEMEGA_NONPAGED_TILED
+      if(!p.weight_base || p.k_total_full<=0 || p.k_begin%TileK) {
+        asm volatile("trap;");return nullptr;
+      }
+      int kt=(p.k_total_full+TileK-1)/TileK;
+      auto* source=p.weight_base+(std::size_t(tile_n)*kt+p.k_begin/TileK+it)*TileN*TileK;
+      for(int v=ComputeThread()*8;v<TileN*TileK;v+=kComputeThreads*8)
+        Async::Copy16Bytes(bs+v,source+v,16);
+#else
+      for(int v=ComputeThread()*8;v<TileN*TileK;v+=kComputeThreads*8) {
+        int row=tile_n*TileN+v/TileK,k=it*TileK+v%TileK;
+        bool valid=row<p.n && k<p.k_count;
+        auto* source=valid?p.b+std::int64_t(row)*b_pitch+p.k_begin+k:p.b;
+        Async::Copy16Bytes(bs+layout_b(v/TileK,v%TileK),source,
+            valid?min(8,p.k_count-k)*2:0);
+      }
+#endif
+      cute::cp_async_fence();cute::cp_async_wait<0>();ComputeSync();
+      asm volatile("fence.proxy.async.shared::cta;" ::: "memory");
+      ComputeSync();Body::Accumulate(bs,as,accum);Gmma::template Wait<1>();
+    }
+    return Body::Materialize(accum,shared);
+    }
   }
   __device__ static void Run(ServingGemmOperands const& p, int tile_m,
                              int tile_n, char* shared) {
@@ -164,6 +329,24 @@ struct ServingGemmTaskBody {
       }
     }else {
 #endif
+    if constexpr(UseWgmma) {
+      auto* tile=ComputeWgmma(p,tile_m,tile_n,shared);
+      auto finish=[&](auto op) {
+        backend::ServingEpilogue<decltype(op)::value,TileM,TileN>::template RunFromTile<false>(
+            tile,tile_m,tile_n,p.m,p.n,p.output_stride,p.partial_stride,p.output,
+            p.residual,p.partial,p.argmax_value,p.argmax_index,p.norm_ss,p.ss_out,
+            p.norm_k,p.norm_eps);
+      };
+      switch(p.epilogue) {
+        case backend::ServingEpilogueOp::kStore:finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kStore>{});break;
+        case backend::ServingEpilogueOp::kResidual:finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kResidual>{});break;
+        case backend::ServingEpilogueOp::kSwiGLU:finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kSwiGLU>{});break;
+        case backend::ServingEpilogueOp::kArgmaxPartial:finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kArgmaxPartial>{});break;
+        case backend::ServingEpilogueOp::kPartial:finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kPartial>{});break;
+      }
+      ComputeSync();
+      return;
+    }
     using namespace cute;
     if (!p.a || !p.b || p.k_begin < 0 || p.k_count <= 0 ||
         p.k_begin + p.k_count > p.k_total) {
@@ -261,6 +444,14 @@ struct ServingGemmTaskBody {
   template <class Spec>
   __device__ static void RunDmResolved(ServingGemmOperands const& p, int tile_m,
                                      int tile_n, char* shared) {
+    if constexpr(UseWgmma) {
+      if(p.access.a==DmAAccess::kIm2Col || p.a_scale) {asm volatile("trap;");return;}
+      auto* tile=ComputeWgmma(p,tile_m,tile_n,shared);
+      backend::ServingDmEpilogue<Arch,Spec,TileM,TileN,false>::RunFromTile(
+          tile,DmEpilogueOperands(p),tile_m,tile_n);
+      ComputeSync();
+      return;
+    }
 #if TILEMEGA_MOE_GEMV
     if constexpr(TileN<=32 && TileK>=32) {
       using Gemv=backend::ServingGemv<Arch,TileM,TileN,TileK>;

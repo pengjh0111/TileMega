@@ -6,6 +6,8 @@ wrapper text therefore shares a physical compile across semantic classes and
 split values; the solver still keeps a separate semantic resource-cache entry.
 """
 import argparse, fcntl, hashlib, json, pathlib, re, shutil, subprocess, os
+import runpy
+
 ROOT=pathlib.Path(__file__).resolve().parents[4]
 
 def serving_headers(source):
@@ -31,7 +33,7 @@ def main():
     ap.add_argument('--cache',type=pathlib.Path,required=True);ap.add_argument('--output',type=pathlib.Path,required=True)
     ap.add_argument('--arch');ap.add_argument('--target',type=pathlib.Path);ap.add_argument('--dtype',choices=['bf16','f32'],default='bf16')
     ap.add_argument('--tile',default='32,16,16,2');ap.add_argument('--nongemm',action='store_true')
-    ap.add_argument('--serving',action='store_true');ap.add_argument('--impl',choices=('mma16','gemv'),default='mma16')
+    ap.add_argument('--serving',action='store_true');ap.add_argument('--impl',choices=('mma16','gemv','wgmma'),default='mma16')
     ap.add_argument('--dm',action='store_true')
     ap.add_argument('--dm-gemv',action='store_true')
     ap.add_argument('--nongemm-source',type=pathlib.Path)
@@ -46,8 +48,10 @@ def main():
     if not a.arch:
         if not a.target:ap.error('--arch or --target is required')
         target=json.loads(a.target.read_text())
-        a.arch=f"sm_{target['sm_major']}{target['sm_minor']}"
-    arch_id=int(a.arch.removeprefix('sm_'))*10
+        mapping=runpy.run_path(str(ROOT/'python/tilemega/build/arch.py'))['nvcc_arch']
+        a.arch=target.get('nvcc_arch') or mapping(target['arch_tag'])
+    arch_flags=runpy.run_path(str(ROOT/'python/tilemega/build/arch.py'))['nvcc_flag']
+    arch_id=int(a.arch.removeprefix('sm_').removesuffix('a'))*10
     pre=f'#define TILEMEGA_MODEL_BF16 {int(a.dtype=="bf16")}\n#define TILEMEGA_MIDPOINT_REFINE 0\n#define TILEMEGA_GEMM_TILE_M {m}\n#define TILEMEGA_GEMM_TILE_N {n}\n#define TILEMEGA_GEMM_TILE_K {k}\n#define TILEMEGA_GEMM_STAGES {s}\n'
     if a.dm:pre+='#define TILEMEGA_DM_SUPPORT 1\n'
     if a.dm_gemv:pre+='#define TILEMEGA_MOE_GEMV 1\n'
@@ -59,17 +63,17 @@ def main():
         elif a.nongemm:
             text+='#include <tilemega/Codegen/tasks/FusedAttentionTaskBody.h>\n'
             text+=f'using ProbeArch=tilemega::arch::ArchFromId<{arch_id}>::type;\nusing Body=tilemega::codegen::FusedAttentionTaskBody<ProbeArch,{a.head_dim},{a.qperkv},64,64,64,{str(a.head_dim==128).lower()}>;\n'
-            text+='extern "C" __global__ __launch_bounds__(128) void probe_nongemm(tilemega::codegen::ServingAttentionOperands const* p) { extern __shared__ char bytes[]; Body::Run(*p,*reinterpret_cast<Body::SharedStorage*>(bytes),0,0,0,0); }\n'
+            text+='extern "C" __global__ __launch_bounds__(128) void probe_nongemm(tilemega::codegen::ServingAttentionOperands const* p) { extern __shared__ __align__(1024) char bytes[]; Body::Run(*p,*reinterpret_cast<Body::SharedStorage*>(bytes),0,0,0,0); }\n'
             size='sizeof(Body::SharedStorage)'
         else:
             text+=('#include <tilemega/Codegen/tasks/ServingGemvTaskBody.h>\n' if a.impl=='gemv' else '#include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>\n')
-            body=f'ServingGemvTaskBody<ProbeArch,{n},{k}>' if a.impl=='gemv' else f'ServingGemmTaskBody<ProbeArch,{m},{n},{k},{s}>'
+            body=f'ServingGemvTaskBody<ProbeArch,{n},{k}>' if a.impl=='gemv' else f'ServingGemmTaskBody<ProbeArch,{m},{n},{k},{s},{str(a.impl=="wgmma").lower()}>'
             text+=f'using ProbeArch=tilemega::arch::ArchFromId<{arch_id}>::type;\nusing Body=tilemega::codegen::{body};\n'
             if a.dm_gemv:
                 text+='using Spec=tilemega::codegen::DmEpilogueSpec<tilemega::codegen::DmEpilogueProgram<>>;\n'
-                text+='extern "C" __global__ __launch_bounds__(128) void probe_gemm(tilemega::codegen::ServingGemmOperands const* p) { extern __shared__ char bytes[]; Body::RunDmResolved<Spec>(*p,0,0,bytes); }\n'
+                text+='extern "C" __global__ __launch_bounds__(128) void probe_gemm(tilemega::codegen::ServingGemmOperands const* p) { extern __shared__ __align__(1024) char bytes[]; Body::RunDmResolved<Spec>(*p,0,0,bytes); }\n'
             else:
-                text+='extern "C" __global__ __launch_bounds__(128) void probe_gemm(tilemega::codegen::ServingGemmOperands const* p) { extern __shared__ char bytes[]; Body::Run(*p,0,0,bytes); }\n'
+                text+='extern "C" __global__ __launch_bounds__(128) void probe_gemm(tilemega::codegen::ServingGemmOperands const* p) { extern __shared__ __align__(1024) char bytes[]; Body::Run(*p,0,0,bytes); }\n'
             size='Body::kSharedBytes'
     else:
         text=pre+'#include <tilemega/Codegen/tasks/GemmStageTaskBody.h>\n#include <tilemega/Target/ArchDispatch.h>\n#include <cstdio>\n'
@@ -79,11 +83,11 @@ def main():
         text+='using namespace tilemega::codegen;\nunion ProbeSmem { float rms[256]; float attention[TILEMEGA_ATTENTION_SCRATCH_EXTENT]; float pointwise[1]; };\n'
         for body in headers:
             cls='Attention' if body=='AttentionChunk' else body
-            text+=f'extern "C" __global__ __launch_bounds__({threads}) void probe_{cls}(Params const* p,StageDesc const* stage,int task) {{ extern __shared__ char bytes[]; {cls}TaskBody<tilemega::arch::CurrentArch,ProbeSmem,{threads}>::RunTask(*p,*stage,*reinterpret_cast<ProbeSmem*>(bytes),task); }}\n'
+            text+=f'extern "C" __global__ __launch_bounds__({threads}) void probe_{cls}(Params const* p,StageDesc const* stage,int task) {{ extern __shared__ __align__(1024) char bytes[]; {cls}TaskBody<tilemega::arch::CurrentArch,ProbeSmem,{threads}>::RunTask(*p,*stage,*reinterpret_cast<ProbeSmem*>(bytes),task); }}\n'
         size='sizeof(ProbeSmem)'
     elif not a.serving:
         text+='using namespace tilemega::codegen;\n'
-        text+=f'extern "C" __global__ __launch_bounds__({threads}) void probe_gemm(GemmInvocation const* g,int task) {{ extern __shared__ char bytes[]; GemmStageTaskBody<tilemega::arch::CurrentArch,GemmVariantSmem,{threads}>::RunTask<0>(*g,task,bytes,nullptr); }}\n'
+        text+=f'extern "C" __global__ __launch_bounds__({threads}) void probe_gemm(GemmInvocation const* g,int task) {{ extern __shared__ __align__(1024) char bytes[]; GemmStageTaskBody<tilemega::arch::CurrentArch,GemmVariantSmem,{threads}>::RunTask<0>(*g,task,bytes,nullptr); }}\n'
         size='sizeof(GemmVariantSmem)'
     if not a.nongemm_source:text+=f'int main() {{ std::printf("%zu {threads}\\n",{size}); }}\n'
     compiler=os.environ.get('CUDACXX') or shutil.which('nvcc')
@@ -115,7 +119,7 @@ def main():
         free=shutil.disk_usage(directory).free//2**20;print(f'DISK NEED_MIB=1024 FREE_MIB={free}',flush=True)
         if free<1024:raise RuntimeError('insufficient disk for variant compilation')
         source=directory/'probe.cu';source.write_text(text)
-        command=[compiler,'-std=c++17','-O2','-Xptxas=-v','-arch='+a.arch,'-DTILEMEGA_MIDPOINT_REFINE=0']
+        command=[compiler,'-std=c++17','-O2','-Xptxas=-v',arch_flags(a.arch),'-DTILEMEGA_MIDPOINT_REFINE=0']
         for sub in ['include','third_party/cutlass/include','third_party/cutlass/tools/util/include','third_party/cutlass/test']:command+=['-I'+str(ROOT/sub)]
         command += [str(source),'-o',str(directory/'probe')]
         (directory/'command.json').write_text(json.dumps(command,indent=2)+'\n')

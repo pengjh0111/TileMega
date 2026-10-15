@@ -6,6 +6,7 @@
 #include <tilemega/Backend/ServingAttentionPVSwap.h>
 #include <tilemega/Backend/ServingAttentionImpl.h>
 #include <tilemega/Backend/ServingAttentionSimt.h>
+#include <tilemega/Codegen/tasks/Sm90AttentionTaskBody.h>
 #ifndef TILEMEGA_ATTENTION_NOINLINE
 #define TILEMEGA_ATTENTION_NOINLINE 0
 #endif
@@ -29,6 +30,8 @@ struct PagedAttentionTaskBody {
   using QK=backend::ServingAttentionWarp<Arch,16,D,false,KeyLayout>;
   static constexpr bool kPVSwap=TILEMEGA_ATTENTION_IMPL==1 || TILEMEGA_ATTENTION_IMPL==2;
   static constexpr bool kSimt=TILEMEGA_ATTENTION_IMPL==3;
+  static constexpr bool kWgmma=TILEMEGA_ATTENTION_IMPL==4;
+  static_assert(!kWgmma || (arch::Caps<Arch>::kWgmma && !ForceSm80 && Q<=8));
   static_assert(!kSimt || Q<=4);
   static_assert(!kPVSwap || Q<=8);
   using PV=std::conditional_t<kPVSwap,backend::ServingAttentionPVSwap<Arch,D,ValueLayout>,
@@ -37,15 +40,19 @@ struct PagedAttentionTaskBody {
   using Copy=typename Ring::Copy;
   static constexpr int kPageRows=PageBytes/(4*D);
   static_assert(kPageRows%16==0);
-  struct SharedStorage {
+  static_assert(!kWgmma || kPageRows==64,"WGMMA attention requires exactly 64 keys per K|V page");
+  using PageCoordinates=AttentionTileLayout<D,kPageRows,TILEMEGA_ATTENTION_PAGE_UNIFORM!=0>;
+  using Hopper=Sm90AttentionTaskBody<Arch,D,Q,QkNorm>;
+  struct LegacySharedStorage {
     alignas(16) Element query[16*D];
     alignas(16) float partial[4*PartialRows*D];
     float lse[4][PartialRows];
   };
+  using SharedStorage=std::conditional_t<kWgmma,typename Hopper::SharedStorage,LegacySharedStorage>;
   __device__ static int Begin(ServingAttentionOperands const& p,int c){return c*p.block_extent;}
   __device__ static int End(ServingAttentionOperands const& p,int c){return min((c+1)*p.block_extent,p.past+1);}
   __host__ __device__ static constexpr AttentionPageLayout Layout(int count,int begin=0) {
-    return {kPageRows,count,PagePolicy,begin};
+    return {kPageRows,count,kWgmma?AttentionPagePolicy::WarpGroup:PagePolicy,begin};
   }
   __device__ static int WarpExtent(int count){return Layout(count).extent;}
   template<class BeforePage=executor::NoPageHook>
@@ -58,13 +65,15 @@ struct PagedAttentionTaskBody {
     constexpr int vectors_per_lane=kPageRows*D/(executor::kLoaderThreads*8);
     int key_offsets[vectors_per_lane],value_offsets[vectors_per_lane];
     int rows[vectors_per_lane],columns[vectors_per_lane];
+    if constexpr(!kWgmma) {
     #pragma unroll
     for(int step=0;step<vectors_per_lane;++step) {
       int i=(executor::LoaderLane()+step*executor::kLoaderThreads)*8;
       int row=i/D,d=i%D;
       rows[step]=row;columns[step]=d;
-      key_offsets[step]=(row/16)*16*D+typename QK::LayoutB{}(row%16,d);
-      value_offsets[step]=(row/16)*16*D+typename PV::LayoutB{}(d,row%16);
+      key_offsets[step]=PageCoordinates::Offset(row,d);
+      value_offsets[step]=PageCoordinates::Offset(row,d);
+    }
     }
     for(int wave=0;wave<layout.waves;++wave)for(int page_index=0;page_index<layout.pages_per_wave;++page_index) {
       unsigned stream_bytes=min(remaining,unsigned(PageBytes));
@@ -78,11 +87,12 @@ struct PagedAttentionTaskBody {
         if(full && p.key_tensor_map && p.value_tensor_map) {
           auto* barrier=&ring.slots[Ring::SlotIndex(sequence)].full;
           if(executor::LoaderLane()==0) {
+            if constexpr(kWgmma)Copy::ProxyAsyncGlobalFence();
             Copy::ExpectTx(barrier,PageBytes);
-            for(int row=0;row<kPageRows;row+=16)for(int d=0;d<D;d+=64) {
+            for(int row=0;row<kPageRows;row+=(kWgmma?kPageRows:16))for(int d=0;d<D;d+=64) {
               int y=(b*p.heads_kv+g)*p.capacity+start+row;
-              Copy::Tensor2D(page+row*D+KeyLayout{}(0,d),p.key_tensor_map,d,y,barrier);
-              Copy::Tensor2D(page+kPageRows*D+row*D+ValueLayout{}(d,0),p.value_tensor_map,d,y,barrier);
+              Copy::Tensor2D(page+PageCoordinates::Offset(row,d),p.key_tensor_map,d,y,barrier);
+              Copy::Tensor2D(page+kPageRows*D+PageCoordinates::Offset(row,d),p.value_tensor_map,d,y,barrier);
             }
           }else Copy::Arrive(barrier);
           ++sequence;continue;
@@ -90,13 +100,21 @@ struct PagedAttentionTaskBody {
       }
       #pragma unroll
       for(int step=0;step<vectors_per_lane;++step) {
-        int row=rows[step],d=columns[step];
+        int row,d,key_offset,value_offset;
+        if constexpr(kWgmma) {
+          int i=(executor::LoaderLane()+step*executor::kLoaderThreads)*8;
+          row=i/D;d=i%D;
+          key_offset=value_offset=PageCoordinates::Offset(row,d);
+        }else {
+          row=rows[step];d=columns[step];
+          key_offset=key_offsets[step];value_offset=value_offsets[step];
+        }
         int owner=layout.OwnerOf(logical_page,row),local=layout.LocalRow(row);
         int position=layout.Position(owner,wave,local);
         bool valid=full || layout.Valid(owner,wave,local,end,p.past);
         std::size_t offset=((std::size_t(b)*p.heads_kv+g)*p.capacity+position)*D+d;
-        auto* key=page+key_offsets[step];
-        auto* value=page+kPageRows*D+value_offsets[step];
+        auto* key=page+key_offset;
+        auto* value=page+kPageRows*D+value_offset;
         Copy::Copy16(key,valid?p.key_cache+offset:p.key_cache,valid);
         Copy::Copy16(value,valid?p.value_cache+offset:p.value_cache,valid);
       }
@@ -117,19 +135,24 @@ struct PagedAttentionTaskBody {
     constexpr int width=(Q+2)*D;
     auto* x=p.qkv+(b*p.heads_kv+g)*width+Q*D;
     Base::RotateRow(x,p.k_norm,p.cosine+p.past*D,p.sine+p.past*D,p.epsilon,[&](int d,uint4 v){
-      *reinterpret_cast<uint4*>(page+(row/16)*16*D+typename QK::LayoutB{}(row%16,d))=v;
+      if constexpr(kWgmma)*reinterpret_cast<uint4*>(page+PageCoordinates::Offset(row,d))=v;
+      else *reinterpret_cast<uint4*>(page+(row/16)*16*D+typename QK::LayoutB{}(row%16,d))=v;
       backend::StoreGlobal16(p.key_cache+((std::size_t(b)*p.heads_kv+g)*p.capacity+p.past)*D+d,v);
     });
     int d=(ComputeThread()%32)*8;
     if(d<D) {
       uint4 v=backend::LoadGlobal16(x+D+d);
-      *reinterpret_cast<uint4*>(page+kPageRows*D+(row/16)*16*D+typename PV::LayoutB{}(d,row%16))=v;
+      if constexpr(kWgmma)*reinterpret_cast<uint4*>(page+kPageRows*D+PageCoordinates::Offset(row,d))=v;
+      else *reinterpret_cast<uint4*>(page+kPageRows*D+(row/16)*16*D+typename PV::LayoutB{}(d,row%16))=v;
       backend::StoreGlobal16(p.value_cache+((std::size_t(b)*p.heads_kv+g)*p.capacity+p.past)*D+d,v);
     }
   }
   template<class PageSource>
   __device__ TILEMEGA_ATTENTION_RUN_ATTRIBUTE static void Run(ServingAttentionOperands const& p,int b,int g,int c,
       PageSource const& ring,std::uint64_t& sequence,SharedStorage& s) {
+    if constexpr(kWgmma) {
+      Hopper::template Run<PagedAttentionTaskBody>(p,b,g,c,ring,sequence,s);
+    }else {
     using namespace cute;
     int begin=Begin(p,c),end=End(p,c);if(begin>=end)return;
     auto layout=Layout(end-begin,begin);
@@ -290,6 +313,7 @@ struct PagedAttentionTaskBody {
       }
     }
     ComputeSync();
+    }
   }
 };
 } // namespace tilemega::codegen

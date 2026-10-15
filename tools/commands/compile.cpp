@@ -197,7 +197,9 @@ tilemega::frontend::GemmGranularity readGemm(llvm::json::Object const& object) {
   result.tile_k = requiredInteger(object, "tile_k");
   result.stages = requiredInteger(object, "stages");
   result.split_k = requiredInteger(object, "split_k");
-  result.impl=object.getString("impl").value_or("mma16")=="gemv";
+  auto impl=object.getString("impl").value_or("mma16");
+  if(impl!="mma16" && impl!="gemv" && impl!="wgmma")throw std::invalid_argument("invalid GEMM implementation");
+  result.impl=impl=="gemv"?1:impl=="wgmma"?2:0;
   return result;
 }
 
@@ -302,9 +304,10 @@ int RunCompile(int argc, char** argv) {
     std::string shared_weight_layout;
     std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
     std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
+    std::string forward_gemm_impl="mma16";
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int mma_reg_pipe=0;
-    std::string attention_impl="mma16";
+    std::string attention_impl="mma16",attention_page;
     int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0,evict_first=0,evict_last=1;
     int attention_noinline=0,attention_buffers=2;
     int parallel_argmax=0,ep_direct=0;
@@ -381,6 +384,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--paged-seed-from") paged_seed_from=value;
       else if (flag=="--sync") sync_policy=value;
       else if (flag=="--arch-paths") arch_paths=value;
+      else if (flag=="--forward-gemm-impl") forward_gemm_impl=value;
       else if (flag=="--pdl") pdl=value;
       else if (flag=="--pg") pg_mode=value;
       else if (flag=="--weight-layout") weight_layout=value;
@@ -398,9 +402,9 @@ int RunCompile(int argc, char** argv) {
         std::array<std::string,5> names{{"qkv","o","gate_up","down","lm_head"}};
         auto name=flag.substr(12);std::replace(name.begin(),name.end(),'-','_');
         auto it=std::find(names.begin(),names.end(),name);
-        if(it==names.end() || (value!="mma16" && value!="gemv"))
+        if(it==names.end() || (value!="mma16" && value!="gemv" && value!="wgmma"))
           throw std::runtime_error("invalid per-class GEMM implementation");
-        serving_impl[std::distance(names.begin(),it)]=value=="gemv"?1:0;
+        serving_impl[std::distance(names.begin(),it)]=value=="gemv"?1:value=="wgmma"?2:0;
       }
       else if (flag=="--attention-frontier") attention_frontier=std::stoi(value);
       else if (flag=="--paged-la") paged_la=std::stoi(value);
@@ -411,6 +415,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--candidate-loop") candidate_loop=std::stoi(value);
       else if (flag=="--watchdog") watchdog=std::stoi(value);
       else if (flag=="--attention-impl") attention_impl=value;
+      else if (flag=="--attention-page") attention_page=value;
       else if (flag=="--mma-reg-pipe") mma_reg_pipe=std::stoi(value);
       else if (flag=="--l2-slim") l2_slim=std::stoi(value);
       else if (flag=="--page-loop-split") page_loop_split=std::stoi(value);
@@ -540,6 +545,16 @@ int RunCompile(int argc, char** argv) {
     if (!solve_target.empty() && has_variants)
       throw std::runtime_error("--solve chooses variants; cannot combine with --variants");
     if(arch_paths!="auto" && arch_paths!="sm80")throw std::runtime_error("--arch-paths must be auto or sm80");
+    if(std::find(serving_impl.begin(),serving_impl.end(),2)!=serving_impl.end() &&
+       (arch_paths!="auto" || !serving || serving_phase!="decode"))
+      throw std::invalid_argument("WGMMA requires native Hopper decode");
+    if(forward_gemm_impl!="mma16" && forward_gemm_impl!="wgmma")
+      throw std::invalid_argument("--forward-gemm-impl must be mma16 or wgmma");
+    if(forward_gemm_impl=="wgmma" && (arch_paths!="auto" || !serving ||
+        serving_phase=="decode" || pg_mode=="pages"))
+      throw std::invalid_argument("forward WGMMA requires native Hopper prefill/forward");
+    if(forward_gemm_impl=="wgmma" && solve_target.empty() && !has_variants)
+      throw std::invalid_argument("forward WGMMA needs skeleton solve or an explicit variant plan");
     if(pdl!="auto" && pdl!="off")throw std::runtime_error("--pdl must be auto or off");
     if(pg_mode!="off" && pg_mode!="pages" && pg_mode!="l2" && pg_mode!="auto")
       throw std::runtime_error("--pg must be off, l2, pages or auto");
@@ -580,13 +595,21 @@ int RunCompile(int argc, char** argv) {
       if(runtime_target.empty())runtime_target=std::string(TILEMEGA_SOURCE_DIR)+
           "/configs/targets/"+tilemega::TargetSpec::Probe().arch_tag+".json";
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
+      if(forward_gemm_impl=="wgmma" && !target.caps.wgmma)
+        throw std::invalid_argument("forward WGMMA requires a Hopper target");
       if(sync_policy=="calibrated") {
         runtime_flags+=" -DTILEMEGA_SYNC_V3=1 -DTILEMEGA_EVENT_RED_PUBLISH=1";
       }
       if(kphase_mask<0 || kphase_mask>31 || v3_poll_ns<0)
         throw std::runtime_error("invalid K-phase mask or V3 poll interval");
-      if(attention_impl!="mma16" && attention_impl!="pvswap" && attention_impl!="pvswap2" && attention_impl!="simt")
-        throw std::runtime_error("--attention-impl must be mma16, pvswap, pvswap2 or simt");
+      if(attention_impl!="mma16" && attention_impl!="pvswap" && attention_impl!="pvswap2" && attention_impl!="simt" && attention_impl!="wgmma")
+        throw std::runtime_error("--attention-impl must be mma16, pvswap, pvswap2, simt or wgmma");
+      if(attention_impl=="wgmma" && (!target.caps.wgmma || arch_paths!="auto" || serving_phase!="decode"))
+        throw std::invalid_argument("WGMMA attention requires native Hopper decode");
+      if(attention_page.empty())attention_page=attention_impl=="wgmma"?"uniform":"chunk16";
+      if((attention_page!="chunk16" && attention_page!="uniform") ||
+         (attention_page=="uniform")!=(attention_impl=="wgmma"))
+        throw std::invalid_argument("attention page must be uniform for WGMMA and chunk16 for legacy implementations");
       if(mma_reg_pipe!=0 && mma_reg_pipe!=1)throw std::runtime_error("--mma-reg-pipe must be 0 or 1");
       if(watchdog!=0 && watchdog!=1)throw std::runtime_error("--watchdog must be 0 or 1");
       if(l2_slim!=0 && l2_slim!=1)throw std::runtime_error("--l2-slim must be 0 or 1");
@@ -605,7 +628,8 @@ int RunCompile(int argc, char** argv) {
       if(attention_frontier)runtime_flags+=" -DTILEMEGA_ATTENTION_FRONTIER=1";
       runtime_flags+=" -DTILEMEGA_NONPAGED_LA="+std::to_string(nonpaged_la);
       runtime_flags+=" -DTILEMEGA_ATTENTION_IMPL="+std::to_string(
-          attention_impl=="simt"?3:attention_impl=="pvswap2"?2:attention_impl=="pvswap"?1:0);
+          attention_impl=="wgmma"?4:attention_impl=="simt"?3:attention_impl=="pvswap2"?2:attention_impl=="pvswap"?1:0);
+      runtime_flags+=" -DTILEMEGA_ATTENTION_PAGE_UNIFORM="+std::to_string(attention_page=="uniform");
       runtime_flags+=" -DTILEMEGA_MMA_REG_PIPE="+std::to_string(mma_reg_pipe);
       runtime_flags+=" -DTILEMEGA_KPHASE_CLASS_MASK="+std::to_string(kphase_mask)+
           " -DTILEMEGA_V3_POLL_NS="+std::to_string(v3_poll_ns);
@@ -889,10 +913,13 @@ int RunCompile(int argc, char** argv) {
         skeleton.top_m=search_top_m;skeleton.measure_top=measure_top;
         skeleton.pg_pages=use_pages;
         skeleton.attention_buffers=attention_buffers;
+        skeleton.attention_wgmma=attention_impl=="wgmma";
+        skeleton.forward_wgmma=forward_gemm_impl=="wgmma";
         skeleton.handoff_auto=handoff_mode=="auto";
         skeleton.page_bytes=page_bytes;
         if(use_pages)skeleton.page_choices=page_bytes_pinned
-            ?std::vector<int>{page_bytes}:std::vector<int>{8192,16384};
+            ?std::vector<int>{page_bytes}:attention_impl=="wgmma"?std::vector<int>{page_bytes}:
+              std::vector<int>{8192,16384};
         if(use_pages && lookahead_bytes>=0)
           skeleton.lookahead_choices={lookahead_bytes};
         skeleton.serving_impl=serving_impl;
@@ -965,7 +992,7 @@ int RunCompile(int argc, char** argv) {
               test.config.push_back({int(requiredInteger(*g,"tile_m")),
                   int(requiredInteger(*g,"tile_n")),int(requiredInteger(*g,"tile_k")),
                   int(requiredInteger(*g,"stages")),int(requiredInteger(*g,"split_k")),
-                  g->getString("impl").value_or("mma16")=="gemv"?1:0});
+                  g->getString("impl").value_or("mma16")=="gemv"?1:g->getString("impl").value_or("mma16")=="wgmma"?2:0});
             }
             skeleton.evaluation_cases.push_back(std::move(test));
           }
@@ -1110,7 +1137,7 @@ int RunCompile(int argc, char** argv) {
             " --dtype "+std::string(dtype==tilemega::solver::ScalarType::kBF16 ? "bf16":"f32");
           if(serving) {
             command+=" --serving";
-            if(tile && tile->impl)command+=" --impl gemv";
+            if(tile && tile->impl)command+=tile->impl==1?" --impl gemv":" --impl wgmma";
             if(probe_plan && probe_plan->dm)command+=" --dm";
             if(probe_plan && probe_plan->moe_gemv && tile)command+=" --dm-gemv";
             if(!nongemm_source.empty()) {
@@ -1222,7 +1249,7 @@ int RunCompile(int argc, char** argv) {
               " --capacity "+std::to_string(serving_capacity)+
               " --prompt-len "+std::to_string(serving_prompt_len)+
               " --sync "+quote(sync_policy)+" --runtime-target "+quote(runtime_target)+
-              " --arch-paths "+quote(arch_paths)+" --pdl "+quote(pdl)+
+              " --arch-paths "+quote(arch_paths)+" --forward-gemm-impl "+quote(forward_gemm_impl)+" --pdl "+quote(pdl)+
               " --pg "+quote(pg_mode)+" --page-bytes "+std::to_string(candidate_page_bytes)+
               " --weight-layout "+quote(weight_layout)+
               " --nonpaged-weight-layout "+quote(nonpaged_weight_layout)+
@@ -1230,6 +1257,7 @@ int RunCompile(int argc, char** argv) {
               " --v3-poll-ns "+std::to_string(v3_poll_ns)+
               " --watchdog "+std::to_string(watchdog)+
               " --attention-impl "+attention_impl+
+              " --attention-page "+attention_page+
               " --mma-reg-pipe "+std::to_string(mma_reg_pipe)+
               " --l2-slim "+std::to_string(l2_slim)+
               " --page-loop-split "+std::to_string(page_loop_split)+
@@ -1520,7 +1548,7 @@ int RunCompile(int argc, char** argv) {
         (*module)->setAttr("tmexec.lookahead_bytes",
             mlir::IntegerAttr::get(mlir::IntegerType::get(&context,64),lookahead_bytes));
       (*module)->setAttr("tmexec.parallel_argmax",mlir::BoolAttr::get(&context,parallel_argmax));
-      tilemega::codegen::ConfigureServingPages(*module,target,page_bytes);
+      tilemega::codegen::ConfigureServingPages(*module,target,page_bytes,attention_impl=="wgmma");
       if(weight_layout=="tiled")tilemega::codegen::ResolveServingWeightPacking(*module);
       else if(weight_layout!="row")throw std::invalid_argument("weight layout must be row or tiled");
       // Decode paging always lowers reduction handoffs. The selected IR owns
@@ -1597,6 +1625,17 @@ int RunCompile(int argc, char** argv) {
         auto d=stage.getAs<mlir::IntegerAttr>("width").getInt();
         if(q<1 || q>4 || (d!=64 && d!=128))
           throw std::invalid_argument("simt attention requires QPerKV <= 4 and D = 64 or 128");
+      }
+    }
+    if(serving && attention_impl=="wgmma") {
+      auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+      if(plan)for(auto entry:plan.getAs<mlir::ArrayAttr>("stages")) {
+        auto stage=mlir::cast<mlir::DictionaryAttr>(entry);
+        if(stage.getAs<mlir::StringAttr>("kind").getValue()!="kFusedAttention")continue;
+        auto q=stage.getAs<mlir::IntegerAttr>("group").getInt();
+        auto d=stage.getAs<mlir::IntegerAttr>("width").getInt();
+        if(q<1 || q>8 || (d!=64 && d!=128) || (use_pages && page_bytes!=4*d*64))
+          throw std::invalid_argument("WGMMA attention requires QPerKV<=8, D64/128, and 64-row pages");
       }
     }
     if(moe_dynamic || moe_opaque || moe_gemv) {
@@ -1819,7 +1858,9 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"pg\": "<<std::quoted(use_pages?"pages":pg_mode)
               <<",\n  \"watchdog\": "<<watchdog
               <<",\n  \"mma_reg_pipe\": "<<mma_reg_pipe
+              <<",\n  \"forward_gemm_impl\": "<<std::quoted(forward_gemm_impl)
               <<",\n  \"attention_impl\": \""<<attention_impl<<"\""
+              <<",\n  \"attention_page\": \""<<attention_page<<"\""
               <<",\n  \"attention_head_dim\": "<<attention_head_dim
               <<",\n  \"attention_q_per_kv\": "<<attention_q_per_kv
               <<",\n  \"kphase_mask\": "<<kphase_mask
@@ -1931,12 +1972,13 @@ int RunCompile(int argc, char** argv) {
           }
         }
       }
+      manifest<<",\n  \"target_spec\": "<<tilemega::TargetSpec::FromJson(runtime_target).ToJson();
       manifest<<",\n  \"gemms\": [\n";
       for(std::size_t i=0;i<runtime.gemms.size();++i) {
         auto const& g=runtime.gemms[i];
         manifest<<"    {\"index\": "<<i<<", \"tile_m\": "<<g.tile_m
                 <<", \"tile_n\": "<<g.tile_n<<", \"tile_k\": "<<g.tile_k
-                <<", \"stages\": "<<g.stages<<", \"split_k\": "<<g.split_k<<", \"impl\": "<<std::quoted(g.impl?"gemv":"mma16")<<"}"
+                <<", \"stages\": "<<g.stages<<", \"split_k\": "<<g.split_k<<", \"impl\": "<<std::quoted(g.impl==1?"gemv":g.impl==2?"wgmma":"mma16")<<"}"
                 <<(i+1==runtime.gemms.size()?"\n":",\n");
       }
       manifest<<"  ]\n}\n";

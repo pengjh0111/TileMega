@@ -28,12 +28,15 @@ inline int ServingNextPow2(int value) {
 // R-1: legality and resources, independent of the model score.
 inline bool PruneServingR1(GemmConfig const& g,
                            ServingPruneContext const& context) {
+  if (g.impl<0 || g.impl>2) return true;
+  if (g.impl==2 && (!context.target || !context.target->caps.wgmma ||
+      (g.tile_m==16 && context.m>16) || !ServingWgmmaShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages))) return true;
   if (!context.target || context.m < 1 || context.n < 1 || context.k < 1 ||
-      g.split_k < 1 || !(g.impl ? context.m<=4 && ServingGemvShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages) : ServingBF16ShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages))) return true;
-  if ((g.impl?ServingGemvSmemBytes(g.tile_m,g.tile_n):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)) >
+      g.split_k < 1 || !(g.impl==1 ? context.m<=4 && ServingGemvShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages) : ServingBF16ShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages))) return true;
+  if ((g.impl==1?ServingGemvSmemBytes(g.tile_m,g.tile_n):g.impl==2?ServingWgmmaSmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)) >
       context.target->res.max_dynamic_smem_per_cta) return true;
   if (context.gate_interleave_u > 0 &&
-      g.tile_n % (2 * (g.impl ? std::min(context.gate_interleave_u,g.tile_n/2) : context.gate_interleave_u))) return true;
+      g.tile_n % (2 * (g.impl==1 ? std::min(context.gate_interleave_u,g.tile_n/2) : context.gate_interleave_u))) return true;
   int const k_tiles = (context.k + g.tile_k - 1) / g.tile_k;
   if (k_tiles % g.split_k != 0) return true;
   // Each split must have at least one full K tile, including the shortest.
@@ -49,7 +52,7 @@ inline bool PruneServingAttentionSmemR1(
   if(query_rows<=0 || gemms.empty())return true;
   int gemm_max=0;
   for(auto const& g:gemms)
-    gemm_max=std::max(gemm_max,(g.impl?ServingGemvSmemBytes(g.tile_m,g.tile_n):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)));
+    gemm_max=std::max(gemm_max,(g.impl==1?ServingGemvSmemBytes(g.tile_m,g.tile_n):g.impl==2?ServingWgmmaSmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)));
   int attention=codegen::ServingAttentionSharedBytes(head_dim,
       codegen::ServingAttentionKvTile(head_dim,gemm_max));
   return attention>gemm_max ||

@@ -37,6 +37,8 @@ struct SkeletonSearchOptions {
   bool serving_pruning=true;
   bool pg_pages=false;
   int attention_buffers=2;
+  bool attention_wgmma=false;
+  bool forward_wgmma=false;
   // An edge class is a coordinate: bit 0 selects access-proved normalization
   // recompute, bit 1 selects access-proved attention last-arriver reduction.
   bool handoff_auto=false;

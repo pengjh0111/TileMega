@@ -97,7 +97,7 @@ void ConfigureServingPrefetch(mlir::ModuleOp module,TargetSpec const& target,int
       b.getNamedAttr("stride",b.getI64IntegerAttr(stride)),b.getNamedAttr("worker_bytes",b.getI64IntegerAttr(budget)),
       b.getNamedAttr("history_proofs",b.getArrayAttr(proofs))}));
 }
-void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int page_bytes) {
+void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int page_bytes,bool sw128_operands) {
   auto serving=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
   auto model=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   if(!serving || !model)
@@ -141,13 +141,15 @@ void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int pa
   if(auto tile=module->getAttrOfType<mlir::IntegerAttr>("tmexec.attention_kv_tile"))kv_tile=tile.getInt();
   auto parallel=module->getAttrOfType<mlir::BoolAttr>("tmexec.parallel_argmax");
   auto [activation,scratch]=solver::PageLayout::ServingWorkspace(gemm_shapes,attention_shapes,prefill,dm,task_workspace,kv_tile,parallel && parallel.getValue());
-  auto layout=solver::PageLayout::Build(target,page_bytes,activation,scratch);
+  bool wgmma=sw128_operands || std::any_of(runtime.gemms.begin(),runtime.gemms.end(),
+      [](auto const& g){return g.impl==2;});
+  auto layout=solver::PageLayout::Build(target,page_bytes,activation,scratch,0,0,wgmma?1024:128);
   for(auto a:mlir::cast<mlir::ArrayAttr>(model.get("stages"))) {
     auto stage=mlir::cast<mlir::DictionaryAttr>(a);
     if(mlir::cast<mlir::StringAttr>(stage.get("kind")).getValue()=="kFusedAttention" &&
        !solver::ServingAttentionFrontierFits(page_bytes,layout.pages,
           int(mlir::cast<mlir::IntegerAttr>(stage.get("width")).getInt()),
-          int(mlir::cast<mlir::IntegerAttr>(stage.get("attention_kv_block")).getInt())))
+          int(mlir::cast<mlir::IntegerAttr>(stage.get("attention_kv_block")).getInt()),sw128_operands))
       throw std::invalid_argument("attention page frontier exceeds the ring or has invalid row alignment");
   }
   for(auto const& g:runtime.gemms)

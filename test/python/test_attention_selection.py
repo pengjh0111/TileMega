@@ -30,6 +30,21 @@ class AttentionSelection(unittest.TestCase):
         p['pg']='l2';self.assertEqual(len(variants(p)),48)
         p['attention_q_per_kv']=8
         self.assertFalse(any(v['attention_impl']=='simt' for v in variants(p)))
+    def test_hopper_is_explicit_and_pins_page_layout(self):
+        p=dict(capacity=1088,pg='pages',attention_kv_block=256,
+               attention_q_per_kv=8,attention_head_dim=128,
+               target_spec=dict(caps=dict(wgmma=True)))
+        self.assertFalse(any(v['attention_impl']=='wgmma' for v in variants(p)))
+        h=[v for v in variants(p,include_hopper=True) if v['attention_impl']=='wgmma']
+        self.assertTrue(h)
+        self.assertTrue(all(v['page_bytes']==32768 for v in h))
+        v=h[0]
+        p.update(attention_impl='wgmma',attention_kv_block=v['ec'],pages=dict(page_bytes=16384))
+        self.assertFalse(matches(p,v))
+        p['pages']['page_bytes']=32768
+        self.assertTrue(matches(p,v))
+        p['arch_paths']='sm80'
+        self.assertFalse(any(v['attention_impl']=='wgmma' for v in variants(p,include_hopper=True)))
     def test_winner_geometry_and_family_survive(self):
         with tempfile.TemporaryDirectory() as tmp:
             d=Path(tmp);classes=d/'classes.tsv'
