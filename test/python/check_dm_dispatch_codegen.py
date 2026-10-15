@@ -6,7 +6,12 @@ import subprocess
 
 
 def function(source, name):
-    start = source.index('__device__ inline ' + name)
+    # CUDA attributes can be selected by a preprocessor branch before the
+    # declaration. Locate the typed name and retain that branch in the probe.
+    declaration = re.search(r'\b' + re.escape(name) + r'\s*\(', source)
+    if declaration is None:
+        raise ValueError('generated device dispatch declaration is missing: ' + name)
+    start = declaration.start()
     start = source.rfind('template<', 0, start)
     opening = source.index('{', start)
     depth = 1
@@ -14,7 +19,7 @@ def function(source, name):
     while depth:
         depth += (source[end] == '{') - (source[end] == '}')
         end += 1
-    return source[start:end].replace('__device__ ', '').replace(
+    return source[start:end].replace('__device__ ', '').replace('__forceinline__', 'inline').replace(
         'asm volatile("trap;")', 'throw std::runtime_error("unbound")')
 
 
