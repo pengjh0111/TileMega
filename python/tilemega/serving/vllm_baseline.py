@@ -5,7 +5,6 @@ import argparse
 import json
 import os
 import statistics
-import subprocess
 import time
 import sys
 from pathlib import Path
@@ -106,71 +105,15 @@ def main() -> None:
 
 
 def _external_allocation():
-    index = os.environ.get("TILEMEGA_DEVICE_INDEX", "0")
-    apps = subprocess.check_output(["nvidia-smi", "-i", index,
-        "--query-compute-apps=pid,used_memory", "--format=csv,noheader,nounits"], text=True)
-    owners = {}
-    for line in apps.splitlines():
-        try:
-            pid, memory = map(int, line.split(",")); owners[pid] = memory
-        except ValueError:
-            continue
-    own = {os.getpid()}
-    while True:
-        added = set()
-        for path in Path("/proc").glob("[0-9]*/stat"):
-            try:
-                if int(path.read_text().rsplit(")", 1)[1].split()[1]) in own:
-                    added.add(int(path.parent.name))
-            except (OSError, ValueError, IndexError):
-                continue
-        if added <= own: break
-        own.update(added)
-    used = int(subprocess.check_output(["nvidia-smi", "-i", index,
-        "--query-gpu=memory.used", "--format=csv,noheader,nounits"], text=True).splitlines()[0])
-    return bool(set(owners) - own) or used - sum(owners.values()) > 1024
+    """True when memory on the device belongs to someone else (mx-smi)."""
+    from baseline_common import _mx_smi, own_pids
+    owners, visible, above_idle = _mx_smi().occupancy(os.environ.get("TILEMEGA_DEVICE_INDEX", "0"))
+    return bool(set(owners) - own_pids()) or above_idle - visible > 1024
 
 
 def _wait_for_exclusive_gpu(path: Path, label: str, fail_fast: bool = False) -> bool:
-    deadline = time.monotonic() if fail_fast else time.monotonic() + 30 * 60
-    while True:
-        output = subprocess.check_output(
-            ["nvidia-smi", "-i", os.environ.get("TILEMEGA_DEVICE_INDEX", "0"), "--query-compute-apps=pid,process_name,used_memory",
-             "--format=csv,noheader,nounits"], text=True)
-        rows = [line.split(",") for line in output.splitlines() if line.strip()]
-        pids = {int(row[0].strip()) for row in rows}
-        visible_mib = sum(int(row[-1].strip()) for row in rows)
-        used_mib = int(subprocess.check_output(
-            ["nvidia-smi", "-i", os.environ.get("TILEMEGA_DEVICE_INDEX", "0"), "--query-gpu=memory.used",
-             "--format=csv,noheader,nounits"], text=True).splitlines()[0].strip())
-        hidden_mib = max(0, used_mib - visible_mib)
-        # vLLM runs its GPU engine in a child process; that process is part of
-        # this measurement, whereas another user's PID invalidates the run.
-        own = {os.getpid()}
-        while True:
-            descendants = set()
-            for entry in Path("/proc").iterdir():
-                if not entry.name.isdigit():
-                    continue
-                try:
-                    stat = (entry / "stat").read_text().split()
-                    if int(stat[3]) in own:
-                        descendants.add(int(entry.name))
-                except (OSError, ValueError):
-                    continue
-            if descendants <= own:
-                break
-            own.update(descendants)
-        exclusive = bool(pids) and pids <= own and hidden_mib <= 256
-        with path.open("a") as stream:
-            stream.write(json.dumps({"label": label, "pids": sorted(pids),
-                                     "visible_mib": visible_mib,
-                                     "used_mib": used_mib,
-                                     "hidden_mib": hidden_mib,
-                                     "exclusive": exclusive, "time": time.time()}) + "\n")
-        if exclusive or time.monotonic() >= deadline:
-            return exclusive
-        time.sleep(10)
+    from baseline_common import exclusive_gpu
+    return exclusive_gpu(path, label, fail_fast)
 
 
 if __name__ == "__main__":
