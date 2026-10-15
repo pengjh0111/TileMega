@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/ISLContext.h>
+#include <tilemega/Codegen/RuntimePlan.h>
+#include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <tilemega/Dialect/CouplingGraph/CGAttrs.h>
 #include <tilemega/Dialect/CouplingGraph/CGDialect.h>
 
@@ -138,6 +140,40 @@ int TestCgAttr(int argc, char** argv) {
   assert(!mlir::parseSourceString<mlir::ModuleOp>(
              module("0", "runtime_dynamic"), &context) &&
          "a runtime extent cannot be relabelled Tier 0");
+
+  // A verified triangular edge has per-task wait/fanout 1 or 2. Runtime
+  // lowering consumes its relation, so it must not force those metrics to
+  // one global scalar. Scalar Eval itself must continue to reject them.
+  auto nonuniform=mlir::parseSourceString<mlir::ModuleOp>(R"mlir(
+    module attributes {tilemega.model_plan = {gemms = []}, tilemega.gemm_runtime = []} {
+      tmcg.tile_space @a {granularity = {}, kind = #tmcg.task_kind<"elementwise">,
+        stage = 0 : i64, operator_name = "a", write_map = #tmcg.access_map<{}>}
+      tmcg.tile_space @b {granularity = {}, kind = #tmcg.task_kind<"elementwise">,
+        stage = 1 : i64, operator_name = "b", write_map = #tmcg.access_map<{}>}
+      tmcg.event_tensor @e : tensor<2xi32> {extent = #tmcg.metric<"{ 2 }">}
+      tmcg.coupling @c from @a to @b {count = #tmcg.metric<"{ 2 }">, event = @e,
+        relation = #tmcg.coupling_map<"{ [m] -> [p] : 0 <= m <= 1 and 0 <= p <= m }">,
+        read_map = #tmcg.access_map<{}>, sync_kind = #tmcg.sync<"global">, tier = #tmcg.tier<0>,
+        wait = #tmcg.metric<"{ [m] -> 1 + m : 0 <= m <= 1 }">,
+        fanout = #tmcg.metric<"{ [p] -> 2 - p : 0 <= p <= 1 }">,
+        volume = #tmcg.metric<"{ 1 }">}
+      tmexec.placement @a map = [0] cluster = 1
+      tmexec.placement @b map = [0] cluster = 1
+    })mlir",&context);
+  assert(nonuniform && mlir::succeeded(mlir::verify(*nonuniform)));
+  auto edge=*nonuniform->getOps<dialect::CouplingOp>().begin();
+  for(auto metric:{edge.getWait(),edge.getFanout()}) {
+    bool refused=false;
+    try {(void)metric.getValue().Eval({});}catch(std::out_of_range const&){refused=true;}
+    assert(refused);
+  }
+  auto runtime=codegen::ReadRuntimePlan(*nonuniform);
+  assert(runtime.dependencies.size()==1 && runtime.dependencies[0].producer==0 &&
+         runtime.dependencies[0].consumer==1 && !runtime.dependencies[0].table);
+  auto saved_wait=edge.getWaitAttr();
+  edge.setWaitAttr(dialect::MetricAttr::get(&context,analysis::QuasiPolynomial::FromIslText("{ [m] -> 2 : 0 <= m <= 1 }")));
+  assert(mlir::failed(mlir::verify(*nonuniform)));
+  edge.setWaitAttr(saved_wait);
 
   return 0;
 

@@ -1458,11 +1458,11 @@ VariantAnalysis AnalyzeVariantModule(mlir::ModuleOp module) {
     // Exact per-task metrics have already been checked against their ISL
     // relations by the CG verifier. Runtime dependencies use those relations;
     // summing the unused metrics would repeat expensive Barvinok elimination.
-    if (!coupling->hasAttr("shared_elements")) {
-      (void)coupling.getWait().getValue().Eval(known);
-      (void)coupling.getFanout().getValue().Eval(known);
-      (void)coupling.getVolume().getValue().Eval(known);
-    }
+    // Per-task metrics may vary with task coordinates. The CG verifier
+    // checks them pointwise; only the consumed global count is scalar.
+    (void)coupling.getWait().getValue();
+    (void)coupling.getFanout().getValue();
+    (void)coupling.getVolume().getValue();
     (void)coupling.getCount().getValue().Eval(known);
     (void)coupling.getRelation().getMap();
     auto source = task_stages.find(coupling.getSrc().str());
@@ -1959,11 +1959,11 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
     // Exact per-task metrics have already been checked against their ISL
     // relations by the CG verifier. Runtime dependencies use those relations;
     // summing the unused metrics would repeat expensive Barvinok elimination.
-    if (!coupling->hasAttr("shared_elements")) {
-      (void)coupling.getWait().getValue().Eval(known);
-      (void)coupling.getFanout().getValue().Eval(known);
-      (void)coupling.getVolume().getValue().Eval(known);
-    }
+    // Per-task metrics may vary with task coordinates. The CG verifier
+    // checks them pointwise; only the consumed global count is scalar.
+    (void)coupling.getWait().getValue();
+    (void)coupling.getFanout().getValue();
+    (void)coupling.getVolume().getValue();
     (void)coupling.getCount().getValue().Eval(known);
     (void)coupling.getRelation().getMap();
     auto source = taskStages.find(coupling.getSrc().str());
