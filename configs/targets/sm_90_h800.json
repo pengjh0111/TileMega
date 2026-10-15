@@ -1770,5 +1770,314 @@
     644.5263879,
     8.564972198,
     14.07016547
-  ]
+  ],
+  "hopper_diagnostics": {
+    "evidence": "verified measurements; provisional container PID ownership",
+    "scope": "diagnostics only; does not replace serving cost fits or close B-2",
+    "used_by_solver": false,
+    "source_head": "acb47224275cd086c07580db316d7bf9a50b1a01",
+    "source_sha256": {
+      "lib/Target/HopperCalibration.cu": "a2726be8752eca52e50e23bc6d72e25695c4c94f56b6d774627db2e5fa78275a",
+      "include/tilemega/Target/HopperCalibration.h": "84ef39bcc37882cd87bd6fb5f777e2e975145fd8e87d207b215e4bc908feb47a",
+      "tools/commands/calibrate.cpp": "368583c08150b1fe1a6d5d25b2115e18a52738627e037d4a76318e69e3e3dcff"
+    },
+    "cli_sha256": "74aa94c9aa7523da0fe3c9d776c4e93ee07a509b7e42902b1ef4351add9e6281",
+    "analysis_sha256": "b5ad05d6f06018e0950d5bf2e2392ddf1b9864771b93753ba4dce655f135044b",
+    "ownership_verified": false,
+    "fresh_processes_by_gpu": {
+      "0": 5,
+      "2": 5
+    },
+    "crosscard_relative_tolerance": 0.03,
+    "rows": [
+      {
+        "name": "bulk",
+        "cluster_dim": 1,
+        "peer_rank": -1,
+        "unit": "GB/s",
+        "gpus": [
+          "0",
+          "2"
+        ],
+        "medians": [
+          3131.19907899,
+          3131.94745461
+        ],
+        "relative_difference": 0.00023900608077642715,
+        "passed": true
+      },
+      {
+        "name": "cluster_barrier",
+        "cluster_dim": 2,
+        "peer_rank": 0,
+        "unit": "ns/op",
+        "gpus": [
+          "0",
+          "2"
+        ],
+        "medians": [
+          503.125,
+          505.6015625
+        ],
+        "relative_difference": 0.004922360248447166,
+        "passed": true
+      },
+      {
+        "name": "cluster_barrier",
+        "cluster_dim": 4,
+        "peer_rank": 0,
+        "unit": "ns/op",
+        "gpus": [
+          "0",
+          "2"
+        ],
+        "medians": [
+          538.1796875,
+          542.03125
+        ],
+        "relative_difference": 0.007156647843569841,
+        "passed": true
+      },
+      {
+        "name": "cluster_barrier",
+        "cluster_dim": 8,
+        "peer_rank": 0,
+        "unit": "ns/op",
+        "gpus": [
+          "0",
+          "2"
+        ],
+        "medians": [
+          565.75,
+          569.3359375
+        ],
+        "relative_difference": 0.006338378258948341,
+        "passed": true
+      },
+      {
+        "name": "cp_async",
+        "cluster_dim": 1,
+        "peer_rank": -1,
+        "unit": "GB/s",
+        "gpus": [
+          "0",
+          "2"
+        ],
+        "medians": [
+          3132.32177659,
+          3133.07034029
+        ],
+        "relative_difference": 0.00023898046030734754,
+        "passed": true
+      },
+      {
+        "name": "dsmem_ticket_rtt",
+        "cluster_dim": 2,
+        "peer_rank": 1,
+        "unit": "ns/op",
+        "gpus": [
+          "0",
+          "2"
+        ],
+        "medians": [
+          1356.8125,
+          1368.0234375
+        ],
+        "relative_difference": 0.008262702105117592,
+        "passed": true
+      },
+      {
+        "name": "dsmem_ticket_rtt",
+        "cluster_dim": 4,
+        "peer_rank": 1,
+        "unit": "ns/op",
+        "gpus": [
+          "0",
+          "2"
+        ],
+        "medians": [
+          1320.2109375,
+          1324.8828125
+        ],
+        "relative_difference": 0.0035387337487498005,
+        "passed": true
+      },
+      {
+        "name": "dsmem_ticket_rtt",
+        "cluster_dim": 4,
+        "peer_rank": 2,
+        "unit": "ns/op",
+        "gpus": [
+          "0",
+          "2"
+        ],
+        "medians": [
+          1316.4296875,
+          1325.1640625
+        ],
+        "relative_difference": 0.006634896708070492,
+        "passed": true
+      },
+      {
+        "name": "dsmem_ticket_rtt",
+        "cluster_dim": 4,
+        "peer_rank": 3,
+        "unit": "ns/op",
+        "gpus": [
+          "0",
+          "2"
+        ],
+        "medians": [
+          1307.0546875,
+          1317.3125
+        ],
+        "relative_difference": 0.007848036197796837,
+        "passed": true
+      },
+      {
+        "name": "dsmem_ticket_rtt",
+        "cluster_dim": 8,
+        "peer_rank": 1,
+        "unit": "ns/op",
+        "gpus": [
+          "0",
+          "2"
+        ],
+        "medians": [
+          1318.3125,
+          1322.7734375
+        ],
+        "relative_difference": 0.003383824017446635,
+        "passed": true
+      },
+      {
+        "name": "dsmem_ticket_rtt",
+        "cluster_dim": 8,
+        "peer_rank": 2,
+        "unit": "ns/op",
+        "gpus": [
+          "0",
+          "2"
+        ],
+        "medians": [
+          1327.3515625,
+          1346.140625
+        ],
+        "relative_difference": 0.014155302205401954,
+        "passed": true
+      },
+      {
+        "name": "dsmem_ticket_rtt",
+        "cluster_dim": 8,
+        "peer_rank": 3,
+        "unit": "ns/op",
+        "gpus": [
+          "0",
+          "2"
+        ],
+        "medians": [
+          1326.8125,
+          1347.0546875
+        ],
+        "relative_difference": 0.015256253238494555,
+        "passed": true
+      },
+      {
+        "name": "dsmem_ticket_rtt",
+        "cluster_dim": 8,
+        "peer_rank": 4,
+        "unit": "ns/op",
+        "gpus": [
+          "0",
+          "2"
+        ],
+        "medians": [
+          1300.109375,
+          1312.359375
+        ],
+        "relative_difference": 0.009422284182821095,
+        "passed": true
+      },
+      {
+        "name": "dsmem_ticket_rtt",
+        "cluster_dim": 8,
+        "peer_rank": 5,
+        "unit": "ns/op",
+        "gpus": [
+          "0",
+          "2"
+        ],
+        "medians": [
+          1298.8125,
+          1311.0234375
+        ],
+        "relative_difference": 0.009401616861556272,
+        "passed": true
+      },
+      {
+        "name": "dsmem_ticket_rtt",
+        "cluster_dim": 8,
+        "peer_rank": 6,
+        "unit": "ns/op",
+        "gpus": [
+          "0",
+          "2"
+        ],
+        "medians": [
+          1325.5625,
+          1335.796875
+        ],
+        "relative_difference": 0.007720778914611648,
+        "passed": true
+      },
+      {
+        "name": "dsmem_ticket_rtt",
+        "cluster_dim": 8,
+        "peer_rank": 7,
+        "unit": "ns/op",
+        "gpus": [
+          "0",
+          "2"
+        ],
+        "medians": [
+          1324.453125,
+          1335.65625
+        ],
+        "relative_difference": 0.008458679879667308,
+        "passed": true
+      },
+      {
+        "name": "ldg128",
+        "cluster_dim": 1,
+        "peer_rank": -1,
+        "unit": "GB/s",
+        "gpus": [
+          "0",
+          "2"
+        ],
+        "medians": [
+          2839.82227398,
+          2838.28511108
+        ],
+        "relative_difference": -0.0005412884158575437,
+        "passed": true
+      },
+      {
+        "name": "tma",
+        "cluster_dim": 1,
+        "peer_rank": -1,
+        "unit": "GB/s",
+        "gpus": [
+          "0",
+          "2"
+        ],
+        "medians": [
+          3130.07753397,
+          3131.19907899
+        ],
+        "relative_difference": 0.0003583122168151487,
+        "passed": true
+      }
+    ]
+  }
 }
