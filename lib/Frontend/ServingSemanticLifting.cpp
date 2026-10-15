@@ -387,6 +387,11 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
                  {"z", C(-1), C(1)}}, past);
       auto qkv_read = Input(producer(stage.operands[0]), qkv,
                              {qkv_row, gidx, Id("u")});
+      auto qkv_dependency = qkv_read;
+      // Prefill loads current K/V for every earlier token directly from QKV.
+      // The rectangular task summary cannot express a batch-local prefix;
+      // retain a conservative full-row dependency instead of a query-only one.
+      if (!decode) qkv_dependency.map.results[0] = IndexResult::FullRange();
       auto k_read = Input("", cache(stage.operands[1]),
                            {bidx, gidx, posidx, didx});
       auto v_read = Input("", cache(stage.operands[2]),
@@ -396,7 +401,7 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
       auto cos_read = Input("", cos, {rope_pos, didx});
       auto sin_read = Input("", sin, {rope_pos, didx});
       std::vector<SemanticOperand> operands =
-          {qkv_read, k_read, v_read, cos_read, sin_read};
+          {qkv_dependency, k_read, v_read, cos_read, sin_read};
       if (stage.operands[5] != missing)
         operands.push_back(Input("", Tensor(name(stage.operands[5]),
                                 {Axis("d", D)}), {didx}));
@@ -406,6 +411,17 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
       auto op = Output(op_name, OperatorKind::kReduction, std::move(domain),
                        output, out_map, operands);
       op.element_reads.push_back({qkv, qkv_read.map, {}});
+      if (!decode) {
+        IndexingMap prefix;
+        prefix.results = {Aff({{"m", S, S}, {"z", C(1), C(1)}}),
+                          gidx, Id("u")};
+        auto causal = Aff({{"m", C(1), C(1)},
+                           {"m", C(-plan.serving_seq), S},
+                           {"z", C(-1), C(1)}});
+        auto kv_columns = Aff({{"u", C(1), C(1)}}, Q * D * C(-1));
+        op.element_reads.push_back({qkv, std::move(prefix),
+                                    {std::move(causal), std::move(kv_columns)}});
+      }
       op.element_reads.push_back({k_read.tensor, k_read.map, {kv_bound}});
       op.element_reads.push_back({v_read.tensor, v_read.map, {kv_bound}});
       op.element_reads.push_back({cos, cos_read.map, {}});

@@ -5,6 +5,7 @@
 #include <tilemega/Analysis/CouplingDerivation.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/DramFloor.h>
+#include <tilemega/Analysis/TaskWork.h>
 
 #include <algorithm>
 #include <cassert>
@@ -138,6 +139,66 @@ int TestServingModelPlan(int argc, char** argv) {
       }
   auto edges = tilemega::analysis::CouplingDerivation{}.Derive(instances, {});
   assert(!edges.empty());
+  if (options.seq > 1) {
+    using namespace tilemega::analysis;
+    auto prefix_plan=plan;
+    for(auto& stage:prefix_plan.stages)
+      if(stage.kind==tilemega::frontend::PlanTaskKind::kFusedAttention)
+        stage.attention_query_rows=64;
+    std::vector<tilemega::frontend::GemmGranularity> tiles(
+        plan.gemms.size(),{16,128,64,2,1});
+    auto prefix_geometry=tilemega::frontend::LaunchGranularity(lifted,prefix_plan,tiles);
+    auto prefix_tasks=Instantiate(lifted.sem,prefix_geometry);
+    auto prefix_edges=CouplingDerivation{}.Derive(prefix_tasks,{});
+    auto query_only = lifted.sem;
+    for (auto& op : query_only.ops)
+      if (op.operands.size() && op.element_reads.size() &&
+          op.operands[0].map.results.size() &&
+          op.operands[0].map.results[0].kind == IndexResult::Kind::kFullRange &&
+          op.element_reads[0].tensor.name == op.operands[0].tensor.name)
+        op.operands[0].map = op.element_reads[0].map;
+    auto old_tasks = Instantiate(query_only, prefix_geometry);
+    auto old_edges = CouplingDerivation{}.Derive(old_tasks, {});
+    ParamBinding point;point.Bind("B",2);
+    for(unsigned i=0;i<plan.stages.size();++i) {
+      auto const& stage=plan.stages[i];
+      if(stage.kind!=tilemega::frontend::PlanTaskKind::kFusedAttention)continue;
+      auto const* op=lifted.sem.Find("serving.s"+std::to_string(i));
+      auto const* task=prefix_tasks.Find(op->name);
+      assert(op->operands[0].map.results[0].kind==IndexResult::Kind::kFullRange);
+      assert(op->element_reads[0].tensor.name==op->element_reads[1].tensor.name);
+      auto query=ExactElementRead(*op,*task,op->element_reads[0],point);
+      auto prefix=ExactElementRead(*op,*task,op->element_reads[1],point);
+      auto column=std::to_string(stage.group*stage.width);
+      auto previous=CouplingRelation::FromIslText("{ [1,0] -> [0,0,"+column+"] }");
+      auto other_sample=CouplingRelation::FromIslText("{ [1,0] -> [64,0,"+column+"] }");
+      assert(previous.IsSubset(prefix));
+      assert(!previous.IsSubset(query)); // The old query-only domain missed it.
+      assert(!other_sample.IsSubset(prefix));
+      auto future=CouplingRelation::FromIslText("{ [1,0] -> ["+
+          std::to_string(2*(64/stage.group))+",0,"+column+"] }");
+      assert(!future.IsSubset(prefix));
+      auto edge=std::find_if(prefix_edges.begin(),prefix_edges.end(),[&](auto const& e) {
+        return e.dst.name==op->name && e.src.name==op->operands[0].producer;
+      });
+      assert(edge!=prefix_edges.end());
+      auto producer_column=std::to_string(stage.group*stage.width/128);
+      auto earlier_tile=CouplingRelation::FromIslText("{ [1,0] -> [0,0,"+producer_column+"] }");
+      assert(earlier_tile.IsSubset(edge->C.BindParams(point)));
+      auto old_edge = std::find_if(old_edges.begin(), old_edges.end(),
+          [&](auto const& e) {
+            return e.dst.name == op->name &&
+                   e.src.name == op->operands[0].producer;
+          });
+      assert(old_edge != old_edges.end());
+      assert(!earlier_tile.IsSubset(old_edge->C.BindParams(point)));
+      // The execution dependency is deliberately wider than the exact read:
+      // it also orders this KV group in the other sample, not an exact prefix.
+      auto other_tile=CouplingRelation::FromIslText("{ [1,0] -> [4,0,"+producer_column+"] }");
+      assert(other_tile.IsSubset(edge->C.BindParams(point)));
+    }
+    std::cout<<"prefill prefix dependency: prior tile covered, exact reads batch-local; rectangular dependency conservative\n";
+  }
   if (options.seq == 1) {
     auto single = options;
     single.kv_block = single.capacity;
