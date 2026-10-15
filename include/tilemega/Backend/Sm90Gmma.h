@@ -7,6 +7,14 @@
 #include <cute/atom/mma_traits_sm90_gmma.hpp>
 #include <cutlass/bfloat16.h>
 
+// Mixed inlined MMA and outlined task calls trigger ptxas C7510. Keep the
+// Hopper task dispatch in the same function as its async MMA region.
+#if TILEMEGA_ARCH_ID==900
+#define TILEMEGA_HOPPER_TASK_INLINE __attribute__((always_inline))
+#else
+#define TILEMEGA_HOPPER_TASK_INLINE
+#endif
+
 namespace tilemega::backend {
 
 namespace gmma = cute::SM90::GMMA;
@@ -27,25 +35,25 @@ struct Sm90Gmma {
       cutlass::bfloat16_t,float,cute::Shape<cute::_64,cute::Int<N>,cute::_16>,gmma::Major::K,B>());
 
   template<gmma::Major Major,class Tensor>
-  __device__ static auto Descriptor(Tensor const& tensor) {
+  __device__ static __forceinline__ auto Descriptor(Tensor const& tensor) {
     static_assert(sizeof(Availability)>0);
     return gmma::make_gmma_desc<Major>(tensor);
   }
   template<class Fragment>
-  __device__ static void Fence(Fragment& fragment) {
+  __device__ static __forceinline__ void Fence(Fragment& fragment) {
     static_assert(sizeof(Availability)>0);
     cute::warpgroup_fence_operand(fragment);
   }
-  __device__ static void Arrive() {
+  __device__ static __forceinline__ void Arrive() {
     static_assert(sizeof(Availability)>0);
     cute::warpgroup_arrive();
   }
-  __device__ static void Commit() {
+  __device__ static __forceinline__ void Commit() {
     static_assert(sizeof(Availability)>0);
     cute::warpgroup_commit_batch();
   }
   template<int Pending>
-  __device__ static void Wait() {
+  __device__ static __forceinline__ void Wait() {
     static_assert(sizeof(Availability)>0);
     cute::warpgroup_wait<Pending>();
   }
@@ -76,7 +84,7 @@ struct Sm90DecodeGmma {
     Gmma::Commit();
   }
   template<class Accumulator>
-  __device__ static float* Materialize(Accumulator& accum,char* workspace) {
+  __device__ static __forceinline__ float* Materialize(Accumulator& accum,char* workspace) {
     using namespace cute;
     Gmma::template Wait<0>();Gmma::Fence(accum);
     codegen::executor::ComputeSync();
@@ -116,7 +124,7 @@ struct Sm90ForwardGmma {
     Gmma::Commit();
   }
   template<class Accumulator>
-  __device__ static float* Materialize(Accumulator& accum,char* workspace) {
+  __device__ static __forceinline__ float* Materialize(Accumulator& accum,char* workspace) {
     using namespace cute;
     Gmma::template Wait<0>();Gmma::Fence(accum);
     codegen::executor::ComputeSync();
