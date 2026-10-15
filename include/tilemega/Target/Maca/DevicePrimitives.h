@@ -19,7 +19,20 @@ inline constexpr int kWaveSize = 64;
 /// documents intent at each call site.
 inline constexpr unsigned long long kFullWaveMask = ~0ull;
 
-__device__ __forceinline__ void Trap() { __trap(); }
+#ifndef TILEMEGA_TRAP_TRACE
+#define TILEMEGA_TRAP_TRACE 0
+#endif
+/// With TILEMEGA_TRAP_TRACE the call site is printed before the trap (bring-up
+/// diagnostics; MACA reports only the kernel name).
+__device__ __forceinline__ void Trap(char const* file = __builtin_FILE(), int line = __builtin_LINE()) {
+#if TILEMEGA_TRAP_TRACE
+  printf("TILEMEGA_TRAP %s:%d block=%d thread=%d\n", file, line, int(blockIdx.x), int(threadIdx.x));
+#else
+  (void)file;
+  (void)line;
+#endif
+  __trap();
+}
 
 /// 100 MHz device-wide realtime counter, identical across APs (P-11).
 __device__ __forceinline__ unsigned long long GlobalTimerNs() {

@@ -620,6 +620,22 @@ extern "C" int tm_plan_launch(void* opaque, std::uint32_t step,
   return 0;
 }
 
+/// Diagnostic: run one stage of `step` as its own kernel. The kernel boundary
+/// replaces every intra-step event, so stage-by-stage results isolate a
+/// TaskBody error from a synchronization error.
+extern "C" int tm_plan_launch_stage(void* opaque, std::uint32_t step,
+                                    std::uint32_t stage, void* stream) {
+  using namespace tilemega::codegen;
+  auto* plan = static_cast<serving::Plan*>(opaque);
+  if (!plan || !plan->ring || step >= plan->steps ||
+      stage >= plan->model.spec->stage_count) return -1;
+  if (cudaFuncSetAttribute(tilemega_stage_kernel,
+          cudaFuncAttributeMaxDynamicSharedMemorySize,int(sizeof(TaskSmem)))!=cudaSuccess)return -2;
+  tilemega_stage_kernel<<<plan->grid, kHarnessThreads, sizeof(TaskSmem),
+      static_cast<cudaStream_t>(stream)>>>(plan->ring + step, stage);
+  return int(cudaGetLastError());
+}
+
 extern "C" unsigned tm_plan_loop_modes(void* opaque) {
   auto* plan=static_cast<tilemega::codegen::serving::Plan*>(opaque);
   return plan?plan->loop_modes:0;
