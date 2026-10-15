@@ -552,6 +552,11 @@ std::string emitModelPlan(mlir::ModuleOp module,
   auto stages = arrayField(plan, "stages");
   auto outputs = arrayField(plan, "outputs");
   bool const dm = optionalBoolField(plan,"dm");
+  auto native_arch=module->getAttrOfType<mlir::StringAttr>("tmexec.solved_arch");
+  auto intern=module->getAttrOfType<mlir::BoolAttr>("tmexec.dependency_intern");
+  bool const compact_intervals=intern && intern.getValue();
+  if(compact_intervals && (!dm || !native_arch || native_arch.getValue()!="sm_90"))
+    throw std::invalid_argument("dependency interval interning requires a native sm90 DM plan");
   if(dm) {
     frontend::ModelPlan validation; validation.dm=true;
     for(auto value:buffers) {
@@ -845,6 +850,7 @@ std::string emitModelPlan(mlir::ModuleOp module,
     std::vector<std::optional<analysis::DependencyTable>> ordering_tables(variant.dependencies.size());
     std::vector<unsigned> table_periods(variant.dependencies.size());
     std::uint64_t interval_count = 0;
+    DependencyIntervalPool interval_pool;
     bool has_tables = false;
     for (std::size_t e = 0; e < variant.dependencies.size(); ++e) {
       table_offsets[e] = interval_count;
@@ -865,7 +871,11 @@ std::string emitModelPlan(mlir::ModuleOp module,
       if (auto const& table = ordering_tables[e]) {
         if (!dm || variant.dependencies[e].phase_window)
           throw std::invalid_argument("table waits require a DM plan without a K-phase gate");
-        has_tables = true; interval_count += table->intervals.size();
+        has_tables = true;
+        if(compact_intervals) {
+          table_offsets[e]=interval_pool.Intern(table->intervals);
+          interval_count=interval_pool.Intervals().size();
+        } else interval_count += table->intervals.size();
         if (interval_count > std::numeric_limits<std::uint32_t>::max())
           throw std::invalid_argument("variant dependency interval storage overflows");
       }
@@ -873,7 +883,10 @@ std::string emitModelPlan(mlir::ModuleOp module,
     variant_interval_counts[v]=interval_count;
     if (has_tables) {
       out << "constexpr RuntimeDependencyInterval kDependencyIntervals" << v << "[] = {\n";
-      for (auto const& table : ordering_tables) if (table)
+      if(compact_intervals) {
+        for(auto const& interval:interval_pool.Intervals())
+          out << "  {" << interval.first << "u, " << interval.count << "u},\n";
+      } else for (auto const& table : ordering_tables) if (table)
         for (auto const& interval : table->intervals)
           out << "  {" << interval.first << "u, " << interval.count << "u},\n";
       if (!interval_count) out << "  {0u, 0u},\n";
@@ -1552,6 +1565,13 @@ static void ReadParameterRanges(mlir::ModuleOp module,RuntimePlan& result) {
   }
 }
 
+std::vector<GemmRuntimeRecord> ReadRuntimeGemmRecords(mlir::ModuleOp module) {
+  if(!module)throw std::invalid_argument("runtime geometry requires a module");
+  auto model=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+  if(!model)throw std::invalid_argument("CG has no runtime model plan");
+  return readRuntimeGemms(module,arrayField(model,"gemms").size());
+}
+
 RuntimePlan ReadRuntimePlan(mlir::ModuleOp module) {
   analysis::IslReferenceAudit audit(__func__);
   std::optional<analysis::ScopedExactAnalysisMemo> memo;
@@ -1788,6 +1808,8 @@ std::string LowerFusedRuntime(mlir::ModuleOp module) {
 // Unsolved legacy modules emit no extra text or preprocessor definitions.
 std::string emitSolvedLaunch(mlir::ModuleOp module) {
   std::ostringstream out;
+  if(auto intern=module->getAttrOfType<mlir::BoolAttr>("tmexec.dependency_intern"))
+    if(intern.getValue())out<<"#define TILEMEGA_DEPENDENCY_INTERN 1\n";
   if(auto enabled=module->getAttrOfType<mlir::BoolAttr>("tmexec.nonpaged_la"))
     if(enabled.getValue())out<<"#define TILEMEGA_NONPAGED_LA 1\n";
   if(auto prefetch=module->getAttrOfType<mlir::DictionaryAttr>("tmexec.prefetch")) {

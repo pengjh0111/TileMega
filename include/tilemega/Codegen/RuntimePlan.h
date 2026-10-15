@@ -59,6 +59,9 @@ struct RuntimePlan {
 };
 
 RuntimePlan ReadRuntimePlan(mlir::ModuleOp module);
+/// Read geometry from a module already verified/lowered by the caller. Metadata
+/// receipts do not need to reconstruct or re-verify the exact dependency graph.
+std::vector<GemmRuntimeRecord> ReadRuntimeGemmRecords(mlir::ModuleOp module);
 /// Original phase schedule retained by transactional L-task fusion. This is
 /// input to the replacement projection, never the final fused schedule.
 RuntimePlan ReadFusionSourcePlan(mlir::ModuleOp module);

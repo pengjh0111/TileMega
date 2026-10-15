@@ -73,6 +73,13 @@ int TestBoundDependencyCodegen(int argc, char** argv) {
     auto module=TorchExportImporter{}.InstantiateForGranularity(fixture,context,options);
     assert(mlir::succeeded(mlir::verify(*module)));
     auto runtime=codegen::ReadRuntimePlan(*module);
+    auto geometry=codegen::ReadRuntimeGemmRecords(*module);
+    assert(geometry.size()==runtime.gemms.size());
+    for(unsigned i=0;i<geometry.size();++i) {
+      auto const& a=geometry[i];auto const& b=runtime.gemms[i];
+      assert(a.tile_m==b.tile_m && a.tile_n==b.tile_n && a.tile_k==b.tile_k &&
+             a.split_k==b.split_k && a.stages==b.stages && a.impl==b.impl);
+    }
     assert(runtime.dependencies.size()==1 && runtime.dependencies[0].table);
     auto table=*runtime.dependencies[0].table;
     assert(runtime.task_binding.At("B")==batch);
