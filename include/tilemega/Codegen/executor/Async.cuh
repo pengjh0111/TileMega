@@ -117,6 +117,13 @@ struct Async {
       asm volatile("cp.async.bulk.tensor.2d.shared::cluster.global.mbarrier::complete_tx::bytes [%0], [%1, {%2, %3}], [%4];" ::
           "r"(Shared(destination)),"l"(map),"r"(x),"r"(y),"r"(Shared(barrier)):"memory");
   }
+  __device__ static void Tensor3D(void* destination,void const* map,
+      int channel,int x,int y,std::uint64_t* barrier) {
+    static_assert(Caps::kTma,"3D halo copies require TMA support");
+    asm volatile("cp.async.bulk.tensor.3d.shared::cluster.global.mbarrier::complete_tx::bytes "
+        "[%0], [%1, {%2, %3, %4}], [%5];" :: "r"(Shared(destination)),"l"(map),
+        "r"(channel),"r"(x),"r"(y),"r"(Shared(barrier)):"memory");
+  }
   __device__ static void Tensor2DMulticast(void* destination,void const* map,
       int x,int y,std::uint64_t* barrier,std::uint16_t mask) {
     static_assert(Caps::kTmaMulticast,"TMA multicast requires cluster multicast support");

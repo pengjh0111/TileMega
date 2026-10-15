@@ -156,20 +156,33 @@ constexpr bool ServingWgmmaShapeLegal(int m,int n,int k,int stages) {
   return (decode || forward) && (n==64 || n==128 || n==256) && stages==2;
 }
 constexpr int ServingWgmmaBulkGatherExtraBytes(int m,int k) { return 1024+2*m*k; }
-constexpr int ServingWgmmaSmemBytes(int m,int n,int k,int stages,bool bulk_gather=false) {
+constexpr int ServingWgmmaSmemBytes(int m,int n,int k,int stages,bool bulk_gather=false,bool decode_tma=false) {
   int base=ServingBF16SmemBytes(m,n,k,stages);
   int tma=1024+4*k*(m+n);
   if(m==16 && bulk_gather) {
     int bytes=4*k*(m+n)+ServingWgmmaBulkGatherExtraBytes(m,k);
     base=bytes>base?bytes:base;
   }
-  return m>=64 && tma>base?tma:base;
+  return (m>=64 || decode_tma) && tma>base?tma:base;
 }
 inline BackendTraits ServingWgmmaTraits(int m,int n,int k,int stages) {
   auto result=ServingBF16Traits(m,n,k,stages);
   result.arch_sm=90;
   result.smem_bytes=ServingWgmmaSmemBytes(m,n,k,stages);
   result.shape_legal=ServingWgmmaShapeLegal(m,n,k,stages);
+  return result;
+}
+
+// The streamed DW/PW candidate reuses the standard WGMMA compute fit;
+// its fixed K64 operand ring replaces full TM*Channels materialization.
+constexpr int ServingDwPwWgmmaSmemBytes(int m,int n) {
+  int operands=1024+4*64*(m+n),output=4*m*n;
+  return operands>output?operands:output;
+}
+inline BackendTraits ServingDwPwWgmmaTraits(int m,int n,int k,int stages) {
+  auto result=ServingWgmmaTraits(m,n,k,stages);
+  result.smem_bytes=ServingDwPwWgmmaSmemBytes(m,n);
+  result.shape_legal=m==64 && (n==64 || n==128) && k==64 && stages==2;
   return result;
 }
 

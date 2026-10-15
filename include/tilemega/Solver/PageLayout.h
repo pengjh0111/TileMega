@@ -43,6 +43,19 @@ struct PageLayout {
     }
     return {activation,scratch};
   }
+  static TargetSpec ResidencyBudget(TargetSpec const& target,int residency) {
+    if(residency<0 || residency>2)throw std::invalid_argument("serving residency must be 1 or 2");
+    auto budget=target;
+    if(residency==2) {
+      if(target.res.max_smem_per_sm<=0)
+        throw std::invalid_argument("two-CTA page plans require target shared memory per SM");
+      // This is an allocation upper bound. CUDA occupancy, including static
+      // shared memory and register allocation, remains the execution gate.
+      budget.res.max_dynamic_smem_per_cta=std::min(target.res.max_dynamic_smem_per_cta,
+          target.res.max_smem_per_sm/residency);
+    }
+    return budget;
+  }
   static PageLayout Build(TargetSpec const& target,int page,int activation_bytes,
                           int scratch_bytes,int task_control_bytes=0,int requested_pages=0,int operand_alignment=128) {
     if((operand_alignment!=128 && operand_alignment!=1024) ||
