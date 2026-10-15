@@ -298,6 +298,42 @@ class GeneratedFeatureTests(unittest.TestCase):
             self.assertEqual(int(defines['TILEMEGA_GEMM_VARIANT_COUNT']),2)
             receipt['pass']=True
 
+    def test_cluster_combine_seed_imports_tile_owned_reducers(self):
+        target=ROOT/'configs/targets/sm_90_h800.json'
+        flags=['--nonpaged-la','1','--deferred-norm','0',
+               '--nonpaged-weight-layout','tiled','--resource-probes','0']
+        for family in ('qkv','o','gate-up','down','lm-head'):
+            flags+=['--gemm-impl-'+family,'wgmma']
+        for dimension in (2,4):
+            cg=self.out/f'cluster{dimension}.mlir'
+            manifest,defines,fields,receipt=self.generate('llm',f'cluster{dimension}',
+                flags+['--combine','cluster','--cluster-dim',str(dimension),
+                       '--dump-cg',str(cg)],target=target)
+            self.assertEqual(manifest['combine'],'cluster')
+            self.assertEqual(defines['TILEMEGA_CLUSTER_COMBINE'],'1')
+            self.assertTrue(any(g['split_k']==dimension for g in manifest['gemms']))
+            source=Path(str(cg.parent/'llm'/f'cluster{dimension}'/'plan.cu')).read_text()
+            variant=re.search(r'\{kRuntimeGemms0, kDependencies0, \d+u, '
+                r'kDependencyOffsets0, kSchedule0, \d+u, \d+u, \d+u, \d+u, (\d+)u',source)
+            self.assertIsNotNone(variant)
+            self.assertTrue(int(variant[1]) & 8)
+            graph=cg.read_text()
+            self.assertIn('tilemega.combiner_tile_per_block = true',graph)
+            combines=[line for line in graph.splitlines()
+                      if 'tmcg.tile_space' in line and '.combine' in line]
+            self.assertTrue(combines)
+            self.assertTrue(all('ownership = "tile_per_block"'in line for line in combines))
+            # A CG imported with element ownership cannot gain a proof by
+            # selecting the runtime cluster coordinate after import.
+            invalid=cg.with_name(f'cluster{dimension}-invalid.mlir')
+            invalid.write_text(graph.replace('tilemega.combiner_tile_per_block = true',
+                                             'tilemega.combiner_tile_per_block = false'))
+            self.generate('llm',f'reject_cluster{dimension}_unproved',
+                ['--nonpaged-la','1','--combine','cluster','--cluster-dim',str(dimension)],
+                'cluster combine requires tile-owned importer ownership and dependencies',
+                fixture=invalid,target=target)
+            receipt['pass']=True
+
     def test_decode_m8_requires_small_native_wgmma_decode(self):
         if 'decode_tile_m' not in INTEGER_FEATURES:
             self.skipTest('compiler snapshot predates the M8 coordinate')

@@ -912,7 +912,12 @@ int RunCompile(int argc, char** argv) {
       }
       if(activation_tma)candidate->setAttr("tmexec.activation_tma",mlir::BoolAttr::get(&context,true));
       if(attention_tma)candidate->setAttr("tmexec.prefill_attention_tma",mlir::BoolAttr::get(&context,true));
-      if(combine_impl=="cluster")candidate->setAttr("tmexec.cluster_combine",mlir::BoolAttr::get(&context,true));
+      if(combine_impl=="cluster") {
+        auto tile_owned=candidate->getAttrOfType<mlir::BoolAttr>("tilemega.combiner_tile_per_block");
+        if(!tile_owned || !tile_owned.getValue())
+          throw std::invalid_argument("cluster combine requires tile-owned importer ownership and dependencies");
+        candidate->setAttr("tmexec.cluster_combine",mlir::BoolAttr::get(&context,true));
+      }
       if(merge_impl=="cluster")candidate->setAttr("tmexec.cluster_attention_merge",mlir::BoolAttr::get(&context,true));
       if(dependency_intern) {
         auto plan=candidate->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
@@ -994,6 +999,9 @@ int RunCompile(int argc, char** argv) {
       defer_dm_lowering=plan.dm && (use_pages || use_nonpaged_tiled || pg_mode=="l2");
       if(forward)options.seq=forward_seq;
       tilemega::frontend::ImportOptions import;
+      // Establish reducer ownership before building tile spaces and their
+      // dependencies; a runtime ownership bit alone cannot prove this map.
+      import.combiner_tile_per_block=combine_impl=="cluster";
       if (plan.forward || plan.dm) import.phase_batch = serving_batch;
       import.gemms.assign(plan.gemms.size(),forward?
           tilemega::frontend::GemmGranularity{128,64,16,3,1}:
