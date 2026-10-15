@@ -4,6 +4,7 @@
 #define TILEMEGA_WATCHDOG 1
 #endif
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 
 namespace tilemega::codegen {
 // Sites: 1 paged dependency, 2 phase, 3 token lag, 4 KV lag,
@@ -22,14 +23,10 @@ struct Watch {
     record->waiter_stage=waiter_stage;record->waiter_task=waiter_task;
     record->producer_stage=producer_stage;record->group=group;record->row=row;
     record->need=need;record->value=value;record->iteration=iteration;
-    __threadfence_system();asm volatile("trap;");
+    __threadfence_system();maca::Trap();
   }
 };
-__device__ inline unsigned long long WatchNow() {
-  unsigned long long now;
-  asm volatile("mov.u64 %0, %%globaltimer;":"=l"(now));
-  return now;
-}
+__device__ inline unsigned long long WatchNow() { return maca::GlobalTimerNs(); }
 __device__ inline bool WatchExpired(Watch const* watch,unsigned long long& start,
                                     unsigned long long failures,unsigned long long need,
                                     unsigned long long value) {

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #ifndef TILEMEGA_PAGE_TRACE
 #define TILEMEGA_PAGE_TRACE 0
 #endif
 namespace tilemega::codegen::executor {
 __device__ inline unsigned long long PageTraceNow() {
-  unsigned long long now;
-  asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(now) :: "memory");
+  unsigned long long now=maca::GlobalTimerNs();
   return now;
 }
 // The two warp leaders may change state concurrently. The short lock makes

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Backend/ServingMmaPipeline.h>
 #include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>
 #include <tilemega/Codegen/executor/PageRing.cuh>
@@ -162,7 +163,7 @@ struct PagedGemmTaskBody {
       Ring const& ring,std::uint64_t& sequence,BeforePage const& before_page) {
     auto geometry=p.conv_iteration;
     if(!geometry.iterations || p.k_begin%TileK || p.k_count%TileK) {
-      asm volatile("trap;");return;
+      maca::Trap();return;
     }
     auto const& conv=p.convolutions[p.access.conv];
     auto const& layout=p.dm_buffers.layouts[conv.input_layout];
@@ -198,7 +199,7 @@ struct PagedGemmTaskBody {
                                   Ring const& ring,std::uint64_t& sequence,
                               BeforePage const& before_page=BeforePage{}) {
     if(!p.weight_base || p.k_total_full<=0 || p.k_begin%TileK) {
-      asm volatile("trap;");return;
+      maca::Trap();return;
     }
     int const kt=(p.k_total_full+TileK-1)/TileK;
     int const t0=p.k_begin/TileK;
@@ -322,7 +323,7 @@ struct PagedGemmTaskBody {
     if(p.access.a==DmAAccess::kIm2Col || p.access.a==DmAAccess::kRowGather ||
        p.access.b==DmBAccess::kExpertIndirect || p.a_scale) {
       if(p.epilogue!=backend::ServingEpilogueOp::kPartial || !p.partial) {
-        asm volatile("trap;");return;
+        maca::Trap();return;
       }
       auto partial=p;partial.output=reinterpret_cast<Element*>(p.partial);
       partial.output_stride=p.partial_stride;
@@ -494,7 +495,7 @@ struct PagedGemmTaskBody {
 #endif
         finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kSwiGLU>{});
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-        else asm volatile("trap;");
+        else maca::Trap();
 #endif
         break;
       case backend::ServingEpilogueOp::kArgmaxPartial: finish(std::integral_constant<backend::ServingEpilogueOp,backend::ServingEpilogueOp::kArgmaxPartial>{});break;
@@ -545,11 +546,11 @@ struct PagedGemmTaskBody {
     if(p.access.a==DmAAccess::kIm2Col) {
       if(!p.convolutions || p.access.conv==kDmNoIndex ||
          p.k_begin%TileK || p.k_count%TileK || !p.conv_iteration.iterations) {
-        asm volatile("trap;");return;
+        maca::Trap();return;
       }
       auto const& conv=p.convolutions[p.access.conv];
       if(!conv.p || !conv.q || !p.dm_buffers.layouts ||
-         conv.input_layout>=p.dm_buffers.count) {asm volatile("trap;");return;}
+         conv.input_layout>=p.dm_buffers.count) {maca::Trap();return;}
       auto const& layout=p.dm_buffers.layouts[conv.input_layout];
       using Conv=backend::ServingConv<Arch,TileM,TileN,TileK,2>;
       if(p.conv_iteration.channels==4) {
@@ -709,7 +710,7 @@ struct PagedGemmTaskBody {
       Element const* input, Element const* weight, float epsilon) {
     using namespace cute;
     if (!input || !weight || p.k_total <= 0 || p.k_begin < 0 || p.k_count <= 0 ||
-        p.k_begin + p.k_count > p.k_total) { asm volatile("trap;"); return; }
+        p.k_begin + p.k_count > p.k_total) { maca::Trap(); return; }
     auto source = p;
     source.a = input;
     source.a_row_stride = p.k_total;
@@ -836,7 +837,7 @@ struct PagedGemmTaskBody {
 #endif
         finish(std::integral_constant<backend::ServingEpilogueOp, backend::ServingEpilogueOp::kSwiGLU>{});
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-        else asm volatile("trap;");
+        else maca::Trap();
 #endif
         break;
       case backend::ServingEpilogueOp::kArgmaxPartial: finish(std::integral_constant<backend::ServingEpilogueOp, backend::ServingEpilogueOp::kArgmaxPartial>{}); break;

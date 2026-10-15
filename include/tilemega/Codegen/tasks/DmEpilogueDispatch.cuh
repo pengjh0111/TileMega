@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/DmDescriptors.h>
 
 namespace tilemega::codegen {
@@ -7,7 +8,7 @@ namespace tilemega::codegen {
 // Handwritten descriptor probes have no generated plan or finite chain table.
 template <class Runner>
 __device__ inline void DispatchDmEpilogue(std::uint32_t, Runner const&) {
-  asm volatile("trap;");
+  maca::Trap();
 }
 #endif
 

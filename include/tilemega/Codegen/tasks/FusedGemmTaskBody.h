@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/tasks/GemmStageTaskBody.h>
 #include <tilemega/Codegen/tasks/RMSNormTaskBody.h>
 
@@ -40,8 +41,8 @@ struct FusedGemmTaskBody {
     Produce(invocation, tile, smem);
     int m0 = (tile / invocation.tiles_n) * V::kTileM;
     int n0 = (tile % invocation.tiles_n) * V::kTileN;
-    int m_extent = cute::get<0>(invocation.problem);
-    int n_extent = cute::get<1>(invocation.problem);
+    int m_extent = invocation.problem.m;
+    int n_extent = invocation.problem.n;
     for (int i = threadIdx.x; i < V::kTileM * V::kTileN; i += Threads) {
       int m = m0 + i / V::kTileN, n = n0 + i % V::kTileN;
       if (m < m_extent && n < n_extent)
@@ -55,9 +56,9 @@ struct FusedGemmTaskBody {
   __device__ static void RMSNorm(GemmInvocation const& invocation, int row,
                                  ModelElement const* weight, ModelElement* output,
                                  SharedStorage& smem) {
-    int width = cute::get<1>(invocation.problem);
+    int width = invocation.problem.n;
     if (invocation.tiles_n != 1 || width > V::kTileN) {
-      asm volatile("trap;"); return;
+      maca::Trap(); return;
     }
     Produce(invocation, row / V::kTileM, smem);
     Norm::RunRow(smem.intermediate + (row % V::kTileM) * V::kTileN,
@@ -96,7 +97,7 @@ struct FusedGemmStageTaskBody {
         Body::RMSNorm(invocation,task,p.buffers[stage.operand[0]],p.buffers[stage.operand[1]],storage);
     } else if constexpr (Variant+1 < kGemmVariantCount) {
       Dispatch<Variant+1>(invocation,stage,p,smem,task);
-    } else { asm volatile("trap;"); }
+    } else { maca::Trap(); }
   }
   __device__ static void RunTask(Params const& p, StageDesc const& stage,
                                  SmemUnion& smem, int task) {

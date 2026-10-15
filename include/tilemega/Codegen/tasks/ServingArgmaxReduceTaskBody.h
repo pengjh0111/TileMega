@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 
@@ -84,7 +85,7 @@ struct ServingArgmaxReduceTaskBody {
       if (output_position >= 0 && output_position < capacity)
         tokens[batch * capacity + output_position] = index;
       else
-        asm volatile("trap;");
+        maca::Trap();
     }
   }
 };

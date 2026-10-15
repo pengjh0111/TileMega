@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 
 #ifndef TILEMEGA_TRACE_STAGE_DIAGNOSTIC
@@ -35,13 +36,13 @@ __device__ inline unsigned long long StageStamp() {
 #if TILEMEGA_TRACE_STAGE_DIAGNOSTIC==2
   return 1;
 #else
-  unsigned long long t;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(t));return t;
+  unsigned long long t=maca::GlobalTimerNs();return t;
 #endif
 }
 // All fields and instrumentation disappear in an ordinary build. No extra
 // synchronization is introduced: completion stamps use existing barriers.
 __device__ inline unsigned long long ServingTraceNow() {
-  unsigned long long t;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(t));return t;
+  unsigned long long t=maca::GlobalTimerNs();return t;
 }
 
 __device__ inline StepTraceRecord* StepRow(Params const& p,unsigned long long iteration) {
@@ -105,7 +106,7 @@ __device__ inline void StageBegin(Params const& p,unsigned stage,
                                  stage*gridDim.x+blockIdx.x];
     unsigned sm=0;
 #if TILEMEGA_TRACE_STAGE_DIAGNOSTIC!=2
-    asm volatile("mov.u32 %0, %%smid;":"=r"(sm));
+    sm=maca::SlotId();
 #endif
     auto stamp=StageStamp();
 #if TILEMEGA_TRACE_STAGE_DIAGNOSTIC!=1

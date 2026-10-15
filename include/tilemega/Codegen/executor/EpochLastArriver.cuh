@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/RuntimeDependencies.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <cuda/atomic>
@@ -15,7 +16,7 @@ struct EpochLastArriver {
     std::uint64_t target=0;
     if(!ticket || !shared_last || contribution>total ||
        !CountedDependencyTarget(total,iteration,&target)) {
-      asm volatile("trap;");return false;
+      maca::Trap();return false;
     }
     __threadfence();
     ComputeSync();
@@ -25,7 +26,7 @@ struct EpochLastArriver {
         cuda::atomic_ref<unsigned long long,cuda::thread_scope_device> value(*ticket);
         auto previous=value.fetch_add(contribution,cuda::memory_order_acq_rel);
         if(previous<target-total || previous>target || contribution>target-previous)
-          asm volatile("trap;");
+          maca::Trap();
         *shared_last=previous+contribution==target;
       }
     }

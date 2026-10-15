@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Codegen/executor/Watchdog.cuh>
 #include <cuda/atomic>
@@ -11,7 +12,7 @@ struct BindingGate {
   Watch const* watch = nullptr;
 
   __device__ unsigned long long Value() const {
-    if (!arrivals || !target) { asm volatile("trap;"); return 0; }
+    if (!arrivals || !target) { maca::Trap(); return 0; }
     cuda::atomic_ref<unsigned long long, cuda::thread_scope_device> value(*arrivals);
     return value.load(cuda::memory_order_acquire);
   }

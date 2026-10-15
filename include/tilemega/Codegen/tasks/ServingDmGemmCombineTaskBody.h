@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Backend/ServingDmEpilogue.h>
 #include <tilemega/Codegen/tasks/DmEpilogueDispatch.cuh>
 #include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>
@@ -24,7 +25,7 @@ struct DmCombineRunner {
   __device__ void Run() const {
     using Gate = backend::DmGateShape<typename Spec::Chain>;
     if constexpr (!Gate::template kFits<TileN>) {
-      asm volatile("trap;");
+      maca::Trap();
     } else {
       using Epilogue = backend::ServingDmEpilogue<Arch, Spec, TileM, TileN>;
       float* tile = reinterpret_cast<float*>(shared);

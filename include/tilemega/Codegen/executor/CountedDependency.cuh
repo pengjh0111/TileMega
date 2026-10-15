@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <cuda/atomic>
 
@@ -16,7 +17,7 @@ struct CountedDependency {
     ComputeSync();
   }
   __device__ static void Wait(unsigned long long* value, unsigned long long target) {
-    if (!target) asm volatile("trap;");
+    if (!target) maca::Trap();
     if (ComputeThread() == 0) {
       cuda::atomic_ref<unsigned long long, cuda::thread_scope_device> counter(*value);
       while (counter.load(cuda::memory_order_acquire) < target) __nanosleep(64);

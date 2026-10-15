@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/tasks/RoPETaskBody.h>
 
 #ifndef TILEMEGA_FUSED_ROPE_KV
@@ -47,7 +48,7 @@ struct FusedRoPEKVTaskBody {
         int d=index%dim,head_token=index/dim;
         int pair=head_token*half_dim+d%half_dim;
         int local=pair-producer_task*pairs_per_task;
-        if (local<0 || local>=pairs_per_task) { asm volatile("trap;"); return; }
+        if (local<0 || local>=pairs_per_task) { maca::Trap(); return; }
         int token=head_token/heads,head=head_token%heads;
         output[(head*p.dims.total+p.dims.past+token)*dim+d]=
             smem.fused_rope[local+(d>=half_dim ? pairs_per_task : 0)];

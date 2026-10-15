@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 
 #if TILEMEGA_TRACE_PHASE
@@ -15,7 +16,7 @@ __device__ inline unsigned long long PhaseLoopClock(TaskPhase* phase) {
 __device__ inline void PhaseStamp(TaskPhase* phase, int boundary) {
   if (phase != nullptr && threadIdx.x == 0) {
     unsigned long long time, cycles;
-    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(time) :: "memory");
+    time=maca::GlobalTimerNs();
     asm volatile("mov.u64 %0, %%clock64;" : "=l"(cycles) :: "memory");
     phase->ns[boundary] = time;
     phase->cycles[boundary] = cycles;

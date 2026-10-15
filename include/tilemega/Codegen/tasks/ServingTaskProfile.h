@@ -12,7 +12,7 @@ struct ServingTaskProfile {
 #ifdef __CUDACC__
 __device__ inline unsigned long long TaskProfileNow(ServingTaskProfile* p) {
 #if TILEMEGA_TRACE_TASK
-  if(p){unsigned long long t;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(t));return t;}
+  if(p)return static_cast<unsigned long long>(__builtin_mxc_get_realtime())*10ull;
 #endif
   return 0;
 }

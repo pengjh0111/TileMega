@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/DmDescriptors.h>
 #include <tilemega/Codegen/MoeBinding.h>
 #include <cstdint>
@@ -51,18 +52,18 @@ __device__ bool ResolveDmMoeTile(Operands& p, unsigned tile_m, unsigned tm) {
   using namespace codegen;
   if(p.access.b!=DmBAccess::kExpertIndirect || p.moe.rows)return true;
   auto const& access=p.access;
-  if(!tm || !access.block_rows) {asm volatile("trap;");return false;}
+  if(!tm || !access.block_rows) {maca::Trap();return false;}
   unsigned tiles=(access.block_rows+tm-1)/tm,id=tile_m/tiles;
   MoeBindingView view{static_cast<MoeBindingRecord const*>(p.binding),
       static_cast<MoeBindingRow const*>(p.rows),access.binding_blocks,
       access.binding_rows,access.experts,access.block_rows};
   MoeBindingRecord block;
   auto status=view.Lookup(id,&block);
-  if(status==MoeBindingStatus::kInvalid) {asm volatile("trap;");return false;}
+  if(status==MoeBindingStatus::kInvalid) {maca::Trap();return false;}
   if(status==MoeBindingStatus::kEmpty || (tile_m%tiles)*tm>=block.row_count)return false;
   std::uint64_t offset;
   if(!MoeExpertOffset(block,access.expert_stride,&offset)) {
-    asm volatile("trap;");return false;
+    maca::Trap();return false;
   }
   if(p.b)p.b+=offset;
   if(p.weight_base)p.weight_base+=offset;

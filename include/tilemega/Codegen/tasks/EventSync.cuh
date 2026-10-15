@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
-#include <cuda/atomic>
 #include <cuda_runtime.h>
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/executor/Watchdog.cuh>
 
 #ifndef TILEMEGA_SYNC_V3
@@ -40,46 +40,41 @@
 #endif
 
 namespace tilemega::codegen {
-// CUTLASS GenericBarrier's release arrival/acquire wait shape: producers
-// converge before the release reduction; consumers converge after acquire.
+// Release arrival / acquire wait in the §2.6 xcore1000 protocol (P-7):
+// producers converge before the release add; consumers poll with a volatile
+// load, fence once the value suffices, and converge afterwards.
 __device__ inline unsigned long long LoadAcquire(unsigned long long const* event) {
-  unsigned long long value;
-  asm volatile("ld.acquire.gpu.global.u64 %0, [%1];" : "=l"(value) :
-      "l"(__cvta_generic_to_global(event)) : "memory");
-  return value;
+  return maca::EventLoadAcquire(event);
 }
 __device__ inline void RedRelease(unsigned long long* event,unsigned long long value) {
-  asm volatile("red.release.gpu.global.add.u64 [%0], %1;" ::
-      "l"(__cvta_generic_to_global(event)),"l"(value) : "memory");
+  maca::EventAddRelease(event,value);
 }
 __device__ inline void WaitAtLeast(unsigned long long const* event,
                                    unsigned long long need) {
-  while(LoadAcquire(event)<need) {
+  while(maca::EventPeek(event)<need) {
 #if TILEMEGA_V3_POLL_NS > 0
-    __nanosleep(TILEMEGA_V3_POLL_NS);
+    maca::Nanosleep(TILEMEGA_V3_POLL_NS);
 #endif
   }
+  maca::FenceDevice();
 }
 __device__ inline void WaitAtLeast(unsigned long long const* event,
                                    unsigned long long need,Watch const& watch) {
   unsigned long long start=0,failures=0;
   for(;;) {
-    auto value=LoadAcquire(event);
-    if(value>=need)return;
+    auto value=maca::EventPeek(event);
+    if(value>=need)break;
     WatchExpired(&watch,start,++failures,need,value);
 #if TILEMEGA_V3_POLL_NS > 0
-    __nanosleep(TILEMEGA_V3_POLL_NS);
+    maca::Nanosleep(TILEMEGA_V3_POLL_NS);
 #endif
   }
+  maca::FenceDevice();
 }
-// T1.1: the following acquire fence remains at the caller. A relaxed atomic
-// read participates in the fence synchronization without an RMW transaction.
+// T1.1: the following acquire fence remains at the caller.
 __device__ inline unsigned long long EventPoll(unsigned long long* event) {
-#if TILEMEGA_SYNC_V3
-  return LoadAcquire(event);
-#elif TILEMEGA_EVENT_LOAD_POLL
-  return cuda::atomic_ref<unsigned long long, cuda::thread_scope_device>(*event)
-      .load(cuda::memory_order_relaxed);
+#if TILEMEGA_SYNC_V3 || TILEMEGA_EVENT_LOAD_POLL
+  return maca::EventPeek(event);
 #else
   return atomicAdd(event, 0ull);
 #endif

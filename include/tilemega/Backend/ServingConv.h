@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Backend/ConvIteration.h>
 #include <tilemega/Backend/ServingDmGemm.h>
 
@@ -66,7 +67,7 @@ struct ServingConv {
     if(!p.a || !p.b || geometry.tile_k!=TK || begin>=geometry.iterations ||
        iterations<=0 || std::uint64_t(iterations)>geometry.iterations-begin ||
        !conv.p || !conv.q || (TiledB && !p.weight_base)) {
-      asm volatile("trap;");return nullptr;
+      maca::Trap();return nullptr;
     }
     // Four packed BF16 channels form an 8-byte vector. The input pixel pitch
     // is 8-byte aligned in the compact RGB layout; adjacent filter positions

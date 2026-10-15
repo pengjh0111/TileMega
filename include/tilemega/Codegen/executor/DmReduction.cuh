@@ -10,17 +10,17 @@ struct DmReductionRunner : DmStageRunner<Arch> {
   __device__ void Run() const {
     if constexpr(Kind==TaskKind::kGlobalPoolReduce && TILEMEGA_DM_POOL_LA)
       Base::template Run<Kind,Width,RowsPerTask>();
-    else asm volatile("trap;");
+    else maca::Trap();
   }
   template<DmMoeStep Step,int TopK,int BlockRows,bool Grouped,int TokenTile,int ChannelTile>
   __device__ void RunMoe() const {
     constexpr unsigned bit=Step==DmMoeStep::kCombine?2:1;
     if constexpr(TILEMEGA_DM_MOE_LA && (TILEMEGA_DM_MOE_LA_MASK&bit))
       Base::template RunMoe<Step,TopK,BlockRows,Grouped,TokenTile,ChannelTile>();
-    else asm volatile("trap;");
+    else maca::Trap();
   }
   template<int RowBand,int ChannelTile,class Program>
-  __device__ void RunDepthwise() const {asm volatile("trap;");}
+  __device__ void RunDepthwise() const {maca::Trap();}
 };
 template<class Arch,bool L2,unsigned Depth=0,class Publish>
 __device__ void RunDmReductions(Params const& p,unsigned producer,unsigned task,
@@ -30,27 +30,27 @@ __device__ void RunDmReductions(Params const& p,unsigned producer,unsigned task,
   if(!view.stages)return;
   auto const& program=view.stages[producer];
   if(program.target==kNoOperand)return;
-  if constexpr(Depth>=TILEMEGA_DM_REDUCTION_DEPTH) {asm volatile("trap;");return;}
+  if constexpr(Depth>=TILEMEGA_DM_REDUCTION_DEPTH) {maca::Trap();return;}
   else {
     auto const& reducer=p.stages[program.target];
 #if TILEMEGA_PAGED
     // PageLayout already reserves a flag outside the reusable task workspace.
     // A separate static symbol adds a full alignment unit before the 1024-byte
     // aligned dynamic page pool and can exceed the CTA's shared-memory limit.
-    if(!shared_last){asm volatile("trap;");return;}
+    if(!shared_last){maca::Trap();return;}
 #else
     __shared__ unsigned last;
     shared_last=&last;
 #endif
     auto arrive=[&](unsigned target,unsigned expected,unsigned contribution) {
       if(std::uint64_t(program.ticket_offset)+target>=view.ticket_count)
-        asm volatile("trap;");
+        maca::Trap();
 #if TILEMEGA_PAGED
       auto* ticket=view.tickets+program.ticket_offset+target;
-      if(!view.tickets)asm volatile("trap;");
+      if(!view.tickets)maca::Trap();
 #else
       if(!p.serving_nonpaged_tickets || target>=p.serving_handoff_ticket_stride)
-        asm volatile("trap;");
+        maca::Trap();
       auto* ticket=p.serving_nonpaged_tickets+
           (std::size_t(L2)*p.stage_count+producer)*p.serving_handoff_ticket_stride+target;
 #endif
@@ -67,21 +67,21 @@ __device__ void RunDmReductions(Params const& p,unsigned producer,unsigned task,
       }
     };
     if(program.counted_edge==kNoOperand) {
-      if(!view.offsets)asm volatile("trap;");
+      if(!view.offsets)maca::Trap();
       auto row=program.task_offset+task;
       for(unsigned i=view.offsets[row];i<view.offsets[row+1];++i) {
         auto a=view.arrivals[i];arrive(a.task,a.expected,1);
       }
       return;
     }
-    if(program.counted_edge>=p.dependency_count)asm volatile("trap;");
+    if(program.counted_edge>=p.dependency_count)maca::Trap();
     auto const& dep=p.dependencies[program.counted_edge];
     auto const& source=p.stages[producer];
     auto const& inv=static_cast<GemmInvocation const*>(p.gemms)[source.gemm];
     auto const& access=inv.access;
     if(access.b!=DmBAccess::kExpertIndirect || access.write.kind!=DmWriteKind::kRowScatter ||
         !access.block_rows || !inv.tile_m || !inv.tiles_n || !reducer.group ||
-        reducer.width!=unsigned(inv.tile_n))asm volatile("trap;");
+        reducer.width!=unsigned(inv.tile_n))maca::Trap();
     unsigned tile=IsGemmStage(source.kind)?
         DecodeSplitTask(task,inv.tiles_m*inv.tiles_n,inv.chunks).tile:task;
     unsigned subtiles=(access.block_rows+inv.tile_m-1)/inv.tile_m;
@@ -90,16 +90,16 @@ __device__ void RunDmReductions(Params const& p,unsigned producer,unsigned task,
         static_cast<MoeBindingRow const*>(inv.rows),access.binding_blocks,
         access.binding_rows,access.experts,access.block_rows};
     MoeBindingRecord block;auto status=bindings.Lookup(m/subtiles,&block);
-    if(status==MoeBindingStatus::kInvalid)asm volatile("trap;");
+    if(status==MoeBindingStatus::kInvalid)maca::Trap();
     unsigned begin=(m%subtiles)*inv.tile_m;
     if(status==MoeBindingStatus::kEmpty || begin>=block.row_count)return;
     unsigned count=min(unsigned(inv.tile_m),block.row_count-begin);
     unsigned columns=(reducer.extent+reducer.width-1)/reducer.width;
-    if(n>=columns)asm volatile("trap;");
+    if(n>=columns)maca::Trap();
     auto target=[&](unsigned row) {
       auto const& entry=bindings.rows[block.row_begin+begin+row];
       if(entry.token>=unsigned(p.dims.tokens()) || entry.rank>=access.routing_topk)
-        asm volatile("trap;");
+        maca::Trap();
       return (entry.token/reducer.group)*columns+n;
     };
     // Every compute lane traverses the same distinct targets. The last
@@ -112,7 +112,7 @@ __device__ void RunDmReductions(Params const& p,unsigned producer,unsigned task,
       if(!first)continue;
       unsigned expected=0;
       if(t>=dep.table_rows || !ReadCountedThreshold(p.counted_thresholds,
-          dep.counted_threshold_offset,dep.table_rows,t,dep.count,&expected))asm volatile("trap;");
+          dep.counted_threshold_offset,dep.table_rows,t,dep.count,&expected))maca::Trap();
       arrive(t,expected,contribution);
     }
   }

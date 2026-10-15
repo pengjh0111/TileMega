@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <cuda/atomic>
 namespace tilemega::codegen::executor {
@@ -17,7 +18,7 @@ struct LastArriver {
         cuda::atomic_ref<unsigned, cuda::thread_scope_device> counter(*ticket);
         unsigned previous = counter.fetch_add(contribution, cuda::memory_order_acq_rel);
         if (total == 0 || contribution > total || previous > total - contribution)
-          asm volatile("trap;");
+          maca::Trap();
         *shared_last = previous == total - contribution;
       }
     }
@@ -42,7 +43,7 @@ struct LastArriver {
     if(ComputeThread()==0) {
       cuda::atomic_ref<unsigned,cuda::thread_scope_device> counter(*ticket);
       unsigned previous=counter.fetch_add(1,cuda::memory_order_acq_rel);
-      if(previous>=producers || producers==0)asm volatile("trap;");
+      if(previous>=producers || producers==0)maca::Trap();
       *shared_last=previous+1==producers;
     }
     ComputeSync();

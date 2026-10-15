@@ -179,7 +179,7 @@ inline void CreateTensorMaps(Plan& plan,ModelSpec const& spec,TargetSpec const& 
   auto encode=[&](unsigned id,executor::TensorMapShape shape) {
     if(encoded.at(id))return;
     auto code=executor::EncodeTensorMap(maps[id],plan.model.buffers.at(id),shape);
-    if(code!=CUDA_SUCCESS)throw std::runtime_error("serving tensor map encoding failed: "+std::to_string(int(code)));
+    if(code!=0)throw std::runtime_error("serving tensor map encoding failed: "+std::to_string(int(code)));
     encoded[id]=true;
   };
   for(unsigned i=0;i<spec.gemm_count;++i) {

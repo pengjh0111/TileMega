@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/tasks/WarpReduce.cuh>
 #include <tilemega/Codegen/AttentionPlan.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
@@ -75,7 +76,7 @@ struct AttentionPhasedTaskBody {
       AttentionCombineTaskBody<Arch, void, Threads>::Reduce(partials,
           p.buffers[stage.operand[3]], query, chunks, width);
     } else {
-      asm volatile("trap;");
+      maca::Trap();
     }
   }
 };

@@ -6,6 +6,7 @@
 // as the generated `ModelSpec` tables.  Adding a model means emitting new
 // tables, never editing this file.
 #pragma once
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 
 #include <cuda_runtime.h>
 #ifndef TILEMEGA_PAGED
@@ -308,11 +309,10 @@ inline constexpr std::size_t kServingSharedBytes=sizeof(TaskSmem);
 #endif
 
 // R8 BE-1: the architecture is the Plan's, not a constant in this header.
-// Codegen writes `TILEMEGA_ARCH_ID` from the solved target; a source written
-// before that macro existed keeps the Sm80 semantics it was compiled with,
-// which is the format of the archived pre-generated reference sources.
+// Codegen writes `TILEMEGA_ARCH_ID` from the solved target; this branch has
+// one architecture, so a source without it is the xcore1000 identifier.
 #ifndef TILEMEGA_ARCH_ID
-#define TILEMEGA_ARCH_ID 800
+#define TILEMEGA_ARCH_ID 7000
 #endif
 using HarnessArch = typename tilemega::arch::ArchFromId<TILEMEGA_ARCH_ID>::type;
 static_assert(!std::is_void<HarnessArch>::value,
@@ -364,7 +364,7 @@ __host__ __device__ inline int CeilDiv(int numerator, int denominator);
 __device__ inline void RunServingScalarTask(Params const& p,
                                             StageDesc const& stage,
                                             TaskSmem& smem, int row) {
-  using BF16 = cutlass::bfloat16_t;
+  using BF16 = tilemega::Bf16;
   auto buffer = [&](std::uint32_t id) { return p.buffers[id]; };
   switch (stage.kind) {
     case TaskKind::kEmbedding:
@@ -394,7 +394,7 @@ __device__ inline void RunServingScalarTask(Params const& p,
           int(stage.width), p.dims.capacity, p.dims.past + p.dims.seq,
           &smem.argmax);
       return;
-    default: asm volatile("trap;"); return;
+    default: maca::Trap(); return;
   }
 }
 
@@ -426,16 +426,16 @@ __device__ inline void RunServingAttentionTask(Params const& p,
   int batch = coordinate.batch;
   auto buffer = [&](std::uint32_t id) { return p.buffers[id]; };
   ServingAttentionOperands inputs{
-      reinterpret_cast<cutlass::bfloat16_t const*>(buffer(stage.operand[0])),
-      reinterpret_cast<cutlass::bfloat16_t*>(buffer(stage.operand[1])),
-      reinterpret_cast<cutlass::bfloat16_t*>(buffer(stage.operand[2])),
-      reinterpret_cast<cutlass::bfloat16_t const*>(buffer(stage.operand[3])),
-      reinterpret_cast<cutlass::bfloat16_t const*>(buffer(stage.operand[4])),
+      reinterpret_cast<tilemega::Bf16 const*>(buffer(stage.operand[0])),
+      reinterpret_cast<tilemega::Bf16*>(buffer(stage.operand[1])),
+      reinterpret_cast<tilemega::Bf16*>(buffer(stage.operand[2])),
+      reinterpret_cast<tilemega::Bf16 const*>(buffer(stage.operand[3])),
+      reinterpret_cast<tilemega::Bf16 const*>(buffer(stage.operand[4])),
       stage.operand[5] == kNoOperand ? nullptr :
-          reinterpret_cast<cutlass::bfloat16_t const*>(buffer(stage.operand[5])),
+          reinterpret_cast<tilemega::Bf16 const*>(buffer(stage.operand[5])),
       stage.operand[6] == kNoOperand ? nullptr :
-          reinterpret_cast<cutlass::bfloat16_t const*>(buffer(stage.operand[6])),
-      reinterpret_cast<cutlass::bfloat16_t*>(buffer(stage.operand[7])),
+          reinterpret_cast<tilemega::Bf16 const*>(buffer(stage.operand[6])),
+      reinterpret_cast<tilemega::Bf16*>(buffer(stage.operand[7])),
       reinterpret_cast<float*>(buffer(stage.operand[8])),
       reinterpret_cast<float*>(buffer(stage.operand[9])),
       p.dims.batch, int(stage.extent), p.dims.capacity, p.dims.past,
@@ -454,7 +454,7 @@ __device__ inline void RunServingMergeTask(Params const& p,
   T_ServingMerge::Run(
       reinterpret_cast<float const*>(p.buffers[stage.operand[0]]),
       reinterpret_cast<float const*>(p.buffers[stage.operand[1]]),
-      reinterpret_cast<cutlass::bfloat16_t*>(p.buffers[stage.operand[2]]),
+      reinterpret_cast<tilemega::Bf16*>(p.buffers[stage.operand[2]]),
       batch, group, int(stage.extent), p.dims.capacity,
       stage.attention_kv_block, p.dims.past);
 }
@@ -528,7 +528,7 @@ __device__ inline void FinishNonpagedTask(Params const& p,unsigned index,
     output=task/producers;
   }
 #endif
-  else {asm volatile("trap;");return;}
+  else {maca::Trap();return;}
   auto offset=((std::size_t(context.l2)*p.stage_count+index)*
       p.serving_handoff_ticket_stride)+output;
   __shared__ unsigned last;
@@ -636,7 +636,7 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
       break;
     case TaskKind::kRoPE:
 #if TILEMEGA_SERVING_RUNTIME
-      asm volatile("trap;");
+      maca::Trap();
 #else
       T_RoPE{}(p, stage, smem);
 #endif
@@ -659,7 +659,7 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
       for (int row = int(blockIdx.x); row < p.dims.batch;
            row += int(gridDim.x)) RunServingScalarTask(p, stage, smem, row);
 #else
-      asm volatile("trap;");
+      maca::Trap();
 #endif
       break;
     case TaskKind::kFusedAttention:
@@ -684,7 +684,7 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
 #endif
       }
 #else
-      asm volatile("trap;");
+      maca::Trap();
 #endif
       break;
     case TaskKind::kAttentionMerge:
@@ -692,7 +692,7 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
       for (int task = int(blockIdx.x); task < p.dims.batch * int(stage.extent);
            task += int(gridDim.x)) RunServingMergeTask(p, stage, task);
 #else
-      asm volatile("trap;");
+      maca::Trap();
 #endif
       break;
 #if TILEMEGA_QK_NORM_RUNTIME
@@ -705,15 +705,15 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
 #if TILEMEGA_FUSION_GEMM_RUNTIME
       T_FusedGemm{}(p,stage,smem); break;
 #else
-      asm volatile("trap;"); break;
+      maca::Trap(); break;
 #endif
     case TaskKind::kRoPEKVAppend:
 #if TILEMEGA_SERVING_RUNTIME
-      asm volatile("trap;"); break;
+      maca::Trap(); break;
 #elif TILEMEGA_FUSION_ROPE_RUNTIME
       T_FusedRoPE{}(p,stage,smem); break;
 #else
-      asm volatile("trap;"); break;
+      maca::Trap(); break;
 #endif
   }
 }
@@ -790,7 +790,7 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
 #if TILEMEGA_SERVING_RUNTIME
       RunServingScalarTask(p, stage, smem, task);
 #else
-      asm volatile("trap;");
+      maca::Trap();
 #endif
       break;
     case TaskKind::kFusedAttention:
@@ -801,14 +801,14 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
 #endif
           );
 #else
-      asm volatile("trap;");
+      maca::Trap();
 #endif
       break;
     case TaskKind::kAttentionMerge:
 #if TILEMEGA_SERVING_DECODER_ATTENTION
       RunServingMergeTask(p, stage, task);
 #else
-      asm volatile("trap;");
+      maca::Trap();
 #endif
       break;
 #if TILEMEGA_QK_NORM_RUNTIME
@@ -818,7 +818,7 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
 #endif
     case TaskKind::kRoPE:
 #if TILEMEGA_SERVING_RUNTIME
-      asm volatile("trap;");
+      maca::Trap();
 #else
       T_RoPE::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS);
 #endif
@@ -838,15 +838,15 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
 #if TILEMEGA_FUSION_GEMM_RUNTIME
       T_FusedGemm::RunTask(p,stage,smem,task); break;
 #else
-      asm volatile("trap;"); break;
+      maca::Trap(); break;
 #endif
     case TaskKind::kRoPEKVAppend:
 #if TILEMEGA_SERVING_RUNTIME
-      asm volatile("trap;"); break;
+      maca::Trap(); break;
 #elif TILEMEGA_FUSION_ROPE_RUNTIME
       T_FusedRoPE::RunTask(p,stage,smem,task); break;
 #else
-      asm volatile("trap;"); break;
+      maca::Trap(); break;
 #endif
   }
 #if TILEMEGA_TRACE_PHASE
@@ -907,14 +907,13 @@ __device__ inline int StageKappa(Params const& p, std::uint32_t stage) {
 /// (TRACE_V2/resolution.md), which is why clock64 is recorded beside it for
 /// the run interval, where the two reads are on one SM and need no calibration.
 __device__ inline unsigned long long TraceNow() {
-  unsigned long long t;
-  asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t) :: "memory");
+  unsigned long long t=maca::GlobalTimerNs();
   return t;
 }
 
 __device__ inline unsigned int TraceSmid() {
   unsigned int s;
-  asm volatile("mov.u32 %0, %%smid;" : "=r"(s));
+  s=maca::SlotId();
   return s;
 }
 #endif
@@ -1011,13 +1010,13 @@ __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
 #if TILEMEGA_FUSION_GEMM_RUNTIME
       return T_FusedGemm::Ownership(p,stage).count;
 #else
-      asm volatile("trap;"); return 0;
+      maca::Trap(); return 0;
 #endif
     case TaskKind::kRoPEKVAppend:
 #if TILEMEGA_FUSION_ROPE_RUNTIME
       return T_FusedRoPE::Ownership(p,stage).count;
 #else
-      asm volatile("trap;"); return 0;
+      maca::Trap(); return 0;
 #endif
   }
   return 0;
@@ -1105,7 +1104,7 @@ __device__ inline void WaitDmCountedDependency(Params const& p,
   auto index = std::uint64_t(dep.counted_offset) + task;
   if (!p.counted_dependencies || index >= p.counted_dependency_count ||
       !CountedThresholdTarget(p.counted_thresholds,dep.counted_threshold_offset,
-          dep.table_rows,task,dep.count,iteration,&target)) asm volatile("trap;");
+          dep.table_rows,task,dep.count,iteration,&target)) maca::Trap();
   executor::CountedDependency::Wait(p.counted_dependencies + index, target);
 }
 #endif
@@ -1187,7 +1186,7 @@ __device__ inline void WaitDependencies(Params const& p, EventCounter* events,
             poll(producer, kWholeStageEventGroup);
 #endif
           });
-          if (!valid) asm volatile("trap;");
+          if (!valid) maca::Trap();
         }
         continue;
       }
@@ -1351,7 +1350,7 @@ __device__ inline bool ProbeTaskDependencies(Params const& p,
     auto index = std::uint64_t(dep.counted_offset) + task.logical_task;
     if (!p.counted_dependencies || index >= p.counted_dependency_count ||
         !CountedThresholdTarget(p.counted_thresholds,dep.counted_threshold_offset,
-            dep.table_rows,task.logical_task,dep.count,iteration,&target)) asm volatile("trap;");
+            dep.table_rows,task.logical_task,dep.count,iteration,&target)) maca::Trap();
     cuda::atomic_ref<unsigned long long, cuda::thread_scope_device> counter(p.counted_dependencies[index]);
     if (counter.load(cuda::memory_order_acquire) < target) mine = 0;
   }
@@ -1719,7 +1718,6 @@ void tilemega_stage_kernel(Params const* params, std::uint32_t stage) {
 __device__ inline void ServingPdlEnter(Params const& p) {
 #if defined(TILEMEGA_SERVING_RUNTIME)
   if constexpr(TILEMEGA_PDL && arch::Caps<arch::CurrentArch>::kPdl) {
-    asm volatile("// TILEMEGA_PDL_IMMUTABLE_PREFETCH_BEGIN" ::: "memory");
     if constexpr(TILEMEGA_PDL_TRIGGER==1)
       executor::GridDependency<arch::CurrentArch>::Release();
 #if TILEMEGA_L2_PREFETCH
@@ -1728,7 +1726,6 @@ __device__ inline void ServingPdlEnter(Params const& p) {
     }
 #endif
     executor::GridDependency<arch::CurrentArch>::Wait();
-    asm volatile("// TILEMEGA_PDL_MUTABLE_ACCESS_BEGIN" ::: "memory");
   }
 #endif
 }
@@ -1787,7 +1784,7 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
   extern __shared__ unsigned char bytes[];
   auto& smem=*reinterpret_cast<TaskSmem*>(bytes);
   if(blockIdx.x==0 && threadIdx.x==0 && step_ns) {
-    unsigned long long now;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(now));
+    unsigned long long now=maca::GlobalTimerNs();
     step_ns[0]=now;
   }
   for(unsigned step=0;step<steps;++step) {
@@ -1843,7 +1840,7 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
     }
     executor::StepEnd(p,iteration);
     if(blockIdx.x==0 && threadIdx.x==0 && step_ns) {
-      unsigned long long now;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(now));
+      unsigned long long now=maca::GlobalTimerNs();
       step_ns[step+1]=now;
     }
   }
@@ -1860,17 +1857,10 @@ __device__ inline void PrefetchIssue(ModelElement const* source,
                                      ModelElement* page, std::uint32_t bytes) {
   for (std::uint32_t offset = threadIdx.x * 16u; offset < bytes;
        offset += blockDim.x * 16u) {
-    if constexpr (arch::Caps<arch::CurrentArch>::kCpAsync) {
-      unsigned const slot = static_cast<unsigned>(__cvta_generic_to_shared(
-          reinterpret_cast<char*>(page) + offset));
-      asm volatile("cp.async.cg.shared.global [%0], [%1], 16;\n" ::
-                   "r"(slot),
-                   "l"(reinterpret_cast<char const*>(source) + offset));
-    } else {
-      *reinterpret_cast<int4*>(reinterpret_cast<char*>(page) + offset) =
-          *reinterpret_cast<int4 const*>(
-              reinterpret_cast<char const*>(source) + offset);
-    }
+    // xcore1000: an ordinary blocking move (no cp.async; see MX-P).
+    *reinterpret_cast<int4*>(reinterpret_cast<char*>(page) + offset) =
+        *reinterpret_cast<int4 const*>(
+            reinterpret_cast<char const*>(source) + offset);
   }
 }
 
@@ -1991,8 +1981,6 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
       if (width)
         PrefetchIssue(params->buffers[operand.buffer], page_of(slot), width);
     }
-    if constexpr (arch::Caps<arch::CurrentArch>::kCpAsync)
-      asm volatile("cp.async.commit_group;\n" ::);
   };
 #if !TILEMEGA_PREFETCH_INLINE
   issue(first);
@@ -2071,12 +2059,8 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
     // the same instructions, issued for this slot and waited on immediately,
     // so the only thing removed is the overlap.
     issue(slot);
-    if constexpr (arch::Caps<arch::CurrentArch>::kCpAsync)
-      asm volatile("cp.async.wait_group 0;\n" ::);
 #else
     issue(slot + 1);
-    if constexpr (arch::Caps<arch::CurrentArch>::kCpAsync)
-      asm volatile("cp.async.wait_group 1;\n" ::);
 #endif
 #if TILEMEGA_TRACE_PHASE
     if (phase != nullptr && threadIdx.x == 0) {
@@ -2915,8 +2899,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       GemmProblem problem{m, desc.n, k_end - k_begin, 1};
       // The chunk's A/B are the same matrices seen from a K offset: the row
       // stride is still the full k, so only the base pointer moves.
-      auto stride_a = cutlass::make_cute_packed_stride(
-          typename GemmMainloop::StrideA{}, cute::make_shape(m, desc.k, 1));
+      backend::RowStride stride_a{desc.k};
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
       if(desc.access.a==DmAAccess::kDense) {
         auto pitch=std::uint64_t(desc.k)*std::max(1u,desc.access.a_row_stride);
@@ -2928,15 +2911,10 @@ inline DeviceModel Create(ModelSpec const& spec,
             (source_rows-1)*std::max(1u,desc.access.a_row_stride);
         if(desc.k<=0 || m<=0 || last_row>=spec.buffers[desc.a].Elements(dims)/desc.k)
           throw std::invalid_argument("DM GEMM dense row map exceeds A storage");
-        cute::get<0>(stride_a)=static_cast<std::int64_t>(pitch);
+        stride_a.row=static_cast<std::int64_t>(pitch);
       }
 #endif
-      auto stride_b = cutlass::make_cute_packed_stride(
-          typename GemmMainloop::StrideB{}, cute::make_shape(desc.n, desc.k, 1));
-      auto stride_c = cutlass::make_cute_packed_stride(
-          typename GemmEpilogue::StrideC{}, cute::make_shape(m, desc.n, 1));
-      auto stride_d = cutlass::make_cute_packed_stride(
-          typename GemmEpilogue::StrideD{}, cute::make_shape(m, desc.n, 1));
+      backend::RowStride stride_b{desc.k}, stride_c{desc.n}, stride_d{desc.n};
       GemmMainloopOperands main_args{
           model.buffers[desc.a] + k_begin, stride_a,
           model.buffers[desc.b] + k_begin, stride_b};
@@ -2957,20 +2935,16 @@ inline DeviceModel Create(ModelSpec const& spec,
                 static_cast<std::size_t>(chunk) * m * desc.n
           : model.buffers[desc.d];
 #endif
-      typename GemmEpilogue::Arguments epilogue_args{
-          {1.0f, chunk == 0 ? desc.beta : 0.0f}, model.buffers[desc.c], stride_c,
-          destination, stride_d};
       GemmInvocation invocation;
       invocation.problem = problem;
       invocation.mainloop = main_args;
-      invocation.epilogue =
-          GemmEpilogue::to_underlying_arguments(problem, epilogue_args, nullptr);
+      invocation.epilogue.ptr_C = model.buffers[desc.c];
+      invocation.epilogue.dC = stride_c;
+      invocation.epilogue.ptr_D = destination;
+      invocation.epilogue.dD = stride_d;
+      invocation.epilogue.thread = {1.0f, chunk == 0 ? desc.beta : 0.0f};
 #if TILEMEGA_FP32_PARTIALS && TILEMEGA_MODEL_BF16
       if (chunks > 1) {
-        auto* partial = reinterpret_cast<float*>(model.buffers[gemm_partial[i]]) +
-                        static_cast<std::size_t>(chunk) * m * desc.n;
-        PartialEpilogue::Arguments args{{1.0f, 0.0f}, nullptr, stride_c, partial, stride_d};
-        invocation.partial_epilogue = PartialEpilogue::to_underlying_arguments(problem, args, nullptr);
         invocation.residual = model.buffers[desc.c];
         invocation.residual_beta = desc.beta;
       }
@@ -4942,24 +4916,19 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   }
 #ifdef TILEMEGA_ARCH_FROM_PLAN
   // R8 BE-1: a generated source names the architecture its Plan was solved
-  // for. Running it on another device would pick a different capability set
-  // than the one the Plan was priced and compiled against, so this is a hard
-  // failure with no fallback.
+  // for. MetaX compute capabilities are not identities (cu-bridge reports
+  // 10.2, torch 8.0), so the device name and AP count are compared.
   {
-    int device = 0, major = 0, minor = 0;
+    int device = 0;
     TILEMEGA_CUDA_CHECK(cudaGetDevice(&device));
-    TILEMEGA_CUDA_CHECK(cudaDeviceGetAttribute(
-        &major, cudaDevAttrComputeCapabilityMajor, device));
-    TILEMEGA_CUDA_CHECK(cudaDeviceGetAttribute(
-        &minor, cudaDevAttrComputeCapabilityMinor, device));
-    int const device_id = major * 100 + minor * 10;
-    std::printf("E2E_ARCH plan=%s plan_id=%d device=sm_%d%d device_id=%d\n",
+    cudaDeviceProp properties{};
+    TILEMEGA_CUDA_CHECK(cudaGetDeviceProperties(&properties, device));
+    std::printf("E2E_ARCH plan=%s plan_id=%d device=%s aps=%d\n",
                 tilemega::arch::ArchId<HarnessArch>::kTag, TILEMEGA_ARCH_ID,
-                major, minor, device_id);
-    if (device_id != TILEMEGA_ARCH_ID) {
-      std::fprintf(stderr,
-                   "the Plan was solved for %s and this device is sm_%d%d\n",
-                   tilemega::arch::ArchId<HarnessArch>::kTag, major, minor);
+                properties.name, properties.multiProcessorCount);
+    if (std::strstr(properties.name, "MetaX") == nullptr) {
+      std::fprintf(stderr, "the Plan was solved for %s and this device is %s\n",
+                   tilemega::arch::ArchId<HarnessArch>::kTag, properties.name);
       return 2;
     }
   }
