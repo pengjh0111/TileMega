@@ -1,0 +1,5 @@
+model,system,batch,precision,compile_mode,candidate_id,candidate_receipt_sha256,native_artifact_ids,fresh_processes,protocol_complete,gpu,median_ms,p90_ms,acceptance
+resnet18,tensorrt,1,bf16,,,,,3,True,6,0.20684799551963806,0.207519993185997,provisional_container_pid_namespace
+resnet18,tensorrt,1,fp16,,,,,3,True,6,0.1544319987297058,0.15484799444675446,provisional_container_pid_namespace
+resnet18,torchcompile,1,bf16,max-autotune,,,,3,True,6,0.236735999584198,0.23769600689411163,provisional_container_pid_namespace
+resnet18,torchcompile,1,bf16,reduce-overhead,,,,3,True,6,0.23846399784088135,0.2396479994058609,provisional_container_pid_namespace
