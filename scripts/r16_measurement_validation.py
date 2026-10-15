@@ -6,7 +6,9 @@ from pathlib import Path
 import statistics
 
 
-NATIVE_LLM_SYSTEMS = ('TileMega', 'TM-seed', 'TM-H1', 'TM-H1H4', 'TM-sm80', 'TM-noWGMMA')
+NATIVE_LLM_SYSTEMS = ('TileMega', 'TM-R15', 'TM-RF1-on', 'TM-RF1-off', 'TM-seed', 'TM-H1', 'TM-H1H4', 'TM-sm80', 'TM-noWGMMA')
+R15_HEAD = '243fe9d06f5f8c55297c0c175295812f0843f329'
+RF1_PATCH_SHA256 = '9b233022186721f305abeeb57928e7a64f4b9e5b252b0d75dedec7172c7fa0c6'
 _HASH_CACHE = {}
 
 
@@ -63,6 +65,29 @@ def canonical_model(root, config_sha, fallback=None):
     raise ValueError('model config SHA does not identify one canonical R16 model')
 
 
+def pristine_r15(identity, root):
+    source = identity['source']
+    compiler = Path(root)/'runs/r16/build-r15/tools/tilemega'
+    if (source.get('head') != R15_HEAD or
+            source.get('worktree_diff_sha256') != hashlib.sha256(b'').hexdigest() or
+            Path(source.get('root', '')).resolve() != (Path(root)/'runs/r16/tm-r15').resolve() or
+            Path(source.get('compiler', '')).resolve() != compiler.resolve() or
+            source.get('compiler_sha256') != file_sha(compiler)):
+        raise ValueError('TM-R15 requires the pristine baseline HEAD, source and compiler')
+
+
+def rf1_ablation(identity, root):
+    source = identity['source']
+    directory = Path(root)/'runs/r16/rf1/r15-no-l1-spread'
+    compiler = directory/'build/tools/tilemega'
+    if (source.get('head') != R15_HEAD or
+            source.get('worktree_diff_sha256') != RF1_PATCH_SHA256 or
+            Path(source.get('root', '')).resolve() != (directory/'source').resolve() or
+            Path(source.get('compiler', '')).resolve() != compiler.resolve() or
+            source.get('compiler_sha256') != file_sha(compiler)):
+        raise ValueError('TM-RF1-off requires the recorded single-function R15 ablation')
+
+
 def native_llm(value, root):
     if root is None:
         raise ValueError('native receipt requires the canonical R16 model registry')
@@ -71,6 +96,10 @@ def native_llm(value, root):
     identities = []
     for index, phase in enumerate(('prefill', 'decode')):
         identity = native_identity(config[phase+'_binary'], config['identities'][phase])
+        if value['system'] in ('TM-R15', 'TM-RF1-on'):
+            pristine_r15(identity, root)
+        elif value['system'] == 'TM-RF1-off':
+            rf1_ablation(identity, root)
         if identity['binary_sha256'] != config[phase+'_sha256'] or identity['plan'] != config['plan_manifests'][index]:
             raise ValueError('native phase manifest or binary SHA differs')
         identities.append(identity['artifact_id'])

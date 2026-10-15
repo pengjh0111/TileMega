@@ -13,7 +13,7 @@ from .baseline_common import guarded_main, measure, require_guard, validate_prom
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--model', type=Path)
-    parser.add_argument('--system-label', choices=('TileMega', 'TM-seed', 'TM-H1', 'TM-H1H4', 'TM-sm80', 'TM-noWGMMA'), default='TileMega')
+    parser.add_argument('--system-label', choices=('TileMega', 'TM-R15', 'TM-RF1-on', 'TM-RF1-off', 'TM-seed', 'TM-H1', 'TM-H1H4', 'TM-sm80', 'TM-noWGMMA'), default='TileMega')
     parser.add_argument('--prefill', type=Path, required=True)
     parser.add_argument('--decode', type=Path, required=True)
     parser.add_argument('--prompt-ids', type=Path, required=True)
