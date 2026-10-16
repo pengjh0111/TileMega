@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <algorithm>
 #include <tilemega/Solver/ModelDramFloor.h>
 #include <tilemega/Solver/MoeDramBindings.h>
 #include <mlir/IR/Builders.h>
@@ -45,6 +46,22 @@ analysis::DramFloor DeriveModelDramFloor(mlir::ModuleOp module,ModelDescription 
       if(options.binding_internal.count(operand.tensor.name) ||
           options.indirect_read_images.count(operand.tensor.name) ||
           options.expected_indirect_reads.count(operand.tensor.name))continue;
+      // A lifted exact element read can already describe this gather
+      // affinely: the serving decoder's embedding reads row 0 of the table in
+      // its work model, which the floor counts exactly (one row of `width`,
+      // the same quantity the expectation below states). The expectation is
+      // for tables that stay data dependent in the element model too (the DNN
+      // embedding sum lifts no element reads), and the floor accepts it only
+      // for a tensor that is never read affinely.
+      bool affine_element_read=std::any_of(op.element_reads.begin(),op.element_reads.end(),
+          [&](auto const& read) {
+            return read.tensor.name==operand.tensor.name &&
+                std::none_of(read.map.results.begin(),read.map.results.end(),
+                    [](auto const& index) {
+                      return index.kind==analysis::IndexResult::Kind::kDataDependent;
+                    });
+          });
+      if(affine_element_read)continue;
       if((op.arithmetic!="embedding" && op.arithmetic!="embedding_sum") || operand.tensor.axes.size()!=2)
         throw std::runtime_error("unsupported DM indirect read: "+op.name+" / "+operand.tensor.name);
       auto width=operand.tensor.axes[1].extent.Eval(theta,{});
