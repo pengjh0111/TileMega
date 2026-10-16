@@ -98,6 +98,11 @@ class DnnAggregation(unittest.TestCase):
                          physical_device_identity_file=str(receipt),
                          physical_device_identity_sha256=hashlib.sha256(receipt.read_bytes()).hexdigest())
             self.assertEqual(dnn_device_identity(value, directory)['physical_gpu_uuid'], 'abc')
+            nested = directory/'measurements/B16/measurements.json'
+            command.write_text(json.dumps(dict(actual_returncode=0, measurements=[str(nested)])))
+            self.assertEqual(dnn_device_identity(value, directory, nested)['physical_gpu_uuid'], 'abc')
+            with self.assertRaises(ValueError):
+                dnn_device_identity(value, directory, directory/'measurements/B1/measurements.json')
             receipt.write_text('{}')
             with self.assertRaises(ValueError):
                 dnn_device_identity(value, directory)
