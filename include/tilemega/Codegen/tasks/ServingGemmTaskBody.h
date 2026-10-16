@@ -503,7 +503,8 @@ struct ServingGemmTaskBody {
       asm volatile("trap;");return;
     }
     using Typed=std::conditional_t<HasTypedDmAccess<Spec>::value,TypedDmGemmOperands<Spec>,ServingGemmOperands>;
-    Typed typed(original);
+    using View=std::conditional_t<HasTypedDmAccess<Spec>::value,Typed,ServingGemmOperands const&>;
+    View typed(original);
     auto const& p=typed;
     if constexpr(UseWgmma) {
       if(p.a_scale) {asm volatile("trap;");return;}
