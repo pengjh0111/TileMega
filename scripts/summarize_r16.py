@@ -43,6 +43,7 @@ def collect(root):
             for path in sorted((directory/'measurements').glob('B*/measurements.json')):
                 try:
                     value, _, own = validate_llm(path, guard, root)
+                    device_identity = dnn_device_identity(value, directory, path)
                     if value['gpu_index'] != int(state_file.parent.name.removeprefix('gpu')):
                         raise ValueError('receipt GPU differs from scheduler card')
                 except (OSError, ValueError, KeyError, TypeError) as error:
@@ -51,7 +52,7 @@ def collect(root):
                 records.append({'job': name, 'phase': name.split('_')[0],
                     'model': value.get('_r16_native', {}).get('canonical_model', canonical_model(root, value['model_config_sha256'], Path(value['model']).name)), 'system': value['system'],
                     'batch': value['batch'], 'round': value['round_index'],
-                    'pid': value['pid'],
+                    'pid': value['pid'], **device_identity,
                     'gpu': value['gpu_index'], 'e2e_ms': value['e2e_seconds']*1000,
                     'ttft_ms': value['ttft_seconds']*1000,
                     'tpot_ms': value['tpot_seconds']*1000,
@@ -74,9 +75,11 @@ def aggregate(records):
             continue
         key = (row['model'], row['system'], row['batch'],
                row.get('native_artifact_ids', ''), row.get('source_checkpoint_sha256', ''))
-        groups.setdefault(key, []).append(row)
+        device_key = (row.get('physical_gpu_uuid', '') or 'unknown-index-' + str(row['gpu']),
+                      row.get('hardware_boot_id', ''))
+        groups.setdefault((key, device_key), []).append(row)
     result = []
-    for (model, system, batch, artifacts, checkpoint), rows in sorted(groups.items()):
+    for ((model, system, batch, artifacts, checkpoint), device_key), rows in sorted(groups.items()):
         rounds = {row['round'] for row in rows}
         if len(rounds) != len(rows):
             raise ValueError(f'duplicate completed process round for {model}/{system}/B{batch}')
@@ -85,6 +88,10 @@ def aggregate(records):
             raise ValueError(f'LLM rounds lack distinct measured process identities for {model}/{system}/B{batch}')
         result.append({'model': model, 'system': system, 'batch': batch,
             'fresh_processes': len(rounds), 'protocol_complete': rounds == {0, 1, 2},
+            'physical_gpu_uuid': rows[0].get('physical_gpu_uuid', ''),
+            'physical_gpu_identity_status': rows[0].get('physical_gpu_identity_status', 'unknown'),
+            'hardware_boot_id': rows[0].get('hardware_boot_id', ''),
+            'same_physical_gpu_protocol_complete': rounds == {0, 1, 2} and bool(rows[0].get('physical_gpu_uuid')),
             'gpu': ','.join(map(str, sorted({row['gpu'] for row in rows}))),
             **{field: statistics.median(row[field] for row in rows)
                for field in ('e2e_ms', 'ttft_ms', 'tpot_ms', 'tokens_per_second')},
@@ -136,7 +143,7 @@ def collect_dnn(root):
     return records, rejected
 
 
-def dnn_device_identity(value, directory):
+def dnn_device_identity(value, directory, measurement_path=None):
     """Only identities measured by this process establish a physical card."""
     candidates = []
     cache = value.get('configuration', {}).get('engine_cache', {}).get('identity', {})
@@ -152,7 +159,7 @@ def dnn_device_identity(value, directory):
                 json.loads(receipt.read_text()) != inline or
                 inline.get('probe_exit_code') != 0 or
                 command.get('actual_returncode') != 0 or
-                not any(Path(path).resolve() == (directory/'measurements/measurements.json').resolve()
+                not any(Path(path).resolve() == (measurement_path or directory/'measurements/measurements.json').resolve()
                         for path in command.get('measurements', [])) or
                 inline.get('cuda_uuid') != str(inline.get('nvml_uuid', '')).removeprefix('GPU-')):
             raise ValueError('physical device wrapper attribution or receipt differs')

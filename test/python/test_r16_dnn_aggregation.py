@@ -8,7 +8,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]/'scripts'))
-from summarize_r16 import aggregate_dnn, dnn_runtime_adjustment, dnn_device_identity
+from summarize_r16 import aggregate, aggregate_dnn, dnn_runtime_adjustment, dnn_device_identity
 
 
 class DnnAggregation(unittest.TestCase):
@@ -101,6 +101,16 @@ class DnnAggregation(unittest.TestCase):
             receipt.write_text('{}')
             with self.assertRaises(ValueError):
                 dnn_device_identity(value, directory)
+
+    def test_llm_wrapper_identities_do_not_merge_reconnected_cards(self):
+        rows = [dict(phase='m1', model='model', system='vllm', batch=1,
+                     round=r, pid=10+r, gpu=7, e2e_ms=2, ttft_ms=1,
+                     tpot_ms=1, tokens_per_second=1, acceptance='strict',
+                     checkpoint_identity_shared=True,
+                     physical_gpu_uuid='old' if r < 2 else 'new') for r in range(3)]
+        cells = aggregate(rows)
+        self.assertEqual(len(cells), 2)
+        self.assertFalse(any(cell['same_physical_gpu_protocol_complete'] for cell in cells))
 
     def test_temporary_launch_configuration_stays_explicit(self):
         metadata = dict(enabled=True, temporary_workaround=True, artifact_id='binary-a',
