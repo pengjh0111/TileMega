@@ -70,9 +70,87 @@ def macro_definitions(text):
     return definitions
 
 
+def capture_cucc(command, out):
+    """MACA cu-bridge: cucc has no nvcc --dryrun and rewrites its arguments
+    into one `mxcc -x maca ...` invocation (its own include paths, -imacros,
+    --include cuda_runtime.h, offload arch and device __CUDA_ARCH__). With
+    WCUDA_DEBUG=1 it prints that invocation; it does not depend on the source
+    text, so it is taken from compiling an empty unit with the build's own
+    flags. The real preprocessor then runs twice on the generated unit with
+    -E -dM and mxcc's -maca-{host,device}-only."""
+    import os
+    sources = [token for token in command[1:] if Path(token).suffix == '.cu']
+    if len(sources) != 1:
+        raise ValueError('cucc capture expects one generated .cu translation unit')
+    source = sources[0]
+    dummy = out / 'empty.cu'
+    dummy.write_text('')
+    # Keep the generated unit only; host support files (`-x cu <file>`) and
+    # the link step do not reach its preprocessor.
+    flags, skip = [], False
+    for token in command:
+        if skip:
+            skip = False
+            continue
+        if token == '-o':
+            skip = True
+            continue
+        if token == '-shared' or token.startswith('-l') or token.startswith('-L'):
+            continue
+        if not token.startswith('-') and Path(token).suffix in ('.cpp', '.cc', '.cxx', '.c'):
+            if flags[-2:] == ['-x', 'cu']:
+                del flags[-2:]
+            continue
+        flags.append(str(dummy) if token == source else token)
+    probe = subprocess.run(flags + ['-c', '-o', str(out / 'empty.o')], stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, text=True, env=dict(os.environ, WCUDA_DEBUG='1'))
+    lines = [line.strip()[2:-2].strip() for line in probe.stdout.splitlines()
+             if line.strip().startswith('/*') and '/mxcc ' in line]
+    if probe.returncode or not lines:
+        raise RuntimeError('cucc did not report its mxcc invocation: ' + probe.stdout[-2000:])
+    (out / 'cucc-debug.log').write_text(probe.stdout)
+    mxcc = shlex.split(os.path.expandvars(lines[-1]))
+    base, skip = [], False
+    for token in mxcc:
+        if skip:
+            skip = False
+            continue
+        if token == '-o':
+            skip = True
+            continue
+        if token == '-c':
+            continue
+        base.append(source if token == str(dummy) else token)
+    if source not in base:
+        raise ValueError('mxcc invocation does not name the translation unit')
+    rows = []
+    for index, side in enumerate(('host', 'device')):
+        table = out / f'{index:02d}-{side}.macros.txt'
+        run_flags = base + ['-E', '-dM', f'-maca-{side}-only', '-o', str(table)]
+        run = subprocess.run(run_flags, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if run.returncode or not table.is_file():
+            raise RuntimeError('mxcc preprocessing failed: ' + run.stderr[-2000:])
+        macros = macro_definitions(table.read_text())
+        arch = macros.get('__MACA_ARCH__')
+        if (side == 'device') != (arch is not None):
+            raise ValueError('mxcc side preprocessing did not select the expected side')
+        compiler = run_flags[0]
+        rows.append(dict(source=source, phase='host' if side == 'host' else 'device_' + arch,
+                         command=run_flags, capture_command=run_flags, macros_file=str(table),
+                         macros_sha256=sha(table), macros=macros, preprocessor_path=compiler,
+                         preprocessor_sha256=sha(compiler), source_sha256=sha(source)))
+    record = dict(schema='tilemega.dm1.macros.v1', evidence='verified', compiler_command=command,
+                  compiler_sha256=sha(command[0]), dryrun_sha256=sha(out / 'cucc-debug.log'),
+                  translation_units=rows)
+    (out / 'capture.json').write_text(json.dumps(record, indent=2) + '\n')
+    return record
+
+
 def capture(command, out):
     out = Path(out)
     out.mkdir(parents=True, exist_ok=False)
+    if Path(command[0]).name == 'cucc':
+        return capture_cucc(command, out)
     dry = subprocess.run([command[0], '--dryrun', *command[1:]],
                          check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                          text=True).stdout
