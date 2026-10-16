@@ -56,7 +56,8 @@ def main():
                          file=str(out/'candidate.json'))
         candidate['env'].update(CUDA_VISIBLE_DEVICES=str(a.gpu),
             TILEMEGA_DEVICE_INDEX=str(a.gpu), TILEMEGA_NUMA_NODE=str(a.numa),
-            TILEMEGA_GPU_PID_MODE=a.pid_mode)
+            TILEMEGA_GPU_PID_MODE=a.pid_mode,
+            TILEMEGA_GPU_LOCK=f'/tmp/tilemega_gpu{a.gpu}.lock')
         Path(candidate['file']).write_text(json.dumps(candidate, indent=2)+'\n')
         # Native execution independently verifies both complete artifact identities,
         # actual HGMMA and runtime executor usage before accepting a measurement.
