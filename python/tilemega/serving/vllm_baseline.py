@@ -41,6 +41,9 @@ def main() -> None:
             max_num_seqs=16, max_num_batched_tokens=2048,
             gpu_memory_utilization=0.85, enable_prefix_caching=False,
             enforce_eager=False, seed=0,
+            # Token-ID input and detokenize=False: the random-weight
+            # checkpoints carry no tokenizer files (Llama failed to start).
+            skip_tokenizer_init=True,
         )
     except BaseException:
         # Use only standard-library NVML queries: engine initialization may
