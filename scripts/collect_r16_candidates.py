@@ -100,7 +100,7 @@ def scheduled_jobs(plan_path,plan):
         matched=[b for b in bases if (b['id'],b['model'],b['batch'],b['prefill'],b['decode'],b['snapshot_head'])==(c['id'],c['model'],c['batch'],c['prefill'],c['decode'],c['snapshot_head'])]
         if len(matched)!=1:raise ValueError('explicit final command belongs to another plan candidate')
         for key in ('seed','config_sha256','script_sha256','compiler_sha256','system','arm','variant',
-                    'native_system_label','argument_contract_sha256'):
+                    'native_system_label','argument_contract_sha256','phase_sources'):
             if matched[0].get(key)!=c.get(key):raise ValueError('explicit final candidate changed plan coordinate '+key)
         if Path(c['file']).resolve()!=path.resolve():raise ValueError('candidate file identity differs from explicit command')
         rnd=int(argv[argv.index('--round-index')+1])
@@ -160,6 +160,29 @@ def check_native_alias(candidate,value,directory,expected,actual):
         raise ValueError('native alias parsed workload belongs to another candidate')
 
 
+def validate_phase_sources(candidate, identities):
+    declared = candidate.get('phase_sources')
+    if declared is None:
+        if any(identity['source']['head'] != candidate['snapshot_head']
+               for identity in identities.values()):
+            raise ValueError('native source differs from declared frozen candidate')
+        return
+    if set(declared) != {'prefill', 'decode'}:
+        raise ValueError('phase sources must bind both prefill and decode')
+    for phase, identity in identities.items():
+        wanted = declared[phase]
+        if set(wanted) != {'head', 'root', 'compiler_sha256'}:
+            raise ValueError('phase source requires head, root and compiler SHA')
+        actual = identity['source']
+        if any(actual.get(key) != value for key, value in wanted.items()):
+            raise ValueError('native phase source differs from declared '+phase)
+    decode = declared['decode']
+    if (decode['head'] != candidate['snapshot_head'] or
+            decode['root'] != candidate['snapshot_source'] or
+            decode['compiler_sha256'] != candidate['compiler_sha256']):
+        raise ValueError('decode phase source differs from candidate compiler')
+
+
 def inspect_measurement(root,state,cards,name,rnd,candidate):
     record=state[name]
     if record.get('status')!='done' or record.get('exit_code')!=0:
@@ -190,9 +213,7 @@ def inspect_measurement(root,state,cards,name,rnd,candidate):
             raise ValueError('actual executor/device loop silently differs')
     if type(value['pid']) is not int or value['pid']<=0:raise ValueError('measured process PID is absent')
     expected={p:native_identity(candidate[p],config['identities'][p]) for p in ('prefill','decode')}
-    for phase,identity in expected.items():
-        if identity['source']['head']!=candidate['snapshot_head']:
-            raise ValueError('native source differs from declared frozen candidate')
+    validate_phase_sources(candidate,expected)
     check_native_alias(candidate,value,directory,expected,actual)
     driver=load_driver(candidate)
     pair=driver.check_pair(candidate)
@@ -210,6 +231,7 @@ def inspect_measurement(root,state,cards,name,rnd,candidate):
         binary_sha256={p:i['binary_sha256'] for p,i in expected.items()},versions=value['versions'],
         acceptance=own['acceptance'],ownership_verified=own['ownership_verified'],
         unresolved_host_pids=own['unresolved_host_pids'],source_head=candidate['snapshot_head'],
+        phase_sources={p:i['source'] for p,i in expected.items()},
         actual_coordinates={p:dict(implementations=i.get('implementations',{}),
             gemms=i['plan'].get('gemms',[]),
             plan={k:i['plan'].get(k) for k in ('pg','page_bytes','residency','cluster_dim','combine','attention_page','activation_tma','qkv_epilogue','forward_gemm_impl')},

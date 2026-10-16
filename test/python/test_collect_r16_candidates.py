@@ -186,6 +186,24 @@ def measurement(root,state,name,c):
         del plan['cells'][0]['gpu_jobs'];self.plan.write_text(json.dumps(plan));(self.plan.parent/'queue_gpu6_preview.json').write_text(json.dumps(jobs));result=self.collect();self.assertEqual(len(result['processes']),3);self.assertTrue(result['candidates'][0]['protocol_complete'])
         c=v.read(candidate_file);c['seed']=9;candidate_file.write_text(json.dumps(c));result=self.collect();self.assertFalse(result['processes']);self.assertIn('changed plan coordinate seed',result['rejections'][0]['reason'])
 
+    def test_mixed_phase_sources_require_exact_complete_bindings(self):
+        identities={p:v.read(self.c[p]+'.identity.json') for p in ('prefill','decode')}
+        identities['prefill']['source']=dict(identities['prefill']['source'],
+            head='older-safe-prefill',root='/frozen/prefill',compiler_sha256='older-cli')
+        with self.assertRaises(ValueError):v.validate_phase_sources(self.c,identities)
+        candidate=dict(self.c,phase_sources={p:dict(i['source']) for p,i in identities.items()})
+        v.validate_phase_sources(candidate,identities)
+        for damage in ('missing_phase','missing_compiler','wrong_head','wrong_root','wrong_compiler','wrong_decode'):
+            with self.subTest(damage=damage):
+                broken=copy.deepcopy(candidate)
+                if damage=='missing_phase':del broken['phase_sources']['prefill']
+                elif damage=='missing_compiler':del broken['phase_sources']['prefill']['compiler_sha256']
+                elif damage=='wrong_decode':broken['snapshot_head']='other-decode'
+                else:
+                    key={'wrong_head':'head','wrong_root':'root','wrong_compiler':'compiler_sha256'}[damage]
+                    broken['phase_sources']['prefill'][key]='other'
+                with self.assertRaises(ValueError):v.validate_phase_sources(broken,identities)
+
     def test_changed_frozen_driver_or_unsupported_interface_is_explicit(self):
         self.script.write_text(self.script.read_text()+'\n# changed\n');r=self.collect();self.assertFalse(r['processes']);self.assertTrue(any('driver changed' in x['reason'] for x in r['rejections']))
         plan=v.read(self.plan);del plan['run_id'];self.plan.write_text(json.dumps(plan));r=self.collect();self.assertFalse(r['candidates']);self.assertEqual(r['rejections'][0]['status'],'unsupported')
