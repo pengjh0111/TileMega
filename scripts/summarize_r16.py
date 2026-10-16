@@ -112,6 +112,7 @@ def collect_dnn(root):
                 guard = completed_guard(directory, job)
                 value, own = validate_dnn(path, guard)
                 adjustment = dnn_runtime_adjustment(value)
+                device_identity = dnn_device_identity(value, directory)
                 if value['gpu_index'] != int(state_file.parent.name.removeprefix('gpu')):
                     raise ValueError('receipt GPU differs from scheduler card')
             except (OSError, ValueError, KeyError, TypeError) as error:
@@ -122,6 +123,7 @@ def collect_dnn(root):
                 candidate_id=value.get('candidate_id', value.get('configuration', {}).get('candidate_id', '')),
                 candidate_receipt_sha256=value.get('candidate_receipt_sha256', ''), pid=value.get('pid'),
                 temporary_workaround=bool(adjustment), runtime_adjustment=adjustment,
+                **device_identity,
                 source_checkpoint_sha256=value.get('source_checkpoint_sha256', ''),
                 round=value['round_index'], gpu=value['gpu_index'], median_ms=value['median_ms'], p90_ms=value['p90_ms'],
                 acceptance=own['acceptance'], ownership_verified=own['ownership_verified'],
@@ -132,6 +134,27 @@ def collect_dnn(root):
                 source_checkpoint_label=value.get('_r16_native', {}).get('source_checkpoint_label', 'stored export checkpoint'),
                 measurement=str(path.relative_to(root))))
     return records, rejected
+
+
+def dnn_device_identity(value, directory):
+    """Only identities measured by this process establish a physical card."""
+    candidates = []
+    cache = value.get('configuration', {}).get('engine_cache', {}).get('identity', {})
+    if cache.get('gpu_uuid'):
+        candidates.append(str(cache['gpu_uuid']).removeprefix('GPU-').lower())
+    proof_path = directory/'hardware-epoch.json'
+    boot = ''
+    if proof_path.exists():
+        proof = json.loads(proof_path.read_text())
+        if proof.get('pid') != value.get('pid') or not proof.get('cuda_uuid'):
+            raise ValueError('hardware epoch proof does not identify measured process')
+        candidates.append(str(proof['cuda_uuid']).removeprefix('GPU-').lower())
+        boot = proof.get('boot_id', '')
+    if len(set(candidates)) > 1:
+        raise ValueError('measured physical GPU identities disagree')
+    return dict(physical_gpu_uuid=candidates[0] if candidates else '',
+                physical_gpu_identity_status='verified' if candidates else 'unknown',
+                hardware_boot_id=boot)
 
 
 def dnn_runtime_adjustment(value):
@@ -156,9 +179,13 @@ def aggregate_dnn(records):
         key = tuple(row[field] for field in ('model', 'system', 'batch', 'precision',
             'compile_mode', 'candidate_id', 'candidate_receipt_sha256', 'native_artifact_ids',
             'exported_program_sha256'))
-        groups.setdefault(key, []).append(row)
+        # An index is not a physical identity across container reconnects.
+        device_key = (row.get('physical_gpu_uuid', ''), row.get('hardware_boot_id', ''))
+        if not device_key[0]:
+            device_key = ('unknown-index-' + str(row['gpu']), device_key[1])
+        groups.setdefault((key, device_key), []).append(row)
     result = []
-    for key, rows in sorted(groups.items()):
+    for (key, device_key), rows in sorted(groups.items()):
         rounds = {row['round'] for row in rows}
         pids = {row['pid'] for row in rows if row['pid'] is not None}
         if len(rounds) != len(rows):
@@ -179,6 +206,11 @@ def aggregate_dnn(records):
             temporary_workaround=bool(next(iter(adjustments))),
             checkpoint_hash_processes=sum(bool(row.get('source_checkpoint_sha256')) for row in rows),
             fresh_processes=len(rows), protocol_complete=rounds == {0, 1, 2},
+            physical_gpu_uuid=rows[0].get('physical_gpu_uuid', ''),
+            physical_gpu_identity_status=rows[0].get('physical_gpu_identity_status', 'unknown'),
+            hardware_boot_id=rows[0].get('hardware_boot_id', ''),
+            same_physical_gpu_verified=bool(rows[0].get('physical_gpu_uuid')),
+            same_physical_gpu_protocol_complete=rounds == {0, 1, 2} and bool(rows[0].get('physical_gpu_uuid')),
             gpu=','.join(map(str, sorted({row['gpu'] for row in rows}))),
             median_ms=statistics.median(row['median_ms'] for row in rows),
             p90_ms=statistics.median(row['p90_ms'] for row in rows),

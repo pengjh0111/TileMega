@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]/'scripts'))
-from summarize_r16 import aggregate_dnn, dnn_runtime_adjustment
+from summarize_r16 import aggregate_dnn, dnn_runtime_adjustment, dnn_device_identity
 
 
 class DnnAggregation(unittest.TestCase):
@@ -52,6 +52,34 @@ class DnnAggregation(unittest.TestCase):
         rows[2]['source_checkpoint_sha256']='checkpoint-b'
         with self.assertRaises(ValueError):
             aggregate_dnn(rows)
+
+    def test_same_index_different_physical_cards_never_complete_one_cell(self):
+        rows = self.rows('mma', 'binary-a')
+        for index, row in enumerate(rows):
+            row['physical_gpu_uuid'] = 'old-card' if index < 2 else 'new-card'
+            row['physical_gpu_identity_status'] = 'verified'
+        cells = aggregate_dnn(rows)
+        self.assertEqual(len(cells), 2)
+        self.assertFalse(any(c['protocol_complete'] for c in cells))
+
+    def test_unknown_index_only_is_not_verified_same_card(self):
+        cell, = aggregate_dnn(self.rows('mma', 'binary-a'))
+        self.assertTrue(cell['protocol_complete'])
+        self.assertFalse(cell['same_physical_gpu_protocol_complete'])
+        self.assertEqual(cell['physical_gpu_identity_status'], 'unknown')
+
+    def test_distinct_boots_remain_separate_even_with_same_card(self):
+        rows = self.rows('mma', 'binary-a')
+        for index, row in enumerate(rows):
+            row.update(physical_gpu_uuid='one-card', hardware_boot_id=str(index // 2))
+        cells = aggregate_dnn(rows)
+        self.assertEqual(len(cells), 2)
+
+    def test_engine_actual_uuid_requires_no_inventory_guess(self):
+        value = {'configuration': {'engine_cache': {'identity': {'gpu_uuid': 'GPU-ABC'}}}}
+        identity = dnn_device_identity(value, Path('/nonexistent-r16-proof'))
+        self.assertEqual(identity['physical_gpu_uuid'], 'abc')
+        self.assertEqual(identity['physical_gpu_identity_status'], 'verified')
 
     def test_temporary_launch_configuration_stays_explicit(self):
         metadata = dict(enabled=True, temporary_workaround=True, artifact_id='binary-a',
