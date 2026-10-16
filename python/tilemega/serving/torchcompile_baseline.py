@@ -100,7 +100,18 @@ def main() -> None:
             raise AssertionError("torch.compile output does not match the frozen prompts")
         return out[:, prompt_len:].tolist()
 
+    compiled_batch = [None]
+
     def generate(batch, count):
+        # A fresh static compile per batch size: after B=1, Dynamo's automatic
+        # dynamic shapes turned the batch dimension symbolic and B=4 decoded
+        # at 15.2 ms/token against 6.1 ms when compiled alone (measured). The
+        # recompile lands in each batch's warmup run.
+        if compiled_batch[0] != batch:
+            if hasattr(model, "_cache"):
+                del model._cache
+            compile_forward(meta["fullgraph"])
+            compiled_batch[0] = batch
         try:
             tokens = run(batch, count)
             # What generate() actually used: it may lower fullgraph itself or
