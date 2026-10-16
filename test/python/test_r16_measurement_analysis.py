@@ -140,6 +140,13 @@ class MeasurementAnalysisTest(unittest.TestCase):
         self.assertFalse(rows[0]['ownership_verified'])
         self.assertEqual(rows[0]['unresolved_host_pids'],'99999999')
         self.assertEqual(rows[0]['acceptance'],'provisional_container_pid_namespace')
+        # P2 representatives retain the same strict payload/guard validation.
+        p2_name='p2-source19-native-mbv2-h7b-tma-measure-r0-gpu6-v1'
+        self.state[6][p2_name]=self.state[6].pop(name)
+        self.persist()
+        rows,rejected=summary.collect_dnn(self.root)
+        self.assertEqual(len(rows),1);self.assertFalse(rejected)
+        self.assertEqual(rows[0]['job'],p2_name)
         value['valid']=False;path.write_text(json.dumps(value))
         rows,rejected=summary.collect_dnn(self.root)
         self.assertFalse(rows);self.assertEqual(len(rejected),1)

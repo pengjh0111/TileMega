@@ -108,7 +108,7 @@ def collect_dnn(root):
                  for job in json.loads(queue.read_text())}
     for state_file in sorted((root/'runs/r16/scheduler').glob('gpu*/state.json')):
         for name, job in json.loads(state_file.read_text()).items():
-            if job.get('status') != 'done' or not name.startswith(('dnn-', 'tm-dnn-', 'm3_', 'h7a-')) or name.startswith('dnn-smoke-'):
+            if job.get('status') != 'done' or not name.startswith(('dnn-', 'tm-dnn-', 'm3_', 'h7a-', 'p2-source19-')) or name.startswith('dnn-smoke-'):
                 continue
             definition=definitions.get(name)
             if definition is not None and not definition.get('timing',definition.get('gpu',False)):
