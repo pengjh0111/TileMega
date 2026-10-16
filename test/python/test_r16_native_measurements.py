@@ -85,6 +85,33 @@ class NativeMeasurementTest(unittest.TestCase):
         self.assertFalse(rows);self.assertEqual(len(rejected),1)
         self.assertIn('shared checkpoint identity',rejected[0]['reason'])
 
+    def test_earlier_native_repeat_divergence_is_rejected(self):
+        path=self.native_llm_receipt()
+        tokens=path.parent/'tokens_N1024_run1.json'
+        rows=json.loads(tokens.read_text());rows[0][95]+=1
+        tokens.write_text(json.dumps(rows))
+        accepted,rejected=summary.collect(self.root)
+        self.assertFalse(accepted)
+        self.assertIn('native greedy tokens differ',rejected[0]['reason'])
+
+    def test_native_warmup_and_ttft_divergence_is_rejected(self):
+        path=self.native_llm_receipt()
+        tokens=path.parent/'tokens_N1_run0.json'
+        rows=json.loads(tokens.read_text());rows[-1][0]+=1
+        tokens.write_text(json.dumps(rows))
+        accepted,rejected=summary.collect(self.root)
+        self.assertFalse(accepted)
+        self.assertIn('repetitions for N=1',rejected[0]['reason'])
+
+    def test_external_baseline_token_variation_remains_report_only(self):
+        path=self.fixture.receipt('solo',6,0,1000)
+        tokens=path.parent/'tokens_N1024_run1.json'
+        rows=json.loads(tokens.read_text());rows[0][95]+=1
+        tokens.write_text(json.dumps(rows));self.fixture.persist()
+        accepted,rejected=summary.collect(self.root)
+        self.assertFalse(rejected)
+        self.assertEqual(len(accepted),1)
+
     def test_named_cluster_and_paged_arms_use_all_native_checks(self):
         path=self.native_llm_receipt()
         value=json.loads(path.read_text())

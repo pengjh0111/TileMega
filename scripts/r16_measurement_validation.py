@@ -317,6 +317,7 @@ def validate_llm(path, guard, root=None):
                 {row.get('run') for row in group} != {0, 1, 2, 3}):
             raise ValueError('expected one warmup and three timed repetitions')
         timed = []
+        native_tokens = None
         for row in group:
             if row.get('warmup') is not (row.get('run') == 0):
                 raise ValueError('warmup must precede all timed repetitions')
@@ -328,6 +329,12 @@ def validate_llm(path, guard, root=None):
             if (len(tokens) != batch or any(not isinstance(token_row, list) or len(token_row) != count or
                     any(type(token) is not int or token < 0 for token in token_row) for token_row in tokens)):
                 raise ValueError('token file has the wrong shape or invalid IDs')
+            # Executor checks use the last repetition; earlier divergent
+            # requests must not contribute accepted native timings either.
+            if native:
+                if native_tokens is not None and tokens != native_tokens:
+                    raise ValueError(f'native greedy tokens differ between repetitions for N={count}')
+                native_tokens = tokens
             if row.get('warmup') is False:
                 timed.append(elapsed)
             elif row.get('warmup') is not True:
