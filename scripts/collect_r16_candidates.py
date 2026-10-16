@@ -13,7 +13,7 @@ import statistics
 import sys
 from r16_measurement_validation import (NATIVE_LLM_SYSTEMS, completed_guard,
     file_sha, native_identity, validate_llm)
-from summarize_r16 import record_directory
+from summarize_r16 import dnn_device_identity, record_directory
 
 TERMINAL={'done','failed','skipped','not_run','cancelled'}
 DRIVERS={}
@@ -191,6 +191,7 @@ def inspect_measurement(root,state,cards,name,rnd,candidate):
     guard=completed_guard(directory,record)
     path=directory/'measurements'/f"B{candidate['batch']}"/'measurements.json'
     value,_,own=validate_llm(path,guard,root)
+    physical=dnn_device_identity(value,directory,path)
     if value['round_index']!=rnd or value['batch']!=candidate['batch']:
         raise ValueError('system/batch/final round differs from explicit candidate')
     if value['gpu_index']!=candidate['gpu'] or cards[name]!=candidate['gpu']:
@@ -224,6 +225,7 @@ def inspect_measurement(root,state,cards,name,rnd,candidate):
     if measured['pid']!=value['pid'] or any(measured[k]!=value[k] for k in ('e2e_seconds','ttft_seconds','tpot_seconds')):
         raise ValueError('frozen driver measurement differs from independently validated receipt')
     return dict(job=name,round=rnd,pid=value['pid'],gpu=value['gpu_index'],measurement=str(path),
+        **physical,
         system=candidate['system'],native_system_label=candidate.get('native_system_label',candidate['system']),
         variant=candidate.get('variant',{}),
         **{k:value[k] for k in METRICS},source_checkpoint_sha256=value['_r16_native']['source_checkpoint_sha256'],
@@ -243,12 +245,14 @@ def summarize_samples(samples):
     rounds={s['round'] for s in samples};pids={s['pid'] for s in samples}
     if len(rounds)!=len(samples) or len(pids)!=len(samples):raise ValueError('duplicate final round or measured process PID')
     for key in ('source_checkpoint_sha256','native_artifact_ids','binary_sha256','versions','gpu','source_head','actual_coordinates',
-                'system','native_system_label','variant'):
+                'system','native_system_label','variant',
+                'physical_gpu_uuid','physical_gpu_identity_status','hardware_boot_id'):
         if len({json.dumps(s[key],sort_keys=True) for s in samples})!=1:
             raise ValueError('final rounds disagree on '+key)
     return dict(status='completed' if rounds=={0,1,2} else 'partial',fresh_processes=len(samples),protocol_complete=rounds=={0,1,2},
         **{k:statistics.median(s[k] for s in samples) for k in METRICS},
         source_checkpoint_sha256=samples[0]['source_checkpoint_sha256'],native_artifact_ids=samples[0]['native_artifact_ids'],binary_sha256=samples[0]['binary_sha256'],versions=samples[0]['versions'],actual_coordinates=samples[0]['actual_coordinates'],
+        **{k:samples[0][k] for k in ('physical_gpu_uuid','physical_gpu_identity_status','hardware_boot_id')},
         acceptance='strict' if all(s['acceptance']=='strict' for s in samples) else 'provisional_container_pid_namespace',ownership_verified=all(s['ownership_verified'] for s in samples),
         unresolved_host_pids=sorted({p for s in samples for p in s['unresolved_host_pids']}))
 
@@ -321,7 +325,7 @@ def csv_rows(rows):
     for r in rows:
         result.append(dict(model=r['model'],batch=r['batch'],candidate=r['candidate'],system=r['system'],native_system_label=r['native_system_label'],status=r['status'],fresh_processes=r['fresh_processes'],protocol_complete=r['protocol_complete'],selected_by_report=r['selected_by_report'],default_promoted=False,executor=r['executor'],device_loop=r['device_loop'],gpu=r['gpu'],
             e2e_ms=r.get('e2e_seconds','')*1000 if 'e2e_seconds' in r else '',ttft_ms=r.get('ttft_seconds','')*1000 if 'ttft_seconds' in r else '',tpot_ms=r.get('tpot_seconds','')*1000 if 'tpot_seconds' in r else '',tokens_per_second=r.get('output_tokens_per_second',''),
-            acceptance=r.get('acceptance',''),ownership_verified=r.get('ownership_verified',''),unresolved_host_pids=json.dumps(r.get('unresolved_host_pids',[])),source_head=r['source_head'],model_config_sha256=r['model_config_sha256'],native_artifact_ids=json.dumps(r.get('native_artifact_ids',{}),sort_keys=True),binary_sha256=json.dumps(r.get('binary_sha256',{}),sort_keys=True),source_checkpoint_sha256=r.get('source_checkpoint_sha256',''),coordinates=json.dumps(compact_coordinates(r.get('actual_coordinates',{})),sort_keys=True,separators=(',',':')),versions=json.dumps(r.get('versions',{}),sort_keys=True),plan=r['plan'],plan_sha256=r['plan_sha256'],driver_sha256=r['driver_sha256']))
+            acceptance=r.get('acceptance',''),ownership_verified=r.get('ownership_verified',''),physical_gpu_uuid=r.get('physical_gpu_uuid',''),physical_gpu_identity_status=r.get('physical_gpu_identity_status','unknown'),hardware_boot_id=r.get('hardware_boot_id',''),unresolved_host_pids=json.dumps(r.get('unresolved_host_pids',[])),source_head=r['source_head'],model_config_sha256=r['model_config_sha256'],native_artifact_ids=json.dumps(r.get('native_artifact_ids',{}),sort_keys=True),binary_sha256=json.dumps(r.get('binary_sha256',{}),sort_keys=True),source_checkpoint_sha256=r.get('source_checkpoint_sha256',''),coordinates=json.dumps(compact_coordinates(r.get('actual_coordinates',{})),sort_keys=True,separators=(',',':')),versions=json.dumps(r.get('versions',{}),sort_keys=True),plan=r['plan'],plan_sha256=r['plan_sha256'],driver_sha256=r['driver_sha256']))
     return result
 
 

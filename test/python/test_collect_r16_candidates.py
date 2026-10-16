@@ -144,6 +144,38 @@ def measurement(root,state,name,c):
         state=self.fixture.state[6]
         for name in self.jobs:state[name.replace('final','pilot')]=state.pop(name)
         self.fixture.persist();r=self.collect();self.assertFalse(r['processes']);self.assertEqual(r['candidates'][0]['status'],'not_finalized')
+    def write_physical_proofs(self):
+        for path in self.paths:
+            row=v.read(path)
+            (path.parents[2]/'hardware-epoch.json').write_text(json.dumps(
+                dict(pid=row['pid'],cuda_uuid='physical-card',boot_id='boot-one')))
+    def test_physical_identity_is_preserved_without_inferring_unknown_cards(self):
+        unknown=self.collect()['candidates'][0]
+        self.assertEqual(unknown['physical_gpu_identity_status'],'unknown')
+        self.assertEqual(unknown['physical_gpu_uuid'],'')
+        self.write_physical_proofs();result=self.collect()
+        self.assertFalse(result['rejections'])
+        for row in [*result['processes'],*v.csv_rows(result['candidates'])]:
+            self.assertEqual(row['physical_gpu_uuid'],'physical-card')
+            self.assertEqual(row['hardware_boot_id'],'boot-one')
+            self.assertEqual(row['physical_gpu_identity_status'],'verified')
+    def test_same_index_cannot_merge_different_physical_cards_or_boots(self):
+        self.write_physical_proofs();proof=self.paths[2].parents[2]/'hardware-epoch.json'
+        original=proof.read_text()
+        for key in ('cuda_uuid','boot_id'):
+            with self.subTest(key=key):
+                row=json.loads(original);row[key]='another-identity'
+                proof.write_text(json.dumps(row));result=self.collect()
+                self.assertEqual(result['candidates'][0]['status'],'rejected_triplet')
+                self.assertFalse(result['candidates'][0]['protocol_complete'])
+        proof.unlink();result=self.collect()
+        self.assertEqual(result['candidates'][0]['status'],'rejected_triplet')
+    def test_physical_proof_must_belong_to_measured_process(self):
+        self.write_physical_proofs();proof=self.paths[2].parents[2]/'hardware-epoch.json'
+        row=json.loads(proof.read_text());row['pid']+=1;proof.write_text(json.dumps(row))
+        result=self.collect();self.assertEqual(len(result['processes']),2)
+        self.assertEqual(result['candidates'][0]['status'],'partial')
+        self.assertTrue(any('measured process' in row['reason'] for row in result['rejections']))
     def test_csv_geometry_comes_from_verified_plan_not_implementation_labels(self):
         result=self.collect();row=v.csv_rows(result['candidates'])[0]
         coordinates=json.loads(row['coordinates'])
