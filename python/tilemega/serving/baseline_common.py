@@ -46,6 +46,7 @@ def arguments(system):
     validate_prompts(ids, limit)
     if not (args.model / "config.json").is_file():
         parser.error("model must be a local directory containing config.json")
+    shared_checkpoint_identity(args.model, args.load_format)
     args.out.mkdir(parents=True, exist_ok=True)
     return args, ids
 
@@ -79,6 +80,31 @@ def versions():
         except importlib.metadata.PackageNotFoundError:
             result[package] = None
     return result
+
+
+def shared_checkpoint_identity(model, load_format):
+    path = model / "random_checkpoint.json"
+    if not path.is_file():
+        return {}
+    manifest = json.loads(path.read_text())
+    if load_format != "auto" or manifest.get("state") != "live":
+        raise ValueError("shared checkpoints require a live supervisor and the official auto loader")
+    if hashlib.sha256((model / "config.json").read_bytes()).hexdigest() != manifest['config_sha256']:
+        raise ValueError("shared checkpoint configuration differs from its manifest")
+    identity = {key: manifest[key] for key in
+                ("algorithm", "config_sha256", "seed", "aliases", "tensors")}
+    digest = hashlib.sha256(json.dumps(identity, sort_keys=True,
+                         separators=(",", ":")).encode()).hexdigest()
+    if digest != manifest['checkpoint_sha256']:
+        raise ValueError("shared checkpoint identity is inconsistent")
+    if not manifest['shards'] or any(
+            not (model / shard['file']).is_file() or
+            (model / shard['file']).stat().st_size != shard['bytes']
+            for shard in manifest['shards']):
+        raise ValueError("shared checkpoint shard is unavailable or has a different size")
+    return dict(checkpoint={key: manifest[key] for key in
+                ("algorithm", "seed", "config_sha256", "checkpoint_sha256", "total_bytes", "tensor_count")},
+                shared_checkpoint_identity=True)
 
 
 def _own_pids():
@@ -232,6 +258,7 @@ def summarize(rows, batch, count):
 
 
 def measure(args, ids, system, generate, metadata, synchronize=lambda: None):
+    checkpoint = shared_checkpoint_identity(args.model, args.load_format)
     batches = (1, 2, 4, 8, 16) if args.batch == "all" else (int(args.batch),)
     for batch in batches:
         out = args.out / f"B{batch}"
@@ -276,7 +303,9 @@ def measure(args, ids, system, generate, metadata, synchronize=lambda: None):
                 "diagnostics": getattr(error, "diagnostics", {}), "generation_runs": rows,
                 "configuration": metadata}, indent=2) + "\n")
             raise
-        summary = {"schema_version": 1, "evidence": "verified", "system": system,
+        if shared_checkpoint_identity(args.model, args.load_format) != checkpoint:
+            raise InvalidTiming("shared checkpoint changed during measurement")
+        summary = {**checkpoint, "schema_version": 1, "evidence": "verified", "system": system,
                    "model": str(args.model.resolve()), "model_config_sha256": hashlib.sha256(
                        (args.model/"config.json").read_bytes()).hexdigest(),
                    "prompt_ids_sha256": hashlib.sha256(args.prompt_ids.read_bytes()).hexdigest(),
