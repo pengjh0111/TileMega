@@ -87,6 +87,41 @@ def prefill_prefix_dependency_issues(identity, generated):
     return issues
 
 
+def argmax_geometry_issues(generated):
+    """Check the reduction extent against every compiled vocabulary tile."""
+    reductions = re.findall(r'\{TaskKind::kArgmaxReduce,\s*\d+u?,\s*(\d+)u?,\s*(\d+)u?,\s*\d+u?,\s*\{(\d+)u?', generated)
+    if not reductions:
+        return []
+    table = re.search(r'constexpr\s+GemmDesc\s+kGemms\[\]\s*=\s*\{(.*?)\n\};', generated, re.S)
+    if table is None:
+        raise ValueError('native argmax producer table is absent')
+    descriptors = []
+    for line in re.findall(r'^\s*\{([^\n]+)', table[1], re.M):
+        fields = line.split(',')
+        descriptors.append((int(fields[0]), int(fields[5].strip().removesuffix('u')),
+                            int(fields[7].strip().removesuffix('u'))))
+    variants = list(re.finditer(r'constexpr\s+GemmRuntimeDesc\s+kRuntimeGemms(\d+)\[\]\s*=\s*\{(.*?)\n\};', generated, re.S))
+    if not variants:
+        raise ValueError('native argmax runtime geometry is absent')
+    issues = []
+    for vocab, width, output in reductions:
+        vocab, width, output = int(vocab), int(width), int(output)
+        producers = [i for i, (n, dst, op) in enumerate(descriptors) if dst == output and op == 3]
+        if len(producers) != 1:
+            raise ValueError('native argmax requires one partial projection producer')
+        producer = producers[0]
+        for variant in variants:
+            rows = re.findall(r'\{\s*\d+u?,\s*\d+u?,\s*\d+u?,\s*(\d+)u?,\s*\d+u?,\s*\d+u?\s*\}', variant[2])
+            if producer >= len(rows) or int(rows[producer]) <= 0:
+                raise ValueError('native argmax producer runtime geometry is incomplete')
+            tile_n = int(rows[producer]); n = descriptors[producer][0]
+            if vocab != n or width != (n + tile_n - 1) // tile_n:
+                issues.append(dict(runtime_variant=int(variant[1]), gemm=producer,
+                    vocab=vocab, producer_n=n, tile_n=tile_n, reduce_width=width,
+                    required_width=(n + tile_n - 1) // tile_n))
+    return issues
+
+
 def native_identity(binary, recorded=None):
     binary = Path(binary)
     identity = json.loads(Path(str(binary)+'.identity.json').read_text())
@@ -111,6 +146,9 @@ def native_identity(binary, recorded=None):
             if file_sha(unit['macros_file']) != unit['macros_sha256']:
                 raise ValueError('native macro capture changed')
     generated = Path(str(binary)+'.cu').read_text()
+    argmax_issues = argmax_geometry_issues(generated)
+    if argmax_issues:
+        raise ValueError('native argmax partial geometry differs from runtime projection: '+json.dumps(argmax_issues))
     issues = prefill_prefix_dependency_issues(identity, generated)
     if issues:
         raise ValueError('known invalid prefill K/V prefix dependency; regenerate and retest: '+json.dumps(issues))

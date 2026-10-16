@@ -56,6 +56,32 @@ class NativeMeasurementTest(unittest.TestCase):
         self.fixture.persist()
         return path
 
+    def test_argmax_reduction_binds_every_runtime_vocabulary_tile(self):
+        source = """constexpr GemmDesc kGemms[] = {
+  {151936, 2048, 0u, 1u, 2u, 2u, 0.0f, 3u, 3u},
+};
+constexpr StageDesc kStages[] = {
+  {TaskKind::kArgmaxReduce, 0u, 151936u, 2374u, 1u, {2u, 3u, 4u}},
+};
+constexpr GemmRuntimeDesc kRuntimeGemms0[] = {
+  {0u, 1u, 16u, 64u, 64u, 2u},
+};
+"""
+        self.assertEqual(validation.argmax_geometry_issues(source), [])
+        broken = source.replace('2374u', '1187u')
+        issues = validation.argmax_geometry_issues(broken)
+        self.assertEqual(issues[0]['required_width'], 2374)
+        self.assertEqual(issues[0]['reduce_width'], 1187)
+        binary, identity = self.identity('stale-head', 'prefill')
+        Path(str(binary)+'.cu').write_text(broken)
+        identity['generated_source_sha256'] = validation.file_sha(str(binary)+'.cu')
+        identity.pop('artifact_id'); identity['artifact_id'] = validation.json_digest(identity)
+        Path(str(binary)+'.identity.json').write_text(json.dumps(identity))
+        with self.assertRaisesRegex(ValueError, 'argmax partial geometry'):
+            validation.native_identity(binary)
+        extra = source + source[source.index('constexpr GemmRuntimeDesc'):].replace('kRuntimeGemms0', 'kRuntimeGemms1').replace('64u, 64u', '128u, 64u')
+        self.assertEqual(validation.argmax_geometry_issues(extra)[0]['runtime_variant'], 1)
+
     def test_temporary_checkpoint_normalizes_model_and_keeps_native_arms_separate(self):
         self.native_llm_receipt()
         rows,rejected=summary.collect(self.root)
