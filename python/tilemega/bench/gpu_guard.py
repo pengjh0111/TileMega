@@ -3,18 +3,31 @@
 import argparse,contextlib,fcntl,json,os,signal,subprocess,time
 from pathlib import Path
 
-def require_allowed_gpu(policy, index):
+def require_allowed_gpu(policy, index, timing=False):
     constraints = [policy]
     if policy.get('gpu_allowlist_file'):
         constraints.append(json.loads(Path(policy['gpu_allowlist_file']).read_text()))
     for constraint in constraints:
         allowed = constraint.get('allowed_gpu_indices')
-        if allowed is None:
-            continue
-        if not isinstance(allowed, list) or not allowed or any(type(i) is not int or i < 0 for i in allowed):
-            raise ValueError('allowed_gpu_indices must be a nonempty list of GPU indices')
-        if int(index) not in allowed:
-            raise ValueError(f'GPU {index} is excluded by the active user GPU restriction')
+        if allowed is not None:
+            if not isinstance(allowed, list) or not allowed or any(type(i) is not int or i < 0 for i in allowed):
+                raise ValueError('allowed_gpu_indices must be a nonempty list of GPU indices')
+            if int(index) not in allowed:
+                raise ValueError(f'GPU {index} is excluded by the active user GPU restriction')
+        timed = constraint.get('allowed_timing_gpu_indices')
+        if timed is not None:
+            if not isinstance(timed, list) or any(type(i) is not int or i < 0 for i in timed):
+                raise ValueError('allowed_timing_gpu_indices must be a list of GPU indices')
+            if timing and int(index) not in timed:
+                raise ValueError(f'GPU {index} is restricted to untimed functional jobs')
+
+def gpu_step_allowed(policy, index, step):
+    """Leave timing work pending on cards authorized only for correctness."""
+    try:
+        require_allowed_gpu(policy, index, step.get('timing', step.get('gpu', False)))
+    except ValueError:
+        return False
+    return True
 
 def gpu():
     index=os.getenv('TILEMEGA_DEVICE_INDEX','0')
@@ -137,7 +150,7 @@ def main():
     if index is None or not index.isdigit() or os.environ.get('CUDA_VISIBLE_DEVICES')!=index:
         p.error('explicit matching TILEMEGA_DEVICE_INDEX and CUDA_VISIBLE_DEVICES are required')
     policy=json.loads(a.policy.read_text())
-    require_allowed_gpu(policy,index)
+    require_allowed_gpu(policy,index,os.environ.get('TILEMEGA_TIMING','1') != '0')
     a.out.mkdir(parents=True,exist_ok=True)
     limited=os.environ.get('TILEMEGA_GPU_PID_MODE')=='namespace_limited'
     def sample(phase,**extra):

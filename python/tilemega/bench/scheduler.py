@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-from .gpu_guard import gpu, idle, needs_numa_lock, require_allowed_gpu, stop
+from .gpu_guard import gpu, idle, needs_numa_lock, require_allowed_gpu, gpu_step_allowed, stop
 from .locking import acquire_command_lock
 
 TERMINAL = {'done', 'failed', 'skipped', 'not_run', 'cancelled'}
@@ -161,7 +161,8 @@ def main(argv=None):
         for name in skipped:
             state[name]['status'] = 'skipped'
             record(name, 'required dependency failed')
-        gpu_steps = [s for s in ready if s.get('gpu')]
+        gpu_steps = [s for s in ready if s.get('gpu') and gpu_step_allowed(
+            policy, os.environ.get('TILEMEGA_DEVICE_INDEX', '0'), s)]
         timing_steps = [s for s in gpu_steps if s.get('timing', True)]
         available, row = False, {}
         if gpu_steps:

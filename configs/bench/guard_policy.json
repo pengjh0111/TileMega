@@ -32,7 +32,12 @@
     }
   },
   "allowed_gpu_indices": [
+    5,
+    6,
     7
   ],
-  "gpu_allowlist_file": "/root/TileMega/runs/r16/active_constraints.json"
+  "gpu_allowlist_file": "/root/TileMega/runs/r16/active_constraints.json",
+  "allowed_timing_gpu_indices": [
+    7
+  ]
 }
