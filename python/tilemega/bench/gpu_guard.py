@@ -93,6 +93,14 @@ def main():
         return row
     def finish(code,reason):
         (a.out/'guard_result.json').write_text(json.dumps(dict(code=code,reason=reason))+'\n');print(reason,flush=True);return code
+    # Unattributed device memory is the signal for a second tenant, but the
+    # driver only attributes part of a large job's footprint: the 24-layer MoE
+    # baseline reports 29.7 GiB against its own pid and leaves ~8.5 GiB of
+    # allocator slack unattributed, which trips a budget sized for dense
+    # models. The foreign-process check stays the primary signal; this budget
+    # is raised per job, never silently for every cell.
+    if os.environ.get('TILEMEGA_GUARD_MAX_HIDDEN_MIB'):
+        policy['max_hidden_mib']=float(os.environ['TILEMEGA_GUARD_MAX_HIDDEN_MIB'])
     lock=Path(os.environ['TILEMEGA_GPU_LOCK']);lock.parent.mkdir(parents=True,exist_ok=True)
     with lock.open('a') as handle:
         fcntl.flock(handle,fcntl.LOCK_EX)
@@ -103,7 +111,18 @@ def main():
             foreign=external(row,descendants(os.getpid()))
             # Do not start with a newly observed owner either; the two-sample
             # rule identifies interference during execution, not permission to start.
-            if not idle(row,policy,a.needs_free_mib):return finish(75,'preflight occupied')
+            if not idle(row,policy,a.needs_free_mib):
+                # A just-exited benchmark can still hold memory and power for a
+                # few seconds; wait for the device to settle before refusing.
+                settle=policy.get('preflight_settle_s',0);waited=0.0
+                while settle and waited<settle:
+                    time.sleep(policy['interval_s']);waited+=policy['interval_s']
+                    try:row=sample('preflight_settle',sample=i)
+                    except Exception as error:return finish(75,'preflight telemetry unavailable: '+str(error))
+                    if idle(row,policy,a.needs_free_mib):break
+                else:return finish(75,'preflight occupied')
+                if not idle(row,policy,a.needs_free_mib):return finish(75,'preflight occupied')
+                foreign=external(row,descendants(os.getpid()))
             previous=foreign;rows.append(row)
             if i+1<policy['samples']:time.sleep(policy['interval_s'])
         baseline=max(r['hidden_mib'] for r in rows)

@@ -40,7 +40,7 @@ def main():
     ap.add_argument('--dm-gemv',action='store_true')
     ap.add_argument('--nongemm-source',type=pathlib.Path)
     ap.add_argument('--head-dim',type=int,choices=(64,128),default=64)
-    ap.add_argument('--qperkv',type=int,choices=(2,4,8),default=4)
+    ap.add_argument('--qperkv',type=int,default=4)
     a=ap.parse_args();m,n,k,s=map(int,a.tile.split(','));threads=128 if a.dtype=='bf16' else 256
     if a.serving and a.dtype!='bf16':raise ValueError('serving resources require BF16')
     if a.dm and not a.serving:ap.error('--dm requires --serving')
