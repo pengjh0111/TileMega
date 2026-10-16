@@ -184,7 +184,15 @@ def _packed_gpu(recipe: Mapping[str, object], source) -> torch.Tensor:
         logical = padded.reshape(nt, tn, kt, tk).permute(0, 2, 1, 3)
         index = torch.arange(tn * tk, device=weight.device)
         row, col = index // tk, index % tk
-        if tk < 64:
+        if recipe.get('layout') == 'xcore_mma':
+            # MMA fragment order (Backend/Mx/ServingGemmMma.h FragmentOffset):
+            # per 16-row atom and 32-K chunk, lane l = row%16 + 16*(col%32//8)
+            # holds 8 contiguous K; a wave's 16-byte loads cover 1 KiB.
+            if tn % 16 or tk % 32:
+                raise ValueError('xcore_mma tiles need TN % 16 == 0 and TK % 32 == 0')
+            lane = row % 16 + 16 * (col % 32 // 8)
+            perm = ((row // 16 * (tk // 32) + col // 32) * 64 + lane) * 8 + col % 8
+        elif tk < 64:
             # Swizzle<B,3,3> takes its XOR source from linear address bit 6.
             # At TK=16/32 that is row bit 2/1, rather than the lowest row bit.
             atom = (row % 8) * tk + col

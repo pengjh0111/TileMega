@@ -70,9 +70,20 @@ struct ServingGemmMma {
   static constexpr int kUnroll = kLoadsPerChunk >= 8 ? 1 : kLoadsPerChunk >= 4 ? 2 : 4;
   static constexpr int kChunkK = 32;
 
+  /// Offset of lane `lane`'s 16 bytes of atom `atom`, 32-K chunk `chunk`
+  /// inside one TileN x TileK weight tile in fragment order: a wave's load
+  /// of one atom and chunk is 1 KiB contiguous (the loader's `xcore_mma`
+  /// tile_pages layout, python/tilemega/serving/weights.py).
+  __device__ static constexpr int FragmentOffset(int atom, int chunk, int lane) {
+    return ((atom * (TileK / kChunkK) + chunk) * maca::kWaveSize + lane) * 8;
+  }
+
   /// Accumulate the tile into FP32 shared memory, row-major [TileM][TileN],
-  /// followed by TileM floats of epilogue scratch.
-  template <class Operands>
+  /// followed by TileM floats of epilogue scratch. `Tiled`: B is read from
+  /// `weight_base` in fragment-packed tiles, zero-padded to whole tiles, so B
+  /// needs no bounds handling; the row form reads [N, K] rows. The
+  /// fragment-packed stream measured ~2x the row form's DRAM rate (MX-T).
+  template <bool Tiled = false, class Operands>
   __device__ static float* Dense(Operands const& p, int tile_m, int tile_n, char* shared) {
     using codegen::executor::ComputeSync;
     using codegen::executor::ComputeThread;
@@ -94,8 +105,25 @@ struct ServingGemmMma {
     Element const* b_row[kAtomsNPerWave];
 #pragma unroll
     for (int j = 0; j < kAtomsNPerWave; ++j)
-      b_row[j] = p.b + std::int64_t(min(tile_n * TileN + (wave * kAtomsNPerWave + j) * 16 + r, p.n - 1)) * b_pitch +
-                 p.k_begin;
+      b_row[j] = Tiled ? nullptr
+                       : p.b + std::int64_t(min(tile_n * TileN + (wave * kAtomsNPerWave + j) * 16 + r, p.n - 1)) *
+                                   b_pitch + p.k_begin;
+    // Tiled: tile (tile_n, kk / TileK) of the packed weight, kk = k_begin + k.
+    Element const* b_tiles = nullptr;
+    if constexpr (Tiled) {
+      static_assert(TileK % kChunkK == 0, "fragment-packed tiles hold whole 32-K chunks");
+      int const kt = (p.k_total_full + TileK - 1) / TileK;
+      b_tiles = p.weight_base + std::size_t(tile_n) * kt * TileN * TileK;
+    }
+    auto load_b = [&](int j, int k_chunk_start) -> uint4 {
+      if constexpr (Tiled) {
+        int const kk = p.k_begin + k_chunk_start;
+        return LoadGlobal16(b_tiles + std::size_t(kk / TileK) * TileN * TileK +
+                            FragmentOffset(wave * kAtomsNPerWave + j, (kk % TileK) / kChunkK, lane));
+      } else {
+        return LoadGlobal16(b_row[j] + k_chunk_start + 8 * g);
+      }
+    };
 
     mx::MmaAccum acc[kAtomsM][kAtomsNPerWave];
 #pragma unroll
@@ -120,7 +148,7 @@ struct ServingGemmMma {
       for (int u = 0; u < kUnroll; ++u) {
         int const k = k0 + u * kChunkK + 8 * g;
 #pragma unroll
-        for (int j = 0; j < kAtomsNPerWave; ++j) b[u][j] = LoadGlobal16(b_row[j] + k);
+        for (int j = 0; j < kAtomsNPerWave; ++j) b[u][j] = load_b(j, k0 + u * kChunkK);
 #pragma unroll
         for (int am = 0; am < kAtomsM; ++am) a[u][am] = LoadGlobal16(a_row[am] + k);
       }
@@ -133,7 +161,7 @@ struct ServingGemmMma {
       int const k = k0 + 8 * g;
       uint4 a[kAtomsM], b[kAtomsNPerWave];
 #pragma unroll
-      for (int j = 0; j < kAtomsNPerWave; ++j) b[j] = mx::LoadK8(b_row[j], k, count);
+      for (int j = 0; j < kAtomsNPerWave; ++j) b[j] = Tiled ? load_b(j, k0) : mx::LoadK8(b_row[j], k, count);
 #pragma unroll
       for (int am = 0; am < kAtomsM; ++am) a[am] = mx::LoadK8(a_row[am], k, count);
       mma(a, b);

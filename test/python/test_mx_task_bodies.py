@@ -133,6 +133,46 @@ class ServingGemmBodies(unittest.TestCase):
                     self.check_ops("gemv", 16, tile_n, m, n, k)
 
 
+@unittest.skipUnless(GUARDED, "needs the GPU guard and TILEMEGA_MX_BODIES_SO")
+class ServingTiledWeights(unittest.TestCase):
+    """The loader's xcore_mma tile_pages packing and the tiled MMA mainloop agree."""
+
+    def test_tiled_dense(self):
+        import torch
+        import sys
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "python"))
+        from tilemega.serving.weights import _packed_gpu
+        lib = ctypes.CDLL(os.environ["TILEMEGA_MX_BODIES_SO"])
+        g = torch.Generator().manual_seed(7)
+        for tm, tn, tk in ((16, 32, 64), (16, 32, 128), (16, 128, 64), (32, 64, 128), (64, 128, 64)):
+            for m, n, k, splits in ((1, 96, 512, 1), (16, 200, 1024, 2), (5, 64, 448, 1), (64, 128, 768, 3)):
+                with self.subTest(tile=(tm, tn, tk), shape=(m, n, k), splits=splits):
+                    a = (torch.randn(m, k, generator=g) * 0.5).to(torch.bfloat16).cuda().contiguous()
+                    b = (torch.randn(n, k, generator=g) * 0.05).to(torch.bfloat16).cuda().contiguous()
+                    packed = _packed_gpu(dict(kind="tile_pages", layout="xcore_mma", tile_n=tn, tile_k=tk,
+                                              source=dict(kind="alias", source="w")), lambda name: b).contiguous()
+                    kt = (k + tk - 1) // tk
+                    # Split-K chunks start on tile boundaries; the last carries the remainder.
+                    per = (kt + splits - 1) // splits * tk
+                    tiles_m, tiles_n = (m + tm - 1) // tm, (n + tn - 1) // tn
+                    total = torch.zeros(m, n, dtype=torch.float32, device="cuda")
+                    for begin in range(0, k, per):
+                        count = min(per, k - begin)
+                        tiles = torch.full((tiles_m * tiles_n, tm * tn), float("nan"), device="cuda")
+                        args = GemmArgs(a.data_ptr(), b.data_ptr(), None, None, None, None, None, None, None,
+                                        m, n, k, begin, count, n, n, k, k, 0, 0.0, STORE)
+                        code = lib.tm_test_gemm_tiled(ctypes.byref(args), ctypes.c_void_p(packed.data_ptr()), k,
+                                                      tm, tn, tk, ctypes.c_void_p(tiles.data_ptr()),
+                                                      ctypes.c_void_p(torch.cuda.current_stream().cuda_stream))
+                        self.assertEqual(code, 0)
+                        torch.cuda.synchronize()
+                        full = tiles.view(tiles_m, tiles_n, tm, tn).permute(0, 2, 1, 3).reshape(tiles_m * tm, tiles_n * tn)
+                        total += full[:m, :n]
+                    ref = a.float() @ b.float().t()
+                    err = (total - ref).abs()
+                    self.assertTrue(bool((err <= ref.abs() * 1e-4 + 1e-3).all()), f"max |d|={float(err.max())}")
+
+
 # MACA torch 2.10 gives a 4-D host-to-device copy channels-last-like strides
 # (verified); every operand is made contiguous on the device.
 class AttentionArgs(ctypes.Structure):

@@ -265,7 +265,9 @@ void ResolveServingWeightPacking(mlir::ModuleOp module) {
       destination=replace?source:int(buffers.size());
       auto name=original.getAs<mlir::StringAttr>("name").getValue().str();
       if(!replace)name+="@t"+std::to_string(tn)+"x"+std::to_string(tk);
-      auto nested="{\"kind\":\"tile_pages\",\"tile_n\":"+
+      // xcore1000 tiles are stored in MMA fragment order (Backend/Mx/
+      // ServingGemmMma.h FragmentOffset), not the NVIDIA shared-memory swizzle.
+      auto nested="{\"kind\":\"tile_pages\",\"layout\":\"xcore_mma\",\"tile_n\":"+
           std::to_string(tn)+",\"tile_k\":"+std::to_string(tk)+
           ",\"source\":"+recipe.getValue().str()+"}";
       mlir::NamedAttrList updated(original);

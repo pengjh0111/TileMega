@@ -1547,8 +1547,9 @@ int RunCompile(int argc, char** argv) {
       (*module)->setAttr("tmexec.nonpaged_weight_layout_tiled",packing.getBoolAttr(true));
       tilemega::codegen::ResolveServingWeightPacking(*module);
       auto seq=mlir::cast<mlir::IntegerAttr>((*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving").get("seq")).getInt();
-      source=use_l2 ? tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,unsigned(seq),unsigned(seq)}})
-                    : tilemega::codegen::CouplingGraphToCUDA{}.Lower(*module);
+      // Single-module Lower() instantiates multiple GEMM shapes only for DM
+      // plans; a solved dense plan (pg off) needs the variant lowering too.
+      source=tilemega::codegen::CouplingGraphToCUDA{}.LowerVariants({{*module,unsigned(seq),unsigned(seq)}});
     }
     if (!dump_cg.empty()) {
       if (!module) throw std::runtime_error("--dump-cg requires a single module");

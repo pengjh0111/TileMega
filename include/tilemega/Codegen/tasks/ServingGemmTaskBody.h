@@ -17,9 +17,6 @@
 #ifndef TILEMEGA_NONPAGED_TILED
 #define TILEMEGA_NONPAGED_TILED 0
 #endif
-#if TILEMEGA_NONPAGED_TILED
-#error "nonpaged tiled weights are not yet supported on xcore1000 (row layout only)"
-#endif
 
 #include <type_traits>
 
@@ -143,7 +140,9 @@ struct ServingGemmTaskBody {
     int a_pitch = p.a_row_stride ? p.a_row_stride : p.k_total;
     int b_pitch = p.b_row_stride ? p.b_row_stride : p.k_total;
     // 16-byte operand loads need 8-element aligned rows and K offsets.
-    if (a_pitch < p.k_total || b_pitch < p.k_total ||
+    // Fragment-packed weights are addressed by whole K tiles.
+    bool const tiled_bad = TILEMEGA_NONPAGED_TILED != 0 && (!p.weight_base || p.k_begin % TileK != 0);
+    if (tiled_bad || a_pitch < p.k_total || b_pitch < p.k_total ||
         a_pitch % 8 != 0 || b_pitch % 8 != 0 || p.k_begin % 8 != 0) {
       maca::Trap();
       return;
@@ -151,7 +150,7 @@ struct ServingGemmTaskBody {
 #if TILEMEGA_TRACE_TASK
     if(p.profile)FirstTileReadyProfile{p.profile}();
 #endif
-    float* tile = Mma::Dense(p, tile_m, tile_n, shared);
+    float* tile = Mma::template Dense<TILEMEGA_NONPAGED_TILED != 0>(p, tile_m, tile_n, shared);
 #if TILEMEGA_TRACE_TASK
     auto epilogue_begin=TaskProfileNow(p.profile);
 #endif
