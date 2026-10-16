@@ -13,6 +13,10 @@ class DiskAdmission(unittest.TestCase):
         self.assertIs(prefer_ready_cpu([gate, gpu], gpu), gate)
         self.assertIs(prefer_ready_cpu([dict(gate, priority=3), gpu], gpu), gpu)
         self.assertIs(prefer_ready_cpu([gate, gpu], None), gate)
+        # A rejected/blocked GPU candidate must not be recovered from ready.
+        self.assertIsNone(prefer_ready_cpu([gpu], None))
+        tied = dict(gate, name='z-gate', priority=0)
+        self.assertIs(prefer_ready_cpu([gpu, tied], gpu), gpu)
 
     def test_no_space_does_not_invent_an_attempt(self):
         record = dict(status='pending', attempts=0)
