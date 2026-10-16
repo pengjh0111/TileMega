@@ -294,6 +294,24 @@ def completed_guard(directory, job):
     return guard
 
 
+def validate_native_repetitions(path, value=None):
+    """Check native greedy repeats for short correctness and full timing runs."""
+    path = Path(path)
+    value = json.loads(path.read_text()) if value is None else value
+    if value.get('system') not in NATIVE_LLM_SYSTEMS:
+        return
+    reference = {}
+    for row in value.get('generation_runs', []):
+        count = row['N']
+        token_path = path.parent/row['tokens_file']
+        if token_path.resolve().parent != path.parent.resolve():
+            raise ValueError('token file escapes its receipt directory')
+        tokens = json.loads(token_path.read_text())
+        if count in reference and tokens != reference[count]:
+            raise ValueError(f'native greedy tokens differ between repetitions for N={count}')
+        reference[count] = tokens
+
+
 def validate_llm(path, guard, root=None):
     path = Path(path)
     value = json.loads(path.read_text())
@@ -317,7 +335,6 @@ def validate_llm(path, guard, root=None):
                 {row.get('run') for row in group} != {0, 1, 2, 3}):
             raise ValueError('expected one warmup and three timed repetitions')
         timed = []
-        native_tokens = None
         for row in group:
             if row.get('warmup') is not (row.get('run') == 0):
                 raise ValueError('warmup must precede all timed repetitions')
@@ -329,12 +346,6 @@ def validate_llm(path, guard, root=None):
             if (len(tokens) != batch or any(not isinstance(token_row, list) or len(token_row) != count or
                     any(type(token) is not int or token < 0 for token in token_row) for token_row in tokens)):
                 raise ValueError('token file has the wrong shape or invalid IDs')
-            # Executor checks use the last repetition; earlier divergent
-            # requests must not contribute accepted native timings either.
-            if native:
-                if native_tokens is not None and tokens != native_tokens:
-                    raise ValueError(f'native greedy tokens differ between repetitions for N={count}')
-                native_tokens = tokens
             if row.get('warmup') is False:
                 timed.append(elapsed)
             elif row.get('warmup') is not True:
@@ -342,6 +353,9 @@ def validate_llm(path, guard, root=None):
         medians[count] = statistics.median(timed)
     if len(rows) != 8:
         raise ValueError('unexpected request measurements')
+    # Executor gates use the last repetition; short numeric gates need this
+    # same check before they can authorize later candidate selection.
+    validate_native_repetitions(path, value)
     equal(value['e2e_seconds'], medians[1024], 'e2e_seconds')
     equal(value['ttft_seconds'], medians[1], 'ttft_seconds')
     equal(value['tpot_seconds'], (medians[1024]-medians[1])/1023, 'tpot_seconds')

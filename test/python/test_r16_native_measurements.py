@@ -112,6 +112,22 @@ class NativeMeasurementTest(unittest.TestCase):
         self.assertFalse(rejected)
         self.assertEqual(len(accepted),1)
 
+    def test_short_numeric_repeats_use_the_same_token_gate(self):
+        path=self.native_llm_receipt()
+        value=json.loads(path.read_text());value['max_tokens']=16
+        for row in value['generation_runs']:
+            if row['N']==1024:
+                row['N']=16
+                tokens=path.parent/row['tokens_file']
+                tokens.write_text(json.dumps([[7]*16 for _ in range(16)]))
+        path.write_text(json.dumps(value))
+        validation.validate_native_repetitions(path)
+        tokens=path.parent/'tokens_N1024_run1.json'
+        rows=json.loads(tokens.read_text());rows[0][15]+=1
+        tokens.write_text(json.dumps(rows))
+        with self.assertRaisesRegex(ValueError, 'repetitions for N=16'):
+            validation.validate_native_repetitions(path)
+
     def test_named_cluster_and_paged_arms_use_all_native_checks(self):
         path=self.native_llm_receipt()
         value=json.loads(path.read_text())

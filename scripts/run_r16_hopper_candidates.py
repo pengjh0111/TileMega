@@ -12,7 +12,8 @@ import statistics
 import subprocess
 import sys
 
-from r16_measurement_validation import completed_guard, file_sha, native_identity, validate_llm
+from r16_measurement_validation import (completed_guard, file_sha, native_identity,
+    validate_llm, validate_native_repetitions)
 
 MODELS = ('llama3_2_1b', 'qwen3_0_6b', 'qwen3_1_7b',
           'llama3_2_3b', 'llama3_1_8b', 'qwen3_30b_a3b')
@@ -412,6 +413,7 @@ def validate_smoke(root, state, candidate):
     if not directory.is_absolute():directory=root/directory
     completed_guard(directory,record)
     output=directory/'measurements'
+    validate_native_repetitions(output/f"B{candidate['batch']}"/'measurements.json')
     evidence=load(output/'candidate-evidence.json')
     expected=check_pair(candidate)
     if evidence['artifact_ids']!={phase:x['artifact_id'] for phase,x in expected.items()}:
