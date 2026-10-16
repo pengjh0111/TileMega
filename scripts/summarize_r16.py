@@ -7,7 +7,7 @@ import csv
 import json
 from pathlib import Path
 import statistics
-from r16_measurement_validation import completed_guard, validate_llm, validate_dnn, canonical_model
+from r16_measurement_validation import completed_guard, validate_llm, validate_dnn, canonical_model, file_sha
 
 
 def record_directory(root, name, record):
@@ -142,8 +142,23 @@ def dnn_device_identity(value, directory):
     cache = value.get('configuration', {}).get('engine_cache', {}).get('identity', {})
     if cache.get('gpu_uuid'):
         candidates.append(str(cache['gpu_uuid']).removeprefix('GPU-').lower())
-    proof_path = directory/'hardware-epoch.json'
     boot = ''
+    inline = value.get('physical_device_identity')
+    if inline is not None:
+        receipt = Path(value['physical_device_identity_file'])
+        command = json.loads((directory/'physical-device-command.json').read_text())
+        if (receipt.resolve().parent != directory.resolve() or
+                file_sha(receipt) != value.get('physical_device_identity_sha256') or
+                json.loads(receipt.read_text()) != inline or
+                inline.get('probe_exit_code') != 0 or
+                command.get('actual_returncode') != 0 or
+                not any(Path(path).resolve() == (directory/'measurements/measurements.json').resolve()
+                        for path in command.get('measurements', [])) or
+                inline.get('cuda_uuid') != str(inline.get('nvml_uuid', '')).removeprefix('GPU-')):
+            raise ValueError('physical device wrapper attribution or receipt differs')
+        candidates.append(str(inline['cuda_uuid']).lower())
+        boot = inline.get('boot_id', '')
+    proof_path = directory/'hardware-epoch.json'
     if proof_path.exists():
         proof = json.loads(proof_path.read_text())
         if proof.get('pid') != value.get('pid') or not proof.get('cuda_uuid'):

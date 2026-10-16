@@ -1,5 +1,8 @@
 """Do not merge distinct native implementations or repeat one measured process."""
 import copy
+import json
+import tempfile
+import hashlib
 from pathlib import Path
 import sys
 import unittest
@@ -80,6 +83,24 @@ class DnnAggregation(unittest.TestCase):
         identity = dnn_device_identity(value, Path('/nonexistent-r16-proof'))
         self.assertEqual(identity['physical_gpu_uuid'], 'abc')
         self.assertEqual(identity['physical_gpu_identity_status'], 'verified')
+
+    def test_wrapper_probe_is_attributed_without_faking_measurement_pid(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            receipt = directory/'physical-device-identity.json'
+            identity = dict(cuda_uuid='abc', nvml_uuid='GPU-abc', probe_exit_code=0,
+                            probe_pid=1, wrapper_pid=2, boot_id='boot')
+            receipt.write_text(json.dumps(identity))
+            measurement = directory/'measurements/measurements.json'
+            command = directory/'physical-device-command.json'
+            command.write_text(json.dumps(dict(actual_returncode=0, measurements=[str(measurement)])))
+            value = dict(pid=3, physical_device_identity=identity,
+                         physical_device_identity_file=str(receipt),
+                         physical_device_identity_sha256=hashlib.sha256(receipt.read_bytes()).hexdigest())
+            self.assertEqual(dnn_device_identity(value, directory)['physical_gpu_uuid'], 'abc')
+            receipt.write_text('{}')
+            with self.assertRaises(ValueError):
+                dnn_device_identity(value, directory)
 
     def test_temporary_launch_configuration_stays_explicit(self):
         metadata = dict(enabled=True, temporary_workaround=True, artifact_id='binary-a',
