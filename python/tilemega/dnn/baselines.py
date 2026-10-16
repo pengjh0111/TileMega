@@ -226,8 +226,10 @@ def numerical_metrics(actual, reference, name):
 
 def torch_runner(module, args, kwargs, mode, metadata):
     import torch
-    module = portable_module(module, device='cuda', dtype=torch.bfloat16)
-    args, kwargs = convert_inputs(args, kwargs, dtype=torch.bfloat16, device='cuda')
+    # Exported metadata assertions compare the device index as well as its type.
+    device = torch.device('cuda', torch.cuda.current_device())
+    module = portable_module(module, device=device, dtype=torch.bfloat16)
+    args, kwargs = convert_inputs(args, kwargs, dtype=torch.bfloat16, device=device)
     compiled = torch.compile(module, mode=mode, fullgraph=True)
     metadata.update(compile_mode=mode, fullgraph=True,
                     cuda_graph='enabled by official compile mode; actual capture is backend controlled')

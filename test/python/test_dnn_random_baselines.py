@@ -19,6 +19,20 @@ spec.loader.exec_module(baseline)
 
 
 class DnnRandomTests(unittest.TestCase):
+    def test_compile_resolves_export_and_inputs_to_the_same_device(self):
+        source = object()
+        converted = object()
+        with patch.object(torch.cuda, 'current_device', return_value=3), \
+             patch.object(baseline, 'portable_module', return_value=converted) as portable, \
+             patch.object(baseline, 'convert_inputs', return_value=((17,), {})) as inputs, \
+             patch.object(torch, 'compile', return_value=lambda x: x + 1) as compile_model:
+            run = baseline.torch_runner(source, (), {}, 'reduce-overhead', {})
+            self.assertEqual(run(), 18)
+        device = torch.device('cuda', 3)
+        portable.assert_called_once_with(source, device=device, dtype=torch.bfloat16)
+        inputs.assert_called_once_with((), {}, device=device, dtype=torch.bfloat16)
+        compile_model.assert_called_once_with(converted, mode='reduce-overhead', fullgraph=True)
+
     def test_random_export_is_forward_but_not_accuracy_evidence(self):
         module = torch.nn.Sequential(torch.nn.Conv2d(3, 2, 1), torch.nn.AdaptiveAvgPool2d(1)).eval().bfloat16()
         with tempfile.TemporaryDirectory() as directory:
