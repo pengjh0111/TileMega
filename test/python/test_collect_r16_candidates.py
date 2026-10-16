@@ -64,6 +64,28 @@ def measurement(root,state,name,c):
             name=f'rf2_fixture_llama3_2_1b_B16_final{rnd}_{self.c["id"]}';self.jobs.append(name);self.fixture.state[6][name]=job
         self.fixture.persist();self.plan=self.root/'runs/r16/explicit/plan.json';self.plan.parent.mkdir(parents=True)
         self.plan.write_text(json.dumps(dict(root=str(self.root),run_id='fixture',protocol=dict(isl=64,osl=1024,warmup=1,repeats=3,final_fresh_rounds=3),cells=[dict(model=self.c['model'],batch=16,candidates=[self.c])])) )
+    def test_shared_helper_is_bound_for_lazy_driver_import_and_restored(self):
+        helper=self.script.with_name('shared_checkpoint_contract.py')
+        helper.write_text("LABEL='checked'\n")
+        self.script.write_text(self.script.read_text()+"\ndef original_check(c):\n    import shared_checkpoint_contract as shared\n    return shared.LABEL\ncheck_pair=original_check\n")
+        self.c.update(script_sha256=v.file_sha(self.script),shared_checkpoint_helper_sha256=v.file_sha(helper))
+        previous=sys.modules.get('shared_checkpoint_contract');sentinel=object()
+        sys.modules['shared_checkpoint_contract']=sentinel
+        try:
+            driver=v.load_driver(self.c)
+            self.assertEqual(driver.check_pair(self.c),'checked')
+            self.assertIs(sys.modules['shared_checkpoint_contract'],sentinel)
+            helper.write_text("LABEL='tampered and longer'\n")
+            with self.assertRaisesRegex(ValueError,'shared checkpoint helper changed'):
+                driver.check_pair(self.c)
+        finally:
+            if previous is None:sys.modules.pop('shared_checkpoint_contract',None)
+            else:sys.modules['shared_checkpoint_contract']=previous
+        helper.write_text('import torch\n')
+        self.c['shared_checkpoint_helper_sha256']=v.file_sha(helper)
+        with self.assertRaisesRegex(ValueError,'non-stdlib top-level import'):
+            v.load_driver(self.c)
+
     def collect(self):return v.collect(self.root,[self.plan])
     def enable_native_alias(self):
         self.script.write_text(self.script.read_text()+'\nfrom r16_argument_contract import validate_native_arguments\n')

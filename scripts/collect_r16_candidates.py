@@ -32,7 +32,11 @@ def load_driver(candidate):
     helper_digest=candidate.get('argument_contract_sha256')
     if helper_digest is not None and file_sha(helper_path)!=helper_digest:
         raise ValueError('frozen native argument helper changed')
-    key=(str(path.resolve()),digest)
+    shared_path=path.with_name('shared_checkpoint_contract.py')
+    shared_digest=candidate.get('shared_checkpoint_helper_sha256')
+    if shared_digest is not None and file_sha(shared_path)!=shared_digest:
+        raise ValueError('frozen shared checkpoint helper changed')
+    key=(str(path.resolve()),digest,helper_digest,shared_digest)
     if key not in DRIVERS:
         tree=ast.parse(path.read_text())
         # Only top-level imports execute when loading the frozen validation API.
@@ -44,6 +48,17 @@ def load_driver(candidate):
                 ('r16_argument_contract',) if helper_digest is not None else ())
             if any(n not in sys.stdlib_module_names and n not in allowed for n in names):
                 raise ValueError('unsupported frozen driver: non-stdlib top-level import')
+        shared=None
+        if shared_digest is not None:
+            shared_tree=ast.parse(shared_path.read_text())
+            for node in shared_tree.body:
+                names=[]
+                if isinstance(node,ast.Import):names=[x.name.split('.')[0] for x in node.names]
+                elif isinstance(node,ast.ImportFrom):names=[(node.module or '').split('.')[0]]
+                if any(n not in sys.stdlib_module_names and n!='__future__' for n in names):
+                    raise ValueError('unsupported shared checkpoint helper: non-stdlib top-level import')
+            shared_spec=importlib.util.spec_from_file_location('shared_checkpoint_contract',shared_path)
+            shared=importlib.util.module_from_spec(shared_spec);shared_spec.loader.exec_module(shared)
         spec=importlib.util.spec_from_file_location('candidate_collector_'+digest,path)
         module=importlib.util.module_from_spec(spec)
         previous=sys.modules.get('r16_argument_contract')
@@ -58,6 +73,21 @@ def load_driver(candidate):
             else:sys.modules.pop('r16_argument_contract',None)
         if not callable(getattr(module,'measurement',None)) or not callable(getattr(module,'check_pair',None)):
             raise ValueError('unsupported frozen driver: measurement/check_pair API absent')
+        if shared is not None:
+            def bind_shared(function):
+                def call(*args,**kwargs):
+                    if file_sha(shared_path)!=shared_digest:
+                        raise ValueError('frozen shared checkpoint helper changed')
+                    previous_shared=sys.modules.get('shared_checkpoint_contract')
+                    sys.modules['shared_checkpoint_contract']=shared
+                    try:return function(*args,**kwargs)
+                    finally:
+                        if previous_shared is None:sys.modules.pop('shared_checkpoint_contract',None)
+                        else:sys.modules['shared_checkpoint_contract']=previous_shared
+                return call
+            # Frozen shared drivers import the helper inside their validation APIs.
+            module.check_pair=bind_shared(module.check_pair)
+            module.measurement=bind_shared(module.measurement)
         DRIVERS[key]=module
     return DRIVERS[key]
 
