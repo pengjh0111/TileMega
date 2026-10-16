@@ -194,6 +194,19 @@ reject this selection. WGMMA stays outside automatic candidate enumeration
 until calibrated costs and model-level end-to-end A/B justify enabling it.
 
 
+Narrow native decode GEMV accepts `--gemv-load ldg|nc|bulk`; omission keeps
+`ldg`. Verified: `bulk` retains the SIMT arithmetic and uses two 32 KiB weight
+slots, mbarrier completion and vector shared loads. It requires bulk-copy
+capability, explicit nonpaged `--pg off|l2`, an active GEMV implementation,
+TN8/16/32 and complete K tiles. Prefill, DM operands, `--moe-gemv` and forced
+SM80 transport are rejected. The exact shared-memory allocation participates
+in legality, occupancy and the cache key. Isolated bulk tests passed432 cases
+in each of five fresh processes; this does not establish full-model speedup.
+Inferred: the candidate initially inherits the SIMT cost fit; a separately
+measured bulk fit and end-to-end acceptance remain outstanding. Defaults stay
+unchanged.
+
+
 Hopper prefill/forward dense GEMM is an explicit candidate through
 `--forward-gemm-impl wgmma` with the skeleton solver. It selects M64/128,
 N64/128/256, K64, stages=2 (M*N<=16384) for dense classes with at least 64
