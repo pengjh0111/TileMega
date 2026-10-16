@@ -1,6 +1,8 @@
 """Serial dynamic queue with strict GPU guarding and a six-hour idle limit."""
 import argparse
 import fcntl
+import errno
+import shutil
 import json
 import os
 import subprocess
@@ -12,6 +14,18 @@ from .gpu_guard import gpu, idle, needs_numa_lock, require_allowed_gpu, stop
 from .locking import acquire_command_lock
 
 TERMINAL = {'done', 'failed', 'skipped', 'not_run', 'cancelled'}
+
+
+def prepare_attempt(out, name, record):
+    folder = out.parent/'raw'/name/f"attempt{record['attempts'] + 1}"
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        if error.errno != errno.ENOSPC:
+            raise
+        return None
+    record['attempts'] += 1
+    return folder
 
 
 def numa_window_available(step, base_env=None, lock_dir=Path('/tmp')):
@@ -120,6 +134,10 @@ def main(argv=None):
         raise RuntimeError('interrupted running step: inspect its processes before resetting state')
     while time.time() < deadline:
         require_allowed_gpu(policy, os.environ.get('TILEMEGA_DEVICE_INDEX', '0'))
+        if shutil.disk_usage(args.out).free < 256 * (1 << 20):
+            print('dispatch paused: less than 256 MiB for receipts and logs', flush=True)
+            time.sleep(60)
+            continue
         steps = {}
         for path in sorted(args.queue_dir.glob('queue_*.json')):
             for step in json.loads(path.read_text()):
@@ -175,9 +193,11 @@ def main(argv=None):
             continue
         name = chosen['name']
         rec = state[name]
-        rec['attempts'] += 1
-        folder = args.out.parent / 'raw' / name / f"attempt{rec['attempts']}"
-        folder.mkdir(parents=True, exist_ok=True)
+        folder = prepare_attempt(args.out, name, rec)
+        if folder is None:
+            print('dispatch paused: attempt directory allocation hit ENOSPC', flush=True)
+            time.sleep(60)
+            continue
         cmd = [str(value).replace('{attempt_dir}', str(folder)) for value in chosen['command']]
         if rec['attempts'] > 1:
             cmd += chosen.get('retry_args', [])
