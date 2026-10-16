@@ -33,11 +33,28 @@ class RequestReuseTest(unittest.TestCase):
                 for key, value in [('CUDA_VISIBLE_DEVICES', '6'), ('TILEMEGA_DEVICE_INDEX', '0'),
                                    ('TILEMEGA_GPU_LOCK_HELD', '0'), ('TILEMEGA_GPU_LOCK', '/tmp/other')]:
                     with self.subTest(key=key), patch.dict(os.environ, {key: value}):
-                        with self.assertRaisesRegex(ValueError, 'guarded physical GPU7'):
+                        with self.assertRaisesRegex(ValueError, 'guarded physical GPU'):
                             diagnostic.validate_spec(spec)
                 candidate.write_text('{}')
                 with self.assertRaisesRegex(ValueError, 'frozen dependency changed'):
                     diagnostic.validate_spec(spec)
+
+    def test_functional_cards_require_explicit_matching_authorization(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder=Path(directory);candidate=folder/'candidate.json';spec=folder/'spec.json'
+            for index in (5, 6, 0):
+                candidate.write_text(json.dumps(dict(gpu=index)))
+                value=dict(diagnostic_sha256=diagnostic.sha(PATH),candidate=str(candidate),
+                    files={str(candidate):diagnostic.sha(candidate)})
+                env=dict(CUDA_VISIBLE_DEVICES=str(index),TILEMEGA_DEVICE_INDEX=str(index),
+                    TILEMEGA_GPU_LOCK=f'/tmp/tilemega_gpu{index}.lock',TILEMEGA_GPU_LOCK_HELD='1')
+                with self.subTest(index=index),patch.dict(os.environ,env,clear=True):
+                    spec.write_text(json.dumps(value))
+                    with self.assertRaises(ValueError):diagnostic.validate_spec(spec)
+                    value['allowed_gpu_indices']=[5,6,7];spec.write_text(json.dumps(value))
+                    if index in (5,6):diagnostic.validate_spec(spec)
+                    else:
+                        with self.assertRaises(ValueError):diagnostic.validate_spec(spec)
 
 
 if __name__ == '__main__':

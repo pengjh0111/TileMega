@@ -23,11 +23,14 @@ def validate_spec(path):
         if sha(name) != expected:
             raise ValueError('frozen dependency changed: ' + name)
     candidate = json.loads(Path(spec['candidate']).read_text())
-    if (candidate['gpu'] != 7 or os.environ.get('CUDA_VISIBLE_DEVICES') != '7' or
-            os.environ.get('TILEMEGA_DEVICE_INDEX') != '7' or
-            os.environ.get('TILEMEGA_GPU_LOCK') != '/tmp/tilemega_gpu7.lock' or
+    index = candidate['gpu']
+    allowed = spec.get('allowed_gpu_indices', [7])
+    if (index not in allowed or index not in (5, 6, 7) or
+            os.environ.get('CUDA_VISIBLE_DEVICES') != str(index) or
+            os.environ.get('TILEMEGA_DEVICE_INDEX') != str(index) or
+            os.environ.get('TILEMEGA_GPU_LOCK') != f'/tmp/tilemega_gpu{index}.lock' or
             os.environ.get('TILEMEGA_GPU_LOCK_HELD') != '1'):
-        raise ValueError('diagnostic requires guarded physical GPU7')
+        raise ValueError('diagnostic requires its authorized guarded physical GPU')
     return spec, candidate
 
 
