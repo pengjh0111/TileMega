@@ -10,8 +10,14 @@
 #include <tilemega/Backend/Mx/ServingGemmMma.h>
 #include <tilemega/Target/Maca/DevicePrimitives.h>
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-#error "DM (DNN/MoE) serving GEMM paths are not yet ported to xcore1000"
+#if defined(TILEMEGA_MOE_GEMV) && TILEMEGA_MOE_GEMV
+#error "the MoE GEMV body is not ported to xcore1000; build MoE plans with --moe-gemv 0"
+#endif
 #include <tilemega/Codegen/DmDescriptors.h>
+#include <tilemega/Codegen/tasks/DmEpilogueDispatch.cuh>
+#include <tilemega/Backend/ServingDmEpilogue.h>
+#include <tilemega/Backend/Mx/ServingDmGemmMx.h>
+#include <tilemega/Solver/DmGemmTraits.h>
 #endif
 
 #ifndef TILEMEGA_NONPAGED_TILED
@@ -120,7 +126,12 @@ struct ServingGemmTaskBody {
   using Mainloop = typename Config::Mainloop;
   using Mma = backend::ServingGemmMma<TileM, TileN, TileK>;
   static constexpr int kThreads = Config::kThreads;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  static constexpr int kSharedBytes = solver::DmServingBF16SmemBytes(TileM, TileN, TileK, Stages);
+  static constexpr int kTileColumns = TileN;
+#else
   static constexpr int kSharedBytes = Config::kSharedBytes;
+#endif
   static_assert(kThreads == kComputeThreads);
 
   template<class Emit>
@@ -159,6 +170,64 @@ struct ServingGemmTaskBody {
     if(p.profile)p.profile->epilogue_ns=TaskProfileNow(p.profile)-epilogue_begin;
 #endif
   }
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+  using DmGemm = backend::ServingDmGemmMx<TileM, TileN, TileK>;
+  template <class Spec>
+  __device__ static void RunDm(ServingGemmOperands const& p, int tile_m, int tile_n, char* shared) {
+    auto resolved = p;
+    if (!backend::ResolveDmMoeTile(resolved, tile_m, TileM)) return;
+    RunDmResolved<Spec>(resolved, tile_m, tile_n, shared);
+  }
+  /// Every DM GEMM form produces the FP32 tile for the DM epilogue: implicit
+  /// GEMM over NHWC (im2col), or [M,K] rows (dense, gathered, SCA-scaled,
+  /// expert-indirect B after ResolveDmMoeTile).
+  template <class Spec>
+  __device__ static void RunDmResolved(ServingGemmOperands const& p, int tile_m, int tile_n, char* shared) {
+    constexpr bool kTiled = TILEMEGA_NONPAGED_TILED != 0;
+    float* tile = nullptr;
+    if (p.access.a == DmAAccess::kIm2Col) {
+      if (!p.convolutions || p.access.conv == kDmNoIndex || p.k_begin % TileK || p.k_count % TileK ||
+          !p.conv_iteration.iterations || (kTiled && !p.weight_base)) {
+        maca::Trap();
+        return;
+      }
+      auto const& conv = p.convolutions[p.access.conv];
+      if (!p.dm_buffers.layouts || conv.input_layout >= p.dm_buffers.count) {
+        maca::Trap();
+        return;
+      }
+      auto const& layout = p.dm_buffers.layouts[conv.input_layout];
+      auto const& geometry = p.conv_iteration;
+      std::uint64_t const begin = p.k_begin / TileK;
+      int const iterations = p.k_count / TileK;
+      if (geometry.tile_k != TileK || begin + iterations > geometry.iterations || !conv.p || !conv.q) {
+        maca::Trap();
+        return;
+      }
+      auto run = [&](auto pack) {
+        constexpr int Pack = decltype(pack)::value;
+        typename DmGemm::template ConvA<ServingGemmOperands, Pack> a(p, conv, layout, geometry, tile_m, begin);
+        typename DmGemm::template ConvB<ServingGemmOperands, Pack> b(p, a, conv, geometry, tile_n, begin, kTiled);
+        return DmGemm::Run(p, tile_m, tile_n, iterations, a, b, shared);
+      };
+      tile = geometry.channels == 4 ? run(std::integral_constant<int, 4>{}) : run(std::integral_constant<int, 8>{});
+    } else {
+      int const a_pitch = p.a_row_stride ? p.a_row_stride : p.k_total;
+      int const b_pitch = p.b_row_stride ? p.b_row_stride : p.k_total;
+      if (!p.a || !p.b || p.k_begin < 0 || p.k_count <= 0 || p.k_begin % 8 || p.k_begin + p.k_count > p.k_total ||
+          a_pitch % 8 || b_pitch % 8 || a_pitch < p.k_total || b_pitch < p.k_total ||
+          (kTiled && (!p.weight_base || p.k_total_full <= 0 || p.k_begin % TileK))) {
+        maca::Trap();
+        return;
+      }
+      typename DmGemm::template DenseA<ServingGemmOperands> a(p, tile_m);
+      typename DmGemm::template DenseB<ServingGemmOperands> b(p, tile_n, kTiled);
+      tile = DmGemm::Run(p, tile_m, tile_n, (p.k_count + TileK - 1) / TileK, a, b, shared);
+    }
+    backend::ServingDmEpilogue<Arch, Spec, TileM, TileN, false>::RunFromTile(tile, DmEpilogueOperands(p), tile_m,
+                                                                            tile_n);
+  }
+#endif
 };
 
 }  // namespace tilemega::codegen

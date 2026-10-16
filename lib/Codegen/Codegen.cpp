@@ -1261,7 +1261,7 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
              <<"u) {runner.template RunDepthwise<"<<integerField(stage,"group")<<", "
              <<integerField(stage,"width")<<", DmPrimitiveChain"<<i<<">(); return;}\n";
       }
-      out<<"  asm volatile(\"trap;\");\n}\n";
+      out<<"  tilemega::maca::Trap();\n}\n";
     }
     out << "template<int Variant = -1, bool Combine = false, class Runner>\n"
         << "__device__ inline void DispatchDmEpilogue(std::uint32_t gemm, Runner const& runner) {\n"
@@ -1270,8 +1270,8 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
       out << "    case " << i << "u:\n"
           << "      if constexpr (Variant < 0 || (DmGemmBinding<" << i
           << ", Variant>::roles & (Combine ? 2u : 1u))) runner.template Run<DmSpec" << i << ">();\n"
-          << "      else asm volatile(\"trap;\");\n      break;\n";
-    out << "    default: asm volatile(\"trap;\"); break;\n"
+          << "      else tilemega::maca::Trap();\n      break;\n";
+    out << "    default: tilemega::maca::Trap(); break;\n"
         << "  }\n}\n} // namespace tilemega::codegen\n";
   }
   out << "#include <tilemega/Codegen/tasks/ModelHarness.cuh>\n";

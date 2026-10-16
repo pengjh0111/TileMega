@@ -21,22 +21,30 @@ ROOT = Path(__file__).resolve().parents[4]
 
 
 def shapes(max_m: int, max_smem: int, stages_filter: int | None = None, dm: bool = False):
+    """Legal xcore1000 tiles (Solver/BackendCostQuery.h, DmGemmTraits.h)."""
+    if dm:
+        # DM: N in 32s over two waves, 32-K chunks, FP32 tile + scratch; no
+        # staged pipeline, so only the canonical depth 2 exists.
+        for m in (16, 32, 64):
+            if m > max_m:
+                continue
+            for n in (32, 64, 128):
+                if m * n > 8192 or 4 * m * n + 8 * m > max_smem:
+                    continue
+                for k in (32, 64, 128):
+                    if stages_filter is None or stages_filter == 2:
+                        yield m, n, k, 2
+        return
     for m in (16, 32, 64):
         if m > max_m:
             continue
-        for n in ((16, 32, 64, 128, 256) if dm else (32, 64, 128, 256)):
-            if m * n > 16384 or (not dm and 4 * m * n + 4 * m > max_smem):
+        for n in (32, 64, 128, 256):
+            if m * n > 16384 or 4 * m * n + 4 * m > max_smem:
                 continue
-            for k in ((16, 32, 64, 128) if dm else (64, 128)):
+            for k in (64, 128):
                 per_stage = 2 * k * (m + n)
                 stage_limit = max_smem // per_stage
-                if dm:
-                    stage_limit = min(8, stage_limit)
                 for stages in range(2, stage_limit + 1):
-                    if dm and max(per_stage * stages,
-                                  4 * (2 if m == n == 16 else 1) * m * n,
-                                  4 * m * n + 8 * m) > max_smem:
-                        continue
                     if stages_filter is None or stages == stages_filter:
                         yield m, n, k, stages
 

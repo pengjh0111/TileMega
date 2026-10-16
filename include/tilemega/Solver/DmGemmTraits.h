@@ -5,17 +5,16 @@
 
 namespace tilemega::solver {
 
+/// xcore1000 DM tiles (Backend/Mx/ServingDmGemmMx.h): register-direct MMA
+/// mainloop over 16-row atoms split across two waves, 32-K chunks; the only
+/// shared memory is the FP32 tile plus epilogue scratch.
 constexpr bool DmServingBF16ShapeLegal(int m,int n,int k,int stages) {
-  return (m==16 || m==32 || m==64 || m==128) &&
-      (n==16 || n==32 || n==64 || n==128 || n==256) &&
-      (k==16 || k==32 || k==64 || k==128) && m*n<=16384 && stages>=2;
+  return (m==16 || m==32 || m==64) && (n==32 || n==64 || n==128) &&
+      (k==32 || k==64 || k==128) && m*n<=8192 && stages>=2;
 }
 constexpr int DmServingBF16SmemBytes(int m,int n,int k,int stages) {
-  int mainloop=2*stages*k*(m+n);
-  int partials=4*(m==16 && n==16?2:1)*m*n;
-  int epilogue=4*m*n+8*m;
-  return mainloop>partials?(mainloop>epilogue?mainloop:epilogue):
-      (partials>epilogue?partials:epilogue);
+  (void)k;(void)stages;
+  return 4*m*n+8*m;
 }
 constexpr int DmServingPageActivationBytes(int m,int n,int k,int small_stages=2) {
   return 2*m*k*((n==16 || k<64)?small_stages:4);

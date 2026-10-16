@@ -35,7 +35,7 @@ std::string DnnNonGemmProbeSource(ModelPlan const& plan) {
   std::ostringstream out;
   out<<"#include <tilemega/Codegen/tasks/DmStageTaskBody.h>\n"
       <<"using namespace tilemega::codegen;\n"
-      <<"extern \"C\" __global__ __launch_bounds__(128) void probe_dm_bounds(Params const* p) { if(p->dims.batch<=0) asm volatile(\"trap;\"); }\n";
+      <<"extern \"C\" __global__ __launch_bounds__(128) void probe_dm_bounds(Params const* p) { if(p->dims.batch<=0) tilemega::maca::Trap(); }\n";
   unsigned index=0;
   for(auto const& stage:plan.stages) {
     if(IsGemmStage(stage.kind))continue;

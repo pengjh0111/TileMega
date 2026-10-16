@@ -49,7 +49,9 @@ inline DmGemmClassDomain DmClassCandidates(std::vector<std::size_t> const& ids,
   DmGemmClassDomain result;
   for(int m:{16,32,64,128})for(int n:{16,32,64,128,256})for(int k:{16,32,64,128}) {
     if(m*n>16384)continue;
-    int limit=std::min(8,target.res.max_dynamic_smem_per_cta/(2*k*(m+n)));
+    // xcore1000: the DM stage count does not change the program (no staged
+    // pipeline); enumerate the canonical depth 2 only.
+    int limit=2;
     for(int stages=2;stages<=limit;++stages)for(int split:{1,2,4,8,16,32}) {
       ++result.raw;
       GemmConfig g{m,n,k,stages,split};

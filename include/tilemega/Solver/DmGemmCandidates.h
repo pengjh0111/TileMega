@@ -37,7 +37,8 @@ inline std::string_view DmGemmCandidateRejection(frontend::PlanGemm const& gemm,
   using namespace codegen;
   if((shared.tile_n==0)!=(shared.tile_k==0))
     throw std::invalid_argument("shared DM weight layout needs both tile dimensions");
-  if(!plan.dm || !target.caps.cp_async)return "DM/cp.async capability";
+  // xcore1000 DM GEMMs load operands register-direct (no cp.async staging).
+  if(!plan.dm)return "DM capability";
   if(!gemm.n || !gemm.k || !DmServingBF16ShapeLegal(g.tile_m,g.tile_n,g.tile_k,g.stages))
     return "shape";
   std::uint64_t workspace=DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages);
@@ -98,9 +99,9 @@ inline std::vector<GemmConfig> DmGemmCandidates(frontend::PlanGemm const& gemm,
   std::vector<GemmConfig> out;
   for(int m:{16,32,64,128})for(int n:{16,32,64,128,256})for(int k:{16,32,64,128}) {
     if(m*n>16384)continue;
-    // cp.async exposes eight outstanding groups; deeper allocated pipelines
-    // would keep the same live slots and only consume residency resources.
-    int stage_limit=std::min(8,target.res.max_dynamic_smem_per_cta/(2*k*(m+n)));
+    // xcore1000 DM mainloops have no staged pipeline: the stage count does not
+    // change the program, so only the canonical depth 2 is enumerated.
+    int stage_limit=2;
     for(int stages=2;stages<=stage_limit;++stages)for(int split:{1,2,4,8,16,32}) {
       GemmConfig g{m,n,k,stages,split};
       if(DmGemmCandidateRejection(gemm,plan,g,target,shared).empty())out.push_back(g);

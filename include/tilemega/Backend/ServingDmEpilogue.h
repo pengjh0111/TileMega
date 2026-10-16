@@ -6,7 +6,6 @@
 #include <tilemega/Backend/DmTensorAddress.h>
 #include <tilemega/Backend/DmMoeOperands.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
-#include <cute/tensor.hpp>
 
 namespace tilemega::backend {
 
@@ -134,8 +133,8 @@ struct ServingDmEpilogue {
           }
         }
         for (int shift = 16; shift; shift /= 2) {
-          sum += __shfl_xor_sync(0xffffffff, sum, shift);
-          square += __shfl_xor_sync(0xffffffff, square, shift);
+          sum += __shfl_xor_sync(maca::kFullWaveMask, sum, shift, 32);
+          square += __shfl_xor_sync(maca::kFullWaveMask, square, shift, 32);
         }
         if (lane == 0) {
           float mean = sum / width;
@@ -308,8 +307,8 @@ struct ServingDmEpilogue {
             square += value * value;
           }
           for (int shift = 16; shift; shift /= 2) {
-            sum += __shfl_xor_sync(0xffffffff, sum, shift);
-            square += __shfl_xor_sync(0xffffffff, square, shift);
+            sum += __shfl_xor_sync(maca::kFullWaveMask, sum, shift, 32);
+            square += __shfl_xor_sync(maca::kFullWaveMask, square, shift, 32);
           }
           if (lane == 0) {
             auto offset = p.StorageRow(global_row) * layout.strides[0] + tile_n * layout.strides[1];
@@ -402,24 +401,9 @@ struct ServingDmEpilogue {
     }
   };
 
-  template <class Accumulator, class TiledMma>
-  __device__ static void Run(Accumulator const& accum, TiledMma const& mma,
-                             char* shared, DmEpilogueArguments const& p,
-                             int tile_m, int tile_n) {
-    using namespace codegen::executor;
-    cute::cp_async_wait<0>();
-    ComputeSync();
-    auto coordinates = cute::make_identity_tensor(
-        cute::Shape<cute::Int<TileM>, cute::Int<TileN>>{});
-    auto owned = mma.get_thread_slice(ComputeThread()).partition_C(coordinates);
-    CUTE_STATIC_ASSERT_V(cute::size(owned) == cute::size(accum));
-    float* tile = reinterpret_cast<float*>(shared);
-    for (int i = 0; i < cute::size(accum); ++i)
-      tile[Index(cute::get<0>(owned(i)), cute::get<1>(owned(i)))] = accum(i);
-    ComputeSync();
-    RunFromTile(tile, p, tile_m, tile_n);
-  }
-
+  // xcore1000: mainloops deliver an FP32 tile (no CuTe accumulator
+  // fragments); RunFromTile is the only entry. Shuffle reductions run over
+  // 32-lane logical warps (width 32 stays inside the half wave, P-5).
   __device__ static void RunFromTile(float* tile, DmEpilogueArguments const& p,
                                      int tile_m, int tile_n) {
     if (p.chain.count != Program::kCount || p.chain.side_count != Spec::kSideCount ||
