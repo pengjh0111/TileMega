@@ -19,8 +19,9 @@ class SharedCheckpointTest(unittest.TestCase):
         self.model = Path(self.temp.name)
         (self.model / 'config.json').write_text('{}')
         self.manifest = dict(algorithm='test', config_sha256=hashlib.sha256(b'{}').hexdigest(),
-                             seed=0, aliases={}, tensors=[], state='live', total_bytes=4,
-                             tensor_count=1, shards=[dict(file='weights', bytes=4)])
+                             seed=0, aliases={}, tensors=[dict(name='weight', bytes=4)],
+                             state='live', total_bytes=4,
+                             tensor_count=1, shards=[dict(file='weights', bytes=4, data_bytes=4)])
         identity = {key: self.manifest[key] for key in
                     ('algorithm', 'config_sha256', 'seed', 'aliases', 'tensors')}
         self.manifest['checkpoint_sha256'] = hashlib.sha256(json.dumps(
@@ -65,6 +66,12 @@ class SharedCheckpointTest(unittest.TestCase):
 
     def test_truncated_shard_is_rejected(self):
         (self.model / 'weights').write_bytes(b'x')
+        with self.assertRaises(ValueError):
+            common.shared_checkpoint_identity(self.model, 'auto')
+
+    def test_tensor_and_shard_totals_must_agree(self):
+        self.manifest['total_bytes'] = 8
+        self.save()
         with self.assertRaises(ValueError):
             common.shared_checkpoint_identity(self.model, 'auto')
 

@@ -97,6 +97,10 @@ def shared_checkpoint_identity(model, load_format):
                          separators=(",", ":")).encode()).hexdigest()
     if digest != manifest['checkpoint_sha256']:
         raise ValueError("shared checkpoint identity is inconsistent")
+    if (manifest['tensor_count'] != len(manifest['tensors']) or
+            manifest['total_bytes'] != sum(tensor['bytes'] for tensor in manifest['tensors']) or
+            manifest['total_bytes'] != sum(shard['data_bytes'] for shard in manifest['shards'])):
+        raise ValueError("shared checkpoint tensor and shard counts are inconsistent")
     if not manifest['shards'] or any(
             not (model / shard['file']).is_file() or
             (model / shard['file']).stat().st_size != shard['bytes']
