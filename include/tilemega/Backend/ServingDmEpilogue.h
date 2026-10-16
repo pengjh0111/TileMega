@@ -45,6 +45,9 @@ struct DmGateShape<codegen::DmEpilogueProgram<Steps...>> {
 };
 
 template <class Spec> struct DmSideWalk;
+template<class Epilogue, codegen::DmAAccess A, codegen::DmBAccess B>
+struct DmSideWalk<codegen::DmAccessEpilogueSpec<Epilogue,A,B>> : DmSideWalk<Epilogue> {};
+
 template <class Program, codegen::DmWriteKind Write, unsigned Factor,
           codegen::DmRounding Store, class... Sides>
 struct DmSideWalk<codegen::DmEpilogueSpec<Program, Write, Factor, Store, Sides...>> {

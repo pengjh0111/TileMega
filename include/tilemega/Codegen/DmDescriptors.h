@@ -163,6 +163,13 @@ struct DmEpilogueSpec {
   static_assert(kSideCount <= 5);
 };
 
+template<class Epilogue, DmAAccess A, DmBAccess B>
+struct DmAccessEpilogueSpec : Epilogue {
+  using EpilogueBase = Epilogue;
+  static constexpr auto kAAccess = A;
+  static constexpr auto kBAccess = B;
+};
+
 static_assert(std::is_trivially_copyable_v<ConvDesc>);
 static_assert(std::is_standard_layout_v<DmBufferLayout>);
 static_assert(std::is_trivially_copyable_v<DmGemmAccess>);

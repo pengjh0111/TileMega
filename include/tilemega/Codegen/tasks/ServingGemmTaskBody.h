@@ -97,6 +97,17 @@ struct ServingGemmOperands {
 };
 
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+template<class Spec,class=void> struct HasTypedDmAccess:std::false_type {};
+template<class Spec> struct HasTypedDmAccess<Spec,std::void_t<decltype(Spec::kAAccess)>>:std::true_type {};
+template<class Spec> struct TypedDmGemmAccess : DmGemmAccess {
+  static constexpr auto a=Spec::kAAccess;
+  static constexpr auto b=Spec::kBAccess;
+  __device__ explicit TypedDmGemmAccess(DmGemmAccess const& original):DmGemmAccess(original) {}
+};
+template<class Spec> struct TypedDmGemmOperands : ServingGemmOperands {
+  TypedDmGemmAccess<Spec> access;
+  __device__ explicit TypedDmGemmOperands(ServingGemmOperands const& original):ServingGemmOperands(original),access(original.access) {}
+};
 __device__ inline backend::DmEpilogueArguments DmEpilogueOperands(
     ServingGemmOperands const& p) {
   backend::DmEpilogueArguments result;
@@ -241,7 +252,8 @@ struct ServingGemmTaskBody {
     }
     return Body::Materialize(accum,shared);
   }
-  __device__ static __forceinline__ float* ComputeWgmma(ServingGemmOperands const& p,int tile_m,
+  template<class Operands>
+  __device__ static __forceinline__ float* ComputeWgmma(Operands const& p,int tile_m,
       int tile_n,char* shared) {
     if constexpr(TileM>=64)return ComputeForwardWgmma(p,tile_m,tile_n,shared);
     else {
@@ -485,8 +497,14 @@ struct ServingGemmTaskBody {
 #else
   __device__ static
 #endif
-  void RunDmResolved(ServingGemmOperands const& p, int tile_m,
+  void RunDmResolved(ServingGemmOperands const& original, int tile_m,
                                      int tile_n, char* shared) {
+    if constexpr(HasTypedDmAccess<Spec>::value) if(original.access.a!=Spec::kAAccess || original.access.b!=Spec::kBAccess) {
+      asm volatile("trap;");return;
+    }
+    using Typed=std::conditional_t<HasTypedDmAccess<Spec>::value,TypedDmGemmOperands<Spec>,ServingGemmOperands>;
+    Typed typed(original);
+    auto const& p=typed;
     if constexpr(UseWgmma) {
       if(p.a_scale) {asm volatile("trap;");return;}
       float* tile=nullptr;
