@@ -62,6 +62,26 @@ def evidence(config_path, records):
         measurements=[row['measurement'] for row in rows])
 
 
+def matching_devices(root, records):
+    devices = []
+    for row in records:
+        value = json.loads((root / row['measurement']).read_text())
+        identity = value.get('physical_device_identity')
+        if not identity:
+            raise ValueError('same-card A/B requires runtime CUDA/NVML UUID receipts; index alone is insufficient')
+        receipt = Path(value['physical_device_identity_file'])
+        if file_sha(receipt) != value['physical_device_identity_sha256'] or json.loads(receipt.read_text()) != identity:
+            raise ValueError('physical device receipt changed')
+        if identity['cuda_uuid'] != identity['nvml_uuid'].removeprefix('GPU-') or identity['gpu_index'] != row['gpu']:
+            raise ValueError('CUDA and guarded NVML device identities differ')
+        devices.append((identity['cuda_uuid'], identity['cuda_pci_bus_id'],
+                        identity['numa_node'], identity['boot_id']))
+    if len(set(devices)) != 1:
+        raise ValueError('A/B devices, PCI/NUMA binding or host epochs differ')
+    return dict(uuid=devices[0][0], pci_bus_id=devices[0][1],
+                numa_node=devices[0][2], boot_id=devices[0][3])
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[1])
@@ -75,10 +95,11 @@ def main():
     for key in ('checkpoint_sha256', 'archive_sha256', 'input_sha256'):
         if a_evidence[key] != b_evidence[key]:
             raise ValueError('A/B inputs differ: ' + key)
-    if len({row['gpu'] for row in a+b}) != 1 or len({(row['model'],row['batch'],row['precision']) for row in a+b}) != 1:
+    if len({(row['model'],row['batch'],row['precision']) for row in a+b}) != 1:
         raise ValueError('A/B requires the same model, batch, precision and card')
+    device = matching_devices(args.root.resolve(), a+b)
     result = dict(evidence='verified', scope='single complete-model measured grid; not all-model G-PERF',
-        model=a[0]['model'], batch=a[0]['batch'], gpu=a[0]['gpu'],
+        model=a[0]['model'], batch=a[0]['batch'], gpu=a[0]['gpu'], physical_device=device,
         reference=a_evidence, candidate=b_evidence, **comparison(a,b), default_promoted=False,
         acceptance='strict' if all(row['acceptance']=='strict' for row in a+b) else
             'provisional_container_pid_namespace',
