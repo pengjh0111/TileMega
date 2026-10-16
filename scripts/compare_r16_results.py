@@ -24,6 +24,24 @@ def positive(row, field):
     return value
 
 
+def physical_pairing(tm, base):
+    def uuid(row):
+        return (str(row.get('physical_gpu_uuid', '')).removeprefix('GPU-').lower()
+                if row.get('physical_gpu_identity_status') == 'verified' else '')
+    left, right = uuid(tm), uuid(base)
+    known = bool(left and right)
+    boot_left, boot_right = tm.get('hardware_boot_id', ''), base.get('hardware_boot_id', '')
+    boot_known = bool(boot_left and boot_right)
+    return dict(native_gpu_uuid=left, baseline_gpu_uuid=right,
+        native_boot_id=boot_left, baseline_boot_id=boot_right,
+        same_gpu_index=str(tm['gpu']) == str(base['gpu']),
+        same_gpu=known and left == right,
+        device_pairing=('same_physical_gpu' if left == right else 'different_physical_gpu')
+            if known else 'unknown_physical_gpu',
+        boot_pairing=('same_boot' if boot_left == boot_right else 'different_boot')
+            if boot_known else 'unknown_boot')
+
+
 def compare(rows, family):
     rows = [row for row in rows if complete(row)]
     def is_native(row):
@@ -52,7 +70,7 @@ def compare(rows, family):
                 checkpoint_shared=shared,
                 checkpoint_scope='identical exported program' if family == 'dnn' else
                     ('identical checkpoint hash' if shared else 'independent random initialization; MoE routing unpaired'),
-                native_gpu=tm['gpu'], baseline_gpu=base['gpu'], same_gpu=tm['gpu'] == base['gpu'],
+                native_gpu=tm['gpu'], baseline_gpu=base['gpu'], **physical_pairing(tm, base),
                 acceptance='strict' if tm['acceptance'] == base['acceptance'] == 'strict' else
                     'provisional_container_pid_namespace', default_promoted=False)
             for field in LLM_METRICS if family == 'llm' else ('median_ms', 'p90_ms'):
@@ -67,7 +85,8 @@ def geomeans(rows, family):
     groups = {}
     for row in rows:
         key = tuple(row[key] for key in ('native_system', 'native_comparison_arm', 'baseline_system',
-                    'baseline_mode', 'native_precision', 'baseline_precision', 'checkpoint_scope', 'acceptance'))
+                    'baseline_mode', 'native_precision', 'baseline_precision', 'checkpoint_scope', 'acceptance',
+                    'device_pairing', 'boot_pairing'))
         groups.setdefault(key, []).append(row)
     output = []
     for key, cells in sorted(groups.items()):
@@ -75,7 +94,8 @@ def geomeans(rows, family):
         if len(coordinates) != len(cells):
             raise ValueError('ambiguous native artifacts for the same comparison coordinate')
         output.append(dict(zip(('native_system', 'native_comparison_arm', 'baseline_system', 'baseline_mode',
-                    'native_precision', 'baseline_precision', 'checkpoint_scope', 'acceptance'), key),
+                    'native_precision', 'baseline_precision', 'checkpoint_scope', 'acceptance',
+                    'device_pairing', 'boot_pairing'), key),
             matched_cells=len(cells), coordinates=';'.join(f'{model}/B{batch}' for model, batch in sorted(coordinates)),
             **{field + '_speedup': math.exp(statistics.mean(math.log(cell[field + '_speedup']) for cell in cells))
                for field in (LLM_METRICS if family == 'llm' else ('median_ms', 'p90_ms'))}))
@@ -105,6 +125,7 @@ def candidate_rows(report):
         rows.append(dict(model=item['model'], batch=item['batch'], system='TileMega',
             candidate_id=item['candidate'], comparison_arm=arm, precision='bf16',
             fresh_processes=3, protocol_complete=True, gpu=str(item['gpu']),
+            **{key: item.get(key, '') for key in ('physical_gpu_uuid', 'physical_gpu_identity_status', 'hardware_boot_id')},
             acceptance=item['acceptance'],
             source_checkpoint_sha256=item['source_checkpoint_sha256'],
             native_artifact_ids=json.dumps(item['native_artifact_ids'], sort_keys=True),

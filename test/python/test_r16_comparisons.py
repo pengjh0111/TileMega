@@ -40,10 +40,38 @@ class Comparisons(unittest.TestCase):
         with self.assertRaises(ValueError):
             geomeans(rows, 'dnn')
 
+    def test_gpu_index_never_proves_physical_pairing(self):
+        tm, base = self.row('tilemega'), self.row('tensorrt')
+        row, = compare([tm, base], 'dnn')
+        self.assertTrue(row['same_gpu_index'])
+        self.assertFalse(row['same_gpu'])
+        self.assertEqual(row['device_pairing'], 'unknown_physical_gpu')
+        tm.update(physical_gpu_uuid='GPU-card-a', physical_gpu_identity_status='verified', hardware_boot_id='boot-a')
+        base.update(physical_gpu_uuid='card-b', physical_gpu_identity_status='verified', hardware_boot_id='boot-a')
+        row, = compare([tm, base], 'dnn')
+        self.assertFalse(row['same_gpu'])
+        self.assertEqual(row['device_pairing'], 'different_physical_gpu')
+        base.update(gpu='7', physical_gpu_uuid='card-a')
+        row, = compare([tm, base], 'dnn')
+        self.assertTrue(row['same_gpu'])
+        self.assertFalse(row['same_gpu_index'])
+        self.assertEqual(row['boot_pairing'], 'same_boot')
+
+    def test_geomeans_keep_physical_evidence_and_boot_scope_separate(self):
+        tm, base = self.row('tilemega'), self.row('tensorrt')
+        unknown, = compare([tm, base], 'dnn')
+        for row in (tm, base):
+            row.update(physical_gpu_uuid='card-a', physical_gpu_identity_status='verified', hardware_boot_id='boot-a')
+        known, = compare([tm, base], 'dnn')
+        base['hardware_boot_id']='boot-b'
+        other_boot, = compare([tm, base], 'dnn')
+        self.assertEqual(len(geomeans([unknown, known, other_boot], 'dnn')), 3)
+
     def test_final_candidate_arms_keep_source_and_executor(self):
         item = dict(model='resnet18', batch=1, candidate='h1', source_head='source-a',
             executor='L2', device_loop=0, protocol_complete=True, fresh_processes=3,
             status='completed', default_promoted=False, gpu=6, acceptance='strict',
+            physical_gpu_uuid='card-a', physical_gpu_identity_status='verified', hardware_boot_id='boot-a',
             source_checkpoint_sha256='weights', native_artifact_ids={'prefill':'p','decode':'d'},
             e2e_seconds=.1, ttft_seconds=.001, tpot_seconds=.002, output_tokens_per_second=10)
         report = dict(evidence='verified_independent_receipt_analysis', candidates=[
@@ -51,6 +79,7 @@ class Comparisons(unittest.TestCase):
             dict(item, fresh_processes=2, protocol_complete=False)])
         cells = candidate_rows(report)
         self.assertEqual(len(cells), 3)
+        self.assertTrue(all(row['physical_gpu_uuid']=='card-a' and row['hardware_boot_id']=='boot-a' for row in cells))
         self.assertEqual(len({row['comparison_arm'] for row in cells}), 3)
         self.assertEqual(len(compare(cells+[self.row('vllm')], 'llm')), 3)
         report['evidence'] = 'pilot only'
