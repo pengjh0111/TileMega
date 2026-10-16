@@ -1,0 +1,2 @@
+model,system,batch,gpu_uuid,boot_id,checkpoint_sha256,seed,weights_bytes,fresh_processes,e2e_ms,ttft_ms,tpot_ms,tokens_per_second,acceptance,evidence_json
+qwen3_30b_a3b,vllm,1,ac78f16f-955d-c08b-e6fe-4e4554c8954d,fc250a07-0614-4659-90ff-af65931de20c,2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9,0,61064245248,3,5865.71136099883,36.11478799939505,5.6985303743885,174.57388149178044,provisional_container_pid_namespace,runs/r16/moe-paired-external-v2/validated-results.json
