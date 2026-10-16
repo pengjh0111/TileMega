@@ -11,6 +11,8 @@ from pathlib import Path
 import statistics
 
 LLM_METRICS = ('e2e_ms', 'ttft_ms', 'tpot_ms', 'tokens_per_second')
+PAIR_SCOPE = ('device_pairing', 'boot_pairing', 'native_gpu', 'baseline_gpu',
+              'native_gpu_uuid', 'baseline_gpu_uuid', 'native_boot_id', 'baseline_boot_id')
 
 
 def complete(row):
@@ -85,8 +87,7 @@ def geomeans(rows, family):
     groups = {}
     for row in rows:
         key = tuple(row[key] for key in ('native_system', 'native_comparison_arm', 'baseline_system',
-                    'baseline_mode', 'native_precision', 'baseline_precision', 'checkpoint_scope', 'acceptance',
-                    'device_pairing', 'boot_pairing'))
+                    'baseline_mode', 'native_precision', 'baseline_precision', 'checkpoint_scope', 'acceptance') + PAIR_SCOPE)
         groups.setdefault(key, []).append(row)
     output = []
     for key, cells in sorted(groups.items()):
@@ -94,8 +95,7 @@ def geomeans(rows, family):
         if len(coordinates) != len(cells):
             raise ValueError('ambiguous native artifacts for the same comparison coordinate')
         output.append(dict(zip(('native_system', 'native_comparison_arm', 'baseline_system', 'baseline_mode',
-                    'native_precision', 'baseline_precision', 'checkpoint_scope', 'acceptance',
-                    'device_pairing', 'boot_pairing'), key),
+                    'native_precision', 'baseline_precision', 'checkpoint_scope', 'acceptance') + PAIR_SCOPE, key),
             matched_cells=len(cells), coordinates=';'.join(f'{model}/B{batch}' for model, batch in sorted(coordinates)),
             **{field + '_speedup': math.exp(statistics.mean(math.log(cell[field + '_speedup']) for cell in cells))
                for field in (LLM_METRICS if family == 'llm' else ('median_ms', 'p90_ms'))}))

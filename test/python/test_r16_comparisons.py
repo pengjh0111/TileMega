@@ -67,6 +67,15 @@ class Comparisons(unittest.TestCase):
         other_boot, = compare([tm, base], 'dnn')
         self.assertEqual(len(geomeans([unknown, known, other_boot], 'dnn')), 3)
 
+    def test_unknown_native_does_not_merge_baselines_from_different_epochs(self):
+        tm, base = self.row('tilemega'), self.row('tensorrt')
+        unknown, = compare([tm, base], 'dnn')
+        base.update(physical_gpu_uuid='card-a', physical_gpu_identity_status='verified', hardware_boot_id='boot-a')
+        one_known, = compare([tm, base], 'dnn')
+        base['hardware_boot_id']='boot-b'
+        other_boot, = compare([tm, base], 'dnn')
+        self.assertEqual(len(geomeans([unknown, one_known, other_boot], 'dnn')), 3)
+
     def test_final_candidate_arms_keep_source_and_executor(self):
         item = dict(model='resnet18', batch=1, candidate='h1', source_head='source-a',
             executor='L2', device_loop=0, protocol_complete=True, fresh_processes=3,
