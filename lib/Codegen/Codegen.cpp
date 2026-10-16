@@ -1238,7 +1238,7 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
     if(dm_shared)out<<"#define TILEMEGA_DM_STAGE_SHARED_BYTES "<<dm_shared<<"\n";
     if(!scalar_shapes.empty() || depthwise || moe_stages) {
       out<<"} // namespace tilemega::codegen\n"
-         <<"#include <tilemega/Codegen/tasks/TaskBase.h>\n"
+         <<"#include <tilemega/Codegen/tasks/TaskBase.h>\n#include <tilemega/Target/Maca/DevicePrimitives.h>\n"
          <<"#define TILEMEGA_DM_STAGE_DISPATCH 1\n"
          <<"namespace tilemega::codegen {\n"
          <<"template<class Runner>\n"

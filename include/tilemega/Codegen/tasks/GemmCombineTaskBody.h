@@ -41,7 +41,7 @@ struct GemmCombineTaskBody {
     // DM forward rows can be image pixels or bound slots rather than tokens.
     // The producer's row count also determines the split-partial stride.
     if (invocation.access.rows_per_batch)
-      rows = cute::get<0>(invocation.problem);
+      rows = invocation.problem.m;
 #endif
     int columns = static_cast<int>(stage.width);
     if constexpr (Op == backend::ServingEpilogueOp::kSwiGLU && V::kTileN % 32) {
@@ -75,7 +75,7 @@ struct GemmCombineTaskBody {
       source.dm_buffers=invocation.dm_buffers;source.chain=invocation.chain;
       source.access=invocation.access;source.binding=invocation.binding;source.rows=invocation.rows;
       source.output=reinterpret_cast<tilemega::Bf16*>(p.buffers[stage.operand[1]]);
-      source.m=cute::get<0>(invocation.problem);source.n=stage.width;
+      source.m=invocation.problem.m;source.n=stage.width;
       source.output_stride=invocation.serving_output_stride;
       source.norm_k=invocation.k_total;source.norm_eps=TILEMEGA_NORM_EPSILON;
       if(!ResolveDmCombineOperands(source,task/invocation.tiles_n,V::kTileM,&operands))return;

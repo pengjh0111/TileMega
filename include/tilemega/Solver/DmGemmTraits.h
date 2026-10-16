@@ -5,7 +5,7 @@
 
 namespace tilemega::solver {
 
-/// xcore1000 DM tiles (Backend/Mx/ServingDmGemmMx.h): register-direct MMA
+/// xcore1000 DM tiles (Backend/ServingDmGemm.h, ServingConv.h): register-direct MMA
 /// mainloop over 16-row atoms split across two waves, 32-K chunks; the only
 /// shared memory is the FP32 tile plus epilogue scratch.
 constexpr bool DmServingBF16ShapeLegal(int m,int n,int k,int stages) {

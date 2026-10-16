@@ -16,7 +16,8 @@
 #include <tilemega/Codegen/DmDescriptors.h>
 #include <tilemega/Codegen/tasks/DmEpilogueDispatch.cuh>
 #include <tilemega/Backend/ServingDmEpilogue.h>
-#include <tilemega/Backend/Mx/ServingDmGemmMx.h>
+#include <tilemega/Backend/ServingDmGemm.h>
+#include <tilemega/Backend/ServingConv.h>
 #include <tilemega/Solver/DmGemmTraits.h>
 #endif
 
@@ -171,7 +172,6 @@ struct ServingGemmTaskBody {
 #endif
   }
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-  using DmGemm = backend::ServingDmGemmMx<TileM, TileN, TileK>;
   template <class Spec>
   __device__ static void RunDm(ServingGemmOperands const& p, int tile_m, int tile_n, char* shared) {
     auto resolved = p;
@@ -204,25 +204,11 @@ struct ServingGemmTaskBody {
         maca::Trap();
         return;
       }
-      auto run = [&](auto pack) {
-        constexpr int Pack = decltype(pack)::value;
-        typename DmGemm::template ConvA<ServingGemmOperands, Pack> a(p, conv, layout, geometry, tile_m, begin);
-        typename DmGemm::template ConvB<ServingGemmOperands, Pack> b(p, a, conv, geometry, tile_n, begin, kTiled);
-        return DmGemm::Run(p, tile_m, tile_n, iterations, a, b, shared);
-      };
-      tile = geometry.channels == 4 ? run(std::integral_constant<int, 4>{}) : run(std::integral_constant<int, 8>{});
+      tile = backend::ServingConv<Arch, TileM, TileN, TileK, Stages>::template Run<kTiled>(
+          p, conv, layout, geometry, tile_m, tile_n, begin, iterations, shared);
     } else {
-      int const a_pitch = p.a_row_stride ? p.a_row_stride : p.k_total;
-      int const b_pitch = p.b_row_stride ? p.b_row_stride : p.k_total;
-      if (!p.a || !p.b || p.k_begin < 0 || p.k_count <= 0 || p.k_begin % 8 || p.k_begin + p.k_count > p.k_total ||
-          a_pitch % 8 || b_pitch % 8 || a_pitch < p.k_total || b_pitch < p.k_total ||
-          (kTiled && (!p.weight_base || p.k_total_full <= 0 || p.k_begin % TileK))) {
-        maca::Trap();
-        return;
-      }
-      typename DmGemm::template DenseA<ServingGemmOperands> a(p, tile_m);
-      typename DmGemm::template DenseB<ServingGemmOperands> b(p, tile_n, kTiled);
-      tile = DmGemm::Run(p, tile_m, tile_n, (p.k_count + TileK - 1) / TileK, a, b, shared);
+      // Argument checks live in ServingDmGemm::Dense.
+      tile = backend::ServingDmGemm<Arch, TileM, TileN, TileK, Stages>::Dense(p, tile_m, tile_n, shared, kTiled);
     }
     backend::ServingDmEpilogue<Arch, Spec, TileM, TileN, false>::RunFromTile(tile, DmEpilogueOperands(p), tile_m,
                                                                             tile_n);

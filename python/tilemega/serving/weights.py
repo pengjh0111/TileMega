@@ -137,7 +137,8 @@ def _packed_gpu(recipe: Mapping[str, object], source) -> torch.Tensor:
     kind = recipe['kind']
     if is_expert_recipe(recipe):
         return pack_experts(recipe,source,lambda matrix,tn,tk:_packed_gpu(
-            dict(kind='tile_pages',tile_n=tn,tile_k=tk,source=dict(kind='alias',source='matrix')),
+            # xcore1000 expert tiles use the same MMA fragment order as dense tiles.
+            dict(kind='tile_pages',layout='xcore_mma',tile_n=tn,tile_k=tk,source=dict(kind='alias',source='matrix')),
             lambda name:matrix))
     if kind in DNN_RECIPES:
         return pack_dnn(recipe, source, lambda value: _packed_gpu(value, source))

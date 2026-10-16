@@ -2,7 +2,8 @@
 #pragma once
 #include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Codegen/tasks/DepthwiseConvTaskBody.h>
-#include <tilemega/Codegen/tasks/PagedGemmTaskBody.h>
+#include <tilemega/Backend/ServingDmGemm.h>
+#include <tilemega/Backend/ServingDmEpilogue.h>
 
 namespace tilemega::codegen {
 #ifndef TILEMEGA_DM_FUSED_DISPATCH
@@ -97,80 +98,45 @@ struct DwPwFusedTaskBody {
     ComputeSync();
   }
 
-  template<int TileRows,int TileColumns>
-  struct SharedActivation {
+  /// The pointwise GEMM's A operand is the depthwise tile in shared memory
+  /// ([TM][Channels] BF16, rows past m already zero); B is the DM GEMM's
+  /// weight source (rows or fragment-packed tiles).
+  template<bool TiledB>
+  struct PointwiseSource {
+    using Inner=typename Gemm::template Source<TiledB,ServingGemmOperands>;
     E const* depthwise;
-    int begin,count;
-    __device__ void CopyValues(int iteration,E* target) const {
-      using Layout=typename backend::ServingDmGemm<Arch,TileRows,TileColumns,TK,2>::LayoutA;
-      for(unsigned vector=executor::ComputeThread();vector<TileRows*TK/8;vector+=kThreads) {
-        unsigned row=vector/(TK/8),column=vector%(TK/8)*8;
-        #pragma unroll
-        for(unsigned lane=0;lane<8;++lane) {
-          unsigned k=iteration*TK+column+lane;
-          target[Layout{}(row,column+lane)]=k<unsigned(count)?depthwise[row*Channels+begin+k]:E(0);
-        }
-      }
+    Inner inner;
+    __device__ PointwiseSource(E const* tile,ServingGemmOperands const& p,typename Gemm::Lane const& l,
+                               int tile_m,int tile_n,bool& ok)
+        :depthwise(tile),inner(p,l,tile_m,tile_n,ok) {}
+    __device__ uint4 A(int am,int kc) const {
+      return *reinterpret_cast<uint4 const*>(depthwise+(am*16+inner.l.r)*Channels+inner.p.k_begin+kc+8*inner.l.g);
     }
-    __device__ void Copy(int iteration,E* target,int) const {
-      CopyValues(iteration,target);
-      // The paged mainloop tracks one async group per activation slot. Its
-      // subsequent compute join publishes these shared-to-shared stores.
-      asm volatile("cp.async.commit_group;" ::: "memory");
+    __device__ uint4 ATail(int am,int kc,int count) const {
+      return kc+8*inner.l.g<count?A(am,kc):uint4{0,0,0,0};
     }
+    __device__ uint4 B(int j,int kc) const {return inner.B(j,kc);}
+    __device__ uint4 BTail(int j,int kc,int count) const {return inner.BTail(j,kc,count);}
   };
 
   template<bool TiledB=false>
   __device__ static void Run(DwPwFusedOperands const& p,int tile_m,int tile_n,char* scratch) {
     using namespace executor;
-    if(!scratch || !p.pointwise.b || (TiledB && !p.pointwise.weight_base)) {
+    if(!scratch || !p.pointwise.b || (TiledB && !p.pointwise.weight_base) ||
+       p.pointwise.k_count%8 || (TiledB && p.pointwise.k_total_full!=Channels)) {
       maca::Trap();return;
     }
     auto* depthwise=reinterpret_cast<E*>(scratch);
     auto* workspace=scratch+kDepthwiseBytes;
     Depthwise(p,tile_m,tile_n,depthwise);
-    SharedActivation<TM,TN> reader{depthwise,p.pointwise.k_begin,p.pointwise.k_count};
-    auto* activation=reinterpret_cast<E*>(workspace);
-    auto* weight=activation+Stages*TM*TK;
-    auto issue=[&](int iteration) {
-      reader.CopyValues(iteration,activation+(iteration%Gemm::kSlots)*TM*TK);
-      if constexpr(TiledB) {
-        auto* source=p.pointwise.weight_base+
-            (std::size_t(tile_n)*((Channels+TK-1)/TK)+p.pointwise.k_begin/TK+iteration)*TN*TK;
-        for(unsigned vector=ComputeThread();vector<TN*TK/8;vector+=kThreads)
-          executor::Async<Arch>::Copy16Bytes(weight+(iteration%Gemm::kSlots)*TN*TK+vector*8,source+vector*8,16);
-      }else {
-        unsigned pitch=p.pointwise.b_row_stride?p.pointwise.b_row_stride:Channels;
-        for(unsigned vector=ComputeThread();vector<TN*TK/8;vector+=kThreads) {
-          unsigned n=tile_n*TN+vector/(TK/8),k=iteration*TK+vector%(TK/8)*8;
-          bool valid=n<unsigned(p.pointwise.n) && k<unsigned(p.pointwise.k_count);
-          unsigned count=valid?min(8u,unsigned(p.pointwise.k_count)-k):0;
-          auto* source=valid?p.pointwise.b+std::size_t(n)*pitch+p.pointwise.k_begin+k:p.pointwise.b;
-          executor::Async<Arch>::Copy16Bytes(weight+(iteration%Gemm::kSlots)*TN*TK+
-              typename Gemm::LayoutB{}(vector/(TK/8),vector%(TK/8)*8),source,count*sizeof(E));
-        }
-      }
-    };
-    auto* result=Gemm::Pipeline(issue,(p.pointwise.k_count+TK-1)/TK,workspace);
+    typename Gemm::Lane const l;
+    bool ok=true;
+    PointwiseSource<TiledB> source(depthwise,p.pointwise,l,tile_m,tile_n,ok);
+    if(!ok) {maca::Trap();return;}
+    auto* result=Gemm::Mma::Run(source,l,p.pointwise.k_count,p.pointwise.m-tile_m*TM,
+                                p.pointwise.n-tile_n*TN,workspace);
     backend::ServingDmEpilogue<Arch,PwSpec,TM,TN,false>::RunFromTile(
         result,DmEpilogueOperands(p.pointwise),tile_m,tile_n);
-  }
-
-  template<int PageBytes,int Pages,bool ForceSm80=false>
-  static constexpr int PagedSharedBytes() {
-    return kDepthwiseBytes+PagedGemmTaskBody<Arch,TM,TN,TK,PageBytes,Pages,ForceSm80>::kDmWorkspaceBytes;
-  }
-  template<int PageBytes,int Pages,bool ForceSm80=false>
-  __device__ static void RunPaged(DwPwFusedOperands const& p,int tile_m,int tile_n,
-      typename PagedGemmTaskBody<Arch,TM,TN,TK,PageBytes,Pages,ForceSm80>::Ring const& ring,
-      std::uint64_t& sequence,char* scratch) {
-    using Paged=PagedGemmTaskBody<Arch,TM,TN,TK,PageBytes,Pages,ForceSm80>;
-    if(!scratch) {maca::Trap();return;}
-    auto* depthwise=reinterpret_cast<E*>(scratch);
-    Depthwise(p,tile_m,tile_n,depthwise);
-    SharedActivation<TM,TN> reader{depthwise,p.pointwise.k_begin,p.pointwise.k_count};
-    Paged::template RunDmActivation<PwSpec>(p.pointwise,tile_m,tile_n,ring,sequence,
-        scratch+kDepthwiseBytes,reader,typename Paged::NoPhaseGate{});
   }
 };
 } // namespace tilemega::codegen

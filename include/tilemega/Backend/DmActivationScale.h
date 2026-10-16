@@ -17,6 +17,6 @@ template<class T>struct HasDmActivationScale<T,std::void_t<decltype(std::declval
 
 // SCA's multiply rounds to BF16 before the next GEMM consumes it. On
 // xcore1000 the scale is applied to each loaded A vector inside the DM
-// operand loaders (Backend/Mx/ServingDmGemmMx.h Scale); there is no ldmatrix
+// operand loaders (Backend/ServingDmGemm.h DmActivationScaler); there is no ldmatrix
 // fragment transform.
 } // namespace tilemega::backend
