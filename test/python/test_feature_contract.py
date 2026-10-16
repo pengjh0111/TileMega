@@ -5,6 +5,23 @@ from tilemega.build.feature_contract import INTEGER_FEATURES, build_defines, imp
 
 
 class FeatureContractTests(unittest.TestCase):
+    def test_narrow_inline_identity_rejects_geometry_or_missing_dispatch(self):
+        plan=dict(phase='decode',pg='off',seed_arch='native',seed_target_arch='sm_90',
+                  dm_wgmma_inline=1,moe_activation_bulk=1,attention_noinline=True,
+                  gemms=[dict(index=0,tile_m=16,tile_n=64,tile_k=64,impl='wgmma')])
+        defines=dict(TILEMEGA_ARCH_ID='900',TILEMEGA_DM_NARROW_INLINE='1',
+                     TILEMEGA_DM_WGMMA_INLINE='1',TILEMEGA_MOE_ACTIVATION_BULK='1',
+                     TILEMEGA_ATTENTION_NOINLINE='1')
+        validate(plan,defines)
+        self.assertTrue(implementations(plan,defines)['dm_wgmma_inline'])
+        self.assertFalse(implementations({'gemms':[]}, {})['dm_wgmma_inline'])
+        for change in ({'pg':'pages'},{'seed_target_arch':'sm_89'},
+                       {'attention_noinline':False},
+                       {'gemms':[dict(plan['gemms'][0],tile_n=128)]}):
+            with self.assertRaises(ValueError):validate(dict(plan,**change),defines)
+        with self.assertRaises(ValueError):validate(plan,dict(defines,TILEMEGA_DM_WGMMA_INLINE='0'))
+        with self.assertRaises(ValueError):validate(plan,dict(defines,TILEMEGA_DM_NARROW_INLINE='0'))
+
     def test_manifest_gemm_dispatch_checks_actual_runtime_class(self):
         gemms=[dict(index=i,tile_m=16,tile_n=n,tile_k=64,stages=2,split_k=1,impl=impl)
                for i,(n,impl)in enumerate([(128,'wgmma'),(128,'mma16'),(32,'gemv')])]
@@ -90,6 +107,12 @@ class FeatureContractTests(unittest.TestCase):
                         plan = dict(pg='l2', **{feature: value})
                         source = ('#define TILEMEGA_DM_SUPPORT 1\n' if dm else '')
                         defines = build_defines(source, ['nvcc', f'-D{macro}={value}'])
+                        if feature == 'dm_wgmma_inline' and value:
+                            plan.update(phase='decode',pg='off',seed_arch='native',seed_target_arch='sm_90',
+                                moe_activation_bulk=1,attention_noinline=True,
+                                gemms=[dict(tile_m=16,tile_n=64,tile_k=64,impl='wgmma')])
+                            defines.update(TILEMEGA_ARCH_ID='900',TILEMEGA_DM_WGMMA_INLINE='1',
+                                TILEMEGA_MOE_ACTIVATION_BULK='1',TILEMEGA_ATTENTION_NOINLINE='1')
                         validate(plan, defines)
                         plan[feature] = value + 1
                         with self.assertRaisesRegex(ValueError, 'manifest'):

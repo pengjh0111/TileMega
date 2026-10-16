@@ -337,7 +337,7 @@ int RunCompile(int argc, char** argv) {
     int nonpaged_la=0,attention_frontier=0;
     std::array<int,5> serving_impl{{-1,-1,-1,-1,-1}};
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
-    int moe_dynamic=0,moe_opaque=0,moe_gemv=0,moe_activation_bulk=0;
+    int moe_dynamic=0,moe_opaque=0,moe_gemv=0,moe_activation_bulk=0,dm_wgmma_inline=0;
     bool moe_gemv_auto=true;
     std::string candidate_mode="L1",nonpaged_weight_layout="row";
     bool page_bytes_pinned=false,nonpaged_la_pinned=false;
@@ -390,6 +390,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--moe-dynamic") moe_dynamic=std::stoi(value);
       else if (flag=="--moe-opaque") moe_opaque=std::stoi(value);
       else if (flag=="--moe-activation-bulk") moe_activation_bulk=std::stoi(value);
+      else if (flag=="--dm-wgmma-inline") dm_wgmma_inline=std::stoi(value);
       else if (flag=="--moe-gemv") {moe_gemv_auto=value=="auto";moe_gemv=moe_gemv_auto?0:std::stoi(value);}
       else if (flag=="--moe-binding") moe_binding=value;
       else if (flag=="--routing-profile") routing_profile_path=value;
@@ -690,6 +691,10 @@ int RunCompile(int argc, char** argv) {
       throw std::invalid_argument("--residency requires serving execution");
     if(serving_residency)runtime_flags+=" -DTILEMEGA_SERVING_RESIDENCY_REQUEST="+std::to_string(serving_residency);
     if(cluster_dim>1)runtime_flags+=" -DTILEMEGA_SERVING_CLUSTER_DIM="+std::to_string(cluster_dim);
+    if ((dm_wgmma_inline!=0 && dm_wgmma_inline!=1) ||
+        (dm_wgmma_inline && (!serving || serving_phase!="decode" || pg_mode!="off" ||
+         arch_paths!="auto" || seed_arch!="native" || !moe_activation_bulk || attention_noinline!=1 || decode_tile_m!=16)))
+      throw std::invalid_argument("DM WGMMA inline requires nonpaged native M16 decode, MoE bulk and outlined attention");
     if((moe_activation_bulk!=0 && moe_activation_bulk!=1) ||
         (moe_activation_bulk && (!serving || serving_phase!="decode" || arch_paths!="auto")))
       throw std::invalid_argument("--moe-activation-bulk requires 0/1 and native Hopper decode");
@@ -1561,7 +1566,7 @@ int RunCompile(int argc, char** argv) {
               " --capacity "+std::to_string(serving_capacity)+
               " --prompt-len "+std::to_string(serving_prompt_len)+
               " --sync "+quote(sync_policy)+" --runtime-target "+quote(runtime_target)+
-              " --arch-paths "+quote(arch_paths)+" --encoder-attention-impl "+quote(encoder_attention_impl)+" --prefill-attention-impl "+quote(prefill_attention_impl)+" --forward-gemm-impl "+quote(forward_gemm_impl)+" --conv-impl "+quote(conv_impl)+" --depthwise-impl "+quote(depthwise_impl)+" --dwpw-impl "+quote(dwpw_impl)+" --moe-activation-bulk "+std::to_string(moe_activation_bulk)+
+              " --arch-paths "+quote(arch_paths)+" --encoder-attention-impl "+quote(encoder_attention_impl)+" --prefill-attention-impl "+quote(prefill_attention_impl)+" --forward-gemm-impl "+quote(forward_gemm_impl)+" --conv-impl "+quote(conv_impl)+" --depthwise-impl "+quote(depthwise_impl)+" --dwpw-impl "+quote(dwpw_impl)+" --moe-activation-bulk "+std::to_string(moe_activation_bulk)+" --dm-wgmma-inline "+std::to_string(dm_wgmma_inline)+
               " --decode-tile-m "+std::to_string(decode_tile_m)+" --activation-tma "+std::to_string(activation_tma)+" --dependency-intern "+std::to_string(dependency_intern)+" --cluster-dim "+std::to_string(cluster_dim)+" --combine "+quote(combine_impl)+" --merge "+quote(merge_impl)+
               (serving_residency?" --residency "+std::to_string(serving_residency):std::string())+" --gemv-load "+quote(gemv_load)+" --qkv-epilogue "+std::to_string(qkv_epilogue)+" --attention-tma "+std::to_string(attention_tma)+" --pdl "+quote(pdl)+
               " --pg "+quote(pg_mode)+" --page-bytes "+std::to_string(candidate_page_bytes)+
@@ -1905,6 +1910,21 @@ int RunCompile(int argc, char** argv) {
       }
       if(!selected)throw std::invalid_argument("MoE activation bulk requires a WGMMA row-gather expert GEMM");
       (*module)->setAttr("tmexec.moe_activation_bulk",mlir::BoolAttr::get(&context,true));
+    }
+    if (dm_wgmma_inline) {
+      auto runtime=(*module)->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime");
+      if (!runtime || runtime.empty())
+        throw std::invalid_argument("DM WGMMA inline requires an explicit GEMM runtime table");
+      for (auto value : runtime) {
+        auto item=mlir::cast<mlir::DictionaryAttr>(value);
+        auto equals=[&](char const* name,int expected) {
+          auto field=item.getAs<mlir::IntegerAttr>(name);
+          return field && field.getInt()==expected;
+        };
+        if (!equals("impl",2) || !equals("tile_m",16) || !equals("tile_n",64) || !equals("tile_k",64))
+          throw std::invalid_argument("DM WGMMA inline requires every GEMM to use M16N64K64 WGMMA");
+      }
+      (*module)->setAttr("tmexec.dm_wgmma_inline",mlir::BoolAttr::get(&context,true));
     }
     bool use_l2=serving && (pg_mode=="l2" || (pg_mode=="auto" && !use_pages));
     if(moe_opaque)(*module)->setAttr("tmexec.moe_opaque",mlir::BoolAttr::get(&context,true));
@@ -2393,6 +2413,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"merge\": "<<std::quoted(merge_impl)
               <<",\n  \"requested_residency\": "<<serving_residency
               <<",\n  \"moe_activation_bulk\": "<<moe_activation_bulk
+              <<",\n  \"dm_wgmma_inline\": "<<dm_wgmma_inline
               <<",\n  \"prefill_attention_impl\": "<<std::quoted(prefill_attention_impl)
               <<",\n  \"encoder_attention_impl\": "<<std::quoted(encoder_attention_impl)
               <<",\n  \"attention_impl\": \""<<attention_impl<<"\""

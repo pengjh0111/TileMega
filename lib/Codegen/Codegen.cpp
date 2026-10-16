@@ -1156,7 +1156,9 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
     // Narrow dispatch grouping requires the validated row-gather bulk candidate;
     // wide forward retains its separately verified transitive inlining.
     auto bulk = module->getAttrOfType<mlir::BoolAttr>("tmexec.moe_activation_bulk");
-    bool dm_wgmma = false, h10_wgmma = false;
+    auto typed_access = module->getAttrOfType<mlir::BoolAttr>("tmexec.dm_wgmma_inline");
+    bool narrow_inline = typed_access && typed_access.getValue();
+    bool dm_wgmma = narrow_inline, h10_wgmma = false;
     if (auto runtime = module->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime"))
       for (auto value : runtime)
         if (auto item = mlir::dyn_cast<mlir::DictionaryAttr>(value))
@@ -1166,6 +1168,7 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
             dm_wgmma |= impl.getInt() == 2 && m >= 64;
           }
     if (dm_wgmma) out << "#define TILEMEGA_DM_WGMMA_INLINE 1\n";
+    if (narrow_inline) out << "#define TILEMEGA_DM_NARROW_INLINE 1\n";
     out << "#include <tilemega/Codegen/DmDescriptors.h>\n"
         << "#define TILEMEGA_DM_EPILOGUE_DISPATCH 1\n"
         << "#define TILEMEGA_DM_TYPED_DISPATCH 1\n"
@@ -1190,14 +1193,19 @@ std::string TaskBodyEmitter::Emit(mlir::ModuleOp module) const {
            <<"u), "<<op.residual_map.factor<<"u>";
       }
       out<<">;\n";
-      out<<"using DmSpec"<<i<<" = DmEpilogueSpec<DmChain"<<i
+      out<<"using DmSpec"<<i<<" = ";
+      if (narrow_inline) out<<"DmAccessEpilogueSpec<";
+      out<<"DmEpilogueSpec<DmChain"<<i
          <<", static_cast<DmWriteKind>("<<unsigned(access.write.kind)<<"u), "
          <<access.write.factor<<"u, static_cast<DmRounding>("
          <<unsigned(chain.store_rounding)<<"u)";
       for(unsigned j=0;j<chain.side_count;++j)
         out<<", DmSideOutputSpec<static_cast<DmSideOutputKind>("
            <<unsigned(chain.side[j].kind)<<"u), "<<chain.side[j].count<<"u>";
-      out<<">;\n";
+      out<<">";
+      if (narrow_inline) out<<", static_cast<DmAAccess>("<<unsigned(access.a)
+          <<"u), static_cast<DmBAccess>("<<unsigned(access.b)<<"u)>";
+      out<<";\n";
     }
     auto stages = arrayField(plan, "stages");
     bool depthwise=false,moe_stages=false;

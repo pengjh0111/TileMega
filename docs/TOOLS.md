@@ -194,6 +194,18 @@ reject this selection. WGMMA stays outside automatic candidate enumeration
 until calibrated costs and model-level end-to-end A/B justify enabling it.
 
 
+The experimental `--dm-wgmma-inline 1` coordinate specializes MoE access modes
+and inlines the complete narrow WGMMA dispatch. Omission is zero. Its legal
+domain requires native nonpaged decode, `--moe-activation-bulk 1`,
+`--attention-noinline 1`, and every GEMM at M16N64K64 with WGMMA. The packed
+weight layout must request TN64 before import; changing generated geometry
+is unsupported. Verified: the full 48-layer private CPU prototype had no
+serialization warnings or local-memory instructions in audited WGMMA loops;
+cold-path compiler spills remain. Official artifact and model-level checks
+must pass before this candidate supplies performance results. Defaults and
+SM80 execution remain unchanged.
+
+
 Narrow native decode GEMV accepts `--gemv-load ldg|nc|bulk`; omission keeps
 `ldg`. Verified: `bulk` retains the SIMT arithmetic and uses two 32 KiB weight
 slots, mbarrier completion and vector shared loads. It requires bulk-copy

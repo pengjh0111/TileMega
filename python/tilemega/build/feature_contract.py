@@ -11,6 +11,7 @@ INTEGER_FEATURES = {
     'cluster_dim': ('TILEMEGA_SERVING_CLUSTER_DIM', 1),
     'qkv_epilogue': ('TILEMEGA_QKV_EPILOGUE', 0),
     'moe_activation_bulk': ('TILEMEGA_MOE_ACTIVATION_BULK', 0),
+    'dm_wgmma_inline': ('TILEMEGA_DM_NARROW_INLINE', 0),
     'watchdog': ('TILEMEGA_WATCHDOG', 1),
     'attention_noinline': ('TILEMEGA_ATTENTION_NOINLINE', 0),
     'attention_buffers': ('TILEMEGA_ATTENTION_BUFFERS', 2),
@@ -101,6 +102,14 @@ def validate(manifest, defines):
             actual = int(defines.get(macro, str(default)))
             if int(manifest[feature]) != actual:
                 raise ValueError(f'manifest {feature} differs from {macro}')
+    if manifest.get('dm_wgmma_inline'):
+        if (manifest.get('phase') != 'decode' or manifest.get('pg') != 'off' or
+                manifest.get('seed_arch') != 'native' or manifest.get('seed_target_arch') != 'sm_90' or
+                not manifest.get('moe_activation_bulk') or not manifest.get('attention_noinline') or
+                int(defines.get('TILEMEGA_DM_WGMMA_INLINE', '0')) != 1 or not manifest.get('gemms') or
+                any((g.get('tile_m'),g.get('tile_n'),g.get('tile_k'),g.get('impl')) !=
+                    (16,64,64,'wgmma') for g in manifest['gemms'])):
+            raise ValueError('manifest dm_wgmma_inline has an illegal implementation domain')
     if 'attention_impl' in manifest:
         if 'TILEMEGA_ATTENTION_IMPL' in defines:
             index=int(defines['TILEMEGA_ATTENTION_IMPL'])
@@ -164,6 +173,7 @@ def implementations(manifest, defines):
     return {'dwpw_impl': manifest.get('dwpw_impl', 'mma16'), 'depthwise_impl': manifest.get('depthwise_impl', 'cpasync'), 'seed_arch': manifest.get('seed_arch', 'legacy'),
             'execution_arch_id': int(defines.get('TILEMEGA_ARCH_ID', '800')),
             'decode_tile_m': int(manifest.get('decode_tile_m', 16)),
+            'dm_wgmma_inline': bool(manifest.get('dm_wgmma_inline', 0)),
             'combine': manifest.get('combine', 'stage'),
             'merge': manifest.get('merge', 'stage'),
             'qkv_epilogue': bool(manifest.get('qkv_epilogue', False)),

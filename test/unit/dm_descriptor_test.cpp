@@ -225,6 +225,19 @@ int TestDmDescriptor(int, char**) {
   auto wide=emit_runtime(64,2,false);
   assert(wide.find("#define TILEMEGA_DM_WGMMA_INLINE 1")!=std::string::npos);
   assert(wide.find("std::is_same_v<DmSpec")==std::string::npos);
+  module->setAttr("tmexec.dm_wgmma_inline",builder.getBoolAttr(true));
+  auto typed=emit_runtime(16,2,true);
+  assert(typed.find("#define TILEMEGA_DM_WGMMA_INLINE 1")!=std::string::npos);
+  assert(typed.find("using DmSpec0 = DmAccessEpilogueSpec<DmEpilogueSpec<DmChain0,")!=std::string::npos);
+  assert(typed.find("static_cast<DmAAccess>(0u), static_cast<DmBAccess>(0u)>")!=std::string::npos);
+  using Plain=DmEpilogueSpec<DmEpilogueProgram<>,DmWriteKind::kDense,1,DmRounding::kFP32>;
+  using Dense=DmAccessEpilogueSpec<Plain,DmAAccess::kDense,DmBAccess::kDense>;
+  using Gather=DmAccessEpilogueSpec<Plain,DmAAccess::kRowGather,DmBAccess::kExpertIndirect>;
+  static_assert(std::is_same_v<Dense::Chain,Plain::Chain> && Dense::kStore==Plain::kStore);
+  static_assert(Dense::kSideCount==Plain::kSideCount && !std::is_same_v<Dense,Gather>);
+  static_assert(Gather::kAAccess==DmAAccess::kRowGather && Gather::kBAccess==DmBAccess::kExpertIndirect);
+  module->removeAttr("tmexec.dm_wgmma_inline");
+  assert(narrow_dispatch==emit_runtime(16,2,true));
   module.erase();
 
   tilemega::analysis::IslContext isl;

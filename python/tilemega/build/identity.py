@@ -143,7 +143,7 @@ def validate_snapshot_inputs(root, source):
 
 
 DM_FIELDS=('frontend','reuse','deferred_ln','dwpw_fuse','moe_dynamic','moe_opaque',
-           'moe_gemv','shared_weight_layout_sha256','dm_pool_la','dm_moe_la',
+           'moe_gemv','dm_wgmma_inline','shared_weight_layout_sha256','dm_pool_la','dm_moe_la',
            'moe_binding','moe_bm','memory_arena_bytes','dm_reduction_mask',
            'dm_reduction_proved_stages','dnn_structure','dnn_structure_search_sha256',
            'moe_structure','moe_structure_search_sha256','routing_profile','moe_profile_pricing')
