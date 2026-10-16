@@ -1027,6 +1027,18 @@ int RunCompile(int argc, char** argv) {
       options.argmax_tile_n=serving_argmax_tile_n;
       auto plan=dnn_plan?*dnn_plan:tilemega::frontend::BuildModelPlan(
           bridge.nodes,bridge.inputs,bridge.outputs,options);
+      if(!shared_weight_layout.empty() && plan.serving) {
+        auto layouts=tilemega::solver::SharedDmWeightLayouts(plan,
+            tilemega::json::ParseFile(shared_weight_layout));
+        auto tile_n=tilemega::solver::SharedDmArgmaxTileN(plan,layouts,
+            options.argmax_tile_n);
+        if(tile_n!=options.argmax_tile_n) {
+          // Partial buffers and dependence maps must use the packed head tile.
+          options.argmax_tile_n=tile_n;
+          plan=tilemega::frontend::BuildModelPlan(
+              bridge.nodes,bridge.inputs,bridge.outputs,options);
+        }
+      }
       if(plan.dm) {
         bool enabled=!moe_opaque && (use_pages?paged_la:(!nonpaged_la_pinned || nonpaged_la));
         bool experts=std::any_of(plan.stages.begin(),plan.stages.end(),[](auto const& stage) {

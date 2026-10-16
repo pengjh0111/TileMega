@@ -589,6 +589,8 @@ if(TILEMEGA_BUILD_TESTS)
   add_test(NAME fusion_access COMMAND tilemega-unit fusion_access)
   add_test(NAME handoff_runtime_projection COMMAND tilemega-unit handoff_runtime_projection)
   add_test(NAME handoff_ir COMMAND tilemega-unit handoff_ir)
+  add_test(NAME serving_argmax_tile_import COMMAND tilemega-unit handoff_ir
+    argmax_tile_import ${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/serving_split.json)
   foreach(split_case IN ITEMS nonpaged_attention nonpaged_combine four one off escape)
     add_test(NAME handoff_split_${split_case} COMMAND tilemega-unit handoff_ir
       splitk_import ${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/serving_split.json

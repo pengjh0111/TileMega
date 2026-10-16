@@ -103,6 +103,17 @@ int TestDmGemmClassDomain(int,char**) {
   auto conflict=extra.front();auto recipe=conflict.At("recipe");recipe.Set("tile_n",32);
   conflict.Set("recipe",recipe);extra.push_back(conflict);broken.Set("buffers",extra);
   rejected_manifest(broken);
+  assert(SharedDmArgmaxTileN(plan,shared_layouts,128)==128);
+  plan.gemms[0].epilogue=frontend::PlanGemm::Epilogue::kArgmaxPartial;
+  assert(SharedDmArgmaxTileN(plan,shared_layouts,128)==64);
+  assert(SharedDmArgmaxTileN(plan,{},128)==128);
+  plan.gemms[1].epilogue=frontend::PlanGemm::Epilogue::kArgmaxPartial;
+  auto incompatible=shared_layouts;incompatible.at(1).tile_n=128;
+  bool incompatible_argmax=false;
+  try{(void)SharedDmArgmaxTileN(plan,incompatible,128);}
+  catch(std::invalid_argument const&){incompatible_argmax=true;}
+  assert(incompatible_argmax);
+  for(auto& g:plan.gemms)g.epilogue=frontend::PlanGemm::Epilogue::kStore;
   auto saved=plan.buffers[0].pack_json;
   plan.buffers[0].pack_json="{\"kind\":\"fold_rmsnorm\",\"norm\":\"gamma\",\"source\":{\"kind\":\"alias\",\"source\":\"w0\"}}";
   auto phase_specific=SharedDmWeightLayouts(plan,manifest);

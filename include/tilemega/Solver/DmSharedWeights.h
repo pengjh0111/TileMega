@@ -65,4 +65,15 @@ inline std::map<std::size_t,DmWeightLayoutConstraint> SharedDmWeightLayouts(
   if(result.empty())throw std::invalid_argument("shared deployment has no matching GEMM weights");
   return result;
 }
+inline int SharedDmArgmaxTileN(frontend::ModelPlan const& plan,
+    std::map<std::size_t,DmWeightLayoutConstraint> const& layouts,int fallback) {
+  int selected=0;
+  for(auto const& [id,layout]:layouts) {
+    if(plan.gemms.at(id).epilogue!=frontend::PlanGemm::Epilogue::kArgmaxPartial)continue;
+    if(selected && selected!=layout.tile_n)
+      throw std::invalid_argument("shared argmax projections require one N tile");
+    selected=layout.tile_n;
+  }
+  return selected?selected:fallback;
+}
 } // namespace tilemega::solver

@@ -817,6 +817,10 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
         "runtime variant must provide exactly one entry per model GEMM");
   std::vector<GemmGranularity> runtimeGemms = options.gemms;
   if (runtimeGemms.empty()) runtimeGemms.resize(plan.gemms.size());
+  for(std::size_t i=0;i<plan.gemms.size();++i)
+    if(plan.gemms[i].epilogue==PlanGemm::Epilogue::kArgmaxPartial &&
+       plan.gemms[i].partial_tile_n!=unsigned(runtimeGemms[i].tile_n))
+      throw std::invalid_argument("argmax partial N tile disagrees with runtime GEMM; rebuild the serving plan");
   std::vector<int> stages = prepared ? std::vector<int>{} : FormSemanticStages(tasks, plan);
 
   mlir::OpBuilder builder(&context);

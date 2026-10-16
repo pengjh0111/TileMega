@@ -20,10 +20,36 @@ namespace tilemega::tests::handoff_ir_test {
 int TestHandoffIr(int argc,char** argv) try {
   analysis::IslContext isl;mlir::MLIRContext context;
   context.getOrLoadDialect<dialect::CGDialect>();context.getOrLoadDialect<dialect::ExecDialect>();
+  if(argc==3 && std::string(argv[1])=="argmax_tile_import") {
+    auto bridge=frontend::ReadExportBridge(argv[2]);
+    frontend::ServingOptions serving;serving.seq=1;serving.argmax_tile_n=64;
+    serving.phase=frontend::ServingOptions::Phase::kDecode;
+    auto model=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,serving);
+    frontend::ImportOptions options;
+    options.gemms.assign(model.gemms.size(),{16,64,64,2,1});
+    auto head=std::find_if(model.gemms.begin(),model.gemms.end(),[](auto const& g) {
+      return g.epilogue==frontend::PlanGemm::Epilogue::kArgmaxPartial;
+    });
+    assert(head!=model.gemms.end() && head->partial_tile_n==64);
+    auto tiles=(head->n+63)/64;
+    assert(model.buffers.at(head->d).per_batch==tiles);
+    for(auto const& stage:model.stages)
+      if(stage.kind==frontend::PlanTaskKind::kArgmaxReduce)assert(stage.width==tiles);
+    auto module=frontend::TorchExportImporter{}.ImportPlan(argv[2],model,context,nullptr,options);
+    assert(module);
+    options.gemms.at(std::distance(model.gemms.begin(),head)).tile_n=128;
+    bool rejected=false;
+    try{(void)frontend::TorchExportImporter{}.ImportPlan(argv[2],model,context,nullptr,options);}
+    catch(std::invalid_argument const& e) {
+      rejected=std::string(e.what()).find("argmax partial N tile")!=std::string::npos;
+    }
+    assert(rejected);std::cout<<"ARGMAX N64 buffers and stale runtime geometry rejection PASS\n";
+    return 0;
+  }
   bool nonpaged_import=argc>1 && std::string(argv[1])=="nonpaged_splitk_import";
   if(argc==5 && (std::string(argv[1])=="splitk_import" || nonpaged_import)) {
     auto bridge=frontend::ReadExportBridge(argv[2]);
-    frontend::ServingOptions serving;serving.seq=1;
+    frontend::ServingOptions serving;serving.seq=1;serving.argmax_tile_n=128;
     serving.phase=frontend::ServingOptions::Phase::kDecode;
     auto model=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,serving);
     frontend::ImportOptions options;
