@@ -1951,13 +1951,23 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
       return value ? value.getInt() : 0;
     };
     long const tm = extent("Tm"), tn = extent("Tn");
-    if (tm > 0 && tn > 0)
+    // Tk and S come from the representative the solver selected, which R-1
+    // has already checked against the backend's shape rule. They used to be
+    // written as the literals 16 and 3 -- GemmGranularity's defaults, legal
+    // where k%16==0 suffices but not on xcore1000, whose serving GEMM body
+    // allows k in {64,128} (ServingBF16ShapeLegal). A plan that reached this
+    // path therefore failed in cucc on a static_assert rather than at
+    // selection time.
+    long const tk = extent("Tk"), stages = extent("S");
+    if (tm > 0 && tn > 0 && tk > 0 && stages > 0)
       generatedGemm = "#define TILEMEGA_GEMM_TILE_M " +
                       std::to_string(tm) + "\n" +
                       "#define TILEMEGA_GEMM_TILE_N " +
                       std::to_string(tn) + "\n" +
-                      "#define TILEMEGA_GEMM_TILE_K 16\n"
-                      "#define TILEMEGA_GEMM_STAGES 3\n"
+                      "#define TILEMEGA_GEMM_TILE_K " +
+                      std::to_string(tk) + "\n" +
+                      "#define TILEMEGA_GEMM_STAGES " +
+                      std::to_string(stages) + "\n" +
                       "#define TILEMEGA_GEMM_VARIANT_COUNT 1\n";
   }
 

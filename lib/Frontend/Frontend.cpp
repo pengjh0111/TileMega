@@ -831,6 +831,8 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   module->setAttr("tilemega.g", dict(builder, {
       builder.getNamedAttr("Tm", builder.getI64IntegerAttr(representative.tile_m)),
       builder.getNamedAttr("Tn", builder.getI64IntegerAttr(representative.tile_n)),
+      builder.getNamedAttr("Tk", builder.getI64IntegerAttr(representative.tile_k)),
+      builder.getNamedAttr("S", builder.getI64IntegerAttr(representative.stages)),
       builder.getNamedAttr("Tkv", builder.getI64IntegerAttr(128))}));
   llvm::SmallVector<mlir::Attribute> runtimePlan;
   for (auto const& impl : runtimeGemms)
