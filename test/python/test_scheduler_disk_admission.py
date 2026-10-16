@@ -4,9 +4,16 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from tilemega.bench.scheduler import prepare_attempt
+from tilemega.bench.scheduler import prepare_attempt, prefer_ready_cpu
 
 class DiskAdmission(unittest.TestCase):
+    def test_high_priority_cpu_gate_precedes_lower_priority_gpu(self):
+        gate = dict(name='gate', gpu=False, priority=-2)
+        gpu = dict(name='baseline', gpu=True, priority=0)
+        self.assertIs(prefer_ready_cpu([gate, gpu], gpu), gate)
+        self.assertIs(prefer_ready_cpu([dict(gate, priority=3), gpu], gpu), gpu)
+        self.assertIs(prefer_ready_cpu([gate, gpu], None), gate)
+
     def test_no_space_does_not_invent_an_attempt(self):
         record = dict(status='pending', attempts=0)
         with patch.object(Path, 'mkdir', side_effect=OSError(errno.ENOSPC, 'full')):

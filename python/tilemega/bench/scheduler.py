@@ -68,6 +68,15 @@ def ready_steps(steps, state, now):
     return sorted(ready, key=lambda s: (s.get('priority', 100), s['name'])), skipped
 
 
+def prefer_ready_cpu(ready, gpu_step):
+    cpu = next((step for step in ready if not step.get('gpu')), None)
+    if cpu is None:
+        return gpu_step
+    if gpu_step is None or (cpu.get('priority', 100), cpu['name']) < (gpu_step.get('priority', 100), gpu_step['name']):
+        return cpu
+    return gpu_step
+
+
 def timing_pause(control, waiting, available, now, limit):
     if control.get('timing_paused'):
         return
@@ -180,8 +189,7 @@ def main(argv=None):
             if not (control.get('timing_paused') and s.get('timing', True))
             and 'error' not in row and idle(row, policy, s.get('needs_free_mib', 12288))
             and numa_window_available(s)), None)
-        if chosen is None:
-            chosen = next((s for s in ready if not s.get('gpu')), None)
+        chosen = prefer_ready_cpu(ready, chosen)
         if chosen is None:
             persist()
             if steps and all(state[name]['status'] in TERMINAL for name in steps) and not args.stay_open:
