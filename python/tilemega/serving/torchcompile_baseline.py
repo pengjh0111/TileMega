@@ -67,7 +67,25 @@ def main() -> None:
         torch.disable_flash_attn = True
         metax_flash_attn_disabled = True
     from transformers import AutoModelForCausalLM
-    extra = {"experts_implementation": args.experts_implementation} if args.experts_implementation else {}
+    # MetaX torch 2.10 exposes torch._grouped_mm but its kernel raises
+    # "grouped mm is not supported on your system" (measured), so the R16
+    # grouped_mm expert implementation is probed before it is requested and
+    # the run falls back to the default experts, recorded in the results.
+    experts = args.experts_implementation
+    grouped_mm_error = None
+    if experts == "grouped_mm":
+        try:
+            probe = torch.randn(4, 8, dtype=torch.bfloat16, device="cuda")
+            weight = torch.randn(2, 8, 8, dtype=torch.bfloat16, device="cuda")
+            offsets = torch.tensor([2, 4], dtype=torch.int32, device="cuda")
+            op = getattr(torch.nn.functional, "grouped_mm", None) or torch._grouped_mm
+            op(probe, weight, offs=offsets)
+        except Exception as error:
+            # "eager", not None: transformers selects grouped_mm by default
+            # whenever torch exposes the symbol, so the fallback must be named.
+            grouped_mm_error = f"{type(error).__name__}: {error}"[:300]
+            experts = "eager"
+    extra = {"experts_implementation": experts} if experts else {}
     model = AutoModelForCausalLM.from_pretrained(str(args.model), dtype=torch.bfloat16, **extra).cuda().eval()
     model.generation_config.cache_implementation = "static"
     model.generation_config.pad_token_id = model.generation_config.eos_token_id
@@ -76,6 +94,8 @@ def main() -> None:
             "transformers_version": transformers.__version__, "mode": args.mode, "fullgraph": True,
             "compile_path": "generation_config.compile_config (decode forward; prefill eager)",
             "experts_implementation": getattr(model.config, "_experts_implementation", None),
+            "experts_implementation_requested": args.experts_implementation,
+            "grouped_mm_error": grouped_mm_error,
             "sdp_flags_constant": sdp_flags_constant,
             "metax_flash_attn_disabled": metax_flash_attn_disabled}
 
