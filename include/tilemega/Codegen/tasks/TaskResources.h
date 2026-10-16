@@ -52,10 +52,15 @@ constexpr int ServingAttentionSharedBytes(int head_dim, int kv_tile = 64) {
   return 2 * head_dim * (16 + 2 * kv_tile) + 2 * 16 * kv_tile + 4 * 16 * 8;
 }
 /// xcore1000 decode attention (Codegen/tasks/mx/DecodeAttentionSimt.h): the
-/// rotated queries, the new K/V row, four per-warp FP32 partials and their
-/// log-sum-exps.
+/// rotated queries and the new K/V row, then a union of the chunk buffers
+/// (per-lane partial dots and token scores) and the warp-merge buffers.
 constexpr int ServingDecodeAttentionSimtSharedBytes(int head_dim, int q_per_kv) {
-  return 2 * q_per_kv * head_dim + 4 * head_dim + 16 * q_per_kv * head_dim + 16 * q_per_kv;
+  int const lanes = head_dim / 8, groups = 128 / lanes, unroll = q_per_kv >= 8 ? 1 : 8 / q_per_kv;
+  int const chunk_tokens = groups * unroll;
+  int const chunk = 4 * chunk_tokens * q_per_kv * lanes + 4 * chunk_tokens * q_per_kv;
+  int const merge = 4 * q_per_kv * head_dim + 2 * 4 * 4 * q_per_kv;
+  int const unioned = ((chunk > merge ? chunk : merge) + 15) / 16 * 16;
+  return 2 * q_per_kv * head_dim + 4 * head_dim + unioned;
 }
 constexpr int ServingAttentionKvTile(int head_dim, int gemm_shared_bytes) {
   return ServingAttentionSharedBytes(head_dim, 64) <= gemm_shared_bytes ? 64 : 32;

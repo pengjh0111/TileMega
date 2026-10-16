@@ -4,6 +4,7 @@
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 
 #include <tilemega/Target/Maca/Bf16.h>
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Backend/ServingVectorIO.h>
 
 #include <cuda_runtime.h>
@@ -47,7 +48,7 @@ struct AttentionMergeTaskBody {
       for (int c = 0; c < blocks_live; ++c) {
         std::size_t base = (((std::size_t(batch) * heads_kv + group) *
                              blocks_max + c) * rows + row);
-        float weight = exp2f(lse[base] - maximum);
+        float weight = maca::Exp2(lse[base] - maximum);
         normalizer += weight;
         float4 first = *reinterpret_cast<float4 const*>(partial + base * HeadDim + dim);
         float4 second = *reinterpret_cast<float4 const*>(partial + base * HeadDim + dim + 4);

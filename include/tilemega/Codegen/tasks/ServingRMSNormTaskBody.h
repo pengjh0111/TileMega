@@ -4,6 +4,7 @@
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 
 #include <tilemega/Target/Maca/Bf16.h>
+#include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <tilemega/Backend/ServingVectorIO.h>
 #include <cuda_runtime.h>
 
@@ -57,7 +58,7 @@ struct ServingRMSNormTaskBody {
       float value = shared[ComputeThread()];
       for (int delta = 2; delta > 0; delta >>= 1)
         value += __shfl_down_sync(0xf, value, delta, 4);
-      if (ComputeThread() == 0) shared[0] = rsqrtf(value / width + epsilon);
+      if (ComputeThread() == 0) shared[0] = maca::Rsqrt(value / width + epsilon);
     }
     ComputeSync();
     return shared[0];

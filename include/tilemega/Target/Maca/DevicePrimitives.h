@@ -41,6 +41,13 @@ __device__ __forceinline__ unsigned long long GlobalTimerNs() {
 
 __device__ __forceinline__ long long Clock64() { return clock64(); }
 
+/// exp2f / rsqrtf without the math-library call: bit-identical to the libm
+/// results (exp2 over 2^26 points in (-126, 0], rsqrt over 2^24 points in
+/// [1e-6, 1e4]; 0 ULP) and 3x faster on a dependent chain (measured). expf
+/// and log2f builtins differ from libm (62 and 1 ULP) and are not wrapped.
+__device__ __forceinline__ float Exp2(float x) { return __builtin_exp2f(x); }
+__device__ __forceinline__ float Rsqrt(float x) { return __builtin_mxc_rsqf(x); }
+
 /// No AP identifier is readable (hwreg scan, P-11). Persistent kernels run one
 /// CTA per AP, so the block index identifies the execution slot instead.
 __device__ __forceinline__ unsigned SlotId() { return blockIdx.x; }

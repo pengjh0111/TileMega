@@ -95,7 +95,7 @@ struct ServingEpilogue {
           sum+=__shfl_xor_sync(maca::kFullWaveMask,sum,1);
           sum+=__shfl_xor_sync(maca::kFullWaveMask,sum,2);
           sum+=__shfl_xor_sync(maca::kFullWaveMask,sum,4);
-          if(part==0)inv[row]=global_row<M?rsqrtf(sum/float(norm_k)+norm_eps):0.0f;
+          if(part==0)inv[row]=global_row<M?maca::Rsqrt(sum/float(norm_k)+norm_eps):0.0f;
         }
         ComputeSync();
         for(int i=ComputeThread();i<TileM*TileN;i+=kComputeThreads) {

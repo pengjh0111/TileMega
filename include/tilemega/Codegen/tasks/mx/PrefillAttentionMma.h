@@ -161,7 +161,7 @@ struct PrefillAttentionMma {
           int const row = ComputeThread();
           float m = s.row_max[row];
           for (int w = 0; w < kWaves; ++w) m = fmaxf(m, s.maxima[w][row]);
-          s.alpha[row] = isfinite(s.row_max[row]) ? exp2f(s.row_max[row] - m) : 0;
+          s.alpha[row] = isfinite(s.row_max[row]) ? maca::Exp2(s.row_max[row] - m) : 0;
           s.row_max[row] = m;
         }
         ComputeSync();
@@ -172,7 +172,7 @@ struct PrefillAttentionMma {
 #pragma unroll
           for (int i = 0; i < 4; ++i) {
             int const row = 4 * gq + i;
-            float const prob = isfinite(score[j][i]) ? exp2f(score[j][i] - s.row_max[row]) : 0;
+            float const prob = isfinite(score[j][i]) ? maca::Exp2(score[j][i] - s.row_max[row]) : 0;
             sum[i] += prob;
             s.prob[row * KvTile + key] = Element(prob);
           }

@@ -2,12 +2,17 @@
 // TileMega -- Codegen/tasks/mx/DecodeAttentionSimt.h
 //
 // xcore1000 decode attention (`attention_impl=simt`, one token per request):
-// one CTA owns (batch, KV group, KV block). Each 32-lane logical warp scores
-// tokens with D/8 lanes per token and eight dimensions per lane, straight
-// from the global KV cache: kUnroll tokens per lane group are loaded before
-// their arithmetic so >= 8 16-byte loads are in flight (P-10). Online softmax
-// runs in the exp2 domain with the same scale as the NVIDIA bodies; the four
-// warp partials are merged in a fixed order (C-2).
+// one CTA owns (batch, KV group, KV block). Lane groups of D/8 lanes read K
+// and V rows coalesced, eight dimensions per lane, straight from the global
+// KV cache. Tokens are processed in chunks: every lane writes its 8-dim
+// partial dot products to shared memory, one thread per (token, query) sums
+// them, and each lane group then runs an online softmax over its own tokens
+// in the exp2 domain (same scale as the NVIDIA bodies). The per-token
+// cross-lane shuffle reduction this replaces cost ~46 ns per shuffle on
+// xcore1000 and dominated the loop (measured). The next chunk's K/V loads are
+// issued before the chunk's barriers. Lane groups merge by xor shuffles
+// inside a warp; warps merge in a fixed order (C-2) into one shared buffer,
+// which overlays the chunk buffers so Q = 8 fits a 16 KiB CTA (residency 4).
 //
 // The current token's K (q/k-norm + RoPE) and V are produced here, written to
 // the cache at `past`, and read back from shared memory by this CTA.
@@ -23,14 +28,29 @@ struct DecodeAttentionSimt {
   static_assert((D == 64 || D == 128) && Q >= 1 && Q <= 8, "simt decode attention: D in {64,128}, Q <= 8");
   using Element = tilemega::Bf16;
   static constexpr int kWarps = kComputeThreads / 32;
-  static constexpr int kLanes = D / 8, kGroups = 32 / kLanes, kUnroll = 4;
+  static constexpr int kLanes = D / 8, kGroups = 32 / kLanes, kAllGroups = kWarps * kGroups;
+  /// Tokens per lane group per chunk; the partial buffer stays at 4 KiB.
+  static constexpr int kUnroll = Q >= 8 ? 1 : 8 / Q;
+  static constexpr int kChunk = kAllGroups * kUnroll;
+  static_assert(kChunk * Q <= kComputeThreads, "one reducing thread per (token, query)");
 
+  struct Chunk {
+    float part[kChunk * Q][kLanes];
+    float score[kChunk * Q];
+  };
+  struct Merge {
+    alignas(16) float out[Q * D];
+    float max[kWarps][Q];
+    float sum[kWarps][Q];
+  };
   struct SharedStorage {
     alignas(16) Element query[Q * D];
     alignas(16) Element new_key[D];
     alignas(16) Element new_value[D];
-    alignas(16) float partial[kWarps * Q * D];
-    float lse[kWarps][Q];
+    union {
+      Chunk chunk;
+      Merge merge;
+    };
   };
 
   static_assert(sizeof(SharedStorage) == ServingDecodeAttentionSimtSharedBytes(D, Q));
@@ -69,7 +89,7 @@ struct DecodeAttentionSimt {
     }
     ComputeSync();
 
-    int const group = lane / kLanes, column = (lane % kLanes) * 8;
+    int const group = warp * kGroups + lane / kLanes, sub = lane % kLanes, column = sub * 8;
     float query[Q][8], acc[Q][8], maximum[Q], sum[Q];
     float const scale = kLog2e / sqrtf(float(D));
 #pragma unroll
@@ -85,87 +105,122 @@ struct DecodeAttentionSimt {
       sum[q] = 0;
     }
 
-    // Token t of this block goes to warp (t / kGroups) % kWarps, lane group
-    // t % kGroups; a step covers kWarps * kGroups * kUnroll tokens.
-    constexpr int kStep = kWarps * kGroups;
-    for (int first = begin; first < end; first += kStep * kUnroll) {
-      uint4 key[kUnroll], value[kUnroll];
-      bool active[kUnroll];
+    // Chunk token j = u * kAllGroups + group. Positions past `end` read the
+    // last valid row (unconditional loads); their scores are -inf.
+    uint4 key[kUnroll], value[kUnroll];
+    auto load = [&](int first) {
 #pragma unroll
       for (int u = 0; u < kUnroll; ++u) {
-        int const position = first + u * kStep + warp * kGroups + group;
-        active[u] = position < end;
-        key[u] = value[u] = uint4{0, 0, 0, 0};
-        if (active[u]) {
-          if (position == p.past) {
-            key[u] = *reinterpret_cast<uint4 const*>(s.new_key + column);
-            value[u] = *reinterpret_cast<uint4 const*>(s.new_value + column);
-          } else {
-            key[u] = backend::LoadGlobal16(p.key_cache + (head + position) * D + column);
-            value[u] = backend::LoadGlobal16(p.value_cache + (head + position) * D + column);
-          }
+        int const position = min(first + u * kAllGroups + group, end - 1);
+        key[u] = backend::LoadGlobal16(p.key_cache + (head + position) * D + column);
+        value[u] = backend::LoadGlobal16(p.value_cache + (head + position) * D + column);
+        if (position == p.past) {
+          key[u] = *reinterpret_cast<uint4 const*>(s.new_key + column);
+          value[u] = *reinterpret_cast<uint4 const*>(s.new_value + column);
         }
       }
+    };
+    load(begin);
+    for (int first = begin; first < end; first += kChunk) {
 #pragma unroll
       for (int u = 0; u < kUnroll; ++u) {
         auto const* k = reinterpret_cast<Element const*>(&key[u]);
-        auto const* v = reinterpret_cast<Element const*>(&value[u]);
 #pragma unroll
         for (int q = 0; q < Q; ++q) {
-          float score = 0;
+          float dot = 0;
 #pragma unroll
-          for (int i = 0; i < 8; ++i) score += query[q][i] * float(k[i]);
+          for (int i = 0; i < 8; ++i) dot += query[q][i] * float(k[i]);
+          s.chunk.part[(u * kAllGroups + group) * Q + q][sub] = dot;
+        }
+      }
+      uint4 current[kUnroll];
 #pragma unroll
-          for (int delta = kLanes / 2; delta > 0; delta /= 2)
-            score += __shfl_xor_sync(maca::kFullWaveMask, score, delta, 32);
-          score = active[u] ? score : -INFINITY;
+      for (int u = 0; u < kUnroll; ++u) current[u] = value[u];
+      if (first + kChunk < end) load(first + kChunk);
+      ComputeSync();
+      if (ComputeThread() < kChunk * Q) {
+        int const j = ComputeThread() / Q;
+        float total = 0;
+#pragma unroll
+        for (int l = 0; l < kLanes; ++l) total += s.chunk.part[ComputeThread()][l];
+        s.chunk.score[ComputeThread()] = first + j < end ? total : -INFINITY;
+      }
+      ComputeSync();
+#pragma unroll
+      for (int u = 0; u < kUnroll; ++u) {
+        auto const* v = reinterpret_cast<Element const*>(&current[u]);
+#pragma unroll
+        for (int q = 0; q < Q; ++q) {
+          float const score = s.chunk.score[(u * kAllGroups + group) * Q + q];
           float const next = fmaxf(maximum[q], score);
-          float const alpha = isfinite(maximum[q]) ? exp2f(maximum[q] - next) : 0;
-          float const weight = active[u] ? exp2f(score - next) : 0;
+          float const alpha = isfinite(maximum[q]) ? maca::Exp2(maximum[q] - next) : 0;
+          float const weight = isfinite(score) ? maca::Exp2(score - next) : 0;
           sum[q] = sum[q] * alpha + weight;
           maximum[q] = next;
 #pragma unroll
           for (int i = 0; i < 8; ++i) acc[q][i] = acc[q][i] * alpha + weight * float(v[i]);
         }
       }
+      // The next chunk's partial writes reuse `part`; scores were read above.
+      ComputeSync();
     }
 
-    // Merge the lane groups of this warp, then the warps.
+    // Merge the lane groups of each warp (xor offsets kLanes..16 stay in the
+    // 32-lane warp), relative to the warp maximum.
 #pragma unroll
     for (int q = 0; q < Q; ++q) {
       float m = maximum[q];
 #pragma unroll
       for (int delta = kLanes; delta < 32; delta *= 2)
         m = fmaxf(m, __shfl_xor_sync(maca::kFullWaveMask, m, delta, 32));
-      float const weight = isfinite(maximum[q]) ? exp2f(maximum[q] - m) : 0;
-      float normalizer = weight * sum[q];
+      float const weight = isfinite(maximum[q]) ? maca::Exp2(maximum[q] - m) : 0;
+      float total = weight * sum[q];
 #pragma unroll
       for (int delta = kLanes; delta < 32; delta *= 2)
-        normalizer += __shfl_xor_sync(maca::kFullWaveMask, normalizer, delta, 32);
+        total += __shfl_xor_sync(maca::kFullWaveMask, total, delta, 32);
 #pragma unroll
       for (int i = 0; i < 8; ++i) {
         float value = weight * acc[q][i];
 #pragma unroll
         for (int delta = kLanes; delta < 32; delta *= 2)
           value += __shfl_xor_sync(maca::kFullWaveMask, value, delta, 32);
-        if (lane < kLanes) s.partial[(warp * Q + q) * D + column + i] = normalizer > 0 ? value / normalizer : 0;
+        acc[q][i] = value;
       }
-      if (lane == 0) s.lse[warp][q] = normalizer > 0 ? m + log2f(normalizer) : -INFINITY;
+      maximum[q] = m;
+      sum[q] = total;
+      if (lane == 0) {
+        s.merge.max[warp][q] = m;
+        s.merge.sum[warp][q] = total;
+      }
     }
     ComputeSync();
+    // Warps accumulate in a fixed order (C-2): out = sum_w acc_w * 2^(m_w - M).
+    for (int w = 0; w < kWarps; ++w) {
+      if (warp == w && lane < kLanes) {
+#pragma unroll
+        for (int q = 0; q < Q; ++q) {
+          float m = -INFINITY;
+          for (int v = 0; v < kWarps; ++v) m = fmaxf(m, s.merge.max[v][q]);
+          float const weight = isfinite(maximum[q]) ? maca::Exp2(maximum[q] - m) : 0;
+#pragma unroll
+          for (int i = 0; i < 8; ++i) {
+            float& slot = s.merge.out[q * D + column + i];
+            slot = (w == 0 ? 0.f : slot) + weight * acc[q][i];
+          }
+        }
+      }
+      ComputeSync();
+    }
 
     int const cmax = (p.capacity + p.block_extent - 1) / p.block_extent;
     for (int vector = ComputeThread(); vector < Q * D / 8; vector += kComputeThreads) {
       int const row = vector / (D / 8), d = (vector % (D / 8)) * 8;
-      float m = -INFINITY, normalizer = 0, values[8] = {};
-      for (int w = 0; w < kWarps; ++w) m = fmaxf(m, s.lse[w][row]);
-      for (int w = 0; w < kWarps; ++w) {
-        float const weight = isfinite(s.lse[w][row]) ? exp2f(s.lse[w][row] - m) : 0;
-        normalizer += weight;
-        float const* src = s.partial + (w * Q + row) * D + d;
-        for (int i = 0; i < 8; ++i) values[i] += weight * src[i];
-      }
-      for (int i = 0; i < 8; ++i) values[i] = normalizer > 0 ? values[i] / normalizer : 0;
+      float m = -INFINITY, normalizer = 0;
+      for (int w = 0; w < kWarps; ++w) m = fmaxf(m, s.merge.max[w][row]);
+      for (int w = 0; w < kWarps; ++w)
+        normalizer += isfinite(s.merge.max[w][row]) ? maca::Exp2(s.merge.max[w][row] - m) * s.merge.sum[w][row] : 0;
+      float values[8];
+      for (int i = 0; i < 8; ++i) values[i] = normalizer > 0 ? s.merge.out[row * D + d + i] / normalizer : 0;
       if (cmax == 1) {
         alignas(16) Element result[8];
         for (int i = 0; i < 8; ++i) result[i] = Element(values[i]);
@@ -174,7 +229,7 @@ struct DecodeAttentionSimt {
       } else {
         std::size_t const base = ((std::size_t(b) * p.heads_kv + g) * cmax + c) * Q + row;
         for (int i = 0; i < 8; ++i) p.partial[base * D + d + i] = values[i];
-        if (d == 0) p.lse[base] = m + log2f(normalizer);
+        if (d == 0) p.lse[base] = normalizer > 0 ? m + log2f(normalizer) : -INFINITY;
       }
     }
     ComputeSync();

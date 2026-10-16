@@ -77,7 +77,7 @@ __device__ void RotateRow(tilemega::Bf16 const* x, tilemega::Bf16 const* norm, t
     }
   }
   float inverse = 1;
-  if constexpr (QkNorm) inverse = rsqrtf(WarpSum32(square) / D + epsilon);
+  if constexpr (QkNorm) inverse = maca::Rsqrt(WarpSum32(square) / D + epsilon);
   if (d < D) {
 #pragma unroll
     for (int i = 0; i < 8; ++i) {
