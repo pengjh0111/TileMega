@@ -30,5 +30,9 @@
       "6": "GPU-e7663e49-e611-cb17-4991-afa1b0cfe2e2",
       "7": "GPU-ac78f16f-955d-c08b-e6fe-4e4554c8954d"
     }
-  }
+  },
+  "allowed_gpu_indices": [
+    7
+  ],
+  "gpu_allowlist_file": "/root/TileMega/runs/r16/active_constraints.json"
 }

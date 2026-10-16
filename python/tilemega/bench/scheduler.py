@@ -8,7 +8,7 @@ import sys
 import time
 from pathlib import Path
 
-from .gpu_guard import gpu, idle, needs_numa_lock, stop
+from .gpu_guard import gpu, idle, needs_numa_lock, require_allowed_gpu, stop
 from .locking import acquire_command_lock
 
 TERMINAL = {'done', 'failed', 'skipped', 'not_run', 'cancelled'}
@@ -80,6 +80,8 @@ def main(argv=None):
     # scheduler's original location across the guard and the child harness.
     args.out = args.out.resolve()
     args.queue_dir = args.queue_dir.resolve()
+    policy = json.loads(args.policy.read_text())
+    require_allowed_gpu(policy, os.environ.get('TILEMEGA_DEVICE_INDEX', '0'))
     args.out.mkdir(parents=True, exist_ok=True)
     args.queue_dir.mkdir(parents=True, exist_ok=True)
     singleton = (args.out / 'scheduler.pid').open('a+')
@@ -88,7 +90,6 @@ def main(argv=None):
     singleton.truncate()
     singleton.write(str(os.getpid()) + '\n')
     singleton.flush()
-    policy = json.loads(args.policy.read_text())
     state_path, control_path = args.out / 'state.json', args.out / 'control.json'
     state = json.loads(state_path.read_text()) if state_path.exists() else {}
     control = json.loads(control_path.read_text()) if control_path.exists() else {}
@@ -118,6 +119,7 @@ def main(argv=None):
     if any(row['status'] == 'running' for row in state.values()):
         raise RuntimeError('interrupted running step: inspect its processes before resetting state')
     while time.time() < deadline:
+        require_allowed_gpu(policy, os.environ.get('TILEMEGA_DEVICE_INDEX', '0'))
         steps = {}
         for path in sorted(args.queue_dir.glob('queue_*.json')):
             for step in json.loads(path.read_text()):

@@ -3,6 +3,19 @@
 import argparse,contextlib,fcntl,json,os,signal,subprocess,time
 from pathlib import Path
 
+def require_allowed_gpu(policy, index):
+    constraints = [policy]
+    if policy.get('gpu_allowlist_file'):
+        constraints.append(json.loads(Path(policy['gpu_allowlist_file']).read_text()))
+    for constraint in constraints:
+        allowed = constraint.get('allowed_gpu_indices')
+        if allowed is None:
+            continue
+        if not isinstance(allowed, list) or not allowed or any(type(i) is not int or i < 0 for i in allowed):
+            raise ValueError('allowed_gpu_indices must be a nonempty list of GPU indices')
+        if int(index) not in allowed:
+            raise ValueError(f'GPU {index} is excluded by the active user GPU restriction')
+
 def gpu():
     index=os.getenv('TILEMEGA_DEVICE_INDEX','0')
     raw=subprocess.check_output(['nvidia-smi','-i',index,'--query-gpu=memory.used,memory.free,memory.total,power.draw,utilization.gpu','--format=csv,noheader,nounits'],text=True).splitlines()[0]
@@ -123,7 +136,9 @@ def main():
     index=os.environ.get('TILEMEGA_DEVICE_INDEX')
     if index is None or not index.isdigit() or os.environ.get('CUDA_VISIBLE_DEVICES')!=index:
         p.error('explicit matching TILEMEGA_DEVICE_INDEX and CUDA_VISIBLE_DEVICES are required')
-    policy=json.loads(a.policy.read_text());a.out.mkdir(parents=True,exist_ok=True)
+    policy=json.loads(a.policy.read_text())
+    require_allowed_gpu(policy,index)
+    a.out.mkdir(parents=True,exist_ok=True)
     limited=os.environ.get('TILEMEGA_GPU_PID_MODE')=='namespace_limited'
     def sample(phase,**extra):
         row=gpu()
