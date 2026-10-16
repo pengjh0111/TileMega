@@ -119,7 +119,14 @@ struct ModelStage {
   int width = 0;
   int group = 0;
   /// Buffer ids the stage touches, in the generated order (inputs first).
+  /// Absent operands are dropped rather than held as holes, so a buffer's
+  /// position here does not identify which operand slot it filled.
   std::vector<int> operands;
+  /// Fused attention only: whether the stage carries per-head q/k
+  /// normalization weights. Read off the raw operand slots before they are
+  /// compacted into `operands`, because the slot a weight occupied is no
+  /// longer recoverable afterwards.
+  bool qk_norm = false;
   bool batch_rows = false;
   int attention_kv_block = 0;
   int attention_query_rows = 0;

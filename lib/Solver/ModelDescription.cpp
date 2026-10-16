@@ -119,6 +119,29 @@ StageKind ParseKind(std::string const& text) {
 /// The generated operand list is a brace-enclosed run of buffer ids padded
 /// with `kNoOperand`; the padding is dropped so an empty list means "reads
 /// nothing this model names".
+/// Raw operand slot of the per-head q normalization weight on a fused
+/// attention stage, as written by ServingSemanticLifting (slot 6 holds the
+/// matching k weight). Only meaningful before absent operands are dropped.
+constexpr std::size_t kQkNormOperandSlot = 5;
+
+/// Whether raw operand slot `slot` of a stage plan names a buffer. Counts
+/// absent slots, which ParseOperands drops.
+bool RawOperandPresent(std::string const& text, std::size_t slot) {
+  std::size_t index = 0;
+  std::string token;
+  auto visit = [&](std::string const& value) {
+    if (index++ != slot) return false;
+    return !value.empty() && std::isdigit(static_cast<unsigned char>(value[0]));
+  };
+  bool present = false;
+  for (char c : text) {
+    if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') { token.push_back(c); continue; }
+    if (!token.empty()) { if (index == slot) present = visit(token); else visit(token); token.clear(); }
+  }
+  if (!token.empty()) { if (index == slot) present = visit(token); else visit(token); }
+  return present;
+}
+
 std::vector<int> ParseOperands(std::string const& text) {
   std::vector<int> out;
   std::string token;
@@ -325,9 +348,14 @@ ModelDescription ModelDescription::ReadCouplingGraph(
         stage.dm_workspace_bytes=bytes.getInt();
       }
     }
-    for (auto operand : operands.asArrayRef())
-      if (operand != std::numeric_limits<std::uint32_t>::max())
-        stage.operands.push_back(static_cast<int>(operand));
+    std::size_t raw_slot = 0;
+    for (auto operand : operands.asArrayRef()) {
+      bool const present = operand != std::numeric_limits<std::uint32_t>::max();
+      if (raw_slot == kQkNormOperandSlot && stage.kind == StageKind::kFusedAttention)
+        stage.qk_norm = present;
+      if (present) stage.operands.push_back(static_cast<int>(operand));
+      ++raw_slot;
+    }
     model.stages.push_back(std::move(stage));
   }
   std::map<std::string, int> task_stage;
@@ -479,7 +507,11 @@ ModelDescription ModelDescription::FromGeneratedCuda(std::string const& path,
     stage.extent = AsInt(fields[2], "stage.extent");
     stage.width = AsInt(fields[3], "stage.width");
     stage.group = AsInt(fields[4], "stage.group");
-    if (fields.size() > 5) stage.operands = ParseOperands(fields[5]);
+    if (fields.size() > 5) {
+      stage.operands = ParseOperands(fields[5]);
+      if (stage.kind == StageKind::kFusedAttention)
+        stage.qk_norm = RawOperandPresent(fields[5], kQkNormOperandSlot);
+    }
     if (stage.gemm >= static_cast<int>(model.gemms.size())) {
       throw std::runtime_error("stage names a GEMM outside kGemms in " + path);
     }

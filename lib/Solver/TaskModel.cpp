@@ -803,7 +803,7 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
         result.serving_body_kind=std::string("fused_attention_")+
             (model.dims.seq==1?"decode_d":"prefill_d")+std::to_string(stage.width)+
             "_q"+std::to_string(stage.group)+"_norm"+
-            std::to_string(stage.operands.size()>5 && stage.operands[5]>=0);
+            std::to_string(stage.qk_norm);
         break;
       case StageKind::kAttentionMerge: result.serving_body_kind="attention_merge";break;
       case StageKind::kRMSNorm: result.serving_body_kind="rmsnorm";break;
