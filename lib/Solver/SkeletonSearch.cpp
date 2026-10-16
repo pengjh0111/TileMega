@@ -859,8 +859,24 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
     out<<"WARM_START\taccepted\t"<<evaluated[index].key<<'\t'
        <<evaluated[index].score<<'\n';out.flush();
   }
+  // A seed whose own geometry the cost model cannot price is skipped, not
+  // fatal: Evaluate() already records such a failure as a non-finite score
+  // for every other candidate, and a seed is just a starting point for the
+  // local search. Llama-3.2-3B reaches one -- 24 q heads over 8 kv heads
+  // tiles 64 query rows into 21-row chunks whose last chunk is ragged, so the
+  // per-task count is position-dependent and has no scalar value. Only a run
+  // where no seed at all scores is a real failure.
+  std::string seed_error;
+  bool seeded=false;
   for(std::size_t start:starts) {
-    auto incumbent=start;if(!std::isfinite(evaluated[incumbent].score))throw std::runtime_error("flow seed has no valid score: "+evaluated[incumbent].error);
+    auto incumbent=start;
+    if(!std::isfinite(evaluated[incumbent].score)) {
+      if(seed_error.empty())seed_error=evaluated[incumbent].error;
+      out<<"SEED_SKIPPED\t"<<evaluated[incumbent].key<<'\t'
+         <<evaluated[incumbent].error<<'\n';out.flush();
+      continue;
+    }
+    seeded=true;
     for(int pass=0;pass<options.passes;++pass){bool moved=false;++rounds;
       for(std::size_t c=0;c<search.classes.size();++c){auto fixed=evaluated[incumbent];int improvements=0;
         if(options.pg_pages){search.current_page_bytes=fixed.page_bytes;search.current_lookahead_bytes=fixed.lookahead_bytes;}
@@ -987,6 +1003,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
       if(!moved)break;
     }
   }
+  if(!seeded)throw std::runtime_error("no flow seed has a valid score: "+seed_error);
 search_complete:
   if(budget_expired())out<<"SEARCH_BUDGET\t"<<options.search_budget_ms
       <<"\t"<<evaluated.size()<<"\tpartial_coordinate_scan\n";

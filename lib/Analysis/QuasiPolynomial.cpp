@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <cstdio>
+#include <cstdlib>
 #include <tilemega/Analysis/QuasiPolynomial.h>
 
 #include <tilemega/Analysis/CouplingRelation.h>
@@ -455,6 +457,13 @@ long QuasiPolynomial::Eval(ParamBinding const& known) const {
   // an unresolved parameter but not depending on it (e.g. `wait` = 1 for
   // every m with 128m < S, regardless of what S is) correctly still
   // resolves without needing S bound at all.
+  std::string debug_text;
+  if (std::getenv("TILEMEGA_DEBUG_QP")) {
+    char* rendered = isl_pw_qpolynomial_to_str(value.get());
+    if (rendered) { debug_text = rendered; std::free(rendered); }
+    std::fprintf(stderr, "QP_EVAL %s ||| bound:%s\n", debug_text.c_str(),
+                 BindParameterTokens(text_,known).c_str());
+  }
   isl_util::Val max_value(isl_pw_qpolynomial_max(isl_pw_qpolynomial_copy(value.get())));
   isl_util::Val min_value(isl_pw_qpolynomial_min(value.release()));
   if (!max_value || !min_value)
@@ -464,12 +473,13 @@ long QuasiPolynomial::Eval(ParamBinding const& known) const {
   if (!isl_val_is_int(max_value.get()) || !isl_val_is_int(min_value.get()))
     throw std::runtime_error("isl: quasi-polynomial did not reduce to an integer: "+
         BindParameterTokens(text_,known));
-  if (!isl_val_eq(max_value.get(), min_value.get()))
+  if (!isl_val_eq(max_value.get(), min_value.get())) {
     throw std::out_of_range(
         "quasi-polynomial is genuinely position-dependent (max " +
         std::to_string(isl_val_get_num_si(max_value.get())) + " != min " +
         std::to_string(isl_val_get_num_si(min_value.get())) +
-        "); it is not a single scalar");
+        "); it is not a single scalar: " + BindParameterTokens(text_,known));
+  }
   return isl_val_get_num_si(max_value.get());
 }
 
