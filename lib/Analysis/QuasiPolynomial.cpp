@@ -457,15 +457,8 @@ long QuasiPolynomial::Eval(ParamBinding const& known) const {
   // an unresolved parameter but not depending on it (e.g. `wait` = 1 for
   // every m with 128m < S, regardless of what S is) correctly still
   // resolves without needing S bound at all.
-  std::string debug_text;
-  if (std::getenv("TILEMEGA_DEBUG_QP")) {
-    char* rendered = isl_pw_qpolynomial_to_str(value.get());
-    if (rendered) { debug_text = rendered; std::free(rendered); }
-    std::fprintf(stderr, "QP_EVAL %s ||| bound:%s\n", debug_text.c_str(),
-                 BindParameterTokens(text_,known).c_str());
-  }
   isl_util::Val max_value(isl_pw_qpolynomial_max(isl_pw_qpolynomial_copy(value.get())));
-  isl_util::Val min_value(isl_pw_qpolynomial_min(value.release()));
+  isl_util::Val min_value(isl_pw_qpolynomial_min(isl_pw_qpolynomial_copy(value.get())));
   if (!max_value || !min_value)
     throw std::out_of_range(
         "quasi-polynomial has no finite max/min -- it depends on an unbound "
@@ -474,11 +467,20 @@ long QuasiPolynomial::Eval(ParamBinding const& known) const {
     throw std::runtime_error("isl: quasi-polynomial did not reduce to an integer: "+
         BindParameterTokens(text_,known));
   if (!isl_val_eq(max_value.get(), min_value.get())) {
+    // A quantity built by Sum/Scale of cardinalities carries no source text,
+    // so `text_` is empty exactly when this failure is hardest to read.
+    // Render the bound polynomial itself: it names the geometry that defeated
+    // the scalar collapse (which tile is ragged, over which groups).
+    std::string rendered = BindParameterTokens(text_,known);
+    if (rendered.empty()) {
+      char* text = isl_pw_qpolynomial_to_str(value.get());
+      if (text) { rendered = text; std::free(text); }
+    }
     throw std::out_of_range(
         "quasi-polynomial is genuinely position-dependent (max " +
         std::to_string(isl_val_get_num_si(max_value.get())) + " != min " +
         std::to_string(isl_val_get_num_si(min_value.get())) +
-        "); it is not a single scalar: " + BindParameterTokens(text_,known));
+        "); it is not a single scalar: " + rendered);
   }
   return isl_val_get_num_si(max_value.get());
 }
