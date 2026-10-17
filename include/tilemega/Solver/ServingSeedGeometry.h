@@ -17,7 +17,7 @@ namespace tilemega::solver {
 // fixed TN128/split-1 seed left o/down/qkv on 16-24 of 132 SMs (verified
 // stage trace) and doubled TPOT.
 struct SeedGeometryRule {
-  std::optional<int> tile_n,tile_k,stages,impl,split,min_tasks,max_split,task_multiplier;
+  std::optional<int> tile_n,tile_k,stages,impl,split,min_tasks,max_split,task_multiplier,min_tile_n;
 };
 struct SeedGeometryPolicy {
   SeedGeometryRule base;
@@ -43,6 +43,7 @@ inline SeedGeometryRule ParseSeedGeometryRule(json::Value const& value) {
     else if(key=="min_tasks")rule.min_tasks=integer();
     else if(key=="max_split")rule.max_split=integer();
     else if(key=="task_multiplier")rule.task_multiplier=integer();
+    else if(key=="min_tile_n")rule.min_tile_n=integer();
     else throw std::invalid_argument("unknown seed geometry field: "+key);
   }
   return rule;
@@ -93,19 +94,23 @@ inline void ApplySeedGeometryPolicy(frontend::ModelPlan const& plan,
       for(auto [field,value]:{std::pair{&rule.tile_n,o.tile_n},{&rule.tile_k,o.tile_k},
           {&rule.stages,o.stages},{&rule.impl,o.impl},{&rule.split,o.split},
           {&rule.min_tasks,o.min_tasks},{&rule.max_split,o.max_split},
-          {&rule.task_multiplier,o.task_multiplier}})
+          {&rule.task_multiplier,o.task_multiplier},{&rule.min_tile_n,o.min_tile_n}})
         if(value)*field=value;
     }
     tile.tile_n=rule.tile_n.value_or(tile.tile_n);tile.tile_k=rule.tile_k.value_or(tile.tile_k);
     tile.stages=rule.stages.value_or(tile.stages);tile.impl=rule.impl.value_or(tile.impl);
+    int multiplier=rule.task_multiplier.value_or(1),min_tasks=rule.min_tasks.value_or(num_sms);
+    // Narrower tiles add tasks without a split-K combine stage.
+    while(rule.min_tile_n && tile.tile_n/2>=*rule.min_tile_n &&
+          int((g.n+tile.tile_n-1)/tile.tile_n)*multiplier<min_tasks)tile.tile_n/=2;
+    int tiles=int((g.n+tile.tile_n-1)/tile.tile_n)*multiplier;
     bool legal=tile.impl==0?ServingBF16ShapeLegal(tile.tile_m,tile.tile_n,tile.tile_k,tile.stages):
         tile.impl==1?ServingGemvShapeLegal(tile.tile_m,tile.tile_n,tile.tile_k,tile.stages):
         hopper_native && ServingWgmmaShapeLegal(tile.tile_m,tile.tile_n,tile.tile_k,tile.stages);
     if(!legal || g.k%tile.tile_k)
       throw std::invalid_argument("seed geometry for "+family+" is not a legal decode shape");
-    int tiles=int((g.n+tile.tile_n-1)/tile.tile_n)*rule.task_multiplier.value_or(1);
     tile.split_k=rule.split?*rule.split:SeedSplitK(tiles,int(g.k),tile.tile_k,
-        rule.min_tasks.value_or(num_sms),rule.max_split.value_or(16));
+        min_tasks,rule.max_split.value_or(16));
     // Argmax partials are reduced per head tile; a K split has no combiner.
     if(g.epilogue==frontend::PlanGemm::Epilogue::kArgmaxPartial && tile.split_k!=1)
       throw std::invalid_argument("seed geometry cannot split the argmax head");

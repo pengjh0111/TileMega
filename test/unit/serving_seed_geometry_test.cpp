@@ -18,6 +18,12 @@ int main(){using namespace tilemega;using Op=frontend::PlanGemm::Epilogue;
  assert(g[0].split_k==4 && g[1].split_k==4 && g[2].split_k==1 && g[3].split_k==4 && g[4].split_k==1);
  assert(g[2].tile_n==64 && g[0].stages==4 && g[0].tile_k==64);
  assert(solver::SeedSplitK(32,14336,64,118,2)==2 && solver::SeedSplitK(2,192,64,132,16)==1);
+ // Qwen3-0.6B gate_up (N=6144): shrink TN instead of splitting the SwiGLU GEMM.
+ frontend::ModelPlan qwen;qwen.gemms.resize(1);qwen.gemms[0].epilogue=Op::kSwiGLU;qwen.gemms[0].n=6144;qwen.gemms[0].k=1024;
+ std::vector<frontend::GemmGranularity> q(1,{16,128,64,2,1,0});
+ solver::ApplySeedGeometryPolicy(qwen,q,solver::ParseSeedGeometryPolicy(json::Parse(
+   R"({"base":{"tile_n":128,"min_tasks":118},"families":{"gate_up":{"max_split":1,"min_tile_n":32}}})")),132,true);
+ assert(q[0].tile_n==32 && q[0].split_k==1);
  int rejected=0;
  for(auto text:{R"({"base":{"stages":1}})",R"({"base":{"impl":"gemv","tile_n":128}})",
                 R"({"families":{"lm_head":{"split":2}}})",R"({"base":{"impl":"wgmma","stages":4}})",
@@ -27,5 +33,5 @@ int main(){using namespace tilemega;using Op=frontend::PlanGemm::Epilogue;
   catch(std::invalid_argument const&){++rejected;}
  }
  assert(rejected==6);
- std::puts("serving seed geometry: SM-filling split, family overrides, six rejection contracts PASS");
+ std::puts("serving seed geometry: SM-filling split, TN shrink, family overrides, six rejection contracts PASS");
 }
