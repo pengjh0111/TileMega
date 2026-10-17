@@ -12,7 +12,7 @@ from pathlib import Path
 import statistics
 import sys
 from r16_measurement_validation import (NATIVE_LLM_SYSTEMS, completed_guard,
-    file_sha, native_identity, validate_llm)
+    file_sha, json_digest, native_identity, validate_llm)
 from summarize_r16 import dnn_device_identity, record_directory
 from r16_runtime_contract import validate_receipt as validate_runtime_receipt
 
@@ -265,7 +265,10 @@ def inspect_measurement(root,state,cards,name,rnd,candidate):
     measured=driver.measurement(root,normalized,name,candidate)
     if measured['pid']!=value['pid'] or any(measured[k]!=value[k] for k in ('e2e_seconds','ttft_seconds','tpot_seconds')):
         raise ValueError('frozen driver measurement differs from independently validated receipt')
+    last=next(row for row in value['generation_runs'] if row['N']==1024 and row['run']==3)
+    tokens_sha=json_digest(read(path.parent/last['tokens_file']))
     return dict(job=name,round=rnd,pid=value['pid'],gpu=value['gpu_index'],measurement=str(path),
+        output_tokens_sha256=tokens_sha,
         **physical,
         system=candidate['system'],native_system_label=candidate.get('native_system_label',candidate['system']),
         variant=candidate.get('variant',{}),
@@ -285,7 +288,7 @@ def summarize_samples(samples):
     if not samples:return dict(status='not_finalized',fresh_processes=0,protocol_complete=False)
     rounds={s['round'] for s in samples};pids={s['pid'] for s in samples}
     if len(rounds)!=len(samples) or len(pids)!=len(samples):raise ValueError('duplicate final round or measured process PID')
-    for key in ('source_checkpoint_sha256','native_artifact_ids','binary_sha256','versions','gpu','source_head','actual_coordinates',
+    for key in ('source_checkpoint_sha256','native_artifact_ids','binary_sha256','versions','gpu','source_head','actual_coordinates','output_tokens_sha256',
                 'system','native_system_label','variant',
                 'physical_gpu_uuid','physical_gpu_identity_status','hardware_boot_id'):
         if len({json.dumps(s[key],sort_keys=True) for s in samples})!=1:
@@ -293,6 +296,7 @@ def summarize_samples(samples):
     return dict(status='completed' if rounds=={0,1,2} else 'partial',fresh_processes=len(samples),protocol_complete=rounds=={0,1,2},
         **{k:statistics.median(s[k] for s in samples) for k in METRICS},
         source_checkpoint_sha256=samples[0]['source_checkpoint_sha256'],native_artifact_ids=samples[0]['native_artifact_ids'],binary_sha256=samples[0]['binary_sha256'],versions=samples[0]['versions'],actual_coordinates=samples[0]['actual_coordinates'],
+        output_tokens_sha256=samples[0]['output_tokens_sha256'],
         **{k:samples[0][k] for k in ('physical_gpu_uuid','physical_gpu_identity_status','hardware_boot_id')},
         acceptance='strict' if all(s['acceptance']=='strict' for s in samples) else 'provisional_container_pid_namespace',ownership_verified=all(s['ownership_verified'] for s in samples),
         unresolved_host_pids=sorted({p for s in samples for p in s['unresolved_host_pids']}))
