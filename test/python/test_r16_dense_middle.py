@@ -5,7 +5,7 @@ from pathlib import Path
 import sys,tempfile,unittest
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT/'scripts'))
-from advance_r16_dense_middle import selected_rows,packing_pair,Campaign,read,family,body_signature,numeric_reference,file_sha
+from advance_r16_dense_middle import selected_rows,packing_pair,Campaign,read,family,body_signature,numeric_reference,file_sha,selection_pool_current
 
 class DenseMiddleTest(unittest.TestCase):
     def setUp(self):
@@ -47,6 +47,13 @@ class DenseMiddleTest(unittest.TestCase):
             campaign.finals(state,{},dict(cells=cells))
         self.assertEqual(len(published),1);self.assertIn('second',published[0][0]);self.assertEqual(len(published[0][1]),3)
         self.assertEqual([c['status']for c in read(self.root/'selection-report.json')['cells']],['blocked','pending'])
+    def test_stale_selection_pool_cannot_release_middle(self):
+        path=self.root/'plan.json';path.write_text('{}')
+        report=dict(plans={str(path.resolve()):file_sha(path)})
+        self.assertTrue(selection_pool_current(report,[path]))
+        path.write_text('{"new_executor_probe":true}')
+        self.assertFalse(selection_pool_current(report,[path]))
+        self.assertFalse(selection_pool_current({},[path]))
     def test_executor_axis_reuses_body_but_preserves_transport(self):
         signature=dict(arm='h1',mode='L2',loop=0,coordinates=dict(activation_tma=1,cluster_dim=1))
         other=dict(signature,mode='L1',loop=1)
@@ -69,7 +76,8 @@ class DenseMiddleTest(unittest.TestCase):
         cells=[dict(model='m',batch=b,candidates=[dict(execution_probe=True,pilot_job=f'probe{b}')])for b in (1,16)]
         (self.root/'qwen06-plan.json').write_text(json.dumps(dict(cells=cells)))
         (self.root/'dense-plan.json').write_text(json.dumps(dict(cells=[])))
-        (self.root/'selection-report.json').write_text('{}')
+        paths=[self.root/n for n in ['qwen06-plan.json','dense-plan.json']]
+        (self.root/'selection-report.json').write_text(json.dumps(dict(plans={str(p.resolve()):file_sha(p)for p in paths})))
         with patch('advance_r16_dense_middle.selected_rows',return_value=[]):
             self.assertIsNone(campaign.verify_representatives('m',dict(probe1=dict(status='done'),probe16=dict(status='pending')),{}))
     def test_legacy_absent_inactive_fields_do_not_force_recompile(self):

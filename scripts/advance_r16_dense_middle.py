@@ -76,6 +76,9 @@ def selected_rows(report,model):
         chosen.append((batch,cell['selected'],samples))
     return chosen
 
+def selection_pool_current(report,paths):
+    return all(report.get('plans',{}).get(str(Path(path).resolve()))==file_sha(path)for path in paths)
+
 def numeric_reference(candidate):
     declared=candidate.get('numeric_reference_candidate')
     if declared is None:return candidate
@@ -189,9 +192,11 @@ class Campaign:
         if not check['pass_check']:raise ValueError(check)
         write(q/name,jobs)
     def verify_representatives(self,model,state,cards):
-        report=read(self.rep/'selection-report.json');selection=selected_rows(report,model)
+        report=read(self.rep/'selection-report.json');paths=[self.rep/p for p in ['qwen06-plan.json','dense-plan.json']]
+        if not selection_pool_current(report,paths):return None
+        selection=selected_rows(report,model)
         if selection is None:return None
-        cells=[cell for p in ['qwen06-plan.json','dense-plan.json']for cell in read(self.rep/p)['cells']]
+        cells=[cell for path in paths for cell in read(path)['cells']]
         definitions=[c for cell in cells for c in cell['candidates']]
         for batch in (1,16):
             probes=[c for cell in cells if cell['model']==model and cell['batch']==batch for c in cell['candidates']if c.get('execution_probe')]
