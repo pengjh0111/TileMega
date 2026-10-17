@@ -21,7 +21,7 @@ def main():
         str(args.model), dtype=torch.bfloat16, local_files_only=True,
         experts_implementation="grouped_mm", device_map={"": "cuda:0"},
         use_safetensors=True, output_loading_info=True)
-    (args.out / "model-loading-info.json").write_text(json.dumps(loading, indent=2) + "\n")
+    (args.out / "model-loading-info.json").write_text(json.dumps(loading, indent=2, default=lambda value: sorted(value) if isinstance(value, set) else str(value)) + "\n")
     if any(loading.get(key) for key in ("missing_keys", "unexpected_keys", "mismatched_keys", "error_msgs")):
         raise ValueError("official HF checkpoint conversion did not load every parameter")
     if len(model.model.layers) != 48 or any(p.dtype != torch.bfloat16 for p in model.parameters()):
