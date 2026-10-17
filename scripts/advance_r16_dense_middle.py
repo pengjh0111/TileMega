@@ -116,6 +116,16 @@ def chain(root,c,scheduler):
             jobs.append(job(root,c,gate,cmd,False,after=[name]));previous=[gate]
     return jobs
 
+def assign_device(candidate,out,gpu,expected):
+    c=copy.deepcopy(candidate)
+    c.update(gpu=gpu,physical_device_expected=copy.deepcopy(expected))
+    c['env'].update(CUDA_VISIBLE_DEVICES=str(gpu),TILEMEGA_DEVICE_INDEX=str(gpu),
+                    TILEMEGA_NUMA_NODE=str(expected['numa_node']),TILEMEGA_GPU_LOCK=f'/tmp/tilemega_gpu{gpu}.lock')
+    c['file']=str(out/'device-assigned'/c['model']/f'B{c["batch"]}'/(c['id']+'.json'))
+    for stage in ('smoke','longcheck','pilot'):c[stage+'_job']+=f'_assigned_gpu{gpu}_v1'
+    c['numeric_jobs']=[c['smoke_job'],c['longcheck_job']]
+    return c
+
 class Campaign:
     def __init__(self,repo,out,driver_source=None):
         self.repo=repo.resolve();self.out=out.resolve();self.rep=self.repo/'runs/r16/rf2-final-v1'
@@ -126,7 +136,8 @@ class Campaign:
         sys.path.insert(0,str(self.repo/'python'))
         from tilemega.bench.queue_check import check
         self.queue_check=check
-        self.expected={2:dict(uuid='GPU-701b606f-5e57-e434-5e2b-d5cc774c3c9e',pci='0000:41:00.0',numa_node=0),
+        self.expected={0:dict(uuid='GPU-73c1a37e-d3c0-dc24-b81d-6a5563ebe677',pci='0000:0F:00.0',numa_node=0),
+                       2:dict(uuid='GPU-701b606f-5e57-e434-5e2b-d5cc774c3c9e',pci='0000:41:00.0',numa_node=0),
                        4:dict(uuid='GPU-1f2fad96-e938-be19-e775-94e8ae7501a4',pci='0000:86:00.0',numa_node=1)}
     def freeze(self):
         if (self.out/'frozen.json').exists():return
@@ -247,6 +258,7 @@ class Campaign:
     def advance(self):
         state,cards=read_states(self.repo,[self.scheduler]);plan=read(self.out/'plan.json');templates=read(self.out/'templates.json');published=read(self.out/'published.json')if(self.out/'published.json').exists()else{};missing=[];waiting=[]
         adoptions=read(self.out/'adoptions.json')if(self.out/'adoptions.json').exists()else{}
+        assignments=read(self.out/'device-assignments.json')if(self.out/'device-assignments.json').exists()else{}
         for model in MODELS:
             wanted_keys=[f'{model}_B{b}'for b in [2,4,8]]
             if all(k in published for k in wanted_keys):continue
@@ -274,7 +286,14 @@ class Campaign:
                         else:blocked.append(self.missing(base,w))
                     if blocked:missing.extend(blocked);continue
                     if len(pool)>3:raise ValueError('middle family pool exceeds two representative winners plus MMA')
-                    candidates=list(pool.values());gpu=candidates[0]['gpu'];jobs=[j for c in candidates for j in chain(self.out,c,self.scheduler)]
+                    candidates=list(pool.values());gpu=candidates[0]['gpu']
+                    if key in assignments:
+                        gpu=assignments[key]
+                        if type(gpu)is not int or gpu not in self.expected:raise ValueError('middle assignment requires an explicitly supported timing device')
+                        candidates=[assign_device(c,self.out,gpu,self.expected[gpu])for c in candidates]
+                        for c in candidates:
+                            write(c['file'],c);load_driver(c).check_pair(c)
+                    jobs=[j for c in candidates for j in chain(self.out,c,self.scheduler)]
                     cell=dict(model=model,batch=batch,gpu=gpu,candidates=candidates,representative_selection=proof)
                     # Publish explicit plan before the queue; no job can bypass the model-level gate.
                     prior=next((x for x in plan['cells']if x['model']==model and x['batch']==batch),None)

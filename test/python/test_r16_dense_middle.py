@@ -5,7 +5,7 @@ from pathlib import Path
 import sys,tempfile,unittest
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT/'scripts'))
-from advance_r16_dense_middle import selected_rows,packing_pair,Campaign,read,family,body_signature,numeric_reference,file_sha,selection_pool_current
+from advance_r16_dense_middle import selected_rows,packing_pair,Campaign,read,family,body_signature,numeric_reference,file_sha,selection_pool_current,assign_device,chain
 
 class DenseMiddleTest(unittest.TestCase):
     def setUp(self):
@@ -20,6 +20,24 @@ class DenseMiddleTest(unittest.TestCase):
         self.assertIsNone(selected_rows(report,'m'))
         report['cells'].append(self.cell(16));self.assertEqual(len(selected_rows(report,'m')),2)
         report['cells'][1]['status']='pending';self.assertIsNone(selected_rows(report,'m'))
+    def test_unpublished_device_assignment_preserves_binary_and_gate_contract(self):
+        c=dict(id='mma',model='m',batch=4,gpu=2,file='old.json',root=str(self.root),
+               python='python3',script='frozen.py',prefill='prefill.so',decode='decode.so',
+               phase_sources=dict(prefill='source1',decode='source2'),mode='L1',loop=1,
+               env=dict(CUDA_VISIBLE_DEVICES='2',TILEMEGA_DEVICE_INDEX='2',TILEMEGA_NUMA_NODE='0'),
+               smoke_job='smoke',longcheck_job='long',pilot_job='pilot')
+        expected=dict(uuid='uuid4',pci='0000:86:00.0',numa_node=1)
+        assigned=assign_device(c,self.root,4,expected)
+        self.assertEqual(c['env']['CUDA_VISIBLE_DEVICES'],'2')
+        for field in ['prefill','decode','phase_sources','mode','loop']:self.assertEqual(assigned[field],c[field])
+        self.assertEqual(assigned['gpu'],4)
+        self.assertEqual(assigned['env']['TILEMEGA_GPU_LOCK'],'/tmp/tilemega_gpu4.lock')
+        self.assertEqual(assigned['env']['TILEMEGA_NUMA_NODE'],'1')
+        self.assertEqual(assigned['physical_device_expected'],expected)
+        jobs=chain(self.root,assigned,self.root/'scheduler')
+        for j in jobs:
+            if '--job'in j['command']:self.assertIn(j['command'][j['command'].index('--job')+1],j['after'])
+            self.assertNotEqual(j['name'],'smoke')
     def test_disagreeing_final_tokens_reject_representative(self):
         report=dict(cells=[self.cell(1),self.cell(16)])
         p=Path(report['cells'][0]['candidates'][0]['samples'][2]['measurement']).parent/'tokens.json';p.write_text(json.dumps([[9]*1024]))
