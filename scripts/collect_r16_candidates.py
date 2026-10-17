@@ -303,7 +303,16 @@ def summarize_samples(samples):
 
 
 def validate_numeric_tokens(root,state,candidate,samples):
-    if len(samples)!=3 or not candidate.get('runtime_source'):return
+    if len(samples)!=3 or not (candidate.get('runtime_source') or candidate.get('numeric_reference_candidate')):return
+    reference=candidate.get('numeric_reference_candidate')
+    if reference:
+        if file_sha(reference['path'])!=reference['sha256']:
+            raise ValueError('reused numeric reference candidate changed')
+        parent=read(reference['path'])
+        for key in ('prefill','decode','batch','seed','config_sha256','prompt_ids',
+                    'phase_sources','runtime_source','identity_sha256'):
+            if parent.get(key)!=candidate.get(key):
+                raise ValueError('numeric reference certifies another workload or binary: '+key)
     final_path=Path(samples[0]['measurement'])
     final=read(final_path)
     last=next(r for r in final['generation_runs'] if r['N']==1024 and r['run']==3)
@@ -314,6 +323,8 @@ def validate_numeric_tokens(root,state,candidate,samples):
         completed_guard(record_directory(root,name,record),record)
         path=record_directory(root,name,record)/f"measurements/B{candidate['batch']}/measurements.json"
         value=read(path)
+        if value['configuration']['checkpoint_sha256']!=samples[0]['source_checkpoint_sha256']:
+            raise ValueError('numeric reference used another checkpoint')
         if {p:i['artifact_id'] for p,i in value['configuration']['identities'].items()}!=samples[0]['native_artifact_ids']:
             raise ValueError('numeric token reference belongs to another binary pair')
         row=next(r for r in value['generation_runs'] if r['N']==length and r['run']==3)
