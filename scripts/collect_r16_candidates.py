@@ -302,6 +302,26 @@ def summarize_samples(samples):
         unresolved_host_pids=sorted({p for s in samples for p in s['unresolved_host_pids']}))
 
 
+def validate_numeric_tokens(root,state,candidate,samples):
+    if len(samples)!=3 or not candidate.get('runtime_source'):return
+    final_path=Path(samples[0]['measurement'])
+    final=read(final_path)
+    last=next(r for r in final['generation_runs'] if r['N']==1024 and r['run']==3)
+    expected=read(final_path.parent/last['tokens_file'])
+    for field,length in (('smoke_job',16),('longcheck_job',1024)):
+        name=candidate[field]
+        record=state[name]
+        completed_guard(record_directory(root,name,record),record)
+        path=record_directory(root,name,record)/f"measurements/B{candidate['batch']}/measurements.json"
+        value=read(path)
+        if {p:i['artifact_id'] for p,i in value['configuration']['identities'].items()}!=samples[0]['native_artifact_ids']:
+            raise ValueError('numeric token reference belongs to another binary pair')
+        row=next(r for r in value['generation_runs'] if r['N']==length and r['run']==3)
+        tokens=read(path.parent/row['tokens_file'])
+        if tokens!=[r[:length] for r in expected]:
+            raise ValueError('final tokens disagree with fresh '+field)
+
+
 def selection_matches(choice,candidate,samples):
     try:
         proofs=[x for x in choice.get('candidates',[]) if x.get('candidate')==candidate['id']]
@@ -342,7 +362,9 @@ def collect(root,plans,scheduler_roots=None):
                     processes.append(dict(plan=str(path),candidate=c['id'],model=c['model'],batch=c['batch'],executor=c['mode'],device_loop=c['loop'],**sample))
                 except (OSError,ValueError,KeyError,TypeError,ImportError) as error:
                     rejections.append(dict(plan=str(path),candidate=c['id'],job=name,status=state[name]['status'],reason=str(error)))
-            try:summary=summarize_samples(samples)
+            try:
+                validate_numeric_tokens(root,state,c,samples)
+                summary=summarize_samples(samples)
             except ValueError as error:
                 rejections.append(dict(plan=str(path),candidate=c['id'],status='rejected_triplet',reason=str(error)));summary=dict(status='rejected_triplet',fresh_processes=len(samples),protocol_complete=False)
             if unsupported:summary['status']='unsupported'
