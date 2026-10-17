@@ -1127,7 +1127,7 @@ int RunCompile(int argc, char** argv) {
         tilemega::solver::ApplySeedGeometryPolicy(plan,import.gemms,
             tilemega::solver::ParseSeedGeometryPolicy(tilemega::json::ParseFile(seed_geometry)),
             target.res.num_sms,(hopper_requested || seed_arch=="native") && arch_paths=="auto" &&
-            target.caps.wgmma);
+            target.caps.wgmma,serving_impl);
       }
       if(serving_phase=="decode")tilemega::solver::ApplyServingSeedImplementations(
           plan,import.gemms,serving_impl,hopper_requested && arch_paths=="auto" &&

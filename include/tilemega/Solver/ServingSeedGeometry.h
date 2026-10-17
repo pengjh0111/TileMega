@@ -5,6 +5,7 @@
 #include <tilemega/Solver/BackendCostQuery.h>
 #include <tilemega/Solver/ServingImplementation.h>
 #include <tilemega/Support/Json.h>
+#include <array>
 #include <map>
 #include <optional>
 #include <stdexcept>
@@ -83,7 +84,7 @@ inline int SeedSplitK(int n_tiles,int k,int tile_k,int min_tasks,int max_split) 
 
 inline void ApplySeedGeometryPolicy(frontend::ModelPlan const& plan,
     std::vector<frontend::GemmGranularity>& geometry,SeedGeometryPolicy const& policy,
-    int num_sms,bool hopper_native) {
+    int num_sms,bool hopper_native,std::array<int,5> const& requested={-1,-1,-1,-1,-1}) {
   if(geometry.size()!=plan.gemms.size())throw std::invalid_argument("seed geometry count differs");
   for(std::size_t i=0;i<plan.gemms.size();++i) {
     auto const& g=plan.gemms[i];auto& tile=geometry[i];
@@ -99,21 +100,25 @@ inline void ApplySeedGeometryPolicy(frontend::ModelPlan const& plan,
     }
     tile.tile_n=rule.tile_n.value_or(tile.tile_n);tile.tile_k=rule.tile_k.value_or(tile.tile_k);
     tile.stages=rule.stages.value_or(tile.stages);tile.impl=rule.impl.value_or(tile.impl);
+    // --gemm-impl-* is applied after the seed; legality must see that choice.
+    int impl=requested.at(ServingGemmFamily(g))>=0?requested.at(ServingGemmFamily(g)):tile.impl;
     int multiplier=rule.task_multiplier.value_or(1),min_tasks=rule.min_tasks.value_or(num_sms);
     // Narrower tiles add tasks without a split-K combine stage.
     while(rule.min_tile_n && tile.tile_n/2>=*rule.min_tile_n &&
           int((g.n+tile.tile_n-1)/tile.tile_n)*multiplier<min_tasks)tile.tile_n/=2;
     int tiles=int((g.n+tile.tile_n-1)/tile.tile_n)*multiplier;
-    bool legal=tile.impl==0?ServingBF16ShapeLegal(tile.tile_m,tile.tile_n,tile.tile_k,tile.stages):
-        tile.impl==1?ServingGemvShapeLegal(tile.tile_m,tile.tile_n,tile.tile_k,tile.stages):
+    bool legal=impl==0?ServingBF16ShapeLegal(tile.tile_m,tile.tile_n,tile.tile_k,tile.stages):
+        impl==1?ServingGemvShapeLegal(tile.tile_m,tile.tile_n,tile.tile_k,tile.stages):
         hopper_native && ServingWgmmaShapeLegal(tile.tile_m,tile.tile_n,tile.tile_k,tile.stages);
     if(!legal || g.k%tile.tile_k)
       throw std::invalid_argument("seed geometry for "+family+" is not a legal decode shape");
     tile.split_k=rule.split?*rule.split:SeedSplitK(tiles,int(g.k),tile.tile_k,
         min_tasks,rule.max_split.value_or(16));
-    // Verified on Qwen3-0.6B B1/B2: split residual GEMMs below TN128 fail
-    // C-1 (max logit gap 1.30, TN32/TN64; TN128 and unsplit TN32 match HF).
-    if(g.epilogue==frontend::PlanGemm::Epilogue::kResidual && tile.split_k>1 && tile.tile_n<128)
+    // Verified on Qwen3-0.6B B1/B2 with mma16: split residual GEMMs below
+    // TN128 fail C-1 (max logit gap 1.30, TN32/TN64; TN128 and unsplit TN32
+    // match HF). WGMMA TN64 splits are checked by model-level C-1 instead.
+    if(g.epilogue==frontend::PlanGemm::Epilogue::kResidual && tile.split_k>1 && tile.tile_n<128 &&
+       impl!=2)
       throw std::invalid_argument("seed geometry splits a residual GEMM below TN128");
     // Argmax partials are reduced per head tile; a K split has no combiner.
     if(g.epilogue==frontend::PlanGemm::Epilogue::kArgmaxPartial && tile.split_k!=1)
