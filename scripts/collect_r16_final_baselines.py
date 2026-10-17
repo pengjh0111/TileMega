@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 """Merge frozen baselines with explicitly declared, independently checked supplements."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import statistics
@@ -16,6 +17,11 @@ SYSTEMS = ('vllm', 'sglang', 'tensorrt-llm', 'torch.compile')
 CHECKPOINT = '2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9'
 CONFIG = '2850ddb3bf7aecad20b611e2d44f3077fc8193f4827c93beddd4c02ad63c2297'
 METRICS = ('e2e_ms', 'ttft_ms', 'tpot_ms', 'tokens_per_second')
+
+
+def methodology_ready(report):
+    return (report.get('requires_methodology_ready') is not True or
+            report.get('methodology_ready') is True)
 
 
 def declared_jobs(report):
@@ -126,9 +132,13 @@ def main():
                    source='original frozen baseline')
         selected[key] = row
     state, cards = read_states(root, args.scheduler_root)
-    supplemental, rejected, names = [], [], set()
+    supplemental, rejected, names, checks = [], [], set(), []
     for path in args.supplement_report:
-        report = json.loads(path.read_text())
+        snapshot = path.read_bytes()
+        report = json.loads(snapshot)
+        checks.append(dict(path=str(path.resolve()), sha256=hashlib.sha256(snapshot).hexdigest(),
+            required=report.get('requires_methodology_ready') is True,
+            passed=methodology_ready(report)))
         for name in declared_jobs(report):
             if name in names:
                 raise ValueError('duplicate explicit supplemental job')
@@ -144,12 +154,19 @@ def main():
         raise ValueError('baseline cell outside the final 120-cell matrix')
     missing = [dict(model=m, system=s, batch=b) for m,s,b in sorted(expected-set(selected))]
     rows = [selected[key] for key in sorted(selected)]
-    result = dict(complete=not missing, completed_cells=len(rows), expected_cells=120,
+    for check in checks:
+        if file_sha(check['path']) != check['sha256']:
+            check.update(passed=False, reason='supplement report changed during independent validation')
+    ready = not missing and all(check['passed'] for check in checks)
+    result = dict(complete=ready, completed_cells=len(rows), expected_cells=120,
         missing=missing, cells=rows, supplemental_processes=supplemental,
+        methodology_checks=checks,
         supplemental_rejections=rejected, original_rejections=original_rejections,
         default_promoted=False, scope='frozen original cells, replaced only by valid explicitly paired MoE supplements')
     args.out.mkdir(parents=True, exist_ok=True)
-    (args.out/'final-baselines.json').write_text(json.dumps(result, indent=2)+'\n')
+    temporary = args.out/'final-baselines.pending'
+    temporary.write_text(json.dumps(result, indent=2)+'\n')
+    temporary.replace(args.out/'final-baselines.json')
     # Structured provenance stays JSON; CSV remains directly usable by comparison tools.
     fields = ('model','system','batch','fresh_processes','protocol_complete','gpu',
               'physical_gpu_uuid','physical_gpu_identity_status','hardware_boot_id',
@@ -157,9 +174,9 @@ def main():
               'source_checkpoint_sha256','checkpoint_identity_shared','native_artifact_ids','source')
     write_csv(args.out/'R16_final_baselines.csv', [{key:row[key] for key in fields} for row in rows])
     print(json.dumps(dict(completed_cells=len(rows), expected_cells=120,
-        complete=not missing, supplemental_processes=len(supplemental),
+        complete=ready, supplemental_processes=len(supplemental),
         supplemental_rejections=len(rejected))))
-    return int(args.require_complete and bool(missing))
+    return int(args.require_complete and not ready)
 
 
 if __name__ == '__main__':
