@@ -31,6 +31,9 @@ def cell(directory, model, batch, variant):
         m = json.loads(file.read_text())
         rounds.append(m)
         tokens.append((path/'tokens_N1024_run3.json').read_text())
+    plan = json.loads((directory/f'decode-{variant}.so.plan.json').read_text())
+    impls = sorted({g['impl'] for g in plan['gemms']})
+    splits = sorted({g['split_k'] for g in plan['gemms']})
     check = directory/f'check-{variant}'/'check-summary.json'
     check = json.loads(check.read_text()) if check.exists() else None
     median = lambda key: statistics.median(r[key] for r in rounds)
@@ -44,6 +47,12 @@ def cell(directory, model, batch, variant):
                 c1_pass=check and check['c1'] and check['c1']['pass'],
                 c1_max_gap=check and check['c1'] and check['c1']['max_gap'],
                 c2_pass=check and check['c2'] and check['c2']['pass'],
+                executor=rounds[0]['configuration']['mode'],
+                device_loop=rounds[0]['configuration']['decode_loop'],
+                attention_impl=plan['attention_impl'], attention_kv_block=plan['attention_kv_block'],
+                gemm_impl='/'.join(impls), split_k='/'.join(map(str, splits)),
+                residency=plan.get('requested_residency') or plan.get('residency') or 1,
+                cluster_dim=plan['cluster_dim'], pages=plan.get('pg'),
                 acceptance=rounds[0]['acceptance'],
                 checkpoint_sha256=rounds[0]['checkpoint']['checkpoint_sha256'][:16])
 

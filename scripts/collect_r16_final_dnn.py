@@ -117,10 +117,13 @@ def baseline_policy(groups, cells):
     return chosen, excluded
 
 
-def collect(root):
+def collect(root, extra_states=()):
     base = root/'runs/r16/dnn'
     records, rejected = collect_dnn(root)
     old = read(root/'runs/r16/scheduler/gpu7/state.json')
+    # A resumed timing queue may run under a separate scheduler output.
+    for path in extra_states:
+        old.update(read(path))
     clean = read(root/'runs/r16/scheduler-rf2-final-v1/gpu2/state.json')
     plan_path = base/'final-combinations-v1/functional-plan.json'
     plan = read(plan_path)
@@ -200,8 +203,9 @@ def main():
     parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--require-complete', action='store_true')
+    parser.add_argument('--extra-state', type=Path, action='append', default=[])
     args = parser.parse_args()
-    result, rows = collect(args.root.resolve())
+    result, rows = collect(args.root.resolve(), args.extra_state)
     args.out.mkdir(parents=True, exist_ok=True)
     atomic(args.out/'selection.json', result)
     write_csv(args.out/'R16_final_dnn.csv', rows)
