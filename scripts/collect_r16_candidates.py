@@ -355,6 +355,9 @@ def collect(root,plans,scheduler_roots=None):
         report_path=path.parent/'selection-report.json'
         try:
             report=read(report_path) if report_path.is_file() else {}
+            if (plan.get('require_selection_pool_sha') and
+                    report.get('plans',{}).get(str(path)) != file_sha(path)):
+                raise ValueError('selection report is not bound to the current candidate pool')
             choices={(c['model'],c['batch']):c for c in report.get('cells',[])}
         except (OSError,ValueError,KeyError,TypeError) as error:
             choices={};rejections.append(dict(plan=str(path),status='unsupported_selection_report',reason=str(error)))
