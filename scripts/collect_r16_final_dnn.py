@@ -7,8 +7,9 @@ from pathlib import Path
 import statistics
 
 from analyze_r16_dnn_pair import comparison, evidence, matching_devices
+from compare_r16_results import compare, geomeans
 from r16_measurement_validation import completed_guard, file_sha
-from summarize_r16 import collect_dnn, write_csv
+from summarize_r16 import aggregate_dnn, collect_dnn, write_csv
 
 
 PAIRS = {
@@ -82,6 +83,40 @@ def choose(options):
     return selected, decisions
 
 
+def baseline_policy(groups, cells):
+    expected = {(model, system, precision, mode) for model in PAIRS
+        for system, precision, mode in [('tensorrt','bf16',''), ('tensorrt','fp16',''),
+            ('torchcompile','bf16','max-autotune'), ('torchcompile','bf16','reduce-overhead')]}
+    chosen, excluded = [], []
+    for key in sorted(expected):
+        cell = next(cell for cell in cells if cell['model'] == key[0])
+        proof = cell['selected']
+        candidates = []
+        for row in groups:
+            if (row['model'], row['system'], row['precision'], row['compile_mode']) != key:
+                continue
+            if (not row['protocol_complete'] or row['fresh_processes'] != 3 or
+                    row['exported_program_sha256'] != proof['archive_sha256'] or
+                    row['source_checkpoint_sha256'] not in ('', proof['checkpoint_sha256'])):
+                excluded.append(dict(coordinate=key, reason='incomplete or different exported program/checkpoint', group=row))
+                continue
+            candidates.append(row)
+        def rank(row):
+            return (row['physical_gpu_uuid'] == cell['physical_device']['uuid'],
+                    bool(row['physical_gpu_uuid']),
+                    bool(row['hardware_boot_id']) and row['hardware_boot_id'] == cell['physical_device']['boot_id'])
+        candidates.sort(key=rank, reverse=True)
+        if not candidates or (len(candidates) > 1 and rank(candidates[0]) == rank(candidates[1])):
+            raise ValueError('external DNN baseline is missing or ambiguous: '+str(key))
+        chosen.append(dict(candidates[0],
+            selection_reason='prefer accepted current physical card/epoch; never select by speed',
+            checkpoint_scope='identical exported program; '+('direct checkpoint hash verified'
+                if candidates[0]['source_checkpoint_sha256'] else 'historical direct checkpoint hash absent')))
+        excluded.extend(dict(coordinate=key, reason='superseded by stronger physical device attribution', group=row)
+                        for row in candidates[1:])
+    return chosen, excluded
+
+
 def collect(root):
     base = root/'runs/r16/dnn'
     records, rejected = collect_dnn(root)
@@ -134,18 +169,29 @@ def collect(root):
         if 'bridge' in selected:
             cell['functional_timing_bridge'] = selected['bridge']
         cells.append(cell)
-        compact.append(dict(model=model, batch=1, precision='bf16', status=cell['status'],
+        compact.append(dict(model=model, system='TileMega', batch=1, precision='bf16', status=cell['status'],
             candidate_id=selected['proof']['candidate_id'], median_ms=cell['median_ms'],
             p90_ms=cell['p90_ms'], artifact_id=selected['proof']['artifact_id'],
+            native_artifact_ids=selected['proof']['artifact_id'],
+            comparison_arm='R16-final-selected-DNN-policy-v1',
+            exported_program_sha256=selected['proof']['archive_sha256'],
+            source_checkpoint_sha256=selected['proof']['checkpoint_sha256'],
+            fresh_processes=3, protocol_complete=True, gpu=selected['rows'][0]['gpu'],
+            physical_gpu_identity_status='verified', hardware_boot_id=selected['device']['boot_id'],
+            acceptance='provisional_container_pid_namespace',
             physical_gpu_uuid=selected['device']['uuid'],
             coordinates=json.dumps(selected['proof']['selected_coordinates'], sort_keys=True),
             fixed_bf16_sha256=selected['fixed_bf16']['sha256']))
+    external, external_excluded = baseline_policy(aggregate_dnn([row for row in records
+        if not row['system'].lower().startswith(('tilemega', 'tm-'))]), cells)
     completed = sum(cell['status'] == 'complete' for cell in cells)
     return dict(evidence='verified_independent_receipt_analysis', complete=completed == 5,
         completed_models=completed, expected_models=5, cells=cells,
         scope='B1 fixed-input random checkpoints; unchanged BF16 criteria; not dataset accuracy',
         default_promoted=False, acceptance='provisional_container_pid_namespace',
         combination_plan=dict(path=str(plan_path), sha256=file_sha(plan_path)),
+        external_baseline_cells=20, external_baseline_complete=True, external_baselines=external,
+        excluded_external_groups=external_excluded,
         unrelated_rejected_measurements=rejected), compact
 
 
@@ -159,6 +205,10 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
     atomic(args.out/'selection.json', result)
     write_csv(args.out/'R16_final_dnn.csv', rows)
+    write_csv(args.out/'R16_final_dnn_baselines.csv', result['external_baselines'])
+    ratios = compare(rows+result['external_baselines'], 'dnn')
+    write_csv(args.out/'R16_final_dnn_ratios.csv', ratios)
+    write_csv(args.out/'R16_final_dnn_geomeans.csv', geomeans(ratios, 'dnn'))
     print(json.dumps({key:result[key] for key in ('complete', 'completed_models', 'expected_models')}))
     return int(args.require_complete and not result['complete'])
 
