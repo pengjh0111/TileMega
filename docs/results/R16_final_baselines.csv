@@ -1,0 +1,121 @@
+model,system,batch,fresh_processes,protocol_complete,gpu,physical_gpu_uuid,physical_gpu_identity_status,hardware_boot_id,e2e_ms,ttft_ms,tpot_ms,tokens_per_second,acceptance,source_checkpoint_sha256,checkpoint_identity_shared,native_artifact_ids,source
+llama3_1_8b,sglang,1,3,True,7,,unknown,,6676.293896045536,14.361647889018059,6.512463062761292,153.37850848755022,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,sglang,2,3,True,7,,unknown,,6807.030219119042,14.523789286613464,6.640160496811859,300.86541914383474,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,sglang,4,3,True,7,,unknown,,6785.378895234317,14.320480171591043,6.618635174076374,603.6508886595573,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,sglang,8,3,True,7,,unknown,,6942.252785898745,17.193342093378305,6.7697148483323035,1180.0204130624238,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,sglang,16,3,True,7,,unknown,,7222.938050050288,28.61274592578411,7.0325760548626635,2268.3290215795123,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,tensorrt-llm,1,3,True,7,,unknown,,6598.753307014704,22.424473892897367,6.4284739326703875,155.1808277044472,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,tensorrt-llm,2,3,True,7,,unknown,,6642.321012914181,41.3431222550571,6.452345378052367,308.3259595581458,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,tensorrt-llm,4,3,True,7,,unknown,,6795.344703365117,45.02094490453601,6.598211874965058,602.7655959780265,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,tensorrt-llm,8,3,True,7,,unknown,,7187.125196214765,44.362527783960104,6.9826182532411,1139.8159592815318,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,tensorrt-llm,16,3,True,7,,unknown,,7665.096771903336,47.56874404847622,7.446506373376703,2137.4811678902856,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,torch.compile,1,3,True,7,,unknown,,11109.277784824371,14.24606004729867,10.845000566122645,92.1752088510035,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,torch.compile,2,3,True,7,,unknown,,11605.354344006628,15.286205802112818,11.32948987116766,176.47026874777436,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,torch.compile,4,3,True,7,,unknown,,12196.937106084079,17.07954378798604,11.90594601684331,335.8220153448879,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,torch.compile,8,3,True,7,,unknown,,13878.812224138528,22.509858943521976,13.54477259549854,590.2522397235248,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,torch.compile,16,3,True,7,,unknown,,18166.255068033934,37.548353895545006,17.72057317299286,901.8919936244835,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,vllm,1,3,True,7,,unknown,,7024.958907626569,14.848888851702213,6.851176112682676,145.76597720568952,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,vllm,2,3,True,7,,unknown,,7116.9785633683205,25.54166503250599,6.93041539795602,287.7625640944355,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,vllm,4,3,True,7,,unknown,,7238.935987930745,25.644477922469378,7.052094813068474,565.8290122787569,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,vllm,8,3,True,7,,unknown,,7452.990219928324,34.43401586264372,7.2509168004498745,1099.156145153077,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_1_8b,vllm,16,3,True,7,,unknown,,7831.553205382079,43.937320820987225,7.6117940025835615,2092.049887210167,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,sglang,1,3,True,7,,unknown,,1629.4268500059843,10.067398194223642,1.5829062382467565,628.441835235647,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,sglang,2,3,True,7,,unknown,,1694.9694151990116,9.666330181062222,1.6477155924309501,1208.2813894075712,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,sglang,4,3,True,7,,unknown,,1722.3672438412905,9.857593569904566,1.6736179783226572,2378.1223282352616,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,sglang,8,3,True,7,,unknown,,1765.068565029651,11.202437337487936,1.714755274821528,4641.179477275652,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,sglang,16,3,True,7,,unknown,,1843.6773531138897,12.00290909036994,1.790277265241681,8886.587434796087,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,tensorrt-llm,1,3,True,7,,unknown,,1507.9291532747447,11.93304406479001,1.4625831515339813,679.0769962741261,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,tensorrt-llm,2,3,True,7,,unknown,,1561.1338391900063,20.14866191893816,1.5054702451989739,1311.8670216402484,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,tensorrt-llm,4,3,True,7,,unknown,,1647.3731780424714,26.69817116111517,1.5831718062900029,2486.3825966058066,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,tensorrt-llm,8,3,True,7,,unknown,,1820.4531706869602,28.12134986743331,1.7436333733518858,4499.978429496593,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,tensorrt-llm,16,3,True,7,,unknown,,1984.2703212052584,33.32076407968998,1.9068040458061246,8256.939503105734,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,torch.compile,1,3,True,7,,unknown,,5127.735826186836,7.832732982933521,5.003787898517715,199.69827516669912,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,torch.compile,2,3,True,7,,unknown,,5300.369319971651,8.093176875263453,5.173365434837452,386.3881696475735,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,torch.compile,4,3,True,7,,unknown,,5543.678378220648,8.651379961520433,5.409024322163296,738.8596019732826,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,torch.compile,8,3,True,7,,unknown,,6017.1535378322005,9.79719078168273,5.872293594379783,1361.441078159912,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,torch.compile,16,3,True,7,,unknown,,6851.263939868659,12.18089321628213,6.685895769276955,2391.383567148646,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,vllm,1,3,True,7,,unknown,,2064.961936324835,11.46946381777525,2.004654045223112,495.8929179210385,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,vllm,2,3,True,7,,unknown,,2107.3625069111586,11.66355237364769,2.0485815782380357,971.8308991848922,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,vllm,4,3,True,7,,unknown,,2184.2954801395535,16.435284167528152,2.1198147499090827,1875.2041732642822,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,vllm,8,3,True,7,,unknown,,2285.339461173862,16.53855014592409,2.2177917018845923,3584.5878212736884,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_1b,vllm,16,3,True,7,,unknown,,2466.6275302879512,22.112621925771236,2.3949402771373065,6642.267549039863,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,sglang,1,3,True,7,,unknown,,3516.9417820870876,13.730663806200027,3.4215393934111207,291.16205597020695,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,sglang,2,3,True,7,,unknown,,3630.3813168779016,13.829476200044155,3.535241290985198,564.1280684424806,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,sglang,4,3,True,7,,unknown,,3703.0048482120037,13.839527033269405,3.606222210340894,1106.128716514577,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,sglang,8,3,True,7,,unknown,,3830.91798517853,14.397107064723969,3.730714445859048,2138.390858716917,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,sglang,16,3,True,7,,unknown,,4060.1536501199007,16.913891304284334,3.9523579562601805,4035.3152643659587,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,tensorrt-llm,1,3,True,7,,unknown,,3506.062720902264,20.42580721899867,3.407952479493758,292.0655109491252,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,tensorrt-llm,2,3,True,7,,unknown,,3545.078285038471,27.8575848788023,3.4371563989053664,577.7023341468396,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,tensorrt-llm,4,3,True,7,,unknown,,3667.815966065973,40.40084686130285,3.5468024576769253,1116.7408719236503,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,tensorrt-llm,8,3,True,7,,unknown,,3998.7719329074025,43.41636225581169,3.866980820967072,2048.6289634537397,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,tensorrt-llm,16,3,True,7,,unknown,,4402.5046192109585,44.56201707944274,4.259636972503753,3721.51795787018,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,torch.compile,1,3,True,7,,unknown,,7768.667260184884,11.761053930968046,7.5823819425907475,131.8115406033789,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,torch.compile,2,3,True,7,,unknown,,8190.641888882965,12.440354563295841,7.994331900605738,250.04145313442646,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,torch.compile,4,3,True,7,,unknown,,8659.40773487091,13.639351818710566,8.451386493697164,473.0115644636591,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,torch.compile,8,3,True,7,,unknown,,9983.08790428564,16.404225956648588,9.742603791132934,820.5877859177476,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,torch.compile,16,3,True,7,,unknown,,12811.011599842459,22.77750661596656,12.500717588686697,1278.899786508778,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,vllm,1,3,True,7,,unknown,,3966.063267085701,14.308629091829062,3.8641362044985748,258.19053581372754,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,vllm,2,3,True,7,,unknown,,3997.496739961207,21.5595499612391,3.8868002916703532,512.32061793248,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,vllm,4,3,True,7,,unknown,,4131.640485022217,24.95573414489627,4.013122653430246,991.3737690509572,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,vllm,8,3,True,7,,unknown,,4327.677497174591,25.51178215071559,4.2046507440857,1892.932180216365,provisional_container_pid_namespace,,False,,original frozen baseline
+llama3_2_3b,vllm,16,3,True,7,,unknown,,4664.279891178012,28.91979506239295,4.529091227755956,3512.6536962304917,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,sglang,1,3,True,7,,unknown,,1726.3132487423718,14.872276224195957,1.6728012744275416,593.171604716577,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,sglang,2,3,True,7,,unknown,,1844.4962240755558,16.26857602968812,1.7863051394111715,1110.3302751549077,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,sglang,4,3,True,7,,unknown,,1918.9785057678819,15.305967070162296,1.8608994610818832,2134.4689310946605,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,sglang,8,3,True,7,,unknown,,2037.68446482718,17.18946686014533,1.9750684242102,4020.249524106167,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,sglang,16,3,True,7,,unknown,,2269.7009509429336,17.174505162984133,2.1997651914617125,7218.572117702716,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,tensorrt-llm,1,3,True,7,,unknown,,1610.9099462628365,20.196573808789253,1.554949533190662,635.66557669818,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,tensorrt-llm,2,3,True,7,,unknown,,1655.0398711115122,28.675715904682875,1.5897987831933815,1237.4324242862976,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,tensorrt-llm,4,3,True,7,,unknown,,1794.6738880127668,39.711253717541695,1.7159183933886673,2282.3087956862623,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,tensorrt-llm,8,3,True,7,,unknown,,2107.0265090093017,40.4933700338006,2.0201997289785485,3887.9434904935197,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,tensorrt-llm,16,3,True,7,,unknown,,2504.967869259417,43.57809107750654,2.405391210364223,6540.602856053343,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,torch.compile,1,3,True,7,,unknown,,5709.72169097513,10.107537731528282,5.5714703355264925,179.34324217913274,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,torch.compile,2,3,True,7,,unknown,,6085.514293052256,11.079071089625359,5.93924271680218,336.53688108795865,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,torch.compile,4,3,True,7,,unknown,,6473.19596586749,10.353590827435255,6.317538978533777,632.7631700936903,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,torch.compile,8,3,True,7,,unknown,,7173.811275046319,11.540263891220093,7.001416456820999,1141.9313508421096,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,torch.compile,16,3,True,7,,unknown,,8851.933988276869,13.629273977130651,8.639594051123888,1850.894959417714,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,vllm,1,3,True,7,,unknown,,2226.9848468713462,15.259070787578821,2.160764598849349,459.8145341844604,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,vllm,2,3,True,7,,unknown,,2258.888161275536,24.000801146030426,2.185328200346593,906.6407248969543,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,vllm,4,3,True,7,,unknown,,2363.775997888297,30.60451801866293,2.2797940780507915,1732.820708755484,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,vllm,8,3,True,7,,unknown,,2536.6155351512134,27.347194030880928,2.4494352115032316,3229.500050945504,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_0_6b,vllm,16,3,True,7,,unknown,,2870.572794228792,25.523696094751358,2.781084162398867,5707.571684975062,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,sglang,1,3,True,7,,unknown,,2504.4462867081165,14.853930100798607,2.4336191169181993,408.87281369725906,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,sglang,2,3,True,7,,unknown,,2627.096046227962,15.316918957978487,2.553024729358748,779.5679959781296,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,sglang,4,3,True,7,,unknown,,2675.6452550180256,14.74866783246398,2.600454163618335,1530.8456875283362,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,sglang,8,3,True,7,,unknown,,2803.2482196576893,16.002960968762636,2.7246953567211407,2922.3241604342634,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,sglang,16,3,True,7,,unknown,,3033.7644992396235,17.518024891614914,2.948432526244388,5400.551032918492,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,tensorrt-llm,1,3,True,7,,unknown,,2384.977249894291,18.61068233847618,2.316162700720226,429.35420035783847,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,tensorrt-llm,2,3,True,7,,unknown,,2428.050451911986,27.1023353561759,2.3471279427562117,843.4750597489799,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,tensorrt-llm,4,3,True,7,,unknown,,2550.986712798476,49.098384100943804,2.445463763453423,1605.653208403668,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,tensorrt-llm,8,3,True,7,,unknown,,2867.8742409683764,37.987043149769306,2.766281608510344,2856.471139136792,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,tensorrt-llm,16,3,True,7,,unknown,,3272.1231169998646,41.55979212373495,3.157930913857409,5007.146557193764,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,torch.compile,1,3,True,7,,unknown,,6543.447329197079,9.841172024607658,6.386768362800776,156.49243410745862,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,torch.compile,2,3,True,7,,unknown,,6889.705354813486,10.280176065862179,6.724755795452223,297.2550921309235,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,torch.compile,4,3,True,7,,unknown,,7308.0745241604745,11.913081165403128,7.132805181068176,560.4759484127638,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,torch.compile,8,3,True,7,,unknown,,7956.474151927978,13.178427703678608,7.764807576814325,1029.601786366006,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,torch.compile,16,3,True,7,,unknown,,9553.481361363083,16.418205108493567,9.320436341857368,1714.976915772445,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,vllm,1,3,True,7,,unknown,,2923.7944576889277,15.864428132772446,2.840982194268896,350.22981773123905,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,vllm,2,3,True,7,,unknown,,3002.7359491214156,15.847127884626389,2.920012998932705,682.0446535098212,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,vllm,4,3,True,7,,unknown,,3124.6700221672654,31.43606288358569,3.028240832768723,1310.8584173502654,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,vllm,8,3,True,7,,unknown,,3288.698378019035,36.40804020687938,3.181260098718682,2490.9551008853828,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_1_7b,vllm,16,3,True,7,,unknown,,3627.6108040474355,32.16248704120517,3.514612235587713,4516.471276830434,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_30b_a3b,sglang,1,3,True,7,ac78f16f-955d-c08b-e6fe-4e4554c8954d,verified,fc250a07-0614-4659-90ff-af65931de20c,5019.6095969986345,37.61496200240799,4.869654492667354,203.99992872200227,provisional_container_pid_namespace,2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9,True,,explicit paired full-MoE supplement
+qwen3_30b_a3b,sglang,2,3,True,3,,unknown,,6161.741338670254,39.254352916032076,5.985877382863069,332.37357549351015,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_30b_a3b,sglang,4,3,True,3,,unknown,,8477.506801951677,40.5272152274847,8.247414200984576,483.1609216824251,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_30b_a3b,sglang,8,3,True,3,,unknown,,11670.063977595419,42.12721390649676,11.365729485632068,701.9670171240944,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_30b_a3b,sglang,16,3,True,7,ac78f16f-955d-c08b-e6fe-4e4554c8954d,verified,fc250a07-0614-4659-90ff-af65931de20c,16019.08391300094,47.52540000117733,15.612464994134086,1022.7800846153816,provisional_container_pid_namespace,2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9,True,,explicit paired full-MoE supplement
+qwen3_30b_a3b,tensorrt-llm,1,3,True,7,ac78f16f-955d-c08b-e6fe-4e4554c8954d,verified,fc250a07-0614-4659-90ff-af65931de20c,5305.821193996962,42.305284998292336,5.145465207233064,192.9955727039124,provisional_container_pid_namespace,2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9,True,,explicit paired full-MoE supplement
+qwen3_30b_a3b,tensorrt-llm,2,3,True,3,,unknown,,6197.36981485039,54.80834562331438,6.001347654070323,330.4627706890267,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_30b_a3b,tensorrt-llm,4,3,True,3,,unknown,,8393.663056194782,73.97854188457131,8.132789365925397,487.98718421000063,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_30b_a3b,tensorrt-llm,8,3,True,3,,unknown,,11871.2635259144,76.62985380738974,11.52777863722859,690.0697623397253,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_30b_a3b,tensorrt-llm,16,3,True,7,ac78f16f-955d-c08b-e6fe-4e4554c8954d,verified,fc250a07-0614-4659-90ff-af65931de20c,16161.475584998698,79.7978160007915,15.722246482890068,1013.7688179418377,provisional_container_pid_namespace,2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9,True,,explicit paired full-MoE supplement
+qwen3_30b_a3b,torch.compile,1,3,True,0,73c1a37e-d3c0-dc24-b81d-6a5563ebe677,verified,fc250a07-0614-4659-90ff-af65931de20c,9055.822748006904,27.095352998003364,8.825735478992081,113.0764181780581,provisional_container_pid_namespace,2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9,True,,explicit paired full-MoE supplement
+qwen3_30b_a3b,torch.compile,2,3,True,0,73c1a37e-d3c0-dc24-b81d-6a5563ebe677,verified,fc250a07-0614-4659-90ff-af65931de20c,12153.125088996603,25.10890198755078,11.855459221894103,168.51632687087636,provisional_container_pid_namespace,2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9,True,,explicit paired full-MoE supplement
+qwen3_30b_a3b,torch.compile,4,3,True,0,73c1a37e-d3c0-dc24-b81d-6a5563ebe677,verified,fc250a07-0614-4659-90ff-af65931de20c,15692.01220999821,31.394315999932587,15.306911726288414,261.02452287095605,provisional_container_pid_namespace,2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9,True,,explicit paired full-MoE supplement
+qwen3_30b_a3b,torch.compile,8,3,True,0,73c1a37e-d3c0-dc24-b81d-6a5563ebe677,verified,fc250a07-0614-4659-90ff-af65931de20c,22973.893731992575,41.321594995679334,22.416981561091788,356.57864946907677,provisional_container_pid_namespace,2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9,True,,explicit paired full-MoE supplement
+qwen3_30b_a3b,torch.compile,16,3,True,0,73c1a37e-d3c0-dc24-b81d-6a5563ebe677,verified,fc250a07-0614-4659-90ff-af65931de20c,39183.86366899358,58.62712400266901,38.24546518083241,418.13130370205823,provisional_container_pid_namespace,2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9,True,,explicit paired full-MoE supplement
+qwen3_30b_a3b,vllm,1,3,True,7,ac78f16f-955d-c08b-e6fe-4e4554c8954d,verified,fc250a07-0614-4659-90ff-af65931de20c,5865.71136099883,36.11478799939505,5.6985303743885,174.57388149178044,provisional_container_pid_namespace,2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9,True,,explicit paired full-MoE supplement
+qwen3_30b_a3b,vllm,2,3,True,3,,unknown,,7216.557724867016,40.09550390765071,6.953672593767197,283.79181295023034,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_30b_a3b,vllm,4,3,True,3,,unknown,,9535.022968892008,72.17962294816971,9.250320862880375,429.574214279629,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_30b_a3b,vllm,8,3,True,3,,unknown,,12378.965178970248,78.85914389044046,12.019432803483012,661.7677553465303,provisional_container_pid_namespace,,False,,original frozen baseline
+qwen3_30b_a3b,vllm,16,3,True,7,ac78f16f-955d-c08b-e6fe-4e4554c8954d,verified,fc250a07-0614-4659-90ff-af65931de20c,17063.18602099782,82.6639309998427,16.600856968718738,960.1958262564789,provisional_container_pid_namespace,2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9,True,,explicit paired full-MoE supplement
