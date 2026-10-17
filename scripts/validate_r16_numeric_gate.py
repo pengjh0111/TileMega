@@ -86,6 +86,7 @@ def validate_payload(path, candidate, pair, stage, expected_uuid=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root',type=Path,default=Path(__file__).resolve().parents[1])
+    parser.add_argument('--scheduler-root',type=Path,action='append')
     parser.add_argument('--candidate',type=Path,required=True)
     parser.add_argument('--job',required=True)
     parser.add_argument('--stage',choices=('smoke','longcheck'),required=True)
@@ -93,7 +94,7 @@ def main():
     parser.add_argument('--out',type=Path,required=True)
     args = parser.parse_args()
     candidate = read(args.candidate)
-    state, cards = read_states(args.root)
+    state, cards = read_states(args.root,args.scheduler_root)
     record = state[args.job]
     if cards[args.job] != candidate['gpu']:
         raise ValueError('numeric job was scheduled on another GPU')

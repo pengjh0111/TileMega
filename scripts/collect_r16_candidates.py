@@ -145,12 +145,16 @@ def scheduled_jobs(plan_path,plan):
     return requests
 
 
-def read_states(root):
+def read_states(root, scheduler_roots=None):
     state={};cards={}
-    for path in sorted((root/'runs/r16/scheduler').glob('gpu*/state.json')):
+    roots=scheduler_roots or [root/'runs/r16/scheduler']
+    paths={p.resolve() for directory in roots for p in Path(directory).glob('gpu*/state.json')}
+    for path in sorted(paths):
+        gpu=int(path.parent.name.removeprefix('gpu'))
+        if gpu not in range(8):raise ValueError('invalid scheduler GPU directory')
         for name,row in read(path).items():
             if name in state:raise ValueError('ambiguous scheduler job name: '+name)
-            state[name]=row;cards[name]=int(path.parent.name.removeprefix('gpu'))
+            state[name]=row;cards[name]=gpu
     return state,cards
 
 
@@ -296,8 +300,8 @@ def selection_matches(choice,candidate,samples):
     except (OSError,ValueError,KeyError,TypeError):return False
 
 
-def collect(root,plans):
-    root=Path(root).resolve();state,cards=read_states(root);rows=[];processes=[];rejections=[];selected=[];seen=set()
+def collect(root,plans,scheduler_roots=None):
+    root=Path(root).resolve();state,cards=read_states(root,scheduler_roots);rows=[];processes=[];rejections=[];selected=[];seen=set()
     for path in plans:
         path=Path(path).resolve()
         try:
@@ -360,8 +364,8 @@ def csv_rows(rows):
 
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--root',type=Path,default=Path(__file__).resolve().parents[1]);p.add_argument('--plan',type=Path,action='append',required=True);p.add_argument('--out',type=Path,required=True);args=p.parse_args()
-    result=collect(args.root,args.plan);args.out.mkdir(parents=True,exist_ok=True);(args.out/'candidates.json').write_text(json.dumps(result,indent=2)+'\n');(args.out/'rejections.json').write_text(json.dumps(result['rejections'],indent=2)+'\n');(args.out/'selected-by-report.json').write_text(json.dumps(result['selections'],indent=2)+'\n')
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--root',type=Path,default=Path(__file__).resolve().parents[1]);p.add_argument('--plan',type=Path,action='append',required=True);p.add_argument('--scheduler-root',type=Path,action='append');p.add_argument('--out',type=Path,required=True);args=p.parse_args()
+    result=collect(args.root,args.plan,args.scheduler_root);args.out.mkdir(parents=True,exist_ok=True);(args.out/'candidates.json').write_text(json.dumps(result,indent=2)+'\n');(args.out/'rejections.json').write_text(json.dumps(result['rejections'],indent=2)+'\n');(args.out/'selected-by-report.json').write_text(json.dumps(result['selections'],indent=2)+'\n')
     rows=csv_rows(result['candidates'])
     with (args.out/'candidates.csv').open('w',newline='') as stream:
         if rows:
