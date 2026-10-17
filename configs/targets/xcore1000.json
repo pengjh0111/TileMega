@@ -1,90 +1,41 @@
 {
-  "arch_tag": "xcore1000",
-  "sm_major": 10,
-  "sm_minor": 2,
-  "device_name": "MetaX C550",
-  "event_calibration_by_dtype": {
-    "bf16": {
-      "source": "",
-      "source_sha256": "",
-      "method": "",
-      "notify": {
-        "ns": null,
-        "reason": "not_calibrated",
-        "unit": ""
-      },
-      "poll": {
-        "ns": null,
-        "reason": "not_calibrated",
-        "unit": ""
-      },
-      "notify_stage": {
-        "ns": null,
-        "reason": "not_calibrated",
-        "unit": "ns/runtime_stage"
-      },
-      "notify_longest_worker": {
-        "ns": null,
-        "reason": "not_calibrated",
-        "unit": "ns/max_worker_task_ref"
-      },
-      "poll_stage": {
-        "ns": null,
-        "reason": "not_calibrated",
-        "unit": "ns/runtime_stage"
-      },
-      "poll_longest_worker": {
-        "ns": null,
-        "reason": "not_calibrated",
-        "unit": "ns/max_worker_task_ref"
-      },
-      "fence": {
-        "ns": null,
-        "reason": "not_calibrated",
-        "unit": ""
-      }
+  "calibration_sections": {
+    "base": {
+      "stamp": "379a910870a2f0c3ec112008553c80417c3fa9eb87bf7d694fe26f98b234ed50"
     },
-    "f32": {
-      "source": "",
-      "source_sha256": "",
-      "method": "",
-      "notify": {
-        "ns": null,
-        "reason": "not_calibrated",
-        "unit": ""
-      },
-      "poll": {
-        "ns": null,
-        "reason": "not_calibrated",
-        "unit": ""
-      },
-      "notify_stage": {
-        "ns": null,
-        "reason": "not_calibrated",
-        "unit": "ns/runtime_stage"
-      },
-      "notify_longest_worker": {
-        "ns": null,
-        "reason": "not_calibrated",
-        "unit": "ns/max_worker_task_ref"
-      },
-      "poll_stage": {
-        "ns": null,
-        "reason": "not_calibrated",
-        "unit": "ns/runtime_stage"
-      },
-      "poll_longest_worker": {
-        "ns": null,
-        "reason": "not_calibrated",
-        "unit": "ns/max_worker_task_ref"
-      },
-      "fence": {
-        "ns": null,
-        "reason": "not_calibrated",
-        "unit": ""
-      }
+    "bf16": {
+      "stamp": "fe17f584c98fd0b2de4bb67d44df0b782ba72eb9b88a3913e2ee8f92e12eb1c1"
+    },
+    "events": {
+      "stamp": "c1b9502f8a71d44a8a87e4c8c74032269668e8a44cc44a1a6a4c6898cbabe701"
+    },
+    "hop": {
+      "stamp": "c1b9502f8a71d44a8a87e4c8c74032269668e8a44cc44a1a6a4c6898cbabe701"
+    },
+    "inflight": {
+      "stamp": "38c2c790acc9388a603f59608fdb58f47883f8c1d8c1c711b9518582ff0f1b83"
+    },
+    "task_bodies": {
+      "stamp": "656f5269a83f14f7fe1be76ec9bb457b410868e5399ff2dc2e1f8b18b96a2640"
+    },
+    "wait": {
+      "stamp": "c1b9502f8a71d44a8a87e4c8c74032269668e8a44cc44a1a6a4c6898cbabe701"
     }
   },
+  "serving_hop": [
+    597.2420216,
+    -1.971713298,
+    -1.962338228
+  ],
+  "serving_legacy_hop": [
+    1050.425792,
+    -4.908489394,
+    -6.835441047
+  ],
+  "arch_tag": "xcore1000",
+  "device_name": "MetaX C550",
+  "sm_major": 10,
+  "sm_minor": 2,
   "caps": {
     "cluster": false,
     "tma": false,
@@ -108,64 +59,1369 @@
     "regs_per_sm": 131072,
     "max_cluster_size": 1,
     "max_threads_per_sm": 2048,
-    "warp_size": 64
+    "warp_size": 64,
+    "dram_capacity_bytes": 68283269120
   },
   "calibration": {
     "calibrated": false,
-    "l2_prefetch_bytes": 0,
-    "device": "MetaX C550 (resources verified by MX-P probes; not calibrated)",
-    "measured_at": "",
-    "wall_seconds": 0,
+    "device": "MetaX C550",
+    "measured_at": "2026-10-15T22:04:04Z",
+    "wall_seconds": 9.540277078,
     "pipelines": {
-      "tc_fp16_gflops": 0.0,
-      "tc_bf16_gflops": 0.0,
-      "cuda_fp32_gflops": 0.0,
-      "cuda_int32_gops": 0.0,
-      "sfu_exp2_gops": 0.0,
-      "sfu_rsqrt_gops": 0.0,
-      "smem_gbps": 0.0,
-      "smem_conflict_slope": 0.0,
-      "l1_latency_ns": 0.0,
-      "l2_latency_ns": 0.0,
-      "dram_latency_ns": 0.0,
-      "l2_gbps": 0.0,
-      "l2_knee_bytes": 0,
-      "dram_gbps": 0.0,
-      "l2_curve_bytes": [],
-      "l2_curve_gbps": [],
-      "smem_occupancy_ctas": [],
-      "smem_occupancy_gbps": []
+      "tc_fp16_gflops": 288927.0459,
+      "tc_bf16_gflops": 0,
+      "cuda_fp32_gflops": 17755.11241,
+      "cuda_int32_gops": 4320.598357,
+      "sfu_exp2_gops": 900.9873385,
+      "sfu_rsqrt_gops": 900.9575565,
+      "smem_gbps": 12501.65117,
+      "smem_conflict_slope": 0.6851311168,
+      "l1_latency_ns": 38.06250106,
+      "l2_latency_ns": 274.9453183,
+      "dram_latency_ns": 342.4514425,
+      "l2_gbps": 3472.299035,
+      "l2_knee_bytes": 8388608,
+      "dram_gbps": 1608.862257,
+      "l2_curve_bytes": [
+        1048576,
+        2097152,
+        4194304,
+        8388608,
+        16777216,
+        25165824,
+        33554432,
+        50331648,
+        67108864,
+        75497472,
+        83886080,
+        100663296,
+        134217728,
+        201326592,
+        268435456,
+        536870912,
+        1073741824,
+        2147483648
+      ],
+      "l2_curve_gbps": [
+        1706.592031,
+        2311.808043,
+        2844.195556,
+        3472.299035,
+        2803.301226,
+        2442.143396,
+        2122.769127,
+        1773.291453,
+        1659.863774,
+        1645.431727,
+        1623.925815,
+        1612.584461,
+        1606.485411,
+        1605.327354,
+        1607.893076,
+        1603.327186,
+        1608.862257,
+        1618.328999
+      ],
+      "smem_occupancy_ctas": [
+        1,
+        2,
+        3,
+        4,
+        6
+      ],
+      "smem_occupancy_gbps": [
+        7136.904743,
+        9881.469906,
+        10756.03975,
+        11289.017,
+        12043.72413
+      ]
     },
     "sync": {
-      "wait_protocol": "legacy",
-      "atomic_uncontended_ns": 0.0,
-      "atomic_contention_ctas": [],
-      "atomic_contention_ns": [],
-      "threadfence_ns": 0.0,
-      "syncthreads_ns": 0.0,
-      "named_barrier_ns": 0.0,
-      "cluster_sync_ns": 0.0,
+      "atomic_uncontended_ns": 227.1249978,
+      "atomic_contention_ctas": [
+        1,
+        2,
+        4,
+        8,
+        16,
+        32,
+        64,
+        128,
+        256,
+        512
+      ],
+      "atomic_contention_ns": [
+        215.2499947,
+        115.0000026,
+        59.31250053,
+        29.60937491,
+        14.92187494,
+        7.550781447,
+        3.777343863,
+        1.912109383,
+        0.9638671372,
+        0.7441406069
+      ],
+      "threadfence_ns": 39.62498158,
+      "syncthreads_ns": 26.97655873,
+      "named_barrier_ns": 0,
+      "cluster_sync_ns": 0,
       "cluster_sync_calibrated": false,
-      "grid_barrier_ctas": [],
-      "grid_barrier_ns": [],
+      "grid_barrier_ctas": [
+        104,
+        208,
+        312,
+        416,
+        520,
+        624,
+        728,
+        832
+      ],
+      "grid_barrier_ns": [
+        1825.000043,
+        2143.499907,
+        2577.000065,
+        3940.999974,
+        8018.500172,
+        25820.49929,
+        106170.4978,
+        468310.5052
+      ],
       "wait_spin_iters": 0,
       "wait_backoff_ns": 64,
       "wait_backoff_grow": 1,
-      "wait_backoff_cap_ns": 64
+      "wait_backoff_cap_ns": 64,
+      "wait_protocol": "legacy"
     },
     "streamk": [],
-    "combine_fixed_ns": 0.0,
+    "combine_fixed_ns": 0,
+    "combine_fixed_resolved": false,
+    "combine_d_dram_ns": 0,
     "fp32_partial_combine": {
+      "reason": "not_calibrated",
+      "method": "",
       "fixed_ns": null,
       "base_ns": null,
       "d_l2_ns": null,
-      "d_dram_ns": null,
-      "reason": "not_calibrated",
-      "method": ""
+      "d_dram_ns": null
     },
-    "combine_fixed_resolved": false,
-    "combine_d_dram_ns": 0.0,
-    "interference_ratio": 0.0,
-    "measurements": []
+    "interference_ratio": 0,
+    "measurements": [
+      {
+        "name": "cuda_fp32_gflops",
+        "value": 17755.11241,
+        "unit": "GFLOP/s",
+        "samples": 7,
+        "rel_stddev": 0.002985290954,
+        "method": "8 independent FFMA chains x 4096 iterations at full occupancy; 2 flops per FFMA"
+      },
+      {
+        "name": "cuda_int32_gops",
+        "value": 4320.598357,
+        "unit": "GIMAD/s",
+        "samples": 7,
+        "rel_stddev": 0.00060308505,
+        "method": "8 independent integer multiply-add chains x 4096 iterations at full occupancy; constants are kernel arguments, loop not unrolled"
+      },
+      {
+        "name": "sfu_exp2_gops",
+        "value": 900.9873385,
+        "unit": "Gop/s",
+        "samples": 7,
+        "rel_stddev": 0.0001743445099,
+        "method": "exp2f, 8 dependent chains x 4096 iterations"
+      },
+      {
+        "name": "sfu_rsqrt_gops",
+        "value": 900.9575565,
+        "unit": "Gop/s",
+        "samples": 7,
+        "rel_stddev": 0.0001113244095,
+        "method": "rsqrtf, 8 dependent chains x 4096 iterations"
+      },
+      {
+        "name": "tc_fp16_gflops",
+        "value": 288927.0459,
+        "unit": "GFLOP/s",
+        "samples": 7,
+        "rel_stddev": 0.0006284701725,
+        "method": "4 independent __builtin_mxc_mma_16x16x16f16 chains per wave x 4096 iterations; 8192 flops per instruction"
+      },
+      {
+        "name": "smem_gbps",
+        "value": 12501.65117,
+        "unit": "GB/s",
+        "samples": 7,
+        "rel_stddev": 0.0003868828808,
+        "method": "conflict-free volatile shared loads, 8 per iteration x 4096 iterations"
+      },
+      {
+        "name": "smem_conflict_ratio_w2",
+        "value": 1.414880235,
+        "unit": "x conflict-free",
+        "samples": 7,
+        "rel_stddev": 0.0007062916207,
+        "method": "elapsed of the same loop with a `ways`-way bank conflict, relative to the conflict-free loop"
+      },
+      {
+        "name": "smem_conflict_ratio_w4",
+        "value": 2.759715575,
+        "unit": "x conflict-free",
+        "samples": 7,
+        "rel_stddev": 0.0009225864517,
+        "method": "elapsed of the same loop with a `ways`-way bank conflict, relative to the conflict-free loop"
+      },
+      {
+        "name": "smem_conflict_ratio_w8",
+        "value": 5.483205338,
+        "unit": "x conflict-free",
+        "samples": 7,
+        "rel_stddev": 7.958867075e-05,
+        "method": "elapsed of the same loop with a `ways`-way bank conflict, relative to the conflict-free loop"
+      },
+      {
+        "name": "smem_conflict_ratio_w16",
+        "value": 10.96251242,
+        "unit": "x conflict-free",
+        "samples": 7,
+        "rel_stddev": 6.753396603e-05,
+        "method": "elapsed of the same loop with a `ways`-way bank conflict, relative to the conflict-free loop"
+      },
+      {
+        "name": "smem_conflict_ratio_w32",
+        "value": 21.91826184,
+        "unit": "x conflict-free",
+        "samples": 7,
+        "rel_stddev": 2.788720183e-05,
+        "method": "elapsed of the same loop with a `ways`-way bank conflict, relative to the conflict-free loop"
+      },
+      {
+        "name": "smem_conflict_slope",
+        "value": 0.6851311168,
+        "unit": "multiplier per way",
+        "samples": 35,
+        "rel_stddev": 0.0009225864517,
+        "method": "least squares through the origin of t(w)/t(1) against w over the ways whose ratio exceeds 1.05; the cost model applies max(1, slope * ways)"
+      },
+      {
+        "name": "smem_occupancy_gbps",
+        "value": 7136.904743,
+        "unit": "GB/s at 1 CTA/SM",
+        "samples": 35,
+        "rel_stddev": 0.00186911186,
+        "method": "the conflict-free ld.shared loop at a fixed CTAs-per-SM instead of the resident maximum; the recorded value is the 1 CTA/SM point and the curve carries the rest"
+      },
+      {
+        "name": "l1_latency_ns",
+        "value": 38.06250106,
+        "unit": "ns",
+        "samples": 7,
+        "rel_stddev": 0.009607944494,
+        "method": "single-thread pointer chase, random single cycle over the 0 MiB working set at one cache line per hop, 4096 hops, empty launch subtracted"
+      },
+      {
+        "name": "l2_latency_ns",
+        "value": 274.9453183,
+        "unit": "ns",
+        "samples": 7,
+        "rel_stddev": 0.01561334361,
+        "method": "single-thread pointer chase, random single cycle over the 8 MiB working set at one cache line per hop, 65536 hops, empty launch subtracted"
+      },
+      {
+        "name": "dram_latency_ns",
+        "value": 342.4514425,
+        "unit": "ns",
+        "samples": 3,
+        "rel_stddev": 0.02014938253,
+        "method": "single-thread pointer chase, random single cycle over the 512 MiB working set at one cache line per hop, 2000000 hops, empty launch subtracted"
+      },
+      {
+        "name": "l2_gbps",
+        "value": 3472.299035,
+        "unit": "GB/s",
+        "samples": 126,
+        "rel_stddev": 0.01199322773,
+        "method": "volatile 16-byte streaming read, plateau (maximum) of the working-set sweep"
+      },
+      {
+        "name": "dram_gbps",
+        "value": 1608.862257,
+        "unit": "GB/s",
+        "samples": 126,
+        "rel_stddev": 0.01199322773,
+        "method": "same sweep, median of the 512-2048 MiB working sets (achieved, not peak)"
+      },
+      {
+        "name": "l2_knee_bytes",
+        "value": 8388608,
+        "unit": "bytes",
+        "samples": 126,
+        "rel_stddev": 0.01199322773,
+        "method": "largest working set of the sweep still within 95% of the plateau bandwidth"
+      },
+      {
+        "name": "atomic_uncontended_ns",
+        "value": 227.1249978,
+        "unit": "ns",
+        "samples": 7,
+        "rel_stddev": 0.05929401097,
+        "method": "one CTA, dependent chain of 2048 global atomicAdd; the return value feeds the next address so this is latency, not issue rate"
+      },
+      {
+        "name": "atomic_contention_ns",
+        "value": 0.7441406069,
+        "unit": "ns per completed atomic",
+        "samples": 70,
+        "rel_stddev": 0.07384062726,
+        "method": "N CTAs hammering one address; the recorded value is inverse throughput (elapsed / N / iters), which is what T_sync = |image(C_kappa)| * latency multiplies"
+      },
+      {
+        "name": "threadfence_ns",
+        "value": 39.62498158,
+        "unit": "ns",
+        "samples": 7,
+        "rel_stddev": 0.004237871578,
+        "method": "store + __threadfence loop at full occupancy, minus the same loop without the fence"
+      },
+      {
+        "name": "syncthreads_ns",
+        "value": 26.97655873,
+        "unit": "ns",
+        "samples": 7,
+        "rel_stddev": 9.049709727e-05,
+        "method": "one CTA of 128 threads per AP; shared counter bumped by thread 0 and read by all, with __syncthreads minus the same loop without it; 65536 iterations"
+      },
+      {
+        "name": "grid_barrier_ns",
+        "value": 468310.5052,
+        "unit": "ns per barrier",
+        "samples": 56,
+        "rel_stddev": 0.02545392542,
+        "method": "512 back-to-back ModelHarness GridBarriers over a resident grid, one 128-byte-aligned event per barrier, swept over CTAs per SM; the recorded value is the widest grid and the curve carries the rest"
+      }
+    ],
+    "l2_prefetch_bytes": 0
+  },
+  "event_calibration_by_dtype": {
+    "bf16": {
+      "source": "/root/tilemega/runs/mx1/calib/xcore1000_c550.json.sections/events.tsv",
+      "source_sha256": "5f84423d4e2c337d40a2f72b800b7ba452e36a78d11cea0abf50bf66d83b2f21",
+      "method": "per-task barrier/fence protocol, 4096 globaltimer samples; empty-loop subtraction; median across repeats",
+      "notify": {
+        "ns": 179.3452381,
+        "reason": "measured",
+        "unit": "ns/notify"
+      },
+      "poll": {
+        "ns": 206.8477183,
+        "reason": "measured",
+        "unit": "ns/poll"
+      },
+      "fence": {
+        "ns": 55.65972222,
+        "reason": "measured",
+        "unit": "ns/fence"
+      },
+      "notify_stage": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": ""
+      },
+      "notify_longest_worker": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": ""
+      },
+      "poll_stage": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": ""
+      },
+      "poll_longest_worker": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": ""
+      },
+      "task_publication": {
+        "ns": 191.108631,
+        "reason": "measured",
+        "unit": "ns/publishing_runtime_task"
+      },
+      "task_wait": {
+        "ns": 247.9241071,
+        "reason": "measured",
+        "unit": "ns/waiting_runtime_task"
+      },
+      "task_source": "/root/tilemega/runs/mx1/calib/xcore1000_c550.json.sections/events.tsv",
+      "task_source_sha256": "5f84423d4e2c337d40a2f72b800b7ba452e36a78d11cea0abf50bf66d83b2f21"
+    },
+    "f32": {
+      "source": "",
+      "source_sha256": "",
+      "method": "",
+      "notify": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": ""
+      },
+      "poll": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": ""
+      },
+      "fence": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": ""
+      },
+      "notify_stage": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/runtime_stage"
+      },
+      "notify_longest_worker": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/max_worker_task_ref"
+      },
+      "poll_stage": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/runtime_stage"
+      },
+      "poll_longest_worker": {
+        "ns": null,
+        "reason": "not_calibrated",
+        "unit": "ns/max_worker_task_ref"
+      }
+    }
+  },
+  "calibration_by_dtype": {
+    "bf16": {
+      "calibrated": true,
+      "device": "MetaX C550",
+      "measured_at": "2026-10-15T21:58:31Z",
+      "wall_seconds": 10.34779295,
+      "pipelines": {
+        "tc_fp16_gflops": 0,
+        "tc_bf16_gflops": 288831.3898,
+        "cuda_fp32_gflops": 17749.33271,
+        "cuda_int32_gops": 4318.54531,
+        "sfu_exp2_gops": 900.8682777,
+        "sfu_rsqrt_gops": 900.9575565,
+        "smem_gbps": 12504.51889,
+        "smem_conflict_slope": 0.6852820742,
+        "l1_latency_ns": 38.24999931,
+        "l2_latency_ns": 277.921867,
+        "dram_latency_ns": 345.4416582,
+        "l2_gbps": 3484.71128,
+        "l2_knee_bytes": 8388608,
+        "dram_gbps": 1610.715799,
+        "l2_curve_bytes": [
+          1048576,
+          2097152,
+          4194304,
+          8388608,
+          16777216,
+          25165824,
+          33554432,
+          50331648,
+          67108864,
+          75497472,
+          83886080,
+          100663296,
+          134217728,
+          201326592,
+          268435456,
+          536870912,
+          1073741824,
+          2147483648
+        ],
+        "l2_curve_gbps": [
+          1708.458484,
+          2304.302275,
+          2839.018605,
+          3484.71128,
+          2767.488963,
+          2449.074793,
+          2146.335854,
+          1776.578395,
+          1661.314715,
+          1645.078785,
+          1624.275883,
+          1611.888626,
+          1608.245459,
+          1609.708369,
+          1610.362517,
+          1604.963246,
+          1610.715799,
+          1620.047943
+        ],
+        "smem_occupancy_ctas": [
+          1,
+          2,
+          3,
+          4,
+          6
+        ],
+        "smem_occupancy_gbps": [
+          7133.17007,
+          9881.469906,
+          10758.86957,
+          11291.35423,
+          12041.95048
+        ]
+      },
+      "sync": {
+        "atomic_uncontended_ns": 214.9999927,
+        "atomic_contention_ctas": [
+          1,
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512
+        ],
+        "atomic_contention_ns": [
+          215.3749956,
+          101.8124967,
+          58.21874947,
+          29.82812475,
+          14.98437541,
+          7.464843748,
+          3.779296776,
+          1.912109383,
+          0.9648437072,
+          0.7438964644
+        ],
+        "threadfence_ns": 31.12500417,
+        "syncthreads_ns": 26.98047319,
+        "named_barrier_ns": 0,
+        "cluster_sync_ns": 0,
+        "cluster_sync_calibrated": false,
+        "grid_barrier_ctas": [
+          104,
+          208,
+          312,
+          416,
+          520,
+          624,
+          728,
+          832
+        ],
+        "grid_barrier_ns": [
+          1834.499999,
+          2155.499998,
+          2578.000072,
+          3973.999992,
+          8151.499555,
+          24893.9991,
+          99529.49733,
+          430684.5069
+        ],
+        "wait_spin_iters": 0,
+        "wait_backoff_ns": 0,
+        "wait_backoff_grow": 1,
+        "wait_backoff_cap_ns": 0,
+        "wait_protocol": "v3"
+      },
+      "streamk": [
+        {
+          "tile_m": 16,
+          "tile_n": 128,
+          "tile_k": 128,
+          "stages": 2,
+          "a_ns": 10410.66802,
+          "b_ns": 0,
+          "c_ns": 4629.333348,
+          "d_ns": 0,
+          "fit_r2": 0,
+          "ac_r2": 0,
+          "occ_per_sm": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "occ_a_ns": [
+            10410.66802,
+            9898.670639,
+            12885.33645,
+            20394.66053
+          ],
+          "occ_c_ns": [
+            4629.333348,
+            8533.332807,
+            11754.66677,
+            15765.33401
+          ]
+        },
+        {
+          "tile_m": 16,
+          "tile_n": 64,
+          "tile_k": 128,
+          "stages": 2,
+          "a_ns": 6997.336013,
+          "b_ns": 0,
+          "c_ns": 2794.666371,
+          "d_ns": 0,
+          "fit_r2": 0,
+          "ac_r2": 0,
+          "occ_per_sm": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "occ_a_ns": [
+            6997.336013,
+            10410.66336,
+            8277.333031,
+            9557.336569
+          ],
+          "occ_c_ns": [
+            2794.666371,
+            4693.333603,
+            6954.667003,
+            9194.66652
+          ]
+        },
+        {
+          "tile_m": 16,
+          "tile_n": 32,
+          "tile_k": 128,
+          "stages": 2,
+          "a_ns": 2816.000332,
+          "b_ns": 0,
+          "c_ns": 1919.999874,
+          "d_ns": 0,
+          "fit_r2": 0,
+          "ac_r2": 0,
+          "occ_per_sm": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "occ_a_ns": [
+            2816.000332,
+            3584.001213,
+            1877.331485,
+            6314.667563
+          ],
+          "occ_c_ns": [
+            1919.999874,
+            3199.999686,
+            4906.66662,
+            5973.333338
+          ]
+        },
+        {
+          "tile_m": 32,
+          "tile_n": 64,
+          "tile_k": 64,
+          "stages": 2,
+          "a_ns": 6314.667563,
+          "b_ns": 0,
+          "c_ns": 1749.333305,
+          "d_ns": 0,
+          "fit_r2": 0,
+          "ac_r2": 0,
+          "occ_per_sm": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "occ_a_ns": [
+            6314.667563,
+            4266.66749,
+            4522.666956,
+            7599.997024
+          ],
+          "occ_c_ns": [
+            1749.333305,
+            3285.333204,
+            4949.333457,
+            6197.000233
+          ]
+        },
+        {
+          "tile_m": 64,
+          "tile_n": 64,
+          "tile_k": 64,
+          "stages": 2,
+          "a_ns": 14335.99895,
+          "b_ns": 0,
+          "c_ns": 2496.000224,
+          "d_ns": 0,
+          "fit_r2": 0,
+          "ac_r2": 0,
+          "occ_per_sm": [
+            1,
+            2,
+            3
+          ],
+          "occ_a_ns": [
+            14335.99895,
+            11690.66442,
+            12373.33131
+          ],
+          "occ_c_ns": [
+            2496.000224,
+            4629.333659,
+            6890.666826
+          ]
+        },
+        {
+          "tile_m": 64,
+          "tile_n": 128,
+          "tile_k": 64,
+          "stages": 2,
+          "a_ns": 16640.00129,
+          "b_ns": 0,
+          "c_ns": 4287.999744,
+          "d_ns": 0,
+          "fit_r2": 0,
+          "ac_r2": 0,
+          "occ_per_sm": [
+            1
+          ],
+          "occ_a_ns": [
+            16640.00129
+          ],
+          "occ_c_ns": [
+            4287.999744
+          ]
+        }
+      ],
+      "combine_fixed_ns": 0,
+      "combine_fixed_resolved": false,
+      "combine_d_dram_ns": 0,
+      "fp32_partial_combine": {
+        "reason": "not_calibrated",
+        "method": "",
+        "fixed_ns": null,
+        "base_ns": null,
+        "d_l2_ns": null,
+        "d_dram_ns": null
+      },
+      "interference_ratio": 0,
+      "measurements": [
+        {
+          "name": "cuda_fp32_gflops",
+          "value": 17749.33271,
+          "unit": "GFLOP/s",
+          "samples": 7,
+          "rel_stddev": 0.004042286345,
+          "method": "8 independent FFMA chains x 4096 iterations at full occupancy; 2 flops per FFMA"
+        },
+        {
+          "name": "cuda_int32_gops",
+          "value": 4318.54531,
+          "unit": "GIMAD/s",
+          "samples": 7,
+          "rel_stddev": 0.0008984616973,
+          "method": "8 independent integer multiply-add chains x 4096 iterations at full occupancy; constants are kernel arguments, loop not unrolled"
+        },
+        {
+          "name": "sfu_exp2_gops",
+          "value": 900.8682777,
+          "unit": "Gop/s",
+          "samples": 7,
+          "rel_stddev": 0.0001066071621,
+          "method": "exp2f, 8 dependent chains x 4096 iterations"
+        },
+        {
+          "name": "sfu_rsqrt_gops",
+          "value": 900.9575565,
+          "unit": "Gop/s",
+          "samples": 7,
+          "rel_stddev": 0.000164211196,
+          "method": "rsqrtf, 8 dependent chains x 4096 iterations"
+        },
+        {
+          "name": "tc_bf16_gflops",
+          "value": 288831.3898,
+          "unit": "GFLOP/s",
+          "samples": 7,
+          "rel_stddev": 0.0006056362983,
+          "method": "4 independent __builtin_mxc_mma_16x16x16bf16 chains per wave x 4096 iterations; 8192 flops per instruction"
+        },
+        {
+          "name": "smem_gbps",
+          "value": 12504.51889,
+          "unit": "GB/s",
+          "samples": 7,
+          "rel_stddev": 0.0003618010401,
+          "method": "conflict-free volatile shared loads, 8 per iteration x 4096 iterations"
+        },
+        {
+          "name": "smem_conflict_ratio_w2",
+          "value": 1.415548763,
+          "unit": "x conflict-free",
+          "samples": 7,
+          "rel_stddev": 0.005588062626,
+          "method": "elapsed of the same loop with a `ways`-way bank conflict, relative to the conflict-free loop"
+        },
+        {
+          "name": "smem_conflict_ratio_w4",
+          "value": 2.76080739,
+          "unit": "x conflict-free",
+          "samples": 7,
+          "rel_stddev": 0.0001731832742,
+          "method": "elapsed of the same loop with a `ways`-way bank conflict, relative to the conflict-free loop"
+        },
+        {
+          "name": "smem_conflict_ratio_w8",
+          "value": 5.484921886,
+          "unit": "x conflict-free",
+          "samples": 7,
+          "rel_stddev": 0.0002177755927,
+          "method": "elapsed of the same loop with a `ways`-way bank conflict, relative to the conflict-free loop"
+        },
+        {
+          "name": "smem_conflict_ratio_w16",
+          "value": 10.96502708,
+          "unit": "x conflict-free",
+          "samples": 7,
+          "rel_stddev": 4.657810613e-05,
+          "method": "elapsed of the same loop with a `ways`-way bank conflict, relative to the conflict-free loop"
+        },
+        {
+          "name": "smem_conflict_ratio_w32",
+          "value": 21.92283168,
+          "unit": "x conflict-free",
+          "samples": 7,
+          "rel_stddev": 2.328459879e-05,
+          "method": "elapsed of the same loop with a `ways`-way bank conflict, relative to the conflict-free loop"
+        },
+        {
+          "name": "smem_conflict_slope",
+          "value": 0.6852820742,
+          "unit": "multiplier per way",
+          "samples": 35,
+          "rel_stddev": 0.005588062626,
+          "method": "least squares through the origin of t(w)/t(1) against w over the ways whose ratio exceeds 1.05; the cost model applies max(1, slope * ways)"
+        },
+        {
+          "name": "smem_occupancy_gbps",
+          "value": 7133.17007,
+          "unit": "GB/s at 1 CTA/SM",
+          "samples": 35,
+          "rel_stddev": 0.001542228402,
+          "method": "the conflict-free ld.shared loop at a fixed CTAs-per-SM instead of the resident maximum; the recorded value is the 1 CTA/SM point and the curve carries the rest"
+        },
+        {
+          "name": "l1_latency_ns",
+          "value": 38.24999931,
+          "unit": "ns",
+          "samples": 7,
+          "rel_stddev": 0.009270068185,
+          "method": "single-thread pointer chase, random single cycle over the 0 MiB working set at one cache line per hop, 4096 hops, empty launch subtracted"
+        },
+        {
+          "name": "l2_latency_ns",
+          "value": 277.921867,
+          "unit": "ns",
+          "samples": 7,
+          "rel_stddev": 0.01716394337,
+          "method": "single-thread pointer chase, random single cycle over the 8 MiB working set at one cache line per hop, 65536 hops, empty launch subtracted"
+        },
+        {
+          "name": "dram_latency_ns",
+          "value": 345.4416582,
+          "unit": "ns",
+          "samples": 3,
+          "rel_stddev": 0.03727331145,
+          "method": "single-thread pointer chase, random single cycle over the 512 MiB working set at one cache line per hop, 2000000 hops, empty launch subtracted"
+        },
+        {
+          "name": "l2_gbps",
+          "value": 3484.71128,
+          "unit": "GB/s",
+          "samples": 126,
+          "rel_stddev": 0.00954829077,
+          "method": "volatile 16-byte streaming read, plateau (maximum) of the working-set sweep"
+        },
+        {
+          "name": "dram_gbps",
+          "value": 1610.715799,
+          "unit": "GB/s",
+          "samples": 126,
+          "rel_stddev": 0.00954829077,
+          "method": "same sweep, median of the 512-2048 MiB working sets (achieved, not peak)"
+        },
+        {
+          "name": "l2_knee_bytes",
+          "value": 8388608,
+          "unit": "bytes",
+          "samples": 126,
+          "rel_stddev": 0.00954829077,
+          "method": "largest working set of the sweep still within 95% of the plateau bandwidth"
+        },
+        {
+          "name": "atomic_uncontended_ns",
+          "value": 214.9999927,
+          "unit": "ns",
+          "samples": 7,
+          "rel_stddev": 0.06747554604,
+          "method": "one CTA, dependent chain of 2048 global atomicAdd; the return value feeds the next address so this is latency, not issue rate"
+        },
+        {
+          "name": "atomic_contention_ns",
+          "value": 0.7438964644,
+          "unit": "ns per completed atomic",
+          "samples": 70,
+          "rel_stddev": 0.07494324825,
+          "method": "N CTAs hammering one address; the recorded value is inverse throughput (elapsed / N / iters), which is what T_sync = |image(C_kappa)| * latency multiplies"
+        },
+        {
+          "name": "threadfence_ns",
+          "value": 31.12500417,
+          "unit": "ns",
+          "samples": 7,
+          "rel_stddev": 0.001956798466,
+          "method": "store + __threadfence loop at full occupancy, minus the same loop without the fence"
+        },
+        {
+          "name": "syncthreads_ns",
+          "value": 26.98047319,
+          "unit": "ns",
+          "samples": 7,
+          "rel_stddev": 7.760346939e-05,
+          "method": "one CTA of 128 threads per AP; shared counter bumped by thread 0 and read by all, with __syncthreads minus the same loop without it; 65536 iterations"
+        },
+        {
+          "name": "grid_barrier_ns",
+          "value": 430684.5069,
+          "unit": "ns per barrier",
+          "samples": 56,
+          "rel_stddev": 0.01417669183,
+          "method": "512 back-to-back ModelHarness GridBarriers over a resident grid, one 128-byte-aligned event per barrier, swept over CTAs per SM; the recorded value is the widest grid and the curve carries the rest"
+        },
+        {
+          "name": "streamk_c_ns[16x128x128s2@1cta/sm]",
+          "value": 4629.333348,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.04198703598,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[16x128x128s2@2cta/sm]",
+          "value": 8533.332807,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.04198703598,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[16x128x128s2@3cta/sm]",
+          "value": 11754.66677,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.04198703598,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[16x128x128s2@4cta/sm]",
+          "value": 15765.33401,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.04198703598,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[16x64x128s2@1cta/sm]",
+          "value": 2794.666371,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.03005143192,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[16x64x128s2@2cta/sm]",
+          "value": 4693.333603,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.03005143192,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[16x64x128s2@3cta/sm]",
+          "value": 6954.667003,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.03005143192,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[16x64x128s2@4cta/sm]",
+          "value": 9194.66652,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.03005143192,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[16x32x128s2@1cta/sm]",
+          "value": 1919.999874,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.04167747903,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[16x32x128s2@2cta/sm]",
+          "value": 3199.999686,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.04167747903,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[16x32x128s2@3cta/sm]",
+          "value": 4906.66662,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.04167747903,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[16x32x128s2@4cta/sm]",
+          "value": 5973.333338,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.04167747903,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[32x64x64s2@1cta/sm]",
+          "value": 1749.333305,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.03871544165,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[32x64x64s2@2cta/sm]",
+          "value": 3285.333204,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.03871544165,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[32x64x64s2@3cta/sm]",
+          "value": 4949.333457,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.03871544165,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[32x64x64s2@4cta/sm]",
+          "value": 6197.000233,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.03871544165,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[64x64x64s2@1cta/sm]",
+          "value": 2496.000224,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.03249093211,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[64x64x64s2@2cta/sm]",
+          "value": 4629.333659,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.03249093211,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[64x64x64s2@3cta/sm]",
+          "value": 6890.666826,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.03249093211,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "streamk_c_ns[64x128x64s2@1cta/sm]",
+          "value": 4287.999744,
+          "unit": "ns per K tile",
+          "samples": 28,
+          "rel_stddev": 0.02805498949,
+          "method": "xcore1000 serving GEMM body, one tile per CTA at full device width, two-point (4,16) K-tile line, launch baseline (same kernel returning at once) subtracted"
+        },
+        {
+          "name": "dram_peak_gbps",
+          "value": 1843.2,
+          "unit": "GB/s",
+          "samples": 1,
+          "rel_stddev": 0,
+          "method": "2 * memory clock * bus width from cudaDeviceGetAttribute; the pin rate, not an achieved one"
+        },
+        {
+          "name": "dram_fraction_of_peak",
+          "value": 0.8738692484,
+          "unit": "ratio",
+          "samples": 1,
+          "rel_stddev": 0,
+          "method": "achieved dram_gbps over the pin rate; the run is rejected below kMinFractionOfPeak"
+        },
+        {
+          "name": "dram_drift",
+          "value": 0.001831316874,
+          "unit": "ratio",
+          "samples": 7,
+          "rel_stddev": 0,
+          "method": "largest working set re-measured after every other group, against its value from the sweep; the run is rejected above kMaxDrift"
+        }
+      ],
+      "l2_prefetch_bytes": 0,
+      "inflight_curve": {
+        "bytes": [
+          2048,
+          4096,
+          8192,
+          16384,
+          32768,
+          65536,
+          131072,
+          262144,
+          524288,
+          1048576,
+          2097152,
+          4194304,
+          8388608,
+          16777216,
+          33554432
+        ],
+        "gbps": [
+          4.349953964,
+          8.4570618,
+          16.01544625,
+          29.67513895,
+          54.11032388,
+          105.1561964,
+          201.4757863,
+          372.5582535,
+          651.923383,
+          1101.559706,
+          1564.077407,
+          1574.676292,
+          1578.317637,
+          1592.40364,
+          1603.327281
+        ]
+      },
+      "cta_stream_curve": {
+        "bytes": [
+          2048,
+          4096,
+          8192,
+          16384,
+          32768
+        ],
+        "gbps": [
+          4.221034807,
+          7.681921995,
+          13.06757114,
+          20.97347929,
+          32.35522159
+        ]
+      },
+      "task_body": {
+        "fixed": [],
+        "loop_body": [],
+        "loop_wait": [],
+        "loop_fixed": [],
+        "scalar_fixed_ns": 0,
+        "samples": 0,
+        "source": "",
+        "serving": {
+          "argmax_reduce": {
+            "fixed_ns": 2836.81592,
+            "byte_ns": 0.1357331645,
+            "flop_ns": 0,
+            "median_relative_error": 0.0396108326,
+            "samples": 6
+          },
+          "attention_merge": {
+            "fixed_ns": 3045.652174,
+            "byte_ns": 0.141516644,
+            "flop_ns": 0,
+            "median_relative_error": 0.05777450258,
+            "samples": 4
+          },
+          "embedding": {
+            "fixed_ns": 1194.782609,
+            "byte_ns": 0.1168902853,
+            "flop_ns": 0,
+            "median_relative_error": 0.04597826087,
+            "samples": 4
+          },
+          "fused_attention_decode_d128_q2_norm1": {
+            "fixed_ns": 17295.7072,
+            "byte_ns": 0,
+            "flop_ns": 0.1487068075,
+            "median_relative_error": 0.003535020502,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q3_norm0": {
+            "fixed_ns": 19279.62553,
+            "byte_ns": 0,
+            "flop_ns": 0.11964485,
+            "median_relative_error": 0.00206917613,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q4_norm0": {
+            "fixed_ns": 22321.47309,
+            "byte_ns": 0,
+            "flop_ns": 0.1063804882,
+            "median_relative_error": 0.002402915006,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q4_norm1": {
+            "fixed_ns": 29575.18558,
+            "byte_ns": 0.417820534,
+            "flop_ns": 0,
+            "median_relative_error": 0.003431766545,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q8_norm1": {
+            "fixed_ns": 47149.14235,
+            "byte_ns": 0.7959916779,
+            "flop_ns": 0,
+            "median_relative_error": 0.001842847588,
+            "samples": 3
+          },
+          "fused_attention_decode_d64_q4_norm0": {
+            "fixed_ns": 24306.75746,
+            "byte_ns": 0.3927158464,
+            "flop_ns": 0,
+            "median_relative_error": 0.005244479088,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q2_norm1": {
+            "fixed_ns": 34157.14286,
+            "byte_ns": 3.133021763,
+            "flop_ns": 0,
+            "median_relative_error": 0.0003822264692,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q3_norm0": {
+            "fixed_ns": 27788.03483,
+            "byte_ns": 1.523000233,
+            "flop_ns": 0,
+            "median_relative_error": 0.005015411375,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q4_norm0": {
+            "fixed_ns": 26360,
+            "byte_ns": 1.499023438,
+            "flop_ns": 0,
+            "median_relative_error": 0.00395145357,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q4_norm1": {
+            "fixed_ns": 47035,
+            "byte_ns": 0,
+            "flop_ns": 0.19934518,
+            "median_relative_error": 0.0008808456118,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q8_norm1": {
+            "fixed_ns": 41355.71429,
+            "byte_ns": 2.225167411,
+            "flop_ns": 0,
+            "median_relative_error": 0.01808318264,
+            "samples": 3
+          },
+          "fused_attention_prefill_d64_q4_norm0": {
+            "fixed_ns": 25455,
+            "byte_ns": 0,
+            "flop_ns": 0.1929146903,
+            "median_relative_error": 0.0005494505495,
+            "samples": 3
+          },
+          "gemm_argmax_partial": {
+            "fixed_ns": 45216.00598,
+            "byte_ns": 0,
+            "flop_ns": 0.006200894077,
+            "median_relative_error": 0.07940848665,
+            "samples": 9
+          },
+          "gemm_residual": {
+            "fixed_ns": 11601.43574,
+            "byte_ns": 0.06979144645,
+            "flop_ns": 0.002213291045,
+            "median_relative_error": 0.04627540639,
+            "samples": 9
+          },
+          "gemm_store": {
+            "fixed_ns": 8581.543123,
+            "byte_ns": 0.08146924055,
+            "flop_ns": 0.001398119719,
+            "median_relative_error": 0.03157972461,
+            "samples": 9
+          },
+          "gemm_swiglu": {
+            "fixed_ns": 11614.82317,
+            "byte_ns": 0.07359548206,
+            "flop_ns": 0.001764948753,
+            "median_relative_error": 0.04034041621,
+            "samples": 9
+          },
+          "gemv_gemm_argmax_partial": {
+            "fixed_ns": 26770.4113,
+            "byte_ns": 0.1397629656,
+            "flop_ns": 0.01065502019,
+            "median_relative_error": 0.08817046548,
+            "samples": 12
+          },
+          "gemv_gemm_residual": {
+            "fixed_ns": 23748.34775,
+            "byte_ns": 0.1638381494,
+            "flop_ns": 0,
+            "median_relative_error": 0.1141308174,
+            "samples": 12
+          },
+          "gemv_gemm_store": {
+            "fixed_ns": 22561.90554,
+            "byte_ns": 0.1628776811,
+            "flop_ns": 0,
+            "median_relative_error": 0.1005717726,
+            "samples": 12
+          },
+          "gemv_gemm_swiglu": {
+            "fixed_ns": 25340.173,
+            "byte_ns": 0.1629684216,
+            "flop_ns": 0,
+            "median_relative_error": 0.09141002733,
+            "samples": 12
+          },
+          "rmsnorm": {
+            "fixed_ns": 3196.956522,
+            "byte_ns": 0,
+            "flop_ns": 0.9021399457,
+            "median_relative_error": 0.1700468628,
+            "samples": 4
+          }
+        }
+      }
+    }
   }
 }
