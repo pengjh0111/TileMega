@@ -487,8 +487,14 @@ class Run:
                 built = {}
                 build_choices=plan_build_choices(pg_choices,settings,batch,phase)
                 for family,pg,family_features in build_choices:
+                    # Non-paged plans used to be pinned to row-major here,
+                    # which is why every C550 serving cell measured row even
+                    # though the fragment-packed layout is faster (7.351 vs
+                    # 8.391 ms/token on qwen3_0_6b B16, same plan). Follow the
+                    # feature instead; a plan whose selected GEMV variant
+                    # cannot take tiled weights still falls back at build.
                     choice_features = dict(features, pg=pg, handoff='off',
-                                           weight_layout=features['weight_layout'] if pg == 'pages' else 'row')
+                                           weight_layout=features['weight_layout'])
                     choice_features.update(family_features)
                     shared_manifest=None
                     if layout_policy['require_shared_layout']:
