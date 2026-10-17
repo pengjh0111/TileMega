@@ -14,6 +14,7 @@ import sys
 from r16_measurement_validation import (NATIVE_LLM_SYSTEMS, completed_guard,
     file_sha, native_identity, validate_llm)
 from summarize_r16 import dnn_device_identity, record_directory
+from r16_runtime_contract import validate_receipt as validate_runtime_receipt
 
 TERMINAL={'done','failed','skipped','not_run','cancelled'}
 DRIVERS={}
@@ -36,7 +37,10 @@ def load_driver(candidate):
     shared_digest=candidate.get('shared_checkpoint_helper_sha256')
     if shared_digest is not None and file_sha(shared_path)!=shared_digest:
         raise ValueError('frozen shared checkpoint helper changed')
-    key=(str(path.resolve()),digest,helper_digest,shared_digest)
+    runtime_digest=candidate.get('runtime_contract_sha256')
+    if runtime_digest is not None and file_sha(path.with_name('r16_runtime_contract.py'))!=runtime_digest:
+        raise ValueError('frozen runtime contract helper changed')
+    key=(str(path.resolve()),digest,helper_digest,shared_digest,runtime_digest)
     if key not in DRIVERS:
         tree=ast.parse(path.read_text())
         # Only top-level imports execute when loading the frozen validation API.
@@ -130,7 +134,8 @@ def scheduled_jobs(plan_path,plan):
         matched=[b for b in bases if (b['id'],b['model'],b['batch'],b['prefill'],b['decode'],b['snapshot_head'])==(c['id'],c['model'],c['batch'],c['prefill'],c['decode'],c['snapshot_head'])]
         if len(matched)!=1:raise ValueError('explicit final command belongs to another plan candidate')
         for key in ('seed','config_sha256','script_sha256','compiler_sha256','system','arm','variant',
-                    'native_system_label','argument_contract_sha256','phase_sources'):
+                    'native_system_label','argument_contract_sha256','phase_sources',
+                    'runtime_source','runtime_contract_sha256','identity_sha256'):
             if matched[0].get(key)!=c.get(key):raise ValueError('explicit final candidate changed plan coordinate '+key)
         if Path(c['file']).resolve()!=path.resolve():raise ValueError('candidate file identity differs from explicit command')
         rnd=int(argv[argv.index('--round-index')+1])
@@ -175,7 +180,9 @@ def check_native_alias(candidate,value,directory,expected,actual):
             'driver_sha256' in evidence and evidence['driver_sha256']!=actual['driver_sha256']):
         raise ValueError('candidate alias evidence belongs to another driver')
     contract=read(directory/'measurements/native-argument-contract.json')
-    runner=Path(candidate['snapshot_source'])/'python/tilemega/serving/r16_run.py'
+    validate_runtime_receipt(candidate,value,directory)
+    runtime_root=candidate.get('runtime_source',{}).get('root',candidate['snapshot_source'])
+    runner=Path(runtime_root)/'python/tilemega/serving/r16_run.py'
     if (Path(contract['runner']).resolve()!=runner.resolve() or
             contract['runner_sha256']!=file_sha(runner) or
             value['configuration']['runner_sha256']!=contract['runner_sha256'] or

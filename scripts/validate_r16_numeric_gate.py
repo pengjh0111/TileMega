@@ -8,12 +8,14 @@ from collect_r16_candidates import load_driver, read, read_states
 from r16_measurement_validation import (NATIVE_LLM_SYSTEMS, completed_guard, file_sha,
                                          validate_native_repetitions)
 from summarize_r16 import record_directory
+from r16_runtime_contract import validate_receipt as validate_runtime_receipt
 
 
 def validate_payload(path, candidate, pair, stage, expected_uuid=None):
     path = Path(path)
     value = read(path)
     directory = path.parent.parent
+    validate_runtime_receipt(candidate,value,directory.parent)
     validate_native_repetitions(path, value)
     label = candidate.get('native_system_label', candidate['system'])
     if label not in NATIVE_LLM_SYSTEMS or value['system'] != label:
