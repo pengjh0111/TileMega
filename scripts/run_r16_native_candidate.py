@@ -63,8 +63,8 @@ def execute(args):
     helper=Path(__file__).with_name('r16_kernel_resources.py')
     if file_sha(helper)!=candidate['kernel_resource_helper_sha256']:
         raise ValueError('selected-entry resource helper changed')
-    if candidate['mode']!='L2' or candidate['loop']!=0:
-        raise ValueError('entry-scoped MMA recovery only permits L2 host execution')
+    if candidate['mode'] not in ('L1','L2') or candidate['loop'] not in (0,1):
+        raise ValueError('unsupported explicit native executor')
     entries, functions=resource_functions(warnings)
     resource={'evidence':'verified compiler resource records for unchanged SM80 compute seed; no Hopper/default claim',
         'all_entries':list(entries.values()), 'all_functions':list(functions.values()),
@@ -138,6 +138,8 @@ def native_run():
         if not row['device_loop_used']:
             if active['host_calls']!=count-1 or active['loop_calls'] or (count>1 and active['host_modes']!={current.decode_mode}):
                 raise ValueError('actual Plan.launch calls disagree with selected host executor')
+        elif active['host_calls'] or active['loop_calls']!=1:
+            raise ValueError('actual Plan.launch_steps calls disagree with selected device loop')
         row.update(actual_decode_host_calls=active['host_calls'],actual_decode_loop_calls=active['loop_calls'],
                    actual_decode_host_modes=sorted(active['host_modes']),
                    selected_host_kernel=('tilemega_l2_kernel' if current.decode_mode==2 else 'tilemega_l1_kernel') if not row['device_loop_used'] else None)
