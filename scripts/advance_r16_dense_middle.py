@@ -215,68 +215,74 @@ class Campaign:
             if proof is None:waiting.append(model);continue
             choices={w['family']:w for w in proof['winners']}
             for batch in [2,4,8]:
-                key=f'{model}_B{batch}'
-                if key in published:continue
-                base=next(c['candidates'][0]for c in self.master['cells']if c['model']==model and c['batch']==batch)
-                mma=next(t for t in templates if t['model']==model and t['batch']==batch and t['candidate']['arm']=='mma')
-                pool={mma['family']:mma['candidate']};blocked=[]
-                for family_key,w in choices.items():
-                    found=next((t['candidate']for t in templates if t['model']==model and t['batch']==batch and t['family']==family_key),None)
-                    adoption=adoptions.get(key+'_'+family_key)
-                    if adoption:
-                        proposed=read(adoption);actual_key,_=family(proposed)
-                        if actual_key!=family_key:raise ValueError('adopted family silently differs')
-                        found=self.bind(base,proposed['decode'],proposed['arm'],family_key)
-                    if found:pool[family_key]=found
-                    else:blocked.append(self.missing(base,w))
-                if blocked:missing.extend(blocked);continue
-                if len(pool)>3:raise ValueError('middle family pool exceeds two representative winners plus MMA')
-                candidates=list(pool.values());gpu=candidates[0]['gpu'];jobs=[j for c in candidates for j in chain(self.out,c,self.scheduler)]
-                cell=dict(model=model,batch=batch,gpu=gpu,candidates=candidates,representative_selection=proof)
-                # Publish explicit plan before the queue; no job can bypass the model-level gate.
-                prior=next((x for x in plan['cells']if x['model']==model and x['batch']==batch),None)
-                if prior is None:plan['cells'].append(cell)
-                elif prior['candidates']!=cell['candidates']:raise ValueError('immutable middle cell candidates changed')
-                write(self.out/'plan.json',plan)
-                name=f'queue_final_middle_v1_{key}.json';self.publish(gpu,name,jobs)
-                published[key]=dict(queue=name,candidates=[c['id']for c in candidates],representative_report_sha256=proof['report_sha256']);write(self.out/'published.json',published)
+                try:
+                    key=f'{model}_B{batch}'
+                    if key in published:continue
+                    base=next(c['candidates'][0]for c in self.master['cells']if c['model']==model and c['batch']==batch)
+                    mma=next(t for t in templates if t['model']==model and t['batch']==batch and t['candidate']['arm']=='mma')
+                    pool={mma['family']:mma['candidate']};blocked=[]
+                    for family_key,w in choices.items():
+                        found=next((t['candidate']for t in templates if t['model']==model and t['batch']==batch and t['family']==family_key),None)
+                        adoption=adoptions.get(key+'_'+family_key)
+                        if adoption:
+                            proposed=read(adoption);actual_key,_=family(proposed)
+                            if actual_key!=family_key:raise ValueError('adopted family silently differs')
+                            found=self.bind(base,proposed['decode'],proposed['arm'],family_key)
+                        if found:pool[family_key]=found
+                        else:blocked.append(self.missing(base,w))
+                    if blocked:missing.extend(blocked);continue
+                    if len(pool)>3:raise ValueError('middle family pool exceeds two representative winners plus MMA')
+                    candidates=list(pool.values());gpu=candidates[0]['gpu'];jobs=[j for c in candidates for j in chain(self.out,c,self.scheduler)]
+                    cell=dict(model=model,batch=batch,gpu=gpu,candidates=candidates,representative_selection=proof)
+                    # Publish explicit plan before the queue; no job can bypass the model-level gate.
+                    prior=next((x for x in plan['cells']if x['model']==model and x['batch']==batch),None)
+                    if prior is None:plan['cells'].append(cell)
+                    elif prior['candidates']!=cell['candidates']:raise ValueError('immutable middle cell candidates changed')
+                    write(self.out/'plan.json',plan)
+                    name=f'queue_final_middle_v1_{key}.json';self.publish(gpu,name,jobs)
+                    published[key]=dict(queue=name,candidates=[c['id']for c in candidates],representative_report_sha256=proof['report_sha256']);write(self.out/'published.json',published)
+                except Exception as error:
+                    missing.append(dict(model=model,batch=batch,phase='publication',error=str(error)))
         write(self.out/'missing-builds.json',missing);self.finals(state,cards,plan)
         write(self.out/'progress.json',dict(at=time.time(),published_cells=len(published),waiting_representative_models=waiting,missing_artifacts=missing,final_report=str(self.out/'selection-report.json')))
     def finals(self,state,cards,plan):
         decisions=read(self.out/'finalists.json')if(self.out/'finalists.json').exists()else{};report=[]
         for cell in plan['cells']:
-            key=f"{cell['model']}_B{cell['batch']}";pool=cell['candidates']
-            if key not in decisions and all(state.get(c['pilot_job'],{}).get('status')in TERMINAL for c in pool):
-                valid=[];rejected=[]
-                for c in pool:
-                    try:s=inspect_measurement(self.repo,state,cards,c['pilot_job'],0,c);valid.append((s['e2e_seconds'],c,s))
-                    except Exception as e:rejected.append(dict(candidate=c['id'],reason=str(e)))
-                valid.sort(key=lambda x:(x[0],x[1]['id']));chosen=valid[:3];jobs=[]
-                for _,c,s in chosen:
-                    for rnd in range(3):
-                        name=f"rf2_final_dense_middle_v1_{cell['model']}_B{cell['batch']}_final{rnd}_{c['id']}"
-                        jobs.append(job(self.out,c,name,gpu_command(self.out,c,'final',rnd),True,True,[c['pilot_job']]))
-                if jobs:self.publish(cell['gpu'],f'queue_final_middle_finals_v1_{key}.json',jobs)
-                decisions[key]=dict(selected_for_final=[c['id']for _,c,_ in chosen],rejected=rejected);write(self.out/'finalists.json',decisions)
-            d=decisions.get(key);rows=[];pending=[];rejected=list(d['rejected'])if d else[]
-            if d:
-                for c in pool:
-                    if c['id']not in d['selected_for_final']:continue
-                    samples=[]
-                    for rnd in range(3):
-                        name=f"rf2_final_dense_middle_v1_{cell['model']}_B{cell['batch']}_final{rnd}_{c['id']}"
-                        if state.get(name,{}).get('status')not in TERMINAL:pending.append(name);continue
-                        try:samples.append(inspect_measurement(self.repo,state,cards,name,rnd,c))
-                        except Exception as e:rejected.append(dict(candidate=c['id'],job=name,reason=str(e)))
-                    if len(samples)==3:
-                        try:
-                            summary=summarize_samples(samples)
-                            if not summary['protocol_complete']or len({token_digest(s)for s in samples})!=1:raise ValueError('middle final processes disagree')
-                            validate_numeric_tokens(self.repo,state,c,samples)
-                            rows.append(dict(candidate=c['id'],samples=samples,**summary))
+            try:
+                key=f"{cell['model']}_B{cell['batch']}";pool=cell['candidates']
+                if key not in decisions and all(state.get(c['pilot_job'],{}).get('status')in TERMINAL for c in pool):
+                    valid=[];rejected=[]
+                    for c in pool:
+                        try:s=inspect_measurement(self.repo,state,cards,c['pilot_job'],0,c);valid.append((s['e2e_seconds'],c,s))
                         except Exception as e:rejected.append(dict(candidate=c['id'],reason=str(e)))
-            selected=min(rows,key=lambda r:(r['e2e_seconds'],r['candidate']))['candidate']if rows and not pending and d else None
-            report.append(dict(model=cell['model'],batch=cell['batch'],status='complete'if selected else'rejected'if d and not pending else'pending',selected=selected,candidates=rows,rejected=rejected,default_promoted=False))
+                    valid.sort(key=lambda x:(x[0],x[1]['id']));chosen=valid[:3];jobs=[]
+                    for _,c,s in chosen:
+                        for rnd in range(3):
+                            name=f"rf2_final_dense_middle_v1_{cell['model']}_B{cell['batch']}_final{rnd}_{c['id']}"
+                            jobs.append(job(self.out,c,name,gpu_command(self.out,c,'final',rnd),True,True,[c['pilot_job']]))
+                    if jobs:self.publish(cell['gpu'],f'queue_final_middle_finals_v1_{key}.json',jobs)
+                    decisions[key]=dict(selected_for_final=[c['id']for _,c,_ in chosen],rejected=rejected);write(self.out/'finalists.json',decisions)
+                d=decisions.get(key);rows=[];pending=[];rejected=list(d['rejected'])if d else[]
+                if d:
+                    for c in pool:
+                        if c['id']not in d['selected_for_final']:continue
+                        samples=[]
+                        for rnd in range(3):
+                            name=f"rf2_final_dense_middle_v1_{cell['model']}_B{cell['batch']}_final{rnd}_{c['id']}"
+                            if state.get(name,{}).get('status')not in TERMINAL:pending.append(name);continue
+                            try:samples.append(inspect_measurement(self.repo,state,cards,name,rnd,c))
+                            except Exception as e:rejected.append(dict(candidate=c['id'],job=name,reason=str(e)))
+                        if len(samples)==3:
+                            try:
+                                summary=summarize_samples(samples)
+                                if not summary['protocol_complete']or len({token_digest(s)for s in samples})!=1:raise ValueError('middle final processes disagree')
+                                validate_numeric_tokens(self.repo,state,c,samples)
+                                rows.append(dict(candidate=c['id'],samples=samples,**summary))
+                            except Exception as e:rejected.append(dict(candidate=c['id'],reason=str(e)))
+                selected=min(rows,key=lambda r:(r['e2e_seconds'],r['candidate']))['candidate']if rows and not pending and d else None
+                report.append(dict(model=cell['model'],batch=cell['batch'],status='complete'if selected else'rejected'if d and not pending else'pending',selected=selected,candidates=rows,rejected=rejected,default_promoted=False))
+            except Exception as error:
+                report.append(dict(model=cell['model'],batch=cell['batch'],status='blocked',selected=None,candidates=[],rejected=[dict(reason=str(error))],default_promoted=False))
         write(self.out/'selection-report.json',dict(cells=report,default_promoted=False))
 
 def main():
