@@ -71,10 +71,13 @@ def assert_implementation(identity, candidate, phase):
     actual={json.dumps(recipe['source'],sort_keys=True):(recipe['tile_n'],recipe['tile_k']) for recipe in packed}
     if len(packed)!=count or len(actual)!=count or any(expected.get(name)!=shape for name,shape in actual.items()):
         raise ValueError('actual full-model named packed weights differ from shared layout')
-    if any((g['tile_n'],g['tile_k'])!=(64,64) for g in plan['gemms']):
+    tile_n = int(candidate.get('packing_tile_n', 64))
+    if tile_n not in (64, 128) or (candidate['arm']=='h1' and tile_n!=64):
+        raise ValueError('unsupported MoE family packing geometry')
+    if any((g['tile_n'],g['tile_k'])!=(tile_n,64) for g in plan['gemms']):
         raise ValueError('actual GEMM geometry differs from the shared T64/K64 layout')
     if phase == 'decode':
-        if (int(plan.get('dm_wgmma_inline',0)) != int(candidate['arm']=='h1') or plan.get('attention_noinline') is not True or
+        if (int(plan.get('dm_wgmma_inline',0)) != int(candidate['arm']=='h1') or bool(plan.get('attention_noinline')) != bool(candidate.get('attention_noinline',1)) or
             bool(identity['implementations'].get('dm_wgmma_inline')) != (candidate['arm']=='h1') or
             int(identity['defines'].get('TILEMEGA_DM_NARROW_INLINE','0')) != int(candidate['arm']=='h1') or
             int(identity['defines'].get('TILEMEGA_DM_WGMMA_INLINE','0')) != int(candidate['arm']=='h1') or
@@ -97,7 +100,21 @@ def assert_implementation(identity, candidate, phase):
     if identity.get('trace') is not False:
         raise ValueError('instrumented binary cannot enter performance selection')
 
+def runtime_contract(candidate):
+    if 'runtime_source' not in candidate:
+        return None
+    path = Path(__file__).with_name('r16_runtime_contract.py')
+    if file_sha(path) != candidate['runtime_contract_sha256']:
+        raise ValueError('runtime contract helper changed')
+    import importlib.util
+    spec=importlib.util.spec_from_file_location('moe_frozen_runtime_contract',path)
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    module.validate_source(candidate['runtime_source'])
+    return module
+
+
 def check_pair(candidate):
+    runtime_contract(candidate)
     import shared_checkpoint_contract as shared
     if file_sha(shared.__file__) != candidate["shared_checkpoint_helper_sha256"]:
         raise ValueError("shared checkpoint helper changed")
@@ -115,6 +132,7 @@ def execute(args):
     if file_sha(__file__) != candidate['script_sha256']:
         raise ValueError('candidate driver changed after queue generation')
     identities = check_pair(candidate)
+    runtime = runtime_contract(candidate)
     metadata = dict(system=candidate['system'], native_system_label=candidate['native_system_label'], variant=candidate['variant'], stage=args.stage, candidate=candidate['id'] if 'id' in candidate else candidate['arm'],
         artifact_ids={phase:value['artifact_id'] for phase,value in identities.items()}, seed=candidate['seed'],
         config_sha256=candidate['config_sha256'], export_sha256=candidate['export_sha256'],
@@ -176,10 +194,13 @@ def execute(args):
         command += ['--check-executors', '--hf-check']
     if file_sha(Path(__file__).with_name('r16_argument_contract.py')) != candidate['argument_contract_sha256']:
         raise ValueError('native argument contract helper changed')
-    parsed = validate_native_arguments(Path(candidate['snapshot_source'])/'python/tilemega/serving/r16_run.py', command[command.index('native-run')+1:])
+    parsed = validate_native_arguments(Path(candidate.get('runtime_source',{}).get('root',candidate['snapshot_source']))/'python/tilemega/serving/r16_run.py', command[command.index('native-run')+1:])
     parsed.update(outer_system=candidate['system'], variant=candidate['variant'])
     write(output/'native-argument-contract.json', parsed)
-    result = subprocess.run(command)
+    environment=dict(os.environ)
+    if runtime is not None:
+        environment.update(TILEMEGA_R16_RUNTIME_SOURCE=json.dumps(candidate['runtime_source']),PYTHONPATH=str(Path(candidate['runtime_source']['root'])/'python'),PYTHONNOUSERSITE='1')
+    result = subprocess.run(command,env=environment)
     if result.returncode:
         write(output/'candidate-rejection.json', dict(metadata, exit_code=result.returncode,
             reason='official compile/runtime/numerical path rejected; no fallback was substituted'))
@@ -193,8 +214,13 @@ def execution_row(engine, result, count):
             'requested_device_loop':expected,'device_loop_used':bool(result.decode_loop_used)}
 
 def native_run():
+    source=json.loads(os.environ['TILEMEGA_R16_RUNTIME_SOURCE']) if 'TILEMEGA_R16_RUNTIME_SOURCE' in os.environ else None
+    if source is not None:
+        import r16_runtime_contract as runtime
+        runtime.validate_source(source)
     from tilemega.serving import engine, r16_run, plan
     from tilemega.serving.baseline_common import guarded_main
+    if source is not None:runtime.attest(source)
     original=engine.ServingEngine.generate
     original_launch=plan.Plan.launch
     original_steps=plan.Plan.launch_steps
@@ -229,6 +255,7 @@ def native_run():
     output=Path(sys.argv[sys.argv.index('--out')+1])
     try:guarded_main(r16_run.main)
     finally:
+        if source is not None:write(output/'runtime-execution.json',runtime.attest(source))
         engine.ServingEngine.generate=original
         plan.Plan.launch=original_launch
         plan.Plan.launch_steps=original_steps
@@ -243,6 +270,8 @@ def measurement(root, state, name, candidate):
     guard = completed_guard(directory, record)
     path = directory/'measurements'/f"B{candidate['batch']}"/'measurements.json'
     value, _, ownership = validate_llm(path, guard, root)
+    runtime=runtime_contract(candidate)
+    if runtime is not None:runtime.validate_receipt(candidate,value,directory)
     import shared_checkpoint_contract as shared
     shared.measurement(candidate,path)
     if load(path.parent.parent/'formal-h10-resource-gate.json') != load(candidate['resource_gate_file']):

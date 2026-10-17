@@ -39,6 +39,19 @@ class MoECandidateContract(unittest.TestCase):
     def rejected(self,mutate):
         mutate()
         with self.assertRaises(ValueError):assert_implementation(self.i,self.c,'decode')
+    def test_explicit_mma_tn128(self):
+        self.c['packing_tile_n']=128
+        for g in self.i['plan']['gemms']:g['tile_n']=128
+        for b in self.i['plan']['buffers']:b['recipe']['tile_n']=128
+        path=Path(self.c['layout']);layout=json.loads(path.read_text())
+        for b in layout['buffers']:b['recipe']['tile_n']=128
+        path.write_text(json.dumps(layout))
+        assert_implementation(self.i,self.c,'decode')
+    def test_runtime_manifest_tampering_rejected(self):
+        from run_r16_moe_candidates import runtime_contract
+        self.c['runtime_source']={'root':'/wrong'}
+        self.c['runtime_contract_sha256']='bad'
+        with self.assertRaises((ValueError,OSError)):runtime_contract(self.c)
     def test_no_relabel(self):
         self.rejected(lambda:self.c.update(arm='h1'))
     def test_no_missing_expert(self):
