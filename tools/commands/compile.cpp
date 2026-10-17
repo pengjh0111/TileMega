@@ -337,7 +337,7 @@ int RunCompile(int argc, char** argv) {
     int nonpaged_la=0,attention_frontier=0;
     std::array<int,5> serving_impl{{-1,-1,-1,-1,-1}};
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
-    int moe_dynamic=0,moe_opaque=0,moe_gemv=0,moe_activation_bulk=0,dm_wgmma_inline=0;
+    int moe_dynamic=0,moe_opaque=0,moe_gemv=0,moe_activation_bulk=0,moe_weight_bulk=0,dm_wgmma_inline=0;
     bool moe_gemv_auto=true;
     std::string candidate_mode="L1",nonpaged_weight_layout="row";
     bool page_bytes_pinned=false,nonpaged_la_pinned=false;
@@ -389,6 +389,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--frontend") frontend_mode=value;
       else if (flag=="--moe-dynamic") moe_dynamic=std::stoi(value);
       else if (flag=="--moe-opaque") moe_opaque=std::stoi(value);
+      else if (flag=="--moe-weight-bulk") moe_weight_bulk=std::stoi(value);
       else if (flag=="--moe-activation-bulk") moe_activation_bulk=std::stoi(value);
       else if (flag=="--dm-wgmma-inline") dm_wgmma_inline=std::stoi(value);
       else if (flag=="--moe-gemv") {moe_gemv_auto=value=="auto";moe_gemv=moe_gemv_auto?0:std::stoi(value);}
@@ -698,7 +699,11 @@ int RunCompile(int argc, char** argv) {
     if((moe_activation_bulk!=0 && moe_activation_bulk!=1) ||
         (moe_activation_bulk && (!serving || serving_phase!="decode" || arch_paths!="auto")))
       throw std::invalid_argument("--moe-activation-bulk requires 0/1 and native Hopper decode");
+    if((moe_weight_bulk!=0 && moe_weight_bulk!=1) ||
+        (moe_weight_bulk && (!dm_wgmma_inline || !moe_activation_bulk || nonpaged_weight_layout!="tiled")))
+      throw std::invalid_argument("--moe-weight-bulk requires 0/1, typed native M16 WGMMA expert gather and packed nonpaged weights");
     if(moe_activation_bulk)runtime_flags+=" -DTILEMEGA_MOE_ACTIVATION_BULK=1";
+    if(moe_weight_bulk)runtime_flags+=" -DTILEMEGA_MOE_WEIGHT_BULK=1";
     if(qkv_epilogue!=0 && qkv_epilogue!=1)
       throw std::invalid_argument("--qkv-epilogue must be 0 or 1");
     if(qkv_epilogue && (!serving || arch_paths!="auto" ||
@@ -1578,7 +1583,7 @@ int RunCompile(int argc, char** argv) {
               " --capacity "+std::to_string(serving_capacity)+
               " --prompt-len "+std::to_string(serving_prompt_len)+
               " --sync "+quote(sync_policy)+" --runtime-target "+quote(runtime_target)+
-              " --arch-paths "+quote(arch_paths)+" --encoder-attention-impl "+quote(encoder_attention_impl)+" --prefill-attention-impl "+quote(prefill_attention_impl)+" --forward-gemm-impl "+quote(forward_gemm_impl)+" --conv-impl "+quote(conv_impl)+" --depthwise-impl "+quote(depthwise_impl)+" --dwpw-impl "+quote(dwpw_impl)+" --moe-activation-bulk "+std::to_string(moe_activation_bulk)+" --dm-wgmma-inline "+std::to_string(dm_wgmma_inline)+
+              " --arch-paths "+quote(arch_paths)+" --encoder-attention-impl "+quote(encoder_attention_impl)+" --prefill-attention-impl "+quote(prefill_attention_impl)+" --forward-gemm-impl "+quote(forward_gemm_impl)+" --conv-impl "+quote(conv_impl)+" --depthwise-impl "+quote(depthwise_impl)+" --dwpw-impl "+quote(dwpw_impl)+" --moe-activation-bulk "+std::to_string(moe_activation_bulk)+" --moe-weight-bulk "+std::to_string(moe_weight_bulk)+" --dm-wgmma-inline "+std::to_string(dm_wgmma_inline)+
               " --decode-tile-m "+std::to_string(decode_tile_m)+" --activation-tma "+std::to_string(activation_tma)+" --dependency-intern "+std::to_string(dependency_intern)+" --cluster-dim "+std::to_string(cluster_dim)+" --combine "+quote(combine_impl)+" --merge "+quote(merge_impl)+
               (serving_residency?" --residency "+std::to_string(serving_residency):std::string())+" --gemv-load "+quote(gemv_load)+" --qkv-epilogue "+std::to_string(qkv_epilogue)+" --attention-tma "+std::to_string(attention_tma)+" --pdl "+quote(pdl)+
               " --pg "+quote(pg_mode)+" --page-bytes "+std::to_string(candidate_page_bytes)+
@@ -2425,6 +2430,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"merge\": "<<std::quoted(merge_impl)
               <<",\n  \"requested_residency\": "<<serving_residency
               <<",\n  \"moe_activation_bulk\": "<<moe_activation_bulk
+              <<",\n  \"moe_weight_bulk\": "<<moe_weight_bulk
               <<",\n  \"dm_wgmma_inline\": "<<dm_wgmma_inline
               <<",\n  \"prefill_attention_impl\": "<<std::quoted(prefill_attention_impl)
               <<",\n  \"encoder_attention_impl\": "<<std::quoted(encoder_attention_impl)

@@ -13,9 +13,10 @@ struct Sm90BulkGather {
   static_assert(M==16 && (K==64 || K==128));
   using E=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<Arch>;
-  template<class Operands>
+  template<bool WeightBulk=false,class Operands>
   __device__ static __forceinline__ bool Load(Operands const& p,int tile_m,int iteration,
-      E* destination,E* linear,std::uint64_t* barrier) {
+      E* destination,E* linear,std::uint64_t* barrier,
+      E* weight_destination=nullptr,E const* weight_source=nullptr,unsigned weight_bytes=0) {
     static_assert(arch::Caps<Arch>::kBulkCopy);
     using codegen::executor::ComputeThread;using codegen::executor::ComputeSync;
     if(p.access.a!=codegen::DmAAccess::kRowGather || (iteration+1)*K>p.k_count)return false;
@@ -25,7 +26,9 @@ struct Sm90BulkGather {
     if(ComputeThread()==0)Async::Init(barrier,1);
     Async::InitFence();ComputeSync();Async::ProxyAsyncGlobalFence();
     if(ComputeThread()==0) {
-      Async::ExpectTx(barrier,rows*K*sizeof(E));
+      // Both operands share one completion phase; the slot remains owned until WGMMA wait.
+      Async::ExpectTx(barrier,rows*K*sizeof(E)+(WeightBulk?weight_bytes:0));
+      if constexpr(WeightBulk)Async::Bulk(weight_destination,weight_source,weight_bytes,barrier);
       for(int row=0;row<rows;++row) {
         auto source_row=DmSourceRow(p,tile_m*M+row);
         Async::Bulk(linear+row*K,p.a+std::size_t(source_row)*pitch+p.k_begin+iteration*K,

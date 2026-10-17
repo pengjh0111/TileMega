@@ -15,6 +15,9 @@
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
 #include <tilemega/Backend/Sm90BulkGather.h>
 #endif
+#ifndef TILEMEGA_MOE_WEIGHT_BULK
+#define TILEMEGA_MOE_WEIGHT_BULK 0
+#endif
 #ifndef TILEMEGA_MOE_ACTIVATION_BULK
 #define TILEMEGA_MOE_ACTIVATION_BULK 0
 #endif
@@ -293,8 +296,23 @@ struct ServingGemmTaskBody {
       auto* bs=b+(it%2)*TileN*TileK;
       bool gathered=false;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-      if constexpr(kBulkGather)gathered=backend::Sm90BulkGather<Arch,TileM,TileK>::Load(
-          p,tile_m,it,as,b+2*TileN*TileK,reinterpret_cast<std::uint64_t*>(shared));
+      if constexpr(kBulkGather) {
+#if TILEMEGA_MOE_WEIGHT_BULK
+        static_assert(TILEMEGA_NONPAGED_TILED, "expert weight bulk requires packed weights");
+        if(p.access.b==DmBAccess::kExpertIndirect && (it+1)*TileK<=p.k_count) {
+          if(!p.weight_base || p.k_total_full<=0 || p.k_begin%TileK) {
+            asm volatile("trap;");return nullptr;
+          }
+          int kt=(p.k_total_full+TileK-1)/TileK;
+          auto* source=p.weight_base+(std::size_t(tile_n)*kt+p.k_begin/TileK+it)*TileN*TileK;
+          gathered=backend::Sm90BulkGather<Arch,TileM,TileK>::template Load<true>(
+              p,tile_m,it,as,b+2*TileN*TileK,reinterpret_cast<std::uint64_t*>(shared),
+              bs,source,TileN*TileK*sizeof(Element));
+        }else
+#endif
+          gathered=backend::Sm90BulkGather<Arch,TileM,TileK>::Load(
+              p,tile_m,it,as,b+2*TileN*TileK,reinterpret_cast<std::uint64_t*>(shared));
+      }
 #endif
       if(!gathered)for(int v=ComputeThread()*8;v<TileM*TileK;v+=kComputeThreads*8) {
         int row=tile_m*TileM+v/TileK,k=it*TileK+v%TileK;
@@ -314,6 +332,9 @@ struct ServingGemmTaskBody {
       }
       int kt=(p.k_total_full+TileK-1)/TileK;
       auto* source=p.weight_base+(std::size_t(tile_n)*kt+p.k_begin/TileK+it)*TileN*TileK;
+#if TILEMEGA_MOE_WEIGHT_BULK && defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if(!(gathered && p.access.b==DmBAccess::kExpertIndirect))
+#endif
       for(int v=ComputeThread()*8;v<TileN*TileK;v+=kComputeThreads*8)
         Async::Copy16Bytes(bs+v,source+v,16);
 #else

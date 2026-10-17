@@ -190,6 +190,10 @@ class GeneratedFeatureTests(unittest.TestCase):
                             self.generate(family,feature+str(value),['--residency','1'],
                                 'currently require sm_90')
                             continue
+                        if value == 1 and feature == 'moe_weight_bulk':
+                            self.generate(family,feature+str(value),['--moe-weight-bulk','1'],
+                                '--moe-weight-bulk requires')
+                            continue
                         if value == 1 and feature in ('qkv_epilogue','moe_activation_bulk'):
                             # These require Hopper decode structure; the generic
                             # sm89 decoder/DNN fixtures deliberately lack it.
@@ -460,6 +464,7 @@ class GeneratedFeatureTests(unittest.TestCase):
                  ('watchdog', '2', '--watchdog must be'),
                  ('qkv-epilogue', '2', '--qkv-epilogue must be'),
                  ('moe-activation-bulk','2','--moe-activation-bulk requires'),
+                 ('moe-weight-bulk','2','--moe-weight-bulk requires'),
                  ('kphase-mask', '32', 'invalid K-phase'),
                  ('v3-poll-ns', '-1', 'invalid K-phase')]
         for family in ('llm', 'dm'):

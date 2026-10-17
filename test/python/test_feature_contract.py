@@ -5,6 +5,22 @@ from tilemega.build.feature_contract import INTEGER_FEATURES, build_defines, imp
 
 
 class FeatureContractTests(unittest.TestCase):
+    def test_expert_weight_bulk_identity_requires_typed_packed_gather(self):
+        plan=dict(phase='decode',pg='off',seed_arch='native',seed_target_arch='sm_90',
+                  dm_wgmma_inline=1,moe_activation_bulk=1,moe_weight_bulk=1,
+                  nonpaged_weight_layout='tiled',attention_noinline=True,
+                  gemms=[dict(index=0,tile_m=16,tile_n=64,tile_k=64,impl='wgmma')])
+        defines=dict(TILEMEGA_ARCH_ID='900',TILEMEGA_DM_NARROW_INLINE='1',
+                     TILEMEGA_DM_WGMMA_INLINE='1',TILEMEGA_MOE_ACTIVATION_BULK='1',
+                     TILEMEGA_MOE_WEIGHT_BULK='1',TILEMEGA_ATTENTION_NOINLINE='1')
+        validate(plan,defines)
+        self.assertTrue(implementations(plan,defines)['moe_weight_bulk'])
+        self.assertFalse(implementations({'gemms':[]}, {})['moe_weight_bulk'])
+        for change in ({'dm_wgmma_inline':0},{'moe_activation_bulk':0},
+                       {'nonpaged_weight_layout':'row'}):
+            with self.assertRaises(ValueError):validate(dict(plan,**change),defines)
+        with self.assertRaises(ValueError):validate(plan,dict(defines,TILEMEGA_MOE_WEIGHT_BULK='0'))
+
     def test_narrow_inline_identity_rejects_geometry_or_missing_dispatch(self):
         plan=dict(phase='decode',pg='off',seed_arch='native',seed_target_arch='sm_90',
                   dm_wgmma_inline=1,moe_activation_bulk=1,attention_noinline=True,
@@ -107,11 +123,11 @@ class FeatureContractTests(unittest.TestCase):
                         plan = dict(pg='l2', **{feature: value})
                         source = ('#define TILEMEGA_DM_SUPPORT 1\n' if dm else '')
                         defines = build_defines(source, ['nvcc', f'-D{macro}={value}'])
-                        if feature == 'dm_wgmma_inline' and value:
+                        if feature in ('dm_wgmma_inline','moe_weight_bulk') and value:
                             plan.update(phase='decode',pg='off',seed_arch='native',seed_target_arch='sm_90',
-                                moe_activation_bulk=1,attention_noinline=True,
+                                moe_activation_bulk=1,dm_wgmma_inline=1,attention_noinline=True,nonpaged_weight_layout='tiled',
                                 gemms=[dict(tile_m=16,tile_n=64,tile_k=64,impl='wgmma')])
-                            defines.update(TILEMEGA_ARCH_ID='900',TILEMEGA_DM_WGMMA_INLINE='1',
+                            defines.update(TILEMEGA_ARCH_ID='900',TILEMEGA_DM_WGMMA_INLINE='1',TILEMEGA_DM_NARROW_INLINE='1',
                                 TILEMEGA_MOE_ACTIVATION_BULK='1',TILEMEGA_ATTENTION_NOINLINE='1')
                         validate(plan, defines)
                         plan[feature] = value + 1

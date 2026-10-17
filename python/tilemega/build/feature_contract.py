@@ -11,6 +11,7 @@ INTEGER_FEATURES = {
     'cluster_dim': ('TILEMEGA_SERVING_CLUSTER_DIM', 1),
     'qkv_epilogue': ('TILEMEGA_QKV_EPILOGUE', 0),
     'moe_activation_bulk': ('TILEMEGA_MOE_ACTIVATION_BULK', 0),
+    'moe_weight_bulk': ('TILEMEGA_MOE_WEIGHT_BULK', 0),
     'dm_wgmma_inline': ('TILEMEGA_DM_NARROW_INLINE', 0),
     'watchdog': ('TILEMEGA_WATCHDOG', 1),
     'attention_noinline': ('TILEMEGA_ATTENTION_NOINLINE', 0),
@@ -102,6 +103,9 @@ def validate(manifest, defines):
             actual = int(defines.get(macro, str(default)))
             if int(manifest[feature]) != actual:
                 raise ValueError(f'manifest {feature} differs from {macro}')
+    if manifest.get('moe_weight_bulk') and (not manifest.get('dm_wgmma_inline') or
+            not manifest.get('moe_activation_bulk') or manifest.get('nonpaged_weight_layout') != 'tiled'):
+        raise ValueError('manifest moe_weight_bulk has an illegal implementation domain')
     if manifest.get('dm_wgmma_inline'):
         if (manifest.get('phase') != 'decode' or manifest.get('pg') != 'off' or
                 manifest.get('seed_arch') != 'native' or manifest.get('seed_target_arch') != 'sm_90' or
@@ -174,6 +178,7 @@ def implementations(manifest, defines):
             'execution_arch_id': int(defines.get('TILEMEGA_ARCH_ID', '800')),
             'decode_tile_m': int(manifest.get('decode_tile_m', 16)),
             'dm_wgmma_inline': bool(manifest.get('dm_wgmma_inline', 0)),
+            'moe_weight_bulk': bool(manifest.get('moe_weight_bulk', 0)),
             'combine': manifest.get('combine', 'stage'),
             'merge': manifest.get('merge', 'stage'),
             'qkv_epilogue': bool(manifest.get('qkv_epilogue', False)),
