@@ -78,6 +78,9 @@ class DenseMiddleTest(unittest.TestCase):
         with patch('advance_r16_dense_middle.native_identity',return_value=identity):old=family(c)[0]
         identity['plan'].update(activation_tma=0,qkv_epilogue=0,moe_activation_bulk=0,cluster_dim=1,combine='stage')
         with patch('advance_r16_dense_middle.native_identity',return_value=identity):self.assertEqual(old,family(c)[0])
+        identity['plan']['gemms'][0]['split_k']=4
+        with patch('advance_r16_dense_middle.native_identity',return_value=identity):self.assertNotEqual(old,family(c)[0])
+        identity['plan']['gemms'][0].pop('split_k')
         identity['plan']['activation_tma']=1
         with patch('advance_r16_dense_middle.native_identity',return_value=identity):self.assertNotEqual(old,family(c)[0])
 

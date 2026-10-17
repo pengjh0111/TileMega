@@ -10,7 +10,7 @@ from r16_measurement_validation import file_sha,native_identity,json_digest
 MODELS=('qwen3_0_6b','qwen3_1_7b','llama3_2_1b','llama3_2_3b','llama3_1_8b')
 TERMINAL={'done','failed','skipped','not_run','cancelled'}
 COORDS=('arch_paths','attention_impl','attention_page','activation_tma','qkv_epilogue',
-        'cluster_dim','combine','nonpaged_la','gemv_load','moe_activation_bulk')
+        'cluster_dim','combine','nonpaged_la','gemv_load','moe_activation_bulk','pdl','residency','page_loop_split')
 
 def read(path):return json.loads(Path(path).read_text())
 def write(path,value):
@@ -28,7 +28,8 @@ def family(candidate):
     elif coordinates['combine']is None:coordinates['combine']='legacy_la'
     value=dict(arm=candidate['arm'],mode=candidate['mode'],loop=candidate['loop'],
                coordinates=coordinates,
-               gemm_implementations=[g['impl']for g in plan['gemms']])
+               gemm_implementations=[g['impl']for g in plan['gemms']],
+               gemm_geometry=[{k:g.get(k)for k in ('tile_m','tile_n','tile_k','stages','split_k')}for g in plan['gemms']])
     return candidate['arm']+'-'+json_digest(value)[:10],value
 
 def body_signature(signature):
@@ -230,7 +231,9 @@ class Campaign:
                 command[command.index('--batch')+1]=str(base['batch']);c['compiler']=command[0]
                 requirements.append('Verify the immutable official ImportPlan graph supports dynamic batch before rebinding --batch; a static B1 graph is ineligible')
         if plan.get('nonpaged_la'):
+            requirements.append('Preserve exact per-GEMM split_k geometry from required_signature; the generic command alone does not encode a heterogeneous split map')
             command+=['--nonpaged-la','1','--combine',plan['combine'],'--cluster-dim',str(plan['cluster_dim'])]
+        if command is not None and plan.get('pdl') is not None:command+=['--pdl',str(plan['pdl'])]
         if not Path(c['compiler']).is_file() or file_sha(c['compiler'])!=c['compiler_sha256']:requirements.append('Recorded compiler path SHA changed or absent; resolve an immutable official compiler receipt before building')
         return dict(model=base['model'],batch=base['batch'],family=winner['family'],required_signature=winner['signature'],representative_candidate=c,
                     proposed_official_cpu_compile_command=command,prerequisites=requirements,output=str(output),fallback_substituted=False)
