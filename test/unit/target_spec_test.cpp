@@ -106,6 +106,26 @@ int TestTargetSpec(int argc, char** argv) {
   assert(!xcore.caps.cp_async && !xcore.caps.tma && !xcore.caps.pdl && !xcore.caps.cluster);
   static_assert(tilemega::arch::Caps<tilemega::arch::Xcore1000>::kWarpSize == 64);
   static_assert(!tilemega::arch::Caps<tilemega::arch::Xcore1000>::kPdl);
+
+  // BF16 serving reads CalibrationFor("bf16"), which parses
+  // calibration_by_dtype.bf16 -- not the top-level `calibration` block, which
+  // holds the FP32 profile and is still uncalibrated here. The committed
+  // target carried the device identity but not that section, so a fresh clone
+  // got a zero-filled Calib while the measurements ran against a copy under
+  // the ignored runs/ tree. These are the values of that copy; the point of
+  // asserting them is that dropping the section again fails the build rather
+  // than silently restoring zeros.
+  auto const& bf16 = xcore.CalibrationFor("bf16");
+  assert(bf16.dram_gbps == 1610.715799);
+  assert(bf16.l2_gbps == 3484.71128);
+  assert(bf16.tc_bf16_gflops == 288831.3898);
+  assert(bf16.smem_gbps == 12504.51889);
+  assert(bf16.syncthreads_ns == 26.98047319);
+  assert(!bf16.grid_barrier_ns.empty() && bf16.grid_barrier_ns.front() == 1834.499999);
+  // A zero or empty L2 curve makes CacheServiceCurve::HitFraction return 0 for
+  // every footprint, which removes reuse from the cost model altogether.
+  assert(bf16.l2_curve_bytes.size() == 18 && bf16.l2_curve_gbps.size() == 18);
+  assert(bf16.l2_gbps > bf16.dram_gbps);
   return 0;
 }
 
