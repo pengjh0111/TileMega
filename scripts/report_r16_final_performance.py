@@ -65,6 +65,8 @@ def main():
                         help='R16_selected_llm.csv from collect_r16_final_matrix.py')
     parser.add_argument('--baselines', type=Path, required=True,
                         help='R16_final_baselines.csv from collect_r16_final_baselines.py')
+    parser.add_argument('--baseline-report', type=Path,
+                        help='require the independent baseline methodology gate as well as CSV coverage')
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--require-complete', action='store_true')
     args = parser.parse_args()
@@ -93,9 +95,13 @@ def main():
     write(args.out/'R16_final_llm_ratios.csv', ratios)
     write(args.out/'R16_final_llm_geomeans.csv', means)
     write(args.out/'R16_final_llm_pairing_geomeans.csv', geomeans(ratios, 'llm'))
-    full = not missing and len(external)==120 and len(ratios)==120
+    coverage = not missing and len(external)==120 and len(ratios)==120
+    methodology = (args.baseline_report is None or
+        json.loads(args.baseline_report.read_text()).get('complete') is True)
+    full = coverage and methodology
     (args.out/'performance-coverage.json').write_text(json.dumps(dict(
         complete=full, selected_native_cells=len(selected), external_cells=len(external),
+        comparison_matrix_complete=coverage, baseline_methodology_ready=methodology,
         comparisons=len(ratios), missing_native=missing,
         default_promoted=False, accuracy='model-level numeric gates are checked by the native collector',
         limits='device pairing, shared checkpoint and PID ownership remain explicit in ratio CSV; MoE B1 logical payload follows top-k, B>1 needs routing trace for point MBU'),indent=2)+'\n')
