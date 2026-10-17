@@ -14,6 +14,7 @@ from summarize_r16 import aggregate, collect, dnn_device_identity, record_direct
 
 SYSTEMS = ('vllm', 'sglang', 'tensorrt-llm', 'torch.compile')
 CHECKPOINT = '2ce4ccb3bac783cba132292ceb8a1851b68e4df172a9b32000533829681475b9'
+CONFIG = '2850ddb3bf7aecad20b611e2d44f3077fc8193f4827c93beddd4c02ad63c2297'
 METRICS = ('e2e_ms', 'ttft_ms', 'tpot_ms', 'tokens_per_second')
 
 
@@ -40,6 +41,7 @@ def supplemental_process(root, name, event, expected_gpu):
         raise ValueError('supplement system or guarded GPU differs')
     checkpoint = value['checkpoint']
     if (checkpoint['checkpoint_sha256'] != CHECKPOINT or
+            checkpoint['config_sha256'] != CONFIG or value['model_config_sha256'] != CONFIG or
             checkpoint['total_bytes'] != 61064245248 or checkpoint['tensor_count'] != 18867):
         raise ValueError('supplement does not use the paired full MoE checkpoint')
     if value['system'] == 'torch.compile' and value['versions']['transformers'] != '5.20.1':
