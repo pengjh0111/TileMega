@@ -27,11 +27,12 @@ int main(){using namespace tilemega;using Op=frontend::PlanGemm::Epilogue;
  int rejected=0;
  for(auto text:{R"({"base":{"stages":1}})",R"({"base":{"impl":"gemv","tile_n":128}})",
                 R"({"families":{"lm_head":{"split":2}}})",R"({"base":{"impl":"wgmma","stages":4}})",
-                R"({"base":{"tile_k":96}})",R"({"base":{"bogus":1}})"}) {
+                R"({"base":{"tile_k":96}})",R"({"base":{"bogus":1}})",
+                R"({"families":{"down":{"tile_n":32,"split":4}}})"}) {
   auto copy=std::vector<frontend::GemmGranularity>(5,{16,128,64,2,1,0});
   try{solver::ApplySeedGeometryPolicy(plan,copy,solver::ParseSeedGeometryPolicy(json::Parse(text)),132,true);}
   catch(std::invalid_argument const&){++rejected;}
  }
- assert(rejected==6);
- std::puts("serving seed geometry: SM-filling split, TN shrink, family overrides, six rejection contracts PASS");
+ assert(rejected==7);
+ std::puts("serving seed geometry: SM-filling split, TN shrink, family overrides, seven rejection contracts PASS");
 }
