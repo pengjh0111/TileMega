@@ -331,7 +331,8 @@ int RunCompile(int argc, char** argv) {
     bool resource_probes=true;bool dump_evaluated=false;
     std::string solver_mode="skeleton",legacy_seed,variant_cache,flow_fixture;
     int skeleton_k=8,search_passes=3,search_jobs=1,search_top_m=8,
-        search_budget_ms=0,measure_top=6;
+        search_budget_ms=solver::SkeletonSearchOptions::kDefaultSearchBudgetMs,
+        measure_top=6;
     bool all_workers=false,flow_search_only=false,incremental_prepare=true,
          serving_pruning=true;
     tilemega::solver::SolverTiming solver_timing;

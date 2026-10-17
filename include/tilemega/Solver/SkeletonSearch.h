@@ -25,10 +25,18 @@ struct SkeletonSearchOptions {
   VariantResourceCache::Probe variant_probe;
   std::function<VariantResources(frontend::ModelPlan const&,std::string const&,
       GemmConfig const*,ScalarType)> dm_variant_probe;
+  // Half an hour bounds every dense serving cell measured on the C550 (their
+  // scans finished well inside it) while stopping a search that cannot
+  // converge.
+  static constexpr int kDefaultSearchBudgetMs=1800000;
   std::string artifact_prefix,fixture;
   int seed_residency=1,top_m=8,measure_top=6;
   // Bound only the outer Level 1 scan. The caller reserves the remainder of
   // its plan budget for top-M materialization, compilation and measurement.
+  // Zero means unbounded, which is a stopping rule the coordinate descent does
+  // not otherwise have: a Qwen3-MoE-24L decode solve ran 25.5 h and 24,568
+  // evaluations without selecting. Callers that want unbounded must now say
+  // so, and tools default to kDefaultSearchBudgetMs.
   int search_budget_ms=0;
   // Serving decode uses one physical plan throughout this closed past range.
   int serving_past_lo=-1,serving_past_hi=-1;

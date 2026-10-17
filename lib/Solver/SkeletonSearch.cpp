@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <cstdio>
+#include <limits>
 #include <tilemega/Solver/ServingAttentionLegality.h>
 #include <tilemega/Solver/SkeletonSearch.h>
 #include <tilemega/Solver/ModelDramFloor.h>
@@ -1005,8 +1007,19 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
   }
   if(!seeded)throw std::runtime_error("no flow seed has a valid score: "+seed_error);
 search_complete:
-  if(budget_expired())out<<"SEARCH_BUDGET\t"<<options.search_budget_ms
-      <<"\t"<<evaluated.size()<<"\tpartial_coordinate_scan\n";
+  if(budget_expired()) {
+    out<<"SEARCH_BUDGET\t"<<options.search_budget_ms
+       <<"\t"<<evaluated.size()<<"\tpartial_coordinate_scan\n";
+    // The search log is an artifact nobody reads while a solve is running, so
+    // say on stderr that the plan is the best of a truncated scan rather than
+    // of a converged one.
+    double best=std::numeric_limits<double>::infinity();
+    for(auto const& candidate:evaluated)best=std::min(best,candidate.score);
+    std::fprintf(stderr,
+        "SEARCH_BUDGET exhausted after %d ms: %zu candidates evaluated, "
+        "best score %.6g; raise --search-budget-ms for a longer scan\n",
+        options.search_budget_ms,evaluated.size(),best);
+  }
   std::stable_sort(evaluated.begin(),evaluated.end(),[](auto const& a,auto const& b){return a.score<b.score;});
   if(search.ServingRuntimePlan())for(std::size_t begin=0;begin<evaluated.size();) {
     std::size_t end=begin+1;
