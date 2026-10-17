@@ -16,6 +16,7 @@
 #include <tilemega/Solver/CompilerSearch.h>
 #include <tilemega/Solver/SkeletonSearch.h>
 #include <tilemega/Solver/ServingImplementation.h>
+#include <tilemega/Solver/ServingSeedGeometry.h>
 #include <tilemega/Solver/DnnStructureSearch.h>
 #include <tilemega/Solver/MoeStructureSearch.h>
 #include <tilemega/Solver/IntervalSegments.h>
@@ -316,6 +317,7 @@ int RunCompile(int argc, char** argv) {
     mlir::OwningOpRef<mlir::ModuleOp> module;
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
+    std::string seed_geometry;
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,paged_seed_from,artifact_cache;
     std::string frontend_mode="decoder";
     std::string shared_weight_layout;
@@ -386,6 +388,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--solve") solve_target=value;
       else if (flag=="--serving") serving_phase=value;
       else if (flag=="--shared-weight-layout") shared_weight_layout=value;
+      else if (flag=="--seed-geometry") seed_geometry=value;
       else if (flag=="--frontend") frontend_mode=value;
       else if (flag=="--moe-dynamic") moe_dynamic=std::stoi(value);
       else if (flag=="--moe-opaque") moe_opaque=std::stoi(value);
@@ -1116,6 +1119,15 @@ int RunCompile(int argc, char** argv) {
             else {geometry.tile_m=16;geometry.stages=2;geometry.split_k=1;}
           }
         }
+      }
+      if(!seed_geometry.empty()) {
+        if(serving_phase!="decode" || forward)
+          throw std::invalid_argument("--seed-geometry applies to serving decode seeds");
+        auto target=tilemega::TargetSpec::FromJson(runtime_target);
+        tilemega::solver::ApplySeedGeometryPolicy(plan,import.gemms,
+            tilemega::solver::ParseSeedGeometryPolicy(tilemega::json::ParseFile(seed_geometry)),
+            target.res.num_sms,(hopper_requested || seed_arch=="native") && arch_paths=="auto" &&
+            target.caps.wgmma);
       }
       if(serving_phase=="decode")tilemega::solver::ApplyServingSeedImplementations(
           plan,import.gemms,serving_impl,hopper_requested && arch_paths=="auto" &&
