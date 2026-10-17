@@ -45,6 +45,30 @@ class QueueCheckTest(unittest.TestCase):
                        dict(a=dict(status='done'), old=dict(status='failed')))
         self.assertTrue(result['pass_check'])
 
+    def test_recovered_numeric_gate_cannot_read_the_old_job(self):
+        gate = step('gate_v2', ['gpu_v2'])
+        gate['command'] = ['python3', '/frozen/validate_r16_numeric_gate.py', '--job', 'gpu_v1']
+        result = check([step('gpu_v1'), step('gpu_v2')], [gate], {})
+        self.assertFalse(result['pass_check'])
+        self.assertEqual(result['errors'][0]['target'], 'gpu_v1')
+        gate['command'][-1] = 'gpu_v2'
+        self.assertTrue(check([step('gpu_v2')], [gate], {})['pass_check'])
+
+    def test_dnn_numeric_gate_requires_its_declared_gpu_dependency(self):
+        gate = step('dnn_gate', after_any=['gpu'])
+        gate['command'] = ['python3', 'validate_r16_dnn_numeric_gate.py', '--job', 'gpu']
+        self.assertFalse(check([step('gpu')], [gate], {})['pass_check'])
+        gate['after'] = ['gpu']
+        self.assertTrue(check([step('gpu')], [gate], {})['pass_check'])
+
+    def test_pci_domain_mismatch_is_rejected_before_a_gpu_job(self):
+        gpu = step('gpu')
+        gpu['command'] = ['python3', '/frozen/run_r16_with_device_identity.py',
+                          '--expected-pci', '00000000:41:00.0']
+        self.assertFalse(check([], [gpu], {})['pass_check'])
+        gpu['command'][-1] = '0000:41:00.0'
+        self.assertTrue(check([], [gpu], {})['pass_check'])
+
 
 if __name__ == '__main__':
     unittest.main()

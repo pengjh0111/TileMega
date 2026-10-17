@@ -2,6 +2,7 @@
 import argparse
 import json
 from pathlib import Path
+import re
 
 
 UNSUCCESSFUL = {'failed', 'skipped', 'not_run', 'cancelled'}
@@ -23,6 +24,25 @@ def check(existing, proposed, state):
     for name in selected:
         if name in state:
             errors.append(dict(step=name, reason='receipt already exists; use a new recovery name'))
+        step = steps[name]
+        argv = [str(value) for value in step.get('command', [])]
+        scripts = {Path(value).name for value in argv}
+        if scripts & {'validate_r16_numeric_gate.py', 'validate_r16_dnn_numeric_gate.py'}:
+            try:
+                target = argv[argv.index('--job')+1]
+            except (ValueError, IndexError):
+                target = None
+            # A recovery must validate the GPU receipt it actually depends on,
+            # rather than accidentally reading the failed pre-recovery name.
+            if target not in step.get('after', []):
+                errors.append(dict(step=name, reason='numeric validator target is not a required dependency', target=target))
+        if 'run_r16_with_device_identity.py' in scripts:
+            try:
+                pci = argv[argv.index('--expected-pci')+1]
+            except (ValueError, IndexError):
+                pci = ''
+            if not re.fullmatch(r'[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]', pci, re.I):
+                errors.append(dict(step=name, reason='CUDA device wrapper requires normalized four-digit PCI domain', pci=pci))
     visiting, visited = set(), set()
 
     def graph(name, trail):
