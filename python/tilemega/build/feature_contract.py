@@ -103,6 +103,8 @@ def validate(manifest, defines):
             actual = int(defines.get(macro, str(default)))
             if int(manifest[feature]) != actual:
                 raise ValueError(f'manifest {feature} differs from {macro}')
+    if int(manifest.get('moe_weight_bulk', 0)) not in (0, 1):
+        raise ValueError('manifest moe_weight_bulk must be 0 or 1')
     if manifest.get('moe_weight_bulk') and (not manifest.get('dm_wgmma_inline') or
             not manifest.get('moe_activation_bulk') or manifest.get('nonpaged_weight_layout') != 'tiled'):
         raise ValueError('manifest moe_weight_bulk has an illegal implementation domain')

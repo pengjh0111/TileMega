@@ -20,6 +20,8 @@ class FeatureContractTests(unittest.TestCase):
                        {'nonpaged_weight_layout':'row'}):
             with self.assertRaises(ValueError):validate(dict(plan,**change),defines)
         with self.assertRaises(ValueError):validate(plan,dict(defines,TILEMEGA_MOE_WEIGHT_BULK='0'))
+        with self.assertRaises(ValueError):
+            validate(dict(plan,moe_weight_bulk=2),dict(defines,TILEMEGA_MOE_WEIGHT_BULK='2'))
 
     def test_narrow_inline_identity_rejects_geometry_or_missing_dispatch(self):
         plan=dict(phase='decode',pg='off',seed_arch='native',seed_target_arch='sm_90',
