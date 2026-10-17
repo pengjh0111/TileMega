@@ -25,13 +25,15 @@ def validate_payload(gate, config, artifact_id, checker_sha256, checkpoint_sha25
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, required=True)
+    parser.add_argument('--scheduler-root', type=Path)
     parser.add_argument('--candidate', type=Path, required=True)
     parser.add_argument('--job', required=True)
     parser.add_argument('--expected-uuid', required=True)
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     config = json.loads(args.candidate.read_text())
-    state = json.loads((args.root / f'runs/r16/scheduler/gpu{config["gpu"]}/state.json').read_text())
+    scheduler=args.scheduler_root or args.root/'runs/r16/scheduler'
+    state = json.loads((scheduler / f'gpu{config["gpu"]}/state.json').read_text())
     event = state[args.job]
     attempt = Path(event['out'])
     guard = completed_guard(attempt, event)
