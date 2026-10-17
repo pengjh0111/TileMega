@@ -206,6 +206,18 @@ must pass before this candidate supplies performance results. Defaults and
 SM80 execution remain unchanged.
 
 
+The experimental `--moe-weight-bulk 1` coordinate additionally copies the
+resolved expert's packed B tile with bulk; omission is zero. Verified: the
+compiler requires `--dm-wgmma-inline 1`, activation bulk, and tiled nonpaged
+weights, and records the coordinate in the artifact identity. A single
+mbarrier completion phase covers both the gathered A rows and B tile; the
+existing WGMMA slot ownership remains in force. Plain bulk carries no extra
+L2 cache hint. Inferred: bounded RF2 may reuse the WGMMA cost estimate until
+an independent fit exists. Five fresh numerical checks, full-model long
+checks, and end-to-end measurement determine whether this candidate is
+eligible for selection.
+
+
 Narrow native decode GEMV accepts `--gemv-load ldg|nc|bulk`; omission keeps
 `ldg`. Verified: `bulk` retains the SIMT arithmetic and uses two 32 KiB weight
 slots, mbarrier completion and vector shared loads. It requires bulk-copy
