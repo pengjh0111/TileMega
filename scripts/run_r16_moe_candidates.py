@@ -33,8 +33,8 @@ def load(path):
     return json.loads(Path(path).read_text())
 
 def assert_implementation(identity, candidate, phase):
-    if candidate['arm'] not in ('mma','h1') or candidate['mode'] != 'L2' or candidate['loop'] != 0:
-        raise ValueError('MoE candidate requires explicit MMA/H1 and L2 host requests')
+    if candidate['arm'] not in ('mma','h1') or (candidate['mode'],int(candidate['loop'])) not in {('L2',0),('L1',1)}:
+        raise ValueError('MoE candidate requires explicit MMA/H1 and L2 host or L1 device loop')
     expected = candidate['phase_sources'][phase]
     if set(expected) != {'root', 'head', 'compiler_sha256'} or any(identity['source'][k] != expected[k] for k in expected):
         raise ValueError('phase artifact source differs from explicit frozen binding')
@@ -113,6 +113,70 @@ def runtime_contract(candidate):
     return module
 
 
+def validate_loop_reference(candidate, identities):
+    if not candidate['loop']:
+        return
+    binding=candidate.get('numeric_reference')
+    if not binding or file_sha(binding['path'])!=binding['sha256']:
+        raise ValueError('device-loop timing requires a frozen numerical reference')
+    proof=load(binding['path'])
+    for row in proof['files']:
+        if file_sha(row['path'])!=row['sha256']:
+            raise ValueError('device-loop numerical reference changed')
+    host=load(proof['host_candidate'])
+    if file_sha(proof['host_candidate'])!=proof['host_candidate_sha256']:
+        raise ValueError('reference candidate changed')
+    for key in ('prefill','decode','arm','batch','seed','config_sha256','shared_checkpoint','phase_sources'):
+        if host[key]!=candidate[key]:
+            raise ValueError('loop reference belongs to another body or checkpoint: '+key)
+    state=load(proof['state_file']);record=state[proof['longcheck_job']]
+    if record['status']!='done' or record.get('exit_code')!=0:
+        raise ValueError('reference execution is no longer accepted')
+    path=Path(proof['measurement']);value=load(path)
+    if (path.parent/'invalid_measurements.json').exists():
+        raise ValueError('reference measurements were invalidated')
+    artifacts={p:i['artifact_id'] for p,i in identities.items()}
+    if {p:i['artifact_id'] for p,i in value['configuration']['identities'].items()}!=artifacts:
+        raise ValueError('reference binary differs from loop candidate')
+    source=candidate['runtime_source']
+    if any(value['configuration'].get(k)!=source[k] for k in ('runner_sha256','hf_checker_sha256')):
+        raise ValueError('reference Python entry differs from loop runtime')
+    directory=path.parent.parent
+    generation=next(r for r in value['generation_runs'] if r['N']==1024 and r['run']==3)
+    required={Path(proof['host_candidate']).resolve(),path.resolve()} | {
+        (directory/name).resolve() for name in ('c1.json','c2.json','actual-execution.json','tokens_L1_loop1.json')}
+    required.add((path.parent/generation['tokens_file']).resolve())
+    if not required.issubset({Path(row['path']).resolve() for row in proof['files']}):
+        raise ValueError('device-loop reference does not bind all numerical files')
+    if proof['longcheck_job']!=host['longcheck_job'] or file_sha(host['script'])!=host['script_sha256']:
+        raise ValueError('reference job or driver differs from certified body')
+    c1=load(directory/'c1.json');c2=load(directory/'c2.json')
+    if c1.get('pass') is not True or c1.get('positions')!=256*candidate['batch']:
+        raise ValueError('reference full-model C1 did not pass')
+    if c2.get('pass') is not True or c2.get('same_binary') is not True or not any(
+            r.get('pass') is True and r['mode']=='L1' and r['decode_loop']==1 for r in c2['checks']):
+        raise ValueError('reference did not certify L1 device-loop C2')
+    actual=load(directory/'actual-execution.json')
+    rows=[r for r in actual['calls'] if r['tokens']==1024 and r['executor']=='L1' and r['device_loop_used']]
+    if (actual['driver_sha256']!=host['script_sha256'] or len(rows)!=1 or
+            rows[0]['actual_decode_loop_calls']!=1 or rows[0]['actual_decode_host_calls']!=0):
+        raise ValueError('reference did not actually execute the device loop')
+    row=next(r for r in value['generation_runs'] if r['N']==1024 and r['run']==3)
+    if load(path.parent/row['tokens_file'])!=load(directory/'tokens_L1_loop1.json'):
+        raise ValueError('reference loop tokens differ from C1/C2-certified generation')
+
+
+def validate_loop_output(candidate, path):
+    if not candidate['loop']:
+        return
+    proof=load(candidate['numeric_reference']['path']);reference_path=Path(proof['measurement']);reference=load(reference_path)
+    row=next(r for r in reference['generation_runs'] if r['N']==1024 and r['run']==3)
+    expected=load(reference_path.parent/row['tokens_file'])
+    path=Path(path);value=load(path)
+    if any(load(path.parent/r['tokens_file'])!=[tokens[:r['N']] for tokens in expected] for r in value['generation_runs']):
+        raise ValueError('device-loop timing tokens differ from independent C1/C2 reference')
+
+
 def check_pair(candidate):
     runtime_contract(candidate)
     import shared_checkpoint_contract as shared
@@ -123,6 +187,7 @@ def check_pair(candidate):
     for phase in ('prefill', 'decode'):
         identities[phase] = native_identity(candidate[phase])
         assert_implementation(identities[phase], candidate, phase)
+    validate_loop_reference(candidate,identities)
     return identities
 
 def execute(args):
@@ -157,8 +222,8 @@ def execute(args):
     helper=Path(__file__).with_name('r16_kernel_resources.py')
     if file_sha(helper)!=candidate['kernel_resource_helper_sha256']:
         raise ValueError('selected-entry resource helper changed')
-    if candidate['mode']!='L2' or candidate['loop']!=0:
-        raise ValueError('entry-scoped MMA recovery only permits L2 host execution')
+    if (candidate['mode'],int(candidate['loop'])) not in {('L2',0),('L1',1)}:
+        raise ValueError('MoE timing supports L2 host or L1 device loop')
     entries, functions=resource_functions(warnings)
     resource={'evidence':'verified formal explicit H10 compiler resources; cold-path spills recorded; no default claim',
         'all_entries':list(entries.values()), 'all_functions':list(functions.values()),
@@ -206,6 +271,14 @@ def execute(args):
             reason='official compile/runtime/numerical path rejected; no fallback was substituted'))
     raise SystemExit(result.returncode)
 
+def validate_launch_counts(count, mode, loop, host_calls, loop_calls, host_modes):
+    if loop:
+        if host_calls or loop_calls != 1 or host_modes:
+            raise ValueError('device loop did not use exactly one launch_steps and zero host launches')
+    elif host_calls != count-1 or loop_calls or (count > 1 and set(host_modes) != {mode}):
+        raise ValueError('actual Plan.launch calls disagree with selected host executor')
+
+
 def execution_row(engine, result, count):
     expected=bool(engine.decode_loop and count>1)
     if bool(result.decode_loop_used)!=expected:
@@ -240,12 +313,11 @@ def native_run():
         active.update(engine=current,host_calls=0,loop_calls=0,host_modes=set())
         result=original(current,prompt_ids,new_tokens)
         row=execution_row(current,result,count)
-        if not row['device_loop_used']:
-            if active['host_calls']!=count-1 or active['loop_calls'] or (count>1 and active['host_modes']!={current.decode_mode}):
-                raise ValueError('actual Plan.launch calls disagree with selected host executor')
+        validate_launch_counts(count,current.decode_mode,row['device_loop_used'],active['host_calls'],active['loop_calls'],active['host_modes'])
         row.update(actual_decode_host_calls=active['host_calls'],actual_decode_loop_calls=active['loop_calls'],
                    actual_decode_host_modes=sorted(active['host_modes']),
-                   selected_host_kernel=('tilemega_l2_kernel' if current.decode_mode==2 else 'tilemega_l1_kernel') if not row['device_loop_used'] else None)
+                   selected_host_kernel=('tilemega_l2_kernel' if current.decode_mode==2 else 'tilemega_l1_kernel') if not row['device_loop_used'] else None,
+                   selected_device_kernel='tilemega_l1_loop_kernel' if row['device_loop_used'] else None)
         rows.append(row)
         active.clear()
         return result
@@ -285,7 +357,12 @@ def measurement(root, state, name, candidate):
         if len(group)!=4 or any(row['executor']!=candidate['mode'] or
             row['device_loop_used']!=bool(candidate['loop'] and count>1) for row in group):
             raise ValueError('actual runtime execution differs from selected executor/device loop')
+    for row in calls:
+        validate_launch_counts(row['tokens'],1 if row['executor']=='L1' else 2,row['device_loop_used'],row['actual_decode_host_calls'],row['actual_decode_loop_calls'],row['actual_decode_host_modes'])
+        if row['device_loop_used'] and row.get('selected_device_kernel')!='tilemega_l1_loop_kernel':
+            raise ValueError('device-loop kernel dispatch evidence missing')
     expected = check_pair(candidate)
+    validate_loop_output(candidate,path)
     for phase in ('prefill', 'decode'):
         if value['configuration']['identities'][phase]['artifact_id'] != expected[phase]['artifact_id']:
             raise ValueError('measurement belongs to another candidate binary')

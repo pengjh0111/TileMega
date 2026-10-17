@@ -52,6 +52,26 @@ class MoECandidateContract(unittest.TestCase):
         self.c['runtime_source']={'root':'/wrong'}
         self.c['runtime_contract_sha256']='bad'
         with self.assertRaises((ValueError,OSError)):runtime_contract(self.c)
+    def test_loop_executor_legal(self):
+        self.c.update(mode='L1',loop=1)
+        assert_implementation(self.i,self.c,'decode')
+    def test_host_L1_not_in_bounded_executor_domain(self):
+        self.rejected(lambda:self.c.update(mode='L1',loop=0))
+    def test_loop_requires_frozen_numeric_reference(self):
+        from run_r16_moe_candidates import validate_loop_reference
+        self.c.update(mode='L1',loop=1)
+        with self.assertRaises(ValueError):validate_loop_reference(self.c,{})
+    def test_loop_launch_count(self):
+        from run_r16_moe_candidates import validate_launch_counts
+        validate_launch_counts(1024,1,True,0,1,set())
+        validate_launch_counts(1,1,False,0,0,set())
+        with self.assertRaises(ValueError):validate_launch_counts(1024,1,True,1023,1,{1})
+        with self.assertRaises(ValueError):validate_launch_counts(1024,1,True,0,0,set())
+    def test_host_launch_count(self):
+        from run_r16_moe_candidates import validate_launch_counts
+        validate_launch_counts(1024,2,False,1023,0,{2})
+        with self.assertRaises(ValueError):validate_launch_counts(1024,2,False,1022,0,{2})
+        with self.assertRaises(ValueError):validate_launch_counts(1024,2,False,1023,0,{1})
     def test_no_relabel(self):
         self.rejected(lambda:self.c.update(arm='h1'))
     def test_no_missing_expert(self):
