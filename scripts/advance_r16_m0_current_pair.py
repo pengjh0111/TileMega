@@ -147,7 +147,7 @@ class Trial:
             try:
                 if len(rows)!=12 or len({r['pid']for r in rows})!=12:raise ValueError('need twelve distinct fresh runner processes')
                 validate_barriers(rows)
-            except Exception as error:result['errors'].append(str(error));result.update(passed=False,status='failed')
+            except Exception as error:result['errors'].append(str(error));result.update(passed=False,status='failed'if len(rows)==12 else'incomplete')
             for interval in result['interval_coverage']:interval['conservative_overlap_fraction']=interval['guaranteed_overlap_seconds']/interval['request_duration_seconds']
             result.update(can_enable_numa_concurrency=False,root_review_required=True,policy_changed=False,current_boot=plan['boot'],physical_cards=plan['cards'],phase_status=phase,
                 proof_can_enable_current_pair_after_root_review=result['passed'],hardware_proofs=[dict(job=r['job'],identity=r['physical_identity'],measurement_sha256=r['measurement_sha256'])for r in rows])
