@@ -31,6 +31,10 @@ def family(candidate):
                gemm_implementations=[g['impl']for g in plan['gemms']])
     return candidate['arm']+'-'+json_digest(value)[:10],value
 
+def body_signature(signature):
+    """An executor choice reuses a binary; compute/transport coordinates do not."""
+    return {k:v for k,v in signature.items()if k not in ('mode','loop')}
+
 def packing_pair(prefill,decode):
     """Mirror weight_recipes' shared-name contract using hash-bound manifests."""
     maps=[]
@@ -71,6 +75,20 @@ def selected_rows(report,model):
         chosen.append((batch,cell['selected'],samples))
     return chosen
 
+def numeric_reference(candidate):
+    declared=candidate.get('numeric_reference_candidate')
+    if declared is None:return candidate
+    path=Path(declared['path'])
+    if file_sha(path)!=declared['sha256']:raise ValueError('numeric reference candidate changed')
+    reference=read(path)
+    if any(reference.get(k)!=candidate.get(k)for k in ('model','batch','config_sha256','seed')):
+        raise ValueError('executor numeric reference workload differs')
+    if file_sha(reference['prompt_ids'])!=file_sha(candidate['prompt_ids']):raise ValueError('executor numeric reference prompts differ')
+    for phase in ('prefill','decode'):
+        if native_identity(reference[phase])['artifact_id']!=native_identity(candidate[phase])['artifact_id']:
+            raise ValueError('executor numeric reference is not the same binary pair')
+    return reference
+
 def gpu_command(root,candidate,stage,rnd=0):
     expected=candidate['physical_device_expected'];node=expected['numa_node']
     return ['python3',str(root/'driver/run_r16_with_device_identity.py'),'--out','{attempt_dir}',
@@ -95,11 +113,12 @@ def chain(root,c,scheduler):
     return jobs
 
 class Campaign:
-    def __init__(self,repo,out):
+    def __init__(self,repo,out,driver_source=None):
         self.repo=repo.resolve();self.out=out.resolve();self.rep=self.repo/'runs/r16/rf2-final-v1'
         self.scheduler=self.repo/'runs/r16/scheduler-rf2-final-v1';self.queues=self.repo/'runs/r16/queue-rf2-final-v1'
         self.master=read(self.repo/'runs/r16/native30-gpu7-master-v1/plan.json')
         self.runtime=read(self.rep/'runtime-source.json')
+        self.driver_source=Path(driver_source)if driver_source else self.rep/'driver'
         sys.path.insert(0,str(self.repo/'python'))
         from tilemega.bench.queue_check import check
         self.queue_check=check
@@ -108,20 +127,20 @@ class Campaign:
     def freeze(self):
         if (self.out/'frozen.json').exists():return
         self.out.mkdir(parents=True,exist_ok=True)
-        for p in (self.rep/'driver').glob('*.py'):
+        for p in self.driver_source.glob('*.py'):
             d=self.out/'driver'/p.name;d.parent.mkdir(exist_ok=True);shutil.copy2(p,d)
         shutil.copy2(self.repo/'runs/r16/device-identity-wrapper-v1/run_r16_with_device_identity.py',self.out/'driver/run_r16_with_device_identity.py')
         validator=self.out/'validator';validator.mkdir(exist_ok=True)
         for name in ['validate_r16_numeric_gate.py','collect_r16_candidates.py','r16_measurement_validation.py',
-                     'summarize_r16.py','r16_runtime_contract.py','r16_argument_contract.py','r16_kernel_resources.py']:
+                     'summarize_r16.py','run_r16_hopper_candidates.py','r16_runtime_contract.py','r16_argument_contract.py','r16_kernel_resources.py']:
             shutil.copy2(self.repo/'scripts'/name,validator/name)
-        write(self.out/'frozen.json',dict(at=time.time(),runtime_source=self.runtime,
+        write(self.out/'frozen.json',dict(at=time.time(),runtime_source=self.runtime,driver_source=str(self.driver_source),
             files={str(p.relative_to(self.out)):file_sha(p)for d in ['driver','validator']for p in (self.out/d).glob('*.py')}))
-    def bind(self,base,decode,arm,key):
+    def bind(self,base,decode,arm,key,execution=None):
         c=copy.deepcopy(base);model=c['model'];batch=c['batch'];gpu=2 if MODELS.index(model)%2==0 else 4;node=self.expected[gpu]['numa_node']
         if arm=='sm80':c['prefill']=str(Path(base['decode']).parent/'prefill-sm80.so')
         c.update(arm=arm,id=key,gpu=gpu,decode=str(decode),system='TileMega',native_system_label='TileMega',family=arm,base_variant=arm=='mma',
-                 mode='L2',loop=0,script=str(self.out/'driver/run_r16_native_candidate.py'),
+                 mode=(execution or base)['mode'],loop=int((execution or base)['loop']),script=str(self.out/'driver/run_r16_native_candidate.py'),
                  script_sha256=file_sha(self.out/'driver/run_r16_native_candidate.py'),runtime_source=self.runtime,
                  runtime_contract_sha256=file_sha(self.out/'driver/r16_runtime_contract.py'),
                  argument_contract_sha256=file_sha(self.out/'driver/r16_argument_contract.py'),
@@ -171,19 +190,24 @@ class Campaign:
     def verify_representatives(self,model,state,cards):
         report=read(self.rep/'selection-report.json');selection=selected_rows(report,model)
         if selection is None:return None
-        definitions=[c for p in ['qwen06-plan.json','dense-plan.json']for cell in read(self.rep/p)['cells']for c in cell['candidates']]
+        cells=[cell for p in ['qwen06-plan.json','dense-plan.json']for cell in read(self.rep/p)['cells']]
+        definitions=[c for cell in cells for c in cell['candidates']]
+        for batch in (1,16):
+            probes=[c for cell in cells if cell['model']==model and cell['batch']==batch for c in cell['candidates']if c.get('execution_probe')]
+            if not probes or any(state.get(c['pilot_job'],{}).get('status')not in TERMINAL for c in probes):return None
         winners=[]
         for batch,name,samples in selection:
             c=next(c for c in definitions if c['model']==model and c['batch']==batch and c['id']==name)
-            if c['mode']!='L2' or c['loop']!=0:raise ValueError('selected executor unsupported; no substitution allowed')
+            if c['mode']not in ('L1','L2')or c['loop']not in (0,1):raise ValueError('selected executor unsupported; no substitution allowed')
             verified=[]
             for sample in samples:verified.append(inspect_measurement(self.repo,state,cards,sample['job'],sample['round'],c))
             summary=summarize_samples(verified)
             if not summary['protocol_complete']or len({token_digest(s)for s in verified})!=1:raise ValueError('representative fresh protocol differs')
             validate_numeric_tokens(self.repo,state,c,verified)
-            for n in c['numeric_jobs']:
+            reference=numeric_reference(c)
+            for n in reference['numeric_jobs']:
                 gate=n+'_numeric_gate';record=state[gate];result=read(Path(record['out'])/'numeric-gate.json')
-                if record['status']!='done'or record['exit_code']!=0 or not result['passed']or result['candidate_sha256']!=file_sha(c['file']):raise ValueError('representative numeric gate not valid')
+                if record['status']!='done'or record['exit_code']!=0 or not result['passed']or not result['repeat_tokens_identical']or result['candidate_sha256']!=file_sha(reference['file']):raise ValueError('representative numeric gate not valid')
             key,signature=family(c);winners.append(dict(candidate=c,family=key,signature=signature,samples=verified))
         return dict(report_sha256=file_sha(self.rep/'selection-report.json'),winners=winners)
     def missing(self,base,winner):
@@ -229,12 +253,13 @@ class Campaign:
                     mma=next(t for t in templates if t['model']==model and t['batch']==batch and t['candidate']['arm']=='mma')
                     pool={mma['family']:mma['candidate']};blocked=[]
                     for family_key,w in choices.items():
-                        found=next((t['candidate']for t in templates if t['model']==model and t['batch']==batch and t['family']==family_key),None)
+                        template=next((t for t in templates if t['model']==model and t['batch']==batch and body_signature(t['signature'])==body_signature(w['signature'])),None)
+                        found=self.bind(base,template['candidate']['decode'],template['candidate']['arm'],family_key,w['candidate'])if template else None
                         adoption=adoptions.get(key+'_'+family_key)
                         if adoption:
-                            proposed=read(adoption);actual_key,_=family(proposed)
-                            if actual_key!=family_key:raise ValueError('adopted family silently differs')
-                            found=self.bind(base,proposed['decode'],proposed['arm'],family_key)
+                            proposed=read(adoption);_,actual_signature=family(proposed)
+                            if body_signature(actual_signature)!=body_signature(w['signature']):raise ValueError('adopted body family silently differs')
+                            found=self.bind(base,proposed['decode'],proposed['arm'],family_key,w['candidate'])
                         if found:pool[family_key]=found
                         else:blocked.append(self.missing(base,w))
                     if blocked:missing.extend(blocked);continue
@@ -293,7 +318,7 @@ class Campaign:
         write(self.out/'selection-report.json',dict(cells=report,default_promoted=False))
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--root',type=Path,default=Path(__file__).resolve().parents[1]);p.add_argument('--out',type=Path,required=True);p.add_argument('--prepare',action='store_true');a=p.parse_args();c=Campaign(a.root,a.out)
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--root',type=Path,default=Path(__file__).resolve().parents[1]);p.add_argument('--out',type=Path,required=True);p.add_argument('--driver-source',type=Path);p.add_argument('--prepare',action='store_true');a=p.parse_args();c=Campaign(a.root,a.out,a.driver_source)
     if a.prepare:c.prepare();return
     lib=ctypes.CDLL(None);fd=lib.inotify_init1(os.O_NONBLOCK|os.O_CLOEXEC);assert fd>=0
     for directory in [c.rep]+[c.scheduler/f'gpu{i}'for i in range(5)]:assert lib.inotify_add_watch(fd,os.fsencode(directory),0x8|0x80)>=0

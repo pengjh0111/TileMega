@@ -5,7 +5,7 @@ from pathlib import Path
 import sys,tempfile,unittest
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT/'scripts'))
-from advance_r16_dense_middle import selected_rows,packing_pair,Campaign,read,family
+from advance_r16_dense_middle import selected_rows,packing_pair,Campaign,read,family,body_signature,numeric_reference,file_sha
 
 class DenseMiddleTest(unittest.TestCase):
     def setUp(self):
@@ -47,6 +47,31 @@ class DenseMiddleTest(unittest.TestCase):
             campaign.finals(state,{},dict(cells=cells))
         self.assertEqual(len(published),1);self.assertIn('second',published[0][0]);self.assertEqual(len(published[0][1]),3)
         self.assertEqual([c['status']for c in read(self.root/'selection-report.json')['cells']],['blocked','pending'])
+    def test_executor_axis_reuses_body_but_preserves_transport(self):
+        signature=dict(arm='h1',mode='L2',loop=0,coordinates=dict(activation_tma=1,cluster_dim=1))
+        other=dict(signature,mode='L1',loop=1)
+        self.assertEqual(body_signature(signature),body_signature(other))
+        other['coordinates']=dict(activation_tma=0,cluster_dim=1)
+        self.assertNotEqual(body_signature(signature),body_signature(other))
+    def test_executor_reference_requires_hash_and_same_binary(self):
+        prompt=self.root/'prompt.json';prompt.write_text('[]')
+        reference=dict(model='m',batch=1,config_sha256='c',seed=0,prompt_ids=str(prompt),prefill='p',decode='d')
+        path=self.root/'candidate.json';path.write_text(json.dumps(reference))
+        candidate=dict(reference,numeric_reference_candidate=dict(path=str(path),sha256=file_sha(path)))
+        with patch('advance_r16_dense_middle.native_identity',side_effect=lambda p:dict(artifact_id=p)):
+            self.assertEqual(numeric_reference(candidate),reference)
+            candidate['decode']='other'
+            with self.assertRaisesRegex(ValueError,'same binary pair'):numeric_reference(candidate)
+            candidate['decode']='d';path.write_text('{}')
+            with self.assertRaisesRegex(ValueError,'candidate changed'):numeric_reference(candidate)
+    def test_unfinished_executor_probe_blocks_middle(self):
+        campaign=Campaign.__new__(Campaign);campaign.rep=self.root
+        cells=[dict(model='m',batch=b,candidates=[dict(execution_probe=True,pilot_job=f'probe{b}')])for b in (1,16)]
+        (self.root/'qwen06-plan.json').write_text(json.dumps(dict(cells=cells)))
+        (self.root/'dense-plan.json').write_text(json.dumps(dict(cells=[])))
+        (self.root/'selection-report.json').write_text('{}')
+        with patch('advance_r16_dense_middle.selected_rows',return_value=[]):
+            self.assertIsNone(campaign.verify_representatives('m',dict(probe1=dict(status='done'),probe16=dict(status='pending')),{}))
     def test_legacy_absent_inactive_fields_do_not_force_recompile(self):
         c=dict(decode='binary',arm='h1',mode='L2',loop=0)
         identity=dict(plan=dict(gemms=[dict(impl='wgmma')],nonpaged_la=False),defines={})
