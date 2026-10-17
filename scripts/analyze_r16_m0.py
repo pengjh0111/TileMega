@@ -13,9 +13,11 @@ def overlap(left, right):
     return max(0.0, min(left['inner_end'], right['inner_end'])-max(left['inner_start'], right['inner_start']))
 
 
-def analyze(root, run_id=None, solo_phase=None):
+def analyze(root, run_id=None, solo_phase=None, *, rows=None, rejected=None):
     root = Path(root).resolve()
-    rows, rejected = collect(root)
+    if rows is None:
+        rows, rejected = collect(root)
+    rejected = [] if rejected is None else rejected
     groups, errors = {}, []
     selected = []
     for row in rows:
