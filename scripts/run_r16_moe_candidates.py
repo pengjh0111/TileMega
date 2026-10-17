@@ -84,11 +84,14 @@ def assert_implementation(identity, candidate, phase):
             int(plan.get('moe_activation_bulk',0)) != int(candidate['arm']=='h1') or
             any(g['tile_m'] != 16 for g in plan['gemms'])):
             raise ValueError('formal H10 typed-inline flag or legal geometry missing')
-        for coordinate, macro in (('activation_tma', 'TILEMEGA_ACTIVATION_TMA'),
+        for coordinate, macro in (('moe_weight_bulk', 'TILEMEGA_MOE_WEIGHT_BULK'),
+                                  ('activation_tma', 'TILEMEGA_ACTIVATION_TMA'),
                                   ('qkv_epilogue', 'TILEMEGA_QKV_EPILOGUE')):
             wanted = int(candidate.get(coordinate, 0))
             if int(plan.get(coordinate, 0)) != wanted or int(identity.get('defines', {}).get(macro, 0)) != wanted:
                 raise ValueError(f'{coordinate} differs from the requested candidate')
+        if candidate.get('moe_weight_bulk') and candidate['arm']!='h1':
+            raise ValueError('expert weight bulk requires the explicit H10 WGMMA family')
         expected = 'wgmma' if candidate['arm'] == 'h1h4' else 'mma16'
         attention = identity['implementations']['attention']
         if attention['impl'] != expected or attention['page_layout'] != ('uniform' if expected == 'wgmma' else 'chunk16'):

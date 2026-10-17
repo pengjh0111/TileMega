@@ -25,6 +25,11 @@ class MoECandidateContract(unittest.TestCase):
                 'gemms':[{'index':i,'impl':'mma16','tile_m':16,'tile_n':64,'tile_k':64} for i in range(241)]},
             'implementations':{'dm_wgmma_inline':False,'gemms':[{'index':i,'impl':'mma16'} for i in range(241)],
                 'attention':{'impl':'mma16','page_layout':'chunk16'}}}
+    def test_weight_bulk_must_be_explicitly_bound(self):
+        self.i['plan']['moe_weight_bulk']=1
+        self.i['defines']['TILEMEGA_MOE_WEIGHT_BULK']='1'
+        self.rejected(lambda:None)
+
     def test_mma_legal(self):
         assert_implementation(self.i,self.c,'decode')
     def wgmma(self):
