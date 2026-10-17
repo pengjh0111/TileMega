@@ -19,8 +19,15 @@ def write(path,value):
 
 def family(candidate):
     identity=native_identity(candidate['decode']);plan=identity['plan']
+    coordinates={k:plan.get(k)for k in COORDS}
+    for key in ('activation_tma','qkv_epilogue','moe_activation_bulk'):
+        coordinates[key]=int(coordinates[key]or identity.get('defines',{}).get('TILEMEGA_'+key.upper(),0))
+    coordinates['cluster_dim']=int(coordinates['cluster_dim']or 1)
+    coordinates['nonpaged_la']=bool(coordinates['nonpaged_la'])
+    if not coordinates['nonpaged_la']:coordinates['combine']='stage'
+    elif coordinates['combine']is None:coordinates['combine']='legacy_la'
     value=dict(arm=candidate['arm'],mode=candidate['mode'],loop=candidate['loop'],
-               coordinates={k:plan.get(k) for k in COORDS},
+               coordinates=coordinates,
                gemm_implementations=[g['impl']for g in plan['gemms']])
     return candidate['arm']+'-'+json_digest(value)[:10],value
 

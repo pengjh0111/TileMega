@@ -5,7 +5,7 @@ from pathlib import Path
 import sys,tempfile,unittest
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT/'scripts'))
-from advance_r16_dense_middle import selected_rows,packing_pair,Campaign,read
+from advance_r16_dense_middle import selected_rows,packing_pair,Campaign,read,family
 
 class DenseMiddleTest(unittest.TestCase):
     def setUp(self):
@@ -47,5 +47,13 @@ class DenseMiddleTest(unittest.TestCase):
             campaign.finals(state,{},dict(cells=cells))
         self.assertEqual(len(published),1);self.assertIn('second',published[0][0]);self.assertEqual(len(published[0][1]),3)
         self.assertEqual([c['status']for c in read(self.root/'selection-report.json')['cells']],['blocked','pending'])
+    def test_legacy_absent_inactive_fields_do_not_force_recompile(self):
+        c=dict(decode='binary',arm='h1',mode='L2',loop=0)
+        identity=dict(plan=dict(gemms=[dict(impl='wgmma')],nonpaged_la=False),defines={})
+        with patch('advance_r16_dense_middle.native_identity',return_value=identity):old=family(c)[0]
+        identity['plan'].update(activation_tma=0,qkv_epilogue=0,moe_activation_bulk=0,cluster_dim=1,combine='stage')
+        with patch('advance_r16_dense_middle.native_identity',return_value=identity):self.assertEqual(old,family(c)[0])
+        identity['plan']['activation_tma']=1
+        with patch('advance_r16_dense_middle.native_identity',return_value=identity):self.assertNotEqual(old,family(c)[0])
 
 if __name__=='__main__':unittest.main()
