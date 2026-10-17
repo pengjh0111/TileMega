@@ -6,6 +6,7 @@ import argparse
 import ast
 import csv
 import collections
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -23,6 +24,11 @@ METRICS=('e2e_seconds','ttft_seconds','tpot_seconds','output_tokens_per_second')
 
 def read(path):
     return json.loads(Path(path).read_text())
+
+
+def snapshot(path):
+    data=Path(path).read_bytes()
+    return json.loads(data),hashlib.sha256(data).hexdigest()
 
 
 def load_driver(candidate):
@@ -347,22 +353,23 @@ def collect(root,plans,scheduler_roots=None):
     for path in plans:
         path=Path(path).resolve()
         try:
-            plan=read(path)
+            plan,plan_sha=snapshot(path)
             if 'root' in plan and Path(plan['root']).resolve()!=root:raise ValueError('plan belongs to a different root')
             requests=scheduled_jobs(path,plan)
         except (OSError,ValueError,KeyError,TypeError) as error:
             rejections.append(dict(plan=str(path),status='unsupported',reason=str(error)));continue
         report_path=path.parent/'selection-report.json'
         try:
-            report=read(report_path) if report_path.is_file() else {}
+            report,report_sha=snapshot(report_path) if report_path.is_file() else ({},None)
             if (plan.get('require_selection_pool_sha') and
-                    report.get('plans',{}).get(str(path)) != file_sha(path)):
+                    report.get('plans',{}).get(str(path)) != plan_sha):
                 raise ValueError('selection report is not bound to the current candidate pool')
             choices={(c['model'],c['batch']):c for c in report.get('cells',[])}
         except (OSError,ValueError,KeyError,TypeError) as error:
             choices={};rejections.append(dict(plan=str(path),status='unsupported_selection_report',reason=str(error)))
+        first_row,first_selection=len(rows),len(selected)
         for c,jobs in requests:
-            base=dict(plan=str(path),plan_sha256=file_sha(path),model_config_sha256=c['config_sha256'],model=c['model'],batch=c['batch'],candidate=c['id'],system=c['system'],native_system_label=c.get('native_system_label',c['system']),executor=c['mode'],device_loop=c['loop'],gpu=c['gpu'],source_head=c['snapshot_head'],driver_sha256=c['script_sha256'],selected_by_report=False,default_promoted=False)
+            base=dict(plan=str(path),plan_sha256=plan_sha,model_config_sha256=c['config_sha256'],model=c['model'],batch=c['batch'],candidate=c['id'],system=c['system'],native_system_label=c.get('native_system_label',c['system']),executor=c['mode'],device_loop=c['loop'],gpu=c['gpu'],source_head=c['snapshot_head'],driver_sha256=c['script_sha256'],selected_by_report=False,default_promoted=False)
             samples=[];statuses={};unsupported=c.get('native_system_label',c.get('system')) not in NATIVE_LLM_SYSTEMS
             if unsupported:rejections.append(dict(plan=str(path),candidate=c['id'],status='unsupported',reason='current native validation does not recognize system '+str(c.get('system'))))
             for name,rnd,definition in jobs:
@@ -386,9 +393,13 @@ def collect(root,plans,scheduler_roots=None):
             choice=choices.get((c['model'],c['batch']),{})
             if choice.get('status')=='complete' and choice.get('selected')==c['id']:
                 if summary['protocol_complete'] and selection_matches(choice,c,samples):
-                    base['selected_by_report']=True;selected.append(dict(**base,selection_report=str(report_path),selection_report_sha256=file_sha(report_path)))
+                    base['selected_by_report']=True;selected.append(dict(**base,selection_report=str(report_path),selection_report_sha256=report_sha))
                 else:rejections.append(dict(plan=str(path),candidate=c['id'],status='unvalidated_selection',reason='selection-report lacks the same three independently valid final measurement paths/PIDs'))
             rows.append(dict(**base,**summary,job_statuses=statuses))
+        if plan.get('require_selection_pool_sha') and file_sha(path)!=plan_sha:
+            for row in rows[first_row:]:row['selected_by_report']=False
+            del selected[first_selection:]
+            rejections.append(dict(plan=str(path),status='selection_pool_changed',reason='candidate pool changed during independent receipt validation'))
     return dict(evidence='verified_independent_receipt_analysis',scope='explicit plans only; final N1024 rounds; no pilot replacement or default promotion',plans=[str(Path(p).resolve()) for p in plans],candidates=rows,processes=processes,selections=selected,rejections=rejections)
 
 
