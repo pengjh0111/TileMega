@@ -98,7 +98,7 @@ def main():
         complete=full, selected_native_cells=len(selected), external_cells=len(external),
         comparisons=len(ratios), missing_native=missing,
         default_promoted=False, accuracy='model-level numeric gates are checked by the native collector',
-        limits='device pairing, shared checkpoint and PID ownership remain explicit in ratio CSV; MoE without routing trace has no MBU'),indent=2)+'\n')
+        limits='device pairing, shared checkpoint and PID ownership remain explicit in ratio CSV; MoE B1 logical payload follows top-k, B>1 needs routing trace for point MBU'),indent=2)+'\n')
     print(json.dumps(dict(selected_cells=len(selected), external_cells=len(external),
                          comparisons=len(ratios), complete=full)))
     return int(args.require_complete and not full)
