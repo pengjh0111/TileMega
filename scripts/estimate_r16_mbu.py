@@ -37,6 +37,33 @@ def dense_payload(config, batch, isl=64, osl=1024):
                 average_kv_rows=average_kv_rows, logical_bytes_per_decode=weights + kv)
 
 
+def moe_payload_bounds(config, batch, isl=64, osl=1024):
+    """Bound logical distinct-expert reads; B1 has exactly top-k experts."""
+    if (config.get('model_type') != 'qwen3_moe' or config.get('decoder_sparse_step',1) != 1
+            or config.get('mlp_only_layers') or config.get('shared_expert_intermediate_size',0)):
+        return None
+    hidden, layers = int(config['hidden_size']), int(config['num_hidden_layers'])
+    heads, kv_heads = int(config['num_attention_heads']), int(config['num_key_value_heads'])
+    dim, vocab = int(config['head_dim']), int(config['vocab_size'])
+    experts, topk = int(config['num_experts']), int(config['num_experts_per_tok'])
+    intermediate = int(config['moe_intermediate_size'])
+    if min(hidden,layers,heads,kv_heads,dim,vocab,intermediate,batch,isl) <= 0 or osl < 2 or not 1<=topk<=experts:
+        raise ValueError('invalid full MoE dimensions')
+    # Include Q/K/V/O, the router and lm_head. Padding and backend-specific
+    # redundant expert reads remain outside the logical payload convention.
+    dense = 2*(layers*(hidden*(heads+2*kv_heads)*dim + hidden*heads*dim + hidden*experts) + hidden*vocab)
+    per_expert = 2*3*hidden*intermediate
+    rows = isl+osl/2
+    kv = 4*batch*layers*kv_heads*dim*rows
+    maximum = min(experts,batch*topk)
+    return dict(nonexpert_gemm_weight_bytes=dense,
+        expert_weight_bytes_per_layer_per_expert=per_expert,
+        distinct_experts_per_layer_min=topk, distinct_experts_per_layer_max=maximum,
+        kv_read_bytes=kv, average_kv_rows=rows,
+        logical_bytes_per_decode_min=dense+layers*topk*per_expert+kv,
+        logical_bytes_per_decode_max=dense+layers*maximum*per_expert+kv)
+
+
 def bandwidth(receipt):
     rows = [row for row in receipt['rows'] if row['name'] == 'bulk' and row['unit'] == 'GB/s']
     if not receipt.get('passed') or len(rows) != 1 or not rows[0].get('passed'):
@@ -71,9 +98,27 @@ def main():
                    mbu_scope='inferred logical BF16 GEMM weights plus KV reads; not physical traffic',
                    mbu_limit='excludes small norm/embedding traffic, writes and system-specific redundant reads',
                    gemm_weight_bytes='', kv_read_bytes='', average_kv_rows='',
-                   logical_bytes_per_decode='', mbu_measured='', mbu_nominal='')
+                   logical_bytes_per_decode='', mbu_measured='', mbu_nominal='',
+                   nonexpert_gemm_weight_bytes='', expert_weight_bytes_per_layer_per_expert='',
+                   distinct_experts_per_layer_min='', distinct_experts_per_layer_max='',
+                   logical_bytes_per_decode_min='', logical_bytes_per_decode_max='',
+                   mbu_measured_min='',mbu_measured_max='',mbu_nominal_min='',mbu_nominal_max='')
         if payload is None:
-            row['mbu_scope'] = 'unavailable: actual per-step distinct MoE expert routing trace required'
+            bounds = moe_payload_bounds(json.loads(config_path.read_text()), int(cell['batch']))
+            row['mbu_scope'] = 'unavailable point estimate: actual per-step distinct MoE expert routing trace required'
+            if bounds:
+                tpot=float(cell['tpot_ms'])/1000
+                if not math.isfinite(tpot) or tpot<=0:raise ValueError('invalid TPOT')
+                row.update(bounds)
+                for name,value in [('measured',measured),('nominal',args.nominal_gbps)]:
+                    for end in ('min','max'):
+                        row[f'mbu_{name}_{end}']=bounds['logical_bytes_per_decode_'+end]/(tpot*value*1e9)
+                if bounds['distinct_experts_per_layer_min']==bounds['distinct_experts_per_layer_max']:
+                    payload=dict(gemm_weight_bytes=bounds['logical_bytes_per_decode_min']-bounds['kv_read_bytes'],
+                        kv_read_bytes=bounds['kv_read_bytes'],average_kv_rows=bounds['average_kv_rows'],
+                        logical_bytes_per_decode=bounds['logical_bytes_per_decode_min'])
+                    row.update(payload,mbu_measured=row['mbu_measured_min'],mbu_nominal=row['mbu_nominal_min'])
+                    row['mbu_scope']='inferred logical BF16 payload; B1 distinct experts equal top-k by invariant; not physical traffic'
         else:
             tpot = float(cell['tpot_ms']) / 1000
             if not math.isfinite(tpot) or tpot <= 0:
@@ -87,7 +132,7 @@ def main():
             writer = csv.DictWriter(stream, fieldnames=list(rows[0]), lineterminator='\n')
             writer.writeheader()
             writer.writerows(rows)
-    print(f'{len(rows)} complete cells; MoE without actual routing stays unavailable')
+    print(f'{len(rows)} complete cells; MoE B1 top-k payload and bounds; B>1 point estimates require routing')
 
 
 if __name__ == '__main__':
