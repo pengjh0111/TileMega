@@ -192,7 +192,8 @@ class Campaign:
         if not check['pass_check']:raise ValueError(check)
         write(q/name,jobs)
     def verify_representatives(self,model,state,cards):
-        report=read(self.rep/'selection-report.json');paths=[self.rep/p for p in ['qwen06-plan.json','dense-plan.json']]
+        report_bytes=(self.rep/'selection-report.json').read_bytes();report=json.loads(report_bytes)
+        report_sha256=hashlib.sha256(report_bytes).hexdigest();paths=[self.rep/p for p in ['qwen06-plan.json','dense-plan.json']]
         if not selection_pool_current(report,paths):return None
         selection=selected_rows(report,model)
         if selection is None:return None
@@ -215,7 +216,8 @@ class Campaign:
                 gate=n+'_numeric_gate';record=state[gate];result=read(Path(record['out'])/'numeric-gate.json')
                 if record['status']!='done'or record['exit_code']!=0 or not result['passed']or not result['repeat_tokens_identical']or result['candidate_sha256']!=file_sha(reference['file']):raise ValueError('representative numeric gate not valid')
             key,signature=family(c);winners.append(dict(candidate=c,family=key,signature=signature,samples=verified))
-        return dict(report_sha256=file_sha(self.rep/'selection-report.json'),winners=winners)
+        if not selection_pool_current(report,paths):return None
+        return dict(report_sha256=report_sha256,winners=winners)
     def missing(self,base,winner):
         # Commands are proposals only. Missing geometry/import graphs are explicit prerequisites.
         from run_r16_hopper_candidates import compile_command
