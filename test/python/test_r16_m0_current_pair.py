@@ -4,7 +4,7 @@ from pathlib import Path
 import json,sys,tempfile,unittest
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'scripts'))
-from advance_r16_m0_current_pair import Trial,write,sha,validate_barriers
+from advance_r16_m0_current_pair import Trial,write,sha,validate_barriers,executed_guard_rejection
 from analyze_r16_m0 import analyze
 
 class CurrentPairTest(unittest.TestCase):
@@ -21,6 +21,13 @@ class CurrentPairTest(unittest.TestCase):
         with patch('analyze_r16_m0.collect',side_effect=AssertionError('legacy collector called')):
             result=analyze(self.out,'current47_v1',rows=[],rejected=[])
         self.assertEqual(result['process_count'],0);self.assertFalse(result['passed'])
+    def test_guard75_after_execution_cannot_retry_a_paired_round(self):
+        record=dict(status='pending',exit_code=75,out=str(self.out))
+        write(self.out/'guard_result.json',dict(code=75,acceptance='rejected',reason='preflight occupied'))
+        self.assertIsNone(executed_guard_rejection(record))
+        write(self.out/'physical-device-command.json',dict(actual_returncode=0))
+        write(self.out/'guard_result.json',dict(code=75,acceptance='rejected',reason='exit unresolved GPU owner'))
+        self.assertIn('actual child executed',executed_guard_rejection(record))
     def test_peer_pid_and_nonce_must_match_real_measurements(self):
         rows=[]
         for gpu,peer in [(4,7),(7,4)]:

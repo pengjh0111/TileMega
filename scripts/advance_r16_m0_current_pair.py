@@ -20,6 +20,15 @@ def wait(fd,seconds=55):
             while os.read(fd,1<<20):pass
         except BlockingIOError:pass
 
+def executed_guard_rejection(record):
+    """A post-launch 75 cannot reuse the peer's already completed nonce."""
+    if record.get('status')!='pending'or record.get('exit_code')!=75 or not record.get('out'):return None
+    directory=Path(record['out']);result=directory/'guard_result.json'
+    if result.exists()and(directory/'physical-device-command.json').exists():
+        value=read(result)
+        if value.get('acceptance')=='rejected':return 'actual child executed but outer guard rejected: '+str(value.get('reason'))
+    return None
+
 def validate_barriers(rows):
     """A completed peer process cannot certify a different round or nonce."""
     values={(r['gpu'],r['round']):read(r['absolute_measurement'])for r in rows if r['phase']=='concurrent'}
@@ -101,7 +110,10 @@ class Trial:
         states={g:read(d/'state.json')for g,d in self.states.items()};rows=[];rejected=[];pending=[]
         for item in plan['jobs']:
             record=states[item['gpu']].get(item['name'],{})
-            if record.get('status')not in TERMINAL:pending.append(item);continue
+            if record.get('status')not in TERMINAL:
+                reason=executed_guard_rejection(record)
+                if reason:rejected.append(dict(job=item['name'],reason=reason))
+                pending.append(item);continue
             try:
                 directory=Path(record['out']);guard=completed_guard(directory,record);paths=list((directory/'measurements').glob('B16/measurements.json'))
                 if len(paths)!=1:raise ValueError('one B16 measurement required')
