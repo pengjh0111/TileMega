@@ -5,7 +5,7 @@ from pathlib import Path
 import sys,tempfile,unittest
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT/'scripts'))
-from advance_r16_dense_middle import selected_rows,packing_pair
+from advance_r16_dense_middle import selected_rows,packing_pair,Campaign,read
 
 class DenseMiddleTest(unittest.TestCase):
     def setUp(self):
@@ -31,5 +31,21 @@ class DenseMiddleTest(unittest.TestCase):
             self.assertEqual(packing_pair(*paths)['shared_names'],1)
             bad=dict(b,recipe=dict(kind='tile_pages',tile_n=64,tile_k=64));Path(str(paths[1])+'.plan.json').write_text(json.dumps(dict(buffers=[bad])))
             with self.assertRaisesRegex(ValueError,'packing conflict'):packing_pair(*paths)
+    def test_blocked_cell_does_not_prevent_other_finalists(self):
+        campaign=Campaign.__new__(Campaign);campaign.repo=self.root;campaign.out=self.root
+        published=[]
+        def publish(gpu,name,jobs):
+            if 'first' in name:raise ValueError('one invalid immutable queue')
+            published.append((name,jobs))
+        campaign.publish=publish;cells=[];state={}
+        for model in ['first','second']:
+            c=dict(id='mma',model=model,batch=2,gpu=2,pilot_job=model+'_pilot',
+                physical_device_expected=dict(uuid='u',pci='p',numa_node=0),python='python3',
+                script='frozen.py',file='candidate.json',root=str(self.root),env={})
+            cells.append(dict(model=model,batch=2,gpu=2,candidates=[c]));state[c['pilot_job']]=dict(status='done')
+        with patch('advance_r16_dense_middle.inspect_measurement',return_value=dict(e2e_seconds=1.0)):
+            campaign.finals(state,{},dict(cells=cells))
+        self.assertEqual(len(published),1);self.assertIn('second',published[0][0]);self.assertEqual(len(published[0][1]),3)
+        self.assertEqual([c['status']for c in read(self.root/'selection-report.json')['cells']],['blocked','pending'])
 
 if __name__=='__main__':unittest.main()
