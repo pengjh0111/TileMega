@@ -61,6 +61,13 @@ class QueueCheckTest(unittest.TestCase):
         gate['after'] = ['gpu']
         self.assertTrue(check([step('gpu')], [gate], {})['pass_check'])
 
+    def test_shared_checkpoint_gate_cannot_point_at_an_unrelated_old_receipt(self):
+        gate = step('shared_gate', ['gpu_v2'])
+        gate['command'] = ['python3', '/frozen/validate_shared_numeric.py', '--job', 'gpu_v1']
+        self.assertFalse(check([step('gpu_v1'), step('gpu_v2')], [gate], {})['pass_check'])
+        gate['command'][-1] = 'gpu_v2'
+        self.assertTrue(check([step('gpu_v2')], [gate], {})['pass_check'])
+
     def test_pci_domain_mismatch_is_rejected_before_a_gpu_job(self):
         gpu = step('gpu')
         gpu['command'] = ['python3', '/frozen/run_r16_with_device_identity.py',

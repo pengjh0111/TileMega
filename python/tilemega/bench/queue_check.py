@@ -27,7 +27,8 @@ def check(existing, proposed, state):
         step = steps[name]
         argv = [str(value) for value in step.get('command', [])]
         scripts = {Path(value).name for value in argv}
-        if scripts & {'validate_r16_numeric_gate.py', 'validate_r16_dnn_numeric_gate.py'}:
+        if scripts & {'validate_r16_numeric_gate.py', 'validate_r16_dnn_numeric_gate.py',
+                      'validate_shared_numeric.py'}:
             try:
                 target = argv[argv.index('--job')+1]
             except (ValueError, IndexError):
