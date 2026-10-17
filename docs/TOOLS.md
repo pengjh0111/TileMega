@@ -207,10 +207,14 @@ SM80 execution remain unchanged.
 
 
 The experimental `--moe-weight-bulk 1` coordinate additionally copies the
-resolved expert's packed B tile with bulk; omission is zero. Verified: the
+resolved expert's packed B tile with bulk; omission is zero. Gate/up uses
+a combined A-row/B-tile completion; dense down inputs and A tails use a
+B-only completion alongside the existing A copy. This extended branch has
+not yet been executed on a GPU; the earlier gate/up-only prototype failed a long
+L1-host CUDA check. Verified: the
 compiler requires `--dm-wgmma-inline 1`, activation bulk, and tiled nonpaged
-weights, and records the coordinate in the artifact identity. A single
-mbarrier completion phase covers both the gathered A rows and B tile; the
+weights, and records the coordinate in the artifact identity. For gathered rows, one
+mbarrier completion phase covers both A and B; the
 existing WGMMA slot ownership remains in force. Plain bulk carries no extra
 L2 cache hint. Inferred: bounded RF2 may reuse the WGMMA cost estimate until
 an independent fit exists. Five fresh numerical checks, full-model long

@@ -13,6 +13,21 @@ struct Sm90BulkGather {
   static_assert(M==16 && (K==64 || K==128));
   using E=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<Arch>;
+  __device__ static __forceinline__ void BeginWeight(E* destination,E const* source,
+      unsigned bytes,std::uint64_t* barrier) {
+    static_assert(arch::Caps<Arch>::kBulkCopy);
+    using codegen::executor::ComputeThread;using codegen::executor::ComputeSync;
+    ComputeSync();
+    if(ComputeThread()==0)Async::Init(barrier,1);
+    Async::InitFence();ComputeSync();Async::ProxyAsyncGlobalFence();
+    if(ComputeThread()==0) {
+      Async::ExpectTx(barrier,bytes);
+      Async::Bulk(destination,source,bytes,barrier);
+    }
+  }
+  __device__ static __forceinline__ void WaitWeight(std::uint64_t* barrier) {
+    Async::Wait(barrier,0);codegen::executor::ComputeSync();
+  }
   template<bool WeightBulk=false,class Operands>
   __device__ static __forceinline__ bool Load(Operands const& p,int tile_m,int iteration,
       E* destination,E* linear,std::uint64_t* barrier,

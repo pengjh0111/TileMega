@@ -295,19 +295,32 @@ struct ServingGemmTaskBody {
       auto* as=a+(it%2)*TileM*TileK;
       auto* bs=b+(it%2)*TileN*TileK;
       bool gathered=false;
+#if TILEMEGA_MOE_WEIGHT_BULK
+      bool weight_loaded=false,weight_wait=false;
+#endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
       if constexpr(kBulkGather) {
 #if TILEMEGA_MOE_WEIGHT_BULK
         static_assert(TILEMEGA_NONPAGED_TILED, "expert weight bulk requires packed weights");
-        if(p.access.b==DmBAccess::kExpertIndirect && (it+1)*TileK<=p.k_count) {
-          if(!p.weight_base || p.k_total_full<=0 || p.k_begin%TileK) {
+        if(p.access.b==DmBAccess::kExpertIndirect) {
+          if(!p.weight_base || p.k_total_full<=0 || p.k_begin%TileK ||
+             p.k_begin+it*TileK>=p.k_total_full) {
             asm volatile("trap;");return nullptr;
           }
           int kt=(p.k_total_full+TileK-1)/TileK;
           auto* source=p.weight_base+(std::size_t(tile_n)*kt+p.k_begin/TileK+it)*TileN*TileK;
-          gathered=backend::Sm90BulkGather<Arch,TileM,TileK>::template Load<true>(
-              p,tile_m,it,as,b+2*TileN*TileK,reinterpret_cast<std::uint64_t*>(shared),
-              bs,source,TileN*TileK*sizeof(Element));
+          if(p.access.a==DmAAccess::kRowGather && (it+1)*TileK<=p.k_count)
+            gathered=backend::Sm90BulkGather<Arch,TileM,TileK>::template Load<true>(
+                p,tile_m,it,as,b+2*TileN*TileK,reinterpret_cast<std::uint64_t*>(shared),
+                bs,source,TileN*TileK*sizeof(Element));
+          // Dense expert intermediates and masked A tails still own a packed
+          // B tile. Its DMA overlaps the original cp.async A path.
+          if(!gathered) {
+            backend::Sm90BulkGather<Arch,TileM,TileK>::BeginWeight(
+                bs,source,TileN*TileK*sizeof(Element),reinterpret_cast<std::uint64_t*>(shared));
+            weight_wait=true;
+          }
+          weight_loaded=true;
         }else
 #endif
           gathered=backend::Sm90BulkGather<Arch,TileM,TileK>::Load(
@@ -333,7 +346,7 @@ struct ServingGemmTaskBody {
       int kt=(p.k_total_full+TileK-1)/TileK;
       auto* source=p.weight_base+(std::size_t(tile_n)*kt+p.k_begin/TileK+it)*TileN*TileK;
 #if TILEMEGA_MOE_WEIGHT_BULK && defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-      if(!(gathered && p.access.b==DmBAccess::kExpertIndirect))
+      if(!weight_loaded)
 #endif
       for(int v=ComputeThread()*8;v<TileN*TileK;v+=kComputeThreads*8)
         Async::Copy16Bytes(bs+v,source+v,16);
@@ -347,6 +360,10 @@ struct ServingGemmTaskBody {
       }
 #endif
       cute::cp_async_fence();cute::cp_async_wait<0>();ComputeSync();
+#if TILEMEGA_MOE_WEIGHT_BULK && defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+      if(weight_wait)backend::Sm90BulkGather<Arch,TileM,TileK>::WaitWeight(
+          reinterpret_cast<std::uint64_t*>(shared));
+#endif
       asm volatile("fence.proxy.async.shared::cta;" ::: "memory");
       ComputeSync();Body::Accumulate(bs,as,accum);Gmma::template Wait<1>();
     }
