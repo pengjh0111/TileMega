@@ -143,11 +143,11 @@ struct ServingGemmTaskBody {
   static constexpr bool kBulkGather=UseWgmma && TileM==16 && TILEMEGA_MOE_ACTIVATION_BULK;
   static constexpr bool kDecodeTma=UseWgmma && (TileM==8 || TileM==16) && TILEMEGA_ACTIVATION_TMA;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
-  static constexpr int kSharedBytes=UseWgmma && (TileM==8 || TileM>=64 || kBulkGather || kDecodeTma) ?
+  static constexpr int kSharedBytes=UseWgmma && (TileM==8 || TileM>=64 || kBulkGather || kDecodeTma || Stages>2) ?
       solver::ServingWgmmaSmemBytes(TileM,TileN,TileK,Stages,kBulkGather,kDecodeTma):
       solver::DmServingBF16SmemBytes(TileM,TileN,TileK,Stages);
 #else
-  static constexpr int kSharedBytes = UseWgmma && (TileM==8 || TileM>=64 || kBulkGather || kDecodeTma) ?
+  static constexpr int kSharedBytes = UseWgmma && (TileM==8 || TileM>=64 || kBulkGather || kDecodeTma || Stages>2) ?
       solver::ServingWgmmaSmemBytes(TileM,TileN,TileK,Stages,kBulkGather,kDecodeTma):Config::kSharedBytes;
 #endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
@@ -255,10 +255,106 @@ struct ServingGemmTaskBody {
     }
     return Body::Materialize(accum,shared);
   }
+  // Stages>2 keeps Stages-1 weight tiles in flight across WGMMA. The two-slot
+  // loops below issue one tile per wgmma wait: verified on H800 expert tasks,
+  // a 256 KiB TN64 weight slice streamed at ~5 GB/s per SM (52 us).
+  template<class Operands>
+  __device__ static __forceinline__ float* ComputePipelinedWgmma(Operands const& p,int tile_m,
+      int tile_n,char* shared) {
+    using namespace cute;
+    using Async=executor::Async<Arch>;
+    using Body=backend::Sm90DecodeGmma<Arch,TileM,TileN,TileK>;
+    using Gmma=typename Body::Gmma;
+    using Element=cutlass::bfloat16_t;
+    constexpr int S=Stages;
+    static_assert(S>2 && S*8<=1024,"pipelined decode WGMMA barriers exceed the header");
+    auto layout_a=as_position_independent_swizzle_layout(backend::Sm90KLayout<TileM,TileK>{});
+    int a_pitch=p.a_row_stride?p.a_row_stride:p.k_total;
+    int iterations=(p.k_count+TileK-1)/TileK;
+    if(!p.a || !p.b || p.k_begin<0 || p.k_begin%8 || p.k_count<=0 ||
+       p.k_begin+p.k_count>p.k_total || a_pitch<p.k_total || a_pitch%8 ||
+       p.k_begin+((p.k_count+7)&~7)>a_pitch || (Async::Shared(shared)&1023)) {
+      asm volatile("trap;");return nullptr;
+    }
+#if TILEMEGA_NONPAGED_TILED
+    if(!p.weight_base || p.k_total_full<=0 || p.k_begin%TileK) {
+      asm volatile("trap;");return nullptr;
+    }
+    int kt=(p.k_total_full+TileK-1)/TileK;
+#else
+    auto layout_b=as_position_independent_swizzle_layout(backend::Sm90KLayout<TileN,TileK>{});
+    int b_pitch=p.b_row_stride?p.b_row_stride:p.k_total;
+    if(b_pitch<p.k_total || b_pitch%8 || p.k_begin+((p.k_count+7)&~7)>b_pitch) {
+      asm volatile("trap;");return nullptr;
+    }
+#endif
+    // Scratch aliases the preceding task's FP32 epilogue.
+    ComputeSync();
+    auto* barriers=reinterpret_cast<std::uint64_t*>(shared);
+    auto* a=reinterpret_cast<Element*>(shared+1024);
+    auto* b=a+S*TileM*TileK;
+#if TILEMEGA_NONPAGED_TILED
+    if(ComputeThread()==0)for(int slot=0;slot<S;++slot)Async::Init(barriers+slot,1);
+    Async::InitFence();ComputeSync();Async::ProxyAsyncGlobalFence();
+#endif
+    // Every call commits one cp.async group and group g carries tile g, so
+    // wait_group<S-2> at iteration it covers tile it (S+it-1 groups committed).
+    auto issue=[&](int it) {
+      if(it<iterations) {
+        auto* as=a+(it%S)*TileM*TileK;
+        auto* bs=b+(it%S)*TileN*TileK;
+        for(int v=ComputeThread()*8;v<TileM*TileK;v+=kComputeThreads*8) {
+          int row=tile_m*TileM+v/TileK,k=it*TileK+v%TileK;
+          bool valid=row<p.m && k<p.k_count;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+          int source_row=valid?backend::DmSourceRow(p,row):0;
+#else
+          int source_row=row;
+#endif
+          auto* source=valid?p.a+std::int64_t(source_row)*a_pitch+p.k_begin+k:p.a;
+          Async::Copy16Bytes(as+layout_a(v/TileK,v%TileK),source,valid?min(8,p.k_count-k)*2:0);
+        }
+#if TILEMEGA_NONPAGED_TILED
+        if(ComputeThread()==0) {
+          auto* barrier=barriers+it%S;
+          Async::ExpectTx(barrier,2*TileN*TileK);
+          Async::Bulk(bs,p.weight_base+(std::size_t(tile_n)*kt+p.k_begin/TileK+it)*TileN*TileK,
+                      2*TileN*TileK,barrier);
+        }
+#else
+        for(int v=ComputeThread()*8;v<TileN*TileK;v+=kComputeThreads*8) {
+          int row=tile_n*TileN+v/TileK,k=it*TileK+v%TileK;
+          bool valid=row<p.n && k<p.k_count;
+          auto* source=valid?p.b+std::int64_t(row)*b_pitch+p.k_begin+k:p.b;
+          Async::Copy16Bytes(bs+layout_b(v/TileK,v%TileK),source,valid?min(8,p.k_count-k)*2:0);
+        }
+#endif
+      }
+      cute::cp_async_fence();
+    };
+    for(int slot=0;slot<S;++slot)issue(slot);
+    typename Body::Mma mma;
+    auto accum=partition_fragment_C(mma,Shape<Int<TileN>,Int<TileM>>{});
+    clear(accum);Gmma::Fence(accum);
+    for(int it=0;it<iterations;++it) {
+      cute::cp_async_wait<S-2>();ComputeSync();
+      Async::FenceProxyAsyncShared();
+#if TILEMEGA_NONPAGED_TILED
+      Async::Wait(barriers+it%S,(it/S)&1);
+#endif
+      ComputeSync();
+      Body::Accumulate(b+(it%S)*TileN*TileK,a+(it%S)*TileM*TileK,accum);
+      // wait_group<1> retires iteration it-1, whose slot is refilled next.
+      Gmma::template Wait<1>();ComputeSync();
+      if(it>0)issue(it-1+S);
+    }
+    return Body::Materialize(accum,shared);
+  }
   template<class Operands>
   __device__ static __forceinline__ float* ComputeWgmma(Operands const& p,int tile_m,
       int tile_n,char* shared) {
     if constexpr(TileM>=64)return ComputeForwardWgmma(p,tile_m,tile_n,shared);
+    else if constexpr(Stages>2)return ComputePipelinedWgmma(p,tile_m,tile_n,shared);
     else {
     if constexpr(kDecodeTma) {
       bool dense=true;

@@ -14,7 +14,7 @@ using Arch=std::conditional_t<std::is_void_v<tilemega::arch::CurrentArch>,
 void CheckCuda(cudaError_t e) {
   if(e!=cudaSuccess){std::fprintf(stderr,"%s\n",cudaGetErrorString(e));std::exit(2);}
 }
-template<int N,int K,bool Paged,int Page=16384>
+template<int N,int K,bool Paged,int Page=16384,int S=2>
 __global__ void Run(ServingGemmOperands p) {
   extern __shared__ __align__(1024) char memory[];
   if constexpr(Paged) {
@@ -28,14 +28,14 @@ __global__ void Run(ServingGemmOperands p) {
       else Body::Load(p,n,ring,sequence);
     }
   }else {
-    using Body=ServingGemmTaskBody<Arch,16,N,K,2,true>;
+    using Body=ServingGemmTaskBody<Arch,16,N,K,S,true>;
     for(int m=0;m<(p.m+15)/16;++m)for(int n=0;n<(p.n+N-1)/N;++n)
       Body::Run(p,m,n,memory);
   }
 }
 float A(int row,int k) {return ((row*13+k*7)%29-14)*0.015625f;}
 float B(int row,int k) {return ((row*17+k*11)%31-15)*0.015625f;}
-template<int N,int K,bool Paged,int Page=16384>
+template<int N,int K,bool Paged,int Page=16384,int S=2>
 void Check(int rows,int cols,int reduction,int begin,Op op) {
   using Body=PagedGemmTaskBody<Arch,16,Paged?N:64,Paged?K:64,Page,5,false,true>;
   int pitch=(reduction+7)&~7,kt=(reduction+K-1)/K,nt=(cols+N-1)/N;
@@ -63,13 +63,13 @@ void Check(int rows,int cols,int reduction,int begin,Op op) {
   p.a_row_stride=p.b_row_stride=pitch;p.partial_stride=cols;
   p.output_stride=op==Op::kArgmaxPartial?nt:op==Op::kSwiGLU?cols/2:cols;
   constexpr int pool=(1024+std::max(Body::kActivationBytes,Body::kScratchBytes)+1023)/1024*1024;
-  int bytes=Paged?pool+5*Page:ServingGemmTaskBody<Arch,16,N,K,2,true>::kSharedBytes;
-  CheckCuda(cudaFuncSetAttribute(Run<N,K,Paged,Page>,cudaFuncAttributeMaxDynamicSharedMemorySize,bytes));
-  Run<N,K,Paged,Page><<<1,Paged?160:128,bytes>>>(p);CheckCuda(cudaDeviceSynchronize());
+  int bytes=Paged?pool+5*Page:ServingGemmTaskBody<Arch,16,N,K,S,true>::kSharedBytes;
+  CheckCuda(cudaFuncSetAttribute(Run<N,K,Paged,Page,S>,cudaFuncAttributeMaxDynamicSharedMemorySize,bytes));
+  Run<N,K,Paged,Page,S><<<1,Paged?160:128,bytes>>>(p);CheckCuda(cudaDeviceSynchronize());
   auto acc=[&](int row,int col) {float sum=0;for(int k=begin;k<reduction;++k)sum+=A(row,k)*B(col,k);return sum;};
   auto fail=[&](int row,int col,float actual,float expected) {
-    std::fprintf(stderr,"WGMMA %s N%d K%d M%d N%d K%d begin%d op%d [%d,%d]: %.9g != %.9g\n",
-        Paged?"pages":"dense",N,K,rows,cols,reduction,begin,int(op),row,col,actual,expected);std::exit(3);
+    std::fprintf(stderr,"WGMMA %s S%d N%d K%d M%d N%d K%d begin%d op%d [%d,%d]: %.9g != %.9g\n",
+        Paged?"pages":"dense",S,N,K,rows,cols,reduction,begin,int(op),row,col,actual,expected);std::exit(3);
   };
   for(int row=0;row<rows;++row) {
     if(op==Op::kArgmaxPartial) {
@@ -104,11 +104,11 @@ void Check(int rows,int cols,int reduction,int begin,Op op) {
   for(void* ptr:{static_cast<void*>(a),static_cast<void*>(b),static_cast<void*>(out),
       static_cast<void*>(residual),static_cast<void*>(partial),static_cast<void*>(best),static_cast<void*>(indices)})CheckCuda(cudaFree(ptr));
 }
-template<int N,int K,bool Paged,int Page=16384>
+template<int N,int K,bool Paged,int Page=16384,int S=2>
 void Matrix() {
   for(int rows:{1,16,19})for(int k:{2001,2048})for(int begin:{0,128})
     for(Op op:{Op::kStore,Op::kResidual,Op::kPartial,Op::kArgmaxPartial,Op::kSwiGLU})
-      Check<N,K,Paged,Page>(rows,op==Op::kSwiGLU?96:73,k,begin,op);
+      Check<N,K,Paged,Page,S>(rows,op==Op::kSwiGLU?96:73,k,begin,op);
 }
 int main() {
 #if defined(TILEMEGA_SM90_WIDE_TEST) && TILEMEGA_SM90_WIDE_TEST
@@ -117,6 +117,8 @@ int main() {
 #else
   Matrix<64,64,true>();Matrix<128,64,true>();Matrix<64,128,true>();
   Matrix<64,64,false>();Matrix<128,64,false>();Matrix<256,128,false>();
-  std::puts("WGMMA paged/nonpaged: 360 shape/residue/split-offset/epilogue cases PASS");
+  Matrix<64,64,false,16384,3>();Matrix<64,64,false,16384,8>();
+  Matrix<128,64,false,16384,4>();Matrix<64,128,false,16384,6>();
+  std::puts("WGMMA paged/nonpaged and 3/4/6/8-slot nonpaged: 600 shape/residue/split-offset/epilogue cases PASS");
 #endif
 }

@@ -13,11 +13,11 @@ using E=cutlass::bfloat16_t;using Arch=tilemega::arch::Sm90;
 using Spec=DmEpilogueSpec<DmEpilogueProgram<>,DmWriteKind::kDense,1,DmRounding::kFP32>;
 void Cuda(cudaError_t e){if(e!=cudaSuccess){std::fprintf(stderr,"%s\n",cudaGetErrorString(e));std::exit(2);}}
 template<class T>T* Allocate(std::size_t n){T* p;Cuda(cudaMallocManaged(&p,n*sizeof(T)));return p;}
-template<int N,int K,bool Paged>
+template<int N,int K,bool Paged,int S=2>
 __global__ void Run(ServingGemmOperands p) {
   constexpr int Page=N*K*2>16384?32768:16384;
   using P=PagedGemmTaskBody<Arch,16,N,K,Page,5,false,true>;
-  using D=ServingGemmTaskBody<Arch,16,N,K,2,true>;
+  using D=ServingGemmTaskBody<Arch,16,N,K,S,true>;
   extern __shared__ __align__(1024) char memory[];
   constexpr int pool=(1024+P::kDmWorkspaceBytes+1023)/1024*1024;
   typename P::Ring ring{reinterpret_cast<typename P::Ring::Slot*>(memory),memory+pool};
@@ -33,11 +33,11 @@ __global__ void Run(ServingGemmOperands p) {
 }
 float A(int row,int k){return ((row*13+k*7)%29-14)/64.f;}
 float B(int expert,int col,int k){return ((expert*11+col*17+k*13)%31-15)/64.f;}
-template<int N,int K,bool Paged>
+template<int N,int K,bool Paged,int S=2>
 void Case(int rows,int reduction,int begin,bool expert) {
   constexpr int Page=N*K*2>16384?32768:16384;
   using P=PagedGemmTaskBody<Arch,16,N,K,Page,5,false,true>;
-  using D=ServingGemmTaskBody<Arch,16,N,K,2,true>;
+  using D=ServingGemmTaskBody<Arch,16,N,K,S,true>;
   int source_rows=23,cols=N+13,pitch=(reduction+7)&~7,kt=(reduction+K-1)/K,nt=(cols+N-1)/N;
   int experts=expert?3:1,virtual_rows=expert?96:rows;
   bool packed=Paged || TILEMEGA_NONPAGED_TILED;
@@ -68,8 +68,8 @@ void Case(int rows,int reduction,int begin,bool expert) {
   }
   constexpr int pool=(1024+P::kDmWorkspaceBytes+1023)/1024*1024;
   int bytes=Paged?pool+5*Page:D::kSharedBytes;
-  Cuda(cudaFuncSetAttribute(Run<N,K,Paged>,cudaFuncAttributeMaxDynamicSharedMemorySize,bytes));
-  Run<N,K,Paged><<<1,Paged?160:128,bytes>>>(p);Cuda(cudaDeviceSynchronize());
+  Cuda(cudaFuncSetAttribute(Run<N,K,Paged,S>,cudaFuncAttributeMaxDynamicSharedMemorySize,bytes));
+  Run<N,K,Paged,S><<<1,Paged?160:128,bytes>>>(p);Cuda(cudaDeviceSynchronize());
   for(int r=0;r<virtual_rows;++r)for(int n=0;n<cols;++n) {
     bool active=true;int src=indices[r],e=0;
     if(expert) {
@@ -79,17 +79,18 @@ void Case(int rows,int reduction,int begin,bool expert) {
     if(!active) {if(!std::isnan(out[r*cols+n])){std::fprintf(stderr,"wrote padded expert row\n");std::exit(3);}continue;}
     float expected=0;for(int k=begin;k<reduction;++k)expected+=A(src,k)*B(e,n,k);
     if(out[r*cols+n]!=expected) {
-      std::fprintf(stderr,"MoE bulk N%d K%d paged%d packed%d rows%d reduction%d begin%d expert%d [%d,%d] %.9g != %.9g\n",
-          N,K,Paged,packed,virtual_rows,reduction,begin,expert,r,n,out[r*cols+n],expected);std::exit(3);
+      std::fprintf(stderr,"MoE bulk S%d N%d K%d paged%d packed%d rows%d reduction%d begin%d expert%d [%d,%d] %.9g != %.9g\n",
+          S,N,K,Paged,packed,virtual_rows,reduction,begin,expert,r,n,out[r*cols+n],expected);std::exit(3);
     }
   }
   for(void* ptr:{static_cast<void*>(a),static_cast<void*>(b),static_cast<void*>(out),static_cast<void*>(indices),
       static_cast<void*>(blocks),static_cast<void*>(bindings)})Cuda(cudaFree(ptr));
 }
-template<int N,int K,bool Paged>void Cases(){for(int reduction:{1536,1539})for(int begin:{0,128}){
-  for(int rows:{1,16,19})Case<N,K,Paged>(rows,reduction,begin,false);
-  Case<N,K,Paged>(0,reduction,begin,true);
+template<int N,int K,bool Paged,int S=2>void Cases(){for(int reduction:{1536,1539})for(int begin:{0,128}){
+  for(int rows:{1,16,19})Case<N,K,Paged,S>(rows,reduction,begin,false);
+  Case<N,K,Paged,S>(0,reduction,begin,true);
 }}
 template<int N,int K>void Shapes(){Cases<N,K,false>();Cases<N,K,true>();}
 int main(){Shapes<64,64>();Shapes<128,64>();Shapes<64,128>();Shapes<128,128>();
-  std::puts("MoE activation bulk: 128 gather/expert/paged/tail/split-offset cases PASS");}
+  Cases<64,64,false,4>();Cases<64,64,false,8>();Cases<128,64,false,3>();Cases<64,128,false,6>();
+  std::puts("MoE activation bulk and 3/4/6/8-slot pipeline: 192 gather/expert/paged/tail/split-offset cases PASS");}

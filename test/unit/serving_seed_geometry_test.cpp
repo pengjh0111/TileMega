@@ -26,7 +26,7 @@ int main(){using namespace tilemega;using Op=frontend::PlanGemm::Epilogue;
  assert(q[0].tile_n==32 && q[0].split_k==1);
  int rejected=0;
  for(auto text:{R"({"base":{"stages":1}})",R"({"base":{"impl":"gemv","tile_n":128}})",
-                R"({"families":{"lm_head":{"split":2}}})",R"({"base":{"impl":"wgmma","stages":4}})",
+                R"({"families":{"lm_head":{"split":2}}})",R"({"base":{"impl":"wgmma","stages":9}})",
                 R"({"base":{"tile_k":96}})",R"({"base":{"bogus":1}})",
                 R"({"families":{"down":{"tile_n":32,"split":4}}})"}) {
   auto copy=std::vector<frontend::GemmGranularity>(5,{16,128,64,2,1,0});

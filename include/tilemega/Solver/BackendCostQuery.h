@@ -150,10 +150,11 @@ inline BackendTraits ServingBF16Traits(int m, int n, int k, int stages) {
   return result;
 }
 
+// Decode keeps `stages` operand slots in flight (ServingGemmTaskBody).
 constexpr bool ServingWgmmaShapeLegal(int m,int n,int k,int stages) {
-  bool decode=(m==8 || m==16) && (k==64 || k==128);
-  bool forward=(m==64 || m==128) && k==64 && m*n<=16384;
-  return (decode || forward) && (n==64 || n==128 || n==256) && stages==2;
+  bool decode=(m==8 || m==16) && (k==64 || k==128) && stages>=2 && stages<=8;
+  bool forward=(m==64 || m==128) && k==64 && m*n<=16384 && stages==2;
+  return (decode || forward) && (n==64 || n==128 || n==256);
 }
 constexpr int ServingWgmmaBulkGatherExtraBytes(int m,int k) { return 1024+2*m*k; }
 constexpr int ServingWgmmaSmemBytes(int m,int n,int k,int stages,bool bulk_gather=false,bool decode_tma=false) {
@@ -162,6 +163,10 @@ constexpr int ServingWgmmaSmemBytes(int m,int n,int k,int stages,bool bulk_gathe
   if(m==16 && bulk_gather) {
     int bytes=4*k*(m+n)+ServingWgmmaBulkGatherExtraBytes(m,k);
     base=bytes>base?bytes:base;
+  }
+  if(m<=16 && stages>2) {
+    int pipeline=1024+2*stages*k*(m+n);
+    return pipeline>base?pipeline:base;
   }
   return (m>=64 || decode_tma) && tma>base?tma:base;
 }

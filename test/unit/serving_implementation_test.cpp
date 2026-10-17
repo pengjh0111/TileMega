@@ -15,7 +15,7 @@ int main(){using namespace tilemega;
  assert(geometry[0].impl==2 && geometry[1].impl==0 && geometry[2].impl==2 && geometry[3].impl==0);
  int rejected=0;
  for(int arm=0;arm<5;++arm){auto g=geometry;
-  if(arm==1)g[0].tile_k=128;if(arm==2)g[0].tile_m=64;if(arm==3)g[0].stages=3;
+  if(arm==1)g[0].tile_k=128;if(arm==2)g[0].tile_m=64;if(arm==3)g[0].stages=9;
   try{solver::ApplyServingSeedImplementations(plan,g,{2,2,2,2,2},arm!=0,arm==4?17:1,true,16384);}
   catch(std::invalid_argument const&){++rejected;}
  }
