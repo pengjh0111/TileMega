@@ -1,0 +1,20 @@
+{
+ "comment": "TN128 split-K seed; SwiGLU narrows TN instead of splitting",
+ "base": {
+  "tile_n": 128,
+  "tile_k": 64,
+  "stages": 4,
+  "impl": "mma16",
+  "min_tasks": 118,
+  "max_split": 16
+ },
+ "families": {
+  "lm_head": {
+   "split": 1
+  },
+  "gate_up": {
+   "max_split": 1,
+   "min_tile_n": 32
+  }
+ }
+}

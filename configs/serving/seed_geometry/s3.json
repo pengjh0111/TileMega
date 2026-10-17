@@ -1,0 +1,30 @@
+{
+ "comment": "TN32 qkv/gate_up seed; residual GEMMs keep TN128 when split",
+ "base": {
+  "tile_n": 32,
+  "tile_k": 128,
+  "stages": 4,
+  "impl": "mma16",
+  "min_tasks": 118,
+  "max_split": 16
+ },
+ "families": {
+  "lm_head": {
+   "tile_n": 128,
+   "stages": 4,
+   "split": 1
+  },
+  "gate_up": {
+   "max_split": 1,
+   "min_tile_n": 32
+  },
+  "down": {
+   "tile_n": 128,
+   "tile_k": 64
+  },
+  "o": {
+   "tile_n": 128,
+   "tile_k": 64
+  }
+ }
+}

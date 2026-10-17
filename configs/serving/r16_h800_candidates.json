@@ -1,0 +1,225 @@
+{
+ "comment": "R16 H800 decode candidates; executor L1 with device loop (MoE: L1 without loop). RF2 selects per cell.",
+ "common_flags": [
+  "--serving",
+  "decode",
+  "--emit",
+  "serving",
+  "--pg",
+  "off",
+  "--nonpaged-weight-layout",
+  "tiled",
+  "--capacity",
+  "1088",
+  "--prompt-len",
+  "64",
+  "--arch-paths",
+  "auto",
+  "--seed-arch",
+  "native",
+  "--past-range",
+  "64:1086",
+  "--resource-probes",
+  "0"
+ ],
+ "candidates": {
+  "p2": {
+   "policy": "configs/serving/seed_geometry/p2.json",
+   "flags": [
+    "--deferred-norm",
+    "1",
+    "--serve-kv-block",
+    "128",
+    "--serve-query-rows",
+    "4"
+   ]
+  },
+  "p2r2": {
+   "policy": "configs/serving/seed_geometry/p2.json",
+   "flags": [
+    "--deferred-norm",
+    "1",
+    "--serve-kv-block",
+    "128",
+    "--serve-query-rows",
+    "4",
+    "--residency",
+    "2"
+   ]
+  },
+  "s2": {
+   "policy": "configs/serving/seed_geometry/p2.json",
+   "flags": [
+    "--deferred-norm",
+    "1",
+    "--serve-kv-block",
+    "128",
+    "--serve-query-rows",
+    "4",
+    "--attention-impl",
+    "simt"
+   ]
+  },
+  "s3": {
+   "policy": "configs/serving/seed_geometry/s3.json",
+   "flags": [
+    "--deferred-norm",
+    "1",
+    "--serve-kv-block",
+    "128",
+    "--serve-query-rows",
+    "4",
+    "--attention-impl",
+    "simt"
+   ]
+  },
+  "moe": {
+   "policy": "configs/serving/seed_geometry/moe.json",
+   "flags": [
+    "--deferred-norm",
+    "0",
+    "--shared-weight-layout",
+    "<MoE t64x64 layout>",
+    "--gemm-impl-qkv",
+    "wgmma",
+    "--gemm-impl-o",
+    "wgmma",
+    "--gemm-impl-gate-up",
+    "wgmma",
+    "--gemm-impl-down",
+    "wgmma",
+    "--gemm-impl-lm-head",
+    "wgmma",
+    "--moe-activation-bulk",
+    "1",
+    "--nonpaged-la",
+    "1",
+    "--combine",
+    "stage",
+    "--cluster-dim",
+    "1",
+    "--dm-wgmma-inline",
+    "1",
+    "--attention-noinline",
+    "1"
+   ]
+  },
+  "moer2": {
+   "policy": "configs/serving/seed_geometry/moe.json",
+   "flags": [
+    "--deferred-norm",
+    "0",
+    "--shared-weight-layout",
+    "<MoE t64x64 layout>",
+    "--gemm-impl-qkv",
+    "wgmma",
+    "--gemm-impl-o",
+    "wgmma",
+    "--gemm-impl-gate-up",
+    "wgmma",
+    "--gemm-impl-down",
+    "wgmma",
+    "--gemm-impl-lm-head",
+    "wgmma",
+    "--moe-activation-bulk",
+    "1",
+    "--nonpaged-la",
+    "1",
+    "--combine",
+    "stage",
+    "--cluster-dim",
+    "1",
+    "--dm-wgmma-inline",
+    "1",
+    "--attention-noinline",
+    "1",
+    "--residency",
+    "2"
+   ]
+  },
+  "moer2kv64": {
+   "policy": "configs/serving/seed_geometry/moe.json",
+   "flags": [
+    "--deferred-norm",
+    "0",
+    "--shared-weight-layout",
+    "<MoE t64x64 layout>",
+    "--gemm-impl-qkv",
+    "wgmma",
+    "--gemm-impl-o",
+    "wgmma",
+    "--gemm-impl-gate-up",
+    "wgmma",
+    "--gemm-impl-down",
+    "wgmma",
+    "--gemm-impl-lm-head",
+    "wgmma",
+    "--moe-activation-bulk",
+    "1",
+    "--nonpaged-la",
+    "1",
+    "--combine",
+    "stage",
+    "--cluster-dim",
+    "1",
+    "--dm-wgmma-inline",
+    "1",
+    "--attention-noinline",
+    "1",
+    "--residency",
+    "2",
+    "--serve-kv-block",
+    "64"
+   ]
+  },
+  "p2k256r2": {
+   "policy": "configs/serving/seed_geometry/p2.json",
+   "flags": [
+    "--deferred-norm",
+    "1",
+    "--serve-query-rows",
+    "4",
+    "--serve-kv-block",
+    "256",
+    "--residency",
+    "2"
+   ]
+  },
+  "s3k256": {
+   "policy": "configs/serving/seed_geometry/s3.json",
+   "flags": [
+    "--deferred-norm",
+    "1",
+    "--serve-query-rows",
+    "4",
+    "--serve-kv-block",
+    "256",
+    "--attention-impl",
+    "simt"
+   ]
+  },
+  "w4r2": {
+   "policy": "configs/serving/seed_geometry/w4r2.json",
+   "flags": [
+    "--deferred-norm",
+    "1",
+    "--serve-kv-block",
+    "128",
+    "--serve-query-rows",
+    "4",
+    "--gemm-impl-qkv",
+    "wgmma",
+    "--gemm-impl-o",
+    "wgmma",
+    "--gemm-impl-gate-up",
+    "wgmma",
+    "--gemm-impl-down",
+    "wgmma",
+    "--gemm-impl-lm-head",
+    "wgmma",
+    "--residency",
+    "2"
+   ]
+  }
+ }
+}
