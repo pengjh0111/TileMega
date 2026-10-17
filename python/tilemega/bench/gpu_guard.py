@@ -61,9 +61,13 @@ def idle_power(policy,index=None):
     index=str(os.getenv('TILEMEGA_DEVICE_INDEX','0') if index is None else index)
     return policy.get('idle_power_w_by_gpu',{}).get(index,policy['idle_power_w'])
 
+def proc_files(root,name):
+    # Glob checks each leaf before yielding it, outside the callers' race guard.
+    return (path/name for path in Path(root).iterdir() if path.name.isdecimal())
+
 def descendants(pid):
     own={pid};parents={}
-    for path in Path('/proc').glob('[0-9]*/stat'):
+    for path in proc_files('/proc','stat'):
         try:parents[int(path.parent.name)]=int(path.read_text().rsplit(')',1)[1].split()[1])
         except (OSError,ValueError,IndexError):pass
     while True:
@@ -76,7 +80,7 @@ def nvml_owners(own):
     if not host:return own
     namespace=Path('/proc/self/ns/pid').stat().st_ino
     result=set()
-    for status in Path(host).glob('[0-9]*/status'):
+    for status in proc_files(host,'status'):
         try:
             if (status.parent/'ns/pid').stat().st_ino!=namespace:continue
             nspid=next(line for line in status.read_text().splitlines() if line.startswith('NSpid:'))
@@ -110,7 +114,7 @@ def idle(row,policy,needs=0):
 
 def session_members(sid):
     members=set()
-    for path in Path('/proc').glob('[0-9]*/stat'):
+    for path in proc_files('/proc','stat'):
         try:
             if int(path.read_text().rsplit(')',1)[1].split()[3])==sid:
                 members.add(int(path.parent.name))
