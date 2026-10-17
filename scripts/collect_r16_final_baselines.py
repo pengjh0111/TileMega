@@ -24,6 +24,25 @@ def methodology_ready(report):
             report.get('methodology_ready') is True)
 
 
+def methodology_attribution(report, records):
+    if report.get('requires_methodology_ready') is not True:
+        return True
+    if not methodology_ready(report):
+        return False
+    uuid = report.get('expected_primary_gpu_uuid')
+    boot = report.get('expected_primary_boot_id')
+    if not uuid or not boot or len(records) != 15:
+        return False
+    try:
+        cells = supplemental_cells(records)
+    except ValueError:
+        return False
+    return (len(cells) == 5 and {cell['batch'] for cell in cells} == {1,2,4,8,16} and
+        all(cell['model'] == 'qwen3_30b_a3b' and cell['system'] == 'torch.compile' and
+            cell['physical_gpu_uuid'] == uuid and cell['hardware_boot_id'] == boot and
+            cell['source_checkpoint_sha256'] == CHECKPOINT for cell in cells))
+
+
 def declared_jobs(report):
     cells = report['cells']
     coordinates = {(cell.get('system', 'torch.compile'), cell['batch']) for cell in cells}
@@ -139,6 +158,7 @@ def main():
         checks.append(dict(path=str(path.resolve()), sha256=hashlib.sha256(snapshot).hexdigest(),
             required=report.get('requires_methodology_ready') is True,
             passed=methodology_ready(report)))
+        begin = len(supplemental)
         for name in declared_jobs(report):
             if name in names:
                 raise ValueError('duplicate explicit supplemental job')
@@ -147,6 +167,7 @@ def main():
                 supplemental.append(supplemental_process(root, name, state[name], cards[name]))
             except (OSError, ValueError, KeyError, TypeError) as error:
                 rejected.append(dict(job=name, reason=str(error)))
+        checks[-1]['passed'] &= methodology_attribution(report, supplemental[begin:])
     for row in supplemental_cells(supplemental):
         selected[(row['model'], row['system'], row['batch'])] = row
     expected = {(model, system, batch) for model, batch in EXPECTED for system in SYSTEMS}
