@@ -6,6 +6,7 @@
 #pragma once
 
 #include <tilemega/Backend/Mx/ServingGemmConfig.h>
+#include <tilemega/Solver/DmGemmTraits.h>
 #include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>
 #include <tilemega/Codegen/tasks/ModelRuntime.h>
 #include <tilemega/Codegen/tasks/Placement.cuh>
@@ -262,13 +263,31 @@ struct GemmVariantStorage<true, Mainloop, M, N, K, S, Gemv> {
 #ifndef TILEMEGA_GEMM_IMPL_15
 #define TILEMEGA_GEMM_IMPL_15 0
 #endif
+// Which rule a dense tile must satisfy depends on the body that will run it.
+// A DM build executes dense GEMM through ServingDmGemm
+// (ServingGemmTaskBody::Run), whose legal shapes are DmServingBF16ShapeLegal
+// -- k in {32,64,128}. Asserting the non-DM rule, k in {64,128}, rejected
+// shapes the MoE solver had legitimately selected: a Qwen3-MoE-24L decode
+// probe died on static_assert for ServingGemmConfig<Xcore1000,16,64,32,2>.
+// The predicate is asserted rather than the config swapped, because
+// ServingDmGemmConfig lives in Backend/ServingGemm.h, which pulls CUTLASS
+// headers that a DM plan's include set does not carry.
+template <int M, int N, int K, int S>
+constexpr bool kDenseGemmShapeLegal =
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    solver::DmServingBF16ShapeLegal(M, N, K, S);
+#else
+    solver::ServingBF16ShapeLegal(M, N, K, S);
+#endif
+
 #define TILEMEGA_DEFINE_GEMM_VARIANT(index, M, N, K, S)                     \
   template <>                                                               \
   struct GemmVariant<index> {                                               \
     using Impl = std::conditional_t<TILEMEGA_GEMM_IMPL_##index != 0,      \
           ServingGemvConfig<GemmVariantArch,M,N,K,S>,                       \
           backend::ServingGemmConfig<GemmVariantArch,M,N,K,S>>;            \
-    static_assert(Impl::kShapeLegal,                                        \
+    static_assert(TILEMEGA_GEMM_IMPL_##index != 0 ? Impl::kShapeLegal       \
+                      : kDenseGemmShapeLegal<M,N,K,S>,                      \
                   "the selected GEMM tile shape is not a legal candidate; " \
                   "query the serving closed forms before compiling");      \
     using Mainloop = typename Impl::Mainloop;                               \
