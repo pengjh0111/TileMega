@@ -926,8 +926,8 @@ int RunCompile(int argc, char** argv) {
     if(dm_linear_address!=0 && dm_linear_address!=1)
       throw std::invalid_argument("--dm-linear-address must be 0 or 1");
     if(dm_linear_address)runtime_flags+=" -DTILEMEGA_DM_LINEAR_ADDRESS=1";
-    if(dm_epilogue_fused<0 || dm_epilogue_fused>2)
-      throw std::invalid_argument("--dm-epilogue-fused must be 0, 1 or 2");
+    if(dm_epilogue_fused<0 || dm_epilogue_fused>3)
+      throw std::invalid_argument("--dm-epilogue-fused must be in [0,3]");
     if(dm_epilogue_fused)runtime_flags+=" -DTILEMEGA_DM_EPILOGUE_FUSED="+std::to_string(dm_epilogue_fused);
     if(ep_direct!=0 && ep_direct!=1)throw std::runtime_error("--ep-direct must be 0 or 1");
     if(attention_buffers<1 || attention_buffers>4)throw std::runtime_error("--attention-buffers must be in [1,4]");

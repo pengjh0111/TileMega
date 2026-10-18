@@ -308,6 +308,50 @@ struct ServingDmEpilogue {
   template <codegen::DmRounding Rounding = Spec::kStore>
   __device__ static float Stored(float value) { return DmRound<Rounding>(value); }
 
+  __device__ static bool StoreImageVectors(float* tile,DmEpilogueArguments const& p,
+      int tile_m,int tile_n) {
+    using namespace codegen::executor;
+    if constexpr(Spec::kWrite!=codegen::DmWriteKind::kNCHW || TileM%8)return false;
+    else {
+      auto layout=Layout(p,p.write.layout);
+      auto area=std::uint64_t(layout.logical[2])*layout.logical[3];
+      if(layout.rank!=4 || !area || area%8 || layout.strides[3]!=1 ||
+          layout.strides[2]!=layout.logical[3] || p.moe.rows)return false;
+      int columns=p.n/(Gate::kCount?2:1);
+      // NCHW's contiguous axis is the pixel row, so gather eight M rows
+      // instead of eight channels. Aligned image areas prevent crossing N.
+      for(int vector=ComputeThread();vector<(TileM/8)*kColumns;vector+=kComputeThreads) {
+        int column=vector/(TileM/8),row=(vector%(TileM/8))*8;
+        int global_row=tile_m*TileM+row,global_column=tile_n*kColumns+column;
+        if(global_row>=p.m || global_column>=columns)continue;
+        auto offset=(global_row/area)*layout.strides[0]+
+            global_column*layout.strides[1]+global_row%area;
+        int count=min(8,p.m-global_row);
+        if constexpr(Spec::kStore==codegen::DmRounding::kBF16) {
+          alignas(16) cutlass::bfloat16_t values[8];
+          #pragma unroll
+          for(int i=0;i<8;++i)if(i<count)
+            values[i]=cutlass::bfloat16_t(tile[Index(row+i,InputColumn<Gate::kCount!=0>(column))]);
+          auto* dst=reinterpret_cast<cutlass::bfloat16_t*>(p.output)+offset;
+          if(count==8 && (reinterpret_cast<std::uintptr_t>(dst)&15)==0)
+            StoreGlobal16(dst,*reinterpret_cast<uint4 const*>(values));
+          else for(int i=0;i<count;++i)dst[i]=values[i];
+        }else {
+          alignas(16) float values[8];
+          #pragma unroll
+          for(int i=0;i<8;++i)if(i<count)
+            values[i]=tile[Index(row+i,InputColumn<Gate::kCount!=0>(column))];
+          auto* dst=reinterpret_cast<float*>(p.output)+offset;
+          if(count==8 && (reinterpret_cast<std::uintptr_t>(dst)&15)==0) {
+            *reinterpret_cast<float4*>(dst)=*reinterpret_cast<float4 const*>(values);
+            *reinterpret_cast<float4*>(dst+4)=*reinterpret_cast<float4 const*>(values+4);
+          }else for(int i=0;i<count;++i)dst[i]=values[i];
+        }
+      }
+      ComputeSync();return true;
+    }
+  }
+
   __device__ static bool StoreVectors(float* tile,DmEpilogueArguments const& p,
       int tile_m,int tile_n) {
     using namespace codegen::executor;
@@ -365,6 +409,9 @@ struct ServingDmEpilogue {
   __device__ static void Store(float* tile, DmEpilogueArguments const& p,
                                int tile_m, int tile_n) {
     using namespace codegen::executor;
+#if TILEMEGA_DM_EPILOGUE_FUSED>=3
+    if(StoreImageVectors(tile,p,tile_m,tile_n))return;
+#endif
 #if TILEMEGA_DM_EPILOGUE_FUSED>=2
     if(StoreVectors(tile,p,tile_m,tile_n))return;
 #endif

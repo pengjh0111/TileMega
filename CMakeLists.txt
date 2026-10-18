@@ -891,6 +891,12 @@ if(TILEMEGA_BUILD_TESTS)
     add_test(NAME ${test} COMMAND ${test}_test)
   endforeach()
   if(TILEMEGA_TARGET_ARCH STREQUAL "sm_90")
+    add_executable(dm_nchw_store_test test/unit/dm_nchw_store_test.cu)
+    target_link_libraries(dm_nchw_store_test PRIVATE TileMega::tilemega)
+    target_compile_options(dm_nchw_store_test PRIVATE -UNDEBUG
+      $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+    tilemega_configure_cuda_target(dm_nchw_store_test)
+    add_test(NAME dm_nchw_store COMMAND dm_nchw_store_test)
     add_executable(dm_dwpw_wgmma_test test/unit/dm_dwpw_wgmma_test.cu)
     target_link_libraries(dm_dwpw_wgmma_test PRIVATE TileMega::tilemega)
     target_compile_options(dm_dwpw_wgmma_test PRIVATE -UNDEBUG
