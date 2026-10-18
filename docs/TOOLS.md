@@ -31,11 +31,17 @@ macros, artifact hashes, implementation and kernel resources are recorded in
 `<library>.identity.json`. Analysis rejects incompatible identities; trace
 artifacts do not supply end-to-end performance results.
 
-`--nvcc-split-compile N` sets the compiler and assembler optimization worker
-limits (default 1). `--ptxas-expensive 0` disables the assembler's expensive
+`--nvcc-split-compile N` sets the frontend optimization worker limit;
+`--ptxas-split-compile N` independently limits assembler workers (both default 1).
+`--ptxas-expensive 0` disables the assembler's expensive
 optimization passes; the default remains 1. Verified: CUDA 12.8 exposes both
 assembler controls. Their exact flags are retained in the build identity;
 changing optimization passes requires new correctness and end-to-end measurements.
+
+`scripts/run_sm90r1_build.py --receipt runs/sm90r1/build.json -- COMMAND...`
+serializes CPU builds through a shared file lock, hides CUDA devices, and bounds
+each process to 64 GiB of address space and each build to two hours. Both limits
+are configurable; timeout/cancellation receipts are distinct from correctness failures.
 
 `--prefill-n-major 1` groups nonpaged prefill L1 work by weight tile for L2
 reuse. Dependencies retain their logical task identifiers; the plan records
