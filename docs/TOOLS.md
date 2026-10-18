@@ -34,7 +34,8 @@ artifacts do not supply end-to-end performance results.
 `--nvcc-split-compile N` sets the frontend optimization worker limit;
 `--ptxas-split-compile N` independently limits assembler workers (both default 1).
 `--ptxas-expensive 0` disables the assembler's expensive
-optimization passes; the default remains 1. Verified: CUDA 12.8 exposes both
+optimization passes; the default remains 1. `--ptxas-opt-level 0..3` changes device
+assembly optimization (default 3); NVCC `-O` itself controls host optimization. Verified: CUDA 12.8 exposes both
 assembler controls. Their exact flags are retained in the build identity;
 changing optimization passes requires new correctness and end-to-end measurements.
 

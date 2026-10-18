@@ -333,7 +333,7 @@ int RunCompile(int argc, char** argv) {
     int depthwise_vectors=0,depthwise_rows=1,depthwise_channels=64,dm_linear_address=0;
     int global_pool_channels=128,dm_chain_reference=0,forward_wgmma_outline=0;
     int stage_descriptor_prefetch=0,task_prefix_prefetch=0,la_cta_release=0;
-    int nvcc_split_compile=1,ptxas_split_compile=1,ptxas_expensive=1,prefill_n_major=0;
+    int nvcc_split_compile=1,ptxas_split_compile=1,ptxas_opt_level=3,ptxas_expensive=1,prefill_n_major=0;
     std::string combine_impl="stage",merge_impl="stage";
     int dependency_intern=0,cluster_dim=1,serving_residency=0,activation_tma=0,decode_tile_m=16;
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
@@ -455,6 +455,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--la-cta-release") la_cta_release=std::stoi(value);
       else if (flag=="--nvcc-split-compile") nvcc_split_compile=std::stoi(value);
       else if (flag=="--ptxas-split-compile") ptxas_split_compile=std::stoi(value);
+      else if (flag=="--ptxas-opt-level") ptxas_opt_level=std::stoi(value);
       else if (flag=="--ptxas-expensive") ptxas_expensive=std::stoi(value);
       else if (flag=="--prefill-n-major") prefill_n_major=std::stoi(value);
       else if (flag=="--depthwise-rows") depthwise_rows=std::stoi(value);
@@ -802,6 +803,9 @@ int RunCompile(int argc, char** argv) {
     if(nvcc_split_compile!=1)runtime_flags+=" --split-compile="+std::to_string(nvcc_split_compile);
     if(ptxas_split_compile<1)throw std::invalid_argument("ptxas split compile must be positive");
     if(ptxas_split_compile!=1)runtime_flags+=" -Xptxas=--split-compile="+std::to_string(ptxas_split_compile);
+    if(ptxas_opt_level<0 || ptxas_opt_level>3)
+      throw std::invalid_argument("ptxas optimization level expects 0..3");
+    if(ptxas_opt_level!=3)runtime_flags+=" -Xptxas=-O"+std::to_string(ptxas_opt_level);
     if(ptxas_expensive<0 || ptxas_expensive>1)
       throw std::invalid_argument("ptxas expensive optimizations expects 0/1");
     if(!ptxas_expensive)runtime_flags+=" -Xptxas=--allow-expensive-optimizations=false";
@@ -1759,6 +1763,7 @@ int RunCompile(int argc, char** argv) {
               " --forward-wgmma-outline "+std::to_string(forward_wgmma_outline)+
               " --nvcc-split-compile "+std::to_string(nvcc_split_compile)+
               " --ptxas-split-compile "+std::to_string(ptxas_split_compile)+
+              " --ptxas-opt-level "+std::to_string(ptxas_opt_level)+
               " --ptxas-expensive "+std::to_string(ptxas_expensive)+
               " --prefill-n-major "+std::to_string(prefill_n_major)+
               " --depthwise-vectors "+std::to_string(depthwise_vectors)+
@@ -2631,6 +2636,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"depthwise_vectors\": "<<depthwise_vectors
               <<",\n  \"nvcc_split_compile\": "<<nvcc_split_compile
               <<",\n  \"ptxas_split_compile\": "<<ptxas_split_compile
+              <<",\n  \"ptxas_opt_level\": "<<ptxas_opt_level
               <<",\n  \"depthwise_rows\": "<<depthwise_rows
               <<",\n  \"global_pool_channels\": "<<global_pool_channels
               <<",\n  \"stage_descriptor_prefetch\": "<<stage_descriptor_prefetch
