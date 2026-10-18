@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 
-from r16_measurement_validation import file_sha, native_identity
+from r16_measurement_validation import completed_guard, file_sha, native_identity
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -72,21 +72,71 @@ def validate_numeric(path, config_sha, identities, batch, positions):
         raise ValueError('C-2 did not cover a full 1024-token request')
 
 
+def certify(config, config_sha, identities, state_path, job, output):
+    record = json.loads(state_path.read_text())[job]
+    raw = Path(record['out'])
+    completed_guard(raw, record)
+    directory = raw / 'measurements'
+    selected = json.loads((directory / 'selected-config.json').read_text())
+    if selected['config_sha256'] != config_sha or selected['stage'] != 'correctness':
+        raise ValueError('correctness execution belongs to another configuration')
+    batch = config['batch']
+    measured = json.loads((directory / f'B{batch}/measurements.json').read_text())
+    if (measured['batch'] != batch or measured['max_tokens'] != 1024 or
+            measured['model_config_sha256'] != config['model_config_sha256'] or
+            measured['prompt_ids_sha256'] != config['prompt_ids_sha256']):
+        raise ValueError('correctness execution used a different workload')
+    expected = {phase: value['artifact_id'] for phase, value in identities.items()}
+    actual = {p: value['artifact_id'] for p, value in measured['configuration']['identities'].items()}
+    if actual != expected:
+        raise ValueError('correctness execution used different artifacts')
+    binding = dict(status='passed', config_sha256=config_sha, artifact_ids=expected,
+                   correctness_job=job, correctness_gpu=measured['gpu_index'],
+                   guard_log_sha256=file_sha(raw / 'guard.jsonl'))
+    for name in ('c1', 'c2', 'reference_tokens'):
+        path = directory / (name + '.json')
+        binding[name] = dict(path=str(path), sha256=file_sha(path))
+    c1 = json.loads((directory / 'c1.json').read_text())
+    manifest = json.loads((absolute(config['runtime']['root']) / 'manifest.json').read_text())
+    if c1['checker_sha256'] != manifest['files']['tilemega/serving/hf_check.py']:
+        raise ValueError('C-1 checker differs from the selected frozen source')
+    reference = json.loads((directory / 'reference_tokens.json').read_text())
+    for row in json.loads((directory / 'c2.json').read_text())['checks']:
+        path = directory / f"tokens_{row['mode']}_loop{row['decode_loop']}.json"
+        if json.loads(path.read_text()) != reference:
+            raise ValueError('C-2 token files disagree with the reported pass')
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if output.exists():
+        raise ValueError('numerical certificate already exists')
+    temporary = output.with_suffix('.pending')
+    temporary.write_text(json.dumps(binding, indent=2) + '\n')
+    positions = 256 if config['model'] == 'qwen3_30b_a3b' else 1024
+    validate_numeric(temporary, config_sha, identities, batch, positions)
+    temporary.replace(output)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', type=Path, required=True)
-    parser.add_argument('--stage', choices=('correctness', 'measure'), required=True)
+    parser.add_argument('--stage', choices=('correctness', 'certify', 'measure'), required=True)
     parser.add_argument('--round-index', type=int, default=0)
     parser.add_argument('--numeric-receipt', type=Path)
+    parser.add_argument('--scheduler-state', type=Path)
+    parser.add_argument('--job')
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
-    from tilemega.serving.baseline_common import require_guard
-    require_guard()
     config = json.loads(args.config.read_text())
     config_sha = file_sha(args.config)
     if file_sha(__file__) != config['driver_sha256']:
         raise ValueError('selected final driver changed')
     identities = validate_pair(config)
+    if args.stage == 'certify':
+        if args.scheduler_state is None or args.job is None:
+            parser.error('certify requires --scheduler-state and --job')
+        certify(config, config_sha, identities, args.scheduler_state, args.job, args.out)
+        return 0
+    from tilemega.serving.baseline_common import require_guard
+    require_guard()
     runtime = absolute(config['runtime']['root'])
     manifest = runtime / 'manifest.json'
     if file_sha(manifest) != config['runtime']['manifest_sha256']:
