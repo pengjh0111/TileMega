@@ -1207,6 +1207,14 @@ struct GemmStageTaskBody {
 #endif
   }
 
+  __device__ static __forceinline__ int L1LogicalTask(GemmInvocation const& inv,int ordinal) {
+#if TILEMEGA_PREFILL_N_MAJOR
+    return NMajorGemmTask(ordinal,inv.tiles_m,inv.tiles_n,inv.chunks);
+#else
+    return ordinal;
+#endif
+  }
+
   __device__ TILEMEGA_DWPW_TASK_INLINE void operator()(Params const& p, StageDesc const& stage,
                              SmemUnion& smem) const {
     auto const* table = static_cast<GemmInvocation const*>(p.gemms);
@@ -1217,7 +1225,7 @@ struct GemmStageTaskBody {
     // the stride those tasks are simply never run -- a silently wrong result,
     // not a launch error.
     for (int task = PlacedBlock(); task < count; task += gridDim.x) {
-      RunLogicalTask(p, stage, smem, task);
+      RunLogicalTask(p, stage, smem, L1LogicalTask(table[stage.gemm],task));
       // The next iteration reuses `shared`, so the barrier is the loop's, not
       // the body's.
       __syncthreads();

@@ -321,6 +321,10 @@ add_custom_target(check-policy
 
 if(TILEMEGA_BUILD_TESTS)
   enable_testing()
+  add_executable(serving_task_order_test test/unit/serving_task_order_test.cpp)
+  target_include_directories(serving_task_order_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  target_compile_options(serving_task_order_test PRIVATE -UNDEBUG)
+  add_test(NAME serving_task_order COMMAND serving_task_order_test)
   add_executable(serving_shared_memory_budget_test test/unit/shared_memory_budget_test.cpp)
   target_include_directories(serving_shared_memory_budget_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_compile_features(serving_shared_memory_budget_test PRIVATE cxx_std_17)

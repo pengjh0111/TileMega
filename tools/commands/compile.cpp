@@ -333,7 +333,7 @@ int RunCompile(int argc, char** argv) {
     int depthwise_vectors=0,depthwise_rows=1,depthwise_channels=64,dm_linear_address=0;
     int global_pool_channels=128,dm_chain_reference=0,forward_wgmma_outline=0;
     int stage_descriptor_prefetch=0,task_prefix_prefetch=0,la_cta_release=0;
-    int nvcc_split_compile=1,ptxas_expensive=1;
+    int nvcc_split_compile=1,ptxas_expensive=1,prefill_n_major=0;
     std::string combine_impl="stage",merge_impl="stage";
     int dependency_intern=0,cluster_dim=1,serving_residency=0,activation_tma=0,decode_tile_m=16;
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
@@ -455,6 +455,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--la-cta-release") la_cta_release=std::stoi(value);
       else if (flag=="--nvcc-split-compile") nvcc_split_compile=std::stoi(value);
       else if (flag=="--ptxas-expensive") ptxas_expensive=std::stoi(value);
+      else if (flag=="--prefill-n-major") prefill_n_major=std::stoi(value);
       else if (flag=="--depthwise-rows") depthwise_rows=std::stoi(value);
       else if (flag=="--depthwise-channels") depthwise_channels=std::stoi(value);
       else if (flag=="--qkv-epilogue") qkv_epilogue=std::stoi(value);
@@ -660,6 +661,10 @@ int RunCompile(int argc, char** argv) {
          (pg_mode!="off" && pg_mode!="l2"))))
       throw std::invalid_argument("CTA release requires nonpaged LA decode and value 0/1");
     if(la_cta_release)runtime_flags+=" -DTILEMEGA_LA_CTA_RELEASE=1";
+    if(prefill_n_major<0 || prefill_n_major>1 || (prefill_n_major &&
+        (!serving || serving_phase!="prefill" || (pg_mode!="off" && pg_mode!="l2"))))
+      throw std::invalid_argument("N-major traversal requires nonpaged prefill and value 0/1");
+    if(prefill_n_major)runtime_flags+=" -DTILEMEGA_PREFILL_N_MAJOR=1";
     if(task_prefix_prefetch<0 || task_prefix_prefetch>2 ||
         (task_prefix_prefetch && (!serving || serving_phase!="decode" ||
          (pg_mode!="off" && pg_mode!="l2") || nonpaged_weight_layout!="tiled" || arch_paths!="auto")))
@@ -1752,6 +1757,7 @@ int RunCompile(int argc, char** argv) {
               " --forward-wgmma-outline "+std::to_string(forward_wgmma_outline)+
               " --nvcc-split-compile "+std::to_string(nvcc_split_compile)+
               " --ptxas-expensive "+std::to_string(ptxas_expensive)+
+              " --prefill-n-major "+std::to_string(prefill_n_major)+
               " --depthwise-vectors "+std::to_string(depthwise_vectors)+
               " --global-pool-channels "+std::to_string(global_pool_channels)+
               " --stage-descriptor-prefetch "+std::to_string(stage_descriptor_prefetch)+
@@ -2627,6 +2633,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"task_prefix_prefetch\": "<<task_prefix_prefetch
               <<",\n  \"la_cta_release\": "<<la_cta_release
               <<",\n  \"ptxas_expensive_optimizations\": "<<ptxas_expensive
+              <<",\n  \"prefill_n_major\": "<<prefill_n_major
               <<",\n  \"depthwise_channels\": "<<depthwise_channels
               <<",\n  \"parallel_argmax\": "<<(parallel_argmax?"true":"false")
               <<",\n  \"attention_frontier\": "<<(attention_frontier?"true":"false")

@@ -582,7 +582,12 @@ __device__ inline int ServingL1Task(Params const& p,StageDesc const& s,int ordin
         CeilDiv(p.dims.capacity,s.attention_kv_block),s.attention_kv_block,p.dims.seq);
 #endif
   }
-  return SpreadServingHead(p,s)?ServingSpreadTailTask(ordinal,int(gridDim.x)):ordinal;
+  int task=SpreadServingHead(p,s)?ServingSpreadTailTask(ordinal,int(gridDim.x)):ordinal;
+#if TILEMEGA_PREFILL_N_MAJOR
+  if(s.kind==TaskKind::kGemm)
+    return T_Gemm::L1LogicalTask(static_cast<GemmInvocation const*>(p.gemms)[s.gemm],task);
+#endif
+  return task;
 }
 #else
 __device__ inline int ServingL1OwnedTasks(Params const&,StageDesc const&,int count) {

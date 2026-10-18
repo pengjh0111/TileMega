@@ -37,6 +37,10 @@ optimization passes; the default remains 1. Verified: CUDA 12.8 exposes both
 assembler controls. Their exact flags are retained in the build identity;
 changing optimization passes requires new correctness and end-to-end measurements.
 
+`--prefill-n-major 1` groups nonpaged prefill L1 work by weight tile for L2
+reuse. Dependencies retain their logical task identifiers; the plan records
+the traversal coordinate, which stays disabled unless selected end to end.
+
 `device.cache_dir` contains calibration targets, exports, plans and artifacts.
 Keys include workload, source/calibration fingerprints and compilation options.
 The serving execution choice lives in `<library>.serving.json` and `plans.json`;
