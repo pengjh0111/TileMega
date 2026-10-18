@@ -12,7 +12,7 @@ template<class Arch,int D,int Q,bool Norm,int PageBytes=(TILEMEGA_ATTENTION_IMPL
     AttentionPagePolicy Policy=AttentionPagePolicy::WarpPrivate,
     int Buffers=TILEMEGA_ATTENTION_BUFFERS>
 struct IndependentAttentionTaskBody {
-  static_assert(Buffers==1 || Buffers==2);
+  static_assert(Buffers>=1 && Buffers<=4);
   using Body=PagedAttentionTaskBody<Arch,D,Q,Norm,PageBytes,3,false,Q,Policy>;
   using Element=typename Body::Element;
   using Copy=executor::Async<Arch>;
@@ -53,8 +53,18 @@ struct IndependentAttentionTaskBody {
       asm volatile("cp.async.commit_group;" ::: "memory");
     }
     __device__ void AwaitFull(std::uint64_t cursor) const {
-      if(Buffers==2 && int(cursor/layout.pages_per_wave)+1<layout.waves)asm volatile("cp.async.wait_group 1;" ::: "memory");
-      else asm volatile("cp.async.wait_group 0;" ::: "memory");
+      if constexpr(Buffers<=2) {
+        if(Buffers==2 && int(cursor/layout.pages_per_wave)+1<layout.waves)asm volatile("cp.async.wait_group 1;" ::: "memory");
+        else asm volatile("cp.async.wait_group 0;" ::: "memory");
+      }else {
+        // No empty groups are committed at the tail; count only later waves
+        // actually issued before waiting for this slot.
+        int pending=min(Buffers-1,layout.waves-int(cursor/layout.pages_per_wave)-1);
+        if(pending==3)asm volatile("cp.async.wait_group 3;" ::: "memory");
+        else if(pending==2)asm volatile("cp.async.wait_group 2;" ::: "memory");
+        else if(pending==1)asm volatile("cp.async.wait_group 1;" ::: "memory");
+        else asm volatile("cp.async.wait_group 0;" ::: "memory");
+      }
       __syncwarp();
       if(layout.needs_cta_sync)ComputeSync();
     }
@@ -139,7 +149,8 @@ struct IndependentAttentionTaskBody {
       }
       ComputeSync();
       HopperPages pages{p,shared,batch,group,block,layout};
-      pages.Issue(0);if constexpr(Buffers==2)pages.Issue(1);
+      #pragma unroll
+      for(int slot=0;slot<Buffers;++slot)pages.Issue(slot);
       std::uint64_t sequence=0;
       Body::RunLocalPartial(p,batch,group,block,pages,sequence,shared.compute,tile);
     }
@@ -159,11 +170,15 @@ struct IndependentAttentionTaskBody {
       }
       ComputeSync();
       HopperPages pages{p,shared,batch,group,block,layout};
-      pages.Issue(0);if constexpr(Buffers==2)pages.Issue(1);std::uint64_t sequence=0;
+      #pragma unroll
+      for(int slot=0;slot<Buffers;++slot)pages.Issue(slot);
+      std::uint64_t sequence=0;
       Body::Run(p,batch,group,block,pages,sequence,shared.compute);
     }else {
       LocalPages pages{p,shared,batch,group,block,layout};
-      pages.Issue(0);if constexpr(Buffers==2)pages.Issue(1);std::uint64_t sequence=0;
+      #pragma unroll
+      for(int slot=0;slot<Buffers;++slot)pages.Issue(slot);
+      std::uint64_t sequence=0;
       Body::Run(p,batch,group,block,pages,sequence,shared.compute);
     }
   }

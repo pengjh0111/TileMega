@@ -907,7 +907,7 @@ int RunCompile(int argc, char** argv) {
       throw std::invalid_argument("--dm-epilogue-fused must be 0, 1 or 2");
     if(dm_epilogue_fused)runtime_flags+=" -DTILEMEGA_DM_EPILOGUE_FUSED="+std::to_string(dm_epilogue_fused);
     if(ep_direct!=0 && ep_direct!=1)throw std::runtime_error("--ep-direct must be 0 or 1");
-    if(attention_buffers!=1 && attention_buffers!=2)throw std::runtime_error("--attention-buffers must be 1 or 2");
+    if(attention_buffers<1 || attention_buffers>4)throw std::runtime_error("--attention-buffers must be in [1,4]");
     if((attention_noinline!=0 && attention_noinline!=1) || (parallel_argmax!=0 && parallel_argmax!=1) || (nonpaged_la!=0 && nonpaged_la!=1) || (deferred_norm!=0 && deferred_norm!=1) || (paged_la!=0 && paged_la!=1) ||
        (paged_la_splitk!=0 && paged_la_splitk!=1) || candidate_guard_wait_s<0)
       throw std::runtime_error("invalid serving ablation option");

@@ -369,7 +369,7 @@ struct SearchContext {
       int gemm_shared=imported.plan.dm?estimate.shared_bytes:0;
       for(auto const& g:config)gemm_shared=std::max(gemm_shared,
           (imported.plan.dm && g.impl!=2?DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):g.impl==1?ServingGemvSmemBytes(g.tile_m,g.tile_n,options.gemv_bulk):g.impl==2?ServingWgmmaSmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages,options.moe_activation_bulk,options.activation_tma):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)));
-      if(!options.pg_pages && (options.attention_buffers==1 || std::any_of(config.begin(),config.end(),[](auto const& g){return g.impl==1;})))
+      if(!options.pg_pages && (options.attention_buffers!=2 || std::any_of(config.begin(),config.end(),[](auto const& g){return g.impl==1;})))
         for(auto const& stage:imported.plan.stages)
           if(stage.kind==frontend::PlanTaskKind::kFusedAttention) {
             int bytes=32768*options.attention_buffers+32*int(stage.width)+16*int(stage.group)*int(stage.width)+16*int(stage.group);
