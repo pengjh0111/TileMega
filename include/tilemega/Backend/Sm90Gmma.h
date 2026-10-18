@@ -102,9 +102,9 @@ struct Sm90DecodeGmma {
 
 template<class Arch,int M,int N,int K>
 struct Sm90ForwardGmma {
-  static_assert((M==64 || M==128) && (N==64 || N==128 || N==256) &&
+  static_assert((M==64 || M==128) && (N==32 || N==64 || N==128 || N==256) &&
                 K==64 && M*N<=16384,
-                "forward WGMMA requires M64/128, N64/128/256, K64 and bounded accumulators");
+                "forward WGMMA requires M64/128, N32/64/128/256, K64 and bounded accumulators");
   using Gmma=Sm90Gmma<Arch>;
   using Mma=decltype(cute::make_tiled_mma(typename Gmma::template SS<N>{}));
   using Element=cutlass::bfloat16_t;

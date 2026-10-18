@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/ServingSeedGeometry.h>
 #include <tilemega/Solver/ForwardGeometry.h>
+#include <tilemega/Solver/BackendCostQuery.h>
 #include <cassert>
 #include <cstdio>
 int main(){using namespace tilemega;using Op=frontend::PlanGemm::Epilogue;
+ static_assert(solver::ServingWgmmaShapeLegal(64,32,64,3));
+ static_assert(solver::ServingWgmmaShapeLegal(128,32,64,4));
+ static_assert(!solver::ServingWgmmaShapeLegal(16,32,64,3));
+ static_assert(!solver::ServingWgmmaShapeLegal(64,32,128,3));
  // Llama-3.1-8B decode shapes: qkv, o, gate_up, down, lm_head.
  frontend::ModelPlan plan;plan.gemms.resize(5);
  auto set=[&](int i,Op e,unsigned n,unsigned k){plan.gemms[i].epilogue=e;plan.gemms[i].n=n;plan.gemms[i].k=k;};

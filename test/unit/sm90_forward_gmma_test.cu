@@ -109,6 +109,13 @@ void Matrix() {
     for(Op op:{Op::kStore,Op::kResidual,Op::kPartial,Op::kArgmaxPartial,Op::kSwiGLU})Check<M,N>(rows,k,begin,op,tma);
 }
 int main(int argc,char** argv) {
+  if(argc==2 && std::string(argv[1])=="--narrow-smoke") {
+    Check<64,32>(65,257,0,Op::kStore,false);
+    Check<64,32>(65,64,0,Op::kResidual,true);
+    Check<128,32>(129,2001,128,Op::kPartial,true);
+    Check<64,32>(64,256,0,Op::kArgmaxPartial,false);
+    std::puts("forward N32: tail/offset/epilogue TMA and cp.async PASS");return 0;
+  }
   if(argc==2 && std::string(argv[1])=="--pipeline-smoke") {
     Check<64,64>(65,257,0,Op::kStore,false);
     Check<64,64>(65,64,0,Op::kStore,true);

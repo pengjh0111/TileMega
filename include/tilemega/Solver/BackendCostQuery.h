@@ -154,7 +154,8 @@ inline BackendTraits ServingBF16Traits(int m, int n, int k, int stages) {
 constexpr bool ServingWgmmaShapeLegal(int m,int n,int k,int stages) {
   bool decode=(m==8 || m==16) && (k==64 || k==128) && stages>=2 && stages<=8;
   bool forward=(m==64 || m==128) && k==64 && m*n<=16384 && stages>=2 && stages<=4;
-  return (decode || forward) && (n==64 || n==128 || n==256);
+  bool wide=n==64 || n==128 || n==256;
+  return (decode && wide) || (forward && (n==32 || wide));
 }
 constexpr int ServingWgmmaBulkGatherExtraBytes(int m,int k) { return 1024+2*m*k; }
 constexpr int ServingWgmmaSmemBytes(int m,int n,int k,int stages,bool bulk_gather=false,bool decode_tma=false) {
