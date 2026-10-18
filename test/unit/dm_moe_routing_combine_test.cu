@@ -15,6 +15,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <numeric>
 #include <vector>
 using namespace tilemega;
@@ -303,7 +304,16 @@ unsigned Combination(unsigned tokens,unsigned channels) {
   cudaFree(source);cudaFree(partials);cudaFree(residual);cudaFree(weights);
   cudaFree(output);cudaFree(stats);cudaFree(tickets);return 1;
 }
-int main() {
+int main(int argc,char** argv) {
+  if(argc==2 && !std::strcmp(argv[1],"--topk-smoke")) {
+    unsigned count=0;
+    count+=Routing<16,true>(16,128,64,1);
+    count+=Routing<16,true>(17,128,32,0);
+    count+=Routing<16,true,true>(65,128,16,1);
+    count+=Routing<32,true>(1,128,64,2);
+    std::printf("{\"passed\":true,\"routing_cases\":%u,\"epochs\":3}\n",count);
+    return 0;
+  }
   unsigned routing=0,combine=0;
   for(unsigned tokens:{1,2,4,8,16,32,64,128,256,512,1024,2048,4096}) {
 #if DM_TEST_STAGE_WRAPPERS

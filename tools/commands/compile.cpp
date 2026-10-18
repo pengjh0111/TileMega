@@ -342,7 +342,7 @@ int RunCompile(int argc, char** argv) {
     int nonpaged_la=0,attention_frontier=0,attention_past_split=0;
     std::array<int,5> serving_impl{{-1,-1,-1,-1,-1}};
     int deferred_norm=1,paged_la=1,paged_la_splitk=1,candidate_guard_wait_s=300,candidate_loop=0;
-    int moe_dynamic=0,moe_opaque=0,moe_gemv=0,moe_activation_bulk=0,moe_weight_bulk=0,dm_wgmma_inline=0;
+    int moe_dynamic=0,moe_opaque=0,moe_gemv=0,moe_activation_bulk=0,moe_weight_bulk=0,dm_wgmma_inline=0,moe_topk_warp=0;
     bool moe_gemv_auto=true;
     std::string candidate_mode="L1",nonpaged_weight_layout="row";
     bool page_bytes_pinned=false,nonpaged_la_pinned=false;
@@ -464,6 +464,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--parallel-argmax") parallel_argmax=std::stoi(value);
       else if (flag=="--ep-direct") ep_direct=std::stoi(value);
       else if (flag=="--dm-epilogue-fused") dm_epilogue_fused=std::stoi(value);
+      else if (flag=="--moe-topk-warp") moe_topk_warp=std::stoi(value);
       else if (flag.rfind("--gemm-impl-",0)==0) {
         std::array<std::string,5> names{{"qkv","o","gate_up","down","lm_head"}};
         auto name=flag.substr(12);std::replace(name.begin(),name.end(),'-','_');
@@ -890,6 +891,11 @@ int RunCompile(int argc, char** argv) {
         (pg_mode!="off" && pg_mode!="l2") || merge_impl=="cluster"))
       throw std::invalid_argument("past-based attention requires nonpaged decode and a stage/LA merge");
     if(attention_past_split)runtime_flags+=" -DTILEMEGA_ATTENTION_PAST_SPLIT=1";
+    if(moe_topk_warp!=0 && moe_topk_warp!=1)
+      throw std::invalid_argument("--moe-topk-warp must be 0 or 1");
+    if(moe_topk_warp && (!serving || frontend_mode!="decoder"))
+      throw std::invalid_argument("warp top-k requires a serving decoder plan");
+    if(moe_topk_warp)runtime_flags+=" -DTILEMEGA_MOE_TOPK_WARP=1";
     if(dm_epilogue_fused<0 || dm_epilogue_fused>2)
       throw std::invalid_argument("--dm-epilogue-fused must be 0, 1 or 2");
     if(dm_epilogue_fused)runtime_flags+=" -DTILEMEGA_DM_EPILOGUE_FUSED="+std::to_string(dm_epilogue_fused);
@@ -1655,6 +1661,7 @@ int RunCompile(int argc, char** argv) {
               " --attention-buffers "+std::to_string(attention_buffers)+
               " --parallel-argmax "+std::to_string(parallel_argmax)+
               " --ep-direct "+std::to_string(ep_direct)+
+              " --moe-topk-warp "+std::to_string(moe_topk_warp)+
               " --dm-epilogue-fused "+std::to_string(dm_epilogue_fused)+
               " --nvcc-split-compile "+std::to_string(nvcc_split_compile)+
               " --depthwise-vectors "+std::to_string(depthwise_vectors)+
@@ -2514,6 +2521,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"attention_buffers\": "<<attention_buffers
               <<",\n  \"attention_noinline\": "<<(attention_noinline?"true":"false")
               <<",\n  \"ep_direct\": "<<(ep_direct?"true":"false")
+              <<",\n  \"moe_topk_warp\": "<<moe_topk_warp
               <<",\n  \"dm_epilogue_fused\": "<<dm_epilogue_fused
               <<",\n  \"depthwise_vectors\": "<<depthwise_vectors
               <<",\n  \"nvcc_split_compile\": "<<nvcc_split_compile

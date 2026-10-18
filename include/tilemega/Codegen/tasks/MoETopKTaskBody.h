@@ -6,6 +6,10 @@
 #include <cstdint>
 #include <cmath>
 
+#ifndef TILEMEGA_MOE_TOPK_WARP
+#define TILEMEGA_MOE_TOPK_WARP 0
+#endif
+
 namespace tilemega::codegen {
 struct MoeTopKOperands {
   // Router tiles publish top-K *rounded BF16* logits, with global indices.
@@ -27,11 +31,79 @@ struct MoETopKTaskBody {
   __host__ __device__ static unsigned Count(MoeTopKOperands const& p) {
     return (p.tokens+TokensPerTask-1)/TokensPerTask;
   }
+  __device__ static void RunWarp(MoeTopKOperands const& p,unsigned task) {
+    unsigned lane=executor::ComputeThread()%32,warp=executor::ComputeThread()/32;
+    for(unsigned local=warp;local<TokensPerTask;local+=4) {
+      unsigned token=task*TokensPerTask+local;
+      if(token>=p.tokens)continue;
+      float candidates[4];std::int32_t indices[4];
+      #pragma unroll
+      for(unsigned slot=0;slot<4;++slot) {
+        unsigned candidate=lane+slot*32;
+        candidates[slot]=-INFINITY;indices[slot]=INT32_MAX;
+        if(candidate<p.parts*TopK) {
+          auto offset=token*p.row_stride+(candidate/TopK)*p.part_stride+
+              (candidate%TopK)*p.rank_stride;
+          candidates[slot]=p.partial_logits[offset];indices[slot]=p.partial_indices[offset];
+          if(indices[slot]!=INT32_MAX && (indices[slot]<0 ||
+              unsigned(indices[slot])>=p.experts || !isfinite(candidates[slot]))) {
+            asm volatile("trap;");return;
+          }
+        }
+      }
+      float logits[TopK];std::int32_t selected[TopK];
+      #pragma unroll
+      for(unsigned rank=0;rank<TopK;++rank) {
+        float value=-INFINITY;std::int32_t index=INT32_MAX;
+        #pragma unroll
+        for(unsigned slot=0;slot<4;++slot)
+          if(indices[slot]!=INT32_MAX && (candidates[slot]>value ||
+              (candidates[slot]==value && indices[slot]<index))) {
+            value=candidates[slot];index=indices[slot];
+          }
+        #pragma unroll
+        for(unsigned shift=16;shift;shift/=2) {
+          float other=__shfl_xor_sync(0xffffffff,value,shift);
+          auto other_index=__shfl_xor_sync(0xffffffff,index,shift);
+          if(other>value || (other==value && other_index<index)) {
+            value=other;index=other_index;
+          }
+        }
+        if(index==INT32_MAX) {asm volatile("trap;");return;}
+        unsigned matches=0;
+        #pragma unroll
+        for(unsigned slot=0;slot<4;++slot)matches+=indices[slot]==index;
+        if(__reduce_add_sync(0xffffffff,matches)!=1) {asm volatile("trap;");return;}
+        if(!lane) {logits[rank]=value;selected[rank]=index;}
+        #pragma unroll
+        for(unsigned slot=0;slot<4;++slot)
+          if(indices[slot]==index)indices[slot]=INT32_MAX;
+      }
+      if(!lane) {
+        // Keep the scalar path's rank order and FP32 softmax rounding.
+        float probabilities[TopK],sum=0;
+        #pragma unroll
+        for(unsigned rank=0;rank<TopK;++rank) {
+          probabilities[rank]=expf(logits[rank]-logits[0]);sum+=probabilities[rank];
+        }
+        #pragma unroll
+        for(unsigned rank=0;rank<TopK;++rank) {
+          p.indices[token*TopK+rank]=selected[rank];
+          float weight=probabilities[rank]/sum;
+          if(p.weights_fp32)static_cast<float*>(p.weights)[token*TopK+rank]=weight;
+          else static_cast<cutlass::bfloat16_t*>(p.weights)[token*TopK+rank]=cutlass::bfloat16_t(weight);
+        }
+      }
+    }
+  }
   __device__ static void Run(MoeTopKOperands const& p,unsigned task) {
     if(!p.partial_logits || !p.partial_indices || !p.indices || !p.weights ||
        !p.parts || p.experts<TopK || !p.row_stride || !p.part_stride || !p.rank_stride) {
       asm volatile("trap;");return;
     }
+#if TILEMEGA_MOE_TOPK_WARP
+    if(p.parts*TopK<=128) {RunWarp(p,task);return;}
+#endif
     for(unsigned local=executor::ComputeThread();local<TokensPerTask;local+=kThreads) {
       unsigned token=task*TokensPerTask+local;if(token>=p.tokens)continue;
       float logits[TopK];std::int32_t selected[TopK];
