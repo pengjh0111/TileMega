@@ -181,6 +181,12 @@ int main(int argc,char** argv) {
     assert(rejected==5);std::puts("depthwise TMA 3D host shape and five invalid contracts PASS");return 0;
   }
 #endif
+  if(argc>1 && std::string(argv[1])=="--smoke") {
+    unsigned cases=Check<1,32,Activated>(32,112,112,1,1,1);
+    cases+=Check<2,64,Plain>(19,7,11,2,2,1);
+    cases+=Check<2,64,Gated>(128,7,11,1,1,1);
+    std::printf("DEPTHWISE smoke cases=%u exact reference/halo/tail/partial PASS\n",cases);return 0;
+  }
   unsigned cases=0;
   // MobileNetV1/V2 channel/height/stride families, including narrow tails.
   unsigned geometries[][3]={{32,112,1},{32,112,2},{64,56,1},{64,56,2},{96,112,2},

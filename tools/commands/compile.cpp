@@ -328,6 +328,7 @@ int RunCompile(int argc, char** argv) {
     bool forward_seed_explicit=false;
     std::string forward_gemm_impl="mma16",prefill_attention_impl="mma16",encoder_attention_impl="mma16",conv_impl="cpasync",gemv_load="ldg",depthwise_impl="cpasync",dwpw_impl="mma16";
     int qkv_epilogue=0,attention_tma=0,dm_epilogue_fused=0;
+    int depthwise_vectors=0,depthwise_rows=1,depthwise_channels=64;
     int nvcc_split_compile=1;
     std::string combine_impl="stage",merge_impl="stage";
     int dependency_intern=0,cluster_dim=1,serving_residency=0,activation_tma=0,decode_tile_m=16;
@@ -441,7 +442,10 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--gemv-load") gemv_load=value;
       else if (flag=="--dwpw-impl") dwpw_impl=value;
       else if (flag=="--depthwise-impl") depthwise_impl=value;
+      else if (flag=="--depthwise-vectors") depthwise_vectors=std::stoi(value);
       else if (flag=="--nvcc-split-compile") nvcc_split_compile=std::stoi(value);
+      else if (flag=="--depthwise-rows") depthwise_rows=std::stoi(value);
+      else if (flag=="--depthwise-channels") depthwise_channels=std::stoi(value);
       else if (flag=="--qkv-epilogue") qkv_epilogue=std::stoi(value);
       else if (flag=="--attention-tma") attention_tma=std::stoi(value);
       else if (flag=="--prefill-attention-impl") prefill_attention_impl=value;
@@ -738,8 +742,16 @@ int RunCompile(int argc, char** argv) {
     if(depthwise_impl=="tma" && (!serving || serving_phase!="forward" || frontend_mode!="dnn" ||
         arch_paths!="auto" || (pg_mode!="off" && pg_mode!="l2")))
       throw std::invalid_argument("depthwise TMA requires native Hopper DNN forward, explicit nonpaged off/l2");
+    if((depthwise_vectors!=0 && depthwise_vectors!=1) ||
+       (depthwise_rows!=1 && depthwise_rows!=2 && depthwise_rows!=4) ||
+       (depthwise_channels!=32 && depthwise_channels!=64 && depthwise_channels!=128 && depthwise_channels!=256))
+      throw std::invalid_argument("invalid depthwise vector/row/channel coordinate");
+    if((depthwise_vectors || depthwise_rows!=1 || depthwise_channels!=64) &&
+       (!forward || frontend_mode!="dnn"))
+      throw std::invalid_argument("depthwise coordinates require DNN forward");
     if(nvcc_split_compile<0)throw std::invalid_argument("nvcc split compile must be nonnegative");
     if(nvcc_split_compile!=1)runtime_flags+=" --split-compile="+std::to_string(nvcc_split_compile);
+    if(depthwise_vectors)runtime_flags+=" -DTILEMEGA_DEPTHWISE_VECTORS=1";
     if(depthwise_impl=="tma")runtime_flags+=" -DTILEMEGA_DEPTHWISE_TMA=1";
     if(gemv_load!="ldg" && gemv_load!="nc" && gemv_load!="bulk")
       throw std::invalid_argument("--gemv-load must be ldg, nc or bulk");
@@ -894,6 +906,7 @@ int RunCompile(int argc, char** argv) {
     if(frontend_mode=="dnn" && input.extension()!=".mlir") {
       auto bridge=tilemega::frontend::ReadExportBridge(input.string());
       tilemega::frontend::DnnPlanOptions options;options.batch=serving_batch;
+      options.depthwise_rows=depthwise_rows;options.depthwise_channels=depthwise_channels;
       options.depthwise_tma=depthwise_impl=="tma";
       options.deferred_layernorm=dnn_deferred_ln=="auto";
       options.dwpw_fuse=dnn_dwpw_fuse=="auto";
@@ -1644,6 +1657,9 @@ int RunCompile(int argc, char** argv) {
               " --ep-direct "+std::to_string(ep_direct)+
               " --dm-epilogue-fused "+std::to_string(dm_epilogue_fused)+
               " --nvcc-split-compile "+std::to_string(nvcc_split_compile)+
+              " --depthwise-vectors "+std::to_string(depthwise_vectors)+
+              " --depthwise-rows "+std::to_string(depthwise_rows)+
+              " --depthwise-channels "+std::to_string(depthwise_channels)+
               " --nonpaged-la "+std::to_string(nonpaged_la)+
               " --attention-frontier "+std::to_string(attention_frontier)+
               " --attention-past-split "+std::to_string(attention_past_split)+
@@ -2499,7 +2515,10 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"attention_noinline\": "<<(attention_noinline?"true":"false")
               <<",\n  \"ep_direct\": "<<(ep_direct?"true":"false")
               <<",\n  \"dm_epilogue_fused\": "<<dm_epilogue_fused
+              <<",\n  \"depthwise_vectors\": "<<depthwise_vectors
               <<",\n  \"nvcc_split_compile\": "<<nvcc_split_compile
+              <<",\n  \"depthwise_rows\": "<<depthwise_rows
+              <<",\n  \"depthwise_channels\": "<<depthwise_channels
               <<",\n  \"parallel_argmax\": "<<(parallel_argmax?"true":"false")
               <<",\n  \"attention_frontier\": "<<(attention_frontier?"true":"false")
               <<",\n  \"attention_past_split\": "<<(attention_past_split?"true":"false")

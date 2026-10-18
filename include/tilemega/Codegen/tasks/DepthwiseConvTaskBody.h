@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Backend/DmEpilogueValue.h>
+#include <tilemega/Backend/ServingVectorIO.h>
 #include <tilemega/Codegen/executor/Async.cuh>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <cstddef>
 #include <tilemega/Codegen/executor/TensorMap3D.h>
+#ifndef TILEMEGA_DEPTHWISE_VECTORS
+#define TILEMEGA_DEPTHWISE_VECTORS 0
+#endif
 #ifndef TILEMEGA_DEPTHWISE_TMA
 #define TILEMEGA_DEPTHWISE_TMA 0
 #endif
@@ -161,6 +165,20 @@ struct DepthwiseConvTaskBody {
     constexpr unsigned groups=ChannelTile/8,spatial_lanes=kThreads/groups;
     unsigned vector=ComputeThread()%groups,spatial=ComputeThread()/groups;
     float partial[8]={};
+    constexpr bool vector_path=TILEMEGA_DEPTHWISE_VECTORS && !kGated;
+    bool cached=vector_path && c.r==3 && c.s==3;
+    float kernel[vector_path?9:1][8];
+    if constexpr(vector_path)if(cached) {
+      #pragma unroll
+      for(int tap=0;tap<9;++tap) {
+        #pragma unroll
+        for(int lane=0;lane<8;++lane) {
+          auto channel=first_channel+vector*8+lane;
+          kernel[tap][lane]=channel<channels?
+              float(p.weight[(std::size_t(channel)*9+tap)*p.weight_channel_pitch]):0;
+        }
+      }
+    }
     for(unsigned pixel=spatial;pixel<RowBand*c.q;pixel+=spatial_lanes) {
       unsigned y=pixel/c.q,x=pixel%c.q,output_y=band*RowBand+y;
       if(output_y>=c.p)continue;
@@ -169,6 +187,47 @@ struct DepthwiseConvTaskBody {
         asm volatile("trap;");return;
       }
       float accum[kBands][8]={};
+#if TILEMEGA_DEPTHWISE_VECTORS
+      auto regular=[&] {
+        for(unsigned r=0;r<c.r;++r)for(unsigned s=0;s<c.s;++s) {
+          std::size_t at;
+          if constexpr(Tma) {
+            auto ix=input_x+s*c.dilation_w;auto iy=y*c.stride_h+r*c.dilation_h;
+            at=(ix/box_width)*chunk_elements+(iy*box_width+ix%box_width)*ChannelTile+vector*8;
+          }else at=((y*c.stride_h+r*c.dilation_h)*input_width+input_x+s*c.dilation_w)*ChannelTile+vector*8;
+          #pragma unroll
+          for(unsigned part=0;part<kBands;++part) {
+            #pragma unroll
+            for(unsigned lane=0;lane<8;++lane) {
+              unsigned channel=first_channel+vector*8+lane+part*channels;
+              if(first_channel+vector*8+lane<channels) {
+                float a=float(tile[part*(tile_elements/kBands)+at+lane]);
+                float b=float(p.weight[(std::size_t(channel)*c.r*c.s+r*c.s+s)*p.weight_channel_pitch]);
+                accum[part][lane]=fmaf(a,b,accum[part][lane]);
+              }
+            }
+          }
+      }
+      };
+      if constexpr(vector_path) {
+        if(cached) {
+          #pragma unroll
+          for(int tap=0;tap<9;++tap) {
+            unsigned r=tap/3,col=tap%3;std::size_t at;
+            if constexpr(Tma) {
+              auto ix=input_x+col*c.dilation_w;
+              auto iy=y*c.stride_h+r*c.dilation_h;
+              at=(ix/box_width)*chunk_elements+(iy*box_width+ix%box_width)*ChannelTile+vector*8;
+            }else at=((y*c.stride_h+r*c.dilation_h)*input_width+input_x+col*c.dilation_w)*ChannelTile+vector*8;
+            alignas(16) E values[8];
+            *reinterpret_cast<uint4*>(values)=*reinterpret_cast<uint4 const*>(tile+at);
+            #pragma unroll
+            for(int lane=0;lane<8;++lane)
+              accum[0][lane]=fmaf(float(values[lane]),kernel[tap][lane],accum[0][lane]);
+          }
+        }else regular();
+      }else regular();
+#else
       for(unsigned r=0;r<c.r;++r)for(unsigned s=0;s<c.s;++s) {
         std::size_t at;
         if constexpr(Tma) {
@@ -188,6 +247,8 @@ struct DepthwiseConvTaskBody {
           }
         }
       }
+#endif
+      alignas(16) E stored_values[8];
       #pragma unroll
       for(unsigned lane=0;lane<8;++lane) {
         unsigned channel=first_channel+vector*8+lane;
@@ -198,8 +259,24 @@ struct DepthwiseConvTaskBody {
         // points; pooling side sums observe the final stored BF16 value.
         E stored(value.first);
         auto at=image*out.strides[0]+(output_y+out.halo_top)*out.strides[1]+(x+out.halo_left)*out.strides[2]+channel;
-        p.output[at]=stored;partial[lane]+=float(stored);
+#if TILEMEGA_DEPTHWISE_VECTORS
+        stored_values[lane]=stored;
+#else
+        p.output[at]=stored;
+#endif
+        partial[lane]+=float(stored);
       }
+#if TILEMEGA_DEPTHWISE_VECTORS
+      unsigned channel=first_channel+vector*8;
+      if(channel<channels) {
+        auto* dst=p.output+image*out.strides[0]+(output_y+out.halo_top)*out.strides[1]+
+            (x+out.halo_left)*out.strides[2]+channel;
+        unsigned count=min(8u,channels-channel);
+        if(count==8 && (reinterpret_cast<std::uintptr_t>(dst)&15)==0)
+          backend::StoreGlobal16(dst,*reinterpret_cast<uint4 const*>(stored_values));
+        else for(unsigned lane=0;lane<count;++lane)dst[lane]=stored_values[lane];
+      }
+#endif
     }
     if(p.channel_partials) {
       // The strip's last read precedes reuse of the same storage for sums.
