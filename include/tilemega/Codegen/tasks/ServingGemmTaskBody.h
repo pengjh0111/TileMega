@@ -658,6 +658,9 @@ struct ServingGemmTaskBody {
         asm volatile("trap;");return;
 #endif
       }else tile=ComputeWgmma(p,tile_m,tile_n,shared);
+#if TILEMEGA_TRACE_TASK
+      DmEpilogueProfile epilogue_profile{p.profile};
+#endif
       backend::ServingDmEpilogue<Arch,Spec,TileM,TileN,false>::RunFromTile(
           tile,DmEpilogueOperands(p),tile_m,tile_n);
       ComputeSync();
@@ -678,6 +681,9 @@ struct ServingGemmTaskBody {
        p.access.a==DmAAccess::kRowGather || p.access.b==DmBAccess::kExpertIndirect) {
       auto* tile=backend::ServingDmGemm<Arch,TileM,TileN,TileK,Stages>::Dense(
           p,tile_m,tile_n,shared,TILEMEGA_NONPAGED_TILED!=0);
+#if TILEMEGA_TRACE_TASK
+      DmEpilogueProfile epilogue_profile{p.profile};
+#endif
       backend::ServingDmEpilogue<Arch,Spec,TileM,TileN,false>::RunFromTile(
           tile,DmEpilogueOperands(p),tile_m,tile_n);
       return;
@@ -694,12 +700,18 @@ struct ServingGemmTaskBody {
       auto* tile=backend::ServingConv<Arch,TileM,TileN,TileK,Stages>::template
           Run<TILEMEGA_NONPAGED_TILED!=0>(p,conv,p.dm_buffers.layouts[conv.input_layout],
               p.conv_iteration,tile_m,tile_n,p.k_begin/TileK,p.k_count/TileK,shared);
+#if TILEMEGA_TRACE_TASK
+      DmEpilogueProfile epilogue_profile{p.profile};
+#endif
       backend::ServingDmEpilogue<Arch,Spec,TileM,TileN,false>::RunFromTile(
           tile,DmEpilogueOperands(p),tile_m,tile_n);
       return;
     }
     if constexpr(TileN==16 || TileK<64) {
       auto* tile=Config::Dense(p,tile_m,tile_n,shared,TILEMEGA_NONPAGED_TILED!=0);
+#if TILEMEGA_TRACE_TASK
+      DmEpilogueProfile epilogue_profile{p.profile};
+#endif
       backend::ServingDmEpilogue<Arch,Spec,TileM,TileN,false>::RunFromTile(
           tile,DmEpilogueOperands(p),tile_m,tile_n);
     }else {
@@ -746,6 +758,9 @@ struct ServingGemmTaskBody {
     auto k_iter = make_coord_iterator(shape<2>(gA));
     Mainloop{}(accum, gA, gB, accum, k_iter, size<2>(gA), residue,
                ComputeThread(), shared);
+#endif
+#if TILEMEGA_TRACE_TASK
+    DmEpilogueProfile epilogue_profile{p.profile};
 #endif
     backend::ServingDmEpilogue<Arch, Spec, TileM, TileN>::Run(
         accum, mma, shared, DmEpilogueOperands(p), tile_m, tile_n);

@@ -24,5 +24,16 @@ struct FirstTileReadyProfile {
 #endif
   }
 };
+struct DmEpilogueProfile {
+  ServingTaskProfile* profile;
+  unsigned long long begin;
+  __device__ explicit DmEpilogueProfile(ServingTaskProfile* p)
+      :profile(p),begin(TaskProfileNow(p)) {}
+  __device__ ~DmEpilogueProfile() {
+#if TILEMEGA_TRACE_TASK
+    if(profile)profile->epilogue_ns+=TaskProfileNow(profile)-begin;
+#endif
+  }
+};
 #endif
 }

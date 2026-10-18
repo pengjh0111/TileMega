@@ -1113,8 +1113,12 @@ extern "C" int tm_plan_dump_trace_v2(void* opaque, float step_ms) {
   if (!plan || !plan->model.trace_v2_enabled) return -1;
   if (cudaDeviceSynchronize() != cudaSuccess) return -2;
   tilemega::codegen::harness::DumpTraceV2(
-      plan->model, "serving", plan->grid, 0.0f, step_ms,
-      "serving_decode_last_diagnostic_launch");
+      plan->model,
+#if defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE == 2
+      "forward", plan->grid, 0.0f, step_ms, "forward_l2_last_diagnostic_launch");
+#else
+      "serving", plan->grid, 0.0f, step_ms, "serving_decode_last_diagnostic_launch");
+#endif
   return 0;
 }
 #endif
