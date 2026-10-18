@@ -1118,6 +1118,12 @@ int RunCompile(int argc, char** argv) {
       import.gemms.assign(plan.gemms.size(),forward?
           forward_seed_tile:
           tilemega::frontend::GemmGranularity{16,128,128,2,1});
+      if(prefill_seed && forward_seed_explicit)
+        for(auto& geometry:import.gemms) {
+          // The last-token head stays narrow but shares the wide GEMMs' packing.
+          geometry.tile_n=forward_seed_tile.tile_n;
+          geometry.tile_k=forward_seed_tile.tile_k;
+        }
       if(forward_seed_explicit && (forward_gemm_impl=="wgmma" || conv_impl=="tma_im2col")) {
         tilemega::frontend::ImportedSemantics eligibility;eligibility.plan=plan;
         bool selected=false;
