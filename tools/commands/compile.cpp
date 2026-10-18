@@ -300,7 +300,7 @@ int RunCompile(int argc, char** argv) {
                  " --serving-pruning 0|1 --incremental-prepare 0|1 --serving-warm-start PREVIOUS.plan.json\n"
                  " --prompt-len N --capacity N --past-range LO:HI\n"
                  " --seed-arch legacy|native\n"
-                 " --forward-seed-tile M64N128K64S2 (native DNN seed only)\n"
+                 " --forward-seed-tile M64N128K64S2 (native DNN/prefill seed)\n"
                  " --search-capacity N --per-stage-kappa 0|1 --stage-kappa CSV\n"
                  " --segments 1|2 --segment-candidates N\n"
                  " --routing-profile FILE.json --moe-profile-layer N\n"
@@ -555,10 +555,15 @@ int RunCompile(int argc, char** argv) {
     if(seed_arch=="native" && (!serving || !solve_target.empty() || has_variants))
       throw std::invalid_argument("--seed-arch native requires an unsolved serving plan");
     bool const forward=serving_phase=="forward";
-    if(forward_seed_explicit && (!serving || !forward || frontend_mode!="dnn" ||
+    bool const prefill_seed=serving_phase=="prefill" && frontend_mode=="decoder";
+    if(forward_seed_explicit && (!serving ||
+        !(forward && frontend_mode=="dnn" || prefill_seed) ||
         seed_arch!="native" || !solve_target.empty() || has_variants ||
-        input.extension()==".mlir" || pg_mode=="pages" || !shared_weight_layout.empty()))
-      throw std::invalid_argument("forward seed tile requires native nonpaged DNN export JSON without solve or variants");
+        input.extension()==".mlir" || pg_mode=="pages" ||
+        (forward && !shared_weight_layout.empty())))
+      throw std::invalid_argument("forward seed tile requires native nonpaged DNN/prefill export JSON without solve or variants");
+    if(forward_seed_explicit && prefill_seed && forward_gemm_impl!="wgmma")
+      throw std::invalid_argument("explicit prefill tiles currently require forward WGMMA");
     if(forward_seed_explicit && (!tilemega::solver::DmServingBF16ShapeLegal(
         forward_seed_tile.tile_m,forward_seed_tile.tile_n,forward_seed_tile.tile_k,
         forward_seed_tile.stages) ||
@@ -1088,9 +1093,11 @@ int RunCompile(int argc, char** argv) {
         bool selected=false;
         for(std::size_t i=0;i<plan.gemms.size();++i)
           if((forward_gemm_impl=="wgmma" &&
-              tilemega::solver::ForwardSeedDenseWgmmaEligible(eligibility,i,serving_batch,forward_seq)) ||
+              tilemega::solver::ForwardSeedDenseWgmmaEligible(eligibility,i,serving_batch,
+                  forward?forward_seq:serving_prompt_len)) ||
              (conv_impl=="tma_im2col" &&
               tilemega::solver::ForwardSeedConvWgmmaEligible(eligibility,i))) {
+            if(prefill_seed)import.gemms[i]=forward_seed_tile;
             import.gemms[i].impl=2;selected=true;
           }
         if(!selected)throw std::invalid_argument("forward seed Hopper request selected no eligible GEMM");
