@@ -4,6 +4,10 @@
 #include <tilemega/Codegen/DmDescriptors.h>
 #include <cstdint>
 
+#ifndef TILEMEGA_DM_LINEAR_ADDRESS
+#define TILEMEGA_DM_LINEAR_ADDRESS 0
+#endif
+
 #if defined(__CUDACC__)
 #define TILEMEGA_DM_ADDRESS_HD __host__ __device__
 #else
@@ -41,6 +45,22 @@ struct DmTensorAddress {
              (w + layout.halo_left) * layout.strides[2] + channel * layout.strides[3];
     } else {
       if (!layout.rank) return row * fallback_pitch + column;
+#if TILEMEGA_DM_LINEAR_ADDRESS
+      if(layout.rank==1)return column*layout.strides[0];
+      bool linear=layout.rank<=4 && (layout.kind!=codegen::DmLayout::kNHWC ||
+          (!layout.halo_top && !layout.halo_left));
+      std::uint64_t rows=1;
+      #pragma unroll
+      for(unsigned axis=0;axis<3;++axis)if(axis+1<layout.rank) {
+        rows*=layout.logical[axis];
+        if(axis+2<layout.rank && layout.strides[axis]!=
+            std::uint64_t(layout.logical[axis+1])*layout.strides[axis+1])linear=false;
+      }
+      // Strided rows and padded channels are legal; row-prefix holes and
+      // halo insertion retain the original coordinate decoder.
+      if(linear && row<rows)return row*layout.strides[layout.rank-2]+
+          column*layout.strides[layout.rank-1];
+#endif
 #if TILEMEGA_DWPW_WGMMA
       // Constant axis indices keep the small layout arrays in registers.
       std::uint64_t pitch = layout.rank==1?layout.strides[0]:layout.rank==2?layout.strides[1]:layout.rank==3?layout.strides[2]:layout.strides[3];

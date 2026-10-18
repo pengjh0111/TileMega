@@ -330,7 +330,7 @@ int RunCompile(int argc, char** argv) {
     bool forward_seed_explicit=false;
     std::string forward_gemm_impl="mma16",prefill_attention_impl="mma16",encoder_attention_impl="mma16",conv_impl="cpasync",gemv_load="ldg",depthwise_impl="cpasync",dwpw_impl="mma16";
     int qkv_epilogue=0,attention_tma=0,dm_epilogue_fused=0;
-    int depthwise_vectors=0,depthwise_rows=1,depthwise_channels=64;
+    int depthwise_vectors=0,depthwise_rows=1,depthwise_channels=64,dm_linear_address=0;
     int nvcc_split_compile=1;
     std::string combine_impl="stage",merge_impl="stage";
     int dependency_intern=0,cluster_dim=1,serving_residency=0,activation_tma=0,decode_tile_m=16;
@@ -467,6 +467,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--parallel-argmax") parallel_argmax=std::stoi(value);
       else if (flag=="--ep-direct") ep_direct=std::stoi(value);
       else if (flag=="--dm-epilogue-fused") dm_epilogue_fused=std::stoi(value);
+      else if (flag=="--dm-linear-address") dm_linear_address=std::stoi(value);
       else if (flag=="--moe-topk-warp") moe_topk_warp=std::stoi(value);
       else if (flag.rfind("--gemm-impl-",0)==0) {
         std::array<std::string,5> names{{"qkv","o","gate_up","down","lm_head"}};
@@ -903,6 +904,9 @@ int RunCompile(int argc, char** argv) {
     if(moe_topk_warp && (!serving || frontend_mode!="decoder"))
       throw std::invalid_argument("warp top-k requires a serving decoder plan");
     if(moe_topk_warp)runtime_flags+=" -DTILEMEGA_MOE_TOPK_WARP=1";
+    if(dm_linear_address!=0 && dm_linear_address!=1)
+      throw std::invalid_argument("--dm-linear-address must be 0 or 1");
+    if(dm_linear_address)runtime_flags+=" -DTILEMEGA_DM_LINEAR_ADDRESS=1";
     if(dm_epilogue_fused<0 || dm_epilogue_fused>2)
       throw std::invalid_argument("--dm-epilogue-fused must be 0, 1 or 2");
     if(dm_epilogue_fused)runtime_flags+=" -DTILEMEGA_DM_EPILOGUE_FUSED="+std::to_string(dm_epilogue_fused);
@@ -1678,6 +1682,7 @@ int RunCompile(int argc, char** argv) {
               " --ep-direct "+std::to_string(ep_direct)+
               " --moe-topk-warp "+std::to_string(moe_topk_warp)+
               " --dm-epilogue-fused "+std::to_string(dm_epilogue_fused)+
+              " --dm-linear-address "+std::to_string(dm_linear_address)+
               " --nvcc-split-compile "+std::to_string(nvcc_split_compile)+
               " --depthwise-vectors "+std::to_string(depthwise_vectors)+
               " --depthwise-rows "+std::to_string(depthwise_rows)+
@@ -2537,6 +2542,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"attention_noinline\": "<<(attention_noinline?"true":"false")
               <<",\n  \"ep_direct\": "<<(ep_direct?"true":"false")
               <<",\n  \"moe_topk_warp\": "<<moe_topk_warp
+              <<",\n  \"dm_linear_address\": "<<dm_linear_address
               <<",\n  \"dm_epilogue_fused\": "<<dm_epilogue_fused
               <<",\n  \"depthwise_vectors\": "<<depthwise_vectors
               <<",\n  \"nvcc_split_compile\": "<<nvcc_split_compile
