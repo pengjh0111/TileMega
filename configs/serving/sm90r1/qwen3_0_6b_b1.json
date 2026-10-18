@@ -1,0 +1,197 @@
+{
+  "model": "qwen3_0_6b",
+  "batch": 1,
+  "precision": "bf16",
+  "isl": 64,
+  "osl": 1024,
+  "python": "/workspace/llm-stack/envs/vllm/bin/python",
+  "driver_sha256": "0c6357dd953443b20358b5f251676d90a4e7e74ab2051c42a4b4f7eab86145e7",
+  "model_dir": "runs/r16/models/qwen3_0_6b",
+  "model_config_sha256": "660db3b73d788119c04535e48cf9be5f55bc3100841a718637ae695b442f27dd",
+  "prompt_ids": "configs/prompts/qwen_isl64.json",
+  "prompt_ids_sha256": "fde7f712b970a3fb56e22ace96a5f3d7ff33dc430abccb191041c31749e427d1",
+  "runtime": {
+    "root": "runs/sm90r1/source/runtime-sm90r1-v2",
+    "manifest_sha256": "034378e4f02548bc2d71dc6be28aba57230070ef27904f13924e0a8d7d7493d6"
+  },
+  "execution": {
+    "decode": "L1",
+    "loop": 1,
+    "prefill": "L1"
+  },
+  "libraries": {
+    "prefill": {
+      "path": "runs/sm90r1/final-build/dense-v2/qwen3_0_6b/B1/prefill.so",
+      "artifact_id": "4243f3112e1a5037a3af0ffee229916c5a9f8e9702b4952c62a3387adc49ccd3",
+      "sha256": "250a6829666c5e888312aa14bc3b39a43a1a48cb39150c107e2549af570ba699",
+      "identity_sha256": "5936d29c6f9bd6550986e8b560556bc6f4c086fda545f7c904abc97b35d28c28",
+      "source_head": "09ebb8794e7d274a9895802c06c3cbc08f934262",
+      "source_root": "/root/TileMega/runs/sm90r1/build/snapshot-s32/source"
+    },
+    "decode": {
+      "path": "runs/sm90r1/final-build/dense-v2/qwen3_0_6b/B1/decode.so",
+      "artifact_id": "655eb9d68c9da5891c406fef40b311f24f5b7c3c94a6f4c039d21344da0407f2",
+      "sha256": "8a116b98f9756b4d9136c71054388bcdba303759fd840989f4b50ad1df052e54",
+      "identity_sha256": "5863cd01ee05dbc8a56c0329d9c06cfbbdc79a06ce6920330bd82cfae17c6c2d",
+      "source_head": "09ebb8794e7d274a9895802c06c3cbc08f934262",
+      "source_root": "/root/TileMega/runs/sm90r1/build/snapshot-s32/source"
+    }
+  },
+  "coordinates": {
+    "prefill": {
+      "pg": "off",
+      "residency_requested": "0",
+      "attention_impl": "mma16",
+      "attention_kv_block": 1088,
+      "gemm_table_sha256": "39de5295f0f7b264f02587a6ed05f967d0f7a1c4d46c83e41687d96080157b55",
+      "geometries": [
+        [
+          16,
+          128,
+          64,
+          2,
+          1,
+          "mma16"
+        ],
+        [
+          64,
+          128,
+          64,
+          3,
+          1,
+          "wgmma"
+        ]
+      ]
+    },
+    "decode": {
+      "pg": "off",
+      "residency_requested": "0",
+      "attention_impl": "simt",
+      "attention_kv_block": 128,
+      "gemm_table_sha256": "9e2116c6e1e9457ed382de0cc94e5a66c34b04c29968c964df4292fee041dd65",
+      "geometries": [
+        [
+          16,
+          32,
+          128,
+          4,
+          1,
+          "mma16"
+        ],
+        [
+          16,
+          128,
+          64,
+          4,
+          16,
+          "mma16"
+        ],
+        [
+          16,
+          128,
+          128,
+          4,
+          1,
+          "mma16"
+        ]
+      ]
+    }
+  },
+  "build_commands": {
+    "prefill": [
+      "runs/sm90r1/build/snapshot-s32/tilemega",
+      "compile",
+      "runs/r16/exports/qwen3_0_6b/prefill/export.json",
+      "runs/sm90r1/final-build/dense-v2/qwen3_0_6b/B1/prefill.so",
+      "--serving",
+      "prefill",
+      "--emit",
+      "serving",
+      "--batch",
+      "1",
+      "--runtime-target",
+      "configs/targets/sm_90_h800.json",
+      "--pg",
+      "off",
+      "--nonpaged-weight-layout",
+      "tiled",
+      "--resource-probes",
+      "0",
+      "--capacity",
+      "1088",
+      "--prompt-len",
+      "64",
+      "--arch-paths",
+      "auto",
+      "--seed-arch",
+      "native",
+      "--deferred-norm",
+      "0",
+      "--forward-gemm-impl",
+      "wgmma",
+      "--forward-seed-tile",
+      "M64N128K64S3",
+      "--prefill-attention-impl",
+      "wgmma",
+      "--serve-query-rows",
+      "64",
+      "--nvcc-split-compile",
+      "2",
+      "--ptxas-split-compile",
+      "1"
+    ],
+    "decode": [
+      "runs/sm90r1/build/snapshot-s32/tilemega",
+      "compile",
+      "runs/r16/exports/qwen3_0_6b/decode/export.json",
+      "runs/sm90r1/final-build/dense-v2/qwen3_0_6b/B1/decode.so",
+      "--serving",
+      "decode",
+      "--emit",
+      "serving",
+      "--pg",
+      "off",
+      "--nonpaged-weight-layout",
+      "tiled",
+      "--capacity",
+      "1088",
+      "--prompt-len",
+      "64",
+      "--arch-paths",
+      "auto",
+      "--seed-arch",
+      "native",
+      "--past-range",
+      "64:1086",
+      "--resource-probes",
+      "0",
+      "--batch",
+      "1",
+      "--runtime-target",
+      "configs/targets/sm_90_h800.json",
+      "--deferred-norm",
+      "1",
+      "--serve-kv-block",
+      "128",
+      "--serve-query-rows",
+      "4",
+      "--attention-impl",
+      "simt",
+      "--seed-geometry",
+      "configs/serving/seed_geometry/s3.json",
+      "--nvcc-split-compile",
+      "2",
+      "--ptxas-split-compile",
+      "1",
+      "--stage-descriptor-prefetch",
+      "1"
+    ]
+  },
+  "selection": "development coordinates frozen; final numerical and nonregression results are separate",
+  "protocol": {
+    "warmup": 1,
+    "repeats": 3,
+    "fresh_processes": 3,
+    "c1_positions_per_row": 1024
+  }
+}

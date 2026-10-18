@@ -1,0 +1,197 @@
+{
+  "model": "llama3_1_8b",
+  "batch": 2,
+  "precision": "bf16",
+  "isl": 64,
+  "osl": 1024,
+  "python": "/workspace/llm-stack/envs/vllm/bin/python",
+  "driver_sha256": "0c6357dd953443b20358b5f251676d90a4e7e74ab2051c42a4b4f7eab86145e7",
+  "model_dir": "runs/r16/models/llama3_1_8b",
+  "model_config_sha256": "0ea2186ccf686654fea498aae830b9de201334432b24b07f031d80b76dd928f0",
+  "prompt_ids": "configs/prompts/llama3_isl64.json",
+  "prompt_ids_sha256": "6d793e3b3aaf472939d4f483bf094f17b26d2346ed179e2b921ae57bec1d8e34",
+  "runtime": {
+    "root": "runs/sm90r1/source/runtime-sm90r1-v2",
+    "manifest_sha256": "034378e4f02548bc2d71dc6be28aba57230070ef27904f13924e0a8d7d7493d6"
+  },
+  "execution": {
+    "decode": "L1",
+    "loop": 1,
+    "prefill": "L1"
+  },
+  "libraries": {
+    "prefill": {
+      "path": "runs/sm90r1/final-build/dense-v2/llama3_1_8b/B2/prefill.so",
+      "artifact_id": "2c0e9cb0e16be5f46d4ebf1142eab67656a7d76462d0d192cdeb85f0f197efa0",
+      "sha256": "7d4a80723af6415a040020d468519f55000054361024a0d144485b6a5e4bbf5d",
+      "identity_sha256": "233bd7a2a5d3a3179f2cdeb1c76ffec7c29d2052ad590010770873476286fba3",
+      "source_head": "09ebb8794e7d274a9895802c06c3cbc08f934262",
+      "source_root": "/root/TileMega/runs/sm90r1/build/snapshot-s32/source"
+    },
+    "decode": {
+      "path": "runs/sm90r1/final-build/dense-v2/llama3_1_8b/B2/decode.so",
+      "artifact_id": "d48a5200a369ab83f0f7ddcd28ba233ec4a67b350e47597331ffba1157fb5f4b",
+      "sha256": "c33da9c45cfa9adc9e7fb710418663f65593e13aa3206a4fb300410946b785ce",
+      "identity_sha256": "a15175a2a9f16a43e93ee7c5615e37d3303773d8b3721fd54b066e7fb21d2312",
+      "source_head": "09ebb8794e7d274a9895802c06c3cbc08f934262",
+      "source_root": "/root/TileMega/runs/sm90r1/build/snapshot-s32/source"
+    }
+  },
+  "coordinates": {
+    "prefill": {
+      "pg": "off",
+      "residency_requested": "0",
+      "attention_impl": "mma16",
+      "attention_kv_block": 1088,
+      "gemm_table_sha256": "d228e4ef1b8ae55c2374b23bf61d8739dcdff078bedd8eec10b711409292d064",
+      "geometries": [
+        [
+          16,
+          128,
+          64,
+          2,
+          1,
+          "mma16"
+        ],
+        [
+          64,
+          128,
+          64,
+          3,
+          1,
+          "wgmma"
+        ]
+      ]
+    },
+    "decode": {
+      "pg": "off",
+      "residency_requested": "2",
+      "attention_impl": "mma16",
+      "attention_kv_block": 128,
+      "gemm_table_sha256": "2ac5916a0e74a6ef3e04336b10f40a277fe5326891096330036b1b48c3fd1a39",
+      "geometries": [
+        [
+          16,
+          128,
+          64,
+          4,
+          1,
+          "wgmma"
+        ],
+        [
+          16,
+          128,
+          64,
+          4,
+          4,
+          "wgmma"
+        ]
+      ]
+    }
+  },
+  "build_commands": {
+    "prefill": [
+      "runs/sm90r1/build/snapshot-s32/tilemega",
+      "compile",
+      "runs/r16/exports/llama3_1_8b/prefill/export.json",
+      "runs/sm90r1/final-build/dense-v2/llama3_1_8b/B2/prefill.so",
+      "--serving",
+      "prefill",
+      "--emit",
+      "serving",
+      "--batch",
+      "2",
+      "--runtime-target",
+      "configs/targets/sm_90_h800.json",
+      "--pg",
+      "off",
+      "--nonpaged-weight-layout",
+      "tiled",
+      "--resource-probes",
+      "0",
+      "--capacity",
+      "1088",
+      "--prompt-len",
+      "64",
+      "--arch-paths",
+      "auto",
+      "--seed-arch",
+      "native",
+      "--deferred-norm",
+      "0",
+      "--forward-gemm-impl",
+      "wgmma",
+      "--forward-seed-tile",
+      "M64N128K64S3",
+      "--prefill-attention-impl",
+      "wgmma",
+      "--serve-query-rows",
+      "64",
+      "--nvcc-split-compile",
+      "2",
+      "--ptxas-split-compile",
+      "1"
+    ],
+    "decode": [
+      "runs/sm90r1/build/snapshot-s32/tilemega",
+      "compile",
+      "runs/r16/exports/llama3_1_8b/decode/export.json",
+      "runs/sm90r1/final-build/dense-v2/llama3_1_8b/B2/decode.so",
+      "--serving",
+      "decode",
+      "--emit",
+      "serving",
+      "--pg",
+      "off",
+      "--nonpaged-weight-layout",
+      "tiled",
+      "--capacity",
+      "1088",
+      "--prompt-len",
+      "64",
+      "--arch-paths",
+      "auto",
+      "--seed-arch",
+      "native",
+      "--past-range",
+      "64:1086",
+      "--resource-probes",
+      "0",
+      "--batch",
+      "2",
+      "--runtime-target",
+      "configs/targets/sm_90_h800.json",
+      "--deferred-norm",
+      "1",
+      "--serve-kv-block",
+      "128",
+      "--serve-query-rows",
+      "4",
+      "--gemm-impl-qkv",
+      "wgmma",
+      "--gemm-impl-o",
+      "wgmma",
+      "--gemm-impl-gate-up",
+      "wgmma",
+      "--gemm-impl-down",
+      "wgmma",
+      "--gemm-impl-lm-head",
+      "wgmma",
+      "--residency",
+      "2",
+      "--seed-geometry",
+      "configs/serving/seed_geometry/w4r2.json",
+      "--nvcc-split-compile",
+      "2",
+      "--ptxas-split-compile",
+      "1"
+    ]
+  },
+  "selection": "development coordinates frozen; final numerical and nonregression results are separate",
+  "protocol": {
+    "warmup": 1,
+    "repeats": 3,
+    "fresh_processes": 3,
+    "c1_positions_per_row": 1024
+  }
+}

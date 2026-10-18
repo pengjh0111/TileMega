@@ -1,0 +1,195 @@
+{
+  "model": "llama3_2_3b",
+  "batch": 16,
+  "precision": "bf16",
+  "isl": 64,
+  "osl": 1024,
+  "python": "/workspace/llm-stack/envs/vllm/bin/python",
+  "driver_sha256": "0c6357dd953443b20358b5f251676d90a4e7e74ab2051c42a4b4f7eab86145e7",
+  "model_dir": "runs/r16/models/llama3_2_3b",
+  "model_config_sha256": "c0a6833b9da6e99a2a8920e879de7c1532c78883948327658cfdbd1eac6d5be6",
+  "prompt_ids": "configs/prompts/llama3_isl64.json",
+  "prompt_ids_sha256": "6d793e3b3aaf472939d4f483bf094f17b26d2346ed179e2b921ae57bec1d8e34",
+  "runtime": {
+    "root": "runs/sm90r1/source/runtime-sm90r1-v2",
+    "manifest_sha256": "034378e4f02548bc2d71dc6be28aba57230070ef27904f13924e0a8d7d7493d6"
+  },
+  "execution": {
+    "decode": "L1",
+    "loop": 1,
+    "prefill": "L1"
+  },
+  "libraries": {
+    "prefill": {
+      "path": "runs/sm90r1/final-build/dense-v2/llama3_2_3b/B16/prefill.so",
+      "artifact_id": "10f95cd0373643f828ae7e8c6222f7f1d8f870f7683a18a85b7a3e528781939a",
+      "sha256": "4980736107b123e58f22affefa7f4d59fa9069e65062003b49e9a2c16215a110",
+      "identity_sha256": "fa647de3e6a3e557b93d059d254fc76d40e3161cc0b6be443a6bd0a712b81318",
+      "source_head": "09ebb8794e7d274a9895802c06c3cbc08f934262",
+      "source_root": "/root/TileMega/runs/sm90r1/build/snapshot-s32/source"
+    },
+    "decode": {
+      "path": "runs/sm90r1/final-build/dense-v2/llama3_2_3b/B16/decode.so",
+      "artifact_id": "d174b1a006de143379115d90019d7c576caa66ea45651523df88db0c253a440c",
+      "sha256": "9ab209481821444eeacdd2b70e92b0cd7cc4a91402d689a1a031d1172b87567f",
+      "identity_sha256": "63526d2670b32da7df08413c481f45cdf0b244643396e4452a774a52f010b6cf",
+      "source_head": "09ebb8794e7d274a9895802c06c3cbc08f934262",
+      "source_root": "/root/TileMega/runs/sm90r1/build/snapshot-s32/source"
+    }
+  },
+  "coordinates": {
+    "prefill": {
+      "pg": "off",
+      "residency_requested": "0",
+      "attention_impl": "mma16",
+      "attention_kv_block": 1088,
+      "gemm_table_sha256": "39de5295f0f7b264f02587a6ed05f967d0f7a1c4d46c83e41687d96080157b55",
+      "geometries": [
+        [
+          16,
+          128,
+          64,
+          2,
+          1,
+          "mma16"
+        ],
+        [
+          64,
+          128,
+          64,
+          3,
+          1,
+          "wgmma"
+        ]
+      ]
+    },
+    "decode": {
+      "pg": "off",
+      "residency_requested": "2",
+      "attention_impl": "mma16",
+      "attention_kv_block": 256,
+      "gemm_table_sha256": "1a14560af6a416ee1c2f1ec12afee4c88079008ba8e7cd2054fa7cb5903f224f",
+      "geometries": [
+        [
+          16,
+          128,
+          64,
+          4,
+          1,
+          "mma16"
+        ],
+        [
+          16,
+          128,
+          64,
+          4,
+          4,
+          "mma16"
+        ],
+        [
+          16,
+          128,
+          64,
+          4,
+          8,
+          "mma16"
+        ]
+      ]
+    }
+  },
+  "build_commands": {
+    "prefill": [
+      "runs/sm90r1/build/snapshot-s32/tilemega",
+      "compile",
+      "runs/r16/exports/llama3_2_3b/prefill/export.json",
+      "runs/sm90r1/final-build/dense-v2/llama3_2_3b/B16/prefill.so",
+      "--serving",
+      "prefill",
+      "--emit",
+      "serving",
+      "--batch",
+      "16",
+      "--runtime-target",
+      "configs/targets/sm_90_h800.json",
+      "--pg",
+      "off",
+      "--nonpaged-weight-layout",
+      "tiled",
+      "--resource-probes",
+      "0",
+      "--capacity",
+      "1088",
+      "--prompt-len",
+      "64",
+      "--arch-paths",
+      "auto",
+      "--seed-arch",
+      "native",
+      "--deferred-norm",
+      "0",
+      "--forward-gemm-impl",
+      "wgmma",
+      "--forward-seed-tile",
+      "M64N128K64S3",
+      "--prefill-attention-impl",
+      "wgmma",
+      "--serve-query-rows",
+      "64",
+      "--nvcc-split-compile",
+      "2",
+      "--ptxas-split-compile",
+      "1"
+    ],
+    "decode": [
+      "runs/sm90r1/build/snapshot-s32/tilemega",
+      "compile",
+      "runs/r16/exports/llama3_2_3b/decode/export.json",
+      "runs/sm90r1/final-build/dense-v2/llama3_2_3b/B16/decode.so",
+      "--serving",
+      "decode",
+      "--emit",
+      "serving",
+      "--pg",
+      "off",
+      "--nonpaged-weight-layout",
+      "tiled",
+      "--capacity",
+      "1088",
+      "--prompt-len",
+      "64",
+      "--arch-paths",
+      "auto",
+      "--seed-arch",
+      "native",
+      "--past-range",
+      "64:1086",
+      "--resource-probes",
+      "0",
+      "--batch",
+      "16",
+      "--runtime-target",
+      "configs/targets/sm_90_h800.json",
+      "--deferred-norm",
+      "1",
+      "--serve-query-rows",
+      "4",
+      "--serve-kv-block",
+      "256",
+      "--residency",
+      "2",
+      "--seed-geometry",
+      "configs/serving/seed_geometry/p2.json",
+      "--nvcc-split-compile",
+      "2",
+      "--ptxas-split-compile",
+      "1"
+    ]
+  },
+  "selection": "development coordinates frozen; final numerical and nonregression results are separate",
+  "protocol": {
+    "warmup": 1,
+    "repeats": 3,
+    "fresh_processes": 3,
+    "c1_positions_per_row": 1024
+  }
+}
