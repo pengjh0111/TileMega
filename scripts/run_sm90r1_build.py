@@ -25,7 +25,8 @@ def main():
     args.receipt.parent.mkdir(parents=True, exist_ok=True)
     record = dict(command=command, max_address_space_gib=args.max_gib,
                   timeout_s=args.timeout, lock=str(args.lock), queued=time.time(),
-                  classification='compilation; not a numerical test')
+                  status='queued', classification='compilation; not a numerical test')
+    process = None
 
     def save():
         temporary = args.receipt.with_suffix('.pending')
@@ -33,6 +34,22 @@ def main():
         temporary.replace(args.receipt)
 
     save()
+
+    def stop(signum, frame):
+        del frame
+        record.update(status='cancelled' if process else 'cancelled_before_start',
+                      signal=signum)
+        if process is None:
+            record['ended'] = time.time()
+            save()
+            raise SystemExit(1)
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
     with args.lock.open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         record['started'] = time.time()
@@ -41,18 +58,16 @@ def main():
             bound = args.max_gib * 1024 ** 3
             resource.setrlimit(resource.RLIMIT_AS, (bound, bound))
 
-        process = subprocess.Popen(command, env=dict(os.environ, CUDA_VISIBLE_DEVICES=''),
-                                   start_new_session=True, preexec_fn=limits)
+        try:
+            process = subprocess.Popen(command, env=dict(os.environ, CUDA_VISIBLE_DEVICES=''),
+                                       start_new_session=True, preexec_fn=limits)
+        except OSError as error:
+            record.update(status='build_spawn_failed', error=str(error), ended=time.time())
+            save()
+            return 1
         record.update(pid=process.pid, status='running')
         save()
 
-        def stop(signum, frame):
-            del frame
-            record.update(status='cancelled', signal=signum)
-            os.killpg(process.pid, signal.SIGTERM)
-
-        signal.signal(signal.SIGTERM, stop)
-        signal.signal(signal.SIGINT, stop)
         try:
             result = process.wait(timeout=args.timeout)
             if record['status'] != 'cancelled':
