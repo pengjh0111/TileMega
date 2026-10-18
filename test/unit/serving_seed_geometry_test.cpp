@@ -24,24 +24,23 @@ int main(){using namespace tilemega;using Op=frontend::PlanGemm::Epilogue;
  solver::ApplySeedGeometryPolicy(qwen,q,solver::ParseSeedGeometryPolicy(json::Parse(
    R"({"base":{"tile_n":128,"min_tasks":118},"families":{"gate_up":{"max_split":1,"min_tile_n":32}}})")),132,true);
  assert(q[0].tile_n==32 && q[0].split_k==1);
- // A WGMMA residual may split at TN64; the same seed with mma16 is rejected.
+ // Serving reducers are tile-owned, so narrow residual tiles may split.
  frontend::ModelPlan moe;moe.gemms.resize(1);moe.gemms[0].epilogue=Op::kResidual;moe.gemms[0].n=2048;moe.gemms[0].k=4096;
  auto tn64=solver::ParseSeedGeometryPolicy(json::Parse(R"({"base":{"tile_n":64,"tile_k":64,"stages":6,"min_tasks":118}})"));
  std::vector<frontend::GemmGranularity> w(1,{16,64,64,2,1,0});
  solver::ApplySeedGeometryPolicy(moe,w,tn64,132,true,{-1,2,-1,2,-1});
  assert(w[0].split_k==4 && w[0].stages==6);
- bool mma_rejected=false;w.assign(1,{16,64,64,2,1,0});
- try{solver::ApplySeedGeometryPolicy(moe,w,tn64,132,true);}catch(std::invalid_argument const&){mma_rejected=true;}
- assert(mma_rejected);
+ w.assign(1,{16,64,64,2,1,0});
+ solver::ApplySeedGeometryPolicy(moe,w,tn64,132,true);
+ assert(w[0].split_k==4 && w[0].tile_n==64);
  int rejected=0;
  for(auto text:{R"({"base":{"stages":1}})",R"({"base":{"impl":"gemv","tile_n":128}})",
                 R"({"families":{"lm_head":{"split":2}}})",R"({"base":{"impl":"wgmma","stages":9}})",
-                R"({"base":{"tile_k":96}})",R"({"base":{"bogus":1}})",
-                R"({"families":{"down":{"tile_n":32,"split":4}}})"}) {
+                R"({"base":{"tile_k":96}})",R"({"base":{"bogus":1}})"}) {
   auto copy=std::vector<frontend::GemmGranularity>(5,{16,128,64,2,1,0});
   try{solver::ApplySeedGeometryPolicy(plan,copy,solver::ParseSeedGeometryPolicy(json::Parse(text)),132,true);}
   catch(std::invalid_argument const&){++rejected;}
  }
- assert(rejected==7);
- std::puts("serving seed geometry: SM-filling split, TN shrink, family overrides, seven rejection contracts PASS");
+ assert(rejected==6);
+ std::puts("serving seed geometry: SM-filling split, narrow residuals, six rejection contracts PASS");
 }

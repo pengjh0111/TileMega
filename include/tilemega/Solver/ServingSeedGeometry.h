@@ -114,12 +114,6 @@ inline void ApplySeedGeometryPolicy(frontend::ModelPlan const& plan,
       throw std::invalid_argument("seed geometry for "+family+" is not a legal decode shape");
     tile.split_k=rule.split?*rule.split:SeedSplitK(tiles,int(g.k),tile.tile_k,
         min_tasks,rule.max_split.value_or(16));
-    // Verified on Qwen3-0.6B B1/B2 with mma16: split residual GEMMs below
-    // TN128 fail C-1 (max logit gap 1.30, TN32/TN64; TN128 and unsplit TN32
-    // match HF). WGMMA TN64 splits are checked by model-level C-1 instead.
-    if(g.epilogue==frontend::PlanGemm::Epilogue::kResidual && tile.split_k>1 && tile.tile_n<128 &&
-       impl!=2)
-      throw std::invalid_argument("seed geometry splits a residual GEMM below TN128");
     // Argmax partials are reduced per head tile; a K split has no combiner.
     if(g.epilogue==frontend::PlanGemm::Epilogue::kArgmaxPartial && tile.split_k!=1)
       throw std::invalid_argument("seed geometry cannot split the argmax head");

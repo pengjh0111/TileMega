@@ -1065,7 +1065,9 @@ int RunCompile(int argc, char** argv) {
       tilemega::frontend::ImportOptions import;
       // Establish reducer ownership before building tile spaces and their
       // dependencies; a runtime ownership bit alone cannot prove this map.
-      import.combiner_tile_per_block=combine_impl=="cluster";
+      // Serving combine dispatch consumes GEMM tiles, not 128-element chunks.
+      // The two task counts coincide only for particular tiles and batches.
+      import.combiner_tile_per_block=emit_mode=="serving" || combine_impl=="cluster";
       if (plan.forward || plan.dm) import.phase_batch = serving_batch;
       import.gemms.assign(plan.gemms.size(),forward?
           forward_seed_tile:
