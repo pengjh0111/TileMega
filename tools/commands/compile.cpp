@@ -329,7 +329,7 @@ int RunCompile(int argc, char** argv) {
     tilemega::frontend::GemmGranularity forward_seed_tile{128,64,16,3,1};
     bool forward_seed_explicit=false;
     std::string forward_gemm_impl="mma16",prefill_attention_impl="mma16",encoder_attention_impl="mma16",conv_impl="cpasync",gemv_load="ldg",depthwise_impl="cpasync",dwpw_impl="mma16";
-    int qkv_epilogue=0,attention_tma=0,dm_epilogue_fused=0;
+    int qkv_epilogue=0,attention_tma=0,dm_epilogue_fused=0,prefill_expert_wgmma=0;
     int depthwise_vectors=0,depthwise_rows=1,depthwise_channels=64,dm_linear_address=0;
     int nvcc_split_compile=1;
     std::string combine_impl="stage",merge_impl="stage";
@@ -441,6 +441,7 @@ int RunCompile(int argc, char** argv) {
           throw std::invalid_argument("--residency must be 1 or 2");
       }
       else if (flag=="--forward-gemm-impl") forward_gemm_impl=value;
+      else if (flag=="--prefill-expert-wgmma") prefill_expert_wgmma=std::stoi(value);
       else if (flag=="--conv-impl") conv_impl=value;
       else if (flag=="--gemv-load") gemv_load=value;
       else if (flag=="--dwpw-impl") dwpw_impl=value;
@@ -577,6 +578,11 @@ int RunCompile(int argc, char** argv) {
         seed_arch!="native" || !solve_target.empty() || has_variants || pg_mode=="pages" ||
         input.extension()==".mlir"))
       throw std::invalid_argument("forward geometry requires a native nonpaged DNN export seed");
+    if(prefill_expert_wgmma<0 || prefill_expert_wgmma>1 ||
+        (prefill_expert_wgmma && (!prefill_seed || !forward_seed_explicit ||
+            (forward_seed_tile.tile_m!=64 && forward_seed_tile.tile_m!=128) ||
+            moe_bm%forward_seed_tile.tile_m)))
+      throw std::invalid_argument("prefill expert WGMMA requires explicit prefill tiles that divide the expert row block");
     if(forward_seed_explicit && prefill_seed && forward_gemm_impl!="wgmma")
       throw std::invalid_argument("explicit prefill tiles currently require forward WGMMA");
     if(forward_seed_explicit && (!tilemega::solver::DmServingBF16ShapeLegal(
@@ -1166,6 +1172,22 @@ int RunCompile(int argc, char** argv) {
           import.gemms.at(id).tile_n=layout.tile_n;
           import.gemms.at(id).tile_k=layout.tile_k;
         }
+      if(prefill_expert_wgmma) {
+        bool found=false;
+        for(std::size_t i=0;i<plan.gemms.size();++i)
+          if(plan.gemms[i].access.b==tilemega::codegen::DmBAccess::kExpertIndirect) {
+            auto& tile=import.gemms[i];
+            // Keep the shared weight recipe's N/K while widening gathered rows.
+            tile.tile_m=forward_seed_tile.tile_m;tile.stages=forward_seed_tile.stages;
+            tile.impl=2;
+            if(!tilemega::solver::ServingWgmmaShapeLegal(
+                tile.tile_m,tile.tile_n,tile.tile_k,tile.stages) ||
+                plan.gemms[i].access.block_rows%unsigned(tile.tile_m))
+              throw std::invalid_argument("expert row block or shared packing cannot use the requested WGMMA tile");
+            found=true;
+          }
+        if(!found)throw std::invalid_argument("prefill expert WGMMA requires expert-indirect GEMMs");
+      }
       if(!forward_geometry.empty())tilemega::solver::ApplyForwardGeometry(
           plan,import.gemms,tilemega::json::ParseFile(forward_geometry));
       if(moe_gemv) {
@@ -1681,6 +1703,7 @@ int RunCompile(int argc, char** argv) {
               " --parallel-argmax "+std::to_string(parallel_argmax)+
               " --ep-direct "+std::to_string(ep_direct)+
               " --moe-topk-warp "+std::to_string(moe_topk_warp)+
+              " --prefill-expert-wgmma "+std::to_string(prefill_expert_wgmma)+
               " --dm-epilogue-fused "+std::to_string(dm_epilogue_fused)+
               " --dm-linear-address "+std::to_string(dm_linear_address)+
               " --nvcc-split-compile "+std::to_string(nvcc_split_compile)+
@@ -2541,6 +2564,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"attention_buffers\": "<<attention_buffers
               <<",\n  \"attention_noinline\": "<<(attention_noinline?"true":"false")
               <<",\n  \"ep_direct\": "<<(ep_direct?"true":"false")
+              <<",\n  \"prefill_expert_wgmma\": "<<prefill_expert_wgmma
               <<",\n  \"moe_topk_warp\": "<<moe_topk_warp
               <<",\n  \"dm_linear_address\": "<<dm_linear_address
               <<",\n  \"dm_epilogue_fused\": "<<dm_epilogue_fused
