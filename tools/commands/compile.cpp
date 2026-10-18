@@ -325,7 +325,7 @@ int RunCompile(int argc, char** argv) {
     std::string shared_weight_layout;
     std::string sync_policy="calibrated",runtime_target,runtime_flags,pg_mode="off";
     std::string arch_paths="auto",pdl="auto",handoff_mode="off",weight_layout="tiled";
-    std::string seed_arch="legacy",seed_target_arch;
+    std::string seed_arch="legacy",seed_target_arch,cuda_fast_compile="0";
     tilemega::frontend::GemmGranularity forward_seed_tile{128,64,16,3,1};
     bool forward_seed_explicit=false;
     std::string forward_gemm_impl="mma16",prefill_attention_impl="mma16",encoder_attention_impl="mma16",conv_impl="cpasync",gemv_load="ldg",depthwise_impl="cpasync",dwpw_impl="mma16";
@@ -455,6 +455,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--la-cta-release") la_cta_release=std::stoi(value);
       else if (flag=="--nvcc-split-compile") nvcc_split_compile=std::stoi(value);
       else if (flag=="--ptxas-split-compile") ptxas_split_compile=std::stoi(value);
+      else if (flag=="--cuda-fast-compile") cuda_fast_compile=value;
       else if (flag=="--ptxas-opt-level") ptxas_opt_level=std::stoi(value);
       else if (flag=="--ptxas-expensive") ptxas_expensive=std::stoi(value);
       else if (flag=="--prefill-n-major") prefill_n_major=std::stoi(value);
@@ -803,6 +804,9 @@ int RunCompile(int argc, char** argv) {
     if(nvcc_split_compile!=1)runtime_flags+=" --split-compile="+std::to_string(nvcc_split_compile);
     if(ptxas_split_compile<1)throw std::invalid_argument("ptxas split compile must be positive");
     if(ptxas_split_compile!=1)runtime_flags+=" -Xptxas=--split-compile="+std::to_string(ptxas_split_compile);
+    if(cuda_fast_compile!="0" && cuda_fast_compile!="min" && cuda_fast_compile!="mid" && cuda_fast_compile!="max")
+      throw std::invalid_argument("cuda fast compile expects 0/min/mid/max");
+    if(cuda_fast_compile!="0")runtime_flags+=" --Ofast-compile="+cuda_fast_compile;
     if(ptxas_opt_level<0 || ptxas_opt_level>3)
       throw std::invalid_argument("ptxas optimization level expects 0..3");
     if(ptxas_opt_level!=3)runtime_flags+=" -Xptxas=-O"+std::to_string(ptxas_opt_level);
@@ -1763,6 +1767,7 @@ int RunCompile(int argc, char** argv) {
               " --forward-wgmma-outline "+std::to_string(forward_wgmma_outline)+
               " --nvcc-split-compile "+std::to_string(nvcc_split_compile)+
               " --ptxas-split-compile "+std::to_string(ptxas_split_compile)+
+              " --cuda-fast-compile "+cuda_fast_compile+
               " --ptxas-opt-level "+std::to_string(ptxas_opt_level)+
               " --ptxas-expensive "+std::to_string(ptxas_expensive)+
               " --prefill-n-major "+std::to_string(prefill_n_major)+
@@ -2637,6 +2642,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"nvcc_split_compile\": "<<nvcc_split_compile
               <<",\n  \"ptxas_split_compile\": "<<ptxas_split_compile
               <<",\n  \"ptxas_opt_level\": "<<ptxas_opt_level
+              <<",\n  \"cuda_fast_compile\": \""<<cuda_fast_compile<<"\""
               <<",\n  \"depthwise_rows\": "<<depthwise_rows
               <<",\n  \"global_pool_channels\": "<<global_pool_channels
               <<",\n  \"stage_descriptor_prefetch\": "<<stage_descriptor_prefetch

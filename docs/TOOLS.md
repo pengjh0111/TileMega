@@ -39,6 +39,12 @@ assembly optimization (default 3); NVCC `-O` itself controls host optimization. 
 assembler controls. Their exact flags are retained in the build identity;
 changing optimization passes requires new correctness and end-to-end measurements.
 
+`--cuda-fast-compile 0|min|mid|max` selects NVCC's device fast compilation
+level (default `0`, disabled). Stated: [CUDA 12.9 NVCC documentation](https://docs.nvidia.com/cuda/archive/12.9.1/cuda-compiler-driver-nvcc/index.html)
+describes the compilation/runtime tradeoff. Select an isolated CUDA 12.9 compiler
+with `CUDACXX`; CUDA 12.8 rejects this option. The level is recorded in the plan
+and build identity, and candidates require fresh numerical and end-to-end checks.
+
 `scripts/run_sm90r1_build.py --receipt runs/sm90r1/build.json -- COMMAND...`
 serializes CPU builds through a shared file lock, hides CUDA devices, and bounds
 each process to 64 GiB of address space and each build to two hours. Both limits
