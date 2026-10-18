@@ -18,7 +18,7 @@ def main():
     identity = json.loads((a.trace / 'trace.json').read_text())
     if identity.get('mode') != 'L2' or not identity.get('diagnostic_only'):
         raise ValueError('expected a separately instrumented L2 forward trace')
-    reconstruction, spaces, links = analyze_task_space_trace(a.trace / 'v2')
+    reconstruction, spaces, links = analyze_task_space_trace(a.trace / 'v2', latest_ready_parent=True)
     runtime = {int(r['stage']): r for r in read_tsv(a.trace / 'v2/runtime_stages.tsv')}
     profiles = collections.defaultdict(list)
     for row in read_tsv(a.trace / 'task_profile.tsv'):
@@ -38,15 +38,18 @@ def main():
         stage = row['stage']
         samples = profiles[stage]
         rows.append(dict(**row, kind=runtime[stage]['kind'],
-                         critical_path_ns=critical[stage]['wall_ns'],
+                         critical_link_wall_ns=critical[stage]['wall_ns'],
+                         critical_body_ns=critical[stage]['task_fixed_plus_mainloop_ns'],
                          critical_wait_ns=critical[stage]['wait_hop_ns'],
                          critical_publish_ns=critical[stage]['publish_ns'],
+                         critical_barrier_ns=critical[stage]['barrier_ns'],
+                         critical_unattributed_gap_ns=critical[stage]['idle_ns'],
                          profile_samples=len(samples),
                          sampled_epilogue_median_ns=statistics.median(x['epilogue_ns'] for x in samples)
                              if samples else None,
                          sampled_mainloop_plus_dispatch_median_ns=statistics.median(
                              x['mainloop_plus_dispatch_ns'] for x in samples) if samples else None))
-    rows.sort(key=lambda row: row['critical_path_ns'], reverse=True)
+    rows.sort(key=lambda row: row['critical_body_ns'], reverse=True)
     a.out.mkdir(parents=True, exist_ok=True)
     with (a.out / 'stages.csv').open('w', newline='') as stream:
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
@@ -56,7 +59,8 @@ def main():
         evidence='verified trace reconstruction', diagnostic_only=True, timing_valid=False,
         reconstruction=reconstruction, top10=rows[:10],
         dependencies=str((a.trace / 'v2/runtime_dependencies.cuh').resolve()),
-        scope='all-task wait/run/publish; sampled epilogue; remaining sampled body includes mainloop and dispatch'),
+        scope='latest-ready dependency/worker chain; gaps are separate from body and synchronization; '
+              'sampled body remainder includes mainloop and dispatch; diagnostic only'),
         indent=2) + '\n')
 
 

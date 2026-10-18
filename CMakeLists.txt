@@ -1479,6 +1479,9 @@ if(TILEMEGA_BUILD_TESTS AND Python3_EXECUTABLE)
 endif()
 
 if(TILEMEGA_BUILD_TESTS AND Python3_EXECUTABLE)
+  add_test(NAME sm90r1_trace_causal_parent COMMAND ${CMAKE_COMMAND} -E env
+    PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python ${Python3_EXECUTABLE} -m unittest discover
+    -s ${CMAKE_CURRENT_SOURCE_DIR}/test/python -p test_trace_causal_parent.py)
   foreach(suite model_registry serving_head light_selection moe_full
       moe_deployment moe_routing_check serving_replay dnn_generated_metrics
       dm_scheduler_lock dnn_local_pool dnn_local_replay dnn_check_cli)

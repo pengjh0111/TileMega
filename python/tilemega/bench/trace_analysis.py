@@ -602,7 +602,7 @@ def analyze_task_spaces(dump, reconstruction):
     return spaces, links
 
 
-def analyze_task_space_trace(dump, source=None):
+def analyze_task_space_trace(dump, source=None, *, latest_ready_parent=False):
     """Exact range maxima for large runtime DAGs, without expanding kAll edges.
 
     The existing detailed analyzer and its historical columns remain unchanged.
@@ -679,7 +679,7 @@ def analyze_task_space_trace(dump, source=None):
         if incoming != expected[stage]:
             raise ValueError('trace dependency slice differs from its runtime descriptors')
         weight = end - begin
-        bound = (0, -1); root = (-begin, -1)
+        bound = (0, -1); root = (-begin, -1); latest = (float('-inf'), -1)
         for producer, consumer, mode, div, scale, offset, count in incoming:
             at = (task // div) * scale + offset
             lo = 0 if mode == 'kAll' else max(0, at)
@@ -694,11 +694,18 @@ def analyze_task_space_trace(dump, source=None):
                 raise ValueError('dependency has unobserved producers')
             bound = max(bound, cp[producer].maximum(lo, hi))
             root = max(root, origin[producer].maximum(lo, hi))
+            latest = max(latest, ends[producer].maximum(lo, hi))
         previous = worker_last.get(row['worker'])
         if previous is not None:
             if by_slot[previous]['run_end'] > begin:
                 raise ValueError('overlapping tasks on one worker')
             root = max(root, (elapsed[previous]-by_slot[previous]['run_end'], previous))
+            latest = max(latest, (by_slot[previous]['run_end'], previous))
+        if latest_ready_parent and latest[1] != -1:
+            # Follow the observed last-ready dependency, rather than assigning
+            # another parallel branch's elapsed gap to this task's body.
+            predecessor = latest[1]
+            root = (elapsed[predecessor]-by_slot[predecessor]['run_end'], predecessor)
         parent[slot] = root[1]; elapsed[slot] = end + root[0]
         cp[stage].put(task, (bound[0] + weight, slot))
         origin[stage].put(task, (root[0], slot)); ends[stage].put(task, (end, slot))
@@ -712,6 +719,8 @@ def analyze_task_space_trace(dump, source=None):
     reconstructed = dict(cp_corrected_ns=best_cp[0], cp_reconstructed_with_publish_ns=terminal[0],
                          measured_l2_ms=float(meta['l2_ms']),
                          cp_realized_path=','.join(f'{by_slot[s]["stage"]}:{by_slot[s]["logical_task"]}' for s in path))
+    if latest_ready_parent:
+        reconstructed['realized_parent_policy'] = 'latest observed predecessor run end'
     spaces, links = analyze_task_spaces(dump, reconstructed)
     if sum(r['wall_ns'] for r in links) != terminal[0]:
         raise ValueError('compressed reconstruction and chain partition disagree')
