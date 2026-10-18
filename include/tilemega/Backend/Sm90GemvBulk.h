@@ -86,6 +86,9 @@ struct Sm90GemvBulk {
         IssueB(p,tile_n,first+2*Base::kBatchK,slot,shared,tiled,policy);
       Base::Fold(p,tile_m,first,weights,acc,shared);
     }
+    ComputeSync();
+    if(ComputeThread()==0){Copy::Invalidate(barriers);Copy::Invalidate(barriers+1);}
+    ComputeSync();
     return Base::template Materialize<Swizzled>(acc,shared);
   }
 };

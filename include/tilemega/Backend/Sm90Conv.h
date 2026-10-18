@@ -67,7 +67,7 @@ struct Sm90Conv {
         if(it+2<iterations)issue(it+2);
       }
     }
-    return Body::Materialize(accum,shared);
+    return Body::Materialize(accum,shared,barriers,Stages);
   }
 };
 } // namespace tilemega::backend

@@ -95,7 +95,7 @@ struct DwPwWgmmaTaskBody {
       Body::Accumulate(weight+(it%2)*TN*TK,activation+(it%2)*TM*TK,accum);
       Gmma::template Wait<0>();ComputeSync();if(it+2<Channels/TK)issue(it+2);
     }
-    auto* result=Body::Materialize(accum,scratch);
+    auto* result=Body::Materialize(accum,scratch,barriers,2);
     backend::ServingDmEpilogue<Arch,PwSpec,TM,TN,false>::RunFromTile(
         result,DmEpilogueOperands(pw),tile_m,tile_n);
   }

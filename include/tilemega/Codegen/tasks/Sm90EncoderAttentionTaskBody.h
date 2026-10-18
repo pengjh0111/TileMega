@@ -58,6 +58,7 @@ struct Sm90EncoderAttentionTaskBody {
         Async::Tensor2D(s.value,maps+2,0,0,&s.barrier);
       }
       Async::Wait(&s.barrier,0);ComputeSync();
+      if(ComputeThread()==0)Async::Invalidate(&s.barrier);
     }else {
       auto ql=as_position_independent_swizzle_layout(QLayout{});
       auto kl=as_position_independent_swizzle_layout(KLayout{});

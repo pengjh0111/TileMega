@@ -27,6 +27,8 @@ struct Sm90BulkGather {
   }
   __device__ static __forceinline__ void WaitWeight(std::uint64_t* barrier) {
     Async::Wait(barrier,0);codegen::executor::ComputeSync();
+    if(codegen::executor::ComputeThread()==0)Async::Invalidate(barrier);
+    codegen::executor::ComputeSync();
   }
   template<bool WeightBulk=false,class Operands>
   __device__ static __forceinline__ bool Load(Operands const& p,int tile_m,int iteration,
@@ -51,6 +53,7 @@ struct Sm90BulkGather {
       }
     }
     Async::Wait(barrier,0);ComputeSync();
+    if(ComputeThread()==0)Async::Invalidate(barrier);
     // Linear bulk has no SW128 transform. Repack its 16-byte vectors before
     // publishing generic shared writes to the WGMMA async proxy.
     auto layout=cute::as_position_independent_swizzle_layout(Sm90KLayout<M,K>{});

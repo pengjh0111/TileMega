@@ -87,7 +87,7 @@ struct Sm90DecodePipeline {
       Gmma::template Wait<1>();ComputeSync();
       if(it>0 && it+1<iterations)issue(it+1);
     }
-    return Body::Materialize(accum,shared);
+    return Body::Materialize(accum,shared,barriers,2);
   }
 };
 } // namespace tilemega::backend

@@ -279,7 +279,7 @@ struct ServingGemmTaskBody {
         if(it+2<iterations)issue(it+2);
       }
     }
-    return Body::Materialize(accum,shared);
+    return Body::Materialize(accum,shared,barriers,tma?S:0);
   }
   // Stages>2 keeps Stages-1 weight tiles in flight across WGMMA. The two-slot
   // loops below issue one tile per wgmma wait: verified on H800 expert tasks,
@@ -374,7 +374,11 @@ struct ServingGemmTaskBody {
       Gmma::template Wait<1>();ComputeSync();
       if(it>0)issue(it-1+S);
     }
+#if TILEMEGA_NONPAGED_TILED
+    return Body::Materialize(accum,shared,barriers,S);
+#else
     return Body::Materialize(accum,shared);
+#endif
   }
   template<class Operands>
   __device__ static __forceinline__ float* ComputeWgmma(Operands const& p,int tile_m,

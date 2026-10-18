@@ -21,6 +21,11 @@ struct Async {
     if constexpr(Caps::kMbarrier)
       asm volatile("mbarrier.init.shared.b64 [%0], %1;" :: "r"(Shared(barrier)),"r"(arrivals):"memory");
   }
+  // All users must rendezvous before invalidation and before repurposing storage.
+  __device__ static void Invalidate(std::uint64_t* barrier) {
+    if constexpr(Caps::kMbarrier)
+      asm volatile("mbarrier.inval.shared::cta.b64 [%0];" :: "r"(Shared(barrier)):"memory");
+  }
   __device__ static void InitFence() {
     if constexpr(Caps::kMbarrierTx)
       asm volatile("fence.mbarrier_init.release.cluster;" ::: "memory");

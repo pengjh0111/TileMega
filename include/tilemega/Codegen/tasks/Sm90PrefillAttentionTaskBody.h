@@ -280,6 +280,13 @@ struct Sm90PrefillAttentionTaskBody {
       }
       ComputeSync();
     }
+#if TILEMEGA_PREFILL_ATTENTION_TMA
+    if(ComputeThread()==0) {
+      Async::Invalidate(&s.query_barrier);
+      Async::Invalidate(&s.kv_barrier[0]);Async::Invalidate(&s.kv_barrier[1]);
+    }
+    ComputeSync();
+#endif
   }
 };
 } // namespace tilemega::codegen

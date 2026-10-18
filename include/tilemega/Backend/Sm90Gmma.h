@@ -2,6 +2,7 @@
 #pragma once
 #include <tilemega/Target/ArchDispatch.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
+#include <tilemega/Codegen/executor/Async.cuh>
 #include <cute/tensor.hpp>
 #include <cute/arch/mma_sm90.hpp>
 #include <cute/atom/mma_traits_sm90_gmma.hpp>
@@ -84,10 +85,17 @@ struct Sm90DecodeGmma {
     Gmma::Commit();
   }
   template<class Accumulator>
-  __device__ static __forceinline__ float* Materialize(Accumulator& accum,char* workspace) {
+  __device__ static __forceinline__ float* Materialize(Accumulator& accum,char* workspace,
+      std::uint64_t* barriers=nullptr,int barrier_count=0) {
     using namespace cute;
     Gmma::template Wait<0>();Gmma::Fence(accum);
     codegen::executor::ComputeSync();
+    // The FP32 tile aliases the pipeline header, including its live barriers.
+    if(barrier_count) {
+      if(codegen::executor::ComputeThread()==0)
+        for(int i=0;i<barrier_count;++i)codegen::executor::Async<Arch>::Invalidate(barriers+i);
+      codegen::executor::ComputeSync();
+    }
     Mma mma;
     auto owned=mma.get_slice(int(threadIdx.x)).partition_C(
         make_identity_tensor(Shape<Int<N>,Int<M>>{}));
@@ -124,10 +132,16 @@ struct Sm90ForwardGmma {
     Gmma::Commit();
   }
   template<class Accumulator>
-  __device__ static __forceinline__ float* Materialize(Accumulator& accum,char* workspace) {
+  __device__ static __forceinline__ float* Materialize(Accumulator& accum,char* workspace,
+      std::uint64_t* barriers=nullptr,int barrier_count=0) {
     using namespace cute;
     Gmma::template Wait<0>();Gmma::Fence(accum);
     codegen::executor::ComputeSync();
+    if(barrier_count) {
+      if(codegen::executor::ComputeThread()==0)
+        for(int i=0;i<barrier_count;++i)codegen::executor::Async<Arch>::Invalidate(barriers+i);
+      codegen::executor::ComputeSync();
+    }
     auto owned=Mma{}.get_slice(int(threadIdx.x)).partition_C(
         make_identity_tensor(Shape<Int<M>,Int<N>>{}));
     float* tile=reinterpret_cast<float*>(workspace);

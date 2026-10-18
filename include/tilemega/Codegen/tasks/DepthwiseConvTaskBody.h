@@ -140,6 +140,8 @@ struct DepthwiseConvTaskBody {
         }
       }
       Copy::Wait(barrier,0);ComputeSync();
+      if(ComputeThread()==0)Copy::Invalidate(barrier);
+      ComputeSync();
 #else
       static_assert(!Tma,"depthwise TMA descriptors require TILEMEGA_DEPTHWISE_TMA=1");
 #endif

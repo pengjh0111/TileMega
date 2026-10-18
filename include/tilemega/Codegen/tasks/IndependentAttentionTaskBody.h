@@ -128,6 +128,12 @@ struct IndependentAttentionTaskBody {
       ComputeSync();Issue(int(cursor)+Buffers);
     }
   };
+  __device__ static __forceinline__ void RetireHopperPages(SharedStorage& shared) {
+    ComputeSync();
+    if(ComputeThread()==0)
+      for(int slot=0;slot<Buffers;++slot)Copy::Invalidate(&shared.full[slot]);
+    ComputeSync();
+  }
   static constexpr int kClusterElements=Q*D+((Q+3)&~3);
   __device__ static __forceinline__ float* RunLocalPartial(
       ServingAttentionOperands const& p,SharedStorage& shared,int batch,int group,int block) {
@@ -153,6 +159,7 @@ struct IndependentAttentionTaskBody {
       for(int slot=0;slot<Buffers;++slot)pages.Issue(slot);
       std::uint64_t sequence=0;
       Body::RunLocalPartial(p,batch,group,block,pages,sequence,shared.compute,tile);
+      RetireHopperPages(shared);
     }
     for(int i=Q*D+Q+ComputeThread();i<kClusterElements;i+=executor::kComputeThreads)tile[i]=0;
     ComputeSync();
@@ -174,6 +181,7 @@ struct IndependentAttentionTaskBody {
       for(int slot=0;slot<Buffers;++slot)pages.Issue(slot);
       std::uint64_t sequence=0;
       Body::Run(p,batch,group,block,pages,sequence,shared.compute);
+      RetireHopperPages(shared);
     }else {
       LocalPages pages{p,shared,batch,group,block,layout};
       #pragma unroll
