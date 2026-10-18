@@ -869,9 +869,9 @@ int RunCompile(int argc, char** argv) {
         (pg_mode!="off" && pg_mode!="l2") || merge_impl=="cluster"))
       throw std::invalid_argument("past-based attention requires nonpaged decode and a stage/LA merge");
     if(attention_past_split)runtime_flags+=" -DTILEMEGA_ATTENTION_PAST_SPLIT=1";
-    if(dm_epilogue_fused!=0 && dm_epilogue_fused!=1)
-      throw std::invalid_argument("--dm-epilogue-fused must be 0 or 1");
-    if(dm_epilogue_fused)runtime_flags+=" -DTILEMEGA_DM_EPILOGUE_FUSED=1";
+    if(dm_epilogue_fused<0 || dm_epilogue_fused>2)
+      throw std::invalid_argument("--dm-epilogue-fused must be 0, 1 or 2");
+    if(dm_epilogue_fused)runtime_flags+=" -DTILEMEGA_DM_EPILOGUE_FUSED="+std::to_string(dm_epilogue_fused);
     if(ep_direct!=0 && ep_direct!=1)throw std::runtime_error("--ep-direct must be 0 or 1");
     if(attention_buffers!=1 && attention_buffers!=2)throw std::runtime_error("--attention-buffers must be 1 or 2");
     if((attention_noinline!=0 && attention_noinline!=1) || (parallel_argmax!=0 && parallel_argmax!=1) || (nonpaged_la!=0 && nonpaged_la!=1) || (deferred_norm!=0 && deferred_norm!=1) || (paged_la!=0 && paged_la!=1) ||
@@ -2486,7 +2486,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"attention_buffers\": "<<attention_buffers
               <<",\n  \"attention_noinline\": "<<(attention_noinline?"true":"false")
               <<",\n  \"ep_direct\": "<<(ep_direct?"true":"false")
-              <<",\n  \"dm_epilogue_fused\": "<<(dm_epilogue_fused?"true":"false")
+              <<",\n  \"dm_epilogue_fused\": "<<dm_epilogue_fused
               <<",\n  \"parallel_argmax\": "<<(parallel_argmax?"true":"false")
               <<",\n  \"attention_frontier\": "<<(attention_frontier?"true":"false")
               <<",\n  \"attention_past_split\": "<<(attention_past_split?"true":"false")

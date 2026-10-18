@@ -3,6 +3,7 @@
 
 #include <tilemega/Backend/DmEpilogueValue.h>
 #include <tilemega/Backend/DmTensorAddress.h>
+#include <tilemega/Backend/ServingVectorIO.h>
 #include <tilemega/Backend/DmMoeOperands.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <cute/tensor.hpp>
@@ -307,9 +308,66 @@ struct ServingDmEpilogue {
   template <codegen::DmRounding Rounding = Spec::kStore>
   __device__ static float Stored(float value) { return DmRound<Rounding>(value); }
 
+  __device__ static bool StoreVectors(float* tile,DmEpilogueArguments const& p,
+      int tile_m,int tile_n) {
+    using namespace codegen::executor;
+    if constexpr(Spec::kWrite!=codegen::DmWriteKind::kDense &&
+                 Spec::kWrite!=codegen::DmWriteKind::kRowScatter)return false;
+    else {
+      auto layout=Layout(p,p.write.layout);
+      if(layout.rank && layout.strides[layout.rank-1]!=1)return false;
+      std::uint32_t const* scatter=nullptr;
+      if constexpr(Spec::kWrite==codegen::DmWriteKind::kRowScatter)
+        if(!p.moe.rows)scatter=Buffer<std::uint32_t,2>(p,p.write.rows);
+      int columns=p.n/(Gate::kCount?2:1);
+      for(int vector=ComputeThread();vector<TileM*kColumns/8;vector+=kComputeThreads) {
+        int row=(vector*8)/kColumns,column=(vector*8)%kColumns;
+        int global_row=tile_m*TileM+row,global_column=tile_n*kColumns+column;
+        if(global_row>=p.m || global_column>=columns)continue;
+        std::uint64_t offset;
+        if constexpr(Spec::kWrite==codegen::DmWriteKind::kRowScatter) {
+          if(p.moe.rows) {
+            if(!p.routing_topk || p.moe.rows[p.moe.Entry(global_row)].rank>=p.routing_topk) {
+              asm volatile("trap;");return false;
+            }
+            offset=DmTensorAddress<codegen::DmWriteKind::kDense>::Offset(
+                layout,p.moe.Scatter(global_row,p.routing_topk),global_column,p.output_stride);
+          }else offset=DmTensorAddress<Spec::kWrite,Spec::kFactor>::Offset(
+              layout,global_row,global_column,p.output_stride,scatter);
+        }else offset=DmTensorAddress<Spec::kWrite,Spec::kFactor>::Offset(
+            layout,p.StorageRow(global_row),global_column,p.output_stride);
+        int count=min(8,columns-global_column);
+        if constexpr(Spec::kStore==codegen::DmRounding::kBF16) {
+          alignas(16) cutlass::bfloat16_t values[8];
+          #pragma unroll
+          for(int lane=0;lane<8;++lane)if(lane<count)
+            values[lane]=cutlass::bfloat16_t(tile[Index(row,InputColumn<Gate::kCount!=0>(column+lane))]);
+          auto* dst=reinterpret_cast<cutlass::bfloat16_t*>(p.output)+offset;
+          if(count==8 && (reinterpret_cast<std::uintptr_t>(dst)&15)==0)
+            StoreGlobal16(dst,*reinterpret_cast<uint4 const*>(values));
+          else for(int lane=0;lane<count;++lane)dst[lane]=values[lane];
+        }else {
+          alignas(16) float values[8];
+          #pragma unroll
+          for(int lane=0;lane<8;++lane)if(lane<count)
+            values[lane]=tile[Index(row,InputColumn<Gate::kCount!=0>(column+lane))];
+          auto* dst=reinterpret_cast<float*>(p.output)+offset;
+          if(count==8 && (reinterpret_cast<std::uintptr_t>(dst)&15)==0) {
+            *reinterpret_cast<float4*>(dst)=*reinterpret_cast<float4 const*>(values);
+            *reinterpret_cast<float4*>(dst+4)=*reinterpret_cast<float4 const*>(values+4);
+          }else for(int lane=0;lane<count;++lane)dst[lane]=values[lane];
+        }
+      }
+      ComputeSync();return true;
+    }
+  }
+
   __device__ static void Store(float* tile, DmEpilogueArguments const& p,
                                int tile_m, int tile_n) {
     using namespace codegen::executor;
+#if TILEMEGA_DM_EPILOGUE_FUSED>=2
+    if(StoreVectors(tile,p,tile_m,tile_n))return;
+#endif
     auto layout = Layout(p, p.write.layout);
     std::uint32_t const* scatter = nullptr;
     if constexpr (Spec::kWrite == codegen::DmWriteKind::kRowScatter)
