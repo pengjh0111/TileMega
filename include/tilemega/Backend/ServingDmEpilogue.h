@@ -6,6 +6,10 @@
 #include <tilemega/Backend/DmMoeOperands.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <cute/tensor.hpp>
+#include <utility>
+#ifndef TILEMEGA_DM_EPILOGUE_FUSED
+#define TILEMEGA_DM_EPILOGUE_FUSED 0
+#endif
 
 namespace tilemega::backend {
 
@@ -60,6 +64,25 @@ struct DmSideWalk<codegen::DmEpilogueSpec<Program, Write, Factor, Store, Sides..
   }
   template <class Visitor>
   __device__ static void Run(Visitor& visitor) { Visit<0, Sides...>(visitor); }
+};
+
+template<class Program> struct DmRegisterProgram;
+template<class... Steps>
+struct DmRegisterProgram<codegen::DmEpilogueProgram<Steps...>> {
+  static constexpr unsigned kNorms=(0u+...+unsigned(
+      Steps::kKind==codegen::DmEpilogueKind::kDeferredLayerNorm ||
+      Steps::kKind==codegen::DmEpilogueKind::kDeferredRMSNorm ||
+      Steps::kKind==codegen::DmEpilogueKind::kResidualLN));
+  static constexpr bool kEligible=((Steps::kKind!=codegen::DmEpilogueKind::kGatePair) && ...)
+      && kNorms<=1;
+  template<class Visitor,std::size_t... I>
+  __device__ static auto Prepare(Visitor& visitor,std::index_sequence<I...>) {
+    return cute::make_tuple(visitor.template Prepare<I,Steps>()...);
+  }
+  template<class Visitor>
+  __device__ static auto Prepare(Visitor& visitor) {
+    return Prepare(visitor,std::index_sequence_for<Steps...>{});
+  }
 };
 
 template <class Arch, class Spec, int TileM, int TileN, bool Swizzled = true>
@@ -149,8 +172,16 @@ struct ServingDmEpilogue {
       ComputeSync();
     }
 
-    template <unsigned Position, class Step, bool Gated>
-    __device__ void Apply() {
+    struct StepState {
+      float const* first=nullptr;
+      float const* second=nullptr;
+      float const* third=nullptr;
+      cutlass::bfloat16_t const* residual=nullptr;
+      codegen::DmBufferLayout residual_layout{};
+      std::uint32_t const* scatter=nullptr;
+    };
+    template <unsigned Position, class Step>
+    __device__ StepState Prepare() {
       using K = codegen::DmEpilogueKind;
       using namespace codegen::executor;
       auto const& op = p.chain.operations[Position];
@@ -161,37 +192,68 @@ struct ServingDmEpilogue {
           op.residual_map.kind != Step::kResidualMap ||
           op.residual_map.factor != Step::kResidualFactor) {
         asm volatile("trap;");
-        return;
+        return {};
       }
-      float const* first = nullptr;
-      float const* second = nullptr;
-      float const* third = nullptr;
-      cutlass::bfloat16_t const* residual = nullptr;
-      codegen::DmBufferLayout residual_layout{};
-      std::uint32_t const* scatter = nullptr;
+      StepState state;
       if constexpr (Step::kKind == K::kBias || Step::kKind == K::kScale)
-        first = Buffer<float, 1>(p, op.parameter[0]);
+        state.first = Buffer<float, 1>(p, op.parameter[0]);
       if constexpr (Step::kKind == K::kResidual || Step::kKind == K::kResidualLN) {
-        residual = Buffer<cutlass::bfloat16_t, 0>(p, op.parameter[0]);
-        residual_layout = Layout(p, op.residual_map.layout);
+        state.residual = Buffer<cutlass::bfloat16_t, 0>(p, op.parameter[0]);
+        state.residual_layout = Layout(p, op.residual_map.layout);
         if constexpr (Step::kResidualMap == codegen::DmWriteKind::kRowScatter)
-          scatter = Buffer<std::uint32_t, 2>(p, op.residual_map.rows);
+          state.scatter = Buffer<std::uint32_t, 2>(p, op.residual_map.rows);
         if constexpr (Step::kKind == K::kResidual) {
           if (op.parameter[1] != codegen::kDmNoIndex)
-            first = Buffer<float, 1>(p, op.parameter[1]);
+            state.first = Buffer<float, 1>(p, op.parameter[1]);
         } else {
           Statistics(op.parameter[1], true,op.norm_width,op.norm_epsilon);
-          second = Buffer<float, 1>(p, op.parameter[2]);
-          third = Buffer<float, 1>(p, op.parameter[3]);
+          state.second = Buffer<float, 1>(p, op.parameter[2]);
+          state.third = Buffer<float, 1>(p, op.parameter[3]);
         }
       }
       if constexpr (Step::kKind == K::kDeferredLayerNorm) {
         Statistics(op.parameter[0], true,op.norm_width,op.norm_epsilon);
-        second = Buffer<float, 1>(p, op.parameter[1]);
-        third = Buffer<float, 1>(p, op.parameter[2]);
+        state.second = Buffer<float, 1>(p, op.parameter[1]);
+        state.third = Buffer<float, 1>(p, op.parameter[2]);
       }
       if constexpr (Step::kKind == K::kDeferredRMSNorm)
         Statistics(op.parameter[0], false,op.norm_width,op.norm_epsilon);
+      return state;
+    }
+    template<class Step>
+    __device__ float Evaluate(StepState const& state,float value,int row,
+        int global_row,int global_column,float partner=0) const {
+      using K=codegen::DmEpilogueKind;
+      DmEpilogueInputs context;
+      if constexpr (Step::kKind == K::kBias) context.bias = state.first[global_column];
+      if constexpr (Step::kKind == K::kScale) context.scale = state.first[global_column];
+      if constexpr (Step::kKind == K::kResidual || Step::kKind == K::kResidualLN) {
+        auto offset = DmTensorAddress<Step::kResidualMap, Step::kResidualFactor>::Offset(
+            state.residual_layout, global_row, global_column, p.output_stride, state.scatter);
+        context.residual = float(state.residual[offset]);
+        if constexpr (Step::kKind == K::kResidual)
+          context.residual_scale = state.first ? state.first[global_column] : 1;
+        else {
+          context.gamma = state.second[global_column];
+          context.beta = state.third[global_column];
+        }
+      }
+      if constexpr (Step::kKind == K::kDeferredLayerNorm ||
+                    Step::kKind == K::kDeferredRMSNorm || Step::kKind == K::kResidualLN) {
+        context.mean = tile[TileM * TileN + row];
+        context.rstd = tile[TileM * TileN + TileM + row];
+      }
+      if constexpr (Step::kKind == K::kDeferredLayerNorm) {
+        context.u = state.second[global_column];
+        context.v = state.third[global_column];
+      }
+      return DmEpilogueValue<Arch,Step>::Apply(value,context,partner);
+    }
+    template <unsigned Position, class Step, bool Gated>
+    __device__ void Apply() {
+      using K=codegen::DmEpilogueKind;
+      using namespace codegen::executor;
+      auto state=Prepare<Position,Step>();
       constexpr bool contracting = Step::kKind == K::kGatePair;
       constexpr bool compact = Gated || contracting;
       constexpr int columns = compact ? kColumns : TileN;
@@ -202,40 +264,45 @@ struct ServingDmEpilogue {
         int global_column = tile_n * columns + column;
         if (global_row >= p.m || global_column >= global_columns) continue;
         int source_column = InputColumn<compact>(column);
-        DmEpilogueInputs context;
-        if constexpr (Step::kKind == K::kBias) context.bias = first[global_column];
-        if constexpr (Step::kKind == K::kScale) context.scale = first[global_column];
-        if constexpr (Step::kKind == K::kResidual || Step::kKind == K::kResidualLN) {
-          auto offset = DmTensorAddress<Step::kResidualMap, Step::kResidualFactor>::Offset(
-              residual_layout, global_row, global_column, p.output_stride, scatter);
-          context.residual = float(residual[offset]);
-          if constexpr (Step::kKind == K::kResidual)
-            context.residual_scale = first ? first[global_column] : 1;
-          else {
-            context.gamma = second[global_column];
-            context.beta = third[global_column];
-          }
-        }
-        if constexpr (Step::kKind == K::kDeferredLayerNorm ||
-                      Step::kKind == K::kDeferredRMSNorm || Step::kKind == K::kResidualLN) {
-          context.mean = tile[TileM * TileN + row];
-          context.rstd = tile[TileM * TileN + TileM + row];
-        }
-        if constexpr (Step::kKind == K::kDeferredLayerNorm) {
-          context.u = second[global_column];
-          context.v = third[global_column];
-        }
         float partner = 0;
         if constexpr (contracting)
           partner = tile[Index(row, source_column + Step::kUnit)];
         float& value = tile[Index(row, source_column)];
-        value = DmEpilogueValue<Arch, Step>::Apply(value, context, partner);
+        value=Evaluate<Step>(state,value,row,global_row,global_column,partner);
       }
       // Gate stores use their original gate slots; up slots remain read-only.
       // Compaction in place would let one lane overwrite another lane's input.
       ComputeSync();
     }
   };
+
+  template<class Prepared>
+  struct RegisterVisitor {
+    Visitor const& visitor;
+    Prepared const& prepared;
+    float value;
+    int row,global_row,global_column;
+    template<unsigned Position,class Step,bool Gated>
+    __device__ void Apply() {
+      value=visitor.template Evaluate<Step>(cute::get<Position>(prepared),value,
+          row,global_row,global_column);
+    }
+  };
+  __device__ static void RunRegister(float* tile,DmEpilogueArguments const& p,
+      int tile_m,int tile_n,Visitor& visitor) {
+    using namespace codegen::executor;
+    auto prepared=DmRegisterProgram<Program>::Prepare(visitor);
+    for(int i=ComputeThread();i<TileM*TileN;i+=kComputeThreads) {
+      int row=i/TileN,column=i%TileN;
+      int global_row=tile_m*TileM+row,global_column=tile_n*TileN+column;
+      if(global_row>=p.m || global_column>=p.n)continue;
+      RegisterVisitor<decltype(prepared)> scalar{visitor,prepared,tile[Index(row,column)],
+          row,global_row,global_column};
+      DmEpilogueWalk<Program>::Run(scalar);
+      tile[Index(row,column)]=scalar.value;
+    }
+    ComputeSync();
+  }
 
   template <codegen::DmRounding Rounding = Spec::kStore>
   __device__ static float Stored(float value) { return DmRound<Rounding>(value); }
@@ -431,7 +498,12 @@ struct ServingDmEpilogue {
       return;
     }
     Visitor visitor{tile, p, tile_m, tile_n};
-    DmEpilogueWalk<Program>::Run(visitor);
+#if TILEMEGA_DM_EPILOGUE_FUSED
+    if constexpr(DmRegisterProgram<Program>::kEligible)
+      RunRegister(tile,p,tile_m,tile_n,visitor);
+    else
+#endif
+      DmEpilogueWalk<Program>::Run(visitor);
     Store(tile, p, tile_m, tile_n);
     SideVisitor sides{tile, p, tile_m, tile_n};
     DmSideWalk<Spec>::Run(sides);
