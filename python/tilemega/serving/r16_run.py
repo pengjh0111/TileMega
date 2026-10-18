@@ -110,11 +110,15 @@ def main():
         checks = []
         for mode, loop in execution_combinations(manifests[1].get('pg', 'off')):
             with engine(mode, loop) as other:
-                tokens = other.generate(frozen, args.max_tokens).tokens.cpu()
+                generated = other.generate(frozen, args.max_tokens)
+                if args.max_tokens>1 and generated.decode_loop_used!=bool(loop):
+                    raise ValueError('C-2 requested an unavailable decode-loop mode')
+                tokens = generated.tokens.cpu()
             del other
             torch.cuda.empty_cache()
             passed = torch.equal(reference, tokens)
-            checks.append({'mode': mode, 'decode_loop': loop, 'pass': passed})
+            checks.append({'mode': mode, 'decode_loop': loop,
+                           'decode_loop_used': generated.decode_loop_used, 'pass': passed})
             (args.out/f'tokens_{mode}_loop{loop}.json').write_text(json.dumps(tokens.tolist())+'\n')
         (args.out/'c2.json').write_text(json.dumps({'evidence': 'verified',
             'same_binary': True, 'checks': checks, 'pass': all(c['pass'] for c in checks)}, indent=2)+'\n')
