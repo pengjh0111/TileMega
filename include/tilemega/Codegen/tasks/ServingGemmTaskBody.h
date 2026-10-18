@@ -175,6 +175,8 @@ struct ServingGemmTaskBody {
     using Body=backend::Sm90ForwardGmma<Arch,TileM,TileN,TileK>;
     using Gmma=typename Body::Gmma;
     using Element=cutlass::bfloat16_t;
+    constexpr int S=Stages;
+    static_assert(S>=2 && S<=4);
     auto layout_a=as_position_independent_swizzle_layout(backend::Sm90KLayout<TileM,TileK>{});
     auto layout_b=as_position_independent_swizzle_layout(backend::Sm90KLayout<TileN,TileK>{});
     // Scratch aliases the preceding task's FP32 epilogue; join its readers
@@ -182,7 +184,7 @@ struct ServingGemmTaskBody {
     ComputeSync();
     auto* barriers=reinterpret_cast<std::uint64_t*>(shared);
     auto* a=reinterpret_cast<Element*>(shared+1024);
-    auto* b=a+2*TileM*TileK;
+    auto* b=a+S*TileM*TileK;
     int a_pitch=p.a_row_stride?p.a_row_stride:p.k_total;
     int b_pitch=p.b_row_stride?p.b_row_stride:p.k_total;
     int iterations=(p.k_count+TileK-1)/TileK;
@@ -199,15 +201,16 @@ struct ServingGemmTaskBody {
 #endif
         (p.k_count%TileK==0 || p.tensor_k_begin+p.k_count==p.k_total_full);
     if(tma) {
-      if(ComputeThread()==0) {Async::Init(barriers,1);Async::Init(barriers+1,1);}
+      if(ComputeThread()==0)for(int slot=0;slot<S;++slot)Async::Init(barriers+slot,1);
       Async::InitFence();ComputeSync();Async::ProxyAsyncGlobalFence();
     }
     auto issue=[&](int it) {
-      auto* as=a+(it%2)*TileM*TileK;
-      auto* bs=b+(it%2)*TileN*TileK;
+      if(it>=iterations){if(!tma)cute::cp_async_fence();return;}
+      auto* as=a+(it%S)*TileM*TileK;
+      auto* bs=b+(it%S)*TileN*TileK;
       if(tma) {
         if(ComputeThread()==0) {
-          auto* barrier=barriers+it%2;
+          auto* barrier=barriers+it%S;
           Async::ExpectTx(barrier,2*TileK*(TileM+TileN));
           Async::Tensor2D(as,p.activation_tensor_map,p.tensor_k_begin+it*TileK,tile_m*TileM,barrier);
 #if TILEMEGA_NONPAGED_TILED
@@ -241,17 +244,27 @@ struct ServingGemmTaskBody {
         cute::cp_async_fence();
       }
     };
-    issue(0);if(iterations>1)issue(1);
+    if constexpr(S==2){issue(0);if(iterations>1)issue(1);}
+    else for(int slot=0;slot<S;++slot)issue(slot);
     typename Body::Mma mma;
     auto accum=partition_fragment_C(mma,Shape<Int<TileM>,Int<TileN>>{});
     clear(accum);Gmma::Fence(accum);
     for(int it=0;it<iterations;++it) {
-      if(tma)Async::Wait(barriers+it%2,(it/2)&1);
-      else {cute::cp_async_wait<0>();ComputeSync();Async::FenceProxyAsyncShared();}
-      ComputeSync();Body::Accumulate(b+(it%2)*TileN*TileK,a+(it%2)*TileM*TileK,accum);
-      // The producer may overwrite a slot only after every WGMMA read ends.
-      Gmma::template Wait<0>();ComputeSync();
-      if(it+2<iterations)issue(it+2);
+      if(tma)Async::Wait(barriers+it%S,(it/S)&1);
+      else {
+        if constexpr(S>2)cute::cp_async_wait<S-2>();
+        else cute::cp_async_wait<0>();
+        ComputeSync();Async::FenceProxyAsyncShared();
+      }
+      ComputeSync();Body::Accumulate(b+(it%S)*TileN*TileK,a+(it%S)*TileM*TileK,accum);
+      if constexpr(S>2) {
+        // Retire the preceding group before reusing its operand slot.
+        Gmma::template Wait<1>();ComputeSync();
+        if(it>0)issue(it-1+S);
+      }else {
+        Gmma::template Wait<0>();ComputeSync();
+        if(it+2<iterations)issue(it+2);
+      }
     }
     return Body::Materialize(accum,shared);
   }
@@ -651,7 +664,7 @@ struct ServingGemmTaskBody {
           }
           auto const& conv=p.convolutions[p.access.conv];
           if(conv.input_layout>=p.dm_buffers.count){asm volatile("trap;");return;}
-          tile=backend::Sm90Conv<Arch,TileM,TileN,TileK>::template Run<TILEMEGA_NONPAGED_TILED!=0>(
+          tile=backend::Sm90Conv<Arch,TileM,TileN,TileK,Stages>::template Run<TILEMEGA_NONPAGED_TILED!=0>(
               p,conv,p.dm_buffers.layouts[conv.input_layout],tile_m,tile_n,shared);
         }else {asm volatile("trap;");return;}
 #else

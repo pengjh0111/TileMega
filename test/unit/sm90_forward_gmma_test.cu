@@ -6,6 +6,9 @@
 #include <cstdlib>
 #include <type_traits>
 #include <vector>
+#ifndef TILEMEGA_TEST_PIPELINE_STAGES
+#define TILEMEGA_TEST_PIPELINE_STAGES 2
+#endif
 using namespace tilemega::codegen;
 using Element=cutlass::bfloat16_t;
 using Op=tilemega::backend::ServingEpilogueOp;
@@ -17,7 +20,7 @@ void CheckCuda(cudaError_t e) {
 template<int M,int N>
 __global__ void Run(ServingGemmOperands p) {
   extern __shared__ __align__(1024) char memory[];
-  using Body=ServingGemmTaskBody<Arch,M,N,64,2,true>;
+  using Body=ServingGemmTaskBody<Arch,M,N,64,TILEMEGA_TEST_PIPELINE_STAGES,true>;
   for(int m=0;m<(p.m+M-1)/M;++m)for(int n=0;n<(p.n+N-1)/N;++n)
     Body::Run(p,m,n,memory);
 }
@@ -25,7 +28,7 @@ float A(int row,int k) {return ((row*13+k*7)%29-14)*0.015625f;}
 float B(int row,int k) {return ((row*17+k*11)%31-15)*0.015625f;}
 template<int M,int N>
 void Check(int rows,int reduction,int begin,Op op,bool tma) {
-  using Body=ServingGemmTaskBody<Arch,M,N,64,2,true>;
+  using Body=ServingGemmTaskBody<Arch,M,N,64,TILEMEGA_TEST_PIPELINE_STAGES,true>;
   int cols=op==Op::kSwiGLU?N+32:N+13;
   int pitch=(reduction+7)&~7,kt=(reduction+63)/64,nt=(cols+N-1)/N;
   Element *a,*b,*out,*residual;float *partial,*best;int* indices;
@@ -105,7 +108,14 @@ void Matrix() {
   for(int rows:{1,M+1})for(int k:{2001,2048})for(int begin:{0,128})for(bool tma:{false,true})
     for(Op op:{Op::kStore,Op::kResidual,Op::kPartial,Op::kArgmaxPartial,Op::kSwiGLU})Check<M,N>(rows,k,begin,op,tma);
 }
-int main() {
+int main(int argc,char** argv) {
+  if(argc==2 && std::string(argv[1])=="--pipeline-smoke") {
+    Check<64,64>(65,257,0,Op::kStore,false);
+    Check<64,64>(65,64,0,Op::kStore,true);
+    Check<64,64>(65,2001,128,Op::kPartial,true);
+    Check<128,64>(129,257,0,Op::kStore,false);
+    std::puts("forward pipeline: short/tail/split-offset TMA and cp.async PASS");return 0;
+  }
   Matrix<64,64>();Matrix<64,128>();Matrix<64,256>();Matrix<128,64>();Matrix<128,128>();
   std::puts("forward WGMMA: 400 TMA/cp.async/shape/residue/split-offset/epilogue cases PASS");
 }

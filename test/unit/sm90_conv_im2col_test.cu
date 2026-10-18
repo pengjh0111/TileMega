@@ -9,6 +9,9 @@
 #include <cstdlib>
 #include <cmath>
 #include <vector>
+#ifndef TILEMEGA_TEST_PIPELINE_STAGES
+#define TILEMEGA_TEST_PIPELINE_STAGES 2
+#endif
 using namespace tilemega::codegen;
 using Element=cutlass::bfloat16_t;
 using Arch=tilemega::arch::Sm90;
@@ -24,7 +27,7 @@ __global__ void Run(ServingGemmOperands p,ConvDesc conv,DmBufferLayout layout,fl
     p.output=reinterpret_cast<Element*>(out);p.output_stride=p.n;
     p.chain.store_rounding=DmRounding::kFP32;
     using Spec=DmEpilogueSpec<DmEpilogueProgram<>,DmWriteKind::kDense,1,DmRounding::kFP32>;
-    ServingGemmTaskBody<Arch,64,N,64,2,true>::template RunDmResolved<Spec>(p,m,n,memory);
+    ServingGemmTaskBody<Arch,64,N,64,TILEMEGA_TEST_PIPELINE_STAGES,true>::template RunDmResolved<Spec>(p,m,n,memory);
   }
 }
 float A(int n,int h,int w,int c){return ((n*13+h*7+w*3+c*11)%17-8)/64.f;}
@@ -69,7 +72,7 @@ void Check(int batch,int height,int width,int channels,int filter,int stride,int
 #endif
   ServingGemmOperands p;p.a=a;p.b=b;p.weight_base=b;p.activation_tensor_map=maps;p.tensor_map=maps+1;
   p.m=rows;p.n=cols;p.k_total=p.k_total_full=reduction;
-  using Body=tilemega::backend::Sm90Conv<Arch,64,N,64>;
+  using Body=tilemega::backend::Sm90Conv<Arch,64,N,64,TILEMEGA_TEST_PIPELINE_STAGES>;
   Cuda(cudaFuncSetAttribute(Run<N>,cudaFuncAttributeMaxDynamicSharedMemorySize,Body::kSharedBytes));
   for(int part=0;part<split;++part) {
     p.k_begin=(part*kt/split)*64;p.k_count=((part+1)*kt/split)*64-p.k_begin;
@@ -100,6 +103,11 @@ int main(int argc,char** argv) {
     }catch(std::invalid_argument const&){++rejected;}
     if(rejected!=4)return 5;
     std::puts("im2col host geometry and four invalid contracts PASS");return 0;
+  }
+  if(argc==2 && std::string(argv[1])=="--pipeline-smoke") {
+    Check<64>(1,9,11,64,3,1,1,3);
+    Check<128>(1,9,11,128,1,1,1,2);
+    std::puts("im2col pipeline: short and split slices PASS");return 0;
   }
   for(int channels:{64,128})for(int filter:{1,3})for(int stride:{1,2})for(int batch:{1,2}) {
     Check<64>(batch,9,11,channels,filter,stride,1,1);
