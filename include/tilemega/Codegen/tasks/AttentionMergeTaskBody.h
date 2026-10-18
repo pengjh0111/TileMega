@@ -26,8 +26,8 @@ struct AttentionMergeTaskBody {
   __device__ static void Run(float const* partial, float const* lse,
                              cutlass::bfloat16_t* context,
                              int batch, int group, int heads_kv,
-                             int capacity, int block_extent, int past) {
-    int blocks_max = (capacity + block_extent - 1) / block_extent;
+                             int capacity, int block_extent, int past,int allocated_blocks=0) {
+    int blocks_max = allocated_blocks?allocated_blocks:(capacity + block_extent - 1) / block_extent;
     int blocks_live = (past + Tokens + block_extent - 1) / block_extent;
     constexpr int rows = QPerKV * Tokens;
     // Each thread owns eight adjacent BF16 outputs. Both FP32 inputs are

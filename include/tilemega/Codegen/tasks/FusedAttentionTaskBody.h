@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Codegen/tasks/ServingTaskProfile.h>
+#include <tilemega/Codegen/AttentionPartition.h>
 
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Codegen/executor/Prefetch.cuh>
@@ -14,6 +15,9 @@
 
 #ifndef TILEMEGA_PREFILL_ATTENTION_TMA
 #define TILEMEGA_PREFILL_ATTENTION_TMA 0
+#endif
+#ifndef TILEMEGA_ATTENTION_PAST_SPLIT
+#define TILEMEGA_ATTENTION_PAST_SPLIT 0
 #endif
 
 namespace tilemega::codegen {
@@ -45,7 +49,11 @@ struct ServingAttentionOperands {
 #if TILEMEGA_TRACE_TASK
   ServingTaskProfile* profile=nullptr;
 #endif
+  int partition_blocks=0;
 };
+__host__ __device__ inline int AttentionPartialBlocks(ServingAttentionOperands const& p) {
+  return p.partition_blocks?p.partition_blocks:(p.capacity+p.block_extent-1)/p.block_extent;
+}
 // Keep transport-only host instantiation independent of device capabilities.
 // Naming LayoutB eagerly instantiates the warp, even when prefill uses no swap.
 template<class Arch,int D,bool Swap>
@@ -207,7 +215,7 @@ struct FusedAttentionTaskBody {
     if constexpr(kTokens>1)
       limit=min(limit,p.past+(min(q_begin+kQRows,kQueryExtent)-1)/kQPerKV+1);
     if(block_begin>=limit)return;
-    int cmax=(p.capacity+p.block_extent-1)/p.block_extent;
+    int cmax=AttentionPartialBlocks(p);
     auto score_coords=typename QK::Mma{}.get_slice(lane).partition_C(
         make_identity_tensor(Shape<_16,_16>{}));
     auto out_coords=PV::OutputCoordinates(lane);

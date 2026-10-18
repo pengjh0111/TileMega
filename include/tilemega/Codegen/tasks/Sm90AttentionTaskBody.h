@@ -116,7 +116,7 @@ struct Sm90AttentionTaskBody {
       executor::ComputeSync();pages.Release(cursor);
     }
     sequence+=layout.pages_per_task;
-    int splits=(p.capacity+p.block_extent-1)/p.block_extent;
+    int splits=AttentionPartialBlocks(p);
     CUTE_UNROLL
     for(int i=0;i<size(output);++i) {
       int d=get<0>(output_coordinates(i)),q=get<1>(output_coordinates(i));

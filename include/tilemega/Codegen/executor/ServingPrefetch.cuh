@@ -42,6 +42,10 @@ __device__ inline void Task(Params const& p,unsigned stage_index,int task,unsign
     ServingAttentionOperands op{};op.key_cache=reinterpret_cast<E*>(p.buffers[s.operand[1]]);
     op.value_cache=reinterpret_cast<E*>(p.buffers[s.operand[2]]);op.past=p.dims.past;
     op.heads_kv=s.extent;op.capacity=p.dims.capacity;op.block_extent=s.attention_kv_block;
+#if TILEMEGA_ATTENTION_PAST_SPLIT && TILEMEGA_SERVING_SEQ==1
+    auto partition=DecodeAttentionPartition(p.dims.capacity,p.dims.past,s.attention_kv_block,true);
+    op.block_extent=partition.extent;op.partition_blocks=partition.blocks;
+#endif
     using Body=FusedAttentionTaskBody<NativeArch,TILEMEGA_SERVING_HEAD_DIM,
         TILEMEGA_SERVING_QPERKV,TILEMEGA_SERVING_SEQ,TILEMEGA_SERVING_QROWS,
         TILEMEGA_SERVING_KV_TILE,TILEMEGA_SERVING_QK_NORM!=0>;

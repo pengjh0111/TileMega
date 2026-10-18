@@ -296,7 +296,7 @@ struct PagedAttentionTaskBody {
       if(lane/4+8*r<PartialRows)s.lse[warp][lane/4+8*r]=sum[r]>0?maximum[r]+log2f(sum[r]):-INFINITY;
     }
     ComputeSync();
-    int cmax=(p.capacity+p.block_extent-1)/p.block_extent;
+    int cmax=AttentionPartialBlocks(p);
     for(int vector=ComputeThread();vector<Q*D/8;vector+=kComputeThreads) {
       int row=vector/(D/8),d=(vector%(D/8))*8;
       float m=-INFINITY,normalizer=0,values[8]={};

@@ -502,6 +502,11 @@ __device__ inline void RunServingAttentionTask(Params const& p,
       reinterpret_cast<float*>(buffer(stage.operand[9])),
       p.dims.batch, int(stage.extent), p.dims.capacity, p.dims.past,
       stage.attention_kv_block, TILEMEGA_NORM_EPSILON};
+#if TILEMEGA_ATTENTION_PAST_SPLIT && TILEMEGA_SERVING_SEQ==1
+  auto partition=DecodeAttentionPartition(p.dims.capacity,p.dims.past,
+      stage.attention_kv_block,true);
+  inputs.partition_blocks=partition.blocks;inputs.block_extent=partition.extent;
+#endif
 #if TILEMEGA_TRACE_TASK
   inputs.profile=profile;
 #endif
@@ -537,12 +542,17 @@ __device__ inline void RunServingMergeTask(Params const& p,
                                             StageDesc const& stage, int task) {
   int group = p.dims.seq==1 ? task/p.dims.batch : task%int(stage.extent);
   int batch = p.dims.seq==1 ? task%p.dims.batch : task/int(stage.extent);
+  int extent=stage.attention_kv_block,allocated_blocks=0;
+#if TILEMEGA_ATTENTION_PAST_SPLIT && TILEMEGA_SERVING_SEQ==1
+  auto partition=DecodeAttentionPartition(p.dims.capacity,p.dims.past,extent,true);
+  extent=partition.extent;allocated_blocks=partition.blocks;
+#endif
   T_ServingMerge::Run(
       reinterpret_cast<float const*>(p.buffers[stage.operand[0]]),
       reinterpret_cast<float const*>(p.buffers[stage.operand[1]]),
       reinterpret_cast<cutlass::bfloat16_t*>(p.buffers[stage.operand[2]]),
       batch, group, int(stage.extent), p.dims.capacity,
-      stage.attention_kv_block, p.dims.past);
+      extent, p.dims.past,allocated_blocks);
 }
 #endif
 #endif
