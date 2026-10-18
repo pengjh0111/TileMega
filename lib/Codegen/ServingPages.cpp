@@ -15,7 +15,10 @@
 #include <set>
 #include <stdexcept>
 namespace tilemega::codegen {
-void ConfigureServingPrefetch(mlir::ModuleOp module,TargetSpec const& target,int depth,int stride) {
+void ConfigureServingPrefetch(mlir::ModuleOp module,TargetSpec const& target,int depth,int stride,
+    int worker_bytes,bool history) {
+  if(worker_bytes<0 || worker_bytes>512*1024 || worker_bytes%16)
+    throw std::invalid_argument("prefetch worker bytes must be 0 (auto) or a 16-byte multiple up to 512 KiB");
   if(depth==0) {module->removeAttr("tmexec.prefetch");return;}
   if(stride==0) {
     stride=target.CalibrationFor("bf16").l2_prefetch_bytes;
@@ -82,7 +85,7 @@ void ConfigureServingPrefetch(mlir::ModuleOp module,TargetSpec const& target,int
             b.getNamedAttr("prefetch",b.getStringAttr(history.ToString()))}));
       }
     }
-    updated.set("prefetch_history_mask",b.getI64IntegerAttr(mask));stages.push_back(updated.getDictionary(module.getContext()));
+    updated.set("prefetch_history_mask",b.getI64IntegerAttr(history?mask:0));stages.push_back(updated.getDictionary(module.getContext()));
   }
   mlir::NamedAttrList updated(plan);updated.set("stages",b.getArrayAttr(stages));module->setAttr("tilemega.model_plan",updated.getDictionary(module.getContext()));
   int grid=target.res.num_sms;
@@ -94,9 +97,10 @@ void ConfigureServingPrefetch(mlir::ModuleOp module,TargetSpec const& target,int
     l2=actual.res.l2_bytes;
   }
   if(l2<=0)throw std::invalid_argument("prefetch requires target L2 capacity");
-  long budget=std::min<long>(512*1024,l2/(2*std::max(1,grid)));
+  long budget=worker_bytes?worker_bytes:std::min<long>(512*1024,l2/(2*std::max(1,grid)));
   module->setAttr("tmexec.prefetch",b.getDictionaryAttr({b.getNamedAttr("depth",b.getI64IntegerAttr(depth)),
       b.getNamedAttr("stride",b.getI64IntegerAttr(stride)),b.getNamedAttr("worker_bytes",b.getI64IntegerAttr(budget)),
+      b.getNamedAttr("history_enabled",b.getBoolAttr(history)),
       b.getNamedAttr("history_proofs",b.getArrayAttr(proofs))}));
 }
 void ConfigureServingPages(mlir::ModuleOp module,TargetSpec const& target,int page_bytes,bool sw128_operands) {

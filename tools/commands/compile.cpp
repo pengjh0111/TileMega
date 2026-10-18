@@ -331,6 +331,7 @@ int RunCompile(int argc, char** argv) {
     std::string combine_impl="stage",merge_impl="stage";
     int dependency_intern=0,cluster_dim=1,serving_residency=0,activation_tma=0,decode_tile_m=16;
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
+    int prefetch_worker_bytes=0,prefetch_history=1;
     int mma_reg_pipe=0;
     std::string attention_impl="mma16",attention_page;
     int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0,evict_first=0,evict_last=1;
@@ -482,6 +483,8 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--v3-poll-ns") v3_poll_ns=std::stoi(value);
       else if (flag=="--l2-prefetch-depth") prefetch_depth=std::stoi(value);
       else if (flag=="--l2-prefetch-stride") prefetch_stride=std::stoi(value);
+      else if (flag=="--l2-prefetch-worker-bytes") prefetch_worker_bytes=std::stoi(value);
+      else if (flag=="--prefetch-history") prefetch_history=std::stoi(value);
       else if (flag=="--runtime-target") runtime_target=value;
       else if (flag=="--event-solo") event_solo=std::stoi(value)!=0;
       else if (flag=="--event-red-publish") event_red=std::stoi(value)!=0;
@@ -1620,6 +1623,8 @@ int RunCompile(int argc, char** argv) {
               " --paged-la "+std::to_string(paged_la)+
               " --paged-la-splitk "+std::to_string(paged_la_splitk)+
               " --l2-prefetch-depth "+std::to_string(prefetch_depth)+" --l2-prefetch-stride "+std::to_string(prefetch_stride)+
+              " --l2-prefetch-worker-bytes "+std::to_string(prefetch_worker_bytes)+
+              " --prefetch-history "+std::to_string(prefetch_history)+
               " --event-solo "+std::to_string(event_solo)+" --event-red-publish "+std::to_string(event_red)+
               " --barrier-v2 "+std::to_string(barrier_v2)+
               (artifact_cache.empty()?"":" --artifact-cache "+quote(artifact_cache));
@@ -1969,7 +1974,10 @@ int RunCompile(int argc, char** argv) {
     }
     if(use_l2) {
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
-      tilemega::codegen::ConfigureServingPrefetch(*module,target,prefetch_depth,prefetch_stride);
+      if(prefetch_history!=0 && prefetch_history!=1)
+        throw std::invalid_argument("prefetch history must be 0 or 1");
+      tilemega::codegen::ConfigureServingPrefetch(*module,target,prefetch_depth,prefetch_stride,
+          prefetch_worker_bytes,prefetch_history!=0);
       if(nonpaged_la && serving_phase=="decode") {
         auto reductions=tilemega::dialect::SelectServingHandoffs(*module,8|4);
         std::cerr<<"NONPAGED_LAST_ARRIVER selected="<<reductions.last_arriver<<'\n';
