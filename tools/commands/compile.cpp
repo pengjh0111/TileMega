@@ -17,6 +17,7 @@
 #include <tilemega/Solver/SkeletonSearch.h>
 #include <tilemega/Solver/ServingImplementation.h>
 #include <tilemega/Solver/ServingSeedGeometry.h>
+#include <tilemega/Solver/ForwardGeometry.h>
 #include <tilemega/Solver/DnnStructureSearch.h>
 #include <tilemega/Solver/MoeStructureSearch.h>
 #include <tilemega/Solver/IntervalSegments.h>
@@ -301,6 +302,7 @@ int RunCompile(int argc, char** argv) {
                  " --prompt-len N --capacity N --past-range LO:HI\n"
                  " --seed-arch legacy|native\n"
                  " --forward-seed-tile M64N128K64S2 (native DNN/prefill seed)\n"
+                 " --forward-geometry FILE.json (complete indexed native DNN seed)\n"
                  " --search-capacity N --per-stage-kappa 0|1 --stage-kappa CSV\n"
                  " --segments 1|2 --segment-candidates N\n"
                  " --routing-profile FILE.json --moe-profile-layer N\n"
@@ -317,7 +319,7 @@ int RunCompile(int argc, char** argv) {
     mlir::OwningOpRef<mlir::ModuleOp> module;
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
-    std::string seed_geometry;
+    std::string seed_geometry,forward_geometry;
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,paged_seed_from,artifact_cache;
     std::string frontend_mode="decoder";
     std::string shared_weight_layout;
@@ -392,6 +394,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--serving") serving_phase=value;
       else if (flag=="--shared-weight-layout") shared_weight_layout=value;
       else if (flag=="--seed-geometry") seed_geometry=value;
+      else if (flag=="--forward-geometry") forward_geometry=value;
       else if (flag=="--frontend") frontend_mode=value;
       else if (flag=="--moe-dynamic") moe_dynamic=std::stoi(value);
       else if (flag=="--moe-opaque") moe_opaque=std::stoi(value);
@@ -569,6 +572,10 @@ int RunCompile(int argc, char** argv) {
         input.extension()==".mlir" || pg_mode=="pages" ||
         (forward && !shared_weight_layout.empty())))
       throw std::invalid_argument("forward seed tile requires native nonpaged DNN/prefill export JSON without solve or variants");
+    if(!forward_geometry.empty() && (!serving || !forward || frontend_mode!="dnn" ||
+        seed_arch!="native" || !solve_target.empty() || has_variants || pg_mode=="pages" ||
+        input.extension()==".mlir"))
+      throw std::invalid_argument("forward geometry requires a native nonpaged DNN export seed");
     if(forward_seed_explicit && prefill_seed && forward_gemm_impl!="wgmma")
       throw std::invalid_argument("explicit prefill tiles currently require forward WGMMA");
     if(forward_seed_explicit && (!tilemega::solver::DmServingBF16ShapeLegal(
@@ -1149,6 +1156,8 @@ int RunCompile(int argc, char** argv) {
           import.gemms.at(id).tile_n=layout.tile_n;
           import.gemms.at(id).tile_k=layout.tile_k;
         }
+      if(!forward_geometry.empty())tilemega::solver::ApplyForwardGeometry(
+          plan,import.gemms,tilemega::json::ParseFile(forward_geometry));
       if(moe_gemv) {
         plan.moe_gemv=true;
         bool expert=false;

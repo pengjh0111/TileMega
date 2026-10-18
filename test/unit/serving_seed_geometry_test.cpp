@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/ServingSeedGeometry.h>
+#include <tilemega/Solver/ForwardGeometry.h>
 #include <cassert>
 #include <cstdio>
 int main(){using namespace tilemega;using Op=frontend::PlanGemm::Epilogue;
@@ -42,5 +43,30 @@ int main(){using namespace tilemega;using Op=frontend::PlanGemm::Epilogue;
   catch(std::invalid_argument const&){++rejected;}
  }
  assert(rejected==6);
+ frontend::ModelPlan forward;forward.gemms.resize(2);
+ forward.gemms[0].k=512;forward.gemms[1].k=147;
+ std::vector<frontend::GemmGranularity> f(2);
+ auto table=json::Parse(R"({"gemms":[
+   {"index":1,"tile_m":64,"tile_n":32,"tile_k":64,"stages":3,"split_k":1,"impl":"mma16"},
+   {"index":0,"tile_m":64,"tile_n":64,"tile_k":64,"stages":4,"split_k":2,"impl":"wgmma"}]})");
+ solver::ApplyForwardGeometry(forward,f,table);
+ assert(f[0].impl==2 && f[0].split_k==2 && f[1].tile_n==32);
+ for(auto text:{R"({"gemms":[]})",
+     R"({"gemms":[{"index":0},{"index":0}]})",
+     R"({"gemms":[{"index":0.5},{"index":1}]})"}) {
+   auto before=f;bool failed=false;
+   try{solver::ApplyForwardGeometry(forward,f,json::Parse(text));}
+   catch(std::exception const&){failed=true;}
+   assert(failed && f[0].split_k==before[0].split_k && f[1].tile_n==before[1].tile_n);
+ }
+ for(auto change:{std::pair{"index",0},std::pair{"split_k",2},std::pair{"stages",9},
+     std::pair{"unexpected",1}}) {
+   auto changed=table;auto rows=changed.At("gemms").AsArray("gemms");
+   rows[0].Set(change.first,change.second);changed.Set("gemms",rows);
+   bool failed=false;
+   try{solver::ApplyForwardGeometry(forward,f,changed);}
+   catch(std::exception const&){failed=true;}
+   assert(failed && f[0].split_k==2 && f[1].split_k==1 && f[1].tile_n==32);
+ }
  std::puts("serving seed geometry: SM-filling split, narrow residuals, six rejection contracts PASS");
 }
