@@ -168,7 +168,12 @@ struct ServingGemmTaskBody {
                                   static_cast<unsigned>(2*p.k_count)});
 #endif
   }
-  __device__ static __forceinline__ float* ComputeForwardWgmma(ServingGemmOperands const& p,int tile_m,
+#if TILEMEGA_FORWARD_WGMMA_OUTLINE
+  __device__ static __noinline__
+#else
+  __device__ static __forceinline__
+#endif
+  float* ComputeForwardWgmma(ServingGemmOperands const& p,int tile_m,
       int tile_n,char* shared) {
     using namespace cute;
     using Async=executor::Async<Arch>;

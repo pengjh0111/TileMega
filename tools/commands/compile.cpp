@@ -331,7 +331,7 @@ int RunCompile(int argc, char** argv) {
     std::string forward_gemm_impl="mma16",prefill_attention_impl="mma16",encoder_attention_impl="mma16",conv_impl="cpasync",gemv_load="ldg",depthwise_impl="cpasync",dwpw_impl="mma16";
     int qkv_epilogue=0,attention_tma=0,dm_epilogue_fused=0,prefill_expert_wgmma=0;
     int depthwise_vectors=0,depthwise_rows=1,depthwise_channels=64,dm_linear_address=0;
-    int global_pool_channels=128,dm_chain_reference=0;
+    int global_pool_channels=128,dm_chain_reference=0,forward_wgmma_outline=0;
     int stage_descriptor_prefetch=0;
     int nvcc_split_compile=1;
     std::string combine_impl="stage",merge_impl="stage";
@@ -474,6 +474,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--dm-epilogue-fused") dm_epilogue_fused=std::stoi(value);
       else if (flag=="--dm-linear-address") dm_linear_address=std::stoi(value);
       else if (flag=="--dm-chain-reference") dm_chain_reference=std::stoi(value);
+      else if (flag=="--forward-wgmma-outline") forward_wgmma_outline=std::stoi(value);
       else if (flag=="--moe-topk-warp") moe_topk_warp=std::stoi(value);
       else if (flag.rfind("--gemm-impl-",0)==0) {
         std::array<std::string,5> names{{"qkv","o","gate_up","down","lm_head"}};
@@ -929,6 +930,9 @@ int RunCompile(int argc, char** argv) {
     if(dm_chain_reference && (!serving || frontend_mode!="dnn" ||
         (pg_mode!="off" && pg_mode!="l2")))
       throw std::invalid_argument("chain reference requires a nonpaged DNN plan");
+    if(forward_wgmma_outline!=0 && forward_wgmma_outline!=1)
+      throw std::invalid_argument("--forward-wgmma-outline must be 0 or 1");
+    if(forward_wgmma_outline)runtime_flags+=" -DTILEMEGA_FORWARD_WGMMA_OUTLINE=1";
     if(dm_chain_reference)runtime_flags+=" -DTILEMEGA_DM_CHAIN_REFERENCE=1";
     if(dm_linear_address!=0 && dm_linear_address!=1)
       throw std::invalid_argument("--dm-linear-address must be 0 or 1");
@@ -1728,6 +1732,7 @@ int RunCompile(int argc, char** argv) {
               " --dm-epilogue-fused "+std::to_string(dm_epilogue_fused)+
               " --dm-linear-address "+std::to_string(dm_linear_address)+
               " --dm-chain-reference "+std::to_string(dm_chain_reference)+
+              " --forward-wgmma-outline "+std::to_string(forward_wgmma_outline)+
               " --nvcc-split-compile "+std::to_string(nvcc_split_compile)+
               " --depthwise-vectors "+std::to_string(depthwise_vectors)+
               " --global-pool-channels "+std::to_string(global_pool_channels)+
@@ -2592,6 +2597,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"moe_topk_warp\": "<<moe_topk_warp
               <<",\n  \"dm_linear_address\": "<<dm_linear_address
               <<",\n  \"dm_chain_reference\": "<<dm_chain_reference
+              <<",\n  \"forward_wgmma_outline\": "<<forward_wgmma_outline
               <<",\n  \"dm_epilogue_fused\": "<<dm_epilogue_fused
               <<",\n  \"depthwise_vectors\": "<<depthwise_vectors
               <<",\n  \"nvcc_split_compile\": "<<nvcc_split_compile
