@@ -8,6 +8,7 @@ struct DnnPlanOptions {
   unsigned batch=1;
   unsigned small_input_channels=8;
   unsigned depthwise_rows=1,depthwise_channels=64;
+  unsigned global_pool_channels=128;
   bool depthwise_tma=false;
   std::uint64_t workspace_budget_bytes=0;
   std::string memory_reuse="none";

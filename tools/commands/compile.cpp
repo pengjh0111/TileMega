@@ -331,6 +331,7 @@ int RunCompile(int argc, char** argv) {
     std::string forward_gemm_impl="mma16",prefill_attention_impl="mma16",encoder_attention_impl="mma16",conv_impl="cpasync",gemv_load="ldg",depthwise_impl="cpasync",dwpw_impl="mma16";
     int qkv_epilogue=0,attention_tma=0,dm_epilogue_fused=0,prefill_expert_wgmma=0;
     int depthwise_vectors=0,depthwise_rows=1,depthwise_channels=64,dm_linear_address=0;
+    int global_pool_channels=128;
     int nvcc_split_compile=1;
     std::string combine_impl="stage",merge_impl="stage";
     int dependency_intern=0,cluster_dim=1,serving_residency=0,activation_tma=0,decode_tile_m=16;
@@ -447,6 +448,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--dwpw-impl") dwpw_impl=value;
       else if (flag=="--depthwise-impl") depthwise_impl=value;
       else if (flag=="--depthwise-vectors") depthwise_vectors=std::stoi(value);
+      else if (flag=="--global-pool-channels") global_pool_channels=std::stoi(value);
       else if (flag=="--nvcc-split-compile") nvcc_split_compile=std::stoi(value);
       else if (flag=="--depthwise-rows") depthwise_rows=std::stoi(value);
       else if (flag=="--depthwise-channels") depthwise_channels=std::stoi(value);
@@ -641,6 +643,11 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("buffer reuse currently requires the DNN frontend");
     if(global_la!="auto" && global_la!="0")
       throw std::invalid_argument("--global-la expects auto or 0");
+    if(global_pool_channels!=4 && global_pool_channels!=32 && global_pool_channels!=64 &&
+        global_pool_channels!=128 && global_pool_channels!=256)
+      throw std::invalid_argument("--global-pool-channels expects 4, 32, 64, 128 or 256");
+    if(global_pool_channels!=128 && (!forward || frontend_mode!="dnn" || input.extension()==".mlir"))
+      throw std::invalid_argument("global pool geometry requires a DNN forward export");
     if(dnn_dwpw_fuse!="auto" && dnn_dwpw_fuse!="0")
       throw std::runtime_error("--dwpw-fuse expects auto or 0");
     if(dnn_deferred_ln!="auto" && dnn_deferred_ln!="0")
@@ -930,6 +937,7 @@ int RunCompile(int argc, char** argv) {
       auto bridge=tilemega::frontend::ReadExportBridge(input.string());
       tilemega::frontend::DnnPlanOptions options;options.batch=serving_batch;
       options.depthwise_rows=depthwise_rows;options.depthwise_channels=depthwise_channels;
+      options.global_pool_channels=global_pool_channels;
       options.depthwise_tma=depthwise_impl=="tma";
       options.deferred_layernorm=dnn_deferred_ln=="auto";
       options.dwpw_fuse=dnn_dwpw_fuse=="auto";
@@ -1708,6 +1716,7 @@ int RunCompile(int argc, char** argv) {
               " --dm-linear-address "+std::to_string(dm_linear_address)+
               " --nvcc-split-compile "+std::to_string(nvcc_split_compile)+
               " --depthwise-vectors "+std::to_string(depthwise_vectors)+
+              " --global-pool-channels "+std::to_string(global_pool_channels)+
               " --depthwise-rows "+std::to_string(depthwise_rows)+
               " --depthwise-channels "+std::to_string(depthwise_channels)+
               " --nonpaged-la "+std::to_string(nonpaged_la)+
@@ -2571,6 +2580,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"depthwise_vectors\": "<<depthwise_vectors
               <<",\n  \"nvcc_split_compile\": "<<nvcc_split_compile
               <<",\n  \"depthwise_rows\": "<<depthwise_rows
+              <<",\n  \"global_pool_channels\": "<<global_pool_channels
               <<",\n  \"depthwise_channels\": "<<depthwise_channels
               <<",\n  \"parallel_argmax\": "<<(parallel_argmax?"true":"false")
               <<",\n  \"attention_frontier\": "<<(attention_frontier?"true":"false")

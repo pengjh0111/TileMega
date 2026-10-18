@@ -2853,7 +2853,7 @@ inline DeviceModel Create(ModelSpec const& spec,
       operand(2,0,std::uint64_t(dims.batch)*stage.extent,true);
       auto const& buffer=spec.buffers[stage.operand[0]];auto const& l=buffer.layout;
       auto tiles=stage.partial_rows_per_image?stage.partial_rows_per_image:(rows+stage.group-1)/stage.group;
-      if(stage.width<32 || stage.width>256 || stage.width%32 || !stage.extent ||
+      if((stage.width!=4 && (stage.width<32 || stage.width>256 || stage.width%32)) || !stage.extent ||
          !stage.rows_per_batch || (stage.partial_rows_per_image &&
             stage.partial_rows_per_image!=(std::uint64_t(stage.rows_per_batch)+stage.group-1)/stage.group) ||
          l.rank!=3 || l.logical[0]!=unsigned(dims.batch) ||

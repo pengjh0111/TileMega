@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdio>
+#include <string>
 #include <vector>
 using namespace tilemega;
 using E=cutlass::bfloat16_t;
@@ -100,8 +101,12 @@ __global__ void ProduceAndArrive(codegen::GlobalPoolReduceOperands p,float* part
 }
 template<int Channels>unsigned CheckReduce() {
   unsigned cases=0;
-  for(unsigned batch:{1,2,5})for(unsigned area:{1,4,49,77})
-    for(unsigned tile:{16,64,128})for(unsigned channels:{19,64,144}) {
+  auto batches=Channels==4?std::vector<unsigned>{1,2}:std::vector<unsigned>{1,2,5};
+  auto areas=Channels==4?std::vector<unsigned>{49,4096}:std::vector<unsigned>{1,4,49,77};
+  auto tiles_per_case=Channels==4?std::vector<unsigned>{16,128}:std::vector<unsigned>{16,64,128};
+  auto channels_per_case=Channels==4?std::vector<unsigned>{19,512}:std::vector<unsigned>{19,64,144};
+  for(unsigned batch:batches)for(unsigned area:areas)
+    for(unsigned tile:tiles_per_case)for(unsigned channels:channels_per_case) {
       unsigned tiles=(batch*area+tile-1)/tile;
       codegen::DmBufferLayout l;l.rank=3;
       l.logical[0]=l.physical[0]=batch;l.logical[1]=l.physical[1]=tiles;
@@ -148,8 +153,12 @@ template<int Channels>unsigned CheckReduce() {
     }
   return cases;
 }
-int main() {
+int main(int argc,char** argv) {
+  if(argc==2 && std::string(argv[1])=="--parallel-only") {
+    std::printf("POOL_GLOBAL parallel_cases=%u epochs=3 padding_LA_fixed_tree PASS\n",CheckReduce<4>());
+    return 0;
+  }
   unsigned pool=CheckPool<4,32>()+CheckPool<17,256>();
-  unsigned reduce=CheckReduce<32>()+CheckReduce<128>()+CheckReduce<256>();
+  unsigned reduce=CheckReduce<4>()+CheckReduce<32>()+CheckReduce<128>()+CheckReduce<256>();
   std::printf("POOL_GLOBAL window_cases=%u reduce_cases=%u epochs=3 halo_padding_LA_fixed_order PASS\n",pool,reduce);
 }

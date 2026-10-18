@@ -928,7 +928,7 @@ struct Builder {
     auto rounded=node.shape.size()==4 && channels%8==0?ImageBuffer(node.name,1,1,channels):
         RowsBuffer(node.name,1,channels);
     auto stage=Stage(PlanTaskKind::kGlobalPoolReduce,node,rounded,{sums,output,rounded});
-    auto& t=p.stages[stage];t.width=128;t.extent=channels;t.group=tile;t.rows_per_batch=area;
+    auto& t=p.stages[stage];t.width=options.global_pool_channels;t.extent=channels;t.group=tile;t.rows_per_batch=area;
     t.partial_rows_per_image=dw?parts:0;consumed.insert(input);
   }
   void Linear(FxNodeRecord const& node) {
