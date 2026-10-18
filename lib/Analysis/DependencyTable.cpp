@@ -155,10 +155,14 @@ std::optional<std::vector<std::vector<TaskInterval>>> SymbolicProducerIntervals(
     }
     return isl_stat_ok;
   };
-  auto status=map?isl_map_foreach_basic_map(map.get(),component,&state):isl_stat_error;
+  if(!map)throw std::runtime_error("cannot parse symbolic dependency relation");
+  auto status=isl_map_foreach_basic_map(map.get(),component,&state);
   if(status!=isl_stat_ok) {
-    if(state.unavailable || isl_ctx_last_error(ctx)==isl_error_quota)return std::nullopt;
-    throw std::runtime_error(state.error.empty()?"symbolic dependency interval proof failed":state.error);
+    // This is an optional compression proof. The row path below rechecks
+    // exact containment; an unavailable optimizer must not reject a legal DAG.
+    if(state.unavailable || state.error.empty() ||
+        isl_ctx_last_error(ctx)==isl_error_quota)return std::nullopt;
+    throw std::runtime_error(state.error);
   }
   for(auto& row:state.rows) {
     std::sort(row.begin(),row.end(),[](auto const& a,auto const& b) {
