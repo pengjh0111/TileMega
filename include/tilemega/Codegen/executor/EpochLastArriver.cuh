@@ -17,7 +17,10 @@ struct EpochLastArriver {
        !CountedDependencyTarget(total,iteration,&target)) {
       asm volatile("trap;");return false;
     }
+#if !TILEMEGA_LA_CTA_RELEASE
     __threadfence();
+#endif
+    // The elected acq_rel RMW relays stores acquired at this CTA barrier.
     ComputeSync();
     if(ComputeThread()==0) {
       *shared_last=0;
