@@ -25,9 +25,11 @@ def main():
     parser.add_argument('--policy', type=Path)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--mode', choices=('L1', 'L2'), default='L2')
+    parser.add_argument('--prefill-mode', choices=('L1', 'L2'))
     parser.add_argument('--decode-loop', type=int, choices=(0, 1), default=0)
     parser.add_argument('--check-executors', action='store_true')
     parser.add_argument('--hf-check', action='store_true')
+    parser.add_argument('--hf-positions', type=int)
     args = parser.parse_args()
     require_guard()
     if args.model is None:
@@ -37,6 +39,9 @@ def main():
         args.model = Path(checkpoint)
     if min(args.max_tokens, args.warmup, args.repeats) < 1:
         parser.error('token and repetition counts must be positive')
+    if args.hf_positions is not None and (
+            not args.hf_check or not 1 <= args.hf_positions <= args.max_tokens):
+        parser.error('--hf-positions requires --hf-check and must fit the generated sequence')
     args.load_format = 'auto'
     args.out.mkdir(parents=True, exist_ok=True)
     ids = json.loads(args.prompt_ids.read_text())
@@ -51,7 +56,8 @@ def main():
     metadata = {'prefill_sha256': hashlib.sha256(args.prefill.read_bytes()).hexdigest(),
                 'decode_sha256': hashlib.sha256(args.decode.read_bytes()).hexdigest(),
                 'plan_manifests': manifests, 'mode': args.mode,
-                'decode_loop': args.decode_loop, 'weight_source': 'local checkpoint',
+                'decode_loop': args.decode_loop, 'prefill_mode': args.prefill_mode or args.mode,
+                'hf_positions': args.hf_positions, 'weight_source': 'local checkpoint',
                 'system_label': args.system_label,
                 'selection_status': 'diagnostic candidate; no RF2 final selection claimed',
                 'prefill_binary': str(args.prefill.resolve()), 'decode_binary': str(args.decode.resolve()),
@@ -76,7 +82,7 @@ def main():
     def engine(mode, loop):
         return ServingEngine(args.model, args.prefill, args.decode, int(args.batch),
             prompt_len=prompt_len, max_new_tokens=args.max_tokens, mode=mode,
-            decode_loop=bool(loop), step_events=False)
+            decode_loop=bool(loop), step_events=False, prefill_mode=args.prefill_mode)
     frozen = torch.tensor(ids[:int(args.batch)], dtype=torch.int32)
     with engine(args.mode, args.decode_loop) as current:
         measure(args, ids, args.system_label,
@@ -109,9 +115,11 @@ def main():
         import sys
         hf_tokens=token_path
         model_config=json.loads((args.model/'config.json').read_text())
-        if model_config.get('model_type')=='qwen3_moe' and args.max_tokens>256:
-            hf_tokens=args.out/'teacher_forced_prefix_256.json'
-            hf_tokens.write_text(json.dumps(reference[:,:256].tolist())+'\n')
+        positions=args.hf_positions or (min(256,args.max_tokens)
+            if model_config.get('model_type')=='qwen3_moe' else args.max_tokens)
+        if positions<args.max_tokens:
+            hf_tokens=args.out/f'teacher_forced_prefix_{positions}.json'
+            hf_tokens.write_text(json.dumps(reference[:,:positions].tolist())+'\n')
         subprocess.run([sys.executable, '-m', 'tilemega.serving.hf_check',
             '--model', str(args.model), '--prompt-ids', str(args.prompt_ids),
             '--generated', str(hf_tokens), '--out', str(args.out/'c1.json'),
