@@ -1762,6 +1762,28 @@ __device__ inline void NotifyTask(Params const& p, EventCounter* events,
 #define TILEMEGA_UNSAFE_NO_GRID_SYNC 0
 #endif
 
+#ifndef TILEMEGA_STAGE_DESCRIPTOR_PREFETCH
+#define TILEMEGA_STAGE_DESCRIPTOR_PREFETCH 0
+#endif
+__device__ inline void PrefetchStageDescriptor(Params const* p,unsigned stage) {
+#if TILEMEGA_STAGE_DESCRIPTOR_PREFETCH
+  // Warp 1 warms immutable metadata while warp 0 waits on the grid event.
+  if(!p || stage+1>=p->stage_count || threadIdx.x<32 || threadIdx.x>=64)return;
+  unsigned lane=threadIdx.x-32,next=stage+1;
+  auto issue=[&](void const* address,unsigned bytes) {
+    for(unsigned offset=lane*128;offset<bytes;offset+=32*128)
+      asm volatile("prefetch.global.L1 [%0];" ::
+          "l"(static_cast<char const*>(address)+offset));
+  };
+  issue(p->stages+next,sizeof(StageDesc));
+#if TILEMEGA_STAGE_DESCRIPTOR_PREFETCH > 1
+  auto const& descriptor=p->stages[next];
+  if(IsGemmStage(descriptor.kind) || descriptor.kind==TaskKind::kGemmCombine)
+    issue(static_cast<GemmInvocation const*>(p->gemms)+descriptor.gemm,sizeof(GemmInvocation));
+#endif
+#endif
+}
+
 #if TILEMEGA_L2_PREFETCH
 #include <tilemega/Codegen/executor/ServingPrefetch.cuh>
 #endif
@@ -1797,6 +1819,7 @@ __device__ inline void GridBarrier(EventCounter* events, std::uint32_t stage,
                                    unsigned long long iteration,Params const* params=nullptr) {
 #if TILEMEGA_SYNC_V3 && !TILEMEGA_UNSAFE_NO_GRID_SYNC
   __syncthreads();
+  PrefetchStageDescriptor(params,stage);
   if(threadIdx.x==0) {
     RedRelease(&events[stage].arrivals,1ull);
     executor::StageTasksEnd(params,stage,iteration);

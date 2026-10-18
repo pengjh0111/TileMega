@@ -94,6 +94,7 @@ __device__ inline void Arrive(EventCounter* events,unsigned stage,unsigned long 
 __device__ inline void Wait(EventCounter* events,unsigned stage,unsigned long long iteration,
                             Params const* params=nullptr) {
 #if TILEMEGA_SYNC_V3
+  PrefetchStageDescriptor(params,stage);
   if(executor::ComputeThread()==0) {
     Watch watch{params?params->serving_watchdog:nullptr,
         params?params->serving_watchdog_ns:0,12,stage,0,stage,0,stage,iteration};
