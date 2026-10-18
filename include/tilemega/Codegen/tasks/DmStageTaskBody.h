@@ -158,9 +158,11 @@ struct DmStageRunner {
           std::uint64_t(DmStageRows(stage,params.dims)),unsigned(params.dims.seq),
           stage.extent,params.dm_buffers.layouts[stage.operand[3]].logical[0],
           params.dm_buffers.layouts[stage.operand[4]].logical[0]};
-      for(unsigned i=0;i<RowsPerTask && task*RowsPerTask+i<inputs.rows;++i)
+      for(unsigned i=0;i<RowsPerTask && task*RowsPerTask+i<inputs.rows;++i) {
         EmbeddingSumTaskBody<Arch,Width>::Run(inputs,task*RowsPerTask+i,
                                             reinterpret_cast<float*>(scratch));
+        executor::ComputeSync();
+      }
     }else if constexpr(Kind==TaskKind::kLayoutConvert) {
       LayoutConvertTaskBody<Arch,RowsPerTask>::Run({static_cast<E const*>(pointer(0)),
           static_cast<E*>(pointer(1)),params.dm_buffers.layouts[stage.operand[1]]},task);

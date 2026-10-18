@@ -218,6 +218,11 @@ struct TaskRolesOf<Body, std::void_t<typename Body::Roles>> {
 template <class Body>
 inline constexpr bool kTaskLegal = Body::kLegal;
 
+/// Task scratch belongs to the caller. A loop that reuses it must converge
+/// all participating threads between tasks, including an inline reducer:
+/// __syncthreads for a CTA, ComputeSync for the 128-thread paged compute group.
+/// RunTask/Run may return with other lanes still reading scratch. Internal
+/// algorithm barriers do not transfer ownership back to the caller.
 /// Aligned byte storage whose lifetime belongs to the enclosing megakernel.
 template <std::size_t Bytes>
 struct alignas(16) SharedStorage {

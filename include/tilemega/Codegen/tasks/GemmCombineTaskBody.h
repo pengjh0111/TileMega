@@ -204,13 +204,17 @@ struct GemmCombineTaskBody {
       auto const& invocation =
           static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
       int const tiles = invocation.tiles_m * invocation.tiles_n;
-      for (int task = PlacedBlock(); task < tiles; task += gridDim.x)
+      for (int task = PlacedBlock(); task < tiles; task += gridDim.x) {
         RunTask(p, stage, smem, task);
+        __syncthreads();
+      }
       return;
     }
     int tasks = (count + Threads - 1) / Threads;
-    for (int task = PlacedBlock(); task < tasks; task += gridDim.x)
+    for (int task = PlacedBlock(); task < tasks; task += gridDim.x) {
       RunTask(p, stage, smem, task);
+      __syncthreads();
+    }
   }
 };
 

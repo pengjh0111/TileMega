@@ -724,14 +724,19 @@ __device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunStage(Params const& p, std
     case TaskKind::kMoETopK:
     case TaskKind::kMoECombine:
     case TaskKind::kLayoutConvert:
-      for(int task=int(blockIdx.x);task<DmStageTaskCount(stage,p.dims);task+=int(gridDim.x))
+      for(int task=int(blockIdx.x);task<DmStageTaskCount(stage,p.dims);task+=int(gridDim.x)) {
         DispatchDmStage(unsigned(stage.kind),stage.width,stage.group,DmStageRunner<HarnessArch>{p,stage,unsigned(task),reinterpret_cast<char*>(&smem)});
+        __syncthreads();
+      }
       break;
 #endif
     case TaskKind::kRMSNorm:
 #if TILEMEGA_SERVING_RUNTIME
       for (int row = int(blockIdx.x); row < (stage.batch_rows ? p.dims.batch : p.dims.tokens());
-           row += int(gridDim.x)) RunServingScalarTask(p, stage, smem, row);
+           row += int(gridDim.x)) {
+        RunServingScalarTask(p, stage, smem, row);
+        __syncthreads();
+      }
 #else
       T_Norm{}(p, stage, smem);
 #endif
@@ -750,7 +755,10 @@ __device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunStage(Params const& p, std
     case TaskKind::kEmbedding:
 #if TILEMEGA_SERVING_RUNTIME
       for (int row = int(blockIdx.x); row < p.dims.tokens();
-           row += int(gridDim.x)) RunServingScalarTask(p, stage, smem, row);
+           row += int(gridDim.x)) {
+        RunServingScalarTask(p, stage, smem, row);
+        __syncthreads();
+      }
 #else
       T_Embedding{}(p, stage, smem);
 #endif
@@ -759,7 +767,10 @@ __device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunStage(Params const& p, std
     case TaskKind::kArgmaxReduce:
 #if TILEMEGA_SERVING_RUNTIME
       for (int row = int(blockIdx.x); row < p.dims.batch;
-           row += int(gridDim.x)) RunServingScalarTask(p, stage, smem, row);
+           row += int(gridDim.x)) {
+        RunServingScalarTask(p, stage, smem, row);
+        __syncthreads();
+      }
 #else
       asm volatile("trap;");
 #endif
@@ -784,6 +795,7 @@ __device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunStage(Params const& p, std
 #endif
               );
 #endif
+        __syncthreads();
       }
 #else
       asm volatile("trap;");
@@ -1765,6 +1777,7 @@ void RunReductionStage(Params const& p,unsigned stage,TaskSmem& smem,
 #endif
         ,
                          NonpagedReductionContext{events,iteration,false});
+    __syncthreads();
   }
 }
 #endif
