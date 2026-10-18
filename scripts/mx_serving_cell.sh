@@ -65,7 +65,19 @@ solve)
   # Fragment-packed ("tiled") weights measure faster than row-major on this
   # device, so they are the default; LAYOUT=row overrides for an A/B.
   layout=${LAYOUT:-tiled}
+  # The solver picks a GEMV variant for decode at M<=4 and prices it as the
+  # better choice, but measured it is not: forcing MMA on every GEMM class
+  # took qwen3_0_6b B1 from 8.026 to 5.823 ms/token and B2 from 8.281 to
+  # 5.991 (-27%). GEMV also cannot take fragment-packed weights
+  # (ServingGemvTaskBody asserts !Tiled), so selecting it costs the tiled
+  # layout as well. Keep it out of the domain until the cost model prices it
+  # correctly; GEMM_IMPL=gemv restores the old behaviour for an A/B.
   extra=""; [ $phase = decode ] && extra="--attention-impl simt"
+  if [ "${GEMM_IMPL:-mma16}" = mma16 ]; then
+    for class in qkv o gate-up down lm-head; do
+      extra="$extra --gemm-impl-$class mma16"
+    done
+  fi
   env CUDA_VISIBLE_DEVICES= MACA_VISIBLE_DEVICES= \
     TILEMEGA_DEVICE_RUN_PREFIX="env NEEDS_MIB=2048 /root/deps/mxjob.sh $QGPU 300 $C/devq" \
     timeout ${CELL_TIMEOUT:-18000} nice $SOLVE_BIN compile runs/mx1/export/${id}_$phase/bridge.json $C/plan.so \
