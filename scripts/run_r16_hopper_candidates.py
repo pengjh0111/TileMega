@@ -75,15 +75,24 @@ def assert_implementation(identity, candidate, phase):
     if plan.get('seed_arch') != 'native' or plan.get('seed_target_arch') != 'sm_90':
         raise ValueError('manifest does not certify explicit native seed binding')
     requested = 'wgmma' if phase == 'decode' and candidate['arm'] in ('h1', 'h1h4') else 'mma16'
+    geometry = candidate.get('geometry_by_phase', {}).get(phase)
     implementations = identity['implementations']['gemms']
     count = candidate['gemm_count']
     for rows in (implementations, plan['gemms']):
         if len(rows) != count or {row['index'] for row in rows} != set(range(count)):
             raise ValueError('full-model GEMM count or index coverage differs')
-        if any(row['impl'] != requested for row in rows):
-            raise ValueError('requested GEMM implementation silently changed or fell back')
+        if geometry is None:
+            if any(row['impl'] != requested for row in rows):
+                raise ValueError('requested GEMM implementation silently changed or fell back')
+        else:
+            fields = ('index', 'impl', 'tile_m', 'tile_n', 'tile_k', 'stages', 'split_k')
+            actual = sorted(tuple(row[key] for key in fields) for row in rows)
+            expected = sorted(tuple(row[key] for key in fields) for row in geometry)
+            if actual != expected:
+                raise ValueError('actual per-GEMM geometry differs from the declared candidate')
     arch_paths = 'sm80' if candidate['arm'] == 'sm80' else 'auto'
-    if plan.get('arch_paths') != arch_paths or plan.get('pg') != 'off':
+    pg = candidate.get('pg_by_phase', {}).get(phase, 'off')
+    if plan.get('arch_paths') != arch_paths or plan.get('pg') != pg:
         raise ValueError('transport or executor layout differs from the candidate')
     layout=load(candidate['layout'])
     if 'shared_weight_layout_sha256' in plan and plan['shared_weight_layout_sha256'] != file_sha(candidate['layout']):
@@ -96,19 +105,19 @@ def assert_implementation(identity, candidate, phase):
     actual={json.dumps(recipe['source'],sort_keys=True):(recipe['tile_n'],recipe['tile_k']) for recipe in packed}
     if len(packed)!=count or len(actual)!=count or any(expected.get(name)!=shape for name,shape in actual.items()):
         raise ValueError('actual full-model named packed weights differ from shared layout')
-    if any((g['tile_n'],g['tile_k'])!=(128,64) for g in plan['gemms']):
-        raise ValueError('actual GEMM geometry differs from the shared T128/K64 layout')
     if phase == 'decode':
         for coordinate, macro in (('activation_tma', 'TILEMEGA_ACTIVATION_TMA'),
                                   ('qkv_epilogue', 'TILEMEGA_QKV_EPILOGUE')):
             wanted = int(candidate.get(coordinate, 0))
             if int(plan.get(coordinate, 0)) != wanted or int(identity.get('defines', {}).get(macro, 0)) != wanted:
                 raise ValueError(f'{coordinate} differs from the requested candidate')
-        expected = 'wgmma' if candidate['arm'] == 'h1h4' else 'mma16'
+        expected = candidate.get('attention_impl', 'wgmma' if candidate['arm'] == 'h1h4' else 'mma16')
+        page = candidate.get('attention_page', 'uniform' if expected == 'wgmma' else 'chunk16')
         attention = identity['implementations']['attention']
-        if attention['impl'] != expected or attention['page_layout'] != ('uniform' if expected == 'wgmma' else 'chunk16'):
+        if attention['impl'] != expected or attention['page_layout'] != page:
             raise ValueError('requested decode attention silently changed or fell back')
-        if requested == 'wgmma' and not all(identity['caps'].get(name) is True for name in ('wgmma', 'tma', 'bulk_copy')):
+        if any(g['impl'] == 'wgmma' for g in plan['gemms']) and not all(
+                identity['caps'].get(name) is True for name in ('wgmma', 'tma', 'bulk_copy')):
             raise ValueError('Hopper capability evidence is absent')
     if identity.get('trace') is not False:
         raise ValueError('instrumented binary cannot enter performance selection')
@@ -143,7 +152,8 @@ def job(candidate, name, command, *, gpu=True, timing=False, after=(), priority=
 def compile_command(candidate, phase, output, *, bootstrap=False):
     command = [candidate['compiler'], 'compile', candidate['exports'][phase], str(output),
                '--serving', phase, '--emit', 'serving', '--batch', str(candidate['batch']),
-               '--runtime-target', candidate['target'], '--pg', 'off',
+               '--runtime-target', candidate['target'], '--pg',
+               candidate.get('pg_by_phase', {}).get(phase, 'off'),
                '--nonpaged-weight-layout', 'tiled', '--deferred-norm', '0',
                '--resource-probes', '0', '--capacity', '1088', '--prompt-len', '64',
                '--arch-paths', 'sm80' if candidate['arm'] == 'sm80' else 'auto']
