@@ -749,9 +749,9 @@ int RunCompile(int argc, char** argv) {
       throw std::invalid_argument("--qkv-epilogue must be 0 or 1");
     if(qkv_epilogue && (!serving || arch_paths!="auto" ||
         (pg_mode!="l2" && pg_mode!="off") ||
-        !((serving_phase=="decode" && attention_impl=="wgmma") ||
+        !(serving_phase=="decode" ||
           (serving_phase=="prefill" && prefill_attention_impl=="wgmma"))))
-      throw std::invalid_argument("qkv epilogue requires native Hopper decode/prefill, explicit nonpaged l2/off and WGMMA attention");
+      throw std::invalid_argument("qkv epilogue requires native Hopper nonpaged decode or WGMMA prefill attention");
     if(qkv_epilogue)runtime_flags+=" -DTILEMEGA_QKV_EPILOGUE=1";
     if(dwpw_impl!="mma16" && dwpw_impl!="wgmma")
       throw std::invalid_argument("--dwpw-impl must be mma16 or wgmma");

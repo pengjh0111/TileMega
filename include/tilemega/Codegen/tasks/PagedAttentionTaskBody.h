@@ -125,14 +125,35 @@ struct PagedAttentionTaskBody {
     int warp=ComputeThread()/32,lane=ComputeThread()%32;
     constexpr int width=(Q+2)*D;
     for(int row=warp;row<16;row+=4) {
-      if(row<Q)Base::RotateRow(p.qkv+(b*p.heads_kv+g)*width+row*D,p.q_norm,
+      if(row<Q) {
+#if TILEMEGA_QKV_EPILOGUE
+        if(p.qkv_preprocessed) {
+          if(lane*8<D)*reinterpret_cast<uint4*>(s.query+typename QK::LayoutA{}(row,lane*8))=
+              backend::LoadGlobal16(p.qkv+(b*p.heads_kv+g)*width+row*D+lane*8);
+        }else
+#endif
+        Base::RotateRow(p.qkv+(b*p.heads_kv+g)*width+row*D,p.q_norm,
           p.cosine+p.past*D,p.sine+p.past*D,p.epsilon,[&](int d,uint4 v){
             *reinterpret_cast<uint4*>(s.query+typename QK::LayoutA{}(row,d))=v;});
+      }
       else if(lane*8<D)*reinterpret_cast<uint4*>(s.query+typename QK::LayoutA{}(row,lane*8))=make_uint4(0,0,0,0);
     }
   }
   __device__ static void NewRow(ServingAttentionOperands const& p,Element* page,int row,int b,int g) {
     constexpr int width=(Q+2)*D;
+#if TILEMEGA_QKV_EPILOGUE
+    if(p.qkv_preprocessed) {
+      int d=(ComputeThread()%32)*8;
+      if(d<D) {
+        auto offset=((std::size_t(b)*p.heads_kv+g)*p.capacity+p.past)*D+d;
+        *reinterpret_cast<uint4*>(page+(row/16)*16*D+typename QK::LayoutB{}(row%16,d))=
+            backend::LoadGlobal16(p.key_cache+offset);
+        *reinterpret_cast<uint4*>(page+kPageRows*D+(row/16)*16*D+typename PV::LayoutB{}(d,row%16))=
+            backend::LoadGlobal16(p.value_cache+offset);
+      }
+      return;
+    }
+#endif
     auto* x=p.qkv+(b*p.heads_kv+g)*width+Q*D;
     Base::RotateRow(x,p.k_norm,p.cosine+p.past*D,p.sine+p.past*D,p.epsilon,[&](int d,uint4 v){
       if constexpr(kWgmma)*reinterpret_cast<uint4*>(page+PageCoordinates::Offset(row,d))=v;

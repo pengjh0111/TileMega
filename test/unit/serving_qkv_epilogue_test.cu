@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #define TILEMEGA_QKV_EPILOGUE 1
+#ifndef TILEMEGA_ATTENTION_IMPL
 #define TILEMEGA_ATTENTION_IMPL 4
+#endif
 #include <tilemega/Codegen/tasks/ServingQkvEpilogue.h>
 #include <tilemega/Codegen/tasks/IndependentAttentionTaskBody.h>
 #include <tilemega/Codegen/executor/TensorMap.h>
@@ -9,9 +11,13 @@
 #include <cstring>
 #include <cmath>
 #include <string>
+#include <vector>
 using namespace tilemega::codegen;
 using Element=cutlass::bfloat16_t;
 using Arch=tilemega::arch::Sm90;
+template<int D,int Q,bool Norm>
+using AttentionBody=IndependentAttentionTaskBody<Arch,D,Q,Norm,TILEMEGA_ATTENTION_IMPL==4?4*D*64:8192,
+    TILEMEGA_ATTENTION_IMPL==4?AttentionPagePolicy::WarpGroup:AttentionPagePolicy::WarpPrivate>;
 constexpr int Capacity=160;
 void Cuda(cudaError_t result) {
   if(result!=cudaSuccess){std::fprintf(stderr,"CUDA %s\n",cudaGetErrorString(result));std::exit(2);}
@@ -38,7 +44,7 @@ __global__ void Reference(QkvEpilogueDesc p,Element const* qkv,Element* expected
 }
 template<int D,int Q,bool Norm>
 __global__ void Attend(ServingAttentionOperands p) {
-  using Body=IndependentAttentionTaskBody<Arch,D,Q,Norm,4*D*64,AttentionPagePolicy::WarpGroup>;
+  using Body=AttentionBody<D,Q,Norm>;
   extern __shared__ __align__(1024) char memory[];
   Body::Run(p,*reinterpret_cast<typename Body::SharedStorage*>(memory),blockIdx.y,blockIdx.x,0,0);
 }
@@ -50,11 +56,14 @@ void Equal(void const* a,void const* b,std::size_t bytes,char const* what,int d,
         what,d,q,norm,batch,heads,tn,past,bad,x[bad],y[bad]);std::exit(3);
   }
 }
-template<int D,int Q,bool Norm>int Check() {
-  using Body=IndependentAttentionTaskBody<Arch,D,Q,Norm,4*D*64,AttentionPagePolicy::WarpGroup>;
+template<int D,int Q,bool Norm>int Check(bool smoke=false) {
+  using Body=AttentionBody<D,Q,Norm>;
   Cuda(cudaFuncSetAttribute(Attend<D,Q,Norm>,cudaFuncAttributeMaxDynamicSharedMemorySize,sizeof(typename Body::SharedStorage)));
   int cases=0;
-  for(int batch:{1,16})for(int heads:{1,2}) {
+  auto head_counts=smoke?std::vector<int>{1}:std::vector<int>{1,2};
+  auto tiles=smoke?std::vector<int>{D}:std::vector<int>{D,2*D};
+  auto histories=smoke?std::vector<int>{0,127}:std::vector<int>{0,31,63,64,127};
+  for(int batch:{1,16})for(int heads:head_counts) {
     int columns=heads*(Q+2)*D,qkv_count=batch*columns,cache_count=batch*heads*Capacity*D;
     auto* raw=Allocate<Element>(qkv_count);auto* fused=Allocate<Element>(qkv_count);auto* expected=Allocate<Element>(qkv_count);
     auto* key=Allocate<Element>(cache_count);auto* value=Allocate<Element>(cache_count);
@@ -73,7 +82,7 @@ template<int D,int Q,bool Norm>int Check() {
     void* sources[]={key,value,refkey,refvalue};
     for(int i=0;i<4;++i)if(executor::EncodeTensorMap(maps[i],sources[i],shape)!=CUDA_SUCCESS)std::exit(4);
     QkvEpilogueDesc desc{key,value,cosine,sine,Norm?qnorm:nullptr,Norm?knorm:nullptr,heads,D,Q,Capacity,1e-6f};
-    for(int tn:{D,2*D})for(int past:{0,31,63,64,127}) {
+    for(int tn:tiles)for(int past:histories) {
       std::memcpy(fused,raw,qkv_count*2);std::memcpy(expected,raw,qkv_count*2);
       for(int i=0;i<cache_count;++i) {
         key[i]=refkey[i]=Element(.015625f*((i*3)%23-11));value[i]=refvalue[i]=Element(.03125f*((i*5)%19-9));
@@ -120,7 +129,13 @@ int HostContracts() {
 int main(int argc,char** argv) {
   if(int failed=HostContracts())return failed;
   if(argc>1 && std::string(argv[1])=="--host-only")return 0;
+  if(argc>1 && std::string(argv[1])=="--legacy-smoke") {
+    int cases=Check<128,2,true>(true)+Check<64,4,false>(true);
+    std::printf("QKV epilogue legacy attention impl%d: %d exact Q/cache/context cases PASS\n",TILEMEGA_ATTENTION_IMPL,cases);
+    return 0;
+  }
   int cases=Check<64,2,false>()+Check<64,2,true>()+Check<64,3,false>()+Check<64,3,true>()+
-      Check<128,4,false>()+Check<128,4,true>()+Check<128,8,false>()+Check<128,8,true>();
+      Check<128,4,false>()+Check<128,4,true>();
+  if constexpr(TILEMEGA_ATTENTION_IMPL!=3)cases+=Check<128,8,false>()+Check<128,8,true>();
   std::printf("QKV epilogue exact BF16 Q/cache and WGMMA attention output %d cases PASS\n",cases);
 }
