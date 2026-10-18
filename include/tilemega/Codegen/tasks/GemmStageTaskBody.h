@@ -1045,6 +1045,30 @@ struct GemmStageTaskBody {
     auto const coordinate = DecodeSplitTask(task,tiles,table[stage.gemm].chunks);
     int const local = coordinate.tile;
     auto const& invocation = table[stage.gemm + coordinate.chunk];
+#if TILEMEGA_TASK_PREFIX_PREFETCH
+    static_assert(arch::Caps<Arch>::kBulkPrefetch,
+                  "task-prefix prefetch requires native bulk prefetch");
+    if(threadIdx.x==0) {
+      int next=task+int(gridDim.x);
+      if(next<tiles*table[stage.gemm].chunks) {
+        auto future_coordinate=DecodeSplitTask(next,tiles,table[stage.gemm].chunks);
+        auto const& future=table[stage.gemm+future_coordinate.chunk];
+        bool dense=true;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+        dense=future.access.b==DmBAccess::kDense;
+#endif
+        if(dense && future.serving_weight_base && future.serving_tile_k>0) {
+          int kt=((future.serving_k_total_full+future.serving_tile_k-1)/future.serving_tile_k);
+          int count=min(TILEMEGA_TASK_PREFIX_PREFETCH,((cute::get<2>(future.problem)+future.serving_tile_k-1)/future.serving_tile_k));
+          std::size_t offset=(std::size_t(future_coordinate.tile%future.tiles_n)*kt+
+              future.serving_k_begin/future.serving_tile_k)*future.tile_n*future.serving_tile_k;
+          // Only immutable packed B prefixes are hinted; no task scratch is borrowed.
+          executor::Async<Arch>::Prefetch(future.serving_weight_base+offset,
+              unsigned(count*future.tile_n*future.serving_tile_k*sizeof(cutlass::bfloat16_t)));
+        }
+      }
+    }
+#endif
     char* shared = reinterpret_cast<char*>(&smem.gemm);
 #if TILEMEGA_CLUSTER_COMBINE
     if(invocation.chunks>1) {

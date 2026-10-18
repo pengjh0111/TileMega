@@ -332,7 +332,7 @@ int RunCompile(int argc, char** argv) {
     int qkv_epilogue=0,attention_tma=0,dm_epilogue_fused=0,prefill_expert_wgmma=0;
     int depthwise_vectors=0,depthwise_rows=1,depthwise_channels=64,dm_linear_address=0;
     int global_pool_channels=128,dm_chain_reference=0,forward_wgmma_outline=0;
-    int stage_descriptor_prefetch=0;
+    int stage_descriptor_prefetch=0,task_prefix_prefetch=0;
     int nvcc_split_compile=1;
     std::string combine_impl="stage",merge_impl="stage";
     int dependency_intern=0,cluster_dim=1,serving_residency=0,activation_tma=0,decode_tile_m=16;
@@ -451,6 +451,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--depthwise-vectors") depthwise_vectors=std::stoi(value);
       else if (flag=="--global-pool-channels") global_pool_channels=std::stoi(value);
       else if (flag=="--stage-descriptor-prefetch") stage_descriptor_prefetch=std::stoi(value);
+      else if (flag=="--task-prefix-prefetch") task_prefix_prefetch=std::stoi(value);
       else if (flag=="--nvcc-split-compile") nvcc_split_compile=std::stoi(value);
       else if (flag=="--depthwise-rows") depthwise_rows=std::stoi(value);
       else if (flag=="--depthwise-channels") depthwise_channels=std::stoi(value);
@@ -652,6 +653,11 @@ int RunCompile(int argc, char** argv) {
       throw std::invalid_argument("--global-pool-channels expects 4, 32, 64, 128 or 256");
     if(global_pool_channels!=128 && (!forward || frontend_mode!="dnn" || input.extension()==".mlir"))
       throw std::invalid_argument("global pool geometry requires a DNN forward export");
+    if(task_prefix_prefetch<0 || task_prefix_prefetch>2 ||
+        (task_prefix_prefetch && (!serving || serving_phase!="decode" ||
+         (pg_mode!="off" && pg_mode!="l2") || nonpaged_weight_layout!="tiled" || arch_paths!="auto")))
+      throw std::invalid_argument("task-prefix prefetch requires nonpaged tiled native decode and depth 0/1/2");
+    if(task_prefix_prefetch)runtime_flags+=" -DTILEMEGA_TASK_PREFIX_PREFETCH="+std::to_string(task_prefix_prefetch);
     if(stage_descriptor_prefetch<0 || stage_descriptor_prefetch>2 ||
         (stage_descriptor_prefetch && (!serving || (pg_mode!="off" && pg_mode!="l2"))))
       throw std::invalid_argument("stage descriptor prefetch expects 0, 1 or 2 and explicit nonpaged execution");
@@ -1737,6 +1743,7 @@ int RunCompile(int argc, char** argv) {
               " --depthwise-vectors "+std::to_string(depthwise_vectors)+
               " --global-pool-channels "+std::to_string(global_pool_channels)+
               " --stage-descriptor-prefetch "+std::to_string(stage_descriptor_prefetch)+
+              " --task-prefix-prefetch "+std::to_string(task_prefix_prefetch)+
               " --depthwise-rows "+std::to_string(depthwise_rows)+
               " --depthwise-channels "+std::to_string(depthwise_channels)+
               " --nonpaged-la "+std::to_string(nonpaged_la)+
@@ -2604,6 +2611,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"depthwise_rows\": "<<depthwise_rows
               <<",\n  \"global_pool_channels\": "<<global_pool_channels
               <<",\n  \"stage_descriptor_prefetch\": "<<stage_descriptor_prefetch
+              <<",\n  \"task_prefix_prefetch\": "<<task_prefix_prefetch
               <<",\n  \"depthwise_channels\": "<<depthwise_channels
               <<",\n  \"parallel_argmax\": "<<(parallel_argmax?"true":"false")
               <<",\n  \"attention_frontier\": "<<(attention_frontier?"true":"false")
