@@ -1606,8 +1606,14 @@ int RunCompile(int argc, char** argv) {
         if(stage.getAs<mlir::StringAttr>("kind").getValue()!="kFusedAttention")continue;
         auto q=stage.getAs<mlir::IntegerAttr>("group").getInt();
         auto d=stage.getAs<mlir::IntegerAttr>("width").getInt();
-        if(q<1 || q>4 || (d!=64 && d!=128))
-          throw std::invalid_argument("simt attention requires QPerKV <= 4 and D = 64 or 128");
+        // The body's own bound is Q <= 8 (mx/DecodeAttentionSimt.h) and
+        // ServingDecodeAttentionSimtSharedBytes has an explicit q_per_kv >= 8
+        // branch, so a Q <= 4 gate here rejected geometries the kernel
+        // supports: Qwen3-MoE-24L is 32 q over 4 kv heads, and simt is the
+        // only decode attention body xcore1000 implements, so the gate made
+        // that model uncompilable rather than merely unoptimized.
+        if(q<1 || q>8 || (d!=64 && d!=128))
+          throw std::invalid_argument("simt attention requires QPerKV <= 8 and D = 64 or 128");
       }
     }
     if(moe_dynamic || moe_opaque || moe_gemv) {
