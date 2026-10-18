@@ -200,6 +200,10 @@ struct ServingGemmTaskBody {
         p.tensor_map &&
 #endif
         (p.k_count%TileK==0 || p.tensor_k_begin+p.k_count==p.k_total_full);
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+    // Tensor maps describe dense rows, not the virtual expert row space.
+    tma=tma && p.access.a==DmAAccess::kDense && p.access.b==DmBAccess::kDense;
+#endif
     if(tma) {
       if(ComputeThread()==0)for(int slot=0;slot<S;++slot)Async::Init(barriers+slot,1);
       Async::InitFence();ComputeSync();Async::ProxyAsyncGlobalFence();
@@ -225,7 +229,11 @@ struct ServingGemmTaskBody {
         for(int v=ComputeThread()*8;v<TileM*TileK;v+=kComputeThreads*8) {
           int row=tile_m*TileM+v/TileK,k=it*TileK+v%TileK;
           bool valid=row<p.m && k<p.k_count;
-          auto* source=valid?p.a+std::int64_t(row)*a_pitch+p.k_begin+k:p.a;
+          unsigned source_row=row;
+#if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
+          if(valid)source_row=backend::DmSourceRow(p,row);
+#endif
+          auto* source=valid?p.a+std::int64_t(source_row)*a_pitch+p.k_begin+k:p.a;
           Async::Copy16Bytes(as+layout_a(v/TileK,v%TileK),source,valid?min(8,p.k_count-k)*2:0);
         }
 #if TILEMEGA_NONPAGED_TILED
