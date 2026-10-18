@@ -333,7 +333,7 @@ int RunCompile(int argc, char** argv) {
     int depthwise_vectors=0,depthwise_rows=1,depthwise_channels=64,dm_linear_address=0;
     int global_pool_channels=128,dm_chain_reference=0,forward_wgmma_outline=0;
     int stage_descriptor_prefetch=0,task_prefix_prefetch=0,la_cta_release=0;
-    int nvcc_split_compile=1;
+    int nvcc_split_compile=1,ptxas_expensive=1;
     std::string combine_impl="stage",merge_impl="stage";
     int dependency_intern=0,cluster_dim=1,serving_residency=0,activation_tma=0,decode_tile_m=16;
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
@@ -454,6 +454,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--task-prefix-prefetch") task_prefix_prefetch=std::stoi(value);
       else if (flag=="--la-cta-release") la_cta_release=std::stoi(value);
       else if (flag=="--nvcc-split-compile") nvcc_split_compile=std::stoi(value);
+      else if (flag=="--ptxas-expensive") ptxas_expensive=std::stoi(value);
       else if (flag=="--depthwise-rows") depthwise_rows=std::stoi(value);
       else if (flag=="--depthwise-channels") depthwise_channels=std::stoi(value);
       else if (flag=="--qkv-epilogue") qkv_epilogue=std::stoi(value);
@@ -792,7 +793,11 @@ int RunCompile(int argc, char** argv) {
        (!forward || frontend_mode!="dnn"))
       throw std::invalid_argument("depthwise coordinates require DNN forward");
     if(nvcc_split_compile<0)throw std::invalid_argument("nvcc split compile must be nonnegative");
-    if(nvcc_split_compile!=1)runtime_flags+=" --split-compile="+std::to_string(nvcc_split_compile);
+    if(nvcc_split_compile!=1)runtime_flags+=" --split-compile="+std::to_string(nvcc_split_compile)+
+        " -Xptxas=--split-compile="+std::to_string(nvcc_split_compile);
+    if(ptxas_expensive<0 || ptxas_expensive>1)
+      throw std::invalid_argument("ptxas expensive optimizations expects 0/1");
+    if(!ptxas_expensive)runtime_flags+=" -Xptxas=--allow-expensive-optimizations=false";
     if(depthwise_vectors)runtime_flags+=" -DTILEMEGA_DEPTHWISE_VECTORS=1";
     if(depthwise_impl=="tma")runtime_flags+=" -DTILEMEGA_DEPTHWISE_TMA=1";
     if(gemv_load!="ldg" && gemv_load!="nc" && gemv_load!="bulk")
@@ -1746,6 +1751,7 @@ int RunCompile(int argc, char** argv) {
               " --dm-chain-reference "+std::to_string(dm_chain_reference)+
               " --forward-wgmma-outline "+std::to_string(forward_wgmma_outline)+
               " --nvcc-split-compile "+std::to_string(nvcc_split_compile)+
+              " --ptxas-expensive "+std::to_string(ptxas_expensive)+
               " --depthwise-vectors "+std::to_string(depthwise_vectors)+
               " --global-pool-channels "+std::to_string(global_pool_channels)+
               " --stage-descriptor-prefetch "+std::to_string(stage_descriptor_prefetch)+
@@ -2620,6 +2626,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"stage_descriptor_prefetch\": "<<stage_descriptor_prefetch
               <<",\n  \"task_prefix_prefetch\": "<<task_prefix_prefetch
               <<",\n  \"la_cta_release\": "<<la_cta_release
+              <<",\n  \"ptxas_expensive_optimizations\": "<<ptxas_expensive
               <<",\n  \"depthwise_channels\": "<<depthwise_channels
               <<",\n  \"parallel_argmax\": "<<(parallel_argmax?"true":"false")
               <<",\n  \"attention_frontier\": "<<(attention_frontier?"true":"false")

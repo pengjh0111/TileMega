@@ -31,6 +31,12 @@ macros, artifact hashes, implementation and kernel resources are recorded in
 `<library>.identity.json`. Analysis rejects incompatible identities; trace
 artifacts do not supply end-to-end performance results.
 
+`--nvcc-split-compile N` sets the compiler and assembler optimization worker
+limits (default 1). `--ptxas-expensive 0` disables the assembler's expensive
+optimization passes; the default remains 1. Verified: CUDA 12.8 exposes both
+assembler controls. Their exact flags are retained in the build identity;
+changing optimization passes requires new correctness and end-to-end measurements.
+
 `device.cache_dir` contains calibration targets, exports, plans and artifacts.
 Keys include workload, source/calibration fingerprints and compilation options.
 The serving execution choice lives in `<library>.serving.json` and `plans.json`;
