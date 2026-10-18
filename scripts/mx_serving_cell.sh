@@ -4,7 +4,7 @@
 #   tm_cell.sh solve   <id> <batch> <decode|prefill>          (CPU; device query via guard on $QGPU)
 #   tm_cell.sh check   <id> <batch> <rand_dir> <prompts> <gpu> (C-2 and C-1)
 #   tm_cell.sh measure <id> <batch> <rand_dir> <prompts> <gpu> <round>
-# Plans: runs/mx1/tm/<id>/B<b>/<phase>/plan.so. Raw data stays under runs/mx1.
+# Plans: runs/mx2/tm/<id>/B<b>/<phase>/plan.so. Raw data stays under runs/mx1.
 set -eu
 ROOT=/root/tilemega; cd $ROOT
 TARGET=runs/mx1/calib/xcore1000_c550.json
@@ -13,7 +13,7 @@ JOBS=${JOBS:-8}
 # Solves compile against a frozen worktree (/root/tilemega_solve, its own
 # build): an artifact's identity snapshot covers every source file, so header
 # edits in the development tree during a 30-minute solve would invalidate it.
-SOLVE_BIN=${SOLVE_BIN:-/root/tilemega_solve/build/tools/tilemega}
+SOLVE_BIN=${SOLVE_BIN:-/root/tilemega/build/tools/tilemega}
 cmd=$1; id=$2
 case $cmd in
 export)
@@ -32,7 +32,7 @@ export)
   done ;;
 solve)
   b=$3; phase=$4
-  C=runs/mx1/tm/$id/B$b/$phase; mkdir -p $C
+  C=runs/mx2/tm/$id/B$b/$phase; mkdir -p $C
   [ -f $C/plan.so ] && grep -q "^rc=0" $C/compile.log 2>/dev/null && exit 0
   # One compile per cell. Every artifact in $C has a fixed name, so two
   # concurrent solves of the same cell interleave their plan.so, identity and
@@ -75,8 +75,11 @@ solve)
       --search-passes 2 --search-budget-ms ${SEARCH_BUDGET_MS:-1200000} \
       > $C/compile.log 2>&1 && echo rc=0 >> $C/compile.log || {
         rc=$?
-        if [ $layout = tiled ] && grep -q "tiled GEMV weights are not supported" \
-             $C/plan.so.ptxas.log 2>/dev/null; then
+        # The rejection surfaces while probing resources for a candidate that
+        # selected a GEMV variant, so it lands in a per-candidate build log
+        # under plan.so.resources, not in ptxas.log.
+        if [ $layout = tiled ] && grep -rqs "tiled GEMV weights are not supported" \
+             $C/plan.so.resources $C/plan.so.ptxas.log 2>/dev/null; then
           echo "layout=tiled rejected by a selected GEMV variant; retrying row" >> $C/compile.log
           layout=row
           env CUDA_VISIBLE_DEVICES= MACA_VISIBLE_DEVICES= \
@@ -100,12 +103,12 @@ solve)
   rm -f $C/plan.so.m*.tsv $C/plan.so.verified*.tsv ;;
 check)
   b=$3; rand=$4; prompts=$5; gpu=$6
-  C=runs/mx1/tm/$id/B$b
+  C=runs/mx2/tm/$id/B$b
   NEEDS_MIB=20480 /root/deps/mxjob.sh $gpu 1700 $C/check env -u ALL_PROXY -u all_proxy \
     bash /root/deps/c1c2.sh $rand $C/prefill/plan.so $C/decode/plan.so $b 512 $C $prompts ;;
 measure)
   b=$3; rand=$4; prompts=$5; gpu=$6; round=$7
-  C=runs/mx1/tm/$id/B$b; O=$C/measure/round$round
+  C=runs/mx2/tm/$id/B$b; O=$C/measure/round$round
   [ -f $O/.done ] && exit 0
   mkdir -p $O
   NEEDS_MIB=20480 /root/deps/mxjob.sh $gpu 1700 $O/guard env -u ALL_PROXY -u all_proxy \
