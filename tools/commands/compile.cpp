@@ -328,6 +328,7 @@ int RunCompile(int argc, char** argv) {
     bool forward_seed_explicit=false;
     std::string forward_gemm_impl="mma16",prefill_attention_impl="mma16",encoder_attention_impl="mma16",conv_impl="cpasync",gemv_load="ldg",depthwise_impl="cpasync",dwpw_impl="mma16";
     int qkv_epilogue=0,attention_tma=0,dm_epilogue_fused=0;
+    int nvcc_split_compile=1;
     std::string combine_impl="stage",merge_impl="stage";
     int dependency_intern=0,cluster_dim=1,serving_residency=0,activation_tma=0,decode_tile_m=16;
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
@@ -440,6 +441,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--gemv-load") gemv_load=value;
       else if (flag=="--dwpw-impl") dwpw_impl=value;
       else if (flag=="--depthwise-impl") depthwise_impl=value;
+      else if (flag=="--nvcc-split-compile") nvcc_split_compile=std::stoi(value);
       else if (flag=="--qkv-epilogue") qkv_epilogue=std::stoi(value);
       else if (flag=="--attention-tma") attention_tma=std::stoi(value);
       else if (flag=="--prefill-attention-impl") prefill_attention_impl=value;
@@ -736,6 +738,8 @@ int RunCompile(int argc, char** argv) {
     if(depthwise_impl=="tma" && (!serving || serving_phase!="forward" || frontend_mode!="dnn" ||
         arch_paths!="auto" || (pg_mode!="off" && pg_mode!="l2")))
       throw std::invalid_argument("depthwise TMA requires native Hopper DNN forward, explicit nonpaged off/l2");
+    if(nvcc_split_compile<0)throw std::invalid_argument("nvcc split compile must be nonnegative");
+    if(nvcc_split_compile!=1)runtime_flags+=" --split-compile="+std::to_string(nvcc_split_compile);
     if(depthwise_impl=="tma")runtime_flags+=" -DTILEMEGA_DEPTHWISE_TMA=1";
     if(gemv_load!="ldg" && gemv_load!="nc" && gemv_load!="bulk")
       throw std::invalid_argument("--gemv-load must be ldg, nc or bulk");
@@ -1639,6 +1643,7 @@ int RunCompile(int argc, char** argv) {
               " --parallel-argmax "+std::to_string(parallel_argmax)+
               " --ep-direct "+std::to_string(ep_direct)+
               " --dm-epilogue-fused "+std::to_string(dm_epilogue_fused)+
+              " --nvcc-split-compile "+std::to_string(nvcc_split_compile)+
               " --nonpaged-la "+std::to_string(nonpaged_la)+
               " --attention-frontier "+std::to_string(attention_frontier)+
               " --attention-past-split "+std::to_string(attention_past_split)+
@@ -2494,6 +2499,7 @@ int RunCompile(int argc, char** argv) {
               <<",\n  \"attention_noinline\": "<<(attention_noinline?"true":"false")
               <<",\n  \"ep_direct\": "<<(ep_direct?"true":"false")
               <<",\n  \"dm_epilogue_fused\": "<<dm_epilogue_fused
+              <<",\n  \"nvcc_split_compile\": "<<nvcc_split_compile
               <<",\n  \"parallel_argmax\": "<<(parallel_argmax?"true":"false")
               <<",\n  \"attention_frontier\": "<<(attention_frontier?"true":"false")
               <<",\n  \"attention_past_split\": "<<(attention_past_split?"true":"false")
