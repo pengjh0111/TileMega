@@ -86,7 +86,7 @@ struct ServingGemmOperands {
 #endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   DmGemmAccess access{};
-  DmEpilogueChain chain{};
+  DmEpilogueParameter chain{};
   ConvDesc const* convolutions = nullptr;
   backend::ConvIterationGeometry conv_iteration{};
   void const* binding = nullptr;

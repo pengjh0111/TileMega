@@ -891,6 +891,14 @@ if(TILEMEGA_BUILD_TESTS)
     add_test(NAME ${test} COMMAND ${test}_test)
   endforeach()
   if(TILEMEGA_TARGET_ARCH STREQUAL "sm_90")
+    add_executable(dm_epilogue_chain_view_test test/unit/dm_epilogue_tile_test.cu)
+    target_link_libraries(dm_epilogue_chain_view_test PRIVATE TileMega::tilemega)
+    target_compile_definitions(dm_epilogue_chain_view_test PRIVATE TILEMEGA_DM_CHAIN_REFERENCE=1)
+    target_compile_options(dm_epilogue_chain_view_test PRIVATE -UNDEBUG
+      $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+    tilemega_configure_cuda_target(dm_epilogue_chain_view_test)
+    add_test(NAME dm_epilogue_chain_view COMMAND dm_epilogue_chain_view_test
+      ${CMAKE_SOURCE_DIR}/test/fixtures/dnn/epilogue_tiles.bin)
     add_executable(dm_nchw_store_test test/unit/dm_nchw_store_test.cu)
     target_link_libraries(dm_nchw_store_test PRIVATE TileMega::tilemega)
     target_compile_options(dm_nchw_store_test PRIVATE -UNDEBUG

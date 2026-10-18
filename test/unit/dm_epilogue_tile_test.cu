@@ -20,6 +20,10 @@ using Side = DmSideOutputKind;
 #endif
 using Arch = typename tilemega::arch::ArchFromId<TILEMEGA_ARCH_ID>::type;
 
+// Kernel parameters own the fixture descriptor in either parameter ABI.
+struct EpilogueFixture : DmEpilogueArguments { DmEpilogueChain chain; };
+static_assert(!std::is_constructible_v<DmEpilogueChainView, DmEpilogueChain&&>);
+
 template <Kind K, Act A = Act::kRelu, Round In = Round::kFP32,
           Round Out = Round::kBF16, DmGatePair Gate = DmGatePair::kSwiGLU,
           Write Map = Write::kDense, unsigned Factor = 1>
@@ -130,7 +134,7 @@ DmEpilogueChain MakeChain(DmEpilogueProgram<Steps...>) {
   return chain;
 }
 
-template <class S> __global__ void Evaluate(float const* input, DmEpilogueArguments p) {
+template <class S> __global__ void Evaluate(float const* input, EpilogueFixture p) {
   using Body = ServingDmEpilogue<Arch, S, 16, 64>;
   __shared__ float tile[Body::kSharedBytes / sizeof(float)];
   for (int i = threadIdx.x; i < 16 * 64; i += 128) {
@@ -140,7 +144,9 @@ template <class S> __global__ void Evaluate(float const* input, DmEpilogueArgume
         input[global_row * p.n + global_col] : 0;
   }
   tilemega::codegen::executor::ComputeSync();
-  Body::RunFromTile(tile, p, blockIdx.x, blockIdx.y);
+  DmEpilogueArguments args=static_cast<DmEpilogueArguments const&>(p);
+  args.chain=p.chain;
+  Body::RunFromTile(tile, args, blockIdx.x, blockIdx.y);
 }
 
 template <class T> void Compare(T* device, std::vector<float> const& expected,
@@ -201,7 +207,7 @@ template <int Mode> void Run(std::array<std::uint32_t, 11> const& h,
     }
   }
   if constexpr (Mode == 13) layouts[9] = Dense({h[3], h[6], h[4], h[5]});
-  DmEpilogueArguments p;
+  EpilogueFixture p;
   p.chain = MakeChain(typename S::Chain{}); p.chain.store_rounding = S::kStore;
   if constexpr (Mode == 0) {
     p.chain.side_count = 5;

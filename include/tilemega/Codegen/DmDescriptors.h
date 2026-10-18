@@ -112,6 +112,32 @@ struct DmEpilogueChain {
   DmRounding store_rounding = DmRounding::kBF16;
 };
 
+// A task borrows immutable invocation storage; temporaries cannot own its arrays.
+struct DmEpilogueChainView {
+  std::uint32_t count = 0, side_count = 0;
+  DmRounding store_rounding = DmRounding::kBF16;
+  DmEpilogueOp const* operations = nullptr;
+  DmSideOutput const* side = nullptr;
+#if defined(__CUDACC__)
+  __host__ __device__
+#endif
+  DmEpilogueChainView() = default;
+#if defined(__CUDACC__)
+  __host__ __device__
+#endif
+  DmEpilogueChainView(DmEpilogueChain const& chain)
+      : count(chain.count), side_count(chain.side_count),
+        store_rounding(chain.store_rounding), operations(chain.operations), side(chain.side) {}
+  DmEpilogueChainView(DmEpilogueChain&&) = delete;
+};
+static_assert(sizeof(DmEpilogueChainView) <= 40);
+static_assert(std::is_trivially_copyable_v<DmEpilogueChainView>);
+#ifndef TILEMEGA_DM_CHAIN_REFERENCE
+#define TILEMEGA_DM_CHAIN_REFERENCE 0
+#endif
+using DmEpilogueParameter = std::conditional_t<TILEMEGA_DM_CHAIN_REFERENCE,
+    DmEpilogueChainView, DmEpilogueChain>;
+
 struct DmBufferView {
   void* const* data = nullptr;
   DmBufferLayout const* layouts = nullptr;

@@ -16,7 +16,7 @@ namespace tilemega::backend {
 
 struct DmEpilogueArguments {
   codegen::DmBufferView buffers{};
-  codegen::DmEpilogueChain chain{};
+  codegen::DmEpilogueParameter chain{};
   codegen::DmWriteMap write{};
   void* output = nullptr;
   int m = 0, n = 0, output_stride = 0;
