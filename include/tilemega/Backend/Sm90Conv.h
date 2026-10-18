@@ -15,7 +15,12 @@ struct Sm90Conv {
   static_assert(Stages>=2 && Stages<=4);
   static constexpr int kSharedBytes=1024+2*Stages*K*(M+N)>4*M*N?1024+2*Stages*K*(M+N):4*M*N;
   template<bool TiledB,class Operands>
-  __device__ static __forceinline__ float* Run(Operands const& p,codegen::ConvDesc const& conv,
+#if TILEMEGA_FORWARD_WGMMA_OUTLINE > 1
+  __device__ static __noinline__
+#else
+  __device__ static __forceinline__
+#endif
+  float* Run(Operands const& p,codegen::ConvDesc const& conv,
       codegen::DmBufferLayout const& layout,int tile_m,int tile_n,char* shared) {
     using namespace cute;
     using codegen::executor::ComputeThread;

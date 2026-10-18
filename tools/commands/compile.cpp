@@ -930,9 +930,9 @@ int RunCompile(int argc, char** argv) {
     if(dm_chain_reference && (!serving || frontend_mode!="dnn" ||
         (pg_mode!="off" && pg_mode!="l2")))
       throw std::invalid_argument("chain reference requires a nonpaged DNN plan");
-    if(forward_wgmma_outline!=0 && forward_wgmma_outline!=1)
-      throw std::invalid_argument("--forward-wgmma-outline must be 0 or 1");
-    if(forward_wgmma_outline)runtime_flags+=" -DTILEMEGA_FORWARD_WGMMA_OUTLINE=1";
+    if(forward_wgmma_outline<0 || forward_wgmma_outline>2)
+      throw std::invalid_argument("--forward-wgmma-outline must be in [0,2]");
+    if(forward_wgmma_outline)runtime_flags+=" -DTILEMEGA_FORWARD_WGMMA_OUTLINE="+std::to_string(forward_wgmma_outline);
     if(dm_chain_reference)runtime_flags+=" -DTILEMEGA_DM_CHAIN_REFERENCE=1";
     if(dm_linear_address!=0 && dm_linear_address!=1)
       throw std::invalid_argument("--dm-linear-address must be 0 or 1");

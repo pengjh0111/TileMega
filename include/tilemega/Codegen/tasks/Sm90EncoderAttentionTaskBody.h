@@ -34,7 +34,12 @@ struct Sm90EncoderAttentionTaskBody {
   static constexpr int kSharedBytes=sizeof(SharedStorage),kThreads=128;
   static_assert(kSharedBytes==Sm90EncoderAttentionSharedBytes());
   __host__ __device__ static unsigned Count(EncoderAttentionOperands const& p) {return p.batch*p.heads*2;}
-  __device__ static __forceinline__ void Run(Sm90EncoderAttentionOperands const& p,unsigned task,SharedStorage& s) {
+#if TILEMEGA_FORWARD_WGMMA_OUTLINE > 1
+  __device__ static __noinline__
+#else
+  __device__ static __forceinline__
+#endif
+  void Run(Sm90EncoderAttentionOperands const& p,unsigned task,SharedStorage& s) {
     using namespace cute;
     using executor::ComputeThread;using executor::ComputeSync;
     auto const& in=p.base;

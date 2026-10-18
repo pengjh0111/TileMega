@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
+#include <string>
 using namespace tilemega::codegen;
 using E=cutlass::bfloat16_t;using Arch=tilemega::arch::Sm90;
 void CheckCuda(cudaError_t e){if(e!=cudaSuccess){std::fprintf(stderr,"%s\n",cudaGetErrorString(e));std::exit(2);}}
@@ -57,7 +58,11 @@ void Case(int batch,int heads,int seed,bool tma) {
   std::printf("encoder B%d H%d seed%d TMA%d CPU_error=%g legacy_error=%g PASS\n",batch,heads,seed,tma,cpu_error,legacy_error);
   for(void* ptr:{static_cast<void*>(qkv),static_cast<void*>(out),static_cast<void*>(legacy),static_cast<void*>(maps)})CheckCuda(cudaFree(ptr));
 }
-int main(){using Body=Sm90EncoderAttentionTaskBody<Arch>;
+int main(int argc,char** argv){using Body=Sm90EncoderAttentionTaskBody<Arch>;
+  if(argc==2 && std::string(argv[1])=="--outline-smoke") {
+    Case(1,3,1,false);Case(1,12,2,true);
+    std::puts("encoder outlined: cp.async and BERT TMA cases PASS");return 0;
+  }
   auto k=cute::as_position_independent_swizzle_layout(typename Body::KLayout{});
   auto v=cute::as_position_independent_swizzle_layout(typename Body::VLayout{});
   for(int r=0;r<128;++r)for(int d=0;d<64;++d)if(k(r,d)!=v(d,r)){std::fprintf(stderr,"encoder layout mismatch\n");return 5;}
