@@ -46,7 +46,10 @@ def main():
             for iteration in range(a.repeats + 1):
                 engine.state.kv_storage.zero_()
                 engine.state.tokens.zero_()
-                tokens = engine.generate(ids).tokens.cpu()
+                generated = engine.generate(ids)
+                if a.steps > 1 and generated.decode_loop_used != bool(a.decode_loop):
+                    raise ValueError('requested device-loop mode was not executed')
+                tokens = generated.tokens.cpu()
                 if tuple(tokens.shape) != (a.batch, a.steps):
                     raise ValueError('wrong generated token count')
                 path = a.out / f'tokens-{iteration}.json'

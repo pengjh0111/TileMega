@@ -85,8 +85,18 @@ def main():
             decode_loop=bool(loop), step_events=False, prefill_mode=args.prefill_mode)
     frozen = torch.tensor(ids[:int(args.batch)], dtype=torch.int32)
     with engine(args.mode, args.decode_loop) as current:
+        executions=[]
+        metadata['actual_execution']=executions
+        def generate(rows,count):
+            result=current.generate(frozen,count)
+            if count>1 and bool(args.decode_loop)!=result.decode_loop_used:
+                raise ValueError('requested decode-loop mode was not executed')
+            executions.append(dict(tokens=count,decode_mode=args.mode,
+                                   prefill_mode=args.prefill_mode or args.mode,
+                                   decode_loop_used=result.decode_loop_used))
+            return result.tokens.tolist()
         measure(args, ids, args.system_label,
-            lambda rows, count: current.generate(frozen, count).tokens.tolist(),
+            generate,
             metadata, synchronize=torch.cuda.synchronize)
         last = args.out/f'B{args.batch}'/f'tokens_N{args.max_tokens}_run{args.warmup+args.repeats-1}.json'
         reference = torch.tensor(json.loads(last.read_text()), dtype=torch.int32)
