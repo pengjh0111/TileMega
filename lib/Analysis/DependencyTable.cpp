@@ -155,7 +155,8 @@ std::optional<std::vector<std::vector<TaskInterval>>> SymbolicProducerIntervals(
     }
     return isl_stat_ok;
   };
-  if(!map)throw std::runtime_error("cannot parse symbolic dependency relation");
+  // The caller already parsed and bounded the relation without this quota.
+  if(!map)return std::nullopt;
   auto status=isl_map_foreach_basic_map(map.get(),component,&state);
   if(status!=isl_stat_ok) {
     // This is an optional compression proof. The row path below rechecks
