@@ -61,7 +61,8 @@ def aggregate_ratios(llm, llm_ratios, dnn, dnn_ratios):
                    [min(values) for values in engines.values()])
         for metric in ('tpot', 'e2e'):
             append(scope, 'TM-R16', metric,
-                   [r['speedup_' + metric + '_vs_tm_r16'] for r in native])
+                   [r['speedup_' + metric + '_vs_tm_r16'] for r in native
+                    if r['tm_r16_reference_valid']])
     for metric in ('median', 'p90'):
         for baseline in sorted({(r['baseline'], r['precision'], r['compile_mode']) for r in dnn_ratios}):
             label = '/'.join(x for x in baseline if x)
@@ -80,8 +81,15 @@ def aggregate_ratios(llm, llm_ratios, dnn, dnn_ratios):
 
 def llm_cells(raw, states):
     progress = read(raw / 'final-llm/progress.json')
+    cells = dict(progress['settled'])
+    revisions = raw / 'final-llm/revisions.json'
+    if revisions.exists():
+        for key, cell in read(revisions)['settled'].items():
+            assert key in cells and cell['status'] == 'completed'
+            assert (cell['model'], cell['batch']) == (cells[key]['model'], cells[key]['batch'])
+            cells[key] = cell
     rows = []
-    for key, cell in progress['settled'].items():
+    for key, cell in cells.items():
         if cell['status'] != 'completed':
             continue
         config_path = Path(cell['config'])
@@ -113,6 +121,9 @@ def llm_cells(raw, states):
         row = dict(model=config['model'], batch=batch, fresh_processes=3,
                    c1_pass=True, c2_pass=True, config=str(config_path.relative_to(ROOT)),
                    checkpoint_sha256=rounds[0][0]['checkpoint']['checkpoint_sha256'],
+                   gpus=';'.join(str(i) for i in sorted({v['gpu_index'] for v, _ in rounds})),
+                   physical_gpu_uuids=';'.join(sorted({v['physical_device_identity']['nvml_uuid']
+                                                      for v, _ in rounds})),
                    acceptance=';'.join(sorted({o['acceptance'] for _, o in rounds})))
         for source, target, scale in [('tpot_seconds', 'tpot_ms', 1000),
                                       ('ttft_seconds', 'ttft_ms', 1000),
@@ -127,15 +138,22 @@ def llm_cells(raw, states):
 
 def dnn_cells(raw, states):
     progress = read(raw / 'final-dnn/progress.json')
+    cells, published = dict(progress['settled']), dict(progress['published'])
+    revisions = raw / 'final-dnn/revisions.json'
+    if revisions.exists():
+        revision = read(revisions)
+        assert set(revision['settled']) <= set(cells)
+        cells.update(revision['settled'])
+        published.update(revision['published'])
     rows = []
-    for model, cell in progress['settled'].items():
+    for model, cell in cells.items():
         if cell['status'] != 'final_three_process_measurement_queued':
             continue
         if not all(states.get(name, {}).get('status') == 'done' for name in cell['jobs']):
             continue
-        config_path = ROOT / f'configs/dnn/sm90r1/{model}_b1.json'
+        config_path = ROOT / cell.get('config', f'configs/dnn/sm90r1/{model}_b1.json')
         config = read(config_path)
-        assert file_sha(config_path) == progress['published'][model]['config_sha256']
+        assert file_sha(config_path) == published[model]['config_sha256']
         gate = read(cell['gate'])
         assert gate['passed'] and not gate['synthetic_weights']
         assert {1, 2} <= {v['mode'] for v in gate['cases']}
@@ -158,6 +176,9 @@ def dnn_cells(raw, states):
         row = dict(model=model, batch=1, precision='bf16', fresh_processes=3,
                    bf16_gate_pass=True, artifact_id=config['artifact_id'],
                    config=str(config_path.relative_to(ROOT)),
+                   gpus=';'.join(str(i) for i in sorted({v['gpu_index'] for v, _ in rounds})),
+                   physical_gpu_uuids=';'.join(sorted({v['physical_device_identity']['nvml_uuid']
+                                                      for v, _ in rounds})),
                    acceptance=';'.join(sorted({o['acceptance'] for _, o in rounds})),
                    source_checkpoint_sha256=gate['source_checkpoint_sha256'],
                    exported_program_sha256=gate['archive_sha256'],
@@ -176,6 +197,8 @@ def main():
     parser.add_argument('--out', type=Path, default=ROOT / 'docs/results')
     parser.add_argument('--require-complete', action='store_true')
     args = parser.parse_args()
+    selection_revision = args.raw / 'final-llm/selection-revision.json'
+    selection_pending = selection_revision.exists() and read(selection_revision)['status'] == 'pending'
     states = {}
     for gpu in range(8):
         states.update(read(args.raw / f'scheduler/gpu{gpu}/state.json'))
@@ -190,8 +213,16 @@ def main():
     llm_ratios, dnn_ratios = [], []
     for row in llm:
         previous = native_llm[row['model'], row['batch']]
-        row['speedup_tpot_vs_tm_r16'] = float(previous['tpot_ms']) / row['tpot_ms']
-        row['speedup_e2e_vs_tm_r16'] = float(previous['e2e_ms']) / row['e2e_ms']
+        # The audit also identifies intermittent B8 errors despite its CSV flag.
+        valid_reference = previous['valid'] == 'True' and not (
+            row['model'] == 'qwen3_30b_a3b' and row['batch'] >= 4)
+        row['tm_r16_reference_valid'] = valid_reference
+        row['tm_r16_reference_status'] = ('valid frozen native reference' if valid_reference else
+                                         'excluded: known R16 correctness failure')
+        row['speedup_tpot_vs_tm_r16'] = (float(previous['tpot_ms']) / row['tpot_ms']
+                                       if valid_reference else '')
+        row['speedup_e2e_vs_tm_r16'] = (float(previous['e2e_ms']) / row['e2e_ms']
+                                      if valid_reference else '')
         for (model, batch, system), baseline in baselines.items():
             if (model, batch) != (row['model'], row['batch']):
                 continue
@@ -219,13 +250,22 @@ def main():
                                    speedup=float(baseline['median_ms']) / row['median_ms'],
                                    speedup_p90=float(baseline['p90_ms']) / row['p90_ms']))
     if args.require_complete:
-        assert len(llm) == 30 and len(dnn) == 5, 'final matrix is incomplete'
+        assert len(llm) == 30 and len(dnn) == 5 and not selection_pending, 'final matrix is incomplete'
     args.out.mkdir(parents=True, exist_ok=True)
     for suffix, rows in [('llm', llm), ('dnn', dnn), ('llm_ratios', llm_ratios), ('dnn_ratios', dnn_ratios)]:
         write(args.out / f'SM90R1_final_{suffix}.csv', rows)
     write(args.out / 'SM90R1_summary.csv', aggregate_ratios(llm, llm_ratios, dnn, dnn_ratios))
+    if len(llm) == 30 and len(dnn) == 5 and not selection_pending:
+        index = dict(schema=1, llm={}, dnn={})
+        for row in llm:
+            index['llm'].setdefault(row['model'], {})[str(row['batch'])] = row['config']
+        for row in dnn:
+            index['dnn'][row['model']] = row['config']
+        path = ROOT / 'configs/serving/sm90r1/selected.json'
+        path.write_text(json.dumps(index, indent=2) + '\n')
     print(json.dumps(dict(llm_complete=len(llm), dnn_complete=len(dnn),
-                          final_complete=len(llm) == 30 and len(dnn) == 5)))
+                          selection_revision_pending=selection_pending,
+                          final_complete=len(llm) == 30 and len(dnn) == 5 and not selection_pending)))
 
 
 if __name__ == '__main__':
