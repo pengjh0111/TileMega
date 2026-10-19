@@ -60,7 +60,7 @@ def aggregate_ratios(llm, llm_ratios, dnn, dnn_ratios):
                     engines.setdefault((r['model'], r['batch']), []).append(r['speedup_' + metric])
             append(scope, 'strongest_engine_per_metric', metric,
                    [min(values) for values in engines.values()])
-        for metric in ('tpot', 'e2e'):
+        for metric in ('tpot', 'ttft', 'e2e', 'throughput'):
             append(scope, 'TM-R16', metric,
                    [r['speedup_' + metric + '_vs_tm_r16'] for r in native
                     if r['tm_r16_reference_valid']])
@@ -297,6 +297,18 @@ def main():
                                        if valid_reference else '')
         row['speedup_e2e_vs_tm_r16'] = (float(previous['e2e_ms']) / row['e2e_ms']
                                       if valid_reference else '')
+        row['speedup_ttft_vs_tm_r16'] = (float(previous['ttft_ms']) / row['ttft_ms']
+                                       if valid_reference else '')
+        row['speedup_throughput_vs_tm_r16'] = (
+            row['tokens_per_second'] / float(previous['tokens_per_second'])
+            if valid_reference else '')
+        row['native_tpot_process_range_pct'] = (
+            max(.5, row['tpot_ms_range_pct'], float(previous['tpot_range_pct']))
+            if valid_reference else '')
+        # Frozen-session drift still needs the contemporaneous controls in the report.
+        row['native_tpot_apparent_regression_exceeds_range'] = (
+            100 * (row['tpot_ms'] / float(previous['tpot_ms']) - 1) >
+            row['native_tpot_process_range_pct'] if valid_reference else '')
         for (model, batch, system), baseline in baselines.items():
             if (model, batch) != (row['model'], row['batch']):
                 continue
