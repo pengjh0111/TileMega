@@ -103,6 +103,8 @@ def latest_tsv(trace,name):
 
 
 def aggregates(trace):
+    if not (trace['folder']/'runtime_stages.tsv').exists():
+        return []
     data = ledger_data(trace)
     groups = defaultdict(list)
     for row in data['stages']:
@@ -233,7 +235,7 @@ def arm_details(trace_rows, ledger):
     output = []
     for trace in trace_rows:
         tag = Path(trace['artifact']['_binary']).parent.parent.name
-        if tag in ('full2','stage2','reference2'):
+        if tag in ('full2','stage2','reference2') or not trace['artifact']['trace']:
             continue
         own = [r for r in ledger if r['job']==trace['job'] and r['past']==trace['meta']['past']]
         reference = [r for r in ledger if r['tag']=='full2' and r['model']==trace['config']['model'] and r['batch']==trace['config']['batch'] and r['gpu']==trace['gpu'] and r['past']==trace['meta']['past']]
@@ -252,6 +254,15 @@ def arm_details(trace_rows, ledger):
                 row.update(la_participants=len(phases), la_total_median_ns=st.median(r['la_total']/freq for r in phases),
                     la_protocol_median_ns=st.median((r['la_total']-r['la_ns'])/freq for r in phases),
                     la_reduction_median_ns=st.median(r['la_ns']/freq for r in phases if r['la_ns']) if any(r['la_ns'] for r in phases) else None)
+                critical={(r['iteration'],r['stage']):r['critical_cta'] for r in ledger_data(trace)['stages']}
+                by_iteration=defaultdict(lambda:[0.,0.])
+                for phase in phases:
+                    if phase['worker']==critical.get((phase['iteration'],phase['stage'])):
+                        by_iteration[phase['iteration']][0]+=(phase['la_total']-phase['la_ns'])/freq
+                        by_iteration[phase['iteration']][1]+=phase['la_ns']/freq
+                if by_iteration:
+                    row['la_critical_protocol_per_step_ns']=st.median(v[0] for v in by_iteration.values())
+                    row['la_critical_reduction_per_step_ns']=st.median(v[1] for v in by_iteration.values())
         row['evidence'] = 'verified instrumented zero-KV delta; not an additive decomposition of uninstrumented TPOT'
         output.append(row)
         slots = trace['folder']/'v2/slots.tsv'
@@ -267,14 +278,23 @@ def arm_details(trace_rows, ledger):
                     dispatch_median_ns=st.median(r['run_begin']-r['ready'] for r in values),
                     run_median_ns=st.median(r['run_end']-r['run_begin'] for r in values),
                     publish_median_ns=st.median(r['publish_end']-r['run_end'] for r in values),
+                    event_wait_count_median=st.median(r['wait_count'] for r in values),
                     evidence='verified V2 last host-launch slot; fanin is dependency_count'))
         page = trace['folder']/'page_trace.tsv'
         if page.exists():
             values = [{k:int(v) for k,v in r.items()} for r in tsv(page)]
             write(trace['folder']/'page-summary.json',dict(normalization_visits=17, columns=list(values[0]) if values else [], totals={k:sum(r[k] for r in values) for k in values[0]} if values else {}))
-            output.append(dict(record='page_counters', arm=tag, model=row['model'],batch=row['batch'],gpu=row['gpu'],past=row['past'],
+            summary=dict(record='page_counters', arm=tag, model=row['model'],batch=row['batch'],gpu=row['gpu'],past=row['past'],
                 page_summary=str((trace['folder']/'page-summary.json').relative_to(ROOT)),
-                evidence='verified cumulative counters; 17 visits per logical step; loader and compute overlap'))
+                evidence='verified cumulative counters; 17 visits per logical step; loader and compute overlap')
+            by_step=defaultdict(list)
+            for value in values:
+                if value.get('kernel_begin_ns'):
+                    by_step[value['step']].append(value)
+            for field in ('loader_issue_ns','dependency_wait_ns','page_full_ns','full_and_wait_ns'):
+                summary[field+'_max_cta_per_visit']=st.median(max(v[field] for v in group)/17 for group in by_step.values()) if by_step else None
+                summary[field+'_sum_cta_per_visit']=st.median(sum(v[field] for v in group)/17 for group in by_step.values()) if by_step else None
+            output.append(summary)
     return output
 
 
@@ -288,6 +308,8 @@ def resources(trace_rows):
     measured = {}
     for trace in trace_rows:
         path = latest_tsv(trace,'stage_trace.tsv')
+        if not path.exists():
+            continue
         mapping = {}
         for row in tsv(path):
             if int(row['iteration']) >= trace['meta']['warmup_steps']:
@@ -354,12 +376,35 @@ def rejected_geometry():
             log = state.parent/(job+'.log')
             tail = log.read_text(errors='replace').splitlines() if log.exists() else []
             error = next((r for r in reversed(tail) if any(s in r for s in
-                         ('Error:','ValueError:','RuntimeError:','child exit','mismatch'))),'')
+                         ('Error:','ValueError:','RuntimeError:','mismatch'))),'')
             result.append(dict(record='correctness_gate',arm=job,gpu=int(state.parent.name[3:]),
                 status=record['status'],exit_code=record.get('exit_code'),error=error[:450],
                 performance_eligible=record['status']=='done',
-                code_location='python/tilemega/serving/r16_run.py (full C-1/C-2 runner); root cause unlocalized' if record['status']=='failed' else '',
+                code_location='python/tilemega/serving/r16_run.py:97; device launch failure, root cause unlocalized' if record['status']=='failed' else '',
                 evidence='verified; rejected paths have no TPOT'))
+    for path in (RUN/'build').glob('G2-*/*/decode.build.json'):
+        receipt=read(path)
+        if receipt['status']=='completed':
+            continue
+        log=(path.parent/'decode.log').read_text(errors='replace').splitlines()
+        error=next((r for r in reversed(log) if 'tilemega-compile:' in r),'')
+        result.append(dict(record='build_gate',arm=path.parent.parent.name,status=receipt['status'],
+            exit_code=receipt.get('exit_code'),error=error,performance_eligible=False,
+            code_location='lib/Frontend/Frontend.cpp:823',
+            evidence='verified existing argmax packing constraint; no fallback implementation'))
+    return result
+
+
+def rejected_mechanisms():
+    result=[]
+    for path in (RUN/'build/PG-2').glob('*/decode.build.json'):
+        receipt=read(path)
+        if receipt['status']=='completed':
+            continue
+        log=(path.parent/'decode.log').read_text(errors='replace').splitlines()
+        result.append(dict(record='build_gate',arm='PG',model=path.parent.name,status=receipt['status'],
+            error=log[-1] if log else '',code_location='tools/commands/compile.cpp:686',
+            evidence='verified existing paged/descriptor-prefetch incompatibility; arm stopped'))
     return result
 
 

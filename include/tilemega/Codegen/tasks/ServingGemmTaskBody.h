@@ -369,6 +369,9 @@ struct ServingGemmTaskBody {
       Async::Wait(barriers+it%S,(it/S)&1);
 #endif
       ComputeSync();
+#if TILEMEGA_TRACE_TASK
+      if(it==0 && p.profile)p.profile->first_ready=TaskProfileNow(p.profile);
+#endif
       Body::Accumulate(b+(it%S)*TileN*TileK,a+(it%S)*TileM*TileK,accum);
       // wait_group<1> retires iteration it-1, whose slot is refilled next.
       Gmma::template Wait<1>();ComputeSync();
@@ -491,7 +494,11 @@ struct ServingGemmTaskBody {
           reinterpret_cast<std::uint64_t*>(shared));
 #endif
       asm volatile("fence.proxy.async.shared::cta;" ::: "memory");
-      ComputeSync();Body::Accumulate(bs,as,accum);Gmma::template Wait<1>();
+      ComputeSync();
+#if TILEMEGA_TRACE_TASK
+      if(it==0 && p.profile)p.profile->first_ready=TaskProfileNow(p.profile);
+#endif
+      Body::Accumulate(bs,as,accum);Gmma::template Wait<1>();
     }
     return Body::Materialize(accum,shared);
     }

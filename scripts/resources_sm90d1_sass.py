@@ -2,7 +2,7 @@
 """Inspect local instructions by function, with an explicit line-info surrogate."""
 import argparse
 from collections import Counter, defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import os
 from pathlib import Path
 import re
@@ -94,7 +94,7 @@ def main():
     binaries = [p for tag in (a.tag or ['reference2','lineinfo2','repeat2'])
                 for p in (RUN / 'build' / tag).glob('*/*.so')
                 if Path(str(p)+'.identity.json').exists()]
-    with ThreadPoolExecutor(max_workers=a.jobs) as pool:
+    with ProcessPoolExecutor(max_workers=a.jobs) as pool:
         futures = [pool.submit(inspect, p, 'lineinfo' in p.parent.parent.name or
                    (Path(str(p)+'.diagnostic.json').exists() and
                     read(str(p)+'.diagnostic.json').get('lineinfo',False))) for p in binaries]

@@ -236,7 +236,8 @@ def main():
     ledgers = diagnostic.ledger_tables(traces,references(samples,select=False))
     write(a.out / 'all-stage-categories.json',ledgers)
     arms = [r for r in paired if not r['arm'].startswith(('G1','G2','build-repeat','prefix-'))]
-    arms += diagnostic.arm_details(traces,ledgers)
+    arms += [r for r in diagnostic.arm_details(traces,ledgers) if r['arm'].startswith(('P','LA','EV'))]
+    arms += diagnostic.rejected_mechanisms()
     csv_write(a.out / 'SM90D1_arms.csv', arms)
     csv_write(a.out / 'SM90D1_geometry_probes.csv', [r for r in paired if r['arm'].startswith(('G1','G2'))]+diagnostic.rejected_geometry())
     csv_write(a.out / 'SM90D1_stage_ledger.csv', [r for r in ledgers if r['tag'] in ('full2','stage2')])
