@@ -12,6 +12,7 @@ def main():
     p.add_argument('--name', required=True)
     p.add_argument('--config', type=Path)
     p.add_argument('--tag', default='reference')
+    p.add_argument('--paired-tag')
     p.add_argument('--stage', choices=('measure', 'correctness', 'trace', 'primitive'), required=True)
     p.add_argument('--rounds', type=int, default=3)
     p.add_argument('--after', nargs='*', default=[])
@@ -26,15 +27,17 @@ def main():
     pci = {0:'0f',1:'10',2:'41',3:'44',4:'86',5:'87',7:'b7'}[a.gpu]
     jobs = []
     previous = list(a.after)
-    for fresh in range(a.rounds):
-        name = f'{a.name}-f{fresh}'
+    sequence = [(fresh, tag) for fresh in range(a.rounds) for tag in
+                (('reference', a.paired_tag) if a.paired_tag else (a.tag,))]
+    for fresh, tag in sequence:
+        name = f'{a.name}-{tag}-f{fresh}' if a.paired_tag else f'{a.name}-f{fresh}'
         command = ['numactl', f'--cpunodebind={node}', PYTHON,
                    str(ROOT / 'scripts/run_r16_with_device_identity.py'),
                    '--guard-policy', str(POLICY), '--out', '{attempt_dir}',
                    '--expected-uuid', uuid, '--expected-pci', f'0000:{pci}:00.0',
                    '--numa-node', str(node), '--allow-no-measurements', '--',
                    PYTHON, str(ROOT / 'scripts/run_sm90d1.py'), '--stage', a.stage,
-                   '--tag', a.tag, '--round', str(fresh), '--timeout', str(a.timeout),
+                   '--tag', tag, '--round', str(fresh), '--timeout', str(a.timeout),
                    '--out', '{attempt_dir}/job']
         if a.config:
             command += ['--config', str(a.config.resolve())]

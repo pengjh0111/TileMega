@@ -28,9 +28,9 @@ def main():
                        str(RUN / 'primitives'), str(a.out / 'primitives.csv')]
             return budgeted(command, a.timeout, f'primitive-{a.round}')
     c = read(a.config)
-    base = RUN / 'build/reference' / f"{c['model']}-B{c['batch']}"
+    base = RUN / 'build/reference2' / f"{c['model']}-B{c['batch']}"
     prefill = base / 'prefill.so'
-    decode = a.decode or RUN / 'build' / a.tag / base.name / 'decode.so'
+    decode = a.decode or RUN / 'build' / ('reference2' if a.tag == 'reference' else a.tag) / base.name / 'decode.so'
     for path in (prefill, decode):
         identity = read(str(path) + '.identity.json')
         if sha(path) != identity['binary_sha256']:

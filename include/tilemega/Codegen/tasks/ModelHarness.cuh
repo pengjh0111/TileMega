@@ -703,6 +703,7 @@ __device__ inline void FinishNonpagedTask(Params const& p,unsigned index,
 /// The dispatch is over the TaskBody families, which are a property of the
 /// library, not of any model.  A model that needs no attention simply never
 /// emits those stage kinds.
+__device__ inline int ActiveBlocks(Params const&,StageDesc const&);
 #if TILEMEGA_L2_PREFETCH && TILEMEGA_DIAGNOSTIC_PREFETCH_WARP1
 __device__ inline void DiagnosticLastTaskPrefetch(Params const&,unsigned,int,int);
 #endif
