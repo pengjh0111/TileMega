@@ -21,7 +21,11 @@ using Side = DmSideOutputKind;
 using Arch = typename tilemega::arch::ArchFromId<TILEMEGA_ARCH_ID>::type;
 
 // Kernel parameters own the fixture descriptor in either parameter ABI.
+#if TILEMEGA_DM_CHAIN_REFERENCE
 struct EpilogueFixture : DmEpilogueArguments { DmEpilogueChain chain; };
+#else
+using EpilogueFixture = DmEpilogueArguments;
+#endif
 static_assert(!std::is_constructible_v<DmEpilogueChainView, DmEpilogueChain&&>);
 
 template <Kind K, Act A = Act::kRelu, Round In = Round::kFP32,
@@ -144,9 +148,13 @@ template <class S> __global__ void Evaluate(float const* input, EpilogueFixture 
         input[global_row * p.n + global_col] : 0;
   }
   tilemega::codegen::executor::ComputeSync();
-  DmEpilogueArguments args=static_cast<DmEpilogueArguments const&>(p);
-  args.chain=p.chain;
+#if TILEMEGA_DM_CHAIN_REFERENCE
+  DmEpilogueArguments args = static_cast<DmEpilogueArguments const&>(p);
+  args.chain = p.chain;
   Body::RunFromTile(tile, args, blockIdx.x, blockIdx.y);
+#else
+  Body::RunFromTile(tile, p, blockIdx.x, blockIdx.y);
+#endif
 }
 
 template <class T> void Compare(T* device, std::vector<float> const& expected,
