@@ -68,8 +68,11 @@ inline std::string SeedGeometryFamily(frontend::ModelPlan const& plan,std::size_
   auto const& g=plan.gemms[index];
   if(g.access.b==codegen::DmBAccess::kExpertIndirect)return "expert";
   for(auto const& stage:plan.stages)
-    if(stage.kind==frontend::PlanTaskKind::kMoETopK)
+    if(stage.kind==frontend::PlanTaskKind::kMoETopK) {
+      // Top-k consumes epilogue side outputs, so it need not read g.d.
+      if(stage.moe.router_gemm==index)return "router";
       for(auto operand:stage.operands)if(operand==g.d && g.d)return "router";
+    }
   static char const* const names[]={"qkv","o","gate_up","down","lm_head"};
   return names[ServingGemmFamily(g)];
 }

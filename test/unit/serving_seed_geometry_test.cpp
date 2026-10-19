@@ -39,6 +39,28 @@ int main(){using namespace tilemega;using Op=frontend::PlanGemm::Epilogue;
  w.assign(1,{16,64,64,2,1,0});
  solver::ApplySeedGeometryPolicy(moe,w,tn64,132,true);
  assert(w[0].split_k==4 && w[0].tile_n==64);
+ frontend::ModelPlan routing;routing.gemms.resize(3);
+ for(unsigned index=0;index<3;++index) {
+   auto& gemm=routing.gemms[index];gemm.n=128;gemm.k=2048;gemm.d=40+index;
+ }
+ routing.gemms[2].access.b=codegen::DmBAccess::kExpertIndirect;
+ frontend::PlanStage topk;topk.kind=frontend::PlanTaskKind::kMoETopK;
+ topk.operands.fill(codegen::kDmNoIndex);topk.operands[0]=101;topk.operands[1]=102;
+ topk.moe.router_gemm=1;routing.stages.push_back(topk);
+ assert(solver::SeedGeometryFamily(routing,0)!="router");
+ assert(solver::SeedGeometryFamily(routing,1)=="router");
+ assert(solver::SeedGeometryFamily(routing,2)=="expert");
+ auto router_policy=solver::ParseSeedGeometryPolicy(json::Parse(
+   R"({"base":{"tile_n":64,"tile_k":64,"stages":4,"impl":"wgmma","min_tasks":118,"max_split":16},
+       "families":{"expert":{"task_multiplier":128}}})"));
+ std::vector<frontend::GemmGranularity> routers(3,{16,64,64,4,1,2});
+ solver::ApplySeedGeometryPolicy(routing,routers,router_policy,132,true);
+ assert(routers[0].split_k==16 && routers[1].split_k==16 && routers[2].split_k==1);
+ for(int split:{4,1}) {
+   router_policy.families["router"].split=split;
+   auto changed=routers;solver::ApplySeedGeometryPolicy(routing,changed,router_policy,132,true);
+   assert(changed[0].split_k==16 && changed[1].split_k==split && changed[2].split_k==1);
+ }
  int rejected=0;
  for(auto text:{R"({"base":{"stages":1}})",R"({"base":{"impl":"gemv","tile_n":128}})",
                 R"({"families":{"lm_head":{"split":2}}})",R"({"base":{"impl":"wgmma","stages":9}})",
