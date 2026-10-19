@@ -3,6 +3,7 @@
 import argparse
 import csv
 import json
+import math
 from pathlib import Path
 import statistics
 
@@ -27,9 +28,54 @@ def write(path, rows):
         return
     fields = list(dict.fromkeys(key for row in rows for key in row))
     with path.open('w', newline='') as stream:
-        writer = csv.DictWriter(stream, fieldnames=fields)
+        writer = csv.DictWriter(stream, fieldnames=fields, lineterminator='\n')
         writer.writeheader()
         writer.writerows(rows)
+
+
+def aggregate_ratios(llm, llm_ratios, dnn, dnn_ratios):
+    rows = []
+
+    def append(scope, baseline, metric, values):
+        if values:
+            assert all(math.isfinite(v) and v > 0 for v in values)
+            rows.append(dict(scope=scope, baseline=baseline, metric=metric,
+                             cells=len(values), geometric_mean=math.exp(
+                                 sum(math.log(v) for v in values) / len(values)),
+                             minimum=min(values), maximum=max(values)))
+
+    for scope in ('dense', 'moe', 'all_llm'):
+        selected = [r for r in llm_ratios if scope == 'all_llm' or
+                    (r['model'] == 'qwen3_30b_a3b') == (scope == 'moe')]
+        native = [r for r in llm if scope == 'all_llm' or
+                  (r['model'] == 'qwen3_30b_a3b') == (scope == 'moe')]
+        for metric in ('tpot', 'ttft', 'e2e', 'throughput'):
+            for baseline in sorted({r['baseline'] for r in selected}):
+                append(scope, baseline, metric,
+                       [r['speedup_' + metric] for r in selected if r['baseline'] == baseline])
+            engines = {}
+            for r in selected:
+                if r['baseline'] in ('vllm', 'sglang', 'tensorrt-llm'):
+                    engines.setdefault((r['model'], r['batch']), []).append(r['speedup_' + metric])
+            append(scope, 'strongest_engine_per_metric', metric,
+                   [min(values) for values in engines.values()])
+        for metric in ('tpot', 'e2e'):
+            append(scope, 'TM-R16', metric,
+                   [r['speedup_' + metric + '_vs_tm_r16'] for r in native])
+    for metric in ('median', 'p90'):
+        for baseline in sorted({(r['baseline'], r['precision'], r['compile_mode']) for r in dnn_ratios}):
+            label = '/'.join(x for x in baseline if x)
+            append('dnn', label, metric,
+                   [r['speedup' if metric == 'median' else 'speedup_p90'] for r in dnn_ratios
+                    if (r['baseline'], r['precision'], r['compile_mode']) == baseline])
+        fastest = {}
+        for r in dnn_ratios:
+            if r['same_precision']:
+                fastest.setdefault(r['model'], []).append(r['speedup' if metric == 'median' else 'speedup_p90'])
+        append('dnn', 'strongest_bf16_per_metric', metric,
+               [min(values) for values in fastest.values()])
+    append('dnn', 'TM-R16', 'median', [r['speedup_vs_tm_r16'] for r in dnn])
+    return rows
 
 
 def llm_cells(raw, states):
@@ -66,6 +112,7 @@ def llm_cells(raw, states):
         assert len({v['checkpoint']['checkpoint_sha256'] for v, _ in rounds}) == 1
         row = dict(model=config['model'], batch=batch, fresh_processes=3,
                    c1_pass=True, c2_pass=True, config=str(config_path.relative_to(ROOT)),
+                   checkpoint_sha256=rounds[0][0]['checkpoint']['checkpoint_sha256'],
                    acceptance=';'.join(sorted({o['acceptance'] for _, o in rounds})))
         for source, target, scale in [('tpot_seconds', 'tpot_ms', 1000),
                                       ('ttft_seconds', 'ttft_ms', 1000),
@@ -138,7 +185,8 @@ def main():
     baselines = {(v['model'], int(v['batch']), v['system']): v
                  for v in table('R16_final_baselines.csv')}
     for value in table('R16_moe_paired_external.csv'):
-        baselines[value['model'], int(value['batch']), value['system']] = value
+        system = 'tensorrt-llm' if value['system'] == 'trtllm' else value['system']
+        baselines[value['model'], int(value['batch']), system] = value
     llm_ratios, dnn_ratios = [], []
     for row in llm:
         previous = native_llm[row['model'], row['batch']]
@@ -147,6 +195,8 @@ def main():
         for (model, batch, system), baseline in baselines.items():
             if (model, batch) != (row['model'], row['batch']):
                 continue
+            if baseline.get('checkpoint_sha256'):
+                assert baseline['checkpoint_sha256'] == row['checkpoint_sha256']
             comparison = dict(model=model, batch=batch, baseline=system,
                               checkpoint_paired=bool(baseline.get('checkpoint_sha256')),
                               acceptance=row['acceptance'])
@@ -166,12 +216,14 @@ def main():
                                    precision=baseline['precision'], compile_mode=baseline['compile_mode'],
                                    same_precision=baseline['precision'] == 'bf16',
                                    checkpoint_scope=baseline['checkpoint_scope'],
-                                   speedup=float(baseline['median_ms']) / row['median_ms']))
+                                   speedup=float(baseline['median_ms']) / row['median_ms'],
+                                   speedup_p90=float(baseline['p90_ms']) / row['p90_ms']))
     if args.require_complete:
         assert len(llm) == 30 and len(dnn) == 5, 'final matrix is incomplete'
     args.out.mkdir(parents=True, exist_ok=True)
     for suffix, rows in [('llm', llm), ('dnn', dnn), ('llm_ratios', llm_ratios), ('dnn_ratios', dnn_ratios)]:
         write(args.out / f'SM90R1_final_{suffix}.csv', rows)
+    write(args.out / 'SM90R1_summary.csv', aggregate_ratios(llm, llm_ratios, dnn, dnn_ratios))
     print(json.dumps(dict(llm_complete=len(llm), dnn_complete=len(dnn),
                           final_complete=len(llm) == 30 and len(dnn) == 5)))
 
