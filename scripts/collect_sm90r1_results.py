@@ -254,10 +254,14 @@ def main():
         for (model, batch, system), baseline in baselines.items():
             if (model, batch) != (row['model'], row['batch']):
                 continue
-            if baseline.get('checkpoint_sha256'):
-                assert baseline['checkpoint_sha256'] == row['checkpoint_sha256']
+            checkpoint = baseline.get('checkpoint_sha256') or baseline.get('source_checkpoint_sha256')
+            if baseline.get('checkpoint_sha256') or baseline.get('checkpoint_identity_shared') == 'True':
+                assert checkpoint == row['checkpoint_sha256']
             comparison = dict(model=model, batch=batch, baseline=system,
-                              checkpoint_paired=bool(baseline.get('checkpoint_sha256')),
+                              checkpoint_paired=bool(checkpoint and checkpoint == row['checkpoint_sha256']),
+                              checkpoint_scope=('verified matching checkpoint' if checkpoint == row['checkpoint_sha256']
+                                                else 'different frozen checkpoint' if checkpoint
+                                                else 'frozen checkpoint identity unavailable'),
                               acceptance=row['acceptance'])
             for metric in ('tpot_ms', 'ttft_ms', 'e2e_ms'):
                 comparison['speedup_' + metric.removesuffix('_ms')] = float(baseline[metric]) / row[metric]
