@@ -101,4 +101,5 @@ int main() {
     Print("prefetch_issue_back_to_back",times,"ns",1,kib*1024);
   }
   Check(cudaFree(input));Check(cudaFree(value));Check(cudaFree(output));
+  return 0;
 }

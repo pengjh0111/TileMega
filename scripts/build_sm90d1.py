@@ -70,6 +70,9 @@ def main():
     a = p.parse_args()
     tasks = [(c, phase) for c in a.configs for phase in
              (('prefill', 'decode') if a.phase == 'both' else (a.phase,))]
+    development = {'qwen3_0_6b_b1', 'qwen3_0_6b_b16', 'llama3_2_1b_b1',
+                   'llama3_1_8b_b1', 'llama3_1_8b_b16'}
+    tasks.sort(key=lambda task: Path(task[0]).stem not in development)
     with ThreadPoolExecutor(max_workers=a.jobs) as pool:
         futures = [pool.submit(build, c, a.compiler, a.tag, json.loads(a.changes), phase)
                    for c, phase in tasks]

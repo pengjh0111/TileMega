@@ -1,0 +1,23 @@
+{
+  "comment": "Exact geometry families from archive/sm89-dev llama_B1/N-R12b-noWD/plan.json",
+  "base": {
+    "tile_n": 32,
+    "tile_k": 128,
+    "stages": 7,
+    "impl": "mma16",
+    "split": 1
+  },
+  "families": {
+    "gate_up": {
+      "tile_n": 128,
+      "tile_k": 64,
+      "stages": 4
+    },
+    "lm_head": {
+      "tile_n": 256,
+      "tile_k": 64,
+      "stages": 2,
+      "split": 1
+    }
+  }
+}

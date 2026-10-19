@@ -773,6 +773,9 @@ __device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunStage(Params const& p, std
         #if TILEMEGA_TRACE_TASK
         executor::ProfileScope profile{executor::BeginProfile(p,index,row)};
 #endif
+#if TILEMEGA_L2_PREFETCH && TILEMEGA_DIAGNOSTIC_PREFETCH_WARP1
+        DiagnosticLastTaskPrefetch(p,index,row,stage.batch_rows?p.dims.batch:p.dims.tokens());
+#endif
         RunServingScalarTask(p, stage, smem, row);
         __syncthreads();
       }
@@ -798,6 +801,9 @@ __device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunStage(Params const& p, std
         #if TILEMEGA_TRACE_TASK
         executor::ProfileScope profile{executor::BeginProfile(p,index,row)};
 #endif
+#if TILEMEGA_L2_PREFETCH && TILEMEGA_DIAGNOSTIC_PREFETCH_WARP1
+        DiagnosticLastTaskPrefetch(p,index,row,stage.batch_rows?p.dims.batch:p.dims.tokens());
+#endif
         RunServingScalarTask(p, stage, smem, row);
         __syncthreads();
       }
@@ -812,6 +818,9 @@ __device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunStage(Params const& p, std
            row += int(gridDim.x)) {
         #if TILEMEGA_TRACE_TASK
         executor::ProfileScope profile{executor::BeginProfile(p,index,row)};
+#endif
+#if TILEMEGA_L2_PREFETCH && TILEMEGA_DIAGNOSTIC_PREFETCH_WARP1
+        DiagnosticLastTaskPrefetch(p,index,row,stage.batch_rows?p.dims.batch:p.dims.tokens());
 #endif
         RunServingScalarTask(p, stage, smem, row);
         __syncthreads();
@@ -853,6 +862,9 @@ __device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunStage(Params const& p, std
 #if TILEMEGA_SERVING_DECODER_ATTENTION
       for (int task = int(blockIdx.x); task < p.dims.batch * int(stage.extent);
            task += int(gridDim.x)) {
+#if TILEMEGA_L2_PREFETCH && TILEMEGA_DIAGNOSTIC_PREFETCH_WARP1
+        DiagnosticLastTaskPrefetch(p,index,task,p.dims.batch*int(stage.extent));
+#endif
 #if TILEMEGA_TRACE_TASK
         executor::ProfileScope profile{executor::BeginProfile(p,index,task)};
 #endif
@@ -867,9 +879,14 @@ __device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunStage(Params const& p, std
 #endif
     case TaskKind::kAttention: T_Attention{}(p, stage, smem); break;
     case TaskKind::kGemmCombine:
-#if TILEMEGA_TRACE_TASK
+#if TILEMEGA_TRACE_TASK || TILEMEGA_DIAGNOSTIC_PREFETCH_WARP1
       for(int task=PlacedBlock();task<ActiveBlocks(p,stage);task+=gridDim.x) {
+#if TILEMEGA_L2_PREFETCH && TILEMEGA_DIAGNOSTIC_PREFETCH_WARP1
+        DiagnosticLastTaskPrefetch(p,index,task,ActiveBlocks(p,stage));
+#endif
+#if TILEMEGA_TRACE_TASK
         executor::ProfileScope profile{executor::BeginProfile(p,index,task)};
+#endif
         T_GemmCombine::RunTask(p,stage,smem,task);
         __syncthreads();
       }

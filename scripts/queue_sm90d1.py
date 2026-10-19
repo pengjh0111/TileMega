@@ -13,13 +13,15 @@ def main():
     p.add_argument('--config', type=Path)
     p.add_argument('--tag', default='reference')
     p.add_argument('--paired-tag')
-    p.add_argument('--stage', choices=('measure', 'correctness', 'trace', 'primitive'), required=True)
+    p.add_argument('--stage', choices=('measure', 'overhead', 'correctness', 'trace', 'primitive', 'resources'), required=True)
     p.add_argument('--rounds', type=int, default=3)
     p.add_argument('--after', nargs='*', default=[])
     p.add_argument('--priority', type=int, default=10)
     p.add_argument('--timeout', type=int, default=900)
     p.add_argument('--extra', nargs='*', default=[])
     a = p.parse_args()
+    if a.stage == 'measure' and a.tag != 'reference' and a.paired_tag is None:
+        a.paired_tag = a.tag
     if a.gpu == 5 and a.stage in ('measure', 'trace', 'primitive'):
         p.error('GPU5 retains its functional-only restriction')
     node = 0 if a.gpu < 4 else 1
@@ -42,12 +44,18 @@ def main():
         if a.config:
             command += ['--config', str(a.config.resolve())]
         command += a.extra
-        jobs.append(dict(name=name, gpu=True, timing=a.stage != 'correctness',
+        jobs.append(dict(name=name, gpu=True, timing=a.stage not in ('correctness', 'resources'),
             priority=a.priority, timeout_s=a.timeout + 60, needs_free_mib=32768,
             cwd=str(ROOT), after=previous,
             env=dict(CUDA_VISIBLE_DEVICES=str(a.gpu), TILEMEGA_DEVICE_INDEX=str(a.gpu),
                 TILEMEGA_NUMA_NODE=str(node), TILEMEGA_GPU_PID_MODE='namespace_limited',
                 PYTHONPATH=str(ROOT / 'python'), OMP_NUM_THREADS='8'), command=command))
+        if a.stage == 'trace':
+            jobs.append(dict(name=name+'-analyze', gpu=False, timing=False,
+                priority=a.priority, timeout_s=180, cwd=str(ROOT), after=[name],
+                command=['python3', str(ROOT / 'scripts/collect_sm90d1_trace.py'),
+                    '--state', str(RUN / f'scheduler/gpu{a.gpu}/state.json'), '--job', name,
+                    '--config', str(a.config.resolve()), '--tag', tag]))
         previous = [name]
     write(RUN / f'queues/gpu{a.gpu}/queue_{a.name}.json', jobs)
 
