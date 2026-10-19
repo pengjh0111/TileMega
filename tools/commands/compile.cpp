@@ -1563,12 +1563,12 @@ int RunCompile(int argc, char** argv) {
             auto groups=tilemega::solver::BuildOperatorClasses(*serving_imported);
             std::ofstream table(diagnostic_class_map);
             if(!table)throw std::runtime_error("cannot write diagnostic class map");
-            table<<"class\tgemm\top\tm\tn\tk\n";
+            table<<"class\tgemm\top\tn\tk\n";
             for(std::size_t c=0;c<groups.size();++c)
               for(std::size_t j=0;j<groups[c].gemms.size();++j) {
                 auto id=groups[c].gemms[j];auto const& g=plan.gemms.at(id);
                 table<<c<<'\t'<<id<<'\t'<<groups[c].operators[j]<<'\t'
-                     <<g.m<<'\t'<<g.n<<'\t'<<g.k<<'\n';
+                     <<g.n<<'\t'<<g.k<<'\n';
               }
             return 0;
           }
