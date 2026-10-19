@@ -109,7 +109,7 @@ def validate(manifest, defines):
             not manifest.get('moe_activation_bulk') or manifest.get('nonpaged_weight_layout') != 'tiled'):
         raise ValueError('manifest moe_weight_bulk has an illegal implementation domain')
     if manifest.get('dm_wgmma_inline'):
-        if (manifest.get('phase') != 'decode' or manifest.get('pg') != 'off' or
+        if (manifest.get('phase') != 'decode' or manifest.get('pg') not in ('off', 'l2') or
                 manifest.get('seed_arch') != 'native' or manifest.get('seed_target_arch') != 'sm_90' or
                 not manifest.get('moe_activation_bulk') or not manifest.get('attention_noinline') or
                 int(defines.get('TILEMEGA_DM_WGMMA_INLINE', '0')) != 1 or not manifest.get('gemms') or

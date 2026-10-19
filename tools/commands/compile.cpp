@@ -763,7 +763,7 @@ int RunCompile(int argc, char** argv) {
     if(serving_residency)runtime_flags+=" -DTILEMEGA_SERVING_RESIDENCY_REQUEST="+std::to_string(serving_residency);
     if(cluster_dim>1)runtime_flags+=" -DTILEMEGA_SERVING_CLUSTER_DIM="+std::to_string(cluster_dim);
     if ((dm_wgmma_inline!=0 && dm_wgmma_inline!=1) ||
-        (dm_wgmma_inline && (!serving || serving_phase!="decode" || pg_mode!="off" ||
+        (dm_wgmma_inline && (!serving || serving_phase!="decode" || (pg_mode!="off" && pg_mode!="l2") ||
          arch_paths!="auto" || seed_arch!="native" || !moe_activation_bulk || attention_noinline!=1 || decode_tile_m!=16)))
       throw std::invalid_argument("DM WGMMA inline requires nonpaged native M16 decode, MoE bulk and outlined attention");
     if((moe_activation_bulk!=0 && moe_activation_bulk!=1) ||

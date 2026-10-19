@@ -464,6 +464,20 @@ class GeneratedFeatureTests(unittest.TestCase):
         self.assertEqual(defines['TILEMEGA_DM_SUPPORT'],'1')
         self.assertTrue(fields['gemms'])
         self.assertTrue(all(g['impl']=='wgmma' for g in fields['gemms']))
+        geometry = directory / 'inline-geometry.json'
+        geometry.write_text(json.dumps({'base': {'tile_n': 64, 'tile_k': 64,
+            'stages': 3, 'max_split': 1, 'min_tasks': 1}}) + '\n')
+        inline_flags = [*flags, '--seed-arch', 'native', '--seed-geometry', str(geometry),
+                        '--serve-argmax-tile-n', '64', '--dm-wgmma-inline', '1',
+                        '--attention-noinline', '1']
+        inline, _, _, inline_receipt = self.generate('moe', 'hopper_inline_prefetch',
+            inline_flags, fixture=fixture, target=ROOT/'configs/targets/sm_90_h800.json')
+        self.assertEqual(inline['pg'], 'l2')
+        self.assertEqual(inline['dm_wgmma_inline'], 1)
+        inline_receipt['pass'] = True
+        self.generate('moe', 'reject_paged_inline', [*inline_flags, '--pg', 'pages'],
+            'DM WGMMA inline requires nonpaged native M16 decode',
+            fixture=fixture, target=ROOT/'configs/targets/sm_90_h800.json')
         # The same complete MoE structure with MMA cannot claim bulk WGMMA.
         self.generate('moe','reject_mma_bulk_gather',['--moe-activation-bulk','1','--deferred-norm','0'],
             'MoE activation bulk requires a WGMMA row-gather expert GEMM',
