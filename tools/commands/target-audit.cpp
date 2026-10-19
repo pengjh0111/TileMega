@@ -39,6 +39,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <cstring>
 #include <set>
 #include <string>
 #include <vector>
@@ -95,6 +96,39 @@ TargetSpec FullyPopulated() {
   point.occ_c_ns = {1.0};
   spec.calib.streamk = {point};
   spec.calib.measurements = {TargetSpec::Measurement{}};
+  // ToJson writes these only when they hold something, so leaving them empty
+  // made every target that does carry them report the fields as "no part of
+  // TargetSpec" -- they are parsed (serving_hop at TargetSpec.cpp:397,
+  // dram_capacity_bytes at :473, the task_* event rates at :578), so the gap
+  // was in this reference spec rather than in the configs.
+  spec.serving_hop_coefficients = {1.0};
+  spec.serving_legacy_hop_coefficients = {1.0};
+  spec.res.dram_capacity_bytes = 1;
+  // Only the bf16 profile carries the task-event pair on this port; the f32
+  // profile is uncalibrated, so requiring the fields of both would flag a
+  // correctly uncalibrated section as missing them.
+  spec.event_bf16.task_publication.ns = 1.0;
+  spec.event_bf16.task_wait.ns = 1.0;
+  spec.event_bf16.task_source = "schema";
+  spec.event_bf16.task_source_sha256 = "schema";
+  // Same conditional-emit story for the R10 serving curves and the task-body
+  // fits: calibrate --suite serving writes them and TaskPriceParts reads
+  // stage_rate_bytes_per_ns out of task_body, so a target that carries them
+  // is complete, not over-specified.
+  // Only the bf16 profile is calibrated on this port, so populate it alone:
+  // asking the same of the FP32 block would report a correctly uncalibrated
+  // section as missing fields.
+  spec.calib_bf16.inflight_curve_bytes = {1.0};
+  spec.calib_bf16.inflight_curve_gbps = {1.0};
+  spec.calib_bf16.cta_stream_curve_bytes = {1.0};
+  spec.calib_bf16.cta_stream_curve_gbps = {1.0};
+  spec.calib_bf16.task_body.samples = 1;
+  spec.calib_bf16.task_body.fixed = {1.0};
+  // One representative entry makes ToJson name the map itself; the entries
+  // under it are accepted by inside_named_map. serving_paged stays empty:
+  // this port has no paged plans, so requiring it would flag a target that
+  // is complete for what it supports.
+  spec.calib_bf16.task_body.serving["schema"] = {};
   return spec;
 }
 
@@ -140,13 +174,24 @@ void CheckSchema(std::string const& tag, std::string const& file) {
   CollectKeys(tilemega::json::Parse(schema.ToJson()), "", expected);
 
   int missing = 0, extra = 0, documented = 0;
-  for (auto const& key : expected) {
-    if (actual.count(key) || InsideEmptyArray(key, actual)) continue;
+  auto inside_named_map = [](std::string const& key) {
+    for (char const* map : {"/task_body/serving/", "/task_body/serving_paged/"})
+      if (key.find(map) != std::string::npos) return true;
+    return false;
+  };  for (auto const& key : expected) {
+    if (actual.count(key) || InsideEmptyArray(key, actual) ||
+        inside_named_map(key)) continue;
     Fail(tag, "SCHEMA missing field " + key);
     ++missing;
   }
+  // Name-keyed maps cannot be enumerated by a schema: task_body.serving and
+  // task_body.serving_paged are indexed by TaskBody kind (gemm_store,
+  // fused_attention_decode_d128_q8_norm1, ...), so one representative entry
+  // in FullyPopulated() cannot cover a real calibration's set. Accept any key
+  // under them once the map itself is a known field.
+
   for (auto const& key : actual) {
-    if (expected.count(key)) continue;
+    if (expected.count(key) || inside_named_map(key)) continue;
     // A `*_provenance` string is the only extra a config may carry: it is how
     // a stated-unverified resource block says so in the file itself.
     if (key.size() > 11 && key.compare(key.size() - 11, 11, "_provenance") == 0) {
