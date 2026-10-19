@@ -5,6 +5,7 @@ import csv
 import json
 import math
 from pathlib import Path
+import re
 import statistics
 
 from r16_measurement_validation import completed_guard, file_sha, validate_dnn, validate_llm
@@ -125,6 +126,31 @@ def llm_cells(raw, states):
                    physical_gpu_uuids=';'.join(sorted({v['physical_device_identity']['nvml_uuid']
                                                       for v, _ in rounds})),
                    acceptance=';'.join(sorted({o['acceptance'] for _, o in rounds})))
+        decode, prefill = (identities[phase]['plan'] for phase in ('decode', 'prefill'))
+        row.update(decode_executor=config['execution']['decode'], decode_loop=config['execution']['loop'],
+                   prefill_executor=config['execution']['prefill'], decode_pg=decode['pg'],
+                   attention_impl=decode['attention_impl'], attention_kv_block=decode['attention_kv_block'],
+                   residency_requested=decode['requested_residency'], cluster_dim=decode['cluster_dim'],
+                   deferred_norm=decode['deferred_norm'], nonpaged_la=decode['nonpaged_la'],
+                   dm_wgmma_inline=decode['dm_wgmma_inline'],
+                   stage_descriptor_prefetch=decode.get('stage_descriptor_prefetch', 0),
+                   task_prefix_prefetch=decode.get('task_prefix_prefetch', 0),
+                   qkv_epilogue_decode=decode['qkv_epilogue'], qkv_epilogue_prefill=prefill['qkv_epilogue'])
+        fields = ['tile_m', 'tile_n', 'tile_k', 'stages', 'split_k', 'impl']
+        tables = {phase: [[g[field] for field in fields] for g in identity['plan']['gemms']]
+                  for phase, identity in identities.items()}
+        geometry = ROOT / 'configs/serving/sm90r1/geometry' / config_path.name
+        if geometry.exists():
+            assert read(geometry)['tables'] == tables
+        else:
+            geometry.write_text(json.dumps(dict(schema=1, fields=fields,
+                index='GEMM ordinal in the full plan', tables=tables), separators=(',', ':')) + '\n')
+        row['geometry_table'] = str(geometry.relative_to(ROOT))
+        for phase in ('decode', 'prefill'):
+            source = ROOT / (config['libraries'][phase]['path'] + '.cu')
+            match = re.search(r'kStages,\s*(\d+)u', source.read_text())
+            assert match, 'generated stage count is unavailable'
+            row[phase + '_declared_stages'] = int(match[1])
         for source, target, scale in [('tpot_seconds', 'tpot_ms', 1000),
                                       ('ttft_seconds', 'ttft_ms', 1000),
                                       ('e2e_seconds', 'e2e_ms', 1000),
@@ -183,6 +209,10 @@ def dnn_cells(raw, states):
                    source_checkpoint_sha256=gate['source_checkpoint_sha256'],
                    exported_program_sha256=gate['archive_sha256'],
                    round_metadata='job names; BERT raw indices are all 0' if model == 'bert' else '0,1,2')
+        execution = rounds[0][0]['execution_identity']
+        row.update(executor=config['executor'],
+                   shared_memory_bytes=execution['shared_memory_bytes'], spill=execution['spill'],
+                   residency_requested=config['coordinates']['residency'])
         for metric in ('median_ms', 'p90_ms'):
             values = [v[metric] for v, _ in rounds]
             row[metric] = statistics.median(values)
@@ -199,21 +229,25 @@ def anchor_rows(states):
     rows, starts = [], {}
     for phase in ('start', 'end'):
         for batch in (1, 16):
-            job = f'sm90r1_M0_{phase}_B{batch}_gpu3'
-            record = states.get(job, {})
-            if record.get('status') != 'done':
+            prefix = f'sm90r1_M0_{phase}_B{batch}_gpu'
+            matches = [value for name, value in states.items()
+                       if name.startswith(prefix) and value.get('status') == 'done']
+            if not matches:
                 continue
+            assert len(matches) == 1, 'ambiguous M0 anchor'
+            record = matches[0]
             directory = Path(record['out'])
             path = directory / f'measurements/B{batch}/measurements.json'
             measured, _, ownership = validate_llm(path, completed_guard(directory, record), ROOT)
             assert measured['system'] == 'vllm' and measured['batch'] == batch
             elapsed = measured['tpot_seconds'] * 1000
             if phase == 'start':
-                starts[batch] = elapsed
+                starts[batch] = (elapsed, measured['gpu_index'])
             rows.append(dict(phase=phase, batch=batch, gpu=measured['gpu_index'],
                              tpot_ms=elapsed, frozen_tpot_ms=frozen[batch],
                              drift_vs_frozen_pct=100 * (elapsed / frozen[batch] - 1),
-                             drift_vs_start_pct=100 * (elapsed / starts[batch] - 1),
+                             drift_vs_start_pct=100 * (elapsed / starts[batch][0] - 1),
+                             same_card_as_start=measured['gpu_index'] == starts[batch][1],
                              acceptance=ownership['acceptance'], measurement=str(path.relative_to(ROOT))))
     return rows
 
@@ -284,6 +318,8 @@ def main():
     anchor_note = ('frozen ratios unadjusted; M0 drift exceeds 2%' if any(
         abs(row['drift_vs_frozen_pct']) > 2 or abs(row['drift_vs_start_pct']) > 2
         for row in anchors) else 'frozen ratios unadjusted; M0 drift within 2%')
+    if any(not row['same_card_as_start'] for row in anchors):
+        anchor_note += '; M0 start/end use different GPUs'
     for row in llm_ratios:
         row['anchor_status'] = anchor_note if len(anchors) == 4 else anchor_note + '; end anchors pending'
     complete = len(llm) == 30 and len(dnn) == 5 and not selection_pending and len(anchors) == 4
