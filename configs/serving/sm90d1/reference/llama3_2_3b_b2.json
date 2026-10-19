@@ -1,0 +1,164 @@
+{
+  "schema": 1,
+  "model": "llama3_2_3b",
+  "batch": 2,
+  "source_config": "configs/serving/sm90r1/llama3_2_3b_b2.json",
+  "source_config_sha256": "a4f8bc6504b810558d03a473f5d3fb4200ba12bb94c74722ffebab1e78786f2e",
+  "model_dir": "configs/serving/sm90d1/inputs/llama3_2_3b",
+  "model_config_sha256": "c0a6833b9da6e99a2a8920e879de7c1532c78883948327658cfdbd1eac6d5be6",
+  "prompt_ids": "configs/prompts/llama3_isl64.json",
+  "prompt_ids_sha256": "6d793e3b3aaf472939d4f483bf094f17b26d2346ed179e2b921ae57bec1d8e34",
+  "execution": {
+    "decode": "L1",
+    "loop": 1,
+    "prefill": "L1"
+  },
+  "coordinates": {
+    "prefill": {
+      "pg": "off",
+      "residency_requested": "0",
+      "attention_impl": "mma16",
+      "attention_kv_block": 1088,
+      "gemm_table_sha256": "39de5295f0f7b264f02587a6ed05f967d0f7a1c4d46c83e41687d96080157b55",
+      "geometries": [
+        [
+          16,
+          128,
+          64,
+          2,
+          1,
+          "mma16"
+        ],
+        [
+          64,
+          128,
+          64,
+          3,
+          1,
+          "wgmma"
+        ]
+      ]
+    },
+    "decode": {
+      "pg": "off",
+      "residency_requested": "0",
+      "attention_impl": "simt",
+      "attention_kv_block": 128,
+      "gemm_table_sha256": "1a14560af6a416ee1c2f1ec12afee4c88079008ba8e7cd2054fa7cb5903f224f",
+      "geometries": [
+        [
+          16,
+          128,
+          64,
+          4,
+          1,
+          "mma16"
+        ],
+        [
+          16,
+          128,
+          64,
+          4,
+          4,
+          "mma16"
+        ],
+        [
+          16,
+          128,
+          64,
+          4,
+          8,
+          "mma16"
+        ]
+      ]
+    }
+  },
+  "compile_options": {
+    "prefill": [
+      "--serving",
+      "prefill",
+      "--emit",
+      "serving",
+      "--batch",
+      "2",
+      "--runtime-target",
+      "configs/targets/sm_90_h800.json",
+      "--pg",
+      "off",
+      "--nonpaged-weight-layout",
+      "tiled",
+      "--resource-probes",
+      "0",
+      "--capacity",
+      "1088",
+      "--prompt-len",
+      "64",
+      "--arch-paths",
+      "auto",
+      "--seed-arch",
+      "native",
+      "--deferred-norm",
+      "0",
+      "--forward-gemm-impl",
+      "wgmma",
+      "--forward-seed-tile",
+      "M64N128K64S3",
+      "--prefill-attention-impl",
+      "wgmma",
+      "--serve-query-rows",
+      "64",
+      "--nvcc-split-compile",
+      "2",
+      "--ptxas-split-compile",
+      "1"
+    ],
+    "decode": [
+      "--serving",
+      "decode",
+      "--emit",
+      "serving",
+      "--pg",
+      "off",
+      "--nonpaged-weight-layout",
+      "tiled",
+      "--capacity",
+      "1088",
+      "--prompt-len",
+      "64",
+      "--arch-paths",
+      "auto",
+      "--seed-arch",
+      "native",
+      "--past-range",
+      "64:1086",
+      "--resource-probes",
+      "0",
+      "--batch",
+      "2",
+      "--runtime-target",
+      "configs/targets/sm_90_h800.json",
+      "--deferred-norm",
+      "1",
+      "--serve-kv-block",
+      "128",
+      "--serve-query-rows",
+      "4",
+      "--attention-impl",
+      "simt",
+      "--seed-geometry",
+      "configs/serving/seed_geometry/p2.json",
+      "--nvcc-split-compile",
+      "2",
+      "--ptxas-split-compile",
+      "1"
+    ]
+  },
+  "protocol": {
+    "isl": 64,
+    "osl": 1024,
+    "warmup": 1,
+    "repeats": 3,
+    "fresh_processes": 3
+  },
+  "weight_source": "unchanged name-seeded BF16 random checkpoint, seed=0"
+}
