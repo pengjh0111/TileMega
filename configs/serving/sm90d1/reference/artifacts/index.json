@@ -1,0 +1,456 @@
+{
+  "source_head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0",
+  "bindings": [
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_1_8b_b1.json",
+      "config_sha256": "ffc39134b28ba9d4e7589023846f13b42a90bbef4f0102f311e4f8afbbb44107",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_1_8b-B1/decode.so",
+      "binary_sha256": "9a52ae923736d5eddad050e0a71f9cdca39e52d66937cb8360faf0bb695a1f99",
+      "artifact_id": "b62f4360ba971640cdf2e430e042ba3a046c2b0609220d6c24fc2dd85daf62e7",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_1_8b_b1.json",
+      "config_sha256": "ffc39134b28ba9d4e7589023846f13b42a90bbef4f0102f311e4f8afbbb44107",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_1_8b-B1/prefill.so",
+      "binary_sha256": "05d36e393d5aac19fa4c7992d378ca3fe91062067536f51ec966bd110ea8448b",
+      "artifact_id": "1c49fa24c5d5c2c70599951141e1d24594174485f28fc2551f8568b374e6b481",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_1_8b_b16.json",
+      "config_sha256": "cde4e6e879671f4298850b261d7d2b0ead41efe33fe743f9f09390920e1065ca",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_1_8b-B16/decode.so",
+      "binary_sha256": "8791683e7f401d37711919f0441280ca76f1294fbd856d6f3459fcd0c537d60f",
+      "artifact_id": "d0303649b36cbb81d1b65567110bb4953be2d8d8f7125e95c8cdb093ffdd353b",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_1_8b_b16.json",
+      "config_sha256": "cde4e6e879671f4298850b261d7d2b0ead41efe33fe743f9f09390920e1065ca",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_1_8b-B16/prefill.so",
+      "binary_sha256": "f5f81d25fade7250557a63a2a5603f640035fc2aecccb1128cb70e566d814e18",
+      "artifact_id": "bf1a5a3fba3c4321aa4c74631b4b13ef505aadccc6da3a5e44025dfe0232fb29",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_1_8b_b2.json",
+      "config_sha256": "8cddba9db004a374eeb4ff0ffb15dc8f0ca9e0ab3077467327759ec8013c16cc",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_1_8b-B2/decode.so",
+      "binary_sha256": "9dddef7a941ec56f23ab10fd379b427bbd43d1de4696a27b914dc3050ce4dd7f",
+      "artifact_id": "e1763620903be26380ed4440167a5bce496ddee531bbada8e51603ace5e8aed0",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_1_8b_b2.json",
+      "config_sha256": "8cddba9db004a374eeb4ff0ffb15dc8f0ca9e0ab3077467327759ec8013c16cc",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_1_8b-B2/prefill.so",
+      "binary_sha256": "28d9a014ee0ce05a55e4d4b53f5f9eef9d125b994c57b9403cdec2c35b451524",
+      "artifact_id": "713d2cde011790f2a941a6430becdc1060424282528a3f7e012e7839fc9d1e22",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_1_8b_b4.json",
+      "config_sha256": "3ccd29caaf0935d5941676edbb7f6481815d1d917a6de8bd1000f4f6c889e645",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_1_8b-B4/decode.so",
+      "binary_sha256": "1a99cb39a9a2a0a80b3a7214d1a558bc6bae60277654154731eb9a41f009163b",
+      "artifact_id": "8177346d399b9956c98e5024655f0ce59621e2dbe8899f140c20f90d481d4b10",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_1_8b_b4.json",
+      "config_sha256": "3ccd29caaf0935d5941676edbb7f6481815d1d917a6de8bd1000f4f6c889e645",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_1_8b-B4/prefill.so",
+      "binary_sha256": "08aa4c7d0711bdd059400577e1ca98a80c2ae6357b7015ee5b3ec6d3bd215c2b",
+      "artifact_id": "605b81fe871d33f19bd93c1998e2364159f2867291d5bccc6e491c60213b79d4",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_1_8b_b8.json",
+      "config_sha256": "4013ab6052a693e475c8d901034fe39dd91aa2c3a6165f29f0e027ac6544ad3a",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_1_8b-B8/decode.so",
+      "binary_sha256": "2f62c1231f60fa204c8fd42716402dab974846d1069919d6eb645a9d9a613353",
+      "artifact_id": "29266609f8db5d23cadc2e2d58b5e46debade910f0b74c77cf9906d401722371",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_1_8b_b8.json",
+      "config_sha256": "4013ab6052a693e475c8d901034fe39dd91aa2c3a6165f29f0e027ac6544ad3a",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_1_8b-B8/prefill.so",
+      "binary_sha256": "0986c773ba6171eda15365e5c36cb6c77a223652bc142a70c1250cc807e16840",
+      "artifact_id": "d17a2bc282ee335263a7b295bcfb5eee7171af7ea78d36e637260fe8ac48e844",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_1b_b1.json",
+      "config_sha256": "993f2d95c79727ec497af5adce5bdc3eabfb880e80601128864ccb8b2f0c9e98",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_1b-B1/decode.so",
+      "binary_sha256": "6210cb43e76fecdabc1d6e851157372f2b8706fc2fc508a63cb4689a119b0f85",
+      "artifact_id": "81b4885c99b54e061f8985eea06d03ad4c92dabf8da4e9f7d5d720e9e03258d1",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_1b_b1.json",
+      "config_sha256": "993f2d95c79727ec497af5adce5bdc3eabfb880e80601128864ccb8b2f0c9e98",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_1b-B1/prefill.so",
+      "binary_sha256": "ca53fa9864525583caa360640d3e26f7f2b9da8c66438906e1db714248215ebd",
+      "artifact_id": "425e3107a9f1b3876e971bac94119d25bb556266a03997d4f7cd0860641fe880",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_1b_b16.json",
+      "config_sha256": "b75ebe9a3eee190d0061ab38801fbf1a34a0dcaffd103568da35f6d20d7b852a",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_1b-B16/decode.so",
+      "binary_sha256": "c87a2f5ce526cd82583f298fb1aad71cda5dd94ac941918d4b9ead7bcd26262d",
+      "artifact_id": "e8c290ad2a3802d94b453938dcf3c2f4b21a3fcd4c2f91b1d9867494f03f01b7",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_1b_b16.json",
+      "config_sha256": "b75ebe9a3eee190d0061ab38801fbf1a34a0dcaffd103568da35f6d20d7b852a",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_1b-B16/prefill.so",
+      "binary_sha256": "d39da25915d303f19552250d061d0b28b00bce417cf3882e143ebddd51009970",
+      "artifact_id": "87958f8df6dc2c54f40efbcdab82bd7198ef3da6e2c4c6589dde9e0fa4ff25e5",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_1b_b2.json",
+      "config_sha256": "7f1db547ac28991e989a23a66c0501f102cf158c7fa9eb5bcb309f840d3c170b",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_1b-B2/decode.so",
+      "binary_sha256": "3640909cfd4f9cc0a34735f6bd16f0b4aefb2898412ea4be3ea638f4b91f3f9f",
+      "artifact_id": "0210f905ddc534fc4c4177b5c7e8ad480d92bb216371ebf85ea984e750914bf3",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_1b_b2.json",
+      "config_sha256": "7f1db547ac28991e989a23a66c0501f102cf158c7fa9eb5bcb309f840d3c170b",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_1b-B2/prefill.so",
+      "binary_sha256": "d2e025ba0535b6f432a7d192e43d814778ada1abcd988273124289f929104e39",
+      "artifact_id": "89acf55cee71c33f0b625d231cda8dd0bd7f22e8aa48e530a539e10bcfffd6b3",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_1b_b4.json",
+      "config_sha256": "70f22c0ff03574cf2df87ca4dc723cee80257ce1b7aff7b54890e96bce8484c2",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_1b-B4/decode.so",
+      "binary_sha256": "9467141fd9ad566371e20a2004c068e446bfeb27e36f019ce9e310460186d706",
+      "artifact_id": "5fb9e1b4e0e51a0777b000f28693abe27531742a22b3ab62e527f5c8845b521f",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_1b_b4.json",
+      "config_sha256": "70f22c0ff03574cf2df87ca4dc723cee80257ce1b7aff7b54890e96bce8484c2",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_1b-B4/prefill.so",
+      "binary_sha256": "5f532db9ad6ba60c647d832fd299a9192f931db3da3dac9944d9902b1eef22c5",
+      "artifact_id": "5fad133516755c0dd3b401c4769471b7855e838cefa8f3b875a9be1dbb1c258d",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_1b_b8.json",
+      "config_sha256": "66de3e2db7fb29f3ce7deff42cee5f9e77ad6c2259cf90406820720ff9196793",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_1b-B8/decode.so",
+      "binary_sha256": "9c4ca1c6700641c43ae1d1c863bc66350efccb8a37c62009c9fce12ed8479eeb",
+      "artifact_id": "b50b6d040f9ed12eef80885b2a6a31003b21c7f0e54b3e18da2f30fad39832ac",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_1b_b8.json",
+      "config_sha256": "66de3e2db7fb29f3ce7deff42cee5f9e77ad6c2259cf90406820720ff9196793",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_1b-B8/prefill.so",
+      "binary_sha256": "f6c893ca2a0c5bd47d8cf956db599fd2972bfd9309cf38dda71c1363248ecc73",
+      "artifact_id": "7702df9400ece2d3ba492db19eb6ebfed6d0d339cff9ce1f9508ce9196c6a9b9",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_3b_b1.json",
+      "config_sha256": "161c773e75ffddb277c57afc7850dbb0ae59d1f1b662dffe961814c953da7878",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_3b-B1/decode.so",
+      "binary_sha256": "cc503fa6f29e5d4a3df4493be23d31ef2547bfb1cd3401601f1399189c2ae1dd",
+      "artifact_id": "3046921855c0a23245dd39204e7fb6916423ad2edc40fbaff1b70b58f6684cb7",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_3b_b1.json",
+      "config_sha256": "161c773e75ffddb277c57afc7850dbb0ae59d1f1b662dffe961814c953da7878",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_3b-B1/prefill.so",
+      "binary_sha256": "d097ab35e587ce6a41841a22439fc3a30b91c3145faf114a29e820236b6c9d58",
+      "artifact_id": "0d10361d22f2929e38531c4715ad92d55a9f7c31c8baa306c29c9c724b369f21",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_3b_b16.json",
+      "config_sha256": "77a23f1e3ec57ac9779fa575a60e09c433c6505e6f6f9cea96aa093a40cb24df",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_3b-B16/decode.so",
+      "binary_sha256": "49982b8d90991397f520195f0f19cd8f1581c76e24fc88308b6c90489cc6a04d",
+      "artifact_id": "febdafbb931eefcbe2a71ece1d3d7a1c411043117c3c8fdbe65c7b52b39d759f",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_3b_b16.json",
+      "config_sha256": "77a23f1e3ec57ac9779fa575a60e09c433c6505e6f6f9cea96aa093a40cb24df",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_3b-B16/prefill.so",
+      "binary_sha256": "47999acba39d1fe924fd92a78de1aef088d2118d300a03e9ef04566532b80ee6",
+      "artifact_id": "c0affbc7302fb9ee5f2bf9338eeb5e2d3ad6fc645e0e195c063b96f6a40cd335",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_3b_b2.json",
+      "config_sha256": "807c240d2c859661539608a42a25bd5506ba828eb164632dc700fa1b6fc81cd7",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_3b-B2/decode.so",
+      "binary_sha256": "fc5ea4e7ccaa9d06d4cae9c1c13dc966925ba7828f4e6b78f35c332fba475850",
+      "artifact_id": "3de0f2d1632af581fbeebe85a873420422b7bf570ef405afab3c0f1dc29bcbab",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_3b_b2.json",
+      "config_sha256": "807c240d2c859661539608a42a25bd5506ba828eb164632dc700fa1b6fc81cd7",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_3b-B2/prefill.so",
+      "binary_sha256": "4c2939739a1031c3d5ee6840edf589bf566bb2cdebbf9e9fbe2315e6223fcc17",
+      "artifact_id": "213b3a5eff5087dd8ab67daa0d258add2a329d66462185093825c9e7b3fc88e4",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_3b_b4.json",
+      "config_sha256": "38dd8b2305d17c9b833a4dda838f56e5d9be4b7af62c42e70f33ce53a0d71c7a",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_3b-B4/decode.so",
+      "binary_sha256": "4e57a3462c4d2f83b344b5a32fe5d2cf0dc0b83ca6551b9aeb29aa9b095107eb",
+      "artifact_id": "01b29a2a8f92f837e810d6dade99b5ba4b02581b1aa196c4d11c30efb68a9bb0",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_3b_b4.json",
+      "config_sha256": "38dd8b2305d17c9b833a4dda838f56e5d9be4b7af62c42e70f33ce53a0d71c7a",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_3b-B4/prefill.so",
+      "binary_sha256": "c62abf1d15399517894e8c9d23f7d1ac09a8061f022ff8424e03082b0756e049",
+      "artifact_id": "8ee493143d3163884c2b8e285be94ef7ca1517eecafd8a60d9f74fc1fbf42b62",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_3b_b8.json",
+      "config_sha256": "ecda65c1d27711062a1d4b677e8518490971ab72e673b5aafa7257a55c639e4e",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_3b-B8/decode.so",
+      "binary_sha256": "c5b8f09a6af10916bf0f5be635dcfb77634755e980a21f82e33660744a387b0c",
+      "artifact_id": "0b6758c4ed0875405c511d2fffec5739fd1ffb325d2ab8e561233bb8f5c01f88",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/llama3_2_3b_b8.json",
+      "config_sha256": "ecda65c1d27711062a1d4b677e8518490971ab72e673b5aafa7257a55c639e4e",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/llama3_2_3b-B8/prefill.so",
+      "binary_sha256": "85ead449528dfd9c11fd1644e072419201c0840c55223a44e6054826cad617d7",
+      "artifact_id": "7820c8be3a31547b0724dbd805f0f7324782e0e88c35f713ff8dc0afb428c7aa",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_0_6b_b1.json",
+      "config_sha256": "2c0e579e554b2f09804a03fddf2ca801d3dc778fb4bf30eb0a334031ee5105f0",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_0_6b-B1/decode.so",
+      "binary_sha256": "97c68e2b9442fe969e4dd3409980fd1cebac521a7ba7e618cd5fb0f23093c8f3",
+      "artifact_id": "cc6092e8617497f82e689586716bbb8cf0544d9c7f4eff31a5154eb205696734",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_0_6b_b1.json",
+      "config_sha256": "2c0e579e554b2f09804a03fddf2ca801d3dc778fb4bf30eb0a334031ee5105f0",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_0_6b-B1/prefill.so",
+      "binary_sha256": "893fd51095304102be3828c5935aced20729aaeaa405c62d366cb0a19b092da7",
+      "artifact_id": "f70256f25779c7ba63402c3dcc574a009ec85c39b0c1b1617fa98b209bf06570",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_0_6b_b16.json",
+      "config_sha256": "d490d2ea08dd786668ec1ba57c5e0427b94c91b7bac59b7267c6f4173f1e3c89",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_0_6b-B16/decode.so",
+      "binary_sha256": "6057f6d6a7697db40defa962682d70cf3f0137c6147a4525e1f4bb8370214584",
+      "artifact_id": "d0b3482d39e4a8f90f8ba362101857a60c92f3e00db28722060ede37c94485aa",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_0_6b_b16.json",
+      "config_sha256": "d490d2ea08dd786668ec1ba57c5e0427b94c91b7bac59b7267c6f4173f1e3c89",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_0_6b-B16/prefill.so",
+      "binary_sha256": "0d1e16c61f22ff10f712638139fb913af40ccefc9f1c68d8c136166e5d215ecf",
+      "artifact_id": "19dbb3fb9f74f8cc13bbbe9beb67afffbf8fa4bbabfd49328224c6aca5c7fbda",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_0_6b_b2.json",
+      "config_sha256": "5e7a3a89249254f7c70b503eceff0a53d92cb4b1da1ebd5ac7f294b739c74324",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_0_6b-B2/decode.so",
+      "binary_sha256": "9f59f681b836029984e592f03b415ad3b6c689b6f5bfd9396707dfd32e4ca238",
+      "artifact_id": "2501544aa73460c075b3d28209cfeeab92c5599452ccc2521c6417d93669774c",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_0_6b_b2.json",
+      "config_sha256": "5e7a3a89249254f7c70b503eceff0a53d92cb4b1da1ebd5ac7f294b739c74324",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_0_6b-B2/prefill.so",
+      "binary_sha256": "11de72b2c420a7e543ea90e7fb4070c6ca3a774bff30bd182845f0250f617e43",
+      "artifact_id": "6780e6327fa43b5acefe27ef648af36cf49011184846e9bb496ed1e2122439fc",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_0_6b_b4.json",
+      "config_sha256": "f0a7137acef7fc161e3854702da54a3e599f675b6e1f7c032efae301337dad2e",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_0_6b-B4/decode.so",
+      "binary_sha256": "e7194a623295472dcf45b9e1862577ab99ac2f8fc0610fed626432c677caea25",
+      "artifact_id": "217f27425d383d3f51976e63db800e03f6adb04f038b3e065f470e44939263d2",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_0_6b_b4.json",
+      "config_sha256": "f0a7137acef7fc161e3854702da54a3e599f675b6e1f7c032efae301337dad2e",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_0_6b-B4/prefill.so",
+      "binary_sha256": "833fd038adbe1c81d2307a1c73b08112684c041b24391e5d683e971688a2a7fa",
+      "artifact_id": "0cd93d7463a3eaf29e0e2be79d7b714332666ea7f945392fa168133a8c78e042",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_0_6b_b8.json",
+      "config_sha256": "7b64be1d164ceee485df8c71afb1225283ddd75e69334a012ae375d43de8b3a1",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_0_6b-B8/decode.so",
+      "binary_sha256": "773a4e6b9f6cb5e64d5497b220319484b7f5e97d6412c41a4c1f56d8e9c2b8f6",
+      "artifact_id": "d8437d5e4fd68def1a0f8245382bf7fe7e51050a154cbed225fc05f8d0067374",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_0_6b_b8.json",
+      "config_sha256": "7b64be1d164ceee485df8c71afb1225283ddd75e69334a012ae375d43de8b3a1",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_0_6b-B8/prefill.so",
+      "binary_sha256": "db830c38a557916bc5ffc037107f826c21c517e69f3b07d4bd54e520ac0bfd37",
+      "artifact_id": "7df8239b350e6ac7656592cc89a3dbc21aa3b7d677c0ae2abcce6467d26292af",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_1_7b_b1.json",
+      "config_sha256": "120b52f7f604b9f4468bba2be4db4e2ac6bbfa05dca78c9ae91554ee25b16078",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_1_7b-B1/decode.so",
+      "binary_sha256": "cdbc42655d50b45e202545f6a5d51df1ed11e3fdddfad1760d0cdecd1e694506",
+      "artifact_id": "17aad7ef96131bcadd12a9886f195959c1f488b63a65efdf7bf68391f7b8cf9e",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_1_7b_b1.json",
+      "config_sha256": "120b52f7f604b9f4468bba2be4db4e2ac6bbfa05dca78c9ae91554ee25b16078",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_1_7b-B1/prefill.so",
+      "binary_sha256": "aa07fd61fbc074864223aa413bdb0ceb98f72731c8b3a2434267043a30ba5f03",
+      "artifact_id": "9d64a36bd6d5fc02d17563b2bea8133c8b0e7ad2619c6a123007a0ebbd197cce",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_1_7b_b16.json",
+      "config_sha256": "6d75c4eb6b01e27fac67b001fbbd45be61dc03bdb3a089d4a4af1f594524c683",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_1_7b-B16/decode.so",
+      "binary_sha256": "1d7d63bb2d60e42859d3f4d020f2019cc7e7712afb98d3a4dfe57078a1550f52",
+      "artifact_id": "f432ca248123d695fd3cb0a3f56bdb69b0da87a6c09bfd6606863de349197419",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_1_7b_b16.json",
+      "config_sha256": "6d75c4eb6b01e27fac67b001fbbd45be61dc03bdb3a089d4a4af1f594524c683",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_1_7b-B16/prefill.so",
+      "binary_sha256": "ebcb56d1487ca559a581bc1f52fdbbd526a74ef69c3fdcd17593e0d9b3d6617b",
+      "artifact_id": "736e42591384f296224d4ae08142ef758c19dea28f8eb5476c2e4eb1b5ca1129",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_1_7b_b2.json",
+      "config_sha256": "5e1445a526f8ef87e45a0eebbd9ea81d5a4a3b27281b2a7d31b97c7133af5e51",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_1_7b-B2/decode.so",
+      "binary_sha256": "0064002373090189243ae49a2a08b3f016b8fa9b02673c107d87467d3de8f81e",
+      "artifact_id": "c08925f0bd8b562617b8e99a2d474a1c6bdfdb238ecdc6682478c62064329a25",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_1_7b_b2.json",
+      "config_sha256": "5e1445a526f8ef87e45a0eebbd9ea81d5a4a3b27281b2a7d31b97c7133af5e51",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_1_7b-B2/prefill.so",
+      "binary_sha256": "b37f06b8abb40d0bc5a9addab38dba1515f0ce164d55a15ab115062f38286478",
+      "artifact_id": "1b70649fd59ed78b02aab92bba745317b47cba55f5ca4275667b4cdd9d9f8f59",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_1_7b_b4.json",
+      "config_sha256": "d235f3a96566ecd7bfbb55f4c2af3c716f67720c636f8c2c32a247ae7aad84e0",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_1_7b-B4/decode.so",
+      "binary_sha256": "54ba776b25153311a65a6a80d885a65ed38b728d484bbafac66576511318f1c0",
+      "artifact_id": "ee1ce88b3f0dbf5806d173d7c83c14b64d3dd75d6bf0158b976dd599a059272a",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_1_7b_b4.json",
+      "config_sha256": "d235f3a96566ecd7bfbb55f4c2af3c716f67720c636f8c2c32a247ae7aad84e0",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_1_7b-B4/prefill.so",
+      "binary_sha256": "455c1508d73cd24ae0fe90f14918bcb0b3714467c720fad8c7ed255a2ba3fab2",
+      "artifact_id": "ab581bc096da3e50d168640a3f6baa1d5392566e863bac4d48eb3ccb505aa49e",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_1_7b_b8.json",
+      "config_sha256": "1aab75d5fd95b4e6497ef4afeb0eeec2c1d88bc254095f9b60cf19fac5fbdaa2",
+      "phase": "decode",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_1_7b-B8/decode.so",
+      "binary_sha256": "15b3b99c11aca45ef0a30a2886c1c903ebd8685ca8bfec50f5e8622129ec3048",
+      "artifact_id": "91e38393f25a1abadab69c87f4dccc4ab06726d96786fec9eacb7b9018eae307",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    },
+    {
+      "config": "/root/TileMega/configs/serving/sm90d1/reference/qwen3_1_7b_b8.json",
+      "config_sha256": "1aab75d5fd95b4e6497ef4afeb0eeec2c1d88bc254095f9b60cf19fac5fbdaa2",
+      "phase": "prefill",
+      "binary": "/root/TileMega/runs/sm90d1/build/reference2/qwen3_1_7b-B8/prefill.so",
+      "binary_sha256": "44d78e64af91f3df5e942bb3a18302aa7053790fc9616e3ccdbed165a2486069",
+      "artifact_id": "452685e585079485727bc872a421613db58aacf790144a6304ddc9ceb86389e5",
+      "head": "966f0b9ab3936964c7bc4ca9c64ad467552747b0"
+    }
+  ],
+  "input_manifest_sha256": "7b0b2b023fa2eb56ace1b4ec0e34645cb644144c67c88f8aad36ede3c2b8ac52"
+}

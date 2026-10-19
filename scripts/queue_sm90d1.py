@@ -13,13 +13,19 @@ def main():
     p.add_argument('--config', type=Path)
     p.add_argument('--tag', default='reference')
     p.add_argument('--paired-tag')
-    p.add_argument('--stage', choices=('measure', 'overhead', 'correctness', 'trace', 'primitive', 'resources'), required=True)
+    p.add_argument('--candidate-loop', type=int, choices=(0, 1))
+    p.add_argument('--candidate-mode', choices=('L1', 'L2'))
+    p.add_argument('--stage', choices=('measure', 'overhead', 'correctness', 'trace', 'trace-control', 'primitive', 'resources', 'solver'), required=True)
     p.add_argument('--rounds', type=int, default=3)
     p.add_argument('--after', nargs='*', default=[])
     p.add_argument('--priority', type=int, default=10)
     p.add_argument('--timeout', type=int, default=900)
     p.add_argument('--extra', nargs='*', default=[])
     a = p.parse_args()
+    if a.tag.startswith('G2'):
+        a.priority = max(a.priority, 70 if a.stage == 'correctness' else 80)
+    elif a.tag.startswith('G1'):
+        a.priority = max(a.priority, 40 if a.stage == 'correctness' else 50)
     if a.stage == 'measure' and a.tag != 'reference' and a.paired_tag is None:
         a.paired_tag = a.tag
     if a.gpu == 5 and a.stage in ('measure', 'trace', 'primitive'):
@@ -44,7 +50,12 @@ def main():
         if a.config:
             command += ['--config', str(a.config.resolve())]
         command += a.extra
-        jobs.append(dict(name=name, gpu=True, timing=a.stage not in ('correctness', 'resources'),
+        if tag != 'reference':
+            if a.candidate_loop is not None:
+                command += ['--loop', str(a.candidate_loop)]
+            if a.candidate_mode is not None:
+                command += ['--mode', a.candidate_mode]
+        jobs.append(dict(name=name, gpu=True, timing=a.stage not in ('correctness', 'resources', 'solver'),
             priority=a.priority, timeout_s=a.timeout + 60, needs_free_mib=32768,
             cwd=str(ROOT), after=previous,
             env=dict(CUDA_VISIBLE_DEVICES=str(a.gpu), TILEMEGA_DEVICE_INDEX=str(a.gpu),
@@ -52,7 +63,7 @@ def main():
                 PYTHONPATH=str(ROOT / 'python'), OMP_NUM_THREADS='8'), command=command))
         if a.stage == 'trace':
             jobs.append(dict(name=name+'-analyze', gpu=False, timing=False,
-                priority=a.priority, timeout_s=180, cwd=str(ROOT), after=[name],
+                priority=200, timeout_s=600, cwd=str(ROOT), after=[name],
                 command=['python3', str(ROOT / 'scripts/collect_sm90d1_trace.py'),
                     '--state', str(RUN / f'scheduler/gpu{a.gpu}/state.json'), '--job', name,
                     '--config', str(a.config.resolve()), '--tag', tag]))

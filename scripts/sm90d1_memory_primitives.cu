@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #define main BasicPrimitivesMain
+#define TILEMEGA_PRIMITIVE_COMPOSITE 1
 #include "sm90d1_primitives.cu"
 #undef main
 #include <tilemega/Codegen/executor/Async.cuh>
@@ -163,4 +164,5 @@ int main() {
   }
   Check(cudaFree(device_map));Check(cudaFree(memory));Check(cudaFree(sms));
   Check(cudaFree(output));Check(cudaFree(ack));Check(cudaFree(counter));
+  DumpRaw();
 }

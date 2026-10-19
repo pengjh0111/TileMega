@@ -22,7 +22,8 @@ def config(cell):
 
 
 def gpu(cell):
-    return 0 if cell.startswith('llama3_1_8b') else 7
+    placement = read(RUN / 'placement.json') if (RUN / 'placement.json').exists() else {}
+    return placement.get('llama3_1_8b', 0) if cell.startswith('llama3_1_8b') else placement.get('default', 7)
 
 
 def queue(cell, name, stage, tag, rounds=1, after=(), priority=20, paired=None):
@@ -36,7 +37,7 @@ def queue(cell, name, stage, tag, rounds=1, after=(), priority=20, paired=None):
     subprocess.run(command, cwd=ROOT, check=True)
 
 
-def derive(cell, tag, parent, definitions, stage='trace', rounds=1):
+def derive(cell, tag, parent, definitions, stage='trace', rounds=1, after=()):
     source_tag = 'reference2' if parent == 'reference' else parent
     binary = RUN / 'build' / source_tag / f"{read(config(cell))['model']}-B{read(config(cell))['batch']}" / 'decode.so'
     output = RUN / 'build' / tag / binary.parent.name / 'decode.so'
@@ -49,7 +50,10 @@ def derive(cell, tag, parent, definitions, stage='trace', rounds=1):
     if result.returncode:
         return dict(cell=cell, tag=tag, status='diagnostic_build_failed')
     priority = 5 if tag == 'full2' else 6 if tag == 'stage2' else 20
-    queue(cell, f'{tag}-{cell}', stage, tag, rounds=rounds, priority=priority)
+    queue(cell, f'{tag}-{cell}', stage, tag, rounds=rounds, priority=priority, after=after)
+    control_name = 'control-'+parent+'-'+cell
+    if stage == 'trace' and not (RUN / f'queues/gpu{gpu(cell)}/queue_{control_name}.json').exists():
+        queue(cell, control_name, 'trace-control', parent, priority=priority+1, after=after)
     return dict(cell=cell, tag=tag, status='queued')
 
 
@@ -65,7 +69,7 @@ def arm(cell, tag, changes, correctness=False):
     queue(cell, f'{tag}-{cell}-pair', 'measure', tag, rounds=3, after=after, paired=tag)
     # Stage envelopes are derived from precisely this arm's uninstrumented plan.
     return derive(cell, tag+'-stage', tag,
-                  ['TILEMEGA_TRACE_STAGE=1', 'TILEMEGA_TRACE_STEP=1'])
+                  ['TILEMEGA_TRACE_STAGE=1', 'TILEMEGA_TRACE_STEP=1'], after=after)
 
 
 def main():

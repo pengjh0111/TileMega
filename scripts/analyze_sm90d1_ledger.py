@@ -11,7 +11,7 @@ from sm90d1_common import read, write
 
 def tsv(path):
     with Path(path).open() as stream:
-        return list(csv.DictReader(stream, delimiter='\t'))
+        yield from csv.DictReader(stream, delimiter='\t')
 
 
 def category(stage):
@@ -26,7 +26,7 @@ def category(stage):
             'kRMSNorm': 'norm'}.get(kind, kind)
 
 
-def stage_bytes(stage, past, batch, config):
+def own_stage_bytes(stage, past, batch, config):
     """Logical compulsory bytes, not measured DRAM transactions."""
     h = config['hidden_size']
     d = config.get('head_dim', h // config['num_attention_heads'])
@@ -34,17 +34,28 @@ def stage_bytes(stage, past, batch, config):
     inter = config['intermediate_size']
     family = category(stage).removesuffix('-combine')
     dimensions = {'qkv': (h, (config['num_attention_heads'] + 2*kv)*d),
-                  'o': (h, h), 'gate_up': (h, 2*inter), 'down': (inter, h),
+                  'o': (config['num_attention_heads']*d, h),
+                  'gate_up': (h, 2*inter), 'down': (inter, h),
                   'lm_head': (h, config['vocab_size'])}
     if stage['kind_name'] == 'kGemm':
         k, n = dimensions.get(family, (0, 0))
         split = stage['_geometry']['split_k']
-        return int(stage['weight_bytes']) + batch*k*2 + batch*n*(4*split if split > 1 else 2)
+        output = (batch*n*4*split if split > 1 else
+                  batch*((n+stage['_geometry']['tile_n']-1)//stage['_geometry']['tile_n'])*8
+                  if family == 'lm_head' else batch*(n//2 if family == 'gate_up' else n)*2)
+        residual = batch*n*2 if family in ('o', 'down') and split == 1 else 0
+        return int(stage['weight_bytes']) + batch*k*2 + output + residual
     if stage['kind_name'] == 'kFusedAttention':
-        return batch*kv*past*d*4 + batch*(config['num_attention_heads']+2*kv)*d*2
+        block = stage['_attention_block']
+        live = (past+1+block-1)//block
+        allocated = (1088+block-1)//block
+        output = (batch*config['num_attention_heads']*(d+1)*4*live if allocated > 1
+                  else batch*config['num_attention_heads']*d*2)
+        return (batch*kv*past*d*4 + batch*(config['num_attention_heads']+2*kv)*d*2
+                + batch*kv*d*4 + output)
     if stage['kind_name'] == 'kAttentionMerge':
-        splits = (1088 + stage['_attention_block']-1)//stage['_attention_block']
-        return batch*config['num_attention_heads']*(d+1)*4*splits + batch*h*2
+        splits = (past+1+stage['_attention_block']-1)//stage['_attention_block']
+        return batch*config['num_attention_heads']*(d+1)*4*splits + batch*config['num_attention_heads']*d*2
     if stage['kind_name'] == 'kGemmCombine':
         k, n = dimensions[family]
         out = n//2 if family == 'gate_up' else n
@@ -53,11 +64,23 @@ def stage_bytes(stage, past, batch, config):
     if stage['kind_name'] in ('kEmbedding', 'kRMSNorm'):
         return batch*h*4
     if stage['kind_name'] == 'kArgmaxReduce':
-        return batch*4
+        head = stage['_geometry']
+        return batch*((config['vocab_size']+head['tile_n']-1)//head['tile_n'])*8+batch*4
     return None
 
 
+def stage_bytes(stage, past, batch, config):
+    value = own_stage_bytes(stage, past, batch, config)
+    if stage.get('_elided_reducer'):
+        reduced = own_stage_bytes(stage['_elided_reducer'], past, batch, config)
+        return value+reduced if value is not None and reduced is not None else None
+    return value
+
+
 def analyze(folder, model_config, batch, plan):
+    def input_path(name):
+        latest=folder/(Path(name).stem+'_latest.tsv')
+        return latest if latest.exists() else folder/name
     stages = {int(row['stage']): row for row in tsv(folder / 'runtime_stages.tsv')}
     gemms = iter(plan['gemms'])
     previous_geometry, block = None, plan['attention_kv_block']
@@ -66,23 +89,30 @@ def analyze(folder, model_config, batch, plan):
             previous_geometry = next(gemms)
         if stage['kind_name'] in ('kGemm', 'kGemmCombine'):
             stage['_geometry'] = previous_geometry
+        if stage['kind_name'] == 'kArgmaxReduce':
+            stage['_geometry'] = previous_geometry
         if stage['kind_name'] == 'kFusedAttention':
             block = int(stage['kv_block'])
         stage['_attention_block'] = block
+    for stage in stages.values():
+        reducer = stages.get(int(stage['reducer']))
+        if reducer is not None and int(reducer['elided']):
+            stage['_elided_reducer'] = reducer
     groups, profiles, steps = defaultdict(list), defaultdict(list), defaultdict(list)
-    for row in tsv(folder / 'stage_trace.tsv'):
-        row = {k: int(v) for k, v in row.items()}
-        if row['t_release']:
-            groups[row['iteration'], row['stage']].append(row)
-    for row in tsv(folder / 'task_profile.tsv') if (folder / 'task_profile.tsv').exists() else []:
-        row = {k: v if k == 'kind' else int(v) for k, v in row.items()}
-        profiles[row['iteration'], row['stage']].append(row)
-    for row in tsv(folder / 'step_trace.tsv'):
+    for row in tsv(input_path('step_trace.tsv')):
         row = {k: int(v) for k, v in row.items()}
         if row['kernel_begin']:
             steps[row['iteration']].append(row)
     keep = read(folder / 'trace.json').get('retain_latest_iterations', len(steps))
     steps = {i: steps[i] for i in sorted(steps)[-keep:]}
+    for row in tsv(input_path('stage_trace.tsv')):
+        row = {k: int(v) for k, v in row.items()}
+        if row['t_release'] and row['iteration'] in steps:
+            groups[row['iteration'], row['stage']].append(row)
+    for row in tsv(input_path('task_profile.tsv')) if (folder / 'task_profile.tsv').exists() else []:
+        row = {k: v if k == 'kind' else int(v) for k, v in row.items()}
+        if row['iteration'] in steps:
+            profiles[row['iteration'], row['stage']].append(row)
     details, closure = [], []
     for iteration in sorted(steps):
         step = steps[iteration]
@@ -107,9 +137,9 @@ def analyze(folder, model_config, batch, plan):
             critical_tasks = sorted(by_worker.get(critical['worker'], []), key=lambda row: row['run_begin'])
             complete = len(task_rows) == sum(row['tasks'] for row in rows)
             mean = st.mean(durations.get(row['worker'], 0) for row in active) if active and complete else None
-            body = durations.get(critical['worker']) if complete else None
+            body = durations.get(critical['worker'], 0) if complete else None
             startup = (critical_tasks[0]['run_begin'] - previous_by_worker[critical['worker']]
-                       if critical_tasks and complete else None)
+                       if critical_tasks and complete else 0 if complete else None)
             gaps = sum(b['run_begin']-a['run_end'] for a, b in zip(critical_tasks, critical_tasks[1:])) if complete else None
             logical = stage_bytes(stages[index], critical['past'], batch, model_config)
             floor = logical / 3130 if logical is not None else None
@@ -131,6 +161,7 @@ def analyze(folder, model_config, batch, plan):
                 active_ctas=len(active), max_tasks_per_cta=max(row['tasks'] for row in rows),
                 profile_complete=complete, bytes=logical, floor_ns=floor, envelope_ns=envelope,
                 critical_cta=critical['worker'], start_ns=startup, first_block_ns=first_block,
+                critical_cta_has_task=bool(critical_tasks),
                 body_critical_ns=body,
                 body_mean_ns=mean, gaps_ns=gaps, release_ns=tail,
                 skew_ns=release-min(row['t_release'] for row in rows),

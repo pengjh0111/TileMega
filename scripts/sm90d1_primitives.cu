@@ -5,9 +5,21 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 #include <vector>
 
 using U64 = unsigned long long;
+struct RawMetric {std::string name,unit;int grid,bytes;std::vector<double> samples;};
+std::vector<RawMetric> raw_metrics;
+void DumpRaw() {
+  auto path=std::getenv("TILEMEGA_PRIMITIVE_RAW");if(!path)return;
+  auto* stream=std::fopen(path,"w");if(!stream)std::exit(3);
+  std::fprintf(stream,"name,grid_ctas,bytes,sample,value,unit\n");
+  for(auto const& metric:raw_metrics)for(std::size_t i=0;i<metric.samples.size();++i)
+    std::fprintf(stream,"%s,%d,%d,%zu,%.12g,%s\n",metric.name.c_str(),metric.grid,
+                 metric.bytes,i,metric.samples[i],metric.unit.c_str());
+  std::fclose(stream);
+}
 void Check(cudaError_t status) {
   if(status != cudaSuccess) {std::fprintf(stderr,"%s\n",cudaGetErrorString(status));std::exit(1);}
 }
@@ -21,6 +33,7 @@ __global__ void Timers(U64* output,int samples) {
   output[samples]=clock64()-cycles;output[samples+1]=Timer()-begin;
 }
 __global__ void AtomicTrial(U64* value,U64* output,int kind,int samples) {
+  __shared__ U64 local_samples[4096];
   if(threadIdx.x)return;
   for(int i=0;i<samples;++i) {
     auto begin=clock64();
@@ -29,8 +42,9 @@ __global__ void AtomicTrial(U64* value,U64* output,int kind,int samples) {
       cuda::atomic_ref<U64,cuda::thread_scope_device> counter(*value);
       counter.fetch_add(1,cuda::memory_order_acq_rel);
     }else asm volatile("red.release.gpu.global.add.u64 [%0], 1;"::"l"(value):"memory");
-    output[blockIdx.x*samples+i]=clock64()-begin;
+    local_samples[i]=clock64()-begin;
   }
+  for(int i=0;i<samples;++i)output[blockIdx.x*samples+i]=local_samples[i];
 }
 __global__ void V3Barrier(U64* counter,U64* output,int samples) {
   for(int i=0;i<samples;++i) {
@@ -57,6 +71,7 @@ __global__ void PrefetchIssue(char const* input,U64* output,int bytes,int sample
   }
 }
 void Print(char const* name,std::vector<double> data,char const* unit,int grid=1,int bytes=0) {
+  if(std::getenv("TILEMEGA_PRIMITIVE_RAW"))raw_metrics.push_back({name,unit,grid,bytes,data});
   std::sort(data.begin(),data.end());
   std::printf("%s,%d,%d,%zu,%.9g,%.9g,%s\n",name,grid,bytes,data.size(),data[data.size()/2],
       data[std::min(data.size()-1,std::size_t(data.size()*.99))],unit);
@@ -82,7 +97,7 @@ int main() {
     Check(cudaMemset(value,0,8));AtomicTrial<<<grid,128>>>(value,output,kind,samples);
     Check(cudaDeviceSynchronize());Check(cudaMemcpy(host.data(),output,grid*samples*8,cudaMemcpyDeviceToHost));
     std::vector<double> times;for(int i=0;i<grid*samples;++i)times.push_back(host[i]/cycles_per_ns);
-    Print(kind==0?"threadfence":kind==1?"fetch_add_acq_rel":"red_release_gpu",times,"ns",grid);
+    Print(kind==0?"threadfence_smem_log":kind==1?"fetch_add_acq_rel_smem_log":"red_release_gpu_smem_log",times,"ns",grid);
   }
   for(int grid:{132,264}) {
     Check(cudaMemset(value,0,8));V3Barrier<<<grid,128>>>(value,output,64);
@@ -101,5 +116,8 @@ int main() {
     Print("prefetch_issue_back_to_back",times,"ns",1,kib*1024);
   }
   Check(cudaFree(input));Check(cudaFree(value));Check(cudaFree(output));
+#ifndef TILEMEGA_PRIMITIVE_COMPOSITE
+  DumpRaw();
+#endif
   return 0;
 }

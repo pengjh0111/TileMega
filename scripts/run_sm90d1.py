@@ -13,7 +13,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--config', type=Path)
     p.add_argument('--tag', default='reference')
-    p.add_argument('--stage', choices=('measure', 'overhead', 'correctness', 'trace', 'primitive', 'resources'), required=True)
+    p.add_argument('--stage', choices=('measure', 'overhead', 'correctness', 'trace', 'trace-control', 'primitive', 'resources', 'solver'), required=True)
     p.add_argument('--round', type=int, default=0)
     p.add_argument('--decode', type=Path)
     p.add_argument('--mode', choices=('L1', 'L2'))
@@ -22,12 +22,23 @@ def main():
     p.add_argument('--out', type=Path, required=True)
     a = p.parse_args()
     a.out.mkdir(parents=True, exist_ok=False)
+    if a.stage == 'solver':
+        label = 'evaluate' if 'evaluate' in a.tag else 'solve'
+        directory = RUN / 'solver' / a.config.stem
+        command = read(directory / ('evaluate-class-command.json' if label == 'evaluate'
+                                    else 'solve-command.json'))
+        command[3] = str(a.out / 'solver.so')
+        command[command.index('--resource-probes')+1] = '1'
+        command += ['--variant-cache', str(directory / 'variant_cache')]
+        write(a.out / 'command.json', command)
+        return budgeted(command, a.timeout, a.config.stem+'-'+a.tag)
     if a.stage == 'resources':
         return budgeted([PYTHON, str(ROOT / 'scripts/resources_sm90d1.py'),
                          '--out', str(a.out / 'resources.json')], a.timeout, 'resource-queries')
     if a.stage == 'primitive':
         binary = RUN / ('memory-primitives' if a.tag == 'memory' else 'primitives')
         write(a.out / 'artifact.json', dict(binary=str(binary), sha256=sha(binary)))
+        os.environ['TILEMEGA_PRIMITIVE_RAW'] = str(a.out / 'primitives-samples.csv')
         with (a.out / 'primitives.csv').open('w') as stream:
             command = ['bash', '-c', 'exec "$1" > "$2"', 'sm90d1',
                        str(RUN / ('memory-primitives' if a.tag == 'memory' else 'primitives')),
@@ -41,7 +52,7 @@ def main():
         identity = read(str(path) + '.identity.json')
         if sha(path) != identity['binary_sha256']:
             raise ValueError('binary differs from its bound identity')
-        if a.stage == 'measure' and identity['trace']:
+        if a.stage in ('measure', 'trace-control') and identity['trace']:
             raise ValueError('instrumented binary must never enter TPOT')
     mode = a.mode or c['execution']['decode']
     loop = c['execution']['loop'] if a.loop is None else a.loop
@@ -53,7 +64,7 @@ def main():
                     binary_sha256=sha(decode), prefill_sha256=sha(prefill), stage=a.stage,
                     round=a.round, mode=mode, loop=loop, performance_eligible=a.stage == 'measure')
     write(a.out / 'selected-config.json', evidence)
-    if a.stage == 'trace':
+    if a.stage in ('trace', 'trace-control'):
         command = [PYTHON, str(ROOT / 'scripts/trace_sm90d1.py'),
                    '--prefill', str(prefill), '--decode', str(decode),
                    '--batch', str(c['batch']), '--mode', mode, '--loop', str(loop),
@@ -69,7 +80,7 @@ def main():
         if a.stage == 'correctness':
             command += ['--hf-check', '--hf-positions', '256', '--check-executors']
     # The checkpoint wrapper expands its environment path without shell evaluation.
-    if a.stage == 'trace':
+    if a.stage in ('trace', 'trace-control'):
         code = ('import os,subprocess,sys; '
                 'raise SystemExit(subprocess.call([os.environ["TILEMEGA_RANDOM_CHECKPOINT"] '
                 'if x=="{checkpoint}" else x for x in sys.argv[1:]]))')

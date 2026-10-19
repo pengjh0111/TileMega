@@ -19,13 +19,22 @@ def main():
     rows = []
     for path in sorted((RUN / 'build').glob('*/*/*.so.identity.json')):
         identity = read(path)
-        if identity['source']['head'] != read(RUN / 'compiler-v2/receipt.json')['head']:
+        heads = {read(RUN / 'compiler-v2/receipt.json')['head']}
+        if (RUN / 'compiler-p3/receipt.json').exists():
+            heads.add(read(RUN / 'compiler-p3/receipt.json')['head'])
+        if (RUN / 'compiler-pg-profile/receipt.json').exists():
+            heads.add(read(RUN / 'compiler-pg-profile/receipt.json')['head'])
+        if identity['source']['head'] not in heads:
             continue
         binary = Path(str(path).removesuffix('.identity.json'))
-        library = PlanLibrary(binary)
+        try:
+            library = PlanLibrary(binary)
+            grid, residency, error = library.info.grid, library.info.residency, None
+        except (RuntimeError, ValueError) as exception:
+            grid, residency, error = None, None, str(exception)
         rows.append(dict(binary=str(binary), binary_sha256=sha(binary),
-            trace=identity['trace'], grid=library.info.grid,
-            runtime_queried_residency=library.info.residency,
+            trace=identity['trace'], grid=grid, query_error=error,
+            runtime_queried_residency=residency,
             shared_memory_bytes=identity['shared_memory_bytes'], resources=identity['resources'],
             note='runtime occupancy query; measured CTA-to-SM mapping additionally available in stage traces'))
     write(a.out, rows)

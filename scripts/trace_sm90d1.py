@@ -2,6 +2,7 @@
 """Warm and record eight consecutive diagnostic decode steps at each past."""
 import argparse
 import ctypes as C
+import gc
 import os
 from pathlib import Path
 
@@ -21,7 +22,8 @@ def main():
     from tilemega.serving.baseline_common import require_guard
     from tilemega.serving.engine import ServingEngine
     require_guard()
-    os.environ['TILEMEGA_TRACE_LAUNCHES'] = '64'
+    # StepBegin initializes each slot once; warmup must not wrap its ring.
+    os.environ['TILEMEGA_TRACE_LAUNCHES'] = '144'
     for past in (64, 575, 1000):
         folder = a.out / f'past{past}'
         folder.mkdir(parents=True, exist_ok=False)
@@ -41,7 +43,8 @@ def main():
                 else:
                     for step in range(past-64, past-64+8):
                         engine.decode.launch(step, mode, stream.cuda_stream)
-            launch()
+            for _ in range(16):
+                launch()
             stream.synchronize()
             start, end = (torch.cuda.Event(enable_timing=True) for _ in range(2))
             start.record(stream)
@@ -49,6 +52,10 @@ def main():
             end.record(stream)
             end.synchronize()
             elapsed = start.elapsed_time(end)/8
+            loop_steps = None
+            if a.loop:
+                stamps = engine.decode.read_step_ns(past-64, 9)
+                loop_steps = [stamps[i+1]-stamps[i] for i in range(8)]
             dump = getattr(engine.decode_lib.lib, 'tm_plan_dump_serving_trace', None)
             if dump:
                 dump.argtypes = [C.c_void_p, C.c_char_p]
@@ -63,11 +70,17 @@ def main():
                     raise RuntimeError('event trace dump failed')
             info = engine.decode_lib.info
             write(folder / 'trace.json', dict(past=past, mode=a.mode, loop=bool(a.loop),
-                mean_step_ms=elapsed, measured_steps=8, warmup_steps=8,
+                mean_step_ms=elapsed, measured_steps=8, warmup_steps=128,
+                trace_ring_slots=144, protocol_version=3,
+                loop_step_ns=loop_steps,
                 retain_latest_iterations=8, grid=info.grid, residency=info.residency,
                 execution_identity=engine.decode.execution_identity(mode, bool(a.loop)),
                 driver_sha256=sha(__file__), diagnostic_only=True, performance_eligible=False,
                 input='fixed random weights; zero initial KV/token buffers; same R16 diagnostic flow'))
+        # close() releases native contexts, while Python still owns weight tensors.
+        del engine
+        gc.collect()
+        torch.cuda.empty_cache()
 
 
 if __name__ == '__main__':

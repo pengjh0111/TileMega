@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Derive a diagnostic clone without changing generated plan or geometry."""
 import argparse
+import os
 from pathlib import Path
 import shlex
 import shutil
@@ -11,6 +12,7 @@ from sm90d1_common import ROOT, RUN, read, sha, write
 
 
 def main():
+    os.environ['CUDA_VISIBLE_DEVICES'] = ''
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--input', type=Path, required=True)
     p.add_argument('--out', type=Path, required=True)
@@ -23,6 +25,8 @@ def main():
     sys.path.insert(0, str(ROOT / 'python'))
     from tilemega.build.identity import generate, verify
     identity = verify(original)
+    if identity['nvcc_arch'] != 'sm_90a':
+        raise ValueError('SM90D1 diagnostic variants require the H800 sm_90a path')
     if identity['trace']:
         raise ValueError('clone must start with an uninstrumented artifact')
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -36,7 +40,10 @@ def main():
     command[1:1] = (['-lineinfo'] if a.lineinfo else []) + ['-D' + v for v in a.define]
     Path(str(output) + '.build_command.txt').write_text(shlex.join(command) + '\n')
     with Path(str(output) + '.ptxas.log').open('w') as log:
-        subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True)
+        subprocess.run([sys.executable, str(ROOT / 'scripts/run_sm90r1_build.py'),
+            '--receipt', str(output)+'.compile.json', '--lock', str(output)+'.compile.lock',
+            '--timeout', '1800', '--max-gib', '48', '--', *command],
+            stdout=log, stderr=subprocess.STDOUT, check=True)
     result = generate(output, identity['source']['root'], str(output) + '.source.json')
     write(str(output) + '.diagnostic.json', dict(parent=identity['artifact_id'],
           artifact_id=result['artifact_id'], defines=a.define, lineinfo=a.lineinfo,

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from analyze_sm90d1_ledger import analyze
 from sm90d1_common import ROOT, RUN, read, write
+from collect_sm90d1_diagnostics import latest_tsv
 
 
 def main():
@@ -25,9 +26,19 @@ def main():
     binary = RUN / 'build' / a.tag / f"{c['model']}-B{c['batch']}" / 'decode.so'
     reports = []
     for folder in sorted((raw / 'job/trace').glob('past*')):
+        meta=read(folder/'trace.json')
+        if meta.get('protocol_version',0)<3:
+            reports.append(dict(past=meta['past'],status='superseded_trace_protocol; raw retained'))
+            continue
+        existing=read(folder/'ledger.json') if (folder/'ledger.json').exists() else {}
+        if existing.get('floor_model_version')==3 and existing.get('trace')==meta:
+            continue
+        if meta.get('protocol_version',0)>=3:
+            for name in ('stage_trace.tsv','step_trace.tsv','task_profile.tsv'):
+                latest_tsv(dict(folder=folder,meta=meta),name)
         details, closure = analyze(folder, read(ROOT / c['model_dir'] / 'config.json'),
                                    c['batch'], read(str(binary) + '.plan.json'))
-        report = dict(stages=details, steps=closure, trace=read(folder / 'trace.json'),
+        report = dict(floor_model_version=3, stages=details, steps=closure, trace=read(folder / 'trace.json'),
                       selected=selected, guard=str(raw / 'guard_result.json'))
         write(folder / 'ledger.json', report)
         reports.append(dict(past=int(folder.name[4:]), stage_rows=len(details),

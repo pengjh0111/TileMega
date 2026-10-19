@@ -42,11 +42,19 @@ def budgeted(command, timeout, label):
     with (RUN / 'gpu-budget.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         data = read(path) if path.exists() else dict(limit_s=36000, used_s=0, active={}, history=[])
+        for key, row in list(data['active'].items()):
+            if not Path(f"/proc/{row['pid']}").exists():
+                data['active'].pop(key)
+                row.update(ended=time.time(), elapsed_s=row['reserved_s'],
+                           exit_code=None, billing='interrupted reservation charged conservatively')
+                data['used_s'] += row['reserved_s']
+                data['history'].append(row)
+        write(path, data)
         reserved = sum(row['reserved_s'] for row in data['active'].values())
-        if data['used_s'] + reserved + timeout > data['limit_s']:
+        if data['used_s'] + reserved + timeout + 15 > data['limit_s']:
             raise RuntimeError('SM90D1 GPU budget cannot reserve this job')
         data['active'][token] = dict(label=label, gpu=os.environ['TILEMEGA_DEVICE_INDEX'],
-                                     pid=os.getpid(), started=time.time(), reserved_s=timeout)
+                                     pid=os.getpid(), started=time.time(), reserved_s=timeout+15)
         write(path, data)
     begin = time.monotonic()
     code = 125
