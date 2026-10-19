@@ -15,3 +15,7 @@ resnet18,tensorrt,bf16,,True,identical exported program; historical direct check
 resnet18,tensorrt,fp16,,False,identical exported program; historical direct checkpoint hash absent,0.1643984935641963,0.16190443561067377
 resnet18,torchcompile,bf16,max-autotune,True,identical exported program; historical direct checkpoint hash absent,0.25201410345128217,0.24852784164624725
 resnet18,torchcompile,bf16,reduce-overhead,True,identical exported program; historical direct checkpoint hash absent,0.25385362060198297,0.25056878668438076
+nafnet,tensorrt,bf16,,True,identical exported program; direct checkpoint hash verified,0.12573415493241422,0.125947686438809
+nafnet,tensorrt,fp16,,False,identical exported program; direct checkpoint hash verified,0.056077764172421496,0.05662977628983292
+nafnet,torchcompile,bf16,max-autotune,True,identical exported program; direct checkpoint hash verified,0.047602215310199945,0.04795459012290025
+nafnet,torchcompile,bf16,reduce-overhead,True,identical exported program; direct checkpoint hash verified,0.054934224257002784,0.055362798448816475
