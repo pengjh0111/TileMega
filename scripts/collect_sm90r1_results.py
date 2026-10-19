@@ -155,7 +155,8 @@ def llm_cells(raw, states):
             block = generated.split('constexpr StageDesc kStages[] = {', 1)[1].split('\n};', 1)[0]
             entries = [line.strip() for line in block.splitlines() if '{TaskKind::' in line]
             gemms = [int(value) for value in re.findall(r'\{TaskKind::kGemm, (\d+)u,', block)]
-            unelided = all(line.endswith('kNoOperand, false},') for line in entries)
+            unelided = all(re.search(r', kNoOperand, false(?:, \d+u)*},$', line)
+                           for line in entries)
             if (unelided and sorted(gemms) == list(range(len(tables[phase]))) and
                     '{TaskKind::kAttention,' not in block):
                 row[phase + '_runtime_stages_inferred'] = len(entries) + sum(
