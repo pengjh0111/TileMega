@@ -1,0 +1,3 @@
+phase,batch,gpu,tpot_ms,frozen_tpot_ms,drift_vs_frozen_pct,drift_vs_start_pct,same_card_as_start,acceptance,measurement
+start,1,3,1.9782138338304769,2.004654045223112,-1.318941363256132,0.0,True,provisional_container_pid_namespace,runs/sm90r1/scheduler/raw/sm90r1_M0_start_B1_gpu3/attempt1/measurements/B1/measurements.json
+start,16,3,2.3248334809737634,2.3949402771373065,-2.9272878673760605,0.0,True,provisional_container_pid_namespace,runs/sm90r1/scheduler/raw/sm90r1_M0_start_B16_gpu3/attempt1/measurements/B16/measurements.json
