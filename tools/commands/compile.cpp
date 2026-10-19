@@ -338,6 +338,7 @@ int RunCompile(int argc, char** argv) {
     int dependency_intern=0,cluster_dim=1,serving_residency=0,activation_tma=0,decode_tile_m=16;
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int prefetch_worker_bytes=0,prefetch_history=1;
+    int diagnostic_la_classes=12;
     int mma_reg_pipe=0;
     std::string attention_impl="mma16",attention_page;
     int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0,evict_first=0,evict_last=1;
@@ -496,6 +497,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--paged-la") paged_la=std::stoi(value);
       else if (flag=="--paged-la-splitk") paged_la_splitk=std::stoi(value);
       else if (flag=="--nonpaged-la") {nonpaged_la=std::stoi(value);nonpaged_la_pinned=true;}
+      else if (flag=="--diagnostic-la-classes") diagnostic_la_classes=std::stoi(value);
       else if (flag=="--candidate-guard-wait-s") candidate_guard_wait_s=std::stoi(value);
       else if (flag=="--candidate-mode") candidate_mode=value;
       else if (flag=="--candidate-loop") candidate_loop=std::stoi(value);
@@ -659,6 +661,9 @@ int RunCompile(int argc, char** argv) {
       throw std::invalid_argument("--global-pool-channels expects 4, 32, 64, 128 or 256");
     if(global_pool_channels!=128 && (!forward || frontend_mode!="dnn" || input.extension()==".mlir"))
       throw std::invalid_argument("global pool geometry requires a DNN forward export");
+    if(diagnostic_la_classes!=0 && diagnostic_la_classes!=4 &&
+       diagnostic_la_classes!=8 && diagnostic_la_classes!=12)
+      throw std::invalid_argument("diagnostic LA classes must be 0, 4, 8 or 12");
     if(la_cta_release<0 || la_cta_release>1 || (la_cta_release &&
         (!serving || serving_phase!="decode" || !nonpaged_la ||
          (pg_mode!="off" && pg_mode!="l2"))))
@@ -2129,7 +2134,7 @@ int RunCompile(int argc, char** argv) {
       mlir::OpBuilder handoffs(module->getContext());
       (*module)->setAttr("tmexec.nonpaged_la",handoffs.getBoolAttr(true));
       if(!use_l2) {
-      auto reductions=tilemega::dialect::SelectServingHandoffs(*module,8|4);
+      auto reductions=tilemega::dialect::SelectServingHandoffs(*module,diagnostic_la_classes);
       std::cerr<<"NONPAGED_LAST_ARRIVER selected="<<reductions.last_arriver<<'\n';
       handoff_mode="last_arriver";
       if(!defer_dm_lowering)source=tilemega::codegen::CouplingGraphToCUDA{}.Lower(*module);
@@ -2142,7 +2147,7 @@ int RunCompile(int argc, char** argv) {
       tilemega::codegen::ConfigureServingPrefetch(*module,target,prefetch_depth,prefetch_stride,
           prefetch_worker_bytes,prefetch_history!=0);
       if(nonpaged_la && serving_phase=="decode") {
-        auto reductions=tilemega::dialect::SelectServingHandoffs(*module,8|4);
+        auto reductions=tilemega::dialect::SelectServingHandoffs(*module,diagnostic_la_classes);
         std::cerr<<"NONPAGED_LAST_ARRIVER selected="<<reductions.last_arriver<<'\n';
         handoff_mode="last_arriver";
       }

@@ -49,6 +49,9 @@ struct ServingAttentionOperands {
 #if TILEMEGA_TRACE_TASK
   ServingTaskProfile* profile=nullptr;
 #endif
+#if TILEMEGA_TRACE_TASK && TILEMEGA_TRACE_LOCAL_CLOCK
+  ServingTaskProfile* diagnostic_profile=nullptr;
+#endif
   int partition_blocks=0;
 };
 __host__ __device__ inline int AttentionPartialBlocks(ServingAttentionOperands const& p) {

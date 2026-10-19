@@ -509,6 +509,14 @@ __device__ inline void RunServingAttentionTask(Params const& p,
 #endif
 #if TILEMEGA_TRACE_TASK
   inputs.profile=profile;
+#if TILEMEGA_TRACE_LOCAL_CLOCK
+  if(p.serving_task_profile) {
+    auto epoch=p.serving_task_epoch[blockIdx.x];
+    if(blockIdx.x%TILEMEGA_TRACE_TASK_SAMPLE==epoch%TILEMEGA_TRACE_TASK_SAMPLE)
+      inputs.diagnostic_profile=p.serving_task_profile+(epoch%p.serving_trace_launches)*
+          p.serving_task_stride+p.serving_task_offsets[&stage-p.stages]+task;
+  }
+#endif
 #endif
 #if TILEMEGA_QKV_EPILOGUE
   inputs.qkv_preprocessed=true;
@@ -649,6 +657,9 @@ __device__ inline void FinishNonpagedTask(Params const& p,unsigned index,
   auto offset=((std::size_t(context.l2)*p.stage_count+index)*
       p.serving_handoff_ticket_stride)+output;
   __shared__ unsigned last;
+  #if TILEMEGA_TRACE_LOCAL_CLOCK && TILEMEGA_TRACE_TASK
+  auto la_begin=TaskProfileNow(profile);
+#endif
   bool reduced=executor::EpochLastArriver::Run(
       p.serving_nonpaged_tickets+offset,producers,context.iteration,&last,[&]{
 #if TILEMEGA_TRACE_TASK
@@ -663,6 +674,9 @@ __device__ inline void FinishNonpagedTask(Params const& p,unsigned index,
         if(profile)profile->la_ns=TaskProfileNow(profile)-begin;
 #endif
       });
+  #if TILEMEGA_TRACE_LOCAL_CLOCK && TILEMEGA_TRACE_TASK
+  if(profile)profile->la_total=TaskProfileNow(profile)-la_begin;
+#endif
   if(reduced) {
 #if TILEMEGA_DM_REDUCTIONS
     if(context.l2)CompleteDmTask<true>(p,stage.handoff_reduce_stage,output,smem,context.events,context.iteration);
@@ -689,6 +703,9 @@ __device__ inline void FinishNonpagedTask(Params const& p,unsigned index,
 /// The dispatch is over the TaskBody families, which are a property of the
 /// library, not of any model.  A model that needs no attention simply never
 /// emits those stage kinds.
+#if TILEMEGA_L2_PREFETCH && TILEMEGA_DIAGNOSTIC_PREFETCH_WARP1
+__device__ inline void DiagnosticLastTaskPrefetch(Params const&,unsigned,int,int);
+#endif
 __device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunStage(Params const& p, std::uint32_t index,
                                 TaskSmem& smem TILEMEGA_REDUCTION_ARG) {
   StageDesc const& stage = p.stages[index];
@@ -697,13 +714,16 @@ __device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunStage(Params const& p, std
     case TaskKind::kDwPwFused:
 #endif
     case TaskKind::kGemm:
-#if TILEMEGA_TRACE_TASK || TILEMEGA_EP_PARALLEL_ARGMAX || (TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED)
+#if TILEMEGA_TRACE_TASK || TILEMEGA_EP_PARALLEL_ARGMAX || TILEMEGA_DIAGNOSTIC_PREFETCH_WARP1 || (TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED)
       {
         auto const& inv=static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
         int count=inv.tiles_m*inv.tiles_n*inv.chunks;
         for(int ordinal=PlacedBlock();ordinal<ServingL1TaskLimit(p,stage,count);ordinal+=gridDim.x) {
           int task=ServingL1Task(p,stage,ordinal);
           if(task>=count)continue;
+#if TILEMEGA_L2_PREFETCH && TILEMEGA_DIAGNOSTIC_PREFETCH_WARP1
+          DiagnosticLastTaskPrefetch(p,index,ordinal,ServingL1TaskLimit(p,stage,count));
+#endif
 #if TILEMEGA_TRACE_TASK
           executor::ProfileScope profile{executor::BeginProfile(p,index,task)};
 #endif
@@ -749,6 +769,9 @@ __device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunStage(Params const& p, std
 #if TILEMEGA_SERVING_RUNTIME
       for (int row = int(blockIdx.x); row < (stage.batch_rows ? p.dims.batch : p.dims.tokens());
            row += int(gridDim.x)) {
+        #if TILEMEGA_TRACE_TASK
+        executor::ProfileScope profile{executor::BeginProfile(p,index,row)};
+#endif
         RunServingScalarTask(p, stage, smem, row);
         __syncthreads();
       }
@@ -771,6 +794,9 @@ __device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunStage(Params const& p, std
 #if TILEMEGA_SERVING_RUNTIME
       for (int row = int(blockIdx.x); row < p.dims.tokens();
            row += int(gridDim.x)) {
+        #if TILEMEGA_TRACE_TASK
+        executor::ProfileScope profile{executor::BeginProfile(p,index,row)};
+#endif
         RunServingScalarTask(p, stage, smem, row);
         __syncthreads();
       }
@@ -783,6 +809,9 @@ __device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunStage(Params const& p, std
 #if TILEMEGA_SERVING_RUNTIME
       for (int row = int(blockIdx.x); row < p.dims.batch;
            row += int(gridDim.x)) {
+        #if TILEMEGA_TRACE_TASK
+        executor::ProfileScope profile{executor::BeginProfile(p,index,row)};
+#endif
         RunServingScalarTask(p, stage, smem, row);
         __syncthreads();
       }
@@ -795,6 +824,9 @@ __device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunStage(Params const& p, std
       for (int ordinal = int(blockIdx.x); ordinal < ServingAttentionTaskCount(p, stage);
            ordinal += int(gridDim.x)) {
         int task=ServingL1Task(p,stage,ordinal);
+#if TILEMEGA_L2_PREFETCH && TILEMEGA_DIAGNOSTIC_PREFETCH_WARP1
+        DiagnosticLastTaskPrefetch(p,index,ordinal,ServingAttentionTaskCount(p,stage));
+#endif
 #if TILEMEGA_TRACE_TASK
         executor::ProfileScope profile{executor::BeginProfile(p,index,task)};
 #endif
@@ -819,7 +851,12 @@ __device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunStage(Params const& p, std
     case TaskKind::kAttentionMerge:
 #if TILEMEGA_SERVING_DECODER_ATTENTION
       for (int task = int(blockIdx.x); task < p.dims.batch * int(stage.extent);
-           task += int(gridDim.x)) RunServingMergeTask(p, stage, task);
+           task += int(gridDim.x)) {
+#if TILEMEGA_TRACE_TASK
+        executor::ProfileScope profile{executor::BeginProfile(p,index,task)};
+#endif
+        RunServingMergeTask(p, stage, task);
+      }
 #else
       asm volatile("trap;");
 #endif
@@ -828,7 +865,17 @@ __device__ inline TILEMEGA_HOPPER_TASK_INLINE void RunStage(Params const& p, std
     case TaskKind::kQKNorm: T_QKNorm{}(p, stage, smem); break;
 #endif
     case TaskKind::kAttention: T_Attention{}(p, stage, smem); break;
-    case TaskKind::kGemmCombine: T_GemmCombine{}(p, stage, smem); break;
+    case TaskKind::kGemmCombine:
+#if TILEMEGA_TRACE_TASK
+      for(int task=PlacedBlock();task<ActiveBlocks(p,stage);task+=gridDim.x) {
+        executor::ProfileScope profile{executor::BeginProfile(p,index,task)};
+        T_GemmCombine::RunTask(p,stage,smem,task);
+        __syncthreads();
+      }
+#else
+      T_GemmCombine{}(p, stage, smem);
+#endif
+      break;
     case TaskKind::kGemmAdd:
     case TaskKind::kGemmRMSNorm:
 #if TILEMEGA_FUSION_GEMM_RUNTIME
@@ -1791,6 +1838,12 @@ __device__ inline void PrefetchStageDescriptor(Params const* p,unsigned stage) {
 
 #if TILEMEGA_L2_PREFETCH
 #include <tilemega/Codegen/executor/ServingPrefetch.cuh>
+#if TILEMEGA_DIAGNOSTIC_PREFETCH_WARP1
+__device__ inline void DiagnosticLastTaskPrefetch(Params const& p,unsigned stage,int ordinal,int count) {
+  if(ordinal+int(gridDim.x)>=count && threadIdx.x>=32 && threadIdx.x<64)
+    prefetch::NextStage(p,stage+1);
+}
+#endif
 #endif
 #if TILEMEGA_DM_REDUCTIONS
 #include <tilemega/Codegen/executor/DmReduction.cuh>
@@ -1936,7 +1989,9 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
 #if TILEMEGA_L2_PREFETCH
     static_assert(TILEMEGA_GENERATED_CLUSTER_DIM==1,"split grid barrier requires the flat grid protocol");
     prefetch::Arrive(events,stage,iteration,params);
+    #if !TILEMEGA_DIAGNOSTIC_PREFETCH_WARP1
     prefetch::NextStage(*params,stage+1);
+#endif
     prefetch::Wait(events,stage,iteration,params);
 #else
     GridBarrier(events, stage, iteration,params);
@@ -1989,6 +2044,7 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
 #endif
 #if TILEMEGA_L2_PREFETCH
       prefetch::Arrive(events,stage,iteration,&p);
+      #if !TILEMEGA_DIAGNOSTIC_PREFETCH_WARP1
       if(stage+1<p.stage_count)prefetch::NextStage(p,stage+1);
       else if(step+1<steps) {
         Params const& next=params[step+1];
@@ -1997,6 +2053,7 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
             prefetch::NextStage(next,s);break;
           }
       }
+#endif
 #if TILEMEGA_TRACE_STEP
       auto barrier_begin=executor::ServingTraceNow();
 #endif

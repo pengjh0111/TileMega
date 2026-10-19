@@ -141,6 +141,17 @@ struct PagedAttentionTaskBody {
   }
   __device__ static void NewRow(ServingAttentionOperands const& p,Element* page,int row,int b,int g) {
     constexpr int width=(Q+2)*D;
+#if TILEMEGA_TRACE_TASK && TILEMEGA_TRACE_LOCAL_CLOCK
+    auto row_begin=clock64();
+    struct RowPhase {
+      ServingTaskProfile* profile;
+      unsigned long long begin;
+      __device__ ~RowPhase() {
+        if(profile && ComputeThread()%32==0)
+          (&profile->new_row_warp0)[ComputeThread()/32]+=clock64()-begin;
+      }
+    } row_phase{p.diagnostic_profile,row_begin};
+#endif
 #if TILEMEGA_QKV_EPILOGUE
     if(p.qkv_preprocessed) {
       int d=(ComputeThread()%32)*8;
@@ -316,6 +327,9 @@ struct PagedAttentionTaskBody {
     if((lane&3)==0)for(int r=0;r<2;++r)
       if(lane/4+8*r<PartialRows)s.lse[warp][lane/4+8*r]=sum[r]>0?maximum[r]+log2f(sum[r]):-INFINITY;
     }
+#if TILEMEGA_TRACE_TASK && TILEMEGA_TRACE_LOCAL_CLOCK
+    auto store_begin=TaskProfileNow(profile);
+#endif
     ComputeSync();
     int cmax=AttentionPartialBlocks(p);
     for(int vector=ComputeThread();vector<Q*D/8;vector+=kComputeThreads) {
@@ -342,6 +356,9 @@ struct PagedAttentionTaskBody {
       }
     }
     ComputeSync();
+#if TILEMEGA_TRACE_TASK && TILEMEGA_TRACE_LOCAL_CLOCK
+    if(profile)profile->partial_store=TaskProfileNow(profile)-store_begin;
+#endif
     }
   }
 };

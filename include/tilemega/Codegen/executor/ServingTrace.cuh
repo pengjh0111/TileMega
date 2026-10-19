@@ -7,6 +7,10 @@
 #endif
 // 1: timer/SMID reads only; 2: record stores only; 0/3: original full trace.
 static_assert(TILEMEGA_TRACE_STAGE_DIAGNOSTIC>=0 && TILEMEGA_TRACE_STAGE_DIAGNOSTIC<=3);
+#ifndef TILEMEGA_TRACE_TASK_SAMPLE
+#define TILEMEGA_TRACE_TASK_SAMPLE 8
+#endif
+static_assert(TILEMEGA_TRACE_TASK_SAMPLE>0);
 #ifndef TILEMEGA_TRACE_STAGE_SAMPLE
 #define TILEMEGA_TRACE_STAGE_SAMPLE 1
 #endif
@@ -20,15 +24,29 @@ __device__ inline ServingTaskProfile* BeginProfile(Params const& p,unsigned stag
     unsigned long long iteration=~0ull) {
   if(threadIdx.x!=0 || !p.serving_task_profile)return nullptr;
   if(iteration==~0ull)iteration=p.serving_task_epoch[blockIdx.x];
-  if(blockIdx.x%8!=iteration%8)return nullptr;
+  if(blockIdx.x%TILEMEGA_TRACE_TASK_SAMPLE!=iteration%TILEMEGA_TRACE_TASK_SAMPLE)return nullptr;
   auto* r=p.serving_task_profile+(iteration%p.serving_trace_launches)*p.serving_task_stride+
       p.serving_task_offsets[stage]+task;
   *r={};r->iteration=iteration;r->past=p.dims.past;r->stage=stage;r->task=task;
-  r->worker=blockIdx.x;r->run_begin=TaskProfileNow(r);return r;
+  r->worker=blockIdx.x;
+#if TILEMEGA_TRACE_LOCAL_CLOCK
+  asm volatile("mov.u64 %0, %%globaltimer;":"=l"(r->run_begin));
+  r->local_begin=clock64();
+#else
+  r->run_begin=TaskProfileNow(r);
+#endif
+  return r;
 }
 struct ProfileScope {
   ServingTaskProfile* row;
-  __device__ ~ProfileScope(){if(row)row->run_end=TaskProfileNow(row);}
+  __device__ ~ProfileScope(){if(row){
+#if TILEMEGA_TRACE_LOCAL_CLOCK
+    row->local_end=clock64();
+    asm volatile("mov.u64 %0, %%globaltimer;":"=l"(row->run_end));
+#else
+    row->run_end=TaskProfileNow(row);
+#endif
+  }}
 };
 #endif
 __device__ inline unsigned long long StageStamp() {
