@@ -1,27 +1,4 @@
 {
-  "calibration_sections": {
-    "base": {
-      "stamp": "379a910870a2f0c3ec112008553c80417c3fa9eb87bf7d694fe26f98b234ed50"
-    },
-    "bf16": {
-      "stamp": "fe17f584c98fd0b2de4bb67d44df0b782ba72eb9b88a3913e2ee8f92e12eb1c1"
-    },
-    "events": {
-      "stamp": "c1b9502f8a71d44a8a87e4c8c74032269668e8a44cc44a1a6a4c6898cbabe701"
-    },
-    "hop": {
-      "stamp": "c1b9502f8a71d44a8a87e4c8c74032269668e8a44cc44a1a6a4c6898cbabe701"
-    },
-    "inflight": {
-      "stamp": "38c2c790acc9388a603f59608fdb58f47883f8c1d8c1c711b9518582ff0f1b83"
-    },
-    "task_bodies": {
-      "stamp": "656f5269a83f14f7fe1be76ec9bb457b410868e5399ff2dc2e1f8b18b96a2640"
-    },
-    "wait": {
-      "stamp": "c1b9502f8a71d44a8a87e4c8c74032269668e8a44cc44a1a6a4c6898cbabe701"
-    }
-  },
   "serving_hop": [
     597.2420216,
     -1.971713298,
