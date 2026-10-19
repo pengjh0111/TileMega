@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "llm": {
+    "llama3_1_8b": {
+      "16": "configs/serving/sm90r1/llama3_1_8b_b16.json",
+      "1": "configs/serving/sm90r1/llama3_1_8b_b1.json",
+      "2": "configs/serving/sm90r1/llama3_1_8b_b2.json",
+      "4": "configs/serving/sm90r1/llama3_1_8b_b4.json",
+      "8": "configs/serving/sm90r1/llama3_1_8b_b8.json"
+    },
+    "llama3_2_1b": {
+      "16": "configs/serving/sm90r1/llama3_2_1b_b16.json",
+      "1": "configs/serving/sm90r1/llama3_2_1b_b1.json",
+      "2": "configs/serving/sm90r1/llama3_2_1b_b2.json",
+      "4": "configs/serving/sm90r1/llama3_2_1b_b4.json",
+      "8": "configs/serving/sm90r1/revisions/llama3_2_1b-B8-meta2-r2.json"
+    },
+    "llama3_2_3b": {
+      "16": "configs/serving/sm90r1/llama3_2_3b_b16.json",
+      "1": "configs/serving/sm90r1/llama3_2_3b_b1.json",
+      "2": "configs/serving/sm90r1/llama3_2_3b_b2.json",
+      "4": "configs/serving/sm90r1/llama3_2_3b_b4.json",
+      "8": "configs/serving/sm90r1/llama3_2_3b_b8.json"
+    },
+    "qwen3_0_6b": {
+      "16": "configs/serving/sm90r1/qwen3_0_6b_b16.json",
+      "1": "configs/serving/sm90r1/qwen3_0_6b_b1.json",
+      "2": "configs/serving/sm90r1/qwen3_0_6b_b2.json",
+      "4": "configs/serving/sm90r1/qwen3_0_6b_b4.json",
+      "8": "configs/serving/sm90r1/qwen3_0_6b_b8.json"
+    },
+    "qwen3_1_7b": {
+      "16": "configs/serving/sm90r1/qwen3_1_7b_b16.json",
+      "1": "configs/serving/sm90r1/qwen3_1_7b_b1.json",
+      "2": "configs/serving/sm90r1/qwen3_1_7b_b2.json",
+      "4": "configs/serving/sm90r1/qwen3_1_7b_b4.json",
+      "8": "configs/serving/sm90r1/qwen3_1_7b_b8.json"
+    },
+    "qwen3_30b_a3b": {
+      "1": "configs/serving/sm90r1/qwen3_30b_a3b_b1.json",
+      "16": "configs/serving/sm90r1/qwen3_30b_a3b_b16.json",
+      "2": "configs/serving/sm90r1/qwen3_30b_a3b_b2.json",
+      "4": "configs/serving/sm90r1/qwen3_30b_a3b_b4.json",
+      "8": "configs/serving/sm90r1/qwen3_30b_a3b_b8.json"
+    }
+  },
+  "dnn": {
+    "bert": "configs/dnn/sm90r1/bert_b1.json",
+    "mbv1": "configs/dnn/sm90r1/mbv1_b1.json",
+    "mbv2": "configs/dnn/sm90r1/mbv2_b1.json",
+    "resnet18": "configs/dnn/sm90r1/resnet18_b1.json",
+    "nafnet": "configs/dnn/sm90r1/revisions/nafnet-address-vectors-narrow.json"
+  }
+}
