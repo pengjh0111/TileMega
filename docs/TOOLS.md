@@ -44,6 +44,15 @@ level (default `0`, disabled). Stated: [CUDA 12.9 NVCC documentation](https://do
 describes the compilation/runtime tradeoff. Select an isolated CUDA 12.9 compiler
 with `CUDACXX`; CUDA 12.8 rejects this option. The level is recorded in the plan
 and build identity, and candidates require fresh numerical and end-to-end checks.
+Verified: CUDA 12.9.86 fast assembly (`mid`/`max`) returns a misaligned dynamic
+shared base in five fresh alignment probes per mode, despite a 1024-byte PTX
+declaration. TileMega therefore appends `-Xptxas=--Ofast-compile=0`: the requested
+frontend level remains active and the assembler uses its normal optimization.
+An explicit `--ptxas-opt-level` still applies. Existing artifacts are immutable;
+this correction requires rebuilding any candidate compiled with fast assembly.
+
+`--forward-wgmma-outline 3` additionally outlines the DM epilogue. It is an
+opt-in compilation/resource candidate; full-model gates and E2E decide selection.
 
 `scripts/run_sm90r1_build.py --receipt runs/sm90r1/build.json -- COMMAND...`
 serializes CPU builds through a shared file lock, hides CUDA devices, and bounds

@@ -806,7 +806,9 @@ int RunCompile(int argc, char** argv) {
     if(ptxas_split_compile!=1)runtime_flags+=" -Xptxas=--split-compile="+std::to_string(ptxas_split_compile);
     if(cuda_fast_compile!="0" && cuda_fast_compile!="min" && cuda_fast_compile!="mid" && cuda_fast_compile!="max")
       throw std::invalid_argument("cuda fast compile expects 0/min/mid/max");
-    if(cuda_fast_compile!="0")runtime_flags+=" --Ofast-compile="+cuda_fast_compile;
+    // CUDA 12.9.86's fast assembler loses extern shared alignment (5/5 probes).
+    if(cuda_fast_compile!="0")runtime_flags+=" --Ofast-compile="+cuda_fast_compile+
+        " -Xptxas=--Ofast-compile=0";
     if(ptxas_opt_level<0 || ptxas_opt_level>3)
       throw std::invalid_argument("ptxas optimization level expects 0..3");
     if(ptxas_opt_level!=3)runtime_flags+=" -Xptxas=-O"+std::to_string(ptxas_opt_level);

@@ -160,6 +160,22 @@ class GeneratedFeatureTests(unittest.TestCase):
                        defines=defines, implementations=fields)
         return manifest, defines, fields, receipt
 
+    def test_fast_frontend_keeps_shared_memory_assembler_contract(self):
+        for level in ('0', 'max'):
+            label = 'fast_frontend_' + level
+            result = self.generate('llm', label,
+                                   ['--cuda-fast-compile', level, '--pg', 'off'])
+            self.assertEqual(result[0]['cuda_fast_compile'], level)
+            options = shlex.split((self.out / 'llm' / label /
+                                   'plan.cu.runtime_flags.txt').read_text())
+            if level == '0':
+                self.assertFalse(any('Ofast-compile' in option for option in options))
+            else:
+                self.assertIn('--Ofast-compile=max', options)
+                self.assertIn('-Xptxas=--Ofast-compile=0', options)
+                self.assertGreater(options.index('-Xptxas=--Ofast-compile=0'),
+                                   options.index('--Ofast-compile=max'))
+
     def test_integer_features_reach_both_frontends(self):
         for family in ('llm', 'dm'):
             for feature, (macro, default) in INTEGER_FEATURES.items():
