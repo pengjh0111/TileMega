@@ -594,7 +594,12 @@ struct ServingDmEpilogue {
     RunFromTile(tile, p, tile_m, tile_n);
   }
 
-  __device__ static void RunFromTile(float* tile, DmEpilogueArguments const& p,
+#if TILEMEGA_FORWARD_WGMMA_OUTLINE >= 3
+  __device__ static __noinline__
+#else
+  __device__ static
+#endif
+  void RunFromTile(float* tile, DmEpilogueArguments const& p,
                                      int tile_m, int tile_n) {
     if (p.chain.count != Program::kCount || p.chain.side_count != Spec::kSideCount ||
         p.write.kind != Spec::kWrite || p.write.factor != Spec::kFactor ||
