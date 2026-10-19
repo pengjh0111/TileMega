@@ -191,6 +191,33 @@ def dnn_cells(raw, states):
     return rows
 
 
+def anchor_rows(states):
+    frozen = {int(v['batch']): float(v['tpot_ms'])
+              for v in table('R16_final_baselines.csv')
+              if v['model'] == 'llama3_2_1b' and v['system'] == 'vllm'
+              and int(v['batch']) in (1, 16)}
+    rows, starts = [], {}
+    for phase in ('start', 'end'):
+        for batch in (1, 16):
+            job = f'sm90r1_M0_{phase}_B{batch}_gpu3'
+            record = states.get(job, {})
+            if record.get('status') != 'done':
+                continue
+            directory = Path(record['out'])
+            path = directory / f'measurements/B{batch}/measurements.json'
+            measured, _, ownership = validate_llm(path, completed_guard(directory, record), ROOT)
+            assert measured['system'] == 'vllm' and measured['batch'] == batch
+            elapsed = measured['tpot_seconds'] * 1000
+            if phase == 'start':
+                starts[batch] = elapsed
+            rows.append(dict(phase=phase, batch=batch, gpu=measured['gpu_index'],
+                             tpot_ms=elapsed, frozen_tpot_ms=frozen[batch],
+                             drift_vs_frozen_pct=100 * (elapsed / frozen[batch] - 1),
+                             drift_vs_start_pct=100 * (elapsed / starts[batch] - 1),
+                             acceptance=ownership['acceptance'], measurement=str(path.relative_to(ROOT))))
+    return rows
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--raw', type=Path, default=ROOT / 'runs/sm90r1')
@@ -203,6 +230,7 @@ def main():
     for gpu in range(8):
         states.update(read(args.raw / f'scheduler/gpu{gpu}/state.json'))
     llm, dnn = llm_cells(args.raw, states), dnn_cells(args.raw, states)
+    anchors = anchor_rows(states)
     native_llm = {(v['model'], int(v['batch'])): v for v in table('R16_final_llm.csv')}
     native_dnn = {v['model']: v for v in table('R16_final_dnn.csv')}
     baselines = {(v['model'], int(v['batch']), v['system']): v
@@ -249,13 +277,20 @@ def main():
                                    checkpoint_scope=baseline['checkpoint_scope'],
                                    speedup=float(baseline['median_ms']) / row['median_ms'],
                                    speedup_p90=float(baseline['p90_ms']) / row['p90_ms']))
+    anchor_note = ('frozen ratios unadjusted; M0 drift exceeds 2%' if any(
+        abs(row['drift_vs_frozen_pct']) > 2 or abs(row['drift_vs_start_pct']) > 2
+        for row in anchors) else 'frozen ratios unadjusted; M0 drift within 2%')
+    for row in llm_ratios:
+        row['anchor_status'] = anchor_note if len(anchors) == 4 else anchor_note + '; end anchors pending'
+    complete = len(llm) == 30 and len(dnn) == 5 and not selection_pending and len(anchors) == 4
     if args.require_complete:
-        assert len(llm) == 30 and len(dnn) == 5 and not selection_pending, 'final matrix is incomplete'
+        assert complete, 'final matrix, selection or M0 anchors are incomplete'
     args.out.mkdir(parents=True, exist_ok=True)
     for suffix, rows in [('llm', llm), ('dnn', dnn), ('llm_ratios', llm_ratios), ('dnn_ratios', dnn_ratios)]:
         write(args.out / f'SM90R1_final_{suffix}.csv', rows)
     write(args.out / 'SM90R1_summary.csv', aggregate_ratios(llm, llm_ratios, dnn, dnn_ratios))
-    if len(llm) == 30 and len(dnn) == 5 and not selection_pending:
+    write(args.out / 'SM90R1_anchors.csv', anchors)
+    if complete:
         index = dict(schema=1, llm={}, dnn={})
         for row in llm:
             index['llm'].setdefault(row['model'], {})[str(row['batch'])] = row['config']
@@ -265,7 +300,7 @@ def main():
         path.write_text(json.dumps(index, indent=2) + '\n')
     print(json.dumps(dict(llm_complete=len(llm), dnn_complete=len(dnn),
                           selection_revision_pending=selection_pending,
-                          final_complete=len(llm) == 30 and len(dnn) == 5 and not selection_pending)))
+                          anchor_complete=len(anchors) == 4, final_complete=complete)))
 
 
 if __name__ == '__main__':
