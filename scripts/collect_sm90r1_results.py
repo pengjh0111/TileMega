@@ -148,9 +148,20 @@ def llm_cells(raw, states):
         row['geometry_table'] = str(geometry.relative_to(ROOT))
         for phase in ('decode', 'prefill'):
             source = ROOT / (config['libraries'][phase]['path'] + '.cu')
-            match = re.search(r'kStages,\s*(\d+)u', source.read_text())
+            generated = source.read_text()
+            match = re.search(r'kStages,\s*(\d+)u', generated)
             assert match, 'generated stage count is unavailable'
             row[phase + '_declared_stages'] = int(match[1])
+            block = generated.split('constexpr StageDesc kStages[] = {', 1)[1].split('\n};', 1)[0]
+            entries = [line.strip() for line in block.splitlines() if '{TaskKind::' in line]
+            gemms = [int(value) for value in re.findall(r'\{TaskKind::kGemm, (\d+)u,', block)]
+            unelided = all(line.endswith('kNoOperand, false},') for line in entries)
+            if (unelided and sorted(gemms) == list(range(len(tables[phase]))) and
+                    '{TaskKind::kAttention,' not in block):
+                row[phase + '_runtime_stages_inferred'] = len(entries) + sum(
+                    gemm['split_k'] > 1 for gemm in identities[phase]['plan']['gemms'])
+            else:
+                row[phase + '_runtime_stages_inferred'] = ''
         for source, target, scale in [('tpot_seconds', 'tpot_ms', 1000),
                                       ('ttft_seconds', 'ttft_ms', 1000),
                                       ('e2e_seconds', 'e2e_ms', 1000),
