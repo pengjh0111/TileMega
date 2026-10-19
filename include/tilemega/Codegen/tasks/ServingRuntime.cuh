@@ -1058,7 +1058,8 @@ extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
 #endif
       "\n");
     for(auto const& row:rows)if(row.run_begin) {
-      std::fprintf(out,"%s",plan->model.stages[row.stage].kind==TaskKind::kGemm?"gemm":"attention");
+      std::fprintf(out,"%s",plan->model.stages[row.stage].kind==TaskKind::kGemm?"gemm":
+          plan->model.stages[row.stage].kind==TaskKind::kFusedAttention?"attention":"other");
       auto* words=reinterpret_cast<unsigned long long const*>(&row);
       for(unsigned i=0;i<sizeof(row)/sizeof(*words);++i)std::fprintf(out,"\t%llu",words[i]);
       std::fputc('\n',out);

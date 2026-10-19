@@ -634,7 +634,7 @@ __device__ void Task(Params const& p,unsigned stage_index,int task,Ring const& i
   auto const& s=p.stages[stage_index];using E=cutlass::bfloat16_t;
   if(s.handoff_elided)return;
 #if TILEMEGA_TRACE_TASK
-  executor::ProfileScope profile{!Loader && (s.kind==TaskKind::kGemm || s.kind==TaskKind::kFusedAttention)
+  executor::ProfileScope profile{!Loader
       ?executor::BeginProfile(p,stage_index,task,iteration):nullptr};
   Ring ring=input_ring;ring.profile=profile.row;
 #else
