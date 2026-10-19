@@ -15,6 +15,7 @@
 #include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Solver/CompilerSearch.h>
 #include <tilemega/Solver/SkeletonSearch.h>
+#include <tilemega/Solver/OperatorClasses.h>
 #include <tilemega/Solver/ServingImplementation.h>
 #include <tilemega/Solver/ServingSeedGeometry.h>
 #include <tilemega/Solver/ForwardGeometry.h>
@@ -319,6 +320,7 @@ int RunCompile(int argc, char** argv) {
     mlir::OwningOpRef<mlir::ModuleOp> module;
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
+    std::string diagnostic_class_map;
     std::string seed_geometry,forward_geometry;
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,paged_seed_from,artifact_cache;
     std::string frontend_mode="decoder";
@@ -560,6 +562,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--dump-evaluated") dump_evaluated=std::stoi(value)!=0;
       else if (flag=="--search-domain") domain_path=value;
       else if (flag=="--evaluate-configs") evaluation_cases_path=value;
+      else if (flag=="--diagnostic-class-map") diagnostic_class_map=value;
       else if (flag=="--numerical-rejections") rejections_path=value;
       else throw std::runtime_error("unknown option: "+flag);
     }
@@ -1556,6 +1559,19 @@ int RunCompile(int argc, char** argv) {
             };
           serving_imported.emplace(tilemega::frontend::TorchExportImporter{}.
               ImportSemantics(input.string(),plan,context));
+          if(!diagnostic_class_map.empty()) {
+            auto groups=tilemega::solver::BuildOperatorClasses(*serving_imported);
+            std::ofstream table(diagnostic_class_map);
+            if(!table)throw std::runtime_error("cannot write diagnostic class map");
+            table<<"class\tgemm\top\tm\tn\tk\n";
+            for(std::size_t c=0;c<groups.size();++c)
+              for(std::size_t j=0;j<groups[c].gemms.size();++j) {
+                auto id=groups[c].gemms[j];auto const& g=plan.gemms.at(id);
+                table<<c<<'\t'<<id<<'\t'<<groups[c].operators[j]<<'\t'
+                     <<g.m<<'\t'<<g.n<<'\t'<<g.k<<'\n';
+              }
+            return 0;
+          }
           // A paged seed must satisfy the selected page's single-stage
           // constraint before any fixed evaluation case or coordinate pass.
           skeleton.seed=use_pages
