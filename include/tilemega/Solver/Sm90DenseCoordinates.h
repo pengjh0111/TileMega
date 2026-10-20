@@ -14,6 +14,7 @@
 namespace tilemega::solver {
 
 enum class Sm90DenseMma { kMmaSync, kWgmma };
+inline constexpr int kSm90DenseGemmImpl=3;
 inline constexpr std::array<char const*,5> kSm90DenseFamilies={
     "qkv","o","gate_up","down","lm_head"};
 
@@ -44,6 +45,14 @@ struct Sm90DenseAttention {
   int chunks=1,block_keys=64,slots=3;
   int preissue_smem_bytes=0,prefetch_l2_bytes=0;
   int new_row_work=0;
+  std::int64_t SharedBytes(int batch,int dim,int queries,int capacity) const {
+    std::int64_t operands=batch<=4?
+        2ll*queries*dim+4ll*((std::int64_t(capacity)+new_row_work+chunks-1)/chunks)*dim:
+        36ll*dim+4ll*slots*block_keys*dim;
+    std::int64_t scratch=16ll*queries*dim+32ll*queries+
+        4ll*std::max(4,chunks)*queries+4ll*queries+4;
+    return 1024+((operands+scratch+15)/16)*16;
+  }
   void Validate() const {
     if(chunks<1 || chunks>64 || (block_keys!=16 && block_keys!=32 &&
        block_keys!=64 && block_keys!=128) || slots<2 || slots>8 ||

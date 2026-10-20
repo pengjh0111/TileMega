@@ -1,5 +1,6 @@
 #include <tilemega/Codegen/ServingPages.h>
 #include "Toolchain.h"
+#include "NativeDense.h"
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/ExactMemo.h>
@@ -321,7 +322,7 @@ int RunCompile(int argc, char** argv) {
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
     std::string diagnostic_class_map;
-    std::string seed_geometry,forward_geometry;
+    std::string seed_geometry,forward_geometry,native_tmexec;
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,paged_seed_from,artifact_cache;
     std::string frontend_mode="decoder";
     std::string shared_weight_layout;
@@ -399,6 +400,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--serving") serving_phase=value;
       else if (flag=="--shared-weight-layout") shared_weight_layout=value;
       else if (flag=="--seed-geometry") seed_geometry=value;
+      else if (flag=="--tmexec-config") native_tmexec=value;
       else if (flag=="--forward-geometry") forward_geometry=value;
       else if (flag=="--frontend") frontend_mode=value;
       else if (flag=="--moe-dynamic") moe_dynamic=std::stoi(value);
@@ -565,6 +567,17 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--diagnostic-class-map") diagnostic_class_map=value;
       else if (flag=="--numerical-rejections") rejections_path=value;
       else throw std::runtime_error("unknown option: "+flag);
+    }
+    if(!native_tmexec.empty()) {
+      std::set<std::string> allowed={"--tmexec-config","--serving","--emit","--batch", "--runtime-target",
+          "--capacity","--prompt-len","--past-range","--dump-cg","--nvcc-split-compile"};
+      for(int i=3;i<argc;i+=2)if(!allowed.count(argv[i]))
+        throw std::invalid_argument("native dense build does not accept legacy option "+std::string(argv[i]));
+      if(serving_phase!="decode" || emit_mode!="serving" || runtime_target.empty() ||
+         serving_capacity!=1088 || serving_prompt_len!=64 || serving_past_lo!=64 || serving_past_hi!=1086)
+        throw std::invalid_argument("native dense build requires decode/serving, H800 target and 64:1086 positions");
+      return tilemega::commands::CompileNativeDenseFixed(input.string(),argv[2],native_tmexec,
+          runtime_target,serving_batch,dump_cg,nvcc_split_compile);
     }
     if(resource_probe_min_free_mib<1024)
       throw std::invalid_argument("--resource-probe-min-free-mib must be at least 1024; smaller reservations serialize probes");

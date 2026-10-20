@@ -433,6 +433,9 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
       fields.push_back(builder.getNamedAttr(
           "attention_query_rows", builder.getI64IntegerAttr(
               stage.attention_query_rows)));
+      if(stage.dense_attention_chunks)
+        fields.push_back(builder.getNamedAttr("dense_attention_chunks",
+            builder.getI64IntegerAttr(stage.dense_attention_chunks)));
     }
     if(plan.dm) {
       fields.push_back(builder.getNamedAttr("dm_conv",builder.getI64IntegerAttr(stage.conv)));

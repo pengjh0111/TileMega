@@ -841,6 +841,10 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     throw std::invalid_argument("serving plan requires a positive prefill seq or decode seq one");
   if (serving.capacity <= serving.seq || (serving.interleave_u != 4 && serving.interleave_u != 8 && serving.interleave_u != 16))
     throw std::invalid_argument("serving capacity or gate/up interleave is invalid");
+  if(serving.dense_attention_chunks<0 || serving.dense_attention_chunks>64 ||
+     (serving.dense_attention_chunks && (serving.phase!=ServingOptions::Phase::kDecode ||
+                                       !serving.deferred_norm)))
+    throw std::invalid_argument("native dense chunks require deferred-normalized decode");
   PatternMatcher matcher(nodes, inputs);
   auto layers = matcher.FindAll(DecoderLayerPattern());
   std::map<std::string,MoeRegionMatch> moe_layers;
@@ -863,6 +867,8 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
   std::sort(layers.begin(), layers.end(), [](auto const& a, auto const& b) {
     return a.at("resid2")->index < b.at("resid2")->index;
   });
+  if(serving.dense_attention_chunks && !moe_layers.empty())
+    throw std::invalid_argument("native dense chunks do not apply to MoE");
   if (layers.empty())
     throw std::invalid_argument("serving export has no complete decoder layer");
   PlanBuilder builder(nodes);
@@ -1046,9 +1052,10 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
       throw std::invalid_argument("serving KV and query blocks must be positive");
     // Prefill is one causal attention task per query block and KV group.
     // Decode alone splits the persistent cache into independent KV blocks.
-    int block_extent = serving.phase == ServingOptions::Phase::kPrefill
+    int block_extent = serving.phase == ServingOptions::Phase::kPrefill || serving.dense_attention_chunks
         ? serving.capacity : serving.kv_block;
-    int blocks = (serving.capacity + block_extent - 1) / block_extent;
+    int blocks = serving.dense_attention_chunks?serving.dense_attention_chunks:
+        (serving.capacity + block_extent - 1) / block_extent;
     std::uint32_t po = scratch(prefix + "attn.partial", serving.seq * qwidth * blocks, "f32");
     std::uint32_t lse = scratch(prefix + "attn.lse", serving.seq * qwidth / head_dim * blocks, "f32");
     builder.Stage(PlanTaskKind::kFusedAttention, match.at("ctx")->name,
@@ -1058,7 +1065,15 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
     builder.plan.stages.back().attention_kv_block = block_extent;
     builder.plan.stages.back().attention_query_rows =
         serving.seq == 1 ? qperkv : serving.query_rows;
-    if (serving.phase == ServingOptions::Phase::kDecode && blocks > 1) {
+    if(serving.dense_attention_chunks) {
+      // Chunks are an implementation of this operator's reduction. Context
+      // remains its semantic output; no orphan partial -> o_proj edge exists.
+      auto arrivals=scratch(prefix+"attn.arrivals",2*hkv,"i32");
+      builder.plan.stages.back().operands[10]=arrivals;
+      builder.plan.stages.back().dense_attention_chunks=blocks;
+    }
+    if (serving.phase == ServingOptions::Phase::kDecode && blocks > 1 &&
+        !serving.dense_attention_chunks) {
       std::string merge_rep = o.inputs.at(0);
       builder.Stage(PlanTaskKind::kAttentionMerge, merge_rep,
                     0, hkv, head_dim, qperkv, {po, lse, context});

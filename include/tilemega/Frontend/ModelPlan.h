@@ -153,6 +153,7 @@ struct PlanStage {
   codegen::DmEpilogueChain chain{};
   std::uint32_t partial_rows_per_image = 0;
   codegen::DmMoeStage moe{};
+  int dense_attention_chunks = 0;
 };
 
 struct PlanOutput {
@@ -230,6 +231,7 @@ struct ServingOptions {
   int moe_batch = 1;
   bool moe_grouped = false;
   unsigned moe_block_rows = 16;
+  int dense_attention_chunks = 0;
 };
 
 ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,

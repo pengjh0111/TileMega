@@ -193,6 +193,7 @@ add_library(tilemega_core STATIC
   lib/Solver/ListScheduler.cpp
   lib/Solver/ExecutionSimulator.cpp
   lib/Solver/SkeletonSearch.cpp
+  lib/Solver/Sm90DensePlan.cpp
   lib/Solver/DnnStructureSearch.cpp
   lib/Solver/SkeletonFinalize.cpp
   lib/Solver/SkeletonPlacement.cpp
@@ -899,7 +900,10 @@ if(TILEMEGA_BUILD_TESTS)
     target_link_libraries(sm90_dense_coordinates_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_coordinates_test PRIVATE -UNDEBUG)
     add_test(NAME sm90_dense_coordinates COMMAND sm90_dense_coordinates_test)
-    foreach(test IN ITEMS sm90_dense_gemm sm90_dense_last_arriver sm90_dense_attention)
+    add_executable(sm90_dense_plan_test test/unit/sm90_dense_plan_test.cpp)
+    target_link_libraries(sm90_dense_plan_test PRIVATE TileMega::tilemega)
+    target_compile_options(sm90_dense_plan_test PRIVATE -UNDEBUG)
+    foreach(test IN ITEMS sm90_dense_gemm sm90_dense_last_arriver sm90_dense_attention sm90_dense_program)
       add_executable(${test}_test test/unit/${test}_test.cu)
       target_link_libraries(${test}_test PRIVATE TileMega::tilemega)
       target_compile_options(${test}_test PRIVATE -UNDEBUG
@@ -1427,6 +1431,7 @@ add_library(tilemega_commands OBJECT
   tools/commands/calibrate.cpp
   tools/commands/calibration-suite.cpp
   tools/commands/compile.cpp
+  tools/commands/native_dense.cpp
   tools/commands/derive.cpp
   tools/commands/dram-floor.cpp
   tools/commands/request-floor.cpp
