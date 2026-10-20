@@ -145,8 +145,25 @@ constexpr int ServingGemmLoadsPerChunk(int m, int n, int waves) {
 constexpr int ServingGemmPipelineVgprs(int m, int n, int stages, int waves) {
   return stages * ServingGemmLoadsPerChunk(m, n, waves) * 4;
 }
+/// The budget is what the megakernel measurably holds without spilling, not
+/// the register file. Every entry kernel already sits at 248 of 255
+/// MTregisters, so the pipeline's registers come out of local memory once
+/// they outgrow what the compiler can find: on Qwen3-0.6B B1 decode
+/// (16x32 tiles, 2 loads a chunk) depth 4 (32 pipeline VGPRs) kept the
+/// 232-byte stack frame of the serial body and measured within 0.5% of it,
+/// while depth 6 (48) grew the frame to 376 bytes and measured 21% slower
+/// (docs/results/MX3_c550.md). A depth past 32 is therefore a coordinate the
+/// body runs worse than the model can price, and leaves the domain.
+inline constexpr int kServingGemmPipelineVgprBudget = 32;
 constexpr bool ServingGemmDepthFits(int m, int n, int stages, int waves) {
-  return stages >= 1 && ServingGemmPipelineVgprs(m, n, stages, waves) <= 160;
+  return stages >= 1 &&
+      (stages == 1 ||
+       ServingGemmPipelineVgprs(m, n, stages, waves) <= kServingGemmPipelineVgprBudget);
+}
+/// 32-K chunks the mainloop keeps in flight, in units of one tile_k
+/// iteration, which is what the cost model counts.
+constexpr double ServingGemmIterationsInFlight(int stages, int tile_k) {
+  return (stages < 1 ? 1 : stages) * 32.0 / (tile_k > 0 ? tile_k : 32);
 }
 
 constexpr bool ServingBF16ShapeLegal(int m, int n, int k, int stages) {

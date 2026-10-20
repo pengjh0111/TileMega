@@ -561,8 +561,12 @@ PreparedFlow PrepareFlow(SymbolicProblem const& problem,analysis::DramFloor cons
           if(partition.reduction_index->chunks)
             iterations=input.work.nominal_task_reduce_extent.BindCoordinates(piece.representative).Eval(theta)/g.tile_k;
         }
+        // The mainloop keeps `stages` 32-K chunks in flight; with depth 1
+        // that is still one chunk, not none. The old (stages-1) factor gave
+        // depth 1 sixteen bytes in flight and priced it at 108.95 ms on a
+        // plan that measures 5.96 ms.
         p.inflight_bytes=std::max(16.,std::min(p.dram_bytes,
-            (g.stages-1)*p.no_producer_dram_bytes/iterations));
+            ServingGemmIterationsInFlight(g.stages,g.tile_k)*p.no_producer_dram_bytes/iterations));
       }else if(stage.kind==StageKind::kFusedAttention) {
         p.inflight_bytes=std::max(16.,std::min(p.dram_bytes,
             4.*stage.width*std::min(stage.attention_kv_block,input.serving_attention->kv_tile)));
