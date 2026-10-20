@@ -25,6 +25,7 @@
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <tilemega/Dialect/CouplingGraph/PlacementPlan.h>
 #include <tilemega/Solver/VariantSchedule.h>
+#include <tilemega/Solver/Sm90DenseCoordinates.h>
 
 #include <mlir/IR/Verifier.h>
 
@@ -1998,10 +1999,191 @@ std::string emitSolvedLaunch(mlir::ModuleOp module) {
 
 }  // namespace
 
+namespace {
+std::string emitNativeDenseProgram(mlir::ModuleOp module) {
+  if(!isStaticDenseDecode(module))
+    throw std::invalid_argument("native dense coordinates require sm_90 BF16 decode");
+  auto plan=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+  auto serving=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
+  auto coordinate=module->getAttrOfType<mlir::StringAttr>("tmexec.sm90_dense");
+  auto batch_attr=module->getAttrOfType<mlir::IntegerAttr>("tmexec.sm90_dense_batch");
+  if(!coordinate || !batch_attr || stringField(plan,"dtype")!="bf16")
+    throw std::invalid_argument("native dense plan lacks its typed coordinates or batch");
+  auto c=solver::Sm90DenseCoordinates::FromJson(json::Parse(coordinate.getValue().str()));
+  int batch=batch_attr.getInt(),capacity=integerField(serving,"capacity");
+  if(capacity!=1088)throw std::invalid_argument("native dense decode binds capacity 1088");
+  auto buffers=arrayField(plan,"buffers"),gemms=arrayField(plan,"gemms"),stages=arrayField(plan,"stages");
+  unsigned argmax_index=~0u;
+  for(unsigned i=0;i<buffers.size();++i)
+    if(stringField(dictionaryEntry(buffers[i],"buffers"),"name")=="serving.argmax.index")argmax_index=i;
+  if(argmax_index==~0u)throw std::invalid_argument("native dense plan has no argmax index buffer");
+  auto runtime=module->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime");
+  if(!runtime || runtime.size()!=gemms.size())
+    throw std::invalid_argument("native CTG must materialize every GEMM geometry");
+  auto name=[&](unsigned id) {
+    if(id>=buffers.size())throw std::invalid_argument("native GEMM weight is unbound");
+    return stringField(dictionaryEntry(buffers[id],"buffers"),"name");
+  };
+  auto family=[&](mlir::DictionaryAttr g) -> unsigned {
+    auto op=g.get("epilogue")?stringField(g,"epilogue"):"store";
+    auto weight=name(integerField(g,"b"));
+    if(op=="swiglu")return 2;
+    if(op=="argmax_partial")return 4;
+    if(op=="store" && weight.find("qkv")!=std::string::npos)return 0;
+    if(op=="residual" && weight.find("o_proj")!=std::string::npos)return 1;
+    if(op=="residual" && weight.find("down_proj")!=std::string::npos)return 3;
+    throw std::invalid_argument("unrecognized native dense GEMM family: "+weight);
+  };
+  std::array<std::array<int,2>,5> nk{};
+  for(auto value:gemms) {
+    auto g=dictionaryEntry(value,"gemms");unsigned f=family(g);
+    std::array<int,2> shape={int(integerField(g,"n")),int(integerField(g,"k"))};
+    if(nk[f][0] && nk[f]!=shape)
+      throw std::invalid_argument("native dense family changes shape between layers");
+    nk[f]=shape;
+  }
+  c.Validate(nk,batch);
+  if(optionalBoolField(plan,"dn_vector_sums")!=c.dn_vector_sums)
+    throw std::invalid_argument("native vector-sum coordinate needs plan reconstruction");
+  for(unsigned i=0;i<gemms.size();++i) {
+    auto g=dictionaryEntry(gemms[i],"gemms"),r=dictionaryEntry(runtime[i],"gemm_runtime");
+    auto const& cfg=c.gemms[family(g)];
+    if(cfg.mma!=solver::Sm90DenseMma::kMmaSync || cfg.preissue_smem_bytes || cfg.prefetch_l2_bytes)
+      throw std::invalid_argument("this native lowering does not yet implement WGMMA or preissue coordinates");
+    if(integerField(r,"split_k")!=1 || integerField(r,"tile_n")!=cfg.tile_n ||
+       integerField(r,"tile_k")!=cfg.TileK() || integerField(r,"tile_m")!=16 ||
+       integerField(r,"stages")!=cfg.slots || integerField(r,"impl")!=3)
+      throw std::invalid_argument("native coordinates disagree with materialized CTG GEMM geometry");
+    if(g.get("epilogue") && stringField(g,"epilogue")=="swiglu" &&
+       integerField(g,"interleave_u")!=c.swiglu_u)
+      throw std::invalid_argument("native SwiGLU coordinate needs plan reconstruction");
+    auto recipe=json::Parse(stringField(dictionaryEntry(buffers[integerField(g,"b")],"buffers"),"pack_json"));
+    if(recipe.At("kind").AsString("weight layout")!="tile_pages" ||
+       recipe.At("tile_n").AsNumber("weight TN")!=cfg.tile_n ||
+       recipe.At("tile_k").AsNumber("weight TK")!=cfg.TileK())
+      throw std::invalid_argument("native weights do not use their selected contiguous task slices");
+  }
+  if(c.attention.preissue_smem_bytes || c.attention.prefetch_l2_bytes)
+    throw std::invalid_argument("native attention preissue is not implemented yet");
+  std::vector<bool> live(buffers.size(),false);
+  auto mark=[&](std::int64_t id) {
+    if(id>=0 && id!=0xffffffffll && id<int64_t(buffers.size()))live[id]=true;
+  };
+  for(auto value:gemms) {
+    auto g=dictionaryEntry(value,"gemms");
+    for(auto field:{"a","b","c","d","norm_ss","ss_out"})
+      if(auto a=g.getAs<mlir::IntegerAttr>(field))mark(a.getInt());
+  }
+  mark(argmax_index);
+  for(auto value:stages) {
+    auto s=dictionaryEntry(value,"stages");
+    if(stringField(s,"kind")=="kGemm")continue;
+    if(auto operands=s.getAs<mlir::DenseI64ArrayAttr>("operands"))
+      for(auto operand:operands.asArrayRef())mark(operand);
+  }
+  auto id=[&](mlir::DictionaryAttr g,char const* field) {
+    auto attr=g.getAs<mlir::IntegerAttr>(field);
+    if(!attr || attr.getInt()==0xffffffffll || attr.getInt()<0)return std::string("kAbsent");
+    if(attr.getInt()>=int64_t(buffers.size()))throw std::invalid_argument("native operand outside buffer table");
+    return std::to_string(attr.getInt());
+  };
+  std::ostringstream out,types,debug;
+  out<<"// SPDX-License-Identifier: BSD-3-Clause\n"
+     <<"// Generated from native CTG/tmexec coordinates.\n"
+     <<"#define TILEMEGA_STATIC_DENSE_NATIVE 1\n#define TILEMEGA_ARCH_ID 900\n"
+     <<"#define TILEMEGA_DN_VECTOR_SUMS "<<c.dn_vector_sums<<"\n"
+     <<"#define TILEMEGA_SWIGLU_U "<<c.swiglu_u<<"\n"
+     <<"#include <tilemega/Codegen/tasks/Sm90DenseProgram.cuh>\n"
+     <<"namespace tilemega::codegen::native_dense {\n"
+     <<"constexpr char kNativeCoordinateIdentity[]="<<quoteCString(c.ToJson().Dump(0))<<";\n"
+     <<"constexpr float kNativeEpsilon="<<formatFloat(optionalFloatField(plan,"norm_epsilon"))<<"f;\n"
+     <<"constexpr std::array<tm_buffer_info,"<<buffers.size()<<"> kNativeBuffers={{\n";
+  unsigned buffer_index=0;
+  for(auto value:buffers) {
+    auto b=dictionaryEntry(value,"buffers");
+    // Packing can append a new B slot. Retaining its dead row-major recipe
+    // would allocate a second full checkpoint that no native call reads.
+    if(!live[buffer_index++]) {
+      out<<"  {"<<quoteCString(stringField(b,"name"))<<",0,0,0ull,0ull,\"\"},\n";
+      continue;
+    }
+    if(integerField(b,"per_past") || integerField(b,"per_total"))
+      throw std::invalid_argument("native dense buffers must have fixed capacity");
+    auto dtype=stringField(b,"dtype"),role=stringField(b,"role");
+    int code=dtype=="bf16"?0:dtype=="f32"?1:dtype=="i32"?2:-1;
+    if(code<0 || (role!="external" && role!="internal"))
+      throw std::invalid_argument("native dense buffer dtype or role is invalid");
+    auto external=stringField(b,"external_name");
+    out<<"  {"<<quoteCString(external.empty()?stringField(b,"name"):external)<<','
+       <<(role=="external")<<','<<code<<','<<(integerField(b,"constant")+integerField(b,"per_seq"))
+       <<"ull,"<<integerField(b,"per_batch")<<"ull,"<<quoteCString(stringField(b,"pack_json"))<<"},\n";
+  }
+  out<<"}};\n";
+  unsigned number=0;
+  for(auto value:stages) {
+    auto s=dictionaryEntry(value,"stages");auto kind=stringField(s,"kind");
+    auto operands=s.getAs<mlir::DenseI64ArrayAttr>("operands");
+    auto operand=[&](unsigned i) {
+      if(!operands || i>=operands.size())throw std::invalid_argument("native stage lacks operands");
+      auto v=operands[i];
+      if(v<0 || v==0xffffffffll)return std::string("kAbsent");
+      if(v>=int64_t(buffers.size()))throw std::invalid_argument("native stage operand outside buffers");
+      return std::to_string(v);
+    };
+    std::string weight;std::uint64_t bytes=0;unsigned tasks=0,chunks=0;
+    unsigned extent=integerField(s,"extent"),width=integerField(s,"width"),group=integerField(s,"group");
+    types<<"using Stage_"<<number<<'=';
+    if(kind=="kGemm") {
+      unsigned index=integerField(s,"gemm");auto g=dictionaryEntry(gemms[index],"gemms");
+      auto const& cfg=c.gemms[family(g)];
+      auto op=g.get("epilogue")?stringField(g,"epilogue"):"store";
+      std::string enum_op=op=="store"?"kStore":op=="residual"?"kResidual":
+          op=="swiglu"?"kSwiGLU":"kArgmaxPartial";
+      weight=name(integerField(g,"b"));bytes=2ull*integerField(g,"n")*integerField(g,"k");
+      tasks=integerField(g,"n")/cfg.tile_n;
+      types<<"Gemm<"<<batch<<','<<integerField(g,"n")<<','<<integerField(g,"k")<<','
+           <<cfg.tile_n<<','<<cfg.TileK()<<','<<cfg.slots<<','<<cfg.warps_n<<','<<cfg.warps_k
+           <<",backend::ServingEpilogueOp::"<<enum_op<<','<<c.swiglu_u;
+      for(auto field:{"a","b","c","d"})types<<','<<id(g,field);
+      types<<','<<(op=="argmax_partial"?std::to_string(argmax_index):"kAbsent");
+      for(auto field:{"norm_ss","ss_out"})types<<','<<id(g,field);
+    }else if(kind=="kFusedAttention") {
+      if(extent!=8 || (width!=64 && width!=128) || group<2 || group>4 ||
+         integerField(s,"dense_attention_chunks")!=c.attention.chunks ||
+         integerField(s,"attention_kv_block")!=capacity)
+        throw std::invalid_argument("native attention requires reconstructed integrated chunks");
+      bool norm=operand(5)!="kAbsent";
+      if(norm!=(operand(6)!="kAbsent"))throw std::invalid_argument("asymmetric native QK norm");
+      chunks=c.attention.chunks;tasks=batch*8*chunks;
+      types<<"Attention<"<<batch<<','<<width<<','<<group<<','<<norm<<','<<chunks<<','
+           <<c.attention.block_keys<<','<<c.attention.slots<<','<<c.attention.new_row_work<<','<<capacity;
+      for(unsigned i:{0u,1u,2u,7u,3u,4u,5u,6u,8u,9u,10u})types<<','<<operand(i);
+    }else if(kind=="kEmbedding") {
+      tasks=batch;types<<"Embedding<"<<batch<<','<<width<<','<<extent<<','<<capacity;
+      for(unsigned i=0;i<4;++i)types<<','<<operand(i);
+    }else if(kind=="kArgmaxReduce") {
+      tasks=batch;types<<"Argmax<"<<batch<<','<<width<<','<<capacity;
+      for(unsigned i=0;i<3;++i)types<<','<<operand(i);
+    }else throw std::invalid_argument("legacy stage cannot enter native dense program: "+kind);
+    types<<">;\n";
+    debug<<"  {"<<quoteCString(kind)<<','<<quoteCString(weight)<<','<<bytes<<"ull,"
+         <<tasks<<','<<extent<<','<<group<<','<<width<<','<<chunks<<"},\n";
+    ++number;
+  }
+  out<<types.str()<<"using NativeProgram=Program<"<<batch<<','<<capacity<<','<<c.residency<<','<<buffers.size();
+  for(unsigned i=0;i<number;++i)out<<",Stage_"<<i;
+  out<<">;\nconstexpr std::array<StageInfo,"<<number<<"> kNativeStages={{\n"<<debug.str()<<"}};\n"
+     <<"}  // namespace tilemega::codegen::native_dense\n"
+     <<"#include <tilemega/Codegen/tasks/Sm90DenseRuntime.cuh>\n";
+  return out.str();
+}
+}  // namespace
+
 std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
   RejectPendingHandoffLowering(module);
   if (!module || mlir::failed(mlir::verify(module)))
     throw std::invalid_argument("CouplingGraphToCUDA requires a verified CG ModuleOp");
+  if(module->hasAttr("tmexec.sm90_dense"))return emitNativeDenseProgram(module);
   if (!module.getOps<dialect::FusedTileSpaceOp>().empty())
     return LowerFusedRuntime(module);
 
@@ -2183,6 +2365,11 @@ std::string CouplingGraphToCUDA::LowerVariants(
   for (auto const& input : variants)
     RejectPendingHandoffLowering(input.module);
   mlir::ModuleOp first = variants.front().module;
+  if(first->hasAttr("tmexec.sm90_dense")) {
+    if(variants.size()!=1 || variants.front().seq_begin!=1 || variants.front().seq_end!=1)
+      throw std::invalid_argument("native dense programs bind exactly one decode workload");
+    return Lower(first);
+  }
   auto first_plan = first->getAttrOfType<mlir::DictionaryAttr>(
       "tilemega.model_plan");
   if (!first_plan)
