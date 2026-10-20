@@ -37,6 +37,9 @@ class ServingEngine:
         torch.cuda.init()  # Both generated libraries use this primary context.
         self.prefill_lib = PlanLibrary(prefill_so)
         self.decode_lib = PlanLibrary(decode_so)
+        static_abi = getattr(self.decode_lib.lib, 'tm_plan_static_dense_abi', None)
+        self.static_vocab_size = (int(json.loads((Path(model_dir) / 'config.json').read_text())['vocab_size'])
+                                  if static_abi is not None else None)
         if (self.prefill_lib.info.seq != prompt_len or
                 self.decode_lib.info.seq != 1 or
                 self.prefill_lib.info.capacity != self.decode_lib.info.capacity or
@@ -102,7 +105,13 @@ class ServingEngine:
             raise ValueError("token count outside allocated step ring")
         if tuple(prompt_ids.shape) != (self.batch, self.prompt_len):
             raise ValueError("prompt tensor shape disagrees with plan")
-        source = prompt_ids.to(dtype=torch.int32, device="cpu").contiguous()
+        source = prompt_ids.to(device="cpu").contiguous()
+        if self.static_vocab_size is not None:
+            if source.dtype not in (torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8):
+                raise ValueError('static decode requires integer prompt tokens')
+            if source.min().item() < 0 or source.max().item() >= self.static_vocab_size:
+                raise ValueError('prompt token outside the static decode vocabulary')
+        source = source.to(dtype=torch.int32)
         if not source.is_pinned():
             source = source.pin_memory()
         stream = torch.cuda.current_stream()

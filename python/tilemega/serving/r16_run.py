@@ -28,6 +28,7 @@ def main():
     parser.add_argument('--prefill-mode', choices=('L1', 'L2'))
     parser.add_argument('--decode-loop', type=int, choices=(0, 1), default=0)
     parser.add_argument('--check-executors', action='store_true')
+    parser.add_argument('--check-step-loop', action='store_true')
     parser.add_argument('--hf-check', action='store_true')
     parser.add_argument('--hf-positions', type=int)
     args = parser.parse_args()
@@ -106,9 +107,10 @@ def main():
     torch.cuda.empty_cache()
     token_path = args.out/'reference_tokens.json'
     token_path.write_text(json.dumps(reference.tolist())+'\n')
-    if args.check_executors:
+    if args.check_executors or args.check_step_loop:
         checks = []
-        for mode, loop in execution_combinations(manifests[1].get('pg', 'off')):
+        combinations = [('L1', 0), ('L1', 1)] if args.check_step_loop else execution_combinations(manifests[1].get('pg', 'off'))
+        for mode, loop in combinations:
             with engine(mode, loop) as other:
                 generated = other.generate(frozen, args.max_tokens)
                 if args.max_tokens>1 and generated.decode_loop_used!=bool(loop):

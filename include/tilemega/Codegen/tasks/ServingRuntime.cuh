@@ -19,6 +19,14 @@
 #include <limits>
 #include <stdexcept>
 
+#if defined(TILEMEGA_STATIC_DENSE)
+#define TILEMEGA_STEP_KERNEL sm90_dense_step_kernel
+#define TILEMEGA_STEP_LOOP_KERNEL sm90_dense_loop_kernel
+#else
+#define TILEMEGA_STEP_KERNEL tilemega_l1_kernel
+#define TILEMEGA_STEP_LOOP_KERNEL tilemega_l1_loop_kernel
+#endif
+
 #ifndef TILEMEGA_SERVING_BATCH_LO
 #define TILEMEGA_SERVING_BATCH_LO 1
 #endif
@@ -50,6 +58,9 @@ namespace tilemega::codegen::serving {
 
 struct Plan {
   harness::DeviceModel model;
+#if defined(TILEMEGA_STATIC_DENSE)
+  static_dense::Bindings bindings{};
+#endif
   Params* ring = nullptr;
   std::uint64_t* step_ns = nullptr;
   std::uint32_t steps = 0;
@@ -598,7 +609,11 @@ extern "C" int tm_plan_query(tm_plan_info* output) {
              TILEMEGA_SERVING_SEQ, TILEMEGA_SERVING_PAST_LO,
              TILEMEGA_SERVING_PAST_HI, kModel.dims.capacity,
              grid, (grid+target.res.num_sms-1)/target.res.num_sms,
+#if defined(TILEMEGA_STATIC_DENSE)
+             TM_SERVING_L1,
+#else
              TM_SERVING_L1 | TM_SERVING_L2,
+#endif
              kModel.buffer_count};
   return 0;
 }
@@ -655,9 +670,13 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
     if (smem > target.res.max_dynamic_smem_per_cta) return nullptr;
     {
       if (serving::ConfigureServingDynamicShared(
-            reinterpret_cast<void const*>(tilemega_l1_kernel),smem) != cudaSuccess ||
+            reinterpret_cast<void const*>(TILEMEGA_STEP_KERNEL),smem) != cudaSuccess
+#if !defined(TILEMEGA_STATIC_DENSE)
+          ||
           serving::ConfigureServingDynamicShared(
-            reinterpret_cast<void const*>(tilemega_l2_kernel),smem) != cudaSuccess)
+            reinterpret_cast<void const*>(tilemega_l2_kernel),smem) != cudaSuccess
+#endif
+          )
         return nullptr;
 #if TILEMEGA_PAGED
       if (serving::ConfigureServingDynamicShared(
@@ -665,16 +684,20 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
         return nullptr;
 #elif TILEMEGA_SERVING_SEQ==1
       if(serving::ConfigureServingDynamicShared(
-          reinterpret_cast<void const*>(tilemega_l1_loop_kernel),smem)!=cudaSuccess)
+          reinterpret_cast<void const*>(TILEMEGA_STEP_LOOP_KERNEL),smem)!=cudaSuccess)
         return nullptr;
 #endif
     }
     int l1 = target.ActiveBlocksPerSM(
-        reinterpret_cast<void const*>(tilemega_l1_kernel),
+        reinterpret_cast<void const*>(TILEMEGA_STEP_KERNEL),
         kServingThreads, smem);
+#if defined(TILEMEGA_STATIC_DENSE)
+    int l2=l1;
+#else
     int l2 = target.ActiveBlocksPerSM(
         reinterpret_cast<void const*>(tilemega_l2_kernel),
         kServingThreads, smem);
+#endif
     if (grid > target.res.num_sms * std::min(l1, l2)) {
       if constexpr(TILEMEGA_SERVING_RESIDENCY_REQUEST>0) {
         std::fprintf(stderr,"E2E_SERVING_RESIDENCY_REJECT requested=%d grid=%d l1_limit=%d l2_limit=%d shared=%zu\n",
@@ -696,6 +719,26 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
     plan->model = harness::Create(
         kModel, kModel.runtime_variants[0], 0, dims, "", grid,
         std::min(l1, l2), target, smem, external);
+#if defined(TILEMEGA_STATIC_DENSE)
+    if(plan->model.stages.size()!=static_dense::StageCount())
+      throw std::invalid_argument("static dense binding disagrees with the materialized plan");
+    auto address=[&](unsigned id) -> cutlass::bfloat16_t* {
+      if(id==kNoOperand)return nullptr;
+      auto* pointer=static_cast<cutlass::bfloat16_t*>(plan->model.buffers.at(id));
+      if(!pointer)throw std::invalid_argument("static dense operand is unbound");
+      return pointer;
+    };
+    for(unsigned i=0;i<kModel.stage_count;++i) {
+      auto const& stage=kStages[i];auto& binding=plan->bindings.stages[i];
+      if(stage.kind==TaskKind::kGemm) {
+        auto const& g=kGemms[stage.gemm];
+        unsigned ids[]={g.a,g.b,g.c,g.d,g.serving_argmax_index,g.serving_norm_ss,g.serving_ss_out};
+        for(unsigned j=0;j<std::size(ids);++j)binding.operand[j]=address(ids[j]);
+        if(static_dense::Chunks(stage.gemm)>1)
+          binding.partial=reinterpret_cast<float*>(address(static_dense::PartialIndex(stage.gemm)));
+      }else for(unsigned j=0;j<10;++j)binding.operand[j]=address(stage.operand[j]);
+    }
+#endif
 #if TILEMEGA_ATTENTION_FRONTIER
     if(TILEMEGA_PAGED && TILEMEGA_SERVING_SEQ==1 && batch==1) {
       unsigned stride=0;
@@ -794,7 +837,7 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
     plan->loop_modes=2;
 #elif TILEMEGA_SERVING_SEQ==1
     int loop_resident=target.ActiveBlocksPerSM(
-        reinterpret_cast<void const*>(tilemega_l1_loop_kernel),kServingThreads,smem);
+        reinterpret_cast<void const*>(TILEMEGA_STEP_LOOP_KERNEL),kServingThreads,smem);
     if(grid<=target.res.num_sms*loop_resident)plan->loop_modes=1;
 #endif
 #if defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE == 2
@@ -905,6 +948,9 @@ extern "C" int tm_plan_launch(void* opaque, std::uint32_t step,
   auto* plan = static_cast<serving::Plan*>(opaque);
   if (!plan || !plan->ring || step >= plan->steps ||
       (mode != TM_SERVING_L1 && mode != TM_SERVING_L2)) return -1;
+#if defined(TILEMEGA_STATIC_DENSE)
+  if(mode!=TM_SERVING_L1)return -1;
+#endif
   std::uint32_t mode_index = mode == TM_SERVING_L1 ? 0 : 1;
   if (iteration != plan->next_iteration[mode_index]) return -2;
   auto* params = plan->ring + step;
@@ -913,12 +959,18 @@ extern "C" int tm_plan_launch(void* opaque, std::uint32_t step,
 #endif
   auto cuda_stream = static_cast<cudaStream_t>(stream);
   cudaError_t status;
+#if defined(TILEMEGA_STATIC_DENSE)
+  status=executor::LaunchServing(TILEMEGA_STEP_KERNEL,plan->grid,kServingThreads,
+      kServingSharedBytes,cuda_stream,plan->pdl,plan->bindings,
+      static_cast<Params const*>(params),plan->model.events,iteration);
+#else
   if (mode == TM_SERVING_L1)
     status=executor::LaunchServing(tilemega_l1_kernel,plan->grid,kServingThreads,
         kServingSharedBytes,cuda_stream,plan->pdl,params,plan->model.events,iteration);
   else
     status=executor::LaunchServing(tilemega_l2_kernel,plan->grid,kServingThreads,
         plan->model.l2_smem_bytes,cuda_stream,plan->pdl,params,plan->model.events,iteration);
+#endif
   if (status != cudaSuccess) return int(status);
   ++plan->next_iteration[mode_index];
   return 0;
@@ -928,6 +980,10 @@ extern "C" unsigned tm_plan_loop_modes(void* opaque) {
   auto* plan=static_cast<tilemega::codegen::serving::Plan*>(opaque);
   return plan?plan->loop_modes:0;
 }
+
+#if defined(TILEMEGA_STATIC_DENSE)
+extern "C" unsigned tm_plan_static_dense_abi() { return 1; }
+#endif
 
 // Host-only identity queries: no context creation, allocation or GPU probe.
 extern "C" std::uint64_t tm_plan_shared_bytes() {
@@ -962,7 +1018,12 @@ extern "C" int tm_plan_launch_steps(void* opaque, std::uint32_t first_step,
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   if ((plan->model.params.counted_dependencies || plan->model.params.dm_reductions.tickets) && index) loop_params += plan->steps;
 #endif
-#if TILEMEGA_PAGED
+#if defined(TILEMEGA_STATIC_DENSE)
+  status=executor::LaunchServing(TILEMEGA_STEP_LOOP_KERNEL,plan->grid,
+      kServingThreads,kServingSharedBytes,cuda_stream,plan->pdl,plan->bindings,
+      static_cast<Params const*>(loop_params),steps,plan->model.events,base_iteration,
+      plan->step_ns?reinterpret_cast<unsigned long long*>(plan->step_ns+first_step):nullptr);
+#elif TILEMEGA_PAGED
   status=executor::LaunchServing(tilemega_loop_kernel,plan->grid,
         kServingThreads,plan->model.l2_smem_bytes,cuda_stream,plan->pdl,
         static_cast<Params const*>(loop_params),steps,
