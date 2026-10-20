@@ -1,0 +1,15 @@
+variant,depth,ns_per_load_run1,ns_per_load_run2,speedup_vs_depth1,note
+stream serial,1,197.27,195.23,1.00,"68% of 1.61 TB/s peak: already bandwidth-bound with no compute"
+stream registers,2,343.83,343.98,0.57,
+stream registers,3,279.18,280.47,0.70,
+stream registers,4,351.09,350.59,0.56,
+stream registers,6,221.41,220.59,0.89,
+stream registers,8,256.09,256.09,0.77,"every depth is slower: nothing left to hide"
+stream smem ring,2,335.82,338.20,0.59,
+stream smem ring,3,312.11,312.34,0.63,
+stream smem ring,4,268.67,269.10,0.73,"the smem hop costs more than it saves"
+mma serial,1,754.49,754.88,1.00,"with 2 Mma per load the loop is latency-bound, not bandwidth-bound"
+mma registers,2,357.42,355.16,2.11,
+mma registers,3,293.44,294.26,2.57,
+mma registers,4,263.95,264.22,2.86,
+mma registers,6,226.80,225.43,3.34,"approaches the 195 ns bandwidth bound: latency essentially hidden"
