@@ -7,6 +7,7 @@
 
 namespace tilemega::codegen {
 std::string LowerAscend(mlir::ModuleOp module,solver::SymbolicProblem const& p,solver::AscendPlan const& plan) {
+  if(p.model.stages.size()==10)return LowerAscendEncoder(module,p,plan);
   if(p.model.stages.size()>1)return LowerAscendGraph(module,p,plan);
   if(!module || mlir::failed(mlir::verify(module)) || p.model.dtype!=solver::ScalarType::kBF16 ||
      p.model.gemms.size()!=1 || p.model.stages.size()!=1 || p.runtime.gemms.size()!=1 ||

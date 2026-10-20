@@ -54,6 +54,7 @@ add_library(tilemega_core STATIC
   lib/Solver/AscendPlan.cpp
   lib/Codegen/Ascend/AscendCodegen.cpp
   lib/Codegen/Ascend/AscendGraphCodegen.cpp
+  lib/Codegen/Ascend/AscendEncoderCodegen.cpp
   lib/Support/Json.cpp
   lib/Target/Ascend/TargetSpec.cpp
   lib/Target/Ascend/Track.cpp
