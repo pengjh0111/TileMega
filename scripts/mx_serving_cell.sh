@@ -12,6 +12,8 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd); cd $ROOT
 # reproduce a cell (MX3-0 item 1). The two differ only by calibration_sections,
 # which is provenance stamps the solver never reads.
 TARGET=${TARGET:-configs/targets/xcore1000.json}
+# Campaign output root, so MX-2 and MX-3 plans do not collide (MX3-0 item 3).
+CELLS=${CELLS:-runs/mx2/tm}
 QGPU=${QGPU:-6}
 JOBS=${JOBS:-8}
 # Solves compile against a frozen worktree (/root/tilemega_solve, its own
@@ -36,7 +38,7 @@ export)
   done ;;
 solve)
   b=$3; phase=$4
-  C=runs/mx2/tm/$id/B$b/$phase; mkdir -p $C
+  C=$CELLS/$id/B$b/$phase; mkdir -p $C
   [ -f $C/plan.so ] && grep -q "^rc=0" $C/compile.log 2>/dev/null && exit 0
   # One compile per cell. Every artifact in $C has a fixed name, so two
   # concurrent solves of the same cell interleave their plan.so, identity and
@@ -89,6 +91,7 @@ solve)
       --solve $TARGET --runtime-target $TARGET --selection predicted --watchdog 1 \
       --nonpaged-weight-layout $layout --nonpaged-la $la --search-jobs $JOBS \
       --search-passes 2 --search-budget-ms ${SEARCH_BUDGET_MS:-1200000} \
+      ${PIN:+--evaluate-configs $PIN} \
       > $C/compile.log 2>&1 && echo rc=0 >> $C/compile.log || {
         rc=$?
         # The rejection surfaces while probing resources for a candidate that
@@ -119,12 +122,12 @@ solve)
   rm -f $C/plan.so.m*.tsv $C/plan.so.verified*.tsv ;;
 check)
   b=$3; rand=$4; prompts=$5; gpu=$6
-  C=runs/mx2/tm/$id/B$b
+  C=$CELLS/$id/B$b
   NEEDS_MIB=20480 $ROOT/scripts/mx_gpu_job.sh $gpu 1700 $C/check env -u ALL_PROXY -u all_proxy \
     bash $ROOT/scripts/mx_check_modes.sh $rand $C/prefill/plan.so $C/decode/plan.so $b 512 $C $prompts ;;
 measure)
   b=$3; rand=$4; prompts=$5; gpu=$6; round=$7
-  C=runs/mx2/tm/$id/B$b; O=$C/measure/round$round
+  C=$CELLS/$id/B$b; O=$C/measure/round$round
   [ -f $O/.done ] && exit 0
   mkdir -p $O
   NEEDS_MIB=20480 $ROOT/scripts/mx_gpu_job.sh $gpu 1700 $O/guard env -u ALL_PROXY -u all_proxy \
