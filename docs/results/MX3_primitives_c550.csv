@@ -1,0 +1,20 @@
+primitive,measured_ns,p99_ns,calibrated_ns,ratio,note
+dependent read chain 64KiB,442.625,442.625,,,"L1/L2-resident working set; no clear separation from DRAM"
+dependent read chain 8MiB,318.365,318.365,277.921867,1.15,"at the L2 knee; compare l2_latency_ns"
+dependent read chain 256MiB,363.310,363.310,345.441658,1.05,"past L2; compare dram_latency_ns. F11's inferred 1.06us is refuted"
+__threadfence,49.775,49.775,,,"compiler barrier plus device fence"
+atomicAdd independent 1 CTA,9.880,9.880,,,"throughput of fire-and-forget adds, not a critical-path cost"
+atomicAdd independent 104 CTA same address,73.710,73.905,,,
+atomicAdd independent 208 CTA same address,148.790,149.100,,,"scales linearly with CTA count"
+atomicAdd dependent 1 CTA,93.500,93.500,,,"return value feeds the next add: the latency a handoff pays"
+atomicAdd dependent 104 CTA same address,230.160,231.110,214.999993,1.07,"what calibration's atomic_uncontended_ns actually matches"
+cross-AP publish to observe,201.530,201.530,,,"atomicAdd plus fence on one AP to a volatile poll on another"
+V3 grid barrier 104 CTA,471.480,471.550,,,
+V3 grid barrier 208 CTA,678.385,678.465,,,"+44% for residency 2: the cost side of MX3-4 item 1"
+__shfl_xor,53.270,53.270,,,"F6's 46ns confirmed in the same range"
+__syncthreads 128 threads,14.745,14.745,26.980473,0.55,"calibration is 1.8x the measured best case"
+__syncthreads 256 threads,14.755,14.755,26.980473,0.55,"flat in thread count"
+__nanosleep(0),534.250,534.250,,,"minimum granularity: a polling loop pays this even asking for zero"
+__nanosleep(1),616.265,616.265,,,
+__nanosleep(100),794.225,794.225,,,
+__nanosleep(1000),2445.005,2445.005,,,
