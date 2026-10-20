@@ -14,6 +14,7 @@
 #include <tilemega/Codegen/tasks/ServingGemmTaskBody.h>
 #include <tilemega/Codegen/tasks/FusedAttentionTaskBody.h>
 #include <tilemega/Codegen/tasks/IndependentAttentionTaskBody.h>
+#include <tilemega/Codegen/tasks/mx/PrefillAttentionMma.h>
 #include <tilemega/Codegen/tasks/ServingGemvTaskBody.h>
 #include <tilemega/Target/Maca/DevicePrimitives.h>
 #include <cuda_runtime.h>
@@ -80,9 +81,15 @@ __global__ void TimeMerge(float const* partial,float const* lse,
   End(start,cycles);
 }
 using X=arch::Xcore1000;
-using Gemm=ServingGemmTaskBody<X,16,128,64,2>;
-using NarrowGemm=ServingGemmTaskBody<X,16,32,64,2>;
-using TallerGemm=ServingGemmTaskBody<X,32,128,64,2>;
+// Depth 1, the serial mainloop. Since MX-3 Stages is a real pipeline depth,
+// bounded by registers (ServingGemmDepthFits), and 16x128 or 32x128 cannot
+// pipeline at all within that budget, so depth 2 no longer builds for them.
+// The cost model carries depth through in-flight bytes
+// (ServingGemmIterationsInFlight), so the fit is of the serial body and the
+// pipeline is not counted twice.
+using Gemm=ServingGemmTaskBody<X,16,128,64,1>;
+using NarrowGemm=ServingGemmTaskBody<X,16,32,64,1>;
+using TallerGemm=ServingGemmTaskBody<X,32,128,64,1>;
 // GEMV (M <= 4) is a distinct body; its fits carry the "gemv_" prefix.
 using Gemv=ServingGemvTaskBody<X,64,128>;
 using NarrowGemv=ServingGemvTaskBody<X,16,128>;
@@ -102,6 +109,18 @@ __global__ void TimeAttention(ServingAttentionOperands operands,
   extern __shared__ __align__(16) unsigned char bytes[];
   auto& storage=*reinterpret_cast<typename Body::SharedStorage*>(bytes);
   auto start=Begin(cycles);Body::Run(operands,storage,0,0,query_block,0);End(start,cycles);
+}
+
+// Decode attention through the MMA body (attention_impl=mma16, MX3-3):
+// PrefillAttentionMma at Tokens=1, one 16-row query tile, one KV block.
+template<int D,int Q,bool Norm>
+using DecodeMmaBody=mx::PrefillAttentionMma<D,Q,1,16,(Q>=8?64:32),Norm>;
+template<int D,int Q,bool Norm>
+__global__ void TimeDecodeMma(ServingAttentionOperands operands,unsigned long long* cycles) {
+  using Body=DecodeMmaBody<D,Q,Norm>;
+  extern __shared__ __align__(16) unsigned char bytes[];
+  auto& storage=*reinterpret_cast<typename Body::SharedStorage*>(bytes);
+  auto start=Begin(cycles);Body::Run(operands,storage,0,0,0,0);End(start,cycles);
 }
 
 template<class Launch>
@@ -232,6 +251,10 @@ void MeasureServingTaskBodies(TargetSpec& target,Options const& options,std::ost
       Check(cudaFuncSetAttribute(TimeAttention<D,Q,1,Norm>,
           cudaFuncAttributeMaxDynamicSharedMemorySize,sizeof(typename Decode::SharedStorage)),
           "opt in decode attention shared memory");
+      Check(cudaFuncSetAttribute(TimeDecodeMma<D,Q,Norm>,
+          cudaFuncAttributeMaxDynamicSharedMemorySize,
+          sizeof(typename DecodeMmaBody<D,Q,Norm>::SharedStorage)),
+          "opt in mma16 decode attention shared memory");
       Check(cudaFuncSetAttribute(TimeAttention<D,Q,64,Norm>,
           cudaFuncAttributeMaxDynamicSharedMemorySize,sizeof(typename Prefill::SharedStorage)),
           "opt in prefill attention shared memory");
@@ -250,6 +273,13 @@ void MeasureServingTaskBodies(TargetSpec& target,Options const& options,std::ost
           if(phase==1)TimeAttention<D,Q,1,Norm><<<1,128,sizeof(typename Decode::SharedStorage)>>>(p,cycles,qb);
           else TimeAttention<D,Q,64,Norm><<<1,128,sizeof(typename Prefill::SharedStorage)>>>(p,cycles,qb);
         });
+        if(phase==1) {
+          using Mma=DecodeMmaBody<D,Q,Norm>;
+          record("fused_attention_decode_mma16_d"+std::to_string(D)+"_q"+std::to_string(Q)+
+                 "_norm"+std::to_string(Norm),bytes,flops,[&] {
+            TimeDecodeMma<D,Q,Norm><<<1,128,sizeof(typename Mma::SharedStorage)>>>(p,cycles);
+          });
+        }
       }
     };
     attention(std::integral_constant<int,64>{},std::integral_constant<int,4>{},std::false_type{});
