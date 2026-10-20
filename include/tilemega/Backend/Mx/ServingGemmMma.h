@@ -18,6 +18,7 @@
 #pragma once
 
 #include <tilemega/Backend/ServingVectorIO.h>
+#include <tilemega/Solver/BackendCostQuery.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 #include <tilemega/Target/Maca/Bf16.h>
 #include <tilemega/Target/Maca/DevicePrimitives.h>
@@ -74,21 +75,6 @@ __device__ __forceinline__ uint4 LoadK8(tilemega::Bf16 const* row, int k, int va
 /// depth 1, and every depth is then slower -- the gain is in hiding MMA
 /// latency, not in issuing loads sooner. A shared-memory ring was slower than
 /// both at every depth.
-/// Registers one chunk in flight costs a lane, and whether a depth fits.
-/// Free functions so the solver and the codegen can ask before naming a
-/// ServingGemmMma: a static_assert in the class body would fire on the query
-/// itself. The budget is the 255-register file less the accumulators, the
-/// operand staging and the addressing the mainloop already needs.
-constexpr int ServingGemmLoadsPerChunk(int tile_m, int tile_n, int waves) {
-  return tile_n / 16 / waves + tile_m / 16;
-}
-constexpr int ServingGemmPipelineVgprs(int tile_m, int tile_n, int stages, int waves) {
-  return stages * ServingGemmLoadsPerChunk(tile_m, tile_n, waves) * 4;
-}
-constexpr bool ServingGemmDepthFits(int tile_m, int tile_n, int stages, int waves) {
-  return stages >= 1 && ServingGemmPipelineVgprs(tile_m, tile_n, stages, waves) <= 160;
-}
-
 template <int TileM, int TileN, int TileK, int Stages = 1>
 struct ServingGemmMma {
   using Element = tilemega::Bf16;
@@ -107,7 +93,7 @@ struct ServingGemmMma {
   /// flight keeps kLoadsPerChunk 16-byte fragments per lane.
   static constexpr int kPipelineVgprs = kDepth * kLoadsPerChunk * 4;
   static constexpr bool kDepthFits =
-      ServingGemmDepthFits(TileM, TileN, kDepth, kWaves);
+      solver::ServingGemmDepthFits(TileM, TileN, kDepth, kWaves);
 
   /// Offset of lane `lane`'s 16 bytes of atom `atom`, 32-K chunk `chunk`
   /// inside one TileN x TileK weight tile in fragment order: a wave's load
