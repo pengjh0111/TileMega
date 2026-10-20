@@ -42,11 +42,16 @@ def shapes(max_m: int, max_smem: int, stages_filter: int | None = None, dm: bool
             if m * n > 16384 or 4 * m * n + 4 * m > max_smem:
                 continue
             for k in (64, 128):
-                # The serving domain offers depth 1 only since MX-3
-                # (OperatorClasses.h: deeper pipelines measured no faster);
-                # prewarm what the search can reach.
-                if stages_filter is None or stages_filter == 1:
-                    yield m, n, k, 1
+                # Depths the serving domain offers (OperatorClasses.h):
+                # 1, then deeper while the pipeline fits 32 VGPRs.
+                loads = n // 16 // 2 + m // 16
+                stages = 1
+                while True:
+                    if stages_filter is None or stages == stages_filter:
+                        yield m, n, k, stages
+                    stages += 1
+                    if stages * loads * 4 > 32:
+                        break
 
 
 def main():
