@@ -38,6 +38,11 @@ BackendTraits ImplementationContract::DeclaredTraits() const {
   traits.cluster = cluster;
   traits.alignment = alignment;
   traits.arch_sm = arch_required;
+  if(ascend_implementation) {
+    traits.arch_tag=arch_tag;traits.ascend_implementation=ascend_implementation;
+    traits.shape_legal=tile_m==32 && tile_n==64 && tile_k==64 && stages==2;
+    return traits;
+  }
   if (backend == kTensorBF16Backend)
     traits.shape_legal = TensorBF16ShapeLegal(tile_m, tile_n, tile_k, stages);
   else
@@ -46,6 +51,15 @@ BackendTraits ImplementationContract::DeclaredTraits() const {
 }
 
 bool VerifyTraits(ImplementationContract const& impl, std::string* error) {
+  if(impl.ascend_implementation) {
+    if(impl.arch_tag!="ascend_3510" || impl.backend!="catlass_950_block_mmad" ||
+       impl.ascend_implementation->kind!=codegen::TaskKind::kGemm ||
+       impl.ascend_implementation->required_role!=ascend::ImplementationRole::kAicOnly ||
+       impl.threads || impl.smem_bytes || impl.arch_required || impl.regs_est ||
+       !impl.DeclaredTraits().shape_legal)
+      return Fail(error,"Native implementation contradicts the fixed CATLASS tile contract"),false;
+    return true;
+  }
   if (impl.backend != kSimtF32Backend && impl.backend != kTensorBF16Backend)
     return Fail(error, "unknown backend '" + impl.backend + "'"), false;
   BackendTraits expected = impl.backend == kTensorBF16Backend
@@ -85,6 +99,15 @@ bool VerifyTarget(ImplementationContract const& impl, TargetSpec const& target,
     if (needed > target.res.regs_per_sm)
       return Fail(error, "declared register estimate does not fit one SM"), false;
   }
+  return true;
+}
+bool VerifyExactAccess(ImplementationContract const& impl,
+    std::vector<analysis::CouplingRelation> const& derived,std::string* error) {
+  if(impl.exact_operands.size()!=derived.size() || derived.empty())
+    return Fail(error,"Exact implementation operand count mismatch"),false;
+  for(std::size_t i=0;i<derived.size();++i)
+    if(!derived[i].IsSubset(impl.exact_operands[i]) || !impl.exact_operands[i].IsSubset(derived[i]))
+      return Fail(error,impl.name+" exact operand "+std::to_string(i)+" differs from the CTG access"),false;
   return true;
 }
 

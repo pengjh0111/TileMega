@@ -40,6 +40,9 @@ namespace tilemega {
 ///                                     (cross compilation, cost modelling).
 struct TargetSpec {
   std::optional<ascend::TargetCapability> ascend_capability;
+  std::string ascend_config_json;
+  int physical_device_id = -1, logical_device_id = -1;
+  std::string runtime_product;
   struct EventRate {
     std::optional<double> ns;
     std::string reason = "not_calibrated";

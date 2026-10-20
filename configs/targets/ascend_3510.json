@@ -1,0 +1,85 @@
+{
+  "arch_tag": "ascend_3510",
+  "product_sku": "950PR",
+  "runtime_product": "Ascend950PR_9579",
+  "cann_version": "9.1.0",
+  "catlass_sha": "2b6c6a6d5bd26559578cf7e3b2fb64af51f64e52",
+  "verified_physical_device_ids": [
+    0
+  ],
+  "max_verified_mix_groups": 2,
+  "residency": 1,
+  "calibration_status": "not_calibrated",
+  "selection": "fixed_legal_whitelist",
+  "tracks": [
+    {
+      "name": "aic",
+      "count": 28,
+      "grouping": "mix_group",
+      "local_resources": {
+        "l1": 524288,
+        "l0a": 65536,
+        "l0b": 65536,
+        "l0c": 262144,
+        "ub": 0,
+        "registers": 0,
+        "ssbuffer": 0
+      },
+      "available_impl_types": [
+        "AIC_ONLY",
+        "MIX_1_2"
+      ]
+    },
+    {
+      "name": "aiv",
+      "count": 56,
+      "grouping": "mix_group",
+      "local_resources": {
+        "l1": 0,
+        "l0a": 0,
+        "l0b": 0,
+        "l0c": 0,
+        "ub": 221184,
+        "registers": 0,
+        "ssbuffer": 0
+      },
+      "available_impl_types": [
+        "AIV_ONLY",
+        "MIX_1_2"
+      ]
+    }
+  ],
+  "capabilities": {
+    "aic_only_kernel": true,
+    "aiv_only_kernel": true,
+    "mix_1_2": true,
+    "gm_event_single_owner": true,
+    "group_flag": false,
+    "cross_group_stage_barrier": false,
+    "same_group_l0c_to_ub": false,
+    "same_group_ub_to_l1": false,
+    "ssbuffer_control": false,
+    "mode4": false,
+    "simt": false
+  },
+  "implementations": [
+    {
+      "impl_id": "catlass_gemm_tile_fp32_identity_probe",
+      "task_kind": 0
+    },
+    {
+      "impl_id": "catlass_950_bf16_32x64x64_gm",
+      "task_kind": 0
+    }
+  ],
+  "evidence": {
+    "resource_budgets": "verified API queries; actual bodies must separately prove allocation legality",
+    "ub_touch_bytes": 217088,
+    "runtime_probe": "runs/as1/probes/entry_resources_summary.json",
+    "gm_event": "runs/as1/probes/gm_visibility_summary.json",
+    "gm_event_scope": "single-owner events, G=2, 128B/4KiB FP32 payload, 16 epochs, 5 fresh processes",
+    "unknown_register_ssbuffer_budget": "No explicit SSBuffer/SIMT allocation; compiler register counts unmeasured, never used for occupancy",
+    "bf16_gemm": "runs/as1/jobs/gemm_tile_bf16_aligned and gemm_tile_bf16_tail; numerical_result.json under e0/aligned and e0/tail; these are body probes, C-0 not yet passed",
+    "fp32_l0c_to_ub_probe": "verified official EVG FP32 64x8192x32, 16 tiles/group, 5/5 fresh processes; runs/as1/probes/evg_ub_reuse_summary.json. BF16 native direct implementation remains disabled."
+  }
+}

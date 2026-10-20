@@ -4,6 +4,7 @@
 #pragma once
 
 #include <tilemega/Analysis/AccessRelation.h>
+#include <tilemega/Analysis/CouplingRelation.h>
 #include <tilemega/Solver/CandidateGenerator.h>
 
 #include <optional>
@@ -45,6 +46,9 @@ struct ImplementationContract {
   AlignmentRequirement alignment;
   int arch_required = 0;
   std::vector<OperandContract> operands;
+  std::string arch_tag;
+  std::optional<ascend::TaskImplementation> ascend_implementation;
+  std::vector<analysis::CouplingRelation> exact_operands;
 
   BackendTraits DeclaredTraits() const;
 };
@@ -52,6 +56,9 @@ struct ImplementationContract {
 /// The declared traits must be the backend's own answer for the declared
 /// tile: an implementation may choose a shape, never restate its cost.
 bool VerifyTraits(ImplementationContract const& impl, std::string* error);
+bool VerifyExactAccess(ImplementationContract const&,
+                       std::vector<analysis::CouplingRelation> const&,
+                       std::string* error);
 
 /// The implementation must fit the target it claims.
 bool VerifyTarget(ImplementationContract const& impl, TargetSpec const& target,

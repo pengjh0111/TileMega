@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/CandidateGenerator.h>
+#include <tilemega/Solver/AscendImplementation.h>
+#include <tilemega/Support/Json.h>
 
 #include <algorithm>
 #include <tuple>
@@ -25,6 +27,32 @@ CandidateGenerator::CandidateGenerator(TargetSpec target, ScalarType dtype,
     : target_(std::move(target)), envelope_(envelope), dtype_(dtype) {}
 
 std::vector<BackendCandidate> CandidateGenerator::Enumerate(Stats* stats) const {
+  if(target_.arch_tag=="ascend_3510") {
+    if(dtype_!=ScalarType::kBF16)throw std::invalid_argument("AS-1 fixed GEMM candidates require BF16");
+    BackendCandidate candidate(As1Bf16GemmTraits());
+    auto config=json::ParseFile(std::string(TILEMEGA_SOURCE_DIR)+"/configs/ascend/as1_impl_bindings.json");
+    if(config.At("arch_tag").AsString("arch_tag")!=target_.arch_tag ||
+       config.At("selection").AsString("selection")!="fixed_legal_whitelist" ||
+       config.At("automatic_performance_ranking").AsBool("automatic_performance_ranking"))
+      throw std::invalid_argument("Invalid AS-1 implementation selection policy");
+    bool bound=false;
+    for(auto const& entry:config.At("bindings").AsArray("bindings")) {
+      if(!entry.At("enabled").AsBool("enabled") || entry.At("task_kind").AsNumber("task_kind")!=0)continue;
+      auto const& tile=entry.At("tile_mnk").AsArray("tile_mnk");
+      if(bound || entry.At("impl_id").AsString("impl_id")!=candidate.traits().ascend_implementation->impl_id ||
+         entry.At("required_role").AsString("required_role")!="AIC_ONLY" || tile.size()!=3 ||
+         tile[0].AsNumber("tile_m")!=32 || tile[1].AsNumber("tile_n")!=64 || tile[2].AsNumber("tile_k")!=64 ||
+         entry.At("stages").AsNumber("stages")!=2 || entry.At("split_k").AsNumber("split_k")!=1 ||
+         entry.At("event_triggers").AsNumber("event_triggers")!=1 ||
+         entry.At("dtype").AsString("dtype")!="bf16" || entry.At("accumulator").AsString("accumulator")!="fp32")
+        throw std::invalid_argument("GEMM binding disagrees with the verified native implementation");
+      bound=true;
+    }
+    if(!bound)throw std::invalid_argument("Missing enabled native GEMM binding");
+    if(!candidate.isLegal(target_))throw std::invalid_argument("The fixed native GEMM lacks verified target binding");
+    if(stats)*stats={1,0,0,1,1};
+    return {candidate};
+  }
   std::vector<BackendCandidate> result;
   Stats local;
   int const native_k = dtype_ == ScalarType::kBF16 ? 16 : 8;
@@ -104,6 +132,7 @@ std::vector<BackendCandidate> CandidateGenerator::Enumerate(Stats* stats) const 
 
 AnalyticalCost CandidateGenerator::Analyze(BackendCandidate const& candidate,
                                            GemmProblem const& problem) const {
+  if(target_.arch_tag=="ascend_3510")throw std::invalid_argument("AS-1 performance ranking is not calibrated");
   AnalyticalCost cost;
   BackendTraits const& traits = candidate.traits();
   if (!candidate.isLegal(target_) || problem.m <= 0 || problem.n <= 0 ||
@@ -132,6 +161,7 @@ double CandidateGenerator::RankKey(BackendCandidate const& candidate,
 std::vector<BackendCandidate> CandidateGenerator::TopK(
     std::vector<BackendCandidate> const& candidates,
     std::vector<GemmProblem> const& problems, int k) const {
+  if(target_.arch_tag=="ascend_3510")throw std::invalid_argument("Use the fixed native whitelist without TopK ranking");
   std::vector<std::pair<double, BackendCandidate>> ranked;
   ranked.reserve(candidates.size());
   for (auto const& candidate : candidates)
