@@ -128,7 +128,10 @@ class Plan:
     def execution_identity(self, mode: int, loop: bool = False) -> dict | None:
         if self.library.identity is None:return None
         pdl=self.library.lib.tm_plan_pdl_enabled(self.handle)
-        execution=bind_execution(self.library.identity, {1:'L1',2:'L2'}[mode], loop, pdl)
+        static_abi=getattr(self.library.lib,'tm_plan_static_dense_abi',None)
+        static_dense=static_abi is not None and static_abi()==1
+        execution=bind_execution(self.library.identity, {1:'L1',2:'L2'}[mode], loop, pdl,
+                                 static_dense=static_dense)
         execution['shared_memory_bytes']=int(self.library.lib.tm_plan_execution_smem(self.handle,mode))
         execution['execution_id']=digest({k:v for k,v in execution.items() if k!='execution_id'})
         return execution

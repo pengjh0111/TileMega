@@ -45,6 +45,18 @@ ptxas info : Function properties for helper
 
     def test_spilled_callee_belongs_to_its_entry(self):
         i=self.identity();self.assertTrue(bind_execution(i,'L1')['spill']);self.assertFalse(bind_execution(i,'L2')['spill'])
+    def test_static_abi_selects_executed_entries_among_legacy_symbols(self):
+        i=self.identity()
+        for name in ('sm90_dense_step_kernel','sm90_dense_loop_kernel'):
+            i['resources'][name]={'name':name,'spill':False}
+        self.assertEqual(bind_execution(i,'L1',static_dense=True)['kernel'],'sm90_dense_step_kernel')
+        self.assertEqual(bind_execution(i,'L1',True,static_dense=True)['kernel'],'sm90_dense_loop_kernel')
+        self.assertEqual(bind_execution(i,'L1')['kernel'],'tilemega_l1_kernel')
+        with self.assertRaises(ValueError):bind_execution(i,'L2',static_dense=True)
+    def test_native_kernel_identity_covers_step_and_loop(self):
+        i=self.identity();i['resources']['sm90_dense_native_kernel']={'name':'sm90_dense_native_kernel','spill':False}
+        for loop in (False,True):
+            self.assertEqual(bind_execution(i,'L1',loop,static_dense=True)['kernel'],'sm90_dense_native_kernel')
     def test_execution_is_part_of_join_key(self):
         i=self.identity();a={'execution_identity':bind_execution(i,'L1')};b={'execution_identity':bind_execution(i,'L2')}
         self.assertEqual(checked_join(a,copy.deepcopy(a))['left'],a)

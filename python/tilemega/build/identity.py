@@ -75,10 +75,14 @@ def parse_resources(text):
     return result
 
 
-def bind_execution(identity, executor, loop=False, pdl=False):
+def bind_execution(identity, executor, loop=False, pdl=False, static_dense=False):
     if executor not in ('L1','L2'):raise ValueError('execution identity needs an explicit executor')
     pg=identity['plan'].get('pg')
-    if loop:
+    if static_dense:
+        if executor!='L1':raise ValueError('static dense programs only expose L1')
+        native=[k for k in identity['resources'] if 'sm90_dense_native_kernel' in k]
+        needle='sm90_dense_native_kernel' if native else ('sm90_dense_loop_kernel' if loop else 'sm90_dense_step_kernel')
+    elif loop:
         if pg=='pages' and executor=='L2':needle='tilemega_loop_kernel'
         elif pg!='pages' and executor=='L1':needle='tilemega_l1_loop_kernel'
         else:raise ValueError('unsupported serving loop identity')
