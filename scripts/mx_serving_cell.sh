@@ -67,7 +67,9 @@ solve)
   # 16,32,16,3> -- tile_k 16 with 3 stages, where the serving GEMM body allows
   # k in {64,128}. PruneServingR1 checks that predicate, so the last-arriver
   # path reaches codegen without it.
-  la=0
+  # MX3-4 item 3: LA=1 re-tests the last-arriver handoff now that codegen
+  # emits the selected tile_k and stages (fixed in MX-1, never re-measured).
+  la=${LA:-0}
   # Fragment-packed ("tiled") weights measure faster than row-major on this
   # device, so they are the default; LAYOUT=row overrides for an A/B.
   layout=${LAYOUT:-tiled}
