@@ -1143,10 +1143,25 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
   int rank=0;for(auto const& candidate:result.evaluated) {
     if(!candidate.error.empty())continue;if(rank==options.top_m)break;++rank;
     auto opts=options;opts.kappa=candidate.kappa;
-    auto a=search.Materialize(candidate,true);auto a_stats=a.candidate.placement;
-    auto ea=FinalizeSkeletonPoint(std::move(a),opts,options.artifact_prefix+".m"+std::to_string(rank)+"A");
-    auto b=search.Materialize(candidate,false);auto b_stats=b.candidate.placement;
-    auto eb=FinalizeSkeletonPoint(std::move(b),opts,options.artifact_prefix+".m"+std::to_string(rank)+"B");
+    // A candidate the search could price can still fail to materialize: on
+    // Qwen3-0.6B B1 a top-ranked 16x256 plan at residency 3 has a per-worker
+    // task count that is position-dependent (max 32 != min 16), which the
+    // exact placement cannot represent. That is an unbuildable candidate,
+    // not a failed search: record it and keep the others (MX3 §0.6).
+    CompilerSearchResult::ShortlistEntry ea,eb;
+    SkeletonPlacementStats a_stats,b_stats;
+    try {
+      auto a=search.Materialize(candidate,true);a_stats=a.candidate.placement;
+      ea=FinalizeSkeletonPoint(std::move(a),opts,options.artifact_prefix+".m"+std::to_string(rank)+"A");
+      auto b=search.Materialize(candidate,false);b_stats=b.candidate.placement;
+      eb=FinalizeSkeletonPoint(std::move(b),opts,options.artifact_prefix+".m"+std::to_string(rank)+"B");
+    }
+    catch(std::exception const& e) {
+      evidence<<"MATERIALIZE_FAILED\t"<<candidate.key<<'\t'<<e.what()<<'\n';
+      std::fprintf(stderr,"MATERIALIZE_FAILED %s: %s\n",candidate.key.c_str(),e.what());
+      --rank;
+      continue;
+    }
     bool pure=options.pure_template ||
         (search.ServingRuntimePlan()
           ? eb.evaluation.makespan_ns>0.98*ea.evaluation.makespan_ns
