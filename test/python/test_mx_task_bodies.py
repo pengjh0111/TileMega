@@ -235,10 +235,13 @@ class ServingAttentionBodies(unittest.TestCase):
 
     def test_decode(self):
         torch = self.torch
-        for d, q, norm in ((128, 2, 1), (64, 4, 0), (128, 4, 0), (128, 3, 0), (128, 8, 1)):
+        # impl 3 is simt, 0 is mma16 (PrefillAttentionMma at Tokens=1). Both
+        # must meet the same tolerance against the same reference (MX3-3 item 4).
+        for impl in (3, 0):
+         for d, q, norm in ((128, 2, 1), (64, 4, 0), (128, 4, 0), (128, 3, 0), (128, 8, 1)):
             for batch, heads, capacity, past, block in ((1, 8, 1088, 64, 1088), (2, 4, 1088, 700, 256),
                                                         (3, 2, 512, 0, 512), (1, 8, 1088, 1086, 128)):
-                with self.subTest(d=d, q=q, norm=norm, batch=batch, past=past, block=block):
+                with self.subTest(impl=impl, d=d, q=q, norm=norm, batch=batch, past=past, block=block):
                     cos, sin, qn, kn, g = self.tables(capacity, d, seed=d + q + past)
                     qkv = torch.randn(batch, heads, (q + 2) * d, generator=g).to(torch.bfloat16).cuda().contiguous()
                     kc = torch.randn(batch, heads, capacity, d, generator=g).to(torch.bfloat16).cuda().contiguous()
@@ -251,7 +254,7 @@ class ServingAttentionBodies(unittest.TestCase):
                     args = AttentionArgs(qkv.data_ptr(), kc.data_ptr(), vc.data_ptr(), cos.data_ptr(), sin.data_ptr(),
                                          qn.data_ptr(), kn.data_ptr(), context.data_ptr(), partial.data_ptr(),
                                          lse.data_ptr(), batch, heads, capacity, past, block, 1e-6)
-                    code = self.lib.tm_test_decode_attention(ctypes.byref(args), d, q, norm,
+                    code = self.lib.tm_test_decode_attention_impl(ctypes.byref(args), d, q, norm, impl,
                                                              ctypes.c_void_p(torch.cuda.current_stream().cuda_stream))
                     self.assertEqual(code, 0)
                     torch.cuda.synchronize()

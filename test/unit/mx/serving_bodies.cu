@@ -119,8 +119,8 @@ extern "C" int tm_test_gemm_tiled_staged(GemmArgs const* g, Bf16 const* weight, 
                                          float* tiles, void* stream) {
 #define TM_LAUNCH(M, N, K, S)                                                                       \
   if (tile_m == M && tile_n == N && tile_k == K && stages == S &&                                   \
-      backend::ServingGemmDepthFits(M, N, S, 2)) {                                                  \
-    if constexpr (backend::ServingGemmDepthFits(M, N, S, 2)) {                                      \
+      tilemega::solver::ServingGemmDepthFits(M, N, S, 2)) {                                                  \
+    if constexpr (tilemega::solver::ServingGemmDepthFits(M, N, S, 2)) {                                      \
     int const tm = (g->m + M - 1) / M, tn = (g->n + N - 1) / N, smem = 4 * M * N + 4 * M;           \
     if (cudaFuncSetAttribute(RunTiledDense<M, N, K, S>, cudaFuncAttributeMaxDynamicSharedMemorySize, smem) != cudaSuccess) \
       return 1;                                                                                     \
@@ -183,6 +183,17 @@ __global__ void __launch_bounds__(128) RunPrefillAttention(AttentionArgs a, int 
             b = blockIdx.x / query_blocks / a.heads_kv;
   Body::Run(AttentionOperands(a), *reinterpret_cast<typename Body::SharedStorage*>(shared), b, g, qb, 0);
 }
+/// Decode through the MMA body: one 16-row query block (qb = 0) and one task
+/// per KV block, which is the opposite mapping from prefill, where the KV
+/// blocks are streamed inside Run and the grid covers query blocks.
+template <class Body>
+__global__ void __launch_bounds__(128) RunDecodeAttentionMma(AttentionArgs a, int blocks) {
+  extern __shared__ __align__(16) char shared[];
+  int const c = blockIdx.x % blocks, g = (blockIdx.x / blocks) % a.heads_kv,
+            b = blockIdx.x / blocks / a.heads_kv;
+  Body::Run(AttentionOperands(a), *reinterpret_cast<typename Body::SharedStorage*>(shared), b, g, 0, c);
+}
+
 template <class Body, class Kernel>
 int LaunchAttention(Kernel kernel, AttentionArgs const& a, int per_group, void* stream) {
   int const smem = sizeof(typename Body::SharedStorage);
@@ -193,16 +204,34 @@ int LaunchAttention(Kernel kernel, AttentionArgs const& a, int per_group, void* 
 }  // namespace
 
 /// Decode attention: (D, Q, norm) in {(128,2,1), (64,4,0), (128,4,0), (128,3,0), (128,8,1)}.
-extern "C" int tm_test_decode_attention(AttentionArgs const* a, int d, int q, int norm, void* stream) {
+/// `impl` 3 is simt, 0 is mma16. mma16 reuses PrefillAttentionMma at
+/// Tokens=1, so the same inputs must give the same partials, LSE and context
+/// as the SIMT body at the tolerance the SIMT body already meets (MX3-3 item
+/// 4). Its query block is a 16-row MMA tile, so `per_group` stays the block
+/// count and the query-block argument is 0.
+extern "C" int tm_test_decode_attention_impl(AttentionArgs const* a, int d, int q, int norm,
+                                             int impl, void* stream) {
   int const blocks = (a->capacity + a->block_extent - 1) / a->block_extent;
-#define TM_CASE(D, Q, N)                                                                   \
-  if (d == D && q == Q && norm == N) {                                                     \
+#define TM_SIMT(D, Q, N)                                                                   \
+  if (d == D && q == Q && norm == N && impl == 3) {                                        \
     using B = mx::DecodeAttentionSimt<D, Q, N != 0>;                                       \
     return LaunchAttention<B>(RunDecodeAttention<B>, *a, blocks, stream);                  \
   }
+#define TM_MMA(D, Q, N)                                                                    \
+  if (d == D && q == Q && norm == N && impl == 0) {                                        \
+    using B = mx::PrefillAttentionMma<D, Q, 1, 16, (Q >= 8 ? 64 : 32), N != 0>;            \
+    return LaunchAttention<B>(RunDecodeAttentionMma<B>, *a, blocks, stream);                \
+  }
+#define TM_CASE(D, Q, N) TM_SIMT(D, Q, N) TM_MMA(D, Q, N)
   TM_CASE(128, 2, 1) TM_CASE(64, 4, 0) TM_CASE(128, 4, 0) TM_CASE(128, 3, 0) TM_CASE(128, 8, 1)
 #undef TM_CASE
+#undef TM_MMA
+#undef TM_SIMT
   return 3;
+}
+
+extern "C" int tm_test_decode_attention(AttentionArgs const* a, int d, int q, int norm, void* stream) {
+  return tm_test_decode_attention_impl(a, d, q, norm, 3, stream);
 }
 
 /// Prefill attention, Tokens = 64: (D, Q, norm, kv_tile, q_rows).
