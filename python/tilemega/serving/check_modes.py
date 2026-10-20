@@ -54,6 +54,12 @@ def main() -> None:
         finally:
             if previous is None:os.environ.pop('TILEMEGA_KPHASE_MASK',None)
             else:os.environ['TILEMEGA_KPHASE_MASK']=previous
+            # `with ... as engine` leaves `engine` bound, so the previous arm's
+            # weights stayed alive while the next arm loaded its own. On
+            # Llama-3.1-8B with separately packed prefill and decode weights
+            # that is two 32 GB engines on a 64 GB card (MX3, out of memory).
+            engine=None
+            import gc;gc.collect();torch.cuda.empty_cache()
         if not validation_guard(a.out/'guard.jsonl',label+'-after',False,allow_shared=a.allow_shared_gpu):
             raise SystemExit(75)
         mismatches[label]=int((results[label]!=results[arms[0][0]]).sum().item())
