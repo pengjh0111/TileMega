@@ -334,6 +334,9 @@ int RunCompile(int argc, char** argv) {
     int skeleton_k=8,search_passes=3,search_jobs=1,search_top_m=8,
         search_budget_ms=solver::SkeletonSearchOptions::kDefaultSearchBudgetMs,
         measure_top=6;
+    // MX3-5: candidates surviving the pilot rounds, and the timed rounds each
+    // finalist gets. 3 and 3 reproduce the original top-3 protocol.
+    int measure_finalists=3,measure_rounds=3;
     bool all_workers=false,flow_search_only=false,incremental_prepare=true,
          serving_pruning=true;
     tilemega::solver::SolverTiming solver_timing;
@@ -361,6 +364,8 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--serving-pruning") serving_pruning=std::stoi(value)!=0;
       else if (flag=="--search-passes") search_passes=std::stoi(value);
       else if (flag=="--measure-top") measure_top=std::stoi(value);
+      else if (flag=="--measure-finalists") measure_finalists=std::stoi(value);
+      else if (flag=="--measure-rounds") measure_rounds=std::stoi(value);
       else if (flag=="--top-m") search_top_m=std::stoi(value);
       else if (flag=="--search-jobs") search_jobs=std::stoi(value);
       else if (flag=="--search-budget-ms") search_budget_ms=std::stoi(value);
@@ -1353,13 +1358,15 @@ int RunCompile(int argc, char** argv) {
         std::vector<std::size_t> active(candidate_sos.size());
         std::iota(active.begin(),active.end(),0);
         int pilot=-1;
-        while(active.size()>3) {
+        if(measure_finalists<1 || measure_rounds<1)
+          throw std::invalid_argument("--measure-finalists and --measure-rounds must be positive");
+        while(active.size()>std::size_t(measure_finalists)) {
           for(auto i:active)if(observe(i,pilot)==75)return 75;
           active.erase(std::remove_if(active.begin(),active.end(),[&](auto i){return rejected[i];}),active.end());
           std::stable_sort(active.begin(),active.end(),[&](auto a,auto b){
             return samples[{a,candidate_mode}].back()<samples[{b,candidate_mode}].back();
           });
-          auto keep=std::min(active.size(),std::max(std::size_t(3),(active.size()+1)/2));
+          auto keep=std::min(active.size(),std::max(std::size_t(measure_finalists),(active.size()+1)/2));
           for(auto j=keep;j<active.size();++j) {
             auto i=active[j];rejected[i]=true;
             selected<<i+1<<"\teliminated\t0\t"<<samples[{i,candidate_mode}].back()<<'\t'<<candidate_sos[i]<<'\n';
@@ -1367,13 +1374,15 @@ int RunCompile(int argc, char** argv) {
           active.resize(keep);--pilot;
         }
         for(auto i:active)samples[{i,candidate_mode}].clear();
-        for(int round=0;round<3;++round)for(std::size_t pos=0;pos<active.size();++pos)
+        for(int round=0;round<measure_rounds;++round)for(std::size_t pos=0;pos<active.size();++pos)
           if(observe(active[(pos+round)%active.size()],round)==75)return 75;
         for(auto& [key,values]:samples) {
           if(rejected[key.first])continue;
-          if(values.size()!=3)throw std::runtime_error("top-3 mode lacks three measurement rounds");
+          if(values.size()!=std::size_t(measure_rounds))
+            throw std::runtime_error("finalist lacks its measurement rounds");
           std::sort(values.begin(),values.end());
-          double median=values[1];
+          auto const n=values.size();
+          double median=n%2?values[n/2]:0.5*(values[n/2-1]+values[n/2]);
           selected<<key.first+1<<'\t'<<key.second<<'\t'
                   <<(use_pages && candidate_mode=="L2"?candidate_loop:0)<<'\t'<<median<<'\t'
                   <<candidate_sos[key.first]<<'\n';
