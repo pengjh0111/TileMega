@@ -99,13 +99,20 @@ inline ServingClassDomain ServingClassCandidates(
       }
   ServingClassDomain domain;
   for(int m:{16,32,64,128})for(int n:{32,64,128,256})for(int k:{64,128}) {
-    // Depth is bounded by the register file, not shared memory: the MMA
-    // mainloop's pipeline lives in registers (ServingGemmMma.h), so the old
-    // max_dynamic_smem_per_cta/(2*k*(m+n)) limit described staged operands
-    // the body never had. Depth 1 is the serial form and is offered too.
+    // Serving offers depth 1 only. The mainloop does pipeline at any depth
+    // ServingGemmDepthFits admits, but on this device the pipeline does not
+    // change a decode step: Qwen3-0.6B B1, one geometry, measures 5.958 ms at
+    // depth 1 and 5.987 ms at depth 4 (+0.5%, inside the 1% band), and depth
+    // 6 spills (21% slower). Residency 4 already hides the latency a single
+    // CTA sees -- the probe's depth gain falls from 3.34x at one CTA per AP
+    // to 1.5x at four, saturating at depth 2 on the bandwidth floor -- and a
+    // task's 4-16 chunks leave little loop to overlap. The cost model, which
+    // prices depth through bytes in flight, predicted depth 4 11% faster
+    // than depth 1 for that plan. A coordinate whose priced gain the body
+    // does not deliver leaves the domain (MX3 §0.3); depths that differ only
+    // in Stages would otherwise also multiply variants (+22% measured, MX-2).
     (void)target;
-    int stage_limit=1;
-    while(ServingGemmDepthFits(m,n,stage_limit+1,2))++stage_limit;
+    int const stage_limit=1;
     for(int stages=1;stages<=stage_limit;++stages)
       for(int split:{1,2,4,8,16,32}) {
         if(gemm.epilogue==frontend::PlanGemm::Epilogue::kArgmaxPartial && split!=1)
