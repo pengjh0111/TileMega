@@ -1,0 +1,13 @@
+kind,model,batch,gpu,processes,median_ms,minimum_ms,maximum_ms,range_pct,phase,original_sha256,repeated_sha256,identical,arm,fresh_processes_per_arm,reference_ms,candidate_ms,difference_pct,reference_range_pct,candidate_range_pct,evidence,job,instrumented_request_step_ms,overhead_ms
+fresh_process,qwen3_0_6b,1,7,5,1.8173705356651673,1.816878942324382,1.817702365591248,0.045308496572749914,,,,,,,,,,,,,,,
+fresh_process,llama3_1_8b,1,1,5,6.689455346006332,6.647563667638812,6.828396423275556,2.7032508071782377,,,,,,,,,,,,,,,
+build_hash,qwen3_0_6b,1,,,,,,,prefill,893fd51095304102be3828c5935aced20729aaeaa405c62d366cb0a19b092da7,802d6da9b3a461f4d5819fe3bf7a1850e38852beedd6acb4a280da7e2036cb10,False,,,,,,,,,,,
+build_hash,qwen3_0_6b,1,,,,,,,decode,97c68e2b9442fe969e4dd3409980fd1cebac521a7ba7e618cd5fb0f23093c8f3,1816618a6e86fe5b6e2cb98d923c6c6d2647490b2a7c47b972d3f5cdee4b97b8,False,,,,,,,,,,,
+build_hash,llama3_1_8b,1,,,,,,,prefill,05d36e393d5aac19fa4c7992d378ca3fe91062067536f51ec966bd110ea8448b,1b78473f70031274ac25b0f0a4bf2a73d5aee7a81931049b2a3a7453b4260760,False,,,,,,,,,,,
+build_hash,llama3_1_8b,1,,,,,,,decode,9a52ae923736d5eddad050e0a71f9cdca39e52d66937cb8360faf0bb695a1f99,83feb560ca003604114e2c5a89d7674e45b5c1b5b305ca78469478a9725c6a66,False,,,,,,,,,,,
+paired_build_or_prefix,llama3_1_8b,1,1,,,,,,,,,,build-repeat-llama3_1_8b,3,6.607461788870015,6.647773919855122,0.6101001000567319,0.6288950631499727,0.8698087143708932,verified paired TPOT; provisional_container_pid_namespace,,,
+paired_build_or_prefix,qwen3_0_6b,1,7,,,,,,,,,,build-repeat-qwen3_0_6b,3,1.8179170694133906,1.816201696018957,-0.09435927652008402,0.12873595288165032,0.08059470749544571,verified paired TPOT; provisional_container_pid_namespace,,,
+paired_build_or_prefix,llama3_1_8b,16,1,,,,,,,,,,prefix-noop,3,8.196826750651105,8.189795783903898,-0.08577669092064699,0.916450828460992,3.435730848368765,verified paired TPOT; provisional_container_pid_namespace,,,
+trace_diagnostic_level,qwen3_0_6b,1,7,,,,,,,,,,,,,,,,,verified diagnostic only; one process; reference drift not isolated,diag1-2-qwen3_0_6b_b1-f0,1.8718748152340676,0.05450427956890036
+trace_diagnostic_level,qwen3_0_6b,1,7,,,,,,,,,,,,,,,,,verified diagnostic only; one process; reference drift not isolated,diag2-2-qwen3_0_6b_b1-f0,2.0089263822141405,0.19155584654897329
+trace_diagnostic_level,qwen3_0_6b,1,7,,,,,,,,,,,,,,,,,verified diagnostic only; one process; reference drift not isolated,diag3-2-qwen3_0_6b_b1-f0,1.997201449662458,0.17983091399729068

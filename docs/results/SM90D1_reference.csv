@@ -1,0 +1,26 @@
+model,batch,gpu,r1_gpus,fresh_processes,status,source_jobs,provenance,tpot_ms,process_range_pct,sm90r1_tpot_ms,difference_pct,indistinguishable_pct,decode_sha256,prefill_sha256,evidence
+llama3_1_8b,1,1,1,3,measured,resolution-llama3_1_8b-B1-f0|resolution-llama3_1_8b-B1-f1|resolution-llama3_1_8b-B1-f2,dedicated reference,6.689455346006332,2.7032508071782377,6.685722367545564,0.05583508042286134,2.7032508071782377,9a52ae923736d5eddad050e0a71f9cdca39e52d66937cb8360faf0bb695a1f99,05d36e393d5aac19fa4c7992d378ca3fe91062067536f51ec966bd110ea8448b,verified; provisional_container_pid_namespace
+llama3_1_8b,2,,,0,blocked_nvml,,,,,6.662562856308885,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+llama3_1_8b,4,,,0,blocked_nvml,,,,,7.063894187670815,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+llama3_1_8b,8,,,0,blocked_nvml,,,,,7.224220479929588,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+llama3_1_8b,16,1,1,3,measured,ref-llama3_1_8b-B16-f0|ref-llama3_1_8b-B16-f1|ref-llama3_1_8b-B16-f2,dedicated reference,8.23964604496581,0.9368329886150075,8.189856220952363,0.607945031880619,1.2181264456934964,8791683e7f401d37711919f0441280ca76f1294fbd856d6f3459fcd0c537d60f,f5f81d25fade7250557a63a2a5603f640035fc2aecccb1128cb70e566d814e18,verified; provisional_container_pid_namespace
+llama3_2_1b,1,7,1,3,measured,ref-llama3_2_1b-B1-f0|ref-llama3_2_1b-B1-f1|ref-llama3_2_1b-B1-f2,dedicated reference,1.61921053763865,0.046319045515501346,1.6163580967632294,0.17647332488590628,0.5,6210cb43e76fecdabc1d6e851157372f2b8706fc2fc508a63cb4689a119b0f85,ca53fa9864525583caa360640d3e26f7f2b9da8c66438906e1db714248215ebd,verified; provisional_container_pid_namespace
+llama3_2_1b,2,,,0,blocked_nvml,,,,,1.7058960019457423,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+llama3_2_1b,4,,,0,blocked_nvml,,,,,1.7260248211036298,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+llama3_2_1b,8,,,0,blocked_nvml,,,,,1.8044317067547984,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+llama3_2_1b,16,,,0,blocked_nvml,,,,,2.1226402179917043,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+llama3_2_3b,1,,,0,blocked_nvml,,,,,3.730077206253649,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+llama3_2_3b,2,,,0,blocked_nvml,,,,,3.9949617742067827,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+llama3_2_3b,4,,,0,blocked_nvml,,,,,3.966330362645224,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+llama3_2_3b,8,,,0,blocked_nvml,,,,,4.1612519393914,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+llama3_2_3b,16,,,0,blocked_nvml,,,,,4.746780067455581,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+qwen3_0_6b,1,7,1,3,measured,ref-qwen3_0_6b-B1-f0|ref-qwen3_0_6b-B1-f1|ref-qwen3_0_6b-B1-f2,dedicated reference,1.8173705356651673,0.045308496572749914,1.8129649745388718,0.24300310199958375,0.5,97c68e2b9442fe969e4dd3409980fd1cebac521a7ba7e618cd5fb0f23093c8f3,893fd51095304102be3828c5935aced20729aaeaa405c62d366cb0a19b092da7,verified; provisional_container_pid_namespace
+qwen3_0_6b,2,,,0,blocked_nvml,,,,,2.049106309888657,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+qwen3_0_6b,4,,,0,blocked_nvml,,,,,2.191639802510143,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+qwen3_0_6b,8,,,0,blocked_nvml,,,,,2.630521888530131,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+qwen3_0_6b,16,7,1,3,measured,ref-qwen3_0_6b-B16-f0|ref-qwen3_0_6b-B16-f1|ref-qwen3_0_6b-B16-f2,dedicated reference,3.1390986265910503,0.031856093270296856,3.1322491202068283,0.218676935369988,0.5,6057f6d6a7697db40defa962682d70cf3f0137c6147a4525e1f4bb8370214584,0d1e16c61f22ff10f712638139fb913af40ccefc9f1c68d8c136166e5d215ecf,verified; provisional_container_pid_namespace
+qwen3_1_7b,1,,,0,blocked_nvml,,,,,2.774929250251385,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+qwen3_1_7b,2,,,0,blocked_nvml,,,,,2.965910921810069,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+qwen3_1_7b,4,,,0,blocked_nvml,,,,,3.0510689804518463,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+qwen3_1_7b,8,,,0,blocked_nvml,,,,,3.4785959335341725,,,,,unmeasured; all GPU schedulers stopped after driver queries entered D state
+qwen3_1_7b,16,7,1,3,measured,G2-qwen3_1_7b-B16-l2-host-reference-f0|G2-qwen3_1_7b-B16-l2-host-reference-f1|G2-qwen3_1_7b-B16-l2-host-reference-f2,paired canonical controls,3.947480567931248,1.2674519002480966,3.945722279559005,0.04456188874093492,1.2674519002480966,1d7d63bb2d60e42859d3f4d020f2019cc7e7712afb98d3a4dfe57078a1550f52,ebcb56d1487ca559a581bc1f52fdbbd526a74ef69c3fdcd17593e0d9b3d6617b,verified; provisional_container_pid_namespace
