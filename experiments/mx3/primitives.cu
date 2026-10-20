@@ -38,6 +38,31 @@ __global__ void ChaseKernel(unsigned const* next, int iters, unsigned long long*
   out[blockIdx.x] = end - begin;
 }
 
+/// The trace's own clock: back-to-back realtime reads, so the cost of one
+/// stamp is visible. Every ledger interval contains at least one such read,
+/// and the plan's traced TPOT was 25.6% above the untraced one.
+__global__ void TimerKernel(int iters, unsigned long long* out, unsigned long long* sink) {
+  if (threadIdx.x) return;
+  unsigned long long acc = 0;
+  unsigned long long begin = GlobalTimerNs();
+  for (int i = 0; i < iters; ++i) acc += GlobalTimerNs();
+  unsigned long long end = GlobalTimerNs();
+  *sink = acc;
+  out[blockIdx.x] = end - begin;
+}
+
+/// One CTA per AP all stamping at once, as every CTA does at a stage boundary.
+__global__ void TimerContendedKernel(int iters, unsigned long long* out,
+                                     unsigned long long* sink) {
+  if (threadIdx.x) return;
+  unsigned long long acc = 0;
+  unsigned long long begin = GlobalTimerNs();
+  for (int i = 0; i < iters; ++i) acc += GlobalTimerNs();
+  unsigned long long end = GlobalTimerNs();
+  sink[blockIdx.x] = acc;
+  out[blockIdx.x] = end - begin;
+}
+
 __global__ void FenceKernel(int iters, unsigned long long* out, unsigned* sink) {
   if (threadIdx.x) return;
   unsigned long long begin = GlobalTimerNs();
@@ -203,6 +228,23 @@ int main(int argc, char** argv) {
       collect(1, iters, name, "ns/load");
       CHECK(cudaFree(device));
     }
+  }
+  if (want("timer")) {
+    unsigned long long* lsink;
+    CHECK(cudaMalloc(&lsink, 512 * sizeof(unsigned long long)));
+    CHECK(cudaMemset(out, 0, 512 * sizeof(unsigned long long)));
+    TimerKernel<<<1, 64>>>(iters, out, lsink);
+    CHECK(cudaDeviceSynchronize());
+    collect(1, iters, "GlobalTimerNs read, 1 CTA", "ns");
+    for (int n : {ctas, 4 * ctas}) {
+      CHECK(cudaMemset(out, 0, 512 * sizeof(unsigned long long)));
+      TimerContendedKernel<<<n, 128>>>(iters, out, lsink);
+      CHECK(cudaDeviceSynchronize());
+      char name[64];
+      std::snprintf(name, sizeof name, "GlobalTimerNs read, %d CTA", n);
+      collect(n, iters, name, "ns");
+    }
+    CHECK(cudaFree(lsink));
   }
   if (want("fence")) {
     CHECK(cudaMemset(out, 0, 512 * sizeof(unsigned long long)));
