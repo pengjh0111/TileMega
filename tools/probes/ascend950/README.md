@@ -1,66 +1,45 @@
-# AS-1 native Ascend 950PR probes
+# AS-1 native probes
 
-All commands run from `/home/d50064638/junhuip/TileMega`. Source the private
-environment explicitly. Builds use one CPU compilation at a time. Run each
-device command individually with the telemetry wrapper; it creates a new output
-directory and never requires the device to be idle.
-
-```bash
-source /home/d50064638/junhuip/tilemega-as1/scripts/as1_env.sh
-```
-
-## ACL mapping and resource inventory
-
-Verified with CANN 9.1.0, driver 25.7.0, `Ascend950PR_9579`, physical devices 0
-and 1 in separate processes. Each sees only logical device 0. No kernel is
-launched by this inventory. The exact successful compiler argv and failed
-attempts are retained in `tilemega-as1/build/acl_inventory/command*.json`.
+Source `scripts/as1_env.sh`. All commands below use the pinned private CATLASS
+checkout and write outside the source tree. Select targets individually; do not
+build `all` or launch a test matrix.
 
 ```bash
-c++ -std=c++17 -O0 tools/probes/ascend950/acl_inventory.cpp \
-  -I/usr/local/Ascend/cann/include \
-  -I/usr/local/Ascend/cann/x86_64-linux/pkg_inc \
-  -I/usr/local/Ascend/cann/x86_64-linux/pkg_inc/runtime \
-  -L/usr/local/Ascend/cann/lib64 -Wl,-rpath,/usr/local/Ascend/cann/lib64 \
-  -lascendcl -lruntime /usr/local/Ascend/cann/x86_64-linux/lib64/libtiling_api.a \
-  -lplatform -ldl -lc_sec -pthread -lunified_dlog \
-  -o /home/d50064638/junhuip/tilemega-as1/build/acl_inventory/acl_inventory
-```
-
-```bash
+cmake -S tools/probes/ascend950 -B "$AS1_WORK/build/probes" \
+  -DCMAKE_BUILD_TYPE=Release -DCATLASS_ROOT="$AS1_WORK/third_party/catlass"
+cmake --build "$AS1_WORK/build/probes" --target as1_topology --parallel 1 --verbose
 python3 python/tilemega/bench/as1_run.py --physical-device 0 \
-  --out "$REPO/runs/as1/jobs/acl_inventory_repro_0" --timeout-s 30 -- \
-  "$AS1_WORK/build/acl_inventory/acl_inventory"
+  --out runs/as1/jobs/topology_new --timeout-s 90 \
+  -- "$AS1_WORK/build/probes/as1_topology" 2 16
 ```
 
-Use a fresh output directory for each invocation. For physical device 1 change
-both the selection and output name; never start both processes concurrently.
+Each invocation requires a new output directory. Physical device 0 and its
+logical ID 0 were verified in `runs/as1/inventory/acl_device_0.json`.
 
-## Existing torch_npu environment
+| Target | Arguments | Checks |
+|---|---|---|
+| `as1_topology` | groups (1–4), epochs (1–16) | MIX ID bijection, bounds, one launch, repeated worker work |
+| `as1_entry_resources` | `cube` or `vector` | explicit AIC/AIV entry; vector touches 212 KiB UB |
+| `as1_entry_oversize` | **compile only, never execute** | 1 MiB UB compiler diagnostic; host also rejects it |
+| `as1_gm_visibility` | direction (0–4), elements (32 or 1024) | two groups, 16 buffer-reuse epochs, pre-read old cache, bounded waits |
+| `as1_catlass43` | M N K | official 950 basic GEMM math |
+| `as1_catlass50` | M N K | official 950 GEMV/tail math |
+| `as1_catlass64_add` | M N K | official MIX GEMM + Add through GM |
+| `as1_catlass64_add_ub` | M N K | optional official same-group direct route; disabled until tested |
 
-The private `envs/as1-npu` venv exposes the preinstalled `/data/miniconda3/envs/dev`
-packages read-only. Verified: torch 2.7.1+cpu and torch_npu
-2.7.1.post7.dev20260707 execute a 128-element BF16 addition with zero error.
-No pip installation or model download is required.
+GM directions: 0 AIC→AIC, 1 AIC→AIV, 2 AIV→AIC, 3 AIV→AIV,
+4 all four sequentially in one launch. Producer group 0 and consumer group 1
+are deliberately different. AIC production invokes TileMega's coordinate-driven
+CATLASS `GemmTile`, not CATLASS's full-operator scheduler. Consumers announce
+their old-data pre-read before production. Each epoch requires producer ready
+and consumer acknowledgement; payload validation is bit-exact. A wait exceeding
+100000 polls publishes abort. A host timeout only stops this invocation's group.
 
-```bash
-python3 python/tilemega/bench/as1_run.py --physical-device 0 \
-  --out "$REPO/runs/as1/jobs/torch_npu_repro" --timeout-s 60 -- \
-  "$AS1_WORK/envs/as1-npu/bin/python" \
-  "$REPO/tools/probes/ascend950/torch_npu_probe.py"
-```
+Safe sample copies are generated in the build directory. CMake removes the
+upstream `aclrtResetDevice` teardown and caps its AIC group request at two;
+the pinned checkout and sample arithmetic remain unchanged. A missing expected
+source pattern rejects configuration. Check **`Compare success`**, since the
+upstream sample exit code alone does not prove numerical success.
 
-## Wrapper and cleanup safety checks
-
-Run these individually. They launch no device kernel. Cleanup fixtures remain
-under `tilemega-as1/tmp` as evidence; only the deliberately removable fixture
-is unlinked. The timeout check starts and tracks its own sentinel process.
-
-```bash
-python3 tools/probes/ascend950/check_cleanup.py
-python3 tools/probes/ascend950/check_runner.py
-```
-
-These probes do not establish GEMM, MIX, persistent scheduling, cross-core
-visibility, or TileMega end-to-end correctness. Unmeasured capabilities remain
-disabled.
+These are probes, not CTG/Solver end-to-end workloads. The exact tested scope,
+failures and raw evidence index are in `docs/results/AS1_probe.md`.
