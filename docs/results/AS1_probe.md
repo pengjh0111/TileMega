@@ -98,3 +98,14 @@ Use G≤2, residency=1, fixed candidates, single-owner GM events initially.
 Direct routes, mode 4, SSBuffer messaging, SIMT and performance auto-ranking
 remain off. E-0 CTG/Solver/Plan/device execution is verified in `AS1_ascend950.md`.
 AIV/composite body integration and E-1/E-2 remain pending.
+
+### E-1 AIV bodies and exact executor follow-up (verified)
+
+`AivBody.h`/`as1_aiv_body` use 6656 bytes UB, FP32 arithmetic, BF16 load/store.
+RMSNorm/SiLU/Add each pass 1x128 and 4x129 independently; all six outputs are
+bitwise equal to CPU BF16, within the fixed FP32 body tolerance, guards intact.
+`runs/as1/probes/aiv_bodies_summary.json` records binary hash and exact errors.
+These body probes are separate from real five-stage CTG/Solver E-1 validation:
+G1 and forced G2 each pass 5/5 new processes, 16 epochs; B1 also passes both.
+Native BF16 direct-UB, mode4 and SSBuffer remain disabled. See
+`AS1_ascend950.md` for the initial full-FP32 check failure and exact scope.

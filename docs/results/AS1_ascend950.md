@@ -1,14 +1,17 @@
-# AS-1 port — E-0 checkpoint, 2026-10-20
+# AS-1 port — E-0/E-1 checkpoint, 2026-10-20
 
 Evidence: **verified** means read/executed here; **stated** means a source
 assertion; **inferred** means not independently established. This is a partial
-delivery: E-0 passes; E-1 and the fixed E-2 BERT encoder block are not implemented.
+delivery: E-0/E-1 pass their scoped C-0/C-1/C-3 checks; the fixed E-2 BERT
+encoder block remains unimplemented. C-2 has only one verified executor.
 
 ## Source, environment and boundaries
 
 - Initial `origin/tilemega`: `297ac803847e902f954a0852751c2667c549f597`.
   Work is exclusively on `tilemega-ascend`. Explicit pushes to that branch
-  currently fail with missing HTTPS credentials; local commits are retained.
+  are unconfirmed: initial attempts lacked HTTPS credentials and the E-0
+  checkpoint attempt timed out after 300 s with no HTTP response. Local commits
+  are retained; no protected branch or force push is used.
 - Exact original user-message SHA256:
   `132596ba7075142fc33a36318b66948a09d4707d6be32bd063054126b39e44f6`;
   private `tilemega-as1/Prompt/TileMega_AS1_prompt.md`.
@@ -77,7 +80,8 @@ meaning in checked POD; F9/F10 CUDA construction is excluded; F14 has an
 independent unlocked runner; F15 reuses the importer. F8 native cost lanes and
 one shared GM-rate adapter have CPU contracts, but cost fitting/automatic ranking
 are **not implemented**. The legacy CUDA ResourceVector is not used to price NPU.
-F11 admission currently enables only GEMM, and rejects every unsupported body.
+F11 admission enables GEMM, RMSNorm, SiLU and residual Add for the fixed MLP;
+all other TaskKinds and unsupported activation mathematics fail before launch.
 
 ## Target and synchronization scope
 
@@ -166,13 +170,63 @@ PYTHONPATH="$REPO/python" python3 -m tilemega.bench.as1_correctness compare \
   selected binaries, all failure/probe evidence and recent builds; zero eligible
   production artifacts were deleted. `disk_samples.jsonl` records actual samples,
   including shared filesystem free space; raw tensors/binaries are not in Git.
-- E-1 remains unimplemented: AIV RMSNorm/SiLU/Add bodies, importer stage binding,
-  general multi-stage codegen, same/cross-group numerical tests and C-3.
-  Current codegen rejects these graphs before NPU launch.
+- E-1 scoped results appear below. The native executor uses GM task events;
+  a second L1 executor and composite fused-task owner/ack implementation are not
+  enabled. Official EVG FP32 direct probes do not enable native BF16 UB handoff.
 - E-2 remains fixed to BERT encoder block B1/S16/H256/heads4/FFN1024; rank-three
   entry, LayerNorm/GELU/attention/mask bodies and corresponding importer/Plan
   lowering are still required. No alternate block was substituted.
 - `G-INV-AS`, native `G-BUILD-AS`, E-0 `G-PERSIST-AS` verified;
-  `G-TRACK-AS`, `G-HANDOFF-AS`, full `G-E2E-AS` remain partial/pending.
+  Ascend T-1–T-6/T-16 and `G-HANDOFF-AS` H-0 pass; full `G-E2E-AS` remains
+  partial because E-2 and C-2 are outstanding.
   No torch_npu workload timing or speedup claim yet; optional timing follows
   correctness. E-0 alone is not AS-1 completion.
+
+## E-1 real MLP path (verified)
+
+- Seed 20261016, BF16, B=1/4, H=128, FFN=256, epsilon=1e-5, no bias:
+  RMSNorm → GEMM → SiLU → GEMM → residual Add. Real `torch.export` enters
+  `BuildDnnModelPlan(materialize_pointwise=true)` and the existing importer.
+  Fixed phase batch binds event capacity without redefining symbolic semantics.
+- `DnnSemanticLifting.cpp` preserves five exact semantic stages. Two GEMM and
+  three AIV independently declared operand/write sets match CTG projections.
+  Solver/Plan produce 10 tasks at B1 and 16 at B4; dependency+FIFO graph is acyclic.
+- `AscendGraphCodegen.cpp` and `PersistentGraph.cpp.in` consume those tables.
+  Native Stage ABI is 36-byte POD; every stage field, Metadata, task ownership,
+  epoch count and single-owner event is checked after actual NPU execution.
+  One MIX(1:2) launch executes all stages, including empty-lane epoch ack.
+- `AivBody.h`: FP32 vector arithmetic with BF16 load/store, UB 6656 bytes.
+  RMSNorm, SiLU and Add each pass 1x128 and 4x129 body probes against independent
+  FP32/BF16 references, with zero BF16 differences and intact output guards.
+- Same-group placement uses G1. Forced G2 puts the up GEMM on AIC0 and SiLU on
+  group1 AIV0; down GEMM on AIC1 and residual Add on group0 AIV0. The B4 Plan
+  contains 18 cross-group and 24 same-group dependency edges, each with a GM
+  HandoffContract, allocation size, lifetime and uncalibrated cost status.
+- B4: 5/5 fresh processes for **each** placement, 16 epochs, 256 task executions
+  per process; all outputs bitwise equal to CPU BF16 and to the other placement.
+  B1: both placements pass with 10 tasks/one epoch. No timeout/OOM in these jobs.
+- CPU BF16 errors are exactly zero. Full FP32 diagnostic errors:
+
+| Batch | max abs | max rel | RMS | nonfinite |
+|---|---:|---:|---:|---:|
+| 1 | 0.00568891 | 1.27335 | 0.00174132 | 0 |
+| 4 | 0.00752246 | 3.11111 | 0.00176185 | 0 |
+
+- Full FP32 removes BF16 rounding points; cancellation explains large relative
+  errors near zero. The initial B4 atol=.004/rtol=.015625 check failed 1/512;
+  that receipt is retained, never relabeled. Same-graph tolerance is now the
+  stricter .001/.0078125, with **zero actual error**. A separately precomputed
+  conservative rounding envelope (|W| error propagation, dot gamma_K, SiLU
+  Lipschitz 1.5, BF16 unit roundoff) is diagnostic; its B4 bounds are .393–.532,
+  and are not a claim of fixed-tolerance FP32 equivalence.
+- Raw index: `runs/as1/e1/e1_summary.json`, same/cross-group sync summaries,
+  `b{1,4}_bounded_reference/native_*`, and jobs `e1_b*`. Selected B4 binaries:
+  G1 `463cd6941bdb2cfb9c2f07258b321b62dced1c7d1a55bccae3b5067a20e33aba`;
+  G2 `e9f2582facc92cb8e0b8d5b763ca304482a1af50745d8f68bc1d818bfd142276`.
+- Reproduce one case: `as1_correctness prepare-e1 --batch 4 --out <new>`;
+  `as1_compile_model <prepared> <new-plan> 2 16 cross_group`; configure/build
+  only `tilemega_as1_generated`, then the unlocked wrapper and `compare`.
+  Existing argument forms and private environment are the same as E-0 above.
+- Latest Ascend host contracts pass; unsupported standalone ReLU is rejected
+  during import. E-0 tail generated source remains byte-identical to the
+  previously verified binary, avoiding an unnecessary rebuild/device test.
