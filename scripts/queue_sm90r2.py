@@ -39,7 +39,7 @@ def main():
                        '--config', str(a.config.resolve()), '--tag', tag,
                        '--stage', a.stage, '--round', str(fresh), '--out', '{attempt_dir}/job']
             jobs.append(dict(name=name, gpu=True, timing=a.stage != 'correctness',
-                priority=5 if a.stage == 'correctness' else 10,
+                priority=5 if a.stage == 'correctness' else 10 if a.stage == 'measure' else 20,
                 timeout_s=a.timeout, needs_free_mib=32768, cwd=str(ROOT), after=previous,
                 env=dict(CUDA_VISIBLE_DEVICES=str(a.gpu), TILEMEGA_DEVICE_INDEX=str(a.gpu),
                     TILEMEGA_NUMA_NODE=str(node), TILEMEGA_GPU_PID_MODE='namespace_limited',

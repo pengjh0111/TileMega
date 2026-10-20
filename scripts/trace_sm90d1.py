@@ -17,14 +17,19 @@ def main():
     p.add_argument('--mode', choices=('L1', 'L2'), required=True)
     p.add_argument('--loop', type=int, required=True)
     p.add_argument('--out', type=Path, required=True)
+    p.add_argument('--past', type=int, nargs='+', default=[64, 575, 1000])
+    p.add_argument('--warmup-windows', type=int, default=16)
     a = p.parse_args()
     import torch
     from tilemega.serving.baseline_common import require_guard
     from tilemega.serving.engine import ServingEngine
     require_guard()
     # StepBegin initializes each slot once; warmup must not wrap its ring.
-    os.environ['TILEMEGA_TRACE_LAUNCHES'] = '144'
-    for past in (64, 575, 1000):
+    if a.warmup_windows<1 or any(past<64 or past+7>1086 for past in a.past):
+        p.error('positive warmup and an eight-step window inside 64:1086 are required')
+    slots=a.warmup_windows*8+16
+    os.environ['TILEMEGA_TRACE_LAUNCHES'] = str(slots)
+    for past in a.past:
         folder = a.out / f'past{past}'
         folder.mkdir(parents=True, exist_ok=False)
         os.environ['TILEMEGA_PAGE_TRACE_OUT'] = str(folder / 'page_trace.tsv')
@@ -43,7 +48,7 @@ def main():
                 else:
                     for step in range(past-64, past-64+8):
                         engine.decode.launch(step, mode, stream.cuda_stream)
-            for _ in range(16):
+            for _ in range(a.warmup_windows):
                 launch()
             stream.synchronize()
             start, end = (torch.cuda.Event(enable_timing=True) for _ in range(2))
@@ -70,8 +75,8 @@ def main():
                     raise RuntimeError('event trace dump failed')
             info = engine.decode_lib.info
             write(folder / 'trace.json', dict(past=past, mode=a.mode, loop=bool(a.loop),
-                mean_step_ms=elapsed, measured_steps=8, warmup_steps=128,
-                trace_ring_slots=144, protocol_version=3,
+                mean_step_ms=elapsed, measured_steps=8, warmup_steps=a.warmup_windows*8,
+                trace_ring_slots=slots, protocol_version=3,
                 loop_step_ns=loop_steps,
                 retain_latest_iterations=8, grid=info.grid, residency=info.residency,
                 execution_identity=engine.decode.execution_identity(mode, bool(a.loop)),

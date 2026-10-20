@@ -54,7 +54,7 @@ def main():
         command = [PYTHON, str(ROOT / 'scripts/trace_sm90d1.py'),
                    '--prefill', str(prefill), '--decode', str(decode),
                    '--batch', str(c['batch']), '--mode', 'L1', '--loop', '1',
-                   '--out', str(a.out / 'trace')]
+                   '--out', str(a.out / 'trace'), '--past', '575', '--warmup-windows', '4']
     command = [PYTHON, '-m', 'tilemega.serving.random_checkpoint',
                '--config', str(ROOT / c['model_dir']), '--out', str(a.out / 'checkpoint'),
                '--seed', '0', '--max-gib', '32', '--', *command]
