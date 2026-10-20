@@ -2104,7 +2104,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     // Packing can append a new B slot. Retaining its dead row-major recipe
     // would allocate a second full checkpoint that no native call reads.
     if(!live[buffer_index++]) {
-      out<<"  {"<<quoteCString(stringField(b,"name"))<<",0,0,0ull,0ull,\"\"},\n";
+      out<<"  {\"__sm90_dense_unused_"<<(buffer_index-1)<<"\",0,0,0ull,0ull,\"\"},\n";
       continue;
     }
     if(integerField(b,"per_past") || integerField(b,"per_total"))

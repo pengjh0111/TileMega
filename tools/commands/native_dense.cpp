@@ -61,7 +61,8 @@ int CompileNativeDenseFixed(std::string const& input,std::string const& output,
         {"stages",shape.slots},{"split_k",1},{"warps_n",shape.warps_n},{"warps_k",shape.warps_k}});
   }
   json::Object manifest={{"identity_schema",1},{"model",fs::path(input).stem().string()},
-      {"phase","decode"},{"runtime_batch",batch},{"capacity",1088},{"prompt_len",64},
+      {"phase","decode"},{"runtime_batch",batch},{"batch_lo",batch},{"batch_hi",batch},
+      {"seq",1},{"capacity",1088},{"prompt_len",64},
       {"past_lo",64},{"past_hi",1086},{"pg","native"},{"mode","L1"},{"loop",1},
       {"residency",c.residency},{"grid",target.res.num_sms*c.residency},{"kappa",1},
       {"runtime_target",fs::absolute(target_path).string()},{"target_spec",json::Parse(target.ToJson())},
