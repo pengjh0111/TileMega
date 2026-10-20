@@ -101,7 +101,8 @@ for campaign, base in (('mx1', a.root / 'mx1' / 'base'),):
                          impl=(d.get('grouped_mm_error') and 'experts=eager' or
                                ('fullgraph=%s' % d['fullgraph'] if 'fullgraph' in d else ''))))
 
-for campaign, pattern in (('mx1', a.root / 'mx1' / 'tm'), ('mx2', a.root / 'mx2' / 'tm')):
+for campaign, pattern in (('mx1', a.root / 'mx1' / 'tm'), ('mx2', a.root / 'mx2' / 'tm'),
+                          ('tm-mx2', a.root / 'mx3' / 'tm')):
     for path in sorted(pattern.glob('*/B*/measure/round*/measurements.json')):
         d = json.loads(path.read_text())
         model, batch, rnd = path.parts[-5], path.parts[-4], path.parts[-2]
@@ -127,7 +128,7 @@ with a.out.open('w', newline='') as stream:
     writer.writerows(sorted(rows, key=lambda r: (r['campaign'], r['system'],
                                                  r['model'], r['batch'], r['round'])))
 print('%d rows -> %s' % (len(rows), a.out))
-for c in ('mx1', 'mx2'):
+for c in ('mx1', 'mx2', 'tm-mx2'):
     tm = [r for r in rows if r['campaign'] == c and r['system'] == 'tilemega']
     layouts = sorted({r['layout'] for r in tm})
     print('  %s: %d tilemega rows, layouts %s' % (c, len(tm), layouts))
