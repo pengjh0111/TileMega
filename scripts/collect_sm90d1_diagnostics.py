@@ -437,7 +437,55 @@ def rejected_mechanisms():
     return result
 
 
-def solver(ledger):
+def solver_validations(paired):
+    output = []
+    for state in sorted((RUN/'scheduler').glob('gpu*/state.json')):
+        for job, receipt in read(state).items():
+            if not job.startswith('recover-S-') or '-corr-' not in job:
+                continue
+            raw = Path(receipt['out']) if receipt.get('out') else None
+            selected = raw/'job/selected-config.json' if raw else None
+            if not selected or not selected.exists():
+                continue
+            selection = read(selected)
+            config = read(selection['config'])
+            arm = job.removeprefix('recover-').split('-corr-')[0]
+            row = dict(record='solver_validation', arm=arm, model=config['model'],
+                batch=config['batch'], gpu=state.parent.name[3:], job=job,
+                binary_sha256=selection['binary_sha256'], status=receipt['status'],
+                exit_code=receipt.get('exit_code'), correctness_output=str(raw/'job/measurements'),
+                evidence='verified scheduler receipt; failed correctness paths never enter TPOT')
+            for gate in ('c1','c2'):
+                path = raw/f'job/measurements/{gate}.json'
+                if path.exists():
+                    value = read(path)
+                    row[gate+'_pass'] = value['pass']
+                    if gate == 'c1':
+                        row['c1_positions'] = value['positions']
+                        row['c1_max_gap'] = value['max_gap']
+                    else:
+                        row['c2_executor_checks'] = len(value['checks'])
+            guard = raw/'guard_result.json'
+            passed = (receipt['status']=='done' and guard.exists() and read(guard)['code']==0
+                      and row.get('c1_pass') is True and row.get('c2_pass') is True)
+            timing = next((r for r in paired if r['arm']==arm and str(r['gpu'])==row['gpu']),None)
+            if timing:
+                if not passed:
+                    raise ValueError('solver TPOT has no accepted C-1/C-2: '+arm)
+                row.update(timing)
+                row['status'] = 'correctness_and_paired_timing_validated'
+            elif passed:
+                row['status'] = 'correctness_passed_timing_pending'
+            elif receipt['status']=='failed':
+                log = state.parent/(job+'.log')
+                lines = log.read_text(errors='replace').splitlines() if log.exists() else []
+                row['reason'] = next((s for s in reversed(lines) if any(w in s for w in
+                    ('Error','error:','failed','failure'))), '\n'.join(lines[-3:]))[-500:]
+            output.append(row)
+    return output
+
+
+def solver(ledger, paired=()):
     blockers = [
         ('native_seed','tools/commands/compile.cpp:586','native seed requires an unsolved plan; solve uses legacy seed'),
         ('wgmma_calibration','configs/targets/sm_90_h800.json:1738','scope excludes calibrated Hopper WGMMA bodies'),
@@ -488,8 +536,8 @@ def solver(ledger):
     for job, raw, gpu in records():
         if not (raw/'job/command.json').exists() or 'solver' not in job:
             continue
-        row = dict(record='guarded_solver_attempt',job=job,gpu=gpu,status='compiled_not_correctness_or_timing_validated',
-                   output=str((raw/'job').relative_to(ROOT)),evidence='verified guarded solver compilation; GPU validation blocked by NVML')
+        row = dict(record='guarded_solver_attempt',job=job,gpu=gpu,status='compiled',
+                   output=str((raw/'job').relative_to(ROOT)),evidence='verified guarded solver compilation; validation recorded separately')
         path = raw/'job/solver.so.plan.json'
         if path.exists():
             plan = read(path)
@@ -503,4 +551,11 @@ def solver(ledger):
                            simulated_step_ms=float(selected[0]['simulated_ns'])/1e6,
                            selected_key=selected[0]['key'])
         output.append(row)
-    return output
+    validations = solver_validations(paired)
+    for row in validations:
+        source = next((r for r in output if r.get('job')==row['arm'].replace('S-','solver-',1)+'-f0'),None)
+        if source and 'predicted_step_ms' in source:
+            row['predicted_step_ms'] = source['predicted_step_ms']
+            if row.get('candidate_ms'):
+                row['prediction_error_pct'] = (row['predicted_step_ms']/row['candidate_ms']-1)*100
+    return output + validations

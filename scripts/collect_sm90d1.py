@@ -131,9 +131,9 @@ def reference_statuses(measured):
         key = config['model'], config['batch']
         if key not in present:
             old = historical[key]
-            rows.append(dict(model=key[0], batch=key[1], status='blocked_nvml',
+            rows.append(dict(model=key[0], batch=key[1], status='not_measured',
                 fresh_processes=0, sm90r1_tpot_ms=old['tpot_ms'],
-                evidence='unmeasured; all GPU schedulers stopped after driver queries entered D state'))
+                evidence='unmeasured; inspect scheduler receipts for pending or unsuccessful jobs'))
     return sorted(rows, key=lambda r: (r['model'], r['batch']))
 
 
@@ -272,7 +272,7 @@ def main():
     traces = diagnostic.traces()
     ledgers = diagnostic.ledger_tables(traces,references(samples,select=False))
     write(a.out / 'all-stage-categories.json',ledgers)
-    arms = [r for r in paired if not r['arm'].startswith(('G1','G2','build-repeat','prefix-'))]
+    arms = [r for r in paired if not r['arm'].startswith(('G1','G2','S-','build-repeat','prefix-'))]
     arms += [r for r in diagnostic.arm_details(traces,ledgers) if r['arm'].startswith(('P','LA','EV'))]
     arms += diagnostic.rejected_mechanisms()
     csv_write(a.out / 'SM90D1_arms.csv', arms)
@@ -281,7 +281,7 @@ def main():
     csv_write(a.out / 'SM90D1_primitives.csv', primitives())
     csv_write(a.out / 'SM90D1_attention.csv', diagnostic.attention(traces,ledgers))
     csv_write(a.out / 'SM90D1_resources.csv', diagnostic.resources(traces))
-    solver = diagnostic.solver(ledgers)
+    solver = diagnostic.solver(ledgers, paired)
     write(a.out / 'solver-stage-predictions.json',solver)
     groups=defaultdict(list)
     for row in solver:
