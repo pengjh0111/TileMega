@@ -320,7 +320,6 @@ struct StageDesc {
   std::uint32_t dm_reduce_stage = kDmNoIndex;
 #endif
 };
-inline constexpr std::uint32_t kHandoffAutoCombine = kNoOperand - 1u;
 
 /// A synchronization requirement synthesized from CG couplings: consumer
 /// stage `consumer` waits for stage `producer` to complete.

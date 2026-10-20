@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.22)
 
+# AS-1 is a native Ascend specialization; the archived CUDA targets below
+# are excluded before compiler discovery or language enablement.
+include(cmake/AscendAS1.cmake)
+return()
+
 # Some CUDA container images expose versioned /usr/local/cuda-* directories
 # without adding nvcc to PATH. Discover the compiler before enabling CUDA;
 # CUDACXX and an explicit CMAKE_CUDA_COMPILER still take precedence.

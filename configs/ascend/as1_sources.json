@@ -1,0 +1,61 @@
+{
+  "schema": "tilemega.as1.sources.v1",
+  "sources": {
+    "m4": {
+      "url": "https://ftp.gnu.org/gnu/m4/m4-1.4.19.tar.xz",
+      "bytes": 1654908,
+      "sha256": "63aede5c6d33b6d9b13511cd0be2cac046f2e70fd0a07aa9573a04a82783af96"
+    },
+    "gmp": {
+      "url": "https://ftp.gnu.org/gnu/gmp/gmp-6.2.1.tar.xz",
+      "bytes": 2027316,
+      "sha256": "fd4829912cddd12f84181c3451cc752be224643e87fac497b69edddadc49b4f2"
+    },
+    "isl": {
+      "url": "https://deb.debian.org/debian/pool/main/i/isl/isl_0.28.orig.tar.gz",
+      "sha256": "318549dd36989046da2b0feaea7fe5575c4448c28c0b97d3117403a88988e756",
+      "bytes": 2995959
+    },
+    "ntl": {
+      "url": "https://deb.debian.org/debian/pool/main/n/ntl/ntl_11.5.1.orig.tar.gz",
+      "sha256": "210d06c31306cbc6eaf6814453c56c776d9d8e8df36d74eb306f6a523d1c6a8a",
+      "bytes": 2304103
+    },
+    "polylib5": {
+      "url": "https://icps.u-strasbg.fr/PolyLib/polylib_src/polylib-5.22.8.tar.gz",
+      "sha256": "98b7578d13c374b7c88bd41ed753bbdeeb49f7bb71a75f0e8366797ae3dc800d",
+      "bytes": 2454046
+    },
+    "barvinok": {
+      "url": "https://deb.debian.org/debian/pool/main/b/barvinok/barvinok_0.41.9+ds.orig.tar.xz",
+      "sha256": "284fd97c944831a0ddb93a961917c3e1b17b96022cc4a16e1e7e5743286c8834",
+      "bytes": 1274940,
+      "version": "0.41.9+ds",
+      "required_git_sha_not_obtained": "dd7e6d837ce3669c715da6fff3721508961b8a34",
+      "difference": "official repo.or.cz Git TLS handshake failed; Debian upstream source repack; zsolve disabled; actual count crosslink passed"
+    },
+    "llvm_mlir": {
+      "url": "https://github.com/llvm/llvm-project.git",
+      "sha": "23a60f15f2fcafcf67b95b0a035053579958b732",
+      "version": "23.0.0git",
+      "sparse_paths": [
+        "llvm",
+        "mlir",
+        "cmake",
+        "third-party",
+        "libc"
+      ],
+      "build_targets": [
+        "mlir-tblgen",
+        "MLIRIR",
+        "MLIRPass"
+      ],
+      "max_parallel": 1
+    },
+    "catlass": {
+      "url": "https://gitcode.com/cann/catlass.git",
+      "sha": "2b6c6a6d5bd26559578cf7e3b2fb64af51f64e52",
+      "license": "CANN Open Software License v2"
+    }
+  }
+}

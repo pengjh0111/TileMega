@@ -29,7 +29,7 @@
 #include <mlir/IR/Verifier.h>
 
 #include <algorithm>
-#include <tilemega/Target/ArchDispatch.h>
+#include <tilemega/Target/Ascend/ArchDispatch.h>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -1988,6 +1988,7 @@ std::string emitSolvedLaunch(mlir::ModuleOp module) {
 }  // namespace
 
 std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
+  throw std::invalid_argument("CUDA emission is excluded from AS-1; use Ascend codegen");
   RejectPendingHandoffLowering(module);
   if (!module || mlir::failed(mlir::verify(module)))
     throw std::invalid_argument("CouplingGraphToCUDA requires a verified CG ModuleOp");
@@ -2166,6 +2167,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
 
 std::string CouplingGraphToCUDA::LowerVariants(
     std::vector<RuntimeVariantModule> const& variants) const {
+  throw std::invalid_argument("CUDA emission is excluded from AS-1; use Ascend codegen");
   if (variants.empty())
     throw std::invalid_argument("LowerVariants requires at least one variant");
   for (auto const& input : variants)

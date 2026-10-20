@@ -8,6 +8,7 @@
 #endif
 
 namespace tilemega::codegen {
+inline constexpr std::uint32_t kHandoffAutoCombine = 0xfffffffeu;
 struct SplitTaskCoordinate { int tile, chunk; };
 TILEMEGA_TASK_HD constexpr SplitTaskCoordinate DecodeSplitTask(
     int task, int tiles, int chunks, bool cg_order = TILEMEGA_CG_SPLIT_TASK_ORDER) {

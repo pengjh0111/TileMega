@@ -3,7 +3,7 @@
 #include <tilemega/Dialect/CouplingGraph/CGOps.h>
 #include <tilemega/Dialect/CouplingGraph/ExecOps.h>
 #include <tilemega/Analysis/ISLContext.h>
-#include <tilemega/Codegen/tasks/ModelRuntime.h>
+#include <tilemega/Codegen/RuntimeOwnership.h>
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/SymbolTable.h>
 #include <mlir/IR/Verifier.h>
