@@ -1,0 +1,66 @@
+{
+  "schema": "tilemega.as2.correctness.v1",
+  "frozen_before_first_body_run": true,
+  "seed": 20261016,
+  "dtype": "bf16",
+  "accumulator": "fp32",
+  "nonfinite_allowed": 0,
+  "metric": "abs_error <= atol + rtol*abs(reference), plus NRMSE where declared",
+  "nrmse_denominator": "max(RMS(reference),1e-12)",
+  "body": {
+    "gemm": {
+      "atol": 0.001,
+      "rtol": 0.0078125,
+      "reason": "one BF16 spacing with 1e-3 near-zero allowance, FP32 accumulation"
+    },
+    "rmsnorm": {
+      "atol": 0.002,
+      "rtol": 0.0078125,
+      "reason": "full FP32 reduction and model epsilon, one BF16 spacing"
+    },
+    "rope": {
+      "atol": 0.0078125,
+      "rtol": 0.015625,
+      "reason": "FP32 phase and explicit BF16 multiply/add cast points"
+    },
+    "swiglu": {
+      "atol": 0.002,
+      "rtol": 0.015625,
+      "reason": "two BF16 pointwise outputs, SiLU then product"
+    },
+    "attention": {
+      "atol": 0.015625,
+      "rtol": 0.03125,
+      "nrmse_max": 0.01,
+      "reason": "BF16 inputs and output; different legal FP32 reduction and probability cast paths"
+    }
+  },
+  "decoder_layer": {
+    "atol": 0.03,
+    "rtol": 0.03,
+    "nrmse_max": 0.02,
+    "reason": "predeclared engineering tolerance for composed BF16 operators; not an analytical error bound"
+  },
+  "model_logits": {
+    "atol": 0.05,
+    "rtol": 0.03,
+    "nrmse_max": 0.02,
+    "reason": "predeclared composed BF16 tolerance; does not waive token or cache identity checks"
+  },
+  "greedy": {
+    "required": "exact all generated tokens",
+    "tie": "smallest vocabulary index",
+    "first_divergence_requires_diagnostics": true
+  },
+  "teacher_forced_steps": 512,
+  "formal_output_tokens": 1024,
+  "decode_forwards": 1023,
+  "raw_statistics_required": [
+    "max_abs",
+    "max_rel",
+    "rmse",
+    "nrmse",
+    "nonfinite",
+    "failed_elements"
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "schema": "tilemega.as2.measurement.v1",
+  "scope": "five dense models, ten required active cells; two MoE cells deferred by direct user override",
+  "active_models": [
+    "qwen3_0_6b",
+    "llama3_2_1b",
+    "llama3_2_3b",
+    "qwen3_1_7b",
+    "llama3_1_8b"
+  ],
+  "batch": [
+    1,
+    16
+  ],
+  "isl": 64,
+  "osl": 1024,
+  "capacity": 1088,
+  "seed": 20261016,
+  "greedy": true,
+  "ignore_eos": true,
+  "baseline": "fastest numerically admitted torch_npu eager pilot configuration, frozen before final measurement",
+  "pilot_not_final": true,
+  "formal_pairs": 5,
+  "warmup_requests": 1,
+  "timed_requests": 3,
+  "alternating_order": true,
+  "statistical_unit": "paired new-process request medians",
+  "point_estimate": "exp(mean(log(TPOT_eager/TPOT_tilemega)))",
+  "ci": "paired log-ratio Student t 95%, df=4; reject inference under nonstationary/uncertain interference",
+  "fixed_sample_size_before_final": true,
+  "formal_timing_hooks": false,
+  "full_logits_d2h_in_timing": false,
+  "component_times_are_not_TPOT": true,
+  "technical_failures_retained": true,
+  "acceptance": {
+    "correctness_required": true,
+    "speedup_greater_than": 1.0,
+    "ci_lower_greater_than": 1.0,
+    "uncertain_interval_status": "inconclusive"
+  },
+  "budgets": {
+    "max_live_candidates": 4,
+    "max_body_candidates_per_family": 8,
+    "max_plans_per_batch": 4
+  }
+}
