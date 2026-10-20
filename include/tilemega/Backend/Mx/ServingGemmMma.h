@@ -24,6 +24,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <utility>
 
 namespace tilemega::backend {
 
@@ -57,7 +58,38 @@ __device__ __forceinline__ uint4 LoadK8(tilemega::Bf16 const* row, int k, int va
 }
 }  // namespace mx
 
-template <int TileM, int TileN, int TileK>
+/// `Stages` is the number of 32-K chunks in flight, and it is a real pipeline
+/// depth: the loop below keeps Stages-1 chunks loading while it runs the MMAs
+/// of the oldest. Until MX-3 this parameter existed only in
+/// ServingGemmConfig's shared-memory and legality arithmetic while the body
+/// ran one chunk at a time, so the cost model priced a pipeline that was not
+/// there (it divides the iteration latency by Stages-1 and drops Stages-1
+/// iterations, TaskPriceParts.cpp:146 and :148).
+///
+/// Depth lives in registers, not shared memory. Measured on this C550
+/// (experiments/mx3/pipeline_probe.cu, two runs within 1%): with two MMAs per
+/// load the serial form takes 755 ns/load and depth 6 takes 226 ns, a 3.34x
+/// gain that brings the loop within 16% of the 195 ns bandwidth bound. The
+/// same probe with no MMA between the loads is already bandwidth-bound at
+/// depth 1, and every depth is then slower -- the gain is in hiding MMA
+/// latency, not in issuing loads sooner. A shared-memory ring was slower than
+/// both at every depth.
+/// Registers one chunk in flight costs a lane, and whether a depth fits.
+/// Free functions so the solver and the codegen can ask before naming a
+/// ServingGemmMma: a static_assert in the class body would fire on the query
+/// itself. The budget is the 255-register file less the accumulators, the
+/// operand staging and the addressing the mainloop already needs.
+constexpr int ServingGemmLoadsPerChunk(int tile_m, int tile_n, int waves) {
+  return tile_n / 16 / waves + tile_m / 16;
+}
+constexpr int ServingGemmPipelineVgprs(int tile_m, int tile_n, int stages, int waves) {
+  return stages * ServingGemmLoadsPerChunk(tile_m, tile_n, waves) * 4;
+}
+constexpr bool ServingGemmDepthFits(int tile_m, int tile_n, int stages, int waves) {
+  return stages >= 1 && ServingGemmPipelineVgprs(tile_m, tile_n, stages, waves) <= 160;
+}
+
+template <int TileM, int TileN, int TileK, int Stages = 1>
 struct ServingGemmMma {
   using Element = tilemega::Bf16;
   static constexpr int kWaves = codegen::executor::kComputeThreads / maca::kWaveSize;
@@ -69,6 +101,13 @@ struct ServingGemmMma {
   static constexpr int kLoadsPerChunk = kAtomsNPerWave + kAtomsM;
   static constexpr int kUnroll = kLoadsPerChunk >= 8 ? 1 : kLoadsPerChunk >= 4 ? 2 : 4;
   static constexpr int kChunkK = 32;
+  /// Chunks in flight. One is the serial form this body had before MX-3.
+  static constexpr int kDepth = Stages < 1 ? 1 : Stages;
+  /// Registers the pipeline holds beyond the accumulators: each chunk in
+  /// flight keeps kLoadsPerChunk 16-byte fragments per lane.
+  static constexpr int kPipelineVgprs = kDepth * kLoadsPerChunk * 4;
+  static constexpr bool kDepthFits =
+      ServingGemmDepthFits(TileM, TileN, kDepth, kWaves);
 
   /// Offset of lane `lane`'s 16 bytes of atom `atom`, 32-K chunk `chunk`
   /// inside one TileN x TileK weight tile in fragment order: a wave's load
@@ -112,20 +151,59 @@ struct ServingGemmMma {
           acc[am][j] = mx::Mma(mx::Hi(a[am]), mx::Hi(b[j]), acc[am][j]);
         }
     };
-    int const full = count / (kChunkK * kUnroll) * (kChunkK * kUnroll);
+    static_assert(kDepthFits,
+                  "pipeline depth would exhaust the register file; the solver "
+                  "must not offer this Stages for this tile");
+    // Whole 32-K chunks run through a depth-kDepth pipeline; the ragged K tail
+    // keeps the predicated path below. The MMAs stay in chunk order, so the
+    // K-direction accumulation order is unchanged and C-2 stays bit-exact.
+    int const chunks = count / kChunkK;
+    int const groups = chunks / kDepth;
+    uint4 a[kDepth][kAtomsM], b[kDepth][kAtomsNPerWave];
+    auto load = [&](auto slot, int chunk) {
+      constexpr int kAt = decltype(slot)::value;
+#pragma unroll
+      for (int j = 0; j < kAtomsNPerWave; ++j) b[kAt][j] = source.B(j, chunk * kChunkK);
+#pragma unroll
+      for (int am = 0; am < kAtomsM; ++am) a[kAt][am] = source.A(am, chunk * kChunkK);
+    };
+    // Prologue: kDepth-1 chunks in flight before the first MMA.
+    [&]<std::size_t... kPrime>(std::index_sequence<kPrime...>) {
+      ((int(kPrime) < chunks
+            ? load(std::integral_constant<int, int(kPrime)>{}, int(kPrime))
+            : void()),
+       ...);
+    }(std::make_index_sequence<kDepth - 1>{});
+    // The ring slot must be a compile-time constant: indexing these arrays
+    // with a runtime `chunk % kDepth` puts the whole pipeline in local memory
+    // and cost 5.8x the serial form when measured that way, so the chunk loop
+    // is unrolled by kDepth and each copy owns one slot.
+    // An index_sequence fold, not a `#pragma unroll` loop: the slot index has
+    // to be a template argument for the arrays to stay in registers, and a
+    // loop variable cannot be used in a constant expression.
+    auto step = [&](auto stage, int g) {
+      constexpr int d = decltype(stage)::value;
+      int const ahead = g * kDepth + d + kDepth - 1;
+      if (ahead < chunks)
+        load(std::integral_constant<int, (d + kDepth - 1) % kDepth>{}, ahead);
+      // Leave the newest kDepth-1 chunks outstanding; retirement is in order,
+      // so the slot about to be read has landed.
+      maca::WaitAsyncCopies<(kDepth - 1) * kLoadsPerChunk>();
+      mma(a[d], b[d]);
+    };
 #pragma unroll 1
-    for (int k0 = 0; k0 < full; k0 += kChunkK * kUnroll) {
-      uint4 a[kUnroll][kAtomsM], b[kUnroll][kAtomsNPerWave];
-#pragma unroll
-      for (int u = 0; u < kUnroll; ++u) {
-#pragma unroll
-        for (int j = 0; j < kAtomsNPerWave; ++j) b[u][j] = source.B(j, k0 + u * kChunkK);
-#pragma unroll
-        for (int am = 0; am < kAtomsM; ++am) a[u][am] = source.A(am, k0 + u * kChunkK);
-      }
-#pragma unroll
-      for (int u = 0; u < kUnroll; ++u) mma(a[u], b[u]);
+    for (int g = 0; g < groups; ++g)
+      [&]<std::size_t... kStage>(std::index_sequence<kStage...>) {
+        (step(std::integral_constant<int, int(kStage)>{}, g), ...);
+      }(std::make_index_sequence<kDepth>{});
+    // Whole chunks the groups did not cover.
+#pragma unroll 1
+    for (int chunk = groups * kDepth; chunk < chunks; ++chunk) {
+      load(std::integral_constant<int, 0>{}, chunk);
+      maca::WaitAsyncCopies<0>();
+      mma(a[0], b[0]);
     }
+    int const full = chunks * kChunkK;
 #pragma unroll 1
     for (int k0 = full; k0 < count; k0 += kChunkK) {
       uint4 a[kAtomsM], b[kAtomsNPerWave];

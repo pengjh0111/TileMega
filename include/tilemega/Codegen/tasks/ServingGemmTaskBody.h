@@ -125,7 +125,7 @@ template <class Arch, int TileM, int TileN, int TileK, int Stages>
 struct ServingGemmTaskBody {
   using Config = backend::ServingGemmConfig<Arch, TileM, TileN, TileK, Stages>;
   using Mainloop = typename Config::Mainloop;
-  using Mma = backend::ServingGemmMma<TileM, TileN, TileK>;
+  using Mma = backend::ServingGemmMma<TileM, TileN, TileK, Stages>;
   static constexpr int kThreads = Config::kThreads;
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
   static constexpr int kSharedBytes = solver::DmServingBF16SmemBytes(TileM, TileN, TileK, Stages);

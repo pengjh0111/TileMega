@@ -75,7 +75,7 @@ struct ServingDmGemm {
   static_assert(std::is_same_v<Arch, arch::Xcore1000>, "xcore1000 DM GEMM only");
   static_assert(solver::DmServingBF16ShapeLegal(TM, TN, TK, Stages));
   using Element = tilemega::Bf16;
-  using Mma = ServingGemmMma<TM, TN, TK>;
+  using Mma = ServingGemmMma<TM, TN, TK, Stages>;
   using Lane = typename Mma::Lane;
   static constexpr int kThreads = 128;
   static constexpr int kSharedBytes = solver::DmServingBF16SmemBytes(TM, TN, TK, Stages);
