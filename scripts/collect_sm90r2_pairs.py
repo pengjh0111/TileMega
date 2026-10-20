@@ -38,6 +38,9 @@ def main():
         marker = '-reference-f'
         if marker not in name or value['status'] != 'done':
             continue
+        selected=read(Path(value['out']) / 'job/selected-config.json')
+        if selected['stage']!='measure':
+            continue
         prefix, fresh = name.rsplit(marker, 1)
         reference = sample(value)
         for candidate_name, candidate_value in state.items():

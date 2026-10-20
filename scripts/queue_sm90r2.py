@@ -19,6 +19,7 @@ def main():
     p.add_argument('--rounds', type=int, required=True)
     p.add_argument('--after', nargs='*', default=[])
     p.add_argument('--timeout', type=int, default=1800)
+    p.add_argument('--queue-dir', type=Path)
     a = p.parse_args()
     if a.gpu == 5 and a.stage != 'correctness':
         p.error('GPU5 is functional-only')
@@ -44,7 +45,8 @@ def main():
                     TILEMEGA_NUMA_NODE=str(node), TILEMEGA_GPU_PID_MODE='namespace_limited',
                     PYTHONPATH=str(ROOT / 'python'), OMP_NUM_THREADS='8'), command=command))
             previous = [name]
-    write(RUN / f'queues/gpu{a.gpu}/queue_{a.name}.json', jobs)
+    directory=a.queue_dir or RUN / f'queues/gpu{a.gpu}'
+    write(directory / f'queue_{a.name}.json', jobs)
 
 
 if __name__ == '__main__':
