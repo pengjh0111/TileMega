@@ -56,6 +56,9 @@ def build_defines(generated, options):
 
 def validate_gemm_dispatch(manifest, defines, generated):
     """Certify each manifest GEMM against its actual generated runtime class."""
+    if 'native_dense' in manifest:
+        from .native_contract import dispatch
+        return dispatch(manifest, defines, generated)
     gemms = manifest.get('gemms', [])
     match = re.search(r'constexpr\s+GemmRuntimeDesc\s+kRuntimeGemms0\[\]\s*=\s*\{(.*?)\n\};',
                       generated, re.S)
@@ -90,6 +93,9 @@ def validate_gemm_dispatch(manifest, defines, generated):
 
 
 def validate(manifest, defines):
+    if 'native_dense' in manifest:
+        from .native_contract import validate as native_validate
+        return native_validate(manifest, defines)
     seed_arch = manifest.get('seed_arch', 'legacy')
     if seed_arch not in ('native', 'legacy'):
         raise ValueError('manifest seed_arch must be native or legacy')
@@ -174,6 +180,9 @@ def validate(manifest, defines):
 
 def implementations(manifest, defines):
     """The same implementation fields serve source checks and binary identity."""
+    if 'native_dense' in manifest:
+        from .native_contract import implementations as native_implementations
+        return native_implementations(manifest)
     paged = manifest.get('pg') == 'pages'
     decode = manifest.get('phase') == 'decode'
     return {'dwpw_impl': manifest.get('dwpw_impl', 'mma16'), 'depthwise_impl': manifest.get('depthwise_impl', 'cpasync'), 'seed_arch': manifest.get('seed_arch', 'legacy'),

@@ -43,38 +43,47 @@ def main():
         cutlass.rmdir()
     cutlass.symlink_to(root / 'third_party/cutlass', target_is_directory=True)
     commands = subprocess.check_output(['ninja', '-C', str(build), '-t', 'commands', 'tilemega'], text=True).splitlines()
-    compile_line, = [line for line in commands if ' -c ' + str(root / 'tools/commands/compile.cpp') in line]
-    command = shlex.split(compile_line)
-    original_object = command[command.index('-o') + 1]
-    obj = out / 'compile.cpp.o'
-    command[command.index('-o') + 1] = str(obj)
-    if '-MF' in command:
-        command[command.index('-MF') + 1] = str(out / 'compile.cpp.d')
-    command[command.index('-c') + 1] = str(source / 'tools/commands/compile.cpp')
-    command = [x.replace(str(root / 'include'), str(source / 'include'))
-               if x.startswith('-I') else x for x in command]
-    command = [x.replace(str(root), str(source)) if x.startswith('-DTILEMEGA_SOURCE_DIR=') else x
-               for x in command]
     env = dict(os.environ, CUDA_VISIBLE_DEVICES='')
+    replacements, rebuilt = {}, []
     with (out / 'compile.log').open('w') as log:
-        subprocess.run(command, cwd=build, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
+        # Both entry points embed the source root used by CUDA and identity.
+        # Reusing the native entry object would compile from the live tree.
+        for name in ('compile.cpp', 'native_dense.cpp'):
+            lines = [line for line in commands if ' -c ' + str(root / 'tools/commands' / name) in line]
+            if not lines and name == 'native_dense.cpp':
+                continue
+            compile_line, = lines
+            command = shlex.split(compile_line)
+            original_object = command[command.index('-o') + 1]
+            obj = out / (name + '.o')
+            replacements[original_object] = str(obj)
+            command[command.index('-o') + 1] = str(obj)
+            if '-MF' in command:
+                command[command.index('-MF') + 1] = str(out / (name + '.d'))
+            command[command.index('-c') + 1] = str(source / 'tools/commands' / name)
+            command = [x.replace(str(root / 'include'), str(source / 'include'))
+                       if x.startswith('-I') else x for x in command]
+            command = [x.replace(str(root), str(source)) if x.startswith('-DTILEMEGA_SOURCE_DIR=') else x
+                       for x in command]
+            subprocess.run(command, cwd=build, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
+            rebuilt.append(command)
     link_line, = [line for line in commands if ' -o tools/tilemega ' in line]
     segments = [s for s in link_line.split(' && ') if s.strip() != ':']
     if len(segments) != 1:
         raise ValueError('unexpected linker recipe; refuse to run shell fragments')
     link = shlex.split(segments[0])
-    link = [str(obj) if x == original_object else x for x in link]
+    link = [replacements.get(x, x) for x in link]
     compiler = out / 'tilemega'
     link[link.index('-o') + 1] = str(compiler)
     with (out / 'link.log').open('w') as log:
         subprocess.run(link, cwd=build, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
     objects = {str((build / x).resolve()): sha(build / x) for x in link
-               if x.endswith(('.o', '.a')) and x != str(obj) and (build / x).is_file()}
+               if x.endswith(('.o', '.a')) and x not in replacements.values() and (build / x).is_file()}
     (out / 'receipt.json').write_text(json.dumps(dict(
         source=str(source), head=head, patch_sha256=sha(out / 'source.patch'),
-        compiler=str(compiler), compiler_sha256=sha(compiler), compile_command=command,
+        compiler=str(compiler), compiler_sha256=sha(compiler), compile_commands=rebuilt,
         link_command=link, reused_host_objects=objects,
-        scope='compile translation unit rebuilt; unchanged host objects reused; CUDA uses frozen headers'),
+        scope='compiler entry translation units rebuilt; host core reused; CUDA uses frozen headers'),
         indent=2) + '\n')
     print(compiler, flush=True)
 
