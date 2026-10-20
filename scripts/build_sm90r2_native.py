@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 
-from sm90d1_common import ROOT, read, sha, write
+from sm90d1_common import ROOT, PYTHON, read, sha, write
 
 
 def main():
@@ -44,6 +44,17 @@ def main():
                                  stdout=log, stderr=subprocess.STDOUT)
     if status:
         print(json.dumps(dict(status='failed', receipt=str(receipt))), flush=True)
+        return status
+    reference = ROOT / 'runs/sm90d1/build/reference2' / directory.name
+    command = [PYTHON, str(ROOT / 'scripts/check_sm90r2_native_abi.py'),
+               '--prefill', str(reference / 'prefill.so'), '--decode', str(binary),
+               '--model-config', str(ROOT / c['model_dir'] / 'config.json')]
+    with (directory / 'decode.host_abi.json').open('w') as log:
+        status = subprocess.call(command, cwd=ROOT,
+            env=dict(os.environ, CUDA_VISIBLE_DEVICES='', PYTHONPATH=str(ROOT / 'python')),
+            stdout=log, stderr=subprocess.STDOUT)
+    if status:
+        print(json.dumps(dict(status='host ABI check failed', directory=str(directory))), flush=True)
         return status
     identity = read(str(binary) + '.identity.json')
     binding = dict(config=str(a.config.resolve()), config_sha256=sha(a.config),
