@@ -19,6 +19,8 @@ struct AscendPlan {
   std::vector<AscendTaskHandoff> handoffs;
   ascend::PlanAudit audit;
   std::map<std::string,std::uint64_t> storage_bytes;
+  bool stage_barrier=false;
+  void SelectStageBarrier();
   std::string ToJson() const;
 };
 AscendPlan MaterializeAscendPlan(SymbolicProblem const&,PlanSkeleton const&,

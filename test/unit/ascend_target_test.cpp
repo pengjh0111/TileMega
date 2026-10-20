@@ -2,6 +2,7 @@
 #include <tilemega/Solver/AscendImplementation.h>
 #include <tilemega/Solver/CandidateGenerator.h>
 #include <tilemega/Solver/ImplementationContract.h>
+#include <tilemega/Solver/AscendPlan.h>
 #include <tilemega/Support/Json.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <cassert>
@@ -50,6 +51,20 @@ int main() {
   auto add=solver::As1AivImplementation(codegen::TaskKind::kAdd,target);
   assert(norm.aiv_scratch.ub==6656 && silu.aiv_scratch.ub==6656 && add.aiv_scratch.ub==6656);
   Reject([&]{solver::As1AivImplementation(codegen::TaskKind::kLayerNorm,target);});
+  auto gelu=solver::As1EncoderImplementation(codegen::TaskKind::kElementwise,target);
+  auto attention=solver::As1EncoderImplementation(codegen::TaskKind::kEncoderAttention,target);
+  assert(gelu.impl_id!=silu.impl_id && gelu.aiv_scratch.ub==16384 && attention.aiv_scratch.ub==16384);
+  solver::AscendPlan barrier;
+  barrier.metadata.stages=10;barrier.metadata.groups=2;barrier.metadata.workers=1;
+  barrier.tasks={{0,0,0,0,0,0,0},{1,0,0,1,0,1,0}};
+  barrier.dependencies={0};barrier.schedule_offsets={0,2};barrier.schedule={0,1};
+  barrier.SelectStageBarrier();
+  assert(barrier.stage_barrier && barrier.storage_bytes.at("stage_barrier_control")==10240);
+  Reject([&]{barrier.SelectStageBarrier();});
+  auto invalid_barrier=barrier;invalid_barrier.tasks[1].stage=0;
+  Reject([&]{invalid_barrier.SelectStageBarrier();});
+  invalid_barrier=barrier;invalid_barrier.schedule={1,0};
+  Reject([&]{invalid_barrier.SelectStageBarrier();});
   auto too_small=*target.ascend_capability;
   for(auto& track:too_small.tracks)if(track.role==ascend::TrackRole::kAiv)track.local_resources.ub=6655;
   Reject([&]{norm.Validate(too_small);});

@@ -7,6 +7,23 @@
 #include <stdexcept>
 
 namespace tilemega::solver {
+void AscendPlan::SelectStageBarrier() {
+  if(metadata.stages!=10 || metadata.groups!=2)
+    throw std::invalid_argument("Stage-barrier executor is restricted to the fixed encoder");
+  for(auto const& t:tasks)for(unsigned i=0;i<t.dependency_count;++i)
+    if(tasks.at(dependencies.at(t.dependency_begin+i)).stage>=t.stage)
+      throw std::invalid_argument("Stage barrier cannot satisfy a same/later-stage dependency");
+  for(unsigned w=0;w<metadata.workers;++w)
+    for(unsigned i=schedule_offsets.at(w)+1;i<schedule_offsets.at(w+1);++i)
+      if(tasks.at(schedule.at(i-1)).stage>tasks.at(schedule.at(i)).stage)
+        throw std::invalid_argument("Stage barrier would reorder a worker FIFO");
+  stage_barrier=true;
+  auto extra=std::uint64_t(metadata.workers+1)*metadata.stages*512;
+  if(storage_bytes.count("stage_barrier_control"))
+    throw std::invalid_argument("Stage-barrier executor already selected");
+  storage_bytes["stage_barrier_control"]=extra;
+  storage_bytes["total_device_allocation"]+=extra;
+}
 AscendPlan MaterializeAscendPlan(SymbolicProblem const& problem,PlanSkeleton const& skeleton,
     ascend::TargetCapability const& target,std::vector<ascend::TaskImplementation> const& impls,
     unsigned epochs) {
@@ -59,7 +76,8 @@ AscendPlan MaterializeAscendPlan(SymbolicProblem const& problem,PlanSkeleton con
       ascend::HandoffContract h;h.producer=assignments[producer].owner;h.consumer=assignments[consumer].owner;
       h.route=ascend::HandoffRoute::kGmEvent;h.sync=ascend::SyncKind::kGmEvent;
       h.layout="ND_bf16";h.buffer_epochs=epochs;
-      h.visibility_evidence="runs/as1/probes/gm_visibility_summary.json: DMA completion, single-owner publish, cache invalidation; epoch barrier before reuse";
+      h.visibility_evidence=target.gm_event_evidence+": DMA completion, single-owner publish, cache invalidation; epoch barrier before reuse";
+      if(target.gm_event_evidence.empty())throw std::invalid_argument("GM handoff lacks target probe provenance");
       int logical=problem.projection.stages[plan.tasks[producer].stage].logical_stage;
       for(auto const& semantic:problem.model.task_semantics)if(semantic.stage==logical) {
         auto b=problem.model.physical_buffers.find(semantic.op.result.name);
@@ -150,6 +168,7 @@ std::string AscendPlan::ToJson() const {
       {"buffer_epochs",int(h.buffer_epochs)},{"visibility_evidence",h.visibility_evidence},{"cost_status","not_calibrated"}});
   }
   return Value(Object{{"schema","tilemega.ascend.plan.v1"},{"cost_status","not_calibrated"},
+    {"executor",stage_barrier?"stage_barrier":"task_event"},
     {"selection","fixed_legal_whitelist"},{"launch_groups",int(metadata.groups)},
     {"launch_blocks",this->workers.launch.num_blocks},{"residency",1},{"epochs",int(metadata.epochs)},
     {"workers",std::move(workers)},{"stage_implementations",std::move(stages)},
