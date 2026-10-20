@@ -21,8 +21,10 @@ def compiler_arch(options):
             return value.split('=', 1)[1]
         if value == '-arch' and index + 1 < len(options):
             return options[index + 1]
-        if value.startswith('-gencode='):
-            code = value.partition(',code=')[2]
+        if value.startswith(('-gencode=', '--generate-code=')) or value in ('-gencode', '--generate-code'):
+            specification = value.split('=', 1)[1] if '=' in value else (
+                options[index + 1] if index + 1 < len(options) else '')
+            code = specification.partition(',code=')[2]
             if code.startswith('sm_'):
                 return code
     return None

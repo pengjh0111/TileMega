@@ -19,5 +19,13 @@ class ArchitectureIdentity(unittest.TestCase):
             with self.subTest(options=options),self.assertRaises(ValueError):
                 architecture_identity(options,{'arch_tag':'sm_90','nvcc_arch':'sm_90a'})
 
+    def test_split_and_long_generate_code_options(self):
+        for flag in ('-gencode', '--generate-code'):
+            specification = 'arch=compute_90a,code=sm_90a'
+            for options in ([flag, specification], [flag+'='+specification]):
+                with self.subTest(options=options):
+                    self.assertEqual(architecture_identity(options, {'arch_tag':'sm_90'}),
+                                     ('sm_90', 'sm_90a'))
+
 
 if __name__=='__main__':unittest.main()
