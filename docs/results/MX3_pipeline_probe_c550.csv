@@ -13,3 +13,12 @@ mma registers,2,357.42,355.16,2.11,
 mma registers,3,293.44,294.26,2.57,
 mma registers,4,263.95,264.22,2.86,
 mma registers,6,226.80,225.43,3.34,"approaches the 195 ns bandwidth bound: latency essentially hidden"
+stream serial 416 CTA,1,563.09,,1.00,"four CTAs per AP, as residency-4 plans run: 1.51 TB/s, 94% of peak"
+mma serial 416 CTA,1,852.97,,1.00,
+mma registers 416 CTA,2,570.39,,1.50,"depth 2 already reaches the bandwidth floor"
+mma registers 416 CTA,4,562.30,,1.52,
+mma registers 416 CTA,6,547.73,,1.56,
+stream serial 208 CTA,1,292.46,,1.00,
+mma serial 208 CTA,1,779.34,,1.00,
+mma registers 208 CTA,4,361.17,,2.16,
+mma registers 208 CTA,6,329.22,,2.37,
