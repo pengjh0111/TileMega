@@ -44,6 +44,10 @@ struct ModelDims {
   std::string past_parameter;
   int batch = 1;
   std::string batch_parameter;
+  // Decode attention runs the MMA body (attention_impl=mma16) instead of the
+  // SIMT one. The two are separate calibrated bodies, so pricing has to know
+  // which one the plan will execute (MX3-3).
+  bool decode_attention_mma = false;
   bool IsSymbolic() const {
     return !seq_parameter.empty() || !past_parameter.empty() ||
            !batch_parameter.empty();

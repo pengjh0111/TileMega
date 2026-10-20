@@ -912,6 +912,8 @@ int RunCompile(int argc, char** argv) {
           throw std::runtime_error("serving search requires the selected sync policy's hop calibration");
       }
       solve_options.timing=&solver_timing;
+      solve_options.placement.dims.decode_attention_mma=
+          serving && serving_phase=="decode" && attention_impl=="mma16";
       tilemega::solver::CompilerSearchResult solved;
       if(solver_mode=="legacy")solved=tilemega::solver::SolveExport(input.string(),context,solve_options,&summary,evidence);
       else {

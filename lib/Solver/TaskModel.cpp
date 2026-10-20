@@ -801,7 +801,8 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
         break;
       case StageKind::kFusedAttention:
         result.serving_body_kind=std::string("fused_attention_")+
-            (model.dims.seq==1?"decode_d":"prefill_d")+std::to_string(stage.width)+
+            (model.dims.seq==1?(model.dims.decode_attention_mma?"decode_mma16_d":"decode_d")
+                              :"prefill_d")+std::to_string(stage.width)+
             "_q"+std::to_string(stage.group)+"_norm"+
             std::to_string(stage.qk_norm);
         break;
