@@ -132,11 +132,31 @@ constexpr int ServingBF16SmemBytes(int m, int n, int k, int stages) {
   return 4 * m * n + 4 * m;
 }
 
+/// Registers the MMA mainloop's pipeline holds, and whether a depth fits.
+/// Since MX-3 `stages` is the number of 32-K chunks in flight and the
+/// pipeline lives in registers, not shared memory: each chunk keeps
+/// (TileN/16/waves + TileM/16) sixteen-byte fragments per lane. The candidate
+/// domain has to bound depth by this, because the old shared-memory bound
+/// (max_dynamic_smem_per_cta / 2*k*(m+n)) described staged operands the body
+/// never had, and let the search pick stages the body cannot build.
+constexpr int ServingGemmLoadsPerChunk(int m, int n, int waves) {
+  return n / 16 / waves + m / 16;
+}
+constexpr int ServingGemmPipelineVgprs(int m, int n, int stages, int waves) {
+  return stages * ServingGemmLoadsPerChunk(m, n, waves) * 4;
+}
+constexpr bool ServingGemmDepthFits(int m, int n, int stages, int waves) {
+  return stages >= 1 && ServingGemmPipelineVgprs(m, n, stages, waves) <= 160;
+}
+
 constexpr bool ServingBF16ShapeLegal(int m, int n, int k, int stages) {
   bool const legal_m = m == 16 || m == 32 || m == 64 || m == 128;
   bool const legal_n = n == 32 || n == 64 || n == 128 || n == 256;
   bool const legal_k = k == 64 || k == 128;
-  return legal_m && legal_n && legal_k && m * n <= 16384 && stages >= 2;
+  // Depth 1 is the serial mainloop and is legal: it is the A/B baseline the
+  // pipeline is measured against, and it was previously excluded.
+  return legal_m && legal_n && legal_k && m * n <= 16384 && stages >= 1 &&
+      ServingGemmDepthFits(m, n, stages, 2);
 }
 
 inline BackendTraits ServingBF16Traits(int m, int n, int k, int stages) {

@@ -143,9 +143,17 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
       if(!(fit.stage_rate_bytes_per_ns>0))throw std::invalid_argument("regime-A stages require a calibrated transfer rate");
       double h=traffic.global_read_bytes>0?1-read_dram/traffic.global_read_bytes:1;
       double latency=h*calib_->l2_latency_ns+(1-h)*calib_->dram_latency_ns;
-      iteration=std::max({u.Bottleneck(),body,(fit.latency_scale*latency+o*bytes/fit.stage_rate_bytes_per_ns)/(traits.stages-1)});
+      // Depth S keeps S chunks in flight, so a chunk's latency is amortised
+      // over S, not S-1. The old divisor also divided by zero once depth 1
+      // became a legal candidate, and it priced a pipeline the body did not
+      // have at all until MX-3 (ServingGemmMma.h).
+      double const depth=std::max(1,traits.stages);
+      iteration=std::max({u.Bottleneck(),body,(fit.latency_scale*latency+o*bytes/fit.stage_rate_bytes_per_ns)/depth});
     }
-    result.compute_ns=(options_.pipeline_envelope?std::max(iters-(traits.stages-1),0.):iters)*iteration;
+    // The first S-1 iterations fill the pipeline and overlap with nothing, so
+  // the envelope drops them; that part was always right in shape, and is now
+  // right about the body too.
+  result.compute_ns=(options_.pipeline_envelope?std::max(iters-(std::max(1,traits.stages)-1),0.):iters)*iteration;
   }
   if(input.serving_attention) {
     auto const& a=*input.serving_attention;

@@ -99,9 +99,14 @@ inline ServingClassDomain ServingClassCandidates(
       }
   ServingClassDomain domain;
   for(int m:{16,32,64,128})for(int n:{32,64,128,256})for(int k:{64,128}) {
-    int const per_stage=2*k*(m+n);
-    int const stage_limit=target.res.max_dynamic_smem_per_cta/per_stage;
-    for(int stages=2;stages<=stage_limit;++stages)
+    // Depth is bounded by the register file, not shared memory: the MMA
+    // mainloop's pipeline lives in registers (ServingGemmMma.h), so the old
+    // max_dynamic_smem_per_cta/(2*k*(m+n)) limit described staged operands
+    // the body never had. Depth 1 is the serial form and is offered too.
+    (void)target;
+    int stage_limit=1;
+    while(ServingGemmDepthFits(m,n,stage_limit+1,2))++stage_limit;
+    for(int stages=1;stages<=stage_limit;++stages)
       for(int split:{1,2,4,8,16,32}) {
         if(gemm.epilogue==frontend::PlanGemm::Epilogue::kArgmaxPartial && split!=1)
           continue;
