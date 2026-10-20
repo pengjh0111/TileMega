@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <stdexcept>
 
 namespace tilemega::solver {
 namespace {
@@ -14,6 +15,15 @@ int SmVersion(TargetSpec const& target) {
 }  // namespace
 
 bool BackendCandidate::isLegal(TargetSpec const& target) const {
+  if (target.arch_tag == "ascend_3510") {
+    if (!target.ascend_capability || !traits_.shape_legal || traits_.arch_tag != target.arch_tag ||
+        !traits_.ascend_implementation || traits_.arch_sm || traits_.smem_bytes || traits_.threads)
+      return false;
+    try { traits_.ascend_implementation->Validate(*target.ascend_capability); }
+    catch (std::invalid_argument const&) { return false; }
+    return true;
+  }
+  if (traits_.ascend_implementation || traits_.arch_tag == "ascend_3510") return false;
   if (!traits_.shape_legal || traits_.smem_bytes <= 0 || traits_.threads <= 0)
     return false;
   if (traits_.smem_bytes > target.res.max_dynamic_smem_per_cta) return false;
@@ -32,6 +42,8 @@ bool BackendCandidate::isLegal(TargetSpec const& target) const {
 }
 
 int BackendCandidate::CoResidentPerSM(TargetSpec const& target) const {
+  if (target.arch_tag == "ascend_3510")
+    throw std::invalid_argument("SM residency is undefined for Ascend; use ResidentWorkersPerTrack");
   if (!isLegal(target)) return 0;
   int by_smem = traits_.smem_bytes > 0
                     ? target.res.max_smem_per_sm / traits_.smem_bytes
@@ -44,8 +56,16 @@ int BackendCandidate::CoResidentPerSM(TargetSpec const& target) const {
   return std::max(0, limit);
 }
 
+int BackendCandidate::ResidentWorkersPerTrack(TargetSpec const& target) const {
+  if (target.arch_tag != "ascend_3510")
+    throw std::invalid_argument("ResidentWorkersPerTrack requires the Ascend target");
+  return isLegal(target) ? 1 : 0;
+}
+
 bool BackendCandidate::RecordPtxas(std::string_view ptxas_log,
                                    std::string_view entry_filter) {
+  if (traits_.arch_tag == "ascend_3510" || traits_.ascend_implementation)
+    throw std::invalid_argument("PTX resource reports cannot describe an Ascend implementation");
   int best = -1;
   std::string entry;
   for (auto const& [name, registers] : ParsePtxasRegisters(ptxas_log)) {

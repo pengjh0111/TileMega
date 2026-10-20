@@ -36,6 +36,8 @@ struct BackendTraits {
   AlignmentRequirement alignment;
   int arch_sm = 0;  ///< minimum SM version, as 10 * major + minor
   bool shape_legal = false;
+  std::string arch_tag;
+  std::optional<ascend::TaskImplementation> ascend_implementation;
 };
 
 /// One point of the implementation search space, as the solver sees it.
@@ -67,6 +69,7 @@ class BackendCandidate {
   /// How many of these fit on one SM given the target's budgets; 0 when the
   /// candidate does not fit at all.
   int CoResidentPerSM(TargetSpec const& target) const;
+  int ResidentWorkersPerTrack(TargetSpec const& target) const;
   std::string Describe() const;
 
  private:

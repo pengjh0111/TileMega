@@ -19,6 +19,8 @@
 
 #pragma once
 
+#include <tilemega/Target/Ascend/Track.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <map>
@@ -37,6 +39,7 @@ namespace tilemega {
 ///                                     works even without the hardware present
 ///                                     (cross compilation, cost modelling).
 struct TargetSpec {
+  std::optional<ascend::TargetCapability> ascend_capability;
   struct EventRate {
     std::optional<double> ns;
     std::string reason = "not_calibrated";
