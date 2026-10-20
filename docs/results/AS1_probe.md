@@ -128,3 +128,19 @@ Native BF16 direct-UB, mode4 and SSBuffer remain disabled. See
   four epochs each, one launch and bitwise-identical final output. This proves
   only the fixed ten-stage encoder barrier scope, not arbitrary barrier graphs.
   `runs/as1/e2/e2_summary.json` indexes every PID, binary hash and output hash.
+
+## R-1–R-11 capability evidence
+
+| Requirement | Current installed 950PR scope |
+|---|---|
+| R-1 | **verified** both physical IDs/SKU, 28 AIC/56 AIV per card; selected launch G≤2, not 84 blocks. |
+| R-2 | **verified** API bank budgets and 212 KiB UB touch; full AIC-bank allocation limits/register/SSBuffer budgets unverified. |
+| R-3 | **verified** MIX(1:2), block/subblock IDs, G-block launch, batch mode and multiple tasks/epochs in one launch. |
+| R-4 | **verified** official EVG mode2 reuse, flags 0/1 and reverse ack 15, 5/5; mode4 disabled. |
+| R-5 | **verified** bounded single-owner bypass-DCache GM protocol with DMA completion/cache invalidation, not general atomic release/acquire. Scalar atomic-return semantics unverified. |
+| R-6 | **verified** GM C/V handoff and official FP32 L0C→UB; native BF16 direct and UB→L1 disabled pending bodies/probes. |
+| R-7 | **verified** CATLASS BF16 ND output/stride/tails and official FP32 UB epilogue; no general NZ/direct-layout support claim. |
+| R-8 | **unverified** component sustained throughput/overlap; only contended full-encoder timings, no target cost calibration. |
+| R-9 | **verified** native ASC/BiSheng/ACL and pinned CATLASS 3510; actual compiler lines retained. |
+| R-10 | **verified** raw cycle reads and owned-process timeout; cycle/ns conversion, Trap and profiler remain unverified. |
+| R-11 | **verified** SIMD reductions, Erf GELU, mask/softmax and register PV for fixed encoder; SIMT/gather/RoPE unimplemented. |
