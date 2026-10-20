@@ -1,0 +1,160 @@
+#include <tilemega/Backend/Ascend/GemmTile.h>
+#include <tilemega/Target/Ascend/DevicePrimitives.h>
+#include <tilemega/Target/Ascend/PlanABI.h>
+#include <acl/acl.h>
+#include <runtime/dev.h>
+#include <algorithm>
+#include <cstdint>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <stdexcept>
+#include <vector>
+using namespace tilemega::ascend;
+@AS1_PLAN_TABLES@
+
+template<bool Cube> struct Dispatch;
+template<> struct Dispatch<true> {
+  GemmTile<bfloat16_t,bfloat16_t> gemm;
+  __aicore__ inline bool Run(abi::TaskRef const& task,GM_ADDR a,GM_ADDR b,GM_ADDR c) {
+    if(task.stage!=0 || task.logical_task>=kTaskCount)return false;
+    gemm.RunTask(a,b,c,kM,kN,kPhysicalK,task.logical_task/((kN+63)/64),task.logical_task%((kN+63)/64));
+    CompleteDma<AscendC::HardEvent::FIX_S>();return true;
+  }
+};
+template<> struct Dispatch<false> {
+  __aicore__ inline bool Run(abi::TaskRef const&,GM_ADDR,GM_ADDR,GM_ADDR) { return false; }
+};
+template<bool Cube> __aicore__ inline void Execute(Dispatch<Cube>& body,GM_ADDR a,GM_ADDR b,GM_ADDR c,
+    GM_ADDR metadata,GM_ADDR task_data,GM_ADDR owner_data,GM_ADDR offset_data,GM_ADDR schedule_data,
+    GM_ADDR dependency_data,GM_ADDR event_data,GM_ADDR trace_data,GM_ADDR done_data,GM_ADDR epoch_data,GM_ADDR abort_data) {
+  AscendC::GlobalTensor<uint32_t> meta,tasks,owners,offsets,schedule,deps;
+  meta.SetGlobalBuffer((__gm__ uint32_t*)metadata);tasks.SetGlobalBuffer((__gm__ uint32_t*)task_data);
+  owners.SetGlobalBuffer((__gm__ uint32_t*)owner_data);offsets.SetGlobalBuffer((__gm__ uint32_t*)offset_data);
+  schedule.SetGlobalBuffer((__gm__ uint32_t*)schedule_data);deps.SetGlobalBuffer((__gm__ uint32_t*)dependency_data);
+  auto* abort=(__gm__ uint32_t*)abort_data;
+  unsigned groups=meta.GetValue(1),workers=meta.GetValue(2),count=meta.GetValue(3),epochs=meta.GetValue(5);
+  unsigned worker=GetWorkerId(groups);
+  if(meta.GetValue(0)!=abi::kVersion || groups!=kGroups || workers!=3*groups ||
+      count!=kTaskCount || worker>=workers || epochs<1 || epochs>16) { WriteControl(abort,2);return; }
+  unsigned begin=offsets.GetValue(worker),end=offsets.GetValue(worker+1);
+  if(end<begin || end>kScheduleCount) { WriteControl(abort,3);return; }
+  auto* events=(__gm__ uint32_t*)event_data;
+  auto* trace=(__gm__ uint32_t*)trace_data;
+  auto* done=(__gm__ uint32_t*)done_data;
+  auto* epoch_done=(__gm__ uint32_t*)epoch_data;
+  for(unsigned epoch=1;epoch<=epochs;++epoch) {
+    for(unsigned slot=begin;slot<end;++slot) {
+      unsigned id=schedule.GetValue(slot);
+      if(id>=count || owners.GetValue(2*id)!=worker) { WriteControl(abort,4);return; }
+      abi::TaskRef task{tasks.GetValue(7*id),tasks.GetValue(7*id+1),tasks.GetValue(7*id+2),
+        tasks.GetValue(7*id+3),tasks.GetValue(7*id+4),tasks.GetValue(7*id+5),tasks.GetValue(7*id+6)};
+      if(task.dependency_begin+task.dependency_count>meta.GetValue(4) ||
+         task.wait_begin!=task.dependency_begin || task.wait_count!=task.dependency_count || task.flags) {
+        WriteControl(abort,5);return;
+      }
+      for(unsigned d=0;d<task.dependency_count;++d) {
+        unsigned producer=deps.GetValue(task.dependency_begin+d);
+        if(producer>=count || !WaitEvent(events+producer*128,epoch,abort))return;
+      }
+      if(ReadControl(abort))return;
+      if(task.dependency_count) {
+        AscendC::GlobalTensor<uint8_t> input;input.SetGlobalBuffer(a);AcquireData(input);
+      }
+      if(!body.Run(task,a,b,c)) { WriteControl(abort,6);return; }
+      auto* record=trace+id*128;
+      WriteControl(record,ReadControl(record)+1);WriteControl(record+1,worker);
+      WriteControl(record+2,task.stage);WriteControl(record+3,task.logical_task);
+      unsigned event=owners.GetValue(2*id+1);
+      if(event!=id) { WriteControl(abort,7);return; }
+      PublishSingleOwnerEvent(events+event*128,epoch);
+    }
+    PublishSingleOwnerEvent(done+worker*128,epoch);
+    // Epoch reuse waits for every consumer, including empty lanes. Only AIC0
+    // publishes the external epoch barrier; per-task triggers remain one.
+    if(worker==0) {
+      for(unsigned w=0;w<workers;++w)if(!WaitEvent(done+w*128,epoch,abort))return;
+      for(unsigned f=0;f<8;++f)WriteControl(trace+count*128+f,meta.GetValue(f));
+      PublishSingleOwnerEvent(epoch_done,epoch);
+    } else if(!WaitEvent(epoch_done,epoch,abort))return;
+  }
+}
+__global__ __aicore__ __mix__(1,2) __schedmode__(1)
+void tilemega_persistent(GM_ADDR a,GM_ADDR b,GM_ADDR c,GM_ADDR metadata,GM_ADDR tasks,GM_ADDR owners,
+    GM_ADDR offsets,GM_ADDR schedule,GM_ADDR deps,GM_ADDR events,GM_ADDR trace,GM_ADDR done,GM_ADDR epoch,GM_ADDR abort) {
+  if ASCEND_IS_AIC {
+    Dispatch<true> body;Execute(body,a,b,c,metadata,tasks,owners,offsets,schedule,deps,events,trace,done,epoch,abort);
+  } else {
+    Dispatch<false> body;Execute(body,a,b,c,metadata,tasks,owners,offsets,schedule,deps,events,trace,done,epoch,abort);
+  }
+}
+static void Check(aclError e,char const* name) {
+  if(e)throw std::runtime_error(std::string(name)+": "+std::to_string(e));
+}
+static std::vector<uint16_t> Read(std::filesystem::path const& file,size_t elements) {
+  if(std::filesystem::file_size(file)!=elements*2)throw std::runtime_error("Input size mismatch: "+file.string());
+  std::vector<uint16_t> data(elements);std::ifstream in(file,std::ios::binary);
+  in.read(reinterpret_cast<char*>(data.data()),elements*2);
+  if(!in)throw std::runtime_error("Cannot read input");return data;
+}
+static uint8_t* Allocate(void const* data,size_t bytes) {
+  uint8_t* p=nullptr;Check(aclrtMalloc((void**)&p,bytes,ACL_MEM_MALLOC_HUGE_FIRST),"allocate");
+  Check(aclrtMemcpy(p,bytes,data,bytes,ACL_MEMCPY_HOST_TO_DEVICE),"upload");return p;
+}
+int main(int argc,char** argv) {
+  try {
+    if(argc!=3)throw std::runtime_error("usage: generated_runner input_directory output_file");
+    char const* selected=std::getenv("AS1_PHYSICAL_DEVICE_ID");
+    if(!selected || std::string(selected)!="0")throw std::runtime_error("Target evidence currently admits physical device 0 only");
+    auto input=std::filesystem::path(argv[1]);
+    auto a=Read(input/"input.bin",kM*kK),b=Read(input/"weight_kn.bin",kK*kN);
+    std::vector<uint16_t> pa(kM*kPhysicalK+256,0),pb(kPhysicalK*kN+256,0),pc(kM*kN+256,0x7fc1);
+    for(unsigned row=0;row<kM;++row)std::copy_n(a.data()+row*kK,kK,pa.data()+row*kPhysicalK);
+    std::copy(b.begin(),b.end(),pb.begin());
+    std::vector<uint32_t> events(kTaskCount*128,0),trace((kTaskCount+1)*128,0),done(3*kGroups*128,0),control(128,0);
+    Check(aclInit(nullptr),"init");uint32_t visible=0,physical=~0u;Check(aclrtGetDeviceCount(&visible),"count");
+    if(visible!=1)throw std::runtime_error("Use the single-device wrapper");
+    Check(rtGetDevicePhyIdByIndex(0,&physical),"physical mapping");
+    if(physical!=0)throw std::runtime_error("Unexpected physical device mapping");
+    Check(aclrtSetDevice(0),"set device");
+    const char* sku=aclrtGetSocName();
+    if(!sku || std::string(sku)!="Ascend950PR_9579")throw std::runtime_error("Wrong runtime SKU");
+    aclrtStream stream=nullptr;Check(aclrtCreateStream(&stream),"stream");
+    auto da=Allocate(pa.data(),pa.size()*2),db=Allocate(pb.data(),pb.size()*2),dc=Allocate(pc.data(),pc.size()*2);
+    auto dm=Allocate(&kMetadata,sizeof(kMetadata)),dt=Allocate(kTasks,sizeof(kTasks)),dw=Allocate(kOwners,sizeof(kOwners));
+    auto doff=Allocate(kOffsets,sizeof(kOffsets)),ds=Allocate(kSchedule,sizeof(kSchedule)),dd=Allocate(kDependencies,sizeof(kDependencies));
+    auto de=Allocate(events.data(),events.size()*4),dtr=Allocate(trace.data(),trace.size()*4),
+      ddo=Allocate(done.data(),done.size()*4),dep=Allocate(control.data(),512),dab=Allocate(control.data(),512);
+    unsigned launches=0;
+    tilemega_persistent<<<kGroups,nullptr,stream>>>(da,db,dc,dm,dt,dw,doff,ds,dd,de,dtr,ddo,dep,dab);++launches;
+    Check(aclrtSynchronizeStream(stream),"synchronize");
+    Check(aclrtMemcpy(control.data(),512,dab,512,ACL_MEMCPY_DEVICE_TO_HOST),"read abort");
+    if(control[0])throw std::runtime_error("Device executor aborted: "+std::to_string(control[0]));
+    Check(aclrtMemcpy(trace.data(),trace.size()*4,dtr,trace.size()*4,ACL_MEMCPY_DEVICE_TO_HOST),"trace");
+    Check(aclrtMemcpy(events.data(),events.size()*4,de,events.size()*4,ACL_MEMCPY_DEVICE_TO_HOST),"events");
+    Check(aclrtMemcpy(pc.data(),pc.size()*2,dc,pc.size()*2,ACL_MEMCPY_DEVICE_TO_HOST),"output");
+    for(unsigned i=0;i<kTaskCount;++i) {
+      auto const* r=trace.data()+i*128;
+      if(r[0]!=kMetadata.epochs || r[1]!=kOwners[i].owner || r[2]!=kTasks[i].stage ||
+         r[3]!=kTasks[i].logical_task || events[i*128]!=kMetadata.epochs)
+        throw std::runtime_error("Runtime TaskRef ownership/event trace disagrees with Solver Plan");
+    }
+    auto* metadata_words=reinterpret_cast<uint32_t const*>(&kMetadata);
+    for(unsigned f=0;f<8;++f)if(trace[kTaskCount*128+f]!=metadata_words[f])
+      throw std::runtime_error("Host/device metadata ABI roundtrip mismatch");
+    for(size_t i=kM*kN;i<pc.size();++i)if(pc[i]!=0x7fc1)throw std::runtime_error("Output guard overwritten");
+    std::ofstream out(argv[2],std::ios::binary);out.write(reinterpret_cast<char*>(pc.data()),kM*kN*2);
+    if(!out)throw std::runtime_error("Cannot write output");
+    std::ofstream tr(std::string(argv[2])+".trace.json");tr<<"[";
+    for(unsigned t=0;t<kTaskCount;++t){if(t)tr<<',';tr<<"{\"tile\":"<<kTasks[t].logical_task
+      <<",\"worker\":"<<trace[t*128+1]<<",\"executions\":"<<trace[t*128]<<",\"event\":"<<events[t*128]<<"}";}
+    tr<<"]\n";if(!tr)throw std::runtime_error("Cannot write trace");
+    for(auto p:{da,db,dc,dm,dt,dw,doff,ds,dd,de,dtr,ddo,dep,dab})Check(aclrtFree(p),"free");
+    Check(aclrtDestroyStream(stream),"destroy");Check(aclFinalize(),"finalize");
+    std::cout<<"{\"status\":\"executed\",\"host_kernel_launches\":"<<launches
+      <<",\"plan_tasks\":"<<kTaskCount<<",\"groups\":"<<kGroups
+      <<",\"task_event_trigger_count\":1,\"abi_roundtrip_pass\":true,\"plan_trace_pass\":true,\"physical_device_id\":0,\"logical_device_id\":0,\"tilemega_pipeline\":true}"<<std::endl;
+    return 0;
+  }catch(std::exception const& e){std::cerr<<e.what()<<std::endl;return 1;}
+}
