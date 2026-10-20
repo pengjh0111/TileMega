@@ -23,6 +23,9 @@ def main():
         r = subprocess.run(['du', '-s', '-B1', '--', str(p)], capture_output=True, text=True)
         report['project_usage'][str(p)] = int(r.stdout.split()[0]) if r.returncode == 0 else None
     history = RUNS / 'cleanup_history.jsonl'
+    all_work = subprocess.run(['du', '-s', '-B1', '--', str(WORK)], capture_output=True, text=True)
+    report['work_total_bytes_including_protected_dependencies'] = (
+        int(all_work.stdout.split()[0]) if all_work.returncode == 0 else None)
     report['last_cleanup'] = json.loads(history.read_text().splitlines()[-1])['time'] if history.exists() else None
     print(json.dumps(report, indent=2))
 

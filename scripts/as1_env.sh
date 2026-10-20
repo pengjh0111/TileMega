@@ -8,7 +8,7 @@ if [[ ! -f /usr/local/Ascend/cann-9.1.0/set_env.sh ]]; then
     return 1 2>/dev/null || exit 1
 fi
 source /usr/local/Ascend/cann-9.1.0/set_env.sh
-export PATH="/usr/local/Ascend/cann-9.1.0/tools/bisheng_compiler/bin:$PATH"
+export PATH="$AS1_WORK/envs/host/bin:/usr/local/Ascend/cann-9.1.0/tools/bisheng_compiler/bin:$PATH"
 export TMPDIR="$AS1_WORK/tmp"
 export XDG_CACHE_HOME="$AS1_WORK/cache/xdg"
 export CCACHE_DIR="$AS1_WORK/cache/ccache"
@@ -31,6 +31,10 @@ export MKL_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
 export MAX_JOBS=1
 export CMAKE_BUILD_PARALLEL_LEVEL=1
+if [[ -x "$AS1_WORK/envs/as1-npu/bin/python" ]]; then
+    export VIRTUAL_ENV="$AS1_WORK/envs/as1-npu"
+    export PATH="$VIRTUAL_ENV/bin:$PATH"
+fi
 mkdir -p "$TMPDIR" "$XDG_CACHE_HOME" "$CCACHE_DIR" "$PIP_CACHE_DIR" \
     "$TORCH_EXTENSIONS_DIR" "$TRITON_CACHE_DIR" "$TORCHINDUCTOR_CACHE_DIR" \
     "$HF_HOME" "$PYTHONPYCACHEPREFIX" "$ASCEND_CACHE_PATH" \

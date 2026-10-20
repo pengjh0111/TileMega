@@ -2,6 +2,7 @@
 """Run one project job on one visible NPU; observe other jobs without excluding them."""
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -132,6 +133,16 @@ def main():
     record['external_pids_observed_before'] = external_pids
     record['other_processes_present_before'] = bool(external_pids) if 'output' in before else None
     record['timing_status'] = 'contended' if external_pids else 'load_not_fully_characterized'
+    mapping = RUNS / 'inventory' / ('acl_device_' + str(physical) + '.json')
+    if mapping.is_file():
+        verified_map = json.loads(mapping.read_text())
+        if (verified_map.get('physical_device_id') == physical and
+                verified_map.get('logical_device_id') == 0 and verified_map.get('visible_count') == 1):
+            record.update(mapping_evidence='verified', mapping_source=str(mapping))
+    executable = Path(command[0])
+    if executable.is_file():
+        with executable.open('rb') as binary:
+            record['executable_sha256'] = hashlib.file_digest(binary, 'sha256').hexdigest()
     record_path = out / 'job.json'
     record_path.write_text(json.dumps(record, indent=2)+'\n')
     proc = None
