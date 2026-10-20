@@ -16,6 +16,11 @@ struct SkeletonEvaluationCase {
   int kappa=1,residency=1;
   int page_bytes=0,lookahead_bytes=-1;
   unsigned handoff_mask=0;
+  // The serving attention coordinate (decode Ec, prefill Rq); 0 leaves the
+  // search's own choice. Without it a pinned rebuild could not reproduce a
+  // plan: the MX-2 rebuild matched every GEMM coordinate and still differed
+  // by Ec 32 against 256 (MX3-0).
+  int attention_kv_block=0,attention_query_rows=0;
 };
 struct SkeletonSearchOptions {
   CompilerSearchOptions common;

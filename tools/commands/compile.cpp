@@ -1003,6 +1003,8 @@ int RunCompile(int argc, char** argv) {
             tilemega::solver::SkeletonEvaluationCase test;
             test.kappa=int(requiredInteger(*entry,"kappa"));
             test.residency=int(requiredInteger(*entry,"residency"));
+            if(auto ec=entry->getInteger("attention_kv_block"))test.attention_kv_block=int(*ec);
+            if(auto rq=entry->getInteger("attention_query_rows"))test.attention_query_rows=int(*rq);
             for(auto const& value:*geometry) {
               auto* g=value.getAsObject();
               if(!g)throw std::runtime_error("invalid evaluation geometry");

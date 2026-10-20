@@ -1072,6 +1072,11 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
       if(test.handoff_mask && !options.handoff_auto)
         throw std::invalid_argument("handoff case requires handoff selection");
       search.current_handoff_mask=test.handoff_mask;
+      if(test.attention_kv_block>0 || test.attention_query_rows>0)
+        search.SetServingStructure(
+            test.attention_kv_block>0?test.attention_kv_block:search.attention_kv_block,
+            test.attention_query_rows>0?test.attention_query_rows:search.attention_query_rows,
+            test.config);
       result.evaluated.push_back(search.Evaluate(test.config,test.kappa,test.residency));
     }
     catch(std::exception const& e) {
@@ -1238,7 +1243,10 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
       search.current_handoff_mask=c.handoff_mask;
       search.SetServingStructure(c.attention_kv_block,c.attention_query_rows,c.config);
       auto best=search.Evaluate(c.config,c.kappa,1,actual);
-      for(int r=2;r<=actual;++r) {
+      // A pinned case's residency is a cap, not a hint: re-ranking up to the
+      // compiled limit put a "residency 2" pin back at 4 (MX3-3 A/B).
+      int const cap=options.evaluation_cases.empty()?actual:std::min(actual,c.residency);
+      for(int r=2;r<=cap;++r) {
         auto trial=search.Evaluate(c.config,c.kappa,r,actual);
         if(trial.score<best.score)best=std::move(trial);
       }
