@@ -87,13 +87,17 @@ struct ServingGemmMma {
   static constexpr int kLoadsPerChunk = kAtomsNPerWave + kAtomsM;
   static constexpr int kUnroll = kLoadsPerChunk >= 8 ? 1 : kLoadsPerChunk >= 4 ? 2 : 4;
   static constexpr int kChunkK = 32;
-  /// Chunks in flight. One is the serial form this body had before MX-3.
-  static constexpr int kDepth = Stages < 1 ? 1 : Stages;
+  /// Chunks in flight. Stages 0 asks for the pre-MX-3 overlap, kUnroll
+  /// chunks, which the DM bodies keep: their candidate domain enumerates one
+  /// canonical depth that never described the program (DmGemmCandidates.h),
+  /// and DM is outside MX-3's scope, so their register footprint stays what
+  /// it was rather than growing with a coordinate nobody prices.
+  static constexpr int kDepth = Stages < 1 ? kUnroll : Stages;
   /// Registers the pipeline holds beyond the accumulators: each chunk in
   /// flight keeps kLoadsPerChunk 16-byte fragments per lane.
   static constexpr int kPipelineVgprs = kDepth * kLoadsPerChunk * 4;
   static constexpr bool kDepthFits =
-      solver::ServingGemmDepthFits(TileM, TileN, kDepth, kWaves);
+      Stages < 1 || solver::ServingGemmDepthFits(TileM, TileN, kDepth, kWaves);
 
   /// Offset of lane `lane`'s 16 bytes of atom `atom`, 32-K chunk `chunk`
   /// inside one TileN x TileK weight tile in fragment order: a wave's load
