@@ -46,6 +46,11 @@ def own_stage_bytes(stage, past, batch, config):
         residual = batch*n*2 if family in ('o', 'down') and split == 1 else 0
         return int(stage['weight_bytes']) + batch*k*2 + output + residual
     if stage['kind_name'] == 'kFusedAttention':
+        if stage.get('_native_chunks'):
+            chunks=stage['_native_chunks']
+            partial=(2*batch*config['num_attention_heads']*(d+1)*4*chunks if chunks>1 else 0)
+            return (batch*kv*past*d*4 + batch*(config['num_attention_heads']+2*kv)*d*2 +
+                    batch*kv*d*4 + partial + batch*config['num_attention_heads']*d*2)
         block = stage['_attention_block']
         live = (past+1+block-1)//block
         allocated = (1088+block-1)//block
@@ -83,7 +88,7 @@ def analyze(folder, model_config, batch, plan):
         return latest if latest.exists() else folder/name
     stages = {int(row['stage']): row for row in tsv(folder / 'runtime_stages.tsv')}
     gemms = iter(plan['gemms'])
-    previous_geometry, block = None, plan['attention_kv_block']
+    previous_geometry, block = None, (plan['capacity'] if 'native_dense' in plan else plan['attention_kv_block'])
     for stage in stages.values():
         if stage['kind_name'] == 'kGemm':
             previous_geometry = next(gemms)
@@ -93,6 +98,8 @@ def analyze(folder, model_config, batch, plan):
             stage['_geometry'] = previous_geometry
         if stage['kind_name'] == 'kFusedAttention':
             block = int(stage['kv_block'])
+            if 'native_dense' in plan:
+                stage['_native_chunks']=int(stage['native_chunks'])
         stage['_attention_block'] = block
     for stage in stages.values():
         reducer = stages.get(int(stage['reducer']))
