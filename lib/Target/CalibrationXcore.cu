@@ -983,7 +983,9 @@ constexpr int kOccIters[2] = {4, 16};
 template <int M, int N, int K>
 void FitServingShape(TargetSpec& spec, Options const& options, GemmBuffers const& buffers,
                      std::ostream& log) {
-  using Body = codegen::ServingGemmTaskBody<arch::Xcore1000, M, N, K, 2>;
+  // Depth 1: the serial mainloop, the only depth the serving search offers
+  // since MX-3 and the only one every tile here fits (ServingGemmDepthFits).
+  using Body = codegen::ServingGemmTaskBody<arch::Xcore1000, M, N, K, 1>;
   auto kernel = StreamKGemmKernel<Body>;
   CheckCuda(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
                                  Body::kSharedBytes), "opt in GEMM shared memory");
@@ -992,7 +994,7 @@ void FitServingShape(TargetSpec& spec, Options const& options, GemmBuffers const
                 &resident, reinterpret_cast<void const*>(kernel), 128, Body::kSharedBytes),
             "cudaOccupancyMaxActiveBlocksPerMultiprocessor");
   TargetSpec::StreamKPoint point;
-  point.tile_m = M; point.tile_n = N; point.tile_k = K; point.stages = 2;
+  point.tile_m = M; point.tile_n = N; point.tile_k = K; point.stages = 1;
   double worst = 0.0;
   for (int per_sm = 1; per_sm <= std::min(resident, kMaxPerSm); ++per_sm) {
     int const grid = spec.res.num_sms * per_sm;
