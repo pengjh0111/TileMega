@@ -22,6 +22,7 @@ logical ID 0 were verified in `runs/as1/inventory/acl_device_0.json`.
 | `as1_entry_resources` | `cube` or `vector` | explicit AIC/AIV entry; vector touches 212 KiB UB |
 | `as1_entry_oversize` | **compile only, never execute** | 1 MiB UB compiler diagnostic; host also rejects it |
 | `as1_gm_visibility` | direction (0–4), elements (32 or 1024) | two groups, 16 buffer-reuse epochs, pre-read old cache, bounded waits |
+| `as1_aiv_body` | kind (1 RMSNorm, 4 SiLU, 10 Add), rows (1/4), width (128/129), input dir, output file | BF16 inputs/output, FP32 vector arithmetic, exact tail DMA and guarded output |
 | `as1_catlass43` | M N K | official 950 basic GEMM math |
 | `as1_catlass50` | M N K | official 950 GEMV/tail math |
 | `as1_catlass64_add` | M N K | official MIX GEMM + Add through GM |
@@ -43,3 +44,9 @@ upstream sample exit code alone does not prove numerical success.
 
 These are probes, not CTG/Solver end-to-end workloads. The exact tested scope,
 failures and raw evidence index are in `docs/results/AS1_probe.md`.
+
+For one AIV body, use `as1_correctness prepare-aiv`, execute `as1_aiv_body`
+through the wrapper, then `as1_correctness compare-aiv`. Each invocation admits
+one operator and shape. Six individual regular/tail cases passed; numerical
+receipts are indexed in `runs/as1/probes/aiv_bodies_summary.json`. These do not
+stand in for the multi-stage CTG/Solver execution.

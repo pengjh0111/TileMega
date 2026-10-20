@@ -45,6 +45,14 @@ int main() {
   Reject([&]{target.ActiveBlocksPerSM(nullptr,1);});
   auto impl=*solver::As1Bf16GemmTraits().ascend_implementation;
   impl.Validate(*target.ascend_capability);
+  auto norm=solver::As1AivImplementation(codegen::TaskKind::kRMSNorm,target);
+  auto silu=solver::As1AivImplementation(codegen::TaskKind::kElementwise,target);
+  auto add=solver::As1AivImplementation(codegen::TaskKind::kAdd,target);
+  assert(norm.aiv_scratch.ub==6656 && silu.aiv_scratch.ub==6656 && add.aiv_scratch.ub==6656);
+  Reject([&]{solver::As1AivImplementation(codegen::TaskKind::kLayerNorm,target);});
+  auto too_small=*target.ascend_capability;
+  for(auto& track:too_small.tracks)if(track.role==ascend::TrackRole::kAiv)track.local_resources.ub=6655;
+  Reject([&]{norm.Validate(too_small);});
   impl.kind=codegen::TaskKind::kRMSNorm;
   Reject([&]{impl.Validate(*target.ascend_capability);});
   auto temp=std::filesystem::path("/home/d50064638/junhuip/tilemega-as1/tmp")/
@@ -57,5 +65,5 @@ int main() {
   auto invalid_arch=temp;invalid_arch+=".arch";
   {std::ofstream out(invalid_arch);out<<invalid.Dump();}
   Reject([&]{TargetSpec::FromJson(invalid_arch.string());});
-  std::cout<<"{\"status\":\"passed\",\"checks\":[\"native_target_parse\",\"one_fixed_candidate\",\"reject_uncalibrated_ranking\",\"reject_unsupported_kind_arch_sku\",\"exact_access_reject_transpose_and_tail\"],\"npu_initialized\":false}\n";
+  std::cout<<"{\"status\":\"passed\",\"checks\":[\"native_target_parse\",\"one_fixed_candidate\",\"reject_uncalibrated_ranking\",\"reject_unsupported_kind_arch_sku\",\"aiv_bindings_and_ub_budget\",\"exact_access_reject_transpose_and_tail\"],\"npu_initialized\":false}\n";
 }

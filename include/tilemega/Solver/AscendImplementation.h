@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Solver/BackendCostQuery.h>
+#include <tilemega/Support/Json.h>
 namespace tilemega::solver {
 inline BackendTraits As1Bf16GemmTraits() {
   BackendTraits t;
@@ -16,5 +17,28 @@ inline BackendTraits As1Bf16GemmTraits() {
   impl.aic_scratch={524288,65536,65536,262144,0,0,0};
   t.ascend_implementation=impl;
   return t;
+}
+inline ascend::TaskImplementation As1AivImplementation(codegen::TaskKind kind,TargetSpec const& target) {
+  auto config=json::ParseFile(std::string(TILEMEGA_SOURCE_DIR)+"/configs/ascend/as1_impl_bindings.json");
+  std::string id;
+  if(kind==codegen::TaskKind::kRMSNorm)id="aiv_950_bf16_rmsnorm_row";
+  else if(kind==codegen::TaskKind::kElementwise)id="aiv_950_bf16_silu_row";
+  else if(kind==codegen::TaskKind::kAdd)id="aiv_950_bf16_add_tile";
+  else throw std::invalid_argument("Unimplemented AIV TaskKind");
+  bool bound=false;
+  for(auto const& b:config.At("bindings").AsArray("bindings")) {
+    if(!b.At("enabled").AsBool("enabled") || b.At("task_kind").AsNumber("task_kind")!=int(kind))continue;
+    if(bound || b.At("impl_id").AsString("impl_id")!=id ||
+        b.At("required_role").AsString("required_role")!="AIV_ONLY" ||
+        b.At("event_triggers").AsNumber("event_triggers")!=1 ||
+        b.At("ub_bytes").AsNumber("ub_bytes")!=6656 || b.At("dtype").AsString("dtype")!="bf16")
+      throw std::invalid_argument("AIV binding disagrees with the implemented body");
+    bound=true;
+  }
+  if(!bound || !target.ascend_capability)throw std::invalid_argument("Missing enabled native AIV binding");
+  ascend::TaskImplementation impl;impl.kind=kind;impl.impl_id=id;
+  impl.required_role=ascend::ImplementationRole::kAivOnly;
+  impl.input_layout=impl.output_layout="ND_bf16";impl.aiv_scratch.ub=6656;
+  impl.Validate(*target.ascend_capability);return impl;
 }
 } // namespace tilemega::solver

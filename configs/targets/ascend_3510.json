@@ -70,6 +70,18 @@
     {
       "impl_id": "catlass_950_bf16_32x64x64_gm",
       "task_kind": 0
+    },
+    {
+      "impl_id": "aiv_950_bf16_rmsnorm_row",
+      "task_kind": 1
+    },
+    {
+      "impl_id": "aiv_950_bf16_silu_row",
+      "task_kind": 4
+    },
+    {
+      "impl_id": "aiv_950_bf16_add_tile",
+      "task_kind": 10
     }
   ],
   "evidence": {
@@ -79,7 +91,8 @@
     "gm_event": "runs/as1/probes/gm_visibility_summary.json",
     "gm_event_scope": "single-owner events, G=2, 128B/4KiB FP32 payload, 16 epochs, 5 fresh processes",
     "unknown_register_ssbuffer_budget": "No explicit SSBuffer/SIMT allocation; compiler register counts unmeasured, never used for occupancy",
-    "bf16_gemm": "runs/as1/jobs/gemm_tile_bf16_aligned and gemm_tile_bf16_tail; numerical_result.json under e0/aligned and e0/tail; these are body probes, C-0 not yet passed",
-    "fp32_l0c_to_ub_probe": "verified official EVG FP32 64x8192x32, 16 tiles/group, 5/5 fresh processes; runs/as1/probes/evg_ub_reuse_summary.json. BF16 native direct implementation remains disabled."
+    "bf16_gemm": "verified CTG/Solver/Plan single-launch E-0; docs/results/AS1_ascend950.md",
+    "fp32_l0c_to_ub_probe": "verified official EVG FP32 64x8192x32, 16 tiles/group, 5/5 fresh processes; runs/as1/probes/evg_ub_reuse_summary.json. BF16 native direct implementation remains disabled.",
+    "aiv_bodies": "runs/as1/probes/aiv_bodies_summary.json; 6/6 individual body cases"
   }
 }
