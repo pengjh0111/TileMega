@@ -1,0 +1,52 @@
+{
+  "idle_power_w": 21.81,
+  "power_margin_w": 30.0,
+  "samples": 6,
+  "interval_s": 5,
+  "max_util_pct": 5,
+  "max_hidden_mib": 1024,
+  "hidden_violations": 3,
+  "max_idle_wait_s": 21600,
+  "idle_power_w_by_gpu": {
+    "0": 82.93,
+    "1": 81.51,
+    "2": 87.78,
+    "3": 82,
+    "4": 81.72,
+    "5": 82.63,
+    "6": 92.54,
+    "7": 84.48
+  },
+  "idle_power_mapping_provenance": {
+    "evidence": "inferred transfer of original measured idle power by GPU UUID; no new power calibration",
+    "inventory_identity_mapping_sha256": "d5857d7b53a433b8ea90a11502a24beed348a91df8c7049caf25ff8937384888",
+    "uuid_by_gpu": {
+      "0": "GPU-73c1a37e-d3c0-dc24-b81d-6a5563ebe677",
+      "1": "GPU-344fa712-6ca8-3673-b04b-33b9c3cbffac",
+      "2": "GPU-701b606f-5e57-e434-5e2b-d5cc774c3c9e",
+      "3": "GPU-5b5e235a-09a2-fe8b-7754-916b7eb85976",
+      "4": "GPU-1f2fad96-e938-be19-e775-94e8ae7501a4",
+      "5": "GPU-676e5df2-ee6c-11b3-6faa-e1ab1911e0c3",
+      "6": "GPU-e7663e49-e611-cb17-4991-afa1b0cfe2e2",
+      "7": "GPU-ac78f16f-955d-c08b-e6fe-4e4554c8954d"
+    }
+  },
+  "allowed_gpu_indices": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    7
+  ],
+  "gpu_allowlist_file": "/root/TileMega/runs/sm90r2/active_constraints.json",
+  "allowed_timing_gpu_indices": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    7
+  ]
+}
