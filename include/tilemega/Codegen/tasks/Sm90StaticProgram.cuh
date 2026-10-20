@@ -94,7 +94,24 @@ __device__ __noinline__ void Gemm(BF16 const* a,BF16 const* weight,
   p.partial_stride=N;p.a_row_stride=K;p.b_row_stride=K;
   p.epilogue=Split>1?backend::ServingEpilogueOp::kPartial:Op;
   p.norm_ss=norm;p.ss_out=sums;p.norm_k=K;p.norm_eps=TILEMEGA_NORM_EPSILON;
-  Body::Run(p,local/NT,local%NT,shared);
+  constexpr auto finish=Split>1?backend::ServingEpilogueOp::kPartial:Op;
+  if constexpr(Wgmma) {
+    auto* tile=Body::ComputeWgmma(p,local/NT,local%NT,shared);
+    backend::ServingEpilogue<finish,TM,TN>::template RunFromTile<false>(tile,
+        local/NT,local%NT,M,N,p.output_stride,N,output,residual,p.partial,
+        p.argmax_value,index,norm,sums,K,TILEMEGA_NORM_EPSILON);
+    executor::ComputeSync();
+  }else {
+    using Config=typename Body::Config;
+    typename Config::TiledMma mma;
+    auto accum=cute::partition_fragment_C(mma,cute::Shape<cute::Int<TM>,cute::Int<TN>>{});
+    cute::clear(accum);
+    backend::ServingTiledMainloop<arch::Sm90,Config,TM,TN,TK,S>::Run(
+        p,local/NT,local%NT,shared,accum);
+    backend::ServingEpilogue<finish,TM,TN>::Run(accum,mma,shared,local/NT,local%NT,
+        M,N,p.output_stride,N,output,residual,p.partial,p.argmax_value,index,
+        norm,sums,K,TILEMEGA_NORM_EPSILON);
+  }
 }
 
 template<int M,int N,int K,int TM,int TN,int Split,backend::ServingEpilogueOp Op>
