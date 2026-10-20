@@ -1,3 +1,4 @@
+#include <tilemega/Codegen/tasks/TaskResources.h>
 #include <tilemega/Codegen/ServingPages.h>
 #include "Toolchain.h"
 // SPDX-License-Identifier: BSD-3-Clause
@@ -1625,7 +1626,12 @@ int RunCompile(int argc, char** argv) {
       if(auto family=selected?selected.getAs<mlir::BoolAttr>("moe_gemv"):mlir::BoolAttr{})
         moe_gemv=family.getValue();
     }
-    if(serving && serving_phase=="decode" && attention_impl=="simt") {
+    // Both decode bodies carry the same geometry bound: DecodeAttentionSimt
+    // and PrefillAttentionMma (which mma16 reuses at Tokens=1) each assert
+    // QPerKV <= 8 and D in {64, 128}. Validating here gives a diagnostic
+    // instead of a static_assert from inside the generated translation unit.
+    if(serving && serving_phase=="decode" &&
+        (attention_impl=="simt" || attention_impl=="mma16")) {
       auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
       if(plan)for(auto entry:plan.getAs<mlir::ArrayAttr>("stages")) {
         auto stage=mlir::cast<mlir::DictionaryAttr>(entry);
@@ -1639,7 +1645,22 @@ int RunCompile(int argc, char** argv) {
         // only decode attention body xcore1000 implements, so the gate made
         // that model uncompilable rather than merely unoptimized.
         if(q<1 || q>8 || (d!=64 && d!=128))
-          throw std::invalid_argument("simt attention requires QPerKV <= 8 and D = 64 or 128");
+          throw std::invalid_argument("decode attention requires QPerKV <= 8 and D = 64 or 128");
+        // mma16 stages Q, K, V and the probabilities in shared memory, where
+        // the SIMT body keeps almost everything in registers. Residency 2
+        // leaves 32 KiB per CTA, which D=128 with a 64-token KV tile
+        // (38.5 KiB) does not fit.
+        if(attention_impl=="mma16") {
+          int const kv_tile=q>=8?64:32;
+          int const bytes=tilemega::codegen::ServingAttentionSharedBytes(int(d),kv_tile);
+          auto limit=tilemega::TargetSpec::FromJson(
+              runtime_target.empty()?solve_target:runtime_target)
+              .res.max_dynamic_smem_per_cta;
+          if(bytes>int(limit))
+            throw std::invalid_argument(
+                "mma16 decode attention needs "+std::to_string(bytes)+
+                " shared bytes, over this target's "+std::to_string(limit));
+        }
       }
     }
     if(moe_dynamic || moe_opaque || moe_gemv) {
