@@ -1230,171 +1230,213 @@
         "source": "",
         "serving": {
           "argmax_reduce": {
-            "fixed_ns": 2836.81592,
-            "byte_ns": 0.1357331645,
+            "fixed_ns": 2967.661692,
+            "byte_ns": 0.1081367715,
             "flop_ns": 0,
-            "median_relative_error": 0.0396108326,
+            "median_relative_error": 0.06304193319,
             "samples": 6
           },
           "attention_merge": {
-            "fixed_ns": 3045.652174,
-            "byte_ns": 0.141516644,
+            "fixed_ns": 2576.521739,
+            "byte_ns": 0.1114555027,
             "flop_ns": 0,
-            "median_relative_error": 0.05777450258,
+            "median_relative_error": 0.1039033199,
             "samples": 4
           },
           "embedding": {
-            "fixed_ns": 1194.782609,
-            "byte_ns": 0.1168902853,
+            "fixed_ns": 4145.652174,
+            "byte_ns": 0.03702445652,
             "flop_ns": 0,
-            "median_relative_error": 0.04597826087,
+            "median_relative_error": 0.09082125604,
             "samples": 4
           },
           "fused_attention_decode_d128_q2_norm1": {
-            "fixed_ns": 17295.7072,
-            "byte_ns": 0,
-            "flop_ns": 0.1487068075,
-            "median_relative_error": 0.003535020502,
+            "fixed_ns": 11919.21633,
+            "byte_ns": 0.1610105101,
+            "flop_ns": 0,
+            "median_relative_error": 0.002370364918,
             "samples": 3
           },
           "fused_attention_decode_d128_q3_norm0": {
-            "fixed_ns": 19279.62553,
+            "fixed_ns": 10549.72349,
             "byte_ns": 0,
-            "flop_ns": 0.11964485,
-            "median_relative_error": 0.00206917613,
+            "flop_ns": 0.07914189942,
+            "median_relative_error": 0.009658589981,
             "samples": 3
           },
           "fused_attention_decode_d128_q4_norm0": {
-            "fixed_ns": 22321.47309,
-            "byte_ns": 0,
-            "flop_ns": 0.1063804882,
-            "median_relative_error": 0.002402915006,
+            "fixed_ns": 11456.9137,
+            "byte_ns": 0.2721918722,
+            "flop_ns": 0,
+            "median_relative_error": 0.005270875969,
             "samples": 3
           },
           "fused_attention_decode_d128_q4_norm1": {
-            "fixed_ns": 29575.18558,
-            "byte_ns": 0.417820534,
+            "fixed_ns": 13908.2351,
+            "byte_ns": 0.2711060852,
             "flop_ns": 0,
-            "median_relative_error": 0.003431766545,
+            "median_relative_error": 0.007052874323,
             "samples": 3
           },
           "fused_attention_decode_d128_q8_norm1": {
-            "fixed_ns": 47149.14235,
-            "byte_ns": 0.7959916779,
+            "fixed_ns": 20236.59833,
+            "byte_ns": 0.5571516311,
             "flop_ns": 0,
-            "median_relative_error": 0.001842847588,
+            "median_relative_error": 0.00512792839,
             "samples": 3
           },
           "fused_attention_decode_d64_q4_norm0": {
-            "fixed_ns": 24306.75746,
-            "byte_ns": 0.3927158464,
+            "fixed_ns": 13013.38183,
+            "byte_ns": 0,
+            "flop_ns": 0.06443278163,
+            "median_relative_error": 0.003137383096,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d128_q2_norm1": {
+            "fixed_ns": 15477.09267,
+            "byte_ns": 0,
+            "flop_ns": 0.2655794696,
+            "median_relative_error": 0.007246345677,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d128_q3_norm0": {
+            "fixed_ns": 14386.12177,
+            "byte_ns": 0.5290390309,
             "flop_ns": 0,
-            "median_relative_error": 0.005244479088,
+            "median_relative_error": 0.0009102534334,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d128_q4_norm0": {
+            "fixed_ns": 15954.62181,
+            "byte_ns": 0,
+            "flop_ns": 0.1356051119,
+            "median_relative_error": 0.0012877797,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d128_q4_norm1": {
+            "fixed_ns": 18694.66975,
+            "byte_ns": 0,
+            "flop_ns": 0.1341080175,
+            "median_relative_error": 0.003134350753,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d128_q8_norm1": {
+            "fixed_ns": 27107.62131,
+            "byte_ns": 0,
+            "flop_ns": 0.05580531572,
+            "median_relative_error": 0.001201622142,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d64_q4_norm0": {
+            "fixed_ns": 11513.23262,
+            "byte_ns": 0.7757298426,
+            "flop_ns": 0,
+            "median_relative_error": 0.002690890585,
             "samples": 3
           },
           "fused_attention_prefill_d128_q2_norm1": {
-            "fixed_ns": 34157.14286,
-            "byte_ns": 3.133021763,
+            "fixed_ns": 24005.71429,
+            "byte_ns": 1.21320452,
             "flop_ns": 0,
-            "median_relative_error": 0.0003822264692,
+            "median_relative_error": 0.0001262732553,
             "samples": 3
           },
           "fused_attention_prefill_d128_q3_norm0": {
-            "fixed_ns": 27788.03483,
-            "byte_ns": 1.523000233,
-            "flop_ns": 0,
-            "median_relative_error": 0.005015411375,
+            "fixed_ns": 25296.44279,
+            "byte_ns": 0,
+            "flop_ns": 0.04235111066,
+            "median_relative_error": 6.995700824e-05,
             "samples": 3
           },
           "fused_attention_prefill_d128_q4_norm0": {
-            "fixed_ns": 26360,
-            "byte_ns": 1.499023438,
-            "flop_ns": 0,
-            "median_relative_error": 0.00395145357,
+            "fixed_ns": 24485,
+            "byte_ns": 0,
+            "flop_ns": 0.04305158343,
+            "median_relative_error": 0.001381062866,
             "samples": 3
           },
           "fused_attention_prefill_d128_q4_norm1": {
-            "fixed_ns": 47035,
-            "byte_ns": 0,
-            "flop_ns": 0.19934518,
-            "median_relative_error": 0.0008808456118,
+            "fixed_ns": 24190.71429,
+            "byte_ns": 1.236397879,
+            "flop_ns": 0,
+            "median_relative_error": 0.001485282204,
             "samples": 3
           },
           "fused_attention_prefill_d128_q8_norm1": {
-            "fixed_ns": 41355.71429,
-            "byte_ns": 2.225167411,
+            "fixed_ns": 27360.71429,
+            "byte_ns": 0.7847377232,
             "flop_ns": 0,
-            "median_relative_error": 0.01808318264,
+            "median_relative_error": 0.0132524708,
             "samples": 3
           },
           "fused_attention_prefill_d64_q4_norm0": {
-            "fixed_ns": 25455,
-            "byte_ns": 0,
-            "flop_ns": 0.1929146903,
-            "median_relative_error": 0.0005494505495,
+            "fixed_ns": 14087.14286,
+            "byte_ns": 1.563895089,
+            "flop_ns": 0,
+            "median_relative_error": 0.0006053268765,
             "samples": 3
           },
           "gemm_argmax_partial": {
-            "fixed_ns": 45216.00598,
-            "byte_ns": 0,
-            "flop_ns": 0.006200894077,
-            "median_relative_error": 0.07940848665,
+            "fixed_ns": 43134.4477,
+            "byte_ns": 0.00355811201,
+            "flop_ns": 0.005546827075,
+            "median_relative_error": 0.06796629156,
             "samples": 9
           },
           "gemm_residual": {
-            "fixed_ns": 11601.43574,
-            "byte_ns": 0.06979144645,
-            "flop_ns": 0.002213291045,
-            "median_relative_error": 0.04627540639,
+            "fixed_ns": 10280.90933,
+            "byte_ns": 0.08522566004,
+            "flop_ns": 0.001041963874,
+            "median_relative_error": 0.02776904422,
             "samples": 9
           },
           "gemm_store": {
-            "fixed_ns": 8581.543123,
-            "byte_ns": 0.08146924055,
-            "flop_ns": 0.001398119719,
-            "median_relative_error": 0.03157972461,
+            "fixed_ns": 8587.270049,
+            "byte_ns": 0.09255636986,
+            "flop_ns": 0.0005255883512,
+            "median_relative_error": 0.05797387026,
             "samples": 9
           },
           "gemm_swiglu": {
-            "fixed_ns": 11614.82317,
-            "byte_ns": 0.07359548206,
-            "flop_ns": 0.001764948753,
-            "median_relative_error": 0.04034041621,
+            "fixed_ns": 9502.609185,
+            "byte_ns": 0.08875990583,
+            "flop_ns": 0.0006958361613,
+            "median_relative_error": 0.04621588348,
             "samples": 9
           },
           "gemv_gemm_argmax_partial": {
-            "fixed_ns": 26770.4113,
-            "byte_ns": 0.1397629656,
-            "flop_ns": 0.01065502019,
-            "median_relative_error": 0.08817046548,
+            "fixed_ns": 21283.10562,
+            "byte_ns": 0.1421108574,
+            "flop_ns": 0.00844763538,
+            "median_relative_error": 0.3396818963,
             "samples": 12
           },
           "gemv_gemm_residual": {
-            "fixed_ns": 23748.34775,
-            "byte_ns": 0.1638381494,
+            "fixed_ns": 17392.61177,
+            "byte_ns": 0.1574569672,
             "flop_ns": 0,
-            "median_relative_error": 0.1141308174,
+            "median_relative_error": 0.4074333552,
             "samples": 12
           },
           "gemv_gemm_store": {
-            "fixed_ns": 22561.90554,
-            "byte_ns": 0.1628776811,
+            "fixed_ns": 16698.74494,
+            "byte_ns": 0.1567332761,
             "flop_ns": 0,
-            "median_relative_error": 0.1005717726,
+            "median_relative_error": 0.4141019909,
             "samples": 12
           },
           "gemv_gemm_swiglu": {
-            "fixed_ns": 25340.173,
-            "byte_ns": 0.1629684216,
+            "fixed_ns": 17429.79693,
+            "byte_ns": 0.1572962561,
             "flop_ns": 0,
-            "median_relative_error": 0.09141002733,
+            "median_relative_error": 0.4102177504,
             "samples": 12
           },
           "rmsnorm": {
-            "fixed_ns": 3196.956522,
+            "fixed_ns": 11586.52174,
             "byte_ns": 0,
-            "flop_ns": 0.9021399457,
-            "median_relative_error": 0.1700468628,
+            "flop_ns": 0.2141644022,
+            "median_relative_error": 0.02610091423,
             "samples": 4
           }
         }
