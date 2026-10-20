@@ -6,14 +6,18 @@
 #   tm_cell.sh measure <id> <batch> <rand_dir> <prompts> <gpu> <round>
 # Plans: runs/mx2/tm/<id>/B<b>/<phase>/plan.so. Raw data stays under runs/mx1.
 set -eu
-ROOT=/root/tilemega; cd $ROOT
-TARGET=runs/mx1/calib/xcore1000_c550.json
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd); cd $ROOT
+# The committed target, not the gitignored copy under runs/: MX-1 and MX-2 both
+# solved against runs/mx1/calib/xcore1000_c550.json, so a clone could not
+# reproduce a cell (MX3-0 item 1). The two differ only by calibration_sections,
+# which is provenance stamps the solver never reads.
+TARGET=${TARGET:-configs/targets/xcore1000.json}
 QGPU=${QGPU:-6}
 JOBS=${JOBS:-8}
 # Solves compile against a frozen worktree (/root/tilemega_solve, its own
 # build): an artifact's identity snapshot covers every source file, so header
 # edits in the development tree during a 30-minute solve would invalidate it.
-SOLVE_BIN=${SOLVE_BIN:-/root/tilemega/build/tools/tilemega}
+SOLVE_BIN=${SOLVE_BIN:-$ROOT/build/tools/tilemega}
 cmd=$1; id=$2
 case $cmd in
 export)
@@ -79,7 +83,7 @@ solve)
     done
   fi
   env CUDA_VISIBLE_DEVICES= MACA_VISIBLE_DEVICES= \
-    TILEMEGA_DEVICE_RUN_PREFIX="env NEEDS_MIB=2048 /root/deps/mxjob.sh $QGPU 300 $C/devq" \
+    TILEMEGA_DEVICE_RUN_PREFIX="env NEEDS_MIB=2048 $ROOT/scripts/mx_gpu_job.sh $QGPU 300 $C/devq" \
     timeout ${CELL_TIMEOUT:-18000} nice $SOLVE_BIN compile runs/mx1/export/${id}_$phase/bridge.json $C/plan.so \
       --serving $phase --emit serving --batch $b --prompt-len 64 --pg off $extra \
       --solve $TARGET --runtime-target $TARGET --selection predicted --watchdog 1 \
@@ -95,7 +99,7 @@ solve)
           echo "layout=tiled rejected by a selected GEMV variant; retrying row" >> $C/compile.log
           layout=row
           env CUDA_VISIBLE_DEVICES= MACA_VISIBLE_DEVICES= \
-            TILEMEGA_DEVICE_RUN_PREFIX="env NEEDS_MIB=2048 /root/deps/mxjob.sh $QGPU 300 $C/devq" \
+            TILEMEGA_DEVICE_RUN_PREFIX="env NEEDS_MIB=2048 $ROOT/scripts/mx_gpu_job.sh $QGPU 300 $C/devq" \
             timeout ${CELL_TIMEOUT:-18000} nice $SOLVE_BIN compile \
               runs/mx1/export/${id}_$phase/bridge.json $C/plan.so \
               --serving $phase --emit serving --batch $b --prompt-len 64 --pg off $extra \
@@ -116,14 +120,14 @@ solve)
 check)
   b=$3; rand=$4; prompts=$5; gpu=$6
   C=runs/mx2/tm/$id/B$b
-  NEEDS_MIB=20480 /root/deps/mxjob.sh $gpu 1700 $C/check env -u ALL_PROXY -u all_proxy \
-    bash /root/deps/c1c2.sh $rand $C/prefill/plan.so $C/decode/plan.so $b 512 $C $prompts ;;
+  NEEDS_MIB=20480 $ROOT/scripts/mx_gpu_job.sh $gpu 1700 $C/check env -u ALL_PROXY -u all_proxy \
+    bash $ROOT/scripts/mx_check_modes.sh $rand $C/prefill/plan.so $C/decode/plan.so $b 512 $C $prompts ;;
 measure)
   b=$3; rand=$4; prompts=$5; gpu=$6; round=$7
   C=runs/mx2/tm/$id/B$b; O=$C/measure/round$round
   [ -f $O/.done ] && exit 0
   mkdir -p $O
-  NEEDS_MIB=20480 /root/deps/mxjob.sh $gpu 1700 $O/guard env -u ALL_PROXY -u all_proxy \
+  NEEDS_MIB=20480 $ROOT/scripts/mx_gpu_job.sh $gpu 1700 $O/guard env -u ALL_PROXY -u all_proxy \
     python -m tilemega.serving.measure --model $rand --prefill-so $C/prefill/plan.so --decode-so $C/decode/plan.so \
     --prompt-ids $prompts --batch $b --out $O --mode L1 --decode-loop auto \
     --max-new-tokens 1024 --warmup 1 --repeats 3 \
