@@ -586,6 +586,32 @@ int RunCompile(int argc, char** argv) {
       throw std::invalid_argument("--nonpaged-la requires a serving plan");
     if(serving) {
       runtime_flags+=" -DTILEMEGA_NONPAGED_TILED="+std::to_string(use_nonpaged_tiled);
+      // The stage and task traces are compile-time macros with no flag of
+      // their own, so a ledger run had no way to ask for them (MX3-1 item 1).
+      // Only the trace macros are accepted, and the value must be 0 or 1, so
+      // this cannot smuggle arbitrary flags into a measured plan; the plan
+      // records what it was built with in build_command.txt either way.
+      if(char const* trace=std::getenv("TILEMEGA_TRACE")) {
+        static constexpr char const* kAllowed[]={"STAGE","TASK","STEP"};
+        std::string request(trace);
+        std::size_t at=0;
+        while(at<request.size()) {
+          auto end=request.find(',',at);
+          if(end==std::string::npos)end=request.size();
+          auto item=request.substr(at,end-at);
+          auto eq=item.find('=');
+          auto name=item.substr(0,eq);
+          auto value=eq==std::string::npos?std::string("1"):item.substr(eq+1);
+          bool known=false;
+          for(auto const* allowed:kAllowed)known=known||name==allowed;
+          if(!known)throw std::invalid_argument(
+              "TILEMEGA_TRACE accepts STAGE, TASK and STEP, not "+name);
+          if(value!="0" && value!="1")throw std::invalid_argument(
+              "TILEMEGA_TRACE="+name+" must be 0 or 1");
+          runtime_flags+=" -DTILEMEGA_TRACE_"+name+"="+value;
+          at=end+1;
+        }
+      }
       if(runtime_target.empty())runtime_target=solve_target;
       if(runtime_target.empty())runtime_target=std::string(TILEMEGA_SOURCE_DIR)+
           "/configs/targets/xcore1000.json";
