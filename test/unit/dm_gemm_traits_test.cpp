@@ -32,8 +32,9 @@ int TestDmGemmTraits(int,char**) {
     }
   // `added` counts DM-legal depth-2 shapes the dense rule rejects. Since
   // MX-3 the dense rule also bounds pipeline depth by registers
-  // (ServingGemmDepthFits), so wider DM tiles at depth 2 join it: 9 -> 19.
-  assert(all==27 && added==19);
+  // (ServingGemmDepthFits, 48 VGPRs), so the widest DM tiles at depth 2
+  // join it: 9 -> 11.
+  assert(all==27 && added==11);
   assert(!ServingBF16ShapeLegal(16,16,64,2));
   assert(!ServingBF16ShapeLegal(16,128,32,2));
   // A dense tile must satisfy the rule of the body that will run it. Under
@@ -52,7 +53,7 @@ int TestDmGemmTraits(int,char**) {
   for(auto shape:{std::array<int,4>{8,16,16,2},{16,8,16,2},{16,16,8,2},
                   {16,16,16,1},{128,256,16,2}})
     assert(!DmServingBF16ShapeLegal(shape[0],shape[1],shape[2],shape[3]));
-  std::cout<<"DM GEMM traits: 27 legal geometries, 19 beyond the non-DM rule, "
+  std::cout<<"DM GEMM traits: 27 legal geometries, 11 beyond the non-DM rule, "
              "accumulator-only shared storage and legacy domain PASS\n";
   return 0;
 }

@@ -149,11 +149,11 @@ class ServingTiledWeights(unittest.TestCase):
         # register footprint does not fit the tile is rejected by the launcher
         # with code 3 and skipped here.
         # Mirrors solver::ServingGemmDepthFits (BackendCostQuery.h): depth 1
-        # always, deeper only within the 32-VGPR pipeline budget the
+        # always, deeper up to 4 within the 48-VGPR pipeline budget the
         # megakernel measurably holds without spilling.
         def depth_fits(tile_m, tile_n, stages):
             loads = tile_n // 16 // 2 + tile_m // 16
-            return stages == 1 or stages * loads * 4 <= 32
+            return stages == 1 or (stages <= 4 and stages * loads * 4 <= 48)
 
         for tm, tn, tk in ((16, 32, 64), (16, 32, 128), (16, 128, 64), (32, 64, 128), (64, 128, 64)):
             depths = [d for d in (1, 2, 3, 4, 6) if depth_fits(tm, tn, d)]
