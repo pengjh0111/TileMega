@@ -27,8 +27,8 @@ inline ascend::TaskImplementation As1AivImplementation(codegen::TaskKind kind,Ta
   else throw std::invalid_argument("Unimplemented AIV TaskKind");
   bool bound=false;
   for(auto const& b:config.At("bindings").AsArray("bindings")) {
-    if(!b.At("enabled").AsBool("enabled") || b.At("task_kind").AsNumber("task_kind")!=int(kind))continue;
-    if(bound || b.At("impl_id").AsString("impl_id")!=id ||
+    if(!b.At("enabled").AsBool("enabled") || b.At("impl_id").AsString("impl_id")!=id)continue;
+    if(bound || b.At("task_kind").AsNumber("task_kind")!=int(kind) ||
         b.At("required_role").AsString("required_role")!="AIV_ONLY" ||
         b.At("event_triggers").AsNumber("event_triggers")!=1 ||
         b.At("ub_bytes").AsNumber("ub_bytes")!=6656 || b.At("dtype").AsString("dtype")!="bf16")
@@ -39,6 +39,30 @@ inline ascend::TaskImplementation As1AivImplementation(codegen::TaskKind kind,Ta
   ascend::TaskImplementation impl;impl.kind=kind;impl.impl_id=id;
   impl.required_role=ascend::ImplementationRole::kAivOnly;
   impl.input_layout=impl.output_layout="ND_bf16";impl.aiv_scratch.ub=6656;
+  impl.Validate(*target.ascend_capability);return impl;
+}
+inline ascend::TaskImplementation As1EncoderImplementation(codegen::TaskKind kind,TargetSpec const& target) {
+  std::string id;
+  if(kind==codegen::TaskKind::kLayerNorm)id="aiv_950_bf16_layernorm_row";
+  else if(kind==codegen::TaskKind::kElementwise)id="aiv_950_bf16_erf_gelu_row";
+  else if(kind==codegen::TaskKind::kEncoderAttention)id="aiv_950_bf16_encoder_attention_q1";
+  else if(kind==codegen::TaskKind::kAdd)id="aiv_950_bf16_encoder_add_tile";
+  else throw std::invalid_argument("Unimplemented encoder AIV TaskKind");
+  auto config=json::ParseFile(std::string(TILEMEGA_SOURCE_DIR)+"/configs/ascend/as1_impl_bindings.json");
+  bool bound=false;
+  for(auto const& b:config.At("bindings").AsArray("bindings")) {
+    if(b.At("impl_id").AsString("impl_id")!=id || !b.At("enabled").AsBool("enabled"))continue;
+    if(bound || b.At("task_kind").AsNumber("task_kind")!=int(kind) ||
+       b.At("required_role").AsString("required_role")!="AIV_ONLY" ||
+       b.At("ub_bytes").AsNumber("ub_bytes")!=16384 || b.At("dtype").AsString("dtype")!="bf16" ||
+       b.At("event_triggers").AsNumber("event_triggers")!=1)
+      throw std::invalid_argument("Encoder binding disagrees with its native body");
+    bound=true;
+  }
+  if(!bound || !target.ascend_capability)throw std::invalid_argument("Missing enabled encoder implementation: "+id);
+  ascend::TaskImplementation impl;impl.kind=kind;impl.impl_id=id;
+  impl.required_role=ascend::ImplementationRole::kAivOnly;
+  impl.input_layout=impl.output_layout="ND_bf16; mask:i64";impl.aiv_scratch.ub=16384;
   impl.Validate(*target.ascend_capability);return impl;
 }
 } // namespace tilemega::solver

@@ -28,6 +28,7 @@ struct TrackClass {
 };
 struct TargetCapability {
   std::string arch_tag, product_sku, cann_version, catlass_sha;
+  std::string gm_event_evidence;
   std::vector<TrackClass> tracks;
   std::map<std::string, codegen::TaskKind> implementations;
   int max_verified_mix_groups = 0;

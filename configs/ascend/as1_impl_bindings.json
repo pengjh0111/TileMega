@@ -56,6 +56,54 @@
       "event_triggers": 1,
       "enabled": true,
       "evidence": "verified 1x128 and 4x129; CPU FP32/BF16, intact guards; runs/as1/probes/aiv_bodies_summary.json"
+    },
+    {
+      "task_kind": 19,
+      "impl_id": "aiv_950_bf16_layernorm_row",
+      "required_role": "AIV_ONLY",
+      "ub_bytes": 16384,
+      "dtype": "bf16",
+      "compute_dtype": "fp32",
+      "handoff": "GM_EVENT",
+      "event_triggers": 1,
+      "enabled": true,
+      "evidence": "6 individual vector cases; runs/as1/probes/encoder_vectors_summary.json and encoder_add_* jobs"
+    },
+    {
+      "task_kind": 4,
+      "impl_id": "aiv_950_bf16_erf_gelu_row",
+      "required_role": "AIV_ONLY",
+      "ub_bytes": 16384,
+      "dtype": "bf16",
+      "compute_dtype": "fp32",
+      "handoff": "GM_EVENT",
+      "event_triggers": 1,
+      "enabled": true,
+      "evidence": "6 individual vector cases; runs/as1/probes/encoder_vectors_summary.json and encoder_add_* jobs"
+    },
+    {
+      "task_kind": 10,
+      "impl_id": "aiv_950_bf16_encoder_add_tile",
+      "required_role": "AIV_ONLY",
+      "ub_bytes": 16384,
+      "dtype": "bf16",
+      "compute_dtype": "fp32",
+      "handoff": "GM_EVENT",
+      "event_triggers": 1,
+      "enabled": true,
+      "evidence": "6 individual vector cases; runs/as1/probes/encoder_vectors_summary.json and encoder_add_* jobs"
+    },
+    {
+      "task_kind": 20,
+      "impl_id": "aiv_950_bf16_encoder_attention_q1",
+      "required_role": "AIV_ONLY",
+      "ub_bytes": 16384,
+      "dtype": "bf16",
+      "compute_dtype": "fp32",
+      "handoff": "GM_EVENT",
+      "event_triggers": 1,
+      "enabled": true,
+      "evidence": "verified physical 1, S1/head1, S16 and S13/head4, fully masked; encoder_attention_reg_summary.json"
     }
   ],
   "unsupported_task_policy": "hard_error",

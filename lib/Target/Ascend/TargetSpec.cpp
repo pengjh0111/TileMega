@@ -40,6 +40,7 @@ TargetSpec TargetSpec::FromJson(std::string const& path) {
   t.product_sku = root.At("product_sku").AsString("product_sku");
   t.cann_version = root.At("cann_version").AsString("cann_version");
   t.catlass_sha = root.At("catlass_sha").AsString("catlass_sha");
+  t.gm_event_evidence=root.At("evidence").At("gm_event").AsString("gm_event evidence");
   t.max_verified_mix_groups = Integer(root, "max_verified_mix_groups");
   if (Integer(root, "residency") != 1 ||
       root.At("calibration_status").AsString("calibration_status") != "not_calibrated" ||
