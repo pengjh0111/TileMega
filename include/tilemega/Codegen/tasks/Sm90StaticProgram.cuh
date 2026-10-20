@@ -58,6 +58,7 @@ __device__ __noinline__ void Gemm(BF16 const* a,BF16 const* weight,
   constexpr int NT=(N+TN-1)/TN,KT=(K+TK-1)/TK;
   int chunk=task%Split,local=task/Split;
   int begin=chunk*KT/Split*TK,end=min(K,(chunk+1)*KT/Split*TK);
+  if constexpr(Wgmma && Split>1)end=(chunk+1)*KT/Split*TK;
   static_assert(K%TK==0 && Split<=KT && TM>=M);
   __builtin_assume(a!=nullptr && weight!=nullptr);
   __builtin_assume(begin>=0 && end>begin && end<=K && begin%8==0);
@@ -69,6 +70,10 @@ __device__ __noinline__ void Gemm(BF16 const* a,BF16 const* weight,
   p.argmax_value=reinterpret_cast<float*>(output);p.argmax_index=index;
   p.m=M;p.n=N;p.k_total=K;p.k_total_full=K;
   p.k_begin=begin;p.k_count=end-begin;
+  if constexpr(Wgmma && Split>1) {
+    __builtin_assume(p.k_begin+p.k_count<=K);
+    __builtin_assume(p.k_begin+((p.k_count+7)&~7)<=K);
+  }
   p.output_stride=Op==backend::ServingEpilogueOp::kSwiGLU?N/2:
       Op==backend::ServingEpilogueOp::kArgmaxPartial?NT:N;
   p.partial_stride=N;p.a_row_stride=K;p.b_row_stride=K;
