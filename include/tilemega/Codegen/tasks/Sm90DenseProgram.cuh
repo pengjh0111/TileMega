@@ -3,8 +3,7 @@
 
 #include <tilemega/Backend/Sm90DenseGemm.h>
 #include <tilemega/Backend/Sm90DenseAttentionStream.cuh>
-#include <tilemega/Codegen/tasks/ServingEmbeddingTaskBody.h>
-#include <tilemega/Codegen/tasks/ServingArgmaxReduceTaskBody.h>
+#include <tilemega/Backend/Sm90DenseToken.cuh>
 #include <tilemega/Codegen/tasks/ServingAbi.h>
 #include <array>
 #include <tuple>
@@ -98,10 +97,8 @@ struct Embedding {
   __device__ static __forceinline__ void Run(B const& b,int past,char*,float) {
     if(threadIdx.x<128)for(int row=blockIdx.x;row<Batch;row+=gridDim.x) {
       auto* tokens=reinterpret_cast<int const*>(b.template Get<Tokens>());
-      __builtin_assume(past>=64 && past<=Capacity-2);
-      __builtin_assume(tokens[row*Capacity+past]>=0 && tokens[row*Capacity+past]<Vocab);
-      ServingEmbeddingTaskBody::RunRow(tokens,b.template Get<Table>(),b.template Get<Output>(),
-          row,1,past,Capacity,Width,Vocab,reinterpret_cast<float*>(b.template Get<Sums>()));
+      backend::Sm90DenseEmbedding<Width,Vocab,Capacity>::Run(tokens,b.template Get<Table>(),
+          b.template Get<Output>(),reinterpret_cast<float*>(b.template Get<Sums>()),row,past);
     }
     __syncthreads();
   }
@@ -109,15 +106,15 @@ struct Embedding {
 
 template<int Batch,int Parts,int Capacity,unsigned Values,unsigned Indices,unsigned Tokens>
 struct Argmax {
-  static constexpr int kTasks=Batch,kSharedBytes=1024+sizeof(ServingArgmaxReduceTaskBody::SharedStorage);
+  using Body=backend::Sm90DenseArgmax<Parts,Capacity>;
+  static constexpr int kTasks=Batch,kSharedBytes=1024+sizeof(typename Body::Storage);
   template<class B>
   __device__ static __forceinline__ void Run(B const& b,int past,char* shared,float) {
-    __builtin_assume(past>=64 && past<=Capacity-2);
     if(threadIdx.x<128)for(int row=blockIdx.x;row<Batch;row+=gridDim.x)
-      ServingArgmaxReduceTaskBody::RunRow(reinterpret_cast<float const*>(b.template Get<Values>()),
+      Body::Run(reinterpret_cast<float const*>(b.template Get<Values>()),
           reinterpret_cast<int const*>(b.template Get<Indices>()),
-          reinterpret_cast<int*>(b.template Get<Tokens>()),row,Parts,Capacity,past+1,
-          reinterpret_cast<ServingArgmaxReduceTaskBody::SharedStorage*>(shared+1024));
+          reinterpret_cast<int*>(b.template Get<Tokens>()),
+          *reinterpret_cast<typename Body::Storage*>(shared+1024),row,past);
     __syncthreads();
   }
 };
@@ -188,11 +185,8 @@ __global__ __launch_bounds__(P::kThreads,P::kResidency)
 void sm90_dense_native_kernel(const __grid_constant__ typename P::Binding b,
     int const* pasts,unsigned first,unsigned steps,float epsilon,GridCounter* events,
     unsigned long long iteration,unsigned long long* step_ns,TraceState trace) {
-#if defined(__CUDA_ARCH__)
-#if !defined(__CUDA_ARCH_FEAT_SM90_ALL)
-  static_assert(sizeof(P)==0,"native dense programs require sm_90a");
-#endif
-#endif
+  static_assert(!arch::kDevicePass || arch::kSm90AllAvailable,
+                "native dense programs require sm_90a");
   extern __shared__ __align__(1024) char shared[];
   auto& ring=*reinterpret_cast<backend::Sm90DenseRingState*>(shared);
   ring.Initialize();

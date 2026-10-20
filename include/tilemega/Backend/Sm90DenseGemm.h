@@ -122,9 +122,8 @@ struct Sm90DenseGemm {
   }
 
   __device__ static void Run(Sm90DenseOperands p,char* shared,float epsilon) {
-#if defined(__CUDA_ARCH__)
-    static_assert(__CUDA_ARCH__==900,"this body requires Hopper sm_90a");
-#endif
+    static_assert(!arch::kDevicePass || arch::kSm90AllAvailable,
+                  "native dense GEMM requires Hopper sm_90a");
     auto& state=*reinterpret_cast<Sm90DenseRingState*>(shared);
     auto* a=reinterpret_cast<Element*>(shared+1024);
     auto* b=a+Slots*16*TK;
