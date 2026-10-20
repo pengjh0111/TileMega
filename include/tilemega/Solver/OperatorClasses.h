@@ -99,20 +99,17 @@ inline ServingClassDomain ServingClassCandidates(
       }
   ServingClassDomain domain;
   for(int m:{16,32,64,128})for(int n:{32,64,128,256})for(int k:{64,128}) {
-    // Serving offers depth 1 only. The mainloop does pipeline at any depth
-    // ServingGemmDepthFits admits, but on this device the pipeline does not
-    // change a decode step: Qwen3-0.6B B1, one geometry, measures 5.958 ms at
-    // depth 1 and 5.987 ms at depth 4 (+0.5%, inside the 1% band), and depth
-    // 6 spills (21% slower). Residency 4 already hides the latency a single
-    // CTA sees -- the probe's depth gain falls from 3.34x at one CTA per AP
-    // to 1.5x at four, saturating at depth 2 on the bandwidth floor -- and a
-    // task's 4-16 chunks leave little loop to overlap. The cost model, which
-    // prices depth through bytes in flight, predicted depth 4 11% faster
-    // than depth 1 for that plan. A coordinate whose priced gain the body
-    // does not deliver leaves the domain (MX3 §0.3); depths that differ only
-    // in Stages would otherwise also multiply variants (+22% measured, MX-2).
+    // Depth runs from 1 to what the register budget admits
+    // (ServingGemmDepthFits). It does not help every cell: on Qwen3-0.6B B1,
+    // whose tasks hold 4-16 chunks, depth 1 and depth 4 measure within 0.5%
+    // (5.958 / 5.987 ms). It does help long reductions: Llama-3.2-1B B1 at
+    // MX-2's geometry measures 5.268 ms at depth 1 and 4.592 ms at depth 4,
+    // and Llama-3.1-8B B1 loses 30% at depth 1. Restricting the domain to
+    // depth 1 on the first cell's evidence was wrong; the measured selection
+    // decides between depths the model ranks close.
     (void)target;
-    int const stage_limit=1;
+    int stage_limit=1;
+    while(ServingGemmDepthFits(m,n,stage_limit+1,2))++stage_limit;
     for(int stages=1;stages<=stage_limit;++stages)
       for(int split:{1,2,4,8,16,32}) {
         if(gemm.epilogue==frontend::PlanGemm::Epilogue::kArgmaxPartial && split!=1)
