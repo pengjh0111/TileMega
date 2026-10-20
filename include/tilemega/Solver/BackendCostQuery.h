@@ -146,19 +146,21 @@ constexpr int ServingGemmPipelineVgprs(int m, int n, int stages, int waves) {
   return stages * ServingGemmLoadsPerChunk(m, n, waves) * 4;
 }
 /// The budget is what the megakernel measurably holds without spilling, not
-/// the register file. Every entry kernel already sits at 248 of 255
-/// MTregisters, so the pipeline's registers come out of local memory once
-/// they outgrow what the compiler can find: on Qwen3-0.6B B1 decode
-/// (16x32 tiles, 2 loads a chunk) depth 4 (32 pipeline VGPRs) kept the
-/// 232-byte stack frame of the serial body and measured within 0.5% of it,
-/// while depth 6 (48) grew the frame to 376 bytes and measured 21% slower
-/// (docs/results/MX3_c550.md). A depth past 32 is therefore a coordinate the
-/// body runs worse than the model can price, and leaves the domain.
-inline constexpr int kServingGemmPipelineVgprBudget = 32;
+/// the register file: every entry kernel already sits at 248 of 255
+/// MTregisters. Two measurements bound it. The pre-MX-3 mainloop unrolled up
+/// to 4 chunks and so held up to 48 pipeline VGPRs (16x64: 3 loads x 4) with
+/// a 232-byte stack frame, and that is the footprint MX-2's fastest plans ran
+/// with. A depth-6 pipeline on 16x32, also 48 VGPRs but six live chunks, grew
+/// the frame to 376 bytes and measured 21% slower (docs/results/MX3_c550.md).
+/// So depth stops at 4 and the pipeline at 48 VGPRs. A first budget of 32
+/// held Llama-3.1-8B's 16x64 tiles to depth 2 and left it 5% behind MX-2.
+inline constexpr int kServingGemmPipelineVgprBudget = 48;
+inline constexpr int kServingGemmMaxDepth = 4;
 constexpr bool ServingGemmDepthFits(int m, int n, int stages, int waves) {
   return stages >= 1 &&
       (stages == 1 ||
-       ServingGemmPipelineVgprs(m, n, stages, waves) <= kServingGemmPipelineVgprBudget);
+       (stages <= kServingGemmMaxDepth &&
+        ServingGemmPipelineVgprs(m, n, stages, waves) <= kServingGemmPipelineVgprBudget));
 }
 /// 32-K chunks the mainloop keeps in flight, in units of one tile_k
 /// iteration, which is what the cost model counts.
