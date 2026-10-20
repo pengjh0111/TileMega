@@ -148,11 +148,13 @@ def metadata_only(config: dict) -> bool:
 
 
 def export(config: dict, phase: str, capacity: int, out: Path, prompt_len: int = 64,
-           *, meta_weights: bool = False) -> dict:
+           *, meta_weights: bool = False, cpu_threads: int = 4, seed: int = 20260925) -> dict:
     if phase not in ('decode', 'prefill') or prompt_len < 1 or capacity <= prompt_len:
         raise ValueError('export needs a positive ISL and capacity greater than ISL')
-    torch.set_num_threads(4)
-    torch.manual_seed(20260925)
+    if cpu_threads < 1:
+        raise ValueError('cpu_threads must be positive')
+    torch.set_num_threads(cpu_threads)
+    torch.manual_seed(seed)
     seq = 1 if phase == "decode" else prompt_len
     past = 3 if phase == "decode" else 0
     batch_example = 2
