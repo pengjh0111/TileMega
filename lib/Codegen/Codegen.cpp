@@ -2147,6 +2147,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       for(auto field:{"a","b","c","d"})types<<','<<id(g,field);
       types<<','<<(op=="argmax_partial"?std::to_string(argmax_index):"kAbsent");
       for(auto field:{"norm_ss","ss_out"})types<<','<<id(g,field);
+      types<<','<<cfg.register_stages;
     }else if(kind=="kFusedAttention") {
       if(extent!=8 || (width!=64 && width!=128) || group<2 || group>4 ||
          integerField(s,"dense_attention_chunks")!=c.attention.chunks ||

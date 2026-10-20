@@ -58,6 +58,9 @@ std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::Neighbours(Sm90DenseCoor
       auto candidate=center;auto& next=candidate.gemms[family];
       next.slot_bytes=2*next.tile_n*tk;next.slots=slots;add(std::move(candidate));
     }
+    for(int depth:{1,2,4}) {
+      auto candidate=center;candidate.gemms[family].register_stages=depth;add(std::move(candidate));
+    }
   }
   for(int chunks:{1,2,4,8,16,32,64})for(int row_work:{0,8,16}) {
     auto candidate=center;candidate.attention.chunks=chunks;

@@ -19,12 +19,14 @@ struct Sm90DenseOperands {
 
 
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WarpsN,int WarpsK,
-         ServingEpilogueOp Op,int U>
+         ServingEpilogueOp Op,int U,int RegisterStages=1>
 struct Sm90DenseGemm {
   using Element=cutlass::bfloat16_t;
   using Async=codegen::executor::Async<arch::Sm90>;
   static_assert(Batch>0 && Batch<=16 && N%TN==0 && TN%8==0 && TK%64==0 && K%TK==0);
   static_assert(WarpsN*WarpsK==4 && TN%(8*WarpsN)==0 && Slots>=2 && Slots<=8);
+  static_assert((RegisterStages==1 || RegisterStages==2 || RegisterStages==4) &&
+                RegisterStages<=TK/(16*WarpsK));
   static_assert(Op!=ServingEpilogueOp::kPartial,"dense decode never splits K across tasks");
   static constexpr int kThreads=160,kIterations=K/TK;
   static constexpr int kOperandBytes=2*Slots*TK*(16+TN);
@@ -87,10 +89,22 @@ struct Sm90DenseGemm {
         auto ra=thread.partition_fragment_A(sa);auto rb=thread.partition_fragment_B(sb);
         auto as=copy_a.get_slice(lane).partition_S(sa);auto bs=copy_b.get_slice(lane).partition_S(sb);
         auto ad=copy_a.get_slice(lane).retile_D(ra);auto bd=copy_b.get_slice(lane).retile_D(rb);
-        for_each(make_int_sequence<size<2>(ra)>{},[&](auto k) {
+        constexpr int window=RegisterStages*WarpsK;
+        for_each(make_int_sequence<window>{},[&](auto k) {
           if(int(k)%WarpsK==split) {
             copy(CopyA{},as(_,_,k),ad(_,_,k));copy(CopyB{},bs(_,_,k),bd(_,_,k));
+          }
+        });
+        // All indices stay constexpr, so lookahead extends register lifetimes
+        // without creating an addressable fragment array or changing the sum.
+        for_each(make_int_sequence<size<2>(ra)>{},[&](auto k) {
+          if(int(k)%WarpsK==split) {
             gemm(mma,ra(_,_,k),rb(_,_,k),accum);
+            constexpr int next=int(k)+window;
+            if constexpr(next<size<2>(ra)) {
+              copy(CopyA{},as(_,_,Int<next>{}),ad(_,_,Int<next>{}));
+              copy(CopyB{},bs(_,_,Int<next>{}),bd(_,_,Int<next>{}));
+            }
           }
         });
         // The empty barrier counts every reader; a separate CTA rendezvous

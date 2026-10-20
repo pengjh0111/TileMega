@@ -58,7 +58,8 @@ int CompileNativeDenseFixed(std::string const& input,std::string const& output,
     gemms.emplace_back(json::Object{{"index",int(i)},{"n",int(g.n)},{"k",int(g.k)},
         {"family",solver::kSm90DenseFamilies[family]},{"impl","native_mma_sync"},
         {"tile_m",16},{"tile_n",shape.tile_n},{"tile_k",shape.TileK()},
-        {"stages",shape.slots},{"split_k",1},{"warps_n",shape.warps_n},{"warps_k",shape.warps_k}});
+        {"stages",shape.slots},{"split_k",1},{"warps_n",shape.warps_n},{"warps_k",shape.warps_k},
+        {"register_stages",shape.register_stages}});
   }
   json::Object manifest={{"identity_schema",1},{"model",fs::path(input).stem().string()},
       {"phase","decode"},{"runtime_batch",batch},{"batch_lo",batch},{"batch_hi",batch},

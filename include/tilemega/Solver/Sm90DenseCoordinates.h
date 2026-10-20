@@ -22,6 +22,7 @@ struct Sm90DenseGemm {
   int tile_n=0,warps_n=1,warps_k=4,slot_bytes=0,slots=3;
   Sm90DenseMma mma=Sm90DenseMma::kMmaSync;
   int preissue_smem_bytes=0,prefetch_l2_bytes=0;
+  int register_stages=1;
   int TileK() const { return int(slot_bytes/(2ll*tile_n)); }
   std::int64_t SharedBytes() const {
     std::int64_t operands=slots*(std::int64_t(slot_bytes)+32ll*TileK());
@@ -34,7 +35,9 @@ struct Sm90DenseGemm {
        tile_n%(8*warps_n) || slot_bytes<=0 || slot_bytes%(2ll*tile_n) ||
        TileK()%64 || k%TileK() || slots<2 || slots>8 ||
        preissue_smem_bytes<0 || preissue_smem_bytes%16 ||
-       preissue_smem_bytes>2ll*tile_n*k || prefetch_l2_bytes<0 || prefetch_l2_bytes%16)
+       preissue_smem_bytes>2ll*tile_n*k || prefetch_l2_bytes<0 || prefetch_l2_bytes%16 ||
+       (register_stages!=1 && register_stages!=2 && register_stages!=4) ||
+       register_stages>TileK()/(16*warps_k))
       throw std::invalid_argument("illegal sm90 dense GEMM coordinate");
     if(mma==Sm90DenseMma::kWgmma && (tile_n%64 || warps_n!=4 || warps_k!=1))
       throw std::invalid_argument("sm90 dense WGMMA requires a complete N warpgroup");
@@ -116,7 +119,8 @@ struct Sm90DenseCoordinates {
           {"tile_n",g.tile_n},{"warps_n",g.warps_n},{"warps_k",g.warps_k},
           {"slot_bytes",g.slot_bytes},{"slots",g.slots},
           {"mma",g.mma==Sm90DenseMma::kMmaSync?"mma_sync":"wgmma"},
-          {"preissue_smem_bytes",g.preissue_smem_bytes},{"prefetch_l2_bytes",g.prefetch_l2_bytes}});
+          {"preissue_smem_bytes",g.preissue_smem_bytes},{"prefetch_l2_bytes",g.prefetch_l2_bytes},
+          {"register_stages",g.register_stages}});
     }
     return json::Object{{"schema",1},{"gemms",families},
         {"attention",json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
@@ -148,11 +152,12 @@ struct Sm90DenseCoordinates {
     for(unsigned i=0;i<result.gemms.size();++i) {
       auto const& v=value.At("gemms").At(kSm90DenseFamilies[i]);auto& g=result.gemms[i];
       keys(v,{"tile_n","warps_n","warps_k","slot_bytes","slots","mma",
-          "preissue_smem_bytes","prefetch_l2_bytes"});
+          "preissue_smem_bytes","prefetch_l2_bytes","register_stages"});
       g.tile_n=integer(v,"tile_n");g.warps_n=integer(v,"warps_n");g.warps_k=integer(v,"warps_k");
       g.slot_bytes=integer(v,"slot_bytes");g.slots=integer(v,"slots");
       g.preissue_smem_bytes=integer(v,"preissue_smem_bytes");
       g.prefetch_l2_bytes=integer(v,"prefetch_l2_bytes");
+      g.register_stages=v.Find("register_stages")?integer(v,"register_stages"):1;
       auto mma=v.At("mma").AsString("mma");
       if(mma!="mma_sync" && mma!="wgmma")throw std::invalid_argument("unknown sm90 dense MMA instruction");
       g.mma=mma=="mma_sync"?Sm90DenseMma::kMmaSync:Sm90DenseMma::kWgmma;

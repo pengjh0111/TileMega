@@ -59,6 +59,25 @@ class NativeContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'legacy execution path'):
             validate_gemm_dispatch(self.plan, self.defines, self.source + '\nvoid tilemega_l1_kernel();')
 
+    def test_register_prefetch_is_part_of_the_native_coordinate_identity(self):
+        plan = copy.deepcopy(self.plan)
+        for g in plan['gemms']:
+            g['register_stages'] = 4
+        for g in plan['native_dense']['gemms'].values():
+            g['register_stages'] = 4
+        source = self.source.replace('0,1,kAbsent,2,kAbsent,3,4>;',
+                                     '0,1,kAbsent,2,kAbsent,3,4,4>;')
+        start = source.index('constexpr char kNativeCoordinateIdentity[]=')
+        end = source.index(';\n', start)
+        source = source[:start] + 'constexpr char kNativeCoordinateIdentity[]=' + \
+            json.dumps(json.dumps(plan['native_dense'])) + source[end:]
+        rows = validate_gemm_dispatch(plan, build_defines(source, []), source)
+        self.assertTrue(all(r['register_stages'] == 4 for r in rows))
+        with self.assertRaisesRegex(ValueError, 'GEMM call differs'):
+            validate_gemm_dispatch(plan, build_defines(source, []),
+                                   source.replace('0,1,kAbsent,2,kAbsent,3,4,4>;',
+                                                  '0,1,kAbsent,2,kAbsent,3,4,2>;', 1))
+
 
 if __name__ == '__main__':
     unittest.main()

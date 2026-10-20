@@ -54,9 +54,9 @@ __device__ inline unsigned long long Now() {
 
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,
          backend::ServingEpilogueOp Op,int U,unsigned A,unsigned W,unsigned C,
-         unsigned D,unsigned Index,unsigned Norm,unsigned Sums>
+         unsigned D,unsigned Index,unsigned Norm,unsigned Sums,int RegisterStages=1>
 struct Gemm {
-  using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U>;
+  using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,RegisterStages>;
   static constexpr int kTasks=N/TN,kSharedBytes=Body::kSharedBytes;
   template<class B>
   __device__ static __forceinline__ void Run(B const& b,int,char* shared,float epsilon) {

@@ -34,8 +34,9 @@ def dispatch(manifest, defines, source):
     result = []
     for index, (gemm, raw) in enumerate(zip(gemms, aliases)):
         args = raw.split(',')
-        if len(args) != 17:
+        if len(args) not in (17, 18):
             raise ValueError('native dense GEMM call signature is invalid')
+        register_stages = int(args[17]) if len(args) == 18 else 1
         batch, n, k, tn, tk, slots, wn, wk = map(int, args[:8])
         actual = dict(tile_m=16, tile_n=tn, tile_k=tk, stages=slots,
                       warps_n=wn, warps_k=wk, split_k=1)
@@ -45,13 +46,18 @@ def dispatch(manifest, defines, source):
                 any(gemm[key] != value for key, value in actual.items()) or
                 (tn, tk*tn*2, slots, wn, wk) !=
                 (c['tile_n'], c['slot_bytes'], c['slots'], c['warps_n'], c['warps_k']) or
-                c['mma'] != 'mma_sync' or int(args[9]) != manifest['native_dense']['swiglu_u']):
+                c['mma'] != 'mma_sync' or int(args[9]) != manifest['native_dense']['swiglu_u'] or
+                register_stages != c.get('register_stages', 1) or
+                register_stages != gemm.get('register_stages', 1)):
             raise ValueError(f'native dense GEMM call differs from manifest at GEMM {index}')
         op = dict(qkv='kStore', o='kResidual', gate_up='kSwiGLU',
                   down='kResidual', lm_head='kArgmaxPartial')[gemm['family']]
         if args[8] != 'backend::ServingEpilogueOp::' + op:
             raise ValueError('native dense GEMM epilogue differs from its family')
-        result.append(dict(index=index, compiled_variant=index, impl='native_mma_sync', **actual))
+        row = dict(index=index, compiled_variant=index, impl='native_mma_sync', **actual)
+        if len(args) == 18:
+            row['register_stages'] = register_stages
+        result.append(row)
     attention = re.findall(r'using Stage_\d+\s*=\s*Attention<([^;]+)>;', source)
     if not attention:
         raise ValueError('native dense attention call is missing')
