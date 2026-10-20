@@ -21,7 +21,7 @@ DerivedTaskInput RestrictVirtualTaskRows(DerivedTaskInput const& input,
     std::uint32_t live_rows,BackendTraits const& traits,
     analysis::ParamBinding const& theta) {
   using namespace analysis;
-  if(!input.task.element_access || traits.tile_k<=0 || traits.stages<2)
+  if(!input.task.element_access || traits.tile_k<=0 || traits.stages<1)
     throw std::invalid_argument("live binding rows require an exact collective task");
   auto access=*input.task.element_access;
   auto const& original=access.semantic;

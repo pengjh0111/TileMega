@@ -108,7 +108,9 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
         ? o*flops/tc_flops_per_ns_per_sm_:0;
     result.compute_ns=std::max(scalar_ns,mma_ns);
   } else {
-    if(traits.stages<2 || traits.tile_k<=0)throw std::invalid_argument("regime-A collective needs at least two pipeline stages");
+    // Depth 1 is the serial mainloop, which the body builds and runs; only a
+    // tile_k of zero is meaningless here.
+    if(traits.stages<1 || traits.tile_k<=0)throw std::invalid_argument("regime-A collective needs a pipeline depth and a tile_k");
     double iters=input.collective_k_extent>0
         ? std::ceil(double(input.collective_k_extent)/traits.tile_k)
         : eval(input.work.nominal_task_reduce_extent)/traits.tile_k;
