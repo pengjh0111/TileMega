@@ -86,11 +86,23 @@ solve)
       extra="$extra --gemm-impl-$class mma16"
     done
   fi
+  # MX3-5: decode is chosen by measurement -- at most 4 candidates, one pilot
+  # round, the top 2 timed twice -- on the measurement card MGPU, through the
+  # guard. Prefill keeps the predicted choice: TTFT is reported, not
+  # optimised, this round. SELECTION=predicted restores the MX-2 behaviour.
+  selection=${SELECTION:-measure}
+  [ $phase = prefill ] && selection=predicted
+  measure=()
+  if [ $selection = measure ]; then
+    model=/root/models/${id}_rand
+    measure=(--measure-top 4 --measure-finalists 2 --measure-rounds 2
+             --measure-cmd "env NEEDS_MIB=20480 $ROOT/scripts/mx_gpu_job.sh ${MGPU:-7} 1700 $C/measure_guard env -u ALL_PROXY -u all_proxy python -m tilemega.serving.measure_candidate --model $model")
+  fi
   env CUDA_VISIBLE_DEVICES= MACA_VISIBLE_DEVICES= \
     TILEMEGA_DEVICE_RUN_PREFIX="env NEEDS_MIB=2048 $ROOT/scripts/mx_gpu_job.sh $QGPU 300 $C/devq" \
     timeout ${CELL_TIMEOUT:-18000} nice $SOLVE_BIN compile runs/mx1/export/${id}_$phase/bridge.json $C/plan.so \
       --serving $phase --emit serving --batch $b --prompt-len 64 --pg off $extra \
-      --solve $TARGET --runtime-target $TARGET --selection predicted --watchdog 1 \
+      --solve $TARGET --runtime-target $TARGET --selection $selection "${measure[@]}" --watchdog 1 \
       --nonpaged-weight-layout $layout --nonpaged-la $la --search-jobs $JOBS \
       --search-passes 2 --search-budget-ms ${SEARCH_BUDGET_MS:-1200000} \
       ${PIN:+--evaluate-configs $PIN} \
