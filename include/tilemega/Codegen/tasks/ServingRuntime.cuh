@@ -724,9 +724,19 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
        plan->model.buffers.size()>std::size(plan->bindings.buffers))
       throw std::invalid_argument("static dense binding disagrees with the materialized plan");
     for(std::size_t i=0;i<plan->model.buffers.size();++i) {
-      auto* pointer=static_cast<cutlass::bfloat16_t*>(plan->model.buffers[i]);
-      if(!pointer)throw std::invalid_argument("static dense operand is unbound");
-      plan->bindings.buffers[i]=pointer;
+      plan->bindings.buffers[i]=static_cast<cutlass::bfloat16_t*>(plan->model.buffers[i]);
+    }
+    auto validate=[&](unsigned id) {
+      if(id!=kNoOperand && (id>=plan->model.buffers.size() || !plan->bindings.buffers[id]))
+        throw std::invalid_argument("static dense operand is unbound");
+    };
+    for(auto const& stage:kStages) {
+      if(stage.kind==TaskKind::kGemm) {
+        auto const& g=kGemms[stage.gemm];
+        unsigned ids[]={g.a,g.b,g.c,g.d,g.serving_argmax_index,g.serving_norm_ss,g.serving_ss_out};
+        for(auto id:ids)validate(id);
+        if(static_dense::Chunks(stage.gemm)>1)validate(static_dense::PartialIndex(stage.gemm));
+      }else for(unsigned j=0;j<10;++j)validate(stage.operand[j]);
     }
 #endif
 #if TILEMEGA_ATTENTION_FRONTIER
