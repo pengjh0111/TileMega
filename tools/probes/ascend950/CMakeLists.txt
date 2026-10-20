@@ -45,3 +45,7 @@ as1_safe_sample(as1_catlass43 "examples/43_ascend950_basic_matmul/basic_matmul_t
 as1_safe_sample(as1_catlass50 "examples/50_ascend950_basic_matmul_gemv/basic_matmul_tla.cpp")
 as1_safe_sample(as1_catlass64_add "examples/64_ascend950_matmul_evg/matmul_evg_add.cpp")
 as1_safe_sample(as1_catlass64_add_ub "examples/64_ascend950_matmul_evg/matmul_evg_add_ub.cpp")
+
+as1_asc_target(as1_encoder_vector_body "${CMAKE_CURRENT_SOURCE_DIR}/encoder_vector_body.cpp")
+
+as1_asc_target(as1_encoder_attention_body "${CMAKE_CURRENT_SOURCE_DIR}/encoder_attention_body.cpp")

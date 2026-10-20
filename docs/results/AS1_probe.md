@@ -1,7 +1,7 @@
 # AS-1 probes — 2026-10-20 (in progress)
 
 `verified`: read/executed here; `stated`: source assertion;
-`inferred`: not independently established. E-0 now passes the full chain; E-1/E-2 remain pending.
+`inferred`: not independently established. E-0/E-1 and the fixed bias-free E-2 encoder pass the full chain.
 
 ## Fixed platform and build
 
@@ -9,7 +9,7 @@
   Ascend950PR, runtime SKU `Ascend950PR_9579`, each 28 AIC / 56 AIV.
   Separate ACL inventory processes confirm visible logical 0 maps to the
   physical ID selected with child-only `ASCEND_RT_VISIBLE_DEVICES`.
-- **verified**: execution probes below select physical 0 only. CANN 9.1.0,
+- **verified**: early probes select physical 0; final E-2 probes select physical 1. CANN 9.1.0,
   driver 25.7.0, BiSheng clang 15.0.5 (2026-06-11).
 - **verified**: CATLASS official GitCode checkout
   `2b6c6a6d5bd26559578cf7e3b2fb64af51f64e52`, unchanged.
@@ -97,7 +97,7 @@ routes and P-10 timer conversion are pending; P-9 waits for useful correct bodie
 Use G≤2, residency=1, fixed candidates, single-owner GM events initially.
 Direct routes, mode 4, SSBuffer messaging, SIMT and performance auto-ranking
 remain off. E-0 CTG/Solver/Plan/device execution is verified in `AS1_ascend950.md`.
-AIV/composite body integration and E-1/E-2 remain pending.
+Native AIV bodies and fixed E-1/E-2 pass; native single-task composite integration remains unimplemented.
 
 ### E-1 AIV bodies and exact executor follow-up (verified)
 
@@ -109,3 +109,22 @@ These body probes are separate from real five-stage CTG/Solver E-1 validation:
 G1 and forced G2 each pass 5/5 new processes, 16 epochs; B1 also passes both.
 Native BF16 direct-UB, mode4 and SSBuffer remain disabled. See
 `AS1_ascend950.md` for the initial full-FP32 check failure and exact scope.
+
+## Encoder and second-card additions (verified)
+
+- Physical 1 MIX G2/16 epochs gives 96 unique topology records; ID mapping
+  matches physical 0. `jobs/topology_card1_g2_e16/`.
+- Physical 1 GM visibility repeats all four AIC/AIV directions, pre-read cache,
+  32/1024 floats, 16 epochs, 5/5 fresh processes, zero mismatches/timeouts.
+  `probes/gm_visibility_card1_summary.json`; no device locks or empty-card gate.
+- Six LayerNorm/Erf-GELU/Add regular/tail probes pass. Erf is explicit CANN
+  `<lib/math/erf.h>`; default tanh-approximate GELU is not substituted.
+- Attention S1/S13/S16 plus fully masked case pass using register SIMD PV.
+  S16 BF16 output is bitwise CPU-equal; S13 max abs 3.8147e-6.
+  `probes/encoder_attention_reg_summary.json`. Prior vector PV numerical failures
+  and scalar PV 90 s stream-sync timeout on physical 0 are protected evidence.
+  Host stopped only its own process group, no reset; device-work stop latency unknown.
+- Final E-2 L2 and L1 executors each pass 5/5 fresh processes on physical 1,
+  four epochs each, one launch and bitwise-identical final output. This proves
+  only the fixed ten-stage encoder barrier scope, not arbitrary barrier graphs.
+  `runs/as1/e2/e2_summary.json` indexes every PID, binary hash and output hash.

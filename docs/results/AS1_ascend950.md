@@ -1,9 +1,9 @@
-# AS-1 port — E-0/E-1 checkpoint, 2026-10-20
+# AS-1 port — E-0/E-1/E-2 checkpoint, 2026-10-20
 
 Evidence: **verified** means read/executed here; **stated** means a source
-assertion; **inferred** means not independently established. This is a partial
-delivery: E-0/E-1 pass their scoped C-0/C-1/C-3 checks; the fixed E-2 BERT
-encoder block remains unimplemented. C-2 has only one verified executor.
+assertion; **inferred** means not independently established. E-0/E-1 and the
+fixed bias-free E-2 BERT encoder block pass their scoped end-to-end checks.
+E-2 also verifies L1/L2 equivalence. Remaining capabilities are listed below.
 
 ## Source, environment and boundaries
 
@@ -16,8 +16,8 @@ encoder block remains unimplemented. C-2 has only one verified executor.
   `132596ba7075142fc33a36318b66948a09d4707d6be32bd063054126b39e44f6`;
   private `tilemega-as1/Prompt/TileMega_AS1_prompt.md`.
 - **verified** physical 0/PCI 55:00.0 and 1/PCI D7:00.0 are 950PR;
-  each reports 28 AIC / 56 AIV. All compute probes and workloads use physical 0,
-  visible logical 0. ACL inventory separately checks both physical mappings.
+  each reports 28 AIC / 56 AIV. E-0/E-1 use physical 0; final E-2 uses physical 1.
+  Each child sees logical 0 only. ACL verifies both physical mappings.
 - **verified** host CANN 9.1.0, driver 25.7.0, BiSheng clang 15.0.5,
   GCC 9.4.0; CATLASS `2b6c6a6d5bd26559578cf7e3b2fb64af51f64e52`.
 - Private venv reads compatible installed torch/torch_npu packages without
@@ -80,8 +80,8 @@ meaning in checked POD; F9/F10 CUDA construction is excluded; F14 has an
 independent unlocked runner; F15 reuses the importer. F8 native cost lanes and
 one shared GM-rate adapter have CPU contracts, but cost fitting/automatic ranking
 are **not implemented**. The legacy CUDA ResourceVector is not used to price NPU.
-F11 admission enables GEMM, RMSNorm, SiLU and residual Add for the fixed MLP;
-all other TaskKinds and unsupported activation mathematics fail before launch.
+F11 admission enables the fixed GEMM, RMSNorm, SiLU, Add, LayerNorm, Erf GELU
+and masked encoder attention bodies. Other tasks/math fail before launch.
 
 ## Target and synchronization scope
 
@@ -101,7 +101,8 @@ all other TaskKinds and unsupported activation mathematics fail before launch.
   bounded 100000-poll waits and shared abort. This is not CUDA acquire/release.
 - **verified P-6**: G=2, four role directions, pre-read old cache, reused 128 B /
   4 KiB FP32 payload, 16 epochs, 5/5 fresh processes, zero violations/timeouts.
-  E-0 uses task events plus a full-epoch barrier; this does not prove E-1 edges.
+  Physical 1 repeats the same four-direction test in 5/5 fresh processes.
+  Workload edges have separate E-1/E-2 receipts, not just this litmus.
 - Direct BF16 L0C→UB, UB→L1, SSBuffer control, mode 4 and SIMT remain disabled.
   Current body/plan routes use GM. FP32 EVG direct route is verified in 5/5 fresh processes;
   see `AS1_probe.md`. This does not enable the BF16 TileMega route.
@@ -130,57 +131,33 @@ No missing/nonfinite elements; all output guards remain intact.
   identical to the separately verified tail output. No cross-task payload edge
   exists in E-0; E-1a/E-1b still need their own five-process results.
 
-Evidence under `runs/as1/`:
-`e0/{aligned/native_g1,tail/native_g2_exact_include,tail/native_g2_e16}/`
-contains CG/solved IR, exact task/dependency relations, Plan JSON, generated source
-and generation timings. `jobs/e0_{aligned_ctg_solver_g1,tail_ctg_solver_g2}/`
-contains numerical JSON, output trace and binary/source SHA256.
-`e0/persistent_sync_summary.json` indexes the five independent processes.
+## Reproduction and shared-server record
 
-## Reproduction (one workload/target at a time)
+Source `scripts/as1_env.sh`; run `as1_correctness prepare-e2 --out <new>`;
+`as1_compile_model <prepared> <new-plan> 2 4 stage_barrier` (omit the final
+argument for task events). Configure `<new-plan>` with CMake in private build,
+build only `tilemega_as1_generated --parallel 1`, execute via unlocked
+`as1_run.py --physical-device 1 --timeout-s 90 --out <new-job> -- <binary>
+<prepared> <new-job>/output.bin`, then `as1_correctness compare --directory
+<prepared> --output <new-job>/output.bin --pipeline-directory <new-plan>`.
+Use the same commands with prepare-e0/prepare-e1 for those fixed graphs.
 
-```bash
-source scripts/as1_env.sh
-# Use new output directories; existing evidence is never overwritten.
-PYTHONPATH="$REPO/python" python3 -m tilemega.bench.as1_correctness \
-  prepare-e0 --shape-index 1 --out "$REPO/runs/as1/e0/reproduce_tail"
-"$AS1_WORK/build/tilemega/as1_compile_model" \
-  "$REPO/runs/as1/e0/reproduce_tail" "$REPO/runs/as1/e0/reproduce_plan" 2
-cmake -S "$REPO/runs/as1/e0/reproduce_plan" -B "$AS1_WORK/build/reproduce_tail" \
-  -DCMAKE_BUILD_TYPE=Release
-cmake --build "$AS1_WORK/build/reproduce_tail" --target tilemega_as1_generated --parallel 1
-python3 python/tilemega/bench/as1_run.py --physical-device 0 \
-  --out "$REPO/runs/as1/jobs/reproduce_tail" --timeout-s 90 -- \
-  "$AS1_WORK/build/reproduce_tail/tilemega_as1_generated" \
-  "$REPO/runs/as1/e0/reproduce_tail" output.bin
-PYTHONPATH="$REPO/python" python3 -m tilemega.bench.as1_correctness compare \
-  --directory "$REPO/runs/as1/e0/reproduce_tail" \
-  --output "$REPO/runs/as1/jobs/reproduce_tail/output.bin" \
-  --pipeline-directory "$REPO/runs/as1/e0/reproduce_plan"
-```
-
-## Shared-server record and remaining work
-
-- All jobs sequential, physical 0 only, at most two groups, no locks/exclusive
-  mode. External load was observed. One earlier probe timed out during
-  `aclrtSetDevice/TsdOpen` before launch; retry passed. No kernel timeout/OOM,
-  reset, shared configuration change or operation on another user's PID.
-- Latest sampled generated-output peak is below 1 GiB; protected dependency
-  sources bring private work to about 3 GiB. Manifest cleanup currently retains
-  selected binaries, all failure/probe evidence and recent builds; zero eligible
-  production artifacts were deleted. `disk_samples.jsonl` records actual samples,
-  including shared filesystem free space; raw tensors/binaries are not in Git.
-- E-1 scoped results appear below. The native executor uses GM task events;
-  a second L1 executor and composite fused-task owner/ack implementation are not
-  enabled. Official EVG FP32 direct probes do not enable native BF16 UB handoff.
-- E-2 remains fixed to BERT encoder block B1/S16/H256/heads4/FFN1024; rank-three
-  entry, LayerNorm/GELU/attention/mask bodies and corresponding importer/Plan
-  lowering are still required. No alternate block was substituted.
-- `G-INV-AS`, native `G-BUILD-AS`, E-0 `G-PERSIST-AS` verified;
-  Ascend T-1–T-6/T-16 and `G-HANDOFF-AS` H-0 pass; full `G-E2E-AS` remains
-  partial because E-2 and C-2 are outstanding.
-  No torch_npu workload timing or speedup claim yet; optional timing follows
-  correctness. E-0 alone is not AS-1 completion.
+- All project NPU jobs are sequential, single-card, at most two groups. No device
+  locks, exclusive mode, HCCL, reset or action on non-project processes.
+  External jobs were observed on both cards; timing is contended.
+- Two timeouts are preserved: earlier physical-0 initialization before launch;
+  experimental scalar-PV attention on physical 0 timed out after 90 s inside
+  `aclrtSynchronizeStream`. Wrapper ended only its tracked process group.
+  Device health stayed OK; immediate device termination is not claimed.
+  Further E-2 work moved to physical 1 and replaced that experimental body.
+- CPU target test initially rejected duplicate TaskKind-4 implementations;
+  binding now selects by explicit impl_id and tests distinguish SiLU/Erf GELU.
+  The abort produced no repository core file; subsequent own shells disable cores.
+- Sampled generated peak is about 1 GiB; private work including protected
+  dependencies about 3 GiB, on a shared partition with about 13.4 TB free.
+  Manifest dry-run/apply retains all selected and failure evidence; zero eligible
+  production files deleted. Exact samples: `runs/as1/disk_samples.jsonl`.
+  Raw tensors, binaries, traces, generated sources and caches stay outside Git.
 
 ## E-1 real MLP path (verified)
 
@@ -223,10 +200,60 @@ PYTHONPATH="$REPO/python" python3 -m tilemega.bench.as1_correctness compare \
   `b{1,4}_bounded_reference/native_*`, and jobs `e1_b*`. Selected B4 binaries:
   G1 `463cd6941bdb2cfb9c2f07258b321b62dced1c7d1a55bccae3b5067a20e33aba`;
   G2 `e9f2582facc92cb8e0b8d5b763ca304482a1af50745d8f68bc1d818bfd142276`.
-- Reproduce one case: `as1_correctness prepare-e1 --batch 4 --out <new>`;
-  `as1_compile_model <prepared> <new-plan> 2 16 cross_group`; configure/build
-  only `tilemega_as1_generated`, then the unlocked wrapper and `compare`.
-  Existing argument forms and private environment are the same as E-0 above.
 - Latest Ascend host contracts pass; unsupported standalone ReLU is rejected
   during import. E-0 tail generated source remains byte-identical to the
   previously verified binary, avoiding an unnecessary rebuild/device test.
+
+## E-2 real BERT encoder block (verified)
+
+- Fixed B1/S16/H256, four heads of 64, FFN1024, no linear biases, affine
+  LayerNorm epsilon=1e-12, Erf GELU, dropout=0. Explicit int64 key-padding mask
+  invalidates the final three keys. This is a locally constructed **bias-free
+  encoder block variant**, not a claim to support a pretrained/HF BERT model.
+- `DnnModelPlan.cpp` imports actual rank-three BF16 input, QKV packing, attention
+  and mask structure. No embedding/weights download. LayerNorm owns one row;
+  attention owns one query/head. Independent ISL operand/write contracts match
+  all four GEMM and six AIV stages. CTG math is preserved.
+- `AscendEncoderCodegen.cpp` / `PersistentEncoder.cpp.in` consume the solved
+  Plan: 10 stages, 156 tasks, 1224 exact GM dependencies, G2/6 workers. The
+  event executor allocates 1,922,340 bytes. Metadata/Stage ABI, every task owner,
+  coordinate, event, buffer guard and one-launch receipt are checked on device.
+- `EncoderVectorBody.h`: 16 KiB UB; FP32 LayerNorm/Erf GELU/Add, BF16 I/O.
+  Six regular/tail vector probes pass. Attention uses SIMD QK/softmax and
+  register SIMD PV, FP32 opmath and BF16 output. S1/S13/S16 and all-masked cases
+  pass; tail max BF16 abs error 3.8147e-6. Earlier vector/scalar PV failures
+  remain archived; their exact cause is not generalized to unsupported API claims.
+- C-0/C-1/C-3 **pass**: Task Event executor 5/5 fresh physical-1 processes,
+  four epochs/624 task executions each, one launch per process. Final output is
+  bitwise equal to independent CPU BF16 MATH-SDPA reference, zero failed elements.
+  Ten stage references pass; stage0 max abs 1.19209e-7, stage7 7.62939e-6,
+  other stages exactly equal. Output SHA256:
+  `5b43ac760d9c09150ba57a4615d1f010f8fbf7458ed93bf0492ac0b74a18539e`.
+- Full FP32 graph is diagnostic: max abs .0274086, max rel 2.24528, RMS .00439784,
+  165/4096 exceed the predeclared BF16 comparison tolerance .00390625/.0078125.
+  This failure is retained; no claim of fixed-tolerance FP32 equivalence.
+- C-2 **pass for this encoder**: real L1 stage barriers versus L2 task events,
+  each 5/5 fresh processes, same four epochs and bitwise final output. L1 has
+  per-worker/per-stage GM acknowledgements and one AIC0 release; empty lanes
+  acknowledge. Static preflight rejects same/later-stage dependencies and FIFO
+  reorder. Extra barrier control is 35,840 bytes. Task events still publish once.
+  E-0/E-1 retain only their original executor; no blanket C-2 claim.
+- Evidence: `runs/as1/e2/e2_summary.json`, `bert_b1_s16_refs/native_*`,
+  `jobs/e2_bert_*`, `probes/encoder_{vectors,attention_reg}_summary.json`,
+  `probes/gm_visibility_card1_summary.json`. E-0/E-1 host re-generation remains
+  byte-identical to selected kernels; no CUDA regression or redundant NPU run.
+
+## Remaining scope and gates
+
+- Fixed-workload G-BUILD/G-PERSIST/G-HANDOFF H-0 and E-0/E-1/E-2 C-0/C-1/C-3
+  are verified; E-2 C-2 is verified. Target costs remain uncalibrated and fixed;
+  no auto-optimality claim. Unmeasured lanes prohibit performance ranking.
+- Native composite **single Task** GEMM+activation owner/participant protocol is
+  not implemented: current MIX kernel coordinates separate AIC/AIV Tasks.
+  WorkerMap composite CPU checks and official EVG probes do not prove that body.
+- BF16 direct UB, UB→L1, mode4, SSBuffer, SIMT, split-K combine and other model
+  shapes/tasks remain disabled. P-4 full allocation limits and P-10 cycle/ns
+  calibration are unverified. These prevent claiming every AS-1 work item done.
+- HTTPS push still lacks repository credentials; local checkpoint commits remain
+  intact. No force push or credential/global-configuration modification.
+- torch_npu end-to-end timing is the next limited experiment; no speedup claim.
