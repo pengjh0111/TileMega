@@ -194,6 +194,7 @@ add_library(tilemega_core STATIC
   lib/Solver/ExecutionSimulator.cpp
   lib/Solver/SkeletonSearch.cpp
   lib/Solver/Sm90DensePlan.cpp
+  lib/Solver/Sm90DenseSearchSpace.cpp
   lib/Solver/DnnStructureSearch.cpp
   lib/Solver/SkeletonFinalize.cpp
   lib/Solver/SkeletonPlacement.cpp
@@ -900,6 +901,11 @@ if(TILEMEGA_BUILD_TESTS)
     target_link_libraries(sm90_dense_coordinates_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_coordinates_test PRIVATE -UNDEBUG)
     add_test(NAME sm90_dense_coordinates COMMAND sm90_dense_coordinates_test)
+    add_executable(sm90_dense_search_space_test test/unit/sm90_dense_search_space_test.cpp)
+    target_link_libraries(sm90_dense_search_space_test PRIVATE TileMega::tilemega)
+    target_compile_options(sm90_dense_search_space_test PRIVATE -UNDEBUG)
+    add_test(NAME sm90_dense_search_space COMMAND sm90_dense_search_space_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_90_h800.json)
     add_executable(sm90_dense_plan_test test/unit/sm90_dense_plan_test.cpp)
     target_link_libraries(sm90_dense_plan_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_plan_test PRIVATE -UNDEBUG)
