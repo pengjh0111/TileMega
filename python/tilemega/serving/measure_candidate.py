@@ -44,7 +44,6 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
         if time.monotonic() >= deadline:
             raise SystemExit(75)
         time.sleep(10)
-    buffers = _external_buffers(plan, batch, vocab)
     warmup, timed = (8, 32) if plan.info.phase == 1 else (2, 5)
     if warmup_override is not None:
         warmup = warmup_override
@@ -60,6 +59,11 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
         if not smoke["pass"]:
             (out / "smoke.json").write_text(json.dumps(smoke, indent=2) + "\n")
             raise SystemExit(3)
+        torch.cuda.empty_cache()
+    # Allocated after the smoke run, which builds its own set: holding both
+    # put Llama-3.1-8B at two 30 GiB copies on a 64 GiB card, and every B4/B8
+    # candidate failed with out of memory before it was timed (MX3-6).
+    buffers = _external_buffers(plan, batch, vocab)
     modes = [{"L1": 1, "L2": 2}[mode_only]]
     if reverse_modes:
         modes.reverse()
