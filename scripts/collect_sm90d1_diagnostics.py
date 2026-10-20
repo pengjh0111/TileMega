@@ -126,6 +126,9 @@ def aggregates(trace):
         row = dict(job=trace['job'], tag=Path(trace['artifact']['_binary']).parent.parent.name,
                    model=trace['config']['model'], batch=trace['config']['batch'],
                    gpu=trace['gpu'], past=trace['meta']['past'], kind=kind, steps=len(values))
+        row['role']='first_block_probe' if row['tag'].startswith('ready-') else 'stage_ledger'
+        row['binary_sha256']=trace['artifact']['binary_sha256']
+        row['source_head']=trace['artifact']['source']['head']
         row.update({key:st.median(v[key] for v in values) if all(v[key] is not None for v in values)
                     else None for key in values[0]})
         row['event_step_ms'] = trace['meta']['mean_step_ms']
@@ -209,20 +212,28 @@ def attention(trace_rows, ledger):
             if not active:
                 continue
             row = dict(model=trace['config']['model'], batch=trace['config']['batch'],
-                       gpu=trace['gpu'], past=trace['meta']['past'], tag=tag,
+                       gpu=trace['gpu'], past=trace['meta']['past'], tag='full2' if tag=='ready-full' else tag,
                        kind='attention' if kind=='kFusedAttention' else 'merge', tasks=len(values),
                        active_tasks=len(active), assigned_ctas=len({r['worker'] for r in values}),
                        active_ctas=len({r['worker'] for r in active}), clock_cycles_per_ns=freq,
                        task_median_ns=st.median(r['run_end']-r['run_begin'] for r in active),
                        task_p99_ns=sorted(r['run_end']-r['run_begin'] for r in active)[min(len(active)-1,int(.99*len(active)))],
                        historical_bytes_per_task=st.median(r['bytes'] for r in active))
+            row['sampled_steps'] = trace['meta']['measured_steps']
+            row['layers'] = config['num_hidden_layers']
+            row['tasks_per_layer_step'] = len(values)/(row['sampled_steps']*row['layers'])
+            row['active_tasks_per_layer_step'] = len(active)/(row['sampled_steps']*row['layers'])
             for field in ('query_ns','first_page_wait_ns','later_page_wait_ns','wave_compute_ns',
                           'partial_store','new_row_warp0','new_row_warp1','new_row_warp2','new_row_warp3'):
                 row[field+'_median_ns'] = st.median(r.get(field,0)/freq for r in active)
+            row['new_row_owner_task_records'] = sum(any(r.get(f'new_row_warp{i}',0) for i in range(4)) for r in active)
+            for warp in range(4):
+                durations = [r.get(f'new_row_warp{warp}',0)/freq for r in active if r.get(f'new_row_warp{warp}',0)]
+                row[f'new_row_warp{warp}_conditional_median_ns'] = st.median(durations) if durations else None
             row['compute_excluding_warp0_new_row_ns'] = st.median((r['wave_compute_ns']-r.get('new_row_warp0',0))/freq for r in active)
             row['task_effective_GBs'] = st.median(r['bytes']/(r['run_end']-r['run_begin']) for r in active if r['run_end']>r['run_begin'])
             stage = next((r for r in ledger if r['job']==trace['job'] and r['past']==row['past'] and r['kind']==row['kind']),None)
-            stage_only = next((r for r in ledger if r['tag']=='stage2' and r['model']==row['model'] and r['batch']==row['batch'] and r['gpu']==row['gpu'] and r['past']==row['past'] and r['kind']==row['kind']),None)
+            stage_only = next((r for r in ledger if tag=='full2' and r['tag']=='stage2' and r['model']==row['model'] and r['batch']==row['batch'] and r['gpu']==row['gpu'] and r['past']==row['past'] and r['kind']==row['kind']),None)
             kv_bytes = 4*row['batch']*config['num_key_value_heads']*(row['past']+3.5)*d*config['num_hidden_layers']
             row['stage_instrumented_kv_GBs'] = kv_bytes/stage['envelope_ns'] if stage and row['kind']=='attention' else None
             row['stage_only_kv_GBs'] = kv_bytes/stage_only['envelope_ns'] if stage_only and row['kind']=='attention' else None
@@ -235,19 +246,22 @@ def arm_details(trace_rows, ledger):
     output = []
     for trace in trace_rows:
         tag = Path(trace['artifact']['_binary']).parent.parent.name
-        if tag in ('full2','stage2','reference2') or not trace['artifact']['trace']:
+        if tag in ('full2','stage2','reference2','ready-full','ready-stage') or not trace['artifact']['trace']:
             continue
         own = [r for r in ledger if r['job']==trace['job'] and r['past']==trace['meta']['past']]
-        reference = [r for r in ledger if r['tag']=='full2' and r['model']==trace['config']['model'] and r['batch']==trace['config']['batch'] and r['gpu']==trace['gpu'] and r['past']==trace['meta']['past']]
+        task_profile = 'TILEMEGA_TRACE_TASK=1' in trace['artifact']['_diagnostic'].get('defines', [])
+        reference_tag = 'full2' if task_profile else 'stage2'
+        reference = [r for r in ledger if r['tag']==reference_tag and r['model']==trace['config']['model'] and r['batch']==trace['config']['batch'] and r['gpu']==trace['gpu'] and r['past']==trace['meta']['past']]
         row = dict(record='diagnostic_delta', arm=tag, model=trace['config']['model'], batch=trace['config']['batch'],
-                   gpu=trace['gpu'], past=trace['meta']['past'], trace_ms=trace['meta']['mean_step_ms'])
+                   gpu=trace['gpu'], past=trace['meta']['past'], reference_trace=reference_tag,
+                   trace_ms=trace['meta']['mean_step_ms'])
         for field in ('envelope_ns','inefficiency_ns','imbalance_ns','start_ns','gaps_ns','release_ns','residual_ns'):
             a = [v[field] for v in own]; b = [v[field] for v in reference]
             row[field+'_delta'] = sum(a)-sum(b) if a and b and None not in a+b else None
         runtime = list(tsv(trace['folder']/'runtime_stages.tsv'))
         row['effective_stages'] = sum(not int(r['elided']) for r in runtime)
         row['elided_stages'] = sum(int(r['elided']) for r in runtime)
-        if 'TILEMEGA_TRACE_TASK=1' in trace['artifact']['_diagnostic'].get('defines', []):
+        if task_profile:
             freq = frequency(trace)
             phases = [r for r in phase_rows(trace) if r.get('la_total')]
             if freq and phases:
@@ -265,6 +279,16 @@ def arm_details(trace_rows, ledger):
                     row['la_critical_reduction_per_step_ns']=st.median(v[1] for v in by_iteration.values())
         row['evidence'] = 'verified instrumented zero-KV delta; not an additive decomposition of uninstrumented TPOT'
         output.append(row)
+        for value in own:
+            before = next((r for r in reference if r['kind']==value['kind']),None)
+            if before is None:
+                continue
+            detail = {k:row[k] for k in ('arm','model','batch','gpu','past','reference_trace')}
+            detail.update(record='diagnostic_category_delta',kind=value['kind'],
+                          evidence='verified instrumented category delta')
+            for field in ('envelope_ns','inefficiency_ns','imbalance_ns','start_ns','gaps_ns','release_ns','residual_ns'):
+                detail[field+'_delta'] = value[field]-before[field] if value[field] is not None and before[field] is not None else None
+            output.append(detail)
         slots = trace['folder']/'v2/slots.tsv'
         if slots.exists():
             groups = defaultdict(list)
@@ -307,6 +331,8 @@ def resources(trace_rows):
                 queried[row['binary_sha256']] = dict(row, query_gpu=gpu)
     measured = {}
     for trace in trace_rows:
+        if Path(trace['artifact']['_binary']).parent.parent.name not in ('full2', 'stage2'):
+            continue
         path = latest_tsv(trace,'stage_trace.tsv')
         if not path.exists():
             continue
@@ -321,7 +347,7 @@ def resources(trace_rows):
                 trace_sms_used=len(counts), trace_max_ctas_per_sm=max(counts.values()))
     result = []
     heads = {read(RUN/f'{name}/receipt.json')['head'] for name in
-             ('compiler-v2','compiler-p3','compiler-pg-profile') if (RUN/f'{name}/receipt.json').exists()}
+             ('compiler-v2','compiler-p3','compiler-pg-profile','compiler-ready') if (RUN/f'{name}/receipt.json').exists()}
     for identity in artifacts().values():
         binary = Path(identity['_binary'])
         tag = binary.parent.parent.name
@@ -339,7 +365,9 @@ def resources(trace_rows):
         surrogate = read(surrogate_path) if surrogate_path.exists() else {}
         same = bool(sass and surrogate and sass['instruction_encoding_sha256'].get(kernel)==surrogate['instruction_encoding_sha256'].get(kernel))
         local = sass.get('functions',{}).get(kernel,{})
-        mapping = surrogate.get('line_mapping',{}).get(kernel,{})
+        native_mapping = sass.get('line_mapping',{}).get(kernel,{})
+        mapping = native_mapping or surrogate.get('line_mapping',{}).get(kernel,{})
+        mapped = bool(native_mapping) or same
         query = queried.get(identity['binary_sha256'],{})
         row = dict(tag=tag,model=model,batch=int(batch),phase=binary.stem,
                    binary_sha256=identity['binary_sha256'],source_head=identity['source']['head'],
@@ -352,9 +380,10 @@ def resources(trace_rows):
                    LDL_instructions=local.get('LDL',0) if sass else None,
                    STL_instructions=local.get('STL',0) if sass else None,
                    lineinfo_identical_instructions=same if surrogate else None,
-                   hot_local_instructions=mapping.get('hot',0) if same else None,
-                   dispatch_or_other_local_instructions=mapping.get('dispatch_or_other',0) if same else None,
-                   local_locations='|'.join(f'{k}={v}' for k,v in mapping.items() if ':' in k) if same else '',
+                   source_mapping='native_lineinfo' if native_mapping else 'instruction_identical_surrogate' if same else 'unavailable',
+                   hot_local_instructions=mapping.get('hot',0) if mapped else None,
+                   dispatch_or_other_local_instructions=mapping.get('dispatch_or_other',0) if mapped else None,
+                   local_locations='|'.join(f'{k}={v}' for k,v in mapping.items() if ':' in k) if mapped else '',
                    evidence='verified compiler facts and occupancy query; trace mapping is a separate instrumented artifact')
         if binary.stem=='decode' and tag=='reference2':
             row.update(measured.get((model,int(batch)),{}))
@@ -459,6 +488,19 @@ def solver(ledger):
     for job, raw, gpu in records():
         if not (raw/'job/command.json').exists() or 'solver' not in job:
             continue
-        output.append(dict(record='guarded_solver_attempt',job=job,gpu=gpu,status='done',
-                           output=str((raw/'job').relative_to(ROOT)),evidence='verified guarded solver exit; inspect emitted plan before timing'))
+        row = dict(record='guarded_solver_attempt',job=job,gpu=gpu,status='compiled_not_correctness_or_timing_validated',
+                   output=str((raw/'job').relative_to(ROOT)),evidence='verified guarded solver compilation; GPU validation blocked by NVML')
+        path = raw/'job/solver.so.plan.json'
+        if path.exists():
+            plan = read(path)
+            row.update(model=plan['model'].rsplit('-B',1)[0], batch=1,
+                grid=plan['grid'], residency=plan['residency'], pg=plan['pg'],
+                attention_impl=plan['attention_impl'], Ec=plan['attention_kv_block'],
+                Rq=plan['attention_query_rows'], handoff=plan['handoff'])
+            selected = list(tsv(raw/'job/solver.so.resources.tsv'))
+            if selected:
+                row.update(predicted_step_ms=float(selected[0]['flow_ns'])/1e6,
+                           simulated_step_ms=float(selected[0]['simulated_ns'])/1e6,
+                           selected_key=selected[0]['key'])
+        output.append(row)
     return output

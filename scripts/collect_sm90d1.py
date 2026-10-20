@@ -69,9 +69,28 @@ def references(samples, select=True):
                   csv.DictReader((ROOT / 'docs/results/SM90R1_final_llm.csv').open())}
     grouped = defaultdict(list)
     for row in samples:
-        if row['job'].startswith(('ref-', 'resolution-llama3_1_8b-B1-')) and row['selection']['stage'] == 'measure':
+        if row['job'].removeprefix('resume7-').startswith(('ref-', 'resolution-llama3_1_8b-B1-')) and row['selection']['stage'] == 'measure':
             c = row['config']
             grouped[c['model'], c['batch'], row['gpu']].append(row)
+    paired_controls = defaultdict(list)
+    for row in samples:
+        if '-reference-f' in row['job'] and row['selection']['stage'] == 'measure':
+            c = row['config']
+            paired_controls[c['model'], c['batch'], row['gpu'],
+                            row['job'].split('-reference-f')[0]].append(row)
+    # Reuse the first complete control series only when a dedicated reference
+    # is absent. The canonical binary hashes prevent variant timing leaking in.
+    bindings = read(ROOT / 'configs/serving/sm90d1/reference/artifacts/index.json')['bindings']
+    hashes = {(Path(r['config']).stem, r['phase']): r['binary_sha256'] for r in bindings}
+    for (model, batch, gpu, prefix), group in sorted(paired_controls.items(),
+            key=lambda item: min(r['pid'] for r in item[1])):
+        if (model, batch, gpu) in grouped or {r['round'] for r in group} != {0, 1, 2} or len(group) != 3:
+            continue
+        stem = Path(group[0]['selection']['config']).stem
+        if all(r['selection']['binary_sha256'] == hashes[stem, 'decode'] and
+               r['selection']['prefill_sha256'] == hashes[stem, 'prefill'] and
+               r['selection']['mode'] == 'L1' and r['selection']['loop'] == 1 for r in group):
+            grouped[model, batch, gpu] = group
     rows = []
     for (model, batch, gpu), group in sorted(grouped.items()):
         initial = sorted(group, key=lambda r: r['round'])[:3]
@@ -83,6 +102,8 @@ def references(samples, select=True):
         old_range = float(old['tpot_ms_range_pct'])
         new_range = (max(values)-min(values))/median*100
         rows.append(dict(model=model, batch=batch, gpu=gpu, r1_gpus=old['gpus'], fresh_processes=3,
+            status='measured', source_jobs='|'.join(r['job'] for r in initial),
+            provenance='paired canonical controls' if '-reference-f' in initial[0]['job'] else 'dedicated reference',
             tpot_ms=median, process_range_pct=new_range, sm90r1_tpot_ms=old['tpot_ms'],
             difference_pct=(median/float(old['tpot_ms'])-1)*100,
             indistinguishable_pct=max(.5, old_range, new_range),
@@ -98,6 +119,22 @@ def references(samples, select=True):
         if key not in selected or preference:
             selected[key] = row
     return list(selected.values())
+
+
+def reference_statuses(measured):
+    rows = list(measured)
+    present = {(r['model'], r['batch']) for r in rows}
+    historical = {(r['model'], int(r['batch'])): r for r in
+                  csv.DictReader((ROOT / 'docs/results/SM90R1_final_llm.csv').open())}
+    for path in sorted((ROOT / 'configs/serving/sm90d1/reference').glob('*.json')):
+        config = read(path)
+        key = config['model'], config['batch']
+        if key not in present:
+            old = historical[key]
+            rows.append(dict(model=key[0], batch=key[1], status='blocked_nvml',
+                fresh_processes=0, sm90r1_tpot_ms=old['tpot_ms'],
+                evidence='unmeasured; all GPU schedulers stopped after driver queries entered D state'))
+    return sorted(rows, key=lambda r: (r['model'], r['batch']))
 
 
 def resolution(samples):
@@ -221,7 +258,7 @@ def main():
     a = p.parse_args()
     samples = completed()
     reference = references(samples)
-    csv_write(a.out / 'SM90D1_reference.csv', reference)
+    csv_write(a.out / 'SM90D1_reference.csv', reference_statuses(reference))
     paired = pairs(samples)
     resolved = resolution(samples)+[dict(r,kind='paired_build_or_prefix') for r in paired if r['arm'].startswith(('build-repeat','prefix-'))]
     for row in samples:
@@ -240,7 +277,7 @@ def main():
     arms += diagnostic.rejected_mechanisms()
     csv_write(a.out / 'SM90D1_arms.csv', arms)
     csv_write(a.out / 'SM90D1_geometry_probes.csv', [r for r in paired if r['arm'].startswith(('G1','G2'))]+diagnostic.rejected_geometry())
-    csv_write(a.out / 'SM90D1_stage_ledger.csv', [r for r in ledgers if r['tag'] in ('full2','stage2')])
+    csv_write(a.out / 'SM90D1_stage_ledger.csv', [r for r in ledgers if r['tag'] in ('full2','stage2','ready-full','ready-stage')])
     csv_write(a.out / 'SM90D1_primitives.csv', primitives())
     csv_write(a.out / 'SM90D1_attention.csv', diagnostic.attention(traces,ledgers))
     csv_write(a.out / 'SM90D1_resources.csv', diagnostic.resources(traces))

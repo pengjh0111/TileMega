@@ -24,6 +24,8 @@ def main():
             heads.add(read(RUN / 'compiler-p3/receipt.json')['head'])
         if (RUN / 'compiler-pg-profile/receipt.json').exists():
             heads.add(read(RUN / 'compiler-pg-profile/receipt.json')['head'])
+        if (RUN / 'compiler-ready/receipt.json').exists():
+            heads.add(read(RUN / 'compiler-ready/receipt.json')['head'])
         if identity['source']['head'] not in heads:
             continue
         binary = Path(str(path).removesuffix('.identity.json'))
