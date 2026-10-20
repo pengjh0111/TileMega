@@ -34,6 +34,11 @@ kappa = re.search(r'kappa=(\d+)', key)
 residency = row.get('residency') or row.get('res') or '1'
 case = dict(kappa=int(kappa.group(1)) if kappa else 1,
             residency=int(residency), geometries=geometries)
+# The attention coordinate: without it a pinned rebuild re-chose Ec (MX3-0).
+for tag, field in (('Ec', 'attention_kv_block'), ('Rq', 'attention_query_rows')):
+    found = re.search(tag + r'=(\d+)', key)
+    if found:
+        case[field] = int(found.group(1))
 a.out.write_text(json.dumps(dict(cases=[case]), indent=2) + '\n')
 print('%d geometries, kappa=%d residency=%s -> %s'
       % (len(geometries), case['kappa'], residency, a.out))
