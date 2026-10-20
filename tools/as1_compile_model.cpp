@@ -11,6 +11,7 @@
 #include <mlir/IR/Verifier.h>
 #include <llvm/Support/raw_ostream.h>
 #include <chrono>
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -22,17 +23,20 @@ static void Write(std::filesystem::path const& path,std::string const& value) {
 }
 int main(int argc,char** argv) {
   try {
-    if(argc!=4 && argc!=5)throw std::invalid_argument("usage: as1_compile_model prepared_directory output_directory groups [epochs]");
+    if(argc<4 || argc>6)throw std::invalid_argument("usage: as1_compile_model prepared_directory output_directory groups [epochs] [cross_group]");
     namespace fs=std::filesystem;
     auto root=fs::path("/home/d50064638/junhuip/TileMega/runs/as1");
     auto input=fs::weakly_canonical(argv[1]),out=fs::weakly_canonical(argv[2]);
     auto below=[&](fs::path const& p){auto relative=p.lexically_relative(root);return !relative.empty() && *relative.begin()!=".." && p!=root;};
     if(!below(input)||!below(out)||fs::exists(out))throw std::invalid_argument("Use existing prepared inputs and a new controlled output directory");
     auto config=tilemega::json::ParseFile((input/"config.json").string());
-    auto const& shape=config.At("shape_mnk").AsArray("shape_mnk");
-    if(config.At("test_id").AsString("test_id")!="E-0" || shape.size()!=3)
-      throw std::invalid_argument("Current codegen admits only the verified E-0 body");
-    int m=shape[0].AsNumber("M"),groups=std::stoi(argv[3]);
+    auto test=config.At("test_id").AsString("test_id");
+    if(test!="E-0" && test!="E-1")throw std::invalid_argument("Current codegen admits E-0 and E-1 only");
+    int m=test=="E-0"?config.At("shape_mnk").AsArray("shape_mnk").at(0).AsNumber("M"):
+        config.At("batch").AsNumber("batch");
+    int groups=std::stoi(argv[3]);bool cross=argc==6 && std::string(argv[5])=="cross_group";
+    if((argc==6 && !cross) || (cross && (groups!=2 || test!="E-1")))
+      throw std::invalid_argument("cross_group requires an E-1 two-group plan");
     auto target=tilemega::TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+"/configs/targets/ascend_3510.json");
     auto workers=tilemega::ascend::WorkerMap::Build(*target.ascend_capability,tilemega::ascend::LaunchMode::kMix1_2,groups);
     tilemega::solver::CandidateGenerator candidates(target,tilemega::solver::ScalarType::kBF16);
@@ -42,9 +46,10 @@ int main(int argc,char** argv) {
     tilemega::analysis::IslContext isl;
     mlir::MLIRContext context;
     auto bridge=tilemega::frontend::ReadExportBridge((input/"export.json").string());
-    tilemega::frontend::DnnPlanOptions dnn;dnn.batch=m;
+    tilemega::frontend::DnnPlanOptions dnn;dnn.batch=m;dnn.materialize_pointwise=test=="E-1";
     auto model_plan=tilemega::frontend::BuildDnnModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,dnn);
     tilemega::frontend::ImportOptions options;
+    options.phase_batch=m;
     for(std::size_t i=0;i<model_plan.gemms.size();++i)
       options.gemms.push_back({traits.tile_m,traits.tile_n,traits.tile_k,traits.stages,1,0});
     tilemega::frontend::ImportSummary summary;
@@ -61,8 +66,12 @@ int main(int argc,char** argv) {
     for(auto const& node:graph.nodes)if(node.kind==tilemega::analysis::OperatorKind::kMatmul) {
       if(node.output.axes.size()!=2 || node.operands.size()!=2)
         throw std::invalid_argument("Native GEMM requires two matrix operands");
-      auto k=problem.model.gemms.at(0).k;
-      auto n=problem.model.gemms.at(0).n;
+      auto origin=std::find_if(problem.model.task_semantics.begin(),problem.model.task_semantics.end(),
+          [&](auto const& x){return x.op.name==node.name;});
+      if(origin==problem.model.task_semantics.end())throw std::invalid_argument("GEMM lacks its semantic stage");
+      auto gi=problem.model.stages.at(origin->stage).gemm;
+      auto k=problem.model.gemms.at(gi).k;
+      auto n=problem.model.gemms.at(gi).n;
       tilemega::solver::ImplementationContract contract;
       contract.name=traits.ascend_implementation->impl_id;contract.task=node.name;
       contract.backend="catlass_950_block_mmad";contract.arch_tag="ascend_3510";
@@ -99,19 +108,63 @@ int main(int argc,char** argv) {
       ++checked_contracts;
     }
     if(checked_contracts!=problem.model.gemms.size())throw std::invalid_argument("Incomplete native implementation contract coverage");
+    unsigned checked_aiv_contracts=0;
+    for(auto const& node:graph.nodes)if(node.kind!=tilemega::analysis::OperatorKind::kMatmul) {
+      auto origin=std::find_if(problem.model.task_semantics.begin(),problem.model.task_semantics.end(),
+          [&](auto const& x){return x.op.name==node.name;});
+      if(origin==problem.model.task_semantics.end() || !node.element_access)
+        throw std::invalid_argument("AIV body lacks exact semantic access");
+      auto kind=problem.model.stages.at(origin->stage).kind;
+      auto const& access=*node.element_access;auto const& sem=access.semantic;
+      std::vector<std::string> expected;
+      if(kind==tilemega::solver::StageKind::kRMSNorm || kind==tilemega::solver::StageKind::kElementwise) {
+        int width=kind==tilemega::solver::StageKind::kRMSNorm?128:256;
+        if(sem.arithmetic!=(width==128?"rmsnorm":"silu"))throw std::invalid_argument("AIV mathematical operation mismatch");
+        auto matrix="{ [tm] -> [i,r] : 0<=tm<"+std::to_string(m)+" and i=tm and 0<=r<"+std::to_string(width)+" }";
+        expected.push_back(matrix);
+        if(width==128)expected.push_back("{ [tm] -> [r] : 0<=tm<"+std::to_string(m)+" and 0<=r<128 }");
+        expected.push_back(matrix);
+      }else if(kind==tilemega::solver::StageKind::kAdd) {
+        if(sem.arithmetic!="add")throw std::invalid_argument("Residual mathematical operation mismatch");
+        auto matrix="{ [tm,tn] -> [i,j] : 0<=tm<1 and 0<=tn<2 and 32*tm<=i<32*tm+32 and i<"+
+            std::to_string(m)+" and 64*tn<=j<64*tn+64 and j<128 }";
+        expected={matrix,matrix,matrix};
+      }else throw std::invalid_argument("Unknown AIV semantic body");
+      std::vector<tilemega::analysis::CouplingRelation> derived;
+      auto known=problem.model.MetricBindings();
+      for(auto const& operand:sem.operands)derived.push_back(tilemega::analysis::ProjectTaskRead(
+          sem,node,access.partition,operand.tensor,operand.map,{},known).BindParams(known));
+      derived.push_back(tilemega::analysis::ProjectTaskWrite(sem,node,access.partition,
+          sem.result,sem.result_map,{},known).BindParams(known));
+      tilemega::solver::ImplementationContract contract;contract.name=sem.arithmetic;
+      for(auto const& relation:expected)contract.exact_operands.push_back(tilemega::analysis::CouplingRelation::FromIslText(relation));
+      std::string reason;
+      if(!tilemega::solver::VerifyExactAccess(contract,derived,&reason))throw std::invalid_argument(reason);
+      ++checked_aiv_contracts;
+    }
     tilemega::analysis::CouplingCache cache;
     auto skeleton=tilemega::solver::BuildPlanSkeleton(problem,groups,1,1,false,cache,nullptr,nullptr,true);
     std::vector<tilemega::ascend::ImplementationRole> roles;
     std::vector<tilemega::ascend::TaskImplementation> implementations;
     for(auto const& stage:problem.projection.stages) {
-      if(stage.combine || problem.model.stages.at(stage.logical_stage).kind!=tilemega::solver::StageKind::kGemm)
-        throw std::invalid_argument("Unimplemented native TaskKind rejected before materialization");
-      roles.push_back(traits.ascend_implementation->required_role);
-      implementations.push_back(*traits.ascend_implementation);
+      if(stage.combine)throw std::invalid_argument("Unimplemented native combine rejected before materialization");
+      auto kind=problem.model.stages.at(stage.logical_stage).kind;
+      auto impl=kind==tilemega::solver::StageKind::kGemm?*traits.ascend_implementation:
+          tilemega::solver::As1AivImplementation(static_cast<tilemega::codegen::TaskKind>(kind),target);
+      roles.push_back(impl.required_role);implementations.push_back(std::move(impl));
     }
     skeleton.BindAscendWorkers(workers,roles);
+    if(cross) {
+      if(skeleton.spaces.size()!=5)throw std::invalid_argument("Cross-group MLP requires exactly five stages");
+      for(unsigned s=0;s<skeleton.spaces.size();++s) {
+        auto& domain=skeleton.spaces[s].legal_workers;
+        int group=(s==2 || s==3)?1:0;
+        domain.erase(std::remove_if(domain.begin(),domain.end(),[&](int w){return workers.At(w).group!=group;}),domain.end());
+        if(domain.empty())throw std::invalid_argument("Fixed placement has no legal worker");
+      }
+    }
     auto plan=tilemega::solver::MaterializeAscendPlan(problem,skeleton,*target.ascend_capability,implementations,
-        argc==5?std::stoul(argv[4]):1);
+        argc>=5?std::stoul(argv[4]):1);
     tilemega::solver::WritePlanSkeleton(*module,skeleton);
     if(mlir::failed(mlir::verify(*module)))throw std::runtime_error("Solved CG verification failed");
     std::string solved;{llvm::raw_string_ostream os(solved);module->print(os);}Write(out/"solved.mlir",solved);
@@ -136,6 +189,7 @@ int main(int argc,char** argv) {
       {"couplings",int(summary.couplings)},{"tasks",int(plan.tasks.size())},
       {"launch_groups",groups},{"cost_status","not_calibrated"}});
     receipt.Set("verified_logical_operand_contracts",int(checked_contracts));
+    receipt.Set("verified_aiv_operand_contracts",int(checked_aiv_contracts));
     Write(out/"pipeline.json",receipt.Dump());std::cout<<receipt.Dump()<<std::endl;return 0;
   }catch(std::exception const& e){std::cerr<<e.what()<<std::endl;return 1;}
 }
