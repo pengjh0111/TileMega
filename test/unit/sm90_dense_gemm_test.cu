@@ -23,12 +23,12 @@ int run() {
  constexpr int K=1024,N=TN*25;
  using A=Sm90DenseGemm<B,N,K,TN,TK,3,WN,WK,ServingEpilogueOp::kStore,8,Reg>;
  std::vector<BF> input(B*K),weight(N*K),output(B*N);
- for(int b=0;b<B;++b)for(int k=0;k<K;++k)input[b*K+k]=BF((b+1)*0.25f);
+ for(int b=0;b<B;++b)for(int k=0;k<K;++k)input[b*K+k]=BF((b+1)*(k%7+1)/64.0f);
  for(int n=0;n<N;++n)for(int k=0;k<K;++k) {
   int row=n%TN,col=k%TK;
   size_t permutation=512*(row/8+(TN/8)*(col/64))+64*(row%8)+8*(((col%64)/8)^(row%8))+col%8;
   size_t index=((size_t(n/TN)*(K/TK)+k/TK)*TN*TK)+permutation;
-  weight[index]=BF((n%29-14)/128.0f);
+  weight[index]=BF((n%29-14)*(k%11+1)/256.0f);
  }
  BF *a,*w,*o,*other;
  check(cudaMalloc(&a,input.size()*2));check(cudaMalloc(&w,weight.size()*2));
@@ -41,8 +41,11 @@ int run() {
  int errors=0;
  for(BF* device:{o,other}) {
   check(cudaMemcpy(output.data(),device,output.size()*2,cudaMemcpyDeviceToHost));
+  // Dyadic products and their sum fit exactly in FP32. Distinct K periods
+  // expose a stale/misaligned lookahead fragment without a numerical tolerance.
+  long long products=0;for(int k=0;k<K;++k)products+=(k%7+1)*(k%11+1);
   for(int b=0;b<B;++b)for(int n=0;n<N;++n) {
-   BF expected(K*(b+1)*0.25f*((n%29-14)/128.0f));
+   BF expected(float(products*(b+1)*(n%29-14))/16384.0f);
    if(float(output[b*N+n])!=float(expected)) {
     if(errors<3)std::fprintf(stderr,"B%d TN%d b%d n%d got %f expected %f\n",B,TN,b,n,float(output[b*N+n]),float(expected));
     ++errors;
