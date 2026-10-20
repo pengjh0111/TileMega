@@ -720,23 +720,13 @@ extern "C" void* tm_plan_create(int batch, void* const* external,
         kModel, kModel.runtime_variants[0], 0, dims, "", grid,
         std::min(l1, l2), target, smem, external);
 #if defined(TILEMEGA_STATIC_DENSE)
-    if(plan->model.stages.size()!=static_dense::StageCount())
+    if(plan->model.stages.size()!=static_dense::StageCount() ||
+       plan->model.buffers.size()>std::size(plan->bindings.buffers))
       throw std::invalid_argument("static dense binding disagrees with the materialized plan");
-    auto address=[&](unsigned id) -> cutlass::bfloat16_t* {
-      if(id==kNoOperand)return nullptr;
-      auto* pointer=static_cast<cutlass::bfloat16_t*>(plan->model.buffers.at(id));
+    for(std::size_t i=0;i<plan->model.buffers.size();++i) {
+      auto* pointer=static_cast<cutlass::bfloat16_t*>(plan->model.buffers[i]);
       if(!pointer)throw std::invalid_argument("static dense operand is unbound");
-      return pointer;
-    };
-    for(unsigned i=0;i<kModel.stage_count;++i) {
-      auto const& stage=kStages[i];auto& binding=plan->bindings.stages[i];
-      if(stage.kind==TaskKind::kGemm) {
-        auto const& g=kGemms[stage.gemm];
-        unsigned ids[]={g.a,g.b,g.c,g.d,g.serving_argmax_index,g.serving_norm_ss,g.serving_ss_out};
-        for(unsigned j=0;j<std::size(ids);++j)binding.operand[j]=address(ids[j]);
-        if(static_dense::Chunks(stage.gemm)>1)
-          binding.partial=reinterpret_cast<float*>(address(static_dense::PartialIndex(stage.gemm)));
-      }else for(unsigned j=0;j<10;++j)binding.operand[j]=address(stage.operand[j]);
+      plan->bindings.buffers[i]=pointer;
     }
 #endif
 #if TILEMEGA_ATTENTION_FRONTIER

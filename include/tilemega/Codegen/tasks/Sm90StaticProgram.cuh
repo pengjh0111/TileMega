@@ -39,35 +39,15 @@ constexpr auto MakeEntries() {
 }
 inline constexpr auto kEntries=MakeEntries();
 
-// Parameter-space addresses are private to each plan and require no dependent
-// global-memory descriptor loads before issuing a stage's first transfer.
-struct StageBindings { BF16* operand[10]; float* partial; };
-struct Bindings { StageBindings stages[kModel.stage_count]; };
+// Keep shared stage inputs unique in the parameter working set. Each plan
+// owns its table, so simultaneously created plans cannot alias addresses.
+struct Bindings { BF16* buffers[kModel.buffer_count+kModel.gemm_count]; };
 static_assert(sizeof(Bindings)+256<32764,"Hopper kernel parameter limit");
-inline constexpr unsigned kLayers=(kModel.gemm_count-1)/4;
-inline constexpr unsigned kLayerSources=(kModel.stage_count-3)/kLayers;
-inline constexpr unsigned kLayerStages=(StageCount()-3)/kLayers;
-constexpr bool UniformLayers() {
-  if(kLayers<1 || kModel.gemm_count%4!=1 ||
-      kStages[0].kind!=TaskKind::kEmbedding ||
-      kStages[kModel.stage_count-2].kind!=TaskKind::kGemm ||
-      kStages[kModel.stage_count-1].kind!=TaskKind::kArgmaxReduce ||
-      kLayerSources*kLayers+3!=kModel.stage_count ||
-      kLayerStages*kLayers+3!=StageCount())return false;
-  for(unsigned layer=1;layer<kLayers;++layer)for(unsigned j=0;j<kLayerSources;++j) {
-    auto a=kStages[1+j],b=kStages[1+j+layer*kLayerSources];
-    if(a.kind!=b.kind || a.extent!=b.extent || a.width!=b.width || a.group!=b.group ||
-       a.attention_kv_block!=b.attention_kv_block)return false;
-    if(a.kind==TaskKind::kGemm) {
-      auto ga=kGemms[a.gemm],gb=kGemms[b.gemm];
-      auto va=kRuntimeGemms0[a.gemm],vb=kRuntimeGemms0[b.gemm];
-      if(ga.n!=gb.n || ga.k!=gb.k || ga.serving_epilogue!=gb.serving_epilogue ||
-         va.compiled_variant!=vb.compiled_variant || Chunks(a.gemm)!=Chunks(b.gemm))return false;
-    }
-  }
-  return true;
+template<unsigned Id>
+__device__ __forceinline__ BF16* Buffer(Bindings const& b) {
+  if constexpr(Id==kNoOperand)return nullptr;
+  else return b.buffers[Id];
 }
-static_assert(UniformLayers(),"dense static layer geometry must be uniform");
 
 template<int M,int N,int K,int TM,int TN,int TK,int S,int Split,
          bool Wgmma,backend::ServingEpilogueOp Op>
@@ -181,40 +161,40 @@ constexpr int Tasks() {
 }
 
 template<unsigned Stage>
-__device__ __forceinline__ void RunStage(StageBindings const& b,int past,char* shared) {
+__device__ __forceinline__ void RunStage(Bindings const& b,int past,char* shared) {
   constexpr auto e=kEntries[Stage];constexpr auto s=kStages[e.source];
   for(int task=blockIdx.x;task<Tasks<Stage>();task+=gridDim.x) {
     if constexpr(s.kind==TaskKind::kGemm) {
       constexpr auto g=kGemms[s.gemm];constexpr auto v=kRuntimeGemms0[s.gemm];
       constexpr auto op=static_cast<backend::ServingEpilogueOp>(g.serving_epilogue);
-      auto* index=reinterpret_cast<int*>(b.operand[4]);
-      auto* norm=reinterpret_cast<float const*>(b.operand[5]);
-      auto* sums=reinterpret_cast<float*>(b.operand[6]);
-      auto* partial=b.partial;
+      auto* index=reinterpret_cast<int*>(Buffer<g.serving_argmax_index>(b));
+      auto* norm=reinterpret_cast<float const*>(Buffer<g.serving_norm_ss>(b));
+      auto* sums=reinterpret_cast<float*>(Buffer<g.serving_ss_out>(b));
+      auto* partial=Chunks(s.gemm)>1?reinterpret_cast<float*>(Buffer<PartialIndex(s.gemm)>(b)):nullptr;
       if constexpr(e.combine)
         Combine<kBatch,g.n,g.k,v.tile_m,v.tile_n,Chunks(s.gemm),op>(partial,
-            b.operand[3],b.operand[2],index,norm,sums,task,shared);
+            Buffer<g.d>(b),Buffer<g.c>(b),index,norm,sums,task,shared);
       else
         Gemm<kBatch,g.n,g.k,v.tile_m,v.tile_n,v.tile_k,v.stages,Chunks(s.gemm),
-            GemmVariant<v.compiled_variant>::kWgmma,op>(b.operand[0],b.operand[1],
-            b.operand[2],b.operand[3],partial,index,norm,sums,task,shared);
+            GemmVariant<v.compiled_variant>::kWgmma,op>(Buffer<g.a>(b),Buffer<g.b>(b),
+            Buffer<g.c>(b),Buffer<g.d>(b),partial,index,norm,sums,task,shared);
     }else if constexpr(s.kind==TaskKind::kEmbedding)
-      Embedding<s.width,s.extent,kModel.dims.capacity>(reinterpret_cast<int const*>(b.operand[0]),
-          b.operand[1],b.operand[2],reinterpret_cast<float*>(b.operand[3]),task,past);
+      Embedding<s.width,s.extent,kModel.dims.capacity>(reinterpret_cast<int const*>(Buffer<s.operand[0]>(b)),
+          Buffer<s.operand[1]>(b),Buffer<s.operand[2]>(b),reinterpret_cast<float*>(Buffer<s.operand[3]>(b)),task,past);
     else if constexpr(s.kind==TaskKind::kRMSNorm)
-      Norm<s.width,s.row_stride,s.row_offset>(b.operand[0],b.operand[1],
-          b.operand[2],task,shared);
+      Norm<s.width,s.row_stride,s.row_offset>(Buffer<s.operand[0]>(b),Buffer<s.operand[1]>(b),
+          Buffer<s.operand[2]>(b),task,shared);
     else if constexpr(s.kind==TaskKind::kArgmaxReduce)
-      Argmax<s.width,kModel.dims.capacity>(reinterpret_cast<float const*>(b.operand[0]),
-          reinterpret_cast<int const*>(b.operand[1]),reinterpret_cast<int*>(b.operand[2]),task,past,shared);
+      Argmax<s.width,kModel.dims.capacity>(reinterpret_cast<float const*>(Buffer<s.operand[0]>(b)),
+          reinterpret_cast<int const*>(Buffer<s.operand[1]>(b)),reinterpret_cast<int*>(Buffer<s.operand[2]>(b)),task,past,shared);
     else if constexpr(s.kind==TaskKind::kAttentionMerge)
-      Merge<s.extent,s.attention_kv_block,kModel.dims.capacity>(reinterpret_cast<float const*>(b.operand[0]),
-          reinterpret_cast<float const*>(b.operand[1]),b.operand[2],task,past);
+      Merge<s.extent,s.attention_kv_block,kModel.dims.capacity>(reinterpret_cast<float const*>(Buffer<s.operand[0]>(b)),
+          reinterpret_cast<float const*>(Buffer<s.operand[1]>(b)),Buffer<s.operand[2]>(b),task,past);
     else if constexpr(s.kind==TaskKind::kFusedAttention) {
-      ServingAttentionOperands p{b.operand[0],b.operand[1],b.operand[2],
-          b.operand[3],b.operand[4],b.operand[5],b.operand[6],
-          b.operand[7],reinterpret_cast<float*>(b.operand[8]),
-          reinterpret_cast<float*>(b.operand[9]),kBatch,int(s.extent),kModel.dims.capacity,
+      ServingAttentionOperands p{Buffer<s.operand[0]>(b),Buffer<s.operand[1]>(b),Buffer<s.operand[2]>(b),
+          Buffer<s.operand[3]>(b),Buffer<s.operand[4]>(b),Buffer<s.operand[5]>(b),Buffer<s.operand[6]>(b),
+          Buffer<s.operand[7]>(b),reinterpret_cast<float*>(Buffer<s.operand[8]>(b)),
+          reinterpret_cast<float*>(Buffer<s.operand[9]>(b)),kBatch,int(s.extent),kModel.dims.capacity,
           past,s.attention_kv_block,TILEMEGA_NORM_EPSILON};
       Attention<s.extent,s.attention_kv_block,kModel.dims.capacity>(p,shared,task);
     }else static_assert(s.kind==TaskKind::kGemm,"unsupported static dense stage");
@@ -222,14 +202,13 @@ __device__ __forceinline__ void RunStage(StageBindings const& b,int past,char* s
   }
 }
 
-template<unsigned Stage,bool Layered=false>
+template<unsigned Stage>
 __device__ __forceinline__ void RunBoundary(Bindings const& b,int past,char* shared,
-    Params const& p,EventCounter* events,unsigned long long iteration,int layer=0) {
+    Params const& p,EventCounter* events,unsigned long long iteration) {
   constexpr int count=Tasks<Stage>();
-  unsigned index=Stage+(Layered?layer*kLayerStages:0);
-  unsigned source=kEntries[Stage].source+(Layered?layer*kLayerSources:0);
+  constexpr unsigned index=Stage;
   executor::StageBegin(p,index,iteration,count/int(gridDim.x)+(int(blockIdx.x)<count%int(gridDim.x)));
-  RunStage<Stage>(b.stages[source],past,shared);
+  RunStage<Stage>(b,past,shared);
   __syncthreads();
   if(threadIdx.x==0) {
     RedRelease(&events[index].arrivals,1ull);
@@ -240,20 +219,15 @@ __device__ __forceinline__ void RunBoundary(Bindings const& b,int past,char* sha
   executor::StageRelease(p,index,iteration);
 }
 template<std::size_t... I>
-__device__ __forceinline__ void Layer(Bindings const& b,int past,Params const& p,char* shared,
-    EventCounter* events,unsigned long long iteration,int layer,std::index_sequence<I...>) {
-  (RunBoundary<1+I,true>(b,past,shared,p,events,iteration,layer),...);
+__device__ __forceinline__ void Sequence(Bindings const& b,int past,Params const& p,
+    char* shared,EventCounter* events,unsigned long long iteration,std::index_sequence<I...>) {
+  (RunBoundary<I>(b,past,shared,p,events,iteration),...);
 }
 __device__ __forceinline__ void Step(Bindings const& b,Params const& p,char* shared,
     EventCounter* events,unsigned long long iteration) {
   int past=p.dims.past;
   executor::StepBegin(p,iteration);
-  RunBoundary<0>(b,past,shared,p,events,iteration);
-  #pragma unroll 1
-  for(unsigned layer=0;layer<kLayers;++layer)
-    Layer(b,past,p,shared,events,iteration,layer,std::make_index_sequence<kLayerStages>{});
-  RunBoundary<StageCount()-2>(b,past,shared,p,events,iteration);
-  RunBoundary<StageCount()-1>(b,past,shared,p,events,iteration);
+  Sequence(b,past,p,shared,events,iteration,std::make_index_sequence<StageCount()>{});
   executor::StepEnd(p,iteration);
 }
 }  // namespace tilemega::codegen::static_dense
