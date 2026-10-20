@@ -54,7 +54,7 @@ std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::Neighbours(Sm90DenseCoor
         next.slot_bytes=2*tn*g.TileK();add(std::move(candidate));
       }
     }
-    for(int tk:{64,128,256,512})for(int slots:{2,3,4,6,8}) {
+    for(int tk:{64,128,256,512,1024,2048})for(int slots:{2,3,4,6,8}) {
       auto candidate=center;auto& next=candidate.gemms[family];
       next.slot_bytes=2*next.tile_n*tk;next.slots=slots;add(std::move(candidate));
     }
