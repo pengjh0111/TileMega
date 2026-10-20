@@ -18,3 +18,6 @@ __nanosleep(0),534.250,534.250,,,"minimum granularity: a polling loop pays this 
 __nanosleep(1),616.265,616.265,,,
 __nanosleep(100),794.225,794.225,,,
 __nanosleep(1000),2445.005,2445.005,,,
+GlobalTimerNs read 1 CTA,126.035,126.035,,,"the trace clock; every ledger interval holds at least one read"
+GlobalTimerNs read 104 CTA,126.165,126.350,,,
+GlobalTimerNs read 416 CTA,200.800,201.245,,,"four CTAs per AP, as the residency-4 plans run"
