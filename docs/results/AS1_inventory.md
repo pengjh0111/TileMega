@@ -1,4 +1,4 @@
-# AS-1 inventory — CP-1 snapshot, 2026-10-20
+# AS-1 inventory — CP-1 historical snapshot — CP-1 snapshot, 2026-10-20
 
 Evidence: `verified` means read or executed in this session; `stated` means a
 source assertion; `inferred` means a conclusion awaiting its own probe.

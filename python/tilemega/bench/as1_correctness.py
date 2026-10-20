@@ -133,7 +133,7 @@ def prepare_e1(out: Path, batch: int):
     print(json.dumps(dict(status='prepared',out=str(out),test_id='E-1',batch=batch)))
 
 
-def bert_block():
+def bert_block(attention_fp32=False):
     class BertEncoderBlock(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -151,7 +151,12 @@ def bert_block():
             k=self.key(x).view(batch,16,4,64).transpose(1,2)
             v=self.value(x).view(batch,16,4,64).transpose(1,2)
             valid=mask.to(torch.bool).view(batch,1,1,16).expand(batch,1,16,16)
-            context=torch.nn.functional.scaled_dot_product_attention(q,k,v,valid,dropout_p=0.0,is_causal=False)
+            if attention_fp32:
+                scores=(q.float()@k.float().transpose(-2,-1))*0.125
+                probabilities=torch.softmax(scores.masked_fill(~valid,float('-inf')),dim=-1)
+                context=(probabilities@v.float()).to(x.dtype)
+            else:
+                context=torch.nn.functional.scaled_dot_product_attention(q,k,v,valid,dropout_p=0.0,is_causal=False)
             context=context.transpose(1,2).contiguous().view(batch,16,256)
             hidden=self.ln1(x+self.output(context))
             return self.ln2(hidden+self.down(torch.nn.functional.gelu(self.up(hidden),approximate='none')))
@@ -376,7 +381,8 @@ def compare(directory: Path, output: Path, pipeline: Path | None = None):
                  if line.startswith('{')]
         launch=next(r for r in records if r.get('tilemega_pipeline'))
         trace=json.loads(Path(str(output)+'.trace.json').read_text())
-        require(job['status']=='passed' and launch['host_kernel_launches']==1,'Launch receipt failed')
+        forwards=launch.get('forwards',1)
+        require(job['status']=='passed' and launch['host_kernel_launches']==forwards and forwards in (1,4),'Launch receipt failed')
         require(launch['plan_trace_pass'] and launch['abi_roundtrip_pass'],'Plan/ABI receipt failed')
         require(launch.get('executor','task_event')==plan.get('executor','task_event'),'Executor receipt mismatch')
         require(generated['tasks']==launch['plan_tasks']==len(plan['tasks'])==len(trace),'Task count mismatch')
@@ -384,7 +390,7 @@ def compare(directory: Path, output: Path, pipeline: Path | None = None):
             require(task['logical_task']==observed['tile'] and task['owner']==observed['worker'],'Task ownership mismatch')
             if 'stage' in observed:
                 require(task['stage']==observed['stage'],'Task stage mismatch')
-            require(observed['executions']==observed['event']==plan['epochs'],'Task event/epoch mismatch')
+            require(observed['executions']==observed['event']==plan['epochs']*forwards,'Task event/epoch mismatch')
         require('tmcg.tile_space' in (pipeline/'ctg.mlir').read_text(),'Missing CTG evidence')
         require('tmexec.skeleton' in (pipeline/'solved.mlir').read_text(),'Missing Solver evidence')
         executable=Path(job['command'][0])
@@ -396,6 +402,9 @@ def compare(directory: Path, output: Path, pipeline: Path | None = None):
             device_locked=False, plan_tasks=len(plan['tasks']), groups=plan['launch_groups'],
             epochs=plan['epochs'], other_processes_present=job['other_processes_present_before'])
         result['executor']=plan.get('executor','task_event')
+        result['forwards']=forwards
+        result['single_persistent_launch_per_forward_verified']=True
+        result['single_persistent_launch_verified']=forwards==1
         if cfg.get('stage_references'):
             stage_buffers=json.loads((pipeline/'stage_buffers.json').read_text())
             stage_errors=[]

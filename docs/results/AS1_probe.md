@@ -34,7 +34,7 @@
 | P-8 | **verified** safe copies of target 43 at 64×128×256, 50 at 1×96×129, 64 Add GM at 64×128×256 report `Compare success`. UB example at 64×8192×32 also reports `Compare success` in 5 fresh processes. |
 | P-9 | **not run** no calibrated performance numbers; current timings include startup and external load. Fixed implementation selection only; no invented target rates. |
 | P-10 | **verified** unlocked wrapper timeout/owned-process isolation (T-14), one visible device, raw `GetSystemCycle` records. Cycle-to-ns calibration, device trap and profiling not established. |
-| P-11 | **not run** E-2 BERT-specific SIMD/mask/softmax numerical coverage still required. |
+| P-11 | **verified scoped SIMD** LayerNorm/Erf GELU/Add regular/tail and masked attention S1/S13/S16/all-masked pass; SIMD PV, no SIMT. |
 
 The upstream CATLASS basic GEMM executable's metadata is **verified**
 `AIC_ROLLBACK` with MIX ratio 1:2. Its Cube arithmetic is not evidence of a
@@ -93,7 +93,7 @@ Receipts: `runs/as1/probes/gm_visibility_summary.json` and each job's
 
 G-PROBE-AS is **partial**: native entries, MIX IDs/persistence and scoped GM
 visibility are verified. P-4 remaining resource diagnostics, BF16 P-7 direct
-routes and P-10 timer conversion are pending; P-9 waits for useful correct bodies.
+routes and P-10 timer conversion are pending; P-9 component-rate calibration remains unrun; limited contended E-2 timing is separate.
 Use G≤2, residency=1, fixed candidates, single-owner GM events initially.
 Direct routes, mode 4, SSBuffer messaging, SIMT and performance auto-ranking
 remain off. E-0 CTG/Solver/Plan/device execution is verified in `AS1_ascend950.md`.
