@@ -719,6 +719,20 @@ struct Builder {
     auto& t=p.stages[stage];t.width=width;t.group=4;t.rows_per_batch=rows;t.norm_epsilon=Real(Arg(node,4),0);
     consumed.insert(input);
   }
+  void RmsNorm(FxNodeRecord const& node) {
+    auto input=Value(Ref(node,0));auto const& shape=Arg(node,1);
+    if(shape.kind!=FxArgument::Kind::kList || shape.items.size()!=1)
+      throw std::invalid_argument("RMSNorm requires a single normalized channel axis");
+    auto width=Int(shape.items[0],0);auto epsilon=Real(Arg(node,3),0);
+    if(width<=0 || width>4096 || epsilon<=0 || !std::isfinite(epsilon) ||
+        p.buffers[input].per_batch%width || Parameter(Ref(node,2)).shape!=std::vector<std::string>{std::to_string(width)})
+      throw std::invalid_argument("RMSNorm width, affine parameter or epsilon is invalid");
+    unsigned rows=p.buffers[input].per_batch/width;
+    auto output=RowsBuffer(node.name,rows,width);
+    auto stage=Stage(PlanTaskKind::kRMSNorm,node,output,{input,Table(Ref(node,2)),output});
+    auto& t=p.stages[stage];t.width=t.extent=width;t.rows_per_batch=rows;t.norm_epsilon=epsilon;
+    consumed.insert(input);
+  }
   void Qkv(FxNodeRecord const& node) {
     auto const& attention=packed_attention.at(node.name);auto input=Value(LinearInput(node));
     auto width=attention.heads*64,k=U(Parameter(LinearWeight(node)).shape.at(1));
@@ -853,6 +867,15 @@ struct Builder {
       if(!text.empty() && text!="none" && text!="tanh")throw std::invalid_argument("unknown GELU approximation");
       step.activation=text=="tanh"?DmActivation::kGeluTanh:DmActivation::kGeluErf;
     }
+    if(options.materialize_pointwise) {
+      auto const& b=p.buffers.at(input);
+      if(b.layout.rank!=2 || b.dtype!="bf16")throw std::invalid_argument("Pointwise stage requires dense BF16 rows");
+      auto width=b.layout.logical[1],rows=b.per_batch/width;
+      auto output=RowsBuffer(node.name,rows,width);
+      auto stage=Stage(PlanTaskKind::kElementwise,node,output,{input,output});
+      auto& t=p.stages[stage];t.width=t.extent=width;t.rows_per_batch=rows;
+      t.chain.count=1;t.chain.operations[0]=step;consumed.insert(input);return;
+    }
     Append(input,step);p.node_buffer[node.name]=input;
   }
   void Residual(FxNodeRecord const& node) {
@@ -874,6 +897,16 @@ struct Builder {
     auto const& x=p.buffers[a].layout;auto const& y=p.buffers[b].layout;
     if(x.rank!=y.rank || !std::equal(x.logical,x.logical+x.rank,y.logical))
       throw std::invalid_argument("DNN residual shapes disagree");
+    if(options.materialize_pointwise) {
+      if(x.rank!=2 || scaled_residuals.count(Ref(node,0)) || scaled_residuals.count(Ref(node,1)))
+        throw std::invalid_argument("Standalone residual requires unscaled dense rows");
+      auto width=x.logical[1],rows=p.buffers[a].per_batch/width;
+      auto output=RowsBuffer(node.name,rows,width);
+      auto gemm=p.stages.at(owner.at(a)).gemm;
+      auto stage=Stage(PlanTaskKind::kAdd,node,output,{a,b,output});
+      auto& t=p.stages[stage];t.gemm=gemm;t.width=t.extent=width;t.rows_per_batch=rows;
+      consumed.insert(a);consumed.insert(b);return;
+    }
     DmEpilogueOp step;step.kind=DmEpilogueKind::kResidual;step.parameter[0]=b;step.residual_map.layout=b;
     auto source=Value(Ref(node,0))==a?Ref(node,0):Ref(node,1);
     if(auto scaled=scaled_residuals.find(source);scaled!=scaled_residuals.end())step.parameter[1]=scaled->second.second;
@@ -985,6 +1018,7 @@ struct Builder {
     else if(kind=="mean" || kind=="adaptive_avg_pool2d")GlobalPool(node);
     else if(kind=="linear" || kind=="addmm" || (kind=="bmm" && parameters.count(Ref(node,1))))Linear(node);
     else if(kind=="layer_norm" || kind=="native_layer_norm")LayerNorm(node);
+    else if(kind=="rms_norm")RmsNorm(node);
     else if(kind=="pad" || kind=="constant_pad_nd") {
       auto const& pad=Arg(node,1);
       if(pad.kind!=FxArgument::Kind::kList || pad.items.size()%2 || pad.items.size()>8 ||

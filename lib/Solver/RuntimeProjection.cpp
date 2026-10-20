@@ -309,6 +309,8 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
         break;
       }
       case StageKind::kRMSNorm:
+        if(model.dm && stage.rows_per_batch) {count=Mul(batch,stage.rows_per_batch);break;}
+        count = stage.batch_rows ? batch : tokens; break;
       case StageKind::kEmbedding:
         count = stage.batch_rows ? batch : tokens; break;
       case StageKind::kFusedAttention: {
@@ -341,6 +343,7 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
         }
         break;
       case StageKind::kElementwise:
+        if(model.dm && stage.rows_per_batch) {count=Mul(batch,stage.rows_per_batch);break;}
         count = plan.ownership_flags & codegen::kActivationTileOwnership ? seq :
             Ceil(Mul(seq,stage.extent),options.threads);
         break;

@@ -256,6 +256,31 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
       op.operands={read};
       op.element_reads={{read.tensor,read.map,{Add({I("n",-1)},c-1)}}};
       b.Own(op,rows,l.strides[2]);b.Record(index,std::move(op),OpRole::kLayoutConvert,output);
+    }else if(stage.kind==PlanTaskKind::kRMSNorm) {
+      auto x=stage.operands[0],gamma=stage.operands[1],out=stage.operands[2],width=stage.width;
+      op.kind=OperatorKind::kReduction;op.arithmetic="rmsnorm";
+      op.domain={D("m",rows),D("n",C(width)),D("c",C(width),true)};
+      op.result=b.Space(out,rows,width);op.result_map.results=b.Rows(out,"n");
+      op.operands={b.Read(x,b.Space(x,rows,width),b.Rows(x,"c")),
+          b.Read(gamma,T(b.Buffer(gamma).name,{{"channel",C(width)}}),{I("n")})};
+      b.Own(op,rows,width);b.Record(index,std::move(op),OpRole::kNorm,out);
+    }else if(stage.kind==PlanTaskKind::kElementwise) {
+      if(stage.chain.count!=1 || stage.chain.operations[0].kind!=codegen::DmEpilogueKind::kActivation ||
+          stage.chain.operations[0].activation!=codegen::DmActivation::kSilu)
+        throw std::invalid_argument("Standalone activation semantics currently require SiLU");
+      auto x=stage.operands[0],out=stage.operands[1],width=stage.width;
+      op.kind=OperatorKind::kPointwise;op.arithmetic="silu";
+      op.domain={D("m",rows),D("n",C(width))};
+      op.result=b.Space(out,rows,width);op.result_map.results=b.Rows(out,"n");
+      op.operands={b.Read(x,b.Space(x,rows,width),b.Rows(x,"n"))};
+      b.Own(op,rows,width);b.Record(index,std::move(op),OpRole::kActivation,out);
+    }else if(stage.kind==PlanTaskKind::kAdd) {
+      auto x=stage.operands[0],y=stage.operands[1],out=stage.operands[2],width=stage.width;
+      op.kind=OperatorKind::kPointwise;op.arithmetic="add";
+      op.domain={D("m",rows),D("n",C(width))};
+      op.result=b.Space(out,rows,width);op.result_map.results=b.Rows(out,"n");
+      op.operands={b.Read(x,b.Space(x,rows,width),b.Rows(x,"n")),b.Read(y,b.Space(y,rows,width),b.Rows(y,"n"))};
+      b.Own(op,rows,width);b.Record(index,std::move(op),OpRole::kResidualAdd,out);
     }else if(stage.kind==PlanTaskKind::kLayerNorm) {
       auto x=stage.operands[0],gamma=stage.operands[1],beta=stage.operands[2];
       auto out=stage.operands[3],width=stage.width;

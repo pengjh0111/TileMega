@@ -16,6 +16,7 @@ struct DnnPlanOptions {
   bool dwpw_fuse=false;
   std::optional<std::set<unsigned>> dwpw_fuse_gemms;
   bool deferred_layernorm=false;
+  bool materialize_pointwise=false;
   std::optional<std::set<unsigned>> deferred_layernorm_gemms;
   std::optional<std::set<DeferredLayerNormEdge>> deferred_layernorm_edges;
 };
