@@ -1,0 +1,22 @@
+{
+  "schema": "tilemega.as1.workloads.v1",
+  "seed": 20261016,
+  "dtype": "bf16",
+  "accumulator": "fp32",
+  "weights": "random_only",
+  "downloads": false,
+  "e0": {"model": "gemm", "shapes_mnk": [[64, 128, 256], [33, 96, 129]]},
+  "e1": {
+    "model": "rmsnorm_mlp_residual", "batch": [1, 4], "hidden": 128,
+    "intermediate": 256, "epsilon": 0.00001, "bias": false,
+    "stages": ["rmsnorm", "gemm", "silu", "gemm", "residual_add"]
+  },
+  "e2": {
+    "model": "bert_encoder_block", "batch": 1, "sequence": 16,
+    "hidden": 256, "heads": 4, "intermediate": 1024,
+    "activation": "gelu", "layer_norm_epsilon": 1e-12,
+    "attention_mask": "explicit_padding_mask", "dropout": 0.0,
+    "importer": "existing_dnn_importer",
+    "status": "not_run"
+  }
+}
