@@ -343,7 +343,15 @@ void WritePlanSkeleton(mlir::ModuleOp module,PlanSkeleton const& skeleton) {
       b.getNamedAttr("width",b.getI64IntegerAttr(t.width)),
       b.getNamedAttr("cost_status",b.getStringAttr(skeleton.costs_calibrated?"calibrated":"not_calibrated")),
       b.getNamedAttr("colocated_producer",b.getI64IntegerAttr(t.colocated_producer)),
-      b.getNamedAttr("unique_home_map",b.getStringAttr(t.colocation?t.colocation->reverse.UniqueMapText():""))}));}
+      b.getNamedAttr("unique_home_map",b.getStringAttr(t.colocation?t.colocation->reverse.UniqueMapText():""))}));
+    if(skeleton.ascend_workers) {
+      mlir::NamedAttrList fields(mlir::cast<mlir::DictionaryAttr>(spaces.back()));
+      std::vector<int64_t> domain(t.legal_workers.begin(),t.legal_workers.end());
+      fields.set("legal_workers",b.getDenseI64ArrayAttr(domain));
+      fields.set("same_group_affinity_producer",b.getI64IntegerAttr(t.same_group_affinity_producer));
+      spaces.back()=fields.getDictionary(module.getContext());
+    }
+  }
   if(skeleton.costs_calibrated)
     for(std::size_t s=0;s<spaces.size();++s) {
       mlir::NamedAttrList fields(mlir::cast<mlir::DictionaryAttr>(spaces[s]));

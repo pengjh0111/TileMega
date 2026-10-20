@@ -5,6 +5,10 @@
 #include <map>
 
 namespace tilemega::solver {
+struct AscendTaskHandoff {
+  unsigned producer_task=0,consumer_task=0;
+  ascend::HandoffContract contract;
+};
 struct AscendPlan {
   ascend::abi::Metadata metadata{};
   ascend::WorkerMap workers;
@@ -12,6 +16,7 @@ struct AscendPlan {
   std::vector<ascend::abi::TaskMeta> task_metadata;
   std::vector<uint32_t> schedule_offsets,schedule,dependencies;
   std::vector<ascend::TaskImplementation> stage_implementations;
+  std::vector<AscendTaskHandoff> handoffs;
   ascend::PlanAudit audit;
   std::map<std::string,std::uint64_t> storage_bytes;
   std::string ToJson() const;

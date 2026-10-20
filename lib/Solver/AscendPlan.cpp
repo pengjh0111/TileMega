@@ -54,6 +54,24 @@ AscendPlan MaterializeAscendPlan(SymbolicProblem const& problem,PlanSkeleton con
     }
   }
   plan.audit=ascend::ValidatePlan(target,plan.workers,assignments,queues,std::vector<unsigned>(total,1));
+  for(unsigned consumer=0;consumer<assignments.size();++consumer)
+    for(auto producer:assignments[consumer].dependencies) {
+      ascend::HandoffContract h;h.producer=assignments[producer].owner;h.consumer=assignments[consumer].owner;
+      h.route=ascend::HandoffRoute::kGmEvent;h.sync=ascend::SyncKind::kGmEvent;
+      h.layout="ND_bf16";h.buffer_epochs=epochs;
+      h.visibility_evidence="runs/as1/probes/gm_visibility_summary.json: DMA completion, single-owner publish, cache invalidation; epoch barrier before reuse";
+      int logical=problem.projection.stages[plan.tasks[producer].stage].logical_stage;
+      for(auto const& semantic:problem.model.task_semantics)if(semantic.stage==logical) {
+        auto b=problem.model.physical_buffers.find(semantic.op.result.name);
+        if(b!=problem.model.physical_buffers.end()) {
+          auto const& a=b->second;
+          h.workspace_bytes=(a.constant+a.per_batch*problem.model.dims.batch+
+              a.per_seq*problem.model.dims.seq+a.per_total*problem.model.dims.total)*a.element_bytes;
+        }
+      }
+      if(!h.workspace_bytes)throw std::invalid_argument("Handoff lacks a concrete producer allocation");
+      h.Validate(target,plan.workers);plan.handoffs.push_back({producer,consumer,std::move(h)});
+    }
   plan.schedule_offsets.push_back(0);
   for(auto const& q:queues) {
     plan.schedule.insert(plan.schedule.end(),q.begin(),q.end());
@@ -68,6 +86,21 @@ AscendPlan MaterializeAscendPlan(SymbolicProblem const& problem,PlanSkeleton con
   plan.storage_bytes["single_owner_events"]=std::uint64_t(total)*512;
   plan.storage_bytes["epoch_control"]=std::uint64_t(queues.size()+2)*512;
   plan.storage_bytes["trace_with_abi_roundtrip"]=std::uint64_t(total+1)*512;
+  if(problem.model.stages.size()>1) {
+    std::uint64_t logical=0,allocated=0;
+    for(auto const& [name,a]:problem.model.physical_buffers) {
+      auto bytes=(a.constant+a.per_batch*problem.model.dims.batch+a.per_seq*problem.model.dims.seq+
+          a.per_total*problem.model.dims.total)*a.element_bytes;
+      logical+=bytes;allocated+=(bytes+512+511)/512*512;
+    }
+    plan.storage_bytes["logical_buffers"]=logical;
+    plan.storage_bytes["guarded_buffer_arena"]=allocated;
+    plan.storage_bytes["stage_table"]=sizeof(ascend::abi::Stage)*impls.size();
+    plan.storage_bytes["trace_with_abi_roundtrip"]+=impls.size()*512;
+    auto const& b=plan.storage_bytes;
+    plan.storage_bytes["total_device_allocation"]=b.at("plan_tables")+b.at("single_owner_events")+
+        b.at("epoch_control")+b.at("trace_with_abi_roundtrip")+allocated+b.at("stage_table");
+  }
   if(problem.model.gemms.size()==1 && problem.model.gemm_access.size()==1) {
     auto const& g=problem.model.gemms[0];
     auto rows=std::uint64_t(problem.model.gemm_access[0].rows_per_batch)*problem.model.dims.batch;
@@ -87,7 +120,7 @@ AscendPlan MaterializeAscendPlan(SymbolicProblem const& problem,PlanSkeleton con
 }
 std::string AscendPlan::ToJson() const {
   using namespace json;
-  Array workers,stages,tasks_json,offsets,refs,topology;
+  Array workers,stages,tasks_json,offsets,refs,topology,handoffs;
   Value storage(Object{});
   for(auto const& [name,bytes]:storage_bytes)storage.Set(name,double(bytes));
   for(auto const& w:this->workers.workers)workers.emplace_back(Object{
@@ -108,6 +141,14 @@ std::string AscendPlan::ToJson() const {
   for(auto i:schedule_offsets)offsets.emplace_back(int(i));
   for(auto i:schedule)refs.emplace_back(int(i));
   for(auto i:audit.topological_order)topology.emplace_back(int(i));
+  for(auto const& edge:this->handoffs) {
+    auto const& h=edge.contract;
+    handoffs.emplace_back(Object{{"producer_task",int(edge.producer_task)},{"consumer_task",int(edge.consumer_task)},
+      {"producer_worker",h.producer},{"consumer_worker",h.consumer},{"route","GM_EVENT"},
+      {"scope",this->workers.At(h.producer).group==this->workers.At(h.consumer).group?"same_group":"cross_group"},
+      {"layout",h.layout},{"workspace_allocation_bytes",double(h.workspace_bytes)},
+      {"buffer_epochs",int(h.buffer_epochs)},{"visibility_evidence",h.visibility_evidence},{"cost_status","not_calibrated"}});
+  }
   return Value(Object{{"schema","tilemega.ascend.plan.v1"},{"cost_status","not_calibrated"},
     {"selection","fixed_legal_whitelist"},{"launch_groups",int(metadata.groups)},
     {"launch_blocks",this->workers.launch.num_blocks},{"residency",1},{"epochs",int(metadata.epochs)},
@@ -115,6 +156,6 @@ std::string AscendPlan::ToJson() const {
     {"tasks",std::move(tasks_json)},{"schedule_offsets",std::move(offsets)},
     {"schedule",std::move(refs)},{"wait_graph_acyclic",true},
     {"wait_graph_topological_order",std::move(topology)},
-    {"event_triggers_single_owner",true},{"storage_bytes",std::move(storage)}}).Dump();
+    {"event_triggers_single_owner",true},{"handoffs",std::move(handoffs)},{"storage_bytes",std::move(storage)}}).Dump();
 }
 } // namespace tilemega::solver
