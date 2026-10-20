@@ -5,6 +5,7 @@
 #include <acl/acl.h>
 #include <runtime/dev.h>
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -65,7 +66,7 @@ template<> struct Dispatch<false> {
 };
 template<bool Cube> __aicore__ inline void Execute(Dispatch<Cube>& body,GM_ADDR a,GM_ADDR b,GM_ADDR c,
     GM_ADDR metadata,GM_ADDR task_data,GM_ADDR owner_data,GM_ADDR offset_data,GM_ADDR schedule_data,
-    GM_ADDR dependency_data,GM_ADDR event_data,GM_ADDR trace_data,GM_ADDR done_data,GM_ADDR epoch_data,GM_ADDR abort_data) {
+    GM_ADDR dependency_data,GM_ADDR event_data,GM_ADDR trace_data,GM_ADDR done_data,GM_ADDR epoch_data,GM_ADDR abort_data,unsigned epoch_base) {
   AscendC::GlobalTensor<uint32_t> meta,tasks,owners,offsets,schedule,deps;
   meta.SetGlobalBuffer((__gm__ uint32_t*)metadata);tasks.SetGlobalBuffer((__gm__ uint32_t*)task_data);
   owners.SetGlobalBuffer((__gm__ uint32_t*)owner_data);offsets.SetGlobalBuffer((__gm__ uint32_t*)offset_data);
@@ -81,7 +82,7 @@ template<bool Cube> __aicore__ inline void Execute(Dispatch<Cube>& body,GM_ADDR 
   auto* trace=(__gm__ uint32_t*)trace_data;
   auto* done=(__gm__ uint32_t*)done_data;
   auto* epoch_done=(__gm__ uint32_t*)epoch_data;
-  for(unsigned epoch=1;epoch<=epochs;++epoch) {
+  for(unsigned epoch=epoch_base+1;epoch<=epoch_base+epochs;++epoch) {
     for(unsigned phase=0;phase<(kStageBarrier?kMetadata.stages:1);++phase) {
     for(unsigned slot=begin;slot<end;++slot) {
       unsigned id=schedule.GetValue(slot);
@@ -135,11 +136,11 @@ template<bool Cube> __aicore__ inline void Execute(Dispatch<Cube>& body,GM_ADDR 
 }
 __global__ __aicore__ __mix__(1,2) __schedmode__(1)
 void tilemega_persistent(GM_ADDR a,GM_ADDR b,GM_ADDR c,GM_ADDR metadata,GM_ADDR tasks,GM_ADDR owners,
-    GM_ADDR offsets,GM_ADDR schedule,GM_ADDR deps,GM_ADDR events,GM_ADDR trace,GM_ADDR done,GM_ADDR epoch,GM_ADDR abort) {
+    GM_ADDR offsets,GM_ADDR schedule,GM_ADDR deps,GM_ADDR events,GM_ADDR trace,GM_ADDR done,GM_ADDR epoch,GM_ADDR abort,unsigned epoch_base) {
   if ASCEND_IS_AIC {
-    Dispatch<true> body;Execute(body,a,b,c,metadata,tasks,owners,offsets,schedule,deps,events,trace,done,epoch,abort);
+    Dispatch<true> body;Execute(body,a,b,c,metadata,tasks,owners,offsets,schedule,deps,events,trace,done,epoch,abort,epoch_base);
   } else {
-    Dispatch<false> body;Execute(body,a,b,c,metadata,tasks,owners,offsets,schedule,deps,events,trace,done,epoch,abort);
+    Dispatch<false> body;Execute(body,a,b,c,metadata,tasks,owners,offsets,schedule,deps,events,trace,done,epoch,abort,epoch_base);
   }
 }
 static void Check(aclError e,char const* name) {
@@ -157,7 +158,9 @@ static uint8_t* Allocate(void const* data,size_t bytes) {
 }
 int main(int argc,char** argv) {
   try {
-    if(argc!=3)throw std::runtime_error("usage: generated_runner input_directory output_file");
+    bool timing=argc==4 && std::string(argv[3])=="--timing";
+    if((argc!=3 && !timing) || (timing && kMetadata.epochs!=1))
+      throw std::runtime_error("usage: generated_runner input_directory output_file [--timing, epochs=1]");
     char const* selected=std::getenv("AS1_PHYSICAL_DEVICE_ID");
     if(!selected || std::string(selected)!="1")throw std::runtime_error("Encoder evidence admits physical device 1 only");
     auto input=std::filesystem::path(argv[1]);
@@ -199,8 +202,17 @@ int main(int argc,char** argv) {
     auto de=Allocate(events.data(),events.size()*4),dtr=Allocate(trace.data(),trace.size()*4),
       ddo=Allocate(done.data(),done.size()*4),dep=Allocate(epoch_control.data(),epoch_control.size()*4),dab=Allocate(control.data(),512);
     unsigned launches=0;
-    tilemega_persistent<<<kGroups,nullptr,stream>>>(da,db,nullptr,dm,dt,dw,doff,ds,dd,de,dtr,ddo,dep,dab);++launches;
-    Check(aclrtSynchronizeStream(stream),"synchronize");
+    unsigned forwards=timing?4:1,executions=forwards*kMetadata.epochs;
+    std::vector<double> milliseconds;
+    for(unsigned forward=0;forward<forwards;++forward) {
+      auto start=std::chrono::steady_clock::now();
+      tilemega_persistent<<<kGroups,nullptr,stream>>>(da,db,nullptr,dm,dt,dw,doff,ds,dd,de,dtr,ddo,dep,dab,forward*kMetadata.epochs);++launches;
+      Check(aclrtSynchronizeStream(stream),"synchronize");
+      auto stop=std::chrono::steady_clock::now();
+      if(timing && forward)milliseconds.push_back(std::chrono::duration<double,std::milli>(stop-start).count());
+      Check(aclrtMemcpy(control.data(),512,dab,512,ACL_MEMCPY_DEVICE_TO_HOST),"forward abort");
+      if(control[0])throw std::runtime_error("Device executor aborted: "+std::to_string(control[0]));
+    }
     Check(aclrtMemcpy(control.data(),512,dab,512,ACL_MEMCPY_DEVICE_TO_HOST),"read abort");
     if(control[0])throw std::runtime_error("Device executor aborted: "+std::to_string(control[0]));
     Check(aclrtMemcpy(trace.data(),trace.size()*4,dtr,trace.size()*4,ACL_MEMCPY_DEVICE_TO_HOST),"trace");
@@ -208,8 +220,8 @@ int main(int argc,char** argv) {
     Check(aclrtMemcpy(arena.data(),kArenaBytes,da,kArenaBytes,ACL_MEMCPY_DEVICE_TO_HOST),"output");
     for(unsigned i=0;i<kTaskCount;++i) {
       auto const* r=trace.data()+i*128;
-      if(r[0]!=kMetadata.epochs || r[1]!=kOwners[i].owner || r[2]!=kTasks[i].stage ||
-         r[3]!=kTasks[i].logical_task || events[i*128]!=kMetadata.epochs)
+      if(r[0]!=executions || r[1]!=kOwners[i].owner || r[2]!=kTasks[i].stage ||
+         r[3]!=kTasks[i].logical_task || events[i*128]!=executions)
         throw std::runtime_error("Runtime TaskRef ownership/event trace disagrees with Solver Plan");
     }
     auto* metadata_words=reinterpret_cast<uint32_t const*>(&kMetadata);
@@ -235,9 +247,18 @@ int main(int argc,char** argv) {
       <<",\"stage\":"<<kTasks[t].stage<<",\"worker\":"<<trace[t*128+1]<<",\"executions\":"<<trace[t*128]
       <<",\"event\":"<<events[t*128]<<"}";}
     tr<<"]\n";if(!tr)throw std::runtime_error("Cannot write trace");
+    if(timing) {
+      auto sorted=milliseconds;std::sort(sorted.begin(),sorted.end());
+      std::ofstream times(std::string(argv[2])+".timing.json");
+      times<<"{\"warmup_forwards\":1,\"timed_forwards\":3,\"launches_per_forward\":1,\"samples_ms\":[";
+      for(unsigned i=0;i<milliseconds.size();++i){if(i)times<<',';times<<milliseconds[i];}
+      times<<"],\"median_ms\":"<<sorted[1]<<",\"endpoint\":\"host launch through stream synchronization; resident data, traced executor\"}\n";
+      if(!times)throw std::runtime_error("Cannot write timing");
+    }
     for(auto p:{da,db,dm,dt,dw,doff,ds,dd,de,dtr,ddo,dep,dab})Check(aclrtFree(p),"free");
     Check(aclrtDestroyStream(stream),"destroy");Check(aclFinalize(),"finalize");
     std::cout<<"{\"status\":\"executed\",\"host_kernel_launches\":"<<launches
+      <<",\"forwards\":"<<forwards<<",\"launches_per_forward\":1"
       <<",\"plan_tasks\":"<<kTaskCount<<",\"groups\":"<<kGroups
       <<",\"executor\":\""<<(kStageBarrier?"stage_barrier":"task_event")<<"\""
       <<",\"task_event_trigger_count\":1,\"abi_roundtrip_pass\":true,\"plan_trace_pass\":true,\"physical_device_id\":1,\"logical_device_id\":0,\"tilemega_pipeline\":true}"<<std::endl;
