@@ -42,19 +42,11 @@ def shapes(max_m: int, max_smem: int, stages_filter: int | None = None, dm: bool
             if m * n > 16384 or 4 * m * n + 4 * m > max_smem:
                 continue
             for k in (64, 128):
-                # Pipeline depth is bounded by registers, not shared memory,
-                # since MX-3 (ServingGemmDepthFits in BackendCostQuery.h):
-                # depth 1 always, deeper while the pipeline holds at most 32
-                # VGPRs. The old smem bound described staged operands the body
-                # never had and prewarmed shapes that no longer build.
-                loads = n // 16 // 2 + m // 16
-                stages = 1
-                while True:
-                    if stages_filter is None or stages == stages_filter:
-                        yield m, n, k, stages
-                    stages += 1
-                    if stages * loads * 4 > 32:
-                        break
+                # The serving domain offers depth 1 only since MX-3
+                # (OperatorClasses.h: deeper pipelines measured no faster);
+                # prewarm what the search can reach.
+                if stages_filter is None or stages_filter == 1:
+                    yield m, n, k, 1
 
 
 def main():
