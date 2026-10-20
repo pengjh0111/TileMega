@@ -1,7 +1,7 @@
 # AS-1 probes — 2026-10-20 (in progress)
 
 `verified`: read/executed here; `stated`: source assertion;
-`inferred`: not independently established. No end-to-end workload has passed yet.
+`inferred`: not independently established. E-0 now passes the full chain; E-1/E-2 remain pending.
 
 ## Fixed platform and build
 
@@ -27,11 +27,11 @@
 | P-1 | **verified** explicit `__cube__` and `__vector__` compile, run and write expected IDs. `msobjdump` confirms AIC/AIV metadata. MIX compiles and runs below. Native `--cce-res-usage` is accepted; numeric resource-report extraction remains open. |
 | P-2 | **verified** G=1/2/4 topology: AIC block g, AIV block 2g+lane, subblock lane; both report block count G. Global worker IDs are g and G+2g+lane. 3G workers, G launch blocks. G=2 is also exercised with interdependent workers in P-6; use two groups initially. |
 | P-3 | **verified** G=2, 6 workers × 16 epochs, one host launch and distinct per-worker records. G=1/4 also pass. This is a persistence probe, not the final GEMM plan. |
-| P-4 | **verified** AIV entry touches 217088 bytes (212 KiB) UB and returns both boundary values. ACL available UB=221184, platform table=253952. L1/L0 budgets are queried, not allocation-limit proofs. Oversize compile and remaining buffer diagnostics pending. |
-| P-5 | **verified, limited** official EVG GM mode-2 compute/epilogue succeeds in 5 fresh processes. These initial runs have one output tile, so they do not establish multi-epoch flag reuse. Dedicated reuse scope and mode 4 remain disabled/pending. |
+| P-4 | **verified** AIV entry touches 217088 bytes (212 KiB) UB and returns both boundary values. ACL available UB=221184, platform table=253952. L1/L0 budgets are queried, not allocation-limit proofs. A 1 MiB UB program also compiles (AIV ELF entry retained), so compilation alone is not a capacity proof. It is never executed and host budget preflight rejects it. Remaining buffer diagnostics pending. |
+| P-5 | **verified scoped reuse** official EVG GM mode-2 flags 0/1, 16 tiles/group and reverse acknowledgement at 15, 5/5 fresh processes. Evidence: `probes/evg_flag_reuse_summary.json`. Mode 4 remains disabled. |
 | P-6 | **verified** four cross-group directions, 16 epochs/direction, 128 B and 4 KiB reused payloads, stale-cache pre-read variant, 5/5 fresh processes, zero mismatches/timeouts. Single-owner monotone events only; not a multi-producer atomic counter proof. |
-| P-7 | **verified** GM path via actual Cube output and AIV DMA in P-6. Direct L0C→UB / UB→L1, NZ output, BF16 tail/layout matrix remain disabled/unverified. |
-| P-8 | **verified** safe copies of target 43 at 64×128×256, 50 at 1×96×129, 64 Add GM at 64×128×256 report `Compare success`. UB example not yet executed. |
+| P-7 | **verified** GM path via actual Cube output and AIV DMA in P-6. **verified FP32 L0C→UB** EVG Add, 16 tiles/group, 5/5 fresh processes (`evg_ub_reuse_summary.json`). BF16 direct route, UB→L1 and NZ output remain disabled/unverified. BF16 ND tails pass the native GEMM body. |
+| P-8 | **verified** safe copies of target 43 at 64×128×256, 50 at 1×96×129, 64 Add GM at 64×128×256 report `Compare success`. UB example at 64×8192×32 also reports `Compare success` in 5 fresh processes. |
 | P-9 | **not run** no calibrated performance numbers; current timings include startup and external load. Fixed implementation selection only; no invented target rates. |
 | P-10 | **verified** unlocked wrapper timeout/owned-process isolation (T-14), one visible device, raw `GetSystemCycle` records. Cycle-to-ns calibration, device trap and profiling not established. |
 | P-11 | **not run** E-2 BERT-specific SIMD/mask/softmax numerical coverage still required. |
@@ -92,8 +92,9 @@ Receipts: `runs/as1/probes/gm_visibility_summary.json` and each job's
 ## Gate and downstream restrictions
 
 G-PROBE-AS is **partial**: native entries, MIX IDs/persistence and scoped GM
-visibility are verified. P-4 resource-limit diagnostics, P-5 reuse, P-7 direct
+visibility are verified. P-4 remaining resource diagnostics, BF16 P-7 direct
 routes and P-10 timer conversion are pending; P-9 waits for useful correct bodies.
 Use G≤2, residency=1, fixed candidates, single-owner GM events initially.
 Direct routes, mode 4, SSBuffer messaging, SIMT and performance auto-ranking
-remain off. E-0/E-1/E-2 and G-TRACK-AS Solver integration are not yet verified.
+remain off. E-0 CTG/Solver/Plan/device execution is verified in `AS1_ascend950.md`.
+AIV/composite body integration and E-1/E-2 remain pending.

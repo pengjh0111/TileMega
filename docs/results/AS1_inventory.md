@@ -1,7 +1,10 @@
-# AS-1 inventory — 2026-10-20
+# AS-1 inventory — CP-1 snapshot, 2026-10-20
 
 Evidence: `verified` means read or executed in this session; `stated` means a
 source assertion; `inferred` means a conclusion awaiting its own probe.
+
+Later probe/port evidence and the initialization timeout are recorded in
+`AS1_probe.md` and `AS1_ascend950.md`; the tables below preserve the CP-1 state.
 
 ## Source and scope
 
