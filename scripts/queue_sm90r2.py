@@ -31,7 +31,7 @@ def main():
             name = f'{a.name}-{tag}-f{fresh}'
             command = ['numactl', f'--cpunodebind={node}', PYTHON,
                        str(ROOT / 'scripts/run_r16_with_device_identity.py'),
-                       '--guard-policy', str(POLICY), '--out', '{attempt_dir}',
+                       '--guard-policy', str(POLICY), '--out', '{attempt_dir}/job',
                        '--expected-uuid', uuid, '--expected-pci', f'0000:{pci}:00.0',
                        '--numa-node', str(node), '--allow-no-measurements', '--',
                        PYTHON, str(ROOT / 'scripts/run_sm90r2.py'),

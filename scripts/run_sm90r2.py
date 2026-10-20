@@ -24,7 +24,9 @@ def main():
         raise ValueError('GPU6 is excluded')
     if os.environ.get('TILEMEGA_GPU_LOCK_HELD') != '1':
         raise ValueError('GPU jobs require the scheduler and guard')
-    a.out.mkdir(parents=True, exist_ok=False)
+    a.out.mkdir(parents=True, exist_ok=True)
+    if (a.out / 'selected-config.json').exists():
+        raise FileExistsError('retain the prior job receipt; choose a new attempt')
     c = read(a.config)
     reference = ROOT / 'runs/sm90d1/build/reference2' / f"{c['model']}-B{c['batch']}"
     prefill = reference / 'prefill.so'
