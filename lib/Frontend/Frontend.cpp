@@ -441,8 +441,10 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
         fields.push_back(builder.getNamedAttr("dm_binding_producer",builder.getI64IntegerAttr(stage.binding_producer)));
       if(stage.kind==PlanTaskKind::kEmbeddingSum)
         fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(32)));
+#if !TILEMEGA_ASCEND_AS1
       if(stage.kind==PlanTaskKind::kEncoderAttention)
         fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(codegen::EncoderAttentionSharedBytes())));
+#endif
       if(stage.kind==PlanTaskKind::kMoETopK)
         fields.push_back(builder.getNamedAttr("dm_workspace_bytes",builder.getI64IntegerAttr(codegen::MoeDispatchSharedBytes())));
       if(stage.kind==PlanTaskKind::kMoECombine)

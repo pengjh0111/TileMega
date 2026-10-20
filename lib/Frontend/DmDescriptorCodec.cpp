@@ -243,7 +243,7 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
           throw std::invalid_argument("DM scalar operand has incompatible dtype");
       };
       if(stage.kind==PlanTaskKind::kLayerNorm) {
-        if(stage.group%4 || !(stage.norm_epsilon>0) || !std::isfinite(stage.norm_epsilon))
+        if((stage.group!=1 && stage.group%4) || !(stage.norm_epsilon>0) || !std::isfinite(stage.norm_epsilon))
           throw std::invalid_argument("invalid LayerNorm geometry or epsilon");
         for(unsigned o=0;o<4;++o)typed(o,"bf16");
         typed(4,"f32",true);
@@ -299,8 +299,9 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
             throw std::invalid_argument("pool requires NHWC buffers");
       }else if(stage.kind==PlanTaskKind::kEncoderAttention) {
         typed(0,"bf16");typed(1,"bf16");typed(2,"i64",true);
-        if((stage.width!=128 && stage.width!=384 && stage.width!=512) ||
-           (stage.group!=64 && stage.group!=128) || !stage.extent ||
+        if(((stage.width!=16 || stage.group!=1) &&
+            ((stage.width!=128 && stage.width!=384 && stage.width!=512) ||
+             (stage.group!=64 && stage.group!=128))) || !stage.extent ||
            stage.rows_per_batch!=stage.width || unsigned(plan.serving_seq)!=stage.width)
           throw std::invalid_argument("invalid encoder attention geometry");
       }else if(stage.kind==PlanTaskKind::kGlobalPoolReduce) {

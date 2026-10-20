@@ -75,6 +75,7 @@ struct Builder {
   std::map<std::string,std::string> parameters,parameter_root;
   std::map<unsigned,unsigned> owner;
   std::set<unsigned> consumed;
+  bool dense_encoder_input=false;
   std::set<std::string> shape_values;
   std::set<std::string> externally_observed;
   std::map<std::string,unsigned> users;
@@ -200,6 +201,14 @@ struct Builder {
       throw std::invalid_argument("DNN epilogue input has another observable use: "+ref);
   }
   void Input(FxNodeRecord const& n) {
+    if(n.dtype=="torch.bfloat16" && n.shape.size()==3) {
+      unsigned sequence=U(n.shape[1]),width=U(n.shape[2]);
+      if(sequence!=16 || width!=256 || (p.serving_seq!=1 && unsigned(p.serving_seq)!=sequence))
+        throw std::invalid_argument("Dense encoder entry requires the fixed S16/H256 block");
+      p.serving_seq=sequence;dense_encoder_input=true;
+      auto id=RowsBuffer(n.name,sequence,width);auto& b=p.buffers[id];
+      b.role="external";b.external_name=n.name;p.node_buffer[n.name]=id;return;
+    }
     if(n.dtype=="torch.bfloat16" && n.shape.size()==2) {
       auto id=RowsBuffer(n.name,1,U(n.shape[1]));
       auto& b=p.buffers[id];b.role="external";b.external_name=n.name;
@@ -207,7 +216,7 @@ struct Builder {
     }
     if(n.dtype=="torch.int64" && n.shape.size()==2) {
       auto seq=U(n.shape[1]);
-      if((seq!=128 && seq!=384 && seq!=512) || (p.serving_seq!=1 && unsigned(p.serving_seq)!=seq))
+      if((seq!=16 && seq!=128 && seq!=384 && seq!=512) || (p.serving_seq!=1 && unsigned(p.serving_seq)!=seq))
         throw std::invalid_argument("encoder inputs require a common supported sequence length");
       p.serving_seq=seq;
       auto id=RowsBuffer(n.name,seq,1,"i64");auto& b=p.buffers[id];
@@ -486,6 +495,13 @@ struct Builder {
         throw std::invalid_argument("key-padding expansion changes the query or key geometry");
       return KeyPadding(Ref(node,0));
     }
+    if(kind=="view" || kind=="reshape") {
+      auto const& source=*records.at(Ref(node,0));
+      if(node.shape.size()!=4 || source.shape.size()!=2 || node.shape[0]!=source.shape[0] ||
+          node.shape[1]!="1" || node.shape[2]!="1" || node.shape[3]!=source.shape[1])
+        throw std::invalid_argument("Key-padding view must only insert unit axes");
+      return KeyPadding(source.name);
+    }
     if(kind=="__and__" || kind=="bitwise_and") {
       if(node.dtype!="torch.bool")throw std::invalid_argument("key-padding conjunction must be boolean");
       for(unsigned i=0;i<2;++i) {
@@ -693,7 +709,7 @@ struct Builder {
           throw std::invalid_argument("encoder context requires the head/token transpose");
       RegisterAttention(attention,cluster);
     }
-    if(embeddings.size()!=1 || packed_attention.empty())
+    if((!dense_encoder_input && embeddings.size()!=1) || (dense_encoder_input && !embeddings.empty()) || packed_attention.empty())
       throw std::invalid_argument("encoder graph requires embedding-sum and attention structural entries");
   }
   void Embedding(FxNodeRecord const& node) {
@@ -716,7 +732,8 @@ struct Builder {
     unsigned rows=p.buffers[input].per_batch/width;
     auto output=RowsBuffer(node.name,rows,width);
     auto stage=Stage(PlanTaskKind::kLayerNorm,node,output,{input,Table(Ref(node,2)),Table(Ref(node,3)),output});
-    auto& t=p.stages[stage];t.width=width;t.group=4;t.rows_per_batch=rows;t.norm_epsilon=Real(Arg(node,4),0);
+    if(!options.layernorm_rows)throw std::invalid_argument("LayerNorm task rows must be positive");
+    auto& t=p.stages[stage];t.width=width;t.group=options.layernorm_rows;t.rows_per_batch=rows;t.norm_epsilon=Real(Arg(node,4),0);
     consumed.insert(input);
   }
   void RmsNorm(FxNodeRecord const& node) {
@@ -736,31 +753,39 @@ struct Builder {
   void Qkv(FxNodeRecord const& node) {
     auto const& attention=packed_attention.at(node.name);auto input=Value(LinearInput(node));
     auto width=attention.heads*64,k=U(Parameter(LinearWeight(node)).shape.at(1));
-    llvm::json::Array weights,biases;
+    llvm::json::Array weights,biases;unsigned with_bias=0;
     for(auto const& name:attention.projections) {
       auto const& linear=*records.at(name);auto const& shape=Parameter(LinearWeight(linear)).shape;
       if(Op(linear)=="addmm" && (Real(Arg(linear,3),1)!=1 || Real(Arg(linear,4),1)!=1))
         throw std::invalid_argument("packed QKV addmm alpha/beta must both be one");
       if(shape.size()!=2 || U(shape[0])!=width || U(shape[1])!=k)
         throw std::invalid_argument("packed QKV weights disagree on shape");
-      weights.push_back(Fqn(LinearWeight(linear)));biases.push_back(Fqn(LinearBias(linear)));
+      weights.push_back(Fqn(LinearWeight(linear)));
+      if(Arg(linear,Op(linear)=="addmm"?0:2).kind!=FxArgument::Kind::kNone) {
+        biases.push_back(Fqn(LinearBias(linear)));++with_bias;
+      }
     }
     auto b=Weight(node.name+".qkv",llvm::json::Object{{"kind","qkv_concat_bias"},{"sources",std::move(weights)},
         {"heads",attention.heads},{"head_dim",64},{"part","weight"}},Checked(std::uint64_t(width)*3*k));
-    auto bias=Weight(node.name+".qkv_bias",llvm::json::Object{{"kind","qkv_concat_bias"},{"sources",std::move(biases)},
+    if(with_bias && with_bias!=3)throw std::invalid_argument("QKV projections disagree on bias presence");
+    unsigned bias=missing;
+    if(with_bias)bias=Weight(node.name+".qkv_bias",llvm::json::Object{{"kind","qkv_concat_bias"},{"sources",std::move(biases)},
         {"heads",attention.heads},{"head_dim",64},{"part","bias"}},width*3,"f32");
     auto output=RowsBuffer(node.name+".packed",p.serving_seq,width*3);
     PlanGemm g;g.a=input;g.b=b;g.c=g.d=output;g.n=width*3;g.k=k;
     g.access.rows_per_batch=p.serving_seq;g.access.write.layout=output;
     auto gemm=p.gemms.size();p.gemms.push_back(g);auto stage=Stage(PlanTaskKind::kGemm,node,output);p.stages[stage].gemm=gemm;
-    DmEpilogueOp step;step.parameter[0]=bias;Append(output,step);consumed.insert(input);packed_buffer[node.name]=output;
+    if(with_bias) {DmEpilogueOp step;step.parameter[0]=bias;Append(output,step);}
+    consumed.insert(input);packed_buffer[node.name]=output;
   }
   void AttentionStage(FxNodeRecord const& node) {
     auto const& anchor=attention_anchor.at(node.name);auto const& a=packed_attention.at(anchor);
     auto output=RowsBuffer(node.name,p.serving_seq,a.heads*64);
     auto stage=Stage(PlanTaskKind::kEncoderAttention,node,output,{packed_buffer.at(anchor),output,
         a.mask.empty()?missing:Value(a.mask)});
-    auto& t=p.stages[stage];t.width=p.serving_seq;t.group=64;t.rows_per_batch=p.serving_seq;t.extent=a.heads;
+    if(!options.attention_query_rows || unsigned(p.serving_seq)%options.attention_query_rows)
+      throw std::invalid_argument("Attention task rows must divide the sequence");
+    auto& t=p.stages[stage];t.width=p.serving_seq;t.group=options.attention_query_rows;t.rows_per_batch=p.serving_seq;t.extent=a.heads;
   }
   void Halo(unsigned id,unsigned h,unsigned w) {
     auto& b=p.buffers[id];auto& l=b.layout;

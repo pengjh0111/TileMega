@@ -266,10 +266,12 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
       b.Own(op,rows,width);b.Record(index,std::move(op),OpRole::kNorm,out);
     }else if(stage.kind==PlanTaskKind::kElementwise) {
       if(stage.chain.count!=1 || stage.chain.operations[0].kind!=codegen::DmEpilogueKind::kActivation ||
-          stage.chain.operations[0].activation!=codegen::DmActivation::kSilu)
-        throw std::invalid_argument("Standalone activation semantics currently require SiLU");
+          (stage.chain.operations[0].activation!=codegen::DmActivation::kSilu &&
+           stage.chain.operations[0].activation!=codegen::DmActivation::kGeluErf))
+        throw std::invalid_argument("Standalone activation semantics require SiLU or Erf GELU");
       auto x=stage.operands[0],out=stage.operands[1],width=stage.width;
-      op.kind=OperatorKind::kPointwise;op.arithmetic="silu";
+      op.kind=OperatorKind::kPointwise;
+      op.arithmetic=stage.chain.operations[0].activation==codegen::DmActivation::kSilu?"silu":"dm_gelu_erf";
       op.domain={D("m",rows),D("n",C(width))};
       op.result=b.Space(out,rows,width);op.result_map.results=b.Rows(out,"n");
       op.operands={b.Read(x,b.Space(x,rows,width),b.Rows(x,"n"))};
@@ -314,8 +316,8 @@ LiftedModel LiftDnnSemantics(ModelPlan const& plan,LiftOptions const& options) {
     }else if(stage.kind==PlanTaskKind::kEncoderAttention) {
       auto packed=stage.operands[0],output=stage.operands[1],mask=stage.operands[2];
       auto sequence=stage.width,heads=stage.extent;
-      if((sequence!=128 && sequence!=384 && sequence!=512) || !heads ||
-         (stage.group!=64 && stage.group!=128) || stage.rows_per_batch!=sequence)
+      if((sequence!=16 && sequence!=128 && sequence!=384 && sequence!=512) || !heads ||
+         !stage.group || sequence%stage.group || stage.rows_per_batch!=sequence)
         throw std::invalid_argument("encoder attention ownership differs from packed geometry");
       auto packed_space=T(b.Buffer(packed).name,{{"row",b.batch*C(sequence)},
           {"channel",C(heads*192)}});
