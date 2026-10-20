@@ -43,6 +43,10 @@ for model in ('qwen3_0_6b', 'qwen3_1_7b', 'llama3_2_1b', 'llama3_1_8b'):
         ref, ref_name = med('tm-mx2', 'tilemega', model, batch, 'tpot_ms'), 'TM-MX2'
         if ref is None:
             ref, ref_name = med('mx2', 'tilemega', model, batch, 'tpot_ms'), 'MX-2'
+        if ref is None:
+            # Qwen3-1.7B B4: MX-2's prefill never solved, so MX-1 is the last
+            # TileMega number for the cell.
+            ref, ref_name = med('mx1', 'tilemega', model, batch, 'tpot_ms'), 'MX-1'
         vllm = med('mx1', 'vllm', model, batch, 'tpot_ms')
         sgl = med('mx1', 'sglang', model, batch, 'tpot_ms')
         tc = med('mx1', 'torchcompile', model, batch, 'tpot_ms')
