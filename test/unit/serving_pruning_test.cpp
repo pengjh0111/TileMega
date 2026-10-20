@@ -9,7 +9,9 @@ namespace tilemega::tests::serving_pruning_test {
 int TestServingPruning(int argc, char** argv) {
   using namespace tilemega::solver;
   tilemega::TargetSpec target;
-  GemmConfig g{16, 128, 64, 2, 1};
+  // Depth 1: since MX-3 a 16x128 tile cannot pipeline deeper within the
+  // register budget (ServingGemmDepthFits), and R1 is what is under test.
+  GemmConfig g{16, 128, 64, 1, 1};
   target.res.max_dynamic_smem_per_cta =
       ServingBF16SmemBytes(g.tile_m, g.tile_n, g.tile_k, g.stages);
   ServingPruneContext decode{1, 3072, 2048, 0, 64, &target};

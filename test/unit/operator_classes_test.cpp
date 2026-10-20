@@ -32,8 +32,10 @@ int TestServingModelDomains(int, char**) {
   };
   auto has=[](auto const& candidates,int n,int split,int impl) {
     return std::any_of(candidates.begin(),candidates.end(),[&](auto const& g) {
+      // Any depth: which depths a width gets is the register budget's
+      // business (ServingGemmDepthFits), not this test's.
       return g.tile_m==16 && g.tile_n==n && g.tile_k==64 &&
-             g.stages==2 && g.split_k==split && g.impl==impl;
+             g.split_k==split && g.impl==impl;
     });
   };
   auto q3=domain(1);
