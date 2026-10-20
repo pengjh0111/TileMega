@@ -9,8 +9,11 @@ own artifacts rather than from the command line that launched it.
 import argparse, csv, json, re
 from pathlib import Path
 
+# Repository root, so a clone anywhere works (MX3-0 item 1).
+REPO = Path(__file__).resolve().parent.parent
+
 ap = argparse.ArgumentParser()
-ap.add_argument('--tm', type=Path, default=Path('/root/tilemega/runs/mx2/tm'))
+ap.add_argument('--tm', type=Path, default=REPO / 'runs/mx2/tm')
 ap.add_argument('--out', type=Path, required=True)
 a = ap.parse_args()
 

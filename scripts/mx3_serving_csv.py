@@ -10,8 +10,11 @@ campaign's own build command, never from another campaign's.
 import argparse, csv, json, re
 from pathlib import Path
 
+# Repository root, so a clone anywhere works (MX3-0 item 1).
+REPO = Path(__file__).resolve().parent.parent
+
 ap = argparse.ArgumentParser()
-ap.add_argument('--root', type=Path, default=Path('/root/tilemega/runs'))
+ap.add_argument('--root', type=Path, default=REPO / 'runs')
 ap.add_argument('--out', type=Path, required=True)
 a = ap.parse_args()
 

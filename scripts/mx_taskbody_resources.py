@@ -12,8 +12,11 @@ which the janitor prunes once a cell is solved.
 import argparse, csv, re
 from pathlib import Path
 
+# Repository root, so a clone anywhere works (MX3-0 item 1).
+REPO = Path(__file__).resolve().parent.parent
+
 ap = argparse.ArgumentParser()
-ap.add_argument('--tm', type=Path, default=Path('/root/tilemega/runs/mx2/tm'))
+ap.add_argument('--tm', type=Path, default=REPO / 'runs/mx2/tm')
 ap.add_argument('--out', type=Path)
 a = ap.parse_args()
 

@@ -11,10 +11,13 @@ import argparse, csv, json, statistics
 from collections import defaultdict
 from pathlib import Path
 
+# Repository root, so a clone anywhere works (MX3-0 item 1).
+REPO = Path(__file__).resolve().parent.parent
+
 ap = argparse.ArgumentParser()
-ap.add_argument('--mx1', type=Path, default=Path('/root/tilemega/docs/results/MX1_serving_c550.csv'))
-ap.add_argument('--mx2', type=Path, default=Path('/root/tilemega/runs/mx2/tm'))
-ap.add_argument('--impl', type=Path, default=Path('/root/tilemega/runs/mx2/selected_impl.csv'))
+ap.add_argument('--mx1', type=Path, default=REPO / 'docs/results/MX1_serving_c550.csv')
+ap.add_argument('--mx2', type=Path, default=REPO / 'runs/mx2/tm')
+ap.add_argument('--impl', type=Path, default=REPO / 'runs/mx2/selected_impl.csv')
 ap.add_argument('--out', type=Path)
 a = ap.parse_args()
 
