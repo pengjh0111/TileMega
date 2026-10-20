@@ -53,13 +53,13 @@ struct Sm90DenseGemm {
         Async::Bulk(b+slot*TN*TK,p.weight+(std::size_t(task)*kIterations+tile)*TN*TK,
             2*TN*TK,state.full+slot);
       }
-      for(int v=lane*8;v<16*TK;v+=32*8) {
+      for(int v=lane*8;v<Batch*TK;v+=32*8) {
         int row=v/TK,col=v%TK;
-        auto* source=row<Batch?p.activation+std::size_t(row)*K+tile*TK+col:p.activation;
-        Async::Copy16Bytes(a+slot*16*TK+LayoutA{}(row,col),source,row<Batch?16:0);
+        auto* source=p.activation+std::size_t(row)*K+tile*TK+col;
+        Async::Copy16Bytes(a+slot*16*TK+LayoutA{}(row,col),source,16);
       }
       // One bulk arrival plus 32 cp.async arrivals make the full barrier cover
-      // both operands, including predicated zero-fill copies for inactive rows.
+      // both operands. Inactive rows remain zero throughout this invocation.
       Async::CompleteCopies(state.full+slot);
       phase^=1u<<slot;
     }
@@ -128,6 +128,16 @@ struct Sm90DenseGemm {
     auto* a=reinterpret_cast<Element*>(shared+1024);
     auto* b=a+Slots*16*TK;
     auto* scratch=reinterpret_cast<float*>(shared+1024+kOperandBytes);
+    if constexpr(Batch<16) {
+      // Only active rows are overwritten by the producer. Initializing the
+      // other rows once avoids issuing fifteen zero-fill rows per K block at B1.
+      for(int i=threadIdx.x*8;i<Slots*(16-Batch)*TK;i+=160*8) {
+        int slot=i/((16-Batch)*TK),within=i%((16-Batch)*TK);
+        *reinterpret_cast<uint4*>(a+slot*16*TK+LayoutA{}(Batch+within/TK,within%TK))=
+            make_uint4(0,0,0,0);
+      }
+      __syncthreads();
+    }
     unsigned phase=0;
     #pragma unroll
     for(int i=0;i<Slots;++i)phase|=(threadIdx.x<128?
