@@ -41,12 +41,16 @@ struct SymbolicPriceCache {
   std::optional<analysis::OperatorGraph> semantic_graph;
 };
 SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& target,
-    ModelDims dims,int grid,int residency,int kappa,SymbolicPriceCache* cache=nullptr,bool price_tasks=true);
+    ModelDims dims,int grid,int residency,int kappa,SymbolicPriceCache* cache=nullptr,bool price_tasks=true,
+    int element_tile_elements=0);
 struct SkeletonSpace {
   int count=0,offset=0,base=0,width=0,order=0;
   double task_ns=0,load_ns=0;
   int colocated_producer=-1;
   std::shared_ptr<analysis::OraclePair> colocation;
+  std::vector<int> legal_workers;
+  std::optional<ascend::ImplementationRole> ascend_role;
+  int same_group_affinity_producer=-1;
 };
 struct SkeletonEdge {
   int producer=0,consumer=0;
@@ -63,12 +67,16 @@ struct PlanSkeleton {
   std::vector<int> stage_order;
   std::vector<double> task_ns;
   analysis::ParamBinding theta;
+  bool costs_calibrated=false;
+  std::optional<ascend::WorkerMap> ascend_workers;
+  void BindAscendWorkers(ascend::WorkerMap const&,
+                        std::vector<ascend::ImplementationRole> const& roles);
   int Home(int stage,int tile) const;
   std::vector<int> Spread(int stage,int tile) const;
   void Spread(int stage,int tile,std::vector<int>& into) const;
 };
 PlanSkeleton BuildPlanSkeleton(SymbolicProblem const& problem,int grid,int residency,
     int k_base,bool all_workers,analysis::CouplingCache& cache,SolverTiming* timing=nullptr,
-    PlanSkeleton const* prepared=nullptr);
+    PlanSkeleton const* prepared=nullptr,bool structural_only=false);
 void WritePlanSkeleton(mlir::ModuleOp module,PlanSkeleton const& skeleton);
 }

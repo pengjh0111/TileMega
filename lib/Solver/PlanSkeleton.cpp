@@ -91,13 +91,17 @@ analysis::CouplingRelation ExactRuntimeDependencies(ModelDescription const& mode
 }
 
 SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& target,
-    ModelDims dims,int grid,int residency,int kappa,SymbolicPriceCache* cache,bool price_tasks) {
+    ModelDims dims,int grid,int residency,int kappa,SymbolicPriceCache* cache,bool price_tasks,
+    int element_tile_elements) {
   if(grid<=0 || residency<=0 || dims.seq<=0 || kappa<=0)throw std::invalid_argument("invalid symbolic problem dimensions");
+  bool ascend=target.arch_tag=="ascend_3510";
+  if(ascend && (residency!=1 || price_tasks || element_tile_elements<=0 || !target.ascend_capability))
+    throw std::invalid_argument("Ascend requires fixed unpriced candidates, residency=1 and an explicit element tile extent");
   std::string preparation_key;
   if(cache) {
     llvm::raw_string_ostream text(preparation_key);module.print(text);text.flush();
     preparation_key+=target.ToJson()+"|"+std::to_string(dims.seq)+"|"+std::to_string(dims.past)+"|"+
-      std::to_string(dims.total)+"|"+dims.seq_parameter+"|"+dims.past_parameter+"|"+std::to_string(kappa);
+      std::to_string(dims.total)+"|"+dims.seq_parameter+"|"+dims.past_parameter+"|"+std::to_string(kappa)+"|"+std::to_string(element_tile_elements);
   }
   bool prepared_hit=cache && cache->prepared && cache->preparation_key==preparation_key;
   // Module text, target and theta form the key: changing a CG attribute must
@@ -106,8 +110,10 @@ SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& t
   auto model=prepared_hit ? cache->prepared->model : ModelDescription::FromCouplingGraph(module,dims,"skeleton");
   std::vector<GemmConfig> geometry;
   for(auto const& g:runtime.gemms)geometry.push_back({g.tile_m,g.tile_n,g.tile_k,g.stages,g.split_k,g.impl});
-  int threads=0;
-  for(std::size_t s=0;s<model.stages.size();++s) {
+  // This projection parameter is an element ownership span on Ascend, not
+  // an AIV thread count. The CTG and its operand relations are unchanged.
+  int threads=ascend?element_tile_elements:0;
+  for(std::size_t s=0;!ascend && s<model.stages.size();++s) {
     auto const& stage=model.stages[s];auto const& g=geometry.at(stage.IsCollective()?stage.gemm:0);
     threads=std::max(threads,ModelTaskTraits(model,int(s),g).threads);
   }
@@ -197,6 +203,29 @@ std::vector<int> PlanSkeleton::Spread(int stage,int tile) const {
 }
 int PlanSkeleton::Home(int stage,int tile) const {
   auto const& s=spaces.at(stage);if(tile<0 || tile>=s.count)throw std::invalid_argument("home coordinate outside domain");
+  if(ascend_workers) {
+    if(!s.ascend_role || s.legal_workers.empty())throw std::invalid_argument("Unbound Ascend stage placement");
+    if(s.same_group_affinity_producer>=0) {
+      int p=s.same_group_affinity_producer;
+      if(p>=int(spaces.size()) || spaces[p].order>=s.order || spaces[p].count!=s.count)
+        throw std::invalid_argument("Same-group affinity requires an earlier matching task domain");
+      int group=ascend_workers->At(Home(p,tile)).group;
+      for(int worker:s.legal_workers)if(ascend_workers->At(worker).group==group)return worker;
+      throw std::invalid_argument("Affinity has no legal worker in the producer group");
+    }
+    if(s.colocation) {
+      if(s.colocated_producer<0 || spaces.at(s.colocated_producer).ascend_role!=s.ascend_role)
+        throw std::invalid_argument("Cross-role colocation is not worker identity");
+      auto image=s.colocation->reverse.Query({tile},theta);
+      if(image.Count()!=1)throw std::invalid_argument("Nonunique Ascend identity colocation");
+      int producer=-1;image.ForEach([&](auto const& p){producer=p.at(0);});
+      int worker=Home(s.colocated_producer,producer);
+      if(std::find(s.legal_workers.begin(),s.legal_workers.end(),worker)==s.legal_workers.end())
+        throw std::invalid_argument("Colocated owner lies outside the implementation role domain");
+      return worker;
+    }
+    return ascend::Home(s.legal_workers,s.base,tile);
+  }
   if(!s.colocation)return (s.base+tile)%grid;
   auto image=s.colocation->reverse.Query({tile},theta);
   if(image.Count()!=1)throw std::runtime_error("colocation Unique image does not contain exactly one producer");
@@ -204,21 +233,29 @@ int PlanSkeleton::Home(int stage,int tile) const {
 }
 void PlanSkeleton::Spread(int stage,int tile,std::vector<int>& result) const {
   auto const& space=spaces.at(stage);int home=Home(stage,tile);
+  if(ascend_workers) {
+    if(space.width!=1)throw std::invalid_argument("AS-1 static tasks have one owner; joint participants are explicit");
+    result={home};return;
+  }
   result.clear();result.reserve(space.width+2);
   for(int i=0;i<space.width;++i)result.push_back((home+i*(grid/space.width))%grid);
 }
 PlanSkeleton BuildPlanSkeleton(SymbolicProblem const& problem,int grid,int residency,
     int k_base,bool all_workers,analysis::CouplingCache& cache,SolverTiming* timing,
-    PlanSkeleton const* prepared) {
+    PlanSkeleton const* prepared,bool structural_only) {
   SolverPhase phase(timing,"skeleton");
   if(grid<=0 || residency<=0 || k_base<=0)throw std::invalid_argument("Skeleton needs known resident worker count");
   PlanSkeleton result;result.grid=grid;result.residency=residency;result.task_ns=problem.task_ns;
+  result.costs_calibrated=!problem.task_ns.empty();
+  if(!result.costs_calibrated && !structural_only)throw std::invalid_argument("Unpriced skeleton requires explicit fixed structural selection");
+  if(result.costs_calibrated && problem.task_ns.size()!=std::size_t(problem.offsets.back()))
+    throw std::invalid_argument("Task cost vector does not cover the task domain");
   result.kappa=problem.projection.options.kappa;
   result.theta=problem.model.MetricBindings();
   std::vector<double> loads;
   for(std::size_t s=0;s<problem.counts.size();++s) {
     int n=problem.counts[s],offset=problem.offsets[s];
-    double load=std::accumulate(problem.task_ns.begin()+offset,problem.task_ns.begin()+offset+n,0.0);
+    double load=result.costs_calibrated?std::accumulate(problem.task_ns.begin()+offset,problem.task_ns.begin()+offset+n,0.0):0;
     result.spaces.push_back({n,offset,0,0,0,n ? load/n:0,load});loads.push_back(load);
   }
   auto deps=problem.runtime.dependencies;
@@ -259,7 +296,7 @@ PlanSkeleton BuildPlanSkeleton(SymbolicProblem const& problem,int grid,int resid
     if(isl_map_is_empty(data)==isl_bool_false) {
       char* source=isl_map_to_str(data);auto colocation=cache.OracleFor(source);free(source);
       auto& space=result.spaces[c];int previous=space.colocated_producer;
-      if(colocation->structure==analysis::EdgeStructure::OneToOne && colocation->forward.kind()==analysis::OracleKind::Unique && colocation->reverse.kind()==analysis::OracleKind::Unique && (previous<0 || result.spaces[p].order>result.spaces[previous].order)) {
+      if(!structural_only && colocation->structure==analysis::EdgeStructure::OneToOne && colocation->forward.kind()==analysis::OracleKind::Unique && colocation->reverse.kind()==analysis::OracleKind::Unique && (previous<0 || result.spaces[p].order>result.spaces[previous].order)) {
         space.colocated_producer=p;space.colocation=std::move(colocation);
       }
     }
@@ -277,6 +314,24 @@ PlanSkeleton BuildPlanSkeleton(SymbolicProblem const& problem,int grid,int resid
   }
   isl_map_free(data_raw);isl_map_free(raw);return result;
 }
+void PlanSkeleton::BindAscendWorkers(ascend::WorkerMap const& map,
+    std::vector<ascend::ImplementationRole> const& roles) {
+  if(residency!=1 || map.launch.residency!=1 || roles.size()!=spaces.size() || costs_calibrated)
+    throw std::invalid_argument("Invalid fixed Ascend skeleton binding");
+  if(map.launch.mode==ascend::LaunchMode::kMix1_2 && grid!=map.launch.num_groups)
+    throw std::invalid_argument("Composite skeleton placement count must equal MIX groups");
+  for(std::size_t s=0;s<spaces.size();++s) {
+    auto& space=spaces[s];space.ascend_role=roles[s];space.legal_workers.clear();space.width=1;
+    for(int worker:map.Domain(roles[s])) {
+      auto const& w=map.At(worker);
+      if(map.launch.mode!=ascend::LaunchMode::kMix1_2 ||
+         w.role==ascend::TrackRole::kAic || w.sub_block_id==0)space.legal_workers.push_back(worker);
+    }
+    if(space.colocation && (space.colocated_producer<0 || roles.at(space.colocated_producer)!=roles[s]))
+      throw std::invalid_argument("Identity colocation cannot cross resource roles");
+  }
+  ascend_workers=map;
+}
 void WritePlanSkeleton(mlir::ModuleOp module,PlanSkeleton const& skeleton) {
   mlir::OpBuilder b(module.getContext());
   for(auto op:llvm::make_early_inc_range(module.getOps<dialect::SkeletonOp>()))op.erase();
@@ -285,9 +340,16 @@ void WritePlanSkeleton(mlir::ModuleOp module,PlanSkeleton const& skeleton) {
   for(std::size_t s=0;s<skeleton.spaces.size();++s){auto const& t=skeleton.spaces[s];
     spaces.push_back(b.getDictionaryAttr({b.getNamedAttr("stage",b.getI64IntegerAttr(s)),
       b.getNamedAttr("count",b.getI64IntegerAttr(t.count)),b.getNamedAttr("base",b.getI64IntegerAttr(t.base)),
-      b.getNamedAttr("width",b.getI64IntegerAttr(t.width)),b.getNamedAttr("load_ns",b.getF64FloatAttr(t.load_ns)),
+      b.getNamedAttr("width",b.getI64IntegerAttr(t.width)),
+      b.getNamedAttr("cost_status",b.getStringAttr(skeleton.costs_calibrated?"calibrated":"not_calibrated")),
       b.getNamedAttr("colocated_producer",b.getI64IntegerAttr(t.colocated_producer)),
       b.getNamedAttr("unique_home_map",b.getStringAttr(t.colocation?t.colocation->reverse.UniqueMapText():""))}));}
+  if(skeleton.costs_calibrated)
+    for(std::size_t s=0;s<spaces.size();++s) {
+      mlir::NamedAttrList fields(mlir::cast<mlir::DictionaryAttr>(spaces[s]));
+      fields.set("load_ns",b.getF64FloatAttr(skeleton.spaces[s].load_ns));
+      spaces[s]=fields.getDictionary(module.getContext());
+    }
   for(auto const& e:skeleton.edges)edges.push_back(b.getDictionaryAttr({
     b.getNamedAttr("producer",b.getI64IntegerAttr(e.producer)),b.getNamedAttr("consumer",b.getI64IntegerAttr(e.consumer)),
     b.getNamedAttr("structure",b.getStringAttr(analysis::ToString(e.oracle->structure))),
@@ -296,7 +358,11 @@ void WritePlanSkeleton(mlir::ModuleOp module,PlanSkeleton const& skeleton) {
     b.getNamedAttr("release_class",b.getStringAttr(e.all_producer?"all_producer":analysis::ToString(e.oracle->reverse.kind()))),
     b.getNamedAttr("all_producer",b.getBoolAttr(e.all_producer))}));
   mlir::OperationState state(b.getUnknownLoc(),"tmexec.skeleton");
-  state.addAttribute("workers",b.getI64IntegerAttr(skeleton.grid));state.addAttribute("residency",b.getI64IntegerAttr(skeleton.residency));
+  state.addAttribute("workers",b.getI64IntegerAttr(skeleton.ascend_workers?skeleton.ascend_workers->workers.size():skeleton.grid));state.addAttribute("residency",b.getI64IntegerAttr(skeleton.residency));
+  if(skeleton.ascend_workers) {
+    state.addAttribute("placement_groups",b.getI64IntegerAttr(skeleton.ascend_workers->launch.num_groups));
+    state.addAttribute("launch_blocks",b.getI64IntegerAttr(skeleton.ascend_workers->launch.num_blocks));
+  }
   state.addAttribute("kappa",b.getI64IntegerAttr(skeleton.kappa));
   state.addAttribute("spaces",b.getArrayAttr(spaces));state.addAttribute("edges",b.getArrayAttr(edges));
   state.addAttribute("affinity_limit",b.getI64IntegerAttr(2));b.create(state);
