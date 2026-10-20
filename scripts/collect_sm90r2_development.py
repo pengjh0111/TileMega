@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarize accepted Phase A pairs, correctness, and stage-only diagnostics."""
+"""Summarize guarded development pairs, correctness, and stage-only diagnostics."""
 import argparse
 from collections import defaultdict
 import csv
@@ -24,6 +24,8 @@ def main():
     p.add_argument('--pairs', type=Path, required=True)
     p.add_argument('--states', type=Path, nargs='+', required=True)
     p.add_argument('--out', type=Path, required=True)
+    p.add_argument('--tags', nargs='+', default=['A7', 'A8'])
+    p.add_argument('--prefix', default='A')
     a = p.parse_args()
     states = [read(path) for path in a.states]
     checks, diagnostics = {}, {}
@@ -60,7 +62,7 @@ def main():
             command = selected['command']
             binary = Path(command[command.index('--decode') + 1])
             tag = binary.parents[1].name
-            if tag in ('A7', 'A8'):
+            if tag in a.tags:
                 pairs[config['model'], config['batch'], tag].append(row)
     results = []
     for (model, batch, tag), rows in sorted(pairs.items()):
@@ -83,10 +85,10 @@ def main():
             c1_pass=c1['pass'], c1_max_gap=c1['max_gap'],
             c2_pass=c2['pass'], reference_tokens_equal=all(x['token_equality'] == 'True' for x in rows),
             binary_sha256=digest, ownership_verified=all(x['ownership_verified'] == 'True' for x in rows)))
-    output(a.out / 'A_development.csv', results)
+    output(a.out / (a.prefix+'_development.csv'), results)
     ledger, overhead = [], []
     for (model, batch, tag), folder in sorted(diagnostics.items()):
-        if tag not in ('reference-stage', 'A7-stage', 'A8-stage'):
+        if tag not in ['reference-stage', *[x+'-stage' for x in a.tags]]:
             continue
         control = diagnostics.get((model, batch, tag.removesuffix('-stage')))
         if control is None:
@@ -117,8 +119,8 @@ def main():
                 class_total_ns=st.median([sum(x['envelope_ns'] for x in v) for v in by_step.values()]),
                 closure_max_fraction=max(abs(x['closure_error_fraction']) for x in data['steps']),
                 diagnostic_only=True))
-    output(a.out / 'A_stage_ledger.csv', ledger)
-    output(a.out / 'A_trace_overhead.csv', overhead)
+    output(a.out / (a.prefix+'_stage_ledger.csv'), ledger)
+    output(a.out / (a.prefix+'_trace_overhead.csv'), overhead)
     print(f'{len(results)} development rows; {len(ledger)} stage rows; {len(overhead)} overhead rows')
 
 
