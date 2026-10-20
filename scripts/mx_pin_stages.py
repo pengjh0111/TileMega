@@ -12,17 +12,23 @@ ap = argparse.ArgumentParser()
 ap.add_argument('pin', type=Path)
 ap.add_argument('--stages', type=int, required=True)
 ap.add_argument('--out', type=Path, required=True)
+ap.add_argument('--residency', type=int,
+                help='CTAs per AP; mma16 decode attention needs more shared memory '
+                     'than four CTAs can share at D=128')
 a = ap.parse_args()
 
 
 def fits(tile_m, tile_n, stages, waves=2):
+    """solver::ServingGemmDepthFits: depth 1 always, deeper within 32 VGPRs."""
     loads = tile_n // 16 // waves + tile_m // 16
-    return stages * loads * 4 <= 160
+    return stages == 1 or stages * loads * 4 <= 32
 
 
 doc = json.loads(a.pin.read_text())
 clamped = 0
 for case in doc['cases']:
+    if a.residency:
+        case['residency'] = a.residency
     for g in case['geometries']:
         want = a.stages
         while want > 1 and not fits(g['tile_m'], g['tile_n'], want):
