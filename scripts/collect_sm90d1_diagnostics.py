@@ -455,6 +455,20 @@ def solver_validations(paired):
                 binary_sha256=selection['binary_sha256'], status=receipt['status'],
                 exit_code=receipt.get('exit_code'), correctness_output=str(raw/'job/measurements'),
                 evidence='verified scheduler receipt; failed correctness paths never enter TPOT')
+            stem = f"{config['model']}-B{config['batch']}"
+            candidate_plan = RUN/f'build/{arm}/{stem}/decode.so.plan.json'
+            reference_plan = RUN/f'build/reference2/{stem}/decode.so.plan.json'
+            if candidate_plan.exists() and reference_plan.exists():
+                row['reference_gemm_geometry_identical'] = (read(candidate_plan)['gemms']==
+                                                            read(reference_plan)['gemms'])
+            candidate_sass = RUN/f'sass/{arm}/{stem}/decode/resources.json'
+            reference_sass = RUN/f'sass/reference2/{stem}/decode/resources.json'
+            if candidate_sass.exists() and reference_sass.exists():
+                candidate = read(candidate_sass)['instruction_encoding_sha256']
+                reference = read(reference_sass)['instruction_encoding_sha256']
+                loop = next((k for k in candidate if 'l1_loop_kernel' in k),None)
+                row['l1_loop_instruction_encoding_identical'] = bool(loop and
+                    candidate[loop]==reference.get(loop))
             for gate in ('c1','c2'):
                 path = raw/f'job/measurements/{gate}.json'
                 if path.exists():

@@ -15,7 +15,7 @@ def csv_write(path, rows):
     path.parent.mkdir(parents=True, exist_ok=True)
     fields = list(dict.fromkeys(key for row in rows for key in row))
     with path.open('w', newline='') as stream:
-        writer = csv.DictWriter(stream, fieldnames=fields)
+        writer = csv.DictWriter(stream, fieldnames=fields, lineterminator='\n')
         writer.writeheader()
         writer.writerows(rows)
 
@@ -123,6 +123,14 @@ def references(samples, select=True):
 
 def reference_statuses(measured):
     rows = list(measured)
+    audit = RUN/'reference-drift-audit.json'
+    inspections = {r['config']:r for r in read(audit)} if audit.exists() else {}
+    for row in rows:
+        inspection = inspections.get(f"{row['model']}_b{row['batch']}",{})
+        for field in ('status','original_source_head','gemm_geometry_identical',
+                      'compile_defines_identical','l1_loop_instruction_encoding_identical'):
+            if field in inspection:
+                row['drift_audit_'+field] = inspection[field]
     present = {(r['model'], r['batch']) for r in rows}
     historical = {(r['model'], int(r['batch'])): r for r in
                   csv.DictReader((ROOT / 'docs/results/SM90R1_final_llm.csv').open())}
@@ -292,8 +300,15 @@ def main():
         row=dict(values[0]); row['record']='existing_category_prediction';row['stages']=len(values);row.pop('stage',None)
         for key in ('predicted_envelope_ns','fixed_sum_ns','mainloop_sum_ns','publication_sum_ns','wait_sum_ns'):
             row[key]=sum(float(v[key]) for v in values)
-        measured=next((r for r in ledgers if r['tag']=='full2' and r['model']==model and r['batch']==1 and r['past']==575 and r['kind']==kind),None)
-        row['measured_envelope_ns']=measured['envelope_ns'] if measured else None
+        measured_kind = {'fused_attention':'attention','attention_merge':'merge',
+                         'argmax_reduce':'argmax'}.get(kind,kind)
+        measured = [r for r in ledgers if r['tag']=='full2' and r['model']==model and
+                    r['batch']==1 and r['past']==575 and (r['kind']==measured_kind or
+                    (kind=='combine' and r['kind'].endswith('-combine')))]
+        row['measured_kind'] = measured_kind
+        row['measured_envelope_ns'] = sum(r['envelope_ns'] for r in measured) if measured else None
+        row['envelope_difference_pct'] = ((row['predicted_envelope_ns']/row['measured_envelope_ns']-1)*100
+                                          if row['measured_envelope_ns'] else None)
         compact.append(row)
     csv_write(a.out / 'SM90D1_solver.csv',compact)
     write(a.out / 'collection.json', dict(accepted_processes=len(samples), reference_cells=len(references(samples)),
