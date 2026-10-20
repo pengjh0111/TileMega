@@ -21,7 +21,7 @@ a = ap.parse_args()
 def fits(tile_m, tile_n, stages, waves=2):
     """solver::ServingGemmDepthFits: depth 1 always, deeper within 32 VGPRs."""
     loads = tile_n // 16 // waves + tile_m // 16
-    return stages == 1 or stages * loads * 4 <= 32
+    return stages == 1 or (stages <= 4 and stages * loads * 4 <= 48)
 
 
 doc = json.loads(a.pin.read_text())
