@@ -200,6 +200,11 @@ struct Builder {
       throw std::invalid_argument("DNN epilogue input has another observable use: "+ref);
   }
   void Input(FxNodeRecord const& n) {
+    if(n.dtype=="torch.bfloat16" && n.shape.size()==2) {
+      auto id=RowsBuffer(n.name,1,U(n.shape[1]));
+      auto& b=p.buffers[id];b.role="external";b.external_name=n.name;
+      p.node_buffer[n.name]=id;return;
+    }
     if(n.dtype=="torch.int64" && n.shape.size()==2) {
       auto seq=U(n.shape[1]);
       if((seq!=128 && seq!=384 && seq!=512) || (p.serving_seq!=1 && unsigned(p.serving_seq)!=seq))

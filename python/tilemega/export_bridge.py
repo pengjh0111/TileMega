@@ -44,8 +44,8 @@ def _dtype(value: Any) -> str | list[Any] | None:
 def _guards(program: torch.export.ExportedProgram) -> list[str]:
     """Versioned guard transcription; unknown constraint forms fail closed."""
     major_minor = tuple(int(part) for part in torch.__version__.split("+")[0].split(".")[:2])
-    if major_minor == (2, 8):
-        # 2.8 enforces input equalities through shared SymInt metadata instead
+    if major_minor in {(2, 7), (2, 8)}:
+        # 2.7/2.8 enforce input equalities through shared SymInt metadata instead
         # of _guards_code. Ranges are serialized separately without alteration.
         import sympy
         nodes = {node.name: node for node in program.graph.nodes if node.op == 'placeholder'}
@@ -54,13 +54,13 @@ def _guards(program: torch.export.ExportedProgram) -> list[str]:
         for index, spec in enumerate(inputs):
             value = nodes[spec.arg.name].meta.get('val')
             if not isinstance(value, torch.Tensor):
-                raise RuntimeError('torch 2.8 guard adapter requires tensor user inputs')
+                raise RuntimeError('torch 2.7/2.8 guard adapter requires tensor user inputs')
             for dimension, extent in enumerate(value.shape):
                 if not isinstance(extent, torch.SymInt):
                     continue
                 expression = extent.node.expr
                 if not isinstance(expression, sympy.Symbol):
-                    raise RuntimeError(f'unsupported torch 2.8 derived input dimension: {expression}')
+                    raise RuntimeError(f'unsupported torch 2.7/2.8 derived input dimension: {expression}')
                 reference = f"L['flat_args'][{index}].size()[{dimension}]"
                 if expression in seen:
                     guards.append(f'{reference} == {seen[expression]}')
@@ -69,7 +69,7 @@ def _guards(program: torch.export.ExportedProgram) -> list[str]:
         return guards
     if major_minor not in {(2, 13), (2, 14)}:
         raise RuntimeError(
-            "TileMega export guard adapter supports torch 2.8.x/2.13.x/2.14.x; got "
+            "TileMega export guard adapter supports torch 2.7.x/2.8.x/2.13.x/2.14.x; got "
             f"{torch.__version__}. Update _guards() as one atomic adapter."
         )
     if not hasattr(program, "_guards_code"):
