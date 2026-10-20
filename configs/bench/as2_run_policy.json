@@ -1,0 +1,18 @@
+{
+  "schema": "tilemega.as2.run.v1",
+  "physical_devices": [
+    0,
+    1
+  ],
+  "max_active_project_npu_jobs": 1,
+  "device_locked": false,
+  "external_processes_are_observation_only": true,
+  "functional_timeout_s": 600,
+  "timing_timeout_s": 900,
+  "cpu_compile_parallelism": 1,
+  "max_live_candidates": 4,
+  "max_plans_per_batch": 4,
+  "max_body_candidates_per_family": 8,
+  "default_cache_root": "/home/d50064638/junhuip/tilemega-as2/cache",
+  "scope_override": "five dense models first; MoE requires a later user decision"
+}

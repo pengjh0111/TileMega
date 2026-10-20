@@ -17,6 +17,13 @@ WORK = ROOT / 'tilemega-as1'
 RUNS = ROOT / 'TileMega/runs/as1'
 
 
+def process_identity(pid):
+    raw = Path('/proc', str(pid), 'stat').read_text()
+    fields = raw[raw.rfind(')')+2:].split()
+    return {'pid': pid, 'start_ticks': int(fields[19]),
+            'process_group': int(fields[2]), 'session': int(fields[3])}
+
+
 def contained(path, roots):
     path = path.resolve()
     return any(path.is_relative_to(root.resolve()) and path != root.resolve() for root in roots)
@@ -71,43 +78,68 @@ def child_env(out, physical):
                 'AS1_PHYSICAL_DEVICE_ID': str(physical), 'PYTHONNOUSERSITE': '1',
                 'HF_HUB_OFFLINE': '1', 'TRANSFORMERS_OFFLINE': '1',
                 'OMP_NUM_THREADS': '1', 'MKL_NUM_THREADS': '1', 'OPENBLAS_NUM_THREADS': '1'})
+    if WORK.name == 'tilemega-as2':
+        env.update(AS2_LOGICAL_DEVICE_ID='0', AS2_PHYSICAL_DEVICE_ID=str(physical))
     return env
 
 
 def stop_owned_group(proc):
     # start_new_session below makes this process the leader of our own group.
     # No UID-based process lookup, external PID list, or device reset is used.
-    for sig, grace in ((signal.SIGTERM, 5), (signal.SIGKILL, 5)):
+    owned = []
+    def remember(pid):
         try:
-            os.killpg(proc.pid, sig)
+            identity = process_identity(pid)
+            if identity['session'] != proc.pid:
+                return
+            owned.append(identity)
+            children = Path('/proc', str(pid), 'task', str(pid), 'children').read_text().split()
+            for child in children:
+                remember(int(child))
+        except (FileNotFoundError, ProcessLookupError):
+            pass
+    remember(proc.pid)
+    if proc.poll() is None:
+        if not owned or owned[0]['pid'] != proc.pid or owned[0]['process_group'] != proc.pid:
+            raise RuntimeError('Cannot verify the owned process group')
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
         except ProcessLookupError:
             return
         try:
-            proc.wait(timeout=grace)
+            proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
-            continue
-        # Also terminate any descendants still in this job's process group.
+            remember(proc.pid)
+    # A reaped leader can have a reused PID; verify each surviving descendant.
+    for identity in reversed(owned):
         try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
+            if process_identity(identity['pid']) == identity:
+                os.kill(identity['pid'], signal.SIGKILL)
+        except (FileNotFoundError, ProcessLookupError):
             pass
-        return
+    proc.wait(timeout=5)
 
 
-def main():
+def main(project='as1'):
+    global WORK, RUNS
+    if project not in {'as1', 'as2'}:
+        raise ValueError('Unknown controlled project')
+    WORK = ROOT / ('tilemega-' + project)
+    RUNS = ROOT / ('TileMega/runs/' + project)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--physical-device', choices=['auto', '0', '1'], default='auto')
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--timeout-s', type=float, default=600)
     parser.add_argument('--sample-s', type=float, default=15)
+    parser.add_argument('--required-free-mib', type=int, default=0)
     parser.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ['--'] else args.command
-    if not command or not 0 < args.timeout_s <= 900 or args.sample_s < 1:
+    if not command or not 0 < args.timeout_s <= 900 or args.sample_s < 1 or args.required_free_mib < 0:
         parser.error('A command, timeout in (0,900], and sample interval >=1 are required')
     out = args.out.absolute()
     if not contained(out, [RUNS, WORK / 'logs']):
-        parser.error('Output must be beneath project runs/as1 or tilemega-as1/logs')
+        parser.error('Output must be beneath the selected project runs or logs')
     # Never overwrite evidence or reuse another job's directory.
     out.mkdir(parents=True, exist_ok=False)
     before = snapshot()
@@ -144,14 +176,25 @@ def main():
         with executable.open('rb') as binary:
             record['executable_sha256'] = hashlib.file_digest(binary, 'sha256').hexdigest()
     record_path = out / 'job.json'
+    record.update(parent_pid=os.getpid(), project=project,
+                  manifest_id=str(out.relative_to(ROOT)), required_free_mib=args.required_free_mib)
     record_path.write_text(json.dumps(record, indent=2)+'\n')
+    if args.required_free_mib and (physical not in devices or devices[physical]['free_mib'] < args.required_free_mib):
+        record.update(status='blocked-resource', exit_code=75, elapsed_s=time.monotonic()-started)
+        record_path.write_text(json.dumps(record, indent=2)+'\n')
+        (out / 'after.json').write_text(json.dumps(snapshot(), indent=2)+'\n')
+        print(json.dumps(record))
+        return 75
     proc = None
     exit_code = 125
     try:
         with (out / 'stdout.log').open('x') as stdout, (out / 'stderr.log').open('x') as stderr:
             proc = subprocess.Popen(command, cwd=out, env=child_env(out, physical),
                                     stdout=stdout, stderr=stderr, start_new_session=True)
-            record.update(pid=proc.pid, process_group=proc.pid, status='running')
+            identity = process_identity(proc.pid)
+            if identity['session'] != proc.pid or identity['process_group'] != proc.pid:
+                raise RuntimeError('Child did not enter its own session/process group')
+            record.update(**identity, status='running')
             record_path.write_text(json.dumps(record, indent=2)+'\n')
             with (out / 'samples.jsonl').open('x') as samples:
                 while True:

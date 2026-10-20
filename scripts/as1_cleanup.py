@@ -13,6 +13,17 @@ DEFAULT_WORK = AS1_ROOT / 'tilemega-as1'
 PROTECTED = {'inventory', 'probe', 'gate', 'result', 'failure', 'source', 'config'}
 
 
+def project_paths(project):
+    if project not in {'as1', 'as2'}:
+        raise ValueError('Unknown controlled project')
+    runs = AS1_ROOT / ('TileMega/runs/' + project)
+    work = AS1_ROOT / ('tilemega-' + project)
+    roots = [runs, *(work / n for n in ('build', 'cache', 'tmp'))]
+    if project == 'as2':
+        roots.append(work / 'weights')
+    return runs, work, roots
+
+
 def plain_path(path, roots):
     path = Path(os.path.abspath(path))
     root = next((p for p in roots if path.is_relative_to(p) and path != p), None)
@@ -94,21 +105,21 @@ def apply_item(item, roots):
         os.close(parent_fd)
 
 
-def main():
+def main(project='as1'):
+    default_run, default_work, roots = project_paths(project)
     parser = argparse.ArgumentParser(description=__doc__)
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument('--dry-run', action='store_true')
     modes.add_argument('--apply', action='store_true')
-    parser.add_argument('--run-root', type=Path, default=DEFAULT_RUN)
-    parser.add_argument('--work-root', type=Path, default=DEFAULT_WORK)
+    parser.add_argument('--run-root', type=Path, default=default_run)
+    parser.add_argument('--work-root', type=Path, default=default_work)
     parser.add_argument('--keep-recent', type=int, default=2)
     parser.add_argument('--report-json', type=Path)
     args = parser.parse_args()
-    if args.run_root.absolute() != DEFAULT_RUN or args.work_root.absolute() != DEFAULT_WORK:
-        parser.error('AS-1 roots must match the inventoried personal project roots')
+    if args.run_root.absolute() != default_run or args.work_root.absolute() != default_work:
+        parser.error('Roots must match the selected controlled personal project')
     if args.keep_recent < 2:
         parser.error('At least two complete builds must be retained')
-    roots = [args.run_root, *(args.work_root / n for n in ('build', 'cache', 'tmp'))]
     for root in roots:
         for parent in [root, *root.parents]:
             if parent.is_symlink():

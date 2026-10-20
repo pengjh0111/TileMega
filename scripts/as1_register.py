@@ -4,10 +4,11 @@ import argparse
 import datetime as dt
 import json
 from pathlib import Path
-from as1_cleanup import DEFAULT_RUN, DEFAULT_WORK, file_stamp, plain_path
+from as1_cleanup import file_stamp, plain_path, project_paths
 
 
-def main():
+def main(project='as1'):
+    run_root, work_root, roots = project_paths(project)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--path', type=Path, required=True)
     parser.add_argument('--stage', required=True)
@@ -17,7 +18,6 @@ def main():
     parser.add_argument('--discardable', action='store_true')
     parser.add_argument('--pid', type=int)
     args = parser.parse_args()
-    roots = [DEFAULT_RUN, *(DEFAULT_WORK / n for n in ('build', 'cache', 'tmp'))]
     path = args.path.absolute()
     if path not in roots:
         plain_path(path, roots)
@@ -28,7 +28,7 @@ def main():
     files = [path] if path.is_file() else sorted(path.rglob('*'))
     job_cache = {}
     count = 0
-    with (DEFAULT_RUN / 'manifest.jsonl').open('a') as manifest:
+    with (run_root / 'manifest.jsonl').open('a') as manifest:
         for p in files:
             if p.is_symlink() or not p.is_file() or p.name in {'manifest.jsonl', 'cleanup_history.jsonl'}:
                 continue
@@ -38,7 +38,7 @@ def main():
                        completed=args.completed, active_refs=active,
                        created_at=dt.datetime.now(dt.timezone.utc).isoformat(), stamp=file_stamp(p))
             for parent in p.parents:
-                if not parent.is_relative_to(DEFAULT_RUN):
+                if not parent.is_relative_to(run_root):
                     break
                 receipt = parent/'job.json'
                 if not receipt.is_file():
@@ -49,7 +49,7 @@ def main():
                     except (OSError, json.JSONDecodeError):
                         job_cache[parent] = {'status': 'unknown'}
                 job = job_cache[parent]
-                if job.get('status') not in {'passed', 'failed', 'timeout', 'interrupted', 'launch_error'}:
+                if job.get('status') not in {'passed', 'failed', 'timeout', 'interrupted', 'launch_error', 'blocked-resource'}:
                     row['completed'] = False
                     if job.get('pid'):
                         try:

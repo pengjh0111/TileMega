@@ -1,0 +1,29 @@
+{
+  "schema": "tilemega.as2.disk.v1",
+  "root": "/home/d50064638/junhuip",
+  "run_root": "/home/d50064638/junhuip/TileMega/runs/as2",
+  "work_root": "/home/d50064638/junhuip/tilemega-as2",
+  "cleanable_work_subtrees": [
+    "build",
+    "cache",
+    "tmp",
+    "weights"
+  ],
+  "manifest_required": true,
+  "default_dry_run": true,
+  "keep_recent_complete_builds": 2,
+  "stop_below_free_fraction": 0.15,
+  "stop_below_free_inode_fraction": 0.05,
+  "project_generated_soft_limit_bytes": 103079215104,
+  "max_live_candidates": 4,
+  "quota_status": "unavailable",
+  "protected_categories": [
+    "inventory",
+    "probe",
+    "gate",
+    "result",
+    "failure",
+    "source",
+    "config"
+  ]
+}
