@@ -144,9 +144,19 @@ class ServingTiledWeights(unittest.TestCase):
         from tilemega.serving.weights import _packed_gpu
         lib = ctypes.CDLL(os.environ["TILEMEGA_MX_BODIES_SO"])
         g = torch.Generator().manual_seed(7)
+        # Stages is a real pipeline depth since MX-3, so every legal depth has
+        # to produce the same numbers as depth 1 (MX3-2 item 4). A depth whose
+        # register footprint does not fit the tile is rejected by the launcher
+        # with code 3 and skipped here.
+        def depth_fits(tile_m, tile_n, stages):
+            loads = tile_n // 16 // 2 + tile_m // 16
+            return stages * loads * 4 <= 160
+
         for tm, tn, tk in ((16, 32, 64), (16, 32, 128), (16, 128, 64), (32, 64, 128), (64, 128, 64)):
+            depths = [d for d in (1, 2, 3, 4, 6) if depth_fits(tm, tn, d)]
             for m, n, k, splits in ((1, 96, 512, 1), (16, 200, 1024, 2), (5, 64, 448, 1), (64, 128, 768, 3)):
-                with self.subTest(tile=(tm, tn, tk), shape=(m, n, k), splits=splits):
+              for stages in depths:
+                with self.subTest(tile=(tm, tn, tk), shape=(m, n, k), splits=splits, stages=stages):
                     a = (torch.randn(m, k, generator=g) * 0.5).to(torch.bfloat16).cuda().contiguous()
                     b = (torch.randn(n, k, generator=g) * 0.05).to(torch.bfloat16).cuda().contiguous()
                     packed = _packed_gpu(dict(kind="tile_pages", layout="xcore_mma", tile_n=tn, tile_k=tk,
@@ -161,9 +171,10 @@ class ServingTiledWeights(unittest.TestCase):
                         tiles = torch.full((tiles_m * tiles_n, tm * tn), float("nan"), device="cuda")
                         args = GemmArgs(a.data_ptr(), b.data_ptr(), None, None, None, None, None, None, None,
                                         m, n, k, begin, count, n, n, k, k, 0, 0.0, STORE)
-                        code = lib.tm_test_gemm_tiled(ctypes.byref(args), ctypes.c_void_p(packed.data_ptr()), k,
-                                                      tm, tn, tk, ctypes.c_void_p(tiles.data_ptr()),
-                                                      ctypes.c_void_p(torch.cuda.current_stream().cuda_stream))
+                        code = lib.tm_test_gemm_tiled_staged(
+                            ctypes.byref(args), ctypes.c_void_p(packed.data_ptr()), k,
+                            tm, tn, tk, stages, ctypes.c_void_p(tiles.data_ptr()),
+                            ctypes.c_void_p(torch.cuda.current_stream().cuda_stream))
                         self.assertEqual(code, 0)
                         torch.cuda.synchronize()
                         full = tiles.view(tiles_m, tiles_n, tm, tn).permute(0, 2, 1, 3).reshape(tiles_m * tm, tiles_n * tn)

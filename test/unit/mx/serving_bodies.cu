@@ -101,7 +101,7 @@ extern "C" int tm_test_gemm_args_size() { return sizeof(GemmArgs); }
 // xcore_mma tile_pages recipe; the FP32 tile of every (tile_m, tile_n) goes to
 // `tiles` as [tiles_m*tiles_n][TM*TN].
 namespace {
-template <int TM, int TN, int TK>
+template <int TM, int TN, int TK, int S>
 __global__ void __launch_bounds__(128) RunTiledDense(GemmArgs g, Bf16 const* weight, int k_total_full,
                                                      int tiles_n, float* tiles) {
   extern __shared__ __align__(16) char shared[];
@@ -109,24 +109,36 @@ __global__ void __launch_bounds__(128) RunTiledDense(GemmArgs g, Bf16 const* wei
   p.weight_base = weight;
   p.k_total_full = k_total_full;
   int const tm = blockIdx.x / tiles_n, tn = blockIdx.x % tiles_n;
-  float* tile = backend::ServingGemmMma<TM, TN, TK>::template Dense<true>(p, tm, tn, shared);
+  float* tile = backend::ServingGemmMma<TM, TN, TK, S>::template Dense<true>(p, tm, tn, shared);
   for (int i = threadIdx.x; i < TM * TN; i += blockDim.x) tiles[std::size_t(blockIdx.x) * TM * TN + i] = tile[i];
 }
 }  // namespace
 
-extern "C" int tm_test_gemm_tiled(GemmArgs const* g, Bf16 const* weight, int k_total_full, int tile_m, int tile_n,
-                                  int tile_k, float* tiles, void* stream) {
-#define TM_CASE(M, N, K)                                                                            \
-  if (tile_m == M && tile_n == N && tile_k == K) {                                                  \
+extern "C" int tm_test_gemm_tiled_staged(GemmArgs const* g, Bf16 const* weight, int k_total_full,
+                                         int tile_m, int tile_n, int tile_k, int stages,
+                                         float* tiles, void* stream) {
+#define TM_LAUNCH(M, N, K, S)                                                                       \
+  if (tile_m == M && tile_n == N && tile_k == K && stages == S &&                                   \
+      backend::ServingGemmDepthFits(M, N, S, 2)) {                                                  \
+    if constexpr (backend::ServingGemmDepthFits(M, N, S, 2)) {                                      \
     int const tm = (g->m + M - 1) / M, tn = (g->n + N - 1) / N, smem = 4 * M * N + 4 * M;           \
-    if (cudaFuncSetAttribute(RunTiledDense<M, N, K>, cudaFuncAttributeMaxDynamicSharedMemorySize, smem) != cudaSuccess) \
+    if (cudaFuncSetAttribute(RunTiledDense<M, N, K, S>, cudaFuncAttributeMaxDynamicSharedMemorySize, smem) != cudaSuccess) \
       return 1;                                                                                     \
-    RunTiledDense<M, N, K><<<tm * tn, 128, smem, static_cast<cudaStream_t>(stream)>>>(*g, weight, k_total_full, tn, tiles); \
+    RunTiledDense<M, N, K, S><<<tm * tn, 128, smem, static_cast<cudaStream_t>(stream)>>>(*g, weight, k_total_full, tn, tiles); \
     return cudaGetLastError() == cudaSuccess ? 0 : 2;                                               \
+    }                                                                                               \
   }
+#define TM_CASE(M, N, K) TM_LAUNCH(M, N, K, 1) TM_LAUNCH(M, N, K, 2) TM_LAUNCH(M, N, K, 3) \
+                         TM_LAUNCH(M, N, K, 4) TM_LAUNCH(M, N, K, 6)
   TM_CASE(16, 32, 64) TM_CASE(16, 32, 128) TM_CASE(16, 128, 64) TM_CASE(32, 64, 128) TM_CASE(64, 128, 64)
 #undef TM_CASE
+#undef TM_LAUNCH
   return 3;
+}
+
+extern "C" int tm_test_gemm_tiled(GemmArgs const* g, Bf16 const* weight, int k_total_full, int tile_m, int tile_n,
+                                  int tile_k, float* tiles, void* stream) {
+  return tm_test_gemm_tiled_staged(g, weight, k_total_full, tile_m, tile_n, tile_k, 1, tiles, stream);
 }
 
 
