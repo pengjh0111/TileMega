@@ -52,7 +52,12 @@ a = ap.parse_args()
 
 meta = pd.read_csv(a.trace / 'runtime_stages.tsv', sep='\t')
 st = pd.read_csv(a.trace / 'stage_trace.tsv', sep='\t')
-tk = pd.read_csv(a.trace / 'task_profile.tsv', sep='\t')
+# A stage-only trace (TILEMEGA_TRACE=STAGE) has no task profile: the
+# envelope split still holds, the critical-CTA split is then unavailable.
+task_path = a.trace / 'task_profile.tsv'
+tk = (pd.read_csv(task_path, sep='\t') if task_path.exists() else
+      pd.DataFrame(columns=['kind', 'iteration', 'past', 'run_begin', 'run_end', 'stage',
+                            'task', 'worker', 'bytes', 'first_ready', 'epilogue_ns']))
 st = st[st.t_release > 0]
 
 
