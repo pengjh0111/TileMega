@@ -1073,6 +1073,14 @@ int RunCompile(int argc, char** argv) {
         encoder_attention_impl=="wgmma" || conv_impl=="tma_im2col" || moe_activation_bulk ||
         dependency_intern || cluster_dim>1 || activation_tma || depthwise_impl=="tma" || dwpw_impl=="wgmma";
     auto bind_requested_arch=[&](mlir::ModuleOp candidate) {
+      if(serving && serving_phase=="decode" && !runtime_target.empty()) {
+        auto target=tilemega::TargetSpec::FromJson(runtime_target);
+        auto plan=candidate->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+        auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
+        if(target.arch_tag=="sm_90" && plan && (!dm || !dm.getValue()) &&
+           !candidate->hasAttr("tmexec.sm90_dense"))
+          throw std::invalid_argument("H800 dense decode requires native tmexec coordinates; legacy execution options are invalid");
+      }
       if(!hopper_requested && seed_arch!="native" && !serving_residency)return;
       auto target=tilemega::TargetSpec::FromJson(runtime_target);
       if(hopper_requested && (!target.caps.wgmma || target.arch_tag!="sm_90" || arch_paths!="auto"))
