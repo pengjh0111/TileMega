@@ -131,6 +131,7 @@ __device__ __noinline__ void Embedding(int const* tokens,BF16 const* table,
   // set_steps validates positions; the prompt and the preceding argmax supply
   // vocabulary-bounded tokens. The static ABI has no unchecked external IDs.
   __builtin_assume(past>=TILEMEGA_SERVING_PAST_LO && past<=TILEMEGA_SERVING_PAST_HI);
+  __builtin_assume(past>=0 && past<Capacity);
   int id=tokens[row*Capacity+past];
   __builtin_assume(id>=0 && id<Vocab);
   ServingEmbeddingTaskBody::RunRow(tokens,table,output,row,1,past,Capacity,Width,Vocab,sums);
@@ -146,6 +147,7 @@ __device__ __noinline__ void Argmax(float const* values,int const* indices,
     int* tokens,int row,int past,char* shared) {
   static_assert(TILEMEGA_SERVING_PAST_HI+1<Capacity);
   __builtin_assume(past>=TILEMEGA_SERVING_PAST_LO && past<=TILEMEGA_SERVING_PAST_HI);
+  __builtin_assume(past+1>=0 && past+1<Capacity);
   ServingArgmaxReduceTaskBody::RunRow(values,indices,tokens,row,Parts,Capacity,
       past+1,reinterpret_cast<ServingArgmaxReduceTaskBody::SharedStorage*>(shared));
 }
