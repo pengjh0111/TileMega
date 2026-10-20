@@ -1,0 +1,120 @@
+scope,source,kernel,mtregisters,stregisters,stack_frame_bytes,static_smem_bytes
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunGemm<ServingGemmTaskBody<Xcore1000, 16, 32, 64, 2> >",42,52,184,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunGemm<ServingGemmTaskBody<Xcore1000, 16, 64, 64, 2> >",58,52,184,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunGemm<ServingGemmTaskBody<Xcore1000, 16, 128, 64, 2> >",90,52,184,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunGemm<ServingGemmTaskBody<Xcore1000, 32, 64, 64, 2> >",78,52,184,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunGemm<ServingGemmTaskBody<Xcore1000, 64, 64, 64, 2> >",116,52,184,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunGemm<ServingGemmTaskBody<Xcore1000, 64, 128, 64, 2> >",174,54,184,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunGemm<ServingGemvTaskBody<Xcore1000, 8, 128, false> >",144,52,184,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunGemm<ServingGemvTaskBody<Xcore1000, 16, 128, false> >",159,52,176,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunGemm<ServingGemvTaskBody<Xcore1000, 32, 128, false> >",182,60,184,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunGemm<ServingGemvTaskBody<Xcore1000, 64, 128, false> >",192,60,184,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<16, 32, 64, 1>",34,30,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<16, 32, 64, 2>",38,30,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<16, 32, 64, 3>",52,30,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<16, 32, 64, 4>",56,30,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<16, 32, 64, 6>",76,30,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<16, 32, 128, 1>",34,30,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<16, 32, 128, 2>",38,30,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<16, 32, 128, 3>",52,30,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<16, 32, 128, 4>",56,30,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<16, 32, 128, 6>",76,30,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<16, 128, 64, 1>",58,30,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<16, 128, 64, 2>",78,30,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<16, 128, 64, 3>",102,30,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<16, 128, 64, 4>",116,30,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<16, 128, 64, 6>",160,30,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<32, 64, 128, 1>",60,48,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<32, 64, 128, 2>",74,48,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<32, 64, 128, 3>",94,48,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<32, 64, 128, 4>",104,48,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<32, 64, 128, 6>",140,48,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<64, 128, 64, 1>",132,48,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<64, 128, 64, 2>",160,48,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<64, 128, 64, 3>",196,48,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunTiledDense<64, 128, 64, 4>",224,48,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunDecodeAttention<DecodeAttentionSimt<128, 2, true> >",138,52,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunDecodeAttentionMma<PrefillAttentionMma<128, 2, 1, 16, 32, true> >",126,58,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunDecodeAttention<DecodeAttentionSimt<64, 4, false> >",162,42,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunDecodeAttentionMma<PrefillAttentionMma<64, 4, 1, 16, 32, false> >",104,52,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunDecodeAttention<DecodeAttentionSimt<128, 4, false> >",162,42,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunDecodeAttentionMma<PrefillAttentionMma<128, 4, 1, 16, 32, false> >",114,52,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunDecodeAttention<DecodeAttentionSimt<128, 3, false> >",131,40,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunDecodeAttentionMma<PrefillAttentionMma<128, 3, 1, 16, 32, false> >",113,52,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunDecodeAttention<DecodeAttentionSimt<128, 8, true> >",202,52,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunPrefillAttention<PrefillAttentionMma<128, 2, 64, 64, 32, true> >",169,52,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunPrefillAttention<PrefillAttentionMma<128, 2, 64, 16, 64, true> >",130,54,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunPrefillAttention<PrefillAttentionMma<64, 4, 64, 64, 64, false> >",142,52,0,0
+isolated body,test/unit/mx/serving_bodies.cu @ b9d8bb9f9,"RunPrefillAttention<PrefillAttentionMma<128, 4, 64, 32, 32, false> >",152,52,0,0
+megakernel tm-mx2,llama3_1_8b/B1/decode,l1,248,106,232,0
+megakernel tm-mx2,llama3_1_8b/B1/decode,l1_loop,248,108,232,0
+megakernel tm-mx2,llama3_1_8b/B1/decode,l2,248,101,184,0
+megakernel tm-mx2,llama3_1_8b/B1/decode,stage,248,84,232,0
+megakernel tm-mx2,llama3_1_8b/B1/decode,wait_prof,248,70,424,0
+megakernel tm-mx2,llama3_1_8b/B1/prefill,l1,248,108,232,0
+megakernel tm-mx2,llama3_1_8b/B1/prefill,l2,248,106,184,0
+megakernel tm-mx2,llama3_1_8b/B1/prefill,stage,248,92,232,0
+megakernel tm-mx2,llama3_1_8b/B1/prefill,wait_prof,248,70,424,0
+megakernel tm-mx2,llama3_2_1b/B1/decode,l1,248,108,232,0
+megakernel tm-mx2,llama3_2_1b/B1/decode,l1_loop,248,108,232,0
+megakernel tm-mx2,llama3_2_1b/B1/decode,l2,248,101,184,0
+megakernel tm-mx2,llama3_2_1b/B1/decode,stage,248,86,232,0
+megakernel tm-mx2,llama3_2_1b/B1/decode,wait_prof,248,70,424,0
+megakernel tm-mx2,llama3_2_1b/B1/prefill,l1,248,108,232,0
+megakernel tm-mx2,llama3_2_1b/B1/prefill,l2,248,101,184,0
+megakernel tm-mx2,llama3_2_1b/B1/prefill,stage,248,86,232,0
+megakernel tm-mx2,llama3_2_1b/B1/prefill,wait_prof,248,70,424,0
+megakernel tm-mx2,qwen3_0_6b/B1/decode,l1,248,108,232,0
+megakernel tm-mx2,qwen3_0_6b/B1/decode,l1_loop,248,108,232,0
+megakernel tm-mx2,qwen3_0_6b/B1/decode,l2,248,101,184,0
+megakernel tm-mx2,qwen3_0_6b/B1/decode,stage,248,86,232,0
+megakernel tm-mx2,qwen3_0_6b/B1/decode,wait_prof,248,70,424,0
+megakernel tm-mx2,qwen3_0_6b/B1/prefill,l1,248,108,232,0
+megakernel tm-mx2,qwen3_0_6b/B1/prefill,l2,248,101,184,0
+megakernel tm-mx2,qwen3_0_6b/B1/prefill,stage,248,86,232,0
+megakernel tm-mx2,qwen3_0_6b/B1/prefill,wait_prof,248,70,424,0
+megakernel tm-mx2,qwen3_0_6b/B16/decode,l1,248,108,232,0
+megakernel tm-mx2,qwen3_0_6b/B16/decode,l1_loop,248,108,232,0
+megakernel tm-mx2,qwen3_0_6b/B16/decode,l2,248,101,184,0
+megakernel tm-mx2,qwen3_0_6b/B16/decode,stage,248,86,232,0
+megakernel tm-mx2,qwen3_0_6b/B16/decode,wait_prof,248,70,424,0
+megakernel tm-mx2,qwen3_0_6b/B16/prefill,l1,248,108,232,0
+megakernel tm-mx2,qwen3_0_6b/B16/prefill,l2,248,103,184,0
+megakernel tm-mx2,qwen3_0_6b/B16/prefill,stage,248,88,232,0
+megakernel tm-mx2,qwen3_0_6b/B16/prefill,wait_prof,248,70,424,0
+megakernel tm-mx2,qwen3_1_7b/B16/decode,l1,248,102,264,0
+megakernel tm-mx2,qwen3_1_7b/B16/decode,l1_loop,248,108,264,0
+megakernel tm-mx2,qwen3_1_7b/B16/decode,l2,248,95,232,0
+megakernel tm-mx2,qwen3_1_7b/B16/decode,stage,248,80,264,0
+megakernel tm-mx2,qwen3_1_7b/B16/decode,wait_prof,248,70,424,0
+megakernel tm-mx2,qwen3_1_7b/B16/prefill,l1,248,104,232,0
+megakernel tm-mx2,qwen3_1_7b/B16/prefill,l2,248,97,184,0
+megakernel tm-mx2,qwen3_1_7b/B16/prefill,stage,248,82,232,0
+megakernel tm-mx2,qwen3_1_7b/B16/prefill,wait_prof,248,70,424,0
+megakernel mx3-ab,s1/qwen3_0_6b/B1/decode,l1,248,104,264,0
+megakernel mx3-ab,s1/qwen3_0_6b/B1/decode,l1_loop,248,108,264,0
+megakernel mx3-ab,s1/qwen3_0_6b/B1/decode,l2,248,97,232,0
+megakernel mx3-ab,s1/qwen3_0_6b/B1/decode,stage,248,82,264,0
+megakernel mx3-ab,s1/qwen3_0_6b/B1/decode,wait_prof,248,70,424,0
+megakernel mx3-ab,s1/qwen3_0_6b/B1/prefill,l1,248,108,232,0
+megakernel mx3-ab,s1/qwen3_0_6b/B1/prefill,l2,248,101,184,0
+megakernel mx3-ab,s1/qwen3_0_6b/B1/prefill,stage,248,86,232,0
+megakernel mx3-ab,s1/qwen3_0_6b/B1/prefill,wait_prof,248,70,424,0
+megakernel mx3-ab,s4/qwen3_0_6b/B1/decode,l1,248,104,232,0
+megakernel mx3-ab,s4/qwen3_0_6b/B1/decode,l1_loop,248,108,232,0
+megakernel mx3-ab,s4/qwen3_0_6b/B1/decode,l2,248,97,184,0
+megakernel mx3-ab,s4/qwen3_0_6b/B1/decode,stage,248,82,232,0
+megakernel mx3-ab,s4/qwen3_0_6b/B1/decode,wait_prof,248,70,424,0
+megakernel mx3-ab,s4/qwen3_0_6b/B1/prefill,l1,248,108,376,0
+megakernel mx3-ab,s4/qwen3_0_6b/B1/prefill,l2,248,101,328,0
+megakernel mx3-ab,s4/qwen3_0_6b/B1/prefill,stage,248,86,376,0
+megakernel mx3-ab,s4/qwen3_0_6b/B1/prefill,wait_prof,248,70,424,0
+megakernel mx3-ab,s6/qwen3_0_6b/B1/decode,l1,248,104,376,0
+megakernel mx3-ab,s6/qwen3_0_6b/B1/decode,l1_loop,248,108,376,0
+megakernel mx3-ab,s6/qwen3_0_6b/B1/decode,l2,248,97,328,0
+megakernel mx3-ab,s6/qwen3_0_6b/B1/decode,stage,248,82,376,0
+megakernel mx3-ab,s6/qwen3_0_6b/B1/decode,wait_prof,248,70,424,0
+megakernel mx3-ab,s6/qwen3_0_6b/B1/prefill,l1,248,108,536,0
+megakernel mx3-ab,s6/qwen3_0_6b/B1/prefill,l2,248,101,488,0
+megakernel mx3-ab,s6/qwen3_0_6b/B1/prefill,stage,248,86,536,0
+megakernel mx3-ab,s6/qwen3_0_6b/B1/prefill,wait_prof,248,70,424,0
