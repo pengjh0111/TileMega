@@ -15,7 +15,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--config', type=Path, required=True)
     p.add_argument('--tag', required=True)
-    p.add_argument('--stage', choices=('measure', 'correctness'), required=True)
+    p.add_argument('--stage', choices=('measure', 'correctness', 'trace', 'trace-control'), required=True)
     p.add_argument('--round', type=int, default=0)
     p.add_argument('--positions', type=int, default=256)
     p.add_argument('--out', type=Path, required=True)
@@ -35,8 +35,10 @@ def main():
         identity = read(str(library) + '.identity.json')
         if sha(library) != identity['binary_sha256']:
             raise ValueError(f'artifact identity changed: {library}')
-        if identity['trace']:
+        if identity['trace'] and (library == prefill or a.stage != 'trace'):
             raise ValueError('instrumented libraries cannot enter this harness')
+        if library == decode and a.stage == 'trace' and not identity['trace']:
+            raise ValueError('stage trace requires an instrumented decode library')
     command = [PYTHON, '-m', 'tilemega.serving.r16_run',
                '--prefill', str(prefill), '--decode', str(decode),
                '--prompt-ids', str(ROOT / c['prompt_ids']), '--batch', str(c['batch']),
@@ -48,6 +50,11 @@ def main():
         command += ['--check-step-loop']
         if a.round == 0:
             command += ['--hf-check', '--hf-positions', str(a.positions)]
+    if a.stage in ('trace', 'trace-control'):
+        command = [PYTHON, str(ROOT / 'scripts/trace_sm90d1.py'),
+                   '--prefill', str(prefill), '--decode', str(decode),
+                   '--batch', str(c['batch']), '--mode', 'L1', '--loop', '1',
+                   '--out', str(a.out / 'trace')]
     command = [PYTHON, '-m', 'tilemega.serving.random_checkpoint',
                '--config', str(ROOT / c['model_dir']), '--out', str(a.out / 'checkpoint'),
                '--seed', '0', '--max-gib', '32', '--', *command]

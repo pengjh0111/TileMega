@@ -15,12 +15,12 @@ def main():
     p.add_argument('--name', required=True)
     p.add_argument('--config', type=Path, required=True)
     p.add_argument('--tag', required=True)
-    p.add_argument('--stage', choices=('correctness', 'measure'), required=True)
+    p.add_argument('--stage', choices=('correctness', 'measure', 'trace', 'trace-control'), required=True)
     p.add_argument('--rounds', type=int, required=True)
     p.add_argument('--after', nargs='*', default=[])
     p.add_argument('--timeout', type=int, default=1800)
     a = p.parse_args()
-    if a.gpu == 5 and a.stage == 'measure':
+    if a.gpu == 5 and a.stage != 'correctness':
         p.error('GPU5 is functional-only')
     node = 0 if a.gpu < 4 else 1
     uuid = read(POLICY)['idle_power_mapping_provenance']['uuid_by_gpu'][str(a.gpu)]
@@ -37,7 +37,7 @@ def main():
                        PYTHON, str(ROOT / 'scripts/run_sm90r2.py'),
                        '--config', str(a.config.resolve()), '--tag', tag,
                        '--stage', a.stage, '--round', str(fresh), '--out', '{attempt_dir}/job']
-            jobs.append(dict(name=name, gpu=True, timing=a.stage == 'measure',
+            jobs.append(dict(name=name, gpu=True, timing=a.stage != 'correctness',
                 priority=5 if a.stage == 'correctness' else 10,
                 timeout_s=a.timeout, needs_free_mib=32768, cwd=str(ROOT), after=previous,
                 env=dict(CUDA_VISIBLE_DEVICES=str(a.gpu), TILEMEGA_DEVICE_INDEX=str(a.gpu),
