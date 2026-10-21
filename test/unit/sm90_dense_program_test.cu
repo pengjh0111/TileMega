@@ -29,7 +29,11 @@ int main(){try{
  for(int n=0;n<4096;++n)if(n%512>=384)for(int k=0;k<1024;++k)qw[packed(n,k,4096,1024,32,256)]=BF(float(n/512%4+1)/8/256);
  for(int n=0;n<1024;++n)for(int k=0;k<2048;++k)ow[packed(n,k,1024,2048,8,256)]=BF((n%7-3)/64.f);
  void* external[15]{};external[0]=copy(input);external[1]=copy(qw);external[4]=copy(zeros);external[5]=copy(zeros);external[6]=copy(ones);external[7]=copy(zeros);external[8]=copy(ones);external[9]=copy(ones);external[14]=copy(ow);
- int past[]={64,65,66};std::vector<BF> output[2];int errors=0;
+#ifndef TILEMEGA_NATIVE_TEST_PAST
+#define TILEMEGA_NATIVE_TEST_PAST 64
+#endif
+ constexpr int initial=TILEMEGA_NATIVE_TEST_PAST;
+ int past[]={initial,initial+1,initial+2};std::vector<BF> output[2];int errors=0;
  for(int loop=0;loop<2;++loop){
   Check(cudaMemset(external[4],0,zeros.size()*2));Check(cudaMemset(external[5],0,zeros.size()*2));
   auto* plan=tm_plan_create(1,external,0);if(!plan)throw std::runtime_error("native create rejected");
@@ -38,7 +42,7 @@ int main(){try{
   else for(unsigned step=0;step<3;++step)if(tm_plan_launch(plan,step,1,step,nullptr))throw std::runtime_error("step rejected");
   Check(cudaDeviceSynchronize());output[loop].resize(1024);
   if(tm_plan_read_buffer(plan,13,output[loop].data(),2048))throw std::runtime_error("native read rejected");
-  float sum=0;for(int bg=0;bg<8;++bg)sum+=256*float(BF(float(bg%4+1)/8*3/67));
+  float sum=0;for(int bg=0;bg<8;++bg)sum+=256*float(BF(float(bg%4+1)/8*3/(initial+3)));
   for(int n=0;n<1024;++n){BF expected(sum*((n%7-3)/64.f));if(output[loop][n].raw()!=expected.raw()){if(errors<4)std::fprintf(stderr,"loop%d n%d got%f expected%f\n",loop,n,float(output[loop][n]),float(expected));++errors;}}
 #if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
   auto* directory=std::getenv("TILEMEGA_NATIVE_TEST_TRACE_DIR");

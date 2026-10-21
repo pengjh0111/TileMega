@@ -132,6 +132,14 @@ std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::Neighbours(Sm90DenseCoor
   for(int bytes:{0,64*1024,128*1024,194*1024}) {
     auto candidate=center;candidate.attention.prefetch_l2_bytes=bytes;add(std::move(candidate));
   }
+  auto budget=std::min(target.res.max_dynamic_smem_per_cta,
+                       target.res.max_smem_per_sm/center.residency);
+  auto const& a=center.attention;
+  for(int offset:{0,int(budget/2/1024)*1024,
+      int((budget-a.SharedBytes(batch,head_dim,queries,1088)+a.workspace_offset)/1024)*1024}) {
+    auto candidate=center;candidate.attention.workspace_offset=offset;add(std::move(candidate));
+  }
+  add(MaxPreissue(center,false));add(MaxPreissue(center,true));
   return result;
 }
 }  // namespace tilemega::solver
