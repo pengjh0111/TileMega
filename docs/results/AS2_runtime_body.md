@@ -196,3 +196,49 @@ New ABI4 prices must be remeasured: an attention owner's diagnostic service span
 includes nested internal coordination, whose participant span must not be added
 again. Old ABI3 profiles/prices are rejected by identity checks.11 CPU request
 binding tests pass. Details/reproduction: `tools/probes/ascend950/AS2_mix_attention.md`.
+
+## Pinned normalization and long-context diagnosis (verified-run)
+
+`LlmVectorBody::RmsNorm` variants2/3 use only the installed CANN9.1.0
+`norm_common` device reduction/Newton primitives, not an operator launcher.
+The optional header hash is enforced by CMake; missing primitives are rejected
+before ACL. Variant2 is bounded to H128/H1024. Variant3 pairs opposite half-rows
+before the H1024 register reduction; model binding is H1024-only. Both retain
+actual BF16 gamma multiplication and unchanged output cast points. Defaults
+remain unchanged; no end-to-end performance improvement is yet admitted.
+
+Independent captured Qwen operands expose two distinct rounding cases. H128
+Newton removes the original QK difference. Full H1024 Newton removes prefill
+drift:198 saved outputs and a four-token request are bitwise exact, with401
+fast/diagnostic payload/control files matching in two fresh processes (C-2,
+not a new C-3 claim). One AS-1 Encoder protection also passes bitwise:
+four epochs,156tasks/epoch,8192 output bytes, original BF16 reference unchanged.
+
+The next H1024 failure occurs at past160/layer9 Norm1. An independent fused
+RMSNorm call on the exact saved operand returns rstd .699561357498169 for both
+rank2 and rank3; CPU FP32 gives .6995614171028137, and the prior native tree
+differs in five BF16 outputs. Variant3 matches fused rstd/all1024 values bitwise,
+also preserves the independent64-row prefill case. An actual98-output request
+then has bitwise-equal intermediate outputs, complete KV histories and logits.
+The full1024-output natural request still fails: first fork at index988,
+14 token differences,3 failed final logits and54 failing final KV slices.
+`as2_last_forward.py` compares independent hooks and native named/actual buffers;
+captures cannot enter a formal performance process. B1 diagnostic histories are
+bounded by capacity1088; B16 retains the short128-position history limit.
+
+New explicit CLI candidate: `cube-fp32-newton-fold`; impl ID
+`as2_aiv_rmsnorm_cann_newton_fold512_h1024`. Observed-input reference:
+`python -m tilemega.bench.as2_rms_reference --input CASE --out NEW_RESULT`.
+Probe `as2_vector 6 rows 1024 CASE NEW_RESULT` records square-sum and rstd in
+`norm_statistics.bin` (64B/row, floats at offsets0/32). Model calls omit these
+diagnostic stores. Frozen tolerances and lowest-max token tie rule are unchanged.
+
+Full valid-cache captures narrow the first remaining drift to past1025/layer11
+context (one BF16 element). Layers0..10 saved outputs and layer11 K/V histories
+are bitwise exact. A same-operand query-head Norm replay is exact2048/2048;
+cos/sin at1025 match128/128 each, and their explicit BF16 query rotation agrees.
+This rules out those observed inputs; it does not yet identify a softmax/PV
+rounding cause. Next diagnostic must capture per-phase FP32 attention workspace
+on this real operand before changing reduction/exp/accumulation implementations.
+Fresh989/963-output independent eager captures reproduce the prior full-request
+token prefixes exactly. Their hooked timings are excluded from performance.
