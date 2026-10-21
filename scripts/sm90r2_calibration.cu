@@ -289,6 +289,13 @@ int main() {
   Check(cudaMemcpy(freq,c.output,16,cudaMemcpyDeviceToHost));c.frequency=double(freq[0])/freq[1];
   std::printf("metric,grid,slot_bytes,slots,cache,samples,median,p99,unit,batch,tile_n,input_k,tile_k,vector_sums\n");
   Print("clock64_frequency",1,0,0,"na",{c.frequency*1000},"MHz");
+#ifdef TILEMEGA_E_CALIBRATION_LARGE_ACTIVATION_ONLY
+  Activations<1,1024>(c);Activations<1,2048>(c);
+  Activations<2,1024>(c);Activations<2,2048>(c);
+  Activations<4,1024>(c);Activations<4,2048>(c);
+  Activations<8,1024>(c);Activations<8,2048>(c);
+  Activations<16,1024>(c);Activations<16,2048>(c);
+#else
 #ifndef TILEMEGA_E_CALIBRATION_EPILOGUE_ONLY
   for(int grid:{c.prop.multiProcessorCount,c.prop.multiProcessorCount*2}) {
     int residency;Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&residency,Barrier,160,0));
@@ -338,6 +345,7 @@ int main() {
   EpilogueCases<16,8>(c);EpilogueCases<16,24>(c);EpilogueCases<16,48>(c);
   EpilogueCases<16,16>(c);EpilogueCases<16,32>(c);
   EpilogueCases<16,128>(c);EpilogueCases<16,224>(c);
+#endif
   unsigned errors;Check(cudaMemcpy(&errors,c.errors,4,cudaMemcpyDeviceToHost));
   Check(cudaFree(c.errors));Check(cudaFree(c.checksum));Check(cudaFree(c.counter));
   Check(cudaFree(c.output));Check(cudaFree(c.eviction));Check(cudaFree(c.input));
