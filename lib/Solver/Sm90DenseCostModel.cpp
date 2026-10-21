@@ -214,10 +214,10 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
         previous=backend::Sm90DenseLayout::Gemm(prev.tile_n,prev.TileK(),prev.slots,
             prev.warps_k).Live(prev.workspace_offset);
       }
-      s.overlap=std::min(s.startup-s.initialization+std::max(s.flow-s.dram,0.),
-          fraction*tile_stream*Coefficient(s.key,(g.preissue_late || payload.Overlaps(previous))?
-              "tail_efficiency":"preissue_efficiency")+
-          double(g.prefetch_l2_bytes)/bw*Coefficient(s.key,"l2_efficiency"));
+      s.overlap_limit=s.startup-s.initialization+std::max(s.flow-s.dram,0.);
+      (g.preissue_late || payload.Overlaps(previous)?s.late_service:s.preissue_service)=
+          fraction*tile_stream;
+      s.l2_service=double(g.prefetch_l2_bytes)/bw;
       s.issue=((g.preissue_smem_bytes>0)+(g.prefetch_l2_bytes>0))*
           Coefficient(s.key,"issue_ns");
     }else {
@@ -239,12 +239,15 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
       auto const& prev=c.gemms[0];
       auto previous=backend::Sm90DenseLayout::Gemm(prev.tile_n,prev.TileK(),prev.slots,
           prev.warps_k).Live(prev.workspace_offset);
-      s.overlap=std::min(std::max(s.flow-s.dram,0.),s.flow*fraction*
-          Coefficient(s.key,(a.preissue_late || payload.Overlaps(previous))?"tail_efficiency":"preissue_efficiency")+
-          double(a.prefetch_l2_bytes)/global_bw*std::min(grid,s.tasks)*
-              Coefficient(s.key,"l2_efficiency"));
+      s.overlap_limit=std::max(s.flow-s.dram,0.);
+      (a.preissue_late || payload.Overlaps(previous)?s.late_service:s.preissue_service)=s.flow*fraction;
+      s.l2_service=double(a.prefetch_l2_bytes)/global_bw*std::min(grid,s.tasks);
       s.issue=((a.preissue_smem_bytes>0)+(a.prefetch_l2_bytes>0))*Coefficient(s.key,"issue_ns");
     }
+    s.overlap=std::min(s.overlap_limit,
+        s.preissue_service*Coefficient(s.key,"preissue_efficiency")+
+        s.late_service*Coefficient(s.key,"tail_efficiency")+
+        s.l2_service*Coefficient(s.key,"l2_efficiency"));
     s.ns=barrier+s.startup+std::max(s.flow,s.compute)+s.epilogue-s.overlap;
     result.stages.push_back(std::move(s));
   }
@@ -280,7 +283,8 @@ Sm90DensePrediction Sm90DenseCostModel::Request(Sm90DenseWorkload const& w,
       result=sample;result.step_ns=0;
       for(auto& s:result.stages)
         s.ns=s.barrier=s.startup=s.initialization=s.dram=s.stream=s.flow=
-            s.activation=s.compute=s.epilogue=s.overlap=s.issue=0;
+            s.activation=s.compute=s.epilogue=s.overlap=s.issue=
+            s.overlap_limit=s.preissue_service=s.late_service=s.l2_service=0;
     }
     for(unsigned j=0;j<sample.stages.size();++j) {
       auto& out=result.stages[j];auto const& in=sample.stages[j];
@@ -293,6 +297,10 @@ Sm90DensePrediction Sm90DenseCostModel::Request(Sm90DenseWorkload const& w,
       out.compute+=in.compute/intervals;out.epilogue+=in.epilogue/intervals;
       out.overlap+=in.overlap/intervals;
       out.issue+=in.issue/intervals;
+      out.overlap_limit+=in.overlap_limit/intervals;
+      out.preissue_service+=in.preissue_service/intervals;
+      out.late_service+=in.late_service/intervals;
+      out.l2_service+=in.l2_service/intervals;
     }
     result.step_ns+=sample.step_ns/intervals;
   }
@@ -308,7 +316,9 @@ json::Value Sm90DensePrediction::ToJson() const {
       {"stream_ns",s.stream},
       {"activation_ns",s.activation},
       {"compute_ns",s.compute},{"epilogue_ns",s.epilogue},{"overlap_ns",s.overlap},
-      {"issue_ns",s.issue}});
+      {"issue_ns",s.issue},{"overlap_limit_ns",s.overlap_limit},
+      {"preissue_service_ns",s.preissue_service},{"late_service_ns",s.late_service},
+      {"l2_service_ns",s.l2_service}});
   return json::Object{{"step_ns",step_ns},{"evidence","inferred prediction from native calibration"},
       {"stages",values}};
 }
