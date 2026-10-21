@@ -214,10 +214,13 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
         previous=backend::Sm90DenseLayout::Gemm(prev.tile_n,prev.TileK(),prev.slots,
             prev.warps_k).Live(prev.workspace_offset);
       }
-      s.overlap_limit=s.startup-s.initialization+std::max(s.flow-s.dram,0.);
+      // Incoming data can move DRAM service into the preceding stage, but
+      // cannot remove this stage's MMA chain or inactive-row initialization.
+      s.overlap_limit=s.startup-s.initialization+std::max(s.flow-s.compute,0.);
       (g.preissue_late || payload.Overlaps(previous)?s.late_service:s.preissue_service)=
           fraction*tile_stream;
-      s.l2_service=double(g.prefetch_l2_bytes)/bw;
+      s.l2_service=std::min(double(g.prefetch_l2_bytes),
+          2.*g.tile_n*k-g.preissue_smem_bytes)/bw;
       s.issue=((g.preissue_smem_bytes>0)+(g.prefetch_l2_bytes>0))*
           Coefficient(s.key,"issue_ns");
     }else {
@@ -241,7 +244,9 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
           prev.warps_k).Live(prev.workspace_offset);
       s.overlap_limit=std::max(s.flow-s.dram,0.);
       (a.preissue_late || payload.Overlaps(previous)?s.late_service:s.preissue_service)=s.flow*fraction;
-      s.l2_service=double(a.prefetch_l2_bytes)/global_bw*std::min(grid,s.tasks);
+      double history_bytes=4.*past*w.head_dim/a.chunks;
+      s.l2_service=std::min(double(a.prefetch_l2_bytes),
+          std::max(0.,history_bytes-a.preissue_smem_bytes))/global_bw*std::min(grid,s.tasks);
       s.issue=((a.preissue_smem_bytes>0)+(a.prefetch_l2_bytes>0))*Coefficient(s.key,"issue_ns");
     }
     s.overlap=std::min(s.overlap_limit,

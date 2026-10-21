@@ -117,6 +117,16 @@ int main() {
   prefetch=c;prefetch.attention.prefetch_l2_bytes=16384;
   auto attention_issue=issue_model.Request(w,prefetch);
   assert(attention_issue.stages[0].issue==20 && attention_issue.stages[1].issue==0);
+  auto prefetched=c;prefetched.gemms[0].prefetch_l2_bytes=2*c.gemms[0].tile_n*w.shapes[0][1];
+  auto clipped=model.Predict(w,prefetched);
+  prefetched.gemms[0].prefetch_l2_bytes*=4;
+  assert(model.Predict(w,prefetched).step_ns==clipped.step_ns);
+  for(auto const& s:clipped.stages)if(s.key.rfind("gemm_",0)==0)
+    assert(s.ns+1e-6>=s.barrier+s.initialization+s.compute+s.epilogue+s.issue);
+  prefetched=c;prefetched.attention.prefetch_l2_bytes=4*575*w.head_dim;
+  auto kv_clipped=model.Predict(w,prefetched);
+  prefetched.attention.prefetch_l2_bytes*=4;
+  assert(model.Predict(w,prefetched).step_ns==kv_clipped.step_ns);
   auto residual_dn=Fixture();auto epi_rows=residual_dn.At("observations").AsArray("observations");
   for(auto& row:epi_rows)
     if(row.At("metric").AsString("metric")=="epilogue_residual_return" &&
