@@ -10,6 +10,7 @@ import csv
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 
 import numpy as np
@@ -30,7 +31,11 @@ def main():
     if not a.out.is_relative_to(ROOT / 'runs/sm90r2') or a.out.exists():
         raise ValueError('retain initial-fit evidence in a new runs/sm90r2 directory')
     a.out.mkdir(parents=True)
+    probe = a.out / 'price-probe'
+    shutil.copy2(a.probe.resolve(), probe)
     values = [read(f) for f in a.components]
+    if any(value.get('usable_for_calibration') is False for value in values):
+        raise ValueError('a component input is explicitly excluded from calibration')
     observations = [row for value in values for row in value['observations']]
     if any(r['metric'] == 'native_ldmatrix_mma_k16' and not r.get('production_compatible')
            for r in observations):
@@ -94,7 +99,7 @@ def main():
             queries=config['num_attention_heads']//config['num_key_value_heads'],qk_norm=config['model_type']=='qwen3')
         stem=a.out/f'{model}-B{batch}';write(Path(str(stem)+'.workload.json'),work)
         coord=Path(str(stem)+'.tmexec.json');write(coord,coordinates)
-        command=[str(a.probe.resolve()),str(initial),str(stem)+'.workload.json',str(coord)]
+        command=[str(probe),str(initial),str(stem)+'.workload.json',str(coord)]
         raw=json.loads(subprocess.check_output(command,env=env,text=True))
         write(Path(str(stem)+'.features.json'),raw);workloads.append((model,batch,stem))
         measured={r['kind']:r for r in ledger if r['model']==model and int(r['batch'])==batch}
@@ -143,10 +148,11 @@ def main():
     with (a.out/'training.csv').open('w') as f:
         writer=csv.DictWriter(f,fieldnames=list(training[0]));writer.writeheader();writer.writerows(training)
     write(a.out/'fit-receipt.json',dict(stage='initial calibration, not E-3 validation',
-        ledger_sha256=sha(a.ledger),overhead_sha256=sha(a.overhead),probe_sha256=sha(a.probe),
+        ledger_sha256=sha(a.ledger),overhead_sha256=sha(a.overhead),probe_sha256=sha(probe),
+        probe_snapshot=str(probe),
         fitter_sha256=sha(__file__),target_sha256=sha(a.out/'target.json'),source_target_sha256=sha(a.target)))
     for model,batch,stem in workloads:
-        command=[str(a.probe.resolve()),str(a.out/'target.json'),str(stem)+'.workload.json',str(stem)+'.tmexec.json']
+        command=[str(probe),str(a.out/'target.json'),str(stem)+'.workload.json',str(stem)+'.tmexec.json']
         raw=json.loads(subprocess.check_output(command,env=env,text=True));write(Path(str(stem)+'.fitted.json'),raw)
     print(json.dumps(dict(training_stages=len(training),bodies=len(fits),fit_status=cal['fit_status'])))
 
