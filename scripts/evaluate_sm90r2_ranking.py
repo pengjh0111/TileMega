@@ -54,6 +54,8 @@ def main():
             raise ValueError('blank repeat pairs must bracket the ranking session')
     states = [(path, read(path)) for path in a.states]
     rows, seen, devices, missing = [], set(), set(), []
+    training_receipts = set(calibration.get('paired_training_receipts_sha256', []))
+    reused_training = set()
     for binary in a.candidate:
         binary = binary.resolve()
         identity = read(str(binary) + '.identity.json')
@@ -81,6 +83,8 @@ def main():
                     or r['paired_guard'] != 'True'):
                 raise ValueError('ranking row lacks an accepted complete pair')
             receipt = str(Path(r['candidate_run']).parent / 'paired.json')
+            if sha(receipt) in training_receipts:
+                reused_training.add(receipt)
             if receipt in receipts:
                 raise ValueError('duplicate paired measurement')
             receipts.append(receipt)
@@ -169,9 +173,11 @@ def main():
     result = dict(model=config['model'], batch=config['batch'], candidates=rows, missing=missing,
         programs=programs, distinct_programs=len(programs), prediction_alias_inconsistencies=aliases,
         pair_prefix=a.pair_prefix,retrospective=a.pair_prefix is None,
+        reused_training_receipts=sorted(reused_training),
         blank_pairs=len(blanks),blank_process_range_pct=blank_range,
         complete=complete, kendall_tau=tau, top3_contains_fastest=top3_contains_fastest,
-        ranking_pass=bool(a.pair_prefix) and complete and not aliases and tau is not None and tau >= .7 and top3_contains_fastest,
+        ranking_pass=bool(a.pair_prefix) and complete and not aliases and not reused_training
+            and tau is not None and tau >= .7 and top3_contains_fastest,
         class_validation='not evaluated', solver_gate_pass=False,
         target_sha256=sha(a.target), pairs_sha256=sha(a.pairs),
         probe_sha256=sha(a.probe), script_sha256=sha(__file__), gpu_uuids=sorted(devices))

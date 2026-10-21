@@ -73,6 +73,7 @@ def main():
             control_index=tags.index(source['baseline_tag']), kind=source['kind']))
 
     inputs = [('stage-input', work, coords)]
+    training_receipts = set()
     for number, path in enumerate(a.ranking):
         ranking = read(path)
         if (ranking['retrospective'] or not ranking['pair_prefix'] or
@@ -98,6 +99,7 @@ def main():
                 guard = read(Path(pair_path).parents[1] / 'guard_result.json')
                 if pair['status'] != 'completed' or guard['code'] or pair['baseline_tag'] != 'B15Z':
                     raise ValueError('request pair is incomplete or has a different control')
+                training_receipts.add(sha(pair_path))
             plans.append(read(str(binary) + '.plan.json'))
         baseline = next(i for i, row in enumerate(artifacts) if row['tag'] == 'B15Z')
         hf = read(ROOT / f"configs/serving/sm90d1/inputs/{ranking['model']}/config.json")
@@ -154,6 +156,7 @@ def main():
             stage_rows=sum(r['source']=='stage' and any(t['key']==key for t in r['terms']) for r in rows),
             request_rows=sum(r['source']=='request' and any(t['key']==key for t in r['terms']) for r in rows))
     cal['fit_status'] = 'initial_overlap_fitted'
+    cal['paired_training_receipts_sha256'] = sorted(training_receipts)
     cal['pending'] = ['fresh independent E-3 class/step/ranking validation after this refit',
                       'unmeasured issuer and L2-overlap classes', 'E-4 measured selection']
     output = a.out / 'target.json'; write(output, target)
