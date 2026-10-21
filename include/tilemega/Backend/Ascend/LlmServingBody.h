@@ -2,6 +2,7 @@
 #pragma once
 #include <tilemega/Backend/Ascend/LlmVectorBody.h>
 #include <tilemega/Target/Ascend/LlmPlanABI.h>
+#include <tilemega/Backend/Ascend/LlmAttentionShape.h>
 
 namespace tilemega::ascend {
 template<unsigned TM=32,unsigned TN=64> class LlmServingBody {
@@ -52,6 +53,85 @@ template<unsigned TM=32,unsigned TN=64> class LlmServingBody {
     Acquire(scratch);return vector_.SumServingPV(scratch+partial,output,count,d);
   }
  public:
+  __aicore__ inline bool AttentionPrepare(llm::Stage const& s,unsigned tile,GM_ADDR arena,
+      GM_ADDR scratch,llm::Metadata const& m,unsigned past,unsigned owner_group) {
+    LlmAttentionShape h;
+    if(owner_group>=m.groups || !DescribeLlmAttention(s,tile,m,past,h))return false;
+    Operands p{arena,s};auto work=LlmAttentionWork(arena,s,owner_group);
+    unsigned d=h.width;uint64_t packed=uint64_t(s.extent)*(s.group+2)*d;
+    GM_ADDR keys=nullptr;
+    GM_ADDR values=nullptr;
+    if(m.seq==64) {
+      keys=scratch+32768;values=scratch+65536;
+      for(unsigned pos=0;pos<64;++pos) {
+        auto source=p(0)+((uint64_t(h.batch)*64+pos)*packed+uint64_t(h.kv_group)*(s.group+2)*d)*2;
+        if(!Rotate(source+s.group*d*2,p(6),p(3)+uint64_t(pos)*d*2,p(4)+uint64_t(pos)*d*2,
+            keys+uint64_t(pos)*d*2,scratch+512,d,s.epsilon) ||
+            !vector_.Copy(source+(s.group+1)*d*2,values+uint64_t(pos)*d*2,d))return false;
+        if(pos>=h.first_position && pos<h.first_position+h.positions) {
+          auto offset=((uint64_t(h.batch)*s.extent+h.kv_group)*m.capacity+pos)*d*2;
+          if(!vector_.Copy(keys+uint64_t(pos)*d*2,p(1)+offset,d) ||
+              !vector_.Copy(values+uint64_t(pos)*d*2,p(2)+offset,d))return false;
+        }
+      }
+    }else {
+      auto source=p(0)+(uint64_t(h.batch)*packed+uint64_t(h.kv_group)*(s.group+2)*d)*2;
+      keys=p(1)+(uint64_t(h.batch)*s.extent+h.kv_group)*m.capacity*d*2;
+      values=p(2)+(uint64_t(h.batch)*s.extent+h.kv_group)*m.capacity*d*2;
+      if(!Rotate(source+s.group*d*2,p(6),p(3)+uint64_t(past)*d*2,p(4)+uint64_t(past)*d*2,
+          keys+uint64_t(past)*d*2,scratch+512,d,s.epsilon) ||
+          !vector_.Copy(source+(s.group+1)*d*2,values+uint64_t(past)*d*2,d))return false;
+    }
+    Acquire(scratch);
+    const float root=d==128?0.29730177875068026f:0.3535533905932738f;
+    unsigned valid=h.valid_keys*d,total=h.keys*d;
+    for(unsigned first=0;first<valid;first+=4096) {
+      unsigned n=valid-first<4096?valid-first:4096;
+      if(!vector_.Bf16ToFloat(keys+uint64_t(first)*2,work+llm::attention::kK+uint64_t(first)*4,n,root) ||
+          !vector_.Bf16ToFloat(values+uint64_t(first)*2,work+llm::attention::kV+uint64_t(first)*4,n))return false;
+    }
+    // Decode never reads invalid public KV. Its physical FP32 matmul tail is
+    // explicitly zeroed before use, including workspace recycled from prefill.
+    for(unsigned first=valid;first<total;first+=4096) {
+      unsigned n=total-first<4096?total-first:4096;
+      if(!vector_.ZeroFloat(work+llm::attention::kK+uint64_t(first)*4,n) ||
+          !vector_.ZeroFloat(work+llm::attention::kV+uint64_t(first)*4,n))return false;
+    }
+    for(unsigned row=0;row<h.rows;++row) {
+      unsigned pos=h.first_position+row/s.group,q=row%s.group;
+      auto source=p(0)+((uint64_t(h.batch)*m.seq+(m.seq==64?pos:0))*packed+
+        uint64_t(h.kv_group)*(s.group+2)*d+q*d)*2;
+      if(!Rotate(source,p(5),p(3)+uint64_t(pos)*d*2,p(4)+uint64_t(pos)*d*2,scratch,scratch+512,d,s.epsilon))return false;
+      Acquire(scratch);
+      if(!vector_.Bf16ToFloat(scratch,work+llm::attention::kQ+uint64_t(row)*d*4,d,root))return false;
+    }
+    return true;
+  }
+  __aicore__ inline bool AttentionSoftmax(llm::Stage const& s,unsigned tile,GM_ADDR arena,
+      llm::Metadata const& m,unsigned past,unsigned owner_group) {
+    LlmAttentionShape h;
+    if(owner_group>=m.groups || !DescribeLlmAttention(s,tile,m,past,h))return false;
+    auto work=LlmAttentionWork(arena,s,owner_group);
+    for(unsigned row=0;row<h.rows;++row) {
+      unsigned valid=m.seq==64?h.first_position+row/s.group+1:past+1;
+      if(!vector_.ServingSoftmax(work+llm::attention::kScores+uint64_t(row)*h.keys*4,
+          work+llm::attention::kProbabilities+uint64_t(row)*h.keys*4,valid,true,m.capacity,h.keys,true))return false;
+    }
+    return true;
+  }
+  __aicore__ inline bool AttentionFinish(llm::Stage const& s,unsigned tile,GM_ADDR arena,
+      llm::Metadata const& m,unsigned past,unsigned owner_group) {
+    LlmAttentionShape h;
+    if(owner_group>=m.groups || !DescribeLlmAttention(s,tile,m,past,h))return false;
+    auto work=LlmAttentionWork(arena,s,owner_group);Operands p{arena,s};
+    unsigned width=s.group*h.width;
+    for(unsigned i=0;i<h.positions;++i) {
+      uint64_t position=uint64_t(h.batch)*m.seq+(m.seq==64?h.first_position+i:0);
+      auto output=p(7)+(position*s.extent+h.kv_group)*width*2;
+      if(!vector_.FloatToBf16(work+llm::attention::kOutput+uint64_t(i)*width*4,output,width))return false;
+    }
+    return true;
+  }
   __aicore__ inline bool Epilogue(llm::Stage const& s,unsigned tile,GM_ADDR arena) {
     unsigned nt=(s.columns+TN-1)/TN,first=(tile%nt)*TN,rows=tile/nt*TM;
     for(unsigned r=rows;r<rows+TM && r<s.rows;++r) {

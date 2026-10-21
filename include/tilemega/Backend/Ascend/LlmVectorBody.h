@@ -37,6 +37,29 @@ class LlmVectorBody {
     if(!n || n>kElements)return false;
     Load(bo_,input,n);CompleteDma<AscendC::HardEvent::MTE2_MTE3>();Store(output,n);return true;
   }
+  __aicore__ inline bool Bf16ToFloat(GM_ADDR input,GM_ADDR output,unsigned n,float scale=1.0f) {
+    if(!n || n>kElements)return false;
+    Load(bx_,input,n);CompleteDma<AscendC::HardEvent::MTE2_V>();
+    AscendC::Cast(x_,bx_,AscendC::RoundMode::CAST_NONE,n);AscendC::PipeBarrier<PIPE_V>();
+    if(scale!=1.0f){AscendC::Muls(x_,x_,scale,n);AscendC::PipeBarrier<PIPE_V>();}
+    CompleteDma<AscendC::HardEvent::V_MTE3>();AscendC::GlobalTensor<float> dst;
+    dst.SetGlobalBuffer((__gm__ float*)output);AscendC::DataCopyExtParams copy{1,n*4,0,0,0};
+    AscendC::DataCopyPad(dst,x_,copy);CompleteDma<AscendC::HardEvent::MTE3_S>();return true;
+  }
+  __aicore__ inline bool FloatToBf16(GM_ADDR input,GM_ADDR output,unsigned n) {
+    if(!n || n>kElements)return false;
+    AscendC::GlobalTensor<float> src;src.SetGlobalBuffer((__gm__ float*)input);
+    AscendC::DataCopyExtParams copy{1,n*4,0,0,0};AscendC::DataCopyPadExtParams<float> pad(false,0,0,0);
+    AscendC::DataCopyPad(x_,src,copy,pad);CompleteDma<AscendC::HardEvent::MTE2_V>();
+    AscendC::Cast(bo_,x_,AscendC::RoundMode::CAST_RINT,n);Store(output,n);return true;
+  }
+  __aicore__ inline bool ZeroFloat(GM_ADDR output,unsigned n) {
+    if(!n || n>kElements)return false;
+    AscendC::Duplicate(x_,0.0f,n);CompleteDma<AscendC::HardEvent::V_MTE3>();
+    AscendC::GlobalTensor<float> dst;dst.SetGlobalBuffer((__gm__ float*)output);
+    AscendC::DataCopyExtParams copy{1,n*4,0,0,0};AscendC::DataCopyPad(dst,x_,copy);
+    CompleteDma<AscendC::HardEvent::MTE3_S>();return true;
+  }
   __aicore__ inline bool ServingScores(GM_ADDR query,GM_ADDR key,GM_ADDR scores,
       unsigned keys,unsigned d,float scale,bool bf16_scores=true,bool split_scale=false) {
     if(!keys || keys>32 || (d!=64 && d!=128))return false;

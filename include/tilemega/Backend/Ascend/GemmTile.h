@@ -27,9 +27,17 @@ template<class Input, class Output, unsigned TM=32, unsigned TN=64,
   Catlass::Arch::Resource<Arch> resource_;
   Mmad mm_;
  public:
+  using SharedResource = Catlass::Arch::Resource<Arch>;
+  using TileMmad = Mmad;
   __aicore__ inline GemmTile() : mm_(resource_) {}
   __aicore__ inline void RunTask(GM_ADDR a, GM_ADDR b, GM_ADDR c, unsigned m, unsigned n,
                                  unsigned k, unsigned tile_m, unsigned tile_n) {
+    RunBorrowed(mm_,a,b,c,m,n,k,tile_m,tile_n);
+  }
+  // The caller must keep exactly one borrowed MMAD alive in this resource.
+  // Its destructor drains internal flags before another dtype reuses the banks.
+  __aicore__ static inline void RunBorrowed(TileMmad& mm,GM_ADDR a,GM_ADDR b,GM_ADDR c,
+      unsigned m,unsigned n,unsigned k,unsigned tile_m,unsigned tile_n) {
     AscendC::GlobalTensor<Input> ga, gb;
     AscendC::GlobalTensor<Output> gc;
     ga.SetGlobalBuffer((__gm__ Input*)a); gb.SetGlobalBuffer((__gm__ Input*)b);
@@ -42,7 +50,7 @@ template<class Input, class Output, unsigned TM=32, unsigned TN=64,
     auto ba = tla::GetTile(ta, tla::MakeCoord(row, 0u), tla::MakeShape(rm, k));
     auto bb = tla::GetTile(tb, tla::MakeCoord(0u, col), tla::MakeShape(k, rn));
     auto bc = tla::GetTile(tc, tla::MakeCoord(row, col), tla::MakeShape(rm, rn));
-    mm_(ba, bb, bc, Catlass::GemmCoord(rm, rn, k));
+    mm(ba, bb, bc, Catlass::GemmCoord(rm, rn, k));
   }
 };
 } // namespace tilemega::ascend

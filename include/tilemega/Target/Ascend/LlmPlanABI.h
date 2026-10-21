@@ -5,8 +5,20 @@
 #include <type_traits>
 
 namespace tilemega::ascend::llm {
-inline constexpr uint32_t kVersion=3;
+inline constexpr uint32_t kVersion=4;
 inline constexpr uint64_t kAbsent=~uint64_t(0);
+namespace attention {
+inline constexpr uint64_t kGroupBytes=2ULL<<20;
+inline constexpr uint64_t kQ=0,kK=65536,kV=622592,kScores=1179648;
+inline constexpr uint64_t kProbabilities=1474560,kOutput=1769472;
+inline constexpr uint32_t kMaxRows=64,kMaxWidth=128,kCapacity=1088;
+static_assert(kQ+uint64_t(kMaxRows)*kMaxWidth*4<=kK);
+static_assert(kK+uint64_t(kCapacity)*kMaxWidth*4<=kV);
+static_assert(kV+uint64_t(kCapacity)*kMaxWidth*4<=kScores);
+static_assert(kScores+uint64_t(kMaxRows)*kCapacity*4<=kProbabilities);
+static_assert(kProbabilities+uint64_t(kMaxRows)*kCapacity*4<=kOutput);
+static_assert(kOutput+uint64_t(kMaxRows)*kMaxWidth*4<=kGroupBytes);
+}
 struct Metadata {
   uint32_t version,groups,workers,tasks,stages,waits,queue_refs,epoch_stride;
   uint32_t batch,seq,capacity,diagnostic;
@@ -20,7 +32,7 @@ struct Stage {
   uint32_t kv_block,query_rows,row_stride,row_offset,batch_rows,variant;
   // GEMM variants: 0=32x64x64, 1=16x128x128. Attention variants:
   // 0=BF16 scores/probabilities, 1=FP32 chunks, 2=FP32 scores/BF16 probabilities,
-  // 3=math SDPA split scale, capacity softmax and FP32 probabilities (ABI v3).
+  // 3=math SDPA split scale/capacity softmax; 4=cooperative full-FP32 Cube.
   float epsilon;
 };
 struct Task {
