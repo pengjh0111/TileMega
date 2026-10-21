@@ -63,7 +63,8 @@ def main():
         for state_path,state in states:
             for job,record in state.items():
                 path = Path(record.get('out') or '/nonexistent') / 'job/selected-config.json'
-                if record['status'] != 'done' or not path.exists():
+                if (record['status'] != 'done' or not path.exists()
+                        or not (path.parent / 'measurements/c1.json').exists()):
                     continue
                 check = read(path)
                 if check['stage'] == 'correctness' and check['decode_sha256'] == digest:
