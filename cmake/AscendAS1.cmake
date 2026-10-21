@@ -51,6 +51,7 @@ mlir_tablegen(include/tilemega/Dialect/CouplingGraph/ExecOps.cpp.inc
 add_public_tablegen_target(TileMegaCGIncGen)
 
 add_library(tilemega_core STATIC
+  lib/Solver/AscendSchedule.cpp
   lib/Solver/AscendPlan.cpp
   lib/Codegen/Ascend/AscendCodegen.cpp
   lib/Codegen/Ascend/AscendGraphCodegen.cpp
@@ -193,6 +194,13 @@ target_link_libraries(as1_compile_model PRIVATE tilemega_core)
 add_executable(as2_compile_llm EXCLUDE_FROM_ALL tools/as2_compile_llm.cpp)
 target_compile_definitions(as2_compile_llm PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(as2_compile_llm PRIVATE tilemega_core)
+add_executable(as2_rank_gemm EXCLUDE_FROM_ALL tools/as2_rank_gemm.cpp)
+target_compile_definitions(as2_rank_gemm PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(as2_rank_gemm PRIVATE tilemega_core)
+add_executable(as2_schedule_contracts EXCLUDE_FROM_ALL test/unit/ascend_schedule_test.cpp)
+target_compile_options(as2_schedule_contracts PRIVATE -UNDEBUG)
+target_compile_definitions(as2_schedule_contracts PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(as2_schedule_contracts PRIVATE tilemega_core)
 add_executable(as1_target_contracts EXCLUDE_FROM_ALL test/unit/ascend_target_test.cpp)
 target_compile_definitions(as1_target_contracts PRIVATE TILEMEGA_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 target_compile_options(as1_target_contracts PRIVATE -UNDEBUG)

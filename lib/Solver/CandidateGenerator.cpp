@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <tuple>
 #include <utility>
+#include <cmath>
+#include <set>
 
 namespace tilemega::solver {
 namespace {
@@ -26,8 +28,29 @@ CandidateGenerator::CandidateGenerator(TargetSpec target, ScalarType dtype,
                                        Envelope envelope)
     : target_(std::move(target)), envelope_(envelope), dtype_(dtype) {}
 
+void CandidateGenerator::SetAscendDomain(std::vector<BackendCandidate> candidates,
+    std::shared_ptr<AscendGemmPriceProvider const> prices) {
+  if(target_.arch_tag!="ascend_3510" || dtype_!=ScalarType::kBF16 || !prices ||
+      candidates.empty() || candidates.size()>8)
+    throw std::invalid_argument("Native candidate ranking requires a finite BF16 domain and native prices");
+  std::set<std::string> ids;
+  for(auto const& candidate:candidates) {
+    if(!candidate.isLegal(target_) || !candidate.traits().ascend_implementation ||
+        !ids.insert(candidate.traits().ascend_implementation->impl_id).second)
+      throw std::invalid_argument("Illegal or duplicate native implementation");
+  }
+  ascend_candidates_=std::move(candidates);ascend_prices_=std::move(prices);
+}
+
 std::vector<BackendCandidate> CandidateGenerator::Enumerate(Stats* stats) const {
   if(target_.arch_tag=="ascend_3510") {
+    if(ascend_prices_) {
+      if(stats)*stats={int(ascend_candidates_.size()),0,0,int(ascend_candidates_.size()),int(ascend_candidates_.size())};
+      return ascend_candidates_;
+    }
+    if(!target_.ascend_config_json.empty() &&
+        json::Parse(target_.ascend_config_json).At("selection").AsString("selection")!="fixed_legal_whitelist")
+      throw std::invalid_argument("The native empirical target requires its explicit price provider");
     if(dtype_!=ScalarType::kBF16)throw std::invalid_argument("AS-1 fixed GEMM candidates require BF16");
     BackendCandidate candidate(As1Bf16GemmTraits());
     auto config=json::ParseFile(std::string(TILEMEGA_SOURCE_DIR)+"/configs/ascend/as1_impl_bindings.json");
@@ -132,7 +155,25 @@ std::vector<BackendCandidate> CandidateGenerator::Enumerate(Stats* stats) const 
 
 AnalyticalCost CandidateGenerator::Analyze(BackendCandidate const& candidate,
                                            GemmProblem const& problem) const {
-  if(target_.arch_tag=="ascend_3510")throw std::invalid_argument("AS-1 performance ranking is not calibrated");
+  if(target_.arch_tag=="ascend_3510") {
+    if(!ascend_prices_)throw std::invalid_argument("Native performance ranking requires an explicit price provider");
+    if(!candidate.isLegal(target_) || problem.m<=0 || problem.n<=0 || problem.k<=0)
+      throw std::invalid_argument("Illegal native candidate or GEMM shape");
+    const auto id=candidate.traits().ascend_implementation->impl_id;
+    if(std::none_of(ascend_candidates_.begin(),ascend_candidates_.end(),[&](auto const& c) {
+        auto const& a=c.traits();auto const& b=candidate.traits();
+        return a.ascend_implementation->impl_id==id && a.tile_m==b.tile_m &&
+            a.tile_n==b.tile_n && a.tile_k==b.tile_k && a.stages==b.stages;}))
+      throw std::invalid_argument("Candidate lies outside the selected native implementation domain");
+    auto estimate=ascend_prices_->Estimate(candidate,problem);
+    if(!std::isfinite(estimate.service_makespan_ns) || estimate.service_makespan_ns<=0 ||
+        estimate.provenance.empty() || estimate.groups<1 ||
+        estimate.groups>target_.ascend_capability->max_verified_mix_groups)
+      throw std::invalid_argument("Missing/invalid native service-time estimate");
+    AnalyticalCost result;result.ascend=estimate;
+    result.ctas=CeilDiv(problem.m,candidate.traits().tile_m)*CeilDiv(problem.n,candidate.traits().tile_n);
+    result.waves=CeilDiv(result.ctas,estimate.groups);return result;
+  }
   AnalyticalCost cost;
   BackendTraits const& traits = candidate.traits();
   if (!candidate.isLegal(target_) || problem.m <= 0 || problem.n <= 0 ||
@@ -154,14 +195,19 @@ AnalyticalCost CandidateGenerator::Analyze(BackendCandidate const& candidate,
 double CandidateGenerator::RankKey(BackendCandidate const& candidate,
                                    std::vector<GemmProblem> const& problems) const {
   double total = 0;
-  for (auto const& problem : problems) total += Analyze(candidate, problem).cycles;
+  for (auto const& problem : problems) {
+    auto cost=Analyze(candidate,problem);
+    total+=cost.ascend?cost.ascend->service_makespan_ns:cost.cycles;
+  }
   return total;
 }
 
 std::vector<BackendCandidate> CandidateGenerator::TopK(
     std::vector<BackendCandidate> const& candidates,
     std::vector<GemmProblem> const& problems, int k) const {
-  if(target_.arch_tag=="ascend_3510")throw std::invalid_argument("Use the fixed native whitelist without TopK ranking");
+  if(target_.arch_tag=="ascend_3510" && !ascend_prices_)
+    throw std::invalid_argument("Native TopK requires explicit empirical prices");
+  if(k<1 || problems.empty())throw std::invalid_argument("TopK requires a positive count and actual GEMM problems");
   std::vector<std::pair<double, BackendCandidate>> ranked;
   ranked.reserve(candidates.size());
   for (auto const& candidate : candidates)

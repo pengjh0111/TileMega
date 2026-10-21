@@ -18,6 +18,16 @@ inline BackendTraits As1Bf16GemmTraits() {
   t.ascend_implementation=impl;
   return t;
 }
+inline BackendTraits As2Bf16GemmTraits(unsigned implementation) {
+  if(implementation>1)throw std::invalid_argument("Unknown native BF16 GEMM implementation");
+  auto t=As1Bf16GemmTraits();
+  if(implementation){t.tile_m=16;t.tile_n=128;t.tile_k=128;}
+  t.alignment={16,16};
+  auto& impl=*t.ascend_implementation;
+  impl.impl_id=implementation?"as2_catlass_bf16_16x128x128_nk":"as2_catlass_bf16_32x64x64_nk";
+  impl.input_layout="A:ND_MK;B:logical_NK_as_column_major_KN;N,K multiples of 16";
+  return t;
+}
 inline ascend::TaskImplementation As1AivImplementation(codegen::TaskKind kind,TargetSpec const& target) {
   auto config=json::ParseFile(std::string(TILEMEGA_SOURCE_DIR)+"/configs/ascend/as1_impl_bindings.json");
   std::string id;

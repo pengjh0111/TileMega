@@ -70,7 +70,8 @@ struct PlanSkeleton {
   bool costs_calibrated=false;
   std::optional<ascend::WorkerMap> ascend_workers;
   void BindAscendWorkers(ascend::WorkerMap const&,
-                        std::vector<ascend::ImplementationRole> const& roles);
+                        std::vector<ascend::ImplementationRole> const& roles,
+                        bool both_aiv_lanes=false);
   int Home(int stage,int tile) const;
   std::vector<int> Spread(int stage,int tile) const;
   void Spread(int stage,int tile,std::vector<int>& into) const;

@@ -12,6 +12,7 @@
 #include <cmath>
 #include <sstream>
 #include <iomanip>
+#include <limits>
 
 namespace tilemega::solver {
 namespace {
@@ -124,7 +125,12 @@ SymbolicProblem PrepareSymbolicProblem(mlir::ModuleOp module,TargetSpec const& t
   auto projection=prepared_hit ? RegridGraphProjection(cache->prepared->projection,grid,cache->prepared->counts)
       : ProjectRuntimeQueues(symbolic_model,runtime,po);
   std::vector<int> counts,offsets{0};
-  for(auto const& stage:projection.stages){counts.push_back(int(stage.task_count.Eval(model.MetricBindings())));offsets.push_back(offsets.back()+counts.back());}
+  for(auto const& stage:projection.stages) {
+    auto count=stage.task_count.Eval(model.MetricBindings());
+    if(count<0 || count>std::numeric_limits<int>::max()-offsets.back())
+      throw std::overflow_error("Symbolic task domain exceeds the checked 32-bit task index range");
+    counts.push_back(static_cast<int>(count));offsets.push_back(offsets.back()+counts.back());
+  }
   std::optional<analysis::OperatorGraph> semantic_graph;
   semantic_graph=prepared_hit ? cache->semantic_graph : std::optional<analysis::OperatorGraph>(InstantiateModelTasks(model,geometry));
   projection.dependencies=prepared_hit ? cache->prepared->projection.dependencies : ExactRuntimeDependencies(model,*semantic_graph,projection,threads);
@@ -315,16 +321,16 @@ PlanSkeleton BuildPlanSkeleton(SymbolicProblem const& problem,int grid,int resid
   isl_map_free(data_raw);isl_map_free(raw);return result;
 }
 void PlanSkeleton::BindAscendWorkers(ascend::WorkerMap const& map,
-    std::vector<ascend::ImplementationRole> const& roles) {
-  if(residency!=1 || map.launch.residency!=1 || roles.size()!=spaces.size() || costs_calibrated)
-    throw std::invalid_argument("Invalid fixed Ascend skeleton binding");
+    std::vector<ascend::ImplementationRole> const& roles,bool both_aiv_lanes) {
+  if(residency!=1 || map.launch.residency!=1 || roles.size()!=spaces.size())
+    throw std::invalid_argument("Invalid Ascend skeleton binding");
   if(map.launch.mode==ascend::LaunchMode::kMix1_2 && grid!=map.launch.num_groups)
     throw std::invalid_argument("Composite skeleton placement count must equal MIX groups");
   for(std::size_t s=0;s<spaces.size();++s) {
     auto& space=spaces[s];space.ascend_role=roles[s];space.legal_workers.clear();space.width=1;
     for(int worker:map.Domain(roles[s])) {
       auto const& w=map.At(worker);
-      if(map.launch.mode!=ascend::LaunchMode::kMix1_2 ||
+      if(both_aiv_lanes || map.launch.mode!=ascend::LaunchMode::kMix1_2 ||
          w.role==ascend::TrackRole::kAic || w.sub_block_id==0)space.legal_workers.push_back(worker);
     }
     if(space.colocation && (space.colocated_producer<0 || roles.at(space.colocated_producer)!=roles[s]))

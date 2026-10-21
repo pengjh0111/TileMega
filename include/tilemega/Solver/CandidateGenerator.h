@@ -5,6 +5,7 @@
 #include <tilemega/Solver/BackendCostQuery.h>
 
 #include <vector>
+#include <memory>
 
 namespace tilemega::solver {
 
@@ -20,8 +21,18 @@ struct TileCandidate {
 struct GemmProblem {
   int m = 0, n = 0, k = 0;
 };
+struct AscendGemmEstimate {
+  double service_makespan_ns = 0;
+  int groups = 0;
+  std::string provenance;
+};
+class AscendGemmPriceProvider {
+ public:
+  virtual ~AscendGemmPriceProvider() = default;
+  virtual AscendGemmEstimate Estimate(BackendCandidate const&,GemmProblem const&) const = 0;
+};
 
-/// Tier 2: what a candidate costs on this target, in FFMA-issue cycles.
+/// Tier 2: a legacy FFMA estimate or a native Ascend estimate in nanoseconds.
 /// Structural on purpose -- it uses only budgets TargetSpec actually carries,
 /// never an uncalibrated bandwidth or clock (calib.calibrated is false until
 /// P4.4 lands).
@@ -32,6 +43,7 @@ struct AnalyticalCost {
   int k_iters = 0;
   double cta_cycles = 0;  ///< per CTA per K-tile: tile_m * tile_n * tile_k / threads
   double cycles = 0;      ///< waves * k_iters * cta_cycles
+  std::optional<AscendGemmEstimate> ascend;
 };
 
 /// The search envelope, i.e. how far an axis may be doubled before the walk
@@ -65,10 +77,11 @@ class CandidateGenerator {
                      Envelope envelope = Envelope());
 
   std::vector<BackendCandidate> Enumerate(Stats* stats = nullptr) const;
+  void SetAscendDomain(std::vector<BackendCandidate>,std::shared_ptr<AscendGemmPriceProvider const>);
 
   AnalyticalCost Analyze(BackendCandidate const& candidate,
                          GemmProblem const& problem) const;
-  /// Total cycles over one model's GEMM operators; the tier-2 ordering key.
+  /// Total native service nanoseconds (or legacy cycles), never mixed units.
   double RankKey(BackendCandidate const& candidate,
                  std::vector<GemmProblem> const& problems) const;
   /// The `k` cheapest candidates, ties broken towards less shared memory
@@ -82,6 +95,7 @@ class CandidateGenerator {
   TargetSpec const& target() const { return target_; }
   ScalarType dtype() const { return dtype_; }
   char const* backendName() const {
+    if(target_.arch_tag=="ascend_3510")return "catlass.ascend_3510.bf16_f32acc";
     return dtype_ == ScalarType::kBF16 ? kTensorBF16Backend : kSimtF32Backend;
   }
 
@@ -89,6 +103,8 @@ class CandidateGenerator {
   TargetSpec target_;
   Envelope envelope_;
   ScalarType dtype_ = ScalarType::kF32;
+  std::vector<BackendCandidate> ascend_candidates_;
+  std::shared_ptr<AscendGemmPriceProvider const> ascend_prices_;
 };
 
 }  // namespace tilemega::solver

@@ -42,10 +42,13 @@ TargetSpec TargetSpec::FromJson(std::string const& path) {
   t.catlass_sha = root.At("catlass_sha").AsString("catlass_sha");
   t.gm_event_evidence=root.At("evidence").At("gm_event").AsString("gm_event evidence");
   t.max_verified_mix_groups = Integer(root, "max_verified_mix_groups");
+  const auto selection=root.At("selection").AsString("selection");
+  const bool native_provider=selection=="native_empirical_provider" && root.Find("cost_provider_schema") &&
+      root.At("cost_provider_schema").AsString("cost_provider_schema")=="tilemega.ascend.empirical_gemm.v1";
   if (Integer(root, "residency") != 1 ||
       root.At("calibration_status").AsString("calibration_status") != "not_calibrated" ||
-      root.At("selection").AsString("selection") != "fixed_legal_whitelist")
-    throw std::invalid_argument("AS-1 requires residency=1 and fixed uncalibrated selection");
+      (selection!="fixed_legal_whitelist" && !native_provider))
+    throw std::invalid_argument("Require residency=1 and an explicit native selection policy");
   auto const& caps = root.At("capabilities");
   t.aic_only_kernel = caps.At("aic_only_kernel").AsBool("aic_only_kernel");
   t.aiv_only_kernel = caps.At("aiv_only_kernel").AsBool("aiv_only_kernel");
