@@ -15,12 +15,12 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
      (head_dim!=64 && head_dim!=128) || queries<2 || queries>4)return false;
   try {c.Validate(shapes,batch);}catch(std::invalid_argument const&) {return false;}
   auto budget=std::min(target.res.max_dynamic_smem_per_cta,target.res.max_smem_per_sm/c.residency);
-  if(budget<=0 || c.attention.SharedBytes(batch,head_dim,queries,1088)>budget ||
-     (batch>=8 && c.attention.block_keys==16))return false;
+  if(budget<=0 || (batch>=8 && c.attention.block_keys==16))return false;
+  try {c.ValidateSchedule(shapes,batch,head_dim,queries,1088,budget);}
+  catch(std::invalid_argument const&) {return false;}
   for(auto const& g:c.gemms)
-    if(g.SharedBytes()>budget || g.mma!=Sm90DenseMma::kMmaSync ||
-       g.preissue_smem_bytes || g.prefetch_l2_bytes)return false;
-  return !c.attention.preissue_smem_bytes && !c.attention.prefetch_l2_bytes;
+    if(g.mma!=Sm90DenseMma::kMmaSync)return false;
+  return true;
 }
 std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::Seeds() const {
   std::vector<Sm90DenseCoordinates> result;
@@ -30,10 +30,51 @@ std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::Seeds() const {
     try {
       auto exact=Sm90DenseCoordinates::Exact(shapes,batch,budget);exact.residency=residency;
       for(;exact.attention.chunks<=64;exact.attention.chunks*=2)
-        if(Legal(exact)) {result.push_back(exact);break;}
+        if(Legal(exact)) {
+          result.push_back(exact);
+          result.push_back(MaxPreissue(exact,false));
+          result.push_back(MaxPreissue(exact,true));
+          break;
+        }
     }catch(std::invalid_argument const&) {}
   }
   return result;
+}
+Sm90DenseCoordinates Sm90DenseSearchSpace::MaxPreissue(
+    Sm90DenseCoordinates const& base,bool l2) const {
+  if(!Legal(base))throw std::invalid_argument("illegal native preissue seed");
+  auto c=base;
+  for(auto& g:c.gemms) {g.workspace_offset=0;g.preissue_smem_bytes=0;g.prefetch_l2_bytes=0;}
+  c.attention.workspace_offset=0;c.attention.preissue_smem_bytes=0;c.attention.prefetch_l2_bytes=0;
+  auto budget=std::min(target.res.max_dynamic_smem_per_cta,target.res.max_smem_per_sm/c.residency);
+  auto& down=c.gemms[3];int offset=int(budget/2/1024)*1024;
+  if(offset+down.SharedBytes()<=budget)down.workspace_offset=offset;
+  auto maximize=[&](unsigned family,int maximum,int quantum) {
+    int lower=0,upper=maximum/quantum;
+    while(lower<upper) {
+      int middle=(lower+upper+1)/2;auto candidate=c;
+      if(family<5)candidate.gemms[family].preissue_smem_bytes=middle*quantum;
+      else candidate.attention.preissue_smem_bytes=middle*quantum;
+      if(Legal(candidate))lower=middle;else upper=middle-1;
+    }
+    if(family<5)c.gemms[family].preissue_smem_bytes=lower*quantum;
+    else c.attention.preissue_smem_bytes=lower*quantum;
+  };
+  for(unsigned i=0;i<5;++i) {
+    auto const& g=c.gemms[i];
+    maximize(i,std::min(g.slots,shapes[i][1]/g.TileK())*g.slot_bytes,16);
+  }
+  int rows=batch<=4?backend::Sm90DenseLayout::AttentionKeys(
+      c.attention.chunks,c.attention.new_row_work,1088):c.attention.slots*c.attention.block_keys;
+  maximize(5,4*head_dim*rows,4*head_dim);
+  if(l2) {
+    int bytes=int(std::min<std::int64_t>(512*1024,
+        target.res.l2_bytes/(2*target.res.num_sms*c.residency)))/32*32;
+    for(auto& g:c.gemms)g.prefetch_l2_bytes=bytes;
+    c.attention.prefetch_l2_bytes=bytes;
+  }
+  if(!Legal(c))throw std::invalid_argument("native preissue seed violates liveness");
+  return c;
 }
 std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::Neighbours(Sm90DenseCoordinates const& center) const {
   if(!Legal(center))throw std::invalid_argument("native search center is illegal");
@@ -61,6 +102,18 @@ std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::Neighbours(Sm90DenseCoor
     for(int depth:{1,2,4}) {
       auto candidate=center;candidate.gemms[family].register_stages=depth;add(std::move(candidate));
     }
+    auto budget=std::min(target.res.max_dynamic_smem_per_cta,
+                         target.res.max_smem_per_sm/center.residency);
+    for(int offset:{0,int(budget/2/1024)*1024,int((budget-g.SharedBytes()+g.workspace_offset)/1024)*1024}) {
+      auto candidate=center;candidate.gemms[family].workspace_offset=offset;add(std::move(candidate));
+    }
+    int maximum=std::min(g.slots,shapes[family][1]/g.TileK())*g.slot_bytes;
+    for(int bytes:{0,4096,16384,32768,65536,maximum}) {
+      auto candidate=center;candidate.gemms[family].preissue_smem_bytes=bytes;add(std::move(candidate));
+    }
+    for(int bytes:{0,64*1024,128*1024,194*1024}) {
+      auto candidate=center;candidate.gemms[family].prefetch_l2_bytes=bytes;add(std::move(candidate));
+    }
   }
   for(int chunks:{1,2,4,8,16,32,64})for(int row_work:{0,8,16}) {
     auto candidate=center;candidate.attention.chunks=chunks;
@@ -72,6 +125,12 @@ std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::Neighbours(Sm90DenseCoor
   }
   for(int residency:{1,2}) {
     auto candidate=center;candidate.residency=residency;add(std::move(candidate));
+  }
+  for(int bytes:{0,4096,16384,32768,65536}) {
+    auto candidate=center;candidate.attention.preissue_smem_bytes=bytes;add(std::move(candidate));
+  }
+  for(int bytes:{0,64*1024,128*1024,194*1024}) {
+    auto candidate=center;candidate.attention.prefetch_l2_bytes=bytes;add(std::move(candidate));
   }
   return result;
 }

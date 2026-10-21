@@ -2,6 +2,7 @@
 #pragma once
 
 #include <tilemega/Support/Json.h>
+#include <tilemega/Backend/Sm90DenseLayout.h>
 
 #include <array>
 #include <algorithm>
@@ -23,11 +24,12 @@ struct Sm90DenseGemm {
   Sm90DenseMma mma=Sm90DenseMma::kMmaSync;
   int preissue_smem_bytes=0,prefetch_l2_bytes=0;
   int register_stages=1;
+  int workspace_offset=0;
   int TileK() const { return int(slot_bytes/(2ll*tile_n)); }
   std::int64_t SharedBytes() const {
     std::int64_t operands=slots*(std::int64_t(slot_bytes)+32ll*TileK());
     std::int64_t reduction=64ll*tile_n*warps_k+128;
-    return 1024+operands+reduction;
+    return workspace_offset+1024+operands+reduction;
   }
   void Validate(int n,int k) const {
     if(n<=0 || k<=0 || tile_n<8 || tile_n>n || tile_n%8 || n%tile_n || warps_n<1 ||
@@ -39,6 +41,9 @@ struct Sm90DenseGemm {
        (register_stages!=1 && register_stages!=2 && register_stages!=4) ||
        register_stages>TileK()/(16*warps_k))
       throw std::invalid_argument("illegal sm90 dense GEMM coordinate");
+    if(workspace_offset<0 || workspace_offset%1024 ||
+       preissue_smem_bytes>std::min(slots,k/TileK())*std::int64_t(slot_bytes))
+      throw std::invalid_argument("native GEMM preissue exceeds its first-task slots");
     if(mma==Sm90DenseMma::kWgmma && (tile_n%64 || warps_n!=4 || warps_k!=1))
       throw std::invalid_argument("sm90 dense WGMMA requires a complete N warpgroup");
   }
@@ -48,19 +53,21 @@ struct Sm90DenseAttention {
   int chunks=1,block_keys=64,slots=3;
   int preissue_smem_bytes=0,prefetch_l2_bytes=0;
   int new_row_work=0;
+  int workspace_offset=0;
   std::int64_t SharedBytes(int batch,int dim,int queries,int capacity) const {
     std::int64_t operands=batch<=4?
         2ll*queries*dim+4ll*((std::int64_t(capacity)+new_row_work+chunks-1)/chunks)*dim:
         36ll*dim+4ll*slots*block_keys*dim;
     std::int64_t scratch=16ll*queries*dim+32ll*queries+
         4ll*std::max(4,chunks)*queries+4ll*queries+4;
-    return 1024+((operands+scratch+15)/16)*16;
+    return workspace_offset+1024+((operands+scratch+15)/16)*16;
   }
   void Validate() const {
     if(chunks<1 || chunks>64 || (block_keys!=16 && block_keys!=32 &&
        block_keys!=64 && block_keys!=128) || slots<2 || slots>8 ||
        preissue_smem_bytes<0 || preissue_smem_bytes%16 ||
-       prefetch_l2_bytes<0 || prefetch_l2_bytes%16 || new_row_work<0)
+       prefetch_l2_bytes<0 || prefetch_l2_bytes%16 || new_row_work<0 ||
+       workspace_offset<0 || workspace_offset%1024)
       throw std::invalid_argument("illegal sm90 dense attention coordinate");
   }
 };
@@ -111,6 +118,41 @@ struct Sm90DenseCoordinates {
     attention.Validate();
   }
 
+  void ValidateSchedule(std::array<std::array<int,2>,5> const& nk,int batch,
+      int dim,int queries,int capacity,std::int64_t budget) const {
+    Validate(nk,batch);
+    using Layout=backend::Sm90DenseLayout;
+    struct Stage {Layout layout;backend::Sm90DensePayload payload;int offset;};
+    std::array<Stage,6> stages;
+    for(unsigned i=0;i<5;++i) {
+      auto const& g=gemms[i];
+      if(g.SharedBytes()>budget)
+        throw std::invalid_argument("native GEMM arena exceeds target budget");
+      stages[i]={Layout::Gemm(g.tile_n,g.TileK(),g.slots,g.warps_k),
+          Layout::GemmPayload(g.tile_n,g.TileK(),g.slots,nk[i][1],g.preissue_smem_bytes)
+              .Shift(g.workspace_offset),g.workspace_offset};
+    }
+    int rows=batch<=4?Layout::AttentionKeys(attention.chunks,attention.new_row_work,capacity):
+        attention.slots*attention.block_keys;
+    if(attention.SharedBytes(batch,dim,queries,capacity)>budget ||
+       attention.prefetch_l2_bytes%32 || attention.preissue_smem_bytes%(4*dim) ||
+       attention.preissue_smem_bytes>4ll*dim*rows)
+      throw std::invalid_argument("native KV preissue must fit whole historical rows");
+    stages[5]={Layout::Attention(batch,dim,queries,attention.chunks,attention.block_keys,
+        attention.slots,attention.new_row_work,capacity),
+        Layout::AttentionPayload(batch,dim,queries,attention.chunks,attention.block_keys,
+            attention.slots,attention.new_row_work,capacity,attention.preissue_smem_bytes)
+            .Shift(attention.workspace_offset),attention.workspace_offset};
+    for(auto const& s:stages)if(s.offset+s.layout.end>budget)
+      throw std::invalid_argument("native arena exceeds target shared-memory budget");
+    // Both the layer back-edge and final down->head edge must be safe.
+    for(auto edge:std::array<std::array<int,2>,6>{{{0,5},{5,1},{1,2},{2,3},{3,0},{3,4}}}) {
+      auto const& previous=stages[edge[0]];auto const& next=stages[edge[1]];
+      if(next.payload.Overlaps(previous.layout.Scratch(previous.offset)))
+        throw std::invalid_argument("native preissue overlaps live epilogue scratch");
+    }
+  }
+
   json::Value ToJson() const {
     json::Object families;
     for(unsigned i=0;i<gemms.size();++i) {
@@ -120,12 +162,13 @@ struct Sm90DenseCoordinates {
           {"slot_bytes",g.slot_bytes},{"slots",g.slots},
           {"mma",g.mma==Sm90DenseMma::kMmaSync?"mma_sync":"wgmma"},
           {"preissue_smem_bytes",g.preissue_smem_bytes},{"prefetch_l2_bytes",g.prefetch_l2_bytes},
-          {"register_stages",g.register_stages}});
+          {"register_stages",g.register_stages},{"workspace_offset",g.workspace_offset}});
     }
     return json::Object{{"schema",1},{"gemms",families},
         {"attention",json::Object{{"chunks",attention.chunks},{"block_keys",attention.block_keys},
             {"slots",attention.slots},{"preissue_smem_bytes",attention.preissue_smem_bytes},
-            {"prefetch_l2_bytes",attention.prefetch_l2_bytes},{"new_row_work",attention.new_row_work}}},
+            {"prefetch_l2_bytes",attention.prefetch_l2_bytes},{"new_row_work",attention.new_row_work},
+            {"workspace_offset",attention.workspace_offset}}},
         {"residency",residency},{"swiglu_u",swiglu_u},{"dn_vector_sums",dn_vector_sums}};
   }
 
@@ -152,20 +195,22 @@ struct Sm90DenseCoordinates {
     for(unsigned i=0;i<result.gemms.size();++i) {
       auto const& v=value.At("gemms").At(kSm90DenseFamilies[i]);auto& g=result.gemms[i];
       keys(v,{"tile_n","warps_n","warps_k","slot_bytes","slots","mma",
-          "preissue_smem_bytes","prefetch_l2_bytes","register_stages"});
+          "preissue_smem_bytes","prefetch_l2_bytes","register_stages","workspace_offset"});
       g.tile_n=integer(v,"tile_n");g.warps_n=integer(v,"warps_n");g.warps_k=integer(v,"warps_k");
       g.slot_bytes=integer(v,"slot_bytes");g.slots=integer(v,"slots");
       g.preissue_smem_bytes=integer(v,"preissue_smem_bytes");
       g.prefetch_l2_bytes=integer(v,"prefetch_l2_bytes");
       g.register_stages=v.Find("register_stages")?integer(v,"register_stages"):1;
+      g.workspace_offset=v.Find("workspace_offset")?integer(v,"workspace_offset"):0;
       auto mma=v.At("mma").AsString("mma");
       if(mma!="mma_sync" && mma!="wgmma")throw std::invalid_argument("unknown sm90 dense MMA instruction");
       g.mma=mma=="mma_sync"?Sm90DenseMma::kMmaSync:Sm90DenseMma::kWgmma;
     }
     auto const& a=value.At("attention");
-    keys(a,{"chunks","block_keys","slots","preissue_smem_bytes","prefetch_l2_bytes","new_row_work"});
+    keys(a,{"chunks","block_keys","slots","preissue_smem_bytes","prefetch_l2_bytes","new_row_work","workspace_offset"});
     result.attention={integer(a,"chunks"),integer(a,"block_keys"),integer(a,"slots"),
         integer(a,"preissue_smem_bytes"),integer(a,"prefetch_l2_bytes"),integer(a,"new_row_work")};
+    result.attention.workspace_offset=a.Find("workspace_offset")?integer(a,"workspace_offset"):0;
     result.residency=integer(value,"residency");result.swiglu_u=integer(value,"swiglu_u");
     result.dn_vector_sums=value.At("dn_vector_sums").AsBool("dn_vector_sums");
     return result;

@@ -2046,8 +2046,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   for(unsigned i=0;i<gemms.size();++i) {
     auto g=dictionaryEntry(gemms[i],"gemms"),r=dictionaryEntry(runtime[i],"gemm_runtime");
     auto const& cfg=c.gemms[family(g)];
-    if(cfg.mma!=solver::Sm90DenseMma::kMmaSync || cfg.preissue_smem_bytes || cfg.prefetch_l2_bytes)
-      throw std::invalid_argument("this native lowering does not yet implement WGMMA or preissue coordinates");
+    if(cfg.mma!=solver::Sm90DenseMma::kMmaSync)
+      throw std::invalid_argument("this native lowering does not implement the optional WGMMA coordinate");
     if(integerField(r,"split_k")!=1 || integerField(r,"tile_n")!=cfg.tile_n ||
        integerField(r,"tile_k")!=cfg.TileK() || integerField(r,"tile_m")!=16 ||
        integerField(r,"stages")!=cfg.slots || integerField(r,"impl")!=3)
@@ -2061,8 +2061,6 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
        recipe.At("tile_k").AsNumber("weight TK")!=cfg.TileK())
       throw std::invalid_argument("native weights do not use their selected contiguous task slices");
   }
-  if(c.attention.preissue_smem_bytes || c.attention.prefetch_l2_bytes)
-    throw std::invalid_argument("native attention preissue is not implemented yet");
   std::vector<bool> live(buffers.size(),false);
   auto mark=[&](std::int64_t id) {
     if(id>=0 && id!=0xffffffffll && id<int64_t(buffers.size()))live[id]=true;
@@ -2130,10 +2128,12 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     };
     std::string weight;std::uint64_t bytes=0;unsigned tasks=0,chunks=0;
     unsigned extent=integerField(s,"extent"),width=integerField(s,"width"),group=integerField(s,"group");
-    types<<"using Stage_"<<number<<'=';
+    int offset=0,prefix=0,l2=0;
+    types<<"using Body_"<<number<<'=';
     if(kind=="kGemm") {
       unsigned index=integerField(s,"gemm");auto g=dictionaryEntry(gemms[index],"gemms");
       auto const& cfg=c.gemms[family(g)];
+      offset=cfg.workspace_offset;prefix=cfg.preissue_smem_bytes;l2=cfg.prefetch_l2_bytes;
       auto op=g.get("epilogue")?stringField(g,"epilogue"):"store";
       std::string enum_op=op=="store"?"kStore":op=="residual"?"kResidual":
           op=="swiglu"?"kSwiGLU":"kArgmaxPartial";
@@ -2154,6 +2154,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       bool norm=operand(5)!="kAbsent";
       if(norm!=(operand(6)!="kAbsent"))throw std::invalid_argument("asymmetric native QK norm");
       chunks=c.attention.chunks;tasks=batch*8*chunks;
+      offset=c.attention.workspace_offset;prefix=c.attention.preissue_smem_bytes;
+      l2=c.attention.prefetch_l2_bytes;
       types<<"Attention<"<<batch<<','<<width<<','<<group<<','<<norm<<','<<chunks<<','
            <<c.attention.block_keys<<','<<c.attention.slots<<','<<c.attention.new_row_work<<','<<capacity;
       for(unsigned i:{0u,1u,2u,7u,3u,4u,5u,6u,8u,9u,10u})types<<','<<operand(i);
@@ -2164,7 +2166,8 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       tasks=batch;types<<"Argmax<"<<batch<<','<<width<<','<<capacity;
       for(unsigned i=0;i<3;++i)types<<','<<operand(i);
     }else throw std::invalid_argument("legacy stage cannot enter native dense program: "+kind);
-    types<<">;\n";
+    types<<">;\nusing Stage_"<<number<<"=Placement<Body_"<<number<<','
+         <<offset<<','<<prefix<<','<<l2<<">;\n";
     debug<<"  {"<<quoteCString(kind)<<','<<quoteCString(weight)<<','<<bytes<<"ull,"
          <<tasks<<','<<extent<<','<<group<<','<<width<<','<<chunks<<"},\n";
     ++number;

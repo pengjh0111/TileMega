@@ -59,7 +59,7 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(
     auto const& cfg=c.gemms[Sm90DenseFamily(plan,g)];
     if(cfg.SharedBytes()>budget)
       throw std::invalid_argument("native GEMM exceeds target shared-memory budget");
-    if(cfg.mma!=Sm90DenseMma::kMmaSync || cfg.preissue_smem_bytes || cfg.prefetch_l2_bytes)
+    if(cfg.mma!=Sm90DenseMma::kMmaSync)
       throw std::invalid_argument("requested native mechanism is not implemented yet");
     options.gemms.push_back({16,cfg.tile_n,cfg.TileK(),cfg.slots,1,kSm90DenseGemmImpl});
   }
@@ -67,9 +67,9 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(
     if(stage.dense_attention_chunks!=c.attention.chunks ||
        c.attention.SharedBytes(batch,stage.width,stage.group,plan.serving_capacity)>budget)
       throw std::invalid_argument("native attention structure or shared-memory budget is invalid");
+    c.ValidateSchedule(Sm90DenseShapes(plan),batch,stage.width,stage.group,
+        plan.serving_capacity,budget);
   }
-  if(c.attention.preissue_smem_bytes || c.attention.prefetch_l2_bytes)
-    throw std::invalid_argument("native attention preissue is not implemented yet");
   auto module=frontend::TorchExportImporter{}.InstantiateForGranularity(imported,context,options);
   mlir::OpBuilder b(&context);
   auto set_int=[&](char const* name,int value) {(*module)->setAttr(name,b.getI64IntegerAttr(value));};

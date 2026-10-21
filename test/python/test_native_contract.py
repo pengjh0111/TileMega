@@ -78,6 +78,21 @@ class NativeContractTests(unittest.TestCase):
                                    source.replace('0,1,kAbsent,2,kAbsent,3,4,4>;',
                                                   '0,1,kAbsent,2,kAbsent,3,4,2>;', 1))
 
+    def test_arenas_and_preissue_must_be_bound_to_each_typed_stage(self):
+        source = self.source
+        for i in range(6):
+            source = source.replace(f'using Stage_{i}=', f'using Body_{i}=')
+            source += f'using Stage_{i}=Placement<Body_{i},0,0,0>;\n'
+        self.assertEqual(len(validate_gemm_dispatch(self.plan, self.defines, source)), 5)
+        for original, bad in [('Body_0,0,0,0', 'Body_0,1024,0,0'),
+                              ('Body_0,0,0,0', 'Body_0,0,16,0'),
+                              ('Body_5,0,0,0', 'Body_5,0,0,1024')]:
+            with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, 'placement differs'):
+                validate_gemm_dispatch(self.plan, self.defines, source.replace(original, bad))
+        with self.assertRaisesRegex(ValueError, 'placement differs'):
+            validate_gemm_dispatch(self.plan, self.defines,
+                                   source.replace('using Stage_0=Placement<Body_0,0,0,0>;', ''))
+
 
 if __name__ == '__main__':
     unittest.main()

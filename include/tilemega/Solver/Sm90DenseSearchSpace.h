@@ -13,6 +13,7 @@ struct Sm90DenseSearchSpace {
 
   bool Legal(Sm90DenseCoordinates const&) const;
   std::vector<Sm90DenseCoordinates> Seeds() const;
+  Sm90DenseCoordinates MaxPreissue(Sm90DenseCoordinates const&,bool l2) const;
   std::vector<Sm90DenseCoordinates> Neighbours(Sm90DenseCoordinates const&) const;
 };
 

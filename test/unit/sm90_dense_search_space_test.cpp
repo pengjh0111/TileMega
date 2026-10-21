@@ -11,7 +11,9 @@ int main(int argc,char** argv) {
       {1024,3072},{151936,1024}}};
   for(int batch:{1,2,4,8,16}) {
     Sm90DenseSearchSpace space{shapes,batch,128,2,target};
-    auto seeds=space.Seeds();assert(seeds.size()==2);
+    auto seeds=space.Seeds();assert(seeds.size()==6);
+    assert(seeds[1].gemms[0].preissue_smem_bytes>0);
+    assert(seeds[2].attention.prefetch_l2_bytes>0);
     for(auto const& seed:seeds) {
       auto neighbours=space.Neighbours(seed);assert(neighbours.size()>=8);
       std::set<std::string> keys{seed.ToJson().Dump(0)};
@@ -23,6 +25,14 @@ int main(int argc,char** argv) {
     }
     auto invalid=seeds.front();invalid.gemms[1].tile_n=7;
     assert(!space.Legal(invalid));
+    auto overlap=seeds.front();overlap.gemms[2].preissue_smem_bytes=
+        std::min(overlap.gemms[2].slots,shapes[2][1]/overlap.gemms[2].TileK())*
+        overlap.gemms[2].slot_bytes;
+    assert(!space.Legal(overlap));
+    auto misaligned=seeds.front();misaligned.attention.preissue_smem_bytes=16;
+    assert(!space.Legal(misaligned));
+    auto excess=seeds.front();excess.gemms[0].workspace_offset=1024*1024;
+    assert(!space.Legal(excess));
     auto too_large=seeds.front();too_large.attention.chunks=1;
     if(batch<=4)assert(!space.Legal(too_large));
     auto legacy=target;legacy.arch_tag="sm_89";

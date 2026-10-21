@@ -27,12 +27,27 @@ def dispatch(manifest, defines, source):
     if re.search(r'\b(?:GemmInvocation|StageDesc|ServingGemmTaskBody|ServingGemvTaskBody|'
                  r'tilemega_l1_kernel|tilemega_l1_loop_kernel|tilemega_l2_kernel)\b', source):
         raise ValueError('native dense generated source contains a legacy execution path')
-    aliases = re.findall(r'using Stage_\d+\s*=\s*Gemm<([^;]+)>;', source)
+    placements = {}
+    for number, body, offset, prefix, l2 in re.findall(
+            r'using Stage_(\d+)\s*=\s*Placement<Body_(\d+),(\d+),(\d+),(\d+)>;', source):
+        if number != body or number in placements:
+            raise ValueError('native stage placement is ambiguous')
+        placements[number] = tuple(map(int, (offset, prefix, l2)))
+
+    def placement(number, coordinates, typed):
+        expected = tuple(coordinates.get(k, 0) for k in
+                         ('workspace_offset', 'preissue_smem_bytes', 'prefetch_l2_bytes'))
+        if ((typed == 'Body' and placements.get(number) != expected) or
+                (typed == 'Stage' and any(expected))):
+            raise ValueError('native stage placement differs from coordinate identity')
+
+    aliases = re.findall(r'using (Stage|Body)_(\d+)\s*=\s*Gemm<([^;]+)>;', source)
     gemms = manifest['gemms']
     if len(aliases) != len(gemms):
         raise ValueError('native dense GEMM call count differs from manifest')
     result = []
-    for index, (gemm, raw) in enumerate(zip(gemms, aliases)):
+    for index, (gemm, alias) in enumerate(zip(gemms, aliases)):
+        typed, number, raw = alias
         args = raw.split(',')
         if len(args) not in (17, 18):
             raise ValueError('native dense GEMM call signature is invalid')
@@ -41,6 +56,7 @@ def dispatch(manifest, defines, source):
         actual = dict(tile_m=16, tile_n=tn, tile_k=tk, stages=slots,
                       warps_n=wn, warps_k=wk, split_k=1)
         c = manifest['native_dense']['gemms'][gemm['family']]
+        placement(number, c, typed)
         if (gemm['index'] != index or gemm.get('impl') != 'native_mma_sync' or
                 batch != manifest['runtime_batch'] or gemm['n'] != n or gemm['k'] != k or
                 any(gemm[key] != value for key, value in actual.items()) or
@@ -58,13 +74,14 @@ def dispatch(manifest, defines, source):
         if len(args) == 18:
             row['register_stages'] = register_stages
         result.append(row)
-    attention = re.findall(r'using Stage_\d+\s*=\s*Attention<([^;]+)>;', source)
+    attention = re.findall(r'using (Stage|Body)_(\d+)\s*=\s*Attention<([^;]+)>;', source)
     if not attention:
         raise ValueError('native dense attention call is missing')
     c = manifest['native_dense']['attention']
     expected = [c[k] for k in ('chunks', 'block_keys', 'slots', 'new_row_work')]
     shape = None
-    for raw in attention:
+    for typed, number, raw in attention:
+        placement(number, c, typed)
         args = raw.split(',')
         if len(args) != 20:
             raise ValueError('native dense attention call signature is invalid')
