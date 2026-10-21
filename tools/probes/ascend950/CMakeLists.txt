@@ -52,3 +52,7 @@ as1_asc_target(as1_encoder_attention_body "${CMAKE_CURRENT_SOURCE_DIR}/encoder_a
 
 as1_asc_target(as2_timer "${CMAKE_CURRENT_SOURCE_DIR}/as2_timer.cpp")
 as1_asc_target(as2_progress "${CMAKE_CURRENT_SOURCE_DIR}/as2_progress.cpp")
+as1_asc_target(as2_gemm "${CMAKE_CURRENT_SOURCE_DIR}/as2_gemm.cpp")
+as1_asc_target(as2_vector "${CMAKE_CURRENT_SOURCE_DIR}/as2_vector.cpp")
+target_compile_options(as2_vector PRIVATE --cce-res-usage)
+as1_asc_target(as2_attention "${CMAKE_CURRENT_SOURCE_DIR}/as2_attention.cpp")
