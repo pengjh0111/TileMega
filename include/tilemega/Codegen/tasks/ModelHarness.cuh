@@ -572,9 +572,17 @@ __device__ inline void FinishNonpagedTask(Params const& p,unsigned index,
 /// The dispatch is over the TaskBody families, which are a property of the
 /// library, not of any model.  A model that needs no attention simply never
 /// emits those stage kinds.
+#ifndef TILEMEGA_DIAG_EMPTY_KINDS
+#define TILEMEGA_DIAG_EMPTY_KINDS 0
+#endif
 __device__ inline void RunStage(Params const& p, std::uint32_t index,
                                 TaskSmem& smem TILEMEGA_REDUCTION_ARG) {
   StageDesc const& stage = p.stages[index];
+#if TILEMEGA_DIAG_EMPTY_KINDS
+  // Diagnostic only, like TILEMEGA_DIAG_DROP_KINDS: the stage keeps its
+  // barrier and runs no task, so the TPOT difference is its task time.
+  if ((static_cast<unsigned long long>(TILEMEGA_DIAG_EMPTY_KINDS) >> unsigned(stage.kind)) & 1ull) return;
+#endif
   switch (stage.kind) {
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     case TaskKind::kDwPwFused:
@@ -1755,6 +1763,20 @@ __device__ inline void ServingPdlExit() {
 #endif
 }
 
+#ifndef TILEMEGA_DIAG_DROP_KINDS
+#define TILEMEGA_DIAG_DROP_KINDS 0
+#endif
+#if TILEMEGA_DIAG_DROP_KINDS
+/// Diagnostic only (MX3-1): leave out every stage whose TaskKind bit is set
+/// in the mask, its tasks and its barrier both, so that a TPOT difference
+/// measures what that class of stage costs without trace overhead. The
+/// output is wrong; the compile driver never emits this macro, and a plan
+/// built with it is timed for the ledger and nothing else.
+__device__ __forceinline__ bool DiagDropStage(TaskKind kind) {
+  return (static_cast<unsigned long long>(TILEMEGA_DIAG_DROP_KINDS) >> unsigned(kind)) & 1ull;
+}
+#endif
+
 #if !TILEMEGA_PAGED
 /// The L1 megakernel.  The stage loop is a run-time loop over the generated
 /// table: its trip count is data, so one compiled kernel serves every model.
@@ -1768,6 +1790,9 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
   for (std::uint32_t stage = 0; stage < params->stage_count; ++stage) {
 #if TILEMEGA_NONPAGED_LA || TILEMEGA_DM_REDUCTIONS
     if(params->stages[stage].handoff_elided)continue;
+#endif
+#if TILEMEGA_DIAG_DROP_KINDS
+    if(DiagDropStage(params->stages[stage].kind))continue;
 #endif
 #if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_TASK
     int tasks=ActiveBlocks(*params,params->stages[stage]);
@@ -1812,6 +1837,9 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
     for(unsigned stage=0;stage<p.stage_count;++stage) {
 #if TILEMEGA_NONPAGED_LA || TILEMEGA_DM_REDUCTIONS
       if(p.stages[stage].handoff_elided)continue;
+#endif
+#if TILEMEGA_DIAG_DROP_KINDS
+      if(DiagDropStage(p.stages[stage].kind))continue;
 #endif
 #if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_TASK
       int tasks=ActiveBlocks(p,p.stages[stage]);
