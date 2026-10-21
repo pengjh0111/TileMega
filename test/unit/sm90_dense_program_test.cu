@@ -7,22 +7,26 @@ using Op=backend::ServingEpilogueOp;
 using Qkv=Gemm<1,4096,1024,32,256,3,4,1,Op::kStore,8,0,1,kAbsent,2,kAbsent,kAbsent,kAbsent>;
 using Attn=Attention<1,128,2,true,16,64,3,0,1088,2,4,5,3,6,7,8,9,10,11,12>;
 using Out=Gemm<1,1024,2048,8,256,3,1,4,Op::kStore,8,3,14,kAbsent,13,kAbsent,kAbsent,kAbsent>;
+#ifndef TILEMEGA_NATIVE_TEST_GEMM_PREFIX
+#define TILEMEGA_NATIVE_TEST_GEMM_PREFIX 4096
+#endif
+constexpr int kTestGemmPrefix=TILEMEGA_NATIVE_TEST_GEMM_PREFIX;
 #if defined(TILEMEGA_NATIVE_TEST_DISJOINT_LATE_PREISSUE)
 using NativeProgram=Program<1,1088,1,15,Placement<Qkv>,
-    Placement<Attn,81920,16384,8192,true>,Placement<Out,0,4096,16384,true>>;
+    Placement<Attn,81920,16384,8192,true>,Placement<Out,0,kTestGemmPrefix,16384,true>>;
 static_assert(!ProducerTail<Placement<Qkv>,Placement<Attn,81920,16384,8192,true>,
     Bindings<15>>::kBefore);
 static_assert(!Placement<Attn,81920,16384,8192,true>::kPayload.Overlaps(Placement<Qkv>::kLive));
 #elif defined(TILEMEGA_NATIVE_TEST_EARLY_PREISSUE)
 using NativeProgram=Program<1,1088,1,15,Placement<Qkv>,
-    Placement<Attn,81920,16384,8192>,Placement<Out,0,4096,16384>>;
+    Placement<Attn,81920,16384,8192>,Placement<Out,0,kTestGemmPrefix,16384>>;
 static_assert(ProducerTail<Placement<Qkv>,Placement<Attn,81920,16384,8192>,
     Bindings<15>>::kBefore);
 static_assert(ProducerTail<Placement<Attn,81920,16384,8192>,
-    Placement<Out,0,4096,16384>,Bindings<15>>::kBefore);
+    Placement<Out,0,kTestGemmPrefix,16384>,Bindings<15>>::kBefore);
 #elif defined(TILEMEGA_NATIVE_TEST_PREISSUE)
 using NativeProgram=Program<1,1088,1,15,Placement<Qkv>,
-    Placement<Attn,0,16384,8192>,Placement<Out,0,4096,16384>>;
+    Placement<Attn,0,16384,8192>,Placement<Out,0,kTestGemmPrefix,16384>>;
 #else
 using NativeProgram=Program<1,1088,1,15,Placement<Qkv>,Placement<Attn>,Placement<Out>>;
 #endif

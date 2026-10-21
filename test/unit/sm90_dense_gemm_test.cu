@@ -9,6 +9,18 @@
 using namespace tilemega::backend;
 using BF=cutlass::bfloat16_t;
 void check(cudaError_t e) {if(e!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(e));}
+template<int TK>
+int check_layout() {
+ using G=Sm90DenseGemm<1,8,TK,8,TK,2,1,4,ServingEpilogueOp::kStore,4>;
+ using A=typename G::LayoutA;constexpr auto inverse=cute::right_inverse(A{});
+ int errors=0;
+ for(int r=0;r<16;++r)for(int c=0;c<TK;++c) {
+  int logical=inverse(A{}(r,c));errors+=(logical%16!=r || logical/16!=c);
+ }
+ for(int batch:{1,2,4,8,16})for(int i=0;i<16*TK;i+=8)
+  for(int j=1;j<8;++j)errors+=((inverse(i+j)%16>=batch)!=(inverse(i)%16>=batch));
+ return errors;
+}
 template<int B,int TN,int WN,int WK,int TK,int Reg>
 __global__ __launch_bounds__(160) void evaluate(Sm90DenseOperands first,Sm90DenseOperands second) {
  extern __shared__ __align__(1024) char shared[];
@@ -62,7 +74,12 @@ int main() {
   errors+=run<16,128,4,1>();errors+=run<1,224,4,1>();
   errors+=run<1,16,2,2,256,4>();errors+=run<1,8,1,4,256,4>();
   errors+=run<1,8,1,4,1024,1>();errors+=run<1,24,1,4,512,1>();
-  std::printf("{\"errors\":%d,\"pass\":%s,\"cases\":9,\"register_stages\":[1,2,4],\"slot_sequence\":[3,2,3,2,3,2,3,2]}\n",errors,errors?"false":"true");
+  errors+=run<2,16,1,4,256,1>();errors+=run<4,24,1,4,256,1>();errors+=run<8,8,1,4,256,1>();
+  errors+=check_layout<64>()+check_layout<128>()+check_layout<192>()+check_layout<256>();
+  errors+=check_layout<384>()+check_layout<448>()+check_layout<512>()+check_layout<768>();
+  errors+=check_layout<896>()+check_layout<1024>()+check_layout<1536>()+
+      check_layout<1792>()+check_layout<2048>();
+  std::printf("{\"errors\":%d,\"pass\":%s,\"cases\":12,\"layout_cases\":13,\"register_stages\":[1,2,4],\"slot_sequence\":[3,2,3,2,3,2,3,2]}\n",errors,errors?"false":"true");
   return errors?1:0;
  }catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}
 }
