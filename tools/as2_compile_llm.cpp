@@ -1,6 +1,7 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Solver/ModelDescription.h>
+#include <tilemega/Solver/PlanSkeleton.h>
 #include <tilemega/Support/Json.h>
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/IR/Verifier.h>
@@ -10,14 +11,16 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <limits>
 
 static void Write(std::filesystem::path const& path,std::string const& text) {
   std::ofstream out(path);out<<text<<'\n';if(!out)throw std::runtime_error("Cannot write "+path.string());
 }
 int main(int argc,char** argv) {
   try {
-    if(argc!=5 || std::string(argv[1])!="inspect")
-      throw std::invalid_argument("usage: as2_compile_llm inspect exported_directory new_output_directory batch");
+    bool prepare=argc==6 && std::string(argv[1])=="prepare";
+    if(!prepare && (argc!=5 || std::string(argv[1])!="inspect"))
+      throw std::invalid_argument("usage: as2_compile_llm inspect exported_directory new_output_directory batch; or prepare exported_directory new_output_directory batch groups");
     namespace fs=std::filesystem;
     auto root=fs::path("/home/d50064638/junhuip/TileMega/runs/as2");
     auto input=fs::weakly_canonical(argv[2]),output=fs::weakly_canonical(argv[3]);
@@ -68,6 +71,63 @@ int main(int argc,char** argv) {
       {"buffers",int(plan.buffers.size())},{"import_seconds",seconds},
       {"semantic_generic_stages",0},{"raw_unclassified_aten",std::move(raw_unclassified)},
       {"solver_executed",false},{"device_executed",false}});
+    if(prepare) {
+      const int groups=std::stoi(argv[5]);
+      auto target=tilemega::TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+"/configs/targets/ascend_3510.json");
+      auto workers=tilemega::ascend::WorkerMap::Build(*target.ascend_capability,
+          tilemega::ascend::LaunchMode::kMix1_2,groups);
+      auto problem=tilemega::solver::PrepareSymbolicProblem(*module,target,dims,groups,1,1,nullptr,false,128);
+      tilemega::analysis::CouplingCache cache;
+      auto skeleton=tilemega::solver::BuildPlanSkeleton(problem,groups,1,1,false,cache,nullptr,nullptr,true);
+      tilemega::json::Array spaces,allocations;
+      for(unsigned s=0;s<problem.counts.size();++s) {
+        auto const& projected=problem.projection.stages.at(s);
+        auto const& stage=problem.model.stages.at(projected.logical_stage);
+        tilemega::json::Value item(tilemega::json::Object{{"stage",int(s)},
+          {"logical_stage",projected.logical_stage},{"kind",int(stage.kind)},
+          {"count",problem.counts[s]},{"offset",problem.offsets[s]},
+          {"width",stage.width},{"extent",stage.extent},{"group",stage.group},
+          {"combine",projected.combine},{"service_ns",tilemega::json::Value{}},
+          {"implementation_status","requires_native_body_binding_and_empirical_price"}});
+        if(stage.IsCollective()) {
+          auto const& g=problem.model.gemms.at(stage.gemm);
+          item.Set("gemm_n",g.n);item.Set("gemm_k",g.k);
+        }
+        spaces.push_back(std::move(item));
+      }
+      auto add=[](uint64_t a,uint64_t b) {
+        if(a>std::numeric_limits<uint64_t>::max()-b)throw std::overflow_error("Buffer byte sum overflow");
+        return a+b;
+      };
+      auto multiply=[](uint64_t a,uint64_t b) {
+        if(b && a>std::numeric_limits<uint64_t>::max()/b)throw std::overflow_error("Buffer byte product overflow");
+        return a*b;
+      };
+      uint64_t arena=0;
+      if(problem.model.physical_buffers.size()!=plan.buffers.size())
+        throw std::invalid_argument("Serving allocation metadata does not cover the model buffer table");
+      for(auto const& [name,b]:problem.model.physical_buffers) {
+        auto elements=add(add(b.constant,multiply(b.per_batch,dims.batch)),
+          add(multiply(b.per_seq,dims.seq),add(multiply(b.per_past,dims.past),multiply(b.per_total,dims.total))));
+        auto bytes=multiply(elements,b.element_bytes);
+        auto allocated=multiply(add(add(bytes,512),511)/512,512);
+        allocations.emplace_back(tilemega::json::Object{{"name",name},{"offset_bytes",double(arena)},
+          {"logical_bytes",double(bytes)},{"guarded_allocation_bytes",double(allocated)}});
+        arena=add(arena,allocated);
+      }
+      Write(output/"symbolic_dependencies.isl",problem.execution_dependencies.ToString());
+      tilemega::json::Value preparation(tilemega::json::Object{
+        {"status","verified_symbolic_preparation_only"},{"groups",groups},{"launch_blocks",workers.launch.num_blocks},
+        {"task_count",problem.offsets.back()},{"projected_stages",int(problem.counts.size())},
+        {"structural_skeleton_edges",int(skeleton.edges.size())},{"spaces",std::move(spaces)},
+        {"guarded_arena_bytes",double(arena)},{"allocations",std::move(allocations)},
+        {"byte_offsets_bits",64},{"costs_calibrated",false},{"priced_solver_executed",false},
+        {"native_plan_materialized",false},{"device_executed",false}});
+      Write(output/"preparation.json",preparation.Dump());
+      result.Set("symbolic_preparation_executed",true);
+      result.Set("structural_skeleton_executed",true);
+      result.Set("task_count",problem.offsets.back());
+    }
     Write(output/"import.json",result.Dump());std::cout<<result.Dump()<<std::endl;return 0;
   }catch(std::exception const& e){std::cerr<<e.what()<<std::endl;return 1;}
 }

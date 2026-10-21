@@ -236,11 +236,11 @@ ModelDescription ModelDescription::ReadCouplingGraph(
       model.memory_arena_bytes=arena.getInt();
     }
   }
-  if(model.dm)
+  if(model.dm || model.serving)
     for(auto buffer:buffers) {
       auto entry=llvm::dyn_cast<mlir::DictionaryAttr>(buffer);
       if(!entry)throw std::invalid_argument("malformed DM buffer entry");
-      model.buffer_layouts.push_back(frontend::DecodeDmLayout(entry.get("dm_layout")));
+      if(model.dm)model.buffer_layouts.push_back(frontend::DecodeDmLayout(entry.get("dm_layout")));
       auto name=entry.getAs<mlir::StringAttr>("name");
       auto dtype=entry.getAs<mlir::StringAttr>("dtype");
       if(!name || !dtype)throw std::invalid_argument("DM buffer lacks typed storage metadata");
