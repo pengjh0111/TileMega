@@ -213,6 +213,14 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   auto receipt=save(winner);
   CompileNativeDenseArtifact(o.input,o.output,selected.string(),o.target,o.batch,o.dump_cg,
       o.split_compile,"solver",receipt);
+  if(o.measured) {
+    auto reference=directory/("candidate-"+std::to_string(winner)+".so");
+    auto command="python3 "+Quote(std::string(TILEMEGA_SOURCE_DIR)+
+        "/scripts/check_sm90r2_rebuild.py")+" --reference "+Quote(reference.string())+
+        " --candidate "+Quote(requested.string())+" --out "+Quote(requested.string()+".rebuild");
+    if(std::system(command.c_str()))
+      throw std::runtime_error("selected native artifact changed during final rebuild");
+  }
   return 0;
 }
 }  // namespace tilemega::commands
