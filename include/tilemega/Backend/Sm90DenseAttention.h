@@ -228,6 +228,10 @@ struct Sm90DenseAttention {
     int tasks=kTasks/int(gridDim.x)+(int(blockIdx.x)<kTasks%int(gridDim.x));
     if(threadIdx.x<128)Consume(p,state,s,tasks,state.consumer_generations[0]);
     else {
+      if constexpr(Tail::kBefore) {
+        if(threadIdx.x==128)tail.Before();
+        __syncwarp();
+      }
       Produce(p,state,s,tasks,state.producer_generations[0]);
       if(threadIdx.x==128)tail();
     }

@@ -41,6 +41,8 @@ struct alignas(16) Sm90DenseRingState {
 static_assert(2*sizeof(Sm90DenseRingState)<=1024);
 
 struct Sm90DenseNoTail {
+  static constexpr bool kBefore=false;
+  __device__ void Before() const {}
   __device__ void operator()() const {}
 };
 

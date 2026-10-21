@@ -169,6 +169,10 @@ struct Sm90DenseAttentionStream {
         state.consumer_generations[i]:state.producer_generations[i])<<i;
     if(threadIdx.x<128)Consume(p,state,s,tasks,phase);
     else {
+      if constexpr(Tail::kBefore) {
+        if(threadIdx.x==128)tail.Before();
+        __syncwarp();
+      }
       Produce(p,state,s,tasks,phase);
       if(threadIdx.x==128)tail();
     }

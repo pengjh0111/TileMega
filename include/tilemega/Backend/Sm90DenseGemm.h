@@ -190,6 +190,12 @@ struct Sm90DenseGemm {
     int tasks=(N/TN)/int(gridDim.x)+(int(blockIdx.x)<(N/TN)%int(gridDim.x));
     if(threadIdx.x<128)Consume(p,state,a,b,scratch,tasks,phase,epsilon);
     else {
+      if constexpr(Tail::kBefore) {
+        if(threadIdx.x==128)tail.Before();
+        // The elected lane may wait on a different ring before issuing. Keep
+        // the remaining producer lanes out of the current ring until it joins.
+        __syncwarp();
+      }
       Produce(p,state,a,b,tasks,phase);
       if(threadIdx.x==128)tail();
     }

@@ -154,6 +154,7 @@ struct Embedding {
   template<class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int past,char*,float,
       backend::Sm90DenseRingState&,Tail tail) {
+    if constexpr(Tail::kBefore)if(threadIdx.x==128)tail.Before();
     if(threadIdx.x<128)for(int row=blockIdx.x;row<Batch;row+=gridDim.x) {
       auto* tokens=reinterpret_cast<int const*>(b.template Get<Tokens>());
       backend::Sm90DenseEmbedding<Width,Vocab,Capacity>::Run(tokens,b.template Get<Table>(),
@@ -179,6 +180,7 @@ struct Argmax {
   template<class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int past,char* shared,float,
       backend::Sm90DenseRingState&,Tail tail) {
+    if constexpr(Tail::kBefore)if(threadIdx.x==128)tail.Before();
     if(threadIdx.x<128)for(int row=blockIdx.x;row<Batch;row+=gridDim.x)
       Body::Run(reinterpret_cast<float const*>(b.template Get<Values>()),
           reinterpret_cast<int const*>(b.template Get<Indices>()),
@@ -216,6 +218,8 @@ struct ProducerTail {
   static_assert(!Next::kPayload.Overlaps(Current::kScratch),
       "preissue aliases live current-stage epilogue scratch");
   Binding const& binding;
+  static constexpr bool kBefore=(Next::kPrefix || Next::kL2Bytes) &&
+      !Next::kPayload.Overlaps(Current::kLive);
   int past;
   char* shared;
   backend::Sm90DenseRingState &current,&next;
@@ -231,7 +235,11 @@ struct ProducerTail {
     }
   }
   __device__ __forceinline__ void operator()() const {
-    if constexpr(Next::kPrefix || Next::kL2Bytes)Issue(binding,past,shared,current,next);
+    if constexpr(!kBefore && (Next::kPrefix || Next::kL2Bytes))
+      Issue(binding,past,shared,current,next);
+  }
+  __device__ __forceinline__ void Before() const {
+    if constexpr(kBefore)Issue(binding,past,shared,current,next);
   }
 };
 
