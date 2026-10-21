@@ -489,8 +489,9 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
       continue;
     }
     if (stage.kind == PlanTaskKind::kArgmaxReduce) {
+      if(!stage.width)throw std::invalid_argument("serving argmax requires its actual partial count");
       auto partial = space(stage.operands[0],
-          {Axis("m", B), Axis("tile", C((stage.extent + 31) / 32))});
+          {Axis("m", B), Axis("tile", C(stage.width))});
       auto op = Output(op_name, OperatorKind::kReduction,
           {Parallel("m", B), Reduce("tile", partial.axes[1].extent)},
           Tensor(name(stage.operands[2]),
