@@ -37,12 +37,19 @@ def main():
         pairs = [r for r in pairs if r['pair'].startswith(a.pair_prefix)]
         if len({r['baseline_sha256'] for r in pairs})!=1:
             raise ValueError('one ranking session must pair every candidate with the same control')
-    blanks = [r for r in pairs if r['baseline_sha256'] == r['candidate_sha256']]
+    candidate_hashes = {sha(p) for p in a.candidate}
+    blanks = [r for r in pairs if r['baseline_sha256'] == r['candidate_sha256']
+              and r['candidate_sha256'] in candidate_hashes]
     blank_values = [float(r[k]) for r in blanks for k in ('baseline_ms', 'candidate_ms')]
     blank_range = ((max(blank_values)-min(blank_values))/statistics.median(blank_values)*100
                    if blank_values else None)
     if a.pair_prefix and len(blanks) < 2:
         raise ValueError('a fresh ranking cohort requires bookend identical-binary pairs')
+    if a.pair_prefix:
+        chronological = sorted(pairs, key=lambda r: read(
+            Path(r['candidate_run']).parent / 'paired.json')['started'])
+        if chronological[0] not in blanks or chronological[-1] not in blanks:
+            raise ValueError('blank repeat pairs must bracket the ranking session')
     states = [(path, read(path)) for path in a.states]
     rows, seen, devices, missing = [], set(), set(), []
     for binary in a.candidate:
