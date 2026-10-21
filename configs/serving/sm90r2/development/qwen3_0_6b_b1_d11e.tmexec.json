@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "gemms": {
+    "qkv": {
+      "tile_n": 32,
+      "warps_n": 4,
+      "warps_k": 1,
+      "slot_bytes": 16384,
+      "slots": 3,
+      "mma": "mma_sync",
+      "preissue_smem_bytes": 0,
+      "prefetch_l2_bytes": 0,
+      "register_stages": 1,
+      "workspace_offset": 0,
+      "preissue_late": false
+    },
+    "o": {
+      "tile_n": 8,
+      "warps_n": 1,
+      "warps_k": 4,
+      "slot_bytes": 16384,
+      "slots": 2,
+      "mma": "mma_sync",
+      "preissue_smem_bytes": 32768,
+      "prefetch_l2_bytes": 0,
+      "register_stages": 1,
+      "workspace_offset": 0,
+      "preissue_late": false
+    },
+    "gate_up": {
+      "tile_n": 48,
+      "warps_n": 2,
+      "warps_k": 2,
+      "slot_bytes": 24576,
+      "slots": 3,
+      "mma": "mma_sync",
+      "preissue_smem_bytes": 0,
+      "prefetch_l2_bytes": 0,
+      "register_stages": 1,
+      "workspace_offset": 0,
+      "preissue_late": false
+    },
+    "down": {
+      "tile_n": 8,
+      "warps_n": 1,
+      "warps_k": 4,
+      "slot_bytes": 16384,
+      "slots": 3,
+      "mma": "mma_sync",
+      "preissue_smem_bytes": 49152,
+      "prefetch_l2_bytes": 0,
+      "register_stages": 1,
+      "workspace_offset": 8192,
+      "preissue_late": false
+    },
+    "lm_head": {
+      "tile_n": 128,
+      "warps_n": 4,
+      "warps_k": 1,
+      "slot_bytes": 65536,
+      "slots": 3,
+      "mma": "mma_sync",
+      "preissue_smem_bytes": 0,
+      "prefetch_l2_bytes": 0,
+      "register_stages": 1,
+      "workspace_offset": 0,
+      "preissue_late": false
+    }
+  },
+  "attention": {
+    "chunks": 16,
+    "block_keys": 64,
+    "slots": 3,
+    "preissue_smem_bytes": 0,
+    "prefetch_l2_bytes": 0,
+    "new_row_work": 0,
+    "workspace_offset": 0,
+    "preissue_late": false
+  },
+  "residency": 1,
+  "swiglu_u": 8,
+  "dn_vector_sums": true
+}
