@@ -304,6 +304,9 @@ int RunCompile(int argc, char** argv) {
     mlir::OwningOpRef<mlir::ModuleOp> module;
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
+    std::string pinned_attention;
+    // The decode attention body of each shortlisted plan, in shortlist order.
+    std::vector<std::string> shortlist_attention;
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,paged_seed_from,artifact_cache;
     std::string frontend_mode="decoder";
     std::string shared_weight_layout;
@@ -311,7 +314,7 @@ int RunCompile(int argc, char** argv) {
     std::string arch_paths="auto",pdl="off",handoff_mode="off",weight_layout="tiled";
     int page_bytes=16384,lookahead_bytes=-1,prefetch_depth=1,prefetch_stride=0;
     int mma_reg_pipe=0;
-    std::string attention_impl="mma16";
+    std::string attention_impl="mma16",attention_request;
     int kphase_mask=31,v3_poll_ns=0,watchdog=0,l2_slim=0,page_loop_split=0,evict_first=0,evict_last=1;
     int attention_noinline=0,attention_buffers=2;
     int parallel_argmax=0,ep_direct=0;
@@ -627,8 +630,17 @@ int RunCompile(int argc, char** argv) {
       }
       if(kphase_mask<0 || kphase_mask>31 || v3_poll_ns<0)
         throw std::runtime_error("invalid K-phase mask or V3 poll interval");
-      if(attention_impl!="mma16" && attention_impl!="simt")
-        throw std::runtime_error("--attention-impl must be mma16 or simt on xcore1000");
+      if(attention_impl!="mma16" && attention_impl!="simt" && attention_impl!="auto")
+        throw std::runtime_error("--attention-impl must be mma16, simt or auto on xcore1000");
+      // MX3-3 (G-ATTN): `auto` makes the decode attention body a search
+      // coordinate. The search below runs once per body this target can
+      // hold and the shortlists merge, so measurement picks the body per
+      // cell; until then the flags describe the simt body.
+      if(attention_impl=="auto") {
+        if(serving_phase!="decode")
+          throw std::runtime_error("--attention-impl auto selects a decode attention body");
+        attention_request="auto";attention_impl="simt";
+      }
       if(mma_reg_pipe!=0 && mma_reg_pipe!=1)throw std::runtime_error("--mma-reg-pipe must be 0 or 1");
       if(watchdog!=0 && watchdog!=1)throw std::runtime_error("--watchdog must be 0 or 1");
       if(l2_slim!=0 && l2_slim!=1)throw std::runtime_error("--l2-slim must be 0 or 1");
@@ -919,6 +931,39 @@ int RunCompile(int argc, char** argv) {
       solve_options.timing=&solver_timing;
       solve_options.placement.dims.decode_attention_mma=
           serving && serving_phase=="decode" && attention_impl=="mma16";
+      // Switches every input that depends on the decode attention body.
+      auto set_attention=[&](std::string const& impl) {
+        attention_impl=impl;
+        solve_options.placement.dims.decode_attention_mma=
+            serving && serving_phase=="decode" && impl=="mma16";
+        std::string const key=" -DTILEMEGA_ATTENTION_IMPL=";
+        auto at=runtime_flags.find(key);
+        if(at!=std::string::npos) {
+          auto end=runtime_flags.find(' ',at+key.size());
+          runtime_flags.replace(at,(end==std::string::npos?runtime_flags.size():end)-at,
+              key+std::to_string(impl=="simt"?3:0));
+        }
+      };
+      // mma16 stages Q, K, V and P in shared memory; it is in the domain
+      // only where that fits one CTA (the same bound the geometry check
+      // below enforces for an explicit --attention-impl mma16).
+      auto decode_mma16_fits=[&]() {
+        auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+        if(!plan)return false;
+        auto limit=tilemega::TargetSpec::FromJson(
+            runtime_target.empty()?solve_target:runtime_target).res.max_dynamic_smem_per_cta;
+        bool any=false;
+        for(auto entry:plan.getAs<mlir::ArrayAttr>("stages")) {
+          auto stage=mlir::cast<mlir::DictionaryAttr>(entry);
+          if(stage.getAs<mlir::StringAttr>("kind").getValue()!="kFusedAttention")continue;
+          auto q=stage.getAs<mlir::IntegerAttr>("group").getInt();
+          auto d=stage.getAs<mlir::IntegerAttr>("width").getInt();
+          if(q<1 || q>8 || (d!=64 && d!=128))return false;
+          if(tilemega::codegen::ServingAttentionSharedBytes(int(d),q>=8?64:32)>int(limit))return false;
+          any=true;
+        }
+        return any;
+      };
       tilemega::solver::CompilerSearchResult solved;
       if(solver_mode=="legacy")solved=tilemega::solver::SolveExport(input.string(),context,solve_options,&summary,evidence);
       else {
@@ -1005,6 +1050,13 @@ int RunCompile(int argc, char** argv) {
             test.residency=int(requiredInteger(*entry,"residency"));
             if(auto ec=entry->getInteger("attention_kv_block"))test.attention_kv_block=int(*ec);
             if(auto rq=entry->getInteger("attention_query_rows"))test.attention_query_rows=int(*rq);
+            // A pinned rebuild of an `auto` cell keeps the body it was measured with.
+            if(auto impl=entry->getString("attention_impl")) {
+              if(*impl!="simt" && *impl!="mma16")throw std::runtime_error("invalid pinned attention_impl");
+              if(!pinned_attention.empty() && pinned_attention!=*impl)
+                throw std::runtime_error("evaluation cases pin different attention bodies");
+              pinned_attention=impl->str();
+            }
             for(auto const& value:*geometry) {
               auto* g=value.getAsObject();
               if(!g)throw std::runtime_error("invalid evaluation geometry");
@@ -1203,31 +1255,84 @@ int RunCompile(int argc, char** argv) {
                 std::vector<unsigned>{moe_bm})binding_choices.push_back({true,bm,gemv,mask});
           }
         }
-        auto result=dnn_options && search_selection=="predicted" && skeleton.evaluation_cases.empty()
-            ? tilemega::solver::SolveDnnStructures(*serving_imported,*dnn_options,
-                memory_reuse=="auto"?std::vector<std::string>{"none","greedy","l2"}:
-                    std::vector<std::string>{dnn_options->memory_reuse},
-                context,skeleton,&summary,evidence)
-            : has_moe && search_selection=="predicted" && skeleton.evaluation_cases.empty()
-            ? tilemega::solver::SolveMoeStructures(*serving_imported,binding_choices,
-                context,skeleton,&summary,evidence)
-            : serving
-            ? tilemega::solver::SolveSkeletonImported(*serving_imported,context,skeleton,&summary,evidence)
-            : tilemega::solver::SolveSkeletonExport(input.string(),context,skeleton,&summary,evidence);
-        if(flow_search_only) {
-          std::ofstream events(std::string(argv[2])+".phases.tsv");solver_timing.WriteEvents(events);
-          std::ofstream times(std::string(argv[2])+".timing.tsv");solver_timing.Write(times,solver_mode,input.stem().string(),dims.seq);
-          std::ofstream ranked(std::string(argv[2])+".flow_ranked.tsv");ranked<<std::setprecision(17)<<"rank\tkey\tflow_ns\tresidency\tkappa\terror\n";
-          for(std::size_t i=0;i<result.evaluated.size();++i){auto const& c=result.evaluated[i];ranked<<i+1<<'\t'<<c.key<<'\t'<<c.score<<'\t'<<c.residency<<'\t'<<c.kappa<<'\t'<<c.error<<'\n';}
-          return 0;
+        // MX3-3: the decode attention body is an outer coordinate. Each body
+        // the target can hold gets its own search -- its pricing
+        // (decode_attention_mma) and its resource probes (the
+        // TILEMEGA_ATTENTION_IMPL flag) differ -- and the shortlists merge.
+        std::vector<std::string> attention_domain{attention_impl};
+        if(attention_request=="auto") {
+          attention_domain={"simt"};
+          if(decode_mma16_fits())attention_domain.push_back("mma16");
         }
-        solved=std::move(result.compiled);
+        if(!pinned_attention.empty()) {
+          if(attention_request!="auto" && pinned_attention!=attention_impl)
+            throw std::runtime_error("pinned attention_impl contradicts --attention-impl");
+          attention_domain={pinned_attention};
+        }
+        std::vector<tilemega::solver::CompilerSearchResult> per_body;
+        for(std::size_t body=0;body<attention_domain.size();++body) {
+          set_attention(attention_domain[body]);
+          skeleton.common.placement.dims.decode_attention_mma=solve_options.placement.dims.decode_attention_mma;
+          if(body)skeleton.artifact_prefix=std::string(argv[2])+".attn_"+attention_domain[body];
+          auto result=dnn_options && search_selection=="predicted" && skeleton.evaluation_cases.empty()
+              ? tilemega::solver::SolveDnnStructures(*serving_imported,*dnn_options,
+                  memory_reuse=="auto"?std::vector<std::string>{"none","greedy","l2"}:
+                      std::vector<std::string>{dnn_options->memory_reuse},
+                  context,skeleton,&summary,evidence)
+              : has_moe && search_selection=="predicted" && skeleton.evaluation_cases.empty()
+              ? tilemega::solver::SolveMoeStructures(*serving_imported,binding_choices,
+                  context,skeleton,&summary,evidence)
+              : serving
+              ? tilemega::solver::SolveSkeletonImported(*serving_imported,context,skeleton,&summary,evidence)
+              : tilemega::solver::SolveSkeletonExport(input.string(),context,skeleton,&summary,evidence);
+          if(flow_search_only) {
+            std::ofstream events(std::string(argv[2])+".phases.tsv");solver_timing.WriteEvents(events);
+            std::ofstream times(std::string(argv[2])+".timing.tsv");solver_timing.Write(times,solver_mode,input.stem().string(),dims.seq);
+            std::ofstream ranked(std::string(argv[2])+".flow_ranked.tsv");ranked<<std::setprecision(17)<<"rank\tkey\tflow_ns\tresidency\tkappa\terror\n";
+            for(std::size_t i=0;i<result.evaluated.size();++i){auto const& c=result.evaluated[i];ranked<<i+1<<'\t'<<c.key<<'\t'<<c.score<<'\t'<<c.residency<<'\t'<<c.kappa<<'\t'<<c.error<<'\n';}
+            return 0;
+          }
+          if(result.compiled.shortlist.empty())
+            throw std::runtime_error("attention body "+attention_domain[body]+" left an empty shortlist");
+          per_body.push_back(std::move(result.compiled));
+        }
+        // The base result is the body whose best plan the model prices
+        // lowest: the predicted choice and its search state. Then the
+        // shortlist holds the best plan of every body first, so measurement
+        // always compares the bodies, and fills up by predicted time to the
+        // length one search would have kept.
+        auto predicted=[](tilemega::solver::CompilerSearchResult const& r){
+          return r.shortlist.front().evaluation.makespan_ns;};
+        std::size_t base=0,keep=0;
+        for(std::size_t b=0;b<per_body.size();++b) {
+          if(predicted(per_body[b])<predicted(per_body[base]))base=b;
+          keep=std::max(keep,per_body[b].shortlist.size());
+        }
+        std::vector<std::pair<double,std::pair<std::size_t,std::size_t>>> order;
+        for(std::size_t b=0;b<per_body.size();++b)
+          for(std::size_t i=0;i<per_body[b].shortlist.size();++i)
+            order.push_back({per_body[b].shortlist[i].evaluation.makespan_ns,{b,i}});
+        std::stable_sort(order.begin(),order.end(),[&](auto const& x,auto const& y){
+          bool const xf=x.second.second==0,yf=y.second.second==0;
+          if(xf!=yf)return xf;
+          return x.first<y.first;
+        });
+        if(order.size()>keep)order.resize(std::max(keep,per_body.size()));
+        std::stable_sort(order.begin(),order.end(),[](auto const& x,auto const& y){return x.first<y.first;});
+        std::vector<tilemega::solver::CompilerSearchResult::ShortlistEntry> merged;
+        for(auto const& [ns,at]:order) {
+          merged.push_back(std::move(per_body[at.first].shortlist[at.second]));
+          shortlist_attention.push_back(attention_domain[at.first]);
+        }
+        solved=std::move(per_body[base]);
+        solved.shortlist=std::move(merged);
+        set_attention(attention_domain[base]);
         std::ofstream events(std::string(argv[2])+".phases.tsv");solver_timing.WriteEvents(events);
       }
       std::ofstream timing_file(std::string(argv[2])+".timing.tsv");
       solver_timing.Write(timing_file,solver_mode,input.stem().string(),dims.seq);
       std::ofstream shortlist(std::string(argv[2])+".top3.tsv");
-      shortlist << "rank\tkey\tplacement\ttile_m\ttile_n\ttile_k\tstages\tsplit_k\tkappa\tresidency\tfloor_ns\tpredicted_ns\tsource\tcg\torigin\n";
+      shortlist << "rank\tkey\tplacement\ttile_m\ttile_n\ttile_k\tstages\tsplit_k\tkappa\tresidency\tfloor_ns\tpredicted_ns\tsource\tcg\torigin\tattention_impl\n";
       for (std::size_t i=0;i<solved.shortlist.size();++i) {
         auto const& entry=solved.shortlist[i];auto const& e=entry.evaluation;
         auto const& g=e.candidate.config;
@@ -1241,7 +1346,8 @@ int RunCompile(int argc, char** argv) {
         shortlist << i+1 << '\t' << e.candidate.key << '\t' << e.placement << '\t'
             << g.tile_m << '\t' << g.tile_n << '\t' << g.tile_k << '\t' << g.stages << '\t' << g.split_k << '\t'
             << e.candidate.kappa << '\t' << e.candidate.ctas_per_sm << '\t' << e.floor_ns << '\t' << e.makespan_ns
-            << '\t' << stem << ".cu\t" << stem << ".mlir\t" << entry.origin << "\n";
+            << '\t' << stem << ".cu\t" << stem << ".mlir\t" << entry.origin << '\t'
+            << (i<shortlist_attention.size()?shortlist_attention[i]:attention_impl) << "\n";
       }
       if(serving && !measure_command.empty()) {
         double fastest=std::numeric_limits<double>::infinity();
@@ -1275,7 +1381,7 @@ int RunCompile(int argc, char** argv) {
               " --kphase-mask "+std::to_string(kphase_mask)+
               " --v3-poll-ns "+std::to_string(v3_poll_ns)+
               " --watchdog "+std::to_string(watchdog)+
-              " --attention-impl "+attention_impl+
+              " --attention-impl "+(i<shortlist_attention.size()?shortlist_attention[i]:attention_impl)+
               " --mma-reg-pipe "+std::to_string(mma_reg_pipe)+
               " --l2-slim "+std::to_string(l2_slim)+
               " --page-loop-split "+std::to_string(page_loop_split)+
@@ -1397,6 +1503,7 @@ int RunCompile(int argc, char** argv) {
         solved.module=mlir::OwningOpRef<mlir::ModuleOp>(
             mlir::cast<mlir::ModuleOp>(solved.shortlist[fastest_index].module->clone()));
         solved.winner=solved.shortlist[fastest_index].evaluation.candidate;
+        if(fastest_index<shortlist_attention.size())set_attention(shortlist_attention[fastest_index]);
         selected_serving_binary=std::string(argv[2])+".top"+
             std::to_string(fastest_index+1)+".candidate.so";
         selected_serving_ms=fastest;

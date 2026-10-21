@@ -80,9 +80,11 @@ solve)
   # (ServingGemvTaskBody asserts !Tiled), so selecting it costs the tiled
   # layout as well. Keep it out of the domain until the cost model prices it
   # correctly; GEMM_IMPL=gemv restores the old behaviour for an A/B.
-  # Decode attention: simt by default; ATTN=mma16 selects the MMA body that
-  # MX3-3 added (PrefillAttentionMma at Tokens=1).
-  extra=""; [ $phase = decode ] && extra="--attention-impl ${ATTN:-simt}"
+  # Decode attention: `auto` searches every body the target can hold (simt,
+  # and mma16 -- PrefillAttentionMma at Tokens=1 -- where its shared memory
+  # fits) and lets the selection choose per cell (MX3-3, G-ATTN); ATTN=simt
+  # or ATTN=mma16 fixes one for an A/B.
+  extra=""; [ $phase = decode ] && extra="--attention-impl ${ATTN:-auto}"
   if [ "${GEMM_IMPL:-mma16}" = mma16 ]; then
     for class in qkv o gate-up down lm-head; do
       extra="$extra --gemm-impl-$class mma16"
