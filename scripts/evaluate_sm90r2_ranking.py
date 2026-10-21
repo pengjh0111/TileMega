@@ -20,6 +20,7 @@ def main():
     p.add_argument('--config', type=Path, required=True)
     p.add_argument('--candidate', type=Path, nargs='+', required=True)
     p.add_argument('--pairs', type=Path, required=True)
+    p.add_argument('--pair-prefix', help='fresh, predeclared session cohort; omit for retrospective diagnostics')
     p.add_argument('--states', type=Path, nargs='+', required=True)
     p.add_argument('--probe', type=Path, default=ROOT / 'build/sm90r2_price_probe')
     p.add_argument('--out', type=Path, required=True)
@@ -32,6 +33,10 @@ def main():
     hf = read(ROOT / f"configs/serving/sm90d1/inputs/{config['model']}/config.json")
     calibration = read(a.target)['sm90_dense_decode']
     pairs = list(csv.DictReader(a.pairs.open()))
+    if a.pair_prefix:
+        pairs = [r for r in pairs if r['pair'].startswith(a.pair_prefix)]
+        if len({r['baseline_sha256'] for r in pairs})!=1:
+            raise ValueError('one ranking session must pair every candidate with the same control')
     states = [(path, read(path)) for path in a.states]
     rows, seen, devices, missing = [], set(), set(), []
     for binary in a.candidate:
@@ -115,8 +120,9 @@ def main():
     # This receipt never promotes a fit: class errors and the other six cells
     # remain separate E-3 requirements, even when this cohort ranks correctly.
     result = dict(model=config['model'], batch=config['batch'], candidates=rows, missing=missing,
+        pair_prefix=a.pair_prefix,retrospective=a.pair_prefix is None,
         complete=complete, kendall_tau=tau, top3_contains_fastest=top3_contains_fastest,
-        ranking_pass=complete and tau is not None and tau >= .7 and top3_contains_fastest,
+        ranking_pass=bool(a.pair_prefix) and complete and tau is not None and tau >= .7 and top3_contains_fastest,
         class_validation='not evaluated', solver_gate_pass=False,
         target_sha256=sha(a.target), pairs_sha256=sha(a.pairs),
         probe_sha256=sha(a.probe), script_sha256=sha(__file__), gpu_uuids=sorted(devices))
