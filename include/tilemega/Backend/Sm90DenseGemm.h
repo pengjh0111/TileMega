@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 
-#include <tilemega/Backend/ServingEpilogue.h>
+#include <tilemega/Backend/Sm90DenseEpilogue.h>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
 #include <cute/tensor.hpp>
 
@@ -128,8 +128,7 @@ struct Sm90DenseGemm {
       int task=int(blockIdx.x)+local*int(gridDim.x);
       constexpr int stride=Op==ServingEpilogueOp::kSwiGLU?N/2:
           Op==ServingEpilogueOp::kArgmaxPartial?N/TN:N;
-      ServingEpilogue<Op,16,TN,U>::template RunFromTile<false>(scratch,0,task,Batch,N,
-          stride,N,p.output,p.residual,nullptr,reinterpret_cast<float*>(p.output),
+      Sm90DenseEpilogue<Op,TN,U>::Run(scratch,task,Batch,N,stride,p.output,p.residual,
           p.argmax_index,p.norm_sums,p.output_sums,K,epsilon);
       codegen::executor::ComputeSync();
     }
