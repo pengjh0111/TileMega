@@ -1,0 +1,184 @@
+#include <tilemega/Backend/Ascend/GemmTile.h>
+#include <tilemega/Backend/Ascend/LlmServingBody.h>
+#include <tilemega/Target/Ascend/LlmExecutor.h>
+#include <acl/acl.h>
+#include <algorithm>
+#include <chrono>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <stdexcept>
+#include <vector>
+
+using namespace tilemega::ascend;
+struct CubeBody {
+  GemmTile<bfloat16_t,bfloat16_t,32,64,64,true> gemm;
+  __aicore__ inline bool Run(llm::Stage const& s,unsigned tile,GM_ADDR arena) {
+    if(s.kind!=0 || tile>=s.tasks || s.variant || s.k%16)return false;
+    unsigned nt=(s.columns+63)/64;
+    gemm.RunTask(arena+s.operands[0],arena+s.operands[1],arena+(s.epilogue?s.workspace:s.operands[3]),
+      s.rows,s.columns,s.k,tile/nt,tile%nt);
+    CompleteDma<AscendC::HardEvent::FIX_S>();return true;
+  }
+};
+__global__ __aicore__ __mix__(1,2) __schedmode__(1)
+void tilemega_llm(GM_ADDR arena,GM_ADDR metadata,GM_ADDR stages,GM_ADDR tasks,GM_ADDR waits,
+    GM_ADDR offsets,GM_ADDR queue,GM_ADDR controls,GM_ADDR scratch,GM_ADDR trace,
+    unsigned epoch,unsigned past,unsigned diagnostic) {
+  llm::Forward forward{epoch,past,diagnostic,0};
+  if ASCEND_IS_AIC {
+    CubeBody body;ExecuteLlm<true>(body,arena,metadata,stages,tasks,waits,offsets,queue,controls,scratch,trace,forward);
+  }else {
+    LlmServingBody body;ExecuteLlm<false>(body,arena,metadata,stages,tasks,waits,offsets,queue,controls,scratch,trace,forward);
+  }
+}
+static void Check(aclError code,char const* action) {
+  if(code)throw std::runtime_error(std::string(action)+": "+std::to_string(code));
+}
+template<class T> static std::vector<T> Read(std::filesystem::path const& path) {
+  auto bytes=std::filesystem::file_size(path);if(bytes%sizeof(T))throw std::runtime_error("Malformed native table size");
+  std::vector<T> data(bytes/sizeof(T));std::ifstream f(path,std::ios::binary);
+  f.read((char*)data.data(),bytes);if(!f)throw std::runtime_error("Cannot read native table");return data;
+}
+static void Save(std::filesystem::path const& path,void const* data,size_t bytes) {
+  std::ofstream f(path,std::ios::binary);f.write((char const*)data,bytes);if(!f)throw std::runtime_error("Cannot save native output");
+}
+static std::filesystem::path Controlled(char const* raw) {
+  auto p=std::filesystem::weakly_canonical(raw);
+  std::filesystem::path root="/home/d50064638/junhuip/TileMega/runs/as2";
+  auto rel=p.lexically_relative(root);
+  if(p==root || rel.empty() || *rel.begin()==".." || p!=std::filesystem::path(raw))throw std::invalid_argument("Use canonical AS-2 paths");
+  return p;
+}
+static unsigned Number(char const* text) {
+  std::size_t end=0;auto value=std::stoull(text,&end);
+  if(text[0]=='-' || text[end]!='\0' || value>UINT32_MAX)throw std::invalid_argument("Unrepresentable unsigned launch argument");
+  return static_cast<unsigned>(value);
+}
+int main(int argc,char** argv) {
+  try {
+    if(argc!=7)throw std::invalid_argument("usage: persistent_llm plan_directory packed_inputs new_output past forwards diagnostic(0/1)");
+    auto plan=Controlled(argv[1]),input=Controlled(argv[2]),out=Controlled(argv[3]);
+    unsigned past=Number(argv[4]),forwards=Number(argv[5]),diagnostic=Number(argv[6]);
+    auto metas=Read<llm::Metadata>(plan/"metadata.bin");if(metas.size()!=1)throw std::invalid_argument("Wrong metadata count");
+    auto m=metas[0];auto stages=Read<llm::Stage>(plan/"stages.bin");auto tasks=Read<llm::Task>(plan/"tasks.bin");
+    auto waits=Read<llm::Wait>(plan/"waits.bin");auto offsets=Read<uint32_t>(plan/"offsets.bin");
+    auto queue=Read<uint32_t>(plan/"queue.bin");auto allocations=Read<llm::Allocation>(plan/"allocations.bin");
+    if(m.version!=llm::kVersion || (m.groups!=2 && m.groups!=4) || m.workers!=3*m.groups ||
+        m.tasks!=tasks.size() || m.stages!=stages.size() || m.waits!=waits.size() || m.queue_refs!=queue.size() ||
+        offsets.size()!=m.workers+1 || offsets.front()!=0 || offsets.back()!=queue.size() ||
+        !m.tasks || !m.epoch_stride || (m.seq!=1 && m.seq!=64) || (m.batch!=1 && m.batch!=4 && m.batch!=16) || m.capacity!=1088 ||
+        !m.arena_bytes || m.arena_bytes>(64ULL<<30) || (m.worker_scratch_bytes!=32768 && m.worker_scratch_bytes!=131072) ||
+        m.wait_ticks!=2000000000ULL || diagnostic>1 || !forwards || uint64_t(past)+m.seq+forwards-1>=m.capacity ||
+        (m.seq==64 && (forwards!=1 || past || m.worker_scratch_bytes<98304)) ||
+        uint64_t(forwards)*m.epoch_stride+m.epoch_stride-1>UINT32_MAX || std::filesystem::exists(out))
+      throw std::invalid_argument("Unsupported/broken native LLM metadata or forward range");
+    for(auto const& a:allocations) {
+      if(a.offset>m.arena_bytes || a.bytes>m.arena_bytes-a.offset || a.allocated<a.bytes+512 ||
+          a.allocated>m.arena_bytes-a.offset || a.reserved || a.required>1)throw std::invalid_argument("Invalid 64-bit buffer range");
+    }
+    for(auto const& s:stages)for(auto offset:s.operands)
+      if(offset!=llm::kAbsent && offset>=m.arena_bytes)throw std::invalid_argument("Stage operand outside arena");
+    for(unsigned w=0;w<m.workers;++w) {
+      if(offsets[w]>offsets[w+1])throw std::invalid_argument("Invalid FIFO offsets");
+      for(unsigned i=offsets[w];i<offsets[w+1];++i) {
+        auto id=queue[i];if(id>=tasks.size())throw std::invalid_argument("Invalid FIFO task id");
+        auto const& t=tasks[id];if(t.stage>=stages.size() || t.owner>=m.workers || t.wait_begin>waits.size() ||
+            t.wait_count>waits.size()-t.wait_begin || !t.ordinal || t.ordinal>=m.epoch_stride || t.mix_aiv_lanes>1 ||
+            (t.owner!=w && !(t.mix_aiv_lanes && t.owner<m.groups && w==m.groups+2*t.owner)))
+          throw std::invalid_argument("Invalid native task/participant");
+      }
+    }
+    Check(aclInit(nullptr),"aclInit");uint32_t devices=0;Check(aclrtGetDeviceCount(&devices),"device count");
+    if(devices!=1)throw std::runtime_error("Use the one-device AS-2 wrapper");
+    Check(aclrtSetDevice(0),"set device");auto sku=aclrtGetSocName();
+    if(!sku || std::string(sku).find("Ascend950PR")!=0)throw std::runtime_error("Unexpected device SKU");
+    aclrtStream stream;Check(aclrtCreateStream(&stream),"create stream");std::vector<void*> owned;
+    auto allocate=[&](size_t bytes,void const* data=nullptr)->uint8_t* {
+      void* device=nullptr;Check(aclrtMalloc(&device,std::max<size_t>(bytes,512),ACL_MEM_MALLOC_HUGE_FIRST),"allocate");owned.push_back(device);
+      if(data && bytes)Check(aclrtMemcpy(device,bytes,data,bytes,ACL_MEMCPY_HOST_TO_DEVICE),"upload");
+      else Check(aclrtMemset(device,std::max<size_t>(bytes,512),0,std::max<size_t>(bytes,512)),"initialize");
+      return (uint8_t*)device;
+    };
+    auto da=allocate(m.arena_bytes),dm=allocate(sizeof(m),&m),ds=allocate(stages.size()*sizeof(stages[0]),stages.data());
+    auto dt=allocate(tasks.size()*sizeof(tasks[0]),tasks.data()),dw=allocate(waits.size()*sizeof(waits[0]),waits.data());
+    auto doff=allocate(offsets.size()*4,offsets.data()),dq=allocate(queue.size()*4,queue.data());
+    size_t control_bytes=(m.workers+2*m.groups+1)*512;
+    auto dc=allocate(control_bytes),scratch=allocate(m.workers*m.worker_scratch_bytes),trace=allocate(diagnostic?tasks.size()*64:512);
+    std::vector<uint8_t> chunk(1<<20),guard(512,0xa5);
+    for(unsigned id=0;id<allocations.size();++id) {
+      auto const& a=allocations[id];auto file=input/(std::to_string(id)+".bin");
+      Check(aclrtMemcpy(da+a.offset+a.bytes,512,guard.data(),512,ACL_MEMCPY_HOST_TO_DEVICE),"write guard");
+      if(!std::filesystem::exists(file)) {
+        if(a.required)throw std::runtime_error("Missing required model input: "+file.string());continue;
+      }
+      if(std::filesystem::file_size(file)!=a.bytes)throw std::runtime_error("Packed input size mismatch");
+      std::ifstream f(file,std::ios::binary);
+      for(uint64_t first=0;first<a.bytes;first+=chunk.size()) {
+        size_t n=std::min<uint64_t>(chunk.size(),a.bytes-first);f.read((char*)chunk.data(),n);
+        if(!f)throw std::runtime_error("Packed input read failed");
+        Check(aclrtMemcpy(da+a.offset+first,n,chunk.data(),n,ACL_MEMCPY_HOST_TO_DEVICE),"upload model buffer");
+      }
+    }
+    std::filesystem::create_directory(out);std::vector<double> elapsed;unsigned abort_code=0;
+    unsigned launches=0;
+    for(unsigned epoch=0;epoch<forwards;++epoch) {
+      auto start=std::chrono::steady_clock::now();
+      tilemega_llm<<<m.groups,nullptr,stream>>>(da,dm,ds,dt,dw,doff,dq,dc,scratch,trace,epoch,past+epoch,diagnostic);
+      ++launches;
+      Check(aclrtSynchronizeStream(stream),"LLM forward synchronize");
+      elapsed.push_back(std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count());
+      std::vector<uint32_t> control(control_bytes/4);Check(aclrtMemcpy(control.data(),control_bytes,dc,control_bytes,ACL_MEMCPY_DEVICE_TO_HOST),"read progress");
+      Save(out/("control_"+std::to_string(epoch)+".bin"),control.data(),control_bytes);
+      abort_code=control[(m.workers+2*m.groups)*128];if(abort_code)break;
+      for(unsigned w=0;w<m.workers;++w)
+        if(control[w*128]!=epoch*m.epoch_stride+offsets[w+1]-offsets[w])throw std::runtime_error("Worker did not complete its exact FIFO prefix");
+    }
+    {
+      std::ofstream record(out/"launches.jsonl");
+      for(unsigned epoch=0;epoch<launches;++epoch)
+        record<<"{\"kernel\":\"tilemega_llm\",\"launch_index\":"<<epoch<<",\"forward_epoch\":"<<epoch
+          <<",\"past\":"<<past+epoch<<",\"seq\":"<<m.seq<<",\"groups\":"<<m.groups<<",\"logical_device\":0}\n";
+      if(!record)throw std::runtime_error("Cannot save native launch receipts");
+    }
+    for(unsigned id=0;id<allocations.size();++id) {
+      auto const& a=allocations[id];Check(aclrtMemcpy(guard.data(),512,da+a.offset+a.bytes,512,ACL_MEMCPY_DEVICE_TO_HOST),"read guard");
+      if(!std::all_of(guard.begin(),guard.end(),[](auto b){return b==0xa5;}))throw std::runtime_error("Model buffer guard overwritten: "+std::to_string(id));
+      bool logits=false;for(auto const& stage:stages)if(stage.kind==0 && stage.epilogue==3 && stage.workspace==a.offset)logits=true;
+      if(!a.required && (a.bytes<=1048576 || logits)) {
+        std::vector<uint8_t> data(a.bytes);Check(aclrtMemcpy(data.data(),data.size(),da+a.offset,data.size(),ACL_MEMCPY_DEVICE_TO_HOST),"read diagnostic buffer");
+        Save(out/(std::to_string(id)+".bin"),data.data(),data.size());
+      }
+    }
+    if(diagnostic) {
+      std::vector<uint8_t> data(tasks.size()*64);Check(aclrtMemcpy(data.data(),data.size(),trace,data.size(),ACL_MEMCPY_DEVICE_TO_HOST),"read task receipt");
+      Save(out/"trace.bin",data.data(),data.size());
+    }
+    for(unsigned i=0;i<stages.size();++i) {
+      auto const& s=stages[i];
+      if(s.kind==15) {
+        std::vector<uint32_t> tokens(size_t(m.batch)*m.capacity);
+        Check(aclrtMemcpy(tokens.data(),tokens.size()*4,da+s.operands[2],tokens.size()*4,ACL_MEMCPY_DEVICE_TO_HOST),"read output tokens");
+        Save(out/"tokens.bin",tokens.data(),tokens.size()*4);
+      }
+      if(diagnostic && s.kind==13) {
+        std::vector<uint8_t> row(size_t(m.batch)*s.extent*s.width*2);
+        for(unsigned kv=0;kv<2;++kv) {
+          for(unsigned b=0;b<m.batch;++b)for(unsigned g=0;g<s.extent;++g) {
+            auto index=uint64_t(b)*s.extent+g;
+            auto source=da+s.operands[1+kv]+(index*m.capacity+past+m.seq+forwards-2)*s.width*2;
+            Check(aclrtMemcpy(row.data()+index*s.width*2,s.width*2,source,s.width*2,ACL_MEMCPY_DEVICE_TO_HOST),"read appended KV row");
+          }
+          Save(out/(std::string(kv?"kv_v_s":"kv_k_s")+std::to_string(i)+".bin"),row.data(),row.size());
+        }
+      }
+    }
+    if(abort_code)throw std::runtime_error("Device executor abort code "+std::to_string(abort_code)+"; partial output and task receipt retained");
+    std::cout<<"{\"status\":\"executed_requires_numeric_compare\",\"decode_only\":"<<(m.seq==1?"true":"false")<<",\"seq\":"<<m.seq<<",\"complete_generation\":false,\"optimized_pipeline_admitted\":false,\"groups\":"<<m.groups
+      <<",\"tasks_per_forward\":"<<m.tasks<<",\"forwards\":"<<forwards<<",\"host_kernel_launches\":"<<launches<<",\"arena_bytes\":"<<m.arena_bytes
+      <<",\"forward_host_ms\":[";
+    for(unsigned i=0;i<elapsed.size();++i){if(i)std::cout<<',';std::cout<<elapsed[i];}std::cout<<"]}"<<std::endl;
+    for(auto p:owned)Check(aclrtFree(p),"free owned allocation");Check(aclrtDestroyStream(stream),"destroy stream");Check(aclFinalize(),"finalize");return 0;
+  }catch(std::exception const& e){std::cerr<<e.what()<<std::endl;return 1;}
+}

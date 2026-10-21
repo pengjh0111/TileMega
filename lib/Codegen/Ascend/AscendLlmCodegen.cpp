@@ -1,0 +1,220 @@
+// SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Codegen/AscendLlmCodegen.h>
+#include <tilemega/Solver/PlanSkeleton.h>
+#include <tilemega/Support/Json.h>
+#include <mlir/IR/Verifier.h>
+#include <fstream>
+#include <cmath>
+#include <limits>
+#include <set>
+#include <stdexcept>
+
+namespace tilemega::codegen {
+namespace {
+uint64_t Add(uint64_t a,uint64_t b) {
+  if(a>UINT64_MAX-b)throw std::overflow_error("LLM byte offset overflow");return a+b;
+}
+uint64_t Mul(uint64_t a,uint64_t b) {
+  if(b && a>UINT64_MAX/b)throw std::overflow_error("LLM allocation product overflow");return a*b;
+}
+uint32_t U(mlir::DictionaryAttr d,char const* name) {
+  auto a=d.getAs<mlir::IntegerAttr>(name);
+  if(!a || a.getInt()<0 || uint64_t(a.getInt())>UINT32_MAX)
+    throw std::invalid_argument(std::string("Missing/unrepresentable LLM field: ")+name);
+  return a.getInt();
+}
+std::string S(mlir::DictionaryAttr d,char const* name) {
+  auto a=d.getAs<mlir::StringAttr>(name);return a?a.getValue().str():"";
+}
+mlir::DictionaryAttr At(mlir::ArrayAttr a,unsigned i) {
+  if(!a || i>=a.size())throw std::invalid_argument("Incomplete verified LLM table");
+  auto d=mlir::dyn_cast<mlir::DictionaryAttr>(a[i]);
+  if(!d)throw std::invalid_argument("Malformed verified LLM entry");return d;
+}
+template<class T> void Binary(std::filesystem::path const& p,std::vector<T> const& v) {
+  if(std::filesystem::exists(p))throw std::invalid_argument("Never overwrite an LLM artifact");
+  std::ofstream f(p,std::ios::binary);f.write(reinterpret_cast<char const*>(v.data()),v.size()*sizeof(T));
+  if(!f)throw std::runtime_error("Cannot write LLM binary table");
+}
+}
+AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem const& p,
+    ascend::WorkerMap const& map,std::vector<solver::AscendScheduledTask> const& input,
+    solver::AscendSchedule const& schedule,bool diagnostic) {
+  using namespace ascend::llm;
+  if(!module || mlir::failed(mlir::verify(module)) || !p.model.serving || p.model.dm ||
+      p.model.dtype!=solver::ScalarType::kBF16 || (p.model.dims.seq!=1 && p.model.dims.seq!=64) || p.model.dims.batch<1 ||
+      p.model.serving_capacity!=1088 || (p.model.dims.seq==1?p.model.dims.past!=1087:p.model.dims.past!=0))
+    throw std::invalid_argument("Native LLM materialization requires BF16 prefill64 or conservative full-capacity decode CTG");
+  solver::AuditAscendSchedule(input,map,schedule);
+  if(!diagnostic) {
+    if(schedule.start_ns.size()!=input.size() || schedule.finish_ns.size()!=input.size() ||
+        !std::isfinite(schedule.makespan_ns) || schedule.makespan_ns<=0)
+      throw std::invalid_argument("An unpriced diagnostic queue cannot be labelled as an optimized native Plan");
+    for(auto const& task:input)
+      if(!std::isfinite(task.price.service_ns) || task.price.service_ns<=0 || task.price.provenance.empty())
+        throw std::invalid_argument("Every selected native task requires a positive sourced price");
+  }
+  auto model=module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
+  if(!model || input.size()!=std::size_t(p.offsets.back()) || input.size()>UINT32_MAX)
+    throw std::invalid_argument("LLM plan does not cover its real CTG");
+  auto bs=model.getAs<mlir::ArrayAttr>("buffers"),ss=model.getAs<mlir::ArrayAttr>("stages"),gs=model.getAs<mlir::ArrayAttr>("gemms");
+  if(!bs || bs.size()!=p.model.physical_buffers.size() || !ss || ss.size()!=p.model.stages.size())
+    throw std::invalid_argument("LLM verified table cardinality mismatch");
+  AscendLlmPlan out;json::Array buffers;std::vector<uint64_t> offsets;uint64_t arena=0;
+  std::set<unsigned> required;
+  for(auto raw:ss) {
+    auto d=mlir::cast<mlir::DictionaryAttr>(raw);auto op=d.getAs<mlir::DenseI64ArrayAttr>("operands");
+    if(S(d,"kind")=="kEmbedding")required.insert(op[0]);
+    if(S(d,"kind")=="kFusedAttention"){required.insert(op[3]);required.insert(op[4]);}
+  }
+  for(unsigned i=0;i<bs.size();++i) {
+    auto b=At(bs,i);auto dtype=S(b,"dtype");unsigned width=dtype=="bf16"?2:(dtype=="f32"||dtype=="i32")?4:0;
+    if(!width || b.get("dm_arena_offset"))throw std::invalid_argument("Unsupported LLM allocation type/alias");
+    uint64_t elements=Add(U(b,"constant"),Add(Mul(U(b,"per_batch"),p.model.dims.batch),
+      Add(Mul(U(b,"per_seq"),p.model.dims.seq),Add(Mul(U(b,"per_past"),p.model.dims.past),Mul(U(b,"per_total"),p.model.dims.total)))));
+    auto bytes=Mul(elements,width);if(!bytes)throw std::invalid_argument("Empty LLM allocation");
+    auto allocated=Mul(Add(Add(bytes,512),511)/512,512);
+    bool must=required.count(i) || !S(b,"pack_json").empty();
+    out.allocations.push_back({arena,bytes,allocated,unsigned(must),0});
+    offsets.push_back(arena);
+    buffers.emplace_back(json::Object{{"id",int(i)},{"name",S(b,"name")},{"dtype",dtype},
+      {"offset_bytes",double(arena)},{"bytes",double(bytes)},{"allocated_bytes",double(allocated)},
+      {"external_name",S(b,"external_name")},{"pack_json",S(b,"pack_json")},{"required_input",must},
+      {"no_producer",b.getAs<mlir::BoolAttr>("no_producer").getValue()}});
+    arena=Add(arena,allocated);
+  }
+  auto off=[&](uint32_t id){if(id==UINT32_MAX)return kAbsent;if(id>=offsets.size())throw std::invalid_argument("Invalid LLM operand id");return offsets[id];};
+  auto epsilon=model.getAs<mlir::FloatAttr>("norm_epsilon");
+  if(!epsilon || epsilon.getValueAsDouble()<=0)throw std::invalid_argument("Missing model normalization epsilon");
+  for(unsigned s=0;s<p.counts.size();++s) {
+    auto projected=p.projection.stages.at(s);
+    if(projected.combine)throw std::invalid_argument("Split-K combine body is not registered for this native LLM plan");
+    auto const& source=p.model.stages.at(projected.logical_stage);auto d=At(ss,projected.logical_stage);
+    Stage stage{};for(auto& a:stage.operands)a=kAbsent;stage.workspace=kAbsent;
+    stage.kind=unsigned(source.kind);stage.tasks=p.counts[s];stage.extent=source.extent;
+    stage.width=source.width;stage.group=source.group;stage.kv_block=source.attention_kv_block;
+    stage.query_rows=source.attention_query_rows;stage.epsilon=epsilon.getValueAsDouble();
+    stage.row_stride=U(d,"row_stride");stage.row_offset=U(d,"row_offset");
+    stage.batch_rows=source.batch_rows;stage.rows=p.model.dims.batch*(source.batch_rows?1:p.model.dims.seq);
+    if(source.kind==solver::StageKind::kGemm) {
+      auto g=At(gs,source.gemm);auto const& geo=p.runtime.gemms.at(source.gemm);
+      if(geo.tile_m!=32 || geo.tile_n!=64 || geo.tile_k!=64 || geo.split_k!=1 || geo.stages!=2 || g.get("norm_ss") || g.get("ss_out"))
+        throw std::invalid_argument("LLM GEMM geometry/deferred normalization is not implemented");
+      stage.columns=U(g,"n");stage.k=U(g,"k");
+      if(!stage.k || stage.k%16 || stage.columns%16 || stage.k>16384)
+        throw std::invalid_argument("LLM GEMM lies outside BF16 BlockMmad legality");
+      for(unsigned i=0;i<4;++i)stage.operands[i]=off(U(g,i==0?"a":i==1?"b":i==2?"c":"d"));
+      auto e=S(g,"epilogue");stage.epilogue=e.empty()||e=="store"?0:e=="residual"?1:e=="swiglu"?2:e=="argmax_partial"?3:UINT32_MAX;
+      auto beta=g.getAs<mlir::FloatAttr>("beta");
+      if(!beta || (stage.epilogue==1?beta.getValueAsDouble()!=1:beta.getValueAsDouble()!=0) || stage.epilogue==UINT32_MAX)
+        throw std::invalid_argument("Unregistered LLM epilogue");
+      if(stage.epilogue==2 && U(g,"interleave_u")!=16)throw std::invalid_argument("SwiGLU packing requires U16");
+      if(stage.epilogue==2 && stage.columns%32)throw std::invalid_argument("SwiGLU tail requires complete gate/up U16 pairs");
+      if(stage.epilogue==3 && U(g,"partial_tile_n")!=64)throw std::invalid_argument("LM head partial count disagrees with geometry");
+      if(stage.epilogue) {
+        stage.workspace=arena;auto bytes=Mul(Mul(stage.rows,stage.columns),2);
+        auto allocated=Mul(Add(Add(bytes,512),511)/512,512);
+        out.allocations.push_back({arena,bytes,allocated,0,0});
+        buffers.emplace_back(json::Object{{"id",int(buffers.size())},{"name","native.gemm.raw."+std::to_string(s)},
+          {"dtype","bf16"},{"offset_bytes",double(arena)},{"bytes",double(bytes)},
+          {"allocated_bytes",double(Mul(Add(Add(bytes,512),511)/512,512))},{"no_producer",false},
+          {"external_name",""},{"pack_json",""}});
+        arena=Add(arena,Mul(Add(Add(bytes,512),511)/512,512));
+      }
+    }else {
+      auto operands=d.getAs<mlir::DenseI64ArrayAttr>("operands");
+      if(!operands || operands.size()!=16)throw std::invalid_argument("Missing LLM primitive operands");
+      for(unsigned i=0;i<16;++i)stage.operands[i]=off(operands[i]);
+      if(source.kind!=solver::StageKind::kEmbedding && source.kind!=solver::StageKind::kRMSNorm &&
+          source.kind!=solver::StageKind::kFusedAttention && source.kind!=solver::StageKind::kAttentionMerge &&
+          source.kind!=solver::StageKind::kArgmaxReduce)
+        throw std::invalid_argument("Unregistered native LLM TaskKind");
+      if(source.kind==solver::StageKind::kFusedAttention &&
+          (p.model.dims.seq==1?(stage.query_rows!=stage.group || (stage.kv_block!=128 && stage.kv_block!=1088)):
+           (stage.kv_block!=1088 || !stage.query_rows || !stage.group || stage.query_rows%stage.group)))
+        throw std::invalid_argument("Unregistered native attention query/KV geometry");
+      if((stage.kind==1 || stage.kind==11) && (!stage.width || stage.width>4096))
+        throw std::invalid_argument("Native full-row norm/embedding exceeds its UB contract");
+      if(stage.kind==13 && ((stage.width!=64 && stage.width!=128) || !stage.extent || !stage.group || stage.group>8))
+        throw std::invalid_argument("Native GQA head geometry is not registered");
+    }
+    uint64_t expected=stage.tasks;
+    if(stage.kind==0)expected=Mul((stage.rows+31)/32,(stage.columns+63)/64);
+    else if(stage.kind==1 || stage.kind==11 || stage.kind==15)expected=stage.rows;
+    else if(stage.kind==14)expected=Mul(p.model.dims.batch,stage.extent);
+    else if(stage.kind==13)expected=Mul(Mul(p.model.dims.batch,stage.extent),Mul(
+      (p.model.dims.seq*stage.group+stage.query_rows-1)/stage.query_rows,(1088+stage.kv_block-1)/stage.kv_block));
+    if(expected!=stage.tasks)throw std::invalid_argument("Native task coordinates disagree with CTG ownership");
+    out.stages.push_back(stage);
+  }
+  for(auto& s:out.stages)if(s.kind==0 && s.epilogue==3) {
+    unsigned matches=0;
+    for(auto const& reduce:out.stages)if(reduce.kind==15 && reduce.operands[0]==s.operands[3]) {
+      s.operands[4]=reduce.operands[1];++matches;
+      if(reduce.width!=(s.columns+63)/64)throw std::invalid_argument("Vocabulary reduction domain disagrees with partial tiles");
+    }
+    if(matches!=1)throw std::invalid_argument("LM head lacks a unique final argmax consumer");
+  }
+  for(unsigned i=0;i<input.size();++i) {
+    auto const& t=input[i];unsigned lanes=t.role==ascend::ImplementationRole::kMix1_2?t.mix_aiv_lanes:0;
+    if(lanes>1)throw std::invalid_argument("LLM epilogue currently registers one AIV participant");
+    auto const& stage=out.stages.at(t.stage);
+    auto expected=stage.kind==0?(stage.epilogue?ascend::ImplementationRole::kMix1_2:ascend::ImplementationRole::kAicOnly):ascend::ImplementationRole::kAivOnly;
+    if(t.role!=expected || t.logical_task>=stage.tasks || out.waits.size()>UINT32_MAX)
+      throw std::invalid_argument("LLM task role/coordinate disagrees with implementation contract");
+    Task task{t.stage,t.logical_task,schedule.owners[i],schedule.ordinals[i],uint32_t(out.waits.size()),uint32_t(schedule.waits[i].size()),lanes};
+    for(auto w:schedule.waits[i])out.waits.push_back({w.producer_worker,w.required_prefix});
+    out.tasks.push_back(task);
+  }
+  if(out.waits.size()>UINT32_MAX || schedule.queue.size()>UINT32_MAX)throw std::overflow_error("LLM queue/wait table overflow");
+  out.offsets=schedule.offsets;out.queue=schedule.queue;
+  out.metadata={kVersion,unsigned(map.launch.num_groups),unsigned(map.workers.size()),unsigned(out.tasks.size()),
+    unsigned(out.stages.size()),unsigned(out.waits.size()),unsigned(out.queue.size()),schedule.epoch_stride,
+    unsigned(p.model.dims.batch),unsigned(p.model.dims.seq),1088,unsigned(diagnostic),arena,131072,2000000000ULL};
+  solver::AscendProgressValue(1088,schedule.epoch_stride-1,schedule.epoch_stride);
+  out.buffers_json=json::Value(json::Object{{"schema","tilemega.ascend.llm.buffers.v2"},
+    {"arena_bytes",double(arena)},{"buffers",std::move(buffers)},
+    {"pricing_status",diagnostic?"diagnostic_unpriced_bootstrap":"native_prices_required"},
+    {"phase",p.model.dims.seq==1?"decode":"prefill"},{"complete_generation",false},{"device_execution_verified",false}}).Dump();
+  return out;
+}
+void AscendLlmPlan::Write(std::filesystem::path const& root) const {
+  std::filesystem::create_directory(root);
+  Binary(root/"metadata.bin",std::vector<ascend::llm::Metadata>{metadata});
+  Binary(root/"stages.bin",stages);Binary(root/"tasks.bin",tasks);Binary(root/"waits.bin",waits);
+  Binary(root/"allocations.bin",allocations);
+  Binary(root/"offsets.bin",offsets);Binary(root/"queue.bin",queue);
+  std::ofstream out(root/"buffers.json");out<<buffers_json<<'\n';if(!out)throw std::runtime_error("Cannot write LLM allocation manifest");
+  json::Array contracts;
+  for(unsigned i=0;i<stages.size();++i) {
+    auto const& s=stages[i];std::string id;
+    if(s.kind==0)id=s.epilogue==0?"as2_catlass_bf16_32x64x64_nk":s.epilogue==1?"as2_mix_gemm_residual_gm":
+      s.epilogue==2?"as2_mix_gemm_swiglu_u16_gm":"as2_mix_gemm_argmax64_gm";
+    else if(s.kind==1)id="as2_aiv_rmsnorm_full_row";
+    else if(s.kind==11)id="as2_aiv_embedding_i32_bf16";
+    else if(s.kind==13)id=s.kv_block==128?"as2_aiv_gqa_fp32_log2_partials_kv128":
+      metadata.seq==1?"as2_aiv_gqa_bf16_scores_probability_k32":"as2_aiv_causal_prefill_private_kv_k32";
+    else if(s.kind==14)id="as2_aiv_normalized_partial_log2_merge";
+    else if(s.kind==15)id="as2_aiv_ordered_argmax_scalar_reduce";
+    if(id.empty())throw std::invalid_argument("Missing native body contract");
+    contracts.emplace_back(json::Object{{"stage",int(i)},{"impl_id",id},{"semantic_kind",int(s.kind)},
+      {"role",s.kind==0?(s.epilogue?"AIC_AIV0":"AIC_ONLY"):"AIV_ONLY"},
+      {"dtype","bf16"},{"opmath","fp32"},{"input_weight_layout",s.kind==0?"logical_NK":"ND"},
+      {"aic_l1_bytes",s.kind==0?524288:0},{"aic_l0a_bytes",s.kind==0?65536:0},
+      {"aic_l0b_bytes",s.kind==0?65536:0},{"aic_l0c_bytes",s.kind==0?262144:0},
+      {"aiv_ub_bytes",s.kind!=0||s.epilogue?106496:0},
+      {"internal_hard_event_slot",7},{"logical_task_completion_publishers",1},
+      {"handoff","GM_single_owner_frontier"},{"service_ns",json::Value{}},
+      {"calibration_status","not_calibrated"}});
+  }
+  std::ofstream c(root/"implementations.json");c<<json::Value(std::move(contracts)).Dump()<<'\n';
+  if(!c)throw std::runtime_error("Cannot write native body contracts");
+}
+std::string LowerAscendLlm(AscendLlmPlan const& p) {
+  if(p.metadata.version!=ascend::llm::kVersion)throw std::invalid_argument("Wrong native LLM ABI");
+  std::ifstream file(std::string(TILEMEGA_SOURCE_DIR)+"/lib/Codegen/Ascend/PersistentLlm.cpp.in");
+  if(!file)throw std::runtime_error("Missing native LLM template");
+  return "// Generated by TileMega: verified CTG tables, LLM ABI v2, CATLASS 32x64x64 NK.\n"+
+    std::string((std::istreambuf_iterator<char>(file)),{});
+}
+} // namespace tilemega::codegen

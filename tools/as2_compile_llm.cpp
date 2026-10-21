@@ -2,6 +2,7 @@
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Solver/ModelDescription.h>
 #include <tilemega/Solver/PlanSkeleton.h>
+#include <tilemega/Codegen/AscendLlmCodegen.h>
 #include <tilemega/Support/Json.h>
 #include <mlir/IR/MLIRContext.h>
 #include <mlir/IR/Verifier.h>
@@ -18,9 +19,10 @@ static void Write(std::filesystem::path const& path,std::string const& text) {
 }
 int main(int argc,char** argv) {
   try {
-    bool prepare=argc==6 && std::string(argv[1])=="prepare";
+    bool emit=(argc==6 || argc==7) && std::string(argv[1])=="emit-diagnostic";
+    bool prepare=emit || (argc==6 && std::string(argv[1])=="prepare");
     if(!prepare && (argc!=5 || std::string(argv[1])!="inspect"))
-      throw std::invalid_argument("usage: as2_compile_llm inspect exported_directory new_output_directory batch; or prepare exported_directory new_output_directory batch groups");
+      throw std::invalid_argument("usage: as2_compile_llm inspect export new_output batch; or prepare|emit-diagnostic export new_output batch groups [diagnostic_kv_block]");
     namespace fs=std::filesystem;
     auto root=fs::path("/home/d50064638/junhuip/TileMega/runs/as2");
     auto input=fs::weakly_canonical(argv[2]),output=fs::weakly_canonical(argv[3]);
@@ -35,10 +37,18 @@ int main(int argc,char** argv) {
     serving.phase=phase=="prefill"?decltype(serving.phase)::kPrefill:decltype(serving.phase)::kDecode;
     serving.seq=phase=="prefill"?64:1;serving.capacity=1088;
     serving.deferred_norm=false;serving.kv_block=128;serving.argmax_tile_n=64;
+    if(emit)serving.kv_block=1088;
+    if(emit && argc==7) {
+      serving.kv_block=std::stoi(argv[6]);
+      if(serving.kv_block!=128 && serving.kv_block!=1088)throw std::invalid_argument("Bounded native KV candidates are 128 and 1088");
+    }
     auto start=std::chrono::steady_clock::now();
     tilemega::analysis::IslContext isl;
     auto bridge=tilemega::frontend::ReadExportBridge((input/"export.json").string());
     auto plan=tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,serving);
+    if(emit && phase=="prefill")for(auto& stage:plan.stages)
+      if(stage.kind==tilemega::frontend::PlanTaskKind::kFusedAttention)
+        stage.attention_query_rows=16*stage.group;
     tilemega::frontend::ImportOptions options;options.phase_batch=batch;
     options.rope_tile_per_block=options.kv_tile_per_block=options.activation_tile_per_block=options.combiner_tile_per_block=true;
     options.gemms.assign(plan.gemms.size(),{32,64,64,2,1});
@@ -53,7 +63,7 @@ int main(int argc,char** argv) {
     if(!module || mlir::failed(mlir::verify(*module)))
       throw std::runtime_error("LLM import verification failed");
     tilemega::solver::ModelDims dims;dims.batch=batch;dims.seq=serving.seq;
-    dims.past=phase=="prefill"?0:64;dims.total=dims.seq+dims.past;
+    dims.past=phase=="prefill"?0:emit?1087:64;dims.total=dims.seq+dims.past;
     auto model=tilemega::solver::ModelDescription::FromCouplingGraph(*module,dims,"as2-llm-inspection");
     fs::create_directories(output);
     std::string ir;{llvm::raw_string_ostream stream(ir);module->print(stream);}Write(output/"ctg.mlir",ir);
@@ -65,6 +75,7 @@ int main(int argc,char** argv) {
     auto seconds=std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count();
     tilemega::json::Value result(tilemega::json::Object{
       {"status","verified_import_only"},{"model_id",receipt.At("model_id").AsString("model_id")},
+      {"config_sha256",receipt.At("config_sha256").AsString("config_sha256")},
       {"phase",phase},{"batch",batch},{"seq",dims.seq},{"past",dims.past},{"capacity",serving.capacity},
       {"stages",std::move(stages)},{"gemms",int(model.gemms.size())},
       {"task_spaces",int(summary.task_spaces)},{"couplings",int(summary.couplings)},
@@ -127,6 +138,32 @@ int main(int argc,char** argv) {
       result.Set("symbolic_preparation_executed",true);
       result.Set("structural_skeleton_executed",true);
       result.Set("task_count",problem.offsets.back());
+      if(emit) {
+        std::vector<tilemega::ascend::ImplementationRole> roles;
+        for(auto const& s:plan.stages) {
+          using R=tilemega::ascend::ImplementationRole;
+          roles.push_back(s.kind==tilemega::frontend::PlanTaskKind::kGemm?
+            (plan.gemms.at(s.gemm).epilogue==tilemega::frontend::PlanGemm::Epilogue::kStore?R::kAicOnly:R::kMix1_2):R::kAivOnly);
+        }
+        skeleton.BindAscendWorkers(workers,roles,true);
+        std::vector<tilemega::solver::AscendServicePrice> unknown(problem.offsets.back());
+        auto tasks=tilemega::solver::AscendTasksFromSymbolic(problem,skeleton,unknown);
+        for(auto& t:tasks)t.mix_aiv_lanes=1;
+        auto scheduled=tilemega::solver::DiagnosticAscendSchedule(tasks,workers);
+        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,true);
+        native.Write(output/"plan");
+        auto diagnostic_schedule=tilemega::json::Parse(scheduled.ToJson());
+        diagnostic_schedule.Set("selection","diagnostic_unpriced_bootstrap");
+        diagnostic_schedule.Set("makespan_ns",tilemega::json::Value{});
+        diagnostic_schedule.Set("shared_gm_floor_ns",tilemega::json::Value{});
+        Write(output/"schedule.json",diagnostic_schedule.Dump());
+        Write(output/"persistent_llm.cpp",tilemega::codegen::LowerAscendLlm(native));
+        result.Set("native_plan_materialized",true);
+        result.Set("selection","diagnostic_unpriced_bootstrap_not_optimized");
+        result.Set("priced_solver_executed",false);
+        result.Set("arena_bytes",double(native.metadata.arena_bytes));
+        result.Set("device_execution_verified",false);
+      }
     }
     Write(output/"import.json",result.Dump());std::cout<<result.Dump()<<std::endl;return 0;
   }catch(std::exception const& e){std::cerr<<e.what()<<std::endl;return 1;}
