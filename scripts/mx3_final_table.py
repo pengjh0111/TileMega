@@ -16,6 +16,7 @@ REPO = Path(__file__).resolve().parent.parent
 ap = argparse.ArgumentParser()
 ap.add_argument('--serving', type=Path, default=REPO / 'docs/results/MX3_serving_c550.csv')
 ap.add_argument('--csv', type=Path)
+ap.add_argument('--campaign', default='mx3-rerun', help='the MX-3 result campaign')
 a = ap.parse_args()
 
 rows = list(csv.DictReader(a.serving.open()))
@@ -31,7 +32,7 @@ def med(campaign, system, model, batch, field):
 
 def impl(model, batch):
     for r in rows:
-        if r['campaign'] == 'mx3' and r['model'] == model and int(r['batch']) == batch:
+        if r['campaign'] == a.campaign and r['model'] == model and int(r['batch']) == batch:
             return r['impl']
     return ''
 
@@ -39,7 +40,8 @@ def impl(model, batch):
 out = []
 for model in ('qwen3_0_6b', 'qwen3_1_7b', 'llama3_2_1b', 'llama3_1_8b'):
     for batch in (1, 2, 4, 8, 16):
-        new = med('mx3', 'tilemega', model, batch, 'tpot_ms')
+        new = med(a.campaign, 'tilemega', model, batch, 'tpot_ms')
+        first = med('mx3', 'tilemega', model, batch, 'tpot_ms')
         ref, ref_name = med('tm-mx2', 'tilemega', model, batch, 'tpot_ms'), 'TM-MX2'
         if ref is None:
             ref, ref_name = med('mx2', 'tilemega', model, batch, 'tpot_ms'), 'MX-2'
@@ -54,8 +56,9 @@ for model in ('qwen3_0_6b', 'qwen3_1_7b', 'llama3_2_1b', 'llama3_1_8b'):
             model=model, batch=batch, ref=ref_name,
             ref_tpot=ref, mx3_tpot=new,
             delta_pct=(new / ref - 1) * 100 if new and ref else None,
-            mx3_ttft=med('mx3', 'tilemega', model, batch, 'ttft_ms'),
-            mx3_mbu=med('mx3', 'tilemega', model, batch, 'mbu'),
+            mx3_first_tpot=first,
+            mx3_ttft=med(a.campaign, 'tilemega', model, batch, 'ttft_ms'),
+            mx3_mbu=med(a.campaign, 'tilemega', model, batch, 'mbu'),
             vs_vllm=new / vllm if new and vllm else None,
             vs_sglang=new / sgl if new and sgl else None,
             vs_torchcompile=new / tc if new and tc else None,

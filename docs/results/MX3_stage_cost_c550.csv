@@ -1,0 +1,24 @@
+set,headers,cell,plan,tpot_ms,delta_ms
+pre-cache,f4da45a9a+trace (exact-wait mainloop),qwen3_0_6b/B1,base,4.5325,0.0
+pre-cache,f4da45a9a+trace (exact-wait mainloop),qwen3_0_6b/B1,dropC,3.7217,-0.8108
+pre-cache,f4da45a9a+trace (exact-wait mainloop),qwen3_0_6b/B1,emptyC,3.8555,-0.677
+pre-cache,f4da45a9a+trace (exact-wait mainloop),qwen3_0_6b/B1,dropM,4.3345,-0.198
+pre-cache,f4da45a9a+trace (exact-wait mainloop),qwen3_0_6b/B1,emptyM,4.3704,-0.162
+pre-cache,f4da45a9a+trace (exact-wait mainloop),qwen3_0_6b/B1,emptyA,3.8317,-0.7008
+pre-cache,f4da45a9a+trace (exact-wait mainloop),qwen3_0_6b/B1,emptyG,2.0861,-2.4463
+pre-cache,f4da45a9a+trace (exact-wait mainloop),qwen3_0_6b/B1,emptyAll,0.7587,-3.7738
+decode,6023bd3d2+epilogue global loads (guarded mainloop),qwen3_0_6b/B1,base2,4.6589,0.0
+decode,6023bd3d2+epilogue global loads (guarded mainloop),qwen3_0_6b/B1,emptyG2,2.085,-2.574
+decode,6023bd3d2+epilogue global loads (guarded mainloop),qwen3_0_6b/B1,nobodyG,2.3924,-2.2665
+decode,6023bd3d2+epilogue global loads (guarded mainloop),qwen3_0_6b/B1,emptyC2,3.8487,-0.8102
+decode,6023bd3d2+epilogue global loads (guarded mainloop),qwen3_0_6b/B1,nobodyC,4.0535,-0.6054
+decode,6023bd3d2+epilogue global loads (guarded mainloop),qwen3_0_6b/B1,emptyAll2,0.8384,-3.8205
+decode,6023bd3d2+epilogue global loads (guarded mainloop),qwen3_0_6b/B1,nowatch,4.6028,-0.0562
+final,26632fa26 bodies (descriptor prefetch),llama3_2_1b/B1,base3,3.7261,0.0
+final,26632fa26 bodies (descriptor prefetch),llama3_2_1b/B1,emptyAll3,0.4841,-3.242
+final,26632fa26 bodies (descriptor prefetch),llama3_2_1b/B1,emptyC3,3.3999,-0.3261
+final,26632fa26 bodies (descriptor prefetch),llama3_2_1b/B1,dropC3,3.4022,-0.3238
+final,26632fa26 bodies (descriptor prefetch),qwen3_0_6b/B1,base3,4.0428,0.0
+final,26632fa26 bodies (descriptor prefetch),qwen3_0_6b/B1,emptyAll3,0.7031,-3.3396
+final,26632fa26 bodies (descriptor prefetch),qwen3_0_6b/B1,emptyC3,3.4967,-0.546
+final,26632fa26 bodies (descriptor prefetch),qwen3_0_6b/B1,dropC3,3.5146,-0.5281

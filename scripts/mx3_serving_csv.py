@@ -63,8 +63,8 @@ def label(cell: Path) -> dict:
     gemv = sorted(k.rsplit('_', 1)[-1] for k, v in macros.items()
                   if re.fullmatch(r'TILEMEGA_GEMM_IMPL_\d+', k) and v)
     bits = ['gemm=' + ('gemv:' + ','.join(gemv) if gemv else 'mma16')]
-    if macros.get('TILEMEGA_ATTENTION_IMPL') == 3:
-        bits.append('attn=simt')
+    if 'TILEMEGA_ATTENTION_IMPL' in macros:
+        bits.append('attn=' + ('simt' if macros['TILEMEGA_ATTENTION_IMPL'] == 3 else 'mma16'))
     cu = cell / 'plan.so.cu'
     if cu.exists():
         tile = {}
@@ -107,7 +107,10 @@ for campaign, base in (('mx1', a.root / 'mx1' / 'base'),):
 for campaign, pattern in (('mx1', a.root / 'mx1' / 'tm'), ('mx2', a.root / 'mx2' / 'tm'),
                           ('tm-mx2-unpinned', a.root / 'mx3' / 'tm'),
                           ('tm-mx2', a.root / 'mx3' / 'tm2'),
-                          ('mx3', a.root / 'mx3' / 'final')):
+                          ('mx3', a.root / 'mx3' / 'final'),
+                          # The rerun after the descriptor prefetch, the attention
+                          # coordinate and the in-situ recalibration (26632fa26).
+                          ('mx3-rerun', a.root / 'mx3' / 'final2')):
     for path in sorted(pattern.glob('*/B*/measure/round*/measurements.json')):
         d = json.loads(path.read_text())
         model, batch, rnd = path.parts[-5], path.parts[-4], path.parts[-2]

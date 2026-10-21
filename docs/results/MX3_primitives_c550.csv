@@ -21,3 +21,9 @@ __nanosleep(1000),2445.005,2445.005,,,
 GlobalTimerNs read 1 CTA,126.035,126.035,,,"the trace clock; every ledger interval holds at least one read"
 GlobalTimerNs read 104 CTA,126.165,126.350,,,
 GlobalTimerNs read 416 CTA,200.800,201.245,,,"four CTAs per AP, as the residency-4 plans run"
+dependent flat load chain 4KiB,138.8,418.4,,,experiments/mx3/flat_load.cu; 3 processes x 21 interleaved launches; flat = generic pointer (LDX)
+dependent global load chain 4KiB,143.5,203.9,,,experiments/mx3/flat_load.cu; 3 processes x 21 interleaved launches; flat = generic pointer (LDX)
+dependent flat load chain 256KiB,221.2,234.9,,,experiments/mx3/flat_load.cu; 3 processes x 21 interleaved launches; flat = generic pointer (LDX)
+dependent global load chain 256KiB,229.6,239.5,,,experiments/mx3/flat_load.cu; 3 processes x 21 interleaved launches; flat = generic pointer (LDX)
+dependent flat load chain 16384KiB,307.5,316.1,,,experiments/mx3/flat_load.cu; 3 processes x 21 interleaved launches; flat = generic pointer (LDX)
+dependent global load chain 16384KiB,310.4,323.0,,,experiments/mx3/flat_load.cu; 3 processes x 21 interleaved launches; flat = generic pointer (LDX)
