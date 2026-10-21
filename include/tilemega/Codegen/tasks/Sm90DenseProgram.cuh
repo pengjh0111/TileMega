@@ -6,6 +6,7 @@
 #include <tilemega/Backend/Sm90DenseToken.cuh>
 #include <tilemega/Backend/Sm90DenseLayout.h>
 #include <tilemega/Backend/Sm90DensePreissue.cuh>
+#include <tilemega/Codegen/tasks/Sm90DenseStage.cuh>
 #include <tilemega/Codegen/tasks/ServingAbi.h>
 #include <array>
 #include <tuple>
@@ -64,21 +65,14 @@ struct Gemm {
   static constexpr int kMaxPreissue=(Slots<Body::kIterations?Slots:Body::kIterations)*2*TN*TK;
   static constexpr auto kLayout=backend::Sm90DenseLayout::Gemm(TN,TK,Slots,WK);
   static_assert(kLayout.end==kSharedBytes);
+  using Preissue=GemmRead<Body,kTasks>;
   template<int Bytes>
   static constexpr auto Payload() {
     return backend::Sm90DenseLayout::GemmPayload(TN,TK,Slots,K,Bytes);
   }
-  template<int Bytes,class B>
-  __device__ static __forceinline__ void Prepare(B const& b,int,char* shared,
-      backend::Sm90DenseRingState& ring) {
-    if constexpr(Bytes>0)if(blockIdx.x<kTasks)
-      Body::template Preissue<Bytes>(b.template Get<W>(),shared,ring);
-  }
-  template<int Bytes,int Prefix,class B>
-  __device__ static __forceinline__ void Prefetch(B const& b,int) {
-    if constexpr(Bytes>0)if(blockIdx.x<kTasks) {
-      Body::template Prefetch<Bytes,Prefix>(b.template Get<W>());
-    }
+  template<class B>
+  __device__ static __forceinline__ ReadSources Sources(B const& b) {
+    return {b.template Get<W>(),nullptr};
   }
   template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int,char* shared,float epsilon,
@@ -87,7 +81,7 @@ struct Gemm {
         b.template Get<C>(),b.template Get<D>(),reinterpret_cast<int*>(b.template Get<Index>()),
         reinterpret_cast<float const*>(b.template Get<Norm>()),
         reinterpret_cast<float*>(b.template Get<Sums>())};
-    Body::template Run<Prefix>(p,shared,epsilon,&ring,tail);
+    StageEntry<Body>::template Gemm<Prefix>(p,shared,epsilon,&ring,tail);
   }
 };
 
@@ -101,6 +95,7 @@ struct Attention {
       backend::Sm90DenseAttentionStream<Batch,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity>>;
   using Loader=backend::Sm90DenseKvPreissue<(Batch>=8),D,Q,Chunks,Keys,Slots,RowWork,Capacity>;
   static constexpr int kTasks=Batch*8*Chunks,kSharedBytes=Body::kSharedBytes;
+  using Preissue=KvRead<Loader,kTasks>;
   static constexpr int kRingSlots=Batch<=4?1:Slots;
   static constexpr int kMaxPreissue=4*D*(Batch<=4?
       Body::Partition::MaxKeys(Capacity,RowWork):Slots*Keys);
@@ -115,16 +110,9 @@ struct Attention {
     return backend::Sm90DenseLayout::AttentionPayload(
         Batch,D,Q,Chunks,Keys,Slots,RowWork,Capacity,Bytes);
   }
-  template<int Bytes,class B>
-  __device__ static __forceinline__ void Prepare(B const& b,int past,char* shared,
-      backend::Sm90DenseRingState& ring) {
-    if constexpr(Bytes>0)if(blockIdx.x<kTasks)
-      Loader::template Prepare<Bytes>(b.template Get<Key>(),b.template Get<Value>(),past,shared,ring);
-  }
-  template<int Bytes,int Prefix,class B>
-  __device__ static __forceinline__ void Prefetch(B const& b,int past) {
-    if constexpr(Bytes>0)if(blockIdx.x<kTasks)
-      Loader::template Prefetch<Bytes,Prefix>(b.template Get<Key>(),b.template Get<Value>(),past);
+  template<class B>
+  __device__ static __forceinline__ ReadSources Sources(B const& b) {
+    return {b.template Get<Key>(),b.template Get<Value>()};
   }
   template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int past,char* shared,float epsilon,
@@ -135,7 +123,7 @@ struct Attention {
         reinterpret_cast<float*>(b.template Get<Partial>()),
         reinterpret_cast<float*>(b.template Get<Lse>()),
         reinterpret_cast<std::uint64_t*>(b.template Get<Arrivals>()),past,epsilon};
-    Body::Run(p,shared,&ring,tail);
+    StageEntry<Body>::Attention(p,shared,&ring,tail);
   }
 };
 
@@ -195,6 +183,7 @@ template<class Stage,int Offset=0,int Prefix=0,int L2Bytes=0>
 struct Placement:Stage {
   static_assert(Offset>=0 && Offset%1024==0 && Prefix>=0 && Prefix%16==0 &&
       Prefix<=Stage::kMaxPreissue && L2Bytes>=0 && L2Bytes%16==0);
+  static_assert(Stage::kMaxPreissue>0 || L2Bytes==0,"this stage has no data to prefetch");
   static constexpr int kOffset=Offset,kPrefix=Prefix,kL2Bytes=L2Bytes;
   static constexpr int kSharedBytes=Offset+Stage::kSharedBytes;
   static constexpr auto kPayload=Stage::template Payload<Prefix>().Shift(Offset);
@@ -204,12 +193,6 @@ struct Placement:Stage {
   __device__ static __forceinline__ void Run(B const& b,int past,char* shared,float epsilon,
       backend::Sm90DenseRingState& ring,Tail tail) {
     Stage::template Run<Prefix>(b,past,shared+Offset,epsilon,ring,tail);
-  }
-  template<class B>
-  __device__ static __forceinline__ void Issue(B const& b,int past,char* shared,
-      backend::Sm90DenseRingState& ring) {
-    Stage::template Prepare<Prefix>(b,past,shared+Offset,ring);
-    Stage::template Prefetch<L2Bytes,Prefix>(b,past);
   }
 };
 
@@ -223,23 +206,15 @@ struct ProducerTail {
   int past;
   char* shared;
   backend::Sm90DenseRingState &current,&next;
-  // Pass scalar fields rather than an addressable per-stage callback object.
-  __device__ static __forceinline__ void Issue(Binding const& binding,int past,char* shared,
-      backend::Sm90DenseRingState& current,backend::Sm90DenseRingState& next) {
-    if constexpr(Next::kPrefix || Next::kL2Bytes) {
-      // Empty covers operand readers, but not epilogue scratch. Its liveness
-      // is checked independently at plan creation and again by this type.
-      if constexpr(Next::kPayload.Overlaps(Current::kLive))
-        current.template RetireOperands<Current::kRingSlots>();
-      Next::Issue(binding,past,shared,next);
+  __device__ __forceinline__ auto Raw() const {
+    if constexpr(!(Next::kPrefix || Next::kL2Bytes))return backend::Sm90DenseNoTail{};
+    else {
+      using Tail=RawProducerTail<typename Next::Preissue,Next::kOffset,Next::kPrefix,
+          Next::kL2Bytes,Next::kPayload.Overlaps(Current::kLive),Current::kRingSlots>;
+      // Uniform call arguments avoid per-layer conditional pointer lifetimes.
+      auto source=Next::Sources(binding);
+      return Tail{source,past,shared,&current,&next};
     }
-  }
-  __device__ __forceinline__ void operator()() const {
-    if constexpr(!kBefore && (Next::kPrefix || Next::kL2Bytes))
-      Issue(binding,past,shared,current,next);
-  }
-  __device__ __forceinline__ void Before() const {
-    if constexpr(kBefore)Issue(binding,past,shared,current,next);
   }
 };
 
@@ -272,7 +247,7 @@ struct Program {
     auto* rings=reinterpret_cast<backend::Sm90DenseRingState*>(shared);
     if constexpr(Index+1<kStages) {
       ProducerTail<Body,Next,Binding> tail{b,past,shared,rings[Index%2],rings[(Index+1)%2]};
-      Body::Run(b,past,shared,epsilon,rings[Index%2],tail);
+      Body::Run(b,past,shared,epsilon,rings[Index%2],tail.Raw());
     }else Body::Run(b,past,shared,epsilon,rings[Index%2],backend::Sm90DenseNoTail{});
     if(threadIdx.x==0) {
 #if TILEMEGA_TRACE_STAGE
