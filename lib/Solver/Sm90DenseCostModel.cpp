@@ -13,7 +13,8 @@ std::string AttentionKey(Sm90DenseWorkload const& w) {
       "_norm"+std::to_string(int(w.qk_norm));
 }
 std::string GemmKey(Sm90DenseGemm const& g) {
-  return "gemm_mma_sync_tn"+std::string(g.tile_n<=32?"8_32":g.tile_n<=64?"40_64":"72_plus");
+  return "gemm_mma_sync_tn"+std::string(g.tile_n<=32?"8_32":g.tile_n<=64?"40_64":"72_plus")+
+      "_wk"+std::to_string(g.warps_k);
 }
 double Interpolate(std::map<double,double> const& curve,double x,bool scale_tail=false) {
   auto upper=curve.lower_bound(x);

@@ -41,7 +41,8 @@ json::Value Fixture() {
         {"coefficients",coefficients}});
   };
   for(auto key:{"gemm_mma_sync_tn8_32","gemm_mma_sync_tn40_64","gemm_mma_sync_tn72_plus"})
-    fit(key,{{"startup_ns",300},{"mma_scale",1},{"memory_scale",1},{"activation_scale",.2},
+    for(int wk:{1,2,4})fit((std::string(key)+"_wk"+std::to_string(wk)).c_str(),
+        {{"startup_ns",300},{"mma_scale",1},{"memory_scale",1},{"activation_scale",.2},
         {"epilogue_scale",1},{"preissue_efficiency",.5},{"tail_efficiency",.1},
         {"l2_efficiency",.1},{"issue_ns",20}});
   for(auto key:{"attention_simt_d128_q2_norm1","attention_mma_sync_d128_q2_norm1"})
@@ -123,7 +124,7 @@ int main() {
   auto issuer=issue_only;auto issuer_fits=issuer.At("body_fits").AsObject("body fits");
   for(auto& fit:issuer_fits) {
     auto coefficients=fit.second.At("coefficients");
-    if(fit.first=="gemm_mma_sync_tn8_32")coefficients.Set("issue_ns",200);
+    if(fit.first=="gemm_mma_sync_tn8_32_wk1")coefficients.Set("issue_ns",200);
     if(fit.first=="attention_simt_d128_q2_norm1")coefficients.Set("issue_ns",9999);
     fit.second.Set("coefficients",coefficients);
   }
@@ -132,7 +133,7 @@ int main() {
   assert(issuer_price.stages[0].issue==200 && issuer_price.stages[0].issue_count==1);
   for(auto& fit:issuer_fits) {
     auto coefficients=fit.second.At("coefficients");
-    if(fit.first=="gemm_mma_sync_tn8_32")coefficients.Set("issue_service_scale",.5);
+    if(fit.first=="gemm_mma_sync_tn8_32_wk1")coefficients.Set("issue_service_scale",.5);
     fit.second.Set("coefficients",coefficients);
   }
   issuer.Set("body_fits",issuer_fits);

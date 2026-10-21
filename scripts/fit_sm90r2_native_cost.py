@@ -50,10 +50,11 @@ def main():
     def profile(key, coefficients):
         fits[key] = dict(evidence='inferred', sample_count=1, coefficients=coefficients,
                          method='unfitted feature extraction; not usable for measured solve')
-    for key in ('gemm_mma_sync_tn8_32', 'gemm_mma_sync_tn40_64', 'gemm_mma_sync_tn72_plus'):
-        profile(key, dict(startup_ns=0, memory_scale=1, mma_scale=1, activation_scale=0,
-                         epilogue_scale=1, preissue_efficiency=0, tail_efficiency=0,
-                         l2_efficiency=0, issue_ns=0,issue_service_scale=0))
+    for family in ('gemm_mma_sync_tn8_32', 'gemm_mma_sync_tn40_64', 'gemm_mma_sync_tn72_plus'):
+        for warps_k in (1,2,4):
+            profile(f'{family}_wk{warps_k}', dict(startup_ns=0, memory_scale=1, mma_scale=1, activation_scale=0,
+                             epilogue_scale=1, preissue_efficiency=0, tail_efficiency=0,
+                             l2_efficiency=0, issue_ns=0,issue_service_scale=0))
     for d,q,norm in ((128,2,1),(64,4,0),(128,3,0),(128,4,0)):
         for mode in ('simt','mma_sync'):
             profile(f'attention_{mode}_d{d}_q{q}_norm{norm}', dict(body_scale=1,startup_ns=0,
@@ -61,6 +62,7 @@ def main():
     for name in ('embedding','argmax'):profile('native_'+name,dict(startup_ns=0,per_element_ns=1,issue_ns=0,issue_service_scale=0))
     cal = dict(schema=1, flow_model='overlapped_operands_v1',issue_model='issuer_service_v2',
         overlap_model='operand_service_only_v1',
+        gemm_key_model='tn_warp_k_v1',
         fit_status='diagnostic_unfitted', observation_columns=columns,
         native_gemm_header_sha256=next(iter(headers)),
         observations=[[r.get(k) for k in columns] for r in observations],body_fits=fits,
@@ -129,7 +131,10 @@ def main():
     for key,fit in fits.items():
         rows=points[key]
         if not rows:
-            fit.update(sample_count=sum(r['metric']=='attention_critical_before_barrier' for r in observations),
+            count=sum(r['metric']=='native_ldmatrix_mma_k16' and r.get('warps_k')==int(key[-1])
+                      for r in observations) if key.startswith('gemm_') else sum(
+                      r['metric']=='attention_critical_before_barrier' for r in observations)
+            fit.update(sample_count=count,
                 method='Unvalidated cross-shape component prior; no CP2 stage observation')
             continue
         y=np.array([r['corrected_ns'] for r in rows]);bar=np.array([r['stage']['barrier_ns'] for r in rows])
