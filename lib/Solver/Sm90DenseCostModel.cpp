@@ -30,6 +30,9 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal)
   if(target.arch_tag!="sm_90" || target.NvccArch()!="sm_90a" ||
      cal.At("schema").AsNumber("native calibration schema")!=1)
     throw std::invalid_argument("native dense pricing requires calibrated sm90a schema 1");
+  if(!cal.Find("flow_model") ||
+     cal.At("flow_model").AsString("native flow model")!="overlapped_operands_v1")
+    throw std::invalid_argument("native operand overlap requires refitted calibration");
   for(auto const& raw:cal.At("observations").AsArray("native observations")) {
     auto v=raw;
     if(raw.kind()==json::Value::Kind::kArray) {
@@ -170,8 +173,11 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
       s.stream=s.waves*tile_stream;
       s.activation=s.waves*Quantity("activation_wait_and_shared_read",{{"batch",w.batch},
           {"tile_k",g.TileK()}})*k/g.TileK();
-      s.flow=std::max(s.dram,s.stream*Coefficient(s.key,"memory_scale"))+
-          Coefficient(s.key,"activation_scale")*s.activation;
+      // Bulk weights and cp.async activations occupy the same multi-slot ring.
+      // Their calibrated service rates constrain throughput concurrently;
+      // serially adding both charges an already overlapped operand twice.
+      s.flow=std::max({s.dram,s.stream*Coefficient(s.key,"memory_scale"),
+          Coefficient(s.key,"activation_scale")*s.activation});
       s.compute=s.waves*double(k/(16*g.warps_k))*MainloopNs(g)*
           Coefficient(s.key,"mma_scale");
       char const* op=family==0?"epilogue_store_return":family==2?"epilogue_swiglu_return":

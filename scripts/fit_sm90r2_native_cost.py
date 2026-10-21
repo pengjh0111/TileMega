@@ -59,7 +59,8 @@ def main():
             profile(f'attention_{mode}_d{d}_q{q}_norm{norm}', dict(body_scale=1,startup_ns=0,
                 preissue_efficiency=0,tail_efficiency=0,l2_efficiency=0,issue_ns=0))
     for name in ('embedding','argmax'):profile('native_'+name,dict(startup_ns=0,per_element_ns=1))
-    cal = dict(schema=1, fit_status='diagnostic_unfitted', observation_columns=columns,
+    cal = dict(schema=1, flow_model='overlapped_operands_v1',
+        fit_status='diagnostic_unfitted', observation_columns=columns,
         native_gemm_header_sha256=next(iter(headers)),
         observations=[[r.get(k) for k in columns] for r in observations],body_fits=fits,
         method='Initial stage fit; global trace overhead divided uniformly across stages is inferred',
@@ -121,8 +122,8 @@ def main():
             start=np.array([r['stage']['startup_ns'] for r in rows]);floor=np.array([r['stage']['dram_ns'] for r in rows])
             memory=np.array([r['stage']['stream_ns'] for r in rows]);mma=np.array([r['stage']['compute_ns'] for r in rows])
             epi=np.array([r['stage']['epilogue_ns'] for r in rows]);act=np.array([r['stage']['activation_ns'] for r in rows])
-            def predict(x):return bar+start+x[0]*1000+np.maximum(np.maximum(floor,memory*x[1])+act*x[4],mma*x[2])+epi*x[3]
-            prior=np.array([1.,1.,1.,1.,0.])
+            def predict(x):return bar+start+x[0]*1000+np.maximum.reduce([floor,memory*x[1],act*x[4],mma*x[2]])+epi*x[3]
+            prior=np.array([1.,1.,1.,1.,1.])
             bounds=([0,.2,.1,.05,0],[20,4,8,4,2])
             names=['startup_ns','memory_scale','mma_scale','epilogue_scale','activation_scale']
         elif key.startswith('attention_'):
@@ -136,7 +137,7 @@ def main():
         def residual(x):return np.r_[(predict(x)-y)/np.maximum(y,1000),.03*(x-prior)]
         optimum=least_squares(residual,prior,bounds=bounds,loss='soft_l1')
         for name,x in zip(names,optimum.x):fit['coefficients'][name]=float(x*1000 if name=='startup_ns' else x)
-        fit.update(sample_count=len(rows),method='regularized nonnegative critical-path stage fit; training only',
+        fit.update(sample_count=len(rows),method='regularized nonnegative overlapped-operand stage fit; training only',
                    inputs=[dict(model=r['model'],batch=r['batch'],kind=r['kind']) for r in rows],
                    training_median_error_pct=float(np.median(np.abs(predict(optimum.x)/y-1))*100))
         for r,pred in zip(rows,predict(optimum.x)):

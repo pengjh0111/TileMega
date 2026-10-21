@@ -48,7 +48,8 @@ json::Value Fixture() {
       {"preissue_efficiency",.2},{"tail_efficiency",.1},{"l2_efficiency",.1},{"issue_ns",20}});
   for(auto key:{"native_embedding","native_argmax"})
     fit(key,{{"startup_ns",100},{"per_element_ns",.1}});
-  return json::Object{{"schema",1},{"observations",observations},{"body_fits",fits}};
+  return json::Object{{"schema",1},{"flow_model","overlapped_operands_v1"},
+      {"observations",observations},{"body_fits",fits}};
 }
 int main() {
   TargetSpec t;t.arch_tag="sm_90";t.nvcc_arch="sm_90a";
@@ -78,6 +79,17 @@ int main() {
     assert(p.initialization==(p.key.rfind("gemm_",0)==0?500:0));
   assert(prediction.stages[5].waves>1 && prediction.stages[5].initialization==500);
   assert(prediction.stages[0].epilogue==450);
+  auto slow_activation=Fixture();auto activation_rows=slow_activation.At("observations").AsArray("observations");
+  for(auto& row:activation_rows)
+    if(row.At("metric").AsString("metric")=="activation_wait_and_shared_read")
+      row.Set("median",1e6);
+  slow_activation.Set("observations",activation_rows);
+  auto limited=Sm90DenseCostModel(t,slow_activation).Predict(w,c);
+  auto const& qkv=limited.stages[0];
+  assert(qkv.flow==qkv.activation*.2 && qkv.flow>qkv.dram && qkv.flow>qkv.stream);
+  auto stale=Fixture();stale.Set("flow_model","serial_operands");bool stale_rejected=false;
+  try {Sm90DenseCostModel old(t,stale);}catch(std::invalid_argument const&) {stale_rejected=true;}
+  assert(stale_rejected);
   auto full_batch=w;full_batch.batch=16;
   auto full_coordinates=Sm90DenseCoordinates::Exact(w.shapes,16,t.res.max_dynamic_smem_per_cta);
   for(auto const& p:model.Request(full_batch,full_coordinates).stages)assert(p.initialization==0);
