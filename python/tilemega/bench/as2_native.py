@@ -25,7 +25,7 @@ def pack(model_id, plan, out, past, reuse=None, reuse_plan=None):
     if len(raw)!=72:
         raise ValueError('Wrong native ABI')
     version,groups,workers,tasks,stages,waits,refs,stride,batch,seq,capacity,diagnostic,*_=struct.unpack('<12I3Q',raw)
-    if version!=2 or seq not in (1,64) or capacity!=1088 or groups not in (2,4) or workers!=groups*3 or (seq==64 and past):
+    if version!=2 or seq not in (1,64) or capacity!=1088 or groups not in (2,4,8) or workers!=groups*3 or (seq==64 and past):
         raise ValueError('Unsupported prefill/decode plan')
     imported=json.loads((plan.parent/'import.json').read_text())
     if imported['model_id']!=model_id or imported['batch']!=batch or imported['past']!=(1087 if seq==1 else 0):

@@ -8,7 +8,7 @@
     0,
     1
   ],
-  "max_verified_mix_groups": 2,
+  "max_verified_mix_groups": 8,
   "residency": 1,
   "calibration_status": "not_calibrated",
   "selection": "fixed_legal_whitelist",
@@ -102,6 +102,7 @@
     }
   ],
   "evidence": {
+    "as2_group_scope": "physical1 only: G2/G4 and G8 payload/stale-cache/dual-AIV probes each pass5 fresh processes; runs/as2/probes/progress_g8_summary.json; no G8 model admission implied",
     "resource_budgets": "verified API queries; actual bodies must separately prove allocation legality",
     "ub_touch_bytes": 217088,
     "runtime_probe": "runs/as1/probes/entry_resources_summary.json",

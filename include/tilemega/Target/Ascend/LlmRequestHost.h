@@ -46,7 +46,7 @@ struct Plan {
     stages=Read<llm::Stage>(root/"stages.bin");tasks=Read<llm::Task>(root/"tasks.bin");
     waits=Read<llm::Wait>(root/"waits.bin");allocations=Read<llm::Allocation>(root/"allocations.bin");
     offsets=Read<uint32_t>(root/"offsets.bin");queue=Read<uint32_t>(root/"queue.bin");
-    if(m.version!=llm::kVersion || (m.groups!=2 && m.groups!=4) || m.workers!=3*m.groups ||
+    if(m.version!=llm::kVersion || (m.groups!=2 && m.groups!=4 && m.groups!=8) || m.workers!=3*m.groups ||
         m.stages!=stages.size() || !m.tasks || m.tasks!=tasks.size() || m.waits!=waits.size() ||
         m.queue_refs!=queue.size() || offsets.size()!=m.workers+1 || offsets.front()!=0 || offsets.back()!=queue.size() ||
         (m.seq!=1 && m.seq!=64) || (m.batch!=1 && m.batch!=4 && m.batch!=16) || m.capacity!=1088 ||
