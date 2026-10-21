@@ -43,6 +43,32 @@ struct Sm90DenseGemm {
       cute::Copy_Atom<cute::SM75_U32x2_LDSM_N,Element>,CopyA>;
   static_assert(cute::cosize_v<LayoutA> ==16*TK && cute::cosize_v<LayoutB> ==TN*TK);
 
+  template<int Bytes>
+  // Raw operand pointers share the transfer loop across layer-specific bindings.
+  __device__ static __noinline__ void Preissue(Element const* weight,char* shared,
+      Sm90DenseRingState& state) {
+    static_assert(Bytes>0 && Bytes%16==0 &&
+        Bytes<=(Slots<kIterations?Slots:kIterations)*2*TN*TK);
+    auto* b=reinterpret_cast<Element*>(shared+1024)+Slots*16*TK;
+    int remaining=Bytes;
+    #pragma unroll
+    for(int slot=0;slot<Slots && slot<kIterations;++slot) {
+      int part=min(remaining,2*TN*TK);remaining-=part;
+      if(part) {
+        Async::Wait(state.empty+slot,state.producer_generations[slot]);
+        Async::ExpectTx(state.full+slot,2*TN*TK);
+        Async::Bulk(b+slot*TN*TK,weight+(std::size_t(blockIdx.x)*kIterations+slot)*TN*TK,
+            part,state.full+slot);
+        state.prefix_bytes[slot]=part;
+      }
+    }
+  }
+  template<int Bytes,int Prefix>
+  __device__ static __noinline__ void Prefetch(Element const* weight) {
+    constexpr int bytes=Bytes<2*TN*K-Prefix?Bytes:2*TN*K-Prefix;
+    if constexpr(bytes>0)Async::Prefetch(weight+std::size_t(blockIdx.x)*TN*K+Prefix/2,bytes);
+  }
+
   __device__ static __noinline__ void Produce(Sm90DenseOperands p,
       Sm90DenseRingState& state,Element* a,Element* b,int tasks,unsigned phase) {
     int lane=threadIdx.x-128;

@@ -5,6 +5,7 @@
 #include <tilemega/Backend/Sm90DenseAttentionStream.cuh>
 #include <tilemega/Backend/Sm90DenseToken.cuh>
 #include <tilemega/Backend/Sm90DenseLayout.h>
+#include <tilemega/Backend/Sm90DensePreissue.cuh>
 #include <tilemega/Codegen/tasks/ServingAbi.h>
 #include <array>
 #include <tuple>
@@ -70,29 +71,13 @@ struct Gemm {
   template<int Bytes,class B>
   __device__ static __forceinline__ void Prepare(B const& b,int,char* shared,
       backend::Sm90DenseRingState& ring) {
-    if constexpr(Bytes>0)if(blockIdx.x<kTasks) {
-      using Async=typename Body::Async;
-      int remaining=Bytes;
-      #pragma unroll
-      for(int slot=0;slot<Slots && slot<Body::kIterations;++slot) {
-        int part=min(remaining,2*TN*TK);remaining-=part;
-        if(part) {
-          Async::Wait(ring.empty+slot,ring.producer_generations[slot]);
-          Async::ExpectTx(ring.full+slot,2*TN*TK);
-          Async::Bulk(shared+kLayout.key+slot*2*TN*TK,
-              b.template Get<W>()+(std::size_t(blockIdx.x)*Body::kIterations+slot)*TN*TK,
-              part,ring.full+slot);
-          ring.prefix_bytes[slot]=part;
-        }
-      }
-    }
+    if constexpr(Bytes>0)if(blockIdx.x<kTasks)
+      Body::template Preissue<Bytes>(b.template Get<W>(),shared,ring);
   }
   template<int Bytes,int Prefix,class B>
   __device__ static __forceinline__ void Prefetch(B const& b,int) {
     if constexpr(Bytes>0)if(blockIdx.x<kTasks) {
-      constexpr int bytes=Bytes<2*TN*K-Prefix?Bytes:2*TN*K-Prefix;
-      if constexpr(bytes>0)Body::Async::Prefetch(
-          b.template Get<W>()+std::size_t(blockIdx.x)*TN*K+Prefix/2,bytes);
+      Body::template Prefetch<Bytes,Prefix>(b.template Get<W>());
     }
   }
   template<class B,class Tail>
@@ -114,6 +99,7 @@ struct Attention {
   using Body=std::conditional_t<(Batch<=4),
       backend::Sm90DenseAttention<Batch,D,Q,Norm,Chunks,RowWork,Capacity>,
       backend::Sm90DenseAttentionStream<Batch,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity>>;
+  using Loader=backend::Sm90DenseKvPreissue<(Batch>=8),D,Q,Chunks,Keys,Slots,RowWork,Capacity>;
   static constexpr int kTasks=Batch*8*Chunks,kSharedBytes=Body::kSharedBytes;
   static constexpr int kRingSlots=Batch<=4?1:Slots;
   static constexpr int kMaxPreissue=4*D*(Batch<=4?
@@ -132,44 +118,13 @@ struct Attention {
   template<int Bytes,class B>
   __device__ static __forceinline__ void Prepare(B const& b,int past,char* shared,
       backend::Sm90DenseRingState& ring) {
-    if constexpr(Bytes>0)if(blockIdx.x<kTasks) {
-      using Async=typename Body::Async;
-      auto range=Body::Partition::Range(past,int(blockIdx.x)%Chunks,RowWork);
-      int bg=int(blockIdx.x)/Chunks,remaining=Bytes;
-      constexpr int rows_per_slot=Batch<=4?Body::Partition::MaxKeys(Capacity,RowWork):Keys;
-      constexpr int count=Batch<=4?1:Slots;
-      Async::ProxyAsyncGlobalFence();
-      #pragma unroll
-      for(int slot=0;slot<count;++slot) {
-        int begin=range.begin+slot*rows_per_slot;
-        int history=max(0,min(begin+rows_per_slot,min(range.end,past))-begin);
-        int rows=min(history,remaining/(4*D));remaining-=rows*4*D;
-        if(rows) {
-          Async::Wait(ring.empty+slot,ring.producer_generations[slot]);
-          Async::ExpectTx(ring.full+slot,4*history*D);
-          std::size_t offset=(std::size_t(bg)*Capacity+begin)*D;
-          Async::Bulk(shared+kLayout.key+slot*2*rows_per_slot*D,
-              b.template Get<Key>()+offset,2*rows*D,ring.full+slot);
-          Async::Bulk(shared+kLayout.value+slot*2*rows_per_slot*D,
-              b.template Get<Value>()+offset,2*rows*D,ring.full+slot);
-          ring.prefix_bytes[slot]=4*rows*D;
-        }
-      }
-    }
+    if constexpr(Bytes>0)if(blockIdx.x<kTasks)
+      Loader::template Prepare<Bytes>(b.template Get<Key>(),b.template Get<Value>(),past,shared,ring);
   }
   template<int Bytes,int Prefix,class B>
   __device__ static __forceinline__ void Prefetch(B const& b,int past) {
-    if constexpr(Bytes>0)if(blockIdx.x<kTasks) {
-      auto range=Body::Partition::Range(past,int(blockIdx.x)%Chunks,RowWork);
-      int history=min(range.end,past)-range.begin,done=min(history,Prefix/(4*D));
-      int bytes=min(Bytes/2,2*D*(history-done))&~15;
-      if(bytes) {
-        Body::Async::ProxyAsyncGlobalFence();
-        std::size_t offset=(std::size_t(int(blockIdx.x)/Chunks)*Capacity+range.begin+done)*D;
-        Body::Async::Prefetch(b.template Get<Key>()+offset,bytes);
-        Body::Async::Prefetch(b.template Get<Value>()+offset,bytes);
-      }
-    }
+    if constexpr(Bytes>0)if(blockIdx.x<kTasks)
+      Loader::template Prefetch<Bytes,Prefix>(b.template Get<Key>(),b.template Get<Value>(),past);
   }
   template<class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int past,char* shared,float epsilon,
@@ -264,7 +219,9 @@ struct ProducerTail {
   int past;
   char* shared;
   backend::Sm90DenseRingState &current,&next;
-  __device__ __forceinline__ void operator()() const {
+  // Pass scalar fields rather than an addressable per-stage callback object.
+  __device__ static __noinline__ void Issue(Binding const& binding,int past,char* shared,
+      backend::Sm90DenseRingState& current,backend::Sm90DenseRingState& next) {
     if constexpr(Next::kPrefix || Next::kL2Bytes) {
       // Empty covers operand readers, but not epilogue scratch. Its liveness
       // is checked independently at plan creation and again by this type.
@@ -272,6 +229,9 @@ struct ProducerTail {
         current.template RetireOperands<Current::kRingSlots>();
       Next::Issue(binding,past,shared,next);
     }
+  }
+  __device__ __forceinline__ void operator()() const {
+    if constexpr(Next::kPrefix || Next::kL2Bytes)Issue(binding,past,shared,current,next);
   }
 };
 
