@@ -17,13 +17,14 @@ def main():
     p.add_argument('--inputs',type=Path,required=True);p.add_argument('--out',type=Path,required=True)
     p.add_argument('--device',choices=('npu:0','cpu'),default='npu:0')
     p.add_argument('--attention',choices=('sdpa','eager'),default='sdpa')
+    p.add_argument('--norm',choices=('hf','fused'),default='hf')
     a=p.parse_args();plan=controlled(a.plan,[RUNS]);inputs=controlled(a.inputs,[RUNS]);out=controlled(a.out,[RUNS])
     receipt=json.loads((inputs/'inputs.json').read_text());buffers=json.loads((plan/'buffers.json').read_text())['buffers']
     if receipt['model_id']!=a.model or receipt['initial_kv'] not in ('all_zero_diagnostic_state_not_prefill','empty_cache_for_prefill') or digest(plan/'metadata.bin')!=receipt['metadata_sha256']:
         raise ValueError('Diagnostic input/plan identity mismatch')
     out.mkdir(parents=True,exist_ok=False);torch.set_num_threads(1)
     if a.device=='npu:0':torch.npu.set_device(0)
-    model,ids,manifest,weight_hash=load_model(a.model,a.attention,'hf',device=a.device)
+    model,ids,manifest,weight_hash=load_model(a.model,a.attention,a.norm,device=a.device)
     if weight_hash!=receipt['weight_manifest_sha256'] or manifest['config_sha256']!=receipt['config_sha256']:
         raise ValueError('Paired weight/config identity mismatch')
     batch,past,seq=receipt['batch'],receipt['past'],receipt.get('seq',1);cfg=manifest['config'];saved={};projections={}
@@ -84,7 +85,7 @@ def main():
     report=dict(schema='tilemega.as2.native_reference.v1',status='reference_executed_not_compared',
         model_id=a.model,batch=batch,past=past,seq=seq,decode_only=seq==1,initial_kv=receipt['initial_kv'],
         config_sha256=receipt['config_sha256'],weight_manifest_sha256=weight_hash,input_sha256=receipt['input_sha256'],
-        implementation=f'pinned_transformers_{a.attention}_hf_norm',device=a.device,files=files,token_ids=chosen.cpu().tolist())
+        implementation=f'pinned_transformers_{a.attention}_{a.norm}_norm',device=a.device,files=files,token_ids=chosen.cpu().tolist())
     (out/'reference.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps({k:v for k,v in report.items() if k!='files'}))
 

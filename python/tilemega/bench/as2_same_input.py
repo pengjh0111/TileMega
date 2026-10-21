@@ -9,7 +9,7 @@ from tilemega.bench.as2_models import REPO, RUNS, WORK, controlled
 from tilemega.bench.as2_compare_native import metrics
 
 
-def reference_prefill(binding,reference,out,layers,native=False):
+def reference_prefill(binding,reference,out,layers,native=False,precision=0):
     receipt=json.loads((binding/'request.json').read_text())
     if native:
         ref=dict(seq=64,model_id=receipt['model_id'],weight_manifest_sha256=receipt['weight_manifest_sha256'],
@@ -38,15 +38,22 @@ def reference_prefill(binding,reference,out,layers,native=False):
         if cfg['model_type']=='qwen3':
             q=norm(q,weight(prefix+'self_attn.q_norm.weight',(d,)));k=norm(k,weight(prefix+'self_attn.k_norm.weight',(d,)))
         q,k=rotate(q),rotate(k);v=qkv[:,:,:,ratio+1,:].permute(0,2,1,3)[:,:,None,:,:]
-        scores=torch.matmul(q,k.transpose(-1,-2))*(d**-0.5)
+        if precision==3:
+            root=(d**-0.5)**0.5
+            scores=torch.matmul(q.float()*root,(k.float()*root).transpose(-1,-2))
+        else:scores=torch.matmul(q if precision==0 else q.float(),
+            k.transpose(-1,-2) if precision==0 else k.float().transpose(-1,-2))*(d**-0.5)
         mask=torch.ones(64,64,dtype=torch.bool).triu(1);scores.masked_fill_(mask,torch.finfo(torch.bfloat16).min)
-        probability=F.softmax(scores.float(),dim=-1).bfloat16()
-        context=torch.matmul(probability,v).permute(0,3,1,2,4).reshape(b,64,g*ratio*d)
+        if precision==3:scores=F.pad(scores,(0,1088-64),value=torch.finfo(torch.bfloat16).min)
+        probability=F.softmax(scores.float(),dim=-1)[...,:64]
+        if precision in (0,2):probability=probability.bfloat16()
+        context=torch.matmul(probability,v if precision in (0,2) else v.float()).bfloat16().permute(0,3,1,2,4).reshape(b,64,g*ratio*d)
         rows.append(dict(layer=i,operation='prefill_attention_same_qkv_vs_cpu',**metrics(value(f'l{i}.context',context.shape),context,policy['attention'])))
         n2=value(f'l{i}.norm2',(b,64,h));gate=F.linear(n2,weight(prefix+'mlp.gate_proj.weight',(f,h)));up=F.linear(n2,weight(prefix+'mlp.up_proj.weight',(f,h)))
         rows.append(dict(layer=i,operation='prefill_swiglu_same_norm2_vs_cpu',**metrics(value(f'l{i}.act',(b,64,f)),F.silu(gate)*up,policy['swiglu'])))
     result=dict(schema='tilemega.as2.same_input_reference.v1',status='pass' if all(r['passed'] for r in rows) else 'fail',
-        scope='native_prefill_local_operator_against_cpu_diagnostic' if native else 'independent_npu_eager_local_operator_against_cpu_diagnostic',model_id=receipt['model_id'],rows=rows)
+        scope='native_prefill_local_operator_against_cpu_diagnostic' if native else 'independent_npu_eager_local_operator_against_cpu_diagnostic',
+        attention_precision=precision,model_id=receipt['model_id'],rows=rows)
     out.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result,indent=2))
 
 
@@ -57,10 +64,11 @@ def main():
     p.add_argument('--layers',type=int,nargs='+',default=[0,1,19,27])
     p.add_argument('--reference-prefill',action='store_true',help='Inspect independent eager operators using their own inputs')
     p.add_argument('--native-prefill',action='store_true',help='Inspect native prefill operators using their own inputs')
+    p.add_argument('--attention-precision',type=int,choices=(0,1,2,3),default=0)
     a=p.parse_args();torch.set_num_threads(1)
     binding,native,out=(controlled(getattr(a,n),[RUNS]) for n in ('binding','native','out'))
     if out.exists():raise FileExistsError(out)
-    if a.reference_prefill or a.native_prefill:return reference_prefill(binding,native,out,a.layers,a.native_prefill)
+    if a.reference_prefill or a.native_prefill:return reference_prefill(binding,native,out,a.layers,a.native_prefill,a.attention_precision)
     receipt=json.loads((binding/'request.json').read_text());model=receipt['model_id']
     manifest=json.loads((WORK/'weights'/model/'manifest.json').read_text());cfg=manifest['config']
     if not 0<=a.past<1087 or any(not 0<=i<cfg['num_hidden_layers'] for i in a.layers):raise ValueError('Invalid diagnostic coordinates')
