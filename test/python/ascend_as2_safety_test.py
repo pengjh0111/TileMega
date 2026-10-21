@@ -17,6 +17,23 @@ cleanup=importlib.util.module_from_spec(spec);spec.loader.exec_module(cleanup)
 
 
 class AscendAs2Safety(unittest.TestCase):
+    def test_unfinished_owned_receipt_is_observed_without_a_lock(self):
+        from tilemega.bench.as2_run import unfinished_owned_jobs
+        from tilemega.bench.as1_run import process_identity
+        child=subprocess.Popen([sys.executable,'-c','import time;time.sleep(20)'],start_new_session=True)
+        out=RUNS/'jobs'/('own_submission_contract_'+str(time.time_ns()));out.mkdir()
+        receipt=dict(project='as2',status='running',**process_identity(child.pid))
+        try:
+            (out/'job.json').write_text(json.dumps(receipt))
+            self.assertTrue(any(j['pid']==child.pid for j in unfinished_owned_jobs()))
+            receipt['start_ticks']+=1;(out/'job.json').write_text(json.dumps(receipt))
+            self.assertFalse(any(j['pid']==child.pid for j in unfinished_owned_jobs()))
+            self.assertIsNone(child.poll())
+            self.assertEqual({p.name for p in out.iterdir()},{'job.json'})
+        finally:
+            child.terminate();child.wait(timeout=5)
+            receipt['status']='passed';(out/'job.json').write_text(json.dumps(receipt))
+
     def test_as2_cleanup_cannot_reach_as1(self):
         run,work,roots=cleanup.project_paths('as2')
         self.assertEqual(run,RUNS);self.assertEqual(work,WORK)
