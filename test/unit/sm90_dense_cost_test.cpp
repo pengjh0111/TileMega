@@ -47,8 +47,9 @@ json::Value Fixture() {
     fit(key,{{"body_scale",1},{"startup_ns",100},
       {"preissue_efficiency",.2},{"tail_efficiency",.1},{"l2_efficiency",.1},{"issue_ns",20}});
   for(auto key:{"native_embedding","native_argmax"})
-    fit(key,{{"startup_ns",100},{"per_element_ns",.1}});
+    fit(key,{{"startup_ns",100},{"per_element_ns",.1},{"issue_ns",20}});
   return json::Object{{"schema",1},{"flow_model","overlapped_operands_v1"},
+      {"issue_model","issuer_exposure_v1"},
       {"observations",observations},{"body_fits",fits}};
 }
 int main() {
@@ -117,6 +118,16 @@ int main() {
   prefetch=c;prefetch.attention.prefetch_l2_bytes=16384;
   auto attention_issue=issue_model.Request(w,prefetch);
   assert(attention_issue.stages[0].issue==20 && attention_issue.stages[1].issue==0);
+  auto issuer=issue_only;auto issuer_fits=issuer.At("body_fits").AsObject("body fits");
+  for(auto& fit:issuer_fits) {
+    auto coefficients=fit.second.At("coefficients");
+    if(fit.first=="gemm_mma_sync_tn8_32")coefficients.Set("issue_ns",200);
+    if(fit.first=="attention_simt_d128_q2_norm1")coefficients.Set("issue_ns",9999);
+    fit.second.Set("coefficients",coefficients);
+  }
+  issuer.Set("body_fits",issuer_fits);
+  auto issuer_price=Sm90DenseCostModel(t,issuer).Predict(w,prefetch);
+  assert(issuer_price.stages[0].issue==200 && issuer_price.stages[0].issue_count==1);
   auto prefetched=c;prefetched.gemms[0].prefetch_l2_bytes=2*c.gemms[0].tile_n*w.shapes[0][1];
   auto clipped=model.Predict(w,prefetched);
   prefetched.gemms[0].prefetch_l2_bytes*=4;

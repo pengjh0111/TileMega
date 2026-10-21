@@ -87,7 +87,7 @@ def main():
             if name in fit['coefficients']:fit['coefficients'][name]=0
     baseline = predict(target,'no-overlap')
     keys = sorted({s['key'] for stages in baseline[1:] for s in stages
-                   if s['preissue_service_ns'] or s['late_service_ns']})
+                   if s['preissue_service_ns'] or s['late_service_ns'] or s['issue_count']})
     issue = {}
     for key in keys:
         unit = copy.deepcopy(target);unit['sm90_dense_decode']['body_fits'][key]['coefficients']['issue_ns']=1000
