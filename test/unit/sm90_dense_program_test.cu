@@ -4,7 +4,12 @@
 #include <tilemega/Codegen/tasks/Sm90DenseProgram.cuh>
 namespace tilemega::codegen::native_dense {
 using Op=backend::ServingEpilogueOp;
-using Qkv=Gemm<1,4096,1024,32,256,3,4,1,Op::kStore,8,0,1,kAbsent,2,kAbsent,kAbsent,kAbsent>;
+#ifndef TILEMEGA_NATIVE_TEST_QKV_TN
+#define TILEMEGA_NATIVE_TEST_QKV_TN 32
+#endif
+constexpr int kQkvTileN=TILEMEGA_NATIVE_TEST_QKV_TN;
+constexpr int kAttentionOffset=kQkvTileN==32?81920:147456;
+using Qkv=Gemm<1,4096,1024,kQkvTileN,256,3,4,1,Op::kStore,8,0,1,kAbsent,2,kAbsent,kAbsent,kAbsent>;
 using Attn=Attention<1,128,2,true,16,64,3,0,1088,2,4,5,3,6,7,8,9,10,11,12>;
 using Out=Gemm<1,1024,2048,8,256,3,1,4,Op::kStore,8,3,14,kAbsent,13,kAbsent,kAbsent,kAbsent>;
 #ifndef TILEMEGA_NATIVE_TEST_GEMM_PREFIX
@@ -13,16 +18,16 @@ using Out=Gemm<1,1024,2048,8,256,3,1,4,Op::kStore,8,3,14,kAbsent,13,kAbsent,kAbs
 constexpr int kTestGemmPrefix=TILEMEGA_NATIVE_TEST_GEMM_PREFIX;
 #if defined(TILEMEGA_NATIVE_TEST_DISJOINT_LATE_PREISSUE)
 using NativeProgram=Program<1,1088,1,15,Placement<Qkv>,
-    Placement<Attn,81920,16384,8192,true>,Placement<Out,0,kTestGemmPrefix,16384,true>>;
-static_assert(!ProducerTail<Placement<Qkv>,Placement<Attn,81920,16384,8192,true>,
+    Placement<Attn,kAttentionOffset,16384,8192,true>,Placement<Out,0,kTestGemmPrefix,16384,true>>;
+static_assert(!ProducerTail<Placement<Qkv>,Placement<Attn,kAttentionOffset,16384,8192,true>,
     Bindings<15>>::kBefore);
-static_assert(!Placement<Attn,81920,16384,8192,true>::kPayload.Overlaps(Placement<Qkv>::kLive));
+static_assert(!Placement<Attn,kAttentionOffset,16384,8192,true>::kPayload.Overlaps(Placement<Qkv>::kLive));
 #elif defined(TILEMEGA_NATIVE_TEST_EARLY_PREISSUE)
 using NativeProgram=Program<1,1088,1,15,Placement<Qkv>,
-    Placement<Attn,81920,16384,8192>,Placement<Out,0,kTestGemmPrefix,16384>>;
-static_assert(ProducerTail<Placement<Qkv>,Placement<Attn,81920,16384,8192>,
+    Placement<Attn,kAttentionOffset,16384,8192>,Placement<Out,0,kTestGemmPrefix,16384>>;
+static_assert(ProducerTail<Placement<Qkv>,Placement<Attn,kAttentionOffset,16384,8192>,
     Bindings<15>>::kBefore);
-static_assert(ProducerTail<Placement<Attn,81920,16384,8192>,
+static_assert(ProducerTail<Placement<Attn,kAttentionOffset,16384,8192>,
     Placement<Out,0,kTestGemmPrefix,16384>,Bindings<15>>::kBefore);
 #elif defined(TILEMEGA_NATIVE_TEST_PREISSUE)
 using NativeProgram=Program<1,1088,1,15,Placement<Qkv>,
@@ -31,7 +36,7 @@ using NativeProgram=Program<1,1088,1,15,Placement<Qkv>,
 using NativeProgram=Program<1,1088,1,15,Placement<Qkv>,Placement<Attn>,Placement<Out>>;
 #endif
 constexpr std::array<tm_buffer_info,15> kNativeBuffers={{{"input",1,0,1024,0,""},{"qkv_weight",1,0,4096*1024,0,""},{"qkv",0,0,4096,0,""},{"context",0,0,2048,0,""},{"key",1,0,8*1088*128,0,""},{"value",1,0,8*1088*128,0,""},{"cos",1,0,1088*128,0,""},{"sin",1,0,1088*128,0,""},{"qnorm",1,0,128,0,""},{"knorm",1,0,128,0,""},{"partial",0,1,8*16*2*128,0,""},{"lse",0,1,8*16*2,0,""},{"arrivals",0,2,16,0,""},{"output",0,0,1024,0,""},{"out_weight",1,0,1024*2048,0,""}}};
-constexpr std::array<StageInfo,3> kNativeStages={{{"kGemm","layer.qkv.weight",2*4096*1024,128,0,0,0,0},{"kFusedAttention","",0,128,8,2,128,16},{"kGemm","layer.o_proj.weight",2*1024*2048,128,0,0,0,0}}};
+constexpr std::array<StageInfo,3> kNativeStages={{{"kGemm","layer.qkv.weight",2*4096*1024,4096/kQkvTileN,0,0,0,0},{"kFusedAttention","",0,128,8,2,128,16},{"kGemm","layer.o_proj.weight",2*1024*2048,128,0,0,0,0}}};
 constexpr float kNativeEpsilon=1e-6f;
 }
 #include <tilemega/Codegen/tasks/Sm90DenseRuntime.cuh>
@@ -43,7 +48,7 @@ size_t packed(int n,int k,int N,int K,int TN,int TK){int r=n%TN,c=k%TK;size_t s=
 BF* copy(std::vector<BF> const& host){BF* p=nullptr;Check(cudaMalloc(&p,host.size()*2));Check(cudaMemcpy(p,host.data(),host.size()*2,cudaMemcpyHostToDevice));return p;}
 int main(){try{
  Check(cudaSetDevice(0));std::vector<BF> input(1024,BF(.25f)),qw(4096*1024,BF(0)),ow(1024*2048),ones(1088*128,BF(1)),zeros(8*1088*128,BF(0));
- for(int n=0;n<4096;++n)if(n%512>=384)for(int k=0;k<1024;++k)qw[packed(n,k,4096,1024,32,256)]=BF(float(n/512%4+1)/8/256);
+ for(int n=0;n<4096;++n)if(n%512>=384)for(int k=0;k<1024;++k)qw[packed(n,k,4096,1024,kQkvTileN,256)]=BF(float(n/512%4+1)/8/256);
  for(int n=0;n<1024;++n)for(int k=0;k<2048;++k)ow[packed(n,k,1024,2048,8,256)]=BF((n%7-3)/64.f);
  void* external[15]{};external[0]=copy(input);external[1]=copy(qw);external[4]=copy(zeros);external[5]=copy(zeros);external[6]=copy(ones);external[7]=copy(zeros);external[8]=copy(ones);external[9]=copy(ones);external[14]=copy(ow);
 #ifndef TILEMEGA_NATIVE_TEST_PAST
