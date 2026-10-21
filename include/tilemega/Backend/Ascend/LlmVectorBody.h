@@ -68,9 +68,10 @@ class LlmVectorBody {
     CompleteDma<AscendC::HardEvent::MTE3_S>();return true;
   }
   __aicore__ inline bool ServingSoftmax(GM_ADDR scores,GM_ADDR probabilities,unsigned keys,
-      bool fp32=false,unsigned width=0) {
+      bool fp32=false,unsigned width=0,unsigned output_width=0,bool vector_divide=false) {
     if(!width)width=keys;
-    if(!keys || keys>width || width>1088)return false;
+    if(!output_width)output_width=keys;
+    if(!keys || keys>output_width || output_width>width || width>1088)return false;
     AscendC::GlobalTensor<float> src;src.SetGlobalBuffer((__gm__ float*)scores);
     AscendC::DataCopyExtParams copy{1,keys*4,0,0,0};AscendC::DataCopyPadExtParams<float> pad(false,0,0,0);
     AscendC::DataCopyPad(x_,src,copy,pad);CompleteDma<AscendC::HardEvent::MTE2_V>();
@@ -83,14 +84,18 @@ class LlmVectorBody {
     AscendC::Exp(work_,work_,width);AscendC::PipeBarrier<PIPE_V>();
     AscendC::ReduceSum(z_,work_,scratch_,width);CompleteDma<AscendC::HardEvent::V_S>();float sum=z_.GetValue(0);
     if(!(sum>0))return false;
-    AscendC::Muls(work_,work_,1.0f/sum,keys);AscendC::PipeBarrier<PIPE_V>();
+    if(vector_divide) {
+      AscendC::Duplicate(z_,sum,output_width);AscendC::PipeBarrier<PIPE_V>();
+      AscendC::Div(work_,work_,z_,output_width);
+    }else AscendC::Muls(work_,work_,1.0f/sum,output_width);
+    AscendC::PipeBarrier<PIPE_V>();
     if(fp32) {
       CompleteDma<AscendC::HardEvent::V_MTE3>();AscendC::GlobalTensor<float> dst;
       dst.SetGlobalBuffer((__gm__ float*)probabilities);
-      AscendC::DataCopyExtParams copy{1,keys*4,0,0,0};AscendC::DataCopyPad(dst,work_,copy);
+      AscendC::DataCopyExtParams copy{1,output_width*4,0,0,0};AscendC::DataCopyPad(dst,work_,copy);
       CompleteDma<AscendC::HardEvent::MTE3_S>();return true;
     }
-    AscendC::Cast(bo_,work_,AscendC::RoundMode::CAST_RINT,keys);Store(probabilities,keys);return true;
+    AscendC::Cast(bo_,work_,AscendC::RoundMode::CAST_RINT,output_width);Store(probabilities,output_width);return true;
   }
   __aicore__ inline bool ServingPV(GM_ADDR probabilities,GM_ADDR values,GM_ADDR output,unsigned keys,unsigned d,bool fp32=false) {
     if(!keys || keys>32 || (d!=64 && d!=128))return false;
