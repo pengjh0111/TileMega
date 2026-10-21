@@ -947,19 +947,15 @@ int RunCompile(int argc, char** argv) {
       // mma16 stages Q, K, V and P in shared memory; it is in the domain
       // only where that fits one CTA (the same bound the geometry check
       // below enforces for an explicit --attention-impl mma16).
-      auto decode_mma16_fits=[&]() {
-        auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
-        if(!plan)return false;
+      auto decode_mma16_fits=[&](tilemega::frontend::ModelPlan const& plan) {
         auto limit=tilemega::TargetSpec::FromJson(
             runtime_target.empty()?solve_target:runtime_target).res.max_dynamic_smem_per_cta;
         bool any=false;
-        for(auto entry:plan.getAs<mlir::ArrayAttr>("stages")) {
-          auto stage=mlir::cast<mlir::DictionaryAttr>(entry);
-          if(stage.getAs<mlir::StringAttr>("kind").getValue()!="kFusedAttention")continue;
-          auto q=stage.getAs<mlir::IntegerAttr>("group").getInt();
-          auto d=stage.getAs<mlir::IntegerAttr>("width").getInt();
+        for(auto const& stage:plan.stages) {
+          if(stage.kind!=tilemega::frontend::PlanTaskKind::kFusedAttention)continue;
+          int const q=int(stage.group),d=int(stage.width);
           if(q<1 || q>8 || (d!=64 && d!=128))return false;
-          if(tilemega::codegen::ServingAttentionSharedBytes(int(d),q>=8?64:32)>int(limit))return false;
+          if(tilemega::codegen::ServingAttentionSharedBytes(d,q>=8?64:32)>int(limit))return false;
           any=true;
         }
         return any;
@@ -1262,7 +1258,7 @@ int RunCompile(int argc, char** argv) {
         std::vector<std::string> attention_domain{attention_impl};
         if(attention_request=="auto") {
           attention_domain={"simt"};
-          if(decode_mma16_fits())attention_domain.push_back("mma16");
+          if(serving_imported && decode_mma16_fits(serving_imported->plan))attention_domain.push_back("mma16");
         }
         if(!pinned_attention.empty()) {
           if(attention_request!="auto" && pinned_attention!=attention_impl)
