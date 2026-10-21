@@ -17,7 +17,7 @@ def digest(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
-def pack(model_id, plan, out, past, reuse=None, reuse_plan=None):
+def pack(model_id, plan, out, past, reuse=None, reuse_plan=None,rope_table=None):
     plan=controlled(plan,[RUNS]);out=controlled(out,[RUNS])
     if not 0 <= past <= 1086:
         raise ValueError('Decode bootstrap past is bounded by the token output capacity')
@@ -66,6 +66,18 @@ def pack(model_id, plan, out, past, reuse=None, reuse_plan=None):
     angle=torch.arange(capacity,dtype=torch.float32)[:,None]*inv.float()[None,:]
     angle=torch.cat((angle,angle),-1)
     cos=(angle.cos()*scale).bfloat16();sin=(angle.sin()*scale).bfloat16()
+    table_identity=None
+    if rope_table is not None:
+        rope_table=controlled(rope_table,[RUNS]);table_identity=json.loads((rope_table/'table.json').read_text())
+        if table_identity['status']!='pass' or table_identity['model_id']!=model_id or table_identity['config_sha256']!=manifest['config_sha256'] or table_identity['capacity']!=capacity or table_identity['head_dim']!=d:
+            raise ValueError('Verified position-only RoPE table identity mismatch')
+        tables={}
+        for entry in table_identity['files']:
+            file=controlled(rope_table/entry['file'],[RUNS])
+            if digest(file)!=entry['sha256'] or file.stat().st_size!=capacity*d*2 or entry['shape']!=[capacity,d]:
+                raise ValueError('Verified RoPE table extent/hash mismatch')
+            tables[entry['name']]=torch.from_file(str(file),shared=False,size=capacity*d,dtype=torch.bfloat16).reshape(capacity,d)
+        cos,sin=tables['cos'],tables['sin']
     input_record=manifest['input_ids'];input_path=directory/input_record['file']
     if digest(input_path)!=input_record['sha256']:
         raise ValueError('Canonical input mismatch')
@@ -83,6 +95,9 @@ def pack(model_id, plan, out, past, reuse=None, reuse_plan=None):
         descriptions={b['name']:b for b in json.loads((reuse_plan/'buffers.json').read_text())['buffers']}
         for record in old['buffers']:
             b=descriptions[record['name']]
+            # Position tables are small and their math backend is part of
+            # identity. Shape/packing alone cannot validate a reused table.
+            if b['name'] in ('serving.rope_cos','serving.rope_sin'):continue
             if b['name']=='serving.tokens' and (old['past']!=past or old['batch']!=batch or old.get('seq',1)!=seq):continue
             reusable[(b['name'],b['bytes'],b['dtype'],b['pack_json'])]=(record,reuse/record['file'])
     policy=json.loads((REPO/'configs/bench/as2_disk_policy.json').read_text())
@@ -151,7 +166,8 @@ def pack(model_id, plan, out, past, reuse=None, reuse_plan=None):
         decode_only=seq==1,initial_kv='all_zero_diagnostic_state_not_prefill' if seq==1 else 'empty_cache_for_prefill',
         config_sha256=manifest['config_sha256'],weight_manifest_sha256=digest(directory/'manifest.json'),
         input_sha256=input_record['sha256'],metadata_sha256=digest(plan/'metadata.bin'),plan_directory=str(plan),
-        buffers=written,rope_type=rope_type,rope_coefficient_source='pinned_transformers_cpu_fp32_then_bf16',
+        buffers=written,rope_type=rope_type,rope_coefficient_source=table_identity['source'] if table_identity else 'pinned_transformers_cpu_fp32_then_bf16',
+        rope_table_sha256=digest(rope_table/'table.json') if rope_table else None,
         inverse_layout_checks='first_middle_last_KV_group_or_interleave_group',status='packed_not_executed')
     (out/'inputs.json').write_text(json.dumps(receipt,indent=2)+'\n')
     print(json.dumps({k:v for k,v in receipt.items() if k!='buffers'}))
@@ -162,6 +178,7 @@ def main():
     p.add_argument('--model',choices=DENSE,required=True);p.add_argument('--plan',type=Path,required=True)
     p.add_argument('--out',type=Path,required=True);p.add_argument('--past',type=int,default=64)
     p.add_argument('--reuse',type=Path);p.add_argument('--reuse-plan',type=Path)
-    a=p.parse_args();torch.set_num_threads(1);pack(a.model,a.plan,a.out,a.past,a.reuse,a.reuse_plan)
+    p.add_argument('--rope-table',type=Path,help='Verified offline NPU position constants; never a model answer cache')
+    a=p.parse_args();torch.set_num_threads(1);pack(a.model,a.plan,a.out,a.past,a.reuse,a.reuse_plan,a.rope_table)
 
 if __name__=='__main__':main()

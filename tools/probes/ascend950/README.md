@@ -50,3 +50,22 @@ through the wrapper, then `as1_correctness compare-aiv`. Each invocation admits
 one operator and shape. Six individual regular/tail cases passed; numerical
 receipts are indexed in `runs/as1/probes/aiv_bodies_summary.json`. These do not
 stand in for the multi-stage CTG/Solver execution.
+
+## AS-2 contextual cost probe
+
+Build only `as2_native_cost` with the private AS-2 CANN environment, `nice -n10`
+and parallel1. Run it through `tilemega.bench.as2_run`, physical1/logical0 in
+the recorded environment. It uses validated G8,32 bounded metadata/publication
+iterations, an AIC/AIV cross-group round trip, and a512MiB AIV copy working set.
+It checks8192 payload samples and reports raw1GHz timer ticks. The wait deadline
+is2e9 counter ticks, unlike the older AS-1 poll-count protocol above.
+
+`as2_native_prices costs` requires at least five fresh, successful, nonoverlapping
+process receipts with the same binary/device. `prices` combines that summary
+with actual diagnostic2 Body profiles, checks model/config/shape/implementation/G
+identity, and leaves shared-load measurements labelled contended. Half-roundtrip
+latency is a symmetric estimate; logical GM/L2 copy throughput is not peak HBM.
+`as2_compile_llm emit-priced` compares two real legal FIFO/placement plans with
+these prices. Decode context bounds survive request relocation and are checked
+before ACL. Neither a successful probe nor a predicted makespan passes model
+correctness or the final TPOT Gate. See `docs/results/AS2_pipeline.md`.
