@@ -13,16 +13,18 @@
 #include <iostream>
 #include <stdexcept>
 #include <limits>
+#include <cmath>
 
 static void Write(std::filesystem::path const& path,std::string const& text) {
   std::ofstream out(path);out<<text<<'\n';if(!out)throw std::runtime_error("Cannot write "+path.string());
 }
 int main(int argc,char** argv) {
   try {
-    bool emit=(argc>=6 && argc<=8) && std::string(argv[1])=="emit-diagnostic";
+    bool priced=argc==10 && std::string(argv[1])=="emit-priced";
+    bool emit=priced || ((argc>=6 && argc<=9) && std::string(argv[1])=="emit-diagnostic");
     bool prepare=emit || (argc==6 && std::string(argv[1])=="prepare");
     if(!prepare && (argc!=5 || std::string(argv[1])!="inspect"))
-      throw std::invalid_argument("usage: as2_compile_llm inspect export new_output batch; or prepare|emit-diagnostic export new_output batch groups [diagnostic_kv_block] [gemm_tile_n:64|128]");
+      throw std::invalid_argument("usage: as2_compile_llm inspect export new_output batch; or prepare|emit-diagnostic export new_output batch groups [diagnostic_kv_block] [gemm_tile_n:64|128] [attention:bf16|fp32|fp32-scores|math-sdpa]; or emit-priced export new_output batch groups kv_block tile_n attention measured_prices.json");
     namespace fs=std::filesystem;
     auto root=fs::path("/home/d50064638/junhuip/TileMega/runs/as2");
     auto input=fs::weakly_canonical(argv[2]),output=fs::weakly_canonical(argv[3]);
@@ -42,10 +44,16 @@ int main(int argc,char** argv) {
       serving.kv_block=std::stoi(argv[6]);
       if(serving.kv_block!=128 && serving.kv_block!=1088)throw std::invalid_argument("Bounded native KV candidates are 128 and 1088");
     }
-    if(emit && argc==8) {
+    if(emit && argc>=8) {
       serving.argmax_tile_n=std::stoi(argv[7]);
       if(serving.argmax_tile_n!=64 && serving.argmax_tile_n!=128)
         throw std::invalid_argument("Native GEMM domain is 32x64x64 or 16x128x128");
+    }
+    unsigned attention_precision=0;
+    if(emit && argc>=9) {
+      std::string attention=argv[8];
+      if(attention!="bf16" && attention!="fp32" && attention!="fp32-scores" && attention!="math-sdpa")throw std::invalid_argument("Unknown attention implementation precision");
+      attention_precision=attention=="fp32"?1:attention=="fp32-scores"?2:attention=="math-sdpa"?3:0;
     }
     auto start=std::chrono::steady_clock::now();
     tilemega::analysis::IslContext isl;
@@ -155,18 +163,91 @@ int main(int argc,char** argv) {
         std::vector<tilemega::solver::AscendServicePrice> unknown(problem.offsets.back());
         auto tasks=tilemega::solver::AscendTasksFromSymbolic(problem,skeleton,unknown);
         for(auto& t:tasks)t.mix_aiv_lanes=1;
-        auto scheduled=tilemega::solver::DiagnosticAscendSchedule(tasks,workers);
-        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,true);
+        tilemega::json::Value prices;
+        tilemega::solver::AscendSchedulingCosts scheduling_costs;
+        if(priced) {
+          auto path=fs::weakly_canonical(argv[9]);
+          if(!controlled(path))throw std::invalid_argument("Native prices must be an AS-2 measured artifact");
+          prices=tilemega::json::ParseFile(path.string());
+          if(prices.At("schema").AsString("price schema")!="tilemega.as2.native_task_prices.v1" ||
+              prices.At("status").AsString("price status")!="sourced_empirical_context" ||
+              prices.At("model_id").AsString("model")!=receipt.At("model_id").AsString("model") ||
+              prices.At("config_sha256").AsString("config")!=receipt.At("config_sha256").AsString("config") ||
+              prices.At("batch").AsNumber("batch")!=batch || prices.At("seq").AsNumber("seq")!=dims.seq ||
+              prices.At("groups").AsNumber("groups")!=groups || prices.At("phase").AsString("phase")!=phase)
+            throw std::invalid_argument("Native empirical prices do not describe this model/phase/topology");
+          auto const& rows=prices.At("stages").AsArray("stage prices");
+          if(rows.size()!=problem.counts.size())throw std::invalid_argument("Incomplete native price domain");
+          for(unsigned s=0;s<rows.size();++s) {
+            auto const& row=rows[s];auto const& bytes=row.At("logical_gm_bytes").AsArray("GM bytes");
+            double service=row.At("service_ns").AsNumber("service_ns");
+            if(row.At("stage").AsNumber("stage")!=s || row.At("tasks").AsNumber("tasks")!=problem.counts[s] ||
+                bytes.size()!=std::size_t(problem.counts[s]) || !std::isfinite(service) || service<=0)
+              throw std::invalid_argument("Missing or nonpositive native task price");
+            for(unsigned tile=0;tile<bytes.size();++tile) {
+              double n=bytes[tile].AsNumber("logical bytes");
+              if(!std::isfinite(n) || n<0 || n>=double(UINT64_MAX) || std::floor(n)!=n)
+                throw std::invalid_argument("Unrepresentable native GM demand");
+              tasks.at(problem.offsets[s]+tile).price={service,uint64_t(n),path.string()};
+            }
+          }
+          scheduling_costs={prices.At("gm_bytes_per_ns").AsNumber("shared GM rate"),
+            prices.At("cross_worker_ready_ns").AsNumber("ready latency"),path.string()};
+        }
+        auto scheduled=priced?tilemega::solver::ScheduleAscendTasks(tasks,workers,scheduling_costs):
+          tilemega::solver::DiagnosticAscendSchedule(tasks,workers);
+        if(priced) {
+          auto baseline=tilemega::solver::PriceAscendSchedule(tasks,workers,scheduling_costs,
+            tilemega::solver::DiagnosticAscendSchedule(tasks,workers));
+          scheduled=tilemega::solver::PriceAscendSchedule(tasks,workers,scheduling_costs,std::move(scheduled));
+          bool choose_eft=scheduled.makespan_ns<baseline.makespan_ns;
+          Write(output/"eft_candidate.json",scheduled.ToJson());
+          Write(output/"structural_candidate.json",baseline.ToJson());
+          Write(output/"search.json",tilemega::json::Value(tilemega::json::Object{
+            {"schema","tilemega.as2.native_plan_search.v1"},{"compared_legal_plans",2},
+            {"fixed_body_domain","one measured geometry/attention implementation"},
+            {"cost_provenance",prices},{"predicted_eft_ns",scheduled.makespan_ns},
+            {"predicted_structural_ns",baseline.makespan_ns},
+            {"selected",choose_eft?"heterogeneous_rank_eft":"structural_topological_least_queue"},
+            {"decision","minimum same-model shared-GM-calendar makespan"},
+            {"queue_or_placement_differs",scheduled.queue!=baseline.queue || scheduled.owners!=baseline.owners},
+            {"device_execution_verified",false},{"end_to_end_performance_admitted",false}}).Dump());
+          if(!choose_eft)scheduled=std::move(baseline);
+        }
+        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision);
+        if(priced) {
+          auto const& rows=prices.At("stages").AsArray("stage prices");
+          for(unsigned s=0;s<rows.size();++s) {
+            auto const& r=rows[s];auto const& n=native.stages[s];
+            if(r.At("kind").AsNumber("kind")!=n.kind || r.At("variant").AsNumber("variant")!=n.variant ||
+                r.At("rows").AsNumber("rows")!=n.rows || r.At("columns").AsNumber("columns")!=n.columns ||
+                r.At("k").AsNumber("k")!=n.k)throw std::invalid_argument("Priced implementation/shape differs from actual CTG");
+          }
+        }
         native.Write(output/"plan");
+        if(priced) {
+          double low=prices.At("past_min").AsNumber("minimum past"),high=prices.At("past_max").AsNumber("maximum past");
+          if(low!=0 || !std::isfinite(high) || high<0 || high>1086 || std::floor(high)!=high || (dims.seq==64 && high))
+            throw std::invalid_argument("Invalid measured context interval");
+          uint32_t bounds[4]={1,uint32_t(low),uint32_t(high),unsigned(groups)};
+          std::ofstream bounds_file(output/"plan/pricing_bounds.bin",std::ios::binary);
+          bounds_file.write(reinterpret_cast<char const*>(bounds),sizeof(bounds));
+          if(!bounds_file)throw std::runtime_error("Cannot save empirical price bounds");
+          Write(output/"plan/prices.json",prices.Dump());
+        }
         auto diagnostic_schedule=tilemega::json::Parse(scheduled.ToJson());
-        diagnostic_schedule.Set("selection","diagnostic_unpriced_bootstrap");
-        diagnostic_schedule.Set("makespan_ns",tilemega::json::Value{});
-        diagnostic_schedule.Set("shared_gm_floor_ns",tilemega::json::Value{});
+        diagnostic_schedule.Set("selection",priced?"measured_native_rank_eft_shared_gm":"diagnostic_unpriced_bootstrap");
+        if(!priced) {
+          diagnostic_schedule.Set("makespan_ns",tilemega::json::Value{});
+          diagnostic_schedule.Set("shared_gm_floor_ns",tilemega::json::Value{});
+        }
         Write(output/"schedule.json",diagnostic_schedule.Dump());
         Write(output/"persistent_llm.cpp",tilemega::codegen::LowerAscendLlm(native));
         result.Set("native_plan_materialized",true);
-        result.Set("selection","diagnostic_unpriced_bootstrap_not_optimized");
-        result.Set("priced_solver_executed",false);
+        result.Set("attention_implementation",attention_precision==1?"fp32_chunk32_merge":attention_precision==2?"fp32_scores_bf16_probability":attention_precision==3?"math_sdpa_fp32_split_scale":"bf16_scores_probabilities");
+        result.Set("selection",priced?"measured_native_rank_eft_shared_gm":"diagnostic_unpriced_bootstrap_not_optimized");
+        result.Set("priced_solver_executed",priced);
+        if(priced)result.Set("price_provenance",prices);
         result.Set("arena_bytes",double(native.metadata.arena_bytes));
         result.Set("device_execution_verified",false);
       }

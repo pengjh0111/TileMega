@@ -87,10 +87,16 @@ int main(int argc,char** argv) {
         offsets.size()!=m.workers+1 || offsets.front()!=0 || offsets.back()!=queue.size() ||
         !m.tasks || !m.epoch_stride || (m.seq!=1 && m.seq!=64) || (m.batch!=1 && m.batch!=4 && m.batch!=16) || m.capacity!=1088 ||
         !m.arena_bytes || m.arena_bytes>(64ULL<<30) || (m.worker_scratch_bytes!=32768 && m.worker_scratch_bytes!=131072) ||
-        m.wait_ticks!=2000000000ULL || diagnostic>1 || !forwards || uint64_t(past)+m.seq+forwards-1>=m.capacity ||
+        m.wait_ticks!=2000000000ULL || m.diagnostic>1 || diagnostic>1 || !forwards || uint64_t(past)+m.seq+forwards-1>=m.capacity ||
         (m.seq==64 && (forwards!=1 || past || m.worker_scratch_bytes<98304)) ||
         uint64_t(forwards)*m.epoch_stride+m.epoch_stride-1>UINT32_MAX || std::filesystem::exists(out))
       throw std::invalid_argument("Unsupported/broken native LLM metadata or forward range");
+    if(!m.diagnostic) {
+      auto bounds=Read<uint32_t>(plan/"pricing_bounds.bin");
+      if(bounds.size()!=4 || bounds[0]!=1 || bounds[3]!=m.groups || bounds[1]>bounds[2] ||
+          past<bounds[1] || uint64_t(past)+forwards-1>bounds[2])
+        throw std::invalid_argument("Forward is outside the measured native pricing context");
+    }
     for(auto const& a:allocations) {
       if(a.offset>m.arena_bytes || a.bytes>m.arena_bytes-a.offset || a.allocated<a.bytes+512 ||
           a.allocated>m.arena_bytes-a.offset || a.reserved || a.required>1)throw std::invalid_argument("Invalid 64-bit buffer range");

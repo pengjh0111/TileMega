@@ -74,5 +74,31 @@ class RequestBindingTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'different compiled GEMM geometries'):
             bind(self.pre,self.dec,self.inputs,self.root/'bad')
 
+    def priced(self):
+        for phase,path in [('prefill',self.pre),('decode',self.dec)]:
+            metadata=list(struct.unpack('<12I3Q',(path/'metadata.bin').read_bytes()));metadata[11]=0
+            (path/'metadata.bin').write_bytes(struct.pack('<12I3Q',*metadata))
+            (path/'pricing_bounds.bin').write_bytes(struct.pack('<4I',1,0,0 if phase=='prefill' else 66,2))
+            (path/'prices.json').write_text(json.dumps(dict(model_id='test',config_sha256='config',batch=1,seq=metadata[9],groups=2,phase=phase,past_min=0,past_max=0 if phase=='prefill' else 66)))
+            p=path.parent/'import.json';x=json.loads(p.read_text());x['priced_solver_executed']=True;p.write_text(json.dumps(x))
+        p=self.inputs/'inputs.json';x=json.loads(p.read_text());x['metadata_sha256']=digest(self.pre/'metadata.bin');p.write_text(json.dumps(x))
+
+    def test_priced_provenance_and_bounds_survive_relocation(self):
+        self.priced();out=self.root/'priced';bind(self.pre,self.dec,self.inputs,out)
+        receipt=json.loads((out/'request.json').read_text())
+        self.assertEqual(receipt['optimization_status'],'measured_native_rank_eft_shared_gm')
+        for phase,path in [('prefill',self.pre),('decode',self.dec)]:
+            for name in ('pricing_bounds.bin','prices.json'):
+                self.assertEqual(receipt['phases'][phase]['bound_hashes'][name],digest(path/name))
+
+    def test_reject_mixed_pricing_modes(self):
+        self.priced();m=list(struct.unpack('<12I3Q',(self.dec/'metadata.bin').read_bytes()));m[11]=1
+        (self.dec/'metadata.bin').write_bytes(struct.pack('<12I3Q',*m))
+        with self.assertRaisesRegex(ValueError,'same pricing mode'):bind(self.pre,self.dec,self.inputs,self.root/'bad')
+
+    def test_reject_out_of_range_empirical_context(self):
+        self.priced();(self.dec/'pricing_bounds.bin').write_bytes(struct.pack('<4I',1,0,1088,2))
+        with self.assertRaisesRegex(ValueError,'pricing bounds'):bind(self.pre,self.dec,self.inputs,self.root/'bad')
+
 
 if __name__=='__main__':unittest.main()

@@ -13,11 +13,12 @@ struct AscendLlmPlan {
   std::vector<ascend::llm::Wait> waits;
   std::vector<ascend::llm::Allocation> allocations;
   std::vector<uint32_t> offsets,queue;
+  std::vector<solver::AscendServicePrice> task_prices;
   std::string buffers_json;
   void Write(std::filesystem::path const&) const;
 };
 AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp,solver::SymbolicProblem const&,
     ascend::WorkerMap const&,std::vector<solver::AscendScheduledTask> const&,
-    solver::AscendSchedule const&,bool diagnostic);
+    solver::AscendSchedule const&,bool diagnostic,unsigned attention_precision=0);
 std::string LowerAscendLlm(AscendLlmPlan const&);
 }

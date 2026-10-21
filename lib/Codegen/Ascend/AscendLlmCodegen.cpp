@@ -39,8 +39,9 @@ template<class T> void Binary(std::filesystem::path const& p,std::vector<T> cons
 }
 AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem const& p,
     ascend::WorkerMap const& map,std::vector<solver::AscendScheduledTask> const& input,
-    solver::AscendSchedule const& schedule,bool diagnostic) {
+    solver::AscendSchedule const& schedule,bool diagnostic,unsigned attention_precision) {
   using namespace ascend::llm;
+  if(attention_precision>3)throw std::invalid_argument("Unknown native attention precision contract");
   if(!module || mlir::failed(mlir::verify(module)) || !p.model.serving || p.model.dm ||
       p.model.dtype!=solver::ScalarType::kBF16 || (p.model.dims.seq!=1 && p.model.dims.seq!=64) || p.model.dims.batch<1 ||
       p.model.serving_capacity!=1088 || (p.model.dims.seq==1?p.model.dims.past!=1087:p.model.dims.past!=0))
@@ -140,6 +141,10 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
         throw std::invalid_argument("Native full-row norm/embedding exceeds its UB contract");
       if(stage.kind==13 && ((stage.width!=64 && stage.width!=128) || !stage.extent || !stage.group || stage.group>8))
         throw std::invalid_argument("Native GQA head geometry is not registered");
+      if(stage.kind==13 && attention_precision) {
+        if(stage.kv_block!=1088)throw std::invalid_argument("FP32 chunk/merge candidate requires the unified KV ownership domain");
+        stage.variant=attention_precision;
+      }
     }
     uint64_t expected=stage.tasks;
     if(stage.kind==0) {
@@ -175,13 +180,14 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
   }
   if(out.waits.size()>UINT32_MAX || schedule.queue.size()>UINT32_MAX)throw std::overflow_error("LLM queue/wait table overflow");
   out.offsets=schedule.offsets;out.queue=schedule.queue;
+  if(!diagnostic)for(auto const& task:input)out.task_prices.push_back(task.price);
   out.metadata={kVersion,unsigned(map.launch.num_groups),unsigned(map.workers.size()),unsigned(out.tasks.size()),
     unsigned(out.stages.size()),unsigned(out.waits.size()),unsigned(out.queue.size()),schedule.epoch_stride,
     unsigned(p.model.dims.batch),unsigned(p.model.dims.seq),1088,unsigned(diagnostic),arena,131072,2000000000ULL};
   solver::AscendProgressValue(1088,schedule.epoch_stride-1,schedule.epoch_stride);
-  out.buffers_json=json::Value(json::Object{{"schema","tilemega.ascend.llm.buffers.v2"},
+  out.buffers_json=json::Value(json::Object{{"schema","tilemega.ascend.llm.buffers.v3"},
     {"arena_bytes",double(arena)},{"buffers",std::move(buffers)},
-    {"pricing_status",diagnostic?"diagnostic_unpriced_bootstrap":"native_prices_required"},
+    {"pricing_status",diagnostic?"diagnostic_unpriced_bootstrap":"sourced_native_empirical_context"},
     {"phase",p.model.dims.seq==1?"decode":"prefill"},{"complete_generation",false},{"device_execution_verified",false}}).Dump();
   return out;
 }
@@ -206,20 +212,31 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
     else if(s.kind==11)id="as2_aiv_embedding_i32_bf16";
     else if(s.kind==13)id=s.kv_block==128?"as2_aiv_gqa_fp32_log2_partials_kv128":
       metadata.seq==1?"as2_aiv_gqa_bf16_scores_probability_k32":"as2_aiv_causal_prefill_private_kv_k32";
+    if(s.kind==13 && s.variant)id=s.variant==1?"as2_aiv_gqa_fp32_chunk32_normalized_merge":
+      s.variant==2?"as2_aiv_gqa_fp32_scores_bf16_probability_k32":"as2_aiv_gqa_math_sdpa_fp32_split_scale";
     else if(s.kind==14)id="as2_aiv_normalized_partial_log2_merge";
     else if(s.kind==15)id="as2_aiv_ordered_argmax_scalar_reduce";
     if(id.empty())throw std::invalid_argument("Missing native body contract");
+    double low=std::numeric_limits<double>::infinity(),high=0;std::set<std::string> provenance;
+    if(!task_prices.empty())for(unsigned t=0;t<tasks.size();++t)if(tasks[t].stage==i) {
+      low=std::min(low,task_prices.at(t).service_ns);high=std::max(high,task_prices.at(t).service_ns);
+      provenance.insert(task_prices.at(t).provenance);
+    }
+    json::Array sources;for(auto const& source:provenance)sources.emplace_back(source);
     contracts.emplace_back(json::Object{{"stage",int(i)},{"impl_id",id},{"semantic_kind",int(s.kind)},
       {"role",s.kind==0?(s.epilogue?"AIC_AIV0":"AIC_ONLY"):"AIV_ONLY"},
       {"dtype","bf16"},{"opmath","fp32"},{"input_weight_layout",s.kind==0?"logical_NK":"ND"},
       {"tile_m",s.kind==0?(s.variant?16:32):0},{"tile_n",s.kind==0?(s.variant?128:64):0},
       {"tile_k",s.kind==0?(s.variant?128:64):0},
+      {"attention_score_probability",s.kind==13?(s.variant==1?"fp32_opmath_no_bf16_intermediate":s.variant==2?"fp32_scores_bf16_probability":s.variant==3?"fp32_split_scale_capacity_softmax":"bf16_storage_rounding"):"not_applicable"},
       {"aic_l1_bytes",s.kind==0?524288:0},{"aic_l0a_bytes",s.kind==0?65536:0},
       {"aic_l0b_bytes",s.kind==0?65536:0},{"aic_l0c_bytes",s.kind==0?262144:0},
       {"aiv_ub_bytes",s.kind!=0||s.epilogue?106496:0},
       {"internal_hard_event_slot",7},{"logical_task_completion_publishers",1},
-      {"handoff","GM_single_owner_frontier"},{"service_ns",json::Value{}},
-      {"calibration_status","not_calibrated"}});
+      {"handoff","GM_single_owner_frontier"},{"service_ns",high && low==high?json::Value(low):json::Value{}},
+      {"service_ns_min",high?json::Value(low):json::Value{}},{"service_ns_max",high?json::Value(high):json::Value{}},
+      {"price_provenance",std::move(sources)},
+      {"calibration_status",high?"sourced_empirical_context_not_global_hardware_calibration":"not_calibrated"}});
   }
   std::ofstream c(root/"implementations.json");c<<json::Value(std::move(contracts)).Dump()<<'\n';
   if(!c)throw std::runtime_error("Cannot write native body contracts");
@@ -235,7 +252,7 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
     variant=s.variant;
   }
   if(variant<0)throw std::invalid_argument("Native LLM has no registered GEMM body");
-  return std::string("// Generated by TileMega: verified CTG tables and candidate geometry, LLM ABI v2.\n")+
+  return std::string("// Generated by TileMega: verified CTG tables and candidate geometry, LLM ABI v3.\n")+
     "#define TILEMEGA_LLM_VARIANT "+std::to_string(variant)+"\n"+
     "#define TILEMEGA_LLM_TM "+std::to_string(variant?16:32)+"\n"+
     "#define TILEMEGA_LLM_TN "+std::to_string(variant?128:64)+"\n"+

@@ -24,10 +24,18 @@ def bind(prefill, decode, inputs, out):
     for phase,path,seq in [('prefill',prefill,64),('decode',decode,1)]:
         imported=json.loads((path.parent/'import.json').read_text())
         m=list(struct.unpack('<12I3Q',(path/'metadata.bin').read_bytes()))
-        if m[0]!=2 or m[9]!=seq or m[10]!=1088 or m[8]!=identity['batch']:
+        if m[0] not in (2,3) or m[9]!=seq or m[10]!=1088 or m[8]!=identity['batch']:
             raise ValueError('Incompatible phase ABI')
+        if m[11] not in (0,1):raise ValueError('Unknown phase pricing mode')
         if imported['phase']!=phase or imported['model_id']!=identity['model_id'] or imported['config_sha256']!=identity['config_sha256']:
             raise ValueError('Phase model/config mismatch')
+        if not m[11]:
+            bounds=struct.unpack('<4I',(path/'pricing_bounds.bin').read_bytes())
+            prices=json.loads((path/'prices.json').read_text())
+            if bounds[0]!=1 or bounds[1]!=0 or bounds[2]>1086 or bounds[3]!=m[1] or (seq==64 and bounds[2]) or not imported.get('priced_solver_executed'):
+                raise ValueError('Invalid empirical pricing bounds/provenance')
+            for key,value in dict(model_id=identity['model_id'],config_sha256=identity['config_sha256'],batch=m[8],seq=seq,groups=m[1],phase=phase,past_min=0,past_max=bounds[2]).items():
+                if prices[key]!=value:raise ValueError('Empirical pricing identity mismatch: '+key)
         buffers=json.loads((path/'buffers.json').read_text())['buffers']
         allocations=list(struct.iter_unpack('<3Q2I',(path/'allocations.bin').read_bytes()))
         if len(buffers)!=len(allocations) or len({b['name'] for b in buffers})!=len(buffers):
@@ -44,8 +52,11 @@ def bind(prefill, decode, inputs, out):
     if variants[0]!=variants[1]:raise ValueError('Prefill/decode use different compiled GEMM geometries')
     if identity['seq']!=64 or identity['past'] or digest(prefill/'metadata.bin')!=identity['metadata_sha256']:
         raise ValueError('Request must start with the actual prefill inputs')
-    if plans[0]['metadata'][1:3]!=plans[1]['metadata'][1:3]:
+    if plans[0]['metadata'][:3]!=plans[1]['metadata'][:3]:
         raise ValueError('Request phases require the same validated worker topology')
+    priced=all(not p['metadata'][11] for p in plans)
+    if any(not p['metadata'][11] for p in plans) and not priced:
+        raise ValueError('Both phases must declare the same pricing mode')
     union=[];named={}
     for plan in plans:
         for b in plan['buffers']:
@@ -71,7 +82,8 @@ def bind(prefill, decode, inputs, out):
     receipt=dict(schema='tilemega.as2.request_binding.v1',**{k:identity[k] for k in
         ('model_id','batch','config_sha256','weight_manifest_sha256','input_sha256')},
         isl=64,capacity=1088,arena_bytes=total,source_inputs=str(inputs),geometry_variant=variants[0],
-        optimization_status='unpriced_phase_bootstrap_not_admitted',phases={},buffers=union)
+        groups=plans[0]['metadata'][1],workers=plans[0]['metadata'][2],
+        optimization_status='measured_native_rank_eft_shared_gm' if priced else 'unpriced_phase_bootstrap_not_admitted',phases={},buffers=union)
     for plan in plans:
         dest=out/plan['phase'];dest.mkdir();m=plan['metadata'];m[12]=total
         remap={b['offset_bytes']:named[b['name']]['offset_bytes'] for b in plan['buffers']}
@@ -90,12 +102,14 @@ def bind(prefill, decode, inputs, out):
             os.link(plan['path']/name,dest/name)
         for name in ('implementations.json',):
             os.link(plan['path']/name,dest/name)
+        if priced:
+            for name in ('pricing_bounds.bin','prices.json'):os.link(plan['path']/name,dest/name)
         description=json.loads((plan['path']/'buffers.json').read_text())
         description.update(arena_bytes=total,buffers=union,relocated_request_binding=True)
         (dest/'buffers.json').write_text(json.dumps(description,indent=2)+'\n')
         receipt['phases'][plan['phase']]=dict(source_plan=str(plan['path']),
-            source_hashes={name:digest(plan['path']/name) for name in TABLES},
-            bound_hashes={name:digest(dest/name) for name in TABLES})
+            source_hashes={name:digest(plan['path']/name) for name in TABLES+(('pricing_bounds.bin','prices.json') if priced else ())},
+            bound_hashes={name:digest(dest/name) for name in TABLES+(('pricing_bounds.bin','prices.json') if priced else ())})
     files={r['name']:r for r in identity['buffers']};receipt['input_buffers']=[]
     for b in union:
         if not b.get('required_input'):continue

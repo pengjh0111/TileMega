@@ -40,6 +40,7 @@ struct Plan {
   std::vector<llm::Wait> waits;
   std::vector<llm::Allocation> allocations;
   std::vector<uint32_t> offsets,queue;
+  uint32_t minimum_past=0,maximum_past=1086;
   explicit Plan(fs::path const& root) {
     auto metadata=Read<llm::Metadata>(root/"metadata.bin");
     if(metadata.size()!=1)throw std::invalid_argument("Malformed request metadata");m=metadata[0];
@@ -51,7 +52,13 @@ struct Plan {
         m.queue_refs!=queue.size() || offsets.size()!=m.workers+1 || offsets.front()!=0 || offsets.back()!=queue.size() ||
         (m.seq!=1 && m.seq!=64) || (m.batch!=1 && m.batch!=4 && m.batch!=16) || m.capacity!=1088 ||
         !m.epoch_stride || !m.arena_bytes || m.arena_bytes>(64ULL<<30) || m.worker_scratch_bytes!=131072 ||
-        m.wait_ticks!=2000000000ULL)throw std::invalid_argument("Unsupported request plan");
+        m.wait_ticks!=2000000000ULL || m.diagnostic>1)throw std::invalid_argument("Unsupported request plan");
+    if(!m.diagnostic) {
+      auto bounds=Read<uint32_t>(root/"pricing_bounds.bin");
+      if(bounds.size()!=4 || bounds[0]!=1 || bounds[1]>bounds[2] || bounds[2]>1086 || bounds[3]!=m.groups)
+        throw std::invalid_argument("Missing/invalid empirical price bounds");
+      minimum_past=bounds[1];maximum_past=bounds[2];
+    }
     uint64_t previous_end=0;
     for(auto const& a:allocations) {
       if(!a.bytes || a.offset<previous_end || a.offset>m.arena_bytes || a.bytes>m.arena_bytes-a.offset ||
@@ -170,6 +177,7 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
   Plan pre(binding/"prefill"),dec(binding/"decode");
   if(outputs<2 || outputs>1024 || warmup>1 || !repetitions || repetitions>3 || diagnostic>2 || fs::exists(out) ||
       pre.m.seq!=64 || dec.m.seq!=1 || pre.m.batch!=dec.m.batch || pre.m.groups!=dec.m.groups ||
+      pre.minimum_past || dec.minimum_past>64 || outputs+62>dec.maximum_past ||
       pre.m.arena_bytes!=dec.m.arena_bytes || pre.allocations.size()!=dec.allocations.size() ||
       std::memcmp(pre.allocations.data(),dec.allocations.data(),pre.allocations.size()*sizeof(llm::Allocation)) ||
       uint64_t(outputs)*dec.m.epoch_stride+dec.m.epoch_stride-1>UINT32_MAX)
@@ -267,7 +275,9 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
     <<"{\"status\":\"executed_requires_numeric_compare\",\"binding_directory\":"<<std::quoted(binding.string())
     <<",\"isl\":64,\"osl\":"<<outputs<<",\"batch\":"<<pre.m.batch<<",\"capacity\":1088,\"warmup\":"<<warmup
     <<",\"repetitions\":"<<repetitions<<",\"diagnostic\":"<<diagnostic<<",\"host_kernel_launches\":"<<launches
+    <<",\"groups\":"<<pre.m.groups<<",\"workers\":"<<pre.m.workers
     <<",\"arena_bytes\":"<<pre.m.arena_bytes<<",\"setup_seconds\":"<<setup_seconds
+    <<",\"priced_plans_executed\":"<<(!pre.m.diagnostic && !dec.m.diagnostic?"true":"false")
     <<",\"complete_generation_length_executed\":"<<(outputs==1024?"true":"false")
     <<",\"optimized_pipeline_admitted\":false,\"correctness_gate\":\"not_compared\",\"performance_gate\":\"not_admitted\"}\n";
   if(!summary)throw std::runtime_error("Cannot save request summary");return 0;

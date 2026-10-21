@@ -51,6 +51,18 @@ def compare(binding,native,reference,out):
                 if not y.exists():row['kv'].append(dict(layer=layer,side=side,passed=False,status='not_run'))
                 else:row['kv'].append(dict(layer=layer,side=side,**check(x,y,policy['decoder_layer'])))
         row['passed']=row['greedy']['passed'] and row['logits']['passed'] and all(k['passed'] for k in row['kv'])
+        row['device_task_receipts']={}
+        for phase,epoch in [('prefill',0),('decode',actual['osl']-2)]:
+            trace_path=path/phase/'trace.bin'
+            if actual['diagnostic']!=1:
+                row['device_task_receipts'][phase]='not_captured';continue
+            tasks=list(struct.iter_unpack('<7I',(binding/phase/'tasks.bin').read_bytes()))
+            ss=list(struct.iter_unpack('<17Q16I',(binding/phase/'stages.bin').read_bytes()))
+            trace=list(struct.iter_unpack('<8Q',trace_path.read_bytes())) if trace_path.exists() else []
+            valid=len(trace)==len(tasks) and all((r[0],r[1],r[2],r[5])==(t[2],t[0],t[1],epoch) and
+                r[4]>=r[3] and r[6:8]==ss[t[0]][:2] for t,r in zip(tasks,trace))
+            row['device_task_receipts'][phase]='pass' if valid else 'fail'
+            row['passed'] &= valid
         rows.append(row)
     launch_rows=[json.loads(line) for line in (native/'launches.jsonl').read_text().splitlines()]
     expected=(actual['warmup']+actual['repetitions'])*actual['osl']
