@@ -34,8 +34,12 @@ inline void Save(fs::path const& path,void const* data,size_t bytes) {
   if(!f)throw std::runtime_error("Cannot save request evidence");
 }
 inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
+  for(auto const& s:stages)if(s.kind==13 && s.variant>5)
+    throw std::invalid_argument("Unregistered native attention implementation");
+  for(auto const& s:stages)if(s.kind==1 && (s.variant!=0 && (s.variant!=2 || s.width!=1024)))
+    throw std::invalid_argument("Unregistered full-row normalization implementation");
 #ifndef TILEMEGA_AS2_CANN_NORM_PRIMITIVES
-  for(auto const& s:stages)if(s.kind==13 && s.variant==5)
+  for(auto const& s:stages)if((s.kind==13 && s.variant==5) || (s.kind==1 && s.variant==2))
     throw std::invalid_argument("Newton QK norm requires explicitly configured pinned CANN device primitives");
 #endif
 }
