@@ -18,6 +18,7 @@ def main():
     p.add_argument('--device',choices=('npu:0','cpu'),default='npu:0')
     p.add_argument('--attention',choices=('sdpa','eager'),default='sdpa')
     p.add_argument('--norm',choices=('hf','fused'),default='hf')
+    p.add_argument('--save-norm-input-layers',type=int,nargs='*',default=[],help='Diagnostic pre-Norm2 operands, stored separately from compared model outputs')
     a=p.parse_args();plan=controlled(a.plan,[RUNS]);inputs=controlled(a.inputs,[RUNS]);out=controlled(a.out,[RUNS])
     receipt=json.loads((inputs/'inputs.json').read_text());buffers=json.loads((plan/'buffers.json').read_text())['buffers']
     if receipt['model_id']!=a.model or receipt['initial_kv'] not in ('all_zero_diagnostic_state_not_prefill','empty_cache_for_prefill') or digest(plan/'metadata.bin')!=receipt['metadata_sha256']:
@@ -27,7 +28,8 @@ def main():
     model,ids,manifest,weight_hash=load_model(a.model,a.attention,a.norm,device=a.device)
     if weight_hash!=receipt['weight_manifest_sha256'] or manifest['config_sha256']!=receipt['config_sha256']:
         raise ValueError('Paired weight/config identity mismatch')
-    batch,past,seq=receipt['batch'],receipt['past'],receipt.get('seq',1);cfg=manifest['config'];saved={};projections={}
+    batch,past,seq=receipt['batch'],receipt['past'],receipt.get('seq',1);cfg=manifest['config'];saved={};projections={};norm_inputs={}
+    if any(i<0 or i>=cfg['num_hidden_layers'] for i in a.save_norm_input_layers):raise ValueError('Invalid diagnostic norm layer')
     def save(name):
         def hook(module,args,result):saved[name]=result.detach().clone()
         return hook
@@ -37,6 +39,9 @@ def main():
     for i,layer in enumerate(model.model.layers):
         layer.input_layernorm.register_forward_hook(save(f'l{i}.norm1'))
         layer.post_attention_layernorm.register_forward_hook(save(f'l{i}.norm2'))
+        if i in a.save_norm_input_layers:
+            def norm_input(module,args,i=i):norm_inputs[i]=args[0].detach().clone()
+            layer.post_attention_layernorm.register_forward_pre_hook(norm_input)
         layer.self_attn.o_proj.register_forward_pre_hook(before(f'l{i}.context'))
         layer.mlp.down_proj.register_forward_pre_hook(before(f'l{i}.act'))
         for kind in ('q','k','v'):
@@ -82,10 +87,16 @@ def main():
             value=storage[layer][:,:,past+seq-1,:].cpu().contiguous()
             path=out/f'kv_{name}_s{stage}.bin';path.write_bytes(value.view(torch.uint8).numpy().tobytes())
             files.append(dict(file=path.name,name=f'layer{layer}.kv_{name}',elements=value.numel(),dtype='bf16',sha256=digest(path)))
+    extra=[]
+    for i,value in norm_inputs.items():
+        cpu=value.cpu().contiguous().bfloat16();path=out/f'norm2_input_l{i}.bin'
+        path.write_bytes(cpu.view(torch.uint8).numpy().tobytes())
+        extra.append(dict(layer=i,name=f'l{i}.norm2.input',file=path.name,shape=list(cpu.shape),dtype='bf16',sha256=digest(path)))
     report=dict(schema='tilemega.as2.native_reference.v1',status='reference_executed_not_compared',
         model_id=a.model,batch=batch,past=past,seq=seq,decode_only=seq==1,initial_kv=receipt['initial_kv'],
         config_sha256=receipt['config_sha256'],weight_manifest_sha256=weight_hash,input_sha256=receipt['input_sha256'],
-        implementation=f'pinned_transformers_{a.attention}_{a.norm}_norm',device=a.device,files=files,token_ids=chosen.cpu().tolist())
+        implementation=f'pinned_transformers_{a.attention}_{a.norm}_norm',device=a.device,files=files,
+        diagnostic_norm_inputs=extra,token_ids=chosen.cpu().tolist())
     (out/'reference.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps({k:v for k,v in report.items() if k!='files'}))
 

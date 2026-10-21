@@ -48,6 +48,8 @@ def prepare(args):
 def compare(args):
     source=controlled(args.input);output=controlled(args.output)
     config=json.loads((source/'config.json').read_text())
+    for name,expected in config.get('input_sha256',{}).items():
+        if hashlib.sha256((source/name).read_bytes()).hexdigest()!=expected:raise ValueError('Observed Body input/reference changed')
     shape=config.get('shape',config.get('shape_mnk',[])[:2])
     result=read(output/'c.bin',torch.bfloat16,shape).float()
     policy_path=REPO/'configs/ascend/as2_correctness_policy.json'
@@ -63,7 +65,7 @@ def compare(args):
         nrmse=rmse/max(ref.square().mean().sqrt().item(),1e-12)
         checks.append(dict(reference=file,max_abs=diff.max().item(),max_rel=(diff/ref.abs().clamp_min(1e-12)).max().item(),
             rmse=rmse,nrmse=nrmse,nonfinite=nonfinite,
-            failed_elements=failed,pass_=not failed and not nonfinite and nrmse<=policy.get('nrmse_max',float('inf'))))
+            failed_elements=failed,bitwise_different=int((result!=ref).sum()),pass_=not failed and not nonfinite and nrmse<=policy.get('nrmse_max',float('inf'))))
     receipt=dict(status='passed' if all(c['pass_'] for c in checks) else 'failed',shape=shape,family=family,
         correctness_policy_sha256=hashlib.sha256(policy_path.read_bytes()).hexdigest(),policy=policy,checks=checks)
     (output/'numeric.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))
@@ -98,6 +100,35 @@ def prepare_vector(args):
     (out/'config.json').write_text(json.dumps(receipt,indent=2)+'\n');print(json.dumps(receipt))
 
 
+def prepare_observed_norm(args):
+    from tilemega.bench.as2_models import WORK
+    source=controlled(args.reference);out=controlled(args.out)
+    r=json.loads((source/'reference.json').read_text())
+    if r['implementation']!='pinned_transformers_sdpa_fused_norm' or not 1<=args.rows<=64:
+        raise ValueError('Require an independent fused-NPU reference and bounded rows')
+    inp=next(v for v in r['diagnostic_norm_inputs'] if v['layer']==args.layer)
+    expected=next(v for v in r['files'] if v['name']==f'l{args.layer}.norm2')
+    if any(hashlib.sha256((source/v['file']).read_bytes()).hexdigest()!=v['sha256'] for v in (inp,expected)):
+        raise ValueError('Observed normalization operands changed')
+    width=inp['shape'][-1];total=__import__('math').prod(inp['shape'][:-1])
+    if args.rows>total or width not in (1024,2048,3072,4096):raise ValueError('Invalid full-row norm extent')
+    weights=WORK/'weights'/r['model_id'];manifest=json.loads((weights/'manifest.json').read_text())
+    if hashlib.sha256((weights/'manifest.json').read_bytes()).hexdigest()!=r['weight_manifest_sha256']:
+        raise ValueError('Independent reference/canonical weight identity mismatch')
+    row=next(v for v in manifest['tensors'] if v['name']==f'model.layers.{args.layer}.post_attention_layernorm.weight')
+    path=weights/row['file']
+    if hashlib.sha256(path.read_bytes()).hexdigest()!=row['sha256']:raise ValueError('Norm scale identity changed')
+    x=read(source/inp['file'],torch.bfloat16,(total,width))[:args.rows].contiguous()
+    gamma=read(path,torch.bfloat16,(width,));gold=read(source/expected['file'],torch.bfloat16,(total,width))[:args.rows]
+    eps=manifest['config']['rms_norm_eps'];y=x.float();fp32=(y*(y.square().mean(-1,keepdim=True)+eps).rsqrt()).bfloat16().float()*gamma.float()
+    out.mkdir();save(out/'input.bin',x);save(out/'rhs.bin',gamma);save(out/'ref_fp32.bin',fp32);save(out/'ref_bf16.bin',gold)
+    record=dict(family='rmsnorm',shape=[args.rows,width],dtype='bf16',epsilon=eps,source_reference=str(source),layer=args.layer,
+        source_reference_sha256=hashlib.sha256((source/'reference.json').read_bytes()).hexdigest(),
+        references=dict(fp32='CPU FP32 same operands with explicit HF normalized BF16 cast',bf16='observed independent fused NPU output on these same operands'),
+        input_sha256={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in out.iterdir()})
+    (out/'config.json').write_text(json.dumps(record,indent=2)+'\n')
+
+
 def prepare_attention(args):
     qh,kvh,keys,d=args.qheads,args.kvheads,args.keys,args.head_dim
     if not 1<=kvh<=qh<=32 or qh%kvh or not 1<=keys<=1088 or d not in (64,128):
@@ -128,6 +159,8 @@ def main():
     vec=sub.add_parser('prepare-vector');vec.add_argument('--kind',choices=('rmsnorm','swiglu','add','rope'),required=True)
     vec.add_argument('--rows',type=int,required=True);vec.add_argument('--width',type=int,required=True);vec.add_argument('--out',type=Path,required=True)
     vcheck=sub.add_parser('compare-vector');vcheck.add_argument('--input',type=Path,required=True);vcheck.add_argument('--output',type=Path,required=True)
+    obs=sub.add_parser('prepare-observed-norm');obs.add_argument('--reference',type=Path,required=True);obs.add_argument('--out',type=Path,required=True)
+    obs.add_argument('--layer',type=int,required=True);obs.add_argument('--rows',type=int,default=64)
     attn=sub.add_parser('prepare-attention')
     for name in ('qheads','kvheads','keys','head-dim'):attn.add_argument('--'+name,type=int,required=True)
     attn.add_argument('--out',type=Path,required=True)
@@ -135,6 +168,7 @@ def main():
     args=p.parse_args()
     if args.command=='prepare-gemm':return prepare(args)
     if args.command=='prepare-vector':return prepare_vector(args)
+    if args.command=='prepare-observed-norm':return prepare_observed_norm(args)
     if args.command=='prepare-attention':return prepare_attention(args)
     return compare(args)
 
