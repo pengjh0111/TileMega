@@ -2,6 +2,7 @@
 """Audit one native solver ranking cohort against accepted paired measurements."""
 import argparse
 import csv
+import hashlib
 import json
 import math
 import os
@@ -12,6 +13,7 @@ import subprocess
 from scipy.stats import kendalltau
 from sm90d1_common import ROOT, read, sha, write
 from verify_sm90r2_correctness import verify_receipt
+from check_sm90r2_rebuild import encodings
 
 
 def main():
@@ -114,6 +116,12 @@ def main():
             env=dict(os.environ, CUDA_VISIBLE_DEVICES='')))
         write(Path(str(stem) + '.prediction.json'), prediction)
         predicted_ms = prediction['predictions'][0]['request']['step_ns'] / 1e6
+        assembly = subprocess.check_output(['/usr/local/cuda/bin/cuobjdump', '--dump-sass',
+                                            str(binary)], text=True, timeout=120)
+        # Native programs carry geometry in instructions, with no stage-table
+        # interpreter. Different coordinate names can still compile identically.
+        instruction_sha = hashlib.sha256(json.dumps(list(encodings(assembly).values()),
+                                                    sort_keys=True).encode()).hexdigest()
         measured_ms = statistics.median(timings)
         control_ms = statistics.median(controls)
         candidate_range = (max(timings)-min(timings))/measured_ms*100
@@ -121,7 +129,9 @@ def main():
         threshold = max(.5, blank_range or 0, candidate_range, control_range)
         change = (measured_ms/control_ms-1)*100
         rows.append(dict(tag=binary.parents[1].name, binary_sha256=digest,
+            instruction_sha256=instruction_sha,
             predicted_ms=predicted_ms, measured_ms=measured_ms,
+            process_medians_ms=timings,
             step_error_pct=(predicted_ms / measured_ms - 1) * 100,
             processes=len(process_ids), protocol_complete=len(process_ids) >= required,
             process_range_pct=candidate_range, baseline_ms=control_ms,
@@ -133,21 +143,35 @@ def main():
             correctness=correctness, paired_receipts=receipts))
     if len(devices) > 1:
         raise ValueError('ranking cohort must use one physical GPU')
-    complete = len(rows) >= 8 and not missing and all(r['protocol_complete'] for r in rows)
-    tau = float(kendalltau([r['predicted_ms'] for r in rows],
-                          [r['measured_ms'] for r in rows]).statistic) if len(rows) > 1 else None
+    groups = {}
+    for row in rows:
+        groups.setdefault(row['instruction_sha256'], []).append(row)
+    programs, aliases = [], []
+    for digest, group in groups.items():
+        predictions = [r['predicted_ms'] for r in group]
+        if max(predictions)-min(predictions) > 1e-9:
+            aliases.append([r['tag'] for r in group])
+        # Every repeated program contributes, rather than picking its fastest
+        # observation after timing. Keep the per-artifact evidence above.
+        programs.append(dict(instruction_sha256=digest, tags=[r['tag'] for r in group],
+            predicted_ms=statistics.median(predictions),
+            measured_ms=statistics.median(t for r in group for t in r['process_medians_ms'])))
+    complete = len(programs) >= 8 and not missing and all(r['protocol_complete'] for r in rows)
+    tau = float(kendalltau([r['predicted_ms'] for r in programs],
+                          [r['measured_ms'] for r in programs]).statistic) if len(programs) > 1 else None
     if tau is not None and not math.isfinite(tau):
         tau = None
-    top3 = sorted(rows, key=lambda r: r['predicted_ms'])[:3]
-    fastest = min(rows, key=lambda r: r['measured_ms']) if rows else None
+    top3 = sorted(programs, key=lambda r: r['predicted_ms'])[:3]
+    fastest = min(programs, key=lambda r: r['measured_ms']) if programs else None
     top3_contains_fastest = fastest in top3 if fastest else False
     # This receipt never promotes a fit: class errors and the other six cells
     # remain separate E-3 requirements, even when this cohort ranks correctly.
     result = dict(model=config['model'], batch=config['batch'], candidates=rows, missing=missing,
+        programs=programs, distinct_programs=len(programs), prediction_alias_inconsistencies=aliases,
         pair_prefix=a.pair_prefix,retrospective=a.pair_prefix is None,
         blank_pairs=len(blanks),blank_process_range_pct=blank_range,
         complete=complete, kendall_tau=tau, top3_contains_fastest=top3_contains_fastest,
-        ranking_pass=bool(a.pair_prefix) and complete and tau is not None and tau >= .7 and top3_contains_fastest,
+        ranking_pass=bool(a.pair_prefix) and complete and not aliases and tau is not None and tau >= .7 and top3_contains_fastest,
         class_validation='not evaluated', solver_gate_pass=False,
         target_sha256=sha(a.target), pairs_sha256=sha(a.pairs),
         probe_sha256=sha(a.probe), script_sha256=sha(__file__), gpu_uuids=sorted(devices))
