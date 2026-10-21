@@ -51,9 +51,11 @@ struct Sm90DenseGemm {
       int tile=sequence%kIterations;
       Async::Wait(state.empty+slot,(phase>>slot)&1);
       if(lane==0) {
-        Async::ExpectTx(state.full+slot,2*TN*TK);
-        Async::Bulk(b+slot*TN*TK,p.weight+(std::size_t(task)*kIterations+tile)*TN*TK,
-            2*TN*TK,state.full+slot);
+        unsigned prefix=state.prefix_bytes[slot];state.prefix_bytes[slot]=0;
+        if(!prefix)Async::ExpectTx(state.full+slot,2*TN*TK);
+        if(prefix<2*TN*TK)Async::Bulk(b+slot*TN*TK+prefix/2,
+            p.weight+(std::size_t(task)*kIterations+tile)*TN*TK+prefix/2,
+            2*TN*TK-prefix,state.full+slot);
       }
       for(int v=lane*8;v<Batch*TK;v+=32*8) {
         int row=v/TK,col=v%TK;
@@ -135,10 +137,12 @@ struct Sm90DenseGemm {
       state.consumer_generations[slot]=(phase>>slot)&1;
   }
 
-  __device__ static void Run(Sm90DenseOperands p,char* shared,float epsilon) {
+  template<class Tail=Sm90DenseNoTail>
+  __device__ static void Run(Sm90DenseOperands p,char* shared,float epsilon,
+      Sm90DenseRingState* persistent=nullptr,Tail tail={}) {
     static_assert(!arch::kDevicePass || arch::kSm90AllAvailable,
                   "native dense GEMM requires Hopper sm_90a");
-    auto& state=*reinterpret_cast<Sm90DenseRingState*>(shared);
+    auto& state=persistent?*persistent:*reinterpret_cast<Sm90DenseRingState*>(shared);
     auto* a=reinterpret_cast<Element*>(shared+1024);
     auto* b=a+Slots*16*TK;
     auto* scratch=reinterpret_cast<float*>(shared+1024+kOperandBytes);
@@ -160,7 +164,10 @@ struct Sm90DenseGemm {
     // The previous stage's final CTA join makes the two snapshots consistent.
     int tasks=(N/TN)/int(gridDim.x)+(int(blockIdx.x)<(N/TN)%int(gridDim.x));
     if(threadIdx.x<128)Consume(p,state,a,b,scratch,tasks,phase,epsilon);
-    else Produce(p,state,a,b,tasks,phase);
+    else {
+      Produce(p,state,a,b,tasks,phase);
+      if(threadIdx.x==128)tail();
+    }
     __syncthreads();
   }
 };

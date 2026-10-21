@@ -49,12 +49,16 @@ struct Sm90DenseAttention {
       int rows=min(range.end,p.past)-range.begin;
       Async::Wait(state.empty,phase);
       if(lane==0) {
+        unsigned prefix=state.prefix_bytes[0];state.prefix_bytes[0]=0;
         if(rows) {
           Async::ProxyAsyncGlobalFence();
-          Async::ExpectTx(state.full,4*rows*D);
+          if(!prefix)Async::ExpectTx(state.full,4*rows*D);
           std::size_t offset=(std::size_t(bg)*Capacity+range.begin)*D;
-          Async::Bulk(s.key,p.key+offset,2*rows*D,state.full);
-          Async::Bulk(s.value,p.value+offset,2*rows*D,state.full);
+          int done=prefix/(4*D);
+          if(done<rows) {
+            Async::Bulk(s.key+done*D,p.key+offset+done*D,2*(rows-done)*D,state.full);
+            Async::Bulk(s.value+done*D,p.value+offset+done*D,2*(rows-done)*D,state.full);
+          }
         } else Async::Arrive(state.full);
       }
       Async::CompleteCopies(state.full);
@@ -216,12 +220,17 @@ struct Sm90DenseAttention {
     if(threadIdx.x==0 && tasks)state.consumer_generations[0]=phase;
   }
 
-  __device__ static void Run(Sm90DenseAttentionOperands p,char* shared) {
-    auto& state=*reinterpret_cast<Sm90DenseRingState*>(shared);
+  template<class Tail=Sm90DenseNoTail>
+  __device__ static void Run(Sm90DenseAttentionOperands p,char* shared,
+      Sm90DenseRingState* persistent=nullptr,Tail tail={}) {
+    auto& state=persistent?*persistent:*reinterpret_cast<Sm90DenseRingState*>(shared);
     auto& s=*reinterpret_cast<Storage*>(shared+1024);
     int tasks=kTasks/int(gridDim.x)+(int(blockIdx.x)<kTasks%int(gridDim.x));
     if(threadIdx.x<128)Consume(p,state,s,tasks,state.consumer_generations[0]);
-    else Produce(p,state,s,tasks,state.producer_generations[0]);
+    else {
+      Produce(p,state,s,tasks,state.producer_generations[0]);
+      if(threadIdx.x==128)tail();
+    }
     __syncthreads();
   }
 };

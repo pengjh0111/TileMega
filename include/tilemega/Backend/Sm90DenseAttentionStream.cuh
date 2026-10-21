@@ -57,11 +57,18 @@ struct Sm90DenseAttentionStream {
         int slot=sequence%Slots,history=max(0,min(begin+BlockKeys,min(range.end,p.past))-begin);
         Async::Wait(state.empty+slot,(phase>>slot)&1);
         if(lane==0) {
+          unsigned prefix=state.prefix_bytes[slot];state.prefix_bytes[slot]=0;
           if(history) {
-            Async::ProxyAsyncGlobalFence();Async::ExpectTx(state.full+slot,4*history*D);
+            Async::ProxyAsyncGlobalFence();
+            if(!prefix)Async::ExpectTx(state.full+slot,4*history*D);
             std::size_t offset=(std::size_t(bg)*Capacity+begin)*D;
-            Async::Bulk(s.key+slot*BlockKeys*D,p.key+offset,2*history*D,state.full+slot);
-            Async::Bulk(s.value+slot*BlockKeys*D,p.value+offset,2*history*D,state.full+slot);
+            int done=prefix/(4*D);
+            if(done<history) {
+              Async::Bulk(s.key+slot*BlockKeys*D+done*D,p.key+offset+done*D,
+                  2*(history-done)*D,state.full+slot);
+              Async::Bulk(s.value+slot*BlockKeys*D+done*D,p.value+offset+done*D,
+                  2*(history-done)*D,state.full+slot);
+            }
           }else Async::Arrive(state.full+slot);
         }
         Async::CompleteCopies(state.full+slot);phase^=1u<<slot;
@@ -150,15 +157,21 @@ struct Sm90DenseAttentionStream {
     if(threadIdx.x==0 && tasks)for(int i=0;i<Slots;++i)state.consumer_generations[i]=(phase>>i)&1;
   }
 
-  __device__ static void Run(Sm90DenseAttentionOperands p,char* shared) {
-    auto& state=*reinterpret_cast<Sm90DenseRingState*>(shared);
+  template<class Tail=Sm90DenseNoTail>
+  __device__ static void Run(Sm90DenseAttentionOperands p,char* shared,
+      Sm90DenseRingState* persistent=nullptr,Tail tail={}) {
+    auto& state=persistent?*persistent:*reinterpret_cast<Sm90DenseRingState*>(shared);
     auto& s=*reinterpret_cast<Storage*>(shared+1024);
     int tasks=kTasks/int(gridDim.x)+(int(blockIdx.x)<kTasks%int(gridDim.x));
     unsigned phase=0;
     #pragma unroll
     for(int i=0;i<Slots;++i)phase|=(threadIdx.x<128?
         state.consumer_generations[i]:state.producer_generations[i])<<i;
-    if(threadIdx.x<128)Consume(p,state,s,tasks,phase);else Produce(p,state,s,tasks,phase);
+    if(threadIdx.x<128)Consume(p,state,s,tasks,phase);
+    else {
+      Produce(p,state,s,tasks,phase);
+      if(threadIdx.x==128)tail();
+    }
     __syncthreads();
   }
 };
