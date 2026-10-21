@@ -45,7 +45,7 @@ struct Sm90DenseGemm {
 
   template<int Bytes>
   // Raw operand pointers share the transfer loop across layer-specific bindings.
-  __device__ static __noinline__ void Preissue(Element const* weight,char* shared,
+  __device__ static __forceinline__ void Preissue(Element const* weight,char* shared,
       Sm90DenseRingState& state) {
     static_assert(Bytes>0 && Bytes%16==0 &&
         Bytes<=(Slots<kIterations?Slots:kIterations)*2*TN*TK);
@@ -64,7 +64,7 @@ struct Sm90DenseGemm {
     }
   }
   template<int Bytes,int Prefix>
-  __device__ static __noinline__ void Prefetch(Element const* weight) {
+  __device__ static __forceinline__ void Prefetch(Element const* weight) {
     constexpr int bytes=Bytes<2*TN*K-Prefix?Bytes:2*TN*K-Prefix;
     if constexpr(bytes>0)Async::Prefetch(weight+std::size_t(blockIdx.x)*TN*K+Prefix/2,bytes);
   }
@@ -192,9 +192,6 @@ struct Sm90DenseGemm {
     else {
       if constexpr(Tail::kBefore) {
         if(threadIdx.x==128)tail.Before();
-        // The elected lane may wait on a different ring before issuing. Keep
-        // the remaining producer lanes out of the current ring until it joins.
-        __syncwarp();
       }
       Produce(p,state,a,b,tasks,phase);
       if(threadIdx.x==128)tail();

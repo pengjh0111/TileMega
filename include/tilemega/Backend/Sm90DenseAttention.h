@@ -230,7 +230,6 @@ struct Sm90DenseAttention {
     else {
       if constexpr(Tail::kBefore) {
         if(threadIdx.x==128)tail.Before();
-        __syncwarp();
       }
       Produce(p,state,s,tasks,state.producer_generations[0]);
       if(threadIdx.x==128)tail();

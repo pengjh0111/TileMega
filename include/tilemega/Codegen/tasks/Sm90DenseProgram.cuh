@@ -224,7 +224,7 @@ struct ProducerTail {
   char* shared;
   backend::Sm90DenseRingState &current,&next;
   // Pass scalar fields rather than an addressable per-stage callback object.
-  __device__ static __noinline__ void Issue(Binding const& binding,int past,char* shared,
+  __device__ static __forceinline__ void Issue(Binding const& binding,int past,char* shared,
       backend::Sm90DenseRingState& current,backend::Sm90DenseRingState& next) {
     if constexpr(Next::kPrefix || Next::kL2Bytes) {
       // Empty covers operand readers, but not epilogue scratch. Its liveness

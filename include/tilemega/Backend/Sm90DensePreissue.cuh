@@ -14,7 +14,7 @@ struct Sm90DenseKvPreissue {
   static constexpr auto kLayout=Sm90DenseLayout::Attention(
       Stream?8:1,D,Q,Chunks,Keys,Slots,RowWork,Capacity);
   template<int Bytes>
-  __device__ static __noinline__ void Prepare(Element const* key,Element const* value,
+  __device__ static __forceinline__ void Prepare(Element const* key,Element const* value,
       int past,char* shared,Sm90DenseRingState& ring) {
     auto range=Partition::Range(past,int(blockIdx.x)%Chunks,RowWork);
     int bg=int(blockIdx.x)/Chunks,remaining=Bytes;
@@ -37,7 +37,7 @@ struct Sm90DenseKvPreissue {
     }
   }
   template<int Bytes,int Prefix>
-  __device__ static __noinline__ void Prefetch(Element const* key,Element const* value,int past) {
+  __device__ static __forceinline__ void Prefetch(Element const* key,Element const* value,int past) {
     auto range=Partition::Range(past,int(blockIdx.x)%Chunks,RowWork);
     int history=min(range.end,past)-range.begin,done=min(history,Prefix/(4*D));
     int bytes=min(Bytes/2,2*D*(history-done))&~15;

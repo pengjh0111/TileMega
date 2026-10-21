@@ -171,7 +171,6 @@ struct Sm90DenseAttentionStream {
     else {
       if constexpr(Tail::kBefore) {
         if(threadIdx.x==128)tail.Before();
-        __syncwarp();
       }
       Produce(p,state,s,tasks,phase);
       if(threadIdx.x==128)tail();
