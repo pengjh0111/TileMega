@@ -9,7 +9,7 @@ from measure_sm90r2_candidate import require_correctness
 
 class NativeSelectionCorrectness(unittest.TestCase):
     def test_accepts_complete_native_evidence(self):
-        require_correctness(dict(pass_=False,**{'pass':True,'batch':16,'max_new_tokens':256}),
+        require_correctness({'pass':True,'batch':16,'max_new_tokens':256},
             {'pass':True,'same_binary':True,'checks':[
                 {'pass':True,'decode_loop':0},{'pass':True,'decode_loop':1}]},16)
 
