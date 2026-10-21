@@ -123,10 +123,11 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
           {"slot_bytes",g.slot_bytes},{"slots",g.slots}},{{"cache","dram"}});
       s.dram=2.*n*k/global_bw;
       double tile_stream=2.*g.tile_n*k/bw;
-      double activation=Quantity("activation_wait_and_shared_read",{{"batch",w.batch},
+      s.stream=s.waves*tile_stream;
+      s.activation=s.waves*Quantity("activation_wait_and_shared_read",{{"batch",w.batch},
           {"tile_k",g.TileK()}})*k/g.TileK();
-      s.flow=std::max(s.dram,s.waves*tile_stream*Coefficient(s.key,"memory_scale"))+
-          Coefficient(s.key,"activation_scale")*s.waves*activation;
+      s.flow=std::max(s.dram,s.stream*Coefficient(s.key,"memory_scale"))+
+          Coefficient(s.key,"activation_scale")*s.activation;
       s.compute=s.waves*double(k/(16*g.warps_k))*(g.tile_n/(8*g.warps_n))*
           Quantity("mma_sync_per_instruction",{{"tile_n",g.tile_n/g.warps_n}})*
           Coefficient(s.key,"mma_scale");
@@ -207,13 +208,15 @@ Sm90DensePrediction Sm90DenseCostModel::Request(Sm90DenseWorkload const& w,
     if(!i) {
       result=sample;result.step_ns=0;
       for(auto& s:result.stages)
-        s.ns=s.barrier=s.startup=s.dram=s.flow=s.compute=s.epilogue=s.overlap=0;
+        s.ns=s.barrier=s.startup=s.dram=s.stream=s.flow=s.activation=s.compute=s.epilogue=s.overlap=0;
     }
     for(unsigned j=0;j<sample.stages.size();++j) {
       auto& out=result.stages[j];auto const& in=sample.stages[j];
       out.ns+=in.ns/intervals;
       out.barrier+=in.barrier/intervals;out.startup+=in.startup/intervals;
       out.dram+=in.dram/intervals;out.flow+=in.flow/intervals;
+      out.stream+=in.stream/intervals;
+      out.activation+=in.activation/intervals;
       out.compute+=in.compute/intervals;out.epilogue+=in.epilogue/intervals;
       out.overlap+=in.overlap/intervals;
     }
@@ -227,6 +230,8 @@ json::Value Sm90DensePrediction::ToJson() const {
       {"instances",s.instances},{"tasks",s.tasks},{"waves",s.waves},
       {"stage_ns",s.ns},{"class_ns",s.ns*s.instances},{"barrier_ns",s.barrier},
       {"startup_ns",s.startup},{"dram_ns",s.dram},{"flow_ns",s.flow},
+      {"stream_ns",s.stream},
+      {"activation_ns",s.activation},
       {"compute_ns",s.compute},{"epilogue_ns",s.epilogue},{"overlap_ns",s.overlap}});
   return json::Object{{"step_ns",step_ns},{"evidence","inferred prediction from native calibration"},
       {"stages",values}};
