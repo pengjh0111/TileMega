@@ -115,18 +115,20 @@ def prepare_observed_norm(args):
             raise ValueError('Require an independent eager last-forward capture')
         r['implementation']='pinned_transformers_sdpa_fused_norm';data_root=source/'last_forward'
         records=json.loads((data_root/'capture.json').read_text())['files']
-        inp=next(v for v in records if v['name']==f'l{args.layer}.{args.norm}.input')
+        input_name=args.norm[0]+'.raw' if args.norm in ('q_norm','k_norm') else args.norm+'.input'
+        inp=next(v for v in records if v['name']==f'l{args.layer}.{input_name}')
         expected=next(v for v in records if v['name']==f'l{args.layer}.{args.norm}')
     if r['implementation']!='pinned_transformers_sdpa_fused_norm' or not 1<=args.rows<=64:
         raise ValueError('Require an independent fused-NPU reference and bounded rows')
     if any(hashlib.sha256((data_root/v['file']).read_bytes()).hexdigest()!=v['sha256'] for v in (inp,expected)):
         raise ValueError('Observed normalization operands changed')
-    width=inp['shape'][-1];total=__import__('math').prod(inp['shape'][:-1])
-    if args.rows>total or width not in (1024,2048,3072,4096):raise ValueError('Invalid full-row norm extent')
+    domain_shape=expected['shape'] if args.norm in ('q_norm','k_norm') else inp['shape']
+    width=domain_shape[-1];total=__import__('math').prod(domain_shape[:-1])
+    if args.rows>total or width not in (128,1024,2048,3072,4096):raise ValueError('Invalid full-row norm extent')
     weights=WORK/'weights'/r['model_id'];manifest=json.loads((weights/'manifest.json').read_text())
     if hashlib.sha256((weights/'manifest.json').read_bytes()).hexdigest()!=r['weight_manifest_sha256']:
         raise ValueError('Independent reference/canonical weight identity mismatch')
-    module='input_layernorm' if args.norm=='norm1' else 'post_attention_layernorm'
+    module='self_attn.'+args.norm if args.norm in ('q_norm','k_norm') else 'input_layernorm' if args.norm=='norm1' else 'post_attention_layernorm'
     row=next(v for v in manifest['tensors'] if v['name']==f'model.layers.{args.layer}.{module}.weight')
     path=weights/row['file']
     if hashlib.sha256(path.read_bytes()).hexdigest()!=row['sha256']:raise ValueError('Norm scale identity changed')
@@ -136,7 +138,7 @@ def prepare_observed_norm(args):
     out.mkdir();save(out/'input.bin',x);save(out/'rhs.bin',gamma);save(out/'ref_fp32.bin',fp32);save(out/'ref_bf16.bin',gold)
     record=dict(family='rmsnorm',shape=[args.rows,width],dtype='bf16',epsilon=eps,source_reference=str(source),layer=args.layer,
         source_reference_sha256=hashlib.sha256(metadata.read_bytes()).hexdigest(),norm=args.norm,
-        original_shape=inp['shape'] if args.rows==total else [args.rows,width],
+        original_shape=domain_shape if args.rows==total else [args.rows,width],
         references=dict(fp32='CPU FP32 same operands with explicit HF normalized BF16 cast',bf16='observed independent fused NPU output on these same operands'),
         input_sha256={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in out.iterdir()})
     (out/'config.json').write_text(json.dumps(record,indent=2)+'\n')
@@ -174,7 +176,7 @@ def main():
     vcheck=sub.add_parser('compare-vector');vcheck.add_argument('--input',type=Path,required=True);vcheck.add_argument('--output',type=Path,required=True)
     obs=sub.add_parser('prepare-observed-norm');obs.add_argument('--reference',type=Path,required=True);obs.add_argument('--out',type=Path,required=True)
     obs.add_argument('--layer',type=int,required=True);obs.add_argument('--rows',type=int,default=64)
-    obs.add_argument('--norm',choices=('norm1','norm2'),default='norm2')
+    obs.add_argument('--norm',choices=('norm1','norm2','q_norm','k_norm'),default='norm2')
     attn=sub.add_parser('prepare-attention')
     for name in ('qheads','kvheads','keys','head-dim'):attn.add_argument('--'+name,type=int,required=True)
     attn.add_argument('--out',type=Path,required=True)

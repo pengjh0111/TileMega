@@ -142,7 +142,7 @@ def main():
     parser.add_argument('--warmup', type=int, default=1)
     parser.add_argument('--repetitions', type=int, default=3)
     parser.add_argument('--save-kv-rows', action='store_true', help='Copy final valid KV rows after t_last, for correctness only')
-    parser.add_argument('--capture-last-forward',action='store_true',help='Short diagnostic request only; hooks and full valid KV, no performance admission')
+    parser.add_argument('--capture-last-forward',action='store_true',help='One diagnostic request; B1 may capture long-context KV, no performance admission')
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     out = args.out.absolute()
@@ -152,8 +152,8 @@ def main():
         parser.error('Require bounded request/repetition sizes')
     if args.save_kv_rows and args.cache!='static':
         parser.error('KV diagnostics require the fixed-capacity reference cache')
-    if args.capture_last_forward and (args.outputs>128 or args.warmup or args.repetitions!=1 or args.cache!='static'):
-        parser.error('Last-forward diagnostic requires outputs<=128, warmup0, repetition1 and static cache')
+    if args.capture_last_forward and ((args.outputs>128 and args.batch!=1) or args.warmup or args.repetitions!=1 or args.cache!='static'):
+        parser.error('Last-forward diagnostic requires warmup0, repetition1, static cache and B1 for outputs>128')
     if args.device=='cpu' and args.norm!='hf':
         parser.error('CPU correctness reference uses independent HF normalization')
     if args.device=='npu:0' and os.environ.get('ASCEND_RT_VISIBLE_DEVICES') not in {'0', '1'}:
