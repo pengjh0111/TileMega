@@ -31,8 +31,11 @@ struct alignas(16) Sm90DenseRingState {
     }
     __syncthreads();
   }
-  __device__ void RetireOperands() {
-    for(int i=0;i<8;++i)Async::Wait(empty+i,producer_generations[i]);
+  template<int Slots>
+  __device__ __noinline__ void RetireOperands() {
+    static_assert(Slots>=0 && Slots<=8);
+    #pragma unroll
+    for(int i=0;i<Slots;++i)Async::Wait(empty+i,producer_generations[i]);
   }
 };
 static_assert(2*sizeof(Sm90DenseRingState)<=1024);

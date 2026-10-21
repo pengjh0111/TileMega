@@ -59,6 +59,7 @@ template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,
 struct Gemm {
   using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,RegisterStages>;
   static constexpr int kTasks=N/TN,kSharedBytes=Body::kSharedBytes;
+  static constexpr int kRingSlots=Slots;
   static constexpr int kMaxPreissue=(Slots<Body::kIterations?Slots:Body::kIterations)*2*TN*TK;
   static constexpr auto kLayout=backend::Sm90DenseLayout::Gemm(TN,TK,Slots,WK);
   static_assert(kLayout.end==kSharedBytes);
@@ -114,6 +115,7 @@ struct Attention {
       backend::Sm90DenseAttention<Batch,D,Q,Norm,Chunks,RowWork,Capacity>,
       backend::Sm90DenseAttentionStream<Batch,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity>>;
   static constexpr int kTasks=Batch*8*Chunks,kSharedBytes=Body::kSharedBytes;
+  static constexpr int kRingSlots=Batch<=4?1:Slots;
   static constexpr int kMaxPreissue=4*D*(Batch<=4?
       Body::Partition::MaxKeys(Capacity,RowWork):Slots*Keys);
   static constexpr auto kLayout=backend::Sm90DenseLayout::Attention(
@@ -186,6 +188,7 @@ template<int Batch,int Width,int Vocab,int Capacity,unsigned Tokens,unsigned Tab
          unsigned Output,unsigned Sums>
 struct Embedding {
   static constexpr int kTasks=Batch,kSharedBytes=1024;
+  static constexpr int kRingSlots=0;
   static constexpr int kMaxPreissue=0;
   static constexpr backend::Sm90DenseLayout kLayout{};
   template<int Bytes> static constexpr backend::Sm90DensePayload Payload() {return {};}
@@ -210,6 +213,7 @@ template<int Batch,int Parts,int Capacity,unsigned Values,unsigned Indices,unsig
 struct Argmax {
   using Body=backend::Sm90DenseArgmax<Parts,Capacity>;
   static constexpr int kTasks=Batch,kSharedBytes=1024+sizeof(typename Body::Storage);
+  static constexpr int kRingSlots=0;
   static constexpr int kMaxPreissue=0;
   static constexpr backend::Sm90DenseLayout kLayout{0,0,1024,kSharedBytes};
   template<int Bytes> static constexpr backend::Sm90DensePayload Payload() {return {};}
@@ -264,7 +268,8 @@ struct ProducerTail {
     if constexpr(Next::kPrefix || Next::kL2Bytes) {
       // Empty covers operand readers, but not epilogue scratch. Its liveness
       // is checked independently at plan creation and again by this type.
-      if constexpr(Next::kPayload.Overlaps(Current::kLive))current.RetireOperands();
+      if constexpr(Next::kPayload.Overlaps(Current::kLive))
+        current.template RetireOperands<Current::kRingSlots>();
       Next::Issue(binding,past,shared,next);
     }
   }
