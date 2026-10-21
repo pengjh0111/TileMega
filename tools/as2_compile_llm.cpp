@@ -164,6 +164,7 @@ int main(int argc,char** argv) {
         auto tasks=tilemega::solver::AscendTasksFromSymbolic(problem,skeleton,unknown);
         for(auto& t:tasks)t.mix_aiv_lanes=1;
         tilemega::json::Value prices;
+        std::string selected_algorithm="diagnostic_unpriced_bootstrap";
         tilemega::solver::AscendSchedulingCosts scheduling_costs;
         if(priced) {
           auto path=fs::weakly_canonical(argv[9]);
@@ -201,6 +202,7 @@ int main(int argc,char** argv) {
             tilemega::solver::DiagnosticAscendSchedule(tasks,workers));
           scheduled=tilemega::solver::PriceAscendSchedule(tasks,workers,scheduling_costs,std::move(scheduled));
           bool choose_eft=scheduled.makespan_ns<baseline.makespan_ns;
+          selected_algorithm=choose_eft?"measured_native_rank_eft_shared_gm":"measured_native_structural_shared_gm";
           Write(output/"eft_candidate.json",scheduled.ToJson());
           Write(output/"structural_candidate.json",baseline.ToJson());
           Write(output/"search.json",tilemega::json::Value(tilemega::json::Object{
@@ -236,7 +238,7 @@ int main(int argc,char** argv) {
           Write(output/"plan/prices.json",prices.Dump());
         }
         auto diagnostic_schedule=tilemega::json::Parse(scheduled.ToJson());
-        diagnostic_schedule.Set("selection",priced?"measured_native_rank_eft_shared_gm":"diagnostic_unpriced_bootstrap");
+        diagnostic_schedule.Set("selection",selected_algorithm);
         if(!priced) {
           diagnostic_schedule.Set("makespan_ns",tilemega::json::Value{});
           diagnostic_schedule.Set("shared_gm_floor_ns",tilemega::json::Value{});
@@ -245,7 +247,7 @@ int main(int argc,char** argv) {
         Write(output/"persistent_llm.cpp",tilemega::codegen::LowerAscendLlm(native));
         result.Set("native_plan_materialized",true);
         result.Set("attention_implementation",attention_precision==1?"fp32_chunk32_merge":attention_precision==2?"fp32_scores_bf16_probability":attention_precision==3?"math_sdpa_fp32_split_scale":"bf16_scores_probabilities");
-        result.Set("selection",priced?"measured_native_rank_eft_shared_gm":"diagnostic_unpriced_bootstrap_not_optimized");
+        result.Set("selection",priced?selected_algorithm:"diagnostic_unpriced_bootstrap_not_optimized");
         result.Set("priced_solver_executed",priced);
         if(priced)result.Set("price_provenance",prices);
         result.Set("arena_bytes",double(native.metadata.arena_bytes));
