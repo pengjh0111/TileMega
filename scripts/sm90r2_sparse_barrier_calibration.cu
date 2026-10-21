@@ -43,7 +43,9 @@ int main() {try {
   Check(cudaMalloc(&stamps,2*repeats*p.multiProcessorCount*2*sizeof(U64)));
   std::printf("metric,grid,active_ctas,delay_ns,samples,median,p99,unit\n");
   for(int residency:{1,2}) {
-    int shared=int(std::min(p.sharedMemPerBlockOptin,p.sharedMemPerMultiprocessor/residency)/256)*256;
+    // The per-CTA driver reservation also consumes the SM's shared-memory budget.
+    int shared=int(std::min(p.sharedMemPerBlockOptin,
+        p.sharedMemPerMultiprocessor/residency-p.reservedSharedMemPerBlock)/256)*256;
     Check(cudaFuncSetAttribute(Sample,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
     int occupancy=0;Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy,Sample,160,shared));
     if(occupancy!=residency)throw std::runtime_error("sparse V3 residency mismatch");

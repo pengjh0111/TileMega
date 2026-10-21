@@ -37,6 +37,9 @@ def main():
     if any(value.get('usable_for_calibration') is False for value in values):
         raise ValueError('a component input is explicitly excluded from calibration')
     observations = [row for value in values for row in value['observations']]
+    if any((r['metric'].startswith('attention_') or r['metric']=='v3_last_arrival_to_departure') and
+           r.get('timestamp_arithmetic') != 'integer_delta_v1' for r in observations):
+        raise ValueError('globaltimer calibration must subtract integer timestamps before conversion')
     if any(r['metric'] == 'native_ldmatrix_mma_k16' and not r.get('production_compatible')
            for r in observations):
         raise ValueError('native mainloop measurements require a matching resource audit')

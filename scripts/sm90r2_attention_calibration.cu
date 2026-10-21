@@ -51,7 +51,7 @@ void Run(Sm90DenseAttentionOperands p,U64* grid,U64* stamps,int repeats) {
 void Print(char const* metric,int b,int d,int q,bool norm,int s,int keys,int slots,
     int new_row_work,int past,int grid,std::vector<double> x) {
   std::sort(x.begin(),x.end());
-  std::printf("%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%zu,%.12g,%.12g,ns\n",metric,
+  std::printf("%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%zu,%.12g,%.12g,ns,integer_delta_v1\n",metric,
       b,d,q,int(norm),s,keys,slots,new_row_work,past,grid,x.size(),x[x.size()/2],x[std::min(x.size()-1,x.size()*99/100)]);
 }
 
@@ -95,10 +95,11 @@ void Case(cudaDeviceProp const& prop) {
         previous=std::max(previous,host[((repeat-1)*grid+cta)*3+2]);
         end=std::max(end,host[(repeat*grid+cta)*3+2]);
         last=std::max(last,host[(repeat*grid+cta)*3+1]);
-        if(cta<A::kTasks)active.push_back(double(host[(repeat*grid+cta)*3+1])-host[(repeat*grid+cta)*3]);
+        // Absolute globaltimer epochs can exceed double's 32 ns resolution.
+        if(cta<A::kTasks)active.push_back(double(host[(repeat*grid+cta)*3+1]-host[(repeat*grid+cta)*3]));
       }
-      critical.push_back(double(last)-previous);envelope.push_back(double(end)-previous);
-      release.push_back(double(end)-last);
+      critical.push_back(double(last-previous));envelope.push_back(double(end-previous));
+      release.push_back(double(end-last));
     }
     Print("attention_active_cta_body",B,D,Q,Norm,S,Keys,Slots,NewRowWork,past,grid,active);
     Print("attention_critical_before_barrier",B,D,Q,Norm,S,Keys,Slots,NewRowWork,past,grid,critical);
@@ -132,7 +133,7 @@ void Balance(cudaDeviceProp const& p) {
 int main() {try {
   Check(cudaSetDevice(0));cudaDeviceProp p{};Check(cudaGetDeviceProperties(&p,0));
   if(p.major!=9 || p.minor!=0)throw std::runtime_error("Hopper calibration requires sm90");
-  std::printf("metric,batch,head_dim,queries,qk_norm,chunks,block_keys,slots,new_row_work,past,grid,samples,median,p99,unit\n");
+  std::printf("metric,batch,head_dim,queries,qk_norm,chunks,block_keys,slots,new_row_work,past,grid,samples,median,p99,unit,timestamp_arithmetic\n");
 #ifdef TILEMEGA_CALIBRATION_BALANCE_ONLY
   // These four shape/batch classes cover the low-batch development cells.
   Balance<1,128,2,true,8>(p);Balance<1,128,2,true,16>(p);Balance<1,128,2,true,32>(p);

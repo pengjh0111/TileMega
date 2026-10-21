@@ -112,7 +112,7 @@ __global__ void Stream(char const* input,std::size_t dataset,int samples,bool ho
 void Print(char const* kind,int grid,int bytes,int slots,char const* cache,
     std::vector<double> data,char const* unit,int batch=0,int tn=0,int norm_k=0,int tk=0) {
   std::sort(data.begin(),data.end());
-  std::printf("%s,%d,%d,%d,%s,%zu,%.12g,%.12g,%s,%d,%d,%d,%d,%d\n",kind,grid,bytes,slots,cache,
+  std::printf("%s,%d,%d,%d,%s,%zu,%.12g,%.12g,%s,%d,%d,%d,%d,%d,integer_delta_v1\n",kind,grid,bytes,slots,cache,
       data.size(),data[data.size()/2],data[std::min(data.size()-1,data.size()*99/100)],unit,
       batch,tn,norm_k,tk,TILEMEGA_DN_VECTOR_SUMS);
 }
@@ -312,7 +312,7 @@ int main() {
   Initialize<<<c.prop.multiProcessorCount*4,256>>>(reinterpret_cast<uint4*>(c.eviction),c.evict_bytes/16);
   Frequency<<<1,1>>>(c.output);U64 freq[2];
   Check(cudaMemcpy(freq,c.output,16,cudaMemcpyDeviceToHost));c.frequency=double(freq[0])/freq[1];
-  std::printf("metric,grid,slot_bytes,slots,cache,samples,median,p99,unit,batch,tile_n,input_k,tile_k,vector_sums\n");
+  std::printf("metric,grid,slot_bytes,slots,cache,samples,median,p99,unit,batch,tile_n,input_k,tile_k,vector_sums,timestamp_arithmetic\n");
   Print("clock64_frequency",1,0,0,"na",{c.frequency*1000},"MHz");
 #ifdef TILEMEGA_E_CALIBRATION_DN_SHAPES_ONLY
   Epilogues<1,32,Op::kStore,true,1024>(c);Epilogues<16,32,Op::kStore,true,1024>(c);
@@ -346,7 +346,7 @@ int main() {
     std::vector<double> tails;
     for(int sample=0;sample<256;++sample) {
       U64 last=0;for(int b=0;b<grid;++b)last=std::max(last,stamps[(sample*grid+b)*2]);
-      for(int b=0;b<grid;++b)tails.push_back(double(stamps[(sample*grid+b)*2+1])-double(last));
+      for(int b=0;b<grid;++b)tails.push_back(double(stamps[(sample*grid+b)*2+1]-last));
     }
     Print("v3_last_arrival_to_departure",grid,0,0,"na",tails,"ns");
   }

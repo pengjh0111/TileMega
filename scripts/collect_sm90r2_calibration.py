@@ -105,7 +105,7 @@ def main():
     fields = sorted(set().union(*(v.keys() for v in result)))
     a.out.parent.mkdir(parents=True, exist_ok=True)
     with a.out.with_suffix('.csv').open('w') as stream:
-        writer = csv.DictWriter(stream, fieldnames=fields)
+        writer = csv.DictWriter(stream, fieldnames=fields, lineterminator='\n')
         writer.writeheader(); writer.writerows(result)
     write(a.out.with_suffix('.json'), dict(schema=1, observations=result, provenance=provenance,
         evidence='verified measurements; namespace-limited ownership is provisional',
