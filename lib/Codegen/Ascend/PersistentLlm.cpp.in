@@ -1,3 +1,9 @@
+#ifndef TILEMEGA_LLM_VARIANT
+#define TILEMEGA_LLM_VARIANT 0
+#define TILEMEGA_LLM_TM 32
+#define TILEMEGA_LLM_TN 64
+#define TILEMEGA_LLM_TK 64
+#endif
 #include <tilemega/Backend/Ascend/GemmTile.h>
 #include <tilemega/Backend/Ascend/LlmServingBody.h>
 #include <tilemega/Target/Ascend/LlmExecutor.h>
@@ -14,10 +20,10 @@
 
 using namespace tilemega::ascend;
 struct CubeBody {
-  GemmTile<bfloat16_t,bfloat16_t,32,64,64,true> gemm;
+  GemmTile<bfloat16_t,bfloat16_t,TILEMEGA_LLM_TM,TILEMEGA_LLM_TN,TILEMEGA_LLM_TK,true> gemm;
   __aicore__ inline bool Run(llm::Stage const& s,unsigned tile,GM_ADDR arena) {
-    if(s.kind!=0 || tile>=s.tasks || s.variant || s.k%16)return false;
-    unsigned nt=(s.columns+63)/64;
+    if(s.kind!=0 || tile>=s.tasks || s.variant!=TILEMEGA_LLM_VARIANT || s.k%16)return false;
+    unsigned nt=(s.columns+TILEMEGA_LLM_TN-1)/TILEMEGA_LLM_TN;
     gemm.RunTask(arena+s.operands[0],arena+s.operands[1],arena+(s.epilogue?s.workspace:s.operands[3]),
       s.rows,s.columns,s.k,tile/nt,tile%nt);
     CompleteDma<AscendC::HardEvent::FIX_S>();return true;
@@ -31,7 +37,8 @@ void tilemega_llm(GM_ADDR arena,GM_ADDR metadata,GM_ADDR stages,GM_ADDR tasks,GM
   if ASCEND_IS_AIC {
     CubeBody body;ExecuteLlm<true>(body,arena,metadata,stages,tasks,waits,offsets,queue,controls,scratch,trace,forward);
   }else {
-    LlmServingBody body;ExecuteLlm<false>(body,arena,metadata,stages,tasks,waits,offsets,queue,controls,scratch,trace,forward);
+    LlmServingBody<TILEMEGA_LLM_TM,TILEMEGA_LLM_TN> body;
+    ExecuteLlm<false>(body,arena,metadata,stages,tasks,waits,offsets,queue,controls,scratch,trace,forward);
   }
 }
 static void Check(aclError code,char const* action) {
@@ -90,6 +97,8 @@ int main(int argc,char** argv) {
     }
     for(auto const& s:stages)for(auto offset:s.operands)
       if(offset!=llm::kAbsent && offset>=m.arena_bytes)throw std::invalid_argument("Stage operand outside arena");
+    for(auto const& s:stages)if(s.kind==0 && s.variant!=TILEMEGA_LLM_VARIANT)
+      throw std::invalid_argument("Plan GEMM geometry differs from compiled Body");
     for(unsigned w=0;w<m.workers;++w) {
       if(offsets[w]>offsets[w+1])throw std::invalid_argument("Invalid FIFO offsets");
       for(unsigned i=offsets[w];i<offsets[w+1];++i) {

@@ -4,7 +4,7 @@
 #include <tilemega/Target/Ascend/LlmPlanABI.h>
 
 namespace tilemega::ascend {
-class LlmServingBody {
+template<unsigned TM=32,unsigned TN=64> class LlmServingBody {
   struct Operands {
     GM_ADDR arena;llm::Stage const& stage;
     __aicore__ inline GM_ADDR operator()(unsigned i) const {
@@ -41,10 +41,10 @@ class LlmServingBody {
   }
  public:
   __aicore__ inline bool Epilogue(llm::Stage const& s,unsigned tile,GM_ADDR arena) {
-    unsigned nt=(s.columns+63)/64,first=(tile%nt)*64,rows=tile/nt*32;
-    for(unsigned r=rows;r<rows+32 && r<s.rows;++r) {
+    unsigned nt=(s.columns+TN-1)/TN,first=(tile%nt)*TN,rows=tile/nt*TM;
+    for(unsigned r=rows;r<rows+TM && r<s.rows;++r) {
       auto raw=arena+s.workspace+(uint64_t(r)*s.columns+first)*2;
-      unsigned n=s.columns-first<64?s.columns-first:64;
+      unsigned n=s.columns-first<TN?s.columns-first:TN;
       if(s.epilogue==1) {
         auto offset=(uint64_t(r)*s.columns+first)*2;
         if(!vector_.Pointwise(raw,arena+s.operands[2]+offset,arena+s.operands[3]+offset,n,false))return false;

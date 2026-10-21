@@ -19,10 +19,10 @@ static void Write(std::filesystem::path const& path,std::string const& text) {
 }
 int main(int argc,char** argv) {
   try {
-    bool emit=(argc==6 || argc==7) && std::string(argv[1])=="emit-diagnostic";
+    bool emit=(argc>=6 && argc<=8) && std::string(argv[1])=="emit-diagnostic";
     bool prepare=emit || (argc==6 && std::string(argv[1])=="prepare");
     if(!prepare && (argc!=5 || std::string(argv[1])!="inspect"))
-      throw std::invalid_argument("usage: as2_compile_llm inspect export new_output batch; or prepare|emit-diagnostic export new_output batch groups [diagnostic_kv_block]");
+      throw std::invalid_argument("usage: as2_compile_llm inspect export new_output batch; or prepare|emit-diagnostic export new_output batch groups [diagnostic_kv_block] [gemm_tile_n:64|128]");
     namespace fs=std::filesystem;
     auto root=fs::path("/home/d50064638/junhuip/TileMega/runs/as2");
     auto input=fs::weakly_canonical(argv[2]),output=fs::weakly_canonical(argv[3]);
@@ -38,9 +38,14 @@ int main(int argc,char** argv) {
     serving.seq=phase=="prefill"?64:1;serving.capacity=1088;
     serving.deferred_norm=false;serving.kv_block=128;serving.argmax_tile_n=64;
     if(emit)serving.kv_block=1088;
-    if(emit && argc==7) {
+    if(emit && argc>=7) {
       serving.kv_block=std::stoi(argv[6]);
       if(serving.kv_block!=128 && serving.kv_block!=1088)throw std::invalid_argument("Bounded native KV candidates are 128 and 1088");
+    }
+    if(emit && argc==8) {
+      serving.argmax_tile_n=std::stoi(argv[7]);
+      if(serving.argmax_tile_n!=64 && serving.argmax_tile_n!=128)
+        throw std::invalid_argument("Native GEMM domain is 32x64x64 or 16x128x128");
     }
     auto start=std::chrono::steady_clock::now();
     tilemega::analysis::IslContext isl;
@@ -51,7 +56,8 @@ int main(int argc,char** argv) {
         stage.attention_query_rows=16*stage.group;
     tilemega::frontend::ImportOptions options;options.phase_batch=batch;
     options.rope_tile_per_block=options.kv_tile_per_block=options.activation_tile_per_block=options.combiner_tile_per_block=true;
-    options.gemms.assign(plan.gemms.size(),{32,64,64,2,1});
+    if(serving.argmax_tile_n==128)options.gemms.assign(plan.gemms.size(),{16,128,128,2,1});
+    else options.gemms.assign(plan.gemms.size(),{32,64,64,2,1});
     mlir::MLIRContext context;tilemega::frontend::ImportSummary summary;
     tilemega::frontend::TorchExportImporter importer;
     auto semantic=importer.ImportSemantics((input/"export.json").string(),plan,context);

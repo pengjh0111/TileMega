@@ -98,8 +98,11 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
     stage.batch_rows=source.batch_rows;stage.rows=p.model.dims.batch*(source.batch_rows?1:p.model.dims.seq);
     if(source.kind==solver::StageKind::kGemm) {
       auto g=At(gs,source.gemm);auto const& geo=p.runtime.gemms.at(source.gemm);
-      if(geo.tile_m!=32 || geo.tile_n!=64 || geo.tile_k!=64 || geo.split_k!=1 || geo.stages!=2 || g.get("norm_ss") || g.get("ss_out"))
+      bool base=geo.tile_m==32 && geo.tile_n==64 && geo.tile_k==64;
+      bool small=geo.tile_m==16 && geo.tile_n==128 && geo.tile_k==128;
+      if((!base && !small) || geo.split_k!=1 || geo.stages!=2 || g.get("norm_ss") || g.get("ss_out"))
         throw std::invalid_argument("LLM GEMM geometry/deferred normalization is not implemented");
+      stage.variant=small?1:0;
       stage.columns=U(g,"n");stage.k=U(g,"k");
       if(!stage.k || stage.k%16 || stage.columns%16 || stage.k>16384)
         throw std::invalid_argument("LLM GEMM lies outside BF16 BlockMmad legality");
@@ -110,7 +113,7 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
         throw std::invalid_argument("Unregistered LLM epilogue");
       if(stage.epilogue==2 && U(g,"interleave_u")!=16)throw std::invalid_argument("SwiGLU packing requires U16");
       if(stage.epilogue==2 && stage.columns%32)throw std::invalid_argument("SwiGLU tail requires complete gate/up U16 pairs");
-      if(stage.epilogue==3 && U(g,"partial_tile_n")!=64)throw std::invalid_argument("LM head partial count disagrees with geometry");
+      if(stage.epilogue==3 && U(g,"partial_tile_n")!=geo.tile_n)throw std::invalid_argument("LM head partial count disagrees with geometry");
       if(stage.epilogue) {
         stage.workspace=arena;auto bytes=Mul(Mul(stage.rows,stage.columns),2);
         auto allocated=Mul(Add(Add(bytes,512),511)/512,512);
@@ -139,7 +142,10 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
         throw std::invalid_argument("Native GQA head geometry is not registered");
     }
     uint64_t expected=stage.tasks;
-    if(stage.kind==0)expected=Mul((stage.rows+31)/32,(stage.columns+63)/64);
+    if(stage.kind==0) {
+      unsigned tm=stage.variant?16:32,tn=stage.variant?128:64;
+      expected=Mul((stage.rows+tm-1)/tm,(stage.columns+tn-1)/tn);
+    }
     else if(stage.kind==1 || stage.kind==11 || stage.kind==15)expected=stage.rows;
     else if(stage.kind==14)expected=Mul(p.model.dims.batch,stage.extent);
     else if(stage.kind==13)expected=Mul(Mul(p.model.dims.batch,stage.extent),Mul(
@@ -151,7 +157,8 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
     unsigned matches=0;
     for(auto const& reduce:out.stages)if(reduce.kind==15 && reduce.operands[0]==s.operands[3]) {
       s.operands[4]=reduce.operands[1];++matches;
-      if(reduce.width!=(s.columns+63)/64)throw std::invalid_argument("Vocabulary reduction domain disagrees with partial tiles");
+      unsigned tn=s.variant?128:64;
+      if(reduce.width!=(s.columns+tn-1)/tn)throw std::invalid_argument("Vocabulary reduction domain disagrees with partial tiles");
     }
     if(matches!=1)throw std::invalid_argument("LM head lacks a unique final argmax consumer");
   }
@@ -190,6 +197,11 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
     auto const& s=stages[i];std::string id;
     if(s.kind==0)id=s.epilogue==0?"as2_catlass_bf16_32x64x64_nk":s.epilogue==1?"as2_mix_gemm_residual_gm":
       s.epilogue==2?"as2_mix_gemm_swiglu_u16_gm":"as2_mix_gemm_argmax64_gm";
+    if(s.kind==0 && s.variant) {
+      if(s.epilogue==0)id="as2_catlass_bf16_16x128x128_nk";
+      else if(s.epilogue==3)id="as2_mix_gemm_argmax128_gm_16x128x128";
+      else id+="_16x128x128";
+    }
     else if(s.kind==1)id="as2_aiv_rmsnorm_full_row";
     else if(s.kind==11)id="as2_aiv_embedding_i32_bf16";
     else if(s.kind==13)id=s.kv_block==128?"as2_aiv_gqa_fp32_log2_partials_kv128":
@@ -200,6 +212,8 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
     contracts.emplace_back(json::Object{{"stage",int(i)},{"impl_id",id},{"semantic_kind",int(s.kind)},
       {"role",s.kind==0?(s.epilogue?"AIC_AIV0":"AIC_ONLY"):"AIV_ONLY"},
       {"dtype","bf16"},{"opmath","fp32"},{"input_weight_layout",s.kind==0?"logical_NK":"ND"},
+      {"tile_m",s.kind==0?(s.variant?16:32):0},{"tile_n",s.kind==0?(s.variant?128:64):0},
+      {"tile_k",s.kind==0?(s.variant?128:64):0},
       {"aic_l1_bytes",s.kind==0?524288:0},{"aic_l0a_bytes",s.kind==0?65536:0},
       {"aic_l0b_bytes",s.kind==0?65536:0},{"aic_l0c_bytes",s.kind==0?262144:0},
       {"aiv_ub_bytes",s.kind!=0||s.epilogue?106496:0},
@@ -214,7 +228,18 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
   if(p.metadata.version!=ascend::llm::kVersion)throw std::invalid_argument("Wrong native LLM ABI");
   std::ifstream file(std::string(TILEMEGA_SOURCE_DIR)+"/lib/Codegen/Ascend/PersistentLlm.cpp.in");
   if(!file)throw std::runtime_error("Missing native LLM template");
-  return "// Generated by TileMega: verified CTG tables, LLM ABI v2, CATLASS 32x64x64 NK.\n"+
+  int variant=-1;
+  for(auto const& s:p.stages)if(s.kind==0) {
+    if(s.variant>1 || (variant>=0 && unsigned(variant)!=s.variant))
+      throw std::invalid_argument("One compiled native candidate requires a uniform verified GEMM geometry");
+    variant=s.variant;
+  }
+  if(variant<0)throw std::invalid_argument("Native LLM has no registered GEMM body");
+  return std::string("// Generated by TileMega: verified CTG tables and candidate geometry, LLM ABI v2.\n")+
+    "#define TILEMEGA_LLM_VARIANT "+std::to_string(variant)+"\n"+
+    "#define TILEMEGA_LLM_TM "+std::to_string(variant?16:32)+"\n"+
+    "#define TILEMEGA_LLM_TN "+std::to_string(variant?128:64)+"\n"+
+    "#define TILEMEGA_LLM_TK "+std::to_string(variant?128:64)+"\n"+
     std::string((std::istreambuf_iterator<char>(file)),{});
 }
 } // namespace tilemega::codegen

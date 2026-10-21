@@ -36,6 +36,12 @@ def bind(prefill, decode, inputs, out):
             if b['id']!=i or (b['offset_bytes'],b['bytes'],b['allocated_bytes'],int(b.get('required_input',False)),0)!=a:
                 raise ValueError('Allocation manifest does not match binary tables')
         plans.append(dict(phase=phase,path=path,metadata=m,buffers=buffers))
+    variants=[]
+    for plan in plans:
+        v={s[31] for s in struct.iter_unpack('<17Q16I',(plan['path']/'stages.bin').read_bytes()) if s[17]==0}
+        if len(v)!=1 or not v.issubset({0,1}):raise ValueError('One request binary requires a uniform registered geometry')
+        variants.append(next(iter(v)))
+    if variants[0]!=variants[1]:raise ValueError('Prefill/decode use different compiled GEMM geometries')
     if identity['seq']!=64 or identity['past'] or digest(prefill/'metadata.bin')!=identity['metadata_sha256']:
         raise ValueError('Request must start with the actual prefill inputs')
     if plans[0]['metadata'][1:3]!=plans[1]['metadata'][1:3]:
@@ -64,7 +70,7 @@ def bind(prefill, decode, inputs, out):
     out.mkdir();(out/'inputs').mkdir()
     receipt=dict(schema='tilemega.as2.request_binding.v1',**{k:identity[k] for k in
         ('model_id','batch','config_sha256','weight_manifest_sha256','input_sha256')},
-        isl=64,capacity=1088,arena_bytes=total,source_inputs=str(inputs),
+        isl=64,capacity=1088,arena_bytes=total,source_inputs=str(inputs),geometry_variant=variants[0],
         optimization_status='unpriced_phase_bootstrap_not_admitted',phases={},buffers=union)
     for plan in plans:
         dest=out/plan['phase'];dest.mkdir();m=plan['metadata'];m[12]=total

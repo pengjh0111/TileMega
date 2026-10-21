@@ -12,7 +12,8 @@ def logical_bytes(s,m,tile,past):
     absent=(1<<64)-1
     kind,epilogue,_,rows,columns,k,extent,width,group,_,query_rows=s[17:28]
     if kind==0:
-        nt=(columns+63)//64;mr=min(32,rows-tile//nt*32);nr=min(64,columns-tile%nt*64)
+        tm,tn=(16,128) if s[31] else (32,64)
+        nt=(columns+tn-1)//tn;mr=min(tm,rows-tile//nt*tm);nr=min(tn,columns-tile%nt*tn)
         n=2*(mr*k+nr*k+mr*nr)
         if epilogue==1:n+=6*mr*nr
         elif epilogue==2:n+=3*mr*nr

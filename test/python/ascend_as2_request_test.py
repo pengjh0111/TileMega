@@ -68,5 +68,11 @@ class RequestBindingTest(unittest.TestCase):
         p=self.dec/'buffers.json';d=json.loads(p.read_text());d['buffers'][2]['dtype']='f32';p.write_text(json.dumps(d))
         with self.assertRaisesRegex(ValueError,'Incompatible shared buffer'):bind(self.pre,self.dec,self.inputs,self.root/'bad')
 
+    def test_reject_phase_geometry_mismatch(self):
+        p=self.dec/'stages.bin';stage=list(struct.unpack('<17Q16I',p.read_bytes()));stage[31]=1
+        p.write_bytes(struct.pack('<17Q16I',*stage))
+        with self.assertRaisesRegex(ValueError,'different compiled GEMM geometries'):
+            bind(self.pre,self.dec,self.inputs,self.root/'bad')
+
 
 if __name__=='__main__':unittest.main()

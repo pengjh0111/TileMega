@@ -14,6 +14,11 @@
 
 namespace tilemega::ascend::llm_host {
 namespace fs=std::filesystem;
+#ifdef TILEMEGA_LLM_VARIANT
+inline constexpr unsigned kCompiledVariant=TILEMEGA_LLM_VARIANT;
+#else
+inline constexpr unsigned kCompiledVariant=0;
+#endif
 inline void Check(aclError code,char const* action) {
   if(code)throw std::runtime_error(std::string(action)+": "+std::to_string(code));
 }
@@ -59,6 +64,8 @@ struct Plan {
         [&](auto const& a){return a.offset==offset;});
     };
     for(auto const& s:stages) {
+      if(s.kind==0 && s.variant!=kCompiledVariant)
+        throw std::invalid_argument("Request GEMM geometry differs from compiled Body");
       for(auto offset:s.operands)if(!valid(offset))throw std::invalid_argument("Unbound request operand");
       if(!valid(s.workspace))throw std::invalid_argument("Unbound request workspace");
     }
