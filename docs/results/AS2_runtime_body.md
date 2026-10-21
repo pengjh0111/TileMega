@@ -3,7 +3,8 @@
 All device evidence here: physical 1→logical 0, Ascend950PR_9579, CANN 9.1.0,
 BiSheng clang15.0.5, pinned CATLASS 2b6c6a6d5bd26559578cf7e3b2fb64af51f64e52.
 No device lock/exclusive setting, reset, other-process operation or CUDA test.
-These are bounded probes; no TileMega LLM kernel forward has run.
+Native full-layer-count phase kernels now execute; complete generation and
+performance admission remain unfinished. Earlier probes retain their own scope.
 
 ## Runtime and resource scope
 
@@ -21,7 +22,7 @@ These are bounded probes; no TileMega LLM kernel forward has run.
   exact values. Ready, preload and reverse acknowledgements have single owners.
 - The old DSB and entire-DCache acquire remain the correctness baseline.
   This is not a minimal-cache-maintenance result. New G8/14/28, mode4, BF16
-  direct, UB→L1 and MIX logical-task owner/participant completion are unverified.
+  direct and UB→L1 remain unverified. New GM MIX lifecycle evidence is below.
 - G2 vector tests compute separate rows on all four AIV workers. This is task
   assignment/result evidence, not a hardware busy-percentage measurement.
   `runs/as2/probes/resource_summary.json` indexes every independent process.
@@ -41,15 +42,16 @@ reinterpreted as occupancy. TPipe is initialized once per worker in the probes.
 RMSNorm consumes the entire row, with FP32 variance/epsilon and explicit BF16
 rounding before gamma multiplication. SwiGLU rounds SiLU to BF16 before the up
 product; residual add uses FP32 opmath. RoPE consumes supplied BF16 cos/sin and
-preserves BF16 product/add cast points. Model-specific coefficient generation
-and integration of scaled RoPE are not yet implemented by this body path.
+preserves BF16 product/add cast points. The standalone body consumes supplied coefficients; the new native packer
+uses pinned model-specific coefficient generation, including Llama scaled RoPE.
 
 AttentionChunk transfers up to32 contiguous K/V rows in each DMA. Broadcast and
 AR/RA vector reductions compute QK and weighted PV; it emits FP32(m,l,o).
 AttentionMerge rescales all unnormalized contributions before division. K/V
 head mapping is integer division; ratio3 is exercised. This all-valid-key body
-does not yet implement the serving stage's KV append, QK norm/RoPE, causal
-prefill query domain, all-masked/empty domain or its single-LSE ABI.
+has a separate diagnostic ABI. The integrated serving body adds KV append,
+QK norm/RoPE, causal prefill and a normalized-partial/log2-LSE route; general
+all-masked attention is not admitted.
 
 | Numerical cases | FP32-reference max abs | BF16-reference max abs | Frozen-policy failures |
 |---|---:|---:|---:|
@@ -75,3 +77,44 @@ one input/reference case; run the matching CLI through `as2_run`; then use
 binary hashes and comparison results are in `runs/as2/jobs/` and `probes/`.
 Selected vector/attention binaries, source/header snapshots and compiler logs
 are retained in `tilemega-as2/build/retained/`; AS-1 files are never cleaned.
+
+## Native LLM integration (verified-code/run; experimental)
+
+`LlmServingBody.h` implements real Embedding/RMSNorm, GQA QK normalization,
+RoPE/KV append, SwiGLU/residual/argmax epilogues and full vocabulary reduction.
+`AscendLlmCodegen.cpp` emits per-stage implementations/resources/layout/flag
+contracts. GEMM uses AIC-only or AIC+AIV0; both AIV lanes also own independent
+vector tasks. AIV1 is never forced to acknowledge a nonparticipating task.
+
+MIX owner: wait semantic frontiers, MMAD/FIX completion, publish ready, wait
+AIV done, publish external completion once. AIV0: wait dependencies/ready,
+acquire, epilogue, done, wait owner completion, publish its own FIFO prefix.
+The separate acknowledgement prevents early buffer reuse. No hardware
+cross-core flag namespace is borrowed from CATLASS. Five sequential processes
+with four forwards and346 equal payload/control files verify the G2 protocol;
+this is not a proof that Qwen numerical correctness passes.
+
+Unified attention uses32-key chunks, BF16 QK/scaled-score/probability storage
+rounding and FP32 reductions. Causal prefill transforms private K/V from the
+entire ready QKV output; each public cache row has a unique query-block writer.
+It does not consume cache rows another query task has not yet published.
+These private transforms are repeated, not a claimed optimized final design.
+Decode uses the actual runtime past and never reads invalid KV padding.
+
+Local UB remains106496 B. GM worker scratch is32/128 KiB, separate from UB;
+raw GEMM epilogue workspaces are real Plan allocations. The optional old
+128-key FP32-partial/log2-LSE path is numerically unadmitted. BF16 direct,
+UB-to-L1, dual-AIV MIX, split-K and larger model G remain disabled/unverified.
+
+The 200-byte Stage contains64-bit operand/workspace offsets. The device reader
+copies object bytes legally; uint32-pointer type-punning previously corrupted
+QKV at optimization. PV accumulation includes a V-to-MTE2 dependency before
+reloading its reused local source. Both integration failures and binaries are
+retained. Task/FIFO/epoch/guard/ABI receipts and exact source/binary hashes live
+under `runs/as2/` and `tilemega-as2/build/retained/`.
+
+Llama1B B1 past64 zero-KV decode passes114 output/KV comparisons (logits
+NRMSE0.006897, exact token62324). Qwen prefill logits/token pass but26
+intermediates fail; Qwen zero-KV decode fails the frozen model tolerance.
+These are phase results. They do not establish64/1024 generation,512-step
+teacher-forcing, every model/B cell or speedup against eager.

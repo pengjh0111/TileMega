@@ -5,16 +5,16 @@ Status at 2026-10-21: **in_progress**, not G-PIPELINE pass.
 
 | AS-1 gap | Implemented entry | Remaining work |
 |---|---|---|
-| A01 | `tools/as2_compile_llm.cpp`: real serving `inspect/prepare` | priced full compiler and execution entry |
+| A01 | `as2_compile_llm`: inspect/prepare/emit-diagnostic and native phases | priced complete generation entry |
 | A02 | `CandidateGenerator::SetAscendDomain/Analyze/TopK`; `as2_rank_gemm` | model-family prices and structural search |
-| A03 | priced worker binding accepted; native `AscendSchedule` | PrepareSymbolicProblem still rejects native price_tasks; old materializer still rejects priced/large plans |
-| A04 | optional dual-AIV domain; G2/G4 payload evidence | full kernel dispatch and later G validation |
-| A05 | body-only diagnostic probes | model diagnostic/fast separation remains |
-| A06 | heterogeneous EFT and worker frontier lowering on CPU | device consumer of selected queues/waits |
+| A03 | new LLM materializer consumes actual queues/frontiers | full-model empirical provider; old AS-1 restrictions remain isolated |
+| A04 | both AIV lanes compute in full LLM G2; G2/G4 payload probes | larger model G/domain validation |
+| A05 | native trace-free branch; common outputs bitwise | complete fast KV C-2 and request timing |
+| A06 | device FIFO/frontier consumer and five-process lifecycle | priced model queue selection |
 | A07 | measured-counter finite wait; old DSB/cache protocol retained | no cache-removal optimization enabled |
-| A08 | native 32-key AIV partial/merge, GQA integer mapping | fused KV/QK norm/RoPE, prefill and decoder integration |
-| A09 | checked projected task counts, serving storage metadata, 64-bit host offsets | new device ABI/codegen; old 4096/16 limits remain |
-| A10 | single/dual-AIV joint resource occupancy in CPU scheduler | owner/participant device lifecycle, direct BF16, split-K |
+| A08 | QK norm/RoPE/KV, blocked decode and causal prefill | numerical failures, faster shared KV preparation |
+| A09 | 64-bit LLM ABI, >4096 executed tasks, capacity/epoch bounds | actual >4 GiB device allocation and complete request reset |
+| A10 | GM AIC/AIV0 owner-ready-done lifecycle, five processes | dual-participant MIX, BF16 direct and split-K |
 
 `as2_compile_llm prepare` calls existing BuildModelPlan, ImportSemantics,
 InstantiateForGranularity, ModelDescription, PrepareSymbolicProblem and
@@ -38,8 +38,8 @@ covered by FIFO. `AscendProgressValue` checks epoch/ordinal overflow. These CPU
 tests do not establish a MIX ready/done/buffer-reuse device protocol.
 
 `AscendTasksFromSymbolic` derives predecessor sets from real ISL oracles.
-It rejects affinity that has not been explicitly lowered. It is not yet wired
-into the executable model materializer. The CPU fixture service times are marked
+It rejects affinity that has not been explicitly lowered. It now feeds the native LLM materializer through an explicit diagnostic
+bootstrap scheduler; no synthetic service times enter that bootstrap. The CPU fixture service times are marked
 CPU_TEST_ONLY_NOT_A_CALIBRATION and are never written into hardware targets.
 
 `as2_rank_gemm` compares two actually measured implementations using the native
@@ -57,12 +57,24 @@ Evidence index under ignored `runs/as2/`:
   dual AIV, prefix coverage, cycle rejection, 5000 tasks and overflow checks.
 - `search/gemm_qwen_down_rank_provider/search.json`: measured component choice.
 
-Next required integration: materialize selected EFT queues and prefix waits into
-a 64-bit-address LLM ABI, implement full serving-stage dispatch and KV lifecycle,
-and supply nonzero empirical prices for every selected hot stage. The current
-past64 dependency projection must not be reused blindly at arbitrary past;
-use proved buckets or conservative capacity dependencies plus runtime masking.
-Changing GEMM geometry must reinstantiate CTG ownership and LM-head partial
-geometry before scheduling; the component TopK result is not a kernel-only
-tile substitution into the current 32×64 CTG.
-Full-model, single-launch and TPOT gates remain unpassed.
+Native entry: `lib/Codegen/Ascend/AscendLlmCodegen.cpp`,
+`include/tilemega/Target/Ascend/LlmPlanABI.h` and `LlmExecutor.h`,
+`lib/Codegen/Ascend/PersistentLlm.cpp.in`. Tables are derived from the verified
+module, symbolic oracles and audited per-worker schedule; materialization does
+not replace FIFO order with stage order. Epoch stride and every queue/wait/
+byte range are checked. Full task counts exceed4096 on the real device.
+
+`emit-diagnostic` defaults to unified KV1088; prefill query tiles contain16
+whole tokens, including GQA3 (48 query heads), with token-tile-major/group-minor
+coordinates. Max-past1087 dependencies conservatively cover runtime decode
+masking; prefill uses its real past0 graph. No per-token solving/recompiling.
+The argmax semantic read extent now uses the actual64-column partial count,
+rather than a hardcoded32-column formula. CPU regression checks vocabulary65.
+
+Next: bind prefill/decode buffers by verified names into a shared weight/KV
+arena; add complete request boundaries/reset in the native Host runner;
+resolve Qwen numerical failures; then consume sourced fast-stage/dispatcher/
+shared-GM prices through the existing native EFT scheduler. The new optimized
+materializer rejects unknown prices or diagnostic-only schedules. The CLI
+currently emits only unpriced bootstrap plans; G-PIPELINE remains in_progress.
+Changing geometry must regenerate CTG ownership and LM-head partials.
