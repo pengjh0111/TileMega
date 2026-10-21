@@ -1,6 +1,6 @@
 {
   "serving_hop": [
-    597.2420216,
+    3029.1543270236657,
     -1.971713298,
     -1.962338228
   ],
@@ -1230,217 +1230,256 @@
         "source": "",
         "serving": {
           "argmax_reduce": {
-            "fixed_ns": 2967.661692,
-            "byte_ns": 0.1081367715,
+            "fixed_ns": 7816.666667,
+            "byte_ns": 0,
             "flop_ns": 0,
-            "median_relative_error": 0.06304193319,
+            "median_relative_error": 0.047909054,
             "samples": 6
           },
           "attention_merge": {
-            "fixed_ns": 2576.521739,
-            "byte_ns": 0.1114555027,
+            "fixed_ns": 3323.043478,
+            "byte_ns": 0.06275475543,
             "flop_ns": 0,
-            "median_relative_error": 0.1039033199,
+            "median_relative_error": 0.1261860209,
             "samples": 4
           },
           "embedding": {
-            "fixed_ns": 4145.652174,
-            "byte_ns": 0.03702445652,
+            "fixed_ns": 3228.695652,
+            "byte_ns": 0.287279212,
             "flop_ns": 0,
-            "median_relative_error": 0.09082125604,
+            "median_relative_error": 0.09044339217,
             "samples": 4
           },
           "fused_attention_decode_d128_q2_norm1": {
-            "fixed_ns": 11919.21633,
-            "byte_ns": 0.1610105101,
+            "fixed_ns": 12033.21071,
+            "byte_ns": 0.1458111063,
             "flop_ns": 0,
-            "median_relative_error": 0.002370364918,
+            "median_relative_error": 0.006298802648,
             "samples": 3
           },
           "fused_attention_decode_d128_q3_norm0": {
-            "fixed_ns": 10549.72349,
+            "fixed_ns": 12470.34223,
             "byte_ns": 0,
-            "flop_ns": 0.07914189942,
-            "median_relative_error": 0.009658589981,
+            "flop_ns": 0.07622413271,
+            "median_relative_error": 0.0040393921,
             "samples": 3
           },
           "fused_attention_decode_d128_q4_norm0": {
-            "fixed_ns": 11456.9137,
-            "byte_ns": 0.2721918722,
+            "fixed_ns": 12617.60726,
+            "byte_ns": 0.2651217438,
             "flop_ns": 0,
-            "median_relative_error": 0.005270875969,
+            "median_relative_error": 0.003495767702,
             "samples": 3
           },
           "fused_attention_decode_d128_q4_norm1": {
-            "fixed_ns": 13908.2351,
-            "byte_ns": 0.2711060852,
+            "fixed_ns": 15729.02496,
+            "byte_ns": 0.2660339663,
             "flop_ns": 0,
-            "median_relative_error": 0.007052874323,
+            "median_relative_error": 0.005519112663,
             "samples": 3
           },
           "fused_attention_decode_d128_q8_norm1": {
-            "fixed_ns": 20236.59833,
-            "byte_ns": 0.5571516311,
-            "flop_ns": 0,
-            "median_relative_error": 0.00512792839,
+            "fixed_ns": 23151.23171,
+            "byte_ns": 0,
+            "flop_ns": 0.06983931482,
+            "median_relative_error": 0.0003923837866,
             "samples": 3
           },
           "fused_attention_decode_d64_q4_norm0": {
-            "fixed_ns": 13013.38183,
+            "fixed_ns": 14579.17707,
             "byte_ns": 0,
-            "flop_ns": 0.06443278163,
-            "median_relative_error": 0.003137383096,
+            "flop_ns": 0.06174656875,
+            "median_relative_error": 7.701232908e-05,
             "samples": 3
           },
           "fused_attention_decode_mma16_d128_q2_norm1": {
-            "fixed_ns": 15477.09267,
+            "fixed_ns": 16058.15202,
             "byte_ns": 0,
-            "flop_ns": 0.2655794696,
-            "median_relative_error": 0.007246345677,
+            "flop_ns": 0.2628157582,
+            "median_relative_error": 0.004992873751,
             "samples": 3
           },
           "fused_attention_decode_mma16_d128_q3_norm0": {
-            "fixed_ns": 14386.12177,
-            "byte_ns": 0.5290390309,
+            "fixed_ns": 14671.24287,
+            "byte_ns": 0.5265881391,
             "flop_ns": 0,
-            "median_relative_error": 0.0009102534334,
+            "median_relative_error": 0.003361689792,
             "samples": 3
           },
           "fused_attention_decode_mma16_d128_q4_norm0": {
-            "fixed_ns": 15954.62181,
-            "byte_ns": 0,
-            "flop_ns": 0.1356051119,
-            "median_relative_error": 0.0012877797,
+            "fixed_ns": 15029.16384,
+            "byte_ns": 0.5439453932,
+            "flop_ns": 0,
+            "median_relative_error": 0.001846410435,
             "samples": 3
           },
           "fused_attention_decode_mma16_d128_q4_norm1": {
-            "fixed_ns": 18694.66975,
-            "byte_ns": 0,
-            "flop_ns": 0.1341080175,
-            "median_relative_error": 0.003134350753,
+            "fixed_ns": 18065.99115,
+            "byte_ns": 0.5424164114,
+            "flop_ns": 0,
+            "median_relative_error": 0.0002786655759,
             "samples": 3
           },
           "fused_attention_decode_mma16_d128_q8_norm1": {
-            "fixed_ns": 27107.62131,
-            "byte_ns": 0,
-            "flop_ns": 0.05580531572,
-            "median_relative_error": 0.001201622142,
+            "fixed_ns": 26575.54766,
+            "byte_ns": 0.4441587403,
+            "flop_ns": 0,
+            "median_relative_error": 0.002217053431,
             "samples": 3
           },
           "fused_attention_decode_mma16_d64_q4_norm0": {
-            "fixed_ns": 11513.23262,
-            "byte_ns": 0.7757298426,
+            "fixed_ns": 11715.81384,
+            "byte_ns": 0.7793932638,
             "flop_ns": 0,
-            "median_relative_error": 0.002690890585,
+            "median_relative_error": 0.001836092585,
             "samples": 3
           },
           "fused_attention_prefill_d128_q2_norm1": {
-            "fixed_ns": 24005.71429,
-            "byte_ns": 1.21320452,
-            "flop_ns": 0,
-            "median_relative_error": 0.0001262732553,
+            "fixed_ns": 29185,
+            "byte_ns": 0,
+            "flop_ns": 0.07475716727,
+            "median_relative_error": 0.003383458647,
             "samples": 3
           },
           "fused_attention_prefill_d128_q3_norm0": {
-            "fixed_ns": 25296.44279,
+            "fixed_ns": 24995.89552,
             "byte_ns": 0,
-            "flop_ns": 0.04235111066,
-            "median_relative_error": 6.995700824e-05,
+            "flop_ns": 0.04238754956,
+            "median_relative_error": 0.0003939328827,
             "samples": 3
           },
           "fused_attention_prefill_d128_q4_norm0": {
-            "fixed_ns": 24485,
-            "byte_ns": 0,
-            "flop_ns": 0.04305158343,
-            "median_relative_error": 0.001381062866,
+            "fixed_ns": 21977.85714,
+            "byte_ns": 0.6365094866,
+            "flop_ns": 0,
+            "median_relative_error": 0.0008270386503,
             "samples": 3
           },
           "fused_attention_prefill_d128_q4_norm1": {
-            "fixed_ns": 24190.71429,
-            "byte_ns": 1.236397879,
-            "flop_ns": 0,
-            "median_relative_error": 0.001485282204,
+            "fixed_ns": 29465,
+            "byte_ns": 0,
+            "flop_ns": 0.07631574358,
+            "median_relative_error": 0.0048951363,
             "samples": 3
           },
           "fused_attention_prefill_d128_q8_norm1": {
-            "fixed_ns": 27360.71429,
-            "byte_ns": 0.7847377232,
+            "fixed_ns": 27105,
+            "byte_ns": 0.8837890625,
             "flop_ns": 0,
-            "median_relative_error": 0.0132524708,
+            "median_relative_error": 0.0164800995,
             "samples": 3
           },
           "fused_attention_prefill_d64_q4_norm0": {
-            "fixed_ns": 14087.14286,
-            "byte_ns": 1.563895089,
-            "flop_ns": 0,
-            "median_relative_error": 0.0006053268765,
+            "fixed_ns": 17320,
+            "byte_ns": 0,
+            "flop_ns": 0.09739467076,
+            "median_relative_error": 0.0003021832742,
             "samples": 3
           },
           "gemm_argmax_partial": {
-            "fixed_ns": 43134.4477,
-            "byte_ns": 0.00355811201,
-            "flop_ns": 0.005546827075,
-            "median_relative_error": 0.06796629156,
+            "fixed_ns": 43241.03851,
+            "byte_ns": 0.001243167883,
+            "flop_ns": 0.005653807349,
+            "median_relative_error": 0.06327451725,
             "samples": 9
           },
           "gemm_residual": {
-            "fixed_ns": 10280.90933,
-            "byte_ns": 0.08522566004,
-            "flop_ns": 0.001041963874,
-            "median_relative_error": 0.02776904422,
+            "fixed_ns": 10487.84741,
+            "byte_ns": 0.08309155024,
+            "flop_ns": 0.00111862324,
+            "median_relative_error": 0.03710882357,
             "samples": 9
           },
           "gemm_store": {
-            "fixed_ns": 8587.270049,
-            "byte_ns": 0.09255636986,
-            "flop_ns": 0.0005255883512,
-            "median_relative_error": 0.05797387026,
+            "fixed_ns": 8679.893811,
+            "byte_ns": 0.09160139161,
+            "flop_ns": 0.0005610957242,
+            "median_relative_error": 0.05470350682,
             "samples": 9
           },
           "gemm_swiglu": {
-            "fixed_ns": 9502.609185,
-            "byte_ns": 0.08875990583,
-            "flop_ns": 0.0006958361613,
-            "median_relative_error": 0.04621588348,
+            "fixed_ns": 9552.054033,
+            "byte_ns": 0.08861242487,
+            "flop_ns": 0.0007055405975,
+            "median_relative_error": 0.05710378644,
             "samples": 9
           },
           "gemv_gemm_argmax_partial": {
-            "fixed_ns": 21283.10562,
-            "byte_ns": 0.1421108574,
-            "flop_ns": 0.00844763538,
-            "median_relative_error": 0.3396818963,
+            "fixed_ns": 21182.70985,
+            "byte_ns": 0.1428122523,
+            "flop_ns": 0.008244780353,
+            "median_relative_error": 0.3331364725,
             "samples": 12
           },
           "gemv_gemm_residual": {
-            "fixed_ns": 17392.61177,
-            "byte_ns": 0.1574569672,
+            "fixed_ns": 17412.49921,
+            "byte_ns": 0.1570977014,
             "flop_ns": 0,
-            "median_relative_error": 0.4074333552,
+            "median_relative_error": 0.4065750733,
             "samples": 12
           },
           "gemv_gemm_store": {
-            "fixed_ns": 16698.74494,
-            "byte_ns": 0.1567332761,
+            "fixed_ns": 16485.85164,
+            "byte_ns": 0.1591123217,
             "flop_ns": 0,
-            "median_relative_error": 0.4141019909,
+            "median_relative_error": 0.4195543495,
             "samples": 12
           },
           "gemv_gemm_swiglu": {
-            "fixed_ns": 17429.79693,
-            "byte_ns": 0.1572962561,
+            "fixed_ns": 17426.30919,
+            "byte_ns": 0.1585017443,
             "flop_ns": 0,
-            "median_relative_error": 0.4102177504,
+            "median_relative_error": 0.4060704215,
             "samples": 12
           },
           "rmsnorm": {
-            "fixed_ns": 11586.52174,
+            "fixed_ns": 6902.173913,
             "byte_ns": 0,
-            "flop_ns": 0.2141644022,
-            "median_relative_error": 0.02610091423,
+            "flop_ns": 1.387533967,
+            "median_relative_error": 0.1433753327,
             "samples": 4
+          },
+          "gemm_combine": {
+            "fixed_ns": 6647.620350122452,
+            "byte_ns": 0.0,
+            "flop_ns": 0.0,
+            "median_relative_error": 0.02212045456965339,
+            "samples": 2
           }
         }
       }
     }
+  },
+  "insitu_mx3": {
+    "method": "TILEMEGA_DIAG_EMPTY_KINDS plans of the measured executor (L1), scripts/mx3_insitu_fit.py",
+    "serving_hop_before": [
+      597.2420216,
+      -1.971713298,
+      -1.962338228
+    ],
+    "skeleton_ns": 3025.2202754976656,
+    "combine_task_ns": 6647.620350122452,
+    "cells": [
+      {
+        "cell": "qwen3_0_6b/B1",
+        "base_ns": 4042752,
+        "empty_all_ns": 703104,
+        "empty_combine_ns": 3496704,
+        "stages": 255,
+        "combine_stages": 84,
+        "skeleton_ns": 2757.3,
+        "combine_task_ns": 6500.6
+      },
+      {
+        "cell": "llama3_2_1b/B1",
+        "base_ns": 3726080,
+        "empty_all_ns": 484096,
+        "empty_combine_ns": 3399936,
+        "stages": 147,
+        "combine_stages": 48,
+        "skeleton_ns": 3293.2,
+        "combine_task_ns": 6794.7
+      }
+    ]
   }
 }
