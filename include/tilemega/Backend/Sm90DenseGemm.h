@@ -114,22 +114,35 @@ struct Sm90DenseGemm {
     auto copy_b=make_tiled_copy_B(CopyB{},mma);
     auto sa=make_tensor(make_smem_ptr(a),LayoutA{});
     auto sb=make_tensor(make_smem_ptr(b),LayoutB{});
-    auto ra=thread.partition_fragment_A(sa);auto rb=thread.partition_fragment_B(sb);
+    // Keep only the register lookahead, rather than an addressable fragment
+    // for every k16 in a large shared-memory slot.
+    auto ra=make_fragment_like<Element>(make_layout(append(
+        take<0,2>(shape(thread.partition_A(sa))),Int<RegisterStages>{})));
+    auto rb=make_fragment_like<Element>(make_layout(append(
+        take<0,2>(shape(thread.partition_B(sb))),Int<RegisterStages>{})));
     auto as=copy_a.get_slice(lane).partition_S(sa);auto bs=copy_b.get_slice(lane).partition_S(sb);
     auto ad=copy_a.get_slice(lane).retile_D(ra);auto bd=copy_b.get_slice(lane).retile_D(rb);
     for_each(make_int_sequence<RegisterStages>{},[&](auto i) {
       constexpr int k=Split+int(i)*WarpsK;
-      copy(CopyA{},as(_,_,Int<k>{}),ad(_,_,Int<k>{}));
-      copy(CopyB{},bs(_,_,Int<k>{}),bd(_,_,Int<k>{}));
+      copy(CopyA{},as(_,_,Int<k>{}),ad(_,_,i));
+      copy(CopyB{},bs(_,_,Int<k>{}),bd(_,_,i));
     });
-    for_each(make_int_sequence<TK/(16*WarpsK)>{},[&](auto i) {
-      constexpr int k=Split+int(i)*WarpsK,next=k+RegisterStages*WarpsK;
-      gemm(mma,ra(_,_,Int<k>{}),rb(_,_,Int<k>{}),accum);
-      if constexpr(next<TK/16) {
-        copy(CopyA{},as(_,_,Int<next>{}),ad(_,_,Int<next>{}));
-        copy(CopyB{},bs(_,_,Int<next>{}),bd(_,_,Int<next>{}));
-      }
-    });
+    MmaSteps<Split,0>(mma,ra,rb,as,bs,ad,bd,accum);
+  }
+
+  template<int Split,int I,class MA,class RA,class RB,class AS,class BS,class AD,class BD,class Acc>
+  __device__ static __forceinline__ void MmaSteps(MA const& mma,RA& ra,RB& rb,
+      AS const& as,BS const& bs,AD& ad,BD& bd,Acc& accum) {
+    using namespace cute;
+    constexpr int k=Split+I*WarpsK,next=k+RegisterStages*WarpsK,slot=I%RegisterStages;
+    gemm(mma,ra(_,_,Int<slot>{}),rb(_,_,Int<slot>{}),accum);
+    if constexpr(next<TK/16) {
+      copy(CopyA{},as(_,_,Int<next>{}),ad(_,_,Int<slot>{}));
+      copy(CopyB{},bs(_,_,Int<next>{}),bd(_,_,Int<slot>{}));
+    }
+    // CuTe's large for_each fold can become an outlined closure with local
+    // fragment arguments. Keep each owned k16 at an explicit inline call site.
+    if constexpr(I+1<TK/(16*WarpsK))MmaSteps<Split,I+1>(mma,ra,rb,as,bs,ad,bd,accum);
   }
 
   __device__ static __noinline__ void Consume(Sm90DenseOperands p,

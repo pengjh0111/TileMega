@@ -74,12 +74,13 @@ int main() {
   errors+=run<16,128,4,1>();errors+=run<1,224,4,1>();
   errors+=run<1,16,2,2,256,4>();errors+=run<1,8,1,4,256,4>();
   errors+=run<1,8,1,4,1024,1>();errors+=run<1,24,1,4,512,1>();
+  errors+=run<16,16,2,2,1024,1>();errors+=run<16,16,2,2,1024,4>();
   errors+=run<2,16,1,4,256,1>();errors+=run<4,24,1,4,256,1>();errors+=run<8,8,1,4,256,1>();
   errors+=check_layout<64>()+check_layout<128>()+check_layout<192>()+check_layout<256>();
   errors+=check_layout<384>()+check_layout<448>()+check_layout<512>()+check_layout<768>();
   errors+=check_layout<896>()+check_layout<1024>()+check_layout<1536>()+
       check_layout<1792>()+check_layout<2048>();
-  std::printf("{\"errors\":%d,\"pass\":%s,\"cases\":12,\"layout_cases\":13,\"register_stages\":[1,2,4],\"slot_sequence\":[3,2,3,2,3,2,3,2]}\n",errors,errors?"false":"true");
+  std::printf("{\"errors\":%d,\"pass\":%s,\"cases\":14,\"layout_cases\":13,\"register_stages\":[1,2,4],\"slot_sequence\":[3,2,3,2,3,2,3,2]}\n",errors,errors?"false":"true");
   return errors?1:0;
  }catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}
 }
