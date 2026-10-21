@@ -15,13 +15,13 @@ performance admission remain unfinished. Earlier probes retain their own scope.
 - `Target/Ascend/ProgressPrimitives.h::WaitProgress` uses a supplied counter
   deadline and abort. AS-2 progress probes use 2e9 ticks per wait. This is not
   the legacy 100000-poll limit re-labelled as seconds.
-- `as2_progress.cpp`: G2 **5/5**, G4 **5/5 fresh processes**, each16 epochs and
+- `as2_progress.cpp`: G2/G4/G8 **5/5 fresh processes each**, each16 epochs and
   four directions. AIC producers execute CATLASS identity MMAD/FIX; both AIV
   lanes produce MTE2/MTE3 payloads. Consumers pre-read cached old data, publish
   preload, wait for payload completion/publish, invalidate/acquire and check
   exact values. Ready, preload and reverse acknowledgements have single owners.
 - The old DSB and entire-DCache acquire remain the correctness baseline.
-  This is not a minimal-cache-maintenance result. New G8/14/28, mode4, BF16
+  This is not a minimal-cache-maintenance result. G14/28, mode4, BF16
   direct and UB→L1 remain unverified. New GM MIX lifecycle evidence is below.
 - G2 vector tests compute separate rows on all four AIV workers. This is task
   assignment/result evidence, not a hardware busy-percentage measurement.
@@ -104,7 +104,7 @@ Decode uses the actual runtime past and never reads invalid KV padding.
 Local UB remains106496 B. GM worker scratch is32/128 KiB, separate from UB;
 raw GEMM epilogue workspaces are real Plan allocations. The optional old
 128-key FP32-partial/log2-LSE path is numerically unadmitted. BF16 direct,
-UB-to-L1, dual-AIV MIX, split-K and larger model G remain disabled/unverified.
+UB-to-L1, dual-AIV MIX, split-K and G14/28 remain disabled/unverified.
 
 The 200-byte Stage contains64-bit operand/workspace offsets. The device reader
 copies object bytes legally; uint32-pointer type-punning previously corrupted
@@ -118,3 +118,54 @@ NRMSE0.006897, exact token62324). Qwen prefill logits/token pass but26
 intermediates fail; Qwen zero-KV decode fails the frozen model tolerance.
 These are phase results. They do not establish64/1024 generation,512-step
 teacher-forcing, every model/B cell or speedup against eager.
+
+Verified-run request extension: `as2_request.py` binds actual solved phase
+allocations by names/packing/config identity, rewrites only addresses, and
+hard-links immutable inputs. `LlmRequestHost.h` shares one arena and submits
+one persistent launch per forward; prefill token64 feeds decode at past64.
+The last formal output would be token1087 from past1086, not an extra decode.
+The runner checks prefill abort before submitting dependent decode, preserves
+error controls, resets KV/tokens/phase frontiers only at completed boundaries,
+and moves dumps/guards outside request timing. CPU rejects OSL1025 before ACL.
+
+Short natural requests execute all layers for Qwen0.6B and Llama1B, four tokens
+each, exact against independent NPU eager. Qwen logits pass but five K-cache
+rows contain failing elements. Llama logits have33 failing elements plus14
+failing KV rows. Frozen tolerances remain unchanged. Same-input selected-layer
+Norm/GEMM/RoPE/Attention/SwiGLU checks pass; this does not waive composed errors.
+Qwen request reset passes5/5 fresh processes, two requests/four forwards each;
+401 payload/KV/control files are bitwise identical, including diagnostic/fast.
+Proof: `correctness/native_request_reset_c3_summary.json`. Full-length requests,
+512-step teacher forcing and final model-level optimization remain unverified.
+
+## Continuation: precision, profiling and sourced plan execution
+
+Verified-run: one real first-layer eager SDPA trace casts Q/K/V toFP32,
+pre-scales Q/K, and runsFP32 matmul/softmax/PV. Hardware metrics were disabled;
+only one attention call was profiled, with one offline analysis worker.
+`as2_sdpa_dispatch.py` records tensors/operator metadata privately.
+
+ABI v3 declares four attention implementations: BF16 score/P, FP32 chunks,
+FP32 score/BF16P, and math-SDPA pre-scale/FP32P/capacity-softmax. No invalid KV
+padding is read. Local UB remains106496B; per-worker GM scratch131072B.
+First prefill context differs in48/131072 BF16 elements against eager rather
+than74593 with BF16P. Full Qwen four-token logits/tokens pass, but11 final KV
+slices fail the original policy. No tolerance change or correctness claim.
+
+Diagnostic2 timestamps Body service outside semantic/ready/done waits and
+metadata/publication;512B per queue slot separates writers. Worker fractions
+are profiled intervals, not hardware-utilization counters. Five fresh finite
+`as2_native_cost` processes pass with8192 copy samples each and a512MiB working
+set. Median dispatch AIC/AIV886.25/879.469ns, symmetric notification estimate
+272.484ns, effective logical GM/L2 copy rate1137.54B/ns; all contended/contextual.
+
+The priced Qwen plan changes actual queues/owners, executes one launch per
+forward, and preserves399 payload/KV files bitwise. Controls/trace are audited
+against the new plan rather than expected to match old ordinals. Numeric
+failure versus independent eager remains separate. Measured decode prices are
+limited to past<=66 and guarded before ACL; this is not long-request admission.
+
+Verified-run: full28-layer Llama3B GQA3 request executes four forwards with
+6,735,441,920B shared arena (>4GiB addresses), valid task/launch receipts and
+exact greedy tokens. Against independent SDPA/fused eager, logits NRMSE0.036681
+with11020 failures and49 failing final KV slices. Correctness remains fail.

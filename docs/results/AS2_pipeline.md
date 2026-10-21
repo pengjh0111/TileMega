@@ -5,15 +5,15 @@ Status at 2026-10-21: **in_progress**, not G-PIPELINE pass.
 
 | AS-1 gap | Implemented entry | Remaining work |
 |---|---|---|
-| A01 | `as2_compile_llm`: inspect/prepare/emit-diagnostic and native phases | priced complete generation entry |
+| A01 | `as2_compile_llm`: inspect/prepare/emit-diagnostic/emit-priced and native requests | priced complete generation entry |
 | A02 | `CandidateGenerator::SetAscendDomain/Analyze/TopK`; `as2_rank_gemm` | model-family prices and structural search |
-| A03 | new LLM materializer consumes actual queues/frontiers | full-model empirical provider; old AS-1 restrictions remain isolated |
-| A04 | both AIV lanes compute in full LLM G2; G2/G4 payload probes | larger model G/domain validation |
-| A05 | native trace-free branch; common outputs bitwise | complete fast KV C-2 and request timing |
-| A06 | device FIFO/frontier consumer and five-process lifecycle | priced model queue selection |
+| A03 | new LLM materializer consumes actual queues/frontiers | native empirical provider connected; long-past/model-family calibration pending |
+| A04 | both AIV lanes compute; G2/G4/G8 payload probes | larger model G/domain validation |
+| A05 | short-request fast/diagnostic outputs including KV bitwise | main-cell C-2 and admitted timing |
+| A06 | device FIFO/frontier consumer and five-process lifecycle | priced queues execute with399 equal payload files; broader search pending |
 | A07 | measured-counter finite wait; old DSB/cache protocol retained | no cache-removal optimization enabled |
 | A08 | QK norm/RoPE/KV, blocked decode and causal prefill | numerical failures, faster shared KV preparation |
-| A09 | 64-bit LLM ABI, >4096 executed tasks, capacity/epoch bounds | actual >4 GiB device allocation and complete request reset |
+| A09 | 64-bit LLM ABI, >4096 tasks, five-process short-request reset | actual >4 GiB device allocation and long requests |
 | A10 | GM AIC/AIV0 owner-ready-done lifecycle, five processes | dual-participant MIX, BF16 direct and split-K |
 
 `as2_compile_llm prepare` calls existing BuildModelPlan, ImportSemantics,
@@ -71,10 +71,32 @@ masking; prefill uses its real past0 graph. No per-token solving/recompiling.
 The argmax semantic read extent now uses the actual64-column partial count,
 rather than a hardcoded32-column formula. CPU regression checks vocabulary65.
 
-Next: bind prefill/decode buffers by verified names into a shared weight/KV
-arena; add complete request boundaries/reset in the native Host runner;
-resolve Qwen numerical failures; then consume sourced fast-stage/dispatcher/
-shared-GM prices through the existing native EFT scheduler. The new optimized
-materializer rejects unknown prices or diagnostic-only schedules. The CLI
-currently emits only unpriced bootstrap plans; G-PIPELINE remains in_progress.
-Changing geometry must regenerate CTG ownership and LM-head partials.
+Verified-run: `as2_request.py` relocates both solved phase tables by buffer
+identity into one weight/KV/token arena; queue/wait bytes are unchanged.
+`LlmRequestHost.h` submits prefill then stream-ordered decode, with device token
+feedback, separate phase epochs and request resets. Five fresh processes/two
+four-token requests each match401 payload/KV/control files, including fast mode.
+Neither short requests nor local same-input arithmetic establish the main Gate.
+`emit-priced` consumes sourced Body + dispatcher + notification + shared-GM
+prices and compares rank/EFT with structural placement using the same fixed-FIFO
+cost evaluator. Both plans retain real ISL predecessors; the lower predicted
+makespan wins, rather than a fixed first candidate. Qwen prefill predicted
+45.907 vs58.475 ms; decode5.06560 vs5.06588 ms. These are conservative model
+predictions, not measured speedups. Both selected FIFO/owner tables differ.
+
+Verified-run: selected prefill/decode execute four natural outputs;399 payload/
+KV files match the old queues bitwise. `correctness/native_priced_structural_payload_c2.json`
+and `models/qwen3_0_6b/native_{decode,prefill}_priced_g8_v1/search.json` are the
+traceable example. CPU price changes alter actual queue/candidate selection;
+fixed-queue repricing preserves order and responds to cost changes.
+
+`as2_native_prices.py` verifies measured job/model/config/shape/G identities.
+Prices are contextual empirical data, not global calibrated target constants;
+shared-load status remains contended. Decode pricing is bounded to past<=66;
+`pricing_bounds.bin` survives relocation and rejects OSL5 before ACL. The native
+mathematical runtime itself still supports capacity1088.8 CPU binding tests pass.
+
+Remaining: composed numerical failures, long requests/teacher forcing, other
+models/B16, wider measured Body/context domain and end-to-end search admission.
+G-PIPELINE remains in_progress: one measured Body geometry per whole-model
+search, two real placement/order alternatives; no claimed final tuning result.
