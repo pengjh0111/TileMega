@@ -1,0 +1,91 @@
+"""Independent HF decode with an explicit zero-KV diagnostic initial state."""
+from __future__ import annotations
+import argparse
+import json
+import struct
+from pathlib import Path
+import torch
+import torch_npu
+from transformers.cache_utils import StaticCache
+from tilemega.bench.as2_eager import load_model, digest
+from tilemega.bench.as2_models import RUNS, controlled, DENSE
+
+
+def main():
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--model',choices=DENSE,required=True);p.add_argument('--plan',type=Path,required=True)
+    p.add_argument('--inputs',type=Path,required=True);p.add_argument('--out',type=Path,required=True)
+    p.add_argument('--device',choices=('npu:0','cpu'),default='npu:0')
+    p.add_argument('--attention',choices=('sdpa','eager'),default='sdpa')
+    a=p.parse_args();plan=controlled(a.plan,[RUNS]);inputs=controlled(a.inputs,[RUNS]);out=controlled(a.out,[RUNS])
+    receipt=json.loads((inputs/'inputs.json').read_text());buffers=json.loads((plan/'buffers.json').read_text())['buffers']
+    if receipt['model_id']!=a.model or receipt['initial_kv'] not in ('all_zero_diagnostic_state_not_prefill','empty_cache_for_prefill') or digest(plan/'metadata.bin')!=receipt['metadata_sha256']:
+        raise ValueError('Diagnostic input/plan identity mismatch')
+    out.mkdir(parents=True,exist_ok=False);torch.set_num_threads(1)
+    if a.device=='npu:0':torch.npu.set_device(0)
+    model,ids,manifest,weight_hash=load_model(a.model,a.attention,'hf',device=a.device)
+    if weight_hash!=receipt['weight_manifest_sha256'] or manifest['config_sha256']!=receipt['config_sha256']:
+        raise ValueError('Paired weight/config identity mismatch')
+    batch,past,seq=receipt['batch'],receipt['past'],receipt.get('seq',1);cfg=manifest['config'];saved={};projections={}
+    def save(name):
+        def hook(module,args,result):saved[name]=result.detach().clone()
+        return hook
+    def before(name):
+        def hook(module,args):saved[name]=args[0].detach().clone()
+        return hook
+    for i,layer in enumerate(model.model.layers):
+        layer.input_layernorm.register_forward_hook(save(f'l{i}.norm1'))
+        layer.post_attention_layernorm.register_forward_hook(save(f'l{i}.norm2'))
+        layer.self_attn.o_proj.register_forward_pre_hook(before(f'l{i}.context'))
+        layer.mlp.down_proj.register_forward_pre_hook(before(f'l{i}.act'))
+        for kind in ('q','k','v'):
+            def capture(module,args,result,i=i,kind=kind):projections[i,kind]=result.detach().clone()
+            getattr(layer.self_attn,kind+'_proj').register_forward_hook(capture)
+    model.model.norm.register_forward_hook(save('final.normalized'))
+    cache=StaticCache(config=model.config,max_batch_size=batch,max_cache_len=1088,
+        device=torch.device(a.device),dtype=torch.bfloat16)
+    cache.reset()
+    token=(ids[:batch,-1:] if seq==1 else ids[:batch]).to(a.device)
+    position=torch.arange(past,past+seq,dtype=torch.int64,device=a.device)
+    mask=torch.zeros(batch,1088,dtype=torch.int64,device=a.device);mask[:,:past+seq]=1
+    with torch.inference_mode():
+        result=model(input_ids=token,attention_mask=mask,position_ids=position.reshape(1,seq).expand(batch,-1),
+            cache_position=position,past_key_values=cache,use_cache=True,return_dict=True,logits_to_keep=1)
+        logits=result.logits[:,0].bfloat16();chosen=logits.argmax(-1).to(torch.int32)
+        g,d=cfg['num_key_value_heads'],cfg['head_dim'];ratio=cfg['num_attention_heads']//g
+        for i in range(cfg['num_hidden_layers']):
+            q,k,v=(projections[i,t] for t in ('q','k','v'))
+            saved[f'l{i}.qkv']=torch.cat((q.reshape(batch*seq,g,ratio,d),k.reshape(batch*seq,g,1,d),v.reshape(batch*seq,g,1,d)),2).reshape(batch*seq,-1)
+        saved['final.normalized']=saved['final.normalized'][:,-1,:]
+    if a.device=='npu:0':torch.npu.synchronize()
+    files=[]
+    for b in buffers:
+        value=saved.get(b['name'])
+        if b['name'].startswith('native.gemm.raw.'):
+            index=int(b['name'].rpartition('.')[2])
+            # The LM-head raw workspace is identified by the verified stage,
+            # not by assuming a particular layer count or final stage number.
+            raw=(plan/'stages.bin').read_bytes();stage=struct.unpack_from('<17Q16I',raw,index*200)
+            if stage[17]==0 and stage[18]==3:value=logits
+        if value is None:continue
+        cpu=value.cpu().contiguous().bfloat16()
+        if cpu.numel()*2!=b['bytes']:raise ValueError('Reference/native buffer shape mismatch: '+b['name'])
+        path=out/(str(b['id'])+'.bin');path.write_bytes(cpu.view(torch.uint8).numpy().tobytes())
+        files.append(dict(id=b['id'],name=b['name'],file=path.name,sha256=digest(path),elements=cpu.numel()))
+    (out/'token.bin').write_bytes(chosen.cpu().numpy().tobytes())
+    native_stages=list(struct.iter_unpack('<17Q16I',(plan/'stages.bin').read_bytes()))
+    attention_stages=[i for i,s in enumerate(native_stages) if s[17]==13]
+    if len(attention_stages)!=cfg['num_hidden_layers']:raise ValueError('KV layer table mismatch')
+    for layer,stage in enumerate(attention_stages):
+        for name,storage in (('k',cache.key_cache),('v',cache.value_cache)):
+            value=storage[layer][:,:,past+seq-1,:].cpu().contiguous()
+            path=out/f'kv_{name}_s{stage}.bin';path.write_bytes(value.view(torch.uint8).numpy().tobytes())
+            files.append(dict(file=path.name,name=f'layer{layer}.kv_{name}',elements=value.numel(),dtype='bf16',sha256=digest(path)))
+    report=dict(schema='tilemega.as2.native_reference.v1',status='reference_executed_not_compared',
+        model_id=a.model,batch=batch,past=past,seq=seq,decode_only=seq==1,initial_kv=receipt['initial_kv'],
+        config_sha256=receipt['config_sha256'],weight_manifest_sha256=weight_hash,input_sha256=receipt['input_sha256'],
+        implementation=f'pinned_transformers_{a.attention}_hf_norm',device=a.device,files=files,token_ids=chosen.cpu().tolist())
+    (out/'reference.json').write_text(json.dumps(report,indent=2)+'\n')
+    print(json.dumps({k:v for k,v in report.items() if k!='files'}))
+
+if __name__=='__main__':main()

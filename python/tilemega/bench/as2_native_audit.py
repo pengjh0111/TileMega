@@ -1,0 +1,79 @@
+"""Audit existing native launch/frontier receipts; never submit device work."""
+from __future__ import annotations
+import argparse
+import datetime
+import hashlib
+import json
+from pathlib import Path
+import struct
+from tilemega.bench.as2_models import RUNS, controlled
+
+
+def digest(path):
+    with path.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+
+
+def audit(plan,jobs,out):
+    if len(jobs)<5:raise ValueError('Synchronization admission needs five fresh processes')
+    m=struct.unpack('<12I3Q',(plan/'metadata.bin').read_bytes());groups,workers,count,stride=m[1],m[2],m[3],m[7]
+    offsets=struct.unpack('<'+'I'*(workers+1),(plan/'offsets.bin').read_bytes())
+    tasks=list(struct.iter_unpack('<7I',(plan/'tasks.bin').read_bytes()))
+    stages=list(struct.iter_unpack('<17Q16I',(plan/'stages.bin').read_bytes()))
+    def group(w):return w if w<groups else (w-groups)//2
+    waits=list(struct.iter_unpack('<2I',(plan/'waits.bin').read_bytes()))
+    cross=sum(group(w)!=group(t[2]) for t in tasks for w,p in waits[t[4]:t[4]+t[5]])
+    records=[];identities=set();binary=None;previous_end=None;canonical=None
+    for directory in jobs:
+        job=json.loads((directory/'job.json').read_text());command=job['command']
+        if job['status']!='passed' or len(command)!=7 or command[1]!=str(plan) or int(command[5])<2:
+            raise ValueError('Require completed multi-forward native jobs of this plan')
+        identity=(job['pid'],job['start_ticks'])
+        if identity in identities:raise ValueError('Each synchronization trial must use a fresh process')
+        identities.add(identity)
+        started=datetime.datetime.fromisoformat(job['started_at']);ended=datetime.datetime.fromisoformat(job['finished_at'])
+        if previous_end is not None and started<previous_end:raise ValueError('Selected project jobs overlapped')
+        previous_end=ended
+        if binary is not None and binary!=job['executable_sha256']:raise ValueError('Mixed native binary identities')
+        binary=job['executable_sha256'];output=controlled(Path(command[3]),[RUNS]);forwards=int(command[5])
+        for epoch in range(forwards):
+            data=(output/f'control_{epoch}.bin').read_bytes();control=struct.unpack('<'+'I'*(len(data)//4),data)
+            if control[(workers+2*groups)*128]:raise ValueError('Device abort was recorded')
+            for w in range(workers):
+                if control[w*128]!=epoch*stride+offsets[w+1]-offsets[w]:raise ValueError('Incorrect FIFO completion prefix')
+            for g in range(groups):
+                last=max((t[3] for t in tasks if t[2]==g and t[6]),default=0)
+                for cell in (workers+g,workers+groups+g):
+                    if control[cell*128]!=epoch*stride+last:raise ValueError('MIX ready/done epoch did not match its owner')
+        launches=[json.loads(line) for line in (output/'launches.jsonl').read_text().splitlines()]
+        if len(launches)!=forwards or any(x['kernel']!='tilemega_llm' or x['launch_index']!=i or x['past']!=int(command[4])+i for i,x in enumerate(launches)):
+            raise ValueError('Actual launch receipts disagree with forward count')
+        if int(command[6]):
+            trace=list(struct.iter_unpack('<8Q',(output/'trace.bin').read_bytes()))
+            if len(trace)!=count or any((r[0],r[1],r[2],r[5])!=(t[2],t[0],t[1],forwards-1) or r[4]<r[3] or r[6:8]!=stages[t[0]][:2] for t,r in zip(tasks,trace)):
+                raise ValueError('Diagnostic task ownership/ABI roundtrip is invalid')
+        hashes={p.name:digest(p) for p in output.glob('*.bin') if p.name!='trace.bin'}
+        if canonical is not None and hashes!=canonical:raise ValueError('Payload/KV/token/control differs across fresh processes')
+        canonical=hashes
+        summary=next(json.loads(line) for line in (directory/'stdout.log').read_text().splitlines() if line.startswith('{"status":'))
+        records.append(dict(job=str(directory),pid=job['pid'],start_ticks=job['start_ticks'],
+            diagnostic=bool(int(command[6])),forwards=forwards,host_launches=len(launches),
+            physical_device=job['physical_device_id'],forward_host_ms=summary['forward_host_ms'],
+            wrapper_elapsed_s=job['elapsed_s'],timing_status=job['timing_status'],status='pass'))
+    owners=[0]*workers
+    for t in tasks:owners[t[2]]+=1
+    result=dict(schema='tilemega.as2.native_stability.v1',status='pass',scope='decode_frontier_mix_lifecycle_four_forwards_not_model_numeric_admission',
+        processes_passed=len(records),processes_total=len(records),tasks_per_forward=count,
+        groups=groups,owner_tasks_per_worker=owners,queue_references_per_worker=[offsets[w+1]-offsets[w] for w in range(workers)],
+        lowered_cross_group_waits=cross,compared_buffers=len(canonical),payload_bitwise_equal=True,
+        selected_submissions_sequential=True,device_locked=False,binary_sha256=binary,
+        numerical_gate='not_implied',performance_gate='not_implied',records=records)
+    if out.exists():raise FileExistsError(out)
+    out.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps({k:v for k,v in result.items() if k!='records'}))
+
+
+def main():
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--plan',type=Path,required=True)
+    p.add_argument('--jobs',type=Path,nargs='+',required=True);p.add_argument('--out',type=Path,required=True)
+    a=p.parse_args();audit(controlled(a.plan,[RUNS]),[controlled(j,[RUNS]) for j in a.jobs],controlled(a.out,[RUNS]))
+
+if __name__=='__main__':main()

@@ -28,7 +28,9 @@ def tensor_hash(tensor):
     return hashlib.sha256(tensor.detach().cpu().contiguous().view(torch.uint8).numpy().tobytes()).hexdigest()
 
 
-def load_model(model_id, attention, norm):
+def load_model(model_id, attention, norm, device='npu:0'):
+    if device not in ('npu:0','cpu') or (device=='cpu' and norm!='hf'):
+        raise ValueError('Use the admitted NPU baseline or CPU mathematical reference')
     directory = WEIGHTS / model_id
     path = directory / 'manifest.json'
     manifest = json.loads(path.read_text())
@@ -52,7 +54,7 @@ def load_model(model_id, attention, norm):
             cpu = torch.from_file(str(file), shared=False, size=record['bytes'] // 2,
                                   dtype=torch.bfloat16).reshape(record['shape'])
             parent, _, leaf = record['name'].rpartition('.')
-            model.get_submodule(parent)._parameters[leaf] = torch.nn.Parameter(cpu.to('npu:0'), requires_grad=False)
+            model.get_submodule(parent)._parameters[leaf] = torch.nn.Parameter(cpu.to(device), requires_grad=False)
             del cpu
         for alias, canonical in manifest['aliases'].items():
             parent, _, leaf = alias.rpartition('.')
@@ -61,7 +63,7 @@ def load_model(model_id, attention, norm):
         # Rebuild them with this pinned Transformers implementation.
         for module in model.modules():
             if hasattr(module, 'rope_init_fn'):
-                inv_freq, scale = module.rope_init_fn(config, device=torch.device('npu:0'))
+                inv_freq, scale = module.rope_init_fn(config, device=torch.device(device))
                 module.register_buffer('inv_freq', inv_freq, persistent=False)
                 module.original_inv_freq = inv_freq
                 module.attention_scaling = scale
