@@ -21,6 +21,7 @@ int main(int argc,char** argv) {
         assert(space.Legal(c));assert(keys.insert(c.ToJson().Dump(0)).second);
         assert(c.gemms[1].tile_n%32==0 || c.dn_vector_sums);
         assert(c.gemms[2].tile_n%(2*c.swiglu_u)==0);
+        assert(c.attention.chunks!=1 || c.attention.new_row_work==0);
       }
     }
     if(batch==1) {

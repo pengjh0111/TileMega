@@ -5,6 +5,8 @@
 namespace tilemega::solver {
 namespace {
 void Structure(Sm90DenseCoordinates& c) {
+  // A single attention chunk has no boundary for row-work balancing to move.
+  if(c.attention.chunks==1)c.attention.new_row_work=0;
   c.dn_vector_sums=c.gemms[1].tile_n%32 || c.gemms[3].tile_n%32;
   c.swiglu_u=16;
   while(c.gemms[2].tile_n%(2*c.swiglu_u) && c.swiglu_u>4)c.swiglu_u/=2;

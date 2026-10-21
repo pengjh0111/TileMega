@@ -26,6 +26,10 @@ double Interpolate(std::map<double,double> const& curve,double x,bool scale_tail
   auto lower=std::prev(upper);double fraction=(x-lower->first)/(upper->first-lower->first);
   return lower->second+(upper->second-lower->second)*fraction;
 }
+double Median(std::vector<double> values) {
+  std::sort(values.begin(),values.end());auto n=values.size();
+  return n%2?values[n/2]:(values[n/2-1]+values[n/2])/2;
+}
 }
 Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal):target_(target) {
   if(target.arch_tag!="sm_90" || target.NvccArch()!="sm_90a" ||
@@ -82,7 +86,7 @@ double Sm90DenseCostModel::Quantity(std::string const& metric,
   auto it=observations_.find(metric);
   if(it==observations_.end())throw std::invalid_argument("missing native measurement: "+metric);
   double best=std::numeric_limits<double>::infinity(),result=0;
-  std::vector<std::pair<double,double>> curve;
+  std::map<double,std::vector<double>> samples;
   for(auto const& row:it->second) {
     bool match=true;
     for(auto const& f:filters) {
@@ -98,7 +102,7 @@ double Sm90DenseCostModel::Quantity(std::string const& metric,
       if((d.first=="head_dim" || d.first=="queries" || d.first=="qk_norm" ||
           d.first=="vector_sums") && x!=d.second) {match=false;break;}
       if(metric.rfind("attention_",0)==0 && d.first=="batch" &&
-          (x<=4)!=(d.second<=4)) {match=false;break;}
+          x!=d.second) {match=false;break;}
       if(metric=="activation_inactive_rows_initialize" && d.first=="batch" &&
           x!=d.second) {match=false;break;}
       if(metric.find("_at_input_k")!=std::string::npos && d.first=="input_k" &&
@@ -106,19 +110,16 @@ double Sm90DenseCostModel::Quantity(std::string const& metric,
       if(d.first!="past")distance+=std::abs(std::log((x+1)/(d.second+1)));
     }
     if(match && distance<=best+1e-12) {
-      if(distance<best-1e-12)curve.clear();
+      if(distance<best-1e-12)samples.clear();
       best=distance;result=row.At("median").AsNumber("median");
-      if(dims.count("past"))curve.emplace_back(row.At("past").AsNumber("past"),result);
+      samples[dims.count("past")?row.At("past").AsNumber("past"):0].push_back(result);
     }
   }
-  if(!curve.empty()) {
-    std::sort(curve.begin(),curve.end());double past=dims.at("past");
-    if(past<=curve.front().first)result=curve.front().second;
-    else if(past>=curve.back().first)result=curve.back().second;
-    else for(unsigned i=1;i<curve.size();++i)if(past<=curve[i].first) {
-      double fraction=(past-curve[i-1].first)/(curve[i].first-curve[i-1].first);
-      result=curve[i-1].second+(curve[i].second-curve[i-1].second)*fraction;break;
-    }
+  if(!samples.empty()) {
+    // Repeated equally close measurements must not depend on file order.
+    std::map<double,double> curve;
+    for(auto const& point:samples)curve.emplace(point.first,Median(point.second));
+    result=Interpolate(curve,dims.count("past")?dims.at("past"):0);
   }
   if(!result)throw std::invalid_argument("no matching native measurement: "+metric);
   quantities_[cache_key]=result;return result;
@@ -235,7 +236,8 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
       s.tasks=w.batch*8*a.chunks;s.waves=(s.tasks+grid-1)/grid;
       std::map<std::string,double> dimensions={{"batch",w.batch},{"head_dim",w.head_dim},
           {"queries",w.queries},{"qk_norm",w.qk_norm},{"chunks",a.chunks},
-          {"block_keys",a.block_keys},{"slots",a.slots},{"past",past}};
+          {"block_keys",a.block_keys},{"slots",a.slots},{"past",past},
+          {"new_row_work",a.chunks==1?0:a.new_row_work}};
       // The whole-stage calibration includes deterministic LA and wave costs.
       s.flow=Quantity("attention_critical_before_barrier",dimensions)*
           Coefficient(s.key,"body_scale");

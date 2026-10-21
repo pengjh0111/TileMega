@@ -15,7 +15,7 @@ json::Value Fixture() {
         {"vector_sums",1},{"head_dim",128},{"queries",2},{"qk_norm",1},
         {"warps_n",1},{"warps_k",4},{"register_stages",1},
         {"production_compatible",true},
-        {"chunks",16},{"block_keys",64},{"past",575},{"tile_k",256},{"input_k",4096},{"cache",cache}});
+        {"chunks",16},{"block_keys",64},{"new_row_work",0},{"past",575},{"tile_k",256},{"input_k",4096},{"cache",cache}});
   };
   point("v3_last_arrival_to_departure",768,"na");
   point("bulk_stream_per_active_cta",24,"dram");point("bulk_single_completion",600,"dram");
@@ -83,6 +83,16 @@ int main() {
     assert(p.initialization==(p.key.rfind("gemm_",0)==0?500:0));
   assert(prediction.stages[5].waves>1 && prediction.stages[5].initialization==500);
   assert(prediction.stages[0].epilogue==450);
+  auto repeated=Fixture();auto repeated_rows=repeated.At("observations").AsArray("observations");
+  auto original_rows=repeated_rows;
+  for(auto row:original_rows)
+    if(row.At("metric").AsString("metric")=="bulk_single_completion") {
+      row.Set("median",1000);repeated_rows.push_back(row);
+    }
+  repeated.Set("observations",repeated_rows);
+  assert(Sm90DenseCostModel(t,repeated).Predict(w,c).stages[0].read_startup==800);
+  std::reverse(repeated_rows.begin(),repeated_rows.end());repeated.Set("observations",repeated_rows);
+  assert(Sm90DenseCostModel(t,repeated).Predict(w,c).stages[0].read_startup==800);
   auto slow_activation=Fixture();auto activation_rows=slow_activation.At("observations").AsArray("observations");
   for(auto& row:activation_rows)
     if(row.At("metric").AsString("metric")=="activation_wait_and_shared_read")
@@ -95,6 +105,25 @@ int main() {
   try {Sm90DenseCostModel old(t,stale);}catch(std::invalid_argument const&) {stale_rejected=true;}
   assert(stale_rejected);
   auto full_batch=w;full_batch.batch=16;
+  auto balanced=Fixture();auto balanced_rows=balanced.At("observations").AsArray("observations");
+  for(auto row:balanced.At("observations").AsArray("observations"))
+    if(row.At("metric").AsString("metric")=="attention_critical_before_barrier" &&
+        row.At("batch").AsNumber("batch")==1) {
+      row.Set("new_row_work",8);row.Set("median",5000);balanced_rows.push_back(row);
+    }
+  balanced.Set("observations",balanced_rows);auto balanced_c=c;balanced_c.attention.new_row_work=8;
+  assert(Sm90DenseCostModel(t,balanced).Predict(w,balanced_c).stages[1].flow==5000);
+  auto missing_batch=w;missing_batch.batch=2;bool missing_attention_batch=false;
+  for(auto row:balanced.At("observations").AsArray("observations"))
+    if(row.At("metric").AsString("metric")=="activation_inactive_rows_initialize") {
+      row.Set("batch",2);balanced_rows.push_back(row);
+    }
+  balanced.Set("observations",balanced_rows);
+  try {Sm90DenseCostModel(t,balanced).Predict(missing_batch,c);}
+  catch(std::invalid_argument const& e) {
+    missing_attention_batch=std::string(e.what()).find("attention_critical_before_barrier")!=std::string::npos;
+  }
+  assert(missing_attention_batch);
   auto full_coordinates=Sm90DenseCoordinates::Exact(w.shapes,16,t.res.max_dynamic_smem_per_cta);
   for(auto const& p:model.Request(full_batch,full_coordinates).stages)assert(p.initialization==0);
   auto issue_only=Fixture();
