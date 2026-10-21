@@ -37,6 +37,12 @@ def main():
         pairs = [r for r in pairs if r['pair'].startswith(a.pair_prefix)]
         if len({r['baseline_sha256'] for r in pairs})!=1:
             raise ValueError('one ranking session must pair every candidate with the same control')
+    blanks = [r for r in pairs if r['baseline_sha256'] == r['candidate_sha256']]
+    blank_values = [float(r[k]) for r in blanks for k in ('baseline_ms', 'candidate_ms')]
+    blank_range = ((max(blank_values)-min(blank_values))/statistics.median(blank_values)*100
+                   if blank_values else None)
+    if a.pair_prefix and len(blanks) < 2:
+        raise ValueError('a fresh ranking cohort requires bookend identical-binary pairs')
     states = [(path, read(path)) for path in a.states]
     rows, seen, devices, missing = [], set(), set(), []
     for binary in a.candidate:
@@ -56,7 +62,7 @@ def main():
             missing.append(str(binary))
             continue
         required = 3 if config['model'] == 'llama3_1_8b' else 1
-        receipts, process_ids, timings = [], set(), []
+        receipts, process_ids, timings, controls = [], set(), [], []
         for r in observed:
             selected = read(Path(r['candidate_run']) / 'job/selected-config.json')
             if selected['config_sha256'] != sha(a.config):
@@ -71,6 +77,7 @@ def main():
             receipts.append(receipt)
             process_ids.add((receipt, r['candidate_pid']))
             timings.append(float(r['candidate_ms']))
+            controls.append(float(r['baseline_ms']))
             devices.add(r['uuid'])
         correctness = None
         for state_path, state in states:
@@ -101,11 +108,20 @@ def main():
         write(Path(str(stem) + '.prediction.json'), prediction)
         predicted_ms = prediction['predictions'][0]['request']['step_ns'] / 1e6
         measured_ms = statistics.median(timings)
+        control_ms = statistics.median(controls)
+        candidate_range = (max(timings)-min(timings))/measured_ms*100
+        control_range = (max(controls)-min(controls))/control_ms*100
+        threshold = max(.5, blank_range or 0, candidate_range, control_range)
+        change = (measured_ms/control_ms-1)*100
         rows.append(dict(tag=binary.parents[1].name, binary_sha256=digest,
             predicted_ms=predicted_ms, measured_ms=measured_ms,
             step_error_pct=(predicted_ms / measured_ms - 1) * 100,
             processes=len(process_ids), protocol_complete=len(process_ids) >= required,
-            process_range_pct=(max(timings)-min(timings))/measured_ms*100,
+            process_range_pct=candidate_range, baseline_ms=control_ms,
+            baseline_range_pct=control_range, paired_change_pct=change,
+            decision_threshold_pct=threshold,
+            paired_decision='indistinguishable' if abs(change)<=threshold else
+                'slower' if change>0 else 'faster',
             ownership_verified=all(r['ownership_verified'] == 'True' for r in observed),
             correctness=correctness, paired_receipts=receipts))
     if len(devices) > 1:
@@ -122,6 +138,7 @@ def main():
     # remain separate E-3 requirements, even when this cohort ranks correctly.
     result = dict(model=config['model'], batch=config['batch'], candidates=rows, missing=missing,
         pair_prefix=a.pair_prefix,retrospective=a.pair_prefix is None,
+        blank_pairs=len(blanks),blank_process_range_pct=blank_range,
         complete=complete, kendall_tau=tau, top3_contains_fastest=top3_contains_fastest,
         ranking_pass=bool(a.pair_prefix) and complete and tau is not None and tau >= .7 and top3_contains_fastest,
         class_validation='not evaluated', solver_gate_pass=False,
