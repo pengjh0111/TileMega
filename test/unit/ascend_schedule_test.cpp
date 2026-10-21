@@ -37,6 +37,10 @@ int main() {
   branch[0].price.service_ns=1000;
   auto changed=ScheduleAscendTasks(branch,map,c);assert(changed.queue[changed.offsets[0]]==0);
   assert(first.queue!=changed.queue);
+  auto evaluated=PriceAscendSchedule(branch,map,c,changed);
+  assert(evaluated.queue==changed.queue && evaluated.owners==changed.owners && evaluated.makespan_ns>0);
+  auto low_price=branch;low_price[0].price.service_ns=1;
+  assert(PriceAscendSchedule(low_price,map,c,changed).makespan_ns<evaluated.makespan_ns);
   // Compare two legal body plans; changing a test-only price reverses choice.
   auto slow=branch;slow[0].price.service_ns=1200;
   assert(changed.makespan_ns<ScheduleAscendTasks(slow,map,c).makespan_ns);

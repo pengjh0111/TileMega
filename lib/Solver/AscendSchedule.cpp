@@ -138,6 +138,49 @@ AscendSchedule ScheduleAscendTasks(std::vector<AscendScheduledTask> const& tasks
   }
   AuditAscendSchedule(tasks,map,out);return out;
 }
+AscendSchedule PriceAscendSchedule(std::vector<AscendScheduledTask> const& tasks,
+    ascend::WorkerMap const& map,AscendSchedulingCosts const& costs,AscendSchedule out) {
+  AuditAscendSchedule(tasks,map,out);
+  if(!std::isfinite(costs.gm_bytes_per_ns) || costs.gm_bytes_per_ns<=0 ||
+      !std::isfinite(costs.cross_worker_ready_ns) || costs.cross_worker_ready_ns<0 || costs.provenance.empty())
+    throw std::invalid_argument("Fixed native plan requires sourced shared-resource prices");
+  auto graph=DataGraph(tasks);
+  for(unsigned w=0;w<map.workers.size();++w)
+    for(unsigned slot=out.offsets[w]+1;slot<out.offsets[w+1];++slot) {
+      graph.successors[out.queue[slot-1]].push_back(out.queue[slot]);++graph.indegree[out.queue[slot]];
+    }
+  out.start_ns.assign(tasks.size(),0);out.finish_ns.assign(tasks.size(),0);
+  out.makespan_ns=out.gm_floor_ns=0;
+  std::vector<unsigned> ready;std::vector<double> available(map.workers.size(),0);
+  for(unsigned t=0;t<tasks.size();++t) {
+    auto const& price=tasks[t].price;
+    if(!std::isfinite(price.service_ns) || price.service_ns<=0 || price.provenance.empty())
+      throw std::invalid_argument("Unknown/zero task price in fixed native plan");
+    if(!graph.indegree[t])ready.push_back(t);
+  }
+  double gm_available=0;unsigned visited=0;
+  while(!ready.empty()) {
+    auto begin=[&](unsigned id) {
+      double time=tasks[id].price.gm_bytes?gm_available:0;
+      for(auto w:out.participants[id])time=std::max(time,available[w]);
+      for(auto p:tasks[id].predecessors)time=std::max(time,out.finish_ns[p]+
+        (out.owners[p]==out.owners[id]?0:costs.cross_worker_ready_ns));
+      return time;
+    };
+    auto chosen=std::min_element(ready.begin(),ready.end(),[&](unsigned a,unsigned b) {
+      auto x=begin(a),y=begin(b);return x==y?a<b:x<y;
+    });
+    unsigned id=*chosen;double start=begin(id);ready.erase(chosen);++visited;
+    double gm_ns=tasks[id].price.gm_bytes/costs.gm_bytes_per_ns;
+    double finish=start+std::max(tasks[id].price.service_ns,gm_ns);
+    out.start_ns[id]=start;out.finish_ns[id]=finish;out.makespan_ns=std::max(out.makespan_ns,finish);
+    out.gm_floor_ns+=gm_ns;if(gm_ns)gm_available=start+gm_ns;
+    for(auto w:out.participants[id])available[w]=finish;
+    for(auto next:graph.successors[id])if(!--graph.indegree[next])ready.push_back(next);
+  }
+  if(visited!=tasks.size())throw std::invalid_argument("Fixed native schedule has a waiting cycle");
+  return out;
+}
 void AuditAscendSchedule(std::vector<AscendScheduledTask> const& tasks,
     ascend::WorkerMap const& map,AscendSchedule const& out) {
   if(out.owners.size()!=tasks.size() || out.ordinals.size()!=tasks.size() || out.waits.size()!=tasks.size() ||

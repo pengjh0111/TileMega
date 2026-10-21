@@ -43,6 +43,10 @@ struct AscendSchedule {
 // is a shared throughput constraint, not another copy of service time per role.
 AscendSchedule ScheduleAscendTasks(std::vector<AscendScheduledTask> const&,
     ascend::WorkerMap const&, AscendSchedulingCosts const&);
+// Evaluate a fixed legal FIFO/placement with the same shared-GM calendar used
+// for plan comparison. This changes prices/timestamps, never task order.
+AscendSchedule PriceAscendSchedule(std::vector<AscendScheduledTask> const&,
+    ascend::WorkerMap const&,AscendSchedulingCosts const&,AscendSchedule);
 // Bootstrap execution/calibration only. No fabricated service times or claimed
 // optimization: canonical topological order and least-populated legal queues.
 AscendSchedule DiagnosticAscendSchedule(std::vector<AscendScheduledTask> const&,
