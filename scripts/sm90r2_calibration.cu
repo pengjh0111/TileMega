@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 #include <vector>
 
 using U64=unsigned long long;
@@ -173,7 +174,7 @@ void Activations(Context& c) {
   Print("activation_wait_and_shared_read",grid,Batch*TK*2,1,"l2",values,"ns",Batch,0,k,TK);
 }
 using Op=tilemega::backend::ServingEpilogueOp;
-template<int Batch,int TN,Op Operation,bool DN>
+template<int Batch,int TN,Op Operation,bool DN,int NormK=4096>
 __global__ void Epilogue(cutlass::bfloat16_t* output,cutlass::bfloat16_t const* residual,
     float const* norm,float* sums,int* indices,U64* times,int samples) {
   extern __shared__ __align__(1024) char shared[];
@@ -181,41 +182,65 @@ __global__ void Epilogue(cutlass::bfloat16_t* output,cutlass::bfloat16_t const* 
   constexpr int U=[] {int value=16;while(TN%(2*value))value/=2;return value;}();
   int n=TN*gridDim.x;
   int stride=Operation==Op::kSwiGLU?n/2:Operation==Op::kArgmaxPartial?int(gridDim.x):n;
+#ifdef TILEMEGA_E_CALIBRATION_DN_SHAPES_ONLY
+  U64 active_clock=0,active_time=0;
+  if(threadIdx.x==0) {active_time=Now();active_clock=clock64();}
+#endif
   for(int sample=0;sample<samples;++sample) {
     if(threadIdx.x<128)for(int i=threadIdx.x;i<16*TN;i+=128)tile[i]=(i%31-15)/32.f;
     __syncthreads();U64 begin=clock64();
     if(threadIdx.x<128) {
       tilemega::backend::Sm90DenseEpilogue<Operation,TN,U>::Run(tile,blockIdx.x,Batch,n,
           stride,output,residual,indices,DN?norm:nullptr,
-          Operation==Op::kResidual?sums:nullptr,4096,1e-6f);
+          Operation==Op::kResidual?sums:nullptr,NormK,1e-6f);
       tilemega::codegen::executor::ComputeSync();
     }
     __syncthreads();
     if(threadIdx.x==0)times[blockIdx.x*samples+sample]=clock64()-begin;
   }
+#ifdef TILEMEGA_E_CALIBRATION_DN_SHAPES_ONLY
+  if(threadIdx.x==0) {
+    times[gridDim.x*samples+2*blockIdx.x]=clock64()-active_clock;
+    times[gridDim.x*samples+2*blockIdx.x+1]=Now()-active_time;
+  }
+#endif
 }
-template<int Batch,int TN,Op Operation,bool DN>
+template<int Batch,int TN,Op Operation,bool DN,int NormK=4096>
 void Epilogues(Context& c) {
   int grid=c.prop.multiProcessorCount,samples=128,n=TN*grid;
   cutlass::bfloat16_t *out,*residual;float *norm,*sums;int* index;
   std::size_t count=std::size_t(Batch)*n;
   Check(cudaMalloc(&out,count*2));Check(cudaMalloc(&residual,count*2));
-  Check(cudaMalloc(&norm,16*4096/8*4));Check(cudaMalloc(&sums,count*4));
+  Check(cudaMalloc(&norm,16*NormK/8*4));Check(cudaMalloc(&sums,count*4));
   Check(cudaMalloc(&index,Batch*grid*4));Check(cudaMemset(index,0xff,Batch*grid*4));
   std::vector<cutlass::bfloat16_t> residuals(count,cutlass::bfloat16_t(.25f));
-  std::vector<float> norms(16*4096/8,.25f);
+  std::vector<float> norms(16*NormK/8,.25f);
   Check(cudaMemcpy(residual,residuals.data(),count*2,cudaMemcpyHostToDevice));
   Check(cudaMemcpy(norm,norms.data(),norms.size()*4,cudaMemcpyHostToDevice));
   int shared=int(c.prop.sharedMemPerBlockOptin/256)*256;
-  Check(cudaFuncSetAttribute(Epilogue<Batch,TN,Operation,DN>,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
-  Epilogue<Batch,TN,Operation,DN><<<grid,160,shared>>>(out,residual,norm,sums,index,c.output,samples);
+  Check(cudaFuncSetAttribute(Epilogue<Batch,TN,Operation,DN,NormK>,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
+  Epilogue<Batch,TN,Operation,DN,NormK><<<grid,160,shared>>>(out,residual,norm,sums,index,c.output,samples);
   std::vector<U64> host(grid*samples);
   Check(cudaMemcpy(host.data(),c.output,host.size()*8,cudaMemcpyDeviceToHost));
-  std::vector<double> values;for(U64 t:host)values.push_back(t/c.frequency);
   constexpr auto name=Operation==Op::kStore?"epilogue_store_return":
       Operation==Op::kResidual?"epilogue_residual_return":
       Operation==Op::kSwiGLU?"epilogue_swiglu_return":"epilogue_argmax_return";
-  Print(name,grid,0,0,DN?"dn":"plain",values,"ns",Batch,TN,DN?4096:0);
+  std::vector<double> values;
+#ifdef TILEMEGA_E_CALIBRATION_DN_SHAPES_ONLY
+  std::vector<U64> clocks(grid*2);std::vector<double> frequencies;
+  Check(cudaMemcpy(clocks.data(),c.output+grid*samples,clocks.size()*8,cudaMemcpyDeviceToHost));
+  for(int cta=0;cta<grid;++cta) {
+    if(clocks[2*cta+1]<32000)std::exit(6);
+    double frequency=double(clocks[2*cta])/clocks[2*cta+1];
+    frequencies.push_back(frequency*1000);
+    for(int i=0;i<samples;++i)values.push_back(host[cta*samples+i]/frequency);
+  }
+  Print((std::string(name)+"_at_input_k").c_str(),grid,0,0,"dn",values,"ns",Batch,TN,NormK);
+  Print((std::string(name)+"_clock64_frequency").c_str(),grid,0,0,"dn",frequencies,"MHz",Batch,TN,NormK);
+#else
+  for(U64 t:host)values.push_back(t/c.frequency);
+  Print(name,grid,0,0,DN?"dn":"plain",values,"ns",Batch,TN,DN?NormK:0);
+#endif
   if constexpr(Operation==Op::kArgmaxPartial) {
     std::vector<int> indices(Batch*grid);std::vector<float> result(Batch*grid);
     Check(cudaMemcpy(indices.data(),index,indices.size()*4,cudaMemcpyDeviceToHost));
@@ -289,7 +314,22 @@ int main() {
   Check(cudaMemcpy(freq,c.output,16,cudaMemcpyDeviceToHost));c.frequency=double(freq[0])/freq[1];
   std::printf("metric,grid,slot_bytes,slots,cache,samples,median,p99,unit,batch,tile_n,input_k,tile_k,vector_sums\n");
   Print("clock64_frequency",1,0,0,"na",{c.frequency*1000},"MHz");
-#ifdef TILEMEGA_E_CALIBRATION_LARGE_ACTIVATION_ONLY
+#ifdef TILEMEGA_E_CALIBRATION_DN_SHAPES_ONLY
+  Epilogues<1,32,Op::kStore,true,1024>(c);Epilogues<16,32,Op::kStore,true,1024>(c);
+  Epilogues<1,24,Op::kStore,true,2048>(c);Epilogues<16,24,Op::kStore,true,2048>(c);
+  Epilogues<4,40,Op::kStore,true,3072>(c);
+  Epilogues<1,48,Op::kStore,true,4096>(c);Epilogues<16,48,Op::kStore,true,4096>(c);
+  Epilogues<1,48,Op::kSwiGLU,true,1024>(c);Epilogues<16,48,Op::kSwiGLU,true,1024>(c);
+  Epilogues<1,128,Op::kSwiGLU,true,2048>(c);Epilogues<16,128,Op::kSwiGLU,true,2048>(c);
+  Epilogues<4,128,Op::kSwiGLU,true,3072>(c);
+  Epilogues<1,224,Op::kSwiGLU,true,4096>(c);Epilogues<16,224,Op::kSwiGLU,true,4096>(c);
+  Epilogues<1,128,Op::kArgmaxPartial,true,1024>(c);Epilogues<16,128,Op::kArgmaxPartial,true,1024>(c);
+  Epilogues<1,128,Op::kArgmaxPartial,true,2048>(c);Epilogues<16,128,Op::kArgmaxPartial,true,2048>(c);
+  Epilogues<4,128,Op::kArgmaxPartial,true,3072>(c);
+  Epilogues<1,128,Op::kArgmaxPartial,true,4096>(c);Epilogues<16,128,Op::kArgmaxPartial,true,4096>(c);
+  Epilogues<1,32,Op::kStore,true,2048>(c);Epilogues<16,32,Op::kStore,true,2048>(c);
+  Epilogues<1,96,Op::kSwiGLU,true,2048>(c);Epilogues<16,96,Op::kSwiGLU,true,2048>(c);
+#elif defined(TILEMEGA_E_CALIBRATION_LARGE_ACTIVATION_ONLY)
   Activations<1,1024>(c);Activations<1,2048>(c);
   Activations<2,1024>(c);Activations<2,2048>(c);
   Activations<4,1024>(c);Activations<4,2048>(c);
