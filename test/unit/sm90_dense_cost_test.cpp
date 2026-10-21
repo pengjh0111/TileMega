@@ -14,6 +14,7 @@ json::Value Fixture() {
         {"grid",132},{"slot_bytes",16384},{"slots",3},{"batch",1},{"tile_n",32},
         {"vector_sums",1},{"head_dim",128},{"queries",2},{"qk_norm",1},
         {"warps_n",1},{"warps_k",4},{"register_stages",1},
+        {"production_compatible",true},
         {"chunks",16},{"block_keys",64},{"past",575},{"tile_k",256},{"cache",cache}});
   };
   point("v3_last_arrival_to_departure",768,"na");
@@ -79,6 +80,12 @@ int main() {
       without_mainloop.push_back(point);
   bare_only.Set("observations",without_mainloop);rejected=false;
   try {Sm90DenseCostModel(t,bare_only).Request(w,c);}catch(std::invalid_argument const&) {rejected=true;}
+  assert(rejected);
+  auto surrogate=Fixture();auto audit_rows=surrogate.At("observations").AsArray("observations");
+  for(auto& row:audit_rows)if(row.At("metric").AsString("metric")=="native_ldmatrix_mma_k16")
+    row.Set("production_compatible",false);
+  surrogate.Set("observations",audit_rows);rejected=false;
+  try {Sm90DenseCostModel(t,surrogate).Request(w,c);}catch(std::invalid_argument const&) {rejected=true;}
   assert(rejected);
   Sm90DenseSearchSpace space{w.shapes,w.batch,w.head_dim,w.queries,t};
   Sm90DenseSearchOptions options;options.passes=2;options.beam_width=2;options.retained=8;

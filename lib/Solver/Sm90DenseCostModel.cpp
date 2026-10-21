@@ -44,6 +44,10 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal)
     if(v.At("processes").AsNumber("fresh process count")<3 ||
        v.At("median").AsNumber("measurement median")<=0)
       throw std::invalid_argument("native calibration requires positive multi-process measurements");
+    if(v.At("metric").AsString("metric")=="native_ldmatrix_mma_k16" &&
+       (!v.Find("production_compatible") ||
+        !v.At("production_compatible").AsBool("production-compatible calibration")))
+      throw std::invalid_argument("native mainloop calibration needs a matching resource audit");
     observations_[v.At("metric").AsString("native metric")].push_back(v);
     if(v.At("metric").AsString("metric")=="bulk_stream_per_active_cta" &&
        v.At("cache").AsString("cache")=="dram" &&

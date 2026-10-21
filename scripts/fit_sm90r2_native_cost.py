@@ -31,6 +31,9 @@ def main():
     a.out.mkdir(parents=True)
     values = [read(f) for f in a.components]
     observations = [row for value in values for row in value['observations']]
+    if any(r['metric'] == 'native_ldmatrix_mma_k16' and not r.get('production_compatible')
+           for r in observations):
+        raise ValueError('native mainloop measurements require a matching resource audit')
     columns = sorted(set().union(*(row.keys() for row in observations)))
     fits = {}
     def profile(key, coefficients):
