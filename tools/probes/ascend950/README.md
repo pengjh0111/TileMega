@@ -69,3 +69,21 @@ latency is a symmetric estimate; logical GM/L2 copy throughput is not peak HBM.
 these prices. Decode context bounds survive request relocation and are checked
 before ACL. Neither a successful probe nor a predicted makespan passes model
 correctness or the final TPOT Gate. See `docs/results/AS2_pipeline.md`.
+
+## AS-2 FP32 attention arithmetic
+
+`as2_f32_mmad` is a component probe, not a generated full-model executor. Build
+only this target with parallel1. Arguments are input directory, new output,
+M (1 or32) and mode:0 QK,1 PV,2 reciprocal softmax,3 vector-division softmax.
+Its one MIX block performs one coordinate-driven Cube tile or AIV0 softmax;
+FP32 Cube explicitly disables HF32. No CATLASS full-operator scheduler is used.
+
+`as2_f32_mmad.py prepare/reference/compare` freezes actual independently observed
+Q/K operands and compares Cube against torch_npu eager and CPU FP32/FP64.
+`prepare-pv` needs the no-lock NPU wrapper: it computes actual causal FP32
+probabilities/PV with static capacity1088; the recorded example has64 valid KV.
+`prepare-softmax` only packs those already observed independent probabilities.
+Keep the exact binary/headers before changing a build. Current bounded checks
+cover QK M32/M1,N64,K128; PV M32,N128,K1088; and causal softmax M32,capacity1088.
+All three vector-division/Cube components match independent NPU outputs bitwise.
+This is not proof of other shapes, integrated MIX ownership, or full-model C-1.
