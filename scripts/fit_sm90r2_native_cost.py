@@ -48,6 +48,7 @@ def main():
     cal = dict(schema=1, fit_status='diagnostic_unfitted', observation_columns=columns,
         observations=[[r.get(k) for k in columns] for r in observations],body_fits=fits,
         method='Initial CP2 fit; global trace overhead divided uniformly across stages is inferred',
+        mainloop_method='Shared-load plus MMA per owned k16; exact warp partition, inferred TN/TK/register interpolation',
         pending=['preissue overlap calibration','held-out E-3 class and step errors',
                  '8-candidate ranking in each development cell','E-4 measured selection'],
         provenance=[dict(path=str(f),sha256=sha(f)) for f in a.components])

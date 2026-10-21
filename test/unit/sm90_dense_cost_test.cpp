@@ -13,12 +13,16 @@ json::Value Fixture() {
     observations.emplace_back(json::Object{{"metric",metric},{"median",median},{"processes",5},
         {"grid",132},{"slot_bytes",16384},{"slots",3},{"batch",1},{"tile_n",32},
         {"vector_sums",1},{"head_dim",128},{"queries",2},{"qk_norm",1},
+        {"warps_n",1},{"warps_k",4},{"register_stages",1},
         {"chunks",16},{"block_keys",64},{"past",575},{"tile_k",256},{"cache",cache}});
   };
   point("v3_last_arrival_to_departure",768,"na");
   point("bulk_stream_per_active_cta",24,"dram");point("bulk_single_completion",600,"dram");
   point("activation_wait_and_shared_read",200,"l2");
-  point("mma_sync_per_instruction",4,"na");
+  for(int wn:{1,2,4}) {
+    point("native_ldmatrix_mma_k16",wn==1?40:wn==2?24:16,"na");
+    observations.back().Set("warps_n",wn);observations.back().Set("warps_k",4/wn);
+  }
   for(auto op:{"epilogue_store_return","epilogue_residual_return","epilogue_swiglu_return",
                "epilogue_argmax_return"}) {point(op,200,"plain");point(op,300,"dn");}
   point("attention_critical_before_barrier",6000,"na");
@@ -61,8 +65,20 @@ int main() {
     total+=p.ns*p.instances;
   }
   assert(std::abs(total-prediction.step_ns)<1e-6);
+  auto partition=c;partition.gemms[0].warps_n=1;partition.gemms[0].warps_k=4;
+  auto split_prediction=model.Predict(w,partition);
+  assert(split_prediction.stages[0].compute==double(w.shapes[0][1]/64)*40);
+  partition.gemms[0].warps_n=4;partition.gemms[0].warps_k=1;
+  assert(model.Predict(w,partition).stages[0].compute==double(w.shapes[0][1]/16)*16);
   auto incomplete=Fixture();incomplete.Set("body_fits",json::Object{});bool rejected=false;
   try {Sm90DenseCostModel(t,incomplete).Request(w,c);}catch(std::invalid_argument const&) {rejected=true;}
+  assert(rejected);
+  auto bare_only=Fixture();json::Array without_mainloop;
+  for(auto const& point:bare_only.At("observations").AsArray("observations"))
+    if(point.At("metric").AsString("metric")!="native_ldmatrix_mma_k16")
+      without_mainloop.push_back(point);
+  bare_only.Set("observations",without_mainloop);rejected=false;
+  try {Sm90DenseCostModel(t,bare_only).Request(w,c);}catch(std::invalid_argument const&) {rejected=true;}
   assert(rejected);
   Sm90DenseSearchSpace space{w.shapes,w.batch,w.head_dim,w.queries,t};
   Sm90DenseSearchOptions options;options.passes=2;options.beam_width=2;options.retained=8;

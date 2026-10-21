@@ -37,6 +37,7 @@ class Sm90DenseCostModel {
   double dram_bw_=0;
   double Quantity(std::string const& metric,std::map<std::string,double> const& dimensions,
                   std::map<std::string,std::string> const& filters={}) const;
+  double MainloopNs(Sm90DenseGemm const&) const;
   double Coefficient(std::string const& body,char const* name) const;
 };
 }  // namespace tilemega::solver

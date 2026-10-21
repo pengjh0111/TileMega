@@ -15,6 +15,16 @@ std::string AttentionKey(Sm90DenseWorkload const& w) {
 std::string GemmKey(Sm90DenseGemm const& g) {
   return "gemm_mma_sync_tn"+std::string(g.tile_n<=32?"8_32":g.tile_n<=64?"40_64":"72_plus");
 }
+double Interpolate(std::map<double,double> const& curve,double x,bool scale_tail=false) {
+  auto upper=curve.lower_bound(x);
+  if(upper==curve.begin())return upper->second;
+  if(upper==curve.end()) {
+    auto last=std::prev(upper);
+    return last->second*(scale_tail?x/last->first:1);
+  }
+  auto lower=std::prev(upper);double fraction=(x-lower->first)/(upper->first-lower->first);
+  return lower->second+(upper->second-lower->second)*fraction;
+}
 }
 Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal):target_(target) {
   if(target.arch_tag!="sm_90" || target.NvccArch()!="sm_90a" ||
@@ -95,6 +105,32 @@ double Sm90DenseCostModel::Quantity(std::string const& metric,
   if(!result)throw std::invalid_argument("no matching native measurement: "+metric);
   quantities_[cache_key]=result;return result;
 }
+double Sm90DenseCostModel::MainloopNs(Sm90DenseGemm const& g) const {
+  std::string key="native-mainloop|"+std::to_string(g.tile_n)+'|'+std::to_string(g.TileK())+
+      '|'+std::to_string(g.warps_n)+'|'+std::to_string(g.register_stages);
+  auto cached=quantities_.find(key);if(cached!=quantities_.end())return cached->second;
+  auto found=observations_.find("native_ldmatrix_mma_k16");
+  if(found==observations_.end())throw std::invalid_argument("native mainloop calibration is missing");
+  std::map<double,std::map<double,std::map<double,double>>> curves;
+  for(auto const& row:found->second) {
+    if(row.At("warps_n").AsNumber("warps_n")!=g.warps_n ||
+       row.At("warps_k").AsNumber("warps_k")!=g.warps_k)continue;
+    curves[row.At("register_stages").AsNumber("register_stages")]
+        [row.At("tile_k").AsNumber("tile_k")][row.At("tile_n").AsNumber("tile_n")]=
+        row.At("median").AsNumber("median");
+  }
+  if(curves.empty())throw std::invalid_argument("native warp partition is not calibrated");
+  // These are measured shared-load + MMA chains per owned k16, not isolated
+  // instruction throughput. Interpolation is inferred and checked by E-3.
+  std::map<double,double> register_curve;
+  for(auto const& r:curves) {
+    std::map<double,double> k_curve;
+    for(auto const& k:r.second)k_curve[k.first]=Interpolate(k.second,g.tile_n,true);
+    register_curve[r.first]=Interpolate(k_curve,g.TileK());
+  }
+  double value=Interpolate(register_curve,g.register_stages);
+  quantities_[key]=value;return value;
+}
 double Sm90DenseCostModel::Coefficient(std::string const& key,char const* name) const {
   auto found=fits_.find(key);
   if(found==fits_.end())throw std::invalid_argument("native body is not calibrated: "+key);
@@ -128,8 +164,7 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
           {"tile_k",g.TileK()}})*k/g.TileK();
       s.flow=std::max(s.dram,s.stream*Coefficient(s.key,"memory_scale"))+
           Coefficient(s.key,"activation_scale")*s.activation;
-      s.compute=s.waves*double(k/(16*g.warps_k))*(g.tile_n/(8*g.warps_n))*
-          Quantity("mma_sync_per_instruction",{{"tile_n",g.tile_n/g.warps_n}})*
+      s.compute=s.waves*double(k/(16*g.warps_k))*MainloopNs(g)*
           Coefficient(s.key,"mma_scale");
       char const* op=family==0?"epilogue_store_return":family==2?"epilogue_swiglu_return":
           family==4?"epilogue_argmax_return":"epilogue_residual_return";
