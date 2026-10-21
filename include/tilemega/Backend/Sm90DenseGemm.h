@@ -55,7 +55,8 @@ struct Sm90DenseGemm {
     for(int slot=0;slot<Slots && slot<kIterations;++slot) {
       int part=min(remaining,2*TN*TK);remaining-=part;
       if(part) {
-        Async::Wait(state.empty+slot,state.producer_generations[slot]);
+        // Preissue owns the alternate bank: its previous users joined before
+        // the preceding V3 boundary. Current arena overlap is checked by Tail.
         Async::ExpectTx(state.full+slot,2*TN*TK);
         Async::Bulk(b+slot*TN*TK,weight+(std::size_t(blockIdx.x)*kIterations+slot)*TN*TK,
             part,state.full+slot);

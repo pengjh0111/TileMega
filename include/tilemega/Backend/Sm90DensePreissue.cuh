@@ -27,7 +27,8 @@ struct Sm90DenseKvPreissue {
       int history=max(0,min(begin+rows_per_slot,min(range.end,past))-begin);
       int rows=min(history,remaining/(4*D));remaining-=rows*4*D;
       if(rows) {
-        Async::Wait(ring.empty+slot,ring.producer_generations[slot]);
+        // The alternate bank retired before the preceding stage boundary;
+        // current-stage operand aliases are retired separately by ProducerTail.
         Async::ExpectTx(ring.full+slot,4*history*D);
         std::size_t offset=(std::size_t(bg)*Capacity+begin)*D;
         Async::Bulk(shared+kLayout.key+slot*2*rows_per_slot*D,key+offset,2*rows*D,ring.full+slot);
