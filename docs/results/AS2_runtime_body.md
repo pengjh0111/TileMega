@@ -169,3 +169,30 @@ Verified-run: full28-layer Llama3B GQA3 request executes four forwards with
 6,735,441,920B shared arena (>4GiB addresses), valid task/launch receipts and
 exact greedy tokens. Against independent SDPA/fused eager, logits NRMSE0.036681
 with11020 failures and49 failing final KV slices. Correctness remains fail.
+
+## ABI4 cooperative FP32 attention (experimental, verified-run)
+
+`LlmCubeBody` borrows one CATLASS resource bank across BF16 tiles and full-FP32
+QK/PV, draining each MMAD before reuse. G8/head128/GQA2 is the current legal
+domain; it is an explicit candidate, not a performance default. Per-group GM
+workspace is2MiB; invalid public KV is never read. `ExecuteLlm` reserves four
+ready/done values per ordinal for three phases; only AIC publishes logical task
+completion, with reverse ack before AIV0 reuse. Empty AIV1 does not wait.
+
+Body/protocol probes use deliberately constructed diagnostic queues, explicitly
+not a model pipeline. Prefill/decode each pass repeatability in5/5 fresh
+processes, including multiple query coordinates, BF16 K14336 interleaving and
+four decode epochs. Full KV/control and large-K outputs are bitwise exact.
+Decode context matches independent eager bitwise. Prefill has13/131072 differing
+BF16 values, maximum .0009765625: strict bitwise comparison fails, unchanged
+Body tolerance passes. `mix_fp32_c3_v4b_policy.json` records both separately.
+All13 differences originate at position37/head6; same-input RMSNorm isolates
+one BF16 query difference at element76. Ln/exp alone does not remove it.
+
+Actual Qwen CTG/Solver ABI4 model execution is separate: prefill logits/token
+pass but55/198 intermediate checks fail. Four natural outputs match eager,
+final-logit NRMSE .012178 and7 KV slices fail; the model Gate is not passed.
+New ABI4 prices must be remeasured: an attention owner's diagnostic service span
+includes nested internal coordination, whose participant span must not be added
+again. Old ABI3 profiles/prices are rejected by identity checks.11 CPU request
+binding tests pass. Details/reproduction: `tools/probes/ascend950/AS2_mix_attention.md`.

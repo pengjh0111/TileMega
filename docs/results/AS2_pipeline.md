@@ -100,3 +100,14 @@ Remaining: composed numerical failures, long requests/teacher forcing, other
 models/B16, wider measured Body/context domain and end-to-end search admission.
 G-PIPELINE remains in_progress: one measured Body geometry per whole-model
 search, two real placement/order alternatives; no claimed final tuning result.
+
+ABI4 adds experimental `cube-fp32` attention with an actual MIX role, checked
+per-group workspace and three-stage owner/participant protocol. Source and
+tables still come from real serving import/CTG/ISL/native scheduling; the small
+protocol test's synthetic queues are never counted as pipeline evidence.
+Full Qwen prefill and four-output request execute the actual generated plans,
+but numerical checks remain failed. Positive ABI3 empirical prices cannot be
+replayed into ABI4; profile/pricing/binder identities include `runtime_abi`.
+Internal attention-phase coordination is included once in owner service time.
+11 CPU binder contracts pass; broader hierarchy/search and teacher512/main
+ten-cell correctness/performance remain incomplete. MoE stays deferred.
