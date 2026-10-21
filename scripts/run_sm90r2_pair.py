@@ -35,6 +35,7 @@ def main():
     p.add_argument('--config',type=Path,required=True)
     p.add_argument('--baseline-tag',default='reference')
     p.add_argument('--tag',required=True)
+    p.add_argument('--candidate-so',type=Path)
     p.add_argument('--round',type=int,default=0)
     p.add_argument('--out',type=Path,required=True)
     a=p.parse_args()
@@ -52,6 +53,8 @@ def main():
         directory=a.out/role;directory.mkdir()
         command=[PYTHON,str(ROOT/'scripts/run_sm90r2.py'),'--config',str(a.config.resolve()),
             '--tag',tag,'--stage','measure','--round',str(a.round),'--out',str(directory/'job')]
+        if role=='candidate' and a.candidate_so:
+            command += ['--decode-library',str(a.candidate_so.resolve())]
         arm=dict(role=role,tag=tag,started=time.time(),command=command)
         with (directory/'stdout.log').open('w') as log:
             child=subprocess.Popen(command,cwd=ROOT,stdout=log,stderr=subprocess.STDOUT)

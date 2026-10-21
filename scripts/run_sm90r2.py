@@ -15,6 +15,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--config', type=Path, required=True)
     p.add_argument('--tag', required=True)
+    p.add_argument('--decode-library', type=Path)
     p.add_argument('--stage', choices=('measure', 'correctness', 'trace', 'trace-control'), required=True)
     p.add_argument('--round', type=int, default=0)
     p.add_argument('--positions', type=int, default=256)
@@ -31,6 +32,11 @@ def main():
     reference = ROOT / 'runs/sm90d1/build/reference2' / f"{c['model']}-B{c['batch']}"
     prefill = reference / 'prefill.so'
     decode = (reference if a.tag == 'reference' else RUN / 'build' / a.tag / reference.name) / 'decode.so'
+    if a.decode_library:
+        decode = a.decode_library.resolve()
+        plan = read(str(decode) + '.plan.json')
+        if plan.get('native_origin') not in ('fixed', 'solver') or plan['runtime_batch'] != c['batch']:
+            raise ValueError('explicit candidate library is not this batch of native dense decode')
     for library in (prefill, decode):
         identity = read(str(library) + '.identity.json')
         if sha(library) != identity['binary_sha256']:
