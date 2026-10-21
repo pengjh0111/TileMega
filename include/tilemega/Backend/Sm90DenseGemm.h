@@ -59,7 +59,6 @@ struct Sm90DenseGemm {
         Async::ExpectTx(state.full+slot,2*TN*TK);
         Async::Bulk(b+slot*TN*TK,weight+(std::size_t(blockIdx.x)*kIterations+slot)*TN*TK,
             part,state.full+slot);
-        state.prefix_bytes[slot]=part;
       }
     }
   }
@@ -69,6 +68,7 @@ struct Sm90DenseGemm {
     if constexpr(bytes>0)Async::Prefetch(weight+std::size_t(blockIdx.x)*TN*K+Prefix/2,bytes);
   }
 
+  template<int Prefix>
   __device__ static __noinline__ void Produce(Sm90DenseOperands p,
       Sm90DenseRingState& state,Element* a,Element* b,int tasks,unsigned phase) {
     int lane=threadIdx.x-128;
@@ -77,7 +77,12 @@ struct Sm90DenseGemm {
       int tile=sequence%kIterations;
       Async::Wait(state.empty+slot,(phase>>slot)&1);
       if(lane==0) {
-        unsigned prefix=state.prefix_bytes[slot];state.prefix_bytes[slot]=0;
+        // The first task starts at slot zero in every invocation. Its incoming
+        // budget is fixed by the same Placement that issued the transaction.
+        unsigned prefix=0;
+        if constexpr(Prefix>0)
+          if(sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
+            prefix=min(Prefix-sequence*2*TN*TK,2*TN*TK);
         if(!prefix)Async::ExpectTx(state.full+slot,2*TN*TK);
         if(prefix<2*TN*TK)Async::Bulk(b+slot*TN*TK+prefix/2,
             p.weight+(std::size_t(task)*kIterations+tile)*TN*TK+prefix/2,
@@ -162,9 +167,11 @@ struct Sm90DenseGemm {
       state.consumer_generations[slot]=(phase>>slot)&1;
   }
 
-  template<class Tail=Sm90DenseNoTail>
+  template<int Prefix=0,class Tail=Sm90DenseNoTail>
   __device__ static void Run(Sm90DenseOperands p,char* shared,float epsilon,
       Sm90DenseRingState* persistent=nullptr,Tail tail={}) {
+    static_assert(Prefix>=0 && Prefix%16==0 &&
+        Prefix<=(Slots<kIterations?Slots:kIterations)*2*TN*TK);
     static_assert(!arch::kDevicePass || arch::kSm90AllAvailable,
                   "native dense GEMM requires Hopper sm_90a");
     auto& state=persistent?*persistent:*reinterpret_cast<Sm90DenseRingState*>(shared);
@@ -193,7 +200,7 @@ struct Sm90DenseGemm {
       if constexpr(Tail::kBefore) {
         if(threadIdx.x==128)tail.Before();
       }
-      Produce(p,state,a,b,tasks,phase);
+      Produce<Prefix>(p,state,a,b,tasks,phase);
       if(threadIdx.x==128)tail();
     }
     __syncthreads();

@@ -80,14 +80,14 @@ struct Gemm {
       Body::template Prefetch<Bytes,Prefix>(b.template Get<W>());
     }
   }
-  template<class B,class Tail>
+  template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int,char* shared,float epsilon,
       backend::Sm90DenseRingState& ring,Tail tail) {
     backend::Sm90DenseOperands p{b.template Get<A>(),b.template Get<W>(),
         b.template Get<C>(),b.template Get<D>(),reinterpret_cast<int*>(b.template Get<Index>()),
         reinterpret_cast<float const*>(b.template Get<Norm>()),
         reinterpret_cast<float*>(b.template Get<Sums>())};
-    Body::Run(p,shared,epsilon,&ring,tail);
+    Body::template Run<Prefix>(p,shared,epsilon,&ring,tail);
   }
 };
 
@@ -126,7 +126,7 @@ struct Attention {
     if constexpr(Bytes>0)if(blockIdx.x<kTasks)
       Loader::template Prefetch<Bytes,Prefix>(b.template Get<Key>(),b.template Get<Value>(),past);
   }
-  template<class B,class Tail>
+  template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int past,char* shared,float epsilon,
       backend::Sm90DenseRingState& ring,Tail tail) {
     backend::Sm90DenseAttentionOperands p{b.template Get<Qkv>(),b.template Get<Key>(),
@@ -151,7 +151,7 @@ struct Embedding {
   __device__ static void Prepare(B const&,int,char*,backend::Sm90DenseRingState&) {}
   template<int Bytes,int Prefix,class B>
   __device__ static void Prefetch(B const&,int) {}
-  template<class B,class Tail>
+  template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int past,char*,float,
       backend::Sm90DenseRingState&,Tail tail) {
     if constexpr(Tail::kBefore)if(threadIdx.x==128)tail.Before();
@@ -177,7 +177,7 @@ struct Argmax {
   __device__ static void Prepare(B const&,int,char*,backend::Sm90DenseRingState&) {}
   template<int Bytes,int Prefix,class B>
   __device__ static void Prefetch(B const&,int) {}
-  template<class B,class Tail>
+  template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int past,char* shared,float,
       backend::Sm90DenseRingState&,Tail tail) {
     if constexpr(Tail::kBefore)if(threadIdx.x==128)tail.Before();
@@ -203,7 +203,7 @@ struct Placement:Stage {
   template<class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int past,char* shared,float epsilon,
       backend::Sm90DenseRingState& ring,Tail tail) {
-    Stage::Run(b,past,shared+Offset,epsilon,ring,tail);
+    Stage::template Run<Prefix>(b,past,shared+Offset,epsilon,ring,tail);
   }
   template<class B>
   __device__ static __forceinline__ void Issue(B const& b,int past,char* shared,
