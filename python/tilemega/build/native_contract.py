@@ -28,15 +28,16 @@ def dispatch(manifest, defines, source):
                  r'tilemega_l1_kernel|tilemega_l1_loop_kernel|tilemega_l2_kernel)\b', source):
         raise ValueError('native dense generated source contains a legacy execution path')
     placements = {}
-    for number, body, offset, prefix, l2 in re.findall(
-            r'using Stage_(\d+)\s*=\s*Placement<Body_(\d+),(\d+),(\d+),(\d+)>;', source):
+    for number, body, offset, prefix, l2, late in re.findall(
+            r'using Stage_(\d+)\s*=\s*Placement<Body_(\d+),(\d+),(\d+),(\d+)(?:,(true|false))?>;', source):
         if number != body or number in placements:
             raise ValueError('native stage placement is ambiguous')
-        placements[number] = tuple(map(int, (offset, prefix, l2)))
+        placements[number] = (*map(int, (offset, prefix, l2)), late == 'true')
 
     def placement(number, coordinates, typed):
         expected = tuple(coordinates.get(k, 0) for k in
                          ('workspace_offset', 'preissue_smem_bytes', 'prefetch_l2_bytes'))
+        expected += (coordinates.get('preissue_late', False),)
         if ((typed == 'Body' and placements.get(number) != expected) or
                 (typed == 'Stage' and any(expected))):
             raise ValueError('native stage placement differs from coordinate identity')

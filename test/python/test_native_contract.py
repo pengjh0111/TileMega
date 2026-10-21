@@ -86,12 +86,27 @@ class NativeContractTests(unittest.TestCase):
         self.assertEqual(len(validate_gemm_dispatch(self.plan, self.defines, source)), 5)
         for original, bad in [('Body_0,0,0,0', 'Body_0,1024,0,0'),
                               ('Body_0,0,0,0', 'Body_0,0,16,0'),
+                              ('Body_0,0,0,0', 'Body_0,0,0,0,true'),
                               ('Body_5,0,0,0', 'Body_5,0,0,1024')]:
             with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, 'placement differs'):
                 validate_gemm_dispatch(self.plan, self.defines, source.replace(original, bad))
         with self.assertRaisesRegex(ValueError, 'placement differs'):
             validate_gemm_dispatch(self.plan, self.defines,
                                    source.replace('using Stage_0=Placement<Body_0,0,0,0>;', ''))
+
+    def test_late_issue_is_bound_to_the_generated_call(self):
+        plan = copy.deepcopy(self.plan)
+        plan['native_dense']['gemms']['qkv'].update(preissue_smem_bytes=16, preissue_late=True)
+        source = self.source
+        for i in range(6):
+            source = source.replace(f'using Stage_{i}=', f'using Body_{i}=')
+            values = '0,16,0,true' if i == 0 else '0,0,0'
+            source += f'using Stage_{i}=Placement<Body_{i},{values}>;\n'
+        source = source.replace(json.dumps(json.dumps(self.plan['native_dense'])),
+                                json.dumps(json.dumps(plan['native_dense'])))
+        self.assertEqual(len(validate_gemm_dispatch(plan, self.defines, source)), 5)
+        with self.assertRaisesRegex(ValueError, 'placement differs'):
+            validate_gemm_dispatch(plan, self.defines, source.replace('0,16,0,true', '0,16,0'))
 
 
 if __name__ == '__main__':
