@@ -26,7 +26,7 @@ def main():
     p.add_argument('--probe', type=Path, default=ROOT / 'build/sm90r2_price_probe')
     p.add_argument('--target', type=Path, default=ROOT / 'configs/targets/sm_90_h800.json')
     p.add_argument('--out', type=Path, required=True)
-    p.add_argument('--build-tag', default='CP2')
+    p.add_argument('--build-tag', nargs='+', default=['CP2'])
     a = p.parse_args();a.out = a.out.resolve()
     if not a.out.is_relative_to(ROOT / 'runs/sm90r2') or a.out.exists():
         raise ValueError('retain initial-fit evidence in a new runs/sm90r2 directory')
@@ -70,18 +70,27 @@ def main():
         provenance=[dict(path=str(f),sha256=sha(f)) for f in a.components])
     target = read(a.target);target['sm90_dense_decode'] = cal
     initial = a.out/'feature-target.json';write(initial,target)
-    trace_tag = a.build_tag + '-stage'
-    ledger = [v for v in csv.DictReader(a.ledger.open()) if v['tag']==trace_tag]
-    overhead = {(v['model'],int(v['batch'])):float(v['overhead_ms'])*1e6
-                for v in csv.DictReader(a.overhead.open()) if v['tag']==trace_tag}
+    trace_tags = {tag+'-stage' for tag in a.build_tag}
+    ledger = [v for v in csv.DictReader(a.ledger.open()) if v['tag'] in trace_tags]
+    overhead = {(v['model'],int(v['batch']),v['tag'].removesuffix('-stage')):float(v['overhead_ms'])*1e6
+                for v in csv.DictReader(a.overhead.open()) if v['tag'] in trace_tags}
     if not ledger or not overhead:
         raise ValueError('matching stage-only and control observations are required')
-    points, workloads = defaultdict(list), []
+    if {tag for _,_,tag in overhead} != set(a.build_tag):
+        raise ValueError('one requested base geometry has no matched stage observation')
+    points, workloads, artifacts = defaultdict(list), [], []
     native_headers = None
     env = dict(os.environ, CUDA_VISIBLE_DEVICES='')
-    for model,batch in sorted(overhead):
-        manifest=read(ROOT/f'runs/sm90r2/build/{a.build_tag}/{model}-B{batch}/decode.so.plan.json')
-        identity=read(ROOT/f'runs/sm90r2/build/{a.build_tag}/{model}-B{batch}/decode.so.identity.json')
+    for model,batch,tag in sorted(overhead):
+        binary=ROOT/f'runs/sm90r2/build/{tag}/{model}-B{batch}/decode.so'
+        trace=ROOT/f'runs/sm90r2/build/{tag}-stage/{model}-B{batch}/decode.so'
+        manifest=read(str(binary)+'.plan.json')
+        identity=read(str(binary)+'.identity.json');instrumented=read(str(trace)+'.identity.json')
+        if sha(binary)!=identity['binary_sha256'] or sha(trace)!=instrumented['binary_sha256'] or \
+                identity['trace'] or not instrumented['trace'] or sha(str(binary)+'.cu')!=sha(str(trace)+'.cu'):
+            raise ValueError('stage calibration needs unchanged matched control and trace programs')
+        artifacts.append(dict(model=model,batch=batch,tag=tag,
+            binary_sha256=sha(binary),trace_sha256=sha(trace)))
         if identity['source']['source_files']['include/tilemega/Backend/Sm90DenseGemm.h'] not in headers:
             raise ValueError('stage and component calibration use different native GEMM implementations')
         device_headers={k:v for k,v in identity['source']['source_files'].items()
@@ -92,23 +101,28 @@ def main():
         native_headers=device_headers;cal['native_headers']=device_headers
         config=read(ROOT/f'configs/serving/sm90d1/inputs/{model}/config.json')
         coordinates=manifest['native_dense'];shapes={}
+        if any(g['preissue_smem_bytes'] or g['prefetch_l2_bytes'] for g in
+               [*coordinates['gemms'].values(),coordinates['attention']]):
+            raise ValueError('base pricing must use controls without incoming transfers')
         for g in manifest['gemms']:shapes[g['family']]=[g['n'],g['k']]
         layers=config['num_hidden_layers']
         if len(manifest['gemms'])!=4*layers+1:raise ValueError('unexpected CP2 dense plan structure')
         work=dict(shapes=[shapes[n] for n in ('qkv','o','gate_up','down','lm_head')],batch=batch,
             layers=layers,head_dim=config.get('head_dim',config['hidden_size']//config['num_attention_heads']),
             queries=config['num_attention_heads']//config['num_key_value_heads'],qk_norm=config['model_type']=='qwen3')
-        stem=a.out/f'{model}-B{batch}';write(Path(str(stem)+'.workload.json'),work)
+        stem=a.out/f'{tag+"-" if len(a.build_tag)>1 else ""}{model}-B{batch}'
+        write(Path(str(stem)+'.workload.json'),work)
         coord=Path(str(stem)+'.tmexec.json');write(coord,coordinates)
         command=[str(probe),str(initial),str(stem)+'.workload.json',str(coord)]
         raw=json.loads(subprocess.check_output(command,env=env,text=True))
         write(Path(str(stem)+'.features.json'),raw);workloads.append((model,batch,stem))
-        measured={r['kind']:r for r in ledger if r['model']==model and int(r['batch'])==batch}
+        measured={r['kind']:r for r in ledger if r['model']==model and int(r['batch'])==batch
+                  and r['tag']==tag+'-stage'}
         for stage in raw['predictions'][0]['past575']['stages']:
             row=measured[stage['kind']]
-            observed=float(row['class_total_ns'])/float(row['instances_per_step'])-overhead[model,batch]/(5*layers+3)
+            observed=float(row['class_total_ns'])/float(row['instances_per_step'])-overhead[model,batch,tag]/(5*layers+3)
             if observed<=stage['barrier_ns']:raise ValueError('overhead correction exceeds stage signal')
-            points[stage['key']].append(dict(model=model,batch=batch,kind=stage['kind'],
+            points[stage['key']].append(dict(model=model,batch=batch,tag=tag,kind=stage['kind'],
                 corrected_ns=observed,stage=stage))
     training=[]
     for key,fit in fits.items():
@@ -138,10 +152,10 @@ def main():
         optimum=least_squares(residual,prior,bounds=bounds,loss='soft_l1')
         for name,x in zip(names,optimum.x):fit['coefficients'][name]=float(x*1000 if name=='startup_ns' else x)
         fit.update(sample_count=len(rows),method='regularized nonnegative overlapped-operand stage fit; training only',
-                   inputs=[dict(model=r['model'],batch=r['batch'],kind=r['kind']) for r in rows],
+                   inputs=[dict(model=r['model'],batch=r['batch'],tag=r['tag'],kind=r['kind']) for r in rows],
                    training_median_error_pct=float(np.median(np.abs(predict(optimum.x)/y-1))*100))
         for r,pred in zip(rows,predict(optimum.x)):
-            training.append(dict(model=r['model'],batch=r['batch'],kind=r['kind'],body_key=key,
+            training.append(dict(model=r['model'],batch=r['batch'],tag=r['tag'],kind=r['kind'],body_key=key,
                 corrected_stage_ns=r['corrected_ns'],prediction_ns=float(pred),
                 error_pct=float((pred/r['corrected_ns']-1)*100),independent_validation=False))
     cal['fit_status']='initial_fitted';cal['body_fits']=fits
@@ -149,6 +163,7 @@ def main():
     with (a.out/'training.csv').open('w') as f:
         writer=csv.DictWriter(f,fieldnames=list(training[0]));writer.writeheader();writer.writerows(training)
     write(a.out/'fit-receipt.json',dict(stage='initial calibration, not E-3 validation',
+        artifacts=artifacts,
         ledger_sha256=sha(a.ledger),overhead_sha256=sha(a.overhead),probe_sha256=sha(probe),
         probe_snapshot=str(probe),
         fitter_sha256=sha(__file__),target_sha256=sha(a.out/'target.json'),source_target_sha256=sha(a.target)))
