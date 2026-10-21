@@ -41,6 +41,8 @@ def main():
         raise ValueError('no mainloop resource entries found')
     write(a.out, dict(binary_sha256=sha(a.binary), ptxas_sha256=sha(a.ptxas_log),
         kernels=rows, method='native no-local Consume surrogate; reject extra stack/local/spills',
+        compatible_cases=','.join(f"{r['tile_n']}x{r['tile_k']}x{r['warps_n']}x{r['register_stages']}"
+                                  for r in rows if r['production_compatible']),
         compatible=sum(r['production_compatible'] for r in rows), total=len(rows)))
     print(f"{sum(r['production_compatible'] for r in rows)}/{len(rows)} compatible mainloops")
 

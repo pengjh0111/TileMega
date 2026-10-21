@@ -3,9 +3,13 @@
 #include <cuda_runtime.h>
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <stdexcept>
+#include <string>
 #include <vector>
 using U64=unsigned long long;
+std::string selected_cases;
+unsigned sampled_cases=0;
 void Check(cudaError_t e) {if(e!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(e));}
 __device__ U64 Now() {U64 t;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(t));return t;}
 __global__ void Frequency(U64* out) {
@@ -24,37 +28,22 @@ void Mainloop(U64* times,unsigned* errors,int repeats) {
   __syncthreads();if(threadIdx.x>=128)return;
   int lane=threadIdx.x%(32*WN),split=threadIdx.x/(32*WN);
   typename G::Mma mma;auto thread=mma.get_slice(lane);
-  auto copy_a=make_tiled_copy_A(typename G::CopyA{},mma);
-  auto copy_b=make_tiled_copy_B(typename G::CopyB{},mma);
   auto accum=partition_fragment_C(mma,Shape<_16,Int<TN>>{});clear(accum);
-  auto sa=make_tensor(make_smem_ptr(a),typename G::LayoutA{});
-  auto sb=make_tensor(make_smem_ptr(b),typename G::LayoutB{});
-  auto as=copy_a.get_slice(lane).partition_S(sa);auto bs=copy_b.get_slice(lane).partition_S(sb);
   U64 begin=clock64();
   for(int repeat=0;repeat<repeats;++repeat) {
     // Consume waits on an async producer each iteration. Its memory clobber
     // prevents hoisting shared loads into a loop-invariant fragment table.
     asm volatile("" ::: "memory");
-    // Match Consume's per-K-iteration lifetime. Retaining partial fragments
-    // across repetitions can make this surrogate spill when the body does not.
-    auto ra=thread.partition_fragment_A(sa);auto rb=thread.partition_fragment_B(sb);
-    auto ad=copy_a.get_slice(lane).retile_D(ra);auto bd=copy_b.get_slice(lane).retile_D(rb);
-    for_each(make_int_sequence<R*WK>{},[&](auto k) {
-      if(int(k)%WK==split) {
-        copy(typename G::CopyA{},as(_,_,k),ad(_,_,k));
-        copy(typename G::CopyB{},bs(_,_,k),bd(_,_,k));
-      }
-    });
-    for_each(make_int_sequence<size<2>(ra)>{},[&](auto k) {
-      if(int(k)%WK==split) {
-        gemm(mma,ra(_,_,k),rb(_,_,k),accum);
-        constexpr int next=int(k)+R*WK;
-        if constexpr(next<size<2>(ra)) {
-          copy(typename G::CopyA{},as(_,_,Int<next>{}),ad(_,_,Int<next>{}));
-          copy(typename G::CopyB{},bs(_,_,Int<next>{}),bd(_,_,Int<next>{}));
-        }
-      }
-    });
+    if constexpr(WK==1)G::template MmaSlice<0>(a,b,accum);
+    else if constexpr(WK==2) {
+      if(split==0)G::template MmaSlice<0>(a,b,accum);
+      else G::template MmaSlice<1>(a,b,accum);
+    }else {
+      if(split==0)G::template MmaSlice<0>(a,b,accum);
+      else if(split==1)G::template MmaSlice<1>(a,b,accum);
+      else if(split==2)G::template MmaSlice<2>(a,b,accum);
+      else G::template MmaSlice<3>(a,b,accum);
+    }
   }
   times[blockIdx.x*128+threadIdx.x]=clock64()-begin;
   for_each(make_int_sequence<size(accum)>{},[&](auto i) {
@@ -63,9 +52,12 @@ void Mainloop(U64* times,unsigned* errors,int repeats) {
 }
 template<int TN,int TK,int WN,int R=1>
 void Case(cudaDeviceProp const& prop,double frequency,U64* times,unsigned* errors) {
+  auto id=","+std::to_string(TN)+"x"+std::to_string(TK)+"x"+std::to_string(WN)+"x"+std::to_string(R)+",";
+  if(selected_cases.find(id)==std::string::npos)return;
   constexpr int payload=2*(16+TN)*TK;
   int shared=int(prop.sharedMemPerBlockOptin/256)*256,grid=prop.multiProcessorCount;
   if(payload>shared)return;
+  ++sampled_cases;
   Check(cudaFuncSetAttribute(Mainloop<TN,TK,WN,R>,cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
   int resident;Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&resident,Mainloop<TN,TK,WN,R>,160,shared));
   if(resident!=1)throw std::runtime_error("mainloop calibration occupancy mismatch");
@@ -88,7 +80,10 @@ void Shapes(cudaDeviceProp const& p,double f,U64* times,unsigned* errors) {
   C(128,2);C(128,4);C(224,4);C(256,4);C(512,4);
 #undef C
 }
-int main() {try {
+int main(int argc,char** argv) {try {
+  if(argc!=3 || std::strcmp(argv[1],"--cases") || !*argv[2])
+    throw std::runtime_error("supply --cases from the matching calibration resource audit");
+  selected_cases=std::string(",")+argv[2]+",";
   Check(cudaSetDevice(0));cudaDeviceProp p{};Check(cudaGetDeviceProperties(&p,0));
   if(p.major!=9 || p.minor!=0)throw std::runtime_error("native mainloop calibration requires Hopper");
   U64* times;unsigned* errors;Check(cudaMalloc(&times,p.multiProcessorCount*128*8));
@@ -98,9 +93,6 @@ int main() {try {
   std::printf("metric,grid,tile_n,tile_k,warps_n,warps_k,register_stages,samples,median,p99,unit\n");
 #ifdef TILEMEGA_CALIBRATION_LARGE_ONLY
   Case<8,512,1>(p,frequency,times,errors);
-// Wider TK512 surrogates have calibration-only local fragments. They are
-// excluded from validated sampling, not from the native implementation.
-#ifndef TILEMEGA_CALIBRATION_LARGE_VALIDATED
   Case<16,512,1>(p,frequency,times,errors);Case<16,512,2>(p,frequency,times,errors);
   Case<24,512,1>(p,frequency,times,errors);
   Case<32,512,1>(p,frequency,times,errors);Case<32,512,2>(p,frequency,times,errors);
@@ -108,7 +100,6 @@ int main() {try {
   Case<48,512,1>(p,frequency,times,errors);Case<48,512,2>(p,frequency,times,errors);
   Case<64,512,1>(p,frequency,times,errors);Case<64,512,2>(p,frequency,times,errors);
   Case<64,512,4>(p,frequency,times,errors);
-#endif
   Case<8,1024,1>(p,frequency,times,errors);
   Case<16,1024,1>(p,frequency,times,errors);Case<16,1024,2>(p,frequency,times,errors);
   Case<24,1024,1>(p,frequency,times,errors);
@@ -121,5 +112,6 @@ int main() {try {
   Case<128,256,4,2>(p,frequency,times,errors);Case<128,256,4,4>(p,frequency,times,errors);
 #endif
   unsigned count;Check(cudaMemcpy(&count,errors,4,cudaMemcpyDeviceToHost));
+  if(!sampled_cases)throw std::runtime_error("no audited calibration case was selected");
   Check(cudaFree(errors));Check(cudaFree(times));return count?1:0;
 } catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}}

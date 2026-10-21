@@ -19,6 +19,7 @@ def main():
     p.add_argument('--needs-free-mib', type=int, default=2048)
     p.add_argument('--queue-dir', type=Path, required=True)
     p.add_argument('--after', nargs='*', default=[])
+    p.add_argument('--binary-arg', action='append', default=[])
     a = p.parse_args()
     if a.timing and a.gpu == 5:
         p.error('GPU5 is functional-only')
@@ -40,7 +41,8 @@ def main():
                 str(ROOT / 'scripts/run_r16_with_device_identity.py'),
                 '--guard-policy', str(policy), '--out', '{attempt_dir}/unit',
                 '--expected-uuid', uuid, '--expected-pci', f'0000:{pci}:00.0',
-                '--numa-node', str(node), '--allow-no-measurements', '--', str(a.binary.resolve())],
+                '--numa-node', str(node), '--allow-no-measurements', '--', str(a.binary.resolve()),
+                *a.binary_arg],
             artifact_sha256=sha(a.binary), source_sha256=sha(a.source), header_sha256=sha(a.header)))
         previous = [name]
     write(a.queue_dir / f'queue_{a.name}.json', jobs)

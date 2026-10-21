@@ -41,8 +41,11 @@ def main():
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--processes', type=int, default=5)
     p.add_argument('--resource-audit', type=Path)
+    p.add_argument('--queue-dir', type=Path)
     a = p.parse_args()
     state = read(a.state)
+    queue = a.queue_dir or a.state.parent.parent.parent / 'queues' / a.state.parent.name
+    descriptions = {row['name']: row for path in queue.glob('queue_*.json') for row in read(path)}
     provenance, observations = [], {}
     for name in a.names:
         for fresh in range(a.processes):
@@ -59,10 +62,15 @@ def main():
             if read(command)['actual_returncode']:
                 raise ValueError('calibration child failed')
             artifact = Path(read(command)['command'][0])
+            description = descriptions[job]
+            if description['artifact_sha256'] != sha(artifact):
+                raise ValueError('calibration binary changed since queue preparation')
             provenance.append(dict(job=job, attempt=row['attempts'],
                 guard_sha256=sha(directory / 'guard_result.json'),
                 physical_device_identity_sha256=sha(identity),
                 physical_uuid=read(identity)['nvml_uuid'], binary_sha256=sha(artifact),
+                source_sha256=description['source_sha256'],
+                header_sha256=description['header_sha256'],
                 raw_log=str(a.state.parent / (job + '.log')),
                 ownership_verified=guard['ownership_verified']))
             for value in records(a.state.parent / (job + '.log'), row['attempts']):
