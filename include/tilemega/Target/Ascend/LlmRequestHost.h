@@ -104,10 +104,10 @@ struct Device {
   template<class T> uint8_t* Upload(std::vector<T> const& data) {
     return Allocate(data.size()*sizeof(T),data.data());
   }
-  DevicePlan Upload(Plan const& p,bool diagnostic) {
+  DevicePlan Upload(Plan const& p,unsigned diagnostic) {
     return {Allocate(sizeof(p.m),&p.m),Upload(p.stages),Upload(p.tasks),Upload(p.waits),
       Upload(p.offsets),Upload(p.queue),Allocate((p.m.workers+2*p.m.groups+1)*512),
-      Allocate(diagnostic?p.m.tasks*64ULL:512)};
+      Allocate(diagnostic==2?p.m.queue_refs*512ULL:diagnostic?p.m.tasks*64ULL:512)};
   }
 };
 inline void Complete(Plan const& p,DevicePlan const& d,unsigned epoch,fs::path const& out) {
@@ -119,7 +119,7 @@ inline void Complete(Plan const& p,DevicePlan const& d,unsigned epoch,fs::path c
     if(values[w*128]!=uint64_t(epoch)*p.m.epoch_stride+p.offsets[w+1]-p.offsets[w])
       throw std::runtime_error("Incomplete request worker prefix");
 }
-inline void Dump(Plan const& p,DevicePlan const& d,uint8_t* arena,unsigned past,bool diagnostic,fs::path const& out) {
+inline void Dump(Plan const& p,DevicePlan const& d,uint8_t* arena,unsigned past,unsigned diagnostic,fs::path const& out) {
   for(unsigned id=0;id<p.allocations.size();++id) {
     auto const& a=p.allocations[id];bool logits=false;
     for(auto const& s:p.stages)if(s.kind==0 && s.epilogue==3 && s.workspace==a.offset)logits=true;
@@ -153,15 +153,15 @@ inline void Dump(Plan const& p,DevicePlan const& d,uint8_t* arena,unsigned past,
     }
   }
   if(diagnostic) {
-    std::vector<uint8_t> data(p.m.tasks*64ULL);
+    std::vector<uint8_t> data(diagnostic==2?p.m.queue_refs*512ULL:p.m.tasks*64ULL);
     Check(aclrtMemcpy(data.data(),data.size(),d.trace,data.size(),ACL_MEMCPY_DEVICE_TO_HOST),"request trace");
-    Save(out/"trace.bin",data.data(),data.size());
+    Save(out/(diagnostic==2?"profile.bin":"trace.bin"),data.data(),data.size());
   }
 }
 template<class Launch> int RunRequest(fs::path const& binding,fs::path const& out,unsigned outputs,
     unsigned warmup,unsigned repetitions,unsigned diagnostic,Launch launch) {
   Plan pre(binding/"prefill"),dec(binding/"decode");
-  if(outputs<2 || outputs>1024 || warmup>1 || !repetitions || repetitions>3 || diagnostic>1 || fs::exists(out) ||
+  if(outputs<2 || outputs>1024 || warmup>1 || !repetitions || repetitions>3 || diagnostic>2 || fs::exists(out) ||
       pre.m.seq!=64 || dec.m.seq!=1 || pre.m.batch!=dec.m.batch || pre.m.groups!=dec.m.groups ||
       pre.m.arena_bytes!=dec.m.arena_bytes || pre.allocations.size()!=dec.allocations.size() ||
       std::memcmp(pre.allocations.data(),dec.allocations.data(),pre.allocations.size()*sizeof(llm::Allocation)) ||
@@ -232,9 +232,9 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
     auto pre_out=result/"prefill",dec_out=result/"decode";fs::create_directory(pre_out);fs::create_directory(dec_out);
     Complete(pre,pd,0,pre_out);Complete(dec,dd,outputs-2,dec_out);
     if(diagnostic) {
-      std::vector<uint8_t> trace(pre.m.tasks*64ULL);
+      std::vector<uint8_t> trace(diagnostic==2?pre.m.queue_refs*512ULL:pre.m.tasks*64ULL);
       Check(aclrtMemcpy(trace.data(),trace.size(),pd.trace,trace.size(),ACL_MEMCPY_DEVICE_TO_HOST),"prefill task receipt");
-      Save(pre_out/"trace.bin",trace.data(),trace.size());
+      Save(pre_out/(diagnostic==2?"profile.bin":"trace.bin"),trace.data(),trace.size());
     }
     for(auto const& a:pre.allocations) {
       Check(aclrtMemcpy(guard.data(),512,arena+a.offset+a.bytes,512,ACL_MEMCPY_DEVICE_TO_HOST),"request check guard");

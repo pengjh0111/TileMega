@@ -57,11 +57,14 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
     AscendC::GlobalTensor<uint8_t> payload;payload.SetGlobalBuffer(arena);AcquireData(payload);
     auto stage=ReadLlmPod<llm::Stage>(stages,task.stage);
     const uint64_t start=AscendC::GetSystemCycle();bool ok=false;
+    uint64_t body_start=0,body_end=0;
     unsigned owner_group=task.mix_aiv_lanes?task.owner:0;
     auto* ready=cells+(m.workers+owner_group)*128;
     auto* done=cells+(m.workers+m.groups+owner_group)*128;
     if constexpr(Cube) {
+      if(forward.diagnostic==2)body_start=AscendC::GetSystemCycle();
       ok=body.Run(stage,task.tile,arena);
+      if(forward.diagnostic==2)body_end=AscendC::GetSystemCycle();
       if(ok && task.mix_aiv_lanes) {
         PublishSingleOwnerEvent(ready,base+task.ordinal);
         if(!WaitProgress(done,base+task.ordinal,abort,m.wait_ticks))return;
@@ -69,17 +72,24 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
     }else {
       if(participant) {
         if(!WaitProgress(ready,base+task.ordinal,abort,m.wait_ticks))return;
-        AcquireData(payload);ok=body.Epilogue(stage,task.tile,arena);
+        AcquireData(payload);
+        if(forward.diagnostic==2)body_start=AscendC::GetSystemCycle();
+        ok=body.Epilogue(stage,task.tile,arena);
+        if(forward.diagnostic==2)body_end=AscendC::GetSystemCycle();
         if(ok) {
           PublishSingleOwnerEvent(done,base+task.ordinal);
           // Reverse acknowledgement prevents this lane recycling its buffers
           // or advertising a FIFO prefix before the logical owner completes.
           if(!WaitProgress(cells+task.owner*128,base+task.ordinal,abort,m.wait_ticks))return;
         }
-      }else ok=body.Run(stage,task.tile,arena,scratch+uint64_t(worker)*m.worker_scratch_bytes,m,forward.past);
+      }else {
+        if(forward.diagnostic==2)body_start=AscendC::GetSystemCycle();
+        ok=body.Run(stage,task.tile,arena,scratch+uint64_t(worker)*m.worker_scratch_bytes,m,forward.past);
+        if(forward.diagnostic==2)body_end=AscendC::GetSystemCycle();
+      }
     }
     if(!ok){WriteControl(abort+1,worker);WriteControl(abort+2,id);WriteControl(abort+3,task.stage);WriteControl(abort+4,task.tile);WriteControl(abort,8);return;}
-    if(forward.diagnostic && task.owner==worker) {
+    if(forward.diagnostic==1 && task.owner==worker) {
       AscendC::GlobalTensor<uint64_t> record;record.SetGlobalBuffer((__gm__ uint64_t*)(trace+uint64_t(id)*64));
       record.SetValue(0,worker);record.SetValue(1,task.stage);record.SetValue(2,task.tile);
       record.SetValue(3,start);record.SetValue(4,AscendC::GetSystemCycle());record.SetValue(5,forward.epoch);
@@ -87,6 +97,17 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
       AscendC::DataCacheCleanAndInvalid<uint64_t,AscendC::CacheLine::ENTIRE_DATA_CACHE>(record);
     }
     PublishSingleOwnerEvent(cells+worker*128,base+slot-begin+1);
+    if(forward.diagnostic==2) {
+      // One cache line per queue reference prevents different workers sharing
+      // dirty trace lines. Timers exclude dependency/ready/done waits, metadata
+      // acquisition and these diagnostic writes; they are Body service only.
+      AscendC::GlobalTensor<uint64_t> record;
+      record.SetGlobalBuffer((__gm__ uint64_t*)(trace+uint64_t(slot)*512));
+      record.SetValue(0,worker);record.SetValue(1,task.stage);record.SetValue(2,task.tile);
+      record.SetValue(3,body_start);record.SetValue(4,body_end);record.SetValue(5,forward.epoch);
+      record.SetValue(6,id);record.SetValue(7,participant?1:0);
+      AscendC::DataCacheCleanAndInvalid<uint64_t,AscendC::CacheLine::ENTIRE_DATA_CACHE>(record);
+    }
   }
 }
 } // namespace tilemega::ascend
