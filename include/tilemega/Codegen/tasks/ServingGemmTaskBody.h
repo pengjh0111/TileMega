@@ -162,6 +162,11 @@ struct ServingGemmTaskBody {
 #if TILEMEGA_TRACE_TASK
     if(p.profile)FirstTileReadyProfile{p.profile}();
 #endif
+#if defined(TILEMEGA_DIAG_NO_BODY) && (TILEMEGA_DIAG_NO_BODY & 1)
+    // Diagnostic only (MX3-1): the task decodes its descriptors and stops
+    // here, so TPOT against TILEMEGA_DIAG_EMPTY_KINDS isolates that cost.
+    if (p.k_count >= 0) return;
+#endif
     float* tile = Mma::template Dense<TILEMEGA_NONPAGED_TILED != 0>(p, tile_m, tile_n, shared);
 #if TILEMEGA_TRACE_TASK
     auto epilogue_begin=TaskProfileNow(p.profile);
