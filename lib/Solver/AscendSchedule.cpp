@@ -177,6 +177,46 @@ void AuditAscendSchedule(std::vector<AscendScheduledTask> const& tasks,
   while(!ready.empty()) {auto t=ready.front();ready.pop();++visited;for(auto s:graph.successors[t])if(!--graph.indegree[s])ready.push(s);}
   if(visited!=tasks.size())throw std::invalid_argument("Dependencies plus worker FIFO contain a deadlock");
 }
+AscendSchedule DiagnosticAscendSchedule(std::vector<AscendScheduledTask> const& tasks,
+    ascend::WorkerMap const& map) {
+  auto graph=DataGraph(tasks);
+  if(tasks.empty())throw std::invalid_argument("Empty diagnostic task graph");
+  AscendSchedule out;out.owners.resize(tasks.size());out.ordinals.resize(tasks.size());
+  out.participants.resize(tasks.size());out.waits.resize(tasks.size());
+  std::vector<std::vector<unsigned>> queues(map.workers.size());
+  for(auto id:graph.order) {
+    auto const& t=tasks[id];auto domain=t.legal_workers.empty()?map.Domain(t.role):t.legal_workers;
+    if(domain.empty())throw std::invalid_argument("Diagnostic task has no legal worker");
+    auto owner=*std::min_element(domain.begin(),domain.end(),[&](int a,int b) {
+      auto load=[&](int w){std::size_t n=0;for(auto p:Participants(t,map,w))n=std::max(n,queues.at(p).size());return n;};
+      auto x=load(a),y=load(b);return x==y?a<b:x<y;
+    });
+    out.owners[id]=owner;out.participants[id]=Participants(t,map,owner);
+    for(auto w:out.participants[id])queues.at(w).push_back(id);
+  }
+  out.offsets.push_back(0);unsigned maximum=0;
+  for(unsigned w=0;w<queues.size();++w) {
+    for(unsigned i=0;i<queues[w].size();++i)
+      if(out.owners[queues[w][i]]==w)out.ordinals[queues[w][i]]=i+1;
+    maximum=std::max(maximum,U32(queues[w].size()));
+    out.queue.insert(out.queue.end(),queues[w].begin(),queues[w].end());
+    out.offsets.push_back(U32(out.queue.size()));
+    if(!queues[w].empty())out.fifo_edges+=queues[w].size()-1;
+  }
+  if(maximum==UINT32_MAX)throw std::overflow_error("Diagnostic epoch stride overflow");
+  out.epoch_stride=maximum+1;
+  for(unsigned id=0;id<tasks.size();++id) {
+    std::map<unsigned,unsigned> waits;
+    for(auto p:tasks[id].predecessors) {
+      ++out.semantic_edges;
+      for(auto w:out.participants[id])if(out.owners[p]!=w)
+        waits[out.owners[p]]=std::max(waits[out.owners[p]],out.ordinals[p]);
+    }
+    for(auto const& [w,n]:waits)out.waits[id].push_back({w,n});
+    out.lowered_waits+=out.waits[id].size();
+  }
+  AuditAscendSchedule(tasks,map,out);return out;
+}
 std::vector<AscendScheduledTask> AscendTasksFromSymbolic(SymbolicProblem const& problem,
     PlanSkeleton const& skeleton,std::vector<AscendServicePrice> const& prices) {
   if(!skeleton.ascend_workers || problem.offsets.empty() || problem.offsets.back()<1 ||

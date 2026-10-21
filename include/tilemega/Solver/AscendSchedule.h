@@ -43,6 +43,10 @@ struct AscendSchedule {
 // is a shared throughput constraint, not another copy of service time per role.
 AscendSchedule ScheduleAscendTasks(std::vector<AscendScheduledTask> const&,
     ascend::WorkerMap const&, AscendSchedulingCosts const&);
+// Bootstrap execution/calibration only. No fabricated service times or claimed
+// optimization: canonical topological order and least-populated legal queues.
+AscendSchedule DiagnosticAscendSchedule(std::vector<AscendScheduledTask> const&,
+    ascend::WorkerMap const&);
 void AuditAscendSchedule(std::vector<AscendScheduledTask> const&,
     ascend::WorkerMap const&, AscendSchedule const&);
 std::uint32_t AscendProgressValue(std::uint64_t request_forward_epoch,
