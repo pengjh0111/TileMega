@@ -78,10 +78,13 @@ int Launch(GemmArgs const& g, int tile_m, int tile_n, void* stream) {
 
 using X = arch::Xcore1000;
 
-/// MMA GEMM: tile_m in {16,32,64}, tile_n in {32,64,128}, tile_k fixed 64.
+/// MMA GEMM: tile_m in {16,32,64}, tile_n in {32,64,128}, tile_k fixed 64;
+/// row-major B at depth 2 where the registers allow it (64x128 does not).
 extern "C" int tm_test_gemm(GemmArgs const* g, int tile_m, int tile_n, void* stream) {
-#define TM_CASE(M, N) \
-  if (tile_m == M && tile_n == N) return Launch<ServingGemmTaskBody<X, M, N, 64, 2>>(*g, M, N, stream);
+#define TM_CASE(M, N)                                                                                \
+  if (tile_m == M && tile_n == N)                                                                    \
+    return Launch<ServingGemmTaskBody<X, M, N, 64, tilemega::solver::ServingGemmDepthFits(M, N, 2, 2) ? 2 : 1>>( \
+        *g, M, N, stream);
   TM_CASE(16, 32) TM_CASE(16, 64) TM_CASE(16, 128) TM_CASE(32, 64) TM_CASE(64, 64) TM_CASE(64, 128)
 #undef TM_CASE
   return 3;
