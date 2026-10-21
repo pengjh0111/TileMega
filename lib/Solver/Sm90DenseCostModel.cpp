@@ -177,7 +177,10 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
       std::map<std::string,double> epi_shape={{"batch",w.batch},{"tile_n",g.tile_n},
           {"vector_sums",c.dn_vector_sums}};
       double plain=Quantity(op,epi_shape,{{"cache","plain"}});
-      double norm=Quantity(op,epi_shape,{{"cache","dn"}});
+      // Native o/down consume already-formed attention/SwiGLU activations.
+      // Their output sum-of-squares is included in the plain residual price;
+      // only qkv, gate_up and lm_head receive an input norm-sums pointer.
+      double norm=(family==1 || family==3)?plain:Quantity(op,epi_shape,{{"cache","dn"}});
       s.epilogue=s.waves*(plain+std::max(0.,norm-plain)*k/4096)*
           Coefficient(s.key,"epilogue_scale");
       // Run initializes all slots once per stage, even when this CTA has

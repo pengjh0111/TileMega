@@ -99,6 +99,13 @@ int main() {
   prefetch=c;prefetch.attention.prefetch_l2_bytes=16384;
   auto attention_issue=issue_model.Request(w,prefetch);
   assert(attention_issue.stages[0].issue==20 && attention_issue.stages[1].issue==0);
+  auto residual_dn=Fixture();auto epi_rows=residual_dn.At("observations").AsArray("observations");
+  for(auto& row:epi_rows)
+    if(row.At("metric").AsString("metric")=="epilogue_residual_return" &&
+        row.At("cache").AsString("cache")=="dn")row.Set("median",1e9);
+  residual_dn.Set("observations",epi_rows);
+  auto ignored_dn=Sm90DenseCostModel(t,residual_dn).Predict(w,c);
+  for(unsigned stage:{2u,4u})assert(ignored_dn.stages[stage].epilogue==200);
   auto partition=c;partition.gemms[0].warps_n=1;partition.gemms[0].warps_k=4;
   auto split_prediction=model.Predict(w,partition);
   assert(split_prediction.stages[0].compute==double(w.shapes[0][1]/64)*40);
