@@ -15,6 +15,7 @@ def main():
     p.add_argument('--name', required=True)
     p.add_argument('--config', type=Path, required=True)
     p.add_argument('--tag', required=True)
+    p.add_argument('--baseline-tag', default='reference')
     p.add_argument('--stage', choices=('correctness', 'measure', 'trace', 'trace-control'), required=True)
     p.add_argument('--rounds', type=int, required=True)
     p.add_argument('--after', nargs='*', default=[])
@@ -30,13 +31,14 @@ def main():
     for fresh in range(a.rounds):
         for tag in (('reference', a.tag) if a.stage == 'measure' else (a.tag,)):
             name = f'{a.name}-{tag}-f{fresh}'
+            artifact_tag=a.baseline_tag if a.stage=='measure' and tag=='reference' else tag
             command = ['numactl', f'--cpunodebind={node}', PYTHON,
                        str(ROOT / 'scripts/run_r16_with_device_identity.py'),
                        '--guard-policy', str(POLICY), '--out', '{attempt_dir}/job',
                        '--expected-uuid', uuid, '--expected-pci', f'0000:{pci}:00.0',
                        '--numa-node', str(node), '--allow-no-measurements', '--',
                        PYTHON, str(ROOT / 'scripts/run_sm90r2.py'),
-                       '--config', str(a.config.resolve()), '--tag', tag,
+                       '--config', str(a.config.resolve()), '--tag', artifact_tag,
                        '--stage', a.stage, '--round', str(fresh), '--out', '{attempt_dir}/job']
             jobs.append(dict(name=name, gpu=True, timing=a.stage != 'correctness',
                 priority=5 if a.stage == 'correctness' else 10 if a.stage == 'measure' else 20,

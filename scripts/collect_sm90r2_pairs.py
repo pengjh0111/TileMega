@@ -55,12 +55,16 @@ def main():
                 raise ValueError('paired checkpoint identity changed')
             before = reference['measurement']['tpot_seconds'] * 1000
             after = candidate['measurement']['tpot_seconds'] * 1000
+            def tag(record):
+                command=record['selected']['command']
+                return command[command.index('--decode')+1].split('/build/')[-1].split('/')[0]
             rows.append(dict(pair=prefix, fresh_process=int(fresh),
                 baseline_ms=before, candidate_ms=after, change_pct=(after / before - 1) * 100,
                 token_equality=reference['tokens'] == candidate['tokens'],
                 uuid=reference['identity']['cuda_uuid'],
                 baseline_sha256=reference['selected']['decode_sha256'],
                 candidate_sha256=candidate['selected']['decode_sha256'],
+                baseline_tag=tag(reference),candidate_tag=tag(candidate),
                 baseline_run=str(reference['folder']), candidate_run=str(candidate['folder']),
                 ownership_verified=bool(reference['measurement']['ownership_verified'] and
                                         candidate['measurement']['ownership_verified'])))
