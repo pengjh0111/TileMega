@@ -27,6 +27,8 @@ def logical_bytes(s,m,tile,past):
     qrotate=(14 if s[5]!=absent else 8)*width;krotate=(14 if s[6]!=absent else 8)*width
     def attend(valid):
         chunks=(valid+31)//32
+        if s[31]==1:return qrotate+10*chunks*width+4*valid*width+20*chunks+2*width
+        if s[31]==3:return qrotate+10*chunks*width+4*valid*width+16*valid+2*width
         return qrotate+10*chunks*width+4*valid*width+12*valid+2*width
     if m[9]==1:return krotate+4*width+group*attend(past+1)
     blocks=(m[9]*group+query_rows-1)//query_rows;qb=(tile//extent)%blocks
