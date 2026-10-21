@@ -20,6 +20,7 @@ json::Value Fixture() {
   point("v3_last_arrival_to_departure",768,"na");
   point("bulk_stream_per_active_cta",24,"dram");point("bulk_single_completion",600,"dram");
   point("activation_wait_and_shared_read",200,"l2");
+  point("activation_inactive_rows_initialize",500,"na");
   for(int wn:{1,2,4}) {
     point("native_ldmatrix_mma_k16",wn==1?40:wn==2?24:16,"na");
     observations.back().Set("warps_n",wn);observations.back().Set("warps_k",4/wn);
@@ -27,6 +28,7 @@ json::Value Fixture() {
   for(auto op:{"epilogue_store_return","epilogue_residual_return","epilogue_swiglu_return",
                "epilogue_argmax_return"}) {point(op,200,"plain");point(op,300,"dn");}
   point("attention_critical_before_barrier",6000,"na");
+  point("attention_critical_before_barrier",8000,"na");observations.back().Set("batch",16);
   json::Object fits;
   auto fit=[&](char const* key,json::Object coefficients) {
     fits.emplace_back(key,json::Object{{"evidence","inferred"},{"sample_count",5},
@@ -36,7 +38,8 @@ json::Value Fixture() {
     fit(key,{{"startup_ns",300},{"mma_scale",1},{"memory_scale",1},{"activation_scale",.2},
         {"epilogue_scale",1},{"preissue_efficiency",.5},{"tail_efficiency",.1},
         {"l2_efficiency",.1},{"issue_ns",20}});
-  fit("attention_simt_d128_q2_norm1",{{"body_scale",1},{"startup_ns",100},
+  for(auto key:{"attention_simt_d128_q2_norm1","attention_mma_sync_d128_q2_norm1"})
+    fit(key,{{"body_scale",1},{"startup_ns",100},
       {"preissue_efficiency",.2},{"tail_efficiency",.1},{"l2_efficiency",.1},{"issue_ns",20}});
   for(auto key:{"native_embedding","native_argmax"})
     fit(key,{{"startup_ns",100},{"per_element_ns",.1}});
@@ -66,6 +69,12 @@ int main() {
     total+=p.ns*p.instances;
   }
   assert(std::abs(total-prediction.step_ns)<1e-6);
+  for(auto const& p:prediction.stages)
+    assert(p.initialization==(p.key.rfind("gemm_",0)==0?500:0));
+  assert(prediction.stages[5].waves>1 && prediction.stages[5].initialization==500);
+  auto full_batch=w;full_batch.batch=16;
+  auto full_coordinates=Sm90DenseCoordinates::Exact(w.shapes,16,t.res.max_dynamic_smem_per_cta);
+  for(auto const& p:model.Request(full_batch,full_coordinates).stages)assert(p.initialization==0);
   auto partition=c;partition.gemms[0].warps_n=1;partition.gemms[0].warps_k=4;
   auto split_prediction=model.Predict(w,partition);
   assert(split_prediction.stages[0].compute==double(w.shapes[0][1]/64)*40);
@@ -73,6 +82,14 @@ int main() {
   assert(model.Predict(w,partition).stages[0].compute==double(w.shapes[0][1]/16)*16);
   auto incomplete=Fixture();incomplete.Set("body_fits",json::Object{});bool rejected=false;
   try {Sm90DenseCostModel(t,incomplete).Request(w,c);}catch(std::invalid_argument const&) {rejected=true;}
+  assert(rejected);
+  auto no_initialization=Fixture();json::Array retained;
+  for(auto const& point:no_initialization.At("observations").AsArray("observations"))
+    if(point.At("metric").AsString("metric")!="activation_inactive_rows_initialize")
+      retained.push_back(point);
+  no_initialization.Set("observations",retained);rejected=false;
+  try {Sm90DenseCostModel(t,no_initialization).Request(w,c);}
+  catch(std::invalid_argument const&) {rejected=true;}
   assert(rejected);
   auto bare_only=Fixture();json::Array without_mainloop;
   for(auto const& point:bare_only.At("observations").AsArray("observations"))

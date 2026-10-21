@@ -14,7 +14,8 @@ struct Sm90DensePrediction {
   struct Stage {
     std::string kind,key;
     int instances=1,tasks=0,waves=0;
-    double ns=0,barrier=0,startup=0,dram=0,stream=0,flow=0,activation=0,compute=0,epilogue=0,overlap=0;
+    double ns=0,barrier=0,startup=0,initialization=0,dram=0,stream=0,flow=0,
+        activation=0,compute=0,epilogue=0,overlap=0;
   };
   std::vector<Stage> stages;
   double step_ns=0;

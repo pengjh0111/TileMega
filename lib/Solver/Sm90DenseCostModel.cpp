@@ -89,6 +89,8 @@ double Sm90DenseCostModel::Quantity(std::string const& metric,
           d.first=="vector_sums") && x!=d.second) {match=false;break;}
       if(metric.rfind("attention_",0)==0 && d.first=="batch" &&
           (x<=4)!=(d.second<=4)) {match=false;break;}
+      if(metric=="activation_inactive_rows_initialize" && d.first=="batch" &&
+          x!=d.second) {match=false;break;}
       if(d.first!="past")distance+=std::abs(std::log((x+1)/(d.second+1)));
     }
     if(match && distance<=best+1e-12) {
@@ -178,7 +180,11 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
       double norm=Quantity(op,epi_shape,{{"cache","dn"}});
       s.epilogue=s.waves*(plain+std::max(0.,norm-plain)*k/4096)*
           Coefficient(s.key,"epilogue_scale");
-      s.startup=Coefficient(s.key,"startup_ns")+
+      // Run initializes all slots once per stage, even when this CTA has
+      // several tasks. The producer never executes this branch at B16.
+      s.initialization=w.batch<16?Quantity("activation_inactive_rows_initialize",
+          {{"grid",grid},{"batch",w.batch},{"tile_k",g.TileK()},{"slots",g.slots}}):0;
+      s.startup=Coefficient(s.key,"startup_ns")+s.initialization+
           Quantity("bulk_single_completion",{{"slot_bytes",g.slot_bytes}},{{"cache","dram"}});
       double fraction=double(g.preissue_smem_bytes)/(2.*g.tile_n*k);
       auto payload=backend::Sm90DenseLayout::GemmPayload(g.tile_n,g.TileK(),g.slots,k,
@@ -192,7 +198,7 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
         previous=backend::Sm90DenseLayout::Gemm(prev.tile_n,prev.TileK(),prev.slots,
             prev.warps_k).Live(prev.workspace_offset);
       }
-      s.overlap=std::min(s.startup+std::max(s.flow-s.dram,0.),
+      s.overlap=std::min(s.startup-s.initialization+std::max(s.flow-s.dram,0.),
           fraction*tile_stream*Coefficient(s.key,(g.preissue_late || payload.Overlaps(previous))?
               "tail_efficiency":"preissue_efficiency")+
           double(g.prefetch_l2_bytes)/bw*Coefficient(s.key,"l2_efficiency"));
@@ -247,12 +253,14 @@ Sm90DensePrediction Sm90DenseCostModel::Request(Sm90DenseWorkload const& w,
     if(!i) {
       result=sample;result.step_ns=0;
       for(auto& s:result.stages)
-        s.ns=s.barrier=s.startup=s.dram=s.stream=s.flow=s.activation=s.compute=s.epilogue=s.overlap=0;
+        s.ns=s.barrier=s.startup=s.initialization=s.dram=s.stream=s.flow=
+            s.activation=s.compute=s.epilogue=s.overlap=0;
     }
     for(unsigned j=0;j<sample.stages.size();++j) {
       auto& out=result.stages[j];auto const& in=sample.stages[j];
       out.ns+=in.ns/intervals;
       out.barrier+=in.barrier/intervals;out.startup+=in.startup/intervals;
+      out.initialization+=in.initialization/intervals;
       out.dram+=in.dram/intervals;out.flow+=in.flow/intervals;
       out.stream+=in.stream/intervals;
       out.activation+=in.activation/intervals;
@@ -268,7 +276,8 @@ json::Value Sm90DensePrediction::ToJson() const {
   for(auto const& s:stages)values.emplace_back(json::Object{{"kind",s.kind},{"key",s.key},
       {"instances",s.instances},{"tasks",s.tasks},{"waves",s.waves},
       {"stage_ns",s.ns},{"class_ns",s.ns*s.instances},{"barrier_ns",s.barrier},
-      {"startup_ns",s.startup},{"dram_ns",s.dram},{"flow_ns",s.flow},
+      {"startup_ns",s.startup},{"initialization_ns",s.initialization},
+      {"dram_ns",s.dram},{"flow_ns",s.flow},
       {"stream_ns",s.stream},
       {"activation_ns",s.activation},
       {"compute_ns",s.compute},{"epilogue_ns",s.epilogue},{"overlap_ns",s.overlap}});
