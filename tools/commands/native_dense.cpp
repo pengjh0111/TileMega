@@ -133,6 +133,8 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   auto target=TargetSpec::FromJson(o.target);
   auto target_sha=Hash(o.target),input_sha=Hash(o.input);
   auto calibration=json::ParseFile(o.target).At("sm90_dense_decode");
+  if(o.measured && calibration.At("fit_status").AsString("native fit status")!="fitted")
+    throw std::invalid_argument("measured native solve requires fitted native calibration");
   solver::Sm90DenseCostModel cost(target,calibration);
   auto bridge=frontend::ReadExportBridge(o.input);
   frontend::ServingOptions options;options.dense_attention_chunks=1;

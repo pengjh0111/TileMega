@@ -18,6 +18,7 @@ json::Value Fixture() {
   point("v3_last_arrival_to_departure",768,"na");
   point("bulk_stream_per_active_cta",24,"dram");point("bulk_single_completion",600,"dram");
   point("activation_wait_and_shared_read",200,"l2");
+  point("mma_sync_per_instruction",4,"na");
   for(auto op:{"epilogue_store_return","epilogue_residual_return","epilogue_swiglu_return",
                "epilogue_argmax_return"}) {point(op,200,"plain");point(op,300,"dn");}
   point("attention_critical_before_barrier",6000,"na");
@@ -27,7 +28,7 @@ json::Value Fixture() {
         {"coefficients",coefficients}});
   };
   for(auto key:{"gemm_mma_sync_tn8_32","gemm_mma_sync_tn40_64","gemm_mma_sync_tn72_plus"})
-    fit(key,{{"startup_ns",300},{"mma_step_ns",2},{"activation_scale",.2},
+    fit(key,{{"startup_ns",300},{"mma_scale",1},{"memory_scale",1},{"activation_scale",.2},
         {"epilogue_scale",1},{"preissue_efficiency",.5},{"tail_efficiency",.1},
         {"l2_efficiency",.1},{"issue_ns",20}});
   fit("attention_simt_d128_q2_norm1",{{"body_scale",1},{"startup_ns",100},
@@ -44,6 +45,15 @@ int main() {
       1,28,128,2,true};
   auto c=Sm90DenseCoordinates::Exact(w.shapes,w.batch,t.res.max_dynamic_smem_per_cta);
   Sm90DenseCostModel model(t,Fixture());auto prediction=model.Request(w,c);
+  auto tabular=Fixture();json::Array columns,rows;
+  for(auto const& p:tabular.At("observations").AsArray("observations")[0].AsObject("point"))
+    columns.emplace_back(p.first);
+  for(auto const& point:tabular.At("observations").AsArray("observations")) {
+    json::Array values;for(auto const& key:columns)values.push_back(point.At(key.AsString("column")));
+    rows.emplace_back(values);
+  }
+  tabular.Set("observation_columns",columns);tabular.Set("observations",rows);
+  assert(Sm90DenseCostModel(t,tabular).Request(w,c).step_ns==prediction.step_ns);
   assert(prediction.stages.size()==8 && prediction.step_ns>0);
   double total=0;
   for(auto const& p:prediction.stages) {

@@ -20,7 +20,17 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal)
   if(target.arch_tag!="sm_90" || target.NvccArch()!="sm_90a" ||
      cal.At("schema").AsNumber("native calibration schema")!=1)
     throw std::invalid_argument("native dense pricing requires calibrated sm90a schema 1");
-  for(auto const& v:cal.At("observations").AsArray("native observations")) {
+  for(auto const& raw:cal.At("observations").AsArray("native observations")) {
+    auto v=raw;
+    if(raw.kind()==json::Value::Kind::kArray) {
+      auto const& columns=cal.At("observation_columns").AsArray("native observation columns");
+      auto const& row=raw.AsArray("native observation row");
+      if(row.size()!=columns.size())throw std::invalid_argument("native observation table width mismatch");
+      json::Object fields;
+      for(unsigned i=0;i<columns.size();++i)if(!row[i].IsNull())
+        fields.emplace_back(columns[i].AsString("native observation column"),row[i]);
+      v=fields;
+    }
     if(v.At("processes").AsNumber("fresh process count")<3 ||
        v.At("median").AsNumber("measurement median")<=0)
       throw std::invalid_argument("native calibration requires positive multi-process measurements");
@@ -48,6 +58,7 @@ double Sm90DenseCostModel::Quantity(std::string const& metric,
   auto it=observations_.find(metric);
   if(it==observations_.end())throw std::invalid_argument("missing native measurement: "+metric);
   double best=std::numeric_limits<double>::infinity(),result=0;
+  std::vector<std::pair<double,double>> curve;
   for(auto const& row:it->second) {
     bool match=true;
     for(auto const& f:filters) {
@@ -62,9 +73,24 @@ double Sm90DenseCostModel::Quantity(std::string const& metric,
       double x=value->AsNumber(d.first.c_str());
       if((d.first=="head_dim" || d.first=="queries" || d.first=="qk_norm" ||
           d.first=="vector_sums") && x!=d.second) {match=false;break;}
-      distance+=std::abs(std::log((x+1)/(d.second+1)));
+      if(metric.rfind("attention_",0)==0 && d.first=="batch" &&
+          (x<=4)!=(d.second<=4)) {match=false;break;}
+      if(d.first!="past")distance+=std::abs(std::log((x+1)/(d.second+1)));
     }
-    if(match && distance<best) {best=distance;result=row.At("median").AsNumber("median");}
+    if(match && distance<=best+1e-12) {
+      if(distance<best-1e-12)curve.clear();
+      best=distance;result=row.At("median").AsNumber("median");
+      if(dims.count("past"))curve.emplace_back(row.At("past").AsNumber("past"),result);
+    }
+  }
+  if(!curve.empty()) {
+    std::sort(curve.begin(),curve.end());double past=dims.at("past");
+    if(past<=curve.front().first)result=curve.front().second;
+    else if(past>=curve.back().first)result=curve.back().second;
+    else for(unsigned i=1;i<curve.size();++i)if(past<=curve[i].first) {
+      double fraction=(past-curve[i-1].first)/(curve[i].first-curve[i-1].first);
+      result=curve[i-1].second+(curve[i].second-curve[i-1].second)*fraction;break;
+    }
   }
   if(!result)throw std::invalid_argument("no matching native measurement: "+metric);
   quantities_[cache_key]=result;return result;
@@ -99,10 +125,11 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
       double tile_stream=2.*g.tile_n*k/bw;
       double activation=Quantity("activation_wait_and_shared_read",{{"batch",w.batch},
           {"tile_k",g.TileK()}})*k/g.TileK();
-      s.flow=std::max(s.dram,s.waves*tile_stream)+
+      s.flow=std::max(s.dram,s.waves*tile_stream*Coefficient(s.key,"memory_scale"))+
           Coefficient(s.key,"activation_scale")*s.waves*activation;
       s.compute=s.waves*double(k/(16*g.warps_k))*(g.tile_n/(8*g.warps_n))*
-          Coefficient(s.key,"mma_step_ns");
+          Quantity("mma_sync_per_instruction",{{"tile_n",g.tile_n/g.warps_n}})*
+          Coefficient(s.key,"mma_scale");
       char const* op=family==0?"epilogue_store_return":family==2?"epilogue_swiglu_return":
           family==4?"epilogue_argmax_return":"epilogue_residual_return";
       std::map<std::string,double> epi_shape={{"batch",w.batch},{"tile_n",g.tile_n},
