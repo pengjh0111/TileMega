@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Backend/Sm90DenseAttentionStream.cuh>
+#include <tilemega/Backend/Sm90DensePreissue.cuh>
 #include <tilemega/Codegen/tasks/FusedAttentionTaskBody.h>
 #include <vector>
 #include <set>
@@ -28,6 +29,13 @@ template<int B,int D,int Q,bool Norm,int S,int Work,int Keys=64,int Slots=3>__gl
 void evaluate(Sm90DenseAttentionOperands p,std::uint64_t* grid){
  extern __shared__ __align__(1024) char shared[];auto& ring=*reinterpret_cast<Sm90DenseRingState*>(shared);ring.Initialize();
  for(unsigned repeat=0;repeat<4;++repeat){
+#if defined(TILEMEGA_NATIVE_TEST_FULL_KV_PREISSUE)
+  using Loader=Sm90DenseKvPreissue<(B>=8),D,Q,S,Keys,Slots,Work,1088>;
+  constexpr int rows=B<=4?Sm90DenseAttentionPartition<S>::MaxKeys(1088,Work):Keys*Slots;
+  if(threadIdx.x==128 && blockIdx.x<B*8*S)
+   Loader::template Prepare<4*D*rows>(p.key,p.value,p.past,shared,ring);
+  __syncthreads();
+#endif
   using A=std::conditional_t<(B<=4),Sm90DenseAttention<B,D,Q,Norm,S,Work>,Sm90DenseAttentionStream<B,D,Q,Norm,S,Keys,Slots,Work>>;A::Run(p,shared);
   if(threadIdx.x==0){asm volatile("red.release.gpu.global.add.u64 [%0], %1;"::"l"(grid),"l"(1ull):"memory");unsigned long long seen;do{asm volatile("ld.acquire.gpu.global.u64 %0, [%1];":"=l"(seen):"l"(grid):"memory");}while(seen<(repeat+1)*gridDim.x);}__syncthreads();
  }ring.Invalidate();
@@ -61,6 +69,10 @@ template<int B,int D,int Q,bool Norm,int S,int Work,int Keys=64,int Slots=3>int 
 }
 int main(){try{check(cudaSetDevice(0));unsigned cases=0;int errors=rotation<64,false>()+rotation<128,false>()+rotation<128,true>();
 #define RUN(B,D,Q,N,S,W,Keys,Slots) errors+=run<B,D,Q,N,S,W,Keys,Slots>(cases)
+#if defined(TILEMEGA_NATIVE_TEST_FULL_KV_PREISSUE)
+ RUN(1,128,2,true,16,0,64,3);RUN(4,64,4,false,4,16,64,3);
+ RUN(8,128,3,false,2,0,32,2);RUN(16,128,4,false,1,8,64,3);
+#else
  RUN(1,128,2,true,16,0,64,3);RUN(2,128,2,true,8,8,64,3);RUN(4,128,2,true,4,16,64,3);
  RUN(1,64,4,false,16,0,64,3);RUN(2,64,4,false,8,8,64,3);RUN(4,64,4,false,4,16,64,3);
  RUN(1,128,3,false,16,0,64,3);RUN(2,128,3,false,8,8,64,3);RUN(4,128,3,false,4,16,64,3);
@@ -71,5 +83,6 @@ int main(){try{check(cudaSetDevice(0));unsigned cases=0;int errors=rotation<64,f
  RUN(8,128,3,false,2,0,32,2);RUN(16,128,3,false,1,8,64,3);
  RUN(8,128,4,false,2,0,64,3);RUN(16,128,4,false,1,8,128,2);
  RUN(8,128,2,true,4,16,64,4);RUN(16,64,4,false,8,0,64,3);
+#endif
 #undef RUN
  std::printf("{\"errors\":%d,\"pass\":%s,\"position_cases\":%u,\"persistent_rounds_per_case\":4,\"rotation_cases\":3}\n",errors,errors?"false":"true",cases);return errors?1:0;}catch(std::exception const& e){std::fprintf(stderr,"%s\n",e.what());return 2;}}
