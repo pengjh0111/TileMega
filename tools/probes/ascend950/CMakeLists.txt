@@ -49,3 +49,6 @@ as1_safe_sample(as1_catlass64_add_ub "examples/64_ascend950_matmul_evg/matmul_ev
 as1_asc_target(as1_encoder_vector_body "${CMAKE_CURRENT_SOURCE_DIR}/encoder_vector_body.cpp")
 
 as1_asc_target(as1_encoder_attention_body "${CMAKE_CURRENT_SOURCE_DIR}/encoder_attention_body.cpp")
+
+as1_asc_target(as2_timer "${CMAKE_CURRENT_SOURCE_DIR}/as2_timer.cpp")
+as1_asc_target(as2_progress "${CMAKE_CURRENT_SOURCE_DIR}/as2_progress.cpp")

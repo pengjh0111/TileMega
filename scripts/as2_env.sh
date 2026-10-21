@@ -13,6 +13,7 @@ if [[ -x "$AS2_WORK/envs/as2/bin/python" ]]; then
     export VIRTUAL_ENV="$AS2_WORK/envs/as2"
 fi
 export PATH="$VIRTUAL_ENV/bin:$AS1_WORK/envs/host/bin:/usr/local/Ascend/cann-9.1.0/tools/bisheng_compiler/bin:$PATH"
+export PYTHONPATH="$REPO/python${PYTHONPATH:+:$PYTHONPATH}"
 export TMPDIR="$AS2_WORK/tmp"
 export XDG_CACHE_HOME="$AS2_WORK/cache/xdg"
 export CCACHE_DIR="$AS2_WORK/cache/ccache"
