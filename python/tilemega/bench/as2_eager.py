@@ -92,6 +92,7 @@ def load_model(model_id, attention, norm, device='npu:0'):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--model', choices=MODELS, required=True)
+    parser.add_argument('--device', choices=('npu:0','cpu'), default='npu:0', help='CPU is a correctness reference only')
     parser.add_argument('--batch', type=int, choices=(1, 16), required=True)
     parser.add_argument('--attention', choices=('eager', 'sdpa'), default='sdpa')
     parser.add_argument('--cache', choices=('static', 'dynamic'), default='static')
@@ -99,6 +100,7 @@ def main():
     parser.add_argument('--outputs', type=int, default=1024)
     parser.add_argument('--warmup', type=int, default=1)
     parser.add_argument('--repetitions', type=int, default=3)
+    parser.add_argument('--save-kv-rows', action='store_true', help='Copy final valid KV rows after t_last, for correctness only')
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     out = args.out.absolute()
@@ -106,29 +108,39 @@ def main():
         parser.error('Use a canonical AS-2 runs output directory')
     if not 2 <= args.outputs <= 1024 or not 0 <= args.warmup <= 1 or not 1 <= args.repetitions <= 3:
         parser.error('Require bounded request/repetition sizes')
-    if os.environ.get('ASCEND_RT_VISIBLE_DEVICES') not in {'0', '1'}:
+    if args.save_kv_rows and args.cache!='static':
+        parser.error('KV diagnostics require the fixed-capacity reference cache')
+    if args.device=='cpu' and args.norm!='hf':
+        parser.error('CPU correctness reference uses independent HF normalization')
+    if args.device=='npu:0' and os.environ.get('ASCEND_RT_VISIBLE_DEVICES') not in {'0', '1'}:
         parser.error('Run through the single-device AS-2 wrapper')
     out.mkdir(parents=True, exist_ok=False)
     torch.set_num_threads(1)
-    torch.npu.set_device(0)
+    if args.device=='npu:0':torch.npu.set_device(0)
+    def synchronize():
+        if args.device=='npu:0':torch.npu.synchronize()
     started = time.monotonic()
-    model, tokens_cpu, manifest, weight_manifest_hash = load_model(args.model, args.attention, args.norm)
+    model, tokens_cpu, manifest, weight_manifest_hash = load_model(args.model, args.attention, args.norm,device=args.device)
+    rotary={}
+    if args.save_kv_rows:
+        def capture_rotary(module,inputs,result):rotary['last']=result
+        model.model.rotary_emb.register_forward_hook(capture_rotary)
     batch = args.batch
-    tokens = tokens_cpu[:batch].to('npu:0')
-    positions = torch.arange(1088, dtype=torch.int64, device='npu:0')
+    tokens = tokens_cpu[:batch].to(args.device)
+    positions = torch.arange(1088, dtype=torch.int64, device=args.device)
     cache = StaticCache(config=model.config, max_batch_size=batch, max_cache_len=1088,
-                        device=torch.device('npu:0'), dtype=torch.bfloat16) if args.cache == 'static' else None
+                        device=torch.device(args.device), dtype=torch.bfloat16) if args.cache == 'static' else None
     # Allocate result storage and all position tensors outside request timing.
-    outputs = torch.empty((batch, args.outputs), dtype=torch.int32, device='npu:0')
-    torch.npu.synchronize()
+    outputs = torch.empty((batch, args.outputs), dtype=torch.int32, device=args.device)
+    synchronize()
     identity = dict(model_id=args.model, batch=batch, isl=64, osl=args.outputs,
         capacity=1088, dtype='bf16', seed=manifest['seed'], generator=manifest['generator'],
         config_sha256=manifest['config_sha256'], weight_manifest_sha256=weight_manifest_hash,
-        input_sha256=manifest['input_ids']['sha256'], system='torch_npu_eager',
+        input_sha256=manifest['input_ids']['sha256'], system='torch_npu_eager' if args.device=='npu:0' else 'cpu_bf16_reference',
         torch_version=torch.__version__, torch_npu_version=torch_npu.__version__,
         transformers_version=__import__('transformers').__version__, attention=args.attention,
-        cache=args.cache, norm=args.norm, physical_device_id=int(os.environ['ASCEND_RT_VISIBLE_DEVICES']),
-        logical_device_id=0, setup_seconds=time.monotonic()-started,
+        cache=args.cache, norm=args.norm, physical_device_id=int(os.environ['ASCEND_RT_VISIBLE_DEVICES']) if args.device=='npu:0' else None,
+        logical_device_id=0 if args.device=='npu:0' else None, setup_seconds=time.monotonic()-started,
         status='running', warmup=args.warmup, repetitions=args.repetitions,
         numerical_admission='not_compared', gate='not_started')
     receipt = out / 'result.json'
@@ -139,14 +151,14 @@ def main():
             if cache is not None:
                 cache.reset()
             state = cache if cache is not None else DynamicCache()
-            torch.npu.synchronize()
+            synchronize()
             t0 = time.perf_counter()
             result = model(input_ids=tokens, past_key_values=state, use_cache=True,
                            cache_position=positions[:64], position_ids=positions[None, :64],
                            logits_to_keep=1, return_dict=True)
             token = result.logits[:, -1].argmax(dim=-1, keepdim=True).to(torch.int32)
             outputs[:, :1].copy_(token)
-            torch.npu.synchronize()
+            synchronize()
             first = time.perf_counter()
             for step in range(1, args.outputs):
                 position = 63 + step
@@ -156,7 +168,7 @@ def main():
                                logits_to_keep=1, return_dict=True)
                 token = result.logits[:, -1].argmax(dim=-1, keepdim=True).to(torch.int32)
                 outputs[:, step:step+1].copy_(token)
-            torch.npu.synchronize()
+            synchronize()
             last = time.perf_counter()
             sample = dict(repetition=repetition, warmup=repetition < 0, output_count=args.outputs,
                 decode_forwards=args.outputs-1, ttft_ms=(first-t0)*1000,
@@ -173,9 +185,17 @@ def main():
             (out / ('tokens_'+str(repetition)+'.bin')).write_bytes(outputs.cpu().numpy().tobytes())
             (out / ('logits_last_'+str(repetition)+'.bin')).write_bytes(
                 result.logits.cpu().contiguous().view(torch.uint8).numpy().tobytes())
+            if args.save_kv_rows:
+                position=62+args.outputs
+                for layer,(key,value) in enumerate(zip(state.key_cache,state.value_cache)):
+                    for side,tensor in [('k',key),('v',value)]:
+                        row=tensor[:batch,:,position,:].cpu().contiguous()
+                        (out/f'kv_{side}_l{layer}_r{repetition}.bin').write_bytes(row.view(torch.uint8).numpy().tobytes())
+                for side,tensor in zip(('cos','sin'),rotary['last']):
+                    (out/f'rope_{side}_r{repetition}.bin').write_bytes(tensor.cpu().contiguous().view(torch.uint8).numpy().tobytes())
             print(json.dumps(sample), flush=True)
     identity.update(status='completed_not_numerically_admitted', samples=samples,
-                    max_memory_allocated_bytes=torch.npu.max_memory_allocated())
+                    max_memory_allocated_bytes=torch.npu.max_memory_allocated() if args.device=='npu:0' else None)
     receipt.write_text(json.dumps(identity, indent=2)+'\n')
 
 

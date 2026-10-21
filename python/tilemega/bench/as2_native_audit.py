@@ -71,9 +71,72 @@ def audit(plan,jobs,out):
     out.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps({k:v for k,v in result.items() if k!='records'}))
 
 
+def audit_request(binding,jobs,out):
+    if len(jobs)<5:raise ValueError('Request reset admission needs five fresh processes')
+    records=[];identities=set();canonical=None;binary=None;previous_end=None;scope=None
+    for directory in jobs:
+        job=json.loads((directory/'job.json').read_text());command=job['command']
+        if job['status']!='passed' or len(command)!=8 or command[1]!='request' or command[2]!=str(binding):
+            raise ValueError('Require completed native request jobs of this shared binding')
+        identity=(job['pid'],job['start_ticks'])
+        if identity in identities:raise ValueError('Request trials require fresh processes')
+        identities.add(identity)
+        started=datetime.datetime.fromisoformat(job['started_at']);ended=datetime.datetime.fromisoformat(job['finished_at'])
+        if previous_end is not None and started<previous_end:raise ValueError('Selected request jobs overlapped')
+        previous_end=ended
+        if binary is not None and binary!=job['executable_sha256']:raise ValueError('Mixed request binary identities')
+        binary=job['executable_sha256'];output=controlled(Path(command[3]),[RUNS])
+        outputs,warmup,repetitions,diagnostic=map(int,command[4:])
+        if outputs<2 or warmup+repetitions<2:raise ValueError('Each reset trial needs two complete independent requests')
+        current=(outputs,warmup,repetitions)
+        if scope is not None and current!=scope:raise ValueError('Incompatible request trial scopes')
+        scope=current
+        launches=[json.loads(line) for line in (output/'launches.jsonl').read_text().splitlines()]
+        if len(launches)!=(warmup+repetitions)*outputs:raise ValueError('Incorrect actual model-forward launch count')
+        for repetition in range(-warmup,repetitions):
+            request=output/f'request_{repetition}'
+            for phase,epoch in [('prefill',0),('decode',outputs-2)]:
+                plan=binding/phase;m=struct.unpack('<12I3Q',(plan/'metadata.bin').read_bytes())
+                groups,workers,count,stride=m[1],m[2],m[3],m[7]
+                offsets=struct.unpack('<'+'I'*(workers+1),(plan/'offsets.bin').read_bytes())
+                tasks=list(struct.iter_unpack('<7I',(plan/'tasks.bin').read_bytes()))
+                stages=list(struct.iter_unpack('<17Q16I',(plan/'stages.bin').read_bytes()))
+                data=(request/phase/'control.bin').read_bytes();control=struct.unpack('<'+'I'*(len(data)//4),data)
+                if control[(workers+2*groups)*128]:raise ValueError('Request device abort')
+                for w in range(workers):
+                    if control[w*128]!=epoch*stride+offsets[w+1]-offsets[w]:raise ValueError('Incorrect request FIFO prefix')
+                for g in range(groups):
+                    last=max((t[3] for t in tasks if t[2]==g and t[6]),default=0)
+                    if any(control[cell*128]!=epoch*stride+last for cell in (workers+g,workers+groups+g)):
+                        raise ValueError('Incorrect request MIX lifecycle prefix')
+                if diagnostic:
+                    trace=list(struct.iter_unpack('<8Q',(request/phase/'trace.bin').read_bytes()))
+                    if len(trace)!=count or any((r[0],r[1],r[2],r[5])!=(t[2],t[0],t[1],epoch) or r[4]<r[3] or r[6:8]!=stages[t[0]][:2] for t,r in zip(tasks,trace)):
+                        raise ValueError('Invalid request task ownership/ABI receipt')
+            hashes={str(p.relative_to(request)):digest(p) for p in request.rglob('*.bin') if p.name!='trace.bin'}
+            if canonical is not None and hashes!=canonical:raise ValueError('Request reset payload, KV or token differs')
+            canonical=hashes
+        for i,entry in enumerate(launches):
+            step=i%outputs;rep=i//outputs-warmup
+            if entry['repetition']!=rep or entry['forward_index']!=step or entry['past']!=(63+step if step else 0) or entry['epoch']!=(step-1 if step else 0) or entry['seq']!=(1 if step else 64):
+                raise ValueError('Request launch/position/epoch mismatch')
+        records.append(dict(job=str(directory),pid=job['pid'],start_ticks=job['start_ticks'],diagnostic=bool(diagnostic),
+            requests=warmup+repetitions,outputs_per_request=outputs,host_launches=len(launches),
+            wrapper_elapsed_s=job['elapsed_s'],physical_device=job['physical_device_id'],status='pass'))
+    result=dict(schema='tilemega.as2.request_stability.v1',status='pass',scope='prefill_decode_stream_and_request_reset_not_numeric_admission',
+        processes_passed=len(records),processes_total=len(records),complete_requests=sum(r['requests'] for r in records),
+        compared_files_per_request=len(canonical),payload_kv_tokens_controls_bitwise_equal=True,
+        selected_submissions_sequential=True,device_locked=False,binary_sha256=binary,records=records,
+        numerical_gate='not_implied',performance_gate='not_implied')
+    if out.exists():raise FileExistsError(out)
+    out.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps({k:v for k,v in result.items() if k!='records'}))
+
+
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--plan',type=Path,required=True)
+    p=argparse.ArgumentParser(description=__doc__);kind=p.add_mutually_exclusive_group(required=True)
+    kind.add_argument('--plan',type=Path);kind.add_argument('--request',type=Path)
     p.add_argument('--jobs',type=Path,nargs='+',required=True);p.add_argument('--out',type=Path,required=True)
-    a=p.parse_args();audit(controlled(a.plan,[RUNS]),[controlled(j,[RUNS]) for j in a.jobs],controlled(a.out,[RUNS]))
+    a=p.parse_args();function=audit_request if a.request else audit
+    function(controlled(a.request or a.plan,[RUNS]),[controlled(j,[RUNS]) for j in a.jobs],controlled(a.out,[RUNS]))
 
 if __name__=='__main__':main()
