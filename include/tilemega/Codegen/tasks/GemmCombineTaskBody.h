@@ -35,7 +35,7 @@ struct GemmCombineTaskBody {
                                       SmemUnion& smem, int task) {
     using V = GemmVariant<Variant>;
     auto const& invocation =
-        static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+        ServingInvocation(p, stage.gemm);
     int rows = stage.batch_rows ? p.dims.batch : p.dims.tokens();
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     // DM forward rows can be image pixels or bound slots rather than tokens.
@@ -66,7 +66,7 @@ struct GemmCombineTaskBody {
                                            StageDesc const& stage,
                                            SmemUnion& smem, int task) {
     auto const& invocation =
-        static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+        ServingInvocation(p, stage.gemm);
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     if (invocation.dm_enabled) {
       using V = GemmVariant<Variant>;
@@ -104,7 +104,7 @@ struct GemmCombineTaskBody {
                                           StageDesc const& stage,
                                           SmemUnion& smem, int task) {
     auto const& invocation =
-        static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+        ServingInvocation(p, stage.gemm);
     if (invocation.variant == Variant) {
       RunServingVariant<Variant>(p, stage, smem, task);
     } else if constexpr (Variant + 1 < TILEMEGA_GEMM_VARIANT_COUNT) {
@@ -121,7 +121,7 @@ struct GemmCombineTaskBody {
                                  int row, int col, float sum) {
 #if TILEMEGA_MIDPOINT_REFINE
     auto const& invocation =
-        static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+        ServingInvocation(p, stage.gemm);
     return RefinedGemmElement(invocation, row, col, sum);
 #else
     (void)p; (void)stage; (void)row; (void)col;
@@ -134,7 +134,7 @@ struct GemmCombineTaskBody {
 #if TILEMEGA_FP32_PARTIALS && TILEMEGA_MODEL_BF16
     // Preserve the exported Linear -> BF16 -> residual-add boundary, but
     // round only the complete GEMM sum, never each partial or partial+residual.
-    auto const& invocation = static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+    auto const& invocation = ServingInvocation(p, stage.gemm);
     ModelElement rounded(sum);
     return invocation.residual_beta == 0 ? rounded : ModelElement(
         static_cast<float>(rounded) + invocation.residual_beta *
@@ -148,7 +148,7 @@ struct GemmCombineTaskBody {
                                             StageDesc const& stage) {
     if (p.ownership_flags & kCombinerTileOwnership) {
       auto const& invocation =
-          static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+          ServingInvocation(p, stage.gemm);
       return {TaskOwnershipKind::kTilePerBlock,
               invocation.tiles_m * invocation.tiles_n};
     }
@@ -170,7 +170,7 @@ struct GemmCombineTaskBody {
     TILEMEGA_PHASE_SIMT_SETUP();
     if (p.ownership_flags & kCombinerTileOwnership) {
       auto const& invocation =
-          static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+          ServingInvocation(p, stage.gemm);
       int const tile_elements = invocation.tile_m * invocation.tile_n;
       int tile_m = task / invocation.tiles_n;
       int tile_n = task % invocation.tiles_n;
@@ -201,7 +201,7 @@ struct GemmCombineTaskBody {
   __device__ static int TaskCount(Params const& p, StageDesc const& stage) {
     if (p.ownership_flags & kCombinerTileOwnership) {
       auto const& invocation =
-          static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+          ServingInvocation(p, stage.gemm);
       return invocation.tiles_m * invocation.tiles_n;
     }
     int count = p.dims.tokens() * static_cast<int>(stage.width);

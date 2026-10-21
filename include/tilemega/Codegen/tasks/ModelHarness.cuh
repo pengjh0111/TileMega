@@ -577,7 +577,7 @@ __device__ inline void FinishNonpagedTask(Params const& p,unsigned index,
 #endif
 __device__ inline void RunStage(Params const& p, std::uint32_t index,
                                 TaskSmem& smem TILEMEGA_REDUCTION_ARG) {
-  StageDesc const& stage = p.stages[index];
+  StageDesc const& stage = ServingStage(p, index);
 #if TILEMEGA_DIAG_EMPTY_KINDS
   // Diagnostic only, like TILEMEGA_DIAG_DROP_KINDS: the stage keeps its
   // barrier and runs no task, so the TPOT difference is its task time.
@@ -590,7 +590,7 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
     case TaskKind::kGemm:
 #if TILEMEGA_TRACE_TASK || TILEMEGA_EP_PARALLEL_ARGMAX || (TILEMEGA_NONPAGED_LA && !TILEMEGA_PAGED)
       {
-        auto const& inv=static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
+        auto const& inv=ServingInvocation(p,stage.gemm);
         int count=inv.tiles_m*inv.tiles_n*inv.chunks;
         for(int ordinal=PlacedBlock();ordinal<ServingL1TaskLimit(p,stage,count);ordinal+=gridDim.x) {
           int task=ServingL1Task(p,stage,ordinal);
@@ -1689,9 +1689,16 @@ __device__ inline void RunReductionStage(Params const& p,unsigned stage,TaskSmem
 #endif
 
 __device__ inline void GridBarrier(EventCounter* events, std::uint32_t stage,
-                                   unsigned long long iteration,Params const* params=nullptr) {
+                                   unsigned long long iteration,Params const* params=nullptr,
+                                   bool prefetch_next=false) {
 #if TILEMEGA_SYNC_V3 && !TILEMEGA_UNSAFE_NO_GRID_SYNC
   __syncthreads();
+#if TILEMEGA_STAGE_DESC_CACHE
+  // Every task of this CTA has finished, so the cache is free to refill.
+  if(prefetch_next && params)PrefetchStageDesc(*params,stage+1);
+#else
+  (void)prefetch_next;
+#endif
   if(threadIdx.x==0) {
     RedRelease(&events[stage].arrivals,1ull);
     executor::StageTasksEnd(params,stage,iteration);
@@ -1737,6 +1744,10 @@ __device__ inline void GridBarrier(EventCounter* events, std::uint32_t stage,
 __global__ __launch_bounds__(kHarnessThreads, TILEMEGA_MIN_BLOCKS_PER_SM)
 void tilemega_stage_kernel(Params const* params, std::uint32_t stage) {
   extern __shared__ unsigned char bytes[];
+#if TILEMEGA_STAGE_DESC_CACHE
+  StageDescCacheReset();
+  __syncthreads();
+#endif
   RunStage(*params, stage, *reinterpret_cast<TaskSmem*>(bytes));
 }
 
@@ -1786,6 +1797,11 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
   ServingPdlEnter(*params);
   executor::StepBegin(*params,iteration);
   extern __shared__ unsigned char bytes[];
+#if TILEMEGA_STAGE_DESC_CACHE
+  StageDescCacheReset();
+  params = CacheParams(params);
+  __syncthreads();
+#endif
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   for (std::uint32_t stage = 0; stage < params->stage_count; ++stage) {
 #if TILEMEGA_NONPAGED_LA || TILEMEGA_DM_REDUCTIONS
@@ -1810,7 +1826,7 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
     prefetch::NextStage(*params,stage+1);
     prefetch::Wait(events,stage,iteration,params);
 #else
-    GridBarrier(events, stage, iteration,params);
+    GridBarrier(events, stage, iteration,params,true);
 #endif
     executor::StageRelease(*params,stage,iteration);
   }
@@ -1825,13 +1841,25 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
     unsigned long long* step_ns) {
   ServingPdlEnter(params[0]);
   extern __shared__ unsigned char bytes[];
+#if TILEMEGA_STAGE_DESC_CACHE
+  StageDescCacheReset();
+  __syncthreads();
+#endif
   auto& smem=*reinterpret_cast<TaskSmem*>(bytes);
   if(blockIdx.x==0 && threadIdx.x==0 && step_ns) {
     unsigned long long now=maca::GlobalTimerNs();
     step_ns[0]=now;
   }
   for(unsigned step=0;step<steps;++step) {
+#if TILEMEGA_STAGE_DESC_CACHE
+    // Every thread is past the previous step's last barrier before the copy
+    // is replaced.
+    __syncthreads();
+    Params const& p=*CacheParams(params+step);
+    __syncthreads();
+#else
     Params const& p=params[step];
+#endif
     auto iteration=base_iteration+step;
     executor::StepBegin(p,iteration);
     for(unsigned stage=0;stage<p.stage_count;++stage) {
@@ -1876,7 +1904,7 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
 #if TILEMEGA_TRACE_STEP
       auto barrier_begin=executor::ServingTraceNow();
 #endif
-      GridBarrier(events,stage,iteration,&p);
+      GridBarrier(events,stage,iteration,&p,true);
 #if TILEMEGA_TRACE_STEP
       if(stage+1==p.stage_count && threadIdx.x==0)
         executor::StepDelay(p,iteration,2,barrier_begin);
@@ -1940,6 +1968,10 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
   ServingPdlEnter(*params);
   executor::StepBegin(*params,iteration);
   extern __shared__ unsigned char bytes[];
+#if TILEMEGA_STAGE_DESC_CACHE
+  StageDescCacheReset();
+  __syncthreads();
+#endif
   auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
   using CS = ClusterSync<arch::CurrentArch>;
   if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled && !TILEMEGA_MOE_DYNAMIC) {

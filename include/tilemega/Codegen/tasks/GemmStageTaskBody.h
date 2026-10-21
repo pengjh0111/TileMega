@@ -573,6 +573,98 @@ struct GemmInvocation {
 #endif
 };
 
+#ifndef TILEMEGA_STAGE_DESC_CACHE
+#define TILEMEGA_STAGE_DESC_CACHE (TILEMEGA_SERVING_RUNTIME && !TILEMEGA_PAGED)
+#endif
+#if TILEMEGA_STAGE_DESC_CACHE
+/// MX3-4: a CTA's copy of the next stage's descriptor and of the GEMM
+/// invocation its first task of that stage reads. Measured on Qwen3-0.6B B1
+/// (TILEMEGA_DIAG_* plans), a task spends ~2.7 us (GEMM) or ~1.8 us
+/// (split-K combine) walking dependent descriptor loads before it touches
+/// data. The descriptors are read-only during a launch, so the second wave
+/// copies them while thread 0 waits at the grid barrier (PrefetchStageDesc);
+/// each copy is keyed by the global entry it holds, and a lookup that does
+/// not match reads the table as before.
+// Raw storage: __shared__ variables take no initializer, and both
+// descriptors have default member initializers.
+struct StageDescCache {
+  alignas(16) unsigned char stage[sizeof(StageDesc)];
+  alignas(16) unsigned char invocation[sizeof(GemmInvocation)];
+  StageDesc const* stage_source;
+  GemmInvocation const* invocation_source;
+};
+static __shared__ StageDescCache g_stage_cache;
+__device__ __forceinline__ void StageDescCacheReset() {
+  if (threadIdx.x == 0) {
+    g_stage_cache.stage_source = nullptr;
+    g_stage_cache.invocation_source = nullptr;
+  }
+}
+#endif
+#if TILEMEGA_STAGE_DESC_CACHE
+// The launch's Params block (288 bytes), read by every descriptor lookup of
+// every task; the L1 kernels copy it once per step and run from the copy.
+static __shared__ alignas(16) unsigned char g_params_copy[sizeof(Params)];
+/// All threads copy; the caller synchronizes before and after.
+__device__ inline Params const* CacheParams(Params const* source) {
+  static_assert(sizeof(Params) % 4 == 0);
+  using Word = __attribute__((address_space(1))) unsigned const;
+  for (int w = int(threadIdx.x); w < int(sizeof(Params) / 4); w += int(blockDim.x))
+    reinterpret_cast<unsigned*>(g_params_copy)[w] = ((Word*)source)[w];
+  return reinterpret_cast<Params const*>(g_params_copy);
+}
+#endif
+__device__ __forceinline__ StageDesc const& ServingStage(Params const& p, unsigned index) {
+#if TILEMEGA_STAGE_DESC_CACHE
+  if (g_stage_cache.stage_source == p.stages + index)
+    return *reinterpret_cast<StageDesc const*>(g_stage_cache.stage);
+#endif
+  return p.stages[index];
+}
+__device__ __forceinline__ GemmInvocation const& ServingInvocation(Params const& p, unsigned index) {
+  auto const* entry = static_cast<GemmInvocation const*>(p.gemms) + index;
+#if TILEMEGA_STAGE_DESC_CACHE
+  if (g_stage_cache.invocation_source == entry)
+    return *reinterpret_cast<GemmInvocation const*>(g_stage_cache.invocation);
+#endif
+  return *entry;
+}
+#if TILEMEGA_STAGE_DESC_CACHE
+/// Run by every thread once its CTA has finished the current stage (inside
+/// the grid barrier, between its two CTA barriers); only the second wave
+/// works, so the first wave's thread 0 is free to arrive and wait.
+__device__ inline void PrefetchStageDesc(Params const& p, unsigned next) {
+  int const lane = int(threadIdx.x) - 64;
+  if (lane < 0 || next >= p.stage_count) return;
+  static_assert(sizeof(StageDesc) % 4 == 0 && sizeof(GemmInvocation) % 4 == 0);
+  using Word = __attribute__((address_space(1))) unsigned const;
+  auto const* stage = p.stages + next;
+  auto copy = [&](void* to, void const* from, int words) {
+    for (int w = lane; w < words; w += 64)
+      static_cast<unsigned*>(to)[w] = ((Word*)from)[w];
+  };
+  copy(g_stage_cache.stage, stage, int(sizeof(StageDesc) / 4));
+  auto const* table = static_cast<GemmInvocation const*>(p.gemms);
+  GemmInvocation const* entry = nullptr;
+  if (stage->kind == TaskKind::kGemmCombine) {
+    entry = table + stage->gemm;
+  } else if (stage->kind == TaskKind::kGemm) {
+    // The first task this CTA runs, as GemmStageTaskBody's stage loop and
+    // RunLogicalTask map it.
+    auto const& base = table[stage->gemm];
+    int const tiles = base.tiles_m * base.tiles_n;
+    int const task = PlacedBlock();
+    if (task < tiles * base.chunks)
+      entry = table + stage->gemm + DecodeSplitTask(task, tiles, base.chunks).chunk;
+  }
+  if (entry) copy(g_stage_cache.invocation, entry, int(sizeof(GemmInvocation) / 4));
+  if (lane == 0) {
+    g_stage_cache.stage_source = stage;
+    g_stage_cache.invocation_source = entry;
+  }
+}
+#endif
+
 /// The exact dot product behind one output element. A BF16 product is exact in
 /// FP64, so the only error left is the FP64 summation, some 2^-40 of the FP32
 /// one; it settles the BF16 rounding the FP32 accumulator could not.
@@ -774,12 +866,12 @@ struct GemmStageTaskBody {
                                         ,ServingTaskProfile* profile=nullptr
 #endif
                                         ) {
-    auto const* table = static_cast<GemmInvocation const*>(p.gemms);
-    int const tiles = table[stage.gemm].tiles_m * table[stage.gemm].tiles_n;
+    auto const& base = ServingInvocation(p, stage.gemm);
+    int const tiles = base.tiles_m * base.tiles_n;
     // CG appends the split axis: row-major task ids are (m,n,chunk).
-    auto const coordinate = DecodeSplitTask(task,tiles,table[stage.gemm].chunks);
+    auto const coordinate = DecodeSplitTask(task,tiles,base.chunks);
     int const local = coordinate.tile;
-    auto const& invocation = table[stage.gemm + coordinate.chunk];
+    auto const& invocation = ServingInvocation(p, stage.gemm + coordinate.chunk);
     char* shared = reinterpret_cast<char*>(&smem.gemm);
 #if TILEMEGA_GEMM_VARIANT_COUNT == 1
     RunTask<0>(invocation, local, shared, nullptr TILEMEGA_PHASE_PASS
@@ -904,9 +996,9 @@ struct GemmStageTaskBody {
 
   __device__ void operator()(Params const& p, StageDesc const& stage,
                              SmemUnion& smem) const {
-    auto const* table = static_cast<GemmInvocation const*>(p.gemms);
-    int const tiles = table[stage.gemm].tiles_m * table[stage.gemm].tiles_n;
-    int const count = tiles * table[stage.gemm].chunks;
+    auto const& base = ServingInvocation(p, stage.gemm);
+    int const tiles = base.tiles_m * base.tiles_n;
+    int const count = tiles * base.chunks;
     // Grid-stride over the whole task space. `Ownership` exceeds the resident
     // grid whenever a narrow N tile meets a large split-K factor, and without
     // the stride those tasks are simply never run -- a silently wrong result,
