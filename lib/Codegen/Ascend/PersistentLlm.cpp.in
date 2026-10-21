@@ -6,6 +6,7 @@
 #endif
 #include <tilemega/Backend/Ascend/GemmTile.h>
 #include <tilemega/Backend/Ascend/LlmServingBody.h>
+#include <tilemega/Backend/Ascend/LlmCubeBody.h>
 #include <tilemega/Target/Ascend/LlmExecutor.h>
 #include <tilemega/Target/Ascend/LlmRequestHost.h>
 #include <acl/acl.h>
@@ -19,16 +20,7 @@
 #include <vector>
 
 using namespace tilemega::ascend;
-struct CubeBody {
-  GemmTile<bfloat16_t,bfloat16_t,TILEMEGA_LLM_TM,TILEMEGA_LLM_TN,TILEMEGA_LLM_TK,true> gemm;
-  __aicore__ inline bool Run(llm::Stage const& s,unsigned tile,GM_ADDR arena) {
-    if(s.kind!=0 || tile>=s.tasks || s.variant!=TILEMEGA_LLM_VARIANT || s.k%16)return false;
-    unsigned nt=(s.columns+TILEMEGA_LLM_TN-1)/TILEMEGA_LLM_TN;
-    gemm.RunTask(arena+s.operands[0],arena+s.operands[1],arena+(s.epilogue?s.workspace:s.operands[3]),
-      s.rows,s.columns,s.k,tile/nt,tile%nt);
-    CompleteDma<AscendC::HardEvent::FIX_S>();return true;
-  }
-};
+using CubeBody=LlmCubeBody<TILEMEGA_LLM_TM,TILEMEGA_LLM_TN,TILEMEGA_LLM_TK,TILEMEGA_LLM_VARIANT>;
 __global__ __aicore__ __mix__(1,2) __schedmode__(1)
 void tilemega_llm(GM_ADDR arena,GM_ADDR metadata,GM_ADDR stages,GM_ADDR tasks,GM_ADDR waits,
     GM_ADDR offsets,GM_ADDR queue,GM_ADDR controls,GM_ADDR scratch,GM_ADDR trace,
@@ -89,7 +81,7 @@ int main(int argc,char** argv) {
         !m.arena_bytes || m.arena_bytes>(64ULL<<30) || (m.worker_scratch_bytes!=32768 && m.worker_scratch_bytes!=131072) ||
         m.wait_ticks!=2000000000ULL || m.diagnostic>1 || diagnostic>1 || !forwards || uint64_t(past)+m.seq+forwards-1>=m.capacity ||
         (m.seq==64 && (forwards!=1 || past || m.worker_scratch_bytes<98304)) ||
-        uint64_t(forwards)*m.epoch_stride+m.epoch_stride-1>UINT32_MAX || std::filesystem::exists(out))
+        uint64_t(forwards)*m.epoch_stride+m.epoch_stride-1>UINT32_MAX/4 || std::filesystem::exists(out))
       throw std::invalid_argument("Unsupported/broken native LLM metadata or forward range");
     if(!m.diagnostic) {
       auto bounds=Read<uint32_t>(plan/"pricing_bounds.bin");
@@ -170,8 +162,13 @@ int main(int argc,char** argv) {
     for(unsigned id=0;id<allocations.size();++id) {
       auto const& a=allocations[id];Check(aclrtMemcpy(guard.data(),512,da+a.offset+a.bytes,512,ACL_MEMCPY_DEVICE_TO_HOST),"read guard");
       if(!std::all_of(guard.begin(),guard.end(),[](auto b){return b==0xa5;}))throw std::runtime_error("Model buffer guard overwritten: "+std::to_string(id));
-      bool logits=false;for(auto const& stage:stages)if(stage.kind==0 && stage.epilogue==3 && stage.workspace==a.offset)logits=true;
-      if(!a.required && (a.bytes<=1048576 || logits)) {
+      bool logits=false,small_kv=false;
+      for(auto const& stage:stages) {
+        if(stage.kind==0 && stage.epilogue==3 && stage.workspace==a.offset)logits=true;
+        if(diagnostic && stage.kind==13 && (stage.operands[1]==a.offset || stage.operands[2]==a.offset) &&
+            a.bytes<=8ULL*1048576)small_kv=true;
+      }
+      if((!a.required && (a.bytes<=1048576 || logits)) || small_kv) {
         std::vector<uint8_t> data(a.bytes);Check(aclrtMemcpy(data.data(),data.size(),da+a.offset,data.size(),ACL_MEMCPY_DEVICE_TO_HOST),"read diagnostic buffer");
         Save(out/(std::to_string(id)+".bin"),data.data(),data.size());
       }

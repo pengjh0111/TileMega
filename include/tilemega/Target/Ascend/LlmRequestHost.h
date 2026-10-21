@@ -75,6 +75,11 @@ struct Plan {
         throw std::invalid_argument("Request GEMM geometry differs from compiled Body");
       for(auto offset:s.operands)if(!valid(offset))throw std::invalid_argument("Unbound request operand");
       if(!valid(s.workspace))throw std::invalid_argument("Unbound request workspace");
+      if(s.kind==13 && s.variant==4) {
+        auto found=std::find_if(allocations.begin(),allocations.end(),[&](auto const& a){return a.offset==s.workspace;});
+        if(found==allocations.end() || found->bytes<uint64_t(m.groups)*llm::attention::kGroupBytes)
+          throw std::invalid_argument("Cooperative attention lacks its per-group workspace");
+      }
     }
     for(unsigned w=0;w<m.workers;++w) {
       if(offsets[w]>offsets[w+1])throw std::invalid_argument("Invalid request FIFO");
@@ -180,7 +185,7 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
       pre.minimum_past || dec.minimum_past>64 || outputs+62>dec.maximum_past ||
       pre.m.arena_bytes!=dec.m.arena_bytes || pre.allocations.size()!=dec.allocations.size() ||
       std::memcmp(pre.allocations.data(),dec.allocations.data(),pre.allocations.size()*sizeof(llm::Allocation)) ||
-      uint64_t(outputs)*dec.m.epoch_stride+dec.m.epoch_stride-1>UINT32_MAX)
+      uint64_t(outputs)*dec.m.epoch_stride+dec.m.epoch_stride-1>UINT32_MAX/4)
     throw std::invalid_argument("Incompatible shared plans or bounded request arguments");
   auto reset=Read<uint32_t>(binding/"reset.bin");
   if(reset.size()<2 || reset.size()!=2ULL+reset[1] || reset[0]>=pre.allocations.size())

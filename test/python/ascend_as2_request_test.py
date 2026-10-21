@@ -74,6 +74,26 @@ class RequestBindingTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'different compiled GEMM geometries'):
             bind(self.pre,self.dec,self.inputs,self.root/'bad')
 
+    def abi4(self):
+        for path in (self.pre,self.dec):
+            metadata=list(struct.unpack('<12I3Q',(path/'metadata.bin').read_bytes()));metadata[0]=4
+            (path/'metadata.bin').write_bytes(struct.pack('<12I3Q',*metadata))
+        p=self.inputs/'inputs.json';x=json.loads(p.read_text());x['metadata_sha256']=digest(self.pre/'metadata.bin');p.write_text(json.dumps(x))
+
+    def test_abi4_relocation_preserves_phase_identity(self):
+        self.abi4();out=self.root/'abi4';bind(self.pre,self.dec,self.inputs,out)
+        for phase,path in [('prefill',self.pre),('decode',self.dec)]:
+            self.assertEqual(struct.unpack('<I',(out/phase/'metadata.bin').read_bytes()[:4])[0],4)
+            self.assertEqual(digest(path/'tasks.bin'),digest(out/phase/'tasks.bin'))
+
+    def test_reject_mixed_phase_abi(self):
+        self.abi4();p=self.dec/'metadata.bin';m=list(struct.unpack('<12I3Q',p.read_bytes()));m[0]=3;p.write_bytes(struct.pack('<12I3Q',*m))
+        with self.assertRaisesRegex(ValueError,'same validated worker topology'):bind(self.pre,self.dec,self.inputs,self.root/'bad')
+
+    def test_reject_old_prices_after_abi_change(self):
+        self.abi4();self.priced()
+        with self.assertRaisesRegex(ValueError,'different runtime ABI'):bind(self.pre,self.dec,self.inputs,self.root/'bad')
+
     def priced(self):
         for phase,path in [('prefill',self.pre),('decode',self.dec)]:
             metadata=list(struct.unpack('<12I3Q',(path/'metadata.bin').read_bytes()));metadata[11]=0

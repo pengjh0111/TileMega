@@ -24,7 +24,7 @@ int main(int argc,char** argv) {
     bool emit=priced || ((argc>=6 && argc<=9) && std::string(argv[1])=="emit-diagnostic");
     bool prepare=emit || (argc==6 && std::string(argv[1])=="prepare");
     if(!prepare && (argc!=5 || std::string(argv[1])!="inspect"))
-      throw std::invalid_argument("usage: as2_compile_llm inspect export new_output batch; or prepare|emit-diagnostic export new_output batch groups [diagnostic_kv_block] [gemm_tile_n:64|128] [attention:bf16|fp32|fp32-scores|math-sdpa]; or emit-priced export new_output batch groups kv_block tile_n attention measured_prices.json");
+      throw std::invalid_argument("usage: as2_compile_llm inspect export new_output batch; or prepare|emit-diagnostic export new_output batch groups [diagnostic_kv_block] [gemm_tile_n:64|128] [attention:bf16|fp32|fp32-scores|math-sdpa|cube-fp32]; or emit-priced export new_output batch groups kv_block tile_n attention measured_prices.json");
     namespace fs=std::filesystem;
     auto root=fs::path("/home/d50064638/junhuip/TileMega/runs/as2");
     auto input=fs::weakly_canonical(argv[2]),output=fs::weakly_canonical(argv[3]);
@@ -52,8 +52,8 @@ int main(int argc,char** argv) {
     unsigned attention_precision=0;
     if(emit && argc>=9) {
       std::string attention=argv[8];
-      if(attention!="bf16" && attention!="fp32" && attention!="fp32-scores" && attention!="math-sdpa")throw std::invalid_argument("Unknown attention implementation precision");
-      attention_precision=attention=="fp32"?1:attention=="fp32-scores"?2:attention=="math-sdpa"?3:0;
+      if(attention!="bf16" && attention!="fp32" && attention!="fp32-scores" && attention!="math-sdpa" && attention!="cube-fp32")throw std::invalid_argument("Unknown attention implementation precision");
+      attention_precision=attention=="fp32"?1:attention=="fp32-scores"?2:attention=="math-sdpa"?3:attention=="cube-fp32"?4:0;
     }
     auto start=std::chrono::steady_clock::now();
     tilemega::analysis::IslContext isl;
@@ -157,7 +157,8 @@ int main(int argc,char** argv) {
         for(auto const& s:plan.stages) {
           using R=tilemega::ascend::ImplementationRole;
           roles.push_back(s.kind==tilemega::frontend::PlanTaskKind::kGemm?
-            (plan.gemms.at(s.gemm).epilogue==tilemega::frontend::PlanGemm::Epilogue::kStore?R::kAicOnly:R::kMix1_2):R::kAivOnly);
+            (plan.gemms.at(s.gemm).epilogue==tilemega::frontend::PlanGemm::Epilogue::kStore?R::kAicOnly:R::kMix1_2):
+            s.kind==tilemega::frontend::PlanTaskKind::kFusedAttention && attention_precision==4?R::kMix1_2:R::kAivOnly);
         }
         skeleton.BindAscendWorkers(workers,roles,true);
         std::vector<tilemega::solver::AscendServicePrice> unknown(problem.offsets.back());
@@ -177,6 +178,8 @@ int main(int argc,char** argv) {
               prices.At("batch").AsNumber("batch")!=batch || prices.At("seq").AsNumber("seq")!=dims.seq ||
               prices.At("groups").AsNumber("groups")!=groups || prices.At("phase").AsString("phase")!=phase)
             throw std::invalid_argument("Native empirical prices do not describe this model/phase/topology");
+          if(prices.At("runtime_abi").AsNumber("runtime ABI")!=tilemega::ascend::llm::kVersion)
+            throw std::invalid_argument("Native service prices belong to another runtime ABI");
           auto const& rows=prices.At("stages").AsArray("stage prices");
           if(rows.size()!=problem.counts.size())throw std::invalid_argument("Incomplete native price domain");
           for(unsigned s=0;s<rows.size();++s) {
@@ -246,7 +249,7 @@ int main(int argc,char** argv) {
         Write(output/"schedule.json",diagnostic_schedule.Dump());
         Write(output/"persistent_llm.cpp",tilemega::codegen::LowerAscendLlm(native));
         result.Set("native_plan_materialized",true);
-        result.Set("attention_implementation",attention_precision==1?"fp32_chunk32_merge":attention_precision==2?"fp32_scores_bf16_probability":attention_precision==3?"math_sdpa_fp32_split_scale":"bf16_scores_probabilities");
+        result.Set("attention_implementation",attention_precision==1?"fp32_chunk32_merge":attention_precision==2?"fp32_scores_bf16_probability":attention_precision==3?"math_sdpa_fp32_split_scale":attention_precision==4?"mix_fp32_cube_qk_vector_softmax_pv":"bf16_scores_probabilities");
         result.Set("selection",priced?selected_algorithm:"diagnostic_unpriced_bootstrap_not_optimized");
         result.Set("priced_solver_executed",priced);
         if(priced)result.Set("price_provenance",prices);

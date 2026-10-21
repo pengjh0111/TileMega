@@ -24,7 +24,7 @@ def bind(prefill, decode, inputs, out):
     for phase,path,seq in [('prefill',prefill,64),('decode',decode,1)]:
         imported=json.loads((path.parent/'import.json').read_text())
         m=list(struct.unpack('<12I3Q',(path/'metadata.bin').read_bytes()))
-        if m[0] not in (2,3) or m[9]!=seq or m[10]!=1088 or m[8]!=identity['batch']:
+        if m[0] not in (2,3,4) or m[9]!=seq or m[10]!=1088 or m[8]!=identity['batch']:
             raise ValueError('Incompatible phase ABI')
         if m[11] not in (0,1):raise ValueError('Unknown phase pricing mode')
         if imported['phase']!=phase or imported['model_id']!=identity['model_id'] or imported['config_sha256']!=identity['config_sha256']:
@@ -32,6 +32,8 @@ def bind(prefill, decode, inputs, out):
         if not m[11]:
             bounds=struct.unpack('<4I',(path/'pricing_bounds.bin').read_bytes())
             prices=json.loads((path/'prices.json').read_text())
+            if m[0]>=4 and prices.get('runtime_abi')!=m[0]:
+                raise ValueError('Empirical prices use a different runtime ABI')
             if bounds[0]!=1 or bounds[1]!=0 or bounds[2]>1086 or bounds[3]!=m[1] or (seq==64 and bounds[2]) or not imported.get('priced_solver_executed'):
                 raise ValueError('Invalid empirical pricing bounds/provenance')
             for key,value in dict(model_id=identity['model_id'],config_sha256=identity['config_sha256'],batch=m[8],seq=seq,groups=m[1],phase=phase,past_min=0,past_max=bounds[2]).items():
