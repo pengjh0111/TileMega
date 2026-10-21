@@ -1,0 +1,15 @@
+tag,model_batch,binary_sha256,ptxas_registers,stack_bytes,spill_store_bytes,spill_load_bytes,shared_bytes,ldl_stl,traps,evidence,raw_table
+E25C1,llama3_2_1b-B1,aedcadaad58e0d8d2249e59a1ed51cf02826e005d8704ec4499adf0dbcb4153f,153,0,0,0,230528,0,0,verified compilation and SASS; diagnostic only,runs/sm90r2/E25-resources.csv
+E25C2,llama3_2_1b-B1,8008d03080f816ac2315c145ffbbc9b67c2bd4a02ef073b4b8ebda2a8d9e1a11,154,0,0,0,230528,0,0,verified compilation and SASS; diagnostic only,runs/sm90r2/E25-resources.csv
+E25C3,llama3_2_1b-B1,d27f59c9c8953ff92e62b8613bfe83383944837a4beb57eb8334ff19f962c7f9,154,0,0,0,230528,0,0,verified compilation and SASS; diagnostic only,runs/sm90r2/E25-resources.csv
+E25C4,llama3_2_1b-B1,0daf1233efb7252e23f42f953934abcc1df0dded6672100eaa14be288be9a630,156,0,0,0,230528,0,0,verified compilation and SASS; diagnostic only,runs/sm90r2/E25-resources.csv
+E25C5,llama3_2_1b-B1,bfdda2ab5da3968c2b08bf38aa00d8639924726c705727e2a6bf2441756d9677,151,0,0,0,68736,0,0,verified compilation and SASS; diagnostic only,runs/sm90r2/E25-resources.csv
+E25C6,llama3_2_1b-B1,27daf1785dba765175544b608340302f4b8e10d6ddbfe3a05bd4040dd63a66a3,156,0,0,0,110720,0,0,verified compilation and SASS; diagnostic only,runs/sm90r2/E25-resources.csv
+E25C7,llama3_2_1b-B1,651a0ddd8ed8e3bfee2dd40308ed535910425733c683bfe560a7b8161283e1a5,153,0,0,0,230528,0,0,verified compilation and SASS; diagnostic only,runs/sm90r2/E25-resources.csv
+E25C1,qwen3_0_6b-B16,b5208b86988ea42250b93374659f8b5df9e936c28ae61e76dfc84b9196cd311f,178,1696,0,0,215168,286,0,verified compilation and SASS; diagnostic only,runs/sm90r2/E25-resources.csv
+E25C2,qwen3_0_6b-B16,59ac3f834985adde48cfdddb4dcdd5ce99d94ffb224752c7814ac0967ec422c4,178,1696,0,0,215168,286,0,verified compilation and SASS; diagnostic only,runs/sm90r2/E25-resources.csv
+E25C3,qwen3_0_6b-B16,2a31971827a7762fa5ad42793f304bc0446805849505b49d471b9361cc0c3c00,178,1696,0,0,215168,286,0,verified compilation and SASS; diagnostic only,runs/sm90r2/E25-resources.csv
+E25C4,qwen3_0_6b-B16,1230ae13f6398eeb70b0539437d3f485d7ff499d4005744dde254cfd85d1a2b3,170,0,0,0,230528,0,0,verified compilation and SASS; diagnostic only,runs/sm90r2/E25-resources.csv
+E25C5,qwen3_0_6b-B16,7c0f4fd07af6208f8d52c28d72fcd6832969733111cfd99314905c6769efd3cc,162,0,0,0,108144,0,0,verified compilation and SASS; diagnostic only,runs/sm90r2/E25-resources.csv
+E25C6,qwen3_0_6b-B16,56d3314db5584e381f201035f7d5e661fe42b33026ba7d916fa8d9226261a8a4,165,0,0,0,108144,0,0,verified compilation and SASS; diagnostic only,runs/sm90r2/E25-resources.csv
+E25C7,qwen3_0_6b-B16,f1d135dcd3424344cd786eb5cbad937755c9dd329261e254543efa1a46e81319,178,1696,0,0,215168,286,0,verified compilation and SASS; diagnostic only,runs/sm90r2/E25-resources.csv
