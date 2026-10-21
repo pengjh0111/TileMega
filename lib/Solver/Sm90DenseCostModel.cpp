@@ -202,7 +202,7 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
           fraction*tile_stream*Coefficient(s.key,(g.preissue_late || payload.Overlaps(previous))?
               "tail_efficiency":"preissue_efficiency")+
           double(g.prefetch_l2_bytes)/bw*Coefficient(s.key,"l2_efficiency"));
-      s.startup+=((g.preissue_smem_bytes>0)+(g.prefetch_l2_bytes>0))*
+      s.issue=((g.preissue_smem_bytes>0)+(g.prefetch_l2_bytes>0))*
           Coefficient(s.key,"issue_ns");
     }else {
       auto const& a=c.attention;s.kind="attention";s.key=AttentionKey(w);
@@ -227,10 +227,10 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
           Coefficient(s.key,(a.preissue_late || payload.Overlaps(previous))?"tail_efficiency":"preissue_efficiency")+
           double(a.prefetch_l2_bytes)/global_bw*std::min(grid,s.tasks)*
               Coefficient(s.key,"l2_efficiency"));
-      s.startup+=((a.preissue_smem_bytes>0)+(a.prefetch_l2_bytes>0))*Coefficient(s.key,"issue_ns");
+      s.issue=((a.preissue_smem_bytes>0)+(a.prefetch_l2_bytes>0))*Coefficient(s.key,"issue_ns");
     }
     s.ns=barrier+s.startup+std::max(s.flow,s.compute)+s.epilogue-s.overlap;
-    result.step_ns+=s.ns*s.instances;result.stages.push_back(std::move(s));
+    result.stages.push_back(std::move(s));
   }
   for(auto kind:{"embedding","argmax"}) {
     Sm90DensePrediction::Stage s;s.kind=kind;s.key=std::string("native_")+kind;
@@ -238,8 +238,18 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
     s.startup=Coefficient(s.key,"startup_ns");
     s.compute=Coefficient(s.key,"per_element_ns")*(s.kind=="embedding"?
         w.shapes[0][1]:(w.shapes[4][0]+c.gemms[4].tile_n-1)/c.gemms[4].tile_n);
-    s.ns=s.barrier+s.startup+s.compute;result.step_ns+=s.ns;result.stages.push_back(s);
+    s.ns=s.barrier+s.startup+s.compute;result.stages.push_back(s);
   }
+  // A stage's incoming transfer is issued by its predecessor. The first qkv
+  // follows embedding; the final down issues lm_head rather than another qkv.
+  // Class means retain both boundary cases without charging the receiver.
+  auto& stages=result.stages;
+  std::array<double,6> incoming{};
+  for(unsigned i=0;i<incoming.size();++i)incoming[i]=stages[i].issue;
+  for(unsigned i=0;i<4;++i)stages[i].issue=incoming[i+1];
+  stages[4].issue=(incoming[0]*(w.layers-1)+incoming[5])/w.layers;
+  stages[5].issue=0;stages[6].issue=incoming[0];
+  for(auto& s:stages) {s.ns+=s.issue;result.step_ns+=s.ns*s.instances;}
   return result;
 }
 Sm90DensePrediction Sm90DenseCostModel::Request(Sm90DenseWorkload const& w,
@@ -254,7 +264,7 @@ Sm90DensePrediction Sm90DenseCostModel::Request(Sm90DenseWorkload const& w,
       result=sample;result.step_ns=0;
       for(auto& s:result.stages)
         s.ns=s.barrier=s.startup=s.initialization=s.dram=s.stream=s.flow=
-            s.activation=s.compute=s.epilogue=s.overlap=0;
+            s.activation=s.compute=s.epilogue=s.overlap=s.issue=0;
     }
     for(unsigned j=0;j<sample.stages.size();++j) {
       auto& out=result.stages[j];auto const& in=sample.stages[j];
@@ -266,6 +276,7 @@ Sm90DensePrediction Sm90DenseCostModel::Request(Sm90DenseWorkload const& w,
       out.activation+=in.activation/intervals;
       out.compute+=in.compute/intervals;out.epilogue+=in.epilogue/intervals;
       out.overlap+=in.overlap/intervals;
+      out.issue+=in.issue/intervals;
     }
     result.step_ns+=sample.step_ns/intervals;
   }
@@ -280,7 +291,8 @@ json::Value Sm90DensePrediction::ToJson() const {
       {"dram_ns",s.dram},{"flow_ns",s.flow},
       {"stream_ns",s.stream},
       {"activation_ns",s.activation},
-      {"compute_ns",s.compute},{"epilogue_ns",s.epilogue},{"overlap_ns",s.overlap}});
+      {"compute_ns",s.compute},{"epilogue_ns",s.epilogue},{"overlap_ns",s.overlap},
+      {"issue_ns",s.issue}});
   return json::Object{{"step_ns",step_ns},{"evidence","inferred prediction from native calibration"},
       {"stages",values}};
 }

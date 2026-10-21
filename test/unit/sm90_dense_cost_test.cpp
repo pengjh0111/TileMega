@@ -75,6 +75,30 @@ int main() {
   auto full_batch=w;full_batch.batch=16;
   auto full_coordinates=Sm90DenseCoordinates::Exact(w.shapes,16,t.res.max_dynamic_smem_per_cta);
   for(auto const& p:model.Request(full_batch,full_coordinates).stages)assert(p.initialization==0);
+  auto issue_only=Fixture();
+  auto issue_fits=issue_only.At("body_fits").AsObject("body fits");
+  for(auto& fit:issue_fits) {
+    auto coefficients=fit.second.At("coefficients");
+    if(coefficients.Find("preissue_efficiency")) {
+      coefficients.Set("preissue_efficiency",0);coefficients.Set("tail_efficiency",0);
+      coefficients.Set("l2_efficiency",0);
+      fit.second.Set("coefficients",coefficients);
+    }
+  }
+  issue_only.Set("body_fits",issue_fits);Sm90DenseCostModel issue_model(t,issue_only);
+  auto baseline=issue_model.Predict(w,c);auto prefetch=c;
+  prefetch.gemms[0].prefetch_l2_bytes=16384;
+  prefetch.gemms[4].prefetch_l2_bytes=16384;
+  auto issued=issue_model.Predict(w,prefetch);
+  assert(issued.stages[0].issue==0 && issued.stages[5].issue==0);
+  assert(issued.stages[6].issue==20 && issued.stages[4].issue==20);
+  assert(std::abs(issued.step_ns-baseline.step_ns-20*(w.layers+1))<1e-6);
+  auto one_layer=w;one_layer.layers=1;prefetch.gemms[4].prefetch_l2_bytes=0;
+  auto first_only=issue_model.Predict(one_layer,prefetch);
+  assert(first_only.stages[6].issue==20 && first_only.stages[4].issue==0);
+  prefetch=c;prefetch.attention.prefetch_l2_bytes=16384;
+  auto attention_issue=issue_model.Request(w,prefetch);
+  assert(attention_issue.stages[0].issue==20 && attention_issue.stages[1].issue==0);
   auto partition=c;partition.gemms[0].warps_n=1;partition.gemms[0].warps_k=4;
   auto split_prediction=model.Predict(w,partition);
   assert(split_prediction.stages[0].compute==double(w.shapes[0][1]/64)*40);
