@@ -761,9 +761,11 @@ extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
     std::vector<ServingTaskProfile> rows(std::size_t(plan->trace_launches)*plan->task_stride);
     if(cudaMemcpy(rows.data(),plan->task_profile,rows.size()*sizeof(rows[0]),cudaMemcpyDeviceToHost)!=cudaSuccess)return -3;
     auto* out=std::fopen((std::string(directory)+"/task_profile.tsv").c_str(),"w");if(!out)return -4;
-    std::fprintf(out,"kind\titeration\tpast\trun_begin\trun_end\tstage\ttask\tworker\tbytes\tfirst_ready\tquery_ns\tfirst_page_wait_ns\tlater_page_wait_ns\twave_compute_ns\tla_ns\tepilogue_ns\n");
+    std::fprintf(out,"kind\titeration\tpast\trun_begin\trun_end\tstage\ttask\tworker\tbytes\tfirst_ready\tquery_ns\tfirst_page_wait_ns\tlater_page_wait_ns\twave_compute_ns\tla_ns\tepilogue_ns\tdecode_ns\n");
     for(auto const& row:rows)if(row.run_begin) {
-      std::fprintf(out,"%s",plan->model.stages[row.stage].kind==TaskKind::kGemm?"gemm":"attention");
+      auto const kind=plan->model.stages[row.stage].kind;
+      std::fprintf(out,"%s",kind==TaskKind::kGemm?"gemm":kind==TaskKind::kGemmCombine?"combine":
+          kind==TaskKind::kAttentionMerge?"merge":"attention");
       auto* words=reinterpret_cast<unsigned long long const*>(&row);
       for(unsigned i=0;i<sizeof(row)/sizeof(*words);++i)std::fprintf(out,"\t%llu",words[i]);
       std::fputc('\n',out);

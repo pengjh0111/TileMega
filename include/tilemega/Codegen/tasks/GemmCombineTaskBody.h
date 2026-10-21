@@ -198,18 +198,19 @@ struct GemmCombineTaskBody {
                     p, stage, i);
   }
 
-  __device__ void operator()(Params const& p, StageDesc const& stage,
-                             SmemUnion& smem) const {
-    int count = p.dims.tokens() * static_cast<int>(stage.width);
+  __device__ static int TaskCount(Params const& p, StageDesc const& stage) {
     if (p.ownership_flags & kCombinerTileOwnership) {
       auto const& invocation =
           static_cast<GemmInvocation const*>(p.gemms)[stage.gemm];
-      int const tiles = invocation.tiles_m * invocation.tiles_n;
-      for (int task = PlacedBlock(); task < tiles; task += gridDim.x)
-        RunTask(p, stage, smem, task);
-      return;
+      return invocation.tiles_m * invocation.tiles_n;
     }
-    int tasks = (count + Threads - 1) / Threads;
+    int count = p.dims.tokens() * static_cast<int>(stage.width);
+    return (count + Threads - 1) / Threads;
+  }
+
+  __device__ void operator()(Params const& p, StageDesc const& stage,
+                             SmemUnion& smem) const {
+    int const tasks = TaskCount(p, stage);
     for (int task = PlacedBlock(); task < tasks; task += gridDim.x)
       RunTask(p, stage, smem, task);
   }

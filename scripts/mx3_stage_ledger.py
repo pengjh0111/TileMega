@@ -58,6 +58,8 @@ task_path = a.trace / 'task_profile.tsv'
 tk = (pd.read_csv(task_path, sep='\t') if task_path.exists() else
       pd.DataFrame(columns=['kind', 'iteration', 'past', 'run_begin', 'run_end', 'stage',
                             'task', 'worker', 'bytes', 'first_ready', 'epilogue_ns']))
+if 'decode_ns' not in tk:
+    tk['decode_ns'] = 0
 st = st[st.t_release > 0]
 
 
@@ -105,6 +107,9 @@ crit_terms = pd.DataFrame({
     'busy': g.busy.sum(),
     'epilogue': g.epilogue_ns.sum(),
     'gaps': g.gap.sum(),
+    # Inside first_byte: task start to the body's first instruction (the
+    # descriptor chain); combine tasks stamp it, GEMM tasks leave it 0.
+    'decode': first.decode_ns,
 }).reset_index()
 
 df = (frame.merge(mean_span.reset_index(), on=key, how='left')
@@ -124,7 +129,7 @@ df['body'] = df.busy - df.epilogue - df.first_byte
 df['tail'] = df.crit_end - df.last_run_end
 # A stage where no CTA ran a task carries its whole envelope as barrier.
 idle = df.crit_span.isna()
-for t in ('inefficiency', 'imbalance', 'lead', 'dispatch', 'first_byte', 'body',
+for t in ('inefficiency', 'imbalance', 'lead', 'dispatch', 'first_byte', 'decode', 'body',
           'epilogue', 'gaps', 'tail', 'ctas', 'ntasks'):
     df.loc[idle, t] = 0.0
 df.loc[idle, 'barrier'] = df.loc[idle, 'envelope'] - df.loc[idle, 'bound']
@@ -133,7 +138,7 @@ df = df.sort_values(key)
 df['to_next'] = (df.groupby('iteration').open.shift(-1) - df.release).clip(lower=0).fillna(0)
 
 terms = ['envelope', 'bound', 'inefficiency', 'imbalance', 'barrier', 'lead', 'dispatch',
-         'first_byte', 'body', 'epilogue', 'gaps', 'tail', 'to_next', 'ctas', 'ntasks']
+         'first_byte', 'decode', 'body', 'epilogue', 'gaps', 'tail', 'to_next', 'ctas', 'ntasks']
 per_stage = df.groupby(['stage', 'cls'])[terms].median().reset_index()
 step = df.groupby('iteration').release.max() - df.groupby('iteration').open.min()
 

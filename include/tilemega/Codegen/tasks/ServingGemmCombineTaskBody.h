@@ -36,6 +36,10 @@ struct ServingGemmCombineTaskBody {
       maca::Trap();
       return;
     }
+#if TILEMEGA_TRACE_TASK
+    ServingTaskProfile* profile = ProfileSlot();
+    if (profile) profile->decode_ns = TaskProfileNow(profile) - profile->run_begin;
+#endif
     std::int64_t split_stride = std::int64_t(M) * partial_row_stride;
     for (int base = ComputeThread() * 4; base < TileM * TileN;
          base += kComputeThreads * 4) {
@@ -63,11 +67,21 @@ struct ServingGemmCombineTaskBody {
       *reinterpret_cast<float4*>(shared + backend::ServingEpilogue<Op, TileM, TileN,(TILEMEGA_SWIGLU_U<TileN/2?TILEMEGA_SWIGLU_U:TileN/2)>::SharedIndex(base / TileN, base % TileN)) =
           make_float4(value[0], value[1], value[2], value[3]);
     }
+#if TILEMEGA_TRACE_TASK
+    // Thread 0 has waited for its own partials: their arrival.
+    if (profile) profile->first_ready = TaskProfileNow(profile);
+#endif
     ComputeSync();
+#if TILEMEGA_TRACE_TASK
+    unsigned long long const epilogue_begin = TaskProfileNow(profile);
+#endif
     backend::ServingEpilogue<Op, TileM, TileN,(TILEMEGA_SWIGLU_U<TileN/2?TILEMEGA_SWIGLU_U:TileN/2)>::template RunFromTile<true>(
         shared, tile_m, tile_n, M, N, output_stride, partial_row_stride,
         output, residual,
         nullptr, argmax_value, argmax_index,norm_ss,ss_out,norm_k,norm_eps);
+#if TILEMEGA_TRACE_TASK
+    if (profile) profile->epilogue_ns = TaskProfileNow(profile) - epilogue_begin;
+#endif
   }
 };
 

@@ -690,7 +690,12 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
     case TaskKind::kAttentionMerge:
 #if TILEMEGA_SERVING_DECODER_ATTENTION
       for (int task = int(blockIdx.x); task < p.dims.batch * int(stage.extent);
-           task += int(gridDim.x)) RunServingMergeTask(p, stage, task);
+           task += int(gridDim.x)) {
+#if TILEMEGA_TRACE_TASK
+        executor::ProfileScope profile{executor::BeginProfile(p,index,task)};
+#endif
+        RunServingMergeTask(p, stage, task);
+      }
 #else
       maca::Trap();
 #endif
@@ -699,7 +704,20 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
     case TaskKind::kQKNorm: T_QKNorm{}(p, stage, smem); break;
 #endif
     case TaskKind::kAttention: T_Attention{}(p, stage, smem); break;
-    case TaskKind::kGemmCombine: T_GemmCombine{}(p, stage, smem); break;
+    case TaskKind::kGemmCombine:
+#if TILEMEGA_TRACE_TASK
+      // MX3-1: a combine is ~10 us of task time against no bound; profile it
+      // like a GEMM task, its phases stamped through the profile slot.
+      for (int task = PlacedBlock(); task < T_GemmCombine::TaskCount(p, stage); task += gridDim.x) {
+        executor::ProfileScope profile{executor::BeginProfile(p,index,task)};
+        if (threadIdx.x == 0) g_serving_profile_slot[blockIdx.x] = profile.row;
+        T_GemmCombine::RunTask(p, stage, smem, task);
+        if (threadIdx.x == 0) g_serving_profile_slot[blockIdx.x] = nullptr;
+      }
+#else
+      T_GemmCombine{}(p, stage, smem);
+#endif
+      break;
     case TaskKind::kGemmAdd:
     case TaskKind::kGemmRMSNorm:
 #if TILEMEGA_FUSION_GEMM_RUNTIME
