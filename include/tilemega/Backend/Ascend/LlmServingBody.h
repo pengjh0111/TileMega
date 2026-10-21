@@ -165,7 +165,7 @@ template<unsigned TM=32,unsigned TN=64> class LlmServingBody {
     }
     if(s.kind==1) {
       uint64_t row=s.batch_rows?uint64_t(task)*s.row_stride+s.row_offset:task;
-      return vector_.RmsNorm(p(0)+row*s.width*2,p(1),p(2)+uint64_t(task)*s.width*2,s.width,s.epsilon);
+      return vector_.RmsNorm(p(0)+row*s.width*2,p(1),p(2)+uint64_t(task)*s.width*2,s.width,s.epsilon,s.variant);
     }
     if(s.kind==13) {
       if((meta.seq!=1 && meta.seq!=64) || (s.width!=64 && s.width!=128) || !s.group || s.group>8 || s.variant>3 || (s.kv_block!=128 && s.kv_block!=1088))return false;

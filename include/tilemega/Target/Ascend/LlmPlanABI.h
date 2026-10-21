@@ -30,6 +30,7 @@ struct Stage {
   uint64_t workspace;
   uint32_t kind,epilogue,tasks,rows,columns,k,extent,width,group;
   uint32_t kv_block,query_rows,row_stride,row_offset,batch_rows,variant;
+  // RMSNorm variants: 0=existing Rsqrt, 2=pinned Newton-refined full H1024.
   // GEMM variants: 0=32x64x64, 1=16x128x128. Attention variants:
   // 0=BF16 scores/probabilities, 1=FP32 chunks, 2=FP32 scores/BF16 probabilities,
   // 3=math SDPA split scale/capacity softmax; 4=cooperative full-FP32 Cube;

@@ -231,7 +231,7 @@ class LlmVectorBody {
 #if defined(TILEMEGA_AS2_CANN_NORM_PRIMITIVES) && __CCE_AICORE__ == 310
       // Version-pinned device primitives only, no whole-op scheduler/launch.
       // Larger reduction families require their own fold/resource validation.
-      if(n>128)return false;
+      if(n!=128 && n!=1024)return false;
       NormCommon::NormCommonRegbase::CalculateSquareReduceSum<bfloat16_t>(bx_,z_,scratch_,1,n,n,n,8,n);
       AscendC::PipeBarrier<PIPE_V>();
       NormCommon::ComputeRstdNewtonRaphson<false,true>(z_,z_,1,epsilon,1.0f/n);

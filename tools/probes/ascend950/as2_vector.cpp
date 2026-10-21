@@ -45,7 +45,7 @@ int main(int argc,char** argv) {
   try {
     if(argc!=6)throw std::runtime_error("usage: as2_vector kind(0 norm/1 swiglu/2 add/3 rope/4 log-exp norm/5 CANN Newton norm) rows width input_directory output_directory");
     unsigned kind=std::stoul(argv[1]),rows=std::stoul(argv[2]),width=std::stoul(argv[3]);
-    if(kind>5 || !rows || rows>64 || !width || width>14336 || ((kind==0 || kind>=4) && width>4096) || (kind==5 && width>128) ||
+    if(kind>5 || !rows || rows>64 || !width || width>14336 || ((kind==0 || kind>=4) && width>4096) || (kind==5 && width!=128 && width!=1024) ||
        (kind==3 && width!=64 && width!=128))throw std::runtime_error("Unsupported bounded vector shape");
     namespace fs=std::filesystem;fs::path root="/home/d50064638/junhuip/TileMega/runs/as2";
     auto input=fs::weakly_canonical(argv[4]),output=fs::weakly_canonical(argv[5]);
