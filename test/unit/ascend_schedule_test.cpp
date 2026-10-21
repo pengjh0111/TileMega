@@ -2,6 +2,10 @@
 #include <tilemega/Solver/PlanSkeleton.h>
 #include <tilemega/Solver/CandidateGenerator.h>
 #include <tilemega/Solver/AscendImplementation.h>
+#include <tilemega/Target/Ascend/LlmPlanABI.h>
+#include <tilemega/Frontend/SemanticLifting.h>
+#include <tilemega/Frontend/ModelPlan.h>
+#include <cstring>
 #include <cassert>
 #include <iostream>
 #include <limits>
@@ -70,6 +74,28 @@ int main() {
   Reject([&]{AscendProgressValue(0,5001,5001);});
   auto unknown=large;unknown[0].price.service_ns=0;
   Reject([&]{ScheduleAscendTasks(unknown,map,c);});
+  for(auto& t:unknown)t.price={};
+  auto bootstrap=DiagnosticAscendSchedule(unknown,map);
+  assert(bootstrap.queue.size()==5000 && bootstrap.epoch_stride==5001);
+  assert(bootstrap.start_ns.empty() && bootstrap.finish_ns.empty());
+
+  tilemega::ascend::llm::Stage abi{};abi.operands[0]=(5ULL<<30)+512;abi.epsilon=1e-6f;
+  unsigned char raw[sizeof(abi)];std::memcpy(raw,&abi,sizeof(abi));
+  tilemega::ascend::llm::Stage restored{};std::memcpy(&restored,raw,sizeof(restored));
+  assert(restored.operands[0]==(5ULL<<30)+512 && restored.epsilon==1e-6f);
+
+  // A 64-column LM-head candidate has two partials for vocabulary65. The
+  // previous fixed ceil(vocab/32) map incorrectly demanded a third partial.
+  tilemega::frontend::ModelPlan head;head.serving=true;head.serving_seq=1;head.serving_capacity=1088;
+  head.buffers.resize(3);head.buffers[0].name="values";head.buffers[1].name="indices";head.buffers[2].name="tokens";
+  tilemega::frontend::PlanStage reduce;reduce.kind=tilemega::frontend::PlanTaskKind::kArgmaxReduce;
+  reduce.width=2;reduce.extent=65;reduce.operands.fill(UINT32_MAX);
+  reduce.operands[0]=0;reduce.operands[1]=1;reduce.operands[2]=2;head.stages={reduce};
+  tilemega::frontend::LiftOptions options;options.serving=true;options.batch_symbol="B";options.static_seq=1;
+  auto lifted=tilemega::frontend::LiftServingSemantics(head,options);
+  assert(lifted.sem.ops.size()==1 && lifted.sem.ops[0].domain.back().extent.IsLiteral(2));
+  head.stages[0].width=0;
+  Reject([&]{tilemega::frontend::LiftServingSemantics(head,options);});
 
   auto cube=Task(aic,10),vector=Task(aiv,10);cube.price.gm_bytes=vector.price.gm_bytes=100;
   auto shared=ScheduleAscendTasks({cube,vector},map,c);
@@ -97,5 +123,7 @@ int main() {
   std::cout<<"{\"status\":\"passed\",\"price_changes_queue_and_plan\":true,"
                "\"both_aiv_domains\":true,\"frontier_edges\":5,\"frontier_waits\":1,"
                "\"large_tasks\":5000,\"epoch_overflow_rejected\":true,"
-               "\"shared_gm_not_duplicated\":true,\"native_TopK_changes_selection\":true,\"evidence\":\"CPU fixtures only\"}\n";
+               "\"shared_gm_not_duplicated\":true,\"native_TopK_changes_selection\":true,"
+               "\"native_abi_host_64bit_roundtrip\":true,\"argmax_actual_partial_domain\":true,"
+               "\"diagnostic_has_no_prices\":true,\"evidence\":\"CPU fixtures only\"}\n";
 }
