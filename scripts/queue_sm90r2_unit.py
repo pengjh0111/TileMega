@@ -14,9 +14,16 @@ def main():
     p.add_argument('--header', type=Path, required=True)
     p.add_argument('--name', required=True)
     p.add_argument('--rounds', type=int, default=5)
+    p.add_argument('--timing', action='store_true')
+    p.add_argument('--timeout', type=int, default=120)
+    p.add_argument('--needs-free-mib', type=int, default=2048)
     p.add_argument('--queue-dir', type=Path, required=True)
     p.add_argument('--after', nargs='*', default=[])
     a = p.parse_args()
+    if a.timing and a.gpu == 5:
+        p.error('GPU5 is functional-only')
+    if a.rounds < 1 or a.timeout < 1 or a.needs_free_mib < 1:
+        p.error('round count, timeout and memory reservation must be positive')
     policy = ROOT / 'configs/bench/sm90r2_guard_policy.json'
     uuid = read(policy)['idle_power_mapping_provenance']['uuid_by_gpu'][str(a.gpu)]
     node = 0 if a.gpu < 4 else 1
@@ -24,8 +31,8 @@ def main():
     previous, jobs = list(a.after), []
     for fresh in range(a.rounds):
         name = f'{a.name}-f{fresh}'
-        jobs.append(dict(name=name, gpu=True, timing=False, priority=20, timeout_s=120,
-            needs_free_mib=2048, cwd=str(ROOT), after=previous,
+        jobs.append(dict(name=name, gpu=True, timing=a.timing, priority=20, timeout_s=a.timeout,
+            needs_free_mib=a.needs_free_mib, cwd=str(ROOT), after=previous,
             env=dict(CUDA_VISIBLE_DEVICES=str(a.gpu), TILEMEGA_DEVICE_INDEX=str(a.gpu),
                 TILEMEGA_NUMA_NODE=str(node), TILEMEGA_GPU_PID_MODE='namespace_limited',
                 PYTHONPATH=str(ROOT / 'python'), OMP_NUM_THREADS='8'),
