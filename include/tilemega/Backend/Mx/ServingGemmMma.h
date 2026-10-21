@@ -157,13 +157,20 @@ struct ServingGemmMma {
 #pragma unroll
       for (int am = 0; am < kAtomsM; ++am) a[kAt][am] = source.A(am, chunk * kChunkK);
     };
-    // Prologue: kDepth-1 chunks in flight before the first MMA.
-    [&]<std::size_t... kPrime>(std::index_sequence<kPrime...>) {
-      ((int(kPrime) < chunks
-            ? load(std::integral_constant<int, int(kPrime)>{}, int(kPrime))
-            : void()),
-       ...);
-    }(std::make_index_sequence<kDepth - 1>{});
+    // Every load is unconditional. A guarded load is a control-flow join, and
+    // at a join the MetaX wait inserter cannot count what is in flight, so it
+    // waited for every load (ARRIVE 4160/64 in the final machine IR of the
+    // MX-3 Qwen3-0.6B B1 plan, scripts/mx_mir_report.py): the pipeline
+    // drained once per group. Past the last chunk a load repeats the last
+    // chunk instead -- its slot is never read, the address has just been
+    // read, and the count of loads in flight stays exact for the wait below.
+    int const last = chunks - 1;
+    if (chunks > 0) {
+      // Prologue: kDepth-1 chunks in flight before the first MMA.
+      [&]<std::size_t... kPrime>(std::index_sequence<kPrime...>) {
+        (load(std::integral_constant<int, int(kPrime)>{}, min(int(kPrime), last)), ...);
+      }(std::make_index_sequence<kDepth - 1>{});
+    }
     // The ring slot must be a compile-time constant: indexing these arrays
     // with a runtime `chunk % kDepth` puts the whole pipeline in local memory
     // and cost 5.8x the serial form when measured that way, so the chunk loop
@@ -173,26 +180,27 @@ struct ServingGemmMma {
     // loop variable cannot be used in a constant expression.
     auto step = [&](auto stage, int g) {
       constexpr int d = decltype(stage)::value;
-      int const ahead = g * kDepth + d + kDepth - 1;
-      if (ahead < chunks)
-        load(std::integral_constant<int, (d + kDepth - 1) % kDepth>{}, ahead);
+      load(std::integral_constant<int, (d + kDepth - 1) % kDepth>{}, min(g * kDepth + d + kDepth - 1, last));
       // Leave the newest kDepth-1 chunks outstanding; retirement is in order,
       // so the slot about to be read has landed.
       maca::WaitAsyncCopies<(kDepth - 1) * kLoadsPerChunk>();
       mma(a[d], b[d]);
     };
-#pragma unroll 1
+    // Two groups per iteration: the inserter still waits conservatively once
+    // at the loop header (gvm <= 2 instead of 6 at depth 4, 16x32), so this
+    // halves how often that happens.
+#pragma unroll 2
     for (int g = 0; g < groups; ++g)
       [&]<std::size_t... kStage>(std::index_sequence<kStage...>) {
         (step(std::integral_constant<int, int(kStage)>{}, g), ...);
       }(std::make_index_sequence<kDepth>{});
-    // Whole chunks the groups did not cover.
-#pragma unroll 1
-    for (int chunk = groups * kDepth; chunk < chunks; ++chunk) {
-      load(std::integral_constant<int, 0>{}, chunk);
-      maca::WaitAsyncCopies<0>();
-      mma(a[0], b[0]);
-    }
+    // The chunks % kDepth chunks the groups did not cover are already in ring
+    // slots 0.. (the last group's prefetches); MMA them in order.
+    int const rest = chunks - groups * kDepth;
+    maca::WaitAsyncCopies<0>();
+    [&]<std::size_t... kSlot>(std::index_sequence<kSlot...>) {
+      ((int(kSlot) < rest ? mma(a[kSlot], b[kSlot]) : void()), ...);
+    }(std::make_index_sequence<kDepth - 1>{});
     int const full = chunks * kChunkK;
 #pragma unroll 1
     for (int k0 = full; k0 < count; k0 += kChunkK) {
@@ -222,7 +230,7 @@ struct ServingGemmMma {
   /// A weight tile in fragment order (`Tiled` B): tile `k_tile` of the
   /// packed row of N tiles starting at `tiles`, zero-padded to whole tiles.
   __device__ static uint4 TiledB(Element const* tiles, std::size_t k_tile, int chunk, Lane const& l, int j) {
-    return LoadGlobal16(tiles + k_tile * TileN * TileK +
+    return LoadGlobal16Gvm(tiles + k_tile * TileN * TileK +
                         FragmentOffset(l.wave * kAtomsNPerWave + j, chunk, l.lane));
   }
 
@@ -254,14 +262,14 @@ struct ServingGemmMma {
         b_tiles = p.weight_base + std::size_t(tile_n) * ((p.k_total_full + TileK - 1) / TileK) * TileN * TileK;
       }
     }
-    __device__ uint4 A(int am, int kc) const { return LoadGlobal16(a_row[am] + kc + 8 * l.g); }
+    __device__ uint4 A(int am, int kc) const { return LoadGlobal16Gvm(a_row[am] + kc + 8 * l.g); }
     __device__ uint4 ATail(int am, int kc, int count) const { return mx::LoadK8(a_row[am], kc + 8 * l.g, count); }
     __device__ uint4 B(int j, int kc) const {
       if constexpr (Tiled) {
         int const kk = p.k_begin + kc;
         return TiledB(b_tiles, kk / TileK, (kk % TileK) / kChunkK, l, j);
       } else {
-        return LoadGlobal16(b_row[j] + kc + 8 * l.g);
+        return LoadGlobal16Gvm(b_row[j] + kc + 8 * l.g);
       }
     }
     // Tiled B is zero-padded past K; the A tail zeroes the products.

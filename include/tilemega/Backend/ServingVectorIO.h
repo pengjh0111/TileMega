@@ -7,6 +7,22 @@ namespace tilemega::backend {
 __device__ __forceinline__ uint4 LoadGlobal16(void const* source) {
   return *reinterpret_cast<uint4 const*>(source);
 }
+// The same load through the global address space. A pointer read out of the
+// plan's parameter block is generic, so LoadGlobal16 compiles to a flat load
+// (LDX on xcore1000) and the MetaX wait inserter waits on its out-of-order
+// counter as well, which at a control-flow join means every load in flight
+// (ARRIVE 4160 in the final machine IR, scripts/mx_mir_report.py). Only for
+// pointers known to address device global memory.
+__device__ __forceinline__ uint4 LoadGlobal16Gvm(void const* source) {
+  using Global = __attribute__((address_space(1))) uint4 const;
+  auto const* global = (Global*)source;
+  uint4 value;
+  value.x = global->x;
+  value.y = global->y;
+  value.z = global->z;
+  value.w = global->w;
+  return value;
+}
 __device__ __forceinline__ void StoreGlobal16(void* target,uint4 value) {
   *reinterpret_cast<uint4*>(target)=value;
 }
