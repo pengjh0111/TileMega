@@ -133,6 +133,13 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   auto target=TargetSpec::FromJson(o.target);
   auto target_sha=Hash(o.target),input_sha=Hash(o.input);
   auto calibration=json::ParseFile(o.target).At("sm90_dense_decode");
+  if(calibration.At("native_gemm_header_sha256").AsString("native implementation hash")!=
+      Hash(std::string(TILEMEGA_SOURCE_DIR)+"/include/tilemega/Backend/Sm90DenseGemm.h"))
+    throw std::invalid_argument("native prices belong to a different GEMM implementation");
+  for(auto const& header:calibration.At("native_headers").AsObject("native device inputs"))
+    if(Hash(std::string(TILEMEGA_SOURCE_DIR)+"/"+header.first)!=
+        header.second.AsString("calibrated device header"))
+      throw std::invalid_argument("native prices belong to a different stage program");
   if(o.measured && calibration.At("fit_status").AsString("native fit status")!="fitted")
     throw std::invalid_argument("measured native solve requires fitted native calibration");
   solver::Sm90DenseCostModel cost(target,calibration);

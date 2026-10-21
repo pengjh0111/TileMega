@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fit initial native prices from measured components and CP2 stage-only controls.
+"""Fit initial native prices from measured components and retained stage-only controls.
 
 This is calibration, not E-3 validation. It writes only under runs/sm90r2 and
 keeps measured solve disabled until overlap and independent ranking are checked.
@@ -25,6 +25,7 @@ def main():
     p.add_argument('--probe', type=Path, default=ROOT / 'build/sm90r2_price_probe')
     p.add_argument('--target', type=Path, default=ROOT / 'configs/targets/sm_90_h800.json')
     p.add_argument('--out', type=Path, required=True)
+    p.add_argument('--build-tag', default='CP2')
     a = p.parse_args();a.out = a.out.resolve()
     if not a.out.is_relative_to(ROOT / 'runs/sm90r2') or a.out.exists():
         raise ValueError('retain initial-fit evidence in a new runs/sm90r2 directory')
@@ -34,6 +35,11 @@ def main():
     if any(r['metric'] == 'native_ldmatrix_mma_k16' and not r.get('production_compatible')
            for r in observations):
         raise ValueError('native mainloop measurements require a matching resource audit')
+    headers = {p['header_sha256'] for value in values
+               if any(r['metric'] == 'native_ldmatrix_mma_k16' for r in value['observations'])
+               for p in value['provenance']}
+    if len(headers) != 1:
+        raise ValueError('native mainloop components must bind one implementation header')
     columns = sorted(set().union(*(row.keys() for row in observations)))
     fits = {}
     def profile(key, coefficients):
@@ -49,21 +55,35 @@ def main():
                 preissue_efficiency=0,tail_efficiency=0,l2_efficiency=0,issue_ns=0))
     for name in ('embedding','argmax'):profile('native_'+name,dict(startup_ns=0,per_element_ns=1))
     cal = dict(schema=1, fit_status='diagnostic_unfitted', observation_columns=columns,
+        native_gemm_header_sha256=next(iter(headers)),
         observations=[[r.get(k) for k in columns] for r in observations],body_fits=fits,
-        method='Initial CP2 fit; global trace overhead divided uniformly across stages is inferred',
+        method='Initial stage fit; global trace overhead divided uniformly across stages is inferred',
         mainloop_method='Shared-load plus MMA per owned k16; exact warp partition, inferred TN/TK/register interpolation',
         pending=['preissue overlap calibration','held-out E-3 class and step errors',
                  '8-candidate ranking in each development cell','E-4 measured selection'],
         provenance=[dict(path=str(f),sha256=sha(f)) for f in a.components])
     target = read(a.target);target['sm90_dense_decode'] = cal
     initial = a.out/'feature-target.json';write(initial,target)
-    ledger = [v for v in csv.DictReader(a.ledger.open()) if v['tag']=='CP2-stage']
+    trace_tag = a.build_tag + '-stage'
+    ledger = [v for v in csv.DictReader(a.ledger.open()) if v['tag']==trace_tag]
     overhead = {(v['model'],int(v['batch'])):float(v['overhead_ms'])*1e6
-                for v in csv.DictReader(a.overhead.open()) if v['tag']=='CP2-stage'}
+                for v in csv.DictReader(a.overhead.open()) if v['tag']==trace_tag}
+    if not ledger or not overhead:
+        raise ValueError('matching stage-only and control observations are required')
     points, workloads = defaultdict(list), []
+    native_headers = None
     env = dict(os.environ, CUDA_VISIBLE_DEVICES='')
     for model,batch in sorted(overhead):
-        manifest=read(ROOT/f'runs/sm90r2/build/CP2/{model}-B{batch}/decode.so.plan.json')
+        manifest=read(ROOT/f'runs/sm90r2/build/{a.build_tag}/{model}-B{batch}/decode.so.plan.json')
+        identity=read(ROOT/f'runs/sm90r2/build/{a.build_tag}/{model}-B{batch}/decode.so.identity.json')
+        if identity['source']['source_files']['include/tilemega/Backend/Sm90DenseGemm.h'] not in headers:
+            raise ValueError('stage and component calibration use different native GEMM implementations')
+        device_headers={k:v for k,v in identity['source']['source_files'].items()
+                        if k.startswith(('include/tilemega/Backend/Sm90Dense',
+                                         'include/tilemega/Codegen/tasks/Sm90Dense'))}
+        if native_headers is not None and device_headers != native_headers:
+            raise ValueError('stage observations mix native program implementations')
+        native_headers=device_headers;cal['native_headers']=device_headers
         config=read(ROOT/f'configs/serving/sm90d1/inputs/{model}/config.json')
         coordinates=manifest['native_dense'];shapes={}
         for g in manifest['gemms']:shapes[g['family']]=[g['n'],g['k']]
@@ -111,7 +131,7 @@ def main():
         def residual(x):return np.r_[(predict(x)-y)/np.maximum(y,1000),.03*(x-prior)]
         optimum=least_squares(residual,prior,bounds=bounds,loss='soft_l1')
         for name,x in zip(names,optimum.x):fit['coefficients'][name]=float(x*1000 if name=='startup_ns' else x)
-        fit.update(sample_count=len(rows),method='regularized nonnegative critical-path fit to CP2; training only',
+        fit.update(sample_count=len(rows),method='regularized nonnegative critical-path stage fit; training only',
                    inputs=[dict(model=r['model'],batch=r['batch'],kind=r['kind']) for r in rows],
                    training_median_error_pct=float(np.median(np.abs(predict(optimum.x)/y-1))*100))
         for r,pred in zip(rows,predict(optimum.x)):
