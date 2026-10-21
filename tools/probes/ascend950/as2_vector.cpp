@@ -17,7 +17,7 @@ void as2_vector(GM_ADDR input,GM_ADDR rhs,GM_ADDR third,GM_ADDR output,GM_ADDR s
       auto x=input+uint64_t(row)*width*2, y=output+uint64_t(row)*width*2;
       const uint64_t start=AscendC::GetSystemCycle();
       bool ok=true;
-      if(kind==0)ok=body.RmsNorm(x,rhs,y,width,1e-6f);
+      if(kind==0 || kind==4 || kind==5)ok=body.RmsNorm(x,rhs,y,width,1e-6f,kind==5?2:kind==4?1:0);
       else if(kind==3)ok=body.Rope(x,rhs+uint64_t(row)*width*2,third+uint64_t(row)*width*2,y,width);
       else for(unsigned col=0;col<width;col+=4096) {
         auto n=width-col<4096?width-col:4096;
@@ -43,15 +43,15 @@ static std::vector<uint16_t> Read(std::filesystem::path const& path,size_t n) {
 }
 int main(int argc,char** argv) {
   try {
-    if(argc!=6)throw std::runtime_error("usage: as2_vector kind(0 norm/1 swiglu/2 add/3 rope) rows width input_directory output_directory");
+    if(argc!=6)throw std::runtime_error("usage: as2_vector kind(0 norm/1 swiglu/2 add/3 rope/4 log-exp norm/5 CANN Newton norm) rows width input_directory output_directory");
     unsigned kind=std::stoul(argv[1]),rows=std::stoul(argv[2]),width=std::stoul(argv[3]);
-    if(kind>3 || !rows || rows>64 || !width || width>14336 || (kind==0 && width>4096) ||
+    if(kind>5 || !rows || rows>64 || !width || width>14336 || ((kind==0 || kind>=4) && width>4096) || (kind==5 && width>128) ||
        (kind==3 && width!=64 && width!=128))throw std::runtime_error("Unsupported bounded vector shape");
     namespace fs=std::filesystem;fs::path root="/home/d50064638/junhuip/TileMega/runs/as2";
     auto input=fs::weakly_canonical(argv[4]),output=fs::weakly_canonical(argv[5]);
     auto inside=[&](auto const& p){auto r=p.lexically_relative(root);return !r.empty() && *r.begin()!=".." && p!=root;};
     if(!inside(input)||!inside(output)||fs::exists(output))throw std::runtime_error("Use canonical AS-2 paths and new output directory");
-    auto x=Read(input/"input.bin",rows*width),rhs=Read(input/"rhs.bin",kind==0?width:rows*width);
+    auto x=Read(input/"input.bin",rows*width),rhs=Read(input/"rhs.bin",(kind==0 || kind>=4)?width:rows*width);
     std::vector<uint16_t> third=kind==3?Read(input/"third.bin",rows*width):std::vector<uint16_t>(16,0);
     std::vector<uint16_t> y(rows*width+256,0x7fc1);std::vector<uint32_t> states(4*128,0);
     Check(aclInit(nullptr),"init");uint32_t count=0;Check(aclrtGetDeviceCount(&count),"count");

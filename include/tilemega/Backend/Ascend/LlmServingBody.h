@@ -17,9 +17,9 @@ template<unsigned TM=32,unsigned TN=64> class LlmServingBody {
     AscendC::GlobalTensor<uint8_t> tensor;tensor.SetGlobalBuffer(p);AcquireData(tensor);
   }
   __aicore__ inline bool Rotate(GM_ADDR source,GM_ADDR gamma,GM_ADDR cos,GM_ADDR sin,
-      GM_ADDR output,GM_ADDR temporary,unsigned d,float epsilon) {
+      GM_ADDR output,GM_ADDR temporary,unsigned d,float epsilon,unsigned norm_variant=0) {
     if(gamma) {
-      if(!vector_.RmsNorm(source,gamma,temporary,d,epsilon))return false;
+      if(!vector_.RmsNorm(source,gamma,temporary,d,epsilon,norm_variant))return false;
       Acquire(temporary);source=temporary;
     }
     return vector_.Rope(source,cos,sin,output,d);
@@ -66,7 +66,7 @@ template<unsigned TM=32,unsigned TN=64> class LlmServingBody {
       for(unsigned pos=0;pos<64;++pos) {
         auto source=p(0)+((uint64_t(h.batch)*64+pos)*packed+uint64_t(h.kv_group)*(s.group+2)*d)*2;
         if(!Rotate(source+s.group*d*2,p(6),p(3)+uint64_t(pos)*d*2,p(4)+uint64_t(pos)*d*2,
-            keys+uint64_t(pos)*d*2,scratch+512,d,s.epsilon) ||
+            keys+uint64_t(pos)*d*2,scratch+512,d,s.epsilon,s.variant==5?2:0) ||
             !vector_.Copy(source+(s.group+1)*d*2,values+uint64_t(pos)*d*2,d))return false;
         if(pos>=h.first_position && pos<h.first_position+h.positions) {
           auto offset=((uint64_t(h.batch)*s.extent+h.kv_group)*m.capacity+pos)*d*2;
@@ -79,7 +79,7 @@ template<unsigned TM=32,unsigned TN=64> class LlmServingBody {
       keys=p(1)+(uint64_t(h.batch)*s.extent+h.kv_group)*m.capacity*d*2;
       values=p(2)+(uint64_t(h.batch)*s.extent+h.kv_group)*m.capacity*d*2;
       if(!Rotate(source+s.group*d*2,p(6),p(3)+uint64_t(past)*d*2,p(4)+uint64_t(past)*d*2,
-          keys+uint64_t(past)*d*2,scratch+512,d,s.epsilon) ||
+          keys+uint64_t(past)*d*2,scratch+512,d,s.epsilon,s.variant==5?2:0) ||
           !vector_.Copy(source+(s.group+1)*d*2,values+uint64_t(past)*d*2,d))return false;
     }
     Acquire(scratch);
@@ -101,7 +101,7 @@ template<unsigned TM=32,unsigned TN=64> class LlmServingBody {
       unsigned pos=h.first_position+row/s.group,q=row%s.group;
       auto source=p(0)+((uint64_t(h.batch)*m.seq+(m.seq==64?pos:0))*packed+
         uint64_t(h.kv_group)*(s.group+2)*d+q*d)*2;
-      if(!Rotate(source,p(5),p(3)+uint64_t(pos)*d*2,p(4)+uint64_t(pos)*d*2,scratch,scratch+512,d,s.epsilon))return false;
+      if(!Rotate(source,p(5),p(3)+uint64_t(pos)*d*2,p(4)+uint64_t(pos)*d*2,scratch,scratch+512,d,s.epsilon,s.variant==5?2:0))return false;
       Acquire(scratch);
       if(!vector_.Bf16ToFloat(scratch,work+llm::attention::kQ+uint64_t(row)*d*4,d,root))return false;
     }

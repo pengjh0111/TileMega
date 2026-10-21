@@ -63,3 +63,20 @@ Raw evidence: `runs/as2/probes/mix_fp32_{protocol_v4,reference_v4}/`,
 `mix_fp32_c3_v4b_policy.json`, `mix_fp32_qnorm_numeric_v1.json`, job receipts and
 `tilemega-as2/build/retained/native_mix_fp32_v4b/identity.json`.
 This probe does not pass a complete-model, long-generation or performance Gate.
+
+The independent `norm-diagnose` command packs sixteen actual query heads at
+position37 and records fused NPU Norm plus its FP32 Rstd. `as2_vector` kind0
+matches CPU normalization but differs at head6/element76; kind4 (ln/exp) also
+differs there. Kind5 uses installed CANN device-level square reduction and
+Newton-refined Rstd: **2048/2048 values match fused NPU bitwise**. No whole-op
+host call or scheduler is embedded in the Body. This is one bounded head128
+family result, not complete normalization/model coverage.
+
+The optional `AS2_CANN_NORM_PRIMITIVES` CMake path points to the read-only
+`CANN9.1.0/.../ops_nn/ascendc/norm_common` directory. The installed header SHA256
+is pinned to `1032b44a48c9b3eeeb0aea1d1dc6fefd5d76499df47ca1dd70dc9a9a7ab7f50e`;
+its CANN Open Software License2.0 notice is preserved. The exact file is retained
+with the tested image outside Git. Host compilation excludes device-only
+MicroAPI declarations; the first missing-MicroAPI compilation error is retained.
+`cube-fp32-newton` is a separate explicit implementation. A binary without the
+configured primitives rejects its tables before ACL initialization.

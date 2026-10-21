@@ -25,7 +25,7 @@ def logical_bytes(s,m,tile,past):
     if kind!=13:raise ValueError('No logical GM traffic contract for stage kind '+str(kind))
     if s[26]!=1088:raise ValueError('Only the actual unified KV body is profiled')
     qrotate=(14 if s[5]!=absent else 8)*width;krotate=(14 if s[6]!=absent else 8)*width
-    if s[31]==4:
+    if s[31] in (4,5):
         if m[9]==1:
             positions=1;rows=group;keys=1088;valid=past+1
             n=krotate+4*width+12*valid*width+8*(keys-valid)*width
@@ -97,7 +97,7 @@ def extract(binding,job_path,phase,repetition,out):
         if len(values)!=1+task[6]:raise ValueError('Incomplete owner/participant service profile')
         # A single GEMM's Cube/epilogue intervals are disjoint. A cooperative
         # attention owner span already contains its nested participant phases.
-        composite=stages[task[0]][17]==13 and stages[task[0]][31]==4
+        composite=stages[task[0]][17]==13 and stages[task[0]][31] in (4,5)
         service[task[0]].append(values[task[2]] if composite else sum(values.values()))
         traffic[task[0]].append(logical_bytes(stages[task[0]],m,task[1],past))
     rows=[]
@@ -108,8 +108,8 @@ def extract(binding,job_path,phase,repetition,out):
             shape=dict(rows=s[20],columns=s[21],k=s[22],extent=s[23],width=s[24],group=s[25]),
             body_service_ns=dict(min=min(values),median=statistics.median(values),p95=ordered[min(len(ordered)-1,int(.95*len(ordered)))],max=max(values)),
             logical_gm_payload_bytes=dict(min=min(bytes_),median=statistics.median(bytes_),max=max(bytes_),sum=sum(bytes_)),
-            service_measurement='composite_owner_reservation_span' if s[17]==13 and s[31]==4 else 'serial_compute_copy_intervals',
-            internal_mix_coordination_included=s[17]==13 and s[31]==4,
+            service_measurement='composite_owner_reservation_span' if s[17]==13 and s[31] in (4,5) else 'serial_compute_copy_intervals',
+            internal_mix_coordination_included=s[17]==13 and s[31] in (4,5),
             dispatcher_sync_ns=None,total_task_service_ns=None,calibration_status='body_only_not_total_task_price'))
     result=dict(schema='tilemega.as2.native_body_profile.v1',status='measured_body_only',phase=phase,past=past,
         model_id=identity['model_id'],config_sha256=identity['config_sha256'],batch=m[8],groups=m[1],runtime_abi=m[0],

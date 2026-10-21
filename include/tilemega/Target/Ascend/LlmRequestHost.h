@@ -33,6 +33,12 @@ inline void Save(fs::path const& path,void const* data,size_t bytes) {
   std::ofstream f(path,std::ios::binary);f.write(static_cast<char const*>(data),bytes);
   if(!f)throw std::runtime_error("Cannot save request evidence");
 }
+inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
+#ifndef TILEMEGA_AS2_CANN_NORM_PRIMITIVES
+  for(auto const& s:stages)if(s.kind==13 && s.variant==5)
+    throw std::invalid_argument("Newton QK norm requires explicitly configured pinned CANN device primitives");
+#endif
+}
 struct Plan {
   llm::Metadata m;
   std::vector<llm::Stage> stages;
@@ -45,6 +51,7 @@ struct Plan {
     auto metadata=Read<llm::Metadata>(root/"metadata.bin");
     if(metadata.size()!=1)throw std::invalid_argument("Malformed request metadata");m=metadata[0];
     stages=Read<llm::Stage>(root/"stages.bin");tasks=Read<llm::Task>(root/"tasks.bin");
+    ValidateCompiledBodies(stages);
     waits=Read<llm::Wait>(root/"waits.bin");allocations=Read<llm::Allocation>(root/"allocations.bin");
     offsets=Read<uint32_t>(root/"offsets.bin");queue=Read<uint32_t>(root/"queue.bin");
     if(m.version!=llm::kVersion || (m.groups!=2 && m.groups!=4 && m.groups!=8) || m.workers!=3*m.groups ||
@@ -75,7 +82,7 @@ struct Plan {
         throw std::invalid_argument("Request GEMM geometry differs from compiled Body");
       for(auto offset:s.operands)if(!valid(offset))throw std::invalid_argument("Unbound request operand");
       if(!valid(s.workspace))throw std::invalid_argument("Unbound request workspace");
-      if(s.kind==13 && s.variant==4) {
+      if(s.kind==13 && (s.variant==4 || s.variant==5)) {
         auto found=std::find_if(allocations.begin(),allocations.end(),[&](auto const& a){return a.offset==s.workspace;});
         if(found==allocations.end() || found->bytes<uint64_t(m.groups)*llm::attention::kGroupBytes)
           throw std::invalid_argument("Cooperative attention lacks its per-group workspace");
