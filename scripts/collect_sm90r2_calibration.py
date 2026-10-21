@@ -11,7 +11,7 @@ from sm90d1_common import read, sha, write
 
 NUMBERS = {'grid', 'slot_bytes', 'slots', 'samples', 'median', 'p99', 'batch', 'tile_n',
            'input_k', 'tile_k', 'vector_sums', 'head_dim', 'queries', 'qk_norm',
-           'chunks', 'block_keys', 'past'}
+           'chunks', 'block_keys', 'past', 'warps_n', 'warps_k', 'register_stages'}
 
 
 def records(log, attempt):
