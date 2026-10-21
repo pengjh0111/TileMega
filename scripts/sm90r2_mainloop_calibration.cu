@@ -91,10 +91,26 @@ int main() {try {
   Frequency<<<1,1>>>(times);U64 ticks[2];Check(cudaMemcpy(ticks,times,16,cudaMemcpyDeviceToHost));
   double frequency=double(ticks[0])/ticks[1];
   std::printf("metric,grid,tile_n,tile_k,warps_n,warps_k,register_stages,samples,median,p99,unit\n");
+#ifdef TILEMEGA_CALIBRATION_LARGE_ONLY
+  Case<8,512,1>(p,frequency,times,errors);
+  Case<16,512,1>(p,frequency,times,errors);Case<16,512,2>(p,frequency,times,errors);
+  Case<24,512,1>(p,frequency,times,errors);
+  Case<32,512,1>(p,frequency,times,errors);Case<32,512,2>(p,frequency,times,errors);
+  Case<32,512,4>(p,frequency,times,errors);Case<40,512,1>(p,frequency,times,errors);
+  Case<48,512,1>(p,frequency,times,errors);Case<48,512,2>(p,frequency,times,errors);
+  Case<64,512,1>(p,frequency,times,errors);Case<64,512,2>(p,frequency,times,errors);
+  Case<64,512,4>(p,frequency,times,errors);
+  Case<8,1024,1>(p,frequency,times,errors);
+  Case<16,1024,1>(p,frequency,times,errors);Case<16,1024,2>(p,frequency,times,errors);
+  Case<24,1024,1>(p,frequency,times,errors);
+  Case<32,1024,1>(p,frequency,times,errors);Case<32,1024,2>(p,frequency,times,errors);
+  Case<32,1024,4>(p,frequency,times,errors);Case<8,2048,1>(p,frequency,times,errors);
+#else
   Shapes<64>(p,frequency,times,errors);Shapes<128>(p,frequency,times,errors);Shapes<256>(p,frequency,times,errors);
   Case<32,256,4,2>(p,frequency,times,errors);Case<32,256,4,4>(p,frequency,times,errors);
   Case<24,256,1,2>(p,frequency,times,errors);Case<24,256,1,4>(p,frequency,times,errors);
   Case<128,256,4,2>(p,frequency,times,errors);Case<128,256,4,4>(p,frequency,times,errors);
+#endif
   unsigned count;Check(cudaMemcpy(&count,errors,4,cudaMemcpyDeviceToHost));
   Check(cudaFree(errors));Check(cudaFree(times));return count?1:0;
 } catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}}
