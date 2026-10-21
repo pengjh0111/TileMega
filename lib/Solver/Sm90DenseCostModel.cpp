@@ -36,6 +36,9 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal)
   if(!cal.Find("issue_model") ||
      cal.At("issue_model").AsString("native issue model")!="issuer_exposure_v1")
     throw std::invalid_argument("native preissue exposure requires issuer calibration");
+  if(!cal.Find("overlap_model") ||
+     cal.At("overlap_model").AsString("native overlap model")!="operand_service_only_v1")
+    throw std::invalid_argument("native preissue credit requires operand-only calibration");
   for(auto const& raw:cal.At("observations").AsArray("native observations")) {
     auto v=raw;
     if(raw.kind()==json::Value::Kind::kArray) {
@@ -203,8 +206,8 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
       // several tasks. The producer never executes this branch at B16.
       s.initialization=w.batch<16?Quantity("activation_inactive_rows_initialize",
           {{"grid",grid},{"batch",w.batch},{"tile_k",g.TileK()},{"slots",g.slots}}):0;
-      s.startup=Coefficient(s.key,"startup_ns")+s.initialization+
-          Quantity("bulk_single_completion",{{"slot_bytes",g.slot_bytes}},{{"cache","dram"}});
+      s.read_startup=Quantity("bulk_single_completion",{{"slot_bytes",g.slot_bytes}},{{"cache","dram"}});
+      s.startup=Coefficient(s.key,"startup_ns")+s.initialization+s.read_startup;
       double fraction=double(g.preissue_smem_bytes)/(2.*g.tile_n*k);
       auto payload=backend::Sm90DenseLayout::GemmPayload(g.tile_n,g.TileK(),g.slots,k,
           g.preissue_smem_bytes).Shift(g.workspace_offset);
@@ -218,8 +221,8 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
             prev.warps_k).Live(prev.workspace_offset);
       }
       // Incoming data can move DRAM service into the preceding stage, but
-      // cannot remove this stage's MMA chain or inactive-row initialization.
-      s.overlap_limit=s.startup-s.initialization+std::max(s.flow-s.compute,0.);
+      // cannot remove its dispatch, MMA chain or inactive-row initialization.
+      s.overlap_limit=s.read_startup+std::max(s.flow-s.compute,0.);
       (g.preissue_late || payload.Overlaps(previous)?s.late_service:s.preissue_service)=
           fraction*tile_stream;
       s.l2_service=std::min(double(g.prefetch_l2_bytes),
@@ -294,7 +297,7 @@ Sm90DensePrediction Sm90DenseCostModel::Request(Sm90DenseWorkload const& w,
     if(!i) {
       result=sample;result.step_ns=0;
       for(auto& s:result.stages)
-        s.ns=s.barrier=s.startup=s.initialization=s.dram=s.stream=s.flow=
+        s.ns=s.barrier=s.startup=s.read_startup=s.initialization=s.dram=s.stream=s.flow=
             s.activation=s.compute=s.epilogue=s.overlap=s.issue=
             s.overlap_limit=s.preissue_service=s.late_service=s.l2_service=s.issue_count=0;
     }
@@ -302,6 +305,7 @@ Sm90DensePrediction Sm90DenseCostModel::Request(Sm90DenseWorkload const& w,
       auto& out=result.stages[j];auto const& in=sample.stages[j];
       out.ns+=in.ns/intervals;
       out.barrier+=in.barrier/intervals;out.startup+=in.startup/intervals;
+      out.read_startup+=in.read_startup/intervals;
       out.initialization+=in.initialization/intervals;
       out.dram+=in.dram/intervals;out.flow+=in.flow/intervals;
       out.stream+=in.stream/intervals;
@@ -329,7 +333,7 @@ json::Value Sm90DensePrediction::ToJson() const {
       {"stream_ns",s.stream},
       {"activation_ns",s.activation},
       {"compute_ns",s.compute},{"epilogue_ns",s.epilogue},{"overlap_ns",s.overlap},
-      {"issue_ns",s.issue},{"overlap_limit_ns",s.overlap_limit},
+      {"issue_ns",s.issue},{"read_startup_ns",s.read_startup},{"overlap_limit_ns",s.overlap_limit},
       {"preissue_service_ns",s.preissue_service},{"late_service_ns",s.late_service},
       {"l2_service_ns",s.l2_service},{"issue_count",s.issue_count}});
   return json::Object{{"step_ns",step_ns},{"evidence","inferred prediction from native calibration"},

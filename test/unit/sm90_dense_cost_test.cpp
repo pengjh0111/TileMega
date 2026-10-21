@@ -50,6 +50,7 @@ json::Value Fixture() {
     fit(key,{{"startup_ns",100},{"per_element_ns",.1},{"issue_ns",20}});
   return json::Object{{"schema",1},{"flow_model","overlapped_operands_v1"},
       {"issue_model","issuer_exposure_v1"},
+      {"overlap_model","operand_service_only_v1"},
       {"observations",observations},{"body_fits",fits}};
 }
 int main() {
@@ -138,6 +139,17 @@ int main() {
   auto kv_clipped=model.Predict(w,prefetched);
   prefetched.attention.prefetch_l2_bytes*=4;
   assert(model.Predict(w,prefetched).step_ns==kv_clipped.step_ns);
+  auto expensive_dispatch=Fixture();auto dispatch_fits=expensive_dispatch.At("body_fits").AsObject("body fits");
+  for(auto& fit:dispatch_fits) {
+    auto coefficients=fit.second.At("coefficients");
+    coefficients.Set("startup_ns",1e6);fit.second.Set("coefficients",coefficients);
+  }
+  expensive_dispatch.Set("body_fits",dispatch_fits);
+  auto dispatched=Sm90DenseCostModel(t,expensive_dispatch).Predict(w,prefetched);
+  for(unsigned i=0;i<6;++i) {
+    assert(dispatched.stages[i].overlap_limit==kv_clipped.stages[i].overlap_limit);
+    assert(dispatched.stages[i].overlap==kv_clipped.stages[i].overlap);
+  }
   auto residual_dn=Fixture();auto epi_rows=residual_dn.At("observations").AsArray("observations");
   for(auto& row:epi_rows)
     if(row.At("metric").AsString("metric")=="epilogue_residual_return" &&

@@ -60,6 +60,7 @@ def main():
                 preissue_efficiency=0,tail_efficiency=0,l2_efficiency=0,issue_ns=0))
     for name in ('embedding','argmax'):profile('native_'+name,dict(startup_ns=0,per_element_ns=1,issue_ns=0))
     cal = dict(schema=1, flow_model='overlapped_operands_v1',issue_model='issuer_exposure_v1',
+        overlap_model='operand_service_only_v1',
         fit_status='diagnostic_unfitted', observation_columns=columns,
         native_gemm_header_sha256=next(iter(headers)),
         observations=[[r.get(k) for k in columns] for r in observations],body_fits=fits,
