@@ -91,6 +91,8 @@ double Sm90DenseCostModel::Quantity(std::string const& metric,
           (x<=4)!=(d.second<=4)) {match=false;break;}
       if(metric=="activation_inactive_rows_initialize" && d.first=="batch" &&
           x!=d.second) {match=false;break;}
+      if(metric.find("_at_input_k")!=std::string::npos && d.first=="input_k" &&
+          x!=d.second) {match=false;break;}
       if(d.first!="past")distance+=std::abs(std::log((x+1)/(d.second+1)));
     }
     if(match && distance<=best+1e-12) {

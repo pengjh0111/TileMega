@@ -28,8 +28,10 @@ json::Value Fixture() {
   for(auto op:{"epilogue_store_return","epilogue_residual_return","epilogue_swiglu_return",
                "epilogue_argmax_return"}) {point(op,200,"plain");point(op,300,"dn");}
   for(auto op:{"epilogue_store_return_at_input_k","epilogue_swiglu_return_at_input_k",
-               "epilogue_argmax_return_at_input_k"})point(op,300,"dn");
-  point("epilogue_store_return_at_input_k",450,"dn");observations.back().Set("input_k",1024);
+               "epilogue_argmax_return_at_input_k"})for(int k:{1024,2048,3072,4096}) {
+    point(op,std::string(op)=="epilogue_store_return_at_input_k" && k==1024?450:300,"dn");
+    observations.back().Set("input_k",k);
+  }
   point("attention_critical_before_barrier",6000,"na");
   point("attention_critical_before_barrier",8000,"na");observations.back().Set("batch",16);
   json::Object fits;
@@ -110,6 +112,9 @@ int main() {
   residual_dn.Set("observations",epi_rows);
   auto ignored_dn=Sm90DenseCostModel(t,residual_dn).Predict(w,c);
   for(unsigned stage:{2u,4u})assert(ignored_dn.stages[stage].epilogue==200);
+  auto unmeasured=w;unmeasured.shapes[0][1]=512;bool missing_width=false;
+  try {model.Predict(unmeasured,c);}catch(std::invalid_argument const&) {missing_width=true;}
+  assert(missing_width);
   auto partition=c;partition.gemms[0].warps_n=1;partition.gemms[0].warps_k=4;
   auto split_prediction=model.Predict(w,partition);
   assert(split_prediction.stages[0].compute==double(w.shapes[0][1]/64)*40);
