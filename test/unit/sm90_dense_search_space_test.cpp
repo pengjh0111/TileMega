@@ -23,6 +23,20 @@ int main(int argc,char** argv) {
         assert(c.gemms[2].tile_n%(2*c.swiglu_u)==0);
       }
     }
+    if(batch==1) {
+      auto const& base=seeds.front();auto neighbours=space.Neighbours(base);
+      auto const& gate=base.gemms[2];
+      auto impossible=base;impossible.gemms[2].preissue_smem_bytes=gate.slot_bytes;
+      assert(!space.Legal(impossible));
+      bool relocated=false;
+      for(auto const& c:neighbours) {
+        if(c.gemms[2].preissue_smem_bytes!=gate.slot_bytes)continue;
+        assert(c.gemms[2].workspace_offset>0);
+        auto restored=c;restored.gemms[2]=base.gemms[2];
+        if(restored.ToJson().Dump(0)==base.ToJson().Dump(0))relocated=true;
+      }
+      assert(relocated);
+    }
     auto invalid=seeds.front();invalid.gemms[1].tile_n=7;
     assert(!space.Legal(invalid));
     auto overlap=seeds.front();overlap.gemms[2].preissue_smem_bytes=

@@ -84,6 +84,55 @@ std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::Neighbours(Sm90DenseCoor
     if(Legal(candidate) && seen.insert(candidate.ToJson().Dump(0)).second)
       result.push_back(std::move(candidate));
   };
+  auto preissue=[&](unsigned family,int bytes) {
+    using Layout=backend::Sm90DenseLayout;
+    auto candidate=center;
+    auto geometry=[&](unsigned i) {
+      if(i==5) {
+        auto const& a=center.attention;
+        return Layout::Attention(batch,head_dim,queries,a.chunks,a.block_keys,
+            a.slots,a.new_row_work,1088);
+      }
+      auto const& g=center.gemms[i];
+      return Layout::Gemm(g.tile_n,g.TileK(),g.slots,g.warps_k);
+    };
+    unsigned previous=std::array<unsigned,6>{3,5,1,2,3,0}[family];
+    int previous_offset=previous==5?center.attention.workspace_offset:
+        center.gemms[previous].workspace_offset;
+    auto live=geometry(previous).Live(previous_offset);
+    auto scratch=geometry(previous).Scratch(previous_offset);
+    backend::Sm90DensePayload payload;
+    if(family<5) {
+      auto& g=candidate.gemms[family];g.preissue_smem_bytes=bytes;
+      payload=Layout::GemmPayload(g.tile_n,g.TileK(),g.slots,shapes[family][1],bytes);
+    }else {
+      auto& a=candidate.attention;a.preissue_smem_bytes=bytes;
+      payload=Layout::AttentionPayload(batch,head_dim,queries,a.chunks,a.block_keys,
+          a.slots,a.new_row_work,1088,bytes);
+    }
+    add(candidate);
+    if(!bytes)return;
+    // Prefix and placement must move together: a whole first slot can overlap
+    // the previous epilogue at offset zero, making either isolated move useless.
+    std::set<int> offsets{0};
+    for(int i=0;i<payload.count;++i) {
+      auto range=payload.ranges[i];
+      for(auto boundary:{live,scratch}) {
+        int before=boundary.begin-range.end,after=boundary.end-range.begin;
+        if(before>=0)offsets.insert(before/1024*1024);
+        if(after>=0)offsets.insert((after+1023)/1024*1024);
+      }
+    }
+    bool selected[2]={false,false};
+    for(int offset:offsets) {
+      if(family<5)candidate.gemms[family].workspace_offset=offset;
+      else candidate.attention.workspace_offset=offset;
+      bool overlap=payload.Shift(offset).Overlaps(live);
+      if(!selected[overlap] && Legal(candidate)) {
+        add(candidate);selected[overlap]=true;
+      }
+    }
+  };
   for(unsigned family=0;family<5;++family) {
     auto const& g=center.gemms[family];
     for(int tn=8;tn<=512 && tn<=shapes[family][0];tn+=8) {
@@ -108,9 +157,8 @@ std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::Neighbours(Sm90DenseCoor
       auto candidate=center;candidate.gemms[family].workspace_offset=offset;add(std::move(candidate));
     }
     int maximum=std::min(g.slots,shapes[family][1]/g.TileK())*g.slot_bytes;
-    for(int bytes:{0,4096,16384,32768,65536,maximum}) {
-      auto candidate=center;candidate.gemms[family].preissue_smem_bytes=bytes;add(std::move(candidate));
-    }
+    for(int bytes:{0,4096,g.slot_bytes,2*g.slot_bytes,16384,32768,65536,maximum})
+      preissue(family,bytes);
     for(int bytes:{0,64*1024,128*1024,194*1024}) {
       auto candidate=center;candidate.gemms[family].prefetch_l2_bytes=bytes;add(std::move(candidate));
     }
@@ -126,9 +174,9 @@ std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::Neighbours(Sm90DenseCoor
   for(int residency:{1,2}) {
     auto candidate=center;candidate.residency=residency;add(std::move(candidate));
   }
-  for(int bytes:{0,4096,16384,32768,65536}) {
-    auto candidate=center;candidate.attention.preissue_smem_bytes=bytes;add(std::move(candidate));
-  }
+  int kv_block=4*head_dim*(batch<=4?backend::Sm90DenseLayout::AttentionKeys(
+      center.attention.chunks,center.attention.new_row_work,1088):center.attention.block_keys);
+  for(int bytes:{0,4096,16384,32768,65536,kv_block,2*kv_block})preissue(5,bytes);
   for(int bytes:{0,64*1024,128*1024,194*1024}) {
     auto candidate=center;candidate.attention.prefetch_l2_bytes=bytes;add(std::move(candidate));
   }
