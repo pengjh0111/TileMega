@@ -53,13 +53,13 @@ def main():
     for key in ('gemm_mma_sync_tn8_32', 'gemm_mma_sync_tn40_64', 'gemm_mma_sync_tn72_plus'):
         profile(key, dict(startup_ns=0, memory_scale=1, mma_scale=1, activation_scale=0,
                          epilogue_scale=1, preissue_efficiency=0, tail_efficiency=0,
-                         l2_efficiency=0, issue_ns=0))
+                         l2_efficiency=0, issue_ns=0,issue_service_scale=0))
     for d,q,norm in ((128,2,1),(64,4,0),(128,3,0),(128,4,0)):
         for mode in ('simt','mma_sync'):
             profile(f'attention_{mode}_d{d}_q{q}_norm{norm}', dict(body_scale=1,startup_ns=0,
-                preissue_efficiency=0,tail_efficiency=0,l2_efficiency=0,issue_ns=0))
-    for name in ('embedding','argmax'):profile('native_'+name,dict(startup_ns=0,per_element_ns=1,issue_ns=0))
-    cal = dict(schema=1, flow_model='overlapped_operands_v1',issue_model='issuer_exposure_v1',
+                preissue_efficiency=0,tail_efficiency=0,l2_efficiency=0,issue_ns=0,issue_service_scale=0))
+    for name in ('embedding','argmax'):profile('native_'+name,dict(startup_ns=0,per_element_ns=1,issue_ns=0,issue_service_scale=0))
+    cal = dict(schema=1, flow_model='overlapped_operands_v1',issue_model='issuer_service_v2',
         overlap_model='operand_service_only_v1',
         fit_status='diagnostic_unfitted', observation_columns=columns,
         native_gemm_header_sha256=next(iter(headers)),

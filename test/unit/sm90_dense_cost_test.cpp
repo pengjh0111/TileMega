@@ -36,6 +36,7 @@ json::Value Fixture() {
   point("attention_critical_before_barrier",8000,"na");observations.back().Set("batch",16);
   json::Object fits;
   auto fit=[&](char const* key,json::Object coefficients) {
+    coefficients.emplace_back("issue_service_scale",0);
     fits.emplace_back(key,json::Object{{"evidence","inferred"},{"sample_count",5},
         {"coefficients",coefficients}});
   };
@@ -49,7 +50,7 @@ json::Value Fixture() {
   for(auto key:{"native_embedding","native_argmax"})
     fit(key,{{"startup_ns",100},{"per_element_ns",.1},{"issue_ns",20}});
   return json::Object{{"schema",1},{"flow_model","overlapped_operands_v1"},
-      {"issue_model","issuer_exposure_v1"},
+      {"issue_model","issuer_service_v2"},
       {"overlap_model","operand_service_only_v1"},
       {"observations",observations},{"body_fits",fits}};
 }
@@ -129,6 +130,15 @@ int main() {
   issuer.Set("body_fits",issuer_fits);
   auto issuer_price=Sm90DenseCostModel(t,issuer).Predict(w,prefetch);
   assert(issuer_price.stages[0].issue==200 && issuer_price.stages[0].issue_count==1);
+  for(auto& fit:issuer_fits) {
+    auto coefficients=fit.second.At("coefficients");
+    if(fit.first=="gemm_mma_sync_tn8_32")coefficients.Set("issue_service_scale",.5);
+    fit.second.Set("coefficients",coefficients);
+  }
+  issuer.Set("body_fits",issuer_fits);
+  auto transfer_price=Sm90DenseCostModel(t,issuer).Predict(w,prefetch);
+  assert(transfer_price.stages[0].issue_service>0 &&
+      transfer_price.stages[0].issue==200+.5*transfer_price.stages[1].l2_service);
   auto prefetched=c;prefetched.gemms[0].prefetch_l2_bytes=2*c.gemms[0].tile_n*w.shapes[0][1];
   auto clipped=model.Predict(w,prefetched);
   prefetched.gemms[0].prefetch_l2_bytes*=4;

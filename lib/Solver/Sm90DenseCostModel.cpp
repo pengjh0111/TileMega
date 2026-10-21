@@ -34,7 +34,7 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal)
      cal.At("flow_model").AsString("native flow model")!="overlapped_operands_v1")
     throw std::invalid_argument("native operand overlap requires refitted calibration");
   if(!cal.Find("issue_model") ||
-     cal.At("issue_model").AsString("native issue model")!="issuer_exposure_v1")
+     cal.At("issue_model").AsString("native issue model")!="issuer_service_v2")
     throw std::invalid_argument("native preissue exposure requires issuer calibration");
   if(!cal.Find("overlap_model") ||
      cal.At("overlap_model").AsString("native overlap model")!="operand_service_only_v1")
@@ -227,7 +227,8 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
           fraction*tile_stream;
       s.l2_service=std::min(double(g.prefetch_l2_bytes),
           2.*g.tile_n*k-g.preissue_smem_bytes)/bw;
-      s.issue_count=(g.preissue_smem_bytes>0)+(g.prefetch_l2_bytes>0);
+      s.issue_count=(g.preissue_smem_bytes>0)+(s.l2_service>0);
+      s.issue_service=fraction*tile_stream+s.l2_service;
     }else {
       auto const& a=c.attention;s.kind="attention";s.key=AttentionKey(w);
       s.tasks=w.batch*8*a.chunks;s.waves=(s.tasks+grid-1)/grid;
@@ -252,7 +253,11 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
       double history_bytes=4.*past*w.head_dim/a.chunks;
       s.l2_service=std::min(double(a.prefetch_l2_bytes),
           std::max(0.,history_bytes-a.preissue_smem_bytes))/global_bw*std::min(grid,s.tasks);
-      s.issue_count=(a.preissue_smem_bytes>0)+(a.prefetch_l2_bytes>0);
+      s.issue_count=(a.preissue_smem_bytes>0)+(s.l2_service>0);
+      // Outgoing contention prices transferred KV bytes, not the receiver's
+      // query/softmax work that also contributes to its overlap feature.
+      s.issue_service=std::min(double(a.preissue_smem_bytes),history_bytes)/global_bw*
+          std::min(grid,s.tasks)+s.l2_service;
     }
     s.overlap=std::min(s.overlap_limit,
         s.preissue_service*Coefficient(s.key,"preissue_efficiency")+
@@ -273,15 +278,23 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
   // follows embedding; the final down issues lm_head rather than another qkv.
   // Class means retain both boundary cases without charging the receiver.
   auto& stages=result.stages;
-  std::array<double,6> incoming{};
-  for(unsigned i=0;i<incoming.size();++i)incoming[i]=stages[i].issue_count;
-  for(unsigned i=0;i<4;++i)stages[i].issue_count=incoming[i+1];
+  std::array<double,6> incoming{},service{};
+  for(unsigned i=0;i<incoming.size();++i) {
+    incoming[i]=stages[i].issue_count;
+    service[i]=stages[i].issue_service;
+  }
+  for(unsigned i=0;i<4;++i) {
+    stages[i].issue_count=incoming[i+1];stages[i].issue_service=service[i+1];
+  }
   stages[4].issue_count=(incoming[0]*(w.layers-1)+incoming[5])/w.layers;
+  stages[4].issue_service=(service[0]*(w.layers-1)+service[5])/w.layers;
   stages[5].issue_count=0;stages[6].issue_count=incoming[0];
+  stages[5].issue_service=0;stages[6].issue_service=service[0];
   for(auto& s:stages) {
     // An attention producer can hide weight issue behind compute, while a
     // streaming GEMM exposes competing traffic. Price the issuing body.
-    s.issue=s.issue_count? s.issue_count*Coefficient(s.key,"issue_ns"):0;
+    s.issue=s.issue_count? s.issue_count*Coefficient(s.key,"issue_ns")+
+        s.issue_service*Coefficient(s.key,"issue_service_scale"):0;
     s.ns+=s.issue;result.step_ns+=s.ns*s.instances;
   }
   return result;
@@ -299,7 +312,7 @@ Sm90DensePrediction Sm90DenseCostModel::Request(Sm90DenseWorkload const& w,
       for(auto& s:result.stages)
         s.ns=s.barrier=s.startup=s.read_startup=s.initialization=s.dram=s.stream=s.flow=
             s.activation=s.compute=s.epilogue=s.overlap=s.issue=
-            s.overlap_limit=s.preissue_service=s.late_service=s.l2_service=s.issue_count=0;
+            s.overlap_limit=s.preissue_service=s.late_service=s.l2_service=s.issue_count=s.issue_service=0;
     }
     for(unsigned j=0;j<sample.stages.size();++j) {
       auto& out=result.stages[j];auto const& in=sample.stages[j];
@@ -318,6 +331,7 @@ Sm90DensePrediction Sm90DenseCostModel::Request(Sm90DenseWorkload const& w,
       out.late_service+=in.late_service/intervals;
       out.l2_service+=in.l2_service/intervals;
       out.issue_count+=in.issue_count/intervals;
+      out.issue_service+=in.issue_service/intervals;
     }
     result.step_ns+=sample.step_ns/intervals;
   }
@@ -335,7 +349,7 @@ json::Value Sm90DensePrediction::ToJson() const {
       {"compute_ns",s.compute},{"epilogue_ns",s.epilogue},{"overlap_ns",s.overlap},
       {"issue_ns",s.issue},{"read_startup_ns",s.read_startup},{"overlap_limit_ns",s.overlap_limit},
       {"preissue_service_ns",s.preissue_service},{"late_service_ns",s.late_service},
-      {"l2_service_ns",s.l2_service},{"issue_count",s.issue_count}});
+      {"l2_service_ns",s.l2_service},{"issue_count",s.issue_count},{"issue_service_ns",s.issue_service}});
   return json::Object{{"step_ns",step_ns},{"evidence","inferred prediction from native calibration"},
       {"stages",values}};
 }
