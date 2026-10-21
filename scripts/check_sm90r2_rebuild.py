@@ -35,6 +35,8 @@ def main():
     p.add_argument('--reference', type=Path, required=True)
     p.add_argument('--candidate', type=Path, required=True)
     p.add_argument('--out', type=Path, required=True)
+    p.add_argument('--diagnostic', action='store_true',
+                   help='compare two stage-trace libraries; never establish a final artifact')
     a = p.parse_args()
     if a.out.exists():
         raise ValueError('retain previous rebuild evidence; choose a new output directory')
@@ -42,8 +44,8 @@ def main():
     identities, plans, sources, assembly = [], [], [], []
     for label, binary in [('reference', a.reference), ('candidate', a.candidate)]:
         identity = verify(binary)
-        if identity['trace']:
-            raise ValueError('instrumented libraries cannot verify a selected artifact')
+        if bool(identity['trace']) != a.diagnostic:
+            raise ValueError('both artifacts must match the requested timing or diagnostic mode')
         identities.append(identity)
         plans.append(json.loads(Path(str(binary) + '.plan.json').read_text()))
         sources.append(sha(str(binary) + '.cu'))
@@ -63,6 +65,7 @@ def main():
         same_instruction_encoding=old_encoding == new_encoding,
         changed_functions=sorted(k for k in old.keys() | new.keys() if old.get(k) != new.get(k)),
         instruction_encoding_sha256=old_encoding,
+        diagnostic=a.diagnostic, performance_eligible=not a.diagnostic,
         evidence='verified static rebuild comparison; not a performance result')
     record['pass'] = all(record[k] for k in ('same_coordinates', 'same_workload',
         'same_source', 'same_instructions', 'same_instruction_encoding'))
