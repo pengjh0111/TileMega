@@ -340,6 +340,9 @@ DerivedTaskInput DeriveCombineTaskInput(ModelDescription const& model,int stage,
     DerivedTaskInput result{task,work,signature,{"q"},
         codegen::ScalarTaskDataflow(codegen::TaskKind::kGemmCombine),accesses};
     result.physical_read_bytes=QuasiPolynomial::Sum(read_bytes);
+    // A serving combine has its own task-body fit when the target carries
+    // one (MX3-5): the scalar estimate omits the megakernel task overhead.
+    if(model.serving)result.serving_body_kind="gemm_combine";
     return result;
   }
   if (!tile_ownership)
@@ -400,6 +403,9 @@ DerivedTaskInput DeriveCombineTaskInput(ModelDescription const& model,int stage,
   DerivedTaskInput result{task,work,signature,{"q"},
       codegen::ScalarTaskDataflow(codegen::TaskKind::kGemmCombine),accesses};
   result.physical_read_bytes=QuasiPolynomial::Sum(read_bytes);
+  // A serving combine has its own task-body fit when the target carries
+  // one (MX3-5): the scalar estimate omits the megakernel task overhead.
+  if(model.serving)result.serving_body_kind="gemm_combine";
   return result;
 }
 
