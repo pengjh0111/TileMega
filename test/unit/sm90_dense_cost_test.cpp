@@ -15,7 +15,7 @@ json::Value Fixture() {
         {"vector_sums",1},{"head_dim",128},{"queries",2},{"qk_norm",1},
         {"warps_n",1},{"warps_k",4},{"register_stages",1},
         {"production_compatible",true},
-        {"chunks",16},{"block_keys",64},{"past",575},{"tile_k",256},{"cache",cache}});
+        {"chunks",16},{"block_keys",64},{"past",575},{"tile_k",256},{"input_k",4096},{"cache",cache}});
   };
   point("v3_last_arrival_to_departure",768,"na");
   point("bulk_stream_per_active_cta",24,"dram");point("bulk_single_completion",600,"dram");
@@ -27,6 +27,9 @@ json::Value Fixture() {
   }
   for(auto op:{"epilogue_store_return","epilogue_residual_return","epilogue_swiglu_return",
                "epilogue_argmax_return"}) {point(op,200,"plain");point(op,300,"dn");}
+  for(auto op:{"epilogue_store_return_at_input_k","epilogue_swiglu_return_at_input_k",
+               "epilogue_argmax_return_at_input_k"})point(op,300,"dn");
+  point("epilogue_store_return_at_input_k",450,"dn");observations.back().Set("input_k",1024);
   point("attention_critical_before_barrier",6000,"na");
   point("attention_critical_before_barrier",8000,"na");observations.back().Set("batch",16);
   json::Object fits;
@@ -72,6 +75,7 @@ int main() {
   for(auto const& p:prediction.stages)
     assert(p.initialization==(p.key.rfind("gemm_",0)==0?500:0));
   assert(prediction.stages[5].waves>1 && prediction.stages[5].initialization==500);
+  assert(prediction.stages[0].epilogue==450);
   auto full_batch=w;full_batch.batch=16;
   auto full_coordinates=Sm90DenseCoordinates::Exact(w.shapes,16,t.res.max_dynamic_smem_per_cta);
   for(auto const& p:model.Request(full_batch,full_coordinates).stages)assert(p.initialization==0);
