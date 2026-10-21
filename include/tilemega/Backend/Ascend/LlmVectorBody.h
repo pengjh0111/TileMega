@@ -38,43 +38,69 @@ class LlmVectorBody {
     Load(bo_,input,n);CompleteDma<AscendC::HardEvent::MTE2_MTE3>();Store(output,n);return true;
   }
   __aicore__ inline bool ServingScores(GM_ADDR query,GM_ADDR key,GM_ADDR scores,
-      unsigned keys,unsigned d,float scale) {
+      unsigned keys,unsigned d,float scale,bool bf16_scores=true,bool split_scale=false) {
     if(!keys || keys>32 || (d!=64 && d!=128))return false;
     Load(bx_,key,keys*d);Load(bo_,query,d);CompleteDma<AscendC::HardEvent::MTE2_V>();
     AscendC::Cast(x_,bx_,AscendC::RoundMode::CAST_NONE,keys*d);
     AscendC::Cast(z_,bo_,AscendC::RoundMode::CAST_NONE,d);AscendC::PipeBarrier<PIPE_V>();
+    if(split_scale) {
+      const float root=d==128?0.29730177875068026f:0.3535533905932738f;
+      AscendC::Muls(x_,x_,root,keys*d);AscendC::Muls(z_,z_,root,d);AscendC::PipeBarrier<PIPE_V>();
+    }
     uint32_t shape[2]={keys,d},qshape[2]={1,d};auto tmp=scratch_.ReinterpretCast<uint8_t>();
     AscendC::Broadcast<float,2,0>(work_,z_,shape,qshape,tmp);AscendC::PipeBarrier<PIPE_V>();
     AscendC::Mul(work_,work_,x_,keys*d);AscendC::PipeBarrier<PIPE_V>();
     AscendC::ReduceSum<float,AscendC::Pattern::Reduce::AR>(y_,work_,tmp,shape,true);AscendC::PipeBarrier<PIPE_V>();
-    // The imported BF16 graph materializes QK, then scaled scores, before
-    // softmax FP32 opmath. Preserve both storage-rounding points.
-    AscendC::Cast(bx_,y_,AscendC::RoundMode::CAST_RINT,keys);AscendC::PipeBarrier<PIPE_V>();
-    AscendC::Cast(y_,bx_,AscendC::RoundMode::CAST_NONE,keys);AscendC::PipeBarrier<PIPE_V>();
-    AscendC::Muls(y_,y_,scale,keys);AscendC::PipeBarrier<PIPE_V>();
-    AscendC::Cast(bx_,y_,AscendC::RoundMode::CAST_RINT,keys);AscendC::PipeBarrier<PIPE_V>();
-    AscendC::Cast(y_,bx_,AscendC::RoundMode::CAST_NONE,keys);CompleteDma<AscendC::HardEvent::V_MTE3>();
+    // The BF16-score implementation preserves both graph storage roundings.
+    // The separately declared FP32-score candidate omits those two casts.
+    if(bf16_scores) {
+      AscendC::Cast(bx_,y_,AscendC::RoundMode::CAST_RINT,keys);AscendC::PipeBarrier<PIPE_V>();
+      AscendC::Cast(y_,bx_,AscendC::RoundMode::CAST_NONE,keys);AscendC::PipeBarrier<PIPE_V>();
+    }
+    if(!split_scale){AscendC::Muls(y_,y_,scale,keys);AscendC::PipeBarrier<PIPE_V>();}
+    if(bf16_scores) {
+      AscendC::Cast(bx_,y_,AscendC::RoundMode::CAST_RINT,keys);AscendC::PipeBarrier<PIPE_V>();
+      AscendC::Cast(y_,bx_,AscendC::RoundMode::CAST_NONE,keys);AscendC::PipeBarrier<PIPE_V>();
+    }
+    CompleteDma<AscendC::HardEvent::V_MTE3>();
     AscendC::GlobalTensor<float> dst;dst.SetGlobalBuffer((__gm__ float*)scores);
     AscendC::DataCopyExtParams copy{1,keys*4,0,0,0};AscendC::DataCopyPad(dst,y_,copy);
     CompleteDma<AscendC::HardEvent::MTE3_S>();return true;
   }
-  __aicore__ inline bool ServingSoftmax(GM_ADDR scores,GM_ADDR probabilities,unsigned keys) {
-    if(!keys || keys>1088)return false;
+  __aicore__ inline bool ServingSoftmax(GM_ADDR scores,GM_ADDR probabilities,unsigned keys,
+      bool fp32=false,unsigned width=0) {
+    if(!width)width=keys;
+    if(!keys || keys>width || width>1088)return false;
     AscendC::GlobalTensor<float> src;src.SetGlobalBuffer((__gm__ float*)scores);
     AscendC::DataCopyExtParams copy{1,keys*4,0,0,0};AscendC::DataCopyPadExtParams<float> pad(false,0,0,0);
     AscendC::DataCopyPad(x_,src,copy,pad);CompleteDma<AscendC::HardEvent::MTE2_V>();
-    AscendC::ReduceMax(z_,x_,scratch_,keys);CompleteDma<AscendC::HardEvent::V_S>();float maximum=z_.GetValue(0);
-    AscendC::Adds(work_,x_,-maximum,keys);AscendC::PipeBarrier<PIPE_V>();
-    AscendC::Exp(work_,work_,keys);AscendC::PipeBarrier<PIPE_V>();
-    AscendC::ReduceSum(z_,work_,scratch_,keys);CompleteDma<AscendC::HardEvent::V_S>();float sum=z_.GetValue(0);
+    // The static-cache math baseline reduces over capacity. Materialize its
+    // masked score tail locally; no invalid/padding K or V is loaded.
+    AscendC::Duplicate(work_,-3.3895313892515355e38f,width);AscendC::PipeBarrier<PIPE_V>();
+    AscendC::Adds(work_,x_,0.0f,keys);AscendC::PipeBarrier<PIPE_V>();
+    AscendC::ReduceMax(z_,work_,scratch_,width);CompleteDma<AscendC::HardEvent::V_S>();float maximum=z_.GetValue(0);
+    AscendC::Adds(work_,work_,-maximum,width);AscendC::PipeBarrier<PIPE_V>();
+    AscendC::Exp(work_,work_,width);AscendC::PipeBarrier<PIPE_V>();
+    AscendC::ReduceSum(z_,work_,scratch_,width);CompleteDma<AscendC::HardEvent::V_S>();float sum=z_.GetValue(0);
     if(!(sum>0))return false;
     AscendC::Muls(work_,work_,1.0f/sum,keys);AscendC::PipeBarrier<PIPE_V>();
+    if(fp32) {
+      CompleteDma<AscendC::HardEvent::V_MTE3>();AscendC::GlobalTensor<float> dst;
+      dst.SetGlobalBuffer((__gm__ float*)probabilities);
+      AscendC::DataCopyExtParams copy{1,keys*4,0,0,0};AscendC::DataCopyPad(dst,work_,copy);
+      CompleteDma<AscendC::HardEvent::MTE3_S>();return true;
+    }
     AscendC::Cast(bo_,work_,AscendC::RoundMode::CAST_RINT,keys);Store(probabilities,keys);return true;
   }
-  __aicore__ inline bool ServingPV(GM_ADDR probabilities,GM_ADDR values,GM_ADDR output,unsigned keys,unsigned d) {
+  __aicore__ inline bool ServingPV(GM_ADDR probabilities,GM_ADDR values,GM_ADDR output,unsigned keys,unsigned d,bool fp32=false) {
     if(!keys || keys>32 || (d!=64 && d!=128))return false;
-    Load(bx_,probabilities,keys);Load(by_,values,keys*d);CompleteDma<AscendC::HardEvent::MTE2_V>();
-    AscendC::Cast(z_,bx_,AscendC::RoundMode::CAST_NONE,keys);
+    if(fp32) {
+      AscendC::GlobalTensor<float> src;src.SetGlobalBuffer((__gm__ float*)probabilities);
+      AscendC::DataCopyExtParams copy{1,keys*4,0,0,0};AscendC::DataCopyPadExtParams<float> pad(false,0,0,0);
+      AscendC::DataCopyPad(z_,src,copy,pad);
+    }else Load(bx_,probabilities,keys);
+    Load(by_,values,keys*d);CompleteDma<AscendC::HardEvent::MTE2_V>();
+    if(!fp32)AscendC::Cast(z_,bx_,AscendC::RoundMode::CAST_NONE,keys);
     AscendC::Cast(y_,by_,AscendC::RoundMode::CAST_NONE,keys*d);AscendC::PipeBarrier<PIPE_V>();
     uint32_t shape[2]={keys,d},pshape[2]={keys,1};auto tmp=scratch_.ReinterpretCast<uint8_t>();
     AscendC::Broadcast<float,2,1>(work_,z_,shape,pshape,tmp);AscendC::PipeBarrier<PIPE_V>();
@@ -128,6 +154,7 @@ class LlmVectorBody {
       z_.SetValue(0,stats.GetValue(2*c)-maximum);CompleteDma<AscendC::HardEvent::S_V>();
       AscendC::Exp(z_,z_,1);CompleteDma<AscendC::HardEvent::V_S>();
       float factor=z_.GetValue(0);denominator+=factor*stats.GetValue(2*c+1);
+      CompleteDma<AscendC::HardEvent::V_MTE2>();
       AscendC::DataCopy(y_,parts[c*d],d);CompleteDma<AscendC::HardEvent::MTE2_V>();
       AscendC::Muls(work_,y_,factor,d);AscendC::PipeBarrier<PIPE_V>();
       AscendC::Add(x_,x_,work_,d);AscendC::PipeBarrier<PIPE_V>();
@@ -154,7 +181,8 @@ class LlmVectorBody {
       float l=stats.GetValue(c*heads+head);if(l< -3.4e38f)continue;
       z_.SetValue(0,(l-maximum)*0.6931471805599453f);CompleteDma<AscendC::HardEvent::S_V>();
       AscendC::Exp(z_,z_,1);CompleteDma<AscendC::HardEvent::V_S>();float weight=z_.GetValue(0);
-      denominator+=weight;AscendC::DataCopy(y_,parts[(c*heads+head)*d],d);
+      denominator+=weight;CompleteDma<AscendC::HardEvent::V_MTE2>();
+      AscendC::DataCopy(y_,parts[(c*heads+head)*d],d);
       CompleteDma<AscendC::HardEvent::MTE2_V>();AscendC::Muls(work_,y_,weight,d);
       AscendC::PipeBarrier<PIPE_V>();AscendC::Add(x_,x_,work_,d);AscendC::PipeBarrier<PIPE_V>();
     }
@@ -261,6 +289,7 @@ class LlmVectorBody {
       z_.SetValue(0,stats.GetValue(2*c)-maximum);CompleteDma<AscendC::HardEvent::S_V>();
       AscendC::Exp(z_,z_,1);CompleteDma<AscendC::HardEvent::V_S>();
       float factor=z_.GetValue(0);denominator+=factor*stats.GetValue(2*c+1);
+      CompleteDma<AscendC::HardEvent::V_MTE2>();
       AscendC::DataCopy(y_,parts[c*d],d);CompleteDma<AscendC::HardEvent::MTE2_V>();
       AscendC::Muls(work_,y_,factor,d);AscendC::PipeBarrier<PIPE_V>();
       AscendC::Add(x_,x_,work_,d);AscendC::PipeBarrier<PIPE_V>();

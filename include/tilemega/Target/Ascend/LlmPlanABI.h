@@ -5,7 +5,7 @@
 #include <type_traits>
 
 namespace tilemega::ascend::llm {
-inline constexpr uint32_t kVersion=2;
+inline constexpr uint32_t kVersion=3;
 inline constexpr uint64_t kAbsent=~uint64_t(0);
 struct Metadata {
   uint32_t version,groups,workers,tasks,stages,waits,queue_refs,epoch_stride;
@@ -18,6 +18,9 @@ struct Stage {
   uint64_t workspace;
   uint32_t kind,epilogue,tasks,rows,columns,k,extent,width,group;
   uint32_t kv_block,query_rows,row_stride,row_offset,batch_rows,variant;
+  // GEMM variants: 0=32x64x64, 1=16x128x128. Attention variants:
+  // 0=BF16 scores/probabilities, 1=FP32 chunks, 2=FP32 scores/BF16 probabilities,
+  // 3=math SDPA split scale, capacity softmax and FP32 probabilities (ABI v3).
   float epsilon;
 };
 struct Task {

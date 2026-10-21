@@ -24,20 +24,32 @@ template<unsigned TM=32,unsigned TN=64> class LlmServingBody {
     return vector_.Rope(source,cos,sin,output,d);
   }
   __aicore__ inline bool Attend(GM_ADDR query,GM_ADDR key,GM_ADDR value,GM_ADDR output,
-      GM_ADDR scratch,unsigned keys,unsigned d) {
+      GM_ADDR scratch,unsigned keys,unsigned d,unsigned precision) {
+    if(precision==1) {
+      unsigned chunks=0;
+      for(unsigned k=0;k<keys;k+=32,++chunks) {
+        unsigned n=keys-k<32?keys-k:32;
+        if(!vector_.AttentionChunk(query,key+uint64_t(k)*d*2,value+uint64_t(k)*d*2,
+            scratch+1024+chunks*d*4,scratch+20480+chunks*8,n,d,
+            d==128?0.08838834764831845f:0.125f))return false;
+      }
+      Acquire(scratch);
+      return vector_.AttentionMerge(scratch+1024,scratch+20480,output,chunks,d);
+    }
     for(unsigned k=0;k<keys;k+=32) {
       unsigned n=keys-k<32?keys-k:32;
       if(!vector_.ServingScores(query,key+uint64_t(k)*d*2,scratch+1024+k*4,n,d,
-          d==128?0.08838834764831845f:0.125f))return false;
+          d==128?0.08838834764831845f:0.125f,precision==0,precision==3))return false;
     }
     Acquire(scratch);
-    if(!vector_.ServingSoftmax(scratch+1024,scratch+6144,keys))return false;
+    if(!vector_.ServingSoftmax(scratch+1024,scratch+6144,keys,precision==3,precision==3?1088:keys))return false;
     Acquire(scratch);unsigned count=0;
+    unsigned partial=precision==3?16384:10240;
     for(unsigned k=0;k<keys;k+=32,++count) {
       unsigned n=keys-k<32?keys-k:32;
-      if(!vector_.ServingPV(scratch+6144+k*2,value+uint64_t(k)*d*2,scratch+10240+count*d*4,n,d))return false;
+      if(!vector_.ServingPV(scratch+6144+k*(precision==3?4:2),value+uint64_t(k)*d*2,scratch+partial+count*d*4,n,d,precision==3))return false;
     }
-    Acquire(scratch);return vector_.SumServingPV(scratch+10240,output,count,d);
+    Acquire(scratch);return vector_.SumServingPV(scratch+partial,output,count,d);
   }
  public:
   __aicore__ inline bool Epilogue(llm::Stage const& s,unsigned tile,GM_ADDR arena) {
@@ -76,7 +88,7 @@ template<unsigned TM=32,unsigned TN=64> class LlmServingBody {
       return vector_.RmsNorm(p(0)+row*s.width*2,p(1),p(2)+uint64_t(task)*s.width*2,s.width,s.epsilon);
     }
     if(s.kind==13) {
-      if((meta.seq!=1 && meta.seq!=64) || (s.width!=64 && s.width!=128) || !s.group || s.group>8 || (s.kv_block!=128 && s.kv_block!=1088))return false;
+      if((meta.seq!=1 && meta.seq!=64) || (s.width!=64 && s.width!=128) || !s.group || s.group>8 || s.variant>3 || (s.kv_block!=128 && s.kv_block!=1088))return false;
       if(meta.seq==64) {
         if(past || s.kv_block!=meta.capacity || meta.worker_scratch_bytes<98304 || !s.query_rows || s.query_rows%s.group)return false;
         unsigned qblocks=(meta.seq*s.group+s.query_rows-1)/s.query_rows;
@@ -108,7 +120,7 @@ template<unsigned TM=32,unsigned TN=64> class LlmServingBody {
           if(!Rotate(source,p(5),p(3)+uint64_t(pos)*d*2,p(4)+uint64_t(pos)*d*2,scratch,scratch+512,d,s.epsilon))return false;
           Acquire(scratch);
           auto output=p(7)+(((uint64_t(b)*meta.seq+pos)*s.extent+group)*s.group+q)*d*2;
-          if(!Attend(scratch,keys,values,output,scratch,pos+1,d))return false;
+          if(!Attend(scratch,keys,values,output,scratch,pos+1,d,s.variant))return false;
         }
         return true;
       }
@@ -134,7 +146,7 @@ template<unsigned TM=32,unsigned TN=64> class LlmServingBody {
         if(!Rotate(qkv+q*d*2,p(5),cos,sin,scratch,scratch+512,d,s.epsilon))return false;
         Acquire(scratch);
         if(blocks==1) {
-          if(!Attend(scratch,key,value,p(7)+((uint64_t(b)*s.extent+group)*s.group+q)*d*2,scratch,end,d))return false;
+          if(!Attend(scratch,key,value,p(7)+((uint64_t(b)*s.extent+group)*s.group+q)*d*2,scratch,end,d,s.variant))return false;
           continue;
         }
         unsigned chunks=0;
