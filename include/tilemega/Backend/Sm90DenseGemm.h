@@ -104,43 +104,58 @@ struct Sm90DenseGemm {
       state.producer_generations[slot]=(phase>>slot)&1;
   }
 
+  template<int Split,class Accumulator>
+  __device__ static __forceinline__ void MmaSlice(Element* a,Element* b,Accumulator& accum) {
+    using namespace cute;
+    static_assert(Split>=0 && Split<WarpsK);
+    int lane=int(threadIdx.x)%(32*WarpsN);
+    Mma mma;auto thread=mma.get_slice(lane);
+    auto copy_a=make_tiled_copy_A(CopyA{},mma);
+    auto copy_b=make_tiled_copy_B(CopyB{},mma);
+    auto sa=make_tensor(make_smem_ptr(a),LayoutA{});
+    auto sb=make_tensor(make_smem_ptr(b),LayoutB{});
+    auto ra=thread.partition_fragment_A(sa);auto rb=thread.partition_fragment_B(sb);
+    auto as=copy_a.get_slice(lane).partition_S(sa);auto bs=copy_b.get_slice(lane).partition_S(sb);
+    auto ad=copy_a.get_slice(lane).retile_D(ra);auto bd=copy_b.get_slice(lane).retile_D(rb);
+    for_each(make_int_sequence<RegisterStages>{},[&](auto i) {
+      constexpr int k=Split+int(i)*WarpsK;
+      copy(CopyA{},as(_,_,Int<k>{}),ad(_,_,Int<k>{}));
+      copy(CopyB{},bs(_,_,Int<k>{}),bd(_,_,Int<k>{}));
+    });
+    for_each(make_int_sequence<TK/(16*WarpsK)>{},[&](auto i) {
+      constexpr int k=Split+int(i)*WarpsK,next=k+RegisterStages*WarpsK;
+      gemm(mma,ra(_,_,Int<k>{}),rb(_,_,Int<k>{}),accum);
+      if constexpr(next<TK/16) {
+        copy(CopyA{},as(_,_,Int<next>{}),ad(_,_,Int<next>{}));
+        copy(CopyB{},bs(_,_,Int<next>{}),bd(_,_,Int<next>{}));
+      }
+    });
+  }
+
   __device__ static __noinline__ void Consume(Sm90DenseOperands p,
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,int tasks,
       unsigned phase,float epsilon) {
     using namespace cute;
     int tid=threadIdx.x,lane=tid%(32*WarpsN),split=tid/(32*WarpsN);
     Mma mma;auto thread=mma.get_slice(lane);
-    auto copy_a=make_tiled_copy_A(CopyA{},mma);
-    auto copy_b=make_tiled_copy_B(CopyB{},mma);
     auto owned=thread.partition_C(make_identity_tensor(Shape<_16,Int<TN>>{}));
     for(int local=0;local<tasks;++local) {
       auto accum=partition_fragment_C(mma,Shape<_16,Int<TN>>{});clear(accum);
       for(int iteration=0;iteration<kIterations;++iteration) {
         int sequence=local*kIterations+iteration,slot=sequence%Slots;
         Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
-        auto sa=make_tensor(make_smem_ptr(a+slot*16*TK),LayoutA{});
-        auto sb=make_tensor(make_smem_ptr(b+slot*TN*TK),LayoutB{});
-        auto ra=thread.partition_fragment_A(sa);auto rb=thread.partition_fragment_B(sb);
-        auto as=copy_a.get_slice(lane).partition_S(sa);auto bs=copy_b.get_slice(lane).partition_S(sb);
-        auto ad=copy_a.get_slice(lane).retile_D(ra);auto bd=copy_b.get_slice(lane).retile_D(rb);
-        constexpr int window=RegisterStages*WarpsK;
-        for_each(make_int_sequence<window>{},[&](auto k) {
-          if(int(k)%WarpsK==split) {
-            copy(CopyA{},as(_,_,k),ad(_,_,k));copy(CopyB{},bs(_,_,k),bd(_,_,k));
-          }
-        });
-        // All indices stay constexpr, so lookahead extends register lifetimes
-        // without creating an addressable fragment array or changing the sum.
-        for_each(make_int_sequence<size<2>(ra)>{},[&](auto k) {
-          if(int(k)%WarpsK==split) {
-            gemm(mma,ra(_,_,k),rb(_,_,k),accum);
-            constexpr int next=int(k)+window;
-            if constexpr(next<size<2>(ra)) {
-              copy(CopyA{},as(_,_,Int<next>{}),ad(_,_,Int<next>{}));
-              copy(CopyB{},bs(_,_,Int<next>{}),bd(_,_,Int<next>{}));
-            }
-          }
-        });
+        auto* sa=a+slot*16*TK;auto* sb=b+slot*TN*TK;
+        // A warp takes one uniform specialization. All 128-thread barriers
+        // and shared reductions remain at common call sites after reconvergence.
+        if constexpr(WarpsK==1)MmaSlice<0>(sa,sb,accum);
+        else if constexpr(WarpsK==2) {
+          if(split==0)MmaSlice<0>(sa,sb,accum);else MmaSlice<1>(sa,sb,accum);
+        }else {
+          if(split==0)MmaSlice<0>(sa,sb,accum);
+          else if(split==1)MmaSlice<1>(sa,sb,accum);
+          else if(split==2)MmaSlice<2>(sa,sb,accum);
+          else MmaSlice<3>(sa,sb,accum);
+        }
         // The empty barrier counts every reader; a separate CTA rendezvous
         // would serialize otherwise independent consumer warps on every slot.
         Async::Arrive(state.empty+slot);
