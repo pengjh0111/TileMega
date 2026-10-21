@@ -2055,6 +2055,11 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     if(g.get("epilogue") && stringField(g,"epilogue")=="swiglu" &&
        integerField(g,"interleave_u")!=c.swiglu_u)
       throw std::invalid_argument("native SwiGLU coordinate needs plan reconstruction");
+    if(g.get("epilogue") && stringField(g,"epilogue")=="residual") {
+      auto norm=g.getAs<mlir::IntegerAttr>("norm_ss");
+      if(norm && norm.getInt()>=0 && norm.getInt()!=0xffffffffll)
+        throw std::invalid_argument("native residual GEMM consumes an unnormalized input");
+    }
     auto recipe=json::Parse(stringField(dictionaryEntry(buffers[integerField(g,"b")],"buffers"),"pack_json"));
     if(recipe.At("kind").AsString("weight layout")!="tile_pages" ||
        recipe.At("tile_n").AsNumber("weight TN")!=cfg.tile_n ||
