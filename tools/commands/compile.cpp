@@ -591,6 +591,33 @@ int RunCompile(int argc, char** argv) {
       input=bridge;
       std::cerr<<"EXPORT_BRIDGE source="<<std::quoted(argv[1])<<" output="<<std::quoted(input.string())<<'\n';
     }
+    if(serving_phase=="decode" && !solve_target.empty() && frontend_mode=="decoder" &&
+       input.extension()!=".mlir" &&
+       tilemega::TargetSpec::FromJson(solve_target).arch_tag=="sm_90" &&
+       tilemega::commands::IsNativeDenseInput(input.string())) {
+      std::set<std::string> allowed={"--solve","--serving","--emit","--batch","--seed-arch",
+          "--selection","--measure-cmd","--measure-top","--search-passes","--search-budget-ms",
+          "--dump-cg","--runtime-target","--capacity","--prompt-len","--past-range",
+          "--nvcc-split-compile","--evaluate-configs"};
+      for(int i=3;i<argc;i+=2)if(!allowed.count(argv[i]))
+        throw std::invalid_argument("native solve does not accept legacy option "+std::string(argv[i]));
+      if(emit_mode!="serving" || serving_capacity!=1088 || serving_prompt_len!=64 ||
+         serving_past_lo!=64 || serving_past_hi!=1086 ||
+         (seed_arch!="native" && seed_arch!="legacy") ||
+         (search_selection!="measure" && search_selection!="predicted") ||
+         (!runtime_target.empty() && modelFingerprint(runtime_target)!=modelFingerprint(solve_target)))
+        throw std::invalid_argument("native solve requires serving decode with matching H800 target and 64:1086 positions");
+      tilemega::commands::NativeDenseSolveOptions native;
+      native.input=input.string();native.output=argv[2];native.target=solve_target;
+      native.dump_cg=dump_cg;native.measure_command=measure_command;native.batch=serving_batch;
+      native.split_compile=nvcc_split_compile;native.measure_top=measure_top;
+      native.passes=std::max(12,search_passes);
+      native.budget_ms=search_budget_ms?search_budget_ms:600000;
+      native.measured=search_selection=="measure";native.evaluate_configs=evaluation_cases_path;
+      native.solve_command=quote(std::filesystem::read_symlink("/proc/self/exe").string())+" compile";
+      for(int i=1;i<argc;++i)native.solve_command+=' '+quote(argv[i]);
+      return tilemega::commands::SolveNativeDense(native);
+    }
     bool has_variants=!variants_path.empty();
     bool serving=!serving_phase.empty();
     if(seed_arch!="native" && seed_arch!="legacy")

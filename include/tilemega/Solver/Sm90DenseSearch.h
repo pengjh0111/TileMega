@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: BSD-3-Clause
+#pragma once
+#include <tilemega/Solver/Sm90DenseCostModel.h>
+#include <tilemega/Solver/Sm90DenseSearchSpace.h>
+
+namespace tilemega::solver {
+struct Sm90DenseSearchOptions {
+  int passes=12,beam_width=8,budget_ms=600000,retained=64;
+};
+struct Sm90DenseCandidate {
+  Sm90DenseCoordinates coordinates;
+  Sm90DensePrediction prediction;
+  std::string origin;
+};
+struct Sm90DenseSearchResult {
+  std::vector<Sm90DenseCandidate> ranked;
+  std::size_t evaluated=0;
+  double elapsed_ms=0;
+  bool converged=false,budget_exhausted=false;
+};
+Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const&,
+    Sm90DenseWorkload const&,Sm90DenseCostModel const&,Sm90DenseSearchOptions const&);
+}  // namespace tilemega::solver

@@ -195,6 +195,8 @@ add_library(tilemega_core STATIC
   lib/Solver/SkeletonSearch.cpp
   lib/Solver/Sm90DensePlan.cpp
   lib/Solver/Sm90DenseSearchSpace.cpp
+  lib/Solver/Sm90DenseCostModel.cpp
+  lib/Solver/Sm90DenseSearch.cpp
   lib/Solver/DnnStructureSearch.cpp
   lib/Solver/SkeletonFinalize.cpp
   lib/Solver/SkeletonPlacement.cpp
@@ -910,6 +912,10 @@ if(TILEMEGA_BUILD_TESTS)
     target_link_libraries(sm90_dense_lowering_contract_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_lowering_contract_test PRIVATE -UNDEBUG)
     add_test(NAME sm90_dense_lowering_contract COMMAND sm90_dense_lowering_contract_test)
+    add_executable(sm90_dense_cost_test test/unit/sm90_dense_cost_test.cpp)
+    target_link_libraries(sm90_dense_cost_test PRIVATE TileMega::tilemega)
+    target_compile_options(sm90_dense_cost_test PRIVATE -UNDEBUG)
+    add_test(NAME sm90_dense_cost COMMAND sm90_dense_cost_test)
     add_executable(sm90_dense_plan_test test/unit/sm90_dense_plan_test.cpp)
     target_link_libraries(sm90_dense_plan_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_plan_test PRIVATE -UNDEBUG)

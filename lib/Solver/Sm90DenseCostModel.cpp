@@ -1,0 +1,207 @@
+// SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Solver/Sm90DenseCostModel.h>
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <stdexcept>
+
+namespace tilemega::solver {
+namespace {
+std::string AttentionKey(Sm90DenseWorkload const& w) {
+  return std::string(w.batch<=4?"attention_simt":"attention_mma_sync")+
+      "_d"+std::to_string(w.head_dim)+"_q"+std::to_string(w.queries)+
+      "_norm"+std::to_string(int(w.qk_norm));
+}
+std::string GemmKey(Sm90DenseGemm const& g) {
+  return "gemm_mma_sync_tn"+std::string(g.tile_n<=32?"8_32":g.tile_n<=64?"40_64":"72_plus");
+}
+}
+Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal):target_(target) {
+  if(target.arch_tag!="sm_90" || target.NvccArch()!="sm_90a" ||
+     cal.At("schema").AsNumber("native calibration schema")!=1)
+    throw std::invalid_argument("native dense pricing requires calibrated sm90a schema 1");
+  for(auto const& v:cal.At("observations").AsArray("native observations")) {
+    if(v.At("processes").AsNumber("fresh process count")<3 ||
+       v.At("median").AsNumber("measurement median")<=0)
+      throw std::invalid_argument("native calibration requires positive multi-process measurements");
+    observations_[v.At("metric").AsString("native metric")].push_back(v);
+    if(v.At("metric").AsString("metric")=="bulk_stream_per_active_cta" &&
+       v.At("cache").AsString("cache")=="dram" &&
+       v.At("grid").AsNumber("grid")>=target_.res.num_sms)
+      dram_bw_=std::max(dram_bw_,v.At("median").AsNumber("bandwidth")*
+          v.At("grid").AsNumber("grid"));
+  }
+  for(auto const& item:cal.At("body_fits").AsObject("native body fits")) {
+    if(item.second.At("evidence").AsString("fit evidence")!="inferred" ||
+       item.second.At("sample_count").AsNumber("fit count")<1)
+      throw std::invalid_argument("native fit needs measured inputs and inferred coefficients");
+    fits_.emplace(item.first,item.second.At("coefficients"));
+  }
+}
+double Sm90DenseCostModel::Quantity(std::string const& metric,
+    std::map<std::string,double> const& dims,std::map<std::string,std::string> const& filters) const {
+  std::string cache_key=metric;
+  for(auto const& d:dims)cache_key+='|'+d.first+'='+std::to_string(d.second);
+  for(auto const& f:filters)cache_key+='|'+f.first+'='+f.second;
+  auto cached=quantities_.find(cache_key);
+  if(cached!=quantities_.end())return cached->second;
+  auto it=observations_.find(metric);
+  if(it==observations_.end())throw std::invalid_argument("missing native measurement: "+metric);
+  double best=std::numeric_limits<double>::infinity(),result=0;
+  for(auto const& row:it->second) {
+    bool match=true;
+    for(auto const& f:filters) {
+      auto* value=row.Find(f.first);
+      if(!value || value->AsString(f.first.c_str())!=f.second) {match=false;break;}
+    }
+    if(!match)continue;
+    double distance=0;
+    for(auto const& d:dims) {
+      auto* value=row.Find(d.first);
+      if(!value) {match=false;break;}
+      double x=value->AsNumber(d.first.c_str());
+      if((d.first=="head_dim" || d.first=="queries" || d.first=="qk_norm" ||
+          d.first=="vector_sums") && x!=d.second) {match=false;break;}
+      distance+=std::abs(std::log((x+1)/(d.second+1)));
+    }
+    if(match && distance<best) {best=distance;result=row.At("median").AsNumber("median");}
+  }
+  if(!result)throw std::invalid_argument("no matching native measurement: "+metric);
+  quantities_[cache_key]=result;return result;
+}
+double Sm90DenseCostModel::Coefficient(std::string const& key,char const* name) const {
+  auto found=fits_.find(key);
+  if(found==fits_.end())throw std::invalid_argument("native body is not calibrated: "+key);
+  double v=found->second.At(name).AsNumber(name);
+  if(!std::isfinite(v) || v<0)throw std::invalid_argument("invalid native fitted coefficient");
+  return v;
+}
+Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
+    Sm90DenseCoordinates const& c,int past) const {
+  c.ValidateSchedule(w.shapes,w.batch,w.head_dim,w.queries,1088,
+      std::min(target_.res.max_dynamic_smem_per_cta,target_.res.max_smem_per_sm/c.residency));
+  if(w.layers<1 || past<64 || past>1086)throw std::invalid_argument("invalid native prediction workload");
+  int grid=target_.res.num_sms*c.residency;
+  double barrier=Quantity("v3_last_arrival_to_departure",{{"grid",grid}});
+  // Saturating DRAM service is measured, not the stated H800 peak.
+  double global_bw=dram_bw_;
+  if(!global_bw)throw std::invalid_argument("native DRAM streaming calibration is missing");
+  Sm90DensePrediction result;
+  for(unsigned family:{0u,5u,1u,2u,3u,4u}) {
+    Sm90DensePrediction::Stage s;s.instances=family==4?1:w.layers;s.barrier=barrier;
+    if(family<5) {
+      auto const& g=c.gemms[family];int n=w.shapes[family][0],k=w.shapes[family][1];
+      s.kind=kSm90DenseFamilies[family];s.key=GemmKey(g);s.tasks=n/g.tile_n;
+      s.waves=(s.tasks+grid-1)/grid;int active=std::min(grid,s.tasks);
+      double bw=Quantity("bulk_stream_per_active_cta",{{"grid",active},
+          {"slot_bytes",g.slot_bytes},{"slots",g.slots}},{{"cache","dram"}});
+      s.dram=2.*n*k/global_bw;
+      double tile_stream=2.*g.tile_n*k/bw;
+      double activation=Quantity("activation_wait_and_shared_read",{{"batch",w.batch},
+          {"tile_k",g.TileK()}})*k/g.TileK();
+      s.flow=std::max(s.dram,s.waves*tile_stream)+
+          Coefficient(s.key,"activation_scale")*s.waves*activation;
+      s.compute=s.waves*double(k/(16*g.warps_k))*(g.tile_n/(8*g.warps_n))*
+          Coefficient(s.key,"mma_step_ns");
+      char const* op=family==0?"epilogue_store_return":family==2?"epilogue_swiglu_return":
+          family==4?"epilogue_argmax_return":"epilogue_residual_return";
+      std::map<std::string,double> epi_shape={{"batch",w.batch},{"tile_n",g.tile_n},
+          {"vector_sums",c.dn_vector_sums}};
+      double plain=Quantity(op,epi_shape,{{"cache","plain"}});
+      double norm=Quantity(op,epi_shape,{{"cache","dn"}});
+      s.epilogue=s.waves*(plain+std::max(0.,norm-plain)*k/4096)*
+          Coefficient(s.key,"epilogue_scale");
+      s.startup=Coefficient(s.key,"startup_ns")+
+          Quantity("bulk_single_completion",{{"slot_bytes",g.slot_bytes}},{{"cache","dram"}});
+      double fraction=double(g.preissue_smem_bytes)/(2.*g.tile_n*k);
+      auto payload=backend::Sm90DenseLayout::GemmPayload(g.tile_n,g.TileK(),g.slots,k,
+          g.preissue_smem_bytes).Shift(g.workspace_offset);
+      backend::Sm90DenseInterval previous;
+      if(family==1)previous=backend::Sm90DenseLayout::Attention(w.batch,w.head_dim,w.queries,
+          c.attention.chunks,c.attention.block_keys,c.attention.slots,c.attention.new_row_work,
+          1088).Live(c.attention.workspace_offset);
+      else {
+        auto const& prev=c.gemms[family==0 || family==4?3:family==2?1:2];
+        previous=backend::Sm90DenseLayout::Gemm(prev.tile_n,prev.TileK(),prev.slots,
+            prev.warps_k).Live(prev.workspace_offset);
+      }
+      s.overlap=std::min(s.startup+std::max(s.flow-s.dram,0.),
+          fraction*tile_stream*Coefficient(s.key,payload.Overlaps(previous)?
+              "tail_efficiency":"preissue_efficiency")+
+          double(g.prefetch_l2_bytes)/bw*Coefficient(s.key,"l2_efficiency"));
+      s.startup+=((g.preissue_smem_bytes>0)+(g.prefetch_l2_bytes>0))*
+          Coefficient(s.key,"issue_ns");
+    }else {
+      auto const& a=c.attention;s.kind="attention";s.key=AttentionKey(w);
+      s.tasks=w.batch*8*a.chunks;s.waves=(s.tasks+grid-1)/grid;
+      std::map<std::string,double> dimensions={{"batch",w.batch},{"head_dim",w.head_dim},
+          {"queries",w.queries},{"qk_norm",w.qk_norm},{"chunks",a.chunks},
+          {"block_keys",a.block_keys},{"slots",a.slots},{"past",past}};
+      // The whole-stage calibration includes deterministic LA and wave costs.
+      s.flow=Quantity("attention_critical_before_barrier",dimensions)*
+          Coefficient(s.key,"body_scale");
+      s.dram=4.*w.batch*8*past*w.head_dim/global_bw;
+      s.compute=s.flow;s.startup=Coefficient(s.key,"startup_ns");
+      double keys=double(past+1)/a.chunks;
+      double fraction=std::min(1.,a.preissue_smem_bytes/(4.*keys*w.head_dim));
+      auto payload=backend::Sm90DenseLayout::AttentionPayload(w.batch,w.head_dim,w.queries,
+          a.chunks,a.block_keys,a.slots,a.new_row_work,1088,a.preissue_smem_bytes)
+          .Shift(a.workspace_offset);
+      auto const& prev=c.gemms[0];
+      auto previous=backend::Sm90DenseLayout::Gemm(prev.tile_n,prev.TileK(),prev.slots,
+          prev.warps_k).Live(prev.workspace_offset);
+      s.overlap=std::min(std::max(s.flow-s.dram,0.),s.flow*fraction*
+          Coefficient(s.key,payload.Overlaps(previous)?"tail_efficiency":"preissue_efficiency")+
+          double(a.prefetch_l2_bytes)/global_bw*std::min(grid,s.tasks)*
+              Coefficient(s.key,"l2_efficiency"));
+      s.startup+=((a.preissue_smem_bytes>0)+(a.prefetch_l2_bytes>0))*Coefficient(s.key,"issue_ns");
+    }
+    s.ns=barrier+s.startup+std::max(s.flow,s.compute)+s.epilogue-s.overlap;
+    result.step_ns+=s.ns*s.instances;result.stages.push_back(std::move(s));
+  }
+  for(auto kind:{"embedding","argmax"}) {
+    Sm90DensePrediction::Stage s;s.kind=kind;s.key=std::string("native_")+kind;
+    s.tasks=w.batch;s.waves=1;s.barrier=barrier;
+    s.startup=Coefficient(s.key,"startup_ns");
+    s.compute=Coefficient(s.key,"per_element_ns")*(s.kind=="embedding"?
+        w.shapes[0][1]:(w.shapes[4][0]+c.gemms[4].tile_n-1)/c.gemms[4].tile_n);
+    s.ns=s.barrier+s.startup+s.compute;result.step_ns+=s.ns;result.stages.push_back(s);
+  }
+  return result;
+}
+Sm90DensePrediction Sm90DenseCostModel::Request(Sm90DenseWorkload const& w,
+    Sm90DenseCoordinates const& c) const {
+  Sm90DensePrediction result;
+  // Midpoints integrate all 1023 steady decode positions without treating
+  // capacity as the amount of work. Class totals and ranking use this same integral.
+  constexpr int intervals=16;
+  for(int i=0;i<intervals;++i) {
+    int past=64+int((i+.5)*1023/intervals);auto sample=Predict(w,c,past);
+    if(!i) {
+      result=sample;result.step_ns=0;
+      for(auto& s:result.stages)
+        s.ns=s.barrier=s.startup=s.dram=s.flow=s.compute=s.epilogue=s.overlap=0;
+    }
+    for(unsigned j=0;j<sample.stages.size();++j) {
+      auto& out=result.stages[j];auto const& in=sample.stages[j];
+      out.ns+=in.ns/intervals;
+      out.barrier+=in.barrier/intervals;out.startup+=in.startup/intervals;
+      out.dram+=in.dram/intervals;out.flow+=in.flow/intervals;
+      out.compute+=in.compute/intervals;out.epilogue+=in.epilogue/intervals;
+      out.overlap+=in.overlap/intervals;
+    }
+    result.step_ns+=sample.step_ns/intervals;
+  }
+  return result;
+}
+json::Value Sm90DensePrediction::ToJson() const {
+  json::Array values;
+  for(auto const& s:stages)values.emplace_back(json::Object{{"kind",s.kind},{"key",s.key},
+      {"instances",s.instances},{"tasks",s.tasks},{"waves",s.waves},
+      {"stage_ns",s.ns},{"class_ns",s.ns*s.instances},{"barrier_ns",s.barrier},
+      {"startup_ns",s.startup},{"dram_ns",s.dram},{"flow_ns",s.flow},
+      {"compute_ns",s.compute},{"epilogue_ns",s.epilogue},{"overlap_ns",s.overlap}});
+  return json::Object{{"step_ns",step_ns},{"evidence","inferred prediction from native calibration"},
+      {"stages",values}};
+}
+}  // namespace tilemega::solver
