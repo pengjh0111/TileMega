@@ -26,6 +26,12 @@ class LlmVectorBody {
     AscendC::DataCopyExtParams copy{1,n*2,0,0,0};AscendC::DataCopyPad(dst,bo_,copy);
     CompleteDma<AscendC::HardEvent::MTE3_S>();
   }
+  __aicore__ inline void StoreNormStatistic(GM_ADDR pointer) {
+    CompleteDma<AscendC::HardEvent::V_MTE3>();
+    AscendC::GlobalTensor<float> dst;dst.SetGlobalBuffer((__gm__ float*)pointer);
+    AscendC::DataCopyExtParams copy{1,4,0,0,0};AscendC::DataCopyPad(dst,z_,copy);
+    CompleteDma<AscendC::HardEvent::MTE3_V>();
+  }
  public:
   static constexpr unsigned kLocalBytes=kElements*(3*2+5*4);
   __aicore__ inline LlmVectorBody() {
@@ -222,18 +228,23 @@ class LlmVectorBody {
     AscendC::Cast(bo_,x_,AscendC::RoundMode::CAST_RINT,d);Store(output,d);return true;
   }
   // n is the entire normalization domain; splitting an H3072 row is illegal.
-  __aicore__ inline bool RmsNorm(GM_ADDR input,GM_ADDR gamma,GM_ADDR output,unsigned n,float epsilon,unsigned variant=0) {
-    if(!n || n>kElements || epsilon<=0 || variant>2)return false;
+  __aicore__ inline bool RmsNorm(GM_ADDR input,GM_ADDR gamma,GM_ADDR output,unsigned n,float epsilon,unsigned variant=0,
+                                GM_ADDR diagnostic_stats=nullptr) {
+    if(!n || n>kElements || epsilon<=0 || variant>3)return false;
     Load(bx_,input,n);Load(by_,gamma,n);CompleteDma<AscendC::HardEvent::MTE2_V>();
     AscendC::Cast(x_,bx_,AscendC::RoundMode::CAST_NONE,n);
     AscendC::Cast(y_,by_,AscendC::RoundMode::CAST_NONE,n);AscendC::PipeBarrier<PIPE_V>();
-    if(variant==2) {
+    if(variant>=2) {
 #if defined(TILEMEGA_AS2_CANN_NORM_PRIMITIVES) && __CCE_AICORE__ == 310
       // Version-pinned device primitives only, no whole-op scheduler/launch.
       // Larger reduction families require their own fold/resource validation.
       if(n!=128 && n!=1024)return false;
-      NormCommon::NormCommonRegbase::CalculateSquareReduceSum<bfloat16_t>(bx_,z_,scratch_,1,n,n,n,8,n);
+      // Pair opposite half-rows before the lane reduction. The unfurled
+      // H1024 tree loses one rstd ULP on a captured single-row operand.
+      const unsigned fold=variant==3?n/2:n;
+      NormCommon::NormCommonRegbase::CalculateSquareReduceSum<bfloat16_t>(bx_,z_,scratch_,1,n,n,fold,8,n);
       AscendC::PipeBarrier<PIPE_V>();
+      if(diagnostic_stats)StoreNormStatistic(diagnostic_stats);
       NormCommon::ComputeRstdNewtonRaphson<false,true>(z_,z_,1,epsilon,1.0f/n);
 #else
       return false;
@@ -241,6 +252,7 @@ class LlmVectorBody {
     }else {
     AscendC::Mul(work_,x_,x_,n);AscendC::PipeBarrier<PIPE_V>();
     AscendC::ReduceSum(z_,work_,scratch_,n);AscendC::PipeBarrier<PIPE_V>();
+    if(diagnostic_stats)StoreNormStatistic(diagnostic_stats);
     AscendC::Muls(z_,z_,1.0f/n,1);AscendC::PipeBarrier<PIPE_V>();
     AscendC::Adds(z_,z_,epsilon,1);AscendC::PipeBarrier<PIPE_V>();
     if(variant==1) {
@@ -251,6 +263,7 @@ class LlmVectorBody {
       AscendC::Exp(z_,z_,1);
     }else AscendC::Rsqrt(z_,z_,1);
     }
+    if(diagnostic_stats)StoreNormStatistic(diagnostic_stats+32);
     CompleteDma<AscendC::HardEvent::V_S>();
     AscendC::Muls(work_,x_,z_.GetValue(0),n);AscendC::PipeBarrier<PIPE_V>();
     // The pinned HF graph casts normalized values before the BF16 scale multiply.

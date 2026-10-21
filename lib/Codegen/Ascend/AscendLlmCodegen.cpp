@@ -41,7 +41,7 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
     ascend::WorkerMap const& map,std::vector<solver::AscendScheduledTask> const& input,
     solver::AscendSchedule const& schedule,bool diagnostic,unsigned attention_precision) {
   using namespace ascend::llm;
-  if(attention_precision>6)throw std::invalid_argument("Unknown native attention precision contract");
+  if(attention_precision>7)throw std::invalid_argument("Unknown native attention precision contract");
   if(!module || mlir::failed(mlir::verify(module)) || !p.model.serving || p.model.dm ||
       p.model.dtype!=solver::ScalarType::kBF16 || (p.model.dims.seq!=1 && p.model.dims.seq!=64) || p.model.dims.batch<1 ||
       p.model.serving_capacity!=1088 || (p.model.dims.seq==1?p.model.dims.past!=1087:p.model.dims.past!=0))
@@ -140,9 +140,9 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
         throw std::invalid_argument("Unregistered native attention query/KV geometry");
       if((stage.kind==1 || stage.kind==11) && (!stage.width || stage.width>4096))
         throw std::invalid_argument("Native full-row norm/embedding exceeds its UB contract");
-      if(stage.kind==1 && attention_precision==6) {
+      if(stage.kind==1 && attention_precision>=6) {
         if(stage.width!=1024)throw std::invalid_argument("Newton full-row norm is experimentally validated only for H1024");
-        stage.variant=2;
+        stage.variant=attention_precision==7?3:2;
       }
       if(stage.kind==13 && ((stage.width!=64 && stage.width!=128) || !stage.extent || !stage.group || stage.group>8))
         throw std::invalid_argument("Native GQA head geometry is not registered");
@@ -230,7 +230,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
       else if(s.epilogue==3)id="as2_mix_gemm_argmax128_gm_16x128x128";
       else id+="_16x128x128";
     }
-    else if(s.kind==1)id=s.variant==2?"as2_aiv_rmsnorm_cann_newton_h1024":"as2_aiv_rmsnorm_full_row";
+    else if(s.kind==1)id=s.variant==3?"as2_aiv_rmsnorm_cann_newton_fold512_h1024":s.variant==2?"as2_aiv_rmsnorm_cann_newton_h1024":"as2_aiv_rmsnorm_full_row";
     else if(s.kind==11)id="as2_aiv_embedding_i32_bf16";
     else if(s.kind==13)id=s.kv_block==128?"as2_aiv_gqa_fp32_log2_partials_kv128":
       metadata.seq==1?"as2_aiv_gqa_bf16_scores_probability_k32":"as2_aiv_causal_prefill_private_kv_k32";
@@ -252,7 +252,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
       {"tile_k",s.kind==0?(s.variant?128:64):0},
       {"attention_score_probability",s.kind==13?((s.variant==4 || s.variant==5)?"fp32_cube_split_scale_vector_div_softmax":s.variant==1?"fp32_opmath_no_bf16_intermediate":s.variant==2?"fp32_scores_bf16_probability":s.variant==3?"fp32_split_scale_capacity_softmax":"bf16_storage_rounding"):"not_applicable"},
       {"qk_norm_method",s.kind==13&&s.variant==5?"CANN9.1.0_register_square_reduce_Newton_refinement":"existing_Rsqrt"},
-      {"full_row_norm_method",s.kind==1&&s.variant==2?"CANN9.1.0_register_square_reduce_Newton_refinement":"existing_Rsqrt"},
+      {"full_row_norm_method",s.kind==1&&s.variant==3?"CANN9.1.0_half_row_fold_square_reduce_Newton_refinement":s.kind==1&&s.variant==2?"CANN9.1.0_register_square_reduce_Newton_refinement":"existing_Rsqrt"},
       {"aic_l1_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5))?524288:0},{"aic_l0a_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5))?65536:0},
       {"aic_l0b_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5))?65536:0},{"aic_l0c_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5))?262144:0},
       {"aiv_ub_bytes",s.kind!=0||s.epilogue?106496:0},

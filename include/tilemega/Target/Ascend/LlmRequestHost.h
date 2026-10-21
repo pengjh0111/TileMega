@@ -36,10 +36,10 @@ inline void Save(fs::path const& path,void const* data,size_t bytes) {
 inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
   for(auto const& s:stages)if(s.kind==13 && s.variant>5)
     throw std::invalid_argument("Unregistered native attention implementation");
-  for(auto const& s:stages)if(s.kind==1 && (s.variant!=0 && (s.variant!=2 || s.width!=1024)))
+  for(auto const& s:stages)if(s.kind==1 && (s.variant!=0 && ((s.variant!=2 && s.variant!=3) || s.width!=1024)))
     throw std::invalid_argument("Unregistered full-row normalization implementation");
 #ifndef TILEMEGA_AS2_CANN_NORM_PRIMITIVES
-  for(auto const& s:stages)if((s.kind==13 && s.variant==5) || (s.kind==1 && s.variant==2))
+  for(auto const& s:stages)if((s.kind==13 && s.variant==5) || (s.kind==1 && (s.variant==2 || s.variant==3)))
     throw std::invalid_argument("Newton QK norm requires explicitly configured pinned CANN device primitives");
 #endif
 }
@@ -171,7 +171,8 @@ inline void Dump(Plan const& p,DevicePlan const& d,uint8_t* arena,unsigned past,
         Check(aclrtMemcpy(row.data()+index*n,n,source,n,ACL_MEMCPY_DEVICE_TO_HOST),"request KV row");
       }
       Save(out/(std::string(side?"kv_v_s":"kv_k_s")+std::to_string(i)+".bin"),row.data(),row.size());
-      if(past+p.m.seq<=128) {
+      unsigned history_limit=diagnostic==1 && p.m.batch==1?p.m.capacity:128;
+      if(past+p.m.seq<=history_limit) {
         unsigned valid=past+p.m.seq;std::vector<uint8_t> history(uint64_t(p.m.batch)*s.extent*valid*s.width*2);
         for(unsigned b=0;b<p.m.batch;++b)for(unsigned g=0;g<s.extent;++g) {
           auto index=uint64_t(b)*s.extent+g;auto n=uint64_t(valid)*s.width*2;
