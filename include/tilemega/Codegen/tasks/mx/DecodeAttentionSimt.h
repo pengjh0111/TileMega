@@ -82,7 +82,7 @@ struct DecodeAttentionSimt {
                            });
       int const d = lane * 8;
       if (d < D) {
-        uint4 v = backend::LoadGlobal16(x + (Q + 1) * D + d);
+        uint4 v = backend::LoadGlobal16Gvm(x + (Q + 1) * D + d);
         *reinterpret_cast<uint4*>(s.new_value + d) = v;
         backend::StoreGlobal16(p.value_cache + (head + p.past) * D + d, v);
       }
@@ -112,8 +112,8 @@ struct DecodeAttentionSimt {
 #pragma unroll
       for (int u = 0; u < kUnroll; ++u) {
         int const position = min(first + u * kAllGroups + group, end - 1);
-        key[u] = backend::LoadGlobal16(p.key_cache + (head + position) * D + column);
-        value[u] = backend::LoadGlobal16(p.value_cache + (head + position) * D + column);
+        key[u] = backend::LoadGlobal16Gvm(p.key_cache + (head + position) * D + column);
+        value[u] = backend::LoadGlobal16Gvm(p.value_cache + (head + position) * D + column);
         if (position == p.past) {
           key[u] = *reinterpret_cast<uint4 const*>(s.new_key + column);
           value[u] = *reinterpret_cast<uint4 const*>(s.new_value + column);

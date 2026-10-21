@@ -236,7 +236,7 @@ struct ServingEpilogue {
         if constexpr (Op == ServingEpilogueOp::kResidual)
           if (vector_residual)
             *reinterpret_cast<uint4*>(residual_values) =
-                LoadGlobal16(residual + global_row * output_stride + global_col);
+                LoadGlobal16Gvm(residual + global_row * output_stride + global_col);
         alignas(16) float acc[8], up_acc[8];
         int input_col = out_col;
         if constexpr (Op == ServingEpilogueOp::kSwiGLU)

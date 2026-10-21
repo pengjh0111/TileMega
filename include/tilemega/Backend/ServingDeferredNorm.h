@@ -13,7 +13,7 @@ __device__ inline float DeferredNormBlock(float const* sums,int row,int width,in
   // Reproduce xor-1 then xor-2 of four eight-element producer sums.
   return (p[0]+p[1])+(p[2]+p[3]);
 #else
-  return sums[row*(width/32)+block];
+  return *(__attribute__((address_space(1))) float const*)(sums+row*(width/32)+block);
 #endif
 }
 }

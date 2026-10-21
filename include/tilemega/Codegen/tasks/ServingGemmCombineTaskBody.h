@@ -5,6 +5,7 @@
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
 
 #include <tilemega/Backend/ServingEpilogue.h>
+#include <tilemega/Backend/ServingVectorIO.h>
 
 #include <cuda_runtime.h>
 
@@ -36,6 +37,10 @@ struct ServingGemmCombineTaskBody {
       maca::Trap();
       return;
     }
+#if defined(TILEMEGA_DIAG_NO_BODY) && (TILEMEGA_DIAG_NO_BODY & 2)
+    // Diagnostic only, like the GEMM's: descriptors decoded, no data touched.
+    if (split_count > 0) return;
+#endif
 #if TILEMEGA_TRACE_TASK
     ServingTaskProfile* profile = ProfileSlot();
     if (profile) profile->decode_ns = TaskProfileNow(profile) - profile->run_begin;
@@ -50,7 +55,7 @@ struct ServingGemmCombineTaskBody {
         for (int split = 0; split < split_count; ++split) {
           auto const* src = partial + std::int64_t(split) * split_stride +
                             std::int64_t(row) * partial_row_stride + col;
-          float4 incoming = *reinterpret_cast<float4 const*>(src);
+          float4 incoming = backend::LoadFloat4Gvm(src);
           value[0] += incoming.x;
           value[1] += incoming.y;
           value[2] += incoming.z;
