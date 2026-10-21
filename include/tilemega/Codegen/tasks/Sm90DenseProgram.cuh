@@ -179,12 +179,13 @@ struct Argmax {
   }
 };
 
-template<class Stage,int Offset=0,int Prefix=0,int L2Bytes=0>
+template<class Stage,int Offset=0,int Prefix=0,int L2Bytes=0,bool Late=false>
 struct Placement:Stage {
   static_assert(Offset>=0 && Offset%1024==0 && Prefix>=0 && Prefix%16==0 &&
       Prefix<=Stage::kMaxPreissue && L2Bytes>=0 && L2Bytes%16==0);
   static_assert(Stage::kMaxPreissue>0 || L2Bytes==0,"this stage has no data to prefetch");
   static constexpr int kOffset=Offset,kPrefix=Prefix,kL2Bytes=L2Bytes;
+  static constexpr bool kLate=Late;
   static constexpr int kSharedBytes=Offset+Stage::kSharedBytes;
   static constexpr auto kPayload=Stage::template Payload<Prefix>().Shift(Offset);
   static constexpr auto kLive=Stage::kLayout.Live(Offset);
@@ -202,7 +203,7 @@ struct ProducerTail {
       "preissue aliases live current-stage epilogue scratch");
   Binding const& binding;
   static constexpr bool kBefore=(Next::kPrefix || Next::kL2Bytes) &&
-      !Next::kPayload.Overlaps(Current::kLive);
+      !Next::kPayload.Overlaps(Current::kLive) && !Next::kLate;
   int past;
   char* shared;
   backend::Sm90DenseRingState &current,&next;
@@ -210,7 +211,7 @@ struct ProducerTail {
     if constexpr(!(Next::kPrefix || Next::kL2Bytes))return backend::Sm90DenseNoTail{};
     else {
       using Tail=RawProducerTail<typename Next::Preissue,Next::kOffset,Next::kPrefix,
-          Next::kL2Bytes,Next::kPayload.Overlaps(Current::kLive),Current::kRingSlots>;
+          Next::kL2Bytes,Next::kPayload.Overlaps(Current::kLive),Current::kRingSlots,Next::kLate>;
       // Uniform call arguments avoid per-layer conditional pointer lifetimes.
       auto source=Next::Sources(binding);
       return Tail{source,past,shared,&current,&next};

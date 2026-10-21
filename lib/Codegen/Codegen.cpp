@@ -2129,11 +2129,13 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     std::string weight;std::uint64_t bytes=0;unsigned tasks=0,chunks=0;
     unsigned extent=integerField(s,"extent"),width=integerField(s,"width"),group=integerField(s,"group");
     int offset=0,prefix=0,l2=0;
+    bool late=false;
     types<<"using Body_"<<number<<'=';
     if(kind=="kGemm") {
       unsigned index=integerField(s,"gemm");auto g=dictionaryEntry(gemms[index],"gemms");
       auto const& cfg=c.gemms[family(g)];
       offset=cfg.workspace_offset;prefix=cfg.preissue_smem_bytes;l2=cfg.prefetch_l2_bytes;
+      late=cfg.preissue_late;
       auto op=g.get("epilogue")?stringField(g,"epilogue"):"store";
       std::string enum_op=op=="store"?"kStore":op=="residual"?"kResidual":
           op=="swiglu"?"kSwiGLU":"kArgmaxPartial";
@@ -2156,6 +2158,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       chunks=c.attention.chunks;tasks=batch*8*chunks;
       offset=c.attention.workspace_offset;prefix=c.attention.preissue_smem_bytes;
       l2=c.attention.prefetch_l2_bytes;
+      late=c.attention.preissue_late;
       types<<"Attention<"<<batch<<','<<width<<','<<group<<','<<norm<<','<<chunks<<','
            <<c.attention.block_keys<<','<<c.attention.slots<<','<<c.attention.new_row_work<<','<<capacity;
       for(unsigned i:{0u,1u,2u,7u,3u,4u,5u,6u,8u,9u,10u})types<<','<<operand(i);
@@ -2167,7 +2170,9 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       for(unsigned i=0;i<3;++i)types<<','<<operand(i);
     }else throw std::invalid_argument("legacy stage cannot enter native dense program: "+kind);
     types<<">;\nusing Stage_"<<number<<"=Placement<Body_"<<number<<','
-         <<offset<<','<<prefix<<','<<l2<<">;\n";
+         <<offset<<','<<prefix<<','<<l2;
+    if(late)types<<",true";
+    types<<">;\n";
     debug<<"  {"<<quoteCString(kind)<<','<<quoteCString(weight)<<','<<bytes<<"ull,"
          <<tasks<<','<<extent<<','<<group<<','<<width<<','<<chunks<<"},\n";
     ++number;

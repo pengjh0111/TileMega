@@ -193,7 +193,7 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
             prev.warps_k).Live(prev.workspace_offset);
       }
       s.overlap=std::min(s.startup+std::max(s.flow-s.dram,0.),
-          fraction*tile_stream*Coefficient(s.key,payload.Overlaps(previous)?
+          fraction*tile_stream*Coefficient(s.key,(g.preissue_late || payload.Overlaps(previous))?
               "tail_efficiency":"preissue_efficiency")+
           double(g.prefetch_l2_bytes)/bw*Coefficient(s.key,"l2_efficiency"));
       s.startup+=((g.preissue_smem_bytes>0)+(g.prefetch_l2_bytes>0))*
@@ -218,7 +218,7 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
       auto previous=backend::Sm90DenseLayout::Gemm(prev.tile_n,prev.TileK(),prev.slots,
           prev.warps_k).Live(prev.workspace_offset);
       s.overlap=std::min(std::max(s.flow-s.dram,0.),s.flow*fraction*
-          Coefficient(s.key,payload.Overlaps(previous)?"tail_efficiency":"preissue_efficiency")+
+          Coefficient(s.key,(a.preissue_late || payload.Overlaps(previous))?"tail_efficiency":"preissue_efficiency")+
           double(a.prefetch_l2_bytes)/global_bw*std::min(grid,s.tasks)*
               Coefficient(s.key,"l2_efficiency"));
       s.startup+=((a.preissue_smem_bytes>0)+(a.prefetch_l2_bytes>0))*Coefficient(s.key,"issue_ns");

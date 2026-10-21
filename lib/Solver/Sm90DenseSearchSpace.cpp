@@ -44,8 +44,11 @@ Sm90DenseCoordinates Sm90DenseSearchSpace::MaxPreissue(
     Sm90DenseCoordinates const& base,bool l2) const {
   if(!Legal(base))throw std::invalid_argument("illegal native preissue seed");
   auto c=base;
-  for(auto& g:c.gemms) {g.workspace_offset=0;g.preissue_smem_bytes=0;g.prefetch_l2_bytes=0;}
+  for(auto& g:c.gemms) {
+    g.workspace_offset=0;g.preissue_smem_bytes=0;g.prefetch_l2_bytes=0;g.preissue_late=false;
+  }
   c.attention.workspace_offset=0;c.attention.preissue_smem_bytes=0;c.attention.prefetch_l2_bytes=0;
+  c.attention.preissue_late=false;
   auto budget=std::min(target.res.max_dynamic_smem_per_cta,target.res.max_smem_per_sm/c.residency);
   auto& down=c.gemms[3];int offset=int(budget/2/1024)*1024;
   if(offset+down.SharedBytes()<=budget)down.workspace_offset=offset;
@@ -104,9 +107,11 @@ std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::Neighbours(Sm90DenseCoor
     backend::Sm90DensePayload payload;
     if(family<5) {
       auto& g=candidate.gemms[family];g.preissue_smem_bytes=bytes;
+      if(!bytes && !g.prefetch_l2_bytes)g.preissue_late=false;
       payload=Layout::GemmPayload(g.tile_n,g.TileK(),g.slots,shapes[family][1],bytes);
     }else {
       auto& a=candidate.attention;a.preissue_smem_bytes=bytes;
+      if(!bytes && !a.prefetch_l2_bytes)a.preissue_late=false;
       payload=Layout::AttentionPayload(batch,head_dim,queries,a.chunks,a.block_keys,
           a.slots,a.new_row_work,1088,bytes);
     }
@@ -160,7 +165,13 @@ std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::Neighbours(Sm90DenseCoor
     for(int bytes:{0,4096,g.slot_bytes,2*g.slot_bytes,16384,32768,65536,maximum})
       preissue(family,bytes);
     for(int bytes:{0,64*1024,128*1024,194*1024}) {
-      auto candidate=center;candidate.gemms[family].prefetch_l2_bytes=bytes;add(std::move(candidate));
+      auto candidate=center;auto& next=candidate.gemms[family];next.prefetch_l2_bytes=bytes;
+      if(!bytes && !next.preissue_smem_bytes)next.preissue_late=false;
+      add(std::move(candidate));
+    }
+    if(g.preissue_smem_bytes || g.prefetch_l2_bytes) {
+      auto candidate=center;candidate.gemms[family].preissue_late=!g.preissue_late;
+      add(std::move(candidate));
     }
   }
   for(int chunks:{1,2,4,8,16,32,64})for(int row_work:{0,8,16}) {
@@ -178,7 +189,13 @@ std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::Neighbours(Sm90DenseCoor
       center.attention.chunks,center.attention.new_row_work,1088):center.attention.block_keys);
   for(int bytes:{0,4096,16384,32768,65536,kv_block,2*kv_block})preissue(5,bytes);
   for(int bytes:{0,64*1024,128*1024,194*1024}) {
-    auto candidate=center;candidate.attention.prefetch_l2_bytes=bytes;add(std::move(candidate));
+    auto candidate=center;auto& next=candidate.attention;next.prefetch_l2_bytes=bytes;
+    if(!bytes && !next.preissue_smem_bytes)next.preissue_late=false;
+    add(std::move(candidate));
+  }
+  if(center.attention.preissue_smem_bytes || center.attention.prefetch_l2_bytes) {
+    auto candidate=center;candidate.attention.preissue_late=!center.attention.preissue_late;
+    add(std::move(candidate));
   }
   auto budget=std::min(target.res.max_dynamic_smem_per_cta,
                        target.res.max_smem_per_sm/center.residency);

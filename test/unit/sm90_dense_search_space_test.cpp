@@ -39,6 +39,18 @@ int main(int argc,char** argv) {
     }
     auto invalid=seeds.front();invalid.gemms[1].tile_n=7;
     assert(!space.Legal(invalid));
+    auto empty_late=seeds.front();empty_late.attention.preissue_late=true;
+    assert(!space.Legal(empty_late));
+    auto late=seeds[1];late.attention.preissue_late=true;
+    assert(space.Legal(late));
+    assert(Sm90DenseCoordinates::FromJson(late.ToJson()).attention.preissue_late);
+    bool found_early=false;
+    for(auto const& c:space.Neighbours(late)) {
+      auto restored=c;restored.attention.preissue_late=true;
+      if(!c.attention.preissue_late && restored.ToJson().Dump(0)==late.ToJson().Dump(0))
+        found_early=true;
+    }
+    assert(found_early);
     auto overlap=seeds.front();overlap.gemms[2].preissue_smem_bytes=
         std::min(overlap.gemms[2].slots,shapes[2][1]/overlap.gemms[2].TileK())*
         overlap.gemms[2].slot_bytes;

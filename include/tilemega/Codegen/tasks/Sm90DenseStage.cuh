@@ -39,9 +39,9 @@ struct KvRead {
 
 // Buffer IDs stay in the caller. This type is shared by equal stage geometry
 // across layers, so the outlined entry does not duplicate the ring machinery.
-template<class Loader,int Offset,int Prefix,int L2Bytes,bool Overlap,int RingSlots>
+template<class Loader,int Offset,int Prefix,int L2Bytes,bool Overlap,int RingSlots,bool Late=false>
 struct RawProducerTail {
-  static constexpr bool kBefore=!Overlap;
+  static constexpr bool kBefore=!Overlap && !Late;
   ReadSources source;
   int past;
   char* shared;
