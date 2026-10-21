@@ -63,9 +63,10 @@ def main():
             binary = Path(command[command.index('--decode') + 1])
             tag = binary.parents[1].name
             if tag in a.tags:
-                pairs[config['model'], config['batch'], tag].append(row)
+                pairs[config['model'], config['batch'], tag,
+                      row['baseline_tag'], row['baseline_sha256']].append(row)
     results = []
-    for (model, batch, tag), rows in sorted(pairs.items()):
+    for (model, batch, tag, baseline_tag, baseline_hash), rows in sorted(pairs.items()):
         hashes = {x['candidate_sha256'] for x in rows}
         if len(hashes) != 1:
             raise ValueError('one comparison must use one artifact')
@@ -77,7 +78,8 @@ def main():
         rb = (max(before) - min(before)) / st.median(before) * 100
         ra = (max(after) - min(after)) / st.median(after) * 100
         threshold = max(0.5, rb, ra)
-        results.append(dict(model=model, batch=batch, tag=tag, fresh_processes=len(rows),
+        results.append(dict(model=model, batch=batch, tag=tag, baseline_tag=baseline_tag,
+            baseline_sha256=baseline_hash, fresh_processes=len(rows),
             reference_ms=st.median(before), candidate_ms=st.median(after), change_pct=change,
             reference_range_pct=rb, candidate_range_pct=ra, threshold_pct=threshold,
             decision='indistinguishable' if abs(change) <= threshold else 'faster' if change < 0 else 'slower',
