@@ -29,11 +29,16 @@ void Mainloop(U64* times,unsigned* errors,int repeats) {
   auto accum=partition_fragment_C(mma,Shape<_16,Int<TN>>{});clear(accum);
   auto sa=make_tensor(make_smem_ptr(a),typename G::LayoutA{});
   auto sb=make_tensor(make_smem_ptr(b),typename G::LayoutB{});
-  auto ra=thread.partition_fragment_A(sa);auto rb=thread.partition_fragment_B(sb);
   auto as=copy_a.get_slice(lane).partition_S(sa);auto bs=copy_b.get_slice(lane).partition_S(sb);
-  auto ad=copy_a.get_slice(lane).retile_D(ra);auto bd=copy_b.get_slice(lane).retile_D(rb);
   U64 begin=clock64();
   for(int repeat=0;repeat<repeats;++repeat) {
+    // Consume waits on an async producer each iteration. Its memory clobber
+    // prevents hoisting shared loads into a loop-invariant fragment table.
+    asm volatile("" ::: "memory");
+    // Match Consume's per-K-iteration lifetime. Retaining partial fragments
+    // across repetitions can make this surrogate spill when the body does not.
+    auto ra=thread.partition_fragment_A(sa);auto rb=thread.partition_fragment_B(sb);
+    auto ad=copy_a.get_slice(lane).retile_D(ra);auto bd=copy_b.get_slice(lane).retile_D(rb);
     for_each(make_int_sequence<R*WK>{},[&](auto k) {
       if(int(k)%WK==split) {
         copy(typename G::CopyA{},as(_,_,k),ad(_,_,k));
@@ -93,6 +98,9 @@ int main() {try {
   std::printf("metric,grid,tile_n,tile_k,warps_n,warps_k,register_stages,samples,median,p99,unit\n");
 #ifdef TILEMEGA_CALIBRATION_LARGE_ONLY
   Case<8,512,1>(p,frequency,times,errors);
+// Wider TK512 surrogates have calibration-only local fragments. They are
+// excluded from validated sampling, not from the native implementation.
+#ifndef TILEMEGA_CALIBRATION_LARGE_VALIDATED
   Case<16,512,1>(p,frequency,times,errors);Case<16,512,2>(p,frequency,times,errors);
   Case<24,512,1>(p,frequency,times,errors);
   Case<32,512,1>(p,frequency,times,errors);Case<32,512,2>(p,frequency,times,errors);
@@ -100,6 +108,7 @@ int main() {try {
   Case<48,512,1>(p,frequency,times,errors);Case<48,512,2>(p,frequency,times,errors);
   Case<64,512,1>(p,frequency,times,errors);Case<64,512,2>(p,frequency,times,errors);
   Case<64,512,4>(p,frequency,times,errors);
+#endif
   Case<8,1024,1>(p,frequency,times,errors);
   Case<16,1024,1>(p,frequency,times,errors);Case<16,1024,2>(p,frequency,times,errors);
   Case<24,1024,1>(p,frequency,times,errors);

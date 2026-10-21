@@ -40,6 +40,7 @@ def main():
     p.add_argument('--names', nargs='+', required=True)
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--processes', type=int, default=5)
+    p.add_argument('--resource-audit', type=Path)
     a = p.parse_args()
     state = read(a.state)
     provenance, observations = [], {}
@@ -79,6 +80,19 @@ def main():
                    process_range_pct=(max(v['median'] for v in values) -
                                       min(v['median'] for v in values)) / median * 100)
         result.append(row)
+    if a.resource_audit:
+        audit = read(a.resource_audit)
+        if {p['binary_sha256'] for p in provenance} != {audit['binary_sha256']}:
+            raise ValueError('resource audit belongs to a different calibration binary')
+        dimensions = ('tile_n', 'tile_k', 'warps_n', 'warps_k', 'register_stages')
+        kernels = {tuple(r[k] for k in dimensions): r for r in audit['kernels']}
+        for row in result:
+            if row['metric'] != 'native_ldmatrix_mma_k16':
+                raise ValueError('mainloop resource audit supplied for another suite')
+            facts = kernels[tuple(row[k] for k in dimensions)]
+            if not facts['production_compatible']:
+                raise ValueError('calibration surrogate contains extra local accesses or spills')
+            row.update(production_compatible=True, resource_audit_sha256=sha(a.resource_audit))
     fields = sorted(set().union(*(v.keys() for v in result)))
     a.out.parent.mkdir(parents=True, exist_ok=True)
     with a.out.with_suffix('.csv').open('w') as stream:
