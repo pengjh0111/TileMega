@@ -89,6 +89,47 @@ def load_model(model_id, attention, norm, device='npu:0'):
     return model, tokens, manifest, digest(path)
 
 
+def last_forward_hooks(model):
+    control={'enabled':False};saved={}
+    def hook(name,before=False):
+        def observe(module,args,result=None):
+            if control['enabled']:saved[name]=(args[0] if before else result).detach().clone()
+        return observe
+    for i,layer in enumerate(model.model.layers):
+        for name,module in (('norm1',layer.input_layernorm),('norm2',layer.post_attention_layernorm)):
+            module.register_forward_hook(hook(f'l{i}.{name}'))
+            module.register_forward_pre_hook(hook(f'l{i}.{name}.input',True))
+        layer.self_attn.o_proj.register_forward_pre_hook(hook(f'l{i}.context',True))
+        layer.mlp.down_proj.register_forward_pre_hook(hook(f'l{i}.act',True))
+        for name,module in [('q.raw',layer.self_attn.q_proj),('k.raw',layer.self_attn.k_proj),('v.raw',layer.self_attn.v_proj),
+                ('o.raw',layer.self_attn.o_proj),('gate.raw',layer.mlp.gate_proj),('up.raw',layer.mlp.up_proj),('down.raw',layer.mlp.down_proj)]:
+            module.register_forward_hook(hook(f'l{i}.{name}'))
+        for name in ('q_norm','k_norm'):
+            if hasattr(layer.self_attn,name):getattr(layer.self_attn,name).register_forward_hook(hook(f'l{i}.{name}'))
+    model.model.norm.register_forward_hook(hook('final.normalized'))
+    return control,saved
+
+
+def save_last_forward(out,saved,cfg,state,batch,past):
+    d=cfg['head_dim'];g=cfg['num_key_value_heads'];ratio=cfg['num_attention_heads']//g;f=cfg['intermediate_size']
+    for i in range(cfg['num_hidden_layers']):
+        q,k,v=(saved[f'l{i}.{name}.raw'] for name in ('q','k','v'))
+        saved[f'l{i}.qkv']=torch.cat((q.reshape(-1,g,ratio,d),k.reshape(-1,g,1,d),v.reshape(-1,g,1,d)),2).reshape(-1,g*(ratio+2)*d)
+        gate,up=(saved[f'l{i}.{name}.raw'] for name in ('gate','up'))
+        saved[f'l{i}.gate_up.raw']=torch.stack((gate.reshape(-1,f//16,16),up.reshape(-1,f//16,16)),2).reshape(-1,2*f)
+    folder=out/'last_forward';folder.mkdir();files=[]
+    for name,tensor in saved.items():
+        value=tensor.cpu().contiguous();path=folder/(name+'.bin');path.write_bytes(value.view(torch.uint8).numpy().tobytes())
+        files.append(dict(name=name,file=path.name,shape=list(value.shape),dtype=str(value.dtype),sha256=digest(path)))
+    for layer,(key,value) in enumerate(zip(state.key_cache,state.value_cache)):
+        for side,tensor in (('k',key),('v',value)):
+            data=tensor[:batch,:,:past+1,:].cpu().contiguous();path=folder/f'l{layer}.kv_{side}.bin'
+            path.write_bytes(data.view(torch.uint8).numpy().tobytes())
+            files.append(dict(name=f'l{layer}.kv_{side}',file=path.name,shape=list(data.shape),dtype=str(data.dtype),sha256=digest(path)))
+    (folder/'capture.json').write_text(json.dumps(dict(scope='independent eager last-forward diagnostic; not performance',
+        past=past,seq=1,batch=batch,files=files),indent=2)+'\n')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--model', choices=MODELS, required=True)
@@ -101,6 +142,7 @@ def main():
     parser.add_argument('--warmup', type=int, default=1)
     parser.add_argument('--repetitions', type=int, default=3)
     parser.add_argument('--save-kv-rows', action='store_true', help='Copy final valid KV rows after t_last, for correctness only')
+    parser.add_argument('--capture-last-forward',action='store_true',help='Short diagnostic request only; hooks and full valid KV, no performance admission')
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     out = args.out.absolute()
@@ -110,6 +152,8 @@ def main():
         parser.error('Require bounded request/repetition sizes')
     if args.save_kv_rows and args.cache!='static':
         parser.error('KV diagnostics require the fixed-capacity reference cache')
+    if args.capture_last_forward and (args.outputs>128 or args.warmup or args.repetitions!=1 or args.cache!='static'):
+        parser.error('Last-forward diagnostic requires outputs<=128, warmup0, repetition1 and static cache')
     if args.device=='cpu' and args.norm!='hf':
         parser.error('CPU correctness reference uses independent HF normalization')
     if args.device=='npu:0' and os.environ.get('ASCEND_RT_VISIBLE_DEVICES') not in {'0', '1'}:
@@ -121,6 +165,7 @@ def main():
         if args.device=='npu:0':torch.npu.synchronize()
     started = time.monotonic()
     model, tokens_cpu, manifest, weight_manifest_hash = load_model(args.model, args.attention, args.norm,device=args.device)
+    capture,saved=last_forward_hooks(model) if args.capture_last_forward else (None,None)
     rotary={}
     if args.save_kv_rows:
         def capture_rotary(module,inputs,result):rotary['last']=result
@@ -142,6 +187,7 @@ def main():
         cache=args.cache, norm=args.norm, physical_device_id=int(os.environ['ASCEND_RT_VISIBLE_DEVICES']) if args.device=='npu:0' else None,
         logical_device_id=0 if args.device=='npu:0' else None, setup_seconds=time.monotonic()-started,
         status='running', warmup=args.warmup, repetitions=args.repetitions,
+        diagnostic_capture_last_forward=args.capture_last_forward,
         numerical_admission='not_compared', gate='not_started')
     receipt = out / 'result.json'
     receipt.write_text(json.dumps(identity, indent=2)+'\n')
@@ -161,6 +207,7 @@ def main():
             synchronize()
             first = time.perf_counter()
             for step in range(1, args.outputs):
+                if capture is not None:capture['enabled']=step==args.outputs-1
                 position = 63 + step
                 result = model(input_ids=token, past_key_values=state, use_cache=True,
                                cache_position=positions[position:position+1],
@@ -193,6 +240,7 @@ def main():
                         (out/f'kv_{side}_l{layer}_r{repetition}.bin').write_bytes(row.view(torch.uint8).numpy().tobytes())
                 for side,tensor in zip(('cos','sin'),rotary['last']):
                     (out/f'rope_{side}_r{repetition}.bin').write_bytes(tensor.cpu().contiguous().view(torch.uint8).numpy().tobytes())
+            if capture is not None:save_last_forward(out,saved,manifest['config'],state,batch,62+args.outputs)
             print(json.dumps(sample), flush=True)
     identity.update(status='completed_not_numerically_admitted', samples=samples,
                     max_memory_allocated_bytes=torch.npu.max_memory_allocated() if args.device=='npu:0' else None)
