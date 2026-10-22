@@ -1481,5 +1481,6 @@
         "combine_task_ns": 6794.7
       }
     ]
-  }
+  },
+  "mx_decode_costs": "xcore1000_mx_decode.json"
 }
