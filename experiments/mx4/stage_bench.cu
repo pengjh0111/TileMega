@@ -17,6 +17,10 @@
 // {32,64,128}) and Embed. N, K, B are runtime values here, constexpr in the
 // program; the body is the same code.
 //
+// Build it as the program is built (tools/commands/mx_decode.cpp):
+//   cucc -std=c++17 -O3 -Xcompiler -resource-usage -fno-strict-aliasing
+//        -DTILEMEGA_SYNC_V3=1 -DTILEMEGA_WATCHDOG=0 -mllvm -metaxgpu-disable-licm
+//
 // Usage: stage_bench <iterations> <out.csv> [filter-substring]
 #include <tilemega/Backend/Mx/DecodeAttention.h>
 #include <tilemega/Backend/Mx/DecodeGemm.h>
@@ -383,7 +387,16 @@ int main(int argc, char** argv) {
       }
       // Attention: L in {65, 256, 512, 768, 1088}, Tmin in {32, 64, 128}.
       bool const shared_config = m.rope == 0 && std::strcmp(m.name, "qwen3_0_6b") != 0;  // 1.7B = 0.6B's body
-      for (int length : {65, 256, 512, 768, 1088})
+      std::vector<int> lengths{65, 256, 512, 768, 1088};
+      if (char const* env = std::getenv("STAGE_BENCH_LENGTHS")) {  // diagnostics: other L
+        lengths.clear();
+        for (char const* p = env; *p;) {
+          lengths.push_back(std::atoi(p));
+          while (*p && *p != ',') ++p;
+          if (*p) ++p;
+        }
+      }
+      for (int length : lengths)
         for (int tmin : {32, 64, 128}) {
           if (shared_config) continue;
           char key[256];
