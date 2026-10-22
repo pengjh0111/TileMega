@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <chrono>
 #include <limits>
+#include <map>
 
 namespace tilemega::commands {
 namespace {
@@ -182,15 +183,32 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     std::ofstream(directory/"receipt.json")<<receipt.Dump(2)<<'\n';return receipt;
   };
   int winner=o.measured?-1:0;double best=std::numeric_limits<double>::infinity();save(winner);
-  if(o.measured)for(int i=0;i<std::min(o.measure_top,int(result.ranked.size()));++i) {
+  int measured_unique=0;
+  std::map<std::string,int> program_keys;
+  if(o.measured)for(int i=0;i<int(result.ranked.size()) && measured_unique<o.measure_top;++i) {
     auto binary=directory/("candidate-"+std::to_string(i)+".so");
     CompileNativeDenseArtifact(o.input,binary.string(),configs[i].string(),o.target,o.batch,
         "",o.split_compile,"solver",json::Object{{"selection","candidate"},{"rank",i}});
+    auto key_path=directory/("candidate-"+std::to_string(i)+".program-key.json");
+    auto key_command="python3 "+Quote(std::string(TILEMEGA_SOURCE_DIR)+
+        "/scripts/native_sm90r2_program_key.py")+" --binary "+Quote(binary.string())+
+        " --out "+Quote(key_path.string());
+    if(std::system(key_command.c_str()))throw std::runtime_error("native program-key audit failed");
+    auto key=json::ParseFile(key_path).At("program_key").AsString("native program key");
+    auto inserted=program_keys.emplace(key,i);
+    if(!inserted.second) {
+      measurements.emplace_back(json::Object{{"rank",i},{"status",0},{"measured",false},
+          {"reason","compiler-equivalent register lookahead"},
+          {"duplicate_of",inserted.first->second},{"program_key",key}});
+      save(winner);continue;
+    }
+    ++measured_unique;
     auto out=directory/("measure-"+std::to_string(i));
     auto command=o.measure_command+" --so "+Quote(binary.string())+
         " --native-config "+Quote(configs[i].string())+" --out "+Quote(out.string());
     auto begin=std::chrono::steady_clock::now();int status=std::system(command.c_str());
     json::Value row=json::Object{{"rank",i},{"command",command},{"status",status},
+        {"measured",true},{"program_key",key},
         {"elapsed_s",std::chrono::duration<double>(std::chrono::steady_clock::now()-begin).count()}};
     if(!status) {
       auto measured=json::ParseFile(out/"result.json");
