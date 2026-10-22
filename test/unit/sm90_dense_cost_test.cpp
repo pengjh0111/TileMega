@@ -166,6 +166,24 @@ int main() {
   assert(missing_attention_batch);
   auto full_coordinates=Sm90DenseCoordinates::Exact(w.shapes,16,t.res.max_dynamic_smem_per_cta);
   for(auto const& p:model.Request(full_batch,full_coordinates).stages)assert(p.initialization==0);
+  auto reused=c;reused.attention.workspace_offset=32768;
+  assert(reused.ActivationReuse(w.batch,w.head_dim,w.queries,1088).valid);
+  auto reused_prediction=model.Predict(w,reused);
+  for(unsigned i:{0u,2u,3u,4u,5u})assert(reused_prediction.stages[i].initialization==0);
+  assert(!c.ActivationReuse(w.batch,w.head_dim,w.queries,1088).valid);
+  auto other_slots=reused;other_slots.gemms[0].slots=2;
+  assert(!other_slots.ActivationReuse(w.batch,w.head_dim,w.queries,1088).valid);
+  auto other_offset=reused;other_offset.gemms[0].workspace_offset=1024;
+  assert(!other_offset.ActivationReuse(w.batch,w.head_dim,w.queries,1088).valid);
+  assert(!reused.ActivationReuse(16,w.head_dim,w.queries,1088).valid);
+  using AStage=backend::Sm90DenseActivationStage;
+  std::array<AStage,3> lifetime{{{256,3,0,{1024,80000},false},
+      {0,0,0,{25600,60000},false},{0,0,0,{1024,1056},true}}};
+  assert(backend::Sm90DenseActivationReuse::Prove(lifetime,1).valid);
+  lifetime[1].written.begin=25599;
+  assert(!backend::Sm90DenseActivationReuse::Prove(lifetime,1).valid);
+  lifetime[1].written.begin=25600;lifetime[2].written.end=80000;
+  assert(!backend::Sm90DenseActivationReuse::Prove(lifetime,1).valid);
   auto issue_only=Fixture();
   auto issue_fits=issue_only.At("body_fits").AsObject("body fits");
   for(auto& fit:issue_fits) {

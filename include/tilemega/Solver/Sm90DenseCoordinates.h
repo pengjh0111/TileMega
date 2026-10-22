@@ -157,6 +157,24 @@ struct Sm90DenseCoordinates {
     }
   }
 
+  backend::Sm90DenseActivationReuse ActivationReuse(int batch,int dim,int queries,int capacity) const {
+    // Uniform slots retain zero inactive rows across stages. Argmax moves
+    // beyond those slots only when it fits the already allocated arena.
+    using Layout=backend::Sm90DenseLayout;
+    std::array<backend::Sm90DenseActivationStage,7> stages{};
+    for(unsigned i=0;i<5;++i) {
+      auto const& g=gemms[i];
+      stages[i]={g.TileK(),g.slots,g.workspace_offset,
+          Layout::Gemm(g.tile_n,g.TileK(),g.slots,g.warps_k).Live(g.workspace_offset),false};
+    }
+    auto const& a=attention;
+    stages[5]={0,0,a.workspace_offset,
+        Layout::Attention(batch,dim,queries,a.chunks,a.block_keys,a.slots,a.new_row_work,capacity)
+            .Live(a.workspace_offset),false};
+    stages[6]={0,0,0,Layout::Argmax().Live(0),true};
+    return backend::Sm90DenseActivationReuse::Prove(stages,batch);
+  }
+
   json::Value ToJson() const {
     json::Object families;
     for(unsigned i=0;i<gemms.size();++i) {

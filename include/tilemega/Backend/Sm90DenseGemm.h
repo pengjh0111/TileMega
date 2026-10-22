@@ -196,7 +196,18 @@ struct Sm90DenseGemm {
       state.consumer_generations[slot]=(phase>>slot)&1;
   }
 
-  template<int Prefix=0,class Tail=Sm90DenseNoTail>
+  __device__ static __forceinline__ void InitializeInactive(Element* a) {
+    if constexpr(Batch<16) {
+      for(int i=threadIdx.x*8;i<Slots*(16-Batch)*TK;i+=160*8) {
+        int slot=i/((16-Batch)*TK),within=i%((16-Batch)*TK);
+        *reinterpret_cast<uint4*>(a+slot*16*TK+LayoutA{}(Batch+within/TK,within%TK))=
+            make_uint4(0,0,0,0);
+      }
+      __syncthreads();
+    }
+  }
+
+  template<int Prefix=0,class Tail=Sm90DenseNoTail,bool Initialize=true>
   __device__ static void Run(Sm90DenseOperands p,char* shared,float epsilon,
       Sm90DenseRingState* persistent=nullptr,Tail tail={}) {
     static_assert(Prefix>=0 && Prefix%16==0 &&
@@ -207,16 +218,7 @@ struct Sm90DenseGemm {
     auto* a=reinterpret_cast<Element*>(shared+1024);
     auto* b=a+Slots*16*TK;
     auto* scratch=reinterpret_cast<float*>(shared+1024+kOperandBytes);
-    if constexpr(Batch<16) {
-      // Only active rows are overwritten by the producer. Initializing the
-      // other rows once avoids issuing fifteen zero-fill rows per K block at B1.
-      for(int i=threadIdx.x*8;i<Slots*(16-Batch)*TK;i+=160*8) {
-        int slot=i/((16-Batch)*TK),within=i%((16-Batch)*TK);
-        *reinterpret_cast<uint4*>(a+slot*16*TK+LayoutA{}(Batch+within/TK,within%TK))=
-            make_uint4(0,0,0,0);
-      }
-      __syncthreads();
-    }
+    if constexpr(Initialize)InitializeInactive(a);
     unsigned phase=0;
     #pragma unroll
     for(int i=0;i<Slots;++i)phase|=(threadIdx.x<128?

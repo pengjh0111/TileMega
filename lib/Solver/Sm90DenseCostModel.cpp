@@ -176,6 +176,7 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
       Sm90DenseSharedBudget(target_,c.residency));
   if(w.layers<1 || past<64 || past>1086)throw std::invalid_argument("invalid native prediction workload");
   int grid=target_.res.num_sms*c.residency;
+  bool activation_reuse=c.ActivationReuse(w.batch,w.head_dim,w.queries,1088).valid;
   auto barrier=[&](int tasks) {
     // Empty CTAs arrive before the working wave. The 2 us delayed-arrival
     // probe models this steady wave; nearest active count is inferred.
@@ -225,7 +226,7 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
       s.epilogue=s.waves*epilogue*Coefficient("native_epilogue_"+epilogue_key,"scale");
       // Run initializes all slots once per stage, even when this CTA has
       // several tasks. The producer never executes this branch at B16.
-      s.initialization=w.batch<16?Quantity("activation_inactive_rows_initialize",
+      s.initialization=w.batch<16 && !activation_reuse?Quantity("activation_inactive_rows_initialize",
           {{"grid",grid},{"batch",w.batch},{"tile_k",g.TileK()},{"slots",g.slots}}):0;
       s.read_startup=Quantity("bulk_single_completion",{{"slot_bytes",g.slot_bytes}},{{"cache","dram"}});
       s.startup=Coefficient(s.key,"startup_ns")+s.initialization+s.read_startup;
