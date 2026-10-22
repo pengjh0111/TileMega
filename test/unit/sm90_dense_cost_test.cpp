@@ -59,7 +59,7 @@ json::Value Fixture() {
     fit(key,{{"startup_ns",100},{"per_element_ns",.1},{"issue_ns",20}});
   return json::Object{{"schema",1},{"flow_model","overlapped_operands_v1"},
       {"issue_model","issuer_service_v2"},
-      {"overlap_model","operand_service_only_v1"},
+      {"overlap_model","operand_service_only_v2"},
       {"attention_grid_model","explicit_grid_v1"},
       {"barrier_model","active_arrival_v1"},
       {"observations",observations},{"body_fits",fits}};
@@ -125,6 +125,19 @@ int main() {
   auto limited=Sm90DenseCostModel(t,slow_activation).Predict(w,c);
   auto const& qkv=limited.stages[0];
   assert(qkv.flow==qkv.activation*.2 && qkv.flow>qkv.dram && qkv.flow>qkv.stream);
+  auto weight_prefix=c;
+  weight_prefix.gemms[0].workspace_offset=115712;
+  weight_prefix.gemms[0].preissue_smem_bytes=weight_prefix.gemms[0].slot_bytes;
+  auto activation_bound=Sm90DenseCostModel(t,slow_activation).Predict(w,weight_prefix).stages[0];
+  assert(activation_bound.overlap_limit==activation_bound.read_startup);
+  assert(activation_bound.ns+1e-6>=activation_bound.barrier+activation_bound.startup-
+      activation_bound.read_startup+activation_bound.activation*.2+activation_bound.epilogue);
+  auto stale_overlap=Fixture();stale_overlap.Set("overlap_model","operand_service_only_v1");
+  bool stale_overlap_rejected=false;
+  try {Sm90DenseCostModel(t,stale_overlap);}catch(std::invalid_argument const&) {
+    stale_overlap_rejected=true;
+  }
+  assert(stale_overlap_rejected);
   auto stale=Fixture();stale.Set("flow_model","serial_operands");bool stale_rejected=false;
   try {Sm90DenseCostModel old(t,stale);}catch(std::invalid_argument const&) {stale_rejected=true;}
   assert(stale_rejected);

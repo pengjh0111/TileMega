@@ -43,7 +43,7 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal)
      cal.At("issue_model").AsString("native issue model")!="issuer_service_v2")
     throw std::invalid_argument("native preissue exposure requires issuer calibration");
   if(!cal.Find("overlap_model") ||
-     cal.At("overlap_model").AsString("native overlap model")!="operand_service_only_v1")
+     cal.At("overlap_model").AsString("native overlap model")!="operand_service_only_v2")
     throw std::invalid_argument("native preissue credit requires operand-only calibration");
   if(!cal.Find("attention_grid_model") ||
      cal.At("attention_grid_model").AsString("attention grid model")!="explicit_grid_v1")
@@ -237,9 +237,10 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
         previous=backend::Sm90DenseLayout::Gemm(prev.tile_n,prev.TileK(),prev.slots,
             prev.warps_k).Live(prev.workspace_offset);
       }
-      // Incoming data can move DRAM service into the preceding stage, but
-      // cannot remove its dispatch, MMA chain or inactive-row initialization.
-      s.overlap_limit=s.read_startup+std::max(s.flow-s.compute,0.);
+      // Only weights were preissued. Activation copies still execute here,
+      // even when every weight slot is already full at the stage boundary.
+      double unmoved=std::max(s.compute,Coefficient(s.key,"activation_scale")*s.activation);
+      s.overlap_limit=s.read_startup+std::max(s.flow-unmoved,0.);
       (g.preissue_late || payload.Overlaps(previous)?s.late_service:s.preissue_service)=
           fraction*tile_stream;
       s.l2_service=std::min(double(g.prefetch_l2_bytes),

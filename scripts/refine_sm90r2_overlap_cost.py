@@ -94,6 +94,13 @@ def main():
         artifacts = ranking['candidates']
         if not all(r['protocol_complete'] and r['correctness']['pass_'] for r in artifacts):
             raise ValueError('incomplete request or correctness protocol')
+        baseline_tags = {read(pair_path)['baseline_tag'] for row in artifacts
+                         for pair_path in row['paired_receipts']}
+        if len(baseline_tags) != 1:
+            raise ValueError('request cohort must use one common control')
+        baseline_tag = baseline_tags.pop()
+        if sum(row['tag'] == baseline_tag for row in artifacts) != 1:
+            raise ValueError('request cohort must include its common control')
         plans = []
         for row in artifacts:
             binary = ROOT / 'runs/sm90r2/build' / row['tag'] / cell / 'decode.so'
@@ -108,11 +115,15 @@ def main():
             for pair_path in row['paired_receipts']:
                 pair = read(pair_path)
                 guard = read(Path(pair_path).parents[1] / 'guard_result.json')
-                if pair['status'] != 'completed' or guard['code'] or pair['baseline_tag'] != 'B15Z':
+                if pair['status'] != 'completed' or guard['code'] or pair['baseline_tag'] != baseline_tag:
                     raise ValueError('request pair is incomplete or has a different control')
                 training_receipts.add(sha(pair_path))
             plans.append(read(str(binary) + '.plan.json'))
-        baseline = next(i for i, row in enumerate(artifacts) if row['tag'] == 'B15Z')
+        baseline = next(i for i, row in enumerate(artifacts) if row['tag'] == baseline_tag)
+        control = plans[baseline]['native_dense']
+        if any(g['preissue_smem_bytes'] or g['prefetch_l2_bytes'] for g in
+               [*control['gemms'].values(), control['attention']]):
+            raise ValueError('request common control must have no incoming transfer')
         hf = read(ROOT / f"configs/serving/sm90d1/inputs/{ranking['model']}/config.json")
         shape = {g['family']: [g['n'], g['k']] for g in plans[baseline]['gemms']}
         work = dict(shapes=[shape[k] for k in ('qkv', 'o', 'gate_up', 'down', 'lm_head')],
