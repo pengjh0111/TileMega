@@ -1217,10 +1217,19 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
         });
         if(seed==result.evaluated.end() || victim==materialized.rend())continue;
         auto opts=options;opts.kappa=seed->kappa;
-        auto a=search.Materialize(*seed,true),b=search.Materialize(*seed,false);
-        auto astats=a.candidate.placement,bstats=b.candidate.placement;
-        auto ea=FinalizeSkeletonPoint(std::move(a),opts,options.artifact_prefix+".m"+origin+"A");
-        auto eb=FinalizeSkeletonPoint(std::move(b),opts,options.artifact_prefix+".m"+origin+"B");
+        CompilerSearchResult::ShortlistEntry ea,eb;
+        SkeletonPlacementStats astats,bstats;
+        try {
+          auto a=search.Materialize(*seed,true),b=search.Materialize(*seed,false);
+          astats=a.candidate.placement;bstats=b.candidate.placement;
+          ea=FinalizeSkeletonPoint(std::move(a),opts,options.artifact_prefix+".m"+origin+"A");
+          eb=FinalizeSkeletonPoint(std::move(b),opts,options.artifact_prefix+".m"+origin+"B");
+        }
+        catch(std::exception const& e) {
+          evidence<<"MATERIALIZE_FAILED\t"<<origin<<'\t'<<key<<'\t'<<e.what()<<'\n';
+          std::fprintf(stderr,"MATERIALIZE_FAILED %s %s: %s\n",origin.c_str(),key.c_str(),e.what());
+          continue;
+        }
         bool pure=options.pure_template || eb.evaluation.makespan_ns>0.98*ea.evaluation.makespan_ns;
         auto candidate=*seed;candidate.placement=pure?astats:bstats;
         replaced=victim->candidate.key;
@@ -1252,7 +1261,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
     }
     if(actual<1)throw std::runtime_error("top-3 compiled with zero residency");
     bool changed=options.pg_pages?actual<1:actual!=c.estimated_limit;
-    if(changed) {
+    if(changed) try {
       // Correct occupancy can expose a better residency as well as invalidate one.
       if(options.pg_pages){search.current_page_bytes=c.page_bytes;search.current_lookahead_bytes=c.lookahead_bytes;}
       search.current_handoff_mask=c.handoff_mask;
@@ -1275,6 +1284,16 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
             ? eb.evaluation.makespan_ns>0.98*ea.evaluation.makespan_ns
             : ea.evaluation.makespan_ns<=eb.evaluation.makespan_ns);
       c.placement=item.pure?astats:bstats;item.entry=item.pure?std::move(ea):std::move(eb);
+    }
+    catch(std::exception const& e) {
+      // Re-solved at its compiled residency, a plan can stop being buildable
+      // the same way a shortlisted one can (MATERIALIZE_FAILED above): on
+      // Llama-3.1-8B B1 a residency-6 seed re-solved at the compiled 3 has a
+      // position-dependent task count. Drop it, keep the others.
+      evidence<<"MATERIALIZE_FAILED\tverified\t"<<c.key<<'\t'<<e.what()<<'\n';
+      std::fprintf(stderr,"MATERIALIZE_FAILED verified %s: %s\n",c.key.c_str(),e.what());
+      ++rank;
+      continue;
     }
     c.actual_limit=actual;resources<<++rank<<'\t'<<c.key<<'\t'<<c.estimated_limit<<'\t'<<actual<<'\t'<<changed<<'\t'<<c.residency<<'\t'<<c.score<<'\t'<<item.entry.evaluation.makespan_ns<<'\n';resources.flush();
     item.entry.origin=item.origin;
