@@ -49,7 +49,7 @@ solve)
   flock -n 9 || { echo "cell already being solved by pid $(cat $C/.lock.pid 2>/dev/null)" >&2; exit 3; }
   echo $$ > $C/.lock.pid
   rm -f $C/plan.so
-  trap 'rm -f $C/plan.so.m*.tsv $C/plan.so.verified*.tsv' EXIT INT TERM
+  trap 'rm -f $C/plan.so.m*.tsv $C/plan.so.verified*.tsv $C/plan.so.attn_*.m*.tsv $C/plan.so.attn_*.verified*.tsv' EXIT INT TERM
   # Row-major weights: decode with M<=4 dispatches to ServingGemvTaskBody,
   # whose xcore1000 specialisation rejects the tiled layout outright
   # (static_assert(!Tiled)), and the MX-C/MX-T cells that validated this port
@@ -137,7 +137,8 @@ solve)
   # Search artifacts are large and not needed after selection. The trap runs
   # on failure and on kill too: one 48-cell sweep of leftovers filled the disk
   # (357 GB). dump_janitor.sh also prunes them while a solve is running.
-  rm -f $C/plan.so.m*.tsv $C/plan.so.verified*.tsv ;;
+  # A second attention body searches under plan.so.attn_<body> (MX3-3).
+  rm -f $C/plan.so.m*.tsv $C/plan.so.verified*.tsv $C/plan.so.attn_*.m*.tsv $C/plan.so.attn_*.verified*.tsv ;;
 check)
   b=$3; rand=$4; prompts=$5; gpu=$6
   C=$CELLS/$id/B$b
