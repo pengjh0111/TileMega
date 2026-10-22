@@ -6,6 +6,20 @@
 #include <stdexcept>
 
 namespace tilemega::solver {
+std::string Sm90DenseScheduleKey(Sm90DenseCoordinates const& c,Sm90DensePrediction const& prediction) {
+  auto structural=c.ToJson();
+  auto strip=[](json::Value const& body) {
+    json::Object result;
+    for(auto const& field:body.AsObject("native body"))
+      if(field.first!="workspace_offset" && field.first!="register_stages" &&
+         field.first!="preissue_late" && field.first!="prefetch_l2_bytes")result.push_back(field);
+    return json::Value(result);
+  };
+  auto gemms=structural.At("gemms").AsObject("GEMM families");
+  for(auto& family:gemms)family.second=strip(family.second);
+  structural.Set("gemms",gemms);structural.Set("attention",strip(structural.At("attention")));
+  return json::Value(json::Array{structural,prediction.ToJson()}).Dump(0);
+}
 Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     Sm90DenseWorkload const& work,Sm90DenseCostModel const& cost,Sm90DenseSearchOptions const& o) {
   if(o.passes<1 || o.beam_width<1 || o.retained<8 || o.budget_ms<1)
@@ -23,7 +37,8 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     auto prediction=cost.Request(work,c);
     if(!(prediction.step_ns>0) || !std::isfinite(prediction.step_ns))
       throw std::runtime_error("native pricing produced an invalid prediction");
-    pool.push_back({c,std::move(prediction),origin});++result.evaluated;
+    auto schedule=Sm90DenseScheduleKey(c,prediction);
+    pool.push_back({c,std::move(prediction),origin,std::move(schedule)});++result.evaluated;
   };
   auto seeds=space.Seeds();
   if(seeds.empty())throw std::invalid_argument("native search has no legal seed");
@@ -32,21 +47,29 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
         (i%3==0?"exact":i%3==1?"preissue":"preissue_l2"));
   std::sort(pool.begin(),pool.end(),less);
   std::set<std::string> expanded;
+  auto leaders=[&] {
+    std::set<std::string> unique;std::vector<std::string> keys;
+    for(auto const& candidate:pool)if(unique.insert(candidate.schedule_key).second) {
+      keys.push_back(candidate.schedule_key);if(int(keys.size())==o.beam_width)break;
+    }
+    return keys;
+  };
   for(int pass=0;pass<o.passes;++pass) {
     std::vector<Sm90DenseCandidate> beam;
     // A protected native seed is expanded once even if its first prediction
     // loses; its neighbours can change both geometry and resource coupling.
     if(!pass)beam=pool;
-    else for(auto const& p:pool) {
-      if(!expanded.count(p.coordinates.ToJson().Dump(0)))beam.push_back(p);
-      if(int(beam.size())==o.beam_width)break;
+    else {
+      std::set<std::string> unique;
+      for(auto const& p:pool) {
+        if(!expanded.count(p.schedule_key) && unique.insert(p.schedule_key).second)beam.push_back(p);
+        if(int(beam.size())==o.beam_width)break;
+      }
     }
     if(beam.empty()) {result.converged=true;break;}
-    std::vector<std::string> previous;
-    for(int i=0;i<std::min(int(pool.size()),o.beam_width);++i)
-      previous.push_back(pool[i].coordinates.ToJson().Dump(0));
+    auto previous=leaders();
     for(auto const& center:beam) {
-      auto key=center.coordinates.ToJson().Dump(0);expanded.insert(key);
+      expanded.insert(center.schedule_key);
       for(auto const& neighbour:space.Neighbours(center.coordinates)) {
         if(elapsed()>=o.budget_ms) {result.budget_exhausted=true;break;}
         evaluate(neighbour,"search");
@@ -55,14 +78,17 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     }
     std::sort(pool.begin(),pool.end(),less);
     if(result.budget_exhausted)break;
-    bool unchanged=int(previous.size())==std::min(int(pool.size()),o.beam_width);
-    for(unsigned i=0;i<previous.size() && unchanged;++i)
-      unchanged=previous[i]==pool[i].coordinates.ToJson().Dump(0);
-    if(unchanged) {result.converged=true;break;}
+    if(previous==leaders()) {result.converged=true;break;}
   }
   result.elapsed_ms=elapsed();
-  for(auto const& p:pool)if(int(result.ranked.size())<o.retained || p.origin!="search")
-    result.ranked.push_back(p);
+  // Equal-price translations must not crowd every different division of work
+  // out of the measured shortlist. Protected seeds remain explicit controls.
+  std::set<std::string> retained;
+  for(auto const& p:pool) {
+    bool fresh=retained.insert(p.schedule_key).second;
+    if(p.origin!="search" || (fresh && int(retained.size())<=o.retained))
+      result.ranked.push_back(p);
+  }
   return result;
 }
 }  // namespace tilemega::solver

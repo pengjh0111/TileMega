@@ -270,10 +270,20 @@ int main() {
   Sm90DenseSearchOptions options;options.passes=2;options.beam_width=2;options.retained=8;
   auto search=SearchSm90Dense(space,w,model,options);
   assert(search.evaluated>space.Seeds().size() && search.ranked.size()>=8);
-  double previous=0;std::set<std::string> unique;
+  auto translated=c;translated.gemms[0].workspace_offset+=1024;
+  translated.gemms[0].register_stages=2;translated.gemms[0].preissue_late=true;
+  assert(Sm90DenseScheduleKey(translated,prediction)==Sm90DenseScheduleKey(c,prediction));
+  auto different_price=prediction;different_price.step_ns+=1;
+  assert(Sm90DenseScheduleKey(translated,different_price)!=Sm90DenseScheduleKey(c,prediction));
+  translated.gemms[0].slots+=1;
+  assert(Sm90DenseScheduleKey(translated,prediction)!=Sm90DenseScheduleKey(c,prediction));
+  double previous=0;std::set<std::string> unique,schedules;
   for(auto const& p:search.ranked) {
     assert(space.Legal(p.coordinates) && p.prediction.step_ns>=previous);previous=p.prediction.step_ns;
     assert(unique.insert(p.coordinates.ToJson().Dump(0)).second);
+    bool fresh=schedules.insert(p.schedule_key).second;
+    assert(fresh || p.origin!="search");
     for(auto const& g:p.coordinates.gemms)assert(g.mma==Sm90DenseMma::kMmaSync);
   }
+  assert(schedules.size()>=8);
 }

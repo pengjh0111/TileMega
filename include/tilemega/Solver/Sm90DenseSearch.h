@@ -11,6 +11,7 @@ struct Sm90DenseCandidate {
   Sm90DenseCoordinates coordinates;
   Sm90DensePrediction prediction;
   std::string origin;
+  std::string schedule_key;
 };
 struct Sm90DenseSearchResult {
   std::vector<Sm90DenseCandidate> ranked;
@@ -18,6 +19,7 @@ struct Sm90DenseSearchResult {
   double elapsed_ms=0;
   bool converged=false,budget_exhausted=false;
 };
+std::string Sm90DenseScheduleKey(Sm90DenseCoordinates const&,Sm90DensePrediction const&);
 Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const&,
     Sm90DenseWorkload const&,Sm90DenseCostModel const&,Sm90DenseSearchOptions const&);
 }  // namespace tilemega::solver
