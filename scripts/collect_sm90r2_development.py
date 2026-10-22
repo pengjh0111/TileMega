@@ -28,7 +28,7 @@ def main():
     p.add_argument('--prefix', default='A')
     a = p.parse_args()
     states = [read(path) for path in a.states]
-    checks, diagnostics = {}, {}
+    checks, diagnostics, diagnostic_times = {}, {}, {}
     for state in states:
         for row in state.values():
             if row['status'] != 'done':
@@ -53,7 +53,11 @@ def main():
                 if tag == 'reference2':
                     tag = 'reference'
                 for past in (folder / 'job/trace').glob('past*'):
-                    diagnostics[config['model'], config['batch'], tag] = past
+                    key = config['model'], config['batch'], tag
+                    started = float(selected['started'])
+                    if started > diagnostic_times.get(key, 0):
+                        diagnostics[key] = past
+                        diagnostic_times[key] = started
     pairs = defaultdict(list)
     with a.pairs.open() as stream:
         for row in csv.DictReader(stream):
@@ -99,7 +103,8 @@ def main():
         plain = read(control / 'trace.json')
         overhead.append(dict(model=model, batch=batch, tag=tag, past=trace['past'],
             trace_ms=trace['mean_step_ms'], control_ms=plain['mean_step_ms'],
-            overhead_ms=trace['mean_step_ms'] - plain['mean_step_ms'], diagnostic_only=True))
+            overhead_ms=trace['mean_step_ms'] - plain['mean_step_ms'], diagnostic_only=True,
+            trace_source=str(folder), control_source=str(control)))
         path = folder / 'ledger.json'
         if not path.exists():
             continue
