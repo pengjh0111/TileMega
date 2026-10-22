@@ -23,6 +23,7 @@
 // partials in chunk order.
 #pragma once
 
+#include <tilemega/Backend/Mx/DecodeCommon.h>
 #include <tilemega/Backend/Mx/ServingGemmMma.h>
 #include <tilemega/Backend/ServingVectorIO.h>
 #include <tilemega/Codegen/executor/LastArriver.cuh>
@@ -94,7 +95,8 @@ struct MxDecodeAttention {
   };
 
   __device__ __forceinline__ static uint4 Load(Element const* p) { return LoadGlobal16Gvm(p); }
-  __device__ __forceinline__ static int Wave() { return __builtin_mxc_readfirstlane(int(threadIdx.x / 64)); }
+  __device__ __forceinline__ static int Wave() { return UniformOpaque(threadIdx.x / 64); }
+  __device__ __forceinline__ static int Cta() { return UniformOpaque(blockIdx.x); }
 
   /// K fragments of one block: lane (r, g) loads, for atom a, the row of
   /// token base + 8(r>>2) + 4a + (r&3) (clamped to end-1), 8 dimensions per
@@ -114,7 +116,7 @@ struct MxDecodeAttention {
   __device__ __forceinline__ static Prefetched Prefetch(MxAttentionOperands const& p, Shape const& s) {
     Plan<Shape> const plan(s, p.past);
     Prefetched pf;
-    int const j = int(blockIdx.x) + int(gridDim.x) * Wave();
+    int const j = Cta() + int(gridDim.x) * Wave();
     int const c = j % plan.chunks, head = j / plan.chunks;
     int const base = c * plan.tokens, end = min(base + plan.tokens, plan.length);
     // The block holding `past` was written by the previous stage.
@@ -128,7 +130,7 @@ struct MxDecodeAttention {
   __device__ __forceinline__ static void Run(Prefetched const& pf, MxAttentionOperands const& p, Shape const& s,
                                              char* smem) {
     Plan<Shape> const plan(s, p.past);
-    int const wave = Wave(), lane = threadIdx.x % 64, r = lane & 15, g = lane >> 4;
+    int const wave = Wave(), lane = threadIdx.x % 64, r = lane & 15, g = lane >> 4, cta = Cta();
     float* const exchange = reinterpret_cast<float*>(smem + wave * kWaveBytes);
     unsigned* const flags = reinterpret_cast<unsigned*>(smem + kWaves * kWaveBytes);
     int const c_max = (p.capacity + 31) / 32;
@@ -137,15 +139,15 @@ struct MxDecodeAttention {
     // 640) loop through the 8-block body, which masks the blocks it lacks;
     // a single call site with the prefetch kept it live across the loop and
     // spilled (measured).
-    int const first = int(blockIdx.x) + int(gridDim.x) * wave;
+    int const first = cta + int(gridDim.x) * wave;
     if (first < plan.items) Item(pf, true, p, s, plan, first, lane, r, g, exchange, c_max);
 #pragma unroll 1
     for (int j = first + plan.slots; j < plan.items; j += plan.slots)
       Blocks<8>(pf, false, p, plan, j, lane, r, g, exchange, c_max);
     if (plan.chunks > 1) {
-      int const count = plan.items > int(blockIdx.x) ? (plan.items - int(blockIdx.x) + gridDim.x - 1) / gridDim.x : 0;
+      int const count = plan.items > cta ? (plan.items - cta + int(gridDim.x) - 1) / int(gridDim.x) : 0;
       if (count > kMaxItems) maca::Trap();
-      auto item = [&](int i) { return int(blockIdx.x) + int(gridDim.x) * i; };
+      auto item = [&](int i) { return cta + int(gridDim.x) * i; };
       codegen::executor::LastArriver::RunMany(
           count, flags, [&](int i) { return p.tickets + item(i) / plan.chunks; },
           [&](int) { return unsigned(plan.chunks); },
@@ -203,7 +205,8 @@ struct MxDecodeAttention {
     // Pass 1: S^T for every block, K two blocks in flight.
     float score[NB][2][4];
     uint4 key[2][2][kChunks];
-    if (use_pf && pf.valid) {
+    // Uniform by construction; readfirstlane lets the compiler branch on it.
+    if (__builtin_mxc_readfirstlane(int(use_pf && pf.valid))) {
 #pragma unroll
       for (int a = 0; a < 2; ++a)
 #pragma unroll
@@ -242,12 +245,17 @@ struct MxDecodeAttention {
 
     // V^T fragments of one block: lane (d, g) loads V^T[d][block + 8g .. +7]
     // per dimension atom.
+    // The atom stride goes through UniformOpaque here: otherwise the compiler
+    // forms all D/16 row offsets (16n + r) * cap ahead of the program's loops
+    // and keeps them live through pass 1 (stage_bench spilled).
+    std::size_t const atom_stride = std::size_t(UniformOpaque(16 * p.capacity));
+    Element const* const lane_values = values + std::size_t(r) * p.capacity;
     uint4 value[2][kDimAtoms];
     auto load_v = [&](uint4 (&v)[kDimAtoms], int block_base) {
       // Groups past `end` re-read the last valid group (in bounds; masked).
       int const first = block_base + 8 * g, at = first < end ? first : (end - 1) / 8 * 8;
 #pragma unroll
-      for (int n = 0; n < kDimAtoms; ++n) v[n] = Load(values + std::size_t(16 * n + r) * p.capacity + at);
+      for (int n = 0; n < kDimAtoms; ++n) v[n] = Load(lane_values + n * atom_stride + at);
     };
     load_v(value[0], base);
     if constexpr (NB > 1) load_v(value[1], base + 32);

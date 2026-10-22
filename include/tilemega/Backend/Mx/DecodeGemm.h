@@ -28,6 +28,7 @@
 // the tile's last arriver sums the n(t) partials in contributor order.
 #pragma once
 
+#include <tilemega/Backend/Mx/DecodeCommon.h>
 #include <tilemega/Backend/Mx/ServingGemmMma.h>
 #include <tilemega/Backend/ServingEpilogue.h>
 #include <tilemega/Backend/ServingVectorIO.h>
@@ -155,7 +156,7 @@ struct MxDecodeGemm {
     long long units, begin, end;
     __device__ __forceinline__ Geometry(Shape const& s) : kc(s.k / 32), tiles(s.n / TN) {
       units = (long long)tiles * kc;
-      long long const c = blockIdx.x, g = gridDim.x;
+      long long const c = UniformOpaque(blockIdx.x), g = gridDim.x;
       if constexpr (Part == MxPart::kStreamK) {
         begin = c * units / g;
         end = (c + 1) * units / g;
@@ -185,8 +186,8 @@ struct MxDecodeGemm {
     // keeps every wave-uniform branch below from being treated as
     // divergent (both arms executed, both results live).
     __device__ __forceinline__ Lane()
-        : lane(threadIdx.x % 64), wave(__builtin_mxc_readfirstlane(int(threadIdx.x / 64))), r(lane & 15),
-          g(lane >> 4) {}
+        : lane(Opaque(threadIdx.x % 64)), wave(UniformOpaque(threadIdx.x / 64)),
+          r(lane & 15), g(lane >> 4) {}
   };
 
   __device__ __forceinline__ static uint4 Load(Element const* p) { return LoadGlobal16Gvm(p); }
