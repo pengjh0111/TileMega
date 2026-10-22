@@ -17,6 +17,10 @@
 // per lane, against 78 % for the ldg_b128_bsm shared-memory ring.
 #pragma once
 
+#ifndef TILEMEGA_DIRECT_PARTIAL
+#define TILEMEGA_DIRECT_PARTIAL 1
+#endif
+
 #include <tilemega/Backend/ServingVectorIO.h>
 #include <tilemega/Solver/BackendCostQuery.h>
 #include <tilemega/Codegen/executor/ComputeGroup.cuh>
@@ -125,7 +129,8 @@ struct ServingGemmMma {
   /// predicated. The FP32 tile, row-major [TileM][TileN] plus TileM floats of
   /// epilogue scratch, zeroes rows >= `rows` and columns >= `columns`.
   template <class Source>
-  __device__ static float* Run(Source& source, Lane const& l, int count, int rows, int columns, char* shared) {
+  __device__ static float* Run(Source& source, Lane const& l, int count, int rows, int columns, char* shared,
+                               float* direct = nullptr, int direct_stride = 0) {
     using codegen::executor::ComputeSync;
     mx::MmaAccum acc[kAtomsM][kAtomsNPerWave];
 #pragma unroll
@@ -211,6 +216,27 @@ struct ServingGemmMma {
       for (int am = 0; am < kAtomsM; ++am) a[am] = source.ATail(am, k0, count);
       mma(a, b);
     }
+#if TILEMEGA_DIRECT_PARTIAL
+    // A split-K partial needs no rounding or cross-lane work: each lane
+    // stores its own accumulators (16 lanes cover 16 consecutive columns),
+    // skipping the FP32 tile, its CTA barrier and the epilogue call.
+    if (direct) {
+#pragma unroll
+      for (int am = 0; am < kAtomsM; ++am)
+#pragma unroll
+        for (int j = 0; j < kAtomsNPerWave; ++j) {
+          int const col = (l.wave * kAtomsNPerWave + j) * 16 + l.r;
+#pragma unroll
+          for (int i = 0; i < 4; ++i) {
+            int const row = am * 16 + 4 * l.g + i;
+            if (col < columns && row < rows) direct[row * direct_stride + col] = acc[am][j][i];
+          }
+        }
+      return nullptr;
+    }
+#else
+    (void)direct; (void)direct_stride;
+#endif
     auto* tile = reinterpret_cast<float*>(shared);
 #pragma unroll
     for (int am = 0; am < kAtomsM; ++am)
@@ -282,10 +308,13 @@ struct ServingGemmMma {
   /// Dense GEMM tile. `Tiled`: B from fragment-packed tiles (the loader's
   /// xcore_mma tile_pages layout); measured ~2x the row form's DRAM rate.
   template <bool Tiled = false, class Operands>
-  __device__ static float* Dense(Operands const& p, int tile_m, int tile_n, char* shared) {
+  __device__ static float* Dense(Operands const& p, int tile_m, int tile_n, char* shared,
+                                 float* direct = nullptr) {
     Lane const l;
     DenseSource<Tiled, Operands> source(p, l, tile_m, tile_n);
-    return Run(source, l, p.k_count, p.m - tile_m * TileM, p.n - tile_n * TileN, shared);
+    return Run(source, l, p.k_count, p.m - tile_m * TileM, p.n - tile_n * TileN, shared,
+               direct ? direct + std::int64_t(tile_m) * TileM * p.partial_stride + tile_n * TileN : nullptr,
+               p.partial_stride);
   }
 };
 

@@ -167,9 +167,27 @@ struct ServingGemmTaskBody {
     // here, so TPOT against TILEMEGA_DIAG_EMPTY_KINDS isolates that cost.
     if (p.k_count >= 0) return;
 #endif
+#if defined(TILEMEGA_DIAG_NO_BODY) && (TILEMEGA_DIAG_NO_BODY & 8)
+    // Diagnostic only: no mainloop, the epilogue runs on a zero tile.
+    float* tile = reinterpret_cast<float*>(shared);
+    for (int i = codegen::executor::ComputeThread(); i < TileM * TileN; i += kThreads) tile[i] = 0.f;
+    codegen::executor::ComputeSync();
+#else
+#if TILEMEGA_DIRECT_PARTIAL
+    if (p.epilogue == backend::ServingEpilogueOp::kPartial) {
+      if (p.partial_stride < p.n) { maca::Trap(); return; }
+      Mma::template Dense<TILEMEGA_NONPAGED_TILED != 0>(p, tile_m, tile_n, shared, p.partial);
+      return;
+    }
+#endif
     float* tile = Mma::template Dense<TILEMEGA_NONPAGED_TILED != 0>(p, tile_m, tile_n, shared);
+#endif
 #if TILEMEGA_TRACE_TASK
     auto epilogue_begin=TaskProfileNow(p.profile);
+#endif
+#if defined(TILEMEGA_DIAG_NO_BODY) && (TILEMEGA_DIAG_NO_BODY & 4)
+    // Diagnostic only: mainloop without its epilogue.
+    if (p.k_count >= 0) return;
 #endif
     ServingEpilogueDispatch<TileM, TileN>(tile, p, tile_m, tile_n);
 #if TILEMEGA_TRACE_TASK
