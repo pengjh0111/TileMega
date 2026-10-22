@@ -203,6 +203,9 @@ extern "C" void* tm_plan_create(int batch, void* const* external, int device) {
     }
   }
 #endif
+#if TILEMEGA_MX_DIAG
+  if (auto const env = std::getenv("TILEMEGA_MX_DIAG_SKIP")) sc.diag_skip = unsigned(std::strtoul(env, nullptr, 0));
+#endif
 #if TILEMEGA_TRACE_STAGE
   {
     unsigned slots = 16;

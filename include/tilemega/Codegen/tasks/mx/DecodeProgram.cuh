@@ -29,6 +29,9 @@
 #ifndef TILEMEGA_TRACE_STAGE
 #define TILEMEGA_TRACE_STAGE 0
 #endif
+#ifndef TILEMEGA_MX_DIAG
+#define TILEMEGA_MX_DIAG 0
+#endif
 
 namespace tilemega::codegen::mx {
 
@@ -52,6 +55,10 @@ struct MxScratch {
   unsigned long long* barrier;  // 5L+2 counters, 64 B apart, never reset after create
   WatchdogRecord* watchdog;     // TILEMEGA_WATCHDOG builds only
   unsigned long long watchdog_ns;
+  /// TILEMEGA_MX_DIAG builds only (never measured): bit c skips the work of
+  /// stage class c (0 embed, 1 qkv, 2 attn, 3 o, 4 gate_up, 5 down, 6 head)
+  /// at run time, keeping the generated code; from TILEMEGA_MX_DIAG_SKIP.
+  unsigned diag_skip;
 };
 
 template <int L>
@@ -155,39 +162,35 @@ __global__ void __launch_bounds__(512)
     unsigned stage = 0;
     auto barrier = [&](auto prefetch) {
       G::Mark(trace, it, stage, 1);
-      Watch watch;
-      watch.record = b.s.watchdog;
-      watch.limit_ns = b.s.watchdog_ns;
-      watch.site = 11;
-      watch.waiter_stage = stage;
-      watch.iteration = it;
       auto pf = Barrier(b.s.barrier + 8 * std::size_t(stage), (unsigned long long)gridDim.x * (it + 1), prefetch,
-                        &watch);
+                        MxWatch{b.s.watchdog, b.s.watchdog_ns, stage, it});
       G::Mark(trace, it, stage, 2);
       ++stage;
       G::Mark(trace, it, stage, 0);
       return pf;
     };
+    // Diagnostic builds only: skip a class's work (the barriers remain).
+    auto run = [&](int c) { return !TILEMEGA_MX_DIAG || !((b.s.diag_skip >> c) & 1u); };
     G::Mark(trace, it, 0, 0);
-    backend::mx::MxDecodeEmbed(b.embed, b.tokens, b.s.x, backend::mx::MxShape{0, 0, P::kBatch}, P::kHidden,
+    if (run(0)) backend::mx::MxDecodeEmbed(b.embed, b.tokens, b.s.x, backend::mx::MxShape{0, 0, P::kBatch}, P::kHidden,
                                P::kCapacity, past);
     auto pf_q = barrier([&] { return P::Qkv::Prefetch(G::Qkv(b, 0, past), qkv_shape); });
 #pragma unroll 1
     for (int l = 0; l < P::kLayers; ++l) {
-      P::Qkv::Run(pf_q, G::Qkv(b, l, past), qkv_shape, smem);
+      if (run(1)) P::Qkv::Run(pf_q, G::Qkv(b, l, past), qkv_shape, smem);
       auto pf_a = barrier([&] { return P::Attn::Prefetch(G::Attn(b, l, past), attn_shape); });
-      P::Attn::Run(pf_a, G::Attn(b, l, past), attn_shape, smem);
+      if (run(2)) P::Attn::Run(pf_a, G::Attn(b, l, past), attn_shape, smem);
       auto pf_o = barrier([&] { return P::O::Prefetch(G::O(b, l), o_shape); });
-      P::O::Run(pf_o, G::O(b, l), o_shape, smem);
+      if (run(3)) P::O::Run(pf_o, G::O(b, l), o_shape, smem);
       auto pf_g = barrier([&] { return P::GateUp::Prefetch(G::GateUp(b, l), gu_shape); });
-      P::GateUp::Run(pf_g, G::GateUp(b, l), gu_shape, smem);
+      if (run(4)) P::GateUp::Run(pf_g, G::GateUp(b, l), gu_shape, smem);
       auto pf_d = barrier([&] { return P::Down::Prefetch(G::Down(b, l), down_shape); });
-      P::Down::Run(pf_d, G::Down(b, l), down_shape, smem);
+      if (run(5)) P::Down::Run(pf_d, G::Down(b, l), down_shape, smem);
       pf_q = barrier([&] { return P::Qkv::Prefetch(G::Qkv(b, l + 1 < P::kLayers ? l + 1 : 0, past), qkv_shape); });
     }
     // The last arriver writes tokens[b][past+1].
     auto const pf_h = P::Head::Prefetch(G::Head(b, past), head_shape);
-    P::Head::Run(pf_h, G::Head(b, past), head_shape, smem);
+    if (run(6)) P::Head::Run(pf_h, G::Head(b, past), head_shape, smem);
     barrier([] { return NoPrefetch{}; });
     if (step_ns && blockIdx.x == 0 && threadIdx.x == 0) step_ns[s + 1] = maca::GlobalTimerNs();
   }
