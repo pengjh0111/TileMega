@@ -29,6 +29,7 @@
 #pragma once
 
 #include <tilemega/Backend/Mx/DecodeCommon.h>
+#include <tilemega/Backend/Mx/DecodeShapes.h>
 #include <tilemega/Backend/Mx/ServingGemmMma.h>
 #include <tilemega/Backend/ServingEpilogue.h>
 #include <tilemega/Backend/ServingVectorIO.h>
@@ -45,84 +46,6 @@
 
 namespace tilemega::backend::mx {
 
-inline constexpr int kDecodeThreads = 512;
-inline constexpr int kDecodeWaves = kDecodeThreads / 64;
-/// R_max of §3.1: the CTA's 64 KiB less 1 KiB for everything else.
-inline constexpr int kDecodeReduceBytes = 65536 - 1024;
-
-enum class MxDecodeOp { kQkvRope, kResidual, kSwiGLU, kArgmax };
-enum class MxPart { kStreamK, kTileRange };
-
-/// N, K, B: constexpr in the program (MxStaticShape), runtime in the stage
-/// bench (MxShape); the body reads them the same way.
-struct MxShape {
-  int n, k, b;
-};
-template <int N, int K, int B>
-struct MxStaticShape {
-  static constexpr int n = N, k = K, b = B;
-};
-
-/// Head constants of the Qkv epilogue (kQkvRope only).
-template <int HeadDim, int QPerKv, int HeadsKv, bool QkNorm>
-struct MxRope {
-  static constexpr int kHeadDim = HeadDim, kQ = QPerKv, kHeadsKv = HeadsKv;
-  static constexpr bool kQkNorm = QkNorm;
-};
-struct MxNoRope {
-  static constexpr int kHeadDim = 64, kQ = 1, kHeadsKv = 1;
-  static constexpr bool kQkNorm = false;
-};
-
-/// Every address a GEMM stage touches. Passed by value into inlined code.
-struct MxGemmOperands {
-  tilemega::Bf16 const* a;  // [B][K]
-  tilemega::Bf16 const* w;  // tile_pages(xcore_mma, TN, 32)
-  tilemega::Bf16* out;      // kResidual: x (in place); kSwiGLU: h; kQkvRope: qkv
-  float* partial;           // [T][P][B][TN+1], P = MaxContributors
-  unsigned* tickets;        // [T]
-  // kQkvRope
-  tilemega::Bf16 const *q_norm, *k_norm, *cosine, *sine;
-  tilemega::Bf16 *k_cache, *vt_cache;
-  // kArgmax
-  float* head_value;   // [B][G]
-  int* head_index;     // [B][G]
-  unsigned* head_ticket;
-  int* tokens;         // [B][capacity]
-  int capacity, past;
-  float epsilon;
-};
-
-/// Bound on the CTAs sharing a tile: ceil(G/T) + 1.
-__host__ __device__ constexpr int MxMaxContributors(int tiles, int grid) { return (grid + tiles - 1) / tiles + 1; }
-
-/// §3.5 reduction legality: rounds 1 or 2, 0 = illegal.
-__host__ __device__ constexpr int MxReduceRounds(int b, int tn) {
-  return kDecodeWaves * b * (tn + 1) * 4 <= kDecodeReduceBytes         ? 1
-         : (kDecodeWaves / 2) * b * (tn + 1) * 4 <= kDecodeReduceBytes ? 2
-                                                                        : 0;
-}
-/// §3.5 rule 6: accumulators plus the ring within 160 VGPRs.
-__host__ __device__ constexpr bool MxDepthFits(int tn, int depth) {
-  return (tn / 16) * 4 + depth * (tn / 16 + 1) * 4 <= 160;
-}
-
-/// Shared-memory layout of one GEMM stage, in floats.
-struct MxGemmSmem {
-  int buf, ss, res, square, cand_value, cand_index, best_value, best_index, flag, bytes;
-  __host__ __device__ constexpr MxGemmSmem(int b, int tn)
-      : buf(0),
-        ss(buf + (MxReduceRounds(b, tn) == 1 ? kDecodeWaves : kDecodeWaves / 2) * b * tn),
-        res(ss + kDecodeWaves * 64),
-        square(res + b * (tn + 1)),
-        cand_value(square + b * tn / 8),
-        cand_index(cand_value + b * tn / 8),
-        best_value(cand_index + b * tn / 8),
-        best_index(best_value + 16),
-        flag(best_index + 16),
-        bytes(((flag + 1) * 4 + 15) / 16 * 16) {}
-};
-
 template <int D, int kAtoms>
 struct MxGemmPrefetch {
   uint4 w[D][kAtoms];
@@ -132,6 +55,8 @@ template <int TN, int D, MxDecodeOp Op, bool Norm, MxPart Part, class Rope = MxN
 struct MxDecodeGemm {
   using Element = tilemega::Bf16;
   static constexpr int kAtoms = TN / 16, kWaves = kDecodeWaves, kThreads = kDecodeThreads;
+  static constexpr int kTN = TN, kDepth = D;
+  static constexpr MxPart kPart = Part;
   static_assert(TN == 16 || TN == 32 || TN == 64 || TN == 128, "TN in {16, 32, 64, 128}");
   static_assert(D >= 1 && D <= 4 && MxDepthFits(TN, D), "ring depth 1..4 within 160 VGPRs (rule 6)");
   static_assert(Op != MxDecodeOp::kSwiGLU || TN >= 32, "GateUp: TN in {32, 64, 128}");

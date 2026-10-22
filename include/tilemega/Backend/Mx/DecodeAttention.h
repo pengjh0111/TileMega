@@ -24,6 +24,7 @@
 #pragma once
 
 #include <tilemega/Backend/Mx/DecodeCommon.h>
+#include <tilemega/Backend/Mx/DecodeShapes.h>
 #include <tilemega/Backend/Mx/ServingGemmMma.h>
 #include <tilemega/Backend/ServingVectorIO.h>
 #include <tilemega/Codegen/executor/LastArriver.cuh>
@@ -53,26 +54,6 @@ struct MxAttentionOperands {
   unsigned* tickets;               // [B*hkv]
   int capacity, past;
 };
-
-/// T_c of §3.6: the smallest multiple of 32, >= Tmin, leaving at most
-/// `slots` = G*W items for L tokens; capped at 256.
-__host__ __device__ constexpr int MxAttentionChunkTokens(int heads, int length, int tmin, int slots) {
-  for (int t = (tmin + 31) / 32 * 32; t < 256; t += 32)
-    if (heads * ((length + t - 1) / t) <= slots) return t;
-  return 256;
-}
-/// The most 32-token blocks an item can hold over L in [1, capacity]: the
-/// bodies for larger counts are never reached by the plan and are not
-/// instantiated (MaxBlocks below).
-__host__ __device__ constexpr int MxAttentionMaxBlocks(int heads, int capacity, int tmin, int slots) {
-  int most = 1;
-  for (int length = 1; length <= capacity; ++length) {
-    int const t = MxAttentionChunkTokens(heads, length, tmin, slots);
-    int const blocks = ((t < length ? t : length) + 31) / 32;
-    most = blocks > most ? blocks : most;
-  }
-  return most;
-}
 
 template <int D, int Q, int Tmin, int MaxBlocks = 8>
 struct MxDecodeAttention {
