@@ -1,0 +1,36 @@
+model,batch,cohort,tag,metric,value,limit,pass_,evidence
+qwen3_0_6b,1,E43,cohort,kendall_tau,-0.16116459280507603,0.7,False,verified; later used in E47 training
+qwen3_0_6b,1,E43,cohort,fastest_in_predicted_top3,False,True,False,verified; later used in E47 training
+qwen3_0_6b,1,E43,B28Z,step_error_pct,-1.369818005859913,10,True,verified request; inferred prediction
+qwen3_0_6b,1,E43,E43C1,step_error_pct,-7.3835493453461964,10,True,verified request; inferred prediction
+qwen3_0_6b,1,E43,E43C4,step_error_pct,2.35328678731781,10,True,verified request; inferred prediction
+qwen3_0_6b,1,E43,E43C5,step_error_pct,0.6104274049126834,10,True,verified request; inferred prediction
+qwen3_0_6b,1,E43,E43C6,step_error_pct,3.9852839726592704,10,True,verified request; inferred prediction
+qwen3_0_6b,1,E43,E43C8,step_error_pct,-7.465655419051609,10,True,verified request; inferred prediction
+qwen3_0_6b,1,E43,E43C9,step_error_pct,-7.449506349100698,10,True,verified request; inferred prediction
+qwen3_0_6b,1,E43,E43C10,step_error_pct,-7.581575690240417,10,True,verified request; inferred prediction
+llama3_2_1b,1,E43,cohort,kendall_tau,0.32232918561015206,0.7,False,verified; later used in E47 training
+llama3_2_1b,1,E43,cohort,fastest_in_predicted_top3,False,True,False,verified; later used in E47 training
+llama3_2_1b,1,E43,B28Z,step_error_pct,1.8644043869657567,10,True,verified request; inferred prediction
+llama3_2_1b,1,E43,E43C1,step_error_pct,-1.0659791720321943,10,True,verified request; inferred prediction
+llama3_2_1b,1,E43,E43C4,step_error_pct,2.545814847771277,10,True,verified request; inferred prediction
+llama3_2_1b,1,E43,E43C5,step_error_pct,2.4939142944740533,10,True,verified request; inferred prediction
+llama3_2_1b,1,E43,E43C6,step_error_pct,2.1082782324390426,10,True,verified request; inferred prediction
+llama3_2_1b,1,E43,E43C8,step_error_pct,-1.536710335063629,10,True,verified request; inferred prediction
+llama3_2_1b,1,E43,E43C9,step_error_pct,-1.4825186808985702,10,True,verified request; inferred prediction
+llama3_2_1b,1,E43,E43C12,step_error_pct,-0.6926095700105273,10,True,verified request; inferred prediction
+qwen3_0_6b,1,E45,E43C1,qkv_class_error_pct,-13.745415913208593,15,True,verified stage trace; inferred uniform overhead correction
+qwen3_0_6b,1,E45,E43C1,attention_class_error_pct,3.9787626284699007,15,True,verified stage trace; inferred uniform overhead correction
+qwen3_0_6b,1,E45,E43C1,o_class_error_pct,-1.4830859470030267,15,True,verified stage trace; inferred uniform overhead correction
+qwen3_0_6b,1,E45,E43C1,gate_up_class_error_pct,-33.39334599856946,15,False,verified stage trace; inferred uniform overhead correction
+qwen3_0_6b,1,E45,E43C1,down_class_error_pct,-5.091646035038011,15,True,verified stage trace; inferred uniform overhead correction
+qwen3_0_6b,1,E45,E43C1,lm_head_class_error_pct,-3.4780113627061016,15,True,verified stage trace; inferred uniform overhead correction
+llama3_2_1b,1,E45,E43C1,qkv_class_error_pct,-9.31213623297582,15,True,verified stage trace; inferred uniform overhead correction
+llama3_2_1b,1,E45,E43C1,attention_class_error_pct,-3.0446601734066436,15,True,verified stage trace; inferred uniform overhead correction
+llama3_2_1b,1,E45,E43C1,o_class_error_pct,5.704881385236926,15,True,verified stage trace; inferred uniform overhead correction
+llama3_2_1b,1,E45,E43C1,gate_up_class_error_pct,-5.779049207950515,15,True,verified stage trace; inferred uniform overhead correction
+llama3_2_1b,1,E45,E43C1,down_class_error_pct,2.4615166617853124,15,True,verified stage trace; inferred uniform overhead correction
+llama3_2_1b,1,E45,E43C1,lm_head_class_error_pct,-1.3835411520589647,15,True,verified stage trace; inferred uniform overhead correction
+qwen3_0_6b,1,B46,B46E,paired_tpot_change_pct,3.0099819751312262,0,False,verified provisional; rejected packet prototype
+qwen3_0_6b,1,B46,B46L,paired_tpot_change_pct,3.164530265949561,0,False,verified provisional; rejected packet prototype
+qwen3_0_6b,1,B46,B46Z,paired_tpot_change_pct,0.09790456130582825,0,False,verified provisional; rejected packet prototype
