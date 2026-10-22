@@ -53,6 +53,49 @@ __device__ __forceinline__ float WarpSum32(float value) {
   return value;
 }
 
+/// The same sum over 32 per-lane partials, in WarpSum32's xor-tree order
+/// (lane 0's operand order; every lane's tree is the same pairing), for code
+/// that must reproduce it without shuffles. `load(lane)` returns a partial.
+template <class Load>
+__device__ __forceinline__ float TreeSum32(Load load) {
+  float part[16];
+#pragma unroll
+  for (int i = 0; i < 16; ++i) part[i] = load(i) + load(i + 16);
+#pragma unroll
+  for (int shift = 8; shift; shift >>= 1)
+#pragma unroll
+    for (int i = 0; i < shift; ++i) part[i] = part[i] + part[i + shift];
+  return part[0];
+}
+
+/// The eight-element pieces of RotateRow. The MX-4 Qkv epilogue
+/// (Backend/Mx/DecodeGemm.h) calls these too, so both round identically.
+__device__ __forceinline__ float SquareEight(tilemega::Bf16 const (&a)[8]) {
+  float square = 0;
+#pragma unroll
+  for (int i = 0; i < 8; ++i) square += float(a[i]) * float(a[i]);
+  return square;
+}
+/// `a` holds dimensions [d, d+8), `b` their rotate-half partners; `first`
+/// is d < D/2. The result replaces `a`.
+template <bool QkNorm>
+__device__ __forceinline__ void RotateEight(tilemega::Bf16 (&a)[8], tilemega::Bf16 (&b)[8],
+                                            tilemega::Bf16 const (&w)[8], tilemega::Bf16 const (&partner_w)[8],
+                                            tilemega::Bf16 const (&cos)[8], tilemega::Bf16 const (&sin)[8],
+                                            float inverse, bool first) {
+  using Element = tilemega::Bf16;
+#pragma unroll
+  for (int i = 0; i < 8; ++i) {
+    if constexpr (QkNorm) {
+      a[i] = Element(float(Element(float(a[i]) * inverse)) * float(w[i]));
+      b[i] = Element(float(Element(float(b[i]) * inverse)) * float(partner_w[i]));
+    }
+    auto first_product = Element(float(a[i]) * float(cos[i]));
+    auto second_product = Element((first ? -float(b[i]) : float(b[i])) * float(sin[i]));
+    a[i] = Element(float(first_product) + float(second_product));
+  }
+}
+
 /// One head row of D elements, eight per lane of a 32-lane logical warp:
 /// optional RMSNorm with `norm`, then rotate-half RoPE. `store(d, uint4)`
 /// receives the eight results for dimensions [d, d+8).
@@ -72,23 +115,13 @@ __device__ void RotateRow(tilemega::Bf16 const* x, tilemega::Bf16 const* norm, t
     if constexpr (QkNorm) {
       *reinterpret_cast<uint4*>(w) = backend::LoadGlobal16(norm + d);
       *reinterpret_cast<uint4*>(partner_w) = backend::LoadGlobal16(norm + partner);
-#pragma unroll
-      for (int i = 0; i < 8; ++i) square += float(a[i]) * float(a[i]);
+      square = SquareEight(a);
     }
   }
   float inverse = 1;
   if constexpr (QkNorm) inverse = maca::Rsqrt(WarpSum32(square) / D + epsilon);
   if (d < D) {
-#pragma unroll
-    for (int i = 0; i < 8; ++i) {
-      if constexpr (QkNorm) {
-        a[i] = Element(float(Element(float(a[i]) * inverse)) * float(w[i]));
-        b[i] = Element(float(Element(float(b[i]) * inverse)) * float(partner_w[i]));
-      }
-      auto first = Element(float(a[i]) * float(cos[i]));
-      auto second = Element((d < D / 2 ? -float(b[i]) : float(b[i])) * float(sin[i]));
-      a[i] = Element(float(first) + float(second));
-    }
+    RotateEight<QkNorm>(a, b, w, partner_w, cos, sin, inverse, d < D / 2);
     store(d, *reinterpret_cast<uint4 const*>(a));
   }
 }
