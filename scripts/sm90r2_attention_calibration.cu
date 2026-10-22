@@ -1,15 +1,23 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Backend/Sm90DenseAttentionStream.cuh>
+#include <tilemega/Codegen/tasks/Sm90DenseStage.cuh>
 #include <cuda_runtime.h>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <stdexcept>
 #include <vector>
 
 using namespace tilemega::backend;
 using BF=cutlass::bfloat16_t;
 using U64=unsigned long long;
+#ifndef TILEMEGA_NATIVE_CAL_RESIDENCY
+#define TILEMEGA_NATIVE_CAL_RESIDENCY 1
+#endif
+static_assert(TILEMEGA_NATIVE_CAL_RESIDENCY==1 || TILEMEGA_NATIVE_CAL_RESIDENCY==2);
+int residency=TILEMEGA_NATIVE_CAL_RESIDENCY;
+bool audit_only=false;
 void Check(cudaError_t e) {if(e!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(e));}
 template<class T>T* Device(std::size_t n) {T* p;Check(cudaMalloc(&p,n*sizeof(T)));return p;}
 __device__ U64 Now() {U64 t;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(t));return t;}
@@ -40,7 +48,9 @@ void Run(Sm90DenseAttentionOperands p,U64* grid,U64* stamps,int repeats) {
   for(int repeat=0;repeat<repeats;++repeat) {
     auto* out=stamps+(repeat*gridDim.x+blockIdx.x)*3;
     if(threadIdx.x==0)out[0]=Now();
-    Attention<B,D,Q,Norm,S,Keys,Slots,NewRowWork>::Run(p,shared,&ring);
+    using Entry=tilemega::codegen::native_dense::StageEntry<
+        Attention<B,D,Q,Norm,S,Keys,Slots,NewRowWork>>;
+    Entry::Attention(p,shared,&ring,Sm90DenseNoTail{});
     if(threadIdx.x==0)out[1]=Now();
     Grid(grid,repeat);
     if(threadIdx.x==0)out[2]=Now();
@@ -59,13 +69,29 @@ template<int B,int D,int Q,bool Norm,int S,int Keys=64,int Slots=3,int NewRowWor
 void Case(cudaDeviceProp const& prop) {
   using A=Attention<B,D,Q,Norm,S,Keys,Slots,NewRowWork>;
   constexpr int groups=B*8,capacity=1088,repeats=64;
-  int shared=int(prop.sharedMemPerBlockOptin/256)*256,grid=prop.multiProcessorCount;
-  if(A::kSharedBytes>shared)return;
+  int shared=int(std::min(prop.sharedMemPerBlockOptin,
+      prop.sharedMemPerMultiprocessor/residency-prop.reservedSharedMemPerBlock)/256)*256;
+  int grid=prop.multiProcessorCount*residency;
   Check(cudaFuncSetAttribute(Run<B,D,Q,Norm,S,Keys,Slots,NewRowWork>,
       cudaFuncAttributeMaxDynamicSharedMemorySize,shared));
   int resident;Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&resident,
       Run<B,D,Q,Norm,S,Keys,Slots,NewRowWork>,160,shared));
-  if(resident!=1)throw std::runtime_error("attention calibration occupancy differs from requested one");
+  if(audit_only) {
+    cudaFuncAttributes attributes{};
+    Check(cudaFuncGetAttributes(&attributes,Run<B,D,Q,Norm,S,Keys,Slots,NewRowWork>));
+    std::printf("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%zu,%d,%d\n",B,D,Q,int(Norm),
+        S,Keys,Slots,NewRowWork,grid,shared,attributes.numRegs,attributes.localSizeBytes,
+        resident,int(resident==residency && A::kSharedBytes<=shared));
+    return;
+  }
+  if(A::kSharedBytes>shared || resident!=residency) {
+    // An excluded surrogate contributes no timing row; its resource facts
+    // remain in the audit, without asserting production-kernel legality.
+    std::fflush(stdout);
+    std::fprintf(stderr,"excluded calibration B%d D%d Q%d S%d keys%d slots%d row%d grid%d shared%d required%d resident%d\n",
+        B,D,Q,S,Keys,Slots,NewRowWork,grid,shared,A::kSharedBytes,resident);
+    return;
+  }
   auto* qkv=Device<BF>(groups*(Q+2)*D);auto* key=Device<BF>(groups*capacity*D);
   auto* value=Device<BF>(groups*capacity*D);auto* output=Device<BF>(groups*Q*D);
   auto* cosine=Device<BF>(capacity*D);auto* sine=Device<BF>(capacity*D);auto* norm=Device<BF>(D);
@@ -130,10 +156,20 @@ void Balance(cudaDeviceProp const& p) {
   Case<B,D,Q,Norm,S,64,3,8>(p);
   Case<B,D,Q,Norm,S,64,3,16>(p);
 }
-int main() {try {
+int main(int argc,char** argv) {try {
+  for(int i=1;i<argc;++i) {
+    if(std::strcmp(argv[i],"--audit-only")==0)audit_only=true;
+    else if(std::strcmp(argv[i],"--residency")==0 && i+1<argc) {
+      if(std::strcmp(argv[++i],"1")==0)residency=1;
+      else if(std::strcmp(argv[i],"2")==0)residency=2;
+      else throw std::runtime_error("residency must be 1 or 2");
+    }else throw std::runtime_error("use [--audit-only] [--residency 1|2]");
+  }
   Check(cudaSetDevice(0));cudaDeviceProp p{};Check(cudaGetDeviceProperties(&p,0));
   if(p.major!=9 || p.minor!=0)throw std::runtime_error("Hopper calibration requires sm90");
-  std::printf("metric,batch,head_dim,queries,qk_norm,chunks,block_keys,slots,new_row_work,past,grid,samples,median,p99,unit,timestamp_arithmetic\n");
+  std::printf(audit_only?
+      "batch,head_dim,queries,qk_norm,chunks,block_keys,slots,new_row_work,grid,shared_bytes,registers,local_bytes,resident,compatible\n":
+      "metric,batch,head_dim,queries,qk_norm,chunks,block_keys,slots,new_row_work,past,grid,samples,median,p99,unit,timestamp_arithmetic\n");
 #ifdef TILEMEGA_CALIBRATION_BALANCE_ONLY
   // These four shape/batch classes cover the low-batch development cells.
   Balance<1,128,2,true,8>(p);Balance<1,128,2,true,16>(p);Balance<1,128,2,true,32>(p);
