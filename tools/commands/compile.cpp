@@ -1,6 +1,7 @@
 #include <tilemega/Codegen/tasks/TaskResources.h>
 #include <tilemega/Codegen/ServingPages.h>
 #include "Toolchain.h"
+#include "MxDecode.h"
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/ExactMemo.h>
@@ -562,6 +563,31 @@ int RunCompile(int argc, char** argv) {
       throw std::runtime_error("--pg must be off, l2, pages or auto");
     if(handoff_mode!="off" && handoff_mode!="auto")
       throw std::runtime_error("--handoff must be off or auto");
+    // MX-4: a dense decoder's decode plan on xcore1000 is the static stage
+    // program (tools/commands/mx_decode.cpp); MoE/DNN plans continue below.
+    if(serving && serving_phase=="decode" && frontend_mode=="decoder" && input.extension()==".json") {
+      tilemega::commands::mx_decode::Request mx;
+      mx.input=input;mx.output=std::filesystem::absolute(argv[2]);mx.pin=evaluation_cases_path;
+      mx.batch=serving_batch;mx.capacity=serving_capacity;
+      mx.past_lo=serving_past_lo;mx.past_hi=serving_past_hi;mx.watchdog=watchdog;
+      mx.runtime_target=!runtime_target.empty()?runtime_target:!solve_target.empty()?solve_target:
+          std::string(TILEMEGA_SOURCE_DIR)+"/configs/targets/xcore1000.json";
+      mx.model=input.parent_path().filename().string();
+      if(char const* trace=std::getenv("TILEMEGA_TRACE"))
+        mx.trace_stage=std::string(trace).find("STAGE=1")!=std::string::npos;
+      if(char const* prefetch=std::getenv("TILEMEGA_MX_BARRIER_PREFETCH"))
+        mx.barrier_prefetch=std::atoi(prefetch)!=0;
+      if(char const* allow=std::getenv("TILEMEGA_MX_ALLOW_RESOURCES"))mx.allow_resources=std::atoi(allow)!=0;
+      for(int i=3;i<argc;i+=2) {
+        std::string flag=argv[i];
+        for(char const* interpreted:{"--attention-impl","--pg","--nonpaged-weight-layout","--nonpaged-la",
+                                     "--gemm-impl-qkv","--gemm-impl-o","--gemm-impl-gate-up",
+                                     "--gemm-impl-down","--gemm-impl-lm-head","--handoff"})
+          if(flag==interpreted)mx.interpreted_flags.push_back(flag);
+      }
+      int status=tilemega::commands::mx_decode::TryCompile(mx);
+      if(status>=0)return status;
+    }
     bool use_pages=serving && (pg_mode=="pages" || (serving_phase=="decode" && pg_mode=="auto"));
     if(use_pages)
       throw std::runtime_error("the paged executor is not implemented on xcore1000; use --pg off or l2");
@@ -1795,6 +1821,7 @@ int RunCompile(int argc, char** argv) {
     }
     std::filesystem::path requested(argv[2]);
     bool shared = requested.extension() == ".so";
+    bool kv_layout_vt=false;
     if(serving && module) {
       auto plan=(*module)->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
       auto dm=plan?plan.getAs<mlir::BoolAttr>("dm"):mlir::BoolAttr{};
@@ -1802,6 +1829,12 @@ int RunCompile(int argc, char** argv) {
         std::string flag=" -DTILEMEGA_NONPAGED_LA="+std::to_string(nonpaged_la);
         auto at=runtime_flags.find(flag);
         if(at!=std::string::npos)runtime_flags.erase(at,flag.size());
+      }
+      // MX-4 §3.4: a dense decoder's KV cache is K rows and V^T, the layout of
+      // its static decode program; the prefill plan writes it the same way.
+      if(serving_phase=="prefill" && frontend_mode=="decoder" && !(dm && dm.getValue())) {
+        kv_layout_vt=true;
+        runtime_flags+=" -DTILEMEGA_KV_LAYOUT_VT=1";
       }
     }
     auto identity_command=[&](bool capture) {
@@ -1984,6 +2017,7 @@ int RunCompile(int argc, char** argv) {
       }
       manifest<<"{\n  \"identity_schema\": 1,\n  \"model\": "<<std::quoted(model_name)
               <<",\n  \"phase\": "<<std::quoted(serving_phase)
+              <<",\n  \"kv_layout\": "<<(kv_layout_vt?"\"vt\"":"\"rows\"")
               <<",\n  \"batch_lo\": "<<serving_batch
               <<",\n  \"batch_hi\": "<<serving_batch
               <<",\n  \"past_lo\": "<<serving_past_lo

@@ -272,6 +272,7 @@ add_library(tilemega_core STATIC
   lib/Analysis/HandoffAccess.cpp
   lib/Codegen/Codegen.cpp
   lib/Codegen/ServingPages.cpp
+  lib/Codegen/MxDecodeProgram.cpp
   lib/Runtime/EventBuffer.cpp
   lib/Runtime/MegakernelRuntime.cpp)
 add_library(TileMega::tilemega ALIAS tilemega_core)
@@ -871,6 +872,7 @@ add_library(tilemega_commands OBJECT
   tools/commands/calibrate.cpp
   tools/commands/calibration-suite.cpp
   tools/commands/compile.cpp
+  tools/commands/mx_decode.cpp
   tools/commands/derive.cpp
   tools/commands/dram-floor.cpp
   tools/commands/request-floor.cpp
