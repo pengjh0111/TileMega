@@ -21,7 +21,8 @@ from sm90d1_common import ROOT, read, sha, write
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--stage-fit', type=Path, required=True)
-    p.add_argument('--ranking', type=Path, nargs='+', required=True)
+    p.add_argument('--extra-stage-fit', type=Path, nargs='*', default=[])
+    p.add_argument('--ranking', type=Path, nargs='*', default=[])
     p.add_argument('--probe', type=Path, default=ROOT / 'build/sm90r2_price_probe')
     p.add_argument('--out', type=Path, required=True)
     a = p.parse_args(); a.out = a.out.resolve()
@@ -57,22 +58,32 @@ def main():
             early=s['preissue_service_ns'], late=s['late_service_ns'],
             count=s['issue_count'], service=s['issue_service_ns'])
 
-    tags = [r['tag'] for r in receipt['artifacts']]
-    work = read(a.stage_fit / 'workload.json'); coords = read(a.stage_fit / 'coordinates.json')
-    stages = predict(work, coords, 'stage-input')
-    rows = []
-    for source in csv.DictReader((a.stage_fit / 'training.csv').open()):
-        candidate, control = [stages[tags.index(source[k])]['past575']['stages']
-                              for k in ('tag', 'baseline_tag')]
-        ca = next(s for s in candidate if s['kind'] == source['kind'])
-        co = next(s for s in control if s['kind'] == source['kind'])
-        rows.append(dict(source='stage', label=source['tag'] + ':' + source['kind'],
-            observed_ns=float(source['observed_delta_ns']), base_ns=ca['stage_ns']-co['stage_ns'],
-            sigma_ns=1000., terms=[feature(ca, 1), feature(co, -1)],
-            group='stage-input', candidate_index=tags.index(source['tag']),
-            control_index=tags.index(source['baseline_tag']), kind=source['kind']))
-
-    inputs = [('stage-input', work, coords)]
+    rows, inputs, stage_inputs = [], [], []
+    for number, directory in enumerate([a.stage_fit, *a.extra_stage_fit]):
+        other = read(directory / 'receipt.json')
+        calibration = read(directory / 'target.json')['sm90_dense_decode']
+        if (sha(directory / 'target.json') != other['target_sha256'] or
+                other['source_target_sha256'] != receipt['source_target_sha256'] or
+                calibration['native_headers'] != cal['native_headers'] or
+                calibration['fit_status'] != 'initial_overlap_fitted'):
+            raise ValueError('joint stage fits must share one base calibration and native implementation')
+        tags = [r['tag'] for r in other['artifacts']]
+        work = read(directory / 'workload.json'); coords = read(directory / 'coordinates.json')
+        stem = f'stage-input-{number}'
+        stages = predict(work, coords, stem)
+        inputs.append((stem, work, coords))
+        stage_inputs.append(dict(path=str(directory), hashes={name: sha(directory / name)
+            for name in ('target.json', 'receipt.json', 'workload.json', 'coordinates.json', 'training.csv')}))
+        for source in csv.DictReader((directory / 'training.csv').open()):
+            candidate, control = [stages[tags.index(source[k])]['past575']['stages']
+                                  for k in ('tag', 'baseline_tag')]
+            ca = next(s for s in candidate if s['kind'] == source['kind'])
+            co = next(s for s in control if s['kind'] == source['kind'])
+            rows.append(dict(source='stage', label=stem + ':' + source['tag'] + ':' + source['kind'],
+                observed_ns=float(source['observed_delta_ns']), base_ns=ca['stage_ns']-co['stage_ns'],
+                sigma_ns=1000., terms=[feature(ca, 1), feature(co, -1)],
+                group=stem, candidate_index=tags.index(source['tag']),
+                control_index=tags.index(source['baseline_tag']), kind=source['kind']))
     training_receipts = set()
     for number, path in enumerate(a.ranking):
         ranking = read(path)
@@ -178,6 +189,7 @@ def main():
         writer.writeheader(); writer.writerows(table)
     write(a.out/'receipt.json', dict(source_target_sha256=sha(target_path), target_sha256=sha(output),
         probe_sha256=sha(probe), script_sha256=sha(__file__), stage_receipt_sha256=sha(a.stage_fit/'receipt.json'),
+        stage_inputs=stage_inputs,
         request_cohorts=[dict(path=str(p), sha256=sha(p)) for p in a.ranking], keys=keys,
         previously_unpriced_issuer_keys=[k for k in keys if not old[k]['issue_ns'] and not old[k]['issue_service_scale']],
         training_rows=len(rows), solver_gate_pass=False, evidence='inferred training fit; no independent validation'))
