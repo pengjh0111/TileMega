@@ -19,6 +19,7 @@
 #include <tilemega/Backend/Mx/DecodeAttention.h>
 #include <tilemega/Backend/Mx/DecodeGemm.h>
 #include <tilemega/Codegen/executor/Watchdog.cuh>
+#include <tilemega/Codegen/tasks/ServingAbi.h>
 #include <tilemega/Codegen/tasks/mx/DecodeBarrier.cuh>
 #include <tilemega/Target/Maca/Bf16.h>
 #include <tilemega/Target/Maca/DevicePrimitives.h>
@@ -59,6 +60,21 @@ struct MxBinding {
   Bf16 const *embed, *w_head, *rope_cos, *rope_sin;
   int* tokens;  // [B][capacity]
   MxScratch s;
+};
+
+/// Where an external buffer binds into MxBinding (the generated buffer
+/// table of DecodeRuntime.cuh).
+enum MxSlot : int {
+  kSlotTokens, kSlotRopeCos, kSlotRopeSin, kSlotEmbed, kSlotHead,
+  kSlotQkv, kSlotO, kSlotGateUp, kSlotDown, kSlotQNorm, kSlotKNorm, kSlotKCache, kSlotVtCache
+};
+
+struct MxBufferRow {
+  char const* name;
+  std::uint32_t dtype;
+  std::uint64_t constant, per_batch;
+  char const* pack_json;
+  int slot, layer;
 };
 
 /// TILEMEGA_TRACE_STAGE: per (slot, stage, CTA) three timestamps, ns:
