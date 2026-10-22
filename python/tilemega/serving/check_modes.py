@@ -32,6 +32,10 @@ def main() -> None:
     if metadata.get("pg")!="pages":
         arms=(('L1_separate','L1',False,None),('L2_separate','L2',False,None),
               ('L1_loop','L1',True,None),('L1_loop_no_phase','L1',True,'0'))
+    if metadata.get("executor")=="mx_static":
+        # MX-4 static decode program: L1 only, one launch per step against
+        # the device loop, bit for bit (MX4 prompt §3.10).
+        arms=(('L1_separate','L1',False,None),('L1_loop','L1',True,None))
     results={};mismatches={}
     for label,mode,loop,mask in arms:
         if not validation_guard(a.out/'guard.jsonl',label+'-before',True,allow_shared=a.allow_shared_gpu):

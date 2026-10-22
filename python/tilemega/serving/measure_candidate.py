@@ -23,7 +23,7 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
                 past_mid: int, out: Path, reverse_modes: bool = False,
                 warmup_override: int | None = None,
                 timed_override: int | None = None,
-                mode_only: str = "L2", guard_wait_s: int = 1800,
+                mode_only: str = "L1", guard_wait_s: int = 1800,
                 smoke_steps: int = 0, loop: int = 0, loop_steps: int | None = None) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     if not _exclusive(out / "guard.jsonl", "candidate-before", True, guard_wait_s):
@@ -70,7 +70,6 @@ def measure_one(plan: PlanLibrary, batch: int, vocab: int,
     manifest_path = Path(str(plan.path) + ".plan.json")
     paged = manifest_path.exists() and json.loads(manifest_path.read_text()).get("pg") == "pages"
     measured = {}
-    # Each candidate is timed on the L2 event executor. L1 is an explicit ablation.
     instance = plan.create(batch, {name: tensor.data_ptr()
                                    for name, tensor in buffers.items()},
                            torch.cuda.current_device())

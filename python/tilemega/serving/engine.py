@@ -48,6 +48,10 @@ class ServingEngine:
         decode_manifest = Path(str(decode_so) + ".plan.json")
         decode_pg = (json.loads(decode_manifest.read_text()).get("pg")
                      if decode_manifest.exists() else None)
+        layouts = [json.loads(Path(str(path) + ".plan.json").read_text()).get("kv_layout", "rows")
+                   if Path(str(path) + ".plan.json").exists() else "rows" for path in (prefill_so, decode_so)]
+        if layouts[0] != layouts[1]:
+            raise ValueError(f"prefill kv_layout {layouts[0]} differs from decode kv_layout {layouts[1]}")
         mode, decode_loop, prefill_mode = resolve_execution(
             decode_so, mode, decode_loop, prefill_mode, decode_pg == "pages")
         self.decode_loop = decode_loop

@@ -572,7 +572,8 @@ class Run:
                         # must not silently turn an unmeasured new body into a winner.
                         variants.sort(key=lambda v:not matches_attention(manifest,v))
                         for variant in variants:
-                            for mode, loop in execution_combinations(pg, features['decode_executor'], features['decode_loop']):
+                            for mode, loop in execution_combinations(pg, features['decode_executor'], features['decode_loop'],
+                                                                     static=manifest.get('executor')=='mx_static'):
                                 if pg!='pages' and mode=='L1' and variant['nonpaged_la']:
                                     continue
                                 if pg!='pages' and mode=='L1' and loop and settings['exclude_l1_loop']:
@@ -647,7 +648,8 @@ class Run:
         features=self.config['features']; settings=self.config['solver']
         candidates=[]
         for pg, library in built.items():
-            for mode, loop in execution_combinations(pg, features['decode_executor'], features['decode_loop']):
+            static=json.loads(Path(str(library)+'.plan.json').read_text()).get('executor')=='mx_static'
+            for mode, loop in execution_combinations(pg, features['decode_executor'], features['decode_loop'], static=static):
                 if pg!='pages' and mode=='L1' and loop and settings['exclude_l1_loop']:
                     continue
                 candidates.append(dict(pg=pg, mode=mode, loop=loop, library=str(library), samples_ms=[]))

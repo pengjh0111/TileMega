@@ -41,6 +41,12 @@ def write_execution(binary,decode_mode,decode_loop,prefill_mode,**evidence):
     return data
 
 def resolve_execution(binary,mode,loop,prefill_mode,paged):
+    manifest=Path(str(binary)+'.plan.json')
+    if manifest.exists() and json.loads(manifest.read_text()).get('executor')=='mx_static':
+        # MX-4 static decode program: L1 only (MX4 prompt §3.8), device loop by default.
+        if mode not in ('auto','L1'):raise ValueError('the MX-4 static decode program runs L1 only')
+        mode='L1'
+        if loop=='auto':loop=1
     needs_auto=mode=='auto' or loop=='auto' or prefill_mode=='auto'
     data=read_execution(binary) if needs_auto else None
     if needs_auto and data is None:
@@ -53,9 +59,12 @@ def resolve_execution(binary,mode,loop,prefill_mode,paged):
         raise ValueError('invalid serving execution options')
     return mode,bool(loop),prefill_mode
 
-def execution_combinations(pg, executor="measure", loop="measure"):
-    """Only combinations supported by the two serving executors are eligible."""
-    valid=[("L1",0),("L2",0),("L2",1) if pg=="pages" else ("L1",1)]
+def execution_combinations(pg, executor="measure", loop="measure", static=False):
+    """Only combinations supported by the two serving executors are eligible.
+    `static`: the MX-4 decode program of a dense xcore1000 plan, L1 only."""
+    if static and executor=="L2":
+        raise ValueError("decode_executor must be L1 for a dense xcore1000 plan (MX-4 static program)")
+    valid=[("L1",0),("L1",1)] if static else [("L1",0),("L2",0),("L2",1) if pg=="pages" else ("L1",1)]
     return [(mode,used) for mode,used in valid
             if executor in ("measure",mode) and loop in ("measure",used)]
 
