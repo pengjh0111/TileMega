@@ -48,6 +48,9 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
   for(unsigned i=0;i<seeds.size();++i)
     evaluate(seeds[i],std::string(i/3?"resident2_":"resident1_")+
         (i%3==0?"exact":i%3==1?"preissue":"preissue_l2"));
+  // Keeping one zeroed arena needs a joint change to every operand layout;
+  // single-coordinate neighbours cannot reach it on mixed-TK programs.
+  for(auto const& seed:space.ActivationReuseSeeds())evaluate(seed,"activation_reuse");
   std::sort(pool.begin(),pool.end(),less);
   std::set<std::string> expanded;
   auto leaders=[&] {

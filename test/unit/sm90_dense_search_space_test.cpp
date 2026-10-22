@@ -15,6 +15,15 @@ int main(int argc,char** argv) {
   for(int batch:{1,2,4,8,16}) {
     Sm90DenseSearchSpace space{shapes,batch,128,2,target};
     auto seeds=space.Seeds();assert(seeds.size()==6);
+    auto reused=space.ActivationReuseSeeds();
+    assert(reused.empty()==(batch==16));
+    std::set<std::string> reuse_keys;
+    for(auto const& c:reused) {
+      assert(space.Legal(c));
+      assert(c.ActivationReuse(batch,128,2,1088).valid);
+      assert(reuse_keys.insert(c.ToJson().Dump(0)).second);
+      for(auto const& g:c.gemms)assert(!g.preissue_smem_bytes && !g.prefetch_l2_bytes);
+    }
     assert(seeds[1].gemms[0].preissue_smem_bytes>0);
     assert(seeds[2].attention.prefetch_l2_bytes>0);
     for(auto const& seed:seeds) {

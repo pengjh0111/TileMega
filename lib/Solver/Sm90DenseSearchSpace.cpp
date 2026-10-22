@@ -43,6 +43,26 @@ std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::Seeds() const {
   }
   return result;
 }
+std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::ActivationReuseSeeds() const {
+  std::vector<Sm90DenseCoordinates> result;
+  if(batch>=16)return result;
+  std::set<std::string> seen;
+  for(auto base:Seeds()) {
+    for(int tk:{64,128,256,512})for(int slots:{2,3,4}) {
+      auto c=base;
+      for(auto& g:c.gemms) {
+        g.slot_bytes=2*g.tile_n*tk;g.slots=slots;g.workspace_offset=0;
+        g.preissue_smem_bytes=0;g.prefetch_l2_bytes=0;g.preissue_late=false;
+      }
+      auto& a=c.attention;
+      a.workspace_offset=32*slots*tk;
+      a.preissue_smem_bytes=0;a.prefetch_l2_bytes=0;a.preissue_late=false;
+      if(Legal(c) && c.ActivationReuse(batch,head_dim,queries,1088).valid &&
+          seen.insert(c.ToJson().Dump(0)).second)result.push_back(std::move(c));
+    }
+  }
+  return result;
+}
 Sm90DenseCoordinates Sm90DenseSearchSpace::MaxPreissue(
     Sm90DenseCoordinates const& base,bool l2) const {
   if(!Legal(base))throw std::invalid_argument("illegal native preissue seed");
