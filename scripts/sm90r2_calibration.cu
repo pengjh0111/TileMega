@@ -83,12 +83,21 @@ __global__ void Stream(char const* input,std::size_t dataset,int samples,bool ho
   ring.Initialize();unsigned sum=0;
   if(threadIdx.x>=128) {
     int lane=threadIdx.x-128;
+#ifdef TILEMEGA_E_CALIBRATION_SMALL_STREAM_ONLY
+    std::size_t next=blockIdx.x,capacity=dataset/Bytes;
+#endif
     for(int i=0;i<samples;++i) {
       int slot=i%Slots;unsigned phase=(i/Slots)&1;
       Async::Wait(ring.empty+slot,phase);
       if(lane==0) {
+#ifdef TILEMEGA_E_CALIBRATION_SMALL_STREAM_ONLY
+        std::size_t index=hot?std::size_t(slot)*gridDim.x+blockIdx.x:next;
+        if(!hot) {next+=gridDim.x;if(next>=capacity)next-=capacity;}
+        auto* source=input+index*Bytes;
+#else
         std::size_t index=std::size_t(hot?slot:i)*gridDim.x+blockIdx.x;
         auto* source=input+(index%(dataset/Bytes))*Bytes;
+#endif
         Async::ExpectTx(ring.full+slot,Bytes);
         Async::Bulk(shared+1024+slot*Bytes,source,Bytes,ring.full+slot);
       }
@@ -284,6 +293,12 @@ void Streaming(Context& c) {
       Check(cudaDeviceSynchronize());
       std::vector<double> rates,waits;
       for(int round=0;round<3;++round) {
+#ifdef TILEMEGA_E_CALIBRATION_SMALL_STREAM_ONLY
+        // Cache preparation is outside the event interval, including grid=1
+        // cases whose entire stream fits in L2.
+        auto* warm=reinterpret_cast<uint4 const*>(hot?c.input:c.eviction);
+        Warm<<<c.prop.multiProcessorCount*4,256>>>(warm,(hot?dataset:c.evict_bytes)/16,c.checksum);
+#endif
         cudaEvent_t begin,end;Check(cudaEventCreate(&begin));Check(cudaEventCreate(&end));
         Check(cudaEventRecord(begin));
         Stream<Bytes,Slots><<<grid,160,shared>>>(c.input,dataset,samples,hot,c.output,c.checksum);
@@ -300,6 +315,25 @@ void Streaming(Context& c) {
     }
   }
 }
+template<int Bytes>
+void SmallStreams(Context& c) {
+  Streaming<Bytes,2>(c);Streaming<Bytes,3>(c);Streaming<Bytes,4>(c);
+  Streaming<Bytes,6>(c);Streaming<Bytes,8>(c);
+}
+void SingleCompletions(Context& c,int bytes) {
+  Check(cudaFuncSetAttribute(Latency<false>,cudaFuncAttributeMaxDynamicSharedMemorySize,bytes+1024));
+  for(bool cold:{false,true}) {
+    std::vector<double> values;
+    for(int sample=0;sample<128;++sample) {
+      auto* source=reinterpret_cast<uint4 const*>(cold?c.eviction:c.input);
+      Warm<<<c.prop.multiProcessorCount*4,256>>>(source,(cold?c.evict_bytes:std::size_t(bytes))/16,c.checksum);
+      Latency<false><<<1,160,bytes+1024>>>(c.input,bytes,c.output,c.errors);
+      U64 result[2];Check(cudaMemcpy(result,c.output,16,cudaMemcpyDeviceToHost));
+      values.push_back(result[0]/c.frequency);
+    }
+    Print("bulk_single_completion",1,bytes,1,cold?"dram":"l2",values,"ns");
+  }
+}
 int main() {
   Context c{};Check(cudaSetDevice(0));Check(cudaGetDeviceProperties(&c.prop,0));
   if(c.prop.major!=9 || c.prop.minor!=0)return 3;
@@ -314,7 +348,16 @@ int main() {
   Check(cudaMemcpy(freq,c.output,16,cudaMemcpyDeviceToHost));c.frequency=double(freq[0])/freq[1];
   std::printf("metric,grid,slot_bytes,slots,cache,samples,median,p99,unit,batch,tile_n,input_k,tile_k,vector_sums,timestamp_arithmetic\n");
   Print("clock64_frequency",1,0,0,"na",{c.frequency*1000},"MHz");
-#ifdef TILEMEGA_E_CALIBRATION_DN_SHAPES_ONLY
+#if defined(TILEMEGA_E_CALIBRATION_SMALL_STREAM_ONLY)
+  for(int bytes:{1024,2048,3072,4096,5120,6144,8192,10240,12288,16384,
+                20480,24576,28672,32768,40960,49152,57344,65536})SingleCompletions(c,bytes);
+  SmallStreams<1024>(c);SmallStreams<2048>(c);SmallStreams<3072>(c);
+  SmallStreams<4096>(c);SmallStreams<5120>(c);SmallStreams<6144>(c);
+  SmallStreams<8192>(c);SmallStreams<10240>(c);SmallStreams<12288>(c);
+  SmallStreams<16384>(c);SmallStreams<20480>(c);SmallStreams<24576>(c);
+  SmallStreams<28672>(c);SmallStreams<32768>(c);SmallStreams<40960>(c);
+  SmallStreams<49152>(c);SmallStreams<57344>(c);SmallStreams<65536>(c);
+#elif defined(TILEMEGA_E_CALIBRATION_DN_SHAPES_ONLY)
   Epilogues<1,32,Op::kStore,true,1024>(c);Epilogues<16,32,Op::kStore,true,1024>(c);
   Epilogues<1,24,Op::kStore,true,2048>(c);Epilogues<16,24,Op::kStore,true,2048>(c);
   Epilogues<4,40,Op::kStore,true,3072>(c);
