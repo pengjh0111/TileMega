@@ -6,6 +6,7 @@ import json
 import lzma
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -33,6 +34,8 @@ def main():
     p.add_argument('--config', type=Path, nargs='+', required=True)
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--baseline-tag', default='B15Z')
+    p.add_argument('--baseline-map', type=Path,
+                   help='per-cell development controls; never final selections')
     a = p.parse_args()
     a.out = a.out.resolve()
     if a.out.exists() or not a.out.is_relative_to(ROOT / 'runs/sm90r2'):
@@ -43,11 +46,19 @@ def main():
     compiler = a.compiler.resolve()
     compiler_sha = sha(compiler)
     inputs = read(ROOT / 'configs/serving/sm90d1/inputs/manifest.json')
+    controls = read(a.baseline_map) if a.baseline_map else {
+        f"{read(path)['model']}_b{read(path)['batch']}": a.baseline_tag for path in a.config}
+    expected = {f"{read(path)['model']}_b{read(path)['batch']}" for path in a.config}
+    if set(controls) != expected or any(not isinstance(tag, str) or
+            not re.fullmatch(r'[A-Za-z0-9_-]+', tag) for tag in controls.values()):
+        raise ValueError('declare exactly one artifact tag for every requested development cell')
     policy = dict(selection='baseline, first three distinct predicted schedules, exact/preissue seeds for each residency, then ranked fill',
                   equivalence='equal-class-price timing, offset, lookahead and clipped-L2 variants share one diagnostic schedule',
                   candidates=8, final_selection=False, compiler_sha256=compiler_sha,
                   target_sha256=sha(target), search_passes=64, search_budget_ms=600000,
                   max_parallel_searches=2)
+    policy.update(development_controls=controls,
+                  baseline_map_sha256=sha(a.baseline_map) if a.baseline_map else None)
     write(a.out / 'policy.json', policy)
 
     def prepare(path):
@@ -76,7 +87,7 @@ def main():
             raise RuntimeError(f'{cell}: diagnostic search failed; retained search.log')
         search_path = Path(str(output) + '.search') / 'receipt.json'
         search = read(search_path)
-        baseline = ROOT / f"runs/sm90r2/build/{a.baseline_tag}/{config['model']}-B{config['batch']}/decode.so"
+        baseline = ROOT / f"runs/sm90r2/build/{controls[cell]}/{config['model']}-B{config['batch']}/decode.so"
         identity = read(str(baseline) + '.identity.json')
         calibration = read(target)['sm90_dense_decode']
         if sha(baseline) != identity['binary_sha256'] or identity['trace']:

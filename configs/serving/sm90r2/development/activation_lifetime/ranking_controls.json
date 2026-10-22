@@ -1,0 +1,9 @@
+{
+  "qwen3_0_6b_b1": "B57R",
+  "qwen3_0_6b_b16": "B61Z",
+  "llama3_2_1b_b1": "B61R",
+  "llama3_2_1b_b16": "B61Z",
+  "llama3_2_3b_b4": "B61R",
+  "llama3_1_8b_b1": "B61Z",
+  "llama3_1_8b_b16": "B61Z"
+}

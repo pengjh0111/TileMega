@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "gemms": {
+    "qkv": {
+      "tile_n": 40,
+      "warps_n": 1,
+      "warps_k": 4,
+      "slot_bytes": 20480,
+      "slots": 3,
+      "mma": "mma_sync",
+      "preissue_smem_bytes": 0,
+      "prefetch_l2_bytes": 0,
+      "register_stages": 1,
+      "workspace_offset": 0
+    },
+    "o": {
+      "tile_n": 24,
+      "warps_n": 1,
+      "warps_k": 4,
+      "slot_bytes": 12288,
+      "slots": 3,
+      "mma": "mma_sync",
+      "preissue_smem_bytes": 0,
+      "prefetch_l2_bytes": 0,
+      "register_stages": 1,
+      "workspace_offset": 0
+    },
+    "gate_up": {
+      "tile_n": 128,
+      "warps_n": 4,
+      "warps_k": 1,
+      "slot_bytes": 65536,
+      "slots": 3,
+      "mma": "mma_sync",
+      "preissue_smem_bytes": 0,
+      "prefetch_l2_bytes": 0,
+      "register_stages": 1,
+      "workspace_offset": 0
+    },
+    "down": {
+      "tile_n": 24,
+      "warps_n": 1,
+      "warps_k": 4,
+      "slot_bytes": 12288,
+      "slots": 3,
+      "mma": "mma_sync",
+      "preissue_smem_bytes": 0,
+      "prefetch_l2_bytes": 0,
+      "register_stages": 1,
+      "workspace_offset": 0
+    },
+    "lm_head": {
+      "tile_n": 128,
+      "warps_n": 4,
+      "warps_k": 1,
+      "slot_bytes": 65536,
+      "slots": 3,
+      "mma": "mma_sync",
+      "preissue_smem_bytes": 0,
+      "prefetch_l2_bytes": 0,
+      "register_stages": 1,
+      "workspace_offset": 0
+    }
+  },
+  "attention": {
+    "chunks": 4,
+    "block_keys": 64,
+    "slots": 3,
+    "preissue_smem_bytes": 0,
+    "prefetch_l2_bytes": 0,
+    "new_row_work": 0,
+    "workspace_offset": 0
+  },
+  "residency": 1,
+  "swiglu_u": 16,
+  "dn_vector_sums": true
+}
