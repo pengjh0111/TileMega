@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90DenseSearch.h>
+#include <tilemega/Solver/Sm90DenseResources.h>
 #include <cassert>
 #include <set>
 using namespace tilemega;
@@ -82,7 +83,7 @@ int main() {
   assert(Sm90DenseCostModel(t,tabular).Request(w,c).step_ns==prediction.step_ns);
   assert(prediction.stages.size()==8 && prediction.step_ns>0);
   assert(prediction.stages[0].barrier==1000);
-  auto resident_two=Sm90DenseCoordinates::Exact(w.shapes,w.batch,t.res.max_smem_per_sm/2);
+  auto resident_two=Sm90DenseCoordinates::Exact(w.shapes,w.batch,Sm90DenseSharedBudget(t,2));
   resident_two.residency=2;
   assert(model.Predict(w,resident_two).stages[1].flow==7000);
   assert(model.Predict(w,resident_two).stages[0].barrier==1400);

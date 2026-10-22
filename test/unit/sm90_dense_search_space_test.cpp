@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90DenseSearchSpace.h>
+#include <tilemega/Solver/Sm90DenseResources.h>
 #include <cassert>
 #include <set>
 
@@ -7,6 +8,8 @@ int main(int argc,char** argv) {
   if(argc!=2)return 2;
   using namespace tilemega::solver;
   auto target=tilemega::TargetSpec::FromJson(argv[1]);
+  assert(Sm90DenseSharedBudget(target,1)==232448);
+  assert(Sm90DenseSharedBudget(target,2)==115712);
   std::array<std::array<int,2>,5> shapes={{{4096,1024},{1024,2048},{6144,1024},
       {1024,3072},{151936,1024}}};
   for(int batch:{1,2,4,8,16}) {
@@ -25,6 +28,12 @@ int main(int argc,char** argv) {
       }
     }
     if(batch==1) {
+      auto edge=seeds.at(3);auto& edge_gemm=edge.gemms[0];
+      int unreserved=target.res.max_smem_per_sm/2;
+      edge_gemm.workspace_offset=int((unreserved-edge_gemm.SharedBytes())/1024)*1024;
+      edge.ValidateSchedule(shapes,batch,128,2,1088,unreserved);
+      assert(edge_gemm.SharedBytes()>Sm90DenseSharedBudget(target,2));
+      assert(!space.Legal(edge));
       auto const& base=seeds.front();auto neighbours=space.Neighbours(base);
       auto const& gate=base.gemms[2];
       auto impossible=base;impossible.gemms[2].preissue_smem_bytes=gate.slot_bytes;

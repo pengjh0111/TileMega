@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90DensePlan.h>
+#include <tilemega/Solver/Sm90DenseResources.h>
 #include <tilemega/Codegen/ServingPages.h>
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/Verifier.h>
@@ -52,8 +53,7 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(
   c.Validate(Sm90DenseShapes(plan),batch);
   if(plan.dn_vector_sums!=c.dn_vector_sums)
     throw std::invalid_argument("native structural coordinates require a fresh model plan");
-  auto budget=std::min(target.res.max_dynamic_smem_per_cta,
-                       target.res.max_smem_per_sm/c.residency);
+  auto budget=Sm90DenseSharedBudget(target,c.residency);
   frontend::ImportOptions options;
   for(auto const& g:plan.gemms) {
     auto const& cfg=c.gemms[Sm90DenseFamily(plan,g)];

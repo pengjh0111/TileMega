@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90DenseSearchSpace.h>
+#include <tilemega/Solver/Sm90DenseResources.h>
 #include <set>
 
 namespace tilemega::solver {
@@ -16,7 +17,7 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
   if(target.arch_tag!="sm_90" || target.NvccArch()!="sm_90a" || target.res.num_sms<=0 ||
      (head_dim!=64 && head_dim!=128) || queries<2 || queries>4)return false;
   try {c.Validate(shapes,batch);}catch(std::invalid_argument const&) {return false;}
-  auto budget=std::min(target.res.max_dynamic_smem_per_cta,target.res.max_smem_per_sm/c.residency);
+  auto budget=Sm90DenseSharedBudget(target,c.residency);
   if(budget<=0 || (batch>=8 && c.attention.block_keys==16))return false;
   try {c.ValidateSchedule(shapes,batch,head_dim,queries,1088,budget);}
   catch(std::invalid_argument const&) {return false;}
@@ -27,7 +28,7 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
 std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::Seeds() const {
   std::vector<Sm90DenseCoordinates> result;
   for(int residency:{1,2}) {
-    auto budget=std::min(target.res.max_dynamic_smem_per_cta,target.res.max_smem_per_sm/residency);
+    auto budget=Sm90DenseSharedBudget(target,residency);
     if(budget<=0)continue;
     try {
       auto exact=Sm90DenseCoordinates::Exact(shapes,batch,budget);exact.residency=residency;
@@ -51,7 +52,7 @@ Sm90DenseCoordinates Sm90DenseSearchSpace::MaxPreissue(
   }
   c.attention.workspace_offset=0;c.attention.preissue_smem_bytes=0;c.attention.prefetch_l2_bytes=0;
   c.attention.preissue_late=false;
-  auto budget=std::min(target.res.max_dynamic_smem_per_cta,target.res.max_smem_per_sm/c.residency);
+  auto budget=Sm90DenseSharedBudget(target,c.residency);
   auto& down=c.gemms[3];int offset=int(budget/2/1024)*1024;
   if(offset+down.SharedBytes()<=budget)down.workspace_offset=offset;
   auto maximize=[&](unsigned family,int maximum,int quantum) {
@@ -158,8 +159,7 @@ std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::Neighbours(Sm90DenseCoor
     for(int depth:{1,2,4}) {
       auto candidate=center;candidate.gemms[family].register_stages=depth;add(std::move(candidate));
     }
-    auto budget=std::min(target.res.max_dynamic_smem_per_cta,
-                         target.res.max_smem_per_sm/center.residency);
+    auto budget=Sm90DenseSharedBudget(target,center.residency);
     for(int offset:{0,int(budget/2/1024)*1024,int((budget-g.SharedBytes()+g.workspace_offset)/1024)*1024}) {
       auto candidate=center;candidate.gemms[family].workspace_offset=offset;add(std::move(candidate));
     }
@@ -199,8 +199,7 @@ std::vector<Sm90DenseCoordinates> Sm90DenseSearchSpace::Neighbours(Sm90DenseCoor
     auto candidate=center;candidate.attention.preissue_late=!center.attention.preissue_late;
     add(std::move(candidate));
   }
-  auto budget=std::min(target.res.max_dynamic_smem_per_cta,
-                       target.res.max_smem_per_sm/center.residency);
+  auto budget=Sm90DenseSharedBudget(target,center.residency);
   auto const& a=center.attention;
   for(int offset:{0,int(budget/2/1024)*1024,
       int((budget-a.SharedBytes(batch,head_dim,queries,1088)+a.workspace_offset)/1024)*1024}) {

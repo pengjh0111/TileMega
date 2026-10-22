@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90DenseCostModel.h>
+#include <tilemega/Solver/Sm90DenseResources.h>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -169,7 +170,7 @@ double Sm90DenseCostModel::Coefficient(std::string const& key,char const* name) 
 Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
     Sm90DenseCoordinates const& c,int past) const {
   c.ValidateSchedule(w.shapes,w.batch,w.head_dim,w.queries,1088,
-      std::min(target_.res.max_dynamic_smem_per_cta,target_.res.max_smem_per_sm/c.residency));
+      Sm90DenseSharedBudget(target_,c.residency));
   if(w.layers<1 || past<64 || past>1086)throw std::invalid_argument("invalid native prediction workload");
   int grid=target_.res.num_sms*c.residency;
   auto barrier=[&](int tasks) {
