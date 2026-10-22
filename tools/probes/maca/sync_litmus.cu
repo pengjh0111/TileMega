@@ -18,7 +18,11 @@
 //            on a stream-K split (§3.5): each CTA's segment of a tile writes
 //            partial[tile][ordinal] and arrives on the tile's ticket; the
 //            last of its n(t) contributors sums them in order and checks.
-// Usage: sync_litmus <event|barrier|last|barrier_prefetch|last512> <iterations>
+//   many:    LastArriver::RunMany as decode attention uses it: 8 items per
+//            CTA (one per wave, item j on CTA j mod G), C consecutive items
+//            share a ticket (C cycles 2, 4, 8, 13); the CTA completing a
+//            ticket sums its C partials in order and checks them.
+// Usage: sync_litmus <event|barrier|last|barrier_prefetch|last512|many> <iterations>
 #include <tilemega/Backend/ServingVectorIO.h>
 #include <tilemega/Codegen/tasks/EventSync.cuh>
 #include <tilemega/Codegen/executor/LastArriver.cuh>
@@ -210,6 +214,55 @@ __global__ void LastArrive512(float* partials, unsigned* tickets, unsigned long 
   }
 }
 
+__device__ int ManyProducers(int it) {
+  int const c[4] = {2, 4, 8, 13};
+  return c[it % 4];
+}
+__device__ float ManyPart(int it, int item, int i) { return float((it * 7 + item * 3 + i) % 23); }
+
+__global__ void Many(float* partials, unsigned* tickets, unsigned long long* fence_events, int iterations,
+                     unsigned long long* errors, unsigned long long* lasts) {
+  extern __shared__ int smem[];
+  unsigned* const flags = reinterpret_cast<unsigned*>(smem);
+  int const ctas = gridDim.x, wave = threadIdx.x / 64, lane = threadIdx.x % 64;
+  constexpr int kItemSlice = 64;
+  for (int it = 0; it < iterations; ++it) {
+    int const producers = ManyProducers(it);
+    int const item = blockIdx.x + ctas * wave;
+    partials[item * kItemSlice + lane] = ManyPart(it, item, lane);
+    auto at = [&](int i) { return int(blockIdx.x) + ctas * i; };
+    executor::LastArriver::RunMany(
+        8, flags, [&](int i) { return tickets + at(i) / producers; }, [&](int) { return unsigned(producers); },
+        [&](int i) {
+          int const ticket = at(i) / producers;
+          unsigned long long bad = 0;
+          for (int index = threadIdx.x; index < kItemSlice; index += blockDim.x) {
+            float sum = 0, want = 0;
+            for (int c = 0; c < producers; ++c) {
+              sum += partials[(ticket * producers + c) * kItemSlice + index];
+              want += ManyPart(it, ticket * producers + c, index);
+            }
+            bad += sum != want;
+          }
+          if (bad) atomicAdd(errors, bad);
+          if (threadIdx.x == 0) atomicAdd(lasts, 1ull);
+        });
+    __syncthreads();
+    if (threadIdx.x == 0) {
+      RedRelease(fence_events, 1ull);
+      WaitAtLeast(fence_events, static_cast<unsigned long long>(ctas) * (it + 1));
+    }
+    __syncthreads();
+  }
+}
+
+unsigned long long ManyMerges(int items, int iterations) {
+  int const c[4] = {2, 4, 8, 13};
+  unsigned long long total = 0;
+  for (int it = 0; it < iterations; ++it) total += items / c[it % 4];
+  return total;
+}
+
 int main(int argc, char** argv) {
   if (argc < 3) return 2;
   char const* mode = argv[1];
@@ -222,16 +275,16 @@ int main(int argc, char** argv) {
   unsigned long long *events, *errors, *lasts;
   unsigned* ticket;
   cudaMalloc(&data, 3 * ctas * kSlice * sizeof(int));
-  cudaMalloc(&partials, kTiles * kMaxContributors * kSlice * sizeof(float));
+  cudaMalloc(&partials, max(kTiles * kMaxContributors * kSlice, ctas * 8 * 64) * sizeof(float));
   cudaMalloc(&events, 64 * sizeof(unsigned long long));
   cudaMalloc(&errors, 8);
   cudaMalloc(&lasts, 8);
-  cudaMalloc(&ticket, kTiles * 4);
+  cudaMalloc(&ticket, ctas * 8 * 4);
   cudaMemset(data, 0xff, 3 * ctas * kSlice * sizeof(int));
   cudaMemset(events, 0, 64 * sizeof(unsigned long long));
   cudaMemset(errors, 0, 8);
   cudaMemset(lasts, 0, 8);
-  cudaMemset(ticket, 0, kTiles * 4);
+  cudaMemset(ticket, 0, ctas * 8 * 4);
   cudaEvent_t a, b;
   cudaEventCreate(&a);
   cudaEventCreate(&b);
@@ -248,6 +301,9 @@ int main(int argc, char** argv) {
   } else if (!std::strcmp(mode, "last512")) {
     cudaFuncSetAttribute(LastArrive512, cudaFuncAttributeMaxDynamicSharedMemorySize, kSmem512);
     LastArrive512<<<ctas, 512, kSmem512>>>(partials, ticket, events, iterations, errors, lasts);
+  } else if (!std::strcmp(mode, "many")) {
+    cudaFuncSetAttribute(Many, cudaFuncAttributeMaxDynamicSharedMemorySize, kSmem512);
+    Many<<<ctas, 512, kSmem512>>>(partials, ticket, events, iterations, errors, lasts);
   } else {
     // 60 KiB keeps one CTA per AP while leaving room for the static flag.
     cudaFuncSetAttribute(LastArrive, cudaFuncAttributeMaxDynamicSharedMemorySize, 61440);
@@ -263,7 +319,8 @@ int main(int argc, char** argv) {
   cudaMemcpy(&h_lasts, lasts, 8, cudaMemcpyDeviceToHost);
   bool const ok = launch == cudaSuccess && sync == cudaSuccess && h_errors == 0 &&
                   (std::strcmp(mode, "last") || h_lasts == static_cast<unsigned long long>(iterations)) &&
-                  (std::strcmp(mode, "last512") || h_lasts == static_cast<unsigned long long>(kTiles) * iterations);
+                  (std::strcmp(mode, "last512") || h_lasts == static_cast<unsigned long long>(kTiles) * iterations) &&
+                  (std::strcmp(mode, "many") || h_lasts == ManyMerges(ctas * 8, iterations));
   std::printf("SYNC %s iterations=%d launch=%s sync=%s errors=%llu lasts=%llu us/iter=%.2f %s\n", mode, iterations,
               cudaGetErrorString(launch), cudaGetErrorString(sync), h_errors, h_lasts, ms * 1000.0 / iterations,
               ok ? "PASS" : "FAIL");
