@@ -58,6 +58,10 @@ def validate(manifest, defines):
             actual = 'pvswap' if int(defines.get('TILEMEGA_ATTENTION_PVSWAP', '0')) else 'mma16'
         if manifest['attention_impl'] != actual:
             raise ValueError('manifest attention_impl differs from compiler macros')
+    if 'kv_layout' in manifest and manifest.get('executor') != 'mx_static':
+        vt = bool(int(defines.get('TILEMEGA_KV_LAYOUT_VT', '0')))
+        if (manifest['kv_layout'] == 'vt') != vt:
+            raise ValueError('manifest kv_layout differs from TILEMEGA_KV_LAYOUT_VT')
     if 'nonpaged_la' in manifest:
         actual = manifest.get('pg') != 'pages' and bool(int(defines.get('TILEMEGA_NONPAGED_LA', '0')))
         if bool(manifest['nonpaged_la']) != actual:
@@ -68,6 +72,11 @@ def implementations(manifest, defines):
     """The same implementation fields serve source checks and binary identity."""
     paged = manifest.get('pg') == 'pages'
     decode = manifest.get('phase') == 'decode'
+    if manifest.get('executor') == 'mx_static':
+        return {'executor': 'mx_static', 'kv_layout': manifest.get('kv_layout'),
+                'classes': manifest['classes'], 'attention_tmin': manifest['attention_tmin'],
+                'barrier_prefetch': int(manifest.get('barrier_prefetch', 1)),
+                'attention': {'impl': 'MxDecodeAttention', 'task_body': 'DecodeProgram'}}
     return {'dn_vector_sums': bool(manifest.get('dn_vector_sums', False)),
             'swiglu_interleave_u': int(manifest.get('swiglu_interleave_u', 16)),
             'gemms': [{'index': g['index'], 'impl': g.get('impl', 'mma16'),
