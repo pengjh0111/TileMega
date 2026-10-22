@@ -57,11 +57,14 @@ json::Value Fixture() {
       {"preissue_efficiency",.2},{"tail_efficiency",.1},{"l2_efficiency",.1},{"issue_ns",20}});
   for(auto key:{"native_embedding","native_argmax"})
     fit(key,{{"startup_ns",100},{"per_element_ns",.1},{"issue_ns",20}});
+  for(auto op:{"store","residual","swiglu","argmax"})
+    fit((std::string("native_epilogue_")+op).c_str(),{{"scale",1}});
   return json::Object{{"schema",1},{"flow_model","overlapped_operands_v1"},
       {"issue_model","issuer_service_v2"},
       {"overlap_model","operand_service_only_v2"},
       {"attention_grid_model","explicit_grid_v1"},
       {"barrier_model","active_arrival_v1"},
+      {"epilogue_model","operation_shared_v1"},
       {"observations",observations},{"body_fits",fits}};
 }
 int main() {
@@ -234,6 +237,14 @@ int main() {
   residual_dn.Set("observations",epi_rows);
   auto ignored_dn=Sm90DenseCostModel(t,residual_dn).Predict(w,c);
   for(unsigned stage:{2u,4u})assert(ignored_dn.stages[stage].epilogue==200);
+  auto argmax_price=Fixture();auto op_fits=argmax_price.At("body_fits").AsObject("fits");
+  for(auto& fit:op_fits)if(fit.first=="native_epilogue_argmax")
+    fit.second.Set("coefficients",json::Object{{"scale",2}});
+  argmax_price.Set("body_fits",op_fits);
+  auto argmax_prediction=Sm90DenseCostModel(t,argmax_price).Predict(w,c);
+  auto plain_prediction=model.Predict(w,c);
+  for(unsigned i=0;i<argmax_prediction.stages.size();++i)
+    assert(argmax_prediction.stages[i].epilogue==plain_prediction.stages[i].epilogue*(i==5?2:1));
   auto unmeasured=w;unmeasured.shapes[0][1]=512;bool missing_width=false;
   try {model.Predict(unmeasured,c);}catch(std::invalid_argument const&) {missing_width=true;}
   assert(missing_width);

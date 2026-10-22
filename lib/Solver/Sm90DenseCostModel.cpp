@@ -51,6 +51,9 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal)
   if(!cal.Find("barrier_model") ||
      cal.At("barrier_model").AsString("native barrier model")!="active_arrival_v1")
     throw std::invalid_argument("native barriers require active-arrival calibration");
+  if(!cal.Find("epilogue_model") ||
+     cal.At("epilogue_model").AsString("native epilogue model")!="operation_shared_v1")
+    throw std::invalid_argument("native epilogues require operation-specific calibration");
   for(auto const& raw:cal.At("observations").AsArray("native observations")) {
     auto v=raw;
     if(raw.kind()==json::Value::Kind::kArray) {
@@ -218,7 +221,8 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
         // K-specific total must not be scaled as if all of it were a K loop.
         epilogue=Quantity(std::string(op)+"_at_input_k",epi_shape,{{"cache","dn"}});
       }
-      s.epilogue=s.waves*epilogue*Coefficient(s.key,"epilogue_scale");
+      std::string epilogue_key=family==0?"store":family==2?"swiglu":family==4?"argmax":"residual";
+      s.epilogue=s.waves*epilogue*Coefficient("native_epilogue_"+epilogue_key,"scale");
       // Run initializes all slots once per stage, even when this CTA has
       // several tasks. The producer never executes this branch at B16.
       s.initialization=w.batch<16?Quantity("activation_inactive_rows_initialize",

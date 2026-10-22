@@ -63,10 +63,13 @@ def main():
             profile(f'attention_{mode}_d{d}_q{q}_norm{norm}', dict(body_scale=1,startup_ns=0,
                 preissue_efficiency=0,tail_efficiency=0,l2_efficiency=0,issue_ns=0,issue_service_scale=0))
     for name in ('embedding','argmax'):profile('native_'+name,dict(startup_ns=0,per_element_ns=1,issue_ns=0,issue_service_scale=0))
+    for op in ('store', 'residual', 'swiglu', 'argmax'):
+        profile('native_epilogue_' + op, dict(scale=1))
     cal = dict(schema=1, flow_model='overlapped_operands_v1',issue_model='issuer_service_v2',
         overlap_model='operand_service_only_v2',
         attention_grid_model='explicit_grid_v1',
         barrier_model='active_arrival_v1',
+        epilogue_model='operation_shared_v1',
         gemm_key_model='tn_warp_k_v1',
         fit_status='diagnostic_unfitted', observation_columns=columns,
         native_gemm_header_sha256=next(iter(headers)),
@@ -123,7 +126,7 @@ def main():
         coord=Path(str(stem)+'.tmexec.json');write(coord,coordinates)
         command=[str(probe),str(initial),str(stem)+'.workload.json',str(coord)]
         raw=json.loads(subprocess.check_output(command,env=env,text=True))
-        write(Path(str(stem)+'.features.json'),raw);workloads.append((model,batch,stem))
+        write(Path(str(stem)+'.features.json'),raw);workloads.append((model,batch,tag,stem))
         measured={r['kind']:r for r in ledger if r['model']==model and int(r['batch'])==batch
                   and r['tag']==tag+'-stage'}
         for stage in raw['predictions'][0]['past575']['stages']:
@@ -133,7 +136,34 @@ def main():
             points[stage['key']].append(dict(model=model,batch=batch,tag=tag,kind=stage['kind'],
                 corrected_ns=observed,stage=stage))
     training=[]
+    ops = dict(qkv='store', o='residual', gate_up='swiglu', down='residual', lm_head='argmax')
+    gemm_keys = sorted(k for k in fits if k.startswith('gemm_') and points[k])
+    op_keys = sorted(set(ops.values()))
+    gemm_rows = [r for key in gemm_keys for r in points[key]]
+    prior = np.r_[np.tile([1., 1., 1., 1.], len(gemm_keys)), np.ones(len(op_keys))]
+    lower = np.r_[np.tile([0, .2, 0, .1], len(gemm_keys)), np.full(len(op_keys), .05)]
+    upper = np.r_[np.tile([20, 4, 2, 8], len(gemm_keys)), np.full(len(op_keys), 4)]
+    def gemm_prediction(x, row):
+        s = row['stage']; index = 4 * gemm_keys.index(s['key'])
+        epi = x[4 * len(gemm_keys) + op_keys.index(ops[row['kind']])]
+        return s['barrier_ns'] + s['startup_ns'] + 1000 * x[index] + max(
+            s['dram_ns'], s['stream_ns'] * x[index+1], s['activation_ns'] * x[index+2],
+            s['compute_ns'] * x[index+3]) + s['epilogue_ns'] * epi
+    observed = np.array([r['corrected_ns'] for r in gemm_rows])
+    gemm_optimum = least_squares(lambda x: np.r_[(np.array([gemm_prediction(x, r) for r in gemm_rows]) -
+        observed) / np.maximum(observed, 1000), .03 * (x-prior)], prior,
+        bounds=(lower, upper), loss='soft_l1')
+    for index, key in enumerate(gemm_keys):
+        fits[key]['coefficients'].update(zip(('startup_ns', 'memory_scale', 'activation_scale', 'mma_scale'),
+            [gemm_optimum.x[4*index]*1000, *gemm_optimum.x[4*index+1:4*index+4]]))
+    for index, op in enumerate(op_keys):
+        fit = fits['native_epilogue_' + op]
+        fit['coefficients']['scale'] = float(gemm_optimum.x[4*len(gemm_keys)+index])
+        fit.update(sample_count=sum(ops[r['kind']] == op for r in gemm_rows),
+            method='shared operation scale; measured shapes retain their own epilogue curves')
     for key,fit in fits.items():
+        if key.startswith('native_epilogue_'):
+            continue
         rows=points[key]
         if not rows:
             count=sum(r['metric']=='native_ldmatrix_mma_k16' and r.get('warps_k')==int(key[-1])
@@ -144,13 +174,15 @@ def main():
             continue
         y=np.array([r['corrected_ns'] for r in rows]);bar=np.array([r['stage']['barrier_ns'] for r in rows])
         if key.startswith('gemm_'):
-            start=np.array([r['stage']['startup_ns'] for r in rows]);floor=np.array([r['stage']['dram_ns'] for r in rows])
-            memory=np.array([r['stage']['stream_ns'] for r in rows]);mma=np.array([r['stage']['compute_ns'] for r in rows])
-            epi=np.array([r['stage']['epilogue_ns'] for r in rows]);act=np.array([r['stage']['activation_ns'] for r in rows])
-            def predict(x):return bar+start+x[0]*1000+np.maximum.reduce([floor,memory*x[1],act*x[4],mma*x[2]])+epi*x[3]
-            prior=np.array([1.,1.,1.,1.,1.])
-            bounds=([0,.2,.1,.05,0],[20,4,8,4,2])
-            names=['startup_ns','memory_scale','mma_scale','epilogue_scale','activation_scale']
+            predicted=np.array([gemm_prediction(gemm_optimum.x,r) for r in rows])
+            fit.update(sample_count=len(rows), method='joint native mainloop and shared-operation epilogue fit; training only',
+                inputs=[dict(model=r['model'],batch=r['batch'],tag=r['tag'],kind=r['kind']) for r in rows],
+                training_median_error_pct=float(np.median(np.abs(predicted/y-1))*100))
+            for row, value in zip(rows, predicted):
+                training.append(dict(model=row['model'],batch=row['batch'],tag=row['tag'],kind=row['kind'],
+                    body_key=key,corrected_stage_ns=row['corrected_ns'],prediction_ns=float(value),
+                    error_pct=float((value/row['corrected_ns']-1)*100),independent_validation=False))
+            continue
         elif key.startswith('attention_'):
             body=np.array([r['stage']['flow_ns'] for r in rows])
             def predict(x):return bar+x[0]*1000+body*x[1]
@@ -173,14 +205,23 @@ def main():
     write(a.out/'target.json',target)
     with (a.out/'training.csv').open('w') as f:
         writer=csv.DictWriter(f,fieldnames=list(training[0]));writer.writeheader();writer.writerows(training)
+    native_differences = []
+    for model, batch, tag, stem in workloads:
+        data = json.loads(subprocess.check_output([str(probe), str(a.out/'target.json'),
+            str(stem)+'.workload.json', str(stem)+'.tmexec.json'], text=True, env=env))
+        write(Path(str(stem)+'.fitted.json'), data)
+        expected = {r['kind']:r['prediction_ns'] for r in training
+                    if (r['model'],r['batch'],r['tag']) == (model,batch,tag)}
+        for stage in data['predictions'][0]['past575']['stages']:
+            native_differences.append(abs(stage['stage_ns'] - expected[stage['kind']]))
+    if max(native_differences) > .05:
+        raise ValueError('joint fitter and native stage prices disagree')
     write(a.out/'fit-receipt.json',dict(stage='initial calibration, not E-3 validation',
         artifacts=artifacts,
         ledger_sha256=sha(a.ledger),overhead_sha256=sha(a.overhead),probe_sha256=sha(probe),
         probe_snapshot=str(probe),
-        fitter_sha256=sha(__file__),target_sha256=sha(a.out/'target.json'),source_target_sha256=sha(a.target)))
-    for model,batch,stem in workloads:
-        command=[str(probe),str(a.out/'target.json'),str(stem)+'.workload.json',str(stem)+'.tmexec.json']
-        raw=json.loads(subprocess.check_output(command,env=env,text=True));write(Path(str(stem)+'.fitted.json'),raw)
+        fitter_sha256=sha(__file__),target_sha256=sha(a.out/'target.json'),source_target_sha256=sha(a.target),
+        native_price_max_difference_ns=max(native_differences)))
     print(json.dumps(dict(training_stages=len(training),bodies=len(fits),fit_status=cal['fit_status'])))
 
 
