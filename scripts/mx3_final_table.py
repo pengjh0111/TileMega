@@ -16,7 +16,7 @@ REPO = Path(__file__).resolve().parent.parent
 ap = argparse.ArgumentParser()
 ap.add_argument('--serving', type=Path, default=REPO / 'docs/results/MX3_serving_c550.csv')
 ap.add_argument('--csv', type=Path)
-ap.add_argument('--campaign', default='mx3-rerun', help='the MX-3 result campaign')
+ap.add_argument('--campaign', default='mx3-rerun2', help='the MX-3 result campaign')
 a = ap.parse_args()
 
 rows = list(csv.DictReader(a.serving.open()))

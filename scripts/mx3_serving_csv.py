@@ -110,7 +110,10 @@ for campaign, pattern in (('mx1', a.root / 'mx1' / 'tm'), ('mx2', a.root / 'mx2'
                           ('mx3', a.root / 'mx3' / 'final'),
                           # The rerun after the descriptor prefetch, the attention
                           # coordinate and the in-situ recalibration (26632fa26).
-                          ('mx3-rerun', a.root / 'mx3' / 'final2')):
+                          ('mx3-rerun', a.root / 'mx3' / 'final2'),
+                          # Second rerun: direct split-K partial stores, recalibrated
+                          # task bodies (c11ff37bc; 8B decode re-solved at 9bc090997).
+                          ('mx3-rerun2', a.root / 'mx3' / 'final3')):
     for path in sorted(pattern.glob('*/B*/measure/round*/measurements.json')):
         d = json.loads(path.read_text())
         model, batch, rnd = path.parts[-5], path.parts[-4], path.parts[-2]

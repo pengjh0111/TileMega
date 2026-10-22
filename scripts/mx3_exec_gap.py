@@ -17,8 +17,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 ap = argparse.ArgumentParser()
 ap.add_argument('--serving', type=Path, default=REPO / 'docs/results/MX3_serving_c550.csv')
-ap.add_argument('--mx3', type=Path, default=REPO / 'runs/mx3/final2')
-ap.add_argument('--campaign', default='mx3-rerun')
+ap.add_argument('--mx3', type=Path, default=REPO / 'runs/mx3/final3')
+ap.add_argument('--campaign', default='mx3-rerun2')
 ap.add_argument('--mx2', type=Path, default=REPO / 'runs/mx2/tm')
 ap.add_argument('--out', type=Path)
 a = ap.parse_args()
