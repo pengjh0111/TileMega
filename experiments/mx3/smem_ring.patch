@@ -1,0 +1,173 @@
+# MX3-2 write-up B: GEMM operands through a shared-memory ring (ldg_b128_bsm).
+# Apply with git apply; enable with -DTILEMEGA_SMEM_RING_BYTES=<bytes>.
+# Body tests (test/python/test_mx_task_bodies.py) pass with the ring at 16384 bytes
+# once the test launches allocate at least that much shared memory (2026-10-22).
+# Inside the serving megakernel, mxcc (MACA 3.8.2.6) did not finish: 30 min at
+# 16384 bytes and 25 min at 8192 bytes on the Qwen3-0.6B B1 plan, killed by
+# timeout; the same code compiles in 25 s in the body-test library.
+# With the macro at 0 the patch still changes GemmStageTaskBody's machine code
+# (4549 -> 4585 instructions), so it is kept out of the default build.
+diff --git a/include/tilemega/Backend/Mx/ServingGemmMma.h b/include/tilemega/Backend/Mx/ServingGemmMma.h
+index c07358f92..3b4127ef0 100644
+--- a/include/tilemega/Backend/Mx/ServingGemmMma.h
++++ b/include/tilemega/Backend/Mx/ServingGemmMma.h
+@@ -20,6 +20,11 @@
+ #ifndef TILEMEGA_DIRECT_PARTIAL
+ #define TILEMEGA_DIRECT_PARTIAL 1
+ #endif
++// MX3-2 write-up B: operands staged through a shared-memory ring of this
++// many bytes (0: the register pipeline, write-up A). Experimental.
++#ifndef TILEMEGA_SMEM_RING_BYTES
++#define TILEMEGA_SMEM_RING_BYTES 0
++#endif
+ 
+ #include <tilemega/Backend/ServingVectorIO.h>
+ #include <tilemega/Solver/BackendCostQuery.h>
+@@ -289,6 +294,16 @@ struct ServingGemmMma {
+       }
+     }
+     __device__ uint4 A(int am, int kc) const { return LoadGlobal16(a_row[am] + kc + 8 * l.g); }
++    __device__ void const* AAddress(int am, int kc) const { return a_row[am] + kc + 8 * l.g; }
++    __device__ void const* BAddress(int j, int kc) const {
++      if constexpr (Tiled) {
++        int const kk = p.k_begin + kc;
++        return b_tiles + std::size_t(kk / TileK) * TileN * TileK +
++               FragmentOffset(l.wave * kAtomsNPerWave + j, (kk % TileK) / kChunkK, l.lane);
++      } else {
++        return b_row[j] + kc + 8 * l.g;
++      }
++    }
+     __device__ uint4 ATail(int am, int kc, int count) const { return mx::LoadK8(a_row[am], kc + 8 * l.g, count); }
+     __device__ uint4 B(int j, int kc) const {
+       if constexpr (Tiled) {
+@@ -305,6 +320,103 @@ struct ServingGemmMma {
+     }
+   };
+ 
++  /// Write-up B: the same chunk order, but each lane's 16-byte fragments go
++  /// global -> shared through ldg_b128_bsm into its own slots of a ring and
++  /// come back with ordinary shared loads. A lane reads only what it copied,
++  /// so the loop needs no CTA barrier; the ring slot is a runtime index,
++  /// which shared memory allows and registers did not (write-up A).
++  static constexpr int kRingDepth =
++      TILEMEGA_SMEM_RING_BYTES / (kLoadsPerChunk * codegen::executor::kComputeThreads * 16);
++  template <class Source>
++  __device__ static float* RunRing(Source& source, Lane const& l, int count, int rows, int columns, char* shared,
++                                   float* direct, int direct_stride) {
++    using codegen::executor::ComputeSync;
++    constexpr int kThreads = codegen::executor::kComputeThreads, kR = kRingDepth;
++    static_assert(kR >= 2, "ring needs two slots");
++    mx::MmaAccum acc[kAtomsM][kAtomsNPerWave];
++#pragma unroll
++    for (int am = 0; am < kAtomsM; ++am)
++#pragma unroll
++      for (int j = 0; j < kAtomsNPerWave; ++j) acc[am][j] = mx::MmaAccum{0.f, 0.f, 0.f, 0.f};
++    auto mma = [&](uint4 const (&a)[kAtomsM], uint4 const (&b)[kAtomsNPerWave]) {
++#pragma unroll
++      for (int am = 0; am < kAtomsM; ++am)
++#pragma unroll
++        for (int j = 0; j < kAtomsNPerWave; ++j) {
++          acc[am][j] = mx::Mma(mx::Lo(a[am]), mx::Lo(b[j]), acc[am][j]);
++          acc[am][j] = mx::Mma(mx::Hi(a[am]), mx::Hi(b[j]), acc[am][j]);
++        }
++    };
++    auto* ring = reinterpret_cast<uint4*>(shared);
++    int const t = codegen::executor::ComputeThread();
++    auto slot = [&](int s, int load) -> uint4* { return ring + (s * kLoadsPerChunk + load) * kThreads + t; };
++    auto issue = [&](int s, int chunk) {
++#pragma unroll
++      for (int j = 0; j < kAtomsNPerWave; ++j) maca::AsyncCopy16(slot(s, j), source.BAddress(j, chunk * kChunkK));
++#pragma unroll
++      for (int am = 0; am < kAtomsM; ++am)
++        maca::AsyncCopy16(slot(s, kAtomsNPerWave + am), source.AAddress(am, chunk * kChunkK));
++    };
++    int const chunks = count / kChunkK;
++    for (int c = 0; c < kR - 1 && c < chunks; ++c) issue(c, c);
++#pragma unroll 1
++    for (int c = 0; c < chunks; ++c) {
++      int const ahead = c + kR - 1;
++      if (ahead < chunks) {
++        issue(ahead % kR, ahead);
++        maca::WaitAsyncCopies<(kR - 1) * kLoadsPerChunk>();
++      } else {
++        maca::WaitAsyncCopies<0>();
++      }
++      int const s = c % kR;
++      uint4 a[kAtomsM], b[kAtomsNPerWave];
++#pragma unroll
++      for (int j = 0; j < kAtomsNPerWave; ++j) b[j] = *slot(s, j);
++#pragma unroll
++      for (int am = 0; am < kAtomsM; ++am) a[am] = *slot(s, kAtomsNPerWave + am);
++      mma(a, b);
++    }
++#pragma unroll 1
++    for (int k0 = chunks * kChunkK; k0 < count; k0 += kChunkK) {
++      uint4 a[kAtomsM], b[kAtomsNPerWave];
++#pragma unroll
++      for (int j = 0; j < kAtomsNPerWave; ++j) b[j] = source.BTail(j, k0, count);
++#pragma unroll
++      for (int am = 0; am < kAtomsM; ++am) a[am] = source.ATail(am, k0, count);
++      mma(a, b);
++    }
++    if (direct) {
++#pragma unroll
++      for (int am = 0; am < kAtomsM; ++am)
++#pragma unroll
++        for (int j = 0; j < kAtomsNPerWave; ++j) {
++          int const col = (l.wave * kAtomsNPerWave + j) * 16 + l.r;
++#pragma unroll
++          for (int i = 0; i < 4; ++i) {
++            int const row = am * 16 + 4 * l.g + i;
++            if (col < columns && row < rows) direct[row * direct_stride + col] = acc[am][j][i];
++          }
++        }
++      return nullptr;
++    }
++    // Other lanes may still read their ring slots under the tile.
++    ComputeSync();
++    auto* tile = reinterpret_cast<float*>(shared);
++#pragma unroll
++    for (int am = 0; am < kAtomsM; ++am)
++#pragma unroll
++      for (int j = 0; j < kAtomsNPerWave; ++j) {
++        int const col = (l.wave * kAtomsNPerWave + j) * 16 + l.r;
++#pragma unroll
++        for (int i = 0; i < 4; ++i) {
++          int const row = am * 16 + 4 * l.g + i;
++          tile[row * TileN + col] = col < columns && row < rows ? acc[am][j][i] : 0.f;
++        }
++      }
++    ComputeSync();
++    return tile;
++  }
++
+   /// Dense GEMM tile. `Tiled`: B from fragment-packed tiles (the loader's
+   /// xcore_mma tile_pages layout); measured ~2x the row form's DRAM rate.
+   template <bool Tiled = false, class Operands>
+@@ -312,9 +424,11 @@ struct ServingGemmMma {
+                                  float* direct = nullptr) {
+     Lane const l;
+     DenseSource<Tiled, Operands> source(p, l, tile_m, tile_n);
+-    return Run(source, l, p.k_count, p.m - tile_m * TileM, p.n - tile_n * TileN, shared,
+-               direct ? direct + std::int64_t(tile_m) * TileM * p.partial_stride + tile_n * TileN : nullptr,
+-               p.partial_stride);
++    float* const to = direct ? direct + std::int64_t(tile_m) * TileM * p.partial_stride + tile_n * TileN : nullptr;
++    if constexpr (kRingDepth >= 2)
++      return RunRing(source, l, p.k_count, p.m - tile_m * TileM, p.n - tile_n * TileN, shared, to, p.partial_stride);
++    else
++      return Run(source, l, p.k_count, p.m - tile_m * TileM, p.n - tile_n * TileN, shared, to, p.partial_stride);
+   }
+ };
+ 
+diff --git a/include/tilemega/Codegen/tasks/ModelHarness.cuh b/include/tilemega/Codegen/tasks/ModelHarness.cuh
+index ff28dc6b2..769905fac 100644
+--- a/include/tilemega/Codegen/tasks/ModelHarness.cuh
++++ b/include/tilemega/Codegen/tasks/ModelHarness.cuh
+@@ -277,6 +277,7 @@ union TaskSmem {
+   ModelElement fused_rope[std::max(2*kHarnessThreads,TILEMEGA_FUSION_ROPE_MAX_WIDTH)];
+ #endif
+ };
++static_assert(sizeof(TaskSmem) >= TILEMEGA_SMEM_RING_BYTES, "the GEMM operand ring must fit the task shared memory");
+ inline constexpr std::size_t kNonGemmTaskSmem =
+     std::max({sizeof(TaskSmem::rms), sizeof(TaskSmem::attention), sizeof(TaskSmem::pointwise)});
+ inline constexpr std::size_t kExpectedTaskSmem =
