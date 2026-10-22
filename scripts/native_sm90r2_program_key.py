@@ -31,8 +31,15 @@ def program_key(binary):
     # after binding the complete device instruction encodings above.
     for gemm in coordinates['gemms'].values():
         gemm.pop('register_stages', None)
+    entries = [properties for name, properties in identity['resources'].items()
+               if 'sm90_dense_native_kernel' in name]
+    if len(entries) != 1 or entries[0].get('registers', 0) <= 0:
+        raise ValueError('one native entry with allocated-register facts is required')
+    resources = {name: entries[0][name] for name in
+                 ('registers', 'stack_bytes', 'spill_store_bytes', 'spill_load_bytes')}
     signature = dict(instructions=instructions, coordinates=coordinates,
         grid=plan['grid'], shared_bytes=identity['shared_memory_bytes'],
+        resources=resources, nvcc_arch=identity['nvcc_arch'],
         batch=plan['runtime_batch'], capacity=plan['capacity'],
         export_sha256=plan['export_sha256'])
     digest = hashlib.sha256(json.dumps(signature, sort_keys=True).encode()).hexdigest()
