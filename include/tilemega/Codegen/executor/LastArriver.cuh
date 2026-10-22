@@ -57,5 +57,43 @@ struct LastArriver {
     }
     return last;
   }
+  /// Run for `count` items of one CTA at once (MX-4 decode attention): every
+  /// thread fences, then thread i arrives for item i on `ticket(i)` (nullptr:
+  /// item i has no ticket) with `producers(i)` producers; for each item this
+  /// CTA arrived last on, the whole CTA calls `merge(i)`, in item order; then
+  /// a fence and the merged items' tickets return to 0. `shared_last` holds
+  /// `count` flags; count <= the block size.
+  template<class Ticket,class Producers,class Merge>
+  __device__ static void RunMany(int count,unsigned* shared_last,Ticket ticket,Producers producers,
+                                 Merge merge) {
+    __threadfence();ComputeSync();
+    if(int(ComputeThread())<count) {
+      int const i=ComputeThread();
+      unsigned* const t=ticket(i);
+      unsigned last=0;
+      if(t) {
+        unsigned const total=producers(i);
+        unsigned const previous=maca::TicketAddAcqRel(t,unsigned(1));
+        if(previous>=total || total==0)maca::Trap();
+        last=previous+1==total;
+      }
+      shared_last[i]=last;
+    }
+    ComputeSync();
+    bool any=false;
+    for(int i=0;i<count;++i)
+      if(shared_last[i]) {
+        merge(i);
+        any=true;
+      }
+    if(any) {
+      __threadfence();ComputeSync();
+      if(int(ComputeThread())<count && shared_last[ComputeThread()])
+        maca::TicketStoreRelease(ticket(ComputeThread()),unsigned(0));
+    }
+    // The flags may be overwritten by the next use only after every thread
+    // has read them.
+    ComputeSync();
+  }
 };
 } // namespace tilemega::codegen::executor
