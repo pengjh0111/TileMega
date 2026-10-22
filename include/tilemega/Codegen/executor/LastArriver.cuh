@@ -33,8 +33,10 @@ struct LastArriver {
     }
     return last;
   }
+  // Force-inlined: the MX-4 program build left it as a call whose closure
+  // (the reduction lambda's captures) sat on the stack (measured).
   template<class Reduction>
-  __device__ static bool Run(unsigned* ticket,unsigned producers,unsigned* shared_last,
+  __device__ __forceinline__ static bool Run(unsigned* ticket,unsigned producers,unsigned* shared_last,
                             Reduction reduce) {
     __threadfence();ComputeSync();
     if(ComputeThread()==0) {
@@ -64,7 +66,7 @@ struct LastArriver {
   /// a fence and the merged items' tickets return to 0. `shared_last` holds
   /// `count` flags; count <= the block size.
   template<class Ticket,class Producers,class Merge>
-  __device__ static void RunMany(int count,unsigned* shared_last,Ticket ticket,Producers producers,
+  __device__ __forceinline__ static void RunMany(int count,unsigned* shared_last,Ticket ticket,Producers producers,
                                  Merge merge) {
     __threadfence();ComputeSync();
     if(int(ComputeThread())<count) {
