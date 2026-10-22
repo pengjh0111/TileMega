@@ -44,6 +44,12 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal)
   if(!cal.Find("overlap_model") ||
      cal.At("overlap_model").AsString("native overlap model")!="operand_service_only_v1")
     throw std::invalid_argument("native preissue credit requires operand-only calibration");
+  if(!cal.Find("attention_grid_model") ||
+     cal.At("attention_grid_model").AsString("attention grid model")!="explicit_grid_v1")
+    throw std::invalid_argument("native attention pricing requires grid-specific calibration");
+  if(!cal.Find("barrier_model") ||
+     cal.At("barrier_model").AsString("native barrier model")!="active_arrival_v1")
+    throw std::invalid_argument("native barriers require active-arrival calibration");
   for(auto const& raw:cal.At("observations").AsArray("native observations")) {
     auto v=raw;
     if(raw.kind()==json::Value::Kind::kArray) {
@@ -101,8 +107,11 @@ double Sm90DenseCostModel::Quantity(std::string const& metric,
       double x=value->AsNumber(d.first.c_str());
       if((d.first=="head_dim" || d.first=="queries" || d.first=="qk_norm" ||
           d.first=="vector_sums") && x!=d.second) {match=false;break;}
-      if(metric.rfind("attention_",0)==0 && d.first=="batch" &&
+      if(metric.rfind("attention_",0)==0 && (d.first=="batch" || d.first=="grid") &&
           x!=d.second) {match=false;break;}
+      if(metric.rfind("v3_sparse_",0)==0 && d.first=="grid" && x!=d.second) {
+        match=false;break;
+      }
       if(metric=="activation_inactive_rows_initialize" && d.first=="batch" &&
           x!=d.second) {match=false;break;}
       if(metric.find("_at_input_k")!=std::string::npos && d.first=="input_k" &&
@@ -163,13 +172,18 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
       std::min(target_.res.max_dynamic_smem_per_cta,target_.res.max_smem_per_sm/c.residency));
   if(w.layers<1 || past<64 || past>1086)throw std::invalid_argument("invalid native prediction workload");
   int grid=target_.res.num_sms*c.residency;
-  double barrier=Quantity("v3_last_arrival_to_departure",{{"grid",grid}});
+  auto barrier=[&](int tasks) {
+    // Empty CTAs arrive before the working wave. The 2 us delayed-arrival
+    // probe models this steady wave; nearest active count is inferred.
+    return Quantity("v3_sparse_last_arrival_to_last_departure",
+        {{"grid",grid},{"active_ctas",std::min(grid,tasks)},{"delay_ns",2000}});
+  };
   // Saturating DRAM service is measured, not the stated H800 peak.
   double global_bw=dram_bw_;
   if(!global_bw)throw std::invalid_argument("native DRAM streaming calibration is missing");
   Sm90DensePrediction result;
   for(unsigned family:{0u,5u,1u,2u,3u,4u}) {
-    Sm90DensePrediction::Stage s;s.instances=family==4?1:w.layers;s.barrier=barrier;
+    Sm90DensePrediction::Stage s;s.instances=family==4?1:w.layers;
     if(family<5) {
       auto const& g=c.gemms[family];int n=w.shapes[family][0],k=w.shapes[family][1];
       s.kind=kSm90DenseFamilies[family];s.key=GemmKey(g);s.tasks=n/g.tile_n;
@@ -234,7 +248,7 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
     }else {
       auto const& a=c.attention;s.kind="attention";s.key=AttentionKey(w);
       s.tasks=w.batch*8*a.chunks;s.waves=(s.tasks+grid-1)/grid;
-      std::map<std::string,double> dimensions={{"batch",w.batch},{"head_dim",w.head_dim},
+      std::map<std::string,double> dimensions={{"batch",w.batch},{"grid",grid},{"head_dim",w.head_dim},
           {"queries",w.queries},{"qk_norm",w.qk_norm},{"chunks",a.chunks},
           {"block_keys",a.block_keys},{"slots",a.slots},{"past",past},
           {"new_row_work",a.chunks==1?0:a.new_row_work}};
@@ -266,12 +280,13 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
         s.preissue_service*Coefficient(s.key,"preissue_efficiency")+
         s.late_service*Coefficient(s.key,"tail_efficiency")+
         s.l2_service*Coefficient(s.key,"l2_efficiency"));
-    s.ns=barrier+s.startup+std::max(s.flow,s.compute)+s.epilogue-s.overlap;
+    s.barrier=barrier(s.tasks);
+    s.ns=s.barrier+s.startup+std::max(s.flow,s.compute)+s.epilogue-s.overlap;
     result.stages.push_back(std::move(s));
   }
   for(auto kind:{"embedding","argmax"}) {
     Sm90DensePrediction::Stage s;s.kind=kind;s.key=std::string("native_")+kind;
-    s.tasks=w.batch;s.waves=1;s.barrier=barrier;
+    s.tasks=w.batch;s.waves=1;s.barrier=barrier(s.tasks);
     s.startup=Coefficient(s.key,"startup_ns");
     s.compute=Coefficient(s.key,"per_element_ns")*(s.kind=="embedding"?
         w.shapes[0][1]:(w.shapes[4][0]+c.gemms[4].tile_n-1)/c.gemms[4].tile_n);

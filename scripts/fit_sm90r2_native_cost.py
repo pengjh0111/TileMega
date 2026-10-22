@@ -65,6 +65,8 @@ def main():
     for name in ('embedding','argmax'):profile('native_'+name,dict(startup_ns=0,per_element_ns=1,issue_ns=0,issue_service_scale=0))
     cal = dict(schema=1, flow_model='overlapped_operands_v1',issue_model='issuer_service_v2',
         overlap_model='operand_service_only_v1',
+        attention_grid_model='explicit_grid_v1',
+        barrier_model='active_arrival_v1',
         gemm_key_model='tn_warp_k_v1',
         fit_status='diagnostic_unfitted', observation_columns=columns,
         native_gemm_header_sha256=next(iter(headers)),

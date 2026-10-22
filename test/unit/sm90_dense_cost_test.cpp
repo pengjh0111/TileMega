@@ -11,13 +11,16 @@ json::Value Fixture() {
   json::Array observations;
   auto point=[&](char const* metric,double median,char const* cache) {
     observations.emplace_back(json::Object{{"metric",metric},{"median",median},{"processes",5},
-        {"grid",132},{"slot_bytes",16384},{"slots",3},{"batch",1},{"tile_n",32},
+        {"grid",132},{"active_ctas",128},{"delay_ns",2000},
+        {"slot_bytes",16384},{"slots",3},{"batch",1},{"tile_n",32},
         {"vector_sums",1},{"head_dim",128},{"queries",2},{"qk_norm",1},
         {"warps_n",1},{"warps_k",4},{"register_stages",1},
         {"production_compatible",true},
         {"chunks",16},{"block_keys",64},{"new_row_work",0},{"past",575},{"tile_k",256},{"input_k",4096},{"cache",cache}});
   };
   point("v3_last_arrival_to_departure",768,"na");
+  point("v3_sparse_last_arrival_to_last_departure",1000,"na");
+  point("v3_sparse_last_arrival_to_last_departure",1400,"na");observations.back().Set("grid",264);
   point("bulk_stream_per_active_cta",24,"dram");point("bulk_single_completion",600,"dram");
   point("activation_wait_and_shared_read",200,"l2");
   point("activation_inactive_rows_initialize",500,"na");
@@ -34,6 +37,9 @@ json::Value Fixture() {
   }
   point("attention_critical_before_barrier",6000,"na");
   point("attention_critical_before_barrier",8000,"na");observations.back().Set("batch",16);
+  point("attention_critical_before_barrier",7000,"na");observations.back().Set("grid",264);
+  point("attention_critical_before_barrier",9000,"na");
+  observations.back().Set("batch",16);observations.back().Set("grid",264);
   json::Object fits;
   auto fit=[&](char const* key,json::Object coefficients) {
     coefficients.emplace_back("issue_service_scale",0);
@@ -53,6 +59,8 @@ json::Value Fixture() {
   return json::Object{{"schema",1},{"flow_model","overlapped_operands_v1"},
       {"issue_model","issuer_service_v2"},
       {"overlap_model","operand_service_only_v1"},
+      {"attention_grid_model","explicit_grid_v1"},
+      {"barrier_model","active_arrival_v1"},
       {"observations",observations},{"body_fits",fits}};
 }
 int main() {
@@ -73,6 +81,21 @@ int main() {
   tabular.Set("observation_columns",columns);tabular.Set("observations",rows);
   assert(Sm90DenseCostModel(t,tabular).Request(w,c).step_ns==prediction.step_ns);
   assert(prediction.stages.size()==8 && prediction.step_ns>0);
+  assert(prediction.stages[0].barrier==1000);
+  auto resident_two=Sm90DenseCoordinates::Exact(w.shapes,w.batch,t.res.max_smem_per_sm/2);
+  resident_two.residency=2;
+  assert(model.Predict(w,resident_two).stages[1].flow==7000);
+  assert(model.Predict(w,resident_two).stages[0].barrier==1400);
+  auto missing_grid=Fixture();json::Array single_grid;
+  for(auto const& row:missing_grid.At("observations").AsArray("observations"))
+    if(row.At("metric").AsString("metric").rfind("attention_",0)!=0 ||
+       row.At("grid").AsNumber("grid")==132)single_grid.push_back(row);
+  missing_grid.Set("observations",single_grid);bool missing_attention_grid=false;
+  try {Sm90DenseCostModel(t,missing_grid).Predict(w,resident_two);}
+  catch(std::invalid_argument const& e) {
+    missing_attention_grid=std::string(e.what()).find("attention_critical_before_barrier")!=std::string::npos;
+  }
+  assert(missing_attention_grid);
   double total=0;
   for(auto const& p:prediction.stages) {
     assert(p.ns>=p.dram && p.ns>=p.barrier && p.ns>0);
