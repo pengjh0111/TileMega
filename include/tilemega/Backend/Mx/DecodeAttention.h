@@ -54,11 +54,32 @@ struct MxAttentionOperands {
   int capacity, past;
 };
 
-template <int D, int Q, int Tmin>
+/// T_c of §3.6: the smallest multiple of 32, >= Tmin, leaving at most
+/// `slots` = G*W items for L tokens; capped at 256.
+__host__ __device__ constexpr int MxAttentionChunkTokens(int heads, int length, int tmin, int slots) {
+  for (int t = (tmin + 31) / 32 * 32; t < 256; t += 32)
+    if (heads * ((length + t - 1) / t) <= slots) return t;
+  return 256;
+}
+/// The most 32-token blocks an item can hold over L in [1, capacity]: the
+/// bodies for larger counts are never reached by the plan and are not
+/// instantiated (MaxBlocks below).
+__host__ __device__ constexpr int MxAttentionMaxBlocks(int heads, int capacity, int tmin, int slots) {
+  int most = 1;
+  for (int length = 1; length <= capacity; ++length) {
+    int const t = MxAttentionChunkTokens(heads, length, tmin, slots);
+    int const blocks = ((t < length ? t : length) + 31) / 32;
+    most = blocks > most ? blocks : most;
+  }
+  return most;
+}
+
+template <int D, int Q, int Tmin, int MaxBlocks = 8>
 struct MxDecodeAttention {
   static_assert(D == 64 || D == 128, "D in {64, 128}");
   static_assert(Q >= 1 && Q <= 8, "Q <= 8");
   static_assert(Tmin >= 1 && Tmin <= 256, "Tmin in [1, 256]");
+  static_assert(MaxBlocks >= 1 && MaxBlocks <= 8, "T_c <= 256");
   using Element = tilemega::Bf16;
   static constexpr int kThreads = 512, kWaves = 8;
   static constexpr int kChunks = D / 32;  // 32-dimension MMA chunks of a K row
@@ -83,12 +104,7 @@ struct MxDecodeAttention {
       length = past + 1;
       slots = int(gridDim.x) * kWaves;
       int const heads = s.b * s.hkv;
-      tokens = 256;
-      for (int t = (Tmin + 31) / 32 * 32; t < 256; t += 32)
-        if (heads * ((length + t - 1) / t) <= slots) {
-          tokens = t;
-          break;
-        }
+      tokens = MxAttentionChunkTokens(heads, length, Tmin, slots);
       chunks = (length + tokens - 1) / tokens;
       items = heads * chunks;
     }
@@ -136,14 +152,14 @@ struct MxDecodeAttention {
     int const c_max = (p.capacity + 31) / 32;
     // The wave's first item takes the prefetch and the body for its block
     // count. More items than G*W slots (none of the MX-4 cells: B*hkv*C <=
-    // 640) loop through the 8-block body, which masks the blocks it lacks;
+    // 640) loop through the MaxBlocks body, which masks the blocks it lacks;
     // a single call site with the prefetch kept it live across the loop and
     // spilled (measured).
     int const first = cta + int(gridDim.x) * wave;
     if (first < plan.items) Item(pf, true, p, s, plan, first, lane, r, g, exchange, c_max);
 #pragma unroll 1
     for (int j = first + plan.slots; j < plan.items; j += plan.slots)
-      Blocks<8>(pf, false, p, plan, j, lane, r, g, exchange, c_max);
+      Blocks<MaxBlocks>(pf, false, p, plan, j, lane, r, g, exchange, c_max);
     if (plan.chunks > 1) {
       int const count = plan.items > cta ? (plan.items - cta + int(gridDim.x) - 1) / int(gridDim.x) : 0;
       if (count > kMaxItems) maca::Trap();
@@ -164,14 +180,16 @@ struct MxDecodeAttention {
                                               float* exchange, int c_max) {
     int const c = j % plan.chunks, base = c * plan.tokens, end = min(base + plan.tokens, plan.length);
     switch ((end - base + 31) / 32) {
-#define TM_BLOCKS(N) \
-  case N:            \
-    return Blocks<N>(pf, use_pf, p, plan, j, lane, r, g, exchange, c_max);
+#define TM_BLOCKS(N)                                                                   \
+  case N:                                                                              \
+    if constexpr (N <= MaxBlocks) return Blocks<N>(pf, use_pf, p, plan, j, lane, r, g, exchange, c_max); \
+    else break;
       TM_BLOCKS(1) TM_BLOCKS(2) TM_BLOCKS(3) TM_BLOCKS(4) TM_BLOCKS(5) TM_BLOCKS(6) TM_BLOCKS(7) TM_BLOCKS(8)
 #undef TM_BLOCKS
       default:
-        maca::Trap();
+        break;
     }
+    maca::Trap();  // more blocks than the plan's MaxBlocks
   }
 
   /// V^T mask of lane group g in a block: tokens >= end are zeroed when the
@@ -316,12 +334,14 @@ struct MxDecodeAttention {
       }
     } else {
       float* const item = p.partial + (std::size_t(head) * c_max + c) * Q * (D + 2);
+      // One lane base and constant offsets (immediates): per-query addresses
+      // were otherwise formed ahead of the step loop and spilled.
+      float* const lane_item = item + 4 * g * (D + 2) + r;
 #pragma unroll
       for (int i = 0; i < 4; ++i) {
-        int const q = 4 * g + i;
-        if (q < Q) {
+        if (4 * g + i < Q) {
 #pragma unroll
-          for (int n = 0; n < kDimAtoms; ++n) item[q * (D + 2) + 16 * n + r] = out[n][i];
+          for (int n = 0; n < kDimAtoms; ++n) lane_item[i * (D + 2) + 16 * n] = out[n][i];
         }
       }
       if (g == 0 && r < Q) {
@@ -338,7 +358,9 @@ struct MxDecodeAttention {
   __device__ __forceinline__ static void Merge(MxAttentionOperands const& p, Shape const& s, Plan<Shape> const& plan,
                                                int head, int c_max) {
     float const* const base = p.partial + std::size_t(head) * c_max * Q * (D + 2);
-    for (int t = threadIdx.x; t < Q * D; t += kThreads) {
+    // Opaque: the per-thread addresses were otherwise formed ahead of the
+    // step loop and spilled (cold code; nothing to rematerialize here).
+    for (int t = Opaque(threadIdx.x); t < Q * D; t += kThreads) {
       int const q = t / D, d = t % D;
       float m = -INFINITY;
       for (int c = 0; c < plan.chunks; ++c) m = fmaxf(m, LoadFloatGvm(base + (c * Q + q) * (D + 2) + D));
