@@ -17,10 +17,13 @@ def schedule_key(coordinates, prediction):
     for body in [*structural['gemms'].values(), structural['attention']]:
         for key in ('workspace_offset', 'register_stages', 'preissue_late', 'prefetch_l2_bytes'):
             body.pop(key, None)
-    # Preserve a timing, lookahead, placement or L2 change when its features differ.
+    # Preserve a timing, lookahead, placement or L2 change when its prices differ.
     # Otherwise the diagnostic cohort tests another division of work instead
     # of spending its eight programs on compile-time translations and aliases.
-    return json.dumps([structural, prediction], sort_keys=True)
+    prices = None if prediction is None else [prediction['step_ns'],
+        [{k: stage[k] for k in ('kind', 'instances', 'stage_ns')}
+         for stage in prediction['stages']]]
+    return json.dumps([structural, prices], sort_keys=True)
 
 
 def main():
@@ -41,7 +44,7 @@ def main():
     compiler_sha = sha(compiler)
     inputs = read(ROOT / 'configs/serving/sm90d1/inputs/manifest.json')
     policy = dict(selection='baseline, first three distinct predicted schedules, exact/preissue seeds for each residency, then ranked fill',
-                  equivalence='equal-feature timing, offset, lookahead and clipped-L2 variants share one diagnostic schedule',
+                  equivalence='equal-class-price timing, offset, lookahead and clipped-L2 variants share one diagnostic schedule',
                   candidates=8, final_selection=False, compiler_sha256=compiler_sha,
                   target_sha256=sha(target), search_passes=64, search_budget_ms=600000,
                   max_parallel_searches=2)

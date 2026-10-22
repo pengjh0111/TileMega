@@ -18,7 +18,10 @@ std::string Sm90DenseScheduleKey(Sm90DenseCoordinates const& c,Sm90DensePredicti
   auto gemms=structural.At("gemms").AsObject("GEMM families");
   for(auto& family:gemms)family.second=strip(family.second);
   structural.Set("gemms",gemms);structural.Set("attention",strip(structural.At("attention")));
-  return json::Value(json::Array{structural,prediction.ToJson()}).Dump(0);
+  json::Array prices;
+  for(auto const& stage:prediction.stages)prices.emplace_back(json::Object{
+      {"kind",stage.kind},{"instances",stage.instances},{"stage_ns",stage.ns}});
+  return json::Value(json::Array{structural,prediction.step_ns,prices}).Dump(0);
 }
 Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     Sm90DenseWorkload const& work,Sm90DenseCostModel const& cost,Sm90DenseSearchOptions const& o) {

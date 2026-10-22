@@ -273,6 +273,8 @@ int main() {
   auto translated=c;translated.gemms[0].workspace_offset+=1024;
   translated.gemms[0].register_stages=2;translated.gemms[0].preissue_late=true;
   assert(Sm90DenseScheduleKey(translated,prediction)==Sm90DenseScheduleKey(c,prediction));
+  auto masked_compute=prediction;masked_compute.stages[0].compute+=1;
+  assert(Sm90DenseScheduleKey(c,masked_compute)==Sm90DenseScheduleKey(c,prediction));
   auto different_price=prediction;different_price.step_ns+=1;
   assert(Sm90DenseScheduleKey(translated,different_price)!=Sm90DenseScheduleKey(c,prediction));
   translated.gemms[0].slots+=1;
