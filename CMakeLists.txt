@@ -662,6 +662,12 @@ if(TILEMEGA_BUILD_TESTS)
     ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_SOURCE_DIR}/test/python/test_mx_task_bodies.py)
   set_tests_properties(mx_task_bodies PROPERTIES SKIP_RETURN_CODE 77 LABELS gpu
     ENVIRONMENT "TILEMEGA_MX_BODIES_SO=${CMAKE_BINARY_DIR}/maca/libmx_serving_bodies.so;PYTHONPATH=${CMAKE_SOURCE_DIR}/python")
+  # MX-4 decode stage bodies (Backend/Mx/Decode*.h) against FP32 torch.
+  tilemega_add_maca_library(mx_decode_bodies test/unit/mx/decode_bodies.cu)
+  add_test(NAME mx_decode_bodies COMMAND ${CMAKE_SOURCE_DIR}/scripts/run_maca_probe.sh
+    ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_SOURCE_DIR}/test/python/test_mx_decode_bodies.py)
+  set_tests_properties(mx_decode_bodies PROPERTIES SKIP_RETURN_CODE 77 LABELS gpu
+    ENVIRONMENT "TILEMEGA_MX_DECODE_BODIES_SO=${CMAKE_BINARY_DIR}/maca/libmx_decode_bodies.so;PYTHONPATH=${CMAKE_SOURCE_DIR}/python")
   add_test(NAME forward_frontend COMMAND tilemega-unit forward_frontend)
   add_test(NAME frontend_import COMMAND tilemega-unit frontend_import)
   add_test(NAME dm_descriptor COMMAND tilemega-unit dm_descriptor)
