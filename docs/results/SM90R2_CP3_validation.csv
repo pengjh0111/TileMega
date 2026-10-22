@@ -56,3 +56,11 @@ qwen3_0_6b,1,B47,B47G64,paired_tpot_change_pct,4.632538574799794,0,False,verifie
 qwen3_0_6b,1,B48,B48E,paired_tpot_change_pct,8.76898949942515,0,False,verified provisional; two positional suites 5/5; three C1/C2 pass; device prototype rejected
 qwen3_0_6b,1,B48,B48K,paired_tpot_change_pct,2.5685463891828686,0,False,verified provisional; two positional suites 5/5; three C1/C2 pass; device prototype rejected
 qwen3_0_6b,1,B48,B48W,paired_tpot_change_pct,7.406048400768217,0,False,verified provisional; two positional suites 5/5; three C1/C2 pass; device prototype rejected
+qwen3_0_6b,1,E55,cohort,kendall_tau,0.42857142857142855,0.7,False,verified independent E52v3 cohort; no gate promotion
+qwen3_0_6b,1,E56,E53C1-stage,class_error_pct_qkv,-14.13368210005369,15,True,verified stage-only observation; uniform overhead correction inferred
+qwen3_0_6b,1,E56,E53C1-stage,class_error_pct_attention,-11.273897692345258,15,True,verified stage-only observation; uniform overhead correction inferred
+qwen3_0_6b,1,E56,E53C1-stage,class_error_pct_o,1.9937732823681387,15,True,verified stage-only observation; uniform overhead correction inferred
+qwen3_0_6b,1,E56,E53C1-stage,class_error_pct_gate_up,-16.633871436073456,15,False,verified stage-only observation; uniform overhead correction inferred
+qwen3_0_6b,1,E56,E53C1-stage,class_error_pct_down,-10.612703849417604,15,True,verified stage-only observation; uniform overhead correction inferred
+qwen3_0_6b,1,E56,E53C1-stage,class_error_pct_lm_head,0.04958580526686074,15,True,verified stage-only observation; uniform overhead correction inferred
+qwen3_0_6b,1,E55,cohort,fastest_in_predicted_top3,False,True,False,verified independent E52v3 cohort; no gate promotion
