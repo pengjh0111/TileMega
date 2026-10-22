@@ -17,7 +17,9 @@
 
 namespace tilemega::codegen::mx {
 
-template <int D, int QPerKV, int Tokens, int QRows, int KvTile, bool QkNorm>
+/// `Vt`: the value cache is V^T [B][hkv][D][cap] (the `vt` kv_layout of the
+/// MX-4 dense decode program, MX4 prompt §3.4); otherwise rows [B][hkv][cap][D].
+template <int D, int QPerKV, int Tokens, int QRows, int KvTile, bool QkNorm, bool Vt = false>
 struct PrefillAttentionMma {
   static_assert(D == 64 || D == 128);
   static_assert(QPerKV >= 1 && QPerKV <= 8);
@@ -70,10 +72,33 @@ struct PrefillAttentionMma {
       int const row = i / D, d = i % D, position = begin + row;
       if (position < limit && position < p.past) {
         *reinterpret_cast<uint4*>(s.key + row * D + d) = backend::LoadGlobal16(p.key_cache + (head + position) * D + d);
-        StoreValue(s, row, d, backend::LoadGlobal16(p.value_cache + (head + position) * D + d));
+        if constexpr (!Vt) StoreValue(s, row, d, backend::LoadGlobal16(p.value_cache + (head + position) * D + d));
       } else if (position >= limit) {
         *reinterpret_cast<uint4*>(s.key + row * D + d) = uint4{0, 0, 0, 0};
-        StoreValue(s, row, d, uint4{0, 0, 0, 0});
+        if constexpr (!Vt) StoreValue(s, row, d, uint4{0, 0, 0, 0});
+      }
+    }
+    if constexpr (Vt) {
+      // V^T: one 16 B load is 8 tokens of one dimension, straight into
+      // value_t. Positions >= limit are zero; [past, limit) are this call's
+      // new tokens, written below by another thread, so a group that
+      // reaches them goes element by element.
+      int const cached = min(limit, p.past);
+      std::size_t const vt = (std::size_t(b) * p.heads_kv + g) * D * p.capacity;
+      for (int i = ComputeThread(); i < D * (KvTile / 8); i += kComputeThreads) {
+        int const d = i / (KvTile / 8), row = i % (KvTile / 8) * 8, position = begin + row;
+        Element* const target = s.value_t + d * KvTile + row;
+        Element const* const source = p.value_cache + vt + std::size_t(d) * p.capacity + position;
+        if (position + 8 <= cached) {
+          *reinterpret_cast<uint4*>(target) = backend::LoadGlobal16(source);
+        } else if (position >= limit) {
+          *reinterpret_cast<uint4*>(target) = uint4{0, 0, 0, 0};
+        } else {
+          for (int e = 0; e < 8; ++e) {
+            if (position + e < cached) target[e] = source[e];
+            else if (position + e >= limit) target[e] = Element::bitcast(0);
+          }
+        }
       }
     }
     int const warp = ComputeThread() >> 5, lane = ComputeThread() & 31;
@@ -93,7 +118,17 @@ struct PrefillAttentionMma {
         int const d = lane * 8;
         uint4 v = backend::LoadGlobal16(x + D + d);
         StoreValue(s, row, d, v);
-        if (writer) backend::StoreGlobal16(p.value_cache + (head + position) * D + d, v);
+        if (writer) {
+          if constexpr (Vt) {
+            // Column `position` of V^T: one element per dimension.
+            auto const* e = reinterpret_cast<Element const*>(&v);
+            Element* const column = p.value_cache + (std::size_t(b) * p.heads_kv + g) * D * p.capacity + position;
+#pragma unroll
+            for (int i = 0; i < 8; ++i) column[std::size_t(d + i) * p.capacity] = e[i];
+          } else {
+            backend::StoreGlobal16(p.value_cache + (head + position) * D + d, v);
+          }
+        }
       }
     }
   }

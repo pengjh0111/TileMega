@@ -8,13 +8,20 @@
 
 #include <type_traits>
 
+// The plan's kv_layout (MX4 prompt §3.4): 1 = `vt` (K rows, V^T), the layout
+// of xcore1000 dense plans whose decode is the MX-4 static program; 0 = rows.
+#ifndef TILEMEGA_KV_LAYOUT_VT
+#define TILEMEGA_KV_LAYOUT_VT 0
+#endif
+
 namespace tilemega::codegen {
 
 template<class Arch,int kHeadDim,int kQPerKV,int kTokens,
          int kQRows,int kKvTile,bool kQkNorm>
 struct FusedAttentionTaskBody {
   static_assert(std::is_same_v<Arch,arch::Xcore1000>);
-  using Impl=mx::PrefillAttentionMma<kHeadDim,kQPerKV,kTokens,kQRows,kKvTile,kQkNorm>;
+  using Impl=mx::PrefillAttentionMma<kHeadDim,kQPerKV,kTokens,kQRows,kKvTile,kQkNorm,
+                                     TILEMEGA_KV_LAYOUT_VT!=0>;
   using Element=tilemega::Bf16;
   using SharedStorage=typename Impl::SharedStorage;
   static constexpr int kQueryExtent=Impl::kQueryExtent;
@@ -27,7 +34,8 @@ struct FusedAttentionTaskBody {
                 static_cast<long long>(begin)*kHeadDim;
     unsigned bytes=2u*(end-begin)*kHeadDim;
     if(history_mask&1)emit(executor::PrefetchRange{p.key_cache+offset,bytes});
-    if(history_mask&2)emit(executor::PrefetchRange{p.value_cache+offset,bytes});
+    // V^T keeps a position's values D rows apart: no contiguous range.
+    if((history_mask&2) && !TILEMEGA_KV_LAYOUT_VT)emit(executor::PrefetchRange{p.value_cache+offset,bytes});
   }
   __device__ static void Run(ServingAttentionOperands const& p,SharedStorage& s,
                              int b,int g,int qb,int c) {
