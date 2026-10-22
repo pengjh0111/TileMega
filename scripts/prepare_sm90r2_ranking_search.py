@@ -12,6 +12,17 @@ import subprocess
 from sm90d1_common import ROOT, read, sha, write
 
 
+def schedule_key(coordinates, prediction):
+    structural = json.loads(json.dumps(coordinates))
+    for body in [*structural['gemms'].values(), structural['attention']]:
+        body.pop('workspace_offset', None)
+        body.pop('register_stages', None)
+    # Preserve a lookahead or placement change when its predicted costs differ.
+    # Otherwise the diagnostic cohort tests another division of work instead
+    # of spending its eight programs on compile-time translations and aliases.
+    return json.dumps([structural, prediction], sort_keys=True)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--compiler', type=Path, required=True)
@@ -30,7 +41,7 @@ def main():
     compiler_sha = sha(compiler)
     inputs = read(ROOT / 'configs/serving/sm90d1/inputs/manifest.json')
     policy = dict(selection='baseline, first three distinct predicted schedules, exact/preissue seeds for each residency, then ranked fill',
-                  equivalence='offset-only variants with identical predicted features share one diagnostic schedule',
+                  equivalence='offset/lookahead variants with identical predicted features share one diagnostic schedule',
                   candidates=8, final_selection=False, compiler_sha256=compiler_sha,
                   target_sha256=sha(target), search_passes=64, search_budget_ms=600000,
                   max_parallel_searches=2)
@@ -73,13 +84,7 @@ def main():
         selected, seen, seen_coordinates = [], set(), set()
 
         def add(coordinates, origin, rank=None, prediction=None, binary=None):
-            structural = json.loads(json.dumps(coordinates))
-            for body in [*structural['gemms'].values(), structural['attention']]:
-                body.pop('workspace_offset', None)
-            # Keep placement changes when they change exposed overlap. Pure
-            # translations with identical features would fill the cohort with
-            # tied predictions without testing a different division of work.
-            key = json.dumps([structural, prediction], sort_keys=True)
+            key = schedule_key(coordinates, prediction)
             coordinate_key = json.dumps(coordinates, sort_keys=True)
             if key in seen or coordinate_key in seen_coordinates or len(selected) == 8:
                 return
