@@ -8,19 +8,37 @@ from pathlib import Path
 import subprocess
 
 from sm90d1_common import ROOT, read, sha, write
+from verify_sm90r2_correctness import verify_receipt
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--target', type=Path, required=True)
     p.add_argument('--probe', type=Path, required=True)
-    p.add_argument('--ranking', type=Path, required=True)
+    source = p.add_mutually_exclusive_group(required=True)
+    source.add_argument('--ranking', type=Path)
+    source.add_argument('--control', type=Path,
+                        help='frozen stage-control identity and accepted C-1/C-2 dependency')
     p.add_argument('--ledger', type=Path, required=True)
     p.add_argument('--overhead', type=Path, required=True)
     p.add_argument('--tag', required=True)
     p.add_argument('--out', type=Path, required=True)
     a = p.parse_args()
-    ranking = read(a.ranking)
+    if a.ranking:
+        ranking = read(a.ranking)
+    else:
+        control = read(a.control)
+        if control['kind'] != 'sm90r2_stage_validation':
+            raise ValueError('expected an explicit stage validation control')
+        config = read(control['config'])
+        proof = verify_receipt(Path(control['state']), control['job'],
+                               Path(control['binary']), Path(control['config']))
+        expected = ROOT / f"runs/sm90r2/build/{a.tag}/{config['model']}-B{config['batch']}/decode.so"
+        if Path(control['binary']).resolve() != expected.resolve():
+            raise ValueError('stage control names another artifact')
+        ranking = dict(model=config['model'], batch=config['batch'],
+            target_sha256=control['target_sha256'], probe_sha256=control['probe_sha256'],
+            candidates=[dict(tag=a.tag, binary_sha256=proof['binary_sha256'], correctness=proof)])
     if sha(a.target) != ranking['target_sha256'] or sha(a.probe) != ranking['probe_sha256']:
         raise ValueError('class and request validation must use one frozen price model')
     model, batch = ranking['model'], ranking['batch']
@@ -91,9 +109,10 @@ def main():
     with (a.out / 'classes.csv').open('w') as stream:
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]), lineterminator='\n')
         writer.writeheader(); writer.writerows(rows)
+    source_arg = 'ranking' if a.ranking else 'control'
     write(a.out / 'receipt.json', dict(model=model, batch=batch, tag=a.tag,
         inputs={k: dict(path=str(getattr(a, k)), sha256=sha(getattr(a, k)))
-                for k in ('target', 'probe', 'ranking', 'ledger', 'overhead')},
+                for k in ('target', 'probe', source_arg, 'ledger', 'overhead')},
         binary_sha256=sha(binary), trace_sha256=sha(instrumented),
         class_pass=all(r['class_pass'] for r in rows), solver_gate_pass=False,
         trace_overhead_ms=float(overhead[0]['overhead_ms']),
