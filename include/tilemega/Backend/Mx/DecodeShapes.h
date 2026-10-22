@@ -9,10 +9,12 @@
 
 #include <tilemega/Target/Maca/Bf16.h>
 
+// Force-inlined on the device: the plan build (cucc -shared) left these as
+// calls inside the program, each with a stack frame (measured).
 #if defined(__CUDACC__) || defined(__MACACC__) || defined(__HIP__)
-#define TM_MX_HD __host__ __device__
+#define TM_MX_HD __host__ __device__ __forceinline__
 #else
-#define TM_MX_HD
+#define TM_MX_HD inline
 #endif
 
 namespace tilemega::backend::mx {

@@ -107,6 +107,9 @@ struct MxDecodeAttention {
 #pragma unroll
       for (int dc = 0; dc < kChunks; ++dc) k[a][dc] = Load(head + std::size_t(token) * D + dc * 32 + 8 * g);
     }
+    // Blocks issue in order: the scheduler moved one block's loads ahead of
+    // the previous one's, and the wait inserter then drained to < 1 block.
+    asm volatile("" ::: "memory");
   }
 
   template <class Shape>
@@ -239,7 +242,13 @@ struct MxDecodeAttention {
           score[block][a][i] = token < end ? acc[i] * scale : -INFINITY;
         }
       }
-      if (block + 2 < NB) LoadK(k, keys, base + 32 * (block + 2), end, lane);
+      // The refill follows this block's MMAs (an input of the last score):
+      // hoisted above them it needed a second set of registers and the wait
+      // inserter shortened the ring.
+      if (block + 2 < NB) {
+        asm volatile("" ::"r"(score[block][1][3]));
+        LoadK(k, keys, base + 32 * (block + 2), end, lane);
+      }
     }
 
     // V^T fragments of one block: lane (d, g) loads V^T[d][block + 8g .. +7]
@@ -255,6 +264,7 @@ struct MxDecodeAttention {
       int const first = block_base + 8 * g, at = first < end ? first : (end - 1) / 8 * 8;
 #pragma unroll
       for (int n = 0; n < kDimAtoms; ++n) v[n] = Load(lane_values + n * atom_stride + at);
+      asm volatile("" ::: "memory");  // blocks issue in order (see LoadK)
     };
     load_v(value[0], base);
     if constexpr (NB > 1) load_v(value[1], base + 32);
@@ -297,7 +307,10 @@ struct MxDecodeAttention {
         out[n] = Mma(Lo(pa), Lo(x), out[n]);
         out[n] = Mma(Hi(pa), Hi(x), out[n]);
       }
-      if (block + 2 < NB) load_v(v, base + 32 * (block + 2));
+      if (block + 2 < NB) {
+        asm volatile("" ::"r"(out[kDimAtoms - 1][3]));  // after this block's MMAs (see pass 1)
+        load_v(v, base + 32 * (block + 2));
+      }
     }
     ex_sum[16 * g + r] = sum;
     __syncwarp();

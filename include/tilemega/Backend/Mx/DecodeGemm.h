@@ -31,7 +31,6 @@
 #include <tilemega/Backend/Mx/DecodeCommon.h>
 #include <tilemega/Backend/Mx/DecodeShapes.h>
 #include <tilemega/Backend/Mx/ServingGemmMma.h>
-#include <tilemega/Backend/ServingEpilogue.h>
 #include <tilemega/Backend/ServingVectorIO.h>
 #include <tilemega/Codegen/executor/LastArriver.cuh>
 #include <tilemega/Codegen/tasks/mx/AttentionCommon.h>
@@ -45,6 +44,28 @@
 #include <utility>
 
 namespace tilemega::backend::mx {
+
+/// The epilogue values of the serving GEMM (ServingEpilogue.h
+/// ServingEpilogueValue), same expressions and rounding points, force-inlined:
+/// the plan build left those as calls with stack frames (measured).
+__device__ __forceinline__ tilemega::Bf16 MxResidual(float acc, tilemega::Bf16 residual) {
+  auto const rounded = tilemega::Bf16(acc);
+  return tilemega::Bf16(float(rounded) + float(residual));
+}
+__device__ __forceinline__ tilemega::Bf16 MxSwiGLU(float gate, float up) {
+  float const g = float(tilemega::Bf16(gate));
+  float const v = float(tilemega::Bf16(up));
+  auto const activated = tilemega::Bf16(g / (1.0f + expf(-g)));
+  return tilemega::Bf16(float(activated) * v);
+}
+
+// Tokens per V^T column write (RopeEpilogue): 32 tokens = one 64-byte line.
+// Measured on Qwen3-0.6B B16 (TILEMEGA_MX_DIAG trace, per layer): 2-byte
+// stores 44 us Qkv + 131 us attention; 8 tokens 53 + 125; 32 tokens 52 + 58;
+// 64 tokens 76 + 59. Partial 64-byte lines are what the attention paid for.
+#ifndef TILEMEGA_MX_VT_GROUP
+#define TILEMEGA_MX_VT_GROUP 32
+#endif
 
 template <int D, int kAtoms>
 struct MxGemmPrefetch {
@@ -393,7 +414,7 @@ struct MxDecodeGemm {
         *reinterpret_cast<uint4*>(x) = Load(out);
 #pragma unroll
         for (int e = 0; e < 8; ++e)
-          y[e] = ServingEpilogueValue<ServingEpilogueOp::kResidual>::Apply(res[row * stride + c8 + e] * inv, x[e]);
+          y[e] = MxResidual(res[row * stride + c8 + e] * inv, x[e]);
         StoreGlobal16(out, *reinterpret_cast<uint4 const*>(y));
       }
       __syncthreads();
@@ -406,8 +427,7 @@ struct MxDecodeGemm {
         alignas(16) Element y[8];
 #pragma unroll
         for (int e = 0; e < 8; ++e)
-          y[e] = ServingEpilogueValue<ServingEpilogueOp::kSwiGLU>::Apply(res[row * stride + gate + e] * inv,
-                                                                         res[row * stride + gate + 16 + e] * inv);
+          y[e] = MxSwiGLU(res[row * stride + gate + e] * inv, res[row * stride + gate + 16 + e] * inv);
         StoreGlobal16(p.out + std::size_t(row) * (s.n / 2) + std::size_t(t) * (TN / 2) + c8,
                       *reinterpret_cast<uint4 const*>(y));
       }
@@ -452,9 +472,7 @@ struct MxDecodeGemm {
     if (active) {
       std::size_t const bg = std::size_t(row) * Rope::kHeadsKv + group;
       if (j == kQ + 1) {
-        // V^T[b][g][d][past]: each dimension's tokens are contiguous.
-#pragma unroll
-        for (int e = 0; e < 8; ++e) p.vt_cache[(bg * kD + d + e) * p.capacity + p.past] = x[e];
+        // V heads: the loop below.
       } else {
         float inverse = 1;
         if constexpr (Rope::kQkNorm) {
@@ -477,6 +495,38 @@ struct MxDecodeGemm {
         StoreGlobal16(target, *reinterpret_cast<uint4 const*>(x));
       }
     }
+    // V heads -> V^T[b][g][d][past]: each dimension's tokens are contiguous.
+    // The column is written as the aligned group of TILEMEGA_MX_VT_GROUP
+    // tokens (one 64-byte line) that holds it, read, modified and stored
+    // whole, one (row, d) per thread: as 2-byte stores (B x hkv x D of them,
+    // 16 K at B=16) the partial lines cost the next stage, the attention that
+    // streams this cache, ~80 us per layer (measured, TILEMEGA_MX_DIAG). Only
+    // this thread writes the row this step, and the attention reads it after
+    // the barrier.
+#if !TILEMEGA_MX_DIAG_NO_VT
+    constexpr int kGroup = TILEMEGA_MX_VT_GROUP;  // tokens per read-modify-write group
+    static_assert(kGroup % 8 == 0 && kGroup <= 64, "whole 16-byte vectors");
+    int const at = p.past / kGroup * kGroup, slot = p.past % kGroup;
+    for (int index = threadIdx.x; index < b * kHeads * kD; index += kThreads) {
+      int const vrow = index / (kHeads * kD), vh = index / kD % kHeads, dd = index % kD;
+      int const vhead = t * kHeads + vh;
+      if (vhead % (kQ + 2) != kQ + 1) continue;  // uniform over a wave: kD >= 64 threads per head
+      std::size_t const vbg = std::size_t(vrow) * Rope::kHeadsKv + vhead / (kQ + 2);
+      Element* const target = p.vt_cache + (vbg * kD + dd) * p.capacity + at;
+      Element const value = Element(res[vrow * stride + vh * kD + dd] * Inverse(res, vrow, s, p.epsilon));
+      uint4 words[kGroup / 8];
+#pragma unroll
+      for (int q = 0; q < kGroup / 8; ++q) words[q] = Load(target + 8 * q);
+#pragma unroll
+      for (int q = 0; q < kGroup / 8; ++q) {
+        alignas(16) Element v[8];
+        *reinterpret_cast<uint4*>(v) = words[q];
+#pragma unroll
+        for (int e = 0; e < 8; ++e) v[e] = 8 * q + e == slot ? value : v[e];  // no runtime index: registers
+        StoreGlobal16(target + 8 * q, *reinterpret_cast<uint4 const*>(v));
+      }
+    }
+#endif
     __syncthreads();
   }
 
