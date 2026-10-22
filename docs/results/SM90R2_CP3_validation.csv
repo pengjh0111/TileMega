@@ -34,3 +34,22 @@ llama3_2_1b,1,E45,E43C1,lm_head_class_error_pct,-1.3835411520589647,15,True,veri
 qwen3_0_6b,1,B46,B46E,paired_tpot_change_pct,3.0099819751312262,0,False,verified provisional; rejected packet prototype
 qwen3_0_6b,1,B46,B46L,paired_tpot_change_pct,3.164530265949561,0,False,verified provisional; rejected packet prototype
 qwen3_0_6b,1,B46,B46Z,paired_tpot_change_pct,0.09790456130582825,0,False,verified provisional; rejected packet prototype
+qwen3_0_6b,16,E43,cohort,kendall_tau,0.8058229640253803,0.7,True,verified independent at frozen E42 prices
+qwen3_0_6b,16,E43,cohort,fastest_in_predicted_top3,True,True,True,verified independent at frozen E42 prices
+qwen3_0_6b,16,E43,B28Z,step_error_pct,7.567314382679924,10,True,verified request; inferred prediction
+qwen3_0_6b,16,E43,E43C1,step_error_pct,-0.4387899949243934,10,True,verified request; inferred prediction
+qwen3_0_6b,16,E43,E43C4,step_error_pct,6.560273104628167,10,True,verified request; inferred prediction
+qwen3_0_6b,16,E43,E43C5,step_error_pct,10.764903363164468,10,False,verified request; inferred prediction
+qwen3_0_6b,16,E43,E43C6,step_error_pct,10.259394288008394,10,False,verified request; inferred prediction
+qwen3_0_6b,16,E43,E43C10,step_error_pct,-0.7607323092424512,10,True,verified request; inferred prediction
+qwen3_0_6b,16,E43,E43C12,step_error_pct,-0.7534173794847887,10,True,verified request; inferred prediction
+qwen3_0_6b,16,E43,E43C20,step_error_pct,-2.289384259423599,10,True,verified request; inferred prediction
+qwen3_0_6b,16,E45,E43C1,qkv_class_error_pct,-14.174148849437485,15,True,verified stage trace; inferred uniform overhead correction
+qwen3_0_6b,16,E45,E43C1,attention_class_error_pct,0.5602415994218513,15,True,verified stage trace; inferred uniform overhead correction
+qwen3_0_6b,16,E45,E43C1,o_class_error_pct,-3.68244925360266,15,True,verified stage trace; inferred uniform overhead correction
+qwen3_0_6b,16,E45,E43C1,gate_up_class_error_pct,-19.63767146908949,15,False,verified stage trace; inferred uniform overhead correction
+qwen3_0_6b,16,E45,E43C1,down_class_error_pct,-0.42283171707098166,15,True,verified stage trace; inferred uniform overhead correction
+qwen3_0_6b,16,E45,E43C1,lm_head_class_error_pct,-37.359067474883126,15,False,verified stage trace; inferred uniform overhead correction
+qwen3_0_6b,1,B47,B47A32,paired_tpot_change_pct,0.4271262026775302,0,False,verified provisional; no observed benefit; not retained
+qwen3_0_6b,1,B47,B47G16,paired_tpot_change_pct,0.10652124443510935,0,False,verified provisional; no observed benefit; not retained
+qwen3_0_6b,1,B47,B47G64,paired_tpot_change_pct,4.632538574799794,0,False,verified provisional; no observed benefit; not retained
