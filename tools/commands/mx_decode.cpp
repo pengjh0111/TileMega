@@ -127,6 +127,8 @@ int TryCompile(Request const& r) {
                       " -DTILEMEGA_MX_BARRIER_PREFETCH=" + std::to_string(r.barrier_prefetch) +
                       " -mllvm -metaxgpu-disable-licm";
   if (r.trace_stage) flags += " -DTILEMEGA_TRACE_STAGE=1";
+  if (char const* diag = std::getenv("TILEMEGA_MX_DIAG"); diag && std::string(diag) == "1")
+    flags += " -DTILEMEGA_MX_DIAG=1";  // diagnostic builds only, never measured
   std::ofstream(out + ".runtime_flags.txt") << flags << "\n";
   std::string const command = Quote(NvccPath()) + " -std=c++17 -O3" + DeviceBuildFlags() + flags +
                               " -shared -Xcompiler=-fPIC -x cu -I" + Quote(root + "/include") + " " +
