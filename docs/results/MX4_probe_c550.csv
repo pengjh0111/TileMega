@@ -1,0 +1,239 @@
+probe,mode,grid,threads,depth,mma,active,round,value,unit,note
+D1,stream,104,512,1,0,104,1,709.5,GB/s,first process after idle: clock ramp; outside the median
+D1,stream,104,512,1,1,104,1,1201.1,GB/s,
+D1,stream,104,512,2,0,104,1,1498.0,GB/s,
+D1,stream,104,512,2,1,104,1,1493.7,GB/s,
+D1,stream,104,512,4,0,104,1,1504.4,GB/s,
+D1,stream,104,512,4,1,104,1,1506.6,GB/s,
+D1,stream,208,256,1,0,208,1,1133.6,GB/s,
+D1,stream,208,256,1,1,208,1,1143.5,GB/s,
+D1,stream,208,256,2,0,208,1,1504.4,GB/s,
+D1,stream,208,256,2,1,208,1,1506.6,GB/s,
+D1,stream,208,256,4,0,208,1,1517.5,GB/s,
+D1,stream,208,256,4,1,208,1,1517.5,GB/s,
+D1,stream,416,128,1,0,416,1,1161.2,GB/s,
+D1,stream,416,128,1,1,416,1,1161.2,GB/s,
+D1,stream,416,128,2,0,416,1,1495.8,GB/s,
+D1,stream,416,128,2,1,416,1,1498.0,GB/s,
+D1,stream,416,128,4,0,416,1,1513.1,GB/s,
+D1,stream,416,128,4,1,416,1,1508.7,GB/s,
+D1,stage,104,512,1,0,104,1,5493.5,ns/stage,
+D1,stage,104,512,1,1,104,1,5468.9,ns/stage,
+D1,stage,104,512,2,0,104,1,4914.2,ns/stage,
+D1,stage,104,512,2,1,104,1,4907.5,ns/stage,
+D1,stage,104,512,4,0,104,1,5146.6,ns/stage,
+D1,stage,104,512,4,1,104,1,5136.6,ns/stage,
+D1,stage,208,256,1,0,208,1,5625.9,ns/stage,
+D1,stage,208,256,1,1,208,1,5612.5,ns/stage,
+D1,stage,208,256,2,0,208,1,4907.5,ns/stage,
+D1,stage,208,256,2,1,208,1,4897.8,ns/stage,
+D1,stage,208,256,4,0,208,1,5070.3,ns/stage,
+D1,stage,208,256,4,1,208,1,5055.7,ns/stage,
+D1,stage,416,128,1,0,416,1,5885.4,ns/stage,
+D1,stage,416,128,1,1,416,1,5867.0,ns/stage,
+D1,stage,416,128,2,0,416,1,5614.8,ns/stage,
+D1,stage,416,128,2,1,416,1,5571.3,ns/stage,
+D1,stage,416,128,4,0,416,1,6261.5,ns/stage,
+D1,stage,416,128,4,1,416,1,6172.7,ns/stage,
+D1,stream,104,512,1,0,26,1,394.2,GB/s,
+D1,stream,104,512,1,1,26,1,394.8,GB/s,
+D1,stream,104,512,2,0,26,1,640.2,GB/s,
+D1,stream,104,512,2,1,26,1,637.4,GB/s,
+D1,stream,104,512,4,0,26,1,959.4,GB/s,
+D1,stream,104,512,4,1,26,1,955.9,GB/s,
+D1,stream,104,512,1,0,52,1,688.0,GB/s,
+D1,stream,104,512,1,1,52,1,688.0,GB/s,
+D1,stream,104,512,2,0,52,1,1133.6,GB/s,
+D1,stream,104,512,2,1,52,1,1127.5,GB/s,
+D1,stream,104,512,4,0,52,1,1466.5,GB/s,
+D1,stream,104,512,4,1,52,1,1460.4,GB/s,
+D1,stream,104,512,1,0,78,1,948.1,GB/s,
+D1,stream,104,512,1,1,78,1,947.2,GB/s,
+D1,stream,104,512,2,0,78,1,1420.8,GB/s,
+D1,stream,104,512,2,1,78,1,1420.8,GB/s,
+D1,stream,104,512,4,0,78,1,1483.1,GB/s,
+D1,stream,104,512,4,1,78,1,1489.5,GB/s,
+D1,stream,104,512,1,0,104,2,1198.4,GB/s,
+D1,stream,104,512,1,1,104,2,1198.4,GB/s,
+D1,stream,104,512,2,0,104,2,1498.0,GB/s,
+D1,stream,104,512,2,1,104,2,1500.1,GB/s,
+D1,stream,104,512,4,0,104,2,1502.3,GB/s,
+D1,stream,104,512,4,1,104,2,1502.3,GB/s,
+D1,stream,208,256,1,0,208,2,1142.2,GB/s,
+D1,stream,208,256,1,1,208,2,1137.3,GB/s,
+D1,stream,208,256,2,0,208,2,1504.4,GB/s,
+D1,stream,208,256,2,1,208,2,1508.7,GB/s,
+D1,stream,208,256,4,0,208,2,1515.3,GB/s,
+D1,stream,208,256,4,1,208,2,1519.7,GB/s,
+D1,stream,416,128,1,0,416,2,1158.6,GB/s,
+D1,stream,416,128,1,1,416,2,1159.9,GB/s,
+D1,stream,416,128,2,0,416,2,1495.8,GB/s,
+D1,stream,416,128,2,1,416,2,1495.8,GB/s,
+D1,stream,416,128,4,0,416,2,1513.1,GB/s,
+D1,stream,416,128,4,1,416,2,1510.9,GB/s,
+D1,stage,104,512,1,0,104,2,5490.9,ns/stage,
+D1,stage,104,512,1,1,104,2,5461.5,ns/stage,
+D1,stage,104,512,2,0,104,2,4917.5,ns/stage,
+D1,stage,104,512,2,1,104,2,4907.5,ns/stage,
+D1,stage,104,512,4,0,104,2,5142.8,ns/stage,
+D1,stage,104,512,4,1,104,2,5130.2,ns/stage,
+D1,stage,208,256,1,0,208,2,5632.3,ns/stage,
+D1,stage,208,256,1,1,208,2,5612.5,ns/stage,
+D1,stage,208,256,2,0,208,2,4911.1,ns/stage,
+D1,stage,208,256,2,1,208,2,4899.3,ns/stage,
+D1,stage,208,256,4,0,208,2,5070.6,ns/stage,
+D1,stage,208,256,4,1,208,2,5059.1,ns/stage,
+D1,stage,416,128,1,0,416,2,5888.8,ns/stage,
+D1,stage,416,128,1,1,416,2,5888.0,ns/stage,
+D1,stage,416,128,2,0,416,2,5620.0,ns/stage,
+D1,stage,416,128,2,1,416,2,5566.5,ns/stage,
+D1,stage,416,128,4,0,416,2,6245.9,ns/stage,
+D1,stage,416,128,4,1,416,2,6194.4,ns/stage,
+D1,stream,104,512,1,0,26,2,394.3,GB/s,
+D1,stream,104,512,1,1,26,2,397.5,GB/s,
+D1,stream,104,512,2,0,26,2,639.0,GB/s,
+D1,stream,104,512,2,1,26,2,635.5,GB/s,
+D1,stream,104,512,4,0,26,2,955.0,GB/s,
+D1,stream,104,512,4,1,26,2,955.9,GB/s,
+D1,stream,104,512,1,0,52,2,689.9,GB/s,
+D1,stream,104,512,1,1,52,2,691.2,GB/s,
+D1,stream,104,512,2,0,52,2,1132.4,GB/s,
+D1,stream,104,512,2,1,52,2,1120.3,GB/s,
+D1,stream,104,512,4,0,52,2,1464.5,GB/s,
+D1,stream,104,512,4,1,52,2,1464.5,GB/s,
+D1,stream,104,512,1,0,78,2,949.8,GB/s,
+D1,stream,104,512,1,1,78,2,951.5,GB/s,
+D1,stream,104,512,2,0,78,2,1417.0,GB/s,
+D1,stream,104,512,2,1,78,2,1413.2,GB/s,
+D1,stream,104,512,4,0,78,2,1476.9,GB/s,
+D1,stream,104,512,4,1,78,2,1483.1,GB/s,
+D1,stream,104,512,1,0,104,3,1198.4,GB/s,
+D1,stream,104,512,1,1,104,3,1205.3,GB/s,
+D1,stream,104,512,2,0,104,3,1500.1,GB/s,
+D1,stream,104,512,2,1,104,3,1500.1,GB/s,
+D1,stream,104,512,4,0,104,3,1508.7,GB/s,
+D1,stream,104,512,4,1,104,3,1508.7,GB/s,
+D1,stream,208,256,1,0,208,3,1141.0,GB/s,
+D1,stream,208,256,1,1,208,3,1132.4,GB/s,
+D1,stream,208,256,2,0,208,3,1504.4,GB/s,
+D1,stream,208,256,2,1,208,3,1504.4,GB/s,
+D1,stream,208,256,4,0,208,3,1510.9,GB/s,
+D1,stream,208,256,4,1,208,3,1521.9,GB/s,
+D1,stream,416,128,1,0,416,3,1162.5,GB/s,
+D1,stream,416,128,1,1,416,3,1158.6,GB/s,
+D1,stream,416,128,2,0,416,3,1493.7,GB/s,
+D1,stream,416,128,2,1,416,3,1500.1,GB/s,
+D1,stream,416,128,4,0,416,3,1510.9,GB/s,
+D1,stream,416,128,4,1,416,3,1513.1,GB/s,
+D1,stage,104,512,1,0,104,3,5487.1,ns/stage,
+D1,stage,104,512,1,1,104,3,5470.2,ns/stage,
+D1,stage,104,512,2,0,104,3,4912.1,ns/stage,
+D1,stage,104,512,2,1,104,3,4905.0,ns/stage,
+D1,stage,104,512,4,0,104,3,5144.1,ns/stage,
+D1,stage,104,512,4,1,104,3,5135.1,ns/stage,
+D1,stage,208,256,1,0,208,3,5630.7,ns/stage,
+D1,stage,208,256,1,1,208,3,5599.0,ns/stage,
+D1,stage,208,256,2,0,208,3,4908.0,ns/stage,
+D1,stage,208,256,2,1,208,3,4898.0,ns/stage,
+D1,stage,208,256,4,0,208,3,5072.1,ns/stage,
+D1,stage,208,256,4,1,208,3,5059.3,ns/stage,
+D1,stage,416,128,1,0,416,3,5886.7,ns/stage,
+D1,stage,416,128,1,1,416,3,5884.9,ns/stage,
+D1,stage,416,128,2,0,416,3,5614.8,ns/stage,
+D1,stage,416,128,2,1,416,3,5567.2,ns/stage,
+D1,stage,416,128,4,0,416,3,6244.6,ns/stage,
+D1,stage,416,128,4,1,416,3,6180.6,ns/stage,
+D1,stream,104,512,1,0,26,3,392.9,GB/s,
+D1,stream,104,512,1,1,26,3,396.6,GB/s,
+D1,stream,104,512,2,0,26,3,638.2,GB/s,
+D1,stream,104,512,2,1,26,3,639.0,GB/s,
+D1,stream,104,512,4,0,26,3,958.5,GB/s,
+D1,stream,104,512,4,1,26,3,955.9,GB/s,
+D1,stream,104,512,1,0,52,3,688.0,GB/s,
+D1,stream,104,512,1,1,52,3,689.4,GB/s,
+D1,stream,104,512,2,0,52,3,1129.9,GB/s,
+D1,stream,104,512,2,1,52,3,1123.9,GB/s,
+D1,stream,104,512,4,0,52,3,1470.7,GB/s,
+D1,stream,104,512,4,1,52,3,1464.5,GB/s,
+D1,stream,104,512,1,0,78,3,951.5,GB/s,
+D1,stream,104,512,1,1,78,3,951.5,GB/s,
+D1,stream,104,512,2,0,78,3,1417.0,GB/s,
+D1,stream,104,512,2,1,78,3,1415.1,GB/s,
+D1,stream,104,512,4,0,78,3,1489.5,GB/s,
+D1,stream,104,512,4,1,78,3,1476.9,GB/s,
+D1,stage,104,512,1,0,104,median,5490.9,ns/stage,median of 3 fresh processes
+D1,stage,104,512,1,1,104,median,5468.9,ns/stage,median of 3 fresh processes
+D1,stage,104,512,2,0,104,median,4914.2,ns/stage,median of 3 fresh processes
+D1,stage,104,512,2,1,104,median,4907.5,ns/stage,median of 3 fresh processes
+D1,stage,104,512,4,0,104,median,5144.1,ns/stage,median of 3 fresh processes
+D1,stage,104,512,4,1,104,median,5135.1,ns/stage,median of 3 fresh processes
+D1,stage,208,256,1,0,208,median,5630.7,ns/stage,median of 3 fresh processes
+D1,stage,208,256,1,1,208,median,5612.5,ns/stage,median of 3 fresh processes
+D1,stage,208,256,2,0,208,median,4908.0,ns/stage,median of 3 fresh processes
+D1,stage,208,256,2,1,208,median,4898.0,ns/stage,median of 3 fresh processes
+D1,stage,208,256,4,0,208,median,5070.6,ns/stage,median of 3 fresh processes
+D1,stage,208,256,4,1,208,median,5059.1,ns/stage,median of 3 fresh processes
+D1,stage,416,128,1,0,416,median,5886.7,ns/stage,median of 3 fresh processes
+D1,stage,416,128,1,1,416,median,5884.9,ns/stage,median of 3 fresh processes
+D1,stage,416,128,2,0,416,median,5614.8,ns/stage,median of 3 fresh processes
+D1,stage,416,128,2,1,416,median,5567.2,ns/stage,median of 3 fresh processes
+D1,stage,416,128,4,0,416,median,6245.9,ns/stage,median of 3 fresh processes
+D1,stage,416,128,4,1,416,median,6180.6,ns/stage,median of 3 fresh processes
+D1,stream,104,512,1,0,26,median,394.2,GB/s,median of 3 fresh processes
+D1,stream,104,512,1,0,52,median,688.0,GB/s,median of 3 fresh processes
+D1,stream,104,512,1,0,78,median,949.8,GB/s,median of 3 fresh processes
+D1,stream,104,512,1,0,104,median,1198.4,GB/s,median of 3 fresh processes
+D1,stream,104,512,1,1,26,median,396.6,GB/s,median of 3 fresh processes
+D1,stream,104,512,1,1,52,median,689.4,GB/s,median of 3 fresh processes
+D1,stream,104,512,1,1,78,median,951.5,GB/s,median of 3 fresh processes
+D1,stream,104,512,1,1,104,median,1201.1,GB/s,median of 3 fresh processes
+D1,stream,104,512,2,0,26,median,639.0,GB/s,median of 3 fresh processes
+D1,stream,104,512,2,0,52,median,1132.4,GB/s,median of 3 fresh processes
+D1,stream,104,512,2,0,78,median,1417.0,GB/s,median of 3 fresh processes
+D1,stream,104,512,2,0,104,median,1498.0,GB/s,median of 3 fresh processes
+D1,stream,104,512,2,1,26,median,637.4,GB/s,median of 3 fresh processes
+D1,stream,104,512,2,1,52,median,1123.9,GB/s,median of 3 fresh processes
+D1,stream,104,512,2,1,78,median,1415.1,GB/s,median of 3 fresh processes
+D1,stream,104,512,2,1,104,median,1500.1,GB/s,median of 3 fresh processes
+D1,stream,104,512,4,0,26,median,958.5,GB/s,median of 3 fresh processes
+D1,stream,104,512,4,0,52,median,1466.5,GB/s,median of 3 fresh processes
+D1,stream,104,512,4,0,78,median,1483.1,GB/s,median of 3 fresh processes
+D1,stream,104,512,4,0,104,median,1504.4,GB/s,median of 3 fresh processes
+D1,stream,104,512,4,1,26,median,955.9,GB/s,median of 3 fresh processes
+D1,stream,104,512,4,1,52,median,1464.5,GB/s,median of 3 fresh processes
+D1,stream,104,512,4,1,78,median,1483.1,GB/s,median of 3 fresh processes
+D1,stream,104,512,4,1,104,median,1506.6,GB/s,median of 3 fresh processes
+D1,stream,208,256,1,0,208,median,1141.0,GB/s,median of 3 fresh processes
+D1,stream,208,256,1,1,208,median,1137.3,GB/s,median of 3 fresh processes
+D1,stream,208,256,2,0,208,median,1504.4,GB/s,median of 3 fresh processes
+D1,stream,208,256,2,1,208,median,1506.6,GB/s,median of 3 fresh processes
+D1,stream,208,256,4,0,208,median,1515.3,GB/s,median of 3 fresh processes
+D1,stream,208,256,4,1,208,median,1519.7,GB/s,median of 3 fresh processes
+D1,stream,416,128,1,0,416,median,1161.2,GB/s,median of 3 fresh processes
+D1,stream,416,128,1,1,416,median,1159.9,GB/s,median of 3 fresh processes
+D1,stream,416,128,2,0,416,median,1495.8,GB/s,median of 3 fresh processes
+D1,stream,416,128,2,1,416,median,1498.0,GB/s,median of 3 fresh processes
+D1,stream,416,128,4,0,416,median,1513.1,GB/s,median of 3 fresh processes
+D1,stream,416,128,4,1,416,median,1510.9,GB/s,median of 3 fresh processes
+D1-decision,,104,512,,,,,,,"(208,256): stream +0.9%, stage -0.2%; (416,128): +0.4%, +13.4% slower; none >=5% faster in both -> default (104,512)"
+D2,by-value MxBinding L=32,104,512,,,,1,0,mismatched bytes,"2216 B parameter; compiled, launched, 0 B stack frame; PASS -> binding by value"
+litmus,barrier_prefetch,104,512,,,,1,0,violations,"2000 iterations, 24.53 us/iter, lasts=0, PASS"
+litmus,last512,104,512,,,,1,0,violations,"2000 iterations, 8.55 us/iter, lasts=80000, PASS"
+litmus,barrier,104,128,,,,1,0,violations,"2000 iterations, 39.18 us/iter, lasts=0, PASS"
+litmus,last,104,128,,,,1,0,violations,"2000 iterations, 11.24 us/iter, lasts=2000, PASS"
+litmus,barrier_prefetch,104,512,,,,2,0,violations,"2000 iterations, 22.70 us/iter, lasts=0, PASS"
+litmus,last512,104,512,,,,2,0,violations,"2000 iterations, 8.54 us/iter, lasts=80000, PASS"
+litmus,barrier,104,128,,,,2,0,violations,"2000 iterations, 39.02 us/iter, lasts=0, PASS"
+litmus,last,104,128,,,,2,0,violations,"2000 iterations, 11.16 us/iter, lasts=2000, PASS"
+litmus,barrier_prefetch,104,512,,,,3,0,violations,"2000 iterations, 22.64 us/iter, lasts=0, PASS"
+litmus,last512,104,512,,,,3,0,violations,"2000 iterations, 8.54 us/iter, lasts=80000, PASS"
+litmus,barrier,104,128,,,,3,0,violations,"2000 iterations, 39.19 us/iter, lasts=0, PASS"
+litmus,last,104,128,,,,3,0,violations,"2000 iterations, 11.17 us/iter, lasts=2000, PASS"
+litmus,barrier_prefetch,104,512,,,,4,0,violations,"2000 iterations, 22.69 us/iter, lasts=0, PASS"
+litmus,last512,104,512,,,,4,0,violations,"2000 iterations, 8.58 us/iter, lasts=80000, PASS"
+litmus,barrier,104,128,,,,4,0,violations,"2000 iterations, 39.03 us/iter, lasts=0, PASS"
+litmus,last,104,128,,,,4,0,violations,"2000 iterations, 11.23 us/iter, lasts=2000, PASS"
+litmus,barrier_prefetch,104,512,,,,5,0,violations,"2000 iterations, 22.68 us/iter, lasts=0, PASS"
+litmus,last512,104,512,,,,5,0,violations,"2000 iterations, 8.50 us/iter, lasts=80000, PASS"
+litmus,barrier,104,128,,,,5,0,violations,"2000 iterations, 39.19 us/iter, lasts=0, PASS"
+litmus,last,104,128,,,,5,0,violations,"2000 iterations, 11.23 us/iter, lasts=2000, PASS"
