@@ -1,12 +1,38 @@
 """Storage failure before launch must leave the pending attempt untouched."""
 import errno
+import json
+import os
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
-from tilemega.bench.scheduler import prepare_attempt, prefer_ready_cpu
+from tilemega.bench.scheduler import main, prepare_attempt, prefer_ready_cpu
 
 class DiskAdmission(unittest.TestCase):
+    def test_withdrawal_after_directory_listing_keeps_other_jobs_running(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp);queue = root/'queue';queue.mkdir()
+            withdrawn = queue/'queue_withdrawn.json'
+            withdrawn.write_text(json.dumps([dict(name='withdrawn')]))
+            (queue/'queue_keep.json').write_text(json.dumps([dict(
+                name='keep',gpu=False,timing=False,timeout_s=5,
+                command=[sys.executable,'-c','pass'])]))
+            policy = root/'policy.json';policy.write_text('{}')
+            original = Path.glob
+            def withdraw_after_listing(directory, pattern):
+                paths = list(original(directory, pattern))
+                if directory == queue and withdrawn.exists():withdrawn.unlink()
+                return iter(paths)
+            env = dict(TILEMEGA_GPU_LOCK=str(root/'gpu.lock'),
+                       TILEMEGA_DEVICE_INDEX='3',CUDA_VISIBLE_DEVICES='')
+            with patch.object(Path,'glob',withdraw_after_listing), patch.dict(os.environ,env):
+                main(['--queue-dir',str(queue),'--out',str(root/'out'),
+                      '--policy',str(policy)])
+            state = json.loads((root/'out/state.json').read_text())
+            self.assertEqual(state['keep']['status'],'done')
+            self.assertNotIn('withdrawn',state)
+
     def test_high_priority_cpu_gate_precedes_lower_priority_gpu(self):
         gate = dict(name='gate', gpu=False, priority=-2)
         gpu = dict(name='baseline', gpu=True, priority=0)

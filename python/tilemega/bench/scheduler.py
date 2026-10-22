@@ -149,7 +149,11 @@ def main(argv=None):
             continue
         steps = {}
         for path in sorted(args.queue_dir.glob('queue_*.json')):
-            for step in json.loads(path.read_text()):
+            try:
+                queued = json.loads(path.read_text())
+            except FileNotFoundError:
+                continue  # A whole unstarted cohort may move to another card.
+            for step in queued:
                 name = step['name']
                 if name in steps:
                     raise ValueError('duplicate step ' + name)
