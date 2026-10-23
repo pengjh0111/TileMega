@@ -19,7 +19,7 @@
 //
 // Build it as the program is built (tools/commands/mx_decode.cpp):
 //   cucc -std=c++17 -O3 -Xcompiler -resource-usage -fno-strict-aliasing
-//        -DTILEMEGA_SYNC_V3=1 -DTILEMEGA_WATCHDOG=0 -mllvm -metaxgpu-disable-licm
+//        -DTILEMEGA_SYNC_V3=1 -DTILEMEGA_WATCHDOG=0
 //
 // Usage: stage_bench <iterations> <out.csv> [filter-substring]
 #include <tilemega/Backend/Mx/DecodeAttention.h>
