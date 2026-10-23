@@ -12,6 +12,8 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     for name in ('plan','native','reference','out'):p.add_argument('--'+name,type=Path,required=True)
     p.add_argument('--layers',nargs='+',type=int,default=[0,1,2])
+    p.add_argument('--kinds',nargs='+',choices=('norm1','qkv','context','norm2','act'),
+        default=['norm1','qkv','context','norm2','act'],help='Explicit diagnostic subset; requested missing buffers still fail')
     a=p.parse_args();torch.set_num_threads(1)
     plan,native,reference,out=(controlled(getattr(a,name),[RUNS]) for name in ('plan','native','reference','out'))
     if out.exists():raise FileExistsError(out)
@@ -23,7 +25,7 @@ def main():
     files={f['name']:f for f in ref['files']};rows=[]
     policy=json.loads((REPO/'configs/ascend/as2_correctness_policy.json').read_text())['decoder_layer']
     for layer in a.layers:
-        for kind in ('norm1','qkv','context','norm2','act'):
+        for kind in a.kinds:
             name=f'l{layer}.{kind}';b=buffers[name];f=files[name]
             x=native/f'{b["id"]}.bin';y=reference/f['file']
             if x.stat().st_size!=y.stat().st_size or x.stat().st_size!=b['bytes']:raise ValueError('Diagnostic buffer extent mismatch: '+name)
@@ -31,7 +33,7 @@ def main():
             yt=torch.from_file(str(y),shared=False,size=b['bytes']//2,dtype=torch.bfloat16)
             rows.append(dict(name=name,bitwise_different=int((xt!=yt).sum()),native_sha256=digest(x),reference_sha256=digest(y),**metrics(xt,yt,policy)))
     result=dict(schema='tilemega.as2.prefill_difference.v1',status='diagnostic_completed_not_model_admission',
-        model_id=ref['model_id'],reference_implementation=ref['implementation'],rows=rows,
+        model_id=ref['model_id'],reference_implementation=ref['implementation'],selected_kinds=a.kinds,rows=rows,
         first_nonbitwise=next((r['name'] for r in rows if r['bitwise_different']),None),
         first_policy_failure=next((r['name'] for r in rows if not r['passed']),None))
     out.write_text(json.dumps(result,indent=2)+'\n')
