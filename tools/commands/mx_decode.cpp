@@ -131,13 +131,8 @@ int TryCompile(Request const& r) {
   };
   identity(true, out);
 
-  // §6 D3: the compiler hoists every body's loop-invariant address
-  // arithmetic out of the program's step and layer loops, where it stays
-  // live across all stages and spills; without IR LICM the program has no
-  // stack frame (measured, MX4_resources_c550.csv).
   std::string flags = " -DTILEMEGA_SYNC_V3=1 -DTILEMEGA_WATCHDOG=" + std::to_string(r.watchdog) +
-                      " -DTILEMEGA_MX_BARRIER_PREFETCH=" + std::to_string(r.barrier_prefetch) +
-                      " -mllvm -metaxgpu-disable-licm";
+                      " -DTILEMEGA_MX_BARRIER_PREFETCH=" + std::to_string(r.barrier_prefetch);
   if (r.trace_stage) flags += " -DTILEMEGA_TRACE_STAGE=1";
   if (char const* diag = std::getenv("TILEMEGA_MX_DIAG"); diag && std::string(diag) == "1")
     flags += " -DTILEMEGA_MX_DIAG=1";  // diagnostic builds only, never measured

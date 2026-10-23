@@ -86,12 +86,11 @@ endfunction()
 
 # Same, producing a shared library for ctypes-driven numerical tests.
 function(tilemega_add_maca_library name source)
-  cmake_parse_arguments(ARG "" "" "FLAGS" ${ARGN})
   set(out "${CMAKE_CURRENT_BINARY_DIR}/maca/lib${name}.so")
   file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/maca")
   add_custom_command(OUTPUT "${out}"
     COMMAND "${TILEMEGA_CUCC}" -std=c++17 -O3 -fno-strict-aliasing -shared -Xcompiler=-fPIC
-      -DTILEMEGA_SERVING_RUNTIME=1 ${ARG_FLAGS}
+      -DTILEMEGA_SERVING_RUNTIME=1
       -I${CMAKE_CURRENT_SOURCE_DIR}/include -I${CMAKE_CURRENT_BINARY_DIR}/include
       "${CMAKE_CURRENT_SOURCE_DIR}/${source}" -o "${out}" -lcudart
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${source}"
@@ -666,9 +665,7 @@ if(TILEMEGA_BUILD_TESTS)
   set_tests_properties(mx_task_bodies PROPERTIES SKIP_RETURN_CODE 77 LABELS gpu
     ENVIRONMENT "TILEMEGA_MX_BODIES_SO=${CMAKE_BINARY_DIR}/maca/libmx_serving_bodies.so;PYTHONPATH=${CMAKE_SOURCE_DIR}/python")
   # MX-4 decode stage bodies (Backend/Mx/Decode*.h) against FP32 torch.
-  # Built as the MX-4 decode program is (tools/commands/mx_decode.cpp).
-  tilemega_add_maca_library(mx_decode_bodies test/unit/mx/decode_bodies.cu
-    FLAGS -mllvm -metaxgpu-disable-licm)
+  tilemega_add_maca_library(mx_decode_bodies test/unit/mx/decode_bodies.cu)
   add_test(NAME mx_decode_bodies COMMAND ${CMAKE_SOURCE_DIR}/scripts/run_maca_probe.sh
     ${Python3_EXECUTABLE} -m pytest -q ${CMAKE_SOURCE_DIR}/test/python/test_mx_decode_bodies.py)
   set_tests_properties(mx_decode_bodies PROPERTIES SKIP_RETURN_CODE 77 LABELS gpu
