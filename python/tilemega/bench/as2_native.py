@@ -17,6 +17,18 @@ def digest(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+def incremental_packing_bytes(buffers,reusable):
+    required=[b for b in buffers if b.get('required_input')]
+    # Reuse and aliases add directory entries, rather than another payload.
+    total=(1<<20)+4096*len(required)
+    for b in required:
+        key=(b['name'],b['bytes'],b['dtype'],b['pack_json'])
+        recipe=json.loads(b['pack_json']) if b['pack_json'] else None
+        if reusable.get(key) or recipe and recipe['kind']=='alias':continue
+        total+=(b['bytes']+4095)//4096*4096
+    return total
+
+
 def pack(model_id, plan, out, past, reuse=None, reuse_plan=None,rope_table=None):
     plan=controlled(plan,[RUNS]);out=controlled(out,[RUNS])
     if not 0 <= past <= 1086:
@@ -102,7 +114,7 @@ def pack(model_id, plan, out, past, reuse=None, reuse_plan=None,rope_table=None)
             reusable[(b['name'],b['bytes'],b['dtype'],b['pack_json'])]=(record,reuse/record['file'])
     policy=json.loads((REPO/'configs/bench/as2_disk_policy.json').read_text())
     usage=shutil.disk_usage(ROOT)
-    new_bytes=sum(b['bytes'] for b in buffers if b.get('required_input') and b['pack_json'] and json.loads(b['pack_json'])['kind']!='alias')
+    new_bytes=incremental_packing_bytes(buffers,reusable)
     owned=[RUNS,*(WORK/name for name in ('build','cache','tmp','weights'))]
     occupied=sum(int(subprocess.check_output(['du','-s','-B1',str(path)],text=True).split()[0]) for path in owned)
     if usage.free/usage.total<policy['stop_below_free_fraction'] or occupied+new_bytes>policy['project_generated_soft_limit_bytes']:

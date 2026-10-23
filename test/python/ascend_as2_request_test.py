@@ -7,6 +7,20 @@ import unittest
 from tilemega.bench.as2_models import RUNS
 from tilemega.bench.as2_request import bind, digest
 from tilemega.bench.as2_native_audit import compare_capture_payloads
+from tilemega.bench.as2_native import incremental_packing_bytes
+
+
+class PackingBudgetTest(unittest.TestCase):
+    def test_hardlinks_preserve_budget_and_changed_layout_requires_space(self):
+        def buffer(name,size,recipe):return dict(name=name,bytes=size,dtype='bf16',pack_json=recipe,required_input=True)
+        weight=buffer('weight',1<<30,'{"kind":"qkv_group_interleave"}')
+        buffers=[weight,buffer('alias',1024,'{"kind":"alias"}'),buffer('rope',8192,''),buffer('tokens',4096,'')]
+        key=(weight['name'],weight['bytes'],weight['dtype'],weight['pack_json'])
+        reused=incremental_packing_bytes(buffers,{key:('record','file')})
+        self.assertEqual(reused,(1<<20)+4*4096+8192+4096)
+        self.assertEqual(incremental_packing_bytes(buffers,{})-reused,1<<30)
+        changed=[dict(weight,pack_json='{"kind":"gate_up_interleave"}'),*buffers[1:]]
+        self.assertEqual(incremental_packing_bytes(changed,{key:('record','file')})-reused,1<<30)
 
 
 class RequestCapturePayloadTest(unittest.TestCase):
