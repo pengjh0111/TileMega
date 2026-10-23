@@ -31,6 +31,9 @@ ap.add_argument('--past', type=int, required=True)
 ap.add_argument('--table', type=Path, default=REPO / 'configs/targets/xcore1000_mx_decode.json')
 ap.add_argument('--csv', type=Path)
 ap.add_argument('--cell', default='')
+# A stage_bench CSV run at L = past + 1 (STAGE_BENCH_LENGTHS): attention's T_c
+# steps with L, so the table's linear interpolation is not the envelope there.
+ap.add_argument('--direct', type=Path)
 a = ap.parse_args()
 
 m = json.loads(a.manifest.read_text())
@@ -88,6 +91,14 @@ def bench(cls):
     return rows_[0]['median_ns'] if rows_ else None
 
 
+def direct(cls):
+    if cls != 'attn' or not a.direct:
+        return None
+    rows_ = [r for r in csv.DictReader(a.direct.open()) if r['kind'] == 'attention' and int(r['b']) == b and
+             int(r['length']) == a.past + 1 and int(r['tmin']) == m['attention_tmin']]
+    return float(rows_[0]['median_ns']) if rows_ else None
+
+
 out = []
 count = {'embed': 1, 'head': 1}
 print('%-8s %10s %10s %6s %10s %10s %10s %5s' % ('class', 'measured', 'bench', 'ratio', 'work', 'imbal', 'barrier',
@@ -106,6 +117,8 @@ for cls in ['embed'] + CLASSES + ['head']:
                ratio=round(med / bn, 3) if bn else '', work_ns=round(statistics.median(s['work'])),
                imbalance_ns=round(statistics.median(s['imbalance'])), barrier_ns=round(statistics.median(s['barrier'])),
                samples=len(s['measured']), per_step=per_step)
+    dn = direct(cls)
+    rec.update(bench_at_l_ns=round(dn) if dn else '', ratio_at_l=round(med / dn, 3) if dn else '')
     out.append(rec)
     print('%-8s %10d %10s %6s %10d %10d %10d %5d' % (cls, rec['measured_ns'], rec['bench_ns'], rec['ratio'],
                                                       rec['work_ns'], rec['imbalance_ns'], rec['barrier_ns'],
