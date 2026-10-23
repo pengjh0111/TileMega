@@ -16,6 +16,38 @@ def read(path,shape,dtype=torch.bfloat16):
     return torch.from_file(str(path),shared=False,size=count,dtype=dtype).reshape(shape)
 
 
+def compare_history(binding,native,reference,out):
+    identity=json.loads((binding/'request.json').read_text());actual=json.loads((native/'result.json').read_text())
+    ref=json.loads((reference/'result.json').read_text());capture=json.loads((reference/'last_forward/capture.json').read_text())
+    for name in ('model_id','batch','config_sha256','weight_manifest_sha256','input_sha256'):
+        if identity[name]!=ref[name]:raise ValueError('KV prefix identity mismatch: '+name)
+    if actual.get('request_mode','natural_greedy')!='natural_greedy' or actual['binding_directory']!=str(binding) or actual['osl']<ref['osl'] or actual['repetitions']!=1 or actual['warmup'] or identity['batch']!=1 or not ref.get('diagnostic_capture_last_forward'):
+        raise ValueError('Require one B1 natural request and an independent causal-prefix capture')
+    a=read(native/'request_0/tokens.bin',(1,actual['osl']),torch.int32)
+    b=read(reference/'tokens_0.bin',(1,ref['osl']),torch.int32)
+    if (a[:,:ref['osl']]!=b).any():raise ValueError('Different token paths cannot validate cache identity')
+    for phase,entry in identity['phases'].items():
+        if any(digest(binding/phase/name)!=sha for name,sha in entry['bound_hashes'].items()):raise ValueError('Bound plan changed')
+    stages=list(struct.iter_unpack('<17Q16I',(binding/'decode/stages.bin').read_bytes()));attention=[i for i,s in enumerate(stages) if s[17]==13]
+    files={v['name']:v for v in capture['files']};rows=[];valid=actual['osl']+63
+    for layer,index in enumerate(attention):
+        s=stages[index]
+        for side in ('k','v'):
+            record=files[f'l{layer}.kv_{side}'];gold_path=reference/'last_forward'/record['file']
+            if record['shape']!=[1,s[23],capture['past']+1,s[24]] or digest(gold_path)!=record['sha256']:
+                raise ValueError('Independent KV capture changed')
+            path=native/'request_0/decode'/f'kv_{side}_history_s{index}.bin'
+            value=read(path,(1,s[23],valid,s[24]))[:,:,:capture['past']+1,:];gold=read(gold_path,record['shape'])
+            different=(value!=gold).nonzero()
+            rows.append(dict(layer=layer,side=side,compared_elements=gold.numel(),bitwise_different=len(different),
+                first_different_position=int(different[:,2].min()) if len(different) else None))
+    result=dict(schema='tilemega.as2.causal_kv_prefix.v1',status='pass' if all(not v['bitwise_different'] for v in rows) else 'fail',
+        scope='all saved layers and valid positions of an independent same-token causal prefix; not timing',
+        native_outputs=actual['osl'],reference_outputs=ref['osl'],positions_compared=capture['past']+1,
+        boundaries_covered=[n for n in (63,64,65,127,128,129,1023,1024) if n<=capture['past']],rows=rows)
+    out.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps({k:v for k,v in result.items() if k!='rows'}))
+
+
 def compare(binding,native,reference,out):
     identity=json.loads((binding/'request.json').read_text());actual=json.loads((native/'result.json').read_text())
     ref=json.loads((reference/'result.json').read_text());capture=json.loads((reference/'last_forward/capture.json').read_text())
@@ -97,10 +129,11 @@ def compare(binding,native,reference,out):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     for name in ('binding','native','reference','out'):p.add_argument('--'+name,type=Path,required=True)
+    p.add_argument('--compare-kv-prefix',action='store_true')
     a=p.parse_args();torch.set_num_threads(1)
     for name in ('binding','native','reference','out'):setattr(a,name,controlled(getattr(a,name),[RUNS]))
     if a.out.exists():raise FileExistsError(a.out)
-    compare(a.binding,a.native,a.reference,a.out)
+    (compare_history if a.compare_kv_prefix else compare)(a.binding,a.native,a.reference,a.out)
 
 
 if __name__=='__main__':main()
