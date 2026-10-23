@@ -68,11 +68,9 @@ def main():
     for b in buffers:
         value=saved.get(b['name'])
         if b['name'].startswith('native.gemm.raw.'):
-            index=int(b['name'].rpartition('.')[2])
-            # The LM-head raw workspace is identified by the verified stage,
-            # not by assuming a particular layer count or final stage number.
-            raw=(plan/'stages.bin').read_bytes();stage=struct.unpack_from('<17Q16I',raw,index*200)
-            if stage[17]==0 and stage[18]==3:value=logits
+            # Logical names remain stable when split projection inserts stages.
+            stages=struct.iter_unpack('<17Q16I',(plan/'stages.bin').read_bytes())
+            if any(s[17]==0 and s[18]==3 and s[16]==b['offset_bytes'] for s in stages):value=logits
         if value is None:continue
         cpu=value.cpu().contiguous().bfloat16()
         if cpu.numel()*2!=b['bytes']:raise ValueError('Reference/native buffer shape mismatch: '+b['name'])
