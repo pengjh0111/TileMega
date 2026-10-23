@@ -40,6 +40,10 @@ class AscendPriceAccounting(unittest.TestCase):
         partial[20]=64;partial[22]=8192;partial[24]=2731
         self.assertEqual(logical_bytes(partial,[],0,0),794720)
         self.assertEqual(logical_bytes(partial,[],191,0),794432)
+        partial[21]=combine[21]=3072;combine[22]=8192;partial[23]=combine[23]=2
+        partial[24]=combine[24]=4096;combine[20]=64
+        self.assertEqual(logical_bytes(partial,[],191,0),1187840)
+        self.assertEqual(logical_bytes(combine,[],95,0),32768)
 
 
 if __name__=='__main__':unittest.main()
