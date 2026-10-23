@@ -31,6 +31,10 @@ def logical_bytes(s,m,tile,past):
             size=min(width,k-part*width)
             return 2*(mr*size+nr*size)+4*mr*nr
         n=2*(mr*k+nr*k+mr*nr)
+        if s[31]==2:
+            if (rows,columns,k,epilogue)!=(1024,2048,8192,1) or extent>1:
+                raise ValueError('Unregistered local tail reduction traffic')
+            if tile%nt*tn>=1792:n+=56*mr*nr
         if epilogue==1:n+=6*mr*nr
         elif epilogue==2:n+=3*mr*nr
         elif epilogue==3:n+=2*mr*nr+8*mr

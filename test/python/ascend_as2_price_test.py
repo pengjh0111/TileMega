@@ -59,5 +59,13 @@ class AscendPriceAccounting(unittest.TestCase):
         self.assertEqual(logical_bytes(pack,[],63,0),24576)
         with self.assertRaises(ValueError):logical_bytes(pack,[],64,0)
 
+    def test_local_tail_partials_are_private_body_traffic(self):
+        local=self.stage(0,2,1);local[20:24]=[1024,2048,8192,0]
+        base=local.copy();base[31]=1
+        self.assertEqual(logical_bytes(local,[],13,0),logical_bytes(base,[],13,0))
+        self.assertEqual(logical_bytes(local,[],14,0)-logical_bytes(base,[],14,0),56*16*128)
+        local[20]=64
+        with self.assertRaises(ValueError):logical_bytes(local,[],14,0)
+
 
 if __name__=='__main__':unittest.main()
