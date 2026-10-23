@@ -37,6 +37,7 @@ namespace tilemega::codegen::mx {
 
 using backend::mx::MxAttentionOperands;
 using backend::mx::MxGemmOperands;
+using backend::mx::UniformOpaque;
 
 /// Per-layer weights and caches, from the plan's external buffers.
 struct MxLayerBinding {
@@ -104,28 +105,39 @@ struct Program {
                           nullptr, nullptr, nullptr, nullptr,          nullptr, nullptr,      nullptr, P::kCapacity,
                           0,       P::kEpsilon};
   }
+  // Each stage takes the layer and the step's past through UniformOpaque:
+  // invariant over the layer loop, everything derived from them (the
+  // attention plan, RoPE positions, layer addresses) was otherwise computed
+  // once per step and kept in scalar registers through every stage (spilled
+  // to MTreg lanes, hundreds of lane moves without -metaxgpu-disable-licm).
   __device__ __forceinline__ static MxGemmOperands Qkv(Binding const& b, int l, int past) {
+    l = UniformOpaque(l), past = UniformOpaque(past);
     auto const& w = b.layer[l];
     return MxGemmOperands{b.s.x,     w.w_qkv,    b.s.qkv,      b.s.gemm_partial, b.s.t_qkv, w.q_norm,
                           w.k_norm,  b.rope_cos, b.rope_sin,   w.k_cache,        w.vt_cache, nullptr,
                           nullptr,   nullptr,    nullptr,      P::kCapacity,     past,       P::kEpsilon};
   }
   __device__ __forceinline__ static MxGemmOperands O(Binding const& b, int l) {
+    l = UniformOpaque(l);
     return Gemm(b, b.s.ctx, b.layer[l].w_o, b.s.x, b.s.t_o);
   }
   __device__ __forceinline__ static MxGemmOperands GateUp(Binding const& b, int l) {
+    l = UniformOpaque(l);
     return Gemm(b, b.s.x, b.layer[l].w_gu, b.s.h, b.s.t_gu);
   }
   __device__ __forceinline__ static MxGemmOperands Down(Binding const& b, int l) {
+    l = UniformOpaque(l);
     return Gemm(b, b.s.h, b.layer[l].w_down, b.s.x, b.s.t_down);
   }
   __device__ __forceinline__ static MxGemmOperands Head(Binding const& b, int past) {
+    past = UniformOpaque(past);
     return MxGemmOperands{b.s.x,        b.w_head, nullptr,        b.s.gemm_partial, nullptr,
                           nullptr,      nullptr,  nullptr,        nullptr,          nullptr,
                           nullptr,      b.s.head_value, b.s.head_index, b.s.t_head, b.tokens,
                           P::kCapacity, past,     P::kEpsilon};
   }
   __device__ __forceinline__ static MxAttentionOperands Attn(Binding const& b, int l, int past) {
+    l = UniformOpaque(l), past = UniformOpaque(past);
     return MxAttentionOperands{b.s.qkv,          b.layer[l].k_cache, b.layer[l].vt_cache, b.s.ctx,
                                b.s.attn_partial, b.s.t_attn,         P::kCapacity,        past};
   }
