@@ -166,7 +166,9 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
     if(task>=s.tasks)return false;
 #if defined(TILEMEGA_LLM_SPLIT_K) && TILEMEGA_LLM_SPLIT_K
     if(s.kind==6) {
-      if(s.extent!=3 || s.width!=(s.k+2)/3 || (s.k!=6144 && s.k!=8192) || s.columns!=2048 ||
+      const bool family=(s.extent==3 && s.columns==2048 && (s.k==6144 || s.k==8192)) ||
+                        (s.extent==2 && s.columns==3072 && s.k==8192);
+      if(!family || s.width!=(s.k+s.extent-1)/s.extent ||
           (s.rows!=1 && s.rows!=64) || s.epilogue!=1 || s.operands[5]==llm::kAbsent)return false;
       const unsigned nt=(s.columns+TN-1)/TN,first=task%nt*TN,row=task/nt*TM;
       for(unsigned r=row;r<row+TM && r<s.rows;++r) {

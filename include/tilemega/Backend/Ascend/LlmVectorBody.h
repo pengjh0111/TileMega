@@ -64,7 +64,7 @@ class LlmVectorBody {
   }
   __aicore__ inline bool CombineGemm(GM_ADDR partial,GM_ADDR output,
       uint64_t part_stride,unsigned parts,unsigned n) {
-    if(parts!=3 || !n || n>kElements || part_stride<n)return false;
+    if((parts!=2 && parts!=3) || !n || n>kElements || part_stride<n)return false;
     AscendC::GlobalTensor<float> src;src.SetGlobalBuffer((__gm__ float*)partial);
     AscendC::DataCopyExtParams copy{1,n*4,0,0,0};
     AscendC::DataCopyPadExtParams<float> pad(false,0,0,0);

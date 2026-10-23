@@ -38,8 +38,10 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
 #if !defined(TILEMEGA_LLM_SPLIT_K) || !TILEMEGA_LLM_SPLIT_K
     throw std::invalid_argument("This binary does not register CTG split-K/combine");
 #else
-    if(s.variant!=1 || s.extent!=3 || s.width!=(s.k+2)/3 || s.group!=1 ||
-        (s.rows!=1 && s.rows!=64) || s.columns!=2048 || (s.k!=6144 && s.k!=8192) ||
+    const bool family=(s.extent==3 && s.columns==2048 && (s.k==6144 || s.k==8192)) ||
+                      (s.extent==2 && s.columns==3072 && s.k==8192);
+    if(!family || s.variant!=1 || s.width!=(s.k+s.extent-1)/s.extent || s.group!=1 ||
+        (s.rows!=1 && s.rows!=64) ||
         (s.kind==0?s.epilogue!=0:s.epilogue!=1))
       throw std::invalid_argument("Unregistered split-K/combine shape or rounding contract");
 #endif
