@@ -84,6 +84,16 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal)
         !v.At("production_compatible").AsBool("production-compatible calibration")))
       throw std::invalid_argument("native mainloop calibration needs a matching resource audit");
     if(v.At("metric").AsString("metric").rfind("attention_",0)==0) {
+      // Runtime grid alone cannot identify the launch-bounds specialization.
+      auto compiled=v.Find("compiled_residency");auto grid=v.Find("grid");
+      double residency=compiled?compiled->AsNumber("compiled attention residency"):0;
+      double blocks=grid?grid->AsNumber("attention grid"):0;
+      if(!compiled || !grid || (residency!=1 && residency!=2) ||
+          target_.res.num_sms<=0 || blocks!=residency*target_.res.num_sms)
+        throw std::invalid_argument("attention observation requires explicit compiled_residency matching grid: "+
+            v.At("metric").AsString("metric")+" compiled_residency="+
+            (compiled?std::to_string(residency):"missing")+" grid="+
+            (grid?std::to_string(blocks):"missing")+" num_sms="+std::to_string(target_.res.num_sms));
       if(!v.Find("cache_state") ||
           (v.At("cache_state").AsString("attention observation cache state")!="warm_reuse" &&
            v.At("cache_state").AsString("attention observation cache state")!="l2_scrub_surrogate"))

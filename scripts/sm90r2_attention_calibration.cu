@@ -95,9 +95,9 @@ void Run(Sm90DenseAttentionOperands p,U64* grid,U64* stamps,int repeats,
 void Print(char const* metric,int b,int d,int q,bool norm,int s,int keys,int slots,
     int new_row_work,int past,int grid,std::vector<double> x) {
   std::sort(x.begin(),x.end());
-  std::printf("%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%zu,%.12g,%.12g,ns,integer_delta_v1,%s,%zu,%zu,%s\n",metric,
+  std::printf("%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%zu,%.12g,%.12g,ns,integer_delta_v1,%s,%zu,%zu,%s,%d\n",metric,
       b,d,q,int(norm),s,keys,slots,new_row_work,past,grid,x.size(),x[x.size()/2],x[std::min(x.size()-1,x.size()*99/100)],
-      cache_state,cache_bytes,l2_bytes,envelope_origin);
+      cache_state,cache_bytes,l2_bytes,envelope_origin,residency);
 }
 
 template<int B,int D,int Q,bool Norm,int S,int Keys=64,int Slots=3,int NewRowWork=0>
@@ -114,9 +114,9 @@ void Case(cudaDeviceProp const& prop) {
   if(audit_only) {
     cudaFuncAttributes attributes{};
     Check(cudaFuncGetAttributes(&attributes,Run<B,D,Q,Norm,S,Keys,Slots,NewRowWork>));
-    std::printf("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%zu,%d,%d,%s,%zu,%zu\n",B,D,Q,int(Norm),
+    std::printf("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%zu,%d,%d,%s,%zu,%zu,%d\n",B,D,Q,int(Norm),
         S,Keys,Slots,NewRowWork,grid,shared,attributes.numRegs,attributes.localSizeBytes,
-        resident,int(resident==residency && A::kSharedBytes<=shared),cache_state,cache_bytes,l2_bytes);
+        resident,int(resident==residency && A::kSharedBytes<=shared),cache_state,cache_bytes,l2_bytes,residency);
     return;
   }
   if(A::kSharedBytes>shared || resident!=residency) {
@@ -235,8 +235,8 @@ int main(int argc,char** argv) {try {
     throw std::runtime_error("device L2 size cannot define the eviction allocation");
   cache_bytes=cold_l2?4*l2_bytes:0;
   std::printf(audit_only?
-      "batch,head_dim,queries,qk_norm,chunks,block_keys,slots,new_row_work,grid,shared_bytes,registers,local_bytes,resident,compatible,cache_state,cache_preparation_bytes,l2_bytes\n":
-      "metric,batch,head_dim,queries,qk_norm,chunks,block_keys,slots,new_row_work,past,grid,samples,median,p99,unit,timestamp_arithmetic,cache_state,cache_preparation_bytes,l2_bytes,envelope_origin\n");
+      "batch,head_dim,queries,qk_norm,chunks,block_keys,slots,new_row_work,grid,shared_bytes,registers,local_bytes,resident,compatible,cache_state,cache_preparation_bytes,l2_bytes,compiled_residency\n":
+      "metric,batch,head_dim,queries,qk_norm,chunks,block_keys,slots,new_row_work,past,grid,samples,median,p99,unit,timestamp_arithmetic,cache_state,cache_preparation_bytes,l2_bytes,envelope_origin,compiled_residency\n");
 #ifdef TILEMEGA_CALIBRATION_FOCUS_BATCH
   // Every dimension is explicit so a focused compile cannot silently price a
   // neighboring geometry. nvcc treats comma-separated -D values as a list.

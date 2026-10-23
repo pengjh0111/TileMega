@@ -16,7 +16,7 @@ json::Value Fixture() {
         {"slot_bytes",16384},{"slots",3},{"batch",1},{"tile_n",32},
         {"vector_sums",1},{"head_dim",128},{"queries",2},{"qk_norm",1},
         {"warps_n",1},{"warps_k",4},{"register_stages",1},
-        {"cache_state","warm_reuse"},
+        {"cache_state","warm_reuse"},{"compiled_residency",1},
         {"production_compatible",true},
         {"chunks",16},{"block_keys",64},{"new_row_work",0},{"past",575},{"tile_k",256},{"input_k",4096},{"cache",cache}});
   };
@@ -40,8 +40,10 @@ json::Value Fixture() {
   point("attention_critical_before_barrier",6000,"na");
   point("attention_critical_before_barrier",8000,"na");observations.back().Set("batch",16);
   point("attention_critical_before_barrier",7000,"na");observations.back().Set("grid",264);
+  observations.back().Set("compiled_residency",2);
   point("attention_critical_before_barrier",9000,"na");
   observations.back().Set("batch",16);observations.back().Set("grid",264);
+  observations.back().Set("compiled_residency",2);
   auto attention_rows=observations;
   for(auto const& row:attention_rows)
     if(row.At("metric").AsString("metric")=="attention_critical_before_barrier")
@@ -153,6 +155,19 @@ int main() {
   };
   auto old_attention=Fixture();old_attention.Set("attention_grid_model","explicit_grid_chunks_v2");
   assert(rejects(old_attention,w,c).find("exact geometry and cache")!=std::string::npos);
+  for(int bad:{0,1,3}) {
+    auto wrong_residency=Fixture();auto bad_rows=wrong_residency.At("observations").AsArray("observations");
+    for(auto& row:bad_rows)
+      if(row.At("metric").AsString("metric")=="attention_critical_before_barrier" &&
+          row.At("grid").AsNumber("grid")==264) {
+        if(bad==0)row=without_field(row,"compiled_residency");
+        else row.Set("compiled_residency",bad);
+      }
+    wrong_residency.Set("observations",bad_rows);
+    auto error=rejects(wrong_residency,w,resident_two);
+    for(auto key:{"compiled_residency", "attention_critical_before_barrier", "grid=264", "num_sms=132"})
+      assert(error.find(key)!=std::string::npos);
+  }
   assert(rejects(without_field(Fixture(),"attention_cache_state"),w,c)
       .find("attention_cache_state")!=std::string::npos);
   auto unknown_cache=Fixture();unknown_cache.Set("attention_cache_state","unspecified");

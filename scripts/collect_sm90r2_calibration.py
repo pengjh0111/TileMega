@@ -13,7 +13,7 @@ NUMBERS = {'grid', 'slot_bytes', 'slots', 'samples', 'median', 'p99', 'batch', '
            'input_k', 'tile_k', 'vector_sums', 'head_dim', 'queries', 'qk_norm',
            'chunks', 'block_keys', 'past', 'warps_n', 'warps_k', 'register_stages',
            'initialized_bytes', 'new_row_work', 'active_ctas', 'delay_ns',
-           'cache_preparation_bytes', 'l2_bytes'}
+           'cache_preparation_bytes', 'l2_bytes', 'compiled_residency'}
 
 
 def records(log, attempt):
