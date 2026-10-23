@@ -66,6 +66,19 @@ def costs(jobs,out):
     out.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps({k:v for k,v in result.items() if k!='rows'}))
 
 
+def tile_body_prices(stage,profile):
+    if stage[17]!=0 or stage[31]!=2:return None
+    if tuple(stage[20:23])!=(1024,2048,8192) or stage[19]!=1024:
+        raise ValueError('Unregistered local Body price domain')
+    buckets=profile['body_service_regions'];result=[]
+    for name,count in (('regular',896),('tail',128)):
+        row=buckets[name]
+        if row['tasks']!=count or not math.isfinite(row['median']) or row['median']<=0:
+            raise ValueError('Incomplete or nonpositive local Body region price')
+    for tile in range(stage[19]):result.append(buckets['tail' if tile%16>=14 else 'regular']['median'])
+    return result
+
+
 def prices(plan,profile_path,cost_path,out):
     plan,profile_path,cost_path,out=(controlled(p,[RUNS]) for p in (plan,profile_path,cost_path,out))
     if out.exists():raise FileExistsError(out)
@@ -98,15 +111,19 @@ def prices(plan,profile_path,cost_path,out):
             internal_handoff_estimate_ns=internal,
             internal_sync_source='included in measured composite span' if r.get('internal_mix_coordination_included') else 'cross-group symmetric readiness used conservatively for two same-group GEMM messages' if internal else 'no composite handoff',
             logical_gm_bytes=[logical_bytes(s,m,tile,profile['past']) for tile in range(s[19])]))
+        per_tile=tile_body_prices(s,r)
+        if per_tile is not None:
+            rows[-1]['tile_service_ns']=[v+overhead+internal for v in per_tile]
+            rows[-1]['tile_price_source']='measured regular/tail region medians plus sourced overhead'
     result=dict(schema='tilemega.as2.native_task_prices.v1',status='sourced_empirical_context',
-        price_provider_version=2,dispatcher_accounting='actual_owner_role_and_disjoint_participant',
+        price_provider_version=3,dispatcher_accounting='actual_owner_role_and_disjoint_participant',
         model_id=profile['model_id'],config_sha256=profile['config_sha256'],batch=m[8],seq=m[9],groups=m[1],runtime_abi=m[0],
         phase=phase,past_min=0,past_max=profile['past'],stages=rows,
         source_profile=str(profile_path),source_profile_sha256=digest(profile_path),
         source_costs=str(cost_path),source_costs_sha256=digest(cost_path),
         source_plan=str(plan),source_stages_sha256=digest(plan/'stages.bin'),
         gm_bytes_per_ns=cost['gm_bytes_per_ns'],cross_worker_ready_ns=cost['cross_worker_ready_ns'],
-        timing_status=cost['timing_status'],accuracy='per-stage median plus measured metadata/publication overhead; conservative active-KV upper bound',
+        timing_status=cost['timing_status'],accuracy='stage or explicit local-region median plus measured metadata/publication overhead; conservative active-KV upper bound',
         limitations=['no automatic transfer to another model/G/geometry','MIX service sums serial Cube/epilogue phases',
             'GM calendar is conservative and not a detailed pipelined interconnect model','contended costs are context-local, not portable hardware constants'])
     out.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps({k:v for k,v in result.items() if k!='stages'}))

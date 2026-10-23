@@ -280,14 +280,20 @@ int main(int argc,char** argv) {
           for(unsigned s=0;s<rows.size();++s) {
             auto const& row=rows[s];auto const& bytes=row.At("logical_gm_bytes").AsArray("GM bytes");
             double service=row.At("service_ns").AsNumber("service_ns");
+            auto tile_prices=row.Find("tile_service_ns");
+            if(tile_prices && tile_prices->AsArray("tile services").size()!=bytes.size())
+              throw std::invalid_argument("Incomplete coordinate-specific task prices");
             if(row.At("stage").AsNumber("stage")!=s || row.At("tasks").AsNumber("tasks")!=problem.counts[s] ||
                 bytes.size()!=std::size_t(problem.counts[s]) || !std::isfinite(service) || service<=0)
               throw std::invalid_argument("Missing or nonpositive native task price");
             for(unsigned tile=0;tile<bytes.size();++tile) {
               double n=bytes[tile].AsNumber("logical bytes");
+              double selected_service=tile_prices?tile_prices->AsArray("tile services")[tile].AsNumber("tile service"):service;
+              if(!std::isfinite(selected_service) || selected_service<=0)
+                throw std::invalid_argument("Nonpositive coordinate-specific task price");
               if(!std::isfinite(n) || n<0 || n>=double(UINT64_MAX) || std::floor(n)!=n)
                 throw std::invalid_argument("Unrepresentable native GM demand");
-              tasks.at(problem.offsets[s]+tile).price={service,uint64_t(n),path.string()};
+              tasks.at(problem.offsets[s]+tile).price={selected_service,uint64_t(n),path.string()};
             }
           }
           scheduling_costs={prices.At("gm_bytes_per_ns").AsNumber("shared GM rate"),

@@ -116,13 +116,17 @@ def extract(binding,job_path,phase,repetition,out):
         worker_windows.append(dict(worker=w,body_ns=busy,profiled_queue_window_ns=window,
             body_fraction=busy/window if window else None,
             note='excludes metadata/waits/frontiers/profile writes; not a hardware utilization counter'))
-    service=[[] for _ in stages];traffic=[[] for _ in stages]
+    service=[[] for _ in stages];traffic=[[] for _ in stages];regions={}
     for id,(task,values) in enumerate(zip(tasks,intervals)):
         if len(values)!=1+task[6]:raise ValueError('Incomplete owner/participant service profile')
         # A single GEMM's Cube/epilogue intervals are disjoint. A cooperative
         # attention owner span already contains its nested participant phases.
         composite=stages[task[0]][17]==13 and stages[task[0]][31] in (4,5,6)
-        service[task[0]].append(values[task[2]] if composite else sum(values.values()))
+        measured=values[task[2]] if composite else sum(values.values())
+        service[task[0]].append(measured)
+        if stages[task[0]][17]==0 and stages[task[0]][31]==2:
+            buckets=regions.setdefault(task[0],dict(regular=[],tail=[]))
+            buckets['tail' if task[1]%16>=14 else 'regular'].append(measured)
         traffic[task[0]].append(logical_bytes(stages[task[0]],m,task[1],past))
     rows=[]
     for i,(s,values,bytes_) in enumerate(zip(stages,service,traffic)):
@@ -135,6 +139,9 @@ def extract(binding,job_path,phase,repetition,out):
             service_measurement='composite_owner_reservation_span' if s[17]==13 and s[31] in (4,5,6) else 'serial_compute_copy_intervals',
             internal_mix_coordination_included=s[17]==13 and s[31] in (4,5,6),
             dispatcher_sync_ns=None,total_task_service_ns=None,calibration_status='body_only_not_total_task_price'))
+        if i in regions:
+            rows[-1]['body_service_regions']={name:dict(tasks=len(samples),median=statistics.median(samples),
+                min=min(samples),max=max(samples)) for name,samples in regions[i].items()}
     result=dict(schema='tilemega.as2.native_body_profile.v1',status='measured_body_only',phase=phase,past=past,
         model_id=identity['model_id'],config_sha256=identity['config_sha256'],batch=m[8],groups=m[1],runtime_abi=m[0],
         job=str(job_path),binary_sha256=job['executable_sha256'],physical_device_id=job['physical_device_id'],
