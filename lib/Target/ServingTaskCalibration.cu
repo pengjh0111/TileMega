@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
-// In-body serving calibration: one CTA, device timer around the actual body.
+// In-body serving calibration: device timer around the actual body, in place
+// at a plan's residency R (MX4 prompt §5.6): 104*R CTAs run the body at once,
+// each on its own weight / KV slice, and the fit of R is over the CTAs'
+// median body time. Keys carry R (_r<R>) and, for a GEMM, its depth (_d<S>).
 // xcore1000: the 100 MHz realtime counter (P-11) replaces clock64, whose rate
 // follows DVFS; bodies run for microseconds, so its 10 ns step is below 1 %.
 // Decode attention on xcore1000 is the simt body (attention_impl=simt).
@@ -7,6 +10,7 @@
 #define TILEMEGA_ATTENTION_IMPL 3
 #endif
 #include <tilemega/Target/Calibration.h>
+#include <tilemega/Solver/BackendCostQuery.h>
 #include <tilemega/Codegen/tasks/ServingEmbeddingTaskBody.h>
 #include <tilemega/Codegen/tasks/ServingRMSNormTaskBody.h>
 #include <tilemega/Codegen/tasks/ServingArgmaxReduceTaskBody.h>
@@ -25,6 +29,7 @@
 #include <limits>
 #include <map>
 #include <ostream>
+#include <regex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -53,60 +58,72 @@ __device__ unsigned long long Begin(unsigned long long* ns) {
   __syncthreads();return maca::GlobalTimerNs();
 }
 __device__ void End(unsigned long long start,unsigned long long* ns) {
-  __syncthreads();if(threadIdx.x==0)*ns=maca::GlobalTimerNs()-start;
+  __syncthreads();if(threadIdx.x==0)ns[blockIdx.x]=maca::GlobalTimerNs()-start;
 }
-__global__ void TimeEmbed(int const* tokens,Element const* table,Element* output,
+template<int R>
+__global__ void __launch_bounds__(128,R) TimeEmbed(int const* tokens,Element const* table,Element* output,
     int width,unsigned long long* cycles) {
   auto start=Begin(cycles);
   ServingEmbeddingTaskBody::RunRow(tokens,table,output,0,1,0,1,width,2);
   End(start,cycles);
 }
-__global__ void TimeNorm(Element const* input,Element const* weight,
+template<int R>
+__global__ void __launch_bounds__(128,R) TimeNorm(Element const* input,Element const* weight,
     Element* output,int width,unsigned long long* cycles) {
   __shared__ float warp_sums[4];auto start=Begin(cycles);
   ServingRMSNormTaskBody::RunRow(input,weight,output,0,1,0,width,1e-6f,warp_sums);
   End(start,cycles);
 }
-__global__ void TimeArgmax(float const* values,int const* indices,
+template<int R>
+__global__ void __launch_bounds__(128,R) TimeArgmax(float const* values,int const* indices,
     int* tokens,int count,unsigned long long* cycles) {
   __shared__ ServingArgmaxReduceTaskBody::SharedStorage storage;
   auto start=Begin(cycles);
   ServingArgmaxReduceTaskBody::RunRow(values,indices,tokens,0,count,1,0,&storage);
   End(start,cycles);
 }
-__global__ void TimeMerge(float const* partial,float const* lse,
+template<int R>
+__global__ void __launch_bounds__(128,R) TimeMerge(float const* partial,float const* lse,
     Element* context,int cap,int block,int past,unsigned long long* cycles) {
   auto start=Begin(cycles);
   AttentionMergeTaskBody<64,4,1>::Run(partial,lse,context,0,0,1,cap,block,past);
   End(start,cycles);
 }
 using X=arch::Xcore1000;
-// Depth 1, the serial mainloop. Since MX-3 Stages is a real pipeline depth,
-// bounded by registers (ServingGemmDepthFits), and 16x128 or 32x128 cannot
-// pipeline at all within that budget, so depth 2 no longer builds for them.
-// The cost model carries depth through in-flight bytes
-// (ServingGemmIterationsInFlight), so the fit is of the serial body and the
-// pipeline is not counted twice.
-using Gemm=ServingGemmTaskBody<X,16,128,64,1>;
-using NarrowGemm=ServingGemmTaskBody<X,16,32,64,1>;
-using TallerGemm=ServingGemmTaskBody<X,32,128,64,1>;
+// GEMM bodies at every legal depth (ServingBF16ShapeLegal, the solver's
+// domain rule) for five tile shapes. Stages is a real pipeline depth since
+// MX-3; the fit of one depth is that depth's body, and the cost model takes
+// it per depth (TaskPriceParts: "_d<S>"). Shapes: 16x128, 16x32, 32x128,
+// 64x64, 64x128.
+template<int M,int N,int S> using GemmAt=ServingGemmTaskBody<X,M,N,64,S>;
 // GEMV (M <= 4) is a distinct body; its fits carry the "gemv_" prefix.
 using Gemv=ServingGemvTaskBody<X,64,128>;
 using NarrowGemv=ServingGemvTaskBody<X,16,128>;
-template<class Body>
-__global__ void TimeGemm(ServingGemmOperands operands,unsigned long long* cycles) {
-  extern __shared__ char storage[];auto start=Begin(cycles);
+/// Each CTA reads its own slice of A and B and writes its own output tile.
+// Each timing kernel is compiled for R resident CTAs per AP, as the plan's
+// kernels are (__launch_bounds__(threads, TILEMEGA_MIN_BLOCKS_PER_SM)).
+template<class Body,int R>
+__global__ void __launch_bounds__(128,R) TimeGemm(ServingGemmOperands operands,unsigned long long* cycles,
+    std::size_t a_slice,std::size_t b_slice,std::size_t out_slice,int slices) {
+  extern __shared__ char storage[];
+  std::size_t const slice=blockIdx.x%unsigned(slices);
+  operands.a+=slice*a_slice;operands.b+=slice*b_slice;operands.output+=slice*out_slice;
+  auto start=Begin(cycles);
   Body::Run(operands,0,0,storage);End(start,cycles);
 }
 // Decode runs the SIMT body (attention_impl=simt), prefill the MMA body.
-template<int D,int Q,int S,bool Norm>
+// Prefill at the KV tile a plan instantiates (ServingAttentionKvTile: 32 or
+// 64); its fits carry "_kv<tile>".
+template<int D,int Q,int S,bool Norm,int KV=64>
 using AttentionBody=std::conditional_t<S==1,IndependentAttentionTaskBody<X,D,Q,Norm>,
-    FusedAttentionTaskBody<X,D,Q,S,16,64,Norm>>;
-template<int D,int Q,int S,bool Norm>
-__global__ void TimeAttention(ServingAttentionOperands operands,
-    unsigned long long* cycles,int query_block=0) {
-  using Body=AttentionBody<D,Q,S,Norm>;
+    FusedAttentionTaskBody<X,D,Q,S,16,KV,Norm>>;
+template<int D,int Q,int S,bool Norm,int R,int KV=64>
+__global__ void __launch_bounds__(128,R) TimeAttention(ServingAttentionOperands operands,
+    unsigned long long* cycles,int query_block,std::size_t kv_slice,int slices) {
+  using Body=AttentionBody<D,Q,S,Norm,KV>;
   extern __shared__ __align__(16) unsigned char bytes[];
+  std::size_t const slice=blockIdx.x%unsigned(slices);
+  operands.key_cache+=slice*kv_slice;operands.value_cache+=slice*kv_slice;
   auto& storage=*reinterpret_cast<typename Body::SharedStorage*>(bytes);
   auto start=Begin(cycles);Body::Run(operands,storage,0,0,query_block,0);End(start,cycles);
 }
@@ -115,21 +132,27 @@ __global__ void TimeAttention(ServingAttentionOperands operands,
 // PrefillAttentionMma at Tokens=1, one 16-row query tile, one KV block.
 template<int D,int Q,bool Norm>
 using DecodeMmaBody=mx::PrefillAttentionMma<D,Q,1,16,(Q>=8?64:32),Norm>;
-template<int D,int Q,bool Norm>
-__global__ void TimeDecodeMma(ServingAttentionOperands operands,unsigned long long* cycles) {
+template<int D,int Q,bool Norm,int R>
+__global__ void __launch_bounds__(128,R) TimeDecodeMma(ServingAttentionOperands operands,unsigned long long* cycles,
+    std::size_t kv_slice,int slices) {
   using Body=DecodeMmaBody<D,Q,Norm>;
   extern __shared__ __align__(16) unsigned char bytes[];
+  std::size_t const slice=blockIdx.x%unsigned(slices);
+  operands.key_cache+=slice*kv_slice;operands.value_cache+=slice*kv_slice;
   auto& storage=*reinterpret_cast<typename Body::SharedStorage*>(bytes);
   auto start=Begin(cycles);Body::Run(operands,storage,0,0,0,0);End(start,cycles);
 }
 
+/// The median over repeats of the median CTA body time of one launch.
 template<class Launch>
-double Measure(Launch launch,unsigned long long* ns,int repeats) {
+double Measure(Launch launch,unsigned long long* ns,int ctas,int repeats) {
   launch();Check(cudaDeviceSynchronize(),"warm serving body");
   std::vector<double> values;
   for(int i=0;i<std::max(3,repeats);++i) {
     launch();Check(cudaDeviceSynchronize(),"time serving body");
-    values.push_back(double(*ns));
+    std::vector<double> per(ns,ns+ctas);
+    std::nth_element(per.begin(),per.begin()+ctas/2,per.end());
+    values.push_back(per[ctas/2]);
   }
   std::sort(values.begin(),values.end());return values[values.size()/2];
 }
@@ -188,99 +211,167 @@ void MeasureServingTaskBodies(TargetSpec& target,Options const& options,std::ost
   if(target.arch_tag!="xcore1000")
     throw std::invalid_argument("serving TaskBody calibration is built for xcore1000");
   Check(cudaSetDevice(options.device),"select calibration device");
-  auto* cycles=Managed<unsigned long long>(1);
+  cudaDeviceProp properties{};Check(cudaGetDeviceProperties(&properties,options.device),"device properties");
+  int const aps=properties.multiProcessorCount;
+  int const most=4*aps;                                  // R <= 4
+  auto* cycles=Managed<unsigned long long>(most);
   auto* element=Device<Element>(std::size_t(1088)*128*6);
-  auto* output=Device<Element>(std::size_t(1088)*128*6);
+  auto* output=Device<Element>(std::size_t(most)*64*128);  // one output tile per CTA
   auto* numbers=Device<float>(std::size_t(1088)*128*6);
   auto* indices=Device<int>(std::size_t(1088)*128*6);
   auto* tokens=Device<int>(1088);
   auto* lse=Device<float>(1088);
+  // Weights and KV: 256 MiB of slices, so the CTAs of one launch read DRAM.
+  std::size_t const pool=std::size_t(128)<<20;
+  auto* weights=Device<Element>(pool);
   std::map<std::string,std::vector<Sample>> observations;
+  int residency=1,grid=aps;
+  auto suffix=[&]{return "_r"+std::to_string(residency);};
   auto record=[&](std::string const& name,double bytes,double flops,auto launch) {
-    double ns=Measure(launch,cycles,std::min(9,std::max(3,options.repeats)));
-    observations[name].push_back({bytes,flops,ns});
-    log<<name<<'\t'<<bytes<<'\t'<<flops<<'\t'<<ns<<'\n';
+    double ns=Measure(launch,cycles,grid,std::min(9,std::max(3,options.repeats)));
+    observations[name+suffix()].push_back({bytes,flops,ns});
+    log<<name+suffix()<<'\t'<<bytes<<'\t'<<flops<<'\t'<<ns<<'\n';
   };
+  // R CTAs of this body must be resident on every AP at once.
+  std::string why;
+  auto fits=[&](auto kernel,std::size_t smem) {
+    int blocks=0;
+    Check(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&blocks,kernel,128,smem),"occupancy");
+    cudaFuncAttributes attributes{};Check(cudaFuncGetAttributes(&attributes,kernel),"kernel attributes");
+    why="resident="+std::to_string(blocks)+" regs="+std::to_string(attributes.numRegs)+" static="+
+        std::to_string(attributes.sharedSizeBytes)+" dynamic="+std::to_string(smem)+" local="+
+        std::to_string(attributes.localSizeBytes);
+    return blocks>=residency;
+  };
+  auto skip=[&](std::string const& name){log<<name+suffix()<<"\tSKIP not resident "<<why<<"\n";};
   log<<"kind\tbytes\tflops\tbody_ns\n";
   try {
+   auto pass=[&](auto r_tag) {
+    constexpr int R=decltype(r_tag)::value;
+    residency=R;grid=aps*R;
     for(int width:{512,1024,2048,4096}) {
-      record("embedding",4*width,0,[&]{TimeEmbed<<<1,128>>>(tokens,element,output,width,cycles);});
-      record("rmsnorm",6*width,5*width,[&]{TimeNorm<<<1,128>>>(element,element,output,width,cycles);});
+      record("embedding",4*width,0,[&]{TimeEmbed<R><<<grid,128>>>(tokens,element,output,width,cycles);});
+      record("rmsnorm",6*width,5*width,[&]{TimeNorm<R><<<grid,128>>>(element,element,output,width,cycles);});
     }
     for(int count:{32,64,128,256,512,1024})
-      record("argmax_reduce",8*count,2*count,[&]{TimeArgmax<<<1,128>>>(numbers,indices,tokens,count,cycles);});
+      record("argmax_reduce",8*count,2*count,[&]{TimeArgmax<R><<<grid,128>>>(numbers,indices,tokens,count,cycles);});
     for(int blocks:{2,4,8,16}) {
       int past=blocks*64-1;
       record("attention_merge",blocks*4*64*4,blocks*4*64*4,
-        [&]{TimeMerge<<<1,128>>>(numbers,lse,output,1088,64,past,cycles);});
+        [&]{TimeMerge<R><<<grid,128>>>(numbers,lse,output,1088,64,past,cycles);});
     }
-    // Sweep three legal tile shapes as well as reduction length. A fit based
-    // only on K at one shape cannot separate bytes from MMA work.
+    // Every legal (shape, depth) and three reduction lengths: a fit on K at
+    // one shape cannot separate bytes from MMA work.
     for(auto [name,op]:std::vector<std::pair<std::string,ServingEpilogueOp>>{
         {"gemm_store",ServingEpilogueOp::kStore},
         {"gemm_residual",ServingEpilogueOp::kResidual},
         {"gemm_swiglu",ServingEpilogueOp::kSwiGLU},
-        {"gemm_argmax_partial",ServingEpilogueOp::kArgmaxPartial}})
-      for(int shape=0;shape<3;++shape)for(int k:{512,1024,2048}) {
-        int m=shape==2?32:16,n=shape==1?32:128;
-        ServingGemmOperands p{};p.a=element;p.b=element;p.residual=element;
-        p.output=output;p.partial=numbers;p.argmax_value=numbers;
-        p.argmax_index=indices;p.m=m;p.n=n;p.k_total=k;p.k_count=k;
-        p.a_row_stride=k;p.b_row_stride=k;p.output_stride=n;p.epilogue=op;
-        record(name,2.*(m+n)*k+2*m*n,2.*m*n*k,[&]{
-          if(shape==0)TimeGemm<Gemm><<<1,128,Gemm::kSharedBytes>>>(p,cycles);
-          else if(shape==1)TimeGemm<NarrowGemm><<<1,128,NarrowGemm::kSharedBytes>>>(p,cycles);
-          else TimeGemm<TallerGemm><<<1,128,TallerGemm::kSharedBytes>>>(p,cycles);
-        });
-        // GEMV: rows 1 and 4, two column widths.
-        if(shape<2)for(int rows:{1,4}) {
-          int gn=shape==0?64:16;auto q=p;q.m=rows;q.n=gn;q.output_stride=gn;
-          record("gemv_"+name,2.*(rows+gn)*k+2*rows*gn,2.*rows*gn*k,[&]{
-            if(shape==0)TimeGemm<Gemv><<<1,128,Gemv::kSharedBytes>>>(q,cycles);
-            else TimeGemm<NarrowGemv><<<1,128,NarrowGemv::kSharedBytes>>>(q,cycles);
-          });
+        {"gemm_argmax_partial",ServingEpilogueOp::kArgmaxPartial}}) {
+      auto shape_depth=[&](auto m_tag,auto n_tag,auto s_tag) {
+        constexpr int M=decltype(m_tag)::value,N=decltype(n_tag)::value,S=decltype(s_tag)::value;
+        if constexpr (solver::ServingBF16ShapeLegal(M,N,64,S)) {
+          using Body=GemmAt<M,N,S>;
+          std::string const key=name+"_d"+std::to_string(S);
+          Check(cudaFuncSetAttribute(TimeGemm<Body,R>,cudaFuncAttributeMaxDynamicSharedMemorySize,
+              Body::kSharedBytes),"opt in GEMM shared memory");
+          if(!fits(TimeGemm<Body,R>,Body::kSharedBytes)){skip(key);return;}
+          for(int k:{512,1024,2048}) {
+            ServingGemmOperands p{};p.a=element;p.b=weights;p.residual=element;
+            p.output=output;p.partial=numbers;p.argmax_value=numbers;
+            p.argmax_index=indices;p.m=M;p.n=N;p.k_total=k;p.k_count=k;
+            p.a_row_stride=k;p.b_row_stride=k;p.output_stride=N;p.epilogue=op;
+            std::size_t const b_slice=std::size_t(N)*k;
+            int const slices=int(std::min<std::size_t>(grid,pool/b_slice));
+            record(key,2.*(M+N)*k+2*M*N,2.*M*N*k,[&]{
+              TimeGemm<Body,R><<<grid,128,Body::kSharedBytes>>>(p,cycles,0,b_slice,std::size_t(M)*N,slices);
+            });
+          }
         }
+      };
+      auto depths=[&](auto m_tag,auto n_tag) {
+        shape_depth(m_tag,n_tag,std::integral_constant<int,1>{});
+        shape_depth(m_tag,n_tag,std::integral_constant<int,2>{});
+        shape_depth(m_tag,n_tag,std::integral_constant<int,3>{});
+        shape_depth(m_tag,n_tag,std::integral_constant<int,4>{});
+        static_assert(solver::kServingGemmMaxDepth==4,"depths below cover the domain");
+      };
+      depths(std::integral_constant<int,16>{},std::integral_constant<int,128>{});
+      depths(std::integral_constant<int,16>{},std::integral_constant<int,32>{});
+      depths(std::integral_constant<int,32>{},std::integral_constant<int,128>{});
+      depths(std::integral_constant<int,64>{},std::integral_constant<int,64>{});
+      depths(std::integral_constant<int,64>{},std::integral_constant<int,128>{});
+      // GEMV: rows 1 and 4, two column widths.
+      for(int shape=0;shape<2;++shape)for(int k:{512,1024,2048})for(int rows:{1,4}) {
+        int gn=shape==0?64:16;
+        ServingGemmOperands q{};q.a=element;q.b=weights;q.residual=element;q.output=output;
+        q.partial=numbers;q.argmax_value=numbers;q.argmax_index=indices;q.m=rows;q.n=gn;
+        q.k_total=k;q.k_count=k;q.a_row_stride=k;q.b_row_stride=k;q.output_stride=gn;q.epilogue=op;
+        std::size_t const b_slice=std::size_t(gn)*k;
+        int const slices=int(std::min<std::size_t>(grid,pool/b_slice));
+        record("gemv_"+name,2.*(rows+gn)*k+2*rows*gn,2.*rows*gn*k,[&]{
+          if(shape==0)TimeGemm<Gemv,R><<<grid,128,Gemv::kSharedBytes>>>(q,cycles,0,b_slice,std::size_t(rows)*gn,slices);
+          else TimeGemm<NarrowGemv,R><<<grid,128,NarrowGemv::kSharedBytes>>>(q,cycles,0,b_slice,std::size_t(rows)*gn,slices);
+        });
       }
+    }
     // Q and normalization select distinct measured bodies; a D-only fit
     // cannot represent the Q=3, Q=4 and Q=8 model paths.
     auto attention=[&](auto d_tag,auto q_tag,auto norm_tag) {
       constexpr int D=decltype(d_tag)::value,Q=decltype(q_tag)::value;
       constexpr bool Norm=decltype(norm_tag)::value;
       using Decode=AttentionBody<D,Q,1,Norm>;
-      using Prefill=AttentionBody<D,Q,64,Norm>;
-      Check(cudaFuncSetAttribute(TimeAttention<D,Q,1,Norm>,
-          cudaFuncAttributeMaxDynamicSharedMemorySize,sizeof(typename Decode::SharedStorage)),
-          "opt in decode attention shared memory");
-      Check(cudaFuncSetAttribute(TimeDecodeMma<D,Q,Norm>,
-          cudaFuncAttributeMaxDynamicSharedMemorySize,
-          sizeof(typename DecodeMmaBody<D,Q,Norm>::SharedStorage)),
-          "opt in mma16 decode attention shared memory");
-      Check(cudaFuncSetAttribute(TimeAttention<D,Q,64,Norm>,
-          cudaFuncAttributeMaxDynamicSharedMemorySize,sizeof(typename Prefill::SharedStorage)),
-          "opt in prefill attention shared memory");
-      for(int past:{1,64,128})for(int phase:{1,64}) {
-        int qb=phase==1?0:(past==1?0:past==64?1:3);
-        int active=phase==1?past+1:((qb+1)*16+Q-1)/Q;
-        int queries=phase==1?Q:16;
-        ServingAttentionOperands p{element,element,element,element,element,
+      using Mma=DecodeMmaBody<D,Q,Norm>;
+      std::string const tag="_d"+std::to_string(D)+"_q"+std::to_string(Q)+"_norm"+std::to_string(Norm);
+      std::size_t const kv_slice=std::size_t(1088)*D;
+      int const slices=int(std::min<std::size_t>(grid,pool/kv_slice));
+      auto operands=[&](int phase,int past) {
+        return ServingAttentionOperands{element,weights,weights,element,element,
             Norm?element:nullptr,Norm?element:nullptr,output,numbers,lse,
             1,1,1088,phase==1?past:0,256,1e-6f};
-        double bytes=4.*D*active+2.*queries*D+(phase==1?4.*D:0.);
-        double flops=4.*queries*D*(active+(phase==1?1:0));
-        std::string key=std::string("fused_attention_")+(phase==1?"decode":"prefill")+
-            "_d"+std::to_string(D)+"_q"+std::to_string(Q)+"_norm"+std::to_string(Norm);
-        record(key,bytes,flops,[&] {
-          if(phase==1)TimeAttention<D,Q,1,Norm><<<1,128,sizeof(typename Decode::SharedStorage)>>>(p,cycles,qb);
-          else TimeAttention<D,Q,64,Norm><<<1,128,sizeof(typename Prefill::SharedStorage)>>>(p,cycles,qb);
-        });
-        if(phase==1) {
-          using Mma=DecodeMmaBody<D,Q,Norm>;
-          record("fused_attention_decode_mma16_d"+std::to_string(D)+"_q"+std::to_string(Q)+
-                 "_norm"+std::to_string(Norm),bytes,flops,[&] {
-            TimeDecodeMma<D,Q,Norm><<<1,128,sizeof(typename Mma::SharedStorage)>>>(p,cycles);
+      };
+      // Decode: the SIMT body and the mma16 body.
+      Check(cudaFuncSetAttribute(TimeAttention<D,Q,1,Norm,R>,
+          cudaFuncAttributeMaxDynamicSharedMemorySize,sizeof(typename Decode::SharedStorage)),
+          "opt in decode attention shared memory");
+      Check(cudaFuncSetAttribute(TimeDecodeMma<D,Q,Norm,R>,
+          cudaFuncAttributeMaxDynamicSharedMemorySize,sizeof(typename Mma::SharedStorage)),
+          "opt in mma16 decode attention shared memory");
+      bool const decode_fits=fits(TimeAttention<D,Q,1,Norm,R>,sizeof(typename Decode::SharedStorage));
+      if(!decode_fits)skip("fused_attention_decode"+tag);
+      bool const mma_fits=fits(TimeDecodeMma<D,Q,Norm,R>,sizeof(typename Mma::SharedStorage));
+      if(!mma_fits)skip("fused_attention_decode_mma16"+tag);
+      for(int past:{1,64,128}) {
+        auto p=operands(1,past);
+        double bytes=4.*D*(past+1)+2.*Q*D+4.*D, flops=4.*Q*D*(past+2);
+        if(decode_fits)
+          record("fused_attention_decode"+tag,bytes,flops,[&] {
+            TimeAttention<D,Q,1,Norm,R><<<grid,128,sizeof(typename Decode::SharedStorage)>>>(p,cycles,0,kv_slice,slices);
+          });
+        if(mma_fits)
+          record("fused_attention_decode_mma16"+tag,bytes,flops,[&] {
+            TimeDecodeMma<D,Q,Norm,R><<<grid,128,sizeof(typename Mma::SharedStorage)>>>(p,cycles,kv_slice,slices);
+          });
+      }
+      // Prefill: both KV tiles.
+      auto prefill=[&](auto kv_tag) {
+        constexpr int KV=decltype(kv_tag)::value;
+        using Prefill=AttentionBody<D,Q,64,Norm,KV>;
+        std::string const key="fused_attention_prefill"+tag+"_kv"+std::to_string(KV);
+        Check(cudaFuncSetAttribute(TimeAttention<D,Q,64,Norm,R,KV>,
+            cudaFuncAttributeMaxDynamicSharedMemorySize,sizeof(typename Prefill::SharedStorage)),
+            "opt in prefill attention shared memory");
+        if(!fits(TimeAttention<D,Q,64,Norm,R,KV>,sizeof(typename Prefill::SharedStorage))){skip(key);return;}
+        for(int past:{1,64,128}) {
+          int qb=past==1?0:past==64?1:3;
+          int active=((qb+1)*16+Q-1)/Q;
+          auto p=operands(64,past);
+          record(key,4.*D*active+2.*16*D,4.*16*D*active,[&] {
+            TimeAttention<D,Q,64,Norm,R,KV><<<grid,128,sizeof(typename Prefill::SharedStorage)>>>(p,cycles,qb,kv_slice,slices);
           });
         }
-      }
+      };
+      prefill(std::integral_constant<int,32>{});
+      prefill(std::integral_constant<int,64>{});
     };
     attention(std::integral_constant<int,64>{},std::integral_constant<int,4>{},std::false_type{});
     attention(std::integral_constant<int,128>{},std::integral_constant<int,2>{},std::true_type{});
@@ -288,18 +379,33 @@ void MeasureServingTaskBodies(TargetSpec& target,Options const& options,std::ost
     attention(std::integral_constant<int,128>{},std::integral_constant<int,4>{},std::false_type{});
     attention(std::integral_constant<int,128>{},std::integral_constant<int,4>{},std::true_type{});
     attention(std::integral_constant<int,128>{},std::integral_constant<int,8>{},std::true_type{});
+   };
+   pass(std::integral_constant<int,1>{});
+   pass(std::integral_constant<int,2>{});
+   pass(std::integral_constant<int,3>{});
+   pass(std::integral_constant<int,4>{});
+    // Replace what this tool measures (its keys, old unsuffixed ones too);
+    // fits measured elsewhere (gemm_combine, MX-3 in situ) stay.
     auto& serving=target.CalibrationFor("bf16").task_body.serving;
-    serving.clear();for(auto const& [name,samples]:observations) {
+    for(auto it=serving.begin();it!=serving.end();) {
+      bool ours=false;
+      for(auto const& [name,samples]:observations) {
+        std::string const base=std::regex_replace(name,std::regex("(_d[0-9]+)?(_kv[0-9]+)?_r[0-9]+$"),"");
+        ours=ours || it->first==base || it->first.rfind(base+"_",0)==0;
+      }
+      it=ours?serving.erase(it):std::next(it);
+    }
+    for(auto const& [name,samples]:observations) {
       if(samples.size()<2)throw std::runtime_error("serving kind has fewer than two samples");
       serving[name]=Fit(samples);
     }
   } catch(...) {
     cudaFree(cycles);cudaFree(element);cudaFree(output);cudaFree(numbers);
-    cudaFree(indices);cudaFree(tokens);cudaFree(lse);throw;
+    cudaFree(indices);cudaFree(tokens);cudaFree(lse);cudaFree(weights);throw;
   }
   Check(cudaFree(cycles),"free cycles");Check(cudaFree(element),"free input");
   Check(cudaFree(output),"free output");Check(cudaFree(numbers),"free floats");
   Check(cudaFree(indices),"free indices");Check(cudaFree(tokens),"free tokens");
-  Check(cudaFree(lse),"free LSE");
+  Check(cudaFree(lse),"free LSE");Check(cudaFree(weights),"free weights");
 }
 } // namespace tilemega::calib
