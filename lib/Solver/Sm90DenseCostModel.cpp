@@ -40,7 +40,7 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal)
      cal.At("flow_model").AsString("native flow model")!="overlapped_operands_v1")
     throw std::invalid_argument("native operand overlap requires refitted calibration");
   if(!cal.Find("issue_model") ||
-     cal.At("issue_model").AsString("native issue model")!="issuer_service_v2")
+     cal.At("issue_model").AsString("native issue model")!="issuer_packets_v3")
     throw std::invalid_argument("native preissue exposure requires issuer calibration");
   if(!cal.Find("overlap_model") ||
      cal.At("overlap_model").AsString("native overlap model")!="operand_service_only_v2")
@@ -57,6 +57,9 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal)
   if(!cal.Find("receiver_model") ||
      cal.At("receiver_model").AsString("native receiver model")!="prefix_receiver_v1")
     throw std::invalid_argument("native incoming transfers require receiver protocol calibration");
+  if(!cal.Find("protocol_key_model") ||
+     cal.At("protocol_key_model").AsString("protocol key model")!="stage_batch_v1")
+    throw std::invalid_argument("native transfer prices require stage and batch protocol keys");
   for(auto const& raw:cal.At("observations").AsArray("native observations")) {
     auto v=raw;
     if(raw.kind()==json::Value::Kind::kArray) {
@@ -195,6 +198,7 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
     if(family<5) {
       auto const& g=c.gemms[family];int n=w.shapes[family][0],k=w.shapes[family][1];
       s.kind=kSm90DenseFamilies[family];s.key=GemmKey(g);s.tasks=n/g.tile_n;
+      s.protocol_key=s.key+":"+s.kind+(w.batch<=4?"_low":"_high");
       s.receive_count=g.preissue_smem_bytes>0;
       s.waves=(s.tasks+grid-1)/grid;int active=std::min(grid,s.tasks);
       double bw=Quantity("bulk_stream_per_active_cta",{{"grid",active},
@@ -254,10 +258,13 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
           fraction*tile_stream;
       s.l2_service=std::min(double(g.prefetch_l2_bytes),
           2.*g.tile_n*k-g.preissue_smem_bytes)/bw;
-      s.issue_count=(g.preissue_smem_bytes>0)+(s.l2_service>0);
+      // Each prefixed slot executes expect_tx and one bulk instruction. A
+      // six-slot prefix cannot share the fixed issue price of a one-slot prefix.
+      s.issue_count=2*((g.preissue_smem_bytes+g.slot_bytes-1)/g.slot_bytes)+(s.l2_service>0);
       s.issue_service=fraction*tile_stream+s.l2_service;
     }else {
       auto const& a=c.attention;s.kind="attention";s.key=AttentionKey(w);
+      s.protocol_key=s.key+":attention"+(w.batch<=4?std::string("_low"):std::string("_high"));
       s.tasks=w.batch*8*a.chunks;s.waves=(s.tasks+grid-1)/grid;
       std::map<std::string,double> dimensions={{"batch",w.batch},{"grid",grid},{"head_dim",w.head_dim},
           {"queries",w.queries},{"qk_norm",w.qk_norm},{"chunks",a.chunks},
@@ -281,7 +288,18 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
       double history_bytes=4.*past*w.head_dim/a.chunks;
       s.l2_service=std::min(double(a.prefetch_l2_bytes),
           std::max(0.,history_bytes-a.preissue_smem_bytes))/global_bw*std::min(grid,s.tasks);
-      s.issue_count=(a.preissue_smem_bytes>0)+(s.l2_service>0);
+      int windows=0;
+      for(int chunk=0;chunk<a.chunks;++chunk) {
+        int weighted=past+1+a.new_row_work;
+        int begin=std::min(past,weighted*chunk/a.chunks);
+        int end=std::min(past,weighted*(chunk+1)/a.chunks);
+        int copied=std::min(end-begin,a.preissue_smem_bytes/(4*w.head_dim));
+        int count=w.batch<=4?int(copied>0):(copied+a.block_keys-1)/a.block_keys;
+        windows=std::max(windows,count);
+      }
+      // KV slots execute one expect_tx and separate K/V bulks; L2 prefetch
+      // likewise emits distinct instructions for the two cache arrays.
+      s.issue_count=3*windows+2*(s.l2_service>0);
       s.receive_count=a.preissue_smem_bytes>0;
       // Outgoing contention prices transferred KV bytes, not the receiver's
       // query/softmax work that also contributes to its overlap feature.
@@ -289,15 +307,16 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
           std::min(grid,s.tasks)+s.l2_service;
     }
     s.overlap=std::min(s.overlap_limit,
-        s.preissue_service*Coefficient(s.key,"preissue_efficiency")+
-        s.late_service*Coefficient(s.key,"tail_efficiency")+
-        s.l2_service*Coefficient(s.key,"l2_efficiency"));
+        s.preissue_service*Coefficient(s.protocol_key,"preissue_efficiency")+
+        s.late_service*Coefficient(s.protocol_key,"tail_efficiency")+
+        s.l2_service*Coefficient(s.protocol_key,"l2_efficiency"));
     s.barrier=barrier(s.tasks);
     s.ns=s.barrier+s.startup+std::max(s.flow,s.compute)+s.epilogue-s.overlap;
     result.stages.push_back(std::move(s));
   }
   for(auto kind:{"embedding","argmax"}) {
     Sm90DensePrediction::Stage s;s.kind=kind;s.key=std::string("native_")+kind;
+    s.protocol_key=s.key+":"+kind+(w.batch<=4?"_low":"_high");
     s.tasks=w.batch;s.waves=1;s.barrier=barrier(s.tasks);
     s.startup=Coefficient(s.key,"startup_ns");
     s.compute=Coefficient(s.key,"per_element_ns")*(s.kind=="embedding"?
@@ -323,10 +342,10 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
   for(auto& s:stages) {
     // An attention producer can hide weight issue behind compute, while a
     // streaming GEMM exposes competing traffic. Price the issuing body.
-    s.issue=s.issue_count? s.issue_count*Coefficient(s.key,"issue_ns")+
-        s.issue_service*Coefficient(s.key,"issue_service_scale"):0;
+    s.issue=s.issue_count? s.issue_count*Coefficient(s.protocol_key,"issue_ns")+
+        s.issue_service*Coefficient(s.protocol_key,"issue_service_scale"):0;
     // Incoming prefix setup runs once, even when the stage has many task waves.
-    s.receive=s.receive_count? s.receive_count*Coefficient(s.key,"receive_ns"):0;
+    s.receive=s.receive_count? s.receive_count*Coefficient(s.protocol_key,"receive_ns"):0;
     s.ns+=s.issue+s.receive;result.step_ns+=s.ns*s.instances;
   }
   return result;
@@ -374,6 +393,7 @@ Sm90DensePrediction Sm90DenseCostModel::Request(Sm90DenseWorkload const& w,
 json::Value Sm90DensePrediction::ToJson() const {
   json::Array values;
   for(auto const& s:stages)values.emplace_back(json::Object{{"kind",s.kind},{"key",s.key},
+      {"protocol_key",s.protocol_key},
       {"instances",s.instances},{"tasks",s.tasks},{"waves",s.waves},
       {"stage_ns",s.ns},{"class_ns",s.ns*s.instances},{"barrier_ns",s.barrier},
       {"startup_ns",s.startup},{"initialization_ns",s.initialization},

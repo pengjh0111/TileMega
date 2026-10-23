@@ -60,13 +60,17 @@ json::Value Fixture() {
     fit(key,{{"startup_ns",100},{"per_element_ns",.1},{"issue_ns",20}});
   for(auto op:{"store","residual","swiglu","argmax"})
     fit((std::string("native_epilogue_")+op).c_str(),{{"scale",1}});
+  auto physical=fits;
+  for(auto const& body:physical)for(auto kind:{"qkv","o","gate_up","down","lm_head","attention","embedding","argmax"})
+    for(auto band:{"low","high"})fits.emplace_back(body.first+":"+kind+"_"+band,body.second);
   return json::Object{{"schema",1},{"flow_model","overlapped_operands_v1"},
-      {"issue_model","issuer_service_v2"},
+      {"issue_model","issuer_packets_v3"},
       {"overlap_model","operand_service_only_v2"},
       {"attention_grid_model","explicit_grid_v1"},
       {"barrier_model","active_arrival_v1"},
       {"epilogue_model","operation_shared_v1"},
       {"receiver_model","prefix_receiver_v1"},
+      {"protocol_key_model","stage_batch_v1"},
       {"observations",observations},{"body_fits",fits}};
 }
 int main() {
@@ -204,6 +208,12 @@ int main() {
     rejected_receiver=std::string(e.what()).find("receiver protocol")!=std::string::npos;
   }
   assert(rejected_receiver);
+  auto stale_protocol=Fixture();stale_protocol.Set("protocol_key_model","shared_body_v0");
+  bool rejected_protocol=false;
+  try {Sm90DenseCostModel old(t,stale_protocol);}catch(std::invalid_argument const& e) {
+    rejected_protocol=std::string(e.what()).find("stage and batch protocol keys")!=std::string::npos;
+  }
+  assert(rejected_protocol);
   auto receive_coordinates=Sm90DenseSearchSpace{w.shapes,w.batch,w.head_dim,w.queries,t}
       .MaxPreissue(c,false);
   auto zero_receive=issue_model.Request(w,receive_coordinates);
@@ -216,6 +226,13 @@ int main() {
   receive_calibration.Set("body_fits",receive_fits);
   auto receiving=Sm90DenseCostModel(t,receive_calibration).Request(w,receive_coordinates);
   assert(receiving.stages[5].waves>1 && receiving.stages[5].receive_count==1);
+  auto packets=c;packets.gemms[0].workspace_offset=96*1024;
+  packets.gemms[0].preissue_smem_bytes=packets.gemms[0].slot_bytes;
+  auto one_packet=issue_model.Predict(w,packets);
+  packets.gemms[0].preissue_smem_bytes*=2;
+  auto two_packets=issue_model.Predict(w,packets);
+  assert(one_packet.stages[6].issue_count==2 && two_packets.stages[6].issue_count==4);
+  assert(two_packets.stages[6].issue==2*one_packet.stages[6].issue);
   for(unsigned i=0;i<receiving.stages.size();++i) {
     auto const& s=receiving.stages[i];
     assert(s.receive==170*s.receive_count);
@@ -233,26 +250,36 @@ int main() {
   prefetch=c;prefetch.attention.prefetch_l2_bytes=16384;
   auto attention_issue=issue_model.Request(w,prefetch);
   for(auto const& s:attention_issue.stages)assert(s.receive_count==0 && s.receive==0);
-  assert(attention_issue.stages[0].issue==20 && attention_issue.stages[1].issue==0);
+  assert(attention_issue.stages[0].issue==40 && attention_issue.stages[1].issue==0);
   auto issuer=issue_only;auto issuer_fits=issuer.At("body_fits").AsObject("body fits");
   for(auto& fit:issuer_fits) {
     auto coefficients=fit.second.At("coefficients");
-    if(fit.first=="gemm_mma_sync_tn8_32_wk1")coefficients.Set("issue_ns",200);
-    if(fit.first=="attention_simt_d128_q2_norm1")coefficients.Set("issue_ns",9999);
+    if(fit.first=="gemm_mma_sync_tn8_32_wk1:qkv_low")coefficients.Set("issue_ns",200);
+    if(fit.first=="attention_simt_d128_q2_norm1:attention_low")coefficients.Set("issue_ns",9999);
     fit.second.Set("coefficients",coefficients);
   }
   issuer.Set("body_fits",issuer_fits);
   auto issuer_price=Sm90DenseCostModel(t,issuer).Predict(w,prefetch);
-  assert(issuer_price.stages[0].issue==200 && issuer_price.stages[0].issue_count==1);
+  assert(issuer_price.stages[0].issue==400 && issuer_price.stages[0].issue_count==2);
+  auto isolated=issuer;auto isolated_fits=isolated.At("body_fits").AsObject("body fits");
+  for(auto& fit:isolated_fits)
+    if(fit.first=="gemm_mma_sync_tn8_32_wk1:qkv_high" ||
+       fit.first=="gemm_mma_sync_tn8_32_wk1:o_low") {
+      auto coefficients=fit.second.At("coefficients");coefficients.Set("issue_ns",1e6);
+      fit.second.Set("coefficients",coefficients);
+    }
+  isolated.Set("body_fits",isolated_fits);
+  assert(Sm90DenseCostModel(t,isolated).Predict(w,prefetch).stages[0].issue==400);
+  assert(issuer_price.stages[0].protocol_key=="gemm_mma_sync_tn8_32_wk1:qkv_low");
   for(auto& fit:issuer_fits) {
     auto coefficients=fit.second.At("coefficients");
-    if(fit.first=="gemm_mma_sync_tn8_32_wk1")coefficients.Set("issue_service_scale",.5);
+    if(fit.first=="gemm_mma_sync_tn8_32_wk1:qkv_low")coefficients.Set("issue_service_scale",.5);
     fit.second.Set("coefficients",coefficients);
   }
   issuer.Set("body_fits",issuer_fits);
   auto transfer_price=Sm90DenseCostModel(t,issuer).Predict(w,prefetch);
   assert(transfer_price.stages[0].issue_service>0 &&
-      transfer_price.stages[0].issue==200+.5*transfer_price.stages[1].l2_service);
+      transfer_price.stages[0].issue==400+.5*transfer_price.stages[1].l2_service);
   auto prefetched=c;prefetched.gemms[0].prefetch_l2_bytes=2*c.gemms[0].tile_n*w.shapes[0][1];
   auto clipped=model.Predict(w,prefetched);
   prefetched.gemms[0].prefetch_l2_bytes*=4;

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Fit initial native prices from measured components and retained stage-only controls.
 
-This is calibration, not E-3 validation. It writes only under runs/sm90r2 and
-keeps measured solve disabled until overlap and independent ranking are checked.
+This is calibration, not E-3 validation. It writes only under runs/sm90r2;
+final selection requires independent class, step and ranking checks.
 """
 import argparse
 from collections import defaultdict
@@ -66,12 +66,21 @@ def main():
     for name in ('embedding','argmax'):profile('native_'+name,dict(startup_ns=0,per_element_ns=1,issue_ns=0,issue_service_scale=0))
     for op in ('store', 'residual', 'swiglu', 'argmax'):
         profile('native_epilogue_' + op, dict(scale=1))
-    cal = dict(schema=1, flow_model='overlapped_operands_v1',issue_model='issuer_service_v2',
+    for key in list(fits):
+        kinds = ('qkv','o','gate_up','down','lm_head') if key.startswith('gemm_') else (
+            ('attention',) if key.startswith('attention_') else
+            (key.removeprefix('native_'),) if key in ('native_embedding','native_argmax') else ())
+        for kind in kinds:
+            for band in ('low','high'):
+                profile(key+':'+kind+'_'+band,dict(preissue_efficiency=0,tail_efficiency=0,
+                    l2_efficiency=0,issue_ns=0,issue_service_scale=0))
+    cal = dict(schema=1, flow_model='overlapped_operands_v1',issue_model='issuer_packets_v3',
         overlap_model='operand_service_only_v2',
         attention_grid_model='explicit_grid_v1',
         barrier_model='active_arrival_v1',
         epilogue_model='operation_shared_v1',
         receiver_model='prefix_receiver_v1',
+        protocol_key_model='stage_batch_v1',
         gemm_key_model='tn_warp_k_v1',
         fit_status='diagnostic_unfitted', observation_columns=columns,
         native_gemm_header_sha256=next(iter(headers)),
@@ -166,6 +175,10 @@ def main():
         fit.update(sample_count=sum(ops[r['kind']] == op for r in gemm_rows),
             method='shared operation scale; measured shapes retain their own epilogue curves')
     for key,fit in fits.items():
+        if ':' in key:
+            fit.update(sample_count=len(observations), protocol_observations=0,
+                method='zero transfer prior; component inputs retained, protocol not fitted')
+            continue
         if key.startswith('native_epilogue_'):
             continue
         rows=points[key]

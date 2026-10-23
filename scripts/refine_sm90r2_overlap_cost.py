@@ -35,7 +35,7 @@ def main():
         raise ValueError('an unchanged stage-only overlap fit is required')
     a.out.mkdir(parents=True)
     probe = a.out / 'price-probe'; shutil.copy2(a.probe.resolve(), probe)
-    parameters = ('preissue_efficiency', 'tail_efficiency', 'issue_ns', 'issue_service_scale')
+    parameters = ('preissue_efficiency', 'tail_efficiency', 'issue_ns', 'issue_service_scale', 'receive_ns')
     old = {k: dict(v['coefficients']) for k, v in cal['body_fits'].items()}
     for fit in cal['body_fits'].values():
         for name in parameters: fit['coefficients'][name] = 0
@@ -54,9 +54,9 @@ def main():
         return data['predictions']
 
     def feature(s, weight):
-        return dict(key=s['key'], weight=weight, limit=s['overlap_limit_ns'],
+        return dict(key=s['protocol_key'], weight=weight, limit=s['overlap_limit_ns'],
             early=s['preissue_service_ns'], late=s['late_service_ns'],
-            count=s['issue_count'], service=s['issue_service_ns'])
+            count=s['issue_count'], service=s['issue_service_ns'], receive=s['receive_count'])
 
     rows, inputs, stage_inputs = [], [], []
     for number, directory in enumerate([a.stage_fit, *a.extra_stage_fit]):
@@ -152,27 +152,31 @@ def main():
                                         *(r['decision_threshold_pct'] for r in values)),
                 terms=terms, group=stem, candidate_index=i, control_index=baseline, kind='request'))
 
-    keys = sorted({t['key'] for r in rows for t in r['terms'] if t['early'] or t['late'] or t['count']})
+    keys = sorted({t['key'] for r in rows for t in r['terms']
+                   if t['early'] or t['late'] or t['count'] or t['receive']})
     key_indices = {key: i for i, key in enumerate(keys)}
-    prior = np.tile([.05, .05, .3, .1], len(keys))
+    prior = np.tile([.05, .05, .3, .1, .1], len(keys))
     def deltas(x):
         result = []
         for row in rows:
             cost = row['base_ns']
             for t in row['terms']:
                 if t['key'] not in key_indices: continue
-                i = 4*key_indices[t['key']]
-                cost += t['weight']*(t['count']*1000*x[i+2]+t['service']*x[i+3]-
+                i = 5*key_indices[t['key']]
+                cost += t['weight']*(t['count']*1000*x[i+2]+t['service']*x[i+3]+
+                    t['receive']*1000*x[i+4]-
                     min(t['limit'], t['early']*x[i]+t['late']*x[i+1]))
             result.append(cost)
         return np.array(result)
     observed = np.array([r['observed_ns'] for r in rows]); sigma = np.array([r['sigma_ns'] for r in rows])
     optimum = least_squares(lambda x: np.r_[(deltas(x)-observed)/sigma, .05*(x-prior)], prior,
-        bounds=(np.zeros(len(prior)), np.tile([1, 1, 5, 2], len(keys))), loss='soft_l1')
+        bounds=(np.zeros(len(prior)), np.tile([1, 1, 5, 2, 5], len(keys))), loss='soft_l1')
+    optimum.x[np.abs(optimum.x)<1e-12]=0
     for i, key in enumerate(keys):
         fit = cal['body_fits'][key]
-        fit['coefficients'].update(zip(parameters, [float(optimum.x[4*i]), float(optimum.x[4*i+1]),
-                                    float(optimum.x[4*i+2]*1000), float(optimum.x[4*i+3])]))
+        fit['coefficients'].update(zip(parameters, [float(optimum.x[5*i]), float(optimum.x[5*i+1]),
+                                    float(optimum.x[5*i+2]*1000), float(optimum.x[5*i+3]),
+                                    float(optimum.x[5*i+4]*1000)]))
         fit['overlap_evidence'] = dict(evidence='inferred',
             method='bounded joint stage/request-delta fit; supplied cohorts are training only',
             stage_rows=sum(r['source']=='stage' and any(t['key']==key for t in r['terms']) for r in rows),
@@ -180,7 +184,7 @@ def main():
     cal['fit_status'] = 'initial_overlap_fitted'
     cal['paired_training_receipts_sha256'] = sorted(training_receipts)
     cal['pending'] = ['fresh independent E-3 class/step/ranking validation after this refit',
-                      'unmeasured issuer and L2-overlap classes', 'E-4 measured selection']
+                      'unmeasured issuer/receiver and L2-overlap classes', 'E-4 measured selection']
     output = a.out / 'target.json'; write(output, target)
     fitted = {stem: predict(work, coords, stem+'-fitted', output) for stem, work, coords in inputs}
     values = deltas(optimum.x)

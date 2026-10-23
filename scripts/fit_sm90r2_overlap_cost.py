@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Fit diagnostic preissue costs from matched native stage-only controls.
 
-The fit does not enable measured solve or satisfy E-3. Its held-out ranking,
-other workloads and L2-only overlap remain separate requirements.
+The fit does not satisfy E-3. Its held-out ranking, other workloads and
+L2-only overlap remain separate requirements.
 """
 import argparse
 import csv
@@ -105,7 +105,7 @@ def main():
         for name in ('preissue_efficiency','tail_efficiency','l2_efficiency','issue_ns','issue_service_scale','receive_ns'):
             if name in fit['coefficients']:fit['coefficients'][name]=0
     baseline = predict(target,'no-overlap')
-    keys = sorted({s['key'] for i,stages in enumerate(baseline) if tags[i] in baselines for s in stages
+    keys = sorted({s['protocol_key'] for i,stages in enumerate(baseline) if tags[i] in baselines for s in stages
                    if s['preissue_service_ns'] or s['late_service_ns'] or s['issue_count'] or s['receive_count']})
     rows = []
     for tag,baseline_tag in baselines.items():
@@ -113,7 +113,7 @@ def main():
         for stage_index,s in enumerate(baseline[index]):
             before = baseline[base_index][stage_index]
             delta = observed(tag,s['kind'])-observed(baseline_tag,s['kind'])
-            rows.append(dict(tag=tag,baseline_tag=baseline_tag,kind=s['kind'],key=s['key'],observed_delta_ns=delta,
+            rows.append(dict(tag=tag,baseline_tag=baseline_tag,kind=s['kind'],key=s['protocol_key'],observed_delta_ns=delta,
                 base_delta_ns=s['stage_ns']-before['stage_ns'],limit=s['overlap_limit_ns'],
                 early=s['preissue_service_ns'],late=s['late_service_ns'],
                 issue=s['issue_count'],issue_service=s['issue_service_ns'],receive=s['receive_count']))
@@ -132,6 +132,9 @@ def main():
     prior = np.tile([.05,.05,.3,.1,.1],len(keys))
     optimum = least_squares(lambda x:np.r_[(deltas(x)-y)/1000,.05*(x-prior)],prior,
         bounds=(np.zeros(len(prior)),np.tile([1,1,5,2,5],len(keys))),loss='soft_l1')
+    # Bounded least squares can leave subnormal positive values at a zero
+    # bound. They underflow the C++ JSON reader and are physically negligible.
+    optimum.x[np.abs(optimum.x)<1e-12]=0
     for i,key in enumerate(keys):
         fit=cal['body_fits'][key];fit['coefficients'].update(preissue_efficiency=float(optimum.x[5*i]),
             tail_efficiency=float(optimum.x[5*i+1]),issue_ns=float(optimum.x[5*i+2]*1000),
