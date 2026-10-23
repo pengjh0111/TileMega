@@ -1,0 +1,17 @@
+decision,code,cell,arm,tpot_r1_ms,tpot_r2_ms,median_ms,card
+D4,d02c62e69^,qwen3_0_6b_B1,prefetch1_tmin64,1.952,1.950,1.951,7
+D4,d02c62e69^,qwen3_0_6b_B1,prefetch0_tmin64,2.046,2.046,2.046,7
+D4,d02c62e69^,qwen3_0_6b_B16,prefetch1_tmin64,4.685,4.678,4.681,7
+D4,d02c62e69^,qwen3_0_6b_B16,prefetch0_tmin64,4.820,4.810,4.815,7
+D4,d02c62e69^,llama3_2_1b_B1,prefetch1_tmin64,2.199,2.197,2.198,6
+D4,d02c62e69^,llama3_2_1b_B1,prefetch0_tmin64,2.275,2.276,2.276,6
+D4,d02c62e69^,llama3_1_8b_B1,prefetch1_tmin64,10.702,10.695,10.699,6
+D4,d02c62e69^,llama3_1_8b_B1,prefetch0_tmin64,10.915,10.917,10.916,6
+D5,960a8e704,qwen3_0_6b_B1,tmin64,1.974,1.973,1.974,7
+D5,960a8e704,qwen3_0_6b_B1,tmin128,1.967,1.972,1.970,7
+D5,960a8e704,qwen3_0_6b_B16,tmin64,4.662,4.665,4.663,7
+D5,960a8e704,qwen3_0_6b_B16,tmin128,4.516,4.512,4.514,7
+D5,960a8e704,llama3_2_1b_B1,tmin64,2.203,2.201,2.202,6
+D5,960a8e704,llama3_2_1b_B1,tmin128,2.215,2.211,2.213,6
+D5,960a8e704,llama3_1_8b_B1,tmin64,10.706,10.702,10.704,6
+D5,960a8e704,llama3_1_8b_B1,tmin128,10.708,10.701,10.705,6
