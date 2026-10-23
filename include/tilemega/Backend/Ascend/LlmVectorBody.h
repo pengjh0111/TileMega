@@ -62,6 +62,21 @@ class LlmVectorBody {
     AscendC::DataCopyPad(x_,src,copy,pad);CompleteDma<AscendC::HardEvent::MTE2_V>();
     AscendC::Cast(bo_,x_,AscendC::RoundMode::CAST_RINT,n);Store(output,n);return true;
   }
+  __aicore__ inline bool CombineGemm(GM_ADDR partial,GM_ADDR output,
+      uint64_t part_stride,unsigned parts,unsigned n) {
+    if(parts!=3 || !n || n>kElements || part_stride<n)return false;
+    AscendC::GlobalTensor<float> src;src.SetGlobalBuffer((__gm__ float*)partial);
+    AscendC::DataCopyExtParams copy{1,n*4,0,0,0};
+    AscendC::DataCopyPadExtParams<float> pad(false,0,0,0);
+    AscendC::DataCopyPad(x_,src,copy,pad);CompleteDma<AscendC::HardEvent::MTE2_V>();
+    for(unsigned part=1;part<parts;++part) {
+      CompleteDma<AscendC::HardEvent::V_MTE2>();
+      AscendC::DataCopyPad(y_,src[uint64_t(part)*part_stride],copy,pad);
+      CompleteDma<AscendC::HardEvent::MTE2_V>();
+      AscendC::Add(x_,x_,y_,n);AscendC::PipeBarrier<PIPE_V>();
+    }
+    AscendC::Cast(bo_,x_,AscendC::RoundMode::CAST_RINT,n);Store(output,n);return true;
+  }
   __aicore__ inline bool ZeroFloat(GM_ADDR output,unsigned n) {
     if(!n || n>kElements)return false;
     AscendC::Duplicate(x_,0.0f,n);CompleteDma<AscendC::HardEvent::V_MTE3>();
