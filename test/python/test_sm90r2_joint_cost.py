@@ -55,7 +55,7 @@ class IdentifiableFitTest(unittest.TestCase):
 class L2PriceTest(unittest.TestCase):
     def make_prices(self,l2_service,l2_efficiency):
         key='gemm_mma_sync_tn8_32_wk4';protocol=key+':qkv_low'
-        stage=dict(key=key,protocol_key=protocol,kind='qkv',barrier_ns=5.,startup_ns=15.,
+        stage=dict(key=key,protocol_key=protocol,kind='qkv',waves=1,barrier_ns=5.,startup_ns=15.,
             initialization_ns=2.,read_startup_ns=3.,flow_ns=80.,compute_ns=40.,
             epilogue_ns=10.,dram_ns=60.,stream_ns=80.,activation_ns=20.,
             overlap_limit_ns=43.,preissue_service_ns=10.,late_service_ns=5.,
@@ -76,6 +76,30 @@ class L2PriceTest(unittest.TestCase):
     def test_l2_credit_cannot_exceed_receiver_overlap_limit(self):
         prices=self.make_prices(200.,1.)
         self.assertAlmostEqual(prices.predict(prices.prior)[0],70.)
+
+    def attention_prices(self,flow,early,waves):
+        key='attention_mma_sync_d128_q2_norm1';protocol=key+':attention_high'
+        stage=dict(key=key,protocol_key=protocol,kind='attention',waves=waves,
+            barrier_ns=0.,startup_ns=0.,initialization_ns=0.,read_startup_ns=0.,
+            flow_ns=flow,compute_ns=flow,epilogue_ns=0.,dram_ns=0.,stream_ns=0.,
+            activation_ns=0.,overlap_limit_ns=0.,preissue_service_ns=early,
+            late_service_ns=0.,l2_service_ns=0.,issue_count=0.,issue_service_ns=0.,receive_count=1.)
+        fits={key:dict(coefficients=dict(startup_ns=0.,body_scale=1.)),
+            protocol:dict(coefficients=dict(preissue_efficiency=1.,tail_efficiency=0.,
+                issue_ns=0.,issue_service_scale=0.,receive_ns=0.,l2_efficiency=0.))}
+        for op in ['store','residual','swiglu','argmax']:
+            fits['native_epilogue_'+op]=dict(coefficients=dict(scale=1.))
+        return JointPrices([dict(terms=[dict(stage=stage,weight=1.)])],dict(body_fits=fits))
+
+    def test_attention_prefix_does_not_discount_later_waves(self):
+        prices=self.attention_prices(flow=1600.,early=800.,waves=16)
+        self.assertAlmostEqual(prices.predict(prices.prior)[0],1500.)
+
+    def test_attention_body_refit_does_not_multiply_transferred_bytes(self):
+        prices=self.attention_prices(flow=1600.,early=32.,waves=16)
+        index=next(i for i,(_,name,_) in enumerate(prices.parameters) if name=='body_scale')
+        x=prices.prior.copy();x[index]=2.
+        self.assertAlmostEqual(prices.predict(x)[0],3200.-32.)
 
 
 if __name__=='__main__':

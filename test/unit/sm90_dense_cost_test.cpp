@@ -81,7 +81,7 @@ json::Value Fixture() {
     for(auto band:{"low","high"})fits.emplace_back(body.first+":"+kind+"_"+band,body.second);
   return json::Object{{"schema",1},{"flow_model","overlapped_operands_v1"},
       {"issue_model","issuer_packets_v3"},
-      {"overlap_model","operand_service_only_v2"},
+      {"overlap_model","first_task_transfer_v3"},
       {"attention_grid_model","explicit_geometry_cache_v3"},
       {"attention_cache_state","warm_reuse"},
       {"barrier_model","active_arrival_v1"},
@@ -282,6 +282,58 @@ int main() {
   irrelevant_work.Set("observations",irrelevant_rows);
   assert(Sm90DenseCostModel(t,irrelevant_work).Predict(full_batch,full_coordinates).step_ns==
       model.Predict(full_batch,full_coordinates).step_ns);
+  auto overlap_calibration=Fixture();auto overlap_fits=overlap_calibration.At("body_fits").AsObject("fits");
+  for(auto& fit:overlap_fits) {
+    auto coefficients=fit.second.At("coefficients");
+    if(coefficients.Find("preissue_efficiency")) {
+      coefficients.Set("preissue_efficiency",1e6);coefficients.Set("tail_efficiency",1e6);
+      coefficients.Set("l2_efficiency",1e6);
+    }
+    if(coefficients.Find("body_scale"))coefficients.Set("body_scale",20);
+    fit.second.Set("coefficients",coefficients);
+  }
+  overlap_calibration.Set("body_fits",overlap_fits);
+  Sm90DenseCostModel transfer_model(t,overlap_calibration);
+  auto many_tasks=full_coordinates;many_tasks.attention.chunks=16;
+  many_tasks.attention.preissue_smem_bytes=32768;
+  auto first_wave=transfer_model.Predict(full_batch,many_tasks).stages[1];
+  assert(first_wave.tasks==2048 && first_wave.waves==16);
+  assert(first_wave.preissue_service+first_wave.late_service==768);
+  assert(first_wave.overlap==768 && first_wave.overlap_limit==768);
+  assert(first_wave.ns>=first_wave.barrier+first_wave.startup+
+      first_wave.flow*(first_wave.waves-1)/first_wave.waves);
+  auto slower_attention=overlap_calibration;auto slower_fits=overlap_fits;
+  for(auto& fit:slower_fits) {
+    auto coefficients=fit.second.At("coefficients");
+    if(coefficients.Find("body_scale"))coefficients.Set("body_scale",40);
+    fit.second.Set("coefficients",coefficients);
+  }
+  slower_attention.Set("body_fits",slower_fits);
+  auto slower_wave=Sm90DenseCostModel(t,slower_attention).Predict(full_batch,many_tasks).stages[1];
+  assert(slower_wave.flow==2*first_wave.flow && slower_wave.overlap==first_wave.overlap);
+  assert(slower_wave.preissue_service==first_wave.preissue_service &&
+      slower_wave.late_service==first_wave.late_service);
+  many_tasks.attention.new_row_work=8;
+  auto weighted=transfer_model.Predict(full_batch,many_tasks,64).stages[1];
+  double first_task_bytes=0,max_task_bytes=0;
+  for(int task=0;task<132;++task) {
+    int chunk=task%16;
+    int begin=std::min(64,73*chunk/16),end=std::min(64,73*(chunk+1)/16);
+    double bytes=4.*128*(end-begin);
+    first_task_bytes+=bytes;max_task_bytes=std::max(max_task_bytes,bytes);
+  }
+  assert(weighted.preissue_service+weighted.late_service==
+      std::max(first_task_bytes/(132*24.),max_task_bytes/24.));
+  auto short_l2=full_coordinates;short_l2.attention.prefetch_l2_bytes=32;
+  auto short_prefetch=transfer_model.Predict(full_batch,short_l2);
+  assert(short_prefetch.stages[1].l2_service==32./24. &&
+      short_prefetch.stages[1].overlap==short_prefetch.stages[1].l2_service);
+  assert(short_prefetch.stages[0].issue_count==2);
+  auto head_prefix=c;head_prefix.gemms[4].preissue_smem_bytes=8192;
+  auto head=transfer_model.Predict(w,head_prefix).stages[5];
+  assert(head.waves>1 && head.overlap_limit==head.read_startup+
+      head.preissue_service+head.late_service+head.l2_service);
+  assert(head.overlap==head.overlap_limit && head.overlap<head.stream/head.waves);
   auto reused=c;reused.attention.workspace_offset=32768;
   assert(reused.ActivationReuse(w.batch,w.head_dim,w.queries,1088).valid);
   auto reused_prediction=model.Predict(w,reused);

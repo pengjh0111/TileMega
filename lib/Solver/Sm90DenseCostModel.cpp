@@ -43,8 +43,8 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal)
      cal.At("issue_model").AsString("native issue model")!="issuer_packets_v3")
     throw std::invalid_argument("native preissue exposure requires issuer calibration");
   if(!cal.Find("overlap_model") ||
-     cal.At("overlap_model").AsString("native overlap model")!="operand_service_only_v2")
-    throw std::invalid_argument("native preissue credit requires operand-only calibration");
+     cal.At("overlap_model").AsString("native overlap model")!="first_task_transfer_v3")
+    throw std::invalid_argument("native preissue credit requires first-task transfer calibration");
   if(!cal.Find("attention_grid_model") ||
      cal.At("attention_grid_model").AsString("attention grid model")!="explicit_geometry_cache_v3")
     throw std::invalid_argument("native attention pricing requires exact geometry and cache calibration");
@@ -278,6 +278,10 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
           fraction*tile_stream;
       s.l2_service=std::min(double(g.prefetch_l2_bytes),
           2.*g.tile_n*k-g.preissue_smem_bytes)/bw;
+      // A prefix only belongs to the first task. Even fitted efficiencies
+      // above one must not credit the remaining waves' weight service.
+      s.overlap_limit=std::min(s.overlap_limit,
+          s.read_startup+s.preissue_service+s.late_service+s.l2_service);
       // Each prefixed slot executes expect_tx and one bulk instruction. A
       // six-slot prefix cannot share the fixed issue price of a one-slot prefix.
       s.issue_count=2*((g.preissue_smem_bytes+g.slot_bytes-1)/g.slot_bytes)+(s.l2_service>0);
@@ -296,36 +300,51 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
           Coefficient(s.key,"body_scale");
       s.dram=4.*w.batch*8*past*w.head_dim/global_bw;
       s.compute=s.flow;s.startup=Coefficient(s.key,"startup_ns");
-      double keys=double(past+1)/a.chunks;
-      double fraction=std::min(1.,a.preissue_smem_bytes/(4.*keys*w.head_dim));
       auto payload=backend::Sm90DenseLayout::AttentionPayload(w.batch,w.head_dim,w.queries,
           a.chunks,a.block_keys,a.slots,a.new_row_work,1088,a.preissue_smem_bytes)
           .Shift(a.workspace_offset);
       auto const& prev=c.gemms[0];
       auto previous=backend::Sm90DenseLayout::Gemm(prev.tile_n,prev.TileK(),prev.slots,
           prev.warps_k).Live(prev.workspace_offset);
-      s.overlap_limit=std::max(s.flow-s.dram,0.);
-      (a.preissue_late || payload.Overlaps(previous)?s.late_service:s.preissue_service)=s.flow*fraction;
-      double history_bytes=4.*past*w.head_dim/a.chunks;
-      s.l2_service=std::min(double(a.prefetch_l2_bytes),
-          std::max(0.,history_bytes-a.preissue_smem_bytes))/global_bw*std::min(grid,s.tasks);
-      int windows=0;
+      int active=std::min(grid,s.tasks),windows=0,max_history=0;
+      double prefix_bytes=0,l2_bytes=0,max_prefix=0,max_l2=0;
       for(int chunk=0;chunk<a.chunks;++chunk) {
-        int weighted=past+1+a.new_row_work;
-        int begin=std::min(past,weighted*chunk/a.chunks);
-        int end=std::min(past,weighted*(chunk+1)/a.chunks);
-        int copied=std::min(end-begin,a.preissue_smem_bytes/(4*w.head_dim));
-        int count=w.batch<=4?int(copied>0):(copied+a.block_keys-1)/a.block_keys;
-        windows=std::max(windows,count);
+        int owners=active/a.chunks+(chunk<active%a.chunks);
+        if(!owners)continue;
+        // This is Partition::Range clipped to history (<past), with the same
+        // weighted new-row boundary as the actual first task of each CTA.
+        long long weighted=static_cast<long long>(past)+1+a.new_row_work;
+        int begin=int(std::min<long long>(past,weighted*chunk/a.chunks));
+        int end=int(std::min<long long>(past,weighted*(chunk+1)/a.chunks));
+        int history=end-begin,copied=std::min(history,a.preissue_smem_bytes/(4*w.head_dim));
+        int prefixed=4*copied*w.head_dim;
+        // Prefetch divides its budget between K/V and rounds each to 16 B.
+        int prefetched=2*(std::min(a.prefetch_l2_bytes/2,
+            2*w.head_dim*(history-copied))&~15);
+        prefix_bytes+=double(owners)*prefixed;l2_bytes+=double(owners)*prefetched;
+        max_prefix=std::max(max_prefix,double(prefixed));max_l2=std::max(max_l2,double(prefetched));
+        max_history=std::max(max_history,history);
+        windows=std::max(windows,w.batch<=4?int(copied>0):(copied+a.block_keys-1)/a.block_keys);
       }
+      if(prefix_bytes || l2_bytes) {
+        int slot_bytes=2*w.head_dim*(w.batch<=4?max_history:std::min(a.block_keys,max_history));
+        double bw=Quantity("bulk_stream_per_active_cta",{{"grid",active},
+            {"slot_bytes",slot_bytes},{"slots",w.batch<=4?1:a.slots}},{{"cache","dram"}});
+        double prefixed=std::max(prefix_bytes/global_bw,max_prefix/bw);
+        (a.preissue_late || payload.Overlaps(previous)?s.late_service:s.preissue_service)=prefixed;
+        s.l2_service=std::max(l2_bytes/global_bw,max_l2/bw);
+      }
+      // Inferred transfer-service bound: one first-task history read can be
+      // hidden, not the other task waves' query/MMA/partial/LA work. These
+      // byte-derived services do not scale with the whole-body fitted price.
+      s.overlap_limit=std::min(s.flow/s.waves,s.preissue_service+s.late_service+s.l2_service);
       // KV slots execute one expect_tx and separate K/V bulks; L2 prefetch
       // likewise emits distinct instructions for the two cache arrays.
       s.issue_count=3*windows+2*(s.l2_service>0);
       s.receive_count=a.preissue_smem_bytes>0;
       // Outgoing contention prices transferred KV bytes, not the receiver's
       // query/softmax work that also contributes to its overlap feature.
-      s.issue_service=std::min(double(a.preissue_smem_bytes),history_bytes)/global_bw*
-          std::min(grid,s.tasks)+s.l2_service;
+      s.issue_service=s.preissue_service+s.late_service+s.l2_service;
     }
     s.overlap=std::min(s.overlap_limit,
         s.preissue_service*Coefficient(s.protocol_key,"preissue_efficiency")+

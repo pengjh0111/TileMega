@@ -83,7 +83,7 @@ def main():
                 profile(key+':'+kind+'_'+band,dict(preissue_efficiency=0,tail_efficiency=0,
                     l2_efficiency=0,issue_ns=0,issue_service_scale=0))
     cal = dict(schema=1, flow_model='overlapped_operands_v1',issue_model='issuer_packets_v3',
-        overlap_model='operand_service_only_v2',
+        overlap_model='first_task_transfer_v3',
         attention_grid_model='explicit_geometry_cache_v3',
         attention_cache_state=a.attention_cache_state,
         barrier_model='active_arrival_v1',

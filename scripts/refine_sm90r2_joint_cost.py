@@ -64,7 +64,7 @@ class JointPrices:
         self.attention = np.array([i for i,s in enumerate(self.stages) if s['key'].startswith('attention_')],dtype=int)
         self.protocol = np.array([i for i,s in enumerate(self.stages) if s['protocol_key'] in protocol_keys],dtype=int)
         self.features = {name:np.array([s[name] for s in self.stages]) for name in
-            ('barrier_ns','startup_ns','initialization_ns','read_startup_ns','flow_ns','compute_ns',
+            ('waves','barrier_ns','startup_ns','initialization_ns','read_startup_ns','flow_ns','compute_ns',
              'epilogue_ns','dram_ns','stream_ns','activation_ns','overlap_limit_ns','preissue_service_ns',
              'late_service_ns','l2_service_ns','issue_count','issue_service_ns','receive_count')}
         self.gemm_parameters = np.array([[lookup[self.stages[i]['key'],name] for name in
@@ -81,8 +81,7 @@ class JointPrices:
         self.raw_epilogue = np.array([self.stages[i]['epilogue_ns']/fits['native_epilogue_'+ops[self.stages[i]['kind']]]['coefficients']['scale']
             for i in self.gemm])
         attention_scale = np.array([fits[self.stages[i]['key']]['coefficients']['body_scale'] for i in self.attention])
-        self.raw_attention = {name:self.features[name][self.attention]/attention_scale
-            for name in ('flow_ns','preissue_service_ns','late_service_ns')}
+        self.raw_attention = self.features['flow_ns'][self.attention]/attention_scale
         # L2 efficiency remains the supplied calibration prior. Reweighting
         # unrelated end-to-end residuals cannot establish a new L2 benefit.
         self.l2_credit = np.array([s['l2_service_ns']*
@@ -99,13 +98,16 @@ class JointPrices:
         flow[g] = np.maximum.reduce([f['dram_ns'][g],f['stream_ns'][g]*v[:,1],activation])
         compute[g] = self.raw_compute*v[:,3]
         epilogue[g] = self.raw_epilogue*x[self.epilogue_parameters]
-        limit[g] = f['read_startup_ns'][g]+np.maximum(flow[g]-np.maximum(compute[g],activation),0)
+        limit[g] = np.minimum(f['read_startup_ns'][g]+
+            np.maximum(flow[g]-np.maximum(compute[g],activation),0),
+            f['read_startup_ns'][g]+early[g]+late[g]+f['l2_service_ns'][g])
         v = x[self.attention_parameters]
         startup[a] = 1000*v[:,0]
-        flow[a] = self.raw_attention['flow_ns']*v[:,1];compute[a] = flow[a]
-        limit[a] = np.maximum(flow[a]-f['dram_ns'][a],0)
-        early[a] = self.raw_attention['preissue_service_ns']*v[:,1]
-        late[a] = self.raw_attention['late_service_ns']*v[:,1]
+        flow[a] = self.raw_attention*v[:,1];compute[a] = flow[a]
+        # Only each CTA's first task receives the prefix. The measured body
+        # includes every task wave and LA; scaling it cannot enlarge bytes moved.
+        limit[a] = np.minimum(flow[a]/f['waves'][a],
+            early[a]+late[a]+f['l2_service_ns'][a])
         value = f['barrier_ns']+startup+np.maximum(flow,compute)+epilogue
         v = x[self.protocol_parameters]
         value[p] += (f['issue_count'][p]*1000*v[:,2]+f['issue_service_ns'][p]*v[:,3]+
@@ -241,6 +243,8 @@ def main():
     if sha(data['target']) != data['target_sha256'] or sha(data['probe']) != data['probe_sha256']:
         raise ValueError('frozen target or native predictor changed')
     target = read(data['target']);cal = target['sm90_dense_decode'];rows = data['rows']
+    if cal.get('overlap_model')!='first_task_transfer_v3':
+        raise ValueError('regenerate training features with first-task transfer service prices')
     args.out.mkdir();shutil.copy2(data['probe'],args.out/'price-probe')
     prices = JointPrices(rows,cal)
     initial = prices.stage_prices(prices.prior)
