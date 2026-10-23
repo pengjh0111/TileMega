@@ -16,7 +16,7 @@ using U64=unsigned long long;
 #define TILEMEGA_NATIVE_CAL_RESIDENCY 1
 #endif
 static_assert(TILEMEGA_NATIVE_CAL_RESIDENCY==1 || TILEMEGA_NATIVE_CAL_RESIDENCY==2);
-int residency=TILEMEGA_NATIVE_CAL_RESIDENCY;
+constexpr int residency=TILEMEGA_NATIVE_CAL_RESIDENCY;
 bool audit_only=false;
 void Check(cudaError_t e) {if(e!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(e));}
 template<class T>T* Device(std::size_t n) {T* p;Check(cudaMalloc(&p,n*sizeof(T)));return p;}
@@ -41,7 +41,7 @@ using Attention=std::conditional_t<(B<=4),Sm90DenseAttention<B,D,Q,Norm,S,NewRow
     Sm90DenseAttentionStream<B,D,Q,Norm,S,Keys,Slots,NewRowWork>>;
 
 template<int B,int D,int Q,bool Norm,int S,int Keys,int Slots,int NewRowWork>
-__global__ __launch_bounds__(160,1)
+__global__ __launch_bounds__(160,TILEMEGA_NATIVE_CAL_RESIDENCY)
 void Run(Sm90DenseAttentionOperands p,U64* grid,U64* stamps,int repeats) {
   extern __shared__ __align__(1024) char shared[];
   auto& ring=*reinterpret_cast<Sm90DenseRingState*>(shared);ring.Initialize();
@@ -168,23 +168,19 @@ void AllChunks(cudaDeviceProp const& p) {
   ChunkShape<8,D,Q,Norm>(p);ChunkShape<16,D,Q,Norm>(p);
 }
 int main(int argc,char** argv) {try {
-  bool all_residencies=false;
   for(int i=1;i<argc;++i) {
     if(std::strcmp(argv[i],"--audit-only")==0)audit_only=true;
-    else if(std::strcmp(argv[i],"--all-residencies")==0)all_residencies=true;
     else if(std::strcmp(argv[i],"--residency")==0 && i+1<argc) {
-      if(std::strcmp(argv[++i],"1")==0)residency=1;
-      else if(std::strcmp(argv[i],"2")==0)residency=2;
-      else throw std::runtime_error("residency must be 1 or 2");
-    }else throw std::runtime_error("use [--audit-only] [--residency 1|2] [--all-residencies]");
+      char const* expected=residency==1?"1":"2";
+      if(std::strcmp(argv[++i],expected)!=0)
+        throw std::runtime_error("requested residency differs from compiled launch bounds");
+    }else throw std::runtime_error("use [--audit-only] [--residency compiled-value]");
   }
   Check(cudaSetDevice(0));cudaDeviceProp p{};Check(cudaGetDeviceProperties(&p,0));
   if(p.major!=9 || p.minor!=0)throw std::runtime_error("Hopper calibration requires sm90");
   std::printf(audit_only?
       "batch,head_dim,queries,qk_norm,chunks,block_keys,slots,new_row_work,grid,shared_bytes,registers,local_bytes,resident,compatible\n":
       "metric,batch,head_dim,queries,qk_norm,chunks,block_keys,slots,new_row_work,past,grid,samples,median,p99,unit,timestamp_arithmetic\n");
-  int first=all_residencies?1:residency,last=all_residencies?2:residency;
-  for(residency=first;residency<=last;++residency) {
 #ifdef TILEMEGA_CALIBRATION_ALL_CHUNKS
   AllChunks<128,2,true>(p);AllChunks<64,4,false>(p);
   AllChunks<128,3,false>(p);AllChunks<128,4,false>(p);
@@ -197,6 +193,5 @@ int main(int argc,char** argv) {try {
 #else
   Shape<128,2,true>(p);Shape<64,4,false>(p);Shape<128,3,false>(p);Shape<128,4,false>(p);
 #endif
-  }
   return 0;
 } catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}}
