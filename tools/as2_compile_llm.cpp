@@ -110,12 +110,13 @@ int main(int argc,char** argv) {
         throw std::invalid_argument("Observed decomposition model/phase/geometry mismatch");
       for(auto const& family:decomposition.At("families").AsArray("families")) {
         unsigned matches=0;
-        if(family.At("n").AsNumber("n")!=2048 || family.At("k").AsNumber("k")!=6144 ||
+        auto family_k=family.At("k").AsNumber("k");
+        if(family.At("n").AsNumber("n")!=2048 || (family_k!=6144 && family_k!=8192) ||
             family.At("split_k").AsNumber("split_k")!=3 || family.At("epilogue").AsString("epilogue")!="residual")
           throw std::invalid_argument("Unverified decomposition family");
         for(unsigned i=0;i<plan.gemms.size();++i) {
           auto const& g=plan.gemms[i];
-          if(g.n==2048 && g.k==6144 && g.epilogue==tilemega::frontend::PlanGemm::Epilogue::kResidual) {
+          if(g.n==2048 && g.k==family_k && g.epilogue==tilemega::frontend::PlanGemm::Epilogue::kResidual) {
             if(options.gemms[i].split_k!=1)throw std::invalid_argument("Duplicate decomposition binding");
             options.gemms[i].split_k=3;++matches;++decomposed_gemms;
           }

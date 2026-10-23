@@ -129,10 +129,10 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
       if(stage.epilogue==2 && stage.columns%32)throw std::invalid_argument("SwiGLU tail requires complete gate/up U16 pairs");
       if(stage.epilogue==3 && U(g,"partial_tile_n")!=geo.tile_n)throw std::invalid_argument("LM head partial count disagrees with geometry");
       if(geo.split_k>1) {
-        if(!small || (stage.rows!=1 && stage.rows!=64) || stage.k!=6144 || stage.columns!=2048 ||
+        if(!small || (stage.rows!=1 && stage.rows!=64) || (stage.k!=6144 && stage.k!=8192) || stage.columns!=2048 ||
             stage.epilogue!=1 || !p.projection.options.cg_split_task_order)
           throw std::invalid_argument("Split-K requires an observed residual shape and tile-major CTG");
-        stage.extent=geo.split_k;stage.width=stage.k/geo.split_k;stage.group=1;
+        stage.extent=geo.split_k;stage.width=(stage.k+geo.split_k-1)/geo.split_k;stage.group=1;
         auto found=partial_workspaces.find(projected.logical_stage);
         if(projected.combine) {
           if(found==partial_workspaces.end())throw std::invalid_argument("Combine has no preceding partial stage");
@@ -280,7 +280,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
       else if(s.epilogue==3)id="as2_mix_gemm_argmax128_gm_16x128x128";
       else id+="_16x128x128";
     }
-    if(s.kind==0 && s.extent>1)id="as2_catlass_bf16_fp32_split3_k2048_16x128x128_l0k64";
+    if(s.kind==0 && s.extent>1)id="as2_catlass_bf16_fp32_split3_k"+std::to_string(s.width)+"_16x128x128_l0k64";
     else if(s.kind==1)id=s.variant==3?"as2_aiv_rmsnorm_cann_newton_fold"+std::to_string(s.width/2)+"_h"+std::to_string(s.width):s.variant==2?"as2_aiv_rmsnorm_cann_newton_h"+std::to_string(s.width):"as2_aiv_rmsnorm_full_row";
     else if(s.kind==11)id="as2_aiv_embedding_i32_bf16";
     else if(s.kind==13)id=s.kv_block==128?"as2_aiv_gqa_fp32_log2_partials_kv128":
