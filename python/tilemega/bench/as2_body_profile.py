@@ -16,6 +16,8 @@ def logical_bytes(s,m,tile,past):
         if extent>1:
             if extent not in (2,3,7) or width!=(k+extent-1)//extent or group!=1 or s[31]!=1:
                 raise ValueError('Unregistered split/combine traffic contract')
+            if extent==7 and (columns,k,epilogue)!=(1024,4096,0):
+                raise ValueError('Seven-part traffic requires the observed KV store family')
             if kind==0:part=tile%extent;tile//=extent
         nt=(columns+tn-1)//tn;mr=min(tm,rows-tile//nt*tm);nr=min(tn,columns-tile%nt*tn)
         if mr<=0 or nr<=0:raise ValueError('GEMM traffic coordinate outside output')

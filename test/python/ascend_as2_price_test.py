@@ -51,6 +51,8 @@ class AscendPriceAccounting(unittest.TestCase):
         self.assertEqual(logical_bytes(partial,[],0,0),176960)
         self.assertEqual(logical_bytes(partial,[],223,0),175232)
         self.assertEqual(logical_bytes(combine,[],31,0),61440)
+        wrong=partial.copy();wrong[21]=2048
+        with self.assertRaises(ValueError):logical_bytes(wrong,[],0,0)
         combine[18]=1
         with self.assertRaises(ValueError):logical_bytes(combine,[],0,0)
         pack=self.stage(25);pack[20]=64;pack[23:28]=[8,768,1,128,4]
