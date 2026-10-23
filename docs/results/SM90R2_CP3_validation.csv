@@ -80,6 +80,16 @@ qwen3_0_6b,1,E72,E67C1,class_error_pct_o,-11.539116982129627,15,True,verified st
 qwen3_0_6b,1,E72,E67C1,class_error_pct_gate_up,-15.231667486761403,15,False,verified stage trace; uniform overhead correction inferred; later training
 qwen3_0_6b,1,E72,E67C1,class_error_pct_down,-13.140428826229877,15,True,verified stage trace; uniform overhead correction inferred; later training
 qwen3_0_6b,1,E72,E67C1,class_error_pct_lm_head,2.6096936115502123,15,True,verified stage trace; uniform overhead correction inferred; later training
+llama3_2_1b,1,E77,cohort,kendall_tau,0.7142857142857142,0.7,True,verified prospective at frozen E76 prices; provisional namespace-limited ownership
+llama3_2_1b,1,E77,cohort,fastest_in_predicted_top3,False,True,False,verified prospective at frozen E76 prices; provisional namespace-limited ownership
+llama3_2_1b,1,E77,B61R,step_error_pct,1.4536282441628412,10,True,verified fresh guarded request; inferred frozen E76 prediction
+llama3_2_1b,1,E77,E77C1,step_error_pct,0.5036637188988058,10,True,verified fresh guarded request; inferred frozen E76 prediction
+llama3_2_1b,1,E77,E77C2,step_error_pct,0.19810575547500875,10,True,verified fresh guarded request; inferred frozen E76 prediction
+llama3_2_1b,1,E77,E77C3,step_error_pct,0.43092064437231237,10,True,verified fresh guarded request; inferred frozen E76 prediction
+llama3_2_1b,1,E77,E77C4,step_error_pct,0.5088890422407788,10,True,verified fresh guarded request; inferred frozen E76 prediction
+llama3_2_1b,1,E77,E77C5,step_error_pct,2.011031101410521,10,True,verified fresh guarded request; inferred frozen E76 prediction
+llama3_2_1b,1,E77,E77C6,step_error_pct,0.9251112589716337,10,True,verified fresh guarded request; inferred frozen E76 prediction
+llama3_2_1b,1,E77,E77C7,step_error_pct,2.955999458174041,10,True,verified fresh guarded request; inferred frozen E76 prediction
 qwen3_0_6b,1,E77,cohort,kendall_tau,0.7637626158259734,0.7,True,verified prospective at frozen E76 prices; provisional namespace-limited ownership
 qwen3_0_6b,1,E77,cohort,fastest_in_predicted_top3,True,True,True,verified prospective at frozen E76 prices; provisional namespace-limited ownership
 qwen3_0_6b,1,E77,B57R,step_error_pct,-0.8598754643797224,10,True,verified fresh guarded request; inferred frozen E76 prediction
@@ -90,6 +100,18 @@ qwen3_0_6b,1,E77,E77C4,step_error_pct,-4.192037651302338,10,True,verified fresh 
 qwen3_0_6b,1,E77,E77C5,step_error_pct,0.4711026871849766,10,True,verified fresh guarded request; inferred frozen E76 prediction
 qwen3_0_6b,1,E77,E77C6,step_error_pct,-1.9197777127093585,10,True,verified fresh guarded request; inferred frozen E76 prediction
 qwen3_0_6b,1,E77,E77C7,step_error_pct,3.1254751876854003,10,True,verified fresh guarded request; inferred frozen E76 prediction
+llama3_1_8b,1,E78,E77C1,class_error_pct_qkv,-15.626961442185362,15,False,verified fresh stage observation; uniform boundary correction inferred
+llama3_1_8b,1,E78,E77C1,class_error_pct_attention,-14.63181753034184,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_1_8b,1,E78,E77C1,class_error_pct_o,-4.1186618315801615,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_1_8b,1,E78,E77C1,class_error_pct_gate_up,-2.4162986293406963,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_1_8b,1,E78,E77C1,class_error_pct_down,-8.725392597665616,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_1_8b,1,E78,E77C1,class_error_pct_lm_head,0.5843662061547628,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_1_8b,16,E78,E77C1,class_error_pct_qkv,-19.57706110444436,15,False,verified fresh stage observation; uniform boundary correction inferred
+llama3_1_8b,16,E78,E77C1,class_error_pct_attention,-15.407641966356966,15,False,verified fresh stage observation; uniform boundary correction inferred
+llama3_1_8b,16,E78,E77C1,class_error_pct_o,-26.831881066728748,15,False,verified fresh stage observation; uniform boundary correction inferred
+llama3_1_8b,16,E78,E77C1,class_error_pct_gate_up,-3.621440273055543,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_1_8b,16,E78,E77C1,class_error_pct_down,-13.358281256705274,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_1_8b,16,E78,E77C1,class_error_pct_lm_head,-2.765077572074215,15,True,verified fresh stage observation; uniform boundary correction inferred
 llama3_2_1b,1,E78,E77C1,class_error_pct_qkv,0.8318820407264393,15,True,verified fresh stage observation; uniform boundary correction inferred
 llama3_2_1b,1,E78,E77C1,class_error_pct_attention,-0.3434985627669085,15,True,verified fresh stage observation; uniform boundary correction inferred
 llama3_2_1b,1,E78,E77C1,class_error_pct_o,4.279208123395595,15,True,verified fresh stage observation; uniform boundary correction inferred
