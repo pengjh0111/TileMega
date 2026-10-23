@@ -156,21 +156,39 @@ void Balance(cudaDeviceProp const& p) {
   Case<B,D,Q,Norm,S,64,3,8>(p);
   Case<B,D,Q,Norm,S,64,3,16>(p);
 }
+template<int B,int D,int Q,bool Norm>
+void ChunkShape(cudaDeviceProp const& p) {
+  Case<B,D,Q,Norm,1>(p);Case<B,D,Q,Norm,2>(p);Case<B,D,Q,Norm,4>(p);
+  Case<B,D,Q,Norm,8>(p);Case<B,D,Q,Norm,16>(p);Case<B,D,Q,Norm,32>(p);
+  Case<B,D,Q,Norm,64>(p);
+}
+template<int D,int Q,bool Norm>
+void AllChunks(cudaDeviceProp const& p) {
+  ChunkShape<1,D,Q,Norm>(p);ChunkShape<2,D,Q,Norm>(p);ChunkShape<4,D,Q,Norm>(p);
+  ChunkShape<8,D,Q,Norm>(p);ChunkShape<16,D,Q,Norm>(p);
+}
 int main(int argc,char** argv) {try {
+  bool all_residencies=false;
   for(int i=1;i<argc;++i) {
     if(std::strcmp(argv[i],"--audit-only")==0)audit_only=true;
+    else if(std::strcmp(argv[i],"--all-residencies")==0)all_residencies=true;
     else if(std::strcmp(argv[i],"--residency")==0 && i+1<argc) {
       if(std::strcmp(argv[++i],"1")==0)residency=1;
       else if(std::strcmp(argv[i],"2")==0)residency=2;
       else throw std::runtime_error("residency must be 1 or 2");
-    }else throw std::runtime_error("use [--audit-only] [--residency 1|2]");
+    }else throw std::runtime_error("use [--audit-only] [--residency 1|2] [--all-residencies]");
   }
   Check(cudaSetDevice(0));cudaDeviceProp p{};Check(cudaGetDeviceProperties(&p,0));
   if(p.major!=9 || p.minor!=0)throw std::runtime_error("Hopper calibration requires sm90");
   std::printf(audit_only?
       "batch,head_dim,queries,qk_norm,chunks,block_keys,slots,new_row_work,grid,shared_bytes,registers,local_bytes,resident,compatible\n":
       "metric,batch,head_dim,queries,qk_norm,chunks,block_keys,slots,new_row_work,past,grid,samples,median,p99,unit,timestamp_arithmetic\n");
-#ifdef TILEMEGA_CALIBRATION_BALANCE_ONLY
+  int first=all_residencies?1:residency,last=all_residencies?2:residency;
+  for(residency=first;residency<=last;++residency) {
+#ifdef TILEMEGA_CALIBRATION_ALL_CHUNKS
+  AllChunks<128,2,true>(p);AllChunks<64,4,false>(p);
+  AllChunks<128,3,false>(p);AllChunks<128,4,false>(p);
+#elif defined(TILEMEGA_CALIBRATION_BALANCE_ONLY)
   // These four shape/batch classes cover the low-batch development cells.
   Balance<1,128,2,true,8>(p);Balance<1,128,2,true,16>(p);Balance<1,128,2,true,32>(p);
   Balance<1,64,4,false,8>(p);Balance<1,64,4,false,16>(p);Balance<1,64,4,false,32>(p);
@@ -179,5 +197,6 @@ int main(int argc,char** argv) {try {
 #else
   Shape<128,2,true>(p);Shape<64,4,false>(p);Shape<128,3,false>(p);Shape<128,4,false>(p);
 #endif
+  }
   return 0;
 } catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}}
