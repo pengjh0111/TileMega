@@ -157,8 +157,11 @@ class GeneratedFeatureTests(unittest.TestCase):
                        defines=defines, implementations=fields)
         return manifest, defines, fields, receipt
 
-    def test_integer_features_reach_both_frontends(self):
-        for family in ('llm', 'dm'):
+    # A dense decoder's decode plan on xcore1000 is the MX-4 static program
+    # (MX4 prompt §3.9), which takes none of the interpreted executor's
+    # options: those are checked on the DNN frontend, which still runs it.
+    def test_integer_features_reach_the_interpreted_executor(self):
+        for family in ('dm',):
             for feature, (macro, default) in INTEGER_FEATURES.items():
                 values = (1, 2) if feature == 'attention_buffers' else (
                     (0, 200) if feature == 'v3_poll_ns' else (0, 31) if feature == 'kphase_mask' else (0, 1))
@@ -179,7 +182,7 @@ class GeneratedFeatureTests(unittest.TestCase):
                         receipt['pass'] = True
 
     def test_attention_and_handoff_switches(self):
-        for family in ('llm', 'dm'):
+        for family in ('dm',):
             for attention in ('mma16', 'simt'):
                 with self.subTest(family=family, attention=attention):
                     manifest, defines, fields, receipt = self.generate(
@@ -204,10 +207,16 @@ class GeneratedFeatureTests(unittest.TestCase):
                  ('watchdog', '2', '--watchdog must be'),
                  ('kphase-mask', '32', 'invalid K-phase'),
                  ('v3-poll-ns', '-1', 'invalid K-phase')]
-        for family in ('llm', 'dm'):
+        for family in ('dm',):
             for flag, value, message in cases:
                 with self.subTest(family=family, flag=flag):
                     self.generate(family, 'reject_' + flag, ['--' + flag, value], message)
+
+    def test_dense_decode_rejects_interpreted_options(self):
+        message = 'belongs to the interpreted decode executor'
+        for flags in (['--attention-impl', 'mma16'], ['--nonpaged-la', '1'], []):  # [] still carries --pg
+            with self.subTest(flags=flags):
+                self.generate('llm', 'mx4_' + '_'.join(flags).strip('-') or 'mx4_pg', flags, message)
 
 
 if __name__ == '__main__':
