@@ -10,6 +10,19 @@ from tilemega.bench.as2_native import digest
 from tilemega.bench.as2_body_profile import logical_bytes
 
 
+def task_overheads(stage,profile,cost):
+    composite=stage[17]==13 and stage[31] in (4,5,6)
+    if bool(profile.get('internal_mix_coordination_included'))!=composite:
+        raise ValueError('Measured coordination span differs from implementation')
+    cube_owner=stage[17]==0 or composite
+    overhead=cost['dispatcher_aic_ns'] if cube_owner else cost['dispatcher_aiv_ns']
+    # The cooperative owner's reservation already contains nested participant
+    # coordination. Disjoint GEMM/epilogue spans exclude both dispatchers.
+    if stage[17]==0 and stage[18]:overhead+=cost['dispatcher_aiv_ns']
+    internal=2*cost['cross_worker_ready_ns'] if stage[17]==0 and stage[18] else 0.0
+    return overhead,internal
+
+
 def costs(jobs,out):
     out=controlled(out,[RUNS])
     if out.exists():raise FileExistsError(out)
@@ -77,9 +90,7 @@ def prices(plan,profile_path,cost_path,out):
     rows=[]
     for i,(s,r) in enumerate(zip(stages,profile['stages'])):
         if r['stage']!=i or r['kind']!=s[17] or r['tasks']!=s[19]:raise ValueError('Unmeasured stage')
-        overhead=cost['dispatcher_aic_ns'] if s[17]==0 else cost['dispatcher_aiv_ns']
-        if s[17]==0 and s[18]:overhead+=cost['dispatcher_aiv_ns']
-        internal=0.0 if r.get('internal_mix_coordination_included') or not (s[17]==0 and s[18]) else 2*cost['cross_worker_ready_ns']
+        overhead,internal=task_overheads(s,r,cost)
         service=r['body_service_ns']['median']+overhead+internal
         if not math.isfinite(service) or service<=0:raise ValueError('Nonpositive task price')
         rows.append(dict(stage=i,kind=s[17],variant=s[31],tasks=s[19],rows=s[20],columns=s[21],k=s[22],
@@ -88,6 +99,7 @@ def prices(plan,profile_path,cost_path,out):
             internal_sync_source='included in measured composite span' if r.get('internal_mix_coordination_included') else 'cross-group symmetric readiness used conservatively for two same-group GEMM messages' if internal else 'no composite handoff',
             logical_gm_bytes=[logical_bytes(s,m,tile,profile['past']) for tile in range(s[19])]))
     result=dict(schema='tilemega.as2.native_task_prices.v1',status='sourced_empirical_context',
+        price_provider_version=2,dispatcher_accounting='actual_owner_role_and_disjoint_participant',
         model_id=profile['model_id'],config_sha256=profile['config_sha256'],batch=m[8],seq=m[9],groups=m[1],runtime_abi=m[0],
         phase=phase,past_min=0,past_max=profile['past'],stages=rows,
         source_profile=str(profile_path),source_profile_sha256=digest(profile_path),
