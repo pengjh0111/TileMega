@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <stdexcept>
 #include <string>
 namespace tilemega::commands {
 int CompileNativeDenseFixed(std::string const& input,std::string const& output,
@@ -11,5 +12,10 @@ struct NativeDenseSolveOptions {
   int batch=1,split_compile=2,measure_top=6,passes=12,budget_ms=600000;
   bool measured=true;
 };
+inline void ValidateNativeSelectionSearch(bool measured,bool converged,bool budget_exhausted) {
+  if(measured && (!converged || budget_exhausted))
+    throw std::invalid_argument("measured native selection requires a converged search without "
+        "budget exhaustion; retain the search receipt and increase --search-passes or --search-budget-ms");
+}
 int SolveNativeDense(NativeDenseSolveOptions const&);
 }

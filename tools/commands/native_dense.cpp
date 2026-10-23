@@ -201,6 +201,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     std::ofstream(directory/"receipt.json")<<receipt.Dump(2)<<'\n';return receipt;
   };
   int winner=o.measured?-1:0;double best=std::numeric_limits<double>::infinity();save(winner);
+  ValidateNativeSelectionSearch(o.measured,result.converged,result.budget_exhausted);
   int measured_unique=0;
   std::map<std::string,int> program_keys;
   if(o.measured)for(int i=0;i<int(result.ranked.size()) && measured_unique<o.measure_top;++i) {
