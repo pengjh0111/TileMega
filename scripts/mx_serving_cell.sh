@@ -64,7 +64,7 @@ solve)
     [ $selection = measure ] && measure=(--measure-cmd "env NEEDS_MIB=20480 $ROOT/scripts/mx_gpu_job.sh ${MGPU:-7} 1700 $C/measure_guard env -u ALL_PROXY -u all_proxy python -m tilemega.serving.measure --model /root/models/${id}_rand --prefill-so $P --prompt-ids $prompts --batch $b --mode L1 --decode-loop auto --max-new-tokens 1024 --warmup 1 --repeats 2 --policy $ROOT/configs/bench/measurement_policy_c550.json")
     timeout ${CELL_TIMEOUT:-18000} nice $SOLVE_BIN compile runs/mx1/export/${id}_decode/bridge.json $C/plan.so \
       --serving decode --emit serving --batch $b --prompt-len 64 --runtime-target $TARGET \
-      --selection $selection "${measure[@]}" --mx-tmin ${MX_TMIN:-64} --watchdog 0 ${PIN:+--evaluate-configs $PIN} \
+      --selection $selection "${measure[@]}" --mx-tmin ${MX_TMIN:-128} --watchdog 0 ${PIN:+--evaluate-configs $PIN} \
       > $C/compile.log 2>&1 || { echo rc=$? >> $C/compile.log; exit 1; }
     W=$CELLS/$id/B$b/decode_w; mkdir -p $W
     $SOLVE_BIN compile runs/mx1/export/${id}_decode/bridge.json $W/plan.so --serving decode --emit serving \

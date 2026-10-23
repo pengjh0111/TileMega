@@ -307,7 +307,7 @@ int RunCompile(int argc, char** argv) {
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
     std::string pinned_attention;
-    int mx_tmin=64;  // MX-4 attention Tmin (§6 D5)
+    int mx_tmin=128;  // MX-4 attention Tmin (§6 D5)
     // The decode attention body of each shortlisted plan, in shortlist order.
     std::vector<std::string> shortlist_attention;
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,paged_seed_from,artifact_cache;
