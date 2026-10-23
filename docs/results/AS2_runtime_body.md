@@ -237,14 +237,28 @@ Teacher uses Host token copies/checkpoints and is excluded from greedy timing.
 H2048 probes use Llama epsilon1e-5/Qwen epsilon1e-6;33 rows (four-AIV tail)
 and one-row Llama match fused Norm bitwise. Full/folded candidates pass; larger H
 stays gated. A real Llama1B head64/GQA4 replay matches Q/K/V/scores/probabilities/PV
-and context bitwise. Model binding now admits that explicit family; GQA3/other
-untested families remain closed. The old H2048 Qwen short request failed; actual
+and context bitwise. That family and the probed H3072/GQA3 family have explicit
+experimental bindings; other families stay gated. The old H2048 Qwen run failed; actual
 eager tiling exposes K2048×3 Stream-K. Opt-in CTG partial/combine now makes full
 prefill198/198,1024 greedy and teacher512 bitwise exact against SDPA/fused Norm.
-Llama1B short generation also fails13 KV checks despite4/4 tokens.
+Llama1B's earlier13-KV failure is repaired by actual CTG K2731/2731/2730
+partial/combine tasks: full64/1024,teacher512,16-layer KV match SDPA bitwise;
+five fresh reset processes pass281 files/request; fast/diagnostic217 files match.
 B1 diagnostic cap4MiB captures FFN outside timing; B16 retains1MiB except logits.
 Independent eager [FIA-v2](https://www.hiascend.com/document/detail/en/Pytorch/2610/apiref/customapi/docs/en/custom_APIs/torch_npu/torch_npu-npu_fused_infer_attention_score_v2.md) (native GQA/BF16/static KV) executes in the private
 process without TileMega code. It changes Qwen's long greedy path at output6;
 977 tokens differ and the old native/SDPA pairing cannot admit this baseline.
 Split3 request-reset C3 passes5/5 fresh processes; same-Plan fast/diagnostic373
-files are bitwise equal. All current timings remain unpaired/contended; no speedup is admitted.
+files are bitwise equal. Llama3B H3072/GQA3 operand probes pass; its integrated
+non-split candidate fails from output1. Prefill first drifts at`l1.norm1`
+(8 elements); same-act down differs56. Actual2×K4096 CTG partial/combine then
+passes1024 tokens/logits/KV and teacher512 bitwise. Five fresh reset processes
+pass485 files/request; fast/diagnostic373 common files match. Diagnostic-only
+allocations above1MiB are explicitly enumerated; tokens/logits/KV stay mandatory.
+Positive measured stage prices select structural prefill and EFT decode;
+both selected queues also pass1024/teacher512. Final eager/TPOT remains open.
+
+H4096/fold2048 and head128/GQA4 observed Body probes pass. Their full Llama8B
+candidate still fails; `l0.norm1` is exact, `l0.qkv` first differs. Isolated
+seven-part K sums match M64/M1. No device seven-part combine or model
+admission is claimed; new independent projection/pack CTG work is required.

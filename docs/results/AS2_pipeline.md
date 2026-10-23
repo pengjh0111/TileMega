@@ -127,9 +127,9 @@ Earlier device results are inherited run evidence, not new runs on this date.
 | Prompt requirement | Current implementation and remaining obligation |
 |---|---|
 | Real optimized pipeline | Import/CTG/ISL/native scheduling/codegen execute; `emit-priced` has real causal candidate selection. Latest ABI4 has actual full-context empirical prices and structural/EFT selection; wider geometry/family search and end-to-end admission remain required. |
-| Full model and state | Five canonical weight sets, full layers/embedding/head and persistent prefill/decode exist. Qwen0.6 B1 now passes actual1024 greedy and teacher512; other models/B16 and optimized-pipeline admission remain incomplete. |
+| Full model and state | Five canonical weight sets, full layers/embedding/head and persistent prefill/decode exist. Qwen0.6 B1/B16, Qwen1.7 B1, Llama1B B1 and Llama3B B1 pass1024/teacher512 against SDPA. Other five dense cells and final baseline admission remain incomplete. |
 | Numerical/performance contracts | Policy remains frozen. Intermediate bitwise checks locate drift; final admission uses declared error metrics plus exact greedy. Hooked/diagnostic runs cannot admit performance. |
-| Resource/handoff optimization | G8 and both AIV lanes have evidence; same-task MIX uses AIV0. An opt-in actual CTG split3/FP32 combine candidate passes Qwen1.7 prefill and short generation. C3/performance, G14/28, BF16 direct and broader small-M alternatives remain pending. |
+| Resource/handoff optimization | G8/both AIV lanes have evidence; same-task MIX uses AIV0. Qwen1.7 and Llama1B split3 queues pass1024/teacher512 and5/5 reset processes. G14/28, BF16 direct and broader small-M alternatives remain pending. |
 | TPOT validation | Strongest legal eager configuration still needs final baseline selection; full paired processes, warmups/repeats and95% intervals are pending for all ten cells. |
 | Shared-server isolation | Private roots, one own NPU job, one card/process, no locks/reset/other-process control, sequential nice10/parallel1 builds and manifest cleanup remain mandatory. |
 
@@ -172,3 +172,40 @@ Empirical partial/combine prices reach `emit-priced-decomposed`: prefill EFT
 1024 greedy and teacher512 pass. Wider structure/family search and final fused
 eager/performance admission remain open. Source-identical binaries and checked
 retained headers are reused; final queues are newly solved, never patched.
+
+Llama1B's observed K8192 down uses2731/2731/2730, including unaligned starts
+and the truncated final slice. Explicit bindings rederive16 partial/combine
+pairs before CTG instantiation:18476 prefill/4877 decode tasks. Full64/1024,
+teacher512, last-forward intermediates and16-layer1087-position KV match SDPA
+bitwise. Five fresh reset processes pass281 files/request; fast/diagnostic217
+common files match. Actual CANN logs show4 MIX launches for4 model forwards.
+Its independently measured positive stage prices compare two actual plans:
+prefill structural58.614667ms vs EFT58.650596ms; decode EFT8.107465ms vs
+structural8.111688ms. The selected prefill and decode differ in algorithm;
+both consume the same shared-GM-calendar objective. The bound selected plan
+passes1024 and teacher512. These predictions are not measured TPOT or speedups.
+Evidence: `models/llama3_2_1b/native_*split3_priced_v1/search.json`,
+`correctness/llama1b_split3_*`, `probes/llama1b_actual_runtime_launches_v1.json`.
+
+Llama3B H3072/fold2048 and GQA3 observed-operand probes pass. Its non-split
+candidate fails from the first greedy token; same-input prefill isolates56 BF16
+down-output differences and8 next-Norm differences, with earlier stages exact.
+Actual M64/M1 eager tiling uses2×K4096. Component partials and CPU ordered sum
+match all196608/3072 outputs; these probes alone do not admit a model.
+Explicit `as2_llama3b_*_split2.json` then rederives28 actual CTG partial/combine
+pairs,35116 prefill tasks and6796274176 arena bytes. The native device combine
+passes full64/1024,teacher512 and28-layer1087-position KV bitwise against SDPA.
+Actual CANN logs show8 MIX launches for8 forwards across two reset requests.
+Five fresh reset processes pass485 files/request; fast/diagnostic373 common
+files match, with112 diagnostic-only allocations above the explicit fast cap.
+Positive stage prices select structural prefill117.760393ms vs EFT117.884314ms,
+and EFT decode19.443116ms vs structural19.450319ms. Both selected queues pass
+1024/teacher512 bitwise. These are predicted objectives, not measured TPOT;
+final eager/performance admission remains open. No final queues are hand-written.
+
+Llama8B full H4096/GQA4 fold runs but forks at output2. Both same-input prefill
+and first decode first differ in packed QKV, with input Norm exact. M64 Q is
+exact; K requires observed7×K586 (last580) partials. Isolated M64/M1 ordered
+partial sums match, but uniform splitting of fused QKV is unproven. Next: a
+real separate-Q/K/V + layout stage and independent decomposition before CTG.
+The full-model gate stays failed until that path is solved and executed.

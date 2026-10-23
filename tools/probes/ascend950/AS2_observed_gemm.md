@@ -22,6 +22,8 @@ tiling key4162 and the88-byte installed `MatMulV3BasicTilingData`:
 | 1,2048,6144 | 16,256,64 | 2048 | three FP32 K partials |
 | 64,2048,8192 | 64,256,64 | 2731 | K2731/2731/2730 |
 | 1,2048,8192 | 16,256,64 | 2731 | K2731/2731/2730 |
+| 64,3072,8192 | 64,224,64 | 4096 | K4096/4096 |
+| 1,3072,8192 | 16,224,64 | 4096 | K4096/4096 |
 
 The installed arch35 template key and scheduler identify Stream-K. The
 installed epilogue adds increasing K slices in FP32, then casts BF16 RINT.
@@ -29,8 +31,8 @@ Deterministic eager and default eager match for the observed M64 operands.
 This is an observed algorithm choice, not a hardware peak or cost calibration.
 Llama1B's same-input M64 down differs50 BF16 values from ordinary accumulation;
 the three uneven CATLASS partials repair131072/131072 values. Its M1/tail case
-also matches2048/2048. Both are component probes; the model binding remains
-closed for K8192 split until real CTG/codegen/queue integration is validated.
+also matches2048/2048. The subsequent explicit Llama binding rederives actual
+CTG partial/combine queues and passes full64/1024 against SDPA/fused Norm.
 Evidence: `probes/llama1b_down_{residual_debug_v1,partial3_tail_numeric_v6}` and
 `llama1b_down_m1_partial3_tail_numeric_v6.json`; unaligned K2731 is not padded
 or silently changed to a different reduction domain.
@@ -61,7 +63,7 @@ consumes their actual dependencies and owns placement/FIFO order. Materializatio
 checks every combine's three required partial predecessors, shape/counts,
 role and the wait/FIFO graph. No final task queue is authored by hand.
 
-- Partial: AIC-only CATLASS BF16→FP32, K2048, preserved original A/B strides.
+- Partial: AIC-only CATLASS BF16→FP32, K2048 or K2731/2731/2730, original strides.
 - Combine: independent AIV task, fixed FP32 sum order → BF16 RINT → BF16 residual.
 - Logical partial `[row,col,part]` maps explicitly to physical `[part,row,col]`.
 - Private named FP32 storage and BF16 raw-output storage have separate guards.
@@ -81,6 +83,48 @@ The empirically priced EFT queues also pass1024/teacher512; actual CANN logs
 show four MIX launches for four forwards. No final fused-eager/TPOT Gate is
 admitted. Evidence: `correctness/qwen17_split3_*`,
 `probes/qwen17_split3_reset_c3_v1.json`, `qwen17_actual_runtime_launches_v1.json`.
+
+The Llama1B prefill/decode plans contain18476/4877 tasks,16 partial/combine
+pairs and a2,636,313,088-byte shared arena. New image `3ef7b9e0c7ae8cf5…`
+admits the observed uneven slices without changing the ordinary K loop.
+Natural64/1024 tokens, full128256 logits and all16 layers/1087 KV positions
+match the independent SDPA/fused Norm model bitwise. Last-forward saved
+intermediates and teacher512 are also bitwise equal. Five fresh reset processes
+pass281 files/request; fast/diagnostic217 files match. Empirical prices select
+structural prefill and EFT decode; selected queues pass1024/teacher512. Actual
+CANN logs show4 MIX launches for4 model forwards.
+Evidence: `correctness/llama1b_split3_*`, `probes/llama1b_actual_runtime_launches_v1.json`.
+The shape binding is experimental; final eager/TPOT admission remains open.
+
+Llama3B's independently observed prefill activation is exact, but ordinary down
+accumulation differs56 BF16 values; its next Norm differs8. Actual eager tiling
+uses two K4096 partials. The updated component probe repairs196608/196608 M64
+and3072/3072 M1 values. M1 has no same-input historical native capture and makes
+no comparison to one. Actual CTG split2 creates35116 prefill tasks and a
+6796274176B arena; device combine and four-token full-model results, final
+logits/KV and saved intermediates match SDPA bitwise. Full1024/teacher512 and
+28-layer1087-position KV also pass. Five fresh reset processes pass485 files per
+request;373 fast/diagnostic common files match. Sourced positive prices select
+structural prefill/EFT decode; both selected queues pass1024/teacher512 bitwise.
+Evidence: `probes/llama3b_down_partial2_*numeric_v7.json`,
+`correctness/llama3b_split2_request4_numeric_v1.json`.
+
+**verified-run**, physical1: Llama8B's actual M1/N4096/K14336 eager projection
+selects tiling66, not the other families'4162 Stream-K path. The existing
+CATLASS full-K Body matches all4096 observed BF16 outputs bitwise. Evidence:
+`probes/llama8b_down_m1_tiling_debug_v1/dispatch.json`,
+`probes/llama8b_down_m1_fullk_numeric_v1.json`. No split family is enabled from
+this one-row probe; prefill/full-model numerical checks remain separate.
+
+The new full H4096/GQA4 fold candidate still forks at output2. Same-input
+prefill and first-decode diagnostics both locate the first drift in `l0.qkv`,
+while `l0.norm1` is exact. Unpacked M64 Q outputs are all exact, but K differs17
+BF16 elements. Its actual eager tiling4162 prints K slice586; seven native
+FP32 partials (last580) plus CPU ordered sum repair65536/65536 values.
+Evidence: `probes/llama8b_k_m64_partial7_numeric_v8.json` and
+`correctness/llama8b_{prefill_first_difference,fold_first_decode}_v3.json`.
+This is not device-combine or CTG admission. Q and KV require distinct
+decomposition contracts; a uniform split of fused QKV is not justified.
 
 The first G2 partial attempt timed out120s while runtime logs stopped at device
 subprocess-open response. No kernel launch was observed. Its failure receipt is
