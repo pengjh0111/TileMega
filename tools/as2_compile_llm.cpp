@@ -18,8 +18,35 @@
 static void Write(std::filesystem::path const& path,std::string const& text) {
   std::ofstream out(path);out<<text<<'\n';if(!out)throw std::runtime_error("Cannot write "+path.string());
 }
+template<class T> static std::vector<T> ReadTable(std::filesystem::path const& path) {
+  auto bytes=std::filesystem::file_size(path);
+  if(bytes>(64ULL<<20) || bytes%sizeof(T))throw std::invalid_argument("Invalid bounded cached table");
+  std::vector<T> data(bytes/sizeof(T));std::ifstream f(path,std::ios::binary);
+  f.read(reinterpret_cast<char*>(data.data()),bytes);if(!f)throw std::runtime_error("Cannot read cached table");return data;
+}
 int main(int argc,char** argv) {
   try {
+    if(argc==4 && std::string(argv[1])=="reemit") {
+      namespace fs=std::filesystem;fs::path root="/home/d50064638/junhuip/TileMega/runs/as2";
+      auto plan=fs::weakly_canonical(argv[2]),out=fs::weakly_canonical(argv[3]);
+      for(auto const& p:{plan,out})if(p==root || p.lexically_relative(root).empty() || *p.lexically_relative(root).begin()=="..")
+        throw std::invalid_argument("Cached codegen must remain in AS2 runs");
+      if(fs::exists(out))throw std::invalid_argument("Use a new codegen output directory");
+      auto origin=tilemega::json::ParseFile((plan.parent_path()/"import.json").string());
+      if(!origin.At("native_plan_materialized").AsBool("materialized"))throw std::invalid_argument("Missing materialized-plan provenance");
+      auto metadata=ReadTable<tilemega::ascend::llm::Metadata>(plan/"metadata.bin");
+      tilemega::codegen::AscendLlmPlan native;
+      if(metadata.size()!=1)throw std::invalid_argument("Wrong cached metadata extent");
+      native.metadata=metadata[0];native.stages=ReadTable<tilemega::ascend::llm::Stage>(plan/"stages.bin");
+      if(native.metadata.stages!=native.stages.size() || native.metadata.tasks!=origin.At("task_count").AsNumber("task_count"))
+        throw std::invalid_argument("Cached plan/provenance mismatch");
+      auto source=tilemega::codegen::LowerAscendLlm(native);fs::create_directories(out);
+      Write(out/"persistent_llm.cpp",source);
+      Write(out/"codegen.json",tilemega::json::Value(tilemega::json::Object{
+        {"source_plan",plan.string()},{"source_import",origin},{"tables_rewritten",false},
+        {"solver_executed_this_call",false},{"scope","codegen from existing materialized CTG/Solver plan"}}).Dump());
+      return 0;
+    }
     bool priced=argc==10 && std::string(argv[1])=="emit-priced";
     bool emit=priced || ((argc>=6 && argc<=9) && std::string(argv[1])=="emit-diagnostic");
     bool prepare=emit || (argc==6 && std::string(argv[1])=="prepare");
@@ -249,7 +276,10 @@ int main(int argc,char** argv) {
         Write(output/"schedule.json",diagnostic_schedule.Dump());
         Write(output/"persistent_llm.cpp",tilemega::codegen::LowerAscendLlm(native));
         result.Set("native_plan_materialized",true);
-        result.Set("attention_implementation",attention_precision==6?"mix_fp32_cube_newton_qk_and_fullnorm":attention_precision==5?"mix_fp32_cube_newton_qknorm":attention_precision==1?"fp32_chunk32_merge":attention_precision==2?"fp32_scores_bf16_probability":attention_precision==3?"math_sdpa_fp32_split_scale":attention_precision>=4?"mix_fp32_cube_qk_vector_softmax_pv":"bf16_scores_probabilities");
+        result.Set("status","native_plan_materialized_not_device_verified");
+        result.Set("solver_executed",true);
+        result.Set("solver_scope",priced?"two_plan_empirical_native_rank_EFT_search":"structural_native_schedule_only");
+        result.Set("attention_implementation",attention_precision==8?"mix_fp32_cube_newton_norm_fold_softmax1088":attention_precision==7?"mix_fp32_cube_newton_qk_half_fold_fullnorm":attention_precision==6?"mix_fp32_cube_newton_qk_and_fullnorm":attention_precision==5?"mix_fp32_cube_newton_qknorm":attention_precision==1?"fp32_chunk32_merge":attention_precision==2?"fp32_scores_bf16_probability":attention_precision==3?"math_sdpa_fp32_split_scale":attention_precision>=4?"mix_fp32_cube_qk_vector_softmax_pv":"bf16_scores_probabilities");
         result.Set("selection",priced?selected_algorithm:"diagnostic_unpriced_bootstrap_not_optimized");
         result.Set("priced_solver_executed",priced);
         if(priced)result.Set("price_provenance",prices);
