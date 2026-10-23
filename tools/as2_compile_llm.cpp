@@ -111,14 +111,16 @@ int main(int argc,char** argv) {
       for(auto const& family:decomposition.At("families").AsArray("families")) {
         unsigned matches=0;
         auto family_k=family.At("k").AsNumber("k");
-        if(family.At("n").AsNumber("n")!=2048 || (family_k!=6144 && family_k!=8192) ||
-            family.At("split_k").AsNumber("split_k")!=3 || family.At("epilogue").AsString("epilogue")!="residual")
+        auto family_n=family.At("n").AsNumber("n"),split=family.At("split_k").AsNumber("split_k");
+        if(!((family_n==2048 && split==3 && (family_k==6144 || family_k==8192)) ||
+             (family_n==3072 && split==2 && family_k==8192)) ||
+            family.At("epilogue").AsString("epilogue")!="residual")
           throw std::invalid_argument("Unverified decomposition family");
         for(unsigned i=0;i<plan.gemms.size();++i) {
           auto const& g=plan.gemms[i];
-          if(g.n==2048 && g.k==family_k && g.epilogue==tilemega::frontend::PlanGemm::Epilogue::kResidual) {
+          if(g.n==family_n && g.k==family_k && g.epilogue==tilemega::frontend::PlanGemm::Epilogue::kResidual) {
             if(options.gemms[i].split_k!=1)throw std::invalid_argument("Duplicate decomposition binding");
-            options.gemms[i].split_k=3;++matches;++decomposed_gemms;
+            options.gemms[i].split_k=unsigned(split);++matches;++decomposed_gemms;
           }
         }
         if(matches!=family.At("expected_gemms").AsNumber("expected_gemms"))

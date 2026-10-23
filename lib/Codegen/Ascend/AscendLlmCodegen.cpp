@@ -114,7 +114,7 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
       auto g=At(gs,source.gemm);auto const& geo=p.runtime.gemms.at(source.gemm);
       bool base=geo.tile_m==32 && geo.tile_n==64 && geo.tile_k==64;
       bool small=geo.tile_m==16 && geo.tile_n==128 && geo.tile_k==128;
-      if((!base && !small) || (geo.split_k!=1 && geo.split_k!=3) || geo.stages!=2 || g.get("norm_ss") || g.get("ss_out"))
+      if((!base && !small) || (geo.split_k!=1 && geo.split_k!=2 && geo.split_k!=3) || geo.stages!=2 || g.get("norm_ss") || g.get("ss_out"))
         throw std::invalid_argument("LLM GEMM geometry/deferred normalization is not implemented");
       stage.variant=small?1:0;
       stage.columns=U(g,"n");stage.k=U(g,"k");
@@ -129,7 +129,9 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
       if(stage.epilogue==2 && stage.columns%32)throw std::invalid_argument("SwiGLU tail requires complete gate/up U16 pairs");
       if(stage.epilogue==3 && U(g,"partial_tile_n")!=geo.tile_n)throw std::invalid_argument("LM head partial count disagrees with geometry");
       if(geo.split_k>1) {
-        if(!small || (stage.rows!=1 && stage.rows!=64) || (stage.k!=6144 && stage.k!=8192) || stage.columns!=2048 ||
+        const bool family=(geo.split_k==3 && stage.columns==2048 && (stage.k==6144 || stage.k==8192)) ||
+                          (geo.split_k==2 && stage.columns==3072 && stage.k==8192);
+        if(!family || !small || (stage.rows!=1 && stage.rows!=64) ||
             stage.epilogue!=1 || !p.projection.options.cg_split_task_order)
           throw std::invalid_argument("Split-K requires an observed residual shape and tile-major CTG");
         stage.extent=geo.split_k;stage.width=(stage.k+geo.split_k-1)/geo.split_k;stage.group=1;
@@ -275,7 +277,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
   json::Array contracts;
   for(unsigned i=0;i<stages.size();++i) {
     auto const& s=stages[i];std::string id;
-    if(s.kind==6)id="as2_aiv_fp32_split3_ordered_combine_bf16_residual";
+    if(s.kind==6)id="as2_aiv_fp32_split"+std::to_string(s.extent)+"_ordered_combine_bf16_residual";
     if(s.kind==0)id=s.epilogue==0?"as2_catlass_bf16_32x64x64_nk":s.epilogue==1?"as2_mix_gemm_residual_gm":
       s.epilogue==2?"as2_mix_gemm_swiglu_u16_gm":"as2_mix_gemm_argmax64_gm";
     if(s.kind==0 && s.variant) {
@@ -283,7 +285,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
       else if(s.epilogue==3)id="as2_mix_gemm_argmax128_gm_16x128x128";
       else id+="_16x128x128";
     }
-    if(s.kind==0 && s.extent>1)id="as2_catlass_bf16_fp32_split3_k"+std::to_string(s.width)+"_16x128x128_l0k64";
+    if(s.kind==0 && s.extent>1)id="as2_catlass_bf16_fp32_split"+std::to_string(s.extent)+"_k"+std::to_string(s.width)+"_16x128x128_l0k64";
     else if(s.kind==1)id=s.variant==3?"as2_aiv_rmsnorm_cann_newton_fold"+std::to_string(s.width==3072?2048:s.width/2)+"_h"+std::to_string(s.width):s.variant==2?"as2_aiv_rmsnorm_cann_newton_h"+std::to_string(s.width):"as2_aiv_rmsnorm_full_row";
     else if(s.kind==11)id="as2_aiv_embedding_i32_bf16";
     else if(s.kind==13)id=s.kv_block==128?"as2_aiv_gqa_fp32_log2_partials_kv128":
