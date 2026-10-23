@@ -14,7 +14,7 @@ import shutil
 import subprocess
 
 import numpy as np
-from scipy.optimize import least_squares
+from scipy.optimize import LinearConstraint, minimize, OptimizeResult
 
 from sm90d1_common import ROOT, read, sha, write
 
@@ -52,29 +52,30 @@ class JointPrices:
         for op in sorted(set(ops.values())):
             add('native_epilogue_'+op,'scale',.05,4)
         protocol_keys = sorted({s['protocol_key'] for s in self.stages
-            if s['preissue_service_ns'] or s['late_service_ns'] or s['issue_count'] or s['receive_count']})
+            if s['preissue_service_ns'] or s['late_service_ns'] or s['issue_count'] or
+            s['receive_count'] or s['l2_service_ns']})
         for key in protocol_keys:
             for name, low, high, scale in [('preissue_efficiency',0,1,1),('tail_efficiency',0,1,1),
                     ('issue_ns',0,5,1000),('issue_service_scale',0,2,1),('receive_ns',0,5,1000)]:
                 add(key,name,low,high,scale)
         self.prior, self.lower, self.upper = np.array(prior), np.array(lower), np.array(upper)
         self.prior = np.clip(self.prior,self.lower,self.upper)
-        self.gemm = np.array([i for i,s in enumerate(self.stages) if s['key'].startswith('gemm_')])
-        self.attention = np.array([i for i,s in enumerate(self.stages) if s['key'].startswith('attention_')])
-        self.protocol = np.array([i for i,s in enumerate(self.stages) if s['protocol_key'] in protocol_keys])
+        self.gemm = np.array([i for i,s in enumerate(self.stages) if s['key'].startswith('gemm_')],dtype=int)
+        self.attention = np.array([i for i,s in enumerate(self.stages) if s['key'].startswith('attention_')],dtype=int)
+        self.protocol = np.array([i for i,s in enumerate(self.stages) if s['protocol_key'] in protocol_keys],dtype=int)
         self.features = {name:np.array([s[name] for s in self.stages]) for name in
             ('barrier_ns','startup_ns','initialization_ns','read_startup_ns','flow_ns','compute_ns',
              'epilogue_ns','dram_ns','stream_ns','activation_ns','overlap_limit_ns','preissue_service_ns',
-             'late_service_ns','issue_count','issue_service_ns','receive_count')}
+             'late_service_ns','l2_service_ns','issue_count','issue_service_ns','receive_count')}
         self.gemm_parameters = np.array([[lookup[self.stages[i]['key'],name] for name in
-            ('startup_ns','memory_scale','activation_scale','mma_scale')] for i in self.gemm])
+            ('startup_ns','memory_scale','activation_scale','mma_scale')] for i in self.gemm],dtype=int).reshape(-1,4)
         self.attention_parameters = np.array([[lookup[self.stages[i]['key'],name] for name in
-            ('startup_ns','body_scale')] for i in self.attention])
+            ('startup_ns','body_scale')] for i in self.attention],dtype=int).reshape(-1,2)
         self.protocol_parameters = np.array([[lookup[self.stages[i]['protocol_key'],name] for name in
             ('preissue_efficiency','tail_efficiency','issue_ns','issue_service_scale','receive_ns')]
-            for i in self.protocol])
+            for i in self.protocol],dtype=int).reshape(-1,5)
         self.epilogue_parameters = np.array([lookup['native_epilogue_'+ops[self.stages[i]['kind']],'scale']
-            for i in self.gemm])
+            for i in self.gemm],dtype=int)
         self.raw_compute = np.array([self.stages[i]['compute_ns']/fits[self.stages[i]['key']]['coefficients']['mma_scale']
             for i in self.gemm])
         self.raw_epilogue = np.array([self.stages[i]['epilogue_ns']/fits['native_epilogue_'+ops[self.stages[i]['kind']]]['coefficients']['scale']
@@ -82,8 +83,10 @@ class JointPrices:
         attention_scale = np.array([fits[self.stages[i]['key']]['coefficients']['body_scale'] for i in self.attention])
         self.raw_attention = {name:self.features[name][self.attention]/attention_scale
             for name in ('flow_ns','preissue_service_ns','late_service_ns')}
-        if any(f['coefficients'].get('l2_efficiency',0) for f in fits.values()):
-            raise ValueError('joint fit requires zero-credit L2 priors')
+        # L2 efficiency remains the supplied calibration prior. Reweighting
+        # unrelated end-to-end residuals cannot establish a new L2 benefit.
+        self.l2_credit = np.array([s['l2_service_ns']*
+            fits[s['protocol_key']]['coefficients']['l2_efficiency'] for s in self.stages])
 
     def stage_prices(self, x):
         f = self.features
@@ -106,12 +109,122 @@ class JointPrices:
         value = f['barrier_ns']+startup+np.maximum(flow,compute)+epilogue
         v = x[self.protocol_parameters]
         value[p] += (f['issue_count'][p]*1000*v[:,2]+f['issue_service_ns'][p]*v[:,3]+
-            f['receive_count'][p]*1000*v[:,4]-np.minimum(limit[p],early[p]*v[:,0]+late[p]*v[:,1]))
+            f['receive_count'][p]*1000*v[:,4]-np.minimum(limit[p],
+                early[p]*v[:,0]+late[p]*v[:,1]+self.l2_credit[p]))
         return value
 
     def predict(self, x):
         values = self.stage_prices(x)
         return np.bincount(self.row_ids,weights=self.weights*values[self.indices],minlength=len(self.rows))
+
+
+def physical_family(key):
+    """Pool corrections, retaining measured shape/warp features in the model."""
+    body, separator, stage = key.partition(':')
+    if body.startswith('gemm_'):
+        family = 'native_gemm'
+    elif body.startswith('attention_simt'):
+        family = 'native_attention_simt'
+    elif body.startswith('attention_mma_sync'):
+        family = 'native_attention_mma_sync'
+    else:
+        family = body
+    if separator:
+        band = stage.rsplit('_',1)[-1]
+        if band not in ('low','high'):
+            raise ValueError('transfer key lacks a physical batch band')
+        return 'transfer:'+family+':'+band
+    return family
+
+
+class PooledPrices:
+    def __init__(self, prices):
+        self.prices = prices
+        self.groups, lookup, members, indices = [], {}, [], []
+        for index,(key,name,scale) in enumerate(prices.parameters):
+            group = (physical_family(key),name)
+            if group not in lookup:
+                lookup[group] = len(self.groups)
+                self.groups.append(group);members.append([])
+            selected = lookup[group]
+            members[selected].append(index);indices.append(selected)
+        self.indices = np.array(indices,dtype=int)
+        self.members = members
+        self.prior = np.array([np.median(prices.prior[m]) for m in members])
+        self.lower = np.array([max(prices.lower[m]) for m in members])
+        self.upper = np.array([min(prices.upper[m]) for m in members])
+        if any(len({prices.parameters[i][2] for i in m})!=1 for m in members):
+            raise ValueError('pooled physical parameters have incompatible units')
+        if np.any(self.lower>=self.upper):
+            raise ValueError('pooled physical parameters have incompatible bounds')
+        self.prior = np.clip(self.prior,self.lower,self.upper)
+
+    def expand(self,x):
+        return np.asarray(x)[self.indices]
+
+    def predict(self,x):
+        return self.prices.predict(self.expand(x))
+
+    def coefficients(self,x):
+        return {group:float(x[i]*self.prices.parameters[self.members[i][0]][2])
+            for i,group in enumerate(self.groups)}
+
+    def audit(self):
+        return [dict(family=group[0],parameter=group[1],prior=float(self.prior[i]),
+            lower=float(self.lower[i]),upper=float(self.upper[i]),
+            prior_source='median of inherited target coefficients; inferred, not a new measurement',
+            members=[dict(key=self.prices.parameters[j][0],parameter=self.prices.parameters[j][1],
+                scale=self.prices.parameters[j][2],inherited_prior=float(self.prices.prior[j]))
+                for j in self.members[i]]) for i,group in enumerate(self.groups)]
+
+
+def sensitivity(predict,prior,lower,upper,sigma):
+    """Only data residuals establish rank; regularization is not evidence."""
+    jacobian = np.empty((len(sigma),len(prior)))
+    for i,value in enumerate(prior):
+        step = 1e-5*max(1.,abs(value))
+        low,high = max(lower[i],value-step),min(upper[i],value+step)
+        left,right = prior.copy(),prior.copy();left[i]=low;right[i]=high
+        jacobian[:,i] = (predict(right)-predict(left))/(high-low)/sigma
+    _,singular,vh = np.linalg.svd(jacobian,full_matrices=True)
+    # This is a numerical rank tolerance, independent of the E-3 error gates.
+    cutoff = (singular[0] if len(singular) else 0)*1e-8
+    rank = int(np.count_nonzero(singular>cutoff))
+    norms = np.linalg.norm(jacobian,axis=0)
+    zero = np.flatnonzero(norms<=cutoff).tolist()
+    basis = vh[:rank].T
+    return basis,dict(rank=rank,parameters=len(prior),observations=len(sigma),
+        singular_values=singular.tolist(),relative_rank_tolerance=1e-8,
+        zero_sensitivity_parameters=zero,null_directions=len(prior)-rank,
+        identifiable_basis=basis.tolist(),null_basis=vh[rank:].T.tolist())
+
+
+def fit_identifiable(predict,observed,sigma,prior,lower,upper):
+    basis,audit = sensitivity(predict,prior,lower,upper,sigma)
+    if not audit['rank']:
+        return OptimizeResult(x=prior.copy(),success=True,message='no identifiable data direction',
+            nfev=0,fun=0.),audit
+    active = np.linalg.norm(basis,axis=1)>1e-12
+    constraint = LinearConstraint(basis[active],(lower-prior)[active],(upper-prior)[active])
+
+    def objective(z):
+        residual = (predict(prior+basis@z)-observed)/sigma
+        return float(2*np.sum(np.hypot(1.,residual)-1.))
+
+    # Linear constraints preserve the original coefficient bounds exactly;
+    # every unidentifiable direction stays at the explicit pooled prior.
+    result = minimize(objective,np.zeros(audit['rank']),method='SLSQP',constraints=[constraint],
+        options=dict(maxiter=1000,ftol=1e-10))
+    result.x = prior+basis@result.x
+    audit['maximum_bound_violation'] = float(max(0.,np.max(lower-result.x),np.max(result.x-upper)))
+    if audit['maximum_bound_violation']>1e-7:
+        raise ValueError('identifiable fit violated physical coefficient bounds')
+    # SLSQP can miss a bound by roundoff. The native model rejects even a tiny
+    # negative coefficient; record rather than conceal this final projection.
+    bounded = np.clip(result.x,lower,upper)
+    audit['bound_roundoff_projection_max'] = float(np.max(np.abs(bounded-result.x)))
+    result.x = bounded
+    return result,audit
 
 
 def main():
@@ -135,13 +248,25 @@ def main():
     if difference>.05:raise ValueError(f'initial feature equations disagree with native prices: {difference}')
     observed = np.array([row['observed_ns'] for row in rows]);sigma = np.array([row['sigma_ns'] for row in rows])
     if np.any(sigma<=0):raise ValueError('positive observation scale required')
-    result = least_squares(lambda x:np.r_[(prices.predict(x)-observed)/sigma,.03*(x-prices.prior)],
-        prices.prior,bounds=(prices.lower,prices.upper),loss='soft_l1',max_nfev=1000)
-    result.x[np.abs(result.x)<1e-12] = 0
-    for (key,name,scale),value in zip(prices.parameters,result.x):
-        fit = cal['body_fits'][key];fit['coefficients'][name] = float(value*scale)
-        fit['joint_refinement'] = dict(evidence='inferred',method='shared body/operation/protocol joint fit',
-            observations_sha256=sha(args.observations),independent_validation=False)
+    _,raw_audit = sensitivity(prices.predict,prices.prior,prices.lower,prices.upper,sigma)
+    pooled = PooledPrices(prices)
+    result,pooled_audit = fit_identifiable(pooled.predict,observed,sigma,
+        pooled.prior,pooled.lower,pooled.upper)
+    fitted_parameters = pooled.expand(result.x)
+    write(args.out/'identifiability.json',dict(raw=raw_audit,pooled=pooled_audit,
+        groups=pooled.audit(),source_target_sha256=data['target_sha256'],
+        policy='physical-family pooling; null directions fixed at inherited pooled prior',
+        evidence='inferred local data sensitivity; not independent validation'))
+    shared = pooled.coefficients(result.x)
+    for key,fit in cal['body_fits'].items():
+        changed = False
+        for name in fit['coefficients']:
+            group = (physical_family(key),name)
+            if group in shared:
+                fit['coefficients'][name] = shared[group];changed = True
+        if changed:
+            fit['joint_refinement'] = dict(evidence='inferred',method='identifiable physical-family pooled fit',
+                observations_sha256=sha(args.observations),independent_validation=False)
     cal['fit_status'] = 'initial_overlap_fitted'
     cal['paired_training_receipts_sha256'] = data['paired_training_receipts_sha256']
     cal['pending'] = ['fresh class/step/ranking validation after joint recalibration','final measured solver selection']
@@ -152,7 +277,7 @@ def main():
             item['workload'],item['coordinates'],'--request-samples'],text=True,
             env=dict(os.environ,CUDA_VISIBLE_DEVICES='')))
         write(args.out/(stem+'.predictions.json'),values);predictions[stem] = values['predictions']
-    fitted = prices.predict(result.x);differences=[];table=[]
+    fitted = prices.predict(fitted_parameters);differences=[];table=[]
     for row,value in zip(rows,fitted):
         def selected(index):
             item=predictions[row['group']][index]
@@ -170,7 +295,9 @@ def main():
     write(args.out/'receipt.json',dict(observations=str(args.observations),observations_sha256=sha(args.observations),
         source_target_sha256=data['target_sha256'],target_sha256=sha(args.out/'target.json'),
         probe_sha256=sha(args.out/'price-probe'),script_sha256=sha(__file__),native_price_max_difference_ns=max(differences),
-        training_rows=len(rows),parameters=len(prices.parameters),optimization_success=bool(result.success),
+        training_rows=len(rows),parameters=len(prices.parameters),pooled_parameters=len(pooled.groups),
+        identifiable_directions=pooled_audit['rank'],identifiability_sha256=sha(args.out/'identifiability.json'),
+        optimization_success=bool(result.success),
         optimization_message=result.message,evaluations=result.nfev,solver_gate_pass=False,
         evidence='inferred joint training fit; no independent validation'))
     print(json.dumps(dict(training_rows=len(rows),native_price_max_difference_ns=max(differences),
