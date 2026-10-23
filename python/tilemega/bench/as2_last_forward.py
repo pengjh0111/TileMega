@@ -73,6 +73,7 @@ def compare(binding,native,reference,out):
     if any(digest(reference/'last_forward'/r['file'])!=r['sha256'] for r in capture['files']):raise ValueError('Independent capture changed')
     policy=json.loads((REPO/'configs/ascend/as2_correctness_policy.json').read_text());rows=[]
     def append(name,path,gold,category='decoder_layer',storage_bytes=None):
+        if not path.exists():raise ValueError('Missing diagnostic buffer; repeat with a sufficiently bounded capture: '+str(path))
         if path.stat().st_size!=(storage_bytes or gold.numel()*2) or path.stat().st_size<gold.numel()*2:
             raise ValueError('Paired stage extents differ: '+name)
         # Binding reserves max(prefill,decode) by name. Only the leading

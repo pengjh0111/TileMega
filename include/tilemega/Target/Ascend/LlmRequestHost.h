@@ -153,7 +153,8 @@ inline void Dump(Plan const& p,DevicePlan const& d,uint8_t* arena,unsigned past,
   for(unsigned id=0;id<p.allocations.size();++id) {
     auto const& a=p.allocations[id];bool logits=false;
     for(auto const& s:p.stages)if(s.kind==0 && s.epilogue==3 && s.workspace==a.offset)logits=true;
-    if(!a.required && (a.bytes<=1048576 || logits)) {
+    auto limit=diagnostic==1 && p.m.batch==1?4ULL*1048576:1048576ULL;
+    if(!a.required && (a.bytes<=limit || logits)) {
       std::vector<uint8_t> data(a.bytes);
       Check(aclrtMemcpy(data.data(),data.size(),arena+a.offset,data.size(),ACL_MEMCPY_DEVICE_TO_HOST),"request diagnostic output");
       Save(out/(std::to_string(id)+".bin"),data.data(),data.size());
