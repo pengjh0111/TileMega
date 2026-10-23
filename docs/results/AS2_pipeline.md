@@ -1,6 +1,6 @@
 # AS-2 pipeline evidence and remaining integration
 
-Status at 2026-10-21: **in_progress**, not G-PIPELINE pass.
+Status rechecked at 2026-10-23: **in_progress**, not G-PIPELINE pass.
 `verified-code` refers to this branch; numerical/device facts are `verified-run`.
 
 | AS-1 gap | Implemented entry | Remaining work |
@@ -13,7 +13,7 @@ Status at 2026-10-21: **in_progress**, not G-PIPELINE pass.
 | A06 | device FIFO/frontier consumer and five-process lifecycle | priced queues execute with399 equal payload files; broader search pending |
 | A07 | measured-counter finite wait; old DSB/cache protocol retained | no cache-removal optimization enabled |
 | A08 | QK norm/RoPE/KV, blocked decode and causal prefill | numerical failures, faster shared KV preparation |
-| A09 | 64-bit LLM ABI, >4096 tasks, five-process short-request reset | actual >4 GiB device allocation and long requests |
+| A09 | 64-bit LLM ABI, >4096 tasks, >4GiB real device arenas,1024 launches | teacher512, all dense/B16 long requests and wider bucket coverage |
 | A10 | GM AIC/AIV0 owner-ready-done lifecycle, five processes | dual-participant MIX, BF16 direct and split-K |
 
 `as2_compile_llm prepare` calls existing BuildModelPlan, ImportSemantics,
@@ -25,8 +25,10 @@ There is no hand-written final tile queue in this importer.
 ModelDescription previously populated physical_buffers only for DM. Serving
 now retains the verified typed allocation table too. Empty/missing table coverage
 fails preparation instead of producing a spurious zero-byte capacity result.
-Actual Llama-3.2-3B metadata yields maximum offset 6,555,471,872 B. This proves
-host allocation arithmetic, not device ABI support or an allocated 3B model.
+Initial Llama-3.2-3B metadata yields maximum offset 6,555,471,872 B. The later
+full28-layer short request actually allocates6,735,441,920B on device; Llama8B
+also executes with16,523,817,472B. These inherited run receipts prove large
+device addressing, while their numerical failures remain independently recorded.
 
 `ScheduleAscendTasks` takes task service/GM bytes, typed legal workers, semantic
 predecessors and explicit shared GM/synchronization prices. It uses critical
@@ -111,3 +113,27 @@ replayed into ABI4; profile/pricing/binder identities include `runtime_abi`.
 Internal attention-phase coordination is included once in owner service time.
 11 CPU binder contracts pass; broader hierarchy/search and teacher512/main
 ten-cell correctness/performance remain incomplete. MoE stays deferred.
+
+## Scope and implementation reconciliation, 2026-10-23
+
+Verified-code at `ec83e3a85`: original Prompt SHA256 remains
+`673b6deb619cb02f1c3f2d0875af2bdafb835bca09e3875d7dbfb840b1be00d6`.
+The user's later MoE deferral takes precedence: five dense models/ten active
+main cells; two MoE cells remain explicitly deferred, not silently passed.
+Earlier device results are inherited run evidence, not new runs on this date.
+
+| Prompt requirement | Current implementation and remaining obligation |
+|---|---|
+| Real optimized pipeline | Import/CTG/ISL/native scheduling/codegen execute; `emit-priced` has real causal candidate selection. Latest ABI4 normalization candidate is diagnostic/unpriced; ABI4 family/context prices and wider structural search are still required. |
+| Full model and state | Five canonical weight sets, full layers/embedding/head and persistent prefill/decode exist. Four-token successes and actual1024 launches do not waive teacher512, exact greedy, all B16 cells or numerical contracts. |
+| Numerical/performance contracts | Policy remains frozen. Intermediate bitwise checks locate drift; final admission uses declared error metrics plus exact greedy. Hooked/diagnostic runs cannot admit performance. |
+| Resource/handoff optimization | G8 and both AIV lanes have evidence; same-task MIX currently uses AIV0. G14/28, BF16 direct, split-K and broader small-M alternatives remain unvalidated/disabled. |
+| TPOT validation | Strongest legal eager configuration still needs final baseline selection; full paired processes, warmups/repeats and95% intervals are pending for all ten cells. |
+| Shared-server isolation | Private roots, one own NPU job, one card/process, no locks/reset/other-process control, sequential nice10/parallel1 builds and manifest cleanup remain mandatory. |
+
+Immediate dependency: preserve the real past1025/layer11 operand identity and
+replay its attention with per-phase FP32 workspace observations. A small Body
+probe may construct diagnostic queues, explicitly outside C-0 admission; final
+model plans must continue through the real solver. Only after a measured cause
+and validated fix should the full natural request be rerun. Follow with
+teacher512, ABI4 repricing/search, remaining dense families/B16 and paired TPOT.
