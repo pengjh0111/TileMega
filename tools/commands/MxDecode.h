@@ -10,7 +10,8 @@ namespace tilemega::commands::mx_decode {
 
 struct Request {
   std::filesystem::path input, output;
-  std::string model, pin, runtime_target, selection = "pin";
+  std::string model, pin, runtime_target, selection = "predicted", measure_cmd, table;
+  int tmin = 64;  // §6 D5
   int batch = 1, capacity = 0, past_lo = 0, past_hi = 0, grid = 104;
   int watchdog = 1, barrier_prefetch = 1;
   bool trace_stage = false, allow_resources = false;

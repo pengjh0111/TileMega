@@ -2,6 +2,7 @@
 #include <tilemega/Codegen/ServingPages.h>
 #include "Toolchain.h"
 #include "MxDecode.h"
+#include <tilemega/Support/Json.h>
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/ExactMemo.h>
@@ -306,6 +307,7 @@ int RunCompile(int argc, char** argv) {
     std::filesystem::path input(argv[1]);
     std::string variants_path,solve_target,dump_cg,hop_path,domain_path,rejections_path,evaluation_cases_path;
     std::string pinned_attention;
+    int mx_tmin=64;  // MX-4 attention Tmin (§6 D5)
     // The decode attention body of each shortlisted plan, in shortlist order.
     std::vector<std::string> shortlist_attention;
     std::string serving_phase, emit_mode,measure_command,serving_warm_start,paged_seed_from,artifact_cache;
@@ -481,6 +483,7 @@ int RunCompile(int argc, char** argv) {
       else if (flag=="--dump-evaluated") dump_evaluated=std::stoi(value)!=0;
       else if (flag=="--search-domain") domain_path=value;
       else if (flag=="--evaluate-configs") evaluation_cases_path=value;
+      else if (flag=="--mx-tmin") mx_tmin=std::stoi(value);
       else if (flag=="--numerical-rejections") rejections_path=value;
       else throw std::runtime_error("unknown option: "+flag);
     }
@@ -572,6 +575,13 @@ int RunCompile(int argc, char** argv) {
       mx.past_lo=serving_past_lo;mx.past_hi=serving_past_hi;mx.watchdog=watchdog;
       mx.runtime_target=!runtime_target.empty()?runtime_target:!solve_target.empty()?solve_target:
           std::string(TILEMEGA_SOURCE_DIR)+"/configs/targets/xcore1000.json";
+      mx.selection=search_selection;mx.measure_cmd=measure_command;mx.tmin=mx_tmin;
+      {
+        // The measured stage table: the runtime target's mx_decode_costs (§4.2).
+        auto target_doc=tilemega::json::ParseFile(mx.runtime_target);
+        if(auto const* costs=target_doc.Find("mx_decode_costs"))
+          mx.table=(std::filesystem::path(mx.runtime_target).parent_path()/costs->AsString("mx_decode_costs")).string();
+      }
       mx.model=input.parent_path().filename().string();  // <model>_decode (scripts/mx_serving_cell.sh export)
       if(mx.model.size()>7 && mx.model.compare(mx.model.size()-7,7,"_decode")==0)mx.model.resize(mx.model.size()-7);
       if(char const* trace=std::getenv("TILEMEGA_TRACE"))

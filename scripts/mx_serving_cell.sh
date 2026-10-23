@@ -49,6 +49,30 @@ solve)
   flock -n 9 || { echo "cell already being solved by pid $(cat $C/.lock.pid 2>/dev/null)" >&2; exit 3; }
   echo $$ > $C/.lock.pid
   rm -f $C/plan.so
+  # MX-4: a dense decoder's decode plan is the static stage program
+  # (tools/commands/mx_decode.cpp, MX4 prompt §3.9/§4.4); MoE keeps the
+  # interpreted executor below. Its solver's two plans are timed end to end
+  # with the cell's prefill plan (solve prefill first), 2 fresh processes
+  # each, alternating, on MGPU. The timed plan has no watchdog; decode_w is
+  # the same pin with the watchdog, for check (C-1/C-2).
+  if [ $phase = decode ] && ! grep -q -m1 expert runs/mx1/export/${id}_decode/bridge.json; then
+    P=$ROOT/$CELLS/$id/B$b/prefill/plan.so
+    [ -f $P ] || { echo "MX-4 decode is measured with $P; solve prefill first" >&2; exit 1; }
+    prompts=${PROMPTS:-$ROOT/configs/prompts/$(case $id in qwen*) echo qwen;; *) echo llama3;; esac)_isl64.json}
+    selection=${SELECTION:-measure}
+    measure=()
+    [ $selection = measure ] && measure=(--measure-cmd "env NEEDS_MIB=20480 $ROOT/scripts/mx_gpu_job.sh ${MGPU:-7} 1700 $C/measure_guard env -u ALL_PROXY -u all_proxy python -m tilemega.serving.measure --model /root/models/${id}_rand --prefill-so $P --prompt-ids $prompts --batch $b --mode L1 --decode-loop auto --max-new-tokens 1024 --warmup 1 --repeats 2 --policy $ROOT/configs/bench/measurement_policy_c550.json")
+    timeout ${CELL_TIMEOUT:-18000} nice $SOLVE_BIN compile runs/mx1/export/${id}_decode/bridge.json $C/plan.so \
+      --serving decode --emit serving --batch $b --prompt-len 64 --runtime-target $TARGET \
+      --selection $selection "${measure[@]}" --mx-tmin ${MX_TMIN:-64} --watchdog 0 ${PIN:+--evaluate-configs $PIN} \
+      > $C/compile.log 2>&1 || { echo rc=$? >> $C/compile.log; exit 1; }
+    W=$CELLS/$id/B$b/decode_w; mkdir -p $W
+    $SOLVE_BIN compile runs/mx1/export/${id}_decode/bridge.json $W/plan.so --serving decode --emit serving \
+      --batch $b --prompt-len 64 --runtime-target $TARGET --evaluate-configs $C/plan.so.mx4_pin.json --watchdog 1 \
+      > $W/compile.log 2>&1 || { echo rc=$? >> $C/compile.log; exit 1; }
+    echo rc=0 >> $C/compile.log
+    exit 0
+  fi
   trap 'rm -f $C/plan.so.m*.tsv $C/plan.so.verified*.tsv $C/plan.so.attn_*.m*.tsv $C/plan.so.attn_*.verified*.tsv' EXIT INT TERM
   # Row-major weights: decode with M<=4 dispatches to ServingGemvTaskBody,
   # whose xcore1000 specialisation rejects the tiled layout outright
@@ -142,8 +166,10 @@ solve)
 check)
   b=$3; rand=$4; prompts=$5; gpu=$6
   C=$CELLS/$id/B$b
+  # An MX-4 decode plan is checked with its watchdog twin (solve).
+  D=$C/decode; [ -f $C/decode_w/plan.so ] && D=$C/decode_w
   NEEDS_MIB=20480 $ROOT/scripts/mx_gpu_job.sh $gpu 1700 $C/check env -u ALL_PROXY -u all_proxy \
-    bash $ROOT/scripts/mx_check_modes.sh $rand $C/prefill/plan.so $C/decode/plan.so $b 512 $C $prompts ;;
+    bash $ROOT/scripts/mx_check_modes.sh $rand $C/prefill/plan.so $D/plan.so $b 512 $C $prompts ;;
 measure)
   b=$3; rand=$4; prompts=$5; gpu=$6; round=$7
   C=$CELLS/$id/B$b; O=$C/measure/round$round
