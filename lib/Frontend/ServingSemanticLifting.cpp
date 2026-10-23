@@ -201,6 +201,34 @@ LiftedModel LiftServingSemantics(ModelPlan const& plan,
       record(i, std::move(op), OpRole::kNorm, stage.operands[2], "rmsnorm");
       continue;
     }
+    if(stage.kind==PlanTaskKind::kLayoutConvert) {
+      const unsigned ratio=stage.layout_group_ratio,groups=stage.extent,width=stage.width;
+      if(!groups || !ratio || ratio>8 || !width || width%(ratio+2) || stage.group!=1)
+        throw std::invalid_argument("invalid separate-QKV packing geometry");
+      const unsigned d=width/(ratio+2),qw=ratio*d;
+      auto qmap=Aff({{"n",C(1),C(1)},{"n",C(-long(2*d)),C(width)}});
+      auto kmap=Aff({{"n",C(1),C(1)},{"n",C(long(d)-width),C(width)}},C(-long(qw)));
+      auto vmap=Aff(kmap.terms,C(-long(qw+d)));
+      auto within=Aff({{"n",C(1),C(1)},{"n",C(-long(width)),C(width)}});
+      auto upper=[&](long end){return Aff({{"n",C(-1),C(1)},{"n",C(width),C(width)}},C(end));};
+      auto lower=[&](long begin){return Aff(within.terms,C(-begin));};
+      auto qr=Input(producer(stage.operands[0]),space(stage.operands[0],{Axis("m",M),Axis("n",C(groups*qw))}),{Id("m"),qmap});
+      auto kr=Input(producer(stage.operands[1]),space(stage.operands[1],{Axis("m",M),Axis("n",C(groups*d))}),{Id("m"),kmap});
+      auto vr=Input(producer(stage.operands[2]),space(stage.operands[2],{Axis("m",M),Axis("n",C(groups*d))}),{Id("m"),vmap});
+      auto op=Output(op_name,OperatorKind::kTranspose,{Parallel("m",M),Parallel("n",C(groups*width))},
+          Tensor(name(stage.operands[3]),{Axis("m",M),Axis("g",C(groups)),Axis("u",C(width))}),
+          {Id("m"),Aff({{"n",C(1),C(width)}}),within},{qr,kr,vr});
+      op.exact_task_access=true;
+      op.task_space=Tensor(op_name+".ownership",{Axis("m",M),Axis("n",C(groups*width))});
+      op.task_map.results={Id("m"),Id("n")};
+      // These disjoint guards preserve exact element reads across the three
+      // separately reduced projections, rather than an all-input rectangle.
+      op.element_reads={{qr.tensor,qr.map,{upper(qw-1)}},
+          {kr.tensor,kr.map,{lower(qw),upper(qw+d-1)}},
+          {vr.tensor,vr.map,{lower(qw+d)}}};
+      record(i,std::move(op),OpRole::kLayoutConvert,stage.operands[3],"layout_convert");
+      continue;
+    }
     if (stage.kind == PlanTaskKind::kGemm) {
       auto const& gemm = plan.gemms.at(stage.gemm);
       const auto rows = stage.batch_rows ? B : M;

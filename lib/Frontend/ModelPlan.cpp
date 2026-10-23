@@ -1003,16 +1003,33 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
         ",\"head_dim\":" + std::to_string(head_dim) + '}';
     if(dn)qkv_recipe="{\"kind\":\"fold_rmsnorm\",\"norm\":\""+
         norm1_fqn+"\",\"source\":"+qkv_recipe+'}';
-    std::uint32_t qkv_weight = packed(prefix + (dn?"qkv.weight.dn":"qkv.weight"),
-                                      packed_width * hidden, qkv_recipe);
+    auto qkv_weight=serving.separate_qkv?kNoOperand:
+        packed(prefix+(dn?"qkv.weight.dn":"qkv.weight"),packed_width*hidden,qkv_recipe);
     std::uint32_t qkv = scratch(prefix + "qkv", serving.seq * packed_width);
     auto const* latest_qkv = &q;
     for (auto const* node : {&k, &v})
       if (node->index > latest_qkv->index) latest_qkv = node;
-    auto qkv_gemm = builder.Gemm(dn?x:norm1, qkv_weight, qkv, qkv,
-                                 packed_width, hidden, 0.0f);
-    if(dn)builder.plan.gemms[qkv_gemm].norm_ss=ss_cur;
-    builder.Stage(PlanTaskKind::kGemm, latest_qkv->name, qkv_gemm, 0, 0, 1);
+    if(serving.separate_qkv) {
+      if(dn || qrot.index<=latest_qkv->index)
+        throw std::invalid_argument("separate QKV needs explicit Norm and a later packing representative");
+      std::array<std::uint32_t,3> projections;
+      std::array<FxNodeRecord const*,3> nodes{&q,&k,&v};
+      std::sort(nodes.begin(),nodes.end(),[](auto a,auto b){return a->index<b->index;});
+      for(auto node:nodes) {
+        unsigned slot=node==&q?0:node==&k?1:2,columns=slot?kvwidth:qwidth;
+        auto output=scratch(prefix+(slot==0?"q":slot==1?"k":"v")+".projection",serving.seq*columns);
+        projections[slot]=output;
+        auto gemm=builder.Gemm(norm1,alias(node->inputs.at(1)),output,output,columns,hidden,0.0f);
+        builder.Stage(PlanTaskKind::kGemm,node->name,gemm,0,0,1);
+      }
+      builder.Stage(PlanTaskKind::kLayoutConvert,qrot.name,0,hkv,(qperkv+2)*head_dim,1,
+          {projections[0],projections[1],projections[2],qkv});
+      builder.plan.stages.back().layout_group_ratio=qperkv;
+    }else {
+      auto qkv_gemm=builder.Gemm(dn?x:norm1,qkv_weight,qkv,qkv,packed_width,hidden,0.0f);
+      if(dn)builder.plan.gemms[qkv_gemm].norm_ss=ss_cur;
+      builder.Stage(PlanTaskKind::kGemm,latest_qkv->name,qkv_gemm,0,0,1);
+    }
 
     auto cache_input = [&](FxNodeRecord const& cat) {
       for (auto const& input : cat.inputs) {

@@ -146,6 +146,7 @@ struct PlanStage {
   int row_offset = 0;
   int attention_kv_block = 256;
   int attention_query_rows = 64;
+  std::uint32_t layout_group_ratio = 0;
   std::uint32_t conv = codegen::kDmNoIndex;
   std::uint32_t rows_per_batch = 0;
   std::uint32_t binding_producer = codegen::kDmNoIndex;
@@ -227,6 +228,7 @@ struct ServingOptions {
   int argmax_tile_n = 32;
   bool deferred_norm = true;
   bool dn_vector_sums = false;
+  bool separate_qkv = false;
   int moe_batch = 1;
   bool moe_grouped = false;
   unsigned moe_block_rows = 16;

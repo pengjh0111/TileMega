@@ -813,6 +813,7 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
       case StageKind::kRMSNorm: result.serving_body_kind="rmsnorm";break;
       case StageKind::kEmbedding: result.serving_body_kind="embedding";break;
       case StageKind::kArgmaxReduce: result.serving_body_kind="argmax_reduce";break;
+      case StageKind::kLayoutConvert: result.serving_body_kind="qkv_group_pack";break;
       default: break;
     }
   }

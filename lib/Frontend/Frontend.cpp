@@ -421,6 +421,9 @@ mlir::DictionaryAttr modelPlanAttr(mlir::Builder& builder,
         builder.getNamedAttr("representative_index",
                              builder.getI64IntegerAttr(stage.representative_index))};
     if (plan.serving || plan.forward) {
+      if(stage.layout_group_ratio)
+        fields.push_back(builder.getNamedAttr("layout_group_ratio",
+            builder.getI64IntegerAttr(stage.layout_group_ratio)));
       fields.push_back(builder.getNamedAttr(
           "batch_rows", builder.getBoolAttr(stage.batch_rows)));
       fields.push_back(builder.getNamedAttr(

@@ -677,6 +677,9 @@ analysis::Granularity LaunchGranularity(
         case OpRole::kEmbedding:
           g.Tile(op.name, "m", one);
           break;
+        case OpRole::kLayoutConvert:
+          g.Tile(op.name,"m",one).Tile(op.name,"n",model.sem.Find(op.name)->Dim("n")->extent);
+          break;
         case OpRole::kServingArgmax:
           // The output axis is named b, while the parallel iteration that
           // maps to it is m. Granularity is keyed by iteration dimension.

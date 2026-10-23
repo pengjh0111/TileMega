@@ -123,6 +123,7 @@ struct ModelStage {
   bool batch_rows = false;
   int attention_kv_block = 0;
   int attention_query_rows = 0;
+  int layout_group_ratio = 0;
   std::uint32_t dm_conv = codegen::kDmNoIndex, rows_per_batch = 0;
   std::uint32_t dm_workspace_bytes = 0;
   codegen::DmMoeStage moe{};

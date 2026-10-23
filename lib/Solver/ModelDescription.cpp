@@ -304,6 +304,8 @@ ModelDescription ModelDescription::ReadCouplingGraph(
         ? integer(dict, "gemm") : -1;
     stage.extent = integer(dict, "extent"); stage.width = integer(dict, "width");
     stage.group = integer(dict, "group");
+    if(auto ratio=dict.getAs<mlir::IntegerAttr>("layout_group_ratio"))
+      stage.layout_group_ratio=ratio.getInt();
     if (auto rows = dict.getAs<mlir::BoolAttr>("batch_rows"))
       stage.batch_rows = rows.getValue();
     if (auto block = dict.getAs<mlir::IntegerAttr>("attention_kv_block"))

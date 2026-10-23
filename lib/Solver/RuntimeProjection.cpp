@@ -290,6 +290,11 @@ RuntimeProjection ProjectRuntimeQueues(ModelDescription const& model,
       case StageKind::kPool:
       case StageKind::kGlobalPoolReduce:
       case StageKind::kEncoderAttention: {
+        if(model.serving && stage.kind==StageKind::kLayoutConvert && stage.layout_group_ratio>0) {
+          if(stage.group!=1 || stage.extent<=0 || stage.width<=0 || stage.width%(stage.layout_group_ratio+2))
+            throw std::invalid_argument("invalid serving QKV packing domain");
+          count=tokens;break;
+        }
         if(!model.dm || stage.width<=0 || stage.group<=0)
           throw std::invalid_argument("incomplete DM primitive task geometry");
         if(stage.kind==StageKind::kGlobalPoolReduce)
