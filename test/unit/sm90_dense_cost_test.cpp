@@ -41,6 +41,14 @@ json::Value Fixture() {
   point("attention_critical_before_barrier",7000,"na");observations.back().Set("grid",264);
   point("attention_critical_before_barrier",9000,"na");
   observations.back().Set("batch",16);observations.back().Set("grid",264);
+  auto attention_rows=observations;
+  for(auto const& row:attention_rows)
+    if(row.At("metric").AsString("metric")=="attention_critical_before_barrier")
+      for(int chunks:{1,2,4,8,32,64}) {
+        auto value=row;value.Set("chunks",chunks);
+        value.Set("median",row.At("median").AsNumber("median")*std::max(1,chunks/16));
+        observations.push_back(value);
+      }
   json::Object fits;
   auto fit=[&](char const* key,json::Object coefficients) {
     coefficients.emplace_back("issue_service_scale",0);
@@ -66,7 +74,7 @@ json::Value Fixture() {
   return json::Object{{"schema",1},{"flow_model","overlapped_operands_v1"},
       {"issue_model","issuer_packets_v3"},
       {"overlap_model","operand_service_only_v2"},
-      {"attention_grid_model","explicit_grid_v1"},
+      {"attention_grid_model","explicit_grid_chunks_v2"},
       {"barrier_model","active_arrival_v1"},
       {"epilogue_model","operation_shared_v1"},
       {"receiver_model","prefix_receiver_v1"},
@@ -106,6 +114,20 @@ int main() {
     missing_attention_grid=std::string(e.what()).find("attention_critical_before_barrier")!=std::string::npos;
   }
   assert(missing_attention_grid);
+  auto more_chunks=c;more_chunks.attention.chunks=32;
+  assert(model.Predict(w,more_chunks).stages[1].flow==12000);
+  more_chunks.attention.chunks=64;
+  assert(model.Predict(w,more_chunks).stages[1].flow==24000);
+  auto missing_chunks=Fixture();json::Array without_sixty_four;
+  for(auto const& row:missing_chunks.At("observations").AsArray("observations"))
+    if(row.At("metric").AsString("metric")!="attention_critical_before_barrier" ||
+        row.At("chunks").AsNumber("chunks")!=64)without_sixty_four.push_back(row);
+  missing_chunks.Set("observations",without_sixty_four);bool rejected_chunks=false;
+  try {Sm90DenseCostModel(t,missing_chunks).Predict(w,more_chunks);}
+  catch(std::invalid_argument const& e) {
+    rejected_chunks=std::string(e.what()).find("attention_critical_before_barrier")!=std::string::npos;
+  }
+  assert(rejected_chunks);
   double total=0;
   for(auto const& p:prediction.stages) {
     assert(p.ns>=p.dram && p.ns>=p.barrier && p.ns>0);

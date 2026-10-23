@@ -46,8 +46,8 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal)
      cal.At("overlap_model").AsString("native overlap model")!="operand_service_only_v2")
     throw std::invalid_argument("native preissue credit requires operand-only calibration");
   if(!cal.Find("attention_grid_model") ||
-     cal.At("attention_grid_model").AsString("attention grid model")!="explicit_grid_v1")
-    throw std::invalid_argument("native attention pricing requires grid-specific calibration");
+     cal.At("attention_grid_model").AsString("attention grid model")!="explicit_grid_chunks_v2")
+    throw std::invalid_argument("native attention pricing requires grid- and chunk-specific calibration");
   if(!cal.Find("barrier_model") ||
      cal.At("barrier_model").AsString("native barrier model")!="active_arrival_v1")
     throw std::invalid_argument("native barriers require active-arrival calibration");
@@ -117,7 +117,10 @@ double Sm90DenseCostModel::Quantity(std::string const& metric,
       double x=value->AsNumber(d.first.c_str());
       if((d.first=="head_dim" || d.first=="queries" || d.first=="qk_norm" ||
           d.first=="vector_sums") && x!=d.second) {match=false;break;}
-      if(metric.rfind("attention_",0)==0 && (d.first=="batch" || d.first=="grid") &&
+      // These observations time the entire attention stage, including task
+      // waves and last-arriver reduction. A different S is not a nearby tile.
+      if(metric.rfind("attention_",0)==0 &&
+          (d.first=="batch" || d.first=="grid" || d.first=="chunks") &&
           x!=d.second) {match=false;break;}
       if(metric.rfind("v3_sparse_",0)==0 && d.first=="grid" && x!=d.second) {
         match=false;break;

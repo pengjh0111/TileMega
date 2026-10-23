@@ -76,7 +76,7 @@ def main():
                     l2_efficiency=0,issue_ns=0,issue_service_scale=0))
     cal = dict(schema=1, flow_model='overlapped_operands_v1',issue_model='issuer_packets_v3',
         overlap_model='operand_service_only_v2',
-        attention_grid_model='explicit_grid_v1',
+        attention_grid_model='explicit_grid_chunks_v2',
         barrier_model='active_arrival_v1',
         epilogue_model='operation_shared_v1',
         receiver_model='prefix_receiver_v1',
