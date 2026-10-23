@@ -1,5 +1,6 @@
 #include <tilemega/Frontend/SemanticLifting.h>
 #include <tilemega/Frontend/ExportBridge.h>
+#include <tilemega/Frontend/DmDescriptorCodec.h>
 #include <tilemega/Analysis/ISLContext.h>
 #include <tilemega/Analysis/TaskWork.h>
 #include <cassert>
@@ -40,12 +41,20 @@ int main(int argc,char** argv) {
     frontend::ServingOptions options;options.phase=frontend::ServingOptions::Phase::kPrefill;
     options.seq=64;options.deferred_norm=false;options.separate_qkv=true;
     auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
+    frontend::ValidateDmModelPlan(plan);
     unsigned packs=0;
     for(auto const& s:plan.stages) {
       layers+=s.kind==frontend::PlanTaskKind::kFusedAttention;
       packs+=s.kind==frontend::PlanTaskKind::kLayoutConvert;
     }
     assert(layers && packs==layers && plan.gemms.size()==6*layers+1);
+    auto invalid=plan;
+    for(auto& s:invalid.stages)if(s.kind==frontend::PlanTaskKind::kLayoutConvert) {
+      s.layout_group_ratio=0;break;
+    }
+    bool rejected=false;
+    try {frontend::ValidateDmModelPlan(invalid);}catch(std::invalid_argument const&){rejected=true;}
+    assert(rejected);
   }
   std::cout<<"{\"status\":\"pass\",\"scope\":\"exact guarded QKV reads, GQA3/4 and distinct batch rows\",\"actual_imported_layers\":"<<layers<<",\"device_executed\":false}\n";
 }

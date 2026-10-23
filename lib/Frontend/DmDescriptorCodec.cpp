@@ -112,10 +112,20 @@ void ValidateDmModelPlan(ModelPlan const& plan) {
           a.write.layout!=kDmNoIndex || a.write.rows!=kDmNoIndex ||
           gemm.chain.count || gemm.chain.side_count;
     }
-    for(auto const& stage:plan.stages)
-      extended|=stage.kind>=PlanTaskKind::kDepthwiseConv ||
+    for(auto const& stage:plan.stages) {
+      bool pack=plan.serving && stage.kind==PlanTaskKind::kLayoutConvert && stage.layout_group_ratio;
+      if(pack) {
+        if(stage.layout_group_ratio>8 || !stage.extent || !stage.width ||
+            stage.width%(stage.layout_group_ratio+2) || stage.group!=1)
+          throw std::invalid_argument("invalid serving QKV packing descriptor");
+        for(unsigned i=0;i<4;++i)
+          if(stage.operands[i]>=plan.buffers.size() || plan.buffers[stage.operands[i]].dtype!="bf16")
+            throw std::invalid_argument("serving QKV packing requires four BF16 buffers");
+      }else if(stage.layout_group_ratio)throw std::invalid_argument("packing ratio on a non-packing stage");
+      extended|=(stage.kind>=PlanTaskKind::kDepthwiseConv && !pack) ||
           stage.conv!=kDmNoIndex || stage.rows_per_batch || stage.binding_producer!=kDmNoIndex ||
           stage.norm_epsilon!=0.0f || stage.chain.count || stage.chain.side_count || stage.partial_rows_per_image;
+    }
     for(auto const& stage:plan.stages)extended|=stage.moe.step!=DmMoeStep::kNone;
     if(extended)throw std::invalid_argument("extended descriptors require the DM device ABI");
     return;
