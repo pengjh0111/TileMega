@@ -236,6 +236,54 @@ MxDecodeConfig ReadMxDecodeConfig(mlir::ModuleOp module) {
   return c;
 }
 
+std::vector<MxDecodeBuffer> MxDecodeBuffers(mlir::ModuleOp module) {
+  auto const m = AnalyzeMxDecode(module);
+  auto const c = ReadMxDecodeConfig(module);
+  auto buffers = Plan(module).getAs<mlir::ArrayAttr>("buffers");
+  std::vector<MxDecodeBuffer> rows;
+  // External buffers: the front end's names and recipes; GEMM weights
+  // wrapped in tile_pages(xcore_mma, TN, 32), named as ServingPages.cpp does.
+  auto row = [&](int index, char const* slot, int layer, int tn) {
+    auto buffer = mlir::cast<mlir::DictionaryAttr>(buffers[index]);
+    MxDecodeBuffer r;
+    r.name = Str(buffer, "external_name");
+    if (r.name.empty()) r.name = Str(buffer, "name");
+    r.dtype = Str(buffer, "dtype");
+    if (r.dtype.empty()) r.dtype = "bf16";
+    auto per_batch = buffer.getAs<mlir::IntegerAttr>("per_batch");
+    r.per_batch = per_batch ? per_batch.getInt() : 0;
+    r.constant = Int(buffer, "constant");
+    r.recipe = Str(buffer, "pack_json");
+    if (tn) {
+      if (r.recipe.empty()) r.recipe = "{\"kind\":\"alias\",\"source\":\"" + Escape(r.name) + "\"}";
+      r.recipe = "{\"kind\":\"tile_pages\",\"layout\":\"xcore_mma\",\"tile_n\":" + std::to_string(tn) +
+                 ",\"tile_k\":32,\"source\":" + r.recipe + "}";
+      r.name += "@t" + std::to_string(tn) + "x32";
+    }
+    r.slot = slot;
+    r.layer = layer;
+    rows.push_back(r);
+  };
+  row(m.tokens, "kSlotTokens", 0, 0);
+  row(m.rope_cos, "kSlotRopeCos", 0, 0);
+  row(m.rope_sin, "kSlotRopeSin", 0, 0);
+  row(m.embed, "kSlotEmbed", 0, 0);
+  row(m.head, "kSlotHead", 0, c.head.tn);
+  for (int l = 0; l < m.layers; ++l) {
+    row(m.qkv[l], "kSlotQkv", l, c.qkv.tn);
+    row(m.o[l], "kSlotO", l, c.o.tn);
+    row(m.gate_up[l], "kSlotGateUp", l, c.gate_up.tn);
+    row(m.down[l], "kSlotDown", l, c.down.tn);
+    if (m.qk_norm) {
+      row(m.q_norm[l], "kSlotQNorm", l, 0);
+      row(m.k_norm[l], "kSlotKNorm", l, 0);
+    }
+    row(m.k_cache[l], "kSlotKCache", l, 0);
+    row(m.v_cache[l], "kSlotVtCache", l, 0);
+  }
+  return rows;
+}
+
 std::string EmitMxDecodeProgram(mlir::ModuleOp module, int batch, int past_lo, int past_hi, int grid) {
   auto const m = AnalyzeMxDecode(module);
   auto const c = ReadMxDecodeConfig(module);
@@ -280,46 +328,13 @@ std::string EmitMxDecodeProgram(mlir::ModuleOp module, int batch, int past_lo, i
     << ">;\n"
     << "};\n\n";
 
-  // External buffers: the front end's names and recipes; GEMM weights
-  // wrapped in tile_pages(xcore_mma, TN, 32), named as ServingPages.cpp does.
-  auto row = [&](int index, char const* slot, int layer, int tn) {
-    auto buffer = mlir::cast<mlir::DictionaryAttr>(buffers[index]);
-    auto name = Str(buffer, "external_name");
-    if (name.empty()) name = Str(buffer, "name");
-    auto dtype = Str(buffer, "dtype");
-    auto per_batch = buffer.getAs<mlir::IntegerAttr>("per_batch");
-    std::int64_t constant = Int(buffer, "constant");
-    std::string recipe = Str(buffer, "pack_json");
-    if (tn) {
-      if (recipe.empty()) recipe = "{\"kind\":\"alias\",\"source\":\"" + Escape(name) + "\"}";
-      recipe = "{\"kind\":\"tile_pages\",\"layout\":\"xcore_mma\",\"tile_n\":" + std::to_string(tn) +
-               ",\"tile_k\":32,\"source\":" + recipe + "}";
-      name += "@t" + std::to_string(tn) + "x32";
-    }
-    o << "  {\"" << Escape(name) << "\", "
-      << (dtype == "i32" ? "TM_DTYPE_I32" : dtype == "f32" ? "TM_DTYPE_F32" : "TM_DTYPE_BF16") << ", " << constant
-      << "ull, " << (per_batch ? per_batch.getInt() : 0) << "ull, "
-      << (recipe.empty() ? std::string("nullptr") : "\"" + Escape(recipe) + "\"") << ", mx::" << slot << ", " << layer
-      << "},\n";
-  };
   o << "inline constexpr mx::MxBufferRow kBuffers[] = {\n";
-  row(m.tokens, "kSlotTokens", 0, 0);
-  row(m.rope_cos, "kSlotRopeCos", 0, 0);
-  row(m.rope_sin, "kSlotRopeSin", 0, 0);
-  row(m.embed, "kSlotEmbed", 0, 0);
-  row(m.head, "kSlotHead", 0, c.head.tn);
-  for (int l = 0; l < m.layers; ++l) {
-    row(m.qkv[l], "kSlotQkv", l, c.qkv.tn);
-    row(m.o[l], "kSlotO", l, c.o.tn);
-    row(m.gate_up[l], "kSlotGateUp", l, c.gate_up.tn);
-    row(m.down[l], "kSlotDown", l, c.down.tn);
-    if (m.qk_norm) {
-      row(m.q_norm[l], "kSlotQNorm", l, 0);
-      row(m.k_norm[l], "kSlotKNorm", l, 0);
-    }
-    row(m.k_cache[l], "kSlotKCache", l, 0);
-    row(m.v_cache[l], "kSlotVtCache", l, 0);
-  }
+  for (auto const& r : MxDecodeBuffers(module))
+    o << "  {\"" << Escape(r.name) << "\", "
+      << (r.dtype == "i32" ? "TM_DTYPE_I32" : r.dtype == "f32" ? "TM_DTYPE_F32" : "TM_DTYPE_BF16") << ", "
+      << r.constant << "ull, " << r.per_batch << "ull, "
+      << (r.recipe.empty() ? std::string("nullptr") : "\"" + Escape(r.recipe) + "\"") << ", mx::" << r.slot << ", "
+      << r.layer << "},\n";
   o << "};\n}  // namespace tm_mx_plan\n\n"
     << "#include <tilemega/Codegen/tasks/mx/DecodeRuntime.cuh>\n";
   return o.str();

@@ -54,6 +54,15 @@ MxDecodeConfig ReadMxDecodeConfig(mlir::ModuleOp module);
 /// Throws std::invalid_argument for a coordinate outside §3.5 / §4.1.
 void CheckMxDecodeConfig(MxDecodeModel const& model, int batch, MxDecodeConfig const& config, int grid);
 
+/// One external buffer of the program's table: the front end's name and
+/// recipe, GEMM weights wrapped in tile_pages(xcore_mma, TN, 32).
+struct MxDecodeBuffer {
+  std::string name, dtype, recipe, slot;
+  long long constant = 0, per_batch = 0;
+  int layer = 0;
+};
+std::vector<MxDecodeBuffer> MxDecodeBuffers(mlir::ModuleOp module);
+
 /// The plan source (plan.so.cu) of one batch size.
 std::string EmitMxDecodeProgram(mlir::ModuleOp module, int batch, int past_lo, int past_hi, int grid);
 

@@ -22,6 +22,7 @@
 
 #include <mlir/IR/MLIRContext.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -185,7 +186,47 @@ int TryCompile(Request const& r) {
            << ", \"code_bytes\": " << code_bytes << ", \"compile_s\": " << std::fixed << std::setprecision(1)
            << compile_s << "},\n  \"selection\": {\"mode\": " << std::quoted(r.selection)
            << ", \"pin\": " << std::quoted(r.pin) << "},\n  \"runtime_target\": " << std::quoted(r.runtime_target)
-           << ",\n  \"buffers\": []\n}\n";
+           << ",\n  \"buffers\": [";
+  // External buffers as the ABI reports them (recipes parsed by Python), then
+  // the program scratch tm_plan_create allocates (DecodeRuntime.cuh).
+  bool comma = false;
+  for (auto const& b : codegen::MxDecodeBuffers(*module)) {
+    manifest << (comma ? ",\n    " : "\n    ") << "{\"name\": " << std::quoted(b.name)
+             << ", \"role\": \"external\", \"dtype\": " << std::quoted(b.dtype) << ", \"constant\": " << b.constant
+             << ", \"per_batch\": " << b.per_batch;
+    if (!b.recipe.empty()) manifest << ", \"recipe\": " << b.recipe;
+    manifest << "}";
+    comma = true;
+  }
+  auto scratch = [&](char const* name, char const* dtype, long long elements) {
+    manifest << ",\n    {\"name\": " << std::quoted(name) << ", \"role\": \"internal\", \"dtype\": "
+             << std::quoted(dtype) << ", \"constant\": " << elements << "}";
+  };
+  {
+    using backend::mx::MxMaxContributors;
+    long long const B = r.batch, G = r.grid;
+    auto partial = [&](codegen::MxDecodeClass const& k, long long n) -> long long {
+      if (!k.stream_k) return 0;
+      long long const tiles = n / k.tn;
+      return tiles * MxMaxContributors(int(tiles), r.grid) * B * (k.tn + 1);
+    };
+    long long const n_qkv = (model.q_per_kv + 2LL) * model.hkv * model.head_dim;
+    scratch("mx.x", "bf16", B * model.hidden);
+    scratch("mx.qkv", "bf16", B * n_qkv);
+    scratch("mx.ctx", "bf16", B * model.heads * model.head_dim);
+    scratch("mx.h", "bf16", B * model.inter);
+    scratch("mx.gemm_partial", "f32",
+            std::max({partial(config.qkv, n_qkv), partial(config.o, model.hidden),
+                      partial(config.gate_up, 2LL * model.inter), partial(config.down, model.hidden)}));
+    scratch("mx.attn_partial", "f32",
+            B * model.hkv * ((model.capacity + 31) / 32) * model.q_per_kv * (model.head_dim + 2LL));
+    scratch("mx.head_partial", "f32", 2 * B * G);
+    scratch("mx.tickets", "i32", n_qkv / config.qkv.tn + model.hidden / config.o.tn +
+                                     2LL * model.inter / config.gate_up.tn + model.hidden / config.down.tn +
+                                     B * model.hkv + 16);
+    scratch("mx.barrier", "i32", 16LL * (5 * model.layers + 2));
+  }
+  manifest << "\n  ]\n}\n";
   manifest.close();
   identity(false);
   std::cerr << "MX4_DECODE layers=" << model.layers << " batch=" << r.batch << " stack=" << stack
