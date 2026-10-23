@@ -527,6 +527,99 @@ int main() {
   assert(rejected);
   Sm90DenseSearchSpace space{w.shapes,w.batch,w.head_dim,w.queries,t};
   Sm90DenseSearchOptions options;options.passes=2;options.beam_width=2;options.retained=8;
+  auto without_observations=[](auto remove) {
+    auto fixture=Fixture();json::Array rows;
+    for(auto const& row:fixture.At("observations").AsArray("observations"))
+      if(!remove(row))rows.push_back(row);
+    fixture.Set("observations",rows);return fixture;
+  };
+  auto no_attention=without_observations([](auto const& row) {
+    return row.At("metric").AsString("metric")=="attention_critical_before_barrier";
+  });
+  Sm90DenseCostModel missing_attention(t,no_attention);
+  for(int repeat=0;repeat<2;++repeat) {
+    bool typed=false;
+    try {missing_attention.RequireAttentionCalibration(w,unused_axes);}
+    catch(Sm90DenseMissingMeasurement const& error) {
+      typed=error.metric=="attention_critical_before_barrier" &&
+          error.dimensions.at("block_keys")==64 && error.dimensions.at("slots")==3 &&
+          error.labels.at("cache_state")=="warm_reuse";
+      assert(error.ToJson().At("dimensions").At("chunks").AsNumber("chunks")==16);
+    }
+    assert(typed);
+  }
+  auto protected_seeds=space.Seeds();auto activation_seeds=space.ActivationReuseSeeds();
+  protected_seeds.insert(protected_seeds.end(),activation_seeds.begin(),activation_seeds.end());
+  std::set<std::string> seed_coordinates;
+  for(auto const& seed:protected_seeds)seed_coordinates.insert(seed.ToJson().Dump(0));
+  bool pending_seeds=false;
+  try {SearchSm90Dense(space,w,missing_attention,options);}
+  catch(Sm90DenseCalibrationPending const& pending) {
+    auto const& report=pending.report;
+    pending_seeds=report.At("status").AsString("status")=="calibration_pending" &&
+        report.At("frontier").AsString("frontier")=="seeds";
+    assert(report.At("evaluated").AsNumber("evaluated")==0);
+    assert(!report.At("converged").AsBool("converged") &&
+        !report.At("selection_performed").AsBool("selected"));
+    assert(!report.Find("ranked") && !report.Find("winner"));
+    auto const& missing=report.At("missing").AsArray("missing");assert(missing.size()==2);
+    std::set<std::string> recorded;
+    for(auto const& row:missing)for(auto const& candidate:row.At("candidates").AsArray("candidates"))
+      assert(recorded.insert(candidate.At("coordinates").Dump(0)).second);
+    assert(recorded==seed_coordinates);
+  }
+  assert(pending_seeds);
+  auto missing_neighbours=without_observations([](auto const& row) {
+    return row.At("metric").AsString("metric")=="attention_critical_before_barrier" &&
+        (row.At("chunks").AsNumber("chunks")==4 || row.At("chunks").AsNumber("chunks")==32);
+  });
+  Sm90DenseCostModel incomplete_frontier(t,missing_neighbours);
+  std::set<std::string> expected_coordinates;
+  std::set<std::array<int,3>> expected_tuples;
+  for(auto const& seed:protected_seeds)for(auto const& candidate:space.Neighbours(seed))
+    if(candidate.attention.chunks==4 || candidate.attention.chunks==32) {
+      expected_coordinates.insert(candidate.ToJson().Dump(0));
+      expected_tuples.insert({candidate.residency*132,candidate.attention.chunks,
+          candidate.attention.new_row_work});
+    }
+  assert(expected_tuples.size()>2);
+  bool pending_beam=false;auto tiny_budget=options;tiny_budget.budget_ms=1;
+  try {SearchSm90Dense(space,w,incomplete_frontier,tiny_budget);}
+  catch(Sm90DenseCalibrationPending const& pending) {
+    auto const& report=pending.report;
+    pending_beam=report.At("frontier").AsString("frontier")=="beam" &&
+        report.At("pass").AsNumber("pass")==0;
+    assert(report.At("evaluated").AsNumber("evaluated")==seed_coordinates.size());
+    assert(!report.Find("ranked") && !report.Find("winner"));
+    std::set<std::string> recorded;std::set<std::array<int,3>> tuples;
+    for(auto const& row:report.At("missing").AsArray("missing")) {
+      auto const& dims=row.At("dimensions");
+      assert(row.At("labels").At("cache_state").AsString("cache")=="warm_reuse");
+      assert(tuples.insert({int(dims.At("grid").AsNumber("grid")),
+          int(dims.At("chunks").AsNumber("chunks")),
+          int(dims.At("new_row_work").AsNumber("work"))}).second);
+      for(auto const& candidate:row.At("candidates").AsArray("candidates")) {
+        assert(space.Legal(Sm90DenseCoordinates::FromJson(candidate.At("coordinates"))));
+        assert(recorded.insert(candidate.At("coordinates").Dump(0)).second);
+      }
+    }
+    assert(tuples==expected_tuples && recorded==expected_coordinates);
+  }
+  assert(pending_beam);
+  bool non_attention_error=false;
+  try {SearchSm90Dense(space,w,Sm90DenseCostModel(t,no_initialization),options);}
+  catch(Sm90DenseCalibrationPending const&) {assert(false && "non-attention error was swallowed");}
+  catch(Sm90DenseMissingMeasurement const& error) {
+    non_attention_error=error.metric=="activation_inactive_rows_initialize";
+  }
+  assert(non_attention_error);
+  bool other_error=false;
+  try {SearchSm90Dense(space,w,Sm90DenseCostModel(t,incomplete),options);}
+  catch(Sm90DenseCalibrationPending const&) {assert(false && "invalid body fit was swallowed");}
+  catch(std::invalid_argument const& error) {
+    other_error=std::string(error.what()).find("native body is not calibrated")!=std::string::npos;
+  }
+  assert(other_error);
   auto search=SearchSm90Dense(space,w,model,options);
   assert(search.evaluated>space.Seeds().size() && search.ranked.size()>=8);
   auto translated=c;translated.gemms[0].workspace_offset+=1024;

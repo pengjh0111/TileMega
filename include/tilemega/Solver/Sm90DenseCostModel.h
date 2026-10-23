@@ -3,6 +3,7 @@
 #include <tilemega/Solver/Sm90DenseCoordinates.h>
 #include <tilemega/Target/TargetSpec.h>
 #include <map>
+#include <stdexcept>
 
 namespace tilemega::solver {
 struct Sm90DenseWorkload {
@@ -23,6 +24,14 @@ struct Sm90DensePrediction {
   double step_ns=0;
   json::Value ToJson() const;
 };
+struct Sm90DenseMissingMeasurement : std::invalid_argument {
+  Sm90DenseMissingMeasurement(std::string const& message,std::string metric,
+      std::map<std::string,double> dimensions,std::map<std::string,std::string> labels);
+  std::string metric;
+  std::map<std::string,double> dimensions;
+  std::map<std::string,std::string> labels;
+  json::Value ToJson() const;
+};
 
 // Reads only the new native section. Legacy target serialization and pricing
 // never see these fits; missing measurements or unfit bodies are hard errors.
@@ -32,12 +41,14 @@ class Sm90DenseCostModel {
   Sm90DensePrediction Predict(Sm90DenseWorkload const&,Sm90DenseCoordinates const&,
                              int past=575) const;
   Sm90DensePrediction Request(Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;
+  void RequireAttentionCalibration(Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;
  private:
   TargetSpec target_;
   std::string attention_cache_state_;
   std::map<std::string,std::vector<json::Value>> observations_;
   std::map<std::string,json::Value> fits_;
   mutable std::map<std::string,double> quantities_;
+  mutable std::map<std::string,Sm90DenseMissingMeasurement> missing_quantities_;
   double dram_bw_=0;
   double Quantity(std::string const& metric,std::map<std::string,double> const& dimensions,
                   std::map<std::string,std::string> const& filters={}) const;

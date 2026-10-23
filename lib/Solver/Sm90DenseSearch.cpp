@@ -35,22 +35,57 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     if(a.prediction.step_ns!=b.prediction.step_ns)return a.prediction.step_ns<b.prediction.step_ns;
     return a.coordinates.ToJson().Dump(0)<b.coordinates.ToJson().Dump(0);
   };
+  using Frontier=std::vector<std::pair<Sm90DenseCoordinates,std::string>>;
+  auto require_frontier=[&](Frontier const& frontier,char const* name,int pass) {
+    std::set<std::string> checked;
+    std::map<std::string,std::pair<json::Value,json::Array>> missing;
+    for(auto const& entry:frontier) {
+      auto coordinates=entry.first.ToJson();auto key=coordinates.Dump(0);
+      if(seen.count(key) || !checked.insert(key).second)continue;
+      try {cost.RequireAttentionCalibration(work,entry.first);}
+      catch(Sm90DenseMissingMeasurement const& error) {
+        if(error.metric.rfind("attention_",0)!=0)throw;
+        auto measurement=error.ToJson();auto measurement_key=measurement.Dump(0);
+        auto found=missing.emplace(measurement_key,
+            std::make_pair(measurement,json::Array{})).first;
+        found->second.second.emplace_back(json::Object{
+            {"coordinates",coordinates},{"origin",entry.second}});
+      }
+    }
+    if(missing.empty())return;
+    json::Array measurements;
+    for(auto& entry:missing) {
+      entry.second.first.Set("candidates",entry.second.second);
+      measurements.push_back(std::move(entry.second.first));
+    }
+    // A missing member invalidates this entire search, including already
+    // priced seeds. Never return a partial ranking as a completed selection.
+    throw Sm90DenseCalibrationPending(json::Object{{"schema",1},{"status","calibration_pending"},
+        {"frontier",name},{"pass",pass},{"frontier_candidates",double(checked.size())},
+        {"evaluated",double(result.evaluated)},{"elapsed_ms",elapsed()},
+        {"converged",false},{"selection_performed",false},{"missing",measurements}});
+  };
   auto evaluate=[&](Sm90DenseCoordinates const& c,std::string const& origin) {
-    if(!seen.insert(c.ToJson().Dump(0)).second)return;
+    auto key=c.ToJson().Dump(0);
+    if(seen.count(key))return;
     auto prediction=cost.Request(work,c);
     if(!(prediction.step_ns>0) || !std::isfinite(prediction.step_ns))
       throw std::runtime_error("native pricing produced an invalid prediction");
     auto schedule=Sm90DenseScheduleKey(c,prediction);
-    pool.push_back({c,std::move(prediction),origin,std::move(schedule)});++result.evaluated;
+    pool.push_back({c,std::move(prediction),origin,std::move(schedule)});
+    seen.insert(std::move(key));++result.evaluated;
   };
   auto seeds=space.Seeds();
   if(seeds.empty())throw std::invalid_argument("native search has no legal seed");
+  Frontier seed_frontier;
   for(unsigned i=0;i<seeds.size();++i)
-    evaluate(seeds[i],std::string(i/3?"resident2_":"resident1_")+
+    seed_frontier.emplace_back(seeds[i],std::string(i/3?"resident2_":"resident1_")+
         (i%3==0?"exact":i%3==1?"preissue":"preissue_l2"));
   // Keeping one zeroed arena needs a joint change to every operand layout;
   // single-coordinate neighbours cannot reach it on mixed-TK programs.
-  for(auto const& seed:space.ActivationReuseSeeds())evaluate(seed,"activation_reuse");
+  for(auto const& seed:space.ActivationReuseSeeds())seed_frontier.emplace_back(seed,"activation_reuse");
+  require_frontier(seed_frontier,"seeds",-1);
+  for(auto const& entry:seed_frontier)evaluate(entry.first,entry.second);
   std::sort(pool.begin(),pool.end(),less);
   std::set<std::string> expanded;
   auto leaders=[&] {
@@ -74,13 +109,16 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     }
     if(beam.empty()) {result.converged=true;break;}
     auto previous=leaders();
+    Frontier frontier;
     for(auto const& center:beam) {
       expanded.insert(center.schedule_key);
-      for(auto const& neighbour:space.Neighbours(center.coordinates)) {
-        if(elapsed()>=o.budget_ms) {result.budget_exhausted=true;break;}
-        evaluate(neighbour,"search");
-      }
-      if(result.budget_exhausted)break;
+      for(auto const& neighbour:space.Neighbours(center.coordinates))
+        frontier.emplace_back(neighbour,"search");
+    }
+    require_frontier(frontier,"beam",pass);
+    for(auto const& entry:frontier) {
+      if(elapsed()>=o.budget_ms) {result.budget_exhausted=true;break;}
+      evaluate(entry.first,entry.second);
     }
     std::sort(pool.begin(),pool.end(),less);
     if(result.budget_exhausted)break;

@@ -8,6 +8,14 @@
 
 namespace tilemega::solver {
 namespace {
+std::map<std::string,double> AttentionDimensions(Sm90DenseWorkload const& w,
+    Sm90DenseCoordinates const& c,int grid,int past) {
+  auto const& a=c.attention;
+  return {{"batch",w.batch},{"grid",grid},{"head_dim",w.head_dim},
+      {"queries",w.queries},{"qk_norm",w.qk_norm},{"chunks",a.chunks},
+      {"block_keys",w.batch<=4?64:a.block_keys},{"slots",w.batch<=4?3:a.slots},
+      {"past",past},{"new_row_work",a.chunks==1?0:a.new_row_work}};
+}
 std::string AttentionKey(Sm90DenseWorkload const& w) {
   return std::string(w.batch<=4?"attention_simt":"attention_mma_sync")+
       "_d"+std::to_string(w.head_dim)+"_q"+std::to_string(w.queries)+
@@ -31,6 +39,17 @@ double Median(std::vector<double> values) {
   std::sort(values.begin(),values.end());auto n=values.size();
   return n%2?values[n/2]:(values[n/2-1]+values[n/2])/2;
 }
+}
+Sm90DenseMissingMeasurement::Sm90DenseMissingMeasurement(std::string const& message,
+    std::string metric,std::map<std::string,double> dimensions,
+    std::map<std::string,std::string> labels)
+    :std::invalid_argument(message),metric(std::move(metric)),dimensions(std::move(dimensions)),
+     labels(std::move(labels)) {}
+json::Value Sm90DenseMissingMeasurement::ToJson() const {
+  json::Object dims,filters;
+  for(auto const& value:dimensions)dims.emplace_back(value.first,value.second);
+  for(auto const& value:labels)filters.emplace_back(value.first,value.second);
+  return json::Object{{"metric",metric},{"dimensions",dims},{"labels",filters}};
 }
 Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal):target_(target) {
   if(target.arch_tag!="sm_90" || target.NvccArch()!="sm_90a" ||
@@ -127,8 +146,15 @@ double Sm90DenseCostModel::Quantity(std::string const& metric,
   for(auto const& f:filters)cache_key+='|'+f.first+'='+f.second;
   auto cached=quantities_.find(cache_key);
   if(cached!=quantities_.end())return cached->second;
+  auto missing=missing_quantities_.find(cache_key);
+  if(missing!=missing_quantities_.end())throw missing->second;
+  auto fail=[&](char const* reason) {
+    auto entry=missing_quantities_.emplace(cache_key,
+        Sm90DenseMissingMeasurement(std::string(reason)+cache_key,metric,dims,filters));
+    throw entry.first->second;
+  };
   auto it=observations_.find(metric);
-  if(it==observations_.end())throw std::invalid_argument("missing native measurement: "+cache_key);
+  if(it==observations_.end())fail("missing native measurement: ");
   double best=std::numeric_limits<double>::infinity(),result=0;
   std::map<double,std::vector<double>> samples;
   for(auto const& row:it->second) {
@@ -170,8 +196,19 @@ double Sm90DenseCostModel::Quantity(std::string const& metric,
     for(auto const& point:samples)curve.emplace(point.first,Median(point.second));
     result=Interpolate(curve,dims.count("past")?dims.at("past"):0);
   }
-  if(!result)throw std::invalid_argument("no matching native measurement: "+cache_key);
+  if(!result)fail("no matching native measurement: ");
   quantities_[cache_key]=result;return result;
+}
+void Sm90DenseCostModel::RequireAttentionCalibration(Sm90DenseWorkload const& w,
+    Sm90DenseCoordinates const& c) const {
+  c.ValidateSchedule(w.shapes,w.batch,w.head_dim,w.queries,1088,
+      Sm90DenseSharedBudget(target_,c.residency));
+  if(w.layers<1)throw std::invalid_argument("invalid native prediction workload");
+  // Only past is interpolated. One request midpoint therefore proves exact
+  // geometry coverage for every position without pricing the other bodies.
+  Quantity("attention_critical_before_barrier",
+      AttentionDimensions(w,c,target_.res.num_sms*c.residency,95),
+      {{"cache_state",attention_cache_state_}});
 }
 double Sm90DenseCostModel::MainloopNs(Sm90DenseGemm const& g) const {
   std::string key="native-mainloop|"+std::to_string(g.tile_n)+'|'+std::to_string(g.TileK())+
@@ -300,12 +337,8 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
       auto const& a=c.attention;s.kind="attention";s.key=AttentionKey(w);
       s.protocol_key=s.key+":attention"+(w.batch<=4?std::string("_low"):std::string("_high"));
       s.tasks=w.batch*8*a.chunks;s.waves=(s.tasks+grid-1)/grid;
-      std::map<std::string,double> dimensions={{"batch",w.batch},{"grid",grid},{"head_dim",w.head_dim},
-          {"queries",w.queries},{"qk_norm",w.qk_norm},{"chunks",a.chunks},
-          {"block_keys",w.batch<=4?64:a.block_keys},{"slots",w.batch<=4?3:a.slots},{"past",past},
-          {"new_row_work",a.chunks==1?0:a.new_row_work}};
       // The whole-stage calibration includes deterministic LA and wave costs.
-      s.flow=Quantity("attention_critical_before_barrier",dimensions,
+      s.flow=Quantity("attention_critical_before_barrier",AttentionDimensions(w,c,grid,past),
           {{"cache_state",attention_cache_state_}})*
           Coefficient(s.key,"body_scale");
       s.dram=4.*w.batch*8*past*w.head_dim/global_bw;

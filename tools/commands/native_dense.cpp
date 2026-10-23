@@ -158,7 +158,20 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   }
   solver::Sm90DenseSearchSpace space{work.shapes,work.batch,work.head_dim,work.queries,target};
   solver::Sm90DenseSearchOptions search;search.passes=o.passes;search.budget_ms=o.budget_ms;
-  auto result=solver::SearchSm90Dense(space,work,cost,search);
+  solver::Sm90DenseSearchResult result;
+  try {result=solver::SearchSm90Dense(space,work,cost,search);}
+  catch(solver::Sm90DenseCalibrationPending const& pending) {
+    auto report=pending.report;
+    report.Set("target_sha256",target_sha);report.Set("export_sha256",input_sha);
+    report.Set("solve_command",o.solve_command);
+    auto path=directory/"calibration-pending.json";
+    std::ofstream output(path);
+    if(!output)throw std::runtime_error("cannot write native calibration_pending receipt");
+    output<<report.Dump(2)<<'\n';output.close();
+    if(!output)throw std::runtime_error("cannot finish native calibration_pending receipt");
+    std::cerr<<"NATIVE_DENSE calibration_pending "<<path.string()<<'\n';
+    return 2;
+  }
   json::Array ranked,measurements,evaluated;
   std::vector<fs::path> configs;
   for(unsigned i=0;i<result.ranked.size();++i) {
