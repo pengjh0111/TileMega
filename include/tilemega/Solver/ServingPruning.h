@@ -61,9 +61,9 @@ inline bool PruneServingR2(GemmConfig const& g,
                            ServingPruneContext const& context) {
   if (g.tile_m > std::max(16, ServingNextPow2(context.m)) ||
       g.tile_n > std::max(32, ServingNextPow2(context.n))) return true;
-  int const k_tiles = (context.k + g.split_k * g.tile_k - 1) /
-                      (g.split_k * g.tile_k);
-  return g.stages > k_tiles;
+  // MX4 prompt §5.5: the pipeline runs over 32-wide K chunks per split.
+  int const k_chunks = (context.k + g.split_k * 32 - 1) / (g.split_k * 32);
+  return g.stages > k_chunks;
 }
 
 // R-3 is a model-level dominance hypothesis. It is admitted only after the

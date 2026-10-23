@@ -36,7 +36,10 @@ int TestServingPruning(int argc, char** argv) {
       ServingBF16SmemBytes(g.tile_m, g.tile_n, g.tile_k, g.stages);
   assert(!PruneServingR2(g, decode));
   assert(PruneServingR2(GemmConfig{32, 128, 64, 2, 1}, decode));
-  assert(PruneServingR2(GemmConfig{16, 128, 64, 33, 1}, decode));
+  // K = 2048: 64 chunks of 32 per split (MX4 prompt §5.5).
+  assert(!PruneServingR2(GemmConfig{16, 128, 64, 33, 1}, decode));
+  assert(PruneServingR2(GemmConfig{16, 128, 64, 65, 1}, decode));
+  assert(PruneServingR2(GemmConfig{16, 128, 64, 17, 4}, decode));
   assert(PruneServingR1(GemmConfig{16, 128, 64, 2, 64}, decode));
   ServingPruneContext gate = decode;
   gate.gate_interleave_u = 16;
