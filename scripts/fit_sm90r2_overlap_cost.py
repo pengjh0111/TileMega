@@ -69,6 +69,14 @@ def main():
         if any(g['preissue_smem_bytes'] or g['prefetch_l2_bytes'] for g in
                [*c['gemms'].values(),c['attention']]):
             raise ValueError('each geometry baseline must have no incoming transfer')
+        def geometry(value):
+            value = json.loads(json.dumps(value))
+            for body in [*value['gemms'].values(), value['attention']]:
+                for key in ('preissue_smem_bytes', 'prefetch_l2_bytes', 'preissue_late'):
+                    body.pop(key, None)
+            return value
+        if any(geometry(coordinates[tags.index(tag)]) != geometry(c) for tag in group[1:]):
+            raise ValueError('transfer fitting requires the same geometry within each group')
     shapes = {g['family']:[g['n'],g['k']] for g in plan['gemms']}
     work = dict(shapes=[shapes[k] for k in ('qkv','o','gate_up','down','lm_head')],
         batch=batch,layers=hf['num_hidden_layers'],
