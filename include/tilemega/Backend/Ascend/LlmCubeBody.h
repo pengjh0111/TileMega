@@ -19,13 +19,14 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
     unsigned nt=(s.columns+TN-1)/TN;
 #if defined(TILEMEGA_LLM_SPLIT_K) && TILEMEGA_LLM_SPLIT_K
     if(s.extent>1) {
-      if(s.extent!=3 || s.width!=2048 || s.k!=6144 || s.columns!=2048 ||
+      if(s.extent!=3 || s.width!=(s.k+2)/3 || (s.k!=6144 && s.k!=8192) || s.columns!=2048 ||
           (s.rows!=1 && s.rows!=64) || s.epilogue || s.workspace==llm::kAbsent || !s.group)return false;
       const unsigned part=tile%s.extent,output_tile=tile/s.extent;
       typename Partial::TileMmad mm(resource_);
+      const unsigned begin=part*s.width,size=s.k-begin<s.width?s.k-begin:s.width;
       Partial::RunKSliceBorrowed(mm,arena+s.operands[0],arena+s.operands[1],
         arena+s.workspace+uint64_t(part)*s.rows*s.columns*sizeof(float),s.rows,s.columns,s.k,
-        part*s.width,s.width,output_tile/nt,output_tile%nt);
+        begin,size,output_tile/nt,output_tile%nt);
       CompleteDma<AscendC::HardEvent::FIX_S>();return true;
     }
 #endif

@@ -37,7 +37,7 @@ struct Stage {
   // RMSNorm variants: 0=existing Rsqrt, 2=pinned Newton H1024,
   // 3=half-row-fold Newton H1024. Buffer and event ABI are identical.
   // GEMM variants: 0=32x64x64, 1=16x128x128. Attention variants:
-  // Split GEMM: extent=3, width=2048, group=1 (tile-major/part-minor CTG).
+  // Split GEMM: extent=3, width=ceil(k/3), group=1 (tile-major/part-minor CTG).
   // Kind6 is its AIV combine; workspace is FP32 [part,row,col], operand5
   // is the BF16 raw sum before the separately preserved residual rounding.
   // 0=BF16 scores/probabilities, 1=FP32 chunks, 2=FP32 scores/BF16 probabilities,
