@@ -141,7 +141,7 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
       if((stage.kind==1 || stage.kind==11) && (!stage.width || stage.width>4096))
         throw std::invalid_argument("Native full-row norm/embedding exceeds its UB contract");
       if(stage.kind==1 && attention_precision>=6) {
-        if(stage.width!=1024)throw std::invalid_argument("Newton full-row norm is experimentally validated only for H1024");
+        if(stage.width!=1024 && stage.width!=2048)throw std::invalid_argument("Newton full-row norm requires the probed H1024/H2048 family");
         stage.variant=attention_precision>=7?3:2;
       }
       if(stage.kind==13 && ((stage.width!=64 && stage.width!=128) || !stage.extent || !stage.group || stage.group>8))
@@ -230,7 +230,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
       else if(s.epilogue==3)id="as2_mix_gemm_argmax128_gm_16x128x128";
       else id+="_16x128x128";
     }
-    else if(s.kind==1)id=s.variant==3?"as2_aiv_rmsnorm_cann_newton_fold512_h1024":s.variant==2?"as2_aiv_rmsnorm_cann_newton_h1024":"as2_aiv_rmsnorm_full_row";
+    else if(s.kind==1)id=s.variant==3?"as2_aiv_rmsnorm_cann_newton_fold"+std::to_string(s.width/2)+"_h"+std::to_string(s.width):s.variant==2?"as2_aiv_rmsnorm_cann_newton_h"+std::to_string(s.width):"as2_aiv_rmsnorm_full_row";
     else if(s.kind==11)id="as2_aiv_embedding_i32_bf16";
     else if(s.kind==13)id=s.kv_block==128?"as2_aiv_gqa_fp32_log2_partials_kv128":
       metadata.seq==1?"as2_aiv_gqa_bf16_scores_probability_k32":"as2_aiv_causal_prefill_private_kv_k32";

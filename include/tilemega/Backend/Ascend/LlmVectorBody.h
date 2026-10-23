@@ -254,8 +254,8 @@ class LlmVectorBody {
     if(variant>=2) {
 #if defined(TILEMEGA_AS2_CANN_NORM_PRIMITIVES) && __CCE_AICORE__ == 310
       // Version-pinned device primitives only, no whole-op scheduler/launch.
-      // Larger reduction families require their own fold/resource validation.
-      if(n!=128 && n!=1024)return false;
+      // The H2048 probe is separate from the still-gated model binding.
+      if(n!=128 && n!=1024 && n!=2048)return false;
       // Pair opposite half-rows before the lane reduction. The unfurled
       // H1024 tree loses one rstd ULP on a captured single-row operand.
       const unsigned fold=variant==3?n/2:n;

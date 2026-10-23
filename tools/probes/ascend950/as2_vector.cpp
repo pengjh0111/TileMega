@@ -1,6 +1,7 @@
 #include <tilemega/Backend/Ascend/LlmVectorBody.h>
 #include <acl/acl.h>
 #include <cstdint>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -10,14 +11,14 @@ using namespace tilemega::ascend;
 
 __global__ __aicore__ __mix__(1,2) __schedmode__(1)
 void as2_vector(GM_ADDR input,GM_ADDR rhs,GM_ADDR third,GM_ADDR output,GM_ADDR status,GM_ADDR statistics,
-                 unsigned kind,unsigned rows,unsigned width) {
+                 unsigned kind,unsigned rows,unsigned width,float epsilon) {
   if ASCEND_IS_AIV {
     unsigned worker=AscendC::GetBlockIdx();LlmVectorBody body;
     for(unsigned row=worker;row<rows;row+=4) {
       auto x=input+uint64_t(row)*width*2, y=output+uint64_t(row)*width*2;
       const uint64_t start=AscendC::GetSystemCycle();
       bool ok=true;
-      if(kind==0 || kind>=4)ok=body.RmsNorm(x,rhs,y,width,1e-6f,kind>=5?kind-3:kind==4?1:0,
+      if(kind==0 || kind>=4)ok=body.RmsNorm(x,rhs,y,width,epsilon,kind>=5?kind-3:kind==4?1:0,
                                          statistics+uint64_t(row)*64);
       else if(kind==3)ok=body.Rope(x,rhs+uint64_t(row)*width*2,third+uint64_t(row)*width*2,y,width);
       else for(unsigned col=0;col<width;col+=4096) {
@@ -44,9 +45,11 @@ static std::vector<uint16_t> Read(std::filesystem::path const& path,size_t n) {
 }
 int main(int argc,char** argv) {
   try {
-    if(argc!=6)throw std::runtime_error("usage: as2_vector kind(0 norm/1 swiglu/2 add/3 rope/4 log-exp norm/5 CANN Newton norm/6 folded Newton norm) rows width input_directory output_directory");
+    if(argc!=6 && argc!=7)throw std::runtime_error("usage: as2_vector kind(0 norm/1 swiglu/2 add/3 rope/4 log-exp norm/5 CANN Newton norm/6 folded Newton norm) rows width input_directory output_directory [epsilon]");
     unsigned kind=std::stoul(argv[1]),rows=std::stoul(argv[2]),width=std::stoul(argv[3]);
-    if(kind>6 || !rows || rows>64 || !width || width>14336 || ((kind==0 || kind>=4) && width>4096) || (kind>=5 && width!=128 && width!=1024) ||
+    float epsilon=argc==7?std::stof(argv[6]):1e-6f;
+    if(!std::isfinite(epsilon) || epsilon<=0 || epsilon>.01f)throw std::runtime_error("Invalid normalization epsilon");
+    if(kind>6 || !rows || rows>64 || !width || width>14336 || ((kind==0 || kind>=4) && width>4096) || (kind>=5 && width!=128 && width!=1024 && width!=2048) ||
        (kind==3 && width!=64 && width!=128))throw std::runtime_error("Unsupported bounded vector shape");
     namespace fs=std::filesystem;fs::path root="/home/d50064638/junhuip/TileMega/runs/as2";
     auto input=fs::weakly_canonical(argv[4]),output=fs::weakly_canonical(argv[5]);
@@ -68,7 +71,7 @@ int main(int argc,char** argv) {
     auto dx=alloc(x.data(),x.size()*2),dr=alloc(rhs.data(),rhs.size()*2),dt=alloc(third.data(),third.size()*2),
       dy=alloc(y.data(),y.size()*2),ds=alloc(states.data(),states.size()*4),
       dstat=alloc(statistics.data(),statistics.size()*4);
-    as2_vector<<<2,nullptr,stream>>>(dx,dr,dt,dy,ds,dstat,kind,rows,width);
+    as2_vector<<<2,nullptr,stream>>>(dx,dr,dt,dy,ds,dstat,kind,rows,width,epsilon);
     Check(aclrtSynchronizeStream(stream),"synchronize");
     Check(aclrtMemcpy(states.data(),states.size()*4,ds,states.size()*4,ACL_MEMCPY_DEVICE_TO_HOST),"read status");
     Check(aclrtMemcpy(y.data(),y.size()*2,dy,y.size()*2,ACL_MEMCPY_DEVICE_TO_HOST),"read output");
@@ -82,7 +85,7 @@ int main(int argc,char** argv) {
     for(auto p:memory)Check(aclrtFree(p),"free");
     Check(aclrtDestroyStream(stream),"destroy stream");Check(aclFinalize(),"finalize");
     std::cout<<"{\"status\":\"executed_requires_numeric_compare\",\"kind\":"<<kind<<",\"rows\":"<<rows
-      <<",\"width\":"<<width<<",\"groups\":2,\"aiv_rows\":[";
+      <<",\"width\":"<<width<<",\"epsilon\":"<<epsilon<<",\"groups\":2,\"aiv_rows\":[";
     for(unsigned w=0;w<4;++w){if(w)std::cout<<',';std::cout<<states[w*128+1];}
     std::cout<<"],\"aiv_service_ticks_sum\":[";
     for(unsigned w=0;w<4;++w){if(w)std::cout<<',';std::cout<<states[w*128+2];}

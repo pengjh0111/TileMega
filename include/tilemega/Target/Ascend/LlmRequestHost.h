@@ -36,7 +36,7 @@ inline void Save(fs::path const& path,void const* data,size_t bytes) {
 inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
   for(auto const& s:stages)if(s.kind==13 && s.variant>6)
     throw std::invalid_argument("Unregistered native attention implementation");
-  for(auto const& s:stages)if(s.kind==1 && (s.variant!=0 && ((s.variant!=2 && s.variant!=3) || s.width!=1024)))
+  for(auto const& s:stages)if(s.kind==1 && (s.variant!=0 && ((s.variant!=2 && s.variant!=3) || (s.width!=1024 && s.width!=2048))))
     throw std::invalid_argument("Unregistered full-row normalization implementation");
 #ifndef TILEMEGA_AS2_CANN_NORM_PRIMITIVES
   for(auto const& s:stages)if((s.kind==13 && (s.variant==5 || s.variant==6)) || (s.kind==1 && (s.variant==2 || s.variant==3)))
