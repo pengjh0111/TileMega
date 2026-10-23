@@ -98,8 +98,8 @@ shared-load status remains contended. Decode pricing is bounded to past<=66;
 `pricing_bounds.bin` survives relocation and rejects OSL5 before ACL. The native
 mathematical runtime itself still supports capacity1088.8 CPU binding tests pass.
 
-Remaining: composed numerical failures, long requests/teacher forcing, other
-models/B16, wider measured Body/context domain and end-to-end search admission.
+Remaining: other dense-model/B16 numerical failures, wider measured
+Body/context domains and end-to-end optimization/search admission.
 G-PIPELINE remains in_progress: one measured Body geometry per whole-model
 search, two real placement/order alternatives; no claimed final tuning result.
 
@@ -107,12 +107,12 @@ ABI4 adds experimental `cube-fp32` attention with an actual MIX role, checked
 per-group workspace and three-stage owner/participant protocol. Source and
 tables still come from real serving import/CTG/ISL/native scheduling; the small
 protocol test's synthetic queues are never counted as pipeline evidence.
-Full Qwen prefill and four-output request execute the actual generated plans,
-but numerical checks remain failed. Positive ABI3 empirical prices cannot be
+Earlier ABI4 Qwen candidates execute actual generated plans but fail numerical
+checks; the new fold-softmax candidate passes long requests. ABI3 prices cannot be
 replayed into ABI4; profile/pricing/binder identities include `runtime_abi`.
 Internal attention-phase coordination is included once in owner service time.
-11 CPU binder contracts pass; broader hierarchy/search and teacher512/main
-ten-cell correctness/performance remain incomplete. MoE stays deferred.
+11 CPU binder contracts pass. Broader hierarchy/search and ten-cell
+correctness/performance remain incomplete. MoE stays deferred.
 
 ## Scope and implementation reconciliation, 2026-10-23
 
@@ -125,15 +125,19 @@ Earlier device results are inherited run evidence, not new runs on this date.
 | Prompt requirement | Current implementation and remaining obligation |
 |---|---|
 | Real optimized pipeline | Import/CTG/ISL/native scheduling/codegen execute; `emit-priced` has real causal candidate selection. Latest ABI4 normalization candidate is diagnostic/unpriced; ABI4 family/context prices and wider structural search are still required. |
-| Full model and state | Five canonical weight sets, full layers/embedding/head and persistent prefill/decode exist. Four-token successes and actual1024 launches do not waive teacher512, exact greedy, all B16 cells or numerical contracts. |
+| Full model and state | Five canonical weight sets, full layers/embedding/head and persistent prefill/decode exist. Qwen0.6 B1 now passes actual1024 greedy and teacher512; other models/B16 and optimized-pipeline admission remain incomplete. |
 | Numerical/performance contracts | Policy remains frozen. Intermediate bitwise checks locate drift; final admission uses declared error metrics plus exact greedy. Hooked/diagnostic runs cannot admit performance. |
 | Resource/handoff optimization | G8 and both AIV lanes have evidence; same-task MIX currently uses AIV0. G14/28, BF16 direct, split-K and broader small-M alternatives remain unvalidated/disabled. |
 | TPOT validation | Strongest legal eager configuration still needs final baseline selection; full paired processes, warmups/repeats and95% intervals are pending for all ten cells. |
 | Shared-server isolation | Private roots, one own NPU job, one card/process, no locks/reset/other-process control, sequential nice10/parallel1 builds and manifest cleanup remain mandatory. |
 
-Immediate dependency: preserve the real past1025/layer11 operand identity and
-replay its attention with per-phase FP32 workspace observations. A small Body
-probe may construct diagnostic queues, explicitly outside C-0 admission; final
-model plans must continue through the real solver. Only after a measured cause
-and validated fix should the full natural request be rerun. Follow with
-teacher512, ABI4 repricing/search, remaining dense families/B16 and paired TPOT.
+The observed-operand replay isolates the past1025/layer11 difference to softmax
+reduction: Q/K/V, scores, exponentials match; the installed register-fold sum
+repairs probabilities and PV bitwise at two real masks. Explicit candidate
+`cube-fp32-fold-softmax` then passes Qwen0.6 B1 natural64/1024 and teacher512.
+The same Plan fast/diagnostic pair matches401 payload/KV/control files (C-2,
+not new C-3). Teacher runs have separate receipts and cannot enter greedy or
+performance admission. Cached `reemit` regenerates source from an already
+materialized plan without rewriting its queues or claiming a new solver call.
+Next: current ABI4/context prices and real plan search, then other dense
+families/B16 and prescribed paired TPOT. Default implementations remain unchanged.

@@ -233,12 +233,17 @@ Probe `as2_vector 6 rows 1024 CASE NEW_RESULT` records square-sum and rstd in
 `norm_statistics.bin` (64B/row, floats at offsets0/32). Model calls omit these
 diagnostic stores. Frozen tolerances and lowest-max token tie rule are unchanged.
 
-Full valid-cache captures narrow the first remaining drift to past1025/layer11
-context (one BF16 element). Layers0..10 saved outputs and layer11 K/V histories
-are bitwise exact. A same-operand query-head Norm replay is exact2048/2048;
-cos/sin at1025 match128/128 each, and their explicit BF16 query rotation agrees.
-This rules out those observed inputs; it does not yet identify a softmax/PV
-rounding cause. Next diagnostic must capture per-phase FP32 attention workspace
-on this real operand before changing reduction/exp/accumulation implementations.
-Fresh989/963-output independent eager captures reproduce the prior full-request
-token prefixes exactly. Their hooked timings are excluded from performance.
+The earlier first cached drift at past1025/layer11 context is now isolated.
+Actual Q/K/V, scores, row max and exponentials are bitwise equal; probabilities
+and PV differ because of FP32 sum order. Installed CANN9.1 arch35 softmax folds
+1088 columns before reducing. Explicit attention variant6 reuses the pinned
+`CalculateReduceSum(...,1088,1024)` primitive; no whole-op scheduler is embedded.
+Observed past1025 and181 replays now match probabilities/PV/BF16 context bitwise.
+Actual Qwen0.6 B1 natural64/1024 then matches all1024 tokens, full final logits
+and all56 final KV slices bitwise. An independent1052-position causal capture
+also matches every saved layer's K/V prefix. Teacher512 runs513 actual model
+forwards: predictions and12 full-logit checkpoints/final KV are bitwise equal.
+Teacher is explicitly diagnostic, with Host teacher-token copies/checkpoint IO;
+its receipts/samples exclude timing and greedy admission. Latest same-Plan
+fast/diagnostic C-2 compares401 files bitwise in two fresh physical1 processes.
+These numerical results do not admit end-to-end performance or other families.
