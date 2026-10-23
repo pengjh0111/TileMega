@@ -3,6 +3,19 @@
 
 int main() {
   using namespace tilemega::ascend;
+  llm::Stage local{};local.kind=0;local.variant=2;local.rows=1024;
+  local.columns=2048;local.k=8192;local.epilogue=1;local.operands[5]=0;
+#if defined(TILEMEGA_LLM_LOCAL_TAIL_K7) && TILEMEGA_LLM_LOCAL_TAIL_K7
+  llm_host::ValidateCompiledBodies({local});
+  for(unsigned rows:{16u,64u}) {
+    auto invalid=local;invalid.rows=rows;
+    try {llm_host::ValidateCompiledBodies({invalid});return 1;}
+    catch(std::invalid_argument const&) {}
+  }
+  local.operands[5]=llm::kAbsent;
+#endif
+  try {llm_host::ValidateCompiledBodies({local});return 1;}
+  catch(std::invalid_argument const&) {}
   llm::Stage attention{};attention.kind=13;attention.variant=4;
   llm_host::ValidateCompiledBodies({attention});
   unsigned rejected=0;

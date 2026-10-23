@@ -43,6 +43,7 @@ template<class Input, class Output, unsigned TM=32, unsigned TN=64,
   }
   // Slice the logical reduction domain without changing either physical stride.
   // A split task's caller owns its separate output and final-combine dependency.
+  template<bool CompactOutput=false>
   __aicore__ static inline void RunKSliceBorrowed(TileMmad& mm,GM_ADDR a,GM_ADDR b,GM_ADDR c,
       unsigned m,unsigned n,unsigned k,unsigned k_begin,unsigned k_size,
       unsigned tile_m,unsigned tile_n) {
@@ -52,12 +53,12 @@ template<class Input, class Output, unsigned TM=32, unsigned TN=64,
     gc.SetGlobalBuffer((__gm__ Output*)c);
     auto ta = tla::MakeTensor(ga, tla::MakeLayout<Input, Row>(m, k), Catlass::Arch::PositionGM{});
     auto tb = tla::MakeTensor(gb, tla::MakeLayout<Input, WeightLayout>(k, n), Catlass::Arch::PositionGM{});
-    auto tc = tla::MakeTensor(gc, tla::MakeLayout<Output, Row>(m, n), Catlass::Arch::PositionGM{});
     const unsigned row = tile_m*TM, col = tile_n*TN;
     const unsigned rm = m-row < TM ? m-row : TM, rn = n-col < TN ? n-col : TN;
+    auto tc = tla::MakeTensor(gc, tla::MakeLayout<Output, Row>(CompactOutput?rm:m, CompactOutput?TN:n), Catlass::Arch::PositionGM{});
     auto ba = tla::GetTile(ta, tla::MakeCoord(row, k_begin), tla::MakeShape(rm, k_size));
     auto bb = tla::GetTile(tb, tla::MakeCoord(k_begin, col), tla::MakeShape(k_size, rn));
-    auto bc = tla::GetTile(tc, tla::MakeCoord(row, col), tla::MakeShape(rm, rn));
+    auto bc = tla::GetTile(tc, tla::MakeCoord(CompactOutput?0:row, CompactOutput?0:col), tla::MakeShape(rm, rn));
     mm(ba, bb, bc, Catlass::GemmCoord(rm, rn, k_size));
   }
 };

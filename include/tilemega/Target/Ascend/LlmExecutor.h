@@ -80,7 +80,7 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
           PublishSingleOwnerEvent(ready,token+2);
           if(!WaitProgress(done,token+2,abort,m.wait_ticks))return;
         }
-      }else ok=body.Run(stage,task.tile,arena);
+      }else ok=body.Run(stage,task.tile,arena,task.owner);
       if(forward.diagnostic==2)body_end=AscendC::GetSystemCycle();
       if(ok && task.mix_aiv_lanes && !(stage.kind==13 && (stage.variant==4 || stage.variant==5 || stage.variant==6))) {
         PublishSingleOwnerEvent(ready,token);
@@ -105,7 +105,7 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
             AcquireData(payload);
             ok=body.AttentionFinish(stage,task.tile,arena,m,forward.past,owner_group);
           }
-        }else ok=body.Epilogue(stage,task.tile,arena);
+        }else ok=body.Epilogue(stage,task.tile,arena,owner_group);
         if(forward.diagnostic==2)body_end=AscendC::GetSystemCycle();
         if(ok) {
           PublishSingleOwnerEvent(done,token+(stage.kind==13 && (stage.variant==4 || stage.variant==5 || stage.variant==6)?2:0));
