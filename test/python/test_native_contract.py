@@ -59,6 +59,26 @@ class NativeContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'legacy execution path'):
             validate_gemm_dispatch(self.plan, self.defines, self.source + '\nvoid tilemega_l1_kernel();')
 
+    def test_historical_attention_is_explicitly_nonproduction(self):
+        plan = copy.deepcopy(self.plan)
+        plan['native_origin'] = 'historical_ablation'
+        plan['historical_ablation'] = dict(production_eligible=False,attention_impl=3,attention_kv_block=128)
+        source = self.source.split('using Stage_5')[0] + (
+            '#define TILEMEGA_SM90R2_HISTORICAL_ABLATION 1\n#define TILEMEGA_ATTENTION_IMPL 3\n'
+            'using Body_5=HistoricalAttention<1,128,2,1,128,1088,0,1,2,3,4,5,6,7,8,9>;\n'
+            'using MergeBody_5=HistoricalMerge<1,128,2,128,1088,8,9,3>;\n')
+        defines = build_defines(source, [])
+        self.assertEqual(len(validate_gemm_dispatch(plan,defines,source)),5)
+        self.assertFalse(implementations(plan,defines)['production_eligible'])
+        for mutate in ('origin','eligible','marker','merge'):
+            bad = copy.deepcopy(plan);text = source
+            if mutate=='origin':bad['native_origin']='solver'
+            if mutate=='eligible':bad['historical_ablation']['production_eligible']=True
+            if mutate=='marker':text=text.replace('TILEMEGA_SM90R2_HISTORICAL_ABLATION 1','TILEMEGA_SM90R2_HISTORICAL_ABLATION 0')
+            if mutate=='merge':text=text.replace('1088,8,9,3','1088,8,10,3')
+            with self.subTest(mutate=mutate),self.assertRaises(ValueError):
+                validate_gemm_dispatch(bad,build_defines(text,[]),text)
+
     def test_register_prefetch_is_part_of_the_native_coordinate_identity(self):
         plan = copy.deepcopy(self.plan)
         for g in plan['gemms']:

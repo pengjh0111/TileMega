@@ -11,8 +11,14 @@ def validate(manifest, defines):
     if (defines.get('TILEMEGA_STATIC_DENSE_NATIVE') != '1' or
             defines.get('TILEMEGA_ARCH_ID') != '900' or
             manifest.get('runtime_batch') not in (1, 2, 4, 8, 16) or
-            manifest.get('native_origin') not in ('fixed', 'solver') or c.get('schema') != 1):
+            manifest.get('native_origin') not in ('fixed', 'solver', 'historical_ablation') or c.get('schema') != 1):
         raise ValueError('native dense architecture or coordinate schema is invalid')
+    historical = manifest.get('historical_ablation')
+    if bool(historical) != (manifest.get('native_origin') == 'historical_ablation'):
+        raise ValueError('historical controls cannot claim fixed or solver origin')
+    if historical and (historical.get('production_eligible') is not False or
+                       defines.get('TILEMEGA_SM90R2_HISTORICAL_ABLATION') != '1'):
+        raise ValueError('historical controls require an explicit nonproduction identity')
     if (manifest.get('residency') != c['residency'] or
             int(defines.get('TILEMEGA_DN_VECTOR_SUMS', '-1')) != int(c['dn_vector_sums']) or
             int(defines.get('TILEMEGA_SWIGLU_U', '-1')) != c['swiglu_u']):
@@ -75,6 +81,24 @@ def dispatch(manifest, defines, source):
         if len(args) == 18:
             row['register_stages'] = register_stages
         result.append(row)
+    if manifest.get('native_origin') == 'historical_ablation':
+        attention = re.findall(r'using Body_(\d+)\s*=\s*HistoricalAttention<([^;]+)>;', source)
+        merge = re.findall(r'using MergeBody_(\d+)\s*=\s*HistoricalMerge<([^;]+)>;', source)
+        h = manifest['historical_ablation']
+        if (not attention or len(attention) != len(merge) or
+                int(defines.get('TILEMEGA_ATTENTION_IMPL', '-1')) != h['attention_impl'] or
+                re.search(r'using (?:Stage|Body)_\d+\s*=\s*Attention<', source)):
+            raise ValueError('historical attention identity does not match its call sites')
+        for (number, raw), (merge_number, merge_raw) in zip(attention, merge):
+            args = list(map(int, raw.split(',')))
+            if (len(args) != 16 or args[0] != manifest['runtime_batch'] or
+                    args[4:6] != [h['attention_kv_block'], manifest['capacity']] or
+                    tuple(args[1:4]) not in ((128,2,1),(64,4,0),(128,3,0),(128,4,0))):
+                raise ValueError('historical attention shape differs from its manifest')
+            expected = [*args[:3],*args[4:6],args[14],args[15],args[9]]
+            if number != merge_number or list(map(int,merge_raw.split(','))) != expected:
+                raise ValueError('historical merge differs from its attention stage')
+        return result
     attention = re.findall(r'using (Stage|Body)_(\d+)\s*=\s*Attention<([^;]+)>;', source)
     if not attention:
         raise ValueError('native dense attention call is missing')
@@ -99,6 +123,14 @@ def dispatch(manifest, defines, source):
 
 def implementations(manifest):
     c = manifest['native_dense']
+    if manifest.get('native_origin') == 'historical_ablation':
+        h = manifest['historical_ablation']
+        return dict(execution_arch_id=900, program='historical_b_ablation', production_eligible=False,
+            dn_vector_sums=c['dn_vector_sums'],swiglu_interleave_u=c['swiglu_u'],
+            gemms=[dict(index=g['index'],impl=g['impl'],task_body='Sm90DenseGemm') for g in manifest['gemms']],
+            attention=dict(impl='simt' if h['attention_impl']==3 else 'mma16',
+                task_body='IndependentAttentionTaskBody',partition='capacity',merge='stage',
+                block_extent=h['attention_kv_block']))
     return dict(execution_arch_id=900, program='sm90_dense_native',
                 dn_vector_sums=c['dn_vector_sums'], swiglu_interleave_u=c['swiglu_u'],
                 gemms=[dict(index=g['index'], impl=g['impl'],
