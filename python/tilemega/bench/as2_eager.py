@@ -29,7 +29,7 @@ def tensor_hash(tensor):
 
 
 def load_model(model_id, attention, norm, device='npu:0'):
-    if device not in ('npu:0','cpu') or (device=='cpu' and norm!='hf'):
+    if device not in ('npu:0','cpu') or (device=='cpu' and (norm!='hf' or attention=='fia-v2')):
         raise ValueError('Use the admitted NPU baseline or CPU mathematical reference')
     directory = WEIGHTS / model_id
     path = directory / 'manifest.json'
@@ -41,7 +41,7 @@ def load_model(model_id, attention, norm, device='npu:0'):
     if digest(config_path) != manifest['config_sha256'] or json.loads(config_path.read_text()) != cfg:
         raise ValueError('Config identity mismatch')
     config = AutoConfig.for_model(cfg['model_type'], **{k: v for k, v in cfg.items() if k != 'model_type'})
-    config._attn_implementation = attention
+    config._attn_implementation = 'sdpa' if attention=='fia-v2' else attention
     with torch.device('meta'):
         model = AutoModelForCausalLM.from_config(config, torch_dtype=torch.bfloat16)
     model.eval()
@@ -81,6 +81,9 @@ def load_model(model_id, attention, norm, device='npu:0'):
                 count += 1
         if not count:
             raise ValueError('No RMSNorm modules were adapted')
+    if attention=='fia-v2':
+        from tilemega.bench.as2_eager_attention import install
+        install(model)
     token_record = manifest['input_ids']
     token_file = directory / token_record['file']
     if digest(token_file) != token_record['sha256']:
@@ -135,7 +138,7 @@ def main():
     parser.add_argument('--model', choices=MODELS, required=True)
     parser.add_argument('--device', choices=('npu:0','cpu'), default='npu:0', help='CPU is a correctness reference only')
     parser.add_argument('--batch', type=int, choices=(1, 16), required=True)
-    parser.add_argument('--attention', choices=('eager', 'sdpa'), default='sdpa')
+    parser.add_argument('--attention', choices=('eager', 'sdpa', 'fia-v2'), default='sdpa')
     parser.add_argument('--cache', choices=('static', 'dynamic'), default='static')
     parser.add_argument('--norm', choices=('hf', 'fused'), default='hf')
     parser.add_argument('--outputs', type=int, default=1024)
