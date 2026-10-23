@@ -94,8 +94,10 @@ int main(int argc,char** argv) {
       if(decomposition.At("schema").AsString("schema")!="tilemega.as2.observed_decomposition.v1" ||
           decomposition.At("model_id").AsString("model")!=receipt.At("model_id").AsString("model") ||
           decomposition.At("phase").AsString("phase")!=phase ||
-          decomposition.At("batch").AsNumber("batch")!=batch || batch!=1 || serving.argmax_tile_n!=128)
+          decomposition.At("batch").AsNumber("batch")!=batch || serving.argmax_tile_n!=128)
         throw std::invalid_argument("Observed decomposition model/phase/geometry mismatch");
+      if(batch!=1 && !(batch==16 && phase=="decode" && receipt.At("model_id").AsString("model")=="llama3_2_1b"))
+        throw std::invalid_argument("Unverified batch decomposition");
       if(auto separate=decomposition.Find("separate_qkv"))serving.separate_qkv=separate->AsBool("separate_qkv");
       if(serving.separate_qkv && receipt.At("model_id").AsString("model")!="llama3_1_8b")
         throw std::invalid_argument("Separate projection candidate is bounded to observed Llama8B");
