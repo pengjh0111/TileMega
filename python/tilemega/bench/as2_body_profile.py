@@ -14,15 +14,16 @@ def logical_bytes(s,m,tile,past):
     if kind in (0,6):
         tm,tn=(16,128) if s[31] else (32,64)
         if extent>1:
-            if extent not in (2,3) or width!=(k+extent-1)//extent or group!=1 or s[31]!=1:
+            if extent not in (2,3,7) or width!=(k+extent-1)//extent or group!=1 or s[31]!=1:
                 raise ValueError('Unregistered split/combine traffic contract')
             if kind==0:part=tile%extent;tile//=extent
         nt=(columns+tn-1)//tn;mr=min(tm,rows-tile//nt*tm);nr=min(tn,columns-tile%nt*tn)
         if mr<=0 or nr<=0:raise ValueError('GEMM traffic coordinate outside output')
         if kind==6:
-            if extent not in (2,3) or epilogue!=1:raise ValueError('Unregistered combine epilogue traffic')
+            if (extent not in (2,3) or epilogue!=1) and not (extent==7 and columns==1024 and k==4096 and epilogue==0):
+                raise ValueError('Unregistered combine epilogue traffic')
             # FP32 partial reads, BF16 raw write, then raw/residual reads+output.
-            return (4*extent+2+6)*mr*nr
+            return (4*extent+2+(6 if epilogue else 0))*mr*nr
         if extent>1:
             if epilogue:raise ValueError('Partial tasks cannot publish a final epilogue')
             size=min(width,k-part*width)
@@ -35,6 +36,10 @@ def logical_bytes(s,m,tile,past):
     if kind==1:return 6*width
     if kind==11:return 4*width
     if kind==15:return 8*width+4
+    if kind==25:
+        if (extent,width,group,query_rows,s[26])!=(8,768,1,4,128) or not 0<=tile<rows:
+            raise ValueError('Unregistered QKV packing traffic domain')
+        return 4*extent*width
     if kind!=13:raise ValueError('No logical GM traffic contract for stage kind '+str(kind))
     if s[26]!=1088:raise ValueError('Only the actual unified KV body is profiled')
     qrotate=(14 if s[5]!=absent else 8)*width;krotate=(14 if s[6]!=absent else 8)*width
