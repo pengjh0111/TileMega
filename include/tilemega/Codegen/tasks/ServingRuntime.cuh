@@ -630,8 +630,8 @@ extern "C" int tm_plan_launch_stage(void* opaque, std::uint32_t step,
   if (!plan || !plan->ring || step >= plan->steps ||
       stage >= plan->model.spec->stage_count) return -1;
   if (cudaFuncSetAttribute(tilemega_stage_kernel,
-          cudaFuncAttributeMaxDynamicSharedMemorySize,int(sizeof(TaskSmem)))!=cudaSuccess)return -2;
-  tilemega_stage_kernel<<<plan->grid, kHarnessThreads, sizeof(TaskSmem),
+          cudaFuncAttributeMaxDynamicSharedMemorySize,int(kKernelSmemBytes))!=cudaSuccess)return -2;
+  tilemega_stage_kernel<<<plan->grid, kHarnessThreads, kKernelSmemBytes,
       static_cast<cudaStream_t>(stream)>>>(plan->ring + step, stage);
   return int(cudaGetLastError());
 }

@@ -22,6 +22,8 @@
 #define TILEMEGA_KPHASE_CLASS_MASK 31
 #endif
 #include <tilemega/Codegen/tasks/EventSync.cuh>
+#include <tilemega/Codegen/tasks/KindsUsed.h>
+#include <tilemega/Solver/ServingKernelSmem.h>
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
 #include <tilemega/Codegen/executor/CountedDependency.cuh>
 #include <tilemega/Codegen/executor/BindingGate.cuh>
@@ -196,8 +198,10 @@ inline constexpr int kHarnessThreads = kGemmThreads;
 // Forward plans use their own attention family and carry no decoder KV state.
 #if TILEMEGA_SERVING_RUNTIME && defined(TILEMEGA_SERVING_PHASE) && TILEMEGA_SERVING_PHASE == 2
 #define TILEMEGA_SERVING_DECODER_ATTENTION 0
-#else
+#elif TILEMEGA_KIND_USED(FusedAttention) || TILEMEGA_KIND_USED(AttentionMerge)
 #define TILEMEGA_SERVING_DECODER_ATTENTION TILEMEGA_SERVING_RUNTIME
+#else
+#define TILEMEGA_SERVING_DECODER_ATTENTION 0  // §5.2: the plan has no decoder attention
 #endif
 #if TILEMEGA_SERVING_RUNTIME
 #ifndef TILEMEGA_SERVING_PAST_LO
@@ -255,45 +259,63 @@ using T_ServingMerge = AttentionMergeTaskBody<
 #endif
 
 /// §8.6: one explicit union covering every family the dispatch can reach.
+/// MX4 prompt §5.2: members only for the kinds the plan runs (KindsUsed.h).
 union TaskSmem {
+#if TILEMEGA_KIND_USED(RMSNorm) || TILEMEGA_KIND_USED(QKNorm)
   SimtTaskResources<TaskKind::kRMSNorm,kHarnessThreads>::SharedStorage rms;
+#endif
+#if TILEMEGA_KIND_USED(Attention)
   SimtTaskResources<TaskKind::kAttention,kHarnessThreads>::SharedStorage attention;
+#endif
+#if TILEMEGA_KIND_USED(Elementwise) || TILEMEGA_KIND_USED(Add) || TILEMEGA_KIND_USED(KVAppend) || \
+    TILEMEGA_KIND_USED(RoPE)
   SimtTaskResources<TaskKind::kElementwise,kHarnessThreads>::SharedStorage pointwise;
+#endif
   GemmVariantSmem gemm;
 #if defined(TILEMEGA_DM_STAGE_SHARED_BYTES) && TILEMEGA_DM_STAGE_SHARED_BYTES > 0
   alignas(16) unsigned char dm_stage[TILEMEGA_DM_STAGE_SHARED_BYTES];
 #endif
-#if TILEMEGA_SERVING_RUNTIME
-  ServingArgmaxReduceTaskBody::SharedStorage argmax;
+#if TILEMEGA_SERVING_RUNTIME && (TILEMEGA_KIND_USED(RMSNorm) || TILEMEGA_KIND_USED(ArgmaxReduce))
+  ServingArgmaxReduceTaskBody::SharedStorage argmax;  // also the serving RMSNorm's reduction
 #endif
 #if TILEMEGA_SERVING_DECODER_ATTENTION
   T_ServingAttention::SharedStorage serving_attention;
 #endif
-#if TILEMEGA_FUSION_GEMM_RUNTIME
+#if TILEMEGA_FUSION_GEMM_RUNTIME && (TILEMEGA_KIND_USED(GemmAdd) || TILEMEGA_KIND_USED(GemmRMSNorm))
   alignas(16) unsigned char fused_gemm[
       FusedGemmStorageBytes<arch::CurrentArch,kHarnessThreads>()];
 #endif
-#if TILEMEGA_FUSION_ROPE_RUNTIME
+#if TILEMEGA_FUSION_ROPE_RUNTIME && TILEMEGA_KIND_USED(RoPEKVAppend)
   ModelElement fused_rope[std::max(2*kHarnessThreads,TILEMEGA_FUSION_ROPE_MAX_WIDTH)];
 #endif
 };
-inline constexpr std::size_t kNonGemmTaskSmem =
-    std::max({sizeof(TaskSmem::rms), sizeof(TaskSmem::attention), sizeof(TaskSmem::pointwise)});
+inline constexpr std::size_t kNonGemmTaskSmem = std::max({std::size_t(0)
+#if TILEMEGA_KIND_USED(RMSNorm) || TILEMEGA_KIND_USED(QKNorm)
+    ,sizeof(TaskSmem::rms)
+#endif
+#if TILEMEGA_KIND_USED(Attention)
+    ,sizeof(TaskSmem::attention)
+#endif
+#if TILEMEGA_KIND_USED(Elementwise) || TILEMEGA_KIND_USED(Add) || TILEMEGA_KIND_USED(KVAppend) || \
+    TILEMEGA_KIND_USED(RoPE)
+    ,sizeof(TaskSmem::pointwise)
+#endif
+    });
 inline constexpr std::size_t kExpectedTaskSmem =
     std::max({sizeof(GemmVariantSmem),kNonGemmTaskSmem
 #if defined(TILEMEGA_DM_STAGE_SHARED_BYTES) && TILEMEGA_DM_STAGE_SHARED_BYTES > 0
         ,sizeof(TaskSmem::dm_stage)
 #endif
-#if TILEMEGA_SERVING_RUNTIME
+#if TILEMEGA_SERVING_RUNTIME && (TILEMEGA_KIND_USED(RMSNorm) || TILEMEGA_KIND_USED(ArgmaxReduce))
         ,sizeof(TaskSmem::argmax)
 #endif
 #if TILEMEGA_SERVING_DECODER_ATTENTION
         ,sizeof(TaskSmem::serving_attention)
 #endif
-#if TILEMEGA_FUSION_GEMM_RUNTIME
+#if TILEMEGA_FUSION_GEMM_RUNTIME && (TILEMEGA_KIND_USED(GemmAdd) || TILEMEGA_KIND_USED(GemmRMSNorm))
         ,sizeof(TaskSmem::fused_gemm)
 #endif
-#if TILEMEGA_FUSION_ROPE_RUNTIME
+#if TILEMEGA_FUSION_ROPE_RUNTIME && TILEMEGA_KIND_USED(RoPEKVAppend)
         ,sizeof(TaskSmem::fused_rope)
 #endif
     });
@@ -303,9 +325,32 @@ static_assert(sizeof(TaskSmem) == kExpectedTaskSmem,
 #if TILEMEGA_PAGED
 inline constexpr int kServingThreads=executor::kComputeThreads+executor::kLoaderThreads;
 inline constexpr std::size_t kServingSharedBytes=TILEMEGA_PAGE_POOL_OFFSET+TILEMEGA_PAGE_BYTES*TILEMEGA_PAGE_COUNT;
-#else
+#endif
+/// The non-paged kernels' dynamic shared memory: the stage descriptor cache
+/// (GemmStageTaskBody.h, §5.3), then the TaskSmem union.
+inline constexpr std::size_t kTaskSmemOffset =
+    (kStageCacheBytes + alignof(TaskSmem) - 1) / alignof(TaskSmem) * alignof(TaskSmem);
+inline constexpr std::size_t kKernelSmemBytes = kTaskSmemOffset + sizeof(TaskSmem);
+__device__ __forceinline__ TaskSmem& KernelTaskSmem(unsigned char* bytes) {
+  return *reinterpret_cast<TaskSmem*>(bytes + kTaskSmemOffset);
+}
+#if !TILEMEGA_PAGED
 inline constexpr int kServingThreads=kHarnessThreads;
-inline constexpr std::size_t kServingSharedBytes=sizeof(TaskSmem);
+inline constexpr std::size_t kServingSharedBytes=kKernelSmemBytes;
+#endif
+#if TILEMEGA_SERVING_RUNTIME && !TILEMEGA_PAGED
+// MX4 prompt §5.4: the terms of solver::ServingKernelSmemBytes are these
+// types, and the solver's estimate of this plan is this kernel's size.
+static_assert(kHarnessThreads == solver::kServingHarnessThreads);
+static_assert(alignof(TaskSmem) == solver::kServingTaskSmemAlign);
+static_assert(sizeof(ServingArgmaxReduceTaskBody::SharedStorage) == solver::kServingArgmaxSmemBytes);
+#if TILEMEGA_STAGE_DESC_CACHE
+static_assert(kStageCacheBytes == solver::kServingStageCacheBytes);
+#endif
+#ifdef TILEMEGA_SOLVER_SMEM_BYTES
+static_assert(kKernelSmemBytes == TILEMEGA_SOLVER_SMEM_BYTES,
+              "dynamic shared memory differs from the solver's estimate (Solver/ServingKernelSmem.h)");
+#endif
 #endif
 
 // R8 BE-1: the architecture is the Plan's, not a constant in this header.
@@ -326,38 +371,51 @@ static_assert(!arch::kDevicePass ||
                   TILEMEGA_ARCH_ID == arch::ArchId<arch::CurrentArch>::kValue,
               "the Plan's architecture and -arch= disagree");
 #endif
-using T_Gemm = GemmStageTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
-using T_Norm = RMSNormTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
-using T_RoPE = RoPETaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
-using T_KV = KVAppendTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
-using T_Elementwise = ElementwiseTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
+// §5.2: a body is instantiated only for a kind the plan runs (KindsUsed.h);
+// every dispatched one must be legal at this granularity and declare its
+// CTA->task ownership (§5.3; L2 skips a stage's waits for CTAs at or above
+// the declared count).
+#define TILEMEGA_DISPATCHED_BODY(alias, ...)                                   \
+  using alias = __VA_ARGS__;                                                 \
+  static_assert(alias::kLegal && DeclaresOwnership<alias>::value,            \
+                #alias " must be legal and declare its ownership")
+#if TILEMEGA_KIND_USED(Gemm)
+TILEMEGA_DISPATCHED_BODY(T_Gemm, GemmStageTaskBody<HarnessArch, TaskSmem, kHarnessThreads>);
+#endif
+#if TILEMEGA_KIND_USED(RMSNorm)
+TILEMEGA_DISPATCHED_BODY(T_Norm, RMSNormTaskBody<HarnessArch, TaskSmem, kHarnessThreads>);
+#endif
+#if TILEMEGA_KIND_USED(RoPE)
+TILEMEGA_DISPATCHED_BODY(T_RoPE, RoPETaskBody<HarnessArch, TaskSmem, kHarnessThreads>);
+#endif
+#if TILEMEGA_KIND_USED(KVAppend)
+TILEMEGA_DISPATCHED_BODY(T_KV, KVAppendTaskBody<HarnessArch, TaskSmem, kHarnessThreads>);
+#endif
+#if TILEMEGA_KIND_USED(Elementwise)
+TILEMEGA_DISPATCHED_BODY(T_Elementwise, ElementwiseTaskBody<HarnessArch, TaskSmem, kHarnessThreads>);
+#endif
+#if TILEMEGA_KIND_USED(Add)
 using T_Add = AddTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
+#endif
+#if TILEMEGA_KIND_USED(Embedding)
 using T_Embedding = EmbeddingTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
+#endif
+#if TILEMEGA_KIND_USED(QKNorm)
 using T_QKNorm = QKNormTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
-using T_Attention = AttentionTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
-using T_GemmCombine = GemmCombineTaskBody<HarnessArch, TaskSmem, kHarnessThreads>;
-#if TILEMEGA_FUSION_GEMM_RUNTIME
-using T_FusedGemm = FusedGemmStageTaskBody<HarnessArch,TaskSmem,kHarnessThreads>;
-static_assert(T_FusedGemm::kLegal && DeclaresOwnership<T_FusedGemm>::value);
 #endif
-#if TILEMEGA_FUSION_ROPE_RUNTIME
-using T_FusedRoPE = FusedRoPEKVTaskBody<HarnessArch,TaskSmem,kHarnessThreads>;
-static_assert(T_FusedRoPE::kLegal && DeclaresOwnership<T_FusedRoPE>::value);
+#if TILEMEGA_KIND_USED(Attention)
+TILEMEGA_DISPATCHED_BODY(T_Attention, AttentionTaskBody<HarnessArch, TaskSmem, kHarnessThreads>);
 #endif
-static_assert(T_Gemm::kLegal && T_Norm::kLegal && T_RoPE::kLegal &&
-              T_KV::kLegal && T_Elementwise::kLegal && T_Attention::kLegal &&
-              T_GemmCombine::kLegal,
-              "every dispatched TaskBody must be legal at this granularity");
-static_assert(DeclaresOwnership<T_Gemm>::value &&
-              DeclaresOwnership<T_Norm>::value &&
-              DeclaresOwnership<T_RoPE>::value &&
-              DeclaresOwnership<T_KV>::value &&
-              DeclaresOwnership<T_Elementwise>::value &&
-              DeclaresOwnership<T_Attention>::value &&
-              DeclaresOwnership<T_GemmCombine>::value,
-              "every dispatched TaskBody must declare its CTA->task "
-              "ownership (§5.3); L2 skips a stage's waits for CTAs at or "
-              "above the declared count");
+#if TILEMEGA_KIND_USED(GemmCombine)
+TILEMEGA_DISPATCHED_BODY(T_GemmCombine, GemmCombineTaskBody<HarnessArch, TaskSmem, kHarnessThreads>);
+#endif
+#if TILEMEGA_FUSION_GEMM_RUNTIME && (TILEMEGA_KIND_USED(GemmAdd) || TILEMEGA_KIND_USED(GemmRMSNorm))
+TILEMEGA_DISPATCHED_BODY(T_FusedGemm, FusedGemmStageTaskBody<HarnessArch,TaskSmem,kHarnessThreads>);
+#endif
+#if TILEMEGA_FUSION_ROPE_RUNTIME && TILEMEGA_KIND_USED(RoPEKVAppend)
+TILEMEGA_DISPATCHED_BODY(T_FusedRoPE, FusedRoPEKVTaskBody<HarnessArch,TaskSmem,kHarnessThreads>);
+#endif
+#undef TILEMEGA_DISPATCHED_BODY
 
 #if TILEMEGA_SERVING_RUNTIME
 __host__ __device__ inline int CeilDiv(int numerator, int denominator);
@@ -367,6 +425,7 @@ __device__ inline void RunServingScalarTask(Params const& p,
   using BF16 = tilemega::Bf16;
   auto buffer = [&](std::uint32_t id) { return p.buffers[id]; };
   switch (stage.kind) {
+#if TILEMEGA_KIND_USED(Embedding)
     case TaskKind::kEmbedding:
       ServingEmbeddingTaskBody::RunRow(
           reinterpret_cast<int32_t const*>(buffer(stage.operand[0])),
@@ -377,6 +436,8 @@ __device__ inline void RunServingScalarTask(Params const& p,
           stage.operand[3]==kNoOperand?nullptr:
               reinterpret_cast<float*>(buffer(stage.operand[3])));
       return;
+#endif
+#if TILEMEGA_KIND_USED(RMSNorm)
     case TaskKind::kRMSNorm:
       ServingRMSNormTaskBody::RunRow(
           reinterpret_cast<BF16 const*>(buffer(stage.operand[0])),
@@ -386,6 +447,8 @@ __device__ inline void RunServingScalarTask(Params const& p,
           TILEMEGA_NORM_EPSILON,
           reinterpret_cast<float*>(&smem.argmax));
       return;
+#endif
+#if TILEMEGA_KIND_USED(ArgmaxReduce)
     case TaskKind::kArgmaxReduce:
       ServingArgmaxReduceTaskBody::RunRow(
           reinterpret_cast<float const*>(buffer(stage.operand[0])),
@@ -394,6 +457,7 @@ __device__ inline void RunServingScalarTask(Params const& p,
           int(stage.width), p.dims.capacity, p.dims.past + p.dims.seq,
           &smem.argmax);
       return;
+#endif
     default: maca::Trap(); return;
   }
 }
@@ -537,8 +601,12 @@ __device__ inline void FinishNonpagedTask(Params const& p,unsigned index,
 #if TILEMEGA_TRACE_TASK
         auto begin=TaskProfileNow(profile);
 #endif
+#if TILEMEGA_KIND_USED(GemmCombine)
         if(stage.kind==TaskKind::kGemm)
           T_GemmCombine::DispatchServing(p,reducer,smem,output);
+#else
+        if(false) {}
+#endif
 #if TILEMEGA_SERVING_DECODER_ATTENTION && TILEMEGA_SERVING_SEQ==1
         else RunServingMergeTask(p,reducer,output);
 #endif
@@ -584,6 +652,7 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
   if ((static_cast<unsigned long long>(TILEMEGA_DIAG_EMPTY_KINDS) >> unsigned(stage.kind)) & 1ull) return;
 #endif
   switch (stage.kind) {
+#if TILEMEGA_KIND_USED(Gemm)
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     case TaskKind::kDwPwFused:
 #endif
@@ -620,6 +689,7 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
       T_Gemm{}(p, stage, smem);
 #endif
       break;
+#endif
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     case TaskKind::kLayerNorm:
     case TaskKind::kEmbeddingSum:
@@ -634,6 +704,7 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
         DispatchDmStage(unsigned(stage.kind),stage.width,stage.group,DmStageRunner<HarnessArch>{p,stage,unsigned(task),reinterpret_cast<char*>(&smem)});
       break;
 #endif
+#if TILEMEGA_KIND_USED(RMSNorm)
     case TaskKind::kRMSNorm:
 #if TILEMEGA_SERVING_RUNTIME
       for (int row = int(blockIdx.x); row < (stage.batch_rows ? p.dims.batch : p.dims.tokens());
@@ -642,6 +713,8 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
       T_Norm{}(p, stage, smem);
 #endif
       break;
+#endif
+#if TILEMEGA_KIND_USED(RoPE)
     case TaskKind::kRoPE:
 #if TILEMEGA_SERVING_RUNTIME
       maca::Trap();
@@ -649,10 +722,17 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
       T_RoPE{}(p, stage, smem);
 #endif
       break;
+#endif
+#if TILEMEGA_KIND_USED(KVAppend)
     case TaskKind::kKVAppend: T_KV{}(p, stage, smem); break;
+#endif
+#if TILEMEGA_KIND_USED(Elementwise)
     case TaskKind::kElementwise: T_Elementwise{}(p, stage, smem); break;
+#endif
+#if TILEMEGA_KIND_USED(Add)
     case TaskKind::kAdd: T_Add{}(p, stage, smem); break;
-#if TILEMEGA_EMBEDDING_RUNTIME
+#endif
+#if TILEMEGA_EMBEDDING_RUNTIME && TILEMEGA_KIND_USED(Embedding)
     case TaskKind::kEmbedding:
 #if TILEMEGA_SERVING_RUNTIME
       for (int row = int(blockIdx.x); row < p.dims.tokens();
@@ -662,6 +742,7 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
 #endif
       break;
 #endif
+#if TILEMEGA_KIND_USED(ArgmaxReduce)
     case TaskKind::kArgmaxReduce:
 #if TILEMEGA_SERVING_RUNTIME
       for (int row = int(blockIdx.x); row < p.dims.batch;
@@ -670,6 +751,7 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
       maca::Trap();
 #endif
       break;
+#endif
     case TaskKind::kFusedAttention:
 #if TILEMEGA_SERVING_DECODER_ATTENTION
       for (int ordinal = int(blockIdx.x); ordinal < ServingAttentionTaskCount(p, stage);
@@ -708,10 +790,13 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
       maca::Trap();
 #endif
       break;
-#if TILEMEGA_QK_NORM_RUNTIME
+#if TILEMEGA_QK_NORM_RUNTIME && TILEMEGA_KIND_USED(QKNorm)
     case TaskKind::kQKNorm: T_QKNorm{}(p, stage, smem); break;
 #endif
+#if TILEMEGA_KIND_USED(Attention)
     case TaskKind::kAttention: T_Attention{}(p, stage, smem); break;
+#endif
+#if TILEMEGA_KIND_USED(GemmCombine)
     case TaskKind::kGemmCombine:
 #if TILEMEGA_TRACE_TASK
       // MX3-1: a combine is ~10 us of task time against no bound; profile it
@@ -726,21 +811,19 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
       T_GemmCombine{}(p, stage, smem);
 #endif
       break;
+#endif
+#if TILEMEGA_FUSION_GEMM_RUNTIME && (TILEMEGA_KIND_USED(GemmAdd) || TILEMEGA_KIND_USED(GemmRMSNorm))
     case TaskKind::kGemmAdd:
     case TaskKind::kGemmRMSNorm:
-#if TILEMEGA_FUSION_GEMM_RUNTIME
       T_FusedGemm{}(p,stage,smem); break;
-#else
-      maca::Trap(); break;
 #endif
+#if !TILEMEGA_SERVING_RUNTIME && TILEMEGA_FUSION_ROPE_RUNTIME && TILEMEGA_KIND_USED(RoPEKVAppend)
     case TaskKind::kRoPEKVAppend:
-#if TILEMEGA_SERVING_RUNTIME
-      maca::Trap(); break;
-#elif TILEMEGA_FUSION_ROPE_RUNTIME
       T_FusedRoPE{}(p,stage,smem); break;
-#else
-      maca::Trap(); break;
 #endif
+    default:
+      maca::Trap();  // a kind the plan does not run (§5.2) or cannot run here
+      break;
   }
 }
 
@@ -753,8 +836,10 @@ __device__ inline void RunStage(Params const& p, std::uint32_t index,
 /// Host-callable so the report below counts exactly what the worker issues.
 __host__ __device__ inline PrefetchOperand PrefetchFor(StageDesc const& stage) {
   switch (stage.kind) {
+#if TILEMEGA_KIND_USED(RMSNorm)
     case TaskKind::kRMSNorm: return T_Norm::Prefetch(stage);
-#if TILEMEGA_QK_NORM_RUNTIME
+#endif
+#if TILEMEGA_QK_NORM_RUNTIME && TILEMEGA_KIND_USED(QKNorm)
     case TaskKind::kQKNorm: return T_QKNorm::Prefetch(stage);
 #endif
     default: return {};
@@ -785,6 +870,7 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
       DispatchDmStage(unsigned(stage.kind),stage.width,stage.group,DmStageRunner<HarnessArch>{p,stage,logical_task,reinterpret_cast<char*>(&smem)});
       break;
 #endif
+#if TILEMEGA_KIND_USED(Gemm)
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     case TaskKind::kDwPwFused:
 #endif
@@ -795,6 +881,8 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
 #endif
           );
       break;
+#endif
+#if TILEMEGA_KIND_USED(RMSNorm)
     case TaskKind::kRMSNorm:
 #if TILEMEGA_SERVING_RUNTIME
       RunServingScalarTask(p, stage, smem, task);
@@ -802,8 +890,11 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
       T_Norm::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS TILEMEGA_PREFETCH_PASS);
 #endif
       break;
+#endif
+#if TILEMEGA_KIND_USED(Add)
     case TaskKind::kAdd: T_Add::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS); break;
-#if TILEMEGA_EMBEDDING_RUNTIME
+#endif
+#if TILEMEGA_EMBEDDING_RUNTIME && TILEMEGA_KIND_USED(Embedding)
     case TaskKind::kEmbedding:
 #if TILEMEGA_SERVING_RUNTIME
       RunServingScalarTask(p, stage, smem, task);
@@ -812,6 +903,7 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
 #endif
       break;
 #endif
+#if TILEMEGA_KIND_USED(ArgmaxReduce)
     case TaskKind::kArgmaxReduce:
 #if TILEMEGA_SERVING_RUNTIME
       RunServingScalarTask(p, stage, smem, task);
@@ -819,6 +911,7 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
       maca::Trap();
 #endif
       break;
+#endif
     case TaskKind::kFusedAttention:
 #if TILEMEGA_SERVING_DECODER_ATTENTION
       RunServingAttentionTask(p, stage, smem, task
@@ -837,11 +930,12 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
       maca::Trap();
 #endif
       break;
-#if TILEMEGA_QK_NORM_RUNTIME
+#if TILEMEGA_QK_NORM_RUNTIME && TILEMEGA_KIND_USED(QKNorm)
     case TaskKind::kQKNorm:
       T_QKNorm::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS TILEMEGA_PREFETCH_PASS);
       break;
 #endif
+#if TILEMEGA_KIND_USED(RoPE)
     case TaskKind::kRoPE:
 #if TILEMEGA_SERVING_RUNTIME
       maca::Trap();
@@ -849,31 +943,37 @@ __device__ inline void RunTask(Params const& p, std::uint32_t index,
       T_RoPE::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS);
 #endif
       break;
+#endif
+#if TILEMEGA_KIND_USED(KVAppend)
     case TaskKind::kKVAppend: T_KV::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS); break;
+#endif
+#if TILEMEGA_KIND_USED(Elementwise)
     case TaskKind::kElementwise:
       T_Elementwise::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS);
       break;
+#endif
+#if TILEMEGA_KIND_USED(Attention)
     case TaskKind::kAttention:
       T_Attention::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS);
       break;
+#endif
+#if TILEMEGA_KIND_USED(GemmCombine)
     case TaskKind::kGemmCombine:
       T_GemmCombine::RunTask(p, stage, smem, task TILEMEGA_PHASE_PASS);
       break;
+#endif
+#if TILEMEGA_FUSION_GEMM_RUNTIME && (TILEMEGA_KIND_USED(GemmAdd) || TILEMEGA_KIND_USED(GemmRMSNorm))
     case TaskKind::kGemmAdd:
     case TaskKind::kGemmRMSNorm:
-#if TILEMEGA_FUSION_GEMM_RUNTIME
       T_FusedGemm::RunTask(p,stage,smem,task); break;
-#else
-      maca::Trap(); break;
 #endif
+#if !TILEMEGA_SERVING_RUNTIME && TILEMEGA_FUSION_ROPE_RUNTIME && TILEMEGA_KIND_USED(RoPEKVAppend)
     case TaskKind::kRoPEKVAppend:
-#if TILEMEGA_SERVING_RUNTIME
-      maca::Trap(); break;
-#elif TILEMEGA_FUSION_ROPE_RUNTIME
       T_FusedRoPE::RunTask(p,stage,smem,task); break;
-#else
-      maca::Trap(); break;
 #endif
+    default:
+      maca::Trap();  // a kind the plan does not run (§5.2) or cannot run here
+      break;
   }
 #if TILEMEGA_TRACE_PHASE
   if (phase != nullptr && threadIdx.x == 0) {
@@ -995,18 +1095,24 @@ __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
     case TaskKind::kMoECombine:
     case TaskKind::kLayoutConvert: return DmStageTaskCount(stage,p.dims);
 #endif
+#if TILEMEGA_KIND_USED(Gemm)
 #if defined(TILEMEGA_DM_SUPPORT) && TILEMEGA_DM_SUPPORT
     case TaskKind::kDwPwFused:
 #endif
     case TaskKind::kGemm: return T_Gemm::Ownership(p, stage).count;
+#endif
+#if TILEMEGA_KIND_USED(RMSNorm)
     case TaskKind::kRMSNorm:
 #if TILEMEGA_SERVING_RUNTIME
       return stage.batch_rows ? p.dims.batch : p.dims.tokens();
 #else
       return T_Norm::Ownership(p, stage).count;
 #endif
+#endif
+#if TILEMEGA_KIND_USED(Add)
     case TaskKind::kAdd: return T_Add::Ownership(p, stage).count;
-#if TILEMEGA_EMBEDDING_RUNTIME
+#endif
+#if TILEMEGA_EMBEDDING_RUNTIME && TILEMEGA_KIND_USED(Embedding)
     case TaskKind::kEmbedding:
 #if TILEMEGA_SERVING_RUNTIME
       return p.dims.tokens();
@@ -1023,27 +1129,35 @@ __device__ inline int ActiveBlocks(Params const& p, StageDesc const& stage) {
 #endif
     case TaskKind::kAttentionMerge:
       return p.dims.batch * int(stage.extent);
-#if TILEMEGA_QK_NORM_RUNTIME
+#if TILEMEGA_QK_NORM_RUNTIME && TILEMEGA_KIND_USED(QKNorm)
     case TaskKind::kQKNorm: return T_QKNorm::Ownership(p, stage).count;
 #endif
+#if TILEMEGA_KIND_USED(RoPE)
     case TaskKind::kRoPE: return T_RoPE::Ownership(p, stage).count;
+#endif
+#if TILEMEGA_KIND_USED(KVAppend)
     case TaskKind::kKVAppend: return T_KV::Ownership(p, stage).count;
+#endif
+#if TILEMEGA_KIND_USED(Elementwise)
     case TaskKind::kElementwise: return T_Elementwise::Ownership(p, stage).count;
+#endif
+#if TILEMEGA_KIND_USED(Attention)
     case TaskKind::kAttention: return T_Attention::Ownership(p, stage).count;
+#endif
+#if TILEMEGA_KIND_USED(GemmCombine)
     case TaskKind::kGemmCombine: return T_GemmCombine::Ownership(p, stage).count;
+#endif
+#if TILEMEGA_FUSION_GEMM_RUNTIME && (TILEMEGA_KIND_USED(GemmAdd) || TILEMEGA_KIND_USED(GemmRMSNorm))
     case TaskKind::kGemmAdd:
     case TaskKind::kGemmRMSNorm:
-#if TILEMEGA_FUSION_GEMM_RUNTIME
       return T_FusedGemm::Ownership(p,stage).count;
-#else
-      maca::Trap(); return 0;
 #endif
+#if TILEMEGA_FUSION_ROPE_RUNTIME && TILEMEGA_KIND_USED(RoPEKVAppend)
     case TaskKind::kRoPEKVAppend:
-#if TILEMEGA_FUSION_ROPE_RUNTIME
       return T_FusedRoPE::Ownership(p,stage).count;
-#else
-      maca::Trap(); return 0;
 #endif
+    default:
+      break;  // a kind the plan does not run (§5.2) owns no task
   }
   return 0;
 }
@@ -1456,7 +1570,7 @@ __device__ inline void ArriveEvent(Params const& p, EventCounter* events,
     if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled && !TILEMEGA_MOE_DYNAMIC) {
       shard = plan.begin + blockIdx.x / CS::Size() - plan.first_cluster;
       extern __shared__ unsigned char event_bytes[];
-      auto* local = reinterpret_cast<unsigned long long*>(event_bytes + sizeof(TaskSmem));
+      auto* local = reinterpret_cast<unsigned long long*>(event_bytes + kKernelSmemBytes);
       counter = CS::CounterPeer(local + p.shard_local_offsets[shard], 0);
     } else {
       shard = plan.begin + blockIdx.x % plan.modulus;
@@ -1748,7 +1862,7 @@ void tilemega_stage_kernel(Params const* params, std::uint32_t stage) {
   StageDescCacheReset();
   __syncthreads();
 #endif
-  RunStage(*params, stage, *reinterpret_cast<TaskSmem*>(bytes));
+  RunStage(*params, stage, KernelTaskSmem(bytes));
 }
 
 // Only immutable descriptors and producer-free weights are touched before Wait.
@@ -1802,7 +1916,7 @@ void tilemega_l1_kernel(Params const* params, EventCounter* events,
   params = CacheParams(params);
   __syncthreads();
 #endif
-  auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
+  auto& smem = KernelTaskSmem(bytes);
   for (std::uint32_t stage = 0; stage < params->stage_count; ++stage) {
 #if TILEMEGA_NONPAGED_LA || TILEMEGA_DM_REDUCTIONS
     if(params->stages[stage].handoff_elided)continue;
@@ -1845,7 +1959,7 @@ void tilemega_l1_loop_kernel(Params const* params,unsigned steps,
   StageDescCacheReset();
   __syncthreads();
 #endif
-  auto& smem=*reinterpret_cast<TaskSmem*>(bytes);
+  auto& smem=KernelTaskSmem(bytes);
   if(blockIdx.x==0 && threadIdx.x==0 && step_ns) {
     unsigned long long now=maca::GlobalTimerNs();
     step_ns[0]=now;
@@ -1972,13 +2086,13 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
   StageDescCacheReset();
   __syncthreads();
 #endif
-  auto& smem = *reinterpret_cast<TaskSmem*>(bytes);
+  auto& smem = KernelTaskSmem(bytes);
   using CS = ClusterSync<arch::CurrentArch>;
   if constexpr (TILEMEGA_EVENT_CLUSTER_FANIN && CS::kEnabled && !TILEMEGA_MOE_DYNAMIC) {
     unsigned const cluster = blockIdx.x / CS::Size();
     unsigned const begin = params->cluster_shard_offsets[cluster];
     unsigned const end = params->cluster_shard_offsets[cluster + 1];
-    auto* local = reinterpret_cast<unsigned long long*>(bytes + sizeof(TaskSmem));
+    auto* local = reinterpret_cast<unsigned long long*>(bytes + kKernelSmemBytes);
     if (CS::Rank() == 0)
       for (unsigned i = threadIdx.x; begin + i < end; i += blockDim.x)
         local[i] = params->shard_arrivals[params->cluster_shard_indices[begin + i]].arrivals;
@@ -2215,7 +2329,7 @@ void tilemega_l2_kernel(Params const* params, EventCounter* events,
     unsigned const cluster = blockIdx.x / CS::Size();
     unsigned const begin = params->cluster_shard_offsets[cluster];
     unsigned const end = params->cluster_shard_offsets[cluster + 1];
-    auto* local = reinterpret_cast<unsigned long long*>(bytes + sizeof(TaskSmem));
+    auto* local = reinterpret_cast<unsigned long long*>(bytes + kKernelSmemBytes);
     if (CS::Rank() == 0)
       for (unsigned i = threadIdx.x; begin + i < end; i += blockDim.x)
         params->shard_arrivals[params->cluster_shard_indices[begin + i]].arrivals = local[i];
@@ -3971,7 +4085,7 @@ inline DeviceModel Create(ModelSpec const& spec,
     }
     model.cluster_shard_offsets.push_back(model.cluster_shard_indices.size());
   }
-  std::size_t const needed = sizeof(TaskSmem) + max_local * sizeof(unsigned long long);
+  std::size_t const needed = kKernelSmemBytes + max_local * sizeof(unsigned long long);
   if (needed > model.l2_smem_bytes) {
     std::fprintf(stderr, "cluster counters need %zu shared bytes, TargetSpec budget is %zu\n",
                  needed, model.l2_smem_bytes);
@@ -4897,7 +5011,7 @@ inline unsigned long long BitHash(
 inline float LaunchL05(DeviceModel& model, int grid, bool timed = true) {
   return benchmark::Time([&] {
   for (std::uint32_t stage = 0; stage < model.params.stage_count; ++stage)
-    tilemega_stage_kernel<<<grid, kHarnessThreads, sizeof(TaskSmem)>>>(
+    tilemega_stage_kernel<<<grid, kHarnessThreads, kKernelSmemBytes>>>(
         model.device_params, stage);
   }, timed);
 }
@@ -4916,7 +5030,7 @@ inline void ProfileStages(DeviceModel& model, ModelSpec const& spec, int grid) {
     ResetBuffersOnly(model);
     for (std::uint32_t stage = 0; stage < count; ++stage) {
       TILEMEGA_CUDA_CHECK(cudaEventRecord(start));
-      tilemega_stage_kernel<<<grid, kHarnessThreads, sizeof(TaskSmem)>>>(
+      tilemega_stage_kernel<<<grid, kHarnessThreads, kKernelSmemBytes>>>(
           model.device_params, stage);
       TILEMEGA_CUDA_CHECK(cudaEventRecord(stop));
       TILEMEGA_CUDA_CHECK(cudaEventSynchronize(stop));
@@ -4964,7 +5078,7 @@ inline void LaunchPersistent(Kernel kernel, int grid, std::size_t smem_bytes, Ar
 inline float LaunchL1(DeviceModel& model, int grid,
                       unsigned long long iteration = 0, bool timed = true) {
   return benchmark::Time([&] {
-  LaunchPersistent(tilemega_l1_kernel, grid, sizeof(TaskSmem), model.device_params,
+  LaunchPersistent(tilemega_l1_kernel, grid, kKernelSmemBytes, model.device_params,
                    model.events, iteration);
   }, timed);
 }
@@ -5046,7 +5160,11 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
       std::fprintf(stderr,"attention plan is invalid or chunk execution is disabled\n"); return 2;
     }
     std::size_t extent = (static_cast<std::size_t>(dims.total)+choice.chunks-1)/choice.chunks;
+#if TILEMEGA_KIND_USED(Attention)
     std::size_t capacity = sizeof(TaskSmem::attention)/sizeof(float);
+#else
+    std::size_t capacity = 0;  // unreachable: the plan has no kAttention stage
+#endif
     if (extent > capacity || (choice.chunk_extent && extent > choice.chunk_extent) ||
         static_cast<std::size_t>(dims.seq)*spec.stages[s].extent*choice.chunks >
             static_cast<std::size_t>(std::numeric_limits<int>::max())) {
@@ -5071,7 +5189,7 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   TILEMEGA_CUDA_CHECK(cudaFuncGetAttributes(&l1_attributes, tilemega_l1_kernel));
   TILEMEGA_CUDA_CHECK(cudaFuncGetAttributes(&l05_attributes, tilemega_stage_kernel));
   std::size_t l2_smem_bytes = TILEMEGA_EVENT_CLUSTER_RESERVE
-      ? target.res.max_dynamic_smem_per_cta - l2_attributes.sharedSizeBytes : sizeof(TaskSmem);
+      ? target.res.max_dynamic_smem_per_cta - l2_attributes.sharedSizeBytes : kKernelSmemBytes;
 #if TILEMEGA_PREFETCH_RUNTIME
   // The pages follow whatever the union and the cluster reservation already
   // claim, so the reservation is visible to every occupancy number below
@@ -5081,10 +5199,10 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
 #endif
   TILEMEGA_CUDA_CHECK(cudaFuncSetAttribute(
       tilemega_stage_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
-      sizeof(TaskSmem)));
+      kKernelSmemBytes));
   TILEMEGA_CUDA_CHECK(cudaFuncSetAttribute(
       tilemega_l1_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
-      sizeof(TaskSmem)));
+      kKernelSmemBytes));
   TILEMEGA_CUDA_CHECK(cudaFuncSetAttribute(
       tilemega_l2_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
       l2_smem_bytes));
@@ -5095,7 +5213,7 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   // CTAs that are not resident, and a resident CTA then waits forever for an
   // arrival only a non-resident one can make.
   int grid = TILEMEGA_GENERATED_RESIDENT_GRID(target, tilemega_l1_kernel,
-                                              kHarnessThreads, sizeof(TaskSmem));
+                                              kHarnessThreads, kKernelSmemBytes);
   int l2_grid = TILEMEGA_GENERATED_RESIDENT_GRID(target, tilemega_l2_kernel,
                                                  kHarnessThreads, l2_smem_bytes);
   if (l2_grid < grid) grid = l2_grid;
@@ -5109,7 +5227,7 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   grid = requested_grid;
 #endif
   int const l1_ctas = target.ActiveBlocksPerSM(
-      reinterpret_cast<void const*>(tilemega_l1_kernel), kHarnessThreads, sizeof(TaskSmem));
+      reinterpret_cast<void const*>(tilemega_l1_kernel), kHarnessThreads, kKernelSmemBytes);
   int const l2_ctas = target.ActiveBlocksPerSM(
       reinterpret_cast<void const*>(tilemega_l2_kernel), kHarnessThreads, l2_smem_bytes);
 #if TILEMEGA_GENERATED_CLUSTER_DIM > 1
@@ -5132,7 +5250,7 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
   cluster_config.attrs = &cluster_attribute;
   cluster_config.numAttrs = 1;
   for (bool l2 : {false, true}) {
-    cluster_config.dynamicSmemBytes = l2 ? l2_smem_bytes : sizeof(TaskSmem);
+    cluster_config.dynamicSmemBytes = l2 ? l2_smem_bytes : kKernelSmemBytes;
     int clusters = 0;
     TILEMEGA_CUDA_CHECK(cudaOccupancyMaxActiveClusters(
         &clusters, l2 ? tilemega_l2_kernel : tilemega_l1_kernel, &cluster_config));
@@ -5240,7 +5358,7 @@ inline int RunModel(ModelSpec const& spec, char const* fixture_dir) {
               "variant_count=%d ctas_per_sm=%d num_sms=%d grid=%d "
               "l1_reg=%d l05_reg=%d l1_ctas=%d l2_ctas=%d min_blocks=%d warp_size=%d "
               "resident_formula=ctas_per_sm*num_sms\n",
-              kHarnessThreads, l2_attributes.numRegs, l2_smem_bytes, sizeof(TaskSmem),
+              kHarnessThreads, l2_attributes.numRegs, l2_smem_bytes, kKernelSmemBytes,
               l2_smem_bytes, l2_attributes.sharedSizeBytes, target.res.regs_per_sm,
               target.res.max_smem_per_sm, target.res.max_threads_per_sm, sizeof(GemmVariantSmem),
               TILEMEGA_GEMM_VARIANT_COUNT, blocks_per_sm,

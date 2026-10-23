@@ -35,6 +35,7 @@
 #include <limits>
 #include <map>
 #include <set>
+#include <tilemega/Solver/ServingKernelSmem.h>
 #include <sstream>
 #include <stdexcept>
 #include <tuple>
@@ -254,6 +255,35 @@ std::string emitTaskKindRuntime(mlir::DictionaryAttr plan) {
   if (qk_norm)
     out += "#ifndef TILEMEGA_QK_NORM_RUNTIME\n"
            "#define TILEMEGA_QK_NORM_RUNTIME 1\n#endif\n";
+  // MX4 prompt §5.2: every kind the harness dispatches, 0 or 1 by whether
+  // the plan runs it (Codegen/tasks/KindsUsed.h). kDwPwFused runs the GEMM
+  // body; split combines are created at plan creation from the variants'
+  // split, so any GEMM stage keeps kGemmCombine.
+  std::set<std::string> kinds;
+  for (auto value : stages)
+    if (auto item = llvm::dyn_cast<mlir::DictionaryAttr>(value))
+      if (auto kind = llvm::dyn_cast_or_null<mlir::StringAttr>(item.get("kind"))) kinds.insert(kind.getValue().str());
+  auto has = [&](char const* kind) { return kinds.count(kind) != 0; };
+  bool const gemm = has("kGemm") || has("kDwPwFused");
+  std::pair<char const*, bool> const used[] = {
+      {"Gemm", gemm},
+      {"RMSNorm", has("kRMSNorm")},
+      {"RoPE", has("kRoPE")},
+      {"KVAppend", has("kKVAppend")},
+      {"Elementwise", has("kElementwise")},
+      {"Attention", has("kAttention")},
+      {"GemmCombine", gemm || has("kGemmAdd") || has("kGemmRMSNorm")},
+      {"GemmAdd", has("kGemmAdd")},
+      {"GemmRMSNorm", has("kGemmRMSNorm")},
+      {"RoPEKVAppend", has("kRoPEKVAppend")},
+      {"Add", has("kAdd")},
+      {"Embedding", has("kEmbedding")},
+      {"QKNorm", has("kQKNorm")},
+      {"FusedAttention", has("kFusedAttention")},
+      {"AttentionMerge", has("kAttentionMerge")},
+      {"ArgmaxReduce", has("kArgmaxReduce")}};
+  for (auto const& [kind, on] : used)
+    out += std::string("#define TILEMEGA_KIND_USED_") + kind + (on ? " 1\n" : " 0\n");
   return out;
 }
 
@@ -261,6 +291,47 @@ mlir::ArrayAttr arrayField(mlir::DictionaryAttr dictionary,
                            llvm::StringRef name);
 mlir::DictionaryAttr dictionaryEntry(mlir::Attribute value,
                                      llvm::StringRef collection);
+
+/// MX4 prompt §5.4: solver::ServingKernelSmemBytes of the plan as built (the
+/// GEMM variants it instantiates, the kinds it runs), which the generated
+/// source asserts its dynamic shared memory equals. Only for the non-paged,
+/// non-DM serving kernels whose union the formula covers.
+std::string emitServingSmemEstimate(mlir::DictionaryAttr plan, mlir::ModuleOp module,
+                                    std::vector<std::tuple<int, int, int, int, int>> const& shapes) {
+  auto serving = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.serving");
+  if (!serving || shapes.empty() || optionalBoolField(plan, "dm") || optionalBoolField(plan, "forward") ||
+      module->getAttrOfType<mlir::DictionaryAttr>("tmexec.pages"))
+    return {};
+  std::set<std::string> kinds;
+  mlir::DictionaryAttr attention;
+  for (auto value : arrayField(plan, "stages")) {
+    auto item = dictionaryEntry(value, "stages");
+    kinds.insert(stringField(item, "kind"));
+    if (stringField(item, "kind") == "kFusedAttention") attention = item;
+  }
+  for (char const* kind : {"kAttention", "kGemmAdd", "kGemmRMSNorm", "kRoPEKVAppend"})
+    if (kinds.count(kind)) return {};  // terms the formula does not cover
+  solver::ServingSmemTerms terms;
+  for (auto const& [m, n, k, stages, impl] : shapes)
+    terms.gemm = std::max(terms.gemm, solver::ServingGemmVariantSmemBytes(m, n, k, stages, impl));
+  if (attention) {
+    // The KV tile follows emitServingAttentionConfig's GEMM storage.
+    int kv_rule = 0;
+    if (auto gemms = module->getAttrOfType<mlir::ArrayAttr>("tilemega.gemm_runtime"))
+      for (auto value : gemms) {
+        auto g = dictionaryEntry(value, "gemm_runtime");
+        kv_rule = std::max(kv_rule, solver::ServingBF16SmemBytes(integerField(g, "tile_m"), integerField(g, "tile_n"),
+                                                                 integerField(g, "tile_k"), integerField(g, "stages")));
+      }
+    terms.attention = solver::ServingFusedAttentionSmemBytes(int(integerField(attention, "width")),
+                                                             int(integerField(attention, "group")),
+                                                             int(integerField(serving, "seq")), kv_rule);
+  }
+  terms.norm = kinds.count("kRMSNorm") || kinds.count("kQKNorm");
+  terms.pointwise = kinds.count("kElementwise") || kinds.count("kAdd") || kinds.count("kKVAppend") || kinds.count("kRoPE");
+  terms.argmax = kinds.count("kRMSNorm") || kinds.count("kArgmaxReduce");
+  return "#define TILEMEGA_SOLVER_SMEM_BYTES " + std::to_string(solver::ServingKernelSmemBytes(terms)) + "\n";
+}
 
 std::string emitServingAttentionConfig(mlir::DictionaryAttr plan,
                                        mlir::ModuleOp module) {
@@ -523,6 +594,11 @@ std::string emitAttentionStorage(mlir::ModuleOp module,
                                  std::vector<RuntimeVariantRecord> const& variants) {
   auto model = module->getAttrOfType<mlir::DictionaryAttr>("tilemega.model_plan");
   auto stages = arrayField(model,"stages");
+  // §5.2: storage only for a plan that runs kAttention.
+  bool attention = false;
+  for (std::size_t s=0; s<stages.size(); ++s)
+    attention = attention || stringField(dictionaryEntry(stages[s],"stages"),"kind") == "kAttention";
+  if (!attention) return {};
   std::uint32_t extent = 0;
   bool direct_default = false, enabled = false;
   for (auto const& variant : variants) {
@@ -2009,6 +2085,7 @@ std::string CouplingGraphToCUDA::Lower(mlir::ModuleOp module) const {
       << emitDmReductionConfig(emittedPlan, {module}) << emitNormEpsilon(emittedPlan)
       << emitRoPEPrecision(emittedPlan) << emitServingNarrowLayout(emittedPlan) << emitTokenIdBits(emittedPlan) << emitTaskKindRuntime(emittedPlan)
       << emitServingAttentionConfig(emittedPlan, module)
+      << emitServingSmemEstimate(emittedPlan, module, {})  // GEMM shapes here are DM only
       << (clusterDim > 1 ? "#define TILEMEGA_GENERATED_CLUSTER_DIM " +
                                std::to_string(clusterDim) + "\n"
                           : std::string())
@@ -2132,6 +2209,7 @@ std::string CouplingGraphToCUDA::LowerVariants(
       << emitDmReductionConfig(first_plan, reduction_modules) << emitNormEpsilon(first_plan)
       << emitRoPEPrecision(first_plan) << emitServingNarrowLayout(first_plan) << emitTokenIdBits(first_plan) << emitTaskKindRuntime(first_plan)
       << emitServingAttentionConfig(first_plan, first)
+      << emitServingSmemEstimate(first_plan, first, shapes)
       << emitSolvedLaunch(first)
       << EmitGemmInstantiations(shapes)
       << emitAttentionStorage(first, records)

@@ -585,47 +585,54 @@ struct GemmInvocation {
 /// copies them while thread 0 waits at the grid barrier (PrefetchStageDesc);
 /// each copy is keyed by the global entry it holds, and a lookup that does
 /// not match reads the table as before.
-// Raw storage: __shared__ variables take no initializer, and both
-// descriptors have default member initializers.
+// Raw storage (both descriptors have default member initializers). With the
+// launch's Params block (288 bytes), read by every descriptor lookup of every
+// task: the L1 kernels copy it once per step and run from the copy.
 struct StageDescCache {
   alignas(16) unsigned char stage[sizeof(StageDesc)];
   alignas(16) unsigned char invocation[sizeof(GemmInvocation)];
+  alignas(16) unsigned char params[sizeof(Params)];
   StageDesc const* stage_source;
   GemmInvocation const* invocation_source;
 };
-static __shared__ StageDescCache g_stage_cache;
+/// MX4 prompt §5.3: the cache is the first kStageCacheBytes of the kernel's
+/// dynamic shared memory, ahead of the TaskSmem union (ModelHarness.cuh
+/// KernelTaskSmem), and counted in its size: as static __shared__ (672 B)
+/// it was invisible to the resource estimate.
+inline constexpr std::size_t kStageCacheBytes = (sizeof(StageDescCache) + 15) / 16 * 16;
+extern __shared__ __align__(16) unsigned char tm_serving_dynamic_smem[];
+__device__ __forceinline__ StageDescCache& StageCache() {
+  return *reinterpret_cast<StageDescCache*>(tm_serving_dynamic_smem);
+}
 __device__ __forceinline__ void StageDescCacheReset() {
   if (threadIdx.x == 0) {
-    g_stage_cache.stage_source = nullptr;
-    g_stage_cache.invocation_source = nullptr;
+    StageCache().stage_source = nullptr;
+    StageCache().invocation_source = nullptr;
   }
 }
-#endif
-#if TILEMEGA_STAGE_DESC_CACHE
-// The launch's Params block (288 bytes), read by every descriptor lookup of
-// every task; the L1 kernels copy it once per step and run from the copy.
-static __shared__ alignas(16) unsigned char g_params_copy[sizeof(Params)];
 /// All threads copy; the caller synchronizes before and after.
 __device__ inline Params const* CacheParams(Params const* source) {
   static_assert(sizeof(Params) % 4 == 0);
   using Word = __attribute__((address_space(1))) unsigned const;
   for (int w = int(threadIdx.x); w < int(sizeof(Params) / 4); w += int(blockDim.x))
-    reinterpret_cast<unsigned*>(g_params_copy)[w] = ((Word*)source)[w];
-  return reinterpret_cast<Params const*>(g_params_copy);
+    reinterpret_cast<unsigned*>(StageCache().params)[w] = ((Word*)source)[w];
+  return reinterpret_cast<Params const*>(StageCache().params);
 }
+#else
+inline constexpr std::size_t kStageCacheBytes = 0;
 #endif
 __device__ __forceinline__ StageDesc const& ServingStage(Params const& p, unsigned index) {
 #if TILEMEGA_STAGE_DESC_CACHE
-  if (g_stage_cache.stage_source == p.stages + index)
-    return *reinterpret_cast<StageDesc const*>(g_stage_cache.stage);
+  if (StageCache().stage_source == p.stages + index)
+    return *reinterpret_cast<StageDesc const*>(StageCache().stage);
 #endif
   return p.stages[index];
 }
 __device__ __forceinline__ GemmInvocation const& ServingInvocation(Params const& p, unsigned index) {
   auto const* entry = static_cast<GemmInvocation const*>(p.gemms) + index;
 #if TILEMEGA_STAGE_DESC_CACHE
-  if (g_stage_cache.invocation_source == entry)
-    return *reinterpret_cast<GemmInvocation const*>(g_stage_cache.invocation);
+  if (StageCache().invocation_source == entry)
+    return *reinterpret_cast<GemmInvocation const*>(StageCache().invocation);
 #endif
   return *entry;
 }
@@ -643,7 +650,7 @@ __device__ inline void PrefetchStageDesc(Params const& p, unsigned next) {
     for (int w = lane; w < words; w += 64)
       static_cast<unsigned*>(to)[w] = ((Word*)from)[w];
   };
-  copy(g_stage_cache.stage, stage, int(sizeof(StageDesc) / 4));
+  copy(StageCache().stage, stage, int(sizeof(StageDesc) / 4));
   auto const* table = static_cast<GemmInvocation const*>(p.gemms);
   GemmInvocation const* entry = nullptr;
   if (stage->kind == TaskKind::kGemmCombine) {
@@ -657,10 +664,10 @@ __device__ inline void PrefetchStageDesc(Params const& p, unsigned next) {
     if (task < tiles * base.chunks)
       entry = table + stage->gemm + DecodeSplitTask(task, tiles, base.chunks).chunk;
   }
-  if (entry) copy(g_stage_cache.invocation, entry, int(sizeof(GemmInvocation) / 4));
+  if (entry) copy(StageCache().invocation, entry, int(sizeof(GemmInvocation) / 4));
   if (lane == 0) {
-    g_stage_cache.stage_source = stage;
-    g_stage_cache.invocation_source = entry;
+    StageCache().stage_source = stage;
+    StageCache().invocation_source = entry;
   }
 }
 #endif
