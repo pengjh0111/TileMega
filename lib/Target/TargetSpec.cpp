@@ -400,6 +400,7 @@ TargetSpec TargetSpec::FromJson(std::string const& path) {
     spec.serving_legacy_hop_coefficients=NumberArray(*hop,"serving_legacy_hop");
   spec.arch_tag = root.At("arch_tag").AsString("arch_tag");
   if (auto* name = root.Find("device_name")) spec.device_name = name->AsString("device_name");
+  if (auto* costs = root.Find("mx_decode_costs")) spec.mx_decode_costs = costs->AsString("mx_decode_costs");
   spec.sm_major = static_cast<int>(root.At("sm_major").AsNumber("sm_major"));
   spec.sm_minor = static_cast<int>(root.At("sm_minor").AsNumber("sm_minor"));
   if (auto grouped = root.Find("event_calibration_by_dtype")) {
@@ -530,6 +531,7 @@ std::string TargetSpec::ToJson() const {
     root.Set("serving_legacy_hop",json::Numbers(serving_legacy_hop_coefficients));
   root.Set("arch_tag", arch_tag);
   if (!device_name.empty()) root.Set("device_name", device_name);
+  if (!mx_decode_costs.empty()) root.Set("mx_decode_costs", mx_decode_costs);
   root.Set("sm_major", sm_major);
   root.Set("sm_minor", sm_minor);
   root.Set("caps", json::Object{{"cluster", caps.cluster},

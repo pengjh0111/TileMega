@@ -62,6 +62,9 @@ struct TargetSpec {
   /// Device name the target was probed on; the generated harness compares it
   /// (with the AP count) at run time instead of a compute capability.
   std::string device_name;
+  /// The MX-4 decode stage table (MX4 prompt §4.2), relative to the target
+  /// file: configs/targets/xcore1000_mx_decode.json. Empty: none.
+  std::string mx_decode_costs;
   int sm_major = 0;
   int sm_minor = 0;
 

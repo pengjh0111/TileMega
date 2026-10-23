@@ -82,6 +82,7 @@ TargetSpec FullyPopulated() {
   TargetSpec spec;
   spec.arch_tag = "schema";
   spec.device_name = "schema";
+  spec.mx_decode_costs = "schema";
   spec.calib.l2_curve_bytes = {1.0};
   spec.calib.l2_curve_gbps = {1.0};
   spec.calib.smem_occupancy_ctas = {1.0};
