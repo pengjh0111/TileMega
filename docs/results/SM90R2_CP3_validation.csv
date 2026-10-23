@@ -80,3 +80,37 @@ qwen3_0_6b,1,E72,E67C1,class_error_pct_o,-11.539116982129627,15,True,verified st
 qwen3_0_6b,1,E72,E67C1,class_error_pct_gate_up,-15.231667486761403,15,False,verified stage trace; uniform overhead correction inferred; later training
 qwen3_0_6b,1,E72,E67C1,class_error_pct_down,-13.140428826229877,15,True,verified stage trace; uniform overhead correction inferred; later training
 qwen3_0_6b,1,E72,E67C1,class_error_pct_lm_head,2.6096936115502123,15,True,verified stage trace; uniform overhead correction inferred; later training
+qwen3_0_6b,1,E77,cohort,kendall_tau,0.7637626158259734,0.7,True,verified prospective at frozen E76 prices; provisional namespace-limited ownership
+qwen3_0_6b,1,E77,cohort,fastest_in_predicted_top3,True,True,True,verified prospective at frozen E76 prices; provisional namespace-limited ownership
+qwen3_0_6b,1,E77,B57R,step_error_pct,-0.8598754643797224,10,True,verified fresh guarded request; inferred frozen E76 prediction
+qwen3_0_6b,1,E77,E77C1,step_error_pct,-0.07188578127457212,10,True,verified fresh guarded request; inferred frozen E76 prediction
+qwen3_0_6b,1,E77,E77C2,step_error_pct,-1.6192312629406014,10,True,verified fresh guarded request; inferred frozen E76 prediction
+qwen3_0_6b,1,E77,E77C3,step_error_pct,-0.4250843615297928,10,True,verified fresh guarded request; inferred frozen E76 prediction
+qwen3_0_6b,1,E77,E77C4,step_error_pct,-4.192037651302338,10,True,verified fresh guarded request; inferred frozen E76 prediction
+qwen3_0_6b,1,E77,E77C5,step_error_pct,0.4711026871849766,10,True,verified fresh guarded request; inferred frozen E76 prediction
+qwen3_0_6b,1,E77,E77C6,step_error_pct,-1.9197777127093585,10,True,verified fresh guarded request; inferred frozen E76 prediction
+qwen3_0_6b,1,E77,E77C7,step_error_pct,3.1254751876854003,10,True,verified fresh guarded request; inferred frozen E76 prediction
+llama3_2_1b,1,E78,E77C1,class_error_pct_qkv,0.8318820407264393,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_2_1b,1,E78,E77C1,class_error_pct_attention,-0.3434985627669085,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_2_1b,1,E78,E77C1,class_error_pct_o,4.279208123395595,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_2_1b,1,E78,E77C1,class_error_pct_gate_up,-1.3644708329210053,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_2_1b,1,E78,E77C1,class_error_pct_down,-3.5436223194947103,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_2_1b,1,E78,E77C1,class_error_pct_lm_head,1.4876011488109464,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_2_1b,16,E78,E77C1,class_error_pct_qkv,-11.598598505966729,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_2_1b,16,E78,E77C1,class_error_pct_attention,-11.354375658639748,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_2_1b,16,E78,E77C1,class_error_pct_o,-0.050351438421203376,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_2_1b,16,E78,E77C1,class_error_pct_gate_up,-5.710968623146673,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_2_1b,16,E78,E77C1,class_error_pct_down,-2.7158574866767315,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_2_1b,16,E78,E77C1,class_error_pct_lm_head,-2.522613667380824,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_2_3b,4,E78,E77C1,class_error_pct_qkv,-2.4094250119789162,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_2_3b,4,E78,E77C1,class_error_pct_attention,-9.376046025174888,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_2_3b,4,E78,E77C1,class_error_pct_o,2.4815131512122335,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_2_3b,4,E78,E77C1,class_error_pct_gate_up,-7.617671017596328,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_2_3b,4,E78,E77C1,class_error_pct_down,-1.6490295727740412,15,True,verified fresh stage observation; uniform boundary correction inferred
+llama3_2_3b,4,E78,E77C1,class_error_pct_lm_head,-0.9998964563936341,15,True,verified fresh stage observation; uniform boundary correction inferred
+qwen3_0_6b,1,E78,E77C1,class_error_pct_qkv,-4.972248573927351,15,True,verified fresh stage observation; uniform boundary correction inferred
+qwen3_0_6b,1,E78,E77C1,class_error_pct_attention,1.0246966555476078,15,True,verified fresh stage observation; uniform boundary correction inferred
+qwen3_0_6b,1,E78,E77C1,class_error_pct_o,0.1126122666654572,15,True,verified fresh stage observation; uniform boundary correction inferred
+qwen3_0_6b,1,E78,E77C1,class_error_pct_gate_up,-5.177337169286411,15,True,verified fresh stage observation; uniform boundary correction inferred
+qwen3_0_6b,1,E78,E77C1,class_error_pct_down,-3.4639851998315985,15,True,verified fresh stage observation; uniform boundary correction inferred
+qwen3_0_6b,1,E78,E77C1,class_error_pct_lm_head,1.597105455110448,15,True,verified fresh stage observation; uniform boundary correction inferred
