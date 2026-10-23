@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <tilemega/Solver/ServingKernelSmem.h>
 #include <cstdio>
 #include <limits>
 #include <tilemega/Solver/ServingAttentionLegality.h>
@@ -115,6 +116,9 @@ double PriceServingHandoffFlow(FlowProblem flow,SymbolicProblem const& problem,
 }
 struct SearchContext {
   frontend::ImportedSemantics imported;
+  /// Each operator class's candidate geometries (CoordinateDescent), for the
+  /// re-search at a compiled residency (MX4 prompt §5.4).
+  std::vector<std::vector<GemmConfig>> class_domains;
   frontend::TorchExportImporter importer;
   std::vector<OperatorClass> classes;
   analysis::CouplingCache cache;
@@ -297,6 +301,32 @@ struct SearchContext {
             throw std::invalid_argument("candidate violates shared packed weight layout");
     auto estimate=resources.Estimate(classes,config,target,dtype);
     if(ServingRuntimePlan()) {
+      using frontend::PlanTaskKind;
+      auto has=[&](PlanTaskKind kind){return std::any_of(imported.plan.stages.begin(),imported.plan.stages.end(),
+          [&](auto const& stage){return stage.kind==kind;});};
+      if(!imported.plan.dm && !options.pg_pages && !has(PlanTaskKind::kAttention)) {
+        // MX4 prompt §5.4: the generated kernel's dynamic shared memory, the
+        // formula its source static_asserts (Solver/ServingKernelSmem.h):
+        // GEMM variants, attention, the other kinds' storage and the stage
+        // descriptor cache.
+        ServingSmemTerms terms;
+        int kv_rule=0;
+        for(auto const& g:config) {
+          terms.gemm=std::max(terms.gemm,ServingGemmVariantSmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages,g.impl));
+          kv_rule=std::max(kv_rule,ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages));
+        }
+        for(auto const& stage:imported.plan.stages)
+          if(stage.kind==PlanTaskKind::kFusedAttention)
+            terms.attention=std::max(terms.attention,ServingFusedAttentionSmemBytes(
+                int(stage.width),int(stage.group),imported.plan.serving_seq,kv_rule));
+        terms.norm=has(PlanTaskKind::kRMSNorm) || has(PlanTaskKind::kQKNorm);
+        terms.pointwise=has(PlanTaskKind::kElementwise) || has(PlanTaskKind::kAdd) ||
+            has(PlanTaskKind::kKVAppend) || has(PlanTaskKind::kRoPE);
+        terms.argmax=has(PlanTaskKind::kRMSNorm) || has(PlanTaskKind::kArgmaxReduce);
+        estimate.shared_bytes=ServingKernelSmemBytes(terms);
+        estimate.resident_limit=VariantResourceCache::ResidentLimit(estimate,target);
+        return estimate;
+      }
       int gemm_shared=imported.plan.dm?estimate.shared_bytes:0;
       for(auto const& g:config)gemm_shared=std::max(gemm_shared,
           (imported.plan.dm?DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages):g.impl?ServingGemvSmemBytes(g.tile_m,g.tile_n):ServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages)));
@@ -681,6 +711,7 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
          <<g.tile_n<<'x'<<g.tile_k<<'s'<<g.stages<<'k'<<g.split_k<<'\n';
     domains.push_back(std::move(domain));
   }
+  search.class_domains=domains;
   std::vector<GemmConfig> seed(search.classes.size(),options.seed);
   if(search.ServingRuntimePlan())
     for(std::size_t c=0;c<seed.size();++c)
@@ -1266,12 +1297,28 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
       if(options.pg_pages){search.current_page_bytes=c.page_bytes;search.current_lookahead_bytes=c.lookahead_bytes;}
       search.current_handoff_mask=c.handoff_mask;
       search.SetServingStructure(c.attention_kv_block,c.attention_query_rows,c.config);
-      auto best=search.Evaluate(c.config,c.kappa,1,actual);
+      // MX4 prompt §5.4: the estimate missed the compiled residency, so the
+      // geometry is searched once more at the actual one (one coordinate
+      // pass over every class) before the residency is re-ranked; the
+      // result is compiled and checked again below.
+      std::vector<GemmConfig> geometry=c.config;
+      if(search.ServingRuntimePlan() && !options.pg_pages && search.class_domains.size()==geometry.size()) {
+        auto incumbent=search.Evaluate(geometry,c.kappa,actual,actual);
+        for(std::size_t k=0;k<geometry.size();++k)
+          for(auto const& g:search.class_domains[k]) {
+            auto trial_config=geometry;trial_config[k]=g;
+            auto trial=search.Evaluate(trial_config,c.kappa,actual,actual);
+            if(trial.score<incumbent.score){incumbent=std::move(trial);geometry=trial_config;}
+          }
+        evidence<<"RESIDENCY_RESEARCH\t"<<c.key<<"\testimated="<<c.estimated_limit<<"\tactual="<<actual
+                <<"\t"<<ConfigKey(geometry,c.kappa,actual)<<'\n';
+      }
+      auto best=search.Evaluate(geometry,c.kappa,1,actual);
       // A pinned case's residency is a cap, not a hint: re-ranking up to the
       // compiled limit put a "residency 2" pin back at 4 (MX3-3 A/B).
       int const cap=options.evaluation_cases.empty()?actual:std::min(actual,c.residency);
       for(int r=2;r<=cap;++r) {
-        auto trial=search.Evaluate(c.config,c.kappa,r,actual);
+        auto trial=search.Evaluate(geometry,c.kappa,r,actual);
         if(trial.score<best.score)best=std::move(trial);
       }
       c=std::move(best);auto opts=options;opts.kappa=c.kappa;
@@ -1284,6 +1331,15 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
             ? eb.evaluation.makespan_ns>0.98*ea.evaluation.makespan_ns
             : ea.evaluation.makespan_ns<=eb.evaluation.makespan_ns);
       c.placement=item.pure?astats:bstats;item.entry=item.pure?std::move(ea):std::move(eb);
+      // The re-searched plan's own compiled residency (§5.4: checked again).
+      if(options.common.query_residency) {
+        int again;
+        {SolverPhase phase(options.common.timing,"megakernel_compile");
+          again=options.common.query_residency(*item.entry.module,c.kappa);}
+        evidence<<"RESIDENCY_RECHECK\t"<<c.key<<"\tactual="<<actual<<"\trechecked="<<again<<'\n';
+        if(again<1)throw std::runtime_error("re-searched plan compiled with zero residency");
+        actual=again;
+      }
     }
     catch(std::exception const& e) {
       // Re-solved at its compiled residency, a plan can stop being buildable
