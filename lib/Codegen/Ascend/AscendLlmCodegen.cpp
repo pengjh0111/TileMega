@@ -150,8 +150,8 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
         if(stage.kv_block!=1088)throw std::invalid_argument("FP32 chunk/merge candidate requires the unified KV ownership domain");
         stage.variant=attention_precision==8?6:attention_precision>=5?5:attention_precision;
         if(attention_precision>=4) {
-          if(map.launch.num_groups!=8 || stage.width!=128 || stage.group!=2)
-            throw std::invalid_argument("Experimental cooperative FP32 attention is bounded to G8/head128/GQA2 pending family probes");
+          if(map.launch.num_groups!=8 || !((stage.width==128 && stage.group==2) || (stage.width==64 && stage.group==4)))
+            throw std::invalid_argument("Experimental cooperative FP32 attention requires probed G8/head128/GQA2 or head64/GQA4");
           if(attention_workspace==kAbsent) {
             attention_workspace=arena;auto bytes=Mul(map.launch.num_groups,attention::kGroupBytes);
             auto allocated=Mul(Add(Add(bytes,512),511)/512,512);
@@ -251,7 +251,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
       {"tile_m",s.kind==0?(s.variant?16:32):0},{"tile_n",s.kind==0?(s.variant?128:64):0},
       {"tile_k",s.kind==0?(s.variant?128:64):0},
       {"attention_score_probability",s.kind==13?((s.variant==4 || s.variant==5 || s.variant==6)?"fp32_cube_split_scale_vector_div_softmax":s.variant==1?"fp32_opmath_no_bf16_intermediate":s.variant==2?"fp32_scores_bf16_probability":s.variant==3?"fp32_split_scale_capacity_softmax":"bf16_storage_rounding"):"not_applicable"},
-      {"qk_norm_method",s.kind==13&&(s.variant==5 || s.variant==6)?"CANN9.1.0_register_square_reduce_Newton_refinement":"existing_Rsqrt"},
+      {"qk_norm_method",s.kind!=13?"not_applicable":s.operands[5]==ascend::llm::kAbsent && s.operands[6]==ascend::llm::kAbsent?"none":(s.variant==5 || s.variant==6)?"CANN9.1.0_register_square_reduce_Newton_refinement":"existing_Rsqrt"},
       {"softmax_sum_method",s.kind==13&&s.variant==6?"CANN9.1.0_register_fold1024_capacity1088":"existing_ReduceSum"},
       {"full_row_norm_method",s.kind==1&&s.variant==3?"CANN9.1.0_half_row_fold_square_reduce_Newton_refinement":s.kind==1&&s.variant==2?"CANN9.1.0_register_square_reduce_Newton_refinement":"existing_Rsqrt"},
       {"aic_l1_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6))?524288:0},{"aic_l0a_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6))?65536:0},
