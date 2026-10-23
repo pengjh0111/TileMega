@@ -25,6 +25,22 @@ int main() {
   catch(std::invalid_argument const&) {++rejected;}
   llm::Stage partial{};partial.kind=0;partial.extent=3;
   llm::Stage combine{};combine.kind=6;
+#if defined(TILEMEGA_LLM_SPLIT_K) && TILEMEGA_LLM_SPLIT_K
+  for(unsigned kind:{0u,6u}) {
+    llm::Stage split{};split.kind=kind;split.extent=3;split.columns=2048;
+    split.k=8192;split.rows=16;split.width=2731;split.group=1;
+    split.variant=1;split.epilogue=kind==6;
+    llm_host::ValidateCompiledBodies({split});
+    for(unsigned k:{6144u,4096u}) {
+      auto invalid=split;invalid.k=k;invalid.width=(k+2)/3;
+      try {llm_host::ValidateCompiledBodies({invalid});return 1;}
+      catch(std::invalid_argument const&) {}
+    }
+    split.rows=1024;
+    try {llm_host::ValidateCompiledBodies({split});return 1;}
+    catch(std::invalid_argument const&) {}
+  }
+#endif
   for(auto const& stage:{partial,combine}) {
     try {llm_host::ValidateCompiledBodies({stage});}
     catch(std::invalid_argument const&) {++rejected;}
