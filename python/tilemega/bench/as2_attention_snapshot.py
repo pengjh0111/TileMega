@@ -5,7 +5,7 @@ import math
 import struct
 from pathlib import Path
 import torch
-from tilemega.bench.as2_models import RUNS, WORK, controlled
+from tilemega.bench.as2_models import RUNS, WORK, DENSE, controlled
 from tilemega.bench.as2_native import digest
 
 ABSENT=(1<<64)-1
@@ -36,16 +36,17 @@ def prepare(a):
     cap=json.loads((capture/'capture.json').read_text());files={v['name']:v for v in cap['files']}
     for name in ('model_id','batch','config_sha256','weight_manifest_sha256','input_sha256'):
         if identity[name]!=r[name]:raise ValueError('Paired identity mismatch: '+name)
-    if r['model_id']!='qwen3_0_6b' or r['batch']!=1 or not r.get('diagnostic_capture_last_forward') or r['norm']!='fused' or r['attention']!='sdpa' or cap['seq']!=1:
-        raise ValueError('Require an independently captured Qwen B1 SDPA/fused decode operand')
+    if r['model_id'] not in DENSE or r['batch']!=1 or not r.get('diagnostic_capture_last_forward') or r['norm']!='fused' or r['attention']!='sdpa' or cap['seq']!=1:
+        raise ValueError('Require an independently captured dense B1 SDPA/fused decode operand')
     if any(digest(capture/v['file'])!=v['sha256'] for v in files.values()):raise ValueError('Capture changed')
     original=list(struct.iter_unpack('<17Q16I',(binding/'decode/stages.bin').read_bytes()))
     stages=[v for v in original if v[17]==13]
     if not 0<=a.layer<len(stages):raise ValueError('Invalid layer index')
     s=list(stages[a.layer])
-    if (s[19],s[23],s[24],s[25],s[26],s[27],s[31])!=(8,8,128,2,1088,2,5) or s[10:16]!=[ABSENT]*6:
+    d,ratio=s[24],s[25]
+    if (d,ratio) not in ((128,2),(128,3),(128,4),(64,4)) or (s[19],s[23],s[26],s[27])!=(8,8,1088,ratio) or s[10:16]!=[ABSENT]*6:
         raise ValueError('Unvalidated stage geometry/operand domain')
-    if a.softmax_fold:s[31]=6
+    s[31]=6 if a.softmax_fold else 5
     weightroot=WORK/'weights'/r['model_id'];manifest=json.loads((weightroot/'manifest.json').read_text())
     if digest(weightroot/'manifest.json')!=r['weight_manifest_sha256']:raise ValueError('Weight identity mismatch')
     weights={v['name']:v for v in manifest['tensors']};past=cap['past']
@@ -59,24 +60,26 @@ def prepare(a):
         return row['offset']
     def observed(name):
         v=files[f'l{a.layer}.{name}'];return read(capture/v['file'],v['shape'])
-    q=allocation('qkv',(8,4,D),value=observed('qkv').reshape(8,4,D))
+    q=allocation('qkv',(8,ratio+2,d),value=observed('qkv').reshape(8,ratio+2,d))
     kv=[]
     for side in ('k','v'):
-        prior=torch.zeros((8,CAP,D),dtype=torch.bfloat16)
+        prior=torch.zeros((8,CAP,d),dtype=torch.bfloat16)
         prior[:,:past]=observed('kv_'+side)[0,:,:past]
-        kv.append(allocation(side,(8,CAP,D),value=prior))
+        kv.append(allocation(side,(8,CAP,d),value=prior))
     constants=[]
     for name in ('cos','sin'):
         row=next(v for v in identity['input_buffers'] if v['name']=='serving.rope_'+name)
         file=binding/'inputs'/row['file']
         if digest(file)!=row['sha256']:raise ValueError('RoPE input changed')
-        constants.append(allocation(name,(CAP,D),value=read(file,(CAP,D))))
+        constants.append(allocation(name,(CAP,d),value=read(file,(CAP,d))))
     gamma=[]
-    for name in ('q','k'):
+    for i,name in enumerate(('q','k')):
+        if s[5+i]==ABSENT:
+            gamma.append(ABSENT);continue
         row=weights[f'model.layers.{a.layer}.self_attn.{name}_norm.weight'];file=weightroot/row['file']
         if digest(file)!=row['sha256']:raise ValueError('QK scale changed')
-        gamma.append(allocation(name+'_gamma',(D,),value=read(file,(D,))))
-    context=allocation('context',(16,D));workspace=allocation('workspace',(G,2<<20),torch.uint8)
+        gamma.append(allocation(name+'_gamma',(d,),value=read(file,(d,))))
+    context=allocation('context',(8*ratio,d));workspace=allocation('workspace',(G,2<<20),torch.uint8)
     original_buffers={b['offset_bytes']:b for b in identity['buffers']}
     for i in (8,9):
         if s[i]!=ABSENT:
@@ -93,7 +96,7 @@ def prepare(a):
     (plan/'tasks.bin').write_bytes(b''.join(struct.pack('<7I',*t) for t in tasks));(plan/'waits.bin').write_bytes(b'')
     (plan/'queue.bin').write_bytes(struct.pack('<16I',*flat));(plan/'offsets.bin').write_bytes(struct.pack('<25I',*offsets))
     (plan/'allocations.bin').write_bytes(b''.join(struct.pack('<3Q2I',v['offset'],v['bytes'],v['allocated'],int(v['required']),0) for v in buffers))
-    save(out/'expected_context.bin',observed('context').reshape(16,D))
+    save(out/'expected_context.bin',observed('context').reshape(8*ratio,d))
     result=dict(schema='tilemega.as2.observed_attention.v1',tilemega_pipeline=False,
         scope='isolated Body replay with diagnostic queues; not a model or performance admission',
         model_id=r['model_id'],layer=a.layer,past=past,source_reference=str(source),source_binding=str(binding),
@@ -101,6 +104,7 @@ def prepare(a):
         binding_sha256=digest(binding/'request.json'),original_stage_sha256=digest(binding/'decode/stages.bin'),
         config_sha256=r['config_sha256'],weight_manifest_sha256=r['weight_manifest_sha256'],
         epsilon=struct.unpack('<f',struct.pack('<I',s[32]))[0],softmax_fold=a.softmax_fold,
+        head_dim=d,q_per_kv=ratio,
         buffers=buffers,arena_bytes=offset,expected_context_sha256=digest(out/'expected_context.bin'),
         plan_sha256={p.name:digest(p) for p in plan.iterdir()},input_sha256={p.name:digest(p) for p in (out/'inputs').iterdir()})
     (out/'case.json').write_text(json.dumps(result,indent=2)+'\n')
@@ -111,6 +115,7 @@ def reference(a):
     import torch_npu
     import torch.nn.functional as F
     r=validate(a.case);buffers={v['name']:v for v in r['buffers']};past=r['past']
+    d=buffers['qkv']['shape'][-1];ratio=buffers['qkv']['shape'][1]-2
     torch.npu.set_device(0)
     if torch.npu.device_count()!=1 or torch.npu.matmul.allow_hf32:raise ValueError('Require single device and full FP32 matmul')
     def load(name):
@@ -118,28 +123,28 @@ def reference(a):
     a.out.mkdir()
     with torch.inference_mode():
         qkv=load('qkv');cos=load('cos')[past];sin=load('sin')[past]
-        def rotate(x,gamma):
-            x=torch_npu.npu_rms_norm(x,gamma,r.get('epsilon',1e-6))[0]
-            return x*cos+torch.cat((-x[...,64:],x[...,:64]),-1)*sin
-        query=rotate(qkv[:,:2].reshape(1,1,16,D),load('q_gamma')).reshape(1,16,1,D)
-        key=load('k');value=load('v');key[:,past]=rotate(qkv[:,2].reshape(1,1,8,D),load('k_gamma')).reshape(8,D)
-        value[:,past]=qkv[:,3]
-        expanded_key=key.repeat_interleave(2,0)[None];expanded_value=value.repeat_interleave(2,0)[None]
+        def rotate(x,name):
+            if name in buffers:x=torch_npu.npu_rms_norm(x,load(name),r.get('epsilon',1e-6))[0]
+            return x*cos+torch.cat((-x[...,d//2:],x[...,:d//2]),-1)*sin
+        query=rotate(qkv[:,:ratio].reshape(1,1,8*ratio,d),'q_gamma').reshape(1,8*ratio,1,d)
+        key=load('k');value=load('v');key[:,past]=rotate(qkv[:,ratio].reshape(1,1,8,d),'k_gamma').reshape(8,d)
+        value[:,past]=qkv[:,ratio+1]
+        expanded_key=key.repeat_interleave(ratio,0)[None];expanded_value=value.repeat_interleave(ratio,0)[None]
         mask=torch.zeros((1,1,1,CAP),dtype=torch.bfloat16,device='npu:0')
         mask[...,past+1:]=torch.finfo(torch.bfloat16).min
-        sdpa=F.scaled_dot_product_attention(query,expanded_key,expanded_value,attn_mask=mask).reshape(16,D)
-        scale=128**(-.25);qf=query.float()*scale;kf=expanded_key.float()*scale
+        sdpa=F.scaled_dot_product_attention(query,expanded_key,expanded_value,attn_mask=mask).reshape(8*ratio,d)
+        scale=d**(-.25);qf=query.float()*scale;kf=expanded_key.float()*scale
         scores=qf@kf.transpose(-1,-2);masked=scores+mask.float();prob=masked.softmax(-1)
         maximum=masked.amax(-1,keepdim=True);exponent=(masked-maximum).exp();denominator=exponent.sum(-1,keepdim=True)
         explicit_prob=exponent/denominator
-        pv=prob@expanded_value.float();manual=pv.bfloat16().reshape(16,D)
-        outputs={'q_scaled':qf.reshape(8,2,D),'k_scaled':(key.float()*scale),'v_fp32':value.float(),
-            'scores':scores.reshape(8,2,CAP),'probabilities':prob.reshape(8,2,CAP),'pv_fp32':pv.reshape(8,2,D),
+        pv=prob@expanded_value.float();manual=pv.bfloat16().reshape(8*ratio,d)
+        outputs={'q_scaled':qf.reshape(8,ratio,d),'k_scaled':(key.float()*scale),'v_fp32':value.float(),
+            'scores':scores.reshape(8,ratio,CAP),'probabilities':prob.reshape(8,ratio,CAP),'pv_fp32':pv.reshape(8,ratio,d),
             'context':manual,'sdpa_context':sdpa,'k_after':key,'v_after':value,
-            'exp_fp32':exponent.reshape(8,2,CAP),'maximum_fp32':maximum.reshape(8,2),
-            'sum_exp_fp32':denominator.reshape(8,2)}
+            'exp_fp32':exponent.reshape(8,ratio,CAP),'maximum_fp32':maximum.reshape(8,ratio),
+            'sum_exp_fp32':denominator.reshape(8,ratio)}
         for name,tensor in outputs.items():save(a.out/(name+'.bin'),tensor)
-        gold=read(a.case/'expected_context.bin',(16,D))
+        gold=read(a.case/'expected_context.bin',(8*ratio,d))
         checks=dict(manual_vs_observed=int((manual.cpu()!=gold).sum()),sdpa_vs_observed=int((sdpa.cpu()!=gold).sum()),manual_vs_sdpa=int((manual!=sdpa).sum().cpu()))
     record=dict(case_sha256=digest(a.case/'case.json'),tilemega_pipeline=False,scope='independent torch_npu same-input replay; no performance admission',
         status='pass' if not any(checks.values()) else 'fail',checks=checks,
@@ -163,9 +168,10 @@ def compare(a):
             raise ValueError('Reference reuse changes epsilon')
         reused=True
     if any(digest(a.reference/n)!=sha for n,sha in ref['files'].items()):raise ValueError('Independent replay identity changed')
+    buffers={v['name']:v for v in r['buffers']};d=buffers['qkv']['shape'][-1];ratio=buffers['qkv']['shape'][1]-2
     native=read(a.native/'attention_workspace.bin',(8,524288),torch.float32);rows=[]
-    fields=[('q_scaled',0,2*D,(8,2,D)),('k_scaled',65536,CAP*D,(8,CAP,D)),('v_fp32',622592,CAP*D,(8,CAP,D)),
-        ('scores',1179648,2*CAP,(8,2,CAP)),('probabilities',1474560,2*CAP,(8,2,CAP)),('pv_fp32',1769472,2*D,(8,2,D))]
+    fields=[('q_scaled',0,ratio*d,(8,ratio,d)),('k_scaled',65536,CAP*d,(8,CAP,d)),('v_fp32',622592,CAP*d,(8,CAP,d)),
+        ('scores',1179648,ratio*CAP,(8,ratio,CAP)),('probabilities',1474560,ratio*CAP,(8,ratio,CAP)),('pv_fp32',1769472,ratio*d,(8,ratio,d))]
     for name,offset,count,shape in fields:
         actual=native[:,offset//4:offset//4+count].reshape(shape);gold=read(a.reference/(name+'.bin'),shape,torch.float32)
         if name=='scores':actual=actual[...,:r['past']+1];gold=gold[...,:r['past']+1]
@@ -173,15 +179,15 @@ def compare(a):
         rows.append(dict(name=name,elements=actual.numel(),bitwise_different=int(different.sum()),max_abs=float(diff.max()),first_coordinates=different.nonzero()[:16].tolist()))
     extra=[]
     if json.loads((a.native/'result.json').read_text()).get('softmax_statistics'):
-        for name,offset,count,shape in [('exp_fp32',1802240,2*CAP,(8,2,CAP))]:
+        for name,offset,count,shape in [('exp_fp32',1802240,ratio*CAP,(8,ratio,CAP))]:
             actual=native[:,offset//4:offset//4+count].reshape(shape);gold=read(a.reference/(name+'.bin'),shape,torch.float32)
             extra.append(dict(name=name,bitwise_different=int((actual!=gold).sum()),max_abs=float((actual-gold).abs().max())))
         for name,index in [('maximum_fp32',0),('sum_exp_fp32',8)]:
-            actual=native[:,2080768//4:2080768//4+32].reshape(8,2,16)[:,:,index]
-            gold=read(a.reference/(name+'.bin'),(8,2),torch.float32)
+            actual=native[:,2080768//4:2080768//4+ratio*16].reshape(8,ratio,16)[:,:,index]
+            gold=read(a.reference/(name+'.bin'),(8,ratio),torch.float32)
             extra.append(dict(name=name,bitwise_different=int((actual!=gold).sum()),actual=actual.tolist(),reference=gold.tolist()))
     context=next(v for v in r['buffers'] if v['name']=='context')
-    actual=read(a.native/f"{context['id']}.bin",(16,D));gold=read(a.case/'expected_context.bin',(16,D))
+    actual=read(a.native/f"{context['id']}.bin",(8*ratio,d));gold=read(a.case/'expected_context.bin',(8*ratio,d))
     result=dict(case_sha256=digest(a.case/'case.json'),tilemega_pipeline=False,status='diagnostic_complete',reference_replay_status=ref['status'],
         independent_reference_reused_for_identical_operands=reused,
         rows=rows,softmax_diagnostics=extra,context_bitwise_different=int((actual!=gold).sum()),context_first_coordinates=(actual!=gold).nonzero()[:16].tolist())

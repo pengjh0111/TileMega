@@ -39,7 +39,8 @@ int main(int argc,char** argv) {
     unsigned past=parsed;llm_host::Plan p(root/"plan");
     if(p.m.groups!=8 || p.m.tasks!=8 || p.m.stages!=1 || p.m.batch!=1 || p.m.seq!=1 ||
         p.m.arena_bytes>(32ULL<<20) || p.stages[0].kind!=13 || (p.stages[0].variant!=5 && p.stages[0].variant!=6) ||
-        p.stages[0].width!=128 || p.stages[0].extent!=8 || p.stages[0].group!=2)
+        p.stages[0].extent!=8 || !((p.stages[0].width==128 && p.stages[0].group>=2 && p.stages[0].group<=4) ||
+          (p.stages[0].width==64 && p.stages[0].group==4)))
       throw std::invalid_argument("Observed attention probe domain mismatch");
     llm_host::Device device;auto arena=device.Allocate(p.m.arena_bytes);
     auto scratch=device.Allocate(p.m.workers*p.m.worker_scratch_bytes);
