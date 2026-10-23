@@ -20,11 +20,20 @@ tiling key4162 and the88-byte installed `MatMulV3BasicTilingData`:
 |---|---|---:|---|
 | 64,2048,6144 | 64,256,64 | 2048 | three FP32 K partials |
 | 1,2048,6144 | 16,256,64 | 2048 | three FP32 K partials |
+| 64,2048,8192 | 64,256,64 | 2731 | K2731/2731/2730 |
+| 1,2048,8192 | 16,256,64 | 2731 | K2731/2731/2730 |
 
 The installed arch35 template key and scheduler identify Stream-K. The
 installed epilogue adds increasing K slices in FP32, then casts BF16 RINT.
 Deterministic eager and default eager match for the observed M64 operands.
 This is an observed algorithm choice, not a hardware peak or cost calibration.
+Llama1B's same-input M64 down differs50 BF16 values from ordinary accumulation;
+the three uneven CATLASS partials repair131072/131072 values. Its M1/tail case
+also matches2048/2048. Both are component probes; the model binding remains
+closed for K8192 split until real CTG/codegen/queue integration is validated.
+Evidence: `probes/llama1b_down_{residual_debug_v1,partial3_tail_numeric_v6}` and
+`llama1b_down_m1_partial3_tail_numeric_v6.json`; unaligned K2731 is not padded
+or silently changed to a different reduction domain.
 
 `as2_gemm` implementation4 writes three disjoint FP32 partial matrices in one
 G2 launch. Each AIC computes multiple owned output tiles; this probe serializes
@@ -64,10 +73,14 @@ role and the wait/FIFO graph. No final task queue is authored by hand.
 The Qwen1.7 M64 plan has228 stages/29029 tasks,28 partial/combine pairs,
 3,760,446,464 arena bytes. It actually runs one persistent forward. Its198 output
 checks,151936 logits,first greedy token and task receipts pass;140 saved
-intermediates across28 layers are bitwise equal. The four-token request still
-fails final logits/KV despite4/4 exact tokens; its first remaining same-token
-decode difference is layer1 down raw (one BF16 value). Decode decomposition is
-being validated. No long-request, C-3 or speedup admission follows from prefill.
+intermediates across28 layers are bitwise equal. Applying the observed decode
+decomposition also repairs layer1 down raw. Full64/1024 greedy,teacher512 and
+all-layer1087-position KV history match SDPA/fused Norm bitwise. Five fresh
+reset processes pass two requests each (485 payload/control files/request).
+The empirically priced EFT queues also pass1024/teacher512; actual CANN logs
+show four MIX launches for four forwards. No final fused-eager/TPOT Gate is
+admitted. Evidence: `correctness/qwen17_split3_*`,
+`probes/qwen17_split3_reset_c3_v1.json`, `qwen17_actual_runtime_launches_v1.json`.
 
 The first G2 partial attempt timed out120s while runtime logs stopped at device
 subprocess-open response. No kernel launch was observed. Its failure receipt is

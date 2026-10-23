@@ -129,7 +129,7 @@ Earlier device results are inherited run evidence, not new runs on this date.
 | Real optimized pipeline | Import/CTG/ISL/native scheduling/codegen execute; `emit-priced` has real causal candidate selection. Latest ABI4 has actual full-context empirical prices and structural/EFT selection; wider geometry/family search and end-to-end admission remain required. |
 | Full model and state | Five canonical weight sets, full layers/embedding/head and persistent prefill/decode exist. Qwen0.6 B1 now passes actual1024 greedy and teacher512; other models/B16 and optimized-pipeline admission remain incomplete. |
 | Numerical/performance contracts | Policy remains frozen. Intermediate bitwise checks locate drift; final admission uses declared error metrics plus exact greedy. Hooked/diagnostic runs cannot admit performance. |
-| Resource/handoff optimization | G8 and both AIV lanes have evidence; same-task MIX currently uses AIV0. G14/28, BF16 direct, split-K and broader small-M alternatives remain unvalidated/disabled. |
+| Resource/handoff optimization | G8 and both AIV lanes have evidence; same-task MIX uses AIV0. An opt-in actual CTG split3/FP32 combine candidate passes Qwen1.7 prefill and short generation. C3/performance, G14/28, BF16 direct and broader small-M alternatives remain pending. |
 | TPOT validation | Strongest legal eager configuration still needs final baseline selection; full paired processes, warmups/repeats and95% intervals are pending for all ten cells. |
 | Shared-server isolation | Private roots, one own NPU job, one card/process, no locks/reset/other-process control, sequential nice10/parallel1 builds and manifest cleanup remain mandatory. |
 
@@ -154,8 +154,21 @@ dense/B16 families, broader legal Body search and prescribed paired TPOT.
 Default implementations remain unchanged.
 
 H2048 full-row binding and head64/GQA4 are enabled only for explicit experimental
-candidates after observed-operand probes. Qwen1.7/Llama1B actual imported plans
-execute; neither new four-token numerical check passes. Qwen's earliest saved
-prefill drift is layer1 Norm1; exact-act down-projection replay isolates52 BF16
-output differences. Residual input/output aliases end their lifetime before a
-final arena dump; the new diagnostic excludes those historical comparisons.
+candidates after observed-operand probes. Llama1B's four-token check still fails.
+Qwen1.7's old prefill drift is explained by observed eager Stream-K K2048×3,
+not ordinary K accumulation. `emit-decomposed` changes granularity before
+CTG/ISL construction:28 logical down GEMMs become5376 AIC partial tasks and1792
+AIV combines.228 stages/29029 tasks, all three partial predecessors checked;
+actual eight-AIC/independent-AIV receipts and one-launch full prefill pass198/198
+outputs bitwise. Decode uses the same observed decomposition; four natural
+tokens, full logits,56 KV slices and338 captured values/files are bitwise equal.
+Natural64/1024 and teacher512 pass against SDPA/fused Norm. All28 layers/1087
+KV positions are bitwise exact. Five fresh serial reset processes pass485
+payload/control files per request (two requests/process); fast/diagnostic373
+common files match. Actual CANN logs record four MIX launches for four forwards.
+Empirical partial/combine prices reach `emit-priced-decomposed`: prefill EFT
+84.509812ms vs structural85.280521ms; decode EFT12.806523ms vs12.813727ms,
+**predicted**, not measured TPOT. Both changed queues are selected; actual
+1024 greedy and teacher512 pass. Wider structure/family search and final fused
+eager/performance admission remain open. Source-identical binaries and checked
+retained headers are reused; final queues are newly solved, never patched.

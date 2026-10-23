@@ -234,17 +234,17 @@ softmax sum repairs probabilities/PV/context at actual past1025 and181. Explicit
 variant6 then passes Qwen0.6 B1/B16 natural64/1024 and teacher512 against
 independent SDPA/fused Norm, bitwise for final logits/KV/tokens. B1 fast/diagnostic C-2 matches401 files; no new C-3/performance claim is implied.
 Teacher uses Host token copies/checkpoints and is excluded from greedy timing.
-H2048 probes use actual Llama epsilon1e-5 and Qwen1.7 epsilon1e-6.
-All33 observed rows (four-AIV tail) and one-row Llama case match
-fused Norm bitwise. Both full/folded reduction candidates pass; larger H stays
-gated. A real Llama1B head64/GQA4 replay matches Q/K/V/scores/probabilities/PV
+H2048 probes use Llama epsilon1e-5/Qwen epsilon1e-6;33 rows (four-AIV tail)
+and one-row Llama match fused Norm bitwise. Full/folded candidates pass; larger H
+stays gated. A real Llama1B head64/GQA4 replay matches Q/K/V/scores/probabilities/PV
 and context bitwise. Model binding now admits that explicit family; GQA3/other
-untested families remain closed. New H2048 Qwen full four-token request still
-fails (one greedy mismatch/logit NRMSE .0272664); Body probes do not waive it.
+untested families remain closed. The old H2048 Qwen short request failed; actual
+eager tiling exposes K2048×3 Stream-K. Opt-in CTG partial/combine now makes full
+prefill198/198,1024 greedy and teacher512 bitwise exact against SDPA/fused Norm.
 Llama1B short generation also fails13 KV checks despite4/4 tokens.
-B1 diagnostic buffer cap4MiB captures real FFN intermediates outside timing;
-B16 retains1MiB except full logits; missing captures fail explicitly.
+B1 diagnostic cap4MiB captures FFN outside timing; B16 retains1MiB except logits.
 Independent eager [FIA-v2](https://www.hiascend.com/document/detail/en/Pytorch/2610/apiref/customapi/docs/en/custom_APIs/torch_npu/torch_npu-npu_fused_infer_attention_score_v2.md) (native GQA/BF16/static KV) executes in the private
 process without TileMega code. It changes Qwen's long greedy path at output6;
 977 tokens differ and the old native/SDPA pairing cannot admit this baseline.
-All current timings remain unpaired/contended; no end-to-end speedup is admitted.
+Split3 request-reset C3 passes5/5 fresh processes; same-Plan fast/diagnostic373
+files are bitwise equal. All current timings remain unpaired/contended; no speedup is admitted.
