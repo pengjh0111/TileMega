@@ -572,7 +572,8 @@ int RunCompile(int argc, char** argv) {
       mx.past_lo=serving_past_lo;mx.past_hi=serving_past_hi;mx.watchdog=watchdog;
       mx.runtime_target=!runtime_target.empty()?runtime_target:!solve_target.empty()?solve_target:
           std::string(TILEMEGA_SOURCE_DIR)+"/configs/targets/xcore1000.json";
-      mx.model=input.parent_path().filename().string();
+      mx.model=input.parent_path().filename().string();  // <model>_decode (scripts/mx_serving_cell.sh export)
+      if(mx.model.size()>7 && mx.model.compare(mx.model.size()-7,7,"_decode")==0)mx.model.resize(mx.model.size()-7);
       if(char const* trace=std::getenv("TILEMEGA_TRACE"))
         mx.trace_stage=std::string(trace).find("STAGE=1")!=std::string::npos;
       if(char const* prefetch=std::getenv("TILEMEGA_MX_BARRIER_PREFETCH"))
