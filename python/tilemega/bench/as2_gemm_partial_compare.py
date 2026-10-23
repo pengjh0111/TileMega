@@ -1,4 +1,4 @@
-"""CPU diagnostic for the observed two/three-part FP32 GEMM reduction.
+"""CPU diagnostic for observed two/three/seven-part FP32 GEMM reductions.
 
 The device probe writes disjoint FP32 partials. This comparison does not
 verify a device combine, CTG decomposition, synchronization, or model execution.
@@ -25,9 +25,9 @@ def main():
         raise FileExistsError(a.out)
     case = json.loads((a.case / 'case.json').read_text())
     m, n, k = case['shape_mnk']
-    if m not in (1, 64) or not ((n == 2048 and k in (6144, 8192)) or (n == 3072 and k == 8192)):
+    if m not in (1, 64) or not ((n == 2048 and k in (6144, 8192)) or (n == 3072 and k == 8192) or (n == 1024 and k == 4096)):
         raise ValueError('Require the observed, bounded Stream-K diagnostic')
-    parts = 2 if n == 3072 else 3
+    parts = 7 if n == 1024 else 2 if n == 3072 else 3
     for name, sha in case['files'].items():
         if digest(a.case / name) != sha:
             raise ValueError('Observed operand/reference identity changed')

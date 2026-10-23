@@ -63,7 +63,7 @@ void as2_gemm(GM_ADDR a,GM_ADDR b,GM_ADDR c,GM_ADDR timing,
   else if(implementation==1)Profile<16,128,128>(a,b,c,timing,m,n,k,groups);
   else if(implementation==2)Profile<16,128,128,64>(a,b,c,timing,m,n,k,groups);
   else if(implementation==3)Profile<16,128,128,32,false>(a,b,c,timing,m,n,k,groups);
-  else ProfileObservedPartial(a,b,c,timing,m,n,k,groups,implementation==5?2:3);
+  else ProfileObservedPartial(a,b,c,timing,m,n,k,groups,implementation==5?2:implementation==6?7:3);
 }
 static void Check(aclError code,const char* name) {
   if(code)throw std::runtime_error(std::string(name)+": "+std::to_string(code));
@@ -77,13 +77,15 @@ int main(int argc,char** argv) {
   try {
     if(argc!=7)throw std::runtime_error("usage: as2_gemm M N K implementation input_directory output_directory");
     unsigned m=std::stoul(argv[1]),n=std::stoul(argv[2]),k=std::stoul(argv[3]),impl=std::stoul(argv[4]);
-    if(!m || m>64 || !n || n>151936 || n%16 || !k || k>16384 || k%16 || impl>5 || uint64_t(n)*k>(1ULL<<29))
+    if(!m || m>64 || !n || n>151936 || n%16 || !k || k>16384 || k%16 || impl>6 || uint64_t(n)*k>(1ULL<<29))
       throw std::runtime_error("Bounded BF16 profile shape required");
     if(impl==4 && ((m!=1 && m!=64) || n!=2048 || (k!=6144 && k!=8192)))
       throw std::runtime_error("Partial diagnostic requires the observed stream-K shape");
     if(impl==5 && ((m!=1 && m!=64) || n!=3072 || k!=8192))
       throw std::runtime_error("Two-part diagnostic requires the observed H3072 stream-K shape");
-    const bool partial=impl>=4;const unsigned parts=impl==5?2:3;
+    if(impl==6 && ((m!=1 && m!=64) || n!=1024 || k!=4096))
+      throw std::runtime_error("Seven-part diagnostic requires the observed Llama8B KV shape");
+    const bool partial=impl>=4;const unsigned parts=impl==5?2:impl==6?7:3;
     namespace fs=std::filesystem;
     const fs::path root="/home/d50064638/junhuip/TileMega/runs/as2";
     auto input=fs::weakly_canonical(argv[5]),output=fs::weakly_canonical(argv[6]);
