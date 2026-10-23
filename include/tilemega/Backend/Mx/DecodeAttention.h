@@ -121,8 +121,16 @@ struct MxDecodeAttention {
     int const base = c * plan.tokens, end = min(base + plan.tokens, plan.length);
     // The block holding `past` was written by the previous stage.
     pf.valid = j < plan.items && !(p.past >= base && p.past < base + 32);
-    if (pf.valid)
+    if (pf.valid) {
       LoadK(pf.k, p.k_cache + std::size_t(head) * p.capacity * D, base, end, threadIdx.x % 64);
+    } else {
+      // Defined when not loaded: left undefined, the merge took the previous
+      // step's registers, which kept the old prefetch live through Run (MIR).
+#pragma unroll
+      for (int a = 0; a < 2; ++a)
+#pragma unroll
+        for (int dc = 0; dc < kChunks; ++dc) pf.k[a][dc] = uint4{0u, 0u, 0u, 0u};
+    }
     return pf;
   }
 
@@ -163,17 +171,27 @@ struct MxDecodeAttention {
                                               Shape const& s, Plan<Shape> const& plan, int j, int lane, int r, int g,
                                               float* exchange, int c_max) {
     int const c = j % plan.chunks, base = c * plan.tokens, end = min(base + plan.tokens, plan.length);
-    switch ((end - base + 31) / 32) {
-#define TM_BLOCKS(N)                                                                   \
-  case N:                                                                              \
-    if constexpr (N <= MaxBlocks) return Blocks<N>(pf, use_pf, p, plan, j, lane, r, g, exchange, c_max); \
-    else break;
-      TM_BLOCKS(1) TM_BLOCKS(2) TM_BLOCKS(3) TM_BLOCKS(4) TM_BLOCKS(5) TM_BLOCKS(6) TM_BLOCKS(7) TM_BLOCKS(8)
-#undef TM_BLOCKS
-      default:
-        break;
+    int const blocks = __builtin_mxc_readfirstlane((end - base + 31) / 32);
+    if (blocks > MaxBlocks) maca::Trap();  // more blocks than the plan's MaxBlocks
+    Dispatch<MaxBlocks>(blocks, pf, use_pf, p, plan, j, lane, r, g, exchange, c_max);
+  }
+
+  /// A uniform if/else chain from the largest body down. The structurizer
+  /// linearizes it (a switch with a return per case became a chain too), so
+  /// the inputs of every body placed later, the prefetch among them, stay
+  /// live through the bodies before it; this order puts the MaxBlocks body,
+  /// the one with the most registers, last (MIR: 32 MTregs at its peak).
+  template <int N, class Shape>
+  __device__ __forceinline__ static void Dispatch(int blocks, Prefetched const& pf, bool use_pf,
+                                                  MxAttentionOperands const& p, Plan<Shape> const& plan, int j,
+                                                  int lane, int r, int g, float* exchange, int c_max) {
+    if constexpr (N >= 1) {
+      if (blocks >= N) {  // == N; an == chain was folded back into a switch
+        Blocks<N>(pf, use_pf, p, plan, j, lane, r, g, exchange, c_max);
+      } else {
+        Dispatch<N - 1>(blocks, pf, use_pf, p, plan, j, lane, r, g, exchange, c_max);
+      }
     }
-    maca::Trap();  // more blocks than the plan's MaxBlocks
   }
 
   /// V^T mask of lane group g in a block: tokens >= end are zeroed when the
@@ -208,7 +226,9 @@ struct MxDecodeAttention {
     float score[NB][2][4];
     uint4 key[2][2][kChunks];
     // Uniform by construction; readfirstlane lets the compiler branch on it.
-    if (__builtin_mxc_readfirstlane(int(use_pf && pf.valid))) {
+    // use_pf stays outside: the builtin is not folded, and a constant false
+    // inside it kept the prefetch live through the extra-items loop (MIR).
+    if (use_pf && __builtin_mxc_readfirstlane(int(pf.valid))) {
 #pragma unroll
       for (int a = 0; a < 2; ++a)
 #pragma unroll
