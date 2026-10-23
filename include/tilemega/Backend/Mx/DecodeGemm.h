@@ -102,7 +102,7 @@ struct MxDecodeGemm {
     long long units, begin, end;
     __device__ __forceinline__ Geometry(Shape const& s) : kc(s.k / 32), tiles(s.n / TN) {
       units = (long long)tiles * kc;
-      long long const c = UniformOpaque(blockIdx.x), g = gridDim.x;
+      long long const c = StageBlock(), g = gridDim.x;
       if constexpr (Part == MxPart::kStreamK) {
         begin = c * units / g;
         end = (c + 1) * units / g;
@@ -132,7 +132,7 @@ struct MxDecodeGemm {
     // keeps every wave-uniform branch below from being treated as
     // divergent (both arms executed, both results live).
     __device__ __forceinline__ Lane()
-        : lane(Opaque(threadIdx.x % 64)), wave(UniformOpaque(threadIdx.x / 64)),
+        : lane(StageThread() % 64), wave(__builtin_mxc_readfirstlane(int(StageThread() / 64))),
           r(lane & 15), g(lane >> 4) {}
   };
 
@@ -195,9 +195,9 @@ struct MxDecodeGemm {
     Geometry<Shape> const geo(s);
     Lane const l;
     if constexpr (Op == MxDecodeOp::kArgmax) {
-      if (threadIdx.x < s.b) {
-        f[layout.best_value + threadIdx.x] = -INFINITY;
-        reinterpret_cast<int*>(f)[layout.best_index + threadIdx.x] = INT_MAX;
+      if (int const t = int(StageThread()); t < s.b) {
+        f[layout.best_value + t] = -INFINITY;
+        reinterpret_cast<int*>(f)[layout.best_index + t] = INT_MAX;
       }
     }
     // n(t) and the contributor ordinal assume every CTA owns a unit.
@@ -230,6 +230,7 @@ struct MxDecodeGemm {
       };
       // Refill slot k after group g: chunk (g+1)*D+k of this segment, or,
       // past the segment's groups, of the next one. Selects, no branch.
+      // g = -1 (a wave without chunks here): the next segment's first D.
       auto refill = [&](auto slot, int g) {
         constexpr int k = decltype(slot)::value;
         int const i = (g + 1) * D + k;
@@ -251,9 +252,18 @@ struct MxDecodeGemm {
            ...);
         }(std::make_index_sequence<D>{});
       };
-      auto refill_all = [&] {
+      // A segment's first group runs whether or not the wave has chunks in
+      // it (consume masks them all): a branch around it was linearized by
+      // the structurizer with the ring of both arms live (TN 128, D 3:
+      // ~350 B of stack, MIR). `g0` selects the refill: -1 without chunks.
+      auto first = [&](int g0) {
         [&]<std::size_t... k>(std::index_sequence<k...>) {
-          ((refill(std::integral_constant<int, int(k)>{}, -1)), ...);
+          (([&] {
+             __builtin_mxc_arrive_gvmcnt((D - 1) * kLoads);
+             consume(std::integral_constant<int, int(k)>{}, 0);
+             refill(std::integral_constant<int, int(k)>{}, g0);
+           }()),
+           ...);
         }(std::make_index_sequence<D>{});
       };
 
@@ -270,25 +280,22 @@ struct MxDecodeGemm {
          }()),
          ...);
       }(std::make_index_sequence<D>{});
-      int first_group = 0;
-      if (count > 0) {
+      {
         // First group, peeled: its A loads were issued after all of W, so
         // slot k waits for the later A's and this group's k refills only.
+        int const g0 = count > 0 ? 0 : -1;
         [&]<std::size_t... k>(std::index_sequence<k...>) {
           (([&] {
              __builtin_mxc_arrive_gvmcnt((D - 1 - int(k)) + int(k) * kLoads);
              consume(std::integral_constant<int, int(k)>{}, 0);
-             refill(std::integral_constant<int, int(k)>{}, 0);
+             refill(std::integral_constant<int, int(k)>{}, g0);
            }()),
            ...);
         }(std::make_index_sequence<D>{});
-        first_group = 1;
-      } else {
-        refill_all();  // wave-uniform: no chunk here; load the next segment's
       }
       for (;;) {
 #pragma unroll 1
-        for (int g = first_group; g < groups; ++g) group(g);
+        for (int g = 1; g < groups; ++g) group(g);
         Finish(acc, ss, cur, geo, l, p, s, f, layout);
         if (!geo.HasNext(cur)) break;
         cur = next;
@@ -296,8 +303,7 @@ struct MxDecodeGemm {
         count = Count(cur, l);
         groups = (count + D - 1) / D;
         zero();
-        first_group = 0;
-        if (count == 0) refill_all();
+        first(count > 0 ? 0 : -1);
       }
     }
     if constexpr (Op == MxDecodeOp::kArgmax) HeadFinish(p, s, f, layout);
@@ -355,7 +361,7 @@ struct MxDecodeGemm {
     // These loops run while the next segment's ring is in flight: keep
     // their unrolling (and so their registers) small.
 #pragma unroll 1
-    for (int index = threadIdx.x; index < b * stride; index += kThreads) {
+    for (int index = StageThread(); index < b * stride; index += kThreads) {
       int const row = index / stride, col = index % stride;
       float sum = 0;
       if (col < TN) {
@@ -377,13 +383,13 @@ struct MxDecodeGemm {
     int const producers = geo.Owner(first_unit + geo.kc - 1) - first + 1;
     int const contributors = MxMaxContributors(geo.tiles, gridDim.x);
     float* const tile = p.partial + std::size_t(seg.t) * contributors * b * stride;
-    float* const own = tile + std::size_t(int(blockIdx.x) - first) * b * stride;
+    float* const own = tile + std::size_t(StageBlock() - first) * b * stride;
 #pragma unroll 1
-    for (int index = threadIdx.x; index < b * stride; index += kThreads) own[index] = res[index];
+    for (int index = StageThread(); index < b * stride; index += kThreads) own[index] = res[index];
     unsigned* const flag = reinterpret_cast<unsigned*>(f + layout.flag);
     codegen::executor::LastArriver::Run(&p.tickets[seg.t], unsigned(producers), flag, [&] {
 #pragma unroll 1
-      for (int index = threadIdx.x; index < b * stride; index += kThreads) {
+      for (int index = StageThread(); index < b * stride; index += kThreads) {
         float sum = 0;
 #pragma unroll 4
         for (int o = 0; o < producers; ++o) sum += LoadFloatGvm(tile + std::size_t(o) * b * stride + index);
@@ -406,7 +412,7 @@ struct MxDecodeGemm {
                                   MxGemmSmem const& layout) {
     int const b = s.b, stride = TN + 1;
     if constexpr (Op == MxDecodeOp::kResidual) {
-      for (int item = threadIdx.x; item < b * TN / 8; item += kThreads) {
+      for (int item = StageThread(); item < b * TN / 8; item += kThreads) {
         int const row = item / (TN / 8), c8 = item % (TN / 8) * 8;
         float const inv = Inverse(res, row, s, p.epsilon);
         Element* const out = p.out + std::size_t(row) * s.n + std::size_t(t) * TN + c8;
@@ -420,7 +426,7 @@ struct MxDecodeGemm {
       __syncthreads();
     } else if constexpr (Op == MxDecodeOp::kSwiGLU) {
       // Atom 2j is gate, 2j+1 up (interleave_u = 16).
-      for (int item = threadIdx.x; item < b * TN / 16; item += kThreads) {
+      for (int item = StageThread(); item < b * TN / 16; item += kThreads) {
         int const row = item / (TN / 16), c8 = item % (TN / 16) * 8;
         float const inv = Inverse(res, row, s, p.epsilon);
         int const gate = 32 * (c8 / 16) + c8 % 16;
@@ -453,7 +459,7 @@ struct MxDecodeGemm {
     constexpr int kD = Rope::kHeadDim, kQ = Rope::kQ, kLanes = kD / 8, kHeads = TN / kD;
     int const b = s.b, stride = TN + 1, items = b * kHeads * kLanes;
     float* const square = f + layout.square;
-    int const item = threadIdx.x, row = item / (kHeads * kLanes), hh = item / kLanes % kHeads;
+    int const item = StageThread(), row = item / (kHeads * kLanes), hh = item / kLanes % kHeads;
     int const d = item % kLanes * 8, partner = (d + kD / 2) % kD;
     int const head = t * kHeads + hh, group = head / (kQ + 2), j = head % (kQ + 2);
     bool const active = item < items;
@@ -507,13 +513,17 @@ struct MxDecodeGemm {
     constexpr int kGroup = TILEMEGA_MX_VT_GROUP;  // tokens per read-modify-write group
     static_assert(kGroup % 16 == 0 && kGroup <= 64, "whole 32-byte halves");
     int const at = p.past / kGroup * kGroup, slot = p.past % kGroup;
-    for (int index = threadIdx.x; index < b * kHeads * kD; index += kThreads) {
+    for (int index = StageThread(); index < b * kHeads * kD; index += kThreads) {
       int const vrow = index / (kHeads * kD), vh = index / kD % kHeads, dd = index % kD;
       int const vhead = t * kHeads + vh;
       if (vhead % (kQ + 2) != kQ + 1) continue;  // uniform over a wave: kD >= 64 threads per head
       std::size_t const vbg = std::size_t(vrow) * Rope::kHeadsKv + vhead / (kQ + 2);
       Element* const target = p.vt_cache + (vbg * kD + dd) * p.capacity + at;
       Element const value = Element(res[vrow * stride + vh * kD + dd] * Inverse(res, vrow, s, p.epsilon));
+      // The slot through Opaque: the kGroup compares with it are invariant
+      // over this loop, and LICM kept all their lane masks live through it
+      // (66 scalar registers, spilled to lanes; MIR).
+      int const here = Opaque(slot);
       // Two 32-byte halves back to back, so the line is still written whole:
       // all four 16-byte words at once spilled next to the next segment's ring.
 #pragma unroll
@@ -526,7 +536,7 @@ struct MxDecodeGemm {
           alignas(16) Element v[8];
           *reinterpret_cast<uint4*>(v) = words[q];
 #pragma unroll
-          for (int e = 0; e < 8; ++e) v[e] = 16 * half + 8 * q + e == slot ? value : v[e];  // registers only
+          for (int e = 0; e < 8; ++e) v[e] = 16 * half + 8 * q + e == here ? value : v[e];  // registers only
           StoreGlobal16(target + 16 * half + 8 * q, *reinterpret_cast<uint4 const*>(v));
         }
       }
@@ -545,7 +555,7 @@ struct MxDecodeGemm {
     int* const cand_index = reinterpret_cast<int*>(f) + layout.cand_index;
     float* const best_value = f + layout.best_value;
     int* const best_index = reinterpret_cast<int*>(f) + layout.best_index;
-    int const item = threadIdx.x;
+    int const item = StageThread();
     if (item < items) {
       int const row = item / (TN / 8), c8 = item % (TN / 8) * 8;
       float const inv = Inverse(res, row, s, p.epsilon);
@@ -563,8 +573,7 @@ struct MxDecodeGemm {
       cand_index[item] = index;
     }
     __syncthreads();
-    if (int(threadIdx.x) < b) {
-      int const row = threadIdx.x;
+    if (int const row = int(StageThread()); row < b) {
       float best = best_value[row];
       int index = best_index[row];
       for (int c = 0; c < TN / 8; ++c) {
@@ -586,14 +595,14 @@ struct MxDecodeGemm {
   template <class Shape>
   __device__ __forceinline__ static void HeadFinish(MxGemmOperands const& p, Shape const& s, float* f, MxGemmSmem const& layout) {
     int const b = s.b, grid = gridDim.x;
-    if (int(threadIdx.x) < b) {
-      p.head_value[threadIdx.x * grid + blockIdx.x] = f[layout.best_value + threadIdx.x];
-      p.head_index[threadIdx.x * grid + blockIdx.x] = reinterpret_cast<int*>(f)[layout.best_index + threadIdx.x];
+    if (int const t = int(StageThread()); t < b) {
+      int const at = t * grid + StageBlock();
+      p.head_value[at] = f[layout.best_value + t];
+      p.head_index[at] = reinterpret_cast<int*>(f)[layout.best_index + t];
     }
     unsigned* const flag = reinterpret_cast<unsigned*>(f + layout.flag);
     codegen::executor::LastArriver::Run(p.head_ticket, unsigned(grid), flag, [&] {
-      if (int(threadIdx.x) < b) {
-        int const row = threadIdx.x;
+      if (int const row = int(StageThread()); row < b) {
         float best = -INFINITY;
         int index = INT_MAX;
         for (int c = 0; c < grid; ++c) {
@@ -616,7 +625,7 @@ template <class Shape>
 __device__ __forceinline__ void MxDecodeEmbed(tilemega::Bf16 const* embed, int const* tokens, tilemega::Bf16* x, Shape const& s,
                               int hidden, int capacity, int past) {
   int const vectors = s.b * hidden / 8;
-  for (int v = blockIdx.x * kDecodeThreads + threadIdx.x; v < vectors; v += gridDim.x * kDecodeThreads) {
+  for (int v = StageBlock() * kDecodeThreads + int(StageThread()); v < vectors; v += gridDim.x * kDecodeThreads) {
     int const row = v / (hidden / 8), c8 = v % (hidden / 8) * 8;
     int const token = *(__attribute__((address_space(1))) int const*)(tokens + std::size_t(row) * capacity + past);
     StoreGlobal16(x + std::size_t(row) * hidden + c8, LoadGlobal16Gvm(embed + std::size_t(token) * hidden + c8));

@@ -92,8 +92,8 @@ struct MxDecodeAttention {
   };
 
   __device__ __forceinline__ static uint4 Load(Element const* p) { return LoadGlobal16Gvm(p); }
-  __device__ __forceinline__ static int Wave() { return UniformOpaque(threadIdx.x / 64); }
-  __device__ __forceinline__ static int Cta() { return UniformOpaque(blockIdx.x); }
+  __device__ __forceinline__ static int Wave() { return __builtin_mxc_readfirstlane(int(StageThread() / 64)); }
+  __device__ __forceinline__ static int Cta() { return StageBlock(); }
 
   /// K fragments of one block: lane (r, g) loads, for atom a, the row of
   /// token base + 8(r>>2) + 4a + (r&3) (clamped to end-1), 8 dimensions per
@@ -122,7 +122,7 @@ struct MxDecodeAttention {
     // The block holding `past` was written by the previous stage.
     pf.valid = j < plan.items && !(p.past >= base && p.past < base + 32);
     if (pf.valid) {
-      LoadK(pf.k, p.k_cache + std::size_t(head) * p.capacity * D, base, end, threadIdx.x % 64);
+      LoadK(pf.k, p.k_cache + std::size_t(head) * p.capacity * D, base, end, StageThread() % 64);
     } else {
       // Defined when not loaded: left undefined, the merge took the previous
       // step's registers, which kept the old prefetch live through Run (MIR).
@@ -138,7 +138,7 @@ struct MxDecodeAttention {
   __device__ __forceinline__ static void Run(Prefetched const& pf, MxAttentionOperands const& p, Shape const& s,
                                              char* smem) {
     Plan<Shape> const plan(s, p.past);
-    int const wave = Wave(), lane = threadIdx.x % 64, r = lane & 15, g = lane >> 4, cta = Cta();
+    int const wave = Wave(), lane = StageThread() % 64, r = lane & 15, g = lane >> 4, cta = Cta();
     float* const exchange = reinterpret_cast<float*>(smem + wave * kWaveBytes);
     unsigned* const flags = reinterpret_cast<unsigned*>(smem + kWaves * kWaveBytes);
     int const c_max = (p.capacity + 31) / 32;
@@ -374,7 +374,7 @@ struct MxDecodeAttention {
     float const* const base = p.partial + std::size_t(head) * c_max * Q * (D + 2);
     // Opaque: the per-thread addresses were otherwise formed ahead of the
     // step loop and spilled (cold code; nothing to rematerialize here).
-    for (int t = Opaque(threadIdx.x); t < Q * D; t += kThreads) {
+    for (int t = StageThread(); t < Q * D; t += kThreads) {
       int const q = t / D, d = t % D;
       float m = -INFINITY;
       for (int c = 0; c < plan.chunks; ++c) m = fmaxf(m, LoadFloatGvm(base + (c * Q + q) * (D + 2) + D));

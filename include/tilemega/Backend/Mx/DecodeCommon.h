@@ -21,4 +21,13 @@ __device__ __forceinline__ int Opaque(int value) {
 /// restores uniformity.
 __device__ __forceinline__ int UniformOpaque(int value) { return __builtin_mxc_readfirstlane(Opaque(value)); }
 
+/// threadIdx.x and blockIdx.x as a body reads them. Read directly, they are
+/// invariant over the program's step and layer loops, and LICM computed every
+/// body's geometry from them once ahead of the loops, live through all
+/// stages (456-780 B of stack per plan, MIR).
+/// Unsigned: through the asm the compiler no longer knows the index is
+/// non-negative, and signed % 64, / 64 cost registers in every body.
+__device__ __forceinline__ unsigned StageThread() { return unsigned(Opaque(int(threadIdx.x))); }
+__device__ __forceinline__ int StageBlock() { return UniformOpaque(int(blockIdx.x)); }
+
 }  // namespace tilemega::backend::mx
