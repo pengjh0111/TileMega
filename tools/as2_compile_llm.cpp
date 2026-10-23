@@ -47,8 +47,9 @@ int main(int argc,char** argv) {
         {"solver_executed_this_call",false},{"scope","codegen from existing materialized CTG/Solver plan"}}).Dump());
       return 0;
     }
-    bool priced=argc==10 && std::string(argv[1])=="emit-priced";
-    bool decomposed=argc==10 && std::string(argv[1])=="emit-decomposed";
+    bool priced_decomposition=argc==11 && std::string(argv[1])=="emit-priced-decomposed";
+    bool priced=priced_decomposition || (argc==10 && std::string(argv[1])=="emit-priced");
+    bool decomposed=priced_decomposition || (argc==10 && std::string(argv[1])=="emit-decomposed");
     bool emit=priced || decomposed || ((argc>=6 && argc<=9) && std::string(argv[1])=="emit-diagnostic");
     bool prepare=emit || (argc==6 && std::string(argv[1])=="prepare");
     if(!prepare && (argc!=5 || std::string(argv[1])!="inspect"))
@@ -97,7 +98,7 @@ int main(int argc,char** argv) {
     tilemega::json::Value decomposition;
     unsigned decomposed_gemms=0;
     if(decomposed) {
-      auto path=fs::weakly_canonical(argv[9]);
+      auto path=fs::weakly_canonical(argv[priced_decomposition?10:9]);
       auto config_root=fs::path(TILEMEGA_SOURCE_DIR)/"configs/ascend";
       auto relative=path.lexically_relative(config_root);
       if(relative.empty() || *relative.begin()=="..")throw std::invalid_argument("Use a checked-in decomposition candidate");

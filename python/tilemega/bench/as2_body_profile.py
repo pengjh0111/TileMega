@@ -11,9 +11,21 @@ from tilemega.bench.as2_native import digest
 def logical_bytes(s,m,tile,past):
     absent=(1<<64)-1
     kind,epilogue,_,rows,columns,k,extent,width,group,_,query_rows=s[17:28]
-    if kind==0:
+    if kind in (0,6):
         tm,tn=(16,128) if s[31] else (32,64)
+        if extent>1:
+            if extent!=3 or width*extent!=k or group!=1 or s[31]!=1:
+                raise ValueError('Unregistered split/combine traffic contract')
+            if kind==0:tile//=extent
         nt=(columns+tn-1)//tn;mr=min(tm,rows-tile//nt*tm);nr=min(tn,columns-tile%nt*tn)
+        if mr<=0 or nr<=0:raise ValueError('GEMM traffic coordinate outside output')
+        if kind==6:
+            if extent!=3 or epilogue!=1:raise ValueError('Unregistered combine epilogue traffic')
+            # Three FP32 reads, BF16 raw write, then raw/residual reads+output.
+            return (4*extent+2+6)*mr*nr
+        if extent>1:
+            if epilogue:raise ValueError('Partial tasks cannot publish a final epilogue')
+            return 2*(mr*width+nr*width)+4*mr*nr
         n=2*(mr*k+nr*k+mr*nr)
         if epilogue==1:n+=6*mr*nr
         elif epilogue==2:n+=3*mr*nr

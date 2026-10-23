@@ -244,6 +244,10 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
     for(auto w:schedule.waits[i])out.waits.push_back({w.producer_worker,w.required_prefix});
     out.tasks.push_back(task);
   }
+  std::set<std::string> allocation_names;
+  for(auto const& buffer:buffers)
+    if(!allocation_names.insert(buffer.At("name").AsString("allocation name")).second)
+      throw std::invalid_argument("Native allocation identity is not unique");
   if(out.waits.size()>UINT32_MAX || schedule.queue.size()>UINT32_MAX)throw std::overflow_error("LLM queue/wait table overflow");
   out.offsets=schedule.offsets;out.queue=schedule.queue;
   if(!diagnostic)for(auto const& task:input)out.task_prices.push_back(task.price);
@@ -294,7 +298,9 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
     json::Array sources;for(auto const& source:provenance)sources.emplace_back(source);
     contracts.emplace_back(json::Object{{"stage",int(i)},{"impl_id",id},{"semantic_kind",int(s.kind)},
       {"role",s.kind==0?(s.epilogue?"AIC_AIV0":"AIC_ONLY"):s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6)?"AIC_AIV0":"AIV_ONLY"},
-      {"dtype","bf16"},{"opmath","fp32"},{"input_weight_layout",s.kind==0?"logical_NK":"ND"},
+      {"dtype","bf16"},{"opmath","fp32"},
+      {"input_dtype",s.kind==6?"fp32":"bf16"},{"output_dtype",s.kind==0&&s.extent>1?"fp32":"bf16"},
+      {"input_weight_layout",s.kind==0?"logical_NK":"ND"},
       {"tile_m",s.kind==0?(s.variant?16:32):0},{"tile_n",s.kind==0?(s.variant?128:64):0},
       {"tile_k",s.kind==0?(s.variant?128:64):0},
       {"split_count",(s.kind==0 || s.kind==6)&&s.extent>1?int(s.extent):1},
