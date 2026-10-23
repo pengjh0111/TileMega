@@ -25,7 +25,7 @@ def main():
         raise FileExistsError(a.out)
     case = json.loads((a.case / 'case.json').read_text())
     m, n, k = case['shape_mnk']
-    if m not in (1, 64) or not ((n == 2048 and k in (6144, 8192)) or (n == 3072 and k == 8192) or (n == 1024 and k == 4096)):
+    if m not in (1, 16, 64) or not ((n == 2048 and k in (6144, 8192)) or (n == 3072 and k == 8192) or (n == 1024 and k == 4096)):
         raise ValueError('Require the observed, bounded Stream-K diagnostic')
     parts = 7 if n == 1024 else 2 if n == 3072 else 3
     for name, sha in case['files'].items():

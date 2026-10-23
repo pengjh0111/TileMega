@@ -79,7 +79,7 @@ int main(int argc,char** argv) {
     unsigned m=std::stoul(argv[1]),n=std::stoul(argv[2]),k=std::stoul(argv[3]),impl=std::stoul(argv[4]);
     if(!m || m>64 || !n || n>151936 || n%16 || !k || k>16384 || k%16 || impl>6 || uint64_t(n)*k>(1ULL<<29))
       throw std::runtime_error("Bounded BF16 profile shape required");
-    if(impl==4 && ((m!=1 && m!=64) || n!=2048 || (k!=6144 && k!=8192)))
+    if(impl==4 && ((m!=1 && m!=16 && m!=64) || n!=2048 || (k!=6144 && k!=8192)))
       throw std::runtime_error("Partial diagnostic requires the observed stream-K shape");
     if(impl==5 && ((m!=1 && m!=64) || n!=3072 || k!=8192))
       throw std::runtime_error("Two-part diagnostic requires the observed H3072 stream-K shape");
