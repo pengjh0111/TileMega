@@ -1,6 +1,6 @@
-"""CPU diagnostic for the observed three-part FP32 GEMM reduction.
+"""CPU diagnostic for the observed two/three-part FP32 GEMM reduction.
 
-The device probe writes three disjoint FP32 partials. This comparison does not
+The device probe writes disjoint FP32 partials. This comparison does not
 verify a device combine, CTG decomposition, synchronization, or model execution.
 """
 import argparse
@@ -25,39 +25,45 @@ def main():
         raise FileExistsError(a.out)
     case = json.loads((a.case / 'case.json').read_text())
     m, n, k = case['shape_mnk']
-    if m not in (1, 64) or n != 2048 or k not in (6144, 8192):
+    if m not in (1, 64) or not ((n == 2048 and k in (6144, 8192)) or (n == 3072 and k == 8192)):
         raise ValueError('Require the observed, bounded Stream-K diagnostic')
+    parts = 2 if n == 3072 else 3
     for name, sha in case['files'].items():
         if digest(a.case / name) != sha:
             raise ValueError('Observed operand/reference identity changed')
     path = a.partial / 'partial_f32.bin'
-    if path.stat().st_size != 3 * m * n * 4:
+    if path.stat().st_size != parts * m * n * 4:
         raise ValueError('Partial extent mismatch')
-    partial = np.fromfile(path, dtype='<f4').reshape(3, m, n)
+    partial = np.fromfile(path, dtype='<f4').reshape(parts, m, n)
     if not np.isfinite(partial).all():
         raise ValueError('Nonfinite FP32 partial')
     # Installed CANN's Stream-K epilogue adds increasing K slices, then RINT.
-    reduced = np.add(np.add(partial[0], partial[1], dtype=np.float32),
-                     partial[2], dtype=np.float32)
+    reduced = partial[0].copy()
+    for part in partial[1:]:
+        reduced = np.add(reduced, part, dtype=np.float32)
     value = torch.from_numpy(reduced).bfloat16()
     checks = []
     for name in ('reference.bin', 'model_native.bin'):
+        if name == 'model_native.bin' and name not in case['files']:
+            continue
         gold = torch.from_file(str(a.case / name), shared=False,
                                size=m * n, dtype=torch.bfloat16).reshape_as(value)
         delta = value.float() - gold.float()
         checks.append(dict(reference=name, elements=value.numel(),
             bitwise_different=int((value.view(torch.int16) != gold.view(torch.int16)).sum()),
             max_abs=float(delta.abs().max()), rmse=float(delta.square().mean().sqrt())))
-    chunk = (k + 2) // 3
+    chunk = (k + parts - 1) // parts
     result = dict(scope='same-operand reduction-order diagnostic only',
         case_sha256=digest(a.case / 'case.json'), partial_sha256=digest(path),
-        partial_k_ranges=[[i * chunk, min((i + 1) * chunk, k)] for i in range(3)],
-        combine='CPU FP32 (partial0 + partial1) + partial2, BF16 RINT',
+        partial_k_ranges=[[i * chunk, min((i + 1) * chunk, k)] for i in range(parts)],
+        combine='CPU FP32 increasing K slice sum, BF16 RINT',
+        observed_reference_matches=checks[0]['bitwise_different'] == 0,
         device_combine_verified=False, tilemega_pipeline=False,
         full_model_admitted=False, checks=checks)
     a.out.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result))
+    return 0 if result['observed_reference_matches'] else 1
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

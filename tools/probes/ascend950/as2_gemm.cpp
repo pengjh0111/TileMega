@@ -35,7 +35,7 @@ __aicore__ inline void Profile(GM_ADDR a,GM_ADDR b,GM_ADDR c,GM_ADDR timing,
   }
 }
 __aicore__ inline void ProfileObservedPartial(GM_ADDR a,GM_ADDR b,GM_ADDR c,GM_ADDR timing,
-    unsigned m,unsigned n,unsigned k,unsigned groups) {
+    unsigned m,unsigned n,unsigned k,unsigned groups,unsigned parts) {
   if ASCEND_IS_AIC {
     using Body=tilemega::ascend::GemmTile<bfloat16_t,float,16,128,128,true,64>;
     typename Body::SharedResource resource;
@@ -44,8 +44,8 @@ __aicore__ inline void ProfileObservedPartial(GM_ADDR a,GM_ADDR b,GM_ADDR c,GM_A
     AscendC::GlobalTensor<uint64_t> times;times.SetGlobalBuffer((__gm__ uint64_t*)timing);
     for(unsigned tile=AscendC::GetBlockIdx();tile<tiles;tile+=groups) {
       const uint64_t start=AscendC::GetSystemCycle();
-      const unsigned chunk=(k+2)/3;
-      for(unsigned part=0;part<3;++part) {
+      const unsigned chunk=(k+parts-1)/parts;
+      for(unsigned part=0;part<parts;++part) {
         const unsigned begin=part*chunk,size=k-begin<chunk?k-begin:chunk;
         Body::RunKSliceBorrowed(mm,a,b,c+uint64_t(part)*m*n*sizeof(float),m,n,k,
             begin,size,tile/columns,tile%columns);
@@ -63,7 +63,7 @@ void as2_gemm(GM_ADDR a,GM_ADDR b,GM_ADDR c,GM_ADDR timing,
   else if(implementation==1)Profile<16,128,128>(a,b,c,timing,m,n,k,groups);
   else if(implementation==2)Profile<16,128,128,64>(a,b,c,timing,m,n,k,groups);
   else if(implementation==3)Profile<16,128,128,32,false>(a,b,c,timing,m,n,k,groups);
-  else ProfileObservedPartial(a,b,c,timing,m,n,k,groups);
+  else ProfileObservedPartial(a,b,c,timing,m,n,k,groups,implementation==5?2:3);
 }
 static void Check(aclError code,const char* name) {
   if(code)throw std::runtime_error(std::string(name)+": "+std::to_string(code));
@@ -77,10 +77,13 @@ int main(int argc,char** argv) {
   try {
     if(argc!=7)throw std::runtime_error("usage: as2_gemm M N K implementation input_directory output_directory");
     unsigned m=std::stoul(argv[1]),n=std::stoul(argv[2]),k=std::stoul(argv[3]),impl=std::stoul(argv[4]);
-    if(!m || m>64 || !n || n>151936 || n%16 || !k || k>16384 || k%16 || impl>4 || uint64_t(n)*k>(1ULL<<29))
+    if(!m || m>64 || !n || n>151936 || n%16 || !k || k>16384 || k%16 || impl>5 || uint64_t(n)*k>(1ULL<<29))
       throw std::runtime_error("Bounded BF16 profile shape required");
     if(impl==4 && ((m!=1 && m!=64) || n!=2048 || (k!=6144 && k!=8192)))
       throw std::runtime_error("Partial diagnostic requires the observed stream-K shape");
+    if(impl==5 && ((m!=1 && m!=64) || n!=3072 || k!=8192))
+      throw std::runtime_error("Two-part diagnostic requires the observed H3072 stream-K shape");
+    const bool partial=impl>=4;const unsigned parts=impl==5?2:3;
     namespace fs=std::filesystem;
     const fs::path root="/home/d50064638/junhuip/TileMega/runs/as2";
     auto input=fs::weakly_canonical(argv[5]),output=fs::weakly_canonical(argv[6]);
@@ -96,7 +99,7 @@ int main(int argc,char** argv) {
     if(!soc || std::string(soc).find("Ascend950PR")!=0)throw std::runtime_error("Wrong SKU");
     std::cerr<<"phase: allocate"<<std::endl;
     aclrtStream stream;Check(aclrtCreateStream(&stream),"stream");
-    std::vector<uint8_t> c(size_t(m)*n*(impl==4?3*sizeof(float):2)+512,0xa5);
+    std::vector<uint8_t> c(size_t(m)*n*(partial?parts*sizeof(float):2)+512,0xa5);
     std::vector<uint64_t> timing((groups+tiles)*64,0);
     std::vector<void*> allocated;
     auto alloc=[&](size_t bytes,const void* host) {
@@ -112,12 +115,12 @@ int main(int argc,char** argv) {
     Check(aclrtMemcpy(c.data(),c.size(),dc,c.size(),ACL_MEMCPY_DEVICE_TO_HOST),"read output");
     Check(aclrtMemcpy(timing.data(),timing.size()*8,dt,timing.size()*8,ACL_MEMCPY_DEVICE_TO_HOST),"read timing");
     if(!std::all_of(c.end()-512,c.end(),[](auto v){return v==0xa5;}))throw std::runtime_error("Output guard overwritten");
-    fs::create_directories(output);std::ofstream out(output/(impl==4?"partial_f32.bin":"c.bin"),std::ios::binary);out.write((char*)c.data(),c.size()-512);out.close();
+    fs::create_directories(output);std::ofstream out(output/(partial?"partial_f32.bin":"c.bin"),std::ios::binary);out.write((char*)c.data(),c.size()-512);out.close();
     std::cout<<"{\"status\":\"executed_requires_numeric_compare\",\"shape_mnk\":["<<m<<','<<n<<','<<k
-      <<"],\"implementation\":"<<impl<<",\"l0_k\":"<<((impl==2||impl==4)?64:32)<<",\"groups\":2,\"service_ticks\":[";
+      <<"],\"implementation\":"<<impl<<",\"l0_k\":"<<((impl==2||partial)?64:32)<<",\"groups\":2,\"service_ticks\":[";
     for(unsigned tile=0;tile<tiles;++tile){if(tile)std::cout<<',';std::cout<<timing[(groups+tile)*64];}
     std::cout<<"],\"host_kernel_launches\":1,\"logical_weight_layout\":\"NK\",\"physical_weight_layout\":\""<<(impl==3?"KN":"NK")
-      <<"\",\"timed_repetitions\":"<<(impl==4?1:3)<<",\"partial_count\":"<<(impl==4?3:1)
+      <<"\",\"timed_repetitions\":"<<(partial?1:3)<<",\"partial_count\":"<<(partial?parts:1)
       <<",\"device_combine\":false,\"tilemega_pipeline\":false}"<<std::endl;
     for(auto p:allocated)Check(aclrtFree(p),"free");
     Check(aclrtDestroyStream(stream),"destroy stream");Check(aclFinalize(),"finalize");return 0;
