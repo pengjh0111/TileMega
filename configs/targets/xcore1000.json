@@ -1229,222 +1229,1097 @@
         "samples": 0,
         "source": "",
         "serving": {
-          "argmax_reduce": {
-            "fixed_ns": 7531.666667,
-            "byte_ns": 0,
+          "argmax_reduce_r1": {
+            "fixed_ns": 2550.099502,
+            "byte_ns": 0.18101457,
             "flop_ns": 0,
-            "median_relative_error": 0.1201323988,
+            "median_relative_error": 0.03898946824,
             "samples": 6
           },
-          "attention_merge": {
-            "fixed_ns": 3311.304348,
-            "byte_ns": 0.06525985054,
-            "flop_ns": 0,
-            "median_relative_error": 0.1098303561,
+          "argmax_reduce_r2": {
+            "fixed_ns": 2663.18408,
+            "byte_ns": 0,
+            "flop_ns": 0.7963530561,
+            "median_relative_error": 0.01960841585,
+            "samples": 6
+          },
+          "argmax_reduce_r3": {
+            "fixed_ns": 2839.154229,
+            "byte_ns": 0,
+            "flop_ns": 0.8172308102,
+            "median_relative_error": 0.04762934808,
+            "samples": 6
+          },
+          "argmax_reduce_r4": {
+            "fixed_ns": 3068.855721,
+            "byte_ns": 0,
+            "flop_ns": 0.8846393035,
+            "median_relative_error": 0.05590291784,
+            "samples": 6
+          },
+          "attention_merge_r1": {
+            "fixed_ns": 2889.565217,
+            "byte_ns": 0,
+            "flop_ns": 0.1371008832,
+            "median_relative_error": 0.1500407973,
             "samples": 4
           },
-          "embedding": {
-            "fixed_ns": 2699.130435,
-            "byte_ns": 0.2868970788,
+          "attention_merge_r2": {
+            "fixed_ns": 2533.913043,
+            "byte_ns": 0.2836701766,
             "flop_ns": 0,
-            "median_relative_error": 0.05565691269,
+            "median_relative_error": 0.1566045549,
             "samples": 4
           },
-          "fused_attention_decode_d128_q2_norm1": {
-            "fixed_ns": 12101.91411,
-            "byte_ns": 0,
-            "flop_ns": 0.07451445542,
-            "median_relative_error": 0.002360637704,
-            "samples": 3
-          },
-          "fused_attention_decode_d128_q3_norm0": {
-            "fixed_ns": 12357.91312,
-            "byte_ns": 0,
-            "flop_ns": 0.07683685564,
-            "median_relative_error": 0.006490684858,
-            "samples": 3
-          },
-          "fused_attention_decode_d128_q4_norm0": {
-            "fixed_ns": 13054.23452,
-            "byte_ns": 0.2680763761,
+          "attention_merge_r3": {
+            "fixed_ns": 2400.869565,
+            "byte_ns": 0.4386888587,
             "flop_ns": 0,
-            "median_relative_error": 0.006470712667,
-            "samples": 3
-          },
-          "fused_attention_decode_d128_q4_norm1": {
-            "fixed_ns": 16032.04596,
-            "byte_ns": 0.2657570705,
-            "flop_ns": 0,
-            "median_relative_error": 0.002245727632,
-            "samples": 3
-          },
-          "fused_attention_decode_d128_q8_norm1": {
-            "fixed_ns": 22908.65421,
-            "byte_ns": 0,
-            "flop_ns": 0.06874464776,
-            "median_relative_error": 0.001119073027,
-            "samples": 3
-          },
-          "fused_attention_decode_d64_q4_norm0": {
-            "fixed_ns": 14411.60329,
-            "byte_ns": 0,
-            "flop_ns": 0.06328120156,
-            "median_relative_error": 0.001783480197,
-            "samples": 3
-          },
-          "fused_attention_decode_mma16_d128_q2_norm1": {
-            "fixed_ns": 15633.51947,
-            "byte_ns": 0,
-            "flop_ns": 0.268576484,
-            "median_relative_error": 0.008074205516,
-            "samples": 3
-          },
-          "fused_attention_decode_mma16_d128_q3_norm0": {
-            "fixed_ns": 14661.36149,
-            "byte_ns": 0.5281203501,
-            "flop_ns": 0,
-            "median_relative_error": 0.001923920657,
-            "samples": 3
-          },
-          "fused_attention_decode_mma16_d128_q4_norm0": {
-            "fixed_ns": 15177.13152,
-            "byte_ns": 0.5393350366,
-            "flop_ns": 0,
-            "median_relative_error": 0.001040889857,
-            "samples": 3
-          },
-          "fused_attention_decode_mma16_d128_q4_norm1": {
-            "fixed_ns": 18143.75837,
-            "byte_ns": 0.5373354124,
-            "flop_ns": 0,
-            "median_relative_error": 0.000991642344,
-            "samples": 3
-          },
-          "fused_attention_decode_mma16_d128_q8_norm1": {
-            "fixed_ns": 26388.05034,
-            "byte_ns": 0.4512167596,
-            "flop_ns": 0,
-            "median_relative_error": 0.0001861146211,
-            "samples": 3
-          },
-          "fused_attention_decode_mma16_d64_q4_norm0": {
-            "fixed_ns": 12093.0024,
-            "byte_ns": 0,
-            "flop_ns": 0.1936979468,
-            "median_relative_error": 0.0001542561171,
-            "samples": 3
-          },
-          "fused_attention_prefill_d128_q2_norm1": {
-            "fixed_ns": 29240,
-            "byte_ns": 0,
-            "flop_ns": 0.07553100586,
-            "median_relative_error": 0.001751824818,
-            "samples": 3
-          },
-          "fused_attention_prefill_d128_q3_norm0": {
-            "fixed_ns": 22213.40796,
-            "byte_ns": 0.6714960354,
-            "flop_ns": 0,
-            "median_relative_error": 0.0006179763898,
-            "samples": 3
-          },
-          "fused_attention_prefill_d128_q4_norm0": {
-            "fixed_ns": 24190,
-            "byte_ns": 0,
-            "flop_ns": 0.04246303013,
-            "median_relative_error": 0.005164187482,
-            "samples": 3
-          },
-          "fused_attention_prefill_d128_q4_norm1": {
-            "fixed_ns": 29470,
-            "byte_ns": 0,
-            "flop_ns": 0.07485525949,
-            "median_relative_error": 8.950948801e-05,
-            "samples": 3
-          },
-          "fused_attention_prefill_d128_q8_norm1": {
-            "fixed_ns": 26865,
-            "byte_ns": 0.9033203125,
-            "flop_ns": 0,
-            "median_relative_error": 0.01470588235,
-            "samples": 3
-          },
-          "fused_attention_prefill_d64_q4_norm0": {
-            "fixed_ns": 13965.71429,
-            "byte_ns": 1.579241071,
-            "flop_ns": 0,
-            "median_relative_error": 0.0009118541033,
-            "samples": 3
-          },
-          "gemm_argmax_partial": {
-            "fixed_ns": 44950.90637,
-            "byte_ns": 0,
-            "flop_ns": 0.005784544947,
-            "median_relative_error": 0.06534160187,
-            "samples": 9
-          },
-          "gemm_residual": {
-            "fixed_ns": 10829.37654,
-            "byte_ns": 0.08511999904,
-            "flop_ns": 0.001039964549,
-            "median_relative_error": 0.02977820597,
-            "samples": 9
-          },
-          "gemm_store": {
-            "fixed_ns": 9257.762983,
-            "byte_ns": 0.09253402471,
-            "flop_ns": 0.0004929503843,
-            "median_relative_error": 0.0558830331,
-            "samples": 9
-          },
-          "gemm_swiglu": {
-            "fixed_ns": 9948.940512,
-            "byte_ns": 0.091897701,
-            "flop_ns": 0.0005604484285,
-            "median_relative_error": 0.05955867392,
-            "samples": 9
-          },
-          "gemv_gemm_argmax_partial": {
-            "fixed_ns": 21225.86876,
-            "byte_ns": 0.1416372815,
-            "flop_ns": 0.008463350872,
-            "median_relative_error": 0.3252283101,
-            "samples": 12
-          },
-          "gemv_gemm_residual": {
-            "fixed_ns": 16991.49585,
-            "byte_ns": 0.1601215845,
-            "flop_ns": 0,
-            "median_relative_error": 0.4079491447,
-            "samples": 12
-          },
-          "gemv_gemm_store": {
-            "fixed_ns": 16208.48787,
-            "byte_ns": 0.1610193172,
-            "flop_ns": 0,
-            "median_relative_error": 0.412328486,
-            "samples": 12
-          },
-          "gemv_gemm_swiglu": {
-            "fixed_ns": 17319.85687,
-            "byte_ns": 0.1594660903,
-            "flop_ns": 0,
-            "median_relative_error": 0.3976844926,
-            "samples": 12
-          },
-          "rmsnorm": {
-            "fixed_ns": 7114.347826,
-            "byte_ns": 0,
-            "flop_ns": 1.357099185,
-            "median_relative_error": 0.1414525692,
+            "median_relative_error": 0.1183971447,
             "samples": 4
+          },
+          "attention_merge_r4": {
+            "fixed_ns": 2360.869565,
+            "byte_ns": 0,
+            "flop_ns": 0.6418138587,
+            "median_relative_error": 0.1631093544,
+            "samples": 4
+          },
+          "embedding_r1": {
+            "fixed_ns": 4066.521739,
+            "byte_ns": 0.03528362772,
+            "flop_ns": 0,
+            "median_relative_error": 0.08915331808,
+            "samples": 4
+          },
+          "embedding_r2": {
+            "fixed_ns": 1441.304348,
+            "byte_ns": 0.1472911005,
+            "flop_ns": 0,
+            "median_relative_error": 0.05274102079,
+            "samples": 4
+          },
+          "embedding_r3": {
+            "fixed_ns": 1456.956522,
+            "byte_ns": 0.2087296196,
+            "flop_ns": 0,
+            "median_relative_error": 0.01846389581,
+            "samples": 4
+          },
+          "embedding_r4": {
+            "fixed_ns": 1786.086957,
+            "byte_ns": 0.2368376359,
+            "flop_ns": 0,
+            "median_relative_error": 0.02943143813,
+            "samples": 4
+          },
+          "fused_attention_decode_d128_q2_norm1_r1": {
+            "fixed_ns": 12994.17583,
+            "byte_ns": 0,
+            "flop_ns": 0.07605151006,
+            "median_relative_error": 0.001675013765,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q2_norm1_r2": {
+            "fixed_ns": 14087.92097,
+            "byte_ns": 0.1608547057,
+            "flop_ns": 0,
+            "median_relative_error": 0.002597455455,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q2_norm1_r3": {
+            "fixed_ns": 14614.99835,
+            "byte_ns": 0,
+            "flop_ns": 0.08580502591,
+            "median_relative_error": 0.005310228804,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q2_norm1_r4": {
+            "fixed_ns": 16237.46714,
+            "byte_ns": 0.246341261,
+            "flop_ns": 0,
+            "median_relative_error": 0.007338991766,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q3_norm0_r1": {
+            "fixed_ns": 13170.70885,
+            "byte_ns": 0,
+            "flop_ns": 0.07448660438,
+            "median_relative_error": 0.001186760799,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q3_norm0_r2": {
+            "fixed_ns": 13391.20815,
+            "byte_ns": 0,
+            "flop_ns": 0.07772055442,
+            "median_relative_error": 0.00511255676,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q3_norm0_r3": {
+            "fixed_ns": 14281.07795,
+            "byte_ns": 0.2348238458,
+            "flop_ns": 0,
+            "median_relative_error": 0.003528239263,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q3_norm0_r4": {
+            "fixed_ns": 15520.3412,
+            "byte_ns": 0.3227596783,
+            "flop_ns": 0,
+            "median_relative_error": 0.01144151113,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q4_norm0_r1": {
+            "fixed_ns": 14377.86559,
+            "byte_ns": 0.2560632931,
+            "flop_ns": 0,
+            "median_relative_error": 0.00110381284,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q4_norm0_r2": {
+            "fixed_ns": 14617.35926,
+            "byte_ns": 0.2613178564,
+            "flop_ns": 0,
+            "median_relative_error": 0.008025115177,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q4_norm0_r3": {
+            "fixed_ns": 15302.90692,
+            "byte_ns": 0.272973316,
+            "flop_ns": 0,
+            "median_relative_error": 0.0007328710394,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q4_norm0_r4": {
+            "fixed_ns": 17356.42184,
+            "byte_ns": 0.3922516623,
+            "flop_ns": 0,
+            "median_relative_error": 0.01495777201,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q4_norm1_r1": {
+            "fixed_ns": 16297.1898,
+            "byte_ns": 0.2613227001,
+            "flop_ns": 0,
+            "median_relative_error": 0.008405849715,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q4_norm1_r2": {
+            "fixed_ns": 17033.35414,
+            "byte_ns": 0.2623850761,
+            "flop_ns": 0,
+            "median_relative_error": 0.004774596278,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q4_norm1_r3": {
+            "fixed_ns": 17768.93858,
+            "byte_ns": 0,
+            "flop_ns": 0.06782737972,
+            "median_relative_error": 0.005704209906,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q4_norm1_r4": {
+            "fixed_ns": 21573.76209,
+            "byte_ns": 0,
+            "flop_ns": 0.09627903612,
+            "median_relative_error": 0.005148093011,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q8_norm1_r1": {
+            "fixed_ns": 23971.21311,
+            "byte_ns": 0,
+            "flop_ns": 0.0685512041,
+            "median_relative_error": 0.0005471897858,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q8_norm1_r2": {
+            "fixed_ns": 24423.64181,
+            "byte_ns": 0.5387206991,
+            "flop_ns": 0,
+            "median_relative_error": 0.000547334759,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q8_norm1_r3": {
+            "fixed_ns": 24147.51095,
+            "byte_ns": 0.5553675498,
+            "flop_ns": 0,
+            "median_relative_error": 0.00540531767,
+            "samples": 3
+          },
+          "fused_attention_decode_d128_q8_norm1_r4": {
+            "fixed_ns": 28710.64437,
+            "byte_ns": 0.8642630598,
+            "flop_ns": 0,
+            "median_relative_error": 0.0043625886,
+            "samples": 3
+          },
+          "fused_attention_decode_d64_q4_norm0_r1": {
+            "fixed_ns": 15203.94767,
+            "byte_ns": 0,
+            "flop_ns": 0.06167633569,
+            "median_relative_error": 0.003662305747,
+            "samples": 3
+          },
+          "fused_attention_decode_d64_q4_norm0_r2": {
+            "fixed_ns": 15950.61048,
+            "byte_ns": 0,
+            "flop_ns": 0.05843754198,
+            "median_relative_error": 0.001249572371,
+            "samples": 3
+          },
+          "fused_attention_decode_d64_q4_norm0_r3": {
+            "fixed_ns": 16187.25304,
+            "byte_ns": 0.2417728827,
+            "flop_ns": 0,
+            "median_relative_error": 0.002013168309,
+            "samples": 3
+          },
+          "fused_attention_decode_d64_q4_norm0_r4": {
+            "fixed_ns": 17519.5193,
+            "byte_ns": 0.3904619301,
+            "flop_ns": 0,
+            "median_relative_error": 0.01919177448,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d128_q2_norm1_r1": {
+            "fixed_ns": 15675.9089,
+            "byte_ns": 0.5274624197,
+            "flop_ns": 0,
+            "median_relative_error": 0.008514981003,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d128_q2_norm1_r2": {
+            "fixed_ns": 18541.57684,
+            "byte_ns": 0,
+            "flop_ns": 0.3521772411,
+            "median_relative_error": 0.0001623730414,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d128_q3_norm0_r1": {
+            "fixed_ns": 14960.27424,
+            "byte_ns": 0.527959702,
+            "flop_ns": 0,
+            "median_relative_error": 0.000197636873,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d128_q3_norm0_r2": {
+            "fixed_ns": 17515.97504,
+            "byte_ns": 0,
+            "flop_ns": 0.2397471567,
+            "median_relative_error": 0.006164857673,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d128_q4_norm0_r1": {
+            "fixed_ns": 16586.5913,
+            "byte_ns": 0,
+            "flop_ns": 0.1333332338,
+            "median_relative_error": 0.002047928323,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d128_q4_norm0_r2": {
+            "fixed_ns": 18698.3591,
+            "byte_ns": 0,
+            "flop_ns": 0.1796210611,
+            "median_relative_error": 0.003769617781,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d128_q4_norm1_r1": {
+            "fixed_ns": 18817.34934,
+            "byte_ns": 0.5330407009,
+            "flop_ns": 0,
+            "median_relative_error": 0.001388741354,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d128_q4_norm1_r2": {
+            "fixed_ns": 21061.94346,
+            "byte_ns": 0.7167889637,
+            "flop_ns": 0,
+            "median_relative_error": 0.004162129044,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d128_q8_norm1_r1": {
+            "fixed_ns": 26558.35166,
+            "byte_ns": 0.4502827406,
+            "flop_ns": 0,
+            "median_relative_error": 0.001855085334,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d64_q4_norm0_r1": {
+            "fixed_ns": 12290.02067,
+            "byte_ns": 0.7688631479,
+            "flop_ns": 0,
+            "median_relative_error": 0.01328246177,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d64_q4_norm0_r2": {
+            "fixed_ns": 12285.22981,
+            "byte_ns": 0.8411644545,
+            "flop_ns": 0,
+            "median_relative_error": 0.009627781051,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d64_q4_norm0_r3": {
+            "fixed_ns": 13297.10341,
+            "byte_ns": 0,
+            "flop_ns": 0.2425147699,
+            "median_relative_error": 0.006119128718,
+            "samples": 3
+          },
+          "fused_attention_decode_mma16_d64_q4_norm0_r4": {
+            "fixed_ns": 15310.1769,
+            "byte_ns": 1.115843546,
+            "flop_ns": 0,
+            "median_relative_error": 0.006157901266,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q2_norm1_kv32_r1": {
+            "fixed_ns": 18528.57143,
+            "byte_ns": 1.228376116,
+            "flop_ns": 0,
+            "median_relative_error": 0.006552169165,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q2_norm1_kv32_r2": {
+            "fixed_ns": 26695,
+            "byte_ns": 0,
+            "flop_ns": 0.06847926549,
+            "median_relative_error": 0.004696548265,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q2_norm1_kv64_r1": {
+            "fixed_ns": 24721.42857,
+            "byte_ns": 1.221575056,
+            "flop_ns": 0,
+            "median_relative_error": 0.002912103687,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q3_norm0_kv32_r1": {
+            "fixed_ns": 19618.80597,
+            "byte_ns": 0,
+            "flop_ns": 0.05578795476,
+            "median_relative_error": 0.007505746898,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q3_norm0_kv32_r2": {
+            "fixed_ns": 18592.51244,
+            "byte_ns": 0.6799498601,
+            "flop_ns": 0,
+            "median_relative_error": 0.0123571955,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q3_norm0_kv64_r1": {
+            "fixed_ns": 26012.58706,
+            "byte_ns": 0,
+            "flop_ns": 0.05043143657,
+            "median_relative_error": 0.01208762015,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q4_norm0_kv32_r1": {
+            "fixed_ns": 16198.57143,
+            "byte_ns": 0.7498604911,
+            "flop_ns": 0,
+            "median_relative_error": 0.004511278195,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q4_norm0_kv32_r2": {
+            "fixed_ns": 20683.57143,
+            "byte_ns": 0.4251534598,
+            "flop_ns": 0,
+            "median_relative_error": 0.006155533886,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q4_norm0_kv64_r1": {
+            "fixed_ns": 21742.14286,
+            "byte_ns": 0.7990373884,
+            "flop_ns": 0,
+            "median_relative_error": 0.002939447384,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q4_norm1_kv32_r1": {
+            "fixed_ns": 23830,
+            "byte_ns": 0,
+            "flop_ns": 0.07611955915,
+            "median_relative_error": 0.003245523882,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q4_norm1_kv32_r2": {
+            "fixed_ns": 26325,
+            "byte_ns": 0,
+            "flop_ns": 0.06859915597,
+            "median_relative_error": 0.003735803945,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q4_norm1_kv64_r1": {
+            "fixed_ns": 29420,
+            "byte_ns": 0,
+            "flop_ns": 0.07999965123,
+            "median_relative_error": 0.001607645246,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q8_norm1_kv32_r1": {
+            "fixed_ns": 22299.28571,
+            "byte_ns": 0.8363560268,
+            "flop_ns": 0,
+            "median_relative_error": 0.01695900254,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q8_norm1_kv32_r2": {
+            "fixed_ns": 27750,
+            "byte_ns": 0,
+            "flop_ns": 0.05824497768,
+            "median_relative_error": 0.007115679201,
+            "samples": 3
+          },
+          "fused_attention_prefill_d128_q8_norm1_kv64_r1": {
+            "fixed_ns": 28565,
+            "byte_ns": 0.7666015625,
+            "flop_ns": 0,
+            "median_relative_error": 0.01545454545,
+            "samples": 3
+          },
+          "fused_attention_prefill_d64_q4_norm0_kv32_r1": {
+            "fixed_ns": 12110,
+            "byte_ns": 1.513671875,
+            "flop_ns": 0,
+            "median_relative_error": 0.003592814371,
+            "samples": 3
+          },
+          "fused_attention_prefill_d64_q4_norm0_kv32_r2": {
+            "fixed_ns": 15465,
+            "byte_ns": 0,
+            "flop_ns": 0.09674072266,
+            "median_relative_error": 0.0005868544601,
+            "samples": 3
+          },
+          "fused_attention_prefill_d64_q4_norm0_kv32_r3": {
+            "fixed_ns": 13330,
+            "byte_ns": 1.396484375,
+            "flop_ns": 0,
+            "median_relative_error": 0.003393665158,
+            "samples": 3
+          },
+          "fused_attention_prefill_d64_q4_norm0_kv32_r4": {
+            "fixed_ns": 16261.42857,
+            "byte_ns": 1.664341518,
+            "flop_ns": 0,
+            "median_relative_error": 0.008613835144,
+            "samples": 3
+          },
+          "fused_attention_prefill_d64_q4_norm0_kv64_r1": {
+            "fixed_ns": 17920,
+            "byte_ns": 0,
+            "flop_ns": 0.1015799386,
+            "median_relative_error": 0.003807571209,
+            "samples": 3
+          },
+          "fused_attention_prefill_d64_q4_norm0_kv64_r2": {
+            "fixed_ns": 16779.28571,
+            "byte_ns": 1.472516741,
+            "flop_ns": 0,
+            "median_relative_error": 0.002487394958,
+            "samples": 3
+          },
+          "fused_attention_prefill_d64_q4_norm0_kv64_r3": {
+            "fixed_ns": 17821.42857,
+            "byte_ns": 1.322544643,
+            "flop_ns": 0,
+            "median_relative_error": 0.0052496883,
+            "samples": 3
+          },
+          "gemm_argmax_partial_d1_r1": {
+            "fixed_ns": 65771.52564,
+            "byte_ns": 0,
+            "flop_ns": 0.005800306956,
+            "median_relative_error": 0.183892617,
+            "samples": 15
+          },
+          "gemm_argmax_partial_d1_r2": {
+            "fixed_ns": 59997.96062,
+            "byte_ns": 0,
+            "flop_ns": 0.01204100722,
+            "median_relative_error": 0.1470647915,
+            "samples": 12
+          },
+          "gemm_argmax_partial_d1_r3": {
+            "fixed_ns": 67721.63877,
+            "byte_ns": 0.06713389543,
+            "flop_ns": 0.01357754334,
+            "median_relative_error": 0.1333883704,
+            "samples": 12
+          },
+          "gemm_argmax_partial_d1_r4": {
+            "fixed_ns": 39669.39734,
+            "byte_ns": 0.4600792287,
+            "flop_ns": 0,
+            "median_relative_error": 0.008853778309,
+            "samples": 6
+          },
+          "gemm_argmax_partial_d2_r1": {
+            "fixed_ns": 49794.52883,
+            "byte_ns": 0,
+            "flop_ns": 0.007625056338,
+            "median_relative_error": 0.2480459693,
+            "samples": 12
+          },
+          "gemm_argmax_partial_d2_r2": {
+            "fixed_ns": 59236.32911,
+            "byte_ns": 0,
+            "flop_ns": 0.01166640886,
+            "median_relative_error": 0.1601501136,
+            "samples": 12
+          },
+          "gemm_argmax_partial_d2_r3": {
+            "fixed_ns": 67669.33896,
+            "byte_ns": 0,
+            "flop_ns": 0.01546493754,
+            "median_relative_error": 0.1290006437,
+            "samples": 12
+          },
+          "gemm_argmax_partial_d2_r4": {
+            "fixed_ns": 41004.32958,
+            "byte_ns": 0.4205786816,
+            "flop_ns": 0,
+            "median_relative_error": 0.02730354971,
+            "samples": 6
+          },
+          "gemm_argmax_partial_d3_r1": {
+            "fixed_ns": 33735.68452,
+            "byte_ns": 0.1214018322,
+            "flop_ns": 0,
+            "median_relative_error": 0.003455350394,
+            "samples": 3
+          },
+          "gemm_argmax_partial_d3_r2": {
+            "fixed_ns": 34165,
+            "byte_ns": 0,
+            "flop_ns": 0.02280507769,
+            "median_relative_error": 0.008780152481,
+            "samples": 3
+          },
+          "gemm_argmax_partial_d3_r3": {
+            "fixed_ns": 35475,
+            "byte_ns": 0,
+            "flop_ns": 0.03385407584,
+            "median_relative_error": 0.01071564212,
+            "samples": 3
+          },
+          "gemm_argmax_partial_d3_r4": {
+            "fixed_ns": 36725.98214,
+            "byte_ns": 0.4824393136,
+            "flop_ns": 0,
+            "median_relative_error": 0.01234186979,
+            "samples": 3
+          },
+          "gemm_argmax_partial_d4_r1": {
+            "fixed_ns": 32719.56845,
+            "byte_ns": 0.1224917457,
+            "flop_ns": 0,
+            "median_relative_error": 0.007144708104,
+            "samples": 3
+          },
+          "gemm_argmax_partial_d4_r2": {
+            "fixed_ns": 32500,
+            "byte_ns": 0,
+            "flop_ns": 0.02312796456,
+            "median_relative_error": 0.001924433896,
+            "samples": 3
+          },
+          "gemm_argmax_partial_d4_r3": {
+            "fixed_ns": 33366.74107,
+            "byte_ns": 0.3596278599,
+            "flop_ns": 0,
+            "median_relative_error": 0.001586373883,
+            "samples": 3
+          },
+          "gemm_argmax_partial_d4_r4": {
+            "fixed_ns": 35305,
+            "byte_ns": 0,
+            "flop_ns": 0.04516465323,
+            "median_relative_error": 0.002111547983,
+            "samples": 3
           },
           "gemm_combine": {
-            "fixed_ns": 6647.620350122452,
-            "byte_ns": 0.0,
-            "flop_ns": 0.0,
-            "median_relative_error": 0.02212045456965339,
+            "fixed_ns": 6647.62035,
+            "byte_ns": 0,
+            "flop_ns": 0,
+            "median_relative_error": 0.02212045457,
             "samples": 2
+          },
+          "gemm_residual_d1_r1": {
+            "fixed_ns": 14261.1056,
+            "byte_ns": 0.08435682505,
+            "flop_ns": 0.001516430746,
+            "median_relative_error": 0.04956141676,
+            "samples": 15
+          },
+          "gemm_residual_d1_r2": {
+            "fixed_ns": 10262.01978,
+            "byte_ns": 0.194943785,
+            "flop_ns": 0.002485887242,
+            "median_relative_error": 0.0274370338,
+            "samples": 12
+          },
+          "gemm_residual_d1_r3": {
+            "fixed_ns": 13372.51279,
+            "byte_ns": 0.309030598,
+            "flop_ns": 0.002517708341,
+            "median_relative_error": 0.02683917166,
+            "samples": 12
+          },
+          "gemm_residual_d1_r4": {
+            "fixed_ns": 11903.59606,
+            "byte_ns": 0.460901875,
+            "flop_ns": 0,
+            "median_relative_error": 0.01059909216,
+            "samples": 6
+          },
+          "gemm_residual_d2_r1": {
+            "fixed_ns": 10784.28134,
+            "byte_ns": 0.07355112573,
+            "flop_ns": 0.002058259465,
+            "median_relative_error": 0.04660448726,
+            "samples": 12
+          },
+          "gemm_residual_d2_r2": {
+            "fixed_ns": 11769.28816,
+            "byte_ns": 0.1722551065,
+            "flop_ns": 0.002876180673,
+            "median_relative_error": 0.03775528406,
+            "samples": 12
+          },
+          "gemm_residual_d2_r3": {
+            "fixed_ns": 13898.46675,
+            "byte_ns": 0.2369295666,
+            "flop_ns": 0.004523326002,
+            "median_relative_error": 0.04741909888,
+            "samples": 12
+          },
+          "gemm_residual_d2_r4": {
+            "fixed_ns": 13366.48424,
+            "byte_ns": 0.4216760188,
+            "flop_ns": 0,
+            "median_relative_error": 0.02783091566,
+            "samples": 6
+          },
+          "gemm_residual_d3_r1": {
+            "fixed_ns": 6575,
+            "byte_ns": 0,
+            "flop_ns": 0.01143183027,
+            "median_relative_error": 0.01891422531,
+            "samples": 3
+          },
+          "gemm_residual_d3_r2": {
+            "fixed_ns": 7116.979167,
+            "byte_ns": 0.2422078451,
+            "flop_ns": 0,
+            "median_relative_error": 0.0165615142,
+            "samples": 3
+          },
+          "gemm_residual_d3_r3": {
+            "fixed_ns": 8335,
+            "byte_ns": 0,
+            "flop_ns": 0.03388949803,
+            "median_relative_error": 0.01723310292,
+            "samples": 3
+          },
+          "gemm_residual_d3_r4": {
+            "fixed_ns": 9320,
+            "byte_ns": 0,
+            "flop_ns": 0.04525593349,
+            "median_relative_error": 0.01910356402,
+            "samples": 3
+          },
+          "gemm_residual_d4_r1": {
+            "fixed_ns": 5830,
+            "byte_ns": 0,
+            "flop_ns": 0.01140866961,
+            "median_relative_error": 0.02558285088,
+            "samples": 3
+          },
+          "gemm_residual_d4_r2": {
+            "fixed_ns": 5675,
+            "byte_ns": 0,
+            "flop_ns": 0.02308573042,
+            "median_relative_error": 0.002931502932,
+            "samples": 3
+          },
+          "gemm_residual_d4_r3": {
+            "fixed_ns": 6354.0625,
+            "byte_ns": 0.3622436523,
+            "flop_ns": 0,
+            "median_relative_error": 0.002474081056,
+            "samples": 3
+          },
+          "gemm_residual_d4_r4": {
+            "fixed_ns": 7415,
+            "byte_ns": 0,
+            "flop_ns": 0.04516737802,
+            "median_relative_error": 0.00424598125,
+            "samples": 3
+          },
+          "gemm_store_d1_r1": {
+            "fixed_ns": 10404.5859,
+            "byte_ns": 0.09788520602,
+            "flop_ns": 0.0009114941486,
+            "median_relative_error": 0.05005469954,
+            "samples": 15
+          },
+          "gemm_store_d1_r2": {
+            "fixed_ns": 7967.431254,
+            "byte_ns": 0.1996091223,
+            "flop_ns": 0.00216711798,
+            "median_relative_error": 0.03254430166,
+            "samples": 12
+          },
+          "gemm_store_d1_r3": {
+            "fixed_ns": 10577.22121,
+            "byte_ns": 0.3141503916,
+            "flop_ns": 0.002211596326,
+            "median_relative_error": 0.02707842603,
+            "samples": 12
+          },
+          "gemm_store_d1_r4": {
+            "fixed_ns": 9573.902231,
+            "byte_ns": 0.4613820096,
+            "flop_ns": 0,
+            "median_relative_error": 0.003880143247,
+            "samples": 6
+          },
+          "gemm_store_d2_r1": {
+            "fixed_ns": 7830.428772,
+            "byte_ns": 0.08346418276,
+            "flop_ns": 0.001545474093,
+            "median_relative_error": 0.03963908283,
+            "samples": 12
+          },
+          "gemm_store_d2_r2": {
+            "fixed_ns": 8652.728266,
+            "byte_ns": 0.1837483057,
+            "flop_ns": 0.002325557779,
+            "median_relative_error": 0.03848918756,
+            "samples": 12
+          },
+          "gemm_store_d2_r3": {
+            "fixed_ns": 11582.51397,
+            "byte_ns": 0.2405099818,
+            "flop_ns": 0.004251516287,
+            "median_relative_error": 0.05687136284,
+            "samples": 12
+          },
+          "gemm_store_d2_r4": {
+            "fixed_ns": 11480.94779,
+            "byte_ns": 0.4205357751,
+            "flop_ns": 0,
+            "median_relative_error": 0.04087995551,
+            "samples": 6
+          },
+          "gemm_store_d3_r1": {
+            "fixed_ns": 6140,
+            "byte_ns": 0,
+            "flop_ns": 0.01135689872,
+            "median_relative_error": 0.009408812921,
+            "samples": 3
+          },
+          "gemm_store_d3_r2": {
+            "fixed_ns": 6290,
+            "byte_ns": 0,
+            "flop_ns": 0.02266475133,
+            "median_relative_error": 0.01778711485,
+            "samples": 3
+          },
+          "gemm_store_d3_r3": {
+            "fixed_ns": 6278.065476,
+            "byte_ns": 0.3632173084,
+            "flop_ns": 0,
+            "median_relative_error": 0.01886230517,
+            "samples": 3
+          },
+          "gemm_store_d3_r4": {
+            "fixed_ns": 7755,
+            "byte_ns": 0,
+            "flop_ns": 0.04524367196,
+            "median_relative_error": 0.0175075014,
+            "samples": 3
+          },
+          "gemm_store_d4_r1": {
+            "fixed_ns": 4985,
+            "byte_ns": 0,
+            "flop_ns": 0.01146997724,
+            "median_relative_error": 0.01378881988,
+            "samples": 3
+          },
+          "gemm_store_d4_r2": {
+            "fixed_ns": 4440,
+            "byte_ns": 0,
+            "flop_ns": 0.02311706543,
+            "median_relative_error": 0.002087682672,
+            "samples": 3
+          },
+          "gemm_store_d4_r3": {
+            "fixed_ns": 4489.285714,
+            "byte_ns": 0.3620256696,
+            "flop_ns": 0,
+            "median_relative_error": 0.004955192409,
+            "samples": 3
+          },
+          "gemm_store_d4_r4": {
+            "fixed_ns": 5255.119048,
+            "byte_ns": 0.4832821801,
+            "flop_ns": 0,
+            "median_relative_error": 0.003208470362,
+            "samples": 3
+          },
+          "gemm_swiglu_d1_r1": {
+            "fixed_ns": 11172.85676,
+            "byte_ns": 0.09516450346,
+            "flop_ns": 0.001067915326,
+            "median_relative_error": 0.03654643583,
+            "samples": 15
+          },
+          "gemm_swiglu_d1_r2": {
+            "fixed_ns": 8822.580602,
+            "byte_ns": 0.1977839631,
+            "flop_ns": 0.002268397777,
+            "median_relative_error": 0.03053707392,
+            "samples": 12
+          },
+          "gemm_swiglu_d1_r3": {
+            "fixed_ns": 12004.03035,
+            "byte_ns": 0.3135052949,
+            "flop_ns": 0.002232998238,
+            "median_relative_error": 0.0302498562,
+            "samples": 12
+          },
+          "gemm_swiglu_d1_r4": {
+            "fixed_ns": 10841.00628,
+            "byte_ns": 0.4621346422,
+            "flop_ns": 0,
+            "median_relative_error": 0.005200541699,
+            "samples": 6
+          },
+          "gemm_swiglu_d2_r1": {
+            "fixed_ns": 8644.025147,
+            "byte_ns": 0.08279939793,
+            "flop_ns": 0.001607586387,
+            "median_relative_error": 0.04344831914,
+            "samples": 12
+          },
+          "gemm_swiglu_d2_r2": {
+            "fixed_ns": 9799.048418,
+            "byte_ns": 0.1806669944,
+            "flop_ns": 0.002448752037,
+            "median_relative_error": 0.03782810096,
+            "samples": 12
+          },
+          "gemm_swiglu_d2_r3": {
+            "fixed_ns": 12735.96123,
+            "byte_ns": 0.2389629469,
+            "flop_ns": 0.004338595512,
+            "median_relative_error": 0.05511810441,
+            "samples": 12
+          },
+          "gemm_swiglu_d2_r4": {
+            "fixed_ns": 12540.55975,
+            "byte_ns": 0.4206883519,
+            "flop_ns": 0,
+            "median_relative_error": 0.04831987986,
+            "samples": 6
+          },
+          "gemm_swiglu_d3_r1": {
+            "fixed_ns": 6955,
+            "byte_ns": 0,
+            "flop_ns": 0.01121657235,
+            "median_relative_error": 0.01228030644,
+            "samples": 3
+          },
+          "gemm_swiglu_d3_r2": {
+            "fixed_ns": 6600.238095,
+            "byte_ns": 0.2439081101,
+            "flop_ns": 0,
+            "median_relative_error": 0.01479249418,
+            "samples": 3
+          },
+          "gemm_swiglu_d3_r3": {
+            "fixed_ns": 7604.508929,
+            "byte_ns": 0.3618076869,
+            "flop_ns": 0,
+            "median_relative_error": 0.0188791605,
+            "samples": 3
+          },
+          "gemm_swiglu_d3_r4": {
+            "fixed_ns": 8663.020833,
+            "byte_ns": 0.4804484049,
+            "flop_ns": 0,
+            "median_relative_error": 0.01853785901,
+            "samples": 3
+          },
+          "gemm_swiglu_d4_r1": {
+            "fixed_ns": 6215,
+            "byte_ns": 0,
+            "flop_ns": 0.0112765176,
+            "median_relative_error": 0.01046156257,
+            "samples": 3
+          },
+          "gemm_swiglu_d4_r2": {
+            "fixed_ns": 5320,
+            "byte_ns": 0,
+            "flop_ns": 0.02311979021,
+            "median_relative_error": 0.003611151235,
+            "samples": 3
+          },
+          "gemm_swiglu_d4_r3": {
+            "fixed_ns": 6035,
+            "byte_ns": 0,
+            "flop_ns": 0.03384045192,
+            "median_relative_error": 0.005287836265,
+            "samples": 3
+          },
+          "gemm_swiglu_d4_r4": {
+            "fixed_ns": 7225,
+            "byte_ns": 0,
+            "flop_ns": 0.04495756967,
+            "median_relative_error": 0.004277864992,
+            "samples": 3
+          },
+          "gemv_gemm_argmax_partial_r1": {
+            "fixed_ns": 22259.89238,
+            "byte_ns": 0.1527011125,
+            "flop_ns": 0.008858587156,
+            "median_relative_error": 0.2770453796,
+            "samples": 12
+          },
+          "gemv_gemm_argmax_partial_r2": {
+            "fixed_ns": 23543.63297,
+            "byte_ns": 0.1867194357,
+            "flop_ns": 0.008740039813,
+            "median_relative_error": 0.2694243747,
+            "samples": 12
+          },
+          "gemv_gemm_argmax_partial_r3": {
+            "fixed_ns": 25664.17453,
+            "byte_ns": 0.2161077997,
+            "flop_ns": 0.006693264005,
+            "median_relative_error": 0.2623275588,
+            "samples": 12
+          },
+          "gemv_gemm_argmax_partial_r4": {
+            "fixed_ns": 26018.73281,
+            "byte_ns": 0.2910159259,
+            "flop_ns": 0.003521345376,
+            "median_relative_error": 0.2467578641,
+            "samples": 12
+          },
+          "gemv_gemm_residual_r1": {
+            "fixed_ns": 18100.84658,
+            "byte_ns": 0.1738139178,
+            "flop_ns": 0,
+            "median_relative_error": 0.3819496499,
+            "samples": 12
+          },
+          "gemv_gemm_residual_r2": {
+            "fixed_ns": 19705.56744,
+            "byte_ns": 0.2088874252,
+            "flop_ns": 0,
+            "median_relative_error": 0.3611292234,
+            "samples": 12
+          },
+          "gemv_gemm_residual_r3": {
+            "fixed_ns": 22176.14646,
+            "byte_ns": 0.2286940133,
+            "flop_ns": 0,
+            "median_relative_error": 0.3374192211,
+            "samples": 12
+          },
+          "gemv_gemm_residual_r4": {
+            "fixed_ns": 22595.21294,
+            "byte_ns": 0.2952819459,
+            "flop_ns": 0,
+            "median_relative_error": 0.3044505432,
+            "samples": 12
+          },
+          "gemv_gemm_store_r1": {
+            "fixed_ns": 17063.89322,
+            "byte_ns": 0.1734891244,
+            "flop_ns": 0,
+            "median_relative_error": 0.3834760126,
+            "samples": 12
+          },
+          "gemv_gemm_store_r2": {
+            "fixed_ns": 18834.26133,
+            "byte_ns": 0.2068117416,
+            "flop_ns": 0,
+            "median_relative_error": 0.3694995436,
+            "samples": 12
+          },
+          "gemv_gemm_store_r3": {
+            "fixed_ns": 20993.86886,
+            "byte_ns": 0.2276270916,
+            "flop_ns": 0,
+            "median_relative_error": 0.3451356561,
+            "samples": 12
+          },
+          "gemv_gemm_store_r4": {
+            "fixed_ns": 21032.40303,
+            "byte_ns": 0.2976519818,
+            "flop_ns": 0,
+            "median_relative_error": 0.3129171944,
+            "samples": 12
+          },
+          "gemv_gemm_swiglu_r1": {
+            "fixed_ns": 17909.84422,
+            "byte_ns": 0.1764856092,
+            "flop_ns": 0,
+            "median_relative_error": 0.384489925,
+            "samples": 12
+          },
+          "gemv_gemm_swiglu_r2": {
+            "fixed_ns": 19745.3773,
+            "byte_ns": 0.2061291709,
+            "flop_ns": 0,
+            "median_relative_error": 0.3658861354,
+            "samples": 12
+          },
+          "gemv_gemm_swiglu_r3": {
+            "fixed_ns": 22079.20486,
+            "byte_ns": 0.2255680298,
+            "flop_ns": 0,
+            "median_relative_error": 0.342559432,
+            "samples": 12
+          },
+          "gemv_gemm_swiglu_r4": {
+            "fixed_ns": 22402.08422,
+            "byte_ns": 0.2977615888,
+            "flop_ns": 0,
+            "median_relative_error": 0.2991866849,
+            "samples": 12
+          },
+          "rmsnorm_r1": {
+            "fixed_ns": 12245.21739,
+            "byte_ns": 0.09264605978,
+            "flop_ns": 0,
+            "median_relative_error": 0.01951392083,
+            "samples": 4
+          },
+          "rmsnorm_r2": {
+            "fixed_ns": 2850.434783,
+            "byte_ns": 0,
+            "flop_ns": 0.5411005435,
+            "median_relative_error": 0.1174690985,
+            "samples": 4
+          },
+          "rmsnorm_r3": {
+            "fixed_ns": 2795.652174,
+            "byte_ns": 0,
+            "flop_ns": 0.6085258152,
+            "median_relative_error": 0.1008015545,
+            "samples": 4
+          },
+          "rmsnorm_r4": {
+            "fixed_ns": 3024.347826,
+            "byte_ns": 0,
+            "flop_ns": 0.7000679348,
+            "median_relative_error": 0.08695652174,
+            "samples": 4
           }
         }
       }
