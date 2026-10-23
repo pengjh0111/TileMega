@@ -64,3 +64,19 @@ qwen3_0_6b,1,E56,E53C1-stage,class_error_pct_gate_up,-16.633871436073456,15,Fals
 qwen3_0_6b,1,E56,E53C1-stage,class_error_pct_down,-10.612703849417604,15,True,verified stage-only observation; uniform overhead correction inferred
 qwen3_0_6b,1,E56,E53C1-stage,class_error_pct_lm_head,0.04958580526686074,15,True,verified stage-only observation; uniform overhead correction inferred
 qwen3_0_6b,1,E55,cohort,fastest_in_predicted_top3,False,True,False,verified independent E52v3 cohort; no gate promotion
+qwen3_0_6b,1,E67,cohort,kendall_tau,0.6428571428571428,0.7,False,verified prospective at frozen E65 prices; not acceptance
+qwen3_0_6b,1,E67,cohort,fastest_in_predicted_top3,False,True,False,verified prospective at frozen E65 prices; not acceptance
+qwen3_0_6b,1,E67,B57R,step_error_pct,-1.1231029129732617,10,True,verified fresh request; inferred frozen E65 prediction
+qwen3_0_6b,1,E67,E67C1,step_error_pct,-6.063571081696006,10,True,verified fresh request; inferred frozen E65 prediction
+qwen3_0_6b,1,E67,E67C2,step_error_pct,-5.482445684797598,10,True,verified fresh request; inferred frozen E65 prediction
+qwen3_0_6b,1,E67,E67C3,step_error_pct,-5.435342890710637,10,True,verified fresh request; inferred frozen E65 prediction
+qwen3_0_6b,1,E67,E67C4,step_error_pct,-4.1286991158698605,10,True,verified fresh request; inferred frozen E65 prediction
+qwen3_0_6b,1,E67,E67C5,step_error_pct,-1.138688142477684,10,True,verified fresh request; inferred frozen E65 prediction
+qwen3_0_6b,1,E67,E67C6,step_error_pct,-1.0924357929505857,10,True,verified fresh request; inferred frozen E65 prediction
+qwen3_0_6b,1,E67,E67C7,step_error_pct,1.0561740107203121,10,True,verified fresh request; inferred frozen E65 prediction
+qwen3_0_6b,1,E72,E67C1,class_error_pct_qkv,-13.442334685061397,15,True,verified stage trace; uniform overhead correction inferred; later training
+qwen3_0_6b,1,E72,E67C1,class_error_pct_attention,3.548401834432502,15,True,verified stage trace; uniform overhead correction inferred; later training
+qwen3_0_6b,1,E72,E67C1,class_error_pct_o,-11.539116982129627,15,True,verified stage trace; uniform overhead correction inferred; later training
+qwen3_0_6b,1,E72,E67C1,class_error_pct_gate_up,-15.231667486761403,15,False,verified stage trace; uniform overhead correction inferred; later training
+qwen3_0_6b,1,E72,E67C1,class_error_pct_down,-13.140428826229877,15,True,verified stage trace; uniform overhead correction inferred; later training
+qwen3_0_6b,1,E72,E67C1,class_error_pct_lm_head,2.6096936115502123,15,True,verified stage trace; uniform overhead correction inferred; later training
