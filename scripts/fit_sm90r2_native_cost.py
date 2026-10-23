@@ -21,6 +21,8 @@ from sm90d1_common import ROOT, read, sha, write
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--components', type=Path, nargs='+', required=True)
+    p.add_argument('--attention-cache-state', required=True,
+                   choices=('warm_reuse', 'l2_scrub_surrogate'))
     p.add_argument('--ledger', type=Path, required=True)
     p.add_argument('--overhead', type=Path, required=True)
     p.add_argument('--probe', type=Path, default=ROOT / 'build/sm90r2_price_probe')
@@ -37,6 +39,12 @@ def main():
     if any(value.get('usable_for_calibration') is False for value in values):
         raise ValueError('a component input is explicitly excluded from calibration')
     observations = [row for value in values for row in value['observations']]
+    attention = [row for row in observations if row['metric'].startswith('attention_')]
+    if not attention or any(row.get('cache_state') not in
+            ('warm_reuse', 'l2_scrub_surrogate') for row in attention):
+        raise ValueError('attention observations require explicit cache preparation provenance')
+    if not any(row['cache_state'] == a.attention_cache_state for row in attention):
+        raise ValueError('the requested attention cache profile has no observations')
     if any((r['metric'].startswith(('attention_', 'v3_'))) and
            r.get('timestamp_arithmetic') != 'integer_delta_v1' for r in observations):
         raise ValueError('globaltimer calibration must subtract integer timestamps before conversion')
@@ -76,7 +84,8 @@ def main():
                     l2_efficiency=0,issue_ns=0,issue_service_scale=0))
     cal = dict(schema=1, flow_model='overlapped_operands_v1',issue_model='issuer_packets_v3',
         overlap_model='operand_service_only_v2',
-        attention_grid_model='explicit_grid_chunks_v2',
+        attention_grid_model='explicit_geometry_cache_v3',
+        attention_cache_state=a.attention_cache_state,
         barrier_model='active_arrival_v1',
         epilogue_model='operation_shared_v1',
         receiver_model='prefix_receiver_v1',

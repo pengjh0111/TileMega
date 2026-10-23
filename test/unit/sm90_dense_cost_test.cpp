@@ -16,6 +16,7 @@ json::Value Fixture() {
         {"slot_bytes",16384},{"slots",3},{"batch",1},{"tile_n",32},
         {"vector_sums",1},{"head_dim",128},{"queries",2},{"qk_norm",1},
         {"warps_n",1},{"warps_k",4},{"register_stages",1},
+        {"cache_state","warm_reuse"},
         {"production_compatible",true},
         {"chunks",16},{"block_keys",64},{"new_row_work",0},{"past",575},{"tile_k",256},{"input_k",4096},{"cache",cache}});
   };
@@ -49,6 +50,13 @@ json::Value Fixture() {
         value.Set("median",row.At("median").AsNumber("median")*std::max(1,chunks/16));
         observations.push_back(value);
       }
+  attention_rows=observations;
+  for(auto const& row:attention_rows)
+    if(row.At("metric").AsString("metric")=="attention_critical_before_barrier" &&
+        row.At("chunks").AsNumber("chunks")>1)
+      for(int work:{8,16}) {
+        auto value=row;value.Set("new_row_work",work);observations.push_back(value);
+      }
   json::Object fits;
   auto fit=[&](char const* key,json::Object coefficients) {
     coefficients.emplace_back("issue_service_scale",0);
@@ -74,7 +82,8 @@ json::Value Fixture() {
   return json::Object{{"schema",1},{"flow_model","overlapped_operands_v1"},
       {"issue_model","issuer_packets_v3"},
       {"overlap_model","operand_service_only_v2"},
-      {"attention_grid_model","explicit_grid_chunks_v2"},
+      {"attention_grid_model","explicit_geometry_cache_v3"},
+      {"attention_cache_state","warm_reuse"},
       {"barrier_model","active_arrival_v1"},
       {"epilogue_model","operation_shared_v1"},
       {"receiver_model","prefix_receiver_v1"},
@@ -128,6 +137,68 @@ int main() {
     rejected_chunks=std::string(e.what()).find("attention_critical_before_barrier")!=std::string::npos;
   }
   assert(rejected_chunks);
+  auto rejects=[&](json::Value const& calibration,Sm90DenseWorkload const& work,
+      Sm90DenseCoordinates const& coordinates) {
+    try {Sm90DenseCostModel(t,calibration).Predict(work,coordinates);}
+    catch(std::invalid_argument const& error) {return std::string(error.what());}
+    assert(false && "missing exact attention calibration must be rejected");
+    return std::string{};
+  };
+  auto without_field=[](json::Value value,char const* name) {
+    auto fields=value.AsObject("object");
+    fields.erase(std::remove_if(fields.begin(),fields.end(),[&](auto const& field) {
+      return field.first==name;
+    }),fields.end());
+    return json::Value(fields);
+  };
+  auto old_attention=Fixture();old_attention.Set("attention_grid_model","explicit_grid_chunks_v2");
+  assert(rejects(old_attention,w,c).find("exact geometry and cache")!=std::string::npos);
+  assert(rejects(without_field(Fixture(),"attention_cache_state"),w,c)
+      .find("attention_cache_state")!=std::string::npos);
+  auto unknown_cache=Fixture();unknown_cache.Set("attention_cache_state","unspecified");
+  assert(rejects(unknown_cache,w,c).find("unsupported native attention_cache_state")!=std::string::npos);
+  auto missing_cache=Fixture();auto uncached_rows=missing_cache.At("observations").AsArray("observations");
+  for(auto& row:uncached_rows)
+    if(row.At("metric").AsString("metric")=="attention_critical_before_barrier")
+      row=without_field(row,"cache_state");
+  missing_cache.Set("observations",uncached_rows);
+  assert(rejects(missing_cache,w,c).find("explicit cache_state")!=std::string::npos);
+  auto wrong_cache=Fixture();wrong_cache.Set("attention_cache_state","l2_scrub_surrogate");
+  auto cache_error=rejects(wrong_cache,w,c);
+  for(auto key:{"attention_critical_before_barrier","cache_state=l2_scrub_surrogate",
+      "batch=1","chunks=16","grid=132"})assert(cache_error.find(key)!=std::string::npos);
+  auto mixed_cache=Fixture();auto mixed_rows=mixed_cache.At("observations").AsArray("observations");
+  auto warm_rows=mixed_rows;
+  for(auto row:warm_rows)
+    if(row.At("metric").AsString("metric")=="attention_critical_before_barrier") {
+      row.Set("cache_state","l2_scrub_surrogate");
+      row.Set("median",row.At("median").AsNumber("median")*10);mixed_rows.push_back(row);
+    }
+  mixed_cache.Set("observations",mixed_rows);
+  assert(Sm90DenseCostModel(t,mixed_cache).Predict(w,c).stages[1].flow==6000);
+  mixed_cache.Set("attention_cache_state","l2_scrub_surrogate");
+  assert(Sm90DenseCostModel(t,mixed_cache).Predict(w,c).stages[1].flow==60000);
+  std::reverse(mixed_rows.begin(),mixed_rows.end());mixed_cache.Set("observations",mixed_rows);
+  assert(Sm90DenseCostModel(t,mixed_cache).Predict(w,c).stages[1].flow==60000);
+  auto unused_axes=c;unused_axes.attention.block_keys=128;unused_axes.attention.slots=8;
+  assert(model.Predict(w,unused_axes).step_ns==model.Predict(w,c).step_ns);
+  auto unused_labels=Fixture();auto label_rows=unused_labels.At("observations").AsArray("observations");
+  for(auto& row:label_rows)
+    if(row.At("metric").AsString("metric")=="attention_critical_before_barrier" &&
+        row.At("batch").AsNumber("batch")==1) {
+      row.Set("block_keys",16);row.Set("slots",8);
+    }
+  unused_labels.Set("observations",label_rows);
+  assert(Sm90DenseCostModel(t,unused_labels).Predict(w,c).step_ns==model.Predict(w,c).step_ns);
+  auto missing_work=Fixture();json::Array row_work_zero;
+  for(auto const& row:missing_work.At("observations").AsArray("observations"))
+    if(row.At("metric").AsString("metric")!="attention_critical_before_barrier" ||
+        row.At("new_row_work").AsNumber("new row work")==0)row_work_zero.push_back(row);
+  missing_work.Set("observations",row_work_zero);
+  auto row_work=c;row_work.attention.new_row_work=8;
+  auto work_error=rejects(missing_work,w,row_work);
+  assert(work_error.find("new_row_work=8")!=std::string::npos &&
+      work_error.find("chunks=16")!=std::string::npos);
   double total=0;
   for(auto const& p:prediction.stages) {
     assert(p.ns>=p.dram && p.ns>=p.barrier && p.ns>0);
@@ -174,10 +245,11 @@ int main() {
   assert(stale_rejected);
   auto full_batch=w;full_batch.batch=16;
   auto balanced=Fixture();auto balanced_rows=balanced.At("observations").AsArray("observations");
-  for(auto row:balanced.At("observations").AsArray("observations"))
+  for(auto& row:balanced_rows)
     if(row.At("metric").AsString("metric")=="attention_critical_before_barrier" &&
-        row.At("batch").AsNumber("batch")==1) {
-      row.Set("new_row_work",8);row.Set("median",5000);balanced_rows.push_back(row);
+        row.At("batch").AsNumber("batch")==1 &&
+        row.At("new_row_work").AsNumber("new row work")==8) {
+      row.Set("median",5000);
     }
   balanced.Set("observations",balanced_rows);auto balanced_c=c;balanced_c.attention.new_row_work=8;
   assert(Sm90DenseCostModel(t,balanced).Predict(w,balanced_c).stages[1].flow==5000);
@@ -194,6 +266,22 @@ int main() {
   assert(missing_attention_batch);
   auto full_coordinates=Sm90DenseCoordinates::Exact(w.shapes,16,t.res.max_dynamic_smem_per_cta);
   for(auto const& p:model.Request(full_batch,full_coordinates).stages)assert(p.initialization==0);
+  auto different_keys=full_coordinates;different_keys.attention.block_keys=32;
+  auto key_error=rejects(Fixture(),full_batch,different_keys);
+  assert(key_error.find("block_keys=32")!=std::string::npos && key_error.find("batch=16")!=std::string::npos);
+  auto different_slots=full_coordinates;different_slots.attention.slots=4;
+  auto slot_error=rejects(Fixture(),full_batch,different_slots);
+  assert(slot_error.find("slots=4")!=std::string::npos && slot_error.find("batch=16")!=std::string::npos);
+  auto single_chunk=full_coordinates;single_chunk.attention.new_row_work=16;
+  assert(single_chunk.attention.chunks==1);
+  assert(model.Predict(full_batch,single_chunk).step_ns==model.Predict(full_batch,full_coordinates).step_ns);
+  auto irrelevant_work=Fixture();auto irrelevant_rows=irrelevant_work.At("observations").AsArray("observations");
+  for(auto& row:irrelevant_rows)
+    if(row.At("metric").AsString("metric")=="attention_critical_before_barrier" &&
+        row.At("chunks").AsNumber("chunks")==1)row.Set("new_row_work",16);
+  irrelevant_work.Set("observations",irrelevant_rows);
+  assert(Sm90DenseCostModel(t,irrelevant_work).Predict(full_batch,full_coordinates).step_ns==
+      model.Predict(full_batch,full_coordinates).step_ns);
   auto reused=c;reused.attention.workspace_offset=32768;
   assert(reused.ActivationReuse(w.batch,w.head_dim,w.queries,1088).valid);
   auto reused_prediction=model.Predict(w,reused);

@@ -46,8 +46,13 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal)
      cal.At("overlap_model").AsString("native overlap model")!="operand_service_only_v2")
     throw std::invalid_argument("native preissue credit requires operand-only calibration");
   if(!cal.Find("attention_grid_model") ||
-     cal.At("attention_grid_model").AsString("attention grid model")!="explicit_grid_chunks_v2")
-    throw std::invalid_argument("native attention pricing requires grid- and chunk-specific calibration");
+     cal.At("attention_grid_model").AsString("attention grid model")!="explicit_geometry_cache_v3")
+    throw std::invalid_argument("native attention pricing requires exact geometry and cache calibration");
+  if(!cal.Find("attention_cache_state"))
+    throw std::invalid_argument("native attention pricing requires an explicit attention_cache_state");
+  attention_cache_state_=cal.At("attention_cache_state").AsString("attention cache state");
+  if(attention_cache_state_!="warm_reuse" && attention_cache_state_!="l2_scrub_surrogate")
+    throw std::invalid_argument("unsupported native attention_cache_state: "+attention_cache_state_);
   if(!cal.Find("barrier_model") ||
      cal.At("barrier_model").AsString("native barrier model")!="active_arrival_v1")
     throw std::invalid_argument("native barriers require active-arrival calibration");
@@ -78,6 +83,19 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal)
        (!v.Find("production_compatible") ||
         !v.At("production_compatible").AsBool("production-compatible calibration")))
       throw std::invalid_argument("native mainloop calibration needs a matching resource audit");
+    if(v.At("metric").AsString("metric").rfind("attention_",0)==0) {
+      if(!v.Find("cache_state") ||
+          (v.At("cache_state").AsString("attention observation cache state")!="warm_reuse" &&
+           v.At("cache_state").AsString("attention observation cache state")!="l2_scrub_surrogate"))
+        throw std::invalid_argument("attention observation needs explicit cache_state: "+
+            v.At("metric").AsString("metric"));
+      // Low-batch attention does not instantiate streaming keys/slots. A
+      // single chunk has no movable new-row boundary in either body family.
+      if(v.Find("batch") && v.At("batch").AsNumber("batch")<=4) {
+        v.Set("block_keys",64);v.Set("slots",3);
+      }
+      if(v.Find("chunks") && v.At("chunks").AsNumber("chunks")==1)v.Set("new_row_work",0);
+    }
     observations_[v.At("metric").AsString("native metric")].push_back(v);
     if(v.At("metric").AsString("metric")=="bulk_stream_per_active_cta" &&
        v.At("cache").AsString("cache")=="dram" &&
@@ -100,7 +118,7 @@ double Sm90DenseCostModel::Quantity(std::string const& metric,
   auto cached=quantities_.find(cache_key);
   if(cached!=quantities_.end())return cached->second;
   auto it=observations_.find(metric);
-  if(it==observations_.end())throw std::invalid_argument("missing native measurement: "+metric);
+  if(it==observations_.end())throw std::invalid_argument("missing native measurement: "+cache_key);
   double best=std::numeric_limits<double>::infinity(),result=0;
   std::map<double,std::vector<double>> samples;
   for(auto const& row:it->second) {
@@ -117,10 +135,9 @@ double Sm90DenseCostModel::Quantity(std::string const& metric,
       double x=value->AsNumber(d.first.c_str());
       if((d.first=="head_dim" || d.first=="queries" || d.first=="qk_norm" ||
           d.first=="vector_sums") && x!=d.second) {match=false;break;}
-      // These observations time the entire attention stage, including task
-      // waves and last-arriver reduction. A different S is not a nearby tile.
-      if(metric.rfind("attention_",0)==0 &&
-          (d.first=="batch" || d.first=="grid" || d.first=="chunks") &&
+      // Whole-stage observations include waves, ring synchronization and LA.
+      // Only past is interpolated; a neighboring geometry is another program.
+      if(metric.rfind("attention_",0)==0 && d.first!="past" &&
           x!=d.second) {match=false;break;}
       if(metric.rfind("v3_sparse_",0)==0 && d.first=="grid" && x!=d.second) {
         match=false;break;
@@ -143,7 +160,7 @@ double Sm90DenseCostModel::Quantity(std::string const& metric,
     for(auto const& point:samples)curve.emplace(point.first,Median(point.second));
     result=Interpolate(curve,dims.count("past")?dims.at("past"):0);
   }
-  if(!result)throw std::invalid_argument("no matching native measurement: "+metric);
+  if(!result)throw std::invalid_argument("no matching native measurement: "+cache_key);
   quantities_[cache_key]=result;return result;
 }
 double Sm90DenseCostModel::MainloopNs(Sm90DenseGemm const& g) const {
@@ -271,10 +288,11 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
       s.tasks=w.batch*8*a.chunks;s.waves=(s.tasks+grid-1)/grid;
       std::map<std::string,double> dimensions={{"batch",w.batch},{"grid",grid},{"head_dim",w.head_dim},
           {"queries",w.queries},{"qk_norm",w.qk_norm},{"chunks",a.chunks},
-          {"block_keys",a.block_keys},{"slots",a.slots},{"past",past},
+          {"block_keys",w.batch<=4?64:a.block_keys},{"slots",w.batch<=4?3:a.slots},{"past",past},
           {"new_row_work",a.chunks==1?0:a.new_row_work}};
       // The whole-stage calibration includes deterministic LA and wave costs.
-      s.flow=Quantity("attention_critical_before_barrier",dimensions)*
+      s.flow=Quantity("attention_critical_before_barrier",dimensions,
+          {{"cache_state",attention_cache_state_}})*
           Coefficient(s.key,"body_scale");
       s.dram=4.*w.batch*8*past*w.head_dim/global_bw;
       s.compute=s.flow;s.startup=Coefficient(s.key,"startup_ns");

@@ -34,6 +34,7 @@ class Sm90DenseCostModel {
   Sm90DensePrediction Request(Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;
  private:
   TargetSpec target_;
+  std::string attention_cache_state_;
   std::map<std::string,std::vector<json::Value>> observations_;
   std::map<std::string,json::Value> fits_;
   mutable std::map<std::string,double> quantities_;
