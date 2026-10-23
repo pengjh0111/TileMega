@@ -206,9 +206,18 @@ TaskPriceParts CostModel::PriceParts(DerivedTaskInput const& input,BackendTraits
   }
   if(!input.serving_body_kind.empty() &&
      !(input.serving_attention && result.compute_ns==0 && result.dram_bytes==0)) {
-    auto calibrated=fit.serving.find((gemv?"gemv_":"")+input.serving_body_kind);
+    // MX4 prompt §5.6: the body as timed at this residency (104*R CTAs at
+    // once) and, for a GEMM, at its depth.
+    std::string key=(gemv?"gemv_":"")+input.serving_body_kind;
+    if(!gemv && traits.stages>0 && input.serving_body_kind.rfind("gemm_",0)==0)
+      key+="_d"+std::to_string(traits.stages);
+    if(input.serving_attention && input.serving_attention->prefill)
+      key+="_kv"+std::to_string(input.serving_attention->kv_tile);
+    // gemm_combine is fitted in situ (MX-3), at the plans' own residency.
+    if(input.serving_body_kind!="gemm_combine")key+="_r"+std::to_string(residency.ctas_per_sm);
+    auto calibrated=fit.serving.find(key);
     if(input.serving_attention && calibrated==fit.serving.end())
-      throw std::invalid_argument("missing attention calibration: "+input.serving_body_kind);
+      throw std::invalid_argument("missing attention calibration: "+key);
     if(calibrated!=fit.serving.end()) {
       auto const& body=calibrated->second;
       double bytes=serving_body_bytes>=0?serving_body_bytes:
