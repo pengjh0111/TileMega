@@ -48,7 +48,7 @@ def bind(prefill, decode, inputs, out):
         plans.append(dict(phase=phase,path=path,metadata=m,buffers=buffers))
     variants=[]
     for plan in plans:
-        v={s[31] for s in struct.iter_unpack('<17Q16I',(plan['path']/'stages.bin').read_bytes()) if s[17]==0}
+        v={1 if s[31]==2 else s[31] for s in struct.iter_unpack('<17Q16I',(plan['path']/'stages.bin').read_bytes()) if s[17]==0}
         if len(v)!=1 or not v.issubset({0,1}):raise ValueError('One request binary requires a uniform registered geometry')
         variants.append(next(iter(v)))
     if variants[0]!=variants[1]:raise ValueError('Prefill/decode use different compiled GEMM geometries')

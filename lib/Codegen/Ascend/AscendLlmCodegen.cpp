@@ -40,9 +40,11 @@ template<class T> void Binary(std::filesystem::path const& p,std::vector<T> cons
 }
 AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem const& p,
     ascend::WorkerMap const& map,std::vector<solver::AscendScheduledTask> const& input,
-    solver::AscendSchedule const& schedule,bool diagnostic,unsigned attention_precision) {
+    solver::AscendSchedule const& schedule,bool diagnostic,unsigned attention_precision,bool local_tail_k7) {
   using namespace ascend::llm;
   if(attention_precision>8)throw std::invalid_argument("Unknown native attention precision contract");
+  if(local_tail_k7 && (p.model.dims.batch!=16 || p.model.dims.seq!=64))
+    throw std::invalid_argument("Local tail reduction is bounded to B16 prefill");
   if(!module || mlir::failed(mlir::verify(module)) || !p.model.serving || p.model.dm ||
       p.model.dtype!=solver::ScalarType::kBF16 || (p.model.dims.seq!=1 && p.model.dims.seq!=64) || p.model.dims.batch<1 ||
       p.model.serving_capacity!=1088 || (p.model.dims.seq==1?p.model.dims.past!=1087:p.model.dims.past!=0))
@@ -99,6 +101,7 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
       {"external_name",""},{"pack_json",""},{"required_input",false}});
     arena=Add(arena,allocated);return offset;
   };
+  unsigned local_tail_stages=0;
   for(unsigned s=0;s<p.counts.size();++s) {
     auto projected=p.projection.stages.at(s);
     auto const& source=p.model.stages.at(projected.logical_stage);auto d=At(ss,projected.logical_stage);
@@ -157,6 +160,14 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
           {"allocated_bytes",double(Mul(Add(Add(bytes,512),511)/512,512))},{"no_producer",false},
           {"external_name",""},{"pack_json",""}});
         arena=Add(arena,Mul(Add(Add(bytes,512),511)/512,512));
+      }
+      if(local_tail_k7 && stage.columns==2048 && stage.k==8192 && stage.epilogue==1) {
+        if(!small || geo.split_k!=1 || stage.rows!=1024)
+          throw std::invalid_argument("Local tail Body requires complete unsplit output-tile ownership");
+        stage.variant=2;
+        stage.operands[5]=scratch("native.gemm.local_tail7."+std::to_string(projected.logical_stage),
+            "f32",Mul(map.workers.size()/3,7ULL*16*128*4));
+        ++local_tail_stages;
       }
     }else {
       auto operands=d.getAs<mlir::DenseI64ArrayAttr>("operands");
@@ -219,6 +230,8 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
     if(expected!=stage.tasks)throw std::invalid_argument("Native task coordinates disagree with CTG ownership");
     out.stages.push_back(stage);
   }
+  if(local_tail_k7 && local_tail_stages!=16)
+    throw std::invalid_argument("Local tail implementation did not bind all sixteen down projections");
   for(unsigned s=0;s<out.stages.size();++s)if(out.stages[s].kind==6) {
     auto const& combine=out.stages[s];
     if(!s || p.projection.stages[s-1].logical_stage!=p.projection.stages[s].logical_stage ||
@@ -292,6 +305,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
       else id+="_16x128x128";
     }
     if(s.kind==0 && s.extent>1)id="as2_catlass_bf16_fp32_split"+std::to_string(s.extent)+"_k"+std::to_string(s.width)+"_16x128x128_l0k64";
+    if(s.kind==0 && s.variant==2)id="as2_mix_gemm_local_tail7_residual_16x128x128";
     else if(s.kind==1)id=s.variant==3?"as2_aiv_rmsnorm_cann_newton_fold"+std::to_string(s.width==3072?2048:s.width/2)+"_h"+std::to_string(s.width):s.variant==2?"as2_aiv_rmsnorm_cann_newton_h"+std::to_string(s.width):"as2_aiv_rmsnorm_full_row";
     else if(s.kind==25)id="as2_aiv_qkv_group_pack_h128_gqa4";
     else if(s.kind==11)id="as2_aiv_embedding_i32_bf16";
@@ -317,6 +331,10 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
       {"tile_k",s.kind==0?(s.variant?128:64):0},
       {"split_count",(s.kind==0 || s.kind==6)&&s.extent>1?int(s.extent):1},
       {"partial_k",(s.kind==0 || s.kind==6)&&s.extent>1?int(s.width):0},
+      {"local_k_partitions",s.kind==0&&s.variant==2?7:1},
+      {"local_k_partition_column_begin",s.kind==0&&s.variant==2?1792:0},
+      {"local_reduction_scope",s.kind==0&&s.variant==2?"indivisible MIX Body; original CTG tile and external event":"none"},
+      {"local_gm_group_bytes",s.kind==0&&s.variant==2?57344:0},
       {"partial_layout",(s.kind==0 || s.kind==6)&&s.extent>1?"logical[row,col,part] -> physical[part,row,col]":"not_applicable"},
       {"partial_dtype",(s.kind==0 || s.kind==6)&&s.extent>1?"fp32":"not_applicable"},
       {"partial_workspace_bytes",(s.kind==0 || s.kind==6)&&s.extent>1?double(uint64_t(s.rows)*s.columns*s.extent*4):0},
@@ -343,15 +361,18 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
   std::ifstream file(std::string(TILEMEGA_SOURCE_DIR)+"/lib/Codegen/Ascend/PersistentLlm.cpp.in");
   if(!file)throw std::runtime_error("Missing native LLM template");
   int variant=-1;
+  bool local=false;
   for(auto const& s:p.stages)if(s.kind==0) {
-    if(s.variant>1 || (variant>=0 && unsigned(variant)!=s.variant))
+    unsigned geometry=s.variant==2?1:s.variant;
+    if(s.variant>2 || (variant>=0 && unsigned(variant)!=geometry))
       throw std::invalid_argument("One compiled native candidate requires a uniform verified GEMM geometry");
-    variant=s.variant;
+    variant=geometry;local|=s.variant==2;
   }
   if(variant<0)throw std::invalid_argument("Native LLM has no registered GEMM body");
-  bool split=false;for(auto const& s:p.stages)if(s.kind==6)split=true;
+  bool split=local;for(auto const& s:p.stages)if(s.kind==6)split=true;
   return std::string("// Generated by TileMega: verified CTG tables and candidate geometry, LLM ABI v4.\n")+
     "#define TILEMEGA_LLM_SPLIT_K "+std::to_string(unsigned(split))+"\n"+
+    "#define TILEMEGA_LLM_LOCAL_TAIL_K7 "+std::to_string(unsigned(local))+"\n"+
     "#define TILEMEGA_LLM_VARIANT "+std::to_string(variant)+"\n"+
     "#define TILEMEGA_LLM_TM "+std::to_string(variant?16:32)+"\n"+
     "#define TILEMEGA_LLM_TN "+std::to_string(variant?128:64)+"\n"+

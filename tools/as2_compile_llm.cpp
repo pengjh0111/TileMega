@@ -48,12 +48,14 @@ int main(int argc,char** argv) {
       return 0;
     }
     bool priced_decomposition=argc==11 && std::string(argv[1])=="emit-priced-decomposed";
-    bool priced=priced_decomposition || (argc==10 && std::string(argv[1])=="emit-priced");
+    bool priced_body=argc==11 && std::string(argv[1])=="emit-priced-body";
+    bool body=priced_body || (argc==10 && std::string(argv[1])=="emit-body");
+    bool priced=priced_decomposition || priced_body || (argc==10 && std::string(argv[1])=="emit-priced");
     bool decomposed=priced_decomposition || (argc==10 && std::string(argv[1])=="emit-decomposed");
-    bool emit=priced || decomposed || ((argc>=6 && argc<=9) && std::string(argv[1])=="emit-diagnostic");
+    bool emit=priced || decomposed || body || ((argc>=6 && argc<=9) && std::string(argv[1])=="emit-diagnostic");
     bool prepare=emit || (argc==6 && std::string(argv[1])=="prepare");
     if(!prepare && (argc!=5 || std::string(argv[1])!="inspect"))
-      throw std::invalid_argument("usage: as2_compile_llm inspect export new_output batch; or prepare|emit-diagnostic export new_output batch groups [diagnostic_kv_block] [gemm_tile_n:64|128] [attention:bf16|fp32|fp32-scores|math-sdpa|cube-fp32|cube-fp32-newton|cube-fp32-newton-full|cube-fp32-newton-fold|cube-fp32-fold-softmax]; or emit-priced|emit-decomposed export new_output batch groups kv_block tile_n attention prices_or_decomposition.json");
+      throw std::invalid_argument("usage: as2_compile_llm inspect export new_output batch; or prepare|emit-diagnostic export new_output batch groups [diagnostic_kv_block] [gemm_tile_n:64|128] [attention:bf16|fp32|fp32-scores|math-sdpa|cube-fp32|cube-fp32-newton|cube-fp32-newton-full|cube-fp32-newton-fold|cube-fp32-fold-softmax]; or emit-priced|emit-decomposed export new_output batch groups kv_block tile_n attention prices_or_decomposition.json; or emit-body|emit-priced-body export new_output batch groups kv_block tile_n attention [prices.json] binding.json");
     namespace fs=std::filesystem;
     auto root=fs::path("/home/d50064638/junhuip/TileMega/runs/as2");
     auto input=fs::weakly_canonical(argv[2]),output=fs::weakly_canonical(argv[3]);
@@ -85,6 +87,21 @@ int main(int argc,char** argv) {
       attention_precision=attention=="fp32"?1:attention=="fp32-scores"?2:attention=="math-sdpa"?3:attention=="cube-fp32"?4:attention=="cube-fp32-newton"?5:attention=="cube-fp32-newton-full"?6:attention=="cube-fp32-newton-fold"?7:attention=="cube-fp32-fold-softmax"?8:0;
     }
     tilemega::json::Value decomposition;
+    tilemega::json::Value binding;
+    if(body) {
+      auto path=fs::weakly_canonical(argv[priced_body?10:9]);
+      auto root=fs::path(TILEMEGA_SOURCE_DIR)/"configs/ascend";
+      auto relative=path.lexically_relative(root);
+      if(relative.empty() || *relative.begin()=="..")throw std::invalid_argument("Use a checked-in Body binding");
+      binding=tilemega::json::ParseFile(path.string());
+      if(binding.At("schema").AsString("schema")!="tilemega.as2.body_binding.v1" ||
+          binding.At("impl_id").AsString("impl_id")!="as2_mix_gemm_local_tail7_residual_16x128x128" ||
+          binding.At("model_id").AsString("model")!="llama3_2_1b" ||
+          receipt.At("model_id").AsString("model")!="llama3_2_1b" ||
+          binding.At("phase").AsString("phase")!=phase || phase!="prefill" || batch!=16 ||
+          binding.At("batch").AsNumber("batch")!=batch || serving.argmax_tile_n!=128)
+        throw std::invalid_argument("Unverified local Body binding");
+    }
     if(decomposed) {
       auto path=fs::weakly_canonical(argv[priced_decomposition?10:9]);
       auto config_root=fs::path(TILEMEGA_SOURCE_DIR)/"configs/ascend";
@@ -172,6 +189,7 @@ int main(int argc,char** argv) {
       result.Set("decomposition_candidate",decomposition);
       result.Set("decomposed_logical_gemms",int(decomposed_gemms));
     }
+    if(body)result.Set("body_binding_candidate",binding);
     if(prepare) {
       const int groups=std::stoi(argv[5]);
       auto target=tilemega::TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+"/configs/targets/ascend_3510.json");
@@ -296,7 +314,7 @@ int main(int argc,char** argv) {
             {"device_execution_verified",false},{"end_to_end_performance_admitted",false}}).Dump());
           if(!choose_eft)scheduled=std::move(baseline);
         }
-        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision);
+        auto native=tilemega::codegen::MaterializeAscendLlm(*module,problem,workers,tasks,scheduled,!priced,attention_precision,body);
         if(priced) {
           auto const& rows=prices.At("stages").AsArray("stage prices");
           for(unsigned s=0;s<rows.size();++s) {
