@@ -167,9 +167,10 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
 #if defined(TILEMEGA_LLM_SPLIT_K) && TILEMEGA_LLM_SPLIT_K
     if(s.kind==6) {
       const bool family=(s.extent==3 && s.columns==2048 && (s.k==6144 || s.k==8192)) ||
-                        (s.extent==2 && s.columns==3072 && s.k==8192);
+                        (s.extent==2 && s.columns==3072 && s.k==8192) ||
+                        (s.extent==7 && s.columns==1024 && s.k==4096);
       if(!family || s.width!=(s.k+s.extent-1)/s.extent ||
-          (s.rows!=1 && s.rows!=64) || s.epilogue!=1 || s.operands[5]==llm::kAbsent)return false;
+          (s.rows!=1 && s.rows!=64) || s.epilogue!=(s.extent==7?0u:1u) || s.operands[5]==llm::kAbsent)return false;
       const unsigned nt=(s.columns+TN-1)/TN,first=task%nt*TN,row=task/nt*TM;
       for(unsigned r=row;r<row+TM && r<s.rows;++r) {
         unsigned n=s.columns-first<TN?s.columns-first:TN;
@@ -177,10 +178,21 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
         if(!vector_.CombineGemm(arena+s.workspace+index*4,
             p(5)+index*2,uint64_t(s.rows)*s.columns,s.extent,n))return false;
       }
+      if(!s.epilogue)return true;
       Acquire(p(5));auto epilogue=s;epilogue.workspace=s.operands[5];
       return Epilogue(epilogue,task,arena);
     }
 #endif
+    if(s.kind==25) {
+      if(s.extent!=8 || s.width!=768 || s.group!=1 || s.query_rows!=4 || s.kv_block!=128 || task>=s.rows)return false;
+      const uint64_t qrow=uint64_t(task)*4096,kvrow=uint64_t(task)*1024,outrow=uint64_t(task)*6144;
+      for(unsigned g=0;g<8;++g) {
+        if(!vector_.Copy(p(0)+(qrow+g*512)*2,p(3)+(outrow+g*768)*2,512) ||
+            !vector_.Copy(p(1)+(kvrow+g*128)*2,p(3)+(outrow+g*768+512)*2,128) ||
+            !vector_.Copy(p(2)+(kvrow+g*128)*2,p(3)+(outrow+g*768+640)*2,128))return false;
+      }
+      return true;
+    }
     if(s.kind==11) {
       unsigned row=task,b=row/meta.seq,pos=past+row%meta.seq;
       unsigned id=ReadControl((__gm__ uint32_t*)p(0)+uint64_t(b)*meta.capacity+pos);

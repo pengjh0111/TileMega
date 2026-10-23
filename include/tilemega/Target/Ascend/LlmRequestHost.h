@@ -39,13 +39,17 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
     throw std::invalid_argument("This binary does not register CTG split-K/combine");
 #else
     const bool family=(s.extent==3 && s.columns==2048 && (s.k==6144 || s.k==8192)) ||
-                      (s.extent==2 && s.columns==3072 && s.k==8192);
+                      (s.extent==2 && s.columns==3072 && s.k==8192) ||
+                      (s.extent==7 && s.columns==1024 && s.k==4096);
     if(!family || s.variant!=1 || s.width!=(s.k+s.extent-1)/s.extent || s.group!=1 ||
         (s.rows!=1 && s.rows!=64) ||
-        (s.kind==0?s.epilogue!=0:s.epilogue!=1))
+        (s.kind==0?s.epilogue!=0:s.epilogue!=(s.extent==7?0u:1u)))
       throw std::invalid_argument("Unregistered split-K/combine shape or rounding contract");
 #endif
   }
+  for(auto const& s:stages)if(s.kind==25 &&
+      (s.extent!=8 || s.width!=768 || s.group!=1 || s.query_rows!=4 || s.kv_block!=128 || s.variant))
+    throw std::invalid_argument("Unregistered QKV pack geometry");
   for(auto const& s:stages)if(s.kind==13 && s.variant>6)
     throw std::invalid_argument("Unregistered native attention implementation");
   for(auto const& s:stages)if(s.kind==1 && s.variant!=0 &&
