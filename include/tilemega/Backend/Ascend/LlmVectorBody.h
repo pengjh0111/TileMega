@@ -269,11 +269,11 @@ class LlmVectorBody {
     if(variant>=2) {
 #if defined(TILEMEGA_AS2_CANN_NORM_PRIMITIVES) && __CCE_AICORE__ == 310
       // Version-pinned device primitives only, no whole-op scheduler/launch.
-      // The H2048 probe is separate from the still-gated model binding.
-      if(n!=128 && n!=1024 && n!=2048)return false;
-      // Pair opposite half-rows before the lane reduction. The unfurled
-      // H1024 tree loses one rstd ULP on a captured single-row operand.
-      const unsigned fold=variant==3?n/2:n;
+      // Larger full-row probes stay separate from Codegen's model admission.
+      if(n!=128 && n!=1024 && n!=2048 && n!=3072 && n!=4096)return false;
+      // Fold the tail onto a power-of-two span before lane reduction. The
+      // unfurled H1024 tree loses one rstd ULP on a captured single-row input.
+      const unsigned fold=variant==3?(n==3072?2048:n/2):n;
       NormCommon::NormCommonRegbase::CalculateSquareReduceSum<bfloat16_t>(bx_,z_,scratch_,1,n,n,fold,8,n);
       AscendC::PipeBarrier<PIPE_V>();
       if(diagnostic_stats)StoreNormStatistic(diagnostic_stats);

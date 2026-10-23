@@ -49,7 +49,7 @@ int main(int argc,char** argv) {
     unsigned kind=std::stoul(argv[1]),rows=std::stoul(argv[2]),width=std::stoul(argv[3]);
     float epsilon=argc==7?std::stof(argv[6]):1e-6f;
     if(!std::isfinite(epsilon) || epsilon<=0 || epsilon>.01f)throw std::runtime_error("Invalid normalization epsilon");
-    if(kind>6 || !rows || rows>64 || !width || width>14336 || ((kind==0 || kind>=4) && width>4096) || (kind>=5 && width!=128 && width!=1024 && width!=2048) ||
+    if(kind>6 || !rows || rows>64 || !width || width>14336 || ((kind==0 || kind>=4) && width>4096) || (kind>=5 && width!=128 && width!=1024 && width!=2048 && width!=3072 && width!=4096) ||
        (kind==3 && width!=64 && width!=128))throw std::runtime_error("Unsupported bounded vector shape");
     namespace fs=std::filesystem;fs::path root="/home/d50064638/junhuip/TileMega/runs/as2";
     auto input=fs::weakly_canonical(argv[4]),output=fs::weakly_canonical(argv[5]);
