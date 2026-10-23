@@ -648,7 +648,8 @@ class Run:
         features=self.config['features']; settings=self.config['solver']
         candidates=[]
         for pg, library in built.items():
-            static=json.loads(Path(str(library)+'.plan.json').read_text()).get('executor')=='mx_static'
+            manifest_path=Path(str(library)+'.plan.json')  # absent: not an MX-4 plan
+            static=manifest_path.exists() and json.loads(manifest_path.read_text()).get('executor')=='mx_static'
             for mode, loop in execution_combinations(pg, features['decode_executor'], features['decode_loop'], static=static):
                 if pg!='pages' and mode=='L1' and loop and settings['exclude_l1_loop']:
                     continue
