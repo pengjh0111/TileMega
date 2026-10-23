@@ -19,6 +19,7 @@ def main():
     p.add_argument('--attention',choices=('sdpa','eager'),default='sdpa')
     p.add_argument('--norm',choices=('hf','fused'),default='hf')
     p.add_argument('--save-norm-input-layers',type=int,nargs='*',default=[],help='Diagnostic pre-Norm2 operands, stored separately from compared model outputs')
+    p.add_argument('--capture-layers',type=int,nargs='+',help='Bound intermediate storage to these layers; still execute the entire model')
     a=p.parse_args();plan=controlled(a.plan,[RUNS]);inputs=controlled(a.inputs,[RUNS]);out=controlled(a.out,[RUNS])
     receipt=json.loads((inputs/'inputs.json').read_text());buffers=json.loads((plan/'buffers.json').read_text())['buffers']
     if receipt['model_id']!=a.model or receipt['initial_kv'] not in ('all_zero_diagnostic_state_not_prefill','empty_cache_for_prefill') or digest(plan/'metadata.bin')!=receipt['metadata_sha256']:
@@ -29,6 +30,8 @@ def main():
     if weight_hash!=receipt['weight_manifest_sha256'] or manifest['config_sha256']!=receipt['config_sha256']:
         raise ValueError('Paired weight/config identity mismatch')
     batch,past,seq=receipt['batch'],receipt['past'],receipt.get('seq',1);cfg=manifest['config'];saved={};projections={};norm_inputs={}
+    selected=set(range(cfg['num_hidden_layers'])) if a.capture_layers is None else set(a.capture_layers)
+    if not selected or any(i<0 or i>=cfg['num_hidden_layers'] for i in selected):raise ValueError('Invalid diagnostic capture layer')
     if any(i<0 or i>=cfg['num_hidden_layers'] for i in a.save_norm_input_layers):raise ValueError('Invalid diagnostic norm layer')
     def save(name):
         def hook(module,args,result):saved[name]=result.detach().clone()
@@ -37,6 +40,7 @@ def main():
         def hook(module,args):saved[name]=args[0].detach().clone()
         return hook
     for i,layer in enumerate(model.model.layers):
+        if i not in selected:continue
         layer.input_layernorm.register_forward_hook(save(f'l{i}.norm1'))
         layer.post_attention_layernorm.register_forward_hook(save(f'l{i}.norm2'))
         if i in a.save_norm_input_layers:
@@ -44,6 +48,8 @@ def main():
             layer.post_attention_layernorm.register_forward_pre_hook(norm_input)
         layer.self_attn.o_proj.register_forward_pre_hook(before(f'l{i}.context'))
         layer.mlp.down_proj.register_forward_pre_hook(before(f'l{i}.act'))
+        layer.self_attn.o_proj.register_forward_hook(save(f'l{i}.o.raw'))
+        layer.mlp.down_proj.register_forward_hook(save(f'l{i}.down.raw'))
         for kind in ('q','k','v'):
             def capture(module,args,result,i=i,kind=kind):projections[i,kind]=result.detach().clone()
             getattr(layer.self_attn,kind+'_proj').register_forward_hook(capture)
@@ -59,14 +65,19 @@ def main():
             cache_position=position,past_key_values=cache,use_cache=True,return_dict=True,logits_to_keep=1)
         logits=result.logits[:,0].bfloat16();chosen=logits.argmax(-1).to(torch.int32)
         g,d=cfg['num_key_value_heads'],cfg['head_dim'];ratio=cfg['num_attention_heads']//g
-        for i in range(cfg['num_hidden_layers']):
+        for i in sorted(selected):
             q,k,v=(projections[i,t] for t in ('q','k','v'))
             saved[f'l{i}.qkv']=torch.cat((q.reshape(batch*seq,g,ratio,d),k.reshape(batch*seq,g,1,d),v.reshape(batch*seq,g,1,d)),2).reshape(batch*seq,-1)
         saved['final.normalized']=saved['final.normalized'][:,-1,:]
     if a.device=='npu:0':torch.npu.synchronize()
+    native_stages=list(struct.iter_unpack('<17Q16I',(plan/'stages.bin').read_bytes()))
+    residual=[s for s in native_stages if s[17] in (0,6) and s[18]==1]
+    if len(residual)!=2*cfg['num_hidden_layers']:raise ValueError('Residual projection layer identity mismatch')
+    raw_names={s[5] if s[17]==6 else s[16]:f'l{i//2}.{("o" if i%2==0 else "down")}.raw' for i,s in enumerate(residual)}
     files=[]
     for b in buffers:
         value=saved.get(b['name'])
+        if b['offset_bytes'] in raw_names:value=saved.get(raw_names[b['offset_bytes']])
         if b['name'].startswith('native.gemm.raw.'):
             # Logical names remain stable when split projection inserts stages.
             stages=struct.iter_unpack('<17Q16I',(plan/'stages.bin').read_bytes())
@@ -77,7 +88,6 @@ def main():
         path=out/(str(b['id'])+'.bin');path.write_bytes(cpu.view(torch.uint8).numpy().tobytes())
         files.append(dict(id=b['id'],name=b['name'],file=path.name,sha256=digest(path),elements=cpu.numel()))
     (out/'token.bin').write_bytes(chosen.cpu().numpy().tobytes())
-    native_stages=list(struct.iter_unpack('<17Q16I',(plan/'stages.bin').read_bytes()))
     attention_stages=[i for i,s in enumerate(native_stages) if s[17]==13]
     if len(attention_stages)!=cfg['num_hidden_layers']:raise ValueError('KV layer table mismatch')
     for layer,stage in enumerate(attention_stages):
@@ -95,6 +105,8 @@ def main():
         config_sha256=receipt['config_sha256'],weight_manifest_sha256=weight_hash,input_sha256=receipt['input_sha256'],
         implementation=f'pinned_transformers_{a.attention}_{a.norm}_norm',device=a.device,files=files,
         diagnostic_norm_inputs=extra,token_ids=chosen.cpu().tolist())
+    report['captured_layers']=sorted(selected)
+    report['scope']='complete model execution; selected intermediate captures, not full intermediate admission'
     (out/'reference.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps({k:v for k,v in report.items() if k!='files'}))
 

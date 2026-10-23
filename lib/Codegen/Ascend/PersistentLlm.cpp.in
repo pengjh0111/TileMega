@@ -76,9 +76,11 @@ int main(int argc,char** argv) {
             p.offsets,p.queue,p.control,scratch,p.trace,epoch,past,diagnostic);
         });
     }
-    if(argc!=7)throw std::invalid_argument("usage: persistent_llm plan_directory packed_inputs new_output past forwards diagnostic(0/1)");
+    bool prefix_only=argc==8 && std::string(argv[7])=="prefix-only";
+    if(argc!=7 && !prefix_only)throw std::invalid_argument("usage: persistent_llm plan_directory packed_inputs new_output past forwards diagnostic(0/1) [prefix-only]");
     auto plan=Controlled(argv[1]),input=Controlled(argv[2]),out=Controlled(argv[3]);
     unsigned past=Number(argv[4]),forwards=Number(argv[5]),diagnostic=Number(argv[6]);
+    if(prefix_only && (diagnostic!=1 || forwards!=1))throw std::invalid_argument("Prefix capture requires one diagnostic forward");
     auto metas=Read<llm::Metadata>(plan/"metadata.bin");if(metas.size()!=1)throw std::invalid_argument("Wrong metadata count");
     auto m=metas[0];auto stages=Read<llm::Stage>(plan/"stages.bin");auto tasks=Read<llm::Task>(plan/"tasks.bin");
     llm_host::ValidateCompiledBodies(stages);
@@ -149,6 +151,11 @@ int main(int argc,char** argv) {
       }
     }
     std::filesystem::create_directory(out);std::vector<double> elapsed;unsigned abort_code=0;
+    std::ofstream prefixes;
+    if(prefix_only) {
+      prefixes.open(out/"prefixes.jsonl");
+      if(!prefixes)throw std::runtime_error("Cannot open diagnostic prefix manifest");
+    }
     unsigned launches=0;
     for(unsigned epoch=0;epoch<forwards;++epoch) {
       auto start=std::chrono::steady_clock::now();
@@ -178,7 +185,15 @@ int main(int argc,char** argv) {
         if(diagnostic && stage.kind==13 && (stage.operands[1]==a.offset || stage.operands[2]==a.offset) &&
             a.bytes<=8ULL*1048576)small_kv=true;
       }
-      if((!a.required && (a.bytes<=1048576 || logits)) || small_kv) {
+      auto limit=diagnostic?4ULL*1048576:1048576ULL;
+      if(prefix_only && !a.required) {
+        auto bytes=std::min<uint64_t>(a.bytes,262144);
+        std::vector<uint8_t> data(bytes);
+        Check(aclrtMemcpy(data.data(),data.size(),da+a.offset,data.size(),ACL_MEMCPY_DEVICE_TO_HOST),"read diagnostic prefix");
+        Save(out/(std::to_string(id)+".prefix.bin"),data.data(),data.size());
+        prefixes<<"{\"allocation\":"<<id<<",\"allocation_bytes\":"<<a.bytes<<",\"offset_bytes\":0,\"prefix_bytes\":"<<bytes<<"}\n";
+        if(!prefixes)throw std::runtime_error("Cannot save diagnostic prefix manifest");
+      }else if(!prefix_only && ((!a.required && (a.bytes<=limit || logits)) || small_kv)) {
         std::vector<uint8_t> data(a.bytes);Check(aclrtMemcpy(data.data(),data.size(),da+a.offset,data.size(),ACL_MEMCPY_DEVICE_TO_HOST),"read diagnostic buffer");
         Save(out/(std::to_string(id)+".bin"),data.data(),data.size());
       }

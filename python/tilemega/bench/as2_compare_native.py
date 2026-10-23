@@ -39,7 +39,7 @@ def main():
     rows=[]
     for r in reference['files']:
         name=r['name'];kind='intermediate';native=None
-        if name.startswith('native.gemm.raw.') or name=='model.logits':
+        if name==logit['name'] or name=='model.logits':
             name='model.logits';kind='model_logits';native=a.native/(str(logit['id'])+'.bin')
         elif name.startswith('layer') and '.kv_' in name:
             layer=int(name.split('.')[0][5:]);side=name.rpartition('_')[2]
@@ -69,6 +69,8 @@ def main():
         full_generation_gate='not_started',tolerance_version=policy['schema'],
         greedy=dict(status=token_status,native=actual,reference=reference['token_ids']),launch_task_receipts=receipts,
         checked_outputs=len(rows),missing_outputs=missing,failed_outputs=failed,
+        captured_layers=reference.get('captured_layers'),
+        intermediate_coverage='only saved reference tensors; not an all-stage claim',
         model_logits=next(r for r in rows if r['name']=='model.logits'),outputs=rows)
     a.out.write_text(json.dumps(result,indent=2,allow_nan=False)+'\n')
     print(json.dumps({k:v for k,v in result.items() if k!='outputs'},allow_nan=False))
