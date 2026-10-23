@@ -1,0 +1,14 @@
+{
+  "schema": "tilemega.as2.observed_decomposition.v1",
+  "model_id": "qwen3_1_7b",
+  "phase": "prefill",
+  "batch": 1,
+  "status": "experimental_not_model_or_performance_admitted",
+  "evidence": "runs/as2/probes/qwen17_down_tiling_debug_v2/tiling.json; runs/as2/probes/qwen17_down_partial3_numeric_v4.json",
+  "families": [
+    {"n": 2048, "k": 6144, "epilogue": "residual", "split_k": 3, "expected_gemms": 28}
+  ],
+  "partial_dtype": "fp32",
+  "combine_order": "increasing_K_slice_then_BF16_RINT_then_BF16_residual",
+  "automatic_performance_selection": false
+}

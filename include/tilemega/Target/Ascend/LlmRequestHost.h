@@ -34,6 +34,16 @@ inline void Save(fs::path const& path,void const* data,size_t bytes) {
   if(!f)throw std::runtime_error("Cannot save request evidence");
 }
 inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
+  for(auto const& s:stages)if(s.kind==6 || (s.kind==0 && s.extent>1)) {
+#if !defined(TILEMEGA_LLM_SPLIT_K) || !TILEMEGA_LLM_SPLIT_K
+    throw std::invalid_argument("This binary does not register CTG split-K/combine");
+#else
+    if(s.variant!=1 || s.extent!=3 || s.width!=2048 || s.group!=1 ||
+        (s.rows!=1 && s.rows!=64) || s.columns!=2048 || s.k!=6144 ||
+        (s.kind==0?s.epilogue!=0:s.epilogue!=1))
+      throw std::invalid_argument("Unregistered split-K/combine shape or rounding contract");
+#endif
+  }
   for(auto const& s:stages)if(s.kind==13 && s.variant>6)
     throw std::invalid_argument("Unregistered native attention implementation");
   for(auto const& s:stages)if(s.kind==1 && (s.variant!=0 && ((s.variant!=2 && s.variant!=3) || (s.width!=1024 && s.width!=2048))))

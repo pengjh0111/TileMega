@@ -48,10 +48,11 @@ int main(int argc,char** argv) {
       return 0;
     }
     bool priced=argc==10 && std::string(argv[1])=="emit-priced";
-    bool emit=priced || ((argc>=6 && argc<=9) && std::string(argv[1])=="emit-diagnostic");
+    bool decomposed=argc==10 && std::string(argv[1])=="emit-decomposed";
+    bool emit=priced || decomposed || ((argc>=6 && argc<=9) && std::string(argv[1])=="emit-diagnostic");
     bool prepare=emit || (argc==6 && std::string(argv[1])=="prepare");
     if(!prepare && (argc!=5 || std::string(argv[1])!="inspect"))
-      throw std::invalid_argument("usage: as2_compile_llm inspect export new_output batch; or prepare|emit-diagnostic export new_output batch groups [diagnostic_kv_block] [gemm_tile_n:64|128] [attention:bf16|fp32|fp32-scores|math-sdpa|cube-fp32|cube-fp32-newton|cube-fp32-newton-full|cube-fp32-newton-fold|cube-fp32-fold-softmax]; or emit-priced export new_output batch groups kv_block tile_n attention measured_prices.json");
+      throw std::invalid_argument("usage: as2_compile_llm inspect export new_output batch; or prepare|emit-diagnostic export new_output batch groups [diagnostic_kv_block] [gemm_tile_n:64|128] [attention:bf16|fp32|fp32-scores|math-sdpa|cube-fp32|cube-fp32-newton|cube-fp32-newton-full|cube-fp32-newton-fold|cube-fp32-fold-softmax]; or emit-priced|emit-decomposed export new_output batch groups kv_block tile_n attention prices_or_decomposition.json");
     namespace fs=std::filesystem;
     auto root=fs::path("/home/d50064638/junhuip/TileMega/runs/as2");
     auto input=fs::weakly_canonical(argv[2]),output=fs::weakly_canonical(argv[3]);
@@ -93,6 +94,36 @@ int main(int argc,char** argv) {
     options.rope_tile_per_block=options.kv_tile_per_block=options.activation_tile_per_block=options.combiner_tile_per_block=true;
     if(serving.argmax_tile_n==128)options.gemms.assign(plan.gemms.size(),{16,128,128,2,1});
     else options.gemms.assign(plan.gemms.size(),{32,64,64,2,1});
+    tilemega::json::Value decomposition;
+    unsigned decomposed_gemms=0;
+    if(decomposed) {
+      auto path=fs::weakly_canonical(argv[9]);
+      auto config_root=fs::path(TILEMEGA_SOURCE_DIR)/"configs/ascend";
+      auto relative=path.lexically_relative(config_root);
+      if(relative.empty() || *relative.begin()=="..")throw std::invalid_argument("Use a checked-in decomposition candidate");
+      decomposition=tilemega::json::ParseFile(path.string());
+      if(decomposition.At("schema").AsString("schema")!="tilemega.as2.observed_decomposition.v1" ||
+          decomposition.At("model_id").AsString("model")!=receipt.At("model_id").AsString("model") ||
+          decomposition.At("phase").AsString("phase")!=phase ||
+          decomposition.At("batch").AsNumber("batch")!=batch || batch!=1 || serving.argmax_tile_n!=128)
+        throw std::invalid_argument("Observed decomposition model/phase/geometry mismatch");
+      for(auto const& family:decomposition.At("families").AsArray("families")) {
+        unsigned matches=0;
+        if(family.At("n").AsNumber("n")!=2048 || family.At("k").AsNumber("k")!=6144 ||
+            family.At("split_k").AsNumber("split_k")!=3 || family.At("epilogue").AsString("epilogue")!="residual")
+          throw std::invalid_argument("Unverified decomposition family");
+        for(unsigned i=0;i<plan.gemms.size();++i) {
+          auto const& g=plan.gemms[i];
+          if(g.n==2048 && g.k==6144 && g.epilogue==tilemega::frontend::PlanGemm::Epilogue::kResidual) {
+            if(options.gemms[i].split_k!=1)throw std::invalid_argument("Duplicate decomposition binding");
+            options.gemms[i].split_k=3;++matches;++decomposed_gemms;
+          }
+        }
+        if(matches!=family.At("expected_gemms").AsNumber("expected_gemms"))
+          throw std::invalid_argument("Decomposition did not match the complete model family");
+      }
+      if(!decomposed_gemms)throw std::invalid_argument("Empty decomposition cannot prove optimization participation");
+    }
     mlir::MLIRContext context;tilemega::frontend::ImportSummary summary;
     tilemega::frontend::TorchExportImporter importer;
     auto semantic=importer.ImportSemantics((input/"export.json").string(),plan,context);
@@ -123,6 +154,10 @@ int main(int argc,char** argv) {
       {"buffers",int(plan.buffers.size())},{"import_seconds",seconds},
       {"semantic_generic_stages",0},{"raw_unclassified_aten",std::move(raw_unclassified)},
       {"solver_executed",false},{"device_executed",false}});
+    if(decomposed) {
+      result.Set("decomposition_candidate",decomposition);
+      result.Set("decomposed_logical_gemms",int(decomposed_gemms));
+    }
     if(prepare) {
       const int groups=std::stoi(argv[5]);
       auto target=tilemega::TargetSpec::FromJson(std::string(TILEMEGA_SOURCE_DIR)+"/configs/targets/ascend_3510.json");
@@ -181,10 +216,11 @@ int main(int argc,char** argv) {
       result.Set("task_count",problem.offsets.back());
       if(emit) {
         std::vector<tilemega::ascend::ImplementationRole> roles;
-        for(auto const& s:plan.stages) {
+        for(auto const& projected:problem.projection.stages) {
           using R=tilemega::ascend::ImplementationRole;
-          roles.push_back(s.kind==tilemega::frontend::PlanTaskKind::kGemm?
-            (plan.gemms.at(s.gemm).epilogue==tilemega::frontend::PlanGemm::Epilogue::kStore?R::kAicOnly:R::kMix1_2):
+          auto const& s=plan.stages.at(projected.logical_stage);
+          roles.push_back(projected.combine?R::kAivOnly:s.kind==tilemega::frontend::PlanTaskKind::kGemm?
+            (options.gemms.at(s.gemm).split_k>1 || plan.gemms.at(s.gemm).epilogue==tilemega::frontend::PlanGemm::Epilogue::kStore?R::kAicOnly:R::kMix1_2):
             s.kind==tilemega::frontend::PlanTaskKind::kFusedAttention && attention_precision>=4?R::kMix1_2:R::kAivOnly);
         }
         skeleton.BindAscendWorkers(workers,roles,true);

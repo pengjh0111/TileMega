@@ -7,6 +7,9 @@
 namespace tilemega::ascend {
 template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody {
   using Bf16=GemmTile<bfloat16_t,bfloat16_t,TM,TN,TK,true>;
+#if defined(TILEMEGA_LLM_SPLIT_K) && TILEMEGA_LLM_SPLIT_K
+  using Partial=GemmTile<bfloat16_t,float,TM,TN,TK,true,64>;
+#endif
   using Qk=GemmTile<float,float,32,64,128,true>;
   using Pv=GemmTile<float,float,32,128,64,false>;
   typename Bf16::SharedResource resource_;
@@ -14,6 +17,18 @@ template<unsigned TM,unsigned TN,unsigned TK,unsigned Variant> class LlmCubeBody
   __aicore__ inline bool Run(llm::Stage const& s,unsigned tile,GM_ADDR arena) {
     if(s.kind!=0 || tile>=s.tasks || s.variant!=Variant || s.k%16)return false;
     unsigned nt=(s.columns+TN-1)/TN;
+#if defined(TILEMEGA_LLM_SPLIT_K) && TILEMEGA_LLM_SPLIT_K
+    if(s.extent>1) {
+      if(s.extent!=3 || s.width!=2048 || s.k!=6144 || s.columns!=2048 ||
+          (s.rows!=1 && s.rows!=64) || s.epilogue || s.workspace==llm::kAbsent || !s.group)return false;
+      const unsigned part=tile%s.extent,output_tile=tile/s.extent;
+      typename Partial::TileMmad mm(resource_);
+      Partial::RunKSliceBorrowed(mm,arena+s.operands[0],arena+s.operands[1],
+        arena+s.workspace+uint64_t(part)*s.rows*s.columns*sizeof(float),s.rows,s.columns,s.k,
+        part*s.width,s.width,output_tile/nt,output_tile%nt);
+      CompleteDma<AscendC::HardEvent::FIX_S>();return true;
+    }
+#endif
     typename Bf16::TileMmad mm(resource_);
     Bf16::RunBorrowed(mm,arena+s.operands[0],arena+s.operands[1],arena+(s.epilogue?s.workspace:s.operands[3]),
       s.rows,s.columns,s.k,tile/nt,tile%nt);

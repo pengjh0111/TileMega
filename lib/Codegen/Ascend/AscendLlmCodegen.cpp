@@ -6,6 +6,7 @@
 #include <fstream>
 #include <cmath>
 #include <limits>
+#include <map>
 #include <set>
 #include <stdexcept>
 
@@ -88,10 +89,21 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
   auto epsilon=model.getAs<mlir::FloatAttr>("norm_epsilon");
   if(!epsilon || epsilon.getValueAsDouble()<=0)throw std::invalid_argument("Missing model normalization epsilon");
   uint64_t attention_workspace=kAbsent;
+  std::map<unsigned,uint64_t> partial_workspaces;
+  auto scratch=[&](std::string name,std::string dtype,uint64_t bytes) {
+    uint64_t offset=arena,allocated=Mul(Add(Add(bytes,512),511)/512,512);
+    out.allocations.push_back({offset,bytes,allocated,0,0});
+    buffers.emplace_back(json::Object{{"id",int(buffers.size())},{"name",std::move(name)},
+      {"dtype",std::move(dtype)},{"offset_bytes",double(offset)},{"bytes",double(bytes)},
+      {"allocated_bytes",double(allocated)},{"no_producer",false},
+      {"external_name",""},{"pack_json",""},{"required_input",false}});
+    arena=Add(arena,allocated);return offset;
+  };
   for(unsigned s=0;s<p.counts.size();++s) {
     auto projected=p.projection.stages.at(s);
-    if(projected.combine)throw std::invalid_argument("Split-K combine body is not registered for this native LLM plan");
     auto const& source=p.model.stages.at(projected.logical_stage);auto d=At(ss,projected.logical_stage);
+    if(projected.combine && source.kind!=solver::StageKind::kGemm)
+      throw std::invalid_argument("Only GEMM combine is registered for a decomposed native plan");
     Stage stage{};for(auto& a:stage.operands)a=kAbsent;stage.workspace=kAbsent;
     stage.kind=unsigned(source.kind);stage.tasks=p.counts[s];stage.extent=source.extent;
     stage.width=source.width;stage.group=source.group;stage.kv_block=source.attention_kv_block;
@@ -102,7 +114,7 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
       auto g=At(gs,source.gemm);auto const& geo=p.runtime.gemms.at(source.gemm);
       bool base=geo.tile_m==32 && geo.tile_n==64 && geo.tile_k==64;
       bool small=geo.tile_m==16 && geo.tile_n==128 && geo.tile_k==128;
-      if((!base && !small) || geo.split_k!=1 || geo.stages!=2 || g.get("norm_ss") || g.get("ss_out"))
+      if((!base && !small) || (geo.split_k!=1 && geo.split_k!=3) || geo.stages!=2 || g.get("norm_ss") || g.get("ss_out"))
         throw std::invalid_argument("LLM GEMM geometry/deferred normalization is not implemented");
       stage.variant=small?1:0;
       stage.columns=U(g,"n");stage.k=U(g,"k");
@@ -116,11 +128,28 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
       if(stage.epilogue==2 && U(g,"interleave_u")!=16)throw std::invalid_argument("SwiGLU packing requires U16");
       if(stage.epilogue==2 && stage.columns%32)throw std::invalid_argument("SwiGLU tail requires complete gate/up U16 pairs");
       if(stage.epilogue==3 && U(g,"partial_tile_n")!=geo.tile_n)throw std::invalid_argument("LM head partial count disagrees with geometry");
-      if(stage.epilogue) {
+      if(geo.split_k>1) {
+        if(!small || (stage.rows!=1 && stage.rows!=64) || stage.k!=6144 || stage.columns!=2048 ||
+            stage.epilogue!=1 || !p.projection.options.cg_split_task_order)
+          throw std::invalid_argument("Split-K requires an observed residual shape and tile-major CTG");
+        stage.extent=geo.split_k;stage.width=stage.k/geo.split_k;stage.group=1;
+        auto found=partial_workspaces.find(projected.logical_stage);
+        if(projected.combine) {
+          if(found==partial_workspaces.end())throw std::invalid_argument("Combine has no preceding partial stage");
+          stage.kind=unsigned(TaskKind::kGemmCombine);stage.workspace=found->second;
+          stage.operands[5]=scratch("native.gemm.raw."+std::to_string(projected.logical_stage),
+            "bf16",Mul(Mul(stage.rows,stage.columns),2));
+        }else {
+          if(found!=partial_workspaces.end())throw std::invalid_argument("Duplicate partial stage");
+          stage.workspace=scratch("native.gemm.partial."+std::to_string(projected.logical_stage),
+            "f32",Mul(Mul(Mul(stage.rows,stage.columns),stage.extent),4));
+          partial_workspaces.emplace(projected.logical_stage,stage.workspace);stage.epilogue=0;
+        }
+      }else if(stage.epilogue) {
         stage.workspace=arena;auto bytes=Mul(Mul(stage.rows,stage.columns),2);
         auto allocated=Mul(Add(Add(bytes,512),511)/512,512);
         out.allocations.push_back({arena,bytes,allocated,0,0});
-        buffers.emplace_back(json::Object{{"id",int(buffers.size())},{"name","native.gemm.raw."+std::to_string(s)},
+        buffers.emplace_back(json::Object{{"id",int(buffers.size())},{"name","native.gemm.raw."+std::to_string(projected.logical_stage)},
           {"dtype","bf16"},{"offset_bytes",double(arena)},{"bytes",double(bytes)},
           {"allocated_bytes",double(Mul(Add(Add(bytes,512),511)/512,512))},{"no_producer",false},
           {"external_name",""},{"pack_json",""}});
@@ -167,9 +196,10 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
       }
     }
     uint64_t expected=stage.tasks;
-    if(stage.kind==0) {
+    if(stage.kind==0 || stage.kind==unsigned(TaskKind::kGemmCombine)) {
       unsigned tm=stage.variant?16:32,tn=stage.variant?128:64;
       expected=Mul((stage.rows+tm-1)/tm,(stage.columns+tn-1)/tn);
+      if(stage.kind==0 && stage.extent>1)expected=Mul(expected,stage.extent);
     }
     else if(stage.kind==1 || stage.kind==11 || stage.kind==15)expected=stage.rows;
     else if(stage.kind==14)expected=Mul(p.model.dims.batch,stage.extent);
@@ -177,6 +207,21 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
       (p.model.dims.seq*stage.group+stage.query_rows-1)/stage.query_rows,(1088+stage.kv_block-1)/stage.kv_block));
     if(expected!=stage.tasks)throw std::invalid_argument("Native task coordinates disagree with CTG ownership");
     out.stages.push_back(stage);
+  }
+  for(unsigned s=0;s<out.stages.size();++s)if(out.stages[s].kind==6) {
+    auto const& combine=out.stages[s];
+    if(!s || p.projection.stages[s-1].logical_stage!=p.projection.stages[s].logical_stage ||
+        out.stages[s-1].kind!=0 || out.stages[s-1].tasks!=combine.tasks*combine.extent ||
+        out.stages[s-1].workspace!=combine.workspace)
+      throw std::invalid_argument("Combine does not own its complete CTG partial domain");
+    for(unsigned tile=0;tile<combine.tasks;++tile) {
+      auto const& task=input.at(p.offsets[s]+tile);
+      for(unsigned part=0;part<combine.extent;++part) {
+        unsigned producer=p.offsets[s-1]+tile*combine.extent+part;
+        if(std::find(task.predecessors.begin(),task.predecessors.end(),producer)==task.predecessors.end())
+          throw std::invalid_argument("CTG combine is missing a required partial dependency");
+      }
+    }
   }
   for(auto& s:out.stages)if(s.kind==0 && s.epilogue==3) {
     unsigned matches=0;
@@ -223,6 +268,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
   json::Array contracts;
   for(unsigned i=0;i<stages.size();++i) {
     auto const& s=stages[i];std::string id;
+    if(s.kind==6)id="as2_aiv_fp32_split3_ordered_combine_bf16_residual";
     if(s.kind==0)id=s.epilogue==0?"as2_catlass_bf16_32x64x64_nk":s.epilogue==1?"as2_mix_gemm_residual_gm":
       s.epilogue==2?"as2_mix_gemm_swiglu_u16_gm":"as2_mix_gemm_argmax64_gm";
     if(s.kind==0 && s.variant) {
@@ -230,6 +276,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
       else if(s.epilogue==3)id="as2_mix_gemm_argmax128_gm_16x128x128";
       else id+="_16x128x128";
     }
+    if(s.kind==0 && s.extent>1)id="as2_catlass_bf16_fp32_split3_k2048_16x128x128_l0k64";
     else if(s.kind==1)id=s.variant==3?"as2_aiv_rmsnorm_cann_newton_fold"+std::to_string(s.width/2)+"_h"+std::to_string(s.width):s.variant==2?"as2_aiv_rmsnorm_cann_newton_h"+std::to_string(s.width):"as2_aiv_rmsnorm_full_row";
     else if(s.kind==11)id="as2_aiv_embedding_i32_bf16";
     else if(s.kind==13)id=s.kv_block==128?"as2_aiv_gqa_fp32_log2_partials_kv128":
@@ -250,6 +297,11 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
       {"dtype","bf16"},{"opmath","fp32"},{"input_weight_layout",s.kind==0?"logical_NK":"ND"},
       {"tile_m",s.kind==0?(s.variant?16:32):0},{"tile_n",s.kind==0?(s.variant?128:64):0},
       {"tile_k",s.kind==0?(s.variant?128:64):0},
+      {"split_count",(s.kind==0 || s.kind==6)&&s.extent>1?int(s.extent):1},
+      {"partial_k",(s.kind==0 || s.kind==6)&&s.extent>1?int(s.width):0},
+      {"partial_layout",(s.kind==0 || s.kind==6)&&s.extent>1?"logical[row,col,part] -> physical[part,row,col]":"not_applicable"},
+      {"partial_dtype",(s.kind==0 || s.kind==6)&&s.extent>1?"fp32":"not_applicable"},
+      {"partial_workspace_bytes",(s.kind==0 || s.kind==6)&&s.extent>1?double(uint64_t(s.rows)*s.columns*s.extent*4):0},
       {"attention_score_probability",s.kind==13?((s.variant==4 || s.variant==5 || s.variant==6)?"fp32_cube_split_scale_vector_div_softmax":s.variant==1?"fp32_opmath_no_bf16_intermediate":s.variant==2?"fp32_scores_bf16_probability":s.variant==3?"fp32_split_scale_capacity_softmax":"bf16_storage_rounding"):"not_applicable"},
       {"qk_norm_method",s.kind!=13?"not_applicable":s.operands[5]==ascend::llm::kAbsent && s.operands[6]==ascend::llm::kAbsent?"none":(s.variant==5 || s.variant==6)?"CANN9.1.0_register_square_reduce_Newton_refinement":"existing_Rsqrt"},
       {"softmax_sum_method",s.kind==13&&s.variant==6?"CANN9.1.0_register_fold1024_capacity1088":"existing_ReduceSum"},
@@ -279,7 +331,9 @@ std::string LowerAscendLlm(AscendLlmPlan const& p) {
     variant=s.variant;
   }
   if(variant<0)throw std::invalid_argument("Native LLM has no registered GEMM body");
+  bool split=false;for(auto const& s:p.stages)if(s.kind==6)split=true;
   return std::string("// Generated by TileMega: verified CTG tables and candidate geometry, LLM ABI v4.\n")+
+    "#define TILEMEGA_LLM_SPLIT_K "+std::to_string(unsigned(split))+"\n"+
     "#define TILEMEGA_LLM_VARIANT "+std::to_string(variant)+"\n"+
     "#define TILEMEGA_LLM_TM "+std::to_string(variant?16:32)+"\n"+
     "#define TILEMEGA_LLM_TN "+std::to_string(variant?128:64)+"\n"+

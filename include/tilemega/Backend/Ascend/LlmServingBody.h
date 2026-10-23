@@ -164,6 +164,21 @@ template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServi
       GM_ADDR scratch,llm::Metadata const& meta,unsigned past) {
     Operands p{arena,s};
     if(task>=s.tasks)return false;
+#if defined(TILEMEGA_LLM_SPLIT_K) && TILEMEGA_LLM_SPLIT_K
+    if(s.kind==6) {
+      if(s.extent!=3 || s.width!=2048 || s.k!=6144 || s.columns!=2048 ||
+          (s.rows!=1 && s.rows!=64) || s.epilogue!=1 || s.operands[5]==llm::kAbsent)return false;
+      const unsigned nt=(s.columns+TN-1)/TN,first=task%nt*TN,row=task/nt*TM;
+      for(unsigned r=row;r<row+TM && r<s.rows;++r) {
+        unsigned n=s.columns-first<TN?s.columns-first:TN;
+        uint64_t index=uint64_t(r)*s.columns+first;
+        if(!vector_.CombineGemm(arena+s.workspace+index*4,
+            p(5)+index*2,uint64_t(s.rows)*s.columns,s.extent,n))return false;
+      }
+      Acquire(p(5));auto epilogue=s;epilogue.workspace=s.operands[5];
+      return Epilogue(epilogue,task,arena);
+    }
+#endif
     if(s.kind==11) {
       unsigned row=task,b=row/meta.seq,pos=past+row%meta.seq;
       unsigned id=ReadControl((__gm__ uint32_t*)p(0)+uint64_t(b)*meta.capacity+pos);

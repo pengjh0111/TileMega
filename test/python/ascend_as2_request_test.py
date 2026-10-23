@@ -90,6 +90,36 @@ class RequestBindingTest(unittest.TestCase):
         self.abi4();p=self.dec/'metadata.bin';m=list(struct.unpack('<12I3Q',p.read_bytes()));m[0]=3;p.write_bytes(struct.pack('<12I3Q',*m))
         with self.assertRaisesRegex(ValueError,'same validated worker topology'):bind(self.pre,self.dec,self.inputs,self.root/'bad')
 
+    def test_split_partial_and_combine_addresses_relocate_without_rescheduling(self):
+        self.abi4()
+        p=self.pre/'buffers.json';description=json.loads(p.read_text());buffers=description['buffers']
+        for name,size,dtype in [('native.gemm.partial.0',96,'f32'),('native.gemm.raw.0',16,'bf16')]:
+            offset=(1<<32)+4096 if len(buffers)==4 else buffers[-1]['offset_bytes']+buffers[-1]['allocated_bytes']
+            buffers.append(dict(id=len(buffers),name=name,dtype=dtype,offset_bytes=offset,bytes=size,
+                allocated_bytes=1024,external_name='',pack_json='',required_input=False))
+        p.write_text(json.dumps(description))
+        (self.pre/'allocations.bin').write_bytes(b''.join(struct.pack('<3Q2I',b['offset_bytes'],b['bytes'],b['allocated_bytes'],b['required_input'],0) for b in buffers))
+        partial=list(struct.unpack('<17Q16I',(self.pre/'stages.bin').read_bytes()))
+        partial[16]=buffers[-2]['offset_bytes'];partial[23]=3;partial[24]=2048;partial[25]=1;partial[31]=1
+        combine=partial.copy();combine[17]=6;combine[18]=1;combine[5]=buffers[-1]['offset_bytes']
+        (self.pre/'stages.bin').write_bytes(struct.pack('<17Q16I',*partial)+struct.pack('<17Q16I',*combine))
+        m=list(struct.unpack('<12I3Q',(self.pre/'metadata.bin').read_bytes()));m[4]=2;m[12]=buffers[-1]['offset_bytes']+1024
+        (self.pre/'metadata.bin').write_bytes(struct.pack('<12I3Q',*m))
+        stage=list(struct.unpack('<17Q16I',(self.dec/'stages.bin').read_bytes()));stage[31]=1
+        (self.dec/'stages.bin').write_bytes(struct.pack('<17Q16I',*stage))
+        p=self.inputs/'inputs.json';x=json.loads(p.read_text());x['metadata_sha256']=digest(self.pre/'metadata.bin');p.write_text(json.dumps(x))
+        out=self.root/'decomposed';bind(self.pre,self.dec,self.inputs,out)
+        bound=list(struct.iter_unpack('<17Q16I',(out/'prefill/stages.bin').read_bytes()))
+        named={b['name']:b for b in json.loads((out/'request.json').read_text())['buffers']}
+        self.assertEqual(bound[0][16],named['native.gemm.partial.0']['offset_bytes'])
+        self.assertEqual(bound[1][16],bound[0][16])
+        self.assertEqual(bound[1][5],named['native.gemm.raw.0']['offset_bytes'])
+        self.assertNotEqual(bound[0][16],partial[16])
+        self.assertEqual(bound[0][17:],tuple(partial[17:]))
+        self.assertEqual(bound[1][17:],tuple(combine[17:]))
+        for name in ('tasks.bin','waits.bin','offsets.bin','queue.bin'):
+            self.assertEqual(digest(self.pre/name),digest(out/'prefill'/name))
+
     def test_reject_old_prices_after_abi_change(self):
         self.abi4();self.priced()
         with self.assertRaisesRegex(ValueError,'different runtime ABI'):bind(self.pre,self.dec,self.inputs,self.root/'bad')

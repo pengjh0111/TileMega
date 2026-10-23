@@ -65,7 +65,7 @@ def compare(binding,native,reference,out):
     cfg=json.loads((WORK/'weights'/identity['model_id']/'manifest.json').read_text())['config'];layers=cfg['num_hidden_layers']
     stages=list(struct.iter_unpack('<17Q16I',(binding/'decode/stages.bin').read_bytes()))
     buffers=identity['buffers'];named={b['name']:b for b in buffers};by_offset={b['offset_bytes']:b for b in buffers}
-    residual=[s for s in stages if s[17]==0 and s[18]==1];gate_up=[s for s in stages if s[17]==0 and s[18]==2]
+    residual=[s for s in stages if s[17] in (0,6) and s[18]==1];gate_up=[s for s in stages if s[17]==0 and s[18]==2]
     attention=[i for i,s in enumerate(stages) if s[17]==13];heads=[s for s in stages if s[17]==0 and s[18]==3]
     if len(residual)!=2*layers or len(gate_up)!=layers or len(heads)!=1 or len(attention)!=layers:
         raise ValueError('Unrecognized dense stage decomposition')
@@ -88,7 +88,8 @@ def compare(binding,native,reference,out):
             name=f'l{i}.{name}';r=observed[name]
             if r['dtype']!='torch.bfloat16':raise ValueError('Unexpected captured dtype')
             if name.endswith('.o.raw'):buffer=by_offset[residual[2*i][16]]
-            elif name.endswith('.down.raw'):buffer=by_offset[residual[2*i+1][16]]
+            elif name.endswith('.down.raw'):
+                down=residual[2*i+1];buffer=by_offset[down[5] if down[17]==6 else down[16]]
             elif name.endswith('.gate_up.raw'):buffer=by_offset[gate_up[i][16]]
             else:buffer=named[name]
             expected=batch*(cfg['hidden_size'] if name.endswith(('.norm1','.norm2','.o.raw','.down.raw')) else
