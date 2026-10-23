@@ -268,6 +268,7 @@ add_library(tilemega_core STATIC
   lib/Solver/DmReductionFlow.cpp
   lib/Solver/FlowPreparation.cpp
   lib/Solver/StageFlowModel.cpp
+  lib/Solver/MxDecodeSolver.cpp
   lib/Solver/FluidExecutionSimulator.cpp
   lib/Analysis/FusionAccess.cpp
   lib/Analysis/HandoffAccess.cpp
