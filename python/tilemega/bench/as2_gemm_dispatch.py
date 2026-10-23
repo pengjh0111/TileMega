@@ -19,7 +19,7 @@ def main():
     if a.out.exists():raise FileExistsError(a.out)
     case=json.loads((a.case/'case.json').read_text());m,n,k=case['shape_mnk']
     if any(digest(a.case/name)!=sha for name,sha in case['files'].items()):raise ValueError('Observed GEMM case changed')
-    if m not in (1,64) or (n,k)!=(2048,6144):raise ValueError('This diagnostic is bounded to the observed down-projection family')
+    if m not in (1,64) or n!=2048 or k not in (6144,8192):raise ValueError('This diagnostic is bounded to the observed down-projection families')
     torch.set_num_threads(1);torch.npu.set_device(0)
     if torch.npu.device_count()!=1 or torch.npu.matmul.allow_hf32:raise ValueError('Require one NPU and full FP32 math')
     x=torch.from_file(str(a.case/'a.bin'),shared=False,size=m*k,dtype=torch.bfloat16).reshape(1,m,k).npu()

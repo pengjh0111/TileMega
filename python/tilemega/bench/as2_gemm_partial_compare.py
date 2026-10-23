@@ -25,7 +25,7 @@ def main():
         raise FileExistsError(a.out)
     case = json.loads((a.case / 'case.json').read_text())
     m, n, k = case['shape_mnk']
-    if m not in (1, 64) or (n, k) != (2048, 6144):
+    if m not in (1, 64) or n != 2048 or k not in (6144, 8192):
         raise ValueError('Require the observed, bounded Stream-K diagnostic')
     for name, sha in case['files'].items():
         if digest(a.case / name) != sha:
@@ -48,9 +48,10 @@ def main():
         checks.append(dict(reference=name, elements=value.numel(),
             bitwise_different=int((value.view(torch.int16) != gold.view(torch.int16)).sum()),
             max_abs=float(delta.abs().max()), rmse=float(delta.square().mean().sqrt())))
+    chunk = (k + 2) // 3
     result = dict(scope='same-operand reduction-order diagnostic only',
         case_sha256=digest(a.case / 'case.json'), partial_sha256=digest(path),
-        partial_k_ranges=[[0, 2048], [2048, 4096], [4096, 6144]],
+        partial_k_ranges=[[i * chunk, min((i + 1) * chunk, k)] for i in range(3)],
         combine='CPU FP32 (partial0 + partial1) + partial2, BF16 RINT',
         device_combine_verified=False, tilemega_pipeline=False,
         full_model_admitted=False, checks=checks)

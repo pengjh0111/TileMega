@@ -44,9 +44,11 @@ __aicore__ inline void ProfileObservedPartial(GM_ADDR a,GM_ADDR b,GM_ADDR c,GM_A
     AscendC::GlobalTensor<uint64_t> times;times.SetGlobalBuffer((__gm__ uint64_t*)timing);
     for(unsigned tile=AscendC::GetBlockIdx();tile<tiles;tile+=groups) {
       const uint64_t start=AscendC::GetSystemCycle();
+      const unsigned chunk=(k+2)/3;
       for(unsigned part=0;part<3;++part) {
+        const unsigned begin=part*chunk,size=k-begin<chunk?k-begin:chunk;
         Body::RunKSliceBorrowed(mm,a,b,c+uint64_t(part)*m*n*sizeof(float),m,n,k,
-            part*2048,2048,tile/columns,tile%columns);
+            begin,size,tile/columns,tile%columns);
         tilemega::ascend::CompleteDma<AscendC::HardEvent::FIX_S>();
       }
       times.SetValue((groups+tile)*64,AscendC::GetSystemCycle()-start);
@@ -77,7 +79,7 @@ int main(int argc,char** argv) {
     unsigned m=std::stoul(argv[1]),n=std::stoul(argv[2]),k=std::stoul(argv[3]),impl=std::stoul(argv[4]);
     if(!m || m>64 || !n || n>151936 || n%16 || !k || k>16384 || k%16 || impl>4 || uint64_t(n)*k>(1ULL<<29))
       throw std::runtime_error("Bounded BF16 profile shape required");
-    if(impl==4 && ((m!=1 && m!=64) || n!=2048 || k!=6144))
+    if(impl==4 && ((m!=1 && m!=64) || n!=2048 || (k!=6144 && k!=8192)))
       throw std::runtime_error("Partial diagnostic requires the observed stream-K shape");
     namespace fs=std::filesystem;
     const fs::path root="/home/d50064638/junhuip/TileMega/runs/as2";
