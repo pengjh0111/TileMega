@@ -346,7 +346,7 @@ ModelDescription ModelDescription::ReadCouplingGraph(
       if (!ownership || (ownership!="element_chunk" && ownership!="tile_per_block"))
         throw std::invalid_argument("semantic task has no exact ownership model");
       input.element_chunk=ownership=="element_chunk";
-      auto const& ownership_space=model.dm && input.op.exact_task_access?input.op.task_space:input.op.result;
+      auto const& ownership_space=input.op.exact_task_access?input.op.task_space:input.op.result;
       for (auto const& axis:ownership_space.axes) {
         auto tile=granularity.getAs<mlir::StringAttr>(axis.name);
         if (!tile) throw std::invalid_argument("semantic task is missing an output tile");

@@ -984,7 +984,7 @@ static mlir::OwningOpRef<mlir::ModuleOp> ImportBridgePlan(
   for (auto const& [name, value] : options.task_binding.values) taskBinding.Bind(name, value);
   bool const exactTasks = std::any_of(lifted.sem.ops.begin(), lifted.sem.ops.end(),
       [](auto const& op) { return op.exact_task_access; });
-  if (exactTasks && (plan.forward || plan.dm)) {
+  if (exactTasks && (plan.forward || plan.dm || plan.serving)) {
     if (plan.forward_token_axis && symbolic.ranges.count(liftOptions.seq_symbol))
       taskBinding.Bind(liftOptions.seq_symbol, plan.serving_seq);
     if (options.phase_batch > 0 && !liftOptions.batch_symbol.empty())

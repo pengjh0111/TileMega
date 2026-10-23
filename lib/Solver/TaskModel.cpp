@@ -464,7 +464,7 @@ analysis::OperatorGraph InstantiateModelTasks(ModelDescription const& model,
     if (!names.insert(op.name).second) throw std::invalid_argument("duplicate semantic cost task");
     auto const& stage=model.stages.at(input.stage);
     semantics.ops.push_back(op);
-    bool owned=model.dm && op.exact_task_access;
+    bool owned=op.exact_task_access;
     if(owned) {
       for(unsigned axis=0;axis<op.task_space.axes.size();++axis) {
         auto found=input.tiles.find(op.task_space.axes[axis].name);
@@ -763,18 +763,18 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
   if (config && semantic.op.reduction.splittable)
     options.reduction_tiles.emplace(semantic.op.reduction.dim,
                                     analysis::ClosedForm::Constant(config->tile_k));
-  auto known=model.dm && semantic.op.exact_task_access?
+  auto known=semantic.op.exact_task_access?
       model.MetricBindings():analysis::ParamBinding{};
   auto work=analysis::DeriveTaskWork(semantic.op,*task,known,options);
   analysis::ArithmeticInputs arithmetic;
   arithmetic.reduction=work.nominal_task_reduce_extent;
   arithmetic.total=work.reduce_extent;
-  auto width_axis=model.dm && task->element_access?
+  auto width_axis=task->element_access?
       task->element_access->partition.ownership.results.size():semantic.op.result.axes.size();
   arithmetic.width=task->tile.at(width_axis-1).Eval({},{});
   arithmetic.dtype=semantic.op.dtype;
   analysis::OpArithmetic signature;
-  if(model.dm && task->element_access) {
+  if(task->element_access) {
     auto const& access=*task->element_access;
     auto domain=analysis::ProjectTaskElements(access.semantic,*task,access.partition,
         access.semantic.task_space,access.semantic.task_map,{},known).Reverse().ImageIdentity();
@@ -857,10 +857,10 @@ DerivedTaskInput DeriveModelTaskInput(ModelDescription const& model,
         int(stage.width),prefill?int(stage.attention_query_rows):int(stage.group),
         prefill,int(stage.group)*model.dims.seq,int(stage.group)};
   }
-  // DM task-space coordinates already match exact runtime ownership. The
+  // Explicit task-space coordinates already match exact runtime ownership. The
   // legacy scalar projection changes them to q and would leave task-local
   // arithmetic and nominal reduction quantities in a different domain.
-  bool exact_dm=model.dm && bool(task->element_access);
+  bool exact_dm=bool(task->element_access);
   if (!config && runtime_ownership && !exact_dm) {
     int threads=ModelTaskTraits(model,semantic.stage,{}).threads;
     result.scalar_access.emplace();

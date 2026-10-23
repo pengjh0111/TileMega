@@ -102,7 +102,7 @@ SymbolicProblem PrepareFlowStructure(SymbolicProblem const& base,std::vector<Gem
     // keys. Reconstructing it from logical K loses per-filter channel tails.
     if(result.model.dm)continue;
     auto const* node=graph.Find(sem.op.name);if(!node)throw std::runtime_error("missing flow task");
-    bool owned=result.model.dm && sem.op.exact_task_access;
+    bool owned=sem.op.exact_task_access;
     auto const& output=owned?sem.op.task_space:sem.op.result;
     for(std::size_t a=0;a<output.axes.size();++a) {
       if(owned) {
