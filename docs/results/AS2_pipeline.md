@@ -94,9 +94,11 @@ fixed-queue repricing preserves order and responds to cost changes.
 
 `as2_native_prices.py` verifies measured job/model/config/shape/G identities.
 Prices are contextual empirical data, not global calibrated target constants;
-shared-load status remains contended. Decode pricing is bounded to past<=66;
-`pricing_bounds.bin` survives relocation and rejects OSL5 before ACL. The native
-mathematical runtime itself still supports capacity1088.8 CPU binding tests pass.
+shared-load status remains contended. Older ABI3 decode pricing is bounded to
+past<=66 and rejects OSL5 before ACL. New ABI4 prices profile actual past1086;
+`pricing_bounds.bin` preserves that bound after relocation. Five fresh control
+processes pass8192 payload samples each, on the same physical1 card as the new
+Body profiles. They remain context-local empirical prices, not peak constants.
 
 Remaining: other dense-model/B16 numerical failures, wider measured
 Body/context domains and end-to-end optimization/search admission.
@@ -124,7 +126,7 @@ Earlier device results are inherited run evidence, not new runs on this date.
 
 | Prompt requirement | Current implementation and remaining obligation |
 |---|---|
-| Real optimized pipeline | Import/CTG/ISL/native scheduling/codegen execute; `emit-priced` has real causal candidate selection. Latest ABI4 normalization candidate is diagnostic/unpriced; ABI4 family/context prices and wider structural search are still required. |
+| Real optimized pipeline | Import/CTG/ISL/native scheduling/codegen execute; `emit-priced` has real causal candidate selection. Latest ABI4 has actual full-context empirical prices and structural/EFT selection; wider geometry/family search and end-to-end admission remain required. |
 | Full model and state | Five canonical weight sets, full layers/embedding/head and persistent prefill/decode exist. Qwen0.6 B1 now passes actual1024 greedy and teacher512; other models/B16 and optimized-pipeline admission remain incomplete. |
 | Numerical/performance contracts | Policy remains frozen. Intermediate bitwise checks locate drift; final admission uses declared error metrics plus exact greedy. Hooked/diagnostic runs cannot admit performance. |
 | Resource/handoff optimization | G8 and both AIV lanes have evidence; same-task MIX currently uses AIV0. G14/28, BF16 direct, split-K and broader small-M alternatives remain unvalidated/disabled. |
@@ -139,5 +141,21 @@ The same Plan fast/diagnostic pair matches401 payload/KV/control files (C-2,
 not new C-3). Teacher runs have separate receipts and cannot enter greedy or
 performance admission. Cached `reemit` regenerates source from an already
 materialized plan without rewriting its queues or claiming a new solver call.
-Next: current ABI4/context prices and real plan search, then other dense
-families/B16 and prescribed paired TPOT. Default implementations remain unchanged.
+Current ABI4 search selects structural prefill (49.8288 vs49.9315 predicted ms)
+and EFT decode (7.41285 vs7.41310 predicted ms). Both real queues differ. The
+selected request passes actual1024 greedy and teacher512 against SDPA/fused
+RMSNorm, with source-identical compiler-cache reuse and newly solved tables.
+Results: `models/qwen3_0_6b/native_{prefill,decode}_fold_priced_v1/search.json`,
+`correctness/qwen06_fold_priced_{request1024,teacher512}_numeric_v1.json`.
+Prediction differences are not measured speedups. New FIA-v2 eager inference
+runs without Host fallback but changes greedy at output6 and fails the current
+KV/numerical pairing; this stronger-baseline issue stays open. Next: remaining
+dense/B16 families, broader legal Body search and prescribed paired TPOT.
+Default implementations remain unchanged.
+
+H2048 full-row binding and head64/GQA4 are enabled only for explicit experimental
+candidates after observed-operand probes. Qwen1.7/Llama1B actual imported plans
+execute; neither new four-token numerical check passes. Qwen's earliest saved
+prefill drift is layer1 Norm1; exact-act down-projection replay isolates52 BF16
+output differences. Residual input/output aliases end their lifetime before a
+final arena dump; the new diagnostic excludes those historical comparisons.

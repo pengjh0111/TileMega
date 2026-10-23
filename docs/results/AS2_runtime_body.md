@@ -214,36 +214,37 @@ fast/diagnostic payload/control files matching in two fresh processes (C-2,
 not a new C-3 claim). One AS-1 Encoder protection also passes bitwise:
 four epochs,156tasks/epoch,8192 output bytes, original BF16 reference unchanged.
 
-The next H1024 failure occurs at past160/layer9 Norm1. An independent fused
-RMSNorm call on the exact saved operand returns rstd .699561357498169 for both
-rank2 and rank3; CPU FP32 gives .6995614171028137, and the prior native tree
-differs in five BF16 outputs. Variant3 matches fused rstd/all1024 values bitwise,
-also preserves the independent64-row prefill case. An actual98-output request
-then has bitwise-equal intermediate outputs, complete KV histories and logits.
-The full1024-output natural request still fails: first fork at index988,
-14 token differences,3 failed final logits and54 failing final KV slices.
+The prior past160/layer9 Norm1 failure has fused rstd .699561357498169 versus
+CPU .6995614171028137. Variant3 repairs all1024 BF16 outputs and preserves the
+independent64-row prefill case. Its98-output request is bitwise exact; the
+preceding long candidate's first fork988/14 token failures remains preserved.
 `as2_last_forward.py` compares independent hooks and native named/actual buffers;
 captures cannot enter a formal performance process. B1 diagnostic histories are
 bounded by capacity1088; B16 retains the short128-position history limit.
 
-New explicit CLI candidate: `cube-fp32-newton-fold`; impl ID
-`as2_aiv_rmsnorm_cann_newton_fold512_h1024`. Observed-input reference:
-`python -m tilemega.bench.as2_rms_reference --input CASE --out NEW_RESULT`.
-Probe `as2_vector 6 rows 1024 CASE NEW_RESULT` records square-sum and rstd in
-`norm_statistics.bin` (64B/row, floats at offsets0/32). Model calls omit these
-diagnostic stores. Frozen tolerances and lowest-max token tie rule are unchanged.
+`as2_rms_reference --capture SOURCE --out CASE` prepares bounded actual Norm
+operands; `--input CASE --out REFERENCE` observes independent fused Rstd/output.
+`as2_vector 6 rows width CASE OUTPUT epsilon` records square-sum and Rstd in
+`norm_statistics.bin` (64B/row, floats0/32). Model calls omit these stores.
+Frozen tolerances and lowest-max token tie rule are unchanged.
 
-The earlier first cached drift at past1025/layer11 context is now isolated.
-Actual Q/K/V, scores, row max and exponentials are bitwise equal; probabilities
-and PV differ because of FP32 sum order. Installed CANN9.1 arch35 softmax folds
-1088 columns before reducing. Explicit attention variant6 reuses the pinned
-`CalculateReduceSum(...,1088,1024)` primitive; no whole-op scheduler is embedded.
-Observed past1025 and181 replays now match probabilities/PV/BF16 context bitwise.
-Actual Qwen0.6 B1 natural64/1024 then matches all1024 tokens, full final logits
-and all56 final KV slices bitwise. An independent1052-position causal capture
-also matches every saved layer's K/V prefix. Teacher512 runs513 actual model
-forwards: predictions and12 full-logit checkpoints/final KV are bitwise equal.
-Teacher is explicitly diagnostic, with Host teacher-token copies/checkpoint IO;
-its receipts/samples exclude timing and greedy admission. Latest same-Plan
-fast/diagnostic C-2 compares401 files bitwise in two fresh physical1 processes.
-These numerical results do not admit end-to-end performance or other families.
+The earlier cached drift at past1025/layer11 is isolated to FP32 sum order.
+Observed Q/K/V, scores, max and exponentials match; the pinned register-fold
+softmax sum repairs probabilities/PV/context at actual past1025 and181. Explicit
+variant6 then passes Qwen0.6 B1/B16 natural64/1024 and teacher512 against
+independent SDPA/fused Norm, bitwise for final logits/KV/tokens. B1 fast/diagnostic C-2 matches401 files; no new C-3/performance claim is implied.
+Teacher uses Host token copies/checkpoints and is excluded from greedy timing.
+H2048 probes use actual Llama epsilon1e-5 and Qwen1.7 epsilon1e-6.
+All33 observed rows (four-AIV tail) and one-row Llama case match
+fused Norm bitwise. Both full/folded reduction candidates pass; larger H stays
+gated. A real Llama1B head64/GQA4 replay matches Q/K/V/scores/probabilities/PV
+and context bitwise. Model binding now admits that explicit family; GQA3/other
+untested families remain closed. New H2048 Qwen full four-token request still
+fails (one greedy mismatch/logit NRMSE .0272664); Body probes do not waive it.
+Llama1B short generation also fails13 KV checks despite4/4 tokens.
+B1 diagnostic buffer cap4MiB captures real FFN intermediates outside timing;
+B16 retains1MiB except full logits; missing captures fail explicitly.
+Independent eager [FIA-v2](https://www.hiascend.com/document/detail/en/Pytorch/2610/apiref/customapi/docs/en/custom_APIs/torch_npu/torch_npu-npu_fused_infer_attention_score_v2.md) (native GQA/BF16/static KV) executes in the private
+process without TileMega code. It changes Qwen's long greedy path at output6;
+977 tokens differ and the old native/SDPA pairing cannot admit this baseline.
+All current timings remain unpaired/contended; no end-to-end speedup is admitted.
