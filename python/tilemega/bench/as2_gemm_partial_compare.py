@@ -28,6 +28,10 @@ def main():
     if m not in (1, 16, 64) or not ((n == 2048 and k in (6144, 8192)) or (n == 3072 and k == 8192) or (n == 1024 and k == 4096)):
         raise ValueError('Require the observed, bounded Stream-K diagnostic')
     parts = 7 if n == 1024 else 2 if n == 3072 else 3
+    if case.get('partial_count')==7:
+        if (m,n,k)!=(16,2048,8192) or case.get('source_shape_mnk')!=[1024,2048,8192]:
+            raise ValueError('Seven-part residual probe requires the observed B16 prefill slice')
+        parts=7
     for name, sha in case['files'].items():
         if digest(a.case / name) != sha:
             raise ValueError('Observed operand/reference identity changed')

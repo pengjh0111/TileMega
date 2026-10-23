@@ -19,12 +19,13 @@ def main():
     if a.out.exists():raise FileExistsError(a.out)
     case=json.loads((a.case/'case.json').read_text());m,n,k=case['shape_mnk']
     if any(digest(a.case/name)!=sha for name,sha in case['files'].items()):raise ValueError('Observed GEMM case changed')
-    if m not in (1,16,64) or not ((n==2048 and k in (6144,8192)) or (n==3072 and k==8192) or (n in (1024,4096) and k==4096) or (n==4096 and k==14336)):
+    if m not in (1,16,64,1024) or (m==1024 and (n,k)!=(2048,8192)) or not ((n==2048 and k in (6144,8192)) or (n==3072 and k==8192) or (n in (1024,4096) and k==4096) or (n==4096 and k==14336)):
         raise ValueError('This diagnostic is bounded to the observed projection families')
     torch.set_num_threads(1);torch.npu.set_device(0)
     if torch.npu.device_count()!=1 or torch.npu.matmul.allow_hf32:raise ValueError('Require one NPU and full FP32 math')
     shape=case.get('input_shape',[1,m,k])
-    if shape not in ([1,m,k],[m,1,k]):raise ValueError('Unvalidated observed linear input shape')
+    allowed=([16,64,k],) if m==1024 else ([1,m,k],[m,1,k])
+    if shape not in allowed:raise ValueError('Unvalidated observed linear input shape')
     x=torch.from_file(str(a.case/'a.bin'),shared=False,size=m*k,dtype=torch.bfloat16).reshape(shape).npu()
     w=torch.from_file(str(a.case/'b_nk.bin'),shared=False,size=n*k,dtype=torch.bfloat16).reshape(n,k).npu()
     a.out.mkdir();records=[]

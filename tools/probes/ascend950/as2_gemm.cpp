@@ -83,8 +83,9 @@ int main(int argc,char** argv) {
       throw std::runtime_error("Partial diagnostic requires the observed stream-K shape");
     if(impl==5 && ((m!=1 && m!=64) || n!=3072 || k!=8192))
       throw std::runtime_error("Two-part diagnostic requires the observed H3072 stream-K shape");
-    if(impl==6 && ((m!=1 && m!=64) || n!=1024 || k!=4096))
-      throw std::runtime_error("Seven-part diagnostic requires the observed Llama8B KV shape");
+    if(impl==6 && !(((m==1 || m==64) && n==1024 && k==4096) ||
+                   (m==16 && n==2048 && k==8192)))
+      throw std::runtime_error("Seven-part diagnostic requires an observed KV or prefill slice");
     const bool partial=impl>=4;const unsigned parts=impl==5?2:impl==6?7:3;
     namespace fs=std::filesystem;
     const fs::path root="/home/d50064638/junhuip/TileMega/runs/as2";
