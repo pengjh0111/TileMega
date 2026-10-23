@@ -5,6 +5,7 @@
 #include <tilemega/Backend/Sm90DenseAttentionPartition.h>
 #include <tilemega/Backend/Sm90DenseLastArriver.cuh>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
+#include <tilemega/Backend/Sm90DenseDiagnostic.cuh>
 
 namespace tilemega::backend {
 
@@ -16,6 +17,9 @@ struct Sm90DenseAttentionOperands {
   std::uint64_t* arrivals;
   int past;
   float epsilon;
+#if TILEMEGA_TRACE_NATIVE_PHASES
+  Sm90DenseDiagnosticContext diagnostic{};
+#endif
 };
 
 // Low-batch chunks issue their complete historical interval at once. The
@@ -69,13 +73,18 @@ struct Sm90DenseAttention {
   }
 
   __device__ static void QueryAndNewRow(Sm90DenseAttentionOperands p,Storage& s,
-                                       int bg,Sm90DenseKeyRange range) {
+                                       int bg,Sm90DenseKeyRange range TILEMEGA_NATIVE_PHASE_TASK_PARAM) {
     int warp=threadIdx.x>>5,lane=threadIdx.x&31;
     auto* group=p.qkv+std::size_t(bg)*(Q+2)*D;
     auto* cosine=p.cosine+p.past*D;auto* sine=p.sine+p.past*D;
-    if(warp<Q)Math::template Rotate<D,Norm>(group+warp*D,p.q_norm,cosine,sine,
-                                           p.epsilon,s.query+warp*D);
+    if(warp<Q) {
+      TILEMEGA_NATIVE_PHASES(auto begin=Sm90DenseDiagnostic::Clock();)
+      Math::template Rotate<D,Norm>(group+warp*D,p.q_norm,cosine,sine,
+                                   p.epsilon,s.query+warp*D);
+      TILEMEGA_NATIVE_PHASES(Sm90DenseDiagnostic::Query(p,task,warp,begin);)
+    }
     if(range.Contains(p.past) && warp==Q%4) {
+      TILEMEGA_NATIVE_PHASES(auto begin=Sm90DenseDiagnostic::Clock();)
       int row=p.past-range.begin;
       auto* key=p.key+(std::size_t(bg)*Capacity+p.past)*D;
       auto* value=p.value+(std::size_t(bg)*Capacity+p.past)*D;
@@ -86,6 +95,7 @@ struct Sm90DenseAttention {
         *reinterpret_cast<uint4*>(s.value+row*D+lane*8)=v;
         *reinterpret_cast<uint4*>(value+lane*8)=v;
       }
+      TILEMEGA_NATIVE_PHASES(Sm90DenseDiagnostic::NewRow(p,task,begin);)
     }
   }
 
@@ -203,19 +213,39 @@ struct Sm90DenseAttention {
       Sm90DenseRingState& state,Storage& s,int tasks,unsigned phase) {
     for(int local=0;local<tasks;++local) {
       int task=int(blockIdx.x)+local*int(gridDim.x),bg=task/Chunks,c=task%Chunks;
+      TILEMEGA_NATIVE_PHASES(Sm90DenseDiagnosticScope diagnostic;diagnostic.Begin(p,task);)
       auto range=Partition::Range(p.past,c,NewRowWork);
-      QueryAndNewRow(p,s,bg,range);
+      QueryAndNewRow(p,s,bg,range TILEMEGA_NATIVE_PHASE_TASK_ARG);
+      TILEMEGA_NATIVE_PHASES(auto wait_begin=Sm90DenseDiagnostic::Clock();)
       Async::Wait(state.full,phase);phase^=1;
       codegen::executor::ComputeSync();
+      TILEMEGA_NATIVE_PHASES(diagnostic.Wait(wait_begin);
+          auto compute_begin=Sm90DenseDiagnostic::Clock();)
       Compute(s,range.end-range.begin);
+      TILEMEGA_NATIVE_PHASES(diagnostic.Compute(compute_begin);)
       // Historical operands are dead before publishing empty; the producer
       // may refill them while consumers finish the deterministic reductions.
       Async::Arrive(state.empty);
       codegen::executor::ComputeSync();
+      TILEMEGA_NATIVE_PHASES(auto partial_begin=Sm90DenseDiagnostic::Clock();)
       Partial(p,s,task);
+      TILEMEGA_NATIVE_PHASES(diagnostic.Partial(partial_begin);)
+#if TILEMEGA_TRACE_NATIVE_PHASES
+      if constexpr(Chunks>1) {
+        auto publish_begin=Sm90DenseDiagnostic::Clock();
+        bool last=Sm90DenseLastArriver::Publish<Chunks>(p.arrivals+bg,&s.last);
+        diagnostic.Publish(publish_begin);
+        if(last) {
+          auto merge_begin=Sm90DenseDiagnostic::Clock();
+          Merge(p,s,bg);diagnostic.Merge(merge_begin);
+        }
+      }
+#else
       if constexpr(Chunks>1)
         if(Sm90DenseLastArriver::Publish<Chunks>(p.arrivals+bg,&s.last))Merge(p,s,bg);
+#endif
       codegen::executor::ComputeSync();
+      TILEMEGA_NATIVE_PHASES(diagnostic.End();)
     }
     if(threadIdx.x==0 && tasks)state.consumer_generations[0]=phase;
   }

@@ -3,6 +3,7 @@
 
 #include <tilemega/Backend/Sm90DenseEpilogue.h>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
+#include <tilemega/Backend/Sm90DenseDiagnostic.cuh>
 #include <cute/tensor.hpp>
 
 namespace tilemega::backend {
@@ -15,6 +16,9 @@ struct Sm90DenseOperands {
   int* argmax_index;
   float const* norm_sums;
   float* output_sums;
+#if TILEMEGA_TRACE_NATIVE_PHASES
+  Sm90DenseDiagnosticContext diagnostic{};
+#endif
 };
 
 
@@ -105,7 +109,8 @@ struct Sm90DenseGemm {
   }
 
   template<int Split,class Accumulator>
-  __device__ static __forceinline__ void MmaSlice(Element* a,Element* b,Accumulator& accum) {
+  __device__ static __forceinline__ void MmaSlice(Element* a,Element* b,Accumulator& accum
+      TILEMEGA_NATIVE_PHASE_SCOPE_PARAM) {
     using namespace cute;
     static_assert(Split>=0 && Split<WarpsK);
     int lane=int(threadIdx.x)%(32*WarpsN);
@@ -127,14 +132,21 @@ struct Sm90DenseGemm {
       copy(CopyA{},as(_,_,Int<k>{}),ad(_,_,i));
       copy(CopyB{},bs(_,_,Int<k>{}),bd(_,_,i));
     });
-    MmaSteps<Split,0>(mma,ra,rb,as,bs,ad,bd,accum);
+    MmaSteps<Split,0>(mma,ra,rb,as,bs,ad,bd,accum TILEMEGA_NATIVE_PHASE_SCOPE_ARG);
   }
+#if TILEMEGA_TRACE_NATIVE_PHASES
+  template<int Split,class Accumulator>
+  __device__ static __forceinline__ void MmaSlice(Element* a,Element* b,Accumulator& accum) {
+    Sm90DenseDiagnosticScope diagnostic;MmaSlice<Split>(a,b,accum,diagnostic);
+  }
+#endif
 
   template<int Split,int I,class MA,class RA,class RB,class AS,class BS,class AD,class BD,class Acc>
   __device__ static __forceinline__ void MmaSteps(MA const& mma,RA& ra,RB& rb,
-      AS const& as,BS const& bs,AD& ad,BD& bd,Acc& accum) {
+      AS const& as,BS const& bs,AD& ad,BD& bd,Acc& accum TILEMEGA_NATIVE_PHASE_SCOPE_PARAM) {
     using namespace cute;
     constexpr int k=Split+I*WarpsK,next=k+RegisterStages*WarpsK,slot=I%RegisterStages;
+    TILEMEGA_NATIVE_PHASES(if constexpr(I==0)diagnostic.FirstMma();)
     gemm(mma,ra(_,_,Int<slot>{}),rb(_,_,Int<slot>{}),accum);
     if constexpr(next<TK/16) {
       copy(CopyA{},as(_,_,Int<next>{}),ad(_,_,Int<slot>{}));
@@ -142,7 +154,7 @@ struct Sm90DenseGemm {
     }
     // CuTe's large for_each fold can become an outlined closure with local
     // fragment arguments. Keep each owned k16 at an explicit inline call site.
-    if constexpr(I+1<TK/(16*WarpsK))MmaSteps<Split,I+1>(mma,ra,rb,as,bs,ad,bd,accum);
+    if constexpr(I+1<TK/(16*WarpsK))MmaSteps<Split,I+1>(mma,ra,rb,as,bs,ad,bd,accum TILEMEGA_NATIVE_PHASE_SCOPE_ARG);
   }
 
   __device__ static __noinline__ void Consume(Sm90DenseOperands p,
@@ -153,22 +165,28 @@ struct Sm90DenseGemm {
     Mma mma;auto thread=mma.get_slice(lane);
     auto owned=thread.partition_C(make_identity_tensor(Shape<_16,Int<TN>>{}));
     for(int local=0;local<tasks;++local) {
+      TILEMEGA_NATIVE_PHASES(Sm90DenseDiagnosticScope diagnostic;
+          diagnostic.Begin(p,int(blockIdx.x)+local*int(gridDim.x));)
       auto accum=partition_fragment_C(mma,Shape<_16,Int<TN>>{});clear(accum);
       for(int iteration=0;iteration<kIterations;++iteration) {
         int sequence=local*kIterations+iteration,slot=sequence%Slots;
+        TILEMEGA_NATIVE_PHASES(auto wait_begin=Sm90DenseDiagnostic::Clock();)
         Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
+        TILEMEGA_NATIVE_PHASES(diagnostic.Wait(wait_begin);)
         auto* sa=a+slot*16*TK;auto* sb=b+slot*TN*TK;
+        TILEMEGA_NATIVE_PHASES(auto compute_begin=Sm90DenseDiagnostic::Clock();)
         // A warp takes one uniform specialization. All 128-thread barriers
         // and shared reductions remain at common call sites after reconvergence.
-        if constexpr(WarpsK==1)MmaSlice<0>(sa,sb,accum);
+        if constexpr(WarpsK==1)MmaSlice<0>(sa,sb,accum TILEMEGA_NATIVE_PHASE_SCOPE_ARG);
         else if constexpr(WarpsK==2) {
-          if(split==0)MmaSlice<0>(sa,sb,accum);else MmaSlice<1>(sa,sb,accum);
+          if(split==0)MmaSlice<0>(sa,sb,accum TILEMEGA_NATIVE_PHASE_SCOPE_ARG);else MmaSlice<1>(sa,sb,accum TILEMEGA_NATIVE_PHASE_SCOPE_ARG);
         }else {
-          if(split==0)MmaSlice<0>(sa,sb,accum);
-          else if(split==1)MmaSlice<1>(sa,sb,accum);
-          else if(split==2)MmaSlice<2>(sa,sb,accum);
-          else MmaSlice<3>(sa,sb,accum);
+          if(split==0)MmaSlice<0>(sa,sb,accum TILEMEGA_NATIVE_PHASE_SCOPE_ARG);
+          else if(split==1)MmaSlice<1>(sa,sb,accum TILEMEGA_NATIVE_PHASE_SCOPE_ARG);
+          else if(split==2)MmaSlice<2>(sa,sb,accum TILEMEGA_NATIVE_PHASE_SCOPE_ARG);
+          else MmaSlice<3>(sa,sb,accum TILEMEGA_NATIVE_PHASE_SCOPE_ARG);
         }
+        TILEMEGA_NATIVE_PHASES(diagnostic.Compute(compute_begin);)
         // The empty barrier counts every reader; a separate CTA rendezvous
         // would serialize otherwise independent consumer warps on every slot.
         Async::Arrive(state.empty+slot);
@@ -188,9 +206,12 @@ struct Sm90DenseGemm {
       int task=int(blockIdx.x)+local*int(gridDim.x);
       constexpr int stride=Op==ServingEpilogueOp::kSwiGLU?N/2:
           Op==ServingEpilogueOp::kArgmaxPartial?N/TN:N;
+      TILEMEGA_NATIVE_PHASES(auto epilogue_begin=Sm90DenseDiagnostic::Clock();)
       Sm90DenseEpilogue<Op,TN,U>::Run(scratch,task,Batch,N,stride,p.output,p.residual,
           p.argmax_index,p.norm_sums,p.output_sums,K,epsilon);
+      TILEMEGA_NATIVE_PHASES(diagnostic.Partial(epilogue_begin);)
       codegen::executor::ComputeSync();
+      TILEMEGA_NATIVE_PHASES(diagnostic.End();)
     }
     if(tid==0 && tasks)for(int slot=0;slot<Slots;++slot)
       state.consumer_generations[slot]=(phase>>slot)&1;

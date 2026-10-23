@@ -43,6 +43,9 @@ struct Plan {
     for(auto* p:owned)cudaFree(p);
     cudaFree(pasts);cudaFree(stamps);cudaFree(events);
     cudaFree(trace.stages);cudaFree(trace.steps);
+#if TILEMEGA_TRACE_NATIVE_PHASES
+    cudaFree(trace.diagnostics);
+#endif
   }
 };
 template<class T>
@@ -126,7 +129,7 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
       plan->bindings.buffers[i]=static_cast<Element*>(pointer);
     }
     plan->events=Allocate<GridCounter>(NativeProgram::kStages);
-#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
+#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_NATIVE_PHASES
     auto env=std::getenv("TILEMEGA_TRACE_LAUNCHES");
     unsigned long long slots=env?std::strtoull(env,nullptr,10):16;
     if(!slots || slots>4096)throw std::invalid_argument("invalid native trace slot count");
@@ -136,6 +139,9 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
 #endif
 #if TILEMEGA_TRACE_STEP
     plan->trace.steps=Allocate<StepTrace>(slots*plan->grid);
+#endif
+#if TILEMEGA_TRACE_NATIVE_PHASES
+    plan->trace.diagnostics=Allocate<tilemega::backend::Sm90DenseDiagnosticRecord>(slots*NativeProgram::kTotalTasks);
 #endif
 #endif
     return plan.release();
@@ -189,7 +195,14 @@ extern "C" void tm_plan_destroy(void* opaque) {
   delete static_cast<tilemega::codegen::native_dense::Plan*>(opaque);
 }
 
-#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP
+#if TILEMEGA_TRACE_NATIVE_PHASES
+__global__ void sm90_dense_diagnostic_clock(unsigned long long* output) {
+  auto begin=tilemega::backend::Sm90DenseDiagnostic::Global();auto cycles=clock64();
+  while(tilemega::backend::Sm90DenseDiagnostic::Global()-begin<1000000ull) {}
+  output[0]=clock64()-cycles;output[1]=tilemega::backend::Sm90DenseDiagnostic::Global()-begin;
+}
+#endif
+#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_NATIVE_PHASES
 extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
   using namespace tilemega::codegen::native_dense;
   auto* p=static_cast<Plan*>(opaque);
@@ -217,6 +230,33 @@ extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
 #if TILEMEGA_TRACE_STEP
   if(!dump("step_trace.tsv",p->trace.steps,std::size_t(p->trace.slots)*p->grid,
       "worker\titeration\tpast\tkernel_begin\tkernel_end\tfirst_task\tlast_task\ttoken_lag\tkv_lag\tlast_barrier_wait\tstage_has_tasks"))return -2;
+#endif
+#if TILEMEGA_TRACE_NATIVE_PHASES
+  {
+    using Row=tilemega::backend::Sm90DenseDiagnosticRecord;
+    static_assert(sizeof(Row)==29*8);
+    std::vector<Row> rows(std::size_t(p->trace.slots)*NativeProgram::kTotalTasks);
+    Check(cudaMemcpy(rows.data(),p->trace.diagnostics,rows.size()*sizeof(Row),cudaMemcpyDeviceToHost));
+    auto* phases=std::fopen((std::string(directory)+"/native_phases.tsv").c_str(),"w");
+    if(!phases)return -4;
+    std::fprintf(phases,"iteration\tpast\tstage\ttask\tworker\tsmid\tglobal_begin\tglobal_end\tprevious_release_global\tclock_begin\tclock_end\tprevious_release_0\tprevious_release_1\tprevious_release_2\tprevious_release_3\tfirst_mma_0\tfirst_mma_1\tfirst_mma_2\tfirst_mma_3\tquery_0\tquery_1\tquery_2\tquery_3\tnew_row_cycles\twait_cycles\tcompute_cycles\tpartial_cycles\tpublish_cycles\tmerge_cycles\n");
+    for(auto const& row:rows)if(row.global_begin) {
+      auto const* words=reinterpret_cast<unsigned long long const*>(&row);
+      for(unsigned i=0;i<29;++i)std::fprintf(phases,i?"\t%llu":"%llu",words[i]);
+      std::fputc('\n',phases);
+    }
+    if(std::fclose(phases))return -4;
+    auto* clock=std::fopen((std::string(directory)+"/native_clock.tsv").c_str(),"w");
+    if(!clock)return -4;
+    std::fprintf(clock,"cycles\tglobal_ns\n");
+    auto* values=Allocate<unsigned long long>(2);
+    for(int sample=0;sample<5;++sample) {
+      sm90_dense_diagnostic_clock<<<1,1>>>(values);unsigned long long host[2];
+      Check(cudaMemcpy(host,values,16,cudaMemcpyDeviceToHost));
+      std::fprintf(clock,"%llu\t%llu\n",host[0],host[1]);
+    }
+    cudaFree(values);if(std::fclose(clock))return -4;
+  }
 #endif
   auto* stream=std::fopen((std::string(directory)+"/runtime_stages.tsv").c_str(),"w");
   if(!stream)return -3;

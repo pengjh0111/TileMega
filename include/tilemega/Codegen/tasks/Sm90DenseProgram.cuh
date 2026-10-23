@@ -50,6 +50,9 @@ struct TraceState {
   StageTrace* stages=nullptr;
   StepTrace* steps=nullptr;
   unsigned slots=0;
+#if TILEMEGA_TRACE_NATIVE_PHASES
+  backend::Sm90DenseDiagnosticRecord* diagnostics=nullptr;
+#endif
 };
 __device__ inline unsigned long long Now() {
   unsigned long long time;asm volatile("mov.u64 %0, %%globaltimer;":"=l"(time));return time;
@@ -86,6 +89,16 @@ struct Gemm {
         b.template Get<C>(),b.template Get<D>(),reinterpret_cast<int*>(b.template Get<Index>()),
         reinterpret_cast<float const*>(b.template Get<Norm>()),
         reinterpret_cast<float*>(b.template Get<Sums>())};
+#if TILEMEGA_TRACE_NATIVE_PHASES
+    auto& context=backend::Sm90DenseDiagnostic::ContextFromRing(ring);
+    p.diagnostic.records=context.records;
+    if(threadIdx.x==0) {
+      p.diagnostic.iteration=context.iteration;p.diagnostic.past=context.past;
+      p.diagnostic.stage=context.stage;p.diagnostic.previous_release_global=context.previous_release_global;
+    }
+    if(threadIdx.x<128 && (threadIdx.x&31)==0)
+      p.diagnostic.previous_release_clock[threadIdx.x/32]=context.previous_release_clock[threadIdx.x/32];
+#endif
     StageEntry<Body>::template Gemm<Prefix,Initialize>(p,shared,epsilon,&ring,tail);
   }
 };
@@ -130,6 +143,16 @@ struct Attention {
         reinterpret_cast<float*>(b.template Get<Partial>()),
         reinterpret_cast<float*>(b.template Get<Lse>()),
         reinterpret_cast<std::uint64_t*>(b.template Get<Arrivals>()),past,epsilon};
+#if TILEMEGA_TRACE_NATIVE_PHASES
+    auto& context=backend::Sm90DenseDiagnostic::ContextFromRing(ring);
+    p.diagnostic.records=context.records;
+    if(threadIdx.x==0) {
+      p.diagnostic.iteration=context.iteration;p.diagnostic.past=context.past;
+      p.diagnostic.stage=context.stage;p.diagnostic.previous_release_global=context.previous_release_global;
+    }
+    if(threadIdx.x<128 && (threadIdx.x&31)==0)
+      p.diagnostic.previous_release_clock[threadIdx.x/32]=context.previous_release_clock[threadIdx.x/32];
+#endif
     StageEntry<Body>::Attention(p,shared,&ring,tail);
   }
 };
@@ -237,6 +260,15 @@ struct Program {
   using Stages=std::tuple<Stage...>;
   static constexpr int kBatch=Batch,kCapacity=Capacity,kResidency=Residency,kThreads=160;
   static constexpr unsigned kBuffers=Buffers,kStages=sizeof...(Stage);
+#if TILEMEGA_TRACE_NATIVE_PHASES
+  static constexpr unsigned long long kTotalTasks=(0ull+...+Stage::kTasks);
+  static constexpr auto kTaskOffsets=[] {
+    std::array<unsigned long long,kStages> offsets{};
+    std::array<unsigned long long,kStages> tasks{{Stage::kTasks...}};
+    for(unsigned i=1;i<kStages;++i)offsets[i]=offsets[i-1]+tasks[i-1];
+    return offsets;
+  }();
+#endif
   static constexpr auto kActivationReuse=backend::Sm90DenseActivationReuse::Prove(
       std::array<backend::Sm90DenseActivationStage,kStages>{{
           {Stage::kActivationTileK,Stage::kActivationSlots,Stage::kOffset,
@@ -283,8 +315,25 @@ struct Program {
       unsigned long long seen;
       do {asm volatile("ld.acquire.gpu.global.u64 %0, [%1];":"=l"(seen):"l"(counter):"memory");}
       while(seen<(iteration+1)*gridDim.x);
+#if TILEMEGA_TRACE_NATIVE_PHASES
+      constexpr unsigned next_index=(Index+1)%kStages;
+      auto next_iteration=iteration+(next_index==0);
+      auto& context=backend::Sm90DenseDiagnostic::Context(shared);
+      context.records=trace.diagnostics && trace.slots?trace.diagnostics+
+          (next_iteration%trace.slots)*kTotalTasks+kTaskOffsets[next_index]:nullptr;
+      context.iteration=next_iteration;context.past=past;context.stage=next_index;
+#endif
     }
     __syncthreads();
+#if TILEMEGA_TRACE_NATIVE_PHASES
+    if(threadIdx.x==0) {
+      auto& context=backend::Sm90DenseDiagnostic::Context(shared);
+      context.previous_release_global=Now();
+    }
+    if(threadIdx.x<128 && (threadIdx.x&31)==0)
+      backend::Sm90DenseDiagnostic::Context(shared).previous_release_clock[threadIdx.x/32]=
+          backend::Sm90DenseDiagnostic::Clock();
+#endif
 #if TILEMEGA_TRACE_STAGE
     if(threadIdx.x==0 && record)record->release=Now();
 #endif
@@ -318,8 +367,22 @@ void sm90_dense_native_kernel(const __grid_constant__ typename P::Binding b,
                 "native dense programs require sm_90a");
   extern __shared__ __align__(1024) char shared[];
   auto* rings=reinterpret_cast<backend::Sm90DenseRingState*>(shared);
-  rings[0].Initialize();rings[1].Initialize();
+  rings[0].Initialize();
+#if TILEMEGA_TRACE_NATIVE_PHASES
+  if(threadIdx.x==0) {
+    auto& context=backend::Sm90DenseDiagnostic::Context(shared);
+    context={trace.diagnostics && trace.slots?trace.diagnostics+
+        (iteration%trace.slots)*P::kTotalTasks:nullptr,iteration,
+        static_cast<unsigned long long>(pasts[first]),0,Now(),{}};
+  }
+#endif
+  rings[1].Initialize();
   P::InitializeActivation(shared);
+#if TILEMEGA_TRACE_NATIVE_PHASES
+  if(threadIdx.x<128 && (threadIdx.x&31)==0)
+    backend::Sm90DenseDiagnostic::Context(shared).previous_release_clock[threadIdx.x/32]=
+        backend::Sm90DenseDiagnostic::Clock();
+#endif
   if(blockIdx.x==0 && threadIdx.x==0 && step_ns)step_ns[first]=Now();
   for(unsigned step=0;step<steps;++step) {
     int past=pasts[first+step];

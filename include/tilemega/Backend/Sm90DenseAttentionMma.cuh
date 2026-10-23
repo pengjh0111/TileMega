@@ -2,6 +2,7 @@
 #pragma once
 #include <cute/tensor.hpp>
 #include <cutlass/bfloat16.h>
+#include <tilemega/Backend/Sm90DenseDiagnostic.cuh>
 
 namespace tilemega::backend {
 
@@ -37,7 +38,7 @@ struct Sm90DenseAttentionMma {
     return int(cute::get<0>(coordinates(cute::Int<I>{})))/8;
   }
   template<class Acc>
-  __device__ static void QK(Element* a,Element* b,Acc& result) {
+  __device__ static void QK(Element* a,Element* b,Acc& result TILEMEGA_NATIVE_PHASE_SCOPE_PARAM) {
     using namespace cute;
     Mma mma;auto thread=mma.get_slice(threadIdx.x&31);
     auto sa=make_tensor(make_smem_ptr(a),LayoutA{});
@@ -48,9 +49,16 @@ struct Sm90DenseAttentionMma {
     auto ad=ca.get_slice(threadIdx.x&31).retile_D(ra);auto bd=cb.get_slice(threadIdx.x&31).retile_D(rb);
     for_each(make_int_sequence<size<2>(ra)>{},[&](auto k) {
       copy(LoadA{},as(_,_,k),ad(_,_,k));copy(LoadB{},bs(_,_,k),bd(_,_,k));
+      TILEMEGA_NATIVE_PHASES(if constexpr(int(k)==0)diagnostic.FirstMma();)
       gemm(mma,ra(_,_,k),rb(_,_,k),result);
     });
   }
+#if TILEMEGA_TRACE_NATIVE_PHASES
+  template<class Acc>
+  __device__ static void QK(Element* a,Element* b,Acc& result) {
+    Sm90DenseDiagnosticScope diagnostic;QK(a,b,result,diagnostic);
+  }
+#endif
   template<class Probability,class Coords,class Acc>
   __device__ static void PV(Probability const& probability,Coords const& coordinates,
                             Element* b,Acc& result) {
