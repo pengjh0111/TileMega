@@ -50,7 +50,7 @@ inline void ValidateCompiledBodies(std::vector<llm::Stage> const& stages) {
     throw std::invalid_argument("Unregistered native attention implementation");
   for(auto const& s:stages)if(s.kind==1 && s.variant!=0 &&
       ((s.variant!=2 && s.variant!=3) ||
-       (s.width!=1024 && s.width!=2048 && !(s.width==3072 && s.variant==3))))
+       (s.width!=1024 && s.width!=2048 && !((s.width==3072 || s.width==4096) && s.variant==3))))
     throw std::invalid_argument("Unregistered full-row normalization implementation");
 #ifndef TILEMEGA_AS2_CANN_NORM_PRIMITIVES
   for(auto const& s:stages)if((s.kind==13 && (s.variant==5 || s.variant==6)) || (s.kind==1 && (s.variant==2 || s.variant==3)))

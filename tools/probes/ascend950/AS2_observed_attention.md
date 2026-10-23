@@ -49,3 +49,25 @@ CATLASS `2b6c6a6d5bd26559578cf7e3b2fb64af51f64e52`:
 
 The subsequent full-model Qwen B1 1024-token and teacher512 results are indexed
 in `docs/results/AS2_950pr.md`. No replay or hooked reference admits performance.
+
+**verified-run**, physical1/same pinned software: actual Llama3B layer0/past66,
+head128/GQA3 matches independent Q/K/V, scores, probabilities, FP32 PV and BF16
+context bitwise. The mapping uses integer group indices, without KV replication
+in native storage. Evidence: `probes/llama3b_gqa3_observed_numeric_v1.json`.
+This is one observed-operand replay, not a new five-process synchronization gate.
+The same model's33 observed H3072 Norm rows match fused RMSNorm output and
+FP32 Rstd bitwise. Actual CANN tiling logs specify fold2048, epsilon1e-5;
+the Body keeps the entire3072-element domain, using106496B UB and four AIVs
+with9/8/8/8 rows. Evidence: `probes/llama3b_norm_fold_h3072_numeric_v2.json`.
+One retained-copy execute-mode error occurred
+before Host launch; its receipt is kept, and only that private copy was repaired.
+Full-model GQA3/H3072 admission is checked separately through freshly solved
+prefill/decode plans; replay success does not establish full-model correctness.
+
+**verified-run**, physical1: Llama8B's33 observed H4096 rows match independent
+fused RMSNorm output and FP32 Rstd bitwise with fold2048. Its observed
+head128/GQA4 decode replay also matches Q/K/V, scores, probabilities, PV and
+context bitwise. Evidence: `probes/llama8b_norm_fold_h4096_numeric_v1.json` and
+`probes/llama8b_gqa4_observed_numeric_v1.json`. These families are admitted only
+to explicit experimental codegen; H4096 unfolded Newton remains rejected.
+Full-model, long-generation and new performance admission remain separate.

@@ -172,10 +172,10 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
       if((stage.kind==1 || stage.kind==11) && (!stage.width || stage.width>4096))
         throw std::invalid_argument("Native full-row norm/embedding exceeds its UB contract");
       if(stage.kind==1 && attention_precision>=6) {
-        if(stage.width!=1024 && stage.width!=2048 && stage.width!=3072)
-          throw std::invalid_argument("Newton full-row norm requires a probed H1024/H2048/H3072 family");
-        if(stage.width==3072 && attention_precision<7)
-          throw std::invalid_argument("Observed H3072 normalization requires the validated fold2048 implementation");
+        if(stage.width!=1024 && stage.width!=2048 && stage.width!=3072 && stage.width!=4096)
+          throw std::invalid_argument("Newton full-row norm requires a probed H1024/H2048/H3072/H4096 family");
+        if(stage.width>=3072 && attention_precision<7)
+          throw std::invalid_argument("Observed H3072/H4096 normalization requires the validated fold2048 implementation");
         stage.variant=attention_precision>=7?3:2;
       }
       if(stage.kind==13 && ((stage.width!=64 && stage.width!=128) || !stage.extent || !stage.group || stage.group>8))
@@ -184,8 +184,8 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
         if(stage.kv_block!=1088)throw std::invalid_argument("FP32 chunk/merge candidate requires the unified KV ownership domain");
         stage.variant=attention_precision==8?6:attention_precision>=5?5:attention_precision;
         if(attention_precision>=4) {
-          if(map.launch.num_groups!=8 || !((stage.width==128 && (stage.group==2 || stage.group==3)) || (stage.width==64 && stage.group==4)))
-            throw std::invalid_argument("Experimental cooperative FP32 attention requires probed G8/head128/GQA2/3 or head64/GQA4");
+          if(map.launch.num_groups!=8 || !((stage.width==128 && (stage.group==2 || stage.group==3 || stage.group==4)) || (stage.width==64 && stage.group==4)))
+            throw std::invalid_argument("Experimental cooperative FP32 attention requires probed G8/head128/GQA2/3/4 or head64/GQA4");
           if(attention_workspace==kAbsent) {
             attention_workspace=arena;auto bytes=Mul(map.launch.num_groups,attention::kGroupBytes);
             auto allocated=Mul(Add(Add(bytes,512),511)/512,512);
