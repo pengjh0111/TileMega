@@ -100,7 +100,8 @@ class LlmVectorBody {
     CompleteDma<AscendC::HardEvent::MTE3_S>();return true;
   }
   __aicore__ inline bool ServingSoftmax(GM_ADDR scores,GM_ADDR probabilities,unsigned keys,
-      bool fp32=false,unsigned width=0,unsigned output_width=0,bool vector_divide=false) {
+      bool fp32=false,unsigned width=0,unsigned output_width=0,bool vector_divide=false,
+      GM_ADDR diagnostic_exp=nullptr,GM_ADDR diagnostic_stats=nullptr,bool register_fold=false) {
     if(!width)width=keys;
     if(!output_width)output_width=keys;
     if(!keys || keys>output_width || output_width>width || width>1088)return false;
@@ -112,9 +113,25 @@ class LlmVectorBody {
     AscendC::Duplicate(work_,-3.3895313892515355e38f,width);AscendC::PipeBarrier<PIPE_V>();
     AscendC::Adds(work_,x_,0.0f,keys);AscendC::PipeBarrier<PIPE_V>();
     AscendC::ReduceMax(z_,work_,scratch_,width);CompleteDma<AscendC::HardEvent::V_S>();float maximum=z_.GetValue(0);
+    if(diagnostic_stats)StoreNormStatistic(diagnostic_stats);
     AscendC::Adds(work_,work_,-maximum,width);AscendC::PipeBarrier<PIPE_V>();
     AscendC::Exp(work_,work_,width);AscendC::PipeBarrier<PIPE_V>();
-    AscendC::ReduceSum(z_,work_,scratch_,width);CompleteDma<AscendC::HardEvent::V_S>();float sum=z_.GetValue(0);
+    if(diagnostic_exp) {
+      CompleteDma<AscendC::HardEvent::V_MTE3>();AscendC::GlobalTensor<float> dst;
+      dst.SetGlobalBuffer((__gm__ float*)diagnostic_exp);
+      AscendC::DataCopyExtParams copy{1,width*4,0,0,0};AscendC::DataCopyPad(dst,work_,copy);
+      CompleteDma<AscendC::HardEvent::MTE3_V>();
+    }
+    if(register_fold) {
+#if defined(TILEMEGA_AS2_CANN_NORM_PRIMITIVES) && __CCE_AICORE__ == 310
+      if(width!=1088)return false;
+      NormCommon::NormCommonRegbase::CalculateReduceSum(work_,z_,scratch_,width,1024);
+#else
+      return false;
+#endif
+    }else AscendC::ReduceSum(z_,work_,scratch_,width);
+    CompleteDma<AscendC::HardEvent::V_S>();float sum=z_.GetValue(0);
+    if(diagnostic_stats)StoreNormStatistic(diagnostic_stats+32);
     if(!(sum>0))return false;
     if(vector_divide) {
       AscendC::Duplicate(z_,sum,output_width);AscendC::PipeBarrier<PIPE_V>();

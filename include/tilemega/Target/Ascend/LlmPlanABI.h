@@ -18,6 +18,10 @@ static_assert(kV+uint64_t(kCapacity)*kMaxWidth*4<=kScores);
 static_assert(kScores+uint64_t(kMaxRows)*kCapacity*4<=kProbabilities);
 static_assert(kProbabilities+uint64_t(kMaxRows)*kCapacity*4<=kOutput);
 static_assert(kOutput+uint64_t(kMaxRows)*kMaxWidth*4<=kGroupBytes);
+// Probe-only observations fit the existing workspace; production never writes them.
+inline constexpr uint64_t kDiagnosticExp=kOutput+uint64_t(kMaxRows)*kMaxWidth*4;
+inline constexpr uint64_t kDiagnosticStats=kDiagnosticExp+uint64_t(kMaxRows)*kCapacity*4;
+static_assert(kDiagnosticStats+uint64_t(kMaxRows)*64<=kGroupBytes);
 }
 struct Metadata {
   uint32_t version,groups,workers,tasks,stages,waits,queue_refs,epoch_stride;
@@ -36,6 +40,7 @@ struct Stage {
   // 0=BF16 scores/probabilities, 1=FP32 chunks, 2=FP32 scores/BF16 probabilities,
   // 3=math SDPA split scale/capacity softmax; 4=cooperative full-FP32 Cube;
   // 5=the same cooperative path with pinned CANN Newton-refined QK RMSNorm.
+  // 6=variant5 with the pinned capacity1088 register-fold softmax sum.
   float epsilon;
 };
 struct Task {

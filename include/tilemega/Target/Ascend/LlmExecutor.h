@@ -64,7 +64,7 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
     uint32_t token=(base+task.ordinal)*4;
     if constexpr(Cube) {
       if(forward.diagnostic==2)body_start=AscendC::GetSystemCycle();
-      if(stage.kind==13 && (stage.variant==4 || stage.variant==5)) {
+      if(stage.kind==13 && (stage.variant==4 || stage.variant==5 || stage.variant==6)) {
         if(!task.mix_aiv_lanes){WriteControl(abort,9);return;}
         PublishSingleOwnerEvent(ready,token);
         if(!WaitProgress(done,token,abort,m.wait_ticks))return;
@@ -82,7 +82,7 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
         }
       }else ok=body.Run(stage,task.tile,arena);
       if(forward.diagnostic==2)body_end=AscendC::GetSystemCycle();
-      if(ok && task.mix_aiv_lanes && !(stage.kind==13 && (stage.variant==4 || stage.variant==5))) {
+      if(ok && task.mix_aiv_lanes && !(stage.kind==13 && (stage.variant==4 || stage.variant==5 || stage.variant==6))) {
         PublishSingleOwnerEvent(ready,token);
         if(!WaitProgress(done,token,abort,m.wait_ticks))return;
       }
@@ -91,7 +91,7 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
         if(!WaitProgress(ready,token,abort,m.wait_ticks))return;
         AcquireData(payload);
         if(forward.diagnostic==2)body_start=AscendC::GetSystemCycle();
-        if(stage.kind==13 && (stage.variant==4 || stage.variant==5)) {
+        if(stage.kind==13 && (stage.variant==4 || stage.variant==5 || stage.variant==6)) {
           ok=body.AttentionPrepare(stage,task.tile,arena,scratch+uint64_t(worker)*m.worker_scratch_bytes,m,forward.past,owner_group);
           if(ok) {
             PublishSingleOwnerEvent(done,token);
@@ -108,7 +108,7 @@ template<bool Cube,class Body> __aicore__ inline void ExecuteLlm(Body& body,
         }else ok=body.Epilogue(stage,task.tile,arena);
         if(forward.diagnostic==2)body_end=AscendC::GetSystemCycle();
         if(ok) {
-          PublishSingleOwnerEvent(done,token+(stage.kind==13 && (stage.variant==4 || stage.variant==5)?2:0));
+          PublishSingleOwnerEvent(done,token+(stage.kind==13 && (stage.variant==4 || stage.variant==5 || stage.variant==6)?2:0));
           // Reverse acknowledgement prevents this lane recycling its buffers
           // or advertising a FIFO prefix before the logical owner completes.
           if(!WaitProgress(cells+task.owner*128,base+task.ordinal,abort,m.wait_ticks))return;

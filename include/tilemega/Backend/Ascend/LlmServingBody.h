@@ -5,7 +5,7 @@
 #include <tilemega/Backend/Ascend/LlmAttentionShape.h>
 
 namespace tilemega::ascend {
-template<unsigned TM=32,unsigned TN=64> class LlmServingBody {
+template<unsigned TM=32,unsigned TN=64,bool CaptureSoftmax=false> class LlmServingBody {
   struct Operands {
     GM_ADDR arena;llm::Stage const& stage;
     __aicore__ inline GM_ADDR operator()(unsigned i) const {
@@ -66,7 +66,7 @@ template<unsigned TM=32,unsigned TN=64> class LlmServingBody {
       for(unsigned pos=0;pos<64;++pos) {
         auto source=p(0)+((uint64_t(h.batch)*64+pos)*packed+uint64_t(h.kv_group)*(s.group+2)*d)*2;
         if(!Rotate(source+s.group*d*2,p(6),p(3)+uint64_t(pos)*d*2,p(4)+uint64_t(pos)*d*2,
-            keys+uint64_t(pos)*d*2,scratch+512,d,s.epsilon,s.variant==5?2:0) ||
+            keys+uint64_t(pos)*d*2,scratch+512,d,s.epsilon,s.variant>=5?2:0) ||
             !vector_.Copy(source+(s.group+1)*d*2,values+uint64_t(pos)*d*2,d))return false;
         if(pos>=h.first_position && pos<h.first_position+h.positions) {
           auto offset=((uint64_t(h.batch)*s.extent+h.kv_group)*m.capacity+pos)*d*2;
@@ -79,7 +79,7 @@ template<unsigned TM=32,unsigned TN=64> class LlmServingBody {
       keys=p(1)+(uint64_t(h.batch)*s.extent+h.kv_group)*m.capacity*d*2;
       values=p(2)+(uint64_t(h.batch)*s.extent+h.kv_group)*m.capacity*d*2;
       if(!Rotate(source+s.group*d*2,p(6),p(3)+uint64_t(past)*d*2,p(4)+uint64_t(past)*d*2,
-          keys+uint64_t(past)*d*2,scratch+512,d,s.epsilon,s.variant==5?2:0) ||
+          keys+uint64_t(past)*d*2,scratch+512,d,s.epsilon,s.variant>=5?2:0) ||
           !vector_.Copy(source+(s.group+1)*d*2,values+uint64_t(past)*d*2,d))return false;
     }
     Acquire(scratch);
@@ -101,7 +101,7 @@ template<unsigned TM=32,unsigned TN=64> class LlmServingBody {
       unsigned pos=h.first_position+row/s.group,q=row%s.group;
       auto source=p(0)+((uint64_t(h.batch)*m.seq+(m.seq==64?pos:0))*packed+
         uint64_t(h.kv_group)*(s.group+2)*d+q*d)*2;
-      if(!Rotate(source,p(5),p(3)+uint64_t(pos)*d*2,p(4)+uint64_t(pos)*d*2,scratch,scratch+512,d,s.epsilon,s.variant==5?2:0))return false;
+      if(!Rotate(source,p(5),p(3)+uint64_t(pos)*d*2,p(4)+uint64_t(pos)*d*2,scratch,scratch+512,d,s.epsilon,s.variant>=5?2:0))return false;
       Acquire(scratch);
       if(!vector_.Bf16ToFloat(scratch,work+llm::attention::kQ+uint64_t(row)*d*4,d,root))return false;
     }
@@ -114,8 +114,15 @@ template<unsigned TM=32,unsigned TN=64> class LlmServingBody {
     auto work=LlmAttentionWork(arena,s,owner_group);
     for(unsigned row=0;row<h.rows;++row) {
       unsigned valid=m.seq==64?h.first_position+row/s.group+1:past+1;
+      GM_ADDR diagnostic_exp=nullptr;
+      GM_ADDR diagnostic_stats=nullptr;
+      if constexpr(CaptureSoftmax) {
+        diagnostic_exp=work+llm::attention::kDiagnosticExp+uint64_t(row)*m.capacity*4;
+        diagnostic_stats=work+llm::attention::kDiagnosticStats+uint64_t(row)*64;
+      }
       if(!vector_.ServingSoftmax(work+llm::attention::kScores+uint64_t(row)*h.keys*4,
-          work+llm::attention::kProbabilities+uint64_t(row)*h.keys*4,valid,true,m.capacity,h.keys,true))return false;
+          work+llm::attention::kProbabilities+uint64_t(row)*h.keys*4,valid,true,m.capacity,h.keys,true,
+          diagnostic_exp,diagnostic_stats,s.variant==6))return false;
     }
     return true;
   }

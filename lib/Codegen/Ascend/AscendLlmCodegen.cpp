@@ -41,7 +41,7 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
     ascend::WorkerMap const& map,std::vector<solver::AscendScheduledTask> const& input,
     solver::AscendSchedule const& schedule,bool diagnostic,unsigned attention_precision) {
   using namespace ascend::llm;
-  if(attention_precision>7)throw std::invalid_argument("Unknown native attention precision contract");
+  if(attention_precision>8)throw std::invalid_argument("Unknown native attention precision contract");
   if(!module || mlir::failed(mlir::verify(module)) || !p.model.serving || p.model.dm ||
       p.model.dtype!=solver::ScalarType::kBF16 || (p.model.dims.seq!=1 && p.model.dims.seq!=64) || p.model.dims.batch<1 ||
       p.model.serving_capacity!=1088 || (p.model.dims.seq==1?p.model.dims.past!=1087:p.model.dims.past!=0))
@@ -142,13 +142,13 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
         throw std::invalid_argument("Native full-row norm/embedding exceeds its UB contract");
       if(stage.kind==1 && attention_precision>=6) {
         if(stage.width!=1024)throw std::invalid_argument("Newton full-row norm is experimentally validated only for H1024");
-        stage.variant=attention_precision==7?3:2;
+        stage.variant=attention_precision>=7?3:2;
       }
       if(stage.kind==13 && ((stage.width!=64 && stage.width!=128) || !stage.extent || !stage.group || stage.group>8))
         throw std::invalid_argument("Native GQA head geometry is not registered");
       if(stage.kind==13 && attention_precision) {
         if(stage.kv_block!=1088)throw std::invalid_argument("FP32 chunk/merge candidate requires the unified KV ownership domain");
-        stage.variant=attention_precision>=5?5:attention_precision;
+        stage.variant=attention_precision==8?6:attention_precision>=5?5:attention_precision;
         if(attention_precision>=4) {
           if(map.launch.num_groups!=8 || stage.width!=128 || stage.group!=2)
             throw std::invalid_argument("Experimental cooperative FP32 attention is bounded to G8/head128/GQA2 pending family probes");
@@ -192,7 +192,7 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
     if(lanes>1)throw std::invalid_argument("LLM epilogue currently registers one AIV participant");
     auto const& stage=out.stages.at(t.stage);
     auto expected=stage.kind==0?(stage.epilogue?ascend::ImplementationRole::kMix1_2:ascend::ImplementationRole::kAicOnly):
-      stage.kind==13 && (stage.variant==4 || stage.variant==5)?ascend::ImplementationRole::kMix1_2:ascend::ImplementationRole::kAivOnly;
+      stage.kind==13 && (stage.variant==4 || stage.variant==5 || stage.variant==6)?ascend::ImplementationRole::kMix1_2:ascend::ImplementationRole::kAivOnly;
     if(t.role!=expected || t.logical_task>=stage.tasks || out.waits.size()>UINT32_MAX)
       throw std::invalid_argument("LLM task role/coordinate disagrees with implementation contract");
     Task task{t.stage,t.logical_task,schedule.owners[i],schedule.ordinals[i],uint32_t(out.waits.size()),uint32_t(schedule.waits[i].size()),lanes};
@@ -234,7 +234,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
     else if(s.kind==11)id="as2_aiv_embedding_i32_bf16";
     else if(s.kind==13)id=s.kv_block==128?"as2_aiv_gqa_fp32_log2_partials_kv128":
       metadata.seq==1?"as2_aiv_gqa_bf16_scores_probability_k32":"as2_aiv_causal_prefill_private_kv_k32";
-    if(s.kind==13 && s.variant)id=s.variant==5?"as2_mix_fp32_cube_cann_newton_qknorm_gm":s.variant==4?"as2_mix_fp32_qk_vector_div_softmax_pv_gm":s.variant==1?"as2_aiv_gqa_fp32_chunk32_normalized_merge":
+    if(s.kind==13 && s.variant)id=s.variant==6?"as2_mix_fp32_cube_newton_fold_softmax1088_gm":s.variant==5?"as2_mix_fp32_cube_cann_newton_qknorm_gm":s.variant==4?"as2_mix_fp32_qk_vector_div_softmax_pv_gm":s.variant==1?"as2_aiv_gqa_fp32_chunk32_normalized_merge":
       s.variant==2?"as2_aiv_gqa_fp32_scores_bf16_probability_k32":"as2_aiv_gqa_math_sdpa_fp32_split_scale";
     else if(s.kind==14)id="as2_aiv_normalized_partial_log2_merge";
     else if(s.kind==15)id="as2_aiv_ordered_argmax_scalar_reduce";
@@ -246,19 +246,20 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
     }
     json::Array sources;for(auto const& source:provenance)sources.emplace_back(source);
     contracts.emplace_back(json::Object{{"stage",int(i)},{"impl_id",id},{"semantic_kind",int(s.kind)},
-      {"role",s.kind==0?(s.epilogue?"AIC_AIV0":"AIC_ONLY"):s.kind==13&&(s.variant==4 || s.variant==5)?"AIC_AIV0":"AIV_ONLY"},
+      {"role",s.kind==0?(s.epilogue?"AIC_AIV0":"AIC_ONLY"):s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6)?"AIC_AIV0":"AIV_ONLY"},
       {"dtype","bf16"},{"opmath","fp32"},{"input_weight_layout",s.kind==0?"logical_NK":"ND"},
       {"tile_m",s.kind==0?(s.variant?16:32):0},{"tile_n",s.kind==0?(s.variant?128:64):0},
       {"tile_k",s.kind==0?(s.variant?128:64):0},
-      {"attention_score_probability",s.kind==13?((s.variant==4 || s.variant==5)?"fp32_cube_split_scale_vector_div_softmax":s.variant==1?"fp32_opmath_no_bf16_intermediate":s.variant==2?"fp32_scores_bf16_probability":s.variant==3?"fp32_split_scale_capacity_softmax":"bf16_storage_rounding"):"not_applicable"},
-      {"qk_norm_method",s.kind==13&&s.variant==5?"CANN9.1.0_register_square_reduce_Newton_refinement":"existing_Rsqrt"},
+      {"attention_score_probability",s.kind==13?((s.variant==4 || s.variant==5 || s.variant==6)?"fp32_cube_split_scale_vector_div_softmax":s.variant==1?"fp32_opmath_no_bf16_intermediate":s.variant==2?"fp32_scores_bf16_probability":s.variant==3?"fp32_split_scale_capacity_softmax":"bf16_storage_rounding"):"not_applicable"},
+      {"qk_norm_method",s.kind==13&&(s.variant==5 || s.variant==6)?"CANN9.1.0_register_square_reduce_Newton_refinement":"existing_Rsqrt"},
+      {"softmax_sum_method",s.kind==13&&s.variant==6?"CANN9.1.0_register_fold1024_capacity1088":"existing_ReduceSum"},
       {"full_row_norm_method",s.kind==1&&s.variant==3?"CANN9.1.0_half_row_fold_square_reduce_Newton_refinement":s.kind==1&&s.variant==2?"CANN9.1.0_register_square_reduce_Newton_refinement":"existing_Rsqrt"},
-      {"aic_l1_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5))?524288:0},{"aic_l0a_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5))?65536:0},
-      {"aic_l0b_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5))?65536:0},{"aic_l0c_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5))?262144:0},
+      {"aic_l1_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6))?524288:0},{"aic_l0a_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6))?65536:0},
+      {"aic_l0b_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6))?65536:0},{"aic_l0c_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6))?262144:0},
       {"aiv_ub_bytes",s.kind!=0||s.epilogue?106496:0},
       {"internal_hard_event_slot",7},{"logical_task_completion_publishers",1},
-      {"gm_group_workspace_bytes",s.kind==13&&(s.variant==4 || s.variant==5)?double(ascend::llm::attention::kGroupBytes):0},
-      {"mix_gm_phases",s.kind==13&&(s.variant==4 || s.variant==5)?3:s.kind==0&&s.epilogue?1:0},
+      {"gm_group_workspace_bytes",s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6)?double(ascend::llm::attention::kGroupBytes):0},
+      {"mix_gm_phases",s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6)?3:s.kind==0&&s.epilogue?1:0},
       {"handoff","GM_single_owner_frontier"},{"service_ns",high && low==high?json::Value(low):json::Value{}},
       {"service_ns_min",high?json::Value(low):json::Value{}},{"service_ns_max",high?json::Value(high):json::Value{}},
       {"price_provenance",std::move(sources)},

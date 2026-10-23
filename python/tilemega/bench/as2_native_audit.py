@@ -19,7 +19,7 @@ def mix_prefix(metadata,tasks,stages,group,epoch):
     if last is None:return 0
     prefix=epoch*metadata[7]+last[3]
     if metadata[0]==4:
-        stage=stages[last[0]];phase=2 if stage[17]==13 and stage[31] in (4,5) else 0
+        stage=stages[last[0]];phase=2 if stage[17]==13 and stage[31] in (4,5,6) else 0
         prefix=4*prefix+phase
     return prefix
 
