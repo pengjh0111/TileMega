@@ -84,19 +84,7 @@ int main(int argc,char** argv) {
       if(attention!="bf16" && attention!="fp32" && attention!="fp32-scores" && attention!="math-sdpa" && attention!="cube-fp32" && attention!="cube-fp32-newton" && attention!="cube-fp32-newton-full" && attention!="cube-fp32-newton-fold" && attention!="cube-fp32-fold-softmax")throw std::invalid_argument("Unknown attention implementation precision");
       attention_precision=attention=="fp32"?1:attention=="fp32-scores"?2:attention=="math-sdpa"?3:attention=="cube-fp32"?4:attention=="cube-fp32-newton"?5:attention=="cube-fp32-newton-full"?6:attention=="cube-fp32-newton-fold"?7:attention=="cube-fp32-fold-softmax"?8:0;
     }
-    auto start=std::chrono::steady_clock::now();
-    tilemega::analysis::IslContext isl;
-    auto bridge=tilemega::frontend::ReadExportBridge((input/"export.json").string());
-    auto plan=tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,serving);
-    if(emit && phase=="prefill")for(auto& stage:plan.stages)
-      if(stage.kind==tilemega::frontend::PlanTaskKind::kFusedAttention)
-        stage.attention_query_rows=16*stage.group;
-    tilemega::frontend::ImportOptions options;options.phase_batch=batch;
-    options.rope_tile_per_block=options.kv_tile_per_block=options.activation_tile_per_block=options.combiner_tile_per_block=true;
-    if(serving.argmax_tile_n==128)options.gemms.assign(plan.gemms.size(),{16,128,128,2,1});
-    else options.gemms.assign(plan.gemms.size(),{32,64,64,2,1});
     tilemega::json::Value decomposition;
-    unsigned decomposed_gemms=0;
     if(decomposed) {
       auto path=fs::weakly_canonical(argv[priced_decomposition?10:9]);
       auto config_root=fs::path(TILEMEGA_SOURCE_DIR)/"configs/ascend";
@@ -108,17 +96,37 @@ int main(int argc,char** argv) {
           decomposition.At("phase").AsString("phase")!=phase ||
           decomposition.At("batch").AsNumber("batch")!=batch || batch!=1 || serving.argmax_tile_n!=128)
         throw std::invalid_argument("Observed decomposition model/phase/geometry mismatch");
+      if(auto separate=decomposition.Find("separate_qkv"))serving.separate_qkv=separate->AsBool("separate_qkv");
+      if(serving.separate_qkv && receipt.At("model_id").AsString("model")!="llama3_1_8b")
+        throw std::invalid_argument("Separate projection candidate is bounded to observed Llama8B");
+    }
+    auto start=std::chrono::steady_clock::now();
+    tilemega::analysis::IslContext isl;
+    auto bridge=tilemega::frontend::ReadExportBridge((input/"export.json").string());
+    auto plan=tilemega::frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,serving);
+    if(emit && phase=="prefill")for(auto& stage:plan.stages)
+      if(stage.kind==tilemega::frontend::PlanTaskKind::kFusedAttention)
+        stage.attention_query_rows=16*stage.group;
+    tilemega::frontend::ImportOptions options;options.phase_batch=batch;
+    options.rope_tile_per_block=options.kv_tile_per_block=options.activation_tile_per_block=options.combiner_tile_per_block=true;
+    if(serving.argmax_tile_n==128)options.gemms.assign(plan.gemms.size(),{16,128,128,2,1});
+    else options.gemms.assign(plan.gemms.size(),{32,64,64,2,1});
+    unsigned decomposed_gemms=0;
+    if(decomposed) {
       for(auto const& family:decomposition.At("families").AsArray("families")) {
         unsigned matches=0;
         auto family_k=family.At("k").AsNumber("k");
         auto family_n=family.At("n").AsNumber("n"),split=family.At("split_k").AsNumber("split_k");
-        if(!((family_n==2048 && split==3 && (family_k==6144 || family_k==8192)) ||
-             (family_n==3072 && split==2 && family_k==8192)) ||
-            family.At("epilogue").AsString("epilogue")!="residual")
+        auto epilogue=family.At("epilogue").AsString("epilogue");
+        bool residual=((family_n==2048 && split==3 && (family_k==6144 || family_k==8192)) ||
+             (family_n==3072 && split==2 && family_k==8192)) && epilogue=="residual";
+        bool store=serving.separate_qkv && family_n==1024 && family_k==4096 && split==7 && epilogue=="store";
+        if(!residual && !store)
           throw std::invalid_argument("Unverified decomposition family");
         for(unsigned i=0;i<plan.gemms.size();++i) {
           auto const& g=plan.gemms[i];
-          if(g.n==family_n && g.k==family_k && g.epilogue==tilemega::frontend::PlanGemm::Epilogue::kResidual) {
+          auto required=store?tilemega::frontend::PlanGemm::Epilogue::kStore:tilemega::frontend::PlanGemm::Epilogue::kResidual;
+          if(g.n==family_n && g.k==family_k && g.epilogue==required) {
             if(options.gemms[i].split_k!=1)throw std::invalid_argument("Duplicate decomposition binding");
             options.gemms[i].split_k=unsigned(split);++matches;++decomposed_gemms;
           }
