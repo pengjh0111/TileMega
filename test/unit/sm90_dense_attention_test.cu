@@ -43,6 +43,10 @@ void evaluate(Sm90DenseAttentionOperands p,std::uint64_t* grid){
 BF position(int bg,int pos,int d){unsigned hash=unsigned(pos+1)*2654435761u ^ unsigned(d+1)*2246822519u ^ unsigned(bg+1)*3266489917u;return BF((int(hash%255)-127)/128.f);}
 template<int B,int D,int Q,bool Norm,int S,int Work,int Keys=64,int Slots=3>int run(unsigned& cases){
  using A=std::conditional_t<(B<=4),Sm90DenseAttention<B,D,Q,Norm,S,Work>,Sm90DenseAttentionStream<B,D,Q,Norm,S,Keys,Slots,Work>>;
+ cudaDeviceProp properties{};check(cudaGetDeviceProperties(&properties,0));
+ if(A::kSharedBytes>properties.sharedMemPerBlockOptin){
+  std::printf("{\"excluded\":true,\"reason\":\"shared_memory_budget\",\"batch\":%d,\"head_dim\":%d,\"queries\":%d,\"chunks\":%d,\"required\":%d,\"available\":%zu}\n",B,D,Q,S,A::kSharedBytes,properties.sharedMemPerBlockOptin);return 0;
+ }
  constexpr int Groups=B*8,Capacity=1088;
  std::vector<BF>qkv(Groups*(Q+2)*D,BF(0)),value(Groups*Capacity*D),one(Capacity*D,BF(1)),zero(Capacity*D,BF(0)),out(Groups*Q*D);
  for(int bg=0;bg<Groups;++bg)for(int pos=0;pos<Capacity;++pos)for(int d=0;d<D;++d)value[(bg*Capacity+pos)*D+d]=position(bg,pos,d);
@@ -51,7 +55,11 @@ template<int B,int D,int Q,bool Norm,int S,int Work,int Keys=64,int Slots=3>int 
  auto* partial=device<float>(Groups*S*Q*D);auto* lse=device<float>(Groups*S*Q);auto* arrivals=device<std::uint64_t>(Groups);auto* grid=device<std::uint64_t>(1);
  check(cudaMemset(dk,0,value.size()*2));check(cudaMemcpy(dv,value.data(),value.size()*2,cudaMemcpyHostToDevice));check(cudaMemcpy(cosine,one.data(),one.size()*2,cudaMemcpyHostToDevice));check(cudaMemcpy(sine,zero.data(),zero.size()*2,cudaMemcpyHostToDevice));check(cudaMemcpy(norm,one.data(),D*2,cudaMemcpyHostToDevice));
  check(cudaFuncSetAttribute(evaluate<B,D,Q,Norm,S,Work,Keys,Slots>,cudaFuncAttributeMaxDynamicSharedMemorySize,A::kSharedBytes));
- std::set<int> pasts={64,575,1086};for(int total:{S*4,S*16,S*64})for(int delta:{-1,0,1})if(total+delta-1>=64&&total+delta-1<=1086)pasts.insert(total+delta-1);
+ std::set<int> pasts={64,575,1086};
+ // Exercise the first, middle and last chunk-aligned totals, including both
+ // neighbours, and the streaming slot boundary independently of chunk count.
+ for(int total:{S*((65+S-1)/S),S*(576/S),S*(1087/S),S*Keys,S*4,S*16,S*64})
+  for(int delta:{-1,0,1})if(total+delta-1>=64&&total+delta-1<=1086)pasts.insert(total+delta-1);
  int errors=0;
  for(int past:pasts){
   for(int bg=0;bg<Groups;++bg)for(int d=0;d<D;++d)qkv[(bg*(Q+2)+Q+1)*D+d]=position(bg,past,d);
@@ -69,7 +77,11 @@ template<int B,int D,int Q,bool Norm,int S,int Work,int Keys=64,int Slots=3>int 
 }
 int main(){try{check(cudaSetDevice(0));unsigned cases=0;int errors=rotation<64,false>()+rotation<128,false>()+rotation<128,true>();
 #define RUN(B,D,Q,N,S,W,Keys,Slots) errors+=run<B,D,Q,N,S,W,Keys,Slots>(cases)
-#if defined(TILEMEGA_NATIVE_TEST_FULL_KV_PREISSUE)
+#if defined(TILEMEGA_NATIVE_TEST_POSITION_MATRIX)
+#define MATRIX(S) RUN(TILEMEGA_POSITION_BATCH,TILEMEGA_POSITION_DIM,TILEMEGA_POSITION_QUERIES,TILEMEGA_POSITION_NORM,S,0,64,3)
+ MATRIX(1);MATRIX(2);MATRIX(4);MATRIX(8);MATRIX(16);MATRIX(32);MATRIX(64);
+#undef MATRIX
+#elif defined(TILEMEGA_NATIVE_TEST_FULL_KV_PREISSUE)
  RUN(1,128,2,true,16,0,64,3);RUN(4,64,4,false,4,16,64,3);
  RUN(8,128,3,false,2,0,32,2);RUN(16,128,4,false,1,8,64,3);
 #else
