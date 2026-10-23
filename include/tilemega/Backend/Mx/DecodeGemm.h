@@ -505,7 +505,7 @@ struct MxDecodeGemm {
     // the barrier.
 #if !TILEMEGA_MX_DIAG_NO_VT
     constexpr int kGroup = TILEMEGA_MX_VT_GROUP;  // tokens per read-modify-write group
-    static_assert(kGroup % 8 == 0 && kGroup <= 64, "whole 16-byte vectors");
+    static_assert(kGroup % 16 == 0 && kGroup <= 64, "whole 32-byte halves");
     int const at = p.past / kGroup * kGroup, slot = p.past % kGroup;
     for (int index = threadIdx.x; index < b * kHeads * kD; index += kThreads) {
       int const vrow = index / (kHeads * kD), vh = index / kD % kHeads, dd = index % kD;
@@ -514,16 +514,21 @@ struct MxDecodeGemm {
       std::size_t const vbg = std::size_t(vrow) * Rope::kHeadsKv + vhead / (kQ + 2);
       Element* const target = p.vt_cache + (vbg * kD + dd) * p.capacity + at;
       Element const value = Element(res[vrow * stride + vh * kD + dd] * Inverse(res, vrow, s, p.epsilon));
-      uint4 words[kGroup / 8];
+      // Two 32-byte halves back to back, so the line is still written whole:
+      // all four 16-byte words at once spilled next to the next segment's ring.
 #pragma unroll
-      for (int q = 0; q < kGroup / 8; ++q) words[q] = Load(target + 8 * q);
+      for (int half = 0; half < kGroup / 16; ++half) {
+        uint4 words[2];
 #pragma unroll
-      for (int q = 0; q < kGroup / 8; ++q) {
-        alignas(16) Element v[8];
-        *reinterpret_cast<uint4*>(v) = words[q];
+        for (int q = 0; q < 2; ++q) words[q] = Load(target + 16 * half + 8 * q);
 #pragma unroll
-        for (int e = 0; e < 8; ++e) v[e] = 8 * q + e == slot ? value : v[e];  // no runtime index: registers
-        StoreGlobal16(target + 8 * q, *reinterpret_cast<uint4 const*>(v));
+        for (int q = 0; q < 2; ++q) {
+          alignas(16) Element v[8];
+          *reinterpret_cast<uint4*>(v) = words[q];
+#pragma unroll
+          for (int e = 0; e < 8; ++e) v[e] = 16 * half + 8 * q + e == slot ? value : v[e];  // registers only
+          StoreGlobal16(target + 16 * half + 8 * q, *reinterpret_cast<uint4 const*>(v));
+        }
       }
     }
 #endif
