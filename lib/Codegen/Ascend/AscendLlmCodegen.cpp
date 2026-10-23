@@ -170,7 +170,10 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
       if((stage.kind==1 || stage.kind==11) && (!stage.width || stage.width>4096))
         throw std::invalid_argument("Native full-row norm/embedding exceeds its UB contract");
       if(stage.kind==1 && attention_precision>=6) {
-        if(stage.width!=1024 && stage.width!=2048)throw std::invalid_argument("Newton full-row norm requires the probed H1024/H2048 family");
+        if(stage.width!=1024 && stage.width!=2048 && stage.width!=3072)
+          throw std::invalid_argument("Newton full-row norm requires a probed H1024/H2048/H3072 family");
+        if(stage.width==3072 && attention_precision<7)
+          throw std::invalid_argument("Observed H3072 normalization requires the validated fold2048 implementation");
         stage.variant=attention_precision>=7?3:2;
       }
       if(stage.kind==13 && ((stage.width!=64 && stage.width!=128) || !stage.extent || !stage.group || stage.group>8))
@@ -179,8 +182,8 @@ AscendLlmPlan MaterializeAscendLlm(mlir::ModuleOp module,solver::SymbolicProblem
         if(stage.kv_block!=1088)throw std::invalid_argument("FP32 chunk/merge candidate requires the unified KV ownership domain");
         stage.variant=attention_precision==8?6:attention_precision>=5?5:attention_precision;
         if(attention_precision>=4) {
-          if(map.launch.num_groups!=8 || !((stage.width==128 && stage.group==2) || (stage.width==64 && stage.group==4)))
-            throw std::invalid_argument("Experimental cooperative FP32 attention requires probed G8/head128/GQA2 or head64/GQA4");
+          if(map.launch.num_groups!=8 || !((stage.width==128 && (stage.group==2 || stage.group==3)) || (stage.width==64 && stage.group==4)))
+            throw std::invalid_argument("Experimental cooperative FP32 attention requires probed G8/head128/GQA2/3 or head64/GQA4");
           if(attention_workspace==kAbsent) {
             attention_workspace=arena;auto bytes=Mul(map.launch.num_groups,attention::kGroupBytes);
             auto allocated=Mul(Add(Add(bytes,512),511)/512,512);
@@ -281,7 +284,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
       else id+="_16x128x128";
     }
     if(s.kind==0 && s.extent>1)id="as2_catlass_bf16_fp32_split3_k"+std::to_string(s.width)+"_16x128x128_l0k64";
-    else if(s.kind==1)id=s.variant==3?"as2_aiv_rmsnorm_cann_newton_fold"+std::to_string(s.width/2)+"_h"+std::to_string(s.width):s.variant==2?"as2_aiv_rmsnorm_cann_newton_h"+std::to_string(s.width):"as2_aiv_rmsnorm_full_row";
+    else if(s.kind==1)id=s.variant==3?"as2_aiv_rmsnorm_cann_newton_fold"+std::to_string(s.width==3072?2048:s.width/2)+"_h"+std::to_string(s.width):s.variant==2?"as2_aiv_rmsnorm_cann_newton_h"+std::to_string(s.width):"as2_aiv_rmsnorm_full_row";
     else if(s.kind==11)id="as2_aiv_embedding_i32_bf16";
     else if(s.kind==13)id=s.kv_block==128?"as2_aiv_gqa_fp32_log2_partials_kv128":
       metadata.seq==1?"as2_aiv_gqa_bf16_scores_probability_k32":"as2_aiv_causal_prefill_private_kv_k32";
@@ -311,7 +314,7 @@ void AscendLlmPlan::Write(std::filesystem::path const& root) const {
       {"attention_score_probability",s.kind==13?((s.variant==4 || s.variant==5 || s.variant==6)?"fp32_cube_split_scale_vector_div_softmax":s.variant==1?"fp32_opmath_no_bf16_intermediate":s.variant==2?"fp32_scores_bf16_probability":s.variant==3?"fp32_split_scale_capacity_softmax":"bf16_storage_rounding"):"not_applicable"},
       {"qk_norm_method",s.kind!=13?"not_applicable":s.operands[5]==ascend::llm::kAbsent && s.operands[6]==ascend::llm::kAbsent?"none":(s.variant==5 || s.variant==6)?"CANN9.1.0_register_square_reduce_Newton_refinement":"existing_Rsqrt"},
       {"softmax_sum_method",s.kind==13&&s.variant==6?"CANN9.1.0_register_fold1024_capacity1088":"existing_ReduceSum"},
-      {"full_row_norm_method",s.kind==1&&s.variant==3?"CANN9.1.0_half_row_fold_square_reduce_Newton_refinement":s.kind==1&&s.variant==2?"CANN9.1.0_register_square_reduce_Newton_refinement":"existing_Rsqrt"},
+      {"full_row_norm_method",s.kind==1&&s.variant==3?"CANN9.1.0_power_two_fold_square_reduce_Newton_refinement":s.kind==1&&s.variant==2?"CANN9.1.0_register_square_reduce_Newton_refinement":"existing_Rsqrt"},
       {"aic_l1_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6))?524288:0},{"aic_l0a_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6))?65536:0},
       {"aic_l0b_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6))?65536:0},{"aic_l0c_bytes",s.kind==0||(s.kind==13&&(s.variant==4 || s.variant==5 || s.variant==6))?262144:0},
       {"aiv_ub_bytes",s.kind!=0||s.epilogue?106496:0},
