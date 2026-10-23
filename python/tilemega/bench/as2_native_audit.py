@@ -82,9 +82,33 @@ def audit(plan,jobs,out):
     out.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps({k:v for k,v in result.items() if k!='records'}))
 
 
+def compare_capture_payloads(diagnostic,fast,required):
+    if not fast or not fast.keys()<=diagnostic.keys() or not required<=fast.keys():
+        raise ValueError('Missing mandatory or unmatched fast capture')
+    if any(value!=diagnostic[name] for name,value in fast.items()):
+        raise ValueError('Fast payload, KV or token differs')
+    extra=sorted(diagnostic.keys()-fast.keys())
+    # The Host dump budget omits only large numeric allocation files in fast
+    # mode. Dedicated KV histories, tokens, controls and logits stay mandatory.
+    for name in extra:
+        path=Path(name)
+        if path.parent!=Path('decode') or not path.stem.isdecimal() or path.suffix!='.bin' or diagnostic[name][1]<=1<<20:
+            raise ValueError('Unexpected diagnostic-only capture: '+name)
+    return extra
+
+
 def audit_request(binding,jobs,out,reset_admission=True):
     if len(jobs)<(5 if reset_admission else 2):raise ValueError('Insufficient fresh processes for the selected admission')
-    records=[];identities=set();canonical=None;binary=None;previous_end=None;scope=None
+    records=[];identities=set();canonical=None;binary=None;previous_end=None;scope=None;captures={}
+    description=json.loads((binding/'request.json').read_text())
+    ss=list(struct.iter_unpack('<17Q16I',(binding/'decode/stages.bin').read_bytes()))
+    heads=[s for s in ss if s[17]==0 and s[18]==3]
+    if len(heads)!=1:raise ValueError('Require one complete vocabulary projection')
+    logit=next(b for b in description['buffers'] if b['offset_bytes']==heads[0][16])
+    required={'tokens.bin','prefill/control.bin','decode/control.bin',f'decode/{logit["id"]}.bin'}
+    for phase,entry in description['phases'].items():
+        if any(digest(binding/phase/name)!=sha for name,sha in entry['bound_hashes'].items()):
+            raise ValueError('Bound plan changed before capture audit')
     for directory in jobs:
         job=json.loads((directory/'job.json').read_text());command=job['command']
         if job['status']!='passed' or len(command)!=8 or command[1]!='request' or command[2]!=str(binding):
@@ -98,6 +122,8 @@ def audit_request(binding,jobs,out,reset_admission=True):
         if binary is not None and binary!=job['executable_sha256']:raise ValueError('Mixed request binary identities')
         binary=job['executable_sha256'];output=controlled(Path(command[3]),[RUNS])
         outputs,warmup,repetitions,diagnostic=map(int,command[4:])
+        if diagnostic not in (0,1) or (not reset_admission and outputs>65):
+            raise ValueError('Capture comparison requires short diagnostic/fast requests with equal KV history extents')
         if outputs<2 or warmup+repetitions<(2 if reset_admission else 1):raise ValueError('Insufficient complete independent requests')
         current=(outputs,warmup,repetitions)
         if scope is not None and current!=scope:raise ValueError('Incompatible request trial scopes')
@@ -124,9 +150,11 @@ def audit_request(binding,jobs,out,reset_admission=True):
                     trace=list(struct.iter_unpack('<8Q',(request/phase/'trace.bin').read_bytes()))
                     if len(trace)!=count or any((r[0],r[1],r[2],r[5])!=(t[2],t[0],t[1],epoch) or r[4]<r[3] or r[6:8]!=stages[t[0]][:2] for t,r in zip(tasks,trace)):
                         raise ValueError('Invalid request task ownership/ABI receipt')
-            hashes={str(p.relative_to(request)):digest(p) for p in request.rglob('*.bin') if p.name!='trace.bin'}
-            if canonical is not None and hashes!=canonical:raise ValueError('Request reset payload, KV or token differs')
-            canonical=hashes
+            hashes={str(p.relative_to(request)):(digest(p),p.stat().st_size) for p in request.rglob('*.bin') if p.name!='trace.bin'}
+            previous=canonical if reset_admission else captures.get(diagnostic)
+            if previous is not None and hashes!=previous:raise ValueError('Request reset payload, KV or token differs')
+            if reset_admission:canonical=hashes
+            else:captures[diagnostic]=hashes
         for i,entry in enumerate(launches):
             step=i%outputs;rep=i//outputs-warmup
             if entry['repetition']!=rep or entry['forward_index']!=step or entry['past']!=(63+step if step else 0) or entry['epoch']!=(step-1 if step else 0) or entry['seq']!=(1 if step else 64):
@@ -136,14 +164,20 @@ def audit_request(binding,jobs,out,reset_admission=True):
             wrapper_elapsed_s=job['elapsed_s'],physical_device=job['physical_device_id'],status='pass'))
     if not reset_admission and {r['diagnostic'] for r in records}!={False,True}:
         raise ValueError('C2 needs both diagnostic and fast executions')
+    extra=[]
+    if not reset_admission:
+        extra=compare_capture_payloads(captures[1],captures[0],required);canonical=captures[0]
     result=dict(schema='tilemega.as2.request_stability.v1' if reset_admission else 'tilemega.as2.request_path_c2.v1',status='pass',
         scope='prefill_decode_stream_and_request_reset_not_numeric_admission' if reset_admission else 'diagnostic_fast_bitwise_equivalence_not_C3',
         processes_passed=len(records),processes_total=len(records),complete_requests=sum(r['requests'] for r in records),
         compared_files_per_request=len(canonical),payload_kv_tokens_controls_bitwise_equal=True,
         selected_submissions_sequential=True,device_locked=False,binary_sha256=binary,records=records,
         numerical_gate='not_implied',performance_gate='not_implied')
+    if not reset_admission:
+        result['diagnostic_only_large_capture_paths']=extra
+        result['diagnostic_only_large_capture_count']=len(extra)
     if out.exists():raise FileExistsError(out)
-    out.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps({k:v for k,v in result.items() if k!='records'}))
+    out.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps({k:v for k,v in result.items() if k not in ('records','diagnostic_only_large_capture_paths')}))
 
 
 def main():

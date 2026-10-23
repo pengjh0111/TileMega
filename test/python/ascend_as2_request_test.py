@@ -6,6 +6,28 @@ import tempfile
 import unittest
 from tilemega.bench.as2_models import RUNS
 from tilemega.bench.as2_request import bind, digest
+from tilemega.bench.as2_native_audit import compare_capture_payloads
+
+
+class RequestCapturePayloadTest(unittest.TestCase):
+    def setUp(self):
+        self.required={'tokens.bin','prefill/control.bin','decode/control.bin','decode/1.bin'}
+        self.fast={name:('same',16) for name in self.required}
+        self.fast['decode/1.bin']=('logits',4<<20)
+        self.diagnostic=dict(self.fast,**{'decode/2.bin':('large_extra',2<<20)})
+
+    def test_all_fast_outputs_and_only_large_numeric_extras(self):
+        self.assertEqual(compare_capture_payloads(self.diagnostic,self.fast,self.required),['decode/2.bin'])
+
+    def test_reject_missing_logits_changes_and_small_or_semantic_extras(self):
+        for name,value in [('decode/2.bin',('small',16)),('decode/kv_k_s0.bin',('kv',2<<20))]:
+            data=dict(self.fast);data[name]=value
+            with self.assertRaises(ValueError):compare_capture_payloads(data,self.fast,self.required)
+        for name in self.required:
+            data=dict(self.fast);del data[name]
+            with self.assertRaises(ValueError):compare_capture_payloads(self.diagnostic,data,self.required)
+            data=dict(self.fast);data[name]=('changed',data[name][1])
+            with self.assertRaises(ValueError):compare_capture_payloads(self.diagnostic,data,self.required)
 
 
 class RequestBindingTest(unittest.TestCase):
