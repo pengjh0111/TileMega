@@ -1,0 +1,159 @@
+{
+  "schema": 1,
+  "status": "development_snapshot_unpublished",
+  "evidence": "verified byte-identical preservation of frozen F114 development calibration; not final acceptance",
+  "target": {
+    "path": "configs/targets/sm_90_h800_sm90r2_development.json",
+    "sha256": "f10a3bb2abca5dcb4265d05e0a2b4bf9fd728314cebb392ff0c730bc65281138",
+    "bytes": 6138726,
+    "encoding": "unchanged source bytes; no removed metadata or recalibration"
+  },
+  "legacy_target": {
+    "path": "configs/targets/sm_90_h800.json",
+    "sha256": "a26286378f420457ebfde7442ae343799f1b670f87976d3e6437f0f61333a73d",
+    "all_sections_outside_sm90_dense_decode_equal": true
+  },
+  "calibration": {
+    "fit_status": "initial_overlap_fitted",
+    "observations": 7672,
+    "body_fits": 133,
+    "attention_cache_state": "warm_reuse",
+    "production_cache_equivalence": "not established",
+    "coefficients_refitted": false,
+    "thresholds_changed": false
+  },
+  "source_recipe": {
+    "base_commit": "1283c2e6e50cc00e2aa7d0934d74ad76cff3699f",
+    "overlay_commit": "cae8f39aef3bd16872a73fbbc5c962ec5549a1a3",
+    "overlay_paths": [
+      "include/tilemega/Solver/Sm90DenseCostModel.h",
+      "include/tilemega/Solver/Sm90DenseSearch.h",
+      "lib/Solver/Sm90DenseCostModel.cpp",
+      "lib/Solver/Sm90DenseSearch.cpp",
+      "tools/commands/native_dense.cpp"
+    ],
+    "tracked_regular_files_checked": 1541,
+    "mismatches": [],
+    "cutlass_commit": "dc45f979ae336a235da1676b311f35efeb30149a",
+    "scope": "All 1541 tracked regular files in the frozen F113 source snapshot match this repository commit recipe; submodules use their pinned gitlinks instead of the original absolute symlink."
+  },
+  "preparation_head": "584b6393e084213596341c71ba1f3a7027bb0080",
+  "native_header_binding": {
+    "include/tilemega/Backend/Sm90DenseAttention.h": {
+      "calibrated_sha256": "5278879d492bb143513181e1ff85a69c11fdceea71b0d03ee81556e5068bfedb",
+      "preparation_head_sha256": "873db2c74f090004412e0858f50e798c60e6988273ecbf0480550c538f8c79e0",
+      "matches_preparation_head": false
+    },
+    "include/tilemega/Backend/Sm90DenseAttentionMath.cuh": {
+      "calibrated_sha256": "597e2403a7f455789328b89b6b28d089037fca6c4be401e2d035d39ca4983955",
+      "preparation_head_sha256": "597e2403a7f455789328b89b6b28d089037fca6c4be401e2d035d39ca4983955",
+      "matches_preparation_head": true
+    },
+    "include/tilemega/Backend/Sm90DenseAttentionMma.cuh": {
+      "calibrated_sha256": "1150c08cf4e98fc70f12c954f0cc3cc806e3e07ed8f65929bd3caae518615f36",
+      "preparation_head_sha256": "f1cd07793ac7da1c8b21ab369f8de28b200ec775415df718174208443ec37c5a",
+      "matches_preparation_head": false
+    },
+    "include/tilemega/Backend/Sm90DenseAttentionPartition.h": {
+      "calibrated_sha256": "94e1d3c647a3cb11328f065110da63408ac284197f7f6844830e6c9137b0f1a2",
+      "preparation_head_sha256": "94e1d3c647a3cb11328f065110da63408ac284197f7f6844830e6c9137b0f1a2",
+      "matches_preparation_head": true
+    },
+    "include/tilemega/Backend/Sm90DenseAttentionStream.cuh": {
+      "calibrated_sha256": "e736254085d3e2d9e1f4786b6a30533c8f350df9bd701407a7c31001705b9328",
+      "preparation_head_sha256": "ed952ffe67743eb411a55598ff1b36220dea77c85d0ccc23dacb367ff12be1be",
+      "matches_preparation_head": false
+    },
+    "include/tilemega/Backend/Sm90DenseEpilogue.h": {
+      "calibrated_sha256": "9ef9f5a0b2273fa65131bcd9fb8232e4a5ccef62cf744bd3427ebdcf4f10febb",
+      "preparation_head_sha256": "9ef9f5a0b2273fa65131bcd9fb8232e4a5ccef62cf744bd3427ebdcf4f10febb",
+      "matches_preparation_head": true
+    },
+    "include/tilemega/Backend/Sm90DenseGemm.h": {
+      "calibrated_sha256": "d4911d7a1d1bd1aac6b8921999929a08581014b417233e3b554968268d0ba8e1",
+      "preparation_head_sha256": "70e421820f93668ed52318f829a88b183ec2a60546f85cdfe3c19bb20026b3ce",
+      "matches_preparation_head": false
+    },
+    "include/tilemega/Backend/Sm90DenseLastArriver.cuh": {
+      "calibrated_sha256": "0bb66dd11c578468fd3aff2b3639d5822085a9fce984ff270303f83575bf62e2",
+      "preparation_head_sha256": "0bb66dd11c578468fd3aff2b3639d5822085a9fce984ff270303f83575bf62e2",
+      "matches_preparation_head": true
+    },
+    "include/tilemega/Backend/Sm90DenseLayout.h": {
+      "calibrated_sha256": "023b65b6d33d5ea43bf4be981dd2d3bc271954d42069427985e5570c89b13d38",
+      "preparation_head_sha256": "023b65b6d33d5ea43bf4be981dd2d3bc271954d42069427985e5570c89b13d38",
+      "matches_preparation_head": true
+    },
+    "include/tilemega/Backend/Sm90DensePreissue.cuh": {
+      "calibrated_sha256": "4bf329836fbdc64882de12144b55a9c38c102e859a2927150836ca0bbcaee17b",
+      "preparation_head_sha256": "4bf329836fbdc64882de12144b55a9c38c102e859a2927150836ca0bbcaee17b",
+      "matches_preparation_head": true
+    },
+    "include/tilemega/Backend/Sm90DenseRing.cuh": {
+      "calibrated_sha256": "1b7d1ad5b19dbedbfac1fa780e6fe1dbaf4d25df16c884cbcaa411c3efc293c0",
+      "preparation_head_sha256": "1b7d1ad5b19dbedbfac1fa780e6fe1dbaf4d25df16c884cbcaa411c3efc293c0",
+      "matches_preparation_head": true
+    },
+    "include/tilemega/Backend/Sm90DenseToken.cuh": {
+      "calibrated_sha256": "484c8bce132b44e055e7ca94615d68383cc64b1a437e54c9c9c45a69cba39042",
+      "preparation_head_sha256": "484c8bce132b44e055e7ca94615d68383cc64b1a437e54c9c9c45a69cba39042",
+      "matches_preparation_head": true
+    },
+    "include/tilemega/Codegen/tasks/Sm90DenseProgram.cuh": {
+      "calibrated_sha256": "1e5551bcbdfb1221a45a26bba5333d5be5d8a1cfa9de0cd8f8fafdb8a35819e3",
+      "preparation_head_sha256": "e855c5d41aa1b83382384a5f63f3359cb83bef5e73e0af0d9227c33ca7fa83d6",
+      "matches_preparation_head": false
+    },
+    "include/tilemega/Codegen/tasks/Sm90DenseRuntime.cuh": {
+      "calibrated_sha256": "1fe679e628a4600ec7d52ebebd6119edb1c82a76945d87ae090040f1481890c2",
+      "preparation_head_sha256": "21b4ef25a4d12c07585917de46a7db55ae1af452d80dc15671bce6e0d2589f61",
+      "matches_preparation_head": false
+    },
+    "include/tilemega/Codegen/tasks/Sm90DenseStage.cuh": {
+      "calibrated_sha256": "bc34a721e23059014e94130ce85f5e4a8f66e3e6070aefb5b731ffb43da5585c",
+      "preparation_head_sha256": "bc34a721e23059014e94130ce85f5e4a8f66e3e6070aefb5b731ffb43da5585c",
+      "matches_preparation_head": true
+    }
+  },
+  "activation": {
+    "default_changed": false,
+    "final_selection": false,
+    "solver_gate_pass": false,
+    "same_head_device_equivalence": "pending; do not replace calibrated header hashes before equivalence evidence",
+    "final_same_head_binding": null
+  },
+  "source_evidence": [
+    {
+      "path": "runs/sm90r2/F114-frontier-calibration/merged-target/receipt.json",
+      "sha256": "7b258145c76c26dc80d576403ee9688f4b96e606018956e108fffdd63bbd44f5",
+      "required_to_load_prices": false
+    },
+    {
+      "path": "runs/sm90r2/compiler-F113/receipt.json",
+      "sha256": "405ed056c8c6afa7b1eec96fb516dc1c98545ace6efdc1c05c71340eaea8a692",
+      "required_to_load_prices": false
+    }
+  ],
+  "validation": {
+    "python_byte_and_expanded_lookup_tables_equal": true,
+    "non_native_top_level_sections_unchanged": 14,
+    "source_recipe_regular_files_checked": 1541,
+    "evidence_directory": "runs/sm90r2/E4-canonical-target-preparation-v1",
+    "cpp_all_seven_ranked_predictions": {
+      "total_ranked_candidates": 533,
+      "cells": {
+        "qwen3_0_6b_b1": 82,
+        "qwen3_0_6b_b16": 70,
+        "llama3_2_1b_b1": 82,
+        "llama3_2_1b_b16": 70,
+        "llama3_2_3b_b4": 82,
+        "llama3_1_8b_b1": 77,
+        "llama3_1_8b_b16": 70
+      },
+      "full_request_and_past575_predictions_equal": true,
+      "original_ranked_request_predictions_equal": true,
+      "maximum_prediction_difference_ns": 0.0,
+      "probe_sha256": "3a059bc5a4540435e7ade0da9a1dcb3e3988bfe305293ba34e90ae440f288e1f"
+    }
+  }
+}
