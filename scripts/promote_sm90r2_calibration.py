@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Enable measured native search only after all seven E-3 cohorts pass."""
+"""Authorize final native selection after all seven E-3 cohorts pass."""
 import argparse
 import csv
 import math
@@ -66,7 +66,7 @@ def main():
             raise ValueError('duplicate class cell')
         class_sets[cell] = directory, receipt
     if set(rankings) != CELLS or set(class_sets) != CELLS:
-        raise ValueError('all seven development cells are required before measured selection')
+        raise ValueError('all seven development cells are required before final selection')
     evidence = []
     for cell in sorted(CELLS):
         ranking_path, ranking = rankings[cell]
@@ -107,8 +107,9 @@ def main():
     write(output / 'target.json', target)
     write(output / 'receipt.json', dict(source_target_sha256=target_sha,
         target_sha256=sha(output / 'target.json'), script_sha256=sha(__file__),
-        measured_selection_enabled=True, final_solver_gate_pass=False, cohorts=evidence))
-    print('All seven E-3 cohorts pass; measured selection enabled, final solver gate remains open')
+        measured_selection_enabled=True, final_selection_eligible=True,
+        final_solver_gate_pass=False, cohorts=evidence))
+    print('All seven E-3 cohorts pass; final selection eligible, final solver gate remains open')
 
 
 if __name__ == '__main__':
