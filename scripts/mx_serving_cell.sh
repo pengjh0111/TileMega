@@ -114,12 +114,11 @@ solve)
       extra="$extra --gemm-impl-$class mma16"
     done
   fi
-  # MX3-5: decode is chosen by measurement -- at most 4 candidates, one pilot
-  # round, the top 2 timed twice -- on the measurement card MGPU, through the
-  # guard. Prefill keeps the predicted choice: TTFT is reported, not
-  # optimised, this round. SELECTION=predicted restores the MX-2 behaviour.
+  # MX3-5 / MX4 prompt §5.7: decode (MoE) and prefill are chosen by
+  # measurement -- at most 4 candidates, one pilot round, the top 2 timed
+  # twice -- with the L1 executor, on the measurement card MGPU, through the
+  # guard. SELECTION=predicted restores the MX-2 behaviour.
   selection=${SELECTION:-measure}
-  [ $phase = prefill ] && selection=predicted
   measure=()
   if [ $selection = measure ]; then
     model=/root/models/${id}_rand
