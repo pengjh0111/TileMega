@@ -39,10 +39,19 @@ struct Plan {
   unsigned long long* stamps=nullptr;
   GridCounter* events=nullptr;
   TraceState trace{};
+#if TILEMEGA_TRACE_NATIVE_BOUNDARY
+  boundary_diagnostic::Config boundary_config{};
+  std::vector<int> boundary_pasts;
+  std::vector<unsigned long long> boundary_iterations;
+  std::vector<int> boundary_slot_pasts;
+#endif
   ~Plan() {
     for(auto* p:owned)cudaFree(p);
     cudaFree(pasts);cudaFree(stamps);cudaFree(events);
     cudaFree(trace.stages);cudaFree(trace.steps);
+#if TILEMEGA_TRACE_NATIVE_BOUNDARY
+    cudaFree(trace.boundary_releases);
+#endif
 #if TILEMEGA_TRACE_NATIVE_PHASES
     cudaFree(trace.diagnostics);
 #endif
@@ -56,6 +65,18 @@ inline T* Allocate(std::size_t count) {
   if(status!=cudaSuccess) {cudaFree(result);Check(status);}
   return result;
 }
+#if TILEMEGA_TRACE_NATIVE_BOUNDARY
+inline void ConfigureBoundary(Plan& p,boundary_diagnostic::Config config) {
+  Check(cudaDeviceSynchronize());
+  auto count=std::size_t(p.trace.slots)*NativeProgram::kStages*p.grid;
+  Check(cudaMemset(p.trace.stages,0,count*sizeof(StageTrace)));
+  Check(cudaMemset(p.trace.boundary_releases,0,count*sizeof(unsigned long long)));
+  p.boundary_iterations.assign(p.trace.slots,~0ull);
+  p.boundary_slot_pasts.assign(p.trace.slots,-1);
+  p.boundary_config=config;
+  p.trace.boundary_observe=config.observe;p.trace.boundary_probe_mask=config.probe_mask;
+}
+#endif
 inline int Launch(Plan& p,unsigned first,unsigned count,unsigned mode,
                   unsigned long long iteration,void* stream) {
   if(mode!=TM_SERVING_L1 || !count || first>=p.steps || count>p.steps-first ||
@@ -64,7 +85,15 @@ inline int Launch(Plan& p,unsigned first,unsigned count,unsigned mode,
       NativeProgram::kSharedBytes,static_cast<cudaStream_t>(stream)>>>(p.bindings,p.pasts,
       first,count,kNativeEpsilon,p.events,iteration,p.stamps,p.trace);
   auto status=cudaGetLastError();
-  if(status==cudaSuccess)p.iteration+=count;
+  if(status==cudaSuccess) {
+#if TILEMEGA_TRACE_NATIVE_BOUNDARY
+    for(unsigned i=0;i<count;++i) {
+      auto slot=(iteration+i)%p.trace.slots;
+      p.boundary_iterations[slot]=iteration+i;p.boundary_slot_pasts[slot]=p.boundary_pasts[first+i];
+    }
+#endif
+    p.iteration+=count;
+  }
   return int(status);
 }
 
@@ -129,7 +158,7 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
       plan->bindings.buffers[i]=static_cast<Element*>(pointer);
     }
     plan->events=Allocate<GridCounter>(NativeProgram::kStages);
-#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_NATIVE_PHASES
+#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_NATIVE_PHASES || TILEMEGA_TRACE_NATIVE_BOUNDARY
     auto env=std::getenv("TILEMEGA_TRACE_LAUNCHES");
     unsigned long long slots=env?std::strtoull(env,nullptr,10):16;
     if(!slots || slots>4096)throw std::invalid_argument("invalid native trace slot count");
@@ -142,6 +171,17 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
 #endif
 #if TILEMEGA_TRACE_NATIVE_PHASES
     plan->trace.diagnostics=Allocate<tilemega::backend::Sm90DenseDiagnosticRecord>(slots*NativeProgram::kTotalTasks);
+#endif
+#if TILEMEGA_TRACE_NATIVE_BOUNDARY
+    for(unsigned i=0;i<NativeProgram::kStages;++i)
+      if(!boundary_diagnostic::Matches(boundary_diagnostic::ClassOf(i,NativeProgram::kStages),
+          kNativeStages[i].kind,kNativeStages[i].name))
+        throw std::invalid_argument("native boundary diagnostic stage class mismatch");
+    plan->trace.stages=Allocate<StageTrace>(slots*NativeProgram::kStages*plan->grid);
+    plan->trace.boundary_releases=Allocate<unsigned long long>(slots*NativeProgram::kStages*plan->grid);
+    auto mode=std::getenv("TILEMEGA_NATIVE_BOUNDARY_MODE");
+    auto selected=std::getenv("TILEMEGA_NATIVE_BOUNDARY_CLASS");
+    ConfigureBoundary(*plan,boundary_diagnostic::Parse(mode?mode:"off",selected?selected:""));
 #endif
 #endif
     return plan.release();
@@ -161,9 +201,23 @@ extern "C" int tm_plan_set_steps(void* opaque,int const* past,unsigned count) {
     try {stamps=Allocate<unsigned long long>(std::size_t(count)+1);}
     catch(...) {cudaFree(next);throw;}
     cudaFree(p->pasts);cudaFree(p->stamps);p->pasts=next;p->stamps=stamps;p->steps=count;
+#if TILEMEGA_TRACE_NATIVE_BOUNDARY
+    p->boundary_pasts.assign(past,past+count);
+#endif
     return 0;
   }catch(std::exception const& e) {std::fprintf(stderr,"tm_plan_set_steps: %s\n",e.what());return -2;}
 }
+#if TILEMEGA_TRACE_NATIVE_BOUNDARY
+extern "C" int tm_plan_set_boundary_diagnostic(void* opaque,char const* mode,char const* selected) {
+  using namespace tilemega::codegen::native_dense;
+  auto* p=static_cast<Plan*>(opaque);
+  if(!p || !mode)return -1;
+  try {ConfigureBoundary(*p,boundary_diagnostic::Parse(mode,selected?selected:""));return 0;}
+  catch(std::exception const& e) {
+    std::fprintf(stderr,"tm_plan_set_boundary_diagnostic: %s\n",e.what());return -2;
+  }
+}
+#endif
 extern "C" int tm_plan_launch(void* opaque,unsigned step,unsigned mode,
                                std::uint64_t iteration,void* stream) {
   using namespace tilemega::codegen::native_dense;
@@ -202,7 +256,7 @@ __global__ void sm90_dense_diagnostic_clock(unsigned long long* output) {
   output[0]=clock64()-cycles;output[1]=tilemega::backend::Sm90DenseDiagnostic::Global()-begin;
 }
 #endif
-#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_NATIVE_PHASES
+#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_NATIVE_PHASES || TILEMEGA_TRACE_NATIVE_BOUNDARY
 extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
   using namespace tilemega::codegen::native_dense;
   auto* p=static_cast<Plan*>(opaque);
@@ -230,6 +284,47 @@ extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
 #if TILEMEGA_TRACE_STEP
   if(!dump("step_trace.tsv",p->trace.steps,std::size_t(p->trace.slots)*p->grid,
       "worker\titeration\tpast\tkernel_begin\tkernel_end\tfirst_task\tlast_task\ttoken_lag\tkv_lag\tlast_barrier_wait\tstage_has_tasks"))return -2;
+#endif
+#if TILEMEGA_TRACE_NATIVE_BOUNDARY
+  {
+    auto count=std::size_t(p->trace.slots)*NativeProgram::kStages*p->grid;
+    std::vector<unsigned long long> releases(count);
+    if(cudaMemcpy(releases.data(),p->trace.boundary_releases,count*8,cudaMemcpyDeviceToHost)!=cudaSuccess)return -4;
+    auto* stream=std::fopen((std::string(directory)+"/boundary_release.tsv").c_str(),"w");
+    if(!stream)return -4;
+    std::fprintf(stream,"worker\titeration\tpast\tstage\tclass\tt_release\n");
+    for(unsigned slot=0;slot<p->trace.slots;++slot) {
+      if(p->boundary_iterations[slot]==~0ull)continue;
+      for(unsigned stage=0;stage<NativeProgram::kStages;++stage)
+        for(int worker=0;worker<p->grid;++worker) {
+          auto value=releases[(std::size_t(slot)*NativeProgram::kStages+stage)*p->grid+worker];
+          if(value)std::fprintf(stream,"%d\t%llu\t%d\t%u\t%s\t%llu\n",worker,
+              p->boundary_iterations[slot],p->boundary_slot_pasts[slot],stage,
+              boundary_diagnostic::kNames[static_cast<unsigned>(boundary_diagnostic::ClassOf(stage,NativeProgram::kStages))],value);
+        }
+    }
+    if(std::fclose(stream))return -4;
+    if(!dump("boundary_probes.tsv",p->trace.stages,count,
+        "worker\titeration\tpast\tt_begin\tt_tasks_end\tt_release\ttasks\tsmid\tstage"))return -4;
+    auto* manifest=std::fopen((std::string(directory)+"/boundary_diagnostic.json").c_str(),"w");
+    if(!manifest)return -4;
+    std::fprintf(manifest,"{\n  \"schema\": 1, \"performance_eligible\": false,\n"
+        "  \"mode\": \"%s\", \"selected_class\": \"%s\", \"probe_mask\": %u,\n"
+        "  \"observation\": \"%s\", \"all_cta_release\": %s,\n"
+        "  \"grid\": %d, \"stages\": %u, \"slots\": %u,\n"
+        "  \"attribution\": \"conditional marginal; no additive correction\",\n"
+        "  \"class_map\": [\n",p->boundary_config.mode,p->boundary_config.selected_class,
+        p->trace.boundary_probe_mask,p->trace.boundary_observe?"release_after_cta_barrier":"none",
+        p->trace.boundary_observe?"true":"false",p->grid,NativeProgram::kStages,p->trace.slots);
+    for(unsigned i=0;i<NativeProgram::kStages;++i) {
+      auto c=boundary_diagnostic::ClassOf(i,NativeProgram::kStages);
+      std::fprintf(manifest,"    {\"stage\": %u, \"class\": \"%s\", \"extra_probe\": %s}%s\n",i,
+          boundary_diagnostic::kNames[static_cast<unsigned>(c)],
+          (p->trace.boundary_probe_mask&boundary_diagnostic::Bit(c))?"true":"false",
+          i+1==NativeProgram::kStages?"":",");
+    }
+    std::fprintf(manifest,"  ]\n}\n");if(std::fclose(manifest))return -4;
+  }
 #endif
 #if TILEMEGA_TRACE_NATIVE_PHASES
   {

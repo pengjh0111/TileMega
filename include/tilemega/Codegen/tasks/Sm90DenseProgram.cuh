@@ -18,6 +18,15 @@
 #ifndef TILEMEGA_TRACE_STEP
 #define TILEMEGA_TRACE_STEP 0
 #endif
+#ifndef TILEMEGA_TRACE_NATIVE_BOUNDARY
+#define TILEMEGA_TRACE_NATIVE_BOUNDARY 0
+#endif
+#if TILEMEGA_TRACE_NATIVE_BOUNDARY
+#if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_NATIVE_PHASES
+#error "native boundary diagnostic must be isolated from other trace modes"
+#endif
+#include <tilemega/Codegen/tasks/Sm90DenseBoundaryDiagnostic.h>
+#endif
 
 namespace tilemega::codegen::native_dense {
 
@@ -50,6 +59,10 @@ struct TraceState {
   StageTrace* stages=nullptr;
   StepTrace* steps=nullptr;
   unsigned slots=0;
+#if TILEMEGA_TRACE_NATIVE_BOUNDARY
+  unsigned long long* boundary_releases=nullptr;
+  unsigned boundary_observe=0,boundary_probe_mask=0;
+#endif
 #if TILEMEGA_TRACE_NATIVE_PHASES
   backend::Sm90DenseDiagnosticRecord* diagnostics=nullptr;
 #endif
@@ -289,6 +302,19 @@ struct Program {
       float epsilon,GridCounter* events,unsigned long long iteration,TraceState trace) {
     using Body=std::tuple_element_t<Index,Stages>;
     using Next=std::tuple_element_t<(Index+1)%kStages,Stages>;
+#if TILEMEGA_TRACE_NATIVE_BOUNDARY
+    static_assert(boundary_diagnostic::ValidStages(kStages));
+    constexpr unsigned bit=boundary_diagnostic::Bit(boundary_diagnostic::ClassOf(Index,kStages));
+    bool observe=trace.boundary_observe && trace.slots && trace.boundary_releases;
+    bool probe=observe && trace.stages && (trace.boundary_probe_mask&bit);
+    auto boundary_index=trace.slots?
+        (iteration%trace.slots)*kStages*gridDim.x+Index*gridDim.x+blockIdx.x:0;
+    if(threadIdx.x==0 && probe) {
+      unsigned sm;asm volatile("mov.u32 %0, %%smid;":"=r"(sm));
+      trace.stages[boundary_index]={iteration,static_cast<unsigned long long>(past),Now(),0,0,
+          Body::kTasks/gridDim.x+(blockIdx.x<Body::kTasks%gridDim.x),sm,Index};
+    }
+#endif
 #if TILEMEGA_TRACE_STAGE
     StageTrace* record=trace.stages && trace.slots?
         trace.stages+(iteration%trace.slots)*kStages*gridDim.x+Index*gridDim.x+blockIdx.x:nullptr;
@@ -307,6 +333,9 @@ struct Program {
       Body::template Run<!kActivationReuse.valid>(b,past,arena,epsilon,rings[Index%2],tail.Raw());
     }else Body::template Run<!kActivationReuse.valid>(b,past,arena,epsilon,rings[Index%2],backend::Sm90DenseNoTail{});
     if(threadIdx.x==0) {
+#if TILEMEGA_TRACE_NATIVE_BOUNDARY
+      if(probe)trace.stages[boundary_index].arrive=Now();
+#endif
 #if TILEMEGA_TRACE_STAGE
       if(record)record->arrive=Now();
 #endif
@@ -336,6 +365,14 @@ struct Program {
 #endif
 #if TILEMEGA_TRACE_STAGE
     if(threadIdx.x==0 && record)record->release=Now();
+#endif
+#if TILEMEGA_TRACE_NATIVE_BOUNDARY
+    // Every mode uses the same observer; class probes add only begin/arrival records.
+    if(threadIdx.x==0 && observe) {
+      auto release=Now();
+      trace.boundary_releases[boundary_index]=release;
+      if(probe)trace.stages[boundary_index].release=release;
+    }
 #endif
   }
   template<std::size_t... I>
