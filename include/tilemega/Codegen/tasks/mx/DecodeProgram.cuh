@@ -157,7 +157,10 @@ __global__ void __launch_bounds__(512)
   if (step_ns && blockIdx.x == 0 && threadIdx.x == 0) step_ns[0] = maca::GlobalTimerNs();
 #pragma unroll 1
   for (unsigned s = 0; s < steps; ++s) {
-    int const past = pasts[first + s];  // this step writes KV at `past`; L = past + 1
+    // This step writes KV at `past`; L = past + 1. Uniform: as a plain load it
+    // counted as divergent, and every branch on the attention plan was
+    // structurized into chains that kept the bodies' inputs live (MIR).
+    int const past = __builtin_mxc_readfirstlane(pasts[first + s]);
     unsigned long long const it = iteration + s;
     unsigned stage = 0;
     auto barrier = [&](auto prefetch) {
