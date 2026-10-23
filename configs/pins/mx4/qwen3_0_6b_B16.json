@@ -1,0 +1,30 @@
+{
+ "mx_decode": {
+  "qkv": {
+   "tn": 128,
+   "d": 1,
+   "part": "kTileRange"
+  },
+  "o": {
+   "tn": 16,
+   "d": 1,
+   "part": "kTileRange"
+  },
+  "gate_up": {
+   "tn": 64,
+   "d": 1,
+   "part": "kTileRange"
+  },
+  "down": {
+   "tn": 16,
+   "d": 1,
+   "part": "kTileRange"
+  },
+  "head": {
+   "tn": 64,
+   "d": 4,
+   "part": "kTileRange"
+  },
+  "tmin": 128
+ }
+}
