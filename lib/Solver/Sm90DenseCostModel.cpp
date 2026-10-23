@@ -54,6 +54,9 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal)
   if(!cal.Find("epilogue_model") ||
      cal.At("epilogue_model").AsString("native epilogue model")!="operation_shared_v1")
     throw std::invalid_argument("native epilogues require operation-specific calibration");
+  if(!cal.Find("receiver_model") ||
+     cal.At("receiver_model").AsString("native receiver model")!="prefix_receiver_v1")
+    throw std::invalid_argument("native incoming transfers require receiver protocol calibration");
   for(auto const& raw:cal.At("observations").AsArray("native observations")) {
     auto v=raw;
     if(raw.kind()==json::Value::Kind::kArray) {
@@ -192,6 +195,7 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
     if(family<5) {
       auto const& g=c.gemms[family];int n=w.shapes[family][0],k=w.shapes[family][1];
       s.kind=kSm90DenseFamilies[family];s.key=GemmKey(g);s.tasks=n/g.tile_n;
+      s.receive_count=g.preissue_smem_bytes>0;
       s.waves=(s.tasks+grid-1)/grid;int active=std::min(grid,s.tasks);
       double bw=Quantity("bulk_stream_per_active_cta",{{"grid",active},
           {"slot_bytes",g.slot_bytes},{"slots",g.slots}},{{"cache","dram"}});
@@ -278,6 +282,7 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
       s.l2_service=std::min(double(a.prefetch_l2_bytes),
           std::max(0.,history_bytes-a.preissue_smem_bytes))/global_bw*std::min(grid,s.tasks);
       s.issue_count=(a.preissue_smem_bytes>0)+(s.l2_service>0);
+      s.receive_count=a.preissue_smem_bytes>0;
       // Outgoing contention prices transferred KV bytes, not the receiver's
       // query/softmax work that also contributes to its overlap feature.
       s.issue_service=std::min(double(a.preissue_smem_bytes),history_bytes)/global_bw*
@@ -320,7 +325,9 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
     // streaming GEMM exposes competing traffic. Price the issuing body.
     s.issue=s.issue_count? s.issue_count*Coefficient(s.key,"issue_ns")+
         s.issue_service*Coefficient(s.key,"issue_service_scale"):0;
-    s.ns+=s.issue;result.step_ns+=s.ns*s.instances;
+    // Incoming prefix setup runs once, even when the stage has many task waves.
+    s.receive=s.receive_count? s.receive_count*Coefficient(s.key,"receive_ns"):0;
+    s.ns+=s.issue+s.receive;result.step_ns+=s.ns*s.instances;
   }
   return result;
 }
@@ -337,7 +344,8 @@ Sm90DensePrediction Sm90DenseCostModel::Request(Sm90DenseWorkload const& w,
       for(auto& s:result.stages)
         s.ns=s.barrier=s.startup=s.read_startup=s.initialization=s.dram=s.stream=s.flow=
             s.activation=s.compute=s.epilogue=s.overlap=s.issue=
-            s.overlap_limit=s.preissue_service=s.late_service=s.l2_service=s.issue_count=s.issue_service=0;
+            s.overlap_limit=s.preissue_service=s.late_service=s.l2_service=s.issue_count=s.issue_service=
+            s.receive_count=s.receive=0;
     }
     for(unsigned j=0;j<sample.stages.size();++j) {
       auto& out=result.stages[j];auto const& in=sample.stages[j];
@@ -357,6 +365,7 @@ Sm90DensePrediction Sm90DenseCostModel::Request(Sm90DenseWorkload const& w,
       out.l2_service+=in.l2_service/intervals;
       out.issue_count+=in.issue_count/intervals;
       out.issue_service+=in.issue_service/intervals;
+      out.receive_count+=in.receive_count/intervals;out.receive+=in.receive/intervals;
     }
     result.step_ns+=sample.step_ns/intervals;
   }
@@ -374,7 +383,8 @@ json::Value Sm90DensePrediction::ToJson() const {
       {"compute_ns",s.compute},{"epilogue_ns",s.epilogue},{"overlap_ns",s.overlap},
       {"issue_ns",s.issue},{"read_startup_ns",s.read_startup},{"overlap_limit_ns",s.overlap_limit},
       {"preissue_service_ns",s.preissue_service},{"late_service_ns",s.late_service},
-      {"l2_service_ns",s.l2_service},{"issue_count",s.issue_count},{"issue_service_ns",s.issue_service}});
+      {"l2_service_ns",s.l2_service},{"issue_count",s.issue_count},{"issue_service_ns",s.issue_service},
+      {"receive_count",s.receive_count},{"receive_ns",s.receive}});
   return json::Object{{"step_ns",step_ns},{"evidence","inferred prediction from native calibration"},
       {"stages",values}};
 }

@@ -51,6 +51,7 @@ def main():
     columns = sorted(set().union(*(row.keys() for row in observations)))
     fits = {}
     def profile(key, coefficients):
+        coefficients['receive_ns'] = 0
         fits[key] = dict(evidence='inferred', sample_count=1, coefficients=coefficients,
                          method='unfitted feature extraction; not usable for measured solve')
     for family in ('gemm_mma_sync_tn8_32', 'gemm_mma_sync_tn40_64', 'gemm_mma_sync_tn72_plus'):
@@ -70,6 +71,7 @@ def main():
         attention_grid_model='explicit_grid_v1',
         barrier_model='active_arrival_v1',
         epilogue_model='operation_shared_v1',
+        receiver_model='prefix_receiver_v1',
         gemm_key_model='tn_warp_k_v1',
         fit_status='diagnostic_unfitted', observation_columns=columns,
         native_gemm_header_sha256=next(iter(headers)),
@@ -126,6 +128,8 @@ def main():
         coord=Path(str(stem)+'.tmexec.json');write(coord,coordinates)
         command=[str(probe),str(initial),str(stem)+'.workload.json',str(coord)]
         raw=json.loads(subprocess.check_output(command,env=env,text=True))
+        if any('receive_count' not in s for s in raw['predictions'][0]['past575']['stages']):
+            raise ValueError('use the price probe with prefix receiver protocol support')
         write(Path(str(stem)+'.features.json'),raw);workloads.append((model,batch,tag,stem))
         measured={r['kind']:r for r in ledger if r['model']==model and int(r['batch'])==batch
                   and r['tag']==tag+'-stage'}

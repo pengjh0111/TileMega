@@ -33,6 +33,8 @@ def main():
     if a.out.exists() or not a.out.is_relative_to(ROOT / 'runs/sm90r2'):
         raise ValueError('choose a new diagnostic evidence directory')
     target = read(a.target);cal = target['sm90_dense_decode']
+    if cal.get('receiver_model') != 'prefix_receiver_v1':
+        raise ValueError('receiver-aware overlap fitting requires a matching base calibration')
     if cal['fit_status'] != 'initial_fitted':
         raise ValueError('start with an immutable component/stage fit')
     config = read(a.config);model, batch = config['model'], config['batch']
@@ -87,14 +89,16 @@ def main():
         path = a.out/(name+'.target.json');write(path,value)
         command = [str(probe),str(path),str(a.out/'workload.json'),str(a.out/'coordinates.json')]
         output = json.loads(subprocess.check_output(command,text=True,env=dict(os.environ,CUDA_VISIBLE_DEVICES='')))
+        if any('receive_count' not in s for row in output['predictions'] for s in row['past575']['stages']):
+            raise ValueError('use the price probe with prefix receiver protocol support')
         write(a.out/(name+'.predictions.json'),output)
         return [r['past575']['stages'] for r in output['predictions']]
     for fit in cal['body_fits'].values():
-        for name in ('preissue_efficiency','tail_efficiency','l2_efficiency','issue_ns','issue_service_scale'):
+        for name in ('preissue_efficiency','tail_efficiency','l2_efficiency','issue_ns','issue_service_scale','receive_ns'):
             if name in fit['coefficients']:fit['coefficients'][name]=0
     baseline = predict(target,'no-overlap')
     keys = sorted({s['key'] for i,stages in enumerate(baseline) if tags[i] in baselines for s in stages
-                   if s['preissue_service_ns'] or s['late_service_ns'] or s['issue_count']})
+                   if s['preissue_service_ns'] or s['late_service_ns'] or s['issue_count'] or s['receive_count']})
     rows = []
     for tag,baseline_tag in baselines.items():
         index=tags.index(tag);base_index=tags.index(baseline_tag)
@@ -104,7 +108,7 @@ def main():
             rows.append(dict(tag=tag,baseline_tag=baseline_tag,kind=s['kind'],key=s['key'],observed_delta_ns=delta,
                 base_delta_ns=s['stage_ns']-before['stage_ns'],limit=s['overlap_limit_ns'],
                 early=s['preissue_service_ns'],late=s['late_service_ns'],
-                issue=s['issue_count'],issue_service=s['issue_service_ns']))
+                issue=s['issue_count'],issue_service=s['issue_service_ns'],receive=s['receive_count']))
     y = np.array([r['observed_delta_ns'] for r in rows])
     def deltas(x):
         values=[]
@@ -112,17 +116,18 @@ def main():
             cost=0
             if row['key'] in keys:
                 i=keys.index(row['key'])
-                cost=row['issue']*1000*x[4*i+2]+row['issue_service']*x[4*i+3]
-                cost-=min(row['limit'],row['early']*x[4*i]+row['late']*x[4*i+1])
+                cost=(row['issue']*1000*x[5*i+2]+row['issue_service']*x[5*i+3]+
+                      row['receive']*1000*x[5*i+4])
+                cost-=min(row['limit'],row['early']*x[5*i]+row['late']*x[5*i+1])
             values.append(row['base_delta_ns']+cost)
         return np.array(values)
-    prior = np.tile([.05,.05,.3,.1],len(keys))
+    prior = np.tile([.05,.05,.3,.1,.1],len(keys))
     optimum = least_squares(lambda x:np.r_[(deltas(x)-y)/1000,.05*(x-prior)],prior,
-        bounds=(np.zeros(len(prior)),np.tile([1,1,5,2],len(keys))),loss='soft_l1')
+        bounds=(np.zeros(len(prior)),np.tile([1,1,5,2,5],len(keys))),loss='soft_l1')
     for i,key in enumerate(keys):
-        fit=cal['body_fits'][key];fit['coefficients'].update(preissue_efficiency=float(optimum.x[4*i]),
-            tail_efficiency=float(optimum.x[4*i+1]),issue_ns=float(optimum.x[4*i+2]*1000),
-            issue_service_scale=float(optimum.x[4*i+3]))
+        fit=cal['body_fits'][key];fit['coefficients'].update(preissue_efficiency=float(optimum.x[5*i]),
+            tail_efficiency=float(optimum.x[5*i+1]),issue_ns=float(optimum.x[5*i+2]*1000),
+            issue_service_scale=float(optimum.x[5*i+3]),receive_ns=float(optimum.x[5*i+4]*1000))
         fit['overlap_evidence']=dict(evidence='inferred',model=model,batch=batch,baseline_groups=groups,
             method='bounded stage-delta fit; uniform instrumentation correction; training only')
     cal['fit_status']='initial_overlap_fitted'
@@ -136,6 +141,7 @@ def main():
         if abs(stage['stage_ns']-before['stage_ns']-value)>.001:
             raise ValueError('Python fit and native pricing disagree')
         row['predicted_delta_ns']=float(value);row['residual_ns']=float(value-row['observed_delta_ns'])
+        row['receive_count']=row.pop('receive')
         for key in ('limit','early','late','issue','issue_service'):del row[key]
     with (a.out/'training.csv').open('w') as f:
         writer=csv.DictWriter(f,fieldnames=list(rows[0]));writer.writeheader();writer.writerows(rows)

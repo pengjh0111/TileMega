@@ -44,6 +44,7 @@ json::Value Fixture() {
   json::Object fits;
   auto fit=[&](char const* key,json::Object coefficients) {
     coefficients.emplace_back("issue_service_scale",0);
+    coefficients.emplace_back("receive_ns",0);
     fits.emplace_back(key,json::Object{{"evidence","inferred"},{"sample_count",5},
         {"coefficients",coefficients}});
   };
@@ -65,6 +66,7 @@ json::Value Fixture() {
       {"attention_grid_model","explicit_grid_v1"},
       {"barrier_model","active_arrival_v1"},
       {"epilogue_model","operation_shared_v1"},
+      {"receiver_model","prefix_receiver_v1"},
       {"observations",observations},{"body_fits",fits}};
 }
 int main() {
@@ -196,6 +198,29 @@ int main() {
   }
   issue_only.Set("body_fits",issue_fits);Sm90DenseCostModel issue_model(t,issue_only);
   auto baseline=issue_model.Predict(w,c);auto prefetch=c;
+  auto stale_receiver=Fixture();stale_receiver.Set("receiver_model","old");
+  bool rejected_receiver=false;
+  try {Sm90DenseCostModel old(t,stale_receiver);}catch(std::invalid_argument const& e) {
+    rejected_receiver=std::string(e.what()).find("receiver protocol")!=std::string::npos;
+  }
+  assert(rejected_receiver);
+  auto receive_coordinates=Sm90DenseSearchSpace{w.shapes,w.batch,w.head_dim,w.queries,t}
+      .MaxPreissue(c,false);
+  auto zero_receive=issue_model.Request(w,receive_coordinates);
+  auto receive_calibration=issue_only;
+  auto receive_fits=receive_calibration.At("body_fits").AsObject("fits");
+  for(auto& fit:receive_fits) {
+    auto coefficients=fit.second.At("coefficients");coefficients.Set("receive_ns",170);
+    fit.second.Set("coefficients",coefficients);
+  }
+  receive_calibration.Set("body_fits",receive_fits);
+  auto receiving=Sm90DenseCostModel(t,receive_calibration).Request(w,receive_coordinates);
+  assert(receiving.stages[5].waves>1 && receiving.stages[5].receive_count==1);
+  for(unsigned i=0;i<receiving.stages.size();++i) {
+    auto const& s=receiving.stages[i];
+    assert(s.receive==170*s.receive_count);
+    assert(std::abs(s.ns-zero_receive.stages[i].ns-s.receive)<1e-6);
+  }
   prefetch.gemms[0].prefetch_l2_bytes=16384;
   prefetch.gemms[4].prefetch_l2_bytes=16384;
   auto issued=issue_model.Predict(w,prefetch);
@@ -207,6 +232,7 @@ int main() {
   assert(first_only.stages[6].issue==20 && first_only.stages[4].issue==0);
   prefetch=c;prefetch.attention.prefetch_l2_bytes=16384;
   auto attention_issue=issue_model.Request(w,prefetch);
+  for(auto const& s:attention_issue.stages)assert(s.receive_count==0 && s.receive==0);
   assert(attention_issue.stages[0].issue==20 && attention_issue.stages[1].issue==0);
   auto issuer=issue_only;auto issuer_fits=issuer.At("body_fits").AsObject("body fits");
   for(auto& fit:issuer_fits) {

@@ -16,7 +16,8 @@ struct Sm90DensePrediction {
     int instances=1,tasks=0,waves=0;
     double ns=0,barrier=0,startup=0,read_startup=0,initialization=0,dram=0,stream=0,flow=0,
         activation=0,compute=0,epilogue=0,overlap=0,issue=0,
-        overlap_limit=0,preissue_service=0,late_service=0,l2_service=0,issue_count=0,issue_service=0;
+        overlap_limit=0,preissue_service=0,late_service=0,l2_service=0,issue_count=0,issue_service=0,
+        receive_count=0,receive=0;
   };
   std::vector<Stage> stages;
   double step_ns=0;
