@@ -8,6 +8,7 @@
 #include <tilemega/Backend/Mx/DecodeAttention.h>
 #include <tilemega/Backend/Mx/DecodeGemm.h>
 #include <tilemega/Codegen/tasks/mx/AttentionCommon.h>
+#include <tilemega/Codegen/tasks/mx/PrefillAttentionMma.h>
 
 #include <cuda_runtime.h>
 #include <cstdint>
@@ -257,4 +258,51 @@ extern "C" int tm_decode_embed(Bf16 const* embed, int const* tokens, Bf16* x, in
                                int past, void* stream) {
   RunEmbed<<<kGrid, 512, 0, static_cast<cudaStream_t>(stream)>>>(embed, tokens, x, b, hidden, capacity, past);
   return cudaGetLastError() == cudaSuccess ? 0 : 2;
+}
+
+// ---- prefill (V^T) -> decode -------------------------------------------------------
+// §8: the prefill attention body writes K rows and V^T columns [0, 64) of the
+// `vt` cache layout; MX-4 decode attention then reads them at past = 64.
+namespace {
+struct PrefillArgs {
+  Bf16 const* qkv;  // [B][64][hkv][Q+2][D], before q/k-norm and RoPE
+  Bf16* k_cache;
+  Bf16* vt_cache;
+  Bf16 const* cosine;
+  Bf16 const* sine;
+  Bf16 const* q_norm;
+  Bf16 const* k_norm;
+  Bf16* context;    // [B][64][hkv*Q][D]
+  int batch, heads_kv, capacity;
+  float epsilon;
+};
+template <class Body>
+__global__ void __launch_bounds__(128) RunPrefillVt(PrefillArgs a, int query_blocks) {
+  extern __shared__ __align__(16) char shared[];
+  codegen::ServingAttentionOperands p{};
+  p.qkv = a.qkv; p.key_cache = a.k_cache; p.value_cache = a.vt_cache; p.cosine = a.cosine; p.sine = a.sine;
+  p.q_norm = a.q_norm; p.k_norm = a.k_norm; p.context = a.context; p.batch = a.batch; p.heads_kv = a.heads_kv;
+  p.capacity = a.capacity; p.past = 0; p.block_extent = a.capacity; p.epsilon = a.epsilon;
+  int const qb = blockIdx.x % query_blocks, g = (blockIdx.x / query_blocks) % a.heads_kv,
+            b = blockIdx.x / query_blocks / a.heads_kv;
+  Body::Run(p, *reinterpret_cast<typename Body::SharedStorage*>(shared), b, g, qb, 0);
+}
+}  // namespace
+
+extern "C" int tm_decode_prefill_args_size() { return sizeof(PrefillArgs); }
+
+/// (D, Q, q/k-norm) in {(128,2,1), (64,4,0), (128,4,0)}, Tokens = 64.
+extern "C" int tm_decode_prefill_vt(PrefillArgs const* a, int d, int q, int norm, void* stream) {
+#define TM_CASE(D, Q, N, KV, R)                                                                       \
+  if (d == D && q == Q && norm == N) {                                                                \
+    using B = codegen::mx::PrefillAttentionMma<D, Q, 64, R, KV, N != 0, true>;                        \
+    int const smem = sizeof(typename B::SharedStorage), blocks = (64 * Q + R - 1) / R;                \
+    if (cudaFuncSetAttribute(RunPrefillVt<B>, cudaFuncAttributeMaxDynamicSharedMemorySize, smem) != cudaSuccess) \
+      return 1;                                                                                       \
+    RunPrefillVt<B><<<a->batch * a->heads_kv * blocks, 128, smem, static_cast<cudaStream_t>(stream)>>>(*a, blocks); \
+    return cudaGetLastError() == cudaSuccess ? 0 : 2;                                                 \
+  }
+  TM_CASE(128, 2, 1, 32, 64) TM_CASE(64, 4, 0, 64, 64) TM_CASE(128, 4, 0, 32, 32)
+#undef TM_CASE
+  return 3;
 }

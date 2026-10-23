@@ -359,3 +359,89 @@ class DecodeEmbed(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PrefillArgs(ctypes.Structure):
+    _fields_ = [(name, ctypes.c_void_p) for name in
+                ("qkv", "k_cache", "vt_cache", "cosine", "sine", "q_norm", "k_norm", "context")] + \
+               [(name, ctypes.c_int) for name in ("batch", "heads_kv", "capacity")] + [("epsilon", ctypes.c_float)]
+
+
+@unittest.skipUnless(GUARDED, "needs the GPU guard and TILEMEGA_MX_DECODE_BODIES_SO")
+class PrefillToDecode(Base):
+    """§8: the prefill attention body writes K rows and V^T columns [0, 64)
+    (kv_layout vt); MX-4 decode attention reads them at past = 64. Both
+    against one HuggingFace attention layer (Qwen3 RMSNorm and RoPE helpers,
+    eager causal softmax in FP32)."""
+
+    def test_prefill_then_decode(self):
+        torch = self.torch
+        from transformers.models.qwen3.modeling_qwen3 import Qwen3RMSNorm, apply_rotary_pos_emb
+        assert self.lib.tm_decode_prefill_args_size() == ctypes.sizeof(PrefillArgs)
+        capacity, hkv, tokens, eps = 1088, 8, 64, EPS
+        for dim, q, qk_norm in ((128, 2, True), (64, 4, False), (128, 4, False)):
+            for b in (1, 4):
+                with self.subTest(dim=dim, q=q, b=b):
+                    g = torch.Generator().manual_seed(dim + q + b)
+                    raw = torch.randn(b, tokens + 1, hkv, q + 2, dim, generator=g).to(torch.bfloat16).cuda()
+                    inv = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
+                    angle = torch.arange(capacity).float()[:, None] * inv[None, :]
+                    angle = torch.cat([angle, angle], -1)
+                    cos = angle.cos().to(torch.bfloat16).cuda().contiguous()
+                    sin = angle.sin().to(torch.bfloat16).cuda().contiguous()
+                    qn = (1 + 0.1 * torch.randn(dim, generator=g)).to(torch.bfloat16).cuda().contiguous()
+                    kn = (1 + 0.1 * torch.randn(dim, generator=g)).to(torch.bfloat16).cuda().contiguous()
+                    kc = torch.full((b, hkv, capacity, dim), float("nan"), dtype=torch.bfloat16, device="cuda")
+                    vt = torch.full((b, hkv, dim, capacity), float("nan"), dtype=torch.bfloat16, device="cuda")
+                    ctx = torch.zeros(b, tokens, hkv * q, dim, dtype=torch.bfloat16, device="cuda")
+                    prompt = raw[:, :tokens].contiguous()
+                    args = PrefillArgs(ptr(prompt), ptr(kc), ptr(vt), ptr(cos), ptr(sin), ptr(qn), ptr(kn), ptr(ctx),
+                                       b, hkv, capacity, eps)
+                    self.assertEqual(self.lib.tm_decode_prefill_vt(ctypes.byref(args), dim, q, int(qk_norm),
+                                                                   self.stream()), 0)
+                    torch.cuda.synchronize()
+
+                    # HF: q [B,H,T,D], k/v [B,hkv,T,D] for positions 0..64.
+                    qh = raw[:, :, :, :q].reshape(b, tokens + 1, hkv * q, dim).transpose(1, 2)
+                    kh = raw[:, :, :, q].transpose(1, 2)
+                    vh = raw[:, :, :, q + 1].transpose(1, 2)
+                    if qk_norm:
+                        qnorm, knorm = Qwen3RMSNorm(dim, eps).cuda().to(torch.bfloat16), \
+                            Qwen3RMSNorm(dim, eps).cuda().to(torch.bfloat16)
+                        qnorm.weight.data.copy_(qn)
+                        knorm.weight.data.copy_(kn)
+                        with torch.no_grad():
+                            qh, kh = qnorm(qh), knorm(kh)
+                    pos = torch.arange(tokens + 1, device="cuda")
+                    qh, kh = apply_rotary_pos_emb(qh, kh, cos[pos][None], sin[pos][None])
+                    keys = kh.float().repeat_interleave(q, 1)
+                    values = vh.float().repeat_interleave(q, 1)
+                    score = qh.float() @ keys.transpose(2, 3) / dim ** 0.5
+                    score = score.masked_fill(pos[None, None, None, :] > pos[None, None, :, None], float("-inf"))
+                    want = torch.softmax(score, -1) @ values          # [B][H][T+1][D]
+
+                    got = ctx.float().transpose(1, 2)                 # [B][H][64][D]
+                    err = (got - want[:, :, :tokens]).abs()
+                    self.assertTrue(bool((err <= want[:, :, :tokens].abs() * 2 ** -6 + 2e-2).all()),
+                                    f"prefill max |d|={float(err.max())}")
+                    # The prefill wrote K and V^T [0, 64) and nothing beyond.
+                    self.assertFalse(bool(torch.isnan(kc[:, :, :tokens]).any() or torch.isnan(vt[:, :, :, :tokens]).any()))
+                    self.assertTrue(bool(torch.isnan(kc[:, :, tokens:]).all() and torch.isnan(vt[:, :, :, tokens:]).all()))
+
+                    # Decode at past = 64: the Qkv epilogue's outputs, written as it does.
+                    kc[:, :, tokens] = kh[:, :, tokens].to(torch.bfloat16)
+                    vt[:, :, :, tokens] = vh[:, :, tokens].to(torch.bfloat16)
+                    qkv = torch.zeros(b, hkv, q + 2, dim, dtype=torch.bfloat16, device="cuda")
+                    qkv[:, :, :q] = qh[:, :, tokens].reshape(b, hkv, q, dim).to(torch.bfloat16)
+                    out = torch.full((b, hkv * q, dim), float("nan"), dtype=torch.bfloat16, device="cuda")
+                    partial = torch.full((b * hkv * ((capacity + 31) // 32) * q * (dim + 2),), float("nan"),
+                                         device="cuda")
+                    tickets = torch.zeros(b * hkv, dtype=torch.int32, device="cuda")
+                    dargs = DecodeAttentionArgs(ptr(qkv), ptr(kc), ptr(vt), ptr(out), ptr(partial), ptr(tickets),
+                                                capacity, tokens, b, hkv)
+                    self.assertEqual(self.lib.tm_decode_attention(ctypes.byref(dargs), dim, q, 64, self.stream()), 0)
+                    torch.cuda.synchronize()
+                    last = want[:, :, tokens]                         # [B][H][D]
+                    err = (out.float() - last).abs()
+                    self.assertTrue(bool((err <= last.abs() * 2 ** -6 + 2e-2).all()),
+                                    f"decode max |d|={float(err.max())}")
