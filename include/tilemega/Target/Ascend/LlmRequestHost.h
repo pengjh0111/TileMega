@@ -190,9 +190,10 @@ inline void Dump(Plan const& p,DevicePlan const& d,uint8_t* arena,unsigned past,
   }
 }
 template<class Launch> int RunRequest(fs::path const& binding,fs::path const& out,unsigned outputs,
-    unsigned warmup,unsigned repetitions,unsigned diagnostic,Launch launch) {
+    unsigned warmup,unsigned repetitions,unsigned diagnostic,Launch launch,bool teacher_forced=false) {
   Plan pre(binding/"prefill"),dec(binding/"decode");
-  if(outputs<2 || outputs>1024 || warmup>1 || !repetitions || repetitions>3 || diagnostic>2 || fs::exists(out) ||
+  if(outputs<2 || outputs>1024 || (teacher_forced && (outputs>513 || warmup || repetitions!=1)) ||
+      warmup>1 || !repetitions || repetitions>3 || diagnostic>2 || fs::exists(out) ||
       pre.m.seq!=64 || dec.m.seq!=1 || pre.m.batch!=dec.m.batch || pre.m.groups!=dec.m.groups ||
       pre.minimum_past || dec.minimum_past>64 || outputs+62>dec.maximum_past ||
       pre.m.arena_bytes!=dec.m.arena_bytes || pre.allocations.size()!=dec.allocations.size() ||
@@ -275,10 +276,12 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
     std::vector<uint32_t> all(token_initial.size()),generated(uint64_t(pre.m.batch)*outputs);
     Check(aclrtMemcpy(all.data(),tokens.bytes,arena+tokens.offset,tokens.bytes,ACL_MEMCPY_DEVICE_TO_HOST),"request token output");
     for(unsigned b=0;b<pre.m.batch;++b)std::copy_n(all.data()+uint64_t(b)*1088+64,outputs,generated.data()+uint64_t(b)*outputs);
-    Save(result/"tokens.bin",generated.data(),generated.size()*4);Save(dec_out/"tokens.bin",all.data(),tokens.bytes);
+    Save(result/(teacher_forced?"teacher_feedback.bin":"tokens.bin"),generated.data(),generated.size()*4);
+    Save(dec_out/"tokens.bin",all.data(),tokens.bytes);
     Dump(dec,dd,arena,outputs+62,diagnostic,dec_out);
     auto ms=[](auto a,auto b){return std::chrono::duration<double,std::milli>(a-b).count();};
-    samples<<"{\"repetition\":"<<repetition<<",\"warmup\":"<<(repetition<0?"true":"false")
+    if(teacher_forced)samples<<"{\"request_mode\":\"teacher_forced\",\"timing_admitted\":false,\"decoder_steps\":"<<outputs-1<<"}\n";
+    else samples<<"{\"repetition\":"<<repetition<<",\"warmup\":"<<(repetition<0?"true":"false")
       <<",\"output_count\":"<<outputs<<",\"decode_forwards\":"<<outputs-1
       <<",\"ttft_ms\":"<<ms(first,t0)<<",\"e2e_ms\":"<<ms(last,t0)<<",\"tpot_ms\":"<<ms(last,first)/(outputs-1)
       <<",\"output_tokens_per_second\":"<<pre.m.batch*outputs*1000/ms(last,t0)<<"}\n";samples.flush();
@@ -292,6 +295,7 @@ template<class Launch> int RunRequest(fs::path const& binding,fs::path const& ou
     <<"{\"status\":\"executed_requires_numeric_compare\",\"binding_directory\":"<<std::quoted(binding.string())
     <<",\"isl\":64,\"osl\":"<<outputs<<",\"batch\":"<<pre.m.batch<<",\"capacity\":1088,\"warmup\":"<<warmup
     <<",\"repetitions\":"<<repetitions<<",\"diagnostic\":"<<diagnostic<<",\"host_kernel_launches\":"<<launches
+    <<",\"request_mode\":\""<<(teacher_forced?"teacher_forced":"natural_greedy")<<"\""
     <<",\"groups\":"<<pre.m.groups<<",\"workers\":"<<pre.m.workers
     <<",\"arena_bytes\":"<<pre.m.arena_bytes<<",\"setup_seconds\":"<<setup_seconds
     <<",\"priced_plans_executed\":"<<(!pre.m.diagnostic && !dec.m.diagnostic?"true":"false")

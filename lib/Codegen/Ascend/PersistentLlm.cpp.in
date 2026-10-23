@@ -9,6 +9,7 @@
 #include <tilemega/Backend/Ascend/LlmCubeBody.h>
 #include <tilemega/Target/Ascend/LlmExecutor.h>
 #include <tilemega/Target/Ascend/LlmRequestHost.h>
+#include <tilemega/Target/Ascend/LlmTeacherHost.h>
 #include <acl/acl.h>
 #include <algorithm>
 #include <chrono>
@@ -58,6 +59,14 @@ static unsigned Number(char const* text) {
 }
 int main(int argc,char** argv) {
   try {
+    if(argc==6 && std::string(argv[1])=="teacher") {
+      return llm_host::RunTeacher(Controlled(argv[2]),Controlled(argv[3]),Controlled(argv[4]),Number(argv[5]),
+        [](llm_host::DevicePlan const& p,uint8_t* arena,uint8_t* scratch,aclrtStream stream,
+            unsigned groups,unsigned epoch,unsigned past,unsigned diagnostic) {
+          tilemega_llm<<<groups,nullptr,stream>>>(arena,p.metadata,p.stages,p.tasks,p.waits,
+            p.offsets,p.queue,p.control,scratch,p.trace,epoch,past,diagnostic);
+        });
+    }
     if(argc==8 && std::string(argv[1])=="request") {
       return llm_host::RunRequest(Controlled(argv[2]),Controlled(argv[3]),Number(argv[4]),
         Number(argv[5]),Number(argv[6]),Number(argv[7]),

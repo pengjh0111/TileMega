@@ -14,6 +14,8 @@ def compare(binding,native,reference,out):
     if out.exists():raise FileExistsError(out)
     identity=json.loads((binding/'request.json').read_text())
     actual=json.loads((native/'result.json').read_text());ref=json.loads((reference/'result.json').read_text())
+    if any(v.get('request_mode','natural_greedy')!='natural_greedy' for v in (actual,ref)):
+        raise ValueError('Natural greedy comparison cannot admit a teacher-forced diagnostic')
     for key in ('model_id','batch','config_sha256','weight_manifest_sha256','input_sha256'):
         if identity[key]!=ref[key]:raise ValueError('Paired request identity mismatch: '+key)
     if actual['binding_directory']!=str(binding) or actual['osl']!=ref['osl'] or actual['isl']!=ref['isl'] or actual['repetitions']!=ref['repetitions'] or actual['warmup']!=ref['warmup']:
