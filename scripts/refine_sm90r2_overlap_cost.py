@@ -23,6 +23,8 @@ def main():
     p.add_argument('--stage-fit', type=Path, required=True)
     p.add_argument('--extra-stage-fit', type=Path, nargs='*', default=[])
     p.add_argument('--ranking', type=Path, nargs='*', default=[])
+    p.add_argument('--class-audit', type=Path, nargs='*', default=[],
+                   help='accepted absolute stage observations; become training evidence')
     p.add_argument('--probe', type=Path, default=ROOT / 'build/sm90r2_price_probe')
     p.add_argument('--out', type=Path, required=True)
     a = p.parse_args(); a.out = a.out.resolve()
@@ -58,7 +60,7 @@ def main():
             early=s['preissue_service_ns'], late=s['late_service_ns'],
             count=s['issue_count'], service=s['issue_service_ns'], receive=s['receive_count'])
 
-    rows, inputs, stage_inputs = [], [], []
+    rows, inputs, stage_inputs, class_inputs = [], [], [], []
     for number, directory in enumerate([a.stage_fit, *a.extra_stage_fit]):
         other = read(directory / 'receipt.json')
         calibration = read(directory / 'target.json')['sm90_dense_decode']
@@ -84,6 +86,53 @@ def main():
                 sigma_ns=1000., terms=[feature(ca, 1), feature(co, -1)],
                 group=stem, candidate_index=tags.index(source['tag']),
                 control_index=tags.index(source['baseline_tag']), kind=source['kind']))
+    from verify_sm90r2_correctness import verify_receipt
+    for number, directory in enumerate(a.class_audit):
+        audit = read(directory / 'receipt.json')
+        for item in audit['inputs'].values():
+            if sha(item['path']) != item['sha256']:
+                raise ValueError('absolute stage audit input changed')
+        if 'control' in audit['inputs']:
+            control = read(audit['inputs']['control']['path'])
+            proof = verify_receipt(Path(control['state']), control['job'],
+                Path(control['binary']), Path(control['config']))
+        else:
+            ranking = read(audit['inputs']['ranking']['path'])
+            source = next(r for r in ranking['candidates'] if r['tag'] == audit['tag'])
+            proof = source['correctness']
+            for name, digest in proof['receipt_sha256'].items():
+                if sha(Path(proof['source_attempt']) / name) != digest:
+                    raise ValueError('absolute stage correctness evidence changed')
+        if not proof['pass_'] or proof['binary_sha256'] != audit['binary_sha256']:
+            raise ValueError('absolute stages require accepted matching correctness')
+        cell = f"{audit['model']}-B{audit['batch']}"
+        binary = ROOT/'runs/sm90r2/build'/audit['tag']/cell/'decode.so'
+        trace = ROOT/'runs/sm90r2/build'/(audit['tag']+'-stage')/cell/'decode.so'
+        for path, instrumented in ((binary, False), (trace, True)):
+            identity = read(str(path)+'.identity.json')
+            if sha(path) != identity['binary_sha256'] or bool(identity['trace']) != instrumented or any(
+                    identity['source']['source_files'].get(k) != v for k, v in cal['native_headers'].items()):
+                raise ValueError('absolute stage calibration uses another native program')
+        if (sha(binary) != audit['binary_sha256'] or sha(trace) != audit['trace_sha256'] or
+                sha(str(binary)+'.cu') != sha(str(trace)+'.cu')):
+            raise ValueError('absolute stages require an unchanged matched trace/control')
+        work = read(directory/'workload.json'); coords = read(directory/'coordinates.json')
+        if coords != read(str(binary)+'.plan.json')['native_dense']:
+            raise ValueError('absolute stage coordinates differ from the measured program')
+        stem = f'class-input-{number}'
+        stages = predict(work, [coords], stem)[0]['past575']['stages']
+        inputs.append((stem, work, [coords]))
+        class_inputs.append(dict(path=str(directory), hashes={name:sha(directory/name)
+            for name in ('receipt.json','workload.json','coordinates.json','classes.csv')}))
+        for source in csv.DictReader((directory/'classes.csv').open()):
+            stage = next(s for s in stages if s['kind'] == source['kind'])
+            count = float(source['instances'])
+            if count != stage['instances'] or count <= 0:
+                raise ValueError('absolute class instance count mismatch')
+            rows.append(dict(source='class_absolute', label=stem+':'+source['kind'],
+                observed_ns=float(source['corrected_class_ns'])/count,
+                base_ns=stage['stage_ns'], sigma_ns=1000., terms=[feature(stage,1)],
+                group=stem, candidate_index=0, control_index=None, kind=source['kind']))
     training_receipts = set()
     for number, path in enumerate(a.ranking):
         ranking = read(path)
@@ -178,8 +227,9 @@ def main():
                                     float(optimum.x[5*i+2]*1000), float(optimum.x[5*i+3]),
                                     float(optimum.x[5*i+4]*1000)]))
         fit['overlap_evidence'] = dict(evidence='inferred',
-            method='bounded joint stage/request-delta fit; supplied cohorts are training only',
+            method='bounded joint absolute-stage and stage/request-delta fit; supplied cohorts are training only',
             stage_rows=sum(r['source']=='stage' and any(t['key']==key for t in r['terms']) for r in rows),
+            absolute_stage_rows=sum(r['source']=='class_absolute' and any(t['key']==key for t in r['terms']) for r in rows),
             request_rows=sum(r['source']=='request' and any(t['key']==key for t in r['terms']) for r in rows))
     cal['fit_status'] = 'initial_overlap_fitted'
     cal['paired_training_receipts_sha256'] = sorted(training_receipts)
@@ -190,13 +240,17 @@ def main():
     values = deltas(optimum.x)
     table = []
     for row, value in zip(rows, values):
-        ca, co = [fitted[row['group']][row[k]] for k in ('candidate_index', 'control_index')]
-        if row['source']=='request': native = ca['request']['step_ns']-co['request']['step_ns']
+        ca = fitted[row['group']][row['candidate_index']]
+        co = fitted[row['group']][row['control_index']] if row['control_index'] is not None else None
+        if row['source']=='class_absolute':
+            native = next(s['stage_ns'] for s in ca['past575']['stages'] if s['kind']==row['kind'])
+        elif row['source']=='request': native = ca['request']['step_ns']-co['request']['step_ns']
         else:
             native = (next(s['stage_ns'] for s in ca['past575']['stages'] if s['kind']==row['kind'])-
                       next(s['stage_ns'] for s in co['past575']['stages'] if s['kind']==row['kind']))
         if abs(native-value) > .05: raise ValueError('Python refinement and native prediction disagree')
-        table.append(dict(source=row['source'], label=row['label'], observed_delta_ns=row['observed_ns'],
+        table.append(dict(source=row['source'], label=row['label'], quantity='absolute' if co is None else 'delta',
+            observed_delta_ns=row['observed_ns'],
             base_delta_ns=row['base_ns'], predicted_delta_ns=float(value), residual_ns=float(value-row['observed_ns']),
             uncertainty_ns=row['sigma_ns'], evidence='training only'))
     with (a.out/'training.csv').open('w') as f:
@@ -204,7 +258,7 @@ def main():
         writer.writeheader(); writer.writerows(table)
     write(a.out/'receipt.json', dict(source_target_sha256=sha(target_path), target_sha256=sha(output),
         probe_sha256=sha(probe), script_sha256=sha(__file__), stage_receipt_sha256=sha(a.stage_fit/'receipt.json'),
-        stage_inputs=stage_inputs,
+        stage_inputs=stage_inputs, absolute_stage_inputs=class_inputs,
         request_cohorts=[dict(path=str(p), sha256=sha(p)) for p in a.ranking], keys=keys,
         previously_unpriced_issuer_keys=[k for k in keys if not old[k]['issue_ns'] and not old[k]['issue_service_scale']],
         training_rows=len(rows), solver_gate_pass=False, evidence='inferred training fit; no independent validation'))
