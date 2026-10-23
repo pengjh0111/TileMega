@@ -141,8 +141,12 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
     if(Hash(std::string(TILEMEGA_SOURCE_DIR)+"/"+header.first)!=
         header.second.AsString("calibrated device header"))
       throw std::invalid_argument("native prices belong to a different stage program");
-  if(o.measured && calibration.At("fit_status").AsString("native fit status")!="fitted")
-    throw std::invalid_argument("measured native solve requires fitted native calibration");
+  auto fit_status=calibration.At("fit_status").AsString("native fit status");
+  bool validated=fit_status=="fitted";
+  // E-3 is checkpoint/final acceptance, not a prerequisite for collecting
+  // development selections that diagnose and improve the same price model.
+  if(o.measured && !validated && fit_status!="initial_overlap_fitted")
+    throw std::invalid_argument("measured native solve requires an initial overlap fit or validated calibration");
   solver::Sm90DenseCostModel cost(target,calibration);
   auto bridge=frontend::ReadExportBridge(o.input);
   frontend::ServingOptions options;options.dense_attention_chunks=1;
@@ -175,6 +179,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   }
   auto save=[&](int winner) {
     json::Value receipt=json::Object{{"schema",1},{"selection",o.measured?"measure":"predicted"},
+        {"e3_validated",validated},{"development_only",!validated},
         {"target_sha256",target_sha},{"export_sha256",input_sha},{"solve_command",o.solve_command},
         {"calibration",calibration},{"search_ms",result.elapsed_ms},
         {"evaluated",double(result.evaluated)},{"converged",result.converged},
