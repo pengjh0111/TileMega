@@ -1,6 +1,6 @@
 import unittest
 
-from tilemega.build.linked_resources import kernel_resources
+from tilemega.build.linked_resources import identity_resources, kernel_resources
 
 
 def output(arch='sm_90a', registers=254, stack=8):
@@ -17,6 +17,35 @@ Resource usage:
 
 
 class LinkedResourcesTest(unittest.TestCase):
+    def evidence(self):
+        return dict(binary_sha256='binary', arch='sm_90a', stdout=output(),
+                    resources=kernel_resources(output(), 'sm_90a', ['kernel']))
+
+    def test_identity_preserves_prelink_callee_spills(self):
+        before = {'kernel': dict(name='kernel', registers=74, stack_bytes=0, spill=True,
+            callees={'body': dict(spill_store_bytes=8, spill_load_bytes=8)})}
+        result = identity_resources(before, self.evidence(), 'sm_90a', 'binary')
+        self.assertEqual(result['kernel']['registers'], 254)
+        self.assertEqual(result['kernel']['stack_bytes'], 8)
+        self.assertEqual(result['kernel']['allocation_source'], 'linked_elf_v1')
+        self.assertTrue(result['kernel']['spill'])
+        self.assertEqual(result['kernel']['callees'], before['kernel']['callees'])
+        result['kernel']['callees']['body']['spill_store_bytes'] = 0
+        self.assertEqual(before['kernel']['callees']['body']['spill_store_bytes'], 8)
+
+    def test_identity_requires_matching_binary_and_architecture(self):
+        for arch, binary in [('sm_90', 'binary'), ('sm_90a', 'changed')]:
+            with self.subTest(arch=arch), self.assertRaises(ValueError):
+                identity_resources({'kernel': {}}, self.evidence(), arch, binary)
+
+    def test_identity_resources_must_match_recorded_dump(self):
+        evidence = self.evidence()
+        evidence['resources']['kernel']['registers'] = 74
+        with self.assertRaisesRegex(ValueError, 'recorded CUDA ELF dump'):
+            identity_resources({'kernel': {}}, evidence, 'sm_90a', 'binary')
+        with self.assertRaises(ValueError):
+            identity_resources({'missing': {}}, self.evidence(), 'sm_90a', 'binary')
+
     def test_final_allocation_includes_callees(self):
         row = kernel_resources(output(), 'sm_90a', ['kernel'])['kernel']
         self.assertEqual((row['registers'], row['stack_bytes']), (254, 8))

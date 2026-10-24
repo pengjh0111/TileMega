@@ -1,6 +1,7 @@
 """Read allocated kernel resources from the final CUDA ELF, including RDC."""
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 import re
 import subprocess
@@ -74,3 +75,18 @@ def inspect(binary: str | Path, arch: str, kernels: list[str],
     return dict(binary_sha256=before, arch=arch, resources=resources,
         command=command, tool_sha256=sha(executable), stdout=result.stdout,
         stderr=result.stderr, scope='final linked ELF kernel allocation; no GPU query')
+
+
+def identity_resources(ptxas: dict, evidence: dict, arch: str, binary_sha256: str) -> dict:
+    """Keep callee spill facts while replacing pre-link entry allocations."""
+    if not ptxas or evidence.get('binary_sha256') != binary_sha256 or evidence.get('arch') != arch:
+        raise ValueError('linked resource identity has a different binary or architecture')
+    parsed = kernel_resources(evidence['stdout'], arch, list(ptxas))
+    if parsed != evidence.get('resources'):
+        raise ValueError('linked resources differ from their recorded CUDA ELF dump')
+    result = copy.deepcopy(ptxas)
+    for name, allocated in parsed.items():
+        result[name].update({key: allocated[key] for key in
+            ('registers', 'stack_bytes', 'static_smem_bytes', 'local_bytes')})
+        result[name]['allocation_source'] = 'linked_elf_v1'
+    return result
