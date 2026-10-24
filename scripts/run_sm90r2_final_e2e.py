@@ -327,8 +327,9 @@ def metrics_from_job(bound, out, fresh):
                 tokens=tokens, gpu_process_pid=value['pid'], checkpoint=value.get('checkpoint'))
 
 
-def run(bound, out, fresh):
-    if not 0 <= fresh < process_count(bound):
+def run(bound, out, fresh, processes=None):
+    processes = process_count(bound) if processes is None else processes
+    if processes not in (3, 5) or processes < process_count(bound) or not 0 <= fresh < processes:
         raise ValueError('fresh process index is outside the final protocol')
     policy = read(bound['files']['guard_policy']); gpu = int(os.environ['TILEMEGA_DEVICE_INDEX'])
     node = validate_gpu(gpu, policy); require_guard(policy, gpu)
@@ -411,6 +412,7 @@ def collect(bound, preparation, state_path, out):
           runner_sha256=bound['runner_sha256'], user_final_e2e_amendment=AMENDMENT,
           processes=len(records), physical_uuid=uuids.pop(),
           ownership_verified=all(r['ownership_verified'] for r in records),
+          performance_comparison='not performed; single-arm metrics do not establish G-PERF',
           output_tokens_per_generation=1024 * bound['manifest']['batch'], metrics=metrics, records=records))
 
 

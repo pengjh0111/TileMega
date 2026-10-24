@@ -11,6 +11,10 @@ and full ctest marked `not_performed`. It does not synthesize correctness passes
 G-SOLVER, G-PERF, or a final selection. Existing development correctness evidence
 inside the solver receipt remains historical selection evidence.
 
+This single-arm result reports absolute metrics and does not establish G-PERF.
+The separate [TileMega reference pair workflow](FINAL_PAIR_MANIFEST.md) adds the
+required same-session, same-card TM-SM90R1 comparison without external engines.
+
 ## Future manifest, schema 1
 
 Every `FILE` below is `{"path": "...", "sha256": "<64 hex digits>"}`. Paths are
