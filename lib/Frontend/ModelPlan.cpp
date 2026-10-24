@@ -5,6 +5,7 @@
 #include <tilemega/Frontend/MoeRegionPlan.h>
 
 #include <algorithm>
+#include <numeric>
 #include <cctype>
 #include <limits>
 #include <functional>
@@ -1056,8 +1057,14 @@ ModelPlan BuildModelPlan(std::vector<FxNodeRecord> const& nodes,
                   {qkv, kc, vc, cos, sin, q_norm_weight, k_norm_weight,
                    context, po, lse});
     builder.plan.stages.back().attention_kv_block = block_extent;
+    // A prefill query block is whole tokens of interleaved (token, head) rows:
+    // the body tiles rows by Rq, the analysis tiles tokens by Rq / qperkv.
+    // Llama-3.2-3B (qperkv 3) at Rq 64 split 64 tokens into 21-token chunks
+    // with a ragged tail no scalar count describes (MX-1); 48 rows is 16.
+    int const row_unit = std::lcm(16, int(qperkv));
     builder.plan.stages.back().attention_query_rows =
-        serving.seq == 1 ? qperkv : serving.query_rows;
+        serving.seq == 1 ? qperkv
+                         : std::max(row_unit, serving.query_rows / row_unit * row_unit);
     if (serving.phase == ServingOptions::Phase::kDecode && blocks > 1) {
       std::string merge_rep = o.inputs.at(0);
       builder.Stage(PlanTaskKind::kAttentionMerge, merge_rep,

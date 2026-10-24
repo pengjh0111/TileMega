@@ -960,8 +960,11 @@ std::vector<SkeletonCandidate> CoordinateDescent(SearchContext& search,int& roun
               });
           if(attention==search.imported.plan.stages.end())
             throw std::runtime_error("serving plan has no attention coordinate");
-          for(int rows:{16,32,64,128})
-            if(rows<=int(attention->group)*search.imported.plan.serving_seq)
+          // Whole tokens per query block (ModelPlan.cpp): rows a multiple of
+          // lcm(16, qperkv): 16-128 for qperkv 2 and 4, 48-192 for qperkv 3.
+          int const group=int(attention->group),unit=std::lcm(16,group);
+          for(int rows:{16,32,64,128,unit,2*unit,4*unit})
+            if(rows%unit==0 && rows<=group*search.imported.plan.serving_seq)
               attention_domain.push_back(rows);
         }
         std::sort(attention_domain.begin(),attention_domain.end());
