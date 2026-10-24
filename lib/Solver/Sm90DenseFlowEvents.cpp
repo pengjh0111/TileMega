@@ -127,6 +127,16 @@ class Builder {
         Id producer=h.initialize;
         bool before=s+1<work.stages.size() && work.stages[s+1].incoming_order==Sm90DenseTailOrder::kBeforeProduce;
         if(before)producer=h.tail_done;
+        if(Gemm(stage)) {
+          // Produce's invariant operand loads/address setup precede its first
+          // empty wait. Packet-internal issue measurements do not cover them;
+          // even a zero-task CTA enters this outlined function.
+          auto setup=Add(Kind::kProducerSetup,step,s,c);
+          graph.events[setup].local_tasks=int(owner.tasks.size());
+          Edge(producer,setup);producer=setup;
+          Need(setup,Service::kProducerSetup,Resource::kCtaProducerIssue,
+              stage.kind+":outlined_producer_setup");
+        }
         int sequence=0;
         for(auto& t:h.tasks)for(auto& p:t.blocks) {
           auto const& b=*p.work;
@@ -157,11 +167,20 @@ class Builder {
           Need(done,Service::kActivationCompletion,b.activation_bytes?Resource::kDeviceMemoryHierarchy:Resource::kCtaProducerIssue,stage.kind);
           producer=issue;
         }
-        if(!h.tasks.empty()) {
+        if(Gemm(stage)) {
+          auto join=Add(Kind::kProducerRendezvous,step,s,c);
+          graph.events[join].arrivals=32;
+          Edge(producer,join);producer=join;
+          Need(join,Service::kBarrierPublication,Resource::kCtaProducerIssue,
+              stage.kind+":producer_warp_join_32");
+        }
+        if(stage.ring_slots>0 && !h.tasks.empty()) {
           auto publish=Add(Kind::kProducerGenerations,step,s,c);Edge(producer,publish);producer=publish;
           Need(publish,Service::kGenerationPublication,Resource::kSharedArena,stage.kind);
         }
         Edge(producer,h.produced);
+        if(Gemm(stage))Need(h.produced,Service::kProducerReturn,Resource::kCtaProducerIssue,
+            stage.kind+":outlined_producer_return");
         Id consumer=h.initialize;
         for(auto& t:h.tasks) {
           Edge(consumer,t.begin);
@@ -197,7 +216,7 @@ class Builder {
           }else Edge(t.partial,t.continuation);
           consumer=t.continuation;
         }
-        if(!h.tasks.empty()) {
+        if(stage.ring_slots>0 && !h.tasks.empty()) {
           auto publish=Add(Kind::kConsumerGenerations,step,s,c);Edge(consumer,publish);consumer=publish;
           Need(publish,Service::kGenerationPublication,Resource::kSharedArena,stage.kind);
         }
@@ -255,7 +274,7 @@ class Builder {
   void Edge(Id a,Id b,int condition=-1,int owner=-1) {graph.edges.push_back({a,b,condition,owner});}
   void Need(Id event,Service service,Resource resource,std::string const& operation) {
     auto const& e=graph.events[event];auto const& work=*current_work_;
-    auto key=json::Value(json::Object{{"schema",2},{"service",int(service)},{"resource",int(resource)},
+    json::Object fields{{"schema",2},{"service",int(service)},{"resource",int(resource)},
         {"sender_descriptor",e.stage>=0?work.stages[e.stage].ServiceDescriptor():json::Value()},
         {"receiver_descriptor",e.target_stage>=0?work.stages[e.target_stage].ServiceDescriptor():json::Value()},
         {"past",work.past},
@@ -269,7 +288,9 @@ class Builder {
         {"request_index",e.request_index},{"request_count",e.request_count},
         {"incoming_order",e.stage>=0?int(work.stages[e.stage].incoming_order):0},
         {"bytes",double(e.bytes)},{"arrivals",e.arrivals},{"expected_transactions",e.expected_transactions},{"history_rows",e.history_rows},
-        {"valid_rows",e.valid_rows},{"compute_rows",e.compute_rows},{"current_rows",e.current_rows}}).Dump(0);
+        {"valid_rows",e.valid_rows},{"compute_rows",e.compute_rows},{"current_rows",e.current_rows}};
+    if(e.local_tasks>=0)fields.emplace_back("local_tasks",e.local_tasks);
+    auto key=json::Value(std::move(fields)).Dump(0);
     auto found=requirement_index_.emplace(key,graph.requirements.size());
     if(found.second)graph.requirements.push_back({service,resource,key,{}});
     graph.requirements[found.first->second].events.push_back(event);
@@ -423,7 +444,8 @@ json::Value Sm90DenseFlowEvents::ToJson(bool include_events) const {
         {"bank",e.bank},{"slot",e.slot},{"generation_ordinal",double(e.generation)},
         {"bytes",double(e.bytes)},{"arrivals",e.arrivals},{"expected_transactions",e.expected_transactions},
         {"history_rows",e.history_rows},{"valid_rows",e.valid_rows},{"compute_rows",e.compute_rows},
-        {"current_rows",e.current_rows},{"request_index",e.request_index},{"request_count",e.request_count},{"condition",e.condition},{"owner",e.owner}});
+        {"current_rows",e.current_rows},{"request_index",e.request_index},{"request_count",e.request_count},
+        {"local_tasks",e.local_tasks},{"condition",e.condition},{"owner",e.owner}});
     for(auto const& e:edges)dependencies.emplace_back(json::Object{{"before",double(e.before)},{"after",double(e.after)},
         {"condition",e.condition},{"owner",e.owner}});
   }

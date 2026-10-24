@@ -17,7 +17,7 @@ enum class Sm90DenseFlowEventKind {
   kAtomicPublish,kGroupAllPublished,kMerge,kTaskContinue,kTokenWork,
   kProducerGenerations,kConsumerGenerations,kProduceDone,kTailBegin,kRetireSlot,
   kPrefetchL2Issue,kTailIssueDone,kCtaJoin,kOperandRecordPublish,kCtaArrival,kAllCtasArrived,kV3Release,
-  kStageEnvelopeEnd,kRingInvalidate,kKernelEnd
+  kStageEnvelopeEnd,kRingInvalidate,kKernelEnd,kProducerSetup,kProducerRendezvous
 };
 enum class Sm90DenseFlowResource {
   kSourceOrder,kCtaProducerIssue,kSmConsumerIssue,kDeviceMemoryHierarchy,
@@ -28,7 +28,7 @@ enum class Sm90DenseFlowService {
   kActivationIssue,kActivationCompletion,kConsumerState,kConsumer,kQueryCurrentRow,kPatchAndPad,
   kFinalize,kEpilogue,kPartial,kAtomicPublication,kMerge,kTokenWork,
   kGenerationPublication,kBarrierWait,kBarrierPublication,kPrefetchIssue,kGridArrival,kGridRelease,kCtaPlacement,
-  kSharedSmArbitration,kMemoryHierarchyArbitration
+  kSharedSmArbitration,kMemoryHierarchyArbitration,kProducerSetup,kProducerReturn
 };
 struct Sm90DenseFlowEvent {
   Sm90DenseFlowEventKind kind;
@@ -37,6 +37,7 @@ struct Sm90DenseFlowEvent {
   std::int64_t bytes=0;
   int arrivals=0,expected_transactions=0,history_rows=0,valid_rows=0,compute_rows=0,current_rows=0;
   int request_index=-1,request_count=0;
+  int local_tasks=-1;
   int condition=-1,owner=-1;
 };
 struct Sm90DenseFlowEdge {

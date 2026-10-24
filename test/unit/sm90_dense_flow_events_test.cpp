@@ -106,9 +106,30 @@ int main() {
   auto inactive=Find(plain,Kind::kCtaArrival,0,1,131).at(0);
   auto release=Find(plain,Kind::kV3Release,0,1,0).at(0);
   assert(order.Before(inactive,release));
+  auto setup=Find(plain,Kind::kProducerSetup,0,1,0).at(0);
+  assert(plain.events[setup].local_tasks==1);
+  assert(order.Before(Find(plain,Kind::kStageInitialize,0,1,0).at(0),setup));
+  assert(order.Before(setup,Find(plain,Kind::kEmptyWait,0,1,0,0).at(0)));
+  auto idle_setup=Find(plain,Kind::kProducerSetup,0,1,131).at(0);
+  assert(plain.events[idle_setup].local_tasks==0 && order.Before(idle_setup,inactive));
+  assert(Find(plain,Kind::kProducerSetup,0,0).empty());
+  assert(Find(plain,Kind::kProducerSetup,0,2).empty());
+  auto producer_join=Find(plain,Kind::kProducerRendezvous,0,1,0).at(0);
+  auto producer_publish=Find(plain,Kind::kProducerGenerations,0,1,0).at(0);
+  assert(plain.events[producer_join].arrivals==32 && order.Before(producer_join,producer_publish));
+  auto idle_join=Find(plain,Kind::kProducerRendezvous,0,1,131).at(0);
+  assert(order.Before(idle_setup,idle_join) && order.Before(idle_join,inactive));
+  for(int token_stage:{0,int(low.stages.size())-1}) {
+    assert(Find(plain,Kind::kProducerGenerations,0,token_stage).empty());
+    assert(Find(plain,Kind::kConsumerGenerations,0,token_stage).empty());
+    assert(Find(plain,Kind::kProducerRendezvous,0,token_stage).empty());
+  }
 
   int head=int(low.stages.size())-2;
   auto const& first=low.stages[head].ctas[0].tasks.front();int iterations=int(first.blocks.size());
+  assert(Find(plain,Kind::kProducerSetup,0,head,0).size()==1);
+  assert(plain.events[Find(plain,Kind::kProducerSetup,0,head,0).at(0)].local_tasks==
+      int(low.stages[head].ctas[0].tasks.size()));
   auto refill=Find(plain,Kind::kEmptyWait,0,head,0,iterations).at(0);
   auto retired=Find(plain,Kind::kEmptyArrivals,0,head,0,iterations-low.stages[head].ring_slots).at(0);
   auto finalize=Find(plain,Kind::kFinalize,0,head,0).front();
