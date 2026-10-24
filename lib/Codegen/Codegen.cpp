@@ -2128,6 +2128,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      <<"#define TILEMEGA_STATIC_DENSE_NATIVE 1\n#define TILEMEGA_ARCH_ID 900\n"
      <<"#define TILEMEGA_DN_VECTOR_SUMS "<<c.dn_vector_sums<<"\n"
      <<"#define TILEMEGA_SWIGLU_U "<<c.swiglu_u<<"\n"
+     <<"#define TILEMEGA_EP_PARALLEL_ARGMAX 1\n"
      <<"#include <tilemega/Codegen/tasks/Sm90DenseProgram.cuh>\n"
      <<"namespace tilemega::codegen::native_dense {\n"
      <<"constexpr char kNativeCoordinateIdentity[]="<<quoteCString(c.ToJson().Dump(0))<<";\n"

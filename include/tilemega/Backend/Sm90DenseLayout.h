@@ -69,7 +69,7 @@ struct Sm90DenseLayout {
   }
   static constexpr Sm90DenseLayout Gemm(int tn,int tk,int slots,int wk) {
     int weight=1024+32*slots*tk,partial=weight+2*slots*tn*tk;
-    return {weight,0,partial,partial+64*wk*tn+128};
+    return {weight,0,partial,partial+64*wk*tn+512};
   }
   static constexpr Sm90DensePayload GemmPayload(int tn,int tk,int slots,int k,int bytes) {
     Sm90DensePayload result;auto layout=Gemm(tn,tk,slots,1);

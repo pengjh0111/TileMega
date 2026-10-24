@@ -23,7 +23,9 @@ struct Sm90DenseGemm {
   static_assert(Op!=ServingEpilogueOp::kPartial,"dense decode never splits K across tasks");
   static constexpr int kThreads=160,kIterations=K/TK;
   static constexpr int kOperandBytes=2*Slots*TK*(16+TN);
-  static constexpr int kSharedBytes=1024+kOperandBytes+4*WarpsK*16*TN+128;
+  // 512 B past the WK partial tiles hold InputNorm inverses and the
+  // parallel argmax's per-warp (value, index) pairs (16 rows x 4 warps).
+  static constexpr int kSharedBytes=1024+kOperandBytes+4*WarpsK*16*TN+512;
   static_assert(kThreads==Sm90DenseRoleAbi::kThreads);
   using Atom=decltype(cute::composition(cute::Swizzle<3,3,3>{},
       cute::Layout<cute::Shape<cute::_8,cute::_64>,cute::Stride<cute::_64,cute::_1>>{}));
