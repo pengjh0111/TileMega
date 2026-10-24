@@ -1,0 +1,26 @@
+model,batch,system,reference_system,precision,compile_mode,median_speedup,p90_speedup,reference,baseline_file_sha256
+bert,1,tensorrt,tensorrt,bf16,,0.1961913608635058,0.19647786189267538,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+bert,1,tensorrt,tensorrt,fp16,,0.17864607285830247,0.17896238700645542,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+bert,1,torchcompile,torchcompile,bf16,max-autotune,0.24209371670111515,0.24248315627798653,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+bert,1,torchcompile,torchcompile,bf16,reduce-overhead,0.24875916237696627,0.2522064244904684,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+bert,1,fastest_bf16,tensorrt,bf16,,0.1961913608635058,0.19647786189267538,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+mbv1,1,tensorrt,tensorrt,bf16,,0.13425794612484476,0.13375148208005364,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+mbv1,1,tensorrt,tensorrt,fp16,,0.10157448860105218,0.10117533618811905,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+mbv1,1,torchcompile,torchcompile,bf16,max-autotune,0.18747513279273956,0.19412893688615046,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+mbv1,1,torchcompile,torchcompile,bf16,reduce-overhead,0.13459899345379703,0.13403400482370023,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+mbv1,1,fastest_bf16,tensorrt,bf16,,0.13425794612484476,0.13375148208005364,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+mbv2,1,tensorrt,tensorrt,bf16,,0.10576658473944328,0.10523982688456919,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+mbv2,1,tensorrt,tensorrt,fp16,,0.08411074095812425,0.0836886114649632,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+mbv2,1,torchcompile,torchcompile,bf16,max-autotune,0.09446959226559044,0.09406657269214233,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+mbv2,1,torchcompile,torchcompile,bf16,reduce-overhead,0.10378534761164972,0.1032450740842268,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+mbv2,1,fastest_bf16,torchcompile,bf16,max-autotune,0.09446959226559044,0.09406657269214233,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+nafnet,1,tensorrt,tensorrt,bf16,,0.14259947321650626,0.14285763631260429,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+nafnet,1,tensorrt,tensorrt,fp16,,0.0635997405354592,0.06423298604700907,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+nafnet,1,torchcompile,torchcompile,bf16,max-autotune,0.053987326123295584,0.054393054680092555,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+nafnet,1,torchcompile,torchcompile,bf16,reduce-overhead,0.062302812189868384,0.06279590161341773,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+nafnet,1,fastest_bf16,torchcompile,bf16,max-autotune,0.053987326123295584,0.054393054680092555,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+resnet18,1,tensorrt,tensorrt,bf16,,0.21997617005934095,0.21690412723103272,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+resnet18,1,tensorrt,tensorrt,fp16,,0.16423344847905216,0.16185028041536897,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+resnet18,1,torchcompile,torchcompile,bf16,max-autotune,0.2517610981574995,0.24844471190522277,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+resnet18,1,torchcompile,torchcompile,bf16,reduce-overhead,0.2535987685560909,0.2504849742704157,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
+resnet18,1,fastest_bf16,tensorrt,bf16,,0.21997617005934095,0.21690412723103272,frozen historical baseline; no same-session anchor,a0f7213dc0cbd7b6dc48521777539038a9c97ac49138f631828ab01d41f6f248
