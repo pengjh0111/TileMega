@@ -2,6 +2,7 @@
 #include <tilemega/Solver/Sm90DenseSearch.h>
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <set>
 
 namespace tilemega::solver {
@@ -26,15 +27,28 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
   for(int residency:{1,2})for(bool sums:{false,true}) {
     std::array<std::vector<Option>,6> families;
     for(unsigned f=0;f<5;++f) {
-      for(auto const& g:space.FamilyCandidates(f,residency,sums))
+      for(auto const& g:space.FamilyCandidates(f,residency,sums)) {
         families[f].push_back({cost.Gemm(work,f,g,residency,sums),g,{}});
-      ++result.evaluated;
+        ++result.evaluated;
+      }
     }
     for(auto a:space.AttentionCandidates(residency))
       if(auto ns=cost.Attention(work,a,residency))families[5].push_back({*ns,{},a});
     bool empty=false;
-    for(auto& f:families) {
-      std::stable_sort(f.begin(),f.end(),[](Option const& a,Option const& b) {return a.ns<b.ns;});
+    for(unsigned i=0;i<families.size();++i) {
+      auto& f=families[i];
+      // Equal predictions are one model choice: keep the configuration with
+      // the least shared memory (then the deeper tile) and offer only
+      // distinct predicted costs as alternatives.
+      std::stable_sort(f.begin(),f.end(),[&](Option const& a,Option const& b) {
+        if(a.ns!=b.ns)return a.ns<b.ns;
+        if(i==5)return false;
+        if(a.gemm.SharedBytes()!=b.gemm.SharedBytes())return a.gemm.SharedBytes()<b.gemm.SharedBytes();
+        return a.gemm.TileK()>b.gemm.TileK();
+      });
+      f.erase(std::unique(f.begin(),f.end(),[](Option const& a,Option const& b) {
+        return std::abs(a.ns-b.ns)<=1e-9*b.ns;
+      }),f.end());
       empty|=f.empty();
     }
     if(empty)continue;

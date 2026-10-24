@@ -30,7 +30,7 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   double cta=std::max(w_cta/c.sm_gbps,a_cta/c.cp_async_gbps);
   double ring=w_cta*c.dram_latency/(double(g.slots)*g.slot_bytes);
   double stream=std::max({w_tot/c.dram_gbps,(w_tot+a_tot)/c.l2_gbps,cta,ring});
-  static constexpr char const* kEpilogue[]={"qkv","residual","gate_up","residual","lm_head:par=1"};
+  static constexpr char const* kEpilogue[]={"qkv","residual","gate_up","residual","lm_head"};
   bool norm=family==0 || family==2 || family==4;
   double epilogue=c.Epilogue(kEpilogue[family],g.tile_n,b,norm?k:0,vector_sums);
   // Prompt §4 L0-2: no preissue in L0, so the DRAM first byte is exposed.
