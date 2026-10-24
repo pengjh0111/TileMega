@@ -4,6 +4,7 @@
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Solver/Sm90DensePlan.h>
 #include <tilemega/Solver/Sm90DenseSearch.h>
+#include <tilemega/Solver/Sm90DenseRegisterContract.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Support/Json.h>
 #include <mlir/IR/MLIRContext.h>
@@ -47,6 +48,7 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
   if(fs::exists(requested))throw std::invalid_argument("retain native artifact evidence; choose a new output path");
   auto c=solver::Sm90DenseCoordinates::FromJson(json::ParseFile(coordinates));
   auto target=TargetSpec::FromJson(target_path);
+  auto registers=solver::NativeDenseRegisterContract(target,c.residency);
   mlir::MLIRContext context;
   auto imported=solver::ImportSm90Dense(input,c,context);
   auto module=solver::MaterializeSm90Dense(imported,c,batch,target,context,origin);
@@ -73,6 +75,10 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
       {"seq",1},{"capacity",1088},{"prompt_len",64},
       {"past_lo",64},{"past_hi",1086},{"pg","native"},{"mode","L1"},{"loop",1},
       {"residency",c.residency},{"grid",target.res.num_sms*c.residency},{"kappa",1},
+      {"register_contract",json::Object{{"threads",registers.threads},
+          {"requested_residency",registers.residency},{"callee_limit",registers.callee_limit},
+          {"allocation_granularity",registers.granularity},{"subpartitions",registers.subpartitions},
+          {"runtime_occupancy_required",true}}},
       {"runtime_target",fs::absolute(target_path).string()},{"target_spec",json::Parse(target.ToJson())},
       {"native_dense",c.ToJson()},{"native_origin",origin},{"native_selection",selection},{"gemms",gemms},
       {"export_sha256",Hash(input)},{"coordinates_sha256",Hash(coordinates)},
@@ -94,6 +100,8 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
       " --expt-relaxed-constexpr -shared -Xcompiler -fPIC -cudart shared -Xptxas -v"
       " --split-compile "+std::to_string(split_compile)+" -I"+Quote(root+"/include")+
       " -I"+Quote(root+"/third_party/cutlass/include")+" "+Quote(cu.string())+" -o "+Quote(requested.string());
+  if(registers.Constrained())
+    command+=" -Xptxas --device-function-maxrregcount="+std::to_string(registers.callee_limit);
   std::ofstream(requested.string()+".build_command.txt")<<command<<'\n';
   auto log=requested.string()+".ptxas.log";
   // Candidate searches may run concurrently; bound and serialize their nvcc
