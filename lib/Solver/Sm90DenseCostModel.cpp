@@ -55,9 +55,22 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal)
   if(target.arch_tag!="sm_90" || target.NvccArch()!="sm_90a" ||
      cal.At("schema").AsNumber("native calibration schema")!=1)
     throw std::invalid_argument("native dense pricing requires calibrated sm90a schema 1");
-  if(!cal.Find("flow_model") ||
-     cal.At("flow_model").AsString("native flow model")!="overlapped_operands_v1")
+  auto flow=cal.Find("flow_model");
+  bool joint=flow && flow->AsString("native flow model")=="native_joint_ring_v1";
+  if(!flow || (!joint && flow->AsString("native flow model")!="overlapped_operands_v1"))
     throw std::invalid_argument("native operand overlap requires refitted calibration");
+  if(joint) {
+    if(!cal.At("development_only").AsBool("joint-ring development flag") ||
+       cal.At("e3_validated").AsBool("joint-ring E3 flag") ||
+       cal.At("fit_status").AsString("joint-ring fit status")!=
+           "joint_ring_diagnostic_pending_refit" ||
+       cal.At("joint_ring_residual_model").AsString("joint-ring residual model")!=
+           "none_pending_independent_refit")
+      throw std::invalid_argument("native joint-ring flow requires development-only pending refit");
+    joint_ring_cache_state_=cal.At("joint_ring_cache_state").AsString("joint-ring cache state");
+    joint_ring_profiles_.emplace(cal.At("joint_ring_profiles"),
+        cal.At("native_gemm_header_sha256").AsString("native GEMM calibration header"));
+  }
   if(!cal.Find("issue_model") ||
      cal.At("issue_model").AsString("native issue model")!="issuer_packets_v3")
     throw std::invalid_argument("native preissue exposure requires issuer calibration");
@@ -250,6 +263,19 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
   if(w.layers<1 || past<64 || past>1086)throw std::invalid_argument("invalid native prediction workload");
   int grid=target_.res.num_sms*c.residency;
   bool activation_reuse=c.ActivationReuse(w.batch,w.head_dim,w.queries,1088).valid;
+  int joint_shared=0;
+  if(joint_ring_profiles_) {
+    // NativeProgram reserves the maximum arena of the entire generated kernel,
+    // not this GEMM's payload or the target's maximum available shared memory.
+    using Layout=backend::Sm90DenseLayout;
+    joint_shared=Layout::Argmax().end;
+    for(auto const& g:c.gemms)joint_shared=std::max(joint_shared,
+        g.workspace_offset+Layout::Gemm(g.tile_n,g.TileK(),g.slots,g.warps_k).end);
+    auto const& a=c.attention;
+    joint_shared=std::max(joint_shared,a.workspace_offset+
+        Layout::Attention(w.batch,w.head_dim,w.queries,a.chunks,a.block_keys,
+            a.slots,a.new_row_work,1088).end);
+  }
   auto barrier=[&](int tasks) {
     // Empty CTAs arrive before the working wave. The 2 us delayed-arrival
     // probe models this steady wave; nearest active count is inferred.
@@ -268,20 +294,23 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
       s.protocol_key=s.key+":"+s.kind+(w.batch<=4?"_low":"_high");
       s.receive_count=g.preissue_smem_bytes>0;
       s.waves=(s.tasks+grid-1)/grid;int active=std::min(grid,s.tasks);
-      double bw=Quantity("bulk_stream_per_active_cta",{{"grid",active},
-          {"slot_bytes",g.slot_bytes},{"slots",g.slots}},{{"cache","dram"}});
+      double bw=0,tile_stream=0;
       s.dram=2.*n*k/global_bw;
-      double tile_stream=2.*g.tile_n*k/bw;
-      s.stream=s.waves*tile_stream;
-      s.activation=s.waves*Quantity("activation_wait_and_shared_read",{{"batch",w.batch},
-          {"tile_k",g.TileK()}})*k/g.TileK();
-      // Bulk weights and cp.async activations occupy the same multi-slot ring.
-      // Their calibrated service rates constrain throughput concurrently;
-      // serially adding both charges an already overlapped operand twice.
-      s.flow=std::max({s.dram,s.stream*Coefficient(s.key,"memory_scale"),
-          Coefficient(s.key,"activation_scale")*s.activation});
-      s.compute=s.waves*double(k/(16*g.warps_k))*MainloopNs(g)*
-          Coefficient(s.key,"mma_scale");
+      if(!joint_ring_profiles_) {
+        bw=Quantity("bulk_stream_per_active_cta",{{"grid",active},
+            {"slot_bytes",g.slot_bytes},{"slots",g.slots}},{{"cache","dram"}});
+        tile_stream=2.*g.tile_n*k/bw;
+        s.stream=s.waves*tile_stream;
+        s.activation=s.waves*Quantity("activation_wait_and_shared_read",{{"batch",w.batch},
+            {"tile_k",g.TileK()}})*k/g.TileK();
+        // Bulk weights and cp.async activations occupy the same multi-slot ring.
+        // Their calibrated service rates constrain throughput concurrently;
+        // serially adding both charges an already overlapped operand twice.
+        s.flow=std::max({s.dram,s.stream*Coefficient(s.key,"memory_scale"),
+            Coefficient(s.key,"activation_scale")*s.activation});
+        s.compute=s.waves*double(k/(16*g.warps_k))*MainloopNs(g)*
+            Coefficient(s.key,"mma_scale");
+      }
       char const* op=family==0?"epilogue_store_return":family==2?"epilogue_swiglu_return":
           family==4?"epilogue_argmax_return":"epilogue_residual_return";
       std::map<std::string,double> epi_shape={{"batch",w.batch},{"tile_n",g.tile_n},
@@ -303,36 +332,58 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
       // several tasks. The producer never executes this branch at B16.
       s.initialization=w.batch<16 && !activation_reuse?Quantity("activation_inactive_rows_initialize",
           {{"grid",grid},{"batch",w.batch},{"tile_k",g.TileK()},{"slots",g.slots}}):0;
-      s.read_startup=Quantity("bulk_single_completion",{{"slot_bytes",g.slot_bytes}},{{"cache","dram"}});
-      s.startup=Coefficient(s.key,"startup_ns")+s.initialization+s.read_startup;
-      double fraction=double(g.preissue_smem_bytes)/(2.*g.tile_n*k);
-      auto payload=backend::Sm90DenseLayout::GemmPayload(g.tile_n,g.TileK(),g.slots,k,
-          g.preissue_smem_bytes).Shift(g.workspace_offset);
-      backend::Sm90DenseInterval previous;
-      if(family==1)previous=backend::Sm90DenseLayout::Attention(w.batch,w.head_dim,w.queries,
-          c.attention.chunks,c.attention.block_keys,c.attention.slots,c.attention.new_row_work,
-          1088).Live(c.attention.workspace_offset);
-      else {
-        auto const& prev=c.gemms[family==0 || family==4?3:family==2?1:2];
-        previous=backend::Sm90DenseLayout::Gemm(prev.tile_n,prev.TileK(),prev.slots,
-            prev.warps_k).Live(prev.workspace_offset);
+      if(joint_ring_profiles_) {
+        std::map<std::string,double> dimensions={{"batch",w.batch},{"tile_n",g.tile_n},
+            {"tile_k",g.TileK()},{"slots",g.slots},{"warps_n",g.warps_n},
+            {"warps_k",g.warps_k},{"register_stages",g.register_stages},{"grid",grid},
+            {"active_ctas",active},{"compiled_residency",c.residency},{"input_k",k},{"tasks_per_cta",s.waves},
+            {"prefix_bytes",g.preissue_smem_bytes},{"prefetch_l2_bytes",g.prefetch_l2_bytes},
+            {"dynamic_shared_bytes",joint_shared},{"workspace_offset",g.workspace_offset}};
+        std::string mma=g.mma==Sm90DenseMma::kMmaSync?"mma_sync":"wgmma";
+        auto profile=joint_ring_profiles_->Find(dimensions,joint_ring_cache_state_,mma);
+        if(!profile)throw Sm90DenseMissingMeasurement("missing exact native joint-ring profile; calibration pending",
+            "native_joint_ring_profile",dimensions,{{"cache_state",joint_ring_cache_state_},{"mma",mma}});
+        s.joint_ring_profile=*profile;
+        s.joint_ring_profile.Set("residual_model","none_pending_independent_refit");
+        s.joint_ring_profile.Set("diagnostic_only",true);
+        s.joint_ring_profile.Set("fit_status","joint_ring_diagnostic_pending_refit");
+        // The paired total already contains operand first-ready, real MMA/
+        // reader, full/empty protocol and finalize. Marginal component medians
+        // need not add; none is appended to the paired total or old startup.
+        s.flow=profile->At("issue_to_finalize_ns").AsNumber("joint-ring finite span");
+        s.startup=s.initialization;
+      }else {
+        s.read_startup=Quantity("bulk_single_completion",{{"slot_bytes",g.slot_bytes}},{{"cache","dram"}});
+        s.startup=Coefficient(s.key,"startup_ns")+s.initialization+s.read_startup;
+        double fraction=double(g.preissue_smem_bytes)/(2.*g.tile_n*k);
+        auto payload=backend::Sm90DenseLayout::GemmPayload(g.tile_n,g.TileK(),g.slots,k,
+            g.preissue_smem_bytes).Shift(g.workspace_offset);
+        backend::Sm90DenseInterval previous;
+        if(family==1)previous=backend::Sm90DenseLayout::Attention(w.batch,w.head_dim,w.queries,
+            c.attention.chunks,c.attention.block_keys,c.attention.slots,c.attention.new_row_work,
+            1088).Live(c.attention.workspace_offset);
+        else {
+          auto const& prev=c.gemms[family==0 || family==4?3:family==2?1:2];
+          previous=backend::Sm90DenseLayout::Gemm(prev.tile_n,prev.TileK(),prev.slots,
+              prev.warps_k).Live(prev.workspace_offset);
+        }
+        // Only weights were preissued. Activation copies still execute here,
+        // even when every weight slot is already full at the stage boundary.
+        double unmoved=std::max(s.compute,Coefficient(s.key,"activation_scale")*s.activation);
+        s.overlap_limit=s.read_startup+std::max(s.flow-unmoved,0.);
+        (g.preissue_late || payload.Overlaps(previous)?s.late_service:s.preissue_service)=
+            fraction*tile_stream;
+        s.l2_service=std::min(double(g.prefetch_l2_bytes),
+            2.*g.tile_n*k-g.preissue_smem_bytes)/bw;
+        // A prefix only belongs to the first task. Even fitted efficiencies
+        // above one must not credit the remaining waves' weight service.
+        s.overlap_limit=std::min(s.overlap_limit,
+            s.read_startup+s.preissue_service+s.late_service+s.l2_service);
+        // Each prefixed slot executes expect_tx and one bulk instruction. A
+        // six-slot prefix cannot share the fixed issue price of a one-slot prefix.
+        s.issue_count=2*((g.preissue_smem_bytes+g.slot_bytes-1)/g.slot_bytes)+(s.l2_service>0);
+        s.issue_service=fraction*tile_stream+s.l2_service;
       }
-      // Only weights were preissued. Activation copies still execute here,
-      // even when every weight slot is already full at the stage boundary.
-      double unmoved=std::max(s.compute,Coefficient(s.key,"activation_scale")*s.activation);
-      s.overlap_limit=s.read_startup+std::max(s.flow-unmoved,0.);
-      (g.preissue_late || payload.Overlaps(previous)?s.late_service:s.preissue_service)=
-          fraction*tile_stream;
-      s.l2_service=std::min(double(g.prefetch_l2_bytes),
-          2.*g.tile_n*k-g.preissue_smem_bytes)/bw;
-      // A prefix only belongs to the first task. Even fitted efficiencies
-      // above one must not credit the remaining waves' weight service.
-      s.overlap_limit=std::min(s.overlap_limit,
-          s.read_startup+s.preissue_service+s.late_service+s.l2_service);
-      // Each prefixed slot executes expect_tx and one bulk instruction. A
-      // six-slot prefix cannot share the fixed issue price of a one-slot prefix.
-      s.issue_count=2*((g.preissue_smem_bytes+g.slot_bytes-1)/g.slot_bytes)+(s.l2_service>0);
-      s.issue_service=fraction*tile_stream+s.l2_service;
     }else {
       auto const& a=c.attention;s.kind="attention";s.key=AttentionKey(w);
       s.protocol_key=s.key+":attention"+(w.batch<=4?std::string("_low"):std::string("_high"));
@@ -475,7 +526,8 @@ Sm90DensePrediction Sm90DenseCostModel::Request(Sm90DenseWorkload const& w,
 }
 json::Value Sm90DensePrediction::ToJson() const {
   json::Array values;
-  for(auto const& s:stages)values.emplace_back(json::Object{{"kind",s.kind},{"key",s.key},
+  for(auto const& s:stages) {
+    json::Value value=json::Object{{"kind",s.kind},{"key",s.key},
       {"protocol_key",s.protocol_key},
       {"instances",s.instances},{"tasks",s.tasks},{"waves",s.waves},
       {"stage_ns",s.ns},{"class_ns",s.ns*s.instances},{"barrier_ns",s.barrier},
@@ -487,8 +539,18 @@ json::Value Sm90DensePrediction::ToJson() const {
       {"issue_ns",s.issue},{"read_startup_ns",s.read_startup},{"overlap_limit_ns",s.overlap_limit},
       {"preissue_service_ns",s.preissue_service},{"late_service_ns",s.late_service},
       {"l2_service_ns",s.l2_service},{"issue_count",s.issue_count},{"issue_service_ns",s.issue_service},
-      {"receive_count",s.receive_count},{"receive_ns",s.receive}});
-  return json::Object{{"step_ns",step_ns},{"evidence","inferred prediction from native calibration"},
+      {"receive_count",s.receive_count},{"receive_ns",s.receive}};
+    if(!s.joint_ring_profile.IsNull())value.Set("joint_ring_profile",s.joint_ring_profile);
+    values.push_back(std::move(value));
+  }
+  json::Value result=json::Object{{"step_ns",step_ns},{"evidence","inferred prediction from native calibration"},
       {"stages",values}};
+  if(std::any_of(stages.begin(),stages.end(),[](auto const& s) {return !s.joint_ring_profile.IsNull();})) {
+    result.Set("diagnostic_only",true);
+    result.Set("flow_model","native_joint_ring_v1");
+    result.Set("fit_status","joint_ring_diagnostic_pending_refit");
+    result.Set("pricing_scope","typical-CTA profile diagnostic; not stage-critical or E2E validation");
+  }
+  return result;
 }
 }  // namespace tilemega::solver

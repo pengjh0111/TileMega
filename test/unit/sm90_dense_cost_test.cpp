@@ -92,10 +92,111 @@ json::Value Fixture() {
       {"protocol_key_model","stage_batch_v1"},
       {"observations",observations},{"body_fits",fits}};
 }
+
+void JointRingContracts(TargetSpec const& t) {
+  // Explicit synthetic CPU data, not installed calibration observations.
+  Sm90DenseWorkload w{{{{4096,1024},{1024,2048},{6144,1024},{1024,3072},{16384,1024}}},
+      1,28,128,2,true};
+  auto c=Sm90DenseCoordinates::Exact(w.shapes,w.batch,t.res.max_dynamic_smem_per_cta);
+  using Layout=backend::Sm90DenseLayout;
+  int shared=c.attention.workspace_offset+Layout::Attention(w.batch,w.head_dim,w.queries,
+      c.attention.chunks,c.attention.block_keys,c.attention.slots,c.attention.new_row_work,1088).end;
+  for(auto const& g:c.gemms)shared=std::max(shared,
+      g.workspace_offset+Layout::Gemm(g.tile_n,g.TileK(),g.slots,g.warps_k).end);
+  json::Object binding;
+  for(auto name:{"source_digest","producer_header_sha256","probe_sha256","binary_sha256","collector_sha256"})
+    binding.emplace_back(name,std::string(64,'a'));
+  json::Array profiles;
+  for(unsigned f=0;f<5;++f) {
+    auto const& g=c.gemms[f];json::Array prefix;
+    for(int q=0;q<std::min(g.slots+1,w.shapes[f][1]/g.TileK());++q)
+      prefix.emplace_back(json::Object{{"sequence",q},{"full_ns",1000+200*q},{"release_ns",1100+200*q}});
+    profiles.emplace_back(json::Object{{"profile_id",std::string("synthetic_")+kSm90DenseFamilies[f]},
+        {"batch",w.batch},{"tile_n",g.tile_n},{"tile_k",g.TileK()},{"slots",g.slots},
+        {"warps_n",g.warps_n},{"warps_k",g.warps_k},{"register_stages",g.register_stages},
+        {"grid",132},{"active_ctas",128},{"compiled_residency",1},{"mma","mma_sync"},
+        {"input_k",w.shapes[f][1]},
+        {"tasks_per_cta",1},{"prefix_bytes",0},{"prefetch_l2_bytes",0},
+        {"dynamic_shared_bytes",shared},{"workspace_offset",g.workspace_offset},
+        {"continuous_task_drain",false},{"cache_state","four_shape_replay_no_scrub"},
+        {"evidence","synthetic_cpu_fixture"},{"aggregation","per_cta_sample_median"},
+        {"processes",5},{"finite_prefix",prefix},
+        // Independent marginal medians intentionally do not sum to total.
+        {"first_full_ns",1000},{"main_span_ns",8000},{"finalize_tail_ns",3000},
+        {"issue_to_finalize_ns",10000}});
+  }
+  json::Value table=json::Object{{"schema",1},{"endpoint_model","producer_call_to_finalize_observed_v1"},
+      {"source_binding",binding},{"profiles",profiles}};
+  auto cal=Fixture();cal.Set("flow_model","native_joint_ring_v1");
+  cal.Set("development_only",true);cal.Set("e3_validated",false);
+  cal.Set("fit_status","joint_ring_diagnostic_pending_refit");
+  cal.Set("native_gemm_header_sha256",std::string(64,'a'));
+  cal.Set("joint_ring_residual_model","none_pending_independent_refit");
+  cal.Set("joint_ring_cache_state","four_shape_replay_no_scrub");cal.Set("joint_ring_profiles",table);
+  Sm90DenseCostModel model(t,cal);auto p=model.Predict(w,c),request=model.Request(w,c);
+  for(unsigned i:{0u,2u,3u,4u,5u}) {
+    auto const& s=p.stages[i];
+    assert(s.flow==10000 && s.compute==0 && s.activation==0 && s.read_startup==0);
+    assert(s.startup==s.initialization && s.overlap==0);
+    assert(s.ns==s.barrier+s.initialization+10000+s.epilogue+s.issue+s.receive);
+    assert(s.joint_ring_profile.At("evidence").AsString("evidence")=="synthetic_cpu_fixture");
+    assert(request.stages[i].joint_ring_profile.Dump(0)==s.joint_ring_profile.Dump(0));
+    assert(request.stages[i].flow==s.flow);
+  }
+  assert(!p.ToJson().At("stages").AsArray("stages")[0].At("joint_ring_profile").IsNull());
+  assert(p.ToJson().At("diagnostic_only").AsBool("diagnostic prediction"));
+  auto error=[&](json::Value const& changed,Sm90DenseWorkload const& work,
+      Sm90DenseCoordinates const& coords) {
+    try {Sm90DenseCostModel(t,changed).Predict(work,coords);}
+    catch(std::exception const& e) {return std::string(e.what());}
+    assert(false && "unsupported joint-ring input was accepted");return std::string{};
+  };
+  auto bad=cal;bad.Set("development_only",false);
+  assert(error(bad,w,c).find("development-only")!=std::string::npos);
+  bad=cal;bad.Set("e3_validated",true);
+  assert(error(bad,w,c).find("development-only")!=std::string::npos);
+  bad=cal;bad.Set("fit_status","initial_overlap_fitted");
+  assert(error(bad,w,c).find("pending refit")!=std::string::npos);
+  bad=cal;bad.Set("native_gemm_header_sha256",std::string(64,'b'));
+  assert(error(bad,w,c).find("producer header differs")!=std::string::npos);
+  for(auto dimension:{"active_ctas","grid","tile_k","warps_k","slots","dynamic_shared_bytes"}) {
+    auto wrong=profiles;wrong[0].Set(dimension,dimension==std::string("active_ctas")?64:
+        wrong[0].At(dimension).AsNumber(dimension)+1);
+    auto changed=table;changed.Set("profiles",wrong);bad=cal;bad.Set("joint_ring_profiles",changed);
+    assert(!error(bad,w,c).empty());
+  }
+  auto missing=table;auto short_rows=profiles;short_rows.erase(short_rows.begin());missing.Set("profiles",short_rows);
+  bad=cal;bad.Set("joint_ring_profiles",missing);
+  try {Sm90DenseCostModel(t,bad).Predict(w,c);assert(false);}
+  catch(Sm90DenseMissingMeasurement const& e) {
+    assert(e.metric=="native_joint_ring_profile" && e.dimensions.at("active_ctas")==128);
+  }
+  auto multiple=w;multiple.shapes[0][0]*=2;
+  assert(error(cal,multiple,c).find("calibration pending")!=std::string::npos);
+  auto prefix=c;prefix.gemms[0].preissue_smem_bytes=prefix.gemms[0].slot_bytes;
+  assert(!error(cal,w,prefix).empty());
+  auto partial=profiles;auto cold=partial[0].At("finite_prefix").AsArray("prefix");cold.pop_back();
+  partial[0].Set("finite_prefix",cold);bad=table;bad.Set("profiles",partial);
+  bool rejected=false;try {Sm90DenseJointRingProfiles reader(bad,std::string(64,'a'));}
+  catch(std::invalid_argument const&) {rejected=true;}assert(rejected);
+  // I=1 and I<S use their measured finite prefix, never a steady extrapolation.
+  for(int iterations:{1,2}) {
+    auto short_profile=profiles[0];int tk=int(short_profile.At("tile_k").AsNumber("tk"));
+    short_profile.Set("input_k",iterations*tk);
+    cold=short_profile.At("finite_prefix").AsArray("prefix");cold.resize(iterations);
+    short_profile.Set("finite_prefix",cold);bad=table;bad.Set("profiles",json::Array{short_profile});
+    Sm90DenseJointRingProfiles reader(bad,std::string(64,'a'));std::map<std::string,double> dims;
+    for(auto const& name:Sm90DenseJointRingProfiles::Dimensions())dims[name]=short_profile.At(name).AsNumber(name.c_str());
+    assert(reader.Find(dims,"four_shape_replay_no_scrub"));
+    assert(!reader.Find(dims,"four_shape_replay_no_scrub","wgmma"));
+    dims["active_ctas"]=64;assert(!reader.Find(dims,"four_shape_replay_no_scrub"));
+  }
+}
 int main() {
   TargetSpec t;t.arch_tag="sm_90";t.nvcc_arch="sm_90a";
   t.res.num_sms=132;t.res.max_smem_per_sm=233472;t.res.max_dynamic_smem_per_cta=232448;
   t.res.l2_bytes=52428800;
+  JointRingContracts(t);
   Sm90DenseWorkload w{{{{4096,1024},{1024,2048},{6144,1024},{1024,3072},{151936,1024}}},
       1,28,128,2,true};
   auto c=Sm90DenseCoordinates::Exact(w.shapes,w.batch,t.res.max_dynamic_smem_per_cta);

@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Solver/Sm90DenseCoordinates.h>
+#include <tilemega/Solver/Sm90DenseJointRingProfile.h>
 #include <tilemega/Target/TargetSpec.h>
 #include <map>
+#include <optional>
 #include <stdexcept>
 
 namespace tilemega::solver {
@@ -19,6 +21,8 @@ struct Sm90DensePrediction {
         activation=0,compute=0,epilogue=0,overlap=0,issue=0,
         overlap_limit=0,preissue_service=0,late_service=0,l2_service=0,issue_count=0,issue_service=0,
         receive_count=0,receive=0;
+    // Present only for the explicitly enabled experimental joint-ring flow.
+    json::Value joint_ring_profile;
   };
   std::vector<Stage> stages;
   double step_ns=0;
@@ -45,6 +49,8 @@ class Sm90DenseCostModel {
  private:
   TargetSpec target_;
   std::string attention_cache_state_;
+  std::optional<Sm90DenseJointRingProfiles> joint_ring_profiles_;
+  std::string joint_ring_cache_state_;
   std::map<std::string,std::vector<json::Value>> observations_;
   std::map<std::string,json::Value> fits_;
   mutable std::map<std::string,double> quantities_;
