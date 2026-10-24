@@ -14,6 +14,7 @@ from sm90d1_common import ROOT, write
 
 sys.path.insert(0, str(ROOT / 'python'))
 from tilemega.build.identity import verify
+from tilemega.build.linked_resources import inspect as inspect_linked_resources
 
 
 def program_key(binary):
@@ -31,20 +32,30 @@ def program_key(binary):
     # after binding the complete device instruction encodings above.
     for gemm in coordinates['gemms'].values():
         gemm.pop('register_stages', None)
-    entries = [properties for name, properties in identity['resources'].items()
-               if 'sm90_dense_native_kernel' in name]
-    if len(entries) != 1 or entries[0].get('registers', 0) <= 0:
-        raise ValueError('one native entry with allocated-register facts is required')
-    resources = {name: entries[0][name] for name in
-                 ('registers', 'stack_bytes', 'spill_store_bytes', 'spill_load_bytes')}
+    entries = [name for name in identity['resources'] if 'sm90_dense_native_kernel' in name]
+    if len(entries) != 1:
+        raise ValueError('one native kernel entry is required')
+    linked = inspect_linked_resources(binary, identity['nvcc_arch'], entries,
+        os.getenv('CUOBJDUMP', '/usr/local/cuda/bin/cuobjdump'))
+    if linked['binary_sha256'] != identity['binary_sha256']:
+        raise ValueError('linked resources belong to a changed binary')
+    resources = {name: linked['resources'][entries[0]][name] for name in
+                 ('registers', 'stack_bytes', 'static_smem_bytes', 'local_bytes')}
+    source_digest = identity.get('source', {}).get('source_digest')
+    if not source_digest:
+        raise ValueError('native program equivalence requires bound host/device source')
     signature = dict(instructions=instructions, coordinates=coordinates,
         grid=plan['grid'], shared_bytes=identity['shared_memory_bytes'],
-        resources=resources, nvcc_arch=identity['nvcc_arch'],
+        resources=resources, resource_format='linked_elf_v1', source_digest=source_digest,
+        nvcc_arch=identity['nvcc_arch'],
         batch=plan['runtime_batch'], capacity=plan['capacity'],
         export_sha256=plan['export_sha256'])
     digest = hashlib.sha256(json.dumps(signature, sort_keys=True).encode()).hexdigest()
     return dict(program_key=digest, signature=signature,
         binary_sha256=identity['binary_sha256'],
+        linked_resource_evidence=dict(command=linked['command'],tool_sha256=linked['tool_sha256'],
+            stdout=linked['stdout'],stderr=linked['stderr']),
+        ptxas_entry_resources=identity['resources'][entries[0]],
         evidence='verified instructions, launch resources and non-lookahead coordinates')
 
 
