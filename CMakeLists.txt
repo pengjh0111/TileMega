@@ -196,6 +196,7 @@ add_library(tilemega_core STATIC
   lib/Solver/Sm90DensePlan.cpp
   lib/Solver/Sm90DenseSearchSpace.cpp
   lib/Solver/Sm90DenseCostModel.cpp
+  lib/Solver/Sm90DenseWorkGraph.cpp
   lib/Solver/Sm90DenseSearch.cpp
   lib/Solver/DnnStructureSearch.cpp
   lib/Solver/SkeletonFinalize.cpp
@@ -936,6 +937,11 @@ if(TILEMEGA_BUILD_TESTS)
     target_link_libraries(sm90_dense_cost_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_cost_test PRIVATE -UNDEBUG)
     add_test(NAME sm90_dense_cost COMMAND sm90_dense_cost_test)
+    add_executable(sm90_dense_work_graph_test test/unit/sm90_dense_work_graph_test.cpp)
+    target_link_libraries(sm90_dense_work_graph_test PRIVATE TileMega::tilemega)
+    target_compile_options(sm90_dense_work_graph_test PRIVATE -UNDEBUG)
+    add_test(NAME sm90_dense_work_graph COMMAND sm90_dense_work_graph_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_90_h800.json)
     add_executable(sm90_dense_plan_test test/unit/sm90_dense_plan_test.cpp)
     target_link_libraries(sm90_dense_plan_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_plan_test PRIVATE -UNDEBUG)

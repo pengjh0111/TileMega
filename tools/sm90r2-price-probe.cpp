@@ -1,15 +1,23 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Solver/Sm90DenseCostModel.h>
 #include <tilemega/Solver/Sm90DenseSearchSpace.h>
+#include <tilemega/Solver/Sm90DenseWorkGraph.h>
 #include <fstream>
 #include <iostream>
+#include <optional>
 
 int main(int argc,char** argv) {try {
-  if(argc!=4 && (argc!=5 || std::string(argv[4])!="--request-samples"))
-    throw std::invalid_argument("usage: sm90r2_price_probe TARGET WORKLOAD COORDINATES [--request-samples]");
+  if(argc!=4 && (argc!=5 || (std::string(argv[4])!="--request-samples" &&
+      std::string(argv[4])!="--work-graph")))
+    throw std::invalid_argument("usage: sm90r2_price_probe TARGET WORKLOAD COORDINATES [--request-samples|--work-graph]");
   using namespace tilemega;using namespace tilemega::solver;
-  auto target=TargetSpec::FromJson(argv[1]);auto cal=json::ParseFile(argv[1]).At("sm90_dense_decode");
-  Sm90DenseCostModel model(target,cal);auto work=json::ParseFile(argv[2]);Sm90DenseWorkload w;
+  auto target=TargetSpec::FromJson(argv[1]);
+  bool graph_only=argc==5 && std::string(argv[4])=="--work-graph";
+  json::Value cal;
+  if(!graph_only)cal=json::ParseFile(argv[1]).At("sm90_dense_decode");
+  std::optional<Sm90DenseCostModel> model;
+  if(!graph_only)model.emplace(target,cal);
+  auto work=json::ParseFile(argv[2]);Sm90DenseWorkload w;
   auto integer=[&](char const* key) {return int(work.At(key).AsNumber(key));};
   w.batch=integer("batch");w.layers=integer("layers");w.head_dim=integer("head_dim");
   w.queries=integer("queries");w.qk_norm=work.At("qk_norm").AsBool("qk_norm");
@@ -23,20 +31,26 @@ int main(int argc,char** argv) {try {
   for(auto const& value:values.AsArray("native coordinate cases")) {
     auto c=Sm90DenseCoordinates::FromJson(value);
     if(!space.Legal(c))throw std::invalid_argument("illegal native diagnostic coordinate");
+    if(graph_only) {
+      rows.emplace_back(json::Object{{"coordinates",c.ToJson()},
+          {"logical_work",BuildSm90DenseWorkGraph(w,c,target).ToJson()}});
+      continue;
+    }
     json::Object row{{"coordinates",c.ToJson()},
-        {"request",model.Request(w,c).ToJson()},{"past575",model.Predict(w,c,575).ToJson()}};
+        {"request",model->Request(w,c).ToJson()},{"past575",model->Predict(w,c,575).ToJson()}};
     if(argc==5) {
       json::Array samples;
       // Export the same midpoints as Request: overlap clipping is nonlinear,
       // so fitting averaged features would not reproduce the runtime model.
       for(int i=0;i<16;++i) {
         int past=64+int((i+.5)*1023/16);
-        samples.emplace_back(json::Object{{"past",past},{"prediction",model.Predict(w,c,past).ToJson()}});
+        samples.emplace_back(json::Object{{"past",past},{"prediction",model->Predict(w,c,past).ToJson()}});
       }
       row.emplace_back("request_samples",samples);
     }
     rows.emplace_back(row);
   }
   std::cout<<json::Value(json::Object{{"diagnostic_only",true},
-      {"fit_status",cal.At("fit_status")},{"predictions",rows}}).Dump(2)<<'\n';return 0;
+      {"fit_status",graph_only?json::Value("not_requested"):cal.At("fit_status")},
+      {"predictions",rows}}).Dump(2)<<'\n';return 0;
 } catch(std::exception const& e) {std::cerr<<e.what()<<'\n';return 2;}}
