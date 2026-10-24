@@ -21,8 +21,9 @@ def main():
     if not output.is_relative_to(ROOT / 'runs/sm90r2') or output == original:
         p.error('diagnostic outputs belong under runs/sm90r2')
     sys.path.insert(0, str(ROOT / 'python'))
-    from tilemega.build.identity import generate, verify
+    from tilemega.build.identity import generate, verify, validate_snapshot_inputs
     identity = verify(original)
+    validate_snapshot_inputs(identity['source']['root'], identity['source'])
     if identity['trace'] or output.exists():
         raise ValueError('a new trace output and an uninstrumented input are required')
     output.parent.mkdir(parents=True, exist_ok=True)
