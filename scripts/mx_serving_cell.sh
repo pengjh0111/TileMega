@@ -174,9 +174,11 @@ measure)
   C=$CELLS/$id/B$b; O=$C/measure/round$round
   [ -f $O/.done ] && exit 0
   mkdir -p $O
-  NEEDS_MIB=20480 $ROOT/scripts/mx_gpu_job.sh $gpu 1700 $O/guard env -u ALL_PROXY -u all_proxy \
+  # MX4 prompt §9: one fresh process per round, warm-up 1 + timed 2; a timed
+  # job is at most 15 minutes.
+  NEEDS_MIB=20480 $ROOT/scripts/mx_gpu_job.sh $gpu 900 $O/guard env -u ALL_PROXY -u all_proxy \
     python -m tilemega.serving.measure --model $rand --prefill-so $C/prefill/plan.so --decode-so $C/decode/plan.so \
     --prompt-ids $prompts --batch $b --out $O --mode L1 --decode-loop auto \
-    --max-new-tokens 1024 --warmup 1 --repeats 3 \
+    --max-new-tokens 1024 --warmup 1 --repeats 2 \
     --policy configs/bench/measurement_policy_c550.json > $O/run.log 2>&1 && touch $O/.done ;;
 esac
