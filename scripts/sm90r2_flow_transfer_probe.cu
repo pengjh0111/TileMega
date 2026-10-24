@@ -37,7 +37,7 @@ __global__ void Touch(unsigned const* data,std::size_t count,unsigned* sums) {
   if(sum)atomicXor(sums,sum);
 }
 __global__ void Frequency(U64* out) {
-  if(threadIdx.x)return;auto time=Now(),cycle=clock64();while(Now()-time<2000000) {}
+  if(threadIdx.x)return;U64 time=Now(),cycle=clock64();while(Now()-time<2000000) {}
   out[0]=clock64()-cycle;out[1]=Now()-time;
 }
 
