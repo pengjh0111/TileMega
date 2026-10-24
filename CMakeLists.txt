@@ -198,6 +198,7 @@ add_library(tilemega_core STATIC
   lib/Solver/Sm90DenseCostModel.cpp
   lib/Solver/Sm90DenseWorkGraph.cpp
   lib/Solver/Sm90DenseFlowEvents.cpp
+  lib/Solver/Sm90DenseFlowSchedule.cpp
   lib/Solver/Sm90DenseRegisterContract.cpp
   lib/Solver/Sm90DenseSearch.cpp
   lib/Solver/DnnStructureSearch.cpp
@@ -946,6 +947,12 @@ if(TILEMEGA_BUILD_TESTS)
     target_link_libraries(sm90_dense_flow_events_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_flow_events_test PRIVATE -UNDEBUG)
     add_test(NAME sm90_dense_flow_events COMMAND sm90_dense_flow_events_test)
+    add_executable(sm90_dense_flow_schedule_test test/unit/sm90_dense_flow_schedule_test.cpp)
+    target_link_libraries(sm90_dense_flow_schedule_test PRIVATE TileMega::tilemega)
+    target_compile_options(sm90_dense_flow_schedule_test PRIVATE -UNDEBUG)
+    add_test(NAME sm90_dense_flow_schedule COMMAND sm90_dense_flow_schedule_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_90_h800.json
+      ${CMAKE_CURRENT_SOURCE_DIR}/configs/serving/sm90r2/development/isolation_abi_v1/qwen3_0_6b_b16.tmexec.json)
     add_executable(sm90_dense_compile_outcome_test test/unit/sm90_dense_compile_outcome_test.cpp)
     target_include_directories(sm90_dense_compile_outcome_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tools/commands)
     target_link_libraries(sm90_dense_compile_outcome_test PRIVATE TileMega::tilemega)
