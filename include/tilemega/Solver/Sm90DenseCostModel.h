@@ -2,69 +2,41 @@
 #pragma once
 #include <tilemega/Solver/Sm90DenseCoordinates.h>
 #include <tilemega/Solver/Sm90DenseWorkload.h>
-#include <tilemega/Solver/Sm90DenseJointRingProfile.h>
+#include <tilemega/Solver/Sm90NativeConstants.h>
 #include <tilemega/Target/TargetSpec.h>
-#include <map>
 #include <optional>
-#include <stdexcept>
+#include <string>
+#include <vector>
 
 namespace tilemega::solver {
 struct Sm90DensePrediction {
   struct Stage {
-    std::string kind,key,protocol_key;
-    int instances=1,tasks=0,waves=0;
-    double ns=0,barrier=0,startup=0,read_startup=0,initialization=0,dram=0,stream=0,flow=0,
-        activation=0,compute=0,epilogue=0,overlap=0,issue=0,
-        overlap_limit=0,preissue_service=0,late_service=0,l2_service=0,issue_count=0,issue_service=0,
-        receive_count=0,receive=0;
-    // Present only for the explicitly enabled experimental joint-ring flow.
-    json::Value joint_ring_profile;
+    std::string kind;
+    int instances=1;
+    double ns=0;
+    json::Value terms;
   };
   std::vector<Stage> stages;
   double step_ns=0;
   json::Value ToJson() const;
 };
-struct Sm90DenseMissingMeasurement : std::invalid_argument {
-  Sm90DenseMissingMeasurement(std::string const& message,std::string metric,
-      std::map<std::string,double> dimensions,std::map<std::string,std::string> labels);
-  std::string metric;
-  std::map<std::string,double> dimensions;
-  std::map<std::string,std::string> labels;
-  json::Value ToJson() const;
-};
-struct Sm90DenseCalibrationCoverage {
-  std::vector<Sm90DenseMissingMeasurement> missing;
-  // Only complete requests have a reusable price; missing services stay absent.
-  std::optional<Sm90DensePrediction> prediction;
-};
 
-// Reads only the new native section. Legacy target serialization and pricing
-// never see these fits; missing measurements or unfit bodies are hard errors.
-// Instances retain lookup and preflight state; do not share concurrent calls.
+// Fixed per-stage formulas of prompt §4 L0-2 over measured constants. Stages
+// are additive; nothing here is fitted to end-to-end measurements.
 class Sm90DenseCostModel {
  public:
-  Sm90DenseCostModel(TargetSpec target,json::Value const& calibration);
-  Sm90DensePrediction Predict(Sm90DenseWorkload const&,Sm90DenseCoordinates const&,
-                             int past=575) const;
-  Sm90DensePrediction Request(Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;
-  Sm90DenseCalibrationCoverage Preflight(Sm90DenseWorkload const&,
-                                        Sm90DenseCoordinates const&) const;
-  void RequireAttentionCalibration(Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;
+  Sm90DenseCostModel(TargetSpec target,Sm90NativeConstants constants);
+  // family: 0 qkv, 1 o, 2 gate_up, 3 down, 4 lm_head.
+  double Gemm(Sm90DenseWorkload const&,unsigned family,Sm90DenseGemm const&,int residency,
+              bool vector_sums,json::Value* terms=nullptr) const;
+  // Fills the measured body coordinates; absent when the key was not measured.
+  std::optional<double> Attention(Sm90DenseWorkload const&,Sm90DenseAttention& attention,
+                                  int residency,json::Value* terms=nullptr) const;
+  Sm90DensePrediction Predict(Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;
+  int Grid(int residency) const {return target_.res.num_sms*residency;}
+  Sm90NativeConstants const& Constants() const {return constants_;}
  private:
   TargetSpec target_;
-  std::string attention_cache_state_;
-  std::optional<Sm90DenseJointRingProfiles> joint_ring_profiles_;
-  std::string joint_ring_cache_state_;
-  std::map<std::string,std::vector<json::Value>> observations_;
-  std::map<std::string,json::Value> fits_;
-  mutable std::map<std::string,double> quantities_;
-  mutable std::map<std::string,Sm90DenseMissingMeasurement> missing_quantities_;
-  mutable std::map<std::string,Sm90DenseMissingMeasurement>* collecting_missing_=nullptr;
-  double dram_bw_=0;
-  double Quantity(std::string const& metric,std::map<std::string,double> const& dimensions,
-                  std::map<std::string,std::string> const& filters={}) const;
-  double MainloopNs(Sm90DenseGemm const&) const;
-  double Coefficient(std::string const& body,char const* name) const;
-  double Missing(Sm90DenseMissingMeasurement const&) const;
+  Sm90NativeConstants constants_;
 };
 }  // namespace tilemega::solver

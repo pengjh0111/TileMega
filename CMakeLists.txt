@@ -196,9 +196,7 @@ add_library(tilemega_core STATIC
   lib/Solver/Sm90DensePlan.cpp
   lib/Solver/Sm90DenseSearchSpace.cpp
   lib/Solver/Sm90DenseCostModel.cpp
-  lib/Solver/Sm90DenseWorkGraph.cpp
-  lib/Solver/Sm90DenseFlowEvents.cpp
-  lib/Solver/Sm90DenseFlowSchedule.cpp
+  lib/Solver/Sm90NativeConstants.cpp
   lib/Solver/Sm90DenseRegisterContract.cpp
   lib/Solver/Sm90DenseSearch.cpp
   lib/Solver/DnnStructureSearch.cpp
@@ -903,11 +901,6 @@ if(TILEMEGA_BUILD_TESTS)
     add_test(NAME ${test} COMMAND ${test}_test)
   endforeach()
   if(TILEMEGA_TARGET_ARCH STREQUAL "sm_90")
-    add_executable(sm90_dense_selection_search_test test/unit/sm90_dense_selection_search_test.cpp)
-    target_include_directories(sm90_dense_selection_search_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tools/commands)
-    target_compile_features(sm90_dense_selection_search_test PRIVATE cxx_std_17)
-    target_compile_options(sm90_dense_selection_search_test PRIVATE -UNDEBUG)
-    add_test(NAME sm90_dense_selection_search COMMAND sm90_dense_selection_search_test)
     add_executable(sm90_dense_boundary_diagnostic_test test/unit/sm90_dense_boundary_diagnostic_test.cpp)
     target_include_directories(sm90_dense_boundary_diagnostic_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
     target_compile_features(sm90_dense_boundary_diagnostic_test PRIVATE cxx_std_17)
@@ -934,25 +927,6 @@ if(TILEMEGA_BUILD_TESTS)
     target_link_libraries(sm90_dense_lowering_contract_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_lowering_contract_test PRIVATE -UNDEBUG)
     add_test(NAME sm90_dense_lowering_contract COMMAND sm90_dense_lowering_contract_test)
-    add_executable(sm90r2_price_probe tools/sm90r2-price-probe.cpp)
-    target_link_libraries(sm90r2_price_probe PRIVATE TileMega::tilemega)
-    add_executable(sm90_dense_cost_test test/unit/sm90_dense_cost_test.cpp)
-    target_link_libraries(sm90_dense_cost_test PRIVATE TileMega::tilemega)
-    target_compile_options(sm90_dense_cost_test PRIVATE -UNDEBUG)
-    add_test(NAME sm90_dense_cost COMMAND sm90_dense_cost_test)
-    add_executable(sm90_dense_work_graph_test test/unit/sm90_dense_work_graph_test.cpp)
-    target_link_libraries(sm90_dense_work_graph_test PRIVATE TileMega::tilemega)
-    target_compile_options(sm90_dense_work_graph_test PRIVATE -UNDEBUG)
-    add_executable(sm90_dense_flow_events_test test/unit/sm90_dense_flow_events_test.cpp)
-    target_link_libraries(sm90_dense_flow_events_test PRIVATE TileMega::tilemega)
-    target_compile_options(sm90_dense_flow_events_test PRIVATE -UNDEBUG)
-    add_test(NAME sm90_dense_flow_events COMMAND sm90_dense_flow_events_test)
-    add_executable(sm90_dense_flow_schedule_test test/unit/sm90_dense_flow_schedule_test.cpp)
-    target_link_libraries(sm90_dense_flow_schedule_test PRIVATE TileMega::tilemega)
-    target_compile_options(sm90_dense_flow_schedule_test PRIVATE -UNDEBUG)
-    add_test(NAME sm90_dense_flow_schedule COMMAND sm90_dense_flow_schedule_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_90_h800.json
-      ${CMAKE_CURRENT_SOURCE_DIR}/configs/serving/sm90r2/development/isolation_abi_v1/qwen3_0_6b_b16.tmexec.json)
     add_executable(sm90_dense_compile_outcome_test test/unit/sm90_dense_compile_outcome_test.cpp)
     target_include_directories(sm90_dense_compile_outcome_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tools/commands)
     target_link_libraries(sm90_dense_compile_outcome_test PRIVATE TileMega::tilemega)
@@ -962,14 +936,6 @@ if(TILEMEGA_BUILD_TESTS)
     target_link_libraries(sm90_dense_register_contract_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_register_contract_test PRIVATE -UNDEBUG)
     add_test(NAME sm90_dense_register_contract COMMAND sm90_dense_register_contract_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_90_h800.json)
-    add_executable(sm90_dense_workload_binding_test test/unit/sm90_dense_workload_binding_test.cpp)
-    target_link_libraries(sm90_dense_workload_binding_test PRIVATE TileMega::tilemega)
-    target_compile_options(sm90_dense_workload_binding_test PRIVATE -UNDEBUG)
-    add_test(NAME sm90_dense_workload_binding COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_CURRENT_SOURCE_DIR}/test/unit/sm90_dense_workload_bindings.py
-      $<TARGET_FILE:sm90_dense_workload_binding_test>)
-    add_test(NAME sm90_dense_work_graph COMMAND sm90_dense_work_graph_test
       ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_90_h800.json)
     add_executable(sm90_dense_plan_test test/unit/sm90_dense_plan_test.cpp)
     target_link_libraries(sm90_dense_plan_test PRIVATE TileMega::tilemega)

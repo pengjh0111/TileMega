@@ -10,77 +10,44 @@ int main(int argc,char** argv) {
   auto target=tilemega::TargetSpec::FromJson(argv[1]);
   assert(Sm90DenseSharedBudget(target,1)==232448);
   assert(Sm90DenseSharedBudget(target,2)==115712);
+  // Qwen3-0.6B shapes (prompt appendix A).
   std::array<std::array<int,2>,5> shapes={{{4096,1024},{1024,2048},{6144,1024},
       {1024,3072},{151936,1024}}};
-  for(int batch:{1,2,4,8,16}) {
+  for(int batch:{1,2,4,8,16})for(int residency:{1,2}) {
     Sm90DenseSearchSpace space{shapes,batch,128,2,target};
-    auto seeds=space.Seeds();assert(seeds.size()==6);
-    auto reused=space.ActivationReuseSeeds();
-    assert(reused.empty()==(batch==16));
-    std::set<std::string> reuse_keys;
-    for(auto const& c:reused) {
-      assert(space.Legal(c));
-      assert(c.ActivationReuse(batch,128,2,1088).valid);
-      assert(reuse_keys.insert(c.ToJson().Dump(0)).second);
-      for(auto const& g:c.gemms)assert(!g.preissue_smem_bytes && !g.prefetch_l2_bytes);
-    }
-    assert(seeds[1].gemms[0].preissue_smem_bytes>0);
-    assert(seeds[2].attention.prefetch_l2_bytes>0);
-    for(auto const& seed:seeds) {
-      auto neighbours=space.Neighbours(seed);assert(neighbours.size()>=8);
-      std::set<std::string> keys{seed.ToJson().Dump(0)};
-      for(auto const& c:neighbours) {
-        assert(space.Legal(c));assert(keys.insert(c.ToJson().Dump(0)).second);
-        assert(c.gemms[1].tile_n%32==0 || c.dn_vector_sums);
-        assert(c.gemms[2].tile_n%(2*c.swiglu_u)==0);
-        assert(c.attention.chunks!=1 || c.attention.new_row_work==0);
+    int grid=space.Grid(residency);
+    for(unsigned f=0;f<5;++f)for(bool sums:{false,true}) {
+      auto candidates=space.FamilyCandidates(f,residency,sums);
+      // vs0 needs 32-column o/down tiles, which give Qwen0.6B < G/4 tasks; at
+      // residency 2 its TN8 down cannot cover 48 KB within the shared budget.
+      if(residency==1 && sums)assert(!candidates.empty());
+      if(!sums && (f==1 || f==3))assert(candidates.empty());
+      std::set<std::string> keys;
+      for(auto const& g:candidates) {
+        int n=shapes[f][0],k=shapes[f][1],tasks=n/g.tile_n;
+        assert(n%g.tile_n==0 && g.tile_n%8==0 && g.tile_n/g.warps_n<=256 && k%g.TileK()==0);
+        if(f<4)assert(4*tasks>=grid && tasks<=2*grid);
+        else assert((g.tile_n==128 || g.tile_n==256) && g.TileK()<=256);
+        if(!sums && (f==1 || f==3))assert(g.tile_n%32==0);
+        // Ring rule: the fewest slots covering min(W_cta, 48 KB).
+        double w_cta=double((tasks+grid-1)/grid)*g.tile_n*k*2;
+        double need=std::min(w_cta,48.0*1024);
+        assert(g.slots*double(g.slot_bytes)>=need);
+        assert(g.slots==2 || (g.slots-1)*double(g.slot_bytes)<need);
+        assert(keys.insert(std::to_string(g.tile_n)+":"+std::to_string(g.warps_n)+":"+
+            std::to_string(g.TileK())).second);
       }
     }
-    if(batch==1) {
-      auto edge=seeds.at(3);auto& edge_gemm=edge.gemms[0];
-      int unreserved=target.res.max_smem_per_sm/2;
-      edge_gemm.workspace_offset=int((unreserved-edge_gemm.SharedBytes())/1024)*1024;
-      edge.ValidateSchedule(shapes,batch,128,2,1088,unreserved);
-      assert(edge_gemm.SharedBytes()>Sm90DenseSharedBudget(target,2));
-      assert(!space.Legal(edge));
-      auto const& base=seeds.front();auto neighbours=space.Neighbours(base);
-      auto const& gate=base.gemms[2];
-      auto impossible=base;impossible.gemms[2].preissue_smem_bytes=gate.slot_bytes;
-      assert(!space.Legal(impossible));
-      bool relocated=false;
-      for(auto const& c:neighbours) {
-        if(c.gemms[2].preissue_smem_bytes!=gate.slot_bytes)continue;
-        assert(c.gemms[2].workspace_offset>0);
-        auto restored=c;restored.gemms[2]=base.gemms[2];
-        if(restored.ToJson().Dump(0)==base.ToJson().Dump(0))relocated=true;
-      }
-      assert(relocated);
-    }
-    auto invalid=seeds.front();invalid.gemms[1].tile_n=7;
-    assert(!space.Legal(invalid));
-    auto empty_late=seeds.front();empty_late.attention.preissue_late=true;
-    assert(!space.Legal(empty_late));
-    auto late=seeds[1];late.attention.preissue_late=true;
-    assert(space.Legal(late));
-    assert(Sm90DenseCoordinates::FromJson(late.ToJson()).attention.preissue_late);
-    bool found_early=false;
-    for(auto const& c:space.Neighbours(late)) {
-      auto restored=c;restored.attention.preissue_late=true;
-      if(!c.attention.preissue_late && restored.ToJson().Dump(0)==late.ToJson().Dump(0))
-        found_early=true;
-    }
-    assert(found_early);
-    auto overlap=seeds.front();overlap.gemms[2].preissue_smem_bytes=
-        std::min(overlap.gemms[2].slots,shapes[2][1]/overlap.gemms[2].TileK())*
-        overlap.gemms[2].slot_bytes;
-    assert(!space.Legal(overlap));
-    auto misaligned=seeds.front();misaligned.attention.preissue_smem_bytes=16;
-    assert(!space.Legal(misaligned));
-    auto excess=seeds.front();excess.gemms[0].workspace_offset=1024*1024;
-    assert(!space.Legal(excess));
-    auto too_large=seeds.front();too_large.attention.chunks=1;
-    if(batch<=4)assert(!space.Legal(too_large));
-    auto legacy=target;legacy.arch_tag="sm_89";
-    assert(!(Sm90DenseSearchSpace{shapes,batch,128,2,legacy}.Legal(seeds.front())));
+    // D1: S0 is the largest power of two with one task per CTA in one wave.
+    auto attention=space.AttentionCandidates(residency);
+    int s0=attention.front().chunks;
+    assert(s0*batch*8<=grid && 2*s0*batch*8>grid);
+    for(auto const& a:attention)assert(a.chunks==s0 || a.chunks==s0/2 || a.chunks==s0/4);
+  }
+  // REF-R2 used Qwen0.6B B16 down TN16; it stays in the space.
+  {
+    Sm90DenseSearchSpace space{shapes,16,128,2,target};bool found=false;
+    for(auto const& g:space.FamilyCandidates(3,1,true))found|=g.tile_n==16;
+    assert(found);
   }
 }

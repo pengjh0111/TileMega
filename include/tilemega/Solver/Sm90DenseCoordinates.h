@@ -29,7 +29,7 @@ struct Sm90DenseGemm {
   int TileK() const { return int(slot_bytes/(2ll*tile_n)); }
   std::int64_t SharedBytes() const {
     std::int64_t operands=slots*(std::int64_t(slot_bytes)+32ll*TileK());
-    std::int64_t reduction=64ll*tile_n*warps_k+128;
+    std::int64_t reduction=64ll*tile_n*warps_k+512;
     return workspace_offset+1024+operands+reduction;
   }
   void Validate(int n,int k) const {

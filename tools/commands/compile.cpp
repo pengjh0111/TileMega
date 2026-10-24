@@ -596,9 +596,9 @@ int RunCompile(int argc, char** argv) {
        tilemega::TargetSpec::FromJson(solve_target).arch_tag=="sm_90" &&
        tilemega::commands::IsNativeDenseInput(input.string())) {
       std::set<std::string> allowed={"--solve","--serving","--emit","--batch","--seed-arch",
-          "--selection","--measure-cmd","--measure-top","--search-passes","--search-budget-ms",
+          "--selection","--measure-cmd","--measure-top",
           "--dump-cg","--runtime-target","--capacity","--prompt-len","--past-range",
-          "--nvcc-split-compile","--evaluate-configs"};
+          "--nvcc-split-compile"};
       for(int i=3;i<argc;i+=2)if(!allowed.count(argv[i]))
         throw std::invalid_argument("native solve does not accept legacy option "+std::string(argv[i]));
       if(emit_mode!="serving" || serving_capacity!=1088 || serving_prompt_len!=64 ||
@@ -611,9 +611,7 @@ int RunCompile(int argc, char** argv) {
       native.input=input.string();native.output=argv[2];native.target=solve_target;
       native.dump_cg=dump_cg;native.measure_command=measure_command;native.batch=serving_batch;
       native.split_compile=nvcc_split_compile;native.measure_top=measure_top;
-      native.passes=std::max(12,search_passes);
-      native.budget_ms=search_budget_ms?search_budget_ms:600000;
-      native.measured=search_selection=="measure";native.evaluate_configs=evaluation_cases_path;
+      native.measured=search_selection=="measure";
       native.solve_command=quote(std::filesystem::read_symlink("/proc/self/exe").string())+" compile";
       for(int i=1;i<argc;++i)native.solve_command+=' '+quote(argv[i]);
       return tilemega::commands::SolveNativeDense(native);

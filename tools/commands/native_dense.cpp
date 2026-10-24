@@ -5,6 +5,7 @@
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Solver/Sm90DensePlan.h>
 #include <tilemega/Solver/Sm90DenseSearch.h>
+#include <tilemega/Solver/Sm90NativeConstants.h>
 #include <tilemega/Solver/Sm90DenseRegisterContract.h>
 #include <tilemega/Frontend/ExportBridge.h>
 #include <tilemega/Support/Json.h>
@@ -202,7 +203,7 @@ bool IsNativeDenseInput(std::string const& input) {
 
 int SolveNativeDense(NativeDenseSolveOptions const& o) {
   namespace fs=std::filesystem;
-  if(o.measure_top<1 || o.measure_top>6 || o.passes<1 || o.budget_ms<1 ||
+  if(o.measure_top<1 || o.measure_top>6 ||
       (o.measured && o.measure_command.empty()) || (!o.measured && !o.measure_command.empty()))
     throw std::invalid_argument("native solve requires measured top 1..6 and an explicit measure command");
   auto requested=fs::absolute(o.output);
@@ -212,42 +213,20 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   fs::create_directories(directory);
   auto target=TargetSpec::FromJson(o.target);
   auto target_sha=Hash(o.target),input_sha=Hash(o.input);
-  auto calibration=json::ParseFile(o.target).At("sm90_dense_decode");
-  if(calibration.At("native_gemm_header_sha256").AsString("native implementation hash")!=
-      Hash(std::string(TILEMEGA_SOURCE_DIR)+"/include/tilemega/Backend/Sm90DenseGemm.h"))
-    throw std::invalid_argument("native prices belong to a different GEMM implementation");
-  for(auto const& header:calibration.At("native_headers").AsObject("native device inputs"))
-    if(Hash(std::string(TILEMEGA_SOURCE_DIR)+"/"+header.first)!=
-        header.second.AsString("calibrated device header"))
-      throw std::invalid_argument("native prices belong to a different stage program");
-  auto fit_status=calibration.At("fit_status").AsString("native fit status");
-  bool validated=fit_status=="fitted";
-  // E-3 is checkpoint/final acceptance, not a prerequisite for collecting
-  // development selections that diagnose and improve the same price model.
-  if(o.measured && !validated && fit_status!="initial_overlap_fitted")
-    throw std::invalid_argument("measured native solve requires an initial overlap fit or validated calibration");
-  solver::Sm90DenseCostModel cost(target,calibration);
+  auto constants=solver::Sm90NativeConstants::FromTarget(json::ParseFile(o.target),TILEMEGA_SOURCE_DIR);
+  // Constants are re-measured at the body milestones of prompt §5/§6; between
+  // them a changed header is reported, never a reason to refuse the solve.
+  json::Array stale;
+  for(auto const& header:constants.StaleHeaders(TILEMEGA_SOURCE_DIR))stale.emplace_back(header);
+  solver::Sm90DenseCostModel cost(target,constants);
   auto bridge=frontend::ReadExportBridge(o.input);
   frontend::ServingOptions options;options.dense_attention_chunks=1;
   auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
   auto work=solver::Sm90DenseWorkloadFromPlan(plan,o.batch);
   solver::Sm90DenseSearchSpace space{work.shapes,work.batch,work.head_dim,work.queries,target};
-  solver::Sm90DenseSearchOptions search;search.passes=o.passes;search.budget_ms=o.budget_ms;
-  solver::Sm90DenseSearchResult result;
-  try {result=solver::SearchSm90Dense(space,work,cost,search);}
-  catch(solver::Sm90DenseCalibrationPending const& pending) {
-    auto report=pending.report;
-    report.Set("target_sha256",target_sha);report.Set("export_sha256",input_sha);
-    report.Set("solve_command",o.solve_command);
-    auto path=directory/"calibration-pending.json";
-    std::ofstream output(path);
-    if(!output)throw std::runtime_error("cannot write native calibration_pending receipt");
-    output<<report.Dump(2)<<'\n';output.close();
-    if(!output)throw std::runtime_error("cannot finish native calibration_pending receipt");
-    std::cerr<<"NATIVE_DENSE calibration_pending "<<path.string()<<'\n';
-    return 2;
-  }
-  json::Array ranked,measurements,evaluated;
+  solver::Sm90DenseSearchOptions search;search.top=o.measure_top;
+  auto result=solver::SearchSm90Dense(space,work,cost,search);
+  json::Array ranked,candidates;
   std::vector<fs::path> configs;
   for(unsigned i=0;i<result.ranked.size();++i) {
     auto path=directory/("candidate-"+std::to_string(i)+".tmexec.json");
@@ -256,91 +235,50 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
         {"coordinates",result.ranked[i].coordinates.ToJson()},
         {"prediction",result.ranked[i].prediction.ToJson()}});
   }
-  if(!o.evaluate_configs.empty()) {
-    auto values=json::ParseFile(o.evaluate_configs);
-    for(auto const& item:values.AsArray("native evaluation configurations")) {
-      auto c=solver::Sm90DenseCoordinates::FromJson(item);
-      if(!space.Legal(c))throw std::invalid_argument("native evaluation coordinate is illegal");
-      evaluated.emplace_back(json::Object{{"coordinates",c.ToJson()},
-          {"prediction",cost.Request(work,c).ToJson()}});
-    }
-  }
-  NativeCandidateCounts counts;bool selection_complete=false;
-  auto save=[&](int winner) {
-    json::Value receipt=json::Object{{"schema",1},{"selection",o.measured?"measure":"predicted"},
-        {"e3_validated",validated},{"development_only",!validated},
+  json::Value measurement;int winner=0;
+  auto save=[&] {
+    json::Value receipt=json::Object{{"schema",2},{"selection",o.measured?"measure":"predicted"},
         {"target_sha256",target_sha},{"export_sha256",input_sha},{"solve_command",o.solve_command},
-        {"calibration",calibration},{"search_ms",result.elapsed_ms},
-        {"evaluated",double(result.evaluated)},{"converged",result.converged},
-        {"budget_exhausted",result.budget_exhausted},{"ranked",ranked},
-        {"evaluated_configs",evaluated},{"measurements",measurements},{"winner",winner},
-        {"candidate_compile_attempts",counts.compile_attempts},{"compiled_candidates",counts.compiled_candidates},
-        {"resource_rejections",counts.resource_rejections},{"equivalent_duplicates",counts.equivalent_duplicates},
-        {"measured_unique",counts.measured_unique},{"accepted_measurements",counts.accepted_measurements},
-        {"selection_outcome",!selection_complete?"in_progress":winner>=0?"selected":
-            counts.compiled_candidates?"no_accepted_candidate":"no_feasible_candidate"}};
+        {"constants",constants.section},{"constants_from_older_body",stale},
+        {"search_ms",result.elapsed_ms},{"evaluated",double(result.evaluated)},
+        {"ranked",ranked},{"candidates",candidates},{"measurement",measurement},{"winner",winner}};
     std::ofstream(directory/"receipt.json")<<receipt.Dump(2)<<'\n';return receipt;
   };
-  int winner=o.measured?-1:0;double best=std::numeric_limits<double>::infinity();save(winner);
-  ValidateNativeSelectionSearch(o.measured,result.converged,result.budget_exhausted);
-  std::map<std::string,int> program_keys;
-  if(o.measured)for(int i=0;i<int(result.ranked.size()) && counts.measured_unique<o.measure_top;++i) {
-    auto binary=directory/("candidate-"+std::to_string(i)+".so");
-    std::optional<std::string> rejected;
-    try {
-      rejected=TryMeasuredNativeCompile(counts,[&] {
+  save();
+  if(o.measured) {
+    for(unsigned i=0;i<configs.size();++i) {
+      auto binary=directory/("candidate-"+std::to_string(i)+".so");
+      NativeCandidateCounts counts;
+      auto rejected=TryMeasuredNativeCompile(counts,[&] {
         CompileNativeDenseArtifact(o.input,binary.string(),configs[i].string(),o.target,o.batch,
-            "",o.split_compile,"solver",json::Object{{"selection","candidate"},{"rank",i}});
+            "",o.split_compile,"solver",json::Object{{"selection","candidate"},{"rank",int(i)}});
       });
-    }catch(...) {save(winner);throw;}
-    if(rejected) {
-      measurements.emplace_back(json::Object{{"rank",i},{"status","resource_rejected"},
-          {"measured",false},{"compile_result",*rejected},{"compile_result_sha256",Hash(*rejected)}});
-      save(winner);continue;
+      json::Value row=json::Object{{"rank",int(i)},{"coordinates",configs[i].string()},
+          {"predicted_ns",result.ranked[i].prediction.step_ns}};
+      if(rejected) {row.Set("status","resource_rejected");row.Set("compile_result",*rejected);}
+      else {row.Set("status","compiled");row.Set("binary",binary.string());row.Set("binary_sha256",Hash(binary.string()));}
+      candidates.push_back(row);save();
     }
-    save(winner);
-    auto key_path=directory/("candidate-"+std::to_string(i)+".program-key.json");
-    auto key_command="python3 "+Quote(std::string(TILEMEGA_SOURCE_DIR)+
-        "/scripts/native_sm90r2_program_key.py")+" --binary "+Quote(binary.string())+
-        " --out "+Quote(key_path.string());
-    if(std::system(key_command.c_str()))throw std::runtime_error("native program-key audit failed");
-    auto key=json::ParseFile(key_path).At("program_key").AsString("native program key");
-    auto inserted=program_keys.emplace(key,i);
-    if(!inserted.second) {
-      ++counts.equivalent_duplicates;
-      measurements.emplace_back(json::Object{{"rank",i},{"status",0},{"measured",false},
-          {"reason","compiler-equivalent register lookahead"},
-          {"duplicate_of",inserted.first->second},{"program_key",key}});
-      save(winner);continue;
-    }
-    ++counts.measured_unique;save(winner);
-    auto out=directory/("measure-"+std::to_string(i));
-    auto command=o.measure_command+" --so "+Quote(binary.string())+
-        " --native-config "+Quote(configs[i].string())+" --out "+Quote(out.string());
-    auto begin=std::chrono::steady_clock::now();int status=std::system(command.c_str());
-    json::Value row=json::Object{{"rank",i},{"command",command},{"status",status},
-        {"measured",true},{"program_key",key},
-        {"elapsed_s",std::chrono::duration<double>(std::chrono::steady_clock::now()-begin).count()}};
-    if(!status) {
-      auto measured=json::ParseFile(out/"result.json");
-      if(measured.At("accepted").AsBool("accepted native measurement") &&
-          measured.At("binary_sha256").AsString("measured binary") ==Hash(binary.string()) &&
-          measured.At("c1_pass").AsBool("C-1") && measured.At("c2_pass").AsBool("C-2")) {
-        double ns=measured.At("tpot_ns").AsNumber("native measured TPOT");
-        if(!std::isfinite(ns) || ns<=0)throw std::runtime_error("invalid native measured TPOT");
-        row.Set("result",measured);++counts.accepted_measurements;
-        if(ns<best) {best=ns;winner=i;}
-      }else throw std::runtime_error("native callback lacks accepted correctness and artifact evidence");
-    }
-    measurements.push_back(row);save(winner);
+    auto list=directory/"candidates.json";
+    std::ofstream(list)<<json::Value(candidates).Dump(2)<<'\n';
+    // One P-SEL session measures every compiled candidate in interleaved order.
+    auto out=directory/"measure";
+    auto command=o.measure_command+" --candidates "+Quote(list.string())+" --out "+Quote(out.string());
+    int status=std::system(command.c_str());
+    if(status)throw std::runtime_error("native P-SEL measurement failed: "+command);
+    measurement=json::ParseFile((out/"result.json").string());
+    winner=int(measurement.At("winner_rank").AsNumber("P-SEL winner"));
+    if(winner<0 || winner>=int(candidates.size()) ||
+       candidates[winner].At("status").AsString("candidate status")!="compiled" ||
+       measurement.At("winner_binary_sha256").AsString("winner binary")!=
+           Hash(candidates[winner].At("binary").AsString("binary")))
+      throw std::runtime_error("P-SEL result does not name a compiled candidate");
   }
-  selection_complete=true;save(winner);
-  if(winner<0)throw std::runtime_error("no native candidate passed resource/correctness/measurement checks");
   if(Hash(o.target)!=target_sha || Hash(o.input)!=input_sha)
     throw std::runtime_error("native search inputs changed during selection");
   auto selected=fs::path(requested.string()+".tmexec.json");
   fs::copy_file(configs[winner],selected);
-  auto receipt=save(winner);
+  auto receipt=save();
   CompileNativeDenseArtifact(o.input,o.output,selected.string(),o.target,o.batch,o.dump_cg,
       o.split_compile,"solver",receipt);
   if(o.measured) {

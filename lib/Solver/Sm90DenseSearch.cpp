@@ -3,131 +3,65 @@
 #include <algorithm>
 #include <chrono>
 #include <set>
-#include <stdexcept>
 
 namespace tilemega::solver {
-std::string Sm90DenseScheduleKey(Sm90DenseCoordinates const& c,Sm90DensePrediction const& prediction) {
-  // Equal predicted prices do not prove equal events, resources or neighbours.
-  auto structural=c.ToJson();
-  json::Array prices;
-  for(auto const& stage:prediction.stages)prices.emplace_back(json::Object{
-      {"kind",stage.kind},{"instances",stage.instances},{"stage_ns",stage.ns}});
-  return json::Value(json::Array{structural,prediction.step_ns,prices}).Dump(0);
+namespace {
+struct Option {
+  double ns;
+  Sm90DenseGemm gemm;
+  Sm90DenseAttention attention;
+};
 }
+
+// Stage times are additive and families independent for a fixed residency and
+// vector-sum layout, so the per-family optimum is exact; the top-K list adds
+// single-family alternatives around it (prompt §4 L0-2 item 3).
 Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     Sm90DenseWorkload const& work,Sm90DenseCostModel const& cost,Sm90DenseSearchOptions const& o) {
-  if(o.passes<1 || o.beam_width<1 || o.retained<8 || o.budget_ms<1)
-    throw std::invalid_argument("invalid native search budget");
-  using Clock=std::chrono::steady_clock;auto start=Clock::now();
-  Sm90DenseSearchResult result;std::set<std::string> seen;
+  if(o.top<1 || o.alternatives<1)throw std::invalid_argument("invalid native search options");
+  auto start=std::chrono::steady_clock::now();
+  Sm90DenseSearchResult result;
   std::vector<Sm90DenseCandidate> pool;
-  std::map<std::string,Sm90DensePrediction> prepared;
-  auto elapsed=[&] {return std::chrono::duration<double,std::milli>(Clock::now()-start).count();};
-  auto less=[](auto const& a,auto const& b) {
-    if(a.prediction.step_ns!=b.prediction.step_ns)return a.prediction.step_ns<b.prediction.step_ns;
-    return a.coordinates.ToJson().Dump(0)<b.coordinates.ToJson().Dump(0);
-  };
-  using Frontier=std::vector<std::pair<Sm90DenseCoordinates,std::string>>;
-  auto require_frontier=[&](Frontier const& frontier,char const* name,int pass) {
-    std::set<std::string> checked;
-    std::map<std::string,std::pair<json::Value,json::Array>> missing;
-    for(auto const& entry:frontier) {
-      auto coordinates=entry.first.ToJson();auto key=coordinates.Dump(0);
-      if(seen.count(key) || !checked.insert(key).second)continue;
-      auto coverage=cost.Preflight(work,entry.first);
-      if(coverage.prediction)prepared.emplace(key,std::move(*coverage.prediction));
-      for(auto const& error:coverage.missing) {
-        auto measurement=error.ToJson();auto measurement_key=measurement.Dump(0);
-        auto found=missing.emplace(measurement_key,
-            std::make_pair(measurement,json::Array{})).first;
-        found->second.second.emplace_back(json::Object{
-            {"coordinates",coordinates},{"origin",entry.second}});
-      }
+  std::set<std::string> seen;
+  for(int residency:{1,2})for(bool sums:{false,true}) {
+    std::array<std::vector<Option>,6> families;
+    for(unsigned f=0;f<5;++f) {
+      for(auto const& g:space.FamilyCandidates(f,residency,sums))
+        families[f].push_back({cost.Gemm(work,f,g,residency,sums),g,{}});
+      ++result.evaluated;
     }
-    if(missing.empty())return;
-    json::Array measurements;
-    for(auto& entry:missing) {
-      entry.second.first.Set("candidates",entry.second.second);
-      measurements.push_back(std::move(entry.second.first));
+    for(auto a:space.AttentionCandidates(residency))
+      if(auto ns=cost.Attention(work,a,residency))families[5].push_back({*ns,{},a});
+    bool empty=false;
+    for(auto& f:families) {
+      std::stable_sort(f.begin(),f.end(),[](Option const& a,Option const& b) {return a.ns<b.ns;});
+      empty|=f.empty();
     }
-    // Any missing dependency invalidates the frontier, including priced seeds.
-    throw Sm90DenseCalibrationPending(json::Object{{"schema",1},{"status","calibration_pending"},
-        {"frontier",name},{"pass",pass},{"frontier_candidates",double(checked.size())},
-        {"evaluated",double(result.evaluated)},{"elapsed_ms",elapsed()},
-        {"converged",false},{"selection_performed",false},
-        {"coverage_scope","declared model pricing dependencies at all request midpoints"},
-        {"missing",measurements}});
-  };
-  auto evaluate=[&](Sm90DenseCoordinates const& c,std::string const& origin) {
-    auto key=c.ToJson().Dump(0);
-    if(seen.count(key))return;
-    auto found=prepared.find(key);
-    if(found==prepared.end())throw std::logic_error("native candidate was not preflighted");
-    auto prediction=std::move(found->second);prepared.erase(found);
-    if(!(prediction.step_ns>0) || !std::isfinite(prediction.step_ns))
-      throw std::runtime_error("native pricing produced an invalid prediction");
-    auto schedule=Sm90DenseScheduleKey(c,prediction);
-    pool.push_back({c,std::move(prediction),origin,std::move(schedule)});
-    seen.insert(std::move(key));++result.evaluated;
-  };
-  auto seeds=space.Seeds();
-  if(seeds.empty())throw std::invalid_argument("native search has no legal seed");
-  Frontier seed_frontier;
-  for(unsigned i=0;i<seeds.size();++i)
-    seed_frontier.emplace_back(seeds[i],std::string(i/3?"resident2_":"resident1_")+
-        (i%3==0?"exact":i%3==1?"preissue":"preissue_l2"));
-  // Keeping one zeroed arena needs a joint change to every operand layout;
-  // single-coordinate neighbours cannot reach it on mixed-TK programs.
-  for(auto const& seed:space.ActivationReuseSeeds())seed_frontier.emplace_back(seed,"activation_reuse");
-  require_frontier(seed_frontier,"seeds",-1);
-  for(auto const& entry:seed_frontier)evaluate(entry.first,entry.second);
-  std::sort(pool.begin(),pool.end(),less);
-  std::set<std::string> expanded;
-  auto leaders=[&] {
-    std::set<std::string> unique;std::vector<std::string> keys;
-    for(auto const& candidate:pool)if(unique.insert(candidate.schedule_key).second) {
-      keys.push_back(candidate.schedule_key);if(int(keys.size())==o.beam_width)break;
-    }
-    return keys;
-  };
-  for(int pass=0;pass<o.passes;++pass) {
-    std::vector<Sm90DenseCandidate> beam;
-    // A protected native seed is expanded once even if its first prediction
-    // loses; its neighbours can change both geometry and resource coupling.
-    if(!pass)beam=pool;
-    else {
-      std::set<std::string> unique;
-      for(auto const& p:pool) {
-        if(!expanded.count(p.schedule_key) && unique.insert(p.schedule_key).second)beam.push_back(p);
-        if(int(beam.size())==o.beam_width)break;
-      }
-    }
-    if(beam.empty()) {result.converged=true;break;}
-    auto previous=leaders();
-    Frontier frontier;
-    for(auto const& center:beam) {
-      expanded.insert(center.schedule_key);
-      for(auto const& neighbour:space.Neighbours(center.coordinates))
-        frontier.emplace_back(neighbour,"search");
-    }
-    require_frontier(frontier,"beam",pass);
-    for(auto const& entry:frontier) {
-      if(elapsed()>=o.budget_ms) {result.budget_exhausted=true;break;}
-      evaluate(entry.first,entry.second);
-    }
-    std::sort(pool.begin(),pool.end(),less);
-    if(result.budget_exhausted)break;
-    if(previous==leaders()) {result.converged=true;break;}
+    if(empty)continue;
+    auto build=[&](unsigned family,unsigned rank,std::string const& origin) {
+      Sm90DenseCoordinates c;c.residency=residency;c.dn_vector_sums=sums;
+      for(unsigned f=0;f<5;++f)c.gemms[f]=families[f][f==family?rank:0].gemm;
+      c.attention=families[5][family==5?rank:0].attention;
+      Sm90DenseSearchSpace::Structure(c);
+      if(!space.Legal(c))return;
+      auto key=c.ToJson().Dump(0);
+      if(!seen.insert(key).second)return;
+      pool.push_back({c,cost.Predict(work,c),origin});
+    };
+    std::string prefix="r"+std::to_string(residency)+(sums?"_vs1":"_vs0");
+    build(6,0,prefix+"_optimum");
+    static constexpr char const* kNames[]={"qkv","o","gate_up","down","lm_head","attention"};
+    for(unsigned f=0;f<6;++f)
+      for(unsigned rank=1;rank<=unsigned(o.alternatives) && rank<families[f].size();++rank)
+        build(f,rank,prefix+"_"+kNames[f]+"_alt"+std::to_string(rank));
   }
-  result.elapsed_ms=elapsed();
-  // Retain distinct coordinate states even at equal prices; protected seeds
-  // remain explicit controls outside the search shortlist limit.
-  std::set<std::string> retained;
-  for(auto const& p:pool) {
-    bool fresh=retained.insert(p.schedule_key).second;
-    if(p.origin!="search" || (fresh && int(retained.size())<=o.retained))
-      result.ranked.push_back(p);
-  }
+  std::stable_sort(pool.begin(),pool.end(),[](auto const& a,auto const& b) {
+    return a.prediction.step_ns<b.prediction.step_ns;
+  });
+  if(pool.empty())throw std::invalid_argument("native search found no legal coordinate");
+  if(int(pool.size())>o.top)pool.resize(o.top);
+  result.ranked=std::move(pool);
+  result.elapsed_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
   return result;
 }
 }  // namespace tilemega::solver
