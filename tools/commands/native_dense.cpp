@@ -96,7 +96,12 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
       " -I"+Quote(root+"/third_party/cutlass/include")+" "+Quote(cu.string())+" -o "+Quote(requested.string());
   std::ofstream(requested.string()+".build_command.txt")<<command<<'\n';
   auto log=requested.string()+".ptxas.log";
-  if(std::system((command+" >"+Quote(log)+" 2>&1").c_str()))
+  // Candidate searches may run concurrently; bound and serialize their nvcc
+  // process groups while retaining the unwrapped command for reproducibility.
+  auto bounded="python3 "+Quote(root+"/scripts/run_sm90r1_build.py")+
+      " --receipt "+Quote(requested.string()+".build_limits.json")+
+      " --max-gib 48 --timeout 5400 --lock /tmp/tilemega_sm90r2_native_build.lock -- "+command;
+  if(std::system((bounded+" >"+Quote(log)+" 2>&1").c_str()))
     throw std::runtime_error("native nvcc compilation failed; inspect "+log);
   identity(false);
   json::Value execution=json::Object{{"decode_mode","L1"},{"decode_loop",1},
