@@ -117,6 +117,14 @@ int main() {
   auto producer_join=Find(plain,Kind::kProducerRendezvous,0,1,0).at(0);
   auto producer_publish=Find(plain,Kind::kProducerGenerations,0,1,0).at(0);
   assert(plain.events[producer_join].arrivals==32 && order.Before(producer_join,producer_publish));
+  std::string producer_key,consumer_key;
+  for(auto const& requirement:plain.requirements)for(auto event:requirement.events) {
+    auto const& e=plain.events[event];
+    if(e.stage!=1 || e.cta!=0 || e.step!=0)continue;
+    if(e.kind==Kind::kProducerGenerations)producer_key=requirement.key;
+    if(e.kind==Kind::kConsumerGenerations)consumer_key=requirement.key;
+  }
+  assert(!producer_key.empty() && !consumer_key.empty() && producer_key!=consumer_key);
   auto idle_join=Find(plain,Kind::kProducerRendezvous,0,1,131).at(0);
   assert(order.Before(idle_setup,idle_join) && order.Before(idle_join,inactive));
   for(int token_stage:{0,int(low.stages.size())-1}) {

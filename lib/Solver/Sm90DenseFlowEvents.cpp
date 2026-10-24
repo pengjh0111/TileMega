@@ -179,8 +179,11 @@ class Builder {
           Need(publish,Service::kGenerationPublication,Resource::kSharedArena,stage.kind);
         }
         Edge(producer,h.produced);
-        if(Gemm(stage))Need(h.produced,Service::kProducerReturn,Resource::kCtaProducerIssue,
-            stage.kind+":outlined_producer_return");
+        if(Gemm(stage)) {
+          graph.events[h.produced].local_tasks=int(owner.tasks.size());
+          Need(h.produced,Service::kProducerReturn,Resource::kCtaProducerIssue,
+              stage.kind+":outlined_producer_return");
+        }
         Id consumer=h.initialize;
         for(auto& t:h.tasks) {
           Edge(consumer,t.begin);
@@ -274,7 +277,10 @@ class Builder {
   void Edge(Id a,Id b,int condition=-1,int owner=-1) {graph.edges.push_back({a,b,condition,owner});}
   void Need(Id event,Service service,Resource resource,std::string const& operation) {
     auto const& e=graph.events[event];auto const& work=*current_work_;
-    json::Object fields{{"schema",2},{"service",int(service)},{"resource",int(resource)},
+    // Producer and consumer generation stores share a service family, but
+    // execute on different roles and must never alias one measurement key.
+    json::Object fields{{"schema",3},{"service",int(service)},{"resource",int(resource)},
+        {"event_kind",int(e.kind)},{"operation",operation},
         {"sender_descriptor",e.stage>=0?work.stages[e.stage].ServiceDescriptor():json::Value()},
         {"receiver_descriptor",e.target_stage>=0?work.stages[e.target_stage].ServiceDescriptor():json::Value()},
         {"past",work.past},
