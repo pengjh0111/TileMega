@@ -36,15 +36,23 @@ struct Sm90DenseMissingMeasurement : std::invalid_argument {
   std::map<std::string,std::string> labels;
   json::Value ToJson() const;
 };
+struct Sm90DenseCalibrationCoverage {
+  std::vector<Sm90DenseMissingMeasurement> missing;
+  // Only complete requests have a reusable price; missing services stay absent.
+  std::optional<Sm90DensePrediction> prediction;
+};
 
 // Reads only the new native section. Legacy target serialization and pricing
 // never see these fits; missing measurements or unfit bodies are hard errors.
+// Instances retain lookup and preflight state; do not share concurrent calls.
 class Sm90DenseCostModel {
  public:
   Sm90DenseCostModel(TargetSpec target,json::Value const& calibration);
   Sm90DensePrediction Predict(Sm90DenseWorkload const&,Sm90DenseCoordinates const&,
                              int past=575) const;
   Sm90DensePrediction Request(Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;
+  Sm90DenseCalibrationCoverage Preflight(Sm90DenseWorkload const&,
+                                        Sm90DenseCoordinates const&) const;
   void RequireAttentionCalibration(Sm90DenseWorkload const&,Sm90DenseCoordinates const&) const;
  private:
   TargetSpec target_;
@@ -55,10 +63,12 @@ class Sm90DenseCostModel {
   std::map<std::string,json::Value> fits_;
   mutable std::map<std::string,double> quantities_;
   mutable std::map<std::string,Sm90DenseMissingMeasurement> missing_quantities_;
+  mutable std::map<std::string,Sm90DenseMissingMeasurement>* collecting_missing_=nullptr;
   double dram_bw_=0;
   double Quantity(std::string const& metric,std::map<std::string,double> const& dimensions,
                   std::map<std::string,std::string> const& filters={}) const;
   double MainloopNs(Sm90DenseGemm const&) const;
   double Coefficient(std::string const& body,char const* name) const;
+  double Missing(Sm90DenseMissingMeasurement const&) const;
 };
 }  // namespace tilemega::solver

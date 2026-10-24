@@ -7,17 +7,8 @@
 
 namespace tilemega::solver {
 std::string Sm90DenseScheduleKey(Sm90DenseCoordinates const& c,Sm90DensePrediction const& prediction) {
+  // Equal predicted prices do not prove equal events, resources or neighbours.
   auto structural=c.ToJson();
-  auto strip=[](json::Value const& body) {
-    json::Object result;
-    for(auto const& field:body.AsObject("native body"))
-      if(field.first!="workspace_offset" && field.first!="register_stages" &&
-         field.first!="preissue_late" && field.first!="prefetch_l2_bytes")result.push_back(field);
-    return json::Value(result);
-  };
-  auto gemms=structural.At("gemms").AsObject("GEMM families");
-  for(auto& family:gemms)family.second=strip(family.second);
-  structural.Set("gemms",gemms);structural.Set("attention",strip(structural.At("attention")));
   json::Array prices;
   for(auto const& stage:prediction.stages)prices.emplace_back(json::Object{
       {"kind",stage.kind},{"instances",stage.instances},{"stage_ns",stage.ns}});
@@ -30,6 +21,7 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
   using Clock=std::chrono::steady_clock;auto start=Clock::now();
   Sm90DenseSearchResult result;std::set<std::string> seen;
   std::vector<Sm90DenseCandidate> pool;
+  std::map<std::string,Sm90DensePrediction> prepared;
   auto elapsed=[&] {return std::chrono::duration<double,std::milli>(Clock::now()-start).count();};
   auto less=[](auto const& a,auto const& b) {
     if(a.prediction.step_ns!=b.prediction.step_ns)return a.prediction.step_ns<b.prediction.step_ns;
@@ -42,9 +34,9 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     for(auto const& entry:frontier) {
       auto coordinates=entry.first.ToJson();auto key=coordinates.Dump(0);
       if(seen.count(key) || !checked.insert(key).second)continue;
-      try {cost.RequireAttentionCalibration(work,entry.first);}
-      catch(Sm90DenseMissingMeasurement const& error) {
-        if(error.metric.rfind("attention_",0)!=0)throw;
+      auto coverage=cost.Preflight(work,entry.first);
+      if(coverage.prediction)prepared.emplace(key,std::move(*coverage.prediction));
+      for(auto const& error:coverage.missing) {
         auto measurement=error.ToJson();auto measurement_key=measurement.Dump(0);
         auto found=missing.emplace(measurement_key,
             std::make_pair(measurement,json::Array{})).first;
@@ -58,17 +50,20 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
       entry.second.first.Set("candidates",entry.second.second);
       measurements.push_back(std::move(entry.second.first));
     }
-    // A missing member invalidates this entire search, including already
-    // priced seeds. Never return a partial ranking as a completed selection.
+    // Any missing dependency invalidates the frontier, including priced seeds.
     throw Sm90DenseCalibrationPending(json::Object{{"schema",1},{"status","calibration_pending"},
         {"frontier",name},{"pass",pass},{"frontier_candidates",double(checked.size())},
         {"evaluated",double(result.evaluated)},{"elapsed_ms",elapsed()},
-        {"converged",false},{"selection_performed",false},{"missing",measurements}});
+        {"converged",false},{"selection_performed",false},
+        {"coverage_scope","declared model pricing dependencies at all request midpoints"},
+        {"missing",measurements}});
   };
   auto evaluate=[&](Sm90DenseCoordinates const& c,std::string const& origin) {
     auto key=c.ToJson().Dump(0);
     if(seen.count(key))return;
-    auto prediction=cost.Request(work,c);
+    auto found=prepared.find(key);
+    if(found==prepared.end())throw std::logic_error("native candidate was not preflighted");
+    auto prediction=std::move(found->second);prepared.erase(found);
     if(!(prediction.step_ns>0) || !std::isfinite(prediction.step_ns))
       throw std::runtime_error("native pricing produced an invalid prediction");
     auto schedule=Sm90DenseScheduleKey(c,prediction);
@@ -125,8 +120,8 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     if(previous==leaders()) {result.converged=true;break;}
   }
   result.elapsed_ms=elapsed();
-  // Equal-price translations must not crowd every different division of work
-  // out of the measured shortlist. Protected seeds remain explicit controls.
+  // Retain distinct coordinate states even at equal prices; protected seeds
+  // remain explicit controls outside the search shortlist limit.
   std::set<std::string> retained;
   for(auto const& p:pool) {
     bool fresh=retained.insert(p.schedule_key).second;

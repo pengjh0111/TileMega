@@ -134,6 +134,8 @@ void JointRingContracts(TargetSpec const& t) {
   cal.Set("joint_ring_residual_model","none_pending_independent_refit");
   cal.Set("joint_ring_cache_state","four_shape_replay_no_scrub");cal.Set("joint_ring_profiles",table);
   Sm90DenseCostModel model(t,cal);auto p=model.Predict(w,c),request=model.Request(w,c);
+  auto covered=model.Preflight(w,c);
+  assert(covered.missing.empty() && covered.prediction->ToJson().Dump(0)==request.ToJson().Dump(0));
   for(unsigned i:{0u,2u,3u,4u,5u}) {
     auto const& s=p.stages[i];
     assert(s.flow==10000 && s.compute==0 && s.activation==0 && s.read_startup==0);
@@ -171,6 +173,13 @@ void JointRingContracts(TargetSpec const& t) {
   catch(Sm90DenseMissingMeasurement const& e) {
     assert(e.metric=="native_joint_ring_profile" && e.dimensions.at("active_ctas")==128);
   }
+  auto empty_profiles=table;empty_profiles.Set("profiles",json::Array{});
+  auto missing_all=cal;missing_all.Set("joint_ring_profiles",empty_profiles);
+  Sm90DenseCostModel uncovered(t,missing_all);auto all_profiles=uncovered.Preflight(w,c);
+  assert(!all_profiles.prediction && all_profiles.missing.size()==5);
+  for(auto const& error:all_profiles.missing)assert(error.metric=="native_joint_ring_profile");
+  try {uncovered.Request(w,c);assert(false);}
+  catch(Sm90DenseMissingMeasurement const& error) {assert(error.metric=="native_joint_ring_profile");}
   auto multiple=w;multiple.shapes[0][0]*=2;
   assert(error(cal,multiple,c).find("calibration pending")!=std::string::npos);
   auto prefix=c;prefix.gemms[0].preissue_smem_bytes=prefix.gemms[0].slot_bytes;
@@ -201,6 +210,8 @@ int main() {
       1,28,128,2,true};
   auto c=Sm90DenseCoordinates::Exact(w.shapes,w.batch,t.res.max_dynamic_smem_per_cta);
   Sm90DenseCostModel model(t,Fixture());auto prediction=model.Request(w,c);
+  auto coverage=model.Preflight(w,c);
+  assert(coverage.missing.empty() && coverage.prediction->ToJson().Dump(0)==prediction.ToJson().Dump(0));
   auto tabular=Fixture();json::Array columns,rows;
   for(auto const& p:tabular.At("observations").AsArray("observations")[0].AsObject("point"))
     columns.emplace_back(p.first);
@@ -663,11 +674,13 @@ int main() {
     assert(!report.At("converged").AsBool("converged") &&
         !report.At("selection_performed").AsBool("selected"));
     assert(!report.Find("ranked") && !report.Find("winner"));
-    auto const& missing=report.At("missing").AsArray("missing");assert(missing.size()==2);
+    auto const& missing=report.At("missing").AsArray("missing");assert(missing.size()==32);
     std::set<std::string> recorded;
+    std::map<std::string,int> occurrences;
     for(auto const& row:missing)for(auto const& candidate:row.At("candidates").AsArray("candidates"))
-      assert(recorded.insert(candidate.At("coordinates").Dump(0)).second);
+      {auto key=candidate.At("coordinates").Dump(0);recorded.insert(key);++occurrences[key];}
     assert(recorded==seed_coordinates);
+    for(auto const& count:occurrences)assert(count.second==16);
   }
   assert(pending_seeds);
   auto missing_neighbours=without_observations([](auto const& row) {
@@ -696,12 +709,12 @@ int main() {
     for(auto const& row:report.At("missing").AsArray("missing")) {
       auto const& dims=row.At("dimensions");
       assert(row.At("labels").At("cache_state").AsString("cache")=="warm_reuse");
-      assert(tuples.insert({int(dims.At("grid").AsNumber("grid")),
+      tuples.insert({int(dims.At("grid").AsNumber("grid")),
           int(dims.At("chunks").AsNumber("chunks")),
-          int(dims.At("new_row_work").AsNumber("work"))}).second);
+          int(dims.At("new_row_work").AsNumber("work"))});
       for(auto const& candidate:row.At("candidates").AsArray("candidates")) {
         assert(space.Legal(Sm90DenseCoordinates::FromJson(candidate.At("coordinates"))));
-        assert(recorded.insert(candidate.At("coordinates").Dump(0)).second);
+        recorded.insert(candidate.At("coordinates").Dump(0));
       }
     }
     assert(tuples==expected_tuples && recorded==expected_coordinates);
@@ -709,29 +722,107 @@ int main() {
   assert(pending_beam);
   bool non_attention_error=false;
   try {SearchSm90Dense(space,w,Sm90DenseCostModel(t,no_initialization),options);}
-  catch(Sm90DenseCalibrationPending const&) {assert(false && "non-attention error was swallowed");}
-  catch(Sm90DenseMissingMeasurement const& error) {
-    non_attention_error=error.metric=="activation_inactive_rows_initialize";
+  catch(Sm90DenseCalibrationPending const& pending) {
+    assert(!pending.report.At("selection_performed").AsBool("selected"));
+    for(auto const& error:pending.report.At("missing").AsArray("missing")) {
+      assert(error.At("metric").AsString("metric")=="activation_inactive_rows_initialize");
+      non_attention_error=true;
+    }
   }
   assert(non_attention_error);
-  bool other_error=false;
+  auto several_missing=without_observations([](auto const& row) {
+    auto metric=row.At("metric").AsString("metric");
+    return metric=="activation_inactive_rows_initialize" || metric=="bulk_single_completion" ||
+        metric=="native_ldmatrix_mma_k16" || metric=="epilogue_argmax_return_at_input_k";
+  });
+  Sm90DenseCostModel several(t,several_missing);auto complete_missing=several.Preflight(w,c);
+  assert(!complete_missing.prediction);
+  std::set<std::string> missing_metrics;
+  for(auto const& error:complete_missing.missing)missing_metrics.insert(error.metric);
+  assert(missing_metrics==std::set<std::string>({"activation_inactive_rows_initialize",
+      "bulk_single_completion","native_ldmatrix_mma_k16","epilogue_argmax_return_at_input_k"}));
+  assert(several.Preflight(w,c).missing.size()==complete_missing.missing.size());
+  try {several.Request(w,c);assert(false);}
+  catch(Sm90DenseMissingMeasurement const&) {}
+  bool aggregated_services=false;
+  try {SearchSm90Dense(space,w,several,options);}
+  catch(Sm90DenseCalibrationPending const& pending) {
+    std::set<std::string> metrics;
+    assert(pending.report.At("evaluated").AsNumber("evaluated")==0);
+    assert(!pending.report.Find("ranked") && !pending.report.Find("winner"));
+    for(auto const& error:pending.report.At("missing").AsArray("missing"))
+      metrics.insert(error.At("metric").AsString("metric"));
+    aggregated_services=metrics==missing_metrics;
+  }
+  assert(aggregated_services);
+  auto no_capacity=without_observations([](auto const& row) {
+    return row.At("metric").AsString("metric")=="bulk_stream_per_active_cta";
+  });
+  Sm90DenseCostModel capacity_missing(t,no_capacity);auto capacity_coverage=capacity_missing.Preflight(w,c);
+  std::set<std::string> capacity_metrics;
+  for(auto const& error:capacity_coverage.missing)capacity_metrics.insert(error.metric);
+  assert(!capacity_coverage.prediction && capacity_metrics==std::set<std::string>({
+      "bulk_stream_per_active_cta","native_dram_streaming_capacity"}));
+  try {capacity_missing.Request(w,c);assert(false);}
+  catch(Sm90DenseMissingMeasurement const& error) {assert(error.metric=="native_dram_streaming_capacity");}
+  bool missing_coefficients=false;
   try {SearchSm90Dense(space,w,Sm90DenseCostModel(t,incomplete),options);}
+  catch(Sm90DenseCalibrationPending const& pending) {
+    std::set<std::string> names;
+    for(auto const& error:pending.report.At("missing").AsArray("missing")) {
+      assert(error.At("metric").AsString("metric")=="native_fitted_coefficient");
+      names.insert(error.At("labels").At("coefficient").AsString("coefficient"));
+    }
+    missing_coefficients=names.count("startup_ns") && names.count("mma_scale") && names.count("receive_ns");
+  }
+  assert(missing_coefficients);
+  bool other_error=false;
+  auto invalid_fit=Fixture();auto invalid_fits=invalid_fit.At("body_fits").AsObject("fits");
+  for(auto& fit:invalid_fits) {
+    auto coefficients=fit.second.At("coefficients");
+    if(coefficients.Find("startup_ns"))coefficients.Set("startup_ns",-1);
+    fit.second.Set("coefficients",coefficients);
+  }
+  invalid_fit.Set("body_fits",invalid_fits);Sm90DenseCostModel malformed(t,invalid_fit);
+  try {SearchSm90Dense(space,w,malformed,options);}
   catch(Sm90DenseCalibrationPending const&) {assert(false && "invalid body fit was swallowed");}
   catch(std::invalid_argument const& error) {
-    other_error=std::string(error.what()).find("native body is not calibrated")!=std::string::npos;
+    other_error=std::string(error.what()).find("invalid native fitted coefficient")!=std::string::npos;
   }
   assert(other_error);
+  try {malformed.Request(w,c);assert(false);}
+  catch(std::invalid_argument const& error) {
+    assert(std::string(error.what()).find("invalid native fitted coefficient")!=std::string::npos);
+  }
+  auto wrong_type=Fixture();auto wrong_type_fits=wrong_type.At("body_fits").AsObject("fits");
+  for(auto& fit:wrong_type_fits)fit.second.Set("coefficients",json::Array{});
+  wrong_type.Set("body_fits",wrong_type_fits);bool wrong_type_rejected=false;
+  try {Sm90DenseCostModel(t,wrong_type).Preflight(w,c);}
+  catch(Sm90DenseMissingMeasurement const&) {assert(false && "malformed coefficients became missing calibration");}
+  catch(std::runtime_error const&) {wrong_type_rejected=true;}
+  assert(wrong_type_rejected);
   auto search=SearchSm90Dense(space,w,model,options);
   assert(search.evaluated>space.Seeds().size() && search.ranked.size()>=8);
-  auto translated=c;translated.gemms[0].workspace_offset+=1024;
-  translated.gemms[0].register_stages=2;translated.gemms[0].preissue_late=true;
-  assert(Sm90DenseScheduleKey(translated,prediction)==Sm90DenseScheduleKey(c,prediction));
+  for(int field=0;field<8;++field) {
+    auto base=c;
+    if(field==2)base.gemms[0].prefetch_l2_bytes=32;
+    if(field==5)base.attention.prefetch_l2_bytes=32;
+    auto changed=base;
+    if(field==0)changed.gemms[0].workspace_offset+=1024;
+    if(field==1)changed.gemms[0].register_stages=2;
+    if(field==2)changed.gemms[0].preissue_late=true;
+    if(field==3)changed.gemms[0].prefetch_l2_bytes=32;
+    if(field==4)changed.attention.workspace_offset+=1024;
+    if(field==5)changed.attention.preissue_late=true;
+    if(field==6)changed.attention.prefetch_l2_bytes=32;
+    if(field==7)changed.gemms[0].slots+=1;
+    assert(space.Legal(base) && space.Legal(changed));
+    assert(Sm90DenseScheduleKey(changed,prediction)!=Sm90DenseScheduleKey(base,prediction));
+  }
   auto masked_compute=prediction;masked_compute.stages[0].compute+=1;
   assert(Sm90DenseScheduleKey(c,masked_compute)==Sm90DenseScheduleKey(c,prediction));
   auto different_price=prediction;different_price.step_ns+=1;
-  assert(Sm90DenseScheduleKey(translated,different_price)!=Sm90DenseScheduleKey(c,prediction));
-  translated.gemms[0].slots+=1;
-  assert(Sm90DenseScheduleKey(translated,prediction)!=Sm90DenseScheduleKey(c,prediction));
+  assert(Sm90DenseScheduleKey(c,different_price)!=Sm90DenseScheduleKey(c,prediction));
   double previous=0;std::set<std::string> unique,schedules;
   for(auto const& p:search.ranked) {
     assert(space.Legal(p.coordinates) && p.prediction.step_ns>=previous);previous=p.prediction.step_ns;

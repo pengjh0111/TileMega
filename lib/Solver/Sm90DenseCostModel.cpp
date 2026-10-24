@@ -51,6 +51,27 @@ json::Value Sm90DenseMissingMeasurement::ToJson() const {
   for(auto const& value:labels)filters.emplace_back(value.first,value.second);
   return json::Object{{"metric",metric},{"dimensions",dims},{"labels",filters}};
 }
+double Sm90DenseCostModel::Missing(Sm90DenseMissingMeasurement const& error) const {
+  if(!collecting_missing_)throw error;
+  collecting_missing_->emplace(error.ToJson().Dump(0),error);
+  // Collection traverses dependencies only; no incomplete price is returned.
+  return 1;
+}
+Sm90DenseCalibrationCoverage Sm90DenseCostModel::Preflight(Sm90DenseWorkload const& w,
+    Sm90DenseCoordinates const& c) const {
+  if(collecting_missing_)throw std::logic_error("nested native calibration preflight");
+  std::map<std::string,Sm90DenseMissingMeasurement> missing;
+  struct Scope {
+    decltype(collecting_missing_)& active;
+    ~Scope() {active=nullptr;}
+  } scope{collecting_missing_};
+  collecting_missing_=&missing;
+  auto prediction=Request(w,c);
+  Sm90DenseCalibrationCoverage result;
+  for(auto const& entry:missing)result.missing.push_back(entry.second);
+  if(missing.empty())result.prediction=std::move(prediction);
+  return result;
+}
 Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,json::Value const& cal):target_(target) {
   if(target.arch_tag!="sm_90" || target.NvccArch()!="sm_90a" ||
      cal.At("schema").AsNumber("native calibration schema")!=1)
@@ -160,14 +181,14 @@ double Sm90DenseCostModel::Quantity(std::string const& metric,
   auto cached=quantities_.find(cache_key);
   if(cached!=quantities_.end())return cached->second;
   auto missing=missing_quantities_.find(cache_key);
-  if(missing!=missing_quantities_.end())throw missing->second;
+  if(missing!=missing_quantities_.end())return Missing(missing->second);
   auto fail=[&](char const* reason) {
     auto entry=missing_quantities_.emplace(cache_key,
         Sm90DenseMissingMeasurement(std::string(reason)+cache_key,metric,dims,filters));
-    throw entry.first->second;
+    return Missing(entry.first->second);
   };
   auto it=observations_.find(metric);
-  if(it==observations_.end())fail("missing native measurement: ");
+  if(it==observations_.end())return fail("missing native measurement: ");
   double best=std::numeric_limits<double>::infinity(),result=0;
   std::map<double,std::vector<double>> samples;
   for(auto const& row:it->second) {
@@ -209,7 +230,7 @@ double Sm90DenseCostModel::Quantity(std::string const& metric,
     for(auto const& point:samples)curve.emplace(point.first,Median(point.second));
     result=Interpolate(curve,dims.count("past")?dims.at("past"):0);
   }
-  if(!result)fail("no matching native measurement: ");
+  if(!result)return fail("no matching native measurement: ");
   quantities_[cache_key]=result;return result;
 }
 void Sm90DenseCostModel::RequireAttentionCalibration(Sm90DenseWorkload const& w,
@@ -227,8 +248,16 @@ double Sm90DenseCostModel::MainloopNs(Sm90DenseGemm const& g) const {
   std::string key="native-mainloop|"+std::to_string(g.tile_n)+'|'+std::to_string(g.TileK())+
       '|'+std::to_string(g.warps_n)+'|'+std::to_string(g.register_stages);
   auto cached=quantities_.find(key);if(cached!=quantities_.end())return cached->second;
+  auto missing=missing_quantities_.find(key);
+  if(missing!=missing_quantities_.end())return Missing(missing->second);
+  auto fail=[&](char const* reason) {
+    auto entry=missing_quantities_.emplace(key,Sm90DenseMissingMeasurement(reason,
+        "native_ldmatrix_mma_k16",{{"tile_n",g.tile_n},{"tile_k",g.TileK()},
+        {"warps_n",g.warps_n},{"warps_k",g.warps_k},{"register_stages",g.register_stages}},{}));
+    return Missing(entry.first->second);
+  };
   auto found=observations_.find("native_ldmatrix_mma_k16");
-  if(found==observations_.end())throw std::invalid_argument("native mainloop calibration is missing");
+  if(found==observations_.end())return fail("native mainloop calibration is missing");
   std::map<double,std::map<double,std::map<double,double>>> curves;
   for(auto const& row:found->second) {
     if(row.At("warps_n").AsNumber("warps_n")!=g.warps_n ||
@@ -237,7 +266,7 @@ double Sm90DenseCostModel::MainloopNs(Sm90DenseGemm const& g) const {
         [row.At("tile_k").AsNumber("tile_k")][row.At("tile_n").AsNumber("tile_n")]=
         row.At("median").AsNumber("median");
   }
-  if(curves.empty())throw std::invalid_argument("native warp partition is not calibrated");
+  if(curves.empty())return fail("native warp partition is not calibrated");
   // These are measured shared-load + MMA chains per owned k16, not isolated
   // instruction throughput. Interpolation is inferred and checked by E-3.
   std::map<double,double> register_curve;
@@ -251,8 +280,12 @@ double Sm90DenseCostModel::MainloopNs(Sm90DenseGemm const& g) const {
 }
 double Sm90DenseCostModel::Coefficient(std::string const& key,char const* name) const {
   auto found=fits_.find(key);
-  if(found==fits_.end())throw std::invalid_argument("native body is not calibrated: "+key);
-  double v=found->second.At(name).AsNumber(name);
+  if(found!=fits_.end())found->second.AsObject("native fitted coefficients");
+  auto coefficient=found==fits_.end()?nullptr:found->second.Find(name);
+  if(!coefficient)return Missing(Sm90DenseMissingMeasurement(
+      "native body coefficient is not calibrated: "+key+":"+name,
+      "native_fitted_coefficient",{},{{"body",key},{"coefficient",name}}));
+  double v=coefficient->AsNumber(name);
   if(!std::isfinite(v) || v<0)throw std::invalid_argument("invalid native fitted coefficient");
   return v;
 }
@@ -284,7 +317,9 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
   };
   // Saturating DRAM service is measured, not the stated H800 peak.
   double global_bw=dram_bw_;
-  if(!global_bw)throw std::invalid_argument("native DRAM streaming calibration is missing");
+  if(!global_bw)global_bw=Missing(Sm90DenseMissingMeasurement(
+      "native DRAM streaming calibration is missing","native_dram_streaming_capacity",
+      {{"num_sms",target_.res.num_sms}},{{"cache","dram"}}));
   Sm90DensePrediction result;
   for(unsigned family:{0u,5u,1u,2u,3u,4u}) {
     Sm90DensePrediction::Stage s;s.instances=family==4?1:w.layers;
@@ -341,16 +376,19 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& w,
             {"dynamic_shared_bytes",joint_shared},{"workspace_offset",g.workspace_offset}};
         std::string mma=g.mma==Sm90DenseMma::kMmaSync?"mma_sync":"wgmma";
         auto profile=joint_ring_profiles_->Find(dimensions,joint_ring_cache_state_,mma);
-        if(!profile)throw Sm90DenseMissingMeasurement("missing exact native joint-ring profile; calibration pending",
-            "native_joint_ring_profile",dimensions,{{"cache_state",joint_ring_cache_state_},{"mma",mma}});
-        s.joint_ring_profile=*profile;
-        s.joint_ring_profile.Set("residual_model","none_pending_independent_refit");
-        s.joint_ring_profile.Set("diagnostic_only",true);
-        s.joint_ring_profile.Set("fit_status","joint_ring_diagnostic_pending_refit");
+        if(!profile)s.flow=Missing(Sm90DenseMissingMeasurement(
+            "missing exact native joint-ring profile; calibration pending",
+            "native_joint_ring_profile",dimensions,{{"cache_state",joint_ring_cache_state_},{"mma",mma}}));
+        else {
+          s.joint_ring_profile=*profile;
+          s.joint_ring_profile.Set("residual_model","none_pending_independent_refit");
+          s.joint_ring_profile.Set("diagnostic_only",true);
+          s.joint_ring_profile.Set("fit_status","joint_ring_diagnostic_pending_refit");
+          s.flow=profile->At("issue_to_finalize_ns").AsNumber("joint-ring finite span");
+        }
         // The paired total already contains operand first-ready, real MMA/
         // reader, full/empty protocol and finalize. Marginal component medians
         // need not add; none is appended to the paired total or old startup.
-        s.flow=profile->At("issue_to_finalize_ns").AsNumber("joint-ring finite span");
         s.startup=s.initialization;
       }else {
         s.read_startup=Quantity("bulk_single_completion",{{"slot_bytes",g.slot_bytes}},{{"cache","dram"}});

@@ -21,7 +21,7 @@ struct Sm90DenseSearchResult {
 };
 struct Sm90DenseCalibrationPending : std::invalid_argument {
   explicit Sm90DenseCalibrationPending(json::Value report)
-      :std::invalid_argument("native calibration_pending: missing exact attention measurements"),
+      :std::invalid_argument("native calibration_pending: missing pricing services"),
        report(std::move(report)) {}
   json::Value report;
 };
