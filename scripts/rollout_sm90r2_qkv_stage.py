@@ -92,6 +92,7 @@ def rollout(source,initial,paired,policy,boundary=None,landmark='upper'):
  states={int(c):v for c,v in initial['ctas'].items()};profiles={int(c):v for c,v in paired['profiles'].items()}
  require(set(states)==set(range(132))and set(profiles)==set(range(128)),'exact resident and active state vectors required')
  require(initial['shared_transfer_inflight']==[],'carried dynamic transfer work is unimplemented, not assumed empty')
+ available=initial.get('shared_resource_available_ns');require(finite(available),'missing/invalid carried shared resource state')
  require(len({v['smid']for v in states.values()})==132,'residency1 requires one supplied resident CTA per SM')
  if initial['status']!='verified_native_stage':pending.append('initial role-entry/empty-credit/placement state is supplied diagnostic state')
  if initial['program_binary_sha256']!=paired['reference_binary_sha256']:pending.append('Consume response lacks exact equivalence to requested program binary')
@@ -108,9 +109,10 @@ def rollout(source,initial,paired,policy,boundary=None,landmark='upper'):
    start=max(clock,v['empty_ready_ns'][q]);end=start+model['packet_response_ns'];packets[c,q]=dict(start_ns=start,end_ns=end);requests.append((start,c,q));clock=end
  requests.sort()
  if model['kind']=='equal_weight_processor_sharing':
+  require(available<=requests[0][0],'busy processor-sharing carry state is unsupported; in-flight work is required')
   done=fluid_completions([r[0]for r in requests],model['request_work_ns']);resource_final=max(done)
  else:
-  free=initial['shared_resource_available_ns'];require(finite(free),'missing/invalid carried FIFO resource state');done=[]
+  free=available;done=[]
   for start,_,_ in requests:
    admitted=max(start,free);free=admitted+model['request_work_ns'];done.append(admitted)
   resource_final=free

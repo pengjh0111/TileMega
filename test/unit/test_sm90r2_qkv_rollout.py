@@ -92,6 +92,34 @@ class QkvRolloutTest(unittest.TestCase):
         self.assertEqual(self.run_model()['conditional_body_end_ns'],
                          before['conditional_body_end_ns'] + 100)
 
+    def test_shared_carry_state_must_be_finite(self):
+        for kind in ('equal_weight_processor_sharing', 'effective_FIFO'):
+            self.policy['kind'] = kind
+            for value in (float('nan'), float('inf'), -float('inf'), None, '0', True):
+                with self.subTest(kind=kind, value=value):
+                    self.initial['shared_resource_available_ns'] = value
+                    with self.assertRaisesRegex(ValueError, 'carried shared resource state'):
+                        self.run_model()
+            del self.initial['shared_resource_available_ns']
+            with self.assertRaisesRegex(ValueError, 'carried shared resource state'):
+                self.run_model()
+
+    def test_busy_ps_carry_state_is_rejected(self):
+        self.initial['shared_resource_available_ns'] = 1
+        with self.assertRaisesRegex(ValueError, 'busy processor-sharing carry state'):
+            self.run_model()
+
+    def test_idle_ps_carry_state_preserves_response(self):
+        before = self.run_model()['conditional_body_end_ns']
+        self.initial['shared_resource_available_ns'] = -100
+        self.assertEqual(self.run_model()['conditional_body_end_ns'], before)
+
+    def test_fifo_busy_carry_state_still_delays_admission(self):
+        self.policy['kind'] = 'effective_FIFO'
+        before = self.run_model()['conditional_body_end_ns']
+        self.initial['shared_resource_available_ns'] = 100
+        self.assertEqual(self.run_model()['conditional_body_end_ns'], before + 100)
+
     def test_initial_credit_and_service_causality(self):
         self.initial['ctas'][0]['empty_ready_ns'][1] = 1000
         with self.assertRaises(ValueError):
