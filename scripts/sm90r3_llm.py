@@ -222,7 +222,7 @@ def job_result(state, name):
         raise ValueError(f'{name} timed another decode artifact')
     result = dict(job=name, tpot_ms=value['tpot_seconds'] * 1e3, ttft_ms=value['ttft_seconds'] * 1e3,
                   e2e_ms=value['e2e_seconds'] * 1e3, tokens_per_s=value['output_tokens_per_second'],
-                  gpu=value['gpu_index'], tokens=str(paths[0].parent / 'reference_tokens.json'))
+                  gpu=value['gpu_index'], tokens=str(folder / 'job/measurements/reference_tokens.json'))
     for check in ('c1', 'c2', 'hf64'):
         path = folder / 'job/measurements' / f'{check}.json'
         if path.exists():
