@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "classification": "development fixed-coordinate controls; no final selection",
+  "purpose": "hold C0 geometry constant while validating shared-operand ABI and ordinary stage tracing",
+  "solver_final_eligible": false,
+  "coordinates": [
+    {
+      "cell": "qwen3_0_6b_b1",
+      "file": "configs/serving/sm90r2/development/isolation_abi_v1/qwen3_0_6b_b1.tmexec.json",
+      "sha256": "51acac96296a99b5ddf83b5a89a1f3c5ec28cb095e083dcb003df1739e8bd22c",
+      "historical_coordinate_origin": "runs/sm90r2/F115-cohorts/prepared-v3-attempt2/qwen3_0_6b_b1/candidate-0.tmexec.json"
+    },
+    {
+      "cell": "qwen3_0_6b_b16",
+      "file": "configs/serving/sm90r2/development/isolation_abi_v1/qwen3_0_6b_b16.tmexec.json",
+      "sha256": "6bc59ac4a5025a36c1ed7c329c08bfdf73d23bab573aeb0094855726a66bf5d6",
+      "historical_coordinate_origin": "runs/sm90r2/F115-cohorts/prepared-v3-attempt2/qwen3_0_6b_b16/candidate-0.tmexec.json"
+    },
+    {
+      "cell": "llama3_2_1b_b1",
+      "file": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_2_1b_b1.tmexec.json",
+      "sha256": "f4b948c7febe42a80bf0f41d4045cc0f7e37bdfcd64132e5b3baf5357f7976e3",
+      "historical_coordinate_origin": "runs/sm90r2/F115-cohorts/prepared-v3-attempt2/llama3_2_1b_b1/candidate-0.tmexec.json"
+    },
+    {
+      "cell": "llama3_2_1b_b16",
+      "file": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_2_1b_b16.tmexec.json",
+      "sha256": "bea18ec8ddcd2ca3fbecab7cd6641b9582c091a396c687937f81a082e4adb440",
+      "historical_coordinate_origin": "runs/sm90r2/F115-cohorts/prepared-v3-attempt2/llama3_2_1b_b16/candidate-0.tmexec.json"
+    },
+    {
+      "cell": "llama3_2_3b_b4",
+      "file": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_2_3b_b4.tmexec.json",
+      "sha256": "63d807962537ef4df419b30406e341e1450adc3ac5cf0f260c343c9cac07b9a5",
+      "historical_coordinate_origin": "runs/sm90r2/F115-cohorts/prepared-v3-attempt2/llama3_2_3b_b4/candidate-0.tmexec.json"
+    },
+    {
+      "cell": "llama3_1_8b_b1",
+      "file": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_1_8b_b1.tmexec.json",
+      "sha256": "6f254aff3d5f2c7a544ea708f87ea4433b72fddf882b0dc61f94ac0d96f79768",
+      "historical_coordinate_origin": "runs/sm90r2/F115-cohorts/prepared-v3-attempt2/llama3_1_8b_b1/candidate-0.tmexec.json"
+    },
+    {
+      "cell": "llama3_1_8b_b16",
+      "file": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_1_8b_b16.tmexec.json",
+      "sha256": "b984f2dcdee5732b4626305347f2a831816cd2b87cf6a1fe82a5dab5ee420d20",
+      "historical_coordinate_origin": "runs/sm90r2/F115-cohorts/prepared-v3-attempt2/llama3_1_8b_b16/candidate-0.tmexec.json"
+    }
+  ]
+}
