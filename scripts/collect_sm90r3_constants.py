@@ -31,7 +31,7 @@ def attempt_rows(log):
     return list(csv.DictReader(io.StringIO('\n'.join(body))))
 
 
-def process_rows(state, name, processes):
+def process_rows(state, name, processes, logs):
     result = []
     for fresh in range(processes):
         job = f'{name}-f{fresh}'
@@ -41,9 +41,7 @@ def process_rows(state, name, processes):
         folder = Path(row['out'])
         if read(folder / 'guard_result.json')['code']:
             raise ValueError(f'{job} guard rejected')
-        logs = sorted(Path(row['out']).parent.parent.parent.glob(f'{job}.log'))
-        log = logs[0] if logs else Path(row['log'])
-        result.append(attempt_rows(log))
+        result.append(attempt_rows(logs / f'{job}.log'))
     return result
 
 
@@ -65,18 +63,25 @@ def main():
     p.add_argument('--target', type=Path, required=True)
     p.add_argument('--section-only', type=Path, help='write the section JSON here instead of the target')
     a = p.parse_args()
+    a.csv = a.csv.resolve()
     state = read(a.state)
     table = []
     for name in a.constants:
-        groups = merge(process_rows(state, name, a.processes), lambda r: (r['name'], r['key']))
+        groups = merge(process_rows(state, name, a.processes, a.state.parent), lambda r: (r['name'], r['key']))
         for (metric, key), rows in groups.items():
             if len(rows) != a.processes:
                 raise ValueError(f'{metric} {key}: {len(rows)} processes')
+            # Every probe binary reports its own clock; keep each under its probe name.
+            key = name if metric == 'clock' else key
+            # A later epilogue-only probe contributes only keys absent so far
+            # (the serial-argmax build re-measures the vs1 epilogues).
+            if any((r['name'], r['key']) == (metric, key) for r in table):
+                continue
             table.append(dict(name=metric, key=key, median=statistics.median(float(r['median']) for r in rows),
                               p99=statistics.median(float(r['p99']) for r in rows), unit=rows[0]['unit'],
                               processes=len(rows), method=name))
     for name in a.attention:
-        processes = process_rows(state, name, a.processes)
+        processes = process_rows(state, name, a.processes, a.state.parent)
         processes = [[r for r in rows if r['metric'] == 'attention_critical_before_barrier' and r['past'] == '575']
                      for rows in processes]
         groups = merge(processes, lambda r: tuple(r[f] for f in ATTENTION_FIELDS))
