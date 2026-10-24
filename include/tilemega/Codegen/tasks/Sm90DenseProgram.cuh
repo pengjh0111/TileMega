@@ -2,6 +2,7 @@
 #pragma once
 
 #include <tilemega/Backend/Sm90DenseGemm.h>
+#include <tilemega/Codegen/Sm90DenseEpilogueContract.h>
 #include <tilemega/Backend/Sm90DenseAttentionStream.cuh>
 #include <tilemega/Backend/Sm90DenseToken.cuh>
 #include <tilemega/Backend/Sm90DenseLayout.h>
@@ -26,6 +27,16 @@
 #error "native boundary diagnostic must be isolated from other trace modes"
 #endif
 #include <tilemega/Codegen/tasks/Sm90DenseBoundaryDiagnostic.h>
+#endif
+#if defined(TILEMEGA_TRACE_NATIVE_RELEASE) && TILEMEGA_TRACE_NATIVE_RELEASE
+#if TILEMEGA_TRACE_NATIVE_RELEASE != 1 || TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_NATIVE_PHASES || TILEMEGA_TRACE_NATIVE_BOUNDARY
+#error "native release trace must be isolated from other trace modes"
+#endif
+#ifndef TILEMEGA_NATIVE_RELEASE_SHARED_BUDGET
+#error "native release trace requires its target/residency shared-memory budget"
+#endif
+#define TILEMEGA_NATIVE_RELEASE_ENABLED 1
+#include <tilemega/Codegen/tasks/Sm90DenseReleaseTrace.cuh>
 #endif
 
 namespace tilemega::codegen::native_dense {
@@ -74,11 +85,16 @@ __device__ inline unsigned long long Now() {
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,
          backend::ServingEpilogueOp Op,int U,unsigned A,unsigned W,unsigned C,
          unsigned D,unsigned Index,unsigned Norm,unsigned Sums,int RegisterStages=1>
-struct Gemm {
+struct Gemm:epilogue_contract::Presence<Norm,Sums> {
+  using Features=epilogue_contract::Presence<Norm,Sums>;
+  static constexpr bool kInputNorm=Features::kInputNorm,kOutputSums=Features::kOutputSums;
+  static constexpr epilogue_contract::Gemm kEpilogueBinding{Norm,Sums,Batch,K,N,TN,
+      bool(TILEMEGA_DN_VECTOR_SUMS),Op==backend::ServingEpilogueOp::kResidual,true};
   using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,RegisterStages>;
   static constexpr int kTasks=N/TN,kSharedBytes=Body::kSharedBytes;
   static constexpr int kActivationTileK=TK,kActivationSlots=Slots;
   static constexpr bool kArgmax=false;
+  static constexpr bool kUsesOperandRecord=true;
   __device__ static void InitializeInactive(char* shared) {
     Body::InitializeInactive(reinterpret_cast<Element*>(shared+1024));
   }
@@ -95,24 +111,22 @@ struct Gemm {
   __device__ static __forceinline__ ReadSources Sources(B const& b) {
     return {b.template Get<W>(),nullptr};
   }
+  template<class B>
+  __device__ static __forceinline__ void PublishOperands(B const& b,int,float epsilon,
+      backend::Sm90DenseOperandBank& record) {
+    record.gemm.activation=b.template Get<A>();record.gemm.weight=b.template Get<W>();
+    record.gemm.residual=b.template Get<C>();record.gemm.output=b.template Get<D>();
+    record.gemm.argmax_index=reinterpret_cast<int*>(b.template Get<Index>());
+    record.gemm.norm_sums=reinterpret_cast<float const*>(b.template Get<Norm>());
+    record.gemm.output_sums=reinterpret_cast<float*>(b.template Get<Sums>());
+    record.gemm.epsilon=epsilon;
+    record.attention={};
+  }
   template<int Prefix,class B,class Tail,bool Initialize=true>
-  __device__ static __forceinline__ void Run(B const& b,int,char* shared,float epsilon,
-      backend::Sm90DenseRingState& ring,Tail tail) {
-    backend::Sm90DenseOperands p{b.template Get<A>(),b.template Get<W>(),
-        b.template Get<C>(),b.template Get<D>(),reinterpret_cast<int*>(b.template Get<Index>()),
-        reinterpret_cast<float const*>(b.template Get<Norm>()),
-        reinterpret_cast<float*>(b.template Get<Sums>())};
-#if TILEMEGA_TRACE_NATIVE_PHASES
-    auto& context=backend::Sm90DenseDiagnostic::ContextFromRing(ring);
-    p.diagnostic.records=context.records;
-    if(threadIdx.x==0) {
-      p.diagnostic.iteration=context.iteration;p.diagnostic.past=context.past;
-      p.diagnostic.stage=context.stage;p.diagnostic.previous_release_global=context.previous_release_global;
-    }
-    if(threadIdx.x<128 && (threadIdx.x&31)==0)
-      p.diagnostic.previous_release_clock[threadIdx.x/32]=context.previous_release_clock[threadIdx.x/32];
-#endif
-    StageEntry<Body>::template Gemm<Prefix,Initialize>(p,shared,epsilon,&ring,tail);
+  __device__ static __forceinline__ void Run(B const& b,int,char* shared,float,
+      backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record) {
+    auto const& p=record.gemm;
+    StageEntry<Body>::template Gemm<Prefix,kInputNorm,kOutputSums,Initialize>(p,shared,&ring,tail);
   }
 };
 
@@ -123,6 +137,7 @@ template<int Batch,int D,int Q,bool Norm,int Chunks,int Keys,int Slots,int RowWo
 struct Attention {
   static constexpr int kActivationTileK=0,kActivationSlots=0;
   static constexpr bool kArgmax=false;
+  static constexpr bool kUsesOperandRecord=true;
   using Body=std::conditional_t<(Batch<=4),
       backend::Sm90DenseAttention<Batch,D,Q,Norm,Chunks,RowWork,Capacity>,
       backend::Sm90DenseAttentionStream<Batch,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity>>;
@@ -147,25 +162,23 @@ struct Attention {
   __device__ static __forceinline__ ReadSources Sources(B const& b) {
     return {b.template Get<Key>(),b.template Get<Value>()};
   }
+  template<class B>
+  __device__ static __forceinline__ void PublishOperands(B const& b,int past,float epsilon,
+      backend::Sm90DenseOperandBank& record) {
+    record.gemm={};
+    record.attention.qkv=b.template Get<Qkv>();record.attention.key=b.template Get<Key>();
+    record.attention.value=b.template Get<Value>();record.attention.output=b.template Get<Output>();
+    record.attention.cosine=b.template Get<Cosine>();record.attention.sine=b.template Get<Sine>();
+    record.attention.q_norm=b.template Get<QNorm>();record.attention.k_norm=b.template Get<KNorm>();
+    record.attention.partial=reinterpret_cast<float*>(b.template Get<Partial>());
+    record.attention.lse=reinterpret_cast<float*>(b.template Get<Lse>());
+    record.attention.arrivals=reinterpret_cast<std::uint64_t*>(b.template Get<Arrivals>());
+    record.attention.past=past;record.attention.epsilon=epsilon;
+  }
   template<int Prefix,class B,class Tail,bool Initialize=true>
   __device__ static __forceinline__ void Run(B const& b,int past,char* shared,float epsilon,
-      backend::Sm90DenseRingState& ring,Tail tail) {
-    backend::Sm90DenseAttentionOperands p{b.template Get<Qkv>(),b.template Get<Key>(),
-        b.template Get<Value>(),b.template Get<Output>(),b.template Get<Cosine>(),
-        b.template Get<Sine>(),b.template Get<QNorm>(),b.template Get<KNorm>(),
-        reinterpret_cast<float*>(b.template Get<Partial>()),
-        reinterpret_cast<float*>(b.template Get<Lse>()),
-        reinterpret_cast<std::uint64_t*>(b.template Get<Arrivals>()),past,epsilon};
-#if TILEMEGA_TRACE_NATIVE_PHASES
-    auto& context=backend::Sm90DenseDiagnostic::ContextFromRing(ring);
-    p.diagnostic.records=context.records;
-    if(threadIdx.x==0) {
-      p.diagnostic.iteration=context.iteration;p.diagnostic.past=context.past;
-      p.diagnostic.stage=context.stage;p.diagnostic.previous_release_global=context.previous_release_global;
-    }
-    if(threadIdx.x<128 && (threadIdx.x&31)==0)
-      p.diagnostic.previous_release_clock[threadIdx.x/32]=context.previous_release_clock[threadIdx.x/32];
-#endif
+      backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record) {
+    auto const& p=record.attention;
     StageEntry<Body>::Attention(p,shared,&ring,tail);
   }
 };
@@ -175,6 +188,7 @@ template<int Batch,int Width,int Vocab,int Capacity,unsigned Tokens,unsigned Tab
 struct Embedding {
   static constexpr int kActivationTileK=0,kActivationSlots=0;
   static constexpr bool kArgmax=false;
+  static constexpr bool kUsesOperandRecord=false;
   static constexpr int kTasks=Batch,kSharedBytes=1024;
   static constexpr int kRingSlots=0;
   static constexpr int kMaxPreissue=0;
@@ -202,6 +216,7 @@ template<int Batch,int Parts,int Capacity,unsigned Values,unsigned Indices,unsig
 struct Argmax {
   static constexpr int kActivationTileK=0,kActivationSlots=0;
   static constexpr bool kArgmax=true;
+  static constexpr bool kUsesOperandRecord=false;
   using Body=backend::Sm90DenseArgmax<Parts,Capacity>;
   static constexpr int kTasks=Batch,kSharedBytes=1024+sizeof(typename Body::Storage);
   static constexpr int kRingSlots=0;
@@ -240,8 +255,10 @@ struct Placement:Stage {
   static constexpr auto kScratch=Stage::kLayout.Scratch(Offset);
   template<bool Initialize=true,class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int past,char* shared,float epsilon,
-      backend::Sm90DenseRingState& ring,Tail tail) {
-    Stage::template Run<Prefix,B,Tail,Initialize>(b,past,shared+Offset,epsilon,ring,tail);
+      backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record) {
+    if constexpr(Stage::kUsesOperandRecord)
+      Stage::template Run<Prefix,B,Tail,Initialize>(b,past,shared+Offset,epsilon,ring,tail,record);
+    else Stage::template Run<Prefix,B,Tail,Initialize>(b,past,shared+Offset,epsilon,ring,tail);
   }
 };
 
@@ -273,6 +290,15 @@ struct Program {
   using Stages=std::tuple<Stage...>;
   static constexpr int kBatch=Batch,kCapacity=Capacity,kResidency=Residency,kThreads=160;
   static constexpr unsigned kBuffers=Buffers,kStages=sizeof...(Stage);
+  using RoleLaunch=backend::Sm90DenseRoleLaunch<kThreads>;
+  static_assert(RoleLaunch::kThreads==kThreads);
+  static constexpr std::array<epilogue_contract::Gemm,kStages> kEpilogueBindings{{
+      epilogue_contract::SpecFor<Stage>::value...}};
+  using FirstStage=std::tuple_element_t<0,Stages>;
+  static_assert(!FirstStage::kUsesOperandRecord,
+      "native shared-operand ABI requires an operand-free first stage; no implicit startup publication barrier");
+  static_assert(((Stage::kOffset>=0 && Stage::kLayout.Live(Stage::kOffset).begin>=1024) && ...));
+
 #if TILEMEGA_TRACE_NATIVE_PHASES
   static constexpr unsigned long long kTotalTasks=(0ull+...+Stage::kTasks);
   static constexpr auto kTaskOffsets=[] {
@@ -286,9 +312,53 @@ struct Program {
       std::array<backend::Sm90DenseActivationStage,kStages>{{
           {Stage::kActivationTileK,Stage::kActivationSlots,Stage::kOffset,
            Stage::kLive,Stage::kArgmax}...}},Batch);
+#if TILEMEGA_NATIVE_RELEASE_ENABLED
+  static constexpr int kArenaSharedBytes=[] {
+    int value=1024;((value=value<Stage::kSharedBytes?Stage::kSharedBytes:value),...);return value;
+  }();
+  using ReleaseRecord=release_trace::Record<kStages>;
+  static constexpr int kReleaseOffset=release_trace::Align16(kArenaSharedBytes);
+  static_assert(backend::Sm90DenseOperandHeader::kEnd<=kReleaseOffset);
+  static constexpr int kSharedBytes=kReleaseOffset+sizeof(ReleaseRecord);
+  static constexpr backend::Sm90DenseInterval kReleaseInterval{kReleaseOffset,kSharedBytes};
+  static_assert(kSharedBytes<=TILEMEGA_NATIVE_RELEASE_SHARED_BUDGET,
+      "native release trace exceeds the selected target/residency shared-memory budget");
+  static_assert(((!Stage::kPayload.Overlaps(kReleaseInterval)) && ...));
+  static_assert(((!kActivationReuse.valid || !Stage::kArgmax ||
+      Stage::kSharedBytes+kActivationReuse.ArgmaxShift()<=kReleaseOffset) && ...));
+
+  __device__ static __forceinline__ void BeginRelease(char* shared,int past,
+                                                     unsigned long long iteration) {
+    auto* header=reinterpret_cast<volatile release_trace::Header*>(shared+kReleaseOffset);
+    if(threadIdx.x==0) {
+      header->iteration=iteration;header->past=past;header->valid=0;
+      unsigned long long begin;
+      asm volatile("mov.u64 %0, %%globaltimer;":"=l"(begin)::"memory");
+      header->begin=begin;
+    }
+  }
+  __device__ static __noinline__ void FlushRelease(char* shared,
+      release_trace::Binding const& binding,unsigned long long iteration) {
+    auto* header=reinterpret_cast<volatile release_trace::Header*>(shared+kReleaseOffset);
+    if(threadIdx.x==0) {
+      unsigned long long end;
+      asm volatile("mov.u64 %0, %%globaltimer;":"=l"(end)::"memory");
+      header->end=end;header->valid=1;
+    }
+    // The last release is published by thread zero after the existing V3 join.
+    __syncthreads();
+    auto* source=reinterpret_cast<volatile std::uint32_t*>(shared+kReleaseOffset);
+    auto* destination=binding.words+
+        ((iteration%binding.slots)*gridDim.x+blockIdx.x)*(sizeof(ReleaseRecord)/4);
+    for(unsigned word=threadIdx.x;word<sizeof(release_trace::Header)/4+kStages;word+=blockDim.x)
+      destination[word]=source[word];
+    __syncthreads();
+  }
+#else
   static constexpr int kSharedBytes=[] {
     int value=1024;((value=value<Stage::kSharedBytes?Stage::kSharedBytes:value),...);return value;
   }();
+#endif
   static_assert(sizeof(Binding)+256<32764 && kStages>0 && (Residency==1 || Residency==2));
   __device__ static void InitializeActivation(char* shared) {
     if constexpr(kActivationReuse.valid) {
@@ -330,8 +400,10 @@ struct Program {
     if constexpr(kActivationReuse.valid && Body::kArgmax)arena+=kActivationReuse.ArgmaxShift();
     if constexpr(Index+1<kStages) {
       ProducerTail<Body,Next,Binding> tail{b,past,shared,rings[Index%2],rings[(Index+1)%2]};
-      Body::template Run<!kActivationReuse.valid>(b,past,arena,epsilon,rings[Index%2],tail.Raw());
-    }else Body::template Run<!kActivationReuse.valid>(b,past,arena,epsilon,rings[Index%2],backend::Sm90DenseNoTail{});
+      Body::template Run<!kActivationReuse.valid>(b,past,arena,epsilon,rings[Index%2],tail.Raw(),
+          backend::Sm90DenseOperandHeader::Bank(shared,Index));
+    }else Body::template Run<!kActivationReuse.valid>(b,past,arena,epsilon,rings[Index%2],backend::Sm90DenseNoTail{},
+        backend::Sm90DenseOperandHeader::Bank(shared,Index));
     if(threadIdx.x==0) {
 #if TILEMEGA_TRACE_NATIVE_BOUNDARY
       if(probe)trace.stages[boundary_index].arrive=Now();
@@ -339,6 +411,12 @@ struct Program {
 #if TILEMEGA_TRACE_STAGE
       if(record)record->arrive=Now();
 #endif
+      // Current Run has joined all producer/consumer tasks, epilogues and tails.
+      // Publish the next immutable bank before the existing V3 CTA join.
+      // Next's preissue tail reads original bindings and never this header.
+      if constexpr(Next::kUsesOperandRecord)
+        Next::PublishOperands(b,past,epsilon,
+            backend::Sm90DenseOperandHeader::Bank(shared,(Index+1)%kStages));
       auto* counter=&events[Index].arrivals;
       asm volatile("red.release.gpu.global.add.u64 [%0], %1;"::"l"(counter),"l"(1ull):"memory");
       unsigned long long seen;
@@ -354,6 +432,14 @@ struct Program {
 #endif
     }
     __syncthreads();
+#if TILEMEGA_NATIVE_RELEASE_ENABLED
+    if(threadIdx.x==0) {
+      unsigned low;
+      asm volatile("mov.u32 %0, %%globaltimer_lo;":"=r"(low)::"memory");
+      reinterpret_cast<volatile std::uint32_t*>(
+          shared+kReleaseOffset+sizeof(release_trace::Header))[Index]=low;
+    }
+#endif
 #if TILEMEGA_TRACE_NATIVE_PHASES
     if(threadIdx.x==0) {
       auto& context=backend::Sm90DenseDiagnostic::Context(shared);
@@ -399,7 +485,13 @@ template<class P>
 __global__ __launch_bounds__(P::kThreads,P::kResidency)
 void sm90_dense_native_kernel(const __grid_constant__ typename P::Binding b,
     int const* pasts,unsigned first,unsigned steps,float epsilon,GridCounter* events,
-    unsigned long long iteration,unsigned long long* step_ns,TraceState trace) {
+    unsigned long long iteration,unsigned long long* step_ns,TraceState trace
+#if TILEMEGA_NATIVE_RELEASE_ENABLED
+    ,const __grid_constant__ release_trace::Binding release_binding
+#endif
+    ) {
+  using RoleLaunch=backend::Sm90DenseRoleLaunch<P::kThreads>;
+  static_assert(RoleLaunch::kThreads==P::kThreads);
   static_assert(!arch::kDevicePass || arch::kSm90AllAvailable,
                 "native dense programs require sm_90a");
   extern __shared__ __align__(1024) char shared[];
@@ -423,7 +515,13 @@ void sm90_dense_native_kernel(const __grid_constant__ typename P::Binding b,
   if(blockIdx.x==0 && threadIdx.x==0 && step_ns)step_ns[first]=Now();
   for(unsigned step=0;step<steps;++step) {
     int past=pasts[first+step];
+#if TILEMEGA_NATIVE_RELEASE_ENABLED
+    P::BeginRelease(shared,past,iteration+step);
+#endif
     P::Step(b,past,shared,epsilon,events,iteration+step,trace);
+#if TILEMEGA_NATIVE_RELEASE_ENABLED
+    P::FlushRelease(shared,release_binding,iteration+step);
+#endif
     if(blockIdx.x==0 && threadIdx.x==0 && step_ns)step_ns[first+step+1]=Now();
   }
   rings[0].Invalidate();rings[1].Invalidate();

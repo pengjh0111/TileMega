@@ -90,7 +90,7 @@ static int CompileNativeDenseArtifact(std::string const& input,std::string const
     if(std::system(command.c_str()))throw std::runtime_error("native serving artifact identity failed");
   };
   identity(true);
-  auto command=Quote(NvccPath())+" -std=c++17 -O3 -gencode arch=compute_90a,code=sm_90a"
+  auto command=Quote(NvccPath())+" -rdc=true -std=c++17 -O3 -gencode arch=compute_90a,code=sm_90a"
       " --expt-relaxed-constexpr -shared -Xcompiler -fPIC -cudart shared -Xptxas -v"
       " --split-compile "+std::to_string(split_compile)+" -I"+Quote(root+"/include")+
       " -I"+Quote(root+"/third_party/cutlass/include")+" "+Quote(cu.string())+" -o "+Quote(requested.string());

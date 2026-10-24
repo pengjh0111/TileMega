@@ -1,26 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Backend/Sm90DenseOperands.cuh>
+#include <tilemega/Backend/Sm90DenseRoles.cuh>
 
 #include <tilemega/Backend/Sm90DenseAttentionMath.cuh>
 #include <tilemega/Backend/Sm90DenseAttentionPartition.h>
 #include <tilemega/Backend/Sm90DenseLastArriver.cuh>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
-#include <tilemega/Backend/Sm90DenseDiagnostic.cuh>
 
 namespace tilemega::backend {
 
-struct Sm90DenseAttentionOperands {
-  cutlass::bfloat16_t const* qkv;
-  cutlass::bfloat16_t *key,*value,*output;
-  cutlass::bfloat16_t const *cosine,*sine,*q_norm,*k_norm;
-  float *partial,*lse;
-  std::uint64_t* arrivals;
-  int past;
-  float epsilon;
-#if TILEMEGA_TRACE_NATIVE_PHASES
-  Sm90DenseDiagnosticContext diagnostic{};
-#endif
-};
 
 // Low-batch chunks issue their complete historical interval at once. The
 // producer never reads the current cache row; its owner rotates and publishes
@@ -36,6 +25,7 @@ struct Sm90DenseAttention {
   static constexpr int kMaxKeys=Partition::MaxKeys(Capacity,NewRowWork);
   static constexpr int kThreads=160,kTasks=Batch*8*Chunks;
   static constexpr float kLog2E=1.4426950408889634f;
+  static_assert(kThreads==Sm90DenseRoleAbi::kThreads);
   struct alignas(16) Storage {
     Element query[Q*D],key[kMaxKeys*D],value[kMaxKeys*D];
     float output[4*Q*D],maximum[4*Q],sum[4*Q];
@@ -44,13 +34,17 @@ struct Sm90DenseAttention {
   };
   static constexpr int kSharedBytes=1024+sizeof(Storage);
 
-  __device__ static void Produce(Sm90DenseAttentionOperands p,Sm90DenseRingState& state,
+  __device__ static __noinline__ void Produce(Sm90DenseAttentionOperands const& p,Sm90DenseRingState& state,
                                  Storage& s,int tasks,unsigned phase) {
+    Sm90DenseRoles::Producer();
+    Element const* const key=p.key;
+    Element const* const value=p.value;
+    int const past=p.past;
     int lane=threadIdx.x-128;
     for(int local=0;local<tasks;++local) {
       int task=int(blockIdx.x)+local*int(gridDim.x),bg=task/Chunks,c=task%Chunks;
-      auto range=Partition::Range(p.past,c,NewRowWork);
-      int rows=min(range.end,p.past)-range.begin;
+      auto range=Partition::Range(past,c,NewRowWork);
+      int rows=min(range.end,past)-range.begin;
       Async::Wait(state.empty,phase);
       if(lane==0) {
         unsigned prefix=state.prefix_bytes[0];state.prefix_bytes[0]=0;
@@ -60,8 +54,8 @@ struct Sm90DenseAttention {
           std::size_t offset=(std::size_t(bg)*Capacity+range.begin)*D;
           int done=prefix/(4*D);
           if(done<rows) {
-            Async::Bulk(s.key+done*D,p.key+offset+done*D,2*(rows-done)*D,state.full);
-            Async::Bulk(s.value+done*D,p.value+offset+done*D,2*(rows-done)*D,state.full);
+            Async::Bulk(s.key+done*D,key+offset+done*D,2*(rows-done)*D,state.full);
+            Async::Bulk(s.value+done*D,value+offset+done*D,2*(rows-done)*D,state.full);
           }
         } else Async::Arrive(state.full);
       }
@@ -72,19 +66,14 @@ struct Sm90DenseAttention {
     if(lane==0 && tasks)state.producer_generations[0]=phase;
   }
 
-  __device__ static void QueryAndNewRow(Sm90DenseAttentionOperands p,Storage& s,
-                                       int bg,Sm90DenseKeyRange range TILEMEGA_NATIVE_PHASE_TASK_PARAM) {
+  __device__ static __forceinline__ void QueryAndNewRow(Sm90DenseAttentionOperands const& p,Storage& s,
+                                       int bg,Sm90DenseKeyRange range) {
     int warp=threadIdx.x>>5,lane=threadIdx.x&31;
     auto* group=p.qkv+std::size_t(bg)*(Q+2)*D;
     auto* cosine=p.cosine+p.past*D;auto* sine=p.sine+p.past*D;
-    if(warp<Q) {
-      TILEMEGA_NATIVE_PHASES(auto begin=Sm90DenseDiagnostic::Clock();)
-      Math::template Rotate<D,Norm>(group+warp*D,p.q_norm,cosine,sine,
-                                   p.epsilon,s.query+warp*D);
-      TILEMEGA_NATIVE_PHASES(Sm90DenseDiagnostic::Query(p,task,warp,begin);)
-    }
+    if(warp<Q)Math::template Rotate<D,Norm>(group+warp*D,p.q_norm,cosine,sine,
+                                           p.epsilon,s.query+warp*D);
     if(range.Contains(p.past) && warp==Q%4) {
-      TILEMEGA_NATIVE_PHASES(auto begin=Sm90DenseDiagnostic::Clock();)
       int row=p.past-range.begin;
       auto* key=p.key+(std::size_t(bg)*Capacity+p.past)*D;
       auto* value=p.value+(std::size_t(bg)*Capacity+p.past)*D;
@@ -95,11 +84,10 @@ struct Sm90DenseAttention {
         *reinterpret_cast<uint4*>(s.value+row*D+lane*8)=v;
         *reinterpret_cast<uint4*>(value+lane*8)=v;
       }
-      TILEMEGA_NATIVE_PHASES(Sm90DenseDiagnostic::NewRow(p,task,begin);)
     }
   }
 
-  __device__ static void Compute(Storage& s,int keys) {
+  __device__ static __forceinline__ void Compute(Storage& s,int keys) {
     using namespace cute;
     int warp=threadIdx.x>>5,lane=threadIdx.x&31;
     auto query=make_tensor<float>(Shape<Int<Q>,Int<D/64>,_2>{});
@@ -148,7 +136,7 @@ struct Sm90DenseAttention {
   }
 
   template<class Scratch>
-  __device__ static void Partial(Sm90DenseAttentionOperands p,Scratch& s,int task) {
+  __device__ static __forceinline__ void Partial(Sm90DenseAttentionOperands const& p,Scratch& s,int task) {
     int warp=threadIdx.x>>5,lane=threadIdx.x&31;
     if(warp<Q) {
       float m=lane<4?s.maximum[lane*Q+warp]:-INFINITY;
@@ -177,7 +165,7 @@ struct Sm90DenseAttention {
   }
 
   template<class Scratch>
-  __device__ static void Merge(Sm90DenseAttentionOperands p,Scratch& s,int bg) {
+  __device__ static __forceinline__ void Merge(Sm90DenseAttentionOperands const& p,Scratch& s,int bg) {
     int warp=threadIdx.x>>5,lane=threadIdx.x&31;
     if(warp<Q) {
       float m=-INFINITY;
@@ -209,49 +197,30 @@ struct Sm90DenseAttention {
     }
   }
 
-  __device__ static __noinline__ void Consume(Sm90DenseAttentionOperands p,
+  __device__ static __noinline__ void Consume(Sm90DenseAttentionOperands const& p,
       Sm90DenseRingState& state,Storage& s,int tasks,unsigned phase) {
+    Sm90DenseRoles::Consumer();
     for(int local=0;local<tasks;++local) {
       int task=int(blockIdx.x)+local*int(gridDim.x),bg=task/Chunks,c=task%Chunks;
-      TILEMEGA_NATIVE_PHASES(Sm90DenseDiagnosticScope diagnostic;diagnostic.Begin(p,task);)
       auto range=Partition::Range(p.past,c,NewRowWork);
-      QueryAndNewRow(p,s,bg,range TILEMEGA_NATIVE_PHASE_TASK_ARG);
-      TILEMEGA_NATIVE_PHASES(auto wait_begin=Sm90DenseDiagnostic::Clock();)
+      QueryAndNewRow(p,s,bg,range);
       Async::Wait(state.full,phase);phase^=1;
       codegen::executor::ComputeSync();
-      TILEMEGA_NATIVE_PHASES(diagnostic.Wait(wait_begin);
-          auto compute_begin=Sm90DenseDiagnostic::Clock();)
       Compute(s,range.end-range.begin);
-      TILEMEGA_NATIVE_PHASES(diagnostic.Compute(compute_begin);)
       // Historical operands are dead before publishing empty; the producer
       // may refill them while consumers finish the deterministic reductions.
       Async::Arrive(state.empty);
       codegen::executor::ComputeSync();
-      TILEMEGA_NATIVE_PHASES(auto partial_begin=Sm90DenseDiagnostic::Clock();)
       Partial(p,s,task);
-      TILEMEGA_NATIVE_PHASES(diagnostic.Partial(partial_begin);)
-#if TILEMEGA_TRACE_NATIVE_PHASES
-      if constexpr(Chunks>1) {
-        auto publish_begin=Sm90DenseDiagnostic::Clock();
-        bool last=Sm90DenseLastArriver::Publish<Chunks>(p.arrivals+bg,&s.last);
-        diagnostic.Publish(publish_begin);
-        if(last) {
-          auto merge_begin=Sm90DenseDiagnostic::Clock();
-          Merge(p,s,bg);diagnostic.Merge(merge_begin);
-        }
-      }
-#else
       if constexpr(Chunks>1)
         if(Sm90DenseLastArriver::Publish<Chunks>(p.arrivals+bg,&s.last))Merge(p,s,bg);
-#endif
       codegen::executor::ComputeSync();
-      TILEMEGA_NATIVE_PHASES(diagnostic.End();)
     }
     if(threadIdx.x==0 && tasks)state.consumer_generations[0]=phase;
   }
 
   template<class Tail=Sm90DenseNoTail>
-  __device__ static void Run(Sm90DenseAttentionOperands p,char* shared,
+  __device__ static __forceinline__ void Run(Sm90DenseAttentionOperands const& p,char* shared,
       Sm90DenseRingState* persistent=nullptr,Tail tail={}) {
     auto& state=persistent?*persistent:*reinterpret_cast<Sm90DenseRingState*>(shared);
     auto& s=*reinterpret_cast<Storage*>(shared+1024);

@@ -11,14 +11,14 @@ void Check(cudaError_t e) {if(e!=cudaSuccess)throw std::runtime_error(cudaGetErr
 __host__ __device__ float Input(int row,int col) {
   return col%8<4?(row%5+1)/4.f:(col%19-9)/8.f;
 }
-template<int TN,bool Native>
+template<int TN,bool Native,bool DN>
 __global__ void Evaluate(BF* output,float const* norm,int batch) {
   extern __shared__ __align__(1024) char shared[];
   auto* tile=reinterpret_cast<float*>(shared+1024);int n=TN*gridDim.x;
   for(int i=threadIdx.x;i<16*TN;i+=160)tile[i]=Input(i/TN,blockIdx.x*TN+i%TN);
   __syncthreads();
   if(threadIdx.x<128) {
-    if constexpr(Native)Sm90DenseEpilogue<ServingEpilogueOp::kSwiGLU,TN,4>::Run(
+    if constexpr(Native)Sm90DenseEpilogue<ServingEpilogueOp::kSwiGLU,TN,4,DN,false>::Run(
         tile,blockIdx.x,batch,n,n/2,output,nullptr,nullptr,norm,nullptr,128,1e-6f);
     else ServingEpilogue<ServingEpilogueOp::kSwiGLU,16,TN,4>::template RunFromTile<false>(
         tile,0,blockIdx.x,batch,n,n/2,n,output,nullptr,nullptr,nullptr,nullptr,norm,nullptr,128,1e-6f);
@@ -35,8 +35,13 @@ int Run(int& old_errors,int& cases) {
   for(int batch:{1,16})for(bool dn:{false,true})for(bool native:{false,true}) {
     Check(cudaMemset(output,0xff,16*5*TN));
     constexpr int shared=1024+(16*TN+32)*4;
-    if(native)Evaluate<TN,true><<<5,160,shared>>>(output,dn?norm:nullptr,batch);
-    else Evaluate<TN,false><<<5,160,shared>>>(output,dn?norm:nullptr,batch);
+    if(native) {
+      if(dn)Evaluate<TN,true,true><<<5,160,shared>>>(output,norm,batch);
+      else Evaluate<TN,true,false><<<5,160,shared>>>(output,nullptr,batch);
+    }else {
+      if(dn)Evaluate<TN,false,true><<<5,160,shared>>>(output,norm,batch);
+      else Evaluate<TN,false,false><<<5,160,shared>>>(output,nullptr,batch);
+    }
     Check(cudaGetLastError());Check(cudaDeviceSynchronize());
     std::vector<BF> host(batch*5*TN/2);
     Check(cudaMemcpy(host.data(),output,host.size()*2,cudaMemcpyDeviceToHost));

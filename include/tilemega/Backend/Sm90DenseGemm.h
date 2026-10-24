@@ -1,25 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
+#include <tilemega/Backend/Sm90DenseOperands.cuh>
+#include <tilemega/Backend/Sm90DenseRoles.cuh>
 
 #include <tilemega/Backend/Sm90DenseEpilogue.h>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
-#include <tilemega/Backend/Sm90DenseDiagnostic.cuh>
 #include <cute/tensor.hpp>
 
 namespace tilemega::backend {
 
-struct Sm90DenseOperands {
-  cutlass::bfloat16_t const* activation;
-  cutlass::bfloat16_t const* weight;
-  cutlass::bfloat16_t const* residual;
-  cutlass::bfloat16_t* output;
-  int* argmax_index;
-  float const* norm_sums;
-  float* output_sums;
-#if TILEMEGA_TRACE_NATIVE_PHASES
-  Sm90DenseDiagnosticContext diagnostic{};
-#endif
-};
 
 
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WarpsN,int WarpsK,
@@ -35,6 +24,7 @@ struct Sm90DenseGemm {
   static constexpr int kThreads=160,kIterations=K/TK;
   static constexpr int kOperandBytes=2*Slots*TK*(16+TN);
   static constexpr int kSharedBytes=1024+kOperandBytes+4*WarpsK*16*TN+128;
+  static_assert(kThreads==Sm90DenseRoleAbi::kThreads);
   using Atom=decltype(cute::composition(cute::Swizzle<3,3,3>{},
       cute::Layout<cute::Shape<cute::_8,cute::_64>,cute::Stride<cute::_64,cute::_1>>{}));
   using LayoutA=decltype(cute::tile_to_shape(Atom{},cute::Shape<cute::_16,cute::Int<TK>>{}));
@@ -74,8 +64,11 @@ struct Sm90DenseGemm {
   }
 
   template<int Prefix>
-  __device__ static __noinline__ void Produce(Sm90DenseOperands p,
+  __device__ static __noinline__ void Produce(Sm90DenseOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,int tasks,unsigned phase) {
+    Sm90DenseRoles::Producer();
+    Element const* const activation=p.activation;
+    Element const* const weight=p.weight;
     int lane=threadIdx.x-128;
     for(int sequence=0;sequence<tasks*kIterations;++sequence) {
       int slot=sequence%Slots,task=int(blockIdx.x)+(sequence/kIterations)*int(gridDim.x);
@@ -90,12 +83,12 @@ struct Sm90DenseGemm {
             prefix=min(Prefix-sequence*2*TN*TK,2*TN*TK);
         if(!prefix)Async::ExpectTx(state.full+slot,2*TN*TK);
         if(prefix<2*TN*TK)Async::Bulk(b+slot*TN*TK+prefix/2,
-            p.weight+(std::size_t(task)*kIterations+tile)*TN*TK+prefix/2,
+            weight+(std::size_t(task)*kIterations+tile)*TN*TK+prefix/2,
             2*TN*TK-prefix,state.full+slot);
       }
       for(int v=lane*8;v<Batch*TK;v+=32*8) {
         int row=v/TK,col=v%TK;
-        auto* source=p.activation+std::size_t(row)*K+tile*TK+col;
+        auto* source=activation+std::size_t(row)*K+tile*TK+col;
         Async::Copy16Bytes(a+slot*16*TK+LayoutA{}(row,col),source,16);
       }
       // One bulk arrival plus 32 cp.async arrivals make the full barrier cover
@@ -109,8 +102,7 @@ struct Sm90DenseGemm {
   }
 
   template<int Split,class Accumulator>
-  __device__ static __forceinline__ void MmaSlice(Element* a,Element* b,Accumulator& accum
-      TILEMEGA_NATIVE_PHASE_SCOPE_PARAM) {
+  __device__ static __forceinline__ void MmaSlice(Element* a,Element* b,Accumulator& accum) {
     using namespace cute;
     static_assert(Split>=0 && Split<WarpsK);
     int lane=int(threadIdx.x)%(32*WarpsN);
@@ -132,21 +124,14 @@ struct Sm90DenseGemm {
       copy(CopyA{},as(_,_,Int<k>{}),ad(_,_,i));
       copy(CopyB{},bs(_,_,Int<k>{}),bd(_,_,i));
     });
-    MmaSteps<Split,0>(mma,ra,rb,as,bs,ad,bd,accum TILEMEGA_NATIVE_PHASE_SCOPE_ARG);
+    MmaSteps<Split,0>(mma,ra,rb,as,bs,ad,bd,accum);
   }
-#if TILEMEGA_TRACE_NATIVE_PHASES
-  template<int Split,class Accumulator>
-  __device__ static __forceinline__ void MmaSlice(Element* a,Element* b,Accumulator& accum) {
-    Sm90DenseDiagnosticScope diagnostic;MmaSlice<Split>(a,b,accum,diagnostic);
-  }
-#endif
 
   template<int Split,int I,class MA,class RA,class RB,class AS,class BS,class AD,class BD,class Acc>
   __device__ static __forceinline__ void MmaSteps(MA const& mma,RA& ra,RB& rb,
-      AS const& as,BS const& bs,AD& ad,BD& bd,Acc& accum TILEMEGA_NATIVE_PHASE_SCOPE_PARAM) {
+      AS const& as,BS const& bs,AD& ad,BD& bd,Acc& accum) {
     using namespace cute;
     constexpr int k=Split+I*WarpsK,next=k+RegisterStages*WarpsK,slot=I%RegisterStages;
-    TILEMEGA_NATIVE_PHASES(if constexpr(I==0)diagnostic.FirstMma();)
     gemm(mma,ra(_,_,Int<slot>{}),rb(_,_,Int<slot>{}),accum);
     if constexpr(next<TK/16) {
       copy(CopyA{},as(_,_,Int<next>{}),ad(_,_,Int<slot>{}));
@@ -154,39 +139,35 @@ struct Sm90DenseGemm {
     }
     // CuTe's large for_each fold can become an outlined closure with local
     // fragment arguments. Keep each owned k16 at an explicit inline call site.
-    if constexpr(I+1<TK/(16*WarpsK))MmaSteps<Split,I+1>(mma,ra,rb,as,bs,ad,bd,accum TILEMEGA_NATIVE_PHASE_SCOPE_ARG);
+    if constexpr(I+1<TK/(16*WarpsK))MmaSteps<Split,I+1>(mma,ra,rb,as,bs,ad,bd,accum);
   }
 
-  __device__ static __noinline__ void Consume(Sm90DenseOperands p,
+  template<bool InputNorm,bool OutputSums>
+  __device__ static __noinline__ void Consume(Sm90DenseOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,int tasks,
-      unsigned phase,float epsilon) {
+      unsigned phase) {
+    Sm90DenseRoles::Consumer();
     using namespace cute;
     int tid=threadIdx.x,lane=tid%(32*WarpsN),split=tid/(32*WarpsN);
     Mma mma;auto thread=mma.get_slice(lane);
     auto owned=thread.partition_C(make_identity_tensor(Shape<_16,Int<TN>>{}));
     for(int local=0;local<tasks;++local) {
-      TILEMEGA_NATIVE_PHASES(Sm90DenseDiagnosticScope diagnostic;
-          diagnostic.Begin(p,int(blockIdx.x)+local*int(gridDim.x));)
       auto accum=partition_fragment_C(mma,Shape<_16,Int<TN>>{});clear(accum);
       for(int iteration=0;iteration<kIterations;++iteration) {
         int sequence=local*kIterations+iteration,slot=sequence%Slots;
-        TILEMEGA_NATIVE_PHASES(auto wait_begin=Sm90DenseDiagnostic::Clock();)
         Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
-        TILEMEGA_NATIVE_PHASES(diagnostic.Wait(wait_begin);)
         auto* sa=a+slot*16*TK;auto* sb=b+slot*TN*TK;
-        TILEMEGA_NATIVE_PHASES(auto compute_begin=Sm90DenseDiagnostic::Clock();)
         // A warp takes one uniform specialization. All 128-thread barriers
         // and shared reductions remain at common call sites after reconvergence.
-        if constexpr(WarpsK==1)MmaSlice<0>(sa,sb,accum TILEMEGA_NATIVE_PHASE_SCOPE_ARG);
+        if constexpr(WarpsK==1)MmaSlice<0>(sa,sb,accum);
         else if constexpr(WarpsK==2) {
-          if(split==0)MmaSlice<0>(sa,sb,accum TILEMEGA_NATIVE_PHASE_SCOPE_ARG);else MmaSlice<1>(sa,sb,accum TILEMEGA_NATIVE_PHASE_SCOPE_ARG);
+          if(split==0)MmaSlice<0>(sa,sb,accum);else MmaSlice<1>(sa,sb,accum);
         }else {
-          if(split==0)MmaSlice<0>(sa,sb,accum TILEMEGA_NATIVE_PHASE_SCOPE_ARG);
-          else if(split==1)MmaSlice<1>(sa,sb,accum TILEMEGA_NATIVE_PHASE_SCOPE_ARG);
-          else if(split==2)MmaSlice<2>(sa,sb,accum TILEMEGA_NATIVE_PHASE_SCOPE_ARG);
-          else MmaSlice<3>(sa,sb,accum TILEMEGA_NATIVE_PHASE_SCOPE_ARG);
+          if(split==0)MmaSlice<0>(sa,sb,accum);
+          else if(split==1)MmaSlice<1>(sa,sb,accum);
+          else if(split==2)MmaSlice<2>(sa,sb,accum);
+          else MmaSlice<3>(sa,sb,accum);
         }
-        TILEMEGA_NATIVE_PHASES(diagnostic.Compute(compute_begin);)
         // The empty barrier counts every reader; a separate CTA rendezvous
         // would serialize otherwise independent consumer warps on every slot.
         Async::Arrive(state.empty+slot);
@@ -206,12 +187,9 @@ struct Sm90DenseGemm {
       int task=int(blockIdx.x)+local*int(gridDim.x);
       constexpr int stride=Op==ServingEpilogueOp::kSwiGLU?N/2:
           Op==ServingEpilogueOp::kArgmaxPartial?N/TN:N;
-      TILEMEGA_NATIVE_PHASES(auto epilogue_begin=Sm90DenseDiagnostic::Clock();)
-      Sm90DenseEpilogue<Op,TN,U>::Run(scratch,task,Batch,N,stride,p.output,p.residual,
-          p.argmax_index,p.norm_sums,p.output_sums,K,epsilon);
-      TILEMEGA_NATIVE_PHASES(diagnostic.Partial(epilogue_begin);)
+      Sm90DenseEpilogue<Op,TN,U,InputNorm,OutputSums>::Run(scratch,task,Batch,N,stride,p.output,p.residual,
+          p.argmax_index,p.norm_sums,p.output_sums,K,p.epsilon);
       codegen::executor::ComputeSync();
-      TILEMEGA_NATIVE_PHASES(diagnostic.End();)
     }
     if(tid==0 && tasks)for(int slot=0;slot<Slots;++slot)
       state.consumer_generations[slot]=(phase>>slot)&1;
@@ -228,8 +206,8 @@ struct Sm90DenseGemm {
     }
   }
 
-  template<int Prefix=0,class Tail=Sm90DenseNoTail,bool Initialize=true>
-  __device__ static void Run(Sm90DenseOperands p,char* shared,float epsilon,
+  template<bool InputNorm,bool OutputSums,int Prefix=0,class Tail=Sm90DenseNoTail,bool Initialize=true>
+  __device__ static __forceinline__ void Run(Sm90DenseOperands const& p,char* shared,
       Sm90DenseRingState* persistent=nullptr,Tail tail={}) {
     static_assert(Prefix>=0 && Prefix%16==0 &&
         Prefix<=(Slots<kIterations?Slots:kIterations)*2*TN*TK);
@@ -247,7 +225,7 @@ struct Sm90DenseGemm {
     // Each role publishes only its own phases, after its readers have joined.
     // The previous stage's final CTA join makes the two snapshots consistent.
     int tasks=(N/TN)/int(gridDim.x)+(int(blockIdx.x)<(N/TN)%int(gridDim.x));
-    if(threadIdx.x<128)Consume(p,state,a,b,scratch,tasks,phase,epsilon);
+    if(threadIdx.x<128)Consume<InputNorm,OutputSums>(p,state,a,b,scratch,tasks,phase);
     else {
       if constexpr(Tail::kBefore) {
         if(threadIdx.x==128)tail.Before();

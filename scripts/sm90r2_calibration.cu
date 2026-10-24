@@ -199,7 +199,7 @@ __global__ void Epilogue(cutlass::bfloat16_t* output,cutlass::bfloat16_t const* 
     if(threadIdx.x<128)for(int i=threadIdx.x;i<16*TN;i+=128)tile[i]=(i%31-15)/32.f;
     __syncthreads();U64 begin=clock64();
     if(threadIdx.x<128) {
-      tilemega::backend::Sm90DenseEpilogue<Operation,TN,U>::Run(tile,blockIdx.x,Batch,n,
+      tilemega::backend::Sm90DenseEpilogue<Operation,TN,U,DN,Operation==Op::kResidual>::Run(tile,blockIdx.x,Batch,n,
           stride,output,residual,indices,DN?norm:nullptr,
           Operation==Op::kResidual?sums:nullptr,NormK,1e-6f);
       tilemega::codegen::executor::ComputeSync();

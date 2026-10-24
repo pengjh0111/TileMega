@@ -19,6 +19,10 @@ namespace tilemega::codegen::native_dense {
 static_assert(kNativeBuffers.size()==NativeProgram::kBuffers);
 static_assert(kNativeStages.size()==NativeProgram::kStages);
 static_assert(kNativeEpsilon>0);
+static_assert(epilogue_contract::kInternal==TM_BUFFER_INTERNAL &&
+    epilogue_contract::kExternal==TM_BUFFER_EXTERNAL &&
+    epilogue_contract::kBF16==TM_DTYPE_BF16 &&
+    epilogue_contract::kF32==TM_DTYPE_F32 && epilogue_contract::kI32==TM_DTYPE_I32);
 
 inline void Check(cudaError_t status) {
   if(status!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(status));
@@ -39,6 +43,9 @@ struct Plan {
   unsigned long long* stamps=nullptr;
   GridCounter* events=nullptr;
   TraceState trace{};
+#if TILEMEGA_NATIVE_RELEASE_ENABLED
+  release_trace::Binding release_trace{};
+#endif
 #if TILEMEGA_TRACE_NATIVE_BOUNDARY
   boundary_diagnostic::Config boundary_config{};
   std::vector<int> boundary_pasts;
@@ -49,6 +56,9 @@ struct Plan {
     for(auto* p:owned)cudaFree(p);
     cudaFree(pasts);cudaFree(stamps);cudaFree(events);
     cudaFree(trace.stages);cudaFree(trace.steps);
+#if TILEMEGA_NATIVE_RELEASE_ENABLED
+    cudaFree(release_trace.words);
+#endif
 #if TILEMEGA_TRACE_NATIVE_BOUNDARY
     cudaFree(trace.boundary_releases);
 #endif
@@ -79,11 +89,18 @@ inline void ConfigureBoundary(Plan& p,boundary_diagnostic::Config config) {
 #endif
 inline int Launch(Plan& p,unsigned first,unsigned count,unsigned mode,
                   unsigned long long iteration,void* stream) {
+  using RoleLaunch=typename NativeProgram::RoleLaunch;
+  static_assert(RoleLaunch::kThreads==160 && RoleLaunch::kY==1 && RoleLaunch::kZ==1);
   if(mode!=TM_SERVING_L1 || !count || first>=p.steps || count>p.steps-first ||
      iteration!=p.iteration)return -1;
-  sm90_dense_native_kernel<NativeProgram><<<p.grid,NativeProgram::kThreads,
+  dim3 const threads(NativeProgram::kThreads,RoleLaunch::kY,RoleLaunch::kZ);
+  sm90_dense_native_kernel<NativeProgram><<<p.grid,threads,
       NativeProgram::kSharedBytes,static_cast<cudaStream_t>(stream)>>>(p.bindings,p.pasts,
-      first,count,kNativeEpsilon,p.events,iteration,p.stamps,p.trace);
+      first,count,kNativeEpsilon,p.events,iteration,p.stamps,p.trace
+#if TILEMEGA_NATIVE_RELEASE_ENABLED
+      ,p.release_trace
+#endif
+      );
   auto status=cudaGetLastError();
   if(status==cudaSuccess) {
 #if TILEMEGA_TRACE_NATIVE_BOUNDARY
@@ -133,7 +150,23 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
   using namespace tilemega::codegen::native_dense;
   if(batch!=NativeProgram::kBatch || !external)return nullptr;
   try {
+    std::vector<epilogue_contract::Buffer> metadata;
+    metadata.reserve(kNativeBuffers.size());
+    for(auto const& desc:kNativeBuffers)
+      metadata.push_back({desc.role,desc.dtype,desc.elements_constant,
+          desc.elements_per_batch,0,0,true});
+    auto required=epilogue_contract::ValidateMetadata(metadata.data(),metadata.size(),
+        NativeProgram::kEpilogueBindings.data(),NativeProgram::kEpilogueBindings.size(),batch);
     Check(cudaSetDevice(device));auto plan=std::make_unique<Plan>();plan->grid=Grid();
+#if TILEMEGA_NATIVE_RELEASE_ENABLED
+    cudaDeviceProp properties{};Check(cudaGetDeviceProperties(&properties,device));
+    int reserved=properties.sharedMemPerMultiprocessor-properties.sharedMemPerBlockOptin;
+    if(reserved<0)reserved=0;
+    auto budget=std::min(properties.sharedMemPerBlockOptin,
+        properties.sharedMemPerMultiprocessor/NativeProgram::kResidency-reserved);
+    if(NativeProgram::kSharedBytes>budget)
+      throw std::invalid_argument("native release trace exceeds the physical shared-memory budget");
+#endif
     auto kernel=sm90_dense_native_kernel<NativeProgram>;
     Check(cudaFuncSetAttribute(kernel,cudaFuncAttributeMaxDynamicSharedMemorySize,NativeProgram::kSharedBytes));
     int resident=0;
@@ -143,21 +176,25 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
       throw std::invalid_argument("native dense plan exceeds measured residency");
     for(unsigned i=0;i<kNativeBuffers.size();++i) {
       auto const& desc=kNativeBuffers[i];
-      auto elements=desc.elements_constant+desc.elements_per_batch*batch;
-      void* pointer=nullptr;
-      if(desc.role==TM_BUFFER_EXTERNAL) {
-        pointer=external[i];
-        if(elements && !pointer)throw std::invalid_argument("unbound native external buffer");
-      }else if(elements) {
-        auto bytes=elements*(desc.dtype==TM_DTYPE_BF16?2:4);
-        Check(cudaMalloc(&pointer,bytes));plan->owned.push_back(pointer);
-        Check(cudaMemset(pointer,0,bytes));
-      }
+      auto* pointer=epilogue_contract::BindBuffer(metadata[i],batch,required[i],
+          desc.role==TM_BUFFER_EXTERNAL?external[i]:nullptr,
+          [&](std::size_t bytes) {
+            void* allocation=nullptr;Check(cudaMalloc(&allocation,bytes));
+            plan->owned.push_back(allocation);return allocation;
+          },[&](void* allocation,std::size_t bytes) {Check(cudaMemset(allocation,0,bytes));});
       if(pointer && reinterpret_cast<std::uintptr_t>(pointer)%16)
         throw std::invalid_argument("native dense buffers require 16-byte alignment");
       plan->bindings.buffers[i]=static_cast<Element*>(pointer);
     }
     plan->events=Allocate<GridCounter>(NativeProgram::kStages);
+#if TILEMEGA_NATIVE_RELEASE_ENABLED
+    auto release_env=std::getenv("TILEMEGA_TRACE_LAUNCHES");
+    unsigned long long release_slots=release_env?std::strtoull(release_env,nullptr,10):16;
+    if(!release_slots || release_slots>4096)throw std::invalid_argument("invalid native release slot count");
+    plan->release_trace.slots=unsigned(release_slots);
+    plan->release_trace.words=Allocate<std::uint32_t>(
+        release_slots*plan->grid*sizeof(NativeProgram::ReleaseRecord)/4);
+#endif
 #if TILEMEGA_TRACE_STAGE || TILEMEGA_TRACE_STEP || TILEMEGA_TRACE_NATIVE_PHASES || TILEMEGA_TRACE_NATIVE_BOUNDARY
     auto env=std::getenv("TILEMEGA_TRACE_LAUNCHES");
     unsigned long long slots=env?std::strtoull(env,nullptr,10):16;
@@ -248,6 +285,59 @@ extern "C" int tm_plan_read_buffer(void* opaque,unsigned index,void* host,std::u
 extern "C" void tm_plan_destroy(void* opaque) {
   delete static_cast<tilemega::codegen::native_dense::Plan*>(opaque);
 }
+
+#if TILEMEGA_NATIVE_RELEASE_ENABLED
+extern "C" unsigned tm_plan_native_release_trace_abi() {return 1;}
+extern "C" int tm_plan_dump_native_release_trace(void* opaque,char const* directory) {
+  using namespace tilemega::codegen::native_dense;
+  auto* p=static_cast<Plan*>(opaque);
+  if(!p || !directory || cudaDeviceSynchronize()!=cudaSuccess)return -1;
+  using Row=NativeProgram::ReleaseRecord;
+  std::vector<Row> rows(std::size_t(p->release_trace.slots)*p->grid);
+  if(cudaMemcpy(rows.data(),p->release_trace.words,rows.size()*sizeof(Row),cudaMemcpyDeviceToHost)!=cudaSuccess)return -2;
+  auto path=[&](char const* name) {return std::string(directory)+"/"+name;};
+  auto* headers=std::fopen(path("native_release_steps.tsv").c_str(),"w");
+  auto* releases=std::fopen(path("native_release_samples.tsv").c_str(),"w");
+  if(!headers || !releases) {
+    if(headers)std::fclose(headers);if(releases)std::fclose(releases);return -3;
+  }
+  std::fprintf(headers,"worker\tslot\titeration\tpast\tbegin\tend\n");
+  std::fprintf(releases,"worker\tslot\titeration\tstage\trelease_low32\n");
+  for(unsigned slot=0;slot<p->release_trace.slots;++slot)for(int worker=0;worker<p->grid;++worker) {
+    auto const& row=rows[std::size_t(slot)*p->grid+worker];
+    if(!row.header.valid)continue;
+    std::fprintf(headers,"%d\t%u\t%llu\t%d\t%llu\t%llu\n",worker,slot,
+        static_cast<unsigned long long>(row.header.iteration),row.header.past,
+        static_cast<unsigned long long>(row.header.begin),static_cast<unsigned long long>(row.header.end));
+    for(unsigned stage=0;stage<NativeProgram::kStages;++stage)
+      std::fprintf(releases,"%d\t%u\t%llu\t%u\t%u\n",worker,slot,
+          static_cast<unsigned long long>(row.header.iteration),stage,row.releases[stage]);
+  }
+  int header_close=std::fclose(headers),release_close=std::fclose(releases);
+  if(header_close || release_close)return -3;
+  auto* stages=std::fopen(path("native_release_stages.tsv").c_str(),"w");
+  if(!stages)return -3;
+  std::fprintf(stages,"stage\tkind_name\tname\n");
+  for(unsigned stage=0;stage<NativeProgram::kStages;++stage)
+    std::fprintf(stages,"%u\t%s\t%s\n",stage,kNativeStages[stage].kind,kNativeStages[stage].name);
+  if(std::fclose(stages))return -3;
+  auto* metadata=std::fopen(path("native_release.json").c_str(),"w");
+  if(!metadata)return -3;
+  std::fprintf(metadata,"{\n  \"schema\": 1, \"performance_eligible\": false,\n"
+      "  \"observation\": \"release_after_cta_barrier\",\n"
+      "  \"clock\": \"globaltimer_low32\", \"header_clock\": \"globaltimer64_per_cta\",\n"
+      "  \"header_end_excludes_flush\": true, \"uniform_overhead_subtracted\": false,\n"
+      "  \"grid\": %d, \"stages\": %u, \"slots\": %u,\n"
+      "  \"header_bytes\": %zu, \"record_bytes\": %zu,\n"
+      "  \"arena_shared_bytes\": %d, \"trace_offset\": %d, \"total_shared_bytes\": %d\n}\n",
+      p->grid,NativeProgram::kStages,p->release_trace.slots,sizeof(release_trace::Header),sizeof(Row),
+      NativeProgram::kArenaSharedBytes,NativeProgram::kReleaseOffset,NativeProgram::kSharedBytes);
+  return std::fclose(metadata)==0?0:-3;
+}
+extern "C" int tm_plan_dump_serving_trace(void* opaque,char const* directory) {
+  return tm_plan_dump_native_release_trace(opaque,directory);
+}
+#endif
 
 #if TILEMEGA_TRACE_NATIVE_PHASES
 __global__ void sm90_dense_diagnostic_clock(unsigned long long* output) {

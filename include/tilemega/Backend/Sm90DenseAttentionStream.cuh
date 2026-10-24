@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Backend/Sm90DenseAttention.h>
+#include <tilemega/Backend/Sm90DenseRoles.cuh>
 #include <tilemega/Backend/Sm90DenseAttentionMma.cuh>
 
 namespace tilemega::backend {
@@ -18,6 +19,7 @@ struct Sm90DenseAttentionStream {
   static_assert((Batch==8 || Batch==16) && (BlockKeys==32 || BlockKeys==64 || BlockKeys==128));
   static_assert(Slots>=2 && Slots<=8 && Capacity>=1087);
   static constexpr int kTasks=Batch*8*Chunks,kThreads=160;
+  static_assert(kThreads==Sm90DenseRoleAbi::kThreads);
   struct alignas(16) Storage {
     Element query[16*D],new_key[D],new_value[D];
     Element key[Slots*BlockKeys*D],value[Slots*BlockKeys*D];
@@ -27,21 +29,16 @@ struct Sm90DenseAttentionStream {
   };
   static constexpr int kSharedBytes=1024+sizeof(Storage);
 
-  __device__ static void Query(Sm90DenseAttentionOperands p,Storage& s,int bg,
-                               Sm90DenseKeyRange range TILEMEGA_NATIVE_PHASE_TASK_PARAM) {
+  __device__ static __forceinline__ void Query(Sm90DenseAttentionOperands const& p,Storage& s,int bg,
+                               Sm90DenseKeyRange range) {
     int warp=threadIdx.x>>5,lane=threadIdx.x&31;
     auto* group=p.qkv+std::size_t(bg)*(Q+2)*D;
     for(int q=warp;q<16;q+=4) {
-      if(q<Q) {
-        TILEMEGA_NATIVE_PHASES(auto begin=Sm90DenseDiagnostic::Clock();)
-        Math::template Rotate<D,Norm>(group+q*D,p.q_norm,p.cosine+p.past*D,
-            p.sine+p.past*D,p.epsilon,s.query+q*D);
-        TILEMEGA_NATIVE_PHASES(Sm90DenseDiagnostic::Query(p,task,q,begin);)
-      }
+      if(q<Q)Math::template Rotate<D,Norm>(group+q*D,p.q_norm,p.cosine+p.past*D,
+          p.sine+p.past*D,p.epsilon,s.query+q*D);
       else if(lane*8<D)*reinterpret_cast<uint4*>(s.query+q*D+lane*8)=make_uint4(0,0,0,0);
     }
     if(range.Contains(p.past) && warp==Q%4) {
-      TILEMEGA_NATIVE_PHASES(auto begin=Sm90DenseDiagnostic::Clock();)
       Math::template Rotate<D,Norm>(group+Q*D,p.k_norm,p.cosine+p.past*D,
           p.sine+p.past*D,p.epsilon,s.new_key,p.key+(std::size_t(bg)*Capacity+p.past)*D);
       if(lane*8<D) {
@@ -49,18 +46,21 @@ struct Sm90DenseAttentionStream {
         *reinterpret_cast<uint4*>(s.new_value+lane*8)=v;
         *reinterpret_cast<uint4*>(p.value+(std::size_t(bg)*Capacity+p.past)*D+lane*8)=v;
       }
-      TILEMEGA_NATIVE_PHASES(Sm90DenseDiagnostic::NewRow(p,task,begin);)
     }
   }
 
-  __device__ static __noinline__ void Produce(Sm90DenseAttentionOperands p,
+  __device__ static __noinline__ void Produce(Sm90DenseAttentionOperands const& p,
       Sm90DenseRingState& state,Storage& s,int tasks,unsigned phase) {
+    Sm90DenseRoles::Producer();
+    Element const* const key=p.key;
+    Element const* const value=p.value;
+    int const past=p.past;
     int lane=threadIdx.x-128,sequence=0;
     for(int local=0;local<tasks;++local) {
       int task=int(blockIdx.x)+local*int(gridDim.x),bg=task/Chunks;
-      auto range=Partition::Range(p.past,task%Chunks,NewRowWork);
+      auto range=Partition::Range(past,task%Chunks,NewRowWork);
       for(int begin=range.begin;begin<range.end;begin+=BlockKeys,++sequence) {
-        int slot=sequence%Slots,history=max(0,min(begin+BlockKeys,min(range.end,p.past))-begin);
+        int slot=sequence%Slots,history=max(0,min(begin+BlockKeys,min(range.end,past))-begin);
         Async::Wait(state.empty+slot,(phase>>slot)&1);
         if(lane==0) {
           unsigned prefix=state.prefix_bytes[slot];state.prefix_bytes[slot]=0;
@@ -70,9 +70,9 @@ struct Sm90DenseAttentionStream {
             std::size_t offset=(std::size_t(bg)*Capacity+begin)*D;
             int done=prefix/(4*D);
             if(done<history) {
-              Async::Bulk(s.key+slot*BlockKeys*D+done*D,p.key+offset+done*D,
+              Async::Bulk(s.key+slot*BlockKeys*D+done*D,key+offset+done*D,
                   2*(history-done)*D,state.full+slot);
-              Async::Bulk(s.value+slot*BlockKeys*D+done*D,p.value+offset+done*D,
+              Async::Bulk(s.value+slot*BlockKeys*D+done*D,value+offset+done*D,
                   2*(history-done)*D,state.full+slot);
             }
           }else Async::Arrive(state.full+slot);
@@ -84,16 +84,18 @@ struct Sm90DenseAttentionStream {
     if(lane==0 && tasks)for(int i=0;i<Slots;++i)state.producer_generations[i]=(phase>>i)&1;
   }
 
-  __device__ static __noinline__ void Consume(Sm90DenseAttentionOperands p,
+  __device__ static __noinline__ void Consume(Sm90DenseAttentionOperands const& p,
       Sm90DenseRingState& state,Storage& s,int tasks,unsigned phase) {
+    Sm90DenseRoles::Consumer();
+    // The published operand bank stays immutable until this stage returns.
+    int const past=p.past;
     using namespace cute;
     int warp=threadIdx.x>>5,lane=threadIdx.x&31,sequence=0;
     auto scores_coords=QK::Coordinates();auto output_coords=PV::Coordinates();
     for(int local=0;local<tasks;++local) {
       int task=int(blockIdx.x)+local*int(gridDim.x),bg=task/Chunks;
-      TILEMEGA_NATIVE_PHASES(Sm90DenseDiagnosticScope diagnostic;diagnostic.Begin(p,task);)
-      auto range=Partition::Range(p.past,task%Chunks,NewRowWork);
-      Query(p,s,bg,range TILEMEGA_NATIVE_PHASE_TASK_ARG);
+      auto range=Partition::Range(past,task%Chunks,NewRowWork);
+      Query(p,s,bg,range);
       // A ready bulk barrier covers historical transfers only. Other warps
       // must also acquire the current-row stores before patching that slot.
       codegen::executor::ComputeSync();
@@ -102,24 +104,21 @@ struct Sm90DenseAttentionStream {
       auto sum=make_tensor<float>(Shape<_2>{});clear(sum);
       for(int begin=range.begin;begin<range.end;begin+=BlockKeys,++sequence) {
         int slot=sequence%Slots,rows=min(BlockKeys,range.end-begin);
-        TILEMEGA_NATIVE_PHASES(auto wait_begin=Sm90DenseDiagnostic::Clock();)
         Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
-        TILEMEGA_NATIVE_PHASES(diagnostic.Wait(wait_begin);
-            auto compute_begin=Sm90DenseDiagnostic::Clock();)
         auto* key=s.key+slot*BlockKeys*D;auto* value=s.value+slot*BlockKeys*D;
         for(int i=threadIdx.x*8;i<BlockKeys*D;i+=128*8) {
           int row=i/D,d=i%D;
           if(row>=rows) {
             *reinterpret_cast<uint4*>(key+i)=make_uint4(0,0,0,0);
             *reinterpret_cast<uint4*>(value+i)=make_uint4(0,0,0,0);
-          }else if(begin+row==p.past) {
+          }else if(begin+row==past) {
             *reinterpret_cast<uint4*>(key+i)=*reinterpret_cast<uint4*>(s.new_key+d);
             *reinterpret_cast<uint4*>(value+i)=*reinterpret_cast<uint4*>(s.new_value+d);
           }
         }
         codegen::executor::ComputeSync();
         for(int interval=warp*16;interval<BlockKeys;interval+=64) {
-          auto score=QK::Accumulator();QK::QK(s.query,key+interval*D,score TILEMEGA_NATIVE_PHASE_SCOPE_ARG);
+          auto score=QK::Accumulator();QK::QK(s.query,key+interval*D,score);
           auto block_max=make_tensor<float>(Shape<_2>{});block_max(0)=-INFINITY;block_max(1)=-INFINITY;
           for_each(make_int_sequence<size(score)>{},[&](auto i) {
             constexpr int group=QK::template QueryGroup<int(i)>();
@@ -149,7 +148,6 @@ struct Sm90DenseAttentionStream {
           });
           PV::PV(score,scores_coords,value+interval*D,output);
         }
-        TILEMEGA_NATIVE_PHASES(diagnostic.Compute(compute_begin);)
         Async::Arrive(state.empty+slot);
       }
       for_each(make_int_sequence<size(output)>{},[&](auto i) {
@@ -160,31 +158,16 @@ struct Sm90DenseAttentionStream {
         s.maximum[warp*Q+lane/4]=maximum(0);s.sum[warp*Q+lane/4]=sum(0);
       }
       codegen::executor::ComputeSync();
-      TILEMEGA_NATIVE_PHASES(auto partial_begin=Sm90DenseDiagnostic::Clock();)
       Reduction::Partial(p,s,task);
-      TILEMEGA_NATIVE_PHASES(diagnostic.Partial(partial_begin);)
-#if TILEMEGA_TRACE_NATIVE_PHASES
-      if constexpr(Chunks>1) {
-        auto publish_begin=Sm90DenseDiagnostic::Clock();
-        bool last=Sm90DenseLastArriver::Publish<Chunks>(p.arrivals+bg,&s.last);
-        diagnostic.Publish(publish_begin);
-        if(last) {
-          auto merge_begin=Sm90DenseDiagnostic::Clock();
-          Reduction::Merge(p,s,bg);diagnostic.Merge(merge_begin);
-        }
-      }
-#else
       if constexpr(Chunks>1)
         if(Sm90DenseLastArriver::Publish<Chunks>(p.arrivals+bg,&s.last))Reduction::Merge(p,s,bg);
-#endif
       codegen::executor::ComputeSync();
-      TILEMEGA_NATIVE_PHASES(diagnostic.End();)
     }
     if(threadIdx.x==0 && tasks)for(int i=0;i<Slots;++i)state.consumer_generations[i]=(phase>>i)&1;
   }
 
   template<class Tail=Sm90DenseNoTail>
-  __device__ static void Run(Sm90DenseAttentionOperands p,char* shared,
+  __device__ static __forceinline__ void Run(Sm90DenseAttentionOperands const& p,char* shared,
       Sm90DenseRingState* persistent=nullptr,Tail tail={}) {
     auto& state=persistent?*persistent:*reinterpret_cast<Sm90DenseRingState*>(shared);
     auto& s=*reinterpret_cast<Storage*>(shared+1024);

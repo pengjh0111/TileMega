@@ -27,7 +27,7 @@ __global__ __launch_bounds__(160) void evaluate(Sm90DenseOperands first,Sm90Dens
  auto& state=*reinterpret_cast<Sm90DenseRingState*>(shared);state.Initialize();
  using A=Sm90DenseGemm<B,TN*25,1024,TN,TK,3,WN,WK,ServingEpilogueOp::kStore,8,Reg>;
  using C=Sm90DenseGemm<B,TN*25,1024,TN,TK,2,WN,WK,ServingEpilogueOp::kStore,8,Reg>;
- for(int repeat=0;repeat<4;++repeat) {A::Run(first,shared,1e-6f);C::Run(second,shared,1e-6f);}
+ for(int repeat=0;repeat<4;++repeat) {A::template Run<false,false>(first,shared);C::template Run<false,false>(second,shared);}
  state.Invalidate();
 }
 template<int B,int TN,int WN,int WK,int TK=64,int Reg=(TK/(16*WK)<4?TK/(16*WK):4)>

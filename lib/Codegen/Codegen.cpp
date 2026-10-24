@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <tilemega/Codegen/CouplingGraphToCUDA.h>
 #include <tilemega/Codegen/RuntimePlan.h>
+#include <tilemega/Codegen/Sm90DenseEpilogueContract.h>
 #include <tilemega/Codegen/DmReductionDepth.h>
 #include <tilemega/Codegen/DependencyTablePacking.h>
 #include <tilemega/Solver/RuntimeProjection.h>
@@ -2082,6 +2083,39 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     if(auto operands=s.getAs<mlir::DenseI64ArrayAttr>("operands"))
       for(auto operand:operands.asArrayRef())mark(operand);
   }
+  namespace ep=tilemega::codegen::native_dense::epilogue_contract;
+  auto nonnegative=[](mlir::DictionaryAttr b,char const* field) {
+    auto value=integerField(b,field);
+    if(value<0)throw std::invalid_argument("negative native buffer extent");
+    return std::uint64_t(value);
+  };
+  std::vector<ep::Buffer> epilogue_buffers;
+  for(unsigned i=0;i<buffers.size();++i) {
+    auto b=dictionaryEntry(buffers[i],"buffers");
+    auto dtype=stringField(b,"dtype"),role=stringField(b,"role");
+    epilogue_buffers.push_back({role=="internal"?ep::kInternal:role=="external"?ep::kExternal:~0u,
+        dtype=="bf16"?ep::kBF16:dtype=="f32"?ep::kF32:dtype=="i32"?ep::kI32:~0u,
+        ep::Add(nonnegative(b,"constant"),nonnegative(b,"per_seq")),
+        nonnegative(b,"per_batch"),nonnegative(b,"per_past"),nonnegative(b,"per_total"),live[i]});
+  }
+  auto feature_id=[&](mlir::DictionaryAttr g,char const* field) {
+    auto attr=g.getAs<mlir::IntegerAttr>(field);
+    if(g.get(field) && !attr)throw std::invalid_argument("native epilogue ID is not an integer");
+    if(!attr || attr.getInt()==-1 || attr.getInt()==0xffffffffll)return ep::kAbsent;
+    if(attr.getInt()<0 || std::uint64_t(attr.getInt())>=buffers.size())
+      throw std::invalid_argument("native epilogue ID outside buffer table");
+    return std::uint32_t(attr.getInt());
+  };
+  std::vector<ep::Gemm> epilogue_gemms;
+  for(auto value:gemms) {
+    auto g=dictionaryEntry(value,"gemms");
+    auto op=g.get("epilogue")?stringField(g,"epilogue"):"store";
+    epilogue_gemms.push_back({feature_id(g,"norm_ss"),feature_id(g,"ss_out"),
+        std::uint64_t(batch),nonnegative(g,"k"),nonnegative(g,"n"),
+        std::uint64_t(c.gemms[family(g)].tile_n),c.dn_vector_sums,op=="residual",true});
+  }
+  ep::ValidateMetadata(epilogue_buffers.data(),epilogue_buffers.size(),
+      epilogue_gemms.data(),epilogue_gemms.size(),batch);
   auto id=[&](mlir::DictionaryAttr g,char const* field) {
     auto attr=g.getAs<mlir::IntegerAttr>(field);
     if(!attr || attr.getInt()==0xffffffffll || attr.getInt()<0)return std::string("kAbsent");
