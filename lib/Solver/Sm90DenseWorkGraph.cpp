@@ -33,6 +33,18 @@ std::pair<int,int> Range(int past,int chunk,int chunks,int row_work) {
 }
 }
 
+json::Value Sm90DenseStagePlanBinding::ToJson() const {
+  if(epilogue!="store" && epilogue!="residual" && epilogue!="swiglu" && epilogue!="argmax_partial")
+    throw std::invalid_argument("unknown native plan epilogue");
+  return json::Object{{"epilogue",epilogue},{"input_norm",input_norm},{"output_sums",output_sums}};
+}
+json::Value Sm90DenseStageWork::ServiceDescriptor() const {
+  if(service_descriptor.IsNull())throw std::invalid_argument("native service domain is absent");
+  auto result=service_descriptor;
+  result.Set("plan_binding",plan_binding?plan_binding->ToJson():json::Value());
+  return result;
+}
+
 std::map<int,int> Sm90DenseStageWork::LocalTaskHistogram() const {
   std::map<int,int> result;
   for(auto const& cta:ctas)++result[int(cta.tasks.size())];
@@ -104,10 +116,18 @@ Sm90DenseWorkGraph BuildSm90DenseWorkGraph(Sm90DenseWorkload const& w,
   }
   gemm(4,-1);token("argmax");
 
+  json::Array shapes;
+  for(auto const& shape:w.shapes)shapes.emplace_back(json::Array{shape[0],shape[1]});
+  auto domain=json::Value(json::Object{{"schema",1},{"shapes",shapes},
+      {"batch",w.batch},{"layers",w.layers},{"head_dim",w.head_dim},{"queries",w.queries},
+      {"qk_norm",w.qk_norm},{"capacity",capacity},{"coordinates",c.ToJson()}});
+
   using Generations=std::array<std::array<std::uint64_t,8>,2>;
   std::vector<Generations> generations(graph.grid);
   for(unsigned index=0;index<inputs.size();++index) {
     auto& input=inputs[index];auto& stage=input.work;stage.ring_bank=index%2;
+    stage.service_descriptor=json::Object{{"schema",1},{"domain",domain},
+        {"kind",stage.kind},{"layer",stage.layer}};
     graph.shared_bytes=std::max(graph.shared_bytes,stage.workspace_offset+stage.layout.end);
     if(input.prefix || input.l2) {
       if(!index)throw std::logic_error("first native stage cannot receive preissue");
@@ -235,6 +255,7 @@ json::Value Sm90DenseWorkGraph::ToJson(bool include_blocks) const {
         {"logical_kv_history_bytes",double(kv)},{"current_rows",double(current)},
         {"prefix_bytes",double(prefix)},{"l2_hint_bytes",double(l2)},{"blocks",blocks},
         {"prefix_requests",prefix_requests},{"remainder_requests",remainder_requests}};
+    row.Set("service_descriptor",s.ServiceDescriptor());
     if(include_blocks)row.Set("ctas",owners);
     rows.push_back(row);
   }

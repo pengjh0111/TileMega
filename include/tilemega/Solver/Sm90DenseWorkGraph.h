@@ -4,6 +4,7 @@
 #include <tilemega/Solver/Sm90DenseCoordinates.h>
 #include <tilemega/Target/TargetSpec.h>
 #include <map>
+#include <optional>
 #include <vector>
 
 namespace tilemega::solver {
@@ -35,8 +36,18 @@ struct Sm90DenseCtaWork {
   std::int64_t l2_hint_bytes=0;
   int l2_hint_requests=0;
 };
+struct Sm90DenseStagePlanBinding {
+  std::string epilogue;
+  bool input_norm=false,output_sums=false;
+  json::Value ToJson() const;
+};
 struct Sm90DenseStageWork {
   std::string kind;
+  // Canonical workload/coordinate domain; GEMM plan bindings remain pending
+  // until the actual emitted epilogue and operand-presence metadata is supplied.
+  json::Value service_descriptor;
+  std::optional<Sm90DenseStagePlanBinding> plan_binding;
+  json::Value ServiceDescriptor() const;
   int layer=-1,tasks=0,ring_bank=0,ring_slots=0;
   int prefix_predecessor=-1;
   int merge_chunks=1;
