@@ -27,6 +27,10 @@ inline constexpr int kServingStageCacheBytes = 672;
 inline constexpr int kServingArgmaxSmemBytes = 32;
 /// TaskSmem's alignment.
 inline constexpr int kServingTaskSmemAlign = 16;
+/// The residencies the serving task bodies are calibrated at (MX4 prompt
+/// §5.6: in place, R in {1,2,3,4}); a candidate is priced, and so searched,
+/// only at one of them.
+inline constexpr int kServingCalibratedResidency = 4;
 
 /// The TaskSmem members a plan has, by the task kinds it runs (KindsUsed.h).
 struct ServingSmemTerms {

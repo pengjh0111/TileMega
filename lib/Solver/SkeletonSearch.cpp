@@ -324,7 +324,8 @@ struct SearchContext {
             has(PlanTaskKind::kKVAppend) || has(PlanTaskKind::kRoPE);
         terms.argmax=has(PlanTaskKind::kRMSNorm) || has(PlanTaskKind::kArgmaxReduce);
         estimate.shared_bytes=ServingKernelSmemBytes(terms);
-        estimate.resident_limit=VariantResourceCache::ResidentLimit(estimate,target);
+        estimate.resident_limit=std::min(kServingCalibratedResidency,
+            VariantResourceCache::ResidentLimit(estimate,target));
         return estimate;
       }
       int gemm_shared=imported.plan.dm?estimate.shared_bytes:0;
@@ -349,7 +350,8 @@ struct SearchContext {
                 DmServingBF16SmemBytes(g.tile_m,g.tile_n,g.tile_k,g.stages));
           }
       estimate.shared_bytes=gemm_shared;
-      estimate.resident_limit=options.pg_pages?1:VariantResourceCache::ResidentLimit(estimate,target);
+      estimate.resident_limit=options.pg_pages?1:std::min(kServingCalibratedResidency,
+          VariantResourceCache::ResidentLimit(estimate,target));
     }
     return estimate;
   }
@@ -1291,6 +1293,9 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
         actual=options.common.query_residency(*item.entry.module,c.kappa);}
     }
     if(actual<1)throw std::runtime_error("top-3 compiled with zero residency");
+    // The compiled limit bounds the residency a plan may choose; serving
+    // plans choose among the calibrated ones (§5.6).
+    if(search.ServingRuntimePlan() && !options.pg_pages)actual=std::min(actual,kServingCalibratedResidency);
     bool changed=options.pg_pages?actual<1:actual!=c.estimated_limit;
     if(changed) try {
       // Correct occupancy can expose a better residency as well as invalidate one.
@@ -1338,7 +1343,7 @@ SkeletonSearchResult SolveSkeletonImported(frontend::ImportedSemantics const& im
           again=options.common.query_residency(*item.entry.module,c.kappa);}
         evidence<<"RESIDENCY_RECHECK\t"<<c.key<<"\tactual="<<actual<<"\trechecked="<<again<<'\n';
         if(again<1)throw std::runtime_error("re-searched plan compiled with zero residency");
-        actual=again;
+        actual=std::min(again,kServingCalibratedResidency);
       }
     }
     catch(std::exception const& e) {
