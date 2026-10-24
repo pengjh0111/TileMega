@@ -19,8 +19,11 @@ def main():
     p.add_argument('--stage', choices=('measure', 'correctness', 'trace', 'trace-control'), required=True)
     p.add_argument('--round', type=int, default=0)
     p.add_argument('--positions', type=int, default=256)
+    p.add_argument('--trace-request-history', action='store_true')
     p.add_argument('--out', type=Path, required=True)
     a = p.parse_args()
+    if a.trace_request_history and a.stage not in ('trace', 'trace-control'):
+        p.error('request history is a diagnostic trace option')
     if os.environ.get('TILEMEGA_DEVICE_INDEX') == '6':
         raise ValueError('GPU6 is excluded')
     if os.environ.get('TILEMEGA_GPU_LOCK_HELD') != '1':
@@ -32,6 +35,7 @@ def main():
     reference = ROOT / 'runs/sm90d1/build/reference2' / f"{c['model']}-B{c['batch']}"
     prefill = reference / 'prefill.so'
     decode = (reference if a.tag == 'reference' else RUN / 'build' / a.tag / reference.name) / 'decode.so'
+    plain_decode = decode
     if a.decode_library:
         decode = a.decode_library.resolve()
         plan = read(str(decode) + '.plan.json')
@@ -61,6 +65,12 @@ def main():
                    '--prefill', str(prefill), '--decode', str(decode),
                    '--batch', str(c['batch']), '--mode', 'L1', '--loop', '1',
                    '--out', str(a.out / 'trace'), '--past', '575', '--warmup-windows', '4']
+        if a.trace_request_history:
+            command[1] = str(ROOT / 'scripts/trace_sm90r2_request.py')
+            command += ['--decode-plain', str(plain_decode),
+                        '--prompt-ids', str(ROOT / c['prompt_ids'])]
+            if a.stage == 'trace-control':
+                command += ['--control']
     command = [PYTHON, '-m', 'tilemega.serving.random_checkpoint',
                '--config', str(ROOT / c['model_dir']), '--out', str(a.out / 'checkpoint'),
                '--seed', '0', '--max-gib', '32', '--', *command]
