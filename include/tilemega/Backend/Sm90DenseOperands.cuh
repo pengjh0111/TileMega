@@ -26,8 +26,9 @@ struct Sm90DenseAttentionOperands {
   int past;
   float epsilon;
 };
-// A bank is fully initialized only by the CTA's thread zero. It is immutable
-// from the publishing V3 CTA join until that stage's complete CTA return.
+// Thread zero fully initializes the active member for the next stage. That
+// member is immutable from the V3 CTA join until the stage's complete return.
+// The other member is not read by the stage or its preissue tail.
 struct alignas(16) Sm90DenseOperandBank {
   alignas(16) Sm90DenseOperands gemm;
   alignas(16) Sm90DenseAttentionOperands attention;

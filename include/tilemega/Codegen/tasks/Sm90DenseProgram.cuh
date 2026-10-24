@@ -120,7 +120,6 @@ struct Gemm:epilogue_contract::Presence<Norm,Sums> {
     record.gemm.norm_sums=reinterpret_cast<float const*>(b.template Get<Norm>());
     record.gemm.output_sums=reinterpret_cast<float*>(b.template Get<Sums>());
     record.gemm.epsilon=epsilon;
-    record.attention={};
   }
   template<int Prefix,class B,class Tail,bool Initialize=true>
   __device__ static __forceinline__ void Run(B const& b,int,char* shared,float,
@@ -165,7 +164,6 @@ struct Attention {
   template<class B>
   __device__ static __forceinline__ void PublishOperands(B const& b,int past,float epsilon,
       backend::Sm90DenseOperandBank& record) {
-    record.gemm={};
     record.attention.qkv=b.template Get<Qkv>();record.attention.key=b.template Get<Key>();
     record.attention.value=b.template Get<Value>();record.attention.output=b.template Get<Output>();
     record.attention.cosine=b.template Get<Cosine>();record.attention.sine=b.template Get<Sine>();
