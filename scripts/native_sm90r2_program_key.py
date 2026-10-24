@@ -55,7 +55,7 @@ def program_key(binary):
         binary_sha256=identity['binary_sha256'],
         linked_resource_evidence=dict(command=linked['command'],tool_sha256=linked['tool_sha256'],
             stdout=linked['stdout'],stderr=linked['stderr']),
-        ptxas_entry_resources=identity['resources'][entries[0]],
+        ptxas_entry_resources=identity.get('ptxas_resources',identity['resources'])[entries[0]],
         evidence='verified instructions, launch resources and non-lookahead coordinates')
 
 

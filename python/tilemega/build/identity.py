@@ -102,6 +102,12 @@ def verify(so, expected_source=None):
     if identity.get('schema')!=1:raise ValueError('unsupported artifact identity schema; rebuild the plan')
     payload={k:v for k,v in identity.items() if k!='artifact_id'}
     if digest(payload)!=identity['artifact_id']:raise ValueError('identity metadata digest mismatch')
+    if 'linked_resource_evidence' in identity:
+        from .linked_resources import identity_resources
+        allocated=identity_resources(identity['ptxas_resources'],identity['linked_resource_evidence'],
+            identity['nvcc_arch'],identity['binary_sha256'])
+        if allocated!=identity['resources']:
+            raise ValueError('artifact linked resource allocation mismatch')
     if expected_source is not None and any(identity['source'].get(key)!=expected_source.get(key)
             for key in ('source_digest','compiler_sha256')):
         raise ValueError('artifact source/compiler differs from the requested build')
@@ -188,6 +194,13 @@ def generate(so, root, source_snapshot):
             'resources':resources,'trace':trace,
             'target_sha256':sha(target) if target and Path(target).is_file() else None,
             'implementations':implementations(manifest,defines), 'gemm_dispatch':gemm_dispatch}
+    if 'native_dense' in manifest:
+        from .linked_resources import inspect, identity_resources
+        linked=inspect(so,compiled_arch,list(resources),
+            os.environ.get('CUOBJDUMP','/usr/local/cuda/bin/cuobjdump'))
+        result['ptxas_resources']=resources
+        result['resources']=identity_resources(resources,linked,compiled_arch,result['binary_sha256'])
+        result['linked_resource_evidence']=linked
     if defines.get('TILEMEGA_DM_SUPPORT','0').strip()=='1':
         from .compiler_macros import capture
         result['dm']={key:manifest[key] for key in DM_FIELDS if key in manifest}

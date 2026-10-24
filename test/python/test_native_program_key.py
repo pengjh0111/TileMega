@@ -16,7 +16,7 @@ spec.loader.exec_module(module)
 
 class NativeProgramKeyTest(unittest.TestCase):
     def key(self, registers=254, stack=8, ptxas=74, lookahead=1, slots=2,
-            source='source-a', instructions=None, changed_binary=False):
+            source='source-a', instructions=None, changed_binary=False, canonical=False):
         with tempfile.TemporaryDirectory() as temporary:
             binary = Path(temporary) / 'test.so'
             plan = dict(native_dense=dict(gemms={'qkv': dict(register_stages=lookahead, slots=slots)}),
@@ -25,6 +25,9 @@ class NativeProgramKeyTest(unittest.TestCase):
             identity = dict(trace=False, binary_sha256='binary', shared_memory_bytes=199808,
                 nvcc_arch='sm_90a', source=dict(source_digest=source),
                 resources={'sm90_dense_native_kernel': dict(registers=ptxas, stack_bytes=0)})
+            if canonical:
+                identity['ptxas_resources']=copy.deepcopy(identity['resources'])
+                identity['resources']['sm90_dense_native_kernel'].update(registers=registers,stack_bytes=stack)
             linked = dict(binary_sha256='changed' if changed_binary else 'binary',
                 resources={'sm90_dense_native_kernel': dict(registers=registers,stack_bytes=stack,
                     static_smem_bytes=1024,local_bytes=0)},
@@ -47,6 +50,12 @@ class NativeProgramKeyTest(unittest.TestCase):
         self.assertEqual(base['program_key'], other['program_key'])
         self.assertEqual(base['signature']['resources']['registers'], 254)
         self.assertEqual(other['ptxas_entry_resources']['registers'], 82)
+
+    def test_canonical_identity_retains_separate_prelink_audit(self):
+        result=self.key(canonical=True)
+        self.assertEqual(result['signature']['resources']['registers'],254)
+        self.assertEqual(result['ptxas_entry_resources']['registers'],74)
+        self.assertEqual(result['program_key'],self.key()['program_key'])
 
     def test_lookahead_only_is_dropped_after_compiled_comparison(self):
         base = self.key()['program_key']
