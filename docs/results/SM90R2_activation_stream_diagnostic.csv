@@ -1,0 +1,21 @@
+shape,metric,processes,median_ns,p99_ns,process_range_pct,physical_gpu,results_sha256,evidence,performance_eligible,coefficients_changed
+tk2048_s2,first_full_ready,5,3328.0,3360.0,0.0,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk2048_s2,first_release,5,4224.0,4288.0,0.7575757575757576,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk2048_s2,steady_full_ready_period,5,3165.67272727,3167.41818182,0.018378974395807917,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk2048_s2,steady_release_period,5,3157.52727273,3159.85454545,0.018426386527993062,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk2048_s2,stream64_span,5,203232.0,203360.0,0.0,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk256_s2,first_full_ready,5,736.0,800.0,0.0,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk256_s2,first_release,5,960.0,992.0,0.0,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk256_s2,steady_full_ready_period,5,521.890909091,523.054545455,0.1114827202131925,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk256_s2,steady_release_period,5,520.145454545,521.890909091,0.0,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk256_s2,stream64_span,5,33760.0,33824.0,0.0,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk256_s3,first_full_ready,5,736.0,768.0,0.0,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk256_s3,first_release,5,960.0,1024.0,0.0,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk256_s3,steady_full_ready_period,5,537.018181818,538.181818182,0.0,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk256_s3,steady_release_period,5,535.272727273,536.436363636,0.10869565220782623,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk256_s3,stream64_span,5,34720.0,34784.0,0.0,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk512_s2,first_full_ready,5,1088.0,1152.0,0.0,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk512_s2,first_release,5,1408.0,1472.0,0.0,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk512_s2,steady_full_ready_period,5,900.072727273,901.236363636,0.0,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk512_s2,steady_release_period,5,897.745454545,898.909090909,0.0,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
+tk512_s2,stream64_span,5,58016.0,58080.0,0.05515719801434087,0,ab6ffc5db98d38565438c84e044356fb34423c583370a91844b4c81f84a66fb2,verified vector-reader surrogate; provisional namespace-limited guard,False,False
