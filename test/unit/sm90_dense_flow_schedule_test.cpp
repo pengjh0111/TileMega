@@ -106,6 +106,18 @@ int main(int argc,char** argv) {
   tie.policy.resources["rmw_counter"]->arbitration="fifo_source_order_model";assert(tie.Run().owners[0]==b);
   tie.policy.resources["rmw_counter"]->arbitration="fifo_reverse_source_order_model";assert(tie.Run().owners[0]==a);
 
+  Fixture cutoff;cutoff.Resource("two_lanes",2);cutoff.Service("work",2,1);
+  cutoff.map.initial_resource_available["two_lanes"]={5,5};
+  auto x=cutoff.Add("first","work","two_lanes"),y=cutoff.Add("second","work","two_lanes");
+  auto z=cutoff.Add("later","work","two_lanes");cutoff.map.operations[z].not_before=1;
+  cutoff.map.operations[x].tie_priority.reset();cutoff.map.operations[y].tie_priority.reset();
+  cutoff.map.finish=cutoff.Add("finish","","",{{x},{y},{z}});
+  // The strict policy checks the last-admitted ready-time group even when
+  // that entire group fits and only a later-ready group lies outside capacity.
+  assert(!cutoff.Run().scope_time);
+  cutoff.policy.resources["two_lanes"]->arbitration="fifo_source_order_model";
+  assert(cutoff.Run().scope_time);
+
   // Only source geometry is exercised here; epilogue/operand services are
   // fictional, so no runtime-plan binding is asserted by this fixture.
   Sm90DenseWorkload w{{{{4096,1024},{1024,2048},{6144,1024},{1024,3072},{151936,1024}}},16,28,128,2,true};
@@ -130,6 +142,11 @@ int main(int argc,char** argv) {
   auto same_source=motif;for(auto& p:same_source.policy.services)p.second.reset();assert(!same_source.Run().scope_time);
   auto prefixed=graph.stages[3];assert(prefixed.ctas[0].tasks.front().blocks.front().prefix_bytes);
   assert(!Gemm(prefixed,{0,1},false).Run().scope_time);
+  std::vector<int> all_ctas(graph.grid);std::iota(all_ctas.begin(),all_ctas.end(),0);
+  auto full_head=Gemm(head,all_ctas,false);auto full_response=full_head.Run();
+  assert(full_head.map.operations.size()>90000 && full_response.pending.empty() && full_response.scope_time);
+  for(auto const& started:full_response.starts)assert(started);
+  for(auto const& done:full_response.completions)assert(done);
   std::cout<<"synthetic schedule passed; real Qwen head tasks/CTA="<<head.ctas[0].tasks.size()<<" blocks="<<blocks
       <<" operations="<<motif.map.operations.size()<<" hierarchy_fast="<<*shared.scope_time<<" hierarchy_slow="<<*separate.scope_time
       <<" (fictional time units; not physical predictions)\n";
