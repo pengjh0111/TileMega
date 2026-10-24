@@ -2,6 +2,7 @@
 #pragma once
 #include <tilemega/Backend/Sm90DenseRing.cuh>
 #include <cutlass/bfloat16.h>
+#include <cuda.h>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
@@ -10,7 +11,9 @@
 #endif
 namespace tilemega::backend {
 struct Sm90DenseOperands {
-  cutlass::bfloat16_t const *activation,*weight,*residual;
+  // A is read only through its tensor map (prompt §5 D3).
+  CUtensorMap const* activation;
+  cutlass::bfloat16_t const *weight,*residual;
   cutlass::bfloat16_t* output;
   int* argmax_index;
   float const* norm_sums;

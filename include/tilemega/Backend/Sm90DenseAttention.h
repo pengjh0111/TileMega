@@ -59,7 +59,6 @@ struct Sm90DenseAttention {
           }
         } else Async::Arrive(state.full);
       }
-      Async::CompleteCopies(state.full);
       phase^=1;
     }
     __syncwarp();
@@ -211,6 +210,8 @@ struct Sm90DenseAttention {
       Compute(s,range.end-range.begin);
       // Historical operands are dead before publishing empty; the producer
       // may refill them while consumers finish the deterministic reductions.
+      // Generic reads before the async-proxy refill (see Sm90DenseGemm).
+      Async::FenceProxyAsyncShared();
       Async::Arrive(state.empty);
       codegen::executor::ComputeSync();
       Partial(p,s,task);

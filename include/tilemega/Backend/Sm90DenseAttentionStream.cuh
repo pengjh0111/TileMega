@@ -77,7 +77,7 @@ struct Sm90DenseAttentionStream {
             }
           }else Async::Arrive(state.full+slot);
         }
-        Async::CompleteCopies(state.full+slot);phase^=1u<<slot;
+        phase^=1u<<slot;
       }
     }
     __syncwarp();
@@ -148,6 +148,8 @@ struct Sm90DenseAttentionStream {
           });
           PV::PV(score,scores_coords,value+interval*D,output);
         }
+        // Generic reads before the async-proxy refill (see Sm90DenseGemm).
+        Async::FenceProxyAsyncShared();
         Async::Arrive(state.empty+slot);
       }
       for_each(make_int_sequence<size(output)>{},[&](auto i) {

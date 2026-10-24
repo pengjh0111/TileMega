@@ -5,6 +5,7 @@
 
 #include <tilemega/Backend/Sm90DenseEpilogue.h>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
+#include <tilemega/Backend/Sm90DenseLayout.h>
 #include <cute/tensor.hpp>
 
 namespace tilemega::backend {
@@ -22,14 +23,22 @@ struct Sm90DenseGemm {
                 RegisterStages<=TK/(16*WarpsK));
   static_assert(Op!=ServingEpilogueOp::kPartial,"dense decode never splits K across tasks");
   static constexpr int kThreads=160,kIterations=K/TK;
-  static constexpr int kOperandBytes=2*Slots*TK*(16+TN);
+  static constexpr int kRows=Sm90DenseLayout::ActivationRows(Batch);
+  static constexpr int kOperandBytes=2*Slots*TK*(kRows+TN);
+  static constexpr int kSlotBytes=2*TK*(kRows+TN);
   // 512 B past the WK partial tiles hold InputNorm inverses and the
   // parallel argmax's per-warp (value, index) pairs (16 rows x 4 warps).
   static constexpr int kSharedBytes=1024+kOperandBytes+4*WarpsK*16*TN+512;
   static_assert(kThreads==Sm90DenseRoleAbi::kThreads);
   using Atom=decltype(cute::composition(cute::Swizzle<3,3,3>{},
       cute::Layout<cute::Shape<cute::_8,cute::_64>,cute::Stride<cute::_64,cute::_1>>{}));
-  using LayoutA=decltype(cute::tile_to_shape(Atom{},cute::Shape<cute::_16,cute::Int<TK>>{}));
+  // The TMA box writes [TK/64][kRows][64] panels with SWIZZLE_128B, the same
+  // 8x64 atom as Swizzle<3,3,3>. For B<=8 MMA rows 8..15 alias rows 0..7:
+  // those duplicate output rows are never written.
+  using LayoutA=decltype(cute::composition(cute::Swizzle<3,3,3>{},cute::Layout<
+      cute::Shape<cute::Shape<cute::_8,cute::_2>,cute::Shape<cute::_64,cute::Int<TK/64>>>,
+      cute::Stride<cute::Stride<cute::_64,cute::Int<kRows==16?512:0>>,
+                   cute::Stride<cute::_1,cute::Int<kRows*64>>>>{}));
   using LayoutB=decltype(cute::tile_to_shape(Atom{},cute::Shape<cute::Int<TN>,cute::Int<TK>>{}));
   using Mma=decltype(cute::make_tiled_mma(cute::SM80_16x8x16_F32BF16BF16F32_TN{},
       cute::Layout<cute::Shape<cute::_1,cute::Int<WarpsN>,cute::_1>>{},
@@ -37,7 +46,7 @@ struct Sm90DenseGemm {
   using CopyA=cute::Copy_Atom<cute::SM75_U32x4_LDSM_N,Element>;
   using CopyB=std::conditional_t<(TN/WarpsN<=16 || (TN/WarpsN)%16!=0),
       cute::Copy_Atom<cute::SM75_U32x2_LDSM_N,Element>,CopyA>;
-  static_assert(cute::cosize_v<LayoutA> ==16*TK && cute::cosize_v<LayoutB> ==TN*TK);
+  static_assert(cute::cosize_v<LayoutB> ==TN*TK);
 
   template<int Bytes>
   // Raw operand pointers share the transfer loop across layer-specific bindings.
@@ -45,7 +54,7 @@ struct Sm90DenseGemm {
       Sm90DenseRingState& state) {
     static_assert(Bytes>0 && Bytes%16==0 &&
         Bytes<=(Slots<kIterations?Slots:kIterations)*2*TN*TK);
-    auto* b=reinterpret_cast<Element*>(shared+1024)+Slots*16*TK;
+    auto* b=reinterpret_cast<Element*>(shared+1024)+Slots*kRows*TK;
     int remaining=Bytes;
     #pragma unroll
     for(int slot=0;slot<Slots && slot<kIterations;++slot) {
@@ -53,7 +62,9 @@ struct Sm90DenseGemm {
       if(part) {
         // Preissue owns the alternate bank: its previous users joined before
         // the preceding V3 boundary. Current arena overlap is checked by Tail.
-        Async::ExpectTx(state.full+slot,2*TN*TK);
+        // The activation depends on the current stage; its bytes are expected
+        // here and its TMA is issued by the consuming stage after its fence.
+        Async::ExpectTx(state.full+slot,kSlotBytes);
         Async::Bulk(b+slot*TN*TK,weight+(std::size_t(blockIdx.x)*kIterations+slot)*TN*TK,
             part,state.full+slot);
       }
@@ -69,38 +80,34 @@ struct Sm90DenseGemm {
   __device__ static __noinline__ void Produce(Sm90DenseOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,int tasks,unsigned phase) {
     Sm90DenseRoles::Producer();
-    Element const* const activation=p.activation;
-    Element const* const weight=p.weight;
-    int lane=threadIdx.x-128;
-    for(int sequence=0;sequence<tasks*kIterations;++sequence) {
-      int slot=sequence%Slots,task=int(blockIdx.x)+(sequence/kIterations)*int(gridDim.x);
-      int tile=sequence%kIterations;
-      Async::Wait(state.empty+slot,(phase>>slot)&1);
-      if(lane==0) {
+    if(threadIdx.x==128) {
+      CUtensorMap const* const activation=p.activation;
+      Element const* const weight=p.weight;
+      // The activation was written by other CTAs with generic stores before
+      // the grid barrier; the async proxy must observe them (appendix C.1).
+      Async::ProxyAsyncGlobalFence();
+      for(int sequence=0;sequence<tasks*kIterations;++sequence) {
+        int slot=sequence%Slots,task=int(blockIdx.x)+(sequence/kIterations)*int(gridDim.x);
+        int tile=sequence%kIterations;
+        Async::Wait(state.empty+slot,(phase>>slot)&1);
         // The first task starts at slot zero in every invocation. Its incoming
         // budget is fixed by the same Placement that issued the transaction.
         unsigned prefix=0;
         if constexpr(Prefix>0)
           if(sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
             prefix=min(Prefix-sequence*2*TN*TK,2*TN*TK);
-        if(!prefix)Async::ExpectTx(state.full+slot,2*TN*TK);
+        if(!prefix)Async::ExpectTx(state.full+slot,kSlotBytes);
         if(prefix<2*TN*TK)Async::Bulk(b+slot*TN*TK+prefix/2,
             weight+(std::size_t(task)*kIterations+tile)*TN*TK+prefix/2,
             2*TN*TK-prefix,state.full+slot);
+        // Rows past Batch fall outside the map and arrive as zeros.
+        Async::Tensor3D(a+slot*kRows*TK,activation,0,0,tile*(TK/64),state.full+slot);
+        phase^=1u<<slot;
       }
-      for(int v=lane*8;v<Batch*TK;v+=32*8) {
-        int row=v/TK,col=v%TK;
-        auto* source=activation+std::size_t(row)*K+tile*TK+col;
-        Async::Copy16Bytes(a+slot*16*TK+LayoutA{}(row,col),source,16);
-      }
-      // One bulk arrival plus 32 cp.async arrivals make the full barrier cover
-      // both operands. Inactive rows remain zero throughout this invocation.
-      Async::CompleteCopies(state.full+slot);
-      phase^=1u<<slot;
+      if(tasks)for(int slot=0;slot<Slots;++slot)
+        state.producer_generations[slot]=(phase>>slot)&1;
     }
     __syncwarp();
-    if(lane==0 && tasks)for(int slot=0;slot<Slots;++slot)
-      state.producer_generations[slot]=(phase>>slot)&1;
   }
 
   template<int Split,class Accumulator>
@@ -158,7 +165,7 @@ struct Sm90DenseGemm {
       for(int iteration=0;iteration<kIterations;++iteration) {
         int sequence=local*kIterations+iteration,slot=sequence%Slots;
         Async::Wait(state.full+slot,(phase>>slot)&1);phase^=1u<<slot;
-        auto* sa=a+slot*16*TK;auto* sb=b+slot*TN*TK;
+        auto* sa=a+slot*kRows*TK;auto* sb=b+slot*TN*TK;
         // A warp takes one uniform specialization. All 128-thread barriers
         // and shared reductions remain at common call sites after reconvergence.
         if constexpr(WarpsK==1)MmaSlice<0>(sa,sb,accum);
@@ -172,6 +179,10 @@ struct Sm90DenseGemm {
         }
         // The empty barrier counts every reader; a separate CTA rendezvous
         // would serialize otherwise independent consumer warps on every slot.
+        // The refill is an async-proxy write after these generic reads: the
+        // mbarrier orders only the generic proxy, so each reader fences first
+        // (PTX ISA 8.7 sec. 8.6 proxies; without it TN448 B1 lost 132/200 runs).
+        Async::FenceProxyAsyncShared();
         Async::Arrive(state.empty+slot);
       }
       for(int i=0;i<size(accum);++i)
@@ -197,18 +208,7 @@ struct Sm90DenseGemm {
       state.consumer_generations[slot]=(phase>>slot)&1;
   }
 
-  __device__ static __forceinline__ void InitializeInactive(Element* a) {
-    if constexpr(Batch<16) {
-      for(int i=threadIdx.x*8;i<Slots*(16-Batch)*TK;i+=160*8) {
-        int slot=i/((16-Batch)*TK),within=i%((16-Batch)*TK);
-        *reinterpret_cast<uint4*>(a+slot*16*TK+LayoutA{}(Batch+within/TK,within%TK))=
-            make_uint4(0,0,0,0);
-      }
-      __syncthreads();
-    }
-  }
-
-  template<bool InputNorm,bool OutputSums,int Prefix=0,class Tail=Sm90DenseNoTail,bool Initialize=true>
+  template<bool InputNorm,bool OutputSums,int Prefix=0,class Tail=Sm90DenseNoTail>
   __device__ static __forceinline__ void Run(Sm90DenseOperands const& p,char* shared,
       Sm90DenseRingState* persistent=nullptr,Tail tail={}) {
     static_assert(Prefix>=0 && Prefix%16==0 &&
@@ -217,9 +217,8 @@ struct Sm90DenseGemm {
                   "native dense GEMM requires Hopper sm_90a");
     auto& state=persistent?*persistent:*reinterpret_cast<Sm90DenseRingState*>(shared);
     auto* a=reinterpret_cast<Element*>(shared+1024);
-    auto* b=a+Slots*16*TK;
+    auto* b=a+Slots*kRows*TK;
     auto* scratch=reinterpret_cast<float*>(shared+1024+kOperandBytes);
-    if constexpr(Initialize)InitializeInactive(a);
     unsigned phase=0;
     #pragma unroll
     for(int i=0;i<Slots;++i)phase|=(threadIdx.x<128?

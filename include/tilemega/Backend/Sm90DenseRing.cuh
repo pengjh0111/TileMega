@@ -14,7 +14,8 @@ struct alignas(16) Sm90DenseRingState {
   __device__ void Initialize() {
     if(threadIdx.x==0) {
       for(int i=0;i<8;++i) {
-        Async::Init(full+i,33);Async::Init(empty+i,128);
+        // Every operand of a slot arrives by bulk/TMA under one expect_tx.
+        Async::Init(full+i,1);Async::Init(empty+i,128);
         producer_generations[i]=0;consumer_generations[i]=0;
         prefix_bytes[i]=0;
       }
