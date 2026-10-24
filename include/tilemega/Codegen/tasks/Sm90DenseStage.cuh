@@ -57,10 +57,10 @@ struct RawProducerTail {
 
 template<class Body>
 struct StageEntry {
-  template<int Prefix,bool InputNorm,bool OutputSums,bool Initialize=true,class Tail>
+  template<int Prefix,bool InputNorm,bool OutputSums,class Tail>
   __device__ static __forceinline__ void Gemm(backend::Sm90DenseOperands const& p,char* shared,
       backend::Sm90DenseRingState* ring,Tail tail) {
-    Body::template Run<InputNorm,OutputSums,Prefix,Tail,Initialize>(p,shared,ring,tail);
+    Body::template Run<InputNorm,OutputSums,Prefix,Tail>(p,shared,ring,tail);
   }
   template<class Tail>
   __device__ static __forceinline__ void Attention(backend::Sm90DenseAttentionOperands const& p,

@@ -56,9 +56,10 @@ def dispatch(manifest, defines, source):
     for index, (gemm, alias) in enumerate(zip(gemms, aliases)):
         typed, number, raw = alias
         args = raw.split(',')
-        if len(args) not in (17, 18):
+        # ..., register stages, activation tensor-map index (prompt §5 D3).
+        if len(args) != 19:
             raise ValueError('native dense GEMM call signature is invalid')
-        register_stages = int(args[17]) if len(args) == 18 else 1
+        register_stages = int(args[17])
         batch, n, k, tn, tk, slots, wn, wk = map(int, args[:8])
         actual = dict(tile_m=16, tile_n=tn, tile_k=tk, stages=slots,
                       warps_n=wn, warps_k=wk, split_k=1)
@@ -78,8 +79,7 @@ def dispatch(manifest, defines, source):
         if args[8] != 'backend::ServingEpilogueOp::' + op:
             raise ValueError('native dense GEMM epilogue differs from its family')
         row = dict(index=index, compiled_variant=index, impl='native_mma_sync', **actual)
-        if len(args) == 18:
-            row['register_stages'] = register_stages
+        row['register_stages'] = register_stages
         result.append(row)
     if manifest.get('native_origin') == 'historical_ablation':
         attention = re.findall(r'using Body_(\d+)\s*=\s*HistoricalAttention<([^;]+)>;', source)

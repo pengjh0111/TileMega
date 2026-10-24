@@ -2156,6 +2156,11 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   }
   out<<"}};\n";
   unsigned number=0;
+  // One TMA descriptor per (activation buffer, K, TK, rows); layers that share
+  // the residual stream also share its descriptor.
+  std::map<std::array<std::int64_t,4>,unsigned> maps;
+  std::vector<std::array<std::int64_t,4>> map_order;
+  int activation_rows=batch<=8?8:16;
   for(auto value:stages) {
     auto s=dictionaryEntry(value,"stages");auto kind=stringField(s,"kind");
     auto operands=s.getAs<mlir::DenseI64ArrayAttr>("operands");
@@ -2187,7 +2192,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       for(auto field:{"a","b","c","d"})types<<','<<id(g,field);
       types<<','<<(op=="argmax_partial"?std::to_string(argmax_index):"kAbsent");
       for(auto field:{"norm_ss","ss_out"})types<<','<<id(g,field);
-      types<<','<<cfg.register_stages;
+      std::array<std::int64_t,4> key{integerField(g,"a"),integerField(g,"k"),cfg.TileK(),activation_rows};
+      auto found=maps.emplace(key,unsigned(map_order.size()));
+      if(found.second)map_order.push_back(key);
+      types<<','<<cfg.register_stages<<','<<found.first->second;
     }else if(kind=="kFusedAttention") {
       if(extent!=8 || (width!=64 && width!=128) || group<2 || group>4 ||
          integerField(s,"dense_attention_chunks")!=c.attention.chunks ||
@@ -2217,7 +2225,11 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
          <<tasks<<','<<extent<<','<<group<<','<<width<<','<<chunks<<"},\n";
     ++number;
   }
-  out<<types.str()<<"using NativeProgram=Program<"<<batch<<','<<capacity<<','<<c.residency<<','<<buffers.size();
+  out<<"constexpr std::array<NativeTensorMap,"<<map_order.size()<<"> kNativeTensorMaps={{\n";
+  for(auto const& m:map_order)out<<"  {"<<m[0]<<"u,"<<m[1]<<"u,"<<m[2]<<"u,"<<m[3]<<"u},\n";
+  out<<"}};\n";
+  out<<types.str()<<"using NativeProgram=Program<"<<batch<<','<<capacity<<','<<c.residency<<','
+     <<buffers.size()<<','<<map_order.size();
   for(unsigned i=0;i<number;++i)out<<",Stage_"<<i;
   out<<">;\nconstexpr std::array<StageInfo,"<<number<<"> kNativeStages={{\n"<<debug.str()<<"}};\n"
      <<"}  // namespace tilemega::codegen::native_dense\n"

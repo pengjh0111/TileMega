@@ -3,6 +3,7 @@
 
 #include <tilemega/Codegen/tasks/ServingAbi.h>
 #include <tilemega/Codegen/tasks/Sm90DenseProgram.cuh>
+#include <tilemega/Codegen/executor/TensorMapTiled.h>
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
@@ -17,6 +18,7 @@
 namespace tilemega::codegen::native_dense {
 
 static_assert(kNativeBuffers.size()==NativeProgram::kBuffers);
+static_assert(kNativeTensorMaps.size()==NativeProgram::kMaps);
 static_assert(kNativeStages.size()==NativeProgram::kStages);
 static_assert(kNativeEpsilon>0);
 static_assert(epilogue_contract::kInternal==TM_BUFFER_INTERNAL &&
@@ -185,6 +187,13 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
       if(pointer && reinterpret_cast<std::uintptr_t>(pointer)%16)
         throw std::invalid_argument("native dense buffers require 16-byte alignment");
       plan->bindings.buffers[i]=static_cast<Element*>(pointer);
+    }
+    // GEMM activations [B][K] as {64, B, K/64} so one box is the
+    // [TK/64][rows][64] SWIZZLE_128B slot (prompt §5 D3).
+    for(unsigned i=0;i<kNativeTensorMaps.size();++i) {
+      auto const& m=kNativeTensorMaps[i];
+      tilemega::codegen::executor::EncodeTiledMap<3>(plan->bindings.maps[i],plan->bindings.buffers[m.buffer],
+          {{64,std::uint64_t(batch),m.k/64},{2ull*m.k,128},{64,m.rows,m.tile_k/64}});
     }
     plan->events=Allocate<GridCounter>(NativeProgram::kStages);
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
