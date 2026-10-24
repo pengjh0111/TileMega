@@ -16,6 +16,8 @@ def main():
     p.add_argument('--tag', required=True)
     p.add_argument('--config', type=Path, required=True)
     p.add_argument('--coordinates', type=Path, required=True)
+    p.add_argument('--prefill-library', type=Path,
+                   help='explicit rebuilt prefill for the CPU-only ABI check')
     a = p.parse_args()
     c = read(a.config)
     packed = ROOT / f"configs/serving/sm90d1/inputs/{c['model']}/decode.export.json.xz"
@@ -46,8 +48,9 @@ def main():
         print(json.dumps(dict(status='failed', receipt=str(receipt))), flush=True)
         return status
     reference = ROOT / 'runs/sm90d1/build/reference2' / directory.name
+    prefill = a.prefill_library.resolve() if a.prefill_library else reference / 'prefill.so'
     command = [PYTHON, str(ROOT / 'scripts/check_sm90r2_native_abi.py'),
-               '--prefill', str(reference / 'prefill.so'), '--decode', str(binary),
+               '--prefill', str(prefill), '--decode', str(binary),
                '--model-config', str(ROOT / c['model_dir'] / 'config.json')]
     with (directory / 'decode.host_abi.json').open('w') as log:
         status = subprocess.call(command, cwd=ROOT,

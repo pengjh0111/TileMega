@@ -24,3 +24,20 @@ measurement validity checks; no additional GPU execution is needed for them.
 Reported ratios use historical frozen baselines and do not establish
 same-session improvement. E-3, complete shared-service pricing, and
 solver-final reconstruction remain unmet unless separately established.
+
+For dense reproduction, build the host compiler, then use
+`scripts/build_sm90r2.py --phase prefill` with this directory's build configs.
+Build each decode with `scripts/build_sm90r2_native.py --config CELL.json
+--coordinates CELL.tmexec.json --prefill-library REBUILT_PREFILL.so`.
+Both builders also take `--compiler` and `--tag`. The explicit prefill avoids
+requiring an ignored historical reference binary for the CPU ABI check.
+
+`scripts/prepare_sm90r2_closeout.py --tag TAG --out NEW_DIRECTORY` verifies
+the existing 50 artifacts and emits manifests, per-card queues, and scheduler
+commands without starting GPU work. `--model-gpus` accepts JSON overrides for
+available timing cards; keep every fresh process for a cell on one card.
+All queues retain the physical lock, guard and NUMA binding. Authorized
+concurrent timing is marked `NUMA_CONCURRENCY_TRIAL=1`, `VERIFIED=0`.
+After execution, collect the completed state files with
+`scripts/collect_sm90r2_closeout.py --state STATE [--state STATE ...] --out OUT`.
+Raw receipts and generated preparations stay under `runs/sm90r2/`.
