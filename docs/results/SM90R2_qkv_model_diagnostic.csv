@@ -1,0 +1,5 @@
+evidence,policy,prefed_progress_scenario,processes,predicted_consumer_end_ns,observed_consumer_end_ns,median_process_error_pct,initial_role_entries_observed,future_observed_gates_used,coefficients_refitted,stage_prediction_available,E3_validated,solver_eligible,receipt_sha256
+verified conditional diagnostic; inferred policy,PS,lower,5,5139.740494559479,5376.0,-4.458906933656537,True,False,False,False,False,False,74a5549363f651858c891b3e5e98f6cd1351bef4cd2f1e21fb8a5e47b33e122b
+verified conditional diagnostic; inferred policy,PS,upper,5,4464.235505603914,5376.0,-17.19048172213138,True,False,False,False,False,False,74a5549363f651858c891b3e5e98f6cd1351bef4cd2f1e21fb8a5e47b33e122b
+verified conditional diagnostic; inferred policy,FIFO,lower,5,5270.9707849389115,5376.0,-1.9536684349160782,True,False,False,False,False,False,74a5549363f651858c891b3e5e98f6cd1351bef4cd2f1e21fb8a5e47b33e122b
+verified conditional diagnostic; inferred policy,FIFO,upper,5,4598.9707849389115,5376.0,-14.558915205966072,True,False,False,False,False,False,74a5549363f651858c891b3e5e98f6cd1351bef4cd2f1e21fb8a5e47b33e122b
