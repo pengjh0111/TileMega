@@ -118,7 +118,7 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(
   frontend::ImportOptions options;
   for(auto const& g:plan.gemms) {
     auto const& cfg=c.gemms[Sm90DenseFamily(plan,g)];
-    if(cfg.SharedBytes()>budget)
+    if(cfg.SharedBytes(batch)>budget)
       throw std::invalid_argument("native GEMM exceeds target shared-memory budget");
     if(cfg.mma!=Sm90DenseMma::kMmaSync)
       throw std::invalid_argument("requested native mechanism is not implemented yet");

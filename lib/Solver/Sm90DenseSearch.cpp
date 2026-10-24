@@ -43,7 +43,8 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
       std::stable_sort(f.begin(),f.end(),[&](Option const& a,Option const& b) {
         if(a.ns!=b.ns)return a.ns<b.ns;
         if(i==5)return false;
-        if(a.gemm.SharedBytes()!=b.gemm.SharedBytes())return a.gemm.SharedBytes()<b.gemm.SharedBytes();
+        if(a.gemm.SharedBytes(work.batch)!=b.gemm.SharedBytes(work.batch))
+          return a.gemm.SharedBytes(work.batch)<b.gemm.SharedBytes(work.batch);
         return a.gemm.TileK()>b.gemm.TileK();
       });
       f.erase(std::unique(f.begin(),f.end(),[](Option const& a,Option const& b) {

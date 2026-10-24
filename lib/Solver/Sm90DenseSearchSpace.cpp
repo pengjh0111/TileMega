@@ -50,7 +50,7 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
         g.slots=slots;
         if(double(slots)*g.slot_bytes>=std::min(w_cta,48.0*1024))found=true;
       }
-      if(!found || g.SharedBytes()>budget || g.register_stages>tk/(16*g.warps_k))continue;
+      if(!found || g.SharedBytes(batch)>budget || g.register_stages>tk/(16*g.warps_k))continue;
       try {g.Validate(n,k);}catch(std::invalid_argument const&) {continue;}
       result.push_back(g);
     }

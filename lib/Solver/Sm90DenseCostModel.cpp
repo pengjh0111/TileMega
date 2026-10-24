@@ -25,9 +25,8 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   double tasks=n/g.tile_n,per_cta=std::ceil(tasks/grid);
   double w_tot=2.0*n*k,a_tot=tasks*b*k*2.0;
   double w_cta=per_cta*g.tile_n*k*2.0,a_cta=per_cta*b*k*2.0;
-  // Before D3 the activation is a single-warp cp.async stream beside the
-  // weight bulk; both proceed in parallel inside one CTA.
-  double cta=std::max(w_cta/c.sm_gbps,a_cta/c.cp_async_gbps);
+  // D3: weights (bulk) and activations (TMA) share one CTA's async stream.
+  double cta=(w_cta+a_cta)/c.sm_gbps;
   double ring=w_cta*c.dram_latency/(double(g.slots)*g.slot_bytes);
   double stream=std::max({w_tot/c.dram_gbps,(w_tot+a_tot)/c.l2_gbps,cta,ring});
   static constexpr char const* kEpilogue[]={"qkv","residual","gate_up","residual","lm_head"};

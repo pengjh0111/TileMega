@@ -27,8 +27,9 @@ struct Sm90DenseGemm {
   int workspace_offset=0;
   bool preissue_late=false;
   int TileK() const { return int(slot_bytes/(2ll*tile_n)); }
-  std::int64_t SharedBytes() const {
-    std::int64_t operands=slots*(std::int64_t(slot_bytes)+32ll*TileK());
+  std::int64_t SharedBytes(int batch) const {
+    std::int64_t operands=slots*(std::int64_t(slot_bytes)+
+        2ll*backend::Sm90DenseLayout::ActivationRows(batch)*TileK());
     std::int64_t reduction=64ll*tile_n*warps_k+512;
     return workspace_offset+1024+operands+reduction;
   }
@@ -98,7 +99,7 @@ struct Sm90DenseCoordinates {
       for(int tile_k:{256,128,64}) {
         if(k%tile_k)continue;
         g.slot_bytes=2*g.tile_n*tile_k;
-        if(g.SharedBytes()<=shared_budget) {fits=true;break;}
+        if(g.SharedBytes(batch)<=shared_budget) {fits=true;break;}
       }
       if(!fits)throw std::invalid_argument("dense exact seed exceeds shared-memory budget");
       if((i==1 || i==3) && g.tile_n%32)result.dn_vector_sums=true;
@@ -130,10 +131,10 @@ struct Sm90DenseCoordinates {
     std::array<Stage,6> stages;
     for(unsigned i=0;i<5;++i) {
       auto const& g=gemms[i];
-      if(g.SharedBytes()>budget)
+      if(g.SharedBytes(batch)>budget)
         throw std::invalid_argument("native GEMM arena exceeds target budget");
-      stages[i]={Layout::Gemm(g.tile_n,g.TileK(),g.slots,g.warps_k),
-          Layout::GemmPayload(g.tile_n,g.TileK(),g.slots,nk[i][1],g.preissue_smem_bytes)
+      stages[i]={Layout::Gemm(g.tile_n,g.TileK(),g.slots,g.warps_k,batch),
+          Layout::GemmPayload(g.tile_n,g.TileK(),g.slots,nk[i][1],batch,g.preissue_smem_bytes)
               .Shift(g.workspace_offset),g.workspace_offset};
     }
     int rows=batch<=4?Layout::AttentionKeys(attention.chunks,attention.new_row_work,capacity):
@@ -155,24 +156,6 @@ struct Sm90DenseCoordinates {
       if(next.payload.Overlaps(previous.layout.Scratch(previous.offset)))
         throw std::invalid_argument("native preissue overlaps live epilogue scratch");
     }
-  }
-
-  backend::Sm90DenseActivationReuse ActivationReuse(int batch,int dim,int queries,int capacity) const {
-    // Uniform slots retain zero inactive rows across stages. Argmax moves
-    // beyond those slots only when it fits the already allocated arena.
-    using Layout=backend::Sm90DenseLayout;
-    std::array<backend::Sm90DenseActivationStage,7> stages{};
-    for(unsigned i=0;i<5;++i) {
-      auto const& g=gemms[i];
-      stages[i]={g.TileK(),g.slots,g.workspace_offset,
-          Layout::Gemm(g.tile_n,g.TileK(),g.slots,g.warps_k).Live(g.workspace_offset),false};
-    }
-    auto const& a=attention;
-    stages[5]={0,0,a.workspace_offset,
-        Layout::Attention(batch,dim,queries,a.chunks,a.block_keys,a.slots,a.new_row_work,capacity)
-            .Live(a.workspace_offset),false};
-    stages[6]={0,0,0,Layout::Argmax().Live(0),true};
-    return backend::Sm90DenseActivationReuse::Prove(stages,batch);
   }
 
   json::Value ToJson() const {
