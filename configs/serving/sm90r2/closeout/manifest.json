@@ -1,0 +1,582 @@
+{
+  "schema": 1,
+  "kind": "sm90r2_closeout_dense_fixed_coordinates",
+  "prepared_from_head": "877896cce8e338aab86f54bb36811e2b7fbf2209",
+  "selection": "fixed controls, not accepted final solver output",
+  "solver_validated": false,
+  "e3_validated": false,
+  "performance_feedback_used": false,
+  "protocol": {
+    "isl": 64,
+    "osl": 1024,
+    "warmup": 1,
+    "repeats": 3,
+    "dtype": "bfloat16",
+    "sampling": "greedy"
+  },
+  "prefill_policy": "rebuild each of25 cells at same build HEAD as decode using frozen reference options",
+  "cells": [
+    {
+      "cell": "qwen3_0_6b_b1",
+      "model": "qwen3_0_6b",
+      "batch": 1,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_0_6b_b1.tmexec.json",
+        "sha256": "51acac96296a99b5ddf83b5a89a1f3c5ec28cb095e083dcb003df1739e8bd22c"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_0_6b_b1.json",
+        "sha256": "4afee0f51199c9a8d8fff122882626446c622eaf1451a7111bb55f01dd050440"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/qwen3_0_6b_b1.tmexec.json",
+        "sha256": "51acac96296a99b5ddf83b5a89a1f3c5ec28cb095e083dcb003df1739e8bd22c",
+        "reason": "exact tracked isolation C0 cell",
+        "transform": []
+      },
+      "shared_bytes": 230528,
+      "requested_residency": 1
+    },
+    {
+      "cell": "qwen3_0_6b_b2",
+      "model": "qwen3_0_6b",
+      "batch": 2,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_0_6b_b2.tmexec.json",
+        "sha256": "51acac96296a99b5ddf83b5a89a1f3c5ec28cb095e083dcb003df1739e8bd22c"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_0_6b_b2.json",
+        "sha256": "e418f92d84a155cd7a11dcbc072c22188e070efd1cf8378abc1c687de83e8dc7"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/qwen3_0_6b_b1.tmexec.json",
+        "sha256": "51acac96296a99b5ddf83b5a89a1f3c5ec28cb095e083dcb003df1739e8bd22c",
+        "reason": "same-regime C0 geometry; only compile-time batch changes",
+        "transform": []
+      },
+      "shared_bytes": 230528,
+      "requested_residency": 1
+    },
+    {
+      "cell": "qwen3_0_6b_b4",
+      "model": "qwen3_0_6b",
+      "batch": 4,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_0_6b_b4.tmexec.json",
+        "sha256": "51acac96296a99b5ddf83b5a89a1f3c5ec28cb095e083dcb003df1739e8bd22c"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_0_6b_b4.json",
+        "sha256": "5db377f82c3826370af94fea5aa6011818c0fbccc117f84f080500d759025f5d"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/qwen3_0_6b_b1.tmexec.json",
+        "sha256": "51acac96296a99b5ddf83b5a89a1f3c5ec28cb095e083dcb003df1739e8bd22c",
+        "reason": "same-regime C0 geometry; only compile-time batch changes",
+        "transform": []
+      },
+      "shared_bytes": 230528,
+      "requested_residency": 1
+    },
+    {
+      "cell": "qwen3_0_6b_b8",
+      "model": "qwen3_0_6b",
+      "batch": 8,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_0_6b_b8.tmexec.json",
+        "sha256": "6bc59ac4a5025a36c1ed7c329c08bfdf73d23bab573aeb0094855726a66bf5d6"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_0_6b_b8.json",
+        "sha256": "9d511cd3676bc9d6ca8b9021c433ac7642be13326ef28a2b24f5d30a89872d00"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/qwen3_0_6b_b16.tmexec.json",
+        "sha256": "6bc59ac4a5025a36c1ed7c329c08bfdf73d23bab573aeb0094855726a66bf5d6",
+        "reason": "same-regime C0 geometry; only compile-time batch changes",
+        "transform": []
+      },
+      "shared_bytes": 199808,
+      "requested_residency": 1
+    },
+    {
+      "cell": "qwen3_0_6b_b16",
+      "model": "qwen3_0_6b",
+      "batch": 16,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_0_6b_b16.tmexec.json",
+        "sha256": "6bc59ac4a5025a36c1ed7c329c08bfdf73d23bab573aeb0094855726a66bf5d6"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_0_6b_b16.json",
+        "sha256": "746c13cce749c54ad67ba9faa2c57e0d5e9a81b04cde926a2e78272e8520dec5"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/qwen3_0_6b_b16.tmexec.json",
+        "sha256": "6bc59ac4a5025a36c1ed7c329c08bfdf73d23bab573aeb0094855726a66bf5d6",
+        "reason": "exact tracked isolation C0 cell",
+        "transform": []
+      },
+      "shared_bytes": 199808,
+      "requested_residency": 1
+    },
+    {
+      "cell": "qwen3_1_7b_b1",
+      "model": "qwen3_1_7b",
+      "batch": 1,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_1_7b_b1.tmexec.json",
+        "sha256": "12a469b4a703fee76ec987e4a6b344589551f0d8858abc99f9488b4471309ccf"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_1_7b_b1.json",
+        "sha256": "d8ee8795da343facf1985b52b76e19c195165418ceb4c7538bfc0e8e6e8dd915"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/qwen3_1_7b_b1.tmexec.json",
+        "sha256": "12a469b4a703fee76ec987e4a6b344589551f0d8858abc99f9488b4471309ccf",
+        "reason": "tracked conservative Qwen1.7B B1 control, not newly validated/solver-selected",
+        "transform": []
+      },
+      "shared_bytes": 230528,
+      "requested_residency": 1
+    },
+    {
+      "cell": "qwen3_1_7b_b2",
+      "model": "qwen3_1_7b",
+      "batch": 2,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_1_7b_b2.tmexec.json",
+        "sha256": "12a469b4a703fee76ec987e4a6b344589551f0d8858abc99f9488b4471309ccf"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_1_7b_b2.json",
+        "sha256": "25f81a9d3c10582ceb6824e42334ab38680276f9b8d9edcee76087594d41a086"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/qwen3_1_7b_b1.tmexec.json",
+        "sha256": "12a469b4a703fee76ec987e4a6b344589551f0d8858abc99f9488b4471309ccf",
+        "reason": "tracked conservative Qwen1.7B B1 control, not newly validated/solver-selected",
+        "transform": []
+      },
+      "shared_bytes": 230528,
+      "requested_residency": 1
+    },
+    {
+      "cell": "qwen3_1_7b_b4",
+      "model": "qwen3_1_7b",
+      "batch": 4,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_1_7b_b4.tmexec.json",
+        "sha256": "12a469b4a703fee76ec987e4a6b344589551f0d8858abc99f9488b4471309ccf"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_1_7b_b4.json",
+        "sha256": "7810c8d4e50971834ee3e369b8a09be18588e969fd05a37f8762776c97345c6c"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/qwen3_1_7b_b1.tmexec.json",
+        "sha256": "12a469b4a703fee76ec987e4a6b344589551f0d8858abc99f9488b4471309ccf",
+        "reason": "tracked conservative Qwen1.7B B1 control, not newly validated/solver-selected",
+        "transform": []
+      },
+      "shared_bytes": 230528,
+      "requested_residency": 1
+    },
+    {
+      "cell": "qwen3_1_7b_b8",
+      "model": "qwen3_1_7b",
+      "batch": 8,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_1_7b_b8.tmexec.json",
+        "sha256": "4121649d28d9f98b78ebbab40809fd86b36cad745280da5d73a7c0f628e4ddc7"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_1_7b_b8.json",
+        "sha256": "7991a0131447f5239aeffb3d9992ed3bb7f2bba7e19be88e016b74ed95df5cae"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/qwen3_1_7b_b1.tmexec.json",
+        "sha256": "12a469b4a703fee76ec987e4a6b344589551f0d8858abc99f9488b4471309ccf",
+        "reason": "tracked conservative Qwen1.7B B1 control, not newly validated/solver-selected",
+        "transform": [
+          "attention.chunks=16/batch from Exact; GEMM coordinates unchanged"
+        ],
+        "algorithm_source": {
+          "path": "include/tilemega/Solver/Sm90DenseCoordinates.h",
+          "sha256": "e51adb5616774c110eb1ebce837713b07c75865385f16aa093da06ff2656bae3",
+          "entry": "Sm90DenseCoordinates::Exact"
+        }
+      },
+      "shared_bytes": 230528,
+      "requested_residency": 1
+    },
+    {
+      "cell": "qwen3_1_7b_b16",
+      "model": "qwen3_1_7b",
+      "batch": 16,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_1_7b_b16.tmexec.json",
+        "sha256": "f31a0c062bb1175d1b63920c759e06a3200480a983d872eaf9a6a9f954639dc5"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/qwen3_1_7b_b16.json",
+        "sha256": "35c9632616800b3f76405542d3d55747efefe05704a84999ea89b7c70702da21"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/qwen3_1_7b_b1.tmexec.json",
+        "sha256": "12a469b4a703fee76ec987e4a6b344589551f0d8858abc99f9488b4471309ccf",
+        "reason": "tracked conservative Qwen1.7B B1 control, not newly validated/solver-selected",
+        "transform": [
+          "attention.chunks=16/batch from Exact; GEMM coordinates unchanged"
+        ],
+        "algorithm_source": {
+          "path": "include/tilemega/Solver/Sm90DenseCoordinates.h",
+          "sha256": "e51adb5616774c110eb1ebce837713b07c75865385f16aa093da06ff2656bae3",
+          "entry": "Sm90DenseCoordinates::Exact"
+        }
+      },
+      "shared_bytes": 230528,
+      "requested_residency": 1
+    },
+    {
+      "cell": "llama3_2_1b_b1",
+      "model": "llama3_2_1b",
+      "batch": 1,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_1b_b1.tmexec.json",
+        "sha256": "f4b948c7febe42a80bf0f41d4045cc0f7e37bdfcd64132e5b3baf5357f7976e3"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_1b_b1.json",
+        "sha256": "c87d6fb619d583cc64d14f3d8628560dd24924d4206c67c4c87fc2ea98c9493d"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_2_1b_b1.tmexec.json",
+        "sha256": "f4b948c7febe42a80bf0f41d4045cc0f7e37bdfcd64132e5b3baf5357f7976e3",
+        "reason": "exact tracked isolation C0 cell",
+        "transform": []
+      },
+      "shared_bytes": 230528,
+      "requested_residency": 1
+    },
+    {
+      "cell": "llama3_2_1b_b2",
+      "model": "llama3_2_1b",
+      "batch": 2,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_1b_b2.tmexec.json",
+        "sha256": "f4b948c7febe42a80bf0f41d4045cc0f7e37bdfcd64132e5b3baf5357f7976e3"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_1b_b2.json",
+        "sha256": "1e6a5ad11ea4ada1074aa76c801c6c41e98f8e9d4bd85c47838746ee6ed95e24"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_2_1b_b1.tmexec.json",
+        "sha256": "f4b948c7febe42a80bf0f41d4045cc0f7e37bdfcd64132e5b3baf5357f7976e3",
+        "reason": "same-regime C0 geometry; only compile-time batch changes",
+        "transform": []
+      },
+      "shared_bytes": 230528,
+      "requested_residency": 1
+    },
+    {
+      "cell": "llama3_2_1b_b4",
+      "model": "llama3_2_1b",
+      "batch": 4,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_1b_b4.tmexec.json",
+        "sha256": "f4b948c7febe42a80bf0f41d4045cc0f7e37bdfcd64132e5b3baf5357f7976e3"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_1b_b4.json",
+        "sha256": "09c37cc27f536d231c7c9ff097eff9fbea8834d190346a48a07a4723e182b008"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_2_1b_b1.tmexec.json",
+        "sha256": "f4b948c7febe42a80bf0f41d4045cc0f7e37bdfcd64132e5b3baf5357f7976e3",
+        "reason": "same-regime C0 geometry; only compile-time batch changes",
+        "transform": []
+      },
+      "shared_bytes": 230528,
+      "requested_residency": 1
+    },
+    {
+      "cell": "llama3_2_1b_b8",
+      "model": "llama3_2_1b",
+      "batch": 8,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_1b_b8.tmexec.json",
+        "sha256": "bea18ec8ddcd2ca3fbecab7cd6641b9582c091a396c687937f81a082e4adb440"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_1b_b8.json",
+        "sha256": "a39a3250ac4737275bf48d5dcd665a5660bea82401077e41552d0be10b920d5c"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_2_1b_b16.tmexec.json",
+        "sha256": "bea18ec8ddcd2ca3fbecab7cd6641b9582c091a396c687937f81a082e4adb440",
+        "reason": "same-regime C0 geometry; only compile-time batch changes",
+        "transform": []
+      },
+      "shared_bytes": 205952,
+      "requested_residency": 1
+    },
+    {
+      "cell": "llama3_2_1b_b16",
+      "model": "llama3_2_1b",
+      "batch": 16,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_1b_b16.tmexec.json",
+        "sha256": "bea18ec8ddcd2ca3fbecab7cd6641b9582c091a396c687937f81a082e4adb440"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_1b_b16.json",
+        "sha256": "4c2d243fc1258b1cc73ffa1fd5809a098e6f9e4419285443f94f65b9425d38fc"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_2_1b_b16.tmexec.json",
+        "sha256": "bea18ec8ddcd2ca3fbecab7cd6641b9582c091a396c687937f81a082e4adb440",
+        "reason": "exact tracked isolation C0 cell",
+        "transform": []
+      },
+      "shared_bytes": 205952,
+      "requested_residency": 1
+    },
+    {
+      "cell": "llama3_2_3b_b1",
+      "model": "llama3_2_3b",
+      "batch": 1,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_3b_b1.tmexec.json",
+        "sha256": "63d807962537ef4df419b30406e341e1450adc3ac5cf0f260c343c9cac07b9a5"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_3b_b1.json",
+        "sha256": "2315bfeb06dff4fa0daa2b059d94f9a4afeb6305f9c17ae129c64767b0ac8cbd"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_2_3b_b4.tmexec.json",
+        "sha256": "63d807962537ef4df419b30406e341e1450adc3ac5cf0f260c343c9cac07b9a5",
+        "reason": "retain tracked B4 C0; CPU legality decides whether high-B needs Exact fallback",
+        "transform": []
+      },
+      "shared_bytes": 103552,
+      "requested_residency": 2
+    },
+    {
+      "cell": "llama3_2_3b_b2",
+      "model": "llama3_2_3b",
+      "batch": 2,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_3b_b2.tmexec.json",
+        "sha256": "63d807962537ef4df419b30406e341e1450adc3ac5cf0f260c343c9cac07b9a5"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_3b_b2.json",
+        "sha256": "3d0735d4c701fd34a54155fd9693ceff0d0af090315674aa3904c69b5315bc57"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_2_3b_b4.tmexec.json",
+        "sha256": "63d807962537ef4df419b30406e341e1450adc3ac5cf0f260c343c9cac07b9a5",
+        "reason": "retain tracked B4 C0; CPU legality decides whether high-B needs Exact fallback",
+        "transform": []
+      },
+      "shared_bytes": 103552,
+      "requested_residency": 2
+    },
+    {
+      "cell": "llama3_2_3b_b4",
+      "model": "llama3_2_3b",
+      "batch": 4,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_3b_b4.tmexec.json",
+        "sha256": "63d807962537ef4df419b30406e341e1450adc3ac5cf0f260c343c9cac07b9a5"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_3b_b4.json",
+        "sha256": "0d4efdcd0ce099fe7a4f5ae32910cb21fe9b7b6af6b59d8ffa6f6839dc981ecc"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_2_3b_b4.tmexec.json",
+        "sha256": "63d807962537ef4df419b30406e341e1450adc3ac5cf0f260c343c9cac07b9a5",
+        "reason": "exact tracked isolation C0 cell",
+        "transform": []
+      },
+      "shared_bytes": 103552,
+      "requested_residency": 2
+    },
+    {
+      "cell": "llama3_2_3b_b8",
+      "model": "llama3_2_3b",
+      "batch": 8,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_3b_b8.tmexec.json",
+        "sha256": "d79d1d8d187435112e51726c36cf86b11f9bf40e138458fd1c959be1d0c00950"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_3b_b8.json",
+        "sha256": "75cf8f0271f1f18c1f95f72e29c6be62c06c3c8f5a92ecee0fc8d931a37fc399"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_2_3b_b4.tmexec.json",
+        "sha256": "63d807962537ef4df419b30406e341e1450adc3ac5cf0f260c343c9cac07b9a5",
+        "reason": "conservative Exact fallback after deterministic legality rejection",
+        "transform": [
+          "CPU-illegal template replaced by public Exact(residency1) algorithm; no measured feedback"
+        ],
+        "algorithm_source": {
+          "path": "include/tilemega/Solver/Sm90DenseCoordinates.h",
+          "sha256": "e51adb5616774c110eb1ebce837713b07c75865385f16aa093da06ff2656bae3",
+          "entry": "Sm90DenseCoordinates::Exact"
+        }
+      },
+      "shared_bytes": 230528,
+      "requested_residency": 1
+    },
+    {
+      "cell": "llama3_2_3b_b16",
+      "model": "llama3_2_3b",
+      "batch": 16,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_3b_b16.tmexec.json",
+        "sha256": "843e0b2d0dff66925e770c8789e43927b4c1e6d938b3863b4ef02bbce2b43df5"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/llama3_2_3b_b16.json",
+        "sha256": "82ca89e91d3c7dc46ae50f83446d48a625135c2f31acdffce55fc9d9f938bb6d"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_2_3b_b4.tmexec.json",
+        "sha256": "63d807962537ef4df419b30406e341e1450adc3ac5cf0f260c343c9cac07b9a5",
+        "reason": "conservative Exact fallback after deterministic legality rejection",
+        "transform": [
+          "CPU-illegal template replaced by public Exact(residency1) algorithm; no measured feedback"
+        ],
+        "algorithm_source": {
+          "path": "include/tilemega/Solver/Sm90DenseCoordinates.h",
+          "sha256": "e51adb5616774c110eb1ebce837713b07c75865385f16aa093da06ff2656bae3",
+          "entry": "Sm90DenseCoordinates::Exact"
+        }
+      },
+      "shared_bytes": 230528,
+      "requested_residency": 1
+    },
+    {
+      "cell": "llama3_1_8b_b1",
+      "model": "llama3_1_8b",
+      "batch": 1,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/llama3_1_8b_b1.tmexec.json",
+        "sha256": "6f254aff3d5f2c7a544ea708f87ea4433b72fddf882b0dc61f94ac0d96f79768"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/llama3_1_8b_b1.json",
+        "sha256": "37ff174e87370dbacc4de2f2310ef43393f84d384c35c8696dc6b275ddc6486a"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_1_8b_b1.tmexec.json",
+        "sha256": "6f254aff3d5f2c7a544ea708f87ea4433b72fddf882b0dc61f94ac0d96f79768",
+        "reason": "exact tracked isolation C0 cell",
+        "transform": []
+      },
+      "shared_bytes": 136320,
+      "requested_residency": 1
+    },
+    {
+      "cell": "llama3_1_8b_b2",
+      "model": "llama3_1_8b",
+      "batch": 2,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/llama3_1_8b_b2.tmexec.json",
+        "sha256": "6f254aff3d5f2c7a544ea708f87ea4433b72fddf882b0dc61f94ac0d96f79768"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/llama3_1_8b_b2.json",
+        "sha256": "e99835e1cd537814d98a2bc486278eb395275cfb4070aebc7ad7be0dab823f31"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_1_8b_b1.tmexec.json",
+        "sha256": "6f254aff3d5f2c7a544ea708f87ea4433b72fddf882b0dc61f94ac0d96f79768",
+        "reason": "same-regime C0 geometry; only compile-time batch changes",
+        "transform": []
+      },
+      "shared_bytes": 136320,
+      "requested_residency": 1
+    },
+    {
+      "cell": "llama3_1_8b_b4",
+      "model": "llama3_1_8b",
+      "batch": 4,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/llama3_1_8b_b4.tmexec.json",
+        "sha256": "6f254aff3d5f2c7a544ea708f87ea4433b72fddf882b0dc61f94ac0d96f79768"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/llama3_1_8b_b4.json",
+        "sha256": "d2bd1645848d14dc9df8e5edcc35a8070212f01ef2ccc07c31c2eca236d8bb97"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_1_8b_b1.tmexec.json",
+        "sha256": "6f254aff3d5f2c7a544ea708f87ea4433b72fddf882b0dc61f94ac0d96f79768",
+        "reason": "same-regime C0 geometry; only compile-time batch changes",
+        "transform": []
+      },
+      "shared_bytes": 136320,
+      "requested_residency": 1
+    },
+    {
+      "cell": "llama3_1_8b_b8",
+      "model": "llama3_1_8b",
+      "batch": 8,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/llama3_1_8b_b8.tmexec.json",
+        "sha256": "b984f2dcdee5732b4626305347f2a831816cd2b87cf6a1fe82a5dab5ee420d20"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/llama3_1_8b_b8.json",
+        "sha256": "f32f7db2fbc52b25cd94af5bf3a1e7f09950dea00da4ef90bfc1398be24d5d49"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_1_8b_b16.tmexec.json",
+        "sha256": "b984f2dcdee5732b4626305347f2a831816cd2b87cf6a1fe82a5dab5ee420d20",
+        "reason": "same-regime C0 geometry; only compile-time batch changes",
+        "transform": []
+      },
+      "shared_bytes": 219264,
+      "requested_residency": 1
+    },
+    {
+      "cell": "llama3_1_8b_b16",
+      "model": "llama3_1_8b",
+      "batch": 16,
+      "coordinates": {
+        "path": "configs/serving/sm90r2/closeout/llama3_1_8b_b16.tmexec.json",
+        "sha256": "b984f2dcdee5732b4626305347f2a831816cd2b87cf6a1fe82a5dab5ee420d20"
+      },
+      "build_config": {
+        "path": "configs/serving/sm90r2/closeout/llama3_1_8b_b16.json",
+        "sha256": "2c6963922bc895f100d9317a5ad3b89999d81dd92da45de326c2991d28e6a34d"
+      },
+      "derived_from": {
+        "path": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_1_8b_b16.tmexec.json",
+        "sha256": "b984f2dcdee5732b4626305347f2a831816cd2b87cf6a1fe82a5dab5ee420d20",
+        "reason": "exact tracked isolation C0 cell",
+        "transform": []
+      },
+      "shared_bytes": 219264,
+      "requested_residency": 1
+    }
+  ],
+  "target": {
+    "path": "configs/targets/sm_90_h800.json",
+    "sha256": "a26286378f420457ebfde7442ae343799f1b670f87976d3e6437f0f61333a73d"
+  },
+  "inputs_manifest": {
+    "path": "configs/serving/sm90d1/inputs/manifest.json",
+    "sha256": "7b0b2b023fa2eb56ace1b4ec0e34645cb644144c67c88f8aad36ede3c2b8ac52"
+  },
+  "comparison_scope": "candidate-only timing; frozen R1/external ratios remain historical reference"
+}

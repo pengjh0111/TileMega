@@ -1,0 +1,240 @@
+{
+  "schema": 1,
+  "model": "llama3_2_3b",
+  "batch": 8,
+  "source_config": "configs/serving/sm90r1/llama3_2_3b_b8.json",
+  "source_config_sha256": "cb9e74e016744cbf9b9ba2c70d226a0cc94a18c2505772daebb484b13ab591f4",
+  "model_dir": "configs/serving/sm90d1/inputs/llama3_2_3b",
+  "model_config_sha256": "c0a6833b9da6e99a2a8920e879de7c1532c78883948327658cfdbd1eac6d5be6",
+  "prompt_ids": "configs/prompts/llama3_isl64.json",
+  "prompt_ids_sha256": "6d793e3b3aaf472939d4f483bf094f17b26d2346ed179e2b921ae57bec1d8e34",
+  "execution": {
+    "decode": "L1",
+    "loop": 1,
+    "prefill": "L1"
+  },
+  "coordinates": {
+    "prefill": {
+      "pg": "off",
+      "residency_requested": "0",
+      "attention_impl": "mma16",
+      "attention_kv_block": 1088,
+      "gemm_table_sha256": "39de5295f0f7b264f02587a6ed05f967d0f7a1c4d46c83e41687d96080157b55",
+      "geometries": [
+        [
+          16,
+          128,
+          64,
+          2,
+          1,
+          "mma16"
+        ],
+        [
+          64,
+          128,
+          64,
+          3,
+          1,
+          "wgmma"
+        ]
+      ]
+    },
+    "decode": {
+      "schema": 1,
+      "gemms": {
+        "qkv": {
+          "tile_n": 40,
+          "warps_n": 1,
+          "warps_k": 4,
+          "slot_bytes": 20480,
+          "slots": 3,
+          "mma": "mma_sync",
+          "preissue_smem_bytes": 0,
+          "prefetch_l2_bytes": 0,
+          "register_stages": 1,
+          "workspace_offset": 0,
+          "preissue_late": false
+        },
+        "o": {
+          "tile_n": 24,
+          "warps_n": 1,
+          "warps_k": 4,
+          "slot_bytes": 12288,
+          "slots": 3,
+          "mma": "mma_sync",
+          "preissue_smem_bytes": 0,
+          "prefetch_l2_bytes": 0,
+          "register_stages": 1,
+          "workspace_offset": 0,
+          "preissue_late": false
+        },
+        "gate_up": {
+          "tile_n": 128,
+          "warps_n": 4,
+          "warps_k": 1,
+          "slot_bytes": 65536,
+          "slots": 3,
+          "mma": "mma_sync",
+          "preissue_smem_bytes": 0,
+          "prefetch_l2_bytes": 0,
+          "register_stages": 1,
+          "workspace_offset": 0,
+          "preissue_late": false
+        },
+        "down": {
+          "tile_n": 24,
+          "warps_n": 1,
+          "warps_k": 4,
+          "slot_bytes": 12288,
+          "slots": 3,
+          "mma": "mma_sync",
+          "preissue_smem_bytes": 0,
+          "prefetch_l2_bytes": 0,
+          "register_stages": 1,
+          "workspace_offset": 0,
+          "preissue_late": false
+        },
+        "lm_head": {
+          "tile_n": 128,
+          "warps_n": 4,
+          "warps_k": 1,
+          "slot_bytes": 65536,
+          "slots": 3,
+          "mma": "mma_sync",
+          "preissue_smem_bytes": 0,
+          "prefetch_l2_bytes": 0,
+          "register_stages": 1,
+          "workspace_offset": 0,
+          "preissue_late": false
+        }
+      },
+      "attention": {
+        "chunks": 2,
+        "block_keys": 64,
+        "slots": 3,
+        "preissue_smem_bytes": 0,
+        "prefetch_l2_bytes": 0,
+        "new_row_work": 0
+      },
+      "residency": 1,
+      "swiglu_u": 16,
+      "dn_vector_sums": true
+    }
+  },
+  "compile_options": {
+    "prefill": [
+      "--serving",
+      "prefill",
+      "--emit",
+      "serving",
+      "--batch",
+      "8",
+      "--runtime-target",
+      "configs/targets/sm_90_h800.json",
+      "--pg",
+      "off",
+      "--nonpaged-weight-layout",
+      "tiled",
+      "--resource-probes",
+      "0",
+      "--capacity",
+      "1088",
+      "--prompt-len",
+      "64",
+      "--arch-paths",
+      "auto",
+      "--seed-arch",
+      "native",
+      "--deferred-norm",
+      "0",
+      "--forward-gemm-impl",
+      "wgmma",
+      "--forward-seed-tile",
+      "M64N128K64S3",
+      "--prefill-attention-impl",
+      "wgmma",
+      "--serve-query-rows",
+      "64",
+      "--nvcc-split-compile",
+      "2",
+      "--ptxas-split-compile",
+      "1"
+    ],
+    "decode": [
+      "--tmexec-config",
+      "configs/serving/sm90r2/closeout/llama3_2_3b_b8.tmexec.json",
+      "--serving",
+      "decode",
+      "--emit",
+      "serving",
+      "--batch",
+      "8",
+      "--runtime-target",
+      "configs/targets/sm_90_h800.json",
+      "--nvcc-split-compile",
+      "2"
+    ]
+  },
+  "protocol": {
+    "isl": 64,
+    "osl": 1024,
+    "warmup": 1,
+    "repeats": 3,
+    "dtype": "bfloat16",
+    "sampling": "greedy"
+  },
+  "weight_source": "unchanged name-seeded BF16 random checkpoint, seed=0",
+  "kind": "sm90r2_closeout_build_config",
+  "e3_validated": false,
+  "solver_validated": false,
+  "selection": "fixed coordinates frozen before closeout; solver/E3 not accepted",
+  "fresh_processes": 3,
+  "native_coordinates": "configs/serving/sm90r2/closeout/llama3_2_3b_b8.tmexec.json",
+  "derived_from": {
+    "path": "configs/serving/sm90r2/development/isolation_abi_v1/llama3_2_3b_b4.tmexec.json",
+    "sha256": "63d807962537ef4df419b30406e341e1450adc3ac5cf0f260c343c9cac07b9a5",
+    "reason": "conservative Exact fallback after deterministic legality rejection",
+    "transform": [
+      "CPU-illegal template replaced by public Exact(residency1) algorithm; no measured feedback"
+    ],
+    "algorithm_source": {
+      "path": "include/tilemega/Solver/Sm90DenseCoordinates.h",
+      "sha256": "e51adb5616774c110eb1ebce837713b07c75865385f16aa093da06ff2656bae3",
+      "entry": "Sm90DenseCoordinates::Exact"
+    }
+  },
+  "historical_decode_signature": {
+    "pg": "off",
+    "residency_requested": "2",
+    "attention_impl": "mma16",
+    "attention_kv_block": 128,
+    "gemm_table_sha256": "1a14560af6a416ee1c2f1ec12afee4c88079008ba8e7cd2054fa7cb5903f224f",
+    "geometries": [
+      [
+        16,
+        128,
+        64,
+        4,
+        1,
+        "mma16"
+      ],
+      [
+        16,
+        128,
+        64,
+        4,
+        4,
+        "mma16"
+      ],
+      [
+        16,
+        128,
+        64,
+        4,
+        8,
+        "mma16"
+      ]
+    ]
+  },
+  "native_origin": "fixed"
+}

@@ -1,0 +1,218 @@
+{
+  "schema": 1,
+  "model": "qwen3_1_7b",
+  "batch": 4,
+  "source_config": "configs/serving/sm90r1/qwen3_1_7b_b4.json",
+  "source_config_sha256": "e893700088492cc8e2bd48a18e9296856f756ce6011de39f32186c4c329e4cd6",
+  "model_dir": "configs/serving/sm90d1/inputs/qwen3_1_7b",
+  "model_config_sha256": "1ddb5b89ebc90dcb417a45c213d818577e65976454d29385c8f6140771d95197",
+  "prompt_ids": "configs/prompts/qwen_isl64.json",
+  "prompt_ids_sha256": "fde7f712b970a3fb56e22ace96a5f3d7ff33dc430abccb191041c31749e427d1",
+  "execution": {
+    "decode": "L1",
+    "loop": 1,
+    "prefill": "L1"
+  },
+  "coordinates": {
+    "prefill": {
+      "pg": "off",
+      "residency_requested": "0",
+      "attention_impl": "mma16",
+      "attention_kv_block": 1088,
+      "gemm_table_sha256": "39de5295f0f7b264f02587a6ed05f967d0f7a1c4d46c83e41687d96080157b55",
+      "geometries": [
+        [
+          16,
+          128,
+          64,
+          2,
+          1,
+          "mma16"
+        ],
+        [
+          64,
+          128,
+          64,
+          3,
+          1,
+          "wgmma"
+        ]
+      ]
+    },
+    "decode": {
+      "schema": 1,
+      "gemms": {
+        "qkv": {
+          "tile_n": 32,
+          "warps_n": 4,
+          "warps_k": 1,
+          "slot_bytes": 16384,
+          "slots": 3,
+          "mma": "mma_sync",
+          "preissue_smem_bytes": 0,
+          "prefetch_l2_bytes": 0
+        },
+        "o": {
+          "tile_n": 16,
+          "warps_n": 2,
+          "warps_k": 2,
+          "slot_bytes": 8192,
+          "slots": 3,
+          "mma": "mma_sync",
+          "preissue_smem_bytes": 0,
+          "prefetch_l2_bytes": 0
+        },
+        "gate_up": {
+          "tile_n": 96,
+          "warps_n": 4,
+          "warps_k": 1,
+          "slot_bytes": 49152,
+          "slots": 3,
+          "mma": "mma_sync",
+          "preissue_smem_bytes": 0,
+          "prefetch_l2_bytes": 0
+        },
+        "down": {
+          "tile_n": 16,
+          "warps_n": 2,
+          "warps_k": 2,
+          "slot_bytes": 8192,
+          "slots": 3,
+          "mma": "mma_sync",
+          "preissue_smem_bytes": 0,
+          "prefetch_l2_bytes": 0
+        },
+        "lm_head": {
+          "tile_n": 128,
+          "warps_n": 4,
+          "warps_k": 1,
+          "slot_bytes": 65536,
+          "slots": 3,
+          "mma": "mma_sync",
+          "preissue_smem_bytes": 0,
+          "prefetch_l2_bytes": 0
+        }
+      },
+      "attention": {
+        "chunks": 16,
+        "block_keys": 64,
+        "slots": 3,
+        "preissue_smem_bytes": 0,
+        "prefetch_l2_bytes": 0,
+        "new_row_work": 0
+      },
+      "residency": 1,
+      "swiglu_u": 16,
+      "dn_vector_sums": true
+    }
+  },
+  "compile_options": {
+    "prefill": [
+      "--serving",
+      "prefill",
+      "--emit",
+      "serving",
+      "--batch",
+      "4",
+      "--runtime-target",
+      "configs/targets/sm_90_h800.json",
+      "--pg",
+      "off",
+      "--nonpaged-weight-layout",
+      "tiled",
+      "--resource-probes",
+      "0",
+      "--capacity",
+      "1088",
+      "--prompt-len",
+      "64",
+      "--arch-paths",
+      "auto",
+      "--seed-arch",
+      "native",
+      "--deferred-norm",
+      "0",
+      "--forward-gemm-impl",
+      "wgmma",
+      "--forward-seed-tile",
+      "M64N128K64S3",
+      "--prefill-attention-impl",
+      "wgmma",
+      "--serve-query-rows",
+      "64",
+      "--nvcc-split-compile",
+      "2",
+      "--ptxas-split-compile",
+      "1"
+    ],
+    "decode": [
+      "--tmexec-config",
+      "configs/serving/sm90r2/closeout/qwen3_1_7b_b4.tmexec.json",
+      "--serving",
+      "decode",
+      "--emit",
+      "serving",
+      "--batch",
+      "4",
+      "--runtime-target",
+      "configs/targets/sm_90_h800.json",
+      "--nvcc-split-compile",
+      "2"
+    ]
+  },
+  "protocol": {
+    "isl": 64,
+    "osl": 1024,
+    "warmup": 1,
+    "repeats": 3,
+    "dtype": "bfloat16",
+    "sampling": "greedy"
+  },
+  "weight_source": "unchanged name-seeded BF16 random checkpoint, seed=0",
+  "kind": "sm90r2_closeout_build_config",
+  "e3_validated": false,
+  "solver_validated": false,
+  "selection": "fixed coordinates frozen before closeout; solver/E3 not accepted",
+  "fresh_processes": 3,
+  "native_coordinates": "configs/serving/sm90r2/closeout/qwen3_1_7b_b4.tmexec.json",
+  "derived_from": {
+    "path": "configs/serving/sm90r2/development/qwen3_1_7b_b1.tmexec.json",
+    "sha256": "12a469b4a703fee76ec987e4a6b344589551f0d8858abc99f9488b4471309ccf",
+    "reason": "tracked conservative Qwen1.7B B1 control, not newly validated/solver-selected",
+    "transform": []
+  },
+  "historical_decode_signature": {
+    "pg": "off",
+    "residency_requested": "0",
+    "attention_impl": "simt",
+    "attention_kv_block": 128,
+    "gemm_table_sha256": "52d76355290d859caba268fe6f4c9ca1ae53e385d86a17752b6a526151c01a19",
+    "geometries": [
+      [
+        16,
+        32,
+        128,
+        4,
+        1,
+        "mma16"
+      ],
+      [
+        16,
+        128,
+        64,
+        4,
+        8,
+        "mma16"
+      ],
+      [
+        16,
+        128,
+        128,
+        4,
+        1,
+        "mma16"
+      ]
+    ]
+  },
+  "native_origin": "fixed"
+}
