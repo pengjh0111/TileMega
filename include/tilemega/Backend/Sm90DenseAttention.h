@@ -68,15 +68,17 @@ struct Sm90DenseAttention {
 
   __device__ static __forceinline__ void QueryAndNewRow(Sm90DenseAttentionOperands const& p,Storage& s,
                                        int bg,Sm90DenseKeyRange range) {
+    // Query stores cannot change the published operand member.
+    int const past=p.past;
     int warp=threadIdx.x>>5,lane=threadIdx.x&31;
     auto* group=p.qkv+std::size_t(bg)*(Q+2)*D;
-    auto* cosine=p.cosine+p.past*D;auto* sine=p.sine+p.past*D;
+    auto* cosine=p.cosine+past*D;auto* sine=p.sine+past*D;
     if(warp<Q)Math::template Rotate<D,Norm>(group+warp*D,p.q_norm,cosine,sine,
                                            p.epsilon,s.query+warp*D);
-    if(range.Contains(p.past) && warp==Q%4) {
-      int row=p.past-range.begin;
-      auto* key=p.key+(std::size_t(bg)*Capacity+p.past)*D;
-      auto* value=p.value+(std::size_t(bg)*Capacity+p.past)*D;
+    if(range.Contains(past) && warp==Q%4) {
+      int row=past-range.begin;
+      auto* key=p.key+(std::size_t(bg)*Capacity+past)*D;
+      auto* value=p.value+(std::size_t(bg)*Capacity+past)*D;
       Math::template Rotate<D,Norm>(group+Q*D,p.k_norm,cosine,sine,p.epsilon,
                                     s.key+row*D,key);
       if(lane*8<D) {
