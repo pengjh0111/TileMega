@@ -164,11 +164,7 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   auto bridge=frontend::ReadExportBridge(o.input);
   frontend::ServingOptions options;options.dense_attention_chunks=1;
   auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
-  solver::Sm90DenseWorkload work;work.shapes=solver::Sm90DenseShapes(plan);work.batch=o.batch;
-  for(auto const& stage:plan.stages)if(stage.kind==frontend::PlanTaskKind::kFusedAttention) {
-    ++work.layers;work.head_dim=stage.width;work.queries=stage.group;
-    work.qk_norm=stage.operands[5]!=0xffffffffu;
-  }
+  auto work=solver::Sm90DenseWorkloadFromPlan(plan,o.batch);
   solver::Sm90DenseSearchSpace space{work.shapes,work.batch,work.head_dim,work.queries,target};
   solver::Sm90DenseSearchOptions search;search.passes=o.passes;search.budget_ms=o.budget_ms;
   solver::Sm90DenseSearchResult result;

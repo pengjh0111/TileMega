@@ -25,6 +25,11 @@ int main(int argc,char** argv) {try {
   if(shapes.size()!=5)throw std::invalid_argument("native workload requires five GEMM families");
   for(unsigned i=0;i<5;++i)for(unsigned j=0;j<2;++j)
     w.shapes[i][j]=int(shapes[i].AsArray("shape").at(j).AsNumber("extent"));
+  if(auto bindings=work.Find("gemm_bindings");bindings && !bindings->IsNull()) {
+    w.gemm_bindings.emplace();
+    for(auto const& binding:bindings->AsArray("ordered GEMM bindings"))
+      w.gemm_bindings->push_back(Sm90DenseGemmPlanBinding::FromJson(binding));
+  }
   Sm90DenseSearchSpace space{w.shapes,w.batch,w.head_dim,w.queries,target};
   auto values=json::ParseFile(argv[3]);json::Array rows;
   if(values.kind()!=json::Value::Kind::kArray)values=json::Array{values};

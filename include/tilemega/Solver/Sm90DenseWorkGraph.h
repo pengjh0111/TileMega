@@ -2,13 +2,13 @@
 #pragma once
 
 #include <tilemega/Solver/Sm90DenseCoordinates.h>
+#include <tilemega/Solver/Sm90DenseWorkload.h>
 #include <tilemega/Target/TargetSpec.h>
 #include <map>
 #include <optional>
 #include <vector>
 
 namespace tilemega::solver {
-struct Sm90DenseWorkload;
 
 enum class Sm90DenseTailOrder { kNone, kBeforeProduce, kAfterProduce, kRetireOperands };
 
@@ -35,11 +35,6 @@ struct Sm90DenseCtaWork {
   std::vector<Sm90DenseTaskWork> tasks;
   std::int64_t l2_hint_bytes=0;
   int l2_hint_requests=0;
-};
-struct Sm90DenseStagePlanBinding {
-  std::string epilogue;
-  bool input_norm=false,output_sums=false;
-  json::Value ToJson() const;
 };
 struct Sm90DenseStageWork {
   std::string kind;

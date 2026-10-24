@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include <tilemega/Solver/Sm90DenseCoordinates.h>
+#include <tilemega/Solver/Sm90DenseWorkload.h>
 #include <tilemega/Solver/Sm90DenseJointRingProfile.h>
 #include <tilemega/Target/TargetSpec.h>
 #include <map>
@@ -8,11 +9,6 @@
 #include <stdexcept>
 
 namespace tilemega::solver {
-struct Sm90DenseWorkload {
-  std::array<std::array<int,2>,5> shapes;
-  int batch=0,layers=0,head_dim=0,queries=0;
-  bool qk_norm=false;
-};
 struct Sm90DensePrediction {
   struct Stage {
     std::string kind,key,protocol_key;

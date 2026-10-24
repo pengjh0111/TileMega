@@ -24,7 +24,8 @@ struct StageInput {
   Sm90DenseGemm const* gemm=nullptr;
   std::int64_t prefix=0,l2=0;
   bool late=false;
-  int k=0;
+  int k=0,family=-1;
+  json::Value binding_metadata;
 };
 std::pair<int,int> Range(int past,int chunk,int chunks,int row_work) {
   std::int64_t total=std::int64_t(past)+1+row_work;
@@ -33,11 +34,6 @@ std::pair<int,int> Range(int past,int chunk,int chunks,int row_work) {
 }
 }
 
-json::Value Sm90DenseStagePlanBinding::ToJson() const {
-  if(epilogue!="store" && epilogue!="residual" && epilogue!="swiglu" && epilogue!="argmax_partial")
-    throw std::invalid_argument("unknown native plan epilogue");
-  return json::Object{{"epilogue",epilogue},{"input_norm",input_norm},{"output_sums",output_sums}};
-}
 json::Value Sm90DenseStageWork::ServiceDescriptor() const {
   if(service_descriptor.IsNull())throw std::invalid_argument("native service domain is absent");
   auto result=service_descriptor;
@@ -95,7 +91,7 @@ Sm90DenseWorkGraph BuildSm90DenseWorkGraph(Sm90DenseWorkload const& w,
     s.work.layout=backend::Sm90DenseLayout::Gemm(g.tile_n,g.TileK(),g.slots,g.warps_k);
     s.work.prefix_payload=backend::Sm90DenseLayout::GemmPayload(g.tile_n,g.TileK(),g.slots,
         w.shapes[family][1],g.preissue_smem_bytes).Shift(g.workspace_offset);
-    s.gemm=&g;s.k=w.shapes[family][1];s.prefix=g.preissue_smem_bytes;
+    s.gemm=&g;s.k=w.shapes[family][1];s.family=family;s.prefix=g.preissue_smem_bytes;
     s.l2=g.prefetch_l2_bytes;s.late=g.preissue_late;inputs.push_back(s);
   };
   token("embedding");
@@ -116,6 +112,21 @@ Sm90DenseWorkGraph BuildSm90DenseWorkGraph(Sm90DenseWorkload const& w,
   }
   gemm(4,-1);token("argmax");
 
+  if(w.gemm_bindings) {
+    if(w.gemm_bindings->size()!=std::size_t(4*w.layers+1))
+      throw std::invalid_argument("native ordered GEMM binding count differs");
+    std::vector<bool> seen(w.gemm_bindings->size());std::size_t next=0;
+    for(unsigned stage=0;stage<inputs.size();++stage) {
+      auto& input=inputs[stage];if(!input.gemm)continue;
+      auto const& b=w.gemm_bindings->at(next++);
+      if(b.stage!=int(stage) || b.family!=kSm90DenseFamilies[input.family] ||
+          b.n!=w.shapes[input.family][0] || b.k!=w.shapes[input.family][1] ||
+          b.gemm<0 || std::size_t(b.gemm)>=seen.size() || seen[b.gemm])
+        throw std::invalid_argument("native ordered GEMM binding stage/order/shape differs");
+      b.binding.ToJson();seen[b.gemm]=true;input.work.plan_binding=b.binding;input.binding_metadata=b.ToJson();
+    }
+  }
+
   json::Array shapes;
   for(auto const& shape:w.shapes)shapes.emplace_back(json::Array{shape[0],shape[1]});
   auto domain=json::Value(json::Object{{"schema",1},{"shapes",shapes},
@@ -127,7 +138,7 @@ Sm90DenseWorkGraph BuildSm90DenseWorkGraph(Sm90DenseWorkload const& w,
   for(unsigned index=0;index<inputs.size();++index) {
     auto& input=inputs[index];auto& stage=input.work;stage.ring_bank=index%2;
     stage.service_descriptor=json::Object{{"schema",1},{"domain",domain},
-        {"kind",stage.kind},{"layer",stage.layer}};
+        {"kind",stage.kind},{"layer",stage.layer},{"source_gemm",input.binding_metadata}};
     graph.shared_bytes=std::max(graph.shared_bytes,stage.workspace_offset+stage.layout.end);
     if(input.prefix || input.l2) {
       if(!index)throw std::logic_error("first native stage cannot receive preissue");

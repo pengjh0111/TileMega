@@ -951,6 +951,12 @@ if(TILEMEGA_BUILD_TESTS)
     target_compile_options(sm90_dense_register_contract_test PRIVATE -UNDEBUG)
     add_test(NAME sm90_dense_register_contract COMMAND sm90_dense_register_contract_test
       ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_90_h800.json)
+    add_executable(sm90_dense_workload_binding_test test/unit/sm90_dense_workload_binding_test.cpp)
+    target_link_libraries(sm90_dense_workload_binding_test PRIVATE TileMega::tilemega)
+    target_compile_options(sm90_dense_workload_binding_test PRIVATE -UNDEBUG)
+    add_test(NAME sm90_dense_workload_binding COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/unit/sm90_dense_workload_bindings.py
+      $<TARGET_FILE:sm90_dense_workload_binding_test>)
     add_test(NAME sm90_dense_work_graph COMMAND sm90_dense_work_graph_test
       ${CMAKE_CURRENT_SOURCE_DIR}/configs/targets/sm_90_h800.json)
     add_executable(sm90_dense_plan_test test/unit/sm90_dense_plan_test.cpp)

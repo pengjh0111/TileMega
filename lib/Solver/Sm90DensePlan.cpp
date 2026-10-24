@@ -5,6 +5,8 @@
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/Verifier.h>
 #include <algorithm>
+#include <limits>
+#include <set>
 
 namespace tilemega::solver {
 
@@ -31,6 +33,65 @@ std::array<std::array<int,2>,5> Sm90DenseShapes(frontend::ModelPlan const& plan)
   for(auto const& shape:result)if(!shape[0] || !shape[1])
     throw std::invalid_argument("native dense model lacks a required GEMM family");
   return result;
+}
+Sm90DenseWorkload Sm90DenseWorkloadFromPlan(frontend::ModelPlan const& plan,int batch) {
+  using Kind=frontend::PlanTaskKind;
+  constexpr auto absent=std::numeric_limits<std::uint32_t>::max();
+  if(!plan.serving || plan.dm || plan.forward || plan.serving_seq!=1 || plan.serving_capacity!=1088 ||
+      (batch!=1 && batch!=2 && batch!=4 && batch!=8 && batch!=16) ||
+      plan.stages.size()<8 || (plan.stages.size()-3)%5)
+    throw std::invalid_argument("native workload requires the supported dense decode stage sequence");
+  Sm90DenseWorkload work;
+  work.batch=batch;work.layers=int((plan.stages.size()-3)/5);
+  if(plan.gemms.size()!=std::size_t(4*work.layers+1) ||
+      plan.stages.front().kind!=Kind::kEmbedding || plan.stages.back().kind!=Kind::kArgmaxReduce)
+    throw std::invalid_argument("native workload GEMM/stage count differs");
+  auto operand=[&](std::uint32_t id,bool optional) {
+    if(optional && id==absent)return false;
+    if(id>=plan.buffers.size())throw std::invalid_argument("native workload operand ID outside buffer table");
+    return true;
+  };
+  std::set<unsigned> seen;
+  work.gemm_bindings.emplace();
+  auto gemm=[&](unsigned stage,unsigned family) {
+    auto const& s=plan.stages.at(stage);
+    if(s.kind!=Kind::kGemm || s.gemm>=plan.gemms.size() || !seen.insert(s.gemm).second)
+      throw std::invalid_argument("native workload has reordered, repeated or invalid GEMM stages");
+    auto const& g=plan.gemms[s.gemm];
+    for(auto id:{g.a,g.b,g.c})operand(id,false);
+    operand(g.d,g.epilogue!=frontend::PlanGemm::Epilogue::kResidual);
+    if(!g.n || !g.k || g.n>std::uint32_t(std::numeric_limits<int>::max()) ||
+        g.k>std::uint32_t(std::numeric_limits<int>::max()) || Sm90DenseFamily(plan,g)!=family)
+      throw std::invalid_argument("native workload family/shape order differs");
+    Sm90DenseStagePlanBinding binding;
+    switch(g.epilogue) {
+      case frontend::PlanGemm::Epilogue::kStore:binding.epilogue="store";break;
+      case frontend::PlanGemm::Epilogue::kResidual:binding.epilogue="residual";break;
+      case frontend::PlanGemm::Epilogue::kSwiGLU:binding.epilogue="swiglu";break;
+      case frontend::PlanGemm::Epilogue::kArgmaxPartial:binding.epilogue="argmax_partial";break;
+      default:throw std::invalid_argument("unknown native workload epilogue");
+    }
+    binding.input_norm=operand(g.norm_ss,true);binding.output_sums=operand(g.ss_out,true);
+    work.gemm_bindings->push_back({int(stage),int(s.gemm),kSm90DenseFamilies[family],int(g.n),int(g.k),binding,g.norm_ss,g.ss_out});
+  };
+  for(int layer=0;layer<work.layers;++layer) {
+    unsigned start=1+5*layer;gemm(start,0);
+    auto const& a=plan.stages.at(start+1);
+    if(a.kind!=Kind::kFusedAttention || a.extent!=8 || (a.width!=64 && a.width!=128) ||
+        a.group<2 || a.group>4 || a.attention_kv_block!=plan.serving_capacity ||
+        a.dense_attention_chunks<1 || a.dense_attention_chunks>64)
+      throw std::invalid_argument("native workload attention structure differs");
+    for(unsigned i:{0u,1u,2u,3u,4u,7u,8u,9u,10u})operand(a.operands[i],false);
+    bool q=operand(a.operands[5],true),k=operand(a.operands[6],true);
+    if(q!=k)throw std::invalid_argument("native workload has asymmetric Q/K normalization");
+    if(!layer) {work.head_dim=a.width;work.queries=a.group;work.qk_norm=q;}
+    else if(work.head_dim!=int(a.width) || work.queries!=int(a.group) || work.qk_norm!=q)
+      throw std::invalid_argument("native workload attention tuple changes between layers");
+    gemm(start+2,1);gemm(start+3,2);gemm(start+4,3);
+  }
+  gemm(unsigned(plan.stages.size()-2),4);
+  work.shapes=Sm90DenseShapes(plan);
+  return work;
 }
 frontend::ImportedSemantics ImportSm90Dense(std::string const& path,
     Sm90DenseCoordinates const& c,mlir::MLIRContext& context) {
