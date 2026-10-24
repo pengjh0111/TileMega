@@ -244,6 +244,23 @@ int main(int argc,char** argv) {try {
       TILEMEGA_CALIBRATION_FOCUS_Q,TILEMEGA_CALIBRATION_FOCUS_NORM,
       TILEMEGA_CALIBRATION_FOCUS_CHUNKS,TILEMEGA_CALIBRATION_FOCUS_KEYS,
       TILEMEGA_CALIBRATION_FOCUS_SLOTS,TILEMEGA_CALIBRATION_FOCUS_ROW_WORK>(p);
+#elif defined(TILEMEGA_CALIBRATION_SM90R3_GAPS)
+  // Keys of the SM90R3 L0 split space {S0,S0/2,S0/4} absent from the R2 table.
+  if constexpr(residency==1) {
+    Case<1,64,4,false,4>(p);Case<1,128,2,true,4>(p);Case<1,128,3,false,4>(p);Case<1,128,4,false,4>(p);
+    Case<2,64,4,false,2>(p);Case<2,128,2,true,2>(p);Case<2,128,3,false,2>(p);Case<2,128,4,false,2>(p);
+    Case<4,64,4,false,1>(p);Case<4,128,2,true,1>(p);Case<4,128,2,true,2>(p);
+    Case<4,128,3,false,1>(p);Case<4,128,3,false,2>(p);Case<4,128,4,false,1>(p);Case<4,128,4,false,2>(p);
+    Case<8,64,4,false,1,128,2>(p);Case<8,64,4,false,1,128,3>(p);
+    Case<8,64,4,false,2,128,2>(p);Case<8,64,4,false,2,128,3>(p);
+  }else {
+    Case<1,64,4,false,32>(p);Case<1,128,2,true,32>(p);Case<1,128,3,false,32>(p);Case<1,128,4,false,32>(p);
+    Case<2,128,2,true,4>(p);Case<2,128,3,false,4>(p);Case<2,128,4,false,4>(p);
+    Case<4,64,4,false,2>(p);Case<4,128,2,true,2>(p);Case<4,128,2,true,4>(p);
+    Case<4,128,3,false,2>(p);Case<4,128,3,false,4>(p);Case<4,128,4,false,2>(p);Case<4,128,4,false,4>(p);
+    Case<8,64,4,false,1,128,2>(p);Case<8,64,4,false,2,128,2>(p);Case<8,64,4,false,4,128,2>(p);
+    Case<16,64,4,false,2,128,2>(p);
+  }
 #elif defined(TILEMEGA_CALIBRATION_ALL_CHUNKS)
   AllChunks<128,2,true>(p);AllChunks<64,4,false>(p);
   AllChunks<128,3,false>(p);AllChunks<128,4,false>(p);
