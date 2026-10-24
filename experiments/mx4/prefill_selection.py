@@ -67,10 +67,13 @@ def class_names(prefill):
     path = prefill / 'plan.so.selected_classes.tsv'
     table = list(csv.DictReader(open(path if path.is_file() else prefill / 'plan.so.classes.tsv'), delimiter='\t'))
     last = max(int(r['gemm']) for r in table)
+    first_layer_only = {}
     for r in table:
-        gemm = int(r['gemm'])
-        names.setdefault(int(r['class']), set()).add('head' if gemm == last and last % 4 == 0 else NAMES[gemm % 4])
-    return {c: '+'.join(sorted(v)) for c, v in names.items()}
+        gemm, c = int(r['gemm']), int(r['class'])
+        names.setdefault(c, set()).add('head' if gemm == last and last % 4 == 0 else NAMES[gemm % 4])
+        first_layer_only[c] = first_layer_only.get(c, True) and gemm < 4
+    # The solver can give layer 0's projections a class of their own.
+    return {c: '+'.join(sorted(v)) + ('(layer0)' if first_layer_only[c] else '') for c, v in names.items()}
 
 
 rows, gemm_rows = [], []
