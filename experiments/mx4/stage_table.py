@@ -42,7 +42,8 @@ for m in re.finditer(r'Function properties for\s+(\S+)\s*\n\s*(\d+) bytes stack 
     if t:
         spill_attn[tuple(int(x) for x in t.groups())] = stack
 
-ROPE = {'qwen3_0_6b': (128, 2), 'qwen3_1_7b': (128, 2), 'llama3_2_1b': (64, 4), 'llama3_1_8b': (128, 4)}
+ROPE = {'qwen3_0_6b': (128, 2), 'qwen3_1_7b': (128, 2), 'llama3_2_1b': (64, 4), 'llama3_1_8b': (128, 4),
+        'llama3_2_3b': (128, 3)}
 rows = {}
 for path in a.runs:
     for r in csv.DictReader(path.open()):

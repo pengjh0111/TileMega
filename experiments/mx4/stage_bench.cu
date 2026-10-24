@@ -50,13 +50,15 @@ constexpr int kCapacity = 1088;  // ISL 64 + OSL 1024
 struct Model {
   char const* name;
   int hidden, heads, hkv, dim, inter, vocab;
-  int rope;  // 0: D128 Q2 q/k-norm, 1: D64 Q4, 2: D128 Q4
+  int rope;  // 0: D128 Q2 q/k-norm, 1: D64 Q4, 2: D128 Q4, 3: D128 Q3
 };
 Model const kModels[] = {
     {"qwen3_0_6b", 1024, 16, 8, 128, 3072, 151936, 0},
     {"qwen3_1_7b", 2048, 16, 8, 128, 6144, 151936, 0},
     {"llama3_2_1b", 2048, 32, 8, 64, 8192, 128256, 1},
     {"llama3_1_8b", 4096, 32, 8, 128, 14336, 128256, 2},
+    // Not one of the four: benched alone (filter llama3_2_3b) and appended.
+    {"llama3_2_3b", 3072, 24, 8, 128, 8192, 128256, 3},
 };
 
 struct Pools {
@@ -251,6 +253,7 @@ bool RunGemm(Class c, int rope, int tn, int d, int part, GemmLaunch const& g, Po
       auto qkv = std::integral_constant<MxDecodeOp, MxDecodeOp::kQkvRope>{};
       if (rope == 0) return parts(qkv, T{}, MxRope<128, 2, 8, true>{});
       if (rope == 1) return parts(qkv, T{}, MxRope<64, 4, 8, false>{});
+      if (rope == 3) return parts(qkv, T{}, MxRope<128, 3, 8, false>{});
       return parts(qkv, T{}, MxRope<128, 4, 8, false>{});
     }
   }
@@ -267,7 +270,7 @@ Stats RunAttn(int dim, int q, int tmin, AttnLaunch const& g, Pools const& pools)
 #define TM_CASE(D, Q, T) \
   if (dim == D && q == Q && tmin == T) return Attn<D, Q, T>(g, pools);
 #define TM_DQ(D, Q) TM_CASE(D, Q, 32) TM_CASE(D, Q, 64) TM_CASE(D, Q, 128)
-  TM_DQ(128, 2) TM_DQ(64, 4) TM_DQ(128, 4)
+  TM_DQ(128, 2) TM_DQ(64, 4) TM_DQ(128, 4) TM_DQ(128, 3)
 #undef TM_DQ
 #undef TM_CASE
   std::fprintf(stderr, "ERROR no attention body %d %d %d\n", dim, q, tmin);
