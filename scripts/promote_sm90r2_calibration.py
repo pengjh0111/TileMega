@@ -33,6 +33,14 @@ def check_metrics(ranking, receipt, classes):
             or not r['correctness']['pass_'] or not finite_bound(r['step_error_pct'], 10)
             for r in candidates):
         raise ValueError('E-3 request error or development protocol is incomplete')
+    # Whole-step instrumentation overhead does not identify a class correction.
+    if receipt.get('class_overhead_identified') is not True:
+        raise ValueError('E-3 requires identified class overhead, not uniform step attribution')
+    if any((r.get('class_overhead_identified') is not True
+            and r.get('class_overhead_identified') != 'True')
+           or r.get('correction_method') == 'inferred uniform boundary overhead'
+           for r in classes):
+        raise ValueError('E-3 class rows must retain identified overhead evidence')
     if (not receipt['class_pass'] or len(classes) != 6 or {r['kind'] for r in classes} != KINDS
             or any(not finite_bound(r['error_pct'], 15) for r in classes)
             or receipt['binary_sha256'] not in {r['binary_sha256'] for r in candidates}):

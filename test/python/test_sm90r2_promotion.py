@@ -16,8 +16,10 @@ class PromotionContractTest(unittest.TestCase):
             complete=True, retrospective=False, reused_training_receipts=[],
             prediction_alias_inconsistencies=[], distinct_programs=8,
             top3_contains_fastest=True, kendall_tau=.8, candidates=candidates)
-        receipt = dict(model='qwen3_0_6b', batch=1, class_pass=True, binary_sha256='0')
-        classes = [dict(kind=kind, error_pct='0') for kind in KINDS]
+        receipt = dict(model='qwen3_0_6b', batch=1, class_pass=True,
+                       class_overhead_identified=True, binary_sha256='0')
+        classes = [dict(kind=kind, error_pct='0', class_overhead_identified='True')
+                   for kind in KINDS]
         return ranking, receipt, classes
 
     def test_complete_development_metrics(self):
@@ -52,6 +54,28 @@ class PromotionContractTest(unittest.TestCase):
             if change == 'different_binary':receipt['binary_sha256'] = 'unranked'
             if change == 'wrong_cell':receipt['batch'] = 16
             with self.subTest(change=change), self.assertRaises(ValueError):
+                check_metrics(ranking, receipt, classes)
+
+    def test_uniform_or_missing_class_overhead_cannot_promote(self):
+        for value in [None, False, 'True', 1]:
+            ranking, receipt, classes = self.fixtures()
+            if value is None:
+                receipt.pop('class_overhead_identified')
+            else:
+                receipt['class_overhead_identified'] = value
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'class overhead'):
+                check_metrics(ranking, receipt, classes)
+
+    def test_class_rows_cannot_inherit_a_receipt_claim(self):
+        for change in ['missing', 'unidentified', 'uniform']:
+            ranking, receipt, classes = self.fixtures()
+            if change == 'missing':
+                classes[0].pop('class_overhead_identified')
+            elif change == 'unidentified':
+                classes[0]['class_overhead_identified'] = 'False'
+            else:
+                classes[0]['correction_method'] = 'inferred uniform boundary overhead'
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, 'class rows'):
                 check_metrics(ranking, receipt, classes)
 
     def test_8b_requires_three_fresh_processes(self):

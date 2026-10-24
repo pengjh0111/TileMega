@@ -104,7 +104,9 @@ def main():
         error = (stage['class_ns'] / observed - 1) * 100
         rows.append(dict(model=model, batch=batch, tag=a.tag, kind=stage['kind'],
             instances=count, raw_class_ns=raw, corrected_class_ns=observed,
-            prediction_class_ns=stage['class_ns'], error_pct=error, class_pass=abs(error) <= 15,
+            prediction_class_ns=stage['class_ns'], error_pct=error,
+            inferred_class_pass=abs(error) <= 15, class_pass=False,
+            class_overhead_identified=False,
             correction_method='inferred uniform boundary overhead'))
     with (a.out / 'classes.csv').open('w') as stream:
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]), lineterminator='\n')
@@ -114,7 +116,8 @@ def main():
         inputs={k: dict(path=str(getattr(a, k)), sha256=sha(getattr(a, k)))
                 for k in ('target', 'probe', source_arg, 'ledger', 'overhead')},
         binary_sha256=sha(binary), trace_sha256=sha(instrumented),
-        class_pass=all(r['class_pass'] for r in rows), solver_gate_pass=False,
+        inferred_class_pass=all(r['inferred_class_pass'] for r in rows),
+        class_pass=False, class_overhead_identified=False, solver_gate_pass=False,
         trace_overhead_ms=float(overhead[0]['overhead_ms']),
         evidence='verified stage observations with inferred instrumentation correction; class check only'))
     print(json.dumps(rows))
