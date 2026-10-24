@@ -119,7 +119,7 @@ def option(command, name):
     return command[command.index(name) + 1]
 
 
-def validate_process(folder, fresh, state, job, binding, paths):
+def validate_process(folder, fresh, state, job, binding, paths, metadata_validator=None):
     require(state['status'] == 'done' and state['exit_code'] == 0,
             'five accepted completed processes required')
     guard = read(folder / 'guard_result.json')
@@ -173,12 +173,15 @@ def validate_process(folder, fresh, state, job, binding, paths):
             and job['performance_eligible'] is False, 'binary/source binding failed')
     require(meta['numerical_failures'] == 0 and math.isfinite(meta['frequency_drift_pct'])
             and 0 <= meta['frequency_drift_pct'] <= 2, 'numerical/frequency bracket rejected')
-    require(tuple(meta[k] for k in ('grid', 'active_ctas_max', 'threads', 'shared_bytes',
-            'registers', 'local_bytes', 'observed_residency')) == (132, 128, 160, 199808, 142, 0, 1)
-            and meta['observation'] == 'actual_Consume_entry_to_return_with_static_operands_and_dummy_producer'
-            and meta['includes'] == ['MMA', 'full_empty_protocol', 'finalize', 'epilogue', 'generation_publication']
-            and meta['excludes'] == ['memory_transfer', 'grid_barrier']
-            and meta['performance_eligible'] is False, 'wrong consumer geometry/observation')
+    if metadata_validator is not None:
+        metadata_validator(meta)
+    else:
+        require(tuple(meta[k] for k in ('grid', 'active_ctas_max', 'threads', 'shared_bytes',
+                'registers', 'local_bytes', 'observed_residency')) == (132, 128, 160, 199808, 142, 0, 1)
+                and meta['observation'] == 'actual_Consume_entry_to_return_with_static_operands_and_dummy_producer'
+                and meta['includes'] == ['MMA', 'full_empty_protocol', 'finalize', 'epilogue', 'generation_publication']
+                and meta['excludes'] == ['memory_transfer', 'grid_barrier']
+                and meta['performance_eligible'] is False, 'wrong consumer geometry/observation')
     history = [json.loads(line) for line in (folder / 'guard.jsonl').read_text().splitlines()]
     pre = [v for v in history if v['phase'] == 'preflight']
     require(len(pre) == policy['samples'] and {v['sample'] for v in pre} == set(range(policy['samples']))
@@ -187,6 +190,8 @@ def validate_process(folder, fresh, state, job, binding, paths):
     files = [folder / 'guard_result.json', folder / 'guard.jsonl', folder / 'pgid',
              unit / 'physical-device-command.json', unit / 'physical-device-identity.json',
              unit / 'probe-process.json', unit / 'probe/metadata.json', unit / 'probe/raw.csv']
+    if metadata_validator is not None:
+        files.append(unit / 'probe/ctas.csv')
     return dict(fresh=fresh, pid=process['pid'], ppid=process['ppid'], boot_id=process['boot_id'],
                 physical_identity=identity, metadata=meta, guard=guard, attempt=str(folder),
                 binary_sha256=process['binary_sha256'],
