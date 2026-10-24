@@ -30,6 +30,8 @@ GEOMETRY = {  # weight bytes, layers, KV heads, head dim
     'qwen3_1_7b': (3.20 * 2**30, 28, 8, 128),
     'llama3_2_1b': (2.30 * 2**30, 16, 8, 64),
     'llama3_1_8b': (14.96 * 2**30, 32, 8, 128),
+    # Outside the 20 (no MX-3 reference): measured after the Rq fix.
+    'llama3_2_3b': (5.98 * 2**30, 28, 8, 128),
 }
 MODELS = tuple(GEOMETRY)
 CLASSES = ('qkv', 'o', 'gate_up', 'down', 'head')
@@ -76,15 +78,16 @@ for model in MODELS:
         pin = json.loads((cell / 'decode/plan.so.mx4_pin.json').read_text())['mx_decode']
         layers = GEOMETRY[model][1]
         rounds = [1e3 * x['tpot_seconds'] for x in runs]
+        ref = mx3.get((model, batch))
         spread = max(0.01, (max(rounds) - min(rounds)) / tpot,
                      (max(mx3_rounds.get((model, batch), [0])) - min(mx3_rounds.get((model, batch), [0])))
-                     / mx3[(model, batch)])
-        delta = tpot / mx3[(model, batch)] - 1
+                     / ref) if ref else None
+        delta = tpot / ref - 1 if ref else None
         row = dict(model=model, batch=batch, round='median', tpot_ms=tpot, ttft_ms=1e3 * med('ttft_seconds'),
                    e2e_s=med('e2e_seconds'), tokens_per_s=med('output_tokens_per_second'),
                    mbu=mbu(model, batch, tpot, runs[0]['max_tokens']),
-                   mx3_tpot_ms=mx3[(model, batch)], delta_vs_mx3=delta,
-                   distinguishable_slower=delta > spread,
+                   mx3_tpot_ms=ref or '', delta_vs_mx3='' if delta is None else delta,
+                   distinguishable_slower='' if delta is None else delta > spread,
                    vs_vllm_mx1=tpot / statistics.median(mx1[('vllm', model, batch)]),
                    vs_sglang_mx1=tpot / statistics.median(mx1[('sglang', model, batch)]),
                    vs_vllm_mx4=tpot / mx4_base[('vllm', model, batch)] if ('vllm', model, batch) in mx4_base else '',
@@ -109,12 +112,14 @@ for r in table:
     if r.get('missing'):
         print('| %s B%d | not measured |' % (r['model'], r['batch']))
         continue
-    print('| %s B%d | %.3f | %.3f | %+.1f%%%s | %.1f | %.0f | %.0f%% | %.2f | %.2f | %.2f | %.2f | %.2f |' % (
-        r['model'], r['batch'], r['tpot_ms'], r['mx3_tpot_ms'], 100 * r['delta_vs_mx3'],
-        ' (slower)' if r['distinguishable_slower'] else '', r['ttft_ms'], r['tokens_per_s'], 100 * r['mbu'],
+    ref = r['mx3_tpot_ms'] != ''
+    print('| %s B%d | %.3f | %s | %s%s | %.1f | %.0f | %.0f%% | %.2f | %.2f | %.2f | %.2f | %.2f |' % (
+        r['model'], r['batch'], r['tpot_ms'], '%.3f' % r['mx3_tpot_ms'] if ref else '—',
+        '%+.1f%%' % (100 * r['delta_vs_mx3']) if ref else '—',
+        ' (slower)' if r['distinguishable_slower'] is True else '', r['ttft_ms'], r['tokens_per_s'], 100 * r['mbu'],
         r['vs_vllm_mx1'], r['vs_sglang_mx1'], r['vs_vllm_mx4'] or float('nan'),
         r['vs_sglang_mx4'] or float('nan'), r['vs_torchcompile_mx4'] or float('nan')))
-done = [r for r in table if not r.get('missing')]
+done = [r for r in table if not r.get('missing') and r['mx3_tpot_ms'] != '']
 if done:
     print('\n%d/20 measured; Δ vs MX-3 median %+.1f%% (%+.1f%% .. %+.1f%%); %d distinguishably slower; '
           'geomean /vLLM(MX-1) %.3f' % (
