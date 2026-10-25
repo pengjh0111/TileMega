@@ -16,8 +16,6 @@ struct Sm90DenseOperands {
   cutlass::bfloat16_t const *weight,*residual;
   cutlass::bfloat16_t* output;
   int* argmax_index;
-  float const* norm_sums;
-  float* output_sums;
   float epsilon;
 };
 struct Sm90DenseAttentionOperands {
@@ -39,15 +37,15 @@ struct alignas(16) Sm90DenseOperandBank {
 struct Sm90DenseOperandHeader {
   static constexpr int kOffset=2*sizeof(Sm90DenseRingState);
   static constexpr int kEnd=kOffset+2*sizeof(Sm90DenseOperandBank);
-  static_assert(sizeof(void*)==8 && sizeof(Sm90DenseOperands)==64);
-  static_assert(sizeof(float)==4 && offsetof(Sm90DenseOperands,epsilon)==56);
+  static_assert(sizeof(void*)==8 && sizeof(Sm90DenseOperands)==48);
+  static_assert(sizeof(float)==4 && offsetof(Sm90DenseOperands,epsilon)==40);
   static_assert(sizeof(Sm90DenseAttentionOperands)==96);
-  static_assert(sizeof(Sm90DenseOperandBank)==160 && alignof(Sm90DenseOperandBank)==16);
+  static_assert(sizeof(Sm90DenseOperandBank)==144 && alignof(Sm90DenseOperandBank)==16);
   static_assert(offsetof(Sm90DenseOperandBank,gemm)==0 &&
-      offsetof(Sm90DenseOperandBank,attention)==64);
-  static_assert(sizeof(Sm90DenseRingState)==224 && alignof(Sm90DenseRingState)==16);
-  static_assert(kOffset==448 && kOffset%alignof(Sm90DenseOperandBank)==0);
-  static_assert(kEnd==768 && kEnd<=1024);
+      offsetof(Sm90DenseOperandBank,attention)==48);
+  static_assert(sizeof(Sm90DenseRingState)==256 && alignof(Sm90DenseRingState)==16);
+  static_assert(kOffset==512 && kOffset%alignof(Sm90DenseOperandBank)==0);
+  static_assert(kEnd==800 && kEnd<=1024);
   static_assert(std::is_standard_layout_v<Sm90DenseOperandBank> &&
       std::is_trivially_copyable_v<Sm90DenseOperandBank>);
   __device__ static __forceinline__ Sm90DenseOperandBank& Bank(char* arena,unsigned stage) {

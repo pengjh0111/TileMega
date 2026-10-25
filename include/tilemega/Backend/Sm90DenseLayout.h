@@ -36,9 +36,11 @@ struct Sm90DenseLayout {
   }
   // TMA activation rows per slot: eight rows alias the upper MMA rows for B<=8.
   static constexpr int ActivationRows(int batch) {return batch<=8?8:16;}
-  static constexpr Sm90DenseLayout Gemm(int tn,int tk,int slots,int wk,int batch) {
+  // Scratch: WK fp32 partial tiles, 512 B of per-row squares, then (residual
+  // stages) two prefetched BF16 residual tiles of Batch x TN.
+  static constexpr Sm90DenseLayout Gemm(int tn,int tk,int slots,int wk,int batch,bool residual=false) {
     int weight=1024+2*ActivationRows(batch)*slots*tk,partial=weight+2*slots*tn*tk;
-    return {weight,0,partial,partial+64*wk*tn+512};
+    return {weight,0,partial,partial+64*wk*tn+512+(residual?4*batch*tn:0)};
   }
   static constexpr Sm90DensePayload GemmPayload(int tn,int tk,int slots,int k,int batch,int bytes) {
     Sm90DensePayload result;auto layout=Gemm(tn,tk,slots,1,batch);
