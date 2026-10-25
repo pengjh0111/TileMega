@@ -21,7 +21,7 @@ def validate(manifest, defines):
     if (defines.get('TILEMEGA_STATIC_DENSE_NATIVE') != '1' or
             defines.get('TILEMEGA_ARCH_ID') != '900' or
             manifest.get('runtime_batch') not in (1, 2, 4, 8, 16) or
-            manifest.get('native_origin') not in ('fixed', 'solver') or c.get('schema') != 4 or
+            manifest.get('native_origin') not in ('fixed', 'solver') or c.get('schema') != 5 or
             c.get('model') not in LAYER):
         raise ValueError('native dense architecture or coordinate schema is invalid')
     if (manifest.get('residency') != c['residency'] or 'TILEMEGA_DN_VECTOR_SUMS' in defines or
@@ -42,12 +42,20 @@ def dispatch(manifest, defines, source):
     per_group = 2 if len(layer) % 2 else 1
     size = per_group*len(layer)
     head = size + 1
-    placements = {}
-    for number, body, offset, prefix in re.findall(
-            r'using Stage_(\d+)\s*=\s*Placement<Body_(\d+),(\d+),(\d+)>;', source):
+    placements, group_tiles = {}, {}
+    for number, body, offset, prefix, tiles in re.findall(
+            r'using Stage_(\d+)\s*=\s*Placement<Body_(\d+),(\d+),(\d+)(?:,(\d+))?>;', source):
         if number != body or number in placements:
             raise ValueError('native stage placement is ambiguous')
         placements[number] = (int(offset), int(prefix))
+        if tiles:
+            group_tiles[number] = int(tiles)
+    # D8: exactly each layer's qkv (typed stages 1, 1 + per layer, ...) waits
+    # by KV-group counters, with one tile count.
+    qkv = {str(1 + len(layer) * i) for i in range(per_group)}
+    if set(group_tiles) != (qkv if c['group_wait'] is True else set()) or \
+            len(set(group_tiles.values())) > 1 or any(v <= 0 for v in group_tiles.values()):
+        raise ValueError('native group wait differs from its coordinate identity')
     # Program<batch, capacity, residency, buffers, maps, arena, layers, slots,
     # loop, embed, Stage_0, LayerGroup<P, Stage_1..Stage_S>, Stage_{S+1}>
     # (D7, D9): dense groups two layers of five, MoE one layer of six.

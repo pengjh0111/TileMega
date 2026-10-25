@@ -1,5 +1,6 @@
 """Native serving receipts must certify the generated calls, not a label."""
 import copy
+import re
 import json
 import unittest
 
@@ -23,8 +24,8 @@ class NativeContractTests(unittest.TestCase):
     def setUp(self):
         # Qwen3-0.6B B1 at schema 3: stage i takes arena i % 2 (prompt §6 D5).
         self.coordinates = dict(
-            schema=4, model='dense', residency=1, swiglu_u=8, weight_stream=False, layer_loop=False,
-            emb='stage',
+            schema=5, model='dense', residency=1, swiglu_u=8, weight_stream=False, layer_loop=False,
+            emb='stage', group_wait=False,
             gemms=dict(qkv=gemm(32, 4, 256, 4), o=gemm(8, 1, 512, 4), gate_up=gemm(48, 2, 256, 4),
                        down=gemm(8, 1, 512, 6), lm_head=gemm(128, 4, 64, 8)),
             attention=dict(chunks=16, block_keys=64, slots=2, new_row_work=0))
@@ -69,7 +70,9 @@ class NativeContractTests(unittest.TestCase):
                          f'{g["warps_k"]},backend::ServingEpilogueOp::{op},8,{norm},kLayerSlot|0u,'
                          f'kAbsent,2,kAbsent,{g["register_stages"]},0>;\n')
         for i in range(12):
-            text += f'using Stage_{i}=Placement<Body_{i},{offsets[i]},{prefixes[i]}>;\n'
+            # D8: Qwen (Q2 D128) groups hold 512 qkv columns, 16 TN32 tiles.
+            tiles = ',16' if i in (1, 6) and c['group_wait'] else ''
+            text += f'using Stage_{i}=Placement<Body_{i},{offsets[i]},{prefixes[i]}{tiles}>;\n'
         pair = ','.join(f'Stage_{i}' for i in range(1, 11))
         return text + (f'using NativeProgram=Program<1,1088,1,12,3,{ARENA},2,5,{str(loop).lower()},'
                        f'{embed},Stage_0,LayerGroup<2,{pair}>,Stage_11>;\n')
@@ -105,9 +108,25 @@ class NativeContractTests(unittest.TestCase):
             self.check(self.coordinates, source.replace('1,8,128,2,1,16,64', '1,8,128,2,1,8,64'))
         with self.assertRaisesRegex(ValueError, 'legacy execution path'):
             self.check(self.coordinates, source + '\nvoid tilemega_l1_kernel();')
-        old = dict(self.coordinates, schema=3)
+        old = dict(self.coordinates, schema=4)
         with self.assertRaisesRegex(ValueError, 'coordinate schema'):
             self.check(old, self.source(old))
+
+    def test_group_wait_is_bound_to_the_coordinate(self):
+        wait = dict(self.coordinates, group_wait=True)
+        source = self.source(wait)
+        self.assertEqual(len(self.check(wait, source)), 9)
+        stage1 = re.search(r'using Stage_1=Placement<Body_1,\d+,\d+,16>;', source)[0]
+        cases = [source.replace(stage1, stage1.replace(',16>', '>')),
+                 source.replace('Placement<Body_6,0,0,16>', 'Placement<Body_6,0,0,8>'),
+                 source.replace('Placement<Body_8,0,0>', 'Placement<Body_8,0,0,16>')]
+        for bad in cases:
+            with self.subTest(bad=bad == cases[0]), self.assertRaisesRegex(ValueError, 'group wait differs'):
+                self.check(wait, bad)
+        plain = self.source(self.coordinates)
+        stage1 = re.search(r'using Stage_1=Placement<Body_1,\d+,\d+>;', plain)[0]
+        with self.assertRaisesRegex(ValueError, 'group wait differs'):
+            self.check(self.coordinates, plain.replace(stage1, stage1.replace('>;', ',16>;')))
 
     def test_arenas_follow_the_stage_index(self):
         for offsets in ([0] * 12, [ARENA * ((i + 1) % 2) for i in range(12)]):
