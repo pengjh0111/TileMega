@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Add stage-boundary timestamps to an immutable SM90R2 library."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import shlex
@@ -11,6 +12,10 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def sha(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--input', type=Path, required=True)
@@ -18,8 +23,9 @@ def main():
     p.add_argument('--native-phases', action='store_true')
     a = p.parse_args()
     original, output = a.input.resolve(), a.out.resolve()
-    if not output.is_relative_to(ROOT / 'runs/sm90r2') or output == original:
-        p.error('diagnostic outputs belong under runs/sm90r2')
+    runs = (ROOT / 'runs').resolve()
+    if not any(output.is_relative_to(runs / r) for r in ('sm90r2', 'sm90r3')) or output == original:
+        p.error('diagnostic outputs belong under runs/sm90r2 or runs/sm90r3')
     sys.path.insert(0, str(ROOT / 'python'))
     from tilemega.build.identity import generate, verify, validate_snapshot_inputs
     identity = verify(original)
@@ -30,10 +36,15 @@ def main():
     for suffix in ('.cu', '.plan.json', '.source.json'):
         shutil.copy2(str(original) + suffix, str(output) + suffix)
     command = shlex.split(Path(str(original) + '.build_command.txt').read_text())
-    if command.count(str(original)) != 1 or command.count(str(original) + '.cu') != 1:
+    sources = [x for x in command if x.endswith('.cu')]
+    # Some R1 libraries were compiled from a since-removed staging copy of the
+    # recorded source; the copy beside the library must then match its identity.
+    if command.count(str(original)) != 1 or len(sources) != 1 or (
+            sources[0] != str(original) + '.cu' and
+            sha(str(original) + '.cu') != identity['generated_source_sha256']):
         raise ValueError('ambiguous build command')
     command = [str(output) if x == str(original) else str(output) + '.cu'
-               if x == str(original) + '.cu' else x for x in command]
+               if x == sources[0] else x for x in command]
     command[1:1] = ['-lineinfo', '-DTILEMEGA_TRACE_STAGE=1', '-DTILEMEGA_TRACE_STEP=1']
     if a.native_phases:
         command.insert(1, '-DTILEMEGA_TRACE_NATIVE_PHASES=1')
