@@ -99,8 +99,12 @@ struct Sm90DenseRouterFinish {
   }
 };
 
+// Page: 0 when the weights are TN x TK tile pages; 64 when the experts keep
+// the 64 x 64 pages the legacy MoE prefill shares (one copy of the expert
+// weights fits the card; recorded deviation from §8's per-TN packing). A
+// slot is then assembled from runs of whole or half pages per 64-column panel.
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,Sm90DenseMoeMode Mode,int U,
-         int Experts,int TopK,bool FloatWeights,int RegisterStages=1>
+         int Experts,int TopK,bool FloatWeights,int Page=0,int RegisterStages=1>
 struct Sm90DenseMoeGemm {
   static constexpr bool kInputNorm=Mode!=Sm90DenseMoeMode::kDown;
   using Core=Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,ServingEpilogueOp::kStore,U,kInputNorm,
@@ -116,6 +120,7 @@ struct Sm90DenseMoeGemm {
   static constexpr int kMaxTasks=kDynamic?Experts*kTiles:kTiles;
   static_assert(Batch<=Schedule::kMaxRows && Experts<=128 && TopK<=8);
   static_assert(Mode!=Sm90DenseMoeMode::kGateUp || TN%(2*U)==0);
+  static_assert(Page==0 || (Page==64 && kDynamic && TN%32==0 && N%64==0 && K%64==0));
   using RouterFinish=Sm90DenseRouterFinish<Batch,Experts,TopK,kTiles,FloatWeights>;
 
   __device__ static __forceinline__ int TotalTasks(Sm90DenseMoeOperands const& p) {
@@ -126,17 +131,42 @@ struct Sm90DenseMoeGemm {
   // expert in slot t / kTiles (one expert's pages are N x K).
   __device__ static __forceinline__ Element const* Tiles(Element const* weight,int const* schedule,int t) {
     if constexpr(!kDynamic)return weight+std::size_t(t)*kIterations*TN*TK;
+    else if constexpr(Page)return weight+std::size_t(schedule[Schedule::Expert(t/kTiles)])*N*K;
     else return weight+std::size_t(schedule[Schedule::Expert(t/kTiles)])*N*K+
         std::size_t(t%kTiles)*kIterations*TN*TK;
   }
+  // One slot's weights: task t's tile, k-tile `tile`; Tiles(...) is the base.
+  __device__ static __forceinline__ void CopyWeights(Element* destination,Element const* tiles,int t,
+      int tile,std::uint64_t* barrier) {
+    if constexpr(!Page)
+      Async::Bulk(destination,tiles+std::size_t(tile)*TN*TK,2*TN*TK,barrier);
+    else {
+      // Rows of a 64-row page are contiguous in 8-row groups, and the slot's
+      // [TK/64][TN] panel layout uses the same atom (TN is a multiple of 32).
+      int first=(t%kTiles)*TN;
+      #pragma unroll
+      for(int panel=0;panel<TK/64;++panel) {
+        int column=tile*TK/64+panel;
+        for(int row=first;row<first+TN;) {
+          int end=min(first+TN,(row/64+1)*64);
+          Async::Bulk(destination+512*((row-first)/8+(TN/8)*panel),
+              tiles+(std::size_t(row/64)*(K/64)+column)*4096+512*((row%64)/8),2*(end-row)*64,barrier);
+          row=end;
+        }
+      }
+    }
+  }
 
-  // D6 stream into M6 from M5's producer, for this CTA's first task.
+  // D6 stream for this CTA's first task: into M4 from o, into M6 from M5's
+  // producer (the routes are known once M4 has run).
   template<int Bytes>
   __device__ static __forceinline__ void Preissue(Element const* weight,int const* schedule,
       char* shared,Sm90DenseRingState& state) {
     static_assert(Bytes>0 && Bytes%16==0 && Bytes<=(Slots<kIterations?Slots:kIterations)*2*TN*TK);
+    static_assert(Mode!=Sm90DenseMoeMode::kGateUp,"M4 does not stream into M5");
+    static_assert(Page==0 || Bytes%(2*TN*TK)==0,"paged experts stream whole slots");
     int t=int(blockIdx.x);
-    if(t>=schedule[Schedule::Active()]*kTiles)return;
+    if(t>=(kDynamic?schedule[Schedule::Active()]*kTiles:kTiles))return;
     auto* b=reinterpret_cast<Element*>(shared+1024)+Slots*kRows*TK;
     auto const* tiles=Tiles(weight,schedule,t);
     int remaining=Bytes;
@@ -145,7 +175,8 @@ struct Sm90DenseMoeGemm {
       int part=min(remaining,2*TN*TK);remaining-=part;
       if(part) {
         Async::ExpectTx(state.full+slot,kSlotBytes);
-        Async::Bulk(b+slot*TN*TK,tiles+std::size_t(slot)*TN*TK,part,state.full+slot);
+        if constexpr(Page)CopyWeights(b+slot*TN*TK,tiles,t,slot,state.full+slot);
+        else Async::Bulk(b+slot*TN*TK,tiles+std::size_t(slot)*TN*TK,part,state.full+slot);
       }
     }
   }
@@ -167,7 +198,7 @@ struct Sm90DenseMoeGemm {
       int slot=sequence%Slots,tile=sequence%kIterations;
       int t=int(blockIdx.x)+(sequence/kIterations)*int(gridDim.x);
       Async::Wait(state.empty+slot,(phase>>slot)&1);
-      auto const* weights=Tiles(p.weight,p.schedule,t)+std::size_t(tile)*TN*TK;
+      auto const* tiles=Tiles(p.weight,p.schedule,t);
       if constexpr(Mode==Sm90DenseMoeMode::kGateUp) {
         // The producer lanes gather the slot's rows of x' (one TK segment
         // each) into the swizzled slot. A non-.noinc cp.async arrive adds a
@@ -186,7 +217,7 @@ struct Sm90DenseMoeGemm {
         __syncwarp();
         if(lane==0) {
           Async::ExpectTx(state.full+slot,2*TN*TK);
-          Async::Bulk(b+slot*TN*TK,weights,2*TN*TK,state.full+slot);
+          CopyWeights(b+slot*TN*TK,tiles,t,tile,state.full+slot);
         }
       }else if(lane==0) {
         // Only M6's first task can have been streamed by M5 (D6).
@@ -195,8 +226,10 @@ struct Sm90DenseMoeGemm {
           if(streamed && sequence<(Prefix+2*TN*TK-1)/(2*TN*TK))
             prefix=min(Prefix-sequence*2*TN*TK,2*TN*TK);
         if(!prefix)Async::ExpectTx(state.full+slot,kSlotBytes);
-        if(prefix<2*TN*TK)Async::Bulk(b+slot*TN*TK+prefix/2,weights+prefix/2,2*TN*TK-prefix,
-            state.full+slot);
+        if(!prefix)CopyWeights(b+slot*TN*TK,tiles,t,tile,state.full+slot);
+        else if constexpr(!Page)
+          if(prefix<2*TN*TK)Async::Bulk(b+slot*TN*TK+prefix/2,tiles+std::size_t(tile)*TN*TK+prefix/2,
+              2*TN*TK-prefix,state.full+slot);
         // Rows past the batch (router) or the slot's count (down) are never
         // written out.
         if constexpr(Mode==Sm90DenseMoeMode::kRouter)
@@ -333,8 +366,8 @@ struct Sm90DenseMoeGemm {
   __device__ static __forceinline__ void Run(Sm90DenseMoeOperands const& p,char* shared,
       Sm90DenseRingState* persistent=nullptr,Tail tail={},bool streamed=true) {
     static_assert(Prefix>=0 && Prefix%16==0 && Prefix<=(Slots<kIterations?Slots:kIterations)*2*TN*TK);
-    static_assert(Mode==Sm90DenseMoeMode::kDown || Prefix==0,
-        "M4's routes are unknown to its predecessor and M4 does not stream into M5");
+    static_assert(Mode!=Sm90DenseMoeMode::kGateUp || Prefix==0,"M4 does not stream into M5");
+    static_assert(Page==0 || Prefix%(2*TN*TK)==0,"paged experts stream whole slots");
     auto& state=persistent?*persistent:*reinterpret_cast<Sm90DenseRingState*>(shared);
     auto* a=reinterpret_cast<Element*>(shared+1024);
     auto* b=a+Slots*kRows*TK;
