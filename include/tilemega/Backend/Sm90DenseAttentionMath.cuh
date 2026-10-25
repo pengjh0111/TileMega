@@ -37,10 +37,11 @@ struct Sm90DenseAttentionMath {
     unsigned bits=*reinterpret_cast<unsigned const*>(x);
     return make_float2(__uint_as_float(bits<<16),__uint_as_float(bits&0xffff0000u));
   }
+  // Lane l returns elements [8l, 8l+8) of the normalized, rotated head (zero
+  // for l >= D/8). The whole warp participates: the norm is a warp reduction.
   template<int D,bool Norm>
-  __device__ static __forceinline__ void Rotate(Element const* x,Element const* norm,
-      Element const* cosine,Element const* sine,float epsilon,Element* shared,
-      Element* cache=nullptr) {
+  __device__ static __forceinline__ uint4 RotateValue(Element const* x,Element const* norm,
+      Element const* cosine,Element const* sine,float epsilon) {
     int d=(threadIdx.x&31)*8;
     uint4 a{},b{},w{},partner_w{},cos{},sin{};
     float square=0;
@@ -58,8 +59,8 @@ struct Sm90DenseAttentionMath {
     }
     float inverse=1;
     if constexpr(Norm)inverse=rsqrtf(WarpSum(square)/D+epsilon);
-    if(d<D) {
-      uint4 output{};
+    uint4 output{};
+    if(d<D)
       cute::for_each(cute::make_int_sequence<8>{},[&](auto i) {
         float first=Get<int(i)>(a),second=Get<int(i)>(b);
         if constexpr(Norm) {
@@ -70,6 +71,15 @@ struct Sm90DenseAttentionMath {
         Element right((d<D/2?-second:second)*Get<int(i)>(sin));
         Put<int(i)>(output,Element(float(left)+float(right)));
       });
+    return output;
+  }
+  template<int D,bool Norm>
+  __device__ static __forceinline__ void Rotate(Element const* x,Element const* norm,
+      Element const* cosine,Element const* sine,float epsilon,Element* shared,
+      Element* cache=nullptr) {
+    int d=(threadIdx.x&31)*8;
+    uint4 output=RotateValue<D,Norm>(x,norm,cosine,sine,epsilon);
+    if(d<D) {
       *reinterpret_cast<uint4*>(shared+d)=output;
       if(cache)*reinterpret_cast<uint4*>(cache+d)=output;
     }

@@ -50,28 +50,12 @@ struct Sm90DenseLayout {
     }
     return result;
   }
-  static constexpr int AttentionKeys(int chunks,int row_work,int capacity) {
-    return (capacity+row_work+chunks-1)/chunks;
-  }
-  static constexpr Sm90DenseLayout Attention(int batch,int d,int q,int chunks,
-      int keys,int slots,int row_work,int capacity) {
-    int key=1024+(batch<=4?2*q*d:36*d);
-    int payload=2*d*(batch<=4?AttentionKeys(chunks,row_work,capacity):slots*keys);
-    int scratch=key+2*payload;
-    int end=scratch+16*q*d+32*q+4*(chunks>4?chunks:4)*q+4*q+4;
-    return {key,key+payload,scratch,(end+15)/16*16};
-  }
-  static constexpr Sm90DensePayload AttentionPayload(int batch,int d,int q,int chunks,
-      int keys,int slots,int row_work,int capacity,int bytes) {
-    Sm90DensePayload result;
-    auto layout=Attention(batch,d,q,chunks,keys,slots,row_work,capacity);
-    int count=batch<=4?1:slots,rows=batch<=4?AttentionKeys(chunks,row_work,capacity):keys;
-    for(int i=0;i<count && bytes>0;++i) {
-      int part=bytes<4*d*rows?bytes:4*d*rows;
-      result.Add(layout.key+i*2*d*rows,part/2);
-      result.Add(layout.value+i*2*d*rows,part/2);bytes-=part;
-    }
-    return result;
+  // Sm90DenseAttentionBody::Storage: K/V ring, Q and two new-row panels,
+  // then the four-warp merge area; the struct is 1024-byte aligned.
+  static constexpr Sm90DenseLayout Attention(int d,int q,int chunks,int keys,int slots) {
+    int key=1024,value=key+2*keys*d,scratch=key+4*slots*keys*d+3*32*d;
+    int merge=16*q*d+32*q+4*(chunks>4?chunks:4)*q+4;
+    return {key,value,scratch,key+(4*slots*keys*d+3*32*d+merge+1023)/1024*1024};
   }
 };
 }  // namespace tilemega::backend

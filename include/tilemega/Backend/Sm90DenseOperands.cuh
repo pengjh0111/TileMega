@@ -19,6 +19,8 @@ struct Sm90DenseOperands {
   float epsilon;
 };
 struct Sm90DenseAttentionOperands {
+  // History is read by TMA through these maps; the pointers write row `past`.
+  CUtensorMap const *key_map,*value_map;
   cutlass::bfloat16_t const* qkv;
   cutlass::bfloat16_t *key,*value,*output;
   cutlass::bfloat16_t const *cosine,*sine,*q_norm,*k_norm;
@@ -39,13 +41,13 @@ struct Sm90DenseOperandHeader {
   static constexpr int kEnd=kOffset+2*sizeof(Sm90DenseOperandBank);
   static_assert(sizeof(void*)==8 && sizeof(Sm90DenseOperands)==48);
   static_assert(sizeof(float)==4 && offsetof(Sm90DenseOperands,epsilon)==40);
-  static_assert(sizeof(Sm90DenseAttentionOperands)==96);
-  static_assert(sizeof(Sm90DenseOperandBank)==144 && alignof(Sm90DenseOperandBank)==16);
+  static_assert(sizeof(Sm90DenseAttentionOperands)==112);
+  static_assert(sizeof(Sm90DenseOperandBank)==160 && alignof(Sm90DenseOperandBank)==16);
   static_assert(offsetof(Sm90DenseOperandBank,gemm)==0 &&
       offsetof(Sm90DenseOperandBank,attention)==48);
   static_assert(sizeof(Sm90DenseRingState)==256 && alignof(Sm90DenseRingState)==16);
   static_assert(kOffset==512 && kOffset%alignof(Sm90DenseOperandBank)==0);
-  static_assert(kEnd==800 && kEnd<=1024);
+  static_assert(kEnd==832 && kEnd<=1024);
   static_assert(std::is_standard_layout_v<Sm90DenseOperandBank> &&
       std::is_trivially_copyable_v<Sm90DenseOperandBank>);
   __device__ static __forceinline__ Sm90DenseOperandBank& Bank(char* arena,unsigned stage) {
