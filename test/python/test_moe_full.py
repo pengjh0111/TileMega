@@ -161,6 +161,21 @@ class MoeFullTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'workload differs'):
             memory_report(config, manifests, 1, 128)
 
+    def test_native_pairs_tickets_and_minimum_scratch_allocation(self):
+        config, manifests = self.fixture()
+        before = memory_report(config, manifests, 2, 128)['workspace_bytes']
+        manifests[0]['buffers'].extend([
+            dict(name='head_partial', dtype='pair_f32_u32', role='internal', constant=208),
+            dict(name='ticket', dtype='u32', role='internal', constant=16),
+            dict(name='barrier', dtype='u64', role='internal', constant=8),
+            dict(name='unused_partial', dtype='f32', role='internal', constant=0, bytes=16),
+        ])
+        result = memory_report(config, manifests, 2, 128)
+        self.assertEqual(result['workspace_bytes'] - before, 208*8 + 16*4 + 8*8 + 16)
+        manifests[0]['buffers'][-1].update(constant=8, bytes=16)
+        with self.assertRaisesRegex(ValueError, 'smaller than its elements'):
+            memory_report(config, manifests, 2, 128)
+
     def test_shared_layout_restriction_depends_on_target_capacity(self):
         config,manifests=self.fixture()
         missing=deployment_layout_decision(config,manifests[0],2,128,{})

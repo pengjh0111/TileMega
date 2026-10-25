@@ -31,7 +31,8 @@ def memory_report(config, manifests, batch, capacity):
     are not manifest buffers. Content-equal weights can also be deduplicated
     by the loader. This estimate cannot certify that a plan fits.
     """
-    widths = {'bf16': 2, 'f32': 4, 'i32': 4, 'i64': 8}
+    widths = {'bf16': 2, 'f32': 4, 'i32': 4, 'i64': 8,
+              'u32': 4, 'u64': 8, 'pair_f32_u32': 8}
     weights, names, phases = {}, {}, []
     for manifest in manifests:
         if not manifest['batch_lo'] <= batch <= manifest['batch_hi'] or \
@@ -45,6 +46,11 @@ def memory_report(config, manifests, batch, capacity):
                 ('constant', 1), ('per_seq', seq), ('per_past', past),
                 ('per_total', seq+past), ('per_batch', batch)))
             size = elements*widths[buffer['dtype']]
+            if buffer['role'] == 'internal' and 'bytes' in buffer:
+                allocated = buffer['bytes']
+                if type(allocated) is not int or allocated < size:
+                    raise ValueError('internal buffer allocation is smaller than its elements')
+                size = allocated
             if 'recipe' in buffer:
                 recipe = json.dumps(buffer['recipe'], sort_keys=True, separators=(',', ':'))
                 key = (recipe, buffer['dtype'], size)
