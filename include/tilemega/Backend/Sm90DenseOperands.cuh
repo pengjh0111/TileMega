@@ -40,13 +40,31 @@ struct Sm90DenseHeadOperands {
   cutlass::bfloat16_t* x;
   int past;
 };
+// Native MoE stages (prompt §8): M4 router + top-k, M5 grouped gate_up,
+// M6 down + combine; see Sm90DenseMoe.cuh for each field's use.
+struct Sm90DenseMoeOperands {
+  CUtensorMap const* activation;
+  cutlass::bfloat16_t const* weight;
+  cutlass::bfloat16_t const* input;
+  void* output;
+  int* schedule;
+  void* route_weights;
+  int* route_index;
+  cutlass::bfloat16_t* x;
+  std::uint64_t* counter;
+  float epsilon;
+};
 // Thread zero fully initializes the active member for the next stage. That
 // member is immutable from the V3 CTA join until the stage's complete return.
 // The other member is not read by the stage or its preissue tail.
 struct alignas(16) Sm90DenseOperandBank {
   alignas(16) Sm90DenseOperands gemm;
-  alignas(16) Sm90DenseAttentionOperands attention;
   alignas(16) Sm90DenseHeadOperands head;
+  // A stage reads either its attention or its MoE operands, never both.
+  union alignas(16) {
+    Sm90DenseAttentionOperands attention;
+    Sm90DenseMoeOperands moe;
+  };
 };
 struct Sm90DenseOperandHeader {
   static constexpr int kOffset=2*sizeof(Sm90DenseRingState);
@@ -54,10 +72,10 @@ struct Sm90DenseOperandHeader {
   static_assert(sizeof(void*)==8 && sizeof(Sm90DenseOperands)==48);
   static_assert(sizeof(float)==4 && offsetof(Sm90DenseOperands,epsilon)==40);
   static_assert(sizeof(Sm90DenseAttentionOperands)==120);
-  static_assert(sizeof(Sm90DenseHeadOperands)==40);
+  static_assert(sizeof(Sm90DenseHeadOperands)==40 && sizeof(Sm90DenseMoeOperands)==80);
   static_assert(sizeof(Sm90DenseOperandBank)==224 && alignof(Sm90DenseOperandBank)==16);
-  static_assert(offsetof(Sm90DenseOperandBank,gemm)==0 &&
-      offsetof(Sm90DenseOperandBank,attention)==48);
+  static_assert(offsetof(Sm90DenseOperandBank,gemm)==0 && offsetof(Sm90DenseOperandBank,head)==48 &&
+      offsetof(Sm90DenseOperandBank,attention)==96 && offsetof(Sm90DenseOperandBank,moe)==96);
   static_assert(sizeof(Sm90DenseRingState)==256 && alignof(Sm90DenseRingState)==16);
   static_assert(kOffset==512 && kOffset%alignof(Sm90DenseOperandBank)==0);
   static_assert(kEnd==960 && kEnd<=1024);
