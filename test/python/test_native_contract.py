@@ -23,7 +23,8 @@ class NativeContractTests(unittest.TestCase):
     def setUp(self):
         # Qwen3-0.6B B1 at schema 3: stage i takes arena i % 2 (prompt §6 D5).
         self.coordinates = dict(
-            schema=3, residency=1, swiglu_u=8, weight_stream=False, layer_loop=False, emb='stage',
+            schema=4, model='dense', residency=1, swiglu_u=8, weight_stream=False, layer_loop=False,
+            emb='stage',
             gemms=dict(qkv=gemm(32, 4, 256, 4), o=gemm(8, 1, 512, 4), gate_up=gemm(48, 2, 256, 4),
                        down=gemm(8, 1, 512, 6), lm_head=gemm(128, 4, 64, 8)),
             attention=dict(chunks=16, block_keys=64, slots=2, new_row_work=0))
@@ -104,7 +105,7 @@ class NativeContractTests(unittest.TestCase):
             self.check(self.coordinates, source.replace('1,8,128,2,1,16,64', '1,8,128,2,1,8,64'))
         with self.assertRaisesRegex(ValueError, 'legacy execution path'):
             self.check(self.coordinates, source + '\nvoid tilemega_l1_kernel();')
-        old = dict(self.coordinates, schema=2)
+        old = dict(self.coordinates, schema=3)
         with self.assertRaisesRegex(ValueError, 'coordinate schema'):
             self.check(old, self.source(old))
 
