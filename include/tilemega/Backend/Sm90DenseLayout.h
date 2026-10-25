@@ -52,9 +52,11 @@ struct Sm90DenseLayout {
   }
   // Sm90DenseAttentionBody::Storage: K/V ring, Q and two new-row panels,
   // then the four-warp merge area; the struct is 1024-byte aligned.
-  static constexpr Sm90DenseLayout Attention(int d,int q,int chunks,int keys,int slots) {
+  // dsmem (D10b): the chunk-group leader's inbox of S normalized partials
+  // and their log2-sum-exps follows the merge area.
+  static constexpr Sm90DenseLayout Attention(int d,int q,int chunks,int keys,int slots,bool dsmem=false) {
     int key=1024,value=key+2*keys*d,scratch=key+4*slots*keys*d+3*32*d;
-    int merge=16*q*d+32*q+4*(chunks>4?chunks:4)*q+4;
+    int merge=16*q*d+32*q+4*(chunks>4?chunks:4)*q+4+(dsmem?4*chunks*q*d+4*chunks*q:0);
     return {key,value,scratch,key+(4*slots*keys*d+3*32*d+merge+1023)/1024*1024};
   }
   // Preissued K/V slots are contiguous from the start of the ring.
