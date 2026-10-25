@@ -172,12 +172,21 @@ struct MxHead {
     auto* const flag = reinterpret_cast<unsigned*>(smem + SmemBytes(s.b) - 16);
     codegen::executor::LastArriverV2<Sync>::Run(p.ticket, unsigned(gridDim.x), flag, [&] {
       if (l.Compute()) {
-        // All B*G pairs are issued in parallel; padding gives a fixed tree.
-        for (int index = l.t; index < s.b * 128; index += 512) {
-          int const row = index / 128, col = index % 128;
-          pairs[index] = col < int(gridDim.x) ? MxHeadLoadV2(p.partial + row * gridDim.x + col)
-                                             : MxHeadPartialV2{-INFINITY, ~0u};
+        // Clamp inactive slots so all loads precede the single wait.
+        MxHeadPartialV2 pending[4];
+        int const count = s.b * int(gridDim.x);
+#pragma unroll
+        for (int slot = 0; slot < 4; ++slot)
+          pending[slot] = MxHeadLoadV2(p.partial + min(l.t + slot * 512, count - 1));
+        __builtin_mxc_arrive_gvmcnt(0);
+#pragma unroll
+        for (int slot = 0; slot < 4; ++slot) {
+          int const index = l.t + slot * 512;
+          if (index < count)
+            pairs[(index / int(gridDim.x)) * 128 + index % int(gridDim.x)] = pending[slot];
         }
+        for (int index = l.t; index < s.b * 128; index += 512)
+          if (index % 128 >= int(gridDim.x)) pairs[index] = {-INFINITY, ~0u};
       }
       Sync::CtaSync();
       for (int stride = 64; stride; stride /= 2) {
