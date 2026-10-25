@@ -2083,7 +2083,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   mark(argmax_index);
   for(auto value:stages) {
     auto s=dictionaryEntry(value,"stages");
-    if(stringField(s,"kind")=="kGemm")continue;
+    // Dense GEMM stages bind only their GEMM's buffers; MoE stages also
+    // carry the schedule, routes, indices and counters.
+    if(stringField(s,"kind")=="kGemm" &&
+       family(dictionaryEntry(gemms[integerField(s,"gemm")],"gemms"))<5)continue;
     if(auto operands=s.getAs<mlir::DenseI64ArrayAttr>("operands"))
       for(auto operand:operands.asArrayRef())mark(operand);
   }
