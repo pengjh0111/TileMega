@@ -2131,6 +2131,14 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     return found.first->second;
   };
   int activation_rows=batch<=8?8:16;
+  // D5 (prompt §6): stage i lives in arena i % 2; an attention stage whose two
+  // slots exceed one arena takes the whole budget (offset 0).
+  auto budget_attr=module->getAttrOfType<mlir::IntegerAttr>("tmexec.sm90_dense_budget");
+  if(!budget_attr)throw std::invalid_argument("native dense plan lacks its shared-memory budget");
+  int budget=int(budget_attr.getInt()),arena=solver::Sm90DenseArena(budget);
+  // D6: a ring stage streams into the next ring stage unless either is full
+  // width; embedding and argmax have no ring, so no step boundary is crossed.
+  bool previous_stream=false;
   for(auto value:stages) {
     auto s=dictionaryEntry(value,"stages");auto kind=stringField(s,"kind");
     auto operands=s.getAs<mlir::DenseI64ArrayAttr>("operands");
@@ -2143,14 +2151,14 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     };
     std::string weight;std::uint64_t bytes=0;unsigned tasks=0,chunks=0;
     unsigned extent=integerField(s,"extent"),width=integerField(s,"width"),group=integerField(s,"group");
-    int offset=0,prefix=0,l2=0;
-    bool late=false;
+    int offset=0,stream=0;
     types<<"using Body_"<<number<<'=';
     if(kind=="kGemm") {
       unsigned index=integerField(s,"gemm");auto g=dictionaryEntry(gemms[index],"gemms");
       auto const& cfg=c.gemms[family(g)];
-      offset=cfg.workspace_offset;prefix=cfg.preissue_smem_bytes;l2=cfg.prefetch_l2_bytes;
-      late=cfg.preissue_late;
+      if(cfg.SharedBytes(batch,solver::Sm90DenseCoordinates::ResidualFamily(family(g)))-1024>arena)
+        throw std::invalid_argument("native GEMM storage exceeds its arena");
+      offset=(number%2)*arena;stream=cfg.StreamBytes(integerField(g,"k"));
       auto op=g.get("epilogue")?stringField(g,"epilogue"):"store";
       std::string enum_op=op=="store"?"kStore":op=="residual"?"kResidual":
           op=="swiglu"?"kSwiGLU":"kArgmaxPartial";
@@ -2175,9 +2183,10 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
       bool norm=operand(5)!="kAbsent";
       if(norm!=(operand(6)!="kAbsent"))throw std::invalid_argument("asymmetric native QK norm");
       chunks=c.attention.chunks;
-      offset=c.attention.workspace_offset;prefix=c.attention.preissue_smem_bytes;
-      l2=c.attention.prefetch_l2_bytes;
-      late=c.attention.preissue_late;
+      bool full=c.attention.FullWidth(width,group,arena);
+      if(c.attention.SharedBytes(width,group)>budget)
+        throw std::invalid_argument("native attention exceeds the shared-memory budget");
+      offset=full?0:(number%2)*arena;stream=full?0:c.attention.StreamBytes(width);
       tasks=batch*extent*chunks;
       types<<"Attention<"<<batch<<','<<extent<<','<<width<<','<<group<<','<<norm<<','<<chunks<<','
            <<c.attention.block_keys<<','<<c.attention.slots<<','<<c.attention.new_row_work<<','<<capacity;
@@ -2188,17 +2197,18 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
         types<<','<<map_index({operands[i],3,width,capacity,std::int64_t(batch)*extent,0,2*width,
             2ll*capacity*width,0,64,c.attention.block_keys,1,0});
     }else if(kind=="kEmbedding") {
-      tasks=batch;types<<"Embedding<"<<batch<<','<<width<<','<<extent<<','<<capacity;
+      offset=(number%2)*arena;tasks=batch;types<<"Embedding<"<<batch<<','<<width<<','<<extent<<','<<capacity;
       if(operand(3)!="kAbsent")throw std::invalid_argument("native embedding writes no norm sums");
       for(unsigned i=0;i<3;++i)types<<','<<operand(i);
     }else if(kind=="kArgmaxReduce") {
-      tasks=batch;types<<"Argmax<"<<batch<<','<<width<<','<<capacity;
+      offset=(number%2)*arena;tasks=batch;types<<"Argmax<"<<batch<<','<<width<<','<<capacity;
       for(unsigned i=0;i<3;++i)types<<','<<operand(i);
     }else throw std::invalid_argument("legacy stage cannot enter native dense program: "+kind);
+    int prefix=c.weight_stream && previous_stream?stream:0;
+    // A full-width stage neither receives nor issues a stream.
+    previous_stream=stream>0;
     types<<">;\nusing Stage_"<<number<<"=Placement<Body_"<<number<<','
-         <<offset<<','<<prefix<<','<<l2;
-    if(late)types<<",true";
-    types<<">;\n";
+         <<offset<<','<<prefix<<">;\n";
     debug<<"  {"<<quoteCString(kind)<<','<<quoteCString(weight)<<','<<bytes<<"ull,"
          <<tasks<<','<<extent<<','<<group<<','<<width<<','<<chunks<<"},\n";
     ++number;
@@ -2209,7 +2219,7 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
      <<m[12]<<"u}},\n";
   out<<"}};\n";
   out<<types.str()<<"using NativeProgram=Program<"<<batch<<','<<capacity<<','<<c.residency<<','
-     <<buffers.size()<<','<<map_order.size();
+     <<buffers.size()<<','<<map_order.size()<<','<<arena;
   for(unsigned i=0;i<number;++i)out<<",Stage_"<<i;
   out<<">;\nconstexpr std::array<StageInfo,"<<number<<"> kNativeStages={{\n"<<debug.str()<<"}};\n"
      <<"}  // namespace tilemega::codegen::native_dense\n"
