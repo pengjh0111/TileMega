@@ -140,14 +140,18 @@ struct Attention {
   static constexpr bool kUsesOperandRecord=true;
   using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity>;
   static constexpr int kTasks=Body::kTasks,kSharedBytes=Body::kSharedBytes;
-  // KV preissue returns with the D6 stream (prompt §6).
-  static constexpr int kRingSlots=Slots,kMaxPreissue=0;
+  static constexpr int kRingSlots=Slots,kMaxPreissue=Body::kMaxPreissue;
   static constexpr auto kLayout=backend::Sm90DenseLayout::Attention(D,Q,Chunks,Keys,Slots);
   static_assert(kLayout.end==kSharedBytes);
+  using Preissue=KvRead<Body,kTasks>;
   template<int Bytes>
-  static constexpr backend::Sm90DensePayload Payload() {return {};}
+  static constexpr auto Payload() {
+    return backend::Sm90DenseLayout::AttentionPayload(D,Keys,Slots,Bytes);
+  }
   template<class B>
-  __device__ static __forceinline__ ReadSources Sources(B const&) {return {};}
+  __device__ static __forceinline__ ReadSources Sources(B const& b) {
+    return {nullptr,b.template Map<KeyMap>(),b.template Map<ValueMap>()};
+  }
   template<class B>
   __device__ static __forceinline__ void PublishOperands(B const& b,int past,float epsilon,
       backend::Sm90DenseOperandBank& record) {
@@ -164,7 +168,7 @@ struct Attention {
   template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int past,char* shared,float epsilon,
       backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record) {
-    StageEntry<Body>::Attention(record.attention,shared,&ring,tail);
+    StageEntry<Body>::template Attention<Prefix>(record.attention,shared,&ring,tail);
   }
 };
 
@@ -178,14 +182,9 @@ struct Embedding {
   static constexpr int kMaxPreissue=0;
   static constexpr backend::Sm90DenseLayout kLayout{};
   template<int Bytes> static constexpr backend::Sm90DensePayload Payload() {return {};}
-  template<int Bytes,class B>
-  __device__ static void Prepare(B const&,int,char*,backend::Sm90DenseRingState&) {}
-  template<int Bytes,int Prefix,class B>
-  __device__ static void Prefetch(B const&,int) {}
   template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int past,char*,float,
       backend::Sm90DenseRingState&,Tail tail) {
-    if constexpr(Tail::kBefore)if(threadIdx.x==128)tail.Before();
     if(threadIdx.x<128)for(int row=blockIdx.x;row<Batch;row+=gridDim.x) {
       auto* tokens=reinterpret_cast<int const*>(b.template Get<Tokens>());
       backend::Sm90DenseEmbedding<Width,Vocab,Capacity>::Run(tokens,b.template Get<Table>(),
@@ -207,14 +206,9 @@ struct Argmax {
   static constexpr auto kLayout=backend::Sm90DenseLayout::Argmax();
   static_assert(kLayout.end==kSharedBytes);
   template<int Bytes> static constexpr backend::Sm90DensePayload Payload() {return {};}
-  template<int Bytes,class B>
-  __device__ static void Prepare(B const&,int,char*,backend::Sm90DenseRingState&) {}
-  template<int Bytes,int Prefix,class B>
-  __device__ static void Prefetch(B const&,int) {}
   template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int past,char* shared,float,
       backend::Sm90DenseRingState&,Tail tail) {
-    if constexpr(Tail::kBefore)if(threadIdx.x==128)tail.Before();
     if(threadIdx.x<128)for(int row=blockIdx.x;row<Batch;row+=gridDim.x)
       Body::Run(reinterpret_cast<float const*>(b.template Get<Values>()),
           reinterpret_cast<int const*>(b.template Get<Indices>()),
@@ -225,13 +219,11 @@ struct Argmax {
   }
 };
 
-template<class Stage,int Offset=0,int Prefix=0,int L2Bytes=0,bool Late=false>
+template<class Stage,int Offset=0,int Prefix=0>
 struct Placement:Stage {
   static_assert(Offset>=0 && Offset%1024==0 && Prefix>=0 && Prefix%16==0 &&
-      Prefix<=Stage::kMaxPreissue && L2Bytes>=0 && L2Bytes%16==0);
-  static_assert(Stage::kMaxPreissue>0 || L2Bytes==0,"this stage has no data to prefetch");
-  static constexpr int kOffset=Offset,kPrefix=Prefix,kL2Bytes=L2Bytes;
-  static constexpr bool kLate=Late;
+      Prefix<=Stage::kMaxPreissue);
+  static constexpr int kOffset=Offset,kPrefix=Prefix;
   static constexpr int kSharedBytes=Offset+Stage::kSharedBytes;
   static constexpr auto kPayload=Stage::template Payload<Prefix>().Shift(Offset);
   static constexpr auto kLive=Stage::kLayout.Live(Offset);
@@ -245,29 +237,27 @@ struct Placement:Stage {
   }
 };
 
+// D6 issues into the alternate arena only: the payload never overlaps the
+// current stage's live region, so the tail needs no wait on the current ring.
 template<class Current,class Next,class Binding>
 struct ProducerTail {
-  static_assert(!Next::kPayload.Overlaps(Current::kScratch),
-      "preissue aliases live current-stage epilogue scratch");
+  static_assert(!Next::kPayload.Overlaps(Current::kLive),
+      "preissue payload overlaps the current stage's arena");
   Binding const& binding;
-  static constexpr bool kBefore=(Next::kPrefix || Next::kL2Bytes) &&
-      !Next::kPayload.Overlaps(Current::kLive) && !Next::kLate;
   int past;
   char* shared;
   backend::Sm90DenseRingState &current,&next;
   __device__ __forceinline__ auto Raw() const {
-    if constexpr(!(Next::kPrefix || Next::kL2Bytes))return backend::Sm90DenseNoTail{};
+    if constexpr(!Next::kPrefix)return backend::Sm90DenseNoTail{};
     else {
-      using Tail=RawProducerTail<typename Next::Preissue,Next::kOffset,Next::kPrefix,
-          Next::kL2Bytes,Next::kPayload.Overlaps(Current::kLive),Current::kRingSlots,Next::kLate>;
+      using Tail=RawProducerTail<typename Next::Preissue,Next::kOffset,Next::kPrefix>;
       // Uniform call arguments avoid per-layer conditional pointer lifetimes.
-      auto source=Next::Sources(binding);
-      return Tail{source,past,shared,&current,&next};
+      return Tail{Next::Sources(binding),past,shared,&next};
     }
   }
 };
 
-template<int Batch,int Capacity,int Residency,unsigned Buffers,unsigned Maps,class... Stage>
+template<int Batch,int Capacity,int Residency,unsigned Buffers,unsigned Maps,int Arena,class... Stage>
 struct Program {
   using Binding=Bindings<Buffers,Maps>;
   using Stages=std::tuple<Stage...>;
@@ -279,6 +269,11 @@ struct Program {
   static_assert(!FirstStage::kUsesOperandRecord,
       "native shared-operand ABI requires an operand-free first stage; no implicit startup publication barrier");
   static_assert(((Stage::kOffset>=0 && Stage::kLayout.Live(Stage::kOffset).begin>=1024) && ...));
+  // D5: every stage sits in arena 0 (offset 0) or arena 1 (offset Arena) and
+  // fits it; only a stage at offset 0 may extend over both (full width).
+  static_assert(Arena>0 && Arena%1024==0);
+  static_assert(((Stage::kOffset==0 || Stage::kOffset==Arena) && ...));
+  static_assert(((Stage::kOffset==0 || Stage::kSharedBytes<=1024+2*Arena) && ...));
 
 #if TILEMEGA_TRACE_NATIVE_PHASES
   static constexpr unsigned long long kTotalTasks=(0ull+...+Stage::kTasks);

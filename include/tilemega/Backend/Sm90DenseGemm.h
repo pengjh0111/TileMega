@@ -77,11 +77,6 @@ struct Sm90DenseGemm {
       }
     }
   }
-  template<int Bytes,int Prefix>
-  __device__ static __forceinline__ void Prefetch(Element const* weight) {
-    constexpr int bytes=Bytes<2*TN*K-Prefix?Bytes:2*TN*K-Prefix;
-    if constexpr(bytes>0)Async::Prefetch(weight+std::size_t(blockIdx.x)*TN*K+Prefix/2,bytes);
-  }
 
   template<int Prefix>
   __device__ static __noinline__ void Produce(Sm90DenseOperands const& p,
@@ -271,9 +266,6 @@ struct Sm90DenseGemm {
     int tasks=(N/TN)/int(gridDim.x)+(int(blockIdx.x)<(N/TN)%int(gridDim.x));
     if(threadIdx.x<128)Consume(p,state,a,b,scratch,residual,tasks,phase);
     else {
-      if constexpr(Tail::kBefore) {
-        if(threadIdx.x==128)tail.Before();
-      }
       Produce<Prefix>(p,state,a,b,residual,tasks,phase);
       if(threadIdx.x==128)tail();
     }
