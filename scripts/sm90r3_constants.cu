@@ -649,5 +649,7 @@ int main(int argc,char** argv) {try {
       (AttentionCase<128,8,true,S>(),...);
     }(std::integer_sequence<int,2,4,8,16,32>{});
   }
+  // MoE (Hkv = 4) at G = 264 reaches S0 = 64 chunks (prompt §8 M2).
+  if(full || !std::strcmp(argv[1],"--moe-merge-only"))AttentionCase<128,8,true,64>();
   return 0;
 }catch(std::exception const& e) {std::fprintf(stderr,"%s\n",e.what());return 2;}}

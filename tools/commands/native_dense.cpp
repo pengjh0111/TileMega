@@ -196,7 +196,8 @@ int CompileNativeDenseFixed(std::string const& input,std::string const& output,
 
 bool IsNativeDenseInput(std::string const& input) {
   auto bridge=frontend::ReadExportBridge(input);
-  frontend::ServingOptions options;options.dense_attention_chunks=1;
+  // Native plans (consumer RMS) are the only ones with native MoE layers.
+  frontend::ServingOptions options;options.dense_attention_chunks=1;options.native_rms=true;
   auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
   return plan.serving && !plan.dm && !plan.forward && plan.serving_seq==1;
 }
@@ -220,7 +221,8 @@ int SolveNativeDense(NativeDenseSolveOptions const& o) {
   for(auto const& header:constants.StaleHeaders(TILEMEGA_SOURCE_DIR))stale.emplace_back(header);
   solver::Sm90DenseCostModel cost(target,constants);
   auto bridge=frontend::ReadExportBridge(o.input);
-  frontend::ServingOptions options;options.dense_attention_chunks=1;
+  // Native plans (consumer RMS) are the only ones with native MoE layers.
+  frontend::ServingOptions options;options.dense_attention_chunks=1;options.native_rms=true;
   auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
   auto work=solver::Sm90DenseWorkloadFromPlan(plan,o.batch);
   solver::Sm90DenseSearchSpace space{work.shapes,work.batch,work.head_dim,work.queries,target,work.hkv};
