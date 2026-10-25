@@ -10,6 +10,10 @@
 #include <tilemega/Frontend/TorchExportImporter.h>
 #include <tilemega/Support/BuildConfig.h>
 #include <tilemega/Support/Json.h>
+#include <tilemega/Solver/MxDecodeSelectionV2.h>
+#include <llvm/Support/SHA256.h>
+#include <llvm/Support/MemoryBuffer.h>
+#include <llvm/ADT/StringExtras.h>
 
 #include <mlir/IR/MLIRContext.h>
 
@@ -65,6 +69,83 @@ Value Classes(MxDecodeConfigV2 const& c) {
                 {"down", ClassJson(c.down)}, {"head", ClassJson(c.head)}};
 }
 Value Count(std::uint64_t value) { return Value(double(value)); }
+}
+
+int TryPrepareV2(Request const& r) {
+  if (!r.pin.empty()) throw std::invalid_argument("MX-5 solve cannot combine a manual pin with a measured table");
+  if (r.selection!="predicted") throw std::invalid_argument("MX-5 solve writes diagnostic previews; use --selection predicted and external top4 orchestration");
+  if (!r.interpreted_flags.empty()) throw std::invalid_argument("MX-5 solve rejects interpreted-executor flags");
+  solver::MxDecodeSolverV2 solver(r.v2_solve_table);
+  auto bridge=frontend::ReadExportBridge(r.input.string());
+  frontend::ServingOptions options;options.deferred_norm=true;options.phase=frontend::ServingOptions::Phase::kDecode;
+  options.seq=1;options.capacity=r.capacity;
+  auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
+  if (plan.dm) throw std::invalid_argument("MX-5 solve currently supports dense decode only");
+  mlir::MLIRContext context;context.getOrLoadDialect<dialect::CGDialect>();context.getOrLoadDialect<dialect::ExecDialect>();
+  frontend::ImportOptions import;import.gemms.assign(plan.gemms.size(),frontend::GemmGranularity{16,128,128,2,1});
+  auto module=frontend::TorchExportImporter{}.ImportPlan(r.input.string(),plan,context,nullptr,import);
+  if (!module) throw std::runtime_error("MX-5 solve import failed");
+  auto model=codegen::AnalyzeMxDecode(*module);
+  auto selection=solver.Solve(model,r.batch,r.v2_threads,r.grid,r.past_lo,r.past_hi);
+  auto hash=[](std::string const& path) {
+    auto input=llvm::MemoryBuffer::getFile(path);
+    if (!input) throw std::runtime_error("MX-5 cannot hash "+path);
+    llvm::SHA256 digest;digest.update(input.get()->getBuffer());return llvm::toHex(digest.final(),true);
+  };
+  auto absolute=[](std::string const& path) {return std::filesystem::absolute(path).string();};
+  std::string out=r.output.string(), preview=out+".mx5_candidates.json";
+  if (!r.output.parent_path().empty()) std::filesystem::create_directories(r.output.parent_path());
+  if (!r.v2_results.empty()) {
+    if (std::filesystem::exists(out+".mx5_selection.json")) throw std::invalid_argument("MX-5 selection already exists; preserve earlier evidence");
+    auto old=json::ParseFile(preview);
+    if (old.At("stage_table").At("sha256").AsString("table hash")!=hash(r.v2_solve_table) ||
+        old.At("input").At("sha256").AsString("input hash")!=hash(r.input.string()) ||
+        old.At("producer").At("sha256").AsString("producer hash")!=hash(std::filesystem::read_symlink("/proc/self/exe").string()))
+      throw std::invalid_argument("MX-5 candidate input/table/producer changed before measured selection");
+    auto fresh=solver::MxDecodeCandidatesJsonV2(selection);
+    auto const& old_candidates=old.At("candidates").AsArray("candidates");
+    auto const& new_candidates=fresh.At("candidates").AsArray("candidates");
+    if (old_candidates.size()!=4) throw std::invalid_argument("MX-5 measured selection needs four original candidates");
+    for (int i=0;i<4;++i)
+      for (char const* field:{"pin","predicted_tpot_ns","predicted_stage_ns","ranks","evidence"})
+        if (old_candidates[i].At(field).Dump(0)!=new_candidates[i].At(field).Dump(0))
+          throw std::invalid_argument("MX-5 solver candidates changed before measured selection");
+    std::string verify="PYTHONPATH="+Quote(std::string(TILEMEGA_SOURCE_DIR)+"/python")+
+        " python3 -m tilemega.mx5_select --verify-results "+Quote(r.v2_results)+" --preview "+Quote(preview);
+    if (std::system(verify.c_str())) throw std::invalid_argument("MX-5 strict fresh-process/guard/artifact result verification failed");
+    auto results=json::ParseFile(r.v2_results);
+    if (results.At("candidate_preview_sha256").AsString("preview hash")!=hash(preview) ||
+        results.At("stage_table_sha256").AsString("table hash")!=hash(r.v2_solve_table))
+      throw std::invalid_argument("MX-5 measured results refer to changed candidates/table");
+    auto const& pairs=results.At("process_tpot_ns").AsArray("process_tpot_ns");
+    std::vector<std::array<double,2>> samples;
+    for (auto const& pair:pairs) {
+      auto const& values=pair.AsArray("pair");if(values.size()!=2)throw std::invalid_argument("MX-5 needs exactly two fresh processes per candidate");
+      samples.push_back({values[0].AsNumber("TPOT"),values[1].AsNumber("TPOT")});
+    }
+    auto report=solver::MxDecodeMeasuredJsonV2(selection,samples);
+    report.Set("measurement_evidence",Object{{"path",absolute(r.v2_results)},{"sha256",hash(r.v2_results)}});
+    report.Set("candidate_preview_sha256",hash(preview));report.Set("stage_table_sha256",hash(r.v2_solve_table));
+    Write(out+".mx5_selection.json",report.Dump()+"\n");return 0;
+  }
+  if (std::filesystem::exists(preview)) throw std::invalid_argument("MX-5 candidate preview already exists; preserve earlier evidence");
+  auto doc=solver::MxDecodeCandidatesJsonV2(selection);
+  doc.Set("stage_table",Object{{"path",absolute(r.v2_solve_table)},{"sha256",hash(r.v2_solve_table)}});
+  doc.Set("input",Object{{"path",absolute(r.input.string())},{"sha256",hash(r.input.string())}});
+  auto compiler=std::filesystem::read_symlink("/proc/self/exe").string();
+  doc.Set("producer",Object{{"path",compiler},{"sha256",hash(compiler)}});
+  doc.Set("request",Object{{"batch",r.batch},{"capacity",model.capacity},{"past_lo",r.past_lo},{"past_hi",r.past_hi},
+    {"threads",r.v2_threads},{"runtime_target",absolute(r.runtime_target)}});
+  auto directory=out+".mx5_candidates";
+  if (!std::filesystem::create_directory(directory)) throw std::invalid_argument("MX-5 candidate directory already exists; preserve earlier evidence");
+  auto plans=doc.At("candidates").AsArray("candidates");
+  for (auto& candidate:plans) {
+    auto path=directory+"/candidate"+std::to_string(Int(candidate,"index"))+".pin.json";
+    Write(path,candidate.At("pin").Dump()+"\n");candidate.Set("pin_file",Object{{"path",absolute(path)},{"sha256",hash(path)}});
+  }
+  doc.Set("candidates",plans);Write(preview,doc.Dump()+"\n");
+  std::cerr<<"MX5_DECODE diagnostic_candidate_preview "<<preview<<" final=false default_enabled=false\n";
+  return 0;
 }
 
 int TryCompileV2(Request const& r) {
@@ -253,7 +334,7 @@ int TryCompileV2(Request const& r) {
       {"decisions", Object{{"DT-W", 576}, {"plan_threads", config.threads}, {"DT-R", "fence_atomicAdd"},
           {"DT-P", "P-B"}, {"DT-X", "X-A"}, {"DT-KV", "block_fragments"}}},
       {"selection", Object{{"mode", "manual_pin"}, {"purpose", purpose}, {"pin", r.pin},
-          {"solver_selected", false}, {"default_enabled", false}}},
+          {"solver_selected", false}, {"default_enabled", false}, {"diagnostic", true}, {"final", false}}},
       {"resources", resource_manifest}, {"resources_complete", false}, {"runtime_target", r.runtime_target},
       {"source_snapshot", out + ".source.json"}, {"buffers", buffers}, {"runtime_allocations", runtime_allocations}};
   Write(out + ".plan.json", manifest.Dump() + "\n");
