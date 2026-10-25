@@ -313,11 +313,11 @@ class SelectionCalibration(unittest.TestCase):
         row['artifacts'] = artifacts
         return row, libraries, calls
 
-    def run_selection(self, row, libraries):
+    def run_selection(self, row, libraries, record=None):
         with patch.dict(os.environ, TILEMEGA_GPU_LOCK_HELD='1'), \
              patch.object(calibration, 'initialize_cuda'), \
              patch.object(calibration.C, 'CDLL', side_effect=lambda path: libraries[path]):
-            return next(calibration.select([row]))
+            return next(calibration.select([row], record=record))
 
     def test_ordered_halves_stop_at_first_fit_and_preserve_reference(self):
         for kind in ('gemm', 'head'):
@@ -378,9 +378,17 @@ class SelectionCalibration(unittest.TestCase):
             row, libraries, calls = self.selection(Path(directory),
                 outcomes=((180, 64, 0, 1),) * 3, widths=(8, 4, 2))
             Path(row['artifacts'][1]['library']).unlink()
+            events = []
             with self.assertRaisesRegex(RuntimeError, 'missing bench library'):
-                self.run_selection(row, libraries)
+                self.run_selection(row, libraries, events.append)
             self.assertEqual([len(call) for call in calls], [1, 0, 0])
+            self.assertEqual([event['event'] for event in events], ['resource_query', 'query_error'])
+            self.assertEqual([event['resource_step'] for event in events], [0, 1])
+            self.assertFalse(events[0]['fits'])
+            self.assertEqual(events[0]['resources']['local_bytes'], 64)
+            self.assertIn('missing bench library', events[1]['error'])
+            self.assertTrue(all(event['row_index'] == 0 and event['original_key'] == row['key']
+                                for event in events))
 
     def test_reference_and_reduction_validation_prevent_bad_queries(self):
         for mismatch in ('coordinates', 'resources', 'source', 'step', 'halving'):
@@ -411,11 +419,66 @@ class SelectionCalibration(unittest.TestCase):
             self.assertEqual(Path(str(out) + '.tool.py').read_bytes(), source.read_bytes())
             identity = json.loads(Path(str(out) + '.identity.json').read_text())
             self.assertEqual((identity['command'], identity['run_status']), ('select', 'complete'))
+            attempts = Path(str(out) + '.attempts.jsonl')
+            self.assertEqual(attempts.read_bytes(), b'')
+            self.assertEqual(identity['attempt_log'], str(attempts))
+            self.assertEqual(identity['attempt_log_sha256'], hashlib.sha256(b'').hexdigest())
+            self.assertEqual(identity['attempt_events'], 0)
             with patch('sys.argv', argv), patch('sys.stderr', new=io.StringIO()), \
                  patch.object(calibration, 'select') as selector:
                 with self.assertRaises(SystemExit):
                     calibration.main()
             selector.assert_not_called()
+
+    def test_main_preserves_flushed_attempts_when_reduction_library_is_missing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            row, libraries, calls = self.selection(root, outcomes=((180, 64, 0, 1),) * 3, widths=(8, 4, 2))
+            Path(row['artifacts'][1]['library']).unlink()
+            keys, out = root / 'keys.jsonl', root / 'selected.jsonl'
+            keys.write_text(json.dumps(row) + '\n')
+            attempts = Path(str(out) + '.attempts.jsonl')
+            query = calibration.query_one
+
+            def query_after_flush(kind, key, path, modules, loaded, **kwargs):
+                if path == row['artifacts'][1]['library']:
+                    saved = [json.loads(line) for line in attempts.read_text().splitlines()]
+                    self.assertEqual(len(saved), 1)
+                    self.assertEqual(saved[0]['event'], 'resource_query')
+                    self.assertEqual(saved[0]['resources']['local_bytes'], 64)
+                return query(kind, key, path, modules, loaded, **kwargs)
+
+            argv = ['calibration', 'select', '--keys', str(keys), '--out', str(out)]
+            with patch('sys.argv', argv), patch.dict(os.environ, TILEMEGA_GPU_LOCK_HELD='1'), \
+                 patch.object(calibration, 'initialize_cuda'), \
+                 patch.object(calibration.C, 'CDLL', side_effect=lambda path: libraries[path]), \
+                 patch.object(calibration, 'query_one', side_effect=query_after_flush):
+                with self.assertRaisesRegex(RuntimeError, 'missing bench library'):
+                    calibration.main()
+            events = [json.loads(line) for line in attempts.read_text().splitlines()]
+            self.assertEqual([event['event'] for event in events], ['resource_query', 'query_error'])
+            self.assertEqual([len(call) for call in calls], [1, 0, 0])
+            self.assertEqual(out.read_bytes(), b'')
+            identity = json.loads(Path(str(out) + '.identity.json').read_text())
+            self.assertEqual((identity['run_status'], identity['rows'], identity['attempt_events']),
+                             ('failed', 0, 2))
+            self.assertEqual(identity['attempt_log'], str(attempts))
+            self.assertEqual(identity['attempt_log_sha256'], hashlib.sha256(attempts.read_bytes()).hexdigest())
+            self.assertEqual(Path(str(out) + '.tool.py').read_bytes(), source.read_bytes())
+
+    def test_select_preflights_attempt_log_before_creating_other_outputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory) / 'selected.jsonl'
+            attempts = Path(str(out) + '.attempts.jsonl')
+            attempts.write_text('historical attempt\n')
+            argv = ['calibration', 'select', '--keys', '/unused', '--out', str(out)]
+            with patch('sys.argv', argv), patch('sys.stderr', new=io.StringIO()), \
+                 patch.object(calibration, 'select') as selector:
+                with self.assertRaises(SystemExit):
+                    calibration.main()
+            selector.assert_not_called()
+            self.assertEqual(attempts.read_text(), 'historical attempt\n')
+            self.assertEqual(list(Path(directory).iterdir()), [attempts])
 
     def test_select_requires_guard(self):
         with patch.dict(os.environ, {}, clear=True):

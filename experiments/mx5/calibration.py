@@ -332,10 +332,10 @@ def selection_reference(kind, key, reference):
     return provenance['source_sha256']
 
 
-def select(rows):
+def select(rows, record=None):
     initialize_cuda()
     modules, libraries = {}, {}
-    for row in rows:
+    for row_index, row in enumerate(rows):
         if row.get('disposition') == 'unprefetched_resource_failure':
             yield dict(row, selection_status='unresolved_unprefetched_resource_failure',
                        selected_resource_step=None, resource_attempts=[])
@@ -351,22 +351,32 @@ def select(rows):
         previous = prefetch(kind, original)
         for step, artifact in enumerate(artifacts):
             width = artifact.get('prefetch')
-            if type(artifact.get('resource_step')) is not int or artifact['resource_step'] != step:
-                raise RuntimeError('resource artifacts must have contiguous steps starting at zero')
-            if type(width) is not int or width < 0:
-                raise RuntimeError('invalid resource artifact prefetch width')
-            if step == 0:
-                if width != previous:
-                    raise RuntimeError('primary artifact/key prefetch mismatch for key: ' + str(original))
-            elif (kind == 'attention' or width != max(original['depth'], previous // 2)
-                  or width >= previous):
-                raise RuntimeError('resource artifact is not the next prescribed prefetch halving')
             key = dict(original)
             key['prefetch_kind' if kind == 'attention' else 'prefetch'] = width
             if 'pw' in key:
                 key['pw'] = width
-            result = query_one(kind, key, artifact['library'], modules, libraries, expected_source=source)
-            attempts.append(dict(resource_step=step, prefetch=width, key=key, **result))
+            event = dict(row_index=row_index, kind=kind, original_key=dict(original),
+                         resource_step=step, prefetch=width, key=key, library=artifact.get('library'))
+            try:
+                if type(artifact.get('resource_step')) is not int or artifact['resource_step'] != step:
+                    raise RuntimeError('resource artifacts must have contiguous steps starting at zero')
+                if type(width) is not int or width < 0:
+                    raise RuntimeError('invalid resource artifact prefetch width')
+                if step == 0:
+                    if width != previous:
+                        raise RuntimeError('primary artifact/key prefetch mismatch for key: ' + str(original))
+                elif (kind == 'attention' or width != max(original['depth'], previous // 2)
+                      or width >= previous):
+                    raise RuntimeError('resource artifact is not the next prescribed prefetch halving')
+                result = query_one(kind, key, artifact['library'], modules, libraries, expected_source=source)
+            except Exception as error:
+                if record is not None:
+                    record(dict(event, event='query_error', error=str(error), error_type=type(error).__name__))
+                raise
+            attempt = dict(resource_step=step, prefetch=width, key=key, **result)
+            if record is not None:
+                record(dict(event, **result, event='resource_query'))
+            attempts.append(attempt)
             if result['fits']:
                 yield dict(row, key=key, **result, selected_resource_step=step,
                            selection_status='selected', resource_attempts=attempts)
@@ -465,6 +475,8 @@ def main():
     if args.command == 'plan':
         sidecars.update({name: Path(str(args.out) + '.' + name + '.json')
                          for name in ('builds', 'references')})
+    if args.command == 'select':
+        sidecars['attempts'] = Path(str(args.out) + '.attempts.jsonl')
     for path in [args.out, *sidecars.values()]:
         if path.exists():
             parser.error('output already exists; preserve historical records: ' + str(path))
@@ -476,7 +488,22 @@ def main():
                       tool_sha256=hashlib.sha256(tool_source).hexdigest(),
                       tool_source=str(sidecars['tool'].resolve()), run_status='failed')
     count = 0
+    attempt_log, attempt_count = None, 0
+    attempt_digest = hashlib.sha256()
+
+    def record_attempt(event):
+        nonlocal attempt_count
+        line = json.dumps(event, sort_keys=True) + '\n'
+        attempt_log.write(line)
+        attempt_log.flush()
+        os.fsync(attempt_log.fileno())
+        attempt_digest.update(line.encode())
+        attempt_count += 1
+
     try:
+        if args.command == 'select':
+            attempt_log = sidecars['attempts'].open('x', encoding='utf-8')
+            provenance['attempt_log'] = str(sidecars['attempts'].resolve())
         provenance['head'] = subprocess.check_output(
             ['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
         if args.command == 'inventory':
@@ -496,7 +523,7 @@ def main():
             elif args.command == 'check':
                 rows = check(keys)
             elif args.command == 'select':
-                rows = select(keys)
+                rows = select(keys, record=record_attempt)
             else:
                 provenance['domain_sha256'] = hashlib.sha256(args.domain.read_bytes()).hexdigest()
                 rows, builds, references = plan(keys, args.domain.resolve(), args.library_root.resolve())
@@ -513,6 +540,9 @@ def main():
         provenance['error'] = str(error)
         raise
     finally:
+        if attempt_log is not None:
+            attempt_log.close()
+            provenance.update(attempt_log_sha256=attempt_digest.hexdigest(), attempt_events=attempt_count)
         provenance['rows'] = count
         with sidecars['identity'].open('x') as stream:
             stream.write(json.dumps(provenance, indent=2) + '\n')
