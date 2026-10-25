@@ -207,11 +207,13 @@ struct MxAttentionV2 {
             for (int dc = 0; dc < kChunks; ++dc)
               if (a == offset % 8 / 4 && r == owner_r) block.k[a][dc] = new_key[dc];
           // DT-KV: the owner writes the complete block, including unchanged rows.
+          // Keep whole-block store addresses out of the MMA live range.
+          int const store_cap = Opaque(p.capacity);
 #pragma unroll
           for (int a = 0; a < 2; ++a)
 #pragma unroll
             for (int dc = 0; dc < kChunks; ++dc)
-              MxStore16V2(p.k_cache + Layout::KWave(head, j, dc, a, lane, p.capacity), block.k[a][dc]);
+              MxStore16V2(p.k_cache + Layout::KWave(head, j, dc, a, lane, store_cap), block.k[a][dc]);
         }
         float score[8];
 #pragma unroll
@@ -274,9 +276,10 @@ struct MxAttentionV2 {
           out[n] = Mma(Hi(prob), Hi(value), out[n]);
         }
         if (j == geo.blocks - 1) {
+          int const store_cap = Opaque(p.capacity);
 #pragma unroll
           for (int n = 0; n < kAtoms; ++n)
-            MxStore16V2(p.v_cache + Layout::VWave(head, j, n, lane, p.capacity), block.v[n]);
+            MxStore16V2(p.v_cache + Layout::VWave(head, j, n, lane, store_cap), block.v[n]);
         }
         asm volatile("" :: "r"(out[kAtoms - 1][3]) : "memory");
         if (has_next) LoadV(block, p, next_head, next_j, lane);
