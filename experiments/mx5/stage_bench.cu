@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-#include <tilemega/Backend/Mx/DecodeAttentionV2.h>
-#include <tilemega/Backend/Mx/DecodeHeadV2.h>
+#include <tilemega/Backend/Mx/DecodeGemmV2.h>
 #include <cuda_runtime.h>
 
 #ifndef MX5_TEST_THREADS
