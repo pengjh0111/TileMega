@@ -86,7 +86,7 @@ struct Sm90DenseAttentionBody {
   static constexpr int kMaxPreissue=Slots*4*BlockKeys*D;
   template<int Bytes>
   __device__ static __forceinline__ void Preissue(CUtensorMap const* key,CUtensorMap const* value,
-      int past,char* shared,Sm90DenseRingState& state) {
+      int layer,int past,char* shared,Sm90DenseRingState& state) {
     static_assert(Bytes>0 && Bytes%(4*BlockKeys*D)==0 && Bytes<=kMaxPreissue);
     auto& s=*reinterpret_cast<Storage*>(shared+1024);
     int bg,chunk;Decompose(int(blockIdx.x),bg,chunk);
@@ -97,18 +97,20 @@ struct Sm90DenseAttentionBody {
       Async::ExpectTx(state.full+slot,2*BlockKeys*D*2);
       #pragma unroll
       for(int panel=0;panel<kPanels;++panel) {
-        Async::Tensor3D(&s.kv[slot][0][panel*BlockKeys*64],key,panel*64,begin+slot*BlockKeys,bg,state.full+slot);
-        Async::Tensor3D(&s.kv[slot][1][panel*BlockKeys*64],value,panel*64,begin+slot*BlockKeys,bg,state.full+slot);
+        Async::Tensor4D(&s.kv[slot][0][panel*BlockKeys*64],key,panel*64,begin+slot*BlockKeys,bg,layer,
+            state.full+slot);
+        Async::Tensor4D(&s.kv[slot][1][panel*BlockKeys*64],value,panel*64,begin+slot*BlockKeys,bg,layer,
+            state.full+slot);
       }
     }
   }
 
   template<int Prefix>
   __device__ static __forceinline__ void Produce(Sm90DenseAttentionOperands const& p,
-      Sm90DenseRingState& state,Storage& s,int tasks,unsigned phase) {
+      Sm90DenseRingState& state,Storage& s,int tasks,unsigned phase,bool streamed) {
     Sm90DenseRoles::Producer();
     if(threadIdx.x==128) {
-      int const past=p.past;int sequence=0,preissued=Preissued<Prefix>(past);
+      int const past=p.past;int sequence=0,preissued=streamed?Preissued<Prefix>(past):0;
       for(int local=0;local<tasks;++local) {
         int bg,chunk;Decompose(int(blockIdx.x)+local*int(gridDim.x),bg,chunk);
         auto range=Partition::Range(past,chunk,NewRowWork);
@@ -123,8 +125,10 @@ struct Sm90DenseAttentionBody {
           Async::ExpectTx(state.full+slot,2*BlockKeys*D*2);
           #pragma unroll
           for(int panel=0;panel<kPanels;++panel) {
-            Async::Tensor3D(&s.kv[slot][0][panel*BlockKeys*64],p.key_map,panel*64,begin,bg,state.full+slot);
-            Async::Tensor3D(&s.kv[slot][1][panel*BlockKeys*64],p.value_map,panel*64,begin,bg,state.full+slot);
+            Async::Tensor4D(&s.kv[slot][0][panel*BlockKeys*64],p.key_map,panel*64,begin,bg,p.layer,
+                state.full+slot);
+            Async::Tensor4D(&s.kv[slot][1][panel*BlockKeys*64],p.value_map,panel*64,begin,bg,p.layer,
+                state.full+slot);
           }
         }
       }
@@ -333,7 +337,7 @@ struct Sm90DenseAttentionBody {
   // spilled 8-32 B; inlined roles in one callee keep only an 8 B save.
   template<int Prefix=0,class Tail=Sm90DenseNoTail>
   __device__ static __noinline__ void Run(Sm90DenseAttentionOperands const& p,char* shared,
-      Sm90DenseRingState* persistent=nullptr,Tail tail={}) {
+      Sm90DenseRingState* persistent=nullptr,Tail tail={},bool streamed=true) {
     auto& state=persistent?*persistent:*reinterpret_cast<Sm90DenseRingState*>(shared);
     auto& s=*reinterpret_cast<Storage*>(shared+1024);
     int tasks=kTasks/int(gridDim.x)+(int(blockIdx.x)<kTasks%int(gridDim.x));
@@ -343,7 +347,7 @@ struct Sm90DenseAttentionBody {
         state.consumer_generations[i]:state.producer_generations[i])<<i;
     if(threadIdx.x<128)Consume(p,state,s,tasks,phase);
     else {
-      Produce<Prefix>(p,state,s,tasks,phase);
+      Produce<Prefix>(p,state,s,tasks,phase,streamed);
       if(threadIdx.x==128)tail();
     }
     __syncthreads();
