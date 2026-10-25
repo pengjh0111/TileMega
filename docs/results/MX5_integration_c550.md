@@ -322,3 +322,45 @@ compiler liveness from allocator artifacts, without a second implementation.
 Verified script follow-up `23a53044b`: explicit WATCHDOG=1 prefill solves now
 write prefill_w rather than overwriting timing prefill. Both plans still need
 explicit builds. No final CELLS/default/native MoE route is enabled.
+
+## LA model checks and the segment-prefix repair
+
+Verified main LA repair `78795d384`: five fresh continuous paired processes
+each cover60 coordinates,>=2000 iterations,104 CTAs and two launches. Context,
+new K, repeated-launch and cross-process output bits match the baseline.
+Five actual512 manual development plans then pass512-step C-1/C-2; maximum
+gaps are0.03125/0.046875/0.0625/0.375/0.375 and both execution modes match.
+Ten timing/watchdog512 builds fit, four minimum-prefetch576 builds still spill,
+and Llama1B B1 at576 fits168/frame0. Resource failures remain in the ledger.
+Raw: `runs/mx5/native_dense_la_v1/`; these are not solver-selected final plans.
+
+Verified two fresh uninstrumented rounds per Qwen manual control, each warm1
+and timed2, ISL/OSL64/1024, step events0. B1 TPOT median2.309565870ms,
+TTFT9.014596ms; B16 TPOT4.061410098ms, TTFT52.452863ms. B1 is16.4359% slower
+than MX-4; G-PROGRAM remains open. B16 is about10.5% faster than MX-4 and
+about1.0% slower than the fastest stored baseline. Old-grid/card7 and new
+fixed-grid/card6 controls are not a causal LA P-PAIR. Four raw process rows
+were appended unchanged to MX5_integration_measurements_c550.csv.
+
+Verified copied prefix repair after the initial rejected build: retaining BF16
+metadata packed until the norm inverse and materializing the true CTA bound
+avoids premature expansions and signed range controls. All four actual copied
+Qwen timing/watchdog functions fit253/255/253/253 MTreg, frame0. Full72-kernel
+matrix has144 clean MMA rings, maxMT247/frame0;5/5 fresh processes each pass
+1008 attention cases and15 exact MX-4 transform comparisons. Another5/5 fresh
+continuous60-pair processes pass2000x104x2 and exact output comparisons.
+Raw: `attention_prefix_cta_metadata_d7_v1_61/`, `attention_prefix_units_v1_61/`
+and `calibration/attention_prefix_p0_staged_v1_61/stage_validation/gpu_runs_NEW/`
+under runs/mx5. This candidate remains outside main: its extra GVM0 before
+the prefix transform loses overlap, and diagnostic B1 L65..1088 rises from
+21.16..22.69us to23.55..27.30us. Component results do not set defaults.
+
+Verified CPU-only next repair uses exact younger-history wait counts, retaining
+all prefix issue sites, arithmetic, layout, LA and synchronization. Actual
+Qwen resources still fit253/255/253/253, and a new full72-kernel/144-ring audit
+passes maxMT247/frame0. Five-process GPU checks are in progress under
+`attention_younger_wait_units_v1_61/`. Fifty steady max/alpha exchange intervals
+contain LDS waits only. Later segment-prefix norm code still acquires compiler
+GVM0 waits; this is a measured MIR overlap limitation, not the spec's steady
+DT-X exchange failure. The earlier stricter local goal is explicitly corrected
+in QUEUE_AUDIT_QUALIFIED.json; no user gate is waived or performance claimed.
