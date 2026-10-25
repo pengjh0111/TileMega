@@ -13,6 +13,7 @@ struct Sm90DenseSearchSpace {
   std::array<std::array<int,2>,5> shapes;
   int batch,head_dim,queries;
   TargetSpec target;
+  int hkv=8;
 
   bool Legal(Sm90DenseCoordinates const&) const;
   int Grid(int residency) const {return target.res.num_sms*residency;}

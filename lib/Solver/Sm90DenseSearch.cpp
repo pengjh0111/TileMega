@@ -32,8 +32,8 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
         ++result.evaluated;
       }
     }
-    for(auto a:space.AttentionCandidates(residency))
-      if(auto ns=cost.Attention(work,a,residency))families[5].push_back({*ns,{},a});
+    for(auto const& a:space.AttentionCandidates(residency))
+      families[5].push_back({cost.Attention(work,a,residency),{},a});
     bool empty=false;
     for(unsigned i=0;i<families.size();++i) {
       auto& f=families[i];

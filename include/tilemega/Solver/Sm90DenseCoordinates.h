@@ -56,17 +56,13 @@ struct Sm90DenseAttention {
   int new_row_work=0;
   int workspace_offset=0;
   bool preissue_late=false;
-  std::int64_t SharedBytes(int batch,int dim,int queries,int capacity) const {
-    std::int64_t operands=batch<=4?
-        2ll*queries*dim+4ll*((std::int64_t(capacity)+new_row_work+chunks-1)/chunks)*dim:
-        36ll*dim+4ll*slots*block_keys*dim;
-    std::int64_t scratch=16ll*queries*dim+32ll*queries+
-        4ll*std::max(4,chunks)*queries+4ll*queries+4;
-    return workspace_offset+1024+((operands+scratch+15)/16)*16;
+  std::int64_t SharedBytes(int dim,int queries) const {
+    return workspace_offset+backend::Sm90DenseLayout::Attention(dim,queries,chunks,block_keys,slots).end;
   }
   void Validate() const {
-    if(chunks<1 || chunks>64 || (block_keys!=16 && block_keys!=32 &&
-       block_keys!=64 && block_keys!=128) || slots<2 || slots>8 ||
+    // Attention has no preissue until the D6 stream (prompt §6).
+    if(chunks<1 || chunks>64 || (block_keys!=64 && block_keys!=128) || slots<2 || slots>4 ||
+       preissue_smem_bytes || prefetch_l2_bytes || preissue_late ||
        preissue_smem_bytes<0 || preissue_smem_bytes%16 ||
        prefetch_l2_bytes<0 || prefetch_l2_bytes%16 || new_row_work<0 ||
        workspace_offset<0 || workspace_offset%1024 ||
@@ -132,17 +128,10 @@ struct Sm90DenseCoordinates {
           Layout::GemmPayload(g.tile_n,g.TileK(),g.slots,nk[i][1],batch,g.preissue_smem_bytes)
               .Shift(g.workspace_offset),g.workspace_offset};
     }
-    int rows=batch<=4?Layout::AttentionKeys(attention.chunks,attention.new_row_work,capacity):
-        attention.slots*attention.block_keys;
-    if(attention.SharedBytes(batch,dim,queries,capacity)>budget ||
-       attention.prefetch_l2_bytes%32 || attention.preissue_smem_bytes%(4*dim) ||
-       attention.preissue_smem_bytes>4ll*dim*rows)
-      throw std::invalid_argument("native KV preissue must fit whole historical rows");
-    stages[5]={Layout::Attention(batch,dim,queries,attention.chunks,attention.block_keys,
-        attention.slots,attention.new_row_work,capacity),
-        Layout::AttentionPayload(batch,dim,queries,attention.chunks,attention.block_keys,
-            attention.slots,attention.new_row_work,capacity,attention.preissue_smem_bytes)
-            .Shift(attention.workspace_offset),attention.workspace_offset};
+    if(attention.SharedBytes(dim,queries)>budget)
+      throw std::invalid_argument("native attention exceeds the shared-memory budget");
+    stages[5]={Layout::Attention(dim,queries,attention.chunks,attention.block_keys,attention.slots),
+        backend::Sm90DensePayload{},attention.workspace_offset};
     for(auto const& s:stages)if(s.offset+s.layout.end>budget)
       throw std::invalid_argument("native arena exceeds target shared-memory budget");
     // Both the layer back-edge and final down->head edge must be safe.

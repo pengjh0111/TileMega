@@ -59,7 +59,7 @@ struct Sm90DenseGemmPlanBinding {
 };
 struct Sm90DenseWorkload {
   std::array<std::array<int,2>,5> shapes;
-  int batch=0,layers=0,head_dim=0,queries=0;
+  int batch=0,layers=0,head_dim=0,queries=0,hkv=8;
   bool qk_norm=false;
   // Absence preserves the unknown binding domain of historical workloads.
   std::optional<std::vector<Sm90DenseGemmPlanBinding>> gemm_bindings;

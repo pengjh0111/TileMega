@@ -12,10 +12,11 @@ void Sm90DenseSearchSpace::Structure(Sm90DenseCoordinates& c) {
 
 bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
   if(target.arch_tag!="sm_90" || target.NvccArch()!="sm_90a" || target.res.num_sms<=0 ||
-     (head_dim!=64 && head_dim!=128) || queries<2 || queries>4)return false;
+     (head_dim!=64 && head_dim!=128) || (queries!=2 && queries!=3 && queries!=4 && queries!=8))
+    return false;
   try {c.Validate(shapes,batch);}catch(std::invalid_argument const&) {return false;}
   auto budget=Sm90DenseSharedBudget(target,c.residency);
-  if(budget<=0 || (batch>=8 && c.attention.block_keys==16))return false;
+  if(budget<=0)return false;
   try {c.ValidateSchedule(shapes,batch,head_dim,queries,1088,budget);}
   catch(std::invalid_argument const&) {return false;}
   for(auto const& g:c.gemms)if(g.mma!=Sm90DenseMma::kMmaSync)return false;
@@ -60,13 +61,19 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
 std::vector<Sm90DenseAttention> Sm90DenseSearchSpace::AttentionCandidates(int residency) const {
   std::vector<Sm90DenseAttention> result;
   int s0=1;
-  while(2*s0*batch*8<=Grid(residency))s0*=2;
-  std::vector<int> keys=head_dim==128 || batch<8?std::vector<int>{64}:std::vector<int>{64,128};
+  while(2*s0*batch*hkv<=Grid(residency))s0*=2;
+  auto budget=Sm90DenseSharedBudget(target,residency);
+  std::vector<int> keys=head_dim==128?std::vector<int>{64}:std::vector<int>{64,128};
   for(int s:{s0,s0/2,s0/4}) {
     if(s<1 || s>64)continue;
     for(int bk:keys) {
-      Sm90DenseAttention a;a.chunks=s;a.block_keys=bk;a.slots=3;
-      result.push_back(a);
+      // D2 slot rule: the most slots (2..4) that fit, capped by the blocks of
+      // the longest chunk.
+      Sm90DenseAttention a;a.chunks=s;a.block_keys=bk;
+      int blocks=((1088+s-1)/s+bk-1)/bk;
+      for(a.slots=std::max(2,std::min(4,blocks));a.slots>2 && a.SharedBytes(head_dim,queries)>budget;)
+        --a.slots;
+      if(a.SharedBytes(head_dim,queries)<=budget)result.push_back(a);
     }
   }
   return result;

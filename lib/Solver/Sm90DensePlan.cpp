@@ -84,7 +84,7 @@ Sm90DenseWorkload Sm90DenseWorkloadFromPlan(frontend::ModelPlan const& plan,int 
     for(unsigned i:{0u,1u,2u,3u,4u,7u,8u,9u,10u})operand(a.operands[i],false);
     bool q=operand(a.operands[5],true),k=operand(a.operands[6],true);
     if(q!=k)throw std::invalid_argument("native workload has asymmetric Q/K normalization");
-    if(!layer) {work.head_dim=a.width;work.queries=a.group;work.qk_norm=q;}
+    if(!layer) {work.head_dim=a.width;work.queries=a.group;work.qk_norm=q;work.hkv=a.extent;}
     else if(work.head_dim!=int(a.width) || work.queries!=int(a.group) || work.qk_norm!=q)
       throw std::invalid_argument("native workload attention tuple changes between layers");
     gemm(start+2,1);gemm(start+3,2);gemm(start+4,3);
@@ -124,7 +124,7 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(
   }
   for(auto const& stage:plan.stages)if(stage.kind==frontend::PlanTaskKind::kFusedAttention) {
     if(stage.dense_attention_chunks!=c.attention.chunks ||
-       c.attention.SharedBytes(batch,stage.width,stage.group,plan.serving_capacity)>budget)
+       c.attention.SharedBytes(stage.width,stage.group)>budget)
       throw std::invalid_argument("native attention structure or shared-memory budget is invalid");
     c.ValidateSchedule(Sm90DenseShapes(plan),batch,stage.width,stage.group,
         plan.serving_capacity,budget);

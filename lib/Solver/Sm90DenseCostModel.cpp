@@ -39,17 +39,20 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   return total;
 }
 
-std::optional<double> Sm90DenseCostModel::Attention(Sm90DenseWorkload const& work,
-    Sm90DenseAttention& a,int residency,json::Value* terms) const {
-  // Before D2 the stage time is the measured critical path of the R2 bodies.
-  int grid=Grid(residency);
-  auto entry=constants_.Attention(work.batch,work.head_dim,work.queries,work.qk_norm,
-      a.chunks,grid,a.block_keys);
-  if(!entry)return std::nullopt;
-  if(work.batch>=8)a.slots=entry->slots;
-  a.new_row_work=a.chunks==1?0:entry->new_row_work;
-  double total=constants_.Barrier(grid)+entry->ns;
-  if(terms)*terms=json::Object{{"barrier",constants_.Barrier(grid)},{"table",entry->ns}};
+// Prompt §4 L0-2 attention formula for the D2 body at the midpoint past 575.
+double Sm90DenseCostModel::Attention(Sm90DenseWorkload const& work,
+    Sm90DenseAttention const& a,int residency,json::Value* terms) const {
+  auto const& c=constants_;
+  int grid=Grid(residency),d=work.head_dim,q=work.queries;bool norm=work.qk_norm;
+  double past=575,tasks=double(work.batch)*work.hkv*a.chunks,per_cta=std::ceil(tasks/grid);
+  double keys=std::ceil((past+1)/a.chunks),blocks=std::ceil(keys/64);
+  double kv_task=keys*d*4,kv_tot=double(work.batch)*work.hkv*past*d*4;
+  double compute=per_cta*(kv_task/(c.dram_gbps/grid)+blocks*c.AttentionBlock(d,q,norm));
+  double stream=std::max(kv_tot/c.dram_gbps,compute);
+  double merge=a.chunks>1?c.AttentionMerge(d,q,norm,a.chunks):0;
+  double total=c.Barrier(grid)+c.l2_latency+c.AttentionPrepare(d,q,norm)+stream+merge;
+  if(terms)*terms=json::Object{{"barrier",c.Barrier(grid)},{"prepare",c.AttentionPrepare(d,q,norm)},
+      {"dram",kv_tot/c.dram_gbps},{"compute",compute},{"merge",merge}};
   return total;
 }
 
@@ -62,11 +65,8 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
     s.ns=Gemm(work,f,c.gemms[f],c.residency,&s.terms);
     p.stages.push_back(std::move(s));
   }
-  auto attention=c.attention;
   Sm90DensePrediction::Stage s{"attention",work.layers};
-  auto ns=Attention(work,attention,c.residency,&s.terms);
-  if(!ns)throw Sm90NativeMissing("attention coordinate has no measured stage time");
-  s.ns=*ns;p.stages.push_back(std::move(s));
+  s.ns=Attention(work,c.attention,c.residency,&s.terms);p.stages.push_back(std::move(s));
   int grid=Grid(c.residency);
   p.stages.push_back({"embedding",1,constants_.Embedding(grid,work.shapes[0][1],work.batch),json::Value()});
   p.stages.push_back({"argmax",1,constants_.Argmax(grid,work.shapes[4][0]/c.gemms[4].tile_n,work.batch),
