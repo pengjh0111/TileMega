@@ -3,7 +3,7 @@
 Verified by source inspection, 2026-10-25, branch `tilemega-metax`, HEAD
 `37ac67c148eb90d6a5e9a9c879abfb36945bef8e`; existing dirty headers/results preserved.
 Root subsequently committed the engine repair as `120abd680`; updates through
-`4b25ffe12` include the evaluated-grid invariant, five manual development
+`ba573643a` include protocol-script fixes, the evaluated-grid invariant, five manual development
 checks and the CPU v2 solver.
 Authority: `/root/Prompt/TileMega_MX5_prompt.md`, SHA256
 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
@@ -33,7 +33,7 @@ Measurements below are stated by existing reports, not reverified by this audit.
 | Measurement/check | `scripts/mx_check_modes.sh:10` runs C-2 then teacher-forcing HF C-1; the measure path uses existing ServingEngine. All five512 manual development controls pass512-step C-1/C-2; solver-selected TPOT acceptance remains open. The checker disables optional step events because v2 step_ns is diagnostic-only. |
 | Bench/calibration | GEMM/head/attention benches share v2 bodies. `experiments/mx5/calibration.py:335` handles prescribed resource-reduction selection; `stage_table.py:271` aggregates three rounds, requires matching source/binary/resource identity and P0 reference, and labels output measured_rows_only/full_table=false at line304. |
 | Production solver/table | `configs/targets/xcore1000.json:2360` still selects xcore1000_mx_decode.json. `MxDecodeSolver.cpp:130` consumes the old schema; line229 chooses two candidates by changing only the smallest-gap class. `mx_decode.cpp:283` times those two. The new MxDecodeSolverV2.cpp implements exact k-best4 and evidence checks (CPU tests pass); native compiler/measurement orchestration remains pending. |
-| Cell scripts | `mx_serving_cell.sh:58` excludes experts from static decode; line71 expects an mx4_pin; line132 fixes prefill watchdog1; lines169–171 prefer decode_w only. Candidate timings at lines64/126 allow1700s; MoE reservation remains20480MiB. Thus the script cannot yet drive the required final v2 campaign. |
+| Cell scripts | `mx_serving_cell.sh:65` still excludes experts from static decode and expects an mx4_pin. Protocol fix `ba573643a` makes candidate timers900s, prefill watchdog `${WATCHDOG:-0}`, check prefer prefill_w/decode_w, timed decode disable step events and expert jobs reserve40960MiB. Native top4 routing, MoE prompt construction and automatic prefill_w build remain pending. |
 | MoE | `mx_decode.cpp:104` still returns -1 for DM and `compile.cpp:826` sets moe_batch only on the legacy path. Lines838–850 build/specialize DM plans. No AnalyzeMxMoe/MxGroupedGemm/native M1–M7, --mx-prompt route or native prompt plan exists. |
 | DNN | `compile.cpp:738` builds DnnModelPlan then continues toward legacy DM lowering, with no mx_dnn native branch. `dnn/cli.py:58` defaults forward_executor=L2, line229 uses build-dm; no time command/native bodies/dw_rsc/c550 config suite exists. `dnn/check.py:30` already provides reusable NativeForward ABI/identity/external-binding validation. |
 

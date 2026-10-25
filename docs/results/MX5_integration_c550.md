@@ -253,3 +253,18 @@ old attention timings remain unqualified for its changed benchmark source.
 Attention v8 P0 CPU builds now fit400/400 at512 and100 D64Q4 rows at576;
 300 D128576 rows still spill. Resource queries/timings of this closure are held
 while the attention merge defect is repaired; no missing cost is fabricated.
+
+Verified protocol-script fixes (`ba573643a`): candidate timing guards900s;
+prefill watchdog defaults0 and accepts WATCHDOG=1; checks prefer prefill_w and
+decode_w; uninstrumented decode measurements explicitly disable step events;
+expert jobs reserve40960MiB, including solver device queries. Bash syntax and
+whitespace checks pass. Native solver routing/MoE prompt and automatic prefill
+watchdog-twin construction are still pending; the script is not a final MX-5
+campaign driver yet. Existing manual development twins were built separately.
+
+Verified full attention-merger MIR audit refines the D7 attribution: m/l has
+two scalar LDG_B32→ARRIVE64→STS chains; its Q-thread leader has34 Exp2 and34
+LDS waits, independent of actual producers. O already issues31 loads together,
+then mixes waits/consumption. Thus O is not wholly serialized; the copied
+repair targets proven m/l and alpha departures while enforcing bounded O
+issue-before-consume. No performance causality is claimed before an A/B.
