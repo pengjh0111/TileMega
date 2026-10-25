@@ -33,6 +33,9 @@ __global__ void __launch_bounds__(MX5_TEST_THREADS) GemmBench(BenchArgs args) {
   auto* const generation = reinterpret_cast<unsigned*>(smem + body_bytes);
   if (Sync::IsRole()) *generation = 0;
   Sync::CtaSync();
+  // Dense benchmark rows have no token indirection.
+  args.gemm.a_tokens = nullptr;
+  args.gemm.residual_tokens = nullptr;
   MxGemmOperandsV2 current = args.gemm;
   auto pf = Body::Prefetch(current, shape);
 #pragma unroll 1
