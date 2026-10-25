@@ -86,11 +86,23 @@ endfunction()
 
 # Same, producing a shared library for ctypes-driven numerical tests.
 function(tilemega_add_maca_library name source)
-  set(out "${CMAKE_CURRENT_BINARY_DIR}/maca/lib${name}.so")
-  file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/maca")
+  cmake_parse_arguments(ARG "" "OUTPUT_DIR;OUTPUT_NAME" "DEFINES" ${ARGN})
+  if(NOT ARG_OUTPUT_DIR)
+    set(ARG_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/maca")
+  endif()
+  if(NOT ARG_OUTPUT_NAME)
+    set(ARG_OUTPUT_NAME "lib${name}.so")
+  endif()
+  set(out "${ARG_OUTPUT_DIR}/${ARG_OUTPUT_NAME}")
+  set(defines)
+  foreach(def IN LISTS ARG_DEFINES)
+    list(APPEND defines "-D${def}")
+  endforeach()
+  file(MAKE_DIRECTORY "${ARG_OUTPUT_DIR}")
   add_custom_command(OUTPUT "${out}"
     COMMAND "${TILEMEGA_CUCC}" -std=c++17 -O3 -fno-strict-aliasing -shared -Xcompiler=-fPIC
       -DTILEMEGA_SERVING_RUNTIME=1
+      ${defines}
       -I${CMAKE_CURRENT_SOURCE_DIR}/include -I${CMAKE_CURRENT_BINARY_DIR}/include
       "${CMAKE_CURRENT_SOURCE_DIR}/${source}" -o "${out}" -lcudart
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${source}"
@@ -673,6 +685,39 @@ if(TILEMEGA_BUILD_TESTS)
   add_executable(mx_decode_geometry_v2 test/unit/mx/decode_geometry_v2.cpp)
   target_include_directories(mx_decode_geometry_v2 PRIVATE ${CMAKE_SOURCE_DIR}/include)
   add_test(NAME mx_decode_geometry_v2 COMMAND mx_decode_geometry_v2)
+  add_test(NAME mx_mir_check COMMAND ${Python3_EXECUTABLE} -m pytest -q
+    ${CMAKE_SOURCE_DIR}/test/python/test_mx_mir_check.py)
+  set(_mx5_common TILEMEGA_SYNC_V3=1 TILEMEGA_WATCHDOG=0)
+  foreach(_tn 16 32 64 128)
+    foreach(_d 1 2 3 4)
+      math(EXPR _mx5_budget "(${_tn}/16)*4 + ${_d}*(${_tn}/16+1)*4")
+      if(_mx5_budget LESS_EQUAL 160)
+        tilemega_add_maca_library(mx5_gemm_tn${_tn}_d${_d} test/unit/mx/decode_bodies_v2.cu
+          OUTPUT_DIR "${CMAKE_BINARY_DIR}/maca/mx5_gemm" OUTPUT_NAME tn${_tn}_d${_d}.so
+          DEFINES ${_mx5_common} MX5_TEST_TN=${_tn} MX5_TEST_DEPTH=${_d})
+      endif()
+    endforeach()
+    tilemega_add_maca_library(mx5_head_tn${_tn} test/unit/mx/decode_head_v2.cu
+      OUTPUT_DIR "${CMAKE_BINARY_DIR}/maca/mx5_head" OUTPUT_NAME tn${_tn}.so
+      DEFINES ${_mx5_common} MX5_TEST_TN=${_tn})
+  endforeach()
+  tilemega_add_maca_library(mx5_transform test/unit/mx/decode_transform_v2.cu DEFINES ${_mx5_common})
+  tilemega_add_maca_library(mx5_chain test/unit/mx/decode_chain_v2.cu DEFINES ${_mx5_common})
+  foreach(_dim 64 128)
+    foreach(_q 2 3 4 8)
+      tilemega_add_maca_library(mx5_attn_d${_dim}_q${_q} test/unit/mx/decode_attention_v2.cu
+        OUTPUT_DIR "${CMAKE_BINARY_DIR}/maca/mx5_attention" OUTPUT_NAME d${_dim}_q${_q}.so
+        DEFINES ${_mx5_common} MX5_TEST_DIM=${_dim} MX5_TEST_Q=${_q})
+    endforeach()
+  endforeach()
+  foreach(_body bodies head transform attention chain)
+    add_test(NAME mx_decode_${_body}_v2 COMMAND ${CMAKE_SOURCE_DIR}/scripts/mx_gpu_job.sh
+      7 900 ${CMAKE_SOURCE_DIR}/runs/mx5/ctest/${_body}
+      ${Python3_EXECUTABLE} -m pytest -x -q ${CMAKE_SOURCE_DIR}/test/python/test_mx_decode_${_body}_v2.py)
+    set_tests_properties(mx_decode_${_body}_v2 PROPERTIES LABELS gpu
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      ENVIRONMENT "PYTHONPATH=${CMAKE_SOURCE_DIR}/python;MX5_BODIES_DIR=${CMAKE_BINARY_DIR}/maca/mx5_gemm;MX5_HEAD_DIR=${CMAKE_BINARY_DIR}/maca/mx5_head;MX5_TRANSFORM_SO=${CMAKE_BINARY_DIR}/maca/libmx5_transform.so;MX5_ATTN_DIR=${CMAKE_BINARY_DIR}/maca/mx5_attention;MX5_CHAIN_SO=${CMAKE_BINARY_DIR}/maca/libmx5_chain.so")
+  endforeach()
   add_test(NAME forward_frontend COMMAND tilemega-unit forward_frontend)
   add_test(NAME frontend_import COMMAND tilemega-unit frontend_import)
   add_test(NAME dm_descriptor COMMAND tilemega-unit dm_descriptor)
