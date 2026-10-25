@@ -2120,10 +2120,16 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
   }
   out<<"}};\n";
   unsigned number=0;
-  // One TMA descriptor per (activation buffer, K, TK, rows); layers that share
-  // the residual stream also share its descriptor.
-  std::map<std::array<std::int64_t,4>,unsigned> maps;
-  std::vector<std::array<std::int64_t,4>> map_order;
+  // Tensor-map descriptors {buffer, rank, dims[4], strides[3], box[4]}; equal
+  // descriptors (e.g. layers reading one residual stream) are shared.
+  using MapKey=std::array<std::int64_t,13>;
+  std::map<MapKey,unsigned> maps;
+  std::vector<MapKey> map_order;
+  auto map_index=[&](MapKey const& key) {
+    auto found=maps.emplace(key,unsigned(map_order.size()));
+    if(found.second)map_order.push_back(key);
+    return found.first->second;
+  };
   int activation_rows=batch<=8?8:16;
   for(auto value:stages) {
     auto s=dictionaryEntry(value,"stages");auto kind=stringField(s,"kind");
@@ -2156,24 +2162,31 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
            <<",backend::ServingEpilogueOp::"<<enum_op<<','<<c.swiglu_u<<','<<(input_norm?"true":"false");
       for(auto field:{"b","c","d"})types<<','<<id(g,field);
       types<<','<<(op=="argmax_partial"?std::to_string(argmax_index):"kAbsent");
-      std::array<std::int64_t,4> key{integerField(g,"a"),integerField(g,"k"),cfg.TileK(),activation_rows};
-      auto found=maps.emplace(key,unsigned(map_order.size()));
-      if(found.second)map_order.push_back(key);
-      types<<','<<cfg.register_stages<<','<<found.first->second;
+      // A [B][K] as {64, B, K/64}: one box is a [TK/64][rows][64] slot (prompt §5 D3).
+      std::int64_t k=integerField(g,"k");
+      auto map=map_index({integerField(g,"a"),3,64,batch,k/64,0,2*k,128,0,64,activation_rows,
+          cfg.TileK()/64,0});
+      types<<','<<cfg.register_stages<<','<<map;
     }else if(kind=="kFusedAttention") {
-      if(extent!=8 || (width!=64 && width!=128) || group<2 || group>4 ||
+      if((extent!=8 && extent!=4) || (width!=64 && width!=128) || group<2 || group>8 ||
          integerField(s,"dense_attention_chunks")!=c.attention.chunks ||
          integerField(s,"attention_kv_block")!=capacity)
         throw std::invalid_argument("native attention requires reconstructed integrated chunks");
       bool norm=operand(5)!="kAbsent";
       if(norm!=(operand(6)!="kAbsent"))throw std::invalid_argument("asymmetric native QK norm");
-      chunks=c.attention.chunks;tasks=batch*8*chunks;
+      chunks=c.attention.chunks;
       offset=c.attention.workspace_offset;prefix=c.attention.preissue_smem_bytes;
       l2=c.attention.prefetch_l2_bytes;
       late=c.attention.preissue_late;
-      types<<"Attention<"<<batch<<','<<width<<','<<group<<','<<norm<<','<<chunks<<','
+      tasks=batch*extent*chunks;
+      types<<"Attention<"<<batch<<','<<extent<<','<<width<<','<<group<<','<<norm<<','<<chunks<<','
            <<c.attention.block_keys<<','<<c.attention.slots<<','<<c.attention.new_row_work<<','<<capacity;
       for(unsigned i:{0u,1u,2u,7u,3u,4u,5u,6u,8u,9u,10u})types<<','<<operand(i);
+      // Each layer's K and V cache [B*Hkv][Cap][D] as {D, Cap, B*Hkv}, read in
+      // [D/64][block keys][64] boxes (prompt §5 D2).
+      for(unsigned i:{1u,2u})
+        types<<','<<map_index({operands[i],3,width,capacity,std::int64_t(batch)*extent,0,2*width,
+            2ll*capacity*width,0,64,c.attention.block_keys,1,0});
     }else if(kind=="kEmbedding") {
       tasks=batch;types<<"Embedding<"<<batch<<','<<width<<','<<extent<<','<<capacity;
       if(operand(3)!="kAbsent")throw std::invalid_argument("native embedding writes no norm sums");
@@ -2191,7 +2204,9 @@ std::string emitNativeDenseProgram(mlir::ModuleOp module) {
     ++number;
   }
   out<<"constexpr std::array<NativeTensorMap,"<<map_order.size()<<"> kNativeTensorMaps={{\n";
-  for(auto const& m:map_order)out<<"  {"<<m[0]<<"u,"<<m[1]<<"u,"<<m[2]<<"u,"<<m[3]<<"u},\n";
+  for(auto const& m:map_order)out<<"  {"<<m[0]<<"u,"<<m[1]<<"u,{"<<m[2]<<"ull,"<<m[3]<<"ull,"<<m[4]<<"ull,"
+     <<m[5]<<"ull},{"<<m[6]<<"ull,"<<m[7]<<"ull,"<<m[8]<<"ull},{"<<m[9]<<"u,"<<m[10]<<"u,"<<m[11]<<"u,"
+     <<m[12]<<"u}},\n";
   out<<"}};\n";
   out<<types.str()<<"using NativeProgram=Program<"<<batch<<','<<capacity<<','<<c.residency<<','
      <<buffers.size()<<','<<map_order.size();

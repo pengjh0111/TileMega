@@ -109,9 +109,10 @@ def dispatch(manifest, defines, source):
     for typed, number, raw in attention:
         placement(number, c, typed)
         args = raw.split(',')
-        if len(args) != 20:
+        # batch, Hkv, D, Q, norm, chunks, keys, slots, row work, capacity, 11 buffers, K/V maps.
+        if len(args) != 23:
             raise ValueError('native dense attention call signature is invalid')
-        batch, dim, queries, norm, chunks, keys, slots, row, capacity = map(int, args[:9])
+        batch, hkv, dim, queries, norm, chunks, keys, slots, row, capacity = map(int, args[:10])
         current = (dim, queries, norm)
         if (batch != manifest['runtime_batch'] or capacity != manifest['capacity'] or
                 [chunks, keys, slots, row] != expected or
@@ -136,8 +137,7 @@ def implementations(manifest):
                 input_norm='consumer_rms', swiglu_interleave_u=c['swiglu_u'],
                 gemms=[dict(index=g['index'], impl=g['impl'],
                             task_body='Sm90DenseGemm') for g in manifest['gemms']],
-                attention=dict(impl='native_simt' if manifest['runtime_batch'] <= 4 else 'native_mma_sync',
-                               task_body='Sm90DenseAttention' if manifest['runtime_batch'] <= 4
-                               else 'Sm90DenseAttentionStream', chunks=c['attention']['chunks'],
+                attention=dict(impl='native_tma_mma_sync', task_body='Sm90DenseAttentionBody',
+                               chunks=c['attention']['chunks'],
                                merge='last_arriver' if c['attention']['chunks'] > 1 else 'none',
                                buffers=c['attention']['slots'], partition='actual_past'))

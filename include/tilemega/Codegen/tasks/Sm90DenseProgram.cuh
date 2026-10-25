@@ -3,9 +3,8 @@
 
 #include <tilemega/Backend/Sm90DenseGemm.h>
 #include <tilemega/Codegen/Sm90DenseEpilogueContract.h>
-#include <tilemega/Backend/Sm90DenseAttentionStream.cuh>
+#include <tilemega/Backend/Sm90DenseAttentionBody.cuh>
 #include <tilemega/Backend/Sm90DenseToken.cuh>
-#include <tilemega/Backend/Sm90DensePreissue.cuh>
 #include <tilemega/Backend/Sm90DenseLayout.h>
 #include <tilemega/Codegen/tasks/Sm90DenseStage.cuh>
 #include <tilemega/Codegen/tasks/ServingAbi.h>
@@ -62,7 +61,12 @@ struct alignas(64) Bindings {
 };
 
 struct alignas(64) GridCounter {unsigned long long arrivals;};
-struct NativeTensorMap {unsigned buffer,k,tile_k,rows;};
+// One rank-3/4 SWIZZLE_128B descriptor over a bound buffer (codegen-emitted).
+struct NativeTensorMap {
+  unsigned buffer,rank;
+  unsigned long long dims[4],strides[3];
+  unsigned box[4];
+};
 struct StageInfo {
   char const *kind,*name;
   unsigned long long weight_bytes;
@@ -127,40 +131,27 @@ struct Gemm {
   }
 };
 
-template<int Batch,int D,int Q,bool Norm,int Chunks,int Keys,int Slots,int RowWork,
+template<int Batch,int Hkv,int D,int Q,bool Norm,int Chunks,int Keys,int Slots,int RowWork,
          int Capacity,unsigned Qkv,unsigned Key,unsigned Value,unsigned Output,
          unsigned Cosine,unsigned Sine,unsigned QNorm,unsigned KNorm,
-         unsigned Partial,unsigned Lse,unsigned Arrivals>
+         unsigned Partial,unsigned Lse,unsigned Arrivals,unsigned KeyMap,unsigned ValueMap>
 struct Attention {
   static constexpr bool kArgmax=false;
   static constexpr bool kUsesOperandRecord=true;
-  using Body=std::conditional_t<(Batch<=4),
-      backend::Sm90DenseAttention<Batch,D,Q,Norm,Chunks,RowWork,Capacity>,
-      backend::Sm90DenseAttentionStream<Batch,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity>>;
-  using Loader=backend::Sm90DenseKvPreissue<(Batch>=8),D,Q,Chunks,Keys,Slots,RowWork,Capacity>;
-  static constexpr int kTasks=Batch*8*Chunks,kSharedBytes=Body::kSharedBytes;
-  using Preissue=KvRead<Loader,kTasks>;
-  static constexpr int kRingSlots=Batch<=4?1:Slots;
-  static constexpr int kMaxPreissue=4*D*(Batch<=4?
-      Body::Partition::MaxKeys(Capacity,RowWork):Slots*Keys);
-  static constexpr auto kLayout=backend::Sm90DenseLayout::Attention(
-      Batch,D,Q,Chunks,Keys,Slots,RowWork,Capacity);
+  using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity>;
+  static constexpr int kTasks=Body::kTasks,kSharedBytes=Body::kSharedBytes;
+  // KV preissue returns with the D6 stream (prompt §6).
+  static constexpr int kRingSlots=Slots,kMaxPreissue=0;
+  static constexpr auto kLayout=backend::Sm90DenseLayout::Attention(D,Q,Chunks,Keys,Slots);
   static_assert(kLayout.end==kSharedBytes);
-  using Storage=typename Body::Storage;
-  static_assert(kLayout.key==1024+offsetof(Storage,key) &&
-      kLayout.value==1024+offsetof(Storage,value) && kLayout.scratch==1024+offsetof(Storage,output));
   template<int Bytes>
-  static constexpr auto Payload() {
-    return backend::Sm90DenseLayout::AttentionPayload(
-        Batch,D,Q,Chunks,Keys,Slots,RowWork,Capacity,Bytes);
-  }
+  static constexpr backend::Sm90DensePayload Payload() {return {};}
   template<class B>
-  __device__ static __forceinline__ ReadSources Sources(B const& b) {
-    return {b.template Get<Key>(),b.template Get<Value>()};
-  }
+  __device__ static __forceinline__ ReadSources Sources(B const&) {return {};}
   template<class B>
   __device__ static __forceinline__ void PublishOperands(B const& b,int past,float epsilon,
       backend::Sm90DenseOperandBank& record) {
+    record.attention.key_map=b.template Map<KeyMap>();record.attention.value_map=b.template Map<ValueMap>();
     record.attention.qkv=b.template Get<Qkv>();record.attention.key=b.template Get<Key>();
     record.attention.value=b.template Get<Value>();record.attention.output=b.template Get<Output>();
     record.attention.cosine=b.template Get<Cosine>();record.attention.sine=b.template Get<Sine>();
@@ -173,8 +164,7 @@ struct Attention {
   template<int Prefix,class B,class Tail>
   __device__ static __forceinline__ void Run(B const& b,int past,char* shared,float epsilon,
       backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record) {
-    auto const& p=record.attention;
-    StageEntry<Body>::Attention(p,shared,&ring,tail);
+    StageEntry<Body>::Attention(record.attention,shared,&ring,tail);
   }
 };
 

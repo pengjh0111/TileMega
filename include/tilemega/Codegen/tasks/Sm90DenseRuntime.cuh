@@ -189,12 +189,16 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
         throw std::invalid_argument("native dense buffers require 16-byte alignment");
       plan->bindings.buffers[i]=static_cast<Element*>(pointer);
     }
-    // GEMM activations [B][K] as {64, B, K/64} so one box is the
-    // [TK/64][rows][64] SWIZZLE_128B slot (prompt §5 D3).
     for(unsigned i=0;i<kNativeTensorMaps.size();++i) {
       auto const& m=kNativeTensorMaps[i];
-      tilemega::codegen::executor::EncodeTiledMap<3>(plan->bindings.maps[i],plan->bindings.buffers[m.buffer],
-          {{64,std::uint64_t(batch),m.k/64},{2ull*m.k,128},{64,m.rows,m.tile_k/64}});
+      namespace ex=tilemega::codegen::executor;
+      auto* address=plan->bindings.buffers[m.buffer];
+      if(m.rank==3)ex::EncodeTiledMap<3>(plan->bindings.maps[i],address,
+          {{m.dims[0],m.dims[1],m.dims[2]},{m.strides[0],m.strides[1]},{m.box[0],m.box[1],m.box[2]}});
+      else if(m.rank==4)ex::EncodeTiledMap<4>(plan->bindings.maps[i],address,
+          {{m.dims[0],m.dims[1],m.dims[2],m.dims[3]},{m.strides[0],m.strides[1],m.strides[2]},
+           {m.box[0],m.box[1],m.box[2],m.box[3]}});
+      else throw std::invalid_argument("native tensor map rank must be 3 or 4");
     }
     plan->events=Allocate<GridCounter>(NativeProgram::kStages);
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
