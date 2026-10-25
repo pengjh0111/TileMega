@@ -1,9 +1,10 @@
 # MX-5 dense integration checkpoint
 
-Verified checkpoint, 2026-10-25. Authoritative prompt SHA256:
+Verified checkpoint, 2026-10-26 (latest snapshot below). Authoritative prompt SHA256:
 `75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73`.
 G-A passed; G-B and G-PROGRAM remain open. Manual-control correctness and diagnostic timings are recorded below; no
-solver-selected model acceptance, MoE or DNN result is claimed.
+solver-selected model acceptance, MoE or DNN result is claimed. Earlier sections
+are source-specific historical checkpoints; the final section gives current status.
 
 ## Calibration and evidence
 
@@ -238,11 +239,12 @@ diagnostic-only step clocks are present and only skip differences are used.
 Raw sources,19 successful guarded jobs and corrected protocol commands:
 `runs/mx5/manual_d7_stage_ledger_v5_61/`.
 
-Source inspection (verified) finds the attention LA merger computes per-partial
-Exp2 serially in only Q threads and does not explicitly preserve a batch of
-partial-O loads before consumption. This departs from §4.7's parallel merge;
-its causal timing contribution is inferred pending MIR and repaired A/B.
-A copied-header D7 investigation is isolated from current GEMM/head calibration.
+Historical source inspection (verified) found the then-current attention LA
+merger computed per-partial Exp2 serially in only Q threads. Main78795d384 later
+repaired m/l issue, parallel alpha and bounded O issue-before-consume; the
+current merger does not retain that serial departure. The old causal timing
+contribution was inferred, not measured in isolation. The copied repair was
+isolated from the then-current GEMM/head calibration.
 The latter use immutable source closures, not mixed-source recycled timings.
 
 Fresh GEMM v7 queries:3395/3395 P0-fit at512;2720/3395 fit at576,675 failed
@@ -262,7 +264,7 @@ whitespace checks pass. Native solver routing/MoE prompt and automatic prefill
 watchdog-twin construction are still pending; the script is not a final MX-5
 campaign driver yet. Existing manual development twins were built separately.
 
-Verified full attention-merger MIR audit refines the D7 attribution: m/l has
+Verified historical attention-merger MIR audit refines that D7 attribution: m/l has
 two scalar LDG_B32→ARRIVE64→STS chains; its Q-thread leader has34 Exp2 and34
 LDS waits, independent of actual producers. O already issues31 loads together,
 then mixes waits/consumption. Thus O is not wholly serialized; the copied
@@ -307,7 +309,7 @@ checks. Continuous2000-iteration paired baseline/candidate checks are running;
 no new end-to-end performance or synchronization gate is claimed yet.
 Raw: `runs/mx5/attention_la_units_v1_61/` and `attention_la_parallel_d7_v1_61/`.
 
-Verified separate prefix MIR audit: current source issues owner key norm/RoPE,
+Verified separate prefix MIR audit of the then-current LA-only source: it issued owner key norm/RoPE,
 then Q/norm, then V_new and initial history K/V. This differs from §4.7's
 segment-start issue schedule (`DecodeAttentionV2.h:124-195`). A copied repair
 issues the full batch first and retires it before transforms, preserving rings
@@ -315,9 +317,9 @@ and the LA suffix. All18 compiler invocations succeed, but six D128512
 candidate functions fail: B1 MT256/frame132;B16 MT256/frame120. D64/576
 fitsMT129/frame0. No failed candidate executes or enters main, and no resource
 limit/threshold is relaxed. Failure/source/MIR evidence:
-`runs/mx5/attention_prefix_d7_v1_61/FAILURE_MANIFEST.json`. This item remains
-unfinished; a read-only D7 audit is separating required payload and avoidable
-compiler liveness from allocator artifacts, without a second implementation.
+`runs/mx5/attention_prefix_d7_v1_61/FAILURE_MANIFEST.json`. That rejected attempt
+remains archived. The later packed-lifetime/CTA-bound/younger-wait repair was
+adopted separately in fe0829b8a, as recorded below.
 
 Verified script follow-up `23a53044b`: explicit WATCHDOG=1 prefill solves now
 write prefill_w rather than overwriting timing prefill. Both plans still need
@@ -561,14 +563,15 @@ hold spilled scalar controls/pointers and masks, not head packet vectors.
 A second copied variant reloads top-level Binding fields at their stage using
 the existing uniform-opaque AS4 mechanism: QwenID0=251/frame0; Llama1BID3=
 223/frame0, both private0/generic0/calls0. Bodies, pin/Pw and stage/next order
-are unchanged. This is CPU-only evidence pending independent review, occupancy
-and fresh model correctness; the patch is not enabled by this checkpoint.
+are unchanged. At that checkpoint this was CPU-only evidence pending independent review,
+occupancy and fresh correctness; later9aaf3bbf2 adoption is recorded below.
 Raw: `runs/mx5/solver_spill_diagnosis_v2_61/`; rejected variants remain.
 
 The schema3 ignored CPU patch's independent review found three reproducible
 qualification bugs: forced-register P0 acceptance, tail-position MIR observer
-rejection, and Python cost-width validation omission. All remain outside main;
-a revised patch must pass these negative cases before adoption. Raw:
+rejection, and Python cost-width validation omission. That rejected revision
+remains outside main; the corrected revision passed those negative cases before
+its later f7180fca0 adoption. Raw:
 `runs/mx5/outcome_domain_review_v1_61/`. No fabricated cost or512 approval.
 
 The main guarded occupancy helper669f107a0 calls only inspected host shared-byte
@@ -648,8 +651,87 @@ Llama1B B1's complete576 domain189 keys now has396 genuine zero-execution
 queries:189 P0,189 primary,18 legal halving steps;0 errors. Source archives and
 normal flags are checked, including four newly compiled exact-source libraries.
 Primary136 fit/53 rejected;18 fresh halving chains recover, giving154 selected
-fit and35 remaining rejections. Cost campaigns are prepared, not yet measured.
-Schema3 revision5aef2ee1's three earlier defects pass independent old Python/
-native repros; it remains ignored. Per-plan observed-budget exception verification
-is being implemented separately and grants no current execution/default policy.
+fit and35 remaining rejections. Those cost campaigns were prepared at that checkpoint; the completed old-source
+154-cost/35-rejection control is recorded below. Schema3 revision5aef2ee1's
+three earlier defects passed independent Python/native repros before f7180fca0
+adoption. Candidate-bound749f77ae2 auditing still grants no execution/default policy.
 Raw: `llama1b576_domain_v1_61/`, `outcome_domain_review_v2_root/`.
+
+
+## Latest diagnostic records and source boundary (verified, 2026-10-26)
+
+The append-only measurement CSV now retains QwenB16 original IDs1–3, two fresh
+rounds each, plus both8BB16 original0 rounds; round/executor/implementation and
+actual decode/prefill IDs remain explicit. All are manual/diagnostic/final=false,
+WD0/TRACE0/DIAG0, step-events0, ISL64/OSL1024, warm1+timed2 per N arm.
+QwenB16 medians by original0..3 are3.733467490/3.731914691/3.735340963/
+3.739188528ms. The fastest gains0.04159%, so the diagnostic1% comparison retains
+original0; the four selection CSV rows do not promote a final/default plan.
+8BB16 rounds13.238265565/13.244280723ms give median13.241273144ms. This does not
+rescue the separate all-PwD resource failures of its original IDs1/3.
+Raw: `solver_development_gpu_v3/qwen3_0_6b_B16_top4_manual/` and
+`solver_development_gpu_v3/llama3_1_8b_B16_timing/` under runs/mx5.
+
+The new v3 ledger appends six stages×two rounds plus two common-floor rows to
+MX5_stage_ledger_c550.csv. Per-layer net intervention/selected-bench medians,
+us: Qkv6.994/9.860, A25.390/24.913, O4.904/8.500, GU9.718/13.700,
+down6.908/10.130. Head186.818/193.890us per step is specifically confounded:
+mask0 vs Head-skip32 changes generated token history. Each other reference uses
+Head-skip32; intervention masks33/34/36/40/48 add the corresponding body skip.
+These differences include dataflow, overlap, packet retirement and synchronization;
+they are not independent body costs and must not be summed. The345.173us/step
+common skip63 floor retains Next loads, skipped-consumer retirement, barriers,
+broadcasts and DIAG clocks, and remains separate/unattributed. No absolute
+per-body trace time is used. DIAG1/TRACE0 is an intervention workload, not a
+numerical acceptance or uninstrumented TPOT workload. Raw:
+`runs/mx5/v3_stage_ledger_61/ledger_summary_v1.json`; all14 appended rows state
+round, formulas, confounding/nonadditivity, coordinates and source identities.
+
+Historical/current spec boundary:78795d384 repaired the old §4.7 serial merge;
+fe0829b8a adopted segment-start issue/packed-lifetime/CTA/younger-history waits.
+Later-prefix automatic global waits still limit overlap; this is distinct from
+DT-X's per-block softmax exchange/ring gates.9aaf's terminal packet scope and
+stage-local AS4 reload preserve actual Run/Next/barrier order while differing
+from prompt4.3's literal outer pf_h lexical scope. The engine's kv_storage check
+also records the physical-layout compatibility requirement beyond kv_layout.
+None of these differences waives end-to-end gates or grants blanket512 execution.
+
+Llama1B B1's old-source576 control is now qualified schema3:189 legal keys=
+154 costs from3fresh processes +35 witnessed primary resource rejections,
+0 missing. Rejections contain no ns; Attention keeps all five L knots. Sources
+remain G9705/Hf070/Ae3. Full table SHA256:
+`2e38227936dbec0dfdd0420f61292dfb734c08e5f821f77da4ddce5f7782ce33`.
+Raw: `runs/mx5/llama1b576_qualified_outcomes_v1_61/`. This scoped complete
+cost-or-rejection control is not literal all-key timing or a current-family
+execution certificate. Main f7180fca0 schema3 and749f77ae2 thread-exception
+audit add CPU evidence contracts only; schema2/defaults/performing resource
+limits are unchanged, and audit APIs keep execution_authorized=false.
+
+Candidate-bound QwenB1 D7 retains normal576168/frame556 versus controlled
+max255255/frame20; actual root API0/occupancy0/shared32816/zero launches matches
+the diagnostic ELF/MIR. This is an allocation observation, not a mathematical
+required-register lower bound or global576 impossibility proof. Historical
+old603/producer19c45 READY became correctly blocked when four source inputs and
+the live host changed during schema3 adoption; old refs/archives remain unchanged.
+It cannot approve current source execution. Raw:
+`runs/mx5/qwenB1_min576_budget_v1_61/REVIEW_QUERIED.md`.
+
+The new idle-group Prefetch guard is still copied-only. Main's §4.8#1 idle
+TileRange groups can issue unwanted AS1 loads; the copied uniform active/chunk
+guard removes only that path, retaining eligible kLoads, per-compute-wave next()
+and P-B issue order. Static requested useless bytes are not measured DRAM traffic
+or a speedup. Actual allocated ring waits do change despite unchanged ring source.
+Its new G/H/A closures cannot borrow old-source calibration. Strict whole-family
+resource checks admit40 five-fresh unit jobs and keep20 blocked jobs unexecuted;
+this campaign is still running, not a completed synchronization/numerical pass.
+Raw: `runs/mx5/gemm_inactive_prefetch_v3_61/`. No candidate body patch is in main.
+
+Budget checkpoint 2026-10-26T06:40:28.308091+08:00: union `runs/mx5/gpu_jobs.log` and
+`runs/mx5/llama1b576_domain_v1_61/modern_dispositions_v2/timing_gpu_jobs.log`,
+canonical distinct out: 499 closed jobs, active_count=2; closed wrapper wall
+15.872500 card-hours plus active elapsed0.016560 to checkpoint,
+upper bound15.889060/60 card-hours, including waits/cooldowns. At that snapshot
+13 copied-validation jobs had closed successfully,2 were active; no assertion
+that all40 were complete. Current campaigns use7/6, at most two cards. Full
+source snapshots and append/hash/dedup proof: `runs/mx5/docs_latest_evidence_v1_61/`.
+G-A passed; G-B/G-PROGRAM, final25 dense, native MoE, LLM30 and DNN25 remain open.
