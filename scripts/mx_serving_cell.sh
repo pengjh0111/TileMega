@@ -45,7 +45,9 @@ export)
   done ;;
 solve)
   b=$3; phase=$4
-  C=$CELLS/$id/B$b/$phase; mkdir -p $C
+  phase_dir=$phase
+  [ "$phase" = prefill ] && [ "${WATCHDOG:-0}" = 1 ] && phase_dir=prefill_w
+  C=$CELLS/$id/B$b/$phase_dir; mkdir -p $C
   [ -f $C/plan.so ] && grep -q "^rc=0" $C/compile.log 2>/dev/null && exit 0
   # One compile per cell. Every artifact in $C has a fixed name, so two
   # concurrent solves of the same cell interleave their plan.so, identity and
