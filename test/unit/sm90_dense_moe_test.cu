@@ -22,8 +22,9 @@ using U64=unsigned long long;
 constexpr int B=TEST_BATCH,E=128,TopK=8,H=512,I=192,U=16,kGrid=132;
 constexpr int TNgu=96,TKgu=128,TNdn=128,TKdn=64;
 using Router=Sm90DenseMoeGemm<B,E,H,8,256,2,1,4,Sm90DenseMoeMode::kRouter,U,E,TopK,false>;
-using GateUp=Sm90DenseMoeGemm<B,2*I,H,TNgu,TKgu,3,4,1,Sm90DenseMoeMode::kGateUp,U,E,TopK,false>;
-using Down=Sm90DenseMoeGemm<B,H,I,TNdn,TKdn,3,4,1,Sm90DenseMoeMode::kDown,U,E,TopK,false>;
+// The experts keep the legacy prefill's 64 x 64 pages (Page = 64).
+using GateUp=Sm90DenseMoeGemm<B,2*I,H,TNgu,TKgu,3,4,1,Sm90DenseMoeMode::kGateUp,U,E,TopK,false,64>;
+using Down=Sm90DenseMoeGemm<B,H,I,TNdn,TKdn,3,4,1,Sm90DenseMoeMode::kDown,U,E,TopK,false,64>;
 using Schedule=Sm90DenseMoeSchedule<E>;
 void Check(cudaError_t e,int line) {
   if(e!=cudaSuccess)throw std::runtime_error(std::string(cudaGetErrorString(e))+" at line "+std::to_string(line));
@@ -82,9 +83,9 @@ int main() {try {
   std::vector<BF> packed_gu(gate_up.size()),packed_dn(down.size());
   for(int e=0;e<E;++e) {
     std::vector<BF> one(gate_up.begin()+std::size_t(e)*2*I*H,gate_up.begin()+std::size_t(e+1)*2*I*H);
-    Pack(one,2*I,H,TNgu,TKgu,std::size_t(e)*2*I*H,&packed_gu);
+    Pack(one,2*I,H,64,64,std::size_t(e)*2*I*H,&packed_gu);
     std::vector<BF> two(down.begin()+std::size_t(e)*H*I,down.begin()+std::size_t(e+1)*H*I);
-    Pack(two,H,I,TNdn,TKdn,std::size_t(e)*H*I,&packed_dn);
+    Pack(two,H,I,64,64,std::size_t(e)*H*I,&packed_dn);
   }
   // Device state.
   BF *dx=Device(x),*dr=Device(packed_router),*dgu=Device(packed_gu),*ddn=Device(packed_dn);

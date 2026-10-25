@@ -22,7 +22,7 @@ void CheckPartitions() {check<1>();check<2>();check<4>();check<8>();check<16>();
 int main() {
  CheckPartitions();
  using namespace tilemega::solver;
- std::array<std::array<int,2>,5> nk={{{4096,1024},{1024,2048},{6144,1024},{1024,3072},{151936,1024}}};
+ Sm90DenseShapeTable nk={{{4096,1024},{1024,2048},{6144,1024},{1024,3072},{151936,1024}}};
  Sm90DenseCoordinates c;
  for(int i=0;i<5;++i) {auto& g=c.gemms[i];g.tile_n=i==4?128:nk[i][0]/128;g.slot_bytes=2*g.tile_n*64;}
  c.swiglu_u=8;c.attention.chunks=16;c.weight_stream=true;c.layer_loop=true;c.embed_la=true;
