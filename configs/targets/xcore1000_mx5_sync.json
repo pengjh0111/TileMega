@@ -1,0 +1,16 @@
+{
+  "provenance": {
+    "prompt_sha256": "75431f98a6286063cc73effe5ece2ed3d462304de4c4192dbd4023efe2bd6f73",
+    "measurements": "docs/results/MX5_probe_c550.csv",
+    "base_head": "22a3522425b54a0fcc23074562a3a7207c5bb6ce",
+    "date": "2026-10-25",
+    "card": 7,
+    "processes": 5
+  },
+  "threads": 576,
+  "release": "fence_atomic_add",
+  "prefetch": "P-B",
+  "wave_exchange": "X-A",
+  "kv_layout": "block_fragments",
+  "poll": "volatile"
+}
