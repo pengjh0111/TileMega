@@ -24,11 +24,11 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
   Sm90DenseSearchResult result;
   std::vector<Sm90DenseCandidate> pool;
   std::set<std::string> seen;
-  for(int residency:{1,2})for(bool sums:{false,true}) {
+  for(int residency:{1,2}) {
     std::array<std::vector<Option>,6> families;
     for(unsigned f=0;f<5;++f) {
-      for(auto const& g:space.FamilyCandidates(f,residency,sums)) {
-        families[f].push_back({cost.Gemm(work,f,g,residency,sums),g,{}});
+      for(auto const& g:space.FamilyCandidates(f,residency)) {
+        families[f].push_back({cost.Gemm(work,f,g,residency),g,{}});
         ++result.evaluated;
       }
     }
@@ -43,8 +43,9 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
       std::stable_sort(f.begin(),f.end(),[&](Option const& a,Option const& b) {
         if(a.ns!=b.ns)return a.ns<b.ns;
         if(i==5)return false;
-        if(a.gemm.SharedBytes(work.batch)!=b.gemm.SharedBytes(work.batch))
-          return a.gemm.SharedBytes(work.batch)<b.gemm.SharedBytes(work.batch);
+        bool residual=Sm90DenseCoordinates::ResidualFamily(i);
+        if(a.gemm.SharedBytes(work.batch,residual)!=b.gemm.SharedBytes(work.batch,residual))
+          return a.gemm.SharedBytes(work.batch,residual)<b.gemm.SharedBytes(work.batch,residual);
         return a.gemm.TileK()>b.gemm.TileK();
       });
       f.erase(std::unique(f.begin(),f.end(),[](Option const& a,Option const& b) {
@@ -54,7 +55,7 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
     }
     if(empty)continue;
     auto build=[&](unsigned family,unsigned rank,std::string const& origin) {
-      Sm90DenseCoordinates c;c.residency=residency;c.dn_vector_sums=sums;
+      Sm90DenseCoordinates c;c.residency=residency;
       for(unsigned f=0;f<5;++f)c.gemms[f]=families[f][f==family?rank:0].gemm;
       c.attention=families[5][family==5?rank:0].attention;
       Sm90DenseSearchSpace::Structure(c);
@@ -63,7 +64,7 @@ Sm90DenseSearchResult SearchSm90Dense(Sm90DenseSearchSpace const& space,
       if(!seen.insert(key).second)return;
       pool.push_back({c,cost.Predict(work,c),origin});
     };
-    std::string prefix="r"+std::to_string(residency)+(sums?"_vs1":"_vs0");
+    std::string prefix="r"+std::to_string(residency);
     build(6,0,prefix+"_optimum");
     static constexpr char const* kNames[]={"qkv","o","gate_up","down","lm_head","attention"};
     for(unsigned f=0;f<6;++f)

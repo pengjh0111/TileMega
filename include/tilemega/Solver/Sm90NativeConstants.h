@@ -27,7 +27,7 @@ class Sm90NativeConstants {
  public:
   static Sm90NativeConstants FromTarget(json::Value const& target,std::string const& root);
   double Barrier(int grid) const;
-  double Epilogue(std::string const& family,int tile_n,int batch,int k,bool vector_sums) const;
+  double Epilogue(std::string const& family,int tile_n,int batch,int warps_k) const;
   double Embedding(int grid,int width,int batch) const;
   double Argmax(int grid,int parts,int batch) const;
   std::optional<Sm90AttentionEntry> Attention(int batch,int dim,int queries,bool norm,

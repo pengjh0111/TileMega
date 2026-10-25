@@ -22,8 +22,7 @@ bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
   return true;
 }
 
-std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned family,int residency,
-                                                                 bool vector_sums) const {
+std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned family,int residency) const {
   std::vector<Sm90DenseGemm> result;
   int grid=Grid(residency),n=shapes[family][0],k=shapes[family][1];
   auto budget=Sm90DenseSharedBudget(target,residency);
@@ -33,8 +32,7 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
     depths={64,128,256};
   }else {
     for(int tn=8;tn<=n;tn+=8)
-      if(n%tn==0 && n/tn*4>=grid && n/tn<=2*grid &&
-         (vector_sums || (family!=1 && family!=3) || tn%32==0))tiles.push_back(tn);
+      if(n%tn==0 && n/tn*4>=grid && n/tn<=2*grid)tiles.push_back(tn);
     for(int tk=64;tk<=2048;tk*=2)depths.push_back(tk);
   }
   for(int tn:tiles)for(int wn:{1,2,4}) {
@@ -50,7 +48,8 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
         g.slots=slots;
         if(double(slots)*g.slot_bytes>=std::min(w_cta,48.0*1024))found=true;
       }
-      if(!found || g.SharedBytes(batch)>budget || g.register_stages>tk/(16*g.warps_k))continue;
+      if(!found || g.SharedBytes(batch,Sm90DenseCoordinates::ResidualFamily(family))>budget ||
+         g.register_stages>tk/(16*g.warps_k))continue;
       try {g.Validate(n,k);}catch(std::invalid_argument const&) {continue;}
       result.push_back(g);
     }

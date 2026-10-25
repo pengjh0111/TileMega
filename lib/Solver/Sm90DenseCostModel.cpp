@@ -19,7 +19,7 @@ Sm90DenseCostModel::Sm90DenseCostModel(TargetSpec target,Sm90NativeConstants con
 }
 
 double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
-    Sm90DenseGemm const& g,int residency,bool vector_sums,json::Value* terms) const {
+    Sm90DenseGemm const& g,int residency,json::Value* terms) const {
   auto const& c=constants_;
   int grid=Grid(residency),n=work.shapes[family][0],k=work.shapes[family][1],b=work.batch;
   double tasks=n/g.tile_n,per_cta=std::ceil(tasks/grid);
@@ -30,8 +30,7 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
   double ring=w_cta*c.dram_latency/(double(g.slots)*g.slot_bytes);
   double stream=std::max({w_tot/c.dram_gbps,(w_tot+a_tot)/c.l2_gbps,cta,ring});
   static constexpr char const* kEpilogue[]={"qkv","residual","gate_up","residual","lm_head"};
-  bool norm=family==0 || family==2 || family==4;
-  double epilogue=c.Epilogue(kEpilogue[family],g.tile_n,b,norm?k:0,vector_sums);
+  double epilogue=c.Epilogue(kEpilogue[family],g.tile_n,b,g.warps_k);
   // Prompt §4 L0-2: no preissue in L0, so the DRAM first byte is exposed.
   double total=c.Barrier(grid)+c.l2_latency+(c.dram_latency-c.l2_latency)+stream+epilogue;
   if(terms)*terms=json::Object{{"barrier",c.Barrier(grid)},{"first_byte",c.dram_latency},
@@ -60,7 +59,7 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
   static constexpr char const* kKinds[]={"qkv","o","gate_up","down","lm_head"};
   for(unsigned f=0;f<5;++f) {
     Sm90DensePrediction::Stage s{kKinds[f],f==4?1:work.layers};
-    s.ns=Gemm(work,f,c.gemms[f],c.residency,c.dn_vector_sums,&s.terms);
+    s.ns=Gemm(work,f,c.gemms[f],c.residency,&s.terms);
     p.stages.push_back(std::move(s));
   }
   auto attention=c.attention;

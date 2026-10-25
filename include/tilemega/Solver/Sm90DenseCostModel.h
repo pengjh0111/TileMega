@@ -28,7 +28,7 @@ class Sm90DenseCostModel {
   Sm90DenseCostModel(TargetSpec target,Sm90NativeConstants constants);
   // family: 0 qkv, 1 o, 2 gate_up, 3 down, 4 lm_head.
   double Gemm(Sm90DenseWorkload const&,unsigned family,Sm90DenseGemm const&,int residency,
-              bool vector_sums,json::Value* terms=nullptr) const;
+              json::Value* terms=nullptr) const;
   // Fills the measured body coordinates; absent when the key was not measured.
   std::optional<double> Attention(Sm90DenseWorkload const&,Sm90DenseAttention& attention,
                                   int residency,json::Value* terms=nullptr) const;

@@ -97,7 +97,7 @@ frontend::ImportedSemantics ImportSm90Dense(std::string const& path,
     Sm90DenseCoordinates const& c,mlir::MLIRContext& context) {
   auto bridge=frontend::ReadExportBridge(path);
   frontend::ServingOptions options;
-  options.interleave_u=c.swiglu_u;options.dn_vector_sums=c.dn_vector_sums;
+  options.interleave_u=c.swiglu_u;options.native_rms=true;
   options.argmax_tile_n=c.gemms[4].tile_n;
   options.dense_attention_chunks=c.attention.chunks;
   auto plan=frontend::BuildModelPlan(bridge.nodes,bridge.inputs,bridge.outputs,options);
@@ -112,13 +112,11 @@ mlir::OwningOpRef<mlir::ModuleOp> MaterializeSm90Dense(
     throw std::invalid_argument("native dense materialization requires a complete sm_90a target");
   auto const& plan=imported.plan;
   c.Validate(Sm90DenseShapes(plan),batch);
-  if(plan.dn_vector_sums!=c.dn_vector_sums)
-    throw std::invalid_argument("native structural coordinates require a fresh model plan");
   auto budget=Sm90DenseSharedBudget(target,c.residency);
   frontend::ImportOptions options;
   for(auto const& g:plan.gemms) {
     auto const& cfg=c.gemms[Sm90DenseFamily(plan,g)];
-    if(cfg.SharedBytes(batch)>budget)
+    if(cfg.SharedBytes(batch,Sm90DenseCoordinates::ResidualFamily(Sm90DenseFamily(plan,g)))>budget)
       throw std::invalid_argument("native GEMM exceeds target shared-memory budget");
     if(cfg.mma!=Sm90DenseMma::kMmaSync)
       throw std::invalid_argument("requested native mechanism is not implemented yet");

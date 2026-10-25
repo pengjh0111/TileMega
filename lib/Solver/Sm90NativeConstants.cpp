@@ -85,14 +85,13 @@ double Sm90NativeConstants::Barrier(int grid) const {
   if(found==barrier_.end())throw Sm90NativeMissing("no measured barrier for grid "+std::to_string(grid));
   return found->second;
 }
-double Sm90NativeConstants::Epilogue(std::string const& family,int tile_n,int batch,int k,
-                                     bool vector_sums) const {
-  auto const* f=epilogue_.Find(family);auto const* v=f?f->Find(vector_sums?"vs1":"vs0"):nullptr;
-  auto const* kk=v?v->Find("k"+std::to_string(k)):nullptr;
-  auto const* tn=kk?kk->Find(std::to_string(tile_n)):nullptr;
+double Sm90NativeConstants::Epilogue(std::string const& family,int tile_n,int batch,
+                                     int warps_k) const {
+  auto const* f=epilogue_.Find(family);auto const* w=f?f->Find("wk"+std::to_string(warps_k)):nullptr;
+  auto const* tn=w?w->Find(std::to_string(tile_n)):nullptr;
   auto const* b=tn?tn->Find(std::to_string(batch)):nullptr;
   if(!b)throw Sm90NativeMissing("no measured epilogue "+family+" TN"+std::to_string(tile_n)+
-      " B"+std::to_string(batch)+" K"+std::to_string(k)+" vs"+std::to_string(vector_sums));
+      " B"+std::to_string(batch)+" WK"+std::to_string(warps_k));
   return Positive(*b,"epilogue");
 }
 double Sm90NativeConstants::Embedding(int grid,int width,int batch) const {
