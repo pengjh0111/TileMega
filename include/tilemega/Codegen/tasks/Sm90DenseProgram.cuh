@@ -4,6 +4,7 @@
 #include <tilemega/Backend/Sm90DenseGemm.h>
 #include <tilemega/Codegen/Sm90DenseEpilogueContract.h>
 #include <tilemega/Backend/Sm90DenseAttentionBody.cuh>
+#include <tilemega/Backend/Sm90DenseMoe.cuh>
 #include <tilemega/Backend/Sm90DenseToken.cuh>
 #include <tilemega/Backend/Sm90DenseLayout.h>
 #include <tilemega/Codegen/tasks/Sm90DenseStage.cuh>
@@ -207,6 +208,53 @@ struct Embedding {
     }
     if(threadIdx.x==128)tail();
     __syncthreads();
+  }
+};
+
+// Native MoE stages (prompt §8): M4 router + top-k, M5 grouped gate_up, M6
+// down + combine. W: the (per-layer) weights; X: the residual stream x' (M5
+// gathers its rows, M6's last arrivers add into it); Out: logits, h or P;
+// Schedule, Routes (weights) and Index (this layer's top-k, for the routing
+// check); Counter: the router's or the per-tile combine counters; Map: x'
+// (router) or h (down).
+template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,backend::Sm90DenseMoeMode Mode,
+         int U,int Experts,int TopK,bool FloatWeights,int Page,unsigned W,unsigned X,unsigned Out,
+         unsigned Schedule,unsigned Routes,unsigned Index,unsigned Counter,unsigned Map,
+         int RegisterStages>
+struct Moe {
+  using Body=backend::Sm90DenseMoeGemm<Batch,N,K,TN,TK,Slots,WN,WK,Mode,U,Experts,TopK,FloatWeights,
+      Page,RegisterStages>;
+  static constexpr bool kUsesOperandRecord=true;
+  static constexpr int kTasks=Body::kMaxTasks,kSharedBytes=Body::kSharedBytes,kRingSlots=Slots;
+  // M4's routes are unknown to its predecessor's producer: M5 receives no stream.
+  static constexpr int kMaxPreissue=Mode==backend::Sm90DenseMoeMode::kGateUp?0:
+      (Slots<Body::kIterations?Slots:Body::kIterations)*2*TN*TK;
+  static constexpr auto kLayout=Body::kLayout;
+  using Preissue=MoeRead<Body>;
+  template<int Bytes>
+  static constexpr auto Payload() {
+    return backend::Sm90DenseLayout::GemmPayload(TN,TK,Slots,K,Batch,Bytes);
+  }
+  template<class B>
+  __device__ static __forceinline__ ReadSources Sources(B const& b,int layer) {
+    return {b.template Get<W>(layer),nullptr,nullptr,layer,
+        reinterpret_cast<int const*>(b.template Get<Schedule>(layer))};
+  }
+  template<class B>
+  __device__ static __forceinline__ void PublishOperands(B const& b,int layer,int,float epsilon,
+      backend::Sm90DenseOperandBank& record) {
+    CUtensorMap const* map=nullptr;
+    if constexpr(Map!=kAbsent)map=b.template Map<Map>();
+    record.moe={map,b.template Get<W>(layer),b.template Get<X>(layer),b.template Get<Out>(layer),
+        reinterpret_cast<int*>(b.template Get<Schedule>(layer)),b.template Get<Routes>(layer),
+        reinterpret_cast<int*>(b.template Get<Index>(layer)),b.template Get<X>(layer),
+        reinterpret_cast<std::uint64_t*>(b.template Get<Counter>(layer)),epsilon};
+  }
+  template<int Prefix,class B,class Tail>
+  __device__ static __forceinline__ void Run(B const&,int,char* shared,float,
+      backend::Sm90DenseRingState& ring,Tail tail,backend::Sm90DenseOperandBank const& record,
+      bool streamed) {
+    StageEntry<Body>::template Moe<Prefix>(record.moe,shared,&ring,tail,streamed);
   }
 };
 

@@ -8,6 +8,7 @@ struct ReadSources {
   cutlass::bfloat16_t const* weight=nullptr;
   CUtensorMap const *key=nullptr,*value=nullptr;
   int layer=0;
+  int const* schedule=nullptr;  // MoE routes (prompt §8)
 };
 
 template<class Body,int Tasks>
@@ -25,6 +26,15 @@ struct KvRead {
       backend::Sm90DenseRingState& ring) {
     if constexpr(Bytes>0)if(blockIdx.x<Tasks)
       Body::template Preissue<Bytes>(source.key,source.value,source.layer,past,shared,ring);
+  }
+};
+
+template<class Body>
+struct MoeRead {
+  template<int Bytes>
+  __device__ static __forceinline__ void Prepare(ReadSources source,int,char* shared,
+      backend::Sm90DenseRingState& ring) {
+    if constexpr(Bytes>0)Body::template Preissue<Bytes>(source.weight,source.schedule,shared,ring);
   }
 };
 
@@ -53,6 +63,11 @@ struct StageEntry {
   __device__ static __forceinline__ void Head(backend::Sm90DenseOperands const& p,char* shared,
       backend::Sm90DenseRingState* ring,Tail tail,bool streamed,Finish finish) {
     Body::template Run<Prefix,Tail,Finish>(p,shared,ring,tail,streamed,finish);
+  }
+  template<int Prefix,class Tail>
+  __device__ static __forceinline__ void Moe(backend::Sm90DenseMoeOperands const& p,char* shared,
+      backend::Sm90DenseRingState* ring,Tail tail,bool streamed) {
+    Body::template Run<Prefix,Tail>(p,shared,ring,tail,streamed);
   }
   template<int Prefix,class Tail>
   __device__ static __forceinline__ void Attention(backend::Sm90DenseAttentionOperands const& p,
