@@ -99,14 +99,32 @@ inline int Launch(Plan& p,unsigned first,unsigned count,unsigned mode,
   if(mode!=TM_SERVING_L1 || !count || first>=p.steps || count>p.steps-first ||
      iteration!=p.iteration)return -1;
   dim3 const threads(NativeProgram::kThreads,RoleLaunch::kY,RoleLaunch::kZ);
-  sm90_dense_native_kernel<NativeProgram><<<p.grid,threads,
-      NativeProgram::kSharedBytes,static_cast<cudaStream_t>(stream)>>>(p.bindings,p.pasts,
-      first,count,kNativeEpsilon,p.events,iteration,p.stamps,p.trace
+  cudaError_t status=cudaSuccess;
+  if constexpr(NativeProgram::kCluster>1) {
+    // D10b/D10c: consecutive ranks form one cluster.
+    cudaLaunchConfig_t config{};
+    config.gridDim=dim3(p.grid);config.blockDim=threads;
+    config.dynamicSmemBytes=NativeProgram::kSharedBytes;config.stream=static_cast<cudaStream_t>(stream);
+    cudaLaunchAttribute attribute{};
+    attribute.id=cudaLaunchAttributeClusterDimension;
+    attribute.val.clusterDim.x=NativeProgram::kCluster;attribute.val.clusterDim.y=1;attribute.val.clusterDim.z=1;
+    config.attrs=&attribute;config.numAttrs=1;
+    status=cudaLaunchKernelEx(&config,sm90_dense_native_kernel<NativeProgram>,p.bindings,p.pasts,
+        first,count,kNativeEpsilon,p.events,iteration,p.stamps,p.trace
 #if TILEMEGA_NATIVE_RELEASE_ENABLED
-      ,p.release_trace
+        ,p.release_trace
 #endif
-      );
-  auto status=cudaGetLastError();
+        );
+  }else {
+    sm90_dense_native_kernel<NativeProgram><<<p.grid,threads,
+        NativeProgram::kSharedBytes,static_cast<cudaStream_t>(stream)>>>(p.bindings,p.pasts,
+        first,count,kNativeEpsilon,p.events,iteration,p.stamps,p.trace
+#if TILEMEGA_NATIVE_RELEASE_ENABLED
+        ,p.release_trace
+#endif
+        );
+  }
+  if(status==cudaSuccess)status=cudaGetLastError();
   if(status==cudaSuccess) {
 #if TILEMEGA_TRACE_NATIVE_BOUNDARY
     for(unsigned i=0;i<count;++i) {
@@ -123,7 +141,9 @@ inline int Launch(Plan& p,unsigned first,unsigned count,unsigned mode,
 
 extern "C" int tm_plan_static_dense_abi() {return 1;}
 extern "C" unsigned tm_plan_pdl_enabled(void*) {return 0;}
-extern "C" unsigned tm_plan_cluster_dim() {return 1;}
+extern "C" unsigned tm_plan_cluster_dim() {
+  return tilemega::codegen::native_dense::NativeProgram::kCluster;
+}
 extern "C" unsigned tm_plan_requested_residency() {
   return tilemega::codegen::native_dense::NativeProgram::kResidency;
 }
@@ -180,6 +200,20 @@ extern "C" void* tm_plan_create(int batch,void* const* external,int device) {
         NativeProgram::kThreads,NativeProgram::kSharedBytes));
     if(resident<NativeProgram::kResidency)
       throw std::invalid_argument("native dense plan exceeds measured residency");
+    if constexpr(NativeProgram::kCluster>1) {
+      // Every cluster of the persistent grid must be resident at once.
+      cudaLaunchConfig_t config{};
+      config.gridDim=dim3(plan->grid);config.blockDim=dim3(NativeProgram::kThreads);
+      config.dynamicSmemBytes=NativeProgram::kSharedBytes;
+      cudaLaunchAttribute attribute{};
+      attribute.id=cudaLaunchAttributeClusterDimension;
+      attribute.val.clusterDim.x=NativeProgram::kCluster;attribute.val.clusterDim.y=1;attribute.val.clusterDim.z=1;
+      config.attrs=&attribute;config.numAttrs=1;
+      int clusters=0;
+      Check(cudaOccupancyMaxActiveClusters(&clusters,kernel,&config));
+      if(plan->grid%NativeProgram::kCluster || clusters*NativeProgram::kCluster<plan->grid)
+        throw std::invalid_argument("native cluster grid exceeds the co-resident clusters");
+    }
     for(unsigned i=0;i<kNativeBuffers.size();++i) {
       auto const& desc=kNativeBuffers[i];
       auto* pointer=epilogue_contract::BindBuffer(metadata[i],batch,required[i],

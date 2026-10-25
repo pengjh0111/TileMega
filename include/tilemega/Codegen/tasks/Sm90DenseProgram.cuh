@@ -71,6 +71,9 @@ struct alignas(64) Bindings {
 };
 
 struct alignas(64) GridCounter {unsigned long long arrivals;};
+// D10c: whether a typed stage multicasts its activation (GEMM stages only).
+template<class S,class=void> inline constexpr bool kMulticasts=false;
+template<class S> inline constexpr bool kMulticasts<S,std::void_t<decltype(S::kMulticast)>> =S::kMulticast;
 // One rank-3/4 SWIZZLE_128B descriptor over a bound buffer (codegen-emitted).
 struct NativeTensorMap {
   unsigned buffer,rank;
@@ -115,9 +118,10 @@ __device__ inline unsigned long long Now() {
 // is folded into the packed weight (qkv, gate_up, lm_head).
 template<int Batch,int N,int K,int TN,int TK,int Slots,int WN,int WK,
          backend::ServingEpilogueOp Op,int U,bool InputNorm,unsigned W,unsigned C,
-         unsigned D,unsigned Index,int RegisterStages,unsigned Map>
+         unsigned D,unsigned Index,int RegisterStages,unsigned Map,bool Multicast=false>
 struct Gemm {
-  using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,InputNorm,RegisterStages>;
+  using Body=backend::Sm90DenseGemm<Batch,N,K,TN,TK,Slots,WN,WK,Op,U,InputNorm,RegisterStages,Multicast>;
+  static constexpr bool kMulticast=Multicast;
   static constexpr int kBatch=Batch,kTasks=N/TN,kSharedBytes=Body::kSharedBytes;
   static constexpr bool kUsesOperandRecord=true;
   static constexpr int kRingSlots=Slots;
@@ -151,15 +155,17 @@ struct Gemm {
 template<int Batch,int Hkv,int D,int Q,bool Norm,int Chunks,int Keys,int Slots,int RowWork,
          int Capacity,unsigned Qkv,unsigned Key,unsigned Value,unsigned Output,
          unsigned Cosine,unsigned Sine,unsigned QNorm,unsigned KNorm,
-         unsigned Partial,unsigned Lse,unsigned Arrivals,unsigned KeyMap,unsigned ValueMap>
+         unsigned Partial,unsigned Lse,unsigned Arrivals,unsigned KeyMap,unsigned ValueMap,bool Dsmem=false>
 struct Attention {
   static constexpr bool kUsesOperandRecord=true;
-  using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity>;
+  using Body=backend::Sm90DenseAttentionBody<Batch,Hkv,D,Q,Norm,Chunks,Keys,Slots,RowWork,Capacity,Dsmem>;
+  // D10b: the leader's inbox barrier counts its S - 1 peer chunks.
+  static constexpr int kInboxWriters=Dsmem?Chunks-1:0;
   static constexpr int kTasks=Body::kTasks,kSharedBytes=Body::kSharedBytes;
   // Task t serves KV group t / (Batch Chunks) (D8).
   static constexpr int kGroupTasks=Batch*Chunks,kGroups=Hkv;
   static constexpr int kRingSlots=Slots,kMaxPreissue=Body::kMaxPreissue;
-  static constexpr auto kLayout=backend::Sm90DenseLayout::Attention(D,Q,Chunks,Keys,Slots);
+  static constexpr auto kLayout=backend::Sm90DenseLayout::Attention(D,Q,Chunks,Keys,Slots,Dsmem);
   static_assert(kLayout.end==kSharedBytes);
   using Preissue=KvRead<Body,kTasks>;
   template<int Bytes>
@@ -346,8 +352,11 @@ struct LayerGroup {
 // over the same group code that the unrolled form instantiates once per
 // group (DT-3). With Embed the head's last arriver writes the next step's
 // embedding and the prologue runs only before a request's step 0.
+// Cluster (D10b/D10c): CTAs launch in clusters of that many consecutive
+// ranks; DSMEM merges and activation multicast stay within one cluster.
 template<int Batch,int Capacity,int Residency,unsigned Buffers,unsigned Maps,int Arena,
-         int Layers,unsigned LayerSlots,bool Loop,bool Embed,class Prologue,class Group,class LmHead>
+         int Layers,unsigned LayerSlots,bool Loop,bool Embed,class Prologue,class Group,class LmHead,
+         int Cluster=1>
 struct Program {
   using Binding=Bindings<Buffers,Maps,Layers,LayerSlots>;
   using GroupStages=typename Group::Stages;
@@ -371,6 +380,35 @@ struct Program {
       "a group-waiting qkv stage feeds the attention stage of its KV groups");
   static_assert(Layers%Group::kLayers==0,"layer groups cover the layers exactly");
   static constexpr bool kEmbed=Embed;
+  static constexpr int kCluster=Cluster;
+  static_assert(Cluster==1 || Cluster==2,"native clusters pair CTAs (the measured grids)");
+  template<unsigned... J>
+  static constexpr bool ClusterStages(std::integer_sequence<unsigned,J...>) {
+    return ((Cluster>1 || !kMulticasts<GroupStage<J>>) && ...) && (Cluster>1 || !kMulticasts<LmHead>) &&
+        (Cluster>1 || GroupStage<1>::kInboxWriters==0);
+  }
+  static_assert(ClusterStages(std::make_integer_sequence<unsigned,Group::kSize>{}),
+      "DSMEM merges and multicast stages need a cluster launch");
+  static constexpr int kInboxWriters=GroupStage<1>::kInboxWriters;
+  // D10b/D10c barriers: peer releases of both rings, the merge inbox; then
+  // one release per peer slot so each issuer's first wait completes.
+  __device__ static __forceinline__ void ClusterInitialize(char* shared) {
+    using Async=codegen::executor::Async<arch::Sm90>;
+    auto* rings=reinterpret_cast<backend::Sm90DenseRingState*>(shared);
+    auto& cluster=backend::Sm90DenseClusterState::Of(shared);
+    if(threadIdx.x==0) {
+      for(int r=0;r<2;++r)for(int i=0;i<4;++i)Async::Init(rings[r].peer+i,128);
+      Async::Init(&cluster.inbox,kInboxWriters?kInboxWriters:1);
+      cluster.inbox_generation=0;cluster.peer_generations[0]=0;cluster.peer_generations[1]=0;
+      Async::InitFence();
+    }
+    __syncthreads();
+    Async::ClusterSync();
+    if(threadIdx.x<128) {
+      unsigned peer=Async::ClusterRank()^1u;
+      for(int r=0;r<2;++r)for(int i=0;i<4;++i)Async::RemoteArrive(Async::Mapa(rings[r].peer+i,peer));
+    }
+  }
   // The head's per-CTA partials reuse its [B][tasks] outputs.
   static constexpr int kHeadMaxGrid=LmHead::kMaxGrid;
   using RoleLaunch=backend::Sm90DenseRoleLaunch<kThreads>;
@@ -655,6 +693,7 @@ void sm90_dense_native_kernel(const __grid_constant__ typename P::Binding b,
   }
 #endif
   rings[1].Initialize();
+  if constexpr(P::kCluster>1)P::ClusterInitialize(shared);
 #if TILEMEGA_TRACE_NATIVE_PHASES
   if(threadIdx.x<128 && (threadIdx.x&31)==0)
     backend::Sm90DenseDiagnostic::Context(shared).previous_release_clock[threadIdx.x/32]=
@@ -680,6 +719,8 @@ void sm90_dense_native_kernel(const __grid_constant__ typename P::Binding b,
 #endif
     if(blockIdx.x==0 && threadIdx.x==0 && step_ns)step_ns[first+step+1]=Now();
   }
+  // No peer may still address this CTA's shared memory when it exits.
+  if constexpr(P::kCluster>1)codegen::executor::Async<arch::Sm90>::ClusterSync();
   rings[0].Invalidate();rings[1].Invalidate();
 }
 
