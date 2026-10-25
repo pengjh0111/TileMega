@@ -4,6 +4,7 @@
 #include <tilemega/Backend/Sm90DenseRoles.cuh>
 
 #include <tilemega/Backend/Sm90DenseEpilogue.h>
+#include <tilemega/Backend/Sm90DenseHead.cuh>
 #include <tilemega/Backend/Sm90DenseRing.cuh>
 #include <tilemega/Backend/Sm90DenseLayout.h>
 #include <cute/tensor.hpp>
@@ -174,13 +175,19 @@ struct Sm90DenseGemm {
     if constexpr(I+1<TK/(16*WarpsK))MmaSteps<Split,I+1>(mma,ra,rb,as,bs,ad,bd,accum,squares);
   }
 
+  template<class Finish>
   __device__ static __noinline__ void Consume(Sm90DenseOperands const& p,
       Sm90DenseRingState& state,Element* a,Element* b,float* scratch,Element* residual,
-      int tasks,unsigned phase) {
+      int tasks,unsigned phase,Finish finish) {
     Sm90DenseRoles::Consumer();
     using namespace cute;
     int tid=threadIdx.x,lane=tid%(32*WarpsN),split=tid/(32*WarpsN);
     float* norms=scratch+WarpsK*16*TN;
+    // Argmax: the CTA's per-row (value, index) over its tasks (D9), after the
+    // WK x 16 partial squares in the 512-byte statistics area.
+    float* best=norms+64;int* arg=reinterpret_cast<int*>(norms+80);
+    if constexpr(Op==ServingEpilogueOp::kArgmaxPartial)
+      if(tid<16) {best[tid]=-INFINITY;arg[tid]=INT_MAX;}
     unsigned side=state.side_generations[0]|state.side_generations[1]<<1;
     Mma mma;auto thread=mma.get_slice(lane);
     auto owned=thread.partition_C(make_identity_tensor(Shape<_16,Int<TN>>{}));
@@ -237,10 +244,18 @@ struct Sm90DenseGemm {
             norms[split*16+row]=squares[0];norms[split*16+row+8]=squares[1];
           }
         codegen::executor::ComputeSync();
-        Epilogue::template Shared<WarpsK>(scratch,norms,tile_residual,p.output,p.argmax_index,
+        if constexpr(Op==ServingEpilogueOp::kArgmaxPartial)
+          Epilogue::template Shared<WarpsK>(scratch,norms,tile_residual,
+              reinterpret_cast<Element*>(best),arg,task,p.epsilon);
+        else Epilogue::template Shared<WarpsK>(scratch,norms,tile_residual,p.output,p.argmax_index,
             task,p.epsilon);
         codegen::executor::ComputeSync();
       }
+    }
+    // Every task has been consumed: the operand slots are free.
+    if constexpr(Op==ServingEpilogueOp::kArgmaxPartial) {
+      codegen::executor::ComputeSync();
+      finish(p,state,best,arg,reinterpret_cast<char*>(a),kOperandBytes);
     }
     if(tid==0 && tasks) {
       for(int slot=0;slot<Slots;++slot)state.consumer_generations[slot]=(phase>>slot)&1;
@@ -248,9 +263,11 @@ struct Sm90DenseGemm {
     }
   }
 
-  template<int Prefix=0,class Tail=Sm90DenseNoTail>
+  template<int Prefix=0,class Tail=Sm90DenseNoTail,class Finish=Sm90DenseNoFinish>
   __device__ static __forceinline__ void Run(Sm90DenseOperands const& p,char* shared,
-      Sm90DenseRingState* persistent=nullptr,Tail tail={},bool streamed=true) {
+      Sm90DenseRingState* persistent=nullptr,Tail tail={},bool streamed=true,Finish finish={}) {
+    static_assert(Op==ServingEpilogueOp::kArgmaxPartial ||
+        std::is_same_v<Finish,Sm90DenseNoFinish>,"only lm_head finishes with the folded argmax");
     static_assert(Prefix>=0 && Prefix%16==0 &&
         Prefix<=(Slots<kIterations?Slots:kIterations)*2*TN*TK);
     static_assert(!arch::kDevicePass || arch::kSm90AllAvailable,
@@ -267,7 +284,7 @@ struct Sm90DenseGemm {
     // Each role publishes only its own phases, after its readers have joined.
     // The previous stage's final CTA join makes the two snapshots consistent.
     int tasks=(N/TN)/int(gridDim.x)+(int(blockIdx.x)<(N/TN)%int(gridDim.x));
-    if(threadIdx.x<128)Consume(p,state,a,b,scratch,residual,tasks,phase);
+    if(threadIdx.x<128)Consume(p,state,a,b,scratch,residual,tasks,phase,finish);
     else {
       Produce<Prefix>(p,state,a,b,residual,tasks,phase,streamed);
       if(threadIdx.x==128)tail();

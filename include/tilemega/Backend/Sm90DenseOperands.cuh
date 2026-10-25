@@ -31,12 +31,22 @@ struct Sm90DenseAttentionOperands {
   float epsilon;
   int layer;
 };
+// lm_head with the folded argmax (D9): the next tokens, lm_ctr, and for the
+// LA embedding the table and the residual stream x.
+struct Sm90DenseHeadOperands {
+  int* tokens;
+  std::uint64_t* counter;
+  cutlass::bfloat16_t const* table;
+  cutlass::bfloat16_t* x;
+  int past;
+};
 // Thread zero fully initializes the active member for the next stage. That
 // member is immutable from the V3 CTA join until the stage's complete return.
 // The other member is not read by the stage or its preissue tail.
 struct alignas(16) Sm90DenseOperandBank {
   alignas(16) Sm90DenseOperands gemm;
   alignas(16) Sm90DenseAttentionOperands attention;
+  alignas(16) Sm90DenseHeadOperands head;
 };
 struct Sm90DenseOperandHeader {
   static constexpr int kOffset=2*sizeof(Sm90DenseRingState);
@@ -44,12 +54,13 @@ struct Sm90DenseOperandHeader {
   static_assert(sizeof(void*)==8 && sizeof(Sm90DenseOperands)==48);
   static_assert(sizeof(float)==4 && offsetof(Sm90DenseOperands,epsilon)==40);
   static_assert(sizeof(Sm90DenseAttentionOperands)==120);
-  static_assert(sizeof(Sm90DenseOperandBank)==176 && alignof(Sm90DenseOperandBank)==16);
+  static_assert(sizeof(Sm90DenseHeadOperands)==40);
+  static_assert(sizeof(Sm90DenseOperandBank)==224 && alignof(Sm90DenseOperandBank)==16);
   static_assert(offsetof(Sm90DenseOperandBank,gemm)==0 &&
       offsetof(Sm90DenseOperandBank,attention)==48);
   static_assert(sizeof(Sm90DenseRingState)==256 && alignof(Sm90DenseRingState)==16);
   static_assert(kOffset==512 && kOffset%alignof(Sm90DenseOperandBank)==0);
-  static_assert(kEnd==864 && kEnd<=1024);
+  static_assert(kEnd==960 && kEnd<=1024);
   static_assert(std::is_standard_layout_v<Sm90DenseOperandBank> &&
       std::is_trivially_copyable_v<Sm90DenseOperandBank>);
   __device__ static __forceinline__ Sm90DenseOperandBank& Bank(char* arena,unsigned stage) {
