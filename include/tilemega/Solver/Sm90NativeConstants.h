@@ -25,6 +25,8 @@ class Sm90NativeConstants {
   // t_argmax_la: a stage of per-CTA partials, lm_ctr and the last arriver's
   // B x G reduction, including its V3 barrier (D9).
   double ArgmaxLa(int grid,int batch) const;
+  // t_route_la: M4's last arriver (top-k, routes, schedule) plus V3 (§8).
+  double RouteLa(int grid,int batch) const;
   // D2 body: one 64-key block (data resident), q preparation, S-chunk merge.
   double AttentionBlock(int dim,int queries,bool norm) const;
   double AttentionPrepare(int dim,int queries,bool norm) const;
@@ -35,7 +37,7 @@ class Sm90NativeConstants {
   json::Value section;
  private:
   std::map<int,double> barrier_;
-  json::Value epilogue_,embedding_,argmax_la_,attention_;
+  json::Value epilogue_,embedding_,argmax_la_,route_la_,attention_;
   json::Value const& AttentionShape(int dim,int queries,bool norm) const;
 };
 

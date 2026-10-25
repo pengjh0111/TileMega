@@ -23,14 +23,19 @@ double Sm90DenseCostModel::Gemm(Sm90DenseWorkload const& work,unsigned family,
     Sm90DenseGemm const& g,int residency,json::Value* terms,bool pre) const {
   auto const& c=constants_;
   int grid=Grid(residency),n=work.shapes[family][0],k=work.shapes[family][1],b=work.batch;
-  double tasks=n/g.tile_n,per_cta=std::ceil(tasks/grid);
-  double w_tot=2.0*n*k,a_tot=tasks*b*k*2.0;
-  double w_cta=per_cta*g.tile_n*k*2.0,a_cta=per_cta*b*k*2.0;
+  // MoE experts (prompt §8): n_active x N/TN tasks over n_active expert
+  // stacks; gate_up gathers each expert's rows, down reads R_A-row boxes.
+  double active=family>=6?128.0*(1-std::pow(1-8.0/128,b)):1;
+  double rows=family==6?b*8.0/active:family==7?(b<=8?8:16):b;
+  double tasks=n/g.tile_n*active,per_cta=std::ceil(tasks/grid);
+  double w_tot=2.0*n*k*active,a_tot=tasks*rows*k*2.0;
+  double w_cta=per_cta*g.tile_n*k*2.0,a_cta=per_cta*rows*k*2.0;
   // D3: weights (bulk) and activations (TMA) share one CTA's async stream.
   double cta=(w_cta+a_cta)/c.sm_gbps;
   double ring=w_cta*c.dram_latency/(double(g.slots)*g.slot_bytes);
   double stream=std::max({w_tot/c.dram_gbps,(w_tot+a_tot)/c.l2_gbps,cta,ring});
-  static constexpr char const* kEpilogue[]={"qkv","residual","gate_up","residual","lm_head"};
+  static constexpr char const* kEpilogue[]={"qkv","residual","gate_up","residual","lm_head",
+      "router","expert_gate_up","expert_down"};
   double epilogue=c.Epilogue(kEpilogue[family],g.tile_n,b,g.warps_k);
   double first=pre?c.l2_latency:c.dram_latency;
   double total=c.Barrier(grid)+first+stream+epilogue;
@@ -60,23 +65,27 @@ double Sm90DenseCostModel::Attention(Sm90DenseWorkload const& work,
 Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
                                                 Sm90DenseCoordinates const& c) const {
   Sm90DensePrediction p;
-  static constexpr char const* kKinds[]={"qkv","o","gate_up","down","lm_head"};
   // DT-1 model rule (prompt §6 D6): a GEMM stage whose predecessor is fully
   // resident takes pre; full-width attention breaks both of its boundaries.
+  // MoE (§8): M5 never takes pre (M4's routes are unknown to its producer).
   int arena=Sm90DenseArena(Sm90DenseSharedBudget(target_,c.residency));
   bool wide=c.attention.FullWidth(work.head_dim,work.queries,arena);
   auto resident=[&](unsigned f) {return c.gemms[f].FullyResident(work.shapes[f][1]);};
-  std::array<bool,5> pre{c.weight_stream && resident(3),
-      c.weight_stream && !wide && c.attention.FullyResident(575),
-      c.weight_stream && resident(1),c.weight_stream && resident(2),c.weight_stream && resident(3)};
-  for(unsigned f=0;f<5;++f) {
+  unsigned last=c.moe?7:3;  // the layer's final GEMM, before the next qkv
+  std::array<bool,8> pre{};
+  pre[0]=c.weight_stream && resident(last);
+  pre[1]=c.weight_stream && !wide && c.attention.FullyResident(575);
+  pre[4]=c.weight_stream && resident(last);
+  if(c.moe) {pre[5]=c.weight_stream && resident(1);pre[7]=c.weight_stream && resident(6);}
+  else {pre[2]=c.weight_stream && resident(1);pre[3]=c.weight_stream && resident(2);}
+  for(unsigned f:c.Active()) {
     // Layer 0's qkv follows the ring-less embedding.
     int instances=f==4?1:f==0 && pre[0]?work.layers-1:work.layers;
-    Sm90DensePrediction::Stage s{kKinds[f],instances};
+    Sm90DensePrediction::Stage s{kSm90DenseFamilies[f],instances};
     s.ns=Gemm(work,f,c.gemms[f],c.residency,&s.terms,pre[f]);
     p.stages.push_back(std::move(s));
     if(f==0 && pre[0]) {
-      Sm90DensePrediction::Stage first{kKinds[0],1};
+      Sm90DensePrediction::Stage first{kSm90DenseFamilies[0],1};
       first.ns=Gemm(work,0,c.gemms[0],c.residency,&first.terms);
       p.stages.push_back(std::move(first));
     }
@@ -84,6 +93,15 @@ Sm90DensePrediction Sm90DenseCostModel::Predict(Sm90DenseWorkload const& work,
   Sm90DensePrediction::Stage s{"attention",work.layers};
   s.ns=Attention(work,c.attention,c.residency,&s.terms);p.stages.push_back(std::move(s));
   int grid=Grid(c.residency);
+  if(c.moe) {
+    // M4's last arriver (top-k and the schedule, beyond its barrier); M6's
+    // per-tile last arriver reads P and x' and writes x''.
+    p.stages.push_back({"route_la",work.layers,constants_.RouteLa(grid,work.batch)-constants_.Barrier(grid),
+        json::Value()});
+    double tile=c.gemms[7].tile_n*double(work.batch);
+    p.stages.push_back({"combine_la",work.layers,
+        constants_.l2_latency+(9*tile*4+tile*2)/constants_.sm_gbps,json::Value()});
+  }
   // D9: the head's last arriver reduces the argmax (beyond the head's own
   // barrier) and, with emb = LA, reads B table rows and writes them to x.
   p.stages.push_back({"argmax_la",1,constants_.ArgmaxLa(grid,work.batch)-constants_.Barrier(grid),

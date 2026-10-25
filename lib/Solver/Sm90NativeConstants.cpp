@@ -32,6 +32,7 @@ Sm90NativeConstants Sm90NativeConstants::FromTarget(json::Value const& target,st
   c.sm_gbps=Positive(s.At("sm_gbps"),"sm bandwidth");
   c.cp_async_gbps=Positive(s.At("activation_cp_async_gbps"),"cp.async activation bandwidth");
   c.epilogue_=s.At("epilogue_ns");c.embedding_=s.At("embedding_ns");c.argmax_la_=s.At("argmax_la_ns");
+  c.route_la_=s.At("route_la_ns");
   c.attention_=s.At("attention_ns");
   return c;
 }
@@ -61,6 +62,12 @@ double Sm90NativeConstants::ArgmaxLa(int grid,int batch) const {
   auto const* b=g?g->Find(std::to_string(batch)):nullptr;
   if(!b)throw Sm90NativeMissing("no measured last-arriver argmax for grid "+std::to_string(grid));
   return Positive(*b,"argmax last arriver");
+}
+double Sm90NativeConstants::RouteLa(int grid,int batch) const {
+  auto const* g=route_la_.Find("g"+std::to_string(grid));
+  auto const* b=g?g->Find(std::to_string(batch)):nullptr;
+  if(!b)throw Sm90NativeMissing("no measured MoE route last arriver for grid "+std::to_string(grid));
+  return Positive(*b,"route last arriver");
 }
 json::Value const& Sm90NativeConstants::AttentionShape(int dim,int queries,bool norm) const {
   auto key="d"+std::to_string(dim)+":q"+std::to_string(queries)+":norm"+std::to_string(int(norm));

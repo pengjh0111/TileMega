@@ -7,7 +7,7 @@ namespace tilemega::solver {
 void Sm90DenseSearchSpace::Structure(Sm90DenseCoordinates& c) {
   if(c.attention.chunks==1)c.attention.new_row_work=0;
   c.swiglu_u=16;
-  while(c.gemms[2].tile_n%(2*c.swiglu_u) && c.swiglu_u>4)c.swiglu_u/=2;
+  if(!c.moe)while(c.gemms[2].tile_n%(2*c.swiglu_u) && c.swiglu_u>4)c.swiglu_u/=2;
 }
 
 bool Sm90DenseSearchSpace::Legal(Sm90DenseCoordinates const& c) const {
@@ -30,9 +30,20 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
   int arena=Sm90DenseArenaBytes(budget);
   bool residual=Sm90DenseCoordinates::ResidualFamily(family);
   std::vector<int> tiles,depths;
+  // Tasks of the busiest CTA: experts run n_active x N/TN tasks (§8).
+  auto tasks=[&](int tn) {
+    double count=double(n/tn)*(family>=6?ExpectedActive():1);
+    return std::ceil(count/grid);
+  };
   if(family==4) {
     for(int tn:{128,256})if(n%tn==0)tiles.push_back(tn);
     depths={64,128,256};
+  }else if(family>=5) {
+    // M4: TN8, 16 tasks; M5: TN in {96, 192} (B1 only 96); M6: {128, 256}.
+    if(family==5)tiles={8};
+    else if(family==6)tiles=batch==1?std::vector<int>{96}:std::vector<int>{96,192};
+    else tiles={128,256};
+    for(int tk=64;tk<=2048;tk*=2)depths.push_back(tk);
   }else {
     for(int tn=8;tn<=n;tn+=8)
       if(n%tn==0 && n/tn*4>=grid && n/tn<=2*grid)tiles.push_back(tn);
@@ -43,7 +54,7 @@ std::vector<Sm90DenseGemm> Sm90DenseSearchSpace::FamilyCandidates(unsigned famil
     for(int tk:depths) {
       if(k%tk)continue;
       Sm90DenseGemm g;g.tile_n=tn;g.warps_n=wn;g.warps_k=4/wn;g.slot_bytes=2*tn*tk;
-      double w_cta=double((n/tn+grid-1)/grid)*tn*k*2;
+      double w_cta=tasks(tn)*tn*k*2;
       auto fits=[&] {return g.SharedBytes(batch,residual)-1024<=arena;};
       // D5 ring rule: the whole task in flight when it fits the arena in at
       // most eight slots; otherwise the fewest slots covering min(W_cta, 48 KB).
