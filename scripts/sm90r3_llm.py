@@ -27,6 +27,12 @@ MODELS = {
 }
 
 
+def arm_root(arm):
+    # An arm built by another worktree runs under that tree's harness: each
+    # tree's native contract certifies only the artifacts its codegen emits.
+    return Path(arm.get('root', ROOT))
+
+
 def processes(model):
     return 5 if model in ('llama3_1_8b', 'qwen3_30b_a3b') else 3
 
@@ -73,6 +79,9 @@ def queue(a):
             if not Path(arm[phase]).is_file():
                 raise FileNotFoundError(arm[phase])
         arm['decode_sha256'], arm['prefill_sha256'] = sha(arm['decode']), sha(arm['prefill'])
+        root = arm_root(arm)
+        arm['root_commit'] = subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'],
+                                                     text=True).strip()
     write(spec_path, spec)
     sequence = spec.get('order') or order(kind, labels, model)
     policy = read(POLICY)
@@ -115,6 +124,7 @@ def measure(a):
         if sha(arm[phase]) != arm[phase + '_sha256']:
             raise ValueError('artifact changed after queueing: ' + phase)
     model_dir, prompt, gib = MODELS[spec['model']]
+    root = arm_root(arm)
     a.out.mkdir(parents=True, exist_ok=True)
     child = [PYTHON, str(Path(__file__).resolve()), 'child', '--spec', str(a.spec.resolve()),
              '--arm', a.arm, '--fresh', str(a.fresh), '--out', str(a.out.resolve())]
@@ -136,7 +146,7 @@ def measure(a):
         slots = [int(p.name.split('-')[1]) for p in markers.glob('go-*')]
         wait_for([markers / f'done-{k}-{g}' for k in slots for g in dt0['cohort_gpus']], 1800)
     try:
-        status = subprocess.call(command, cwd=ROOT, env=dict(os.environ, PYTHONPATH=str(ROOT / 'python')))
+        status = subprocess.call(command, cwd=root, env=dict(os.environ, PYTHONPATH=str(root / 'python')))
     finally:
         if concurrent:
             (markers / f'stop-{a.fresh}').touch()
@@ -179,6 +189,7 @@ def child(a):
     spec = read(a.spec)
     arm = spec['arms'][a.arm]
     model_dir, prompt, _ = MODELS[spec['model']]
+    root = arm_root(arm)
     checkpoint = os.environ['TILEMEGA_RANDOM_CHECKPOINT']
     out = a.out / 'measurements'
     command = [PYTHON, '-m', 'tilemega.serving.r16_run', '--prefill', arm['prefill'], '--decode', arm['decode'],
@@ -190,7 +201,7 @@ def child(a):
         command.append('--check-step-loop')
     if correctness.get('c1'):
         command += ['--hf-check', '--hf-positions', str(correctness['c1'])]
-    status = subprocess.call(command, cwd=ROOT)
+    status = subprocess.call(command, cwd=root)
     if status or not correctness.get('hf64'):
         return status
     reference = read(out / 'reference_tokens.json')
@@ -198,7 +209,7 @@ def child(a):
     prefix.write_text(json.dumps([row[:64] for row in reference]) + '\n')
     return subprocess.call([PYTHON, '-m', 'tilemega.serving.hf_check', '--model', checkpoint,
                             '--prompt-ids', str(ROOT / prompt), '--generated', str(prefix),
-                            '--out', str(out / 'hf64.json')], cwd=ROOT)
+                            '--out', str(out / 'hf64.json')], cwd=root)
 
 
 def span(values):
