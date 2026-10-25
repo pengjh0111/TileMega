@@ -716,15 +716,39 @@ the live host changed during schema3 adoption; old refs/archives remain unchange
 It cannot approve current source execution. Raw:
 `runs/mx5/qwenB1_min576_budget_v1_61/REVIEW_QUERIED.md`.
 
-The new idle-group Prefetch guard is still copied-only. Main's §4.8#1 idle
-TileRange groups can issue unwanted AS1 loads; the copied uniform active/chunk
-guard removes only that path, retaining eligible kLoads, per-compute-wave next()
-and P-B issue order. Static requested useless bytes are not measured DRAM traffic
-or a speedup. Actual allocated ring waits do change despite unchanged ring source.
-Its new G/H/A closures cannot borrow old-source calibration. Strict whole-family
-resource checks admit40 five-fresh unit jobs and keep20 blocked jobs unexecuted;
-this campaign is still running, not a completed synchronization/numerical pass.
-Raw: `runs/mx5/gemm_inactive_prefetch_v3_61/`. No candidate body patch is in main.
+Verified update:3843f6477 adopts the §4.8#1 idle-group Prefetch fix after
+40/40 guarded fresh-process jobs pass (eight admitted families×five;40 distinct
+test PIDs). Rejected576 complete families were never executed. The four new
+null-idle test files are byte-identical to the tested frozen sources; the build
+helper's `--null-idle` accepts only GEMM/head unit sources and rejects benches.
+Eligible kLoads, per-compute-wave next() and P-B source issue order stay fixed;
+actual allocated ring waits change. No speed gain follows from omitted requests.
+New G/H/A closures cannot borrow old-source calibration. Raw:
+`runs/mx5/prefetch_guard_root_validation_v1/verified_summary.json`.
+
+Real native QwenB1 fixed-Pw=D controls omit historical R_next metadata and use an
+immutable archived producer. WD0 MT251/WD1 MT255,both frame0/static0,15 clean
+MIR rings/no generic/private/calls; actual occupancy queries API0/resident1,
+zero launch. WD1 passes512-step C-1/C-2 (max gap0.015625,mismatch0), with the
+entire token record exactly equal to the old control. These are manual controls.
+Same-card P-PAIR order old1/guard1/old2/guard2,each fresh,warm1+timed2,step-events0:
+old2.026855987/2.026719919ms,guard2.035135174/2.034372341ms. Medians
+2.026787953/2.034753758ms,+0.393026%,below1% and indistinguishable. Relative to
+stored MX4 1.983551895ms,the guard median is still about2.58% slower: G-PROGRAM
+remains open. This is not a solver-selected result or a default change. All four
+rounds,one check and two resource records append to the CSVs without editing
+old rows. Raw:`runs/mx5/prefetch_guard_e2e_v1/`.
+
+A separate attention candidate shares per-(q,w) M/Exp2 factors in wave zero's
+dead prefix (9Q floats≤64+D/2), preserving fixed wave accumulation order and
+adding one warp+one existing CTA sync. Normal QwenB1 copied-device compile:
+MT251/frame0,15 clean rings,EXP_F32 52→38,but text201784→202904B and MIR
+25566→25712; no code-size/speed benefit is inferred. Its complete512 family
+passes5/5 fresh numerical processes. Four576 D128 libraries remain resource
+rejected. Both chain libraries are whole-ELF,source,allocated-MIR and resource
+identical to the already five-fresh checked guard chains; those GPU checks are
+reused with exact identity proof. Candidate remains off main pending isolated
+real-plan C-1/C-2 and E2E. Raw:`runs/mx5/attention_cta_scalar_share_d7_v1_61/`.
 
 Budget checkpoint 2026-10-26T06:40:28.308091+08:00: union `runs/mx5/gpu_jobs.log` and
 `runs/mx5/llama1b576_domain_v1_61/modern_dispositions_v2/timing_gpu_jobs.log`,
