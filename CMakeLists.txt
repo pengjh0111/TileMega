@@ -940,7 +940,7 @@ if(TILEMEGA_BUILD_TESTS)
     add_executable(sm90_dense_plan_test test/unit/sm90_dense_plan_test.cpp)
     target_link_libraries(sm90_dense_plan_test PRIVATE TileMega::tilemega)
     target_compile_options(sm90_dense_plan_test PRIVATE -UNDEBUG)
-    foreach(test IN ITEMS sm90_dense_gemm sm90_dense_last_arriver sm90_dense_attention sm90_dense_token sm90_dense_epilogue)
+    foreach(test IN ITEMS sm90_dense_gemm sm90_dense_last_arriver sm90_dense_attention sm90_dense_token sm90_dense_epilogue sm90_dense_moe)
       add_executable(${test}_test test/unit/${test}_test.cu)
       target_link_libraries(${test}_test PRIVATE TileMega::tilemega)
       target_compile_options(${test}_test PRIVATE -UNDEBUG
