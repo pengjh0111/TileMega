@@ -32,26 +32,41 @@ def dispatch(manifest, defines, source):
         if number != body or number in placements:
             raise ValueError('native stage placement is ambiguous')
         placements[number] = (int(offset), int(prefix))
-    program = re.search(r'using NativeProgram\s*=\s*Program<(?:\d+,){5}(\d+),', source)
-    arena = int(program[1]) if program else None
+    # Program<batch, capacity, residency, buffers, maps, arena, layers, slots,
+    # loop, Stage_0, LayerPair<Stage_1..Stage_10>, Stage_11, Stage_12> (D7).
+    program = re.search(r'using NativeProgram\s*=\s*Program<(?:\d+,){5}(\d+),(\d+),\d+,(true|false),'
+                        r'Stage_0,LayerPair<Stage_1(?:,Stage_\d+){9}>,Stage_11,Stage_12>;', source)
+    if program is None or (program[3] == 'true') != (manifest['native_dense']['layer_loop'] is True):
+        raise ValueError('native dense program structure differs from its coordinate identity')
+    arena, layers = int(program[1]), int(program[2])
     streaming = manifest['native_dense']['weight_stream'] is True
+    # Every typed stage is placed; the ring-less prologue and final stage sit
+    # in arena 0 and receive no stream.
+    if set(placements) != {str(i) for i in range(13)} or placements['0'] != (0, 0) or \
+            placements['12'] != (0, 0):
+        raise ValueError('native stage placement differs from coordinate identity')
 
     def placement(number, typed, stream, full_width=False):
         # D5 arena i % 2 (attention may take the whole budget); D6 streams
         # either the rule's first slots or nothing (prompt §6).
         found = placements.get(number)
         offsets = {0} if full_width else {(int(number) % 2) * arena}
-        if (typed != 'Body' or found is None or arena is None or found[0] not in offsets or
+        if (typed != 'Body' or found is None or found[0] not in offsets or
                 found[1] not in ((0, stream) if streaming else (0,))):
             raise ValueError('native stage placement differs from coordinate identity')
 
-    aliases = re.findall(r'using (Stage|Body)_(\d+)\s*=\s*Gemm<([^;]+)>;', source)
+    # Typed GEMM stages: qkv, o, gate_up, down of the even (1, 3, 4, 5) and odd
+    # (6, 8, 9, 10) layers of a pair, and the head (11). Manifest GEMM i of
+    # layer l is certified against the typed stage that runs it.
+    aliases = {number: (typed, raw) for typed, number, raw in
+               re.findall(r'using (Stage|Body)_(\d+)\s*=\s*Gemm<([^;]+)>;', source)}
     gemms = manifest['gemms']
-    if len(aliases) != len(gemms):
+    if set(aliases) != {'1', '3', '4', '5', '6', '8', '9', '10', '11'} or len(gemms) != 4*layers + 1:
         raise ValueError('native dense GEMM call count differs from manifest')
     result = []
-    for index, (gemm, alias) in enumerate(zip(gemms, aliases)):
-        typed, number, raw = alias
+    for index, gemm in enumerate(gemms):
+        number = '11' if index == 4*layers else str(1 + 5*((index // 4) % 2) + (0, 2, 3, 4)[index % 4])
+        typed, raw = aliases[number]
         args = raw.split(',')
         # ..., op, U, InputNorm, W, C, D, index, register stages, tensor-map index.
         if len(args) != 17:
@@ -83,6 +98,8 @@ def dispatch(manifest, defines, source):
     attention = re.findall(r'using (Stage|Body)_(\d+)\s*=\s*Attention<([^;]+)>;', source)
     if not attention:
         raise ValueError('native dense attention call is missing')
+    if sorted(number for _, number, _ in attention) != ['2', '7']:
+        raise ValueError('native dense attention call differs from manifest')
     a = manifest['native_dense']['attention']
     expected = [a[k] for k in ('chunks', 'block_keys', 'slots', 'new_row_work')]
     shape = None
